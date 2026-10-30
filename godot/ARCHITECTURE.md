@@ -145,5 +145,17 @@ Blender-generated models (`bpy` runs headless: `$BLENDER_PY script.py`), exporte
 `operative` (enemy human, same rig conventions as `player`), `pickup_health`, `pickup_energy`, `core_gem`, plus generated PBR texture sets for the city and props. Generated audio `assets/audio/*.wav` (numpy synthesis, 44.1 kHz mono 16-bit): the 11 SFX names above plus a looping `music_ambient.wav`.
 Scripts live in `tools/blender/` and `tools/audio/` so everything is reproducible; commit the small outputs.
 
+**Tested asset contract** (exact numbers and rebuild instructions: `tools/blender/README.md`; enforced by `tests/test_assets.gd`, 270 checks):
+- All models: 1 unit = 1 m, origin at ground contact, front = -Z, no collision, **authored at final size: never scale them** (do not apply the prototype's `ENEMY.scale`).
+  Textures are shared files in `assets/textures`, referenced by relative path; `.import` files are committed next to the assets.
+- `player` / `operative` (1.82 m): children `Body`, `LegL` / `LegR` (origin at the hip joint, y = 0.93 m, swing about X) and `Muzzle` (Node3D at the rifle tip, about (0.12, 1.37, -0.92)). The model already faces -Z.
+- Drones: `Body`, `RotorFL/FR/RL/RR` (origin at the hub, spin about local Y), an emissive `Eye`, and `Muzzle` (sentinel and heavy). Body centres at y = 0.95 / 0.82 / 1.40 m (sentinel / striker / heavy);
+  hit radii 0.95 / 0.8 / 1.35 m.
+- Cars: `Body` and `WheelFL/FR/RL/RR` (origin at the axle centre; steer by Y rotation, roll about X). Sizes: sedan 4.75 x 1.86 x 1.48 m, sport 4.45 x 1.92 x 1.20 m, SUV 4.85 x 1.98 x 1.83 m; wheel radius 0.335 / 0.335 / 0.385 m.
+  Recolour by duplicating the surface material whose `resource_name == "Body"` and setting `albedo_color`. Emissive parts: `Headlights`, `Taillights`, `Underglow`, `Glow`.
+- `pickup_health`, `pickup_energy`, `core_gem`: origin at ground level (pickups include a thin emissive ground ring); `core_gem` is 1.62 m tall with the crystal centred at 0.95 m. Bob or hover them by moving the root node.
+- Emissive materials use `emission_energy_multiplier` above 1 so glow/bloom picks them up. Audio: `Sfx.play()` works as is; `music_ambient.wav` loops by itself, so give it its own player about 8-10 dB below the effects.
+- Known limits: characters are procedural hard-surface models without a skeleton (animation is node-based); wet reflections are sky/light highlights because screen-space reflections do not exist in the Mobile renderer.
+
 ## Behaviour numbers
 Port from `../src/*.js` (they were play-tested): speeds, damages, costs, cooldowns, ranges, timings. When the JS and this document differ, this document wins.
