@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#05030f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Quantum Teleportar</title>
+<style>
+  :root{--c:#4ff0ff;--m:#ff3df0;--bad:#ff4466;--ok:#44ff88;--bg:#05030f;
+    --sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px);--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;overscroll-behavior:none;color:#dff;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+  #hud{position:fixed;inset:0;pointer-events:none;display:none;text-shadow:0 0 6px #000,0 0 2px #000}
+  body[data-state=play] #hud,body[data-state=paused] #hud,body[data-state=dead] #hud,body[data-state=win] #hud{display:block}
+  #hud>*{position:absolute}
+  #mini{left:calc(12px + var(--sl));top:calc(12px + var(--st));width:130px;height:130px;border-radius:50%;border:2px solid rgba(79,240,255,.65);box-shadow:0 0 14px rgba(79,240,255,.35)}
+  #obj{left:calc(12px + var(--sl));top:calc(150px + var(--st));font-size:11px;letter-spacing:.08em;color:#ffd9ff;white-space:pre-line;line-height:1.5;max-width:200px}
+  #top{top:calc(8px + var(--st));left:50%;transform:translateX(-50%);text-align:center}
+  #heat{font-size:22px;letter-spacing:.2em;color:#556}
+  #heat.on{color:var(--bad);animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.55}}
+  #credits{font-size:12px;letter-spacing:.2em;color:#bff}
+  #bars{right:calc(12px + var(--sr));top:calc(12px + var(--st));width:190px;text-align:right}
+  .bar{position:relative;height:14px;background:rgba(10,6,30,.7);border:1px solid rgba(255,255,255,.25);margin-bottom:6px}
+  .bar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#ff4466,#ff8a9a);width:100%}
+  .bar.en i{background:linear-gradient(90deg,var(--c),#9b6bff)}
+  .bar span{position:absolute;left:5px;top:-1px;font-size:10px;line-height:14px;letter-spacing:.15em}
+  #ammo{font-size:26px;font-weight:700;color:#fff;margin-top:2px}
+  #feed{margin-top:6px;font-size:11px;color:#bff;line-height:1.5;letter-spacing:.05em}
+  #xhair{left:50%;top:50%;width:calc(26px*var(--s,1));height:calc(26px*var(--s,1));transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.7);border-radius:50%;transition:width .08s,height .08s}
+  #xhair::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px;background:#fff;border-radius:50%}
+  #hitm{left:50%;top:50%;transform:translate(-50%,-50%);font-size:30px;color:#fff;opacity:0}
+  #hitm.kill{color:var(--bad)}
+  #msg{left:50%;bottom:24%;transform:translateX(-50%);font-size:clamp(13px,2.4vw,20px);font-weight:700;letter-spacing:.14em;text-align:center;width:90%;color:#ffe9ff;opacity:0}
+  #hint{left:50%;bottom:calc(14% + var(--sb));transform:translateX(-50%);font-size:13px;letter-spacing:.15em;color:var(--c)}
+  #abil{left:calc(12px + var(--sl));bottom:calc(12px + var(--sb));display:flex;gap:6px;flex-wrap:wrap;font-size:11px;letter-spacing:.08em}
+  #abil span{padding:4px 8px;border:1px solid rgba(255,255,255,.2);background:rgba(10,6,30,.6);color:#889}
+  #abil span.rdy{color:#dff;border-color:var(--c)}
+  #abil span.act{color:#012;background:var(--c);border-color:var(--c)}
+  body.touch #abil{display:none}
+  body.touch #msg{bottom:auto;top:30%;width:50%}
+  body.touch #hint{bottom:auto;top:38%}
+  #vig{inset:0;box-shadow:inset 0 0 120px 30px rgba(255,20,60,.85);opacity:0}
+
+  #touch{position:fixed;inset:0;display:none;z-index:5}
+  #touch.on{display:block}
+  body:not([data-state=play]) #touch{display:none}
+  .zone{position:absolute;top:0;bottom:0;touch-action:none}
+  #zl{left:0;width:45%}#zr{right:0;width:55%}
+  #stick{display:none;position:absolute;width:110px;height:110px;border-radius:50%;border:2px solid rgba(79,240,255,.4);background:rgba(79,240,255,.08);pointer-events:none}
+  #stick i{position:absolute;left:30px;top:30px;width:50px;height:50px;border-radius:50%;background:rgba(79,240,255,.45)}
+  .tb{position:absolute;border-radius:50%;border:2px solid rgba(79,240,255,.7);background:rgba(10,6,30,.55);color:#dff;font:700 11px ui-monospace,monospace;letter-spacing:.06em;touch-action:none;padding:0}
+  .tb.down{background:rgba(79,240,255,.45)}.tb.on{background:rgba(79,240,255,.35)}.tb.hide{display:none}
+  #b-fire{right:calc(24px + var(--sr));bottom:calc(30px + var(--sb));width:94px;height:94px;border-color:#ff4466;font-size:14px}
+  #b-jump{right:calc(132px + var(--sr));bottom:calc(22px + var(--sb));width:64px;height:64px}
+  #b-reload{right:calc(28px + var(--sr));bottom:calc(140px + var(--sb));width:52px;height:52px;font-size:20px}
+  #b-aim{right:calc(96px + var(--sr));bottom:calc(112px + var(--sb));width:52px;height:52px}
+  #b-blink{right:calc(28px + var(--sr));bottom:calc(204px + var(--sb));width:58px;height:58px;border-color:var(--c)}
+  #b-link{right:calc(98px + var(--sr));bottom:calc(178px + var(--sb));width:58px;height:58px;border-color:var(--m)}
+  #b-super{right:calc(168px + var(--sr));bottom:calc(112px + var(--sb));width:58px;height:58px;border-color:#9b6bff}
+  #b-use{left:calc(50% - 32px);bottom:calc(24px + var(--sb));width:64px;height:64px;border-color:var(--ok)}
+
+  #screen{display:none;position:fixed;inset:0;z-index:20;align-items:center;justify-content:center;overflow:auto;
+    background:radial-gradient(ellipse at center,rgba(20,8,50,.72),rgba(3,2,10,.94));backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+  .card{text-align:center;max-width:620px;padding:18px 20px calc(18px + var(--sb))}
+  h1{margin:0 0 6px;font-size:clamp(34px,9vw,76px);line-height:.95;letter-spacing:.06em;background:linear-gradient(90deg,var(--c),var(--m));-webkit-background-clip:text;background-clip:text;color:transparent}
+  h1.bad{background:none;color:var(--bad)}
+  .tag{letter-spacing:.35em;font-size:11px;color:#9ab;margin-bottom:12px}
+  .lore{font-size:13px;color:#cdd;line-height:1.6;margin:0 0 12px}
+  .keys{font-size:12px;color:#aab;line-height:1.9;margin-bottom:14px}.keys b{color:var(--c)}
+  .mob{display:none}body.touch .mob{display:block}body.touch .desk{display:none}
+  button.big{padding:14px 40px;border:2px solid var(--c);background:rgba(79,240,255,.12);color:#dff;font:700 18px ui-monospace,monospace;letter-spacing:.25em;border-radius:6px;cursor:pointer;margin:6px}
+  button.big:hover{background:rgba(79,240,255,.3)}
+  button.small{padding:6px 14px;border:1px solid rgba(255,255,255,.3);background:none;color:#99a;font:11px ui-monospace,monospace;letter-spacing:.15em;border-radius:4px;cursor:pointer;margin:2px}
+  .stat{font-size:15px;margin:4px 0;color:#fff}
+</style>
+</head>
+<body data-state="menu">
+<canvas id="gl"></canvas>
+<div id="hud">
+  <canvas id="mini" width="150" height="150"></canvas>
+  <div id="obj"></div>
+  <div id="top"><div id="heat">☆☆☆☆☆</div><div id="credits"></div></div>
+  <div id="bars">
+    <div class="bar"><i id="hp"></i><span id="hpl">INTEGRITY</span></div>
+    <div class="bar en"><i id="en"></i><span>COHERENCE</span></div>
+    <div id="ammo"></div>
+    <div id="feed"></div>
+  </div>
+  <div id="xhair"></div><div id="hitm">✕</div>
+  <div id="msg"></div><div id="hint"></div>
+  <div id="abil"><span id="ak">[Q] BLINK</span><span id="al">[E] ENTANGLE</span><span id="as">[G] SUPERPOSE</span><span>[F] VEHICLE</span><span>[R] RELOAD</span></div>
+  <div id="vig"></div>
+</div>
+<div id="touch"></div>
+<div id="screen"></div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

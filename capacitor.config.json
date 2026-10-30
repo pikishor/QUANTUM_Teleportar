@@ -1,0 +1,8 @@
+{
+  "appId": "com.quantumteleportar.app",
+  "appName": "Quantum Teleportar",
+  "webDir": "dist",
+  "backgroundColor": "#05030f",
+  "ios": { "contentInset": "never" },
+  "android": { "backgroundColor": "#05030f" }
+}
