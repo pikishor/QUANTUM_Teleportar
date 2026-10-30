@@ -85,17 +85,17 @@ def core_gem():
     p.cyl(0.46, 0.09, (0, 0, 0.045), mat=armor, tint=base, segs=8, bevel=0.012, bsegs=2)                    # plinth
     p.cyl(0.36, 0.06, (0, 0, 0.12), mat=armor, tint=base2, segs=8, bevel=0.01, bsegs=2)
     p.cyl(0.14, 0.12, (0, 0, 0.21), mat=gun, tint=gm2, segs=12, bevel=0.006)
-    p.cyl(0.2, 0.02, (0, 0, 0.275), mat=glow2, segs=16)                                                      # emitter pad
+    p.cyl(0.2, 0.02, (0, 0, 0.275), mat=glow2, segs=12)                                                      # emitter pad
     for k in range(4):                                                                                       # pylons + arcs
         a = math.radians(45 + 90 * k)
         c, s = math.cos(a), math.sin(a)
         p.bar((0.33 * c, 0.33 * s, 0.14), (0.27 * c, 0.27 * s, 1.55), 0.07, 0.05, mat=armor, tint=base2, bevel=0.01, bsegs=1, up=(-s, c, 0) if False else (0, 0, 1))
         p.box((0.05, 0.05, 0.4), (0.3 * c, 0.3 * s, 0.55), mat=gun, tint=gm2, bevel=0.006, rot=(0, 0, math.degrees(a)))
         p.box((0.012, 0.012, 0.5), (0.31 * c, 0.31 * s, 0.9), mat=glow2)
-    p.torus(0.3, 0.025, (0, 0, 1.6), mat=armor, tint=base2, segs=24, sides=6)                               # top ring
-    p.torus(0.3, 0.025, (0, 0, 0.42), mat=armor, tint=base, segs=24, sides=6)
-    p.torus(0.42, 0.012, (0, 0, zc), rot=(72, 0, 0), mat=glow2, segs=36, sides=4)                          # orbit rings
-    p.torus(0.46, 0.009, (0, 0, zc), rot=(-58, 0, 25), mat=glow2, segs=36, sides=4)
+    p.torus(0.3, 0.025, (0, 0, 1.6), mat=armor, tint=base2, segs=20, sides=6)                               # top ring
+    p.torus(0.3, 0.025, (0, 0, 0.42), mat=armor, tint=base, segs=20, sides=6)
+    p.torus(0.42, 0.012, (0, 0, zc), rot=(72, 0, 0), mat=glow2, segs=28, sides=4)                          # orbit rings
+    p.torus(0.46, 0.009, (0, 0, zc), rot=(-58, 0, 25), mat=glow2, segs=28, sides=4)
     # the crystal: faceted double pyramid with a bright inner core
     p.sphere((0.17, 0.17, 0.3), (0, 0, zc), mat=glow, segs=6, rings=4)
     p.sphere((0.07, 0.07, 0.12), (0, 0, zc), mat=glow2, segs=6, rings=3)

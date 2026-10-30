@@ -3,7 +3,7 @@ extends RefCounted
 ## a rooftop, high overviews) and lets Dev save a screenshot every N frames (tools/bot.sh does that):
 ##   tools/bot.sh res://tests/bot_world.gd /tmp/world 20 10
 ## One shot per screenshot: shot k is taken at the end of its short dolly move, so every picture is deterministic.
-## Optional user args (after --): --cam=x,y,z,tx,ty,tz (one fixed pose), --fov=70, --quality=0..2, --wet=0..1, --rain=0..1,
+## Optional user args (after --): --cam=x,y,z,tx,ty,tz[,fov];... (fixed poses, one per shot), --fov=70, --quality=0..2, --wet=0..1, --rain=0..1,
 ## --stats (print draw calls and primitives for every shot), --shots=a,b,c (only these shot names).
 
 var _cam: Camera3D
@@ -83,11 +83,15 @@ func _build_shots() -> void:
 				kept.append(s)
 		_shots = kept
 	if _args.has("cam"):
-		var v: PackedStringArray = String(_args["cam"]).split(",")
-		if v.size() >= 6:
-			var p := Vector3(float(v[0]), float(v[1]), float(v[2]))
-			var l := Vector3(float(v[3]), float(v[4]), float(v[5]))
-			_shots = [["cam", p, l, p, l, float(_args.get("fov", "70"))]]
+		# one or more fixed poses: --cam="x,y,z,tx,ty,tz[,fov];x,y,z,tx,ty,tz"
+		_shots = []
+		for pose: String in String(_args["cam"]).split(";"):
+			var v: PackedStringArray = pose.split(",")
+			if v.size() >= 6:
+				var p := Vector3(float(v[0]), float(v[1]), float(v[2]))
+				var l := Vector3(float(v[3]), float(v[4]), float(v[5]))
+				var fov := float(v[6]) if v.size() >= 7 else float(_args.get("fov", "70"))
+				_shots.append(["cam%d" % _shots.size(), p, l, p, l, fov])
 
 
 func _setup() -> void:

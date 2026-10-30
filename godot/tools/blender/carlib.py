@@ -67,7 +67,7 @@ def build_car(spec):
     # ------------------------------------------------------------------ profiles
     def hw(y):
         e = abs(y) - (L / 2 - taper)
-        k = 1.0 if e <= 0 else max(0.0, 1.0 - 0.34 * (e / taper) ** 2.0)
+        k = 1.0 if e <= 0 else max(0.0, 1.0 - spec.get("taper_amt", 0.24) * (e / taper) ** 2.0)
         return (W / 2) * k
 
     def ztop(y):
@@ -216,41 +216,46 @@ def build_car(spec):
     xm = hw(ym) * 0.95 + 0.06
     P.box((0.1, 0.14, 0.085), (xm, ym, zm), mat=body, bevel=0.025, bsegs=2, top=(0.9, 0.8), mirror=True)
     P.bar((xm - 0.08, ym + 0.02, zm - 0.07), (xm - 0.02, ym, zm - 0.02), 0.02, 0.016, mat=trim, tint=T_black, mirror=True)
-    # headlights, grille, fog lamps, plates (front = +Y)
+    # headlights, grille, plates (front = +Y): flush with the nose face, so they stay visible
     yf = L / 2
+    ze, xe = ztop(yf - 0.05), hw(yf - 0.05)
+    zbe = zbot(yf - 0.02)
+    face_h = ze - zbe
     for sx in (1, -1):
-        yh = yf - 0.33
-        zh = ztop(yh) - 0.085
-        x = sx * (hw(yh) - 0.30)
-        P.box((0.34, 0.12, 0.075), (x, yh, zh), mat=head, bevel=0.018, bsegs=2, top=(0.9, 0.9), rot=(-12, 0, -sx * 14), mirror=False)
-        P.box((0.38, 0.14, 0.095), (x, yh - 0.008, zh), mat=trim, tint=T_black, bevel=0.02, bsegs=2, top=(0.92, 0.9), rot=(-12, 0, -sx * 14))
-    P.box((0.78, 0.08, 0.17), (0, yf - 0.09, gc + 0.27), mat=trim, tint=T_black, bevel=0.02, bsegs=2, rot=(-8, 0, 0))
-    for yy in (0.0,):
-        for zz in (gc + 0.22, gc + 0.27, gc + 0.32):
-            P.box((0.66, 0.012, 0.012), (0, yf - 0.043, zz), mat=trim, tint=T_dark, rot=(-8, 0, 0))
-    P.box((0.5, 0.012, 0.11), (0, yf - 0.02, gc + 0.4), mat=trim, tint=T_chrome, bevel=0.003)           # plate
-    P.box((0.9, 0.06, 0.02), (0, yf - 0.06, zbot(yf - 0.1) + 0.06), mat=trim, tint=T_dark, bevel=0.006)        # splitter lip
+        x = sx * (xe - 0.27)
+        zh = ze - 0.12
+        P.box((0.33, 0.1, 0.075), (x, yf - 0.025, zh), mat=head, bevel=0.018, bsegs=2, top=(0.9, 0.9), rot=(0, 0, -sx * 9))
+        P.box((0.37, 0.12, 0.10), (x, yf - 0.035, zh), mat=trim, tint=T_black, bevel=0.02, bsegs=2, top=(0.92, 0.9), rot=(0, 0, -sx * 9))
+        P.box((0.17, 0.09, 0.05), (sx * (xe - 0.35), yf - 0.02, zbe + 0.10), mat=head, bevel=0.012, bsegs=1)                 # fog lamps
+    P.box((0.78, 0.09, face_h * 0.30), (0, yf - 0.02, zbe + face_h * 0.46), mat=trim, tint=T_black, bevel=0.02, bsegs=2)    # grille
+    for k in (-1, 0, 1):
+        P.box((0.7, 0.014, 0.012), (0, yf + 0.026, zbe + face_h * 0.46 + k * face_h * 0.075), mat=trim, tint=T_dark)
+    P.box((0.5, 0.012, 0.11), (0, yf + 0.0, zbe + 0.07), mat=trim, tint=T_chrome, bevel=0.003)                          # plate
+    P.box((0.96, 0.07, 0.025), (0, yf - 0.02, zbe + 0.01), mat=trim, tint=T_dark, bevel=0.008)                          # splitter lip
     # tail lights, plate, exhaust
     yr = -L / 2
+    zr_, xr_ = ztop(yr + 0.05), hw(yr + 0.05)
+    zbr = zbot(yr + 0.02)
     for sx in (1, -1):
-        yt = yr + 0.30
-        zt_ = ztop(yt) - 0.10
-        x = sx * (hw(yt) - 0.26)
-        P.box((0.36, 0.1, 0.07), (x, yt, zt_), mat=tail, bevel=0.015, bsegs=2, rot=(8, 0, sx * 12))
-        P.box((0.4, 0.12, 0.09), (x, yt + 0.006, zt_), mat=trim, tint=T_black, bevel=0.02, bsegs=2, rot=(8, 0, sx * 12))
-        P.cyl(0.04, 0.14, (sx * 0.52, yr + 0.02, zbot(yr + 0.1) + 0.05), axis="y", mat=trim, tint=T_chrome, segs=12, bevel=0.004)
-    P.box((0.52, 0.012, 0.11), (0, yr + 0.02, zbot(yr + 0.1) + 0.30), mat=trim, tint=T_chrome, bevel=0.003)
-    P.box((0.82, 0.07, 0.06), (0, yr + 0.07, zbot(yr + 0.1) + 0.07), mat=trim, tint=T_dark, bevel=0.01)
-    P.box((1.2, 0.012, 0.012), (0, yr + 0.045, ztop(yr + 0.3) - 0.1), mat=tail)
+        x = sx * (xr_ - 0.25)
+        zt_ = zr_ - 0.11
+        P.box((0.38, 0.1, 0.07), (x, yr + 0.025, zt_), mat=tail, bevel=0.015, bsegs=2, rot=(0, 0, sx * 9))
+        P.box((0.42, 0.12, 0.095), (x, yr + 0.035, zt_), mat=trim, tint=T_black, bevel=0.02, bsegs=2, rot=(0, 0, sx * 9))
+        P.cyl(0.04, 0.14, (sx * 0.52, yr - 0.01, zbr + 0.06), axis="y", mat=trim, tint=T_chrome, segs=12, bevel=0.004)
+    P.box((0.52, 0.012, 0.11), (0, yr, zr_ - 0.2), mat=trim, tint=T_chrome, bevel=0.003)
+    P.box((0.9, 0.07, 0.06), (0, yr + 0.03, zbr + 0.06), mat=trim, tint=T_dark, bevel=0.01)
+    P.box((xr_ * 1.3, 0.012, 0.012), (0, yr - 0.002, zr_ - 0.11), mat=tail)
     # underglow strips + sill glow
     for sx in (1, -1):
         P.box((0.035, WB + 0.7, 0.012), (sx * (W / 2 - 0.13), 0, gc - 0.003), mat=under)
     # interior (above the belt line so it is visible through the glass): seats, dash, steering wheel
     seat_y = spec["seats"]
+    avail = spec["z_roof"] - belt                      # cabin height above the sill: keep seats well inside the roof
+    sb_h = min(0.5, avail * 0.55)
     for (sy_, headrest) in seat_y:
-        P.box((0.46, 0.1, 0.5), (0.36, sy_, belt + 0.14), mat=trim, tint=T_int, bevel=0.03, bsegs=2, rot=(-8, 0, 0), mirror=True)
+        P.box((0.46, 0.1, sb_h), (0.36, sy_, belt + sb_h * 0.30), mat=trim, tint=T_int, bevel=0.03, bsegs=2, rot=(-8, 0, 0), mirror=True)
         if headrest:
-            P.box((0.2, 0.07, 0.15), (0.36, sy_ - 0.02, belt + 0.46), mat=trim, tint=T_int, bevel=0.025, mirror=True)
+            P.box((0.2, 0.07, 0.12), (0.36, sy_ - 0.02, belt + sb_h * 0.62 + 0.05), mat=trim, tint=T_int, bevel=0.025, mirror=True)
     ydash = y_ws - 0.12
     P.box((1.18, 0.34, 0.10), (0, ydash - 0.02, belt + 0.05), mat=trim, tint=T_int, bevel=0.03, bsegs=2)
     P.torus(0.17, 0.014, (0.36, ydash - 0.26, belt + 0.22), rot=(60, 0, 0), mat=trim, tint=T_black, segs=18, sides=5)

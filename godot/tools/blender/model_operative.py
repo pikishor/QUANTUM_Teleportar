@@ -8,8 +8,8 @@ from humanoid import build  # noqa: E402
 
 STYLE = dict(
     name="operative",
-    uniform="#32363b", pants="#2a2d31", carrier="#3e4349", carrier2="#33373c", glove="#1a1c1e", boot="#1c1d1f",
-    plate="#4e545c", helmet="#464b53", trim="#8a3039", mask="#30343a", metal="#4a4d52", metal2="#2a2c30",
+    uniform="#40454b", pants="#353a3f", carrier="#4f555c", carrier2="#41464c", glove="#25282b", boot="#2a2c2f",
+    plate="#646b74", helmet="#58606a", trim="#a63b46", mask="#3c4148", metal="#555960", metal2="#33363b",
     accent=hexc("#ff1f33"), accent_strength=4.5,
     helmet_type="full", backpack="plain", pauldrons=True, bulk=1.07, light_glow=False,
 )

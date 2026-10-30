@@ -433,7 +433,7 @@ def make_asphalt(n):
     mid = fbm(n, 2.0, 76, lo=0.01)
     cracks = splat_lines(n, int(px(n, 14) * n / 1024), px(n, 160), px(n, 600), 77, jitter=0.4, step=0.6)
     cracks = np.clip(blur(cracks, 0.5) * 1.8, 0, 1)
-    wet = smooth(0.35, 0.8, blur(fbm(n, 3.0, 78), 3.0))       # soft broad sheen mask
+    wet = 0.5 * smooth(0.3, 0.9, blur(fbm(n, 3.0, 78), 3.0))   # soft broad sheen mask (never mirror-like)
     h = stone * 0.45 + stone_small * 0.3 + (sand - 0.5) * 0.25 - cracks * 0.6 + (mid - 0.5) * 0.2
     h = h * (1.0 - wet * 0.45)
     cav = cavity(h, px(n, 2.5), 1.5)
@@ -442,7 +442,7 @@ def make_asphalt(n):
     albedo = np.repeat(np.clip(alb, 0, 1)[..., None], 3, axis=2)
     ao = np.clip(1.0 + cav * 1.4 - cracks * 0.5, 0.4, 1.0)
     rough = 0.78 + (sand - 0.5) * 0.1 - stone * 0.15 + (mid - 0.5) * 0.12
-    rough = lerp(rough, 0.2 + (sand - 0.5) * 0.06 + stone * 0.15, wet)
+    rough = lerp(rough, 0.34 + (sand - 0.5) * 0.06 + stone * 0.15, wet)
     metal = np.zeros((n, n))
     return pack(albedo, ao, rough, metal, h * px(n, 6.0), 1.0)
 

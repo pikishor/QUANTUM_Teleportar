@@ -28,3 +28,14 @@ func run(host: Node) -> void:
 		total_mirror += tris * mm.instance_count
 	print("TOTAL real=", total, " mirror=", total_mirror)
 	print(city.stats())
+	var props = city._props
+	print("VENTS ", props.vents.slice(0, 5))
+	for n in city.multimesh_nodes:
+		if n.name in ["Holograms", "Billboards"]:
+			var mm := n.multimesh
+			print(n.name, " first instance origin x,z,y: ", mm.buffer[3], " ", mm.buffer[11], " ", mm.buffer[7])
+	var tall := []
+	for b in city.building_data:
+		if b.lot.h >= 88.0:
+			tall.append([b.lot.cx, b.lot.cz, b.cls])
+	print("LANDMARKS ", tall)

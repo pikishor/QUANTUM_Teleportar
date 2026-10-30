@@ -153,7 +153,7 @@ func _build_ground() -> void:
 	if ResourceLoader.exists(n):
 		mat.normal_enabled = true
 		mat.normal_texture = load(n)
-		mat.normal_scale = 1.0
+		mat.normal_scale = 0.55
 	mat.metallic_specular = 0.7
 	m.material_override = mat
 	add_child(m)
@@ -165,11 +165,13 @@ func _build_lights() -> void:
 		key.light_energy = 1.3
 		key.rotation_degrees = Vector3(-40, -35, 0)
 		key.shadow_enabled = true
+		key.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 		add_child(key)
 		var fill := DirectionalLight3D.new()
 		fill.light_energy = 0.55
 		fill.light_color = Color(0.8, 0.9, 1.0)
 		fill.rotation_degrees = Vector3(-25, 140, 0)
+		fill.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 		add_child(fill)
 		return
 	var moon := DirectionalLight3D.new()
@@ -178,6 +180,7 @@ func _build_lights() -> void:
 	moon.rotation_degrees = Vector3(-38, 150, 0)
 	moon.shadow_enabled = true
 	moon.directional_shadow_max_distance = 60.0
+	moon.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	add_child(moon)
 	# warm sodium key from the front-left, cool teal fill from the right, magenta + cyan neon practicals, hot rim from behind
 	_omni(Vector3(-7, 4.0, 6), Color(1.0, 0.72, 0.42), 3.2, 22.0)
@@ -189,6 +192,7 @@ func _build_lights() -> void:
 	rim.light_color = Color(0.35, 0.85, 1.0)
 	rim.light_energy = 0.55
 	rim.rotation_degrees = Vector3(-20, -25, 0)     # shines toward -Z and +X: a backlight for characters seen from the camera at +Z
+	rim.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	add_child(rim)
 
 

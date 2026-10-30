@@ -193,19 +193,25 @@ func random_road_point() -> Vector3:
 
 
 ## A random road position whose XZ distance from `center` lies in [rmin, rmax], or Vector3.INF when none exists.
-## Exact: every inner road is intersected with the annulus, so it only fails when the ring misses all roads.
+## Exact: every inner road is intersected with the annulus. Random lateral offsets are tried first (uniform over the road band),
+## then a deterministic sweep of offsets, so even a very thin ring finds a point whenever the ring crosses a road at all.
 func road_point_near(center: Vector3, rmin: float, rmax: float) -> Vector3:
 	if rmax < rmin or rmax <= 0.0:
 		return Vector3.INF
-	# Three passes: a random lateral offset, then the centre lines, so thin rings still find a road.
-	for pass_i in 3:
-		var p := _road_point_pass(center, rmin, rmax, pass_i)
+	for attempt in 5:
+		var p := _road_point_pass(center, rmin, rmax, true, 0.0)
+		if p != Vector3.INF:
+			return p
+	var start := randi() % 29
+	for k in 29:
+		var off := -7.0 + 0.5 * float((k + start) % 29)
+		var p := _road_point_pass(center, rmin, rmax, false, off)
 		if p != Vector3.INF:
 			return p
 	return Vector3.INF
 
 
-func _road_point_pass(center: Vector3, rmin: float, rmax: float, pass_i: int) -> Vector3:
+func _road_point_pass(center: Vector3, rmin: float, rmax: float, randomize: bool, fixed_offset: float) -> Vector3:
 	var lim := HALF - 8.0
 	var total := 0.0
 	var n := 0
@@ -213,7 +219,7 @@ func _road_point_pass(center: Vector3, rmin: float, rmax: float, pass_i: int) ->
 		var cf := center.z if axis == 0 else center.x        # the centre's coordinate across the road
 		var cs := center.x if axis == 0 else center.z        # ... and along it
 		for k in range(1, N):
-			var f := road_center(k) + (0.0 if pass_i > 0 else randf_range(-7.0, 7.0))
+			var f := road_center(k) + (randf_range(-7.0, 7.0) if randomize else fixed_offset)
 			var dz := f - cf
 			var m_max := rmax * rmax - dz * dz
 			var lo1 := 0.0

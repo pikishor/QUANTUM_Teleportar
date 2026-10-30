@@ -60,9 +60,9 @@ for sx in (-1, 1):
         mx, my = 1.0 * sx, 0.78 * sy
         b.bar((0.45 * sx, 0.18 * sy, Z + 0.05), (mx * 0.94, my * 0.94, Z + 0.1), 0.16, 0.1, mat=armor, tint=hull2, bevel=0.02, bsegs=2)
         b.box((0.2, 0.2, 0.12), (0.7 * sx, 0.4 * sy, Z + 0.07), mat=armor, tint=plate, bevel=0.02)
-        ducted_fan(b, (mx, my, Z + 0.1), 0.42, carbon, cf, gun, gm2, ring_glow, height=0.14, lip=0.03, segs=20, struts=3, hub_r=0.09, hub_mat=gun, hub_tint=gm)
+        ducted_fan(b, (mx, my, Z + 0.1), 0.42, carbon, cf, gun, gm2, ring_glow, height=0.14, lip=0.03, segs=18, struts=3, hub_r=0.09, hub_mat=gun, hub_tint=gm)
         name = ("RotorF" if sy > 0 else "RotorR") + ("L" if sx < 0 else "R")
-        rotors.append(rotor_part(name, (mx, my, Z + 0.18), 0.385, 4, carbon, cf, seed=60 + len(rotors), chord=0.085, hub_r=0.07, thickness=0.01))
+        rotors.append(rotor_part(name, (mx, my, Z + 0.18), 0.385, 3, carbon, cf, seed=60 + len(rotors), chord=0.085, hub_r=0.07, thickness=0.01))
 eye = Part("Eye", origin=(0, 1.04, Z + 0.02), seed=3)
 eye.box((0.4, 0.012, 0.03), (0, 1.045, Z + 0.065), mat=glow)
 bake_ao([b], samples=14, dist=0.3, strength=0.6)
