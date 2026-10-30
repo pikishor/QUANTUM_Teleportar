@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # macOS only. Build the exported Xcode project (run tools/export_ios.sh first).
-#   godot/tools/ios_build.sh simulator   unsigned simulator build; proves the project compiles (no secrets needed)
+#   godot/tools/ios_build.sh compile     unsigned build for real iPhones (arm64); proves the project compiles and links (no secrets needed)
+#                                         (no simulator mode: Godot 4.6.1's official iOS simulator library is x86_64-only, so it cannot link on Apple-silicon runners)
 #   godot/tools/ios_build.sh ipa         signed App Store .ipa -> build/ios/ipa/ (needs the secrets below, see docs/DEPLOY.md)
 # ipa mode environment: IOS_TEAM_ID, IOS_BUNDLE_ID, IOS_CERT_P12_BASE64, IOS_CERT_PASSWORD, IOS_PROVISION_PROFILE_BASE64
 set -euo pipefail
-MODE="${1:-simulator}"
+MODE="${1:-compile}"
 cd "$(dirname "$0")/.."
 PROJ="build/ios/QuantumTeleportar.xcodeproj"; SCHEME="QuantumTeleportar"
 [ -d "$PROJ" ] || { echo "error: $PROJ missing; run tools/export_ios.sh" >&2; exit 1; }
 case "$MODE" in
-  simulator)
-    xcodebuild -project "$PROJ" -scheme "$SCHEME" -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build ;;
+  compile)
+    xcodebuild -project "$PROJ" -scheme "$SCHEME" -sdk iphoneos -configuration Release \
+      CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build ;;
   ipa)
     : "${IOS_TEAM_ID:?}" "${IOS_BUNDLE_ID:?}" "${IOS_CERT_P12_BASE64:?}" "${IOS_CERT_PASSWORD:?}" "${IOS_PROVISION_PROFILE_BASE64:?}"
     TMPD="$(mktemp -d)"; KC="$TMPD/build.keychain"; KCPW="$(uuidgen)"
@@ -45,5 +47,5 @@ P
     xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$TMPD/ExportOptions.plist" -exportPath build/ios/ipa
     security delete-keychain "$KC" || true
     ls -la build/ios/ipa ;;
-  *) echo "usage: $0 simulator|ipa" >&2; exit 2 ;;
+  *) echo "usage: $0 compile|ipa" >&2; exit 2 ;;
 esac

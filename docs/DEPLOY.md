@@ -8,7 +8,7 @@ Android and iOS builds with GitHub Actions. Nothing depends on a particular mach
 |---|---|---|
 | `ci.yml` | every push to `main`, pull requests, manual | Godot headless tests, screenshot smoke test, Unreal scaffold syntax check, Three.js prototype build |
 | `android.yml` | tag `v*`, manual | debug **APK** (no secrets); with keystore secrets a signed **AAB**; optional upload to the Google Play internal track |
-| `ios.yml` | tag `v*`, manual | Xcode project, unsigned simulator build (no secrets); with signing secrets a signed **.ipa**; optional TestFlight upload |
+| `ios.yml` | tag `v*`, manual | Xcode project, unsigned device build (no secrets); with signing secrets a signed **.ipa**; optional TestFlight upload |
 
 Release flow: `git tag v0.1.0 && git push origin v0.1.0`, or *Actions → Android / iOS → Run workflow*. Version numbers come from the tag
 (`VERSION_NAME`) and the run number (`VERSION_CODE`, which must increase for every store upload).
