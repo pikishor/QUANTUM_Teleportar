@@ -1,0 +1,31 @@
+extends Node
+## Test runner scene: loads the test script given as `--test=res://tests/x.gd` and awaits its run(host).
+## A test script is `extends RefCounted` and defines `func run(host: Node) -> void` (it may await).
+## It reports through TestLib.check(); the process exit code is 0 only if every check passed.
+
+
+func _ready() -> void:
+	Game.autostart = true
+	var path := ""
+	var limit := 60.0
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--test="):
+			path = a.substr(7)
+		elif a.begins_with("--timeout="):
+			limit = float(a.substr(10))
+	# Watchdog: a runtime error inside an awaited test leaves the await pending forever.
+	get_tree().create_timer(limit).timeout.connect(func() -> void:
+		printerr("FAIL: test timed out after %ss (a SCRIPT ERROR above usually explains why)" % limit)
+		get_tree().quit(3))
+	var script := load(path) as GDScript
+	if script == null:
+		printerr("FAIL: cannot load test script '%s'" % path)
+		get_tree().quit(2)
+		return
+	if not script.can_instantiate():
+		printerr("FAIL: '%s' has compile errors (see above). New class_name scripts also need tools/import.sh first." % path)
+		get_tree().quit(2)
+		return
+	var test = script.new()
+	await test.run(self)
+	TestLib.finish(get_tree())

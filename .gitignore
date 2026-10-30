@@ -27,3 +27,8 @@ unreal/**/*.sln
 unreal/**/*.suo
 unreal/**/*.VC.db
 unreal/**/*.xcworkspace
+
+# Godot
+godot/.godot/
+godot/build/
+godot/*.tmp
