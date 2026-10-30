@@ -12,9 +12,12 @@ objectives) in Three.js. GTA-/CoD-class visual quality needs content and a nativ
 | store packaging and release tooling | VFX, UI art, trailers, key art |
 
 ## Engine decision (the biggest fork)
-**Decided: Unreal Engine 5** (owner's choice, for the highest visual ceiling). Consequences: a dev machine with a GPU and the UE5 editor
-(this repo's cloud sandbox cannot run it), macOS + Xcode or a macOS CI runner for iOS, an Epic account, and a content pipeline (artists/vendors/licensed assets).
-The `unreal/` folder is the starting scaffold; the options below are kept for context.
+**Decided (current): Godot 4 now, Unreal Engine 5 later.** Unreal was the first choice for its visual ceiling, but it cannot run in the
+cloud sandbox this project is built in (no GPU, no Epic download, no Mac). Godot 4 runs, renders and tests there end to end, ships to both
+stores, and has no royalties. It is not AAA-class engine tech; the plan is to ship a polished game on Godot and revisit Unreal when an art
+team and a GPU build machine exist. The design, tuning and tests carry over. `unreal/` stays as a parked scaffold.
+Original rationale for Unreal (kept for context): a dev machine with a GPU and the UE5 editor, macOS + Xcode or a macOS CI runner for iOS,
+an Epic account, and a content pipeline (artists/vendors/licensed assets).
 
 - **Current: Three.js in a WebView (Capacitor).** Fastest to iterate and test in a browser/CI, one codebase for both stores.
   Lower ceiling for fidelity, draw distance and physics on phones.

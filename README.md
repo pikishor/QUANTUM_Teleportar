@@ -3,15 +3,29 @@
 Open-world sci-fi action game for iOS and Android: third-person shooter combat, a neon city to drive through,
 and quantum powers built on real physics ideas.
 
-**Status:** playable vertical slice (Three.js, wrapped for mobile with Capacitor).
+**Status:** the production build is the **Godot 4** project in [`godot/`](godot/) (under construction — see
+[godot/ARCHITECTURE.md](godot/ARCHITECTURE.md)). The Three.js game in `src/` is the playable, tested design reference.
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the path to a production-quality release and
 [docs/RELEASE.md](docs/RELEASE.md) for the store-submission checklist.
 
-## Unreal Engine 5 port (in progress)
+## What is in this repo
 
-The production target is an Unreal Engine 5 build. `unreal/` holds a C++ project that re-implements this prototype's gameplay with
-engine primitives only. It is an **uncompiled scaffold** — see [unreal/README.md](unreal/README.md). The Three.js game stays as the
-tested design reference.
+| Folder | What | Status |
+|---|---|---|
+| `godot/` | **Production build**: Godot 4.6 (GL Compatibility renderer), GDScript, native Android/iOS export. Headless tests + screenshot/bot tooling. | in progress |
+| `src/`, `android/`, `ios/` | Three.js prototype wrapped for mobile with Capacitor | playable, tested reference |
+| `unreal/` | Unreal Engine 5 C++ scaffold ([details](unreal/README.md)) | uncompiled; parked until a GPU machine or Epic-linked CI exists |
+| `prototypes/runner` | the original endless-runner prototype | archive |
+
+### Godot quick start
+```bash
+cd godot
+tools/import.sh                       # first run / after adding class_name scripts or assets
+tools/test.sh tests/test_smoke.gd     # headless tests (exit code 0 = pass)
+tools/shot.sh /tmp/out.png            # screenshot with software GL under xvfb
+tools/bot.sh res://tests/bot_x.gd /tmp/seq 30 6   # scripted playthrough, screenshot sequence
+```
+The engine binary is downloaded from the official GitHub release on first use (`tools/get_godot.sh`).
 
 ## Gameplay
 
