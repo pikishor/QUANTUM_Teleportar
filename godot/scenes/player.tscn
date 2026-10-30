@@ -1,0 +1,48 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
+[ext_resource type="Script" path="res://scripts/player/camera_rig.gd" id="2_rig"]
+[ext_resource type="Script" path="res://scripts/player/player_body.gd" id="3_body"]
+[ext_resource type="Script" path="res://scripts/player/player_weapon.gd" id="4_weapon"]
+[ext_resource type="Script" path="res://scripts/player/impact_decals.gd" id="5_decals"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.35
+height = 1.8
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_arm"]
+radius = 0.22
+
+[node name="Player" type="CharacterBody3D" groups=["player"]]
+collision_layer = 2
+collision_mask = 13
+floor_max_angle = 0.872665
+floor_snap_length = 0.35
+script = ExtResource("1_player")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="CameraRig" type="Node3D" parent="."]
+top_level = true
+script = ExtResource("2_rig")
+
+[node name="SpringArm" type="SpringArm3D" parent="CameraRig"]
+shape = SubResource("SphereShape3D_arm")
+spring_length = 3.6
+margin = 0.05
+
+[node name="Camera" type="Camera3D" parent="CameraRig/SpringArm"]
+fov = 72.0
+near = 0.08
+far = 2500.0
+
+[node name="Body" type="Node3D" parent="."]
+script = ExtResource("3_body")
+
+[node name="Weapon" type="Node" parent="."]
+script = ExtResource("4_weapon")
+
+[node name="Decals" type="Node3D" parent="."]
+script = ExtResource("5_decals")

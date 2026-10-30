@@ -192,6 +192,7 @@ func _adopt_model(model: Node3D) -> void:
 	uses_model = true
 	var body := model.get_node("Body") as Node3D
 	model.remove_child(body)
+	body.owner = null
 	upper.add_child(body)
 	body.position = Vector3(0.0, -HIP_Y, 0.0)
 	var mz := model.get_node_or_null("Muzzle") as Node3D
@@ -206,6 +207,7 @@ func _adopt_model(model: Node3D) -> void:
 		var leg := model.get_node_or_null(leg_name) as Node3D
 		if leg != null:
 			model.remove_child(leg)
+			leg.owner = null
 			add_child(leg)
 			if leg_name == "LegL":
 				leg_l = leg

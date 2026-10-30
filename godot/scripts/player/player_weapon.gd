@@ -49,6 +49,8 @@ var _burst := 0
 var _move_spread := 0.0
 var _ray := PhysicsRayQueryParameters3D.new()
 var _ray_b := PhysicsRayQueryParameters3D.new()
+var _exclude_base: Array[RID] = []
+var _exclude: Array[RID] = []
 var _decals: ImpactDecals
 var _last_dir := Vector3.FORWARD             ## direction of the last shot (tests, and effects)
 
@@ -62,8 +64,8 @@ func _ready() -> void:
 	_ray_b.collide_with_bodies = true
 	_ray_b.collision_mask = Game.L_WORLD | Game.L_VEHICLE
 	if _player != null:
-		_ray.exclude = [_player.get_rid()]
-		_ray_b.exclude = [_player.get_rid()]
+		_exclude_base = [_player.get_rid()]
+		_ray_b.exclude = _exclude_base
 
 
 func set_decals(d: ImpactDecals) -> void:
@@ -151,14 +153,23 @@ func _shoot(dt: float, aiming: bool) -> void:
 	var target: Node = null
 	var normal := Vector3.ZERO
 	var space := p.get_world_3d().direct_space_state
+	_exclude.assign(_exclude_base)
 	_ray.from = origin
 	_ray.to = origin + dir * RANGE
-	var res := space.intersect_ray(_ray)
-	if not res.is_empty():
+	for _attempt in 3:
+		_ray.exclude = _exclude
+		var res := space.intersect_ray(_ray)
+		if res.is_empty():
+			break
 		var hit_pos: Vector3 = res["position"]
+		var hit_target := _damageable_of(res["collider"] as Node)
+		if hit_target != null and _is_dead(hit_target):
+			_exclude.append(res["rid"])          # a corpse does not stop bullets
+			continue
 		best = origin.distance_to(hit_pos)
 		normal = res["normal"]
-		target = _damageable_of(res["collider"] as Node)
+		target = hit_target
+		break
 	# collider-less (or generously sized) enemies: the prototype's ray-sphere test
 	for e: Node in get_tree().get_nodes_in_group(&"enemy"):
 		if not (e is Node3D) or not e.has_method(&"center") or _is_dead(e):

@@ -76,16 +76,30 @@ The owner deploys Android/iOS builds straight from GitHub (see `docs/DEPLOY.md`)
 `class_name City` (root `Node3D` of world.tscn). Neon grid city: 8×8 blocks, 4 lots per block (footprints 18/26 m, heights 16/28/44/62/88 m, taller toward the centre,
 10 % plazas), roads with dashes and neon curb strips, street lamps, ground, sky (procedural sky/stars/moon), `WorldEnvironment` (fog, glow/bloom, filmic tonemap) and a sun.
 Port the layout rules from `../src/world.js`. Windows are drawn by a **spatial shader** (procedural lit/unlit window grid + emission), not textures, so thousands of windows cost nothing.
-Static colliders on layer `world`; **rooftops must be walkable**. Draw calls must stay low (MultiMesh per building class; budget ≤ ~40 for the whole city).
+Static colliders on layer `world`; **rooftops must be walkable**. Draw calls must stay low (MultiMesh per building class). Measured on software Vulkan: LOW 29 / MED 48 / HIGH 52 draw calls
+(the wet-reflection mirror pass is included; the MED budget in `BUDGETS.md` is 150).
 API: `intersections: Array[Vector3]` (inner junctions, y=0) · `random_road_point() -> Vector3` · `road_point_near(center: Vector3, rmin: float, rmax: float) -> Vector3` (`Vector3.INF` if none) ·
 `building_rects: Array[Rect2]` (x,z footprints, for the minimap) · `is_inside_building(p: Vector3) -> bool` · `sun: DirectionalLight3D` · `set_quality(level: int)` (0 low … 2 high: shadows/MSAA/render detail).
+Extras: `ground_height(x, z, from_y) -> float` (roof/ledge/ground height under a point, matches the colliders) · `building_data` · `layout` · `stats() -> Dictionary` (instance and primitive counts per family).
 Sets `Game.world = self`.
+Facts other modules rely on:
+- Buildings are stacks of parts with one `BoxShape3D` per part (410 shapes): roofs and setback ledges are walkable, and `is_inside_building` follows the crowns. Street props have **no colliders** by design;
+  vehicles and the player collide with buildings, the ground and the border walls (x = ±350, z = ±350) only.
+- Ground, roads and sidewalks are flat at y = 0; kerbs, manholes and markings are shader-only (no step geometry).
+- Lanes: centres at ±5 m from the road centre, painted travel lanes 3.1–7.0 m from the centre, parking bays 7.0–9.4 m, stop lines 15 m from the junction centre. Use `intersections` / `road_point_near` for valid road positions.
+- The city owns the viewport's `msaa_3d` and `scaling_3d_scale` (LOW renders at 0.7). **No other module may set those two properties**; scale your own effects by tier instead.
+- The wet look reads the global shader parameters `wetness` and `rain` (defaults 0.8 / 1.0; below ~0.15 the city looks dry). Nothing may hide or reparent the world's `Mirror` node (the mirrored copy under the ground that makes reflections).
+- The mirror reflects only the static city. Dynamic objects (player, cars, drones) are **not** lit by the baked lamp and neon pools; they need their own lights or an emissive trim to sit in the scene.
+- Sky and fog colours are sRGB on both sides (`Environment` colours and `source_color` uniforms); a module that tints either must use the same convention.
+- The gameplay `Camera3D` far plane must be ≥ 1500 m (the far skyline reaches about 720 m, the ground fades out around 3 km).
+- Glyphs on signs, screens and holograms are pseudo-script by design (no real lettering, no brands).
 
 ### atmosphere — owns `scripts/fx/atmosphere*.gd`, `scenes/atmosphere.tscn`, `assets/shaders/post_*.gdshader`, `tests/*atmosphere*`
 `class_name Atmosphere` (root of atmosphere.tscn). The cinematic layer on top of the world: a full-screen **post-process** `CanvasLayer` (film grain, vignette, subtle chromatic aberration, colour grade
 with lift/gamma/gain, optional light heat-haze; reads `hint_screen_texture`; must work in the Mobile renderer and degrade in Compatibility), **rain** (particles following `Game.camera`: streaks and ground splashes,
 cheap enough for mid-range phones, density by quality tier), and the global shader parameters `wetness` and `rain` (see `Game._ready`; materials read them as `global uniform float wetness;`).
 API: `set_quality(level: int)` (0 low … 2 high) · `set_weather(rain: float, wetness: float)` (0..1) · `enabled: bool` (post-process toggle for the settings screen). It never touches gameplay state and works without a world or player present.
+`set_quality` scales rain and post-process cost only: the world owns the viewport's `msaa_3d` and `scaling_3d_scale`, so Atmosphere must not set them. The world's mirrored copy of the city (node `Mirror`) must not be hidden or reparented.
 
 ### player — owns `scripts/player/**`, `scenes/player.tscn`, `tests/*player*`
 `class_name Player` (`CharacterBody3D`, group `player`, layer `player`). Third-person over-the-shoulder shooter, strafe-style (body faces aim).
