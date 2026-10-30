@@ -1,0 +1,35 @@
+# UNTESTED starting point (this sandbox cannot reach the Android SDK or run Xcode).
+# To enable: copy to .github/workflows/mobile-build.yml. Pushing workflow files needs the GitHub App/token
+# to have the "workflows" permission, which is why this lives in docs/ rather than .github/.
+name: Mobile builds
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - run: npx vite build && npx cap sync android
+      - run: ./gradlew assembleDebug
+        working-directory: android
+      - uses: actions/upload-artifact@v4
+        with: { name: android-debug-apk, path: android/app/build/outputs/apk/debug/app-debug.apk }
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx vite build && npx cap sync ios
+      # unsigned simulator build; real device/TestFlight builds need signing assets
+      - run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
