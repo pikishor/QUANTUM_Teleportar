@@ -278,8 +278,8 @@ def make_plating(n):
     wear = np.clip(smooth(0.0, 0.18, cav) * smooth(0.35, 0.6, wear_noise) + smooth(0.45, 0.8, scr) * 0.5, 0, 1)
     streak = n01(blur(fbm(n, 0.5, 17, lo=0.02), 0.8, px(n, 70.0)))
     below = np.roll(blur(np.maximum(rivets, bolts), 1.5, px(n, 55.0)), int(px(n, 38.0)), axis=0)
-    grime = np.clip(0.35 * smooth(0.45, 0.8, streak) + 2.5 * below * smooth(0.3, 0.7, streak), 0, 0.55)
-    grime = np.clip(grime + 0.35 * smooth(0.5, 0.9, macro) + 0.35 * groove, 0, 0.8)
+    grime = np.clip(0.16 * smooth(0.45, 0.8, streak) + 2.2 * below * smooth(0.3, 0.7, streak), 0, 0.55)
+    grime = np.clip(grime + 0.12 * smooth(0.5, 0.9, macro) + 0.35 * groove, 0, 0.8)
     paint = 0.66 + bright + (fbm(n, 1.5, 18) - 0.5) * 0.08
     alb = lerp(paint, 0.78, wear) * (1.0 - grime * 0.62)
     albedo = np.repeat(alb[..., None], 3, axis=2)
@@ -305,7 +305,7 @@ def make_metal_painted(n):
     h -= scr * 0.05
     film = fbm(n, 3.2, 27)
     film_m = smooth(0.45, 0.85, film)
-    alb = 0.92 - film_m * 0.22 + (fine - 0.5) * 0.05 - scr * 0.03
+    alb = 0.92 - film_m * 0.05 + (fine - 0.5) * 0.04 - scr * 0.03
     alb = np.where(chip_mask > 0.5, 0.26, alb)
     metal_edge = np.clip(ring - chip_mask, 0, 1)
     alb = lerp(alb, 0.62, np.where(chip_mask > 0.5, 0.0, metal_edge * 0.6))
@@ -436,12 +436,11 @@ def make_asphalt(n):
     mid = fbm(n, 2.0, 76, lo=0.01)
     cracks = splat_lines(n, int(px(n, 14) * n / 1024), px(n, 160), px(n, 600), 77, jitter=0.4, step=0.6)
     cracks = np.clip(blur(cracks, 0.5) * 1.8, 0, 1)
-    seam = smooth(0.52, 0.56, macro) * (1 - smooth(0.56, 0.62, macro))   # thin tar-patch outlines
     puddle = smooth(0.54, 0.64, blur(fbm(n, 3.2, 78), 2.0))
     h = stone * 0.5 + stone_small * 0.3 + (sand - 0.5) * 0.25 - cracks * 0.6 + (mid - 0.5) * 0.2
     h = h * (1.0 - puddle * 0.8)
     cav = cavity(h, px(n, 2.5), 1.5)
-    alb = 0.115 + stone * 0.17 + stone_small * 0.1 + (sand - 0.5) * 0.04 + (mid - 0.5) * 0.03 - cracks * 0.06 - seam * 0.03
+    alb = 0.115 + stone * 0.17 + stone_small * 0.1 + (sand - 0.5) * 0.04 + (mid - 0.5) * 0.03 - cracks * 0.06
     alb = alb * (1.0 - puddle * 0.42)
     albedo = np.stack([alb * 1.0, alb * 1.0, alb * 1.02], axis=-1)
     ao = np.clip(1.0 + cav * 1.4 - cracks * 0.5, 0.35, 1.0)
@@ -486,7 +485,7 @@ def make_glass(n):
                 stamp(drops, cx + r.normal(0, 0.6), (cy + t) % n, max(1.2, rad * 0.22 * (1 - t / ln)), gain=0.55)
     h = drops * 0.8 + (smudge - 0.5) * 0.08 + (dust - 0.5) * 0.02
     film = smooth(0.45, 0.85, smudge)
-    alb = 0.93 - film * 0.07 - (dust - 0.5) * 0.03
+    alb = 0.93 - film * 0.025 - (dust - 0.5) * 0.02
     albedo = np.repeat(np.clip(alb, 0, 1)[..., None], 3, axis=2)
     ao = np.ones((n, n))
     rough = 0.05 + film * 0.30 + np.clip((dust - 0.5) * 0.2, 0, 1) - drops * 0.045
@@ -536,7 +535,7 @@ def main():
             continue
         t0 = time.time()
         a, orm, nm = fn(args.size)
-        write_png(os.path.join(args.out, name + "_albedo.png"), a)
+        write_png(os.path.join(args.out, name + "_albedo.png"), a.mean(axis=2))   # neutral grey: models tint it with material factors
         write_png(os.path.join(args.out, name + "_orm.png"), orm)
         write_png(os.path.join(args.out, name + "_normal.png"), nm)
         built[name] = (a, orm, nm)

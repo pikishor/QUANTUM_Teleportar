@@ -1,4 +1,9 @@
-// Shared helpers for the world shaders: sine-free hashes (stable on every GPU), value noise, small shape masks.
+// Shared helpers for the world shaders: sine-free hashes (stable on every GPU), value noise, small shape masks and the
+// analytic city grid (roads every 80 m, 20 m wide) so every shader agrees where the roads are without textures.
+
+const float W_PITCH = 80.0;
+const float W_HALF = 320.0;
+const float W_ROADH = 10.0;      // half road width
 
 float hash11(float p) {
 	p = fract(p * 0.1031);
@@ -19,6 +24,12 @@ float hash13(vec3 p3) {
 	return fract((p3.x + p3.y) * p3.z);
 }
 
+vec2 hash22(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.xx + p3.yz) * p3.zy);
+}
+
 vec3 hash33(vec3 p3) {
 	p3 = fract(p3 * vec3(0.1031, 0.1030, 0.0973));
 	p3 += dot(p3, p3.yxz + 33.33);
@@ -34,6 +45,10 @@ float vnoise(vec2 p) {
 	float c = hash12(i + vec2(0.0, 1.0));
 	float d = hash12(i + vec2(1.0, 1.0));
 	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float fbm2(vec2 p) {
+	return vnoise(p) * 0.5 + vnoise(p * 2.03 + 11.7) * 0.3 + vnoise(p * 4.1 + 3.1) * 0.2;
 }
 
 float vnoise3(vec3 p) {
@@ -55,4 +70,9 @@ float vnoise3(vec3 p) {
 // Anti-aliased band: 1 inside [a, b], 0 outside, edges softened by `aa` (use fwidth of the coordinate).
 float band(float x, float a, float b, float aa) {
 	return smoothstep(a - aa, a + aa, x) * (1.0 - smoothstep(b - aa, b + aa, x));
+}
+
+// Signed offset from v to the nearest road centre line of the (endlessly repeated) city grid.
+float road_off(float v) {
+	return v - (-W_HALF + floor((v + W_HALF) / W_PITCH + 0.5) * W_PITCH);
 }

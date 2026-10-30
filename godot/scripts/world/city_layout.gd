@@ -34,6 +34,7 @@ class Lot extends RefCounted:
 	var neon := 0              ## index into the neon palette
 	var block_i := 0
 	var block_j := 0
+	var index := 0               ## position in CityLayout.lots
 
 	func contains_xz(x: float, z: float, margin := 0.0) -> bool:
 		return x > rect.position.x - margin and x < rect.end.x + margin and z > rect.position.y - margin and z < rect.end.y + margin
@@ -118,6 +119,7 @@ func _generate() -> void:
 					lot.neon = neon
 					lot.block_i = i
 					lot.block_j = j
+					lot.index = lots.size()
 					lots.append(lot)
 					(_buckets[i * N + j] as Array).append(lot)
 

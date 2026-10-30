@@ -33,3 +33,7 @@ godot/.godot/
 godot/build/
 godot/*.tmp
 godot/assets/generated/
+
+# Python
+__pycache__/
+*.pyc

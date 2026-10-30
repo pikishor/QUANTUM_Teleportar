@@ -26,8 +26,7 @@ uniform float emission_scale = 1.0;
 uniform float far_fade_start = 240.0;                   // windows melt into an average colour beyond this distance
 uniform float far_fade_end = 800.0;
 
-const float FLOOR_H = 3.6;
-const float COL_W = 3.4;
+const float FLOOR_H = 3.5;
 const float GROUND_H = 5.0;
 const float PARAPET_H = 1.2;
 
@@ -60,20 +59,20 @@ void vertex() {
 }
 
 vec3 lit_color(float r, float pal) {
-	vec3 warm = vec3(1.0, 0.70, 0.38);
-	vec3 amber = vec3(1.0, 0.54, 0.22);
-	vec3 white = vec3(0.80, 0.90, 1.0);
+	vec3 warm = vec3(1.0, 0.68, 0.36);
+	vec3 amber = vec3(1.0, 0.52, 0.20);
+	vec3 white = vec3(0.78, 0.88, 1.0);
 	vec3 tv = vec3(0.36, 0.55, 1.0);
-	vec3 pink = vec3(1.0, 0.28, 0.62);
-	vec3 teal = vec3(0.25, 0.95, 0.80);
+	vec3 pink = vec3(1.0, 0.30, 0.60);
+	vec3 teal = vec3(0.30, 0.90, 0.78);
 	if (pal < 0.5) {            // residential: tungsten
-		return r < 0.55 ? warm : (r < 0.76 ? amber : (r < 0.88 ? white : (r < 0.95 ? tv : pink)));
+		return r < 0.62 ? warm : (r < 0.84 ? amber : (r < 0.94 ? white : (r < 0.98 ? tv : pink)));
 	} else if (pal < 1.5) {     // offices: fluorescent white
-		return r < 0.50 ? white : (r < 0.72 ? warm : (r < 0.88 ? teal : (r < 0.96 ? tv : amber)));
+		return r < 0.60 ? white : (r < 0.82 ? warm : (r < 0.94 ? teal : (r < 0.98 ? tv : amber)));
 	} else if (pal < 2.5) {     // nightlife
-		return r < 0.30 ? pink : (r < 0.52 ? warm : (r < 0.72 ? teal : (r < 0.90 ? white : tv)));
+		return r < 0.18 ? pink : (r < 0.55 ? warm : (r < 0.75 ? teal : (r < 0.92 ? white : tv)));
 	}
-	return r < 0.40 ? warm : (r < 0.62 ? white : (r < 0.80 ? amber : (r < 0.92 ? teal : pink)));
+	return r < 0.50 ? warm : (r < 0.76 ? white : (r < 0.90 ? amber : (r < 0.97 ? teal : pink)));
 }
 
 // One pseudo-glyph (neon "alien script"): `code` selects which of 6 strokes are lit. g = cell coordinates (0..1).
@@ -146,7 +145,7 @@ void fragment() {
 		vec2 dd = min(p - vec2(v_wall.x, v_wall.y), vec2(v_wall.z, v_wall.w) - p);
 		float ed = min(dd.x, dd.y);
 		float lip = 1.0 - smoothstep(0.22, 0.30, ed);
-		vec3 conc = tint * 0.10 * (0.8 + 0.4 * tone);
+		vec3 conc = tint * 0.16 * (0.8 + 0.4 * tone);
 		albedo = mix(tar, conc, max(lip, v_ledge));
 		albedo *= 1.0 - 0.55 * pud;
 		rough = mix(0.88, 0.04, pud);
@@ -181,7 +180,8 @@ void fragment() {
 		float yv = (y - gh) / fh;
 		float fi = floor(yv);
 		float ff = yv - fi;
-		float ncol = max(2.0, floor(fw / COL_W + 0.5));
+		float col_w = style > 3.5 ? 2.4 : (style > 2.5 ? 1.5 : (style > 1.5 ? 1.7 : (style > 0.5 ? 2.1 : 2.6)));
+		float ncol = max(2.0, floor(fw / col_w + 0.5));
 		float cw = fw / ncol;
 		float cu = u / cw;
 		float ci = floor(cu);
@@ -189,6 +189,13 @@ void fragment() {
 		float au = max(fwidth(cu), 0.002);
 		float av = max(fwidth(yv), 0.002);
 		float am = max(fwidth(u), 0.002);
+#ifdef MIRROR
+		// reflections in rough wet asphalt: the higher the reflected point, the softer (and smeared more vertically)
+		float rblur = 1.0 + gy * 0.10;
+		au *= rblur * 0.8;
+		av *= rblur * 1.6;
+		am *= rblur * 0.8;
+#endif
 
 		// ---- window rectangle per style -------------------------------------------------------------------------------
 		vec2 w0 = vec2(0.18, 0.22);
@@ -239,7 +246,7 @@ void fragment() {
 		float cr = hash12(cid * 0.77 + vec2(fseed, 3.1));
 		cr = mix(cr, hash12(vec2(fi, fseed) + 9.9), step(0.5, rf));   // half of the floors share one hue
 		vec3 wc = lit_color(cr, pal);
-		float wint = 1.25 + 1.2 * hash12(cid + fseed + 13.0);
+		float wint = 0.75 + 0.95 * hash12(cid + fseed + 13.0);
 		// television glow flickers
 		float is_tv = (wc.b > 0.9 && wc.r < 0.5) ? 1.0 : 0.0;
 		wint *= 1.0 - is_tv * 0.5 * (0.5 + 0.5 * sin(TIME * 7.0 + rc * 40.0) * sin(TIME * 2.3 + rt * 20.0));
@@ -274,7 +281,7 @@ void fragment() {
 		float big_ledge = (mod(fi, ledge_k) < 0.5) ? 1.0 : 0.0;
 		float led = 1.0 - smoothstep(0.06 + 0.1 * big_ledge - am, 0.11 + 0.16 * big_ledge + am, fdist);
 		float panel = hash12(vec2(ci, fi) + fseed * 0.1);
-		vec3 wall = tint * (0.17 + 0.07 * panel);
+		vec3 wall = tint * (0.26 + 0.10 * panel);
 		wall *= 1.0 + 0.5 * pil + 0.45 * led;
 		float streak = vnoise(vec2(u * 1.3 + bseed, gy * 0.06));
 		wall *= mix(0.62, 1.1, streak);
@@ -299,7 +306,7 @@ void fragment() {
 
 		vec3 glass = vec3(0.010, 0.014, 0.030);
 		albedo = mix(wall, glass, win);
-		albedo = mix(albedo, tint * 0.10, frame * 0.6);
+		albedo = mix(albedo, tint * 0.16, frame * 0.6);
 		albedo = mix(albedo, vec3(0.10, 0.11, 0.12), ac_unit);
 		rough = mix(mix(0.84, 0.35, wet * (0.3 + 0.7 * runnel)), 0.07, win);
 		metal = win * 0.6;
@@ -337,8 +344,8 @@ void fragment() {
 			vec3 sc = lit_color(cr2, pal);
 			float sh = 0.8 + 0.2 * step(0.5, fract(y * 1.7));
 			float mull = 1.0 - band(abs(bf - 0.5), 0.0, 0.012, abu);
-			vec3 shopE = sc * (0.9 + 1.2 * hash12(vec2(bidx, fseed) + 3.0)) * sh * mull;
-			vec3 base_a = tint * 0.13 * (0.6 + 0.8 * panel) * mix(0.55, 1.0, smoothstep(0.0, 2.5, y));
+			vec3 shopE = sc * (0.55 + 0.9 * hash12(vec2(bidx, fseed) + 3.0)) * sh * mull;
+			vec3 base_a = tint * 0.22 * (0.6 + 0.8 * panel) * mix(0.55, 1.0, smoothstep(0.0, 2.5, y));
 			albedo = base_a;
 			rough = mix(0.7, 0.4, wet);
 			metal = 0.0;
@@ -355,7 +362,7 @@ void fragment() {
 			rough = mix(rough, 0.45, shop * shut);
 			metal = mix(metal, 0.7, shop * shut);
 			// door: bright warm slot
-			emit += vec3(1.0, 0.72, 0.4) * 1.8 * door * (0.7 + 0.3 * smoothstep(0.0, 3.0, y));
+			emit += vec3(1.0, 0.72, 0.4) * 1.1 * door * (0.7 + 0.3 * smoothstep(0.0, 3.0, y));
 			albedo = mix(albedo, glass, door);
 			// neon sign band with glyphs
 			vec3 nc = NEON[int(mod(rb0 * 4.0 + v_data.y, 4.0))];
@@ -376,7 +383,7 @@ void fragment() {
 		// ---- top band: cornice / parapet ------------------------------------------------------------------------------
 		if (y > ph - PARAPET_H) {
 			float k = smoothstep(ph - PARAPET_H, ph - PARAPET_H + 0.15, y);
-			albedo = mix(albedo, tint * 0.12 * (0.8 + 0.4 * streak), k);
+			albedo = mix(albedo, tint * 0.20 * (0.8 + 0.4 * streak), k);
 			rough = mix(rough, 0.8, k);
 			metal = mix(metal, 0.0, k);
 			emit *= 1.0 - k;
@@ -411,6 +418,18 @@ void fragment() {
 			albedo = mix(albedo, vec3(0.01), max(inside, rim));
 			metal = mix(metal, 0.0, inside);
 			rough = mix(rough, 0.3, inside);
+		}
+
+		// ---- anti-aliasing: when window cells approach pixel size they melt into their average tone --------------------
+		{
+			float alias = max(smoothstep(0.20, 0.55, au), smoothstep(0.22, 0.6, av));
+			float warea = (w1.x - w0.x) * (w1.y - w0.y);
+			vec3 avg_e = mix(vec3(1.0, 0.70, 0.42), vec3(0.8, 0.9, 1.0), pal * 0.3) * lit_p * warea * 1.1;
+			if (y > gh && y < ph - PARAPET_H) {
+				albedo = mix(albedo, mix(wall, glass, warea * 0.7), alias);
+				emit = mix(emit, avg_e + emit * 0.0, alias);
+				rough = mix(rough, 0.45, alias);
+			}
 		}
 
 		// ---- distance: windows melt into an average tone so far towers do not shimmer -----------------------------------
