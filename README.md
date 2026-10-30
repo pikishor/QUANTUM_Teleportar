@@ -7,6 +7,12 @@ and quantum powers built on real physics ideas.
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the path to a production-quality release and
 [docs/RELEASE.md](docs/RELEASE.md) for the store-submission checklist.
 
+## Unreal Engine 5 port (in progress)
+
+The production target is an Unreal Engine 5 build. `unreal/` holds a C++ project that re-implements this prototype's gameplay with
+engine primitives only. It is an **uncompiled scaffold** — see [unreal/README.md](unreal/README.md). The Three.js game stays as the
+tested design reference.
+
 ## Gameplay
 
 - **Third-person shooter:** hitscan rifle, headshots, reload, recoil/spread, zoom.

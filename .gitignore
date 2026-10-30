@@ -16,3 +16,14 @@ ios/App/build/
 ios/DerivedData/
 ios/App/App/public/
 android/app/src/main/assets/public/
+
+# Unreal Engine
+unreal/**/Binaries/
+unreal/**/Intermediate/
+unreal/**/Saved/
+unreal/**/DerivedDataCache/
+unreal/**/.vs/
+unreal/**/*.sln
+unreal/**/*.suo
+unreal/**/*.VC.db
+unreal/**/*.xcworkspace

@@ -12,6 +12,10 @@ objectives) in Three.js. GTA-/CoD-class visual quality needs content and a nativ
 | store packaging and release tooling | VFX, UI art, trailers, key art |
 
 ## Engine decision (the biggest fork)
+**Decided: Unreal Engine 5** (owner's choice, for the highest visual ceiling). Consequences: a dev machine with a GPU and the UE5 editor
+(this repo's cloud sandbox cannot run it), macOS + Xcode or a macOS CI runner for iOS, an Epic account, and a content pipeline (artists/vendors/licensed assets).
+The `unreal/` folder is the starting scaffold; the options below are kept for context.
+
 - **Current: Three.js in a WebView (Capacitor).** Fastest to iterate and test in a browser/CI, one codebase for both stores.
   Lower ceiling for fidelity, draw distance and physics on phones.
 - **Native engine (Unity or Unreal).** Needed for console-adjacent fidelity: PBR materials, skinned/mocap characters,

@@ -1,0 +1,22 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.5",
+	"Category": "",
+	"Description": "Quantum Teleportar - open-world sci-fi action game for iOS and Android",
+	"Modules": [
+		{
+			"Name": "QuantumTeleportar",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	],
+	"TargetPlatforms": [
+		"Android",
+		"IOS",
+		"Windows",
+		"Mac"
+	]
+}
