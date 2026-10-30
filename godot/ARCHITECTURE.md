@@ -5,9 +5,10 @@ Engine: **Godot 4.6, Mobile renderer (Compatibility fallback)**, GDScript. This 
 **tested behaviour reference** (numbers, rules, feel) and `../unreal/` is a later option.
 
 ## Direction (binding for every module)
-- **Audience / rating:** adult. Target a **Mature (17+)** store rating. A grounded, gritty, cinematic sci-fi thriller: not cartoonish, not a kids' game.
-  Enemies are human Observer Corp operatives (tactical gear, helmets, visors) plus industrial drones. Violence has weight (hit reactions, ragdolls,
-  impact/blood decals) behind a settings toggle `Game.graphic_violence` (default true) so regional builds can switch it off. No real-world brands, weapon licences or other IP.
+- **Ambition and tone:** "not a small game": the scale, depth and polish of GTA 5 / Call of Duty, delivered on mobile. A grounded, cinematic sci-fi thriller, not
+  cartoonish or toy-like. Enemies are human Observer Corp operatives (tactical gear, helmets, visors) plus industrial drones. **The store rating is not decided yet**
+  (Teen vs Mature): hit reactions and impact effects are always on, but blood/gore-style effects sit behind `Game.graphic_violence` (default false until the rating is chosen)
+  so the same build can ship in either rating or per region. No real-world brands, weapon licences or other IP.
 - **Look, "cyber-noir realism":** night, rain, wet asphalt reflecting neon, haze and steam, grime and wear, subtle film grain + vignette + chromatic aberration,
   a graded palette (cool teal shadows, warm highlights, magenta/cyan neon used as *practical light sources*, not toy colour). Real scale (human about 1.8 m, car about 4.5 m),
   believable proportions, PBR-style materials (albedo/roughness/normal/AO from procedural textures), bevelled meshes with normal maps.
@@ -101,7 +102,7 @@ Sets `Game.player = self`.
 Props: `has_beacon`, `beacon_pos`, `clone`, `cd_blink cd_link cd_super`, `links`. Reads actions only while `Game.is_playing()`. Reset on lifecycle signals.
 
 ### enemies — owns `scripts/enemies/**`, `scenes/enemy_manager.tscn`, `tests/*enemies*`
-`class_name Drone` (hovering Observer drone, group `enemy`, layer `enemy`) and `class_name EnemyManager` (`Node`, `Game.enemies = self`). Port `../src/enemies.js` and its `ENEMY` table (`sentinel`, `striker` kamikaze, `heavy` 3-round burst) and add the human type **`operative`** (Observer Corp rifleman, hp 80: takes cover behind building corners/cars found by raycasts, peeks and fires short bursts with tracers, flanks, calls for help, ragdoll/hit-react death with `Game.graphic_violence`-gated blood decals, humanoid model `Game.load_model("operative")` with primitive fallback). Sentinels/strikers/heavies are industrial drones, not toys.
+`class_name Drone` (hovering Observer drone, group `enemy`, layer `enemy`) and `class_name EnemyManager` (`Node`, `Game.enemies = self`). Port `../src/enemies.js` and its `ENEMY` table (`sentinel`, `striker` kamikaze, `heavy` 3-round burst) and add the human type **`operative`** (Observer Corp rifleman, hp 80: takes cover behind building corners/cars found by raycasts, peeks and fires short bursts with tracers, flanks, calls for help, ragdoll/hit-react death with `Game.graphic_violence`-gated blood, humanoid model `Game.load_model("operative")` with primitive fallback). Sentinels/strikers/heavies are industrial drones, not toys.
 Drone API: `damage(amount, crit := false, mirrored := false)` · `center() -> Vector3` · `radius: float` · `type: StringName` · `hp max_hp` · `aware: bool` · `linked: Drone` · `alert()`.
 Behaviour: idle wander near home → aware (player within 32 m, or heat>0 within 80 m, or damaged; alerts neighbours within 35 m) → chase / back off / strafe at range, line-of-sight raycasts (throttled), target the player or the player's `clone` (50 %), dodgeable energy bolts
 (pooled, 28–30 m/s), strikers explode on contact via `Game.explode`. Hit effects via `FX`; floating health bar when damaged. Death: score, `Game.add_heat`, energy refund to player, 30 % health / 30 % energy pickup via `Game.missions.drop(kind, pos)` if available.

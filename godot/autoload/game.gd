@@ -53,8 +53,8 @@ var heat := 0.0:             # Observation level, 0..5
 var quiet := 0.0             # seconds since any drone last had the player in sight
 ## True when launched by tests/bots/shot tools (or --autostart): skip the menu and start playing at once.
 var autostart := false
-## Blood/impact decals and gore-style hit effects. Settings toggle; regional builds can default it to false.
-var graphic_violence := true
+## Blood and gore-style effects. Off until the store rating is decided; a settings toggle and regional builds can flip it.
+var graphic_violence := false
 ## Force the touch overlay on (desktop testing). The HUD also shows it automatically on touchscreens.
 var force_touch := false
 
