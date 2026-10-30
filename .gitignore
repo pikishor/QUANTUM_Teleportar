@@ -37,3 +37,6 @@ godot/assets/generated/
 # Python
 __pycache__/
 *.pyc
+godot/.venv-tools/
+godot/android/build/
+godot/android/.build_version

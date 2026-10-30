@@ -1,0 +1,3 @@
+# Python packages for the asset generators (tools/blender, tools/audio). bpy (Blender as a module) needs Python 3.13.
+bpy==5.2.3
+numpy==2.5.4

@@ -1,0 +1,86 @@
+name: Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Also build a signed release AAB (needs the keystore secrets)"
+        type: boolean
+        default: false
+      publish:
+        description: "Upload the AAB to the Google Play internal track (needs PLAY_SERVICE_ACCOUNT_JSON)"
+        type: boolean
+        default: false
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      HAVE_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAVE_PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+      WANT_RELEASE: ${{ inputs.release == true || startsWith(github.ref, 'refs/tags/v') }}
+      WANT_PUBLISH: ${{ inputs.publish == true || startsWith(github.ref, 'refs/tags/v') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Cache Godot and export templates
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/godot-4.6.1-stable
+            ~/.cache/godot-templates
+            ~/.local/share/godot/export_templates
+          key: godot-4.6.1-stable-linux-templates-v1
+      - name: Bootstrap Godot, templates and project import
+        run: godot/tools/bootstrap.sh --templates
+      - name: Android SDK packages (versions pinned from the Godot template)
+        run: godot/tools/setup_android_sdk.sh
+      - name: Version numbers
+        run: |
+          echo "VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"; else echo "VERSION_NAME=0.1.0-dev.${{ github.run_number }}" >> "$GITHUB_ENV"; fi
+      - name: Debug APK (installable on a phone)
+        run: godot/tools/export_android.sh apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: godot/build/android/quantum-teleportar.apk
+      - name: Decode upload keystore
+        if: env.HAVE_KEYSTORE == 'true' && env.WANT_RELEASE == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"
+          {
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$RUNNER_TEMP/upload.keystore"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$KEY_ALIAS"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$KEYSTORE_PW"
+          } >> "$GITHUB_ENV"
+      - name: Signed release AAB
+        if: env.HAVE_KEYSTORE == 'true' && env.WANT_RELEASE == 'true'
+        run: godot/tools/export_android.sh aab
+      - uses: actions/upload-artifact@v4
+        if: env.HAVE_KEYSTORE == 'true' && env.WANT_RELEASE == 'true'
+        with:
+          name: android-release-aab
+          path: godot/build/android/quantum-teleportar.aab
+      - name: Publish to Google Play (internal testing track)
+        if: env.HAVE_KEYSTORE == 'true' && env.HAVE_PLAY == 'true' && env.WANT_RELEASE == 'true' && env.WANT_PUBLISH == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.quantumteleportar.app
+          releaseFiles: godot/build/android/quantum-teleportar.aab
+          track: internal
+          status: completed

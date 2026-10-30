@@ -8,11 +8,16 @@ and quantum powers built on real physics ideas.
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the path to a production-quality release and
 [docs/RELEASE.md](docs/RELEASE.md) for the store-submission checklist.
 
+## Build and deploy
+
+Android and iOS builds run from GitHub Actions and everything is reproducible from a clean clone: see **[docs/DEPLOY.md](docs/DEPLOY.md)**
+(secrets, one-time store setup, release flow, and what has been verified vs not). Quick start: `make setup && make test`.
+
 ## What is in this repo
 
 | Folder | What | Status |
 |---|---|---|
-| `godot/` | **Production build**: Godot 4.6 (GL Compatibility renderer), GDScript, native Android/iOS export. Headless tests + screenshot/bot tooling. | in progress |
+| `godot/` | **Production build**: Godot 4.6 (Mobile renderer, Compatibility fallback), GDScript, native Android/iOS export. Headless tests + screenshot/bot tooling. | in progress |
 | `src/`, `android/`, `ios/` | Three.js prototype wrapped for mobile with Capacitor | playable, tested reference |
 | `unreal/` | Unreal Engine 5 C++ scaffold ([details](unreal/README.md)) | uncompiled; parked until a GPU machine or Epic-linked CI exists |
 | `prototypes/runner` | the original endless-runner prototype | archive |
