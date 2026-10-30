@@ -95,6 +95,13 @@ func strut(a: Vector3, b: Vector3, thickness: float, c: Color = color) -> void:
 		norms[i] = basis * norms[i]
 
 
+## Move/rotate every vertex added since `start` (build a part in local space, then place it).
+func xform_from(start: int, xf: Transform3D) -> void:
+	for i in range(start, verts.size()):
+		verts[i] = xf * verts[i]
+		norms[i] = xf.basis * norms[i]
+
+
 ## Upright cylinder (or frustum when top_radius differs), smooth side normals, flat caps.
 func cylinder(base: Vector3, radius: float, height: float, segments := 12, c: Color = color, top_radius := -1.0,
 		cap_top := true, cap_bottom := false) -> void:

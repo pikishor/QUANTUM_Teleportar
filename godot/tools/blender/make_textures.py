@@ -290,32 +290,29 @@ def make_plating(n):
 
 
 def make_metal_painted(n):
-    """Clear-coated automotive/helmet paint: orange peel, stone chips, swirl scratches, road film. Neutral so it can be tinted."""
-    r = rng(21)
-    peel = fbm(n, 1.4, 22, lo=0.03, hi=0.22)
+    """Clear-coated automotive/helmet paint: faint orange peel, sparse stone chips, fine swirl scratches. Neutral so it can be tinted."""
+    peel = fbm(n, 1.4, 22, lo=0.03, hi=0.2)
     fine = fbm(n, 0.5, 23, lo=0.1, hi=0.5)
-    h = (peel - 0.5) * 0.35 + (fine - 0.5) * 0.05
-    chips = splat_disks(n, int(px(n, 700) * n / 1024), px(n, 1.5), px(n, 5.5), 24, "flat")
-    chip_cluster = smooth(0.52, 0.72, fbm(n, 2.6, 25))
-    chip_mask = chips * chip_cluster
-    chip_mask = np.clip(chip_mask, 0, 1)
+    h = (peel - 0.5) * 0.10 + (fine - 0.5) * 0.015
+    chips = splat_disks(n, int(260 * n / 1024), px(n, 1.2), px(n, 4.0), 24, "flat")
+    chip_cluster = smooth(0.55, 0.78, fbm(n, 2.6, 25))
+    chip_mask = np.clip(chips * chip_cluster, 0, 1)
     ring = np.clip(blur(chip_mask, px(n, 1.4)) * 3.0, 0, 1)
-    h -= ring * 0.5
-    scr = splat_lines(n, int(px(n, 260) * n / 1024), px(n, 60), px(n, 380), 26)
-    h -= scr * 0.05
+    h -= ring * 0.18
+    scr = splat_lines(n, int(160 * n / 1024), px(n, 60), px(n, 380), 26)
+    h -= scr * 0.02
     film = fbm(n, 3.2, 27)
     film_m = smooth(0.45, 0.85, film)
-    alb = 0.92 - film_m * 0.05 + (fine - 0.5) * 0.04 - scr * 0.03
-    alb = np.where(chip_mask > 0.5, 0.26, alb)
-    metal_edge = np.clip(ring - chip_mask, 0, 1)
-    alb = lerp(alb, 0.62, np.where(chip_mask > 0.5, 0.0, metal_edge * 0.6))
+    alb = 0.93 - film_m * 0.04 + (fine - 0.5) * 0.02 - scr * 0.02
+    alb = np.where(chip_mask > 0.5, 0.30, alb)
+    alb = lerp(alb, 0.62, np.where(chip_mask > 0.5, 0.0, np.clip(ring - chip_mask, 0, 1) * 0.5))
     albedo = np.repeat(np.clip(alb, 0, 1)[..., None], 3, axis=2)
-    ao = np.clip(1.0 - chip_mask * 0.5 - film_m * 0.05, 0.4, 1.0)
-    rough = 0.30 + (peel - 0.5) * 0.12 + film_m * 0.28 + scr * 0.14
-    rough = np.where(chip_mask > 0.5, 0.55, rough)
-    metal = 0.35 + (fine - 0.5) * 0.08
+    ao = np.clip(1.0 - chip_mask * 0.4, 0.5, 1.0)
+    rough = 0.24 + (peel - 0.5) * 0.06 + film_m * 0.18 + scr * 0.10
+    rough = np.where(chip_mask > 0.5, 0.5, rough)
+    metal = 0.30 + (fine - 0.5) * 0.04
     metal = np.where(chip_mask > 0.5, 0.95, metal)
-    return pack(albedo, ao, rough, metal, h * px(n, 6.0), 1.0)
+    return pack(albedo, ao, rough, metal, h * px(n, 4.0), 1.0)
 
 
 def _weave(n, period, pattern):

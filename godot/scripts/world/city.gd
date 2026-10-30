@@ -13,6 +13,9 @@ const Env := preload("res://scripts/world/city_env.gd")
 const Ground := preload("res://scripts/world/city_ground.gd")
 const Buildings := preload("res://scripts/world/city_buildings.gd")
 const Props := preload("res://scripts/world/city_props.gd")
+const Skyline := preload("res://scripts/world/city_skyline.gd")
+const NEON_SPILL: Array[Color] = [Color(0.2, 0.85, 1.0), Color(1.0, 0.16, 0.62), Color(0.58, 0.36, 1.0), Color(0.2, 1.0, 0.66)]
+const Misc := preload("res://scripts/world/city_misc.gd")
 const PROP_SHADER := preload("res://assets/shaders/prop.gdshader")
 const PROP_MIRROR_SHADER := preload("res://assets/shaders/prop_mirror.gdshader")
 const GLOW_SHADER := preload("res://assets/shaders/glow.gdshader")
@@ -37,6 +40,8 @@ var _env := Env.new()
 var _ground := Ground.new()
 var _buildings := Buildings.new()
 var _props := Props.new()
+var _skyline := Skyline.new()
+var _misc := Misc.new()
 var _mirror_root: Node3D
 var _real_root: Node3D
 var _ground_node: MeshInstance3D
@@ -70,6 +75,8 @@ func _ready() -> void:
 	_build_ground()
 	_build_buildings()
 	_build_props()
+	_build_skyline()
+	_build_misc()
 	_build_collision()
 	set_quality(quality)
 
@@ -184,6 +191,18 @@ func _build_ground() -> void:
 		var head := Vector2(lamp.x, lamp.y) + Vector2(lamp.z, lamp.w) * 2.4
 		_ground.add_pool(head.x, head.y, 17.0, Color(1.0, 0.64, 0.32), 0.9)
 		_ground.add_glare(head.x, head.y, 4.0, 3.0)
+	# neon and shop-window light spilling onto the sidewalk in front of every street-facing wall
+	for b in building_data:
+		var lot: CityLayout.Lot = b.lot
+		var bx := -CityLayout.HALF + (lot.block_i + 0.5) * CityLayout.PITCH
+		var bz := -CityLayout.HALF + (lot.block_j + 0.5) * CityLayout.PITCH
+		var sxs := 1.0 if lot.cx > bx else -1.0
+		var szs := 1.0 if lot.cz > bz else -1.0
+		var neon: Color = NEON_SPILL[lot.neon % NEON_SPILL.size()]
+		var zf := lot.cz + szs * (lot.d * 0.5 + 1.6)
+		var xf := lot.cx + sxs * (lot.w * 0.5 + 1.6)
+		_ground.add_strip(Vector2(lot.cx - lot.w * 0.5, zf), Vector2(lot.cx + lot.w * 0.5, zf), 6.0, neon, 0.55)
+		_ground.add_strip(Vector2(xf, lot.cz - lot.d * 0.5), Vector2(xf, lot.cz + lot.d * 0.5), 6.0, Color(1.0, 0.72, 0.45), 0.4)
 	_ground.finish_light_map()
 	_ground.make_material()
 	_ground_node = _ground.make_node()
@@ -194,11 +213,38 @@ func _build_buildings() -> void:
 	_building_mat = _buildings.make_material(false)
 	_building_mirror_mat = _buildings.make_material(true)
 	_detail_materials.append(_building_mat)
+	_building_mat.set_shader_parameter(&"light_map", _ground.light_texture)
 	for cls: StringName in BM.ORDER:
 		var mm: MultiMesh = _buildings.multimeshes[cls]
 		if mm.instance_count == 0:
 			continue
 		add_multimesh("Buildings_" + String(cls), mm, _building_mat, _building_mirror_mat, true)
+
+
+func _build_misc() -> void:
+	_misc.build(layout, building_data, _props.vents, _props.rng)
+	if _misc.cable_mesh != null:
+		var mi := MeshInstance3D.new()
+		mi.name = "Cables"
+		mi.mesh = _misc.cable_mesh
+		mi.material_override = Misc.make_material(Misc.CABLE_SHADER)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.custom_aabb = AABB(Vector3(-420.0, -2.0, -420.0), Vector3(840.0, 24.0, 840.0))
+		_real_root.add_child(mi)
+	if _misc.steam_mm != null:
+		add_multimesh("Steam", _misc.steam_mm, Misc.make_material(Misc.STEAM_SHADER), null, false)
+	if _misc.hologram_mm != null:
+		add_multimesh("Holograms", _misc.hologram_mm, Misc.make_material(Misc.HOLO_SHADER), Misc.make_material(Misc.HOLO_SHADER, -120), false)
+
+
+func _build_skyline() -> void:
+	_skyline.build()
+	var mat := Skyline.make_material(false)
+	var mirror := Skyline.make_material(true)
+	for cls: StringName in Skyline.CLASSES:
+		var mm: MultiMesh = _skyline.multimeshes[cls]
+		if mm.instance_count > 0:
+			add_multimesh("Skyline_" + String(cls), mm, mat, mirror, false)
 
 
 func _shader_mat(shader: Shader, priority := 0) -> ShaderMaterial:
@@ -209,7 +255,7 @@ func _shader_mat(shader: Shader, priority := 0) -> ShaderMaterial:
 
 
 func _build_props() -> void:
-	_props.build(layout)
+	_props.build(layout, building_data)
 	var prop_mat := _shader_mat(PROP_SHADER)
 	var prop_mirror := _shader_mat(PROP_MIRROR_SHADER)
 	var glow_mat := _shader_mat(GLOW_SHADER)

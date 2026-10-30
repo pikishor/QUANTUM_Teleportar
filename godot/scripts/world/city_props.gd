@@ -7,6 +7,7 @@ extends RefCounted
 ## emission code (see assets/shaders/prop_core.gdshaderinc), UV2 = (metallic, roughness).
 
 const MB := preload("res://scripts/world/mesh_builder.gd")
+const Roofs := preload("res://scripts/world/city_roofs.gd")
 
 const EM_LAMP := 0.15
 const EM_FLASHER := 0.45
@@ -66,40 +67,32 @@ static func _finish(b: MB) -> ArrayMesh:
 static func lamp_mesh() -> ArrayMesh:
 	var b := _mb(0.8, 0.45)
 	var metal := Color(0.075, 0.08, 0.085, 0.0)
-	b.cylinder(Vector3(0, 0, 0), 0.24, 0.55, 8, Color(0.10, 0.10, 0.105, 0.0), 0.17)
-	b.cylinder(Vector3(0, 0.5, 0), 0.115, 7.0, 8, metal, 0.07)
-	b.cylinder(Vector3(0, 1.6, 0), 0.15, 0.14, 8, metal)
-	b.cylinder(Vector3(0, 4.2, 0), 0.12, 0.1, 8, metal)
+	b.cylinder(Vector3(0, 0, 0), 0.21, 0.5, 6, Color(0.10, 0.10, 0.105, 0.0), 0.15, false)
+	b.cylinder(Vector3(0, 0.45, 0), 0.11, 7.0, 6, metal, 0.07, false)
 	b.strut(Vector3(0, 7.3, 0), Vector3(1.1, 7.78, 0), 0.10, metal)
 	b.strut(Vector3(1.1, 7.78, 0), Vector3(2.35, 7.72, 0), 0.08, metal)
-	b.strut(Vector3(0, 6.5, 0), Vector3(1.4, 7.74, 0), 0.035, metal)
-	b.box(Vector3(2.5, 7.69, 0), Vector3(1.05, 0.15, 0.44), Color(0.12, 0.125, 0.13, 0.0))
-	b.box(Vector3(2.5, 7.60, 0), Vector3(0.95, 0.05, 0.38), Color(0.05, 0.05, 0.055, 0.0))
+	b.box(Vector3(2.5, 7.67, 0), Vector3(1.05, 0.2, 0.44), Color(0.12, 0.125, 0.13, 0.0), false)
 	b.uv2 = Vector2(0.0, 0.2)
-	b.box(Vector3(2.5, 7.57, 0), Vector3(0.84, 0.03, 0.30), Color(1, 1, 1, EM_LAMP))
+	var y := 7.565
+	b.quad(Vector3(2.08, y, -0.15), Vector3(2.92, y, -0.15), Vector3(2.92, y, 0.15), Vector3(2.08, y, 0.15), Vector3.DOWN, Color(1, 1, 1, EM_LAMP))
 	return _finish(b)
 
 
 static func signal_mesh() -> ArrayMesh:
 	var b := _mb(0.7, 0.5)
 	var metal := Color(0.10, 0.105, 0.11, 0.0)
-	b.cylinder(Vector3(0, 0, 0), 0.16, 0.45, 8, metal, 0.12)
-	b.cylinder(Vector3(0, 0.4, 0), 0.10, 4.9, 8, metal, 0.075)
+	b.cylinder(Vector3(0, 0, 0), 0.12, 5.1, 6, metal, 0.075, false)
 	b.strut(Vector3(0, 5.15, 0), Vector3(4.6, 5.3, 0), 0.13, metal)
-	b.strut(Vector3(0, 4.3, 0), Vector3(1.8, 5.2, 0), 0.04, metal)
-	# street name sign
-	b.box(Vector3(0.0, 4.75, 0.14), Vector3(0.9, 0.2, 0.03), Color(0.02, 0.18, 0.12, 0.0))
-	# signal head facing +Z
+	b.box(Vector3(0.0, 4.75, 0.14), Vector3(0.9, 0.2, 0.03), Color(0.02, 0.18, 0.12, 0.0), false)
+	var ys := [5.08, 4.75, 4.42]
+	var codes := [EM_RED, EM_AMBER, EM_GREEN]
 	for hx in [4.3, 2.4]:
-		b.box(Vector3(hx, 4.75, 0.0), Vector3(0.38, 1.12, 0.3), Color(0.03, 0.03, 0.035, 0.0))
-		b.box(Vector3(hx, 4.75, -0.1), Vector3(0.5, 1.25, 0.04), Color(0.03, 0.03, 0.035, 0.0))
-		var ys := [5.08, 4.75, 4.42]
-		var codes := [EM_RED, EM_AMBER, EM_GREEN]
+		b.box(Vector3(hx, 4.75, 0.0), Vector3(0.38, 1.12, 0.3), Color(0.03, 0.03, 0.035, 0.0), false)
+		b.uv2 = Vector2(0.0, 0.2)
 		for k in 3:
-			b.uv2 = Vector2(0.0, 0.2)
-			b.box(Vector3(hx, ys[k], 0.16), Vector3(0.2, 0.2, 0.02), Color(1, 1, 1, codes[k]))
-			b.uv2 = Vector2(0.7, 0.5)
-			b.box(Vector3(hx, ys[k] + 0.14, 0.2), Vector3(0.28, 0.03, 0.14), Color(0.03, 0.03, 0.035, 0.0))
+			var c := Vector3(hx, ys[k], 0.152)
+			b.quad(c + Vector3(-0.1, -0.1, 0), c + Vector3(0.1, -0.1, 0), c + Vector3(0.1, 0.1, 0), c + Vector3(-0.1, 0.1, 0), Vector3.BACK, Color(1, 1, 1, codes[k]))
+		b.uv2 = Vector2(0.7, 0.5)
 	return _finish(b)
 
 
@@ -162,25 +155,21 @@ static func trash_mesh() -> ArrayMesh:
 	var r := RandomNumberGenerator.new()
 	r.seed = 77
 	var cols: Array[Color] = [Color(0.025, 0.025, 0.03, 0.0), Color(0.04, 0.06, 0.045, 0.0), Color(0.09, 0.09, 0.1, 0.0), Color(0.05, 0.04, 0.03, 0.0)]
-	for i in 9:
-		var p := Vector3(r.randf_range(-0.7, 0.7), 0.0, r.randf_range(-0.45, 0.45))
-		var s := Vector3(r.randf_range(0.22, 0.4), r.randf_range(0.18, 0.32), r.randf_range(0.22, 0.38))
-		p.y = s.y * 0.7 + (0.25 if i > 5 else 0.0)
-		b.sphere(p, s, 7, 4, cols[r.randi() % cols.size()])
-	b.box(Vector3(0.5, 0.12, 0.3), Vector3(0.5, 0.24, 0.4), Color(0.15, 0.10, 0.06, 0.0))
+	for i in 4:
+		var p := Vector3(r.randf_range(-0.6, 0.6), 0.0, r.randf_range(-0.4, 0.4))
+		var s := Vector3(r.randf_range(0.26, 0.42), r.randf_range(0.2, 0.32), r.randf_range(0.24, 0.38))
+		p.y = s.y * 0.7 + (0.25 if i == 3 else 0.0)
+		b.sphere(p, s, 5, 3, cols[r.randi() % cols.size()])
+	b.box(Vector3(0.5, 0.12, 0.3), Vector3(0.5, 0.24, 0.4), Color(0.15, 0.10, 0.06, 0.0), false)
 	return _finish(b)
 
 
 static func hydrant_mesh() -> ArrayMesh:
 	var b := _mb(0.3, 0.45)
 	var red := Color(0.40, 0.035, 0.03, 0.0)
-	b.cylinder(Vector3(0, 0, 0), 0.16, 0.12, 8, red)
-	b.cylinder(Vector3(0, 0.1, 0), 0.11, 0.55, 8, red)
-	b.cylinder(Vector3(0, 0.62, 0), 0.14, 0.06, 8, red)
-	b.sphere(Vector3(0, 0.72, 0), Vector3(0.12, 0.09, 0.12), 8, 3, red)
-	b.cylinder(Vector3(0, 0.38, 0), 0.07, 0.26, 8, red)
-	b.box(Vector3(0.14, 0.42, 0), Vector3(0.14, 0.12, 0.12), red)
-	b.box(Vector3(-0.14, 0.42, 0), Vector3(0.14, 0.12, 0.12), red)
+	b.cylinder(Vector3(0, 0, 0), 0.13, 0.7, 6, red, 0.1, false)
+	b.sphere(Vector3(0, 0.74, 0), Vector3(0.12, 0.09, 0.12), 6, 2, red)
+	b.box(Vector3(0, 0.42, 0), Vector3(0.4, 0.12, 0.12), red, false)
 	return _finish(b)
 
 
@@ -213,21 +202,21 @@ static func plaza_mesh() -> ArrayMesh:
 	for k in 8:
 		var a := TAU * float(k) / 8.0
 		var p := Vector3(cos(a), 0.0, sin(a)) * 11.0
-		b.cylinder(p, 0.12, 0.9, 8, Color(0.07, 0.075, 0.08, 0.0))
+		b.cylinder(p, 0.12, 0.9, 6, Color(0.07, 0.075, 0.08, 0.0), -1.0, false)
 		b.uv2 = Vector2(0.0, 0.3)
-		b.cylinder(p + Vector3(0, 0.9, 0), 0.115, 0.05, 8, Color(0.3, 0.95, 1.0, EM_GLOW))
+		b.cylinder(p + Vector3(0, 0.9, 0), 0.115, 0.05, 6, Color(0.3, 0.95, 1.0, EM_GLOW), -1.0, true)
 		b.uv2 = Vector2(0.5, 0.5)
 	for sgn in [-1.0, 1.0]:
 		var c := Vector3(sgn * 4.5, 0.0, 0.0)
-		b.box(c + Vector3(0, 0.45, 0), Vector3(0.5, 0.08, 2.6), Color(0.12, 0.10, 0.08, 0.0))
-		b.box(c + Vector3(-0.22, 0.75, 0), Vector3(0.08, 0.5, 2.6), Color(0.12, 0.10, 0.08, 0.0))
-		b.box(c + Vector3(0, 0.2, 1.1), Vector3(0.4, 0.4, 0.1), Color(0.05, 0.05, 0.05, 0.0))
-		b.box(c + Vector3(0, 0.2, -1.1), Vector3(0.4, 0.4, 0.1), Color(0.05, 0.05, 0.05, 0.0))
-	b.box(Vector3(0, 0.4, 5.5), Vector3(3.0, 0.8, 1.4), Color(0.1, 0.1, 0.105, 0.0))
+		b.box(c + Vector3(0, 0.45, 0), Vector3(0.5, 0.08, 2.6), Color(0.12, 0.10, 0.08, 0.0), false)
+		b.box(c + Vector3(-0.22, 0.75, 0), Vector3(0.08, 0.5, 2.6), Color(0.12, 0.10, 0.08, 0.0), false)
+		b.box(c + Vector3(0, 0.2, 1.1), Vector3(0.4, 0.4, 0.1), Color(0.05, 0.05, 0.05, 0.0), false)
+		b.box(c + Vector3(0, 0.2, -1.1), Vector3(0.4, 0.4, 0.1), Color(0.05, 0.05, 0.05, 0.0), false)
+	b.box(Vector3(0, 0.4, 5.5), Vector3(3.0, 0.8, 1.4), Color(0.1, 0.1, 0.105, 0.0), false)
 	b.uv2 = Vector2(0.0, 0.9)
-	b.sphere(Vector3(0, 1.1, 5.5), Vector3(1.3, 0.7, 0.6), 8, 4, Color(0.03, 0.08, 0.04, 0.0))
+	b.sphere(Vector3(0, 1.1, 5.5), Vector3(1.3, 0.7, 0.6), 7, 3, Color(0.03, 0.08, 0.04, 0.0))
 	b.uv2 = Vector2(0.4, 0.5)
-	b.cylinder(Vector3(0, 0, -5.5), 0.5, 3.6, 10, Color(0.06, 0.065, 0.07, 0.0))
+	b.cylinder(Vector3(0, 0, -5.5), 0.5, 3.6, 8, Color(0.06, 0.065, 0.07, 0.0), -1.0, false)
 	b.uv2 = Vector2(0.0, 0.3)
 	b.quad(Vector3(-0.45, 1.0, -5.0), Vector3(0.45, 1.0, -5.0), Vector3(0.45, 3.2, -5.0), Vector3(-0.45, 3.2, -5.0), Vector3.BACK,
 			Color(1, 1, 1, EM_SCREEN), Vector2.ZERO, Vector2.ZERO, PackedVector2Array([Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]))
@@ -236,7 +225,7 @@ static func plaza_mesh() -> ArrayMesh:
 
 static func shaft_mesh() -> ArrayMesh:
 	var b := MB.new()
-	b.funnel(Vector3(0, 7.5, 0), 0.0, 4.6, 16, 0.12, Color(1, 1, 1, 1))
+	b.funnel(Vector3(0, 7.5, 0), 0.0, 4.6, 12, 0.12, Color(1, 1, 1, 1))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = b.verts
@@ -260,7 +249,7 @@ static func glow_quad_mesh() -> ArrayMesh:
 
 # --- placement -------------------------------------------------------------------------------------------------------------
 
-func _add_family(name: String, mesh: Mesh, items: Array, mirror := false, shadow := false) -> void:
+func add_family(name: String, mesh: Mesh, items: Array, mirror := false, shadow := false) -> void:
 	## items: [Transform3D, custom Color]
 	if items.is_empty():
 		return
@@ -272,7 +261,7 @@ func _add_family(name: String, mesh: Mesh, items: Array, mirror := false, shadow
 	parts.append({"name": name, "mm": mm, "kind": &"prop", "mirror": mirror, "shadow": shadow})
 
 
-func _glow_add(pos: Vector3, color: Color, kind: int, size: float, phase := 0.0, seed_v := 0.0) -> void:
+func glow_add(pos: Vector3, color: Color, kind: int, size: float, phase := 0.0, seed_v := 0.0) -> void:
 	_glow.append([pos, color, kind, size, phase, seed_v])
 
 
@@ -295,7 +284,7 @@ static func _lamp_color(variant: float) -> Color:
 	return c.lerp(Color(0.45, 0.90, 1.0), clampf(variant * 2.0 - 1.0, 0.0, 1.0))
 
 
-func build(layout: CityLayout) -> void:
+func build(layout: CityLayout, building_data: Array = []) -> void:
 	rng.seed = 90210
 	parts.clear()
 	_glow.clear()
@@ -306,6 +295,8 @@ func build(layout: CityLayout) -> void:
 	_place_corner_props()
 	_place_plazas(layout)
 	_place_vents()
+	if not building_data.is_empty():
+		Roofs.new().build(self, layout, building_data)
 	_flush_glow()
 
 
@@ -326,9 +317,9 @@ func _place_lamps() -> void:
 		items.append([xf, Color(seed_v, variant, 0.0, 1.0)])
 		var lens := Vector3(lamp.x + dir.x * 2.5, 7.55, lamp.y + dir.y * 2.5)
 		var col := _lamp_color(variant)
-		_glow_add(lens, Color(col.r, col.g, col.b, 1.5), 1 if seed_v > 0.86 else 0, 6.0, 0.0, seed_v)
+		glow_add(lens, Color(col.r, col.g, col.b, 1.5), 1 if seed_v > 0.86 else 0, 6.0, 0.0, seed_v)
 		shafts.append([Transform3D(Basis.IDENTITY, Vector3(lens.x, 0.0, lens.z)), Color(col.r, col.g, col.b, 0.55)])
-	_add_family("Lamps", lamp_mesh(), items, true, false)
+	add_family("Lamps", lamp_mesh(), items, false, false)
 	# light shafts: one MultiMesh with instance colour
 	var mm := MB.new_multimesh(shaft_mesh(), shafts.size(), true, false)
 	var buf := MB.new_buffer(shafts.size(), true, false)
@@ -360,8 +351,8 @@ func _place_signals() -> void:
 					var cols := [Color(1.0, 0.08, 0.05, 1.3), Color(1.0, 0.62, 0.05, 1.3), Color(0.10, 1.0, 0.45, 1.3)]
 					for k in 3:
 						var wp := pos + basis * Vector3(hx, ys[k], 0.24)
-						_glow_add(wp, cols[k], 2, 1.7, ph, float(k))
-	_add_family("Signals", signal_mesh(), items, true, false)
+						glow_add(wp, cols[k], 2, 1.7, ph, float(k))
+	add_family("Signals", signal_mesh(), items, false, false)
 
 
 func _place_bus_stops() -> void:
@@ -384,8 +375,8 @@ func _place_bus_stops() -> void:
 			theta = -side * PI * 0.5
 		items.append([Transform3D(Basis(Vector3.UP, theta), pos), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		var cn := Vector3(0.0, 1.0, -0.5)
-		_glow_add(pos + Basis(Vector3.UP, theta) * Vector3(1.9, 1.0, -0.4), Color(0.7, 0.85, 1.0, 0.7), 0, 3.4, 0.0, rng.randf())
-	_add_family("BusStops", bus_stop_mesh(), items, true, false)
+		glow_add(pos + Basis(Vector3.UP, theta) * Vector3(1.9, 1.0, -0.4), Color(0.7, 0.85, 1.0, 0.7), 0, 3.4, 0.0, rng.randf())
+	add_family("BusStops", bus_stop_mesh(), items, false, false)
 
 
 ## Dumpsters, trash heaps and lit kiosks in the block alleys and on the sidewalks.
@@ -418,12 +409,12 @@ func _place_lot_props(layout: CityLayout) -> void:
 			var wz2 := lot.cz + sz * (lot.d * 0.5 + 1.6)
 			var theta := 0.0 if sz > 0.0 else PI
 			kiosks.append([Transform3D(Basis(Vector3.UP, theta), Vector3(lot.cx + rng.randf_range(-lot.w * 0.3, lot.w * 0.3), 0.0, wz2)), Color(rng.randf(), 0.0, 0.0, 1.0)])
-	_add_family("Dumpsters", dumpster_mesh(), dump, false, false)
-	_add_family("Trash", trash_mesh(), trash, false, false)
-	_add_family("Kiosks", kiosk_mesh(), kiosks, true, false)
+	add_family("Dumpsters", dumpster_mesh(), dump, false, false)
+	add_family("Trash", trash_mesh(), trash, false, false)
+	add_family("Kiosks", kiosk_mesh(), kiosks, false, false)
 	for k in kiosks.size():
 		var xf: Transform3D = kiosks[k][0]
-		_glow_add(xf.origin + xf.basis * Vector3(0.0, 1.4, 1.0), Color(0.9, 0.95, 1.0, 0.8), 1, 3.2, 0.0, rng.randf())
+		glow_add(xf.origin + xf.basis * Vector3(0.0, 1.4, 1.0), Color(0.9, 0.95, 1.0, 0.8), 1, 3.2, 0.0, rng.randf())
 
 
 func _place_corner_props() -> void:
@@ -454,17 +445,17 @@ func _place_corner_props() -> void:
 			var theta := 0.0 if axis == 1 else PI * 0.5
 			barr.append([Transform3D(Basis(Vector3.UP, theta), pos), Color(rng.randf(), 0.0, float(q), 1.0)])
 			if q == 0 or q == cnt - 1:
-				_glow_add(pos + Vector3(0, 0.9, 0), Color(1.0, 0.5, 0.08, 1.0), 4, 1.6, 0.0, rng.randf())
-	_add_family("Hydrants", hydrant_mesh(), hyd, false, false)
-	_add_family("Barriers", barrier_mesh(), barr, false, false)
+				glow_add(pos + Vector3(0, 0.9, 0), Color(1.0, 0.5, 0.08, 1.0), 4, 1.6, 0.0, rng.randf())
+	add_family("Hydrants", hydrant_mesh(), hyd, false, false)
+	add_family("Barriers", barrier_mesh(), barr, false, false)
 
 
 func _place_plazas(layout: CityLayout) -> void:
 	var items: Array = []
 	for p in layout.plazas:
 		items.append([Transform3D(Basis(Vector3.UP, 0.0), Vector3(p.x, 0.0, p.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
-		_glow_add(Vector3(p.x, 3.6, p.y - 5.5), Color(0.5, 0.9, 1.0, 1.1), 0, 6.0, 0.0, rng.randf())
-	_add_family("Plazas", plaza_mesh(), items, true, false)
+		glow_add(Vector3(p.x, 3.6, p.y - 5.5), Color(0.5, 0.9, 1.0, 1.1), 0, 6.0, 0.0, rng.randf())
+	add_family("Plazas", plaza_mesh(), items, false, false)
 
 
 ## Steam vents: grates on the roads near kerbs and at alley mouths (the steam itself is built by city_misc.gd).
@@ -485,5 +476,5 @@ func _place_vents() -> void:
 		var theta := 0.0 if axis == 0 else PI * 0.5
 		items.append([Transform3D(Basis(Vector3.UP, theta), pos), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		vents.append(pos)
-		_glow_add(pos + Vector3(0, 0.15, 0), Color(1.0, 0.5, 0.2, 0.8), 0, 2.6, 0.0, rng.randf())
-	_add_family("VentGrates", vent_mesh(), items, false, false)
+		glow_add(pos + Vector3(0, 0.15, 0), Color(1.0, 0.5, 0.2, 0.8), 0, 2.6, 0.0, rng.randf())
+	add_family("VentGrates", vent_mesh(), items, false, false)

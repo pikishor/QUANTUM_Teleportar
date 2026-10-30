@@ -75,9 +75,9 @@ func assign(layout: CityLayout) -> void:
 			b.cls = &"landmark" if r < 0.55 else (&"tiered" if r < 0.80 else &"podium")
 			b.style = STYLE_CURTAIN if rs < 0.60 else STYLE_FINS
 		var fl := 0
-		if h >= 62.0 and hash01(i, 4) < 0.5:
+		if h >= 62.0 and hash01(i, 4) < 0.30:
 			fl |= FLAG_CORNER
-		if h >= 44.0 and hash01(i, 5) < 0.3:
+		if h >= 44.0 and hash01(i, 5) < 0.16:
 			fl |= FLAG_BANDS
 		if h >= 28.0 and hash01(i, 6) < 0.45:
 			fl |= FLAG_ROOF_NEON

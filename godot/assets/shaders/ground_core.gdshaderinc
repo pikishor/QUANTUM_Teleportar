@@ -11,7 +11,7 @@ uniform float mirror_amount : hint_range(0.0, 1.0) = 1.0;                       
 uniform float detail : hint_range(0.0, 1.0) = 1.0;
 uniform float ambient_boost = 0.07;                                                   // fake city bounce on the ground
 #ifndef LITE
-uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear;   // holds the mirrored city (opaque pass)
+uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;   // holds the mirrored city (opaque pass)
 #endif
 uniform vec3 moon_dir = vec3(-0.43, 0.46, -0.78);
 uniform vec3 moon_color : source_color = vec3(0.55, 0.70, 1.0);
@@ -121,7 +121,7 @@ void fragment() {
 		asph *= 1.0 - 0.5 * crack * dk * smoothstep(0.55, 0.7, vnoise(q * 0.12 + 40.0));
 		albedo = asph;
 		rough = 0.88;
-		hf = -0.004 * crack * dk + 0.003 * speck * dk;
+		hf = -0.004 * crack * dk;
 
 		// ---- paint -----------------------------------------------------------------------------------------
 		float paint = 0.0;
@@ -287,13 +287,13 @@ void fragment() {
 		// rough water smears the image downwards (towards the viewer); still puddles stay sharp
 		float blur_px = mix(3.0, 56.0, 1.0 - puddle) * (0.15 + 0.85 * sqrt(1.0 - ndv)) * (1.0 - 0.7 * smoothstep(0.0, 10.0, 0.0));
 		vec2 suv = SCREEN_UV + vec2(rp.y * 0.006, rp.y * 0.016);               // ripples wobble the reflection
-		float jit = hash12(FRAGCOORD.xy);
 		float ws = 0.0;
-		for (int k = 0; k < 9; k++) {
-			float t = (float(k) + jit * 0.9) / 8.0;
-			float w = exp(-t * 2.4);
-			vec2 uv = suv - vec2((hash12(FRAGCOORD.xy + float(k) * 7.1) - 0.5) * px.x * 2.0 * blur_px * 0.08, t * blur_px * px.y);
-			rc += textureLod(screen_tex, clamp(uv, vec2(0.001), vec2(0.999)), 0.0).rgb * w;
+		float lod0 = clamp(log2(max(blur_px, 1.0)) - 1.6, 0.0, 4.0);
+		for (int k = 0; k < 8; k++) {
+			float t = float(k) / 7.0;
+			float w = exp(-t * 2.2);
+			vec2 uv = suv - vec2(0.0, t * blur_px * px.y);
+			rc += textureLod(screen_tex, clamp(uv, vec2(0.001), vec2(0.999)), lod0 * (0.5 + 0.5 * t)).rgb * w;
 			ws += w;
 		}
 		rc /= ws;

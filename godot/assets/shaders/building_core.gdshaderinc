@@ -18,7 +18,10 @@
 
 global uniform float wetness;
 
-#ifdef MIRROR
+uniform sampler2D light_map : filter_linear, repeat_disable, hint_default_black;     // lamp + neon pools baked on the ground
+uniform vec4 light_rect = vec4(-352.0, -352.0, 704.0, 704.0);
+
+#if defined(MIRROR) || defined(FAR)
 const float detail = 0.0;
 #else
 uniform float detail : hint_range(0.0, 1.0) = 1.0;      // 0 = cheap (no relief, no interiors), 1 = full
@@ -38,12 +41,16 @@ varying flat vec4 v_data;
 varying flat vec4 v_tint;
 varying flat vec3 v_nrm;
 varying flat float v_ledge;
+varying flat vec3 v_cam;
 varying vec3 v_loc;
+varying vec2 v_wxz;
 
 void vertex() {
 	vec3 sc = vec3(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz), length(MODEL_MATRIX[2].xyz));
 	v_scale = sc;
 	v_loc = VERTEX * sc;
+	v_cam = (inverse(MODEL_MATRIX) * vec4(CAMERA_POSITION_WORLD, 1.0)).xyz * sc;
+	v_wxz = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
 	v_nrm = NORMAL;
 	v_data = INSTANCE_CUSTOM;
 	v_tint = COLOR;
@@ -73,6 +80,29 @@ vec3 lit_color(float r, float pal) {
 		return r < 0.18 ? pink : (r < 0.55 ? warm : (r < 0.75 ? teal : (r < 0.92 ? white : tv)));
 	}
 	return r < 0.50 ? warm : (r < 0.76 ? white : (r < 0.90 ? amber : (r < 0.97 ? teal : pink)));
+}
+
+// A room behind a window (interior mapping): the view ray into a box cw x fh x depth; returns how bright the surface it hits is.
+// p = position of the window point inside its cell (metres), rd = view direction in the wall frame (x along, y up, z into the building).
+float room_shade(vec2 p, vec3 rd, float cw, float fh, float depth, float rs) {
+	float sx = rd.x > 0.0 ? (cw - p.x) / rd.x : (rd.x < 0.0 ? -p.x / rd.x : 1e4);
+	float sy = rd.y > 0.0 ? (fh - p.y) / rd.y : (rd.y < 0.0 ? -p.y / rd.y : 1e4);
+	float sz = depth / max(rd.z, 1e-3);
+	float t = min(min(sx, sy), sz);
+	vec3 hp = vec3(p, 0.0) + rd * t;
+	if (t == sz) {                       // back wall, with a piece of furniture and a picture
+		vec2 bw = vec2(hp.x / cw, hp.y / fh);
+		float furn = band(bw.x, 0.10 + 0.5 * hash11(rs * 3.1), 0.45 + 0.5 * hash11(rs * 3.1), 0.03) * band(bw.y, 0.0, 0.30 + 0.25 * hash11(rs * 5.7), 0.03);
+		float pic = band(bw.x, 0.55, 0.8, 0.02) * band(bw.y, 0.55, 0.8, 0.02) * step(0.5, hash11(rs * 9.3));
+		return (0.78 - 0.45 * furn - 0.25 * pic) * (0.85 + 0.3 * smoothstep(0.0, 1.0, bw.y));
+	} else if (t == sy) {
+		if (rd.y > 0.0) {                // ceiling with a lamp
+			vec2 lp = vec2(hp.x / cw - 0.5, hp.z / depth - 0.45);
+			return 0.45 + 1.35 * exp(-dot(lp, lp) * 22.0);
+		}
+		return 0.22 + 0.16 * (1.0 - hp.z / depth);
+	}
+	return 0.38 + 0.4 * (1.0 - hp.z / depth);
 }
 
 void fragment() {
@@ -216,7 +246,18 @@ void fragment() {
 		vec2 wf = vec2((cf - w0.x) / (w1.x - w0.x), (ff - w0.y) / (w1.y - w0.y));
 		float inter = 0.8 + 0.4 * wf.y;
 		float ac_unit = 0.0;
+		float mull = 1.0;
 		if (detail > 0.5) {
+			vec3 vd = normalize(v_loc - v_cam);
+			vec3 axv = xf ? vec3(0.0, 0.0, nrm.x > 0.0 ? -1.0 : 1.0) : vec3(nrm.z > 0.0 ? 1.0 : -1.0, 0.0, 0.0);
+			vec3 rd = vec3(dot(vd, axv), vd.y, dot(vd, -nrm));
+			float rs = hash12(cid + fseed * 0.7);
+			inter = room_shade(vec2(cf * cw, ff * fh), rd, cw, fh, 3.2 + 2.2 * hash12(cid + fseed + 17.0), rs) * 1.15;
+			// mullions: a centre post in wide windows, a transom near the top of tall ones
+			float cwin = (w1.x - w0.x) * cw;
+			float mv = cwin > 1.7 ? band(abs(wf.x - 0.5), 0.0, 0.022, 0.012) : 0.0;
+			float mt = band(wf.y, 0.80, 0.84, 0.02) * step(2.6, (w1.y - w0.y) * fh);
+			mull = 1.0 - max(mv, mt);
 			float rb = hash12(cid + fseed + 33.0);
 			if (rb > 0.62) {          // curtain: a vertical fold
 				float px = 0.3 + 0.4 * hash12(cid + fseed + 44.0);
@@ -264,6 +305,12 @@ void fragment() {
 		wall *= 1.0 - 0.28 * runnel * wet;
 		wall *= mix(1.0, 0.68, wet);
 		float wallmask = 1.0 - win;
+#ifndef MIRROR
+		{
+			vec3 pool = texture(light_map, (v_wxz - light_rect.xy) / light_rect.zw).rgb;
+			emit += wall * pool * 2.2 * exp(-y / 5.0) * wallmask + pool * 0.05 * exp(-y / 3.0) * win;
+		}
+#endif
 
 		vec3 glass = vec3(0.010, 0.014, 0.030);
 		albedo = mix(wall, glass, win);
@@ -280,11 +327,12 @@ void fragment() {
 			spill = band(cf, w0.x - 0.16, w1.x + 0.16, au * 2.0) * band(ff, w0.y - 0.2, w1.y + 0.2, av * 2.0) * (1.0 - win);
 		}
 		float wl = lit;
-		emit += wc * wint * inter * win * wl * (1.0 - ac_unit);
+		emit += wc * wint * inter * win * wl * (1.0 - ac_unit) * mull;
 		emit += wc * 0.07 * spill * wl;
 		// unlit glass reflects the glowing horizon / street
 		emit += mix(vec3(0.03, 0.05, 0.07), neon * 0.06, 0.4) * win * (1.0 - lit) * (0.5 + 0.7 * exp(-gy * 0.05));
 
+#ifndef FAR
 		// ---- ground floor: shops, doors, neon signs -------------------------------------------------------------------
 		if (grounded && y < gh) {
 			float nb = max(2.0, floor(fw / 4.8 + 0.5));
@@ -305,7 +353,23 @@ void fragment() {
 			vec3 sc = lit_color(cr2, pal);
 			float sh = 0.8 + 0.2 * step(0.5, fract(y * 1.7));
 			float mull = 1.0 - band(abs(bf - 0.5), 0.0, 0.012, abu);
-			vec3 shopE = sc * (0.55 + 0.9 * hash12(vec2(bidx, fseed) + 3.0)) * sh * mull;
+			// shop interiors: shelves, bar lamps or arcade bars, by a per-bay hash
+			float stype = hash12(vec2(bidx, fseed) + 31.0);
+			vec2 sp = vec2(bf, (y - 0.5) / 2.85);
+			float interior = 0.55 + 0.45 * smoothstep(0.0, 1.0, sp.y);
+			if (stype < 0.40) {            // shelves with goods
+				float shelf = band(fract(sp.y * 4.0), 0.0, 0.12, 0.04);
+				float goods = step(0.35, hash12(vec2(floor(bf * 22.0), floor(sp.y * 4.0)) + bidx));
+				interior *= mix(1.0, 0.35, shelf) * (0.55 + 0.45 * goods);
+			} else if (stype < 0.70) {     // bar: dark room, pendant lamps
+				float pend = exp(-pow((fract(bf * 4.0) - 0.5) * 6.0, 2.0) - pow((sp.y - 0.85) * 7.0, 2.0));
+				interior = 0.12 + 1.5 * pend + 0.25 * smoothstep(0.7, 1.0, sp.y);
+			} else {                       // arcade / club: animated colour bars
+				float bar = 0.5 + 0.5 * sin(bf * 40.0 + TIME * (1.0 + 2.0 * hash11(bidx + fseed)));
+				interior = 0.25 + 0.7 * bar * (0.4 + 0.6 * sp.y);
+				sc = mix(sc, NEON[int(mod(bidx + v_data.y, 4.0))], 0.7);
+			}
+			vec3 shopE = sc * (0.30 + 0.45 * hash12(vec2(bidx, fseed) + 3.0)) * sh * mull * interior;
 			vec3 base_a = tint * 0.22 * (0.6 + 0.8 * panel) * mix(0.55, 1.0, smoothstep(0.0, 2.5, y));
 			albedo = base_a;
 			rough = mix(0.7, 0.4, wet);
@@ -323,7 +387,7 @@ void fragment() {
 			rough = mix(rough, 0.45, shop * shut);
 			metal = mix(metal, 0.7, shop * shut);
 			// door: bright warm slot
-			emit += vec3(1.0, 0.72, 0.4) * 1.1 * door * (0.7 + 0.3 * smoothstep(0.0, 3.0, y));
+			emit += vec3(1.0, 0.72, 0.4) * 0.65 * door * (0.7 + 0.3 * smoothstep(0.0, 3.0, y));
 			albedo = mix(albedo, glass, door);
 			// neon sign band with glyphs
 			vec3 nc = NEON[int(mod(rb0 * 4.0 + v_data.y, 4.0))];
@@ -341,6 +405,7 @@ void fragment() {
 			emit += neon * 0.06 * exp(-y * 0.55) * (1.0 - open_shop);
 		}
 
+#endif
 		// ---- top band: cornice / parapet ------------------------------------------------------------------------------
 		if (y > ph - PARAPET_H) {
 			float k = smoothstep(ph - PARAPET_H, ph - PARAPET_H + 0.15, y);
@@ -353,6 +418,7 @@ void fragment() {
 			albedo = mix(albedo, tint * 0.18, coping);
 		}
 
+#ifndef FAR
 		// ---- accents: corner light strips, horizontal bands, bounce light from the street and the roof belt --------------
 		if (y > gh && y < ph - PARAPET_H) {
 			if (mod(flags, 2.0) > 0.5) {
@@ -381,6 +447,7 @@ void fragment() {
 			rough = mix(rough, 0.3, inside);
 		}
 
+#endif
 		// ---- anti-aliasing: when window cells approach pixel size they melt into their average tone --------------------
 		{
 			float alias = max(smoothstep(0.20, 0.55, au), smoothstep(0.22, 0.6, av));

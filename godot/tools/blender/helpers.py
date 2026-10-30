@@ -84,9 +84,11 @@ _IMAGES = {}
 
 
 def new_scene():
+    global _GLTF_GROUP
     bpy.ops.wm.read_factory_settings(use_empty=True)
     MATS.clear()
     _IMAGES.clear()
+    _GLTF_GROUP = None
     bpy.context.scene.unit_settings.system = "METRIC"
     bpy.context.scene.unit_settings.scale_length = 1.0
 
@@ -310,6 +312,25 @@ def g_poly(pts, depth):
     return v, f
 
 
+def g_revolve(profile, segs=24, closed=True):
+    """Surface of revolution around the local X axis. profile: list of (radius, x). Faces are wound arbitrarily:
+    use closed=True so Part._add can recalc outward normals."""
+    v = []
+    for r, x in profile:
+        for i in range(segs):
+            a = 2 * math.pi * i / segs
+            v.append((x, r * math.cos(a), r * math.sin(a)))
+    f = []
+    m = len(profile)
+    last = m if closed else m - 1
+    for j in range(last):
+        j2 = (j + 1) % m
+        for i in range(segs):
+            i2 = (i + 1) % segs
+            f.append((j * segs + i, j * segs + i2, j2 * segs + i2, j2 * segs + i))
+    return v, f
+
+
 def ring_se(cx, cy, cz, rx, ry, n=12, exp=2.0, plane="xy"):
     """Super-ellipse ring (exp 2 = ellipse, larger = squarer). plane 'xy' horizontal, 'xz' (facing y), 'yz' (facing x)."""
     pts = []
@@ -415,15 +436,25 @@ class Part:
         return x - math.floor(x)
 
     def _add(self, verts, faces, mat, tint, xf, bevel, bsegs, bangle, sharp, mirror, closed, jitter, face_mats=None,
-             outward_from=None):
+             outward_from=None, flip=False):
         slot, mat = self._slot(mat)
         t = bmesh.new()
         vs = [t.verts.new(xf @ Vector(p)) for p in verts]
+        lr = lg = lb = None
+        if face_mats is not None:
+            lr = t.faces.layers.float.new("tr")
+            lg = t.faces.layers.float.new("tg")
+            lb = t.faces.layers.float.new("tb")
         for fi, f in enumerate(faces):
             try:
                 nf = t.faces.new([vs[i] for i in f])
                 if face_mats is not None:
-                    nf.material_index = self._slot(face_mats[fi])[0]
+                    fm = face_mats[fi]
+                    ft = tint
+                    if isinstance(fm, tuple):
+                        fm, ft = fm
+                    nf.material_index = self._slot(fm)[0]
+                    nf[lr], nf[lg], nf[lb] = ft[0], ft[1], ft[2]
             except ValueError:
                 pass
         t.verts.index_update()
@@ -431,6 +462,13 @@ class Part:
         t.faces.index_update()
         if closed:
             bmesh.ops.recalc_face_normals(t, faces=t.faces[:])
+        if os.environ.get("QT_DEBUG") and closed:
+            cen = sum((v.co for v in t.verts), Vector()) / max(1, len(t.verts))
+            outn = sum(1 for f in t.faces if f.normal.dot(f.calc_center_median() - cen) > 0)
+            print("   [debug] closed prim faces=%d outward=%d (%.0f%%)" % (len(t.faces), outn, 100.0 * outn / max(1, len(t.faces))))
+        if flip:
+            for f in list(t.faces):
+                f.normal_flip()
         if outward_from is not None:
             o = Vector(outward_from)
             for f in list(t.faces):
@@ -447,12 +485,13 @@ class Part:
         k = 1.0 + (self._rand() - 0.5) * 2.0 * jitter if jitter else 1.0
         tcol = (tint[0] * k, tint[1] * k, tint[2] * k)
         off = (self._rand() * 7.0, self._rand() * 7.0)
-        self._merge(t, slot, mat, tcol, sharp, False, off, face_mats is not None)
+        lay = (lr, lg, lb) if face_mats is not None else None
+        self._merge(t, slot, mat, tcol, sharp, False, off, face_mats is not None, lay)
         if mirror:
-            self._merge(t, slot, mat, tcol, sharp, True, off, face_mats is not None)
+            self._merge(t, slot, mat, tcol, sharp, True, off, face_mats is not None, lay)
         t.free()
 
-    def _merge(self, t, slot, mat, tcol, sharp, mirror, off, perface=False):
+    def _merge(self, t, slot, mat, tcol, sharp, mirror, off, perface=False, lay=None):
         bm = self.bm
         vmap = {}
         for v in t.verts:
@@ -476,7 +515,8 @@ class Part:
             nf.normal_update()
             n = nf.normal
             ax, ay, az = abs(n.x), abs(n.y), abs(n.z)
-            fcol = tcol if fmat.vcol else (1.0, 1.0, 1.0)
+            base = (f[lay[0]], f[lay[1]], f[lay[2]]) if lay else tcol
+            fcol = base if fmat.vcol else (1.0, 1.0, 1.0)
             for loop in nf.loops:
                 p = loop.vert.co
                 if az >= ax and az >= ay:
@@ -525,16 +565,22 @@ class Part:
         self._add(v, f, mat, tint, self._xf(pos, rot, frame), 0.0, 1, 30.0, 89.0, mirror, True, jitter)
 
     def loft(self, rings, mat=None, tint=(1, 1, 1), caps=(True, True), closed=True, mirror=False, bevel=0.0,
-             bsegs=1, bangle=30.0, sharp=70.0, jitter=0.0, face_mats=None, outward_from=None):
+             bsegs=1, bangle=30.0, sharp=70.0, jitter=0.0, face_mats=None, outward_from=None, flip=False):
         v, f = g_loft(rings, caps[0], caps[1])
         self._add(v, f, mat, tint, Matrix.Identity(4), bevel, bsegs, bangle, sharp, mirror, closed and caps[0] and caps[1], jitter,
-                  face_mats, outward_from)
+                  face_mats, outward_from, flip)
 
     def tube(self, points, radii, mat=None, tint=(1, 1, 1), n=10, exp=2.0, up=(0, 0, 1), caps=(True, True), sub=3,
              mirror=False, sharp=75.0, jitter=0.0):
         rings = tube_rings(points, radii, n, up, exp, sub)
         v, f = g_loft(rings, caps[0], caps[1])
         self._add(v, f, mat, tint, Matrix.Identity(4), 0.0, 1, 30.0, sharp, mirror, caps[0] and caps[1], jitter)
+
+    def revolve(self, profile, pos=(0, 0, 0), mat=None, tint=(1, 1, 1), segs=24, closed=True, mirror=False, jitter=0.0,
+                sharp=75.0, frame=None, face_mats=None):
+        """Revolve (radius, x) profile around the X axis through `pos`."""
+        v, f = g_revolve(profile, segs, closed)
+        self._add(v, f, mat, tint, self._xf(pos, (0, 0, 0), frame), 0.0, 1, 30.0, sharp, mirror, closed, jitter, face_mats)
 
     def poly(self, pts, depth, pos=(0, 0, 0), rot=(0, 0, 0), mat=None, tint=(1, 1, 1), bevel=0.0, bsegs=1, bangle=30.0,
              sharp=50.0, mirror=False, jitter=0.0, frame=None):
