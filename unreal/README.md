@@ -27,6 +27,20 @@ Not ported yet: vehicles and traffic, pickups, audio, real materials/VFX, UMG UI
 4. Controls: WASD move, mouse aim, LMB fire, RMB zoom, Shift sprint, Space jump, **Q** blink, **E** entangle, **G** superposition, R reload.
    To preview the phone overlay in the editor, open the console and run `QTTouchUI 1`.
 
+## Check the code without Unreal
+`python3 unreal/tools/check_syntax.py` compiles every `.cpp` against a declaration-only stand-in for the engine API
+(`unreal/tools/ue-stubs/UEStub.h`) using clang/g++ `-fsyntax-only`. It catches typos, missing members, wrong signatures and
+float/double template mismatches, and was verified to fail on deliberately injected bugs. It runs anywhere with a C++ compiler.
+**It does not prove the code builds against the real engine** — treat a pass as "no cheap mistakes", not "compiles".
+Extend the stub when you use new engine APIs.
+
+## Get a real compile without a local machine
+Unreal can't be installed on a small CPU-only box, but Epic publishes official container images for CI.
+See [docs/ci/unreal-compile.yml.example](../docs/ci/unreal-compile.yml.example). Prerequisites (all on your side):
+link your GitHub account to an Epic Games account and accept the Unreal EULA (grants access to `ghcr.io/epicgames`),
+and use a runner with a large disk (the image is tens of GB; standard hosted runners are too small).
+That gives automated *compile* feedback. Seeing the game render needs a GPU machine (local or a rented cloud workstation).
+
 ## Package for phones
 Needs the platform SDKs (Android Studio + NDK; Xcode on macOS for iOS). Verify the bundle id, orientation and signing in *Project Settings → Platforms*.
 

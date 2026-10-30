@@ -1,0 +1,30 @@
+# UNTESTED starting point. Compiles the UE5 module in CI using Epic's official container image, so no personal machine is needed.
+#
+# Prerequisites (yours to do):
+#  1. Link your GitHub account to an Epic Games account and accept the Unreal Engine EULA; that grants access to ghcr.io/epicgames.
+#  2. Create a GitHub token that can read that image and store it as the repository secret GHCR_TOKEN.
+#  3. Use a runner with a large disk (the image is tens of GB). Standard GitHub-hosted runners are too small; use a larger
+#     runner or a self-hosted one and label it `large-disk`.
+#  4. Pushing workflow files needs the GitHub App/token to have the "workflows" permission, so this lives in docs/.
+#     Copy it to .github/workflows/unreal-compile.yml to enable it.
+# Verify the image tag and the engine path inside the container against Epic's current documentation before relying on this.
+name: Unreal compile
+on:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: [self-hosted, linux, large-disk]
+    container:
+      image: ghcr.io/epicgames/unreal-engine:dev-5.5
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static stub check (fast, no engine needed)
+        run: python3 unreal/tools/check_syntax.py
+      - name: Build the editor target against the real engine
+        run: >
+          /home/ue4/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh QuantumTeleportarEditor Linux Development
+          -project="$GITHUB_WORKSPACE/unreal/QuantumTeleportar/QuantumTeleportar.uproject" -WaitMutex -NoHotReload
