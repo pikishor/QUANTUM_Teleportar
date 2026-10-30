@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Quantum Teleportar</title>
+<style>
+  html,body{margin:0;height:100%;background:#05030f;overflow:hidden;touch-action:none;font-family:ui-monospace,Menlo,Consolas,monospace}
+  canvas{display:block;width:100vw;height:100vh}
+  #tp{position:fixed;left:0;right:0;bottom:18px;display:none;justify-content:center;gap:14px}
+  #tp button{font:700 20px ui-monospace,monospace;color:#bff;background:#0b2a3a;border:2px solid #3df;border-radius:12px;padding:14px 26px;min-width:90px}
+  #tp button.on{background:#3df;color:#012}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="tp"><button id="bx">X</button><button id="bz">Z</button><button id="bs">SEND ▶</button></div>
+<script>
+'use strict';
+// ---------------------------------------------------------------- quantum core
+// Real 3-qubit state-vector simulation of the standard teleportation protocol.
+// qubit 0 = message ψ, qubit 1 = Alice's half of the Bell pair, qubit 2 = Bob's half.
+const R2 = Math.SQRT1_2;
+function runProtocol() {
+  const th = Math.acos(1 - 2 * Math.random()), ph = Math.random() * 2 * Math.PI;
+  const psi = [[Math.cos(th / 2), 0], [Math.cos(ph) * Math.sin(th / 2), Math.sin(ph) * Math.sin(th / 2)]];
+  const s = Array.from({length: 8}, () => [0, 0]);
+  for (let q0 = 0; q0 < 2; q0++) for (let e = 0; e < 2; e++)       // ψ ⊗ (|00>+|11>)/√2
+    s[q0 * 4 + e * 2 + e] = [psi[q0][0] * R2, psi[q0][1] * R2];
+  for (let q2 = 0; q2 < 2; q2++) [s[4 + q2], s[6 + q2]] = [s[6 + q2], s[4 + q2]];   // CNOT 0→1
+  for (let k = 0; k < 4; k++) {                                                      // H on qubit 0
+    const u = s[k], v = s[4 + k];
+    s[k] = [(u[0] + v[0]) * R2, (u[1] + v[1]) * R2];
+    s[4 + k] = [(u[0] - v[0]) * R2, (u[1] - v[1]) * R2];
+  }
+  const p = [0, 1, 2, 3].map(m => s[2 * m][0] ** 2 + s[2 * m][1] ** 2 + s[2 * m + 1][0] ** 2 + s[2 * m + 1][1] ** 2);
+  let r = Math.random(), m = 0;
+  while (m < 3 && r > p[m]) r -= p[m++];                                             // measure qubits 0,1
+  const n = Math.sqrt(p[m]) || 1;
+  const bob = [[s[2 * m][0] / n, s[2 * m][1] / n], [s[2 * m + 1][0] / n, s[2 * m + 1][1] / n]];
+  return {psi, bob, m0: m >> 1, m1: m & 1};
+}
+const applyX = ([a, b]) => [b, a];
+const applyZ = ([a, b]) => [a, [-b[0], -b[1]]];
+function fidelity(u, v) {                       // |<u|v>|²
+  let re = 0, im = 0;
+  for (let i = 0; i < 2; i++) { re += u[i][0] * v[i][0] + u[i][1] * v[i][1]; im += u[i][0] * v[i][1] - u[i][1] * v[i][0]; }
+  return re * re + im * im;
+}
+function bloch([a, b]) {
+  return {x: 2 * (a[0] * b[0] + a[1] * b[1]), y: 2 * (a[0] * b[1] - a[1] * b[0]),
+          z: a[0] ** 2 + a[1] ** 2 - b[0] ** 2 - b[1] ** 2};
+}
+
+// ---------------------------------------------------------------- setup
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W, H, K, HOR;
+function resize() {
+  const d = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  cv.width = W * d; cv.height = H * d;
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+  K = Math.min(H / 700, W / 520 * 1.1); HOR = H * 0.36;
+}
+addEventListener('resize', resize); resize();
+
+const F = 300, Z0 = 150, CAMH = 120, LANE = 100, PZ = 60, VIEW = 3000, GATE_LEN = 500;
+function P(x, y, z) { const s = F / (z + Z0) * K; return [W / 2 + x * s, HOR + (CAMH - y) * s, s]; }
+const fogOf = z => Math.max(0, 1 - z / 3300);
+const stars = Array.from({length: 90}, () => ({x: Math.random(), y: Math.random(), r: Math.random() * 1.5 + .3, t: Math.random() * 6}));
+
+let state = 'menu', dist, speed, lane, px, py, vy, slide, lives, bells, score, best = 0, objs, gates, nextWZ, patterns;
+let invul, shake, flash, flashCol, msg, msgT, tp, tpCount = 0, time = 0;
+try { best = +localStorage.getItem('qt-best') || 0; } catch (e) {}
+
+function reset() {
+  dist = 0; speed = 480; lane = 1; px = 0; py = 0; vy = 0; slide = 0; lives = 3; bells = 1; score = 0;
+  objs = []; gates = []; nextWZ = 700; patterns = 0; invul = 0; shake = 0; flash = 0; msg = ''; msgT = 0; tp = null; tpCount = 0;
+}
+const rnd = a => a[Math.floor(Math.random() * a.length)];
+function say(t, d = 2) { msg = t; msgT = d; }
+
+function spawn() {
+  while (nextWZ < dist + VIEW + 300) {
+    patterns++;
+    if (patterns % 7 === 0) {                        // teleport gate: bell pair lead-in, then a chasm
+      const l = Math.floor(Math.random() * 3);
+      objs.push({t: 'bell', lane: l, wz: nextWZ}, {t: 'bell', lane: l, wz: nextWZ + 160});
+      const g = {wz: nextWZ + 1500, done: false}; gates.push(g);
+      nextWZ = g.wz + GATE_LEN + 700;
+      continue;
+    }
+    const l = Math.floor(Math.random() * 3), r = Math.random();
+    const type = r < .4 ? 'low' : r < .65 ? 'high' : 'block';
+    objs.push({t: type, lane: l, wz: nextWZ});
+    if (type === 'block' && Math.random() < .5) objs.push({t: 'block', lane: (l + 1 + Math.floor(Math.random() * 2)) % 3, wz: nextWZ});
+    if (Math.random() < .55) {                       // loose bell trail in a free lane
+      const used = objs.filter(o => o.wz === nextWZ).map(o => o.lane);
+      const free = [0, 1, 2].filter(x => !used.includes(x));
+      for (let i = 1; i <= 3; i++) objs.push({t: 'bell', lane: rnd(free), wz: nextWZ + 120 + i * 90, fixed: true});
+    }
+    nextWZ += 520 + Math.random() * 260;
+  }
+}
+
+// ---------------------------------------------------------------- input
+function act(a) {
+  if (state === 'menu' || state === 'over') { if (a === 'go' || a === 'up') { reset(); state = 'play'; } return; }
+  if (state === 'teleport') {
+    if (a === 'x') tp.x = !tp.x; else if (a === 'z') tp.z = !tp.z; else if (a === 'go') finishTeleport();
+    return;
+  }
+  if (a === 'left') lane = Math.max(0, lane - 1);
+  else if (a === 'right') lane = Math.min(2, lane + 1);
+  else if (a === 'up' && py === 0) { vy = 430; slide = 0; }
+  else if (a === 'down') { slide = .65; if (py > 0) vy = -700; }
+}
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  const m = {arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down',
+             x: 'x', z: 'z', enter: 'go', ' ': state === 'teleport' || state === 'menu' || state === 'over' ? 'go' : 'up'}[k];
+  if (m) { e.preventDefault(); act(m); }
+});
+let t0 = null;
+cv.addEventListener('pointerdown', e => { t0 = [e.clientX, e.clientY]; });
+cv.addEventListener('pointerup', e => {
+  if (!t0) return;
+  const dx = e.clientX - t0[0], dy = e.clientY - t0[1]; t0 = null;
+  if (state !== 'play') { act('go'); return; }
+  if (Math.hypot(dx, dy) < 25) act('up');
+  else if (Math.abs(dx) > Math.abs(dy)) act(dx > 0 ? 'right' : 'left');
+  else act(dy > 0 ? 'down' : 'up');
+});
+const bx = document.getElementById('bx'), bz = document.getElementById('bz');
+bx.onclick = () => act('x'); bz.onclick = () => act('z'); document.getElementById('bs').onclick = () => act('go');
+
+// ---------------------------------------------------------------- game logic
+function hit(why) {
+  if (invul > 0) return;
+  lives--; invul = 1.4; shake = .4; flash = .5; flashCol = '255,40,90'; say(why, 1.6);
+  if (lives <= 0) {
+    state = 'over';
+    if (score > best) { best = Math.floor(score); try { localStorage.setItem('qt-best', best); } catch (e) {} }
+  }
+}
+function startTeleport(g) {
+  tp = Object.assign(runProtocol(), {g, x: false, z: false, t: 7, hint: tpCount < 2});
+  tpCount++; state = 'teleport'; flash = .4; flashCol = '60,220,255';
+}
+function finishTeleport() {
+  let b = tp.bob; if (tp.x) b = applyX(b); if (tp.z) b = applyZ(b);
+  const f = fidelity(tp.psi, b), g = tp.g;
+  g.done = true; dist = g.wz + GATE_LEN + 90; nextWZ = Math.max(nextWZ, dist + 600);
+  state = 'play'; flash = .7; flashCol = '60,220,255'; invul = Math.max(invul, .8);
+  if (f > .99) { score += 500; say('TELEPORTED · fidelity 100% · +500', 2.4); }
+  else hit('Qubit corrupted · fidelity ' + Math.round(f * 100) + '%');
+  if (state === 'over') return;
+  tp = null;
+}
+function update(dt) {
+  time += dt;
+  if (msgT > 0) msgT -= dt;
+  shake = Math.max(0, shake - dt); flash = Math.max(0, flash - dt * 1.5); invul = Math.max(0, invul - dt);
+  if (state === 'teleport') { tp.t -= dt; if (tp.t <= 0) finishTeleport(); return; }
+  if (state !== 'play') return;
+
+  speed = Math.min(1150, speed + 6 * dt);
+  dist += speed * dt; score += speed * dt / 10;
+  px += ((lane - 1) * LANE - px) * Math.min(1, dt * 13);
+  if (py > 0 || vy > 0) { vy -= 1300 * dt; py += vy * dt; if (py <= 0) { py = 0; vy = 0; } }
+  if (slide > 0) slide -= dt;
+  spawn();
+  objs = objs.filter(o => o.wz > dist - 150 && !o.got);
+  gates = gates.filter(g => g.wz + GATE_LEN > dist - 200);
+
+  for (const o of objs) {
+    const z = o.wz - dist;
+    if (Math.abs(z - PZ) > 32) continue;
+    const lx = (o.lane - 1) * LANE, near = Math.abs(px - lx) < 55;
+    if (!near) continue;
+    if (o.t === 'bell' && py < 75) { o.got = true; bells++; score += 25; }
+    else if (o.t === 'low' && py < 35) { o.got = true; hit('Decohered! Jump the barrier'); }
+    else if (o.t === 'high' && slide <= 0) { o.got = true; hit('Slide under the arch'); }
+    else if (o.t === 'block') { o.got = true; hit('Crashed into a wall'); }
+  }
+  for (const g of gates) {
+    if (g.done) continue;
+    const rel = g.wz - dist;
+    if (rel <= 650 && bells > 0) { bells--; startTeleport(g); break; }
+    if (rel <= PZ) {                                   // no Bell pair: fall into the void
+      g.done = true; dist = g.wz + GATE_LEN + 90; invul = 0; hit('No Bell pair — you fell into the void');
+      if (lives > 0) invul = 1; break;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- drawing
+function poly(pts, fill) { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); }
+function box(lx, w, y0, y1, z, hue, f) {
+  const d = 36, a = lx - w / 2, b = lx + w / 2;
+  ctx.shadowColor = `hsl(${hue},100%,60%)`; ctx.shadowBlur = 14 * f;
+  poly([P(a, y1, z), P(b, y1, z), P(b, y1, z + d), P(a, y1, z + d)], `hsl(${hue},80%,${55 * f}%)`);
+  poly([P(a, y0, z), P(b, y0, z), P(b, y1, z), P(a, y1, z)], `hsl(${hue},85%,${38 * f}%)`);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = `hsl(${hue},100%,${75 * f}%)`; ctx.lineWidth = 1.5;
+  const p = P(a, y0, z), q = P(b, y1, z); ctx.strokeRect(p[0], q[1], q[0] - p[0], p[1] - q[1]);
+}
+function ring(z, label, col) {
+  const c = P(0, 55, z), rx = 160 * c[2], ry = 95 * c[2], f = fogOf(z);
+  ctx.save(); ctx.globalAlpha = f; ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 18; ctx.lineWidth = 4 * Math.max(.4, c[2]);
+  ctx.beginPath(); ctx.ellipse(c[0], c[1], rx, ry, 0, 0, 7); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.fillStyle = col; ctx.font = `bold ${Math.max(10, 18 * c[2])}px monospace`; ctx.textAlign = 'center';
+  ctx.fillText(label, c[0], c[1] - ry - 8 * c[2]); ctx.restore();
+}
+function drawObj(o) {
+  const z = o.wz - dist, f = fogOf(z), lx = (o.lane - 1) * LANE;
+  if (z < -120 || z > VIEW) return;
+  if (o.t === 'bell') {
+    const a = time * 4 + o.wz, r = 20, c = [P(lx + Math.cos(a) * r, 45 + Math.sin(a) * r, z), P(lx - Math.cos(a) * r, 45 - Math.sin(a) * r, z)];
+    ctx.save(); ctx.globalAlpha = f; ctx.shadowColor = '#3df'; ctx.shadowBlur = 14;
+    ctx.strokeStyle = '#8ff'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(c[0][0], c[0][1]); ctx.lineTo(c[1][0], c[1][1]); ctx.stroke(); ctx.setLineDash([]);
+    c.forEach((p, i) => { ctx.fillStyle = i ? '#f6f' : '#4ef'; ctx.beginPath(); ctx.arc(p[0], p[1], 8 * p[2], 0, 7); ctx.fill(); });
+    ctx.restore();
+  } else if (o.t === 'low') box(lx, 90, 0, 35, z, 330, f);
+  else if (o.t === 'block') box(lx, 90, 0, 115, z, 15, f);
+  else { box(lx - 42, 10, 0, 100, z, 50, f); box(lx + 42, 10, 0, 100, z, 50, f); box(lx, 94, 48, 100, z, 50, f); }
+}
+function drawPlayer() {
+  const h = slide > 0 && py === 0 ? 32 : 72, b = P(px, py, PZ), t = P(px, py + h, PZ), w = 17 * b[2];
+  const s = P(px, 0, PZ);
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(s[0], s[1], w * 1.4 * (1 - Math.min(.5, py / 300)), w * .35, 0, 0, 7); ctx.fill();
+  if (invul > 0 && Math.floor(time * 16) % 2) return;
+  ctx.save(); ctx.shadowColor = '#4ef'; ctx.shadowBlur = 22;
+  const g = ctx.createLinearGradient(0, t[1], 0, b[1]); g.addColorStop(0, '#9ff'); g.addColorStop(1, '#a4f');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(b[0] - w, t[1], w * 2, b[1] - t[1], w); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillStyle = '#012'; ctx.font = `bold ${w * 1.4}px serif`; ctx.textAlign = 'center';
+  ctx.fillText('ψ', b[0], t[1] + (b[1] - t[1]) * .55 + w * .45); ctx.restore();
+}
+function drawWorld() {
+  const sky = ctx.createLinearGradient(0, 0, 0, HOR); sky.addColorStop(0, '#05030f'); sky.addColorStop(1, '#2a0f4a');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, HOR + 1);
+  for (const s of stars) { ctx.globalAlpha = .4 + .6 * Math.abs(Math.sin(time + s.t)); ctx.fillStyle = '#fff'; ctx.fillRect(s.x * W, s.y * HOR, s.r, s.r); }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#05030f'; ctx.fillRect(0, HOR, W, H - HOR);
+
+  const off = dist % 100, par = Math.floor(dist / 100);
+  for (let k = Math.ceil(VIEW / 100); k >= -1; k--) {
+    const z = k * 100 - off, f = fogOf(z), wz = dist + z + 50;
+    const chasm = gates.some(g => wz > g.wz && wz < g.wz + GATE_LEN);
+    if (chasm) {
+      poly([P(-150, 0, z), P(150, 0, z), P(150, 0, z + 100), P(-150, 0, z + 100)], `hsl(270,60%,${3 + 4 * f}%)`);
+      ctx.strokeStyle = `rgba(80,230,255,${.25 * f})`; ctx.lineWidth = 1;
+      const a = P(-150, 0, z), b = P(150, 0, z); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      continue;
+    }
+    poly([P(-150, 0, z), P(150, 0, z), P(150, 0, z + 100), P(-150, 0, z + 100)], `hsl(255,45%,${((par + k) & 1 ? 15 : 11) * f + 3}%)`);
+    ctx.strokeStyle = `rgba(120,100,255,${.5 * f})`; ctx.lineWidth = 1;
+    for (const x of [-50, 50]) { const a = P(x, 0, z), b = P(x, 0, z + 100); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    ctx.strokeStyle = `rgba(60,230,255,${.9 * f})`; ctx.lineWidth = 3;
+    for (const x of [-150, 150]) { const a = P(x, 0, z), b = P(x, 0, z + 100); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+  }
+  for (const g of gates) { ring(g.wz - dist, 'ALICE', '#4ef'); ring(g.wz + GATE_LEN - dist, 'BOB', '#f6f'); }
+
+  const list = objs.filter(o => !o.got).sort((a, b) => b.wz - a.wz);
+  let drawn = false;
+  for (const o of list) { if (!drawn && o.wz - dist < PZ) { drawPlayer(); drawn = true; } drawObj(o); }
+  if (!drawn) drawPlayer();
+}
+function text(t, x, y, size, col = '#fff', align = 'center') {
+  ctx.fillStyle = col; ctx.font = `bold ${size}px ui-monospace,Menlo,Consolas,monospace`; ctx.textAlign = align; ctx.fillText(t, x, y);
+}
+function hud() {
+  text('SCORE ' + Math.floor(score), 14, 28, 18, '#bff', 'left');
+  text('BELL PAIRS ' + bells, 14, 52, 16, '#f9f', 'left');
+  text('♥'.repeat(Math.max(0, lives)), W - 14, 28, 22, '#f46', 'right');
+  text('BEST ' + best, W - 14, 52, 14, '#889', 'right');
+  if (msgT > 0 && state === 'play') { ctx.globalAlpha = Math.min(1, msgT); text(msg, W / 2, H * .2, Math.max(14, 20 * K), '#ffd'); ctx.globalAlpha = 1; }
+  if (state === 'play') for (const g of gates) {
+    const rel = g.wz - dist;
+    if (!g.done && rel < 1800 && rel > 650) text(bells > 0 ? 'ENTANGLEMENT GATE AHEAD' : 'GATE AHEAD — NEED A BELL PAIR!', W / 2, H * .13, 16, bells > 0 ? '#4ef' : '#f66');
+  }
+}
+function drawTeleport() {
+  ctx.fillStyle = 'rgba(2,0,12,.78)'; ctx.fillRect(0, 0, W, H);
+  const u = Math.min(1, W / 560), cx = W / 2, top = Math.max(20, H * .05);
+  text('QUANTUM TELEPORTATION', cx, top + 20 * u, 22 * u, '#4ef');
+  text(`Alice measured her two qubits → classical bits  m0=${tp.m0}  m1=${tp.m1}`, cx, top + 52 * u, 15 * u, '#fff');
+  // Bloch-sphere (x–z projection)
+  const r = 85 * u, bxc = cx - 120 * u - (W < 560 ? 0 : 40), byc = top + 170 * u;
+  ctx.strokeStyle = '#557'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(bxc, byc, r, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bxc - r, byc); ctx.lineTo(bxc + r, byc); ctx.moveTo(bxc, byc - r); ctx.lineTo(bxc, byc + r); ctx.stroke();
+  text('|0⟩', bxc, byc - r - 6, 13 * u, '#99a'); text('|1⟩', bxc, byc + r + 16 * u, 13 * u, '#99a');
+  let b = tp.bob; if (tp.x) b = applyX(b); if (tp.z) b = applyZ(b);
+  const tgt = bloch(tp.psi), now = bloch(b);
+  ctx.strokeStyle = '#fd4'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(bxc + tgt.x * r, byc - tgt.z * r, 9 * u, 0, 7); ctx.stroke();
+  ctx.fillStyle = '#4ef'; ctx.shadowColor = '#4ef'; ctx.shadowBlur = 14; ctx.beginPath(); ctx.arc(bxc + now.x * r, byc - now.z * r, 6 * u, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+  text('○ ψ to send   ● Bob\'s qubit', bxc, byc + r + 38 * u, 12 * u, '#bbc');
+  const fid = fidelity(tp.psi, b);
+  const rx = bxc + r + 40 * u;
+  text('Bob applies:', rx, byc - 55 * u, 15 * u, '#fff', 'left');
+  text('[X] bit-flip   ' + (tp.x ? 'ON' : 'off'), rx, byc - 28 * u, 15 * u, tp.x ? '#4ef' : '#889', 'left');
+  text('[Z] phase-flip ' + (tp.z ? 'ON' : 'off'), rx, byc - 3 * u, 15 * u, tp.z ? '#4ef' : '#889', 'left');
+  text('Fidelity ' + Math.round(fid * 100) + '%', rx, byc + 30 * u, 18 * u, fid > .99 ? '#6f6' : '#fa4', 'left');
+  text('ENTER / SPACE = receive', rx, byc + 56 * u, 12 * u, '#99a', 'left');
+  if (tp.hint) text('Rule: m1=1 → apply X · m0=1 → apply Z', cx, byc + r + 70 * u, 15 * u, '#fd4');
+  const bw = Math.min(360, W - 40); ctx.fillStyle = '#223'; ctx.fillRect(cx - bw / 2, byc + r + 90 * u, bw, 8);
+  ctx.fillStyle = tp.t < 2 ? '#f55' : '#4ef'; ctx.fillRect(cx - bw / 2, byc + r + 90 * u, bw * Math.max(0, tp.t / 7), 8);
+  bx.classList.toggle('on', tp.x); bz.classList.toggle('on', tp.z);
+}
+function overlay() {
+  ctx.fillStyle = 'rgba(2,0,12,.78)'; ctx.fillRect(0, 0, W, H);
+  const s = Math.min(1, W / 560), y = H * .2;
+  if (state === 'menu') {
+    text('QUANTUM', W / 2, y, 52 * s, '#4ef'); text('TELEPORTAR', W / 2, y + 56 * s, 52 * s, '#f6f');
+    const L = ['Run the lattice. Dodge decoherence.', '', '← → / A D   change lane', '↑ / W / SPACE   jump low barriers', '↓ / S   slide under arches',
+      '(touch: swipe or tap)', '', 'Collect Bell pairs ●-●', 'At a chasm, spend one to TELEPORT across:', 'read Alice\'s 2 bits, apply Bob\'s',
+      'X / Z corrections, then SEND.', '', 'PRESS ENTER / TAP TO START'];
+    L.forEach((t, i) => text(t, W / 2, y + 110 * s + i * 24 * s, 16 * s, i === L.length - 1 ? '#ffd' : '#cdd'));
+  } else {
+    text('STATE LOST', W / 2, y + 40, 48 * s, '#f46');
+    text('Score ' + Math.floor(score) + '   Best ' + best, W / 2, y + 100, 22 * s, '#fff');
+    text('ENTER / TAP TO RETRY', W / 2, y + 150, 18 * s, '#ffd');
+  }
+}
+function render() {
+  ctx.save();
+  if (shake > 0) ctx.translate((Math.random() - .5) * 14 * shake, (Math.random() - .5) * 14 * shake);
+  drawWorld();
+  ctx.restore();
+  if (flash > 0) { ctx.fillStyle = `rgba(${flashCol},${Math.min(.5, flash)})`; ctx.fillRect(0, 0, W, H); }
+  if (state === 'menu') { /* attract mode */ } else hud();
+  if (state === 'teleport') drawTeleport();
+  document.getElementById('tp').style.display = state === 'teleport' ? 'flex' : 'none';
+  if (state === 'menu' || state === 'over') overlay();
+}
+
+reset(); dist = 0; spawn();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (state === 'menu') { dist += 300 * dt; time += dt; objs = objs.filter(o => o.wz > dist - 150); spawn(); }
+  else update(dt);
+  render(); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__qt = {runProtocol, applyX, applyZ, fidelity, act, get state() { return state; }};
+</script>
+</body>
+</html>
