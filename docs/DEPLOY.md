@@ -85,18 +85,22 @@ For a game you intend to sell, you will probably want a **private** repository a
 Changing visibility or the license is your decision (repository *Settings → General → Danger Zone*); I will not change either.
 
 ## What is verified and what is not
-Be aware that I built this pipeline in a sandbox that cannot run the Android SDK, a Mac, or GitHub Actions itself.
+The pipeline was built in a sandbox that cannot run the Android SDK or a Mac; GitHub's own runners were used to verify the Android and iOS builds.
 
 | Part | Status |
 |---|---|
 | Pinned Godot download + SHA-512 verification (accepts the real file, rejects a tampered one) | verified |
-| Project import, headless tests, software-rendered screenshots | verified |
-| iOS Xcode project generation from the Godot project (Linux) | verified |
-| Fresh-clone reproduction (see below) | verified for the committed state at the time of testing |
-| Workflow YAML structure | validated; not linted with `actionlint` (could not be installed there) |
-| Android APK/AAB export, Gradle build, signing, Play upload | **untested** (the sandbox blocks the Android SDK host) |
-| macOS `xcodebuild`, signing, TestFlight upload | **untested** (no macOS in the sandbox) |
-| The first GitHub Actions runs | **untested**; expect to fix small things on the first run |
+| Project import, headless tests, software-rendered screenshots (sandbox and GitHub runner) | verified |
+| Fresh-clone reproduction with an empty home directory | verified for the committed state at the time of testing |
+| `ci.yml` on GitHub (Godot tests + screenshot, Unreal syntax check, web build) | verified (green) |
+| **Android debug APK built on a GitHub runner** (`android.yml`, about 37 MB artifact) | **verified** |
+| **iOS: Xcode project + unsigned arm64 device build on a macOS runner** (`ios.yml`) | **verified** |
+| Android signed AAB (Gradle build), Play upload | **untested** (needs your keystore + Play secrets) |
+| iOS signed .ipa, TestFlight upload | **untested** (needs your Apple certificate, profile and API key) |
+| Workflow YAML linted with `actionlint` | not done (could not be installed in the build sandbox) |
+| Installing and running the builds on a phone | **untested** (no device available to the build sandbox) |
+
+Note on the iOS simulator: Godot 4.6.1's official iOS *simulator* library is Intel (x86_64) only, so the workflow checks an unsigned *device* build instead.
 
 If a run fails, open the failed step's log; the scripts print what is missing (`ANDROID_HOME`, a secret, a template).
 
