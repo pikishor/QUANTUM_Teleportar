@@ -22,6 +22,16 @@ Engine: **Godot 4.6, Mobile renderer (Compatibility fallback)**, GDScript. This 
 - **Asset repo policy:** commit the *scripts* that generate assets plus compact outputs (at most about 25 MB per module). Large outputs (4K PBR sets, audio libraries)
   are produced by `tools/build_assets.sh` into the git-ignored `assets/generated/` (or Git LFS once the team decides). Never commit multi-hundred-MB binaries.
 
+## Reproducibility (binding): a clean clone must build everything
+The owner deploys Android/iOS builds straight from GitHub (see `docs/DEPLOY.md`), so nothing may depend on one machine's hidden state.
+- **No absolute or machine-specific paths** in any committed file (no `/tmp/...`, no home directories, no session scratch folders).
+- **Committed outputs are what the game loads.** Models (`.glb`), compact textures and audio live in `assets/**` and the game runs from a clean clone *without* regenerating anything.
+  Large intermediates go to the git-ignored `assets/generated/`, produced by `tools/build_assets.sh`.
+- **Generators are reproducible:** fixed random seeds, pinned Python packages in `tools/requirements.txt` (Python 3.13, `bpy==5.2.3`), and the interpreter is found through
+  `$BLENDER_PY` or `tools/setup_python.sh`, never a hard-coded path. Any new dependency is added to the requirements file and mentioned in `docs/DEPLOY.md`.
+- **Tests run in CI:** every `tests/test_*.gd` is executed by `.github/workflows/ci.yml` through `tools/test.sh`, so each module ships at least one such test and keeps it green.
+- Pinned engine and templates: `tools/get_godot.sh` and `tools/install_templates.sh` (SHA-512 verified). Bump versions only together with the checksums in `tools/verify_sha512.sh`.
+
 ## Working rules (read first)
 - **Own only your module's files** (listed per module below). Never edit another module's files; if you need a change there, report it.
   Shared files (`autoload/*`, `scripts/main.gd`, `project.godot`, this document) are changed only by the orchestrator.

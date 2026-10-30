@@ -55,8 +55,9 @@ jobs:
           IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
           IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
         run: godot/tools/ios_build.sh ipa
-      - uses: actions/upload-artifact@v4
-        if: env.HAVE_SIGNING == 'true' && env.WANT_RELEASE == 'true'
+      - name: Keep the signed .ipa as an artifact (private repositories only; artifacts of public repositories are downloadable by anyone)
+        if: env.HAVE_SIGNING == 'true' && env.WANT_RELEASE == 'true' && github.event.repository.private == true
+        uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
           path: godot/build/ios/ipa/*.ipa

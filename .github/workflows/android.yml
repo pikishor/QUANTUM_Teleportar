@@ -70,8 +70,9 @@ jobs:
       - name: Signed release AAB
         if: env.HAVE_KEYSTORE == 'true' && env.WANT_RELEASE == 'true'
         run: godot/tools/export_android.sh aab
-      - uses: actions/upload-artifact@v4
-        if: env.HAVE_KEYSTORE == 'true' && env.WANT_RELEASE == 'true'
+      - name: Keep the signed AAB as an artifact (private repositories only; artifacts of public repositories are downloadable by anyone)
+        if: env.HAVE_KEYSTORE == 'true' && env.WANT_RELEASE == 'true' && github.event.repository.private == true
+        uses: actions/upload-artifact@v4
         with:
           name: android-release-aab
           path: godot/build/android/quantum-teleportar.aab

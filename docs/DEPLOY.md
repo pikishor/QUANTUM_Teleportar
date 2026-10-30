@@ -74,6 +74,16 @@ You need the Apple Developer Program membership. A Mac is **not** required for t
 
 Never paste any of these into chat, issues or commits. Only GitHub's encrypted secrets store holds them.
 
+## Public or private repository? (decide before a commercial release)
+This repository is currently **public and MIT-licensed** (see `LICENSE`). Anyone can read, copy and sell the code and the committed assets.
+For a game you intend to sell, you will probably want a **private** repository and a proprietary license before release. Consequences to know about:
+- GitHub Actions minutes are free for public repositories; for private ones the free plan includes a monthly allowance, and macOS runners count ten times
+  (iOS runs only on tags and manual dispatch for that reason).
+- Artifacts of public repositories are downloadable by any signed-in GitHub user, so the workflows upload **signed release builds as artifacts only when the repository is private**
+  (they still go straight to Google Play / TestFlight when you enable publishing). Debug builds are always uploaded.
+- Secrets are never exposed to pull requests from forks; only `ci.yml` runs on pull requests, and it uses no secrets.
+Changing visibility or the license is your decision (repository *Settings → General → Danger Zone*); I will not change either.
+
 ## What is verified and what is not
 Be aware that I built this pipeline in a sandbox that cannot run the Android SDK, a Mac, or GitHub Actions itself.
 
