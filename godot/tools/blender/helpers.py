@@ -29,11 +29,11 @@ sys.path.insert(0, HERE)
 import glbtool  # noqa: E402
 
 # metres covered by one texture tile (UVs are world scale so detail stays consistent between parts)
-TEX_TILE = {"plating": 0.8, "metal_painted": 0.6, "fabric": 0.3, "carbon": 0.2, "rubber": 0.5,
+TEX_TILE = {"plating": 0.8, "metal_painted": 0.6, "fabric": 0.35, "carbon": 0.2, "rubber": 0.5,
             "concrete": 2.0, "asphalt": 2.0, "steel": 0.5, "glass": 0.5}
 # mean linear albedo of each set (so `paint()` can aim at a final colour)
-TEX_MEAN_LIN = {"plating": 0.36, "metal_painted": 0.80, "fabric": 0.50, "carbon": 0.012, "rubber": 0.015,
-                "concrete": 0.19, "asphalt": 0.02, "steel": 0.19, "glass": 0.83}
+TEX_MEAN_LIN = {"plating": 0.36, "metal_painted": 0.80, "fabric": 0.56, "carbon": 0.012, "rubber": 0.015,
+                "concrete": 0.19, "asphalt": 0.035, "steel": 0.19, "glass": 0.83}
 
 
 # ------------------------------------------------------------------ colour helpers
@@ -264,14 +264,15 @@ def g_sphere(rx, ry, rz, segs=12, rings=8):
     return v, f
 
 
-def g_torus(R, r, segs=20, sides=8):
+def g_torus(R, r, segs=20, sides=8, rz=None):
+    rz = r if rz is None else rz
     v, f = [], []
     for i in range(segs):
         a = 2 * math.pi * i / segs
         for k in range(sides):
             b = 2 * math.pi * k / sides
             rad = R + r * math.cos(b)
-            v.append((rad * math.cos(a), rad * math.sin(a), r * math.sin(b)))
+            v.append((rad * math.cos(a), rad * math.sin(a), rz * math.sin(b)))
     for i in range(segs):
         i2 = (i + 1) % segs
         for k in range(sides):
@@ -413,13 +414,16 @@ class Part:
         x = math.sin(self.seed * 12.9898 + self._n * 78.233) * 43758.5453
         return x - math.floor(x)
 
-    def _add(self, verts, faces, mat, tint, xf, bevel, bsegs, bangle, sharp, mirror, closed, jitter):
+    def _add(self, verts, faces, mat, tint, xf, bevel, bsegs, bangle, sharp, mirror, closed, jitter, face_mats=None,
+             outward_from=None):
         slot, mat = self._slot(mat)
         t = bmesh.new()
         vs = [t.verts.new(xf @ Vector(p)) for p in verts]
-        for f in faces:
+        for fi, f in enumerate(faces):
             try:
-                t.faces.new([vs[i] for i in f])
+                nf = t.faces.new([vs[i] for i in f])
+                if face_mats is not None:
+                    nf.material_index = self._slot(face_mats[fi])[0]
             except ValueError:
                 pass
         t.verts.index_update()
@@ -427,6 +431,12 @@ class Part:
         t.faces.index_update()
         if closed:
             bmesh.ops.recalc_face_normals(t, faces=t.faces[:])
+        if outward_from is not None:
+            o = Vector(outward_from)
+            for f in list(t.faces):
+                f.normal_update()
+                if f.normal.dot(f.calc_center_median() - o) < 0:
+                    f.normal_flip()
         if bevel > 0.0:
             edges = [e for e in t.edges if len(e.link_faces) == 2 and e.calc_face_angle(0.0) > math.radians(bangle)]
             if edges:
@@ -435,14 +445,14 @@ class Part:
         t.verts.index_update()
         t.edges.index_update()
         k = 1.0 + (self._rand() - 0.5) * 2.0 * jitter if jitter else 1.0
-        tcol = (tint[0] * k, tint[1] * k, tint[2] * k) if mat.vcol else (1.0, 1.0, 1.0)
+        tcol = (tint[0] * k, tint[1] * k, tint[2] * k)
         off = (self._rand() * 7.0, self._rand() * 7.0)
-        self._merge(t, slot, mat, tcol, sharp, False, off)
+        self._merge(t, slot, mat, tcol, sharp, False, off, face_mats is not None)
         if mirror:
-            self._merge(t, slot, mat, tcol, sharp, True, off)
+            self._merge(t, slot, mat, tcol, sharp, True, off, face_mats is not None)
         t.free()
 
-    def _merge(self, t, slot, mat, tcol, sharp, mirror, off):
+    def _merge(self, t, slot, mat, tcol, sharp, mirror, off, perface=False):
         bm = self.bm
         vmap = {}
         for v in t.verts:
@@ -450,7 +460,6 @@ class Part:
             if mirror:
                 co.x = -co.x
             vmap[v.index] = bm.verts.new(co)
-        tile = mat.tile
         for f in t.faces:
             vs = [vmap[v.index] for v in f.verts]
             if mirror:
@@ -459,11 +468,15 @@ class Part:
                 nf = bm.faces.new(vs)
             except ValueError:
                 continue
-            nf.material_index = slot
+            fslot = self.slots.index(self.slots[f.material_index]) if perface else slot
+            fmat = self.slots[fslot]
+            tile = fmat.tile
+            nf.material_index = fslot
             nf.smooth = True
             nf.normal_update()
             n = nf.normal
             ax, ay, az = abs(n.x), abs(n.y), abs(n.z)
+            fcol = tcol if fmat.vcol else (1.0, 1.0, 1.0)
             for loop in nf.loops:
                 p = loop.vert.co
                 if az >= ax and az >= ay:
@@ -473,7 +486,7 @@ class Part:
                 else:
                     u, w = p.x, p.z
                 loop[self.uv].uv = (u / tile + off[0], w / tile + off[1])
-                loop[self.col] = (tcol[0], tcol[1], tcol[2], 1.0)
+                loop[self.col] = (fcol[0], fcol[1], fcol[2], 1.0)
         thr = math.radians(sharp)
         for e in t.edges:
             a = e.calc_face_angle(None)
@@ -507,14 +520,15 @@ class Part:
         self._add(v, f, mat, tint, self._xf(pos, rot, frame), 0.0, 1, 30.0, 89.0, mirror, True, jitter)
 
     def torus(self, R, r, pos=(0, 0, 0), rot=(0, 0, 0), mat=None, tint=(1, 1, 1), segs=20, sides=8, mirror=False,
-              jitter=0.0, frame=None):
-        v, f = g_torus(R, r, segs, sides)
+              jitter=0.0, frame=None, rz=None):
+        v, f = g_torus(R, r, segs, sides, rz)
         self._add(v, f, mat, tint, self._xf(pos, rot, frame), 0.0, 1, 30.0, 89.0, mirror, True, jitter)
 
     def loft(self, rings, mat=None, tint=(1, 1, 1), caps=(True, True), closed=True, mirror=False, bevel=0.0,
-             bsegs=1, bangle=30.0, sharp=70.0, jitter=0.0):
+             bsegs=1, bangle=30.0, sharp=70.0, jitter=0.0, face_mats=None, outward_from=None):
         v, f = g_loft(rings, caps[0], caps[1])
-        self._add(v, f, mat, tint, Matrix.Identity(4), bevel, bsegs, bangle, sharp, mirror, closed and caps[0] and caps[1], jitter)
+        self._add(v, f, mat, tint, Matrix.Identity(4), bevel, bsegs, bangle, sharp, mirror, closed and caps[0] and caps[1], jitter,
+                  face_mats, outward_from)
 
     def tube(self, points, radii, mat=None, tint=(1, 1, 1), n=10, exp=2.0, up=(0, 0, 1), caps=(True, True), sub=3,
              mirror=False, sharp=75.0, jitter=0.0):

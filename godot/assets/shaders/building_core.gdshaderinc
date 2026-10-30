@@ -14,6 +14,7 @@
 // fit the wall exactly. Lit windows emit HDR colour (glow/bloom turns them into light).
 
 #include "res://assets/shaders/common.gdshaderinc"
+#include "res://assets/shaders/signage.gdshaderinc"
 
 global uniform float wetness;
 
@@ -30,7 +31,6 @@ const float FLOOR_H = 3.5;
 const float GROUND_H = 5.0;
 const float PARAPET_H = 1.2;
 
-const vec3 NEON[4] = vec3[4](vec3(0.20, 0.85, 1.0), vec3(1.0, 0.16, 0.62), vec3(0.58, 0.36, 1.0), vec3(0.20, 1.0, 0.66));
 
 varying flat vec3 v_scale;
 varying flat vec4 v_wall;
@@ -73,45 +73,6 @@ vec3 lit_color(float r, float pal) {
 		return r < 0.18 ? pink : (r < 0.55 ? warm : (r < 0.75 ? teal : (r < 0.92 ? white : tv)));
 	}
 	return r < 0.50 ? warm : (r < 0.76 ? white : (r < 0.90 ? amber : (r < 0.97 ? teal : pink)));
-}
-
-// One pseudo-glyph (neon "alien script"): `code` selects which of 6 strokes are lit. g = cell coordinates (0..1).
-float glyph(vec2 g, float code, float aa) {
-	float s = 0.0;
-	float w = 0.17;
-	s = max(s, mod(code, 2.0) > 0.5 ? band(g.y, 0.0, w, aa) * band(g.x, 0.1, 0.9, aa) : 0.0);
-	s = max(s, mod(floor(code / 2.0), 2.0) > 0.5 ? band(g.y, 0.5 - w * 0.5, 0.5 + w * 0.5, aa) * band(g.x, 0.1, 0.9, aa) : 0.0);
-	s = max(s, mod(floor(code / 4.0), 2.0) > 0.5 ? band(g.y, 1.0 - w, 1.0, aa) * band(g.x, 0.1, 0.9, aa) : 0.0);
-	s = max(s, mod(floor(code / 8.0), 2.0) > 0.5 ? band(g.x, 0.1, 0.1 + w, aa) * band(g.y, 0.0, 1.0, aa) : 0.0);
-	s = max(s, mod(floor(code / 16.0), 2.0) > 0.5 ? band(g.x, 0.9 - w, 0.9, aa) * band(g.y, 0.0, 1.0, aa) : 0.0);
-	s = max(s, mod(floor(code / 32.0), 2.0) > 0.5 ? band(g.x, 0.5 - w * 0.5, 0.5 + w * 0.5, aa) * band(g.y, 0.0, 1.0, aa) : 0.0);
-	return s;
-}
-
-// Animated LED screen content: scrolling bars, glyph columns, glitch and scanlines. uv in 0..1, returns HDR colour.
-vec3 screen_content(vec2 uv, float seed, float t, float aa) {
-	float kind = floor(fract(seed * 7.13) * 3.0);
-	vec3 c1 = NEON[int(mod(floor(seed * 4.0), 4.0))];
-	vec3 c2 = NEON[int(mod(floor(seed * 4.0) + 1.0 + kind, 4.0))];
-	float scan = 0.82 + 0.18 * step(0.5, fract(uv.y * 90.0));
-	float glitch = step(0.985, hash11(floor(t * 3.0) + seed * 40.0)) * (hash11(floor(uv.y * 14.0) + t) - 0.5) * 0.12;
-	uv.x += glitch;
-	vec3 col = vec3(0.0);
-	if (kind < 0.5) {            // slow colour sweep with big bars
-		float k = fract(uv.x * 2.0 - t * 0.08 + seed * 3.0);
-		col = mix(c1, c2, smoothstep(0.3, 0.7, k)) * (0.35 + 0.65 * band(fract(uv.y * 5.0 + t * 0.06), 0.1, 0.7, aa * 5.0));
-	} else if (kind < 1.5) {     // glyph marquee
-		float gi = floor(uv.x * 18.0 + t * 1.4);
-		vec2 g = vec2(fract(uv.x * 18.0 + t * 1.4), fract(uv.y * 3.0) * 1.2 - 0.1);
-		float code = floor(hash12(vec2(gi, floor(uv.y * 3.0) + seed * 10.0)) * 64.0);
-		col = mix(c1, c2, hash12(vec2(gi, 3.0))) * glyph(g, code, 0.1) * 1.4 + c1 * 0.05;
-	} else {                     // radial pulse
-		vec2 p = uv - 0.5;
-		float r = length(p * vec2(1.6, 1.0));
-		float ring = band(fract(r * 5.0 - t * 0.5), 0.0, 0.25, 0.08);
-		col = mix(c1, c2, r * 2.0) * (ring * 1.2 + 0.12) * (1.0 - smoothstep(0.35, 0.6, r));
-	}
-	return col * scan * 1.6;
 }
 
 void fragment() {
@@ -159,7 +120,7 @@ void fragment() {
 			emit += neon * strip * 2.2;
 		}
 		// roof edge catches the street glow
-		emit += neon * 0.04 * lip;
+		emit += neon * 0.015 * lip;
 	} else {
 		// ---- wall ------------------------------------------------------------------------------------------------------
 		bool xf = abs(nrm.x) > 0.5;
@@ -377,7 +338,7 @@ void fragment() {
 			emit += nc * (gl * 3.0 + tube * 1.5) * flick * step(0.25, rb0);
 			albedo = mix(albedo, vec3(0.02), signb * 0.8);
 			// street spill on the base of the wall
-			emit += neon * 0.10 * exp(-y * 0.55) * (1.0 - open_shop);
+			emit += neon * 0.06 * exp(-y * 0.55) * (1.0 - open_shop);
 		}
 
 		// ---- top band: cornice / parapet ------------------------------------------------------------------------------
@@ -404,7 +365,7 @@ void fragment() {
 				float ab = (mod(fi, 7.0) < 0.5) ? 1.0 - smoothstep(0.05 - am, 0.11 + am, fdist) : 0.0;
 				emit += neon * ab * 1.5;
 			}
-			emit += neon * 0.10 * exp(-(y - gh) / 6.0) * wallmask;
+			emit += neon * 0.035 * exp(-(y - gh) / 6.0) * wallmask;
 		}
 
 		// ---- big LED screen ---------------------------------------------------------------------------------------------

@@ -13,6 +13,10 @@ const Env := preload("res://scripts/world/city_env.gd")
 const Ground := preload("res://scripts/world/city_ground.gd")
 const Buildings := preload("res://scripts/world/city_buildings.gd")
 const Props := preload("res://scripts/world/city_props.gd")
+const PROP_SHADER := preload("res://assets/shaders/prop.gdshader")
+const PROP_MIRROR_SHADER := preload("res://assets/shaders/prop_mirror.gdshader")
+const GLOW_SHADER := preload("res://assets/shaders/glow.gdshader")
+const SHAFT_SHADER := preload("res://assets/shaders/shaft.gdshader")
 
 ## Inner junctions (y = 0), 7 x 7 = 49.
 var intersections: Array[Vector3] = []
@@ -32,6 +36,7 @@ var building_data: Array = []      ## Buildings.Building per lot index
 var _env := Env.new()
 var _ground := Ground.new()
 var _buildings := Buildings.new()
+var _props := Props.new()
 var _mirror_root: Node3D
 var _real_root: Node3D
 var _ground_node: MeshInstance3D
@@ -64,6 +69,7 @@ func _ready() -> void:
 	_buildings.build_multimeshes()
 	_build_ground()
 	_build_buildings()
+	_build_props()
 	_build_collision()
 	set_quality(quality)
 
@@ -116,8 +122,9 @@ func set_quality(level: int) -> void:
 		n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var mirror_on := quality >= 1
 	_mirror_root.visible = mirror_on
-	_ground.material.set_shader_parameter(&"mirror_amount", 1.0 if mirror_on else 0.0)
-	_ground.material.set_shader_parameter(&"detail", 1.0 if quality >= 1 else 0.0)
+	_ground_node.material_override = _ground.material if mirror_on else _ground.material_lite
+	for m: ShaderMaterial in [_ground.material, _ground.material_lite]:
+		m.set_shader_parameter(&"detail", 1.0 if quality >= 1 else 0.0)
 	_building_mat.set_shader_parameter(&"detail", 1.0 if quality >= 1 else 0.0)
 
 
@@ -174,10 +181,9 @@ func _build_ground() -> void:
 	_ground.begin_light_map()
 	for lamp in Props.lamp_list():
 		# pool centre sits under the lamp head, a couple of metres out along the arm
-		var head := Vector2(lamp.x + lamp.z * 0.0 + lamp.z * 0.0, lamp.y)
-		head = Vector2(lamp.x + lamp.z * 2.4, lamp.y + 0.0)
-		head = Vector2(lamp.x, lamp.y) + Vector2(lamp.z, lamp.w) * 2.4
-		_ground.add_pool(head.x, head.y, 15.0, Color(1.0, 0.66, 0.34), 1.6)
+		var head := Vector2(lamp.x, lamp.y) + Vector2(lamp.z, lamp.w) * 2.4
+		_ground.add_pool(head.x, head.y, 17.0, Color(1.0, 0.64, 0.32), 0.9)
+		_ground.add_glare(head.x, head.y, 4.0, 3.0)
 	_ground.finish_light_map()
 	_ground.make_material()
 	_ground_node = _ground.make_node()
@@ -193,6 +199,32 @@ func _build_buildings() -> void:
 		if mm.instance_count == 0:
 			continue
 		add_multimesh("Buildings_" + String(cls), mm, _building_mat, _building_mirror_mat, true)
+
+
+func _shader_mat(shader: Shader, priority := 0) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = shader
+	m.render_priority = priority
+	return m
+
+
+func _build_props() -> void:
+	_props.build(layout)
+	var prop_mat := _shader_mat(PROP_SHADER)
+	var prop_mirror := _shader_mat(PROP_MIRROR_SHADER)
+	var glow_mat := _shader_mat(GLOW_SHADER)
+	var glow_mirror := _shader_mat(GLOW_SHADER, -120)     # transparent copies must be in the screen copy the ground reads
+	var shaft_mat := _shader_mat(SHAFT_SHADER)
+	_detail_materials.append(prop_mat)
+	for part in _props.parts:
+		var mirror: bool = part["mirror"]
+		match part["kind"]:
+			&"prop":
+				add_multimesh(part["name"], part["mm"], prop_mat, prop_mirror if mirror else null, part["shadow"])
+			&"glow":
+				add_multimesh(part["name"], part["mm"], glow_mat, glow_mirror if mirror else null, false)
+			&"shaft":
+				add_multimesh(part["name"], part["mm"], shaft_mat, null, false)
 
 
 func _build_collision() -> void:

@@ -341,29 +341,30 @@ def _weave(n, period, pattern):
 
 
 def make_fabric(n):
-    """Ripstop cordura-like nylon weave (tile ~0.35 m)."""
+    """Ripstop cordura-like nylon weave (tile ~0.35 m): fine weave, faint ripstop grid, soft mottling and wear."""
     period = n / 128.0
     h, warp = _weave(n, period, "plain")
     x, y = grid(n)
-    # ripstop: thicker reinforcement thread every 16 cells
     rip = (((x / period) % 16) < 1.0) | (((y / period) % 16) < 1.0)
-    h = np.where(rip, h + 0.18, h)
-    tx = rng(32).uniform(0.88, 1.0, 128)
-    ty = rng(33).uniform(0.88, 1.0, 128)
+    h = np.where(rip, h + 0.07, h)
+    tx = rng(32).uniform(0.95, 1.0, 128)
+    ty = rng(33).uniform(0.95, 1.0, 128)
     ci = (x / period).astype(int) % 128
     cj = (y / period).astype(int) % 128
     thread_var = np.where(warp, tx[ci], ty[cj])
     fuzz = fbm(n, 0.3, 34, lo=0.15)
     macro = fbm(n, 3.0, 35)
-    h = h + (fuzz - 0.5) * 0.12
-    cav = cavity(h, period * 0.7, 1.6)
-    alb = (0.74 + cav * 0.5) * thread_var * (0.92 + (macro - 0.5) * 0.18)
-    alb = np.where(rip, alb * 1.06, alb)
+    mid = fbm(n, 2.0, 36, lo=0.01, hi=0.12)
+    wear = smooth(0.55, 0.85, fbm(n, 2.4, 37))
+    h = h + (fuzz - 0.5) * 0.10
+    cav = cavity(h, period * 0.7, 1.0)
+    alb = (0.78 + cav * 0.16) * thread_var * (0.94 + (macro - 0.5) * 0.14 + (mid - 0.5) * 0.10) * (1.0 + wear * 0.06)
+    alb = np.where(rip, alb * 1.015, alb)
     albedo = np.repeat(np.clip(alb, 0, 1)[..., None], 3, axis=2)
-    ao = np.clip(0.68 + 0.32 * h - np.clip(-cav, 0, 1), 0.3, 1.0)
-    rough = 0.88 + (fuzz - 0.5) * 0.1 + (macro - 0.5) * 0.08
+    ao = np.clip(0.80 + 0.2 * h - np.clip(-cav, 0, 1) * 0.5, 0.45, 1.0)
+    rough = 0.86 + (fuzz - 0.5) * 0.08 + (macro - 0.5) * 0.08 - wear * 0.06
     metal = np.zeros((n, n))
-    return pack(albedo, ao, rough, metal, h * 3.2 * (n / 1024.0), 1.0)
+    return pack(albedo, ao, rough, metal, h * 1.5 * (n / 1024.0), 1.0)
 
 
 def make_carbon(n):
@@ -424,8 +425,7 @@ def make_concrete(n):
 
 
 def make_asphalt(n):
-    """Dark asphalt with aggregate, tar seams, cracks and baked puddles (low roughness in the wet patches)."""
-    r = rng(71)
+    """Dark asphalt with aggregate, hairline cracks and broad soft wet sheen (no discrete puddles, so it never looks like a pattern)."""
     cells = int(px(n, 150)) or 8
     f1, f2, rid = worley(n, cells, 72)
     stone = smooth(0.42, 0.1, f1) * (0.35 + 0.65 * rid)
@@ -436,18 +436,18 @@ def make_asphalt(n):
     mid = fbm(n, 2.0, 76, lo=0.01)
     cracks = splat_lines(n, int(px(n, 14) * n / 1024), px(n, 160), px(n, 600), 77, jitter=0.4, step=0.6)
     cracks = np.clip(blur(cracks, 0.5) * 1.8, 0, 1)
-    puddle = smooth(0.54, 0.64, blur(fbm(n, 3.2, 78), 2.0))
-    h = stone * 0.5 + stone_small * 0.3 + (sand - 0.5) * 0.25 - cracks * 0.6 + (mid - 0.5) * 0.2
-    h = h * (1.0 - puddle * 0.8)
+    wet = smooth(0.35, 0.8, blur(fbm(n, 3.0, 78), 3.0))       # soft broad sheen mask
+    h = stone * 0.45 + stone_small * 0.3 + (sand - 0.5) * 0.25 - cracks * 0.6 + (mid - 0.5) * 0.2
+    h = h * (1.0 - wet * 0.45)
     cav = cavity(h, px(n, 2.5), 1.5)
-    alb = 0.115 + stone * 0.17 + stone_small * 0.1 + (sand - 0.5) * 0.04 + (mid - 0.5) * 0.03 - cracks * 0.06
-    alb = alb * (1.0 - puddle * 0.42)
-    albedo = np.stack([alb * 1.0, alb * 1.0, alb * 1.02], axis=-1)
-    ao = np.clip(1.0 + cav * 1.4 - cracks * 0.5, 0.35, 1.0)
-    rough = 0.80 + (sand - 0.5) * 0.1 - stone * 0.12 + (mid - 0.5) * 0.1
-    rough = lerp(rough, 0.06 + (sand - 0.5) * 0.04, puddle)
+    alb = 0.17 + stone * 0.2 + stone_small * 0.1 + (sand - 0.5) * 0.05 + (mid - 0.5) * 0.04 - cracks * 0.07
+    alb = alb * (1.0 - wet * 0.18)
+    albedo = np.repeat(np.clip(alb, 0, 1)[..., None], 3, axis=2)
+    ao = np.clip(1.0 + cav * 1.4 - cracks * 0.5, 0.4, 1.0)
+    rough = 0.78 + (sand - 0.5) * 0.1 - stone * 0.15 + (mid - 0.5) * 0.12
+    rough = lerp(rough, 0.2 + (sand - 0.5) * 0.06 + stone * 0.15, wet)
     metal = np.zeros((n, n))
-    return pack(albedo, ao, rough, metal, h * px(n, 8.0), 1.0)
+    return pack(albedo, ao, rough, metal, h * px(n, 6.0), 1.0)
 
 
 def make_steel(n):

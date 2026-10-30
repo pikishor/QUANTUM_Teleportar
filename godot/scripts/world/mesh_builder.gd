@@ -110,8 +110,8 @@ func cylinder(base: Vector3, radius: float, height: float, segments := 12, c: Co
 		ring_b.append(vertex(base + Vector3(0, height, 0) + dir * tr, n, c))
 	for s in segments:
 		# two triangles per segment, clockwise seen from outside
-		tri(ring_a[s], ring_b[s], ring_b[s + 1])
-		tri(ring_a[s], ring_b[s + 1], ring_a[s + 1])
+		tri(ring_a[s], ring_b[s + 1], ring_b[s])
+		tri(ring_a[s], ring_a[s + 1], ring_b[s + 1])
 	if cap_top and tr > 0.0:
 		_cap(base + Vector3(0, height, 0), tr, segments, c, true)
 	if cap_bottom:
@@ -127,9 +127,9 @@ func _cap(center: Vector3, radius: float, segments: int, c: Color, up: bool) -> 
 		ring.append(vertex(center + Vector3(cos(a), 0.0, sin(a)) * radius, n, c))
 	for s in segments:
 		if up:
-			tri(ci, ring[s + 1], ring[s])
-		else:
 			tri(ci, ring[s], ring[s + 1])
+		else:
+			tri(ci, ring[s + 1], ring[s])
 
 
 ## Open cone / funnel from a small top ring to a wide bottom ring (used for light shafts). UV.y = 0 at the apex, 1 at the base.
@@ -143,8 +143,47 @@ func funnel(apex: Vector3, base_y: float, base_radius: float, segments := 12, ap
 		ring_a.append(vertex(Vector3(apex.x, base_y, apex.z) + dir * base_radius, n, c, Vector2(float(s) / segments, 1.0)))
 		ring_b.append(vertex(apex + dir * apex_radius, n, c, Vector2(float(s) / segments, 0.0)))
 	for s in segments:
-		tri(ring_a[s], ring_b[s], ring_b[s + 1])
-		tri(ring_a[s], ring_b[s + 1], ring_a[s + 1])
+		tri(ring_a[s], ring_b[s + 1], ring_b[s])
+		tri(ring_a[s], ring_a[s + 1], ring_b[s + 1])
+
+
+## Ellipsoid with smooth normals (rubbish bags, foliage, domes).
+func sphere(center: Vector3, radii: Vector3, segments := 8, rings := 5, c: Color = color) -> void:
+	var grid: Array = []
+	for r in rings + 1:
+		var phi := PI * float(r) / float(rings)
+		var row: PackedInt32Array = []
+		for s in segments + 1:
+			var th := TAU * float(s) / float(segments)
+			var n := Vector3(sin(phi) * cos(th), cos(phi), sin(phi) * sin(th))
+			var nn := Vector3(n.x / radii.x, n.y / radii.y, n.z / radii.z).normalized()
+			row.append(vertex(center + n * radii, nn, c))
+		grid.append(row)
+	for r in rings:
+		for s in segments:
+			var v00: int = grid[r][s]
+			var v01: int = grid[r][s + 1]
+			var v10: int = grid[r + 1][s]
+			var v11: int = grid[r + 1][s + 1]
+			tri(v00, v10, v11)
+			tri(v00, v11, v01)
+
+
+## Extrude a convex 2D profile (x, y pairs, listed counter-clockwise seen from +Z) along Z from z0 to z1 (jersey barriers, curbs).
+func prism(profile: PackedVector2Array, z0: float, z1: float, c: Color = color) -> void:
+	var n := profile.size()
+	for i in n:
+		var a := profile[i]
+		var b := profile[(i + 1) % n]
+		var edge := b - a
+		var nrm := Vector3(edge.y, -edge.x, 0.0).normalized()
+		quad(Vector3(a.x, a.y, z0), Vector3(b.x, b.y, z0), Vector3(b.x, b.y, z1), Vector3(a.x, a.y, z1), nrm, c)
+	# caps (fan)
+	for i in range(1, n - 1):
+		quad(Vector3(profile[0].x, profile[0].y, z1), Vector3(profile[i].x, profile[i].y, z1), Vector3(profile[i + 1].x, profile[i + 1].y, z1),
+				Vector3(profile[i + 1].x, profile[i + 1].y, z1), Vector3.BACK, c)
+		quad(Vector3(profile[0].x, profile[0].y, z0), Vector3(profile[i + 1].x, profile[i + 1].y, z0), Vector3(profile[i].x, profile[i].y, z0),
+				Vector3(profile[i].x, profile[i].y, z0), Vector3.FORWARD, c)
 
 
 func is_empty() -> bool:

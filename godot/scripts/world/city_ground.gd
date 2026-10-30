@@ -3,11 +3,13 @@ extends RefCounted
 ## samples: the lot map (which lots hold a building) and the light map (baked lamp and neon pools, HDR, 2 m per texel).
 
 const GROUND_SHADER := preload("res://assets/shaders/ground.gdshader")
+const GROUND_LITE_SHADER := preload("res://assets/shaders/ground_lite.gdshader")
 
 const LIGHT_SIZE := 704.0            ## metres covered by the light map (centred on the city)
 const LIGHT_TEXELS := 352            ## 2 m per texel
 
 var material: ShaderMaterial
+var material_lite: ShaderMaterial
 var light_texture: ImageTexture
 var lot_texture: ImageTexture
 var _light := PackedFloat32Array()
@@ -57,6 +59,25 @@ func add_pool(x: float, z: float, radius: float, color: Color, intensity: float)
 			_light[o + 2] += color.b * intensity * f
 
 
+## Tight bright core in the alpha channel: what the wet road turns into long lamp glare streaks.
+func add_glare(x: float, z: float, radius: float, intensity: float) -> void:
+	var inv := float(LIGHT_TEXELS) / LIGHT_SIZE
+	var cx := (x + LIGHT_SIZE * 0.5) * inv
+	var cz := (z + LIGHT_SIZE * 0.5) * inv
+	var rt := radius * inv
+	var x0 := maxi(0, int(floor(cx - rt)))
+	var x1 := mini(LIGHT_TEXELS - 1, int(ceil(cx + rt)))
+	var z0 := maxi(0, int(floor(cz - rt)))
+	var z1 := mini(LIGHT_TEXELS - 1, int(ceil(cz + rt)))
+	for tz in range(z0, z1 + 1):
+		for tx in range(x0, x1 + 1):
+			var dx := (float(tx) + 0.5 - cx) / rt
+			var dz := (float(tz) + 0.5 - cz) / rt
+			var d2 := dx * dx + dz * dz
+			if d2 < 1.0:
+				_light[(tz * LIGHT_TEXELS + tx) * 4 + 3] += intensity * (1.0 - d2) * (1.0 - d2)
+
+
 ## A glowing line segment (neon strip along a facade foot, shop front spill): pools stamped along it.
 func add_strip(a: Vector2, b: Vector2, radius: float, color: Color, intensity: float) -> void:
 	var len := a.distance_to(b)
@@ -75,13 +96,19 @@ func finish_light_map() -> ImageTexture:
 
 
 func make_material() -> ShaderMaterial:
-	material = ShaderMaterial.new()
-	material.shader = GROUND_SHADER
-	material.render_priority = -100          # blended ground first among transparents (mirrored glows draw before it)
-	material.set_shader_parameter(&"lot_map", lot_texture)
-	material.set_shader_parameter(&"light_map", light_texture)
-	material.set_shader_parameter(&"light_rect", Vector4(-LIGHT_SIZE * 0.5, -LIGHT_SIZE * 0.5, LIGHT_SIZE, LIGHT_SIZE))
+	material = _material(GROUND_SHADER)
+	material.render_priority = -100          # first among transparents: mirrored glows (priority -120) are already in the screen copy
+	material_lite = _material(GROUND_LITE_SHADER)
 	return material
+
+
+func _material(shader: Shader) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = shader
+	m.set_shader_parameter(&"lot_map", lot_texture)
+	m.set_shader_parameter(&"light_map", light_texture)
+	m.set_shader_parameter(&"light_rect", Vector4(-LIGHT_SIZE * 0.5, -LIGHT_SIZE * 0.5, LIGHT_SIZE, LIGHT_SIZE))
+	return m
 
 
 func make_node(size := 6000.0) -> MeshInstance3D:

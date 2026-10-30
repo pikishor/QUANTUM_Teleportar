@@ -8,6 +8,7 @@ Height 1.82 m with helmet. Triangle budget 12k.
 """
 import math
 
+import bpy  # noqa: F401  (must be imported before mathutils)
 from mathutils import Matrix, Vector
 
 from helpers import (Part, bake_ao, empty, export_model, hexc, make_material, new_scene, paint, ring_se, rotm,
@@ -74,6 +75,7 @@ def build(S):
     pl = paint("plating", S["plate"])
     hel = paint("plating", S["helmet"])
     trim = paint("plating", S["trim"])
+    mask = paint("plating", S.get("mask", S["trim"]))
     gm = paint("steel", S["metal"])
     gm2 = paint("steel", S["metal2"])
     sole = paint("fabric", "#0c0d0e")
@@ -193,7 +195,7 @@ def build(S):
         # full-face mask with a narrow optic slit
         zs = [1.735, 1.71, 1.665, 1.62, 1.575]
         mk = arc_rings(0, 0.014, 0.102, 0.128, zs, 76, -76, n=11)
-        body.loft(mk, mat=armor, tint=trim, caps=(False, False), closed=False, sharp=80.0)
+        body.loft(mk, mat=armor, tint=mask, caps=(False, False), closed=False, sharp=80.0)
         sl = arc_rings(0, 0.014, 0.1045, 0.1305, [1.708, 1.69], 56, -56, n=9)
         body.loft(sl, mat=visor, caps=(False, False), closed=False)
         sg = arc_rings(0, 0.014, 0.1055, 0.1318, [1.704, 1.694], 50, -50, n=9)
