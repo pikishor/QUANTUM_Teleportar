@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  godot-tests:
+    name: Godot tests and screenshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages (virtual display, software Vulkan/GL, audio stubs)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libvulkan1 mesa-vulkan-drivers libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64
+      - name: Cache the Godot binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/godot-4.6.1-stable
+          key: godot-4.6.1-stable-linux-v1
+      - name: Bootstrap (download Godot, verify checksum, import project)
+        run: godot/tools/bootstrap.sh
+      - name: Run every headless test
+        run: |
+          set -e
+          count=0
+          for t in godot/tests/test_*.gd; do
+            echo "::group::$t"
+            godot/tools/test.sh "tests/$(basename "$t")"
+            echo "::endgroup::"
+            count=$((count + 1))
+          done
+          echo "ran $count test script(s)"
+      - name: Screenshot smoke test (Mobile renderer on software Vulkan)
+        continue-on-error: true
+        run: godot/tools/shot.sh "$RUNNER_TEMP/main.png" res://scenes/main.tscn 20
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshot
+          path: ${{ runner.temp }}/main.png
+          if-no-files-found: ignore
+
+  unreal-syntax:
+    name: Unreal scaffold syntax check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 unreal/tools/check_syntax.py
+
+  web-prototype:
+    name: Three.js prototype build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
