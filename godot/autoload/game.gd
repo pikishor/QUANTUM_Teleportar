@@ -53,6 +53,8 @@ var heat := 0.0:             # Observation level, 0..5
 var quiet := 0.0             # seconds since any drone last had the player in sight
 ## True when launched by tests/bots/shot tools (or --autostart): skip the menu and start playing at once.
 var autostart := false
+## Blood/impact decals and gore-style hit effects. Settings toggle; regional builds can default it to false.
+var graphic_violence := true
 ## Force the touch overlay on (desktop testing). The HUD also shows it automatically on touchscreens.
 var force_touch := false
 
@@ -67,6 +69,10 @@ const ACTION_KEYS := {
 
 func _ready() -> void:
 	_setup_input_map()
+	# Global shader parameters every material may read (declare in a shader as: global uniform float wetness;).
+	# wetness 0..1 = how wet/reflective surfaces look; rain 0..1 = rain intensity. The Atmosphere module drives them.
+	RenderingServer.global_shader_parameter_add(&"wetness", RenderingServer.GLOBAL_VAR_TYPE_FLOAT, 0.8)
+	RenderingServer.global_shader_parameter_add(&"rain", RenderingServer.GLOBAL_VAR_TYPE_FLOAT, 1.0)
 	for a in OS.get_cmdline_user_args():
 		if a in ["--autostart", "--shot", "--bot", "--shot-seq"] or a.begins_with("--shot=") or a.begins_with("--bot=") or a.begins_with("--shot-seq="):
 			autostart = true

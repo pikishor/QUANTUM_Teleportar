@@ -4,6 +4,7 @@ extends Node3D
 
 const MODULES := [
 	"res://scenes/world.tscn",
+	"res://scenes/atmosphere.tscn",
 	"res://scenes/player.tscn",
 	"res://scenes/enemy_manager.tscn",
 	"res://scenes/vehicle_manager.tscn",

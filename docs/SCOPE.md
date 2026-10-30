@@ -5,8 +5,9 @@ step. This ladder splits the ambition into rungs that each ship, get tested and 
 Engineering (code, tooling, tests, builds) can be done by this repo's workflow; **content** (art, animation, voice, music, level and
 story design) needs people or licensed assets, and is the main lever on "AAA look and feel".
 
-**Platform constraint:** this is a mobile game with a **≤ 1 GB install** budget (see [godot/BUDGETS.md](../godot/BUDGETS.md)).
-That is a realistic size for a polished mobile game; size is a ceiling, and the quality of what fills it depends on art and audio content.
+**Platform and tone:** a mobile game with an install budget of **up to 5 GB** (base ≤ 200 MB plus asset packs / CDN; see
+[godot/BUDGETS.md](../godot/BUDGETS.md)) and a **Mature (17+)** target: grounded, gritty, cinematic sci-fi, not a kids' game.
+Size is a ceiling; the quality of what fills it depends on art and audio content.
 
 ## Rungs
 | Rung | Goal | What it contains |

@@ -32,3 +32,4 @@ unreal/**/*.xcworkspace
 godot/.godot/
 godot/build/
 godot/*.tmp
+godot/assets/generated/

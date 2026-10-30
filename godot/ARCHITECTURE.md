@@ -1,8 +1,25 @@
 # Quantum Teleportar — Godot 4 architecture and module contracts
 
 Open-world sci-fi action game for iOS/Android. Third-person shooter + drivable neon city + quantum powers.
-Engine: **Godot 4.6, GL Compatibility renderer**, GDScript. This is the production build; the Three.js game in `../src/` is the
+Engine: **Godot 4.6, Mobile renderer (Compatibility fallback)**, GDScript. This is the production build; the Three.js game in `../src/` is the
 **tested behaviour reference** (numbers, rules, feel) and `../unreal/` is a later option.
+
+## Direction (binding for every module)
+- **Audience / rating:** adult. Target a **Mature (17+)** store rating. A grounded, gritty, cinematic sci-fi thriller: not cartoonish, not a kids' game.
+  Enemies are human Observer Corp operatives (tactical gear, helmets, visors) plus industrial drones. Violence has weight (hit reactions, ragdolls,
+  impact/blood decals) behind a settings toggle `Game.graphic_violence` (default true) so regional builds can switch it off. No real-world brands, weapon licences or other IP.
+- **Look, "cyber-noir realism":** night, rain, wet asphalt reflecting neon, haze and steam, grime and wear, subtle film grain + vignette + chromatic aberration,
+  a graded palette (cool teal shadows, warm highlights, magenta/cyan neon used as *practical light sources*, not toy colour). Real scale (human about 1.8 m, car about 4.5 m),
+  believable proportions, PBR-style materials (albedo/roughness/normal/AO from procedural textures), bevelled meshes with normal maps.
+  Avoid flat saturated colours, chunky toy proportions and emoji-like UI. HUD: thin-line military/cyberpunk, condensed typography.
+- **Renderer:** the Godot **Mobile renderer** (Vulkan on Android, Metal via MoltenVK on iOS) is the primary target, with automatic fallback to Compatibility.
+  `tools/shot.sh` and `tools/bot.sh` use the Mobile renderer on software Vulkan (`RENDERER=compat` selects the OpenGL Compatibility renderer instead).
+  Do not depend on Forward+-only features (SDFGI, volumetric fog, SSAO, SSR); fake them (fog layers, additive light shafts, shader tricks, baked probes).
+  Verify in a screenshot that an effect really renders before relying on it.
+- **Install budget up to 5 GB** (see `BUDGETS.md`): base package at most 200 MB plus store asset packs / in-game CDN downloads. Quality tiers LOW/MED/HIGH scale texture
+  resolution, shadows, MSAA, particle counts and render scale, so mid-range phones still run well.
+- **Asset repo policy:** commit the *scripts* that generate assets plus compact outputs (at most about 25 MB per module). Large outputs (4K PBR sets, audio libraries)
+  are produced by `tools/build_assets.sh` into the git-ignored `assets/generated/` (or Git LFS once the team decides). Never commit multi-hundred-MB binaries.
 
 ## Working rules (read first)
 - **Own only your module's files** (listed per module below). Never edit another module's files; if you need a change there, report it.
@@ -19,7 +36,7 @@ Engine: **Godot 4.6, GL Compatibility renderer**, GDScript. This is the producti
 |---|---|
 | `tools/import.sh` | **Run after adding any `class_name` script, `.glb`, `.png`, `.wav`** (rebuilds class cache + imports). Without it new `class_name`s fail to resolve. |
 | `tools/test.sh tests/test_x.gd` | Headless test. The script `extends RefCounted` and defines `func run(host: Node)` (may `await`). Use `TestLib.check(cond, msg)` and `await TestLib.frames(host, n)`. Exit code 0 = pass. 60 s watchdog; a SCRIPT ERROR inside the test shows above the timeout message. |
-| `tools/shot.sh out.png [scene] [frames]` | Render a screenshot with software GL under xvfb (`--headless` cannot render). |
+| `tools/shot.sh out.png [scene] [frames]` | Render a screenshot (Mobile renderer on software Vulkan under xvfb; `RENDERER=compat` for OpenGL). `--headless` cannot render. |
 | `tools/bot.sh res://tests/bot_x.gd /tmp/prefix [every] [count]` | Run a bot (`func step(t: float, delta: float) -> bool`; drive the game with `Input.action_press(&"move_forward")` etc.) and save `prefix_000.png…` every N frames. Look at the PNGs. |
 - Autoloads are not visible to `-s` scripts, which is why tests run as a scene; inside tests/bots/modules use `Game`, `FX`, `Sfx` directly.
 - `--headless` has a dummy renderer: logic/physics tests only. Visual checks need `tools/shot.sh` / `tools/bot.sh` (software GL, slow: expect ~5–15 fps).
@@ -40,7 +57,7 @@ Engine: **Godot 4.6, GL Compatibility renderer**, GDScript. This is the producti
 - **Registry:** each module sets itself in `_ready()`: `Game.world`, `Game.player`, `Game.enemies`, `Game.vehicles`, `Game.missions`, `Game.camera`.
 - **Input:** gameplay reads only InputMap actions: `move_forward move_back move_left move_right jump sprint fire aim reload blink entangle superpose interact pause`.
   Touch controls and bots drive them via `Input.action_press/release`. Camera look is pushed through `Game.player.camera_rig.add_look(yaw, pitch)` (radians).
-- Scenes composed by `scripts/main.gd` if they exist: `scenes/world.tscn, player.tscn, enemy_manager.tscn, vehicle_manager.tscn, missions.tscn, hud.tscn`.
+- Scenes composed by `scripts/main.gd` if they exist: `scenes/world.tscn, atmosphere.tscn, player.tscn, enemy_manager.tscn, vehicle_manager.tscn, missions.tscn, hud.tscn`.
 
 ## Module contracts
 
@@ -52,6 +69,12 @@ Static colliders on layer `world`; **rooftops must be walkable**. Draw calls mus
 API: `intersections: Array[Vector3]` (inner junctions, y=0) · `random_road_point() -> Vector3` · `road_point_near(center: Vector3, rmin: float, rmax: float) -> Vector3` (`Vector3.INF` if none) ·
 `building_rects: Array[Rect2]` (x,z footprints, for the minimap) · `is_inside_building(p: Vector3) -> bool` · `sun: DirectionalLight3D` · `set_quality(level: int)` (0 low … 2 high: shadows/MSAA/render detail).
 Sets `Game.world = self`.
+
+### atmosphere — owns `scripts/fx/atmosphere*.gd`, `scenes/atmosphere.tscn`, `assets/shaders/post_*.gdshader`, `tests/*atmosphere*`
+`class_name Atmosphere` (root of atmosphere.tscn). The cinematic layer on top of the world: a full-screen **post-process** `CanvasLayer` (film grain, vignette, subtle chromatic aberration, colour grade
+with lift/gamma/gain, optional light heat-haze; reads `hint_screen_texture`; must work in the Mobile renderer and degrade in Compatibility), **rain** (particles following `Game.camera`: streaks and ground splashes,
+cheap enough for mid-range phones, density by quality tier), and the global shader parameters `wetness` and `rain` (see `Game._ready`; materials read them as `global uniform float wetness;`).
+API: `set_quality(level: int)` (0 low … 2 high) · `set_weather(rain: float, wetness: float)` (0..1) · `enabled: bool` (post-process toggle for the settings screen). It never touches gameplay state and works without a world or player present.
 
 ### player — owns `scripts/player/**`, `scenes/player.tscn`, `tests/*player*`
 `class_name Player` (`CharacterBody3D`, group `player`, layer `player`). Third-person over-the-shoulder shooter, strafe-style (body faces aim).
@@ -78,7 +101,7 @@ Sets `Game.player = self`.
 Props: `has_beacon`, `beacon_pos`, `clone`, `cd_blink cd_link cd_super`, `links`. Reads actions only while `Game.is_playing()`. Reset on lifecycle signals.
 
 ### enemies — owns `scripts/enemies/**`, `scenes/enemy_manager.tscn`, `tests/*enemies*`
-`class_name Drone` (hovering Observer drone, group `enemy`, layer `enemy`) and `class_name EnemyManager` (`Node`, `Game.enemies = self`). Port `../src/enemies.js` and its `ENEMY` table (`sentinel`, `striker` kamikaze, `heavy` 3-round burst).
+`class_name Drone` (hovering Observer drone, group `enemy`, layer `enemy`) and `class_name EnemyManager` (`Node`, `Game.enemies = self`). Port `../src/enemies.js` and its `ENEMY` table (`sentinel`, `striker` kamikaze, `heavy` 3-round burst) and add the human type **`operative`** (Observer Corp rifleman, hp 80: takes cover behind building corners/cars found by raycasts, peeks and fires short bursts with tracers, flanks, calls for help, ragdoll/hit-react death with `Game.graphic_violence`-gated blood decals, humanoid model `Game.load_model("operative")` with primitive fallback). Sentinels/strikers/heavies are industrial drones, not toys.
 Drone API: `damage(amount, crit := false, mirrored := false)` · `center() -> Vector3` · `radius: float` · `type: StringName` · `hp max_hp` · `aware: bool` · `linked: Drone` · `alert()`.
 Behaviour: idle wander near home → aware (player within 32 m, or heat>0 within 80 m, or damaged; alerts neighbours within 35 m) → chase / back off / strafe at range, line-of-sight raycasts (throttled), target the player or the player's `clone` (50 %), dodgeable energy bolts
 (pooled, 28–30 m/s), strikers explode on contact via `Game.explode`. Hit effects via `FX`; floating health bar when damaged. Death: score, `Game.add_heat`, energy refund to player, 30 % health / 30 % energy pickup via `Game.missions.drop(kind, pos)` if available.
@@ -106,9 +129,9 @@ Menu → `Game.start_new_game()`. Pausing sets `Game.state = &"paused"` and `get
 It also owns mouse capture: captured while playing on desktop, released in menu/pause/dead/win.
 
 ### assets — owns `assets/**` (except shaders), `tools/blender/**`
-Blender-generated models (`bpy` runs headless: `$BLENDER_PY script.py`), exported **glb**, origin at ground contact, forward −Z, 1 unit = 1 m, emissive materials for glowing parts, low-poly stylised hard-surface look, each with an accurate collision-free visual only:
-`player` (soldier with separate `LegL`, `LegR` nodes pivoted at the hips and a `Muzzle` empty at the rifle tip), `drone_sentinel`, `drone_striker`, `drone_heavy` (hover rings/eyes emissive, `Eye` node), `car_sedan`, `car_sport` (body, cabin, wheels as separate nodes `WheelFL…`, headlight/taillight/underglow emissive),
-`pickup_health`, `pickup_energy`, `core_gem`. Generated audio `assets/audio/*.wav` (numpy synthesis, 44.1 kHz mono 16-bit): the 11 SFX names above plus a looping `music_ambient.wav`.
+Blender-generated models (`bpy` runs headless: `$BLENDER_PY script.py`), exported **glb**, origin at ground contact, forward −Z, 1 unit = 1 m, emissive materials for glowing parts, realistic proportions and PBR-style materials (see Direction; normal-mapped, bevelled, weighted normals), each a visual only (no collision):
+`player` (tactical operative, about 8-12k triangles, with separate `LegL`, `LegR` nodes pivoted at the hips and a `Muzzle` empty at the rifle tip), `drone_sentinel`, `drone_striker`, `drone_heavy` (hover rings/eyes emissive, `Eye` node), `car_sedan`, `car_sport` (body, cabin, wheels as separate nodes `WheelFL…`, headlight/taillight/underglow emissive),
+`operative` (enemy human, same rig conventions as `player`), `pickup_health`, `pickup_energy`, `core_gem`, plus generated PBR texture sets for the city and props. Generated audio `assets/audio/*.wav` (numpy synthesis, 44.1 kHz mono 16-bit): the 11 SFX names above plus a looping `music_ambient.wav`.
 Scripts live in `tools/blender/` and `tools/audio/` so everything is reproducible; commit the small outputs.
 
 ## Behaviour numbers

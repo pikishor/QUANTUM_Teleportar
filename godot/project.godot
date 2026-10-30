@@ -8,7 +8,7 @@ config_version=5
 
 config/name="Quantum Teleportar"
 run/main_scene="res://scenes/main.tscn"
-config/features=PackedStringArray("4.6", "GL Compatibility")
+config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 
 [autoload]
@@ -37,8 +37,10 @@ window/handheld/orientation=4
 
 [rendering]
 
+rendering_device/fallback_to_opengl3=true
+
 textures/vram_compression/import_etc2_astc=true
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
 anti_aliasing/quality/msaa_3d=1
 environment/defaults/default_clear_color=Color(0.03, 0.02, 0.09, 1)
