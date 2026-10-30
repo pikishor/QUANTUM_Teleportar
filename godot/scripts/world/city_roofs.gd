@@ -175,7 +175,9 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 	var masts: Array = []
 	var houses: Array = []
 	var boards: Array = []
+	var reserved_centre := Vector2.INF
 	for b in buildings:
+		reserved_centre = Vector2.INF
 		var lot: CityLayout.Lot = b.lot
 		var bx := -CityLayout.HALF + (lot.block_i + 0.5) * CityLayout.PITCH
 		var bz := -CityLayout.HALF + (lot.block_j + 0.5) * CityLayout.PITCH
@@ -235,23 +237,29 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 		if rx1 - rx0 < 3.0 or rz1 - rz0 < 3.0:
 			continue
 		var cells := {}
+		if (b.flags & 16) != 0 and rx1 - rx0 > 9.0 and rz1 - rz0 > 9.0:
+			# helipad zone: reserve the cells around the roof centre
+			var cxr := (rx0 + rx1) * 0.5
+			var czr := (rz0 + rz1) * 0.5
+			cells = {}
+			reserved_centre = Vector2(cxr, czr)
 		var n_ac := clampi(int(round((rx1 - rx0) * (rz1 - rz0) / 130.0)), 1, 4)
 		for k in n_ac:
-			var p := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.2)
+			var p := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.2, reserved_centre)
 			if p != Vector2.INF:
 				var yaw2 := float(rng.randi() % 4) * PI * 0.5
 				ac.append([Transform3D(Basis(Vector3.UP, yaw2), Vector3(p.x, roof_y, p.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		if rng.randf() < 0.65:
-			var p2 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.6)
+			var p2 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.6, reserved_centre)
 			if p2 != Vector2.INF:
 				houses.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 4) * PI * 0.5), Vector3(p2.x, roof_y, p2.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		if lot.h <= 44.0 and rng.randf() < 0.40:
-			var p3 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.2)
+			var p3 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.2, reserved_centre)
 			if p3 != Vector2.INF:
 				tanks.append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU), Vector3(p3.x, roof_y, p3.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		var want_mast := 0.85 if lot.h >= 62.0 else (0.30 if lot.h >= 28.0 else 0.12)
 		if rng.randf() < want_mast:
-			var p4 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 2.2)
+			var p4 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 2.2, reserved_centre)
 			if p4 != Vector2.INF:
 				var mxf := Transform3D(Basis(Vector3.UP, rng.randf() * TAU), Vector3(p4.x, roof_y, p4.y))
 				var sv2 := rng.randf()
@@ -280,7 +288,7 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 
 
 ## A random free spot on a coarse grid (so clutter never overlaps); Vector2.INF when the roof is full.
-static func _free_cell(rng: RandomNumberGenerator, taken: Dictionary, x0: float, x1: float, z0: float, z1: float, size: float) -> Vector2:
+static func _free_cell(rng: RandomNumberGenerator, taken: Dictionary, x0: float, x1: float, z0: float, z1: float, size: float, avoid := Vector2.INF) -> Vector2:
 	var nx := maxi(1, int(floor((x1 - x0) / size)))
 	var nz := maxi(1, int(floor((z1 - z0) / size)))
 	for attempt in 8:
@@ -289,6 +297,9 @@ static func _free_cell(rng: RandomNumberGenerator, taken: Dictionary, x0: float,
 		var key := ix * 64 + iz
 		if taken.has(key):
 			continue
+		var spot := Vector2(x0 + (float(ix) + 0.5) * (x1 - x0) / float(nx), z0 + (float(iz) + 0.5) * (z1 - z0) / float(nz))
+		if avoid != Vector2.INF and spot.distance_to(avoid) < 6.2:
+			continue
 		taken[key] = true
-		return Vector2(x0 + (float(ix) + 0.5) * (x1 - x0) / float(nx), z0 + (float(iz) + 0.5) * (z1 - z0) / float(nz))
+		return spot
 	return Vector2.INF

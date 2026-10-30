@@ -133,6 +133,8 @@ func set_quality(level: int) -> void:
 	for m: ShaderMaterial in [_ground.material, _ground.material_lite]:
 		m.set_shader_parameter(&"detail", 1.0 if quality >= 1 else 0.0)
 	_building_mat.set_shader_parameter(&"detail", 1.0 if quality >= 1 else 0.0)
+	_building_mat.set_shader_parameter(&"far_fade_start", 240.0 if quality >= 1 else 110.0)
+	_building_mat.set_shader_parameter(&"far_fade_end", 800.0 if quality >= 1 else 420.0)
 
 
 ## Draw-call style stats for tests and the budget report.
@@ -201,8 +203,8 @@ func _build_ground() -> void:
 		var neon: Color = NEON_SPILL[lot.neon % NEON_SPILL.size()]
 		var zf := lot.cz + szs * (lot.d * 0.5 + 1.6)
 		var xf := lot.cx + sxs * (lot.w * 0.5 + 1.6)
-		_ground.add_strip(Vector2(lot.cx - lot.w * 0.5, zf), Vector2(lot.cx + lot.w * 0.5, zf), 6.0, neon, 0.55)
-		_ground.add_strip(Vector2(xf, lot.cz - lot.d * 0.5), Vector2(xf, lot.cz + lot.d * 0.5), 6.0, Color(1.0, 0.72, 0.45), 0.4)
+		_ground.add_strip(Vector2(lot.cx - lot.w * 0.5, zf), Vector2(lot.cx + lot.w * 0.5, zf), 6.0, neon, 0.32)
+		_ground.add_strip(Vector2(xf, lot.cz - lot.d * 0.5), Vector2(xf, lot.cz + lot.d * 0.5), 6.0, Color(1.0, 0.72, 0.45), 0.3)
 	_ground.finish_light_map()
 	_ground.make_material()
 	_ground_node = _ground.make_node()

@@ -130,7 +130,7 @@ void fragment() {
 		vec2 p = v_loc.xz;
 		float gr = hash12(floor(p * 7.0) + bseed);
 		float tone = vnoise(p * 0.3 + bseed);
-		vec3 tar = vec3(0.030, 0.032, 0.036) * (0.7 + 0.6 * tone) * (0.85 + 0.3 * gr);
+		vec3 tar = vec3(0.052, 0.054, 0.060) * (0.7 + 0.6 * tone) * (0.85 + 0.3 * gr);
 		float pn = vnoise(p * 0.21 + bseed * 3.1) * 0.65 + vnoise(p * 0.8 + 4.0) * 0.35;
 		float pud = smoothstep(0.64 - 0.24 * wet, 0.70 - 0.24 * wet, pn) * wet;
 		vec2 dd = min(p - vec2(v_wall.x, v_wall.y), vec2(v_wall.z, v_wall.w) - p);
@@ -142,8 +142,28 @@ void fragment() {
 		rough = mix(0.88, 0.04, pud);
 		rough = mix(rough, 0.7, lip);
 		hf = 0.05 * lip + 0.01 * gr;
-		float seams = 1.0 - band(abs(fract((p.x + bseed) / 6.0) - 0.5), 0.0, 0.5 - 0.01, 0.01);
-		albedo *= 1.0 - 0.3 * (seams * 0.5);
+		float seam_x = 1.0 - band(abs(fract((p.x + bseed) / 3.0) - 0.5), 0.0, 0.49, 0.008);
+		float seam_z = 1.0 - band(abs(fract((p.y + bseed * 1.7) / 5.0) - 0.5), 0.0, 0.49, 0.008);
+		float seams = max(seam_x, seam_z);
+		albedo *= 1.0 - 0.45 * seams * (1.0 - pud);
+		albedo *= 0.8 + 0.4 * vnoise(p * 1.7 + bseed);
+		// helipad on tall roofs: painted ring and H, amber perimeter lights
+		if (v_ledge < 0.5 && mod(floor(flags / 16.0), 2.0) > 0.5 && hash11(bseed * 1.7) < 0.6 && min(v_wall.z - v_wall.x, v_wall.w - v_wall.y) > 11.0) {
+			vec2 hc = vec2((v_wall.x + v_wall.z) * 0.5, (v_wall.y + v_wall.w) * 0.5);
+			vec2 hp = p - hc;
+			float rr = length(hp);
+			float aam = max(fwidth(rr), 0.01);
+			float ringp = band(rr, 3.7, 4.05, aam);
+			float h_bar = band(abs(hp.x), 0.9, 1.2, aam) * band(hp.y, -1.6, 1.6, aam);
+			float h_cross = band(hp.x, -1.0, 1.0, aam) * band(hp.y, -0.15, 0.15, aam);
+			float mark = max(ringp, max(h_bar, h_cross));
+			albedo = mix(albedo, vec3(0.5, 0.48, 0.4), mark * 0.85);
+			rough = mix(rough, 0.6, mark);
+			float ang = atan(hp.y, hp.x);
+			float lamp = band(rr, 4.45, 4.7, aam) * step(0.72, fract(ang * 18.0 / 6.2831853 + 0.5)) * 0.0
+					+ exp(-pow((rr - 4.6) * 8.0, 2.0)) * smoothstep(0.82, 0.95, fract(ang * 16.0 / 6.2831853));
+			emit += vec3(1.0, 0.6, 0.15) * lamp * (1.2 + 0.8 * sin(TIME * 3.0 + rr * 2.0));
+		}
 		// roof edge light strip on selected buildings
 		if (v_ledge < 0.5 && mod(floor(flags / 4.0), 2.0) > 0.5) {
 			float strip = band(ed, 0.34, 0.50, max(fwidth(ed), 0.01));
@@ -286,6 +306,18 @@ void fragment() {
 		vec3 wall = tint * (0.26 + 0.10 * panel);
 		wall *= 1.0 + 0.5 * pil + 0.45 * led;
 		float streak = vnoise(vec2(u * 1.3 + bseed, gy * 0.06));
+		if (detail > 0.5 && dist < 140.0) {
+			// concrete grain, cast panel joints, big soft stains, window sills
+			float grain = vnoise(vec2(u, gy) * vec2(9.0, 5.0) + fseed) * 0.5 + vnoise(vec2(u, gy) * vec2(31.0, 17.0)) * 0.3 + hash12(floor(vec2(u, gy) * 48.0)) * 0.2;
+			wall *= 0.78 + 0.44 * grain;
+			float pj = max(1.0 - band(abs(fract(u / 1.4 + 0.5) - 0.5) * 1.4, 0.012, 0.7, 0.01), 1.0 - band(fract(gy / 1.75), 0.02, 1.0, 0.01));
+			wall *= 1.0 - 0.28 * clamp(pj, 0.0, 1.0) * (1.0 - win);
+			float stain = smoothstep(0.55, 0.85, vnoise(vec2(u * 0.35 + fseed * 3.0, gy * 0.09))) * smoothstep(40.0, 0.0, gy);
+			wall *= 1.0 - 0.35 * stain;
+			float sill = band(ff, w0.y - 0.07, w0.y - 0.005, av) * band(cf, w0.x - 0.06, w1.x + 0.06, au);
+			wall = mix(wall, wall * 1.7 + 0.01, sill * 0.7);
+			hf += 0.05 * sill - 0.02 * pj;
+		}
 		wall *= mix(0.62, 1.1, streak);
 		// brick: mortar lines
 		if (style > 3.5) {
@@ -329,8 +361,15 @@ void fragment() {
 		float wl = lit;
 		emit += wc * wint * inter * win * wl * (1.0 - ac_unit) * mull;
 		emit += wc * 0.07 * spill * wl;
-		// unlit glass reflects the glowing horizon / street
-		emit += mix(vec3(0.03, 0.05, 0.07), neon * 0.06, 0.4) * win * (1.0 - lit) * (0.5 + 0.7 * exp(-gy * 0.05));
+		// unlit glass reflects the hazy night sky and the street glow: per-pane tone, brighter at grazing angles and near the street
+		{
+			float pane = 0.55 + 0.9 * hash12(cid * 1.31 + fseed);
+			float nvv = abs(dot(normalize(NORMAL), normalize(VIEW)));
+			float graze = 0.35 + 0.65 * pow(1.0 - nvv, 2.0);
+			float grad = 0.55 + 0.45 * smoothstep(0.0, 1.0, ff) + 0.5 * exp(-gy * 0.06);
+			vec3 sky_r = mix(vec3(0.035, 0.060, 0.085), vec3(0.075, 0.095, 0.120), hash12(cid + 2.7));
+			emit += (sky_r * pane * graze * grad + neon * 0.025 * exp(-gy * 0.08)) * win * (1.0 - lit);
+		}
 
 #ifndef FAR
 		// ---- ground floor: shops, doors, neon signs -------------------------------------------------------------------

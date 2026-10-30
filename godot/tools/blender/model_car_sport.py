@@ -18,8 +18,9 @@ def extras(P, c):
     P.box((1.3, 0.34, 0.05), (0, -L / 2 + 0.2, gc + 0.12), mat=trim, tint=T_black, bevel=0.01)          # diffuser
     for x in (-0.4, -0.2, 0.0, 0.2, 0.4):
         P.box((0.012, 0.3, 0.08), (x, -L / 2 + 0.15, gc + 0.06), mat=trim, tint=T_dark)
-    for sx in (1, -1):                                                                                # side intakes
-        P.box((0.04, 0.5, 0.16), (sx * (hw(-1.15) * 0.972 - 0.005), -1.12, 0.52), mat=trim, tint=T_black, bevel=0.012, bsegs=2, rot=(0, 0, 0))
+    for sx in (1, -1):                                                                                # fender vents behind the front wheels, hood vents
+        for k in range(4):
+            P.box((0.03, 0.035, 0.12), (sx * (hw(0.66) * 0.972 + 0.002), 0.5 + k * 0.07, 0.55), mat=trim, tint=T_black, bevel=0.004)
         P.box((0.4, 0.5, 0.012), (sx * 0.0 + (0.45 * sx), 1.35, 0.775), mat=trim, tint=T_black, rot=(-4, 0, 0))   # hood vents
     P.box((0.5, 0.5, 0.014), (0, 1.55, 0.805), mat=trim, tint=T_black, rot=(-6, 0, 0))                  # hood scoop vent
     P.box((0.9, 0.05, 0.045), (0, L / 2 - 0.04, gc + 0.07), mat=trim, tint=T_black, bevel=0.01)          # front splitter

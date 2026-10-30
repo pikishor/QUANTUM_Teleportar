@@ -16,6 +16,7 @@ for a in "$@"; do
   esac
 done
 PYTHON="${PYTHON:-python3}"
+mkdir -p assets/generated && touch assets/generated/.gdignore      # big intermediates: git-ignored, and Godot must not import/export them
 echo "== textures (512 px, committed)"
 "$PYTHON" tools/blender/make_textures.py --size 512 --out assets/textures
 if [ "$HIRES" = 1 ]; then

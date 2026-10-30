@@ -71,6 +71,7 @@ void fragment() {
 	float wet = clamp(wetness, 0.0, 1.0);
 	float rn = clamp(rain, 0.0, 1.0);
 	float dk = 1.0 - smoothstep(70.0, 260.0, dist);       // fine detail fades with distance
+	bool fine = detail > 0.5 && dist < 110.0;              // micro detail (cracks, oil, manholes, ripples) only near the camera
 
 	float ox = road_off(q.x);
 	float oz = road_off(q.y);
@@ -101,24 +102,28 @@ void fragment() {
 		}
 		float alat = abs(lat);
 
-		float tone = fbm2(q * 0.16);
+		float tone = fine ? fbm2(q * 0.16) : vnoise(q * 0.16);
 		float speck = hash12(floor(q * 70.0));
 		float patch_n = vnoise(q * 0.045 + 3.0);
 		float spk = 1.0 - smoothstep(2.0, 12.0, dist);
 		vec3 asph = vec3(0.085, 0.090, 0.100) * (0.70 + 0.55 * tone) * (0.93 + 0.14 * speck * spk);
 		asph *= mix(1.0, 0.62, smoothstep(0.62, 0.72, patch_n));                    // darker re-surfaced patches
 		float lane_w = (1.0 - junction) * (1.0 - smoothstep(0.6, 1.1, abs(abs(alat - 5.0) - 0.85)));
-		float lane_noise = vnoise(vec2(al * 0.7, lat * 3.0) + 5.0);
+		float lane_noise = fine ? vnoise(vec2(al * 0.7, lat * 3.0) + 5.0) : 0.5;
 		asph *= 1.0 - 0.38 * lane_w * (0.5 + 0.5 * lane_noise);                    // tyre tracks wear dark
 		polish = lane_w * (0.5 + 0.5 * lane_noise);
 		pool_bias += 0.16 * lane_w;                                                   // ruts hold water
 		// oil drips in the lane centres
-		float oil = smoothstep(0.72, 0.9, vnoise(q * 0.9 + 21.0)) * smoothstep(1.6, 0.0, abs(alat - 5.0)) * (1.0 - junction);
+		float oil = fine ? smoothstep(0.72, 0.9, vnoise(q * 0.9 + 21.0)) * smoothstep(1.6, 0.0, abs(alat - 5.0)) * (1.0 - junction) : 0.0;
 		asph *= 1.0 - 0.45 * oil;
 		polish = max(polish, oil);
 		// cracks
-		float crack = 1.0 - smoothstep(0.0, 0.018, abs(vnoise(q * 0.7 + 8.0) - 0.5)) * (1.0 - 0.0);
-		asph *= 1.0 - 0.5 * crack * dk * smoothstep(0.55, 0.7, vnoise(q * 0.12 + 40.0));
+		float crack = 0.0;
+		if (fine) {
+			float cn = abs(vnoise(q * 1.1 + 8.0) - 0.5) + 0.35 * abs(vnoise(q * 2.7 + 3.0) - 0.5);
+			crack = (1.0 - smoothstep(0.0, 0.012, cn)) * smoothstep(0.66, 0.78, vnoise(q * 0.21 + 40.0));
+		}
+		asph *= 1.0 - 0.35 * crack * dk;
 		albedo = asph;
 		rough = 0.88;
 		hf = -0.004 * crack * dk;
@@ -163,7 +168,7 @@ void fragment() {
 		float mh_l = (mh_h > 0.5 ? 1.0 : -1.0) * (4.2 + 1.6 * hash12(mc + 9.0));
 		float mh_a = (mc.x + 0.2 + 0.6 * hash12(mc + 4.0)) * 31.0;
 		float md = length(vec2(lat - mh_l, al - mh_a));
-		float mh = (1.0 - smoothstep(0.50 - aa, 0.50 + aa, md)) * (1.0 - junction) * step(18.0, other) * step(0.35, mh_h);
+		float mh = fine ? (1.0 - smoothstep(0.50 - aa, 0.50 + aa, md)) * (1.0 - junction) * step(18.0, other) * step(0.35, mh_h) : 0.0;
 		float mh_ring = (1.0 - smoothstep(0.54, 0.58, md)) * (1.0 - mh);
 		float mh_ribs = 0.6 + 0.4 * step(0.5, fract((lat - mh_l) * 4.0 + 0.5)) * step(0.5, fract((al - mh_a) * 4.0 + 0.5));
 		albedo = mix(albedo, vec3(0.045, 0.043, 0.04) * mh_ribs, mh);
@@ -194,8 +199,8 @@ void fragment() {
 		// stains, gum, cracks
 		float stain = smoothstep(0.62, 0.8, vnoise(q * 0.55 + 31.0));
 		conc *= 1.0 - 0.45 * stain;
-		float crack = 1.0 - smoothstep(0.0, 0.012, abs(vnoise(q * 1.7 + tid) - 0.5));
-		conc *= 1.0 - 0.5 * crack * dk * step(0.65, tv);
+		float crack = fine ? 1.0 - smoothstep(0.0, 0.010, abs(vnoise(q * 2.3 + tid) - 0.5)) : 0.0;
+		conc *= 1.0 - 0.45 * crack * dk * step(0.78, tv);
 		vec3 stone = vec3(0.075, 0.08, 0.092) * (0.8 + 0.5 * tv) * (0.8 + 0.4 * tone);
 		albedo = mix(conc, stone, plz);
 		albedo *= 1.0 - 0.7 * joint;
@@ -224,14 +229,14 @@ void fragment() {
 	// ---------------------------------------------------------------------------------------------------------
 	// puddles: noise mask, more where the ground dips (ruts, joints, gutters); gone on dry weather
 	// ---------------------------------------------------------------------------------------------------------
-	float pn = vnoise(q * 0.11 + 7.0) * 0.55 + vnoise(q * 0.43 + 1.3) * 0.30 + vnoise(q * 1.7) * 0.15 * dk;
+	float pn = vnoise(q * 0.11 + 7.0) * 0.55 + vnoise(q * 0.43 + 1.3) * 0.30 + (fine ? vnoise(q * 1.7) * 0.15 * dk : 0.075);
 	float thr = mix(0.90, 0.64, wet) - pool_bias;
 	float puddle = smoothstep(thr, thr + 0.07, pn) * smoothstep(0.15, 0.55, wet);
 	puddle = max(puddle, flat_mask * wet);
 
 	// rain ripples live on puddles
 	vec2 rp = vec2(0.0);
-	if (detail > 0.5 && dist < 45.0) {
+	if (fine && dist < 45.0 && puddle > 0.02) {
 		rp = ripples(q, TIME, rn) * puddle * rn;
 	}
 

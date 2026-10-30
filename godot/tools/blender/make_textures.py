@@ -433,7 +433,7 @@ def make_asphalt(n):
     mid = fbm(n, 2.0, 76, lo=0.01)
     cracks = splat_lines(n, int(px(n, 14) * n / 1024), px(n, 160), px(n, 600), 77, jitter=0.4, step=0.6)
     cracks = np.clip(blur(cracks, 0.5) * 1.8, 0, 1)
-    wet = 0.5 * smooth(0.3, 0.9, blur(fbm(n, 3.0, 78), 3.0))   # soft broad sheen mask (never mirror-like)
+    wet = 0.22 * smooth(0.3, 0.9, blur(fbm(n, 3.0, 78), 3.0))  # soft broad sheen mask (never mirror-like, so tiling stays invisible)
     h = stone * 0.45 + stone_small * 0.3 + (sand - 0.5) * 0.25 - cracks * 0.6 + (mid - 0.5) * 0.2
     h = h * (1.0 - wet * 0.45)
     cav = cavity(h, px(n, 2.5), 1.5)
