@@ -10,7 +10,7 @@ var _cam: Camera3D
 var _frame := 0
 var _args := {}
 var _every := 30
-var _count := 8
+var _count := 12
 var _shots: Array = []       # [name, from_pos, from_look, to_pos, to_look, fov]
 var _ready_frames := 0
 var _quality := -1
@@ -22,7 +22,8 @@ func _init() -> void:
 		var kv := a.lstrip("-").split("=", true, 1)
 		_args[kv[0]] = kv[1] if kv.size() > 1 else "true"
 	_every = maxi(1, int(_args.get("every", "30")))
-	_count = maxi(1, int(_args.get("count", "8")))
+	if _args.has("count"):
+		_count = maxi(1, int(_args["count"]))
 
 
 func _tree() -> SceneTree:
@@ -39,9 +40,12 @@ func _build_shots() -> void:
 	var lots: Array = w.layout.lots if w != null else []
 	var tall: CityLayout.Lot = null
 	var mid: CityLayout.Lot = null
+	var screen: CityLayout.Lot = null
 	var best_d := 1.0e9
 	var best_m := 1.0e9
-	for lot: CityLayout.Lot in lots:
+	var best_s := 1.0e9
+	for b in w.building_data:
+		var lot: CityLayout.Lot = b.lot
 		var d := Vector2(lot.cx, lot.cz).length()
 		if lot.h >= 88.0 and d < best_d:
 			best_d = d
@@ -50,30 +54,44 @@ func _build_shots() -> void:
 		if lot.h >= 44.0 and lot.h < 80.0 and dm < best_m and lot.cz > -100.0:
 			best_m = dm
 			mid = lot
-	# 0: street level along the avenue from the spawn, eye height
+		if (b.flags & 8) != 0 and d < best_s:
+			best_s = d
+			screen = lot
+	# 0: third-person street view from behind the spawn, eye height of a chase camera
+	_shots.append(["third_person", Vector3(-38, 2.8, 6), Vector3(14, 1.6, 1), Vector3(-30, 2.8, 6), Vector3(24, 1.6, 1), 68.0])
+	# 1: street level along the avenue from the spawn
 	_shots.append(["street_eye", Vector3(-46, 1.75, 3.5), Vector3(120, 5.0, 2.0), Vector3(-28, 1.75, 3.5), Vector3(140, 6.0, 1.0), 72.0])
-	# 1: low over the wet road, lamps and neon in the reflection
+	# 2: low over the wet road, lamps and neon in the reflection
 	_shots.append(["wet_road", Vector3(-30, 0.55, 5.5), Vector3(150, 3.0, 0.0), Vector3(-10, 0.55, 5.5), Vector3(170, 4.0, 0.0), 70.0])
-	# 2: a facade close up from the sidewalk
+	# 3: a facade close up from the sidewalk
 	if mid != null:
 		var base := Vector3(mid.cx, 0.0, mid.rect.end.y + 4.0)
 		_shots.append(["facade", base + Vector3(mid.w * 0.35, 1.7, 5.0), Vector3(mid.cx, mid.h * 0.30, mid.rect.end.y),
 				base + Vector3(mid.w * 0.15, 1.7, 5.0), Vector3(mid.cx - 2.0, mid.h * 0.42, mid.rect.end.y), 68.0])
 	else:
 		_shots.append(["facade", Vector3(0, 1.7, 20), Vector3(0, 25, 40), Vector3(4, 1.7, 20), Vector3(0, 30, 40), 68.0])
-	# 3: a junction seen from a crosswalk, looking diagonally into the grid
+	# 4: a junction seen from a crosswalk, looking diagonally into the grid
 	_shots.append(["junction", Vector3(-9.5, 1.7, -12.5), Vector3(70, 7.0, -70), Vector3(-7.5, 1.7, -12.5), Vector3(80, 9.0, -80), 74.0])
-	# 4: down a long street at dusk height, a crane move
+	# 5: steam vent on the avenue
+	_shots.append(["steam", Vector3(190, 1.8, -2.5), Vector3(207, 1.2, -6.4), Vector3(196, 2.4, -3.0), Vector3(214, 3.0, -7.0), 56.0])
+	# 6: the LED facade screen
+	if screen != null:
+		var sp := Vector3(screen.cx, 2.2, screen.rect.end.y + 26.0)
+		_shots.append(["led_screen", sp, Vector3(screen.cx, screen.h * 0.4, screen.rect.end.y), sp + Vector3(6, 0.5, -6), Vector3(screen.cx, screen.h * 0.42, screen.rect.end.y), 60.0])
+	# 7: down a long street, a crane move
 	_shots.append(["crane", Vector3(-150, 14, 6), Vector3(100, 8, 0), Vector3(-120, 22, 6), Vector3(120, 10, 0), 62.0])
-	# 5: rooftop of a landmark tower
+	# 8: rooftop of a landmark tower
 	if tall != null:
 		var rp := Vector3(tall.cx, tall.h + 1.8, tall.cz)
 		_shots.append(["rooftop", rp + Vector3(-6, 0, 6), rp + Vector3(80, -30, -90), rp + Vector3(-4, 0, 4), rp + Vector3(90, -34, -70), 78.0])
+		# 9: from the same roof towards the moon
+		var md := w._env.moon_dir
+		_shots.append(["moon", rp + Vector3(0, 0.5, 0), rp + md * 100.0 + Vector3(0, -6, 0), rp + Vector3(0, 0.5, 0), rp + md * 100.0 + Vector3(-5, -2, 0), 62.0])
 	else:
 		_shots.append(["rooftop", Vector3(0, 90, 0), Vector3(80, 60, -90), Vector3(2, 90, 0), Vector3(90, 56, -70), 78.0])
-	# 6: high overview of the whole grid
+	# 10: high overview of the whole grid
 	_shots.append(["overview", Vector3(-60, 255, 430), Vector3(0, 10, 0), Vector3(-20, 250, 410), Vector3(0, 10, 0), 62.0])
-	# 7: skyline from the outer ring road, low, looking at the towers
+	# 11: skyline from the outer ring road, low, looking at the towers
 	_shots.append(["skyline", Vector3(-330, 4.0, 300), Vector3(0, 55, -40), Vector3(-330, 4.0, 270), Vector3(10, 60, -50), 60.0])
 	if _args.has("shots"):
 		var wanted: PackedStringArray = String(_args["shots"]).split(",")

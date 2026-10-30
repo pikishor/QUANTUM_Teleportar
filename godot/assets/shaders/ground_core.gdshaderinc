@@ -1,5 +1,6 @@
 // Ground core shared by ground.gdshader (full: reads the mirrored city back from the screen) and ground_lite.gdshader (LOW tier).
 #include "res://assets/shaders/common.gdshaderinc"
+#include "res://assets/shaders/signage.gdshaderinc"
 
 global uniform float wetness;
 global uniform float rain;
@@ -27,17 +28,20 @@ float line_aa(float d, float w, float a) {
 	return (1.0 - smoothstep(w - a, w + a, abs(d))) * min(1.0, w / max(a, 1e-4));
 }
 
-float plaza_at(vec2 q) {
+// x: 1 where the lot is an open plaza, y: 1 where the block carries a neon kerb strip, z: the block's neon index
+vec3 lot_info(vec2 q) {
 	float fx = (q.x + W_HALF) / W_PITCH;
 	float fy = (q.y + W_HALF) / W_PITCH;
 	float bi = floor(fx);
 	float bj = floor(fy);
 	float cx = (fx - bi) > 0.5 ? 1.0 : 0.0;
 	float cz = (fy - bj) > 0.5 ? 1.0 : 0.0;
+	float ni = mod(bi + bj, 4.0);
 	if (bi < 0.0 || bj < 0.0 || bi > 7.5 || bj > 7.5) {
-		return hash12(vec2(bi * 2.0 + cx, bj * 2.0 + cz) + 7.0) < 0.1 ? 1.0 : 0.0;
+		return vec3(hash12(vec2(bi * 2.0 + cx, bj * 2.0 + cz) + 7.0) < 0.1 ? 1.0 : 0.0, 0.0, ni);
 	}
-	return texelFetch(lot_map, ivec2(int(bi * 2.0 + cx), int(bj * 2.0 + cz)), 0).r < 0.5 ? 1.0 : 0.0;
+	vec4 t = texelFetch(lot_map, ivec2(int(bi * 2.0 + cx), int(bj * 2.0 + cz)), 0);
+	return vec3(t.r < 0.5 ? 1.0 : 0.0, t.g, ni);
 }
 
 // concentric rain ripples: returns (height, radial slope) at p for two staggered drop grids
@@ -186,7 +190,8 @@ void fragment() {
 		hf -= 0.02 * slot;
 	} else {
 		// ====================================== sidewalk / block ===========================================
-		float plz = plaza_at(q);
+		vec3 li = lot_info(q);
+		float plz = li.x;
 		float sx = 1.2 + plz * 1.2;
 		vec2 tq = q / sx;
 		vec2 tid = floor(tq);
@@ -213,6 +218,10 @@ void fragment() {
 		albedo = mix(albedo, vec3(0.20, 0.20, 0.205) * (0.8 + 0.4 * tone), kerb);
 		hf += 0.04 * kerb + 0.02 * (1.0 - smoothstep(0.26, 0.5, sd)) * (1.0 - kerb);
 		rough = mix(rough, 0.6, kerb);
+		// recessed LED strip along the kerb of selected blocks (a practical light, colour by block)
+		float led = li.y * band(sd, 0.10, 0.17, aa) * (1.0 - plz * 0.0);
+		float led_pulse = 0.85 + 0.15 * sin(TIME * 1.3 + (q.x + q.y) * 0.04);
+		emit += NEON[int(li.z)] * led * 1.6 * led_pulse;
 		// yellow paint on some kerbs
 		float paint_k = kerb * step(0.82, hash12(vec2(floor((ax < az ? q.y : q.x) / 14.0), floor((ax < az ? ox : oz) * 0.0) + 3.0)));
 		albedo = mix(albedo, vec3(0.45, 0.33, 0.06), paint_k * 0.9);
@@ -294,8 +303,8 @@ void fragment() {
 		vec2 suv = SCREEN_UV + vec2(rp.y * 0.006, rp.y * 0.016);               // ripples wobble the reflection
 		float ws = 0.0;
 		float lod0 = clamp(log2(max(blur_px, 1.0)) - 1.6, 0.0, 4.0);
-		for (int k = 0; k < 8; k++) {
-			float t = float(k) / 7.0;
+		for (int k = 0; k < 6; k++) {
+			float t = float(k) / 5.0;
 			float w = exp(-t * 2.2);
 			vec2 uv = suv - vec2(0.0, t * blur_px * px.y);
 			rc += textureLod(screen_tex, clamp(uv, vec2(0.001), vec2(0.999)), lod0 * (0.5 + 0.5 * t)).rgb * w;
@@ -314,8 +323,8 @@ void fragment() {
 	// lamp glare on the wet road: the lamp cores smeared along the view direction
 	vec2 away = -normalize(toc.xz + vec2(1e-5));
 	float glare = 0.0;
-	for (int k = 1; k <= 5; k++) {
-		float kk = float(k) * 1.8 * (1.0 + 2.5 * (1.0 - ndv));
+	for (int k = 1; k <= 3; k++) {
+		float kk = float(k) * 3.0 * (1.0 + 2.5 * (1.0 - ndv));
 		glare += texture(light_map, (q + away * kk - light_rect.xy) / light_rect.zw).a;
 	}
 	emit += vec3(1.0, 0.72, 0.42) * glare * 0.22 * gloss * fres * 2.5 * (1.0 - 0.6 * puddle);

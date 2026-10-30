@@ -250,6 +250,23 @@ func _test_quality(host: Node, city: City) -> void:
 		TestLib.check(city.quality == level, "set_quality(%d) is applied" % level)
 		TestLib.check(city.sun.shadow_enabled == (level >= 1), "quality %d: moon shadows %s" % [level, "on" if level >= 1 else "off"])
 		TestLib.check(mirror_root.visible == (level >= 1), "quality %d: mirrored reflection pass %s" % [level, "on" if level >= 1 else "off"])
+	# tier rules: families that only exist from a given tier up, steam density by tier
+	var by_name := {}
+	for n in city.multimesh_nodes:
+		by_name[String(n.name)] = n
+	for n in city.mirror_nodes:
+		by_name[String(n.name)] = n
+	city.set_quality(0)
+	var steam: MultiMeshInstance3D = by_name["Steam"]
+	var steam_low := steam.multimesh.visible_instance_count
+	TestLib.check(not (by_name["Trash"] as Node3D).visible and not (by_name["LampShafts"] as Node3D).visible, "quality 0 drops trash and light shafts")
+	city.set_quality(1)
+	var steam_med := steam.multimesh.visible_instance_count
+	TestLib.check((by_name["Trash"] as Node3D).visible and (by_name["LampShafts"] as Node3D).visible, "quality 1 shows trash and light shafts")
+	TestLib.check(not (by_name["Skyline_block_mirror"] as Node3D).visible, "quality 1 skips the far-skyline reflections")
+	city.set_quality(2)
+	TestLib.check((by_name["Skyline_block_mirror"] as Node3D).visible and (by_name["Holograms_mirror"] as Node3D).visible, "quality 2 reflects the far skyline and holograms")
+	TestLib.check(steam_low < steam_med and steam_med < steam.multimesh.visible_instance_count, "steam density grows with the quality tier (%d < %d < %d)" % [steam_low, steam_med, steam.multimesh.visible_instance_count])
 	city.set_quality(-5)
 	TestLib.check(city.quality == 0, "set_quality clamps below 0")
 	city.set_quality(99)

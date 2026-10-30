@@ -10,9 +10,9 @@ uniform float moon_radius = 0.045;                        // angular radius in r
 uniform vec3 moon_color : source_color = vec3(0.70, 0.82, 1.0);
 uniform vec3 zenith_color : source_color = vec3(0.003, 0.008, 0.018);
 uniform vec3 mid_color : source_color = vec3(0.020, 0.040, 0.070);
-uniform vec3 horizon_color : source_color = vec3(0.120, 0.165, 0.215);
-uniform vec3 glow_color : source_color = vec3(0.95, 0.50, 0.28);       // light pollution (sodium)
-uniform vec3 neon_glow : source_color = vec3(0.45, 0.22, 0.60);
+uniform vec3 horizon_color : source_color = vec3(0.20, 0.27, 0.34);
+uniform vec3 glow_color : source_color = vec3(0.95, 0.74, 0.55);       // light pollution (warm, desaturated)
+uniform vec3 neon_glow : source_color = vec3(0.50, 0.42, 0.66);
 uniform vec3 ground_color : source_color = vec3(0.018, 0.024, 0.034);
 uniform float cloud_cover : hint_range(0.0, 1.0) = 0.78;
 uniform float star_amount : hint_range(0.0, 1.0) = 0.55;
@@ -67,6 +67,8 @@ void sky() {
 			cc += moon_color * (pow(mk, 10.0) * 0.20 + pow(mk, 60.0) * 0.6) * (1.0 - thick * 0.75);
 			col = mix(col, cc, cm * 0.93);
 		}
+		// the cloud deck dissolves into the ground haze at the horizon
+		col = mix(col, horizon_color * 0.95 + glow_color * 0.012, exp(-ay * 14.0) * 0.9);
 		float clear = 1.0 - cm * 0.95;
 
 		// ---- stars in the gaps -------------------------------------------------------------------------------------

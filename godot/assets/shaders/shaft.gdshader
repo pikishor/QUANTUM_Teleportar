@@ -21,13 +21,17 @@ void fragment() {
 	vec3 n = normalize(NORMAL);
 	float nv = abs(dot(n, normalize(VIEW)));
 	float along = v_uv.y;
-	float body = pow(nv, 1.6) * (0.25 + 0.75 * (1.0 - along)) * (1.0 - smoothstep(0.75, 1.0, along));
-	// rain streaks drifting down the cone
-	float cols = floor(v_uv.x * 46.0 + v_seed * 7.0);
-	float speed = 5.0 + 3.0 * hash11(cols);
-	float drop = fract(along * 11.0 * (0.6 + hash11(cols + 3.0)) - TIME * speed * 0.15 + hash11(cols + 9.0));
-	float streak = smoothstep(0.82, 1.0, drop) * step(0.45, hash11(cols + 21.0));
-	float a = body * (0.10 + 0.9 * streak * clamp(rain, 0.0, 1.0) * 0.8 + 0.0);
+	float body = pow(nv, 1.4) * (0.2 + 0.8 * (1.0 - along)) * (1.0 - smoothstep(0.7, 1.0, along));
+	// thin rain streaks falling through the cone: narrow columns, short dashes
+	float cx = v_uv.x * 110.0 + v_seed * 7.0;
+	float col = floor(cx);
+	float fx = fract(cx);
+	float line = smoothstep(0.38, 0.5, fx) * (1.0 - smoothstep(0.5, 0.62, fx));
+	float speed = 0.9 + 0.9 * hash11(col);
+	float p = fract(along * 1.7 - TIME * speed + hash11(col + 3.0));
+	float dash = smoothstep(0.0, 0.015, p) * (1.0 - smoothstep(0.03, 0.10, p));
+	float streak = line * dash * step(0.6, hash11(col + 21.0));
+	float a = body * (0.06 + 0.7 * streak * clamp(rain, 0.0, 1.0));
 	ALBEDO = v_c.rgb * v_c.a;
 	ALPHA = clamp(a * 0.5, 0.0, 1.0);
 }

@@ -50,13 +50,23 @@ func build(parent: Node3D) -> void:
 		env.set_glow_level(i, levels[i])
 	# haze: distance fog in the colour of wet night air, thicker near the ground
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.135, 0.185, 0.245)
+	# Environment colours and `source_color` shader uniforms are both sRGB: the same value as the sky horizon (sky.gdshader), so ground haze and sky meet seamlessly
+	env.fog_light_color = Color(0.20, 0.27, 0.34)
 	env.fog_light_energy = 1.0
-	env.fog_density = 0.0052
+	env.fog_density = 0.0042 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0052
 	env.fog_aerial_perspective = 0.2
-	env.fog_sky_affect = 0.55
+	env.fog_sky_affect = 0.2
 	env.fog_height = 8.0
 	env.fog_height_density = 0.03
+
+	# The Compatibility renderer (automatic fallback for devices without Vulkan 1.1 / Metal) gets little from the sky radiance map:
+	# give it a flat teal ambient and a small exposure lift so the city still reads.
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color = Color(0.22, 0.30, 0.42)
+		env.ambient_light_energy = 0.7
+		env.tonemap_exposure = 1.45
+		env.fog_density = 0.0042
 
 	world_env = WorldEnvironment.new()
 	world_env.name = "Environment"
@@ -92,4 +102,4 @@ func apply_quality(level: int, vp: Viewport) -> void:
 		vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][level]
 		vp.scaling_3d_scale = 0.7 if level == 0 else 1.0
 	env.glow_intensity = [0.8, 0.9, 1.0][level]
-	env.fog_density = 0.0052
+	env.fog_density = 0.0042 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0052

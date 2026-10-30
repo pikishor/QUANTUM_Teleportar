@@ -10,7 +10,6 @@ new_scene()
 armor = make_material("Armor", tex="plating")
 carbon = make_material("Carbon", tex="carbon")
 gun = make_material("Gunmetal", tex="steel")
-lens = make_material("Lens", color=(0.004, 0.006, 0.008), metallic=0.9, roughness=0.08, vcol=False)
 glow = make_material("Glow", emit=hexc("#ff2038"), emit_strength=5.0, vcol=False)
 
 hull = paint("plating", "#4a5057")
@@ -18,6 +17,7 @@ hull2 = paint("plating", "#383d43")
 cf = paint("carbon", "#5a5e63")
 gm = paint("steel", "#555c63")
 gm2 = paint("steel", "#2d3237")
+lens_t = paint("steel", "#0b0c0e")
 
 Z = 0.95
 b = Part("Body", seed=11)
@@ -38,7 +38,7 @@ b.bar((0.0, 0.28, Z - 0.05), (0.0, 0.33, Z - 0.13), 0.05, 0.05, mat=gun, tint=gm
 b.sphere(0.092, (0, 0.34, Z - 0.17), mat=gun, tint=gm, segs=16, rings=10)
 b.torus(0.108, 0.0085, (0, 0.34, Z - 0.17), rot=(0, 90, 0), mat=armor, tint=hull, segs=20, sides=6)
 b.cyl(0.05, 0.05, (0, 0.425, Z - 0.17), axis="y", mat=gun, tint=gm2, segs=14, bevel=0.004)
-b.cyl(0.036, 0.012, (0, 0.452, Z - 0.17), axis="y", mat=lens, segs=14)
+b.cyl(0.036, 0.012, (0, 0.452, Z - 0.17), axis="y", mat=gun, tint=lens_t, segs=14)
 b.box((0.012, 0.012, 0.012), (0.0, 0.2, Z - 0.012), mat=glow)
 b.box((0.02, 0.01, 0.01), (0.0, -0.37, Z + 0.01), mat=glow)                                       # tail light
 # arms, ducts, rotors

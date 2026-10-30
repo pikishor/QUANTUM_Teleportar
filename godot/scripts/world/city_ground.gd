@@ -15,15 +15,30 @@ var lot_texture: ImageTexture
 var _light := PackedFloat32Array()
 
 
+## Blocks that carry a recessed LED kerb strip (colour = NEON[(i + j) mod 4], the prototype's rule).
+static func has_curb_strip(i: int, j: int) -> bool:
+	return fposmod(sin(float(i * 8 + j) * 12.9898 + 21.0 * 78.233) * 43758.5453, 1.0) < 0.45
+
+
 func make_lot_map(layout: CityLayout) -> ImageTexture:
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color(1, 1, 1, 1))
+	for bi in CityLayout.N:
+		for bj in CityLayout.N:
+			if has_curb_strip(bi, bj):
+				for cx in 2:
+					for cz in 2:
+						img.set_pixel(bi * 2 + cx, bj * 2 + cz, Color(1, 1, 1, 1))
+			else:
+				for cx in 2:
+					for cz in 2:
+						img.set_pixel(bi * 2 + cx, bj * 2 + cz, Color(1, 0, 1, 1))
 	for p in layout.plazas:
 		var i := int(floor((p.x + CityLayout.HALF) / CityLayout.PITCH))
 		var j := int(floor((p.y + CityLayout.HALF) / CityLayout.PITCH))
 		var cx := 1 if (p.x - (-CityLayout.HALF + (i + 0.5) * CityLayout.PITCH)) > 0.0 else 0
 		var cz := 1 if (p.y - (-CityLayout.HALF + (j + 0.5) * CityLayout.PITCH)) > 0.0 else 0
-		img.set_pixel(i * 2 + cx, j * 2 + cz, Color(0, 0, 0, 1))
+		img.set_pixel(i * 2 + cx, j * 2 + cz, Color(0, img.get_pixel(i * 2 + cx, j * 2 + cz).g, 0, 1))
 	lot_texture = ImageTexture.create_from_image(img)
 	return lot_texture
 

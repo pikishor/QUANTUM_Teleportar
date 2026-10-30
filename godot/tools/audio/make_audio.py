@@ -173,19 +173,20 @@ def sfx_shot():
     """Player carbine: sharp crack, chest-thump body, slap-back and a cavernous night-street tail."""
     n = int(1.6 * SR)
     out = np.zeros(n)
-    crack = band(white(n, 1), 1800, 9000) * expenv(n, 0.0022) * 1.0
-    crack += band(white(n, 2), 600, 4000) * expenv(n, 0.007) * 0.8
-    body_s, _ = sine_sweep(0.5, 210, 52)
+    crack = band(white(n, 1), 1500, 11000) * expenv(n, 0.0018) * 3.2
+    crack += band(white(n, 2), 400, 3500) * expenv(n, 0.006) * 2.4
+    crack += band(white(n, 6), 3000, 14000) * expenv(n, 0.0008) * 1.6                 # the very first ms: air-pressure click
+    body_s, _ = sine_sweep(0.4, 190, 58)
     body = np.zeros(n)
-    body[:len(body_s)] = body_s * expenv(len(body_s), 0.065) * 1.3
-    blast = band(white(n, 3), 80, 1100) * expenv(n, 0.05) * 1.1
-    mid = band(white(n, 4), 250, 2200) * expenv(n, 0.02) * 0.9
+    body[:len(body_s)] = body_s * expenv(len(body_s), 0.05) * 0.55
+    blast = band(white(n, 3), 100, 1600) * expenv(n, 0.04) * 1.3
+    mid = band(white(n, 4), 250, 2600) * expenv(n, 0.02) * 1.5
     out += crack + body + blast + mid
-    tick = band(white(n, 5), 2500, 7000) * expenv(n, 0.006, 0.075) * 0.18        # bolt carrier movement
+    tick = band(white(n, 5), 2500, 7000) * expenv(n, 0.006, 0.075) * 0.35        # bolt carrier movement
     out += tick
-    out = saturate(out, 1.6)
-    out = echo(out, 0.19, 0.28, lp=1800, taps=2)                                  # slap-back from the buildings
-    out = reverb(out, 0.7, wet=0.42, predelay=0.014, damp=0.55, seed=11)
+    out = saturate(out, 1.4)
+    out = echo(out, 0.19, 0.3, lp=2200, taps=2)                                   # slap-back from the buildings
+    out = reverb(out, 0.7, wet=0.42, predelay=0.014, damp=0.5, seed=11)
     return finalize(out, fout=0.12, max_len=1.05)
 
 
@@ -205,8 +206,9 @@ def sfx_enemy_shot():
     zap = fft_filter(zap, 150, 5200)
     thump_s, _ = sine_sweep(0.2, 130, 62)
     thump = np.zeros(n)
-    thump[:len(thump_s)] = thump_s * expenv(len(thump_s), 0.05) * 0.85
-    out += crack + snap + zap + thump
+    thump[:len(thump_s)] = thump_s * expenv(len(thump_s), 0.05) * 0.5
+    body = band(white(n, 23), 300, 1800) * expenv(n, 0.016) * 1.4
+    out += crack * 1.4 + snap + zap + thump + body
     out = saturate(out, 1.8)
     d = int(0.0016 * SR)                                                           # short comb for a hard metallic edge
     out[d:] += out[:-d] * 0.35
@@ -221,8 +223,8 @@ def sfx_hit():
     out = np.zeros(n)
     thud_s, _ = sine_sweep(0.2, 150, 62)
     thud = np.zeros(n)
-    thud[:len(thud_s)] = thud_s * expenv(len(thud_s), 0.03) * 1.2
-    crack = band(white(n, 31), 900, 6500) * expenv(n, 0.010) * 1.1
+    thud[:len(thud_s)] = thud_s * expenv(len(thud_s), 0.03) * 0.9
+    crack = band(white(n, 31), 900, 7500) * expenv(n, 0.008) * 2.4
     t = np.arange(n) / SR
     ring = (np.sin(2 * np.pi * 1480 * t) * 0.5 + np.sin(2 * np.pi * 2310 * t) * 0.35 + np.sin(2 * np.pi * 3720 * t) * 0.2) * expenv(n, 0.045) * 0.28
     out = thud + crack + ring + band(white(n, 32), 3000, 9000) * expenv(n, 0.003) * 0.6
@@ -237,9 +239,9 @@ def sfx_hurt():
     out = np.zeros(n)
     th_s, _ = sine_sweep(0.45, 105, 40)
     th = np.zeros(n)
-    th[:len(th_s)] = th_s * expenv(len(th_s), 0.11) * 1.5
+    th[:len(th_s)] = th_s * expenv(len(th_s), 0.11) * 1.0
     air = band(white(n, 41), 60, 800) * ahd(n, 0.004, 0.0, 0.09) * 1.0
-    snap = band(white(n, 42), 700, 3500) * expenv(n, 0.012) * 0.7
+    snap = band(white(n, 42), 300, 3500) * expenv(n, 0.03) * 1.5
     grunt = np.zeros(n)
     saw = np.zeros(n)
     ph = 2 * np.pi * np.cumsum(120 * (0.85 + 0.15 * np.exp(-t / 0.2))) / SR
@@ -260,8 +262,9 @@ def sfx_boom():
     n = int(4.2 * SR)
     t = np.arange(n) / SR
     out = np.zeros(n)
-    crack = band(white(n, 51), 400, 9000) * expenv(n, 0.012) * 1.1
-    crack += band(white(n, 52), 100, 1500) * expenv(n, 0.05) * 1.2
+    crack = band(white(n, 51), 400, 10000) * expenv(n, 0.014) * 2.6
+    crack += band(white(n, 52), 100, 1500) * expenv(n, 0.05) * 1.4
+    crack += band(white(n, 56), 120, 2200) * ahd(n, 0.004, 0.03, 0.32) * 1.5
     sub_s, _ = sine_sweep(1.2, 78, 24)
     sub = np.zeros(n)
     sub[:len(sub_s)] = sub_s * expenv(len(sub_s), 0.38) * 1.7
@@ -277,7 +280,7 @@ def sfx_boom():
             continue
         ln = int(r.uniform(0.004, 0.02) * SR)
         burst = band(white(ln, int(r.integers(1, 1 << 30))), r.uniform(800, 3500), r.uniform(4500, 9000)) * np.exp(-np.arange(ln) / (ln * 0.3))
-        place(deb, burst, t0, r.uniform(0.04, 0.16) * np.exp(-t0 / 1.4))
+        place(deb, burst, t0, r.uniform(0.08, 0.3) * np.exp(-t0 / 1.4))
     out += crack + sub + rumble + deb
     out = saturate(out, 1.5)
     out = reverb(out, 2.0, wet=0.45, predelay=0.02, damp=0.35, seed=15)
@@ -306,14 +309,14 @@ def sfx_blink():
     nz = sweep_filter(band(white(int(snap_t * SR), 62), 200, 9000), 400, 5500, "lp") * (np.linspace(0, 1, int(snap_t * SR)) ** 2.5) * 0.5
     place(out, nz, 0.0)
     # snap + sub + glassy shimmer
-    place(out, band(white(int(0.2 * SR), 63), 500, 12000) * expenv(int(0.2 * SR), 0.006) * 1.3, snap_t)
+    place(out, band(white(int(0.2 * SR), 63), 500, 12000) * expenv(int(0.2 * SR), 0.006) * 2.0, snap_t)
     sub_s, _ = sine_sweep(0.5, 95, 38)
-    place(out, sub_s * expenv(len(sub_s), 0.12) * 1.5, snap_t)
+    place(out, sub_s * expenv(len(sub_s), 0.12) * 0.9, snap_t)
     sh = np.zeros(int(1.0 * SR))
     tt = np.arange(len(sh)) / SR
     for fr, am in ((1318.5, 1.0), (1760.0, 0.8), (2217.5, 0.6), (2793.0, 0.45), (3520.0, 0.3)):
         sh += np.sin(2 * np.pi * fr * tt + 2.0 * np.sin(2 * np.pi * 5.5 * tt)) * am * (0.6 + 0.4 * np.sin(2 * np.pi * 17 * tt))
-    place(out, sh * expenv(len(sh), 0.16) * 0.16, snap_t + 0.004)
+    place(out, sh * expenv(len(sh), 0.16) * 0.34, snap_t + 0.004)
     out = reverb(saturate(out, 1.3), 0.9, wet=0.36, predelay=0.012, damp=0.4, seed=18)
     return finalize(out, fout=0.2, max_len=1.35)
 
@@ -386,7 +389,7 @@ def sfx_pickup():
     n = int(1.0 * SR)
     out = np.zeros(n)
     th_s, _ = sine_sweep(0.09, 170, 85)
-    out[:len(th_s)] += th_s * expenv(len(th_s), 0.025) * 0.9
+    out[:len(th_s)] += th_s * expenv(len(th_s), 0.03) * 1.3
     out += band(white(n, 91), 1500, 7000) * expenv(n, 0.003) * 0.5
     place(out, fm_bell(0.8, 659.3, 2.0, 1.4, 0.16, 0.09), 0.03, 0.55)
     place(out, fm_bell(0.8, 987.8, 2.0, 1.2, 0.2, 0.09), 0.115, 0.45)
@@ -440,9 +443,9 @@ def sfx_core():
     place(out, nz, 0.0)
     place(out, band(white(int(0.3 * SR), 112), 300, 11000) * expenv(int(0.3 * SR), 0.015) * 1.2, hit_t)
     sub_s, _ = sine_sweep(1.4, 70, 30)
-    place(out, sub_s * expenv(len(sub_s), 0.4) * 1.6, hit_t)
+    place(out, sub_s * expenv(len(sub_s), 0.4) * 1.0, hit_t)
     for fr, a, tau, dt in ((523.25, 0.5, 0.9, 0.0), (783.99, 0.42, 1.0, 0.03), (1046.5, 0.36, 0.9, 0.06), (1568.0, 0.25, 0.8, 0.09), (2093.0, 0.16, 0.7, 0.12)):
-        place(out, fm_bell(3.0, fr, 2.76, 1.8, tau, 0.25), hit_t + dt, a * 0.5)
+        place(out, fm_bell(3.0, fr, 2.76, 1.8, tau, 0.25), hit_t + dt, a * 0.8)
     out = reverb(saturate(out, 1.2), 2.6, wet=0.5, predelay=0.02, damp=0.3, seed=23)
     return finalize(out, fout=0.5, drive=1.1, max_len=3.9)
 
@@ -503,7 +506,7 @@ def music_ambient(duration=30.0):
     w1 = 0.5 + 0.5 * np.sin(2 * np.pi * 2 * tN + 0.3)
     w2 = 0.5 + 0.5 * np.sin(2 * np.pi * 3 * tN + 2.0)
     w3 = (0.5 + 0.5 * np.sin(2 * np.pi * 1 * tN + 4.2)) ** 2
-    pad = (p1 * (0.55 + 0.45 * w1) + p2 * 0.55 * w2 + p3 * 0.35 * w3) * 0.55
+    pad = (p1 * (0.35 + 0.3 * w1) + p2 * 0.85 * w2 + p3 * 0.6 * w3) * 0.6
 
     # sub drone following the chord roots (+ saturation so phone speakers still hear it)
     sub = np.zeros(N + tail)
@@ -513,7 +516,7 @@ def music_ambient(duration=30.0):
         env = np.where(T < t0, 0.0, env)
         sub += np.sin(2 * np.pi * snap(root / 2) * T) * env
     sub = fold(sub)
-    sub = saturate(sub * 1.2, 2.2) * 0.42
+    sub = saturate(sub * 1.2, 2.2) * 0.22
 
     # heartbeat pulses on beats 0 and 2 of each bar + a quiet tick on every beat, then a circular dotted delay
     pulse = np.zeros(N)
@@ -546,7 +549,7 @@ def music_ambient(duration=30.0):
         bells[idx:idx + len(b)] += b[: len(bells) - idx] * 0.10
     bells = fold(bells)
 
-    dry = pad + sub + pulse * 0.8 + hiss + bells
+    dry = pad + sub + pulse * 0.55 + hiss * 1.3 + bells * 1.3
     # circular reverb: multiply spectra at the full loop length so the tail wraps around the loop point
     ir = make_ir(3.6, predelay=0.03, damp=0.35, seed=77, early=False)
     irp = np.zeros(N)

@@ -135,13 +135,16 @@ func _build_steam(vents: Array[Vector3], rng: RandomNumberGenerator) -> void:
 	var count := vents.size() * PUFFS_PER_VENT
 	steam_mm = MB.new_multimesh(mesh, count, false, true)
 	var buf := MB.new_buffer(count, false, true)
-	var i := 0
+	var seeds: Array[float] = []
+	var neons: Array[float] = []
 	for v in vents:
-		var seed_v := rng.randf()
-		var neon_i := float(rng.randi() % 4)
-		for k in PUFFS_PER_VENT:
-			MB.write_instance(buf, i, Transform3D(Basis.IDENTITY, v + Vector3(0, 0.1, 0)), false, Color.WHITE, true,
-					Color(float(k) / float(PUFFS_PER_VENT), seed_v + float(k) * 0.137, 0.8 + 0.4 * seed_v, neon_i))
+		seeds.append(rng.randf())
+		neons.append(float(rng.randi() % 4))
+	var i := 0
+	for k in PUFFS_PER_VENT:                 # puff-major: the first N instances hold the first puffs of every vent
+		for j in vents.size():
+			MB.write_instance(buf, i, Transform3D(Basis.IDENTITY, vents[j] + Vector3(0, 0.1, 0)), false, Color.WHITE, true,
+					Color(float(k) / float(PUFFS_PER_VENT), seeds[j] + float(k) * 0.137, 0.8 + 0.4 * seeds[j], neons[j]))
 			i += 1
 	steam_mm.buffer = buf
 

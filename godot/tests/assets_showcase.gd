@@ -2,6 +2,7 @@ extends Node3D
 ## Look-dev stage for the generated models: lit wet asphalt, night sky, haze, neon practicals and rim lights.
 ## Pick the camera with the environment variable QT_VIEW (shot.sh passes the environment through):
 ##   QT_VIEW=overview                      every model in rows (default)
+##   QT_VIEW=row0..row3[f]                 one row (0 characters, 1 drones, 2 cars, 3 pickups/core), "f" = seen from the front
 ##   QT_VIEW=<model>,<dist>,<yaw>,<pitch>  one model at the origin; yaw 0 = seen from the front (-Z side), 180 = from behind
 ##                                         e.g. QT_VIEW=player,3.5,180,8   QT_VIEW=drone_sentinel,20,35,6   QT_VIEW=car_sport,10,30,8
 ## QT_MOOD=studio switches to neutral bright lighting for judging shapes (default: night with neon).
@@ -35,9 +36,11 @@ func _ready() -> void:
 		cam.look_at(Vector3(0, 1.0, -6), Vector3.UP)
 	elif view.begins_with("row"):
 		_place_rows()
-		var idx := int(view.substr(3))
+		var idx := int(view.substr(3, 1))
 		var row: Dictionary = ROWS[idx]
-		cam.position = Vector3(0, 3.0, row["z"] + 9.0)
+		var side := -1.0 if view.ends_with("f") else 1.0        # "row2f": camera in front of the row (the models face -Z)
+		var dist := 9.0 if idx != 2 else 12.0
+		cam.position = Vector3(0, 2.6, row["z"] + side * dist)
 		cam.look_at(Vector3(0, 1.0, row["z"]), Vector3.UP)
 	else:
 		var p := view.split(",")

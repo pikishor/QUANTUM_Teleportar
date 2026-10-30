@@ -10,7 +10,6 @@ new_scene()
 armor = make_material("Armor", tex="plating")
 carbon = make_material("Carbon", tex="carbon")
 gun = make_material("Gunmetal", tex="steel")
-lens = make_material("Lens", color=(0.004, 0.006, 0.008), metallic=0.9, roughness=0.08, vcol=False)
 glow = make_material("Glow", emit=hexc("#ff2a55"), emit_strength=5.0, vcol=False)
 ring_glow = make_material("HoverGlow", emit=hexc("#b35cff"), emit_strength=4.0, vcol=False)
 
@@ -20,6 +19,7 @@ plate = paint("plating", "#575c66")
 cf = paint("carbon", "#55585d")
 gm = paint("steel", "#555a60")
 gm2 = paint("steel", "#2b2e33")
+lens_t = paint("steel", "#0b0c0e")
 
 Z = 1.4
 b = Part("Body", seed=51)
@@ -50,7 +50,7 @@ b.box((0.2, 0.3, 0.12), (0, 0.9, Z - 0.34), mat=armor, tint=plate, bevel=0.015, 
 # optic bar + lenses on the nose
 b.box((0.5, 0.06, 0.12), (0, 0.985, Z + 0.02), mat=gun, tint=gm2, bevel=0.012)
 for x in (-0.18, 0.0, 0.18):
-    b.cyl(0.036, 0.03, (x, 1.022, Z + 0.02), axis="y", mat=lens, segs=12)
+    b.cyl(0.036, 0.03, (x, 1.022, Z + 0.02), axis="y", mat=gun, tint=lens_t, segs=12)
 b.box((0.3, 0.02, 0.02), (0, 1.03, Z - 0.1), mat=glow)
 b.box((0.04, 0.02, 0.1), (0.3, 0.99, Z + 0.02), mat=glow, mirror=True)
 # arms + ducted fans

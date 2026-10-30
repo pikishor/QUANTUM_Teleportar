@@ -39,3 +39,14 @@ func run(host: Node) -> void:
 		if b.lot.h >= 88.0:
 			tall.append([b.lot.cx, b.lot.cz, b.cls])
 	print("LANDMARKS ", tall)
+	for n in city.multimesh_nodes:
+		if n.name == "FireEscapes":
+			var b := n.multimesh.buffer
+			var st := 12 + 4
+			for k in mini(4, n.multimesh.instance_count):
+				print("FIRE ", b[k * st + 3], " ", b[k * st + 7], " ", b[k * st + 11], " yaw basis zx ", b[k * st + 8])
+	var screens := []
+	for b in city.building_data:
+		if (b.flags & 8) != 0:
+			screens.append([b.lot.cx, b.lot.cz, b.lot.h, b.lot.w])
+	print("SCREENS ", screens.slice(0, 6))

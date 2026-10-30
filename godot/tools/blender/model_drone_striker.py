@@ -10,7 +10,6 @@ new_scene()
 armor = make_material("Armor", tex="plating")
 carbon = make_material("Carbon", tex="carbon")
 gun = make_material("Gunmetal", tex="steel")
-lens = make_material("Lens", color=(0.004, 0.006, 0.008), metallic=0.9, roughness=0.08, vcol=False)
 glow = make_material("Glow", emit=hexc("#ff8a1c"), emit_strength=5.5, vcol=False)
 
 hull = paint("plating", "#454840")
@@ -19,6 +18,7 @@ band = paint("plating", "#c4731d")
 cf = paint("carbon", "#585a5c")
 gm = paint("steel", "#555a5e")
 gm2 = paint("steel", "#2c3033")
+lens_t = paint("steel", "#0b0c0e")
 
 Z = 0.82
 b = Part("Body", seed=31)
@@ -35,7 +35,7 @@ for k in range(4):
     b.box((0.012, 0.15, 0.16), (c * 0.1, -0.33, Z + s * 0.1), rot=(0, 0, 0), mat=armor, tint=hull2, bevel=0.003, frame=None)
 b.torus(0.12, 0.011, (0, -0.4, Z), rot=(90, 0, 0), mat=carbon, tint=cf, segs=20, sides=6)                 # tail ring
 b.cyl(0.062, 0.04, (0, -0.44, Z), axis="y", mat=gun, tint=gm2, segs=12)
-b.cyl(0.043, 0.03, (0, 0.485, Z), axis="y", mat=lens, segs=12)
+b.cyl(0.043, 0.03, (0, 0.485, Z), axis="y", mat=gun, tint=lens_t, segs=12)
 b.box((0.2, 0.3, 0.035), (0, -0.04, Z - 0.125), mat=gun, tint=gm2, bevel=0.008)                          # battery
 b.box((0.06, 0.1, 0.02), (0, 0.14, Z + 0.128), mat=gun, tint=gm, bevel=0.004)                            # arming pod
 b.box((0.012, 0.02, 0.012), (0, 0.14, Z + 0.142), mat=glow)

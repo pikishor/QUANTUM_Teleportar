@@ -25,9 +25,12 @@ vec3 screen_content(vec2 uv, float seed, float t, float aa) {
 	float glitch = step(0.985, hash11(floor(t * 3.0) + seed * 40.0)) * (hash11(floor(uv.y * 14.0) + t) - 0.5) * 0.12;
 	uv.x += glitch;
 	vec3 col = vec3(0.0);
-	if (kind < 0.5) {            // slow colour sweep with big bars
-		float k = fract(uv.x * 2.0 - t * 0.08 + seed * 3.0);
-		col = mix(c1, c2, smoothstep(0.3, 0.7, k)) * (0.35 + 0.65 * band(fract(uv.y * 5.0 + t * 0.06), 0.1, 0.7, aa * 5.0));
+	if (kind < 0.5) {            // equalizer bars over a dim gradient
+		float bar = floor(uv.x * 26.0);
+		float hgt = 0.15 + 0.8 * hash11(bar * 1.7 + floor(t * 2.5 + hash11(bar) * 5.0) + seed * 9.0);
+		float fx = fract(uv.x * 26.0);
+		float on = step(uv.y, hgt) * band(fx, 0.12, 0.88, aa * 26.0) * step(0.18, fract(uv.y * 14.0));
+		col = mix(c1, c2, uv.y) * (0.06 + 1.4 * on) * (0.6 + 0.4 * sin(t * 2.0 + bar));
 	} else if (kind < 1.5) {     // glyph marquee
 		float gi = floor(uv.x * 18.0 + t * 1.4);
 		vec2 g = vec2(fract(uv.x * 18.0 + t * 1.4), fract(uv.y * 3.0) * 1.2 - 0.1);
@@ -39,6 +42,6 @@ vec3 screen_content(vec2 uv, float seed, float t, float aa) {
 		float ring = band(fract(r * 5.0 - t * 0.5), 0.0, 0.25, 0.08);
 		col = mix(c1, c2, r * 2.0) * (ring * 1.2 + 0.12) * (1.0 - smoothstep(0.35, 0.6, r));
 	}
-	return col * scan * 1.6;
+	return col * scan * 1.15;
 }
 

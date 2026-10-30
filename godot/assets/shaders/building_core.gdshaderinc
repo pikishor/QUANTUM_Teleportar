@@ -68,7 +68,7 @@ void vertex() {
 vec3 lit_color(float r, float pal) {
 	vec3 warm = vec3(1.0, 0.68, 0.36);
 	vec3 amber = vec3(1.0, 0.52, 0.20);
-	vec3 white = vec3(0.78, 0.88, 1.0);
+	vec3 white = vec3(0.64, 0.74, 0.88);
 	vec3 tv = vec3(0.36, 0.55, 1.0);
 	vec3 pink = vec3(1.0, 0.30, 0.60);
 	vec3 teal = vec3(0.30, 0.90, 0.78);
@@ -167,7 +167,7 @@ void fragment() {
 		// roof edge light strip on selected buildings
 		if (v_ledge < 0.5 && mod(floor(flags / 4.0), 2.0) > 0.5) {
 			float strip = band(ed, 0.34, 0.50, max(fwidth(ed), 0.01));
-			emit += neon * strip * 2.2;
+			emit += neon * strip * 1.5;
 		}
 		// roof edge catches the street glow
 		emit += neon * 0.015 * lip;
@@ -480,7 +480,7 @@ void fragment() {
 			vec2 suv = vec2((u - fw * 0.14) / (fw * 0.72), (y - sy0) / (sy1 - sy0));
 			float inside = band(suv.x, 0.0, 1.0, am / fw) * band(suv.y, 0.0, 1.0, am / (sy1 - sy0));
 			float rim = band(suv.x, -0.012, 1.012, am / fw) * band(suv.y, -0.02, 1.02, am / (sy1 - sy0)) - inside;
-			emit = mix(emit, screen_content(suv, v_data.x, TIME, 0.02) * 1.8, inside);
+			emit = mix(emit, screen_content(suv, v_data.x, TIME, 0.02) * 1.5, inside);
 			albedo = mix(albedo, vec3(0.01), max(inside, rim));
 			metal = mix(metal, 0.0, inside);
 			rough = mix(rough, 0.3, inside);

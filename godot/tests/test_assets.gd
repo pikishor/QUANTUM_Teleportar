@@ -12,6 +12,9 @@ const BUDGET_CHARACTER := 12000
 const BUDGET_DRONE := 6000
 const BUDGET_CAR := 15000
 const BUDGET_PROP := 2000
+const SURFACES_CHARACTER := 10         ## draw calls per model: every (mesh node, material) pair is one surface
+const SURFACES_DRONE := 11
+const SURFACES_CAR := 11
 ## name -> [min seconds, max seconds]
 const SFX := {
 	"shot": [0.3, 1.5], "enemy_shot": [0.2, 1.2], "hit": [0.1, 0.8], "hurt": [0.4, 1.8], "boom": [1.5, 5.0], "blink": [0.5, 2.0],
@@ -74,6 +77,14 @@ func _aabb(root: Node3D) -> AABB:
 	return box
 
 
+func _surfaces(root: Node) -> int:
+	var n := 0
+	for mi in _meshes(root):
+		if mi.mesh:
+			n += mi.mesh.get_surface_count()
+	return n
+
+
 func _node(root: Node, node_name: String) -> Node3D:
 	return root.find_child(node_name, true, false) as Node3D
 
@@ -118,6 +129,7 @@ func _character(host: Node, model_name: String) -> void:
 		return
 	var tris := _tris(m)
 	TestLib.check(tris > 3000 and tris <= BUDGET_CHARACTER, "%s triangle count %d within 3000..%d" % [model_name, tris, BUDGET_CHARACTER])
+	TestLib.check(_surfaces(m) <= SURFACES_CHARACTER, "%s draws in %d surfaces (<= %d)" % [model_name, _surfaces(m), SURFACES_CHARACTER])
 	for n in ["Body", "LegL", "LegR"]:
 		TestLib.check(_node(m, n) is MeshInstance3D, "%s has mesh node %s" % [model_name, n])
 	var muzzle := _node(m, "Muzzle")
@@ -147,6 +159,7 @@ func _drone(host: Node, model_name: String) -> void:
 		return
 	var tris := _tris(m)
 	TestLib.check(tris > 1500 and tris <= BUDGET_DRONE, "%s triangle count %d within 1500..%d" % [model_name, tris, BUDGET_DRONE])
+	TestLib.check(_surfaces(m) <= SURFACES_DRONE, "%s draws in %d surfaces (<= %d)" % [model_name, _surfaces(m), SURFACES_DRONE])
 	var eye := _node(m, "Eye")
 	TestLib.check(eye != null, "%s has an Eye node" % model_name)
 	for n in ["Body", "RotorFL", "RotorFR", "RotorRL", "RotorRR"]:
@@ -169,6 +182,7 @@ func _car(host: Node, model_name: String) -> void:
 		return
 	var tris := _tris(m)
 	TestLib.check(tris > 4000 and tris <= BUDGET_CAR, "%s triangle count %d within 4000..%d" % [model_name, tris, BUDGET_CAR])
+	TestLib.check(_surfaces(m) <= SURFACES_CAR, "%s draws in %d surfaces (<= %d)" % [model_name, _surfaces(m), SURFACES_CAR])
 	var box := _aabb(m)
 	TestLib.check(box.size.z > 4.2 and box.size.z < 5.2, "%s is about 4.5 m long (%.2f)" % [model_name, box.size.z])
 	TestLib.check(box.size.x > 1.7 and box.size.x < 2.3, "%s is about 1.9 m wide (%.2f)" % [model_name, box.size.x])

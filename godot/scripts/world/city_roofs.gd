@@ -278,7 +278,7 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 			props.glow_add(bxf.origin + bxf.basis * Vector3(0.0, 5.8, 1.5), Color(bc.r, bc.g, bc.b, 0.55), 0, 20.0, 0.0, bs)
 
 	props.add_family("Awnings", awning_mesh(), awn, false, false)
-	props.add_family("FireEscapes", fire_escape_mesh(), fire, false, false)
+	props.add_family("FireEscapes", fire_escape_mesh(), fire, false, false, 1)
 	props.add_family("BladeSigns", blade_mesh(), blades, true, false)
 	props.add_family("RoofAC", ac_mesh(), ac, false, false)
 	props.add_family("RoofTanks", tank_mesh(), tanks, false, false)

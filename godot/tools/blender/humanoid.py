@@ -92,7 +92,7 @@ def build(S):
                [(0.101 * bulk, 0.108 * bulk), (0.094 * bulk, 0.100 * bulk), (0.080 * bulk, 0.086 * bulk), (0.066, 0.070)], mat=fab, tint=pants, n=12, exp=2.2, sub=3, jitter=0.02)
         p.box((0.034, 0.12, 0.16), (x0 + s * 0.1 * bulk, 0.02, 0.72), mat=fab, tint=carr, bevel=0.007, bsegs=1, jitter=0.06)
         p.box((0.036, 0.12, 0.03), (x0 + s * 0.101 * bulk, 0.02, 0.795), mat=fab, tint=carr2, bevel=0.005, jitter=0.04)
-        p.box((0.01, 0.1, 0.012), (x0 + s * 0.119 * bulk, 0.02, 0.775), mat=gun, tint=gm2)
+        p.box((0.01, 0.1, 0.012), (x0 + s * 0.119 * bulk, 0.02, 0.775), mat=armor, tint=trim)
         p.box((0.106, 0.07, 0.135), (x0, 0.088, 0.505), mat=armor, tint=pl, bevel=0.014, bsegs=2, top=(0.92, 0.9), jitter=0.05)
         p.box((0.06, 0.02, 0.07), (x0, 0.12, 0.505), mat=armor, tint=trim, bevel=0.006, bsegs=1)
         p.box((0.115, 0.075, 0.022), (x0, 0.046, 0.43), mat=fab, tint=carr2, bevel=0.006)
@@ -101,11 +101,11 @@ def build(S):
         p.box((0.075, 0.026, 0.19), (x0 + 0.004 * s, 0.066, 0.31), mat=armor, tint=pl, bevel=0.009, bsegs=1, top=(0.9, 1.0), jitter=0.05)
         if s == 1:                                                                   # drop-leg holster on the right
             p.box((0.05, 0.1, 0.2), (x0 + s * 0.1 * bulk, 0.045, 0.60), mat=fab, tint=carr2, bevel=0.01, bsegs=1, jitter=0.05)
-            p.box((0.046, 0.075, 0.09), (x0 + s * 0.1 * bulk, 0.05, 0.68), mat=gun, tint=gm2, bevel=0.007)
+            p.box((0.046, 0.075, 0.09), (x0 + s * 0.1 * bulk, 0.05, 0.68), mat=armor, tint=trim, bevel=0.007)
             p.box((0.118, 0.03, 0.03), (x0 + s * 0.012, 0.02, 0.78), mat=fab, tint=carr2, bevel=0.005)
         else:                                                                        # medical pouch on the left
             p.box((0.05, 0.095, 0.11), (x0 + s * 0.1 * bulk, 0.02, 0.58), mat=fab, tint=carr, bevel=0.009, jitter=0.05)
-            p.box((0.012, 0.03, 0.04), (x0 + s * 0.128 * bulk, 0.02, 0.6), mat=glow)
+            p.box((0.012, 0.03, 0.04), (x0 + s * 0.128 * bulk, 0.02, 0.6), mat=armor, tint=trim)
         # boot: shaft + lofted foot + sole
         p.tube([(x0 + 0.006 * s, -0.005, 0.24), (x0 + 0.006 * s, -0.005, 0.10)], [(0.058, 0.062), (0.060, 0.066)], mat=fab, tint=boot, n=12, exp=2.4, sub=0)
         rings = [ring_se(x0 + 0.008 * s, y, zc, rx, rz, 12, 2.6, plane="xz") for y, rx, rz, zc in

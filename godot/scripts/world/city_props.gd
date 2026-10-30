@@ -21,7 +21,7 @@ const EM_GLOW := 1.0
 
 ## Result entries: {name, mm, kind (&"prop" | &"glow" | &"shaft"), mirror, shadow}
 var parts: Array[Dictionary] = []
-var vents: Array[Vector3] = []            ## steam vent positions (x, 0, z) and yaw in y? no: x, z in x/z, strength in y
+var vents: Array[Vector3] = []            ## steam vent positions (x, 0, z), filled by build()
 var rng := RandomNumberGenerator.new()
 
 var _glow: Array = []                     ## [pos: Vector3, color: Color(rgb, brightness), kind, size, phase, seed]
@@ -249,7 +249,7 @@ static func glow_quad_mesh() -> ArrayMesh:
 
 # --- placement -------------------------------------------------------------------------------------------------------------
 
-func add_family(name: String, mesh: Mesh, items: Array, mirror := false, shadow := false) -> void:
+func add_family(name: String, mesh: Mesh, items: Array, mirror := false, shadow := false, min_quality := 0) -> void:
 	## items: [Transform3D, custom Color]
 	if items.is_empty():
 		return
@@ -258,7 +258,7 @@ func add_family(name: String, mesh: Mesh, items: Array, mirror := false, shadow 
 	for i in items.size():
 		MB.write_instance(buf, i, items[i][0], false, Color.WHITE, true, items[i][1])
 	mm.buffer = buf
-	parts.append({"name": name, "mm": mm, "kind": &"prop", "mirror": mirror, "shadow": shadow})
+	parts.append({"name": name, "mm": mm, "kind": &"prop", "mirror": mirror, "shadow": shadow, "min": min_quality})
 
 
 func glow_add(pos: Vector3, color: Color, kind: int, size: float, phase := 0.0, seed_v := 0.0) -> void:
@@ -326,7 +326,7 @@ func _place_lamps() -> void:
 	for i in shafts.size():
 		MB.write_instance(buf, i, shafts[i][0], true, shafts[i][1])
 	mm.buffer = buf
-	parts.append({"name": "LampShafts", "mm": mm, "kind": &"shaft", "mirror": false, "shadow": false})
+	parts.append({"name": "LampShafts", "mm": mm, "kind": &"shaft", "mirror": false, "shadow": false, "min": 1})
 
 
 func _place_signals() -> void:
@@ -374,7 +374,6 @@ func _place_bus_stops() -> void:
 			pos = Vector3(c + side * 11.8, 0.0, m)
 			theta = -side * PI * 0.5
 		items.append([Transform3D(Basis(Vector3.UP, theta), pos), Color(rng.randf(), 0.0, 0.0, 1.0)])
-		var cn := Vector3(0.0, 1.0, -0.5)
 		glow_add(pos + Basis(Vector3.UP, theta) * Vector3(1.9, 1.0, -0.4), Color(0.7, 0.85, 1.0, 0.7), 0, 3.4, 0.0, rng.randf())
 	add_family("BusStops", bus_stop_mesh(), items, false, false)
 
@@ -384,8 +383,6 @@ func _place_lot_props(layout: CityLayout) -> void:
 	var dump: Array = []
 	var trash: Array = []
 	var kiosks: Array = []
-	var hyd: Array = []
-	var barr: Array = []
 	for lot: CityLayout.Lot in layout.lots:
 		var bx := -CityLayout.HALF + (lot.block_i + 0.5) * CityLayout.PITCH
 		var bz := -CityLayout.HALF + (lot.block_j + 0.5) * CityLayout.PITCH
@@ -410,7 +407,7 @@ func _place_lot_props(layout: CityLayout) -> void:
 			var theta := 0.0 if sz > 0.0 else PI
 			kiosks.append([Transform3D(Basis(Vector3.UP, theta), Vector3(lot.cx + rng.randf_range(-lot.w * 0.3, lot.w * 0.3), 0.0, wz2)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 	add_family("Dumpsters", dumpster_mesh(), dump, false, false)
-	add_family("Trash", trash_mesh(), trash, false, false)
+	add_family("Trash", trash_mesh(), trash, false, false, 1)
 	add_family("Kiosks", kiosk_mesh(), kiosks, false, false)
 	for k in kiosks.size():
 		var xf: Transform3D = kiosks[k][0]

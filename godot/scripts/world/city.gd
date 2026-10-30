@@ -45,10 +45,11 @@ var _misc := Misc.new()
 var _mirror_root: Node3D
 var _real_root: Node3D
 var _ground_node: MeshInstance3D
+var _steam_node: MultiMeshInstance3D
 var _building_mat: ShaderMaterial
 var _building_mirror_mat: ShaderMaterial
 var _shadow_casters: Array[GeometryInstance3D] = []
-var _detail_materials: Array[ShaderMaterial] = []
+var _tiered: Array = []            ## [GeometryInstance3D, min quality] pairs: families that only exist from a given tier up
 
 
 func _ready() -> void:
@@ -127,6 +128,11 @@ func set_quality(level: int) -> void:
 	var shadows := quality >= 1
 	for n in _shadow_casters:
 		n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for entry: Array in _tiered:
+		(entry[0] as GeometryInstance3D).visible = quality >= int(entry[1])
+	if _steam_node != null:
+		var per_vent: int = [9, 16, Misc.PUFFS_PER_VENT][quality]
+		_steam_node.multimesh.visible_instance_count = _props.vents.size() * per_vent
 	var mirror_on := quality >= 1
 	_mirror_root.visible = mirror_on
 	_ground_node.material_override = _ground.material if mirror_on else _ground.material_lite
@@ -160,7 +166,8 @@ func stats() -> Dictionary:
 # --- construction ------------------------------------------------------------------------------------------------------
 
 ## Add a MultiMesh to the real city and, optionally, a mirrored copy (cheap material) under the ground.
-func add_multimesh(node_name: String, mm: MultiMesh, material: Material, mirror_material: Material = null, casts_shadow := false) -> MultiMeshInstance3D:
+func add_multimesh(node_name: String, mm: MultiMesh, material: Material, mirror_material: Material = null, casts_shadow := false,
+		min_quality := 0, mirror_min_quality := 1) -> MultiMeshInstance3D:
 	var mi := MultiMeshInstance3D.new()
 	mi.name = node_name
 	mi.multimesh = mm
@@ -170,6 +177,8 @@ func add_multimesh(node_name: String, mm: MultiMesh, material: Material, mirror_
 	mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	_real_root.add_child(mi)
 	multimesh_nodes.append(mi)
+	if min_quality > 0:
+		_tiered.append([mi, min_quality])
 	if casts_shadow:
 		_shadow_casters.append(mi)
 	if mirror_material != null:
@@ -182,6 +191,8 @@ func add_multimesh(node_name: String, mm: MultiMesh, material: Material, mirror_
 		mr.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		_mirror_root.add_child(mr)
 		mirror_nodes.append(mr)
+		if mirror_min_quality > 1 or min_quality > 1:
+			_tiered.append([mr, maxi(mirror_min_quality, min_quality)])
 	return mi
 
 
@@ -193,6 +204,18 @@ func _build_ground() -> void:
 		var head := Vector2(lamp.x, lamp.y) + Vector2(lamp.z, lamp.w) * 2.4
 		_ground.add_pool(head.x, head.y, 17.0, Color(1.0, 0.64, 0.32), 0.9)
 		_ground.add_glare(head.x, head.y, 4.0, 3.0)
+	# recessed LED kerb strips around some blocks spill coloured light onto the road
+	for bi in CityLayout.N:
+		for bj in CityLayout.N:
+			if Ground.has_curb_strip(bi, bj):
+				var bx := -CityLayout.HALF + (bi + 0.5) * CityLayout.PITCH
+				var bz := -CityLayout.HALF + (bj + 0.5) * CityLayout.PITCH
+				var e := CityLayout.BLOCK * 0.5 - 0.2
+				var col: Color = NEON_SPILL[(bi + bj) % NEON_SPILL.size()]
+				for k in 2:
+					var s := -e if k == 0 else e
+					_ground.add_strip(Vector2(bx - e, bz + s), Vector2(bx + e, bz + s), 4.5, col, 0.55)
+					_ground.add_strip(Vector2(bx + s, bz - e), Vector2(bx + s, bz + e), 4.5, col, 0.55)
 	# neon and shop-window light spilling onto the sidewalk in front of every street-facing wall
 	for b in building_data:
 		var lot: CityLayout.Lot = b.lot
@@ -214,7 +237,6 @@ func _build_ground() -> void:
 func _build_buildings() -> void:
 	_building_mat = _buildings.make_material(false)
 	_building_mirror_mat = _buildings.make_material(true)
-	_detail_materials.append(_building_mat)
 	_building_mat.set_shader_parameter(&"light_map", _ground.light_texture)
 	for cls: StringName in BM.ORDER:
 		var mm: MultiMesh = _buildings.multimeshes[cls]
@@ -234,9 +256,9 @@ func _build_misc() -> void:
 		mi.custom_aabb = AABB(Vector3(-420.0, -2.0, -420.0), Vector3(840.0, 24.0, 840.0))
 		_real_root.add_child(mi)
 	if _misc.steam_mm != null:
-		add_multimesh("Steam", _misc.steam_mm, Misc.make_material(Misc.STEAM_SHADER), null, false)
+		_steam_node = add_multimesh("Steam", _misc.steam_mm, Misc.make_material(Misc.STEAM_SHADER), null, false)
 	if _misc.hologram_mm != null:
-		add_multimesh("Holograms", _misc.hologram_mm, Misc.make_material(Misc.HOLO_SHADER), Misc.make_material(Misc.HOLO_SHADER, -120), false)
+		add_multimesh("Holograms", _misc.hologram_mm, Misc.make_material(Misc.HOLO_SHADER), Misc.make_material(Misc.HOLO_SHADER, -120), false, 1, 2)
 
 
 func _build_skyline() -> void:
@@ -246,7 +268,7 @@ func _build_skyline() -> void:
 	for cls: StringName in Skyline.CLASSES:
 		var mm: MultiMesh = _skyline.multimeshes[cls]
 		if mm.instance_count > 0:
-			add_multimesh("Skyline_" + String(cls), mm, mat, mirror, false)
+			add_multimesh("Skyline_" + String(cls), mm, mat, mirror, false, 0, 2)       # the far reflections are a HIGH-tier luxury
 
 
 func _shader_mat(shader: Shader, priority := 0) -> ShaderMaterial:
@@ -263,16 +285,15 @@ func _build_props() -> void:
 	var glow_mat := _shader_mat(GLOW_SHADER)
 	var glow_mirror := _shader_mat(GLOW_SHADER, -120)     # transparent copies must be in the screen copy the ground reads
 	var shaft_mat := _shader_mat(SHAFT_SHADER)
-	_detail_materials.append(prop_mat)
 	for part in _props.parts:
 		var mirror: bool = part["mirror"]
 		match part["kind"]:
 			&"prop":
-				add_multimesh(part["name"], part["mm"], prop_mat, prop_mirror if mirror else null, part["shadow"])
+				add_multimesh(part["name"], part["mm"], prop_mat, prop_mirror if mirror else null, part["shadow"], part.get("min", 0))
 			&"glow":
 				add_multimesh(part["name"], part["mm"], glow_mat, glow_mirror if mirror else null, false)
 			&"shaft":
-				add_multimesh(part["name"], part["mm"], shaft_mat, null, false)
+				add_multimesh(part["name"], part["mm"], shaft_mat, null, false, part.get("min", 0))
 
 
 func _build_collision() -> void:
