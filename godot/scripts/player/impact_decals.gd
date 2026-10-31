@@ -108,6 +108,11 @@ static func _get_material() -> StandardMaterial3D:
 	if _material == null:
 		_material = StandardMaterial3D.new()
 		_material.albedo_texture = _get_texture()
+		# a whisper of self-illumination keeps the pale rim readable on surfaces the scene hardly lights (night streets), without glowing in bright places
+		_material.emission_enabled = true
+		_material.emission = Color.WHITE
+		_material.emission_texture = _get_texture()
+		_material.emission_energy_multiplier = 0.14
 		_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_material.vertex_color_use_as_albedo = true
 		_material.roughness = 0.95
@@ -132,12 +137,13 @@ static func _get_texture() -> ImageTexture:
 			var hole_r := 0.30 + wob * 0.6
 			var halo_r := 0.62 + wob
 			var pit := 1.0 - smoothstep(hole_r - 0.06, hole_r + 0.04, r)
-			var halo := (1.0 - smoothstep(halo_r - 0.25, halo_r, r)) * 0.55
+			var halo := (1.0 - smoothstep(halo_r - 0.3, halo_r, r)) * 0.8
 			var crack_dir := pow(absf(sin(ang * 3.5 + 0.4)), 60.0)
-			var crack := crack_dir * (1.0 - smoothstep(0.25, 0.98, r)) * 0.65
-			var dust := smoothstep(hole_r, halo_r, r)
-			var col := Color(0.015, 0.014, 0.016).lerp(Color(0.34, 0.33, 0.32), dust * 0.7)
-			var alpha := clampf(maxf(maxf(pit * 0.97, halo), crack), 0.0, 1.0)
+			var crack := crack_dir * (1.0 - smoothstep(0.25, 0.98, r)) * 0.7
+			var dust := smoothstep(hole_r - 0.02, halo_r - 0.1, r)
+			# a black pit ringed by freshly exposed, pale material: it has to read against dark night surfaces, where a plain dark hole would vanish
+			var col := Color(0.01, 0.01, 0.012).lerp(Color(0.82, 0.81, 0.78), dust)
+			var alpha := clampf(maxf(maxf(pit, halo), crack), 0.0, 1.0)
 			alpha *= 1.0 - smoothstep(0.86, 1.0, r)
 			img.set_pixel(x, y, Color(col.r, col.g, col.b, alpha))
 	img.generate_mipmaps()

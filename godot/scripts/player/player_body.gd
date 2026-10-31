@@ -19,6 +19,8 @@ const LIGHT_COUNT := 2
 ## (the imported resources stay untouched): an albedo multiplier plus a faint cool emission that acts as a silhouette floor.
 const FABRIC_LIFT := 2.6
 const FABRIC_EMISSION := Color(0.035, 0.075, 0.095)
+## The Compatibility (OpenGL) renderer lights the same scene much brighter than the Mobile renderer the boosts were tuned on: scale them down there.
+const COMPAT_BOOST := 0.5
 ## Visual layer (1..20) reserved for the player's meshes, so the two character lights (a soft key and a rim) light only the hero and never the world.
 const CHARACTER_LAYER := 20
 
@@ -122,14 +124,16 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	# --- placement (and the death fall)
 	var fall := 0.0
 	var sink := 0.0
+	var slew := 0.0
 	if _dead_t >= 0.0:
 		_dead_t += dt
 		var k := clampf(_dead_t / 0.75, 0.0, 1.0)
 		var e := 1.0 - pow(1.0 - k, 3.0)
-		fall = deg_to_rad(86.0) * e
-		sink = 0.1 * e
+		fall = deg_to_rad(84.0) * e
+		sink = 0.12 * e
+		slew = 0.45 * e                                    # the body turns a little as it goes down, it does not fall in a ruler-straight line
 	global_position = Vector3(view_pos.x, view_pos.y - sink, view_pos.z)
-	rotation = Vector3(fall, yaw, 0.0)
+	rotation = Vector3(fall, yaw + slew, 0.0)
 
 	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
 	if character_light and rig != null:
@@ -250,6 +254,7 @@ func _adopt_model(model: Node3D) -> void:
 
 ## Per-instance override materials for every surface whose material is called "Fabric" (see FABRIC_LIFT).
 func _lift_fabric(root: Node) -> void:
+	var boost := COMPAT_BOOST if _is_compat() else 1.0
 	for node in root.find_children("*", "MeshInstance3D", true, false) + ([root] if root is MeshInstance3D else []):
 		var mi := node as MeshInstance3D
 		if mi == null or mi.mesh == null:
@@ -258,9 +263,10 @@ func _lift_fabric(root: Node) -> void:
 			var mat := mi.get_active_material(i) as BaseMaterial3D
 			if mat != null and mat.resource_name == "Fabric":
 				var lifted := mat.duplicate() as BaseMaterial3D
-				lifted.albedo_color = Color(FABRIC_LIFT, FABRIC_LIFT, FABRIC_LIFT, 1.0)
+				var lift := lerpf(1.0, FABRIC_LIFT, boost)
+				lifted.albedo_color = Color(lift, lift, lift, 1.0)
 				lifted.emission_enabled = true
-				lifted.emission = FABRIC_EMISSION
+				lifted.emission = FABRIC_EMISSION * boost
 				lifted.emission_energy_multiplier = 1.0
 				mi.set_surface_override_material(i, lifted)
 
@@ -422,8 +428,9 @@ func _build_primitive() -> void:
 func _build_character_lights() -> void:
 	var mask := 1 << (CHARACTER_LAYER - 1)
 	_set_layer(self, mask)
-	_key_light = _make_character_light("KeyLight", Color(0.82, 0.9, 1.0), 1.7, mask)
-	_rim_light = _make_character_light("RimLight", Color(0.55, 0.88, 1.0), 2.0, mask)
+	var boost := COMPAT_BOOST if _is_compat() else 1.0
+	_key_light = _make_character_light("KeyLight", Color(0.82, 0.9, 1.0), 1.7 * boost, mask)
+	_rim_light = _make_character_light("RimLight", Color(0.55, 0.88, 1.0), 2.0 * boost, mask)
 	_apply_lights()
 
 
@@ -449,6 +456,10 @@ func _make_character_light(light_name: String, color: Color, energy: float, mask
 	l.shadow_enabled = false
 	add_child(l)
 	return l
+
+
+static func _is_compat() -> bool:
+	return RenderingServer.get_current_rendering_method() == "gl_compatibility"
 
 
 ## Put every mesh of `node` on the character layer in addition to the default layer 1.

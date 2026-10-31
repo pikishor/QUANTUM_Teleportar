@@ -1,7 +1,7 @@
 extends RefCounted
 ## Visual bot of the player module. Drives the real Player through its input actions in a small night arena (tests/player_arena.gd) and lets
 ## Dev save a screenshot every N frames (tools/bot.sh does that). Look at the pictures: camera framing, model readability, tracers, flashes.
-##   tools/bot.sh res://tests/bot_player.gd /tmp/player 40 22          (every 40 frames, 22 pictures)
+##   tools/bot.sh res://tests/bot_player.gd /tmp/player 30 20          (every 30 frames, 20 pictures: phases 0-19)
 ##   RENDERER=compat tools/bot.sh ...                                     (OpenGL Compatibility renderer)
 ##   BOT_MODE=city tools/bot.sh ...                                       (keep the other modules and walk the real city instead of the arena)
 ##   BOT_PHASES=2,6,7 tools/bot.sh ... 40 3                              (run only these phases, in this order; the count must match)
@@ -9,17 +9,18 @@ extends RefCounted
 ## (Engine.time_scale): every rendered frame then covers about 20 ms of game time, like a 50 fps device. Phases are counted in rendered frames and
 ## end exactly on a screenshot frame, so each picture shows the end of its phase:
 ##   0 idle  1 walk  2 strafe  3 sprint  4 jump (apex)  5 aim down sights  6 hip fire  7 ADS fire  8 automatic fire  9 reload  10 crit
-##   11 hurt  12 vehicle chase  13 camera pull-in at a wall  14 death  15 respawn  16 front  17 side  18 rifle close-up  19 wall hole  20 walk (city)
+##   11 hurt  12 vehicle chase  13 camera pull-in at a wall  14 death  15 respawn  16 front  17 side  18 rifle close-up  19 wall holes
+##   20 the idle view with the body hidden (BOT_STATS=1 prints draw calls and primitives at the end of each phase: phase 0 minus phase 20 is the player's cost)
 
 const Arena := preload("res://tests/player_arena.gd")
 const Fixture := preload("res://tests/player_fixture.gd")
 
 const TIME_SCALE := 0.2
 const NAMES: Array[String] = ["idle", "walk", "strafe", "sprint", "jump", "ads", "fire_hip", "fire_ads", "fire_auto", "reload", "crit",
-		"hurt", "vehicle", "pullin", "death", "respawn", "front", "side", "closeup", "wall_hole", "city_walk", "city_fire"]
+		"hurt", "vehicle", "pullin", "death", "respawn", "front", "side", "closeup", "wall_hole", "hidden_body"]
 
 var _every := 40
-var _count := 22
+var _count := 20
 var _mode := "arena"
 var _setup_done := false
 var _p: Player
@@ -35,7 +36,7 @@ func _init() -> void:
 		var kv := a.lstrip("-").split("=", true, 1)
 		if kv.size() > 1:
 			if kv[0] == "every":
-				_every = maxi(30, int(kv[1]))
+				_every = maxi(30, int(kv[1]))              # a phase needs at least 30 frames (the jump and the burst are timed back from its end)
 			elif kv[0] == "count":
 				_count = maxi(1, int(kv[1]))
 	var m := OS.get_environment("BOT_MODE")
@@ -100,11 +101,11 @@ func step(_t: float, delta: float) -> bool:
 		_enter(phase)
 		print("BOT phase %d %s (frame %d)" % [phase, NAMES[phase % NAMES.size()], f])
 	_run(phase, k, delta)
-	if OS.get_environment("BOT_DEBUG") != "" and k % 8 == 0:
-		var vc := _p.get_viewport().get_camera_3d()
-		print("BOT dbg current_cam=%s at %s fov %.1f is_rig=%s" % [str(vc.get_path()) if vc else "none", str(vc.global_position) if vc else "-", vc.fov if vc else 0.0, str(vc == _rig.camera)])
-		print("BOT dbg f=%d k=%d cam=%s body=%s player=%s cam_dist_body=%.2f speed=%.2f frac=%.2f" % [f, k, str(_rig.camera.global_position), str(_p.body.global_position), str(_p.global_position),
-				_rig.camera.global_position.distance_to(_p.body.global_position), Vector2(_p.velocity.x, _p.velocity.z).length(), Engine.get_physics_interpolation_fraction()])
+	if k == _every - 1 and OS.get_environment("BOT_STATS") != "":
+		print("BOT stats phase %d %s: draw calls %d, primitives %d, objects %d" % [phase, NAMES[phase % NAMES.size()],
+				RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+				RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
+				RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)])
 	return f >= _every * _count
 
 
@@ -181,6 +182,14 @@ func _enter(phase: int) -> void:
 		19:
 			_reset_player(_spawn() + Vector3(34.0, 0.0, 0.0), yaw, -0.02)
 			Input.action_press(&"aim")
+			if _mode == "arena":
+				# a cluster of old holes on the wall, so the picture shows the decals themselves and not only the fresh sparks
+				_p.decals.clear()
+				for i in 9:
+					_p.decals.add(Vector3(32.99, 1.55 + (i % 3) * 0.32, -0.7 + (i / 3) * 0.55 + (i % 2) * 0.12), Vector3(-1.0, 0.0, 0.0), 0.17 + (i % 4) * 0.02)
+		20:
+			# the same view with and without the body and its lights, toggled every 10 frames (BOT_STATS=1 prints the difference)
+			_reset_player(_spawn(), yaw)
 		_:
 			_reset_player(_spawn(), yaw)
 			Input.action_press(&"move_forward")
@@ -208,7 +217,7 @@ func _run(phase: int, k: int, delta: float) -> void:
 				Input.action_release(&"fire")
 		8:
 			_rig.look_at_point(_center(_dummies[1]) if _dummies.size() > 1 else _center(_target()))
-			if k == e - 30:
+			if k == e - 24:
 				Input.action_press(&"fire")
 		9:
 			if k == 3:
@@ -231,6 +240,13 @@ func _run(phase: int, k: int, delta: float) -> void:
 				_car.drive(delta)
 		14, 15:
 			pass
+		20:
+			var show := (k / 10) % 2 == 0
+			_p.body.visible = show
+			_p.body.character_light = show
+			if OS.get_environment("BOT_STATS") != "" and k % 10 == 9:
+				print("BOT ab body=%s: draw calls %d, primitives %d" % [str(show), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+						RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)])
 		16:
 			_rig.yaw = _p.yaw + PI
 			_rig.pitch = -0.04
@@ -242,9 +258,9 @@ func _run(phase: int, k: int, delta: float) -> void:
 		19:
 			var hit := Vector3(33.0, 1.9, 0.0) if _mode == "arena" else Game.SPAWN + Vector3(60.0, 2.0, 0.0)
 			_rig.look_at_point(hit)
-			if k > 8 and k % 6 == 0 and k < e - 1:
+			if k > 8 and k % 8 == 0 and k < e - 14:
 				Input.action_press(&"fire")
-			elif k % 6 == 1:
+			elif k % 8 == 1:
 				Input.action_release(&"fire")
 		_:
 			pass
