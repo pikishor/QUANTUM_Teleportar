@@ -34,6 +34,7 @@ var perf_on := false                ## the perf readout is drawn (always with th
 var errors_on := false              ## the on-device error panel is shown (long-press the FPS box)
 
 var _canvas: Control
+var _last_state: StringName = &""
 var _stick_id := -1
 var _stick_origin := Vector2.ZERO
 var _stick_pos := Vector2.ZERO
@@ -102,8 +103,9 @@ func _process(delta: float) -> void:
 	if _use_t <= 0.0:
 		_use_t = 0.15
 		_use_near = _vehicle_in_reach()
-	if Game.state == &"play" or Game.state == &"paused":
-		_canvas.queue_redraw()
+	if Game.state == &"play" or Game.state == &"paused" or _last_state == &"play" or _last_state == &"paused":
+		_canvas.queue_redraw()      # one extra redraw after leaving play, so the dead screen does not keep the dimmed buttons
+	_last_state = Game.state
 
 
 ## Lets go of every action this layer pressed (state changes, exit, tests).
@@ -307,11 +309,12 @@ func _draw_ui() -> void:
 		return
 	# move stick: a hint ring while idle, base and thumb while a finger is down
 	if _stick_id == -1:
-		c.draw_arc(Vector2(190, size.y - 170) * s + Vector2(_insets().x, 0), STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 2.0 * s, true)
+		c.draw_arc(Vector2(190, size.y - 170) * s + Vector2(_insets().x, 0), STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 2.0 * s, false)
 	else:
 		c.draw_circle(_stick_origin, STICK_RADIUS * s, Color(1, 1, 1, 0.07))
-		c.draw_arc(_stick_origin, STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0 * s, true)
+		c.draw_arc(_stick_origin, STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0 * s, false)
 		c.draw_circle(_stick_pos.limit_length(1e5), 38.0 * s, Color(0.5, 0.95, 1, 0.5))
+	var labels: Array = []   # text is drawn after all shapes: glyph and plain draws alternating would break canvas batching
 	var down: Array = []
 	for b: Dictionary in _held.values():
 		down.append(b["action"])
@@ -330,14 +333,16 @@ func _draw_ui() -> void:
 			elif not st["ready"]:
 				dim = 0.45
 			if float(st["cd"]) > 0.0:
-				c.draw_arc(centre, r + 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * float(st["cd"]), 32, Color(tint, 0.9), 3.0 * s, true)
+				c.draw_arc(centre, r + 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * float(st["cd"]), 32, Color(tint, 0.9), 3.0 * s, false)
 		c.draw_circle(centre, r, Color(tint, (0.30 if on else 0.10) * dim + 0.03))
-		c.draw_arc(centre, r, 0.0, TAU, 40, Color(tint, (0.9 if on else 0.5) * dim), 2.0 * s, true)
-		c.draw_string(font, centre + Vector2(-r, 6.0 * s), str(b["label"]), HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, int(20 * s), Color(1, 1, 1, 0.92 * dim))
+		c.draw_arc(centre, r, 0.0, TAU, 40, Color(tint, (0.9 if on else 0.5) * dim), 2.0 * s, false)
+		labels.append([centre + Vector2(-r, 6.0 * s), str(b["label"]), r * 2.0, dim])
+	for l: Array in labels:
+		c.draw_string(font, l[0], l[1], HORIZONTAL_ALIGNMENT_CENTER, l[2], int(20 * s), Color(1, 1, 1, 0.92 * float(l[3])))
 	# pause
 	var pc := _pause_center()
 	var pr := 30.0 * s
-	c.draw_arc(pc, pr, 0.0, TAU, 28, Color(1, 1, 1, 0.45), 2.0 * s, true)
+	c.draw_arc(pc, pr, 0.0, TAU, 28, Color(1, 1, 1, 0.45), 2.0 * s, false)
 	c.draw_rect(Rect2(pc + Vector2(-8, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
 	c.draw_rect(Rect2(pc + Vector2(3, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
 

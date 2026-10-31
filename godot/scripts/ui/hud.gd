@@ -531,13 +531,13 @@ func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -
 	var gap := maxf(7.0 * s, spread_px)
 	var col := Color(1, 1, 1, 0.85)
 	for dir: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:
-		c.draw_line(mid + dir * gap, mid + dir * (gap + 10.0 * s), col, 1.6 * s, true)
+		c.draw_line(mid + dir * gap, mid + dir * (gap + 10.0 * s), col, 1.6 * s, false)
 	c.draw_circle(mid, 1.2 * s, Color(1, 1, 1, 0.9))
 	var since := now - UiUtil.num(p, &"last_hit_time", -100.0)
 	if since < 0.18:
 		var hc := Color(1.0, 0.3, 0.25, 0.95) if (p.get("last_hit_kill") == true or p.get("last_hit_crit") == true) else Color(1, 1, 1, 0.95)
 		for d: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-			c.draw_line(mid + d * 9.0 * s, mid + d * 17.0 * s, hc, 2.2 * s, true)
+			c.draw_line(mid + d * 9.0 * s, mid + d * 17.0 * s, hc, 2.2 * s, false)
 
 
 ## A red arc around the crosshair that points at where the last hit came from (relative to the view direction).

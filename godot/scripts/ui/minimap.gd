@@ -183,4 +183,4 @@ func _draw() -> void:
 	# north tick and the rim
 	var nl := Vector2(Vector2(0, -1).dot(_right), -Vector2(0, -1).dot(_fwd))
 	draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-4.0, 5.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(13.0 * s), Color(UiUtil.CYAN, 0.9))
-	draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s, true)
+	draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s, false)

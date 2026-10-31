@@ -113,9 +113,9 @@ func _run(ph: int, k: int) -> void:
 		7:
 			if k == 4 and q.clone != null:
 				q.clone.global_position = Game.SPAWN + Vector3(14.0, 0.0, -2.0)
-			if k == 12 and q.clone != null: q.collapse()
+			if k == _every - 5 and q.clone != null: q.collapse()
 		8:
-			if k == 12:
+			if k == _every - 6:
 				for v in _vm.list:
 					if v.has_meta(&"bot") and is_instance_valid(v): v.damage(9999.0)
 		9:
