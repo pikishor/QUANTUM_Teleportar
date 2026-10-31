@@ -279,9 +279,26 @@ def shade_solid(c, i):
     c.height[i] = 0.0
 
 
+def shade_chitin(c, i):
+    """Living shell (aliens): glossy mottled chitin, lighter along ridges, darker in the grooves between plates, no paint chips."""
+    P, C = c.P[i], c.C[i]
+    mott = c.noise.fbm3(P, 7.0, 3, 0.5, 51)
+    fine = c.noise.fbm3(P, 95.0, 2, 0.5, 52)
+    band = 0.5 + 0.5 * np.sin(P[:, 2] * 70.0 + 3.0 * mott)                      # faint growth rings along the height
+    edge = sm(0.007, 0.0, c.cx[i])
+    cav = grime_mask(c, i, 0.9, 0.5, 1.0, 0.5, 6)
+    groove = sm(0.003, 0.0, c.cc[i])
+    alb = C * (0.8 + 0.4 * mott)[:, None] * (0.94 + 0.1 * fine)[:, None] * (0.93 + 0.1 * band)[:, None]
+    alb = alb * (1.0 - 0.3 * cav - 0.45 * groove)[:, None] + C * (edge * 0.4)[:, None]
+    c.alb[i] = alb
+    c.rough[i] = np.clip(0.52 + 0.16 * mott + 0.2 * cav - 0.15 * edge, 0.2, 1.0)
+    c.metal[i] = 0.04 + 0.12 * edge
+    c.height[i] = -0.0009 * groove + 0.00025 * (fine - 0.5) + 0.0002 * (band - 0.5)
+
+
 KINDS = {
     "fabric": shade_fabric, "plating": shade_plating, "steel": shade_steel, "rubber": shade_rubber, "glass": shade_glass,
-    "carbon": shade_carbon, "paint": shade_paint, "glow": shade_glow, "solid": shade_solid,
+    "carbon": shade_carbon, "paint": shade_paint, "glow": shade_glow, "solid": shade_solid, "chitin": shade_chitin,
 }
 
 

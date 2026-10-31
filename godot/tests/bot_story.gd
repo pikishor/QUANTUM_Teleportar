@@ -36,7 +36,7 @@ func step(_t: float, _delta: float) -> bool:
 				story.skip_cards()                              # chapter banner
 				story.advance(0.6)
 			3:
-				story.banner_t = -1.0                           # radio subtitle: ORACLE, then (touch layout) an AUTHORITY line
+				story.banner_t = -1.0                           # radio subtitle: ORACLE, then (touch layout) a VAEL line
 				story.queue.clear()
 				story.say("ORACLE", "Sector 02. Taller towers, more eyes. Blink between them, link their drones, and do not stand still.", "bot")
 			4:
@@ -45,7 +45,7 @@ func step(_t: float, _delta: float) -> bool:
 				Game.force_touch = true
 				if hud.touch != null:
 					hud.touch.set(&"controls_on", true)
-				story.say("AUTHORITY BROADCAST", "Citizen in Sector 01, you are being observed. Remain where you are. Observation is care.", "bot2")
+				story.say("VAEL BROADCAST", "Human in Sector 01, you are observed. Hold still. Stillness is a gift to the hive.", "bot2")
 			5:
 				story.skip_line()
 				Game.state = &"dead"

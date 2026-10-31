@@ -57,7 +57,7 @@ func _drain(story: Story, limit := 600.0) -> void:
 func run(host: Node) -> void:
 	# --- data ---------------------------------------------------------------------------------------------------
 	var lines := _all_lines()
-	TestLib.check(lines.size() >= 60, "at least 60 radio lines written (%d)" % lines.size())
+	TestLib.check(lines.size() >= 70, "at least 70 radio lines written (%d)" % lines.size())
 	var bad := 0
 	for l: Dictionary in lines:
 		if not (l.has("s") and l.has("t")) or not StoryData.SPEAKERS.has(str(l["s"])) or str(l["t"]).length() < 8 or str(l["t"]).length() > StoryData.LINE_MAX:
@@ -74,7 +74,7 @@ func run(host: Node) -> void:
 	var speakers := {}
 	for l: Dictionary in lines:
 		speakers[l["s"]] = true
-	TestLib.check(speakers.size() == 3, "ORACLE, KESTREL and AUTHORITY BROADCAST all speak")
+	TestLib.check(speakers.size() == 3, "ORACLE, KESTREL and VAEL BROADCAST all speak")
 	var cards_ok := StoryData.PROLOGUE.size() == 3 and StoryData.EPILOGUE.size() >= 3
 	for c: Dictionary in StoryData.PROLOGUE + StoryData.EPILOGUE:
 		cards_ok = cards_ok and str(c["text"]).length() <= StoryData.CARD_MAX and str(c["head"]).length() <= 30 and str(c["text"]).length() > 20

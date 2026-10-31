@@ -1,6 +1,6 @@
 class_name Story
 extends Node
-## The story layer (Game.story): prologue cards at DEPLOY, chapter banners, radio subtitles (ORACLE / KESTREL / AUTHORITY BROADCAST) typed with a radio beep,
+## The story layer (Game.story): prologue cards at DEPLOY, chapter banners, radio subtitles (ORACLE / KESTREL / VAEL BROADCAST) typed with a radio beep,
 ## a short objective line, death quotes, chapter end cards and an epilogue. All words live in story_data.gd. It reacts to the Game signals
 ## (new_game, respawn, next_sector, heat_changed, message, player_died, sector_cleared) and polls the missions, the player's quantum powers, vehicle and
 ## health once per frame while playing. Drawing is StoryView (its own CanvasLayer above the HUD). No per-frame allocation beyond short strings.

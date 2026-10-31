@@ -1,67 +1,56 @@
-"""Striker: loitering munition. Needle fuselage with an amber warhead band, four small ducted props and an amber seeker eye."""
+"""Striker: a spiked living bomb of the Vael. Ribbed amber-seamed pod, a curled stinger tail, one big amber eye (Eye) and a ring of thorns (the `Fins`
+node, spins about the long axis and flares before the burst). Body centre y = 0.82 m, front +Y (-Z in Godot)."""
 import math
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dronelib import ducted_fan, rotor_part  # noqa: E402
-from helpers import (Part, export_model, hexc, light, make_material, new_scene, paint, ring_se)  # noqa: E402
-from shade import Decal, p_barcode, p_glyphs, p_stripes  # noqa: E402
+from helpers import (Part, export_model, hexc, light, make_material, new_scene, ring_se, scale_c)  # noqa: E402
 
 new_scene()
-armor = make_material("Armor", tex="plating")
-carbon = make_material("Carbon", tex="carbon")
-gun = make_material("Gunmetal", tex="steel")
-glass = make_material("Lens", tex="glass", color=(0.01, 0.012, 0.014))
+chit = make_material("Chitin", tex="chitin")
 glow = make_material("Glow", tex="glow", color=hexc("#ff8a1c"))
-eyem = make_material("Eye", emit=hexc("#ff8a1c"), emit_strength=2.4)
+eyem = make_material("Eye", emit=hexc("#ff8a1c"), emit_strength=2.0)
 
-hull = paint("plating", "#525a50")
-hull2 = paint("plating", "#383e35")
-band = paint("plating", "#d58a24")
-cf = paint("carbon", "#666a6e")
-gm = paint("steel", "#6a7076")
-gm2 = paint("steel", "#343a3e")
+SHELL = scale_c(hexc("#5a5650"), 1.35)
+SHELL2 = scale_c(hexc("#3b3834"), 1.7)
+BONE = scale_c(hexc("#c2b190"), 1.1)
+FLESH = scale_c(hexc("#8a4a2a"), 1.4)
 
 Z = 0.82
 b = Part("Body", seed=31)
-rings = [ring_se(0, y, Z, r, r, 18, 2.0, plane="xz") for y, r in
-         [(-0.45, 0.035), (-0.38, 0.07), (-0.2, 0.108), (0.0, 0.12), (0.12, 0.122), (0.3, 0.115), (0.4, 0.088), (0.47, 0.05), (0.505, 0.024)]]
-b.loft(rings, mat=armor, tint=hull)
-b.cyl(0.126, 0.13, (0, 0.2, Z), axis="y", mat=armor, tint=band, segs=20, bevel=0.004, sharp=60.0)      # warhead band
-for y in (0.125, 0.275):
-    b.cyl(0.128, 0.014, (0, y, Z), axis="y", mat=armor, tint=hull2, segs=20)
-for k in range(4):                                                                                       # tail fins
-    a = math.radians(45 + 90 * k)
-    c, s = math.cos(a), math.sin(a)
-    b.box((0.012, 0.17, 0.2), (c * 0.115, -0.33, Z + s * 0.115), mat=armor, tint=hull2, bevel=0.003, rot=(0, 0, 0))
-b.torus(0.12, 0.011, (0, -0.4, Z), rot=(90, 0, 0), mat=carbon, tint=cf, segs=22, sides=6)             # tail ring
-b.cyl(0.062, 0.04, (0, -0.44, Z), axis="y", mat=gun, tint=gm2, segs=12)
-b.cyl(0.043, 0.03, (0, 0.485, Z), axis="y", mat=glass, segs=14)
-b.box((0.2, 0.3, 0.035), (0, -0.04, Z - 0.125), mat=gun, tint=gm2, bevel=0.008)                          # battery
-b.box((0.06, 0.1, 0.02), (0, 0.14, Z + 0.128), mat=gun, tint=gm, bevel=0.004)                            # arming pod
-b.box((0.012, 0.02, 0.012), (0, 0.14, Z + 0.142), mat=glow)
-rotors = []
+pod = [(-0.52, 0.02), (-0.44, 0.12), (-0.26, 0.24), (0.0, 0.31), (0.2, 0.3), (0.36, 0.22), (0.46, 0.11), (0.5, 0.04)]
+b.loft([ring_se(0, y, Z, r, r * 0.95, 16, 2.0, plane="xz") for y, r in pod], mat=chit, tint=SHELL)
+for y, r in [(-0.12, 0.312), (0.08, 0.318), (0.27, 0.275)]:                                                         # armoured bands with glowing seams
+    b.torus(r, 0.02, (0, y, Z), rot=(90, 0, 0), mat=chit, tint=BONE, segs=18, sides=5)
+    b.torus(r * 0.985, 0.007, (0, y + 0.03, Z), rot=(90, 0, 0), mat=glow, segs=18, sides=4)
+for k in range(10):                                                                                                 # bulging amber pustules
+    a = k * 2.4 + 0.5
+    y = -0.3 + 0.07 * (k % 7)
+    r = 0.3 if abs(y) < 0.25 else 0.2
+    b.sphere(0.034, (r * 0.93 * math.cos(a), y, Z + r * 0.9 * math.sin(a)), mat=glow, segs=7, rings=5)
 for sx in (-1, 1):
-    for sy in (-1, 1):
-        mx, my = 0.34 * sx, 0.26 * sy
-        b.rod((0.1 * sx, 0.04 * sy, Z + 0.02), (mx, my, Z + 0.04), 0.017, mat=carbon, tint=cf, segs=8)
-        ducted_fan(b, (mx, my, Z + 0.04), 0.165, armor, hull2, gun, gm2, glow, height=0.08, lip=0.024, segs=20, struts=2, hub_r=0.035,
-                   hub_mat=gun, hub_tint=gm, glow_tint=hexc("#ff8a1c"))
-        name = ("RotorF" if sy > 0 else "RotorR") + ("L" if sx < 0 else "R")
-        rotors.append(rotor_part(name, (mx, my, Z + 0.078), 0.15, 2, carbon, cf, seed=40 + len(rotors), chord=0.045, hub_r=0.028))
-eye = Part("Eye", origin=(0, 0.5, Z), seed=3)
-eye.sphere(0.03, (0, 0.5, Z), mat=eyem, segs=12, rings=8)
+    b.torus(0.05, 0.014, (sx * 0.12, 0.43, Z + 0.07), rot=(70, 0, 0), mat=chit, tint=BONE, segs=10, sides=5)
+    b.sphere(0.02, (sx * 0.12, 0.44, Z + 0.07), mat=glow, segs=7, rings=5)
+b.tube([(0, -0.44, Z), (0, -0.62, Z + 0.08), (0, -0.74, Z + 0.26), (0, -0.66, Z + 0.45)], [(0.07, 0.07), (0.05, 0.05), (0.035, 0.035), (0.006, 0.006)],
+       mat=chit, tint=SHELL2, n=8, sub=2)                                                                          # curled stinger tail
+b.sphere(0.03, (0, -0.7, Z + 0.4), mat=glow, segs=7, rings=5)
+for k in range(5):                                                                                                  # rear thrust gills
+    b.rod((0.0, -0.4, Z - 0.1 + 0.05 * k), (0.0, -0.58, Z - 0.12 + 0.05 * k), 0.012, mat=glow, segs=4)
 
-decals = [
-    Decal((0.0, 0.2, Z + 0.12), (0, 0, 1), (0, 1, 0), (0.13, 0.13), p_stripes(5, 0.5, 45.0, hexc("#1a1c1e")), depth=0.06, kinds=("plating",)),
-    Decal((0.0, 0.0, Z + 0.118), (0, 0, 1), (0, 1, 0), (0.14, 0.2), p_glyphs(hexc("#c8cdbf"), cells=3, rows=3, seed=17), depth=0.05),
-    Decal((0.0, -0.2, Z + 0.11), (0, 0, 1), (0, 1, 0), (0.12, 0.2), p_barcode(hexc("#c8cdbf"), 10, seed=4), depth=0.05),
-]
-for sx in (-1, 1):
-    decals.append(Decal((sx * 0.121, 0.0, Z), (sx, 0, 0), (0, 1, 0), (0.5, 0.1), p_stripes(8, 0.5, 90.0, hexc("#1a1c1e")), depth=0.04, kinds=("plating",)))
+fins = Part("Fins", origin=(0, 0.05, Z), seed=33)
+fins.tag(vis_end=60.0, no_shadow=1)
+for k in range(10):                                                                                                 # equatorial thorn ring, thorns radial about the long axis
+    a = 2 * math.pi * k / 10
+    ca, sa = math.cos(a), math.sin(a)
+    L = 0.62 + 0.08 * (k % 2)
+    fins.rod((0.24 * ca, 0.05 + 0.02 * (k % 2), Z + 0.24 * sa), (L * ca, 0.0 - 0.1 + 0.04 * (k % 2), Z + L * sa), 0.036, mat=chit, tint=BONE if k % 2 else SHELL2, r2=0.003, segs=6)
+fins.torus(0.27, 0.02, (0, 0.05, Z), rot=(90, 0, 0), mat=chit, tint=SHELL2, segs=18, sides=5)
+eye = Part("Eye", origin=(0, 0.46, Z), seed=3)
+eye.sphere(0.065, (0, 0.46, Z + 0.0), mat=eyem, segs=12, rings=8, scale=(1.0, 0.8, 1.2))
+
 rig = [light("EyeLight", (0, 0.58, Z), "omni", (1.0, 0.55, 0.12), 1.2, 4.5, attenuation=1.6, fade=(30, 12), group="eye"),
-       light("Fill", (0, 0.05, Z + 0.8), "omni", (0.78, 0.84, 1.0), 0.9, 3.0, mask="own", attenuation=1.2, fade=(28, 12))]
-print("  body tris", b.tri_count(), "rotors", sum(p.tri_count() for p in rotors))
-export_model("drone_striker", [b] + rotors + [eye], extras=rig, groups={"atlas": dict(base="drone_striker", material="Hull")}, size=1024,
-             decals=decals, ao_dist=0.15, ao_strength=0.8, emit_strength=1.8)
+       light("Fill", (0, 0.05, Z + 0.8), "omni", (1.0, 0.85, 0.7), 0.9, 3.0, mask="own", attenuation=1.2, fade=(28, 12))]
+print("  body tris", b.tri_count(), "fins", fins.tri_count())
+export_model("drone_striker", [b, fins, eye], extras=rig, groups={"atlas": dict(base="drone_striker", material="Hull")}, size=1024, decals=[],
+             ao_dist=0.15, ao_strength=0.6, emit_strength=1.8)

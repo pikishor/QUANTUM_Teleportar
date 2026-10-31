@@ -1,9 +1,10 @@
 class_name CharacterRig
 extends RefCounted
-## Procedural pose of the articulated character models (assets/models/player.glb and operative.glb).
+## Procedural pose of the articulated alien character models (assets/models/player.glb "Kestrel" and operative.glb "Vael trooper").
 ##
 ## The model is ONE skinned mesh ("Body", one surface, one draw call) on a Skeleton3D whose rigid bones are the named pivots of the contract:
-##   Hips > Torso > Head, UpperArmL/R > ForeArmL/R, Rifle ;  Hips > ThighL/R > ShinL/R > FootL/R
+##   Hips > Torso > Head, UpperArmL/R > ForeArmL/R, Rifle ;  Hips > ThighL/R > ShinL/R > FootL/R   (+ optional Sec1 > Sec2 > Sec3: the hero's phase cloak / the trooper's tail, swayed by apply())
+## The legs may be digitigrade (high hock, forward knee): the thigh / shin / hock heights are read from the rest pose.
 ## Every bone frame is the model frame at rest (x right, y up, -z forward), so the poses below are written in model axes: a bone is posed with
 ## `rest * delta` (the delta in the bone's own, model aligned, frame). The model also carries empties at its root: Muzzle (rifle tip), WristL/WristR (where the
 ## glove cuffs meet the rifle), MagWell (magazine well) and MagPouch (vest pouch).
@@ -38,9 +39,7 @@ const KNEE_WALK := 0.5
 const KNEE_RUN := 1.35
 const LOW_READY_PITCH := -0.5         ## rifle muzzle drop at low ready (radians)
 const SPRINT_PITCH := -0.78
-const REST_THIGH := 0.43              ## hip joint to knee, knee to ankle, ankle to sole (metres, from the model)
-const REST_SHIN := 0.40
-const REST_FOOT := 0.10
+const SEC_NAMES: Array[StringName] = [&"Sec1", &"Sec2", &"Sec3"]    ## optional secondary chain (the hero's phase cloak on the Torso, the trooper's tail on the Hips)
 const REFLECTION_DIM := 0.4           ## albedo multiplier of the reflection twin (see find())
 
 var skeleton: Skeleton3D
@@ -92,6 +91,12 @@ var _hulls: Array = []                 ## per bone: points of the convex hull in
 var _hips_rest_y := 0.93
 var _wrist_rest := [Vector3.ZERO, Vector3.ZERO]     ## wrist target of each hand at rest, model space (L, R)
 var _leg_x := 0.1
+var _rest_thigh := 0.43                ## vertical hip joint to knee, knee to hock / ankle, hock / ankle to sole (metres, read from the model: digitigrade legs have a high hock)
+var _rest_shin := 0.40
+var _rest_foot := 0.10
+var _sec := PackedInt32Array()          ## skeleton indices of the secondary chain bones present in the model
+var _sec_rest: Array[Transform3D] = []
+var _sec_tail := false                  ## true: the chain extends backwards (a tail); false: it hangs down (a cloak)
 
 
 ## True when the model has a skeleton with every bone of the contract (cheap: builds nothing).
@@ -123,6 +128,10 @@ static func find(root: Node3D) -> CharacterRig:
 		if b < 0:
 			return null
 		r._idx[i] = b
+	for sn in SEC_NAMES:
+		var sb := r.skeleton.find_bone(String(sn))
+		if sb >= 0:
+			r._sec.append(sb)
 	for c in r.skeleton.get_children():
 		if c is MeshInstance3D:
 			r.body_mesh = c as MeshInstance3D
@@ -164,6 +173,17 @@ func _read_rest() -> void:
 		_rest.append(skeleton.get_bone_rest(_idx[i]))
 		_grest.append(skeleton.get_bone_global_rest(_idx[i]))
 	_hips_rest_y = (_to_model * _grest[HIPS]).origin.y
+	var y_thigh := (_to_model * _grest[THIGH_L]).origin.y
+	var y_shin := (_to_model * _grest[SHIN_L]).origin.y
+	_rest_thigh = maxf(y_thigh - y_shin, 0.2)
+	_rest_shin = maxf(y_shin - (_to_model * _grest[FOOT_L]).origin.y, 0.15)
+	_rest_foot = maxf((_to_model * _grest[FOOT_L]).origin.y, 0.02)
+	_sec_rest.clear()
+	for sb in _sec:
+		_sec_rest.append(skeleton.get_bone_rest(sb))
+	if _sec.size() >= 2:
+		var seg := _sec_rest[1].origin                  # the second pivot in the first one's frame: a chain that runs along the model's z axis is a tail
+		_sec_tail = absf(seg.z) > absf(seg.y)
 	_leg_x = absf(_rest[THIGH_R].origin.x)
 	var torso_w := (_to_model * _grest[TORSO]).origin
 	_rifle_o = _rest[RIFLE].origin
@@ -331,6 +351,8 @@ func _pose(i: int, delta: Basis, pos := Vector3.ZERO) -> void:
 func reset() -> void:
 	for i in BONE_NAMES.size():
 		skeleton.set_bone_pose(_idx[i], _rest[i])
+	for k in _sec.size():
+		skeleton.set_bone_pose(_sec[k], _sec_rest[k])
 
 
 static func _smooth(x: float) -> float:
@@ -382,8 +404,8 @@ func apply() -> void:
 	hip_l = Vector2(ax_l, az_l)
 	hip_r = Vector2(ax_r, az_r)
 	# height of the two soles above the floor with the pelvis at rest height (flat feet), the lower one decides how far the pelvis sinks
-	var sole_l := _hips_rest_y - REST_THIGH * cos(ax_l) - REST_SHIN * cos(ax_l - kn_l) - REST_FOOT
-	var sole_r := _hips_rest_y - REST_THIGH * cos(ax_r) - REST_SHIN * cos(ax_r - kn_r) - REST_FOOT
+	var sole_l := _hips_rest_y - _rest_thigh * cos(ax_l) - _rest_shin * cos(ax_l - kn_l) - _rest_foot
+	var sole_r := _hips_rest_y - _rest_thigh * cos(ax_r) - _rest_shin * cos(ax_r - kn_r) - _rest_foot
 	var sink := -minf(sole_l, sole_r) * (1.0 - d) * grounded
 	if knee_buckle > 0.0:
 		sink = lerpf(sink, -0.32, knee_buckle)
@@ -444,6 +466,29 @@ func apply() -> void:
 			var hang: Vector3 = _sh[k] + Vector3(-0.09 if left else 0.09, -0.58, 0.12)
 			target = target.lerp(hang, d)
 		_solve_arm(k, target)
+	_apply_secondary(d, grounded)
+
+
+## The secondary chain (cloak or tail) trails the motion: it bends back with speed, lags behind strafing and turning, ripples with the stride, streams up in the
+## air, whips with a hit, and keeps a slow idle sway. Stateless: everything is a function of the inputs, with a phase lag along the chain.
+func _apply_secondary(d: float, grounded: float) -> void:
+	var n := _sec.size()
+	if n == 0:
+		return
+	var a := amp * grounded
+	var spd := a * fw * lerpf(0.6, 1.0, clampf(run, 0.0, 1.0))
+	for k in n:
+		var lag := float(k)
+		var pitch := -(0.1 + 0.07 * lag) * spd - 0.3 * air * (1.0 + 0.4 * lag)
+		pitch += 0.05 * sin(clock * 1.6 - lag * 0.9) + 0.045 * sin(phase * 2.0 - lag * 1.1) * a
+		pitch += flinch * 0.12 * (lag + 1.0) + recoil * 0.05
+		if _sec_tail:
+			pitch += 0.45 * d + 0.08 * lag * d
+		var side := -lw * (0.1 + 0.06 * lag) * a - twist * 0.5 * (lag + 1.0) + 0.05 * sin(clock * 1.1 - lag * 0.8 + 1.0) + 0.05 * sin(phase - lag * 1.3) * a
+		var axis := Vector3.UP if _sec_tail else Vector3.BACK
+		var delta := Basis(Vector3.RIGHT, pitch) * Basis(axis, side)
+		var r := _sec_rest[k]
+		skeleton.set_bone_pose(_sec[k], Transform3D(r.basis * delta, r.origin))
 
 
 ## Where the support hand (the left one) is during a reload: grip -> magazine well -> vest pouch (old magazine out) -> well (new one in) -> grip.

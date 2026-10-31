@@ -19,6 +19,12 @@ const DEATH_TIME := 0.7
 const BAR_WIDTH := 1.4
 const BAR_SECONDS := 3.0
 const ROTOR_SPEED := 46.0
+## The living drones have no rotors: the `Fins` node (a frill of tendrils, a ring of thorns, a skirt of cilia) turns and pulses. rate rad/s, pulse = scale amplitude, axis in the model frame.
+const FIN_ANIM := {
+	&"sentinel": {"rate": 0.8, "pulse": 0.14, "axis": Vector3.UP, "freq": 3.4},
+	&"striker": {"rate": 5.0, "pulse": 0.06, "axis": Vector3.BACK, "freq": 9.0},
+	&"heavy": {"rate": 2.4, "pulse": 0.07, "axis": Vector3.UP, "freq": 5.0},
+}
 
 static var _bar_bg: StandardMaterial3D
 static var _bar_fg: StandardMaterial3D
@@ -66,6 +72,8 @@ var _flash := 0.0
 var _stagger := 0.0
 var _hover := 0.35
 var _rotors: Array[Node3D] = []
+var _fins: Node3D                      ## the `Fins` node of the living models (null for the primitive stand-in, which spins its rotors)
+var _flare := 0.0                      ## 0..1: the striker's thorns flare as it closes in to burst
 var _glow: Array[BaseMaterial3D] = []
 var _bar: Node3D
 var _bar_fill: MeshInstance3D
@@ -115,6 +123,7 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	home = Vector3(pos.x, 0.0, pos.z)
 	_t = randf() * 10.0
 	_dead_t = 0.0
+	_flare = 0.0
 	_retarget = 0.0
 	_want_clone = false
 	_fire_t = randf_range(0.5, 1.5)
@@ -202,6 +211,7 @@ func die() -> void:
 	dead = true
 	hp = minf(hp, 0.0)
 	_dead_t = 0.0
+	_flare = 0.0
 	_bar.visible = false
 	linked = null
 	collision_layer = 0
@@ -436,8 +446,24 @@ func _animate(delta: float) -> void:
 	var s := ROTOR_SPEED * delta
 	for i in _rotors.size():
 		_rotors[i].rotate_y(s if i % 2 == 0 else -s)
+	var flare_target := 0.0
+	if bool(cfg["kamikaze"]) and aware and Game.player != null:
+		flare_target = clampf((9.0 - global_position.distance_to((Game.player as Node3D).global_position)) / 5.0, 0.0, 1.0)
+	_flare = move_toward(_flare, flare_target, delta * 3.0)
+	if _fins != null:
+		var fa: Dictionary = FIN_ANIM.get(type, FIN_ANIM[&"sentinel"])
+		var spin: float = fa["rate"] * (1.0 + 4.0 * _flare)
+		_fins.rotate_object_local(fa["axis"], spin * delta)
+		var pulse: float = sin(_t * float(fa["freq"]) * (1.0 + _flare)) * float(fa["pulse"])
+		var k := 1.0 + 0.55 * _flare
+		if type == &"sentinel":                                      # a jelly pulse: long and thin, then short and wide
+			_fins.scale = Vector3(k * (1.0 - pulse * 0.4), k * (1.0 + pulse), k * (1.0 - pulse * 0.4))
+		else:
+			_fins.scale = Vector3(k * (1.0 + pulse), k * (1.0 + pulse), k * (1.0 + pulse))
 	if _flash > 0.0:
 		_set_glow(5.0 if _flash > 0.05 else 2.0)
+	elif _flare > 0.02:
+		_set_glow(2.0 + 2.2 * _flare)
 
 
 func _tick_dead(delta: float) -> void:
@@ -469,6 +495,7 @@ func _build_visual() -> void:
 	add_child(m)
 	model = m
 	muzzle = m.get_node_or_null("Muzzle") as Node3D
+	_fins = m.get_node_or_null("Fins") as Node3D
 	for n: String in ["RotorFL", "RotorFR", "RotorRL", "RotorRR"]:
 		var r := m.get_node_or_null(n) as Node3D
 		if r != null:
@@ -476,7 +503,7 @@ func _build_visual() -> void:
 	DynamicFill.apply(m, cfg["color"])
 	for mi: MeshInstance3D in DynamicFill._meshes(m):
 		if mi.name != &"Body":
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF      # rotors and the eye are small: every shadow-cast surface is a draw call per cascade
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF      # fins, rotors and the eye are small: every shadow-cast surface is a draw call per cascade
 		for s in mi.mesh.get_surface_count():
 			var mat := mi.get_surface_override_material(s) as BaseMaterial3D
 			if mat != null and mat.emission_enabled and mat.emission_energy_multiplier >= 1.0 and (mi.name == &"Eye" or String(mat.resource_name).contains("Glow")):

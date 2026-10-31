@@ -1,83 +1,80 @@
-"""Heavy: armoured gunship drone. Angular hull, four large ducted fans, chin turret with twin barrels, red optic bar (Eye)."""
+"""Heavy: an armoured beetle gunship of the Vael. Domed elytra with ribbed plates, a horned head with an eye cluster (Eye), folded legs, a violet bio-cannon
+under the chin (Muzzle) and a skirt of hover cilia (the `Fins` node, turned and pulsed by the game). Body centre y = 1.40 m, front +Y (-Z in Godot)."""
+import math
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dronelib import ducted_fan, rotor_part  # noqa: E402
-from helpers import (Part, empty, export_model, hexc, light, make_material, new_scene, paint, ring_se)  # noqa: E402
-from shade import Decal, p_barcode, p_chevrons, p_glyphs, p_stripes  # noqa: E402
+from helpers import (Part, empty, export_model, hexc, light, make_material, new_scene, ring_se, scale_c)  # noqa: E402
 
 new_scene()
-armor = make_material("Armor", tex="plating")
-carbon = make_material("Carbon", tex="carbon")
-gun = make_material("Gunmetal", tex="steel")
-glass = make_material("Lens", tex="glass", color=(0.01, 0.012, 0.016))
-glow = make_material("Glow", tex="glow", color=hexc("#ff2a55"))
-ring_glow = make_material("HoverGlow", tex="glow", color=hexc("#b35cff"))
-eyem = make_material("Eye", emit=hexc("#ff2a55"), emit_strength=2.4)
+chit = make_material("Chitin", tex="chitin")
+glow = make_material("Glow", tex="glow", color=hexc("#b45cff"))
+eyem = make_material("Eye", emit=hexc("#c070ff"), emit_strength=2.0)
 
-hull = paint("plating", "#4b5058")
-hull2 = paint("plating", "#363a42")
-plate = paint("plating", "#656b76")
-cf = paint("carbon", "#62666b")
-gm = paint("steel", "#69707a")
-gm2 = paint("steel", "#343840")
+SHELL = scale_c(hexc("#4f4d55"), 1.35)
+SHELL2 = scale_c(hexc("#35333b"), 1.7)
+BONE = scale_c(hexc("#a69fb0"), 1.1)
+FLESH = scale_c(hexc("#59385f"), 1.6)
 
 Z = 1.4
 b = Part("Body", seed=51)
-rings = [ring_se(0, y, Z + dz, rx, rz, 16, 3.4, plane="xz") for y, rx, rz, dz in
-         [(-0.95, 0.30, 0.20, 0.0), (-0.6, 0.50, 0.31, 0.0), (-0.1, 0.62, 0.38, 0.02), (0.4, 0.56, 0.34, 0.0), (0.82, 0.38, 0.27, -0.04), (1.0, 0.22, 0.19, -0.06)]]
-b.loft(rings, mat=armor, tint=hull)
-b.box((0.95, 1.25, 0.07), (0, -0.08, Z + 0.4), mat=armor, tint=plate, bevel=0.02, bsegs=2, top=(0.82, 0.85))
-b.box((0.55, 0.5, 0.08), (0, 0.78, Z + 0.17), mat=armor, tint=plate, bevel=0.02, bsegs=2, top=(0.7, 0.55))
-b.box((0.2, 0.9, 0.18), (0.58, 0.1, Z + 0.02), mat=armor, tint=hull2, bevel=0.02, bsegs=2, mirror=True)
-b.box((0.04, 0.8, 0.24), (0.66, 0.1, Z - 0.02), mat=armor, tint=plate, bevel=0.012, mirror=True)
-b.box((0.5, 0.3, 0.14), (0, -0.88, Z + 0.1), mat=armor, tint=hull2, bevel=0.02, bsegs=2)
-for x in (-0.18, -0.09, 0.0, 0.09, 0.18):
-    b.box((0.03, 0.4, 0.2), (x, -0.88, Z + 0.22), mat=gun, tint=gm2, bevel=0.004)                       # heat-sink fins
-for y in (-0.5, -0.4, -0.3, -0.2, -0.1):
-    b.box((0.4, 0.045, 0.012), (0, y, Z + 0.44), mat=gun, tint=gm2)
-b.rod((0.3, -0.7, Z + 0.4), (0.36, -0.9, Z + 0.95), 0.007, mat=gun, tint=gm, segs=5)
-b.rod((-0.3, -0.7, Z + 0.4), (-0.34, -0.85, Z + 0.8), 0.007, mat=gun, tint=gm, segs=5)
-b.sphere(0.07, (0, 0.3, Z + 0.43), mat=gun, tint=gm2, scale=(1, 1, 0.65), segs=10, rings=6)
-# chin turret with twin barrels
-b.box((0.34, 0.42, 0.1), (0, 0.62, Z - 0.3), mat=armor, tint=hull2, bevel=0.02, bsegs=2)
-b.sphere(0.15, (0, 0.78, Z - 0.37), mat=gun, tint=gm, segs=12, rings=8)
-for x in (-0.07, 0.07):
-    b.cyl(0.024, 0.62, (x, 1.1, Z - 0.37), axis="y", mat=gun, tint=gm2, segs=8, bevel=0.002)
-    b.cyl(0.036, 0.2, (x, 1.22, Z - 0.37), axis="y", mat=gun, tint=gm, segs=10)
-    b.cyl(0.04, 0.03, (x, 1.335, Z - 0.37), axis="y", mat=gun, tint=gm2, segs=10)
-b.box((0.2, 0.3, 0.12), (0, 0.9, Z - 0.34), mat=armor, tint=plate, bevel=0.015, top=(0.9, 0.9))
-# optic bar + lenses on the nose
-b.box((0.5, 0.06, 0.12), (0, 0.985, Z + 0.02), mat=gun, tint=gm2, bevel=0.012)
-for x in (-0.18, 0.0, 0.18):
-    b.cyl(0.036, 0.03, (x, 1.022, Z + 0.02), axis="y", mat=glass, segs=12)
-b.box((0.3, 0.02, 0.02), (0, 1.03, Z - 0.1), mat=glow)
-b.box((0.04, 0.02, 0.1), (0.3, 0.99, Z + 0.02), mat=glow, mirror=True)
-# arms + ducted fans
-rotors = []
+ely = [(-1.1, Z + 0.05, 0.2, 0.15), (-0.8, Z + 0.15, 0.6, 0.42), (-0.3, Z + 0.2, 0.78, 0.52), (0.2, Z + 0.15, 0.74, 0.5), (0.65, Z + 0.05, 0.55, 0.38),
+       (0.95, Z - 0.05, 0.3, 0.25), (1.1, Z - 0.1, 0.08, 0.1)]
+b.loft([ring_se(0, y, zc, rx, rz, 18, 2.2, plane="xz") for y, zc, rx, rz in ely], mat=chit, tint=SHELL)
+b.loft([ring_se(0, y, zc - 0.28, rx * 0.92, rz * 0.6, 14, 2.2, plane="xz") for y, zc, rx, rz in ely[1:6]], mat=chit, tint=FLESH)      # soft underbelly
+for y0 in (-0.7, -0.35, 0.0, 0.35):                                                                                 # arched rib plates across the elytra
+    zc = Z + 0.18
+    rx, rz = 0.78 - 0.1 * abs(y0), 0.54 - 0.06 * abs(y0)
+    arc = [(rx * 1.02 * math.cos(math.radians(t)), y0, zc + rz * 1.02 * math.sin(math.radians(t))) for t in range(0, 181, 30)]
+    b.tube(arc, [(0.03, 0.03)] * len(arc), mat=chit, tint=BONE, n=5, sub=1, up=(0, 1, 0))
+    arc2 = [(rx * 1.0 * math.cos(math.radians(t)), y0 + 0.17, zc + rz * 1.0 * math.sin(math.radians(t))) for t in range(10, 171, 40)]
+    b.tube(arc2, [(0.011, 0.011)] * len(arc2), mat=glow, n=4, sub=1, up=(0, 1, 0))                                  # violet seam between the plates
+b.tube([(0, -0.95, Z + 0.15), (0, -0.5, Z + 0.7), (0, 0.0, Z + 0.72), (0, 0.5, Z + 0.55)], [(0.012, 0.012)] * 4, mat=glow, n=4, sub=2, up=(1, 0, 0))   # elytra split line
+for sx in (-1, 1):                                                                                                  # gill vents on the flanks
+    for k in range(5):
+        b.box((0.012, 0.16, 0.022), (sx * (0.74 - 0.02 * k), -0.1 - 0.16 * k + 0.5, Z - 0.02 + 0.03 * k - 0.1), rot=(0, 0, -sx * 12), mat=glow)
+# head: horned, with a sensor-eye cluster
+b.loft([ring_se(0, y, zc, rx, rz, 12, 2.2, plane="xz") for y, zc, rx, rz in [(0.7, Z + 0.0, 0.3, 0.26), (0.95, Z + 0.0, 0.3, 0.26), (1.12, Z - 0.02, 0.2, 0.2), (1.2, Z - 0.04, 0.08, 0.09)]],
+       mat=chit, tint=SHELL2)
+b.tube([(0, 0.95, Z + 0.15), (0, 1.3, Z + 0.15), (0, 1.55, Z + 0.4)], [(0.1, 0.08), (0.07, 0.07), (0.016, 0.016)], mat=chit, tint=BONE, n=8, sub=2)   # horn
 for sx in (-1, 1):
-    for sy in (-1, 1):
-        mx, my = 1.0 * sx, 0.78 * sy
-        b.bar((0.45 * sx, 0.18 * sy, Z + 0.05), (mx * 0.94, my * 0.94, Z + 0.1), 0.16, 0.1, mat=armor, tint=hull2, bevel=0.02, bsegs=2)
-        b.box((0.2, 0.2, 0.12), (0.7 * sx, 0.4 * sy, Z + 0.07), mat=armor, tint=plate, bevel=0.02)
-        ducted_fan(b, (mx, my, Z + 0.1), 0.42, armor, hull, gun, gm2, ring_glow, height=0.14, lip=0.04, segs=20, struts=3, hub_r=0.09,
-                   hub_mat=gun, hub_tint=gm, glow_tint=hexc("#b35cff"))
-        name = ("RotorF" if sy > 0 else "RotorR") + ("L" if sx < 0 else "R")
-        rotors.append(rotor_part(name, (mx, my, Z + 0.18), 0.385, 3, carbon, cf, seed=60 + len(rotors), chord=0.085, hub_r=0.07, thickness=0.01))
-eye = Part("Eye", origin=(0, 1.04, Z + 0.02), seed=3)
-eye.box((0.4, 0.014, 0.034), (0, 1.045, Z + 0.065), mat=eyem)
+    b.tube([(sx * 0.18, 1.05, Z - 0.12), (sx * 0.3, 1.38, Z - 0.18), (sx * 0.12, 1.55, Z - 0.2)], [(0.05, 0.05), (0.035, 0.035), (0.01, 0.01)], mat=chit, tint=BONE, n=6, sub=2)   # mandibles
+    b.torus(0.055, 0.016, (sx * 0.12, 1.17, Z + 0.1), rot=(80, 0, 0), mat=chit, tint=BONE, segs=10, sides=5)
+    b.torus(0.04, 0.012, (sx * 0.23, 1.06, Z + 0.17), rot=(70, 0, 0), mat=chit, tint=BONE, segs=10, sides=5)
+    b.sphere(0.02, (sx * 0.2, 1.1, Z + 0.22), mat=glow, segs=6, rings=4)
+# bio-cannon under the chin
+b.tube([(0, 0.4, Z - 0.34), (0, 0.9, Z - 0.38), (0, 1.38, Z - 0.37)], [(0.2, 0.17), (0.15, 0.13), (0.11, 0.1)], mat=chit, tint=FLESH, n=10, sub=2)
+for y in (0.7, 0.95, 1.2):
+    b.torus(0.15 - 0.2 * (y - 0.7) * 0.2, 0.022, (0, y, Z - 0.37), rot=(90, 0, 0), mat=chit, tint=SHELL2, segs=14, sides=5)
+b.torus(0.105, 0.03, (0, 1.4, Z - 0.37), rot=(90, 0, 0), mat=glow, segs=14, sides=5)
+b.sphere(0.07, (0, 1.36, Z - 0.37), mat=glow, segs=8, rings=6)
+for sx in (-1, 1):                                                                                                  # six folded legs
+    for yy in (-0.55, 0.0, 0.5):
+        k = 1.0 if yy != 0.0 else 1.15
+        a = (sx * 0.5, yy, Z - 0.15)
+        m = (sx * 0.9 * k, yy + 0.1, Z - 0.35)
+        t = (sx * 0.8 * k, yy + 0.25, Z - 0.92)
+        b.rod(a, m, 0.05, mat=chit, tint=SHELL2, r2=0.04, segs=6)
+        b.rod(m, t, 0.04, mat=chit, tint=BONE, r2=0.008, segs=6)
 
-decals = [
-    Decal((0.0, -0.08, Z + 0.436), (0, 0, 1), (0, 1, 0), (0.7, 0.5), p_glyphs(hexc("#bfc6cc"), cells=9, rows=3, seed=21), depth=0.06),
-    Decal((0.0, 0.5, Z + 0.436), (0, 0, 1), (0, 1, 0), (0.5, 0.18), p_chevrons(3, hexc("#b03040")), depth=0.08),
-    Decal((0.0, -0.88, Z + 0.34), (0, -1, 0), (0, 0, 1), (0.4, 0.2), p_barcode(hexc("#bfc6cc"), 16, seed=9), depth=0.1),
-]
+fins = Part("Fins", origin=(0, 0, Z), seed=53)
+fins.tag(vis_end=60.0, no_shadow=1)
+for k in range(16):                                                                                                 # skirt of hover cilia under the belly
+    a = 2 * math.pi * k / 16
+    ca, sa = math.cos(a), math.sin(a)
+    r0, r1 = 0.55, 0.95 + 0.06 * (k % 2)
+    fins.bar((r0 * ca, r0 * sa * 1.1, Z - 0.5), (r1 * ca, r1 * sa * 1.2, Z - 0.66), 0.12, 0.01, mat=chit, tint=FLESH if k % 2 else SHELL2, up=(0, 0, 1), taper=(0.25, 1.0))
+    fins.sphere(0.02, (r1 * ca, r1 * sa * 1.2, Z - 0.66), mat=glow, segs=6, rings=4)
+eye = Part("Eye", origin=(0, 1.15, Z + 0.1), seed=3)
 for sx in (-1, 1):
-    decals.append(Decal((sx * 0.7, 0.1, Z + 0.1), (sx, 0, 0), (0, 0, 1), (0.8, 0.14), p_stripes(10, 0.5, 90.0, hexc("#c9a21f")), depth=0.08))
-rig = [empty("Muzzle", (0, 1.36, Z - 0.37)),
-       light("EyeLight", (0, 1.15, Z + 0.02), "omni", (1.0, 0.16, 0.34), 1.6, 6.5, attenuation=1.6, fade=(34, 14), group="eye"),
-       light("Fill", (0, 0.1, Z + 1.1), "omni", (0.72, 0.82, 1.0), 1.2, 5.2, mask="own", attenuation=1.2, fade=(32, 14))]
-print("  body tris", b.tri_count(), "rotors", sum(p.tri_count() for p in rotors))
-export_model("drone_heavy", [b] + rotors + [eye], extras=rig, groups={"atlas": dict(base="drone_heavy", material="Hull")}, size=1024,
-             decals=decals, ao_dist=0.3, ao_strength=0.8, emit_strength=1.8)
+    eye.sphere(0.058, (sx * 0.12, 1.19, Z + 0.1), mat=eyem, segs=10, rings=7)
+    eye.sphere(0.04, (sx * 0.23, 1.09, Z + 0.17), mat=eyem, segs=9, rings=6)
+eye.sphere(0.04, (0, 1.2, Z + 0.17), mat=eyem, segs=9, rings=6)
+
+rig = [empty("Muzzle", (0, 1.45, Z - 0.37)),
+       light("EyeLight", (0, 1.3, Z + 0.1), "omni", (0.75, 0.35, 1.0), 1.6, 6.5, attenuation=1.6, fade=(34, 14), group="eye"),
+       light("Fill", (0, 0.1, Z + 1.1), "omni", (0.85, 0.8, 1.0), 1.2, 5.2, mask="own", attenuation=1.2, fade=(32, 14))]
+print("  body tris", b.tri_count(), "fins", fins.tri_count())
+export_model("drone_heavy", [b, fins, eye], extras=rig, groups={"atlas": dict(base="drone_heavy", material="Hull")}, size=1024, decals=[],
+             ao_dist=0.25, ao_strength=0.6, emit_strength=1.8)

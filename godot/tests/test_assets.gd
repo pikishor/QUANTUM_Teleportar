@@ -13,17 +13,17 @@ const DRONES := ["drone_sentinel", "drone_striker", "drone_heavy"]
 const CARS := ["car_sedan", "car_sport", "car_suv"]
 const PROPS := ["pickup_health", "pickup_energy", "core_gem"]
 const BUDGET_CHARACTER := 16000                     ## hero (the operative has BUDGET_OPERATIVE)
-const BUDGET_OPERATIVE := 10000
-const BUDGET_DRONE := 6000
+const BUDGET_OPERATIVE := 12000
+const BUDGET_DRONE := 8000
 const BUDGET_CAR := 15000
 const BUDGET_PROP := 2500
 ## Draw calls per model: every (mesh node, material) pair is one surface. Legacy models (several tiling-texture materials each).
 const SURFACES_LEGACY_CHARACTER := 10
 const SURFACES_LEGACY_DRONE := 11
 const SURFACES_LEGACY_CAR := 11
-## Baked-atlas models: characters ONE skinned Body mesh (one draw call; the legs, arms, torso and head are bones), drones Body + 4 rotors + Eye, cars Body (paint, details, 3 emissive) + 4 wheels, props one.
+## Baked-atlas models: characters ONE skinned Body mesh (one draw call; the legs, arms, torso and head are bones), drones Body + Fins + Eye (living drones: the Fins node is a frill / thorn ring / cilia skirt the game turns and pulses), cars Body (paint, details, 3 emissive) + 4 wheels, props one.
 const SURFACES_CHARACTER := 4
-const SURFACES_DRONE := 6
+const SURFACES_DRONE := 3
 const SURFACES_CAR := 9
 const SURFACES_PROP := 2
 ## A firefight in view (6 operatives, 3 sentinels, 1 striker, 1 heavy, 6 cars): the models must leave room for the world and the player
@@ -228,9 +228,9 @@ func _character(host: Node, model_name: String) -> void:
 	var rig := CharacterRig.find(m)
 	TestLib.check(rig != null, "%s has every bone of the contract (%s)" % [model_name, ", ".join(BONES)])
 	var box := body.get_aabb() if body != null else AABB()      # the mesh lives in the model's own space
-	TestLib.check(box.size.y > 1.7 and box.size.y < 1.95, "%s is human height (%.2f m)" % [model_name, box.size.y])
+	TestLib.check(box.size.y > 1.7 and box.size.y < 2.05, "%s is tall and lean, not a giant (%.2f m)" % [model_name, box.size.y])
 	TestLib.check(absf(box.position.y) < 0.02, "%s stands on the ground (min y %.3f)" % [model_name, box.position.y])
-	TestLib.check(box.size.x < 0.9 and box.size.z < 1.6, "%s has realistic breadth (%.2f x %.2f)" % [model_name, box.size.x, box.size.z])
+	TestLib.check(box.size.x < 1.1 and box.size.z < 2.6, "%s has realistic breadth (%.2f x %.2f)" % [model_name, box.size.x, box.size.z])
 	TestLib.check(box.size.x > 0.55, "%s has wide athletic shoulders (%.2f m across with the gear)" % [model_name, box.size.x])
 	if muzzle:
 		TestLib.check(muzzle.position.z < -0.6 and muzzle.position.y > 1.1 and muzzle.position.y < 1.6, "%s muzzle points forward (-Z) at chest height %s" % [model_name, muzzle.position])
@@ -272,7 +272,7 @@ func _rig_poses(m: Node3D, rig: CharacterRig, model_name: String) -> void:
 		worst = maxf(worst, absf(rig.lowest_world_y()))
 		var sk := rig.skeleton
 		knee = maxf(knee, absf(sk.get_bone_pose(sk.find_bone("ShinL")).basis.get_euler().x))
-	TestLib.check(worst < 0.07, "%s run cycle: the lowest foot stays within %.3f m of the floor" % [model_name, worst])
+	TestLib.check(worst < 0.1, "%s run cycle: the lowest foot stays within %.3f m of the floor (digitigrade legs, the pelvis height is approximated)" % [model_name, worst])
 	TestLib.check(knee > 0.6, "%s run cycle: the knees bend (%.2f rad)" % [model_name, knee])
 	rig.phase = 0.0
 	rig.amp = 0.0
@@ -340,10 +340,10 @@ func _drone(host: Node, model_name: String) -> void:
 	TestLib.check(_surfaces(m) <= limit, "%s draws in %d surfaces (<= %d)" % [model_name, _surfaces(m), limit])
 	var eye := _node(m, "Eye")
 	TestLib.check(eye != null, "%s has an Eye node" % model_name)
-	for n in ["Body", "RotorFL", "RotorFR", "RotorRL", "RotorRR"]:
+	for n in ["Body", "Fins"]:
 		TestLib.check(_node(m, n) != null, "%s has node %s" % [model_name, n])
 	var box := _aabb(m)
-	TestLib.check(box.position.y > 0.25 and box.end.y < 2.6, "%s hovers above the ground (y %.2f..%.2f)" % [model_name, box.position.y, box.end.y])
+	TestLib.check(box.position.y > 0.1 and box.end.y < 2.6, "%s hovers above the ground (y %.2f..%.2f)" % [model_name, box.position.y, box.end.y])
 	TestLib.check(box.size.x > 0.8 and box.size.x < 3.2 and box.size.z > 0.8 and box.size.z < 3.2, "%s has a plausible size (%.2f x %.2f)" % [model_name, box.size.x, box.size.z])
 	if eye:
 		var ec := (eye as Node3D).global_transform * (eye as MeshInstance3D).get_aabb().get_center()
@@ -352,7 +352,7 @@ func _drone(host: Node, model_name: String) -> void:
 		var eye_mat := (eye as MeshInstance3D).mesh.surface_get_material(0) as BaseMaterial3D
 		TestLib.check(_is_emissive(eye_mat), "%s Eye surface material is emissive (the enemies module recolours a duplicate of it)" % model_name)
 	if baked:
-		for n in ["RotorFL", "RotorFR", "RotorRL", "RotorRR"]:
+		for n in ["Fins"]:
 			var rotor := _node(m, n) as GeometryInstance3D
 			if rotor:
 				TestLib.check(rotor.visibility_range_end > 10.0 and rotor.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "%s %s fades out with distance and casts no shadow" % [model_name, n])
