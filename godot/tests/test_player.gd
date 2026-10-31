@@ -29,7 +29,7 @@ func run(host: Node) -> void:
 	await _lifecycle()
 	await _vehicle_mode()
 	await _teleport_and_aim()
-	e.teardown()
+	await e.teardown()
 
 
 func _scene() -> void:

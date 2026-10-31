@@ -3,7 +3,7 @@ extends CharacterBody3D
 ## The player: third-person over-the-shoulder shooter, strafe-style (the body faces the aim). Contract: ARCHITECTURE.md "player".
 ##
 ## Children (scenes/player.tscn): Collision (capsule), CameraRig (+ SpringArm + Camera), Body (PlayerBody), Weapon (PlayerWeapon),
-## Decals (ImpactDecals). Optional child `Quantum` when res://scripts/quantum/quantum.gd exists, exposed as `quantum`.
+## Decals (ImpactDecals), Sparks (ImpactSparks). Optional child `Quantum` when res://scripts/quantum/quantum.gd exists, exposed as `quantum`.
 ##
 ## Movement is ported from src/player.js (walk 6.2 m/s, sprint x1.6, aim 3.4, jump 7.6 m/s, gravity 22) with smooth exponential acceleration,
 ## coyote time, jump buffering, step-up over curbs and a void rescue. Physics runs in _physics_process; everything the player SEES (body, camera)
@@ -72,6 +72,9 @@ var spread: float:
 
 var aiming := false
 var sprinting := false
+## Seconds since the feet last touched the ground (0 on the ground). The body pose waits a moment before it shows "airborne", so rolling
+## off a curb does not flicker the legs.
+var air_time := 0.0
 ## Speed multiplier from abilities (Quantum superposition sets 1.3). Values >= 1 are a multiplier; values below 1 are read as a bonus (0.3 = +30 %).
 var speed_boost := 1.0
 ## -1..1, the sideways input this tick (camera lean).
@@ -89,6 +92,7 @@ var camera_rig: CameraRig
 var body: PlayerBody
 var weapon: PlayerWeapon
 var decals: ImpactDecals
+var sparks: ImpactSparks
 ## Facing of the body (Node3D.rotation.y convention); eases toward the aim yaw.
 var yaw := SPAWN_YAW
 
@@ -173,7 +177,12 @@ func _ensure_children() -> void:
 		decals = ImpactDecals.new()
 		decals.name = "Decals"
 		add_child(decals)
-	weapon.set_decals(decals)
+	sparks = get_node_or_null("Sparks") as ImpactSparks
+	if sparks == null:
+		sparks = ImpactSparks.new()
+		sparks.name = "Sparks"
+		add_child(sparks)
+	weapon.set_effects(decals, sparks)
 
 
 ## Quantum is another module's script; a missing or broken file must never break the player.
@@ -213,6 +222,7 @@ func reset() -> void:
 	input_strafe = 0.0
 	velocity = Vector3.ZERO
 	global_position = Game.SPAWN
+	air_time = 0.0
 	_ground_known = false
 	_was_on_floor = false
 	_coyote = 0.0
@@ -458,6 +468,7 @@ func _foot_tick(dt: float) -> void:
 	_ground_known = true
 	_hit_wall = is_on_wall()
 	var landed := is_on_floor()
+	air_time = 0.0 if landed else air_time + dt
 	if not landed:
 		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * dt * 0.5)
 	if landed and not _was_on_floor:
@@ -474,7 +485,7 @@ func _on_land(fall_speed: float) -> void:
 	if impact > 0.0:
 		camera_rig.bump(impact)
 		FX.shake(impact * 0.22)
-		FX.burst(global_position + Vector3(0.0, 0.05, 0.0), Color(0.55, 0.6, 0.66), 5, 2.4 + impact * 2.0, 0.3, 2.0)
+		sparks.dust(global_position + Vector3(0.0, 0.08, 0.0), impact)
 
 
 ## Walk up a curb or a stair: if the way ahead is blocked by something lower than STEP_HEIGHT, lift the body onto it.

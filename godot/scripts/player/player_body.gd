@@ -15,6 +15,8 @@ const FLASH_TIME := 0.055
 const LIGHT_TIME := 0.075
 const LIGHT_ENERGY := 3.4
 const LIGHT_COUNT := 2
+## Visual layer (1..20) reserved for the player's meshes, so the two character lights (a soft key and a rim) light only the hero and never the world.
+const CHARACTER_LAYER := 20
 
 ## Tests flip this to exercise the primitive fallback.
 static var force_primitive := false
@@ -45,6 +47,15 @@ var _flash_t := 0.0
 var _lights: Array[OmniLight3D] = []
 var _light_t := PackedFloat32Array()
 var _li := 0
+var _key_light: DirectionalLight3D
+var _rim_light: DirectionalLight3D
+## Switch the character lights off (tests, or a graphics tier that wants the extra directional lights gone).
+var character_light := true:
+	set(v):
+		character_light = v
+		if _key_light != null:
+			_key_light.visible = v
+			_rim_light.visible = v
 
 
 func _ready() -> void:
@@ -62,7 +73,7 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	var v := p.velocity
 	var hv := Vector3(v.x, 0.0, v.z)
 	var speed := hv.length()
-	var grounded := p.is_on_floor()
+	var grounded := p.air_time < 0.14                  # rolling off a curb is not a jump
 	var local := hv.rotated(Vector3.UP, -yaw)          # body space: x right, z back
 
 	# --- legs: swing about the axis perpendicular to the movement direction
@@ -76,12 +87,18 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 			_dir = td
 	_phase += dt * speed * STRIDE_RATE
 	var m := Vector3(_dir.x, 0.0, _dir.y).normalized()
-	var axis := Vector3(-m.z, 0.0, m.x)                # m x up
-	var swing := lerpf(sin(_phase) * _amp, 0.42, _air)
+	var fw := -m.z                                       # +1 moving forward, -1 backing up
+	var lw := m.x                                        # +1 moving right, -1 moving left
+	var sl := sin(_phase) * _amp
+	# forward / back swing about X (positive = foot forward); sideways swing about Z with a splay that keeps the feet apart while strafing
+	var ax_l := lerpf(sl * fw, 0.42, _air)
+	var ax_r := lerpf(-sl * fw, -0.3, _air)
+	var az_l := -0.2 * absf(lw) + 0.5 * sl * lw
+	var az_r := 0.2 * absf(lw) - 0.5 * sl * lw
 	if leg_l != null:
-		leg_l.basis = Basis(axis, swing)
+		leg_l.basis = Basis.from_euler(Vector3(ax_l, 0.0, az_l))
 	if leg_r != null:
-		leg_r.basis = Basis(axis, -swing)
+		leg_r.basis = Basis.from_euler(Vector3(ax_r, 0.0, az_r))
 
 	# --- torso: aim pitch, sprint lean, strafe roll, run twist, breathing, recoil
 	var rig := p.camera_rig
@@ -110,6 +127,13 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		sink = 0.1 * e
 	global_position = Vector3(view_pos.x, view_pos.y - sink, view_pos.z)
 	rotation = Vector3(fall, yaw, 0.0)
+
+	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
+	if character_light and rig != null:
+		var f := PlayerUtil.forward_of(rig.yaw, 0.0)
+		var right := Vector3(-f.z, 0.0, f.x)
+		_key_light.global_basis = Basis.looking_at((f * 0.82 - right * 0.28 + Vector3(0.0, -0.5, 0.0)).normalized(), Vector3.UP)
+		_rim_light.global_basis = Basis.looking_at((-f * 0.8 + right * 0.55 + Vector3(0.0, -0.22, 0.0)).normalized(), Vector3.UP)
 
 	# --- muzzle flash decay
 	if _flash_t > 0.0:
@@ -186,6 +210,7 @@ func _build() -> void:
 			model.free()
 		_build_primitive()
 	_build_flash()
+	_build_character_lights()
 
 
 func _adopt_model(model: Node3D) -> void:
@@ -366,6 +391,37 @@ func _build_primitive() -> void:
 		else:
 			leg.name = "LegR"
 			leg_r = leg
+
+
+# --- character lights ---------------------------------------------------------------------------------------------------
+
+func _build_character_lights() -> void:
+	var mask := 1 << (CHARACTER_LAYER - 1)
+	_set_layer(self, mask)
+	_key_light = _make_character_light("KeyLight", Color(0.78, 0.86, 1.0), 0.55, mask)
+	_rim_light = _make_character_light("RimLight", Color(0.5, 0.85, 0.95), 1.1, mask)
+	_key_light.visible = character_light
+	_rim_light.visible = character_light
+
+
+func _make_character_light(light_name: String, color: Color, energy: float, mask: int) -> DirectionalLight3D:
+	var l := DirectionalLight3D.new()
+	l.name = light_name
+	l.light_color = color
+	l.light_energy = energy
+	l.light_specular = 0.8
+	l.light_cull_mask = mask
+	l.shadow_enabled = false
+	add_child(l)
+	return l
+
+
+## Put every mesh of `node` on the character layer in addition to the default layer 1.
+static func _set_layer(node: Node, mask: int) -> void:
+	if node is GeometryInstance3D:
+		(node as GeometryInstance3D).layers |= mask
+	for c in node.get_children():
+		_set_layer(c, mask)
 
 
 # --- muzzle flash -----------------------------------------------------------------------------------------------------

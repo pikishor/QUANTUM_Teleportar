@@ -218,15 +218,20 @@ func snap() -> void:
 	_update_view(0.0)
 
 
-## Aim the camera at a world point (tests, scripted cameras): solves yaw / pitch so that the camera ray passes through `point`.
-func aim_at(point: Vector3) -> void:
+## Turn the look angles toward a world point without touching anything else: the camera ray, from where the camera sits now, passes through it.
+## Scripted cameras and the visual bot call this every frame; the smoothing of FOV and zoom keeps running.
+func look_at_point(point: Vector3) -> void:
 	for i in 4:
-		var origin := _camera_rest_position()
-		var yp := PlayerUtil.yaw_pitch_of(point - origin)
+		var yp := PlayerUtil.yaw_pitch_of(point - _camera_rest_position())
 		yaw = yp.x
 		pitch = clampf(yp.y, PITCH_MIN, PITCH_MAX)
 	recoil_pitch = 0.0
 	recoil_yaw = 0.0
+
+
+## look_at_point() and an immediate refresh of the camera (tests that fire right afterwards).
+func aim_at(point: Vector3) -> void:
+	look_at_point(point)
 	_update_view(0.0)
 
 
@@ -342,8 +347,10 @@ func _update_view(dt: float) -> void:
 	var ads_s := clampf(_ads.x, 0.0, 1.0)
 	_sprint = PlayerUtil.damp(_sprint, 1.0 if sprinting else 0.0, 7.0, dt)
 	_mode_mix = PlayerUtil.damp(_mode_mix, 1.0 if drv else 0.0, 4.0, dt)
-	_orbit_w = PlayerUtil.damp(_orbit_w, 1.0 if (state == &"menu" or state == &"win") else 0.0, 1.8, dt)
-	_dead_w = PlayerUtil.damp(_dead_w, 1.0 if state == &"dead" else 0.0, 1.3, dt)
+	var orbit_on := state == &"menu" or state == &"win"
+	var dead_on := state == &"dead"
+	_orbit_w = PlayerUtil.damp(_orbit_w, 1.0 if orbit_on else 0.0, 1.8 if orbit_on else 4.5, dt)    # drift in slowly, snap back to gameplay quickly
+	_dead_w = PlayerUtil.damp(_dead_w, 1.0 if dead_on else 0.0, 2.0 if dead_on else 4.5, dt)
 	free_look = maxf(0.0, free_look - dt)
 
 	# --- vehicle chase: the view eases toward the heading unless the player is looking around
@@ -358,7 +365,7 @@ func _update_view(dt: float) -> void:
 	if _orbit_w > 0.001 or _dead_w > 0.001:
 		yaw += (ORBIT_RATE * _orbit_w + DEAD_RATE * _dead_w) * dt
 		var pt := ORBIT_PITCH * _orbit_w + DEAD_PITCH * _dead_w
-		pitch = lerpf(pitch, pt, 1.0 - exp(-1.5 * dt * maxf(_orbit_w, _dead_w)))
+		pitch = lerpf(pitch, pt, 1.0 - exp(-2.5 * dt * maxf(_orbit_w, _dead_w)))
 
 	# --- rifle kick recovery
 	_since_kick += dt

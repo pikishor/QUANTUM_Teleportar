@@ -39,6 +39,9 @@ The owner deploys Android/iOS builds straight from GitHub (see `docs/DEPLOY.md`)
   and guard references to other modules with `is_instance_valid(Game.player)` etc.
 - **Every module ships tests** (`tests/test_<module>.gd`) that pass via `tools/test.sh`, and a bot (`tests/bot_<module>.gd`)
   that can be watched via `tools/bot.sh` screenshots. "Done" = tests pass AND you looked at screenshots and fixed what looked wrong.
+- **Scratch files** (screenshots, helper scripts, notes) go only under `<scratchpad>/<your-module>/`. Several builders run at the same time and share the scratchpad root,
+  where a helper script of the same name gets silently overwritten. Keep your own copy of anything you need there, never write to the root.
+- **Check what `Write` says**: "updated" instead of "created" means the file already existed (someone else may own it). Stop and look before continuing.
 - No per-frame allocations in hot paths (pool nodes, reuse vectors), no `print` spam. Typed GDScript where practical.
 - Frame budget target: 60 fps on a mid-range phone → keep draw calls low (MultiMesh/instancing, merged meshes), no per-frame node creation.
 

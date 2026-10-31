@@ -1,10 +1,11 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/player/camera_rig.gd" id="2_rig"]
 [ext_resource type="Script" path="res://scripts/player/player_body.gd" id="3_body"]
 [ext_resource type="Script" path="res://scripts/player/player_weapon.gd" id="4_weapon"]
 [ext_resource type="Script" path="res://scripts/player/impact_decals.gd" id="5_decals"]
+[ext_resource type="Script" path="res://scripts/player/impact_sparks.gd" id="6_sparks"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -46,3 +47,6 @@ script = ExtResource("4_weapon")
 
 [node name="Decals" type="Node3D" parent="."]
 script = ExtResource("5_decals")
+
+[node name="Sparks" type="Node3D" parent="."]
+script = ExtResource("6_sparks")

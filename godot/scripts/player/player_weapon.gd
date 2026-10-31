@@ -32,7 +32,6 @@ const RECOIL_ADS_SCALE := 0.65
 const BURST_RESET := 0.35
 
 const TRACER_COLOR := Color(1.0, 0.86, 0.5)
-const FLASH_COLOR := Color(1.0, 0.88, 0.54)
 const MASK_SHOT := 1 | 4 | 8                 # world + enemy + vehicle (Game.L_*)
 
 var mag := MAG_SIZE
@@ -52,6 +51,7 @@ var _ray_b := PhysicsRayQueryParameters3D.new()
 var _exclude_base: Array[RID] = []
 var _exclude: Array[RID] = []
 var _decals: ImpactDecals
+var _sparks: ImpactSparks
 var _last_dir := Vector3.FORWARD             ## direction of the last shot (tests, and effects)
 
 
@@ -68,8 +68,9 @@ func _ready() -> void:
 		_ray_b.exclude = _exclude_base
 
 
-func set_decals(d: ImpactDecals) -> void:
-	_decals = d
+func set_effects(decals: ImpactDecals, sparks: ImpactSparks) -> void:
+	_decals = decals
+	_sparks = sparks
 
 
 func reset() -> void:
@@ -200,7 +201,6 @@ func _shoot(dt: float, aiming: bool) -> void:
 
 	# --- effects at the muzzle
 	FX.tracer(mz, hit, TRACER_COLOR)
-	FX.burst(mz, FLASH_COLOR, 3, 3.0, 0.07, 0.0)
 	p.body.fire_flash(1.0)
 
 	# --- recoil: the aim itself climbs (bullets follow the camera), with a pattern that settles
@@ -256,23 +256,21 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3) -> void:
 	p.last_hit_crit = crit
 	p.hit_confirmed.emit(kill, crit)
 	var n := normal if normal != Vector3.ZERO else Vector3.UP
-	if is_vehicle:
-		FX.burst(hit + n * 0.05, Color(1.0, 0.75, 0.45), 6, 4.0, 0.3, 8.0)
-	elif human:
-		if Game.graphic_violence:
-			FX.burst(hit, Color(0.75, 0.04, 0.05), 9, 3.5, 0.4, 9.0)
+	if _sparks != null:
+		if is_vehicle:
+			_sparks.impact_machine(hit, n)
+		elif human:
+			if Game.graphic_violence:
+				_sparks.impact_blood(hit, n)
+			_sparks.impact_person(hit, n)
 		else:
-			FX.burst(hit, Color(0.85, 0.82, 0.78), 5, 3.0, 0.25, 6.0)       # fabric dust and armour chips instead
-		FX.burst(hit, Color(1.0, 0.85, 0.6), 3, 4.0, 0.12, 4.0)
-	else:
-		FX.burst(hit + n * 0.05, Color(1.0, 0.7, 0.3), 7, 5.0, 0.28, 9.0)     # sparks off a machine
-		FX.burst(hit, Color(1.0, 0.95, 0.85), 3, 3.0, 0.1, 0.0)
+			_sparks.impact_machine(hit, n)
 
 
 func _hit_world(hit: Vector3, normal: Vector3) -> void:
 	var n := normal if normal != Vector3.ZERO else Vector3.UP
-	FX.burst(hit + n * 0.04, Color(1.0, 0.82, 0.55), 4, 4.2, 0.2, 9.0)           # hot sparks
-	FX.burst(hit + n * 0.05, Color(0.75, 0.8, 1.0), 4, 2.2, 0.32, 5.0)           # chips and mist
+	if _sparks != null:
+		_sparks.impact_world(hit, n)
 	if _decals != null:
 		_decals.add(hit, n, randf_range(0.14, 0.2))
 

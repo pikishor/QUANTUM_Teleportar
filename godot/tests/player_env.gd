@@ -37,6 +37,13 @@ func teardown() -> void:
 	Fixture.release_inputs()
 	Game.state = &"menu"
 	root.queue_free()
+	# the headless audio driver would keep the last played stream alive at exit and print a leak warning
+	for c in Sfx.get_children():
+		if c is AudioStreamPlayer:
+			(c as AudioStreamPlayer).stop()
+		elif c is AudioStreamPlayer3D:
+			(c as AudioStreamPlayer3D).stop()
+	await frames(2)
 
 
 func frames(n: int) -> void:
