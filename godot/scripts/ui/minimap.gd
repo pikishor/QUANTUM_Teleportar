@@ -15,9 +15,12 @@ const ARROW := [Vector2(0, -1.3), Vector2(0.85, 0.9), Vector2(0, 0.4), Vector2(-
 var tex: ImageTexture
 var markers_drawn := 0              ## markers inside the rim in the last redraw (for tests)
 var core_markers := 0               ## cores drawn (clamped to the rim when far) in the last redraw
+var contract_markers := 0           ## contract markers drawn (offer, target, zone, destination, officer area) in the last redraw
+var route_drawn := false            ## a courier route line was drawn in the last redraw
 
 var _key := 0
 var _t := 0.0
+var _t_clock := 0.0
 var _pts := PackedVector2Array()
 var _uvs := PackedVector2Array()
 var _diamond := PackedVector2Array(DIAMOND)
@@ -35,6 +38,7 @@ func _init() -> void:
 
 
 func _process(delta: float) -> void:
+	_t_clock += delta
 	_t -= delta
 	if _t <= 0.0:
 		_t = REFRESH
@@ -108,6 +112,8 @@ func _draw() -> void:
 	_update_view(radius)
 	markers_drawn = 0
 	core_markers = 0
+	contract_markers = 0
+	route_drawn = false
 	draw_circle(c, radius, Color(0.02, 0.06, 0.08, 0.82))
 	if ensure_static():
 		var inv := 1.0 / (2.0 * EXTENT)
@@ -176,6 +182,9 @@ func _draw() -> void:
 				if not far:
 					rings.append([c + m, 7.5 * s, Color(UiUtil.MAGENTA, 0.7)])
 				core_markers += 1
+	var con: Object = mis.get("contracts") if mis != null else null
+	if con != null:
+		_contract_layer(con, c, inner, s, diamonds, rings)
 	for r: Rect2 in cars:
 		draw_rect(r, Color(0.7, 0.75, 0.8, 0.6))
 	for kind: Array in [[&"disc", discs], [&"diamond", diamonds], [&"ring", rings]]:
@@ -190,3 +199,38 @@ func _draw() -> void:
 	var nl := Vector2(Vector2(0, -1).dot(_right), -Vector2(0, -1).dot(_fwd))
 	draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-5.0, 6.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(UiUtil.CYAN, 0.9))
 	draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s, false)
+
+
+## Contract markers and the courier route (see Contracts.markers / route_points): a cyan diamond for an offer, a pulsing diamond with a ring for a target, a big ring for a
+## hack node / anchor zone, a ring over a clamped diamond for the officer's approximate area, an amber flag diamond for a delivery. The route is ONE polyline clamped to the rim.
+func _contract_layer(con: Object, c: Vector2, inner: float, s: float, diamonds: Array, rings: Array) -> void:
+	var route: PackedVector3Array = con.call(&"route_points")
+	if route.size() >= 2:
+		var pl := PackedVector2Array()
+		for rp: Vector3 in route:
+			var rm := to_map(rp.x, rp.z)
+			if rm.length() > inner:
+				rm = rm.normalized() * inner
+			pl.append(c + rm)
+		draw_polyline(pl, Color(UiUtil.AMBER, 0.9), 2.4 * s)
+		route_drawn = true
+	var list: Array = con.call(&"markers")
+	var n := int(con.call(&"marker_count"))
+	var pulse := 0.75 + 0.25 * sin(_t_clock * 6.0)
+	for i in n:
+		var mk: Dictionary = list[i]
+		var wp: Vector3 = mk["pos"]
+		var col: Color = mk["color"]
+		var m := to_map(wp.x, wp.z)
+		var far := m.length() > inner - 4.0 * s
+		var kind: StringName = mk["kind"]
+		if far:
+			m = (m.normalized() if m.length() > 0.001 else Vector2(0, -1)) * (inner - 4.0 * s)
+		if (kind == &"zone" or kind == &"area") and not far:
+			var rr := float(mk["radius"]) * _k
+			rings.append([c + m, maxf(rr, 7.0 * s), Color(col, 0.6 * pulse)])
+		else:
+			diamonds.append([c + m, (5.4 if kind != &"offer" else 4.6) * s, Color(col, pulse if kind == &"target" else 1.0)])
+			if kind != &"offer" and not far:
+				rings.append([c + m, 8.0 * s, Color(col, 0.75 * pulse)])
+		contract_markers += 1

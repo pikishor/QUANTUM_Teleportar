@@ -1,0 +1,133 @@
+extends RefCounted
+## Performance bot (tools/perf_report.sh): the staged full-game view of tests/bot_full.gd (hero, 4 enemies, the starter car, HUD, the real main scene), measured in
+## the tier given with --quality=N, then the 4-enemy simultaneous death, sampled every frame. Run with `--fixed-fps 30` (one rendered frame = 1/30 game second,
+## so effect ages do not depend on how slow the software renderer is). Prints `PERF ...` lines, the last one is `PERF RESULT ...` (key=value pairs) for the script.
+##   env BOT_TOUCH=1  force the touch layout (adds the touch canvas draws; also measures them against HUD_TOUCH_MAX_DRAWS)
+##   env BOT_DUMP=1   list the biggest shadow casters (triangles x passes) and the visible draw families
+##   env BOT_FAR=1    additionally measure a view where the 4 enemies stand 55 m away (LOD)
+## Phases (frames at 30 fps): 0-25 settle, 25-40 staged samples, 40-46 HUD hidden (cost of the canvas layers), 46 death trigger, 46-100 death samples.
+
+const Fixture := preload("res://tests/player_fixture.gd")
+const SETTLE := 25
+const STAGE_END := 40
+const HUD_OFF_END := 46
+const DEATH_END := 100
+
+var _p: Player
+var _em: EnemyManager
+var _drones: Array = []
+var _setup_done := false
+var _frame := 0
+var _stage := {}                    ## maximum over the staged samples
+var _hud_off := {}
+var _death := {}                    ## worst frame of the death
+var _death_frame := -1
+var _hud_nodes: Array[CanvasLayer] = []
+var _tier := 1
+
+
+func _init() -> void:
+	if OS.get_environment("BOT_TOUCH") != "":
+		Game.force_touch = true
+
+
+func _setup() -> void:
+	_setup_done = true
+	_p = Game.player as Player
+	_em = Game.enemies as EnemyManager
+	_tier = Game.quality
+	_em.patrol_groups().clear()
+	_em.clear()
+	_p.invuln = 1.0e6
+	_p.hp = _p.max_hp
+	_p.teleport_to(Game.SPAWN)
+	_p.camera_rig.reset_view(-PI * 0.5, -0.1)
+	_p.yaw = -PI * 0.5
+	var types: Array = [&"sentinel", &"operative", &"operative", &"sentinel"]
+	var far := OS.get_environment("BOT_FAR") != ""
+	for i in 4:
+		var off := Vector3(14.0 + 3.0 * i, 0.0, -6.0 + 4.0 * i) if not far else Vector3(55.0 + 3.0 * i, 0.0, -6.0 + 4.0 * i)
+		_drones.append(_em.spawn(types[i], Game.SPAWN + off, true))
+	for n in Game.vehicles.get_parent().get_children():
+		if n is Hud:
+			_hud_nodes.append(n)
+	if Game.story != null and Game.story.get_parent() is CanvasLayer:
+		_hud_nodes.append(Game.story.get_parent())
+	elif Game.story is CanvasLayer:
+		_hud_nodes.append(Game.story)
+
+
+func _max_into(dst: Dictionary, s: Dictionary) -> void:
+	for k: String in s:
+		dst[k] = maxf(float(dst.get(k, 0.0)), float(s[k]))
+
+
+func _dump_casters() -> void:
+	var agg := {}
+	var tri := {}
+	var stack: Array = [_p.get_tree().root]
+	var cam := _p.camera_rig.camera.global_position
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n is GeometryInstance3D and (n as GeometryInstance3D).is_visible_in_tree() and (n as GeometryInstance3D).cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+			var g := n as GeometryInstance3D
+			if g.global_position.distance_to(cam) > 120.0:
+				continue
+			var surf := 1
+			var t := 0
+			if g is MeshInstance3D and (g as MeshInstance3D).mesh != null:
+				surf = (g as MeshInstance3D).mesh.get_surface_count()
+				t = PerfProbe.mesh_triangles((g as MeshInstance3D).mesh)
+			elif g is MultiMeshInstance3D and (g as MultiMeshInstance3D).multimesh != null:
+				var mm := (g as MultiMeshInstance3D).multimesh
+				t = PerfProbe.mesh_triangles(mm.mesh) * mm.visible_instance_count if mm.visible_instance_count >= 0 else PerfProbe.mesh_triangles(mm.mesh) * mm.instance_count
+			var key := "%s/%s" % [str(n.get_parent().name).rstrip("0123456789"), str(n.name).rstrip("0123456789")]
+			agg[key] = int(agg.get(key, 0)) + surf
+			tri[key] = int(tri.get(key, 0)) + t
+	print("PERF casters (draw surfaces) ", agg)
+	print("PERF casters (triangles, one pass) ", tri)
+
+
+func step(_t: float, _delta: float) -> bool:
+	if Game.player == null or Game.enemies == null or Game.vehicles == null:
+		return false
+	if not _setup_done:
+		_setup()
+	_frame += 1
+	if _frame == SETTLE and OS.get_environment("BOT_DUMP") != "":
+		_dump_casters()
+	if _frame >= SETTLE and _frame < STAGE_END:
+		_max_into(_stage, PerfProbe.snapshot(_p.get_viewport()))
+	elif _frame == STAGE_END:
+		for l in _hud_nodes:
+			l.visible = false
+	elif _frame > STAGE_END and _frame <= HUD_OFF_END:
+		if _frame > STAGE_END + 2:
+			_max_into(_hud_off, PerfProbe.snapshot(_p.get_viewport()))
+	elif _frame == HUD_OFF_END + 1:
+		for l in _hud_nodes:
+			l.visible = true
+		for d in _drones:
+			if is_instance_valid(d):
+				(d as Drone).damage(9999.0)
+		_death_frame = _frame
+	elif _frame > HUD_OFF_END + 1 and _frame <= DEATH_END:
+		var s := PerfProbe.snapshot(_p.get_viewport())
+		if int(s["total_draws"]) >= int(_death.get("total_draws", 0)):
+			_death = s
+	if _frame >= DEATH_END:
+		Fixture.release_inputs()
+		var hud_draws := int(_stage.get("total_draws", 0)) - int(_hud_off.get("total_draws", 0))
+		print(PerfProbe.line("PERF staged", _stage))
+		print(PerfProbe.line("PERF no_hud", _hud_off))
+		print(PerfProbe.line("PERF death_worst", _death))
+		var bad := PerfProbe.violations(_stage, _tier, _death)
+		if Game.force_touch and hud_draws > PerfProbe.HUD_TOUCH_MAX_DRAWS + 8:
+			bad.append("canvas draws %d" % hud_draws)
+		print("PERF RESULT tier=%d renderer=%s touch=%d draws=%d prims=%d total_draws=%d total_prims=%d nodes=%d tex_mb=%.0f hud_draws=%d death_draws=%d death_prims=%d enemies=%d verdict=%s %s" % [
+			_tier, RenderingServer.get_current_rendering_method(), 1 if Game.force_touch else 0,
+			_stage.get("draws", 0), _stage.get("prims", 0), _stage.get("total_draws", 0), _stage.get("total_prims", 0), _stage.get("nodes", 0), _stage.get("tex_mb", 0.0), hud_draws,
+			_death.get("total_draws", 0), _death.get("total_prims", 0), _drones.size(), "OVER" if not bad.is_empty() else "OK", ";".join(bad)])
+		return true
+	return false

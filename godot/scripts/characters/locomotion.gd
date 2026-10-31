@@ -18,11 +18,11 @@ const FEET := 2
 const LATERAL_CLAMP := 1.1
 const SHIN_FORWARD := 0.12            ## where the soles of the idle stance sit (metres, forward of the model origin) comes from the rig's rest pose instead
 const SIGMA_WALK := 0.62
-const STEP_MAX := 0.86               ## longest ground contact travel of a foot (metres)
+const STEP_MAX := 0.66               ## longest ground contact travel of a foot (metres)
 const TOE_OFF := -0.5
 const HEEL_STRIKE := 0.24
 const RESTEP_DIST := 0.09
-const REACH_LEASH := 0.66            ## a planted foot farther than this from its hip (metres) is stepped
+const REACH_LEASH := 0.42            ## a planted foot farther than this from its hip (metres) is stepped
 
 var rig: CharacterRig
 var scale_amp := 1.0                 ## 1 hero, a little less for the shorter trooper
@@ -213,7 +213,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 					misplaced = true
 			var both_down := _stance(0, _phase) and _stance(1, _phase)
 			if misplaced or not both_down or _sigma < SIGMA_WALK - 0.03:
-				advance = dt * 2.4
+				advance = dt * 3.4
 		_phase += advance
 		_phase -= floorf(_phase)
 
@@ -244,7 +244,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 			_kk[k] = fu if fu < 1.0 else 0.15
 			_w[k] = PlayerUtil.damp(_w[k], 0.0, 30.0, dt) if fu < 1.0 else 0.3
 			continue
-		if in_stance and not was_swing and (_fp[k] - Vector2(_home[k].x, 0.0)).length() > REACH_LEASH * scale_amp and moving:
+		if in_stance and not was_swing and (_fp[k] - Vector2(_home[k].x, 0.0)).length() > REACH_LEASH * scale_amp and (moving or turning):
 			_forced[k] = 0.001
 			_lo[k] = _fp[k]
 			_swing[k] = 1

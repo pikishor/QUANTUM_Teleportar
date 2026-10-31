@@ -93,6 +93,8 @@ func spawn(type: StringName, pos: Vector3, aware := false, reinforce := false) -
 		return null
 	var d := _acquire(type)
 	d.activate(pos, aware, reinforce)
+	d.max_hp = float(d.cfg["hp"]) * Progress.enemy_hp_mult()       # sector difficulty (1.0 in sector 1)
+	d.hp = d.max_hp
 	if not list.has(d):
 		list.append(d)
 	return d

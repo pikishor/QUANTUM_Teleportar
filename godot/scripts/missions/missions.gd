@@ -9,6 +9,8 @@ extends Node
 ## API: cores: Array (remaining cores, each {pos: Vector3, node: Node3D, got: bool}) · pickups: Array (active pickups, each {kind, pos, t, node}) ·
 ## got · total · rounds · new_round(total := 6) · drop(kind, pos) · nearest_core(pos) -> {pos, dist} ({} if none) · clear_pickups().
 ## Lifecycle: new_game -> rounds = 0 and a fresh round of 6; next_sector -> min(9, 6 + rounds) cores; respawn keeps the cores and drops the pickups.
+## Contracts: `contracts` (Contracts) adds six procedural side-mission kinds chosen by the story chapter; `progress` (Progress, also Game.progress) holds the credit wallet,
+## shop upgrades, reputation and the save file. See ARCHITECTURE.md "Gameplay depth as implemented".
 ## Cost: a core is one beam (1 draw), one ground ring (1 draw), and, within GEM_NEAR metres of the camera only, the gem model (4 draws) and an omni light.
 
 const CORE_MIN_SPAWN := 140.0
@@ -33,6 +35,9 @@ var pickups: Array = []
 var got := 0
 var total := 6
 var rounds := 0
+## Procedural side missions (scripts/missions/contracts.gd) and the campaign state (scripts/progress/progress.gd): both are children of this node.
+var contracts: Contracts
+var progress: Progress
 ## Placement randomness: tests seed it for reproducible layouts.
 var rng := RandomNumberGenerator.new()
 
@@ -60,6 +65,12 @@ func _ready() -> void:
 		if _fill_script != null and _fill_script.has_method(&"ensure_light"):
 			_fill_script.call(&"ensure_light", self)             # the shared character fill light (one for the whole game)
 	_build_pickup_pool()
+	progress = Progress.new()
+	progress.name = "Progress"
+	add_child(progress)
+	contracts = Contracts.new()
+	contracts.name = "Contracts"
+	add_child(contracts)
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
 	Game.next_sector.connect(_on_next_sector)

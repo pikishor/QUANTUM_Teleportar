@@ -50,7 +50,7 @@ void vertex() {
 	v_col = mix(mix(tail, head, facing), siren, emerg) * intensity;
 	v_a = smoothstep(fade_near, fade_near + 26.0, d) * (1.0 - smoothstep(fade_far, fade_far + 180.0, d));
 	v_uv = UV * 2.0 - 1.0;
-	float size = (0.5 + d * 0.0034) * (1.0 + 0.5 * emerg);
+	float size = (0.9 + d * 0.0062) * (1.0 + 0.5 * emerg);
 	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], vec4(wp, 1.0));
 	VERTEX = vec3((UV - 0.5) * size, 0.0);
 }

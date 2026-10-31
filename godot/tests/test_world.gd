@@ -432,7 +432,7 @@ func _test_streaming(host: Node, city: City) -> void:
 	TestLib.check(complete, "every instance within a family's fade distance of the camera is drawn")
 	var drawn := city.stats()
 	var tris: int = int(drawn["triangles_drawn"]) + int(drawn["triangles_drawn_mirror"])
-	TestLib.check(tris < 140000, "medium tier at the spawn draws %d triangles (all families and the mirrored copies; budget 300k for the whole frame)" % tris)
+	TestLib.check(tris < 160000, "medium tier at the spawn draws %d triangles (all families and the mirrored copies; budget 300k for the whole frame)" % tris)
 	# the camera moves: the window follows, the instances near it are always there (non-forced updates, one per frame, like _process)
 	var covered := true
 	var rebuilt := 0
@@ -505,7 +505,7 @@ func _test_quality(host: Node, city: City) -> void:
 	city.set_quality(0)
 	var steam: MultiMeshInstance3D = by_name["Steam"]
 	var steam_low := steam.multimesh.visible_instance_count
-	TestLib.check(not (by_name["Trash"] as Node3D).visible and not (by_name["LampShafts"] as Node3D).visible, "quality 0 drops trash and light shafts")
+	TestLib.check(not (by_name["Trash"] as Node3D).visible and (by_name["LampShafts"] as Node3D).visible, "quality 0 drops trash (the lamp light shafts stay, windowed smaller)")
 	city.set_quality(1)
 	var steam_med := steam.multimesh.visible_instance_count
 	TestLib.check((by_name["Trash"] as Node3D).visible and (by_name["LampShafts"] as Node3D).visible, "quality 1 shows trash and light shafts")

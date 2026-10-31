@@ -18,13 +18,14 @@ void fragment() {
 	float a = atan(p.x, -p.y);
 	float f = (a < 0.0 ? a + 6.2831853 : a) / 6.2831853;
 	float fill = progress < 0.0 ? 1.0 : (f <= progress ? 1.0 : 0.2);
-	float disc = (1.0 - smoothstep(0.0, inner, r)) * 0.07;
+	float disc = (1.0 - smoothstep(0.0, inner, r)) * 0.035;
 	ALBEDO = tint.rgb * 1.5;
 	ALPHA = clamp(band * fill * (0.75 + 0.25 * sin(TIME * 3.0)) + disc, 0.0, 1.0);
 }
 """
 
 const BEAM_HEIGHT := 150.0
+const BEAM_NEAR := 16.0
 const ROUTE_Y := 0.14
 const DASH := 3.4
 const GAP := 2.2
@@ -85,7 +86,7 @@ func _build_marker(i: int) -> Dictionary:
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(ring)
 	add_child(root)
-	return {node = root, beam = beam, ring = ring, mat = mat, beams = beams}
+	return {node = root, beam = beam, ring = ring, mat = mat, beams = beams, beam_on = true}
 
 
 ## Show marker `i` (0 = a, 1 = b) at `pos`: `radius` is the ring's size in metres, `kind` colours it, `progress` < 0 draws a plain ring.
@@ -94,6 +95,7 @@ func show_marker(i: int, pos: Vector3, radius: float, color: Color, progress := 
 	var node: Node3D = m.node
 	node.position = Vector3(pos.x, maxf(pos.y, 0.0), pos.z)
 	node.visible = true
+	m.beam_on = beam
 	(m.beam as MeshInstance3D).visible = beam
 	var key := &"amber"
 	if color.is_equal_approx(ContractTypes.CYAN):
@@ -141,14 +143,14 @@ func set_route(points: PackedVector3Array) -> void:
 		var a := points[s]
 		var b := points[s + 1]
 		var seg := Vector3(b.x - a.x, 0.0, b.z - a.z)
-		var len := seg.length()
-		if len < 0.5:
+		var seg_len := seg.length()
+		if seg_len < 0.5:
 			continue
-		var dir := seg / len
+		var dir := seg / seg_len
 		var side := Vector3(-dir.z, 0.0, dir.x) * (ROUTE_WIDTH * 0.5)
 		var d := 0.0
-		while d < len:
-			var e := minf(d + DASH, len)
+		while d < seg_len:
+			var e := minf(d + DASH, seg_len)
 			var p0 := a + dir * d
 			var p1 := a + dir * e
 			var base := verts.size()
@@ -180,10 +182,16 @@ func set_route(points: PackedVector3Array) -> void:
 	route.visible = true
 
 
-## Pulses the markers a little (called by Contracts from _process, only while one is visible).
+## Called by Contracts from _process while a marker is visible: the beam turns slowly and is hidden within BEAM_NEAR metres of the camera, where an additive
+## column right next to the lens would only wash the street out (the ring stays).
 func animate(delta: float) -> void:
 	_t += delta
+	var cam := Game.camera if is_instance_valid(Game.camera) else null
 	for m: Dictionary in markers:
 		var node: Node3D = m.node
 		if node.visible:
-			(m.beam as Node3D).rotation.y += delta * 0.8
+			var beam := m.beam as Node3D
+			beam.rotation.y += delta * 0.8
+			if m.beam_on and cam != null:
+				var cp := cam.global_position
+				beam.visible = Vector2(node.global_position.x - cp.x, node.global_position.z - cp.z).length() > BEAM_NEAR

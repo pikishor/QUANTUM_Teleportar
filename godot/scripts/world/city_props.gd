@@ -8,6 +8,7 @@ extends RefCounted
 
 const MB := preload("res://scripts/world/mesh_builder.gd")
 const Roofs := preload("res://scripts/world/city_roofs.gd")
+const Facade := preload("res://scripts/world/city_facade.gd")
 
 ## Distance (metres) beyond which a family is no longer drawn (before the quality scale; see city_stream.gd). Tuned against the fog:
 ## at 200 m the exponential haze already covers about two thirds of an object.
@@ -326,6 +327,7 @@ func build(layout: CityLayout, building_data: Array = []) -> void:
 	_place_vents()
 	if not building_data.is_empty():
 		Roofs.new().build(self, layout, building_data)
+		Facade.new().build(self, layout, building_data)
 	_flush_glow()
 
 
@@ -355,7 +357,7 @@ func _place_lamps() -> void:
 	for i in shafts.size():
 		MB.write_instance(buf, i, shafts[i][0], true, shafts[i][1])
 	mm.buffer = buf
-	parts.append({"name": "LampShafts", "mm": mm, "kind": &"shaft", "mirror": false, "shadow": false, "min": 1, "radius": RADIUS_SHAFTS})
+	parts.append({"name": "LampShafts", "mm": mm, "kind": &"shaft", "mirror": false, "shadow": false, "min": 0, "radius": RADIUS_SHAFTS})
 
 
 func _place_signals() -> void:
@@ -514,4 +516,20 @@ func _place_vents() -> void:
 		items.append([Transform3D(Basis(Vector3.UP, 0.0), sp), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		vents.append(sp)
 		glow_add(sp + Vector3(0, 0.15, 0), Color(1.0, 0.5, 0.2, 0.8), 0, 2.6, 0.0, rng.randf())
+	# more vents at the kerbs and alley mouths of the streets, from their own random stream (nothing placed after this moves)
+	var vr := RandomNumberGenerator.new()
+	vr.seed = 8088
+	for k in 18:
+		var axis2 := vr.randi() % 2
+		var road2 := vr.randi_range(1, n - 1)
+		var seg2 := vr.randi_range(0, n - 1)
+		var c2 := CityLayout.road_center(road2)
+		var m2 := CityLayout.road_center(seg2) + vr.randf_range(16.0, CityLayout.PITCH - 16.0)
+		var lat2 := c2 + (vr.randf_range(6.4, 8.6) * (1.0 if vr.randf() < 0.5 else -1.0))
+		var pos2 := Vector3(m2, 0.0, lat2) if axis2 == 0 else Vector3(lat2, 0.0, m2)
+		if absf(pos2.x) > CityLayout.HALF - 12.0 or absf(pos2.z) > CityLayout.HALF - 12.0:
+			continue
+		items.append([Transform3D(Basis(Vector3.UP, 0.0 if axis2 == 0 else PI * 0.5), pos2), Color(vr.randf(), 0.0, 0.0, 1.0)])
+		vents.append(pos2)
+		glow_add(pos2 + Vector3(0, 0.15, 0), Color(1.0, 0.5, 0.2, 0.8), 0, 2.6, 0.0, vr.randf())
 	add_family("VentGrates", vent_mesh(), items, false, false, 0, RADIUS_VENTS)

@@ -24,6 +24,12 @@ void vertex() {
 	v_cust = INSTANCE_CUSTOM;
 	v_col = COLOR;
 	v_mr = UV2;
+	if (UV.x < -0.5) {
+		// facade kit (city_facade.gd): one mesh holds several modules, UV.x = -(1 + module); the instance keeps the one in INSTANCE_CUSTOM.w
+		if (abs(-UV.x - 1.0 - floor(INSTANCE_CUSTOM.w * 4.0)) > 0.5) {
+			VERTEX = vec3(0.0);
+		}
+	}
 	VERTEX *= 1.0 - smoothstep(lod_range.x, lod_range.y, distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz));
 }
 
@@ -86,6 +92,10 @@ void fragment() {
 					+ max(band(uv.y, 0.01, 0.03, 0.005), band(uv.y, 0.97, 0.99, 0.005)) * band(uv.x, 0.03, 0.97, 0.01);
 			float flick = 0.85 + 0.15 * sin(TIME * 2.2 + seed * 40.0);
 			flick *= 1.0 - 0.9 * step(0.99, hash11(floor(TIME * 7.0) + seed * 91.0));
+			// a dying sign (one in five): dark spells and a stuttering restart
+			float dying = step(0.8, hash11(seed * 17.3));
+			float cyc = fract(TIME / (8.0 + 7.0 * seed) + seed * 5.0);
+			flick *= mix(1.0, cyc < 0.62 ? 1.0 : (cyc < 0.8 ? step(0.5, hash11(floor(TIME * 11.0) + seed * 60.0)) : 0.03), dying);
 			emit = nc * (gl * 3.0 + frame * 2.0) * flick;
 			col = mix(col, vec3(0.015), 0.85);
 		} else if (is_code(code, 0.80)) {

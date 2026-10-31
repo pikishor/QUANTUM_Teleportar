@@ -595,11 +595,14 @@ func _legs_ik(d: float, hb: Basis) -> Vector3:
 			hs = minf(hs, hk)
 			wmax = maxf(wmax, wk)
 		if (sole_l if k == 0 else sole_r).y < 0.004:
-			h_cap = minf(h_cap, hock.y + sqrt(maxf(reach * reach * 0.995 - hz * hz, 0.01)) - j0.y)
+			var cap_k := hock.y + sqrt(maxf(reach * reach * 0.995 - hz * hz, 0.01)) - j0.y
+			if hz >= reach * 0.85:                       # out of reach (a landing after a hard stop, a foot just off the floor): the cap fades in with the weight it carries
+				cap_k = lerpf(_hips_rest_y, cap_k, clampf((wk - 0.05) * 2.0, 0.0, 1.0))
+			h_cap = minf(h_cap, cap_k)
 	var h_free := _hips_rest_y - 0.02
 	var h := h_free if hs == INF else lerpf(h_free, hs, wmax)
 	if hs != INF:                                          # a long stride must not fold the pelvis: the planted legs straighten first (bob stays a few centimetres)
-		var bob_max := lerpf(0.06, 0.13, clampf(run, 0.0, 1.0)) + 0.05 * clampf(ads, 0.0, 1.0)
+		var bob_max := lerpf(0.05, 0.09, clampf(run, 0.0, 1.0)) + 0.05 * clampf(ads, 0.0, 1.0)
 		h = maxf(h, minf(h_cap, _hips_rest_y - 0.02 - bob_max))
 	h = minf(h, h_cap + 0.0) - squash
 	var hips_off := Vector3(sway, h - _hips_rest_y, 0.0)

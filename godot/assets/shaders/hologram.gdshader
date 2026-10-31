@@ -12,10 +12,17 @@ varying flat vec4 v_cust;
 void vertex() {
 	v_uv = UV;
 	v_cust = INSTANCE_CUSTOM;
+	// the ad drifts: a slow bob and a sway that grows towards the top of the column
+	float t = TIME * (0.2 + 0.12 * hash11(INSTANCE_CUSTOM.x * 3.7)) + INSTANCE_CUSTOM.x * 30.0;
+	VERTEX.y += sin(t) * 0.8;
+	VERTEX.xz += vec2(sin(t * 0.7), cos(t * 0.53)) * 1.5 * (1.0 - UV.y);
 }
 
 void fragment() {
-	float seed = v_cust.x;
+	// an ad plays for 16-24 s, fades out and comes back with other content
+	float cyc = TIME / (16.0 + 8.0 * hash11(v_cust.x * 5.0)) + v_cust.x * 9.0;
+	float ad_fade = smoothstep(0.0, 0.06, fract(cyc)) * (1.0 - smoothstep(0.93, 1.0, fract(cyc)));
+	float seed = v_cust.x + floor(cyc) * 0.173;
 	vec3 c1 = NEON[int(mod(v_cust.y, 4.0))];
 	vec3 c2 = NEON[int(mod(v_cust.y + 1.0, 4.0))];
 	float h = 1.0 - v_uv.y;                       // 0 at the base, 1 at the top
@@ -35,6 +42,6 @@ void fragment() {
 	float edge = smoothstep(0.0, 0.05, h) * (1.0 - smoothstep(0.88, 1.0, h));
 	float flick = 0.85 + 0.15 * sin(TIME * 13.0 + seed * 20.0);
 	vec3 col = mix(c1, c2, h) * (g * 1.6 + 0.04 + fres * 0.35) * scan * edge * flick * (1.0 + glitch);
-	ALBEDO = col * v_cust.z;
-	ALPHA = clamp((g * 0.45 + 0.02 + fres * 0.14) * edge, 0.0, 1.0);
+	ALBEDO = col * v_cust.z * ad_fade;
+	ALPHA = clamp((g * 0.45 + 0.02 + fres * 0.14) * edge, 0.0, 1.0) * ad_fade;
 }

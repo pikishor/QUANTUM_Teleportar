@@ -110,6 +110,12 @@ func add_credits(n: int) -> void:
 	changed.emit()
 
 
+## Score that is not paid out in credits as well (a contract's bonus): the score-to-credits conversion skips it.
+func bonus_score(n: int) -> void:
+	_last_score += n
+	Game.add_score(n)
+
+
 func spend(n: int) -> bool:
 	if n < 0 or n > credits:
 		return false
@@ -165,14 +171,20 @@ func grant_upgrade(id := &"", rng: RandomNumberGenerator = null) -> StringName:
 func _set_level(id: StringName, lvl: int) -> void:
 	levels[id] = clampi(lvl, 0, Upgrades.MAX_LEVEL)
 	levels = Upgrades.set_levels(levels)
-	_apply_to_player()
+	_apply_to_player(true)
 
 
-## The magazine is the one upgrade that has to be pushed into live state (the others are read when used).
-func _apply_to_player() -> void:
+## The magazine is the one upgrade that has to be pushed into live state (the others are read when used). `top_up` gives the new rounds at once (a purchase), otherwise the
+## rounds are only clamped to the new size (a campaign reset).
+func _apply_to_player(top_up := false) -> void:
 	var p := Game.player
-	if is_instance_valid(p) and p.get(&"mag") != null:
-		p.set(&"mag", Upgrades.mag_size())
+	if not is_instance_valid(p) or p.get(&"mag") == null:
+		return
+	var before := int(p.get(&"mag"))
+	var size := Upgrades.mag_size()
+	p.set(&"mag", size)
+	var ammo := int(p.get(&"ammo"))
+	p.set(&"ammo", ammo + maxi(size - before, 0) if top_up else mini(ammo, size))
 
 
 func add_reputation(n: int) -> void:
@@ -193,6 +205,7 @@ func new_campaign() -> void:
 	contracts_done = 0
 	contracts_failed = 0
 	_frac = 0.0
+	_apply_to_player()
 	changed.emit()
 
 

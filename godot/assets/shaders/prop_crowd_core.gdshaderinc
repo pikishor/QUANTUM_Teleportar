@@ -16,8 +16,8 @@ varying flat vec3 v_tint;
 varying flat float v_surface;
 varying vec3 v_wn;
 
-const vec3 COATS[8] = vec3[8](vec3(0.045, 0.05, 0.06), vec3(0.09, 0.06, 0.05), vec3(0.05, 0.08, 0.10), vec3(0.14, 0.12, 0.10),
-		vec3(0.02, 0.45, 0.55), vec3(0.62, 0.08, 0.30), vec3(0.50, 0.38, 0.06), vec3(0.20, 0.10, 0.45));
+const vec3 COATS[8] = vec3[8](vec3(0.040, 0.045, 0.060), vec3(0.075, 0.055, 0.045), vec3(0.045, 0.065, 0.085), vec3(0.085, 0.080, 0.070),
+		vec3(0.015, 0.20, 0.24), vec3(0.24, 0.035, 0.12), vec3(0.10, 0.10, 0.11), vec3(0.075, 0.045, 0.18));
 
 void vertex() {
 	float seed = INSTANCE_CUSTOM.x;
@@ -61,7 +61,7 @@ void fragment() {
 	vec3 col = mix(skin, cloth, step(0.25, v_surface));
 	float wet = clamp(wetness, 0.0, 1.0);
 #ifdef MIRROR
-	ALBEDO = col * vec3(0.05, 0.07, 0.09) + col * v_pool * 1.2;
+	ALBEDO = col * vec3(0.05, 0.07, 0.09) + col * v_pool * 0.6;
 #else
 	ALBEDO = col;
 	ROUGHNESS = mix(0.8, 0.42, wet * step(0.75, v_surface));
@@ -71,6 +71,6 @@ void fragment() {
 	float rim = pow(1.0 - clamp(dot(nv, normalize(VIEW)), 0.0, 1.0), 3.0);
 	vec3 up = (INV_VIEW_MATRIX * vec4(nv, 0.0)).xyz;
 	vec3 fill = vec3(0.020, 0.030, 0.042) * (0.5 + 0.5 * clamp(up.y * 0.5 + 0.5, 0.0, 1.0));
-	EMISSION = col * (v_pool * 1.6 + fill * 6.0) + vec3(0.10, 0.20, 0.28) * rim * 0.55;
+	EMISSION = col * (v_pool * 0.8 + fill * 6.0) + vec3(0.10, 0.20, 0.28) * rim * 0.55;
 #endif
 }

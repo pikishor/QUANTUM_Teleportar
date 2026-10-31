@@ -47,6 +47,7 @@ var end_card: Dictionary = {}
 var end_age := 0.0
 var epilogue_seen := false
 var view: StoryView
+var tutorial: Tutorial               ## first-launch training (scripts/story/tutorial.gd)
 
 var _seen := {}
 var _bags := {}
@@ -78,6 +79,10 @@ func _ready() -> void:
 	view.name = "View"
 	view.story = self
 	layer.add_child(view)
+	tutorial = Tutorial.new()
+	tutorial.name = "Tutorial"
+	add_child(tutorial)
+	cards_finished.connect(_on_cards_finished)
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
 	Game.next_sector.connect(_on_next_sector)
@@ -359,6 +364,23 @@ func _begin_chapter() -> void:
 	banner_t = 0.0
 	trigger_chapter("intro")
 	chapter_started.emit(chapter)
+
+
+## Jumps to a chapter without the prologue (CONTINUE from a save): the banner and the chapter intro play, nothing else.
+func set_chapter(index: int) -> void:
+	_clear_transient()
+	cards.clear()
+	card_kind = &""
+	chapter = maxi(index, 0)
+	_resync = true
+	tutorial.stop()
+	if enabled:
+		_begin_chapter()
+
+
+func _on_cards_finished(kind: StringName) -> void:
+	if kind == &"prologue" and tutorial != null:
+		tutorial.maybe_start()
 
 
 func _on_new_game() -> void:

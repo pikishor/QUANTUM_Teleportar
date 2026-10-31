@@ -10,7 +10,11 @@ uniform vec4 light_rect = vec4(-352.0, -352.0, 704.0, 704.0);                   
 uniform sampler2D lot_map : filter_nearest, repeat_disable, hint_default_white;     // 16x16, r = 1 where a lot has a building
 uniform float mirror_amount : hint_range(0.0, 1.0) = 1.0;                             // 0 = opaque ground (no mirror pass)
 uniform float detail : hint_range(0.0, 1.0) = 1.0;
-uniform float ambient_boost = 0.16;                                                   // fake city bounce on the ground (lifts the near field out of black)
+#ifdef LITE
+uniform float ambient_boost = 0.11;
+#else
+uniform float ambient_boost = 0.32;
+#endif                                                   // fake city bounce on the ground (lifts the near field out of black)
 #ifndef LITE
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;   // holds the mirrored city (opaque pass)
 #endif
@@ -128,7 +132,7 @@ void fragment() {
 		float tone = fine ? fbm2a(q * 0.16, 6.0, aa) : vn(q * 0.16, 6.0, aa);
 		float speck = mix(0.5, hash12(floor(q * 70.0)), resolve(0.014, aa));       // grit: only where single grains can be told apart
 		float patch_n = vnoise(q * 0.045 + 3.0);
-		vec3 asph = vec3(0.110, 0.116, 0.128) * (0.70 + 0.55 * tone) * (0.93 + 0.14 * speck);
+		vec3 asph = vec3(0.150, 0.158, 0.172) * (0.70 + 0.55 * tone) * (0.93 + 0.14 * speck);
 		asph *= mix(1.0, 0.62, smoothstep(0.62, 0.72, patch_n));                    // darker re-surfaced patches
 		float lane_w = (1.0 - junction) * (1.0 - smoothstep(0.6, 1.1, abs(abs(alat - 5.0) - 0.85)));
 		float lane_noise = fine ? vn(vec2(al * 0.7, lat * 3.0) + 5.0, 0.35, aa) : 0.5;
@@ -181,7 +185,9 @@ void fragment() {
 		float worn = 0.55 + 0.45 * vn(q * 3.1 + 17.0, 0.33, aa) * (0.6 + 0.4 * speck);
 		paint *= worn * 0.95;
 		matte = clamp(zebra + stop + arrow, 0.0, 1.0);
-		albedo = mix(albedo, pcol * 0.8, paint);
+		// paint is worn away where the tyres run, and dirtier than fresh: a crosswalk reads as paint on asphalt, not as a sticker
+		paint *= 1.0 - 0.5 * lane_w * clamp(zebra + stop + arrow, 0.0, 1.0);
+		albedo = mix(albedo, pcol * 0.62, paint);
 		rough = mix(rough, 0.75, paint);
 
 		// ---- manholes and drains --------------------------------------------------------------------------
@@ -330,7 +336,11 @@ void fragment() {
 
 	// wetness: darker, smoother
 	float soak = wet * (1.0 - 0.5 * porous);
-	albedo *= mix(1.0, 0.62, soak);
+#ifdef LITE
+	albedo *= mix(1.0, 0.66, soak);                                               // LOW: no mirror to carry the wet look, so the road itself is a little darker and glossier
+#else
+	albedo *= mix(1.0, 0.76, soak);
+#endif
 	rough = mix(rough, 0.22, wet * (1.0 - porous) * 0.9);
 	rough = mix(rough, 0.35, wet * porous);
 	rough = mix(rough, 0.10, polish * wet * 0.5);
@@ -341,7 +351,7 @@ void fragment() {
 	// lamp / neon pools baked into the light map: diffuse light on the ground
 	vec2 luv = (q - light_rect.xy) / light_rect.zw;
 	vec3 pool = texture(light_map, luv).rgb;
-	emit += albedo * pool * 1.7;
+	emit += albedo * pool * 1.8;
 
 	// ---------------------------------------------------------------------------------------------------------
 	// normal: the flat ground plus ripples, slab rocking and the analytic kerb slope. Nothing is taken from screen-space derivatives
@@ -365,6 +375,11 @@ void fragment() {
 	gloss *= 1.0 - 0.85 * matte;
 	gloss = max(gloss, puddle * wet * (1.0 - 0.6 * matte));
 	float refl = clamp(fres * gloss * 1.15, 0.0, 0.92) * mirror_amount;
+#ifdef LITE
+	// LOW tier: no mirrored city to look into, so the wet sheen is baked into the look: a floor of reflection of the lamp and neon streaks that
+	// also shows when looking straight down at the road (the full tier gets it from the mirror pass), kept off the painted, matte crosswalks
+	refl = max(refl, 0.26 * wet * (1.0 - porous) * (1.0 - 0.9 * matte) * mix(0.55, 1.0, smoothstep(0.25, 0.75, patchy)));
+#endif
 
 	vec3 rc = vec3(0.0);
 #ifndef LITE
@@ -390,14 +405,14 @@ void fragment() {
 		// pools stretched toward the viewer as streaks
 		vec3 Rl = reflect(-V, Nw);
 		float sk = clamp(Rl.y, 0.0, 1.0);
-		rc = mix(vec3(0.045, 0.058, 0.085), vec3(0.012, 0.018, 0.034), sqrt(sk)) + vec3(0.20, 0.09, 0.13) * exp(-sk * 7.0) * 0.40;
+		rc = mix(vec3(0.055, 0.070, 0.105), vec3(0.014, 0.022, 0.042), sqrt(sk)) + vec3(0.26, 0.12, 0.17) * exp(-sk * 7.0) * 0.45;
 		vec2 away_l = -normalize(toc.xz + vec2(1e-5));
 		vec3 stk = vec3(0.0);
 		for (int k = 1; k <= 4; k++) {
 			float kk = float(k) * 2.6 * (1.0 + 2.0 * (1.0 - ndv));
 			stk += texture(light_map, (q + away_l * kk - light_rect.xy) / light_rect.zw).rgb * (1.2 - 0.2 * float(k));
 		}
-		rc += stk * 0.40 * (1.0 + puddle);
+		rc += stk * 0.5 * (1.0 + puddle);
 	}
 #endif
 
@@ -418,7 +433,7 @@ void fragment() {
 
 	// fake city bounce keeps asphalt readable between the lamps
 	float lift_var = 0.625 + 0.5 * vnoise(q * 0.035 + 13.0) + 0.25 * vnoise(q * 0.2 + 2.0);
-	emit += (albedo + vec3(0.022, 0.028, 0.036)) * vec3(0.55, 0.75, 1.0) * ambient_boost * lift_var * (1.0 + 0.5 * (1.0 - smoothstep(0.0, 45.0, dist)));
+	emit += (albedo * 0.8 + vec3(0.030, 0.038, 0.050)) * vec3(0.55, 0.75, 1.0) * ambient_boost * lift_var * (1.0 + 0.5 * (1.0 - smoothstep(0.0, 45.0, dist)));
 
 	ALBEDO = albedo * (1.0 - refl);
 	ROUGHNESS = rough;

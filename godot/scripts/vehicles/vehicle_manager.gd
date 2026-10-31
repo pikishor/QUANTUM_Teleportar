@@ -434,7 +434,7 @@ func _stream() -> void:
 	var i := list.size() - 1
 	while i >= 0:
 		var v := list[i]
-		if v != starter and not v.driver_is_player and _dist(v, ppos) > VehicleSpecs.DESPAWN_RADIUS:
+		if v != starter and not v.driver_is_player and not v.has_meta(&"hold") and _dist(v, ppos) > VehicleSpecs.DESPAWN_RADIUS:
 			_release(v)
 		i -= 1
 	_trim_to_cap()
@@ -451,7 +451,7 @@ func _trim_to_cap() -> void:
 		var far: Vehicle = null
 		var far_d := -1.0
 		for v in list:
-			if v == starter or v.driver_is_player:
+			if v == starter or v.driver_is_player or v.has_meta(&"hold"):       # a mission's target car (Contracts) is never recycled
 				continue
 			var d := _dist(v, ppos) if ppos.is_finite() else 0.0
 			if d > far_d:

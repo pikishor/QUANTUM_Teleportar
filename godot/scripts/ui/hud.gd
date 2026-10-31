@@ -36,6 +36,9 @@ var _hover := &""
 var _layout_key := ""
 var _obj_text := ""
 var _cred_text := ""
+var _contract_text := ""
+var _shop_open := false             ## the pause screen shows the upgrade shop instead of the settings
+var _has_save := false              ## a save file exists (the title offers CONTINUE)
 var _hint_text := ""
 var _text_t := 0.0
 var _ammo_key := -1
@@ -120,6 +123,9 @@ func apply_settings(with_quality := true) -> void:
 func _on_state(s: StringName) -> void:
 	screen_age = 0.0
 	_hover = &""
+	_shop_open = false
+	if s == &"menu":
+		_has_save = Game.progress != null and bool(Game.progress.call(&"has_save"))
 	if s == &"dead" or s == &"win":
 		record_best()
 	_hud.visible = s != &"menu"
@@ -244,7 +250,30 @@ func _button_at(pos: Vector2) -> StringName:
 
 ## The effect of every screen button (the tests press them through here).
 func press_button(id: StringName) -> bool:
+	var sid := String(id)
+	if sid.begins_with("buy_"):
+		if Game.state != &"paused" or not _shop_open or Game.progress == null:
+			return false
+		if not bool(Game.progress.call(&"buy", StringName(sid.substr(4)))):
+			return false
+		Sfx.play(&"pickup")
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
 	match id:
+		&"continue":
+			if Game.state != &"menu" or Game.progress == null or not _has_save:
+				return false
+			if not bool(Game.progress.call(&"continue_game")):
+				return false
+		&"shop":
+			if Game.state != &"paused" or Game.progress == null:
+				return false
+			_shop_open = true
+		&"shop_back":
+			if Game.state != &"paused":
+				return false
+			_shop_open = false
 		&"deploy":
 			if Game.state != &"menu":
 				return false
@@ -354,7 +383,8 @@ func _process(delta: float) -> void:
 	if _text_t <= 0.0:
 		_text_t = 0.2
 		_obj_text = objective_text()
-		_cred_text = "CREDITS  %d" % Game.score
+		_cred_text = "CREDITS  %d" % (int(Game.progress.get(&"credits")) if Game.progress != null else Game.score)
+		_contract_text = _contract_line()
 		_hint_text = hint_text()
 	var vp := get_viewport().get_visible_rect().size
 	var s := UiUtil.ui_scale(vp)
@@ -498,7 +528,7 @@ func _draw_hud_body() -> void:
 			var vh := UiUtil.num(veh, &"hp", 0.0)
 			_bar(c, font, bx, y0 + 48.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
 		var obj := _plate_text(c, font, vp.x * 0.5, plate.end.y + 4.0 * s, _obj_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.MAGENTA.lerp(Color.WHITE, 0.45), 1.0), s, Color(UiUtil.MAGENTA, 0.6), 300.0 * s)
-		stack_end = obj.end.y
+		stack_end = _draw_contract(c, vp, s, font, obj.end.y)
 	UiUtil.stack_bottom = stack_end / s
 	# top right: heat stars and credits on one plate
 	_plate(c, Rect2(right - 176.0 * s, top, 184.0 * s, 76.0 * s), s)
@@ -548,6 +578,7 @@ func _draw_hud_body() -> void:
 			_text(c, font, Vector2(r.position.x, r.position.y + 27.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(UiUtil.TEXT_MIN * 0.9 * s), Color(1, 1, 1, 0.97 * dim), 1.0 * s)
 	if playing:
 		_draw_quantum_readout(c, vp, s, font)
+		_draw_tutorial(c, vp, s, font)
 	if playing and veh == null:
 		_draw_crosshair(c, p, vp, s, now)
 	if playing and _hint_text != "":
@@ -658,7 +689,7 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 
 func _ensure_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
-	var key := "%s|%d|%d|%d|%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted]
+	var key := "%s|%d|%d|%d|%d|%s%s|%s%s%d" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, _shop_open, _has_save, _wallet()]
 	if key == _layout_key:
 		return
 	_layout_key = key
@@ -667,12 +698,25 @@ func _ensure_layout() -> void:
 	var cx := vp.x * 0.5
 	match Game.state:
 		&"menu":
-			_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
-			_settings_rows(cx, 430.0, s)
+			if _has_save:
+				_add(&"continue", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "CONTINUE", false)
+				_add(&"deploy", Rect2(cx - 170.0 * s, 392.0 * s, 340.0 * s, 44.0 * s), "NEW GAME", false)
+				_settings_rows(cx, 478.0, s)
+			else:
+				_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
+				_settings_rows(cx, 430.0, s)
 		&"paused":
-			_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
-			_settings_rows(cx, 350.0, s)
-			_add(&"menu", Rect2(cx - 154.0 * s, 484.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
+			if _shop_open:
+				ShopScreen.layout(self, cx, s)
+			elif Game.progress != null:
+				_add(&"resume", Rect2(cx - 170.0 * s, 232.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
+				_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 340.0 * s, 44.0 * s), "UPGRADES", false)
+				_settings_rows(cx, 388.0, s)
+				_add(&"menu", Rect2(cx - 154.0 * s, 520.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
+			else:
+				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
+				_settings_rows(cx, 350.0, s)
+				_add(&"menu", Rect2(cx - 154.0 * s, 484.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
 		&"dead":
 			_add(&"respawn", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)      # low on the screen: the middle stays free for the world
 		&"win":
@@ -724,12 +768,15 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			_text(c, font, Vector2(0.0, 258.0 * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 			if is_instance_valid(Game.story) and Game.story.has_method(&"tagline"):
 				_text(c, font, Vector2(0.0, 294.0 * s), str(Game.story.call(&"tagline")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.85), 1.0 * s)
-			_text(c, font, Vector2(0.0, 424.0 * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
+			_text(c, font, Vector2(0.0, (472.0 if _has_save else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 			_footer(c, vp, s, font)
 		&"paused":
-			_text(c, font, Vector2(0.0, 190.0 * s), "PAUSED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(64.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
-			_text(c, font, Vector2(0.0, 344.0 * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
-			_footer(c, vp, s, font)
+			if _shop_open:
+				ShopScreen.draw(self, c, vp, s, font, cx)
+			else:
+				_text(c, font, Vector2(0.0, 190.0 * s), "PAUSED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(64.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+				_text(c, font, Vector2(0.0, (382.0 if Game.progress != null else 344.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
+				_footer(c, vp, s, font)
 		&"dead":
 			_text(c, font, Vector2(0.0, 170.0 * s), "DECOHERED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(84.0 * s), Color(UiUtil.RED, 0.97), 3.0 * s)
 			_score_lines(c, vp, s, font, 226.0)
@@ -752,7 +799,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 
 
 func _score_lines(c: Control, vp: Vector2, s: float, font: Font, y: float) -> void:
-	_text(c, font, Vector2(0.0, y * s), "CREDITS  %d" % Game.score, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(30.0 * s), Color(1, 1, 1, 0.95), 1.5 * s)
+	var line1 := "CREDITS  %d" % Game.score if Game.progress == null else "SCORE  %d      CREDITS  %d" % [Game.score, _wallet()]
+	_text(c, font, Vector2(0.0, y * s), line1, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(30.0 * s), Color(1, 1, 1, 0.95), 1.5 * s)
 	var line := "NEW BEST" if new_best else "BEST  %d" % settings.best
 	_text(c, font, Vector2(0.0, (y + 36.0) * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.AMBER, 0.95))
 
@@ -765,3 +813,93 @@ func _footer(c: Control, vp: Vector2, s: float, font: Font) -> void:
 	_text(c, font, Vector2(0.0, vp.y - 40.0 * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, size, Color(1, 1, 1, 0.75), 1.0 * s)
 	if Game.state == &"menu":
 		_text(c, font, Vector2(0.0, vp.y - 90.0 * s), "BEST  %d" % settings.best, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# contracts, boss bar, tutorial, wallet (gameplay depth)
+# ---------------------------------------------------------------------------------------------------------------------
+
+func _wallet() -> int:
+	return int(Game.progress.get(&"credits")) if Game.progress != null else 0
+
+
+func _contracts() -> Object:
+	var m: Object = Game.missions if is_instance_valid(Game.missions) else null
+	return m.get(&"contracts") if m != null else null
+
+
+## The contract line ("HACK NODE  62%  1:20") or "" when none is offered or running.
+func _contract_line() -> String:
+	var k := _contracts()
+	return str(k.call(&"hud_line")) if k != null else ""
+
+
+## The tutorial node of the story layer (null without a story).
+func tutorial() -> Object:
+	var st: Object = Game.story if is_instance_valid(Game.story) else null
+	return st.get(&"tutorial") if st != null else null
+
+
+## Under the objective plate: the contract plate with a thin progress bar, then the officer's boss bar. Returns the new bottom of the stack (px).
+func _draw_contract(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+	var k := _contracts()
+	if k == null:
+		return y
+	var end := y
+	if _contract_text != "":
+		var col := Color(UiUtil.AMBER.lerp(Color.WHITE, 0.35), 1.0)
+		var r := _plate_text(c, font, vp.x * 0.5, y + 4.0 * s, _contract_text, int(UiUtil.TEXT_MIN * s), col, s, Color(UiUtil.AMBER, 0.7), 300.0 * s)
+		end = r.end.y
+		var pf := float(k.call(&"progress_fraction"))
+		if pf >= 0.0:
+			var bar := Rect2(r.position.x, r.end.y, r.size.x, 6.0 * s)
+			_rect(c, bar, Color(0.0, 0.03, 0.05, 0.7))
+			_rect(c, Rect2(bar.position, Vector2(bar.size.x * clampf(pf, 0.0, 1.0), bar.size.y)), Color(UiUtil.AMBER, 0.95))
+			end = bar.end.y
+	var boss: Dictionary = k.call(&"boss")
+	if not boss.is_empty():
+		var bw := 360.0 * s
+		var by := end + 8.0 * s
+		var br := Rect2(vp.x * 0.5 - bw * 0.5, by + 22.0 * s, bw, 12.0 * s)
+		_text(c, font, Vector2(br.position.x, by + 18.0 * s), str(boss["name"]), HORIZONTAL_ALIGNMENT_CENTER, bw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.RED, 0.97), 1.0 * s)
+		_rect(c, br.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.7))
+		_rect(c, Rect2(br.position, Vector2(bw * float(boss["frac"]), br.size.y)), Color(UiUtil.RED, 0.95))
+		_frame(c, br, Color(UiUtil.RED, 0.8), 1.0 * s)
+		end = br.end.y + 4.0 * s
+	return end
+
+
+## The training prompt: a plate low in the middle (between the stick and the buttons on phones) with a SKIP plate beside it.
+func _draw_tutorial(c: Control, vp: Vector2, s: float, font: Font) -> void:
+	var t: Object = tutorial()
+	if t == null or t.get(&"active") != true:
+		if t != null:
+			t.set(&"skip_rect", Rect2())
+		return
+	var text := str(t.call(&"prompt"))
+	if text == "":
+		return
+	var ins := UiUtil.insets(vp)
+	var left := ins.x + 200.0 * s
+	var right := vp.x - ins.y - 200.0 * s
+	if touch_ui_on():
+		right = minf(right, vp.x - ins.y - StoryView.TOUCH_BUTTONS_W * s)
+	right = maxf(right, left + 340.0 * s)
+	var skip_w := 96.0 * s
+	var avail := right - left - skip_w - 12.0 * s
+	var size := int(24.0 * s)
+	while size > int(16.0 * s) and _text_width(font, text, size) + 32.0 * s > avail:
+		size -= 1
+	var w := minf(_text_width(font, text, size) + 32.0 * s, avail)
+	var total := w + 12.0 * s + skip_w
+	var x0 := (left + right) * 0.5 - total * 0.5
+	var y0 := vp.y - UiUtil.insets_v(vp).y - 218.0 * s
+	var h := 62.0 * s
+	var main := Rect2(x0, y0, w, h)
+	_plate(c, main, s, Color(UiUtil.AMBER, 0.8))
+	_text(c, font, Vector2(main.position.x, y0 + 20.0 * s), str(t.call(&"counter_text")), HORIZONTAL_ALIGNMENT_CENTER, w, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+	_text(c, font, Vector2(main.position.x, y0 + h - 12.0 * s), text, HORIZONTAL_ALIGNMENT_CENTER, w, size, Color(1, 1, 1, 0.98), 1.5 * s)
+	var skip := Rect2(main.end.x + 12.0 * s, y0, skip_w, h)
+	_plate(c, skip, s, Color(UiUtil.CYAN, 0.6))
+	_text(c, font, Vector2(skip.position.x, y0 + h * 0.5 + 8.0 * s), str(t.call(&"skip_hint")), HORIZONTAL_ALIGNMENT_CENTER, skip.size.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
+	t.set(&"skip_rect", skip)

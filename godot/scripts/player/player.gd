@@ -338,7 +338,7 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 		last_hurt_from = from_pos
 		hurt.emit(share)
 		return
-	hp -= amount
+	hp -= amount * Upgrades.damage_taken()
 	since_hurt = 0.0
 	last_hurt_time = PlayerUtil.now()
 	last_hurt_from = from_pos
@@ -439,7 +439,7 @@ func _tick(dt: float) -> void:
 	since_hurt += dt
 	if hp < max_hp and since_hurt > REGEN_DELAY and not _dead:
 		hp += REGEN_RATE * dt
-	energy += (ENERGY_REGEN_DRIVING if _in_vehicle else ENERGY_REGEN) * dt
+	energy += (ENERGY_REGEN_DRIVING if _in_vehicle else ENERGY_REGEN) * Upgrades.regen_mult() * dt
 	if _dead:
 		return
 	if _in_vehicle:

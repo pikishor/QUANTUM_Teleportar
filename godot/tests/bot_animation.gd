@@ -186,7 +186,7 @@ func _measure() -> void:
 		_pelvis_hi = maxf(_pelvis_hi, hips.y - gy)
 	_pelvis_all_lo = minf(_pelvis_all_lo, hips.y - gy)
 	if OS.get_environment("BOT_TRACE") != "":
-		print("TRACE f=%d v=%.2f hip=%.3f sup=%.2f/%.2f kk=%.2f/%.2f sw=%d%d sole=(%.2f,%.2f)/(%.2f,%.2f) sq=%.3f" % [_f, lc.speed, hips.y - gy, rg.support_l, rg.support_r, lc.stance_progress(0), lc.stance_progress(1), int(not lc.planted_l), int(not lc.planted_r), rg.sole_l.x, rg.sole_l.z, rg.sole_r.x, rg.sole_r.z, rg.squash])
+		print("TRACE f=%d v=%.2f hip=%.3f sup=%.2f/%.2f kk=%.2f/%.2f sw=%d%d sole=(%.2f,%.2f)/(%.2f,%.2f) sq=%.3f dead=%.2f rot=(%.2f,%.2f) y=%.2f" % [_f, lc.speed, hips.y - gy, rg.support_l, rg.support_r, lc.stance_progress(0), lc.stance_progress(1), int(not lc.planted_l), int(not lc.planted_r), rg.sole_l.x, rg.sole_l.z, rg.sole_r.x, rg.sole_r.z, rg.squash, rg.dead, rg.model.global_rotation.x, rg.model.global_rotation.z, rg.model.global_position.y])
 	_knee_max = maxf(_knee_max, absf(rg.skeleton.get_bone_pose(rg.skeleton.find_bone("ShinL")).basis.get_euler().x))
 
 
@@ -203,6 +203,9 @@ func _report(name: String) -> void:
 
 
 func _dump_tree() -> void:
+	var _r0 := _rig()
+	if _r0 != null:
+		print("BOT rig legs: l1 %.3f l2 %.3f d_rest %.3f hips_rest_y %.3f rest_foot %.3f" % [_r0._leg_l1, _r0._leg_l2, _r0._d_rest, _r0._hips_rest_y, _r0._rest_foot])
 	_tree_done = true
 	var op := Game.enemies.spawn(&"operative", Game.SPAWN + Vector3(9.0, 0.0, 0.0), true) as Operative
 	var roots: Array = [["hero", _p], ["trooper", op]]

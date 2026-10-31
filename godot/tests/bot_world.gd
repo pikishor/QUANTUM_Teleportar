@@ -4,7 +4,7 @@ extends RefCounted
 ##   tools/bot.sh res://tests/bot_world.gd /tmp/world 20 10
 ## One shot per screenshot: shot k is taken at the end of its short dolly move, so every picture is deterministic.
 ## Optional user args (after --): --cam=x,y,z,tx,ty,tz[,fov];... (fixed poses, one per shot), --fov=70, --quality=0..2, --wet=0..1, --rain=0..1,
-## --stats (print visible / shadow / total draw calls and primitives for every shot: `visible` is the camera pass, the number the budgets in
+## --hide=Family,Family (hide families and their mirrored copies), --stats (print visible / shadow / total draw calls and primitives for every shot: `visible` is the camera pass, the number the budgets in
 ## BUDGETS.md talk about; the engine's global total adds the shadow cascades), --shots=a,b,c (only these shot names).
 ## tools/bot.sh does not forward user args: run the main scene yourself with `-- --bot=res://tests/bot_world.gd --shot-seq=PREFIX --every=N --count=M --stats ...`.
 
@@ -124,6 +124,7 @@ func _setup() -> void:
 	_cam.near = 0.1
 	tree.root.add_child(_cam)
 	_cam.make_current()
+	_free_the_camera(tree)
 	if Game.world != null and _args.has("quality") and Game.world.has_method("set_quality"):
 		Game.world.set_quality(int(_args["quality"]))
 	if _args.has("wet"):
@@ -132,12 +133,33 @@ func _setup() -> void:
 		RenderingServer.global_shader_parameter_set(&"rain", float(_args["rain"]))
 
 
+## The stability watchdog hands the view back to the gameplay camera once a second and the HUD, the hero and the post layers sit in front of the
+## world: a world bot (run through main.tscn) stops the watchdog and hides the HUD and the hero (--keep_hud keeps them).
+func _free_the_camera(tree: SceneTree) -> void:
+	for n in tree.root.find_children("*", "Node", true, false):
+		var sc: Script = n.get_script()
+		if sc == null:
+			continue
+		var path: String = sc.resource_path
+		if path.ends_with("/stability.gd"):
+			n.process_mode = Node.PROCESS_MODE_DISABLED
+		elif n is CanvasLayer and path.contains("/scripts/ui/") and not _args.has("keep_hud"):
+			(n as CanvasLayer).visible = false
+	if is_instance_valid(Game.player) and not _args.has("keep_hud"):
+		(Game.player as Node3D).visible = false
+
+
 func step(_t: float, _delta: float) -> bool:
 	if Game.world == null:
 		return false
 	if not _setup_done:
 		_setup()
 	_frame += 1
+	if _args.has("hide") and _frame == _every * int(_args.get("hide_from", "0")) + 1:
+		# --hide=AmbientTraffic,FacadeKit[,..] [--hide_from=k]: hide those families (real and mirrored copies) from shot k on: A/B draw-call numbers in one run
+		for nm: String in String(_args["hide"]).split(","):
+			for n in _tree().root.find_children(nm + "*", "MultiMeshInstance3D", true, false):
+				(n as Node3D).visible = false
 	var shot_i := clampi(int(ceil(float(_frame) / float(_every))) - 1, 0, _shots.size() - 1)
 	var f := float((_frame - 1) % _every + 1) / float(_every)
 	f = f * f * (3.0 - 2.0 * f) if _every > 1 else 1.0

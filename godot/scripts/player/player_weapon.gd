@@ -74,8 +74,8 @@ func set_effects(decals: ImpactDecals, sparks: ImpactSparks) -> void:
 
 
 func reset() -> void:
-	mag = MAG_SIZE
-	ammo = MAG_SIZE
+	mag = Upgrades.mag_size()
+	ammo = mag
 	reload_t = 0.0
 	fire_t = 0.0
 	bloom = 0.0
@@ -96,7 +96,7 @@ func cancel_reload() -> void:
 func start_reload() -> bool:
 	if reload_t > 0.0 or ammo >= mag:
 		return false
-	reload_t = RELOAD_TIME
+	reload_t = RELOAD_TIME * Upgrades.reload_mult()
 	Sfx.play(&"reload")
 	return true
 
@@ -246,7 +246,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3) -> void:
 		var r := _radius_of(target)
 		crit = r > 0.0 and hit.y > c.y + r * CRIT_HEIGHT
 		human = target.get(&"type") == &"operative"
-		target.call(&"damage", DAMAGE_CRIT if crit else DAMAGE, crit)
+		target.call(&"damage", (DAMAGE_CRIT if crit else DAMAGE) * Upgrades.damage_mult(), crit)
 	else:
 		target.call(&"damage", DAMAGE_VEHICLE)
 	var kill := (not is_vehicle) and _is_dead(target)

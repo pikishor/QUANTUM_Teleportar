@@ -28,6 +28,7 @@ func run(host: Node) -> void:
 	p = e.p
 	await _hero_meshes()
 	await _hero_gait()
+	await _hero_reload()
 	await _hero_air_and_hit()
 	await _trooper()
 	await e.teardown()
@@ -58,12 +59,18 @@ func _sole(k: int) -> Vector3:
 
 
 ## Walks the hero in a direction for `secs` seconds and returns the worst slide (cm) of a planted sole over any ground contact, and the strides seen.
+var _hip_low := 9.0
+var _hip_high := 0.0
+
+
 func _slide_run(actions: Array[StringName], secs: float, look_rate := 0.0) -> Vector2:
 	await e.prep(Vector3(0.0, 0.0, 0.0), -PI * 0.5, 0.0, 12)
 	for a in actions:
 		Input.action_press(a)
 	var worst := 0.0
 	var strides := 0
+	_hip_low = 9.0
+	_hip_high = 0.0
 	var start := [Vector3.ZERO, Vector3.ZERO]
 	var active := [false, false]
 	var mx := [0.0, 0.0]
@@ -76,6 +83,9 @@ func _slide_run(actions: Array[StringName], secs: float, look_rate := 0.0) -> Ve
 			p.camera_rig.add_look(look_rate / 60.0, 0.0)
 		if t < 0.8:
 			continue
+		var hy := (p.body.rig.bone_move(CharacterRig.HIPS) * Vector3(0.0, p.body.rig._hips_rest_y, 0.0)).y
+		_hip_low = minf(_hip_low, hy)
+		_hip_high = maxf(_hip_high, hy)
 		for k in 2:
 			var prog := lc.stance_progress(k)
 			if prog >= 0.0 and (lc.speed > 0.4 or absf(lc.yaw_rate) > 0.7):
@@ -103,6 +113,7 @@ func _hero_gait() -> void:
 		var r := await _slide_run(cases[name], 2.2)
 		TestLib.check(r.y >= 3.0, "%s: %d ground contacts measured" % [name, int(r.y)])
 		TestLib.check(r.x < 3.0, "%s: planted foot slide %.2f cm per contact (target < 3 cm)" % [name, r.x])
+		TestLib.check(_hip_high - _hip_low < 0.2, "%s: the pelvis bobs %.1f cm (< 20 cm, no folding under a long stride)" % [name, (_hip_high - _hip_low) * 100.0])
 	var rt := await _slide_run([] as Array[StringName], 1.6, 3.5)
 	TestLib.check(rt.x < 3.0, "turning in place: planted foot slide %.2f cm over %d contacts (< 3 cm)" % [rt.x, int(rt.y)])
 	# the stride lengthens with the speed: footfalls per metre fall as the speed rises
@@ -128,6 +139,22 @@ func _hero_gait() -> void:
 	var rg := p.body.rig
 	var hips := rg.bone_move(CharacterRig.HIPS) * Vector3(0.0, rg._hips_rest_y, 0.0)
 	TestLib.check(is_finite(hips.y) and hips.y > 0.5 and hips.y < 1.25, "pelvis height is sane (%.2f m)" % hips.y)
+
+
+## Reload: the left glove leaves the rifle for the magazine (a visible hand motion) and is back on it afterwards.
+func _hero_reload() -> void:
+	await e.prep(Vector3(0.0, 0.0, 0.0), -PI * 0.5, 0.0, 12)
+	var rg := p.body.rig
+	p.ammo = 3
+	Input.action_press(&"reload")
+	var far := 0.0
+	for i in 90:
+		await e.frames(1)
+		far = maxf(far, rg.wrist_position(0).distance_to(rg.rifle_grip(0)))
+	Input.action_release(&"reload")
+	await e.secs(1.0)
+	TestLib.check(far > 0.1, "reload: the left hand travels %.2f m from the rifle grip (> 0.10)" % far)
+	TestLib.check(rg.wrist_position(0).distance_to(rg.rifle_grip(0)) < 0.12, "reload: the hand is back on the rifle afterwards")
 
 
 func _hero_air_and_hit() -> void:

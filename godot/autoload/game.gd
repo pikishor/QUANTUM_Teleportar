@@ -37,6 +37,7 @@ var enemies: Node            # EnemyManager
 var vehicles: Node           # VehicleManager
 var missions: Node           # Missions
 var atmosphere: Node         # Atmosphere
+var progress: Node           # Progress (scripts/progress/progress.gd, child of Missions): credits, upgrades, reputation, save file
 var story: Node              # Story (scripts/story/story.gd): radio subtitles, cards, chapters
 var camera: Camera3D         # the active gameplay camera
 

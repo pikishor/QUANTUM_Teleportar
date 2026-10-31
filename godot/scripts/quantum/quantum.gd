@@ -212,7 +212,8 @@ func _aim_floor_point() -> Vector3:
 	var o: Vector3 = aim["origin"]
 	var d: Vector3 = aim["dir"]
 	var t := o.distance_to(aim["hit"] as Vector3)
-	var pt := o + d * (maxf(0.0, t - 0.6) if t < BLINK_RANGE else BLINK_RANGE)
+	var reach := BLINK_RANGE + Upgrades.blink_bonus()
+	var pt := o + d * (maxf(0.0, t - 0.6) if t < reach else reach)
 	_rq.from = pt + Vector3(0.0, 0.5, 0.0)
 	_rq.to = pt + Vector3(0.0, -150.0, 0.0)
 	var res := _p.get_world_3d().direct_space_state.intersect_ray(_rq)

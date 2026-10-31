@@ -102,3 +102,12 @@ static func count(kind: StringName, chapter: int, wave := 0) -> int:
 ## Rough shortest drive-or-run path length between two points on the street grid (Manhattan, which is what the route line follows).
 static func route_length(a: Vector3, b: Vector3) -> float:
 	return absf(a.x - b.x) + absf(a.z - b.z)
+
+
+## Payout factor from the heat level when the contract ends: laying low pays (+10 % below half a star), a hot street costs 10 % per full star from 2 up (floor 60 %).
+static func heat_factor(heat: float) -> float:
+	if heat < 0.5:
+		return 1.1
+	if heat < 2.0:
+		return 1.0
+	return maxf(0.6, 1.0 - 0.1 * floorf(heat))

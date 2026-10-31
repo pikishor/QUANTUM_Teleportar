@@ -24,6 +24,7 @@ const PROP_SHADER := preload("res://assets/shaders/prop.gdshader")
 const PROP_MIRROR_SHADER := preload("res://assets/shaders/prop_mirror.gdshader")
 const GLOW_SHADER := preload("res://assets/shaders/glow.gdshader")
 const SHAFT_SHADER := preload("res://assets/shaders/shaft.gdshader")
+const Ambient := preload("res://scripts/ambient/ambient_city.gd")
 
 ## Inner junctions (y = 0), 7 x 7 = 49.
 var intersections: Array[Vector3] = []
@@ -38,6 +39,8 @@ var quality := 1
 var multimesh_nodes: Array[MultiMeshInstance3D] = []
 var mirror_nodes: Array[MultiMeshInstance3D] = []
 var collision_body: StaticBody3D
+## The living city (far traffic, crowd, patrols; scripts/ambient/ambient_city.gd), a child of the world.
+var ambient: Node3D
 var building_data: Array = []      ## Buildings.Building per lot index
 ## Footprints (x, z) of the far-skyline towers (visual only; none reaches into the walkable square or the border walls).
 var skyline_rects: Array[Rect2] = []
@@ -93,6 +96,7 @@ func _ready() -> void:
 	_build_props()
 	_build_skyline()
 	_build_misc()
+	_build_ambient()
 	_build_collision()
 	set_quality(quality)
 
@@ -192,6 +196,8 @@ func set_quality(level: int) -> void:
 	if _steam_node != null:
 		var per_vent: int = [9, 16, Misc.PUFFS_PER_VENT][quality]
 		_steam_node.multimesh.visible_instance_count = _props.vents.size() * per_vent
+	if ambient != null:
+		ambient.set_quality(quality)
 	var mirror_on := quality >= 1
 	_mirror_root.visible = mirror_on
 	_ground_node.material_override = _ground.material if mirror_on else _ground.material_lite
@@ -358,6 +364,12 @@ func _build_misc() -> void:
 		_steam_node = add_multimesh("Steam", _misc.steam_mm, Misc.make_material(Misc.STEAM_SHADER), null, false)
 	if _misc.hologram_mm != null:
 		add_multimesh("Holograms", _misc.hologram_mm, Misc.make_material(Misc.HOLO_SHADER), Misc.make_material(Misc.HOLO_SHADER, -120), false, 1, 2)
+
+
+func _build_ambient() -> void:
+	ambient = Ambient.new()
+	add_child(ambient)
+	ambient.setup(self, _ground.light_texture)
 
 
 func _build_skyline() -> void:

@@ -112,6 +112,6 @@ static func _value_text(id: StringName, lvl: int) -> String:
 		&"mag": return "%d ROUNDS" % (MAG_BASE + int(per * lvl))
 		&"reload": return "%d%% RELOAD TIME" % roundi(maxf(RELOAD_FLOOR, 1.0 - per * lvl) * 100.0)
 		&"blink": return "%d M BLINK" % roundi(BLINK_BASE + per * lvl)
-		&"regen": return "%d%% COHERENCE REGEN" % roundi(100.0 + per * 100.0 * lvl)
+		&"regen": return "%d%% REGEN" % roundi(100.0 + per * 100.0 * lvl)
 		&"armour": return "%d%% DAMAGE TAKEN" % roundi((1.0 - per * lvl) * 100.0)
 	return ""

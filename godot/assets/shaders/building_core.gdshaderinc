@@ -513,6 +513,10 @@ void fragment() {
 			float tube = band(y, 3.57, 3.61, abv) * band(bf, 0.06, 0.94, abu) + band(y, 4.49, 4.53, abv) * band(bf, 0.06, 0.94, abu);
 			float flick = 0.85 + 0.15 * sin(TIME * 2.0 + rb0 * 30.0);
 			flick *= 1.0 - 0.9 * step(0.992, hash11(floor(TIME * 8.0) + rb0 * 77.0));       // the odd dying tube
+			// about one shop sign in six is on its last legs: long dark spells that sputter back to life
+			float dying = step(0.84, hash11(rb0 * 53.0 + bidx * 3.1 + fseed));
+			float cyc = fract(TIME / (9.0 + 8.0 * rb0) + rb0 * 7.0 + bidx * 0.37);
+			flick *= mix(1.0, cyc < 0.6 ? 1.0 : (cyc < 0.78 ? step(0.5, hash11(floor(TIME * 12.0) + rb0 * 91.0)) : 0.04), dying);
 			emit += nc * (gl * 3.0 + tube * 1.5) * flick * step(0.25, rb0);
 			albedo = mix(albedo, vec3(0.02), signb * 0.8);
 			// grime and wet streaks run down the stone below the sign, street spill on the base of the wall
