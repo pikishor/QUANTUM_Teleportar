@@ -207,7 +207,7 @@ func _test_colliders(host: Node, city: City) -> void:
 ## The pooled prop colliders: constant shape count, lamps block the player, low props are cover for rays at knee height but not at head height.
 func _test_prop_colliders(host: Node, city: City) -> void:
 	var pc := city.prop_colliders()
-	TestLib.check(pc.bodies.size() == 56 and pc.shape_count() == 56 * 3, "the prop collider pool has 56 bodies and a constant %d shapes" % pc.shape_count())
+	TestLib.check(pc.bodies.size() == 56 and pc.shape_count() == 56, "the prop collider pool has 56 bodies and a constant %d shapes" % pc.shape_count())
 	TestLib.check(pc.source_count > 1500, "collidable prop instances exist (%d)" % pc.source_count)
 	for fam in ["Lamps", "Signals", "Dumpsters", "Kiosks", "Hydrants", "Barriers", "Planters", "RoofHouses", "RoofAC", "RoofCover", "RoofVents"]:
 		TestLib.check(pc.instances_of(fam).size() > 0, "%s have collider instances" % fam)

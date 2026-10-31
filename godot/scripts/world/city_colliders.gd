@@ -1,11 +1,11 @@
 extends RefCounted
 ## Pooled colliders for street furniture and roof clutter. The static city keeps no collider per prop (thousands of shapes), so instead a small constant
-## pool of StaticBody3D (layer world, one box + one capsule + one cylinder shape each, only one enabled) follows the player: every few metres the nearest
+## pool of StaticBody3D (layer world, one shape node each whose shape resource is swapped between a box, a capsule and a cylinder) follows the player: every few metres the nearest
 ## collidable instances (lamp poles, signal poles, dumpsters, kiosks, bus shelters, hydrants, barriers, planters, roof houses / AC units / tanks / cover walls)
 ## are assigned to the pool bodies. The shape count never changes after build(); a body that is not in use is parked far below the city with its shapes off.
 ## The source data is the full MultiMesh buffer of each family (read once at build time, before city_stream.gd windows it).
 
-const POOL := 56                      ## bodies (each owns a box, a capsule and a cylinder shape: 168 shapes, constant)
+const POOL := 56                      ## bodies, one CollisionShape3D each (56 shapes, constant)
 const REACH := 38.0                   ## metres (XZ) around the follow point that can receive colliders
 const VERT := 14.0                    ## colliders further than this above / below the follow point are ignored (roofs over the street)
 const CELL := 16.0
@@ -47,7 +47,8 @@ var _spec: PackedInt32Array = PackedInt32Array()
 var _spec_list: Array = []                 ## [shape, size, offset, family name]
 var _grid := {}                            ## cell key -> PackedInt32Array of source ids
 var _assigned := PackedInt32Array()        ## per body: source id or -1
-var _shapes: Array = []                    ## per body: [box CollisionShape3D, capsule, cylinder]
+var _shapes: Array = []                    ## per body: [CollisionShape3D, [box, capsule, cylinder resources]]
+var enabled := true                        ## false: the pool stays parked (tests that need the bare buildings)
 var _age := 0.0
 
 
@@ -101,16 +102,10 @@ func _make_pool(parent: Node3D) -> void:
 		body.name = "PropCollider%d" % k
 		body.collision_layer = Game.L_WORLD
 		body.collision_mask = 0
-		var trio: Array = []
-		var box := BoxShape3D.new()
-		var cap := CapsuleShape3D.new()
-		var cyl := CylinderShape3D.new()
-		for shape: Shape3D in [box, cap, cyl]:
-			var cs := CollisionShape3D.new()
-			cs.shape = shape
-			cs.disabled = true
-			body.add_child(cs)
-			trio.append(cs)
+		var cs := CollisionShape3D.new()
+		cs.disabled = true
+		body.add_child(cs)
+		var trio: Array = [cs, [BoxShape3D.new(), CapsuleShape3D.new(), CylinderShape3D.new()]]
 		body.position = PARK
 		root.add_child(body)
 		bodies.append(body)
@@ -141,7 +136,7 @@ func park_all() -> void:
 
 ## Call every physics frame with the point the pool should surround (null / INF = park everything). Cheap: it only works when the point moved.
 func follow(p: Vector3, delta: float, force := false) -> void:
-	if p == Vector3.INF:
+	if p == Vector3.INF or not enabled:
 		return
 	_age += delta
 	var moved := Vector2(p.x - last_follow.x, p.z - last_follow.z).length() if last_follow != Vector3.INF else 1.0e9
@@ -153,6 +148,9 @@ func follow(p: Vector3, delta: float, force := false) -> void:
 
 ## Assign the nearest collidable instances within REACH of p to the pool bodies.
 func refill(p: Vector3) -> void:
+	if not enabled:
+		park_all()
+		return
 	refills += 1
 	last_follow = p
 	var cands: Array[Vector2] = []
@@ -201,9 +199,7 @@ func refill(p: Vector3) -> void:
 
 func _release(k: int) -> void:
 	_assigned[k] = -1
-	var trio: Array = _shapes[k]
-	for cs: CollisionShape3D in trio:
-		cs.disabled = true
+	(_shapes[k][0] as CollisionShape3D).disabled = true
 	bodies[k].position = PARK
 
 
@@ -211,23 +207,23 @@ func _assign(k: int, src: int) -> void:
 	_assigned[k] = src
 	var sp: Array = _spec_list[_spec[src]]
 	var xf := _xf[src]
-	var trio: Array = _shapes[k]
 	var which: int = sp[0]
 	var size: Vector3 = sp[1]
-	for j in 3:
-		(trio[j] as CollisionShape3D).disabled = j != which
-	var cs: CollisionShape3D = trio[which]
+	var cs: CollisionShape3D = _shapes[k][0]
+	var res: Shape3D = (_shapes[k][1] as Array)[which]
 	match which:
 		Shape.BOX:
-			(cs.shape as BoxShape3D).size = size
+			(res as BoxShape3D).size = size
 		Shape.CAPSULE:
-			var cap := cs.shape as CapsuleShape3D
+			var cap := res as CapsuleShape3D
 			cap.radius = size.x
 			cap.height = maxf(size.y, size.x * 2.0 + 0.01)
 		_:
-			var cyl := cs.shape as CylinderShape3D
+			var cyl := res as CylinderShape3D
 			cyl.radius = size.x
 			cyl.height = size.y
+	cs.shape = res
+	cs.disabled = false
 	var body := bodies[k]
 	body.transform = Transform3D(xf.basis, xf.origin + xf.basis * (sp[2] as Vector3))
 

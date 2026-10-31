@@ -113,7 +113,7 @@ func _composition() -> void:
 			"the world exposes its mirror root (scale 1,-1,1)")
 	TestLib.check(Game.atmosphere.get_parent() == main and city.get_parent() == main and p.get_parent() == main, "the three modules are siblings under Main")
 	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
-	TestLib.check(nodes < 1000, "the composed game stays small: %d nodes (the world is MultiMeshes, not thousands of nodes)" % nodes)
+	TestLib.check(nodes < 1100, "the composed game stays small: %d nodes (the world is MultiMeshes and a 56-body prop collider pool, not thousands of nodes)" % nodes)
 
 
 # --- the street and the walls -------------------------------------------------------------------------------------------------
@@ -229,6 +229,8 @@ func _roofs_and_ledges() -> void:
 ## (a collider that is missing, shifted or a different height from what is drawn shows up here, whatever the building class or the position).
 func _sweeps() -> void:
 	var lots := city.layout.lots
+	city.prop_colliders().enabled = false      # this sweep checks the bare building crowns, not the roof clutter that stands on them
+	city.update_colliders(Vector3(0.0, -2000.0, 0.0))
 	var good := 0
 	var tried := 0
 	for i in range(0, lots.size(), 5):
@@ -245,6 +247,7 @@ func _sweeps() -> void:
 			good += 1
 		else:
 			printerr("crown of lot %d (%s, h=%.0f) at (%.1f, %.1f): y=%.3f on_floor=%s ground_height=%.3f" % [lot.index, b.get(&"cls"), lot.h, x, z, p.global_position.y, str(p.is_on_floor()), y])
+	city.prop_colliders().enabled = true
 	TestLib.check(tried >= 40 and good == tried, "a sample of %d building crowns spread over the city: the player lands on each at the reported height (%d)" % [tried, good])
 	good = 0
 	tried = 0
