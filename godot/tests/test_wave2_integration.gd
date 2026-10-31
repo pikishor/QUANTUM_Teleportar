@@ -95,6 +95,45 @@ func run(h: Node) -> void:
 	TestLib.check(q.clone == null and p.speed_boost == 1.0 and qc.hp < qc_hp - 40.0, "collapse blasts nearby enemies and ends the boost (%.0f damage)" % (qc_hp - qc.hp))
 	em.clear()
 	await frames(4)
+	# vehicle flow in the real city: starter car, enter with interact, drive, ram a drone, exit; caps and streaming
+	var vm := Game.vehicles as VehicleManager
+	TestLib.check(vm != null and vm.starter != null and vm.starter.kind == &"sport" and vm.list.has(vm.starter), "the vehicles module is composed and the starter sport car stands near the spawn")
+	if vm != null and vm.starter != null:
+		var car := vm.starter
+		Game.set_quality(1)
+		Game.heat = 0.0
+		p.invuln = 0.0
+		p.teleport_to(car.global_position + Vector3(0.0, 0.0, -3.0))
+		await frames(6)
+		TestLib.check(vm.nearest(p.global_position, 4.2) == car, "the HUD's USE hint finds the car (nearest within 4.2 m)")
+		Input.action_press(&"interact")
+		await frames(3)
+		Input.action_release(&"interact")
+		await frames(3)
+		TestLib.check(p.vehicle == car and vm.driven == car and car.driver_is_player and p.camera_rig.mode == &"vehicle", "interact enters the car: player.vehicle set, camera in vehicle mode")
+		var drone := em.spawn(&"sentinel", car.global_position + Vector3(11.0, 0.0, 0.0), false)
+		var drone_hp := drone.hp
+		var x0 := car.global_position.x
+		Input.action_press(&"move_forward")
+		await frames(100)
+		Input.action_release(&"move_forward")
+		TestLib.check(car.global_position.x - x0 > 12.0 and car.speed > 8.0, "forward drives the car through the real city (%.0f m, %.1f m/s)" % [car.global_position.x - x0, car.speed])
+		TestLib.check(p.global_position.distance_to(car.global_position) < 0.6 and absf(car.rotation.y - car.heading) < 1e-3, "the player rides with the car and the root rotates with it")
+		TestLib.check(drone.hp < drone_hp or drone.dead, "running into a drone at speed hurts it (%.0f -> %.0f)" % [drone_hp, drone.hp])
+		em.clear()
+		await frames(60)
+		Input.action_press(&"interact")
+		await frames(3)
+		Input.action_release(&"interact")
+		await frames(3)
+		TestLib.check(p.vehicle == null and vm.driven == null and p.body.visible and not (Game.world as City).is_inside_building(p.global_position + Vector3(0.0, 1.0, 0.0)), "interact again leaves the car and the player stands outside any building")
+		await frames(150)
+		TestLib.check(vm.list.size() <= vm.cap() and vm.list.size() >= 3 and vm.total_nodes() <= 10, "streaming keeps the live cars within the MED cap (%d of %d)" % [vm.list.size(), vm.cap()])
+		for vq in [0, 2, 1]:
+			Game.set_quality(vq)
+			await frames(2)
+			var vcap: int = [3, 5, 8][vq]
+			TestLib.check(vm.cap() == vcap and vm.list.size() <= vcap, "tier %d: at most %d live cars (%d)" % [vq, vcap, vm.list.size()])
 	# heat flow
 	Game.heat = 3.0
 	await frames(2)
