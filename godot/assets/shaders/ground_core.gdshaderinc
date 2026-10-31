@@ -390,14 +390,14 @@ void fragment() {
 		// pools stretched toward the viewer as streaks
 		vec3 Rl = reflect(-V, Nw);
 		float sk = clamp(Rl.y, 0.0, 1.0);
-		rc = mix(vec3(0.075, 0.095, 0.130), vec3(0.018, 0.028, 0.052), sqrt(sk)) + vec3(0.20, 0.09, 0.13) * exp(-sk * 7.0) * 0.55;
+		rc = mix(vec3(0.045, 0.058, 0.085), vec3(0.012, 0.018, 0.034), sqrt(sk)) + vec3(0.20, 0.09, 0.13) * exp(-sk * 7.0) * 0.40;
 		vec2 away_l = -normalize(toc.xz + vec2(1e-5));
 		vec3 stk = vec3(0.0);
 		for (int k = 1; k <= 4; k++) {
 			float kk = float(k) * 2.6 * (1.0 + 2.0 * (1.0 - ndv));
 			stk += texture(light_map, (q + away_l * kk - light_rect.xy) / light_rect.zw).rgb * (1.2 - 0.2 * float(k));
 		}
-		rc += stk * 0.55 * (1.0 + puddle);
+		rc += stk * 0.40 * (1.0 + puddle);
 	}
 #endif
 

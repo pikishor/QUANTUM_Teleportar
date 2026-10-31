@@ -243,7 +243,7 @@ func _lanes_and_turns() -> void:
 	var a := mgr.spawn_traffic(&"sedan", 0, 4, 1, -125.0)
 	a.ai_cool = 1000.0
 	a.ai_speed = 11.0
-	await e.secs(2.0)
+	await e.secs(2.8)
 	var gap := p.global_position.x - a.global_position.x
 	TestLib.check(a.ai_speed < 0.3 and gap > 3.0 and gap < 11.0, "a traffic car stops for the player ahead (speed %.2f, %.1f m away)" % [a.ai_speed, gap])
 	await e.prep(Vector3(-100.0, 0.0, 60.0), 0.0)

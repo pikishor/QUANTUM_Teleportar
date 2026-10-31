@@ -94,7 +94,7 @@ func build(parent: Node3D) -> void:
 func apply_quality(level: int, vp: Viewport) -> void:
 	level = clampi(level, 0, 2)
 	sun.shadow_enabled = level >= 1
-	sun.directional_shadow_max_distance = 90.0 if level == 1 else 150.0
+	sun.directional_shadow_max_distance = 55.0 if level == 1 else 150.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.shadow_blur = 1.0 if level == 1 else 1.6
 	sky.radiance_size = Sky.RADIANCE_SIZE_32 if level == 0 else Sky.RADIANCE_SIZE_64

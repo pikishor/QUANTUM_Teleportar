@@ -420,8 +420,8 @@ void fragment() {
 			// glass: nearly black, a fresnel mirror of the night sky and the neon of the street
 			float nv = abs(dot(normalize(NORMAL), normalize(VIEW)));
 			float gfr = 0.05 + 0.95 * pow(1.0 - nv, 4.0);
-			vec3 gl_refl = mix(vec3(0.050, 0.080, 0.125), vec3(0.150, 0.110, 0.190), smoothstep(0.4, 3.4, y)) * (0.75 + 0.5 * sn);
-			gl_refl += neon * 0.20 * (0.4 + 0.6 * sn);
+			vec3 gl_refl = mix(vec3(0.045, 0.075, 0.120), vec3(0.100, 0.100, 0.150), smoothstep(0.4, 3.4, y)) * (0.75 + 0.5 * sn);
+			gl_refl += neon * 0.09 * (0.4 + 0.6 * sn);
 			float streak = exp(-pow((fract((u + y * 0.7) / (bw * 1.6) + rb0) - 0.5) * 6.5, 2.0));
 			gl_refl *= 0.55 + 0.9 * streak;
 			vec3 glass_s = vec3(0.005, 0.007, 0.012);

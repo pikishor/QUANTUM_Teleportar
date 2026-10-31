@@ -475,6 +475,8 @@ func _build_visual() -> void:
 			_rotors.append(r)
 	DynamicFill.apply(m, cfg["color"])
 	for mi: MeshInstance3D in DynamicFill._meshes(m):
+		if mi.name != &"Body":
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF      # rotors and the eye are small: every shadow-cast surface is a draw call per cascade
 		for s in mi.mesh.get_surface_count():
 			var mat := mi.get_surface_override_material(s) as BaseMaterial3D
 			if mat != null and mat.emission_enabled and mat.emission_energy_multiplier >= 1.0 and (mi.name == &"Eye" or String(mat.resource_name).contains("Glow")):

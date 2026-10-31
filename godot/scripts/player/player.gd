@@ -135,7 +135,7 @@ var _aim_cache := {}
 func _ready() -> void:
 	add_to_group(&"player")
 	collision_layer = Game.L_PLAYER
-	collision_mask = Game.L_WORLD | Game.L_ENEMY | Game.L_VEHICLE
+	collision_mask = Game.L_WORLD | Game.L_VEHICLE
 	floor_snap_length = 0.35
 	floor_max_angle = deg_to_rad(50.0)
 	floor_stop_on_slope = true
@@ -332,6 +332,8 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 		var share := amount * VEHICLE_DAMAGE_SHARE
 		if _vehicle.has_method(&"damage"):
 			_vehicle.call(&"damage", share)
+		last_hurt_time = PlayerUtil.now()                # the HUD vignette and attacker arc also show hits taken while driving
+		last_hurt_from = from_pos
 		hurt.emit(share)
 		return
 	hp -= amount
@@ -398,7 +400,7 @@ func _apply_vehicle_state() -> void:
 		camera_rig.snap()
 	else:
 		collision_layer = Game.L_PLAYER
-		collision_mask = Game.L_WORLD | Game.L_ENEMY | Game.L_VEHICLE
+		collision_mask = Game.L_WORLD | Game.L_VEHICLE
 		body.visible = true
 		camera_rig.mode = &"foot"
 		camera_rig.follow_target = self
