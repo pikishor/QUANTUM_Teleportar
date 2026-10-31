@@ -8,10 +8,12 @@ from humanoid import build  # noqa: E402
 
 STYLE = dict(
     name="player",
-    uniform="#42565d", pants="#364a52", carrier="#52666d", carrier2="#3c4f56", glove="#242a2d", boot="#272c30",
-    plate="#5d737a", helmet="#5a747c", trim="#6d868d", metal="#5a636a", metal2="#343b41",
-    accent=hexc("#18d6ff"), accent_strength=4.0,
-    helmet_type="visor", backpack="core", pauldrons=False, bulk=1.0, light_glow=True,
+    uniform="#4d6269", pants="#3f525a", carrier="#5d7279", carrier2="#465a62", glove="#2b3235", boot="#2f353a",
+    plate="#6f868d", helmet="#6a838b", trim="#82989e", metal="#68737a", metal2="#3d464c",
+    accent=hexc("#18d6ff"), emit=1.5,
+    mark=hexc("#c6d3d6"), stripe=hexc("#d8e2e4"), patch=hexc("#9fd3df"),
+    fill_color=(0.62, 0.84, 1.0), fill_energy=1.1, rim_color=(0.35, 0.85, 1.0), rim_energy=1.5,
+    helmet_type="visor", backpack="core", pauldrons=False, bulk=1.0, light_glow=True, atlas=1024,
 )
 
 if __name__ == "__main__":

@@ -1,18 +1,19 @@
 """Procedural tactical operative (shared by model_player.py and model_operative.py).
 
 Layout (Blender axes, model front = +Y, which becomes -Z in Godot):
-  Body  : torso, plate carrier, helmet, arms and the rifle in the hands (one mesh, 5 materials)
+  Body  : torso, plate carrier, helmet, arms and the rifle in the hands (one mesh)
   LegL / LegR : legs, origin at the hip joint so the game can swing them about X
-  Muzzle: empty at the rifle tip
-Height 1.82 m with helmet. Triangle budget 12k.
+  Muzzle: empty at the rifle tip; Fill / Rim: marker empties that become lights at import
+All three meshes share ONE baked atlas material "Gear" (3 draw calls for the whole character). Height 1.82 m with helmet.
 """
 import math
 
 import bpy  # noqa: F401  (must be imported before mathutils)
 from mathutils import Matrix, Vector
 
-from helpers import (Part, bake_ao, empty, export_model, hexc, make_material, new_scene, paint, ring_se, rotm,
+from helpers import (Part, empty, export_model, hexc, light, make_material, new_scene, paint, ring_se, rotm,
                      scale_c, xform)
+from shade import Decal, p_barcode, p_box, p_chevrons, p_glyphs, p_ring, p_stripes
 
 
 def two_bone(S, W, l1, l2, pole):
@@ -63,8 +64,8 @@ def build(S):
     fab = make_material("Fabric", tex="fabric")
     armor = make_material("Armor", tex="plating")
     gun = make_material("Gunmetal", tex="steel")
-    visor = make_material("Visor", color=(0.012, 0.02, 0.025), metallic=0.85, roughness=0.10, vcol=False)
-    glow = make_material("Glow", emit=S["accent"], emit_strength=S["accent_strength"], vcol=False)
+    visor = make_material("Visor", tex="glass", color=(0.014, 0.028, 0.036))
+    glow = make_material("Glow", tex="glow", color=S["accent"])
 
     uni = paint("fabric", S["uniform"])
     pants = paint("fabric", S["pants"])
@@ -173,8 +174,9 @@ def build(S):
         body.box((0.12, 0.05, 0.16), (0, -0.30 * bulk, 1.30), mat=fab, tint=carr2, bevel=0.01)
 
     # ------------------------------------------------------------------ neck, head, helmet
-    body.tube([(0, 0.012, 1.495), (0, 0.016, 1.60)], [(0.060, 0.062), (0.054, 0.058)], mat=fab, tint=uni, n=12, exp=2.2, sub=0)
-    body.tube([(0, 0.01, 1.50), (0, 0.014, 1.545)], [(0.082, 0.088), (0.072, 0.078)], mat=fab, tint=carr2, n=14, exp=2.4, sub=0)     # collar
+    body.tube([(0, 0.012, 1.495), (0, 0.016, 1.60)], [(0.072, 0.074), (0.064, 0.068)], mat=fab, tint=uni, n=12, exp=2.2, sub=0)
+    body.tube([(0, 0.01, 1.50), (0, 0.014, 1.56)], [(0.098, 0.104), (0.082, 0.090)], mat=fab, tint=carr2, n=14, exp=2.4, sub=0)      # collar / gaiter
+    body.tube([(0, 0.01, 1.50), (0, 0.012, 1.525)], [(0.15, 0.115), (0.105, 0.098)], mat=fab, tint=carr, n=16, exp=2.2, sub=0)      # trapezius slope
     for sx in (-1, 1):                                                                               # yoke pads on the shoulders
         body.box((0.11, 0.2, 0.03), (sx * 0.135, 0.0, 1.505), mat=fab, tint=carr, bevel=0.012, bsegs=2, rot=(0, sx * -14, 0), jitter=0.04)
     body.sphere((0.084, 0.098, 0.108), (0, 0.016, 1.672), mat=fab, tint=scale_c(boot, 1.3), segs=14, rings=9)
@@ -279,11 +281,46 @@ def build(S):
         body.box((0.058, 0.075, 0.078), hands[s], mat=fab, tint=glove, frame=RR, bevel=0.01, bsegs=1, jitter=0.04)
         body.box((0.02, 0.05, 0.03), hands[s] + Vector((-s * 0.028, 0.0, 0.03)), mat=fab, tint=glove, frame=RR, bevel=0.006)
 
-    # ------------------------------------------------------------------ bake AO and build objects
+    # ------------------------------------------------------------------ export
     parts = [body] + list(legs.values())
-    bake_ao(parts, samples=18, dist=0.22, strength=0.72)
-    objs = [pt.build() for pt in parts]
-    objs.append(empty("Muzzle", muzzle))
+    rig = [empty("Muzzle", muzzle)]
+    # readability for the night city: a fill that lights only this model (front, above) and a cool rim from behind
+    rig.append(light("Fill", (0.0, 0.8, 1.55), "omni", S["fill_color"], S["fill_energy"], 3.6, mask="own", attenuation=1.2, fade=(30, 12)))
+    rig.append(light("Rim", (0.25, -0.8, 2.15), "omni", S["rim_color"], S["rim_energy"], 3.8, mask="own", attenuation=1.2, fade=(30, 12)))
     for p in parts:
         print("  part %-6s tris=%d" % (p.name, p.tri_count()))
-    return export_model(S["name"], objs)
+    return export_model(S["name"], parts, extras=rig, size=S.get("atlas", 1024), decals=decals(S), ao_dist=0.2, ao_strength=0.85,
+                        emit_strength=S.get("emit", 1.6))
+
+
+def decals(S):
+    """Stencils, stripes and insignia projected onto the finished surfaces (object space, front +Y)."""
+    mark = S["mark"]
+    acc = S["accent"]
+    d = []
+    up = (0, 0, 1)
+    d.append(Decal((0.0, 0.21, 1.405), (0, 1, 0), up, (0.20, 0.05), p_glyphs(mark, cells=7, seed=11), depth=0.06))                  # chest stencil
+    d.append(Decal((0.0, 0.21, 1.245), (0, 1, 0), up, (0.24, 0.028), p_barcode(mark, bars=18, seed=5), depth=0.06))
+    d.append(Decal((0.0, -0.25, 1.37), (0, -1, 0), up, (0.26, 0.15), p_box(mark, border=0.05, wear=0.4), depth=0.1))               # back panel frame
+    d.append(Decal((0.0, -0.25, 1.38), (0, -1, 0), up, (0.2, 0.06), p_glyphs(mark, cells=6, seed=23, rows=1), depth=0.1))
+    d.append(Decal((0.0, -0.25, 1.25), (0, -1, 0), up, (0.26, 0.05), p_stripes(5, 0.5, 45.0, S["stripe"]), depth=0.1))              # hazard stripe
+    for sx in (-1, 1):                                                                                                               # shoulder patches
+        d.append(Decal((sx * 0.30, 0.01, 1.40), (sx, 0, 0), up, (0.11, 0.11), p_ring(S["patch"], 0.18, 0.4, cross=True), depth=0.06))
+        d.append(Decal((sx * 0.245, 0.0, 1.50), (0, 0, 1), (0, 1, 0), (0.07, 0.13), p_stripes(2, 0.5, 90.0, S["stripe"]), depth=0.05))
+    d.append(Decal((0.0, 0.01, 1.835), (0, 0, 1), (0, 1, 0), (0.05, 0.22), p_stripes(2, 0.55, 90.0, S["stripe"]), depth=0.05))       # helmet crest
+    d.append(Decal((0.0, 0.014, 1.65), (0, 1, 0), (0, 0, 1), (0.2, 0.17), p_visor_sheen(acc), depth=0.07, kinds=("glass",), min_dot=0.2))
+    return d
+
+
+def p_visor_sheen(accent):
+    """A faint diagonal reflection band plus a dim HUD glow along the lower rim, so the visor never reads as a flat black hole."""
+    import numpy as np
+    from shade import sm
+
+    def fn(u, v, c, idx):
+        band = sm(0.05, 0.0, np.abs((u - 0.35) * 0.8 + (v - 0.5) * 0.9 - 0.12)) * 0.8
+        rim = sm(0.22, 0.0, v) * 0.35
+        col = np.array([0.09, 0.13, 0.15])
+        emit = np.asarray(accent) * (rim[:, None] * 0.35)
+        return np.clip(band + rim * 0.5, 0, 1), col, emit
+    return fn

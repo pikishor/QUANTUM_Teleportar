@@ -36,7 +36,7 @@ func _post_import(scene: Node) -> Object:
 				gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if fill_used:
 		for node in found:
-			if node is GeometryInstance3D:
+			if is_instance_valid(node) and node is GeometryInstance3D:
 				(node as GeometryInstance3D).layers |= 1 << (FILL_LAYER - 1)
 	return scene
 
@@ -68,7 +68,6 @@ func _make_light(scene: Node, marker: Node3D, json: String) -> bool:
 		o.omni_range = float(d.get("range", 6.0))
 		o.omni_attenuation = float(d.get("attenuation", 1.4))
 		light = o
-	light.name = marker.name
 	light.light_color = color
 	light.light_energy = float(d.get("energy", 1.0))
 	light.shadow_enabled = false
@@ -82,11 +81,14 @@ func _make_light(scene: Node, marker: Node3D, json: String) -> bool:
 		light.light_cull_mask = 1 << (FILL_LAYER - 1)
 	var parent := marker.get_parent()
 	var idx := marker.get_index()
+	var xf := marker.transform
+	var marker_name := marker.name
+	parent.remove_child(marker)
+	marker.free()
+	light.name = marker_name              # after the marker is gone, or Godot would rename the light to avoid the clash
 	parent.add_child(light)
 	parent.move_child(light, idx)
 	light.owner = scene
-	light.transform = marker.transform
+	light.transform = xf
 	light.add_to_group(GROUP, true)
-	parent.remove_child(marker)
-	marker.free()
 	return true

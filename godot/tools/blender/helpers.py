@@ -113,7 +113,7 @@ def make_material(name, tex=None, color=(1.0, 1.0, 1.0), metallic=0.0, roughness
     if name in MATS:
         return MATS[name]
     if tex in shade.KINDS and tex != "paint":
-        m = Mat(name, tex, "atlas")
+        m = Mat(name, tex, "atlas", color=color)
     elif tex == "paint":
         m = Mat(name, "paint", "paint", color=color)
     else:
@@ -377,6 +377,8 @@ class Part:
     def _add(self, verts, faces, mat, tint, xf, bevel, bsegs, bangle, sharp, mirror, closed, jitter, face_mats=None,
              outward_from=None, flip=False):
         slot, mat = self._slot(mat)
+        if tuple(tint) == (1, 1, 1) and mat.kind not in ("paint", "flat"):
+            tint = mat.color                     # e.g. the emission colour of a glow material, the tint of a glass material
         t = bmesh.new()
         vs = [t.verts.new(xf @ Vector(p)) for p in verts]
         lr = lg = lb = None
