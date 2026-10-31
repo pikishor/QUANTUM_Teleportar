@@ -1,0 +1,64 @@
+# Handoff: where the project stands and how to continue (written at the end of the cloud sessions)
+
+Read this first, then `godot/ARCHITECTURE.md` (the binding module contracts and the "as implemented" sections) and `godot/BUDGETS.md`.
+Everything described here is committed on `main` of https://github.com/pikishor/QUANTUM_Teleportar. Nothing important lives only in a cloud session.
+
+## What the game is
+**Quantum Teleportar**: a mature-rated (17+) open-world alien sci-fi third-person shooter for Android and iOS. Neo-Meridian, 2091: the Vael (a hive species from a collapsed quantum rift)
+farm human "coherence" with bio-mechanical Observer drones. The player is **Kestrel**, a quantum-alien hybrid who teleports using the real teleportation protocol
+(Bell pair, Alice's two classical bits, Bob's X and Z corrections). **ORACLE** is a half-corrupted AI voice in Kestrel's head. Goal: recover the quantum cores (rift anchors) in six escalating
+sectors. Story data: `godot/scripts/story/story_data.gd` (82 radio lines, chapters, prologue/epilogue, death quotes); engine: `scripts/story/story.gd`.
+Production build = **Godot 4.6.1 (GDScript)** in `godot/`. `src/` (Three.js) is the old tested design reference, `unreal/` a parked UE5 scaffold, `prototypes/` archive.
+
+## Built and verified (commit history on main; last verified state = see `git log`)
+World (8x8 neon city, wet reflections, streaming, pooled prop colliders), atmosphere (post-process, rain, weather), player (third person, camera rig, weapon, alien hero rig), enemies (3 bio-drones + Vael troopers,
+EnemyManager, caps per tier, threat marks, telegraphs), missions (cores, pickups, win/next sector), HUD (bars, minimap, menus, pause/dead/win screens, phone layout), touch controls, quantum powers
+(blink, entangle, superposition), vehicles and traffic, story layer, combat VFX, stability layer (watchdog, adaptive quality, error log, loading overlay), 19 headless test files, bots and screenshot tools.
+**All 19 test files pass in a fresh clone** (`godot/tools/verify_clean_clone.sh`). GitHub CI (tests + screenshot + Unreal syntax + web build), the Android debug APK and the iOS unsigned device build were green.
+
+## Resume locally (Mac or Linux)
+```bash
+git clone https://github.com/pikishor/QUANTUM_Teleportar && cd QUANTUM_Teleportar
+make setup            # pinned Godot 4.6.1 (SHA-512 verified) + export templates + project import
+make test             # all headless tests (about 5 minutes)
+godot/tools/verify_clean_clone.sh   # clean-clone proof
+cd godot && tools/import.sh         # after adding class_name scripts or assets
+```
+Open `godot/` in the Godot 4.6.1 editor to run the game (F5). On a real GPU (your Mac) the Mobile renderer runs natively, so you can finally profile for real.
+Tools (all in `godot/tools/`): `test.sh tests/test_x.gd`, `bot.sh res://tests/bot_x.gd prefix every count` (scripted playthrough + screenshots; `QUALITY=0|1|2`, `RENDERER=compat`),
+`shot.sh`, `vfx_check.sh` (deterministic explosion frames at fixed game time with `--fixed-fps 30`), `size_report.sh`, `pck_list.py`, `build_assets.sh` (Blender/numpy asset regeneration, needs `setup_python.sh`).
+Useful flags after `--`: `--quality=N`, `--touch` (draw touch controls on desktop), `--perf` (FPS box), `--governor` (re-enable the auto quality governor in tools).
+Build and deploy: `docs/DEPLOY.md` (GitHub Actions for Android/iOS, secrets list, phone install steps, signing setup). Store checklist: `docs/RELEASE.md`. Scope ladder: `docs/SCOPE.md`, `docs/ROADMAP.md`.
+
+## Decisions made with the owner (do not re-litigate without asking)
+- Engine: Godot 4 now, Unreal later (when an art team and a GPU build machine exist). Single branch: `main` (an old branch `claude/determined-bardeen-mvwr5u` can be deleted on GitHub).
+- Install size ceiling 5 GB (BUDGETS.md): a ceiling, not a target. Today about 40 MB because everything is generated; gigabytes need real art, audio, voice and video.
+- Direction: adult, gritty cyber-noir, alien cast; gore behind `Game.graphic_violence` (default off, aliens bleed green ichor); store rating undecided (Teen vs Mature).
+- Quality bar: GTA 5 / Call of Duty feel on a phone. Honest state: independent art review scored the pre-wave-5 build 5.5/10 (atmosphere 8, lighting 7.5, composition 7, readability 5.5, VFX 4.5, characters 4, materials 4).
+  Code-generated art has a ceiling; the next jump needs authored or licensed characters, textures (2K-4K), animation and audio. Node contracts let those drop in (see ARCHITECTURE.md assets section).
+- Repo is public and MIT-licensed today; make it private and pick a proprietary license before a commercial release (docs/DEPLOY.md).
+- Never paste keystores, certificates, passwords or API keys into chat or commits: GitHub encrypted secrets only.
+
+## Owner's last phone test (Android debug build) and open bugs
+The app installed. Reported: the screen got stuck on the main menu and after death, enemy attacks and car crashes (the world "lost the plot"). The stability wave fixed the causes found in the sandbox
+(camera flung away by an integration step at low fps, 82% dark death overlay, explosion sprites at the lens, held input, chase camera on a destroyed car) and added a watchdog, adaptive quality, a loading
+overlay and an on-device error log (long-press the FPS box). **Unverified on a device**: ask for the FPS box reading, whether DEPLOY responds and how the aliens and explosions look. Software rendering
+in the sandbox cannot reproduce phone GPU behaviour.
+
+## Prioritised backlog (from the independent reviews and integrators)
+1. **Real-device profiling** (frame time, fill rate, shader hitches on first use). Fragment-heavy shaders: building (interior mapping), ground (screen-copy reflection), post. MED whole frame about 133-150 draws, 215-241k visible triangles (about 325k with shadow passes); killing 4 enemies at once spikes to 174-189 draws for about 0.8 s; Compat + touch peaks at 178 total.
+2. **Character and enemy art**: hero is still a dark silhouette from the chase camera with thin tube limbs and jagged cloak hem; enemies smallish. Replace with authored/licensed rigged models (node contract in ARCHITECTURE.md) or keep improving `tools/blender/*`.
+3. **Asset pipeline reproducibility**: `tools/build_assets.sh` from a clean clone with an empty HOME was never verified end to end; Blender env scripts (`ensure_bpy.sh` vs `setup_python.sh`) were not reconciled. Textures are 512 px; raise to 1K-2K ASTC where it shows. Baked-atlas path partly built (`atlas.py`, `shade.py`).
+4. **Environment**: facades still boxy, repetitive signage, low roofs flat, near field dark, LOW tier looks dry; steam, haze and light shafts; far traffic/pedestrian impostors so the city is alive (nothing moves except rain and enemies).
+5. **Combat feel**: real cover behaviour for enemies (prop colliders now exist), hit reactions/death animations for aliens, directional audio, reload/hit/death sounds (audio is synthesised; no recorded SFX, music or voice).
+6. **Gameplay depth for "GTA"**: more mission types (not only cores), side activities, NPC pedestrians, police-style heat response, weapons/upgrades, save/load progress, tutorial.
+7. **Release engineering**: signed Android AAB + Play upload and iOS signing/TestFlight need your secrets (docs/DEPLOY.md); store art, privacy policy, age rating, localisation, analytics, crash reporting.
+8. Minor: HUD collisions with touch buttons on some aspect ratios, compat renderer darker than Mobile, test flake `test_stability` ("hurt effect recovers completely") seen once, headless dummy-renderer error noise.
+
+## Working rules that paid off (keep them when using Claude Code locally)
+- Contracts first: `ARCHITECTURE.md` is binding; modules own their files; shared files (`autoload/*`, `scripts/main.gd`, `project.godot`) are changed by one person at a time.
+- Every module ships a headless test (`tests/test_*.gd`) and a bot; "done" = tests pass AND screenshots looked at. Run all tests before every commit.
+- Software-rendered screenshots are slow (2-5 fps): capture time-sensitive effects with `--fixed-fps` (see `tools/vfx_check.sh`) and keep the auto quality governor off in tools (it is, under `Game.autostart`).
+- Scratch files go in a per-module scratch dir, never the shared root; check that a `Write` says "created", not "updated".
+- Multi-agent builds (if you use Claude Code workflows again): never message an agent that a workflow runs (it forks a duplicate that edits the same files); use small scoped agents, effort high for builders and medium for reviewers, at most about 20 screenshots each, no re-check rounds; measure token use after every wave.
+- Cost reference: wave 1 used about 5.7M generated tokens; later waves were much leaner. The reasoning share of generated tokens was about 82% at maximum effort.
