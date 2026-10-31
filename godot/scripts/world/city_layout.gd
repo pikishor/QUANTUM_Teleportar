@@ -14,6 +14,8 @@ const HALF := 320.0            ## N * PITCH / 2
 const BLOCK := 60.0            ## PITCH - ROAD: the block (sidewalk) square between roads
 const LANE := 5.0              ## lane centre offset from a road's centre line
 const BORDER := 30.0           ## invisible walls stand at HALF + BORDER
+const WALL_T := 8.0            ## thickness of the invisible border walls (they occupy WALK .. WALK + WALL_T)
+const WALK := HALF + BORDER    ## the walkable square is |x|, |z| <= WALK: the inner faces of the border walls
 const LOT_OFFSET := 15.0       ## lot centre offset from the block centre
 const SEED := 2025
 

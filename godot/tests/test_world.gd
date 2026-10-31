@@ -3,6 +3,7 @@ extends RefCounted
 ## the quality tiers. Run: tools/test.sh tests/test_world.gd
 
 const BM := preload("res://scripts/world/building_meshes.gd")
+const Stream := preload("res://scripts/world/city_stream.gd")
 
 
 func run(host: Node) -> void:
@@ -19,7 +20,10 @@ func run(host: Node) -> void:
 	_test_inside(city)
 	await _test_colliders(host, city)
 	_test_multimeshes(city)
+	_test_prop_colours(city)
+	_test_skyline(city)
 	await _test_quality(host, city)
+	await _test_streaming(host, city)
 	_test_stats(city)
 
 
@@ -240,6 +244,158 @@ func _test_multimeshes(city: City) -> void:
 	TestLib.check(shares, "mirrored copies reuse the real MultiMesh data (%d mirrored families)" % city.mirror_nodes.size())
 	# no node creation per building: the whole city is a handful of nodes
 	TestLib.check(city.multimesh_nodes.size() <= 60, "the city is %d MultiMesh families (draw-call budget)" % city.multimesh_nodes.size())
+
+
+## The Compatibility (GL) renderer reads a mesh's vertex COLOR as 0 when its MultiMesh has no instance colours (flat slabs, green poles,
+## lost emission codes). Every family whose mesh carries vertex colours must therefore enable instance colours (written white).
+func _test_prop_colours(city: City) -> void:
+	var bad: Array[String] = []
+	var with_colours := 0
+	for n in city.multimesh_nodes:
+		var mm := n.multimesh
+		var has_vertex_colour := false
+		for si in mm.mesh.get_surface_count():
+			var arr := mm.mesh.surface_get_arrays(si)
+			if arr[Mesh.ARRAY_COLOR] != null and (arr[Mesh.ARRAY_COLOR] as PackedColorArray).size() > 0:
+				has_vertex_colour = true
+		if has_vertex_colour:
+			with_colours += 1
+			if not mm.use_colors:
+				bad.append(String(n.name))
+			else:
+				# the instance colour must be white, or the vertex colour is tinted
+				var stride := 12 + 4 + (4 if mm.use_custom_data else 0)
+				var buf := mm.buffer
+				if n.name != &"LampShafts" and n.name != &"Glow" and buf.size() >= stride and not (is_equal_approx(buf[12], 1.0) and is_equal_approx(buf[15], 1.0)):
+					bad.append(String(n.name) + " (instance colour not white)")
+	TestLib.check(with_colours >= 15 and bad.is_empty(), "families with vertex colours (%d) enable white instance colours for the GL renderer: %s" % [with_colours, str(bad)])
+
+
+## The far skyline is visual only (no colliders): no tower may reach into the walkable square or the invisible border walls.
+func _test_skyline(city: City) -> void:
+	var keep := CityLayout.WALK + CityLayout.WALL_T
+	var inside := 0
+	for r in city.skyline_rects:
+		if r.end.x > -keep and r.position.x < keep and r.end.y > -keep and r.position.y < keep:
+			inside += 1
+	TestLib.check(city.skyline_rects.size() > 800, "the far skyline still has its towers (%d)" % city.skyline_rects.size())
+	TestLib.check(inside == 0, "no far-skyline tower reaches into the walkable square or the border walls (%d do)" % inside)
+	var counted := 0
+	for n in city.multimesh_nodes:
+		if String(n.name).begins_with("Skyline_"):
+			counted += n.multimesh.instance_count
+	TestLib.check(counted == city.skyline_rects.size(), "skyline MultiMesh instances match the placed towers (%d)" % counted)
+	# a physics capsule-sized probe at the wall line finds no tower (they are 4 m or more behind the wall) and the ring road side is open
+	var wall_clear := true
+	for r in city.skyline_rects:
+		if r.grow(1.0).has_point(Vector2(CityLayout.WALK + 1.0, 0.0)) or r.grow(1.0).has_point(Vector2(0.0, CityLayout.WALK + 1.0)):
+			wall_clear = false
+	TestLib.check(wall_clear, "no tower stands against the wall faces")
+
+
+func _family(city: City, family_name: String) -> Stream.Family:
+	for f: Stream.Family in city.stream_families():
+		if f.name == family_name:
+			return f
+	return null
+
+
+## True when every instance of the family within its fade distance of `cam` is part of the drawn window.
+func _window_complete(f: Stream.Family, cam: Vector2) -> bool:
+	var buf := f.mm.buffer
+	var drawn := {}
+	for i in f.shown:
+		var o := i * f.stride
+		drawn[Vector2i(roundi(buf[o + 3] * 8.0), roundi(buf[o + 11] * 8.0))] = true
+	var reach := f.fade_end()
+	for c in f.cells.size():
+		var arr: PackedFloat32Array = f.cells[c]
+		for k in arr.size() / f.stride:
+			var o := k * f.stride
+			if Vector2(arr[o + 3], arr[o + 11]).distance_to(cam) < reach and not drawn.has(Vector2i(roundi(arr[o + 3] * 8.0), roundi(arr[o + 11] * 8.0))):
+				return false
+	return true
+
+
+## The prop and skyline families only draw the instances near the camera (a MultiMesh of the whole city has one bounding box and can
+## never be frustum culled): the window must be complete, follow the camera, and keep the triangle budget.
+func _test_streaming(host: Node, city: City) -> void:
+	var families := city.stream_families()
+	TestLib.check(families.size() >= 20, "%d families are windowed around the camera" % families.size())
+	var names: Array[String] = []
+	for f: Stream.Family in families:
+		names.append(f.name)
+	for need in ["Lamps", "Trash", "FireEscapes", "Dumpsters", "Signals", "LampShafts", "RoofAC", "Skyline_tiered", "Billboards"]:
+		TestLib.check(need in names, "%s is windowed" % need)
+	city.set_quality(1)
+	var spawn := Vector2(Game.SPAWN.x, Game.SPAWN.z)
+	city.update_streaming(spawn, true)
+	var lamps := _family(city, "Lamps")
+	var trash := _family(city, "Trash")
+	TestLib.check(lamps.shown > 0 and lamps.shown < lamps.total, "at the spawn the lamps are windowed (%d of %d drawn)" % [lamps.shown, lamps.total])
+	TestLib.check(trash.shown > 0 and trash.shown < trash.total * 0.35, "short-range clutter is windowed hard (%d of %d trash heaps drawn)" % [trash.shown, trash.total])
+	var complete := true
+	for f: Stream.Family in families:
+		if not _window_complete(f, spawn):
+			complete = false
+			printerr("window of ", f.name, " is missing instances")
+	TestLib.check(complete, "every instance within a family's fade distance of the camera is drawn")
+	var drawn := city.stats()
+	var tris: int = int(drawn["triangles_drawn"]) + int(drawn["triangles_drawn_mirror"])
+	TestLib.check(tris < 140000, "medium tier at the spawn draws %d triangles (all families and the mirrored copies; budget 300k for the whole frame)" % tris)
+	# the camera moves: the window follows, the instances near it are always there (non-forced updates, one per frame, like _process)
+	var covered := true
+	var rebuilt := 0
+	var last := lamps.built_at
+	for step in 600:
+		var x := -300.0 + float(step) * 1.0
+		var cam := Vector2(x, 4.0 + 0.4 * float(step % 9))
+		city.update_streaming(cam, false)
+		if lamps.built_at != last:
+			rebuilt += 1
+			last = lamps.built_at
+		if step % 7 == 0:
+			for fname in ["Lamps", "Signals", "Dumpsters", "Awnings", "Skyline_tiered", "RoofAC"]:
+				if not _window_complete(_family(city, fname), cam):
+					covered = false
+	TestLib.check(covered, "while the camera drives 600 m along the avenue (1 m per update) no instance near it is ever missing")
+	TestLib.check(rebuilt > 5 and rebuilt < 120, "the window is rebuilt every few metres, not every frame (%d rebuilds in 600 updates)" % rebuilt)
+	# a teleport (respawn, blink, camera cut) is caught up at once
+	city.update_streaming(Vector2(250.0, -250.0), false)
+	TestLib.check(_window_complete(_family(city, "Lamps"), Vector2(250.0, -250.0)) and _window_complete(_family(city, "Trash"), Vector2(250.0, -250.0)),
+			"after a 500 m jump every window is complete in the same update")
+	# far outside the city nothing but the always-on families (buildings, glow, steam, holograms) is drawn
+	city.update_streaming(Vector2(9000.0, 9000.0), true)
+	var none := true
+	for f: Stream.Family in families:
+		if f.shown != 0:
+			none = false
+	TestLib.check(none, "far from the city the windowed families draw nothing")
+	# quality scales the radii
+	city.set_quality(0)
+	city.update_streaming(spawn, true)
+	var low_shown := lamps.shown
+	city.set_quality(2)
+	city.update_streaming(spawn, true)
+	var high_shown := lamps.shown
+	TestLib.check(low_shown < high_shown, "the low tier draws a smaller window than the high tier (lamps %d < %d)" % [low_shown, high_shown])
+	var tiers: Array[int] = []
+	for level in [0, 1, 2]:
+		city.set_quality(level)
+		city.update_streaming(spawn, true)
+		var st := city.stats()
+		tiers.append(int(st["triangles_drawn"]) + int(st["triangles_drawn_mirror"]))
+	TestLib.check(tiers[0] < tiers[1] and tiers[1] < tiers[2] and tiers[2] < 260000, "triangles per tier at the spawn: LOW %d < MED %d < HIGH %d (budget MED 300k, HIGH 800k)" % [tiers[0], tiers[1], tiers[2]])
+	# switching the windows off shows everything again
+	city.stream_enabled = false
+	var all_shown := true
+	for f: Stream.Family in families:
+		if f.mm.visible_instance_count != f.total or f.mm.buffer.size() != f.total * f.stride:
+			all_shown = false
+	TestLib.check(all_shown, "stream_enabled = false draws every instance again")
+	city.stream_enabled = true
+	city.set_quality(1)
+	await TestLib.frames(host, 1)
 
 
 func _test_quality(host: Node, city: City) -> void:

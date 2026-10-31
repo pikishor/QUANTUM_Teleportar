@@ -6,6 +6,7 @@ render_mode unshaded, blend_add, depth_draw_never, cull_disabled;
 #include "res://assets/shaders/common.gdshaderinc"
 
 global uniform float rain;
+uniform vec2 lod_range = vec2(100000.0, 110000.0);      // the cones fade out between these distances (metres from the camera)
 
 varying vec2 v_uv;
 varying flat vec4 v_c;
@@ -31,7 +32,7 @@ void fragment() {
 	float p = fract(along * 1.7 - TIME * speed + hash11(col + 3.0));
 	float dash = smoothstep(0.0, 0.015, p) * (1.0 - smoothstep(0.03, 0.10, p));
 	float streak = line * dash * step(0.6, hash11(col + 21.0));
-	float a = body * (0.06 + 0.7 * streak * clamp(rain, 0.0, 1.0));
+	float a = body * (0.06 + 0.7 * streak * clamp(rain, 0.0, 1.0)) * (1.0 - smoothstep(lod_range.x, lod_range.y, length(VERTEX)));
 	ALBEDO = v_c.rgb * v_c.a;
 	ALPHA = clamp(a * 0.5, 0.0, 1.0);
 }

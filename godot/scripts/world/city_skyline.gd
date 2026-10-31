@@ -13,12 +13,21 @@ const HEIGHTS: Array[float] = [16.0, 28.0, 44.0, 62.0, 88.0, 118.0, 150.0]
 ## Blocks beyond the inner 8 x 8: indices from RANGE_MIN to RANGE_MAX inclusive (18 x 18 blocks, +-720 m).
 const RANGE_MIN := -5
 const RANGE_MAX := 12
+## The towers never reach into the walkable square or the invisible border walls (|x|, |z| < KEEP_OUT): they have no colliders, so a lot
+## there would let the player or a car drive straight through a facade. Lots that would are dropped; the random stream is unchanged.
+const KEEP_OUT := CityLayout.WALK + CityLayout.WALL_T + 2.0
+## Towers farther than this from the camera are not drawn (they have melted into the fog; see city_stream.gd). The towers are what the
+## horizon is made of, so the radius reaches the far corner of the grid from its centre.
+const RADIUS := 900.0
 
 var multimeshes := {}
 var count := 0
+## Footprints (x, z) of the placed towers, for tests.
+var rects: Array[Rect2] = []
 
 
 func build() -> void:
+	rects.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 31337
 	var lists := {}
@@ -47,8 +56,12 @@ func build() -> void:
 					var lit_p := lerpf(0.25, 0.6, rng.randf())
 					var style := 4 if h < 20.0 and rng.randf() < 0.5 else (2 if h > 50.0 and rng.randf() < 0.6 else rng.randi() % 3)
 					var flags := 4 if rng.randf() < 0.3 and h >= 44.0 else 0
+					var custom := Color(rng.randf(), float(rng.randi() % 4), float(style), float(flags))
+					if absf(cx) - w * 0.5 < KEEP_OUT and absf(cz) - d * 0.5 < KEEP_OUT:
+						continue
+					rects.append(Rect2(cx - w * 0.5, cz - d * 0.5, w, d))
 					(lists[cls] as Array).append([Transform3D(Basis.from_scale(Vector3(w, h, d)), Vector3(cx, 0.0, cz)),
-							Color(tint.r, tint.g, tint.b, lit_p), Color(rng.randf(), float(rng.randi() % 4), float(style), float(flags))])
+							Color(tint.r, tint.g, tint.b, lit_p), custom])
 	count = 0
 	for c in CLASSES:
 		var list: Array = lists[c]

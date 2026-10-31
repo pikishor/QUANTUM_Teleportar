@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regenerate every procedural asset: PBR texture sets -> audio -> Blender models (with their baked atlases) -> Godot import.
 #   tools/build_assets.sh                 compact set (the committed sizes) + models + audio + import
-#   tools/build_assets.sh --hires         additionally writes 1K tiling sets and 2x atlases to assets/generated (git-ignored)
+#   tools/build_assets.sh --hires         additionally writes the 1K tiling texture sets to assets/generated (git-ignored)
 #   tools/build_assets.sh --skip-models   textures + audio only (needs numpy, not bpy)
 #   tools/build_assets.sh --no-import     do not run the Godot import afterwards
 #
@@ -49,7 +49,6 @@ echo "== audio"
 "$PY" tools/audio/make_audio.py
 if [ "$MODELS" = 1 ]; then
   echo "== models + atlases"
-  if [ "$HIRES" = 1 ]; then export QT_ATLAS_SCALE=2; fi
   tools/blender/build_all.sh
 fi
 if [ "$IMPORT" = 1 ]; then

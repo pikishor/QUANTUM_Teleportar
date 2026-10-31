@@ -29,6 +29,9 @@ uniform float detail : hint_range(0.0, 1.0) = 1.0;      // 0 = cheap (no relief,
 uniform float emission_scale = 1.0;
 uniform float far_fade_start = 240.0;                   // windows melt into an average colour beyond this distance
 uniform float far_fade_end = 800.0;
+#ifdef FAR
+uniform vec2 lod_range = vec2(100000.0, 110000.0);      // distance LOD: a far tower sinks into the ground between these distances (ground plane)
+#endif
 
 const float FLOOR_H = 3.5;
 const float GROUND_H = 5.0;
@@ -63,6 +66,9 @@ void vertex() {
 		float axis_scale = abs(NORMAL.x) > 0.5 ? sc.z : sc.x;
 		v_wall = vec4(UV.x * axis_scale, (UV.y - UV.x) * axis_scale, UV2.x * sc.y, (UV2.y - UV2.x) * sc.y);
 	}
+#ifdef FAR
+	VERTEX *= 1.0 - smoothstep(lod_range.x, lod_range.y, distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz));
+#endif
 }
 
 vec3 lit_color(float r, float pal) {

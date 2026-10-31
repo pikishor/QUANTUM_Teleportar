@@ -187,10 +187,11 @@ func explode(pos: Vector3, radius: float, opts := {}) -> void:
 	var player_dmg: float = opts.get("player_dmg", 30.0)
 	var color: Color = opts.get("color", Color(1.0, 0.54, 0.19))
 	FX.blast(pos, radius, color)
-	FX.burst(pos, color, 50, radius * 1.4, 0.8)
+	FX.burst(pos, color, 50, radius * 1.4, 0.8)                                  # hot sparks
+	FX.burst(pos + Vector3(0.0, 0.5, 0.0), color, 10, radius * 0.3, 0.75, -2.0, 9.0)   # the fireball: soft puffs that rise
 	var cam_pos: Vector3 = camera.global_position if is_instance_valid(camera) else pos
 	FX.shake(clampf(14.0 / (cam_pos.distance_to(pos) + 6.0), 0.0, 1.0))
-	Sfx.play(&"boom")
+	Sfx.play_at(&"boom", pos, -3.0)                 # positional: an explosion across the street is quieter and comes from where it is
 	if enemy_dmg > 0.0:
 		for e: Node3D in get_tree().get_nodes_in_group(&"enemy"):
 			var reach := radius + 0.8

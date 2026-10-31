@@ -5,7 +5,8 @@ extends Node3D
 ##  * a full-screen post-process (scripts/fx/atmosphere_post.gd, assets/shaders/post_film.gdshader): colour grade with
 ##    lift/gamma/gain (cool teal shadows, warm highlights, crushed blacks), vignette, edge chromatic aberration, temporal film
 ##    grain, optional sharpening, heat haze, lens droplets and a rain curtain. One pass; each effect individually tunable.
-##  * rain (scripts/fx/atmosphere_rain.gd): pooled streak and splash particles that follow Game.camera.
+##  * rain (scripts/fx/atmosphere_rain.gd): pooled streak particles and, on MED and HIGH, ground splashes (thin ripples and tiny droplets that
+##    only brighten what the wet ground reflects) that follow Game.camera.
 ##  * the global shader parameters `wetness` and `rain` (registered by Game._ready, which always runs first: it is an autoload) that
 ##    every material reads; set_weather() eases them.
 ##
@@ -80,7 +81,8 @@ func set_weather(rain: float, wetness: float, instant := false) -> void:
 		_push_weather()
 
 
-## 0 low, 1 medium, 2 high: scales the rain density, the splash count and which post effects exist.
+## 0 low, 1 medium, 2 high: scales the rain density, the splash count and which post effects exist. LOW draws no ground splashes
+## (its ground is matte; the splashes need the screen copy that the world's wet ground makes on MED and HIGH) and no lens effects.
 func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
 	if post:

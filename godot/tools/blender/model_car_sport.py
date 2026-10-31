@@ -29,7 +29,7 @@ def extras(P, c):
 SPEC = dict(
     name="car_sport", seed=9,
     L=4.45, W=1.92, WB=2.62, gc=0.11, R=0.335, tw=0.265, track=1.58, spokes=6,
-    paint="#8a1f2c", rim="#6f757b", spoke="#b7bec6", underglow="#ff2fd6",
+    paint="#b82e40", rim="#6f757b", spoke="#b7bec6", underglow="#ff2fd6", atlas_paint=1024, atlas=1024,
     belt=0.80,
     ztop=[(-2.225, 0.62), (-2.15, 0.74), (-1.95, 0.86), (-1.60, 0.92), (-1.30, 0.93), (-1.0, 0.88), (-0.6, 0.81), (0.55, 0.79),
           (0.85, 0.82), (1.3, 0.84), (1.8, 0.74), (2.1, 0.64), (2.225, 0.56)],

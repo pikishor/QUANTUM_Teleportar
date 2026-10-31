@@ -8,7 +8,7 @@ from carlib import build_car  # noqa: E402
 SPEC = dict(
     name="car_sedan", seed=5,
     L=4.75, W=1.86, WB=2.82, gc=0.14, R=0.335, tw=0.225, track=1.58, spokes=5,
-    paint="#34505e", rim="#8d959c", spoke="#c3cad1", underglow="#18d6ff",
+    paint="#5a8798", rim="#8d959c", spoke="#c3cad1", underglow="#18d6ff", atlas_paint=1024, atlas=1024,
     belt=0.90,
     ztop=[(-2.375, 0.66), (-2.30, 0.78), (-2.12, 0.88), (-1.80, 0.945), (-1.45, 0.955), (-1.30, 0.93), (-1.0, 0.905), (0.80, 0.90),
           (1.05, 0.925), (1.5, 0.89), (2.0, 0.82), (2.28, 0.74), (2.375, 0.66)],

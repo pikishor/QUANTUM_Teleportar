@@ -11,13 +11,15 @@ extends RefCounted
 ##   0 idle  1 walk  2 strafe  3 sprint  4 jump (apex)  5 aim down sights  6 hip fire  7 ADS fire  8 automatic fire  9 reload  10 crit
 ##   11 hurt  12 vehicle chase  13 camera pull-in at a wall  14 death  15 respawn  16 front  17 side  18 rifle close-up  19 wall holes
 ##   20 the idle view with the body hidden (BOT_STATS=1 prints draw calls and primitives at the end of each phase: phase 0 minus phase 20 is the player's cost)
+##   21 corner: the player's back is 0.4 m from a wall, the camera arm is cut to its floor and the character fades out by camera distance
+##   22 death in mid-air: jump, die at the top, the body falls to the ground and lies there (use a count of frames long enough to see it settle: every >= 60)
 
 const Arena := preload("res://tests/player_arena.gd")
 const Fixture := preload("res://tests/player_fixture.gd")
 
 const TIME_SCALE := 0.2
 const NAMES: Array[String] = ["idle", "walk", "strafe", "sprint", "jump", "ads", "fire_hip", "fire_ads", "fire_auto", "reload", "crit",
-		"hurt", "vehicle", "pullin", "death", "respawn", "front", "side", "closeup", "wall_hole", "hidden_body"]
+		"hurt", "vehicle", "pullin", "death", "respawn", "front", "side", "closeup", "wall_hole", "hidden_body", "corner", "death_air"]
 
 var _every := 40
 var _count := 20
@@ -113,6 +115,19 @@ func _target() -> Node3D:
 	return _dummies[0]
 
 
+## City mode: a street spot 0.4 m east of a building face, so that a player looking east has the facade at the back.
+func _facade_spot() -> Vector3:
+	if is_instance_valid(Game.world):
+		for r in Game.world.get(&"building_rects"):
+			var rect := r as Rect2
+			if rect.size.x < 14.0 or rect.size.y < 14.0:
+				continue
+			var spot := Vector3(rect.end.x + 0.4, 0.0, rect.position.y + rect.size.y * 0.5)
+			if not Game.world.call(&"is_inside_building", spot) and absf(float(Game.world.call(&"ground_height", spot.x, spot.z, 5.0))) < 0.1:
+				return spot
+	return Game.SPAWN
+
+
 func _center(d: Node3D) -> Vector3:
 	return d.call(&"center")
 
@@ -192,6 +207,14 @@ func _enter(phase: int) -> void:
 		20:
 			# the same view with and without the body and its lights, toggled every 10 frames (BOT_STATS=1 prints the difference)
 			_reset_player(_spawn(), yaw)
+		21:
+			if _mode == "arena":
+				_reset_player(Vector3(-16.1, 0.0, -4.0), yaw, -0.08)         # the pull-in wall of the arena spans x -17.5 .. -16.5
+			else:
+				_reset_player(_facade_spot(), yaw, -0.08)
+		22:
+			_reset_player(_spawn(), yaw)
+			Input.action_press(&"jump")
 		_:
 			_reset_player(_spawn(), yaw)
 			Input.action_press(&"move_forward")
@@ -264,5 +287,10 @@ func _run(phase: int, k: int, delta: float) -> void:
 				Input.action_press(&"fire")
 			elif k % 8 == 1:
 				Input.action_release(&"fire")
+		22:
+			if k == 3:
+				Input.action_release(&"jump")
+			elif k == 12:
+				_p.damage(999.0)                                           # about the top of the jump
 		_:
 			pass

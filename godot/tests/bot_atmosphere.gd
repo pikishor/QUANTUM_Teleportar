@@ -4,15 +4,18 @@ extends RefCounted
 ##   tools/bot.sh res://tests/bot_atmosphere.gd /tmp/atmo 20 14
 ## Shots (default plan, "pose:mode" pairs):
 ##   street:off  street:post  street:full  street:heavy  street:med  street:low  low:off  low:full  hero:off  hero:full  lamp:full  speed:full  wide:off  wide:full
+##   puddle:heavy  close:full      (the last two look at the ripples on the near ground: poses puddle and close)
 ## modes: off = post-process and rain hidden (the raw render), post = grade/grain/vignette/CA only, full = everything at HIGH,
 ##        heavy = full with rain 1.0, med / low = the other quality tiers. The pose `speed` drives the camera down the street at 30 m/s.
 ## Optional user args (after --):
 ##   --plan="street:off;street:full"   own plan; poses of the real city (needs scenes/world.tscn) are w_street w_wet w_junction w_third w_crane w_steam
+##                                     a third field overrides shader uniforms for that shot only (tuning): "low:full:ring_gain=1.2,ring_floor=0.02" (splash shader),
+##                                     "street:full:s.intensity=2" (streak shader, prefix s.)
 ##   --rain=0.75 --wet=0.85            weather of the full shots
 ##   --keep                            do not remove the other modules from the main scene (default: only atmosphere + the world stay)
 
 const Fixture := preload("res://tests/atmosphere_fixture.gd")
-const DEFAULT_PLAN := "street:off;street:post;street:full;street:heavy;street:med;street:low;low:off;low:full;hero:off;hero:full;lamp:full;speed:full;wide:off;wide:full"
+const DEFAULT_PLAN := "street:off;street:post;street:full;street:heavy;street:med;street:low;low:off;low:full;hero:off;hero:full;lamp:full;speed:full;wide:off;wide:full;puddle:heavy;close:full"
 ## Poses over the real city (same as tests/bot_world.gd): [position, look target, fov]
 const WORLD_POSES := {
 	&"w_street": [Vector3(-46.0, 1.75, 3.5), Vector3(120.0, 5.0, 2.0), 72.0],
@@ -35,6 +38,7 @@ var _rain := 0.75
 var _wet := 0.85
 var _moving := false
 var _applied := -1
+var _overridden: Array = []             # [material, uniform] pairs set by the previous shot's overrides
 
 
 func _init() -> void:
@@ -46,8 +50,8 @@ func _init() -> void:
 	_wet = float(_args.get("wet", "0.85"))
 	for item: String in String(_args.get("plan", DEFAULT_PLAN)).split(";"):
 		var kv := item.split(":")
-		if kv.size() == 2:
-			_plan.append([StringName(kv[0]), kv[1]])
+		if kv.size() == 2 or kv.size() == 3:
+			_plan.append([StringName(kv[0]), kv[1], kv[2] if kv.size() == 3 else ""])
 
 
 func _tree() -> SceneTree:
@@ -84,6 +88,7 @@ func _setup() -> void:
 		_fixture = Fixture.new()
 		_fixture.build(scene)
 		_cam = _fixture.camera
+		_atmosphere.rainfield.splashes_need_world = false      # the fixture brings its own screen-reading wet floor and no world
 
 
 func step(_t: float, delta: float) -> bool:
@@ -127,6 +132,7 @@ func _apply(entry: Array) -> void:
 	var pose: StringName = entry[0]
 	var mode: String = entry[1]
 	_set_pose(pose)
+	_clear_overrides()
 	match mode:
 		"off":
 			_atmosphere.enabled = false
@@ -148,3 +154,27 @@ func _apply(entry: Array) -> void:
 			_atmosphere.rain_enabled = true
 			_atmosphere.set_quality({"low": 0, "med": 1}.get(mode, 2))
 			_atmosphere.set_weather(_rain, _wet, true)
+	_apply_overrides(String(entry[2]))
+
+
+## Tuning aid: "a=1.5,s.b=2" sets uniform a of the splash shader and uniform b of the streak shader for this shot.
+func _apply_overrides(spec: String) -> void:
+	if spec == "":
+		return
+	for item in spec.split(","):
+		var kv := item.split("=")
+		if kv.size() != 2:
+			continue
+		var key := kv[0]
+		var mat: ShaderMaterial = _atmosphere.rainfield.splash_material
+		if key.begins_with("s."):
+			key = key.substr(2)
+			mat = _atmosphere.rainfield.streak_material
+		mat.set_shader_parameter(StringName(key), float(kv[1]))
+		_overridden.append([mat, StringName(key)])
+
+
+func _clear_overrides() -> void:
+	for pair: Array in _overridden:
+		(pair[0] as ShaderMaterial).set_shader_parameter(pair[1], null)
+	_overridden.clear()

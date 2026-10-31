@@ -538,10 +538,10 @@ func _body() -> void:
 	await e.prep(Vector3(-30.0, 0.0, 4.0))
 	b.set_dead(true)
 	await e.secs(0.9)
-	TestLib.check(absf(b.rotation.x) > 1.2, "the dead body has fallen over (%.2f rad)" % b.rotation.x)
+	TestLib.check(b.global_basis.y.y < 0.25, "the dead body has fallen over onto its side (up axis %s)" % str(b.global_basis.y))
 	b.set_dead(false)
 	await e.frames(3)
-	TestLib.check(absf(b.rotation.x) < 0.01, "and stands up again on reset")
+	TestLib.check(b.global_basis.y.y > 0.99, "and stands up again on reset")
 
 
 func _quality_tiers() -> void:

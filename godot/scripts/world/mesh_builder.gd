@@ -50,8 +50,17 @@ func quad(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, n: Vector3, c: Col
 		tri(i0, i2, i3)
 
 
-## Axis-aligned box with all six faces (or without the bottom).
-func box(center: Vector3, size: Vector3, c: Color = color, bottom := true, u2: Vector2 = uv2) -> void:
+## Face bits for box(skip): faces that can never be seen are not worth their triangles.
+const F_PX := 1
+const F_NX := 2
+const F_TOP := 4
+const F_PZ := 8
+const F_NZ := 16
+const F_BOTTOM := 32
+const F_ENDS := F_PZ | F_NZ
+
+## Axis-aligned box with all six faces (or without the bottom); `skip` is a mask of F_* bits for faces to leave out.
+func box(center: Vector3, size: Vector3, c: Color = color, bottom := true, u2: Vector2 = uv2, skip := 0) -> void:
 	var h := size * 0.5
 	var x0 := center.x - h.x
 	var x1 := center.x + h.x
@@ -59,12 +68,17 @@ func box(center: Vector3, size: Vector3, c: Color = color, bottom := true, u2: V
 	var y1 := center.y + h.y
 	var z0 := center.z - h.z
 	var z1 := center.z + h.z
-	quad(Vector3(x1, y0, z1), Vector3(x1, y1, z1), Vector3(x1, y1, z0), Vector3(x1, y0, z0), Vector3.RIGHT, c, uv, u2)
-	quad(Vector3(x0, y0, z0), Vector3(x0, y1, z0), Vector3(x0, y1, z1), Vector3(x0, y0, z1), Vector3.LEFT, c, uv, u2)
-	quad(Vector3(x0, y1, z1), Vector3(x1, y1, z1), Vector3(x1, y1, z0), Vector3(x0, y1, z0), Vector3.UP, c, uv, u2)
-	quad(Vector3(x0, y0, z1), Vector3(x1, y0, z1), Vector3(x1, y1, z1), Vector3(x0, y1, z1), Vector3.BACK, c, uv, u2)
-	quad(Vector3(x1, y0, z0), Vector3(x0, y0, z0), Vector3(x0, y1, z0), Vector3(x1, y1, z0), Vector3.FORWARD, c, uv, u2)
-	if bottom:
+	if skip & F_PX == 0:
+		quad(Vector3(x1, y0, z1), Vector3(x1, y1, z1), Vector3(x1, y1, z0), Vector3(x1, y0, z0), Vector3.RIGHT, c, uv, u2)
+	if skip & F_NX == 0:
+		quad(Vector3(x0, y0, z0), Vector3(x0, y1, z0), Vector3(x0, y1, z1), Vector3(x0, y0, z1), Vector3.LEFT, c, uv, u2)
+	if skip & F_TOP == 0:
+		quad(Vector3(x0, y1, z1), Vector3(x1, y1, z1), Vector3(x1, y1, z0), Vector3(x0, y1, z0), Vector3.UP, c, uv, u2)
+	if skip & F_PZ == 0:
+		quad(Vector3(x0, y0, z1), Vector3(x1, y0, z1), Vector3(x1, y1, z1), Vector3(x0, y1, z1), Vector3.BACK, c, uv, u2)
+	if skip & F_NZ == 0:
+		quad(Vector3(x1, y0, z0), Vector3(x0, y0, z0), Vector3(x0, y1, z0), Vector3(x1, y1, z0), Vector3.FORWARD, c, uv, u2)
+	if bottom and skip & F_BOTTOM == 0:
 		quad(Vector3(x0, y0, z0), Vector3(x1, y0, z0), Vector3(x1, y0, z1), Vector3(x0, y0, z1), Vector3.DOWN, c, uv, u2)
 
 
@@ -78,14 +92,15 @@ func box_yaw(center: Vector3, size: Vector3, yaw: float, c: Color = color, botto
 		norms[i] = b * norms[i]
 
 
-## Box between two arbitrary points with a square cross-section (struts, rails, cables, braces).
-func strut(a: Vector3, b: Vector3, thickness: float, c: Color = color) -> void:
+## Box between two arbitrary points with a square cross-section (struts, rails, cables, braces). `caps` false leaves the two end
+## faces out (the ends are hidden inside whatever the strut joins).
+func strut(a: Vector3, b: Vector3, thickness: float, c: Color = color, caps := true) -> void:
 	var d := b - a
 	var length := d.length()
 	if length < 0.0001:
 		return
 	var start := verts.size()
-	box(Vector3.ZERO, Vector3(thickness, thickness, length), c)
+	box(Vector3.ZERO, Vector3(thickness, thickness, length), c, true, uv2, 0 if caps else F_ENDS)
 	var dir := d / length
 	var up := Vector3.UP if absf(dir.y) < 0.99 else Vector3.RIGHT
 	var basis := Basis.looking_at(dir, up)

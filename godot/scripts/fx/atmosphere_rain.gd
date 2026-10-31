@@ -1,11 +1,17 @@
 extends Node3D
-## Rain that follows the camera: long stretched streaks with a slight wind slant plus ground splashes near the camera.
+## Rain that follows the camera: long stretched streaks with a slight wind slant plus, from MED upward, ground splashes near the camera.
 ##
 ## Pooled by construction: two MultiMeshes are allocated once at the HIGH budget and a quality tier or the rain intensity only
 ## changes `visible_instance_count`. All motion is analytic in the vertex shaders (assets/shaders/post_rain.gdshader and
 ## post_splash.gdshader); the CPU integrates only a handful of drift offsets per frame and sets a few uniforms, so there are no
 ## per-drop updates, no node creation and no allocations in the frame loop. The node itself sits on the camera, the shaders wrap
 ## the drops periodically around it, so the rain fills the view at any camera speed (driving, blinking) and stays fixed in the world.
+##
+## Splashes (a thin double ripple and up to three tiny droplets per impact) add no light of their own: the shader returns a fraction of
+## the picture behind them, so they live where the wet ground reflects something and vanish over unlit asphalt. That needs the screen
+## texture, which the world's wet ground reads on MED and HIGH anyway, so while a world is drawn the splashes cost no extra frame copy
+## (see `splashes_need_world`). LOW has a matte ground without reflections, where splashes would be stickers, so LOW draws none (and pays
+## no screen read from this module); it gets brighter, slightly fatter streaks instead.
 
 const STREAK_SHADER := preload("res://assets/shaders/post_rain.gdshader")
 const SPLASH_SHADER := preload("res://assets/shaders/post_splash.gdshader")
@@ -13,13 +19,19 @@ const SPLASH_SHADER := preload("res://assets/shaders/post_splash.gdshader")
 ## Instances allocated once (the HIGH budget). A tier draws a prefix of the pool; the pool's order is low-discrepancy, so every
 ## prefix is evenly spread (no clumps or holes at any density).
 const STREAK_POOL := 4800
-const SPLASH_POOL := 2000
-const STREAKS_BY_TIER: Array[int] = [1000, 2400, 4800]
-const SPLASHES_BY_TIER: Array[int] = [380, 900, 2000]
+const SPLASH_POOL := 1800
+const STREAKS_BY_TIER: Array[int] = [1400, 2400, 4800]
+const SPLASHES_BY_TIER: Array[int] = [0, 900, 1800]
+## Streak brightness and width per tier: fewer streaks on LOW, so each one carries more (and the LOW picture has no rain curtain overlay).
+const STREAK_GAIN: Array[float] = [2.2, 1.15, 1.0]
+const STREAK_WIDTH: Array[float] = [0.016, 0.0125, 0.011]
+## Both rain materials draw after the world's transparent surfaces (the wet ground reads the screen too), so the ripples are never covered by it.
+const RENDER_PRIORITY := 8
 const BOX_H := 24.0                 ## height of the rain volume above the ground
 const NEAR_SIZE := 16.0             ## dense box round the camera
 const FAR_SIZE := 48.0              ## sparse wide box; exactly 3x NEAR_SIZE so one drift wrap serves both
 const SPLASH_RADIUS := 9.0
+const SPLASH_RADIUS_NEAR := 4.5      ## half of the impact slots live in this dense tile round the camera
 const SPEED_CLASS: Array[float] = [0.86, 1.0, 1.16]     ## must match post_rain.gdshader
 const GROUND_PROBE_EVERY := 8       ## physics ticks between ground raycasts (about 7 per second)
 const JUMP_LIMIT := 25.0            ## a camera displacement larger than this in one frame is a cut or a teleport, not motion
@@ -30,6 +42,13 @@ var wind := Vector2(1.5, 0.5)
 var fall_speed := 12.0
 ## Where the drops land when no collider is found under the camera.
 var ground_fallback := 0.0
+## The splash shader reads the screen texture, a full-frame copy that only the world's wet ground makes for free. With this on (the
+## default) splashes are drawn only while a world is registered (Game.world); a bare scene, a menu backdrop or a probe then pays nothing
+## for them. A scene that brings its own screen-reading wet ground (the test fixture) sets it to false.
+var splashes_need_world := true:
+	set(v):
+		splashes_need_world = v
+		_refresh_visibility()
 ## False hides all rain (streaks and splashes) without touching the weather values.
 var rain_visible := true:
 	set(v):
@@ -67,20 +86,26 @@ func _ready() -> void:
 	_ray.hit_from_inside = false
 	streak_material = ShaderMaterial.new()
 	streak_material.shader = STREAK_SHADER
+	streak_material.render_priority = RENDER_PRIORITY
 	splash_material = ShaderMaterial.new()
 	splash_material.shader = SPLASH_SHADER
+	splash_material.render_priority = RENDER_PRIORITY
 	streak_material.set_shader_parameter(&"box_h", BOX_H)
 	streak_material.set_shader_parameter(&"near_size", NEAR_SIZE)
 	streak_material.set_shader_parameter(&"far_size", FAR_SIZE)
 	splash_material.set_shader_parameter(&"radius", SPLASH_RADIUS)
+	splash_material.set_shader_parameter(&"near_radius", SPLASH_RADIUS_NEAR)
 	streaks = _make_field("Streaks", _streak_mesh(), STREAK_POOL, streak_material)
 	splashes = _make_field("Splashes", _splash_mesh(), SPLASH_POOL, splash_material)
+	_apply_tier_look()
 	_refresh_visibility()
 	_apply_counts()
 
 
 func set_quality(level: int) -> void:
 	tier = clampi(level, 0, 2)
+	_apply_tier_look()
+	_refresh_visibility()
 	_apply_counts()
 
 
@@ -89,7 +114,7 @@ func set_light_direction(dir_to_light: Vector3) -> void:
 		streak_material.set_shader_parameter(&"light_dir", dir_to_light.normalized())
 
 
-## Instances currently drawn: streaks + splashes (each splash is 4 droplet quads and a ring quad).
+## Instances currently drawn: streaks + splashes (each splash is a ripple quad and three droplet quads; many impacts use fewer).
 func particle_count() -> int:
 	return streak_count() + splash_count()
 
@@ -177,7 +202,7 @@ func update(delta: float, cam: Camera3D, rain: float) -> void:
 		streak_material.set_shader_parameter(&"ground_y", _ground)
 		splash_material.set_shader_parameter(&"ground_y", _ground)
 	_splash_ok = pos.y - _ground < 30.0                # no splashes to draw when the ground is far below
-	splashes.visible = _splash_ok
+	_refresh_visibility()                              # one authority for the node flags: tier, rain, camera, ground distance
 	_apply_counts()
 
 
@@ -188,9 +213,17 @@ func _refresh_visibility() -> void:
 	_shown = rain_visible and _have_cam and _rain > 0.004
 	if streaks.visible != _shown:
 		streaks.visible = _shown
-	var splash_want := _shown and _splash_ok
+	var splash_want := _shown and _splash_ok and SPLASHES_BY_TIER[tier] > 0 and (not splashes_need_world or is_instance_valid(Game.world))
 	if splashes.visible != splash_want:
 		splashes.visible = splash_want
+
+
+## Per-tier look of the streaks (fewer streaks carry more brightness). Safe to call before the materials exist.
+func _apply_tier_look() -> void:
+	if streak_material == null:
+		return
+	streak_material.set_shader_parameter(&"intensity", STREAK_GAIN[tier])
+	streak_material.set_shader_parameter(&"width", STREAK_WIDTH[tier])
 
 
 func _apply_counts() -> void:
@@ -244,13 +277,13 @@ func _streak_mesh() -> ArrayMesh:
 	return m
 
 
-## A splash: five quads. UV2.x 0..3 is a droplet (picks its direction and speed in the shader), 4 is the flat ground ring.
+## A splash: four quads. UV2.x 0..2 is a droplet (picks its direction and speed in the shader), 3 is the flat ripple on the ground.
 func _splash_mesh() -> ArrayMesh:
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var uv2 := PackedVector2Array()
 	var idx := PackedInt32Array()
-	for k in 5:
+	for k in 4:
 		var b := k * 4
 		verts.append_array([Vector3(-0.5, 0.0, 0.0), Vector3(0.5, 0.0, 0.0), Vector3(0.5, 1.0, 0.0), Vector3(-0.5, 1.0, 0.0)])
 		uvs.append_array([Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(1.0, 1.0), Vector2(0.0, 1.0)])

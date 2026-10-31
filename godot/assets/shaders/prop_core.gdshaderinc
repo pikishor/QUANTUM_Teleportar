@@ -8,6 +8,9 @@
 #include "res://assets/shaders/signage.gdshaderinc"
 
 global uniform float wetness;
+// Distance LOD: an instance shrinks to its base point between lod_range.x and lod_range.y metres from the camera (ground plane). The city
+// only keeps the instances near the camera in the MultiMesh (city_stream.gd); this makes the edge of that window invisible.
+uniform vec2 lod_range = vec2(100000.0, 110000.0);
 
 varying vec3 v_loc;
 varying vec3 v_wpos;
@@ -21,6 +24,7 @@ void vertex() {
 	v_cust = INSTANCE_CUSTOM;
 	v_col = COLOR;
 	v_mr = UV2;
+	VERTEX *= 1.0 - smoothstep(lod_range.x, lod_range.y, distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz));
 }
 
 bool is_code(float c, float v) {
@@ -110,6 +114,10 @@ void fragment() {
 	METALLIC = v_mr.x;
 	ROUGHNESS = rough;
 	SPECULAR = 0.5;
-	EMISSION = emit;
+	// A faint cool fill from the lit city around (the ground does the same with `ambient_boost`): near-black furniture (benches, planters, bollards) receives
+	// almost no light at night and used to read as a flat black hole; this keeps its form, brighter on faces that look up at the sky glow.
+	vec3 n_up = (INV_VIEW_MATRIX * vec4(normalize(NORMAL), 0.0)).xyz;
+	vec3 fill = vec3(0.012, 0.019, 0.027) * (0.45 + 0.55 * clamp(n_up.y * 0.5 + 0.5, 0.0, 1.0));
+	EMISSION = emit + fill;
 #endif
 }

@@ -53,7 +53,17 @@ The owner deploys Android/iOS builds straight from GitHub (see `docs/DEPLOY.md`)
 | `tools/shot.sh out.png [scene] [frames]` | Render a screenshot (Mobile renderer on software Vulkan under xvfb; `RENDERER=compat` for OpenGL). `--headless` cannot render. |
 | `tools/bot.sh res://tests/bot_x.gd /tmp/prefix [every] [count]` | Run a bot (`func step(t: float, delta: float) -> bool`; drive the game with `Input.action_press(&"move_forward")` etc.) and save `prefix_000.png…` every N frames. Look at the PNGs. |
 - Autoloads are not visible to `-s` scripts, which is why tests run as a scene; inside tests/bots/modules use `Game`, `FX`, `Sfx` directly.
-- `--headless` has a dummy renderer: logic/physics tests only. Visual checks need `tools/shot.sh` / `tools/bot.sh` (software GL, slow: expect ~5–15 fps).
+- `--headless` has a dummy renderer: logic/physics tests only. Visual checks need `tools/shot.sh` / `tools/bot.sh` (software GL, slow: expect ~2–5 fps in the real city).
+- **Integration:** `tests/test_integration.gd` boots `scenes/main.tscn` (world + atmosphere + player) headless and checks what no single-module test can: the controller against the
+  real colliders (streets, walls, roofs, stepped ledges, the border), registry and quality fan-out, the hero's reflection, the FX pool, audio buses, respawn and node leaks.
+  `tests/bot_integration.gd` is its visual twin: `tools/bot.sh res://tests/bot_integration.gd <prefix> 30 22` walks, sprints, jumps, aims, fires, climbs roofs, dies, switches
+  tiers and explodes in the real city and prints draw calls, primitives, nodes, texture memory and the player's collider state per phase (`BOT_PHASES=0,9 BOT_QUALITY=2` select;
+  `RENDERER=compat` works). Run it after any change that touches how modules meet.
+- **Test and bot gotchas:** `Engine.time_scale` also multiplies the physics step (delta = `time_scale / physics_ticks_per_second`), so on its own it makes each tick coarser instead of the test faster; to
+  run a headless test k times faster raise both, `time_scale = k` and `physics_ticks_per_second = 60 k` (the integration test uses k = 4), and keep waits in ticks of 1/60 s.
+  `RenderingServer.frame_post_draw` never fires headless. To sample the camera where the renderer sees it, read it from a node with a late `process_priority` (the rig runs at 100): right after a
+  physics tick the `SpringArm3D` has re-placed its child camera at the raw arm length. A bot run that quits within ~30 frames (one screenshot) can hang at exit while software Vulkan finishes
+  queued shader compiles: take at least two.
 
 ## Conventions
 - **Units:** metres, Y up, forward is **−Z** (so `Camera3D`/`Basis.looking_at` work naturally). City: `Game.PITCH=80`, `ROAD=20`, `N=8`, `HALF=320`, `LANE=5`, `Game.SPAWN=(-30,0,4)`.
@@ -71,6 +81,15 @@ The owner deploys Android/iOS builds straight from GitHub (see `docs/DEPLOY.md`)
 - **Registry:** each module sets itself in `_ready()` (and clears the entry in `_exit_tree()` if it is still itself): `Game.world`, `Game.atmosphere`, `Game.player`, `Game.enemies`, `Game.vehicles`, `Game.missions`, `Game.camera`.
 - **Graphics tier:** `Game.quality` (0 low, 1 medium, 2 high) is changed only through `Game.set_quality(level)`, which fans out to `Game.world.set_quality` and `Game.atmosphere.set_quality`
   and emits `Game.quality_changed`. `main.gd` applies it after composing the modules; tools take `--quality=N`. Modules that scale with the tier must be reachable from that one call.
+- **Audio:** `assets/audio/default_bus_layout.tres` (registered in `project.godot`) defines Master (with a limiter), SFX and Music. `Sfx` plays every effect on SFX (16 voices + 8 positional)
+  and the ambient loop on its own Music player 9 dB lower; `Sfx.play_music()` / `stop_music()`, `Sfx.muted` silences everything. `main.gd` starts the music for a real run, never under
+  `Game.autostart` (tools, tests, bots). Positional sounds use `Sfx.play_at` (explosions do).
+- **Visual layers:** layer 1 is everything; **layer 20 is reserved for the player's meshes** (the hero's key and rim lights use it as their cull mask so they never light the world).
+- **Reflections of moving things:** the wet street reflects the city through geometry (the world's mirrored copy, node `Mirror`), and that copy contains only the static city. Anything dynamic
+  that stands on the street (player, enemies, vehicles, pickups) must get its reflection with `MirrorProxy` (`scripts/world/mirror_proxy.gd`): `add_child(MirrorProxy.new())`, then
+  `proxy.track(meshes)`. It shares the meshes, builds unshaded stand-in materials, follows the originals, hides with them and costs nothing on LOW. Never add colliders or lights to `Mirror`.
+- **Effects pool:** `FX` emitters, tracers and blast lights are pooled, hidden while idle and cast no shadows (an idle pool costs no draw call). `FX.burst(pos, color, count, speed, life, gravity, size)`
+  draws soft round sprites (`size` 1 = sparks, about 9 = fireball puffs); `FX.blast` is a hot core, a thin shock shell and a real light pulse; `Game.explode` combines them.
 - **Pause:** pausing sets `Game.state = &"paused"` only. Never use `get_tree().paused`: rain, post-process and menu animation keep running behind the pause screen, and gameplay modules stop themselves by checking `Game.is_playing()`.
 - **Input:** gameplay reads only InputMap actions: `move_forward move_back move_left move_right jump sprint fire aim reload blink entangle superpose interact pause`.
   Touch controls and bots drive them via `Input.action_press/release`. Camera look is pushed through `Game.player.camera_rig.add_look(yaw, pitch)` (radians).
@@ -95,7 +114,9 @@ Facts other modules rely on:
 - Lanes: centres at ±5 m from the road centre, painted travel lanes 3.1–7.0 m from the centre, parking bays 7.0–9.4 m, stop lines 15 m from the junction centre. Use `intersections` / `road_point_near` for valid road positions.
 - The city owns the viewport's `msaa_3d` and `scaling_3d_scale` (LOW renders at 0.7). **No other module may set those two properties**; scale your own effects by tier instead.
 - The wet look reads the global shader parameters `wetness` and `rain` (defaults 0.8 / 1.0; below ~0.15 the city looks dry). Nothing may hide or reparent the world's `Mirror` node (the mirrored copy under the ground that makes reflections).
-- The mirror reflects only the static city. Dynamic objects (player, cars, drones) are **not** lit by the baked lamp and neon pools; they need their own lights or an emissive trim to sit in the scene.
+- The mirror reflects only the static city: dynamic objects get their reflection through `MirrorProxy` (see Conventions); `City.get_mirror_root() -> Node3D` is the node it uses.
+  Dynamic objects (player, cars, drones) are also **not** lit by the baked lamp and neon pools; they need their own lights or an emissive trim to sit in the scene.
+- Street props carry a faint cool night fill (`prop_core.gdshaderinc`), so near-black furniture keeps its form; there are no real lights in the world besides the moon.
 - Sky and fog colours are sRGB on both sides (`Environment` colours and `source_color` uniforms); a module that tints either must use the same convention.
 - The gameplay `Camera3D` far plane must be ≥ 1500 m (the far skyline reaches about 720 m, the ground fades out around 3 km).
 - Glyphs on signs, screens and holograms are pseudo-script by design (no real lettering, no brands).
@@ -107,6 +128,9 @@ cheap enough for mid-range phones, density by quality tier), and the global shad
 API: `set_quality(level: int)` (0 low … 2 high) · `set_weather(rain: float, wetness: float)` (0..1) · `enabled: bool` (post-process toggle for the settings screen). It never touches gameplay state and works without a world or player present.
 `set_quality` scales rain and post-process cost only: the world owns the viewport's `msaa_3d` and `scaling_3d_scale`, so Atmosphere must not set them. The world's mirrored copy of the city (node `Mirror`) must not be hidden or reparented.
 Registers itself as `Game.atmosphere` (and joins the group `atmosphere`); it receives its quality tier from `Game.set_quality(level)`, so no other module calls it for that.
+LOW draws no ground splashes and no lens effects (its ground is matte); the splashes need `Game.world` (override: `rainfield.splashes_need_world = false`) and share the world's MED/HIGH
+screen-texture copy, so they cost almost nothing extra. The world's ground shader draws its own slow ripples; the atmosphere's are small quick glints, the two do not compete.
+Camera-facing rain follows `Game.camera`; the global shader parameters `wetness` / `rain` are registered by `Game._ready` and eased by `set_weather()`.
 
 ### player — owns `scripts/player/**`, `scenes/player.tscn`, `tests/*player*`
 `class_name Player` (`CharacterBody3D`, group `player`, layer `player`). Third-person over-the-shoulder shooter, strafe-style (body faces aim).
@@ -119,6 +143,24 @@ API (properties): `hp max_hp energy max_energy ammo mag reloading aiming sprinti
 (methods) `damage(amount, from_pos := Vector3.ZERO)` · `chest_position() -> Vector3` · `heal(v)` · `add_energy(v)` · `teleport_to(pos: Vector3)` · `get_aim() -> Dictionary {origin: Vector3, dir: Vector3, hit: Vector3}` (camera ray result, `hit` = world point or far point) ·
 signals `hurt(amount: float)`, `fired`.
 Optional child: if `res://scripts/quantum/quantum.gd` exists, `Player._ready()` adds it as a child (`add_child(load(path).new())`) and exposes it as `player.quantum`.
+**As implemented (binding for HUD, vehicles, quantum and enemies):**
+- Properties: `hp max_hp energy max_energy ammo mag reloading aiming sprinting spread vehicle camera_rig quantum speed_boost invuln since_hurt air_time yaw last_hit_time last_hit_kill last_hit_crit
+  last_hurt_time last_hurt_from body weapon decals sparks`; methods `damage heal add_energy teleport_to get_aim chest_position reset is_dead spread_in_pixels(viewport_h)`;
+  signals `hurt(amount) fired hit_confirmed(kill, crit)`. `CameraRig`: `add_look kick punch punch_fov bump reset_view snap look_at_point aim_at get_aim_forward get_aim_yaw get_ads_amount
+  follow_target mode yaw pitch recoil_pitch mouse_sensitivity`.
+- **Look input:** `CameraRig.add_look(yaw, pitch)` takes screen-space deltas in radians like `takeLook()` in the prototype: positive yaw turns the view RIGHT, positive pitch looks DOWN
+  (finger or mouse moved right / down). The touch look zone passes raw drag deltas times its sensitivity (prototype: 0.0055 rad/px); mouse look (0.0022 rad/px, captured mouse) is handled
+  inside the rig, so the HUD must not forward mouse motion. The gameplay camera keeps far = 2500 m (world contract: at least 1500 m).
+- **HUD data:** `last_hit_time` / `last_hurt_time` use `PlayerUtil.now()` = `Time.get_ticks_msec() / 1000` (use the same call for "seconds since"). `Player.spread` is the CURRENT TOTAL half angle in
+  radians (base + bloom + movement); `spread_in_pixels(viewport_height)` converts it for the crosshair. `last_hit_kill` is only true for enemies; a vehicle hit is never a kill.
+- **Vehicles:** the player does NOT forward `interact`; `VehicleManager` polls it. To enter: `player.vehicle = vehicle` (the player hides, switches its collider off, follows the node every tick and
+  the rig chases it; the vehicle root must rotate with the car, forward = -Z, and may expose a float `speed`). To exit: `teleport_to(pos)` then `player.vehicle = null`.
+- **Quantum:** blink target from `player.get_aim()` (`hit` = first WORLD point, vehicles and enemies are ignored, 220 m far point if none), move with `player.teleport_to(pos)` (clears velocity, snaps
+  body and camera, 9 degree FOV kick), `player.speed_boost = 1.3` while the clone lives (values below 1 are read as an additive bonus), `Player.rotation.y` is the body yaw.
+- **Enemies:** a target implements `damage(amount, crit := false, mirrored := false)`, `center()`, a numeric `radius`, group `enemy`, and exposes `dead` (or hp <= 0, or frees itself) so kills and
+  corpse pass-through work; `type == &"operative"` switches impacts to dust and armour chips (blood only behind `Game.graphic_violence`). A collider on the enemy layer (4) is optional: the
+  rifle also ray-tests every `enemy` node's `center()` / `radius`. Damage to the player: `damage(amount, from_pos)` (`last_hurt_from` feeds a directional indicator).
+- The player reacts to `Game.quality_changed` (LOW drops the rim light and the muzzle-flash light pulses) and owns a `MirrorProxy` for his reflection.
 Dies → `Game.die()`. Resets on `Game.new_game/respawn/next_sector` (position `Game.SPAWN`, full hp/energy/ammo, 1.5 s invulnerability).
 When `vehicle != null` the player node is hidden, follows the vehicle position, does not move itself, and the camera uses vehicle mode. Visuals: model `Game.load_model("player")` else primitive body (legs swing while moving).
 Sets `Game.player = self`.
@@ -177,6 +219,10 @@ Scripts live in `tools/blender/` and `tools/audio/` so everything is reproducibl
 - `pickup_health`, `pickup_energy`, `core_gem`: origin at ground level (pickups include a thin emissive ground ring); `core_gem` is 1.62 m tall with the crystal centred at 0.95 m. Bob or hover them by moving the root node.
 - Emissive materials use `emission_energy_multiplier` above 1 so glow/bloom picks them up. Audio: `Sfx.play()` works as is; `music_ambient.wav` loops by itself, so give it its own player about 8-10 dB below the effects.
 - Known limits: characters are procedural hard-surface models without a skeleton (animation is node-based); wet reflections are sky/light highlights because screen-space reflections do not exist in the Mobile renderer.
+- **Status:** the committed models are still the first generation (tiling PBR textures, materials `Fabric Armor Gunmetal Glow Visor`, `Wheel Glass Trim`, ...). `tools/blender/README.md` documents the
+  next generation (one baked atlas material per model: `Gear` / `Hull` / `Details` / `Glow`, real lights in the model, LOD tags), which `tools/build_assets.sh` produces once it has been run and
+  reviewed. Consumers must therefore rely only on the node names and on `Body`, `Glow`, `Eye`, `Headlights`, `Taillights`, `Underglow`, never on the other material names (`PlayerBody` lifts `Fabric` only
+  when it exists). Re-run `tests/bot_integration.gd` and `tests/test_integration.gd` after the rebuild.
 
 ## Behaviour numbers
 Port from `../src/*.js` (they were play-tested): speeds, damages, costs, cooldowns, ranges, timings. When the JS and this document differ, this document wins.

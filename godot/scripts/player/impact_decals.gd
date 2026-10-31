@@ -42,6 +42,7 @@ func _ready() -> void:
 	_node.multimesh = _mm
 	_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_node.custom_aabb = AABB(Vector3(-1200.0, -50.0, -1200.0), Vector3(2400.0, 400.0, 2400.0))
+	_node.visible = false                # nothing to draw until the first hole: no draw call while the ring is empty
 	add_child(_node)
 	set_process(false)
 
@@ -66,6 +67,7 @@ func add(pos: Vector3, normal: Vector3, size := 0.17) -> void:
 	_mm.set_instance_transform(i, Transform3D(basis, pos + n * LIFT))
 	_mm.set_instance_color(i, Color.WHITE)
 	_born[i] = PlayerUtil.now()
+	_node.visible = true
 	set_process(true)
 
 
@@ -84,6 +86,7 @@ func clear() -> void:
 	_filled = 0
 	_next = 0
 	_mm.visible_instance_count = 0
+	_node.visible = false
 	set_process(false)
 
 
@@ -101,6 +104,7 @@ func _process(_delta: float) -> void:
 		elif age > LIFE - FADE:
 			_mm.set_instance_color(i, Color(1.0, 1.0, 1.0, clampf((LIFE - age) / FADE, 0.0, 1.0)))
 	if _live <= 0:
+		_node.visible = false
 		set_process(false)
 
 

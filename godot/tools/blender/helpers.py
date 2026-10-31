@@ -360,6 +360,7 @@ class Part:
         self.obj = None
         self.seed = seed
         self._n = 0
+        self.props = {}                  # custom properties set on the built object (qt_vis_end, qt_no_shadow ...)
 
     # -- helpers
     def _slot(self, mat):
@@ -535,6 +536,12 @@ class Part:
                  jitter=jitter, frame=frame_z(d), bevel=bevel, sharp=sharp)
 
     # -- finishing -----------------------------------------------------------------------------------
+    def tag(self, **kw):
+        """Import-script hints for this node: vis_end=metres (fade out beyond), no_shadow=1."""
+        for k, v in kw.items():
+            self.props["qt_" + k] = v
+        return self
+
     def vertex_count(self):
         return len(self.bm.verts)
 
@@ -556,6 +563,8 @@ class Part:
         obj = bpy.data.objects.new(self.name, mesh)
         obj.location = self.origin
         bpy.context.scene.collection.objects.link(obj)
+        for k, v in self.props.items():
+            obj[k] = v
         if weighted:
             mod = obj.modifiers.new("wn", "WEIGHTED_NORMAL")
             mod.mode = "FACE_AREA"
@@ -615,7 +624,7 @@ def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed
         groups = {"atlas": dict(base=name, material="Gear")}
         if any(m.group == "paint" for p in parts for m in p.slots):
             groups["paint"] = dict(base=name + "_paint", material="Body")
-    removed = atlas.cull_hidden(parts) if cull else 0
+    removed = atlas.cull_hidden(parts) if (cull and not os.environ.get("QT_NOCULL")) else 0
     objs = [p.build() for p in parts]
     res = atlas.bake(name, parts, groups, TEX_DIR, size=size, decals=decals, seed=seed, ao_dist=ao_dist, ao_strength=ao_strength,
                      max_ppm=max_ppm, emit_gain=1.0, jpeg=jpeg, normal_scale=normal_scale, log=report)
@@ -623,8 +632,8 @@ def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed
     for gname, r in res.items():
         cfg = groups[gname]
         color = cfg.get("color")
-        if color is None:
-            color = next((m.color for p in parts for m in p.slots if m.group == gname), (1.0, 1.0, 1.0))
+        if color is None:                                  # only the neutral paint atlas carries a colour factor (what vehicles recolour)
+            color = next((m.color for p in parts for m in p.slots if m.group == gname), (1.0, 1.0, 1.0)) if gname == "paint" else (1.0, 1.0, 1.0)
         gmats[gname] = atlas.make_baked_material(cfg.get("material", gname), r.base, r.ext, r.has_emit,
                                                  cfg.get("emit_strength", emit_strength), color)
     for p in parts:
@@ -632,15 +641,19 @@ def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed
         new_mats, mapping = [], []
         for m in p.slots:
             bm_ = gmats[m.group] if m.group in gmats else m.bmat
+            if bm_ is None:                    # a baked group whose faces were all culled: no polygon uses this slot
+                mapping.append(0)
+                continue
             if bm_ not in new_mats:
                 new_mats.append(bm_)
             mapping.append(new_mats.index(bm_))
         mi = np.empty(len(me.polygons), np.int32)
         me.polygons.foreach_get("material_index", mi)
-        me.polygons.foreach_set("material_index", np.array(mapping, np.int32)[mi])
-        me.materials.clear()
+        new_idx = np.array(mapping, np.int32)[mi]
+        me.materials.clear()                               # clearing the slots resets every polygon's material_index to 0 ...
         for bm_ in new_mats:
             me.materials.append(bm_)
+        me.polygons.foreach_set("material_index", new_idx)      # ... so the indices are written after the slots exist again
     objs = objs + list(extras)
     os.makedirs(MODELS_DIR, exist_ok=True)
     path = os.path.join(MODELS_DIR, name + ".glb")

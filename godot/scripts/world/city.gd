@@ -6,6 +6,8 @@ extends Node3D
 ##
 ## Everything is built in code from the deterministic CityLayout (ported from src/world.js) and drawn with MultiMeshes:
 ## the whole city is a few dozen draw calls. Wet reflections: a mirrored copy of the city lives under the (alpha blended) ground.
+## The props and the far skyline are camera-centred windows over their MultiMeshes (city_stream.gd): a MultiMesh of the whole city
+## has one bounding box and cannot be frustum culled, so only the instances near the camera are submitted.
 
 const MB := preload("res://scripts/world/mesh_builder.gd")
 const BM := preload("res://scripts/world/building_meshes.gd")
@@ -14,6 +16,7 @@ const Ground := preload("res://scripts/world/city_ground.gd")
 const Buildings := preload("res://scripts/world/city_buildings.gd")
 const Props := preload("res://scripts/world/city_props.gd")
 const Skyline := preload("res://scripts/world/city_skyline.gd")
+const Stream := preload("res://scripts/world/city_stream.gd")
 const NEON_SPILL: Array[Color] = [Color(0.2, 0.85, 1.0), Color(1.0, 0.16, 0.62), Color(0.58, 0.36, 1.0), Color(0.2, 1.0, 0.66)]
 const Misc := preload("res://scripts/world/city_misc.gd")
 const PROP_SHADER := preload("res://assets/shaders/prop.gdshader")
@@ -35,12 +38,22 @@ var multimesh_nodes: Array[MultiMeshInstance3D] = []
 var mirror_nodes: Array[MultiMeshInstance3D] = []
 var collision_body: StaticBody3D
 var building_data: Array = []      ## Buildings.Building per lot index
+## Footprints (x, z) of the far-skyline towers (visual only; none reaches into the walkable square or the border walls).
+var skyline_rects: Array[Rect2] = []
+## When true the static prop and skyline families only draw the instances near the camera (see city_stream.gd).
+var stream_enabled := true:
+	set(v):
+		stream_enabled = v
+		if not v and _stream != null:
+			_stream.show_all()
 
 var _env := Env.new()
 var _ground := Ground.new()
 var _buildings := Buildings.new()
 var _props := Props.new()
 var _skyline := Skyline.new()
+var _stream := Stream.new()
+var _tri_cache := {}               ## Mesh -> triangle count (reading mesh arrays back is slow; stats() may be polled)
 var _misc := Misc.new()
 var _mirror_root: Node3D
 var _real_root: Node3D
@@ -82,7 +95,23 @@ func _ready() -> void:
 	set_quality(quality)
 
 
+func _process(_delta: float) -> void:
+	if not stream_enabled:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam != null:
+		var p := cam.global_position
+		_stream.update(Vector2(p.x, p.z))
+
+
 # --- API ---------------------------------------------------------------------------------------------------------------
+
+## Move the instance windows of the prop and skyline families to a camera at (x, z) now (they follow the viewport's camera by
+## themselves every frame; this is for tests, cutscenes and cameras that cut).
+func update_streaming(cam_xz: Vector2, force := true) -> void:
+	if stream_enabled:
+		_stream.update(cam_xz, force)
+
 
 func random_road_point() -> Vector3:
 	return layout.random_road_point()
@@ -125,6 +154,7 @@ func set_quality(level: int) -> void:
 	if not is_inside_tree():
 		return
 	_env.apply_quality(quality, get_viewport())
+	_stream.set_scale([0.65, 0.85, 1.0][quality])
 	var shadows := quality >= 1
 	for n in _shadow_casters:
 		n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -143,6 +173,17 @@ func set_quality(level: int) -> void:
 	_building_mat.set_shader_parameter(&"far_fade_end", 800.0 if quality >= 1 else 420.0)
 
 
+## The node that holds the mirrored copy of the city under the wet ground (scale (1, -1, 1), hidden on the LOW tier). Dynamic objects (the player,
+## enemies, vehicles) add their own unshaded, mirrored meshes there to get a reflection: see MirrorProxy. Never hide, reparent or transform it.
+func get_mirror_root() -> Node3D:
+	return _mirror_root
+
+
+## The windowed families (city_stream.gd Family objects): name, mm, total, shown, radius, cells ... for tests and the budget report.
+func stream_families() -> Array:
+	return _stream.families
+
+
 ## Draw-call style stats for tests and the budget report.
 func stats() -> Dictionary:
 	var instances := 0
@@ -153,11 +194,34 @@ func stats() -> Dictionary:
 		for c in collision_body.get_children():
 			if c is CollisionShape3D:
 				shapes += 1
+	# what the camera pass submits: every real family's drawn instances x its triangles; the mirrored copies draw the same instances again
+	var shown := 0
+	var tris := 0
+	var tris_mirror := 0
+	var mirrored := {}
+	for m in mirror_nodes:
+		if m.is_visible_in_tree():
+			mirrored[m.multimesh] = true
+	for n in multimesh_nodes:
+		if not n.is_visible_in_tree():
+			continue
+		var mm := n.multimesh
+		var drawn := mm.instance_count if mm.visible_instance_count < 0 else mm.visible_instance_count
+		if not _tri_cache.has(mm.mesh):
+			_tri_cache[mm.mesh] = Stream.mesh_triangles(mm.mesh)
+		var t: int = int(_tri_cache[mm.mesh]) * drawn
+		shown += drawn
+		tris += t
+		if mirrored.has(mm):
+			tris_mirror += t
 	return {
 		"buildings": building_data.size(),
 		"multimeshes": multimesh_nodes.size(),
 		"mirrored": mirror_nodes.size(),
 		"instances": instances,
+		"instances_drawn": shown,
+		"triangles_drawn": tris,
+		"triangles_drawn_mirror": tris_mirror,
 		"colliders": shapes,
 		"quality": quality,
 	}
@@ -263,12 +327,15 @@ func _build_misc() -> void:
 
 func _build_skyline() -> void:
 	_skyline.build()
+	skyline_rects = _skyline.rects
 	var mat := Skyline.make_material(false)
 	var mirror := Skyline.make_material(true)
+	var mats: Array[ShaderMaterial] = [mat, mirror]
 	for cls: StringName in Skyline.CLASSES:
 		var mm: MultiMesh = _skyline.multimeshes[cls]
 		if mm.instance_count > 0:
 			add_multimesh("Skyline_" + String(cls), mm, mat, mirror, false, 0, 2)       # the far reflections are a HIGH-tier luxury
+			_stream.add("Skyline_" + String(cls), mm, Skyline.RADIUS, Stream.mesh_triangles(mm.mesh), mats, -760.0, 80.0, 19)
 
 
 func _shader_mat(shader: Shader, priority := 0) -> ShaderMaterial:
@@ -287,13 +354,26 @@ func _build_props() -> void:
 	var shaft_mat := _shader_mat(SHAFT_SHADER)
 	for part in _props.parts:
 		var mirror: bool = part["mirror"]
+		var radius: float = part.get("radius", 0.0)
+		var mm: MultiMesh = part["mm"]
 		match part["kind"]:
 			&"prop":
-				add_multimesh(part["name"], part["mm"], prop_mat, prop_mirror if mirror else null, part["shadow"], part.get("min", 0))
+				# windowed families own their materials: the distance LOD range is a per-family uniform
+				var mat := _shader_mat(PROP_SHADER) if radius > 0.0 else prop_mat
+				var mmat := _shader_mat(PROP_MIRROR_SHADER) if radius > 0.0 else prop_mirror
+				add_multimesh(part["name"], mm, mat, mmat if mirror else null, part["shadow"], part.get("min", 0))
+				if radius > 0.0:
+					var mats: Array[ShaderMaterial] = [mat]
+					if mirror:
+						mats.append(mmat)
+					_stream.add(part["name"], mm, radius, Stream.mesh_triangles(mm.mesh), mats)
 			&"glow":
-				add_multimesh(part["name"], part["mm"], glow_mat, glow_mirror if mirror else null, false)
+				add_multimesh(part["name"], mm, glow_mat, glow_mirror if mirror else null, false)
 			&"shaft":
-				add_multimesh(part["name"], part["mm"], shaft_mat, null, false, part.get("min", 0))
+				add_multimesh(part["name"], mm, shaft_mat, null, false, part.get("min", 0))
+				if radius > 0.0:
+					var mats: Array[ShaderMaterial] = [shaft_mat]
+					_stream.add(part["name"], mm, radius, Stream.mesh_triangles(mm.mesh), mats)
 
 
 func _build_collision() -> void:
@@ -311,8 +391,8 @@ func _build_collision() -> void:
 		for k in boxes.size():
 			_add_box(boxes[k][0], boxes[k][1], "Building%d_%d" % [lot.index, k])
 	# invisible walls just outside the border roads (HALF + 30)
-	var e := CityLayout.HALF + CityLayout.BORDER
-	var t := 8.0
+	var e := CityLayout.WALK
+	var t := CityLayout.WALL_T
 	var len := 2.0 * (e + t)
 	_add_box(Vector3(e + t * 0.5, 200.0, 0.0), Vector3(t, 400.0, len), "WallE")
 	_add_box(Vector3(-e - t * 0.5, 200.0, 0.0), Vector3(t, 400.0, len), "WallW")

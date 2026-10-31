@@ -7,22 +7,22 @@ from carlib import build_car  # noqa: E402
 
 
 def extras(P, c):
-    trim, T_black, T_dark, T_chrome, hw = c["trim"], c["T_black"], c["T_dark"], c["T_chrome"], c["hw"]
+    trim, chrome, T_black, T_dark, T_chrome, hw = c["trim"], c["chrome"], c["T_black"], c["T_dark"], c["T_chrome"], c["hw"]
     L, gc = c["L"], c["gc"]
     zr = c["spec"]["z_roof"]
     for sx in (1, -1):
-        P.bar((sx * 0.6, 0.15, zr + 0.035), (sx * 0.6, -1.95, zr + 0.035), 0.035, 0.03, mat=trim, tint=T_chrome, bevel=0.005)
+        P.bar((sx * 0.6, 0.15, zr + 0.035), (sx * 0.6, -1.95, zr + 0.035), 0.035, 0.03, mat=chrome, tint=T_chrome, bevel=0.005)
         for y in (0.1, -0.5, -1.1, -1.7):
             P.bar((sx * 0.6, y, zr + 0.005), (sx * 0.6, y, zr + 0.03), 0.04, 0.03, mat=trim, tint=T_black)
         P.box((0.1, 2.3, 0.05), (sx * (hw(-0.4) * 0.97 - 0.02), -0.4, gc + 0.12), mat=trim, tint=T_black, bevel=0.012, bsegs=2)   # side steps
-    P.box((1.1, 0.06, 0.12), (0, L / 2 - 0.05, gc + 0.14), mat=trim, tint=T_chrome, bevel=0.01)                              # front skid
-    P.box((1.1, 0.06, 0.12), (0, -L / 2 + 0.05, gc + 0.14), mat=trim, tint=T_chrome, bevel=0.01)
+    P.box((1.1, 0.06, 0.12), (0, L / 2 - 0.05, gc + 0.14), mat=chrome, tint=T_chrome, bevel=0.01)                              # front skid
+    P.box((1.1, 0.06, 0.12), (0, -L / 2 + 0.05, gc + 0.14), mat=chrome, tint=T_chrome, bevel=0.01)
 
 
 SPEC = dict(
     name="car_suv", seed=13,
     L=4.85, W=1.98, WB=2.9, gc=0.21, R=0.385, tw=0.255, track=1.68, spokes=5,
-    paint="#2f3d44", rim="#8d959c", spoke="#c3cad1", underglow="#18ffb0",
+    paint="#566f7b", rim="#8d959c", spoke="#c3cad1", underglow="#18ffb0", atlas_paint=1024, atlas=1024,
     belt=1.12, taper=0.65,
     ztop=[(-2.425, 0.90), (-2.35, 1.04), (-2.2, 1.14), (-1.9, 1.15), (-1.5, 1.13), (-1.2, 1.12), (0.95, 1.12), (1.2, 1.12),
           (1.6, 1.05), (2.1, 0.96), (2.35, 0.88), (2.425, 0.80)],

@@ -5,6 +5,8 @@ extends Node3D
 ## they fade, plus larger low-alpha puffs. Every emitter is a CPUParticles3D created once; an effect just moves one, aims it along the
 ## surface normal and restarts it (no nodes, no buffer reallocation, nothing allocated per shot).
 ## The node is top_level (world space), so the particles live in the world whatever its parent does.
+## A finished one-shot CPUParticles3D keeps drawing its (invisible) instances every frame, in the main pass and in every shadow pass, so an emitter is
+## shown only while it is alive: hidden at the start, shown when it is launched and hidden again when its lifetime has run out. Emitters never cast shadows.
 
 const SPARK_POOL := 10
 const PUFF_POOL := 6
@@ -19,6 +21,9 @@ static var _puff_curve: Curve
 
 var _sparks: Array[CPUParticles3D] = []
 var _puffs: Array[CPUParticles3D] = []
+var _all: Array[CPUParticles3D] = []          ## sparks first, then puffs; _left runs parallel to it
+var _left := PackedFloat32Array()             ## seconds of life left per emitter, 0 = idle (hidden)
+var _live := 0
 var _si := 0
 var _pi := 0
 
@@ -29,16 +34,22 @@ func _ready() -> void:
 	for i in SPARK_POOL:
 		var p := _make_emitter(false)
 		_sparks.append(p)
+		_all.append(p)
 		add_child(p)
 	for i in PUFF_POOL:
 		var p := _make_emitter(true)
 		_puffs.append(p)
+		_all.append(p)
 		add_child(p)
+	_left.resize(_all.size())
+	_left.fill(0.0)
+	set_process(false)
 
 
 ## Hot sparks fly off the surface along `normal`. power scales count (visually), speed and lifetime: 1 = a bullet on concrete.
 func spark(pos: Vector3, normal: Vector3, color := Color(1.0, 0.8, 0.45), power := 1.0) -> void:
-	var p := _sparks[_si]
+	var index := _si
+	var p := _sparks[index]
 	_si = (_si + 1) % _sparks.size()
 	p.global_position = pos
 	p.direction = normal.normalized() if normal != Vector3.ZERO else Vector3.UP
@@ -46,12 +57,12 @@ func spark(pos: Vector3, normal: Vector3, color := Color(1.0, 0.8, 0.45), power 
 	p.initial_velocity_max = 5.0 * power
 	p.lifetime = 0.22 + 0.16 * power
 	p.color = color
-	p.restart()
-	p.emitting = true
+	_launch(p, index)
 
 
 ## A soft puff of dust, mist or smoke. size scales the sprite; tint is the colour (alpha sets how visible it is).
 func puff(pos: Vector3, normal: Vector3, tint := Color(0.6, 0.66, 0.75, 0.3), size := 1.0) -> void:
+	var index := _sparks.size() + _pi
 	var p := _puffs[_pi]
 	_pi = (_pi + 1) % _puffs.size()
 	p.global_position = pos
@@ -59,8 +70,7 @@ func puff(pos: Vector3, normal: Vector3, tint := Color(0.6, 0.66, 0.75, 0.3), si
 	p.scale_amount_min = 0.7 * size
 	p.scale_amount_max = 1.3 * size
 	p.color = tint
-	p.restart()
-	p.emitting = true
+	_launch(p, index)
 
 
 ## A shot landing on concrete, metal or asphalt: sparks, a little mist.
@@ -92,10 +102,41 @@ func dust(pos: Vector3, strength := 1.0) -> void:
 	puff(pos, Vector3.UP, Color(0.55, 0.6, 0.68, 0.22 * strength), 1.1 + strength * 0.5)
 
 
+## Show the emitter, fire it once and remember when it is done.
+func _launch(p: CPUParticles3D, index: int) -> void:
+	p.visible = true
+	p.restart()
+	p.emitting = true
+	if _left[index] <= 0.0:
+		_live += 1
+	_left[index] = p.lifetime + 0.12
+	set_process(true)
+
+
+func _process(delta: float) -> void:
+	for i in _left.size():
+		if _left[i] > 0.0:
+			_left[i] -= delta
+			if _left[i] <= 0.0:
+				_left[i] = 0.0
+				_live -= 1
+				_all[i].emitting = false
+				_all[i].visible = false
+	if _live <= 0:
+		set_process(false)
+
+
+## True while any emitter is alive (tests, draw call accounting).
+func active_count() -> int:
+	return _live
+
+
 func _make_emitter(is_puff: bool) -> CPUParticles3D:
 	var p := CPUParticles3D.new()
 	p.one_shot = true
 	p.emitting = false
+	p.visible = false
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	p.explosiveness = 1.0
 	p.local_coords = false
 	p.amount = PUFF_AMOUNT if is_puff else SPARK_AMOUNT

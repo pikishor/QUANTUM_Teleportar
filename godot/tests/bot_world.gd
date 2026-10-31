@@ -4,7 +4,9 @@ extends RefCounted
 ##   tools/bot.sh res://tests/bot_world.gd /tmp/world 20 10
 ## One shot per screenshot: shot k is taken at the end of its short dolly move, so every picture is deterministic.
 ## Optional user args (after --): --cam=x,y,z,tx,ty,tz[,fov];... (fixed poses, one per shot), --fov=70, --quality=0..2, --wet=0..1, --rain=0..1,
-## --stats (print draw calls and primitives for every shot), --shots=a,b,c (only these shot names).
+## --stats (print visible / shadow / total draw calls and primitives for every shot: `visible` is the camera pass, the number the budgets in
+## BUDGETS.md talk about; the engine's global total adds the shadow cascades), --shots=a,b,c (only these shot names).
+## tools/bot.sh does not forward user args: run the main scene yourself with `-- --bot=res://tests/bot_world.gd --shot-seq=PREFIX --every=N --count=M --stats ...`.
 
 var _cam: Camera3D
 var _frame := 0
@@ -149,7 +151,15 @@ func step(_t: float, _delta: float) -> bool:
 	_cam.look_at(look, Vector3.UP)
 	Game.camera = _cam
 	if _args.has("stats") and _frame % _every == 0:
-		print("BOT shot ", shot_i, " ", s[0], " draws=", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
-				" prims=", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
-				" objs=", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME))
+		# visible = what the camera pass draws (the budget number); shadow = the moon shadow cascades; total = both (what the engine reports globally)
+		var vp := (Game.world as Node).get_viewport().get_viewport_rid()
+		var info := RenderingServer
+		print("BOT shot ", shot_i, " ", s[0],
+				" visible: draws=", info.viewport_get_render_info(vp, info.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, info.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME),
+				" prims=", info.viewport_get_render_info(vp, info.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, info.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME),
+				" objs=", info.viewport_get_render_info(vp, info.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, info.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME),
+				" | shadow: draws=", info.viewport_get_render_info(vp, info.VIEWPORT_RENDER_INFO_TYPE_SHADOW, info.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME),
+				" prims=", info.viewport_get_render_info(vp, info.VIEWPORT_RENDER_INFO_TYPE_SHADOW, info.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME),
+				" | total: draws=", info.get_rendering_info(info.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+				" prims=", info.get_rendering_info(info.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
 	return _frame >= _every * _count

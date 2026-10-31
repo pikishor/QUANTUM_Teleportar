@@ -7,6 +7,8 @@ extends Node3D
 ##   muzzle  the rifle tip: tracers and the muzzle flash start here
 ## The node is top_level and placed every rendered frame from the interpolated physics position, so it never judders
 ## when the display refresh rate and the physics tick rate differ.
+## A pause freezes the pose where it is; a dead body does not run (its legs relax while it falls), and the fallen body is laid on the floor using the
+## convex hulls of its parts, so no limb is buried in the ground and nothing floats.
 
 const HIP_Y := 0.93
 const LEG_AMP := 0.62                ## radians of hip swing at run speed
@@ -20,9 +22,27 @@ const LIGHT_COUNT := 2
 const FABRIC_LIFT := 2.6
 const FABRIC_EMISSION := Color(0.035, 0.075, 0.095)
 ## The Compatibility (OpenGL) renderer lights the same scene much brighter than the Mobile renderer the boosts were tuned on: scale them down there.
-const COMPAT_BOOST := 0.5
+## Its world environment also carries a flat teal ambient (the sky radiance map does not exist there), which fills every shadow of a standard material and
+## turned the hero into pale-blue plastic: the hero's materials ignore ambient light on that renderer (the key and rim lights model him instead).
+const COMPAT_BOOST := 0.22
+const COMPAT_LIGHT := 0.2
+## ... and its albedo is tinted down on that renderer, where the moon (no shadows reach the hero there), the exposure lift and the blue key and rim lights would
+## still wash him out and turn him cold blue. Calibrated on the title view: his mean luminance and hue then match the Mobile renderer's (0.09 vs 0.084).
+const COMPAT_TINT := Color(0.95, 0.74, 0.55)
 ## Visual layer (1..20) reserved for the player's meshes, so the two character lights (a soft key and a rim) light only the hero and never the world.
 const CHARACTER_LAYER := 20
+# the death pose: the body falls onto its left side (the rifle rides on the right, so it ends up on top, not under the body), the legs go slack
+const FALL_TIME := 0.8
+const DEAD_ROLL := PI * 0.5
+const DEAD_TWIST := 0.2                ## lean of the lying body about its long axis (positive: chest toward the sky)
+const DEAD_SLEW := 0.35                ## the body also turns a little as it goes down
+const DEAD_SHIFT := 0.7                ## metres sideways, so the fallen body ends up around where the player stood, not beside it
+const DEAD_CURL := 0.22                ## the torso bends a little against the legs
+const DEAD_LEG_L := Vector3(0.45, 0.0, -0.17)
+const DEAD_LEG_R := Vector3(-0.3, 0.0, -0.09)
+const DEAD_REST_GAP := 0.012           ## the lowest point of the corpse floats this far above the floor (no z-fighting with the asphalt)
+const DEAD_SETTLE := 0.6               ## seconds after the fall during which the resting height is still recomputed
+const DEAD_LIGHT := 0.5                ## the hero lighting (key and rim) of a dead body: this fraction is left, so a corpse does not glow
 
 ## Tests flip this to exercise the primitive fallback.
 static var force_primitive := false
@@ -55,7 +75,13 @@ var _light_t := PackedFloat32Array()
 var _li := 0
 var _key_light: DirectionalLight3D
 var _rim_light: DirectionalLight3D
+var _key_energy := 1.0
+var _rim_energy := 1.0
 var _quality := 2
+var _reflection: MirrorProxy              ## the hero's reflection on the wet street (the world's mirror pass; nothing without a world)
+var _parts: Array[MeshInstance3D] = []   ## the character's meshes and the convex hull of each (points in the mesh's own space), for the corpse resting height
+var _hulls: Array = []
+var _rest_drop := 0.0                  ## lowest point of the fallen pose relative to the body's origin
 ## Switch the character lights off (tests, or a graphics tier that wants the extra directional lights gone).
 var character_light := true:
 	set(v):
@@ -74,23 +100,30 @@ func _ready() -> void:
 
 ## Place the body at the interpolated world position and pose it from the player's state. Called by Player._process.
 func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
-	_clock += dt
-	var v := p.velocity
+	var state := Game.state
+	var adt := 0.0 if state == &"paused" else dt          # a pause freezes the pose; the flash and light timers at the end run on real time
+	var dying := _dead_t >= 0.0
+	_clock += adt
+	var e := 0.0                                          # weight of the death pose, 0 standing .. 1 lying
+	if dying:
+		_dead_t += adt
+		e = _fall_curve(clampf(_dead_t / FALL_TIME, 0.0, 1.0))
+	var v := Vector3.ZERO if dying else p.velocity        # a dead body only slides along: its legs do not run
 	var hv := Vector3(v.x, 0.0, v.z)
 	var speed := hv.length()
-	var grounded := p.air_time < 0.14                  # rolling off a curb is not a jump
-	var local := hv.rotated(Vector3.UP, -yaw)          # body space: x right, z back
+	var grounded := p.air_time < 0.14 or dying           # rolling off a curb is not a jump
+	var local := hv.rotated(Vector3.UP, -yaw)            # body space: x right, z back
 
 	# --- legs: swing about the axis perpendicular to the movement direction
 	var target_amp := minf(1.0, speed / 5.0) * LEG_AMP if grounded else 0.0
-	_amp = PlayerUtil.damp(_amp, target_amp, 14.0, dt)
-	_air = PlayerUtil.damp(_air, 0.0 if grounded else 1.0, 12.0, dt)
+	_amp = PlayerUtil.damp(_amp, target_amp, 14.0, adt)
+	_air = PlayerUtil.damp(_air, 0.0 if grounded else 1.0, 12.0, adt)
 	if speed > 0.4:
 		var td := Vector2(local.x, local.z) / speed
-		_dir += (td - _dir) * (1.0 - exp(-16.0 * dt))
+		_dir += (td - _dir) * (1.0 - exp(-16.0 * adt))
 		if _dir.length_squared() < 0.0004:
 			_dir = td
-	_phase += dt * speed * STRIDE_RATE
+	_phase += adt * speed * STRIDE_RATE
 	var m := Vector3(_dir.x, 0.0, _dir.y).normalized()
 	var fw := -m.z                                       # +1 moving forward, -1 backing up
 	var lw := m.x                                        # +1 moving right, -1 moving left
@@ -100,6 +133,11 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	var ax_r := lerpf(-sl * fw, -0.3, _air)
 	var az_l := -0.2 * absf(lw) + 0.5 * sl * lw
 	var az_r := 0.2 * absf(lw) - 0.5 * sl * lw
+	if e > 0.0:                                          # slack legs of the fallen body
+		ax_l = lerpf(ax_l, DEAD_LEG_L.x, e)
+		az_l = lerpf(az_l, DEAD_LEG_L.z, e)
+		ax_r = lerpf(ax_r, DEAD_LEG_R.x, e)
+		az_r = lerpf(az_r, DEAD_LEG_R.z, e)
 	if leg_l != null:
 		leg_l.basis = Basis.from_euler(Vector3(ax_l, 0.0, az_l))
 	if leg_r != null:
@@ -107,44 +145,38 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 
 	# --- torso: aim pitch, sprint lean, strafe roll, run twist, breathing, recoil
 	var rig := p.camera_rig
-	var look_pitch := rig.pitch + rig.recoil_pitch if rig != null else 0.0
-	_aim_pitch = PlayerUtil.damp(_aim_pitch, clampf(look_pitch * 0.6, -0.55, 0.65), 18.0, dt)
-	_sprint = PlayerUtil.damp(_sprint, 1.0 if p.sprinting else 0.0, 9.0, dt)
-	_recoil_push = PlayerUtil.damp(_recoil_push, 0.0, 17.0, dt)
-	_recoil_pitch = PlayerUtil.damp(_recoil_pitch, 0.0, 13.0, dt)
+	var look_pitch := 0.0 if dying else (rig.pitch + rig.recoil_pitch if rig != null else 0.0)
+	_aim_pitch = PlayerUtil.damp(_aim_pitch, clampf(look_pitch * 0.6, -0.55, 0.65), 18.0, adt)
+	_sprint = PlayerUtil.damp(_sprint, 1.0 if (p.sprinting and not dying) else 0.0, 9.0, adt)
+	_recoil_push = PlayerUtil.damp(_recoil_push, 0.0, 17.0, adt)
+	_recoil_pitch = PlayerUtil.damp(_recoil_pitch, 0.0, 13.0, adt)
 	var lean := -(0.10 * _sprint + 0.03 * minf(1.0, speed / 6.2))
 	var roll := -local.x * 0.011
 	var twist := sin(_phase) * 0.055 * (_amp / LEG_AMP)
 	var calm := 1.0 - minf(1.0, speed / 2.0)
 	var breathe := sin(_clock * 2.1) * 0.006 * calm
 	var bob := -absf(sin(_phase)) * 0.016 * (_amp / LEG_AMP)
-	upper.rotation = Vector3(_aim_pitch + lean + _recoil_pitch + breathe, twist, roll)
+	upper.rotation = Vector3(_aim_pitch + lean + _recoil_pitch + breathe + DEAD_CURL * e, twist, roll)
 	upper.position = Vector3(0.0, HIP_Y + bob + sin(_clock * 1.7) * 0.0025 * calm, _recoil_push)
 
-	# --- placement (and the death fall)
-	var fall := 0.0
-	var sink := 0.0
-	var slew := 0.0
-	var roll_dead := 0.0
-	if _dead_t >= 0.0:
-		_dead_t += dt
-		var k := clampf(_dead_t / 0.75, 0.0, 1.0)
-		var e := 1.0 - pow(1.0 - k, 3.0)
-		fall = deg_to_rad(84.0) * e
-		sink = 0.12 * e
-		slew = 0.45 * e                                    # the body turns a little as it goes down, it does not fall in a ruler-straight line
-		roll_dead = 0.7 * e                                # and rolls onto its side, so the rifle does not stand straight up
-	global_position = Vector3(view_pos.x, view_pos.y - sink, view_pos.z)
-	rotation = Vector3(fall, yaw + slew, roll_dead)
+	# --- placement (and the death fall: Euler YXZ = roll about the forward axis first, then the lean about the long axis, then the heading)
+	global_position = view_pos
+	rotation = Vector3(DEAD_TWIST * e, yaw + DEAD_SLEW * e, DEAD_ROLL * e)
+	if e > 0.0:
+		global_position += Vector3(cos(yaw), 0.0, -sin(yaw)) * (DEAD_SHIFT * e)
+		_rest_on_floor(view_pos.y)
 
 	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
 	if character_light and rig != null:
+		var lit := lerpf(1.0, DEAD_LIGHT, e)
+		_key_light.light_energy = _key_energy * lit
+		_rim_light.light_energy = _rim_energy * lit
 		var f := PlayerUtil.forward_of(rig.yaw, 0.0)
 		var right := Vector3(-f.z, 0.0, f.x)
 		_key_light.global_basis = Basis.looking_at((f * 0.82 - right * 0.28 + Vector3(0.0, -0.5, 0.0)).normalized(), Vector3.UP)
 		_rim_light.global_basis = Basis.looking_at((-f * 0.8 + right * 0.55 + Vector3(0.0, -0.22, 0.0)).normalized(), Vector3.UP)
 
-	# --- muzzle flash decay
+	# --- muzzle flash decay (real time)
 	if _flash_t > 0.0:
 		_flash_t -= dt
 		if _flash_t <= 0.0:
@@ -157,6 +189,29 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 			else:
 				var f := _light_t[i] / LIGHT_TIME
 				_lights[i].light_energy = LIGHT_ENERGY * f * f
+
+
+## How far the fall has come, 0..1, for a normalised time k: it starts slowly and the weight of the body takes it down faster and faster.
+static func _fall_curve(k: float) -> float:
+	return pow(k, 1.6)
+
+
+## Lay the fallen body on the floor: the lowest point of its geometry (hulls of its parts, at the current pose) sits DEAD_REST_GAP above the floor.
+## Followed every frame while the body is still falling and settling, then kept (the pose no longer changes).
+func _rest_on_floor(floor_y: float) -> void:
+	if _dead_t < FALL_TIME + DEAD_SETTLE:
+		_rest_drop = _lowest_point() - global_position.y
+	global_position.y = floor_y + DEAD_REST_GAP - _rest_drop
+
+
+## World-space y of the lowest vertex among the convex hulls of the character's parts at their current transforms.
+func _lowest_point() -> float:
+	var lo := INF
+	for i in _parts.size():
+		var xf := _parts[i].global_transform
+		for pt: Vector3 in _hulls[i]:
+			lo = minf(lo, (xf * pt).y)
+	return lo if lo != INF else global_position.y
 
 
 ## One shot: flash card, light pulse and the body's recoil. intensity scales the flash.
@@ -185,8 +240,9 @@ func flinch(strength := 1.0) -> void:
 
 func set_dead(is_dead: bool) -> void:
 	_dead_t = 0.0 if is_dead else -1.0
+	_rest_drop = 0.0
 	if not is_dead:
-		rotation.x = 0.0
+		rotation = Vector3(0.0, rotation.y, 0.0)
 
 
 ## Hide the flash and clear every transient pose (respawn, teleport).
@@ -218,8 +274,13 @@ func _build() -> void:
 		if model != null:
 			model.free()
 		_build_primitive()
+	_collect_hulls()
 	_build_flash()
 	_build_character_lights()
+	_reflection = MirrorProxy.new()
+	_reflection.name = "Reflection"
+	add_child(_reflection)
+	_reflection.track(_parts)
 
 
 func _adopt_model(model: Node3D) -> void:
@@ -248,29 +309,65 @@ func _adopt_model(model: Node3D) -> void:
 			else:
 				leg_r = leg
 	model.free()
-	_lift_fabric(upper)
+	_prepare_materials(upper, true)
 	for leg: Node3D in [leg_l, leg_r]:
 		if leg != null:
-			_lift_fabric(leg)
+			_prepare_materials(leg, true)
 
 
-## Per-instance override materials for every surface whose material is called "Fabric" (see FABRIC_LIFT).
-func _lift_fabric(root: Node) -> void:
-	var boost := COMPAT_BOOST if _is_compat() else 1.0
-	for node in root.find_children("*", "MeshInstance3D", true, false) + ([root] if root is MeshInstance3D else []):
+## Per-instance override materials (the imported resources stay untouched): every surface whose material is called "Fabric" is lifted (see FABRIC_LIFT) when
+## `lift_fabric` is set (the imported model only: the primitive body is already light enough), and on the Compatibility renderer every surface stops receiving
+## ambient light (see COMPAT_BOOST). Nothing else about the materials is changed on purpose: the lighting of this model was tuned and verified with exactly these
+## shader variants, and adding a per-material feature (a dithered distance fade, alpha scissor) changes its shading a lot (3x brighter or black on the same lights).
+func _prepare_materials(root: Node, lift_fabric: bool) -> void:
+	var compat := _is_compat()
+	var boost := COMPAT_BOOST if compat else 1.0
+	var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
+	if root is MeshInstance3D:
+		meshes.append(root)
+	for node in meshes:
 		var mi := node as MeshInstance3D
 		if mi == null or mi.mesh == null:
 			continue
 		for i in mi.mesh.get_surface_count():
 			var mat := mi.get_active_material(i) as BaseMaterial3D
-			if mat != null and mat.resource_name == "Fabric":
-				var lifted := mat.duplicate() as BaseMaterial3D
-				var lift := lerpf(1.0, FABRIC_LIFT, boost)
-				lifted.albedo_color = Color(lift, lift, lift, 1.0)
-				lifted.emission_enabled = true
-				lifted.emission = FABRIC_EMISSION * boost
-				lifted.emission_energy_multiplier = 1.0
-				mi.set_surface_override_material(i, lifted)
+			if mat == null:
+				continue
+			var lift := lift_fabric and mat.resource_name == "Fabric"
+			if not lift and not compat:
+				continue
+			var own := mat.duplicate() as BaseMaterial3D
+			if lift:
+				var k := lerpf(1.0, FABRIC_LIFT, boost)
+				own.albedo_color = Color(k, k, k, 1.0)
+				own.emission_enabled = true
+				own.emission = FABRIC_EMISSION * boost
+				own.emission_energy_multiplier = 1.0
+			if compat:
+				own.disable_ambient_light = true
+				own.albedo_color = own.albedo_color * COMPAT_TINT
+			mi.set_surface_override_material(i, own)
+
+
+## The convex hull of every mesh of the character (body and legs, not the flash cards), kept in the mesh's own space: the corpse rests on them.
+func _collect_hulls() -> void:
+	_parts.clear()
+	_hulls.clear()
+	var roots: Array[Node3D] = [upper, leg_l, leg_r]
+	for root in roots:
+		if root == null:
+			continue
+		var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
+		if root is MeshInstance3D:
+			meshes.append(root)
+		for node in meshes:
+			var mi := node as MeshInstance3D
+			if mi == null or mi.mesh == null:
+				continue
+			var shape := mi.mesh.create_convex_shape(true, false)
+			if shape != null and not shape.points.is_empty():
+				_parts.append(mi)
+				_hulls.append(shape.points)
 
 
 # --- primitive fallback ----------------------------------------------------------------------------------------------
@@ -423,6 +520,9 @@ func _build_primitive() -> void:
 		else:
 			leg.name = "LegR"
 			leg_r = leg
+	_prepare_materials(upper, false)
+	_prepare_materials(leg_l, false)
+	_prepare_materials(leg_r, false)
 
 
 # --- character lights ---------------------------------------------------------------------------------------------------
@@ -430,9 +530,11 @@ func _build_primitive() -> void:
 func _build_character_lights() -> void:
 	var mask := 1 << (CHARACTER_LAYER - 1)
 	_set_layer(self, mask)
-	var boost := COMPAT_BOOST if _is_compat() else 1.0
-	_key_light = _make_character_light("KeyLight", Color(0.82, 0.9, 1.0), 1.7 * boost, mask)
-	_rim_light = _make_character_light("RimLight", Color(0.55, 0.88, 1.0), 2.0 * boost, mask)
+	var boost := COMPAT_LIGHT if _is_compat() else 1.0
+	_key_energy = 1.7 * boost
+	_rim_energy = 2.0 * boost
+	_key_light = _make_character_light("KeyLight", Color(0.82, 0.9, 1.0), _key_energy, mask)
+	_rim_light = _make_character_light("RimLight", Color(0.55, 0.88, 1.0), _rim_energy, mask)
 	_apply_lights()
 
 

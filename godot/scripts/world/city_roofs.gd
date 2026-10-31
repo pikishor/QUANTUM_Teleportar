@@ -84,27 +84,26 @@ static func ac_mesh() -> ArrayMesh:
 static func tank_mesh() -> ArrayMesh:
 	var b := _mb(0.2, 0.75)
 	var wood := Color(0.11, 0.075, 0.05, 0.0)
-	b.cylinder(Vector3(0, 1.8, 0), 1.5, 2.7, 10, wood, -1.0, false, true)
-	b.cylinder(Vector3(0, 4.5, 0), 1.6, 0.9, 10, Color(0.06, 0.055, 0.05, 0.0), 0.12, false)
+	b.cylinder(Vector3(0, 1.8, 0), 1.5, 2.7, 8, wood, -1.0, false, true)
+	b.cylinder(Vector3(0, 4.5, 0), 1.6, 0.9, 8, Color(0.06, 0.055, 0.05, 0.0), 0.12, false)
 	for h in [2.5, 3.8]:
-		b.cylinder(Vector3(0, h, 0), 1.53, 0.07, 10, Color(0.05, 0.05, 0.055, 0.0), -1.0, false)
+		b.cylinder(Vector3(0, h, 0), 1.53, 0.07, 8, Color(0.05, 0.05, 0.055, 0.0), -1.0, false)
 	var iron := Color(0.05, 0.05, 0.055, 0.0)
 	for k in 4:
 		var a := TAU * float(k) / 4.0 + PI * 0.25
 		var p := Vector3(cos(a), 0, sin(a)) * 1.25
-		b.strut(p, p + Vector3(0, 1.85, 0), 0.12, iron)
+		b.strut(p, p + Vector3(0, 1.85, 0), 0.12, iron, false)
 	return b.build(null, true, true)
 
 
 static func mast_mesh() -> ArrayMesh:
 	var b := _mb(0.7, 0.5)
 	var iron := Color(0.07, 0.07, 0.075, 0.0)
-	b.cylinder(Vector3(0, 0, 0), 0.18, 0.5, 6, iron, 0.1, false)
-	b.cylinder(Vector3(0, 0.4, 0), 0.07, 13.0, 6, iron, 0.045, false)
+	b.cylinder(Vector3(0, 0, 0), 0.16, 13.4, 6, iron, 0.045, false)                    # one tapered mast
 	for h in [5.0, 8.0, 11.0]:
-		b.strut(Vector3(-1.1 + (h - 5.0) * 0.12, h, 0), Vector3(1.1 - (h - 5.0) * 0.12, h, 0), 0.05, iron)
+		b.strut(Vector3(-1.1 + (h - 5.0) * 0.12, h, 0), Vector3(1.1 - (h - 5.0) * 0.12, h, 0), 0.05, iron, false)
 	var start := b.verts.size()
-	b.cylinder(Vector3(0, 0, 0), 0.7, 0.12, 8, Color(0.18, 0.18, 0.19, 0.0), 0.1)
+	b.cylinder(Vector3(0, 0, 0), 0.7, 0.12, 6, Color(0.18, 0.18, 0.19, 0.0), 0.1)
 	b.xform_from(start, Transform3D(Basis(Vector3.RIGHT, deg_to_rad(-65.0)), Vector3(0.9, 7.2, 0.3)))
 	b.uv2 = Vector2(0.0, 0.3)
 	b.box(Vector3(0, 13.5, 0), Vector3(0.16, 0.2, 0.16), Color(1, 1, 1, EM_BEACON), false)
@@ -127,20 +126,20 @@ static func billboard_mesh() -> ArrayMesh:
 	var b := _mb(0.7, 0.5)
 	var iron := Color(0.06, 0.06, 0.065, 0.0)
 	for x in [-3.8, 0.0, 3.8]:
-		b.strut(Vector3(x, 0.0, -0.8), Vector3(x, 3.2, -0.15), 0.18, iron)
-		b.strut(Vector3(x, 0.0, 0.7), Vector3(x, 3.2, -0.15), 0.12, iron)
-	b.box(Vector3(0, 5.8, -0.2), Vector3(10.6, 5.0, 0.3), Color(0.03, 0.03, 0.035, 0.0))
+		b.strut(Vector3(x, 0.0, -0.8), Vector3(x, 3.2, -0.15), 0.18, iron, false)
+		b.strut(Vector3(x, 0.0, 0.7), Vector3(x, 3.2, -0.15), 0.12, iron, false)
+	b.box(Vector3(0, 5.8, -0.2), Vector3(10.6, 5.0, 0.3), Color(0.03, 0.03, 0.035, 0.0), false, b.uv2, MB.F_PZ)     # the LED panel covers the front
 	b.uv2 = Vector2(0.0, 0.3)
 	b.quad(Vector3(-5.0, 3.4, -0.02), Vector3(5.0, 3.4, -0.02), Vector3(5.0, 8.2, -0.02), Vector3(-5.0, 8.2, -0.02), Vector3.BACK,
 			Color(1, 1, 1, EM_SCREEN), Vector2.ZERO, Vector2.ZERO, _uvq())
 	var rim := Color(0.2, 0.9, 1.0, EM_GLOW)
-	b.box(Vector3(0, 8.28, 0.0), Vector3(10.4, 0.12, 0.14), rim)
-	b.box(Vector3(0, 3.32, 0.0), Vector3(10.4, 0.12, 0.14), rim)
-	b.box(Vector3(-5.08, 5.8, 0.0), Vector3(0.12, 5.0, 0.14), rim)
-	b.box(Vector3(5.08, 5.8, 0.0), Vector3(0.12, 5.0, 0.14), rim)
+	b.box(Vector3(0, 8.28, 0.0), Vector3(10.4, 0.12, 0.14), rim, false, b.uv2, MB.F_NZ)
+	b.box(Vector3(0, 3.32, 0.0), Vector3(10.4, 0.12, 0.14), rim, false, b.uv2, MB.F_NZ)
+	b.box(Vector3(-5.08, 5.8, 0.0), Vector3(0.12, 5.0, 0.14), rim, false, b.uv2, MB.F_NZ)
+	b.box(Vector3(5.08, 5.8, 0.0), Vector3(0.12, 5.0, 0.14), rim, false, b.uv2, MB.F_NZ)
 	b.uv2 = Vector2(0.5, 0.5)
 	for x in [-3.0, 3.0]:
-		b.strut(Vector3(x, 8.4, -0.1), Vector3(x, 8.9, 0.9), 0.06, iron)
+		b.strut(Vector3(x, 8.4, -0.1), Vector3(x, 8.9, 0.9), 0.06, iron, false)
 		b.box(Vector3(x, 8.95, 1.0), Vector3(0.5, 0.2, 0.3), Color(0.05, 0.05, 0.055, 0.0))
 	return b.build(null, true, true)
 
@@ -277,14 +276,14 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 			var bc: Color = NEON_COLORS[int(floor(bs * 4.0)) % 4]
 			props.glow_add(bxf.origin + bxf.basis * Vector3(0.0, 5.8, 1.5), Color(bc.r, bc.g, bc.b, 0.55), 0, 20.0, 0.0, bs)
 
-	props.add_family("Awnings", awning_mesh(), awn, false, false)
-	props.add_family("FireEscapes", fire_escape_mesh(), fire, false, false, 1)
-	props.add_family("BladeSigns", blade_mesh(), blades, true, false)
-	props.add_family("RoofAC", ac_mesh(), ac, false, false)
-	props.add_family("RoofTanks", tank_mesh(), tanks, false, false)
-	props.add_family("RoofMasts", mast_mesh(), masts, false, false)
-	props.add_family("RoofHouses", stair_house_mesh(), houses, false, false)
-	props.add_family("Billboards", billboard_mesh(), boards, true, false)
+	props.add_family("Awnings", awning_mesh(), awn, false, false, 0, 170.0)
+	props.add_family("FireEscapes", fire_escape_mesh(), fire, false, false, 1, 170.0)
+	props.add_family("BladeSigns", blade_mesh(), blades, true, false, 0, 270.0)
+	props.add_family("RoofAC", ac_mesh(), ac, false, false, 0, 230.0)
+	props.add_family("RoofTanks", tank_mesh(), tanks, false, false, 0, 270.0)
+	props.add_family("RoofMasts", mast_mesh(), masts, false, false, 0, 330.0)
+	props.add_family("RoofHouses", stair_house_mesh(), houses, false, false, 0, 250.0)
+	props.add_family("Billboards", billboard_mesh(), boards, true, false, 0, 360.0)
 
 
 ## A random free spot on a coarse grid (so clutter never overlaps); Vector2.INF when the roof is full.

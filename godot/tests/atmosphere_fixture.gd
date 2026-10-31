@@ -114,6 +114,8 @@ const POSES := {
 	&"hero": [Vector3(3.2, 1.55, -1.2), Vector3(0.9, 1.35, -9.0), 58.0],
 	&"lamp": [Vector3(-3.0, 1.4, -10.0), Vector3(-8.0, 6.5, -21.0), 68.0],
 	&"wide": [Vector3(0.0, 2.2, 14.0), Vector3(0.0, 6.0, -60.0), 76.0],
+	&"puddle": [Vector3(0.9, 1.7, 3.0), Vector3(0.2, 0.0, -5.0), 60.0],      # looking down at the near ground: the ripples are large here
+	&"close": [Vector3(0.6, 0.45, 1.5), Vector3(0.3, 0.05, -3.5), 50.0],     # ground level: droplets and ripples one to four metres away
 }
 
 var root: Node3D

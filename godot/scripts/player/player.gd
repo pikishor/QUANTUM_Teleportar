@@ -8,6 +8,8 @@ extends CharacterBody3D
 ## Movement is ported from src/player.js (walk 6.2 m/s, sprint x1.6, aim 3.4, jump 7.6 m/s, gravity 22) with smooth exponential acceleration,
 ## coyote time, jump buffering, step-up over curbs and a void rescue. Physics runs in _physics_process; everything the player SEES (body, camera)
 ## is rendered from the interpolated physics position in _process, so nothing judders.
+## Outside the play state nothing is driven (no input, no regeneration), but dead, victory and title still run gravity and friction (_settle_tick):
+## a body killed in mid-air falls to the ground and one killed at a sprint slides to a stop. A pause freezes everything, the pose included.
 ##
 ## Time base of last_hit_time / last_hurt_time: PlayerUtil.now() = Time.get_ticks_msec() / 1000.
 ## HUD data: hp max_hp energy max_energy ammo mag reloading aiming sprinting spread (current total half angle in radians: aim / hip base +
@@ -38,6 +40,7 @@ const VEHICLE_DAMAGE_SHARE := 0.6            ## damage taken while driving goes 
 const SPAWN_YAW := -PI * 0.5                 ## face +X, down the main avenue
 const SPAWN_PITCH := -0.12
 const VOID_Y := -60.0
+const SETTLE_FRICTION := 9.0                 ## 1/s: horizontal speed of a body that is not driven (dead, victory) dies away like a slide
 const CAPSULE_RADIUS := 0.35
 const CAPSULE_HEIGHT := 1.8
 
@@ -99,13 +102,17 @@ var sparks: ImpactSparks
 var yaw := SPAWN_YAW
 
 ## The vehicle being driven, or null on foot. Set by the vehicles module; the player then hides, follows it and the camera chases it.
+## A vehicle that gets freed while it is driven (destroyed, despawned) puts the player back on foot at once.
 var vehicle: Node3D:
 	get:
-		return _vehicle
+		return _vehicle if _in_vehicle and is_instance_valid(_vehicle) else null
 	set(v):
 		_set_vehicle(v)
 
 var _vehicle: Node3D
+## Vehicle mode is tracked by this flag and never by `_vehicle != null`: in Godot 4.6 a freed Object compares equal to null, so a comparison cannot
+## tell "no vehicle" from "the vehicle was freed" (use is_instance_valid(), which is what _vehicle_alive() does).
+var _in_vehicle := false
 var _dead := false
 var _coyote := 0.0
 var _jump_buffer := 0.0
@@ -272,7 +279,7 @@ func _snap_interpolation() -> void:
 
 ## Where enemies aim: the chest of the player, or the cabin of the vehicle being driven.
 func chest_position() -> Vector3:
-	if _vehicle != null and is_instance_valid(_vehicle):
+	if _vehicle_alive():
 		return _vehicle.global_position + Vector3(0.0, 1.1, 0.0)
 	return global_position + Vector3(0.0, 1.2, 0.0)
 
@@ -321,7 +328,7 @@ func is_dead() -> bool:
 func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 	if amount <= 0.0 or invuln > 0.0 or _dead or not Game.is_playing():
 		return
-	if _vehicle != null and is_instance_valid(_vehicle):
+	if _vehicle_alive():
 		var share := amount * VEHICLE_DAMAGE_SHARE
 		if _vehicle.has_method(&"damage"):
 			_vehicle.call(&"damage", share)
@@ -347,6 +354,7 @@ func _die() -> void:
 	hp = 0.0
 	aiming = false
 	sprinting = false
+	input_strafe = 0.0
 	weapon.cancel_reload()
 	body.set_dead(true)
 	Game.die()
@@ -356,17 +364,26 @@ func _die() -> void:
 # vehicle mode
 # ---------------------------------------------------------------------------------------------------------------------
 
+func _vehicle_alive() -> bool:
+	return _in_vehicle and is_instance_valid(_vehicle)
+
+
 func _set_vehicle(v: Node3D) -> void:
-	if v == _vehicle:
+	var next: Node3D = v if is_instance_valid(v) else null
+	if next == null and not _in_vehicle:
+		_vehicle = null
 		return
-	_vehicle = v
+	if next != null and _in_vehicle and next == _vehicle:
+		return
+	_vehicle = next
+	_in_vehicle = next != null
 	_apply_vehicle_state()
 
 
 func _apply_vehicle_state() -> void:
 	if camera_rig == null:
 		return
-	if _vehicle != null:
+	if _in_vehicle:
 		weapon.cancel_reload()
 		aiming = false
 		sprinting = false
@@ -403,8 +420,12 @@ func _physics_process(delta: float) -> void:
 		_ground_known = false
 		_was_on_floor = false
 	_phys_prev = _phys_cur
-	if Game.is_playing():
-		_tick(delta)
+	match Game.state:
+		&"play":
+			_tick(delta)
+		&"dead", &"win", &"menu":
+			_settle_tick(delta)
+		# paused: everything stays exactly as it is
 	_phys_cur = global_position
 
 
@@ -413,14 +434,14 @@ func _tick(dt: float) -> void:
 	since_hurt += dt
 	if hp < max_hp and since_hurt > REGEN_DELAY and not _dead:
 		hp += REGEN_RATE * dt
-	energy += (ENERGY_REGEN_DRIVING if _vehicle != null else ENERGY_REGEN) * dt
+	energy += (ENERGY_REGEN_DRIVING if _in_vehicle else ENERGY_REGEN) * dt
 	if _dead:
 		return
-	if _vehicle != null:
+	if _in_vehicle:
 		if is_instance_valid(_vehicle):
 			global_position = _vehicle.global_position
 		else:
-			_set_vehicle(null)
+			_set_vehicle(null)                              # the vehicle was freed under us (destroyed, despawned): on foot again, where it was
 		return
 	_foot_tick(dt)
 	if global_position.y < VOID_Y:                      # fell out of the world: back to the spawn
@@ -428,6 +449,38 @@ func _tick(dt: float) -> void:
 		reset()
 		hp = keep
 		invuln = SPAWN_INVULNERABILITY
+
+
+## The physics of a body nobody drives (dead, victory, title): gravity and friction, no input, no weapon, no regeneration. A player killed in
+## mid-air falls to the ground, one killed at a sprint slides to a stop; the body animation reads the same velocity.
+func _settle_tick(dt: float) -> void:
+	if _in_vehicle:
+		if is_instance_valid(_vehicle):
+			global_position = _vehicle.global_position
+		else:
+			_set_vehicle(null)
+		return
+	aiming = false
+	sprinting = false
+	input_strafe = 0.0
+	var on_floor := is_on_floor() and _ground_known
+	velocity.x = PlayerUtil.damp(velocity.x, 0.0, SETTLE_FRICTION, dt)
+	velocity.z = PlayerUtil.damp(velocity.z, 0.0, SETTLE_FRICTION, dt)
+	if not on_floor:
+		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * dt * 0.5)
+	elif velocity.y < 0.0:
+		velocity.y = 0.0
+	move_and_slide()
+	_ground_known = true
+	var landed := is_on_floor()
+	air_time = 0.0 if landed else air_time + dt
+	if not landed:
+		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * dt * 0.5)
+	_was_on_floor = landed
+	if global_position.y < VOID_Y:                      # fell out of the world while dead: back to the spawn, still dead
+		global_position = Game.SPAWN
+		velocity = Vector3.ZERO
+		_ground_known = false
 
 
 func _foot_tick(dt: float) -> void:
@@ -537,7 +590,7 @@ func _try_step_up(dt: float) -> void:
 func _process(delta: float) -> void:
 	var dt := minf(delta, 0.1)
 	var playing := Game.is_playing()
-	if playing and _vehicle == null and not _dead:
+	if playing and not _in_vehicle and not _dead:
 		yaw = PlayerUtil.damp_angle(yaw, camera_rig.get_aim_yaw(), 14.0, dt)
 	rotation.y = yaw
 	_step_offset = PlayerUtil.damp(_step_offset, 0.0, 14.0, dt)

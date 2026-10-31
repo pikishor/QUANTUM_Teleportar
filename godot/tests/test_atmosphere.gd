@@ -5,7 +5,8 @@ extends RefCounted
 ## frames, and regression checks of the cross-module contract in ARCHITECTURE.md (the world owns the viewport's msaa_3d / scaling_3d_scale and its
 ## `Mirror` node; committed files carry no machine-specific paths).
 ## --headless has a dummy renderer: it cannot compile shaders or read pixels. The same script also runs under a real renderer, which compiles the
-## post and rain shaders (shader errors show up in the log) and additionally proves that set_weather reaches the global shader parameters:
+## post and rain shaders (shader errors show up in the log) and additionally proves that set_weather reaches the global shader parameters and that the
+## ground splashes (ripples and droplets) add no light of their own (they brighten what is behind them, so they never glow over dark asphalt):
 ##   xvfb-run godot --rendering-driver vulkan --rendering-method mobile --path . res://tests/runner.tscn -- --test=res://tests/test_atmosphere.gd
 ##   (add --rendering-driver opengl3 --rendering-method gl_compatibility instead for the Compatibility renderer)
 ## tests/bot_atmosphere.gd (tools/bot.sh) is the check for the picture itself.
@@ -44,10 +45,12 @@ func run(host: Node) -> void:
 	await _test_weather()
 	await _test_globals_reach_shaders()
 	await _test_quality()
+	await _test_splashes_need_world()
 	await _test_enabled_and_rain_toggle()
 	await _test_effects_api()
 	await _test_camera()
 	await _test_ground_probe()
+	await _test_splash_look()
 	await _test_leaks()
 	# contract regression, after everything above has exercised set_quality / set_weather / enabled
 	TestLib.check(vp.msaa_3d == Viewport.MSAA_4X, "the atmosphere never writes the viewport's msaa_3d (the world owns it)")
@@ -258,6 +261,7 @@ func _test_globals_reach_shaders() -> void:
 func _test_quality() -> void:
 	_cam = _add_camera(Vector3(40.0, 3.0, -15.0))
 	Game.camera = _cam
+	_atm.rainfield.splashes_need_world = false           # no world is registered here: count the splashes a world would get
 	_atm.set_weather(1.0, 0.8, true)
 	await _idle(3)
 	var counts: Array[int] = []
@@ -280,6 +284,7 @@ func _test_quality() -> void:
 	TestLib.check(counts[0] > 0, "with a camera and full rain the rain is drawn even on LOW (%d particles)" % counts[0])
 	TestLib.check(streaks[0] < streaks[1] and streaks[1] < streaks[2], "streak count grows with the tier (%s)" % str(streaks))
 	TestLib.check(splashes[0] < splashes[1] and splashes[1] < splashes[2], "splash count grows with the tier (%s)" % str(splashes))
+	TestLib.check(splashes[0] == 0 and splashes[1] > 0, "LOW draws no ground splashes (its ground is matte, and the splashes need the screen texture); MED and HIGH do (%s)" % str(splashes))
 	TestLib.check(counts[0] < counts[1] and counts[1] < counts[2], "total particle count changes with the quality tier (%s)" % str(counts))
 	TestLib.check(cost[0] < cost[1] and cost[1] < cost[2], "the post-process gets more expensive with the tier: %s effects beyond grade, vignette and grain" % str(cost))
 	TestLib.check(cost[0] == 0, "LOW pays only for grade, vignette and grain")
@@ -287,6 +292,17 @@ func _test_quality() -> void:
 		TestLib.check(Atmosphere.particle_budget(level) >= counts[level], "particle_budget(%d) is the ceiling of what is drawn" % level)
 	TestLib.check(Atmosphere.particle_budget(0) < Atmosphere.particle_budget(1) and Atmosphere.particle_budget(1) < Atmosphere.particle_budget(2), "particle_budget grows with the tier")
 	TestLib.check(_atm.rainfield.streaks.multimesh.instance_count == pool, "the particle pool is allocated once (tiers only change the visible count)")
+	_atm.set_quality(0)
+	await _idle(2)
+	var low_gain := float(_atm.rainfield.streak_material.get_shader_parameter(&"intensity"))
+	TestLib.check(not _atm.rainfield.splashes.visible, "on LOW the splash field is hidden (no screen-texture read from this module)")
+	_atm.set_quality(2)
+	await _idle(2)
+	var high_gain := float(_atm.rainfield.streak_material.get_shader_parameter(&"intensity"))
+	TestLib.check(_atm.rainfield.splashes.visible, "on HIGH the splash field is shown")
+	TestLib.check(low_gain > high_gain, "fewer streaks on LOW carry more brightness each (%.2f versus %.2f)" % [low_gain, high_gain])
+	TestLib.check(_atm.rainfield.splash_material.render_priority > 0 and _atm.rainfield.streak_material.render_priority > 0,
+			"the rain materials draw after the world's transparent ground (render priority above 0)")
 	_atm.set_quality(-4)
 	TestLib.check(_atm.quality == 0, "set_quality clamps below 0")
 	_atm.set_quality(9)
@@ -303,6 +319,33 @@ func _test_quality() -> void:
 	TestLib.check(none == 0 and half > 0 and half < full, "density follows the rain intensity (0: %d, 0.5: %d, 1: %d)" % [none, half, full])
 	_atm.set_weather(1.0, 0.8, true)
 	await _idle(2)
+
+
+## The splash shader reads the screen texture, a frame copy that only the world's wet ground makes for free, so by default splashes are drawn
+## only while a world is registered (a bare scene, a menu backdrop or a probe pays nothing for them); the streaks do not care.
+func _test_splashes_need_world() -> void:
+	var a := _make()
+	await _idle(3)
+	a.set_quality(2)
+	a.set_weather(1.0, 0.8, true)
+	await _idle(3)
+	TestLib.check(a.rainfield.splashes_need_world, "by default the ground splashes are drawn only while a world is registered")
+	TestLib.check(Game.world == null and a.rainfield.streak_count() > 0 and a.rainfield.splash_count() == 0 and not a.rainfield.splashes.visible,
+			"without a world: streaks yes (%d), splashes no (%d)" % [a.rainfield.streak_count(), a.rainfield.splash_count()])
+	var stand_in := Node3D.new()
+	_host.add_child(stand_in)
+	Game.world = stand_in
+	await _idle(3)
+	TestLib.check(a.rainfield.splash_count() > 0 and a.rainfield.splashes.visible, "with a world registered the splashes are drawn (%d)" % a.rainfield.splash_count())
+	a.set_quality(0)
+	await _idle(2)
+	TestLib.check(a.rainfield.splash_count() == 0, "a world does not bring splashes back on LOW")
+	Game.world = null
+	stand_in.queue_free()
+	await _idle(3)
+	TestLib.check(a.rainfield.splash_count() == 0, "and when the world goes away the splashes go with it")
+	a.queue_free()
+	await _idle(3)
 
 
 func _test_enabled_and_rain_toggle() -> void:
@@ -394,6 +437,104 @@ func _test_ground_probe() -> void:
 	await _idle(30)
 	landed = float(_atm.rainfield.streak_material.get_shader_parameter(&"ground_y"))
 	TestLib.check(absf(landed) < 0.15, "and falls back to the ground level when the surface is gone (ground_y %.2f)" % landed)
+
+
+## Rendered check, skipped under --headless (no pixels there). The ground splashes add no light of their own: the shader returns a fraction of
+## the picture behind them. Over unlit dark asphalt they are therefore almost invisible, over a lit surface they catch that light, on dry
+## ground the ripples are gone, and LOW draws nothing. The first version drew near-white rings 20 to 30 times brighter than the asphalt they
+## sat on (they read as sonar markers); the absolute ceiling below keeps that from coming back. The streaks are muted so only splashes count.
+func _test_splash_look() -> void:
+	if DisplayServer.get_name() == "headless":
+		print("note: --headless cannot read pixels: the brightness of the ground splashes is only asserted under a real renderer (see the header)")
+		return
+	var vp := _host.get_viewport()
+	var shared_enabled := _atm.enabled                    # the atmosphere of the other checks must not paint into this picture
+	var shared_rain := _atm.rain_enabled
+	_atm.enabled = false
+	_atm.rain_enabled = false
+	var floor_mesh := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(80.0, 80.0)
+	floor_mesh.mesh = plane
+	var floor_mat := StandardMaterial3D.new()
+	floor_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	floor_mesh.material_override = floor_mat
+	_host.add_child(floor_mesh)
+	var cam := Camera3D.new()
+	cam.far = 200.0
+	cam.fov = 60.0
+	_host.add_child(cam)
+	cam.global_position = Vector3(0.0, 1.7, 0.0)
+	cam.rotation_degrees = Vector3(-52.0, 0.0, 0.0)
+	cam.make_current()
+	var previous_camera := Game.camera
+	Game.camera = cam
+	var atm := _make()
+	atm.rainfield.splashes_need_world = false             # this test brings its own floor and no world
+	atm.enabled = false                                   # the raw 3D picture: no grade, no grain, no lens effects
+	atm.set_quality(2)
+	atm.set_weather(1.0, 1.0, true)
+	atm.rainfield.streak_material.set_shader_parameter(&"intensity", 0.0)      # mute the streaks: only splashes may add light
+	var lut := PackedFloat32Array()                      # 8-bit display value -> linear
+	lut.resize(256)
+	for i in 256:
+		lut[i] = pow(float(i) / 255.0, 2.2)
+	var dark := Color(0.06, 0.06, 0.07)                   # unlit wet asphalt
+	var lit := Color(0.75, 0.55, 0.35)                    # a surface that reflects a warm light
+	floor_mat.albedo_color = dark
+	atm.rain_enabled = false
+	var base_dark := await _grab_peak(vp, lut, 2)
+	floor_mat.albedo_color = lit
+	var base_lit := await _grab_peak(vp, lut, 2)
+	atm.rain_enabled = true
+	floor_mat.albedo_color = dark
+	var d_dark := (await _grab_peak(vp, lut, 8)) - base_dark
+	floor_mat.albedo_color = lit
+	var d_lit := (await _grab_peak(vp, lut, 8)) - base_lit
+	atm.set_weather(1.0, 0.0, true)                       # raining on dry ground: no ripples
+	floor_mat.albedo_color = dark
+	var d_dry := (await _grab_peak(vp, lut, 8)) - base_dark
+	atm.set_weather(1.0, 1.0, true)
+	atm.set_quality(0)
+	atm.rainfield.streak_material.set_shader_parameter(&"intensity", 0.0)      # the tier change restored the streak brightness
+	var d_low := (await _grab_peak(vp, lut, 4)) - base_dark
+	print("splash peaks, linear luminance added over the floor: dark %.4f  lit %.4f  dry %.4f  LOW %.4f" % [d_dark, d_lit, d_dry, d_low])
+	TestLib.check(d_dark > 0.0025, "the splashes are drawn over a dark wet floor (peak +%.4f linear: a dead shader would give 0)" % d_dark)
+	TestLib.check(d_dark < 0.09, "over unlit dark asphalt a splash adds at most a faint glint (peak +%.4f linear; the old near-white rings added about 0.7)" % d_dark)
+	TestLib.check(d_lit > 3.0 * d_dark, "over a lit surface the splashes catch the light and get clearly brighter (+%.4f versus +%.4f over dark)" % [d_lit, d_dark])
+	TestLib.check(d_dry < 0.75 * d_dark, "on dry ground the ripples are gone (+%.4f versus +%.4f when wet)" % [d_dry, d_dark])
+	TestLib.check(d_low < 0.002, "LOW draws no splashes at all (+%.4f)" % d_low)
+	atm.queue_free()
+	floor_mesh.queue_free()
+	cam.queue_free()
+	await _idle(3)
+	Game.camera = previous_camera
+	if is_instance_valid(_cam):
+		_cam.make_current()
+	_atm.enabled = shared_enabled
+	_atm.rain_enabled = shared_rain
+	await _idle(2)
+
+
+## The brightest linear luminance of the lower two thirds of the middle of the picture, taken over `frames` rendered frames.
+func _grab_peak(vp: Viewport, lut: PackedFloat32Array, frames: int) -> float:
+	var best := 0.0
+	for f in frames:
+		await _idle(3)
+		await RenderingServer.frame_post_draw
+		var img := vp.get_texture().get_image()
+		img.convert(Image.FORMAT_RGB8)
+		var w := img.get_width()
+		var h := img.get_height()
+		var data := img.get_region(Rect2i(w / 4, h / 3, w / 2, h - h / 3 - 4)).get_data()
+		var i := 0
+		var n := data.size()
+		while i < n:
+			var l := lut[data[i]] * 0.2126 + lut[data[i + 1]] * 0.7152 + lut[data[i + 2]] * 0.0722
+			if l > best:
+				best = l
+			i += 3
+	return best
 
 
 func _test_leaks() -> void:

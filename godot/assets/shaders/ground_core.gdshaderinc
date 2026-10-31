@@ -28,6 +28,23 @@ float line_aa(float d, float w, float a) {
 	return (1.0 - smoothstep(w - a, w + a, abs(d))) * min(1.0, w / max(a, 1e-4));
 }
 
+// How much of a feature of size `lam` metres a pixel still resolves when it covers `a` metres of ground (1 = crisp, 0 = averaged away).
+// Every high-frequency term is scaled by this, so detail melts into its average tone instead of shimmering when the camera moves
+// (at grazing angles a pixel covers many metres along the view direction: this is what keeps far paving calm).
+float resolve(float lam, float a) {
+	return 1.0 - smoothstep(0.2, 0.65, a / lam);
+}
+
+// Value noise with wavelength `lam` that fades to its mean (0.5) once the pixel footprint `a` cannot resolve it.
+float vn(vec2 p, float lam, float a) {
+	return mix(0.5, vnoise(p), resolve(lam, a));
+}
+
+// fbm2 (3 octaves, wavelengths lam, lam / 2.03, lam / 4.1) whose octaves fade out as the pixel footprint `a` reaches their wavelength.
+float fbm2a(vec2 p, float lam, float a) {
+	return vn(p, lam, a) * 0.5 + vn(p * 2.03 + 11.7, lam / 2.03, a) * 0.3 + vn(p * 4.1 + 3.1, lam / 4.1, a) * 0.2;
+}
+
 // x: 1 where the lot is an open plaza, y: 1 where the block carries a neon kerb strip, z: the block's neon index
 vec3 lot_info(vec2 q) {
 	float fx = (q.x + W_HALF) / W_PITCH;
@@ -65,13 +82,14 @@ vec2 ripples(vec2 p, float t, float amount) {
 	return r;
 }
 
+
 void fragment() {
 	vec3 P = v_wpos;
 	vec2 q = P.xz;
 	vec3 toc = CAMERA_POSITION_WORLD - P;
 	float dist = length(toc);
 	vec3 V = toc / dist;
-	float aa = max(max(fwidth(q.x), fwidth(q.y)), 1e-4);
+	float aa = max(max(fwidth(q.x), fwidth(q.y)), 1e-4);    // ground covered by one pixel (metres, along its longer axis)
 	float wet = clamp(wetness, 0.0, 1.0);
 	float rn = clamp(rain, 0.0, 1.0);
 	float dk = 1.0 - smoothstep(70.0, 260.0, dist);       // fine detail fades with distance
@@ -85,12 +103,12 @@ void fragment() {
 
 	vec3 albedo = vec3(0.05);
 	float rough = 0.9;
-	float hf = 0.0;                                         // height field (metres) for the relief
 	float porous = 0.0;                                     // 1 = soaks water (reflection suppressed)
 	float pool_bias = 0.0;                                  // where puddles like to sit
 	vec3 emit = vec3(0.0);
 	float polish = 0.0;                                     // tyre-polished / oily patches
 	float flat_mask = 0.0;                                  // surfaces that are always glossy (water, metal)
+	vec3 slab_n = vec3(0.0);                                // analytic normal offset in world space: kerb bevel, rocking slabs (no screen-space derivatives)
 
 	if (sd < 0.0) {
 		// ====================================== road ==========================================================
@@ -106,31 +124,30 @@ void fragment() {
 		}
 		float alat = abs(lat);
 
-		float tone = fine ? fbm2(q * 0.16) : vnoise(q * 0.16);
-		float speck = hash12(floor(q * 70.0));
+		float tone = fine ? fbm2a(q * 0.16, 6.0, aa) : vn(q * 0.16, 6.0, aa);
+		float speck = mix(0.5, hash12(floor(q * 70.0)), resolve(0.014, aa));       // grit: only where single grains can be told apart
 		float patch_n = vnoise(q * 0.045 + 3.0);
-		float spk = 1.0 - smoothstep(2.0, 12.0, dist);
-		vec3 asph = vec3(0.085, 0.090, 0.100) * (0.70 + 0.55 * tone) * (0.93 + 0.14 * speck * spk);
+		vec3 asph = vec3(0.085, 0.090, 0.100) * (0.70 + 0.55 * tone) * (0.93 + 0.14 * speck);
 		asph *= mix(1.0, 0.62, smoothstep(0.62, 0.72, patch_n));                    // darker re-surfaced patches
 		float lane_w = (1.0 - junction) * (1.0 - smoothstep(0.6, 1.1, abs(abs(alat - 5.0) - 0.85)));
-		float lane_noise = fine ? vnoise(vec2(al * 0.7, lat * 3.0) + 5.0) : 0.5;
+		float lane_noise = fine ? vn(vec2(al * 0.7, lat * 3.0) + 5.0, 0.35, aa) : 0.5;
 		asph *= 1.0 - 0.38 * lane_w * (0.5 + 0.5 * lane_noise);                    // tyre tracks wear dark
 		polish = lane_w * (0.5 + 0.5 * lane_noise);
 		pool_bias += 0.16 * lane_w;                                                   // ruts hold water
 		// oil drips in the lane centres
-		float oil = fine ? smoothstep(0.72, 0.9, vnoise(q * 0.9 + 21.0)) * smoothstep(1.6, 0.0, abs(alat - 5.0)) * (1.0 - junction) : 0.0;
+		float oil = fine ? smoothstep(0.72, 0.9, vn(q * 0.9 + 21.0, 1.1, aa)) * smoothstep(1.6, 0.0, abs(alat - 5.0)) * (1.0 - junction) : 0.0;
 		asph *= 1.0 - 0.45 * oil;
 		polish = max(polish, oil);
-		// cracks
+		// cracks: thin dark meanders, patchy; the line is anti-aliased with the pixel footprint (the noise gradient is about 1.2 per metre,
+		// so no derivative is taken inside a branch) and fades once thinner than a pixel
 		float crack = 0.0;
 		if (fine) {
 			float cn = abs(vnoise(q * 1.1 + 8.0) - 0.5) + 0.35 * abs(vnoise(q * 2.7 + 3.0) - 0.5);
-			crack = (1.0 - smoothstep(0.0, 0.012, cn)) * smoothstep(0.66, 0.78, vnoise(q * 0.21 + 40.0));
+			crack = line_aa(cn, 0.006, 1.2 * aa) * smoothstep(0.66, 0.78, vnoise(q * 0.21 + 40.0));
 		}
-		asph *= 1.0 - 0.35 * crack * dk;
+		asph *= 1.0 - 0.30 * crack * dk;
 		albedo = asph;
 		rough = 0.88;
-		hf = -0.004 * crack * dk;
 
 		// ---- paint -----------------------------------------------------------------------------------------
 		float paint = 0.0;
@@ -145,13 +162,12 @@ void fragment() {
 		if (junction < 0.5) {
 			float zb = band(other, 10.8, 14.3, aa) * band(alat, 0.0, 9.4, aa);
 			float zs = step(fract(lat + 0.25), 0.5);
-			zebra = zb * zs;
+			zebra = zb * mix(0.5, zs, resolve(0.5, aa));                              // stripes melt into grey when a pixel spans several
 			stop = band(other, 15.0, 15.45, aa) * band(alat, 3.3, 9.4, aa);
 		}
 		// turn arrows: a shaft and a head on the approach lanes
 		float arrow = 0.0;
 		{
-			float aal = al - 5.0 * 0.0;
 			float lane_c = alat - 5.0;
 			float ap = mod(other - 22.0, 70.0);
 			float shaft = band(abs(lane_c), 0.0, 0.18, aa) * band(ap, 0.0, 3.2, aa);
@@ -161,7 +177,7 @@ void fragment() {
 		paint = clamp(yellow + edge_line + bay + zebra + stop + arrow, 0.0, 1.0);
 		vec3 ycol = vec3(0.55, 0.40, 0.08);
 		pcol = mix(vec3(0.50, 0.50, 0.52), ycol, clamp(yellow / max(paint, 0.001), 0.0, 1.0));
-		float worn = 0.55 + 0.45 * vnoise(q * 3.1 + 17.0) * (0.6 + 0.4 * speck);
+		float worn = 0.55 + 0.45 * vn(q * 3.1 + 17.0, 0.33, aa) * (0.6 + 0.4 * speck);
 		paint *= worn * 0.95;
 		albedo = mix(albedo, pcol * 0.8, paint);
 		rough = mix(rough, 0.75, paint);
@@ -174,56 +190,77 @@ void fragment() {
 		float md = length(vec2(lat - mh_l, al - mh_a));
 		float mh = fine ? (1.0 - smoothstep(0.50 - aa, 0.50 + aa, md)) * (1.0 - junction) * step(18.0, other) * step(0.35, mh_h) : 0.0;
 		float mh_ring = (1.0 - smoothstep(0.54, 0.58, md)) * (1.0 - mh);
-		float mh_ribs = 0.6 + 0.4 * step(0.5, fract((lat - mh_l) * 4.0 + 0.5)) * step(0.5, fract((al - mh_a) * 4.0 + 0.5));
+		float mh_ribs = mix(0.8, 0.6 + 0.4 * step(0.5, fract((lat - mh_l) * 4.0 + 0.5)) * step(0.5, fract((al - mh_a) * 4.0 + 0.5)), resolve(0.25, aa));
 		albedo = mix(albedo, vec3(0.045, 0.043, 0.04) * mh_ribs, mh);
-		albedo = mix(albedo, albedo * 0.5, mh_ring * 0.0);
 		rough = mix(rough, 0.45, mh);
-		hf += 0.004 * mh_ribs * mh - 0.01 * mh_ring;
 		flat_mask = max(flat_mask, mh * 0.5);
 		// gutter strip along the kerb with drain slots
 		float gut = band(alat, 9.35, 10.0, aa);
 		albedo *= 1.0 - 0.3 * gut;
+		albedo = mix(albedo, vec3(0.17), smoothstep(-aa, aa, sd) * (1.0 - junction));       // the road half of the anti-aliased kerb edge
 		pool_bias += 0.5 * gut;
 		float slot_a = mod(al + 4.0, 22.0);
 		float slot = band(alat, 9.45, 9.95, aa) * band(slot_a, 0.0, 1.1, aa);
 		albedo = mix(albedo, vec3(0.012), slot);
-		hf -= 0.02 * slot;
 	} else {
 		// ====================================== sidewalk / block ===========================================
 		vec3 li = lot_info(q);
 		float plz = li.x;
-		float sx = 1.2 + plz * 1.2;
+		float sx = 1.2 + plz * 1.2;                                                   // slab size (m)
 		vec2 tq = q / sx;
 		vec2 tid = floor(tq);
 		vec2 tf = fract(tq);
+		float res_t = resolve(sx, aa);                                                // 1 while single slabs are resolved, 0 once a pixel spans several
 		float jd = min(min(tf.x, 1.0 - tf.x), min(tf.y, 1.0 - tf.y)) * sx;           // distance to the nearest joint in metres
-		float joint = (1.0 - smoothstep(0.012, 0.012 + aa * 1.2, jd)) * min(1.0, 0.012 / (aa * 1.2));
-		float tv = hash12(tid + 3.0);
-		float tone = fbm2(q * 0.3);
-		vec3 conc = mix(vec3(0.13, 0.135, 0.14), vec3(0.17, 0.165, 0.16), tv) * (0.75 + 0.5 * tone);
-		// stains, gum, cracks
+		float joint = line_aa(jd, 0.010, aa);                                         // dirt-filled joint, coverage-correct when thinner than a pixel
+		float slab_ao = 1.0 - 0.22 * (1.0 - smoothstep(0.0, 0.07, jd)) * resolve(0.14, aa);   // slab edges are chamfered and collect grime
+		float tv = mix(0.5, hash12(tid + 3.0), res_t);                                // per-slab tone, averaged away when slabs are sub-pixel
+		float tone = fbm2a(q * 0.3, 3.3, aa);
+		float grit = mix(0.5, hash12(floor(q * 55.0)), resolve(0.018, aa));                // aggregate: only where single grains are resolved
+		vec3 conc = mix(vec3(0.13, 0.135, 0.14), vec3(0.17, 0.165, 0.16), tv) * (0.75 + 0.5 * tone) * (0.93 + 0.14 * grit);
+		// stains and, in about one slab in eight, a hairline crack straight through the slab (it ends at the joints, like a real slab crack)
 		float stain = smoothstep(0.62, 0.8, vnoise(q * 0.55 + 31.0));
 		conc *= 1.0 - 0.45 * stain;
-		float crack = fine ? 1.0 - smoothstep(0.0, 0.010, abs(vnoise(q * 2.3 + tid) - 0.5)) : 0.0;
-		conc *= 1.0 - 0.45 * crack * dk * step(0.78, tv);
+		float crack = 0.0;
+		if (fine && plz < 0.5 && hash12(tid + 11.0) > 0.875) {
+			float ang = (hash12(tid + 5.0) - 0.5) * 2.2 + 0.7;
+			vec2 cd = vec2(cos(ang), sin(ang));
+			vec2 cp = (tf - (0.3 + 0.4 * hash22(tid + 2.0))) * sx;                    // metres from a random point of the slab
+			float along = dot(cp, cd);
+			float across = dot(cp, vec2(-cd.y, cd.x)) + 0.03 * (vnoise(vec2(along * 3.1, hash12(tid) * 40.0)) - 0.5);   // wanders a little
+			float wcr = 0.004 + 0.008 * vnoise(vec2(along * 2.0 + hash12(tid + 8.0) * 30.0, 4.0));                      // and tapers
+			crack = line_aa(across, wcr, aa);
+		}
+		conc *= 1.0 - 0.55 * crack * dk;
 		vec3 stone = vec3(0.075, 0.08, 0.092) * (0.8 + 0.5 * tv) * (0.8 + 0.4 * tone);
 		albedo = mix(conc, stone, plz);
-		albedo *= 1.0 - 0.7 * joint;
+		albedo *= (1.0 - 0.65 * joint) * slab_ao;
 		rough = mix(0.82, 0.55, plz);
 		porous = 0.55 * (1.0 - plz);
-		hf = -0.012 * joint - 0.004 * crack * dk + 0.01 * (tv - 0.5);
 		pool_bias += 0.12 * joint - 0.1;
+		// slabs rock a little: each one reflects the wet night slightly differently (no relief taken from derivatives, so nothing shimmers)
+		vec2 tilt = (hash22(tid + 7.0) - 0.5) * (0.026 + 0.016 * plz) * res_t * (1.0 - joint) * dk;
+		slab_n = vec3(tilt.x, 0.0, tilt.y);
 		// kerb stone and the dropped gutter edge
 		float kerb = band(sd, 0.0, 0.26, aa);
 		albedo = mix(albedo, vec3(0.20, 0.20, 0.205) * (0.8 + 0.4 * tone), kerb);
-		hf += 0.04 * kerb + 0.02 * (1.0 - smoothstep(0.26, 0.5, sd)) * (1.0 - kerb);
+		{
+			// kerb relief as an analytic slope along the road-edge direction: a bevel on the road side (never sharper than a pixel)
+			// and a soft fall-off behind the kerb stone
+			vec2 kn = ax < az ? vec2(sign(ox), 0.0) : vec2(0.0, sign(oz));
+			float kw = max(0.03, aa);
+			float t1 = clamp((sd + kw) / (2.0 * kw), 0.0, 1.0);
+			float t2 = clamp((sd - 0.26) / 0.24, 0.0, 1.0);
+			float slope = 0.05 * 6.0 * t1 * (1.0 - t1) / (2.0 * kw) - 0.03 * 6.0 * t2 * (1.0 - t2) / 0.24;
+			slab_n += vec3(-kn.x, 0.0, -kn.y) * clamp(slope, -1.2, 1.2) * dk;
+		}
 		rough = mix(rough, 0.6, kerb);
 		// recessed LED strip along the kerb of selected blocks (a practical light, colour by block)
-		float led = li.y * band(sd, 0.10, 0.17, aa) * (1.0 - plz * 0.0);
+		float led = li.y * band(sd, 0.10, 0.17, aa);
 		float led_pulse = 0.85 + 0.15 * sin(TIME * 1.3 + (q.x + q.y) * 0.04);
 		emit += NEON[int(li.z)] * led * 1.6 * led_pulse;
 		// yellow paint on some kerbs
-		float paint_k = kerb * step(0.82, hash12(vec2(floor((ax < az ? q.y : q.x) / 14.0), floor((ax < az ? ox : oz) * 0.0) + 3.0)));
+		float paint_k = kerb * step(0.82, hash12(vec2(floor((ax < az ? q.y : q.x) / 14.0), 3.0)));
 		albedo = mix(albedo, vec3(0.45, 0.33, 0.06), paint_k * 0.9);
 		// plaza: inlaid light strips
 		if (plz > 0.5) {
@@ -233,12 +270,23 @@ void fragment() {
 			float pulse = 0.6 + 0.4 * sin(TIME * 0.8 + (q.x + q.y) * 0.05);
 			emit += vec3(0.1, 0.8, 1.0) * strip * 0.9 * pulse;
 		}
+		// the edge of the playable city (the invisible walls stand here): worn hazard chevrons and an amber guide light
+		float bd = max(abs(q.x), abs(q.y));
+		if (bd > 346.0 && bd < 350.5) {
+			float lng = abs(q.x) > abs(q.y) ? q.y : q.x;
+			float chev = mix(0.5, step(fract((lng + bd) / 1.3), 0.5), resolve(0.65, aa));
+			float zone = band(bd, 348.0, 349.55, aa);
+			vec3 hz = mix(vec3(0.015, 0.015, 0.017), vec3(0.50, 0.36, 0.05), chev) * (0.55 + 0.45 * vn(q * 2.3 + 9.0, 0.43, aa));
+			albedo = mix(albedo, hz, zone * 0.92);
+			rough = mix(rough, 0.7, zone);
+			emit += vec3(1.0, 0.55, 0.12) * band(bd, 349.62, 349.82, aa) * (1.1 + 0.4 * sin(TIME * 2.0 + lng * 0.35));
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------------------
 	// puddles: noise mask, more where the ground dips (ruts, joints, gutters); gone on dry weather
 	// ---------------------------------------------------------------------------------------------------------
-	float pn = vnoise(q * 0.11 + 7.0) * 0.55 + vnoise(q * 0.43 + 1.3) * 0.30 + (fine ? vnoise(q * 1.7) * 0.15 * dk : 0.075);
+	float pn = vnoise(q * 0.11 + 7.0) * 0.55 + vnoise(q * 0.43 + 1.3) * 0.30 + (fine ? vn(q * 1.7, 0.6, aa) * 0.15 * dk : 0.075);
 	float thr = mix(0.90, 0.64, wet) - pool_bias;
 	float puddle = smoothstep(thr, thr + 0.07, pn) * smoothstep(0.15, 0.55, wet);
 	puddle = max(puddle, flat_mask * wet);
@@ -246,7 +294,7 @@ void fragment() {
 	// rain ripples live on puddles
 	vec2 rp = vec2(0.0);
 	if (fine && dist < 45.0 && puddle > 0.02) {
-		rp = ripples(q, TIME, rn) * puddle * rn;
+		rp = ripples(q, TIME, rn) * puddle * rn * resolve(0.3, aa);
 	}
 
 	// wetness: darker, smoother
@@ -257,7 +305,7 @@ void fragment() {
 	rough = mix(rough, 0.10, polish * wet * 0.5);
 	albedo = mix(albedo, albedo * 0.55, puddle);
 	rough = mix(rough, 0.02, puddle);
-	hf = mix(hf, 0.0, puddle);
+	slab_n *= 1.0 - puddle;                                                       // standing water is flat
 
 	// lamp / neon pools baked into the light map: diffuse light on the ground
 	vec2 luv = (q - light_rect.xy) / light_rect.zw;
@@ -265,30 +313,22 @@ void fragment() {
 	emit += albedo * pool * 1.4;
 
 	// ---------------------------------------------------------------------------------------------------------
-	// normal: relief from the height field + ripples
+	// normal: the flat ground plus ripples, slab rocking and the analytic kerb slope. Nothing is taken from screen-space derivatives
+	// (they alias on thin features), and the reflection term uses the same smooth normal, so the lit pools and the mirrored city never speckle.
 	// ---------------------------------------------------------------------------------------------------------
-	vec3 N = normalize(NORMAL);
-	if (detail > 0.5 && dk > 0.01) {
-		vec3 dpdx = dFdx(VERTEX);
-		vec3 dpdy = dFdy(VERTEX);
-		vec3 r1 = cross(dpdy, N);
-		vec3 r2 = cross(N, dpdx);
-		float det = dot(dpdx, r1);
-		vec3 grad = sign(det) * (dFdx(hf) * r1 + dFdy(hf) * r2);
-		N = normalize(abs(det) * N - grad * 6.0 * dk);
-	}
-	vec3 Nw = normalize((INV_VIEW_MATRIX * vec4(N, 0.0)).xyz);
-	Nw = normalize(Nw + vec3(rp.y * 0.9, 0.0, rp.y * 0.6) * 0.18);
+	vec3 Ng = normalize((INV_VIEW_MATRIX * vec4(normalize(NORMAL), 0.0)).xyz);
+	vec3 Nw = normalize(Ng + vec3(rp.y * 0.9, 0.0, rp.y * 0.6) * 0.18 + slab_n);
+	vec3 Nr = Nw;
 	vec3 Nv = normalize((VIEW_MATRIX * vec4(Nw, 0.0)).xyz);
 
 	// ---------------------------------------------------------------------------------------------------------
 	// reflection: Fresnel x gloss. The mirror pass supplies the buildings (read back from the screen with a smear that
 	// follows the roughness); the sky comes from the radiance map (SPECULAR).
 	// ---------------------------------------------------------------------------------------------------------
-	float ndv = clamp(dot(Nw, V), 0.0, 1.0);
+	float ndv = clamp(dot(Nr, V), 0.0, 1.0);
 	float fres = 0.03 + 0.97 * pow(1.0 - ndv, 5.0);
 	// wet asphalt is patchy: smooth polished strips along the lanes, rougher in between
-	float patchy = vnoise(q * 0.9 + 5.0) * 0.65 + vnoise(q * 0.21 + 2.0) * 0.35;
+	float patchy = vn(q * 0.9 + 5.0, 1.1, aa) * 0.65 + vnoise(q * 0.21 + 2.0) * 0.35;
 	float gloss = wet * (1.0 - porous) * (1.0 - smoothstep(0.1, 0.55, rough));
 	gloss *= mix(0.45, 1.0, smoothstep(0.25, 0.75, patchy));
 	gloss = max(gloss, puddle * wet);
@@ -299,7 +339,7 @@ void fragment() {
 	if (refl > 0.004) {
 		vec2 px = 1.0 / VIEWPORT_SIZE;
 		// rough water smears the image downwards (towards the viewer); still puddles stay sharp
-		float blur_px = mix(3.0, 56.0, 1.0 - puddle) * (0.15 + 0.85 * sqrt(1.0 - ndv)) * (1.0 - 0.7 * smoothstep(0.0, 10.0, 0.0));
+		float blur_px = mix(3.0, 56.0, 1.0 - puddle) * (0.15 + 0.85 * sqrt(1.0 - ndv));
 		vec2 suv = SCREEN_UV + vec2(rp.y * 0.006, rp.y * 0.016);               // ripples wobble the reflection
 		float ws = 0.0;
 		float lod0 = clamp(log2(max(blur_px, 1.0)) - 1.6, 0.0, 4.0);

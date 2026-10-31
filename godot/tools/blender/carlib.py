@@ -1,16 +1,21 @@
 """Parametric car builder used by model_car_sedan.py / model_car_sport.py / model_car_suv.py.
 
 Body: one closed hull loft (rings along the car, with real wheel-arch notches, rocker sills, nose/tail taper) plus a greenhouse
-loft whose faces are assigned Body / Glass / Trim by region. Wheels are four separate objects pivoted at the axle
+loft whose faces are assigned paint / glass / trim by region. Wheels are four separate objects pivoted at the axle
 (WheelFL/FR/RL/RR), the front of the car is +Y in Blender (-Z in Godot).
-Materials: Body (paint, recolourable), Glass (blended), Trim (dark metal/plastic), Wheel, Headlights, Taillights, Underglow.
+
+Surfaces (draw calls): "Body" (neutral baked paint, tinted by its material colour, vehicles recolour it), one baked "Details" material
+(trim, rubber, chrome, tinted glass, tyres, rims), and three flat emissive materials Headlights / Taillights / Underglow: 5 surfaces on
+the body mesh plus one per wheel. The glass is opaque and glossy (no blended pass, no interior).
+Real lights come with the model: a headlight spot, an underglow omni and a fill that lights only the car (see helpers.light).
 """
 import math
 
 import bpy  # noqa: F401  (must be imported before mathutils)
 from mathutils import Vector
 
-from helpers import (Part, bake_ao, empty, export_model, hexc, make_material, new_scene, paint, vertex_gradient)
+from helpers import (Part, empty, export_model, hexc, light, make_material, new_scene, paint)
+from shade import Decal, p_lines
 
 
 def clamp(x, a, b):
@@ -45,18 +50,19 @@ def build_car(spec):
     taper = spec.get("taper", 0.6)
     x_in = track / 2 - tw / 2 - 0.05
 
-    body = make_material("Body", tex="metal_painted", color=paint("metal_painted", spec["paint"]))
-    glass = make_material("Glass", tex="glass", color=(0.03, 0.045, 0.055), alpha=0.45, vcol=False)
-    trim = make_material("Trim", tex="steel")
-    wheelm = make_material("Wheel", tex="steel")
-    head = make_material("Headlights", emit=hexc("#fff1d0"), emit_strength=7.0, vcol=False)
-    tail = make_material("Taillights", emit=hexc("#ff1020"), emit_strength=5.0, vcol=False)
-    under = make_material("Underglow", emit=hexc(spec.get("underglow", "#18d6ff")), emit_strength=4.0, vcol=False)
+    body = make_material("Body", tex="paint", color=hexc(spec["paint"]))
+    glass = make_material("Glass", tex="glass", color=(0.012, 0.02, 0.026))
+    trim = make_material("Trim", tex="rubber")
+    chrome = make_material("Chrome", tex="steel")
+    under = make_material("Under", tex="solid")
+    head = make_material("Headlights", emit=hexc("#fff1d0"), emit_strength=3.0)
+    tail = make_material("Taillights", emit=hexc("#ff1020"), emit_strength=2.6)
+    glow = make_material("Underglow", emit=hexc(spec.get("underglow", "#18d6ff")), emit_strength=2.0)
 
-    T_black = paint("steel", "#17191b")
-    T_dark = paint("steel", "#25292d")
-    T_chrome = paint("steel", "#a4adb5")
-    T_int = paint("steel", "#1d2124")
+    T_black = hexc("#1b1d1f")
+    T_dark = hexc("#2c3033")
+    T_chrome = hexc("#b4bcc3")
+    T_under = hexc("#0b0c0d")
 
     P = Part("Body", seed=spec.get("seed", 5))
     gh_pts = spec["gh"]
@@ -138,11 +144,11 @@ def build_car(spec):
         for i in range(PTS):
             c = i if i <= nP else (2 * nP + 1 - i)
             if c == 0:
-                m, t = trim, T_black
+                m, t = under, T_under                    # the underside
             elif c in (1, 2):
-                m, t = trim, T_black
+                m, t = (under, T_under) if has_arch[k] else (trim, T_black)       # wheel-well walls / sill plastic
             elif in_cabin and c >= 6:
-                m, t = trim, T_int
+                m, t = under, T_under
             else:
                 m, t = body, (1.0, 1.0, 1.0)
             face_mats.append((m, t))
@@ -173,7 +179,7 @@ def build_car(spec):
         ymid = 0.5 * (gst[k] + gst[k + 1])
         for i in range(GP):
             if i == GP - 1:
-                gmats.append((trim, T_int))
+                gmats.append((trim, T_black))
                 continue
             c = i if i <= 7 else 13 - i
             if c <= 1:
@@ -186,12 +192,9 @@ def build_car(spec):
                 m = glass
             else:
                 m = body
-            gmats.append((m, T_black if m is trim else (1.0, 1.0, 1.0)))
-    gmats += [(trim, T_int), (trim, T_int)]
+            gmats.append((m, T_black if m is trim else (glass.color if m is glass else (1.0, 1.0, 1.0))))
+    gmats += [(trim, T_black), (trim, T_black)]
     P.loft(grings, mat=body, caps=(True, True), closed=True, sharp=89.0, face_mats=gmats)
-    # dark inner liner so the cabin reads as dark through the glass (normals point inward)
-    inner = [[(x * 0.965, y, z - 0.012 + (0.0 if abs(x) > 0.01 else -0.025)) for (x, y, z) in ring] for ring in grings]
-    P.loft(inner, mat=trim, tint=T_int, caps=(True, True), closed=True, sharp=89.0, flip=True)
 
     # ------------------------------------------------------------------ body details
     def xs_at(y, z):
@@ -201,15 +204,10 @@ def build_car(spec):
         t = clamp((z - zr) / max(zs - zr, 1e-3), 0.0, 1.0)
         return hw(y) * (0.972 + 0.03 * math.sin(math.pi * min(1.0, t * 1.1)) - 0.045 * t ** 3)
 
-    # panel gap lines (dark thin tubes following the side contour)
-    for yl in spec["door_lines"]:
-        zlo, zhi = gc + 0.2, belt - 0.015
-        pts = [(xs_at(yl, z) + 0.002, yl, z) for z in (zlo, (zlo + zhi) / 2, zhi)]
-        P.tube(pts, [(0.004, 0.005)] * 3, mat=trim, tint=T_black, n=4, sub=1, mirror=True, sharp=89.0)
     # door handles
     for yh in spec["handles"]:
         z = belt - 0.075
-        P.box((0.016, 0.15, 0.022), (xs_at(yh, z) + 0.006, yh, z), mat=trim, tint=T_chrome, bevel=0.004, mirror=True)
+        P.box((0.016, 0.15, 0.022), (xs_at(yh, z) + 0.006, yh, z), mat=chrome, tint=T_chrome, bevel=0.004, mirror=True)
     # mirrors
     ym = y_ws - 0.14
     zm = belt + 0.10
@@ -230,7 +228,7 @@ def build_car(spec):
     P.box((0.78, 0.09, face_h * 0.30), (0, yf - 0.02, zbe + face_h * 0.46), mat=trim, tint=T_black, bevel=0.02, bsegs=2)    # grille
     for k in (-1, 0, 1):
         P.box((0.7, 0.014, 0.012), (0, yf + 0.026, zbe + face_h * 0.46 + k * face_h * 0.075), mat=trim, tint=T_dark)
-    P.box((0.5, 0.012, 0.11), (0, yf + 0.0, zbe + 0.07), mat=trim, tint=T_chrome, bevel=0.003)                          # plate
+    P.box((0.5, 0.012, 0.11), (0, yf + 0.0, zbe + 0.07), mat=chrome, tint=T_chrome, bevel=0.003)                          # plate
     P.box((0.96, 0.07, 0.025), (0, yf - 0.02, zbe + 0.01), mat=trim, tint=T_dark, bevel=0.008)                          # splitter lip
     # tail lights, plate, exhaust
     yr = -L / 2
@@ -241,33 +239,23 @@ def build_car(spec):
         zt_ = zr_ - 0.11
         P.box((0.38, 0.1, 0.07), (x, yr + 0.025, zt_), mat=tail, bevel=0.015, bsegs=2, rot=(0, 0, sx * 9))
         P.box((0.42, 0.12, 0.095), (x, yr + 0.035, zt_), mat=trim, tint=T_black, bevel=0.02, bsegs=2, rot=(0, 0, sx * 9))
-        P.cyl(0.04, 0.14, (sx * 0.52, yr - 0.01, zbr + 0.06), axis="y", mat=trim, tint=T_chrome, segs=12, bevel=0.004)
-    P.box((0.52, 0.012, 0.11), (0, yr, zr_ - 0.2), mat=trim, tint=T_chrome, bevel=0.003)
+        P.cyl(0.04, 0.14, (sx * 0.52, yr - 0.01, zbr + 0.06), axis="y", mat=chrome, tint=T_chrome, segs=12, bevel=0.004)
+    P.box((0.52, 0.012, 0.11), (0, yr, zr_ - 0.2), mat=chrome, tint=T_chrome, bevel=0.003)
     P.box((0.9, 0.07, 0.06), (0, yr + 0.03, zbr + 0.06), mat=trim, tint=T_dark, bevel=0.01)
     P.box((xr_ * 1.3, 0.012, 0.012), (0, yr - 0.002, zr_ - 0.11), mat=tail)
     # underglow strips + sill glow
     for sx in (1, -1):
-        P.box((0.035, WB + 0.7, 0.012), (sx * (W / 2 - 0.13), 0, gc - 0.003), mat=under)
-    # interior (above the belt line so it is visible through the glass): seats, dash, steering wheel
-    seat_y = spec["seats"]
-    avail = spec["z_roof"] - belt                      # cabin height above the sill: keep seats well inside the roof
-    sb_h = min(0.5, avail * 0.55)
-    for (sy_, headrest) in seat_y:
-        P.box((0.46, 0.1, sb_h), (0.36, sy_, belt + sb_h * 0.30), mat=trim, tint=T_int, bevel=0.03, bsegs=2, rot=(-8, 0, 0), mirror=True)
-        if headrest:
-            P.box((0.2, 0.07, 0.12), (0.36, sy_ - 0.02, belt + sb_h * 0.62 + 0.05), mat=trim, tint=T_int, bevel=0.025, mirror=True)
-    ydash = y_ws - 0.12
-    P.box((1.18, 0.34, 0.10), (0, ydash - 0.02, belt + 0.05), mat=trim, tint=T_int, bevel=0.03, bsegs=2)
-    P.torus(0.17, 0.014, (0.36, ydash - 0.26, belt + 0.22), rot=(60, 0, 0), mat=trim, tint=T_black, segs=18, sides=5)
+        P.box((0.035, WB + 0.7, 0.012), (sx * (W / 2 - 0.13), 0, gc - 0.003), mat=glow)
     # extras (spoiler, roof rails, ...)
     for fn in spec.get("extras", []):
-        fn(P, dict(trim=trim, body=body, tail=tail, head=head, T_black=T_black, T_dark=T_dark, T_chrome=T_chrome, hw=hw, ztop=ztop,
-                   zbot=zbot, L=L, W=W, WB=WB, gc=gc, belt=belt, spec=spec, glass=glass))
+        fn(P, dict(trim=trim, body=body, tail=tail, head=head, chrome=chrome, T_black=T_black, T_dark=T_dark, T_chrome=T_chrome, hw=hw,
+                   ztop=ztop, zbot=zbot, L=L, W=W, WB=WB, gc=gc, belt=belt, spec=spec, glass=glass))
 
     # ------------------------------------------------------------------ wheels (separate nodes pivoted at the axle)
     def make_wheel(name, sx, sy):
         cx, cy = sx * track / 2, sy * WB / 2
         w = Part(name, origin=(cx, cy, zc), seed=70 + (sx + 1) + (sy + 1) // 2)
+        w.tag(vis_end=60.0, no_shadow=1)
         s = sx
 
         def pr(r, x):
@@ -275,23 +263,38 @@ def build_car(spec):
 
         t_prof = [pr(0.60 * R, -0.46 * tw), pr(0.80 * R, -0.52 * tw), pr(0.95 * R, -0.49 * tw), pr(R, -0.32 * tw), pr(R, 0.32 * tw),
                   pr(0.95 * R, 0.49 * tw), pr(0.80 * R, 0.52 * tw), pr(0.60 * R, 0.46 * tw)]
-        w.revolve(t_prof, (cx, cy, zc), mat=wheelm, tint=paint("steel", "#0b0c0d"), segs=28, closed=True)
+        w.revolve(t_prof, (cx, cy, zc), mat=trim, tint=hexc("#101113"), segs=22, closed=True)
         r_prof = [pr(0.025 * R, 0.47 * tw), pr(0.17 * R, 0.47 * tw), pr(0.21 * R, 0.37 * tw), pr(0.55 * R, 0.37 * tw), pr(0.62 * R, 0.46 * tw),
                   pr(0.63 * R, 0.30 * tw), pr(0.58 * R, -0.3 * tw), pr(0.025 * R, -0.3 * tw)]
-        w.revolve(r_prof, (cx, cy, zc), mat=wheelm, tint=paint("steel", spec.get("rim", "#8d959c")), segs=28, closed=True)
+        w.revolve(r_prof, (cx, cy, zc), mat=chrome, tint=hexc(spec.get("rim", "#8d959c")), segs=22, closed=True)
         for k in range(spec.get("spokes", 5)):
             a = 2 * math.pi * k / spec.get("spokes", 5) + 0.3
             d = Vector((0, math.cos(a), math.sin(a)))
             c0 = Vector((cx + s * 0.485 * tw, cy, zc))
-            w.bar(c0 + d * 0.17 * R, c0 + d * 0.60 * R, 0.11 * R, 0.035, mat=wheelm, tint=paint("steel", spec.get("spoke", "#c3cad1")), up=(s, 0, 0), bevel=0.004)
-        w.cyl(0.075 * R, 0.03, (cx + s * 0.50 * tw, cy, zc), axis="x", mat=wheelm, tint=paint("steel", "#2a2e33"), segs=12)
+            w.bar(c0 + d * 0.17 * R, c0 + d * 0.60 * R, 0.11 * R, 0.035, mat=chrome, tint=hexc(spec.get("spoke", "#c3cad1")), up=(s, 0, 0), bevel=0.004)
+        w.cyl(0.075 * R, 0.03, (cx + s * 0.50 * tw, cy, zc), axis="x", mat=chrome, tint=hexc("#3b4045"), segs=12)
         return w
 
     wheels = [make_wheel("WheelFL", -1, 1), make_wheel("WheelFR", 1, 1), make_wheel("WheelRL", -1, -1), make_wheel("WheelRR", 1, -1)]
 
-    # ------------------------------------------------------------------ AO, grime, build, export
-    bake_ao([P], samples=14, dist=0.6, strength=0.55)
-    vertex_gradient(P, 2, gc, gc + 0.55, (0.5, 0.5, 0.52), (1.0, 1.0, 1.0))
-    objs = [P.build()] + [wh.build() for wh in wheels]
+    # ------------------------------------------------------------------ decals: panel gaps along the doors and a dusty lower body
+    decals = []
+    gaps = list(spec["door_lines"])
+    hz = (gc + 0.2 + belt) * 0.5
+    for sgn in (1, -1):
+        pos = [(-y if sgn < 0 else y) for y in gaps]
+        decals.append(Decal((sgn * (W * 0.5), 0.0, hz), (sgn, 0, 0), (0, 0, 1), (L, belt - gc - 0.2), p_lines(pos, 0.0035, length=L, vertical=True),
+                            depth=0.12, kinds=("paint",), min_dot=0.5))
+    # ------------------------------------------------------------------ rig: real lights that make the car readable at night
+    rig = []
+    hl = spec.get("headlight_rig", (1.0, 0.93, 0.78))
+    rig.append(light("Headlights", (0.0, L / 2 - 0.1, ze - 0.2), "spot", hl, 2.4, 22.0, direction=(0, 1, -0.07), angle=36.0,
+                     attenuation=1.1, spot_attenuation=1.0, fade=(32, 14), group="headlight"))
+    ug = hexc(spec.get("underglow", "#18d6ff"))
+    ugc = tuple(min(1.0, c * 1.6 + 0.05) for c in ug)
+    rig.append(light("UnderglowLight", (0.0, 0.0, 0.10), "omni", ugc, 1.3, 4.6, attenuation=1.5, fade=(28, 12), group="underglow"))
+    rig.append(light("Fill", (0.0, 0.1, 2.3), "omni", (0.7, 0.82, 1.0), 1.0, 6.5, mask="own", attenuation=1.1, fade=(36, 14)))
     print("  body tris %d, wheel tris %d" % (P.tri_count(), sum(w.tri_count() for w in wheels)))
-    return export_model(spec["name"], objs)
+    groups = {"paint": dict(base=spec["name"] + "_paint", material="Body", size=spec.get("atlas_paint", 1024)),
+              "atlas": dict(base=spec["name"], material="Details", size=spec.get("atlas", 1024))}
+    return export_model(spec["name"], [P] + wheels, extras=rig, groups=groups, decals=decals, ao_dist=0.6, ao_strength=0.65, emit_strength=2.0)

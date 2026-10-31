@@ -425,3 +425,15 @@ def p_glow_bar(colour, power=1.0):
         al = sm(0.0, 0.18, e)
         return al, np.array([0.01, 0.01, 0.01]), np.asarray(colour) * power
     return fn
+
+
+def p_lines(positions, width=0.006, colour=(0.012, 0.012, 0.014), length=1.0, vertical=True, wear=0.0):
+    """Thin dark lines (panel gaps, seams) at the given positions along the decal's u axis (metres from its centre)."""
+    pos = np.asarray(positions, dtype=np.float64)
+
+    def fn(u, v, c, idx):
+        coord = (u - 0.5) * length if vertical else (v - 0.5) * length
+        d = np.min(np.abs(coord[:, None] - pos[None, :]), axis=1)
+        al = sm(width, width * 0.35, d)
+        return al * (0.95 - wear), colour, None
+    return fn

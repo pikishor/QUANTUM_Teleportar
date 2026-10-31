@@ -4,11 +4,20 @@ extends Node3D
 ## curve, shake from FX.shake_amount, landing dip, SpringArm3D (sphere shape) pull-in against walls, and a chase mode for driven vehicles.
 ## Sets Game.camera.
 ##
-## Smoothness. The target (player or vehicle) moves in physics ticks; the rig samples its position every tick and renders the camera
-## from the position interpolated with Engine.get_physics_interpolation_fraction(), so there is no judder at any display refresh rate.
+## Smoothness. On foot the target (the player) moves in physics ticks and draws itself from the interpolated tick position, so the rig samples that
+## position every tick and renders the camera from the same interpolation (Engine.get_physics_interpolation_fraction()): no judder at any refresh rate.
+## In vehicle mode the rig instead reads the vehicle node's global_position every rendered frame, with no interpolation of its own. A vehicle that is
+## moved once per physics tick then stays exactly where it is on screen (camera and car step together), whatever the tree order is; interpolating the
+## camera between two ticks while the car is drawn at its newest tick makes the car saw back and forth by one tick step (0.5 m at 30 m/s).
+## The rig runs late (process_priority, process_physics_priority) so a vehicle that moves in _process or _physics_process is read after it has moved,
+## and in vehicle mode the camera is also shifted by the vehicle's displacement inside the physics tick that moved it: anything that reads the camera
+## between that tick and the next rendered frame (a raycast, get_aim()) sees camera and vehicle in lockstep too.
 ## Look angles change per rendered frame. The rig is top_level and drives itself in _process.
 ## The SpringArm3D solves in the physics tick by itself; to avoid a tick of lag it is solved once more per rendered frame here by sending
 ## it the internal physics notification (its solver is a pure function of its current global transform).
+## The arm never gets shorter than MIN_ARM: with a wall right behind the player the camera stops short of the head instead of sinking into the helmet.
+## Squeezed that close, the camera also slides sideways (to the shoulder that has room, found with two short rays) and a little up, so the
+## character leaves the crosshair's line instead of filling the middle of the screen. Vehicle mode has no such slide.
 ##
 ## Look convention of add_look(yaw, pitch): screen-space deltas in radians, like takeLook() in the prototype. A positive yaw turns the view
 ## RIGHT, a positive pitch tilts it DOWN (the finger or mouse moved right / down). `yaw` and `pitch` themselves follow the Node3D convention:
@@ -36,6 +45,12 @@ const VEH_DIST := 7.5
 const VEH_HEIGHT := 1.6
 const VEH_FOV := 72.0
 const ARM_RADIUS := 0.22
+const MIN_ARM := 0.85                        ## shortest camera arm in metres, however close the wall is (the prototype's floor was 0.5 m)
+const RIG_PRIORITY := 100                    ## process priority: after the nodes it follows (lower numbers run first)
+const SQUEEZE_START := 2.0                   ## an arm shorter than this (metres) starts to slide the camera toward a free shoulder ...
+const SQUEEZE_SIDE := 0.5                    ## ... by this much sideways at full squeeze (arm at the MIN_ARM floor) ...
+const SQUEEZE_UP := 0.1                      ## ... and this much up
+const SIDE_PROBE := 0.95                     ## a wall closer than this beside the head means that side is not free
 const ADS_OMEGA := 17.0                      ## spring frequency of the aim transition: settles in about a quarter second
 
 # cinematic poses
@@ -99,10 +114,16 @@ var _bob_t := 0.0
 var _shake_t := 0.0
 var _ratio := 1.0                            ## fraction of the arm that is free of walls (smoothed: instant in, eased out)
 var _pivot_pos := Vector3.ZERO
+var _last_base := Vector3.ZERO               ## the followed position the last view update was built on (vehicle mode: for the in-tick shift)
+var _swing := 0.0                            ## sideways slide of the camera while squeezed against a wall (metres, + is to the right), eased
+var _side := 1.0                             ## the shoulder the slide goes to: +1 right, -1 left, 0 none (kept while it stays free)
+var _probe := PhysicsRayQueryParameters3D.new()
 
 
 func _ready() -> void:
 	top_level = true
+	process_priority = RIG_PRIORITY
+	process_physics_priority = RIG_PRIORITY
 	_player = get_parent() as Player
 	_ensure_nodes()
 	arm.collision_mask = Game.L_WORLD | Game.L_VEHICLE
@@ -304,6 +325,12 @@ func _physics_process(delta: float) -> void:
 		_pos_prev = _pos_cur
 	_follow_speed = _pos_prev.distance_to(p) / maxf(delta, 0.0001)
 	_pos_cur = p
+	if _mode == &"vehicle":
+		var shift := p + Vector3(0.0, pivot_y_offset, 0.0) - _last_base
+		if shift != Vector3.ZERO:
+			global_position += shift                   # the arm and the camera are children of the rig: they travel with it
+			_pivot_pos += shift
+			_last_base += shift
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -326,6 +353,27 @@ func _vehicle_speed() -> float:
 		if s is float:
 			return s
 	return _follow_speed
+
+
+## The shoulder the camera should slide to while squeezed: +1 right (preferred), -1 left when the right side is walled in, 0 when both are.
+## Two short rays from the head; a side that was free stays free until the wall is clearly closer (no flicker at the boundary).
+func _free_side(right: Vector3) -> float:
+	var space := get_world_3d().direct_space_state
+	_probe.collision_mask = Game.L_WORLD | Game.L_VEHICLE
+	var right_ok := not _blocked(space, right, SIDE_PROBE - (0.2 if _side > 0.0 else 0.0))
+	if right_ok:
+		_side = 1.0
+	elif not _blocked(space, -right, SIDE_PROBE - (0.2 if _side < 0.0 else 0.0)):
+		_side = -1.0
+	else:
+		_side = 0.0
+	return _side
+
+
+func _blocked(space: PhysicsDirectSpaceState3D, dir: Vector3, length: float) -> bool:
+	_probe.from = _pivot_pos
+	_probe.to = _pivot_pos + dir * length
+	return not space.intersect_ray(_probe).is_empty()
 
 
 ## The camera position the current look angles give without any collision, used by aim_at().
@@ -415,11 +463,15 @@ func _update_view(dt: float) -> void:
 	_bump_v += (-_bump * 220.0 - _bump_v * 18.0) * dt
 	_bump += _bump_v * dt
 
-	# --- pivot: the interpolated target plus the eye height
+	# --- pivot: the target plus the eye height. A vehicle is followed at its real position of this very frame (lockstep, see the header),
+	# the player at the interpolated physics position.
 	var base := _pos_cur
-	if dt > 0.0:
+	if drv and is_instance_valid(_follow) and _follow.is_inside_tree():
+		base = _follow.global_position
+	elif dt > 0.0:
 		base = _pos_prev.lerp(_pos_cur, Engine.get_physics_interpolation_fraction())
 	base.y += pivot_y_offset
+	_last_base = base
 	_pivot_pos = base + Vector3(0.0, height, 0.0)
 	var yaw_t := yaw + recoil_yaw
 	var pitch_t := clampf(pitch + recoil_pitch, -1.3, 1.25)
@@ -431,12 +483,23 @@ func _update_view(dt: float) -> void:
 	arm.rotation = Vector3(0.0, a, 0.0)
 	arm.spring_length = sqrt(shoulder * shoulder + dist * dist)
 	arm.notification(Node.NOTIFICATION_INTERNAL_PHYSICS_PROCESS)
-	var free_ratio := clampf(arm.get_hit_length() / maxf(arm.spring_length, 0.001), 0.0, 1.0)
+	var arm_len := maxf(arm.spring_length, 0.001)
+	var arm_free := arm.get_hit_length()
+	var free_ratio := clampf(arm_free / arm_len, minf(1.0, MIN_ARM / arm_len), 1.0)     # never closer than MIN_ARM, even inside a wall
 	if free_ratio < _ratio or dt <= 0.0:
 		_ratio = free_ratio                  # walls pull the camera in at once
 	else:
 		_ratio = PlayerUtil.damp(_ratio, free_ratio, 5.0, dt)    # and let it out gently
 	var cam_pos := _pivot_pos + (aim_basis * Vector3(sin(a), 0.0, cos(a))) * (arm.spring_length * _ratio)
+
+	# --- squeezed against a wall: slide toward the free shoulder and a little up (see the header)
+	var squeeze := 0.0 if drv else clampf((SQUEEZE_START - arm_free) / (SQUEEZE_START - MIN_ARM), 0.0, 1.0)
+	var swing_target := 0.0
+	if squeeze > 0.0 and dt > 0.0:
+		swing_target = squeeze * SQUEEZE_SIDE * _free_side(aim_basis.x)
+	_swing = swing_target if dt <= 0.0 else PlayerUtil.damp(_swing, swing_target, 9.0, dt)
+	if absf(_swing) > 0.001:
+		cam_pos += aim_basis.x * _swing + aim_basis.y * (absf(_swing) / SQUEEZE_SIDE * SQUEEZE_UP)
 
 	# --- roll, bob, shake
 	var strafe := 0.0

@@ -93,22 +93,26 @@ def write_jpg(path, arr, quality=92):
 
 
 # ------------------------------------------------------------------ hidden face culling (works on Part.bm, before build)
-def cull_hidden(parts, probe=0.003, reach=0.6):
+def cull_hidden(parts, probe=0.004, reach=0.6):
     """Delete faces that sit inside other geometry: from a point just above the face, rays along the normal and along four tilted
-    directions all hit BACK faces (we are inside a solid). Returns the number of faces removed."""
-    verts, polys = [], []
-    for p in parts:
+    directions all hit BACK faces (we are inside a solid). Hits on the face itself are skipped (warped quads triangulate away from
+    their mean plane). Returns the number of faces removed."""
+    verts, polys, owner = [], [], []
+    for pi, p in enumerate(parts):
         p.bm.verts.ensure_lookup_table()
         p.bm.verts.index_update()
+        p.bm.faces.ensure_lookup_table()
+        p.bm.faces.index_update()
         base = len(verts)
         verts.extend([v.co.copy() for v in p.bm.verts])
         for f in p.bm.faces:
             vs = [base + v.index for v in f.verts]
             for k in range(1, len(vs) - 1):
                 polys.append((vs[0], vs[k], vs[k + 1]))
+                owner.append((pi, f.index))
     tree = BVHTree.FromPolygons(verts, polys, epsilon=0.0)
     removed = 0
-    for p in parts:
+    for pi, p in enumerate(parts):
         bm = p.bm
         bm.normal_update()
         kill = []
@@ -116,7 +120,8 @@ def cull_hidden(parts, probe=0.003, reach=0.6):
             n = f.normal
             if n.length < 0.5:
                 continue
-            c = f.calc_center_median() + n * probe
+            me = (pi, f.index)
+            c0 = f.calc_center_median() + n * probe
             t = n.cross(Vector((0, 0, 1)))
             if t.length < 0.2:
                 t = n.cross(Vector((1, 0, 0)))
@@ -125,12 +130,28 @@ def cull_hidden(parts, probe=0.003, reach=0.6):
             inside = 0
             dirs = [n] + [(n * math.cos(0.9) + (t * math.cos(a) + b * math.sin(a)) * math.sin(0.9)).normalized() for a in (0.4, 1.97, 3.54, 5.11)]
             for d in dirs:
+                c = c0
                 hit = tree.ray_cast(c, d, reach)
+                guard = 0
+                while hit[0] is not None and owner[hit[2]] == me and guard < 3:      # our own (warped) face: look past it
+                    c = hit[0] + d * 0.0005
+                    hit = tree.ray_cast(c, d, reach)
+                    guard += 1
                 if hit[0] is not None and hit[1].dot(d) > 0.0:
                     inside += 1
             if inside == len(dirs):
                 kill.append(f)
         if kill:
+            if os.environ.get("QT_DEBUG_CULL"):
+                names = {}
+                for f in kill:
+                    nm = p.slots[f.material_index].name
+                    names.setdefault(nm, []).append(tuple(round(x, 2) for x in f.calc_center_median()))
+                for nm, cs in names.items():
+                    print("  [cull] %s/%s: %d faces, e.g. %s" % (p.name, nm, len(cs), cs[:4]))
+                    if os.environ.get("QT_DEBUG_CULL") == "all":
+                        for c in cs:
+                            print("       ", c)
             bmesh.ops.delete(bm, geom=kill, context="FACES")
             removed += len(kill)
         bm.faces.ensure_lookup_table()
@@ -591,7 +612,6 @@ def bake(name, parts, groups, out_dir, size=1024, decals=(), seed=1, ao_dist=0.3
     """
     t0 = time.time()
     scale = float(os.environ.get("QT_ATLAS_SCALE", "1"))
-    n = int(size * scale)
     kind_ids = shade.KIND_IDS
     gnames = list(groups.keys())
 
@@ -607,6 +627,7 @@ def bake(name, parts, groups, out_dir, size=1024, decals=(), seed=1, ao_dist=0.3
         gsel = np.nonzero(g.face_group == gi)[0]
         if not len(gsel):
             continue
+        n = int(groups[gname].get("size", size) * scale)
         isl, islands = make_islands(g, [gi])
         loop_xy, loop_isl, rects = project_islands(g, isl, islands)
         ppm, placement, sizes = pack(rects, n, max_ppm)
