@@ -163,7 +163,9 @@ func _hit_effect(crit: bool) -> void:
 	_flinch = 1.0 if crit else 0.7
 	_fdir = _dir_to_player()
 	var c := center()
-	if Game.graphic_violence:
+	if hp <= 0.0:
+		pass                                                             # the killing blow gets the death effect only
+	elif Game.graphic_violence:
 		_burst(c, Color(0.5, 1.0, 0.2), 6, 3.5, 0.5, 9.0, 1.8)           # Vael ichor, not blood
 	else:
 		_burst(c, Color(0.85, 0.8, 0.7), 5, 2.5, 0.5, 3.0, 2.0)      # dust off the plates
@@ -398,6 +400,7 @@ func _place(delta: float) -> void:
 
 func _tick_dead(delta: float) -> void:
 	_dead_t += delta
+	_tick_drop()
 	var k := clampf(_dead_t / FALL_TIME, 0.0, 1.0)
 	var e := 1.0 - (1.0 - k) * (1.0 - k)
 	if rig != null:

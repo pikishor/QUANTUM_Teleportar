@@ -6,7 +6,8 @@ extends RefCounted
 ##   * one enemy of every type (models, textures, drone Body / Fins / Eye, the trooper's skinned body and its shadow proxy) and every kind of car, shown for 3 frames
 ##     with their marks lit (threat ring, muzzle flare, aim line, health bar);
 ##   * the FX pools: spark burst, tracer, muzzle flash, an explosion of each style (fire, quantum collapse, burning wreck);
-##   * everything the quantum module keeps hidden until used (beacon, ghost, links): its hidden meshes are shown at the warm point for the same 3 frames;
+##   * everything the quantum module, the missions (pickups, contract markers) and the player keep hidden until used (beacon, ghost, links, pickups, muzzle flash cards): their hidden
+##     meshes are shown at the warm point for the same 3 frames (and the player's bullet impacts: sparks, mist, dust, decal);
 ##   * the UI text: the HUD font at every size the layouts use is drawn once, so the first menu / tutorial / radio line does not rasterise glyphs on the spot.
 ## Everything sits 8 m in front of the gameplay camera (inside the frustum, so it is really drawn), behind the opaque overlay, then it is hidden, released and restored.
 ## Nothing here changes game state: enemies and cars go back to their pools, FX.reset() hides the effects, moved nodes get their transform and visibility back.
@@ -47,7 +48,8 @@ static func run(host: Node, force := false) -> Dictionary:
 		cars = vm.warm_begin(ground + Vector3(0.0, 0.0, 6.0))
 		items += cars.size()
 	items += _warm_fx(at)
-	items += _warm_hidden(_quantum_root(), at, state)
+	for root: Node3D in [_quantum_root(), Game.missions as Node3D if Game.missions is Node3D else null, Game.player]:
+		items += _warm_hidden(root, at, state)
 	var ui := _warm_ui(host)
 	items += 1 if ui != null else 0
 	for i in FRAMES:
@@ -78,7 +80,18 @@ static func _warm_fx(at: Vector3) -> int:
 	FX.blast(at + Vector3(-3.0, 0.0, 0.0), 3.0, Color(1.0, 0.5, 0.15), 0.5)                 # fire
 	FX.blast(at + Vector3(3.0, 0.0, 0.0), 3.0, Color(0.3, 0.94, 1.0), 0.5)                  # quantum collapse
 	FX.blast(at + Vector3(0.0, 0.0, -3.0), 9.0, Color(1.0, 0.5, 0.15), 0.5, FX.ExplosionPool.STYLE_WRECK, 0.5)   # burning wreck
-	return 7
+	var n := 7
+	var p := Game.player as Player
+	if is_instance_valid(p):                                          # the player's bullet impacts: sparks, mist, dust and the decal (no sound: Sfx is not touched)
+		if p.sparks != null:
+			p.sparks.spark(at + Vector3(0.0, 0.2, 0.0), Vector3.UP, Color(1.0, 0.8, 0.45), 1.0)
+			p.sparks.puff(at + Vector3(1.0, 0.2, 0.0), Vector3.UP, Color(0.6, 0.66, 0.75, 0.3), 1.0)
+			p.sparks.dust(at + Vector3(-1.0, 0.2, 0.0), 1.0)
+			n += 3
+		if p.decals != null:
+			p.decals.add(at + Vector3(0.0, 0.05, 0.0), Vector3.UP, 0.2)
+			n += 1
+	return n
 
 
 static func _quantum_root() -> Node3D:
@@ -103,7 +116,7 @@ static func _warm_hidden(root: Node3D, at: Vector3, state: Array) -> int:
 		var node: Node = stack.pop_back()
 		stack.append_array(node.get_children())
 		var g := node as GeometryInstance3D
-		if g == null or g.visible or g is CPUParticles3D:
+		if g == null or g.is_visible_in_tree() or g is CPUParticles3D or g.layers == 0:
 			continue
 		# the node and the hidden ancestors up to the root must be visible to be drawn
 		var chain: Array[Node3D] = [g]

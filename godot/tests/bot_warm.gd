@@ -3,7 +3,9 @@ extends RefCounted
 ## Run with `--fixed-fps 30` (the game advances 1/30 s per rendered frame whatever the renderer's speed) and compare wall-clock frame times: software Vulkan (llvmpipe) compiles
 ## every new pipeline with LLVM, so a first use shows as tens to hundreds of milliseconds there, just like it stalls a phone GPU driver.
 ##   env WARM=1  run ShaderWarmup.run() first (what main.gd does behind the loading overlay);  WARM=0 (default) does not.
-## Prints `WARM probe <label> max_ms=.. ratio=..` per trigger and `WARM RESULT warm=.. steady_ms=.. worst_ms=.. worst=<label> sum_excess_ms=.. total_first_use_ms=..`.
+## Prints `WARM probe <label> max_ms=.. ratio=.. compiles=N` per trigger and `WARM RESULT warm=.. steady_ms=.. worst_ms=.. worst=<label> sum_excess_ms=.. total_first_use_ms=.. compiles=N`.
+## `compiles` is the number of pipelines the renderer compiled in that window (RenderingServer pipeline-compilation counters): the deterministic version of a hitch, and what the
+## pre-warm drives to (almost) zero. Wall-clock milliseconds are noisy on a shared software renderer; the compile counts are not.
 
 const Fixture := preload("res://tests/player_fixture.gd")
 const STEADY_FROM := 45
@@ -26,6 +28,9 @@ var _win_max := 0.0
 var _win_len := 0
 var _results: Array = []
 var _steady_ms := 1.0
+var _compiles_start := 0
+var _compiles_total := 0
+var _compiles_boot := 0
 
 
 func _init() -> void:
@@ -76,6 +81,13 @@ func _setup() -> void:
 	]
 
 
+static func _compiles() -> int:
+	var rs := RenderingServer
+	return rs.get_rendering_info(rs.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS) + rs.get_rendering_info(rs.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH) \
+			+ rs.get_rendering_info(rs.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE) + rs.get_rendering_info(rs.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW) \
+			+ rs.get_rendering_info(rs.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION)
+
+
 func _median(a: Array[float]) -> float:
 	var b := a.duplicate()
 	b.sort()
@@ -95,7 +107,8 @@ func step(_t: float, _d: float) -> bool:
 		_steady.append(ms)
 	if _f == STEADY_TO:
 		_steady_ms = maxf(_median(_steady), 1.0)
-		print("WARM steady frame %.1f ms (median of %d), warm-up %s" % [_steady_ms, _steady.size(), "ran" if _warm else "off"])
+		_compiles_boot = _compiles()
+		print("WARM steady frame %.1f ms (median of %d), warm-up %s, %d pipelines compiled until now" % [_steady_ms, _steady.size(), "ran" if _warm else "off", _compiles_boot])
 		_next_at = _f + 2
 	if _f < STEADY_TO:
 		return false
@@ -103,8 +116,10 @@ func step(_t: float, _d: float) -> bool:
 		_win_max = maxf(_win_max, ms)
 		if _f - _win_start >= _win_len:
 			var label: String = _steps[_idx][0]
+			var comp := _compiles() - _compiles_start
+			_compiles_total += comp
 			_results.append([label, _win_max])
-			print("WARM probe %-12s max_ms=%7.1f ratio=%5.1f" % [label, _win_max, _win_max / _steady_ms])
+			print("WARM probe %-12s max_ms=%7.1f ratio=%5.1f compiles=%d" % [label, _win_max, _win_max / _steady_ms, comp])
 			_win_start = -1
 			_next_at = _f + GAP
 	if _win_start < 0 and _f >= _next_at:
@@ -121,8 +136,9 @@ func step(_t: float, _d: float) -> bool:
 					worst_label = r[0]
 				excess += maxf(0.0, float(r[1]) - _steady_ms)
 				first += float(r[1])
-			print("WARM RESULT warm=%d steady_ms=%.1f worst_ms=%.1f worst=%s sum_excess_ms=%.0f total_first_use_ms=%.0f" % [1 if _warm else 0, _steady_ms, worst, worst_label, excess, first])
+			print("WARM RESULT warm=%d steady_ms=%.1f worst_ms=%.1f worst=%s sum_excess_ms=%.0f total_first_use_ms=%.0f compiles=%d" % [1 if _warm else 0, _steady_ms, worst, worst_label, excess, first, _compiles_total])
 			return true
+		_compiles_start = _compiles()
 		(_steps[_idx][1] as Callable).call()
 		_win_start = _f
 		_win_len = int(_steps[_idx][2])

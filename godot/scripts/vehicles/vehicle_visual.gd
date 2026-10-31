@@ -14,6 +14,24 @@ const COAT_ROUGHNESS := 0.07
 const LAMP_GAIN := 0.6                      ## lamp surfaces are drawn additively (unshaded, vertex colour = soft falloff): albedo = colour x base energy x this x state
 const PAINT_GLOW := 0.15                    ## faint emission in the paint colour, so a car keeps its colour in the dark
 const WHEEL_NAMES := [&"WheelFL", &"WheelFR", &"WheelRL", &"WheelRR"]
+## The three lamp surfaces (headlight, taillight and underglow halos, each its own additive material) are merged into ONE surface ("Lamps") with one tiny shader: the vertex alpha
+## says which lamp a vertex belongs to, three colour uniforms carry the per-state colours. Two draw calls less per car (and per shadow-free pass), same look.
+const LAMP_CODES := [0.1, 0.5, 0.9]                  ## vertex alpha of headlight / taillight / underglow vertices
+const LAMP_SHADER_CODE := """shader_type spatial;
+render_mode unshaded, blend_add, cull_disabled, depth_draw_never, fog_disabled;
+uniform vec3 head : source_color = vec3(0.0);
+uniform vec3 tail : source_color = vec3(0.0);
+uniform vec3 under : source_color = vec3(0.0);
+varying float v_g;
+void vertex() { v_g = COLOR.a; }
+void fragment() {
+	vec3 k = v_g < 0.3 ? head : (v_g < 0.7 ? tail : under);
+	ALBEDO = COLOR.rgb * k;
+	ALPHA = 1.0;
+}
+"""
+static var _lamp_shader: Shader
+static var _merged := {}                               ## source mesh id -> ArrayMesh with the lamps merged (shared by every car of the model)
 
 var model: Node3D
 var body: MeshInstance3D
@@ -27,6 +45,8 @@ var shadow_on := true                       ## the body currently casts a shadow
 var wheel_radius := 0.335
 
 var _body_mat: BaseMaterial3D
+var _lamp_mat: ShaderMaterial                ## per-car instance of the merged lamp shader (null for the primitive fallback and models without the lamp surfaces)
+var _lamp_idx := -1
 var _shadow: MeshInstance3D                 ## shadow-only copy of the body without the lamp surfaces (ShadowProxy), null when the body has nothing to drop
 var _lift := 1.0
 var _mats: Array = [[], [], []]             ## per light kind: Array of BaseMaterial3D
@@ -50,6 +70,7 @@ func build(kind: StringName, glow: Color) -> Node3D:
 		var w := model.get_node_or_null(NodePath(n)) as Node3D
 		if w != null:
 			wheels.append(w)
+	var lamp_src := _merge_lamps(body)
 	lights = DynamicFill.trim_lights(model, PackedStringArray(["UnderglowLight"]))      # the headlight spot and the car's own fill go (shared fill + emissive lamps); the underglow pool stays, within range
 	meshes = DynamicFill._meshes(model)
 	DynamicFill.apply(model, glow)
@@ -84,11 +105,101 @@ func build(kind: StringName, glow: Color) -> Node3D:
 				_mats[kind_i].append(ov)
 				_cols[kind_i].append(col)
 				_base[kind_i].append(maxf(src.emission_energy_multiplier, 1.0))
+	if _lamp_idx >= 0:
+		_lamp_mat = ShaderMaterial.new()
+		_lamp_mat.resource_name = "Lamps"
+		_lamp_mat.shader = _lamp_shader
+		body.set_surface_override_material(_lamp_idx, _lamp_mat)
+		for k in 3:
+			for info: Array in lamp_src:
+				if int(info[0]) == k:
+					_cols[k].append(glow if k == 2 else info[1])
+					_base[k].append(info[2])
 	if body != null:
-		mirror_meshes.append(body)
 		_shadow = ShadowProxy.static_proxy(body)        # the lamp glow surfaces would cast a shadow draw each, in every cascade
+		mirror_meshes.append(_make_mirror_source(body))
 	set_lights(0.1, 0.35, 0.35)
 	return model
+
+
+## Merge the Headlights / Taillights / Underglow surfaces of the body mesh into one "Lamps" surface (once per source mesh, shared). Returns [[kind, colour, base energy], ...] of the
+## surfaces that were merged (read from their materials), or an empty array when the mesh has nothing to merge (the model then keeps its own lamp surfaces and materials).
+func _merge_lamps(mi: MeshInstance3D) -> Array:
+	var info: Array = []
+	if mi == null or mi.mesh == null:
+		return info
+	var src := mi.mesh
+	var lamp_of := {}                                    # surface index -> kind
+	for s in src.get_surface_count():
+		var m := src.surface_get_material(s) as BaseMaterial3D
+		if m != null and StringName(m.resource_name) in LIGHT_SURFACES:
+			lamp_of[s] = LIGHT_SURFACES.find(StringName(m.resource_name))
+			info.append([lamp_of[s], m.emission, maxf(m.emission_energy_multiplier, 1.0)])
+	if lamp_of.size() < 2:
+		return []
+	var key := src.get_instance_id()
+	var out: ArrayMesh = _merged.get(key)
+	if out == null:
+		if _lamp_shader == null:
+			_lamp_shader = Shader.new()
+			_lamp_shader.code = LAMP_SHADER_CODE
+		var im := ImporterMesh.new()                     # the importer's own mesh builder: it also regenerates the LODs the merge would otherwise lose
+		var verts := PackedVector3Array()
+		var cols := PackedColorArray()
+		var idx := PackedInt32Array()
+		for s in src.get_surface_count():
+			if lamp_of.has(s):
+				var arrays := src.surface_get_arrays(s)
+				var v: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				var c: PackedColorArray = arrays[Mesh.ARRAY_COLOR] if arrays[Mesh.ARRAY_COLOR] is PackedColorArray else PackedColorArray()
+				var base := verts.size()
+				var code: float = LAMP_CODES[lamp_of[s]]
+				for i in v.size():
+					var col := c[i] if i < c.size() else Color.WHITE
+					cols.append(Color(col.r, col.g, col.b, code))
+				verts.append_array(v)
+				var ii: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array else PackedInt32Array()
+				for i in ii.size():
+					idx.append(ii[i] + base)
+			else:
+				im.add_surface(Mesh.PRIMITIVE_TRIANGLES, src.surface_get_arrays(s), [], {}, src.surface_get_material(s), String((src.surface_get_material(s) as Material).resource_name))
+		var lamp_arrays := []
+		lamp_arrays.resize(Mesh.ARRAY_MAX)
+		lamp_arrays[Mesh.ARRAY_VERTEX] = verts
+		var nrm := PackedVector3Array()
+		nrm.resize(verts.size())
+		nrm.fill(Vector3.UP)
+		lamp_arrays[Mesh.ARRAY_NORMAL] = nrm
+		lamp_arrays[Mesh.ARRAY_COLOR] = cols
+		lamp_arrays[Mesh.ARRAY_INDEX] = idx
+		var lm := ShaderMaterial.new()
+		lm.resource_name = "Lamps"
+		lm.shader = _lamp_shader
+		im.add_surface(Mesh.PRIMITIVE_TRIANGLES, lamp_arrays, [], {}, lm, "Lamps")
+		im.generate_lods(25.0, 60.0, [])
+		out = im.get_mesh()
+		_merged[key] = out
+	mi.mesh = out
+	_lamp_idx = out.get_surface_count() - 1
+	return info
+
+
+## What the street reflection copies: the body without its lamp / glow surfaces (their additive halos are not worth a draw call each in the mirror pass: 2 draws instead of 5 per
+## car). An invisible-to-the-camera twin (render layers 0) of the body on the shadow mesh, carrying the body's own per-instance override materials (so the paint colour follows).
+func _make_mirror_source(src: MeshInstance3D) -> MeshInstance3D:
+	if _shadow == null:
+		return src
+	var keep := ShadowProxy.kept_surfaces(src.mesh)
+	var twin := MeshInstance3D.new()
+	twin.name = "MirrorSource"
+	twin.mesh = _shadow.mesh
+	twin.layers = 0
+	twin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	twin.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	for k in keep.size():
+		twin.set_surface_override_material(k, src.get_surface_override_material(keep[k]))
+	src.add_child(twin)
+	return twin
 
 
 ## The paint: `color` times the lift DynamicFill gave the surface (so a dark vertex-coloured model still reads), only on the Body surface.
@@ -130,6 +241,13 @@ func _set_light(k: int, f: float) -> void:
 
 
 func _write_light(k: int, f: float) -> void:
+	if _lamp_mat != null:                                # merged lamps: one colour uniform per lamp kind
+		var cols: Array = _cols[k]
+		if not cols.is_empty():
+			var c: Color = cols[0]
+			var e: float = float((_base[k] as Array)[0]) * LAMP_GAIN * maxf(f, 0.0) * (0.4 if DynamicFill._is_compat() else 1.0)
+			_lamp_mat.set_shader_parameter([&"head", &"tail", &"under"][k], Color(c.r * e, c.g * e, c.b * e, 1.0))
+		return
 	var mats: Array = _mats[k]
 	var bases: Array = _base[k]
 	var cols: Array = _cols[k]

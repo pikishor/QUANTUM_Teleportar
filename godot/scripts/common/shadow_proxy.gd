@@ -10,7 +10,7 @@ extends RefCounted
 ## Nodes created here carry the group-free name "ShadowProxy"; tests that count meshes skip `cast_shadow == SHADOWS_ONLY`.
 
 const PROXY_NAME := "ShadowProxy"
-const NO_SHADOW := [&"Headlights", &"Taillights", &"Underglow", &"Glow", &"Eye", &"Visor"]
+const NO_SHADOW := [&"Headlights", &"Taillights", &"Underglow", &"Lamps", &"Glow", &"Eye", &"Visor"]
 const SKINNED_LOD_BIAS := 0.25
 
 static var _meshes := {}                      ## source mesh instance id -> ArrayMesh of the shadow surfaces (or null when no surface can be dropped)
@@ -61,15 +61,21 @@ static func set_enabled(mi: MeshInstance3D, proxy: MeshInstance3D, on: bool) -> 
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
-static func _shadow_mesh(src: Mesh) -> ArrayMesh:
-	var key := src.get_instance_id()
-	if _meshes.has(key):
-		return _meshes[key]
+## Indices (in the source mesh) of the surfaces that the shadow mesh of `src` holds, in order; every surface when nothing is dropped.
+static func kept_surfaces(src: Mesh) -> Array[int]:
 	var keep: Array[int] = []
 	for s in src.get_surface_count():
 		var mat := src.surface_get_material(s)
 		if mat == null or not (StringName(mat.resource_name) in NO_SHADOW):
 			keep.append(s)
+	return keep
+
+
+static func _shadow_mesh(src: Mesh) -> ArrayMesh:
+	var key := src.get_instance_id()
+	if _meshes.has(key):
+		return _meshes[key]
+	var keep := kept_surfaces(src)
 	var out: ArrayMesh = null
 	if keep.size() > 0 and keep.size() < src.get_surface_count():
 		out = ArrayMesh.new()

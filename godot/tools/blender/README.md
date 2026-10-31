@@ -26,8 +26,9 @@ The model scripts ask `helpers.export_model` for a 1024 px atlas (512 for pickup
 **the committed set is the 2x set, 2048 px atlases for the hero, the trooper, the three drones and the three cars (a neutral paint atlas and a details atlas each), 1024 px for the pickups
 and the core.** Texel density is still capped by `max_ppm` (900 px/m). `patch_imports.py` imports those atlases VRAM-compressed with mipmaps, and in HIGH QUALITY (ASTC 4x4 / BPTC, 8 bit per pixel)
 for albedo, normal and emission; ORM (smooth data) and the 512 px tiling sets use the cheap 8x8 / S3TC path. `post_import.gd` gives every textured model material anisotropic mipmap filtering and
-`scripts/common/perf_tiers.gd` sets the level per tier (2x / 4x / 8x). Sizes: committed sources about 25 MB (JPG albedo / ORM, PNG normal), exported pack about 150 MB of textures
-(`tools/size_report.sh` prints both after an import); the runtime texture memory of the staged scene is in `tools/perf_report.sh`. Install budget: BUDGETS.md.
+`scripts/common/perf_tiers.gd` sets the level per tier (2x / 4x / 8x). Sizes: committed texture sources about 31 MB (JPG albedo / ORM, PNG normal), imported textures about 195 MB per platform (a 2048 px high-quality texture is 5.3 MB with its mipmaps; the
+import cache holds the desktop BPTC and the phone ASTC copy, so `.godot/imported` shows about twice that), so the install is about 220 MB with audio and models
+(`tools/size_report.sh` prints sources and imports after an import); the runtime texture memory of the staged scene is in `tools/perf_report.sh`. Install budget: BUDGETS.md.
 
 ## How a model is made (the baked atlas)
 A tiling texture per material costs one draw call per material and cannot show wear. Instead every model script builds hard-surface

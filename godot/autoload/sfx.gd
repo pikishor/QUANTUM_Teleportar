@@ -1002,7 +1002,8 @@ func _step_quantum(delta: float) -> void:
 	if Game.is_playing() and is_instance_valid(Game.player) and not muted:
 		q = Game.player.get(&"quantum")
 	var super_on := q != null and is_instance_valid(q.get(&"clone"))
-	var links_on := q != null and (q.get(&"links") as Array).size() > 0
+	var lk = q.get(&"links") if q != null else null
+	var links_on: bool = lk is Array and (lk as Array).size() > 0
 	_drive_loop(&"superpos_loop", -6.0 if super_on else OFF_DB, delta, 1.0, 30.0)
 	_drive_loop(&"entangle_loop", -6.0 if links_on else OFF_DB, delta, 1.0, 30.0)
 
@@ -1042,8 +1043,14 @@ func _step_hero(delta: float) -> void:
 		play(&"hero_effort", -8.0)
 	_was_air = air
 	# low health: a heartbeat that speeds up and a laboured breath, the music and ambience muffle
-	var max_hp := maxf(float(p.get(&"max_hp")), 1.0)
-	var frac := clampf(float(p.get(&"hp")) / max_hp, 0.0, 1.0)
+	var mh = p.get(&"max_hp")
+	var hpv = p.get(&"hp")
+	if mh == null or hpv == null:
+		_heart_t = 0.0
+		_muffle_target = 0.0
+		return
+	var max_hp := maxf(float(mh), 1.0)
+	var frac := clampf(float(hpv) / max_hp, 0.0, 1.0)
 	if frac < 0.35 and frac > 0.0:
 		var need := 1.0 - frac / 0.35
 		_heart_t -= delta

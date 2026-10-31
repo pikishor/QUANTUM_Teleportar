@@ -16,6 +16,7 @@ const ALERT_RADIUS := 35.0
 const LOS_RANGE := 90.0
 const WORLD_LIMIT := 345.0
 const DEATH_TIME := 0.7
+const DROP_DELAY := 0.35         ## a death drops its pickup a beat later (the burst peak of four deaths at once does not also spawn their pickups)
 const TELEGRAPH := 0.45          ## seconds before a shot that the muzzle charges and the aim line shows (the attack telegraph)
 const BAR_SECONDS := 3.0
 const ROTOR_SPEED := 46.0
@@ -76,6 +77,7 @@ var _glow: Array[BaseMaterial3D] = []
 var _body_mi: MeshInstance3D           ## the `Body` mesh (shadow caster) of the model, for the distance LOD
 var _lights: Array[Light3D] = []
 var _lod_lights := true
+var _drop_pending := false
 var _lod_shadow := true                ## LOD state (update_lod): casts a shadow / small parts shown / model shown
 var _lod_parts := true
 var _lod_shown := true
@@ -148,6 +150,7 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 		model.position = Vector3.ZERO
 		model.scale = Vector3.ONE * _base_scale
 	_tele = 0.0
+	_drop_pending = false
 	_set_glow(2.0)
 	_reset_lod()
 	_on_activate()
@@ -204,6 +207,8 @@ func damage(amount: float, crit := false, mirrored := false) -> void:
 
 
 func _hit_effect(_crit: bool) -> void:
+	if hp <= 0.0:
+		return                                   # the killing blow gets the death effect only
 	_burst(center(), cfg["color"], 4, 4.0, 0.25, 4.0)
 
 
@@ -226,13 +231,13 @@ func die() -> void:
 	if is_in_group(&"enemy"):
 		remove_from_group(&"enemy")           # corpses are not targets, minimap dots or explosion victims
 	_death_effect()
+	_drop_pending = true
 	Game.score += int(cfg["score"])
 	Game.heat += float(cfg["heat"])
 	Game.quiet = 0.0
 	var p := Game.player
 	if is_instance_valid(p) and p.has_method(&"add_energy"):
 		p.call(&"add_energy", EnemyTypes.ENERGY_REFUND)
-	_drop()
 	died.emit(self)
 
 
@@ -243,7 +248,7 @@ func _death_effect() -> void:
 	if mgr == null or mgr.death_blast():
 		FX.blast(pos, 2.5 * maxf(0.85, radius), c, 0.35)             # the burst: fireball, ring, sparks (one pooled slot), then the shell dissolves
 	else:
-		FX.burst(pos, c, 18, 6.0, 0.5, 2.0, 2.2)                     # the tier's blast slots are busy (4 deaths at once): one particle draw instead of a slot
+		_burst(pos, c, 18, 6.0, 0.5, 2.0, 2.2)                       # the tier's blast slots are busy (4 deaths at once): one particle draw (if the budget allows) instead of a slot
 	if Game.graphic_violence:
 		ichor(pos, 1.0)
 	Sfx.play_at(&"boom", pos, -3.0)
@@ -487,8 +492,16 @@ func _animate(delta: float) -> void:
 		_set_glow(2.0 + 2.2 * _flare)
 
 
+## The pickup of a death appears DROP_DELAY after it (both death animations call this).
+func _tick_drop() -> void:
+	if _drop_pending and _dead_t >= DROP_DELAY:
+		_drop_pending = false
+		_drop()
+
+
 func _tick_dead(delta: float) -> void:
 	_dead_t += delta
+	_tick_drop()
 	var k := clampf(_dead_t / DEATH_TIME, 0.0, 1.0)
 	if model != null:
 		model.rotation.z += delta * 4.0
@@ -586,6 +599,8 @@ func _apply_parts(on: bool) -> void:
 
 ## Pre-warm: show every mark of this enemy (rim ring, muzzle flare and aim line, health bar) on the next refresh. Only used while the game is not playing (the loading overlay).
 func warm_marks() -> void:
+	_tgt_ok = true                              # the aim line needs a target
+	_tgt = global_position + Vector3(0.0, 1.0, 6.0)
 	_tele = 0.6
 	_bar_t = BAR_SECONDS
 	_flash = 0.1

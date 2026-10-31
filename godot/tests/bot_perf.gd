@@ -22,11 +22,13 @@ var _stage := {}                    ## maximum over the staged samples
 var _hud_off := {}
 var _death := {}                    ## worst frame of the death
 var _death_frame := -1
+var _series: PackedInt32Array = PackedInt32Array()
 var _hud_nodes: Array[CanvasLayer] = []
 var _tier := 1
 
 
 func _init() -> void:
+	seed(20260101)                      # the same traffic, drops and spread every run: the numbers are comparable (the frame step is fixed too)
 	if OS.get_environment("BOT_TOUCH") != "":
 		Game.force_touch = true
 
@@ -89,6 +91,30 @@ func _dump_casters() -> void:
 	print("PERF casters (triangles, one pass) ", tri)
 
 
+## Visible dynamic geometry (not the city and its mirror) grouped by node family, with the draw surfaces each family costs: where the draws of a frame come from.
+func _census(label: String) -> void:
+	var agg := {}
+	var stack: Array = [_p.get_tree().root]
+	var world: Node = Game.world
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n == world:
+			continue
+		stack.append_array(n.get_children())
+		if n is GeometryInstance3D and (n as GeometryInstance3D).is_visible_in_tree() and not (n as GeometryInstance3D).cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
+			var surf := 1
+			if n is MeshInstance3D and (n as MeshInstance3D).mesh != null:
+				surf = (n as MeshInstance3D).mesh.get_surface_count()
+			if n is MultiMeshInstance3D and (n as MultiMeshInstance3D).multimesh.visible_instance_count == 0:
+				continue
+			var key := "%s/%s" % [str(n.get_parent().name).rstrip("0123456789"), str(n.name).rstrip("0123456789")]
+			agg[key] = int(agg.get(key, 0)) + surf
+	var total := 0
+	for k in agg:
+		total += int(agg[k])
+	print("PERF census %s (%d draw surfaces) %s" % [label, total, agg])
+
+
 func _lights() -> Array:
 	var out: Array = []
 	for n in _p.get_tree().root.find_children("*", "Light3D", true, false):
@@ -106,6 +132,7 @@ func step(_t: float, _delta: float) -> bool:
 	_frame += 1
 	if _frame == SETTLE and OS.get_environment("BOT_DUMP") != "":
 		_dump_casters()
+		_census("staged")
 	if _frame >= SETTLE and _frame < STAGE_END:
 		_max_into(_stage, PerfProbe.snapshot(_p.get_viewport()))
 	elif _frame == STAGE_END:
@@ -122,7 +149,10 @@ func step(_t: float, _delta: float) -> bool:
 				(d as Drone).damage(9999.0)
 		_death_frame = _frame
 	elif _frame > HUD_OFF_END + 1 and _frame <= DEATH_END:
+		if OS.get_environment("BOT_DUMP") != "" and (_frame == HUD_OFF_END + 5 or _frame == HUD_OFF_END + 14):
+			_census("death +%d" % (_frame - HUD_OFF_END - 1))
 		var s := PerfProbe.snapshot(_p.get_viewport())
+		_series.append(int(s["total_draws"]))
 		if int(s["total_draws"]) >= int(_death.get("total_draws", 0)):
 			_death = s
 	if _frame >= DEATH_END:
@@ -133,6 +163,7 @@ func step(_t: float, _delta: float) -> bool:
 		var lights := _lights()
 		print("PERF lights ", lights.size(), " ", lights)
 		print(PerfProbe.line("PERF death_worst", _death))
+		print("PERF death_series (total draws per frame after the trigger) ", _series)
 		var bad := PerfProbe.violations(_stage, _tier, _death)
 		if Game.force_touch and hud_draws > PerfProbe.HUD_TOUCH_MAX_DRAWS + 8:
 			bad.append("canvas draws %d" % hud_draws)

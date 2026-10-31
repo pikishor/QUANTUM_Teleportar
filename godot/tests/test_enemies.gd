@@ -239,6 +239,12 @@ func _death() -> void:
 	for i in 60:
 		var k := mgr.spawn(&"striker", Vector3(30.0, 0.0, 30.0))
 		k.damage(999.0)
+		if i == 0:
+			TestLib.check(k._drop_pending and stub_missions.drops.is_empty(), "the pickup of a death is dropped a beat later (%.2f s), not in the burst frame" % Drone.DROP_DELAY)
+		k._dead_t = Drone.DROP_DELAY                      # the death animation has run that long
+		k._tick_drop()
+		if i == 0:
+			TestLib.check(not k._drop_pending, "...and only once")
 		mgr.release(k)
 	var health := 0
 	var energy := 0

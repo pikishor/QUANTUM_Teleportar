@@ -18,11 +18,13 @@ This is a **mobile-first** game that aims for a premium, console-adjacent look. 
 | Budget | Mid-range phone (MED) | Flagship (HIGH) |
 |---|---|---|
 | Frame rate | 60 fps target, graceful 30 fps fallback | 60 fps (90/120 where the display allows) |
-| Draw calls | at most 150 | at most 300 |
-| Visible triangles | at most 300 k | at most 800 k |
-| Texture memory | at most 600 MB | at most 1.2 GB |
+| Draw calls (whole frame incl. shadow passes and canvas) | at most 140 (LOW 100) | at most 220 |
+| Triangles (whole frame incl. shadow passes) | at most 280 k (LOW 200 k) | at most 600 k |
+| Texture memory | at most 600 MB (staged scene today about 190 MB) | at most 1.2 GB |
 | RAM | at most 1.5 GB | at most 3 GB |
 | Per-frame allocations | none in hot paths (pool nodes, reuse vectors) | same |
+
+Measured and gated by `tools/perf_report.sh` (`PERF_CHECK=1`, budgets in `scripts/common/perf_probe.gd`): staged full-game view = hero, 4 enemies, the starter car, HUD; the 4-enemy simultaneous death stays under 150 draws; the touch layout adds at most 15 canvas draws; the Compatibility fallback gets +20 draws of headroom and 25 % smaller pools.
 
 LOW tier: render scale 0.7, no shadows, 1K textures, reduced particles. Dynamic resolution is a later task.
 The Mobile renderer is primary; Compatibility is the automatic fallback for devices without Vulkan 1.1 / Metal support.

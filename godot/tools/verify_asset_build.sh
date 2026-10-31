@@ -25,9 +25,12 @@ mkdir -p "$TMP/ref"
 # the checkout's generated files are the reference; a build must overwrite them with identical bytes
 for d in assets/models assets/textures assets/audio; do mkdir -p "$TMP/ref/$d"; cp -a "$HERE/$d/." "$TMP/ref/$d/"; done
 start=$(date +%s)
-env -i HOME="$TMP/home" PATH="/usr/local/bin:/usr/bin:/bin" ${PYTHON:+PYTHON="$PYTHON"} ${GODOT_CACHE:+GODOT_CACHE="$GODOT_CACHE"} ${HTTPS_PROXY:+HTTPS_PROXY="$HTTPS_PROXY"} ${SSL_CERT_FILE:+SSL_CERT_FILE="$SSL_CERT_FILE"} \
-    ${REQUESTS_CA_BUNDLE:+REQUESTS_CA_BUNDLE="$REQUESTS_CA_BUNDLE"} ${PIP_CERT:+PIP_CERT="$PIP_CERT"} ${CURL_CA_BUNDLE:+CURL_CA_BUNDLE="$CURL_CA_BUNDLE"} \
-    tools/build_assets.sh > "$TMP/build.log" 2>&1
+# only the network settings of the machine are passed through (proxy, CA bundle); nothing about the project: no HOME, no cached Godot, no venv, no BLENDER_PY
+pass=()
+for v in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy NO_PROXY no_proxy SSL_CERT_FILE REQUESTS_CA_BUNDLE CURL_CA_BUNDLE PIP_CERT PYTHON GODOT_CACHE; do
+  [ -n "${!v:-}" ] && pass+=("$v=${!v}")
+done
+env -i HOME="$TMP/home" PATH="/usr/local/bin:/usr/bin:/bin" "${pass[@]}" tools/build_assets.sh > "$TMP/build.log" 2>&1
 status=$?
 tail -15 "$TMP/build.log"
 echo "build_assets.sh exit $status after $(( $(date +%s) - start )) s"
