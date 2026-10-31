@@ -40,6 +40,7 @@ func run(host: Node) -> void:
 	var mirror := _add_mirror()
 	var host_children := host.get_child_count()
 	await _test_standalone()
+	_test_shader_parameters()
 	await _test_weather()
 	await _test_globals_reach_shaders()
 	await _test_quality()
@@ -173,6 +174,34 @@ func _test_standalone() -> void:
 	TestLib.check(_atm.particle_count() == 0, "no camera: no rain is drawn and nothing breaks (count %d)" % _atm.particle_count())
 	TestLib.check(Game.state == state and Game.heat == heat and Game.score == score, "never touches gameplay state")
 	TestLib.check(Game.world == null and Game.player == null, "does not register anything as world or player")
+
+
+## The scripts push uniforms by name, and a name the shader does not declare is silently ignored: a swapped or renamed shader file would go
+## unnoticed (the picture just looks wrong). So every literal name a module script pushes must be declared by a post_*.gdshader, and every
+## designer default of the post layer must be a uniform of one.
+func _test_shader_parameters() -> void:
+	var declared := {}
+	var uniform_re := RegEx.create_from_string("uniform\\s+\\w+\\s+(\\w+)")
+	for f in DirAccess.get_files_at("res://assets/shaders"):
+		if f.begins_with("post_") and f.ends_with(".gdshader"):
+			for m in uniform_re.search_all(_code_only("res://assets/shaders/" + f)):
+				declared[m.get_string(1)] = true
+	var defaults: Dictionary = _atm.post.get_script().get_script_constant_map().get("DEFAULTS", {})
+	var missing: Array[String] = []
+	for key: StringName in defaults:
+		if not declared.has(String(key)):
+			missing.append(String(key))
+	TestLib.check(not defaults.is_empty() and missing.is_empty(), "every designer default of the post layer is a uniform of a post shader (%d checked, missing: %s)" % [defaults.size(), str(missing)])
+	var push_re := RegEx.create_from_string("set_shader_parameter\\(\\s*&?\"(\\w+)\"")
+	var unknown: Array[String] = []
+	var pushed := 0
+	for f in DirAccess.get_files_at("res://scripts/fx"):
+		if f.begins_with("atmosphere") and f.ends_with(".gd"):
+			for m in push_re.search_all(_code_only("res://scripts/fx/" + f)):
+				pushed += 1
+				if not declared.has(m.get_string(1)):
+					unknown.append("%s: %s" % [f, m.get_string(1)])
+	TestLib.check(pushed > 0 and unknown.is_empty(), "every shader parameter a module script sets exists in a post shader (%d names checked, unknown: %s)" % [pushed, str(unknown)])
 
 
 func _test_weather() -> void:

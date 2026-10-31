@@ -174,7 +174,8 @@ func _enter(phase: int) -> void:
 			else:
 				Game.state = &"menu"
 		19:
-			_reset_player(_spawn() + Vector3(24.0, 0.0, 0.0), yaw, -0.02)
+			_reset_player(_spawn() + Vector3(34.0, 0.0, 0.0), yaw, -0.02)
+			Input.action_press(&"aim")
 		_:
 			_reset_player(_spawn(), yaw)
 			Input.action_press(&"move_forward")
@@ -234,11 +235,11 @@ func _run(phase: int, k: int, delta: float) -> void:
 		18:
 			_rig.look_at_point(_center(_target()) + Vector3(0.0, 0.3, 0.0))
 		19:
-			var hit := Vector3(33.0, 1.7, 0.0) if _mode == "arena" else Game.SPAWN + Vector3(60.0, 2.0, 0.0)
+			var hit := Vector3(33.0, 1.9, 0.0) if _mode == "arena" else Game.SPAWN + Vector3(60.0, 2.0, 0.0)
 			_rig.look_at_point(hit)
-			if k > 4 and k % 5 == 0 and k < e - 2:
+			if k > 8 and k % 6 == 0 and k < e - 1:
 				Input.action_press(&"fire")
-			elif k % 5 == 1:
+			elif k % 6 == 1:
 				Input.action_release(&"fire")
 		_:
 			pass
