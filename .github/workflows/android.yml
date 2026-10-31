@@ -50,6 +50,16 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"; else echo "VERSION_NAME=0.1.0-dev.${{ github.run_number }}" >> "$GITHUB_ENV"; fi
       - name: Debug APK (installable on a phone)
         run: godot/tools/export_android.sh apk
+      - name: Report what the debug APK contains
+        run: |
+          APK=godot/build/android/quantum-teleportar.apk
+          ls -l "$APK"
+          echo "largest entries in the APK:"
+          unzip -l "$APK" | sort -k1 -n -r | head -8
+          mkdir -p "$RUNNER_TEMP/apk"
+          unzip -q -o "$APK" -d "$RUNNER_TEMP/apk"
+          PCK="$(find "$RUNNER_TEMP/apk" -name '*.pck' | head -1)"
+          if [ -n "$PCK" ]; then python3 godot/tools/pck_list.py "$PCK"; else echo "no .pck inside the APK (resources are packed another way)"; fi
       - uses: actions/upload-artifact@v4
         with:
           name: android-debug-apk

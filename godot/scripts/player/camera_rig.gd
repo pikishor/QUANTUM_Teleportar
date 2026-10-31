@@ -38,12 +38,12 @@ const HIP_DIST := 3.6
 const HIP_SHOULDER := 0.8
 const ADS_DIST := 2.0
 const ADS_SHOULDER := 0.55
-const FOV_HIP := 72.0
-const FOV_SPRINT := 78.0
-const FOV_ADS := 50.0
+const FOV_HIP := 92.0          # horizontal degrees (keep_aspect = KEEP_WIDTH): the same view on 16:9 tablets and 20:9 phones
+const FOV_SPRINT := 100.0
+const FOV_ADS := 62.0
 const VEH_DIST := 7.5
 const VEH_HEIGHT := 1.6
-const VEH_FOV := 72.0
+const VEH_FOV := 92.0
 const ARM_RADIUS := 0.22
 const MIN_ARM := 0.85                        ## shortest camera arm in metres, however close the wall is (the prototype's floor was 0.5 m)
 const RIG_PRIORITY := 100                    ## process priority: after the nodes it follows (lower numbers run first)
@@ -56,12 +56,12 @@ const ADS_OMEGA := 17.0                      ## spring frequency of the aim tran
 # cinematic poses
 const ORBIT_DIST := 4.4
 const ORBIT_HEIGHT := 1.35
-const ORBIT_FOV := 50.0
+const ORBIT_FOV := 78.0
 const ORBIT_PITCH := -0.05
 const ORBIT_RATE := 0.07                     ## radians per second
 const DEAD_DIST := 4.6
 const DEAD_HEIGHT := 0.7
-const DEAD_FOV := 56.0
+const DEAD_FOV := 84.0
 const DEAD_PITCH := -0.5
 const DEAD_RATE := 0.035
 
@@ -159,6 +159,10 @@ func _ensure_nodes() -> void:
 		camera.near = 0.08
 		camera.far = 2500.0
 		arm.add_child(camera)
+	camera.keep_aspect = Camera3D.KEEP_WIDTH
+	# The rig solves the arm once per rendered frame (see _process); the arm's own per-physics-tick solve would move the camera to the raw arm end
+	# and the weapon would aim from there whenever a frame holds two physics ticks (30 fps phones), so it is switched off.
+	arm.set_physics_process_internal(false)
 
 
 # ---------------------------------------------------------------------------------------------------------------------

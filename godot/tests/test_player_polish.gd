@@ -134,7 +134,7 @@ func _camera() -> void:
 	var rig := p.camera_rig
 	await e.prep(Vector3(-30.0, 0.0, 4.0))
 	await e.secs(0.6)
-	TestLib.check(absf(rig.camera.fov - 72.0) < 0.6, "hip FOV is 72 (got %.2f)" % rig.camera.fov)
+	TestLib.check(absf(rig.camera.fov - 92.0) < 0.6, "hip FOV is 92 (horizontal) (got %.2f)" % rig.camera.fov)
 	var pivot := rig.get_pivot_position()
 	var hip_dist := rig.camera.global_position.distance_to(pivot)
 	TestLib.check(absf(hip_dist - sqrt(0.8 * 0.8 + 3.6 * 3.6)) < 0.12, "hip camera sits 3.6 m behind and 0.8 m beside the pivot (distance %.2f)" % hip_dist)
@@ -143,7 +143,7 @@ func _camera() -> void:
 	TestLib.check(absf(pivot.y - 1.55) < 0.05, "pivot at 1.55 m eye height (%.2f)" % pivot.y)
 	Input.action_press(&"aim")
 	await e.secs(0.6)
-	TestLib.check(absf(rig.camera.fov - 50.0) < 0.8, "ADS FOV settles at 50 (got %.2f)" % rig.camera.fov)
+	TestLib.check(absf(rig.camera.fov - 62.0) < 0.8, "ADS FOV settles at 62 (got %.2f)" % rig.camera.fov)
 	var ads_dist := rig.camera.global_position.distance_to(rig.get_pivot_position())
 	TestLib.check(absf(ads_dist - sqrt(0.55 * 0.55 + 2.0 * 2.0)) < 0.12, "ADS camera comes in to 2.0 m / 0.55 m (distance %.2f)" % ads_dist)
 	Input.action_release(&"aim")
@@ -154,12 +154,12 @@ func _camera() -> void:
 		await e.frames(1)
 		max_step = maxf(max_step, absf(rig.camera.fov - fov_prev))
 		fov_prev = rig.camera.fov
-		mid_seen = mid_seen or (rig.camera.fov > 56.0 and rig.camera.fov < 66.0)
-	TestLib.check(mid_seen and max_step < 5.0, "the ADS release is animated (max FOV step %.2f per tick)" % max_step)
+		mid_seen = mid_seen or (rig.camera.fov > 72.0 and rig.camera.fov < 84.0)
+	TestLib.check(mid_seen and max_step < 7.0, "the ADS release is animated (max FOV step %.2f per tick)" % max_step)
 	Input.action_press(&"move_forward")
 	Input.action_press(&"sprint")
 	await e.secs(0.8)
-	TestLib.check(rig.camera.fov > 76.0, "sprinting opens the FOV toward 78 (got %.2f)" % rig.camera.fov)
+	TestLib.check(rig.camera.fov > 98.0, "sprinting opens the FOV toward 100 (got %.2f)" % rig.camera.fov)
 	Fixture.release_inputs()
 	# wall pull-in: the wall stands between the camera and the player
 	await e.prep(Vector3(-8.0, 0.0, 4.0))
@@ -465,7 +465,7 @@ func _vehicle_chase() -> void:
 	var fwd_cam := -rig.camera.global_basis.z
 	var fwd_car := -car.global_basis.z
 	TestLib.check(Vector2(fwd_cam.x, fwd_cam.z).normalized().dot(Vector2(fwd_car.x, fwd_car.z).normalized()) > 0.97, "the camera looks along the vehicle's forward direction")
-	TestLib.check(rig.camera.fov > 77.0, "speed opens the FOV in the chase camera (%.1f at 12 m/s)" % rig.camera.fov)
+	TestLib.check(rig.camera.fov > 97.0, "speed opens the FOV in the chase camera (%.1f at 12 m/s)" % rig.camera.fov)
 	rig.add_look(1.0, 0.0)
 	var yaw_look := rig.yaw
 	await e.secs(0.6)
@@ -596,7 +596,7 @@ func _cinematic_cameras() -> void:
 	Game.state = &"play"
 	await e.prep(Vector3(-30.0, 0.0, 4.0))
 	await e.secs(0.6)
-	TestLib.check(absf(rig.camera.fov - 72.0) < 2.5, "back in play the camera returns to the gameplay FOV (%.1f)" % rig.camera.fov)
+	TestLib.check(absf(rig.camera.fov - 92.0) < 3.0, "back in play the camera returns to the gameplay FOV (%.1f)" % rig.camera.fov)
 	# death: the camera pulls back and looks down at the fallen body
 	p.hp = 1.0
 	p.damage(10.0)

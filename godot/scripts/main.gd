@@ -9,6 +9,7 @@ const MODULES := [
 	"res://scenes/enemy_manager.tscn",
 	"res://scenes/vehicle_manager.tscn",
 	"res://scenes/missions.tscn",
+	"res://scenes/touch_controls.tscn",   # stop-gap phone controls and light HUD until the HUD module exists
 	"res://scenes/hud.tscn",
 ]
 
