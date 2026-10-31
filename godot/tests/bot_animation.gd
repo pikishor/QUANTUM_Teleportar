@@ -40,6 +40,7 @@ var _slide := {}                                    ## per foot: {start: Vector3
 var _slides: Array[float] = []
 var _pelvis_lo := 9.0
 var _pelvis_hi := 0.0
+var _pelvis_all_lo := 9.0
 var _knee_max := 0.0
 var _shots_left := 0
 var _shot_every := 6
@@ -105,6 +106,7 @@ func _enter(i: int) -> void:
 	_slides.clear()
 	_pelvis_lo = 9.0
 	_pelvis_hi = 0.0
+	_pelvis_all_lo = 9.0
 	_knee_max = 0.0
 	_cam_off = Vector3(3.4, 0.2, 0.0)
 	_shot_every = maxi(1, int(s[1]) / SHOTS)
@@ -179,8 +181,12 @@ func _measure() -> void:
 		_slide[k] = st
 	var hips := rg.model.global_transform * rg.bone_move(CharacterRig.HIPS) * Vector3(0.0, rg._hips_rest_y, 0.0)
 	var gy := rg.model.global_position.y
-	_pelvis_lo = minf(_pelvis_lo, hips.y - gy)
-	_pelvis_hi = maxf(_pelvis_hi, hips.y - gy)
+	if _f >= 20:   # steady state: the first frames hold the spawn drop and the start-up weight shift
+		_pelvis_lo = minf(_pelvis_lo, hips.y - gy)
+		_pelvis_hi = maxf(_pelvis_hi, hips.y - gy)
+	_pelvis_all_lo = minf(_pelvis_all_lo, hips.y - gy)
+	if OS.get_environment("BOT_TRACE") != "":
+		print("TRACE f=%d v=%.2f hip=%.3f sup=%.2f/%.2f kk=%.2f/%.2f sw=%d%d sole=(%.2f,%.2f)/(%.2f,%.2f) sq=%.3f" % [_f, lc.speed, hips.y - gy, rg.support_l, rg.support_r, lc.stance_progress(0), lc.stance_progress(1), int(not lc.planted_l), int(not lc.planted_r), rg.sole_l.x, rg.sole_l.z, rg.sole_r.x, rg.sole_r.z, rg.squash])
 	_knee_max = maxf(_knee_max, absf(rg.skeleton.get_bone_pose(rg.skeleton.find_bone("ShinL")).basis.get_euler().x))
 
 
@@ -193,7 +199,7 @@ func _report(name: String) -> void:
 	for v in _slides:
 		sum += v
 		mx = maxf(mx, v)
-	print("BOT slide %s: mean %.2f cm  max %.2f cm over %d strides (target < 3); pelvis %.2f..%.2f m, knee max %.2f rad" % [name, sum / _slides.size(), mx, _slides.size(), _pelvis_lo, _pelvis_hi, _knee_max])
+	print("BOT slide %s: mean %.2f cm  max %.2f cm over %d strides (target < 3); pelvis %.2f..%.2f m (lowest ever %.2f), knee max %.2f rad" % [name, sum / _slides.size(), mx, _slides.size(), _pelvis_lo, _pelvis_hi, _pelvis_all_lo, _knee_max])
 
 
 func _dump_tree() -> void:

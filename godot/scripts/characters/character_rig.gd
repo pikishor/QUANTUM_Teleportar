@@ -598,6 +598,9 @@ func _legs_ik(d: float, hb: Basis) -> Vector3:
 			h_cap = minf(h_cap, hock.y + sqrt(maxf(reach * reach * 0.995 - hz * hz, 0.01)) - j0.y)
 	var h_free := _hips_rest_y - 0.02
 	var h := h_free if hs == INF else lerpf(h_free, hs, wmax)
+	if hs != INF:                                          # a long stride must not fold the pelvis: the planted legs straighten first (bob stays a few centimetres)
+		var bob_max := lerpf(0.06, 0.13, clampf(run, 0.0, 1.0)) + 0.05 * clampf(ads, 0.0, 1.0)
+		h = maxf(h, minf(h_cap, _hips_rest_y - 0.02 - bob_max))
 	h = minf(h, h_cap + 0.0) - squash
 	var hips_off := Vector3(sway, h - _hips_rest_y, 0.0)
 	var kneeling := maxf(d, knee_buckle)

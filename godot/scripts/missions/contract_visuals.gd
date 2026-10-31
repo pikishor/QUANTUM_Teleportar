@@ -1,0 +1,189 @@
+class_name ContractVisuals
+extends Node3D
+## Everything a contract draws in the world, built once and only shown / hidden / moved afterwards (no lights, no per-frame allocation):
+##   two markers (a beam of light plus a ground ring with a progress arc: `a` is the main objective, `b` the second point of a courier run) and one route line (dashes
+##   along the streets, rebuilt only when a contract starts). A marker is 2 draw calls, the route 1; hidden ones cost nothing.
+## Beam colours come from MissionVisuals.make_beam (shared cached materials); the ring is a flat quad with a polar shader: a thin band, filled up to `progress`.
+
+const RING_SHADER_CODE := """
+shader_type spatial;
+render_mode blend_add, unshaded, cull_disabled, depth_draw_never, fog_disabled, shadows_disabled;
+uniform vec4 tint : source_color = vec4(1.0, 0.72, 0.25, 1.0);
+uniform float progress = -1.0;   // 0..1 filled arc (clockwise from the top), negative = plain ring
+uniform float inner = 0.90;
+void fragment() {
+	vec2 p = UV * 2.0 - 1.0;
+	float r = length(p);
+	float band = smoothstep(inner - 0.02, inner, r) * (1.0 - smoothstep(0.985, 1.0, r));
+	float a = atan(p.x, -p.y);
+	float f = (a < 0.0 ? a + 6.2831853 : a) / 6.2831853;
+	float fill = progress < 0.0 ? 1.0 : (f <= progress ? 1.0 : 0.2);
+	float disc = (1.0 - smoothstep(0.0, inner, r)) * 0.07;
+	ALBEDO = tint.rgb * 1.5;
+	ALPHA = clamp(band * fill * (0.75 + 0.25 * sin(TIME * 3.0)) + disc, 0.0, 1.0);
+}
+"""
+
+const BEAM_HEIGHT := 150.0
+const ROUTE_Y := 0.14
+const DASH := 3.4
+const GAP := 2.2
+const ROUTE_WIDTH := 1.4
+
+static var _ring_shader: Shader
+static var _route_mat: StandardMaterial3D
+
+var markers: Array[Dictionary] = []       ## [{node, beam, ring, mat, beams: {StringName: Material}}] for a and b
+var route: MeshInstance3D
+var _t := 0.0
+
+
+func _init() -> void:
+	name = "ContractVisuals"
+	for i in 2:
+		markers.append(_build_marker(i))
+	route = MeshInstance3D.new()
+	route.name = "Route"
+	route.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	route.extra_cull_margin = 4096.0
+	route.visible = false
+	add_child(route)
+
+
+static func ring_shader() -> Shader:
+	if _ring_shader == null:
+		_ring_shader = Shader.new()
+		_ring_shader.code = RING_SHADER_CODE
+	return _ring_shader
+
+
+func _build_marker(i: int) -> Dictionary:
+	var root := Node3D.new()
+	root.name = "Marker%s" % ["A", "B"][i]
+	root.visible = false
+	var beams := {}
+	for key: StringName in [&"amber", &"cyan", &"red"]:
+		var col := ContractTypes.AMBER
+		if key == &"cyan":
+			col = ContractTypes.CYAN
+		elif key == &"red":
+			col = ContractTypes.RED
+		beams[key] = MissionVisuals.make_beam(col, 0.8, BEAM_HEIGHT, 1.3, 0.25).material_override
+	var beam := MissionVisuals.make_beam(ContractTypes.AMBER, 0.8, BEAM_HEIGHT, 1.3, 0.25)
+	beam.name = "Beam"
+	beam.position.y = BEAM_HEIGHT * 0.5
+	root.add_child(beam)
+	var mat := ShaderMaterial.new()
+	mat.shader = ring_shader()
+	var ring := MeshInstance3D.new()
+	ring.name = "Ring"
+	var quad := PlaneMesh.new()
+	quad.size = Vector2(2.0, 2.0)
+	ring.mesh = quad
+	ring.material_override = mat
+	ring.position.y = 0.1
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(ring)
+	add_child(root)
+	return {node = root, beam = beam, ring = ring, mat = mat, beams = beams}
+
+
+## Show marker `i` (0 = a, 1 = b) at `pos`: `radius` is the ring's size in metres, `kind` colours it, `progress` < 0 draws a plain ring.
+func show_marker(i: int, pos: Vector3, radius: float, color: Color, progress := -1.0, beam := true) -> void:
+	var m: Dictionary = markers[i]
+	var node: Node3D = m.node
+	node.position = Vector3(pos.x, maxf(pos.y, 0.0), pos.z)
+	node.visible = true
+	(m.beam as MeshInstance3D).visible = beam
+	var key := &"amber"
+	if color.is_equal_approx(ContractTypes.CYAN):
+		key = &"cyan"
+	elif color.is_equal_approx(ContractTypes.RED):
+		key = &"red"
+	(m.beam as MeshInstance3D).material_override = m.beams[key]
+	(m.ring as MeshInstance3D).scale = Vector3(radius, 1.0, radius)
+	var mat: ShaderMaterial = m.mat
+	mat.set_shader_parameter(&"tint", color)
+	mat.set_shader_parameter(&"progress", progress)
+
+
+func move_marker(i: int, pos: Vector3) -> void:
+	var node: Node3D = markers[i].node
+	node.position = Vector3(pos.x, maxf(pos.y, 0.0), pos.z)
+
+
+func set_progress(i: int, progress: float) -> void:
+	(markers[i].mat as ShaderMaterial).set_shader_parameter(&"progress", progress)
+
+
+func hide_marker(i: int) -> void:
+	(markers[i].node as Node3D).visible = false
+
+
+func marker_visible(i: int) -> bool:
+	return (markers[i].node as Node3D).visible
+
+
+func hide_all() -> void:
+	for i in markers.size():
+		hide_marker(i)
+	route.visible = false
+
+
+## Draws the route polyline as dashes on the street (one ArrayMesh, one draw call). Pass at least two points; fewer hides the line.
+func set_route(points: PackedVector3Array) -> void:
+	if points.size() < 2:
+		route.visible = false
+		return
+	var verts := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for s in points.size() - 1:
+		var a := points[s]
+		var b := points[s + 1]
+		var seg := Vector3(b.x - a.x, 0.0, b.z - a.z)
+		var len := seg.length()
+		if len < 0.5:
+			continue
+		var dir := seg / len
+		var side := Vector3(-dir.z, 0.0, dir.x) * (ROUTE_WIDTH * 0.5)
+		var d := 0.0
+		while d < len:
+			var e := minf(d + DASH, len)
+			var p0 := a + dir * d
+			var p1 := a + dir * e
+			var base := verts.size()
+			verts.append(Vector3(p0.x - side.x, ROUTE_Y, p0.z - side.z))
+			verts.append(Vector3(p0.x + side.x, ROUTE_Y, p0.z + side.z))
+			verts.append(Vector3(p1.x + side.x, ROUTE_Y, p1.z + side.z))
+			verts.append(Vector3(p1.x - side.x, ROUTE_Y, p1.z - side.z))
+			idx.append_array(PackedInt32Array([base, base + 1, base + 2, base, base + 2, base + 3]))
+			d += DASH + GAP
+	if verts.is_empty():
+		route.visible = false
+		return
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_INDEX] = idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	if _route_mat == null:
+		_route_mat = StandardMaterial3D.new()
+		_route_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_route_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		_route_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_route_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_route_mat.albedo_color = Color(ContractTypes.AMBER.r, ContractTypes.AMBER.g, ContractTypes.AMBER.b, 0.85)
+		_route_mat.disable_receive_shadows = true
+	mesh.surface_set_material(0, _route_mat)
+	route.mesh = mesh
+	route.visible = true
+
+
+## Pulses the markers a little (called by Contracts from _process, only while one is visible).
+func animate(delta: float) -> void:
+	_t += delta
+	for m: Dictionary in markers:
+		var node: Node3D = m.node
+		if node.visible:
+			(m.beam as Node3D).rotation.y += delta * 0.8

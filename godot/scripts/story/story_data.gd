@@ -214,3 +214,177 @@ const DEATH: Array[Dictionary] = [
 	{"s": K, "t": "The rain is the last thing that stops."},
 	{"s": A, "t": "Your fear was delicious. The hive will remember it for you."},
 ]
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Contracts (scripts/missions/contracts.gd): procedural side missions. Lines are picked at random from the list of an event, said once per occurrence.
+# Keys per kind: offer (a contract marker appears), start (accepted), mid (halfway / under pressure), done, fail. Same length limits as the radio lines.
+# ---------------------------------------------------------------------------------------------------------------------
+
+const CONTRACT_RADIO := {
+	"officer": {
+		"offer": [
+			{"s": O, "t": "A Vael officer is coordinating this block. Remove him and the street goes quiet. Step into the marker."},
+			{"s": O, "t": "Command chitin, one body, a lot of rank. Mark him, Kestrel. I will pay for the scalp."},
+		],
+		"start": [
+			{"s": O, "t": "Officer marked on your map. He hits harder and takes more punishment. Do not fight him in the open."},
+		],
+		"mid": [
+			{"s": A, "t": "Officer to hive: the vessel bites back. Send everything you have."},
+		],
+		"done": [
+			{"s": K, "t": "Officer down. The mandibles are still clicking. Tell me that is not a language."},
+			{"s": O, "t": "Chain of command broken. The credits are already in your account."},
+		],
+		"fail": [
+			{"s": O, "t": "He slipped the net. Officers heal faster than rumours. We try again."},
+		],
+	},
+	"hack": {
+		"offer": [
+			{"s": O, "t": "A Vael relay node is feeding the Observers. Stand inside its ring and I will take the keys."},
+			{"s": O, "t": "Node ahead. Hold the zone, keep breathing, and let me do the arithmetic."},
+		],
+		"start": [
+			{"s": O, "t": "Link established. Stay inside the ring. If you step out, the handshake decays."},
+		],
+		"mid": [
+			{"s": O, "t": "Halfway through the key. They know. Drones inbound, hold your ground."},
+		],
+		"done": [
+			{"s": O, "t": "Node cracked. Every Observer on this block just lost an eye."},
+		],
+		"fail": [
+			{"s": O, "t": "Handshake lost. The node re-keyed itself. It will be there when you are ready."},
+		],
+	},
+	"chase": {
+		"offer": [
+			{"s": O, "t": "A Vael courier is running a harvest manifest. Get wheels and run him down before the hive does."},
+			{"s": O, "t": "Fleeing target, one car, fast. Take a vehicle and stop it. I need what it carries."},
+		],
+		"start": [
+			{"s": O, "t": "That car is the target. Shoot it, ram it, I do not care. Do not let it reach the hive lanes."},
+		],
+		"mid": [
+			{"s": K, "t": "He is faster than he looks. Close the gap, ORACLE, I am not losing a car chase to a bug."},
+		],
+		"done": [
+			{"s": O, "t": "Target wrecked. The manifest burned with it, and the hive just lost a week of harvest."},
+		],
+		"fail": [
+			{"s": O, "t": "Target gone. The manifest is on its way to the hive. Next time stay on his bumper."},
+		],
+	},
+	"courier": {
+		"offer": [
+			{"s": O, "t": "A human cell needs a coherence cell delivered across the sector. The Vael are watching the street."},
+			{"s": O, "t": "Package pickup ahead. Fast hands, fast legs, no heroics. Step into the marker."},
+		],
+		"start": [
+			{"s": O, "t": "Package aboard. Follow the route line on the road. The clock is real, and so is the rain."},
+		],
+		"mid": [
+			{"s": O, "t": "Half the clock is gone. A car would help. A blink would help more."},
+		],
+		"done": [
+			{"s": O, "t": "Delivered. The cell will run for a month on that. Good work, Kestrel."},
+		],
+		"fail": [
+			{"s": O, "t": "Too slow. The cell went cold before you arrived. We will find another courier job."},
+		],
+	},
+	"survive": {
+		"offer": [
+			{"s": O, "t": "A rift anchor is unstable and the Vael smell it. Hold it until the pulse settles. This will be loud."},
+			{"s": O, "t": "Anchor ahead. It will call every drone in range. Stand at the ring and do not give ground."},
+		],
+		"start": [
+			{"s": O, "t": "Anchor live. Waves incoming. Stay within sixty metres or the pulse collapses without you."},
+		],
+		"mid": [
+			{"s": O, "t": "Next wave is heavier. Use your blink to reposition and your link to thin them."},
+		],
+		"done": [
+			{"s": O, "t": "Anchor stabilized. The Vael pulled back. That bought the city a little more quiet."},
+		],
+		"fail": [
+			{"s": O, "t": "The anchor collapsed. It will rebuild, and so will they. Try again when you are ready."},
+		],
+	},
+	"drones": {
+		"offer": [
+			{"s": O, "t": "Entanglement trial. Link two Observers with the link ability and let one shot do the work of two."},
+			{"s": O, "t": "A drone nest is waiting for a clean demonstration. Link them, hit one, watch both fall."},
+		],
+		"start": [
+			{"s": O, "t": "Only kills made through a quantum link count. Aim, press link, then shoot either drone."},
+		],
+		"mid": [
+			{"s": K, "t": "Mirrored damage. Hurt one drone and the other bleeds. I am starting to enjoy this."},
+		],
+		"done": [
+			{"s": O, "t": "Trial complete. Entanglement is a terrible secret to keep, and a wonderful one to spend."},
+		],
+		"fail": [
+			{"s": O, "t": "Too many direct kills. The nest scattered. Link first, shoot second."},
+		],
+	},
+}
+
+## One extra line when a contract is offered, by chapter index (the last entry covers every later sector).
+const CONTRACT_CHAPTER: Array[Dictionary] = [
+	{"s": O, "t": "Old Exchange runs on rumour and rent. Contracts pay in credits, and credits buy survival."},
+	{"s": O, "t": "Glass District jobs bend toward entanglement. Practise linking, it pays double in these streets."},
+	{"s": O, "t": "The Harvest Floor is full of relay nodes. Crack them and the drones go blind."},
+	{"s": O, "t": "Bridge Arcade has fast traffic and faster couriers. Wheels will matter here."},
+	{"s": O, "t": "Meridian Gate is crowded with anchors. Every job here is a siege. Bring everything."},
+	{"s": O, "t": "The city is free, but not quiet. There is always another contract for a hand that will take it."},
+]
+
+const CONTRACT_GENERIC := {
+	"retry": [
+		{"s": O, "t": "Same contract, same marker. Try it again, and try it smarter."},
+		{"s": K, "t": "Once more. I know where the teeth are now."},
+	],
+	"abandon": [
+		{"s": O, "t": "The job went cold. I will find you another. Reputation took a small hit."},
+	],
+	"decohered": [
+		{"s": O, "t": "You died mid-job. The contract is on hold. Walk back into the marker when you are ready."},
+	],
+	"rep_up": [
+		{"s": O, "t": "Your name is moving through the cells. Trusted contacts get better prices at the shop."},
+	],
+	"rep_down": [
+		{"s": O, "t": "People are noticing the failures. Reputation is not free, Kestrel."},
+	],
+	"upgrade": [
+		{"s": O, "t": "A grateful contact left a free upgrade in your kit. Check the shop in the pause menu."},
+	],
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Tutorial (scripts/story/tutorial.gd): five short steps on a first launch. `kb` and `touch` are the prompt for keyboard and touch (at most PROMPT_MAX characters),
+# `done` is the radio line when the step is completed. Steps: id move, look, shoot, blink, car.
+# ---------------------------------------------------------------------------------------------------------------------
+
+const PROMPT_MAX := 44
+
+const TUTORIAL: Array[Dictionary] = [
+	{"id": "move", "kb": "MOVE WITH  W A S D", "touch": "DRAG THE LEFT STICK TO MOVE",
+		"done": {"s": O, "t": "Good. Legs work. Sprint by pushing the stick all the way, or holding shift."}},
+	{"id": "look", "kb": "LOOK AROUND WITH THE MOUSE", "touch": "DRAG THE RIGHT SIDE TO LOOK",
+		"done": {"s": O, "t": "Eyes work too. Keep the crosshair on the Vael and off the sky."}},
+	{"id": "shoot", "kb": "HOLD LEFT MOUSE TO FIRE", "touch": "HOLD THE FIRE BUTTON TO SHOOT",
+		"done": {"s": O, "t": "Rifle online. Reload when it clicks, and keep aiming high for the head."}},
+	{"id": "blink", "kb": "PRESS Q TO THROW A BEACON, Q TO BLINK", "touch": "TAP BLINK TWICE: BEACON, THEN JUMP",
+		"done": {"s": K, "t": "Two bits crossed the dark and I came out the other side. I will never get used to that."}},
+	{"id": "car", "kb": "WALK TO THE CAR AND PRESS F", "touch": "WALK TO THE CAR AND TAP USE",
+		"done": {"s": O, "t": "Four wheels. Contracts show up as markers on your map. Take one, earn credits, buy upgrades."}},
+]
+
+const TUTORIAL_DONE := "TRAINING COMPLETE"
+const TUTORIAL_SKIP_KB := "TAB  SKIP"
+const TUTORIAL_SKIP_TOUCH := "SKIP"
