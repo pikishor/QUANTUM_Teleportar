@@ -296,6 +296,12 @@ func get_aim() -> Dictionary:
 	return _aim_cache
 
 
+## The crosshair radius in pixels for a viewport of the given height: the current spread seen through the live camera FOV.
+func spread_in_pixels(viewport_height: float) -> float:
+	var half_fov := deg_to_rad(camera_rig.camera.fov) * 0.5
+	return tan(spread) / tan(half_fov) * viewport_height * 0.5
+
+
 func heal(v: float) -> void:
 	if v > 0.0:
 		hp += v

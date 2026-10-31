@@ -44,10 +44,10 @@ const ORBIT_HEIGHT := 1.35
 const ORBIT_FOV := 50.0
 const ORBIT_PITCH := -0.05
 const ORBIT_RATE := 0.07                     ## radians per second
-const DEAD_DIST := 5.4
-const DEAD_HEIGHT := 0.8
-const DEAD_FOV := 58.0
-const DEAD_PITCH := -0.42
+const DEAD_DIST := 4.6
+const DEAD_HEIGHT := 0.7
+const DEAD_FOV := 56.0
+const DEAD_PITCH := -0.5
 const DEAD_RATE := 0.035
 
 # recoil
@@ -255,6 +255,11 @@ func get_aim_pitch() -> float:
 
 func is_obstructed() -> bool:
 	return _ratio < 0.97
+
+
+## 0 on the hip, 1 fully aimed down sights (the smoothed zoom), for a HUD that wants to follow the aim transition.
+func get_ads_amount() -> float:
+	return clampf(_ads.x, 0.0, 1.0)
 
 
 # ---------------------------------------------------------------------------------------------------------------------

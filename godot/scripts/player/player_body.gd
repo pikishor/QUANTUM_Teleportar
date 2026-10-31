@@ -125,6 +125,7 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	var fall := 0.0
 	var sink := 0.0
 	var slew := 0.0
+	var roll_dead := 0.0
 	if _dead_t >= 0.0:
 		_dead_t += dt
 		var k := clampf(_dead_t / 0.75, 0.0, 1.0)
@@ -132,8 +133,9 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		fall = deg_to_rad(84.0) * e
 		sink = 0.12 * e
 		slew = 0.45 * e                                    # the body turns a little as it goes down, it does not fall in a ruler-straight line
+		roll_dead = 0.7 * e                                # and rolls onto its side, so the rifle does not stand straight up
 	global_position = Vector3(view_pos.x, view_pos.y - sink, view_pos.z)
-	rotation = Vector3(fall, yaw + slew, 0.0)
+	rotation = Vector3(fall, yaw + slew, roll_dead)
 
 	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
 	if character_light and rig != null:

@@ -30,6 +30,7 @@ func run(host: Node) -> void:
 	await _vehicle_chase()
 	await _body()
 	await _aim_variants()
+	await _quality_tiers()
 	await _cinematic_cameras()
 	await e.teardown()
 
@@ -543,6 +544,26 @@ func _body() -> void:
 	TestLib.check(absf(b.rotation.x) < 0.01, "and stands up again on reset")
 
 
+func _quality_tiers() -> void:
+	var rim := p.body.get_node("RimLight") as DirectionalLight3D
+	var key := p.body.get_node("KeyLight") as DirectionalLight3D
+	var old_quality := Game.quality
+	TestLib.check(key != null and rim != null and key.light_cull_mask == (1 << (PlayerBody.CHARACTER_LAYER - 1)), "the character lights only light the player's own layer (cull mask %d)" % key.light_cull_mask)
+	Game.set_quality(0)
+	await e.frames(2)
+	TestLib.check(key.visible and not rim.visible, "LOW tier: the key light stays, the rim light goes")
+	Game.set_quality(2)
+	await e.frames(2)
+	TestLib.check(key.visible and rim.visible, "HIGH tier: key and rim light are on")
+	Game.set_quality(old_quality)
+	p.camera_rig.reset_view(-PI * 0.5, -0.1)
+	Input.action_press(&"aim")
+	await e.secs(0.4)
+	TestLib.check(p.camera_rig.get_ads_amount() > 0.95, "get_ads_amount() follows the aim transition (%.2f)" % p.camera_rig.get_ads_amount())
+	Input.action_release(&"aim")
+	await e.frames(2)
+
+
 func _aim_variants() -> void:
 	var rig := p.camera_rig
 	await e.prep(Vector3(-20.0, 0.0, 4.0), -PI * 0.5, 0.0)
@@ -557,6 +578,8 @@ func _aim_variants() -> void:
 	var behind := p.get_aim()
 	TestLib.check((behind["hit"] as Vector3).x > -9.0, "the wall behind the player is ignored by the aim ray (hit x %.1f)" % (behind["hit"] as Vector3).x)
 	TestLib.check(p.chest_position().is_equal_approx(p.global_position + Vector3(0.0, 1.2, 0.0)), "chest_position() is 1.2 m above the feet")
+	var px := p.spread_in_pixels(1080.0)
+	TestLib.check(px > 5.0 and px < 60.0, "spread_in_pixels() gives a sensible crosshair radius for a 1080 px viewport (%.1f px)" % px)
 
 
 func _cinematic_cameras() -> void:

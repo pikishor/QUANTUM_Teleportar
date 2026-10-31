@@ -1,7 +1,7 @@
 extends RefCounted
 ## Visual bot of the player module. Drives the real Player through its input actions in a small night arena (tests/player_arena.gd) and lets
 ## Dev save a screenshot every N frames (tools/bot.sh does that). Look at the pictures: camera framing, model readability, tracers, flashes.
-##   tools/bot.sh res://tests/bot_player.gd /tmp/player 30 20          (every 30 frames, 20 pictures: phases 0-19)
+##   tools/bot.sh res://tests/bot_player.gd <out_prefix> 30 20        (every 30 frames, 20 pictures: phases 0-19; writes <out_prefix>_000.png ...)
 ##   RENDERER=compat tools/bot.sh ...                                     (OpenGL Compatibility renderer)
 ##   BOT_MODE=city tools/bot.sh ...                                       (keep the other modules and walk the real city instead of the arena)
 ##   BOT_PHASES=2,6,7 tools/bot.sh ... 40 3                              (run only these phases, in this order; the count must match)
@@ -173,6 +173,8 @@ func _enter(phase: int) -> void:
 			_p.damage(999.0)
 		15:
 			Game.do_respawn()
+			_p.teleport_to(_spawn())                 # Game.SPAWN lies inside the arena's wall: respawn at the arena's own spawn
+			_rig.reset_view(yaw, -0.1)
 		16, 17, 18:
 			_reset_player(_spawn(), yaw)
 			if phase == 18:
