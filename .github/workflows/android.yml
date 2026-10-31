@@ -54,12 +54,14 @@ jobs:
         run: |
           APK=godot/build/android/quantum-teleportar.apk
           ls -l "$APK"
-          echo "largest entries in the APK:"
-          unzip -l "$APK" | sort -k1 -n -r | head -8
-          mkdir -p "$RUNNER_TEMP/apk"
-          unzip -q -o "$APK" -d "$RUNNER_TEMP/apk"
-          PCK="$(find "$RUNNER_TEMP/apk" -name '*.pck' | head -1)"
-          if [ -n "$PCK" ]; then python3 godot/tools/pck_list.py "$PCK"; else echo "no .pck inside the APK (resources are packed another way)"; fi
+          unzip -Z1 "$APK" > "$RUNNER_TEMP/apk_files.txt"
+          echo "files in the APK: $(wc -l < "$RUNNER_TEMP/apk_files.txt")"
+          echo "3D models (imported glb): $(grep -c '\.glb-.*\.scn$' "$RUNNER_TEMP/apk_files.txt")"
+          grep '\.glb-.*\.scn$' "$RUNNER_TEMP/apk_files.txt" | sed 's#.*/##; s#\.glb-.*##' | sort | tr '\n' ' '; echo
+          echo "textures (.ctex): $(grep -c '\.ctex$' "$RUNNER_TEMP/apk_files.txt")"
+          echo "audio samples: $(grep -c '\.sample$' "$RUNNER_TEMP/apk_files.txt")"
+          echo "scripts: $(grep -Ec '\.gdc$|\.gd$' "$RUNNER_TEMP/apk_files.txt")  shaders: $(grep -Ec '\.gdshader' "$RUNNER_TEMP/apk_files.txt")"
+          echo "touch controls scene present: $(grep -c 'touch_controls' "$RUNNER_TEMP/apk_files.txt") entries"
       - uses: actions/upload-artifact@v4
         with:
           name: android-debug-apk
