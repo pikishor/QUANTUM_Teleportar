@@ -33,6 +33,15 @@ an Epic account, and a content pipeline (artists/vendors/licensed assets).
 4. **Alpha/Beta** – device-farm QA, soft launch in a few regions, telemetry-driven balance.
 5. **Launch and live-ops** – store featuring, seasonal content, support.
 
+## How the build agents are run (cost control; agreed with the owner)
+Wave 1 measured about 82% of generated tokens as reasoning and about 15% as code, because every agent inherited the maximum reasoning effort.
+From wave 2 on the default is lean:
+- **Effort:** builders `high`, reviewers and mechanical fixes `medium`; `max` only for a stage that is genuinely hard (for example a rendering or physics design question).
+- **Scope:** several small agents with one clear deliverable each, not one agent per whole module; fresh contexts keep the per-step re-read of the conversation small.
+- **Caps:** at most about 20 screenshots viewed per agent, and a fixed polish budget (one polish pass after the tests pass, then report). Reviewers measure and report; they do not redesign.
+- **Safety:** never message an agent that a workflow runs (it forks a second copy that edits the same files); scratch files go in `<scratchpad>/<module>/` only; report token totals after every wave.
+- **Ceiling:** the owner can set a token ceiling at any time; the orchestrator stops at the next safe point.
+
 ## Team roles to fill (typical for this scope)
 Game director, technical director, gameplay/engine/online engineers, technical artist, art director, character/environment/vehicle artists,
 animators (+ mocap vendor), VFX artist, level and mission designers, audio lead + composer, QA lead, producer, live-ops/analytics.
