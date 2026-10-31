@@ -12,7 +12,8 @@ const CHARACTERS := ["player", "operative"]
 const DRONES := ["drone_sentinel", "drone_striker", "drone_heavy"]
 const CARS := ["car_sedan", "car_sport", "car_suv"]
 const PROPS := ["pickup_health", "pickup_energy", "core_gem"]
-const BUDGET_CHARACTER := 12000
+const BUDGET_CHARACTER := 16000                     ## hero (the operative has BUDGET_OPERATIVE)
+const BUDGET_OPERATIVE := 10000
 const BUDGET_DRONE := 6000
 const BUDGET_CAR := 15000
 const BUDGET_PROP := 2500
@@ -20,8 +21,8 @@ const BUDGET_PROP := 2500
 const SURFACES_LEGACY_CHARACTER := 10
 const SURFACES_LEGACY_DRONE := 11
 const SURFACES_LEGACY_CAR := 11
-## Baked-atlas models: characters Body + 2 legs, drones Body + 4 rotors + Eye, cars Body (paint, details, 3 emissive) + 4 wheels, props one.
-const SURFACES_CHARACTER := 3
+## Baked-atlas models: characters ONE skinned Body mesh (one draw call; the legs, arms, torso and head are bones), drones Body + 4 rotors + Eye, cars Body (paint, details, 3 emissive) + 4 wheels, props one.
+const SURFACES_CHARACTER := 4
 const SURFACES_DRONE := 6
 const SURFACES_CAR := 9
 const SURFACES_PROP := 2
@@ -203,36 +204,129 @@ func _baked_common(m: Node3D, model_name: String, baked: bool, min_lights: int, 
 
 
 # ------------------------------------------------------------------ models
+const BONES := ["Hips", "Torso", "Head", "UpperArmL", "ForeArmL", "UpperArmR", "ForeArmR", "Rifle", "ThighL", "ShinL", "FootL", "ThighR", "ShinR", "FootR"]
+
+
 func _character(host: Node, model_name: String) -> void:
 	var m := _load(host, model_name)
 	if m == null:
 		return
 	var baked := _baked(m, model_name)
 	var tris := _tris(m)
-	TestLib.check(tris > 3000 and tris <= BUDGET_CHARACTER, "%s triangle count %d within 3000..%d" % [model_name, tris, BUDGET_CHARACTER])
+	var budget := BUDGET_CHARACTER if model_name == "player" else BUDGET_OPERATIVE
+	TestLib.check(tris > 3000 and tris <= budget, "%s triangle count %d within 3000..%d" % [model_name, tris, budget])
 	var limit := SURFACES_CHARACTER if baked else SURFACES_LEGACY_CHARACTER
 	TestLib.check(_surfaces(m) <= limit, "%s draws in %d surfaces (<= %d)" % [model_name, _surfaces(m), limit])
-	for n in ["Body", "LegL", "LegR"]:
-		TestLib.check(_node(m, n) is MeshInstance3D, "%s has mesh node %s" % [model_name, n])
+	var skel := m.find_child("Skeleton3D", true, false) as Skeleton3D
+	TestLib.check(skel != null, "%s is articulated: it has a Skeleton3D" % model_name)
+	var body := m.find_child("Body", true, false) as MeshInstance3D
+	TestLib.check(body != null and body.mesh != null and body.skin != null, "%s has one skinned Body mesh" % model_name)
 	var muzzle := _node(m, "Muzzle")
 	TestLib.check(muzzle != null, "%s has a Muzzle empty" % model_name)
-	var box := _aabb(m)
+	for n in ["WristL", "WristR", "MagWell", "MagPouch"]:
+		TestLib.check(_node(m, n) != null, "%s has the rig marker %s" % [model_name, n])
+	var rig := CharacterRig.find(m)
+	TestLib.check(rig != null, "%s has every bone of the contract (%s)" % [model_name, ", ".join(BONES)])
+	var box := body.get_aabb() if body != null else AABB()      # the mesh lives in the model's own space
 	TestLib.check(box.size.y > 1.7 and box.size.y < 1.95, "%s is human height (%.2f m)" % [model_name, box.size.y])
 	TestLib.check(absf(box.position.y) < 0.02, "%s stands on the ground (min y %.3f)" % [model_name, box.position.y])
 	TestLib.check(box.size.x < 0.9 and box.size.z < 1.6, "%s has realistic breadth (%.2f x %.2f)" % [model_name, box.size.x, box.size.z])
+	TestLib.check(box.size.x > 0.55, "%s has wide athletic shoulders (%.2f m across with the gear)" % [model_name, box.size.x])
 	if muzzle:
 		TestLib.check(muzzle.position.z < -0.6 and muzzle.position.y > 1.1 and muzzle.position.y < 1.6, "%s muzzle points forward (-Z) at chest height %s" % [model_name, muzzle.position])
 		TestLib.check(muzzle.position.z <= box.position.z + 0.12, "%s muzzle is the front-most point" % model_name)
-	var ll := _node(m, "LegL")
-	var lr := _node(m, "LegR")
-	if ll and lr:
-		TestLib.check(ll.position.x < -0.05 and lr.position.x > 0.05, "%s LegL is on -X and LegR on +X" % model_name)
-		TestLib.check(ll.position.y > 0.8 and ll.position.y < 1.05 and absf(ll.position.y - lr.position.y) < 0.001, "%s legs are pivoted at the hips (y %.2f)" % [model_name, ll.position.y])
-		var leg_box := (ll as MeshInstance3D).get_aabb()
-		TestLib.check(leg_box.position.y + leg_box.size.y < 0.08 and leg_box.position.y < -0.8, "%s leg mesh hangs below its hip pivot" % model_name)
+	if skel != null:
+		var tl := skel.find_bone("ThighL")
+		var tr_ := skel.find_bone("ThighR")
+		var sl := skel.find_bone("ShinL")
+		if tl >= 0 and tr_ >= 0 and sl >= 0:
+			var gl := skel.get_bone_global_rest(tl).origin
+			var gr := skel.get_bone_global_rest(tr_).origin
+			TestLib.check(absf(gl.x) > 0.05 and gl.x * gr.x < 0.0, "%s thigh bones sit on both sides of the hips" % model_name)
+			var knee := skel.get_bone_global_rest(sl).origin
+			TestLib.check(gl.distance_to(knee) > 0.35 and gl.distance_to(knee) < 0.55, "%s thigh length %.2f m" % [model_name, gl.distance_to(knee)])
 	TestLib.check(_any_emissive(m), "%s has emissive practical lights" % model_name)
 	_baked_common(m, model_name, baked, 2, true)
+	if rig != null:
+		_rig_poses(m, rig, model_name)
 	_finish(m)
+
+
+## The procedural poses on the real skeleton: a walk cycle keeps the feet on the floor, the arms follow the rifle, every pose is finite and the aim pitch lifts the muzzle.
+func _rig_poses(m: Node3D, rig: CharacterRig, model_name: String) -> void:
+	rig.reset()
+	var rest_low := rig.lowest_world_y()
+	TestLib.check(absf(rest_low) < 0.03, "%s rests on the floor with the rig at rest (lowest %.3f)" % [model_name, rest_low])
+	var rest_mz := rig.muzzle_transform().origin
+	var mz := _node(m, "Muzzle")
+	TestLib.check(mz != null and rest_mz.distance_to(mz.position) < 0.01, "%s muzzle follows the rifle bone (rest %s)" % [model_name, str(rest_mz)])
+	var worst := 0.0
+	var knee := 0.0
+	for k in 12:                                                       # a full stride cycle: soles stay near the floor
+		rig.phase = TAU * k / 12.0
+		rig.amp = 1.0
+		rig.run = 1.0
+		rig.fw = 1.0
+		rig.ready = 1.0
+		rig.apply()
+		worst = maxf(worst, absf(rig.lowest_world_y()))
+		var sk := rig.skeleton
+		knee = maxf(knee, absf(sk.get_bone_pose(sk.find_bone("ShinL")).basis.get_euler().x))
+	TestLib.check(worst < 0.07, "%s run cycle: the lowest foot stays within %.3f m of the floor" % [model_name, worst])
+	TestLib.check(knee > 0.6, "%s run cycle: the knees bend (%.2f rad)" % [model_name, knee])
+	rig.phase = 0.0
+	rig.amp = 0.0
+	rig.apply()
+	var level := rig.muzzle_transform().origin
+	rig.aim_pitch = 0.5
+	rig.apply()
+	TestLib.check(rig.muzzle_transform().origin.y > level.y + 0.15, "%s head and rifle follow the aim pitch: the muzzle rises (%.2f -> %.2f)" % [model_name, level.y, rig.muzzle_transform().origin.y])
+	rig.aim_pitch = 0.0
+	var worst_hand := 0.0
+	for pose in 6:                                                      # both gloves stay on the rifle wherever the rifle goes (aim pitch, low ready, sprint carry, kick, run)
+		rig.ready = 1.0 if pose != 1 else 0.0
+		rig.sprint = 1.0 if pose == 2 else 0.0
+		rig.aim_pitch = -0.4 if pose == 3 else (0.5 if pose == 4 else 0.0)
+		rig.recoil = 1.0 if pose == 5 else 0.0
+		rig.amp = 1.0 if pose >= 1 else 0.0
+		rig.phase = 1.3
+		rig.apply()
+		for k in 2:
+			worst_hand = maxf(worst_hand, rig.wrist_position(k).distance_to(rig.rifle_grip(k)))
+	TestLib.check(worst_hand < 0.07, "%s both gloves stay on the rifle in every carry pose (worst %.3f m off; the hands sway a few cm with the stride at low ready)" % [model_name, worst_hand])
+	rig.recoil = 0.0
+	rig.amp = 0.0
+	rig.sprint = 0.0
+	rig.aim_pitch = 0.0
+	rig.ready = 1.0
+	rig.apply()
+	var grip0 := rig.rifle_grip(0)
+	var far := 0.0
+	for k in 11:                                                        # the reload takes the support hand off the rifle and back
+		rig.reload = k / 10.0
+		rig.apply()
+		far = maxf(far, rig.wrist_position(0).distance_to(grip0))
+	TestLib.check(far > 0.2, "%s reload: the support hand travels to the magazine and the vest (%.2f m)" % [model_name, far])
+	rig.reload = 1.0
+	rig.apply()
+	TestLib.check(rig.wrist_position(0).distance_to(rig.rifle_grip(0)) < 0.03, "%s reload: the hand is back on the foregrip at the end" % model_name)
+	rig.reload = -1.0
+	var finite := true
+	for pose in 5:                                                      # low ready, sprint carry, reload, collapse, limp: all finite and above the floor
+		rig.ready = 0.0 if pose == 0 else 1.0
+		rig.sprint = 1.0 if pose == 1 else 0.0
+		rig.reload = 0.3 if pose == 2 else -1.0
+		rig.knee_buckle = 1.0 if pose == 3 else 0.0
+		rig.dead = 1.0 if pose == 4 else 0.0
+		rig.apply()
+		var low := rig.lowest_world_y()
+		var mzp := rig.muzzle_transform().origin
+		finite = finite and is_finite(low) and is_finite(mzp.x) and is_finite(mzp.y) and low > -0.2
+		for i in rig.skeleton.get_bone_count():
+			var t := rig.skeleton.get_bone_pose(i)
+			finite = finite and is_finite(t.origin.x) and is_finite(t.basis.x.x) and is_finite(t.basis.y.y) and is_finite(t.basis.z.z)
+	TestLib.check(finite, "%s low ready, sprint carry, reload, collapse and limp poses are finite and above the floor" % model_name)
+	rig.reset()
 
 
 func _drone(host: Node, model_name: String) -> void:

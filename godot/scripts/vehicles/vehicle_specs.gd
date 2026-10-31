@@ -24,6 +24,8 @@ const STREAM_EVERY := 0.4              ## seconds between streaming passes
 const MIRROR_NEAR := 25.0              ## MirrorProxy only for cars this close (released beyond MIRROR_NEAR + 8)
 const WHEELS_NEAR := 50.0              ## wheels are hidden beyond this
 const PARKED_SHARE := 0.55             ## fraction of streamed cars that are parked
+const WRECK_COLOR := Color(0.045, 0.04, 0.04)   ## the charred paint of a husk
+const MAX_WRECKS := 3                  ## husks standing at once (the oldest goes first)
 const RESPAWN_TIME := 25.0             ## a destroyed car comes back as a parked car after this many seconds
 
 const BAY := 8.3                       ## parking bay centre offset from the road centre line (bays are 7.0-9.4 m)

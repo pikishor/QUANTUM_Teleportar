@@ -88,8 +88,15 @@ The owner deploys Android/iOS builds straight from GitHub (see `docs/DEPLOY.md`)
 - **Reflections of moving things:** the wet street reflects the city through geometry (the world's mirrored copy, node `Mirror`), and that copy contains only the static city. Anything dynamic
   that stands on the street (player, enemies, vehicles, pickups) must get its reflection with `MirrorProxy` (`scripts/world/mirror_proxy.gd`): `add_child(MirrorProxy.new())`, then
   `proxy.track(meshes)`. It shares the meshes, builds unshaded stand-in materials, follows the originals, hides with them and costs nothing on LOW. Never add colliders or lights to `Mirror`.
-- **Effects pool:** `FX` emitters, tracers and blast lights are pooled, hidden while idle and cast no shadows (an idle pool costs no draw call). `FX.burst(pos, color, count, speed, life, gravity, size)`
-  draws soft round sprites (`size` 1 = sparks, about 9 = fireball puffs); `FX.blast` is a hot core, a thin shock shell and a real light pulse; `Game.explode` combines them.
+- **Effects pool (as implemented, VFX):** `FX` emitters, tracers, muzzle flashes and explosions are pooled, hidden while idle and cast no shadows (an idle pool costs no draw call).
+  `FX.burst(pos, color, count, speed, life, gravity, size)` draws soft round sprites (counts scale with `Game.quality`: x0.5 / 0.8 / 1); `FX.blast(pos, radius, color, duration, style := -1, burn := 0.0)` plays one
+  slot of `scripts/fx/explosion_pool.gd` (4 slots, LOW 2 / MED 3 / HIGH 4): a flipbook fireball billboard (`assets/textures/fx_flipbook.png`, 8x8 frames, made by `tools/make_fx_flipbook.py`, R fire / G smoke / B shading),
+  1-3 rising smoke puffs, a flat ground flash with a shock ring (never a sphere), velocity-stretched spark streaks, falling debris, embers, ONE shared OmniLight3D pulse (not on LOW) and a heat-haze ripple
+  (global shader uniform `fx_heat`, read by `post_film.gdshader`, MED and HIGH). Style is picked by colour and radius: cyan/magenta = quantum collapse (ripple ring, no smoke), radius >= 8 = car wreck that burns 6 s
+  (`Game.explode` opts `burn`, `style` override). Fire and smoke fade with the camera distance relative to their size and towards the street, so a blast next to the player never whites the screen out; effects keep
+  animating when the player is dead (nothing freezes on screen) and `FX.reset()` (also on new game / respawn / next sector) hides everything. `FX.tracer` has a bright-head shader and draws a star-and-cone muzzle flash
+  at the shot origin (`FX.muzzle_flash`); `ImpactSparks.impact_world(pos, normal, surface := &"")` picks asphalt / glass / concrete / metal effects (`surface_at` guesses from the hit position). Tests: `tests/test_vfx.gd`,
+  bot: `tests/bot_vfx.gd`.
 - **Pause:** pausing sets `Game.state = &"paused"` only. Never use `get_tree().paused`: rain, post-process and menu animation keep running behind the pause screen, and gameplay modules stop themselves by checking `Game.is_playing()`.
 - **Input:** gameplay reads only InputMap actions: `move_forward move_back move_left move_right jump sprint fire aim reload blink entangle superpose interact pause`.
   Touch controls and bots drive them via `Input.action_press/release`. Camera look is pushed through `Game.player.camera_rig.add_look(yaw, pitch)` (radians).
@@ -206,14 +213,14 @@ It also owns mouse capture: captured while playing on desktop, released in menu/
 
 ### assets — owns `assets/**` (except shaders), `tools/blender/**`
 Blender-generated models (`bpy` runs headless: `$BLENDER_PY script.py`), exported **glb**, origin at ground contact, forward −Z, 1 unit = 1 m, emissive materials for glowing parts, realistic proportions and PBR-style materials (see Direction; normal-mapped, bevelled, weighted normals), each a visual only (no collision):
-`player` (tactical operative, about 8-12k triangles, with separate `LegL`, `LegR` nodes pivoted at the hips and a `Muzzle` empty at the rifle tip), `drone_sentinel`, `drone_striker`, `drone_heavy` (hover rings/eyes emissive, `Eye` node), `car_sedan`, `car_sport` (body, cabin, wheels as separate nodes `WheelFL…`, headlight/taillight/underglow emissive),
+`player` (tactical operative, about 8-16k triangles, ONE skinned mesh on a skeleton of rigid bones, see "Characters as implemented"), `drone_sentinel`, `drone_striker`, `drone_heavy` (hover rings/eyes emissive, `Eye` node), `car_sedan`, `car_sport` (body, cabin, wheels as separate nodes `WheelFL…`, headlight/taillight/underglow emissive),
 `operative` (enemy human, same rig conventions as `player`), `pickup_health`, `pickup_energy`, `core_gem`, plus generated PBR texture sets for the city and props. Generated audio `assets/audio/*.wav` (numpy synthesis, 44.1 kHz mono 16-bit): the 11 SFX names above plus a looping `music_ambient.wav`.
 Scripts live in `tools/blender/` and `tools/audio/` so everything is reproducible; commit the small outputs.
 
 **Tested asset contract** (exact numbers and rebuild instructions: `tools/blender/README.md`; enforced by `tests/test_assets.gd`, 270 checks):
 - All models: 1 unit = 1 m, origin at ground contact, front = -Z, no collision, **authored at final size: never scale them** (do not apply the prototype's `ENEMY.scale`).
   Textures are shared files in `assets/textures`, referenced by relative path; `.import` files are committed next to the assets.
-- `player` / `operative` (1.82 m): children `Body`, `LegL` / `LegR` (origin at the hip joint, y = 0.93 m, swing about X) and `Muzzle` (Node3D at the rifle tip, about (0.12, 1.37, -0.92)). The model already faces -Z.
+- `player` / `operative` (about 1.84 m, wide shoulders, `bulk` 1.08 / 1.15): an articulated model, ONE skinned `Body` mesh (1 draw call, one atlas material `Gear`, 8.6k triangles each) under `Rig/Skeleton3D`, plus root empties `Muzzle` (rifle tip, about (0.12, 1.38, -1.05)), `WristL`/`WristR`, `MagWell`, `MagPouch` and the `Fill`/`Rim` lights. Bones (rest rotation identity, model axes, origin = pivot): `Hips > Torso > Head, UpperArmL/R > ForeArmL/R, Rifle`, `Hips > ThighL/R > ShinL/R > FootL/R`. The model faces -Z; `scripts/characters/character_rig.gd` poses it. See "Characters as implemented".
 - Drones: `Body`, `RotorFL/FR/RL/RR` (origin at the hub, spin about local Y), an emissive `Eye`, and `Muzzle` (sentinel and heavy). Body centres at y = 0.95 / 0.82 / 1.40 m (sentinel / striker / heavy);
   hit radii 0.95 / 0.8 / 1.35 m.
 - Cars: `Body` and `WheelFL/FR/RL/RR` (origin at the axle centre; steer by Y rotation, roll about X). Sizes: sedan 4.75 x 1.86 x 1.48 m, sport 4.45 x 1.92 x 1.20 m, SUV 4.85 x 1.98 x 1.83 m; wheel radius 0.335 / 0.335 / 0.385 m.
@@ -223,7 +230,7 @@ Scripts live in `tools/blender/` and `tools/audio/` so everything is reproducibl
 - Known limits: characters are procedural hard-surface models without a skeleton (animation is node-based); wet reflections are sky/light highlights because screen-space reflections do not exist in the Mobile renderer.
 - **Status:** the committed models are still the first generation (tiling PBR textures, materials `Fabric Armor Gunmetal Glow Visor`, `Wheel Glass Trim`, ...). `tools/blender/README.md` documents the
   next generation (one baked atlas material per model: `Gear` / `Hull` / `Details` / `Glow`, real lights in the model, LOD tags), which `tools/build_assets.sh` produces once it has been run and
-  reviewed. Consumers must therefore rely only on the node names and on `Body`, `Glow`, `Eye`, `Headlights`, `Taillights`, `Underglow`, never on the other material names (`PlayerBody` lifts `Fabric` only
+  reviewed. Consumers must therefore rely only on the node names and on `Body`, `Glow`, `Eye`, `Headlights`, `Taillights`, `Underglow`, never on the other material names (`PlayerBody` lifts `Fabric` and, for the articulated model, `Gear` only
   when it exists). Re-run `tests/bot_integration.gd` and `tests/test_integration.gd` after the rebuild.
 
 ## Behaviour numbers
@@ -280,3 +287,14 @@ Port from `../src/*.js` (they were play-tested): speeds, damages, costs, cooldow
   (parked: dim, driven or traffic: on); no per-frame allocation.
 - **Measured (software Vulkan, Mobile renderer, MED, whole `main.tscn` view at the spawn):** baseline with no cars and no enemies 108 draw calls; + 4 enemies 156; + starter car 160; the worst case, the starter car and 4 more cars all in view within 30 m (no enemies), 133 (about 5 draw calls per car
   including its reflection). So the car module costs about 4-5 draw calls per visible car, and the MED total is over 150 in the staged view because of the baseline (HUD, post-process, rain, city) plus the enemies, not because of the cars; see the report.
+
+
+## Characters as implemented (`scripts/characters/character_rig.gd`, `scripts/player/player_body.gd`, `scripts/enemies/operative.gd`, `tools/blender/humanoid.py`, tests `tests/test_assets.gd`, visual bot `tests/bot_characters.gd`)
+- **Model:** `humanoid.py` builds 14 rigid parts (one `RigPart` per bone: hips and belt, torso with plate carrier / pouches / pack, head with helmet and visor or full mask, upper arms with shoulder armour, forearms with bracers and gloved hands, thighs with pockets and holster, shins with knee pads and boots, feet, rifle),
+  bakes ONE atlas (1K, `Gear`, tints brightened by `bright` so the darkest region keeps albedo about 0.1; the hero 1.7 x, the operative 1.6 x), joins the parts into one mesh weighted 100 % to its bone (`helpers.export_model(finalize=...)`) and exports an armature whose bones are axis aligned
+  (the armature object is rotated +90 degrees about X with glTF-axis bone coordinates, so the exporter's Y-up conversion cancels and every bone frame is the Godot frame). The hero (visor, cyan light strips, quantum rig on the back) and the operative (full mask with a red optic slit, crimson sash and trim, thigh / shin / groin / shoulder plates, `heavy`) share the builder. Rebuild: `tools/blender/build_all.sh player operative` then `tools/import.sh`.
+- **Posing (`CharacterRig`, stateless):** the owner keeps the state and writes `phase amp run fw lw air aim_pitch lean twist roll breathe recoil flinch ready sprint reload dead knee_buckle` into the rig, then calls `apply()` once per frame. Legs: hip swing, knee flexion in the swing phase, flat feet, the pelvis sinks to the lowest sole (feet stay on the floor);
+  strafing splays the thighs sideways. Torso: aim pitch, lean, counter-twist, breathing, recoil, flinch; the head takes the rest of the aim pitch. The rifle pivots at the shoulder pocket (shouldered / low ready / sprint carry, kick, reload tilt); BOTH GLOVES are solved with two-bone IK onto it (the left one goes to the magazine well and the vest pouch while reloading);
+  `dead` = limp arms, legs and rifle; `knee_buckle` = the operative collapsing. `muzzle_transform()` follows the rifle bone, `lowest_world_y()` / `world_points()` use per-bone convex hulls (corpse resting height), `rest_mesh` is an invisible unskinned twin of the mesh for what copies meshes by transform (the street reflection and the quantum ghost show the rest pose).
+- **Consumers:** `PlayerBody` keeps `upper` (the model root), `leg_l` / `leg_r` (hip pivot nodes that mirror the thigh swing), `muzzle`, `rig`; the primitive fallback is unchanged. `Operative` keeps `leg_l` / `leg_r` and adds `rig`; it also restores the baked glow that `DynamicFill` would dim. Compatibility renderer: both darken the Gear albedo (that renderer lights the scene much brighter).
+- **Budgets:** 1 draw call per character (was 3), 8.6k triangles each (limits 16k / 10k), 14 bones. Skinned meshes are posed on the CPU side (14 bone transforms per frame) and skinned on the GPU.

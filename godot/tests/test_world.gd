@@ -19,6 +19,7 @@ func run(host: Node) -> void:
 	_test_road_queries(city)
 	_test_inside(city)
 	await _test_colliders(host, city)
+	await _test_prop_colliders(host, city)
 	_test_multimeshes(city)
 	_test_prop_colours(city)
 	_test_skyline(city)
@@ -203,6 +204,95 @@ func _test_colliders(host: Node, city: City) -> void:
 	TestLib.check(agree and city.ground_height(10.0, 4.0) == 0.0, "ground_height reports roof heights and 0 on roads")
 
 
+## The pooled prop colliders: constant shape count, lamps block the player, low props are cover for rays at knee height but not at head height.
+func _test_prop_colliders(host: Node, city: City) -> void:
+	var pc := city.prop_colliders()
+	TestLib.check(pc.bodies.size() == 56 and pc.shape_count() == 56 * 3, "the prop collider pool has 56 bodies and a constant %d shapes" % pc.shape_count())
+	TestLib.check(pc.source_count > 1500, "collidable prop instances exist (%d)" % pc.source_count)
+	for fam in ["Lamps", "Signals", "Dumpsters", "Kiosks", "Hydrants", "Barriers", "Planters", "RoofHouses", "RoofAC", "RoofCover", "RoofVents"]:
+		TestLib.check(pc.instances_of(fam).size() > 0, "%s have collider instances" % fam)
+	for fam in ["RoofVents", "RoofPipes", "RoofSkylights", "RoofCover", "Planters"]:
+		var found := false
+		for n in city.multimesh_nodes:
+			if n.name == fam:
+				found = true
+		TestLib.check(found, "the %s family is drawn" % fam)
+	var on_layers := true
+	for b in pc.bodies:
+		if b.collision_layer != Game.L_WORLD or b.collision_mask != 0:
+			on_layers = false
+	TestLib.check(on_layers, "pool bodies sit on the world layer")
+	var shapes_before := pc.shape_count()
+	# a lamp in the open: the pool must cover it, a walking capsule is stopped by the pole
+	var lamp: Transform3D = pc.instances_of("Lamps")[40]
+	var lp := lamp.origin
+	city.update_colliders(Vector3(lp.x, 1.0, lp.z))
+	TestLib.check(pc.in_use > 0 and pc.in_use <= 56, "refill assigns instances to the pool (%d in use)" % pc.in_use)
+	TestLib.check(pc.shape_count() == shapes_before, "refilling never changes the shape count")
+	await TestLib.frames(host, 2)               # moved bodies enter the physics space on the next step
+	var space := (host as Node).get_viewport().world_3d.direct_space_state
+	var dir := Vector3(1, 0, 0)
+	var rq := PhysicsRayQueryParameters3D.create(lp - dir * 3.0 + Vector3(0, 1.0, 0), lp + dir * 3.0 + Vector3(0, 1.0, 0), Game.L_WORLD)
+	var hit := space.intersect_ray(rq)
+	TestLib.check(not hit.is_empty() and absf((hit.position as Vector3).x - (lp.x - 0.2)) < 0.05, "a ray at chest height hits the lamp pole (%s)" % str(hit.get("position", "none")))
+	var walker := CharacterBody3D.new()
+	walker.collision_layer = Game.L_PLAYER
+	walker.collision_mask = Game.L_WORLD
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.4
+	cap.height = 1.8
+	cs.shape = cap
+	walker.add_child(cs)
+	host.add_child(walker)
+	walker.global_position = Vector3(lp.x - 3.0, 0.95, lp.z)
+	for i in 70:
+		walker.velocity = Vector3(5.0, 0.0, 0.0)
+		walker.move_and_slide()
+		await host.get_tree().physics_frame
+	TestLib.check(walker.global_position.x < lp.x - 0.2 - 0.4 + 0.1, "walking into a lamp post is blocked (stopped at %.2f m, pole at %.2f)" % [walker.global_position.x, lp.x])
+	# the same walker walks freely where nothing stands (a position on the open avenue)
+	walker.global_position = Vector3(-200.0, 0.95, 0.0)
+	city.update_colliders(Vector3(-200.0, 1.0, 0.0))
+	for i in 20:
+		walker.velocity = Vector3(5.0, 0.0, 0.0)
+		walker.move_and_slide()
+		await host.get_tree().physics_frame
+	TestLib.check(walker.global_position.x > -200.0 + 0.8, "the open avenue is not blocked by the pool (moved to x = %.2f)" % walker.global_position.x)
+	walker.queue_free()
+	# cover: a dumpster is knee / waist high, so a low ray is stopped and a head-high ray passes over it
+	var dump: Transform3D = pc.instances_of("Dumpsters")[3]
+	var dp := dump.origin
+	city.update_colliders(Vector3(dp.x, 1.0, dp.z))
+	await TestLib.frames(host, 2)
+	var along := dump.basis * Vector3(0, 0, 1)
+	var low := PhysicsRayQueryParameters3D.create(dp - along * 4.0 + Vector3(0, 0.6, 0), dp + along * 4.0 + Vector3(0, 0.6, 0), Game.L_WORLD)
+	var high := PhysicsRayQueryParameters3D.create(dp - along * 4.0 + Vector3(0, 1.7, 0), dp + along * 4.0 + Vector3(0, 1.7, 0), Game.L_WORLD)
+	TestLib.check(not space.intersect_ray(low).is_empty(), "a ray at waist height is stopped by a dumpster (cover)")
+	TestLib.check(space.intersect_ray(high).is_empty(), "a ray at head height passes over a dumpster")
+	# roofs: the pool follows the player up onto a roof and takes the cover walls there
+	var cover: Transform3D = pc.instances_of("RoofCover")[5]
+	city.update_colliders(cover.origin + Vector3(0, 1.0, 0))
+	var roof_seen := false
+	for k in pc.bodies.size():
+		if pc.family_of(k).begins_with("Roof"):
+			roof_seen = true
+	TestLib.check(roof_seen, "on a roof the pool holds rooftop colliders")
+	var street_has_roof := false
+	city.update_colliders(Vector3(-200.0, 1.0, 0.0))
+	for k in pc.bodies.size():
+		if pc.family_of(k).begins_with("Roof"):
+			street_has_roof = true
+	TestLib.check(not street_has_roof, "on the street the pool ignores rooftop colliders")
+	city.update_colliders(Vector3(0.0, -2000.0, 0.0))
+	TestLib.check(pc.in_use == 0, "far from the city every body is parked")
+	var parked := true
+	for b in pc.bodies:
+		if b.position.y > -900.0:
+			parked = false
+	TestLib.check(parked, "parked bodies wait far below the city")
+
+
 func _test_multimeshes(city: City) -> void:
 	var by_name := {}
 	for n in city.multimesh_nodes:
@@ -243,7 +333,7 @@ func _test_multimeshes(city: City) -> void:
 			shares = false
 	TestLib.check(shares, "mirrored copies reuse the real MultiMesh data (%d mirrored families)" % city.mirror_nodes.size())
 	# no node creation per building: the whole city is a handful of nodes
-	TestLib.check(city.multimesh_nodes.size() <= 60, "the city is %d MultiMesh families (draw-call budget)" % city.multimesh_nodes.size())
+	TestLib.check(city.multimesh_nodes.size() <= 66, "the city is %d MultiMesh families (draw-call budget)" % city.multimesh_nodes.size())
 
 
 ## The Compatibility (GL) renderer reads a mesh's vertex COLOR as 0 when its MultiMesh has no instance colours (flat slabs, green poles,

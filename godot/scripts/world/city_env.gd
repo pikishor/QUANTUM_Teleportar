@@ -102,4 +102,5 @@ func apply_quality(level: int, vp: Viewport) -> void:
 		vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][level]
 		vp.scaling_3d_scale = 0.7 if level == 0 else 1.0
 	env.glow_intensity = [0.8, 0.9, 1.0][level]
+	env.adjustment_contrast = [1.14, 1.08, 1.06][level]       # LOW: a light 'sharpen' (the post-process filter is off there)
 	env.fog_density = 0.0042 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0052

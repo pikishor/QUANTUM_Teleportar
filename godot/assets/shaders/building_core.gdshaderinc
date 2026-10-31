@@ -136,7 +136,7 @@ void fragment() {
 		vec2 p = v_loc.xz;
 		float gr = hash12(floor(p * 7.0) + bseed);
 		float tone = vnoise(p * 0.3 + bseed);
-		vec3 tar = vec3(0.052, 0.054, 0.060) * (0.7 + 0.6 * tone) * (0.85 + 0.3 * gr);
+		vec3 tar = vec3(0.092, 0.096, 0.106) * (0.7 + 0.6 * tone) * (0.85 + 0.3 * gr);
 		float pn = vnoise(p * 0.21 + bseed * 3.1) * 0.65 + vnoise(p * 0.8 + 4.0) * 0.35;
 		float pud = smoothstep(0.64 - 0.24 * wet, 0.70 - 0.24 * wet, pn) * wet;
 		vec2 dd = min(p - vec2(v_wall.x, v_wall.y), vec2(v_wall.z, v_wall.w) - p);
@@ -177,6 +177,8 @@ void fragment() {
 		}
 		// roof edge catches the street glow
 		emit += neon * 0.015 * lip;
+		// the roof catches the glow of the city haze: a cool lift so low roofs are not flat black
+		emit += (albedo + vec3(0.02, 0.026, 0.034)) * vec3(0.5, 0.68, 1.0) * (0.12 + 0.05 * tone);
 	} else {
 		// ---- wall ------------------------------------------------------------------------------------------------------
 		bool xf = abs(nrm.x) > 0.5;
@@ -378,7 +380,7 @@ void fragment() {
 		}
 
 #ifndef FAR
-		// ---- ground floor: shops, doors, neon signs -------------------------------------------------------------------
+		// ---- ground floor: dark shop glass with a street reflection, mullions, riser, recessed door, a few small lit features -------
 		if (grounded && y < gh) {
 			float nb = max(2.0, floor(fw / 4.8 + 0.5));
 			float bw = fw / nb;
@@ -387,53 +389,92 @@ void fragment() {
 			float bf = bu - bidx;
 			float abu = max(fwidth(bu), 0.002);
 			float abv = max(fwidth(y), 0.002);
-			float rb0 = hash12(vec2(bidx, fseed) + 71.0);
+			float amu = abu * bw;
+			vec2 bid = vec2(bidx, fseed);
+			float rb0 = hash12(bid + 71.0);
 			float door_i = floor(hash11(fseed + 5.5) * nb);
 			float is_door = bidx == door_i ? 1.0 : 0.0;
 			float shut = step(0.70, rb0) * (1.0 - is_door);
-			float shop = band(bf, 0.06, 0.94, abu) * band(y, 0.5, 3.35, abv);
-			float door = is_door * band(bf, 0.24, 0.76, abu) * band(y, 0.0, 3.0, abv);
+			float xm = bf * bw;                                        // metres from the bay's left edge
+			float riser_h = 0.65;
+			float shop = band(xm, 0.16, bw - 0.16, amu) * band(y, riser_h, 3.3, abv);
+			float door = is_door * band(bf, 0.20, 0.80, abu) * band(y, 0.0, 3.05, abv);
 			float signb = band(bf, 0.08, 0.92, abu) * band(y, 3.65, 4.45, abv);
-			float cr2 = hash12(vec2(bidx, fseed) + 12.0);
-			vec3 sc = lit_color(cr2, pal);
-			float sh = 0.8 + 0.2 * step(0.5, fract(y * 1.7));
-			float mull = 1.0 - band(abs(bf - 0.5), 0.0, 0.012, abu);
-			// shop interiors: shelves, bar lamps or arcade bars, by a per-bay hash
-			float stype = hash12(vec2(bidx, fseed) + 31.0);
-			vec2 sp = vec2(bf, (y - 0.5) / 2.85);
-			float interior = 0.55 + 0.45 * smoothstep(0.0, 1.0, sp.y);
-			if (stype < 0.40) {            // shelves with goods
-				float shelf = band(fract(sp.y * 4.0), 0.0, 0.12, 0.04);
-				float goods = step(0.35, hash12(vec2(floor(bf * 22.0), floor(sp.y * 4.0)) + bidx));
-				interior *= mix(1.0, 0.35, shelf) * (0.55 + 0.45 * goods);
-			} else if (stype < 0.70) {     // bar: dark room, pendant lamps
-				float pend = exp(-pow((fract(bf * 4.0) - 0.5) * 6.0, 2.0) - pow((sp.y - 0.85) * 7.0, 2.0));
-				interior = 0.12 + 1.5 * pend + 0.25 * smoothstep(0.7, 1.0, sp.y);
-			} else {                       // arcade / club: animated colour bars
-				float bar = 0.5 + 0.5 * sin(bf * 40.0 + TIME * (1.0 + 2.0 * hash11(bidx + fseed)));
-				interior = 0.25 + 0.7 * bar * (0.4 + 0.6 * sp.y);
-				sc = mix(sc, NEON[int(mod(bidx + v_data.y, 4.0))], 0.7);
-			}
-			vec3 shopE = sc * (0.30 + 0.45 * hash12(vec2(bidx, fseed) + 3.0)) * sh * mull * interior;
+			float sn = max(vnoise(vec2(u * 0.9 + fseed, y * 1.3)), 0.0);
+			vec3 sc = lit_color(hash12(bid + 12.0), pal);
+			// frame: edge posts, a centre post in wide bays, a kick plate
+			float post = (1.0 - band(xm, 0.16, bw - 0.16, amu)) * band(y, 0.0, 3.5, abv);
+			float cpost = (bw > 3.6 && is_door < 0.5) ? band(abs(xm - bw * 0.5), 0.0, 0.04, amu) * band(y, riser_h, 3.3, abv) : 0.0;
+			float frame_m = max(post, cpost);
 			vec3 base_a = tint * 0.22 * (0.6 + 0.8 * panel) * mix(0.55, 1.0, smoothstep(0.0, 2.5, y));
 			albedo = base_a;
 			rough = mix(0.7, 0.4, wet);
 			metal = 0.0;
 			emit = vec3(0.0);
 			hf = 0.0;
+			// riser: dark stone / tile with grime
+			float riser = band(y, 0.0, riser_h, abv) * (1.0 - door);
+			albedo = mix(albedo, vec3(0.045, 0.05, 0.055) * (0.6 + 0.8 * sn), riser);
+			rough = mix(rough, 0.35, riser * wet);
 			float open_shop = shop * (1.0 - shut);
-			albedo = mix(albedo, glass, open_shop);
-			rough = mix(rough, 0.08, open_shop);
-			metal = open_shop * 0.5;
-			emit += shopE * open_shop * 1.0;
-			// roller shutters: dark ribs
+			// glass: nearly black, a fresnel mirror of the night sky and the neon of the street
+			float nv = abs(dot(normalize(NORMAL), normalize(VIEW)));
+			float gfr = 0.05 + 0.95 * pow(1.0 - nv, 4.0);
+			vec3 gl_refl = mix(vec3(0.050, 0.080, 0.125), vec3(0.150, 0.110, 0.190), smoothstep(0.4, 3.4, y)) * (0.75 + 0.5 * sn);
+			gl_refl += neon * 0.20 * (0.4 + 0.6 * sn);
+			float streak = exp(-pow((fract((u + y * 0.7) / (bw * 1.6) + rb0) - 0.5) * 6.5, 2.0));
+			gl_refl *= 0.55 + 0.9 * streak;
+			vec3 glass_s = vec3(0.005, 0.007, 0.012);
+			albedo = mix(albedo, glass_s, open_shop);
+			rough = mix(rough, 0.05, open_shop);
+			metal = open_shop * 0.35;
+			emit += gl_refl * (0.30 + 1.6 * gfr) * open_shop;
+			// interior: one to three small practical lights per bay (about 30 percent of the glass at most)
+			float open_i = open_shop * (1.0 - frame_m);
+			float nfeat = floor(1.0 + hash12(bid + 37.0) * 2.99);
+			float flip = step(0.5, hash12(bid + 41.0));
+			float fx = mix(bf, 1.0 - bf, flip);
+			float kind = hash12(bid + 31.0);
+			vec3 tung = vec3(1.0, 0.60, 0.26);
+			vec3 sod = vec3(1.0, 0.46, 0.12);
+			vec3 ledc = kind < 0.5 ? vec3(0.55, 0.85, 1.0) : vec3(0.35, 1.0, 0.70);
+			vec3 fe = vec3(0.0);
+			// counter strip with a warm wash on the counter front
+			fe += tung * (band(fx, 0.12, 0.84, abu) * band(y, 1.02, 1.09, abv) * 1.5 + band(fx, 0.12, 0.84, abu) * band(y, 0.66, 1.02, abv) * 0.10);
+			if (nfeat > 1.5) {            // menu board: lit rectangle with text rows
+				vec2 mb = vec2((fx - 0.56) / 0.30, (y - 2.0) / 0.9);
+				float inb = band(mb.x, 0.0, 1.0, abu * 3.0) * band(mb.y, 0.0, 1.0, abv * 1.5);
+				float rows = 0.55 + 0.45 * step(0.45, fract(mb.y * 5.0));
+				fe += (kind < 0.6 ? sod : tung) * inb * rows * 1.2;
+			}
+			if (nfeat > 2.5) {            // vending / fridge light strip
+				float vend = band(fx, 0.10, 0.24, abu) * band(y, 0.85, 2.3, abv);
+				fe += ledc * vend * (0.9 + 0.3 * step(0.5, fract(y * 3.0)));
+			}
+			float dark_bay = step(0.18, hash12(bid + 91.0));                  // some shops are closed and dark inside
+			emit += (fe * 1.1 + tung * 0.018 * smoothstep(0.6, 3.3, y)) * open_i * dark_bay * (0.8 + 0.4 * hash12(bid + 3.0));
+			// roller shutters: dark ribs, a poster and grime
 			float rib = 0.55 + 0.45 * step(0.5, fract(y * 5.0));
-			albedo = mix(albedo, vec3(0.06, 0.06, 0.07) * rib * (0.7 + 0.6 * hash12(vec2(bidx, 9.0))), shop * shut);
+			vec3 shutc = vec3(0.06, 0.06, 0.07) * rib * (0.7 + 0.6 * hash12(vec2(bidx, 9.0))) * (0.6 + 0.6 * sn);
+			float poster = band(bf, 0.2, 0.42, abu) * band(y, 1.1, 2.1, abv) * step(0.45, hash12(bid + 52.0));
+			shutc = mix(shutc, sc * 0.12 * (0.5 + hash12(bid + 8.0)), poster);
+			albedo = mix(albedo, shutc, shop * shut);
 			rough = mix(rough, 0.45, shop * shut);
 			metal = mix(metal, 0.7, shop * shut);
-			// door: bright warm slot
-			emit += vec3(1.0, 0.72, 0.4) * 0.65 * door * (0.7 + 0.3 * smoothstep(0.0, 3.0, y));
-			albedo = mix(albedo, glass, door);
+			// mullions and posts: dark anodised metal
+			float fm = frame_m * (1.0 - riser);
+			albedo = mix(albedo, vec3(0.022, 0.024, 0.028), fm);
+			rough = mix(rough, 0.35, fm);
+			metal = mix(metal, 0.85, fm);
+			// recessed door: dark leaf behind the frame, a handle and a low warm spill on the floor
+			float inset = is_door * band(bf, 0.20, 0.80, abu) * band(y, 0.0, 3.05, abv);
+			float jamb = is_door * (band(bf, 0.20, 0.26, abu) + band(bf, 0.74, 0.80, abu)) * band(y, 0.0, 3.05, abv);
+			albedo = mix(albedo, glass_s, inset);
+			albedo = mix(albedo, vec3(0.012), jamb);
+			emit += gl_refl * (0.25 + 1.2 * gfr) * inset * (1.0 - jamb);
+			float handle = is_door * band(abs(bf - 0.5) * bw, 0.05, 0.09, amu) * band(y, 1.0, 1.9, abv);
+			emit += tung * 0.5 * handle * dark_bay;
+			emit += tung * 0.18 * door * (0.5 + 0.5 * smoothstep(0.0, 1.0, 1.0 - y)) * dark_bay;
 			// neon sign band with glyphs
 			vec3 nc = NEON[int(mod(rb0 * 4.0 + v_data.y, 4.0))];
 			float gcell = 0.62;
@@ -446,8 +487,9 @@ void fragment() {
 			flick *= 1.0 - 0.9 * step(0.992, hash11(floor(TIME * 8.0) + rb0 * 77.0));       // the odd dying tube
 			emit += nc * (gl * 3.0 + tube * 1.5) * flick * step(0.25, rb0);
 			albedo = mix(albedo, vec3(0.02), signb * 0.8);
-			// street spill on the base of the wall
-			emit += neon * 0.06 * exp(-y * 0.55) * (1.0 - open_shop);
+			// grime and wet streaks run down the stone below the sign, street spill on the base of the wall
+			albedo *= 1.0 - 0.35 * sn * (1.0 - open_shop) * smoothstep(3.5, 0.0, y);
+			emit += neon * 0.05 * exp(-y * 0.55) * (1.0 - open_shop);
 		}
 
 #endif

@@ -10,7 +10,7 @@ uniform vec4 light_rect = vec4(-352.0, -352.0, 704.0, 704.0);                   
 uniform sampler2D lot_map : filter_nearest, repeat_disable, hint_default_white;     // 16x16, r = 1 where a lot has a building
 uniform float mirror_amount : hint_range(0.0, 1.0) = 1.0;                             // 0 = opaque ground (no mirror pass)
 uniform float detail : hint_range(0.0, 1.0) = 1.0;
-uniform float ambient_boost = 0.07;                                                   // fake city bounce on the ground
+uniform float ambient_boost = 0.16;                                                   // fake city bounce on the ground (lifts the near field out of black)
 #ifndef LITE
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;   // holds the mirrored city (opaque pass)
 #endif
@@ -108,6 +108,7 @@ void fragment() {
 	vec3 emit = vec3(0.0);
 	float polish = 0.0;                                     // tyre-polished / oily patches
 	float flat_mask = 0.0;                                  // surfaces that are always glossy (water, metal)
+	float matte = 0.0;                                      // painted crosswalks / arrows: never mirror-like
 	vec3 slab_n = vec3(0.0);                                // analytic normal offset in world space: kerb bevel, rocking slabs (no screen-space derivatives)
 
 	if (sd < 0.0) {
@@ -127,7 +128,7 @@ void fragment() {
 		float tone = fine ? fbm2a(q * 0.16, 6.0, aa) : vn(q * 0.16, 6.0, aa);
 		float speck = mix(0.5, hash12(floor(q * 70.0)), resolve(0.014, aa));       // grit: only where single grains can be told apart
 		float patch_n = vnoise(q * 0.045 + 3.0);
-		vec3 asph = vec3(0.085, 0.090, 0.100) * (0.70 + 0.55 * tone) * (0.93 + 0.14 * speck);
+		vec3 asph = vec3(0.110, 0.116, 0.128) * (0.70 + 0.55 * tone) * (0.93 + 0.14 * speck);
 		asph *= mix(1.0, 0.62, smoothstep(0.62, 0.72, patch_n));                    // darker re-surfaced patches
 		float lane_w = (1.0 - junction) * (1.0 - smoothstep(0.6, 1.1, abs(abs(alat - 5.0) - 0.85)));
 		float lane_noise = fine ? vn(vec2(al * 0.7, lat * 3.0) + 5.0, 0.35, aa) : 0.5;
@@ -179,6 +180,7 @@ void fragment() {
 		pcol = mix(vec3(0.50, 0.50, 0.52), ycol, clamp(yellow / max(paint, 0.001), 0.0, 1.0));
 		float worn = 0.55 + 0.45 * vn(q * 3.1 + 17.0, 0.33, aa) * (0.6 + 0.4 * speck);
 		paint *= worn * 0.95;
+		matte = clamp(zebra + stop + arrow, 0.0, 1.0);
 		albedo = mix(albedo, pcol * 0.8, paint);
 		rough = mix(rough, 0.75, paint);
 
@@ -217,7 +219,7 @@ void fragment() {
 		float tv = mix(0.5, hash12(tid + 3.0), res_t);                                // per-slab tone, averaged away when slabs are sub-pixel
 		float tone = fbm2a(q * 0.3, 3.3, aa);
 		float grit = mix(0.5, hash12(floor(q * 55.0)), resolve(0.018, aa));                // aggregate: only where single grains are resolved
-		vec3 conc = mix(vec3(0.13, 0.135, 0.14), vec3(0.17, 0.165, 0.16), tv) * (0.75 + 0.5 * tone) * (0.93 + 0.14 * grit);
+		vec3 conc = mix(vec3(0.145, 0.15, 0.155), vec3(0.19, 0.182, 0.175), tv) * (0.75 + 0.5 * tone) * (0.93 + 0.14 * grit);
 		// stains and, in about one slab in eight, a hairline crack straight through the slab (it ends at the joints, like a real slab crack)
 		float stain = smoothstep(0.62, 0.8, vnoise(q * 0.55 + 31.0));
 		conc *= 1.0 - 0.45 * stain;
@@ -232,9 +234,21 @@ void fragment() {
 			crack = line_aa(across, wcr, aa);
 		}
 		conc *= 1.0 - 0.55 * crack * dk;
+		// repaired patches (a lighter, smoother square of fresh concrete) and drain grates near the kerb
+		float repair = smoothstep(0.70, 0.74, vnoise(q * 0.31 + 50.0)) * (1.0 - plz);
+		conc = mix(conc, conc * 0.72 + 0.012, repair);
+		float al_s = ax < az ? q.y : q.x;
+		float side_s = ax < az ? sign(ox) : sign(oz) + 5.0;
+		float gcell = floor(al_s / 13.0);
+		float gh_ = hash12(vec2(gcell, side_s) + 17.0);
+		float g_a = (gcell + 0.2 + 0.6 * hash12(vec2(gcell, side_s) + 4.0)) * 13.0;
+		float grate = step(0.45, gh_) * band(al_s, g_a - 0.5, g_a + 0.5, aa) * band(sd, 0.75, 1.45, aa) * (1.0 - plz);
+		float slats = mix(0.5, step(0.5, fract(al_s * 5.5)), resolve(0.18, aa));
 		vec3 stone = vec3(0.075, 0.08, 0.092) * (0.8 + 0.5 * tv) * (0.8 + 0.4 * tone);
 		albedo = mix(conc, stone, plz);
 		albedo *= (1.0 - 0.65 * joint) * slab_ao;
+		albedo = mix(albedo, vec3(0.018, 0.019, 0.021) * (0.5 + 0.9 * slats), grate);
+		flat_mask = max(flat_mask, grate * 0.55);
 		rough = mix(0.82, 0.55, plz);
 		porous = 0.55 * (1.0 - plz);
 		pool_bias += 0.12 * joint - 0.1;
@@ -290,6 +304,23 @@ void fragment() {
 	float thr = mix(0.90, 0.64, wet) - pool_bias;
 	float puddle = smoothstep(thr, thr + 0.07, pn) * smoothstep(0.15, 0.55, wet);
 	puddle = max(puddle, flat_mask * wet);
+	// litter in the gutter and along the kerb (paper, cans, a torn bag: tiny muted flecks, near the camera only)
+	if (fine && dist < 38.0 && sd > -1.2 && sd < 4.0) {
+		vec2 lq = q / 0.62;
+		vec2 lid = floor(lq);
+		float lh = hash12(lid + 3.3);
+		if (lh > 0.955) {
+			vec2 lo = (hash22(lid + 8.1) - 0.5) * 0.45;
+			vec2 lp = abs((fract(lq) - 0.5) - lo) * 0.62;
+			float ang = hash12(lid + 5.5) * 6.28;
+			float flk = band(lp.x * cos(ang) + lp.y * sin(ang), 0.0, 0.07, aa) * band(lp.y * cos(ang) - lp.x * sin(ang), 0.0, 0.045, aa);
+			vec3 lc = lh > 0.99 ? vec3(0.30, 0.28, 0.24) : (lh > 0.975 ? vec3(0.22, 0.05, 0.04) : vec3(0.06, 0.09, 0.07));
+			albedo = mix(albedo, lc, flk * 0.9);
+			rough = mix(rough, 0.6, flk);
+		}
+	}
+	// the dark wet halo around a puddle (damp ground stays darker for a few centimetres)
+	albedo *= 1.0 - 0.22 * (1.0 - puddle) * smoothstep(thr - 0.08, thr, pn) * smoothstep(0.15, 0.55, wet);
 
 	// rain ripples live on puddles
 	vec2 rp = vec2(0.0);
@@ -310,7 +341,7 @@ void fragment() {
 	// lamp / neon pools baked into the light map: diffuse light on the ground
 	vec2 luv = (q - light_rect.xy) / light_rect.zw;
 	vec3 pool = texture(light_map, luv).rgb;
-	emit += albedo * pool * 1.4;
+	emit += albedo * pool * 1.7;
 
 	// ---------------------------------------------------------------------------------------------------------
 	// normal: the flat ground plus ripples, slab rocking and the analytic kerb slope. Nothing is taken from screen-space derivatives
@@ -331,7 +362,8 @@ void fragment() {
 	float patchy = vn(q * 0.9 + 5.0, 1.1, aa) * 0.65 + vnoise(q * 0.21 + 2.0) * 0.35;
 	float gloss = wet * (1.0 - porous) * (1.0 - smoothstep(0.1, 0.55, rough));
 	gloss *= mix(0.45, 1.0, smoothstep(0.25, 0.75, patchy));
-	gloss = max(gloss, puddle * wet);
+	gloss *= 1.0 - 0.85 * matte;
+	gloss = max(gloss, puddle * wet * (1.0 - 0.6 * matte));
 	float refl = clamp(fres * gloss * 1.15, 0.0, 0.92) * mirror_amount;
 
 	vec3 rc = vec3(0.0);
@@ -352,6 +384,21 @@ void fragment() {
 		}
 		rc /= ws;
 	}
+#else
+	if (refl > 0.004) {
+		// LOW tier: baked wet look without the screen copy: a fresnel sky gradient (warm band at the horizon) plus the neon and lamp
+		// pools stretched toward the viewer as streaks
+		vec3 Rl = reflect(-V, Nw);
+		float sk = clamp(Rl.y, 0.0, 1.0);
+		rc = mix(vec3(0.075, 0.095, 0.130), vec3(0.018, 0.028, 0.052), sqrt(sk)) + vec3(0.20, 0.09, 0.13) * exp(-sk * 7.0) * 0.55;
+		vec2 away_l = -normalize(toc.xz + vec2(1e-5));
+		vec3 stk = vec3(0.0);
+		for (int k = 1; k <= 4; k++) {
+			float kk = float(k) * 2.6 * (1.0 + 2.0 * (1.0 - ndv));
+			stk += texture(light_map, (q + away_l * kk - light_rect.xy) / light_rect.zw).rgb * (1.2 - 0.2 * float(k));
+		}
+		rc += stk * 0.55 * (1.0 + puddle);
+	}
 #endif
 
 	// moon glint on the water
@@ -370,7 +417,8 @@ void fragment() {
 	emit += vec3(1.0, 0.72, 0.42) * glare * 0.22 * gloss * fres * 2.5 * (1.0 - 0.6 * puddle);
 
 	// fake city bounce keeps asphalt readable between the lamps
-	emit += albedo * vec3(0.55, 0.75, 1.0) * ambient_boost;
+	float lift_var = 0.625 + 0.5 * vnoise(q * 0.035 + 13.0) + 0.25 * vnoise(q * 0.2 + 2.0);
+	emit += (albedo + vec3(0.022, 0.028, 0.036)) * vec3(0.55, 0.75, 1.0) * ambient_boost * lift_var * (1.0 + 0.5 * (1.0 - smoothstep(0.0, 45.0, dist)));
 
 	ALBEDO = albedo * (1.0 - refl);
 	ROUGHNESS = rough;

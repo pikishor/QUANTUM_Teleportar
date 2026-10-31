@@ -221,6 +221,20 @@ func _pause_dead_and_victory() -> void:
 	await e.frames(3)
 
 
+## The same for the articulated model: the hull points of the listed bones (CharacterRig.THIGH_L ..., all when empty) at the current pose.
+func _bone_heights(b: PlayerBody, bones := PackedInt32Array()) -> Vector3:
+	var lo := 1e9
+	var hi := -1e9
+	var above := 0
+	var pts := b.rig.world_points(bones)
+	for v in pts:
+		lo = minf(lo, v.y)
+		hi = maxf(hi, v.y)
+		if v.y > 0.0:
+			above += 1
+	return Vector3(lo, hi, float(above) / maxf(1.0, float(pts.size())))
+
+
 ## Height of every vertex of the body's parts in world space, as Vector3(lowest, highest, share of vertices above the floor (y > 0)).
 func _vertex_heights(meshes: Array) -> Vector3:
 	var lo := 1e9
@@ -252,12 +266,13 @@ func _death_in_the_air_and_the_corpse() -> void:
 	TestLib.check(y_death > 0.8 and p.global_position.y < 0.05 and p.is_on_floor(), "killed in mid-air (y %.2f): the body falls to the ground (y %.3f, on floor %s)" % [y_death, p.global_position.y, str(p.is_on_floor())])
 	# the corpse lies on the floor: nothing buried, nothing floating, no limb missing under the asphalt
 	TestLib.check(b.global_basis.y.y < 0.25, "the corpse lies down (up axis %s)" % str(b.global_basis.y))
-	var legs := _vertex_heights([b.leg_l, b.leg_r])
-	var parts := _vertex_heights(b._parts)
+	TestLib.check(b.rig != null, "the hero is the articulated model")
+	var legs := _bone_heights(b, PackedInt32Array([CharacterRig.THIGH_L, CharacterRig.SHIN_L, CharacterRig.FOOT_L, CharacterRig.THIGH_R, CharacterRig.SHIN_R, CharacterRig.FOOT_R]))
+	var parts := _bone_heights(b)
 	TestLib.check(parts.x > -0.03 and parts.x < 0.06, "the corpse rests on the floor: its lowest point is at y = %.3f (floor top at 0)" % parts.x)
 	TestLib.check(legs.z > 0.99 and legs.x > -0.03, "the legs are not buried in the ground (%.0f %% of their vertices above the floor, lowest %.3f)" % [legs.z * 100.0, legs.x])
 	TestLib.check(parts.y < 1.25, "the corpse is not standing or propped up: highest point %.2f m" % parts.y)
-	var left := _vertex_heights([b.leg_l])
+	var left := _bone_heights(b, PackedInt32Array([CharacterRig.SHIN_L, CharacterRig.FOOT_L]))
 	TestLib.check(left.x < 0.2, "a leg lies on the ground instead of floating above it (lowest vertex of the lower leg at %.3f)" % left.x)
 	Game.do_respawn()
 	await e.frames(3)

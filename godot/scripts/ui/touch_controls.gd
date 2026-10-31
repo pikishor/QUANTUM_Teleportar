@@ -26,9 +26,12 @@ const BUTTONS := [
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
+const LONG_PRESS := 0.6             ## seconds: holding the FPS box this long toggles the error panel (a short tap cycles the graphics tier)
+const ERROR_ROWS := 9               ## newest error lines shown in the panel
 
 var controls_on := false            ## the touch controls are drawn and active
 var perf_on := false                ## the perf readout is drawn (always with the controls, or with --perf)
+var errors_on := false              ## the on-device error panel is shown (long-press the FPS box)
 
 var _canvas: Control
 var _stick_id := -1
@@ -45,6 +48,9 @@ var _avg_fps := 0.0
 var _min_fps := 0.0
 var _use_near := false
 var _use_t := 0.0
+var _perf_finger := -1              ## the finger held on the FPS box, or -1
+var _perf_held := 0.0
+var _perf_long := false             ## the current press already toggled the panel (so its release does not cycle the tier)
 
 
 func _ready() -> void:
@@ -62,11 +68,23 @@ func _ready() -> void:
 	set_process(controls_on or perf_on)
 
 
+## A held finger never survives losing the app (no touch-up event comes): everything is let go when the app is paused or loses focus.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		release_all()
+
+
 func _exit_tree() -> void:
 	release_all()
 
 
 func _process(delta: float) -> void:
+	if _perf_finger != -1 and not _perf_long:
+		_perf_held += delta / maxf(Engine.time_scale, 0.05)
+		if _perf_held >= LONG_PRESS:
+			_perf_long = true
+			errors_on = not errors_on
+			_canvas.queue_redraw()
 	_win_t += delta
 	_win_n += 1
 	_win_worst = maxf(_win_worst, delta)
@@ -97,6 +115,8 @@ func release_all() -> void:
 	_held.clear()
 	_stick_id = -1
 	_look_id = -1
+	_perf_finger = -1
+	_perf_long = false
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -119,8 +139,9 @@ func _input(event: InputEvent) -> void:
 
 func touch_down(id: int, pos: Vector2) -> void:
 	if perf_visible() and _perf_box().has_point(pos):
-		Game.set_quality((Game.quality + 1) % 3)
-		_perf_t = 0.0
+		_perf_finger = id                               # decided on release: a tap cycles the tier, a long press toggles the error panel
+		_perf_held = 0.0
+		_perf_long = false
 		return
 	if not controls_on or not Game.is_playing():
 		return
@@ -149,6 +170,13 @@ func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
 
 
 func touch_up(id: int) -> void:
+	if id == _perf_finger:
+		_perf_finger = -1
+		if not _perf_long:
+			Game.set_quality((Game.quality + 1) % 3)
+			_perf_t = 0.0
+		_perf_long = false
+		return
 	if id == _stick_id:
 		_stick_id = -1
 		_stick_pos = _stick_origin
@@ -273,6 +301,8 @@ func _draw_ui() -> void:
 		var box := _perf_box()
 		c.draw_rect(box, Color(0, 0, 0, 0.45))
 		c.draw_multiline_string(font, box.position + Vector2(8, 18) * s, _perf_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(14 * s), -1, Color(0.85, 1, 0.9, 0.95))
+	if perf_visible() and errors_on:
+		_draw_errors(c, font, s)
 	if not controls_on or Game.state != &"play":
 		return
 	# move stick: a hint ring while idle, base and thumb while a finger is down
@@ -310,3 +340,21 @@ func _draw_ui() -> void:
 	c.draw_arc(pc, pr, 0.0, TAU, 28, Color(1, 1, 1, 0.45), 2.0 * s, true)
 	c.draw_rect(Rect2(pc + Vector2(-8, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
 	c.draw_rect(Rect2(pc + Vector2(3, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
+
+
+## The on-device error log (Dev.errors, also in user://last_errors.txt): the newest lines, small, under the perf readout.
+func _draw_errors(c: Control, font: Font, s: float) -> void:
+	var lines: PackedStringArray = Dev.error_lines()
+	var box := _perf_box()
+	var vp := _vp_size()
+	var rect := Rect2(Vector2(box.position.x, box.end.y + 6.0 * s), Vector2(minf(vp.x - box.position.x - 12.0 * s, 620.0 * s), (ERROR_ROWS * 15.0 + 22.0) * s))
+	c.draw_rect(rect, Color(0.05, 0.0, 0.0, 0.62))
+	c.draw_rect(rect, Color(1.0, 0.35, 0.3, 0.6), false, 1.0 * s)
+	var head := "ERRORS %d  (long-press FPS to hide, file: last_errors.txt)" % Dev.errors.total
+	c.draw_string(font, rect.position + Vector2(6.0, 14.0) * s, head, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 12.0 * s, int(11.0 * s), Color(1.0, 0.7, 0.6, 0.95))
+	if lines.is_empty():
+		c.draw_string(font, rect.position + Vector2(6.0, 32.0) * s, "no errors", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(11.0 * s), Color(0.6, 1.0, 0.7, 0.9))
+		return
+	var first := maxi(0, lines.size() - ERROR_ROWS)
+	for i in range(first, lines.size()):
+		c.draw_string(font, rect.position + Vector2(6.0, 30.0 + (i - first) * 15.0) * s, lines[i], HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 12.0 * s, int(10.0 * s), Color(1, 0.92, 0.88, 0.92))

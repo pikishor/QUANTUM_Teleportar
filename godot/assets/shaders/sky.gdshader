@@ -9,10 +9,11 @@ uniform vec3 moon_dir = vec3(-0.43, 0.46, -0.78);
 uniform float moon_radius = 0.045;                        // angular radius in radians
 uniform vec3 moon_color : source_color = vec3(0.70, 0.82, 1.0);
 uniform vec3 zenith_color : source_color = vec3(0.003, 0.008, 0.018);
-uniform vec3 mid_color : source_color = vec3(0.020, 0.040, 0.070);
+uniform vec3 mid_color : source_color = vec3(0.045, 0.062, 0.100);
 uniform vec3 horizon_color : source_color = vec3(0.20, 0.27, 0.34);
 uniform vec3 glow_color : source_color = vec3(0.95, 0.74, 0.55);       // light pollution (warm, desaturated)
 uniform vec3 neon_glow : source_color = vec3(0.50, 0.42, 0.66);
+uniform vec3 band_color : source_color = vec3(0.95, 0.30, 0.55);        // magenta / sodium light-pollution band along the horizon
 uniform vec3 ground_color : source_color = vec3(0.018, 0.024, 0.034);
 uniform float cloud_cover : hint_range(0.0, 1.0) = 0.78;
 uniform float star_amount : hint_range(0.0, 1.0) = 0.55;
@@ -43,6 +44,9 @@ void sky() {
 	col = mix(col, zenith_color, smoothstep(0.20, 0.95, ay));
 	float hg = exp(-ay * 5.5);
 	col += glow_color * 0.060 * hg * hg + neon_glow * 0.018 * hg;
+	// light-pollution band: the city lights the underside of the haze, warm at the horizon, magenta a little higher (feeds ambient and reflections too)
+	float pband = exp(-pow((ay - 0.07) * 6.5, 2.0));
+	col += band_color * 0.085 * pband + glow_color * 0.060 * exp(-ay * 9.0) + band_color * 0.020 * exp(-ay * 2.2);
 	vec3 below = ground_color + glow_color * 0.012;
 	col = mix(col, below, smoothstep(0.0, -0.05, y));
 

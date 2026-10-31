@@ -316,9 +316,9 @@ func _reflection() -> void:
 		return
 	var mirror := city.get_mirror_root()
 	var n := proxy.copy_count()
-	TestLib.check(n >= 3, "the world's mirror pass holds the hero's reflection: %d meshes (body and both legs)" % n)
-	var src := p.body.upper.find_child("Body", true, false) as MeshInstance3D
-	var copy := mirror.get_node_or_null("Reflection_Body") as MeshInstance3D
+	TestLib.check(n >= 1, "the world's mirror pass holds the hero's reflection: %d mesh (the articulated body is one mesh)" % n)
+	var src := p.body.rig.rest_mesh if p.body.rig != null else (p.body.upper.find_child("Body", true, false) as MeshInstance3D)    # the skinned model is reflected through its unskinned rest-pose twin
+	var copy := mirror.get_node_or_null("Reflection_%s" % (src.name if src != null else "Body")) as MeshInstance3D
 	TestLib.check(src != null and copy != null and copy.mesh == src.mesh, "the reflection shares the original's mesh (no extra mesh memory)")
 	if src != null and copy != null:
 		var a := src.global_transform.origin
@@ -432,10 +432,7 @@ func _fx_after_burst() -> void:
 		if c is CPUParticles3D and (c as CPUParticles3D).visible:
 			live += 1
 	TestLib.check(live == 0, "a finished burst hides its emitter again (%d still visible)" % live)
-	var lights := 0
-	for c in FX.get_children():
-		if c is OmniLight3D and (c as OmniLight3D).visible:
-			lights += 1
+	var lights := 1 if FX.explosions.light.visible else 0
 	TestLib.check(lights == 0, "a finished blast switches its light off (%d lights still on)" % lights)
 
 

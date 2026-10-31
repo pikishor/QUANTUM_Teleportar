@@ -44,7 +44,11 @@ var wetness_target := 0.0
 var post: PostLayer
 var rainfield: RainField
 
+var hurt_level := 0.0                       ## 0..1: a short chromatic-aberration kick after a hit (never accumulates, recovers in about 0.35 s)
+var dead_level := 0.0                       ## 0..1: eased desaturation while the player is dead (at most 35 % of the colour)
+
 var _globals_dirty := true
+var _dead_target := 0.0
 
 
 func _ready() -> void:
@@ -91,6 +95,25 @@ func set_quality(level: int) -> void:
 		rainfield.set_quality(quality)
 
 
+## A hit landed: kicks the chromatic aberration up to its cap and lets it fall back at once. Repeated hits keep it at the cap, they never stack higher.
+func hurt_pulse(strength := 1.0) -> void:
+	hurt_level = maxf(hurt_level, clampf(strength, 0.0, 1.0))
+
+
+## The player died (true) or lives again (false): the colour drains by at most 35 % and returns by itself.
+func set_dead(on: bool) -> void:
+	_dead_target = 1.0 if on else 0.0
+
+
+## Drop every transient feedback effect at once (state changes: respawn, menu, new sector).
+func clear_feedback() -> void:
+	hurt_level = 0.0
+	dead_level = 0.0
+	_dead_target = 0.0
+	if post:
+		post.set_feedback(0.0, 1.0)
+
+
 ## Designer access to every post effect, for example set_effect(&"grain_amount", 0.03). Names are the uniforms of
 ## post_film.gdshader; the quality tier still masks effects the device cannot afford.
 func set_effect(effect: StringName, value: Variant) -> void:
@@ -118,10 +141,21 @@ func _process(delta: float) -> void:
 		_globals_dirty = true
 	if _globals_dirty:
 		_push_weather()
+	_feedback_step(delta)
 	var cam := _camera()
 	rainfield.update(delta, cam, rain_now)
 	if cam != null and rainfield.is_visible_in_tree():
 		post.set_slant(rainfield.screen_slant(cam))
+
+
+func _feedback_step(delta: float) -> void:
+	if hurt_level <= 0.0 and dead_level == _dead_target:
+		return
+	var real := delta / maxf(Engine.time_scale, 0.05)             # real seconds: a slow-motion death never stretches the recovery
+	hurt_level = maxf(0.0, hurt_level - real * 3.0)
+	dead_level = move_toward(dead_level, _dead_target, real * 2.5)
+	if post:
+		post.set_feedback(hurt_level * PostLayer.FB_CA_MAX, 1.0 - dead_level * PostLayer.FB_SAT_LOSS_MAX)
 
 
 func _physics_process(_delta: float) -> void:

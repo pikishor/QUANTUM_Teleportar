@@ -22,6 +22,7 @@ const RADIUS_HYDRANTS := 110.0
 const RADIUS_BARRIERS := 170.0
 const RADIUS_PLAZAS := 240.0
 const RADIUS_VENTS := 120.0
+const RADIUS_PLANTERS := 150.0
 
 const EM_LAMP := 0.15
 const EM_FLASHER := 0.45
@@ -197,6 +198,17 @@ static func barrier_mesh() -> ArrayMesh:
 		b.box(Vector3(0, 0.62, z0 + 0.3), Vector3(0.33, 0.14, 0.58), c)
 	b.uv2 = Vector2(0.0, 0.3)
 	b.box(Vector3(0, 0.9, 0), Vector3(0.14, 0.12, 0.14), Color(1.0, 0.5, 0.05, EM_FLASHER))
+	return _finish(b)
+
+
+## Concrete planter box with shrubs: low street cover on the sidewalks.
+static func planter_mesh() -> ArrayMesh:
+	var b := _mb(0.0, 0.8)
+	b.box(Vector3(0, 0.42, 0), Vector3(2.2, 0.84, 0.9), Color(0.17, 0.17, 0.175, 0.0))
+	b.box(Vector3(0, 0.86, 0), Vector3(2.3, 0.08, 1.0), Color(0.24, 0.24, 0.245, 0.0))
+	b.uv2 = Vector2(0.0, 0.9)
+	for x in [-0.6, 0.45]:
+		b.sphere(Vector3(x, 1.0, 0.0), Vector3(0.55, 0.32, 0.38), 6, 3, Color(0.03, 0.09, 0.045, 0.0))
 	return _finish(b)
 
 
@@ -400,6 +412,7 @@ func _place_lot_props(layout: CityLayout) -> void:
 	var dump: Array = []
 	var trash: Array = []
 	var kiosks: Array = []
+	var planters: Array = []
 	for lot: CityLayout.Lot in layout.lots:
 		var bx := -CityLayout.HALF + (lot.block_i + 0.5) * CityLayout.PITCH
 		var bz := -CityLayout.HALF + (lot.block_j + 0.5) * CityLayout.PITCH
@@ -418,6 +431,10 @@ func _place_lot_props(layout: CityLayout) -> void:
 			var wz := lot.cz + sz * lot.d * 0.5
 			var px := lot.cx + rng.randf_range(-lot.w * 0.35, lot.w * 0.35)
 			trash.append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU), Vector3(px, 0.0, wz + sz * 0.7)), Color(rng.randf(), 0.0, 0.0, 1.0)])
+		if rng.randf() < 0.5:
+			# a planter box on the sidewalk in front of the shopfront: cover for the street fights
+			var wz3 := lot.cz + sz * (lot.d * 0.5 + 2.6)
+			planters.append([Transform3D(Basis(Vector3.UP, 0.0 if rng.randf() < 0.5 else PI), Vector3(lot.cx + rng.randf_range(-lot.w * 0.4, lot.w * 0.4), 0.0, wz3)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		if rng.randf() < 0.11 and lot.h < 50.0:
 			# lit kiosk on the sidewalk in front, facing the street
 			var wz2 := lot.cz + sz * (lot.d * 0.5 + 1.6)
@@ -426,6 +443,7 @@ func _place_lot_props(layout: CityLayout) -> void:
 	add_family("Dumpsters", dumpster_mesh(), dump, false, false, 0, RADIUS_DUMPSTERS)
 	add_family("Trash", trash_mesh(), trash, false, false, 1, RADIUS_TRASH)
 	add_family("Kiosks", kiosk_mesh(), kiosks, false, false, 0, RADIUS_KIOSKS)
+	add_family("Planters", planter_mesh(), planters, false, false, 0, RADIUS_PLANTERS)
 	for k in kiosks.size():
 		var xf: Transform3D = kiosks[k][0]
 		glow_add(xf.origin + xf.basis * Vector3(0.0, 1.4, 1.0), Color(0.9, 0.95, 1.0, 0.8), 1, 3.2, 0.0, rng.randf())
@@ -491,4 +509,9 @@ func _place_vents() -> void:
 		items.append([Transform3D(Basis(Vector3.UP, theta), pos), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		vents.append(pos)
 		glow_add(pos + Vector3(0, 0.15, 0), Color(1.0, 0.5, 0.2, 0.8), 0, 2.6, 0.0, rng.randf())
+	# a few fixed vents along the spawn avenue so the first street already carries visible steam
+	for sp: Vector3 in [Vector3(-52.0, 0.0, -7.4), Vector3(-14.0, 0.0, 8.0), Vector3(-66.0, 0.0, 8.4), Vector3(-34.0, 0.0, -8.2)]:
+		items.append([Transform3D(Basis(Vector3.UP, 0.0), sp), Color(rng.randf(), 0.0, 0.0, 1.0)])
+		vents.append(sp)
+		glow_add(sp + Vector3(0, 0.15, 0), Color(1.0, 0.5, 0.2, 0.8), 0, 2.6, 0.0, rng.randf())
 	add_family("VentGrates", vent_mesh(), items, false, false, 0, RADIUS_VENTS)

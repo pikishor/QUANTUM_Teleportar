@@ -20,6 +20,7 @@ var _pool := {}                      ## kind -> Array[Vehicle] (inactive)
 var _stream_t := 0.0
 var _clock := 0.0
 var _respawns: Array[Dictionary] = []  ## {t: due time, starter: bool, pos: where it stood, h: heading}
+var _wrecks: Array[Dictionary] = []    ## {car: Vehicle, t: clock when the husk is cleared}: exploded cars standing as dark husks until their replacement is due
 var _ram_cd := {}                    ## enemy instance id -> clock when it can be hit again
 var _ram_t := 0.0
 
@@ -154,9 +155,14 @@ func pending_respawns() -> int:
 	return _respawns.size()
 
 
+## Husks standing right now (exploded cars that have not been replaced yet).
+func wreck_count() -> int:
+	return _wrecks.size()
+
+
 ## Cars created so far (live and pooled), for the node-count tests.
 func total_nodes() -> int:
-	var n := list.size()
+	var n := list.size() + _wrecks.size()
 	for k: StringName in _pool:
 		n += (_pool[k] as Array).size()
 	return n
@@ -171,6 +177,7 @@ func _reset_all() -> void:
 	driven = null
 	for v in list.duplicate():
 		_release(v)
+	_clear_wrecks()
 	_respawns.clear()
 	_ram_cd.clear()
 	_clock = 0.0
@@ -204,8 +211,53 @@ func on_destroyed(v: Vehicle) -> void:
 		driven = null
 	if v == starter:
 		starter = null
-	_release(v)
+	list.erase(v)
+	v.is_starter = false
+	v.become_wreck()
+	_wrecks.append({"car": v, "t": _clock + respawn_time})
+	while _wrecks.size() > VehicleSpecs.MAX_WRECKS:
+		_release_wreck(0)
 	_respawns.append({"t": _clock + respawn_time, "starter": was_starter, "pos": where, "h": h})
+
+
+func _release_wreck(i: int) -> void:
+	var v := _wrecks[i]["car"] as Vehicle
+	_wrecks.remove_at(i)
+	if is_instance_valid(v):
+		_release(v)
+
+
+func _clear_wrecks() -> void:
+	while not _wrecks.is_empty():
+		_release_wreck(_wrecks.size() - 1)
+
+
+func _tick_wrecks(ppos: Vector3, far_only: bool) -> void:
+	var i := _wrecks.size() - 1
+	while i >= 0:
+		var v := _wrecks[i]["car"] as Vehicle
+		var gone := not is_instance_valid(v) or (not far_only and _clock >= float(_wrecks[i]["t"]))
+		if not gone and far_only and ppos.is_finite() and _dist(v, ppos) > VehicleSpecs.DESPAWN_RADIUS:
+			gone = true
+		if gone:
+			_release_wreck(i)
+		i -= 1
+
+
+## A car that left the map, or whose position broke (NaN), is put back inside the borders; the driven one keeps its camera and the player is never stranded.
+func _sanity() -> void:
+	var lim := Game.HALF + 30.0
+	for v in list:
+		var p := v.global_position
+		if not p.is_finite():
+			p = VehicleSpecs.starter_pos()
+		if absf(p.x) > lim or absf(p.z) > lim or absf(p.y) > 5.0:
+			p = Vector3(clampf(p.x, -lim + 5.0, lim - 5.0), 0.0, clampf(p.z, -lim + 5.0, lim - 5.0))
+		else:
+			continue
+		v.global_position = p
+		v.vel = Vector3.ZERO
+		v.speed = 0.0
 
 
 func _release(v: Vehicle) -> void:
@@ -255,10 +307,13 @@ func _physics_process(delta: float) -> void:
 		if _ram_t <= 0.0:
 			_ram_t = 0.05
 			_ram(driven)
+	_sanity()
 	_stream_t -= delta
 	if _stream_t <= 0.0:
 		_stream_t = stream_every
 		_stream()
+		_tick_wrecks(_player_pos(), true)
+	_tick_wrecks(Vector3.INF, false)
 	_tick_respawns()
 
 

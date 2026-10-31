@@ -144,6 +144,55 @@ static func billboard_mesh() -> ArrayMesh:
 	return b.build(null, true, true)
 
 
+## Low parapet / cover wall segment (3 m): concrete with a coping, a place to take cover.
+static func cover_wall_mesh() -> ArrayMesh:
+	var b := _mb(0.0, 0.85)
+	b.box(Vector3(0, 0.55, 0), Vector3(3.0, 1.1, 0.3), Color(0.15, 0.15, 0.16, 0.0))
+	b.box(Vector3(0, 1.13, 0), Vector3(3.1, 0.1, 0.42), Color(0.22, 0.22, 0.23, 0.0))
+	b.box(Vector3(0, 0.3, 0.16), Vector3(2.9, 0.04, 0.02), Color(0.06, 0.06, 0.065, 0.0), false)
+	return b.build(null, true, true)
+
+
+## A pipe run on stands with an elbow rising into a vent stack.
+static func pipes_mesh() -> ArrayMesh:
+	var b := _mb(0.6, 0.55)
+	var pipe := Color(0.14, 0.14, 0.15, 0.0)
+	var lag := Color(0.30, 0.29, 0.27, 0.0)
+	b.strut(Vector3(-2.0, 0.62, -0.2), Vector3(1.6, 0.62, -0.2), 0.16, pipe, true)
+	b.strut(Vector3(-2.0, 0.62, 0.22), Vector3(1.6, 0.62, 0.22), 0.12, lag, true)
+	b.cylinder(Vector3(1.6, 0.62, -0.2), 0.09, 1.3, 6, pipe, 0.08, true)
+	b.sphere(Vector3(1.6, 2.0, -0.2), Vector3(0.2, 0.1, 0.2), 6, 2, Color(0.08, 0.08, 0.09, 0.0))
+	for x in [-1.6, 0.0, 1.2]:
+		b.box(Vector3(x, 0.3, 0.0), Vector3(0.12, 0.6, 0.7), Color(0.07, 0.07, 0.075, 0.0), false)
+	return b.build(null, true, true)
+
+
+## Skylight: a kerb with a pitched glass roof that leaks a faint cold light from the rooms below.
+static func skylight_mesh() -> ArrayMesh:
+	var b := _mb(0.0, 0.7)
+	b.box(Vector3(0, 0.2, 0), Vector3(2.4, 0.4, 1.7), Color(0.12, 0.12, 0.13, 0.0))
+	b.uv2 = Vector2(0.3, 0.1)
+	var profile := PackedVector2Array([Vector2(-1.05, 0.4), Vector2(1.05, 0.4), Vector2(0.3, 0.95), Vector2(-0.3, 0.95)])
+	b.prism(profile, -0.75, 0.75, Color(0.025, 0.09, 0.10, EM_GLOW))
+	b.uv2 = Vector2(0.0, 0.7)
+	for x in [-0.55, 0.0, 0.55]:
+		b.box(Vector3(x, 0.7, 0.0), Vector3(0.05, 0.6, 1.55), Color(0.03, 0.03, 0.035, 0.0), false)
+	return b.build(null, true, true)
+
+
+## Rooftop HVAC unit: louvred housing, a fan grille on top and a duct stub.
+static func hvac_mesh() -> ArrayMesh:
+	var b := _mb(0.5, 0.6)
+	b.box(Vector3(0, 0.6, 0), Vector3(2.4, 1.2, 2.4), Color(0.18, 0.185, 0.19, 0.0))
+	b.box(Vector3(0, 1.22, 0), Vector3(2.5, 0.06, 2.5), Color(0.10, 0.10, 0.105, 0.0))
+	b.cylinder(Vector3(0.3, 1.25, 0.2), 0.8, 0.12, 10, Color(0.03, 0.03, 0.035, 0.0), 0.8)
+	var dark := Color(0.03, 0.03, 0.035, 0.0)
+	for k in 5:
+		b.quad(Vector3(1.21, 0.15 + k * 0.2, -1.0), Vector3(1.21, 0.15 + k * 0.2, 1.0), Vector3(1.21, 0.27 + k * 0.2, 1.0), Vector3(1.21, 0.27 + k * 0.2, -1.0), Vector3.RIGHT, dark)
+	b.strut(Vector3(-1.2, 0.6, 0.0), Vector3(-2.2, 0.6, 0.0), 0.5, Color(0.12, 0.12, 0.125, 0.0), true)
+	return b.build(null, true, true)
+
+
 # --- placement -------------------------------------------------------------------------------------------------------------
 
 ## Facade bay centre (metres along the wall from its left edge viewed from outside) -> world offset from the lot centre.
@@ -174,6 +223,10 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 	var masts: Array = []
 	var houses: Array = []
 	var boards: Array = []
+	var covers: Array = []
+	var pipes: Array = []
+	var skylights: Array = []
+	var hvacs: Array = []
 	var reserved_centre := Vector2.INF
 	for b in buildings:
 		reserved_centre = Vector2.INF
@@ -256,6 +309,25 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 			var p3 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.2, reserved_centre)
 			if p3 != Vector2.INF:
 				tanks.append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU), Vector3(p3.x, roof_y, p3.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
+		# more roof families on every roof class: HVAC units, pipe runs, skylights and low cover walls
+		if rng.randf() < 0.55:
+			var ph := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.4, reserved_centre)
+			if ph != Vector2.INF:
+				hvacs.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 4) * PI * 0.5), Vector3(ph.x, roof_y, ph.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
+		if rng.randf() < 0.55:
+			var pp := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.6, reserved_centre)
+			if pp != Vector2.INF:
+				pipes.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 4) * PI * 0.5), Vector3(pp.x, roof_y, pp.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
+		if rng.randf() < 0.5:
+			var ps := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.0, reserved_centre)
+			if ps != Vector2.INF:
+				skylights.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 2) * PI * 0.5), Vector3(ps.x, roof_y, ps.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
+		var n_cover := clampi(int(round((rx1 - rx0) * (rz1 - rz0) / 220.0)), 1, 3)
+		for k in n_cover:
+			if rng.randf() < 0.75:
+				var pc := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.4, reserved_centre)
+				if pc != Vector2.INF:
+					covers.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 4) * PI * 0.5 + rng.randf_range(-0.12, 0.12)), Vector3(pc.x, roof_y, pc.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		var want_mast := 0.85 if lot.h >= 62.0 else (0.30 if lot.h >= 28.0 else 0.12)
 		if rng.randf() < want_mast:
 			var p4 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 2.2, reserved_centre)
@@ -280,6 +352,10 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 	props.add_family("FireEscapes", fire_escape_mesh(), fire, false, false, 1, 170.0)
 	props.add_family("BladeSigns", blade_mesh(), blades, true, false, 0, 270.0)
 	props.add_family("RoofAC", ac_mesh(), ac, false, false, 0, 230.0)
+	props.add_family("RoofVents", hvac_mesh(), hvacs, false, false, 0, 210.0)
+	props.add_family("RoofPipes", pipes_mesh(), pipes, false, false, 1, 180.0)
+	props.add_family("RoofSkylights", skylight_mesh(), skylights, false, false, 1, 190.0)
+	props.add_family("RoofCover", cover_wall_mesh(), covers, false, false, 0, 230.0)
 	props.add_family("RoofTanks", tank_mesh(), tanks, false, false, 0, 270.0)
 	props.add_family("RoofMasts", mast_mesh(), masts, false, false, 0, 330.0)
 	props.add_family("RoofHouses", stair_house_mesh(), houses, false, false, 0, 250.0)

@@ -344,9 +344,10 @@ func _operative() -> void:
 	for i in 300:
 		await e.frames(1)
 		if o.leg_l != null:
-			leg_swing = maxf(leg_swing, absf(o.leg_l.rotation.x))
+			leg_swing = maxf(leg_swing, o.leg_l.basis.get_rotation_quaternion().get_angle())
 	TestLib.check(p.hp < 1000.0, "an operative's burst hit the player (hp %.1f)" % p.hp)
 	TestLib.check(leg_swing > 0.05, "the legs swing while it moves (%.2f rad)" % leg_swing)
+	TestLib.check(o.rig != null and o.rig.skeleton.get_bone_pose(o.rig.skeleton.find_bone("ShinL")).basis.get_euler().x != 0.0 or o.rig == null, "the knees bend (articulated shins)")
 	TestLib.check(absf(o.global_position.y) < 0.05, "an operative stays on the ground")
 	# calls for help
 	mgr.clear()
@@ -536,7 +537,8 @@ func _lifecycle() -> void:
 	TestLib.check(mgr.active_bolts() == 1, "a bolt in flight")
 	Game.next_sector.emit()
 	TestLib.check(mgr.active_bolts() == 0, "next sector: bolts cleared")
-	TestLib.check(mgr.alive_count() == n1, "next sector: patrols rebuilt (%d)" % mgr.alive_count())
+	# the patrol spots are random road points and only the groups within 150 m of the player stream in, so the count differs from run to run (it depends on how much of the world RNG was used before)
+	TestLib.check(mgr.alive_count() > 0 and mgr.alive_count() <= mgr.cap() - 2 and absi(mgr.alive_count() - n1) <= 3, "next sector: patrols rebuilt (%d, was %d)" % [mgr.alive_count(), n1])
 	# not playing: nothing moves
 	Game.state = &"paused"
 	var d: Drone = null

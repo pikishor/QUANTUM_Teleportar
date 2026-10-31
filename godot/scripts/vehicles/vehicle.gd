@@ -18,7 +18,8 @@ var speed := 0.0                    ## signed forward speed in m/s
 var heading := 0.0                  ## radians, = rotation.y
 var driver_is_player := false
 var active := false                 ## in play (a pooled car is inactive, hidden, out of the group and its collider is off)
-var dead := false                   ## exploded: waits in the pool for the respawn
+var dead := false                   ## exploded: stays as a husk (wreck) until the respawn, then goes back to the pool
+var wreck := false                  ## the visible, dark, unlit husk of an exploded car (no group, no simulation, never enterable)
 var is_starter := false
 var ai := false                     ## traffic: follows its lane
 var ai_axis := 0                    ## 0 = along X, 1 = along Z
@@ -75,6 +76,7 @@ func setup(k: StringName, mgr: Node) -> void:
 func activate(pos: Vector3, h: float) -> void:
 	hp = max_hp
 	dead = false
+	wreck = false
 	speed = 0.0
 	vel = Vector3.ZERO
 	ai = false
@@ -104,7 +106,30 @@ func activate(pos: Vector3, h: float) -> void:
 	active = true
 
 
+## The exploded car stays where it is as a charred husk: dark paint, lights out, a little sag, out of the group (nothing targets or damages it) and out of the
+## simulation. The manager releases it when the replacement car is due. Burning-less on purpose: no particles, no lights, no cost.
+func become_wreck() -> void:
+	wreck = true
+	active = false
+	driver_is_player = false
+	ai = false
+	speed = 0.0
+	vel = Vector3.ZERO
+	braking = false
+	steer_in = 0.0
+	if is_in_group(&"vehicle"):
+		remove_from_group(&"vehicle")
+	visual.set_paint(VehicleSpecs.WRECK_COLOR)
+	visual.set_lights(0.0, 0.0, 0.0)
+	visual.model.rotation = Vector3(0.02, 0.0, 0.07)
+	if _mirror_on:                                           # a husk casts no reflection
+		_mirror_on = false
+		_mirror.track(_none)
+	visible = true
+
+
 func deactivate() -> void:
+	wreck = false
 	active = false
 	driver_is_player = false
 	ai = false
@@ -155,8 +180,13 @@ func explode() -> void:
 	dead = true
 	var pos := global_position
 	var mgr := manager as VehicleManager
-	if driver_is_player and mgr != null:
-		mgr.exit_vehicle()
+	if driver_is_player:
+		if mgr != null:
+			mgr.exit_vehicle()
+		var pl := Game.player
+		if is_instance_valid(pl) and pl.get(&"vehicle") == self:       # never leave the player (and the chase camera) tied to a wreck
+			pl.set(&"vehicle", null)
+		driver_is_player = false
 	Game.explode(pos + Vector3(0.0, 1.0, 0.0), 9.0, {"enemy_dmg": 80.0, "car_dmg": 70.0, "player_dmg": 35.0, "color": Color(1.0, 0.54, 0.19)})
 	Game.add_heat(VehicleSpecs.CARJACK_HEAT)
 	exploded.emit(self)

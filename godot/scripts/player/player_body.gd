@@ -1,10 +1,14 @@
 class_name PlayerBody
 extends Node3D
-## The player's visible body. Uses Game.load_model("player") (nodes Body, LegL, LegR, Muzzle per the assets contract) and falls back to
-## a believable humanoid built from capsules and boxes when the model is missing. Both variants expose the same parts:
-##   upper   pivot at the hips that carries the torso, arms and rifle (aim pitch, sprint lean, recoil, breathing)
-##   leg_l / leg_r   pivots at the hip joints; they swing along the (smoothed) movement direction, so strafing and backpedalling read right
-##   muzzle  the rifle tip: tracers and the muzzle flash start here
+## The player's visible body. Uses Game.load_model("player"), an articulated skinned model (one mesh, one draw call; bones Hips, Torso, Head, UpperArmL/R,
+## ForeArmL/R, Rifle, ThighL/R, ShinL/R, FootL/R) that CharacterRig poses procedurally: idle breathing, walk / run / strafe / backpedal cycles with knee and
+## elbow bends and a pelvis that follows the lowest foot, torso counter-rotation, both gloves on the rifle (IK) in the aim pose, the head following the aim
+## pitch, recoil kick, reload motion, hit flinch and a limp pose when dead. When the model is missing it falls back to a humanoid built from capsules and
+## boxes (rigid legs, no articulation). Both variants expose the same parts:
+##   upper   the node that carries the torso, arms and rifle (the model root, or the hip pivot of the primitive body)
+##   leg_l / leg_r   hip-pivot nodes holding the thigh swing (x forward, z sideways); the primitive's legs hang from them, the model's thigh bones are posed by the rig and these nodes mirror that angle
+##   muzzle  the rifle tip (follows the rifle bone): tracers and the muzzle flash start here
+##   rig     the CharacterRig of the model (null for the primitive body)
 ## The node is top_level and placed every rendered frame from the interpolated physics position, so it never judders
 ## when the display refresh rate and the physics tick rate differ.
 ## A pause freezes the pose where it is; a dead body does not run (its legs relax while it falls), and the fallen body is laid on the floor using the
@@ -21,6 +25,10 @@ const LIGHT_COUNT := 2
 ## (the imported resources stay untouched): an albedo multiplier plus a faint cool emission that acts as a silhouette floor.
 const FABRIC_LIFT := 2.6
 const FABRIC_EMISSION := Color(0.035, 0.075, 0.095)
+## The baked "Gear" atlas of the articulated model is already built around albedo 0.10 and up, so its lift is much smaller.
+const GEAR_LIFT := 2.0
+const GEAR_RIM := 0.12
+const GEAR_EMISSION := Color(0.02, 0.045, 0.06)
 ## The Compatibility (OpenGL) renderer lights the same scene much brighter than the Mobile renderer the boosts were tuned on: scale them down there.
 ## Its world environment also carries a flat teal ambient (the sky radiance map does not exist there), which fills every shadow of a standard material and
 ## turned the hero into pale-blue plastic: the hero's materials ignore ambient light on that renderer (the key and rim lights model him instead).
@@ -56,6 +64,7 @@ var muzzle: Node3D
 var leg_l: Node3D
 var leg_r: Node3D
 var upper: Node3D
+var rig: CharacterRig
 var uses_model := false
 
 var _phase := 0.0
@@ -66,6 +75,11 @@ var _aim_pitch := 0.0
 var _dir := Vector2(0.0, -1.0)        ## smoothed local movement direction (x right, y back)
 var _recoil_push := 0.0
 var _recoil_pitch := 0.0
+var _kick := 0.0                      ## 0..1, one shot's recoil in the model's rifle
+var _flinch := 0.0                    ## 0..1, a hit's snap of the torso and head
+var _since_fire := 99.0
+var _ready_w := 0.75                  ## weapon raised: 1 aiming / just fired / reloading, 0.75 relaxed, sprint handled by _sprint
+var _rest_y := 0.0
 var _clock := 0.0
 var _dead_t := -1.0
 var _flash_root: Node3D
@@ -144,20 +158,54 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		leg_r.basis = Basis.from_euler(Vector3(ax_r, 0.0, az_r))
 
 	# --- torso: aim pitch, sprint lean, strafe roll, run twist, breathing, recoil
-	var rig := p.camera_rig
-	var look_pitch := 0.0 if dying else (rig.pitch + rig.recoil_pitch if rig != null else 0.0)
+	var rig_view := p.camera_rig
+	var look_pitch := 0.0 if dying else (rig_view.pitch + rig_view.recoil_pitch if rig_view != null else 0.0)
 	_aim_pitch = PlayerUtil.damp(_aim_pitch, clampf(look_pitch * 0.6, -0.55, 0.65), 18.0, adt)
 	_sprint = PlayerUtil.damp(_sprint, 1.0 if (p.sprinting and not dying) else 0.0, 9.0, adt)
 	_recoil_push = PlayerUtil.damp(_recoil_push, 0.0, 17.0, adt)
 	_recoil_pitch = PlayerUtil.damp(_recoil_pitch, 0.0, 13.0, adt)
+	_kick = PlayerUtil.damp(_kick, 0.0, 12.0, adt)
+	_flinch = PlayerUtil.damp(_flinch, 0.0, 7.0, adt)
+	_since_fire += adt
+	var reload_k := -1.0
+	if not dying and p.weapon != null and p.reloading:
+		reload_k = clampf(1.0 - p.weapon.reload_t / PlayerWeapon.RELOAD_TIME, 0.0, 1.0)
+	var want_ready := 1.0 if (p.aiming or _since_fire < 2.5 or reload_k >= 0.0) else 0.75
+	_ready_w = PlayerUtil.damp(_ready_w, want_ready, 8.0, adt)
 	var lean := -(0.10 * _sprint + 0.03 * minf(1.0, speed / 6.2))
 	var roll := -local.x * 0.011
 	var twist := sin(_phase) * 0.055 * (_amp / LEG_AMP)
 	var calm := 1.0 - minf(1.0, speed / 2.0)
 	var breathe := sin(_clock * 2.1) * 0.006 * calm
 	var bob := -absf(sin(_phase)) * 0.016 * (_amp / LEG_AMP)
-	upper.rotation = Vector3(_aim_pitch + lean + _recoil_pitch + breathe + DEAD_CURL * e, twist, roll)
-	upper.position = Vector3(0.0, HIP_Y + bob + sin(_clock * 1.7) * 0.0025 * calm, _recoil_push)
+	if rig != null:
+		rig.phase = _phase
+		rig.amp = _amp / LEG_AMP
+		rig.run = clampf(speed / 8.0, 0.0, 1.0)
+		rig.fw = fw
+		rig.lw = lw
+		rig.air = _air
+		rig.aim_pitch = _aim_pitch
+		rig.lean = lean * 2.2
+		rig.twist = twist * (1.0 + 0.6 * _sprint)
+		rig.roll = roll * 2.0
+		rig.breathe = sin(_clock * 2.1) * 0.018 * calm
+		rig.recoil = _kick
+		rig.flinch = _flinch
+		rig.ready = _ready_w
+		rig.sprint = _sprint
+		rig.reload = reload_k
+		rig.clock = _clock
+		rig.dead = e
+		rig.head_yaw = clampf(-p.input_strafe * 0.12, -0.15, 0.15)
+		rig.apply()
+		muzzle.transform = rig.muzzle_transform()
+		if leg_l != null:
+			leg_l.basis = Basis.from_euler(Vector3(rig.hip_l.x, 0.0, rig.hip_l.y))
+			leg_r.basis = Basis.from_euler(Vector3(rig.hip_r.x, 0.0, rig.hip_r.y))
+	else:
+		upper.rotation = Vector3(_aim_pitch + lean + _recoil_pitch + breathe + DEAD_CURL * e, twist, roll)
+		upper.position = Vector3(0.0, HIP_Y + bob + sin(_clock * 1.7) * 0.0025 * calm, _recoil_push)
 
 	# --- placement (and the death fall: Euler YXZ = roll about the forward axis first, then the lean about the long axis, then the heading)
 	global_position = view_pos
@@ -167,11 +215,11 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		_rest_on_floor(view_pos.y)
 
 	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
-	if character_light and rig != null:
+	if character_light and rig_view != null:
 		var lit := lerpf(1.0, DEAD_LIGHT, e)
 		_key_light.light_energy = _key_energy * lit
 		_rim_light.light_energy = _rim_energy * lit
-		var f := PlayerUtil.forward_of(rig.yaw, 0.0)
+		var f := PlayerUtil.forward_of(rig_view.yaw, 0.0)
 		var right := Vector3(-f.z, 0.0, f.x)
 		_key_light.global_basis = Basis.looking_at((f * 0.82 - right * 0.28 + Vector3(0.0, -0.5, 0.0)).normalized(), Vector3.UP)
 		_rim_light.global_basis = Basis.looking_at((-f * 0.8 + right * 0.55 + Vector3(0.0, -0.22, 0.0)).normalized(), Vector3.UP)
@@ -206,6 +254,8 @@ func _rest_on_floor(floor_y: float) -> void:
 
 ## World-space y of the lowest vertex among the convex hulls of the character's parts at their current transforms.
 func _lowest_point() -> float:
+	if rig != null:
+		return rig.lowest_world_y()
 	var lo := INF
 	for i in _parts.size():
 		var xf := _parts[i].global_transform
@@ -230,12 +280,15 @@ func fire_flash(intensity := 1.0) -> void:
 		l.visible = true
 	_recoil_push = minf(_recoil_push + 0.045, 0.12)
 	_recoil_pitch = minf(_recoil_pitch + 0.04, 0.16)
+	_kick = minf(_kick + 0.55, 1.0)
+	_since_fire = 0.0
 
 
 ## A hit reaction: the torso snaps back for a moment.
 func flinch(strength := 1.0) -> void:
 	_recoil_pitch = minf(_recoil_pitch + 0.1 * strength, 0.25)
 	_recoil_push = minf(_recoil_push + 0.06 * strength, 0.15)
+	_flinch = minf(_flinch + 0.55 * strength, 1.0)
 
 
 func set_dead(is_dead: bool) -> void:
@@ -251,6 +304,11 @@ func reset_pose() -> void:
 	_flash_t = 0.0
 	_recoil_push = 0.0
 	_recoil_pitch = 0.0
+	_kick = 0.0
+	_flinch = 0.0
+	_since_fire = 99.0
+	if rig != null:
+		rig.reset()
 	if _flash_root != null:
 		_flash_root.visible = false
 	for i in _lights.size():
@@ -268,7 +326,7 @@ func _build() -> void:
 	upper.position = Vector3(0.0, HIP_Y, 0.0)
 	add_child(upper)
 	var model: Node3D = null if force_primitive else Game.load_model("player")
-	if model != null and model.get_node_or_null("Body") != null:
+	if model != null and CharacterRig.has_rig(model):
 		_adopt_model(model)
 	else:
 		if model != null:
@@ -285,34 +343,43 @@ func _build() -> void:
 
 func _adopt_model(model: Node3D) -> void:
 	uses_model = true
-	var body := model.get_node("Body") as Node3D
-	model.remove_child(body)
-	body.owner = null
-	upper.add_child(body)
-	body.position = Vector3(0.0, -HIP_Y, 0.0)
-	var mz := model.get_node_or_null("Muzzle") as Node3D
-	var mz_pos := Vector3(0.118, 1.384, -1.055)
-	if mz != null:
-		mz_pos = mz.position
-	muzzle = Node3D.new()
-	muzzle.name = "Muzzle"
-	muzzle.position = mz_pos - Vector3(0.0, HIP_Y, 0.0)
-	upper.add_child(muzzle)
-	for leg_name: String in ["LegL", "LegR"]:
-		var leg := model.get_node_or_null(leg_name) as Node3D
-		if leg != null:
-			model.remove_child(leg)
-			leg.owner = null
-			add_child(leg)
-			if leg_name == "LegL":
-				leg_l = leg
-			else:
-				leg_r = leg
-	model.free()
-	_prepare_materials(upper, true)
-	for leg: Node3D in [leg_l, leg_r]:
-		if leg != null:
-			_prepare_materials(leg, true)
+	rig = CharacterRig.find(model)
+	model.name = "Model"
+	remove_child_safe(upper)
+	upper = model
+	add_child(model)
+	for n: String in ["Fill", "Rim"]:                       # the model's own readability lights: the hero has his key and rim lights (below)
+		var l := model.get_node_or_null(n)
+		if l != null:
+			model.remove_child(l)
+			l.free()
+	muzzle = model.get_node_or_null("Muzzle") as Node3D
+	if muzzle == null:
+		muzzle = Node3D.new()
+		muzzle.name = "Muzzle"
+		model.add_child(muzzle)
+	for n: String in ["WristL", "WristR", "MagWell", "MagPouch"]:
+		var m := model.get_node_or_null(n)
+		if m != null:
+			model.remove_child(m)
+			m.free()
+	# hip pivots that mirror the thigh swing of the rig (the primitive body's legs hang from the same two nodes)
+	for side: int in [-1, 1]:
+		var pivot := Node3D.new()
+		pivot.name = "LegL" if side < 0 else "LegR"
+		pivot.position = Vector3(side * 0.1, HIP_Y, 0.0)
+		add_child(pivot)
+		if side < 0:
+			leg_l = pivot
+		else:
+			leg_r = pivot
+	_prepare_materials(model, true)
+
+
+func remove_child_safe(n: Node) -> void:
+	if n != null and n.get_parent() == self:
+		remove_child(n)
+		n.free()
 
 
 ## Per-instance override materials (the imported resources stay untouched): every surface whose material is called "Fabric" is lifted (see FABRIC_LIFT) when
@@ -333,19 +400,30 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 			var mat := mi.get_active_material(i) as BaseMaterial3D
 			if mat == null:
 				continue
-			var lift := lift_fabric and mat.resource_name == "Fabric"
+			var gear := lift_fabric and mat.resource_name == "Gear"
+			var lift := (lift_fabric and mat.resource_name == "Fabric") or gear
 			if not lift and not compat:
 				continue
 			var own := mat.duplicate() as BaseMaterial3D
 			if lift:
-				var k := lerpf(1.0, FABRIC_LIFT, boost)
+				var k := lerpf(1.0, GEAR_LIFT if gear else FABRIC_LIFT, boost)
 				own.albedo_color = Color(k, k, k, 1.0)
-				own.emission_enabled = true
-				own.emission = FABRIC_EMISSION * boost
-				own.emission_energy_multiplier = 1.0
+				if gear:
+					own.rim_enabled = true                      # a fresnel edge light in the model's own cool tint keeps the silhouette against wet asphalt and neon
+					own.rim = GEAR_RIM * (0.6 if compat else 1.0)
+					own.rim_tint = 0.6
+					own.emission_enabled = true
+					own.emission_texture = mat.emission_texture if mat.emission_enabled else null
+					own.emission = (mat.emission if mat.emission_enabled else GEAR_EMISSION * boost)
+					own.emission_energy_multiplier = mat.emission_energy_multiplier if mat.emission_enabled else 1.0
+				else:
+					own.emission_enabled = true
+					own.emission = FABRIC_EMISSION * boost
+					own.emission_energy_multiplier = 1.0
 			if compat:
 				own.disable_ambient_light = true
-				own.albedo_color = own.albedo_color * COMPAT_TINT
+				# the baked atlas is much lighter than the legacy fabric the warm tint was calibrated on: darker and neutral-cool there
+				own.albedo_color = Color(0.72, 0.78, 0.84, 1.0) if gear else own.albedo_color * COMPAT_TINT
 			mi.set_surface_override_material(i, own)
 
 
@@ -353,6 +431,9 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 func _collect_hulls() -> void:
 	_parts.clear()
 	_hulls.clear()
+	if rig != null:                                       # the skinned model: the mirror copy of its mesh, and the bone hulls of the rig for the corpse
+		_parts.append(rig.rest_mesh)
+		return
 	var roots: Array[Node3D] = [upper, leg_l, leg_r]
 	for root in roots:
 		if root == null:

@@ -37,6 +37,7 @@ var enemies: Node            # EnemyManager
 var vehicles: Node           # VehicleManager
 var missions: Node           # Missions
 var atmosphere: Node         # Atmosphere
+var story: Node              # Story (scripts/story/story.gd): radio subtitles, cards, chapters
 var camera: Camera3D         # the active gameplay camera
 
 var state: StringName = &"menu":   # menu | play | paused | dead | win
@@ -179,18 +180,17 @@ func say(text: String, seconds := 2.0) -> void:
 	message.emit(text, seconds)
 
 
-## Area damage. Anything in group "enemy" / "vehicle" / "player" must implement damage(amount: float, ...).
-## opts: enemy_dmg (60), car_dmg (60), player_dmg (30), color (orange)
+## Area damage plus the explosion effect (FX.blast: fireball, smoke, ground ring, sparks, debris, light, heat haze).
+## opts: enemy_dmg (60), car_dmg (60), player_dmg (30), color (orange), burn (seconds a wreck keeps burning: default 6 from radius 8 up, 0 below),
+## style (optional, FX.blast: -1 auto from colour and radius).
 func explode(pos: Vector3, radius: float, opts := {}) -> void:
 	var enemy_dmg: float = opts.get("enemy_dmg", 60.0)
 	var car_dmg: float = opts.get("car_dmg", 60.0)
 	var player_dmg: float = opts.get("player_dmg", 30.0)
 	var color: Color = opts.get("color", Color(1.0, 0.54, 0.19))
-	FX.blast(pos, radius, color)
-	FX.burst(pos, color, 50, radius * 1.4, 0.8)                                  # hot sparks
-	FX.burst(pos + Vector3(0.0, 0.5, 0.0), color, 10, radius * 0.3, 0.75, -2.0, 9.0)   # the fireball: soft puffs that rise
+	FX.blast(pos, radius, color, 0.5, int(opts.get("style", -1)), float(opts.get("burn", 0.0)))
 	var cam_pos: Vector3 = camera.global_position if is_instance_valid(camera) else pos
-	FX.shake(clampf(14.0 / (cam_pos.distance_to(pos) + 6.0), 0.0, 1.0))
+	FX.shake(clampf(radius * 1.6 / (cam_pos.distance_to(pos) + 6.0), 0.0, 1.0))
 	Sfx.play_at(&"boom", pos, -3.0)                 # positional: an explosion across the street is quieter and comes from where it is
 	if enemy_dmg > 0.0:
 		for e: Node3D in get_tree().get_nodes_in_group(&"enemy"):

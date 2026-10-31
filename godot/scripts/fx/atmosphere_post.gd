@@ -36,12 +36,19 @@ const TIER_MASK: Array[Dictionary] = [
 	{&"ca_amount": 1.0, &"sharpen_amount": 1.0, &"haze_amount": 1.0, &"lens_amount": 1.0, &"overlay_amount": 1.0, &"grain_size": 1.0},
 ]
 
+## Feedback caps (hurt and death): chromatic aberration adds at most this much on top of the film value (MED and HIGH only), and the picture never
+## loses more than this fraction of its colour. Both come back to the film look by themselves (the Atmosphere eases them).
+const FB_CA_MAX := 0.004
+const FB_SAT_LOSS_MAX := 0.35
+
 var tier := 1
 var rect: ColorRect
 var mat: ShaderMaterial
 var _base: Dictionary = DEFAULTS.duplicate()
 var _rain := 0.0
 var _slant := 0.0
+var _fb_ca := 0.0
+var _fb_sat := 1.0
 
 
 func _ready() -> void:
@@ -77,9 +84,29 @@ func effective(param: StringName) -> Variant:
 	var v: Variant = _base.get(param)
 	if v is float:
 		var m: Dictionary = TIER_MASK[tier]
-		if m.has(param):
-			return float(v) * float(m[param])
+		var out := float(v) * float(m[param]) if m.has(param) else float(v)
+		if param == &"ca_amount" and tier > 0:
+			out += _fb_ca
+		elif param == &"saturation":
+			out *= _fb_sat
+		return out
 	return v
+
+
+## Hurt / death feedback on top of the designer values: `ca` extra chromatic aberration (0..FB_CA_MAX), `sat` colour kept (1 = all, never below 1 - FB_SAT_LOSS_MAX).
+func set_feedback(ca: float, sat: float) -> void:
+	ca = clampf(ca, 0.0, FB_CA_MAX)
+	sat = clampf(sat, 1.0 - FB_SAT_LOSS_MAX, 1.0)
+	if is_equal_approx(ca, _fb_ca) and is_equal_approx(sat, _fb_sat):
+		return
+	_fb_ca = ca
+	_fb_sat = sat
+	_push(&"ca_amount")
+	_push(&"saturation")
+
+
+func feedback() -> Vector2:
+	return Vector2(_fb_ca, _fb_sat)
 
 
 func set_quality(level: int) -> void:

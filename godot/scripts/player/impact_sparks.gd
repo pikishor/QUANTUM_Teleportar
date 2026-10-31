@@ -8,13 +8,14 @@ extends Node3D
 ## A finished one-shot CPUParticles3D keeps drawing its (invisible) instances every frame, in the main pass and in every shadow pass, so an emitter is
 ## shown only while it is alive: hidden at the start, shown when it is launched and hidden again when its lifetime has run out. Emitters never cast shadows.
 
-const SPARK_POOL := 10
+const SPARK_POOL := 12
 const PUFF_POOL := 6
 const SPARK_AMOUNT := 9
 const PUFF_AMOUNT := 5
 
 static var _dot_tex: GradientTexture2D
-static var _spark_mat: StandardMaterial3D
+static var _spark_mat: ShaderMaterial
+const STREAK_SHADER := preload("res://assets/shaders/fx_streak.gdshader")
 static var _puff_mat: StandardMaterial3D
 static var _spark_curve: Curve
 static var _puff_curve: Curve
@@ -46,7 +47,7 @@ func _ready() -> void:
 	set_process(false)
 
 
-## Hot sparks fly off the surface along `normal`. power scales count (visually), speed and lifetime: 1 = a bullet on concrete.
+## Hot sparks fly off the surface along `normal` as velocity-stretched streaks (fx_streak.gdshader). power scales count (visually), speed and lifetime: 1 = a bullet on concrete.
 func spark(pos: Vector3, normal: Vector3, color := Color(1.0, 0.8, 0.45), power := 1.0) -> void:
 	var index := _si
 	var p := _sparks[index]
@@ -57,7 +58,7 @@ func spark(pos: Vector3, normal: Vector3, color := Color(1.0, 0.8, 0.45), power 
 	p.initial_velocity_max = 5.0 * power
 	p.lifetime = 0.22 + 0.16 * power
 	p.color = color
-	_launch(p, index)
+	_launch(p, index, 1.0 if power >= 0.6 else 0.6)
 
 
 ## A soft puff of dust, mist or smoke. size scales the sprite; tint is the colour (alpha sets how visible it is).
@@ -70,13 +71,43 @@ func puff(pos: Vector3, normal: Vector3, tint := Color(0.6, 0.66, 0.75, 0.3), si
 	p.scale_amount_min = 0.7 * size
 	p.scale_amount_max = 1.3 * size
 	p.color = tint
-	_launch(p, index)
+	_launch(p, index, 1.0)
 
 
-## A shot landing on concrete, metal or asphalt: sparks, a little mist.
-func impact_world(pos: Vector3, normal: Vector3) -> void:
-	spark(pos + normal * 0.03, normal, Color(1.0, 0.82, 0.5), 1.0)
-	puff(pos + normal * 0.05, normal, Color(0.62, 0.68, 0.78, 0.22), 0.8)
+## Which surface a world hit is on, from where it is (the city is one static body, so there is no per-surface collider): a street or ground-level
+## horizontal hit is wet asphalt, a wall hit between 0.5 and 3.6 m is a shopfront whose window bays (about 2.6 m wide, hashed by position, 55 %) are glass,
+## anything else is concrete. Pass `surface` to impact_world() to override (&"asphalt", &"glass", &"concrete", &"metal").
+static func surface_at(pos: Vector3, normal: Vector3) -> StringName:
+	if normal.y > 0.7:
+		return &"asphalt" if pos.y < 0.5 else &"concrete"
+	if absf(normal.y) < 0.5 and pos.y > 0.5 and pos.y < 3.6:
+		var along := pos.z if absf(normal.x) > absf(normal.z) else pos.x
+		var h := (floori(along / 2.6) * 73856093) ^ (floori(pos.y / 1.8) * 19349663) ^ (floori(pos.y + along) * 0)
+		if absi(h) % 100 < 55:
+			return &"glass"
+	return &"concrete"
+
+
+## A shot landing on the world, by surface: wet asphalt splashes droplets and mist, concrete chips and dust, shopfront glass sprays glittering shards,
+## metal throws a hot spark shower.
+func impact_world(pos: Vector3, normal: Vector3, surface := &"") -> void:
+	var n := normal if normal != Vector3.ZERO else Vector3.UP
+	var kind := surface if surface != &"" else surface_at(pos, n)
+	var o := pos + n * 0.03
+	match kind:
+		&"asphalt":
+			spark(o, n, Color(0.75, 0.88, 1.0), 0.55)                              # droplets
+			puff(pos + n * 0.05, n, Color(0.55, 0.62, 0.72, 0.3), 0.9)             # splash mist
+		&"glass":
+			spark(o, n, Color(0.85, 0.97, 1.0), 1.1)                               # shards glinting in the light
+			spark(o, n, Color(1.0, 1.0, 1.0), 0.7)
+			puff(pos + n * 0.05, n, Color(0.7, 0.85, 0.95, 0.16), 0.6)
+		&"metal":
+			spark(o, n, Color(1.0, 0.8, 0.45), 1.3)
+			spark(o, n, Color(1.0, 0.95, 0.85), 0.8)
+		_:
+			spark(o, n, Color(1.0, 0.8, 0.5), 0.8)                                 # chips
+			puff(pos + n * 0.05, n, Color(0.66, 0.62, 0.56, 0.34), 1.0)            # concrete dust
 
 
 ## A shot landing on a machine: a brighter, longer spark shower.
@@ -103,7 +134,11 @@ func dust(pos: Vector3, strength := 1.0) -> void:
 
 
 ## Show the emitter, fire it once and remember when it is done.
-func _launch(p: CPUParticles3D, index: int) -> void:
+func _launch(p: CPUParticles3D, index: int, ratio: float) -> void:
+	var full := SPARK_AMOUNT if index < _sparks.size() else PUFF_AMOUNT
+	var n := maxi(3, roundi(full * ratio * (0.5 if Game.quality == 0 else 1.0)))        # LOW: half the particles (a few discrete counts, a change reallocates)
+	if p.amount != n:
+		p.amount = n
 	p.visible = true
 	p.restart()
 	p.emitting = true
@@ -141,6 +176,7 @@ func _make_emitter(is_puff: bool) -> CPUParticles3D:
 	p.local_coords = false
 	p.amount = PUFF_AMOUNT if is_puff else SPARK_AMOUNT
 	p.randomness = 0.6
+	p.particle_flag_align_y = not is_puff
 	p.spread = 38.0 if not is_puff else 70.0
 	p.gravity = Vector3(0.0, -9.5, 0.0) if not is_puff else Vector3(0.0, 0.15, 0.0)
 	p.damping_min = 1.0 if not is_puff else 2.0
@@ -149,7 +185,7 @@ func _make_emitter(is_puff: bool) -> CPUParticles3D:
 	p.initial_velocity_min = 1.0
 	p.initial_velocity_max = 4.0 if not is_puff else 1.2
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.035, 0.035) if not is_puff else Vector2(0.3, 0.3)
+	quad.size = Vector2(0.022, 0.2) if not is_puff else Vector2(0.3, 0.3)         # a spark is a streak along its velocity
 	quad.material = _get_puff_material() if is_puff else _get_spark_material()
 	p.mesh = quad
 	p.scale_amount_curve = _get_puff_curve() if is_puff else _get_spark_curve()
@@ -179,17 +215,10 @@ static func _get_dot() -> GradientTexture2D:
 	return _dot_tex
 
 
-static func _get_spark_material() -> StandardMaterial3D:
+static func _get_spark_material() -> ShaderMaterial:
 	if _spark_mat == null:
-		_spark_mat = StandardMaterial3D.new()
-		_spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_spark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_spark_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		_spark_mat.vertex_color_use_as_albedo = true
-		_spark_mat.albedo_texture = _get_dot()
-		_spark_mat.albedo_color = Color(3.0, 3.0, 3.0, 1.0)          # HDR: the sparks feed the bloom
-		_spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		_spark_mat.disable_receive_shadows = true
+		_spark_mat = ShaderMaterial.new()
+		_spark_mat.shader = STREAK_SHADER
 	return _spark_mat
 
 

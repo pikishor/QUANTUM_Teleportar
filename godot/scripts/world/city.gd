@@ -19,6 +19,7 @@ const Skyline := preload("res://scripts/world/city_skyline.gd")
 const Stream := preload("res://scripts/world/city_stream.gd")
 const NEON_SPILL: Array[Color] = [Color(0.2, 0.85, 1.0), Color(1.0, 0.16, 0.62), Color(0.58, 0.36, 1.0), Color(0.2, 1.0, 0.66)]
 const Misc := preload("res://scripts/world/city_misc.gd")
+const Colliders := preload("res://scripts/world/city_colliders.gd")
 const PROP_SHADER := preload("res://assets/shaders/prop.gdshader")
 const PROP_MIRROR_SHADER := preload("res://assets/shaders/prop_mirror.gdshader")
 const GLOW_SHADER := preload("res://assets/shaders/glow.gdshader")
@@ -53,6 +54,7 @@ var _buildings := Buildings.new()
 var _props := Props.new()
 var _skyline := Skyline.new()
 var _stream := Stream.new()
+var _colliders := Colliders.new()
 var _tri_cache := {}               ## Mesh -> triangle count (reading mesh arrays back is slow; stats() may be polled)
 var _misc := Misc.new()
 var _mirror_root: Node3D
@@ -93,6 +95,33 @@ func _ready() -> void:
 	_build_misc()
 	_build_collision()
 	set_quality(quality)
+
+
+func _physics_process(delta: float) -> void:
+	# the pooled prop colliders follow the player (or, without one, the camera) while the game runs
+	if not Game.is_playing() and not Game.autostart:
+		return
+	var p := _follow_point()
+	if p != Vector3.INF:
+		_colliders.follow(p, delta)
+
+
+func _follow_point() -> Vector3:
+	if is_instance_valid(Game.player):
+		return (Game.player as Node3D).global_position
+	if is_instance_valid(Game.camera):
+		return Game.camera.global_position
+	return Vector3.INF
+
+
+## Re-centre the pooled prop colliders on `p` now (they follow the player by themselves; this is for tests, teleports and cutscenes).
+func update_colliders(p: Vector3) -> void:
+	_colliders.refill(p)
+
+
+## The pooled prop colliders (city_colliders.gd): bodies, constant shape count, instances in use.
+func prop_colliders() -> Colliders:
+	return _colliders
 
 
 func _process(_delta: float) -> void:
@@ -292,6 +321,12 @@ func _build_ground() -> void:
 		var xf := lot.cx + sxs * (lot.w * 0.5 + 1.6)
 		_ground.add_strip(Vector2(lot.cx - lot.w * 0.5, zf), Vector2(lot.cx + lot.w * 0.5, zf), 6.0, neon, 0.32)
 		_ground.add_strip(Vector2(xf, lot.cz - lot.d * 0.5), Vector2(xf, lot.cz + lot.d * 0.5), 6.0, Color(1.0, 0.72, 0.45), 0.3)
+		# contact pools: shop windows (warm tungsten) and the sign band (neon) cast a tighter, brighter patch right at the wall foot
+		var zc := lot.cz + szs * (lot.d * 0.5 + 0.9)
+		var xc := lot.cx + sxs * (lot.w * 0.5 + 0.9)
+		_ground.add_strip(Vector2(lot.cx - lot.w * 0.5, zc), Vector2(lot.cx + lot.w * 0.5, zc), 3.2, Color(1.0, 0.62, 0.30), 0.38)
+		_ground.add_strip(Vector2(xc, lot.cz - lot.d * 0.5), Vector2(xc, lot.cz + lot.d * 0.5), 3.2, Color(0.9, 0.6, 0.35), 0.30)
+		_ground.add_strip(Vector2(lot.cx - lot.w * 0.5, zf + szs * 0.8), Vector2(lot.cx + lot.w * 0.5, zf + szs * 0.8), 2.6, neon, 0.22)
 	_ground.finish_light_map()
 	_ground.make_material()
 	_ground_node = _ground.make_node()
@@ -347,6 +382,7 @@ func _shader_mat(shader: Shader, priority := 0) -> ShaderMaterial:
 
 func _build_props() -> void:
 	_props.build(layout, building_data)
+	_colliders.build(self, _props.parts)
 	var prop_mat := _shader_mat(PROP_SHADER)
 	var prop_mirror := _shader_mat(PROP_MIRROR_SHADER)
 	var glow_mat := _shader_mat(GLOW_SHADER)

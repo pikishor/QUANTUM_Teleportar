@@ -13,7 +13,7 @@ STYLE = dict(
     accent=hexc("#ff2038"), emit=1.5,
     mark=hexc("#b9bec2"), stripe=hexc("#b1424e"), patch=hexc("#b1424e"),
     fill_color=(0.72, 0.8, 1.0), fill_energy=1.1, rim_color=(1.0, 0.45, 0.5), rim_energy=1.3,
-    helmet_type="full", backpack="plain", pauldrons=True, bulk=1.07, light_glow=False, atlas=1024,
+    helmet_type="full", backpack="plain", pauldrons=True, bulk=1.15, heavy=True, light_glow=False, atlas=1024, bright=1.6,
 )
 
 if __name__ == "__main__":

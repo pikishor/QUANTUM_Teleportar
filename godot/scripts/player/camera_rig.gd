@@ -59,11 +59,18 @@ const ORBIT_HEIGHT := 1.35
 const ORBIT_FOV := 78.0
 const ORBIT_PITCH := -0.05
 const ORBIT_RATE := 0.07                     ## radians per second
-const DEAD_DIST := 4.6
-const DEAD_HEIGHT := 0.7
-const DEAD_FOV := 84.0
-const DEAD_PITCH := -0.5
-const DEAD_RATE := 0.035
+const DEAD_DIST := 5.4                       ## the death camera: behind and above the fallen body, looking past it at what killed it
+const DEAD_HEIGHT := 1.1
+const DEAD_FOV := 86.0
+const DEAD_PITCH := -0.16                    ## shallow: the horizon and the attacker stay in the picture
+const DEAD_RATE := 0.03                      ## free orbit (no known killer), radians per second
+const DEAD_ARC := 0.5                        ## the kill camera sweeps from -ARC to +ARC around the line to the killer ...
+const DEAD_ARC_TIME := 3.2                   ## ... over this many seconds of game time (slow motion makes it a slow, short orbit)
+const DEAD_KILLER_AGE := 4.0                 ## a hit older than this (seconds) is not "the killer"
+
+# shake caps: the camera never moves more than this, however many hits and blasts pile up
+const SHAKE_MAX_OFF := 0.2                   ## metres
+const SHAKE_MAX_ROT := 0.03                  ## radians (about 1.7 degrees)
 
 # recoil
 const RECOIL_DELAY := 0.1                    ## seconds after the last kick before the view starts to settle
@@ -103,6 +110,7 @@ var _sprint := 0.0
 var _mode_mix := 0.0
 var _orbit_w := 0.0
 var _dead_w := 0.0
+var _dead_age := 0.0                         ## seconds of game time in the dead state
 var _fov := FOV_HIP
 var _fov_punch := 0.0
 var _punch := 0.0                            ## visual-only backwards camera punch, metres
@@ -233,7 +241,25 @@ func reset_view(new_yaw: float, new_pitch: float) -> void:
 	_roll = 0.0
 	_ads = Vector2.ZERO
 	_ratio = 1.0
+	_dead_w = 0.0                            # a respawn or a new sector never starts inside the death or title camera
+	_dead_age = 0.0
+	_orbit_w = 0.0
 	snap()
+
+
+## Hand the camera back to the player on foot (the followed vehicle is gone, hidden or no longer the player's): foot mode, following the player, snapped.
+func recover_to_player() -> void:
+	if _player != null and _player.vehicle != null:
+		_player.vehicle = null               # runs the player's own foot-state restore: body shown, collider back, camera foot mode
+	if arm != null:
+		arm.clear_excluded_objects()
+	_mode = &"foot"
+	_mode_mix = 0.0
+	_follow = _player
+	free_look = 0.0
+	_snap_follow()
+	_ratio = 1.0
+	mode_changed.emit(&"foot")
 
 
 ## Jump the camera to where it belongs, with no smoothing (teleport, entering a vehicle).
@@ -345,6 +371,20 @@ func _process(delta: float) -> void:
 	_update_view(minf(delta, 0.1))
 
 
+## Yaw that looks from the fallen player toward the last attacker, or NAN when the hit is too old or unknown (a fall, an unknown source).
+func _killer_yaw() -> float:
+	if _player == null or PlayerUtil.now() - _player.last_hurt_time > DEAD_KILLER_AGE:
+		return NAN
+	var from := _player.last_hurt_from
+	if not from.is_finite() or from == Vector3.ZERO:
+		return NAN
+	var d := from - _player.global_position
+	d.y = 0.0
+	if d.length() < 1.0:
+		return NAN
+	return PlayerUtil.yaw_of(d)
+
+
 func _vehicle_heading() -> float:
 	if not is_instance_valid(_follow):
 		return yaw
@@ -392,7 +432,23 @@ func _camera_rest_position() -> Vector3:
 	return base + Vector3(0.0, EYE_HEIGHT, 0.0) + b * Vector3(shoulder, 0.0, dist)
 
 
+## The camera must never keep chasing something that is gone: a vehicle that was freed, deactivated, hidden or exploded, or that the player no longer sits in.
+func _check_follow() -> void:
+	if _player == null:
+		return
+	if _mode == &"vehicle":
+		var bad := not is_instance_valid(_follow) or not _follow.is_inside_tree() or _player.vehicle == null
+		if not bad:
+			bad = not _follow.visible or _follow.get(&"active") == false or _follow.get(&"dead") == true
+		if bad:
+			recover_to_player()
+	elif not is_instance_valid(_follow) or _follow != _player:
+		_follow = _player
+		_snap_follow()
+
+
 func _update_view(dt: float) -> void:
+	_check_follow()
 	var state := Game.state
 	var playing := state == &"play"
 	var drv := _mode == &"vehicle"
@@ -409,6 +465,7 @@ func _update_view(dt: float) -> void:
 	var dead_on := state == &"dead"
 	_orbit_w = PlayerUtil.damp(_orbit_w, 1.0 if orbit_on else 0.0, 1.8 if orbit_on else 4.5, dt)    # drift in slowly, snap back to gameplay quickly
 	_dead_w = PlayerUtil.damp(_dead_w, 1.0 if dead_on else 0.0, 2.0 if dead_on else 4.5, dt)
+	_dead_age = _dead_age + dt if dead_on else 0.0
 	free_look = maxf(0.0, free_look - dt)
 
 	# --- vehicle chase: the view eases toward the heading unless the player is looking around
@@ -421,7 +478,13 @@ func _update_view(dt: float) -> void:
 
 	# --- cinematic drift (title screen, victory, death)
 	if _orbit_w > 0.001 or _dead_w > 0.001:
-		yaw += (ORBIT_RATE * _orbit_w + DEAD_RATE * _dead_w) * dt
+		var killer := _killer_yaw() if dead_on else NAN
+		if is_nan(killer):
+			yaw += (ORBIT_RATE * _orbit_w + DEAD_RATE * _dead_w) * dt
+		else:                                # sweep slowly around the line to whatever killed the player, so it stays in the picture
+			var arc := lerpf(-DEAD_ARC, DEAD_ARC, clampf(_dead_age / DEAD_ARC_TIME, 0.0, 1.0))
+			yaw = PlayerUtil.damp_angle(yaw, killer + arc, 3.0, dt)
+			yaw += ORBIT_RATE * _orbit_w * dt
 		var pt := ORBIT_PITCH * _orbit_w + DEAD_PITCH * _dead_w
 		pitch = lerpf(pitch, pt, 1.0 - exp(-2.5 * dt * maxf(_orbit_w, _dead_w)))
 
@@ -464,8 +527,16 @@ func _update_view(dt: float) -> void:
 	camera.fov = _fov + _fov_punch
 
 	# --- landing dip (a damped spring)
-	_bump_v += (-_bump * 220.0 - _bump_v * 18.0) * dt
-	_bump += _bump_v * dt
+	# Sub-stepped: one explicit step of this stiff spring blows up at 10 fps (dt 0.1) and flings the camera thousands of metres away ("the world is gone" on a
+	# phone that drops frames in a firefight); at most 8 ms per step is stable for any frame time. Clamped as a last line of defence.
+	var left := dt
+	while left > 0.0:
+		var h := minf(left, 0.008)
+		_bump_v += (-_bump * 220.0 - _bump_v * 18.0) * h
+		_bump += _bump_v * h
+		left -= h
+	_bump = clampf(_bump, -0.6, 0.6)
+	_bump_v = clampf(_bump_v, -9.0, 9.0)
 
 	# --- pivot: the target plus the eye height. A vehicle is followed at its real position of this very frame (lockstep, see the header),
 	# the player at the interpolated physics position.
@@ -514,16 +585,20 @@ func _update_view(dt: float) -> void:
 	_bob_t += dt * (3.0 + speed_h * 1.1)
 	var roll_target := -strafe * 0.014 * (1.0 - ads_s) + sin(_bob_t * 0.5) * 0.0035 * _sprint
 	_roll = PlayerUtil.damp(_roll, roll_target, 8.0, dt)
-	var shake := FX.shake_amount
+	var shake := clampf(FX.shake_amount, 0.0, 1.0)
 	var s_off := Vector3.ZERO
 	var s_rot := Vector3.ZERO
 	if shake > 0.001:
 		_shake_t += dt
-		var amp := shake * 0.17
+		var amp := minf(shake * 0.17, SHAKE_MAX_OFF)
 		s_off = Vector3(PlayerUtil.wobble(_shake_t, 31.0, 47.0, 0.3), PlayerUtil.wobble(_shake_t, 37.0, 53.0, 1.7), PlayerUtil.wobble(_shake_t, 29.0, 43.0, 3.1)) * amp
-		s_rot = Vector3(PlayerUtil.wobble(_shake_t, 33.0, 51.0, 2.2), PlayerUtil.wobble(_shake_t, 39.0, 49.0, 4.1), PlayerUtil.wobble(_shake_t, 27.0, 41.0, 5.3)) * (shake * 0.018)
+		s_rot = Vector3(PlayerUtil.wobble(_shake_t, 33.0, 51.0, 2.2), PlayerUtil.wobble(_shake_t, 39.0, 49.0, 4.1), PlayerUtil.wobble(_shake_t, 27.0, 41.0, 5.3)) * minf(shake * 0.018, SHAKE_MAX_ROT)
 	var bob_y := sin(_bob_t) * 0.012 * minf(1.0, speed_h / 6.0) * (1.0 - ads_s * 0.7)
 	var cam_basis := Basis.from_euler(Vector3(pitch_t + s_rot.x, yaw_t + s_rot.y, _roll + s_rot.z), EULER_ORDER_YXZ)
 	cam_pos += cam_basis * Vector3(s_off.x, s_off.y + bob_y + _bump, s_off.z + _punch)
 	cam_pos.y = maxf(cam_pos.y, base.y + 0.25)          # never below the feet, even with a pitched-up low camera
+	if not cam_pos.is_finite():                         # a broken position must never freeze the picture: fall back to the pivot
+		cam_pos = _pivot_pos + Vector3(0.0, 1.0, 3.0)
+		if not cam_pos.is_finite():
+			cam_pos = Vector3(0.0, 3.0, 5.0)
 	camera.global_transform = Transform3D(cam_basis, cam_pos)

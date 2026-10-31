@@ -38,7 +38,7 @@ Taillights, Underglow) stay separate on purpose, because gameplay recolours or t
 
 | Model | Nodes (direct children of the root) | Materials (draw calls) | Tris |
 |---|---|---|---|
-| `player`, `operative` | `Body` (torso, armour, helmet, arms, rifle), `LegL`/`LegR` (origin = hip joint, y = 0.93, swing about X), `Muzzle` (Node3D at the rifle tip) | one baked `Gear` (**3 draw calls**) | ~7k |
+| `player`, `operative` | ONE skinned `Body` mesh under `Rig/Skeleton3D` (bones `Hips > Torso > Head, UpperArmL/R > ForeArmL/R, Rifle`; `Hips > ThighL/R > ShinL/R > FootL/R`, rest rotation identity, origin = pivot) + root empties `Muzzle`, `WristL/R`, `MagWell`, `MagPouch` | one baked `Gear` (**1 draw call**) | ~8.6k |
 | `drone_sentinel/striker/heavy` | `Body`, `RotorFL/FR/RL/RR` (origin = hub, spin about local Y), `Eye` (flat emissive material, recolour a duplicate), `Muzzle` (sentinel, heavy) | baked `Hull` + flat `Eye` (**6 draw calls**) | 4.4k-5.8k |
 | `car_sedan/sport/suv` | `Body`, `WheelFL/FR/RL/RR` (origin = axle centre; steer by Y rotation, roll about X) | `Body` (neutral paint, recolour), baked `Details` (trim, rubber, chrome, tinted opaque glass), flat `Headlights`, `Taillights`, `Underglow`; wheels use `Details` (**9 draw calls**) | ~8k |
 | `pickup_health`, `pickup_energy`, `core_gem` | `Body` | one baked material named `Glow` (duplicate it and change `emission` to retint) (**1 draw call**) | 1.2k-2.4k |
@@ -64,8 +64,7 @@ The model scripts place marker empties (`helpers.light(...)`, a `qt_light` JSON 
   (`get_tree().call_group("qt_model_lights", "set_visible", false)` on the LOW graphics tier);
 * `RotorXX` and `WheelXX` fade out beyond 45 / 60 m (`visibility_range_end`) and cast no shadow (draw calls for parts that are a few pixels).
 
-Because the importer replaces the markers, `Game.load_model()` needs no extra code. The player module keeps only `Body`, `LegL`, `LegR`
-and `Muzzle` of the player model and frees the rest, so it keeps its own character lights.
+Because the importer replaces the markers, `Game.load_model()` needs no extra code. The player module keeps the model (rig, `Muzzle`) and frees its `Fill` / `Rim` lights, so it keeps its own character lights.
 
 ## Texture sets (`assets/textures`, tileable)
 `plating, metal_painted, fabric, carbon, rubber, concrete, asphalt, steel, glass` each as `<set>_albedo.png`, `<set>_orm.png` (R = AO,

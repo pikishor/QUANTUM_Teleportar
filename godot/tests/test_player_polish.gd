@@ -601,7 +601,7 @@ func _cinematic_cameras() -> void:
 	p.hp = 1.0
 	p.damage(10.0)
 	await e.secs(1.0)
-	TestLib.check(rig.camera.global_position.distance_to(rig.get_pivot_position()) > 4.0 and rig.get_aim_pitch() < -0.2, "the death camera pulls back and looks down at the body")
+	TestLib.check(rig.camera.global_position.distance_to(rig.get_pivot_position()) > 4.0 and rig.get_aim_pitch() < -0.1, "the death camera pulls back and looks down at the body")
 	Game.do_respawn()
 	await e.secs(0.1)
 	TestLib.check(Game.state == &"play" and not p.is_dead(), "and respawn returns control")

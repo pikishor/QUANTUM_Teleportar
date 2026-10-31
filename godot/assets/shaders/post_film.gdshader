@@ -10,6 +10,8 @@ render_mode unshaded, blend_disabled;
 // in this file are plain numbers: what you write is what the screen shows. Works in the Mobile and Compatibility renderers.
 // (Canvas built-ins such as SCREEN_PIXEL_SIZE are only visible inside fragment(), so helpers receive what they need as arguments.)
 
+global uniform vec4 fx_heat;                                           // heat haze of the strongest blast (FX): xy = screen position, z = radius (screen heights), w = strength
+
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear;
 
 // ---- colour grade: cool teal shadows, warm highlights, crushed blacks ---------------------------------------------
@@ -111,6 +113,14 @@ void fragment() {
 		vec3 d2 = drop_layer(pa + 3.7, 38.0, t * 1.3, 0.30 * dens, 5.0, 0.8);
 		duv += d1.xy + d2.xy;
 		lens_light = d1.z + d2.z;
+	}
+	if (fx_heat.w > 0.0) {
+		// the air above an explosion ripples outwards: a radial wobble that dies off with distance from the blast and with time
+		vec2 hd = (uv - fx_heat.xy) * vec2(aspect, 1.0);
+		float hl = max(length(hd), 0.0001);
+		float hr = hl / max(fx_heat.z, 0.001);
+		float wave = sin(hr * 11.0 - t * 16.0) * exp(-hr * hr * 1.6);
+		duv += (hd / hl) * vec2(1.0 / aspect, 1.0) * wave * fx_heat.w * 0.007;
 	}
 	vec2 suv = uv + duv;
 

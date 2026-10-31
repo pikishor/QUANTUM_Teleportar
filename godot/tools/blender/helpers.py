@@ -613,12 +613,14 @@ def tag(obj, **kw):
 
 
 def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed=1, ao_dist=0.3, ao_strength=0.75, max_ppm=900.0,
-                 emit_strength=2.0, report=True, cull=True, jpeg=True, normal_scale=1.0):
+                 emit_strength=2.0, report=True, cull=True, jpeg=True, normal_scale=1.0, finalize=None):
     """Cull hidden faces, build the parts, bake the atlas, assign the baked materials and export assets/models/<name>.glb.
 
     parts   Part objects (not yet built); extras: extra Blender objects (empties, lights) to export with them
     groups  {group: dict(base=<texture file prefix>, material=<Blender material name>, emit_strength=.., color=..)} for the baked
             groups; by default one "atlas" group named after the model, plus a "paint" group when a paint material exists.
+    finalize  optional hook(parts, objs, extras) -> the objects to export, called once the materials are assigned (humanoid.py joins the parts into ONE
+            skinned mesh there); glTF skins are exported when the hook returns an armature object.
     """
     if groups is None:
         groups = {"atlas": dict(base=name, material="Gear")}
@@ -654,7 +656,8 @@ def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed
         for bm_ in new_mats:
             me.materials.append(bm_)
         me.polygons.foreach_set("material_index", new_idx)      # ... so the indices are written after the slots exist again
-    objs = objs + list(extras)
+    objs = finalize(parts, objs, list(extras)) if finalize is not None else objs + list(extras)
+    skins = any(o.type == "ARMATURE" for o in objs)
     os.makedirs(MODELS_DIR, exist_ok=True)
     path = os.path.join(MODELS_DIR, name + ".glb")
     bpy.ops.object.select_all(action="DESELECT")
@@ -663,7 +666,7 @@ def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed
     bpy.context.view_layer.objects.active = objs[0]
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_apply=True, export_yup=True,
                               export_image_format="AUTO", export_materials="EXPORT", export_vertex_color="NONE",
-                              export_cameras=False, export_lights=False, export_animations=False, export_skins=False,
+                              export_cameras=False, export_lights=False, export_animations=False, export_skins=skins,
                               export_morph=False, export_extras=True, export_tangents=False)
     done = glbtool.externalize_images(path, TEX_DIR)
     js, binary = glbtool.read_glb(path)

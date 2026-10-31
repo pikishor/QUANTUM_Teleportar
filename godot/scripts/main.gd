@@ -10,10 +10,18 @@ const MODULES := [
 	"res://scenes/vehicle_manager.tscn",
 	"res://scenes/missions.tscn",
 	"res://scenes/hud.tscn",
+	"res://scenes/story.tscn",      # after the HUD: its cards get taps before the HUD and the touch controls do
 ]
 
 
 func _ready() -> void:
+	# A real run (not a tool, test or bot) first shows LOADING and builds the heavy modules two frames later, so the title never looks frozen.
+	var overlay: LoadingOverlay = null
+	if not Game.autostart and DisplayServer.get_name() != "headless":
+		overlay = LoadingOverlay.new()
+		add_child(overlay)
+		await get_tree().process_frame
+		await get_tree().process_frame
 	var loaded := 0
 	for path: String in MODULES:
 		if ResourceLoader.exists(path):
@@ -22,11 +30,16 @@ func _ready() -> void:
 	if loaded == 0:
 		_build_placeholder()
 	Game.set_quality(Game.quality)      # every module starts on the same graphics tier (--quality=N, saved setting)
+	add_child(AutoQuality.new())        # touchscreens start on LOW until the player chooses; a sustained low frame rate drops one tier
+	add_child(Stability.new())          # watchdog: held input, time scale, camera / player / HUD consistency, hurt and death feedback
 	if not Game.autostart:
 		Sfx.play_music()                # the ambient loop: not under tools, tests and bots (Game.autostart), which stay silent
 	# With a HUD the menu is shown first; tools and tests (Game.autostart) skip straight to play.
 	var has_ui := ResourceLoader.exists("res://scenes/hud.tscn")
 	Game.state = &"play" if (Game.autostart or not has_ui) else &"menu"
+	if overlay != null:
+		await get_tree().process_frame
+		overlay.finish()
 
 
 ## Shown until the first module exists, so the project always renders something.

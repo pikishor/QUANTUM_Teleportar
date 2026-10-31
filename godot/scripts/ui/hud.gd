@@ -9,6 +9,10 @@ extends CanvasLayer
 const LOCK := 0.8                   ## seconds after dying / winning before a tap continues (a firing finger must not skip the screen)
 const REACH := 4.2                  ## metres: a vehicle this close can be entered (interact)
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
+const VIGNETTE_MAX := 0.35          ## hard cap of the one damage vignette's alpha: the world stays readable, never a screen fill
+const HURT_TIME := 0.45             ## seconds the hit vignette lasts
+const MARKER_TIME := 0.7            ## seconds the attacker marker lasts
+const DEAD_DIM := 0.30              ## alpha of the DECOHERED / SECTOR STABILIZED dimming (never above 0.35)
 const CONTROLS_DESKTOP := "WASD MOVE    MOUSE LOOK    LMB FIRE    RMB AIM    SHIFT SPRINT    SPACE JUMP    R RELOAD    Q BLINK    E LINK    G SUPERPOSE    F USE    ESC PAUSE"
 const CONTROLS_TOUCH := "LEFT THUMB MOVE (PUSH FAR TO SPRINT)    RIGHT THUMB LOOK    HOLD FIRE TO SHOOT AND AIM AT ONCE"
 
@@ -58,8 +62,8 @@ func _ready() -> void:
 		var a := -PI * 0.5 + i * PI / 5.0
 		_star.append(Vector2(cos(a), sin(a)) * (1.0 if i % 2 == 0 else 0.45))
 	var g := Gradient.new()
-	g.offsets = PackedFloat32Array([0.55, 1.0])
-	g.colors = PackedColorArray([Color(0.9, 0.0, 0.05, 0.0), Color(0.9, 0.0, 0.05, 0.6)])
+	g.offsets = PackedFloat32Array([0.62, 1.0])        # clear in the middle 60 %, the colour gathers only at the very edge
+	g.colors = PackedColorArray([Color(0.85, 0.02, 0.06, 0.0), Color(0.85, 0.02, 0.06, 1.0)])
 	_vignette = GradientTexture2D.new()
 	_vignette.gradient = g
 	_vignette.fill = GradientTexture2D.FILL_RADIAL
@@ -117,6 +121,16 @@ func _on_state(s: StringName) -> void:
 	minimap.visible = _hud.visible
 	_layout_key = ""
 	_apply_mouse()
+
+
+## True when the HUD and screen layers show what the state asks for (HUD hidden only in the menu, the screen layer hidden only while playing).
+func layers_consistent() -> bool:
+	return _hud.visible == (Game.state != &"menu") and _screen.visible == (Game.state != &"play") and minimap.visible == _hud.visible
+
+
+## Puts the layers back in line with the state (the stability audit calls it when they drifted).
+func refresh_layers() -> void:
+	_on_state(Game.state)
 
 
 func record_best() -> void:
@@ -326,8 +340,9 @@ func hint_text() -> String:
 
 
 func _process(delta: float) -> void:
-	_t += delta
-	screen_age += delta
+	var real := delta / maxf(Engine.time_scale, 0.05)       # screens and locks count real seconds, so a slow-motion death never delays the respawn button
+	_t += real
+	screen_age += real
 	message_left = maxf(message_left - delta, 0.0)
 	_text_t -= delta
 	if _text_t <= 0.0:
@@ -380,14 +395,12 @@ func _draw_hud(_ignored: Control = null) -> void:
 	# damage vignette first so everything else sits on top of it
 	if p != null:
 		var since_hurt := now - UiUtil.num(p, &"last_hurt_time", -100.0)
-		var a := clampf(1.0 - since_hurt / 0.6, 0.0, 1.0) * 0.8
 		var hp_f := UiUtil.num(p, &"hp", 100.0) / maxf(UiUtil.num(p, &"max_hp", 100.0), 1.0)
-		if hp_f < 0.3 and playing:
-			a = maxf(a, (0.3 - hp_f) / 0.3 * (0.3 + 0.1 * sin(_t * 6.0)))
+		var a := vignette_alpha(since_hurt, hp_f, playing, _t)
 		if a > 0.01:
 			c.draw_texture_rect(_vignette, Rect2(Vector2.ZERO, vp), false, Color(1, 1, 1, a))
-		if since_hurt < 1.0 and playing:
-			_draw_hurt_direction(c, p, vp, s, 1.0 - since_hurt)
+		if since_hurt < MARKER_TIME and playing:
+			_draw_hurt_direction(c, p, vp, s, 1.0 - since_hurt / MARKER_TIME)
 	# top centre: integrity, coherence, (hull), objective
 	if p != null:
 		var bw := 220.0 * s
@@ -422,6 +435,9 @@ func _draw_hud(_ignored: Control = null) -> void:
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return
+	if not playing and Game.state != &"paused":                # dead and win: the middle and the bottom belong to the world and the screen's own button
+		_draw_message(c, vp, s, font)
+		return
 	# bottom centre: ammo or speed, power hints
 	var ammo := ammo_text()
 	var ab := Rect2(vp.x * 0.5 - 92.0 * s, vp.y - 66.0 * s, 184.0 * s, 40.0 * s)
@@ -452,6 +468,15 @@ func _draw_hud(_ignored: Control = null) -> void:
 	if playing and _hint_text != "":
 		_text(c, font, Vector2(0.0, vp.y * 0.64), _hint_text, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.CYAN, 0.95), 1.5 * s)
 	_draw_message(c, vp, s, font)
+
+
+## THE damage vignette (the only full-screen hurt overlay in the game): a short red gathering at the screen edge after a hit, plus a slow faint pulse when
+## health is low. Hard cap VIGNETTE_MAX, so it can never hide the world. `since_hurt` seconds since the last hit, `hp_f` health fraction 0..1.
+static func vignette_alpha(since_hurt: float, hp_f: float, playing: bool, t: float) -> float:
+	var a := clampf(1.0 - since_hurt / HURT_TIME, 0.0, 1.0) * 0.3
+	if hp_f < 0.3 and playing:
+		a = maxf(a, (0.3 - hp_f) / 0.3 * (0.14 + 0.05 * sin(t * 5.0)))
+	return minf(a, VIGNETTE_MAX)
 
 
 ## What the last blink told: Alice's two classical bits and the correction Bob applies. {visible, m0, m1, fix, alpha}; empty of meaning until a teleport.
@@ -529,7 +554,7 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 	var right := Vector2(-fwd.y, fwd.x)
 	var flat := Vector2(d.x, d.z)
 	var ang := atan2(flat.dot(right), flat.dot(fwd)) - PI * 0.5
-	c.draw_arc(vp * 0.5, 120.0 * s, ang - 0.32, ang + 0.32, 10, Color(1.0, 0.2, 0.2, 0.9 * alpha), 6.0 * s, true)
+	c.draw_arc(vp * 0.5, 150.0 * s, ang - 0.22, ang + 0.22, 8, Color(1.0, 0.25, 0.2, 0.8 * alpha), 5.0 * s, true)    # a small arc toward the attacker
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -554,9 +579,9 @@ func _ensure_layout() -> void:
 			_settings_rows(cx, 350.0, s)
 			_add(&"menu", Rect2(cx - 154.0 * s, 484.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
 		&"dead":
-			_add(&"respawn", Rect2(cx - 170.0 * s, 430.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)
+			_add(&"respawn", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)      # low on the screen: the middle stays free for the world
 		&"win":
-			_add(&"next", Rect2(cx - 170.0 * s, 430.0 * s, 340.0 * s, 64.0 * s), "NEXT SECTOR", false)
+			_add(&"next", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "NEXT SECTOR", false)
 
 
 func _settings_rows(cx: float, y: float, s: float) -> void:
@@ -585,9 +610,9 @@ func _draw_screen(_ignored: Control = null) -> void:
 		&"paused":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.7))
 		&"dead":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.12, 0.0, 0.02, 0.82))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.0, 0.08, 0.1, 0.82))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.0, 0.06, 0.08, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))
 	# thin horizontal frame lines
 	var frame_col := Color(UiUtil.CYAN, 0.35)
 	c.draw_line(Vector2(0.0, 74.0 * s), Vector2(vp.x, 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
@@ -597,6 +622,8 @@ func _draw_screen(_ignored: Control = null) -> void:
 			_text(c, font, Vector2(0.0, 196.0 * s), "QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(76.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
 			c.draw_line(Vector2(cx - 240.0 * s, 222.0 * s), Vector2(cx + 240.0 * s, 222.0 * s), Color(UiUtil.MAGENTA, 0.8), 2.0 * s)
 			_text(c, font, Vector2(0.0, 258.0 * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(19.0 * s), Color(UiUtil.CYAN, 0.9))
+			if is_instance_valid(Game.story) and Game.story.has_method(&"tagline"):
+				_text(c, font, Vector2(0.0, 294.0 * s), str(Game.story.call(&"tagline")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(16.0 * s), Color(1, 1, 1, 0.7))
 			_text(c, font, Vector2(0.0, 424.0 * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(13.0 * s), Color(UiUtil.CYAN, 0.7))
 			_footer(c, vp, s, font)
 		&"paused":
@@ -604,15 +631,15 @@ func _draw_screen(_ignored: Control = null) -> void:
 			_text(c, font, Vector2(0.0, 344.0 * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(13.0 * s), Color(UiUtil.CYAN, 0.7))
 			_footer(c, vp, s, font)
 		&"dead":
-			_text(c, font, Vector2(0.0, 270.0 * s), "DECOHERED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(84.0 * s), Color(UiUtil.RED, 0.97), 3.0 * s)
-			_score_lines(c, vp, s, font, 332.0)
+			_text(c, font, Vector2(0.0, 170.0 * s), "DECOHERED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(84.0 * s), Color(UiUtil.RED, 0.97), 3.0 * s)
+			_score_lines(c, vp, s, font, 226.0)
 			var blink := 0.55 + 0.45 * sin(_t * 4.0) if screen_age >= LOCK else 0.25
-			_text(c, font, Vector2(0.0, 540.0 * s), "TAP TO RESPAWN", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(24.0 * s), Color(1, 1, 1, blink))
+			_text(c, font, Vector2(0.0, 664.0 * s), "TAP TO RESPAWN", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(24.0 * s), Color(1, 1, 1, blink))
 		&"win":
-			_text(c, font, Vector2(0.0, 270.0 * s), "SECTOR STABILIZED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(76.0 * s), Color(UiUtil.CYAN, 0.97), 3.0 * s)
-			_score_lines(c, vp, s, font, 332.0)
+			_text(c, font, Vector2(0.0, 170.0 * s), "SECTOR STABILIZED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(76.0 * s), Color(UiUtil.CYAN, 0.97), 3.0 * s)
+			_score_lines(c, vp, s, font, 226.0)
 			var blink2 := 0.55 + 0.45 * sin(_t * 4.0) if screen_age >= LOCK else 0.25
-			_text(c, font, Vector2(0.0, 540.0 * s), "TAP TO CONTINUE", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(24.0 * s), Color(1, 1, 1, blink2))
+			_text(c, font, Vector2(0.0, 664.0 * s), "TAP TO CONTINUE", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(24.0 * s), Color(1, 1, 1, blink2))
 	for b: Dictionary in buttons:
 		var r: Rect2 = b["rect"]
 		var big := r.size.y > 50.0 * s
