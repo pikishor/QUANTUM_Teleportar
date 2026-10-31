@@ -19,13 +19,14 @@ const FILL_BIT := 1 << (FILL_LAYER - 1)
 const TARGET_ALBEDO := 0.10                  ## the darkest surface should reach about this albedo
 const MAX_LIFT := 4.0
 const GLOW_ENERGY := 2.0                     ## emission of colour-coded eyes and visors (ACES whitens above this)
-const COMPAT_SCALE := 0.35
+const COMPAT_SCALE := 1.0
 const LIGHT_NAME := "DynamicFillLight"
 const FILL_COLOR := Color(0.62, 0.78, 1.0)   ## cool fill
 const FILL_ENERGY := 0.6
 const FILL_PITCH := -32.0                    ## degrees: the light shines down a little, from behind the camera
 
 static var _light: DirectionalLight3D
+static var _tex_cache := {}
 static var _lift_cache := {}                 ## mesh instance id * 16 + surface -> albedo multiplier
 
 
@@ -61,7 +62,7 @@ static func apply(model: Node3D, tint: Color) -> void:
 				m.rim_tint = 0.55
 				m.emission_enabled = true
 				m.emission = tint.lerp(Color(0.5, 0.7, 1.0), 0.5)
-				m.emission_energy_multiplier = 0.07 * k
+				m.emission_energy_multiplier = 0.07 if not compat else 0.2
 			mi.set_surface_override_material(s, m)
 
 
@@ -84,7 +85,7 @@ static func _lift_for(mesh: Mesh, surface: int, m: BaseMaterial3D) -> float:
 		return _lift_cache[key]
 	var lum := _lum(m.albedo_color)
 	if m.albedo_texture != null:
-		lum *= 0.35                                    # unknown texture: assume a mid-dark one
+		lum *= _texture_lum(m.albedo_texture)
 	if m.vertex_color_use_as_albedo or m.albedo_texture == null:
 		var arrays := mesh.surface_get_arrays(surface)
 		if arrays.size() > Mesh.ARRAY_COLOR and arrays[Mesh.ARRAY_COLOR] is PackedColorArray:
@@ -100,6 +101,28 @@ static func _lift_for(mesh: Mesh, surface: int, m: BaseMaterial3D) -> float:
 	var lift := clampf(TARGET_ALBEDO / maxf(lum, 0.001), 1.0, MAX_LIFT)
 	_lift_cache[key] = lift
 	return lift
+
+
+## Mean luminance of an albedo texture (read once per texture; 0.3 when the pixels cannot be read, e.g. a GPU-only format).
+static func _texture_lum(tex: Texture2D) -> float:
+	var key: int = tex.get_instance_id()
+	if _tex_cache.has(key):
+		return _tex_cache[key]
+	var lum := 0.3
+	var img := tex.get_image()
+	if img != null and not img.is_empty():
+		if img.is_compressed():
+			if img.decompress() != OK:
+				img = null
+		if img != null:
+			img.resize(4, 4, Image.INTERPOLATE_BILINEAR)
+			var sum := 0.0
+			for y in 4:
+				for x in 4:
+					sum += _lum(img.get_pixel(x, y))
+			lum = clampf(sum / 16.0, 0.02, 1.0)
+	_tex_cache[key] = lum
+	return lum
 
 
 static func _lum(c: Color) -> float:
@@ -119,7 +142,7 @@ static func ensure_light(parent: Node) -> DirectionalLight3D:
 	l.light_cull_mask = FILL_BIT
 	l.shadow_enabled = false
 	l.light_color = FILL_COLOR
-	l.light_energy = FILL_ENERGY * (0.55 if _is_compat() else 1.0)
+	l.light_energy = FILL_ENERGY * (2.4 if _is_compat() else 1.0)
 	l.light_specular = 0.35
 	l.rotation_degrees = Vector3(FILL_PITCH, 0.0, 0.0)
 	l.visible = Game.quality >= 1

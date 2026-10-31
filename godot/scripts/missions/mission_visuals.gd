@@ -15,6 +15,7 @@ uniform float strength = 1.5;
 uniform float height = 400.0;
 uniform float top_fade = 0.35;
 uniform float pulse = 0.0;
+uniform float near_fade = 18.0;   // closer than this (metres) the column thins out, so what stands inside it (the gem) stays visible
 varying float h01;
 void vertex() {
 	h01 = clamp(VERTEX.y / height + 0.5, 0.0, 1.0);
@@ -24,7 +25,8 @@ void fragment() {
 	float edge = pow(f, 1.6);
 	float along = mix(1.0, top_fade, h01) * (1.0 + 0.12 * sin(TIME * 2.0 + h01 * 18.0 + pulse));
 	ALBEDO = tint.rgb * strength;
-	ALPHA = clamp(edge * along, 0.0, 1.0);
+	float nearness = mix(0.18, 1.0, smoothstep(near_fade * 0.25, near_fade, length(VERTEX)));
+	ALPHA = clamp(edge * along * nearness, 0.0, 1.0);
 }
 """
 

@@ -347,9 +347,9 @@ func _build_core() -> Dictionary:
 	gem.add_child(model)
 	gem.position.y = GEM_HOVER
 	root.add_child(gem)
-	var beam := MissionVisuals.make_beam(MissionVisuals.CORE_MAGENTA, 1.7, BEAM_HEIGHT, 1.7, 0.4)
+	var beam := MissionVisuals.make_beam(MissionVisuals.CORE_MAGENTA, 1.1, BEAM_HEIGHT, 1.5, 0.4)
 	beam.name = "Beam"
-	beam.position.y = BEAM_HEIGHT * 0.5
+	beam.position.y = BEAM_HEIGHT * 0.5 + GEM_HOVER + 1.5     # the column rises out of the floating gem, so the crystal itself stays visible
 	root.add_child(beam)
 	var ring := MissionVisuals.make_ring(CORE_RADIUS)
 	ring.name = "Ring"

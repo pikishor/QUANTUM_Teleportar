@@ -41,6 +41,12 @@ func step(_t: float, _delta: float) -> bool:
 		_enter(slot)
 		print("BOT phase %d %s (frame %d)" % [slot, NAMES[slot % NAMES.size()], f])
 	_run(slot, k)
+	if k == _every - 1 and OS.get_environment("BOT_NEAR") != "":
+		var cam := Game.camera.global_position
+		for n: Node in _m.find_children("*", "Node3D", true, false):
+			var n3 := n as Node3D
+			if n3.is_visible_in_tree() and n3.global_position.distance_to(cam) < 14.0:
+				print("BOT near: %s dist %.1f pos %s" % [n3.get_path(), n3.global_position.distance_to(cam), n3.global_position])
 	if k == _every - 1 and OS.get_environment("BOT_STATS") != "":
 		print("BOT stats phase %d %s: draw calls %d, primitives %d, cores %d, pickups %d" % [slot, NAMES[slot % NAMES.size()],
 				RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),

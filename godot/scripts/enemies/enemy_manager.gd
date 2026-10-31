@@ -13,7 +13,7 @@ extends Node
 
 const BOLT_POOL := 48
 const BOLT_LIFE := 3.0
-const BOLT_COLOR_BOOST := 2.2
+const BOLT_COLOR_BOOST := 1.6
 const REINFORCE_EVERY := 1.4
 const NEAR_RADIUS := 110.0
 const DESPAWN_DIST := 170.0

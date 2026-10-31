@@ -10,6 +10,14 @@ class StubRig extends Node:
 
 class StubPlayer extends Node3D:
 	var camera_rig: Node
+	var quantum: Node
+	var vehicle: Node3D
+
+
+class StubVehicles extends Node:
+	var near: Node3D
+	func nearest(_pos: Vector3, _r := 4.2) -> Node3D:
+		return near
 
 
 func run(host: Node) -> void:
@@ -66,18 +74,63 @@ func run(host: Node) -> void:
 	# the perf readout cycles the graphics tier through Game.set_quality
 	var q0 := Game.quality
 	var box: Rect2 = tc.call("_perf_box")
+	TestLib.check(tc.perf_visible(), "the readout shows while playing")
 	tc.touch_down(4, box.get_center())
 	tc.touch_up(4)
 	TestLib.check(Game.quality == (q0 + 1) % 3, "tapping the readout cycles the tier (%d -> %d)" % [q0, Game.quality])
 	Game.set_quality(1)
 
-	# state changes release held input; a tap respawns after death
+	# the powers and USE appear only when their module exists
+	var blink := _button(tc, &"blink")
+	var use := _button(tc, &"interact")
+	TestLib.check(not tc.button_visible(blink) and not tc.button_visible(use), "BLINK and USE are hidden without the quantum and vehicle modules")
+	tc.touch_down(8, tc.call("_button_center", blink))
+	TestLib.check(not Input.is_action_pressed(&"blink"), "a hidden BLINK button does not press anything")
+	tc.touch_up(8)
+	player.quantum = Node.new()
+	TestLib.check(tc.button_visible(blink) and tc.button_visible(_button(tc, &"entangle")) and tc.button_visible(_button(tc, &"superpose")), "the three powers show once player.quantum exists")
+	tc.touch_down(8, tc.call("_button_center", blink))
+	TestLib.check(Input.is_action_pressed(&"blink"), "BLINK presses the blink action")
+	tc.touch_up(8)
+	TestLib.check(not Input.is_action_pressed(&"blink"), "BLINK releases it")
+	var vehicles := StubVehicles.new()
+	host.add_child(vehicles)
+	Game.vehicles = vehicles
+	await TestLib.frames(host, 12)
+	TestLib.check(not tc.button_visible(use), "USE stays hidden with no vehicle in reach")
+	var car := Node3D.new()
+	host.add_child(car)
+	vehicles.near = car
+	await TestLib.frames(host, 14)
+	TestLib.check(tc.button_visible(use), "USE appears with a vehicle in reach")
+	tc.touch_down(9, tc.call("_button_center", use))
+	TestLib.check(Input.is_action_pressed(&"interact"), "USE presses interact")
+	tc.touch_up(9)
+	vehicles.near = null
+	player.vehicle = car
+	await TestLib.frames(host, 14)
+	TestLib.check(tc.button_visible(use), "USE stays while driving (to get out)")
+	player.vehicle = null
+	Game.vehicles = null
+	vehicles.queue_free()
+	car.queue_free()
+	player.quantum.free()
+	player.quantum = null
+	# the pause button asks the HUD to pause
+	var asked := [0]
+	tc.pause_requested.connect(func() -> void: asked[0] += 1)
+	tc.touch_down(10, tc.call("_pause_center"))
+	TestLib.check(asked[0] == 1, "the pause button emits pause_requested")
+	tc.touch_up(10)
+
+	# state changes release held input; nothing here respawns (the HUD's dead screen does that)
 	tc.touch_down(5, tc.call("_button_center", fire))
 	Game.state = &"paused"
 	TestLib.check(not Input.is_action_pressed(&"fire"), "a state change releases held buttons")
 	Game.state = &"dead"
 	tc.touch_down(6, Vector2(vp.x * 0.5, vp.y * 0.5))
-	TestLib.check(Game.state == &"play", "a tap respawns the player")
+	TestLib.check(Game.state == &"dead", "the touch layer leaves the dead screen to the HUD")
+	Game.state = &"play"
 
 	# nothing is pressed while the game is not playing
 	Game.state = &"paused"

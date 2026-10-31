@@ -1,26 +1,33 @@
 class_name TouchControls
 extends CanvasLayer
-## On-screen controls and a light HUD for phones (shown on touchscreens, or with --touch): a floating move stick, a look drag, FIRE / AIM / JUMP /
-## RELOAD buttons, crosshair, health and ammo, and a perf readout (tap it to cycle the graphics tier LOW / MED / HIGH).
-## It only presses the input actions the keyboard already drives, so the Player needs no changes. This is a stop-gap owned by the orchestrator:
-## the HUD module of wave 2 takes over the layout and keeps this input mapping (see ARCHITECTURE.md, hud / ui).
+## On-screen controls for phones (shown on touchscreens, or with --touch): a floating move stick (full push = sprint), a look drag (also from the FIRE
+## finger), buttons FIRE / AIM / JUMP / RELOAD, the quantum powers BLINK / LINK / SUPER and USE (each only when its module exists), a pause button and a
+## perf readout (FPS, draws, tris, texture memory; tap it to cycle the graphics tier). It only presses the input actions the keyboard drives and calls
+## CameraRig.add_look, so the Player needs no changes. The HUD (scripts/ui/hud.gd) owns everything else on screen and instances this node as a child.
+
+signal pause_requested
 
 const LOOK_SENS := 0.003            ## radians per canvas pixel of finger travel
 const STICK_RADIUS := 100.0         ## canvas px at the 720 px base height
 const STICK_DEAD := 0.12
 const SPRINT_AT := 0.94             ## pushing the stick this far means sprint
 const BASE_H := 720.0
-## Buttons: action, centre offset from the bottom-right corner and radius (canvas px at the base height), label.
+const USE_REACH := 4.2              ## metres: a vehicle this close enables USE
+## Buttons: action, centre offset from the bottom-right corner and radius (canvas px at the base height), label, and what they need to be shown.
 const BUTTONS := [
-	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 84.0, "label": "FIRE"},
-	{"action": &"aim", "dx": 170.0, "dy": 340.0, "r": 58.0, "label": "AIM"},
-	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 60.0, "label": "JUMP"},
-	{"action": &"reload", "dx": 360.0, "dy": 290.0, "r": 46.0, "label": "R"},
+	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 84.0, "label": "FIRE", "need": &""},
+	{"action": &"aim", "dx": 170.0, "dy": 340.0, "r": 58.0, "label": "AIM", "need": &""},
+	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 60.0, "label": "JUMP", "need": &""},
+	{"action": &"reload", "dx": 360.0, "dy": 290.0, "r": 46.0, "label": "R", "need": &""},
+	{"action": &"blink", "dx": 515.0, "dy": 110.0, "r": 50.0, "label": "BLINK", "need": &"quantum", "ability": 0},
+	{"action": &"entangle", "dx": 530.0, "dy": 225.0, "r": 46.0, "label": "LINK", "need": &"quantum", "ability": 1},
+	{"action": &"superpose", "dx": 500.0, "dy": 335.0, "r": 46.0, "label": "SUPER", "need": &"quantum", "ability": 2},
+	{"action": &"interact", "dx": 175.0, "dy": 470.0, "r": 50.0, "label": "USE", "need": &"vehicle"},
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
 
-var controls_on := false            ## the touch controls and HUD are drawn and active
+var controls_on := false            ## the touch controls are drawn and active
 var perf_on := false                ## the perf readout is drawn (always with the controls, or with --perf)
 
 var _canvas: Control
@@ -36,10 +43,12 @@ var _win_n := 0
 var _win_worst := 0.0
 var _avg_fps := 0.0
 var _min_fps := 0.0
+var _use_near := false
+var _use_t := 0.0
 
 
 func _ready() -> void:
-	layer = 10
+	layer = 9
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	controls_on = Game.force_touch or DisplayServer.is_touchscreen_available()
 	perf_on = controls_on or OS.get_cmdline_user_args().has("--perf")
@@ -71,7 +80,12 @@ func _process(delta: float) -> void:
 	if _perf_t <= 0.0:
 		_perf_t = 0.5
 		_refresh_perf()
-	_canvas.queue_redraw()
+	_use_t -= delta
+	if _use_t <= 0.0:
+		_use_t = 0.15
+		_use_near = _vehicle_in_reach()
+	if Game.state == &"play" or Game.state == &"paused":
+		_canvas.queue_redraw()
 
 
 ## Lets go of every action this layer pressed (state changes, exit, tests).
@@ -104,19 +118,17 @@ func _input(event: InputEvent) -> void:
 
 
 func touch_down(id: int, pos: Vector2) -> void:
-	if perf_on and _perf_box().has_point(pos):
+	if perf_visible() and _perf_box().has_point(pos):
 		Game.set_quality((Game.quality + 1) % 3)
 		_perf_t = 0.0
 		return
-	if not controls_on:
+	if not controls_on or not Game.is_playing():
 		return
-	if Game.state == &"dead":
-		Game.do_respawn()
-		return
-	if not Game.is_playing():
+	if pos.distance_to(_pause_center()) <= 30.0 * _scale() * 1.3:
+		pause_requested.emit()
 		return
 	for b: Dictionary in BUTTONS:
-		if pos.distance_to(_button_center(b)) <= float(b["r"]) * _scale() * 1.15:
+		if button_visible(b) and pos.distance_to(_button_center(b)) <= float(b["r"]) * _scale() * 1.15:
 			_held[id] = b
 			Input.action_press(b["action"])
 			return
@@ -181,6 +193,30 @@ func _look(rel: Vector2) -> void:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
+# which buttons exist
+# ---------------------------------------------------------------------------------------------------------------------
+
+## A button is shown only when what it needs exists: the quantum powers need `player.quantum`, USE needs the vehicle module and a car in reach (or being in one).
+func button_visible(b: Dictionary) -> bool:
+	match b["need"]:
+		&"quantum":
+			return is_instance_valid(Game.player) and Game.player.get("quantum") != null
+		&"vehicle":
+			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
+	return true
+
+
+func _driving() -> bool:
+	return is_instance_valid(Game.player) and Game.player.get("vehicle") != null
+
+
+func _vehicle_in_reach() -> bool:
+	if not is_instance_valid(Game.vehicles) or not is_instance_valid(Game.player) or not Game.vehicles.has_method(&"nearest"):
+		return false
+	return Game.vehicles.call(&"nearest", Game.player.global_position, USE_REACH) != null
+
+
+# ---------------------------------------------------------------------------------------------------------------------
 # layout
 # ---------------------------------------------------------------------------------------------------------------------
 
@@ -189,19 +225,11 @@ func _vp_size() -> Vector2:
 
 
 func _scale() -> float:
-	return maxf(_vp_size().y / BASE_H, 0.1)
+	return UiUtil.ui_scale(_vp_size())
 
 
-## Notch and rounded-corner insets (left, right) in canvas px.
 func _insets() -> Vector2:
-	var win := DisplayServer.window_get_size()
-	if win.x <= 0:
-		return Vector2.ZERO
-	var sa := DisplayServer.get_display_safe_area()
-	if sa.size.x <= 0:
-		return Vector2.ZERO
-	var k := _vp_size().x / float(win.x)
-	return Vector2(maxf(sa.position.x, 0.0) * k, maxf(float(win.x - sa.end.x), 0.0) * k)
+	return UiUtil.insets(_vp_size())
 
 
 func _button_center(b: Dictionary) -> Vector2:
@@ -209,9 +237,19 @@ func _button_center(b: Dictionary) -> Vector2:
 	return Vector2(_vp_size().x - _insets().y - float(b["dx"]) * s, _vp_size().y - float(b["dy"]) * s)
 
 
+func _pause_center() -> Vector2:
+	var s := _scale()
+	return Vector2(_vp_size().x - _insets().y - 50.0 * s, 128.0 * s)
+
+
+## The perf readout sits under the minimap and is only shown while playing or paused.
+func perf_visible() -> bool:
+	return perf_on and (Game.state == &"play" or Game.state == &"paused")
+
+
 func _perf_box() -> Rect2:
 	var s := _scale()
-	return Rect2(Vector2(16.0 * s + _insets().x, 12.0 * s), Vector2(330.0, 92.0) * s)
+	return Rect2(Vector2(16.0 * s + _insets().x, 204.0 * s), Vector2(268.0, 66.0) * s)
 
 
 func _refresh_perf() -> void:
@@ -230,65 +268,45 @@ func _draw_ui() -> void:
 	var c := _canvas
 	var size := _vp_size()
 	var s := _scale()
-	var font := ThemeDB.fallback_font
-	if perf_on:
+	var font := UiUtil.font()
+	if perf_visible():
 		var box := _perf_box()
 		c.draw_rect(box, Color(0, 0, 0, 0.45))
-		c.draw_multiline_string(font, box.position + Vector2(8, 22) * s, _perf_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(17 * s), -1, Color(0.85, 1, 0.9, 0.95))
-	if not controls_on:
-		return
-	var p: Node = Game.player if is_instance_valid(Game.player) else null
-	if p != null:
-		_draw_hud(c, p, size, s, font)
-	if Game.state == &"dead":
-		c.draw_string(font, Vector2(0, size.y * 0.5), "DECOHERED  -  TAP TO RESPAWN", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(36 * s), Color(1, 0.45, 0.5, 0.95))
+		c.draw_multiline_string(font, box.position + Vector2(8, 18) * s, _perf_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(14 * s), -1, Color(0.85, 1, 0.9, 0.95))
+	if not controls_on or Game.state != &"play":
 		return
 	# move stick: a hint ring while idle, base and thumb while a finger is down
 	if _stick_id == -1:
-		c.draw_arc(Vector2(190, size.y - 170) * s + Vector2(_insets().x, 0), STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 3.0 * s, true)
+		c.draw_arc(Vector2(190, size.y - 170) * s + Vector2(_insets().x, 0), STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 2.0 * s, true)
 	else:
 		c.draw_circle(_stick_origin, STICK_RADIUS * s, Color(1, 1, 1, 0.07))
-		c.draw_arc(_stick_origin, STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 3.0 * s, true)
+		c.draw_arc(_stick_origin, STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0 * s, true)
 		c.draw_circle(_stick_pos.limit_length(1e5), 38.0 * s, Color(0.5, 0.95, 1, 0.5))
 	var down: Array = []
 	for b: Dictionary in _held.values():
 		down.append(b["action"])
 	for b: Dictionary in BUTTONS:
+		if not button_visible(b):
+			continue
 		var centre := _button_center(b)
 		var r := float(b["r"]) * s
 		var on := down.has(b["action"])
-		c.draw_circle(centre, r, Color(0.4, 0.9, 1.0, 0.34 if on else 0.14))
-		c.draw_arc(centre, r, 0.0, TAU, 40, Color(0.7, 0.97, 1.0, 0.85 if on else 0.45), 3.0 * s, true)
-		c.draw_string(font, centre + Vector2(-r, 7.0 * s), str(b["label"]), HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, int(22 * s), Color(1, 1, 1, 0.9))
-
-
-## Reads a numeric property of the player, or `fallback` when it is missing (a stand-in player in tests, a player that is still loading).
-func _num(o: Object, prop: StringName, fallback: float) -> float:
-	var v: Variant = o.get(prop)
-	return float(v) if (v is float or v is int) else fallback
-
-
-func _draw_hud(c: Control, p: Node, size: Vector2, s: float, font: Font) -> void:
-	var hp := _num(p, &"hp", 100.0)
-	var max_hp := maxf(_num(p, &"max_hp", 100.0), 1.0)
-	var bar := Rect2(Vector2(size.x * 0.5 - 150.0 * s, 16.0 * s), Vector2(300.0, 10.0) * s)
-	c.draw_rect(bar, Color(0, 0, 0, 0.5))
-	var f := clampf(hp / max_hp, 0.0, 1.0)
-	c.draw_rect(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y)), Color(1.0 - f, 0.3 + 0.7 * f, 0.35, 0.95))
-	var ammo_text := "RELOADING" if p.get("reloading") == true else "%d / %d" % [roundi(_num(p, &"ammo", 0.0)), roundi(_num(p, &"mag", 30.0))]
-	c.draw_string(font, Vector2(size.x - 240.0 * s - _insets().y, 40.0 * s), ammo_text, HORIZONTAL_ALIGNMENT_RIGHT, 220.0 * s, int(28 * s), Color(1, 1, 1, 0.92))
-	# crosshair: the gap is the weapon's current spread
-	var mid := size * 0.5
-	var spread_px := float(p.call("spread_in_pixels", size.y)) if p.has_method("spread_in_pixels") else 0.0
-	var gap := maxf(7.0 * s, spread_px)
-	var col := Color(1, 1, 1, 0.85)
-	for dir: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:
-		c.draw_line(mid + dir * gap, mid + dir * (gap + 11.0 * s), col, 2.0 * s, true)
-	var since := PlayerUtil.now() - _num(p, &"last_hit_time", -100.0)
-	if since < 0.18:
-		var hc := Color(1.0, 0.3, 0.25, 0.95) if (p.get("last_hit_kill") == true or p.get("last_hit_crit") == true) else Color(1, 1, 1, 0.95)
-		for d: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-			c.draw_line(mid + d * 9.0 * s, mid + d * 17.0 * s, hc, 2.5 * s, true)
-	var hurt := PlayerUtil.now() - _num(p, &"last_hurt_time", -100.0)
-	if hurt < 0.4:
-		c.draw_rect(Rect2(Vector2.ZERO, size), Color(1, 0.1, 0.1, 0.22 * (1.0 - hurt / 0.4)))
+		var tint := UiUtil.CYAN
+		var dim := 1.0
+		if b.has("ability"):
+			var st := UiUtil.ability_state(Game.player, UiUtil.ABILITIES[int(b["ability"])])
+			if st["active"]:
+				tint = UiUtil.AMBER
+			elif not st["ready"]:
+				dim = 0.45
+			if float(st["cd"]) > 0.0:
+				c.draw_arc(centre, r + 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * float(st["cd"]), 32, Color(tint, 0.9), 3.0 * s, true)
+		c.draw_circle(centre, r, Color(tint, (0.30 if on else 0.10) * dim + 0.03))
+		c.draw_arc(centre, r, 0.0, TAU, 40, Color(tint, (0.9 if on else 0.5) * dim), 2.0 * s, true)
+		c.draw_string(font, centre + Vector2(-r, 6.0 * s), str(b["label"]), HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, int(20 * s), Color(1, 1, 1, 0.92 * dim))
+	# pause
+	var pc := _pause_center()
+	var pr := 30.0 * s
+	c.draw_arc(pc, pr, 0.0, TAU, 28, Color(1, 1, 1, 0.45), 2.0 * s, true)
+	c.draw_rect(Rect2(pc + Vector2(-8, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
+	c.draw_rect(Rect2(pc + Vector2(3, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
