@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Regenerate every procedural asset: PBR textures -> Blender models -> audio, then import into Godot.
-#   tools/build_assets.sh                 compact set (512 px textures that are committed) + models + audio + import
-#   tools/build_assets.sh --hires         additionally writes the 1K texture sets to assets/generated/textures (git-ignored)
-#   tools/build_assets.sh --skip-models   textures + audio only (no bpy needed)
-# Needs python3 with numpy; the models need BLENDER_PY (see tools/blender/ensure_bpy.sh).
+# Regenerate every procedural asset: PBR texture sets -> audio -> Blender models (with their baked atlases) -> Godot import.
+#   tools/build_assets.sh                 compact set (the committed sizes) + models + audio + import
+#   tools/build_assets.sh --hires         additionally writes 1K tiling sets and 2x atlases to assets/generated (git-ignored)
+#   tools/build_assets.sh --skip-models   textures + audio only (needs numpy, not bpy)
+#   tools/build_assets.sh --no-import     do not run the Godot import afterwards
+#
+# One interpreter runs every Python step: the pinned toolchain of tools/requirements.txt (Python 3.13, bpy 5.2.3, numpy 2.5.4).
+# It is found in this order: $BLENDER_PY (what `make assets` / tools/bootstrap.sh --assets export), godot/.venv-tools (created by
+# tools/setup_python.sh), otherwise this script creates that venv. With --skip-models any python that can import numpy is accepted
+# ($PYTHON, default python3), because the textures and the audio do not need bpy.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 HIRES=0; MODELS=1; IMPORT=1
@@ -15,24 +20,42 @@ for a in "$@"; do
     *) echo "unknown option $a" >&2; exit 2 ;;
   esac
 done
-PYTHON="${PYTHON:-python3}"
+
+pick_python() {
+  if [ -n "${BLENDER_PY:-}" ]; then echo "$BLENDER_PY"; return; fi
+  if [ -x .venv-tools/bin/python ]; then echo "$(pwd)/.venv-tools/bin/python"; return; fi
+  if [ "$MODELS" = 0 ]; then
+    local p="${PYTHON:-python3}"
+    if "$p" -c 'import numpy' 2>/dev/null; then echo "$p"; return; fi
+  fi
+  tools/setup_python.sh
+}
+PY="$(pick_python)"
+export BLENDER_PY="$PY"
+"$PY" -c 'import numpy' 2>/dev/null || { echo "error: $PY cannot import numpy; run tools/setup_python.sh or set BLENDER_PY" >&2; exit 1; }
+if [ "$MODELS" = 1 ]; then
+  "$PY" -c 'import bpy' 2>/dev/null || { echo "error: $PY cannot import bpy (needed for the models); run tools/setup_python.sh or set BLENDER_PY, or use --skip-models" >&2; exit 1; }
+fi
+echo "python: $PY"
+
 mkdir -p assets/generated && touch assets/generated/.gdignore      # big intermediates: git-ignored, and Godot must not import/export them
-echo "== textures (512 px, committed)"
-"$PYTHON" tools/blender/make_textures.py --size 512 --out assets/textures
+echo "== tiling PBR texture sets (committed size)"
+"$PY" tools/blender/make_textures.py --size 512 --out assets/textures
 if [ "$HIRES" = 1 ]; then
-  echo "== textures (1024 px, assets/generated)"
-  "$PYTHON" tools/blender/make_textures.py --size 1024 --out assets/generated/textures
+  echo "== tiling PBR texture sets (1024 px, assets/generated)"
+  "$PY" tools/blender/make_textures.py --size 1024 --out assets/generated/textures
 fi
 echo "== audio"
-"$PYTHON" tools/audio/make_audio.py
+"$PY" tools/audio/make_audio.py
 if [ "$MODELS" = 1 ]; then
-  echo "== models"
+  echo "== models + atlases"
+  if [ "$HIRES" = 1 ]; then export QT_ATLAS_SCALE=2; fi
   tools/blender/build_all.sh
 fi
 if [ "$IMPORT" = 1 ]; then
   echo "== godot import"
   tools/import.sh
-  "$PYTHON" tools/blender/patch_imports.py
+  "$PY" tools/blender/patch_imports.py
   tools/import.sh
 fi
 tools/size_report.sh 2>/dev/null | tail -12 || true

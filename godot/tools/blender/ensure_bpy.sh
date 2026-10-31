@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Create (once) a virtualenv with Blender as a Python module (`pip install bpy`, a ~300 MB wheel, about 10 minutes) and print
-# the interpreter path:   export BLENDER_PY="$(tools/blender/ensure_bpy.sh)"
+# Kept for old habits: the pinned toolchain (Python 3.13, bpy 5.2.3, numpy 2.5.4 from tools/requirements.txt) is created by
+# tools/setup_python.sh, which prints the interpreter path:   export BLENDER_PY="$(tools/blender/ensure_bpy.sh)"
 set -euo pipefail
-VENV="${QT_BPY_VENV:-$HOME/.cache/qt-bpyenv}"
-if [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c "import bpy" 2>/dev/null; then echo "$VENV/bin/python"; exit 0; fi
-python3 -m venv "$VENV" >&2
-"$VENV/bin/pip" install --quiet bpy numpy >&2
-echo "$VENV/bin/python"
+exec "$(cd "$(dirname "$0")" && pwd)/../setup_python.sh"

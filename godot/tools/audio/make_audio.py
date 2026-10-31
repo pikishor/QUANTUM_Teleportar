@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Numpy-synthesised game audio for Quantum Teleportar (no samples, no scipy): 44.1 kHz, mono, 16-bit PCM WAV.
 
-Every effect is layered (transient + body + tail) and run through a synthetic convolution reverb; everything is normalised to
--3 dBFS peak with short fades. The music loop is built so every oscillator completes whole cycles in the loop length and the
-reverb is applied circularly, which makes it seamless (the WAV also carries a `smpl` loop chunk so Godot loops it by default).
+Every effect is layered (transient + body + tail) and run through a synthetic convolution reverb. Levels are MIX levels, not
+"everything at -3 dBFS": each sound has its own peak target (LEVELS_DB) so that a firefight summed through Sfx's 12-voice pool stays
+under 0 dBFS (see mix_check), and everything is high-passed (no infrasound: phone speakers cannot play it and it eats headroom).
+The music loop is built so every oscillator completes whole cycles in the loop length and the reverb is applied circularly, which
+makes it seamless (the WAV also carries a `smpl` loop chunk so Godot loops it by default).
 
 Usage: python3 make_audio.py [--out DIR] [--only shot,boom] [--preview FILE.png]
 """
@@ -18,7 +20,18 @@ import numpy as np
 SR = 44100
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-PEAK = 10 ** (-3.0 / 20.0)          # -3 dBFS
+# Peak level of every file in dBFS. Rapid fire stacks a dozen shots, a fight adds hits, hurts and explosions on top, so nothing may
+# sit near 0 dBFS. The loudest, rarest sounds (boom, core) are not louder than the frequent ones by more than a few dB.
+# The music sits well below the effects (its peak is the bed's loudest moment, its average is far lower).
+LEVELS_DB = {
+    "shot": -12.0, "enemy_shot": -13.0, "hit": -14.0, "hurt": -13.0, "boom": -10.0, "blink": -12.0,
+    "link": -13.0, "superpos": -13.0, "pickup": -14.0, "reload": -14.0, "core": -10.0, "music_ambient": -17.0,
+}
+# High-pass corners (Hz) per sound: nothing below this is kept (phone speakers start around 150-250 Hz).
+HIGHPASS_HZ = {
+    "shot": 60.0, "enemy_shot": 90.0, "hit": 80.0, "hurt": 55.0, "boom": 42.0, "blink": 60.0,
+    "link": 70.0, "superpos": 55.0, "pickup": 110.0, "reload": 90.0, "core": 45.0, "music_ambient": 32.0,
+}
 
 
 # ------------------------------------------------------------------ basics
@@ -120,7 +133,7 @@ def saturate(x, drive=1.5):
     return np.tanh(x * drive) / np.tanh(drive)
 
 
-def make_ir(rt60, predelay=0.012, damp=0.5, seed=7, early=True):
+def make_ir(rt60, predelay=0.012, damp=0.5, seed=7, early=True, early_gain=1.0):
     n = int((rt60 + predelay + 0.05) * SR)
     t = np.arange(n) / SR
     w = np.random.default_rng(seed).standard_normal(n)
@@ -131,12 +144,12 @@ def make_ir(rt60, predelay=0.012, damp=0.5, seed=7, early=True):
     if early:
         r = np.random.default_rng(seed + 1)
         for d in r.uniform(0.006, 0.07, 9):
-            ir[int((predelay + d) * SR)] += r.uniform(0.5, 1.4) * (1 if r.random() > 0.3 else -1) * np.exp(-d / (rt60 * 0.2)) * 2.2
+            ir[int((predelay + d) * SR)] += r.uniform(0.5, 1.4) * (1 if r.random() > 0.3 else -1) * np.exp(-d / (rt60 * 0.2)) * 2.2 * early_gain
     return ir / np.sqrt(np.sum(ir ** 2) + 1e-12)
 
 
-def reverb(x, rt60, wet=0.3, predelay=0.012, damp=0.5, seed=7, tail=True):
-    ir = make_ir(rt60, predelay, damp, seed)
+def reverb(x, rt60, wet=0.3, predelay=0.012, damp=0.5, seed=7, tail=True, early_gain=1.0):
+    ir = make_ir(rt60, predelay, damp, seed, early_gain=early_gain)
     n = len(x) + (len(ir) if tail else 0)
     size = 1 << int(np.ceil(np.log2(n + len(ir))))
     y = np.fft.irfft(np.fft.rfft(x, size) * np.fft.rfft(ir, size), size)[:n]
@@ -155,8 +168,16 @@ def echo(x, delay, gain, lp=None, taps=1, extra_len=0.0):
     return y
 
 
-def finalize(x, fin=0.0005, fout=0.03, trim_db=-55.0, drive=1.15, max_len=None):
-    """Soft limit, trim the silent tail, cap the length, fade, normalise to -3 dBFS."""
+def highpass(x, fc, order=4, pad=0.25):
+    """Zero-padded FFT high-pass (Butterworth magnitude). The padding is cut off again, so nothing rings before the first sample."""
+    n = len(x)
+    p = int(pad * SR)
+    y = fft_filter(np.concatenate([np.zeros(p), x, np.zeros(p)]), lo=fc, order=order)
+    return y[p:p + n]
+
+
+def finalize(x, level_db, hp, fin=0.0005, fout=0.03, trim_db=-55.0, drive=1.15, max_len=None):
+    """Soft limit, trim the silent tail, cap the length, fade, high-pass and set the peak to `level_db` dBFS."""
     x = saturate(x / (np.max(np.abs(x)) + 1e-9), drive)
     if max_len:
         x = x[: int(max_len * SR)]
@@ -165,7 +186,9 @@ def finalize(x, fin=0.0005, fout=0.03, trim_db=-55.0, drive=1.15, max_len=None):
     if len(idx):
         x = x[: min(len(x), idx[-1] + int(0.05 * SR))]
     x = fade(x, fin, fout)
-    return x / (np.max(np.abs(x)) + 1e-9) * PEAK
+    if hp:
+        x = highpass(x, hp)
+    return x / (np.max(np.abs(x)) + 1e-9) * 10 ** (level_db / 20.0)
 
 
 # ------------------------------------------------------------------ the sound effects
@@ -176,18 +199,18 @@ def sfx_shot():
     crack = band(white(n, 1), 1500, 11000) * expenv(n, 0.0018) * 3.2
     crack += band(white(n, 2), 400, 3500) * expenv(n, 0.006) * 2.4
     crack += band(white(n, 6), 3000, 14000) * expenv(n, 0.0008) * 1.6                 # the very first ms: air-pressure click
-    body_s, _ = sine_sweep(0.4, 190, 58)
+    body_s, _ = sine_sweep(0.4, 210, 85)
     body = np.zeros(n)
-    body[:len(body_s)] = body_s * expenv(len(body_s), 0.05) * 0.55
-    blast = band(white(n, 3), 100, 1600) * expenv(n, 0.04) * 1.3
+    body[:len(body_s)] = body_s * expenv(len(body_s), 0.05) * 0.30
+    blast = band(white(n, 3), 140, 1800) * expenv(n, 0.04) * 1.25
     mid = band(white(n, 4), 250, 2600) * expenv(n, 0.02) * 1.5
     out += crack + body + blast + mid
     tick = band(white(n, 5), 2500, 7000) * expenv(n, 0.006, 0.075) * 0.35        # bolt carrier movement
     out += tick
     out = saturate(out, 1.4)
-    out = echo(out, 0.19, 0.3, lp=2200, taps=2)                                   # slap-back from the buildings
-    out = reverb(out, 0.7, wet=0.42, predelay=0.014, damp=0.5, seed=11)
-    return finalize(out, fout=0.12, max_len=1.05)
+    out = echo(out, 0.19, 0.22, lp=2200, taps=2)                                  # slap-back from the buildings
+    out = reverb(out, 0.7, wet=0.42, predelay=0.014, damp=0.5, seed=11, early_gain=0.3)
+    return finalize(out, LEVELS_DB["shot"], HIGHPASS_HZ["shot"], fout=0.12, max_len=1.05)
 
 
 def sfx_enemy_shot():
@@ -214,22 +237,22 @@ def sfx_enemy_shot():
     out[d:] += out[:-d] * 0.35
     out = echo(out, 0.12, 0.25, lp=3000, taps=2)
     out = reverb(out, 0.45, wet=0.3, predelay=0.008, damp=0.4, seed=12)
-    return finalize(out, fout=0.08, max_len=0.8)
+    return finalize(out, LEVELS_DB["enemy_shot"], HIGHPASS_HZ["enemy_shot"], fout=0.08, max_len=0.8)
 
 
 def sfx_hit():
     """Bullet strike on armour: dull thud, brittle crack and a short inharmonic ring."""
     n = int(0.6 * SR)
     out = np.zeros(n)
-    thud_s, _ = sine_sweep(0.2, 150, 62)
+    thud_s, _ = sine_sweep(0.2, 190, 90)
     thud = np.zeros(n)
-    thud[:len(thud_s)] = thud_s * expenv(len(thud_s), 0.03) * 0.9
+    thud[:len(thud_s)] = thud_s * expenv(len(thud_s), 0.03) * 0.55
     crack = band(white(n, 31), 900, 7500) * expenv(n, 0.008) * 2.4
     t = np.arange(n) / SR
     ring = (np.sin(2 * np.pi * 1480 * t) * 0.5 + np.sin(2 * np.pi * 2310 * t) * 0.35 + np.sin(2 * np.pi * 3720 * t) * 0.2) * expenv(n, 0.045) * 0.28
     out = thud + crack + ring + band(white(n, 32), 3000, 9000) * expenv(n, 0.003) * 0.6
     out = reverb(saturate(out, 1.4), 0.35, wet=0.25, predelay=0.006, damp=0.5, seed=13)
-    return finalize(out, fout=0.06, max_len=0.42)
+    return finalize(out, LEVELS_DB["hit"], HIGHPASS_HZ["hit"], fout=0.06, max_len=0.42)
 
 
 def sfx_hurt():
@@ -237,9 +260,9 @@ def sfx_hurt():
     n = int(1.4 * SR)
     t = np.arange(n) / SR
     out = np.zeros(n)
-    th_s, _ = sine_sweep(0.45, 105, 40)
+    th_s, _ = sine_sweep(0.45, 150, 65)
     th = np.zeros(n)
-    th[:len(th_s)] = th_s * expenv(len(th_s), 0.11) * 1.0
+    th[:len(th_s)] = th_s * expenv(len(th_s), 0.11) * 0.5
     air = band(white(n, 41), 60, 800) * ahd(n, 0.004, 0.0, 0.09) * 1.0
     snap = band(white(n, 42), 300, 3500) * expenv(n, 0.03) * 1.5
     grunt = np.zeros(n)
@@ -250,11 +273,11 @@ def sfx_hurt():
     grunt = fft_filter(saw, 80, 900) * ahd(n, 0.01, 0.04, 0.12) * 0.55
     whine = np.sin(2 * np.pi * 3400 * t) * np.clip((t - 0.08) / 0.35, 0, 1) * np.exp(-np.maximum(t - 0.45, 0) / 0.35) * 0.05
     for hb_t, amp in ((0.34, 0.5), (0.52, 0.35)):
-        hb_s, _ = sine_sweep(0.14, 70, 38)
-        place(out, hb_s * expenv(len(hb_s), 0.04) * amp, hb_t)
+        hb_s, _ = sine_sweep(0.14, 110, 62)
+        place(out, hb_s * expenv(len(hb_s), 0.04) * amp * 0.7, hb_t)
     out += th + air + snap + grunt + whine
     out = reverb(saturate(out, 1.3), 0.6, wet=0.3, predelay=0.01, damp=0.7, seed=14)
-    return finalize(out, fout=0.15, max_len=1.15)
+    return finalize(out, LEVELS_DB["hurt"], HIGHPASS_HZ["hurt"], fout=0.15, max_len=1.15)
 
 
 def sfx_boom():
@@ -265,13 +288,14 @@ def sfx_boom():
     crack = band(white(n, 51), 400, 10000) * expenv(n, 0.014) * 2.6
     crack += band(white(n, 52), 100, 1500) * expenv(n, 0.05) * 1.4
     crack += band(white(n, 56), 120, 2200) * ahd(n, 0.004, 0.03, 0.32) * 1.5
-    sub_s, _ = sine_sweep(1.2, 78, 24)
+    sub_s, _ = sine_sweep(1.2, 115, 46)
     sub = np.zeros(n)
-    sub[:len(sub_s)] = sub_s * expenv(len(sub_s), 0.38) * 1.7
+    sub[:len(sub_s)] = saturate(sub_s * 1.6, 2.4) * expenv(len(sub_s), 0.34) * 0.75     # saturated: harmonics at 150-400 Hz carry on phone speakers
     brown = np.cumsum(white(n, 53))
     brown -= np.linspace(brown[0], brown[-1], n)
     brown /= np.max(np.abs(brown))
-    rumble = sweep_filter(brown + white(n, 54) * 0.4, 1500, 90, "lp", curve=0.6) * (ahd(n, 0.006, 0.05, 0.55)) * 2.0
+    rumble = sweep_filter(brown + white(n, 54) * 0.5, 1800, 120, "lp", curve=0.6) * (ahd(n, 0.006, 0.05, 0.55)) * 2.6
+    rumble += band(white(n, 57), 150, 900) * ahd(n, 0.01, 0.06, 0.45) * 1.1
     deb = np.zeros(n)
     r = np.random.default_rng(55)
     for _ in range(140):
@@ -284,7 +308,7 @@ def sfx_boom():
     out += crack + sub + rumble + deb
     out = saturate(out, 1.5)
     out = reverb(out, 2.0, wet=0.45, predelay=0.02, damp=0.35, seed=15)
-    return finalize(out, fout=0.45, drive=1.05, max_len=3.4)
+    return finalize(out, LEVELS_DB["boom"], HIGHPASS_HZ["boom"], fout=0.45, drive=1.05, max_len=3.4)
 
 
 def sfx_blink():
@@ -310,15 +334,15 @@ def sfx_blink():
     place(out, nz, 0.0)
     # snap + sub + glassy shimmer
     place(out, band(white(int(0.2 * SR), 63), 500, 12000) * expenv(int(0.2 * SR), 0.006) * 2.0, snap_t)
-    sub_s, _ = sine_sweep(0.5, 95, 38)
-    place(out, sub_s * expenv(len(sub_s), 0.12) * 0.9, snap_t)
+    sub_s, _ = sine_sweep(0.5, 130, 62)
+    place(out, saturate(sub_s * 1.4, 2.0) * expenv(len(sub_s), 0.12) * 0.55, snap_t)
     sh = np.zeros(int(1.0 * SR))
     tt = np.arange(len(sh)) / SR
     for fr, am in ((1318.5, 1.0), (1760.0, 0.8), (2217.5, 0.6), (2793.0, 0.45), (3520.0, 0.3)):
         sh += np.sin(2 * np.pi * fr * tt + 2.0 * np.sin(2 * np.pi * 5.5 * tt)) * am * (0.6 + 0.4 * np.sin(2 * np.pi * 17 * tt))
     place(out, sh * expenv(len(sh), 0.16) * 0.34, snap_t + 0.004)
     out = reverb(saturate(out, 1.3), 0.9, wet=0.36, predelay=0.012, damp=0.4, seed=18)
-    return finalize(out, fout=0.2, max_len=1.35)
+    return finalize(out, LEVELS_DB["blink"], HIGHPASS_HZ["blink"], fout=0.2, max_len=1.35)
 
 
 def sfx_link():
@@ -339,10 +363,10 @@ def sfx_link():
         t0 = r.uniform(0.0, 0.95)
         ln = int(r.uniform(0.0008, 0.004) * SR)
         place(out, band(white(ln, int(r.integers(1, 1 << 30))), 2500, 9000) * np.exp(-np.arange(ln) / (ln * 0.4)), t0, r.uniform(0.04, 0.16) * (1 - t0 / 1.2))
-    lock_s, _ = sine_sweep(0.12, 150, 70)
-    place(out, lock_s * expenv(len(lock_s), 0.04) * 0.9, 0.14)
+    lock_s, _ = sine_sweep(0.12, 170, 95)
+    place(out, lock_s * expenv(len(lock_s), 0.04) * 0.7, 0.14)
     out = reverb(saturate(out, 1.2), 0.8, wet=0.33, predelay=0.012, damp=0.45, seed=19)
-    return finalize(out, fout=0.2, max_len=1.4)
+    return finalize(out, LEVELS_DB["link"], HIGHPASS_HZ["link"], fout=0.2, max_len=1.4)
 
 
 def _polysaw(freqs, dur, detune=(-9, 0, 9), nh=9, seed=1):
@@ -372,16 +396,16 @@ def sfx_superpos():
     d0 = (0.0035 + 0.0025 * np.sin(2 * np.pi * 1.3 * t) + 0.003 * (1 - t / 1.6))
     idx = np.clip((np.arange(n) - d0 * SR).astype(int), 0, n - 1)
     pad2 = pad + pad[idx] * 0.85
-    sub_s, _ = sine_sweep(0.6, 82, 41)
+    sub_s, _ = sine_sweep(0.6, 120, 62)
     sub = np.zeros(n)
-    sub[:len(sub_s)] = sub_s * expenv(len(sub_s), 0.17) * 1.2
+    sub[:len(sub_s)] = saturate(sub_s * 1.4, 2.0) * expenv(len(sub_s), 0.17) * 0.55
     hi = np.zeros(n)
     for fr, a in ((880.0, 1.0), (880.0 * 2 ** (11 / 1200.0), 1.0), (1318.5, 0.6)):
         hi += np.sin(2 * np.pi * fr * t) * a
     hi *= np.clip((t - 0.1) / 0.3, 0, 1) * np.exp(-np.maximum(t - 0.4, 0) / 0.45) * 0.06 * (0.7 + 0.3 * np.sin(2 * np.pi * 9 * t))
     out = pad2 * 0.8 + sub + hi + band(white(n, 81), 1500, 8000) * expenv(n, 0.015) * 0.3
     out = reverb(saturate(out, 1.25), 1.2, wet=0.4, predelay=0.015, damp=0.45, seed=20)
-    return finalize(out, fout=0.3, max_len=1.9)
+    return finalize(out, LEVELS_DB["superpos"], HIGHPASS_HZ["superpos"], fout=0.3, max_len=1.9)
 
 
 def sfx_pickup():
@@ -395,7 +419,7 @@ def sfx_pickup():
     place(out, fm_bell(0.8, 987.8, 2.0, 1.2, 0.2, 0.09), 0.115, 0.45)
     place(out, fm_bell(0.8, 1975.5, 3.0, 0.8, 0.12, 0.05), 0.115, 0.14)
     out = reverb(saturate(out, 1.2), 0.6, wet=0.3, predelay=0.01, damp=0.5, seed=21)
-    return finalize(out, fout=0.15, max_len=0.9)
+    return finalize(out, LEVELS_DB["pickup"], HIGHPASS_HZ["pickup"], fout=0.15, max_len=0.9)
 
 
 def _click(freq_body, tau, hi_lo, hi_hi, dur=0.08, seed=0, gain=1.0, ring=None):
@@ -425,7 +449,7 @@ def sfx_reload():
     spring = np.sin(2 * np.pi * 3300 * np.arange(int(0.08 * SR)) / SR) * expenv(int(0.08 * SR), 0.015) * 0.06
     place(out, spring, 1.12)
     out = reverb(saturate(out, 1.2), 0.3, wet=0.22, predelay=0.006, damp=0.6, seed=22)
-    return finalize(out, fout=0.1, max_len=1.45)
+    return finalize(out, LEVELS_DB["reload"], HIGHPASS_HZ["reload"], fout=0.1, max_len=1.45)
 
 
 def sfx_core():
@@ -442,12 +466,12 @@ def sfx_core():
     nz = sweep_filter(band(white(int(hit_t * SR), 111), 150, 9000), 300, 7000, "lp", curve=1.4) * (np.linspace(0, 1, int(hit_t * SR)) ** 2.2) * 0.55
     place(out, nz, 0.0)
     place(out, band(white(int(0.3 * SR), 112), 300, 11000) * expenv(int(0.3 * SR), 0.015) * 1.2, hit_t)
-    sub_s, _ = sine_sweep(1.4, 70, 30)
-    place(out, sub_s * expenv(len(sub_s), 0.4) * 1.0, hit_t)
+    sub_s, _ = sine_sweep(1.4, 105, 50)
+    place(out, saturate(sub_s * 1.5, 2.2) * expenv(len(sub_s), 0.4) * 0.6, hit_t)
     for fr, a, tau, dt in ((523.25, 0.5, 0.9, 0.0), (783.99, 0.42, 1.0, 0.03), (1046.5, 0.36, 0.9, 0.06), (1568.0, 0.25, 0.8, 0.09), (2093.0, 0.16, 0.7, 0.12)):
         place(out, fm_bell(3.0, fr, 2.76, 1.8, tau, 0.25), hit_t + dt, a * 0.8)
     out = reverb(saturate(out, 1.2), 2.6, wet=0.5, predelay=0.02, damp=0.3, seed=23)
-    return finalize(out, fout=0.5, drive=1.1, max_len=3.9)
+    return finalize(out, LEVELS_DB["core"], HIGHPASS_HZ["core"], fout=0.5, drive=1.1, max_len=3.9)
 
 
 # ------------------------------------------------------------------ the music loop
@@ -514,16 +538,16 @@ def music_ambient(duration=30.0):
         t0 = ci * seg
         env = np.clip((T - t0) / 1.6, 0, 1) * np.clip(1.0 - np.maximum(T - (t0 + seg), 0) / 1.8, 0, 1)
         env = np.where(T < t0, 0.0, env)
-        sub += np.sin(2 * np.pi * snap(root / 2) * T) * env
+        sub += np.sin(2 * np.pi * snap(root) * T) * env
     sub = fold(sub)
-    sub = saturate(sub * 1.2, 2.2) * 0.22
+    sub = saturate(sub * 1.2, 2.2) * 0.20
 
     # heartbeat pulses on beats 0 and 2 of each bar + a quiet tick on every beat, then a circular dotted delay
     pulse = np.zeros(N)
     for b in range(32):
         t0 = b * beat
         if b % 4 in (0, 2):
-            ps, _ = sine_sweep(0.5, 118, 52)
+            ps, _ = sine_sweep(0.5, 150, 72)
             seg_p = ps * expenv(len(ps), 0.13) * (1.0 if b % 4 == 0 else 0.6)
             idx = int(t0 * SR)
             end = min(N, idx + len(seg_p))
@@ -557,7 +581,8 @@ def music_ambient(duration=30.0):
     wet = np.fft.irfft(np.fft.rfft(dry) * np.fft.rfft(irp), N)
     mix = dry * 0.62 + wet * 0.9
     mix = saturate(mix / np.max(np.abs(mix)), 1.1)
-    return mix / np.max(np.abs(mix)) * PEAK
+    mix = fft_filter(mix, lo=HIGHPASS_HZ["music_ambient"], order=4)     # circular filtering (no padding), so the loop stays seamless
+    return mix / np.max(np.abs(mix)) * 10 ** (LEVELS_DB["music_ambient"] / 20.0)
 
 
 SOUNDS = {
@@ -608,6 +633,32 @@ def preview(path, items):
     write_png(path, np.concatenate(rows, axis=0))
 
 
+def mix_check(sounds):
+    """Sum the sounds the way Sfx does (a pool of 12 AudioStreamPlayers used round robin, a new play() cuts the old one) for two
+    worst-case fights and report the peak in dBFS: 28 shots at the 0.11 s fire interval, and a 3 s firefight (20 shots, 4 enemy shots,
+    8 hits, an explosion and a hurt). Returns {label: peak_dbfs}. Anything above about -1 dBFS clips on the Master bus."""
+    def pool_mix(events, total, pool=12):
+        n = int(total * SR) + 4 * SR
+        lines = [np.zeros(n) for _ in range(pool)]
+        for c, (name, t0) in enumerate(events):
+            x = sounds[name]
+            i = int(t0 * SR)
+            tl = lines[c % pool]
+            tl[i:] = 0.0                      # the player restarts: the previous sound on it is cut
+            tl[i:i + len(x)] = x
+        return sum(lines)
+
+    rapid = [("shot", k * 0.11) for k in range(28)]
+    fight = [("shot", k * 0.11) for k in range(20)] + [("enemy_shot", 0.3 + k * 0.5) for k in range(4)] + \
+            [("hit", 0.2 + k * 0.25) for k in range(8)] + [("boom", 1.0), ("hurt", 1.2)]
+    fight.sort(key=lambda e: e[1])
+    out = {}
+    for label, ev, total in (("rapid fire (28 shots)", rapid, 3.2), ("firefight (3 s)", fight, 3.0)):
+        m = pool_mix(ev, total)
+        out[label] = 20 * np.log10(np.max(np.abs(m)) + 1e-12)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "assets", "audio"))
@@ -625,6 +676,10 @@ def main():
         write_wav(os.path.join(args.out, name + ".wav"), x, loop=(name == "music_ambient"))
         items.append((name, x))
         print("%-14s %6.2f s  peak %.1f dBFS  rms %.1f dBFS  (%.1fs)" % (name, len(x) / SR, 20 * np.log10(np.max(np.abs(x))), 20 * np.log10(np.sqrt(np.mean(x ** 2))), time.time() - t0))
+    have = dict(items)
+    if all(k in have for k in ("shot", "enemy_shot", "hit", "hurt", "boom")):
+        for label, peak in mix_check(have).items():
+            print("mix check %-24s peak %+.1f dBFS%s" % (label, peak, "" if peak <= -3.0 else "   <-- too hot (target -3 dBFS or lower), lower LEVELS_DB"))
     if args.preview and items:
         preview(args.preview, items)
         print("preview", args.preview)
