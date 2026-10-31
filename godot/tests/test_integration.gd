@@ -319,6 +319,9 @@ func _reflection() -> void:
 		return
 	var mirror := city.get_mirror_root()
 	var n := proxy.copy_count()
+	if p.body.rig != null:
+		TestLib.check(n == 0, "the skinned hero has no reflection copy (a rest-pose copy showed a second, stationary body): %d" % n)
+		return
 	TestLib.check(n >= 1, "the world's mirror pass holds the hero's reflection: %d mesh (the articulated body is one mesh)" % n)
 	var src := p.body.rig.rest_mesh if p.body.rig != null else (p.body.upper.find_child("Body", true, false) as MeshInstance3D)    # the skinned model is reflected through its unskinned rest-pose twin
 	var copy := mirror.get_node_or_null("Reflection_%s" % (src.name if src != null else "Body")) as MeshInstance3D

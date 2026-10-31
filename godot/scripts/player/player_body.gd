@@ -338,7 +338,11 @@ func _build() -> void:
 	_reflection = MirrorProxy.new()
 	_reflection.name = "Reflection"
 	add_child(_reflection)
-	_reflection.track(_parts)
+	# A skinned character is NOT reflected: its mirror copy would be the unskinned rest-pose mesh, a second body that stands still while the real one moves.
+	var reflected: Array[MeshInstance3D] = []
+	if rig == null:
+		reflected.assign(_parts)
+	_reflection.track(reflected)
 
 
 func _adopt_model(model: Node3D) -> void:

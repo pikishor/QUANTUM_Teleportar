@@ -74,7 +74,8 @@ func _build_visual() -> void:
 		leg_l = model.get_node_or_null("LegL") as Node3D
 		leg_r = model.get_node_or_null("LegR") as Node3D
 		mirror_body = model.get_node_or_null("Body") as MeshInstance3D
-	if is_instance_valid(Game.world) and Game.world.has_method(&"get_mirror_root") and mirror_body != null:
+	# no reflection for the skinned model: the proxy would copy its rest-pose mesh, a second body that stands still while the real one moves
+	if rig == null and is_instance_valid(Game.world) and Game.world.has_method(&"get_mirror_root") and mirror_body != null:
 		var proxy := MirrorProxy.new()
 		add_child(proxy)
 		var arr: Array[MeshInstance3D] = [mirror_body]
