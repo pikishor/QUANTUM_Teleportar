@@ -124,6 +124,10 @@ void fragment() {
 	float wet = clamp(wetness, 0.0, 1.0);
 	float pr = hash11(bseed * 3.71 + 0.5);
 	float pal = pr < 0.45 ? 0.0 : (pr < 0.70 ? 1.0 : (pr < 0.85 ? 2.0 : 3.0));
+	// per-building window groups (a few hashes, every tier): a brightness mood, a mono-hue minority and a dark-floor habit
+	float bmood = 0.62 + 0.95 * hash11(bseed * 5.3 + 1.1);
+	float hgrp = hash11(bseed * 7.9 + 3.3);
+	float dark_habit = hash11(bseed * 2.9 + 8.1);
 
 	vec3 albedo = vec3(0.05);
 	float rough = 0.8;
@@ -247,7 +251,20 @@ void fragment() {
 			pil_k = 2.0;
 			ledge_k = 4.0;
 		}
-		float win = band(cf, w0.x, w1.x, au) * band(ff, w0.y, w1.y, av);
+		float win_open = band(cf, w0.x, w1.x, au) * band(ff, w0.y, w1.y, av);
+		float win = win_open;
+		vec3 rd = vec3(0.0, 0.0, 1.0);
+		vec2 gc = vec2(cf, ff);                          // coordinates of the glass plane, recessed behind the wall
+		if (detail > 0.5) {
+			vec3 vd = normalize(v_loc - v_cam);
+			vec3 axv = xf ? vec3(0.0, 0.0, nrm.x > 0.0 ? -1.0 : 1.0) : vec3(nrm.z > 0.0 ? 1.0 : -1.0, 0.0, 0.0);
+			rd = vec3(dot(vd, axv), vd.y, dot(vd, -nrm));
+			// fake parallax: the glass sits 0.3 m behind the wall face, so the reveal (the wall thickness) shows on one side and the mullions slide
+			vec2 ps = rd.xy / max(rd.z, 0.22) * 0.30 * (1.0 - smoothstep(70.0, 120.0, dist));
+			gc = vec2(cf + ps.x / cw, ff + ps.y / fh);
+			win = win_open * band(gc.x, w0.x, w1.x, au) * band(gc.y, w0.y, w1.y, av);
+		}
+		float reveal = win_open - win;
 		float outer = band(cf, w0.x - fr, w1.x + fr, au) * band(ff, w0.y - fr * 1.5, w1.y + fr * 1.5, av);
 		float frame = clamp(outer - win, 0.0, 1.0);
 
@@ -257,6 +274,8 @@ void fragment() {
 		float rf = hash12(vec2(fi * 3.17, fseed) + 5.3);
 		float pf = clamp(lit_p + (rf - 0.5) * 0.8, 0.0, 1.0);
 		pf = rf > 0.93 ? 0.97 : (rf < 0.06 ? 0.02 : pf);
+		float blk = hash12(vec2(floor(fi / 3.0), fseed * 1.7) + 7.7);       // bands of three floors: an office after hours (dark) or a party (bright)
+		pf = blk < 0.10 + 0.22 * dark_habit ? pf * 0.10 : (blk > 0.90 ? max(pf, 0.88) : pf);
 		float lit = step(rc, pf);
 		float rt = hash12(cid + fseed + 21.0);
 		if (rt > 0.965) {            // a few windows switch on and off over time
@@ -264,23 +283,23 @@ void fragment() {
 		}
 		float cr = hash12(cid * 0.77 + vec2(fseed, 3.1));
 		cr = mix(cr, hash12(vec2(fi, fseed) + 9.9), step(0.5, rf));   // half of the floors share one hue
+		if (hgrp > 0.74) {                                   // a mono-hue building: one lamp colour (never the rare pink / tv blue) with a little spread
+			cr = clamp(fract(hgrp * 31.0) * 0.9 + (cr - 0.5) * 0.06, 0.0, 0.93);
+		}
 		vec3 wc = lit_color(cr, pal);
-		float wint = 0.75 + 0.95 * hash12(cid + fseed + 13.0);
+		float wint = (0.75 + 0.95 * hash12(cid + fseed + 13.0)) * bmood * (0.8 + 0.4 * hash12(vec2(fi, fseed) + 2.2));
 		// television glow flickers
 		float is_tv = (wc.b > 0.9 && wc.r < 0.5) ? 1.0 : 0.0;
 		wint *= 1.0 - is_tv * 0.5 * (0.5 + 0.5 * sin(TIME * 7.0 + rc * 40.0) * sin(TIME * 2.3 + rt * 20.0));
 
 		// ---- interior of a lit window ---------------------------------------------------------------------------------
-		vec2 wf = vec2((cf - w0.x) / (w1.x - w0.x), (ff - w0.y) / (w1.y - w0.y));
+		vec2 wf = vec2((gc.x - w0.x) / (w1.x - w0.x), (gc.y - w0.y) / (w1.y - w0.y));
 		float inter = 0.8 + 0.4 * wf.y;
 		float ac_unit = 0.0;
 		float mull = 1.0;
 		if (detail > 0.5) {
-			vec3 vd = normalize(v_loc - v_cam);
-			vec3 axv = xf ? vec3(0.0, 0.0, nrm.x > 0.0 ? -1.0 : 1.0) : vec3(nrm.z > 0.0 ? 1.0 : -1.0, 0.0, 0.0);
-			vec3 rd = vec3(dot(vd, axv), vd.y, dot(vd, -nrm));
 			float rs = hash12(cid + fseed * 0.7);
-			inter = room_shade(vec2(cf * cw, ff * fh), rd, cw, fh, 3.2 + 2.2 * hash12(cid + fseed + 17.0), rs) * 1.15;
+			inter = room_shade(clamp(gc, vec2(0.0), vec2(1.0)) * vec2(cw, fh), rd, cw, fh, 3.2 + 2.2 * hash12(cid + fseed + 17.0), rs) * 1.15;
 			// mullions: a centre post in wide windows, a transom near the top of tall ones
 			float cwin = (w1.x - w0.x) * cw;
 			float mv = cwin > 1.7 ? band(abs(wf.x - 0.5), 0.0, 0.022, 0.012) : 0.0;
@@ -327,6 +346,7 @@ void fragment() {
 			hf += 0.05 * sill - 0.02 * pj;
 		}
 		wall *= mix(0.62, 1.1, streak);
+		wall *= 1.0 - 0.6 * reveal;                          // shadowed reveal inside the recess
 		// brick: mortar lines
 		if (style > 3.5) {
 			float row = gy / 0.22;
@@ -358,7 +378,15 @@ void fragment() {
 		albedo = mix(albedo, vec3(0.10, 0.11, 0.12), ac_unit);
 		rough = mix(mix(0.84, 0.35, wet * (0.3 + 0.7 * runnel)), 0.07, win);
 		metal = win * 0.6;
-		float height_field = -0.10 * win + 0.07 * pil + 0.06 * led - 0.04 * frame + 0.08 * ac_unit;
+		float height_field = -0.10 * win_open + 0.07 * pil + 0.06 * led - 0.04 * frame + 0.08 * ac_unit;
+		if (detail > 0.5) {
+			// panel and pilaster relief: rounded pilaster profile, inset spandrel panels between the window rows, a bevelled ledge
+			float t_sp = ff - w1.y;
+			t_sp += t_sp < 0.0 ? 1.0 : 0.0;
+			float sp_len = 1.0 - (w1.y - w0.y);
+			float spandrel = band(t_sp, 0.07, sp_len - 0.07, av) * band(cf, 0.07, 0.93, au) * (1.0 - win_open);
+			height_field += 0.11 * pil * (1.0 - smoothstep(0.0, pw, bd)) - 0.07 * spandrel + 0.07 * led * smoothstep(0.0, 0.25, fdist);
+		}
 		hf = height_field + hf;
 
 		// lit window emission + the glow it spills onto the wall around it
@@ -575,7 +603,7 @@ void fragment() {
 		vec3 r2 = cross(N, dpdx);
 		float det = dot(dpdx, r1);
 		vec3 grad = sign(det) * (dFdx(hf) * r1 + dFdy(hf) * r2);
-		NORMAL = normalize(abs(det) * N - grad * 0.8);
+		NORMAL = normalize(abs(det) * N - grad * (1.25 * (1.0 - smoothstep(60.0, 150.0, dist))));
 	}
 #endif
 }

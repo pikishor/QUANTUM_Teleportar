@@ -75,6 +75,7 @@ func run(host: Node) -> void:
 	await _minimap(host)
 	await _guards(host)
 	await _layouts(host)
+	_phone_text(host)
 
 	_hud.queue_free()
 	atmo.queue_free()
@@ -305,6 +306,27 @@ func _find(action: StringName) -> Dictionary:
 
 
 ## Buttons stay inside the screen and big enough to touch at 16:9 and 20:9.
+## Phone readability: gameplay text is at least 22 px at 720 p, the batching sprites exist, and the story layer starts below the HUD's top stack.
+func _phone_text(host: Node) -> void:
+	TestLib.check(UiUtil.TEXT_MIN >= 22 and UiUtil.BAR_LABEL >= 18, "gameplay text sizes: at least 22 px (bar captions 18 px) at 720 p")
+	var ok := true
+	for k: StringName in [&"disc", &"ring", &"diamond", &"star", &"button"]:
+		ok = ok and UiUtil.sprite(k) != null and UiUtil.sprite(k) == UiUtil.sprite(k)
+	TestLib.check(ok, "procedural HUD sprites (disc, ring, diamond, star, button) are built once and cached")
+	Game.state = &"play"
+	var sp := StubPlayer.new()
+	host.add_child(sp)
+	var old_player := Game.player
+	Game.player = sp
+	_hud._draw_hud()
+	Game.player = old_player
+	sp.queue_free()
+	TestLib.check(UiUtil.stack_bottom > 80.0 and UiUtil.stack_bottom < 200.0, "the HUD publishes the bottom of its top stack for the story layer (%.0f base px)" % UiUtil.stack_bottom)
+	for b: Dictionary in TouchControls.BUTTONS:
+		var dx := float(b["dx"]) + float(b["r"])
+		TestLib.check(dx <= StoryView.TOUCH_BUTTONS_W, "touch button %s stays inside the width the story layer reserves" % str(b["label"]))
+
+
 func _layouts(host: Node) -> void:
 	var win := host.get_window()
 	var old := win.size

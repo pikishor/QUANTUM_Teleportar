@@ -2,14 +2,14 @@ class_name EnemyTypes
 extends RefCounted
 ## The ENEMY table of src/models.js (numbers play-tested in the prototype) plus the human operative.
 ## Models are authored at final size: `scale` of the prototype is not applied. center_y / radius follow the asset contract
-## (body centres at 0.95 / 0.82 / 1.40 m for the drones, hit radii 0.95 / 0.8 / 1.35 m).
+## (body centres at 1.25 / 0.82 / 1.40 m for the drones, hit radii 1.25 / 0.8 / 1.35 m). The sentinel model is drawn at `scale` 1.35 so it reads at 25 m.
 ##   hover: height of the drone's node above the ground (the model's origin is its ground contact, the body hangs 0.7-1.4 m above it)
 ##   fire:  seconds between shots (drones) or between bursts (operative); burst: rounds per volley; dmg per round / bolt
 
 const TYPES := {
 	&"sentinel": {
 		"hp": 60.0, "speed": 4.6, "range": 22.0, "fire": Vector2(1.0, 1.7), "dmg": 7.0, "bolt": 30.0, "burst": 1,
-		"color": Color(1.0, 0.24, 0.37), "score": 50, "radius": 0.95, "heat": 0.22, "center_y": 0.95, "hover": 0.35,
+		"color": Color(1.0, 0.24, 0.37), "score": 50, "radius": 1.25, "heat": 0.22, "center_y": 1.25, "hover": 0.35, "scale": 1.35,
 		"model": "drone_sentinel", "drone": true, "kamikaze": false,
 	},
 	&"striker": {

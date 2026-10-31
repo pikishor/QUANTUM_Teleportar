@@ -31,6 +31,10 @@ var _label: Label
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if Game.autostart:                                      # tools, tests and bots (software rendering is slow): the tier they ask for is the tier the pictures show
+		enabled = false
+	if Game.autostart and not OS.get_cmdline_user_args().has("--governor"):
+		enabled = false                 # tools, tests and bots keep the tier they ask for (software Vulkan is slow; --governor opts back in)
 	Game.state_changed.connect(_on_state)
 	Game.quality_changed.connect(func(_q: int) -> void: _reset_window(true))
 	if wants_low_default():

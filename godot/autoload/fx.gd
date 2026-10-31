@@ -14,9 +14,9 @@ var shake_amount := 0.0      ## 0..1, decays on its own; camera rigs read it eac
 
 const PARTICLE_POOL := 24
 const TRACER_POOL := 20
-const MUZZLE_POOL := 6
-const MUZZLE_LIFE := 0.06    ## seconds a muzzle flash shows
-const TRACER_LIFE := 0.07
+const MUZZLE_POOL := 10
+const MUZZLE_LIFE := 0.09    ## seconds a muzzle flash shows
+const TRACER_LIFE := 0.14
 const SPARK_SIZE := 0.16     ## metres: one spark is a small soft dot
 const ExplosionPool := preload("res://scripts/fx/explosion_pool.gd")
 const TRACER_SHADER := preload("res://assets/shaders/fx_tracer.gdshader")
@@ -72,7 +72,7 @@ func _ready() -> void:
 	for i in TRACER_POOL:
 		var t := MeshInstance3D.new()
 		var box := BoxMesh.new()
-		box.size = Vector3(0.05, 0.05, 1.0)
+		box.size = Vector3(0.09, 0.09, 1.0)
 		t.mesh = box
 		var tm := ShaderMaterial.new()
 		tm.shader = TRACER_SHADER
@@ -184,7 +184,7 @@ func tracer(a: Vector3, b: Vector3, color := Color(1.0, 0.93, 0.6)) -> void:
 
 
 ## Star-and-cone flash at a barrel (shell-free, 0.06 s). Dimmed when the camera is right on top of it.
-func muzzle_flash(pos: Vector3, dir: Vector3, color := Color(1.0, 0.85, 0.5), size := 1.0) -> void:
+func muzzle_flash(pos: Vector3, dir: Vector3, color := Color(1.0, 0.85, 0.5), size := 1.5) -> void:
 	var i := _mi
 	_mi = (_mi + 1) % _muzzles.size()
 	var up := Vector3.UP if absf(dir.y) < 0.95 else Vector3.RIGHT

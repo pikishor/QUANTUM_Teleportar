@@ -37,8 +37,8 @@ void fragment() {
 	float f0 = floor(f);
 	vec2 gb = mix(frame_gb(f0, UV), frame_gb(min(f0 + 1.0, 63.0), UV), f - f0);
 	float shade = gb.y;
-	vec3 col = tint * (0.35 + 1.5 * shade);
-	col += glow_color * glow * (1.0 - shade) * smoothstep(0.1, 0.9, 1.0 - UV.y) * 0.5;
+	vec3 col = tint * (0.45 + 1.6 * shade);
+	col += glow_color * glow * (0.35 + 0.65 * (1.0 - shade)) * smoothstep(0.0, 0.8, 1.0 - UV.y) * 0.9;           // lit orange from below by the fire
 	ALBEDO = col;
 	ALPHA = clamp(gb.x * 0.9, 0.0, 1.0) * alpha * smoothstep(floor_y, floor_y + fade_h, v_wy);
 }

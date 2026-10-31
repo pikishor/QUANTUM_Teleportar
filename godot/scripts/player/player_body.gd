@@ -26,9 +26,9 @@ const LIGHT_COUNT := 2
 const FABRIC_LIFT := 2.6
 const FABRIC_EMISSION := Color(0.035, 0.075, 0.095)
 ## The baked "Gear" atlas of the articulated model is already built around albedo 0.10 and up, so its lift is much smaller.
-const GEAR_LIFT := 2.0
-const GEAR_RIM := 0.12
-const GEAR_EMISSION := Color(0.02, 0.045, 0.06)
+const GEAR_LIFT := 2.4
+const GEAR_RIM := 0.6                      ## a strong cool fresnel edge: the hero reads as a bright rim-lit silhouette from the chase camera
+const GEAR_EMISSION := Color(0.045, 0.10, 0.13)
 ## The Compatibility (OpenGL) renderer lights the same scene much brighter than the Mobile renderer the boosts were tuned on: scale them down there.
 ## Its world environment also carries a flat teal ambient (the sky radiance map does not exist there), which fills every shadow of a standard material and
 ## turned the hero into pale-blue plastic: the hero's materials ignore ambient light on that renderer (the key and rim lights model him instead).
@@ -411,7 +411,7 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 				if gear:
 					own.rim_enabled = true                      # a fresnel edge light in the model's own cool tint keeps the silhouette against wet asphalt and neon
 					own.rim = GEAR_RIM * (0.6 if compat else 1.0)
-					own.rim_tint = 0.6
+					own.rim_tint = 0.75
 					own.emission_enabled = true
 					own.emission_texture = mat.emission_texture if mat.emission_enabled else null
 					own.emission = (mat.emission if mat.emission_enabled else GEAR_EMISSION * boost)

@@ -11,12 +11,13 @@ import bpy  # noqa: F401,E402
 from mathutils import Matrix, Vector  # noqa: E402
 
 from alienlib import make_finalize, surf_y, two_bone, xy_rings  # noqa: E402
-from helpers import (empty, export_model, hexc, light, make_material, new_scene, ring_se, rotm, scale_c)  # noqa: E402
+from helpers import (empty, export_model, hexc, light, make_material, new_scene, ring_se, rotm, scale_c, set_detail)  # noqa: E402
 from humanoid import RigPart  # noqa: E402
 
 new_scene()
-BRIGHT = 1.45
-chit = make_material("Chitin", tex="chitin")
+set_detail(1.1)
+BRIGHT = 1.6
+chit = make_material("Chitin", tex="shell")
 glr = make_material("GlowR", tex="glow", color=hexc("#ff2234"))
 glo = make_material("GlowO", tex="glow", color=hexc("#ff7a1c"))
 

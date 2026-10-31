@@ -13,8 +13,8 @@ void vertex() {
 }
 
 void fragment() {
-	float head = exp(-v_behind / 1.4);
-	float tail = 0.18 + 0.5 * exp(-v_behind / 18.0);
-	ALBEDO = color * (0.9 + 3.2 * head) + vec3(1.0) * head * 0.6;
+	float head = exp(-v_behind / 2.4);                       // a glowing 2.4 m head that stays hot over the whole (0.14 s) life, a long tail behind
+	float tail = 0.3 + 0.55 * exp(-v_behind / 24.0);
+	ALBEDO = color * (1.4 + 4.5 * head) + vec3(1.0) * head * 1.1;
 	ALPHA = clamp(tail + head, 0.0, 1.0) * fade;
 }

@@ -16,12 +16,12 @@ const SMOKE_SHADER := preload("res://assets/shaders/fx_smoke.gdshader")
 const GROUND_SHADER := preload("res://assets/shaders/fx_ground.gdshader")
 const STREAK_SHADER := preload("res://assets/shaders/fx_streak.gdshader")
 const ORANGE := Color(1.0, 0.5, 0.12)
-const SMOKE_TINT := Color(0.34, 0.32, 0.32)
+const SMOKE_TINT := Color(0.5, 0.46, 0.44)
 const STYLE_FIRE := 0
 const STYLE_QUANTUM := 1
 const STYLE_WRECK := 2
-const SPARKS := 56
-const DEBRIS := 16
+const SPARKS := 72
+const DEBRIS := 22
 const GROUND_Y := 0.1                                     ## the ring lies just above the street (kerbs are about 0.15)
 const HEAT_PARAM := &"fx_heat"
 
@@ -75,12 +75,12 @@ func _ready() -> void:
 	ground_quad.size = Vector2.ONE
 	ground_quad.orientation = PlaneMesh.FACE_Y
 	var spark_mesh := QuadMesh.new()
-	spark_mesh.size = Vector2(0.05, 0.5)
+	spark_mesh.size = Vector2(0.07, 0.6)
 	var spark_mat := ShaderMaterial.new()
 	spark_mat.shader = STREAK_SHADER
 	spark_mesh.material = spark_mat
 	var debris_mesh := BoxMesh.new()
-	debris_mesh.size = Vector3(0.24, 0.14, 0.18)
+	debris_mesh.size = Vector3(0.34, 0.2, 0.26)
 	var debris_mat := StandardMaterial3D.new()
 	debris_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	debris_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -213,14 +213,14 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	s.style = style
 	s.small = r < 3.2
 	s.burn = burn if style == STYLE_WRECK else 0.0
-	s.fire_t = 0.5 if quantum else clampf(0.45 + 0.09 * r, 0.5, 1.3)
+	s.fire_t = 0.8 if quantum else clampf(0.45 + 0.09 * r, 0.5, 1.3)
 	s.ring_t = s.fire_t * (1.1 if quantum else 0.85)
-	s.smoke_t = 0.0 if quantum else clampf(1.5 + 0.1 * r, 1.5, 2.4)
+	s.smoke_t = 0.0 if quantum else clampf(2.1 + 0.12 * r, 2.4, 3.6)
 	s.n_puffs = 0 if quantum else (1 if s.small else mini(PUFFS, puff_count(tier)))
-	s.fire_size = r * (1.9 if quantum else 1.7)
+	s.fire_size = r * (2.1 if quantum else 1.5)
 	s.glow = 1.0
 	var mid := color if quantum else color.lerp(ORANGE, 0.4)
-	var lo := Color(mid.r * 0.3, mid.g * 0.12, mid.b * 0.1) if not quantum else Color(mid.r * 0.2, mid.g * 0.25, mid.b * 0.4)
+	var lo := Color(mid.r * 0.3, mid.g * 0.12, mid.b * 0.1) if not quantum else Color(0.5, 0.05, 0.7)      # the collapse: a cyan core burning out into magenta
 	var hot := mid.lerp(Color(1.0, 0.95, 0.85), 0.8)
 	s.total = maxf(s.fire_t, maxf(s.ring_t, s.smoke_t + 0.4))
 	s.total = maxf(s.total, 0.65 + 0.045 * r if quantum else 1.4 + 0.02 * r)       # the particles of the slot outlive the layers
@@ -232,7 +232,7 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	s.fire_mat.set_shader_parameter(&"c_mid", mid)
 	s.fire_mat.set_shader_parameter(&"c_hot", hot)
 	s.fire_mat.set_shader_parameter(&"roll", randf() * TAU)
-	s.fire_mat.set_shader_parameter(&"gain", 2.2 if quantum else 1.7)
+	s.fire_mat.set_shader_parameter(&"gain", 2.4 if quantum else 2.0)
 	var floor_y := 0.05 if pos.y < 4.0 else -1000.0
 	s.fire_mat.set_shader_parameter(&"floor_y", floor_y)
 	s.fire_mat.set_shader_parameter(&"fade_h", s.fire_size * 0.25)
@@ -387,11 +387,11 @@ func _step(s: Slot, dt: float) -> void:
 		p.scale = Vector3(size, size, size)
 		var m := s.puff_mats[k]
 		m.set_shader_parameter(&"progress", f)
-		var al := minf(near, _cover_fade(p.global_position, size * 1.1)) * 0.85 * (1.0 if first else 0.55)
+		var al := minf(near, _cover_fade(p.global_position, size * 1.1)) * 0.95 * (1.0 if first else 0.6)
 		if not first and s.burn > 0.0:
 			al *= clampf((s.burn - a) / 1.0, 0.0, 1.0)
 		m.set_shader_parameter(&"alpha", al)
-		m.set_shader_parameter(&"glow", maxf(0.0, 1.0 - a * 0.45) if first else 0.0)
+		m.set_shader_parameter(&"glow", maxf(0.0, 1.0 - a * 0.28) if first else 0.0)
 		p.visible = al > 0.01
 	# the ring on the ground
 	var tg := a / s.ring_t

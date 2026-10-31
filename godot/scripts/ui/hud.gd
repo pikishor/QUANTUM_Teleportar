@@ -13,6 +13,8 @@ const VIGNETTE_MAX := 0.35          ## hard cap of the one damage vignette's alp
 const HURT_TIME := 0.45             ## seconds the hit vignette lasts
 const MARKER_TIME := 0.7            ## seconds the attacker marker lasts
 const DEAD_DIM := 0.30              ## alpha of the DECOHERED / SECTOR STABILIZED dimming (never above 0.35)
+## Base-px baseline of the centre message: below the top stack and the radio subtitle lane, above the crosshair.
+const MSG_Y := 276.0
 const CONTROLS_DESKTOP := "WASD MOVE    MOUSE LOOK    LMB FIRE    RMB AIM    SHIFT SPRINT    SPACE JUMP    R RELOAD    Q BLINK    E LINK    G SUPERPOSE    F USE    ESC PAUSE"
 const CONTROLS_TOUCH := "LEFT THUMB MOVE (PUSH FAR TO SPRINT)    RIGHT THUMB LOOK    HOLD FIRE TO SHOOT AND AIM AT ONCE"
 
@@ -42,6 +44,10 @@ var _star := PackedVector2Array()
 var _vignette: GradientTexture2D
 var _mouse_captured := false
 var _t := 0.0
+var _q: Array = []                  ## queued draws (see _text): text, rectangles, sprites, outlines
+var _fills: Array = []
+var _frames: Array = []
+var _sprites: Array = []
 
 
 func _ready() -> void:
@@ -354,7 +360,7 @@ func _process(delta: float) -> void:
 	var s := UiUtil.ui_scale(vp)
 	var ins := UiUtil.insets(vp)
 	var side := 176.0 * s
-	minimap.position = Vector2(ins.x + 16.0 * s, 14.0 * s)
+	minimap.position = Vector2(ins.x + 16.0 * s, 14.0 * s + UiUtil.insets_v(vp).x)
 	minimap.size = Vector2(side, side)
 	if _hud.visible:
 		_hud.queue_redraw()
@@ -366,27 +372,94 @@ func _process(delta: float) -> void:
 # HUD drawing
 # ---------------------------------------------------------------------------------------------------------------------
 
+## Everything the HUD draws every frame is queued and flushed in batch-friendly order: plain rectangles, then sprites (grouped by texture), then outlines, then text
+## (grouped by size). Canvas draws only batch when consecutive commands share their kind and texture, so the order of calls in the code is NOT the draw order.
 func _text(c: Control, font: Font, pos: Vector2, text: String, align: HorizontalAlignment, width: float, size: int, col: Color, shadow := 0.0) -> void:
-	if shadow > 0.0:
-		c.draw_string(font, pos + Vector2(shadow, shadow), text, align, width, size, Color(0, 0, 0, col.a * 0.8))
-	c.draw_string(font, pos, text, align, width, size, col)
+	_q.append([c, font, pos, text, align, width, size, col, shadow])
+
+
+func _rect(c: Control, r: Rect2, col: Color) -> void:
+	_fills.append([c, r, col])
+
+
+func _frame(c: Control, r: Rect2, col: Color, w: float) -> void:
+	_frames.append([c, r, col, w])
+
+
+func _sprite(c: Control, kind: StringName, r: Rect2, col: Color) -> void:
+	_sprites.append([c, kind, r, col])
+
+
+func _flush_text() -> void:
+	for f: Array in _fills:
+		(f[0] as Control).draw_rect(f[1], f[2])
+	_fills.clear()
+	if not _sprites.is_empty():
+		var kinds := {}
+		for sp: Array in _sprites:
+			kinds[sp[1]] = true
+		for k: StringName in kinds.keys():
+			for sp: Array in _sprites:
+				if sp[1] == k:
+					(sp[0] as Control).draw_texture_rect(UiUtil.sprite(k), sp[2], false, sp[3])
+		_sprites.clear()
+	for f: Array in _frames:
+		(f[0] as Control).draw_rect(f[1], f[2], false, f[3])
+	_frames.clear()
+	var sizes := {}
+	for q: Array in _q:
+		sizes[q[6]] = true
+	for sz: int in sizes.keys():
+		for q: Array in _q:
+			if q[6] == sz and float(q[8]) > 0.0:
+				var col: Color = q[7]
+				(q[0] as Control).draw_string(q[1], (q[2] as Vector2) + Vector2(q[8], q[8]), q[3], q[4], q[5], q[6], Color(0, 0, 0, col.a * 0.85))
+		for q: Array in _q:
+			if q[6] == sz:
+				(q[0] as Control).draw_string(q[1], q[2], q[3], q[4], q[5], q[6], q[7])
+	_q.clear()
+
+
+## A backing plate (dark translucent rectangle with a thin accent line on its lower edge).
+func _plate(c: Control, r: Rect2, s: float, accent := Color(UiUtil.CYAN, 0.45)) -> void:
+	_rect(c, r, UiUtil.PLATE)
+	_rect(c, Rect2(r.position.x, r.end.y - 2.0 * s, r.size.x, 2.0 * s), accent)
+
+
+func _text_width(font: Font, text: String, size: int) -> float:
+	return font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+
+
+## A centred line of text on its own plate; returns the plate.
+func _plate_text(c: Control, font: Font, cx: float, y: float, text: String, size: int, col: Color, s: float, accent := Color(UiUtil.CYAN, 0.45), min_w := 0.0) -> Rect2:
+	var w := maxf(_text_width(font, text, size) + 36.0 * s, min_w)
+	var r := Rect2(cx - w * 0.5, y, w, float(size) * 1.45 + 6.0 * s)
+	_plate(c, r, s, accent)
+	_text(c, font, Vector2(r.position.x, y + float(size) * 1.1 + 2.0 * s), text, HORIZONTAL_ALIGNMENT_CENTER, w, size, col, 1.5 * s)
+	return r
 
 
 func _bar(c: Control, font: Font, x: float, y: float, w: float, h: float, frac: float, col: Color, label: String, value: String, s: float) -> void:
 	var r := Rect2(x, y, w, h)
-	c.draw_rect(r.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.55))
-	c.draw_rect(Rect2(x, y, w * clampf(frac, 0.0, 1.0), h), col)
-	c.draw_rect(r, Color(col, 0.55), false, 1.0 * s)
-	_text(c, font, Vector2(x - 8.0 * s - 90.0 * s, y + h - 0.5 * s), label, HORIZONTAL_ALIGNMENT_RIGHT, 90.0 * s, int(12.0 * s), Color(UiUtil.CYAN, 0.85))
-	_text(c, font, Vector2(x + w + 7.0 * s, y + h - 0.5 * s), value, HORIZONTAL_ALIGNMENT_LEFT, 44.0 * s, int(12.0 * s), Color(1, 1, 1, 0.85))
+	_rect(c, r.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.6))
+	_rect(c, Rect2(x, y, w * clampf(frac, 0.0, 1.0), h), col)
+	_frame(c, r, Color(col, 0.7), 1.0 * s)
+	_text(c, font, Vector2(x - 8.0 * s - 132.0 * s, y + h + 3.0 * s), label, HORIZONTAL_ALIGNMENT_RIGHT, 132.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+	_text(c, font, Vector2(x + w + 8.0 * s, y + h + 4.0 * s), value, HORIZONTAL_ALIGNMENT_LEFT, 56.0 * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.95), 1.0 * s)
 
 
 func _draw_hud(_ignored: Control = null) -> void:
+	_draw_hud_body()
+	_flush_text()
+
+
+func _draw_hud_body() -> void:
 	var c := _hud
 	var vp := c.size
 	var s := UiUtil.ui_scale(vp)
 	var font := UiUtil.font()
 	var ins := UiUtil.insets(vp)
+	var insv := UiUtil.insets_v(vp)
 	var right := vp.x - ins.y - 16.0 * s
 	var playing := Game.state == &"play"
 	var p: Node3D = Game.player if is_instance_valid(Game.player) else null
@@ -401,72 +474,84 @@ func _draw_hud(_ignored: Control = null) -> void:
 			c.draw_texture_rect(_vignette, Rect2(Vector2.ZERO, vp), false, Color(1, 1, 1, a))
 		if since_hurt < MARKER_TIME and playing:
 			_draw_hurt_direction(c, p, vp, s, 1.0 - since_hurt / MARKER_TIME)
-	# top centre: integrity, coherence, (hull), objective
+	# top centre, one stack: integrity / coherence (/ hull) bars on a plate, the objective line on a plate under them. The story layer starts below it.
+	var top := insv.x + 6.0 * s
+	var stack_end := top
 	if p != null:
 		var bw := 220.0 * s
-		var bx := vp.x * 0.5 - bw * 0.5 + 12.0 * s
+		var total := 132.0 * s + 8.0 * s + bw + 8.0 * s + 56.0 * s
+		var bx := vp.x * 0.5 - total * 0.5 + 140.0 * s
 		var hp := UiUtil.num(p, &"hp", 100.0)
 		var mhp := maxf(UiUtil.num(p, &"max_hp", 100.0), 1.0)
 		var f := clampf(hp / mhp, 0.0, 1.0)
 		var hp_col := Color(0.4, 1.0, 0.72, 0.95) if f > 0.35 else Color(1.0, 0.3, 0.3, 0.95)
-		_bar(c, font, bx, 16.0 * s, bw, 8.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
+		var has_hull := veh != null and UiUtil.num(veh, &"hp", -1.0) >= 0.0
+		var rows := 3 if has_hull else 2
+		var plate := Rect2(vp.x * 0.5 - total * 0.5 - 12.0 * s, top, total + 24.0 * s, (12.0 + 24.0 * (rows - 1) + 14.0 + 8.0) * s)
+		_plate(c, plate, s)
+		var y0 := top + 10.0 * s
+		_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
 		var en := UiUtil.num(p, &"energy", 100.0)
 		var men := maxf(UiUtil.num(p, &"max_energy", 100.0), 1.0)
-		_bar(c, font, bx, 34.0 * s, bw, 8.0 * s, en / men, Color(0.35, 0.8, 1.0, 0.95), "COHERENCE", str(floori(en)), s)
-		var row := 52.0
-		if veh != null and UiUtil.num(veh, &"hp", -1.0) >= 0.0:
+		_bar(c, font, bx, y0 + 24.0 * s, bw, 14.0 * s, en / men, Color(0.35, 0.8, 1.0, 0.95), "COHERENCE", str(floori(en)), s)
+		if has_hull:
 			var vh := UiUtil.num(veh, &"hp", 0.0)
-			_bar(c, font, bx, row * s, bw, 8.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
-			row += 18.0
-		_text(c, font, Vector2(0.0, (row + 22.0) * s), _obj_text, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(16.0 * s), Color(UiUtil.MAGENTA.lerp(Color.WHITE, 0.35), 0.95), 1.0 * s)
-	# top right: heat stars and credits
+			_bar(c, font, bx, y0 + 48.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
+		var obj := _plate_text(c, font, vp.x * 0.5, plate.end.y + 4.0 * s, _obj_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.MAGENTA.lerp(Color.WHITE, 0.45), 1.0), s, Color(UiUtil.MAGENTA, 0.6), 300.0 * s)
+		stack_end = obj.end.y
+	UiUtil.stack_bottom = stack_end / s
+	# top right: heat stars and credits on one plate
+	_plate(c, Rect2(right - 176.0 * s, top, 184.0 * s, 76.0 * s), s)
 	var heat := Game.heat
 	for i in 5:
-		var centre := Vector2(right - (4 - i) * 27.0 * s - 10.0 * s, 26.0 * s)
-		c.draw_set_transform(centre, 0.0, Vector2(10.5, 10.5) * s)
-		c.draw_colored_polygon(_star, Color(1, 1, 1, 0.12))
+		var centre := Vector2(right - (4 - i) * 30.0 * s - 14.0 * s, top + 22.0 * s)
+		var sr := Rect2(centre - Vector2(12.0, 12.0) * s, Vector2(24.0, 24.0) * s)
+		_sprite(c, &"star", sr, Color(1, 1, 1, 0.16))
 		var fill := clampf(heat - i, 0.0, 1.0)
 		if fill > 0.0:
 			var col := UiUtil.AMBER if heat < 3.0 else UiUtil.RED
 			var pulse := 1.0 if heat < 3.0 else 0.8 + 0.2 * sin(_t * 8.0)
-			c.draw_colored_polygon(_star, Color(col, (0.35 + 0.65 * fill) * pulse))
-	c.draw_set_transform(Vector2.ZERO)
-	_text(c, font, Vector2(right - 220.0 * s, 62.0 * s), _cred_text, HORIZONTAL_ALIGNMENT_RIGHT, 220.0 * s, int(17.0 * s), Color(1, 1, 1, 0.92), 1.0 * s)
+			_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
+	_text(c, font, Vector2(right - 172.0 * s, top + 64.0 * s), _cred_text, HORIZONTAL_ALIGNMENT_RIGHT, 170.0 * s, int(24.0 * s), Color(1, 1, 1, 0.97), 1.5 * s)
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return
 	if not playing and Game.state != &"paused":                # dead and win: the middle and the bottom belong to the world and the screen's own button
 		_draw_message(c, vp, s, font)
 		return
-	# bottom centre: ammo or speed, power hints
-	var ammo := ammo_text()
-	var ab := Rect2(vp.x * 0.5 - 92.0 * s, vp.y - 66.0 * s, 184.0 * s, 40.0 * s)
-	c.draw_rect(ab, Color(0.0, 0.03, 0.05, 0.5))
-	c.draw_rect(ab, Color(UiUtil.CYAN, 0.35), false, 1.0 * s)
-	_text(c, font, Vector2(ab.position.x, ab.position.y + 30.0 * s), ammo, HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(26.0 * s), Color(1, 1, 1, 0.95) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.95))
-	if p.get("quantum") != null and not touch_ui_on():
+	# bottom: ammo or speed (on phones left of the touch buttons), power hints (desktop), vehicle hint above the ammo
+	var base_y := vp.y - insv.y
+	var touch_on := touch_ui_on()
+	var aw := 230.0 * s
+	var ax := vp.x * 0.5
+	if touch_on:
+		ax = minf(ax, vp.x - ins.y - 600.0 * s - aw * 0.5 - 10.0 * s)
+	var ab := Rect2(ax - aw * 0.5, base_y - 70.0 * s, aw, 54.0 * s)
+	_plate(c, ab, s)
+	_text(c, font, Vector2(ab.position.x, ab.position.y + 41.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(38.0 * s), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
+	if p.get("quantum") != null and not touch_on:
 		for i in 3:
 			var info: Dictionary = UiUtil.ABILITIES[i]
 			var st := UiUtil.ability_state(p, info)
-			var r := Rect2(vp.x * 0.5 - 130.0 * s + i * 90.0 * s, vp.y - 100.0 * s, 80.0 * s, 26.0 * s)
+			var r := Rect2(ax - 188.0 * s + i * 128.0 * s, base_y - 118.0 * s, 120.0 * s, 36.0 * s)
 			var tint := UiUtil.AMBER if st["active"] else UiUtil.CYAN
-			var dim := 1.0 if (st["ready"] or st["active"]) else 0.4
-			c.draw_rect(r, Color(0.0, 0.03, 0.05, 0.5))
+			var dim := 1.0 if (st["ready"] or st["active"]) else 0.5
+			_rect(c, r, UiUtil.PLATE)
 			if float(st["cd"]) > 0.0:
-				c.draw_rect(Rect2(r.position, Vector2(r.size.x * (1.0 - float(st["cd"])), r.size.y)), Color(tint, 0.2))
+				_rect(c, Rect2(r.position, Vector2(r.size.x * (1.0 - float(st["cd"])), r.size.y)), Color(tint, 0.25))
 			elif st["active"]:
-				c.draw_rect(r, Color(tint, 0.18))
-			c.draw_rect(r, Color(tint, 0.6 * dim), false, 1.0 * s)
+				_rect(c, r, Color(tint, 0.22))
+			_frame(c, r, Color(tint, 0.8 * dim), 1.5 * s)
 			var label := "%s  %s" % [info["key"], info["label"]]
 			if st["active"]:
 				label += "  %d" % ceili(float(st["left"]))
-			_text(c, font, Vector2(r.position.x, r.position.y + 18.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(13.0 * s), Color(1, 1, 1, 0.92 * dim))
+			_text(c, font, Vector2(r.position.x, r.position.y + 27.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(UiUtil.TEXT_MIN * 0.9 * s), Color(1, 1, 1, 0.97 * dim), 1.0 * s)
 	if playing:
 		_draw_quantum_readout(c, vp, s, font)
 	if playing and veh == null:
 		_draw_crosshair(c, p, vp, s, now)
 	if playing and _hint_text != "":
-		_text(c, font, Vector2(0.0, vp.y * 0.64), _hint_text, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.CYAN, 0.95), 1.5 * s)
+		_plate_text(c, font, ab.get_center().x, ab.position.y - (46.0 * s if (p.get("quantum") == null or touch_on) else 98.0 * s), _hint_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 1.0), s)
 	_draw_message(c, vp, s, font)
 
 
@@ -496,43 +581,53 @@ func _draw_quantum_readout(c: Control, vp: Vector2, s: float, font: Font) -> voi
 	if not ro["visible"]:
 		return
 	var a: float = ro["alpha"]
-	var w := 260.0 * s
-	var box := Rect2(vp.x * 0.5 - w * 0.5, vp.y * 0.30 + 26.0 * s, w, 58.0 * s)
-	c.draw_rect(box, Color(0.0, 0.03, 0.05, 0.55 * a))
-	c.draw_rect(box, Color(UiUtil.CYAN, 0.45 * a), false, 1.0 * s)
-	_text(c, font, Vector2(box.position.x, box.position.y + 14.0 * s), "ALICE SENDS 2 BITS  >  BOB CORRECTS", HORIZONTAL_ALIGNMENT_CENTER, box.size.x, int(11.0 * s), Color(UiUtil.CYAN, 0.9 * a), 1.0 * s)
+	var w := 340.0 * s
+	var box := Rect2(vp.x * 0.5 - w * 0.5, MSG_Y * s + 10.0 * s, w, 56.0 * s)
+	_rect(c, box, Color(UiUtil.PLATE, UiUtil.PLATE.a * a))
+	_frame(c, box, Color(UiUtil.CYAN, 0.55 * a), 1.0 * s)
+	_text(c, font, Vector2(box.position.x, box.position.y + 18.0 * s), "ALICE SENDS 2 BITS  >  BOB CORRECTS", HORIZONTAL_ALIGNMENT_CENTER, box.size.x, int(16.0 * s), Color(UiUtil.CYAN, 0.95 * a), 1.0 * s)
 	for i in 2:
 		var bit: int = ro["m1"] if i == 0 else ro["m0"]
 		var gate := "X" if i == 0 else "Z"
-		var x := box.position.x + 22.0 * s + i * 118.0 * s
-		var y := box.position.y + 24.0 * s
+		var x := box.position.x + 20.0 * s + i * 158.0 * s
+		var y := box.position.y + 26.0 * s
 		var on := bit == 1
-		var rb := Rect2(x, y, 26.0 * s, 26.0 * s)
-		c.draw_rect(rb, Color(UiUtil.CYAN, (0.25 if on else 0.06) * a))
-		c.draw_rect(rb, Color(UiUtil.CYAN, 0.8 * a), false, 1.0 * s)
-		_text(c, font, Vector2(rb.position.x, rb.position.y + 20.0 * s), str(bit), HORIZONTAL_ALIGNMENT_CENTER, rb.size.x, int(18.0 * s), Color(1, 1, 1, a))
-		_text(c, font, Vector2(rb.end.x + 4.0 * s, rb.position.y + 19.0 * s), "m%d >" % (1 - i), HORIZONTAL_ALIGNMENT_LEFT, 34.0 * s, int(12.0 * s), Color(1, 1, 1, 0.7 * a))
-		var rg := Rect2(x + 64.0 * s, y, 26.0 * s, 26.0 * s)
-		c.draw_rect(rg, Color(UiUtil.MAGENTA, (0.45 if on else 0.05) * a))
-		c.draw_rect(rg, Color(UiUtil.MAGENTA, (0.9 if on else 0.35) * a), false, 1.0 * s)
-		_text(c, font, Vector2(rg.position.x, rg.position.y + 20.0 * s), gate, HORIZONTAL_ALIGNMENT_CENTER, rg.size.x, int(18.0 * s), Color(1, 1, 1, (1.0 if on else 0.4) * a))
+		var rb := Rect2(x, y, 28.0 * s, 28.0 * s)
+		_rect(c, rb, Color(UiUtil.CYAN, (0.3 if on else 0.08) * a))
+		_frame(c, rb, Color(UiUtil.CYAN, 0.85 * a), 1.0 * s)
+		_text(c, font, Vector2(rb.position.x, rb.position.y + 22.0 * s), str(bit), HORIZONTAL_ALIGNMENT_CENTER, rb.size.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, a), 1.0 * s)
+		_text(c, font, Vector2(rb.end.x + 4.0 * s, rb.position.y + 21.0 * s), "m%d >" % (1 - i), HORIZONTAL_ALIGNMENT_LEFT, 44.0 * s, int(16.0 * s), Color(1, 1, 1, 0.85 * a), 1.0 * s)
+		var rg := Rect2(x + 84.0 * s, y, 28.0 * s, 28.0 * s)
+		_rect(c, rg, Color(UiUtil.MAGENTA, (0.5 if on else 0.06) * a))
+		_frame(c, rg, Color(UiUtil.MAGENTA, (0.9 if on else 0.4) * a), 1.0 * s)
+		_text(c, font, Vector2(rg.position.x, rg.position.y + 22.0 * s), gate, HORIZONTAL_ALIGNMENT_CENTER, rg.size.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, (1.0 if on else 0.5) * a), 1.0 * s)
 
 
 func _draw_message(c: Control, vp: Vector2, s: float, font: Font) -> void:
 	if message_left <= 0.0 or message_text == "" or Game.state != &"play":
 		return
 	var fade := clampf(minf(message_left / 0.4, (_msg_total - message_left) / 0.12 + 0.3), 0.0, 1.0)
-	_text(c, font, Vector2(0.0, vp.y * 0.30), message_text, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(26.0 * s), Color(1, 1, 1, 0.97 * fade), 2.0 * s)
+	var size := int(30.0 * s)
+	var w := minf(_text_width(font, message_text, size) + 40.0 * s, vp.x - 40.0 * s)
+	var r := Rect2(vp.x * 0.5 - w * 0.5, (MSG_Y - 34.0) * s, w, 46.0 * s)
+	_rect(c, r, Color(UiUtil.PLATE, UiUtil.PLATE.a * fade))
+	_rect(c, Rect2(r.position.x, r.end.y - 2.0 * s, r.size.x, 2.0 * s), Color(UiUtil.CYAN, 0.5 * fade))
+	_text(c, font, Vector2(r.position.x, MSG_Y * s), message_text, HORIZONTAL_ALIGNMENT_CENTER, w, size, Color(1, 1, 1, 0.98 * fade), 2.0 * s)
 
 
 func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -> void:
 	var mid := vp * 0.5
 	var spread_px := float(p.call(&"spread_in_pixels", vp.y)) if p.has_method(&"spread_in_pixels") else 0.0
 	var gap := maxf(7.0 * s, spread_px)
-	var col := Color(1, 1, 1, 0.85)
-	for dir: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:
-		c.draw_line(mid + dir * gap, mid + dir * (gap + 10.0 * s), col, 1.6 * s, false)
-	c.draw_circle(mid, 1.2 * s, Color(1, 1, 1, 0.9))
+	var col := Color(1, 1, 1, 0.9)
+	for dir: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:       # arms are axis-aligned rectangles (they batch with the plates), dark edge under white
+		var a0 := mid + dir * gap
+		var a1 := mid + dir * (gap + 11.0 * s)
+		var arm := Rect2(Vector2(minf(a0.x, a1.x), minf(a0.y, a1.y)), Vector2(absf(a1.x - a0.x), absf(a1.y - a0.y)))
+		arm = arm.grow_individual(0.0, 1.0 * s, 0.0, 1.0 * s) if dir.x != 0.0 else arm.grow_individual(1.0 * s, 0.0, 1.0 * s, 0.0)     # 2 px thick
+		_rect(c, arm.grow(1.0 * s), Color(0, 0, 0, 0.5))
+		_rect(c, arm, col)
+	_sprite(c, &"disc", Rect2(mid - Vector2(1.6, 1.6) * s, Vector2(3.2, 3.2) * s), Color(1, 1, 1, 0.9))
 	var since := now - UiUtil.num(p, &"last_hit_time", -100.0)
 	if since < 0.18:
 		var hc := Color(1.0, 0.3, 0.25, 0.95) if (p.get("last_hit_kill") == true or p.get("last_hit_crit") == true) else Color(1, 1, 1, 0.95)
@@ -602,6 +697,11 @@ func _draw_screen(_ignored: Control = null) -> void:
 	var font := UiUtil.font()
 	var cx := vp.x * 0.5
 	_ensure_layout()
+	_draw_screen_body(c, vp, s, font, cx)
+	_flush_text()
+
+
+func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	var st := Game.state
 	var ink := UiUtil.INK
 	match st:
@@ -621,14 +721,14 @@ func _draw_screen(_ignored: Control = null) -> void:
 		&"menu":
 			_text(c, font, Vector2(0.0, 196.0 * s), "QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(76.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
 			c.draw_line(Vector2(cx - 240.0 * s, 222.0 * s), Vector2(cx + 240.0 * s, 222.0 * s), Color(UiUtil.MAGENTA, 0.8), 2.0 * s)
-			_text(c, font, Vector2(0.0, 258.0 * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(19.0 * s), Color(UiUtil.CYAN, 0.9))
+			_text(c, font, Vector2(0.0, 258.0 * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 			if is_instance_valid(Game.story) and Game.story.has_method(&"tagline"):
-				_text(c, font, Vector2(0.0, 294.0 * s), str(Game.story.call(&"tagline")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(16.0 * s), Color(1, 1, 1, 0.7))
-			_text(c, font, Vector2(0.0, 424.0 * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(13.0 * s), Color(UiUtil.CYAN, 0.7))
+				_text(c, font, Vector2(0.0, 294.0 * s), str(Game.story.call(&"tagline")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.85), 1.0 * s)
+			_text(c, font, Vector2(0.0, 424.0 * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 			_footer(c, vp, s, font)
 		&"paused":
 			_text(c, font, Vector2(0.0, 190.0 * s), "PAUSED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(64.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
-			_text(c, font, Vector2(0.0, 344.0 * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(13.0 * s), Color(UiUtil.CYAN, 0.7))
+			_text(c, font, Vector2(0.0, 344.0 * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 			_footer(c, vp, s, font)
 		&"dead":
 			_text(c, font, Vector2(0.0, 170.0 * s), "DECOHERED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(84.0 * s), Color(UiUtil.RED, 0.97), 3.0 * s)
@@ -648,7 +748,7 @@ func _draw_screen(_ignored: Control = null) -> void:
 		var tint := UiUtil.MAGENTA if (big and b["id"] != &"next" and b["id"] != &"resume") else UiUtil.CYAN
 		c.draw_rect(r, Color(tint, 0.30 if (on or hot) else 0.10))
 		c.draw_rect(r, Color(tint, 0.95 if (on or hot or big) else 0.5), false, 2.0 * s if big else 1.5 * s)
-		_text(c, font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + (9.0 if big else 6.0) * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int((28.0 if big else 15.0) * s), Color(1, 1, 1, 0.97 if (on or hot or big) else 0.75))
+		_text(c, font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + (10.0 if big else 7.0) * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int((30.0 if big else 20.0) * s), Color(1, 1, 1, 0.97 if (on or hot or big) else 0.75))
 
 
 func _score_lines(c: Control, vp: Vector2, s: float, font: Font, y: float) -> void:
@@ -658,6 +758,10 @@ func _score_lines(c: Control, vp: Vector2, s: float, font: Font, y: float) -> vo
 
 
 func _footer(c: Control, vp: Vector2, s: float, font: Font) -> void:
-	_text(c, font, Vector2(0.0, vp.y - 40.0 * s), CONTROLS_TOUCH if touch_ui_on() else CONTROLS_DESKTOP, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(13.0 * s), Color(1, 1, 1, 0.55))
+	var line := CONTROLS_TOUCH if touch_ui_on() else CONTROLS_DESKTOP
+	var size := int(18.0 * s)
+	while size > int(12.0 * s) and _text_width(font, line, size) > vp.x - 40.0 * s:      # a wider fallback font must still fit the screen
+		size -= 1
+	_text(c, font, Vector2(0.0, vp.y - 40.0 * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, size, Color(1, 1, 1, 0.75), 1.0 * s)
 	if Game.state == &"menu":
-		_text(c, font, Vector2(0.0, vp.y - 90.0 * s), "BEST  %d" % settings.best, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(16.0 * s), Color(UiUtil.AMBER, 0.9))
+		_text(c, font, Vector2(0.0, vp.y - 90.0 * s), "BEST  %d" % settings.best, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)

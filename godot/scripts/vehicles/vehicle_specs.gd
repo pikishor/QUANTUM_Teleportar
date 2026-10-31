@@ -30,12 +30,14 @@ const RESPAWN_TIME := 25.0             ## a destroyed car comes back as a parked
 
 const BAY := 8.3                       ## parking bay centre offset from the road centre line (bays are 7.0-9.4 m)
 const STARTER_DX := 9.0                ## the starter sport car stands at SPAWN.x + this, on the parking bay (z = BAY) of the main avenue, facing +X
-const STARTER_COLOR := 2               ## index into COLORS: amber, so the starter car is easy to find
+const STARTER_COLOR := 2               ## index into COLORS: brass, so the starter car is easy to find
 const STARTER_HEADING := -PI * 0.5
 
 const COLORS: Array[Color] = [
-	Color(0.847, 0.149, 0.290), Color(0.165, 0.427, 0.957), Color(0.941, 0.706, 0.161), Color(0.180, 0.812, 0.604),
-	Color(0.541, 0.294, 1.0), Color(0.914, 0.914, 0.961), Color(1.0, 0.416, 0.169), Color(0.102, 0.122, 0.200),
+	# desaturated lacquer palette (clear coat + flakes, see VehicleVisual.set_paint): oxblood, steel blue, brass (the starter), sage teal,
+	# dusk violet, pearl, burnt copper, midnight. Nothing is a flat saturated primary any more.
+	Color(0.56, 0.20, 0.24), Color(0.30, 0.42, 0.56), Color(0.78, 0.66, 0.44), Color(0.30, 0.52, 0.48),
+	Color(0.42, 0.38, 0.60), Color(0.86, 0.87, 0.90), Color(0.68, 0.40, 0.26), Color(0.15, 0.18, 0.30),
 ]
 const PAINT_GAIN := 1.0
 const GLOWS: Array[Color] = [Color(0.22, 0.96, 1.0), Color(1.0, 0.24, 0.94), Color(0.22, 1.0, 0.69), Color(0.61, 0.42, 1.0)]

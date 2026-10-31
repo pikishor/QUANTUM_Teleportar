@@ -92,6 +92,24 @@ func run(host: Node) -> void:
 	TestLib.check(not pool.light.visible, "...and the light is off")
 	TestLib.check(pool._heat_value.w == 0.0, "...and the heat haze is off")
 
+	# --- a street blast (the review bot saw none): fireball first, smoke still hanging 1.2 s later, everything over by itself; the collapse has a magenta ripple
+	Game.quality = 1
+	FX.reset()
+	Game.explode(Vector3(0.0, 1.0, 0.0), 6.0, {"enemy_dmg": 0.0, "car_dmg": 0.0, "player_dmg": 0.0})
+	var blast: Object = null
+	for s in pool.slots:
+		if s.active:
+			blast = s
+	TestLib.check(blast != null and blast.fire.visible and blast.ground.visible, "a street blast shows its fireball and ground ring at once")
+	_advance(0.3)
+	TestLib.check(blast.fire.visible and blast.sparks.visible and blast.debris.visible, "0.3 s: fireball, sparks and debris")
+	_advance(0.9)
+	var smoke := 0
+	for p in blast.puffs:
+		smoke += 1 if p.visible else 0
+	TestLib.check(smoke >= 1 and blast.total >= 2.5, "1.2 s: smoke still hangs over the street (%d puffs, lasts %.1f s)" % [smoke, blast.total])
+	FX.reset()
+	TestLib.check(FX.MUZZLE_POOL >= 10 and FX.TRACER_LIFE >= 0.12, "tracers last long enough to see (%.2f s) and the flash pool covers shots plus impacts" % FX.TRACER_LIFE)
 	# --- no node growth after 200 explosions
 	var before := _count_nodes(FX)
 	for i in 200:

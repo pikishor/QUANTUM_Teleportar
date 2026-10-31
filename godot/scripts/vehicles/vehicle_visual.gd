@@ -7,8 +7,11 @@ extends RefCounted
 ## (which also lifts the near-black legacy albedo) and then recoloured with set_surface_override_material. Models are never scaled.
 
 const LIGHT_SURFACES := [&"Headlights", &"Taillights", &"Underglow"]
-const BODY_METALLIC := 0.45                 ## the legacy Body material is metallic 1 / rough 1 (black without an environment): glossy paint instead
-const BODY_ROUGHNESS := 0.32
+const BODY_METALLIC := 0.9                  ## factors on top of the baked ORM texture (paint = glossy low metal, chipped edges = bare metal): see set_paint for the per-car finish
+const BODY_ROUGHNESS := 0.9
+const COAT := 0.85                          ## clear coat strength / roughness: the wet sheen of lacquered paint under the neon
+const COAT_ROUGHNESS := 0.07
+const LAMP_GAIN := 0.6                      ## lamp surfaces are drawn additively (unshaded, vertex colour = soft falloff): albedo = colour x base energy x this x state
 const PAINT_GLOW := 0.15                    ## faint emission in the paint colour, so a car keeps its colour in the dark
 const WHEEL_NAMES := [&"WheelFL", &"WheelFR", &"WheelRL", &"WheelRR"]
 
@@ -23,6 +26,7 @@ var wheel_radius := 0.335
 var _body_mat: BaseMaterial3D
 var _lift := 1.0
 var _mats: Array = [[], [], []]             ## per light kind: Array of BaseMaterial3D
+var _cols: Array = [[], [], []]             ## per light kind: Array[Color] (the lamp colour)
 var _base: Array = [[], [], []]             ## per light kind: Array[float] base emission energy
 var _last := [-1.0, -1.0, -1.0]
 var _roll := 0.0
@@ -60,6 +64,9 @@ func build(kind: StringName, glow: Color) -> Node3D:
 				_body_mat = ov
 				ov.metallic = BODY_METALLIC
 				ov.roughness = BODY_ROUGHNESS
+				ov.clearcoat_enabled = true
+				ov.clearcoat = COAT
+				ov.clearcoat_roughness = COAT_ROUGHNESS
 				ov.emission_enabled = true
 				ov.emission_energy_multiplier = 0.12 if DynamicFill._is_compat() else PAINT_GLOW
 				var a := src.albedo_color
@@ -67,12 +74,11 @@ func build(kind: StringName, glow: Color) -> Node3D:
 				_lift = (b.r + b.g + b.b) / maxf(a.r + a.g + a.b, 0.05)
 			elif nm in LIGHT_SURFACES:
 				var kind_i: int = LIGHT_SURFACES.find(nm)
-				ov.emission_enabled = true
-				ov.emission = glow if kind_i == 2 else src.emission
-				ov.rim_enabled = false
-				var base := src.emission_energy_multiplier
+				var col: Color = glow if kind_i == 2 else src.emission
+				_make_lamp(ov)
 				_mats[kind_i].append(ov)
-				_base[kind_i].append(base)
+				_cols[kind_i].append(col)
+				_base[kind_i].append(maxf(src.emission_energy_multiplier, 1.0))
 	if body != null:
 		mirror_meshes.append(body)
 	set_lights(0.1, 0.35, 0.35)
@@ -86,6 +92,11 @@ func set_paint(color: Color) -> void:
 	var c := color * VehicleSpecs.PAINT_GAIN
 	_body_mat.albedo_color = Color(c.r * _lift, c.g * _lift, c.b * _lift, 1.0)
 	_body_mat.emission = color
+	# metallic / roughness split: every colour gets its own finish (flake-heavy metallic, satin pearl, deep gloss) on top of the baked texture
+	var k := fposmod(color.h * 5.0 + color.v * 3.0, 1.0)
+	_body_mat.metallic = lerpf(0.55, BODY_METALLIC + 0.1, k)
+	_body_mat.roughness = lerpf(BODY_ROUGHNESS, 0.6, k)
+	_body_mat.clearcoat = lerpf(COAT, 1.0, k)
 
 
 func get_paint() -> Color:
@@ -93,8 +104,9 @@ func get_paint() -> Color:
 
 
 func set_glow(color: Color) -> void:
-	for m: BaseMaterial3D in _mats[2]:
-		m.emission = color
+	for i in _cols[2].size():
+		_cols[2][i] = color
+	_write_light(2, _last[2])
 
 
 ## Light factors (multipliers of the model's own emission): headlights, taillights, underglow. Only changes are written.
@@ -108,10 +120,35 @@ func _set_light(k: int, f: float) -> void:
 	if absf(f - float(_last[k])) < 0.01:
 		return
 	_last[k] = f
+	_write_light(k, f)
+
+
+func _write_light(k: int, f: float) -> void:
 	var mats: Array = _mats[k]
 	var bases: Array = _base[k]
+	var cols: Array = _cols[k]
+	var g: float = LAMP_GAIN * maxf(f, 0.0) * (0.4 if DynamicFill._is_compat() else 1.0)      # the Compatibility renderer shows additive pools much hotter
 	for i in mats.size():
-		(mats[i] as BaseMaterial3D).emission_energy_multiplier = float(bases[i]) * f
+		var c: Color = cols[i]
+		var e: float = float(bases[i]) * g
+		(mats[i] as BaseMaterial3D).albedo_color = Color(c.r * e, c.g * e, c.b * e, 1.0)
+
+
+## A lamp surface: unshaded, additive, double sided, vertex colours (the baked halo and light-pool falloff) multiply the colour. Lens boxes are white
+## vertex colours (full colour), the halos / road pools fall off to black, so they blend into the wet road without any real light.
+static func _make_lamp(m: BaseMaterial3D) -> void:
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	m.vertex_color_use_as_albedo = true
+	m.albedo_texture = null
+	m.emission_enabled = false
+	m.rim_enabled = false
+	m.normal_enabled = false
+	m.roughness_texture = null
+	m.metallic_texture = null
 
 
 func light_factor(kind_i: int) -> float:

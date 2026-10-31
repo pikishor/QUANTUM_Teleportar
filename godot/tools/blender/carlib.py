@@ -12,6 +12,7 @@ Real lights come with the model: a headlight spot, an underglow omni and a fill 
 import math
 
 import bpy  # noqa: F401  (must be imported before mathutils)
+import bmesh
 from mathutils import Vector
 
 from helpers import (Part, empty, export_model, hexc, light, make_material, new_scene, paint)
@@ -38,6 +39,93 @@ def sprof(points, y, k=0.10):
     taps = (-2, -1, 0, 1, 2)
     w = (1, 4, 6, 4, 1)
     return sum(wi * prof(points, y + t * k) for t, wi in zip(taps, w)) / 16.0
+
+
+# ------------------------------------------------------------------ soft glow geometry (no real lights, no textures)
+# Fans and grids whose VERTEX COLOURS fall off to black: the game draws the lamp materials additively (unshaded, vertex colour as albedo), so a
+# fan is a soft halo and a ground grid is a light pool on the wet road. They are added AFTER the atlas bake (finalize) so they neither darken
+# the baked ambient occlusion of the paint nor get culled. Values are the peak intensity of the colour (the material colour scales them).
+def glow_disc(c, u, v, ru, rv, peak, n=16, rings=(0.0, 0.3, 0.6, 1.0), power=2.0):
+    verts, cols, faces = [Vector(c)], [(peak,) * 3], []
+    for f in rings[1:]:
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            verts.append(Vector(c) + Vector(u) * (math.cos(a) * ru * f) + Vector(v) * (math.sin(a) * rv * f))
+            k = peak * (1.0 - f) ** power
+            cols.append((k, k, k))
+    for i in range(n):
+        faces.append((0, 1 + i, 1 + (i + 1) % n))
+    for r in range(len(rings) - 2):
+        b0, b1 = 1 + r * n, 1 + (r + 1) * n
+        for i in range(n):
+            j = (i + 1) % n
+            faces.append((b0 + i, b1 + i, b1 + j, b0 + j))
+    return verts, faces, cols
+
+
+def glow_ellipse(c, rx, ry, stops, n=28):
+    """Ground pool: concentric ellipses, stops = [(fraction of the radius, intensity)] from the centre outwards (the last one is 0)."""
+    verts, cols, faces = [Vector(c)], [(stops[0][1],) * 3], []
+    for f, k in stops[1:]:
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            verts.append(Vector(c) + Vector((math.cos(a) * rx * f, math.sin(a) * ry * f, 0.0)))
+            cols.append((k, k, k))
+    for i in range(n):
+        faces.append((0, 1 + i, 1 + (i + 1) % n))
+    for r in range(len(stops) - 2):
+        b0, b1 = 1 + r * n, 1 + (r + 1) * n
+        for i in range(n):
+            j = (i + 1) % n
+            faces.append((b0 + i, b1 + i, b1 + j, b0 + j))
+    return verts, faces, cols
+
+
+def glow_beam(x0, y0, z, length, w0, w1, peak, direction=1.0, nr=5, nc=5):
+    """Ground light pool in front of / behind a lamp: a grid that widens along y and fades along its length and across."""
+    verts, cols, faces = [], [], []
+    for r in range(nr):
+        t = r / (nr - 1)
+        w = (w0 + (w1 - w0) * t) * 0.5
+        for cidx in range(nc):
+            s = -1.0 + 2.0 * cidx / (nc - 1)
+            verts.append(Vector((x0 + s * w, y0 + direction * length * t, z)))
+            k = peak * (1.0 - t) ** 1.6 * max(0.0, 1.0 - s * s) ** 1.5
+            cols.append((k, k, k))
+    for r in range(nr - 1):
+        for cidx in range(nc - 1):
+            a = r * nc + cidx
+            faces.append((a, a + 1, a + nc + 1, a + nc))
+    return verts, faces, cols
+
+
+def add_glow(obj, items):
+    """Append glow geometry to a built mesh object. items: [(material name, verts, faces, vertex colours)]. The faces are double sided in the game
+    (cull disabled on the lamp materials), their vertex colour is the intensity falloff."""
+    me = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    layer = bm.loops.layers.float_color.get("Col") or bm.loops.layers.float_color.new("Col")
+    names = [m.name if m else "" for m in me.materials]
+    for mname, verts, faces, cols in items:
+        mi = names.index(mname)
+        vs = [bm.verts.new(v) for v in verts]
+        for f in faces:
+            try:
+                nf = bm.faces.new([vs[i] for i in f])
+            except ValueError:
+                continue
+            nf.material_index = mi
+            nf.smooth = True
+            for loop in nf.loops:
+                c = cols[vs.index(loop.vert)]
+                loop[layer] = (c[0], c[1], c[2], 1.0)
+    bm.to_mesh(me)
+    bm.free()
+    attr = me.color_attributes.get("Col")
+    if attr is not None:
+        me.color_attributes.active_color = attr
+        me.color_attributes.render_color_index = list(me.color_attributes).index(attr)
 
 
 def build_car(spec):
@@ -263,10 +351,10 @@ def build_car(spec):
 
         t_prof = [pr(0.60 * R, -0.46 * tw), pr(0.80 * R, -0.52 * tw), pr(0.95 * R, -0.49 * tw), pr(R, -0.32 * tw), pr(R, 0.32 * tw),
                   pr(0.95 * R, 0.49 * tw), pr(0.80 * R, 0.52 * tw), pr(0.60 * R, 0.46 * tw)]
-        w.revolve(t_prof, (cx, cy, zc), mat=trim, tint=hexc("#101113"), segs=22, closed=True)
+        w.revolve(t_prof, (cx, cy, zc), mat=trim, tint=hexc("#101113"), segs=32, closed=True)
         r_prof = [pr(0.025 * R, 0.47 * tw), pr(0.17 * R, 0.47 * tw), pr(0.21 * R, 0.37 * tw), pr(0.55 * R, 0.37 * tw), pr(0.62 * R, 0.46 * tw),
                   pr(0.63 * R, 0.30 * tw), pr(0.58 * R, -0.3 * tw), pr(0.025 * R, -0.3 * tw)]
-        w.revolve(r_prof, (cx, cy, zc), mat=chrome, tint=hexc(spec.get("rim", "#8d959c")), segs=22, closed=True)
+        w.revolve(r_prof, (cx, cy, zc), mat=chrome, tint=hexc(spec.get("rim", "#8d959c")), segs=32, closed=True)
         for k in range(spec.get("spokes", 5)):
             a = 2 * math.pi * k / spec.get("spokes", 5) + 0.3
             d = Vector((0, math.cos(a), math.sin(a)))
@@ -294,7 +382,24 @@ def build_car(spec):
     ugc = tuple(min(1.0, c * 1.6 + 0.05) for c in ug)
     rig.append(light("UnderglowLight", (0.0, 0.0, 0.10), "omni", ugc, 1.3, 4.6, attenuation=1.5, fade=(28, 12), group="underglow"))
     rig.append(light("Fill", (0.0, 0.1, 2.3), "omni", (0.7, 0.82, 1.0), 1.0, 6.5, mask="own", attenuation=1.1, fade=(36, 14)))
+    # soft glow: halos on the lamps, light pools on the road, an underglow pool (see add_glow)
+    glow_items = []
+    for sx in (1, -1):
+        lx = sx * (xe - 0.27)
+        for halo in (glow_disc((lx, yf + 0.045, ze - 0.12), (1, 0, 0), (0, 0, 1), 0.46, 0.2, 0.30),):
+            glow_items.append(("Headlights", *halo))
+        glow_items.append(("Headlights", *glow_beam(lx, yf + 0.05, 0.03, 7.0, 0.7, 2.6, 0.20)))
+        tx = sx * (xr_ - 0.25)
+        glow_items.append(("Taillights", *glow_disc((tx, yr - 0.045, zr_ - 0.11), (1, 0, 0), (0, 0, 1), 0.40, 0.17, 0.30)))
+    glow_items.append(("Taillights", *glow_beam(0.0, yr - 0.05, 0.03, 2.6, 1.7, 2.8, 0.22, direction=-1.0)))
+    glow_items.append(("Underglow", *glow_ellipse((0.0, 0.0, 0.03), W / 2 + 0.75, L / 2 + 0.7, [(0.0, 0.22), (0.6, 0.42), (0.78, 0.2), (1.0, 0.0)])))
+
+    def finalize(parts_, objs_, extras_):
+        add_glow(parts_[0].obj, glow_items)
+        return list(objs_) + list(extras_)
+
     print("  body tris %d, wheel tris %d" % (P.tri_count(), sum(w.tri_count() for w in wheels)))
     groups = {"paint": dict(base=spec["name"] + "_paint", material="Body", size=spec.get("atlas_paint", 1024)),
               "atlas": dict(base=spec["name"], material="Details", size=spec.get("atlas", 1024))}
-    return export_model(spec["name"], [P] + wheels, extras=rig, groups=groups, decals=decals, ao_dist=0.6, ao_strength=0.65, emit_strength=2.0)
+    return export_model(spec["name"], [P] + wheels, extras=rig, groups=groups, decals=decals, ao_dist=0.6, ao_strength=0.65, emit_strength=2.0,
+                        finalize=finalize, keep_vcol=("Headlights", "Taillights", "Underglow"))

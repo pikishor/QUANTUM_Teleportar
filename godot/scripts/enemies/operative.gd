@@ -135,7 +135,7 @@ func _hit_effect(crit: bool) -> void:
 	_flinch = 1.0 if crit else 0.7
 	var c := center()
 	if Game.graphic_violence:
-		FX.burst(c, Color(0.55, 0.03, 0.04), 6, 3.5, 0.45, 9.0)
+		FX.burst(c, Color(0.5, 1.0, 0.2), 6, 3.5, 0.5, 9.0, 1.8)          # Vael ichor, not blood
 	else:
 		FX.burst(c, Color(0.85, 0.8, 0.7), 5, 2.5, 0.5, 3.0, 2.0)     # dust off the plates
 		FX.burst(c, Color(1.0, 0.82, 0.45), 3 if not crit else 5, 5.0, 0.2, 9.0)   # chips and sparks
@@ -159,7 +159,7 @@ func damage(amount: float, crit := false, mirrored := false) -> void:
 func _death_effect() -> void:
 	var c := center()
 	if Game.graphic_violence:
-		FX.burst(c, Color(0.5, 0.02, 0.03), 14, 4.0, 0.7, 10.0)
+		ichor(c, 0.8)
 	FX.burst(c, Color(0.85, 0.8, 0.7), 8, 3.0, 0.6, 3.0, 2.5)
 	FX.burst(c, Color(1.0, 0.8, 0.4), 8, 6.0, 0.3, 10.0)
 	Sfx.play_at(&"hit", c, 0.0, 0.8)
@@ -217,6 +217,31 @@ func _think_aware(delta: float, dx: float, dz: float, d: float) -> void:
 		_fire_t -= delta
 		if los and d < rng * 1.15 and _fire_t <= 0.0:
 			_aim_t = float(cfg["aim_time"])
+
+
+## Attack telegraph: the rifle charges during the aim windup (a flare at the muzzle and an aim line), full during the burst.
+func threat_charge() -> float:
+	if dead:
+		return 0.0
+	if _aim_t > 0.0:
+		return clampf(1.0 - _aim_t / float(cfg["aim_time"]), 0.0, 1.0)
+	return 1.0 if _burst_left > 0 else 0.0
+
+
+func shows_aim_line() -> bool:
+	return _aim_t > 0.0 and _tgt_ok
+
+
+func muzzle_world() -> Vector3:
+	return _muzzle_pos()
+
+
+func mark_size() -> float:
+	return 2.5
+
+
+func death_progress() -> float:
+	return clampf(_dead_t / 0.7, 0.0, 1.0)
 
 
 func _muzzle_pos() -> Vector3:

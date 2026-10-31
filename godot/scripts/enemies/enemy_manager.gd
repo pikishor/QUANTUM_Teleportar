@@ -14,6 +14,8 @@ extends Node
 const BOLT_POOL := 48
 const BOLT_LIFE := 3.0
 const BOLT_COLOR_BOOST := 1.6
+const BOLT_SHADER := preload("res://assets/shaders/fx_bolt.gdshader")
+const BOLT_LEN := 3.6             ## streak length of a bolt (metres), see fx_bolt.gdshader
 const REINFORCE_EVERY := 1.4
 const NEAR_RADIUS := 110.0
 const DESPAWN_DIST := 170.0
@@ -33,6 +35,7 @@ var _stream_t := 0.0
 var _patrols_built := false
 var _clone: Node3D
 var _clone_frame := -1
+var marks: EnemyMarks                ## threat rings, attack telegraph, health bars (3 draws for everybody)
 var _mm: MultiMesh
 var _mmi: MultiMeshInstance3D
 var _b_pos := PackedVector3Array()
@@ -49,6 +52,9 @@ func _ready() -> void:
 	DynamicFill.ensure_light(self)
 	DynamicFill.set_quality(Game.quality)
 	_build_bolts()
+	marks = EnemyMarks.new()
+	marks.name = "Marks"
+	add_child(marks)
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
 	Game.next_sector.connect(_on_next_sector)
@@ -208,7 +214,7 @@ func bolt(from: Vector3, to: Vector3, type: StringName, delay := 0.0) -> void:
 	var c: Color = cfg["color"]
 	_mm.set_instance_color(slot, Color(c.r * BOLT_COLOR_BOOST, c.g * BOLT_COLOR_BOOST, c.b * BOLT_COLOR_BOOST, 1.0))
 	if delay <= 0.0:
-		_mm.set_instance_transform(slot, Transform3D(Basis.IDENTITY, from))
+		_set_bolt(slot, from, dir)
 	else:
 		_mm.set_instance_transform(slot, _hidden_xform)
 
@@ -252,6 +258,7 @@ func _process(_delta: float) -> void:
 	var cam := Game.camera
 	if is_instance_valid(cam):
 		DynamicFill.aim_light(cam.global_rotation.y)
+	marks.refresh(list)
 
 
 func _physics_process(delta: float) -> void:
@@ -377,15 +384,10 @@ func _build_bolts() -> void:
 	_b_life.resize(BOLT_POOL)
 	_b_wait.resize(BOLT_POOL)
 	_b_dmg.resize(BOLT_POOL)
-	var sm := SphereMesh.new()
-	sm.radius = 0.16
-	sm.height = 0.32
-	sm.radial_segments = 8
-	sm.rings = 4
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.vertex_color_use_as_albedo = true
-	mat.disable_receive_shadows = true
+	var sm := QuadMesh.new()                      # a glowing streak (white-hot head, coloured halo, tail), turned to the camera by the shader
+	sm.size = Vector2.ONE
+	var mat := ShaderMaterial.new()
+	mat.shader = BOLT_SHADER
 	sm.material = mat
 	_mm = MultiMesh.new()
 	_mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -401,6 +403,15 @@ func _build_bolts() -> void:
 	_mmi.custom_aabb = AABB(Vector3(-600.0, -10.0, -600.0), Vector3(1200.0, 200.0, 1200.0))
 	_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mmi)
+
+
+## Place one streak so that its head is at `pos` and it trails behind along `dir` (the shader turns it to face the camera around that axis).
+func _set_bolt(i: int, pos: Vector3, dir: Vector3) -> void:
+	var y := dir * BOLT_LEN
+	var up := Vector3.UP if absf(dir.y) < 0.98 else Vector3.RIGHT
+	var x := dir.cross(up).normalized() * 1.6          # width of the streak quad
+	var z := x.cross(dir)
+	_mm.set_instance_transform(i, Transform3D(Basis(x, y, z), pos - dir * (BOLT_LEN * 0.3)))
 
 
 func _kill_bolt(i: int) -> void:
@@ -426,7 +437,7 @@ func _tick_bolts(delta: float) -> void:
 		if _b_wait[i] > 0.0:
 			_b_wait[i] -= delta
 			if _b_wait[i] <= 0.0:
-				_mm.set_instance_transform(i, Transform3D(Basis.IDENTITY, _b_pos[i]))
+				_set_bolt(i, _b_pos[i], _b_vel[i].normalized())
 			continue
 		_b_life[i] -= delta
 		var pos := _b_pos[i] + _b_vel[i] * delta
@@ -450,6 +461,6 @@ func _tick_bolts(delta: float) -> void:
 				p.call(&"damage", _b_dmg[i], _b_org[i])
 		if gone:
 			_kill_bolt(i)
-			FX.burst(pos, Color(1.0, 0.44, 0.56), 4, 3.0, 0.2, 4.0)
+			FX.burst(pos, Color(1.0, 0.5, 0.6), 8, 5.0, 0.3, 4.0, 1.6)
 		else:
-			_mm.set_instance_transform(i, Transform3D(Basis.IDENTITY, pos))
+			_set_bolt(i, pos, _b_vel[i].normalized())

@@ -68,6 +68,72 @@ def triangle_count(js):
     return total
 
 
+def strip_vertex_colors(path, keep_materials):
+    """Drop COLOR_0 from every primitive whose material is not in `keep_materials`, then compact the binary chunk (unreferenced accessors and
+    buffer views go away). The baked surfaces carry their tints in the textures, a vertex colour on them would be multiplied in by the importer."""
+    js, binary = read_glb(path)
+    mats = js.get("materials", [])
+    for mesh in js.get("meshes", []):
+        for prim in mesh.get("primitives", []):
+            name = mats[prim["material"]].get("name") if "material" in prim else None
+            if "COLOR_0" in prim["attributes"] and name not in keep_materials:
+                prim["attributes"].pop("COLOR_0")
+    used = set()
+    for mesh in js.get("meshes", []):
+        for prim in mesh.get("primitives", []):
+            used.update(prim["attributes"].values())
+            if "indices" in prim:
+                used.add(prim["indices"])
+            for tgt in prim.get("targets", []):
+                used.update(tgt.values())
+    for skin in js.get("skins", []):
+        if "inverseBindMatrices" in skin:
+            used.add(skin["inverseBindMatrices"])
+    for anim in js.get("animations", []):
+        for smp in anim.get("samplers", []):
+            used.update((smp["input"], smp["output"]))
+    acc_map, new_acc = {}, []
+    for i, a in enumerate(js.get("accessors", [])):
+        if i in used:
+            acc_map[i] = len(new_acc)
+            new_acc.append(a)
+    view_used = {a["bufferView"] for a in new_acc if "bufferView" in a}
+    view_used.update(img["bufferView"] for img in js.get("images", []) if "bufferView" in img)
+    view_map, new_views, out = {}, [], bytearray()
+    for i, v in enumerate(js.get("bufferViews", [])):
+        if i not in view_used:
+            continue
+        while len(out) % 4:
+            out.append(0)
+        off = v.get("byteOffset", 0)
+        nv = dict(v)
+        nv["byteOffset"] = len(out)
+        out += binary[off:off + v["byteLength"]]
+        view_map[i] = len(new_views)
+        new_views.append(nv)
+    for a in new_acc:
+        if "bufferView" in a:
+            a["bufferView"] = view_map[a["bufferView"]]
+    for img in js.get("images", []):
+        if "bufferView" in img:
+            img["bufferView"] = view_map[img["bufferView"]]
+    for mesh in js.get("meshes", []):
+        for prim in mesh.get("primitives", []):
+            prim["attributes"] = {k: acc_map[v] for k, v in prim["attributes"].items()}
+            if "indices" in prim:
+                prim["indices"] = acc_map[prim["indices"]]
+            for tgt in prim.get("targets", []):
+                for k in list(tgt):
+                    tgt[k] = acc_map[tgt[k]]
+    for skin in js.get("skins", []):
+        if "inverseBindMatrices" in skin:
+            skin["inverseBindMatrices"] = acc_map[skin["inverseBindMatrices"]]
+    js["accessors"] = new_acc
+    js["bufferViews"] = new_views
+    js["buffers"][0]["byteLength"] = len(out)
+    write_glb(path, js, out)
+
+
 def externalize_images(path, textures_dir, uri_prefix="../textures/"):
     """Replace embedded images by relative URIs when `<textures_dir>/<image name>.<png|jpg|webp>` exists.
     Returns the list of image names that were externalized. Images with no matching file stay embedded."""

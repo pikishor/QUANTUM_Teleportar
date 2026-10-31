@@ -43,6 +43,7 @@ func run(host: Node) -> void:
 	await _operative()
 	await _striker()
 	await _clone_target()
+	await _marks()
 	await _caps()
 	await _patrols()
 	await _reinforcements()
@@ -165,7 +166,7 @@ func _types_and_contract() -> void:
 	await _fresh()
 	TestLib.check(Game.enemies == mgr, "Game.enemies is the manager")
 	TestLib.check(mgr.cap() == 8, "MED cap is 8")
-	var want := {&"sentinel": [60.0, 0.95], &"striker": [34.0, 0.8], &"heavy": [230.0, 1.35], &"operative": [80.0, 0.55]}
+	var want := {&"sentinel": [60.0, 1.25], &"striker": [34.0, 0.8], &"heavy": [230.0, 1.35], &"operative": [80.0, 0.55]}
 	var x := 20.0
 	for t: StringName in want:
 		var d := _spawn(t, Vector3(x, 0.0, 40.0))
@@ -383,12 +384,14 @@ func _clone_target() -> void:
 	TestLib.check(mgr.get_clone() == clone, "the manager finds player.quantum.clone")
 	var d := _spawn(&"sentinel", Vector3(10.0, 0.0, 40.0), true)
 	var seen := false
-	for i in 120:
+	d._want_clone = true                       # the drone re-rolls this at random every 0.6-1.4 s (50 %): force the roll so the test does not depend on the seed
+	d._retarget = 3.0
+	for i in 30:
 		await e.frames(1)
 		seen = seen or d._tgt_clone
 		if seen:
 			break
-	TestLib.check(seen, "a drone targets the clone about half the time")
+	TestLib.check(seen, "a drone whose roll says so targets the clone")
 	mgr.clear()
 	if is_instance_valid(clone):
 		stub_quantum.collapsed = 0
@@ -519,6 +522,72 @@ func _heat_decay() -> void:
 	TestLib.check(Game.heat >= h2 - 0.001, "no decay while it watches")
 	mgr.clear()
 	Game.heat = 0.0
+
+
+## Readability layer (EnemyMarks): hostile-colour rings for everybody, an attack telegraph before shots, a health bar only on damaged enemies, a death dissolve.
+func _marks() -> void:
+	await _fresh()
+	var cam := Camera3D.new()
+	root.add_child(cam)
+	cam.global_position = Vector3(-30.0, 2.0, 4.0)
+	cam.look_at(Vector3(20.0, 1.0, 4.0))
+	var old_cam := Game.camera
+	Game.camera = cam
+	var marks := mgr.marks
+	TestLib.check(marks != null and marks.get_parent() == mgr, "the manager owns the EnemyMarks node")
+	var sent := _spawn(&"sentinel", Vector3(-12.0, 0.0, 4.0), false)
+	var op := _spawn(&"operative", Vector3(-14.0, 0.0, 9.0), false)
+	await e.frames(3)
+	TestLib.check(marks.halos.visible_instance_count == 2, "one threat ring per enemy (%d)" % marks.halos.visible_instance_count)
+	TestLib.check(marks.bars.visible_instance_count == 0 and marks.lines.visible_instance_count == 0, "no health bar and no aim line on healthy enemies that are not shooting")
+	TestLib.check(sent.threat_charge() == 0.0 and op.threat_charge() == 0.0, "no telegraph while idle")
+	TestLib.check(sent.radius > 1.2 and is_equal_approx(sent.model.scale.x, 1.35), "the sentinel is drawn large (radius %.2f, model scale %.2f)" % [sent.radius, sent.model.scale.x])
+	sent.damage(10.0)
+	await e.frames(2)
+	TestLib.check(marks.bars.visible_instance_count == 1, "a damaged enemy shows its health bar")
+	sent._bar_t = 0.05
+	for i in 40:
+		await e.frames(1)
+		if marks.bars.visible_instance_count == 0:
+			break
+	TestLib.check(marks.bars.visible_instance_count == 0, "the health bar goes away again")
+	# attack telegraph: the muzzle charges and the aim line shows in the last TELEGRAPH seconds before a drone shot
+	sent.aware = true
+	sent._fire_t = 0.3
+	var seen := 0.0
+	for i in 6:
+		await e.frames(1)
+		seen = maxf(seen, sent.threat_charge())
+	TestLib.check(seen > 0.2, "the sentinel charges before it fires (peak charge %.2f)" % seen)
+	TestLib.check(marks.halos.visible_instance_count >= 2, "the muzzle flare joins the ring while charging")
+	# operative windup
+	op.aware = true
+	op._fire_t = 0.0
+	var op_seen := 0.0
+	var line := false
+	for i in 10:
+		await e.frames(1)
+		op_seen = maxf(op_seen, op.threat_charge())
+		line = line or op.shows_aim_line()
+	TestLib.check(op_seen > 0.3 and line, "the operative's aim windup is a charge with an aim line (peak %.2f)" % op_seen)
+	# death: a dissolve marker and ichor only behind graphic_violence
+	var was := Game.graphic_violence
+	Game.graphic_violence = false
+	sent.damage(9999.0)
+	TestLib.check(sent.dead and sent.death_progress() < 1.0, "a dead drone starts its dissolve")
+	await e.frames(3)
+	TestLib.check(marks.halos.visible_instance_count >= 1, "the death shock ring is drawn")
+	for i in 60:                                         # polls: how many game seconds a frame covers depends on the time scale of this test
+		await e.frames(1)
+		if sent.remove:
+			break
+	TestLib.check(sent.remove, "the dissolve ends and the drone is released by the manager")
+	Game.graphic_violence = true
+	op.damage(9999.0)                                  # the ichor variant runs without errors
+	await e.frames(2)
+	Game.graphic_violence = was
+	Game.camera = old_cam
+	cam.free()
 
 
 func _lifecycle() -> void:

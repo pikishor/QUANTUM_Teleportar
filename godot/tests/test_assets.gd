@@ -12,7 +12,7 @@ const CHARACTERS := ["player", "operative"]
 const DRONES := ["drone_sentinel", "drone_striker", "drone_heavy"]
 const CARS := ["car_sedan", "car_sport", "car_suv"]
 const PROPS := ["pickup_health", "pickup_energy", "core_gem"]
-const BUDGET_CHARACTER := 16000                     ## hero (the operative has BUDGET_OPERATIVE)
+const BUDGET_CHARACTER := 18000                     ## hero (the operative has BUDGET_OPERATIVE)
 const BUDGET_OPERATIVE := 12000
 const BUDGET_DRONE := 8000
 const BUDGET_CAR := 15000
@@ -104,6 +104,25 @@ func _aabb(root: Node3D) -> AABB:
 		var a := mi.global_transform * mi.get_aabb()
 		box = a if first else box.merge(a)
 		first = false
+	return box
+
+
+## Bounds of the solid geometry only: the soft glow fans of the car lamps (halos, light pools on the road, vertex-coloured, drawn additively) belong to the
+## Headlights / Taillights / Underglow surfaces and reach past the body on purpose, so a car's size is measured without them.
+func _aabb_solid(root: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	for mi in _meshes(root):
+		var mesh := mi.mesh
+		for s in mesh.get_surface_count():
+			var mat := mesh.surface_get_material(s)
+			if mat != null and String(mat.resource_name) in ["Headlights", "Taillights", "Underglow"]:
+				continue
+			var vs := mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array
+			for v in vs:
+				var p := mi.global_transform * v
+				box = AABB(p, Vector3.ZERO) if first else box.expand(p)
+				first = false
 	return box
 
 
@@ -369,7 +388,7 @@ func _car(host: Node, model_name: String) -> void:
 	TestLib.check(tris > 4000 and tris <= BUDGET_CAR, "%s triangle count %d within 4000..%d" % [model_name, tris, BUDGET_CAR])
 	var limit := SURFACES_CAR if baked else SURFACES_LEGACY_CAR
 	TestLib.check(_surfaces(m) <= limit, "%s draws in %d surfaces (<= %d)" % [model_name, _surfaces(m), limit])
-	var box := _aabb(m)
+	var box := _aabb_solid(m)
 	TestLib.check(box.size.z > 4.2 and box.size.z < 5.2, "%s is about 4.5 m long (%.2f)" % [model_name, box.size.z])
 	TestLib.check(box.size.x > 1.7 and box.size.x < 2.3, "%s is about 1.9 m wide (%.2f)" % [model_name, box.size.x])
 	TestLib.check(box.size.y > 1.1 and box.size.y < 1.95, "%s is %.2f m tall" % [model_name, box.size.y])

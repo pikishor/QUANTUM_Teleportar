@@ -2,17 +2,22 @@ class_name StoryView
 extends Control
 ## Draws the story layer (cards, chapter banner, objective line, radio subtitle, death quote, chapter end card) for a Story. Thin-line HUD style, shares
 ## UiUtil (scale, safe-area insets, font, palette). Small flat rectangles and a few strings only: no full-screen overdraw (a card is one translucent band).
-## Layout rules: the radio subtitle sits bottom centre above the ammo box and the ability hints, and on touchscreens stops left of the touch buttons;
-## the middle of the screen (crosshair) stays free except for the card band, which the player skips with a tap.
+## Layout rules (phone readable, minimum 22 px at 720 p): the radio subtitle and the chapter objective sit in the TOP lane, on backing plates directly under the
+## HUD's bar / objective stack (UiUtil.stack_bottom), so they never cover the hero or the crosshair and never collide with the HUD objective line; the centre
+## message of the HUD starts below that lane (Hud.MSG_Y). While the chapter banner owns the top lane the subtitle drops to the bottom lane (above the ammo box,
+## left of the touch buttons). The middle of the screen stays free except for the card band, which the player skips with a tap.
 
-const SUB_BOTTOM := 108.0           ## base px above the bottom edge: clears the ammo box and the power hints
-const SUB_FONT := 17.0
+const SUB_BOTTOM := 130.0           ## base px above the bottom edge of the bottom-lane fallback: clears the ammo box and the power hints
+const SUB_FONT := 22.0
+const SUB_LINE := 28.0
+const OBJ_H := 32.0                 ## base px: the chapter objective plate
 const TOUCH_BUTTONS_W := 592.0      ## base px from the right edge covered by the touch buttons (touch_controls.gd BUTTONS)
 const CARD_TOP := 0.40              ## the card band spans 40 % .. 70 % of the screen height: clear of the HUD bars (top) and the continue button (bottom)
 const CARD_H := 0.30
 
 var story: Story
 
+var _q: Array = []
 var _wrap_key := ""
 var _wrap_lines := PackedStringArray()
 
@@ -56,12 +61,31 @@ static func wrap_text(font: Font, text: String, width: float, size: int) -> Pack
 	return out
 
 
+## Text is queued and flushed after every plate and shape, one font size at a time (glyph and plain draws alternating would break canvas batching).
 func _shadow_text(font: Font, pos: Vector2, text: String, align: HorizontalAlignment, width: float, size: int, col: Color, s: float) -> void:
-	draw_string(font, pos + Vector2(1.5, 1.5) * s, text, align, width, size, Color(0, 0, 0, col.a * 0.85))
-	draw_string(font, pos, text, align, width, size, col)
+	_q.append([font, pos, text, align, width, size, col, 1.5 * s])
+
+
+func _flush_text() -> void:
+	var sizes := {}
+	for q: Array in _q:
+		sizes[q[5]] = true
+	for sz: int in sizes.keys():
+		for q: Array in _q:
+			if q[5] == sz:
+				draw_string(q[0], (q[1] as Vector2) + Vector2(q[7], q[7]), q[2], q[3], q[4], q[5], Color(0, 0, 0, (q[6] as Color).a * 0.85))
+		for q: Array in _q:
+			if q[5] == sz:
+				draw_string(q[0], q[1], q[2], q[3], q[4], q[5], q[6])
+	_q.clear()
 
 
 func _draw() -> void:
+	_draw_layer()
+	_flush_text()
+
+
+func _draw_layer() -> void:
 	if story == null:
 		return
 	var vp := size
@@ -92,48 +116,67 @@ func _draw() -> void:
 func _draw_objective(vp: Vector2, s: float, font: Font) -> void:
 	var t := story.objective_text()
 	if t != "":
-		_shadow_text(font, Vector2(0.0, 112.0 * s), "OBJ  " + t, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(13.0 * s), Color(1, 1, 1, 0.7), s)
+		var size := int(UiUtil.TEXT_MIN * s)
+		var line := "OBJ  " + t
+		var w := font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 32.0 * s
+		var r := Rect2((vp.x - w) * 0.5, (UiUtil.stack_bottom + 4.0) * s, w, OBJ_H * s)
+		draw_rect(r, UiUtil.PLATE)
+		draw_rect(Rect2(r.position.x, r.end.y - 2.0 * s, r.size.x, 2.0 * s), Color(UiUtil.AMBER, 0.55))
+		_shadow_text(font, Vector2(r.position.x, r.position.y + OBJ_H * 0.76 * s), line, HORIZONTAL_ALIGNMENT_CENTER, w, size, Color(1, 1, 1, 0.95), s)
 
 
+## The banner is a block of centred lines under the HUD stack on one plate.
 func _draw_banner(vp: Vector2, s: float, font: Font) -> void:
 	var t := story.banner_t
 	var a := clampf(minf(t / 0.4, (Story.BANNER_TIME - t) / 0.7), 0.0, 1.0)
 	var d := story.chapter_data()
 	var cx := vp.x * 0.5
-	_shadow_text(font, Vector2(0.0, 138.0 * s), story.chapter_label(), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(14.0 * s), Color(UiUtil.CYAN, 0.9 * a), s)
-	_shadow_text(font, Vector2(0.0, 172.0 * s), str(d["title"]), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(42.0 * s), Color(1, 1, 1, 0.97 * a), 2.0 * s)
-	draw_line(Vector2(cx - 110.0 * s, 182.0 * s), Vector2(cx + 110.0 * s, 182.0 * s), Color(UiUtil.MAGENTA, 0.8 * a), 2.0 * s)
-	_shadow_text(font, Vector2(0.0, 202.0 * s), str(d["sub"]), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(14.0 * s), Color(1, 1, 1, 0.8 * a), s)
-	_shadow_text(font, Vector2(0.0, 224.0 * s), "OBJ  " + str(d["obj"]), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(15.0 * s), Color(UiUtil.AMBER, 0.9 * a), s)
+	var y0 := (UiUtil.stack_bottom + 6.0) * s
+	var bw := minf(vp.x * 0.62, 760.0 * s)
+	draw_rect(Rect2(cx - bw * 0.5, y0, bw, 128.0 * s), Color(UiUtil.PLATE, UiUtil.PLATE.a * a))
+	_shadow_text(font, Vector2(0.0, y0 + 24.0 * s), story.chapter_label(), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.CYAN, 0.95 * a), s)
+	_shadow_text(font, Vector2(0.0, y0 + 64.0 * s), str(d["title"]), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(40.0 * s), Color(1, 1, 1, 0.97 * a), 2.0 * s)
+	draw_line(Vector2(cx - 110.0 * s, y0 + 72.0 * s), Vector2(cx + 110.0 * s, y0 + 72.0 * s), Color(UiUtil.MAGENTA, 0.8 * a), 2.0 * s)
+	_shadow_text(font, Vector2(0.0, y0 + 96.0 * s), str(d["sub"]), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.88 * a), s)
+	_shadow_text(font, Vector2(0.0, y0 + 120.0 * s), "OBJ  " + str(d["obj"]), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.95 * a), s)
 
 
-## The subtitle block: speaker name over up to four typed lines, bottom centre.
+## The subtitle block: speaker name over up to four typed lines on a plate. Top lane under the objective; bottom lane while the chapter banner shows.
 func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
+	var top_lane := not story.banner_visible()
 	var left := ins.x + 20.0 * s
 	var right := vp.x - ins.y - 20.0 * s
-	if Game.force_touch or DisplayServer.is_touchscreen_available():
+	if top_lane:
+		left = ins.x + 230.0 * s                    # clear of the minimap and the credits / heat plate
+		right = vp.x - ins.y - 200.0 * s
+	elif Game.force_touch or DisplayServer.is_touchscreen_available():
 		right = minf(right, vp.x - ins.y - TOUCH_BUTTONS_W * s)
 	right = maxf(right, left + 340.0 * s)
 	var cx := (left + right) * 0.5
-	var width := minf(right - left, 760.0 * s)
+	if top_lane:
+		cx = vp.x * 0.5                             # centred under the objective (the lane is symmetric apart from the notch insets)
+	var width := minf(right - left, 700.0 * s)
 	var fsize := int(SUB_FONT * s)
 	var full := str(story.current.get("t", ""))
-	var lines: PackedStringArray = wrapped_lines(full, width - 24.0 * s, fsize)
-	var lh := 22.0 * s
-	var h: float = (lines.size() * lh) + 34.0 * s
-	var box := Rect2(cx - width * 0.5, vp.y - SUB_BOTTOM * s - h, width, h)
+	var lines: PackedStringArray = wrapped_lines(full, width - 28.0 * s, fsize)
+	var lh := SUB_LINE * s
+	var h: float = (lines.size() * lh) + 36.0 * s
+	var y_top := (UiUtil.stack_bottom + 4.0 + (OBJ_H + 4.0 if story.objective_text() != "" else 0.0)) * s
+	if not top_lane:
+		y_top = vp.y - UiUtil.insets_v(vp).y - SUB_BOTTOM * s - h
+	var box := Rect2(cx - width * 0.5, y_top, width, h)
 	var a := story.line_alpha()
 	var speaker := str(story.current.get("s", ""))
 	var col := speaker_color(speaker)
-	draw_rect(box, Color(0.0, 0.03, 0.05, 0.55 * a))
+	draw_rect(box, Color(UiUtil.PLATE, 0.72 * a))
 	draw_rect(Rect2(box.position, Vector2(3.0 * s, box.size.y)), Color(col, 0.9 * a))
-	_shadow_text(font, box.position + Vector2(14.0 * s, 17.0 * s), speaker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(12.0 * s), Color(col, 0.95 * a), s)
+	_shadow_text(font, box.position + Vector2(14.0 * s, 20.0 * s), speaker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(col, 0.98 * a), s)
 	var left_chars := int(story.typed)
-	var y := box.position.y + 17.0 * s + lh
+	var y := box.position.y + 20.0 * s + lh
 	for ln: String in lines:
 		var part: String = ln.substr(0, left_chars)
 		if part != "":
-			_shadow_text(font, Vector2(box.position.x + 14.0 * s, y), part, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fsize, Color(1, 1, 1, 0.96 * a), s)
+			_shadow_text(font, Vector2(box.position.x + 14.0 * s, y), part, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fsize, Color(1, 1, 1, 0.97 * a), s)
 		left_chars -= ln.length() + 1
 		y += lh
 		if left_chars <= 0:

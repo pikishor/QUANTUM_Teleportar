@@ -228,8 +228,10 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 	var skylights: Array = []
 	var hvacs: Array = []
 	var reserved_centre := Vector2.INF
+	var reserved_r := 6.2
 	for b in buildings:
 		reserved_centre = Vector2.INF
+		reserved_r = 6.2
 		var lot: CityLayout.Lot = b.lot
 		var bx := -CityLayout.HALF + (lot.block_i + 0.5) * CityLayout.PITCH
 		var bz := -CityLayout.HALF + (lot.block_j + 0.5) * CityLayout.PITCH
@@ -250,11 +252,11 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 					var yaw: float = wp[1]
 					var xf := Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(bw * 0.9 / 3.8, 1.0, 1.0)), Vector3(lot.cx + p2.x, 0.0, lot.cz + p2.y))
 					awn.append([xf, Color(rng.randf(), rng.randf(), 0.0, 1.0)])
-			if rng.randf() < 0.55:
+			if rng.randf() < 0.7:
 				var u := rng.randf_range(0.8, 2.5) if rng.randf() < 0.5 else fw - rng.randf_range(0.8, 2.5)
 				var wp2: Array = wall_point(lot, face, u)
 				var q: Vector2 = wp2[0]
-				var y := rng.randf_range(4.6, 8.0)
+				var y := rng.randf_range(4.6, maxf(8.0, minf(lot.h * 0.5, 24.0)))        # tall towers carry signs higher up
 				var xf2 := Transform3D(Basis(Vector3.UP, float(wp2[1])), Vector3(lot.cx + q.x, y, lot.cz + q.y))
 				var sv := rng.randf()
 				blades.append([xf2, Color(sv, 0.0, 0.0, 1.0)])
@@ -295,47 +297,63 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 			var czr := (rz0 + rz1) * 0.5
 			cells = {}
 			reserved_centre = Vector2(cxr, czr)
-		var n_ac := clampi(int(round((rx1 - rx0) * (rz1 - rz0) / 130.0)), 1, 4)
+			reserved_r = 6.2
+		else:
+			reserved_centre = Vector2((rx0 + rx1) * 0.5, (rz0 + rz1) * 0.5)      # every crown keeps a clear landing spot at its centre (the pooled prop colliders must not occupy it)
+			reserved_r = 3.4
+		var n_ac := clampi(int(round((rx1 - rx0) * (rz1 - rz0) / 100.0)), 1, 5)
 		for k in n_ac:
-			var p := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.2, reserved_centre)
+			var p := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.2, reserved_centre, reserved_r)
 			if p != Vector2.INF:
 				var yaw2 := float(rng.randi() % 4) * PI * 0.5
 				ac.append([Transform3D(Basis(Vector3.UP, yaw2), Vector3(p.x, roof_y, p.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
-		if rng.randf() < 0.65:
-			var p2 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.6, reserved_centre)
+		if rng.randf() < 0.85:                                  # stair houses / penthouses: the small setback masses of the skyline
+			var p2 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.6, reserved_centre, reserved_r)
 			if p2 != Vector2.INF:
 				houses.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 4) * PI * 0.5), Vector3(p2.x, roof_y, p2.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
-		if lot.h <= 44.0 and rng.randf() < 0.40:
-			var p3 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.2, reserved_centre)
+		if lot.h <= 70.0 and rng.randf() < 0.55:
+			var p3 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.2, reserved_centre, reserved_r)
 			if p3 != Vector2.INF:
 				tanks.append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU), Vector3(p3.x, roof_y, p3.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		# more roof families on every roof class: HVAC units, pipe runs, skylights and low cover walls
-		if rng.randf() < 0.55:
-			var ph := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.4, reserved_centre)
+		if rng.randf() < 0.75:
+			var ph := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.4, reserved_centre, reserved_r)
 			if ph != Vector2.INF:
 				hvacs.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 4) * PI * 0.5), Vector3(ph.x, roof_y, ph.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
-		if rng.randf() < 0.55:
-			var pp := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.6, reserved_centre)
+		if rng.randf() < 0.7:
+			var pp := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.6, reserved_centre, reserved_r)
 			if pp != Vector2.INF:
 				pipes.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 4) * PI * 0.5), Vector3(pp.x, roof_y, pp.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		if rng.randf() < 0.5:
-			var ps := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.0, reserved_centre)
+			var ps := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.0, reserved_centre, reserved_r)
 			if ps != Vector2.INF:
 				skylights.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 2) * PI * 0.5), Vector3(ps.x, roof_y, ps.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 		var n_cover := clampi(int(round((rx1 - rx0) * (rz1 - rz0) / 220.0)), 1, 3)
 		for k in n_cover:
 			if rng.randf() < 0.75:
-				var pc := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.4, reserved_centre)
+				var pc := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.4, reserved_centre, reserved_r)
 				if pc != Vector2.INF:
 					covers.append([Transform3D(Basis(Vector3.UP, float(rng.randi() % 4) * PI * 0.5 + rng.randf_range(-0.12, 0.12)), Vector3(pc.x, roof_y, pc.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
-		var want_mast := 0.85 if lot.h >= 62.0 else (0.30 if lot.h >= 28.0 else 0.12)
+		var want_mast := 0.92 if lot.h >= 62.0 else (0.5 if lot.h >= 28.0 else 0.26)
 		if rng.randf() < want_mast:
-			var p4 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 2.2, reserved_centre)
+			var p4 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 2.2, reserved_centre, reserved_r)
 			if p4 != Vector2.INF:
 				var mxf := Transform3D(Basis(Vector3.UP, rng.randf() * TAU), Vector3(p4.x, roof_y, p4.y))
 				var sv2 := rng.randf()
 				masts.append([mxf, Color(sv2, 0.0, 0.0, 1.0)])
 				props.glow_add(mxf.origin + Vector3(0, 13.5, 0), Color(1.0, 0.1, 0.06, 2.0), 3, 5.0, 0.0, sv2)
+		# a tall vertical roof sign: the blade-sign mesh scaled up, standing on the street-facing parapet (same family and draw call as the wall blades)
+		if lot.h >= 18.0 and rng.randf() < 0.38:
+			var face3 := street_faces[rng.randi() % 2]
+			var fw3 := wall_width(lot, face3)
+			var wp5: Array = wall_point(lot, face3, rng.randf_range(1.2, maxf(1.3, fw3 - 1.2)))
+			var q5: Vector2 = wp5[0]
+			var sy := rng.randf_range(1.7, 2.6)
+			var vxf := Transform3D(Basis(Vector3.UP, float(wp5[1])) * Basis.from_scale(Vector3(1.0, sy, 1.5)), Vector3(lot.cx + q5.x, roof_y - 1.2, lot.cz + q5.y))
+			var vsv := rng.randf()
+			blades.append([vxf, Color(vsv, 0.0, 0.0, 1.0)])
+			var vc: Color = NEON_COLORS[int(floor(vsv * 4.0)) % 4]
+			props.glow_add(vxf.origin + vxf.basis * Vector3(0.0, 1.6, 0.75), Color(vc.r, vc.g, vc.b, 0.8), 1, 5.5, 0.0, vsv)
 		if lot.h <= 44.0 and rng.randf() < 0.22:
 			# billboard along the street-facing roof edge, facing outwards
 			var face2 := street_faces[rng.randi() % 2]
@@ -363,7 +381,7 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 
 
 ## A random free spot on a coarse grid (so clutter never overlaps); Vector2.INF when the roof is full.
-static func _free_cell(rng: RandomNumberGenerator, taken: Dictionary, x0: float, x1: float, z0: float, z1: float, size: float, avoid := Vector2.INF) -> Vector2:
+static func _free_cell(rng: RandomNumberGenerator, taken: Dictionary, x0: float, x1: float, z0: float, z1: float, size: float, avoid := Vector2.INF, avoid_r := 6.2) -> Vector2:
 	var nx := maxi(1, int(floor((x1 - x0) / size)))
 	var nz := maxi(1, int(floor((z1 - z0) / size)))
 	for attempt in 8:
@@ -373,7 +391,7 @@ static func _free_cell(rng: RandomNumberGenerator, taken: Dictionary, x0: float,
 		if taken.has(key):
 			continue
 		var spot := Vector2(x0 + (float(ix) + 0.5) * (x1 - x0) / float(nx), z0 + (float(iz) + 0.5) * (z1 - z0) / float(nz))
-		if avoid != Vector2.INF and spot.distance_to(avoid) < 6.2:
+		if avoid != Vector2.INF and spot.distance_to(avoid) < avoid_r:
 			continue
 		taken[key] = true
 		return spot

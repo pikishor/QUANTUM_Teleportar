@@ -257,8 +257,8 @@ def shade_paint(c, i):
     alb = alb * (1.0 - 0.5 * np.clip(dirt + 0.25 * st, 0, 1))[:, None] * np.array([1.0, 0.97, 0.93])
     alb = alb * (1.0 - chip[:, None]) + np.array([0.45, 0.45, 0.47]) * chip[:, None]
     c.alb[i] = alb
-    c.rough[i] = np.clip(0.17 + 0.05 * (peel - 0.5) + 0.25 * dirt + 0.1 * st - 0.05 * chip, 0.05, 1)
-    c.metal[i] = np.clip(0.22 + 0.7 * chip, 0, 1)
+    c.rough[i] = np.clip(0.30 + 0.05 * (peel - 0.5) + 0.30 * dirt + 0.12 * st - 0.08 * chip, 0.06, 1)      # the game adds a wet clear coat on top
+    c.metal[i] = np.clip(0.50 - 0.25 * dirt + 0.45 * chip, 0, 1)
     c.height[i] = 0.00012 * (peel - 0.5) - 0.0004 * chip
 
 
@@ -296,7 +296,36 @@ def shade_chitin(c, i):
     c.height[i] = -0.0009 * groove + 0.00025 * (fine - 0.5) + 0.0002 * (band - 0.5)
 
 
+def shade_shell(c, i):
+    """Lacquered chitin (the hero, the troopers): the chitin look with a wet clear coat (low roughness, a little metal on the ridges), a
+    smoother low-frequency mottle so the shell reads as polished plates, and bright ridge lines."""
+    P, C = c.P[i], c.C[i]
+    mott = c.noise.fbm3(P, 5.0, 3, 0.5, 51)
+    fine = c.noise.fbm3(P, 60.0, 2, 0.5, 52)
+    edge = sm(0.008, 0.0, c.cx[i])
+    cav = grime_mask(c, i, 0.8, 0.5, 1.0, 0.5, 6)
+    groove = sm(0.003, 0.0, c.cc[i])
+    alb = C * (0.88 + 0.24 * mott)[:, None] * (0.97 + 0.06 * fine)[:, None]
+    alb = alb * (1.0 - 0.22 * cav - 0.4 * groove)[:, None] + C * (edge * 0.55)[:, None]
+    c.alb[i] = alb
+    c.rough[i] = np.clip(0.36 + 0.12 * mott + 0.15 * cav - 0.12 * edge, 0.2, 1.0)
+    c.metal[i] = 0.0 + 0.06 * edge                                          # no metal: there is no environment to reflect at night, metal turns black
+    c.height[i] = -0.0007 * groove + 0.00008 * (fine - 0.5)
+
+
+def shade_silk(c, i):
+    """Phase cloak: smooth satin ribbons, a very soft value gradient along the height, no grain (a grain on thin strands shimmers like dither)."""
+    P, C = c.P[i], c.C[i]
+    g = 0.5 + 0.5 * np.sin(P[:, 2] * 9.0)
+    alb = C * (0.85 + 0.25 * g)[:, None]
+    c.alb[i] = alb
+    c.rough[i] = 0.42
+    c.metal[i] = 0.2
+    c.height[i] = 0.0
+
+
 KINDS = {
+    "shell": shade_shell, "silk": shade_silk,
     "fabric": shade_fabric, "plating": shade_plating, "steel": shade_steel, "rubber": shade_rubber, "glass": shade_glass,
     "carbon": shade_carbon, "paint": shade_paint, "glow": shade_glow, "solid": shade_solid, "chitin": shade_chitin,
 }

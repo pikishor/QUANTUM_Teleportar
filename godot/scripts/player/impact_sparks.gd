@@ -10,7 +10,7 @@ extends Node3D
 
 const SPARK_POOL := 12
 const PUFF_POOL := 6
-const SPARK_AMOUNT := 9
+const SPARK_AMOUNT := 14
 const PUFF_AMOUNT := 5
 
 static var _dot_tex: GradientTexture2D
@@ -94,6 +94,7 @@ func impact_world(pos: Vector3, normal: Vector3, surface := &"") -> void:
 	var n := normal if normal != Vector3.ZERO else Vector3.UP
 	var kind := surface if surface != &"" else surface_at(pos, n)
 	var o := pos + n * 0.03
+	FX.muzzle_flash(o + n * 0.02, n, Color(1.0, 0.85, 0.55) if kind != &"glass" else Color(0.7, 0.9, 1.0), 0.6 if kind == &"asphalt" else 0.95)     # the hit itself: a short star on the surface
 	match kind:
 		&"asphalt":
 			spark(o, n, Color(0.75, 0.88, 1.0), 0.55)                              # droplets
@@ -112,6 +113,7 @@ func impact_world(pos: Vector3, normal: Vector3, surface := &"") -> void:
 
 ## A shot landing on a machine: a brighter, longer spark shower.
 func impact_machine(pos: Vector3, normal: Vector3) -> void:
+	FX.muzzle_flash(pos + normal * 0.05, normal, Color(1.0, 0.8, 0.5), 1.2)
 	spark(pos + normal * 0.04, normal, Color(1.0, 0.72, 0.32), 1.35)
 	spark(pos + normal * 0.04, normal, Color(1.0, 0.95, 0.85), 0.8)
 
@@ -124,8 +126,8 @@ func impact_person(pos: Vector3, normal: Vector3) -> void:
 
 ## The red burst of a hit on a human, only while Game.graphic_violence is on.
 func impact_blood(pos: Vector3, normal: Vector3) -> void:
-	puff(pos, normal, Color(0.55, 0.03, 0.04, 0.55), 0.9)
-	spark(pos, normal, Color(0.7, 0.04, 0.05), 0.7)
+	puff(pos, normal, Color(0.2, 0.55, 0.25, 0.55), 0.9)                    # Vael ichor, green: the enemies are aliens
+	spark(pos, normal, Color(0.45, 0.95, 0.2), 0.7)
 
 
 ## A hard landing or a jump: a soft ring of dust at the feet.
@@ -185,7 +187,7 @@ func _make_emitter(is_puff: bool) -> CPUParticles3D:
 	p.initial_velocity_min = 1.0
 	p.initial_velocity_max = 4.0 if not is_puff else 1.2
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.022, 0.2) if not is_puff else Vector2(0.3, 0.3)         # a spark is a streak along its velocity
+	quad.size = Vector2(0.045, 0.3) if not is_puff else Vector2(0.45, 0.45)         # a spark is a streak along its velocity
 	quad.material = _get_puff_material() if is_puff else _get_spark_material()
 	p.mesh = quad
 	p.scale_amount_curve = _get_puff_curve() if is_puff else _get_spark_curve()

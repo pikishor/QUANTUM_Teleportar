@@ -34,6 +34,21 @@ import glbtool  # noqa: E402
 import shade  # noqa: E402
 
 
+# Geometric detail multiplier of the round primitives (segments, rings, tube rings, bevel segments, loft refinement). 1.0 = the original coarse
+# look; the characters set it (helpers.set_detail) before they build, so their silhouettes are round instead of faceted. Cars keep their own rings.
+DETAIL = 1.0
+
+
+def set_detail(d):
+    global DETAIL
+    DETAIL = float(d)
+
+
+def _dn(n, mn=3):
+    """A segment count scaled by DETAIL (kept even so mirrored seams stay symmetric)."""
+    return max(mn, int(round(n * DETAIL)))
+
+
 # ------------------------------------------------------------------ colour helpers
 def lin(c):
     """sRGB component 0..1 -> linear."""
@@ -162,6 +177,7 @@ def g_cyl(r0, r1, length, segs=12, ry0=None, ry1=None, cap0=True, cap1=True):
     """Cylinder / cone / elliptic cylinder along Z, centred on the origin."""
     ry0 = r0 if ry0 is None else ry0
     ry1 = r1 if ry1 is None else ry1
+    segs = _dn(segs)
     v, f = [], []
     for i in range(segs):
         a = 2 * math.pi * i / segs
@@ -180,6 +196,7 @@ def g_cyl(r0, r1, length, segs=12, ry0=None, ry1=None, cap0=True, cap1=True):
 
 
 def g_sphere(rx, ry, rz, segs=12, rings=8):
+    segs, rings = _dn(segs), _dn(rings)
     v = [(0, 0, rz), (0, 0, -rz)]
     for r in range(1, rings):
         t = math.pi * r / rings
@@ -207,6 +224,7 @@ def g_sphere(rx, ry, rz, segs=12, rings=8):
 
 def g_torus(R, r, segs=20, sides=8, rz=None):
     rz = r if rz is None else rz
+    segs, sides = _dn(segs), _dn(sides, 4)
     v, f = [], []
     for i in range(segs):
         a = 2 * math.pi * i / segs
@@ -273,6 +291,7 @@ def g_revolve(profile, segs=24, closed=True):
 def ring_se(cx, cy, cz, rx, ry, n=12, exp=2.0, plane="xy"):
     """Super-ellipse ring (exp 2 = ellipse, larger = squarer). plane 'xy' horizontal, 'xz' (facing y), 'yz' (facing x)."""
     pts = []
+    n = _dn(n, 4)
     for i in range(n):
         a = 2 * math.pi * i / n
         c, s = math.cos(a), math.sin(a)
@@ -285,6 +304,14 @@ def ring_se(cx, cy, cz, rx, ry, n=12, exp=2.0, plane="xy"):
         else:
             pts.append((cx, cy + u, cz + w))
     return pts
+
+
+def refine_rings(rings, sub):
+    """Catmull-Rom interpolation between consecutive rings of the same point count (`sub` extra rings per gap): round lofts from few rings."""
+    if len(rings) < 3 or len(set(len(r) for r in rings)) != 1:
+        return rings
+    cols = [catmull([Vector(r[j]) for r in rings], sub) for j in range(len(rings[0]))]
+    return [[(c[i].x, c[i].y, c[i].z) for c in cols] for i in range(len(cols[0]))]
 
 
 def catmull(points, sub=3):
@@ -308,6 +335,8 @@ def tube_rings(points, radii, n=10, up=(0, 0, 1), exp=2.0, sub=3):
     """Rings around a smooth path. radii: scalar or (rx, ry) per control point (interpolated)."""
     ctrl = [Vector(p) for p in points]
     rad = [(r, r) if not isinstance(r, (tuple, list)) else tuple(r) for r in radii]
+    n = _dn(n, 4)
+    sub = sub + (1 if DETAIL > 1.2 else 0) + (1 if DETAIL > 1.8 else 0) if sub > 0 or DETAIL > 1.2 else sub
     path = catmull(ctrl, sub)
     # radius per path point: interpolate along control index
     m = len(path)
@@ -376,7 +405,7 @@ class Part:
         return x - math.floor(x)
 
     def _add(self, verts, faces, mat, tint, xf, bevel, bsegs, bangle, sharp, mirror, closed, jitter, face_mats=None,
-             outward_from=None, flip=False):
+             outward_from=None, flip=False, vcols=None):
         slot, mat = self._slot(mat)
         if tuple(tint) == (1, 1, 1) and mat.kind not in ("paint", "flat"):
             tint = mat.color                     # e.g. the emission colour of a glow material, the tint of a glass material
@@ -428,12 +457,12 @@ class Part:
         tcol = (tint[0] * k, tint[1] * k, tint[2] * k)
         off = (self._rand() * 7.0, self._rand() * 7.0)
         lay = (lr, lg, lb) if face_mats is not None else None
-        self._merge(t, slot, mat, tcol, sharp, False, off, face_mats is not None, lay)
+        self._merge(t, slot, mat, tcol, sharp, False, off, face_mats is not None, lay, vcols)
         if mirror:
-            self._merge(t, slot, mat, tcol, sharp, True, off, face_mats is not None, lay)
+            self._merge(t, slot, mat, tcol, sharp, True, off, face_mats is not None, lay, vcols)
         t.free()
 
-    def _merge(self, t, slot, mat, tcol, sharp, mirror, off, perface=False, lay=None):
+    def _merge(self, t, slot, mat, tcol, sharp, mirror, off, perface=False, lay=None, vcols=None):
         bm = self.bm
         vmap = {}
         for v in t.verts:
@@ -455,6 +484,11 @@ class Part:
             base = (f[lay[0]], f[lay[1]], f[lay[2]]) if lay else tcol
             for loop in nf.loops:
                 loop[self.col] = (base[0], base[1], base[2], 1.0)
+            if vcols is not None:                                       # per-vertex colours (soft falloff of glow fans)
+                inv = {id(vmap[i]): i for i in vmap}
+                for loop in nf.loops:
+                    c = vcols[inv[id(loop.vert)]]
+                    loop[self.col] = (c[0], c[1], c[2], 1.0)
         thr = math.radians(sharp)
         for e in t.edges:
             a = e.calc_face_angle(None)
@@ -470,6 +504,8 @@ class Part:
     def box(self, size, pos=(0, 0, 0), rot=(0, 0, 0), mat=None, tint=(1, 1, 1), top=(1.0, 1.0), top_off=(0.0, 0.0),
             bevel=0.0, bsegs=1, bangle=30.0, sharp=50.0, mirror=False, jitter=0.0, frame=None):
         v, f = g_box(size[0], size[1], size[2], top, top_off)
+        if DETAIL > 1.2 and bevel > 0.0:
+            bsegs = max(bsegs, 2)
         self._add(v, f, mat, tint, self._xf(pos, rot, frame), bevel, bsegs, bangle, sharp, mirror, True, jitter)
 
     def cyl(self, r, length, pos=(0, 0, 0), rot=(0, 0, 0), axis="z", mat=None, tint=(1, 1, 1), r2=None, segs=12,
@@ -494,6 +530,10 @@ class Part:
 
     def loft(self, rings, mat=None, tint=(1, 1, 1), caps=(True, True), closed=True, mirror=False, bevel=0.0,
              bsegs=1, bangle=30.0, sharp=70.0, jitter=0.0, face_mats=None, outward_from=None, flip=False):
+        if DETAIL > 1.2 and face_mats is None:
+            rings = refine_rings(rings, 1 if DETAIL < 1.8 else 2)
+        if DETAIL > 1.2 and bevel > 0.0:
+            bsegs = max(bsegs, 2)
         v, f = g_loft(rings, caps[0], caps[1])
         self._add(v, f, mat, tint, Matrix.Identity(4), bevel, bsegs, bangle, sharp, mirror, closed and caps[0] and caps[1], jitter,
                   face_mats, outward_from, flip)
@@ -516,8 +556,8 @@ class Part:
         self._add(v, f, mat, tint, self._xf(pos, rot, frame), bevel, bsegs, bangle, sharp, mirror, True, jitter)
 
     def raw(self, verts, faces, mat, tint=(1, 1, 1), closed=False, bevel=0.0, bsegs=1, bangle=30.0, sharp=50.0,
-            mirror=False, jitter=0.0):
-        self._add(verts, faces, mat, tint, Matrix.Identity(4), bevel, bsegs, bangle, sharp, mirror, closed, jitter)
+            mirror=False, jitter=0.0, vcols=None):
+        self._add(verts, faces, mat, tint, Matrix.Identity(4), bevel, bsegs, bangle, sharp, mirror, closed, jitter, vcols=vcols)
 
     def bar(self, a, b, w, h, mat=None, tint=(1, 1, 1), up=(0, 0, 1), bevel=0.0, bsegs=1, taper=(1, 1), mirror=False,
             jitter=0.0, sharp=50.0):
@@ -613,12 +653,13 @@ def tag(obj, **kw):
 
 
 def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed=1, ao_dist=0.3, ao_strength=0.75, max_ppm=900.0,
-                 emit_strength=2.0, report=True, cull=True, jpeg=True, normal_scale=1.0, finalize=None):
+                 emit_strength=2.0, report=True, cull=True, jpeg=True, normal_scale=1.0, finalize=None, keep_vcol=()):
     """Cull hidden faces, build the parts, bake the atlas, assign the baked materials and export assets/models/<name>.glb.
 
     parts   Part objects (not yet built); extras: extra Blender objects (empties, lights) to export with them
     groups  {group: dict(base=<texture file prefix>, material=<Blender material name>, emit_strength=.., color=..)} for the baked
             groups; by default one "atlas" group named after the model, plus a "paint" group when a paint material exists.
+    keep_vcol  names of the (flat) materials whose COLOR_0 vertex colours are exported (car lamps: the soft falloff of the glow fans); empty = none
     finalize  optional hook(parts, objs, extras) -> the objects to export, called once the materials are assigned (humanoid.py joins the parts into ONE
             skinned mesh there); glTF skins are exported when the hook returns an armature object.
     """
@@ -665,9 +706,11 @@ def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed
         o.select_set(True)
     bpy.context.view_layer.objects.active = objs[0]
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_apply=True, export_yup=True,
-                              export_image_format="AUTO", export_materials="EXPORT", export_vertex_color="NONE",
+                              export_image_format="AUTO", export_materials="EXPORT", export_vertex_color="ACTIVE" if keep_vcol else "NONE",
                               export_cameras=False, export_lights=False, export_animations=False, export_skins=skins,
                               export_morph=False, export_extras=True, export_tangents=False)
+    if keep_vcol:
+        glbtool.strip_vertex_colors(path, keep_vcol)
     done = glbtool.externalize_images(path, TEX_DIR)
     js, binary = glbtool.read_glb(path)
     leftovers = [i.get("name") for i in js.get("images", []) if "bufferView" in i]

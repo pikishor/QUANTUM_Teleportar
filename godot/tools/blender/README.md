@@ -32,13 +32,13 @@ geometry with `helpers.Part` (bevelled boxes, lofts, tubes ...) tagged with a *s
                         (OpenGL, +Y up; orientation verified with a lit dome test) and `_emit.png` when something glows.
 4. glTF export; `glbtool.externalize_images` swaps the embedded images for relative URIs of those files (one GPU texture per model).
 
-Surface kinds: `fabric plating steel rubber glass carbon glow solid chitin` go into ONE shared atlas material per model; `paint` (the car body)
+Surface kinds: `fabric plating steel rubber glass carbon glow solid chitin shell silk` go into ONE shared atlas material per model; `paint` (the car body)
 is a second, neutral atlas that the material colour tints; "flat" materials (`make_material(name, emit=...)`: Eye, Headlights,
 Taillights, Underglow) stay separate on purpose, because gameplay recolours or toggles them.
 
 | Model | Nodes (direct children of the root) | Materials (draw calls) | Tris |
 |---|---|---|---|
-| `player` (Kestrel), `operative` (Vael trooper) | ONE skinned `Body` mesh under `Rig/Skeleton3D` (bones `Hips > Torso > Head, UpperArmL/R > ForeArmL/R, Rifle`; `Hips > ThighL/R > ShinL/R > FootL/R`, plus optional `Sec1 > Sec2 > Sec3` cloak / tail chain; rest rotation identity, origin = pivot) + root empties `Muzzle`, `WristL/R`, `MagWell`, `MagPouch` | one baked `Gear` (**1 draw call**) | 6.6k / 4.8k |
+| `player` (Kestrel), `operative` (Vael trooper) | ONE skinned `Body` mesh under `Rig/Skeleton3D` (bones `Hips > Torso > Head, UpperArmL/R > ForeArmL/R, Rifle`; `Hips > ThighL/R > ShinL/R > FootL/R`, plus optional `Sec1 > Sec2 > Sec3` cloak / tail chain; rest rotation identity, origin = pivot) + root empties `Muzzle`, `WristL/R`, `MagWell`, `MagPouch` | one baked `Gear` (**1 draw call**) | 14.8k / 5.6k |
 | `drone_sentinel/striker/heavy` (jelly / living bomb / beetle gunship) | `Body`, `Fins` (origin on the body axis: tendril frill, thorn ring, cilia skirt; the game turns and pulses it), `Eye` (flat emissive material, recolour a duplicate), `Muzzle` (sentinel, heavy) | baked `Hull` (Body + Fins) + flat `Eye` (**3 draw calls**) | 2.5k-3.9k |
 | `car_sedan/sport/suv` | `Body`, `WheelFL/FR/RL/RR` (origin = axle centre; steer by Y rotation, roll about X) | `Body` (neutral paint, recolour), baked `Details` (trim, rubber, chrome, tinted opaque glass), flat `Headlights`, `Taillights`, `Underglow`; wheels use `Details` (**9 draw calls**) | ~8k |
 | `pickup_health`, `pickup_energy`, `core_gem` | `Body` | one baked material named `Glow` (duplicate it and change `emission` to retint) (**1 draw call**) | 1.2k-2.4k |

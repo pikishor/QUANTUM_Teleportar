@@ -16,7 +16,7 @@ const ALERT_RADIUS := 35.0
 const LOS_RANGE := 90.0
 const WORLD_LIMIT := 345.0
 const DEATH_TIME := 0.7
-const BAR_WIDTH := 1.4
+const TELEGRAPH := 0.45          ## seconds before a shot that the muzzle charges and the aim line shows (the attack telegraph)
 const BAR_SECONDS := 3.0
 const ROTOR_SPEED := 46.0
 ## The living drones have no rotors: the `Fins` node (a frill of tendrils, a ring of thorns, a skirt of cilia) turns and pulses. rate rad/s, pulse = scale amplitude, axis in the model frame.
@@ -25,10 +25,6 @@ const FIN_ANIM := {
 	&"striker": {"rate": 5.0, "pulse": 0.06, "axis": Vector3.BACK, "freq": 9.0},
 	&"heavy": {"rate": 2.4, "pulse": 0.07, "axis": Vector3.UP, "freq": 5.0},
 }
-
-static var _bar_bg: StandardMaterial3D
-static var _bar_fg: StandardMaterial3D
-static var _bar_mesh: QuadMesh
 
 var type: StringName = &"sentinel"
 var cfg: Dictionary = {}
@@ -73,10 +69,10 @@ var _stagger := 0.0
 var _hover := 0.35
 var _rotors: Array[Node3D] = []
 var _fins: Node3D                      ## the `Fins` node of the living models (null for the primitive stand-in, which spins its rotors)
+var _tele := 0.0                       ## 0..1: how far the next shot is charged (EnemyMarks draws the telegraph from it)
+var _base_scale := 1.0
 var _flare := 0.0                      ## 0..1: the striker's thorns flare as it closes in to burst
 var _glow: Array[BaseMaterial3D] = []
-var _bar: Node3D
-var _bar_fill: MeshInstance3D
 var _ray := PhysicsRayQueryParameters3D.new()
 var _exclude: Array[RID] = []
 
@@ -98,7 +94,6 @@ func setup(t: StringName) -> void:
 	cs.position = Vector3(0.0, center_y, 0.0)
 	add_child(cs)
 	_build_visual()
-	_build_bar()
 	_ray.collision_mask = Game.L_WORLD
 	_ray.collide_with_areas = false
 	visible = false
@@ -145,7 +140,8 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	if model != null:
 		model.rotation = Vector3.ZERO
 		model.position = Vector3.ZERO
-	_bar.visible = false
+		model.scale = Vector3.ONE * _base_scale
+	_tele = 0.0
 	_set_glow(2.0)
 	_on_activate()
 	collision_layer = Game.L_ENEMY
@@ -162,7 +158,6 @@ func deactivate() -> void:
 	visible = false
 	collision_layer = 0
 	linked = null
-	_bar.visible = false
 	if is_in_group(&"enemy"):
 		remove_from_group(&"enemy")
 	set_physics_process(false)
@@ -212,7 +207,6 @@ func die() -> void:
 	hp = minf(hp, 0.0)
 	_dead_t = 0.0
 	_flare = 0.0
-	_bar.visible = false
 	linked = null
 	collision_layer = 0
 	if is_in_group(&"enemy"):
@@ -231,9 +225,15 @@ func die() -> void:
 func _death_effect() -> void:
 	var c: Color = cfg["color"]
 	var pos := center()
-	FX.burst(pos, c, 30, 9.0, 0.8, 10.0)
-	FX.blast(pos, 2.5 * maxf(0.85, radius), c, 0.35)
+	FX.blast(pos, 2.5 * maxf(0.85, radius), c, 0.35)                 # the burst: fireball, ring, sparks (one pooled slot), then the shell dissolves
+	if Game.graphic_violence:
+		ichor(pos, 1.0)
 	Sfx.play_at(&"boom", pos, -3.0)
+
+
+## Vael ichor: a spray of acid-green drops and a low cloud of teal goo. Only behind Game.graphic_violence (the non-violent build dissolves into light motes).
+static func ichor(pos: Vector3, k: float) -> void:
+	FX.burst(pos, Color(0.5, 1.0, 0.2), int(24.0 * k), 7.0 * k, 1.0, 12.0, 2.6)
 
 
 func _drop() -> void:
@@ -274,6 +274,7 @@ func _physics_process(delta: float) -> void:
 	_mx = 0.0
 	_mz = 0.0
 	_speed = 0.0
+	_tele = 0.0
 	if not aware or not _tgt_ok:
 		_think_idle(delta)
 	else:
@@ -290,7 +291,7 @@ func _physics_process(delta: float) -> void:
 	_step(_mx * sp * delta, _mz * sp * delta)
 	_place(delta)
 	_animate(delta)
-	_update_bar(delta)
+	_bar_t = maxf(_bar_t - delta, 0.0)
 
 
 func _on_activate() -> void:
@@ -368,6 +369,8 @@ func _think_aware(delta: float, dx: float, dz: float, d: float) -> void:
 		_mz = ux * _strafe
 		_speed = speed * 0.6
 	_fire_t -= delta
+	if los and d < rng * 1.15:
+		_tele = clampf(1.0 - _fire_t / TELEGRAPH, 0.0, 1.0)       # the muzzle charges and the aim line shows for the last 0.45 s
 	if los and d < rng * 1.15 and _fire_t <= 0.0:
 		var f: Vector2 = cfg["fire"]
 		_fire_t = randf_range(f.x, f.y)
@@ -468,10 +471,14 @@ func _animate(delta: float) -> void:
 
 func _tick_dead(delta: float) -> void:
 	_dead_t += delta
+	var k := clampf(_dead_t / DEATH_TIME, 0.0, 1.0)
 	if model != null:
 		model.rotation.z += delta * 4.0
 		model.position.y -= delta * 2.5
+		model.scale = Vector3.ONE * _base_scale * (1.0 - 0.85 * k * k)            # dissolve: it shrinks away while it burns white-hot
+	_set_glow(2.0 + 9.0 * sin(k * PI))
 	if _dead_t > DEATH_TIME:
+		FX.burst(center(), cfg["color"], 14, 5.0, 0.8, -1.5, 1.6)                 # the last motes of light drift up
 		remove = true
 		set_physics_process(false)
 		visible = false
@@ -492,6 +499,8 @@ func _build_visual() -> void:
 	uses_model = m != null
 	if m == null:
 		m = _make_fallback()
+	_base_scale = float(cfg.get("scale", 1.0))
+	m.scale = Vector3.ONE * _base_scale
 	add_child(m)
 	model = m
 	muzzle = m.get_node_or_null("Muzzle") as Node3D
@@ -571,53 +580,45 @@ static func _flat(c: Color, rough: float) -> StandardMaterial3D:
 	return m
 
 
-func _build_bar() -> void:
-	if _bar_mesh == null:
-		_bar_mesh = QuadMesh.new()
-		_bar_mesh.size = Vector2(BAR_WIDTH, 0.12)
-		_bar_bg = _unshaded(Color(0.13, 0.04, 0.09))
-		_bar_fg = _unshaded(Color(1.0, 0.27, 0.4))
-	_bar = Node3D.new()
-	_bar.top_level = true
-	_bar.visible = false
-	add_child(_bar)
-	var bg := MeshInstance3D.new()
-	bg.mesh = _bar_mesh
-	bg.material_override = _bar_bg
-	bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_bar.add_child(bg)
-	_bar_fill = MeshInstance3D.new()
-	_bar_fill.mesh = _bar_mesh
-	_bar_fill.material_override = _bar_fg
-	_bar_fill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_bar_fill.position.z = 0.004
-	_bar.add_child(_bar_fill)
+## --- EnemyMarks API (scripts/enemies/enemy_marks.gd draws the threat marker, the attack telegraph and the health bar for every enemy) ---------------
+
+func mark_color() -> Color:
+	var c: Color = cfg["color"]
+	return Color(minf(c.r * 1.25, 1.0), minf(c.g * 1.25, 1.0), minf(c.b * 1.25, 1.0))
 
 
-static func _unshaded(c: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = c
-	m.disable_receive_shadows = true
-	return m
+## World diameter of the threat ring (not the collider).
+func mark_size() -> float:
+	return radius * 2.5
 
 
-func _bar_height() -> float:
-	return center_y + radius + 0.55
+## 0..1: how far the next attack is charged (a striker: how close it is to bursting).
+func threat_charge() -> float:
+	if dead:
+		return 0.0
+	return _flare if bool(cfg["kamikaze"]) else _tele
 
 
-func _update_bar(delta: float) -> void:
-	if _bar_t <= 0.0:
-		return
-	_bar_t -= delta
-	_bar.visible = _bar_t > 0.0 and not dead
-	if not _bar.visible:
-		return
-	var cam := Game.camera
-	var gp := global_position
-	_bar.global_position = Vector3(gp.x, gp.y + _bar_height(), gp.z)
-	if is_instance_valid(cam):
-		_bar.global_basis = cam.global_basis
-	var f := clampf(hp / max_hp, 0.001, 1.0)
-	_bar_fill.scale.x = f
-	_bar_fill.position.x = -BAR_WIDTH * 0.5 * (1.0 - f)
+func muzzle_world() -> Vector3:
+	return muzzle.global_position if muzzle != null else center()
+
+
+func aim_point() -> Vector3:
+	return _tgt
+
+
+func shows_aim_line() -> bool:
+	return not bool(cfg["kamikaze"]) and _tele > 0.0 and _tgt_ok
+
+
+func hit_flash() -> float:
+	return clampf(_flash / 0.1, 0.0, 1.0)
+
+
+## Seconds the health bar stays up after a hit (0 = hidden).
+func bar_time() -> float:
+	return 0.0 if dead else maxf(_bar_t, 0.0)
+
+
+func death_progress() -> float:
+	return clampf(_dead_t / DEATH_TIME, 0.0, 1.0)

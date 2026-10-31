@@ -9,6 +9,7 @@ uniform float alpha : hint_range(0.0, 1.0) = 1.0;
 uniform vec3 tint : source_color = vec3(1.0, 0.5, 0.15);
 uniform float ring2 : hint_range(0.0, 1.0) = 0.0;
 uniform float flash_gain = 1.4;
+uniform vec3 tint2 : source_color = vec3(1.0, 0.15, 0.85);   // the second ripple of the quantum collapse is magenta, the first cyan
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -19,9 +20,10 @@ void fragment() {
 	float wob = 0.78 + 0.22 * sin(ang * 9.0 + t * 7.0) * sin(ang * 4.0 - t * 3.0);
 	float ring = exp(-pow((r - rr * 0.92) / (0.035 + 0.05 * t), 2.0)) * (1.0 - t) * wob * 1.8;
 	float rr2 = 1.0 - pow(1.0 - clamp(t * 1.15 - 0.12, 0.0, 1.0), 2.0);
-	ring += ring2 * exp(-pow((r - rr2 * 0.7) / 0.03, 2.0)) * (1.0 - t) * 1.2;
+	float ring_b = ring2 * exp(-pow((r - rr2 * 0.9) / 0.04, 2.0)) * (1.0 - t) * 1.6;
+	ring += ring_b;
 	float edge = 1.0 - smoothstep(0.85, 1.0, r);
-	vec3 col = tint * (flash + ring) + vec3(1.0) * flash * 0.35;
+	vec3 col = tint * (flash + ring - ring_b) + tint2 * ring_b + vec3(1.0) * flash * 0.35;
 	ALBEDO = col * edge;
 	ALPHA = clamp(flash + ring, 0.0, 1.0) * edge * alpha;
 }

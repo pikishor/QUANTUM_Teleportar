@@ -11,13 +11,15 @@ import bpy  # noqa: F401,E402
 from mathutils import Matrix, Vector  # noqa: E402
 
 from alienlib import make_finalize, surf_y, two_bone, xy_rings  # noqa: E402
-from helpers import (empty, export_model, hexc, light, make_material, new_scene, ring_se, rotm, scale_c)  # noqa: E402
+from helpers import (empty, export_model, hexc, light, make_material, new_scene, ring_se, rotm, scale_c, set_detail)  # noqa: E402
 from humanoid import RigPart, p_visor_sheen  # noqa: E402
 from shade import Decal  # noqa: E402
 
 new_scene()
-BRIGHT = 1.7
-chit = make_material("Chitin", tex="chitin")
+set_detail(1.4)            # round limbs and plates: more segments, tube rings and bevel steps (helpers.DETAIL)
+BRIGHT = 2.0
+chit = make_material("Chitin", tex="shell")
+silk = make_material("Silk", tex="silk")
 obs = make_material("Obsidian", tex="glass", color=hexc("#2a3a46"))
 glc = make_material("GlowC", tex="glow", color=hexc("#19d8ff"))
 gla = make_material("GlowA", tex="glow", color=hexc("#ff9d2e"))
@@ -219,15 +221,19 @@ for si, (p, z0, z1, rad, flare) in enumerate(seg_defs):
         rd = Vector((math.sin(a), -math.cos(a), 0.0))
         jag = 0.8 + 0.4 * (0.5 + 0.5 * math.sin(j * 2.9 + si * 1.7)) if si == 2 else 1.0
         L = (z0 - z1) * jag
-        top = Vector((rad * 1.45 * math.sin(a), -0.115 - rad * 0.9 * math.cos(a) - 0.05 * si, z0))
-        bot = top + Vector((rd.x * flare, rd.y * (flare + 0.03), -L))
-        w = 0.1 + 0.02 * si
-        p.bar(top, bot, w, 0.014, mat=chit, tint=CLOAK if (j + si) % 2 == 0 else CLOAK2, up=rd, taper=(0.18 if si == 2 else 0.8, 1.0), bevel=0.002, jitter=0.1)
+        top = Vector((rad * 1.45 * math.sin(a), -0.115 - rad * 0.9 * math.cos(a) - 0.05 * si, z0 + 0.02))
+        bot = top + Vector((rd.x * flare, rd.y * (flare + 0.03), -L - 0.02))
+        w = 0.058 + 0.012 * si                                   # half width: neighbouring ribbons overlap, so the cloak reads as one solid sheet
+        tip = 0.2 if si == 2 else 0.8
+        mid = top + (bot - top) * 0.5 + rd * 0.012
+        # a solid satin ribbon (smooth elliptic section, thin along the radial direction, wide along the tangent), no alpha, no grain
+        p.tube([top, mid, bot], [(0.006, w), (0.0065, w * (0.5 + 0.5 * tip)), (0.003, w * tip * 0.5)], mat=silk,
+               tint=CLOAK if (j + si) % 2 == 0 else CLOAK2, n=8, up=rd, sub=2, exp=2.6)
         if si == 2:
-            p.rod(bot + Vector((0, 0, L * 0.75)) - rd * 0.0, bot + rd * 0.004, 0.0045, mat=glc, segs=4)                  # glowing tip
-            p.rod(top + (bot - top) * 0.1 + rd * 0.008, top + (bot - top) * 0.9 + rd * 0.008, 0.0035, mat=glc, segs=4)  # glowing edge vein
+            p.rod(bot + Vector((0, 0, L * 0.75)) - rd * 0.0, bot + rd * 0.004, 0.0055, mat=glc, segs=4)                  # glowing tip
+            p.rod(top + (bot - top) * 0.1 + rd * 0.01, top + (bot - top) * 0.9 + rd * 0.01, 0.0045, mat=glc, segs=4)    # glowing edge vein
     if si == 0:
-        p.loft(xy_rings([(1.50, -0.02, 0.17, 0.115), (1.44, -0.05, 0.19, 0.13)]), mat=chit, tint=CLOAK)
+        p.loft(xy_rings([(1.50, -0.02, 0.17, 0.115), (1.44, -0.05, 0.19, 0.13)]), mat=silk, tint=CLOAK)
 
 # ------------------------------------------------------------------ export
 parts = [hips, torso, head, uarm[-1], farm[-1], uarm[1], farm[1], rifle] + [thigh[s] for s in (-1, 1)] + [shin[s] for s in (-1, 1)] + [foot[s] for s in (-1, 1)] + sec

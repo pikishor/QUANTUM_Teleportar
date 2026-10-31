@@ -119,6 +119,10 @@ func _draw() -> void:
 			_uvs[i] = Vector2((w.x + EXTENT) * inv, (w.y + EXTENT) * inv)
 		draw_colored_polygon(_pts, Color(1, 1, 1, 0.9), _uvs, tex)
 	var inner := radius - 3.0 * s
+	var cars: Array = []        # markers are collected and drawn per kind at the end: sprites of one texture batch, circles / polygons / arcs cost a draw call each
+	var discs: Array = []
+	var diamonds: Array = []
+	var rings: Array = []
 	var own: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
 	# cars (faint), enemies, pickups
 	for v: Node in get_tree().get_nodes_in_group(&"vehicle"):
@@ -126,13 +130,13 @@ func _draw() -> void:
 		if vn != null and vn.visible and vn != own:
 			var m := to_map(vn.global_position.x, vn.global_position.z)
 			if m.length() < inner:
-				draw_rect(Rect2(c + m - Vector2(1.5, 1.5) * s, Vector2(3, 3) * s), Color(0.7, 0.75, 0.8, 0.6))
+				cars.append(Rect2(c + m - Vector2(1.5, 1.5) * s, Vector2(3, 3) * s))
 	for e: Node in get_tree().get_nodes_in_group(&"enemy"):
 		var en := e as Node3D
 		if en != null and en.visible and en.get("dead") != true:
 			var m := to_map(en.global_position.x, en.global_position.z)
 			if m.length() < inner:
-				draw_circle(c + m, 2.6 * s, UiUtil.RED)
+				discs.append([c + m, 2.8 * s, UiUtil.RED])
 				markers_drawn += 1
 	var mis: Object = Game.missions if is_instance_valid(Game.missions) else null
 	if mis != null:
@@ -143,9 +147,7 @@ func _draw() -> void:
 				var pp: Vector3 = pd.get("pos", Vector3.ZERO)
 				var m := to_map(pp.x, pp.z)
 				if m.length() < inner:
-					draw_set_transform(c + m, 0.0, Vector2(3.4, 3.4) * s)
-					draw_colored_polygon(_diamond, UiUtil.GREEN if pd.get("kind", &"health") == &"health" else UiUtil.CYAN)
-					draw_set_transform(Vector2.ZERO)
+					diamonds.append([c + m, 3.6 * s, UiUtil.GREEN if pd.get("kind", &"health") == &"health" else UiUtil.CYAN])
 					markers_drawn += 1
 	var q: Object = Game.player.get("quantum") if is_instance_valid(Game.player) else null
 	if q != null:
@@ -154,12 +156,12 @@ func _draw() -> void:
 			if bp is Vector3:
 				var m := to_map((bp as Vector3).x, (bp as Vector3).z)
 				if m.length() < inner:
-					draw_arc(c + m, 3.5 * s, 0.0, TAU, 12, UiUtil.CYAN, 1.5 * s)
+					rings.append([c + m, 4.0 * s, UiUtil.CYAN])
 		var cl := q.get("clone") as Node3D
 		if is_instance_valid(cl):
 			var m := to_map(cl.global_position.x, cl.global_position.z)
 			if m.length() < inner:
-				draw_circle(c + m, 3.0 * s, UiUtil.CYAN)
+				discs.append([c + m, 3.0 * s, UiUtil.CYAN])
 	# quantum cores: magenta diamonds, pinned to the rim and pointing outward when far
 	if mis != null:
 		var cores: Variant = mis.get("cores")
@@ -170,17 +172,21 @@ func _draw() -> void:
 				var far := m.length() > inner - 4.0 * s
 				if far:
 					m = (m.normalized() if m.length() > 0.001 else Vector2(0, -1)) * (inner - 4.0 * s)
-				draw_set_transform(c + m, 0.0, Vector2(4.2, 4.2) * s)
-				draw_colored_polygon(_diamond, UiUtil.MAGENTA)
-				draw_set_transform(Vector2.ZERO)
+				diamonds.append([c + m, 4.8 * s, UiUtil.MAGENTA])
 				if not far:
-					draw_arc(c + m, 7.0 * s, 0.0, TAU, 16, Color(UiUtil.MAGENTA, 0.6), 1.2 * s)
+					rings.append([c + m, 7.5 * s, Color(UiUtil.MAGENTA, 0.7)])
 				core_markers += 1
+	for r: Rect2 in cars:
+		draw_rect(r, Color(0.7, 0.75, 0.8, 0.6))
+	for kind: Array in [[&"disc", discs], [&"diamond", diamonds], [&"ring", rings]]:
+		for d: Array in kind[1]:
+			var hs := float(d[1])
+			draw_texture_rect(UiUtil.sprite(kind[0]), Rect2((d[0] as Vector2) - Vector2(hs, hs), Vector2(hs, hs) * 2.0), false, d[2])
 	# the player: fixed arrow in the middle
 	draw_set_transform(c, 0.0, Vector2(5.0, 5.0) * s)
 	draw_colored_polygon(_arrow, Color(1, 1, 1, 0.95))
 	draw_set_transform(Vector2.ZERO)
 	# north tick and the rim
 	var nl := Vector2(Vector2(0, -1).dot(_right), -Vector2(0, -1).dot(_fwd))
-	draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-4.0, 5.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(13.0 * s), Color(UiUtil.CYAN, 0.9))
+	draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-5.0, 6.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(UiUtil.CYAN, 0.9))
 	draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s, false)

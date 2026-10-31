@@ -15,14 +15,14 @@ const BASE_H := 720.0
 const USE_REACH := 4.2              ## metres: a vehicle this close enables USE
 ## Buttons: action, centre offset from the bottom-right corner and radius (canvas px at the base height), label, and what they need to be shown.
 const BUTTONS := [
-	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 84.0, "label": "FIRE", "need": &""},
-	{"action": &"aim", "dx": 170.0, "dy": 340.0, "r": 58.0, "label": "AIM", "need": &""},
-	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 60.0, "label": "JUMP", "need": &""},
-	{"action": &"reload", "dx": 360.0, "dy": 290.0, "r": 46.0, "label": "R", "need": &""},
-	{"action": &"blink", "dx": 515.0, "dy": 110.0, "r": 50.0, "label": "BLINK", "need": &"quantum", "ability": 0},
-	{"action": &"entangle", "dx": 530.0, "dy": 225.0, "r": 46.0, "label": "LINK", "need": &"quantum", "ability": 1},
-	{"action": &"superpose", "dx": 500.0, "dy": 335.0, "r": 46.0, "label": "SUPER", "need": &"quantum", "ability": 2},
-	{"action": &"interact", "dx": 175.0, "dy": 470.0, "r": 50.0, "label": "USE", "need": &"vehicle"},
+	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 88.0, "fs": 28, "label": "FIRE", "need": &""},
+	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &""},
+	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
+	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 52.0, "fs": 20, "label": "RELOAD", "need": &""},
+	{"action": &"blink", "dx": 515.0, "dy": 110.0, "r": 56.0, "label": "BLINK", "need": &"quantum", "ability": 0},
+	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "LINK", "need": &"quantum", "ability": 1},
+	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},
+	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
@@ -264,12 +264,12 @@ func _insets() -> Vector2:
 
 func _button_center(b: Dictionary) -> Vector2:
 	var s := _scale()
-	return Vector2(_vp_size().x - _insets().y - float(b["dx"]) * s, _vp_size().y - float(b["dy"]) * s)
+	return Vector2(_vp_size().x - _insets().y - float(b["dx"]) * s, _vp_size().y - UiUtil.insets_v(_vp_size()).y - float(b["dy"]) * s)
 
 
 func _pause_center() -> Vector2:
 	var s := _scale()
-	return Vector2(_vp_size().x - _insets().y - 50.0 * s, 128.0 * s)
+	return Vector2(_vp_size().x - _insets().y - 50.0 * s, 128.0 * s + UiUtil.insets_v(_vp_size()).x)
 
 
 ## The perf readout sits under the minimap and is only shown while playing or paused.
@@ -279,7 +279,7 @@ func perf_visible() -> bool:
 
 func _perf_box() -> Rect2:
 	var s := _scale()
-	return Rect2(Vector2(16.0 * s + _insets().x, 204.0 * s), Vector2(268.0, 66.0) * s)
+	return Rect2(Vector2(16.0 * s + _insets().x, 204.0 * s + UiUtil.insets_v(_vp_size()).x), Vector2(280.0, 74.0) * s)
 
 
 func _refresh_perf() -> void:
@@ -301,20 +301,23 @@ func _draw_ui() -> void:
 	var font := UiUtil.font()
 	if perf_visible():
 		var box := _perf_box()
-		c.draw_rect(box, Color(0, 0, 0, 0.45))
-		c.draw_multiline_string(font, box.position + Vector2(8, 18) * s, _perf_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(14 * s), -1, Color(0.85, 1, 0.9, 0.95))
+		c.draw_rect(box, Color(0, 0.03, 0.05, 0.6))
+		c.draw_multiline_string(font, box.position + Vector2(8, 20) * s, _perf_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(15 * s), -1, Color(0.85, 1, 0.9, 0.95))
 	if perf_visible() and errors_on:
 		_draw_errors(c, font, s)
 	if not controls_on or Game.state != &"play":
 		return
 	# move stick: a hint ring while idle, base and thumb while a finger is down
 	if _stick_id == -1:
-		c.draw_arc(Vector2(190, size.y - 170) * s + Vector2(_insets().x, 0), STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 2.0 * s, false)
+		c.draw_arc(Vector2(190 * s + _insets().x, size.y - 170 * s - UiUtil.insets_v(size).y), STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 2.0 * s, false)
 	else:
 		c.draw_circle(_stick_origin, STICK_RADIUS * s, Color(1, 1, 1, 0.07))
 		c.draw_arc(_stick_origin, STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0 * s, false)
 		c.draw_circle(_stick_pos.limit_length(1e5), 38.0 * s, Color(0.5, 0.95, 1, 0.5))
 	var labels: Array = []   # text is drawn after all shapes: glyph and plain draws alternating would break canvas batching
+	var sprites: Array = []  # every button is ONE sprite (dark disc + bright rim): draw_circle + draw_arc per button cost two draw calls each, sprites of one texture batch
+	var arcs: Array = []
+	var glows: Array = []
 	var down: Array = []
 	for b: Dictionary in _held.values():
 		down.append(b["action"])
@@ -333,12 +336,28 @@ func _draw_ui() -> void:
 			elif not st["ready"]:
 				dim = 0.45
 			if float(st["cd"]) > 0.0:
-				c.draw_arc(centre, r + 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * float(st["cd"]), 32, Color(tint, 0.9), 3.0 * s, false)
-		c.draw_circle(centre, r, Color(tint, (0.30 if on else 0.10) * dim + 0.03))
-		c.draw_arc(centre, r, 0.0, TAU, 40, Color(tint, (0.9 if on else 0.5) * dim), 2.0 * s, false)
-		labels.append([centre + Vector2(-r, 6.0 * s), str(b["label"]), r * 2.0, dim])
+				arcs.append([centre, r + 4.0 * s, -PI * 0.5 + TAU * float(st["cd"]), Color(tint, 0.9)])
+		if on:
+			glows.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, 0.35)])
+		sprites.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, (1.0 if on else 0.85) * dim)])
+		var fs := int(b.get("fs", 22))
+		labels.append([centre + Vector2(-r, float(fs) * 0.36 * s), str(b["label"]), r * 2.0, dim, fs])
+	for g: Array in glows:
+		c.draw_texture_rect(UiUtil.sprite(&"disc"), g[0], false, g[1])
+	for sp: Array in sprites:
+		c.draw_texture_rect(UiUtil.sprite(&"button"), sp[0], false, sp[1])
+	for a: Array in arcs:
+		c.draw_arc(a[0], a[1], -PI * 0.5, a[2], 32, a[3], 3.0 * s, false)
+	var sizes := {}
 	for l: Array in labels:
-		c.draw_string(font, l[0], l[1], HORIZONTAL_ALIGNMENT_CENTER, l[2], int(20 * s), Color(1, 1, 1, 0.92 * float(l[3])))
+		sizes[l[4]] = true
+	for fsz: int in sizes.keys():                       # shadows, then text, one size at a time (glyph atlases are per size)
+		for l: Array in labels:
+			if l[4] == fsz:
+				c.draw_string(font, (l[0] as Vector2) + Vector2(1.5, 1.5) * s, l[1], HORIZONTAL_ALIGNMENT_CENTER, l[2], int(float(fsz) * s), Color(0, 0, 0, 0.8 * float(l[3])))
+		for l: Array in labels:
+			if l[4] == fsz:
+				c.draw_string(font, l[0], l[1], HORIZONTAL_ALIGNMENT_CENTER, l[2], int(float(fsz) * s), Color(1, 1, 1, 0.97 * float(l[3])))
 	# pause
 	var pc := _pause_center()
 	var pr := 30.0 * s
