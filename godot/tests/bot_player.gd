@@ -4,6 +4,7 @@ extends RefCounted
 ##   tools/bot.sh res://tests/bot_player.gd /tmp/player 40 22          (every 40 frames, 22 pictures)
 ##   RENDERER=compat tools/bot.sh ...                                     (OpenGL Compatibility renderer)
 ##   BOT_MODE=city tools/bot.sh ...                                       (keep the other modules and walk the real city instead of the arena)
+##   BOT_PHASES=2,6,7 tools/bot.sh ... 40 3                              (run only these phases, in this order; the count must match)
 ## Software rendering runs at 5-10 fps, which would hide a 0.05 s muzzle flash between two rendered frames, so the bot runs the game in slow motion
 ## (Engine.time_scale): every rendered frame then covers about 20 ms of game time, like a 50 fps device. Phases are counted in rendered frames and
 ## end exactly on a screenshot frame, so each picture shows the end of its phase:
@@ -26,6 +27,7 @@ var _rig: CameraRig
 var _dummies: Array[Node3D] = []
 var _car: Node3D
 var _phase := -1
+var _order: Array[int] = []
 
 
 func _init() -> void:
@@ -39,6 +41,8 @@ func _init() -> void:
 	var m := OS.get_environment("BOT_MODE")
 	if m != "":
 		_mode = m
+	for part in OS.get_environment("BOT_PHASES").split(",", false):
+		_order.append(int(part))
 
 
 func _setup() -> void:
@@ -88,10 +92,11 @@ func step(_t: float, delta: float) -> bool:
 	if not _setup_done:
 		_setup()
 	var f: int = Dev.get(&"_frame")
-	var phase := (f - 1) / _every
+	var slot := (f - 1) / _every
+	var phase := _order[slot % _order.size()] if not _order.is_empty() else slot
 	var k := ((f - 1) % _every) + 1                  # 1 .. _every, the screenshot is taken at k == _every
-	if phase != _phase:
-		_phase = phase
+	if slot != _phase:
+		_phase = slot
 		_enter(phase)
 		print("BOT phase %d %s (frame %d)" % [phase, NAMES[phase % NAMES.size()], f])
 	_run(phase, k, delta)

@@ -1,13 +1,22 @@
 extends RefCounted
-## Atmosphere module tests (headless). Run: tools/test.sh tests/test_atmosphere.gd
+## Atmosphere module tests. Run: tools/test.sh tests/test_atmosphere.gd   (headless; CI runs it this way)
 ## Covers: standalone instantiation (no world, no player, even no camera), set_weather and the global shader parameters, the quality tiers
 ## (particle counts and which post effects exist), the `enabled` post toggle, camera following, the physics ground probe, node leaks over many
 ## frames, and regression checks of the cross-module contract in ARCHITECTURE.md (the world owns the viewport's msaa_3d / scaling_3d_scale and its
 ## `Mirror` node; committed files carry no machine-specific paths).
-## The dummy renderer used by --headless cannot compile shaders: shader compile errors only show in the real renderer, so
-## tests/bot_atmosphere.gd (tools/bot.sh, also with RENDERER=compat) is the check for the picture itself.
+## --headless has a dummy renderer: it cannot compile shaders or read pixels. The same script also runs under a real renderer, which compiles the
+## post and rain shaders (shader errors show up in the log) and additionally proves that set_weather reaches the global shader parameters:
+##   xvfb-run godot --rendering-driver vulkan --rendering-method mobile --path . res://tests/runner.tscn -- --test=res://tests/test_atmosphere.gd
+##   (add --rendering-driver opengl3 --rendering-method gl_compatibility instead for the Compatibility renderer)
+## tests/bot_atmosphere.gd (tools/bot.sh) is the check for the picture itself.
 
 const SCENE := "res://scenes/atmosphere.tscn"
+const GLOBALS_PROBE := """shader_type canvas_item;
+render_mode unshaded, blend_disabled;
+global uniform float rain;
+global uniform float wetness;
+void fragment() { COLOR = vec4(rain, wetness, 0.0, 1.0); }
+"""
 
 var _host: Node
 var _atm: Atmosphere
@@ -32,6 +41,7 @@ func run(host: Node) -> void:
 	var host_children := host.get_child_count()
 	await _test_standalone()
 	await _test_weather()
+	await _test_globals_reach_shaders()
 	await _test_quality()
 	await _test_enabled_and_rain_toggle()
 	await _test_effects_api()
@@ -128,6 +138,13 @@ func _add_camera(pos: Vector3) -> Camera3D:
 	return c
 
 
+## n rendered (idle) frames: _process runs in each. Physics frames (TestLib.frames) are not enough for that when rendering is slow,
+## because several physics ticks can pass inside a single rendered frame.
+func _idle(n: int) -> void:
+	for i in n:
+		await _host.get_tree().process_frame
+
+
 func _nodes() -> int:
 	return int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
 
@@ -145,7 +162,7 @@ func _test_standalone() -> void:
 	var score := Game.score
 	_atm = _make()
 	TestLib.check(_atm != null and _atm is Atmosphere, "atmosphere.tscn instantiates as an Atmosphere")
-	await TestLib.frames(_host, 3)           # with no camera at all: must neither crash nor draw
+	await _idle(3)                           # with no camera at all: must neither crash nor draw
 	TestLib.check(_atm.is_in_group(&"atmosphere"), "joins the group `atmosphere` so other modules can find it without node paths")
 	TestLib.check(_atm.post is CanvasLayer and _atm.post.layer <= 0, "the post-process is a CanvasLayer below the HUD layers (layer %d)" % _atm.post.layer)
 	var rect := _atm.post.rect as ColorRect
@@ -161,23 +178,18 @@ func _test_standalone() -> void:
 func _test_weather() -> void:
 	_atm.set_weather(0.3, 0.2, true)
 	TestLib.check(is_equal_approx(_atm.rain_now, 0.3) and is_equal_approx(_atm.wetness_now, 0.2), "set_weather(.., instant) applies at once (rain %.2f, wetness %.2f)" % [_atm.rain_now, _atm.wetness_now])
-	# The headless dummy renderer stores no global parameters (get returns null); in a real renderer they must follow.
-	var g_rain: Variant = RenderingServer.global_shader_parameter_get(&"rain")
-	var g_wet: Variant = RenderingServer.global_shader_parameter_get(&"wetness")
-	if g_rain == null or g_wet == null:
-		print("note: the dummy renderer cannot read global shader parameters back; the real-renderer check lives in tests/bot_atmosphere.gd")
-	else:
-		TestLib.check(is_equal_approx(float(g_rain), 0.3) and is_equal_approx(float(g_wet), 0.2), "the global shader parameters rain / wetness follow set_weather (%s / %s)" % [g_rain, g_wet])
 	_atm.set_weather(5.0, -3.0, true)
 	TestLib.check(_atm.rain_now == 1.0 and _atm.wetness_now == 0.0, "set_weather clamps to 0..1")
-	# smooth: a normal call eases toward the target
-	_atm.weather_tau = 0.05
+	# smooth: a normal call eases toward the target (slow tau here so that even slow software-rendered frames show a partial value)
+	_atm.weather_tau = 2.0
 	_atm.set_weather(0.0, 0.0, true)
 	_atm.set_weather(1.0, 1.0)
 	TestLib.check(_atm.rain_now == 0.0 and _atm.rain_target == 1.0, "set_weather without instant only sets the target")
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 	TestLib.check(_atm.rain_now > 0.0 and _atm.rain_now < 1.0, "the weather eases in (rain %.3f after 2 frames)" % _atm.rain_now)
+	_atm.weather_tau = 0.05
 	await TestLib.frames(_host, 90)
+	await _idle(3)
 	TestLib.check(is_equal_approx(_atm.rain_now, 1.0) and is_equal_approx(_atm.wetness_now, 1.0), "the weather reaches its target (rain %.3f, wetness %.3f)" % [_atm.rain_now, _atm.wetness_now])
 	# wetness and rain are independent: the street can stay wet after the rain stops
 	_atm.set_weather(0.0, 0.9, true)
@@ -185,11 +197,40 @@ func _test_weather() -> void:
 	_atm.weather_tau = 1.4
 
 
+## RenderingServer.global_shader_parameter_get is editor-only (and the dummy renderer stores nothing), so the only way to prove that
+## set_weather reaches the global parameters is to let a shader read them and look at the pixels. Needs a real renderer: skipped in --headless.
+func _test_globals_reach_shaders() -> void:
+	if DisplayServer.get_name() == "headless":
+		print("note: --headless cannot read pixels: that set_weather reaches the global shader parameters is only asserted under a real renderer (see the header)")
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	var rect := ColorRect.new()
+	rect.size = Vector2(16.0, 16.0)
+	var mat := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = GLOBALS_PROBE
+	mat.shader = sh
+	rect.material = mat
+	layer.add_child(rect)
+	_host.add_child(layer)
+	for pair: Array in [[0.3, 0.2], [0.9, 0.55], [0.0, 1.0]]:
+		_atm.set_weather(pair[0], pair[1], true)
+		await _idle(3)
+		await RenderingServer.frame_post_draw
+		var img := _host.get_viewport().get_texture().get_image()
+		var px := img.get_pixel(3, 3)
+		TestLib.check(absf(px.r - float(pair[0])) < 0.012 and absf(px.g - float(pair[1])) < 0.012,
+				"a shader reading the globals sees set_weather(%.2f, %.2f): pixel (%.3f, %.3f)" % [pair[0], pair[1], px.r, px.g])
+	layer.queue_free()
+	await _idle(2)
+
+
 func _test_quality() -> void:
 	_cam = _add_camera(Vector3(40.0, 3.0, -15.0))
 	Game.camera = _cam
 	_atm.set_weather(1.0, 0.8, true)
-	await TestLib.frames(_host, 3)
+	await _idle(3)
 	var counts: Array[int] = []
 	var streaks: Array[int] = []
 	var splashes: Array[int] = []
@@ -197,7 +238,7 @@ func _test_quality() -> void:
 	var pool: int = _atm.rainfield.streaks.multimesh.instance_count
 	for level in [0, 1, 2]:
 		_atm.set_quality(level)
-		await TestLib.frames(_host, 2)
+		await _idle(2)
 		counts.append(_atm.particle_count())
 		streaks.append(_atm.rainfield.streak_count())
 		splashes.append(_atm.rainfield.splash_count())
@@ -222,17 +263,17 @@ func _test_quality() -> void:
 	_atm.set_quality(9)
 	TestLib.check(_atm.quality == 2, "set_quality clamps above 2")
 	# density follows the rain intensity
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 	var full := _atm.particle_count()
 	_atm.set_weather(0.5, 0.8, true)
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 	var half := _atm.particle_count()
 	_atm.set_weather(0.0, 0.8, true)
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 	var none := _atm.particle_count()
 	TestLib.check(none == 0 and half > 0 and half < full, "density follows the rain intensity (0: %d, 0.5: %d, 1: %d)" % [none, half, full])
 	_atm.set_weather(1.0, 0.8, true)
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 
 
 func _test_enabled_and_rain_toggle() -> void:
@@ -240,25 +281,25 @@ func _test_enabled_and_rain_toggle() -> void:
 	var before := _atm.particle_count()
 	_atm.enabled = false
 	TestLib.check(not _atm.post.visible, "enabled = false hides the post-process layer")
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 	TestLib.check(_atm.particle_count() == before and before > 0, "enabled only toggles the post-process, the rain keeps falling")
 	_atm.enabled = true
 	TestLib.check(_atm.post.visible, "enabled = true shows the post-process layer again")
 	_atm.rain_enabled = false
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 	TestLib.check(_atm.particle_count() == 0, "rain_enabled = false hides all streaks and splashes")
 	TestLib.check(_atm.post.visible, "rain_enabled does not touch the post-process")
 	_atm.rain_enabled = true
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 	TestLib.check(_atm.particle_count() == before, "rain_enabled = true brings the rain back (%d)" % _atm.particle_count())
 	# the property also works on a fresh instance before it enters the tree (settings screens set it early)
 	var fresh := (load(SCENE) as PackedScene).instantiate() as Atmosphere
 	fresh.enabled = false
 	_host.add_child(fresh)
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 	TestLib.check(not fresh.post.visible, "enabled = false set before _ready is honoured")
 	fresh.queue_free()
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 
 
 func _test_effects_api() -> void:
@@ -279,25 +320,25 @@ func _test_effects_api() -> void:
 func _test_camera() -> void:
 	_atm.set_quality(1)
 	_cam.global_position = Vector3(40.0, 3.0, -15.0)
-	await TestLib.frames(_host, 3)
+	await _idle(3)
 	var field := _atm.rainfield as Node3D
 	TestLib.check(field.global_position.distance_to(_cam.global_position) < 0.05, "the rain follows Game.camera")
 	_cam.global_position = Vector3(-120.0, 10.0, 80.0)
-	await TestLib.frames(_host, 3)
+	await _idle(3)
 	TestLib.check(field.global_position.distance_to(_cam.global_position) < 0.05, "the rain follows a camera that moved 200 m (blink, cut)")
 	# no Game.camera: the viewport's current camera is the fallback
 	Game.camera = null
-	await TestLib.frames(_host, 3)
+	await _idle(3)
 	_cam.make_current()
-	await TestLib.frames(_host, 3)
+	await _idle(3)
 	TestLib.check(_atm.particle_count() > 0 and field.global_position.distance_to(_cam.global_position) < 0.05, "without Game.camera the viewport's current camera is followed")
 	# no camera at all
 	_cam.queue_free()
-	await TestLib.frames(_host, 3)
+	await _idle(3)
 	TestLib.check(_atm.particle_count() == 0, "a camera that disappears just stops the rain, no errors")
 	_cam = _add_camera(Vector3(0.0, 2.0, 0.0))
 	Game.camera = _cam
-	await TestLib.frames(_host, 3)
+	await _idle(3)
 	TestLib.check(_atm.particle_count() > 0, "the rain comes back with the next camera")
 
 
@@ -315,33 +356,35 @@ func _test_ground_probe() -> void:
 	_cam.global_position = Vector3(0.0, 6.0, 0.0)
 	_atm.set_weather(1.0, 0.8, true)
 	await TestLib.frames(_host, 70)
+	await _idle(30)                                     # the rendered frames ease the ground height in
 	var landed: float = float(_atm.rainfield.streak_material.get_shader_parameter(&"ground_y"))
 	TestLib.check(absf(landed - 3.0) < 0.15, "the rain lands on the surface under the camera (ground_y %.2f, expected 3)" % landed)
 	floor_body.queue_free()
 	_cam.global_position = Vector3(0.0, 2.0, 0.0)
 	await TestLib.frames(_host, 70)
+	await _idle(30)
 	landed = float(_atm.rainfield.streak_material.get_shader_parameter(&"ground_y"))
 	TestLib.check(absf(landed) < 0.15, "and falls back to the ground level when the surface is gone (ground_y %.2f)" % landed)
 
 
 func _test_leaks() -> void:
 	_atm.queue_free()
-	await TestLib.frames(_host, 3)
+	await _idle(3)
 	_atm = null
 	var nodes0 := _nodes()
 	var orphans0 := int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
 	for i in 12:
 		var a := _make()
-		await TestLib.frames(_host, 2)
+		await _idle(2)
 		a.set_quality(i % 3)
 		a.set_weather(float(i % 5) / 4.0, 0.5, true)
 		a.queue_free()
-		await TestLib.frames(_host, 2)
+		await _idle(2)
 	TestLib.check(_nodes() == nodes0, "instantiating and freeing the atmosphere 12 times leaves no nodes behind (%d -> %d)" % [nodes0, _nodes()])
 	TestLib.check(int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)) <= orphans0, "no orphan nodes are left behind")
 	# a long run with everything changing: drive the camera, switch tiers, toggle, change the weather
 	_atm = _make()
-	await TestLib.frames(_host, 10)
+	await _idle(10)
 	var n1 := _nodes()
 	var o1 := _objects()
 	for f in 300:
@@ -351,7 +394,7 @@ func _test_leaks() -> void:
 			_atm.enabled = _rng.randf() > 0.3
 			_atm.rain_enabled = _rng.randf() > 0.2
 		_cam.global_position += Vector3(0.9, 0.0, -0.4)        # about 50 m/s
-		await TestLib.frames(_host, 1)
+		await _idle(1)
 	var n2 := _nodes()
 	var o2 := _objects()
 	TestLib.check(n2 == n1, "no nodes are created over 300 frames of weather, tier and camera changes (%d -> %d)" % [n1, n2])
@@ -359,7 +402,7 @@ func _test_leaks() -> void:
 	_atm.enabled = true
 	_atm.rain_enabled = true
 	_atm.queue_free()
-	await TestLib.frames(_host, 3)
+	await _idle(3)
 	_cam.queue_free()
-	await TestLib.frames(_host, 2)
+	await _idle(2)
 	TestLib.check(_nodes() == nodes0 - 1, "everything is released again (%d nodes; %d at the start of the run, which included the camera)" % [_nodes(), nodes0])

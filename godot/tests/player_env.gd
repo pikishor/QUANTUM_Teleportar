@@ -13,10 +13,13 @@ var root: Node3D
 var p: Player
 var wall: StaticBody3D
 var died_count := 0
+var _was_muted := false
 
 
 func setup(h: Node) -> void:
 	host = h
+	_was_muted = Sfx.muted
+	Sfx.muted = true                        # no audio playbacks in tests (the headless audio driver would keep the last one alive at exit)
 	root = Node3D.new()
 	root.name = "PlayerTestRoot"
 	host.add_child(root)
@@ -37,12 +40,7 @@ func teardown() -> void:
 	Fixture.release_inputs()
 	Game.state = &"menu"
 	root.queue_free()
-	# the headless audio driver would keep the last played stream alive at exit and print a leak warning
-	for c in Sfx.get_children():
-		if c is AudioStreamPlayer:
-			(c as AudioStreamPlayer).stop()
-		elif c is AudioStreamPlayer3D:
-			(c as AudioStreamPlayer3D).stop()
+	Sfx.muted = _was_muted
 	await frames(2)
 
 
