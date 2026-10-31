@@ -114,6 +114,8 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 		start_reload()
 	if firing and reload_t <= 0.0:
 		if ammo <= 0:
+			if reload_t <= 0.0:
+				Sfx.dry_fire()
 			start_reload()
 		elif fire_t <= 0.0:
 			_shoot(dt, aiming)

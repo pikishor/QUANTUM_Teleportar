@@ -66,6 +66,28 @@ static func apply(model: Node3D, tint: Color) -> void:
 			mi.set_surface_override_material(s, m)
 
 
+## The real lights an imported model carries (post_import.gd turns the marker empties `qt_light` into OmniLight3D / SpotLight3D, group `qt_model_lights`). They are part of
+## the look (a trooper without its fill and rim lights is a black cut-out, a car loses its underglow pool) but they are per-object lights, so they are budgeted: `keep` lists the
+## node names that stay (empty = keep all), the others are freed (a car's headlight SPOT and its own fill duplicate the shared fill light and the emissive lamps), and the kept ones are
+## returned so the owner can switch them off beyond PerfTiers.light_range() (Drone.update_lod, Vehicle.update_lod). The lights fade with distance by themselves as well.
+static func trim_lights(model: Node, keep: PackedStringArray = PackedStringArray()) -> Array[Light3D]:
+	var kept: Array[Light3D] = []
+	for n in model.find_children("*", "Light3D", true, false):
+		var l := n as Light3D
+		if keep.is_empty() or String(l.name) in keep:
+			kept.append(l)
+		else:
+			l.get_parent().remove_child(l)
+			l.free()
+	return kept
+
+
+static func set_lights_visible(lights: Array[Light3D], on: bool) -> void:
+	for l in lights:
+		if is_instance_valid(l):
+			l.visible = on
+
+
 ## All MeshInstance3D nodes under (and including) `root`.
 static func _meshes(root: Node) -> Array[MeshInstance3D]:
 	var out: Array[MeshInstance3D] = []

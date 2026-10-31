@@ -21,9 +21,13 @@ var wheels: Array[Node3D] = []              ## FL FR RL RR; steer = rotation.y o
 var meshes: Array[MeshInstance3D] = []      ## every mesh of the model
 var mirror_meshes: Array[MeshInstance3D] = []   ## what MirrorProxy tracks: the body only (the wheels are not worth their draw calls)
 var uses_model := false
+var lights: Array[Light3D] = []             ## the model lights that were kept (the underglow omni), on only within PerfTiers.light_range() of the camera
+var lights_on := true
+var shadow_on := true                       ## the body currently casts a shadow (Vehicle.update_lod: only within PerfTiers.SHADOW_RANGE of the camera)
 var wheel_radius := 0.335
 
 var _body_mat: BaseMaterial3D
+var _shadow: MeshInstance3D                 ## shadow-only copy of the body without the lamp surfaces (ShadowProxy), null when the body has nothing to drop
 var _lift := 1.0
 var _mats: Array = [[], [], []]             ## per light kind: Array of BaseMaterial3D
 var _cols: Array = [[], [], []]             ## per light kind: Array[Color] (the lamp colour)
@@ -46,6 +50,7 @@ func build(kind: StringName, glow: Color) -> Node3D:
 		var w := model.get_node_or_null(NodePath(n)) as Node3D
 		if w != null:
 			wheels.append(w)
+	lights = DynamicFill.trim_lights(model, PackedStringArray(["UnderglowLight"]))      # the headlight spot and the car's own fill go (shared fill + emissive lamps); the underglow pool stays, within range
 	meshes = DynamicFill._meshes(model)
 	DynamicFill.apply(model, glow)
 	for mi in meshes:
@@ -81,6 +86,7 @@ func build(kind: StringName, glow: Color) -> Node3D:
 				_base[kind_i].append(maxf(src.emission_energy_multiplier, 1.0))
 	if body != null:
 		mirror_meshes.append(body)
+		_shadow = ShadowProxy.static_proxy(body)        # the lamp glow surfaces would cast a shadow draw each, in every cascade
 	set_lights(0.1, 0.35, 0.35)
 	return model
 
@@ -176,9 +182,15 @@ func wheels_visible() -> bool:
 	return _wheels_shown
 
 
+func set_model_lights(on: bool) -> void:
+	if on != lights_on:
+		lights_on = on
+		DynamicFill.set_lights_visible(lights, on)
+
+
 func set_shadow(on: bool) -> void:
-	if body != null:
-		body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	shadow_on = on
+	ShadowProxy.set_enabled(body, _shadow, on)
 
 
 ## Primitive car: a hull, a cabin, four wheels and emissive light strips, with the same node and material names as the real models.

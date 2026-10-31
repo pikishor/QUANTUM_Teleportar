@@ -538,19 +538,19 @@ func _marks() -> void:
 	var sent := _spawn(&"sentinel", Vector3(-12.0, 0.0, 4.0), false)
 	var op := _spawn(&"operative", Vector3(-14.0, 0.0, 9.0), false)
 	await e.frames(3)
-	TestLib.check(marks.halos.visible_instance_count == 2, "one threat ring per enemy (%d)" % marks.halos.visible_instance_count)
-	TestLib.check(marks.bars.visible_instance_count == 0 and marks.lines.visible_instance_count == 0, "no health bar and no aim line on healthy enemies that are not shooting")
+	TestLib.check(marks.ring_count == 2, "one threat ring per enemy (%d)" % marks.ring_count)
+	TestLib.check(marks.bar_count == 0 and marks.lines.visible_instance_count == 0, "no health bar and no aim line on healthy enemies that are not shooting")
 	TestLib.check(sent.threat_charge() == 0.0 and op.threat_charge() == 0.0, "no telegraph while idle")
 	TestLib.check(sent.radius > 1.2 and is_equal_approx(sent.model.scale.x, 1.35), "the sentinel is drawn large (radius %.2f, model scale %.2f)" % [sent.radius, sent.model.scale.x])
 	sent.damage(10.0)
 	await e.frames(2)
-	TestLib.check(marks.bars.visible_instance_count == 1, "a damaged enemy shows its health bar")
+	TestLib.check(marks.bar_count == 1, "a damaged enemy shows its health bar")
 	sent._bar_t = 0.05
 	for i in 40:
 		await e.frames(1)
-		if marks.bars.visible_instance_count == 0:
+		if marks.bar_count == 0:
 			break
-	TestLib.check(marks.bars.visible_instance_count == 0, "the health bar goes away again")
+	TestLib.check(marks.bar_count == 0, "the health bar goes away again")
 	# attack telegraph: the muzzle charges and the aim line shows in the last TELEGRAPH seconds before a drone shot
 	sent.aware = true
 	sent._fire_t = 0.3
@@ -559,7 +559,7 @@ func _marks() -> void:
 		await e.frames(1)
 		seen = maxf(seen, sent.threat_charge())
 	TestLib.check(seen > 0.2, "the sentinel charges before it fires (peak charge %.2f)" % seen)
-	TestLib.check(marks.halos.visible_instance_count >= 2, "the muzzle flare joins the ring while charging")
+	TestLib.check(marks.ring_count >= 2, "the muzzle flare joins the ring while charging")
 	# operative windup
 	op.aware = true
 	op._fire_t = 0.0
@@ -576,7 +576,7 @@ func _marks() -> void:
 	sent.damage(9999.0)
 	TestLib.check(sent.dead and sent.death_progress() < 1.0, "a dead drone starts its dissolve")
 	await e.frames(3)
-	TestLib.check(marks.halos.visible_instance_count >= 1, "the death shock ring is drawn")
+	TestLib.check(marks.ring_count >= 1, "the death shock ring is drawn")
 	for i in 60:                                         # polls: how many game seconds a frame covers depends on the time scale of this test
 		await e.frames(1)
 		if sent.remove:

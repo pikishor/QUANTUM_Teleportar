@@ -391,7 +391,8 @@ func _apply_lights() -> void:
 ## Level of detail from the distance to the player (the manager calls it a few times a second).
 func update_lod(dist: float) -> void:
 	visual.set_wheels_visible(dist < VehicleSpecs.WHEELS_NEAR)
-	visual.set_shadow(Game.quality >= 1 and dist < 35.0)
+	visual.set_shadow(Game.quality >= 1 and dist < PerfTiers.SHADOW_RANGE + (4.0 if visual.shadow_on else 0.0))
+	visual.set_model_lights(dist < PerfTiers.light_range(Game.quality) + (4.0 if visual.lights_on else 0.0))
 	var want := Game.quality >= 1 and dist < VehicleSpecs.MIRROR_NEAR + (8.0 if _mirror_on else 0.0)
 	if want != _mirror_on:
 		_mirror_on = want

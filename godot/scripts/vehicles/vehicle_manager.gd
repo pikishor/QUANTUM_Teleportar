@@ -270,6 +270,23 @@ func _release(v: Vehicle) -> void:
 	_pool[v.kind] = arr
 
 
+## Pre-warm (ShaderWarmup, under the loading overlay): one parked car of every kind at `at` (loads the models and their textures, draws their materials once).
+## Hand the returned cars back with warm_end().
+func warm_begin(at: Vector3) -> Array[Vehicle]:
+	var out: Array[Vehicle] = []
+	for k: StringName in VehicleSpecs.KINDS:
+		var v := spawn_parked(k, at, 0.0)
+		if v != null:
+			out.append(v)
+	return out
+
+
+func warm_end(cars: Array[Vehicle]) -> void:
+	for v in cars:
+		if is_instance_valid(v) and v != starter and not v.driver_is_player:
+			_release(v)
+
+
 func _acquire(kind: StringName) -> Vehicle:
 	var arr: Array = _pool.get(kind, [])
 	if not arr.is_empty():

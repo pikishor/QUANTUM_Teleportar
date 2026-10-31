@@ -15,8 +15,19 @@ QT_VIEW=car_sport,10,30,8 tools/shot.sh /tmp/car.png res://tests/assets_showcase
 ## Toolchain
 One interpreter runs every Python step: Python 3.13 with `bpy==5.2.3` and `numpy==2.5.4` (`tools/requirements.txt`). `tools/setup_python.sh`
 creates `godot/.venv-tools` and prints the path; `build_assets.sh` and `build_all.sh` use `$BLENDER_PY` if set, else that venv
-(`build_assets.sh` creates it when missing). `tools/blender/ensure_bpy.sh` is a wrapper of `setup_python.sh`. The textures and the audio
-need only numpy (`--skip-models`).
+(`build_assets.sh` creates it when missing). `tools/blender/ensure_bpy.sh` is a one-line wrapper that `exec`s `setup_python.sh` (the two used to differ; there is
+now one environment recipe). The textures and the audio need only numpy (`--skip-models`).
+`tools/verify_asset_build.sh` proves the pipeline end to end: it copies the committable files of the checkout to a temp directory, runs `build_assets.sh` there with an EMPTY
+`HOME` and a scrubbed environment (it downloads the pinned Godot, creates the venv, pip-installs bpy, bakes everything, imports) and compares every generated file byte for byte
+with the checkout. The bake of the 2K atlases takes about 10 minutes on 4 cores and `~/.cache/pip` is not shared, so expect 15 to 20 minutes the first time.
+
+## Texture resolution and compression (install size, on purpose)
+The model scripts ask `helpers.export_model` for a 1024 px atlas (512 for pickups); `atlas.DEFAULT_SCALE` (env `QT_ATLAS_SCALE`, `build_assets.sh --atlas-scale N`) multiplies it:
+**the committed set is the 2x set, 2048 px atlases for the hero, the trooper, the three drones and the three cars (a neutral paint atlas and a details atlas each), 1024 px for the pickups
+and the core.** Texel density is still capped by `max_ppm` (900 px/m). `patch_imports.py` imports those atlases VRAM-compressed with mipmaps, and in HIGH QUALITY (ASTC 4x4 / BPTC, 8 bit per pixel)
+for albedo, normal and emission; ORM (smooth data) and the 512 px tiling sets use the cheap 8x8 / S3TC path. `post_import.gd` gives every textured model material anisotropic mipmap filtering and
+`scripts/common/perf_tiers.gd` sets the level per tier (2x / 4x / 8x). Sizes: committed sources about 25 MB (JPG albedo / ORM, PNG normal), exported pack about 150 MB of textures
+(`tools/size_report.sh` prints both after an import); the runtime texture memory of the staged scene is in `tools/perf_report.sh`. Install budget: BUDGETS.md.
 
 ## How a model is made (the baked atlas)
 A tiling texture per material costs one draw call per material and cannot show wear. Instead every model script builds hard-surface

@@ -9,6 +9,8 @@ extends EditorScenePostImport
 ##    `qt_model_lights` (hide that group on the LOW graphics tier). A light with mask "own" lights only its own model: it uses
 ##    light layer FILL_LAYER and the model's meshes join that layer, so a fill light can lift a character at night without
 ##    lighting the street.
+##  * Every textured material of a model samples with mipmaps and ANISOTROPIC filtering (the viewport's level is set per tier by scripts/common/perf_tiers.gd): the baked
+##    2K atlases are viewed at grazing angles on a flat street, where plain trilinear blurs them.
 ##  * A node with `qt_vis_end` fades out beyond that distance (rotors, wheels: a few pixels at 50 m but a draw call each);
 ##    `qt_no_shadow` stops a mesh from casting shadows (no shadow draw for rotors and wheels).
 
@@ -28,6 +30,8 @@ func _post_import(scene: Node) -> Object:
 				fill_used = fill_used or str(extras["qt_light"]).contains("\"own\"")
 		elif node is GeometryInstance3D:
 			var gi := node as GeometryInstance3D
+			if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+				_anisotropic((node as MeshInstance3D).mesh)
 			if extras.has("qt_vis_end"):
 				gi.visibility_range_end = float(extras["qt_vis_end"])
 				gi.visibility_range_end_margin = maxf(2.0, float(extras["qt_vis_end"]) * 0.08)
@@ -39,6 +43,13 @@ func _post_import(scene: Node) -> Object:
 			if is_instance_valid(node) and node is GeometryInstance3D:
 				(node as GeometryInstance3D).layers |= 1 << (FILL_LAYER - 1)
 	return scene
+
+
+func _anisotropic(mesh: Mesh) -> void:
+	for si in mesh.get_surface_count():
+		var mat := mesh.surface_get_material(si) as BaseMaterial3D
+		if mat != null and mat.albedo_texture != null:
+			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 
 
 func _collect(n: Node, out: Array[Node]) -> void:

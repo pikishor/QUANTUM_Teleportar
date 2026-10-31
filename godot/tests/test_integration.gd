@@ -400,8 +400,9 @@ func _audio() -> void:
 	TestLib.check(loop != null and loop.loop_mode == AudioStreamWAV.LOOP_FORWARD and loop.format == AudioStreamWAV.FORMAT_16_BITS,
 			"music_ambient.wav is 16-bit PCM and loops forward by itself (loop mode %s)" % (str(loop.loop_mode) if loop != null else "?"))
 	Sfx.play_music()
-	TestLib.check(player.stream == loop, "Sfx.play_music() starts the ambient loop")
+	TestLib.check(Sfx.is_music_playing() and player.stream is AudioStreamSynchronized, "Sfx.play_music() starts the adaptive music (five stems under one synchronized stream)")
 	Sfx.stop_music()
+	Sfx.stop_ambience()
 
 
 # --- the shared FX pool -------------------------------------------------------------------------------------------------------

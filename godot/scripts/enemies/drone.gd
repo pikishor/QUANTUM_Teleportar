@@ -73,6 +73,12 @@ var _tele := 0.0                       ## 0..1: how far the next shot is charged
 var _base_scale := 1.0
 var _flare := 0.0                      ## 0..1: the striker's thorns flare as it closes in to burst
 var _glow: Array[BaseMaterial3D] = []
+var _body_mi: MeshInstance3D           ## the `Body` mesh (shadow caster) of the model, for the distance LOD
+var _lights: Array[Light3D] = []
+var _lod_lights := true
+var _lod_shadow := true                ## LOD state (update_lod): casts a shadow / small parts shown / model shown
+var _lod_parts := true
+var _lod_shown := true
 var _ray := PhysicsRayQueryParameters3D.new()
 var _exclude: Array[RID] = []
 
@@ -143,6 +149,7 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 		model.scale = Vector3.ONE * _base_scale
 	_tele = 0.0
 	_set_glow(2.0)
+	_reset_lod()
 	_on_activate()
 	collision_layer = Game.L_ENEMY
 	if not is_in_group(&"enemy"):
@@ -197,7 +204,14 @@ func damage(amount: float, crit := false, mirrored := false) -> void:
 
 
 func _hit_effect(_crit: bool) -> void:
-	FX.burst(center(), cfg["color"], 4, 4.0, 0.25, 4.0)
+	_burst(center(), cfg["color"], 4, 4.0, 0.25, 4.0)
+
+
+## A decorative particle burst through the manager's budget (each live emitter is a draw call: four enemies dying at once must not add dozens). Without a manager it just plays.
+func _burst(pos: Vector3, color: Color, count: int, speed: float, life: float, gravity: float, size := 1.0) -> void:
+	var mgr := Game.enemies as EnemyManager
+	if mgr == null or mgr.fx_token():
+		FX.burst(pos, color, count, speed, life, gravity, size)
 
 
 func die() -> void:
@@ -225,7 +239,11 @@ func die() -> void:
 func _death_effect() -> void:
 	var c: Color = cfg["color"]
 	var pos := center()
-	FX.blast(pos, 2.5 * maxf(0.85, radius), c, 0.35)                 # the burst: fireball, ring, sparks (one pooled slot), then the shell dissolves
+	var mgr := Game.enemies as EnemyManager
+	if mgr == null or mgr.death_blast():
+		FX.blast(pos, 2.5 * maxf(0.85, radius), c, 0.35)             # the burst: fireball, ring, sparks (one pooled slot), then the shell dissolves
+	else:
+		FX.burst(pos, c, 18, 6.0, 0.5, 2.0, 2.2)                     # the tier's blast slots are busy (4 deaths at once): one particle draw instead of a slot
 	if Game.graphic_violence:
 		ichor(pos, 1.0)
 	Sfx.play_at(&"boom", pos, -3.0)
@@ -478,7 +496,7 @@ func _tick_dead(delta: float) -> void:
 		model.scale = Vector3.ONE * _base_scale * (1.0 - 0.85 * k * k)            # dissolve: it shrinks away while it burns white-hot
 	_set_glow(2.0 + 9.0 * sin(k * PI))
 	if _dead_t > DEATH_TIME:
-		FX.burst(center(), cfg["color"], 14, 5.0, 0.8, -1.5, 1.6)                 # the last motes of light drift up
+		_burst(center(), cfg["color"], 14, 5.0, 0.8, -1.5, 1.6)                   # the last motes of light drift up
 		remove = true
 		set_physics_process(false)
 		visible = false
@@ -509,14 +527,72 @@ func _build_visual() -> void:
 		var r := m.get_node_or_null(n) as Node3D
 		if r != null:
 			_rotors.append(r)
+	_lights = DynamicFill.trim_lights(m)                   # the model's own fill / rim / eye lights stay (a trooper is a black cut-out without them), on only within PerfTiers.light_range()
 	DynamicFill.apply(m, cfg["color"])
 	for mi: MeshInstance3D in DynamicFill._meshes(m):
+		if mi.name == &"Body" and _body_mi == null:
+			_body_mi = mi
 		if mi.name != &"Body":
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF      # fins, rotors and the eye are small: every shadow-cast surface is a draw call per cascade
 		for s in mi.mesh.get_surface_count():
 			var mat := mi.get_surface_override_material(s) as BaseMaterial3D
 			if mat != null and mat.emission_enabled and mat.emission_energy_multiplier >= 1.0 and (mi.name == &"Eye" or String(mat.resource_name).contains("Glow")):
 				_glow.append(mat)
+
+
+## Distance LOD (EnemyManager calls it a few times a second with the camera distance): the shadow only within PerfTiers.SHADOW_RANGE, the small parts (fins) within
+## PART_RANGE, the whole model hidden beyond MODEL_RANGE (the marks stop at 90 m). Hysteresis, so nothing flickers at a border; only changes are written.
+func update_lod(dist: float) -> void:
+	var sh := Game.quality >= 1 and dist < PerfTiers.SHADOW_RANGE + (4.0 if _lod_shadow else 0.0)
+	if sh != _lod_shadow:
+		_lod_shadow = sh
+		_apply_shadow(sh)
+	var lit := dist < PerfTiers.light_range(Game.quality) + (4.0 if _lod_lights else 0.0)
+	if lit != _lod_lights:
+		_lod_lights = lit
+		DynamicFill.set_lights_visible(_lights, lit)
+	var parts := dist < PerfTiers.PART_RANGE + (6.0 if _lod_parts else 0.0)
+	if parts != _lod_parts:
+		_lod_parts = parts
+		_apply_parts(parts)
+	var shown := dist < PerfTiers.MODEL_RANGE + (10.0 if _lod_shown else 0.0)
+	if shown != _lod_shown:
+		_lod_shown = shown
+		if model != null:
+			model.visible = shown
+
+
+func _reset_lod() -> void:
+	_lod_shown = true
+	_lod_parts = true
+	_lod_lights = true
+	DynamicFill.set_lights_visible(_lights, true)
+	_lod_shadow = Game.quality >= 1
+	if model != null:
+		model.visible = true
+	_apply_parts(true)
+	_apply_shadow(_lod_shadow)
+
+
+func _apply_shadow(on: bool) -> void:
+	if _body_mi != null:
+		_body_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _apply_parts(on: bool) -> void:
+	if _fins != null:
+		_fins.visible = on
+
+
+## Pre-warm: show every mark of this enemy (rim ring, muzzle flare and aim line, health bar) on the next refresh. Only used while the game is not playing (the loading overlay).
+func warm_marks() -> void:
+	_tele = 0.6
+	_bar_t = BAR_SECONDS
+	_flash = 0.1
+
+
+func lod_state() -> Dictionary:
+	return {"shadow": _lod_shadow, "parts": _lod_parts, "shown": _lod_shown, "lights": _lod_lights}
 
 
 func _set_glow(energy: float) -> void:

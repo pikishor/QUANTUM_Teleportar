@@ -44,6 +44,8 @@ const REFLECTION_DIM := 0.4           ## albedo multiplier of the reflection twi
 
 var skeleton: Skeleton3D
 var body_mesh: MeshInstance3D
+var shadow: MeshInstance3D              ## LOD hook (ShadowProxy): a shadow-only, coarse-LOD copy of the body on the same skeleton; the body itself casts no shadow
+var reflection: SkinnedMirror          ## the pose-following wet-street reflection (one extra draw within its range, MED and HIGH): a skinned copy on the SAME skeleton
 var rest_mesh: MeshInstance3D           ## an invisible (render layers 0) unskinned twin of the body mesh in the model's own space, for what copies meshes by their transform (the wet-street reflection, the quantum ghost): they show the rest pose
 var model: Node3D
 
@@ -182,7 +184,16 @@ static func find(root: Node3D) -> CharacterRig:
 			r.rest_mesh.material_override = dim
 	r.rest_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(r.rest_mesh)
+	r.shadow = ShadowProxy.skinned_proxy(r.body_mesh)
+	r.reflection = SkinnedMirror.new()
+	root.add_child(r.reflection)
+	r.reflection.track(r.body_mesh)
 	return r
+
+
+## Shadow of the character on or off (distance LOD): drives the shadow-only proxy, or the body itself when there is none.
+func set_shadow(on: bool) -> void:
+	ShadowProxy.set_enabled(body_mesh, shadow, on)
 
 
 ## Transform of `node` relative to `root` (both in the same tree or not yet in a tree).

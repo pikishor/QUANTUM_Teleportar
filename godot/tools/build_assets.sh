@@ -4,6 +4,7 @@
 #   tools/build_assets.sh --hires         additionally writes the 1K tiling texture sets to assets/generated (git-ignored)
 #   tools/build_assets.sh --skip-models   textures + audio only (needs numpy, not bpy)
 #   tools/build_assets.sh --no-import     do not run the Godot import afterwards
+#   tools/build_assets.sh --atlas-scale 1  bake the model atlases at the old compact size (1K; default 2 = 2K hero / trooper / drones / cars, 1K pickups)
 #
 # One interpreter runs every Python step: the pinned toolchain of tools/requirements.txt (Python 3.13, bpy 5.2.3, numpy 2.5.4).
 # It is found in this order: $BLENDER_PY (what `make assets` / tools/bootstrap.sh --assets export), godot/.venv-tools (created by
@@ -12,8 +13,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 HIRES=0; MODELS=1; IMPORT=1
-for a in "$@"; do
+while [ $# -gt 0 ]; do
+  a="$1"; shift
   case "$a" in
+    --atlas-scale) export QT_ATLAS_SCALE="${1:?--atlas-scale needs a number}"; shift ;;
     --hires) HIRES=1 ;;
     --skip-models) MODELS=0 ;;
     --no-import) IMPORT=0 ;;

@@ -30,10 +30,13 @@ func _ready() -> void:
 	if loaded == 0:
 		_build_placeholder()
 	Game.set_quality(Game.quality)      # every module starts on the same graphics tier (--quality=N, saved setting)
+	add_child(PerfTiers.new())          # mesh LOD threshold, anisotropy and mip bias per tier, Compatibility pool caps (scripts/common/perf_tiers.gd)
 	add_child(AutoQuality.new())        # touchscreens start on LOW until the player chooses; a sustained low frame rate drops one tier
 	add_child(Stability.new())          # watchdog: held input, time scale, camera / player / HUD consistency, hurt and death feedback
 	if not Game.autostart:
 		Sfx.play_music()                # the ambient loop: not under tools, tests and bots (Game.autostart), which stay silent
+	if overlay != null:                 # behind the opaque loading overlay: draw every effect, enemy type and car kind once, so the first fight has no shader hitch
+		await ShaderWarmup.run(self)
 	# With a HUD the menu is shown first; tools and tests (Game.autostart) skip straight to play.
 	var has_ui := ResourceLoader.exists("res://scenes/hud.tscn")
 	Game.state = &"play" if (Game.autostart or not has_ui) else &"menu"

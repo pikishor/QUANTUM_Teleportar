@@ -25,6 +25,13 @@ const PATROL_STREAM_DIST := 150.0
 const QUIET_BEFORE_DECAY := 7.0
 const HEAT_DECAY := 0.12
 const AWARE_NEAR := 70.0
+const LOD_EVERY := 0.25                      ## seconds between the distance LOD passes over the enemies (Drone.update_lod)
+## Effect budget: decorative particle bursts of hits and deaths spend tokens (each live emitter is one draw call); the tier refills them. A death blast uses one of the
+## pooled explosion slots: at most DEATH_BLASTS of them run at once per tier (the rest die with one cheap burst), so four deaths at once cannot add dozens of draws.
+const FX_RATE := [5.0, 8.0, 14.0]
+const FX_CAPACITY := [3.0, 4.0, 8.0]
+const DEATH_BLASTS := [1, 2, 3]
+const DEATH_BLAST_LIFE := 0.9
 
 var list: Array[Drone] = []          ## every active enemy, corpses included until they are released
 
@@ -44,6 +51,10 @@ var _b_org := PackedVector3Array()
 var _b_life := PackedFloat32Array()
 var _b_wait := PackedFloat32Array()
 var _b_dmg := PackedFloat32Array()
+var _fx_tokens := 6.0
+var _fx_clock := 0.0
+var _death_ends := PackedFloat32Array()
+var _lod_t := 0.0
 var _hidden_xform := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3(0.0, -1000.0, 0.0))
 
 
@@ -75,7 +86,7 @@ func _initial_patrols() -> void:
 # --- API ------------------------------------------------------------------------------------------------------------
 
 func cap() -> int:
-	return EnemyTypes.CAPS[clampi(Game.quality, 0, 2)]
+	return PerfTiers.cap_scale(EnemyTypes.CAPS[clampi(Game.quality, 0, 2)])      # Compatibility: 75 %
 
 
 ## Enemies that are alive (corpses do not count towards the cap).
@@ -245,6 +256,8 @@ func _on_respawn() -> void:
 
 
 func _reset_all() -> void:
+	_death_ends.clear()
+	_fx_tokens = float(FX_CAPACITY[clampi(Game.quality, 0, 2)])
 	clear(false)
 	_spawn_t = 0.0
 	init_patrols()
@@ -256,11 +269,72 @@ func _on_quality(level: int) -> void:
 
 # --- simulation -----------------------------------------------------------------------------------------------------
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var cam := Game.camera
 	if is_instance_valid(cam):
 		DynamicFill.aim_light(cam.global_rotation.y)
 	marks.refresh(list)
+	var tier := clampi(Game.quality, 0, 2)
+	_fx_clock += delta
+	_fx_tokens = minf(float(FX_CAPACITY[tier]), _fx_tokens + float(FX_RATE[tier]) * delta)
+	_lod_t -= delta
+	if _lod_t <= 0.0:
+		_lod_t = LOD_EVERY
+		lod_pass()
+
+
+## Distance LOD of every active enemy from the camera (shadows, small parts, hidden when far): see Drone.update_lod.
+func lod_pass() -> void:
+	var cam := Game.camera
+	if not is_instance_valid(cam):
+		return
+	var cp := cam.global_position
+	for e in list:
+		if e.active:
+			e.update_lod(cp.distance_to(e.global_position))
+
+
+## Pre-warm (ShaderWarmup, under the loading overlay): one enemy of every type, aware and with its marks lit, at `at`; their models, textures, materials and marks are
+## drawn once so the first fight has no load or shader hitch. Hand the returned enemies back with warm_end().
+func warm_begin(at: Vector3) -> Array[Drone]:
+	var out: Array[Drone] = []
+	var i := 0
+	for t: StringName in EnemyTypes.TYPES:
+		var d := _acquire(t)
+		d.activate(at + Vector3(2.5 * i - 4.0, 0.0, 0.0), true)
+		d.warm_marks()
+		if not list.has(d):
+			list.append(d)
+		out.append(d)
+		i += 1
+	return out
+
+
+func warm_end(warmed: Array[Drone]) -> void:
+	for d in warmed:
+		if is_instance_valid(d):
+			release(d)
+
+
+## One decorative particle burst allowed right now (spends a token); the enemies call it before FX.burst.
+func fx_token() -> bool:
+	if _fx_tokens >= 1.0:
+		_fx_tokens -= 1.0
+		return true
+	return false
+
+
+## A death may play a full explosion slot (true) or must make do with a cheap burst (false): at most DEATH_BLASTS[tier] blasts of enemy deaths run at once.
+func death_blast() -> bool:
+	var i := _death_ends.size() - 1
+	while i >= 0:
+		if _death_ends[i] <= _fx_clock:
+			_death_ends.remove_at(i)
+		i -= 1
+	if _death_ends.size() >= int(DEATH_BLASTS[clampi(Game.quality, 0, 2)]):
+		return false
+	_death_ends.append(_fx_clock + DEATH_BLAST_LIFE)
+	return true
 
 
 func _physics_process(delta: float) -> void:

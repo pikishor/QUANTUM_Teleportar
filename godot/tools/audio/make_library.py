@@ -1036,10 +1036,6 @@ SFX["shot_far_0"] = [lambda: shot_far(500, "rifle")]
 SFX["shot_far_1"] = [lambda: shot_far(510, "rifle")]
 SFX["enemy_shot_far_0"] = [lambda: shot_far(520, "enemy")]
 SFX["enemy_shot_far_1"] = [lambda: shot_far(530, "enemy")]
-SFX["shot_tail_0"] = [lambda: gun(540, "rifle", True)[1]]
-SFX["shot_tail_1"] = [lambda: gun(550, "rifle", True)[1]]
-SFX["shot_mech_0"] = [lambda: gun(560, "rifle", True)[2]]
-SFX["shot_mech_1"] = [lambda: gun(570, "rifle", True)[2]]
 _reg("dry_fire", variants(dry_fire, 2, 600))
 for i in range(1, 3):
     SFX["reload_%d" % i] = [lambda s=700 + 31 * i: reload_full(s)]

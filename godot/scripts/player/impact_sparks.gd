@@ -93,6 +93,7 @@ static func surface_at(pos: Vector3, normal: Vector3) -> StringName:
 func impact_world(pos: Vector3, normal: Vector3, surface := &"") -> void:
 	var n := normal if normal != Vector3.ZERO else Vector3.UP
 	var kind := surface if surface != &"" else surface_at(pos, n)
+	Sfx.impact(kind, pos, n)
 	var o := pos + n * 0.03
 	FX.muzzle_flash(o + n * 0.02, n, Color(1.0, 0.85, 0.55) if kind != &"glass" else Color(0.7, 0.9, 1.0), 0.6 if kind == &"asphalt" else 0.95)     # the hit itself: a short star on the surface
 	match kind:
@@ -113,6 +114,7 @@ func impact_world(pos: Vector3, normal: Vector3, surface := &"") -> void:
 
 ## A shot landing on a machine: a brighter, longer spark shower.
 func impact_machine(pos: Vector3, normal: Vector3) -> void:
+	Sfx.impact(&"metal", pos, normal)
 	FX.muzzle_flash(pos + normal * 0.05, normal, Color(1.0, 0.8, 0.5), 1.2)
 	spark(pos + normal * 0.04, normal, Color(1.0, 0.72, 0.32), 1.35)
 	spark(pos + normal * 0.04, normal, Color(1.0, 0.95, 0.85), 0.8)
@@ -120,6 +122,7 @@ func impact_machine(pos: Vector3, normal: Vector3) -> void:
 
 ## A shot landing on a person without gore: fabric dust and armour chips (the red burst is behind Game.graphic_violence).
 func impact_person(pos: Vector3, normal: Vector3) -> void:
+	Sfx.impact(&"flesh", pos, normal)
 	puff(pos, normal, Color(0.7, 0.68, 0.64, 0.3), 0.7)
 	spark(pos, normal, Color(1.0, 0.86, 0.6), 0.55)
 

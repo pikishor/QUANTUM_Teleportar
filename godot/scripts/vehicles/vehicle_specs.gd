@@ -85,7 +85,7 @@ static func pick_kind(r: float) -> StringName:
 
 
 static func cap_for(quality: int) -> int:
-	return CAPS[clampi(quality, 0, 2)]
+	return PerfTiers.cap_scale(CAPS[clampi(quality, 0, 2)])        # the Compatibility renderer spawns fewer
 
 
 ## Vehicle heading (Node3D.rotation.y, forward = -Z) for travelling along `axis` (0 = +-X, 1 = +-Z) in direction `dir` (+1 / -1).

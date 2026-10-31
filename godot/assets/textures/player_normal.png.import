@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b04a3p0hb32wd"
-path.s3tc="res://.godot/imported/player_normal.png-b26688b46108e19a941868a621ea2f15.s3tc.ctex"
-path.etc2="res://.godot/imported/player_normal.png-b26688b46108e19a941868a621ea2f15.etc2.ctex"
+path.bptc="res://.godot/imported/player_normal.png-b26688b46108e19a941868a621ea2f15.bptc.ctex"
+path.astc="res://.godot/imported/player_normal.png-b26688b46108e19a941868a621ea2f15.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/player_normal.png"
-dest_files=["res://.godot/imported/player_normal.png-b26688b46108e19a941868a621ea2f15.s3tc.ctex", "res://.godot/imported/player_normal.png-b26688b46108e19a941868a621ea2f15.etc2.ctex"]
+dest_files=["res://.godot/imported/player_normal.png-b26688b46108e19a941868a621ea2f15.bptc.ctex", "res://.godot/imported/player_normal.png-b26688b46108e19a941868a621ea2f15.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

@@ -62,6 +62,8 @@ func _build_visual() -> void:
 	loco = Locomotion.new(rig) if rig != null else null
 	if loco != null:
 		loco.scale_amp = 0.9
+	if rig != null and rig.reflection != null:
+		rig.reflection.range = 18.0                    # a trooper is reflected only when close (one draw call each)
 	_restore_baked_glow()
 	var mirror_body: MeshInstance3D = null
 	if rig != null:
@@ -105,6 +107,14 @@ func _restore_baked_glow() -> void:
 				ov.emission_energy_multiplier = src.emission_energy_multiplier
 				if RenderingServer.get_current_rendering_method() == "gl_compatibility":
 					ov.albedo_color = ov.albedo_color * 0.6          # that renderer lights the same scene much brighter
+
+
+## LOD hook: the skinned body's shadow is the rig's shadow-only proxy.
+func _apply_shadow(on: bool) -> void:
+	if rig != null:
+		rig.set_shadow(on)
+	else:
+		super._apply_shadow(on)
 
 
 func _on_activate() -> void:
@@ -154,10 +164,11 @@ func _hit_effect(crit: bool) -> void:
 	_fdir = _dir_to_player()
 	var c := center()
 	if Game.graphic_violence:
-		FX.burst(c, Color(0.5, 1.0, 0.2), 6, 3.5, 0.5, 9.0, 1.8)          # Vael ichor, not blood
+		_burst(c, Color(0.5, 1.0, 0.2), 6, 3.5, 0.5, 9.0, 1.8)           # Vael ichor, not blood
 	else:
-		FX.burst(c, Color(0.85, 0.8, 0.7), 5, 2.5, 0.5, 3.0, 2.0)     # dust off the plates
-		FX.burst(c, Color(1.0, 0.82, 0.45), 3 if not crit else 5, 5.0, 0.2, 9.0)   # chips and sparks
+		_burst(c, Color(0.85, 0.8, 0.7), 5, 2.5, 0.5, 3.0, 2.0)      # dust off the plates
+		if crit:
+			_burst(c, Color(1.0, 0.82, 0.45), 5, 5.0, 0.2, 9.0)      # chips and sparks (a crit only: a second emitter per hit is a draw call each)
 	if _burst_left > 0 and _stagger > 0.0:
 		_burst_left = maxi(0, _burst_left - 1)
 
@@ -191,8 +202,7 @@ func _death_effect() -> void:
 	var c := center()
 	if Game.graphic_violence:
 		ichor(c, 0.8)
-	FX.burst(c, Color(0.85, 0.8, 0.7), 8, 3.0, 0.6, 3.0, 2.5)
-	FX.burst(c, Color(1.0, 0.8, 0.4), 8, 6.0, 0.3, 10.0)
+	_burst(c, Color(0.95, 0.82, 0.6), 12, 4.0, 0.5, 5.0, 2.4)       # dust and sparks in ONE emitter (was two)
 	Sfx.play_at(&"hit", c, 0.0, 0.8)
 	_roll_sign = 1.0 if randf() < 0.5 else -1.0
 	var from := _dir_to_player()               # shot from the front: it is thrown back, from behind: it falls forward, from the side: it falls away from the shot
@@ -425,7 +435,7 @@ func _tick_dead(delta: float) -> void:
 	if rig == null and leg_l != null:
 		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.5, 1.0 - exp(-6.0 * delta))
 	if _dead_t > CORPSE_TIME:
-		FX.burst(global_position + Vector3(0.0, 0.2, 0.0), Color(0.6, 0.6, 0.65), 6, 1.5, 0.5, 1.0, 2.0)
+		_burst(global_position + Vector3(0.0, 0.2, 0.0), Color(0.6, 0.6, 0.65), 6, 1.5, 0.5, 1.0, 2.0)
 		remove = true
 		set_physics_process(false)
 		visible = false

@@ -112,6 +112,7 @@ func apply_settings(with_quality := true) -> void:
 	if is_instance_valid(Game.atmosphere):
 		Game.atmosphere.set(&"enabled", settings.post)
 	Sfx.muted = settings.muted
+	Sfx.apply_volumes(settings.volumes)
 	if with_quality and settings.quality >= 0:
 		Game.set_quality(settings.quality)
 

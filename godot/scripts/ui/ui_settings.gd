@@ -8,6 +8,7 @@ var path: String
 var quality := -1            ## graphics tier 0..2, -1 = never chosen (keep the default / --quality)
 var post := true             ## post-process (grain, vignette, grade)
 var muted := false
+var volumes := {}            ## per-bus volume 0..1 {"Master", "SFX", "Music", "Ambient", "Voice"}; missing = full
 var best := 0
 
 
@@ -23,6 +24,8 @@ func load_file() -> void:
 	quality = clampi(int(cf.get_value("graphics", "quality", -1)), -1, 2)
 	post = bool(cf.get_value("graphics", "post", true))
 	muted = bool(cf.get_value("audio", "muted", false))
+	var vols = cf.get_value("audio", "volumes", {})
+	volumes = (vols as Dictionary).duplicate() if vols is Dictionary else {}
 	best = maxi(int(cf.get_value("progress", "best", 0)), 0)
 
 
@@ -31,5 +34,6 @@ func save() -> bool:
 	cf.set_value("graphics", "quality", quality)
 	cf.set_value("graphics", "post", post)
 	cf.set_value("audio", "muted", muted)
+	cf.set_value("audio", "volumes", volumes)
 	cf.set_value("progress", "best", best)
 	return cf.save(path) == OK

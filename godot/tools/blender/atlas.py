@@ -598,6 +598,9 @@ def normal_from_height(h, isl_img, valid, texel_m):
 
 
 # ------------------------------------------------------------------ the baker
+DEFAULT_SCALE = "2"          # atlas size multiplier (env QT_ATLAS_SCALE overrides): the model scripts ask for 1024 (512 for pickups), so the committed atlases are 2048 (1024)
+
+
 class BakeResult:
     pass
 
@@ -611,7 +614,7 @@ def bake(name, parts, groups, out_dir, size=1024, decals=(), seed=1, ao_dist=0.3
     Returns {group: BakeResult(base, files, ppm, fill)} and writes the UVs into every part's mesh ("UVMap").
     """
     t0 = time.time()
-    scale = float(os.environ.get("QT_ATLAS_SCALE", "1"))
+    scale = float(os.environ.get("QT_ATLAS_SCALE", DEFAULT_SCALE))     # 2 = the 2K atlases (hero, trooper, drones, cars) and 1K pickups; 1 = the old compact set
     kind_ids = shade.KIND_IDS
     gnames = list(groups.keys())
 

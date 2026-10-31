@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c3obvuxmt5mav"
-path.s3tc="res://.godot/imported/drone_sentinel_albedo.jpg-5f89adf42b86358a6b2771f1fa19991d.s3tc.ctex"
-path.etc2="res://.godot/imported/drone_sentinel_albedo.jpg-5f89adf42b86358a6b2771f1fa19991d.etc2.ctex"
+path.bptc="res://.godot/imported/drone_sentinel_albedo.jpg-5f89adf42b86358a6b2771f1fa19991d.bptc.ctex"
+path.astc="res://.godot/imported/drone_sentinel_albedo.jpg-5f89adf42b86358a6b2771f1fa19991d.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/drone_sentinel_albedo.jpg"
-dest_files=["res://.godot/imported/drone_sentinel_albedo.jpg-5f89adf42b86358a6b2771f1fa19991d.s3tc.ctex", "res://.godot/imported/drone_sentinel_albedo.jpg-5f89adf42b86358a6b2771f1fa19991d.etc2.ctex"]
+dest_files=["res://.godot/imported/drone_sentinel_albedo.jpg-5f89adf42b86358a6b2771f1fa19991d.bptc.ctex", "res://.godot/imported/drone_sentinel_albedo.jpg-5f89adf42b86358a6b2771f1fa19991d.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

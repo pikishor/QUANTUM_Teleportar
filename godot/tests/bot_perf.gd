@@ -89,6 +89,15 @@ func _dump_casters() -> void:
 	print("PERF casters (triangles, one pass) ", tri)
 
 
+func _lights() -> Array:
+	var out: Array = []
+	for n in _p.get_tree().root.find_children("*", "Light3D", true, false):
+		var l := n as Light3D
+		if l.is_visible_in_tree() and l.light_energy > 0.0:
+			out.append("%s/%s" % [str(l.get_parent().name), str(l.name)])
+	return out
+
+
 func step(_t: float, _delta: float) -> bool:
 	if Game.player == null or Game.enemies == null or Game.vehicles == null:
 		return false
@@ -121,13 +130,15 @@ func step(_t: float, _delta: float) -> bool:
 		var hud_draws := int(_stage.get("total_draws", 0)) - int(_hud_off.get("total_draws", 0))
 		print(PerfProbe.line("PERF staged", _stage))
 		print(PerfProbe.line("PERF no_hud", _hud_off))
+		var lights := _lights()
+		print("PERF lights ", lights.size(), " ", lights)
 		print(PerfProbe.line("PERF death_worst", _death))
 		var bad := PerfProbe.violations(_stage, _tier, _death)
 		if Game.force_touch and hud_draws > PerfProbe.HUD_TOUCH_MAX_DRAWS + 8:
 			bad.append("canvas draws %d" % hud_draws)
-		print("PERF RESULT tier=%d renderer=%s touch=%d draws=%d prims=%d total_draws=%d total_prims=%d nodes=%d tex_mb=%.0f hud_draws=%d death_draws=%d death_prims=%d enemies=%d verdict=%s %s" % [
+		print("PERF RESULT tier=%d renderer=%s touch=%d draws=%d prims=%d total_draws=%d total_prims=%d nodes=%d tex_mb=%.0f lights=%d hud_draws=%d death_draws=%d death_prims=%d enemies=%d verdict=%s %s" % [
 			_tier, RenderingServer.get_current_rendering_method(), 1 if Game.force_touch else 0,
-			_stage.get("draws", 0), _stage.get("prims", 0), _stage.get("total_draws", 0), _stage.get("total_prims", 0), _stage.get("nodes", 0), _stage.get("tex_mb", 0.0), hud_draws,
+			_stage.get("draws", 0), _stage.get("prims", 0), _stage.get("total_draws", 0), _stage.get("total_prims", 0), _stage.get("nodes", 0), _stage.get("tex_mb", 0.0), lights.size(), hud_draws,
 			_death.get("total_draws", 0), _death.get("total_prims", 0), _drones.size(), "OVER" if not bad.is_empty() else "OK", ";".join(bad)])
 		return true
 	return false

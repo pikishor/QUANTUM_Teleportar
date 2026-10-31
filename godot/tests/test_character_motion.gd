@@ -13,12 +13,12 @@ var e := Env.new()
 var p: Player
 
 
-## Meshes that would be drawn by the camera: in the tree, visible, on at least one render layer, with a mesh.
+## Meshes that would be drawn by the camera: in the tree, visible, on at least one render layer, with a mesh, not a shadows-only proxy (ShadowProxy).
 static func drawn_meshes(root: Node) -> Array[MeshInstance3D]:
 	var out: Array[MeshInstance3D] = []
 	for n in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
-		if mi.mesh != null and mi.is_visible_in_tree() and mi.layers != 0:
+		if mi.mesh != null and mi.is_visible_in_tree() and mi.layers != 0 and mi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:      # the shadow proxy is not drawn by the camera
 			out.append(mi)
 	return out
 

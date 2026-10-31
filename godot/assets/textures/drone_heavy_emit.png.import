@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dr4y24mp7rpdn"
-path.s3tc="res://.godot/imported/drone_heavy_emit.png-e9e2a3a5fc936e1b0a39e10c04c19b6b.s3tc.ctex"
-path.etc2="res://.godot/imported/drone_heavy_emit.png-e9e2a3a5fc936e1b0a39e10c04c19b6b.etc2.ctex"
+path.bptc="res://.godot/imported/drone_heavy_emit.png-e9e2a3a5fc936e1b0a39e10c04c19b6b.bptc.ctex"
+path.astc="res://.godot/imported/drone_heavy_emit.png-e9e2a3a5fc936e1b0a39e10c04c19b6b.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/drone_heavy_emit.png"
-dest_files=["res://.godot/imported/drone_heavy_emit.png-e9e2a3a5fc936e1b0a39e10c04c19b6b.s3tc.ctex", "res://.godot/imported/drone_heavy_emit.png-e9e2a3a5fc936e1b0a39e10c04c19b6b.etc2.ctex"]
+dest_files=["res://.godot/imported/drone_heavy_emit.png-e9e2a3a5fc936e1b0a39e10c04c19b6b.bptc.ctex", "res://.godot/imported/drone_heavy_emit.png-e9e2a3a5fc936e1b0a39e10c04c19b6b.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

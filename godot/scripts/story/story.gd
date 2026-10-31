@@ -239,15 +239,12 @@ func _tick_radio(delta: float) -> void:
 		if wait_left > 0.0:
 			return
 		_started = true
-		Sfx.play(&"hit", -20.0, 2.0)
+		Sfx.radio_begin()
 		line_started.emit(str(current["id"]), str(current["s"]))
 	var n := str(current["t"]).length()
 	if typed < n:
 		typed = minf(typed + CPS_LINE * delta, float(n))
-		var beeps := floori(typed / float(BEEP_EVERY))
-		if beeps > _beeped:
-			_beeped = beeps
-			Sfx.play(&"hit", -24.0, 2.6 + 0.1 * float(beeps % 4))
+		Sfx.radio_type(str(current["t"]), int(typed))              # a syllable of radio babble per vowel typed, ducking the music under it
 		if typed >= n:
 			hold_left = HOLD_BASE + n * HOLD_PER_CHAR
 	else:

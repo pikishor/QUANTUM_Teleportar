@@ -28,7 +28,7 @@ const VOICE_POOL := 4             ## radio syllables
 const ONESHOT_POOL := 4           ## thunder and other ambience one-shots (Ambient bus)
 const MAX_DIST := 140.0
 const MUSIC_NAME := &"music_ambient"
-const MUSIC_DB := -9.0
+const MUSIC_DB := -5.0
 const OFF_DB := -60.0
 const TOP_SPEED := 30.0
 
@@ -126,6 +126,10 @@ var _loop_gain := {}              ## name -> {db, target}
 var _emitters: Array[AudioStreamPlayer3D] = []
 var _emitter_car: Array = [null, null, null]
 var _emit_poll := 0.0
+var _hum_emitters: Array[AudioStreamPlayer3D] = []
+var _hum_target: Array = [null, null]
+var _en_state := {}               ## enemy instance id -> Vector4(aware, hp, dead, telegraph charge) of the last poll
+var _en_poll := 0.0
 var _thunder_in := 25.0
 var _distant_in := 60.0
 var _rain_surface := &"asphalt"
@@ -138,8 +142,9 @@ var _rpm := 0.1
 var _heart_t := 0.0
 var _breath_t := 0.0
 var _breath_in := true
-var _driven: Node = null
+var _driven = null                ## the player's car (untyped: it may be freed under us)
 var _horn_cd := 0.0
+var _was_air := 0.0
 
 # --- delayed one-shots (whizz after a distant shot, ricochets): no allocation, fixed slots
 const PENDING := 12
@@ -160,6 +165,7 @@ var _radio_pitch := 1.0
 
 var _warm_queue: Array[StringName] = []
 var _connected := false
+var _last_game_state: StringName = &"menu"
 
 
 func _ready() -> void:
@@ -189,14 +195,14 @@ func _ready() -> void:
 	_music.volume_db = MUSIC_DB
 	_music.stream_paused = muted
 	add_child(_music)
+	var voices := Node.new()
+	voices.name = "Voices"
+	add_child(voices)
 	_sting = AudioStreamPlayer.new()
 	_sting.name = "Sting"
 	_sting.bus = _bus_or_master(MUSIC_BUS)
 	_sting.volume_db = -3.0
-	add_child(_sting)
-	var voices := Node.new()
-	voices.name = "Voices"
-	add_child(voices)
+	voices.add_child(_sting)
 	for i in VOICE_POOL:
 		var v := AudioStreamPlayer.new()
 		v.bus = _bus_or_master(VOICE_BUS)
@@ -216,12 +222,47 @@ func _ready() -> void:
 		_pend_pos.append(Vector3.ZERO)
 		_pend_db.append(0.0)
 		_pend_pitch.append(1.0)
+	var amb_root := Node.new()
+	amb_root.name = "Ambience"
+	add_child(amb_root)
+	for bed: StringName in BEDS:                                   # all nodes exist from the start (streams are loaded when the ambience starts)
+		var bp := AudioStreamPlayer.new()
+		bp.bus = _bus_or_master(AMBIENT_BUS)
+		bp.volume_db = OFF_DB
+		amb_root.add_child(bp)
+		_amb[bed] = bp
+		_amb_vol[bed] = 0.0
+	for k in 3:
+		var e := AudioStreamPlayer3D.new()
+		e.unit_size = 9.0
+		e.max_distance = 75.0
+		e.bus = _bus_or_master(SFX_BUS)
+		e.volume_db = OFF_DB
+		amb_root.add_child(e)
+		_emitters.append(e)
+	for k in 2:
+		var h := AudioStreamPlayer3D.new()
+		h.unit_size = 7.0
+		h.max_distance = 50.0
+		h.bus = _bus_or_master(SFX_BUS)
+		h.volume_db = OFF_DB
+		amb_root.add_child(h)
+		_hum_emitters.append(h)
+	var loops_root := Node.new()
+	loops_root.name = "Loops"
+	add_child(loops_root)
+	for ln: StringName in [&"engine_low", &"engine_high", &"tyre_squeal", &"superpos_loop", &"entangle_loop"]:
+		var lpl := AudioStreamPlayer.new()
+		lpl.bus = _bus_or_master(SFX_BUS)
+		lpl.volume_db = OFF_DB
+		loops_root.add_child(lpl)
+		_loops[ln] = lpl
 	for b in BUS_NAMES:
 		_user_db[b] = 0.0
 	_lp_music = _find_lowpass(MUSIC_BUS)
 	_lp_ambient = _find_lowpass(AMBIENT_BUS)
 	_vol_music = MUSIC_DB
-	call_deferred(&"_connect_game")
+	_connect_game()                                                # Game is an earlier autoload: its signals exist already
 
 
 func _connect_game() -> void:
@@ -233,7 +274,7 @@ func _connect_game() -> void:
 	Game.respawn.connect(reset_world)
 	Game.next_sector.connect(reset_world)
 	Game.player_died.connect(_on_player_died)
-	Game.explosion_heard.connect(_on_explosion) if Game.has_signal(&"explosion_heard") else null
+	Game.sector_cleared.connect(func() -> void: play(&"mission_complete", -4.0))
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -387,6 +428,8 @@ func _after_play(sfx_name: StringName) -> void:
 	var s := String(sfx_name)
 	if s.begins_with("boom") or s.begins_with("explosion") or s.begins_with("car_crash"):
 		duck(&"explosion")
+	elif s == "hurt":
+		play(&"hero_pain", -3.0)                                  # Kestrel's own grunt on top of the hit
 
 
 func _later(sfx_name: StringName, pos: Vector3, volume_db: float, pitch: float, delay: float) -> void:
@@ -724,38 +767,23 @@ const BEDS := {
 func start_ambience() -> void:
 	if _ambience_on:
 		return
-	var root := get_node_or_null("Ambience")
-	if root == null:
-		root = Node.new()
-		root.name = "Ambience"
-		add_child(root)
-	for bed: StringName in BEDS:
-		if not _amb.has(bed):
-			var s := _loop_stream(bed)
-			if s == null:
-				continue
-			var p := AudioStreamPlayer.new()
-			p.bus = _bus_or_master(AMBIENT_BUS)
-			p.stream = s
-			p.volume_db = OFF_DB
-			root.add_child(p)
-			_amb[bed] = p
-			_amb_vol[bed] = 0.0
-	for k in 3:
-		if _emitters.size() <= k:
-			var e := AudioStreamPlayer3D.new()
-			e.unit_size = 9.0
-			e.max_distance = 75.0
-			e.bus = _bus_or_master(SFX_BUS)
-			e.volume_db = OFF_DB
-			var ts := _loop_stream(&"traffic_loop")
-			if ts != null:
-				e.stream = ts
-			root.add_child(e)
-			_emitters.append(e)
+	var any := false
 	for bed: StringName in _amb:
-		(_amb[bed] as AudioStreamPlayer).play()
-	_ambience_on = not _amb.is_empty()
+		var p: AudioStreamPlayer = _amb[bed]
+		if p.stream == null:
+			p.stream = _loop_stream(bed)
+		if p.stream != null:
+			p.play()
+			any = true
+	var ts := _loop_stream(&"traffic_loop")
+	for e in _emitters:
+		if e.stream == null and ts != null:
+			e.stream = ts
+	var hs := _loop_stream(&"drone_hum")
+	for h in _hum_emitters:
+		if h.stream == null and hs != null:
+			h.stream = hs
+	_ambience_on = any
 	_thunder_in = randf_range(8.0, 25.0)
 	_distant_in = randf_range(30.0, 80.0)
 
@@ -796,13 +824,24 @@ func _step_ambience(delta: float) -> void:
 		rain = float(Game.atmosphere.get(&"rain_now"))
 	var playing := Game.is_playing() or Game.state == &"paused" or Game.state == &"menu"
 	var w := _rain_weights(_rain_surface)
-	var targets := {
-		&"rain_asphalt": float(w[0]) * rain, &"rain_metal": float(w[1]) * rain, &"rain_awning": float(w[2]) * rain,
-		&"traffic_far": 0.75, &"wind": 0.4 + 0.5 * rain, &"city_hum": 0.6,
-	}
 	var k := 1.0 - exp(-delta / 1.2)
 	for bed: StringName in _amb:
-		var v: float = lerpf(float(_amb_vol[bed]), float(targets.get(bed, 0.5)) if playing else 0.0, k)
+		var goal := 0.0
+		if playing:
+			match bed:
+				&"rain_asphalt":
+					goal = float(w[0]) * rain
+				&"rain_metal":
+					goal = float(w[1]) * rain
+				&"rain_awning":
+					goal = float(w[2]) * rain
+				&"traffic_far":
+					goal = 0.75
+				&"wind":
+					goal = 0.4 + 0.5 * rain
+				_:
+					goal = 0.6
+		var v: float = lerpf(float(_amb_vol[bed]), goal, k)
 		_amb_vol[bed] = v
 		(_amb[bed] as AudioStreamPlayer).volume_db = OFF_DB if v < 0.003 else float(BEDS[bed]) + linear_to_db(v)
 	if not Game.is_playing():
@@ -883,29 +922,18 @@ func _step_emitters() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _loop_player(loop_name: StringName) -> AudioStreamPlayer:
-	if _loops.has(loop_name):
-		return _loops[loop_name]
-	var s := _loop_stream(loop_name)
-	if s == null:
-		return null
-	var root := get_node_or_null("Loops")
-	if root == null:
-		root = Node.new()
-		root.name = "Loops"
-		add_child(root)
-	var p := AudioStreamPlayer.new()
-	p.bus = _bus_or_master(SFX_BUS)
-	p.stream = s
-	p.volume_db = OFF_DB
-	root.add_child(p)
-	_loops[loop_name] = p
-	return p
+	var p: AudioStreamPlayer = _loops.get(loop_name)
+	if p != null and p.stream == null:
+		p.stream = _loop_stream(loop_name)
+	return p if p != null and p.stream != null else null
 
 
 ## Fades a loop toward `target_db` (OFF_DB = stop). Starts it when needed.
 func _drive_loop(loop_name: StringName, target_db: float, delta: float, pitch := 1.0, rate := 40.0) -> void:
-	var p := _loop_player(loop_name)
-	if p == null:
+	var p: AudioStreamPlayer = _loops.get(loop_name)
+	if p == null or (not p.playing and target_db <= -50.0):
+		return
+	if p.stream == null and _loop_player(loop_name) == null:
 		return
 	var cur := p.volume_db if p.playing else OFF_DB
 	cur = move_toward(cur, target_db, rate * delta)
@@ -928,9 +956,11 @@ func _silence_loops() -> void:
 
 
 func _step_vehicle(delta: float) -> void:
-	var v: Node = null
+	var v = null
 	if is_instance_valid(Game.vehicles):
 		v = Game.vehicles.get(&"driven")
+		if v != null and not is_instance_valid(v):
+			v = null
 	if v != _driven:
 		_driven = v
 		_prev_speed = 0.0 if v == null else float(v.speed)
@@ -982,8 +1012,9 @@ func _step_quantum(delta: float) -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _step_hero(delta: float) -> void:
-	var p := Game.player as Node3D
-	if not Game.is_playing() or p == null or not is_instance_valid(p) or muted:
+	var pv = Game.player
+	var p: Node3D = pv as Node3D if is_instance_valid(pv) else null
+	if not Game.is_playing() or p == null or muted:
 		_muffle_target = 0.0
 		_last_footfalls = -1 if not Game.is_playing() else _last_footfalls
 		return
@@ -999,6 +1030,17 @@ func _step_hero(delta: float) -> void:
 		elif f > _last_footfalls:
 			_last_footfalls = f
 			_footstep(p)
+	# jump effort and landing (air_time: seconds since the feet last touched the ground)
+	var at = p.get(&"air_time")
+	var air := float(at) if at != null else 0.0
+	if _was_air > 0.3 and air <= 0.0:
+		var surf := surface_under(p.global_position, false)
+		play(StringName("land_" + ("metal" if surf == &"metal" else "asphalt")), -9.0 + minf(_was_air, 1.2) * 6.0)
+		if _was_air > 0.9:
+			play(&"hero_effort", -6.0)
+	elif air > 0.0 and _was_air <= 0.0 and Vector3(p.get(&"velocity")).y > 3.0:
+		play(&"hero_effort", -8.0)
+	_was_air = air
 	# low health: a heartbeat that speeds up and a laboured breath, the music and ambience muffle
 	var max_hp := maxf(float(p.get(&"max_hp")), 1.0)
 	var frac := clampf(float(p.get(&"hp")) / max_hp, 0.0, 1.0)
@@ -1043,6 +1085,66 @@ func _footstep(p: Node3D) -> void:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
+# enemies: voices of the Vael troopers, drone cues, a hum that follows the nearest drones (polled 10 times a second from EnemyManager.list, no edits in the enemy code)
+# ---------------------------------------------------------------------------------------------------------------------
+
+func _poll_enemies() -> void:
+	if not is_instance_valid(Game.enemies) or not Game.is_playing():
+		return
+	var list = Game.enemies.get(&"list")
+	if list == null:
+		return
+	var pp := Vector3.ZERO
+	var have_pp := is_instance_valid(Game.player)
+	if have_pp:
+		pp = (Game.player as Node3D).global_position
+	var n_hum := 0
+	for e in list:
+		if not is_instance_valid(e):
+			continue
+		var id: int = e.get_instance_id()
+		var cur := Vector4(1.0 if e.aware else 0.0, float(e.hp), 1.0 if e.dead else 0.0, float(e.threat_charge()))
+		var prev: Vector4 = _en_state.get(id, cur)
+		_en_state[id] = cur
+		var trooper: bool = e.type == &"operative"
+		var pos: Vector3 = (e as Node3D).global_position + Vector3(0.0, 1.2, 0.0)
+		if cur.z > 0.5:
+			if prev.z < 0.5:
+				play_at(&"trooper_death" if trooper else &"drone_death", pos, -1.0)
+			continue
+		if cur.x > 0.5 and prev.x < 0.5:
+			play_at(&"trooper_alert" if trooper else &"drone_alert", pos, -2.0)
+		if trooper and cur.y < prev.y - 0.5:
+			play_at(&"trooper_pain", pos, -2.0)
+		if cur.w >= 0.05 and prev.w < 0.05:                       # a telegraph began: the rifle or the drone's muzzle charges
+			if trooper:
+				if randf() < 0.5:
+					play_at(&"trooper_attack", pos, -3.0)
+			else:
+				play_at(&"drone_charge", pos, -6.0)
+		if not trooper and n_hum < _hum_emitters.size() and have_pp and pos.distance_to(pp) < 45.0:
+			_hum_target[n_hum] = e
+			n_hum += 1
+	for k in range(n_hum, _hum_emitters.size()):
+		_hum_target[k] = null
+
+
+func _step_hum() -> void:
+	for k in _hum_emitters.size():
+		var em := _hum_emitters[k]
+		var tgt = _hum_target[k]
+		if tgt == null or not is_instance_valid(tgt) or muted or not Game.is_playing() or not _ambience_on:
+			if em.playing:
+				em.stop()
+			continue
+		em.global_position = (tgt as Node3D).global_position + Vector3(0.0, 1.0, 0.0)
+		em.pitch_scale = 0.8 if (tgt.type == &"heavy") else (1.25 if tgt.type == &"striker" else 1.0)
+		em.volume_db = -12.0
+		if not em.playing and em.stream != null:
+			em.play()
+
+
+# ---------------------------------------------------------------------------------------------------------------------
 # radio: squelch, a speech-like babble tied to the typed text, ducking under it
 # ---------------------------------------------------------------------------------------------------------------------
 
@@ -1066,7 +1168,7 @@ func radio_type(text: String, typed: int) -> void:
 	duck(&"radio", 0.45)
 	var to := mini(typed, text.length())
 	while _radio_seen < to:
-		var c := text.unicode_at(_radio_seen).to_int() if false else text.unicode_at(_radio_seen)
+		var c := text.unicode_at(_radio_seen)
 		var ch := String.chr(c).to_lower()
 		_radio_seen += 1
 		if ch in "aeiouy":
@@ -1130,14 +1232,10 @@ func _process(delta: float) -> void:
 			_pend_t[i] -= delta
 			if _pend_t[i] < 0.0:
 				var n := _pend_name[i]
-				_pend_t[i] = -1.0
 				if n == &"distant_boom":
 					_play_oneshot(n, _pend_db[i])
 				else:
 					play_at(n, _pend_pos[i], _pend_db[i], _pend_pitch[i])
-				if _pend_t[i] >= 0.0:
-					continue
-				_pend_t[i] = -1.0
 	for _k in mini(_warm_queue.size(), 4):
 		variants_of(_warm_queue.pop_back())
 	_step_radio(delta)
@@ -1154,11 +1252,21 @@ func _process(delta: float) -> void:
 		_emit_poll = 0.5
 		if _ambience_on and Game.is_playing():
 			_poll_emitters()
+	_en_poll -= delta
+	if _en_poll <= 0.0:
+		_en_poll = 0.1
+		_poll_enemies()
 	if _ambience_on:
 		_step_emitters()
+		_step_hum()
 
 
 func _on_state(state: StringName) -> void:
+	if state == &"paused":
+		play(&"ui_pause", -6.0)
+	elif _last_game_state == &"paused" and state == &"play":
+		play(&"ui_resume", -6.0)
+	_last_game_state = state
 	if state == &"dead" or state == &"win":
 		_silence_gameplay_loops()
 	if auto_music and is_music_playing() and state != &"paused":
@@ -1172,15 +1280,13 @@ func _on_player_died() -> void:
 	play(&"hero_death", -2.0)
 
 
-func _on_explosion() -> void:
-	duck(&"explosion")
-
-
 func _silence_gameplay_loops() -> void:
 	for n in _loops:
 		(_loops[n] as AudioStreamPlayer).stop()
 	for e in _emitters:
 		e.stop()
+	for h in _hum_emitters:
+		h.stop()
 	_heart_t = 0.0
 	_muffle_target = 0.0
 
@@ -1193,6 +1299,7 @@ func reset_world() -> void:
 	_radio_active = false
 	_radio_pending = 0
 	_last_footfalls = -1
+	_was_air = 0.0
 	_prev_speed = 0.0
 	_driven = null
 	_rpm = 0.1
@@ -1202,5 +1309,7 @@ func reset_world() -> void:
 		_duck_level[k] = 0.0
 	_sting.stop()
 	_emitter_car = [null, null, null]
+	_hum_target = [null, null]
+	_en_state.clear()
 	if auto_music and is_music_playing():
 		set_music_state(&"explore" if Game.state != &"menu" else &"menu")
