@@ -6,7 +6,8 @@ extends Node
 ## against every node of group "enemy" that exposes center() and radius (the prototype's hit model, so collider-less targets still work).
 ## A crit is a hit in the upper part of the target: hit.y > center().y + radius * 0.35.
 ## Two short extra rays keep the rifle honest: pivot -> muzzle (the weapon is poking into a wall) and muzzle -> aim point (cover in front of the barrel).
-## Everything is pooled (FX tracers and bursts, the flash lights in PlayerBody, the decal MultiMesh): firing creates no nodes.
+## Everything is pooled (FX tracers, the flash sprites and lights in PlayerBody, the sparks and puffs of ImpactSparks, the ImpactDecals MultiMesh): firing creates no nodes.
+## Hit data for the HUD lives on the Player: last_hit_time (PlayerUtil.now() seconds), last_hit_kill, last_hit_crit, plus the hit_confirmed(kill, crit) signal.
 
 const MAG_SIZE := 30
 const RELOAD_TIME := 1.3
@@ -52,7 +53,6 @@ var _exclude_base: Array[RID] = []
 var _exclude: Array[RID] = []
 var _decals: ImpactDecals
 var _sparks: ImpactSparks
-var _last_dir := Vector3.FORWARD             ## direction of the last shot (tests, and effects)
 
 
 func _ready() -> void:
@@ -147,7 +147,6 @@ func _shoot(dt: float, aiming: bool) -> void:
 	var cam := rig.camera
 	var cam_pos := cam.global_position
 	var dir := jitter_dir(cam.global_basis, spread, randf(), randf())
-	_last_dir = dir
 	var along := maxf(0.0, (rig.get_pivot_position() - cam_pos).dot(dir))
 	var origin := cam_pos + dir * along
 	var best := RANGE

@@ -40,7 +40,9 @@ const SPAWN_PITCH := -0.12
 const VOID_Y := -60.0
 const CAPSULE_RADIUS := 0.35
 const CAPSULE_HEIGHT := 1.8
-const QUANTUM_PATH := "res://scripts/quantum/quantum.gd"
+
+## Where the optional Quantum module lives (ARCHITECTURE.md). A variable only so tests can point it at a stand-in.
+static var quantum_path := "res://scripts/quantum/quantum.gd"
 
 var max_hp := 100.0
 var max_energy := 100.0
@@ -136,6 +138,8 @@ func _ready() -> void:
 	Game.new_game.connect(reset)
 	Game.respawn.connect(reset)
 	Game.next_sector.connect(_on_next_sector)
+	Game.quality_changed.connect(_on_quality_changed)
+	body.set_quality(Game.quality)
 	camera_rig.follow_target = self
 	reset()
 	decals.clear()
@@ -187,9 +191,9 @@ func _ensure_children() -> void:
 
 ## Quantum is another module's script; a missing or broken file must never break the player.
 func _attach_quantum() -> void:
-	if quantum != null or not ResourceLoader.exists(QUANTUM_PATH):
+	if quantum != null or not ResourceLoader.exists(quantum_path):
 		return
-	var script := load(QUANTUM_PATH) as GDScript
+	var script := load(quantum_path) as GDScript
 	if script == null or not script.can_instantiate():
 		return
 	quantum = script.new() as Node
@@ -201,6 +205,10 @@ func _attach_quantum() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 # lifecycle
 # ---------------------------------------------------------------------------------------------------------------------
+
+func _on_quality_changed(level: int) -> void:
+	body.set_quality(level)
+
 
 func _on_next_sector() -> void:
 	reset()

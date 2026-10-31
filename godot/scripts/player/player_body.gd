@@ -15,6 +15,10 @@ const FLASH_TIME := 0.055
 const LIGHT_TIME := 0.075
 const LIGHT_ENERGY := 3.4
 const LIGHT_COUNT := 2
+## The imported fabric is vertex-coloured almost black (albedo about 0.04); at night it vanishes into wet asphalt. Per-instance material overrides lift it
+## (the imported resources stay untouched): an albedo multiplier plus a faint cool emission that acts as a silhouette floor.
+const FABRIC_LIFT := 2.6
+const FABRIC_EMISSION := Color(0.035, 0.075, 0.095)
 ## Visual layer (1..20) reserved for the player's meshes, so the two character lights (a soft key and a rim) light only the hero and never the world.
 const CHARACTER_LAYER := 20
 
@@ -49,13 +53,12 @@ var _light_t := PackedFloat32Array()
 var _li := 0
 var _key_light: DirectionalLight3D
 var _rim_light: DirectionalLight3D
+var _quality := 2
 ## Switch the character lights off (tests, or a graphics tier that wants the extra directional lights gone).
 var character_light := true:
 	set(v):
 		character_light = v
-		if _key_light != null:
-			_key_light.visible = v
-			_rim_light.visible = v
+		_apply_lights()
 
 
 func _ready() -> void:
@@ -158,7 +161,7 @@ func fire_flash(intensity := 1.0) -> void:
 		var s := randf_range(0.8, 1.25) * intensity
 		_flash_root.rotation = Vector3(0.0, 0.0, randf() * TAU)
 		_flash_root.scale = Vector3(s, s, s * randf_range(0.8, 1.5))
-	if not _lights.is_empty():
+	if not _lights.is_empty() and _quality >= 1:
 		var l := _lights[_li]
 		_light_t[_li] = LIGHT_TIME
 		_li = (_li + 1) % _lights.size()
@@ -239,6 +242,27 @@ func _adopt_model(model: Node3D) -> void:
 			else:
 				leg_r = leg
 	model.free()
+	_lift_fabric(upper)
+	for leg: Node3D in [leg_l, leg_r]:
+		if leg != null:
+			_lift_fabric(leg)
+
+
+## Per-instance override materials for every surface whose material is called "Fabric" (see FABRIC_LIFT).
+func _lift_fabric(root: Node) -> void:
+	for node in root.find_children("*", "MeshInstance3D", true, false) + ([root] if root is MeshInstance3D else []):
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var mat := mi.get_active_material(i) as BaseMaterial3D
+			if mat != null and mat.resource_name == "Fabric":
+				var lifted := mat.duplicate() as BaseMaterial3D
+				lifted.albedo_color = Color(FABRIC_LIFT, FABRIC_LIFT, FABRIC_LIFT, 1.0)
+				lifted.emission_enabled = true
+				lifted.emission = FABRIC_EMISSION
+				lifted.emission_energy_multiplier = 1.0
+				mi.set_surface_override_material(i, lifted)
 
 
 # --- primitive fallback ----------------------------------------------------------------------------------------------
@@ -309,7 +333,7 @@ static func _pbr(color: Color, rough: float, metal: float) -> StandardMaterial3D
 
 func _build_primitive() -> void:
 	uses_model = false
-	var fabric := _pbr(Color(0.105, 0.12, 0.125), 0.93, 0.0)
+	var fabric := _pbr(Color(0.2, 0.23, 0.245), 0.93, 0.0)
 	fabric.resource_name = "Fabric"
 	var armor := _pbr(Color(0.17, 0.2, 0.215), 0.52, 0.35)
 	armor.resource_name = "Armor"
@@ -398,10 +422,21 @@ func _build_primitive() -> void:
 func _build_character_lights() -> void:
 	var mask := 1 << (CHARACTER_LAYER - 1)
 	_set_layer(self, mask)
-	_key_light = _make_character_light("KeyLight", Color(0.82, 0.9, 1.0), 2.1, mask)
-	_rim_light = _make_character_light("RimLight", Color(0.55, 0.88, 1.0), 2.4, mask)
-	_key_light.visible = character_light
-	_rim_light.visible = character_light
+	_key_light = _make_character_light("KeyLight", Color(0.82, 0.9, 1.0), 1.7, mask)
+	_rim_light = _make_character_light("RimLight", Color(0.55, 0.88, 1.0), 2.0, mask)
+	_apply_lights()
+
+
+## Graphics tier (Game.quality): LOW keeps the key light but drops the rim light and the muzzle-flash light pulses (the flash sprites stay).
+func set_quality(level: int) -> void:
+	_quality = level
+	_apply_lights()
+
+
+func _apply_lights() -> void:
+	if _key_light != null:
+		_key_light.visible = character_light
+		_rim_light.visible = character_light and _quality >= 1
 
 
 func _make_character_light(light_name: String, color: Color, energy: float, mask: int) -> DirectionalLight3D:

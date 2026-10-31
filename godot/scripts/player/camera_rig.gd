@@ -340,9 +340,10 @@ func _update_view(dt: float) -> void:
 	var playing := state == &"play"
 	var drv := _mode == &"vehicle"
 
-	# --- what the player is doing
-	var aiming := playing and not drv and _player != null and _player.aiming
-	var sprinting := playing and not drv and _player != null and _player.sprinting
+	# --- what the player is doing (a pause freezes the view as it is, it does not zoom out)
+	var live := playing or state == &"paused"
+	var aiming := live and not drv and _player != null and _player.aiming
+	var sprinting := live and not drv and _player != null and _player.sprinting
 	_ads = PlayerUtil.spring(_ads, 1.0 if aiming else 0.0, ADS_OMEGA, dt)
 	var ads_s := clampf(_ads.x, 0.0, 1.0)
 	_sprint = PlayerUtil.damp(_sprint, 1.0 if sprinting else 0.0, 7.0, dt)
