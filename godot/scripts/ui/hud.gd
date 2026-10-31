@@ -441,12 +441,56 @@ func _draw_hud(_ignored: Control = null) -> void:
 			elif st["active"]:
 				c.draw_rect(r, Color(tint, 0.18))
 			c.draw_rect(r, Color(tint, 0.6 * dim), false, 1.0 * s)
-			_text(c, font, Vector2(r.position.x, r.position.y + 18.0 * s), "%s  %s" % [info["key"], info["label"]], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(13.0 * s), Color(1, 1, 1, 0.92 * dim))
+			var label := "%s  %s" % [info["key"], info["label"]]
+			if st["active"]:
+				label += "  %d" % ceili(float(st["left"]))
+			_text(c, font, Vector2(r.position.x, r.position.y + 18.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(13.0 * s), Color(1, 1, 1, 0.92 * dim))
+	if playing:
+		_draw_quantum_readout(c, vp, s, font)
 	if playing and veh == null:
 		_draw_crosshair(c, p, vp, s, now)
 	if playing and _hint_text != "":
 		_text(c, font, Vector2(0.0, vp.y * 0.64), _hint_text, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.CYAN, 0.95), 1.5 * s)
 	_draw_message(c, vp, s, font)
+
+
+## What the last blink told: Alice's two classical bits and the correction Bob applies. {visible, m0, m1, fix, alpha}; empty of meaning until a teleport.
+func quantum_readout() -> Dictionary:
+	var q: Object = Game.player.get("quantum") if is_instance_valid(Game.player) else null
+	var left := UiUtil.num(q, &"bits_left", 0.0)
+	return {
+		"visible": q != null and left > 0.0,
+		"m0": int(UiUtil.num(q, &"last_m0", 0.0)), "m1": int(UiUtil.num(q, &"last_m1", 0.0)),
+		"fix": str(q.get("last_fix")) if q != null else "", "alpha": clampf(left / 0.8, 0.0, 1.0),
+	}
+
+
+## Thin-line teleport readout under the centre message: m1 -> X gate, m0 -> Z gate, a gate lights when Bob has to apply it.
+func _draw_quantum_readout(c: Control, vp: Vector2, s: float, font: Font) -> void:
+	var ro := quantum_readout()
+	if not ro["visible"]:
+		return
+	var a: float = ro["alpha"]
+	var w := 260.0 * s
+	var box := Rect2(vp.x * 0.5 - w * 0.5, vp.y * 0.30 + 26.0 * s, w, 58.0 * s)
+	c.draw_rect(box, Color(0.0, 0.03, 0.05, 0.55 * a))
+	c.draw_rect(box, Color(UiUtil.CYAN, 0.45 * a), false, 1.0 * s)
+	_text(c, font, Vector2(box.position.x, box.position.y + 14.0 * s), "ALICE SENDS 2 BITS  >  BOB CORRECTS", HORIZONTAL_ALIGNMENT_CENTER, box.size.x, int(11.0 * s), Color(UiUtil.CYAN, 0.9 * a), 1.0 * s)
+	for i in 2:
+		var bit: int = ro["m1"] if i == 0 else ro["m0"]
+		var gate := "X" if i == 0 else "Z"
+		var x := box.position.x + 22.0 * s + i * 118.0 * s
+		var y := box.position.y + 24.0 * s
+		var on := bit == 1
+		var rb := Rect2(x, y, 26.0 * s, 26.0 * s)
+		c.draw_rect(rb, Color(UiUtil.CYAN, (0.25 if on else 0.06) * a))
+		c.draw_rect(rb, Color(UiUtil.CYAN, 0.8 * a), false, 1.0 * s)
+		_text(c, font, Vector2(rb.position.x, rb.position.y + 20.0 * s), str(bit), HORIZONTAL_ALIGNMENT_CENTER, rb.size.x, int(18.0 * s), Color(1, 1, 1, a))
+		_text(c, font, Vector2(rb.end.x + 4.0 * s, rb.position.y + 19.0 * s), "m%d >" % (1 - i), HORIZONTAL_ALIGNMENT_LEFT, 34.0 * s, int(12.0 * s), Color(1, 1, 1, 0.7 * a))
+		var rg := Rect2(x + 64.0 * s, y, 26.0 * s, 26.0 * s)
+		c.draw_rect(rg, Color(UiUtil.MAGENTA, (0.45 if on else 0.05) * a))
+		c.draw_rect(rg, Color(UiUtil.MAGENTA, (0.9 if on else 0.35) * a), false, 1.0 * s)
+		_text(c, font, Vector2(rg.position.x, rg.position.y + 20.0 * s), gate, HORIZONTAL_ALIGNMENT_CENTER, rg.size.x, int(18.0 * s), Color(1, 1, 1, (1.0 if on else 0.4) * a))
 
 
 func _draw_message(c: Control, vp: Vector2, s: float, font: Font) -> void:

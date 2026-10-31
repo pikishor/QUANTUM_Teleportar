@@ -57,6 +57,44 @@ func run(h: Node) -> void:
 	await frames(10)
 	TestLib.check(p.hp > 50.0, "walking onto a health pickup heals (%.0f)" % p.hp)
 	p.hp = hp0
+	# quantum flow in the real city: blink, entangle, superposition, all through the real player, enemies and world
+	var q := p.quantum as Quantum
+	TestLib.check(q != null and q.get_parent() == p, "the player carries the real Quantum module")
+	TestLib.check(UiUtil.ability_state(p, UiUtil.ABILITIES[0])["on"], "the HUD sees the quantum module (ability buttons on)")
+	em.clear()
+	p.energy = 100.0
+	p.teleport_to(Game.SPAWN)
+	p.camera_rig.reset_view(-PI * 0.5, -0.15)
+	p.yaw = -PI * 0.5
+	await frames(8)
+	TestLib.check(q.blink() and q.has_beacon, "blink throws a beacon in the city")
+	var beacon := q.beacon_pos
+	TestLib.check(beacon.distance_to(p.global_position) > 5.0 and not (Game.world as City).is_inside_building(beacon + Vector3(0.0, 1.0, 0.0)), "the beacon is out in front and not inside a building")
+	q.cd_blink = 0.0
+	TestLib.check(q.blink() and not q.has_beacon, "the second blink teleports")
+	TestLib.check(p.global_position.distance_to(beacon) < 0.3 and not (Game.world as City).is_inside_building(p.global_position + Vector3(0.0, 1.0, 0.0)), "the player stands on the beacon, outside any building")
+	TestLib.check(q.last_fix == Quantum.fix_for(q.last_m0, q.last_m1) and q.bits_left > 0.0, "Alice's bits and Bob's correction are recorded for the HUD")
+	await frames(10)
+	p.teleport_to(Game.SPAWN)
+	p.camera_rig.reset_view(-PI * 0.5, -0.1)
+	await frames(4)
+	var qa := em.spawn(&"sentinel", Game.SPAWN + Vector3(14.0, 0.0, 2.0), false)
+	var qb := em.spawn(&"sentinel", Game.SPAWN + Vector3(19.0, 0.0, -3.0), false)
+	p.camera_rig.aim_at(qa.center())
+	await frames(3)
+	TestLib.check(q.entangle() and qa.linked == qb and qb.linked == qa, "entangle links two drones in the city")
+	var qhp := qb.hp
+	qa.damage(12.0)
+	TestLib.check(absf(qb.hp - (qhp - 12.0)) < 0.01, "damage to one linked drone reaches the other")
+	q.cd_super = 0.0
+	TestLib.check(q.superpose() and q.clone != null and p.speed_boost == 1.3 and em.get_clone() == q.clone, "superposition leaves a clone the enemies can see, with the speed boost")
+	var cpos := q.clone.global_position
+	var qc := em.spawn(&"heavy", cpos + Vector3(3.0, 0.0, 0.0), false)
+	var qc_hp := qc.hp
+	q.collapse()
+	TestLib.check(q.clone == null and p.speed_boost == 1.0 and qc.hp < qc_hp - 40.0, "collapse blasts nearby enemies and ends the boost (%.0f damage)" % (qc_hp - qc.hp))
+	em.clear()
+	await frames(4)
 	# heat flow
 	Game.heat = 3.0
 	await frames(2)
@@ -89,6 +127,7 @@ func run(h: Node) -> void:
 	await frames(10)
 	TestLib.check(Game.state == &"play" and not p.is_dead() and Game.heat == 0.0 and ms.cores.size() == 7, "respawn: play, heat 0, cores kept")
 	TestLib.check(em.alive_count() <= em.cap(), "enemies stay within the cap after respawn")
+	TestLib.check(not q.has_beacon and q.clone == null and q.links.is_empty() and p.speed_boost == 1.0, "respawn resets the quantum module")
 	main.queue_free()
 	await frames(10)
 	TestLib.check(Game.enemies == null and Game.missions == null, "freeing the game clears the enemies and missions registry")

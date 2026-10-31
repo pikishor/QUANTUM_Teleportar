@@ -57,21 +57,27 @@ static func num(o: Object, prop: StringName, fallback: float) -> float:
 	return float(v) if (v is float or v is int) else fallback
 
 
-## State of one quantum power: {on: bool (the module exists), ready: bool, low: bool (not enough energy), active: bool, cd: 0..1 (cooldown left)}.
+## State of one quantum power: {on: bool (the module exists), ready: bool, low: bool (not enough energy), active: bool, cd: 0..1 (cooldown left), left: seconds the active effect has left}.
 static func ability_state(player: Node, info: Dictionary) -> Dictionary:
 	var q: Object = player.get("quantum") if is_instance_valid(player) else null
 	if q == null:
-		return {"on": false, "ready": false, "low": false, "active": false, "cd": 0.0}
+		return {"on": false, "ready": false, "low": false, "active": false, "cd": 0.0, "left": 0.0}
 	var energy := num(player, &"energy", 100.0)
 	var left := num(q, info["cd_prop"], 0.0)
 	var active := false
+	var remaining := 0.0
 	match info["action"]:
 		&"blink":
 			active = q.get("has_beacon") == true
+			remaining = num(q, &"beacon_left", 0.0)
 		&"entangle":
 			var links: Variant = q.get("links")
 			active = links is Array and not (links as Array).is_empty()
+			if active:
+				for l: Variant in links as Array:
+					remaining = maxf(remaining, float((l as Dictionary).get("t", 0.0)))
 		&"superpose":
 			active = is_instance_valid(q.get("clone") as Object)
+			remaining = num(q, &"clone_left", 0.0)
 	var low := energy < float(info["cost"]) and not active
-	return {"on": true, "ready": left <= 0.0 and not low, "low": low, "active": active, "cd": clampf(left / float(info["cd"]), 0.0, 1.0)}
+	return {"on": true, "ready": left <= 0.0 and not low, "low": low, "active": active, "cd": clampf(left / float(info["cd"]), 0.0, 1.0), "left": remaining if active else 0.0}
