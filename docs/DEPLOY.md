@@ -74,6 +74,15 @@ You need the Apple Developer Program membership. A Mac is **not** required for t
 
 Never paste any of these into chat, issues or commits. Only GitHub's encrypted secrets store holds them.
 
+## Try a build on an Android phone (no store account needed)
+1. GitHub -> *Actions* -> **Android** -> the latest green run -> *Artifacts* -> `android-debug-apk` (sign in to GitHub; it downloads as a zip).
+2. Unzip it on the phone (or on a computer and copy it over) to get `quantum-teleportar.apk`.
+3. Open the apk; Android asks once to allow *Install unknown apps* for the app you opened it from. Accept, install, open **Quantum Teleportar**.
+4. Controls: left thumb = move (push to the rim to sprint), right thumb = look, FIRE / AIM / JUMP / R buttons.
+   The box at the top left shows FPS (current, average, worst over the last second), draw calls, triangles and texture memory.
+   **Tap that box to switch the graphics tier LOW / MED / HIGH.** Draw calls include about 35 for the on-screen controls.
+5. What to send back: phone model, the three tiers' average and worst FPS while walking down a street and while sprinting, and anything that looks broken.
+
 ## Public or private repository? (decide before a commercial release)
 This repository is currently **public and MIT-licensed** (see `LICENSE`). Anyone can read, copy and sell the code and the committed assets.
 For a game you intend to sell, you will probably want a **private** repository and a proprietary license before release. Consequences to know about:
