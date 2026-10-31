@@ -84,6 +84,8 @@ var air_time := 0.0
 var speed_boost := 1.0
 ## -1..1, the sideways input this tick (camera lean).
 var input_strafe := 0.0
+## The move stick / keys this tick (x right, y back, 0..1 long): the body uses its length to start the step off.
+var input_move := Vector2.ZERO
 var invuln := 0.0
 ## Seconds since the last damage; health regenerates once it passes REGEN_DELAY.
 var since_hurt := 99.0
@@ -343,7 +345,7 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 	hurt.emit(amount)
 	FX.shake(0.3)
 	Sfx.play(&"hurt")
-	body.flinch(clampf(amount / 25.0, 0.3, 1.5))
+	body.flinch(clampf(amount / 25.0, 0.3, 1.5), from_pos)
 	camera_rig.bump(clampf(amount / 40.0, 0.1, 0.6))
 	if hp <= 0.0:
 		_die()
@@ -357,6 +359,7 @@ func _die() -> void:
 	aiming = false
 	sprinting = false
 	input_strafe = 0.0
+	input_move = Vector2.ZERO
 	weapon.cancel_reload()
 	body.set_dead(true)
 	Game.die()
@@ -490,6 +493,7 @@ func _foot_tick(dt: float) -> void:
 	var iv := Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back", 0.05)     # x right+, y back+
 	var forward_in := -iv.y
 	input_strafe = iv.x
+	input_move = iv
 	aiming = Input.is_action_pressed(&"aim")
 	var want_sprint := Input.is_action_pressed(&"sprint") and not aiming and forward_in > 0.3
 	var jump_down := Input.is_action_pressed(&"jump")

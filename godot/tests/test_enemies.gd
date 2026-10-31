@@ -256,7 +256,7 @@ func _death() -> void:
 	o.damage(30.0)
 	o.damage(1000.0)
 	await secs(0.7)
-	TestLib.check(o.dead and absf(absf(o.model.rotation.z) - PI * 0.5) < 0.1, "an operative falls onto its side")
+	TestLib.check(o.dead and absf(maxf(absf(o.model.rotation.z), absf(o.model.rotation.x)) - PI * 0.5) < 0.1, "an operative falls down (onto its side, forward or backward)")
 	TestLib.check(mgr.list.has(o), "the corpse lies there for a while")
 	await secs(4.2)
 	TestLib.check(not mgr.list.has(o), "then it is released")

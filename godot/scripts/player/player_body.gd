@@ -92,6 +92,10 @@ var _rim_light: DirectionalLight3D
 var _key_energy := 1.0
 var _rim_energy := 1.0
 var _quality := 2
+var loco: Locomotion                      ## foot planting, pelvis, weight shifts, cloak springs (the model's gait; see locomotion.gd)
+var _last_pos := Vector3.ZERO
+var _have_last := false
+var _fdir := Vector2.ZERO                  ## where the last hit came from, body space (x right, y forward)
 var _reflection: MirrorProxy              ## the hero's reflection on the wet street (the world's mirror pass; nothing without a world)
 var _parts: Array[MeshInstance3D] = []   ## the character's meshes and the convex hull of each (points in the mesh's own space), for the corpse resting height
 var _hulls: Array = []
@@ -179,25 +183,23 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	var breathe := sin(_clock * 2.1) * 0.006 * calm
 	var bob := -absf(sin(_phase)) * 0.016 * (_amp / LEG_AMP)
 	if rig != null:
-		rig.phase = _phase
-		rig.amp = _amp / LEG_AMP
-		rig.run = clampf(speed / 8.0, 0.0, 1.0)
-		rig.fw = fw
-		rig.lw = lw
-		rig.air = _air
+		var disp := Vector3.ZERO
+		if _have_last and not dying and adt > 0.0:
+			disp = Vector3(view_pos.x - _last_pos.x, 0.0, view_pos.z - _last_pos.z)
+		_last_pos = view_pos
+		_have_last = true
+		if not dying and adt > 0.0:
+			var air_flag := p.air_time > 0.14 or (p.air_time > 0.0 and p.velocity.y > 2.0)
+			var aim_off := angle_difference(yaw, rig_view.get_aim_yaw()) if rig_view != null else 0.0
+			loco.update(adt, disp, yaw, not air_flag, p.velocity.y, p.input_move.length(), p.sprinting, p.aiming, aim_off)
 		rig.aim_pitch = _aim_pitch
-		rig.lean = lean * 2.2
-		rig.twist = twist * (1.0 + 0.6 * _sprint)
-		rig.roll = roll * 2.0
-		rig.breathe = sin(_clock * 2.1) * 0.018 * calm
 		rig.recoil = _kick
 		rig.flinch = _flinch
+		rig.flinch_dir = _fdir * minf(1.0, _flinch * 3.0)
 		rig.ready = _ready_w
-		rig.sprint = _sprint
 		rig.reload = reload_k
-		rig.clock = _clock
 		rig.dead = e
-		rig.head_yaw = clampf(-p.input_strafe * 0.12, -0.15, 0.15)
+		rig.head_yaw = 0.0
 		rig.apply()
 		muzzle.transform = rig.muzzle_transform()
 		if leg_l != null:
@@ -285,7 +287,13 @@ func fire_flash(intensity := 1.0) -> void:
 
 
 ## A hit reaction: the torso snaps back for a moment.
-func flinch(strength := 1.0) -> void:
+func flinch(strength := 1.0, from_pos := Vector3.ZERO) -> void:
+	if from_pos != Vector3.ZERO:
+		var h := Vector3(from_pos.x - global_position.x, 0.0, from_pos.z - global_position.z)
+		if h.length() > 0.2:
+			h = h.normalized()
+			var yw := rotation.y
+			_fdir = Vector2(h.dot(Vector3(cos(yw), 0.0, -sin(yw))), h.dot(Vector3(-sin(yw), 0.0, -cos(yw))))
 	_recoil_pitch = minf(_recoil_pitch + 0.1 * strength, 0.25)
 	_recoil_push = minf(_recoil_push + 0.06 * strength, 0.15)
 	_flinch = minf(_flinch + 0.55 * strength, 1.0)
@@ -307,8 +315,13 @@ func reset_pose() -> void:
 	_kick = 0.0
 	_flinch = 0.0
 	_since_fire = 99.0
+	_fdir = Vector2.ZERO
+	_have_last = false
 	if rig != null:
 		rig.reset()
+		rig.death_kind = 0
+		if loco != null:
+			loco.reset()
 	if _flash_root != null:
 		_flash_root.visible = false
 	for i in _lights.size():
@@ -348,6 +361,8 @@ func _build() -> void:
 func _adopt_model(model: Node3D) -> void:
 	uses_model = true
 	rig = CharacterRig.find(model)
+	if rig != null:
+		loco = Locomotion.new(rig)
 	model.name = "Model"
 	remove_child_safe(upper)
 	upper = model
@@ -653,7 +668,7 @@ static func _is_compat() -> bool:
 
 ## Put every mesh of `node` on the character layer in addition to the default layer 1.
 static func _set_layer(node: Node, mask: int) -> void:
-	if node is GeometryInstance3D:
+	if node is GeometryInstance3D and (node as GeometryInstance3D).layers != 0:     # a mesh on no layer (the rig's rest-pose twin) must stay invisible
 		(node as GeometryInstance3D).layers |= mask
 	for c in node.get_children():
 		_set_layer(c, mask)

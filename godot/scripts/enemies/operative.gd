@@ -41,6 +41,12 @@ var _kick := 0.0
 var _flinch := 0.0
 var _clock := 0.0
 var _buckle := 0.0
+var loco: Locomotion
+var _last_pos := Vector3.ZERO
+var _have_last := false
+var _fdir := Vector2.ZERO               ## where the last hit came from, body space (x right, y forward)
+var _death_kind := 0                    ## 0 onto the side, 1 forward, 2 backward
+var _rest_drop := 0.0
 
 
 func _make_shape() -> Shape3D:
@@ -53,6 +59,9 @@ func _make_shape() -> Shape3D:
 func _build_visual() -> void:
 	super._build_visual()
 	rig = CharacterRig.find(model) if uses_model else null
+	loco = Locomotion.new(rig) if rig != null else null
+	if loco != null:
+		loco.scale_amp = 0.9
 	_restore_baked_glow()
 	var mirror_body: MeshInstance3D = null
 	if rig != null:
@@ -113,12 +122,20 @@ func _on_activate() -> void:
 	_kick = 0.0
 	_flinch = 0.0
 	_buckle = 0.0
+	_fdir = Vector2.ZERO
+	_death_kind = 0
+	_rest_drop = 0.0
+	_have_last = false
+	if loco != null:
+		loco.reset()
 	if leg_l != null:
 		leg_l.rotation.x = 0.0
 	if leg_r != null:
 		leg_r.rotation.x = 0.0
 	if rig != null:
 		rig.reset()
+		rig.death_kind = 0
+		rig.flinch_dir = Vector2.ZERO
 
 
 func _idle_speed() -> float:
@@ -134,6 +151,7 @@ func _ground_y(x: float, z: float) -> float:
 
 func _hit_effect(crit: bool) -> void:
 	_flinch = 1.0 if crit else 0.7
+	_fdir = _dir_to_player()
 	var c := center()
 	if Game.graphic_violence:
 		FX.burst(c, Color(0.5, 1.0, 0.2), 6, 3.5, 0.5, 9.0, 1.8)          # Vael ichor, not blood
@@ -142,6 +160,18 @@ func _hit_effect(crit: bool) -> void:
 		FX.burst(c, Color(1.0, 0.82, 0.45), 3 if not crit else 5, 5.0, 0.2, 9.0)   # chips and sparks
 	if _burst_left > 0 and _stagger > 0.0:
 		_burst_left = maxi(0, _burst_left - 1)
+
+
+## Where the player is, in this body's frame (x right, y forward), unit length; zero when there is no player.
+func _dir_to_player() -> Vector2:
+	var p := Game.player as Node3D
+	if p == null or not is_instance_valid(p):
+		return Vector2.ZERO
+	var h := Vector3(p.global_position.x - global_position.x, 0.0, p.global_position.z - global_position.z)
+	if h.length() < 0.2:
+		return Vector2.ZERO
+	h = h.normalized()
+	return Vector2(h.dot(Vector3(cos(yaw), 0.0, -sin(yaw))), h.dot(Vector3(-sin(yaw), 0.0, -cos(yaw))))
 
 
 func alert() -> void:
@@ -165,6 +195,15 @@ func _death_effect() -> void:
 	FX.burst(c, Color(1.0, 0.8, 0.4), 8, 6.0, 0.3, 10.0)
 	Sfx.play_at(&"hit", c, 0.0, 0.8)
 	_roll_sign = 1.0 if randf() < 0.5 else -1.0
+	var from := _dir_to_player()               # shot from the front: it is thrown back, from behind: it falls forward, from the side: it falls away from the shot
+	_death_kind = 0
+	if from != Vector2.ZERO:
+		if absf(from.y) > absf(from.x) * 0.8:
+			_death_kind = 2 if from.y > 0.0 else 1
+		else:
+			_roll_sign = 1.0 if from.x > 0.0 else -1.0
+	if randf() < 0.25:
+		_death_kind = randi() % 3
 	_burst_left = 0
 	_aim_t = 0.0
 
@@ -291,50 +330,37 @@ func _animate(delta: float) -> void:
 		_animate_legs_only(delta)
 		return
 	var cfg_speed: float = cfg["speed"]
-	var moving := _moved > 0.1
-	var v := Vector3(_mx, 0.0, _mz) * _moved
-	var local := v.rotated(Vector3.UP, -yaw)                 # body space: x right, z back
-	var speed := v.length()
-	_amp = lerpf(_amp, minf(1.0, speed / 4.0) if moving else 0.0, 1.0 - exp(-12.0 * delta))
-	if speed > 0.4:
-		var td := Vector2(local.x, -local.z) / speed
-		_dir += (td - _dir) * (1.0 - exp(-14.0 * delta))
-		if _dir.length_squared() < 0.0004:
-			_dir = td
-	_phase += delta * speed * STRIDE_RATE
-	_clock += delta
-	var m := _dir.normalized() if _dir.length_squared() > 0.0001 else Vector2(0.0, 1.0)
+	var disp := Vector3.ZERO
+	if _have_last:
+		disp = Vector3(global_position.x - _last_pos.x, 0.0, global_position.z - _last_pos.z)
+	_last_pos = global_position
+	_have_last = true
 	var firing := _aim_t > 0.0 or _burst_left > 0
 	var want_ready := 1.0 if firing else (READY_AWARE if aware else READY_IDLE)
 	_ready = lerpf(_ready, want_ready, 1.0 - exp(-9.0 * delta))
 	var want_pitch := 0.0
+	var look_off := 0.0
 	if aware and not dead:
 		var o := _muzzle_pos()
 		var hd := maxf(Vector2(_tgt.x - o.x, _tgt.z - o.z).length(), 1.0)
 		want_pitch = clampf(atan2(_tgt.y - o.y, hd) * 0.6, -0.55, 0.65)
+		look_off = angle_difference(yaw, atan2(-(_tgt.x - o.x), -(_tgt.z - o.z)))
 	_aim_pitch = lerpf(_aim_pitch, want_pitch, 1.0 - exp(-10.0 * delta))
 	_kick = maxf(0.0, _kick - delta * 7.0)
 	_flinch = maxf(0.0, _flinch - delta * 5.0)
-	var calm := 1.0 - minf(1.0, speed / 2.0)
-	rig.phase = _phase
-	rig.amp = _amp
-	rig.run = clampf(speed / (cfg_speed * 1.4), 0.0, 1.0)
-	rig.fw = m.y
-	rig.lw = m.x
-	rig.air = 0.0
+	_clock += delta
+	loco.update(delta, disp, yaw, true, 0.0, 1.0 if _moved > 0.1 else 0.0, false, firing, look_off)
 	rig.aim_pitch = _aim_pitch
-	rig.lean = -0.05 * _amp - (0.1 if _stagger > 0.0 else 0.0)
-	rig.twist = sin(_phase) * 0.06 * _amp
-	rig.roll = -local.x * 0.012
-	rig.breathe = sin(_clock * 2.0) * 0.018 * calm
 	rig.recoil = _kick
 	rig.flinch = _flinch
+	rig.flinch_dir = _fdir * minf(1.0, _flinch * 2.0)
 	rig.ready = _ready
-	rig.sprint = 0.0
 	rig.reload = -1.0
-	rig.clock = _clock
 	rig.dead = 0.0
 	rig.knee_buckle = 0.0
+	rig.head_yaw = 0.0
+	if _stagger > 0.0:
+		rig.lean += -0.1 * minf(1.0, _stagger * 8.0)
 	rig.apply()
 	if muzzle != null:
 		muzzle.transform = rig.muzzle_transform()
@@ -365,23 +391,37 @@ func _tick_dead(delta: float) -> void:
 	var k := clampf(_dead_t / FALL_TIME, 0.0, 1.0)
 	var e := 1.0 - (1.0 - k) * (1.0 - k)
 	if rig != null:
-		# the knees give way first, the body drops onto its side, then everything goes limp
+		# the knees give way first, the body falls (onto its side, forward or backward), then everything goes limp
 		_buckle = clampf(_dead_t / (FALL_TIME * 0.5), 0.0, 1.0)
 		_kick = 0.0
 		_flinch = maxf(0.0, _flinch - delta * 3.0)
-		rig.phase = _phase
-		rig.amp = lerpf(_amp, 0.0, k)
+		rig.amp = lerpf(rig.amp, 0.0, k)
 		rig.ready = lerpf(_ready, 0.0, k)
 		rig.recoil = 0.0
 		rig.flinch = _flinch
+		rig.flinch_dir = _fdir * minf(1.0, _flinch * 2.0)
+		rig.death_kind = _death_kind
 		rig.knee_buckle = _buckle * (1.0 - e * 0.6)
 		rig.dead = clampf((_dead_t - FALL_TIME * 0.3) / (FALL_TIME * 0.9), 0.0, 1.0)
 		rig.reload = -1.0
 		rig.apply()
 		if leg_l != null:
 			leg_l.basis = Basis.from_euler(Vector3(rig.hip_l.x, 0.0, rig.hip_l.y))
-	model.rotation = Vector3(0.0, 0.0, _roll_sign * e * PI * 0.5)
-	model.position.y = 0.32 * e
+	var fall := e * PI * 0.5
+	match _death_kind:
+		1:
+			model.rotation = Vector3(-fall, 0.0, 0.0)
+			model.position = Vector3(0.0, 0.0, 0.55 * e)
+		2:
+			model.rotation = Vector3(fall, 0.0, 0.0)
+			model.position = Vector3(0.0, 0.0, -0.55 * e)
+		_:
+			model.rotation = Vector3(0.0, 0.0, _roll_sign * fall)
+			model.position = Vector3.ZERO
+	if rig != null:                                            # lie on the floor: the lowest point of the bones' hulls rests on it
+		if _dead_t < FALL_TIME + 0.6:
+			_rest_drop = rig.lowest_world_y() - global_position.y
+		model.position.y = -_rest_drop + 0.012
 	if rig == null and leg_l != null:
 		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.5, 1.0 - exp(-6.0 * delta))
 	if _dead_t > CORPSE_TIME:
