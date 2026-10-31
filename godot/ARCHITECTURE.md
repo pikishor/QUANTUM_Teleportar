@@ -68,7 +68,10 @@ The owner deploys Android/iOS builds straight from GitHub (see `docs/DEPLOY.md`)
 - **State machine:** `Game.state` ∈ `menu play paused dead win`. Modules simulate **only while `Game.is_playing()`**.
   Lifecycle signals `Game.new_game / respawn / next_sector` tell every module to reset (see each module).
   `Game.autostart` is true under tests/bots/shots so the menu is skipped.
-- **Registry:** each module sets itself in `_ready()`: `Game.world`, `Game.player`, `Game.enemies`, `Game.vehicles`, `Game.missions`, `Game.camera`.
+- **Registry:** each module sets itself in `_ready()` (and clears the entry in `_exit_tree()` if it is still itself): `Game.world`, `Game.atmosphere`, `Game.player`, `Game.enemies`, `Game.vehicles`, `Game.missions`, `Game.camera`.
+- **Graphics tier:** `Game.quality` (0 low, 1 medium, 2 high) is changed only through `Game.set_quality(level)`, which fans out to `Game.world.set_quality` and `Game.atmosphere.set_quality`
+  and emits `Game.quality_changed`. `main.gd` applies it after composing the modules; tools take `--quality=N`. Modules that scale with the tier must be reachable from that one call.
+- **Pause:** pausing sets `Game.state = &"paused"` only. Never use `get_tree().paused`: rain, post-process and menu animation keep running behind the pause screen, and gameplay modules stop themselves by checking `Game.is_playing()`.
 - **Input:** gameplay reads only InputMap actions: `move_forward move_back move_left move_right jump sprint fire aim reload blink entangle superpose interact pause`.
   Touch controls and bots drive them via `Input.action_press/release`. Camera look is pushed through `Game.player.camera_rig.add_look(yaw, pitch)` (radians).
 - Scenes composed by `scripts/main.gd` if they exist: `scenes/world.tscn, atmosphere.tscn, player.tscn, enemy_manager.tscn, vehicle_manager.tscn, missions.tscn, hud.tscn`.
@@ -103,6 +106,7 @@ with lift/gamma/gain, optional light heat-haze; reads `hint_screen_texture`; mus
 cheap enough for mid-range phones, density by quality tier), and the global shader parameters `wetness` and `rain` (see `Game._ready`; materials read them as `global uniform float wetness;`).
 API: `set_quality(level: int)` (0 low … 2 high) · `set_weather(rain: float, wetness: float)` (0..1) · `enabled: bool` (post-process toggle for the settings screen). It never touches gameplay state and works without a world or player present.
 `set_quality` scales rain and post-process cost only: the world owns the viewport's `msaa_3d` and `scaling_3d_scale`, so Atmosphere must not set them. The world's mirrored copy of the city (node `Mirror`) must not be hidden or reparented.
+Registers itself as `Game.atmosphere` (and joins the group `atmosphere`); it receives its quality tier from `Game.set_quality(level)`, so no other module calls it for that.
 
 ### player — owns `scripts/player/**`, `scenes/player.tscn`, `tests/*player*`
 `class_name Player` (`CharacterBody3D`, group `player`, layer `player`). Third-person over-the-shoulder shooter, strafe-style (body faces aim).
@@ -152,8 +156,8 @@ Next sector: `min(9, 6 + rounds)` cores. Resets on lifecycle signals.
 `scenes/hud.tscn` root `CanvasLayer`. Reads `Game.*` and `Game.player` only (no hard node paths). Contains: HUD (integrity/vehicle bar, coherence bar, ammo or km/h, heat stars, credits, objective + nearest core distance, centre message from `Game.message`, context hint when a vehicle is within reach (`interact`), hit marker, damage vignette, crosshair that tracks spread),
 **minimap** (`Control` drawing roads/buildings from `Game.world.building_rects`, rotated so forward is up; drones, cars, pickups, beacon/clone, cores clamped to the rim), ability key hints with ready/active state,
 **touch controls** (auto on touchscreens or `Game.force_touch`: floating left stick → `move_*` actions + sprint when fully pushed; right-half drag → `camera_rig.add_look`; buttons FIRE hold, JUMP, BLINK, LINK, SUPER, reload, AIM toggle, USE only near a vehicle; safe-area aware; multi-touch),
-**screens**: title/menu (DEPLOY, graphics quality LOW/MED/HIGH → `Game.world.set_quality`, mute), pause (pause action / app focus loss), dead (DECOHERED → `Game.do_respawn()`), win (SECTOR STABILIZED → `Game.do_next_sector()`), best score persisted with `ConfigFile` in `user://`.
-Menu → `Game.start_new_game()`. Pausing sets `Game.state = &"paused"` and `get_tree().paused`-safe behaviour (modules already stop when not playing).
+**screens**: title/menu (DEPLOY, graphics quality LOW/MED/HIGH → `Game.set_quality(level)`, which reaches the world and the atmosphere; persist the choice in `user://` and re-apply it at startup, plus a post-process toggle → `Game.atmosphere.enabled`, mute), pause (pause action / app focus loss), dead (DECOHERED → `Game.do_respawn()`), win (SECTOR STABILIZED → `Game.do_next_sector()`), best score persisted with `ConfigFile` in `user://`.
+Menu → `Game.start_new_game()`. Pausing sets `Game.state = &"paused"` only (see the Pause rule in Conventions; modules already stop when not playing).
 It also owns mouse capture: captured while playing on desktop, released in menu/pause/dead/win.
 
 ### assets — owns `assets/**` (except shaders), `tools/blender/**`

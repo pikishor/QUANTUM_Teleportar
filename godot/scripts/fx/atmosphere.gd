@@ -48,6 +48,7 @@ var _globals_dirty := true
 
 func _ready() -> void:
 	add_to_group(&"atmosphere")
+	Game.atmosphere = self
 	process_priority = 100                      # after the camera rigs, so the rain sits on this frame's camera
 	post = PostLayer.new()
 	post.name = "PostProcess"
@@ -59,6 +60,11 @@ func _ready() -> void:
 	rainfield.rain_visible = rain_enabled
 	set_quality(quality)
 	set_weather(default_rain, default_wetness, true)
+
+
+func _exit_tree() -> void:
+	if Game.atmosphere == self:
+		Game.atmosphere = null
 
 
 ## Rain intensity and surface wetness, both 0..1. They ease in over `weather_tau` seconds (instant = true snaps).

@@ -398,8 +398,8 @@ func _build_primitive() -> void:
 func _build_character_lights() -> void:
 	var mask := 1 << (CHARACTER_LAYER - 1)
 	_set_layer(self, mask)
-	_key_light = _make_character_light("KeyLight", Color(0.8, 0.88, 1.0), 1.15, mask)
-	_rim_light = _make_character_light("RimLight", Color(0.5, 0.85, 0.95), 1.8, mask)
+	_key_light = _make_character_light("KeyLight", Color(0.82, 0.9, 1.0), 2.1, mask)
+	_rim_light = _make_character_light("RimLight", Color(0.55, 0.88, 1.0), 2.4, mask)
 	_key_light.visible = character_light
 	_rim_light.visible = character_light
 

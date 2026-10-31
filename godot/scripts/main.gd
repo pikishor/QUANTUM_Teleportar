@@ -21,6 +21,7 @@ func _ready() -> void:
 			loaded += 1
 	if loaded == 0:
 		_build_placeholder()
+	Game.set_quality(Game.quality)      # every module starts on the same graphics tier (--quality=N, saved setting)
 	# With a HUD the menu is shown first; tools and tests (Game.autostart) skip straight to play.
 	var has_ui := ResourceLoader.exists("res://scenes/hud.tscn")
 	Game.state = &"play" if (Game.autostart or not has_ui) else &"menu"

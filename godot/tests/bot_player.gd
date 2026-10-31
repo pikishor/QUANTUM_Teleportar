@@ -100,6 +100,11 @@ func step(_t: float, delta: float) -> bool:
 		_enter(phase)
 		print("BOT phase %d %s (frame %d)" % [phase, NAMES[phase % NAMES.size()], f])
 	_run(phase, k, delta)
+	if OS.get_environment("BOT_DEBUG") != "" and k % 8 == 0:
+		var vc := _p.get_viewport().get_camera_3d()
+		print("BOT dbg current_cam=%s at %s fov %.1f is_rig=%s" % [str(vc.get_path()) if vc else "none", str(vc.global_position) if vc else "-", vc.fov if vc else 0.0, str(vc == _rig.camera)])
+		print("BOT dbg f=%d k=%d cam=%s body=%s player=%s cam_dist_body=%.2f speed=%.2f frac=%.2f" % [f, k, str(_rig.camera.global_position), str(_p.body.global_position), str(_p.global_position),
+				_rig.camera.global_position.distance_to(_p.body.global_position), Vector2(_p.velocity.x, _p.velocity.z).length(), Engine.get_physics_interpolation_fraction()])
 	return f >= _every * _count
 
 

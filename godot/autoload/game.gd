@@ -8,6 +8,7 @@ signal score_changed(score: int)
 signal state_changed(state: StringName)
 signal player_died
 signal sector_cleared
+signal quality_changed(level: int)
 ## Lifecycle: every module resets itself when these fire (see ARCHITECTURE.md).
 signal new_game             # fresh run: score/heat zeroed, player at spawn, new cores, patrols rebuilt
 signal respawn              # after death: player restored at spawn, reinforcements removed, cores kept
@@ -35,6 +36,7 @@ var world: Node3D            # City
 var enemies: Node            # EnemyManager
 var vehicles: Node           # VehicleManager
 var missions: Node           # Missions
+var atmosphere: Node         # Atmosphere
 var camera: Camera3D         # the active gameplay camera
 
 var state: StringName = &"menu":   # menu | play | paused | dead | win
@@ -57,6 +59,9 @@ var autostart := false
 var graphic_violence := false
 ## Force the touch overlay on (desktop testing). The HUD also shows it automatically on touchscreens.
 var force_touch := false
+## Graphics tier 0 (low) .. 2 (high). Change it only through set_quality(), which reaches the world and the atmosphere.
+## Tools take --quality=N; the settings screen persists the player's choice and re-applies it at startup.
+var quality := 1
 
 const ACTION_KEYS := {
 	&"move_forward": [KEY_W, KEY_UP], &"move_back": [KEY_S, KEY_DOWN],
@@ -78,10 +83,23 @@ func _ready() -> void:
 			autostart = true
 		if a == "--touch":
 			force_touch = true
+		if a.begins_with("--quality="):
+			quality = clampi(a.get_slice("=", 1).to_int(), 0, 2)
 
 
 func is_playing() -> bool:
 	return state == &"play"
+
+
+## The one switch for everything that scales with the graphics tier: the world (shadows, reflections, render scale, MSAA) and the
+## atmosphere (rain density, post effects). Safe to call at any time, with or without those modules present.
+func set_quality(level: int) -> void:
+	quality = clampi(level, 0, 2)
+	if is_instance_valid(world) and world.has_method(&"set_quality"):
+		world.call(&"set_quality", quality)
+	if is_instance_valid(atmosphere) and atmosphere.has_method(&"set_quality"):
+		atmosphere.call(&"set_quality", quality)
+	quality_changed.emit(quality)
 
 
 ## Instantiate res://assets/models/<name>.glb, or null when the model has not been made yet.
