@@ -27,7 +27,7 @@ const FABRIC_LIFT := 2.6
 const FABRIC_EMISSION := Color(0.035, 0.075, 0.095)
 ## The baked "Gear" atlas of the articulated model is already built around albedo 0.10 and up, so its lift is much smaller.
 const GEAR_LIFT := 2.1                     ## the baked atlas keeps its own albedo variation (a bigger lift washed the plates out to one flat cyan)
-const GEAR_RIM := 0.16                     ## a subtle always-on cool fresnel edge; it swells (RIM_BOOST) only on a hit, while aiming and while the quantum powers are active
+const GEAR_RIM := 0.22                     ## a subtle always-on cool fresnel edge; it swells (RIM_BOOST) only on a hit, while aiming and while the quantum powers are active
 const RIM_BOOST := 0.85                    ## extra rim at full excitement
 const GLOW_BOOST := 0.7                    ## extra emission-texture energy (veins, core, slit) at full excitement
 const LOW_ALBEDO := Color(0.72, 0.74, 0.78, 1.0)    ## LOW tier: the armour albedo is multiplied by this ...
@@ -497,7 +497,7 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 					own.rim_enabled = true                      # a fresnel edge light in the model's own cool tint keeps the silhouette against wet asphalt and neon
 					_gear_rim = GEAR_RIM * (0.6 if compat else 1.0)
 					own.rim = _gear_rim
-					own.rim_tint = 0.5
+					own.rim_tint = 0.2                           # mostly the cool light colour (a clean cool edge on DARK armour, not a pale outline)
 					_gear_mats.append(own)
 					_gear_base.append(own.albedo_color)
 					own.emission_enabled = true

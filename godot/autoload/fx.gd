@@ -15,6 +15,8 @@ var shake_amount := 0.0      ## 0..1, decays on its own; camera rigs read it eac
 const PARTICLE_POOL := 24
 const TRACER_POOL := 20
 const MUZZLE_POOL := 10
+const MUZZLE_CENTRE_MAX := 0.7   ## flash scale cap at the screen centre
+const MUZZLE_CENTRE_GAIN := 0.4  ## flash brightness at the screen centre
 const MUZZLE_LIFE := 0.09    ## seconds a muzzle flash shows
 const TRACER_LIFE := 0.14
 const SPARK_SIZE := 0.16     ## metres: one spark is a small soft dot
@@ -191,11 +193,21 @@ func muzzle_flash(pos: Vector3, dir: Vector3, color := Color(1.0, 0.85, 0.5), si
 	var x := dir.cross(up).normalized()
 	var z := x.cross(dir)
 	var sc := size * randf_range(0.85, 1.2)
+	var gain := 1.0
+	var cam := get_viewport().get_camera_3d()
+	if cam != null:                                       # a flash near the screen centre (the player's own shots) is capped in size and brightness: the target stays visible
+		var to := pos - cam.global_position
+		var dist := to.length()
+		var cosa := (-cam.global_basis.z).dot(to / maxf(dist, 0.001))
+		var centre := clampf((cosa - 0.93) / 0.07, 0.0, 1.0) * clampf(1.0 - (dist - 8.0) / 30.0, 0.0, 1.0)     # 1 = on the view axis and close
+		sc = minf(sc, lerpf(sc, MUZZLE_CENTRE_MAX, centre))
+		gain = lerpf(1.0, MUZZLE_CENTRE_GAIN, centre)
 	var node := _muzzles[i]
 	node.global_transform = Transform3D(Basis(x * sc, dir * sc, z * sc), pos + dir * 0.1)
 	var m := node.material_override as ShaderMaterial
 	m.set_shader_parameter(&"color", Vector3(color.r * 0.5 + 0.5, color.g * 0.5 + 0.4, color.b * 0.5 + 0.15))
 	m.set_shader_parameter(&"roll", randf() * TAU)
+	m.set_shader_parameter(&"gain", gain)
 	m.set_shader_parameter(&"fade", 1.0)
 	node.visible = true
 	_muzzle_left[i] = MUZZLE_LIFE

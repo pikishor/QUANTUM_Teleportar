@@ -13,7 +13,8 @@ const MIP_BIAS := [1.0, 0.0, -0.25]
 const ANISO := [Viewport.ANISOTROPY_2X, Viewport.ANISOTROPY_4X, Viewport.ANISOTROPY_8X]
 const SURFACE_TAPS := [0, 1, 2]       ## surface texture taps per tier (assets/shaders/surface_tex.gdshaderinc): LOW none (procedural look), MED one albedo+normal pair, HIGH two pairs + the decal mask
 const SURFACE_MIP_BIAS := [0.0, 0.0, -0.3]   ## extra mip bias of the surface taps (on top of the viewport's `MIP_BIAS`), sharper on HIGH
-const SHADOW_RANGE := 25.0            ## characters and cars cast no shadow beyond this camera distance (metres)
+const SHADOW_RANGE := 25.0            ## HIGH: characters and cars cast no shadow beyond this camera distance (metres)
+const SHADOW_RANGES := [0.0, 16.0, 25.0]   ## per tier: MED drops the shadow of anything beyond 16 m (a far trooper shadow is a few pixels), LOW has no shadows
 const PART_RANGE := 45.0              ## small parts (drone fins, car wheels) are hidden beyond this
 const MODEL_RANGE := 130.0            ## an enemy model is hidden entirely beyond this (its marks stop at 90 m)
 const LIGHT_RANGE := [14.0, 26.0, 40.0]   ## the lights a model carries (a trooper's fill and rim, a car's underglow) are on only this close to the camera, per tier
@@ -61,4 +62,4 @@ static func light_range(level: int) -> float:
 
 ## Camera distance beyond which dynamic things cast no shadow (the tier's shadow distance is shorter or equal on MED: 55 m).
 static func shadow_range() -> float:
-	return SHADOW_RANGE
+	return float(SHADOW_RANGES[clampi(Game.quality, 0, 2)])

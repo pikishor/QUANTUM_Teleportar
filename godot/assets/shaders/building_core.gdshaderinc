@@ -46,6 +46,7 @@ uniform vec2 lod_range = vec2(100000.0, 110000.0);      // distance LOD: a far t
 const float FLOOR_H = 3.5;
 const float GROUND_H = 5.0;
 const float PARAPET_H = 1.2;
+const float SIGN_Y0 = 3.9;                 // bottom of the shop sign band (0.8 m tall, above the awnings' top edge at 3.9 m)
 
 
 varying flat vec3 v_scale;
@@ -483,6 +484,15 @@ void fragment() {
 			float sp_len = 1.0 - (w1.y - w0.y);
 			float spandrel = band(t_sp, 0.07, sp_len - 0.07, av) * band(cf, 0.07, 0.93, au) * (1.0 - win_open);
 			height_field += 0.11 * pil * (1.0 - smoothstep(0.0, pw, bd)) - 0.07 * spandrel + 0.07 * led * smoothstep(0.0, 0.25, fdist);
+			// ribbed metal cladding on about two buildings in five (not the brick walk-ups): vertical ribs of 0.25 m across the spandrel panels, a bumped normal
+			// and a darker groove; the ribs melt away when a pixel spans more than one (distance and grazing angles), so there is no shimmer
+			float clad = step(0.6, hash12(vec2(bseed, 7.7))) * step(style, 3.5);
+			float rib = 0.5 + 0.5 * cos(u * 25.132741);
+			float rk = clad * spandrel * (1.0 - smoothstep(0.03, 0.10, am)) * (1.0 - smoothstep(30.0, 70.0, dist));
+			height_field += 0.035 * rib * rk;
+			albedo *= 1.0 - 0.18 * (1.0 - rib) * rk;
+			rough = mix(rough, 0.45, rk * 0.6);
+			metal = max(metal, rk * 0.35);
 		}
 		hf = height_field + hf;
 
@@ -524,7 +534,7 @@ void fragment() {
 			float riser_h = 0.65;
 			float shop = band(xm, 0.16, bw - 0.16, amu) * band(y, riser_h, 3.3, abv);
 			float door = is_door * band(bf, 0.20, 0.80, abu) * band(y, 0.0, 3.05, abv);
-			float signb = band(bf, 0.08, 0.92, abu) * band(y, 3.65, 4.45, abv);
+			float signb = band(bf, 0.08, 0.92, abu) * band(y, SIGN_Y0, SIGN_Y0 + 0.8, abv);
 			float sn = max(vnoise(vec2(u * 0.9 + fseed, y * 1.3)), 0.0);
 			vec3 sc = lit_color(hash12(bid + 12.0), pal);
 			// frame: edge posts, a centre post in wide bays, a kick plate
@@ -628,21 +638,31 @@ void fragment() {
 				float tag = line_aa_b(y - tagy, 0.028, abv) * band(bf, 0.15, 0.85, abu) * shop * shut * step(0.55, hash12(bid + 63.0)) * pfade;
 				albedo = mix(albedo, sc * 0.35, tag * 0.85);
 			}
-			// neon sign band with glyphs
+			// neon sign band: a real word (shop name or Vael warning) in neon tubes, from the glyph atlas (signage.gdshaderinc)
 			vec3 nc = NEON[int(mod(rb0 * 4.0 + v_data.y, 4.0))];
-			float gcell = 0.62;
-			float gi = floor(u / gcell);
-			vec2 g = vec2(fract(u / gcell), (y - 3.65) / 0.8);
-			float code = floor(hash12(vec2(gi, bidx + fseed)) * 64.0);
-			float gl = glyph(g, code, max(fwidth(g.x), 0.01)) * signb;
-			float tube = band(y, 3.57, 3.61, abv) * band(bf, 0.06, 0.94, abu) + band(y, 4.49, 4.53, abv) * band(bf, 0.06, 0.94, abu);
+			float hw = hash12(bid + 91.0);
+			bool warn = hw < 0.07;
+			int wi = warn ? SW_WARN + int(hw / 0.07 * float(SW_N - SW_WARN)) : int(fract(hw * 13.7) * float(SW_WARN));
+			if (warn) {
+				nc = vec3(1.0, 0.26, 0.07);
+			}
+			float nlet = float(SW_LEN[wi]);
+			float adv = min(5.6, bw * 10.0 * 0.86 / nlet);
+			float xu = xm * 10.0 - (bw * 10.0 - nlet * adv) * 0.5;
+			float yu = (y - SIGN_Y0) * 10.0;
+			float dying = step(0.84, hash11(rb0 * 53.0 + bidx * 3.1 + fseed));
+			vec2 cg = sign_word(wi, xu, yu, adv, max(abv, amu) * 10.0, dying, rb0, TIME) * signb;
+#ifndef SIGN_TEXT
+			cg = vec2(0.25, 0.0) * signb * step(0.5, fract(hw * 7.0));         // mirrored copy: a flat glow where the word is
+#endif
+			float tube = band(y, SIGN_Y0 - 0.08, SIGN_Y0 - 0.04, abv) * band(bf, 0.06, 0.94, abu) + band(y, SIGN_Y0 + 0.84, SIGN_Y0 + 0.88, abv) * band(bf, 0.06, 0.94, abu);
 			float flick = 0.85 + 0.15 * sin(TIME * 2.0 + rb0 * 30.0);
 			flick *= 1.0 - 0.9 * step(0.992, hash11(floor(TIME * 8.0) + rb0 * 77.0));       // the odd dying tube
-			// about one shop sign in six is on its last legs: long dark spells that sputter back to life
-			float dying = step(0.84, hash11(rb0 * 53.0 + bidx * 3.1 + fseed));
+			// about one shop sign in six is on its last legs: long dark spells that sputter back to life, with single letters failing on their own
 			float cyc = fract(TIME / (9.0 + 8.0 * rb0) + rb0 * 7.0 + bidx * 0.37);
 			flick *= mix(1.0, cyc < 0.6 ? 1.0 : (cyc < 0.78 ? step(0.5, hash11(floor(TIME * 12.0) + rb0 * 91.0)) : 0.04), dying);
-			emit += nc * (gl * 3.0 + tube * 1.5) * flick * step(0.25, rb0);
+			float lit_s = step(0.25, rb0);
+			emit += (sign_colour(nc, cg) + nc * tube * 1.5) * flick * mix(0.03, 1.0, lit_s);
 			albedo = mix(albedo, vec3(0.02), signb * 0.8);
 			// grime and wet streaks run down the stone below the sign, street spill on the base of the wall
 			albedo *= 1.0 - 0.35 * sn * (1.0 - open_shop) * smoothstep(3.5, 0.0, y);
@@ -693,7 +713,7 @@ void fragment() {
 			vec2 suv = vec2((u - fw * 0.14) / (fw * 0.72), (y - sy0) / (sy1 - sy0));
 			float inside = band(suv.x, 0.0, 1.0, am / fw) * band(suv.y, 0.0, 1.0, am / (sy1 - sy0));
 			float rim = band(suv.x, -0.012, 1.012, am / fw) * band(suv.y, -0.02, 1.02, am / (sy1 - sy0)) - inside;
-			emit = mix(emit, screen_content(suv, v_data.x, TIME, 0.02) * 1.5, inside);
+			emit = mix(emit, screen_content(suv, v_data.x, TIME, 0.02, fw * 0.72 / (sy1 - sy0)) * 1.5, inside);
 			albedo = mix(albedo, vec3(0.01), max(inside, rim));
 			metal = mix(metal, 0.0, inside);
 			rough = mix(rough, 0.3, inside);

@@ -16,7 +16,7 @@ const ALERT_RADIUS := 35.0
 const LOS_RANGE := 90.0
 const WORLD_LIMIT := 345.0
 const DEATH_TIME := 0.7
-const DROP_DELAY := 0.35         ## a death drops its pickup a beat later (the burst peak of four deaths at once does not also spawn their pickups)
+const DROP_DELAY := 0.66        ## a death drops its pickup late in the death animation (the explosion peak of four deaths at once has faded; the pickups' draws do not stack on it)
 const TELEGRAPH := 0.45          ## seconds before a shot that the muzzle charges and the aim line shows (the attack telegraph)
 const BAR_SECONDS := 3.0
 const ROTOR_SPEED := 46.0
@@ -564,7 +564,7 @@ func _build_visual() -> void:
 ## Distance LOD (EnemyManager calls it a few times a second with the camera distance): the shadow only within PerfTiers.SHADOW_RANGE, the small parts (fins) within
 ## PART_RANGE, the whole model hidden beyond MODEL_RANGE (the marks stop at 90 m). Hysteresis, so nothing flickers at a border; only changes are written.
 func update_lod(dist: float) -> void:
-	var sh := Game.quality >= 1 and dist < PerfTiers.SHADOW_RANGE + (4.0 if _lod_shadow else 0.0)
+	var sh := Game.quality >= 1 and dist < PerfTiers.shadow_range() + (4.0 if _lod_shadow else 0.0)
 	if sh != _lod_shadow:
 		_lod_shadow = sh
 		_apply_shadow(sh)

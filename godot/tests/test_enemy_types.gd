@@ -426,7 +426,13 @@ func _caps_and_budget() -> void:
 	for t: StringName in counts:
 		budget_ok = budget_ok and counts[t] <= base + 1
 	TestLib.check(budget_ok, "no specialist adds more than one mesh over an operative (%s)" % str(counts))
-	TestLib.check(counts[&"shield"] == base + 1 and counts[&"flanker"] == base and counts[&"sniper"] == base and counts[&"brute"] == base, "only the shield plate is an extra draw")
+	TestLib.check(counts[&"shield"] == base + 1 and counts[&"flanker"] == base + 1 and counts[&"sniper"] == base + 1 and counts[&"brute"] == base + 1,
+			"each specialist adds exactly ONE mesh: the shield plate, or the emissive tell (streaks / laser eye / heat cracks)")
+	for t: StringName in [&"flanker", &"sniper", &"brute"]:
+		var tm := EnemyTells.mesh_for(t)
+		TestLib.check(tm != null and tm.get_surface_count() == 1 and tm.surface_get_array_len(0) > 0 and tm.surface_get_array_len(0) < 400, "%s tell: one surface, a handful of triangles (%d vertices)" % [t, tm.surface_get_array_len(0) if tm != null else -1])
+	TestLib.check(EnemyTells.mesh_for(&"flanker") == EnemyTells.mesh_for(&"flanker") and EnemyTells.mesh_for(&"shield") == null and EnemyTells.mesh_for(&"operative") == null, "tell meshes are cached and shared; the shield and the plain operative have none")
+	TestLib.check(EnemyTells.shield_texture() != null and EnemyTells.shield_texture().get_width() == 64, "the shield plate texture is one cached 64 px image")
 	var cap_total := 0
 	for t: StringName in EnemyTypes.TYPES:
 		cap_total += int(EnemyTypes.TYPES[t].get("limit", 0))

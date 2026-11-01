@@ -132,14 +132,14 @@ func _enemy_lod() -> void:
 	TestLib.check(not s.model.visible and not o.model.visible, "beyond 130 m the whole model is hidden")
 	s.update_lod(28.0)
 	TestLib.check(not s.lod_state()["shadow"], "hysteresis: coming back to 28 m does not switch the shadow on yet")
-	s.update_lod(20.0)
-	o.update_lod(20.0)
-	TestLib.check(s.lod_state()["shadow"] and s.model.visible and s._fins.visible and o.model.visible and o.rig.shadow.visible and o.lod_state()["lights"] and (o._lights[0] as Light3D).visible, "back at 20 m everything is on again (lights included)")
+	s.update_lod(12.0)
+	o.update_lod(12.0)
+	TestLib.check(s.lod_state()["shadow"] and s.model.visible and s._fins.visible and o.model.visible and o.rig.shadow.visible and o.lod_state()["lights"] and (o._lights[0] as Light3D).visible, "back at 12 m everything is on again (lights included)")
 	# the manager's pass uses the camera distance and the active list only
 	var em := Game.enemies as EnemyManager
 	em.lod_pass()
 	var cam_d := Game.camera.global_position.distance_to(s.global_position)
-	TestLib.check(s.lod_state()["shadow"] == (cam_d < 25.0 + 4.0), "EnemyManager.lod_pass applies the camera distance (%.0f m, shadow %s)" % [cam_d, str(s.lod_state()["shadow"])])
+	TestLib.check(s.lod_state()["shadow"] == (cam_d < PerfTiers.shadow_range() + 4.0), "EnemyManager.lod_pass applies the camera distance (%.0f m, shadow %s)" % [cam_d, str(s.lod_state()["shadow"])])
 	# a pooled enemy that is respawned starts with everything on
 	em.release(s)
 	var again := em.spawn(&"sentinel", Game.SPAWN + Vector3(30.0, 0.0, 0.0), true)

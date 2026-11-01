@@ -36,14 +36,23 @@ static func tex(file: String, tier: int) -> Texture2D:
 	return t
 
 
-## Bind the sets `keys` (SETS keys, plus "decal" and "trim") to `mat` for the tier; LOW clears them and switches the taps off.
+## The neon-text glyph atlas (tools/textures/gen_signage.py), cached; null when the file is missing.
+static func sign_atlas() -> Texture2D:
+	if not _cache.has("sign_atlas"):
+		_cache["sign_atlas"] = load("res://assets/textures/signage_atlas.png") if ResourceLoader.exists("res://assets/textures/signage_atlas.png") else null
+	return _cache["sign_atlas"]
+
+
+## Bind the sets `keys` (SETS keys, plus "decal", "trim" and "sign") to `mat` for the tier; LOW clears them and switches the taps off.
 static func apply(mat: ShaderMaterial, keys: Array, tier: int) -> void:
 	var n_taps := taps(tier)
 	mat.set_shader_parameter(&"srf_k", 1.0 if n_taps >= 1 else 0.0)
 	mat.set_shader_parameter(&"srf_hi", 1.0 if n_taps >= 2 else 0.0)
 	mat.set_shader_parameter(&"srf_bias", PerfTiers.surface_mip_bias(tier))
 	for k: String in keys:
-		if k == "decal":
+		if k == "sign":
+			mat.set_shader_parameter(&"sign_atlas", sign_atlas())        # the neon-text distance atlas (18 KB, lossless, every tier: it IS the signage)
+		elif k == "decal":
 			mat.set_shader_parameter(&"srf_decal", tex("decals", tier) if n_taps >= 2 else null)        # the decal mask is a HIGH tap
 		elif k == "trim":
 			mat.set_shader_parameter(&"srf_trim_a", tex("trim_albedo", tier))

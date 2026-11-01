@@ -17,8 +17,10 @@ const ABILITIES := [
 ]
 
 ## Phone text sizes (base px at 720 p height; the layout scales them with the viewport height). Gameplay text is never below TEXT_MIN except the small bar captions.
-const TEXT_MIN := 22
-const BAR_LABEL := 18
+const TEXT_MIN := 26
+const BAR_LABEL := 22
+const TOUCH_MIN := 64.0                  ## base px: no touch hit area is smaller than this across
+const SAFE_WIDE := 24.0                 ## base px: side margin kept free on wide (20:9 and up) phones even without a reported notch
 const PLATE := Color(0.0, 0.03, 0.05, 0.62)     ## backing plate behind every line of gameplay text: legible over bright neon and over cables
 
 static var _font: Font
@@ -37,12 +39,20 @@ static func ui_scale(vp: Vector2) -> float:
 static func insets(vp: Vector2) -> Vector2:
 	var win := DisplayServer.window_get_size()
 	if win.x <= 0:
-		return Vector2.ZERO
+		return _wide_floor(vp, Vector2.ZERO)
 	var sa := DisplayServer.get_display_safe_area()
 	if sa.size.x <= 0:
-		return Vector2.ZERO
+		return _wide_floor(vp, Vector2.ZERO)
 	var k := vp.x / float(win.x)
-	return Vector2(maxf(sa.position.x, 0.0) * k, maxf(float(win.x - sa.end.x), 0.0) * k)
+	return _wide_floor(vp, Vector2(maxf(sa.position.x, 0.0) * k, maxf(float(win.x - sa.end.x), 0.0) * k))
+
+
+## Wide screens (20:9, 21:9) curve and carry cameras at the sides: keep at least SAFE_WIDE base px clear on both even when the OS reports no inset.
+static func _wide_floor(vp: Vector2, v: Vector2) -> Vector2:
+	if vp.x / maxf(vp.y, 1.0) < 1.9:
+		return v
+	var f := SAFE_WIDE * ui_scale(vp)
+	return Vector2(maxf(v.x, f), maxf(v.y, f))
 
 
 ## Small procedural white sprites (&"disc", &"ring", &"diamond", &"star", &"button": a dark translucent disc with a bright rim, tinted by modulate). Canvas rectangles that

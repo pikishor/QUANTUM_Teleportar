@@ -37,11 +37,22 @@ void vertex() {
 	v_mr = UV2;
 	if (UV.x < -0.5) {
 		// facade kit (city_facade.gd): one mesh holds several modules, UV.x = -(1 + module); the instance keeps the one in INSTANCE_CUSTOM.w
-		if (abs(-UV.x - 1.0 - floor(INSTANCE_CUSTOM.w * 4.0)) > 0.5) {
+		if (abs(-UV.x - 1.0 - floor(INSTANCE_CUSTOM.w * 8.0)) > 0.5) {
 			VERTEX = vec3(0.0);
 		}
 	}
 	VERTEX *= 1.0 - smoothstep(lod_range.x, lod_range.y, distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz));
+}
+
+// width / height of a UV quad in metres (from the derivatives of its world position and its UV): text on screens and posters keeps its shape on any panel.
+float quad_aspect(vec3 wpos, vec2 uv) {
+	vec3 dpx = dFdx(wpos);
+	vec3 dpy = dFdy(wpos);
+	vec2 dux = dFdx(uv);
+	vec2 duy = dFdy(uv);
+	vec3 pu = dpx * duy.y - dpy * dux.y;
+	vec3 pv = dpy * dux.x - dpx * duy.x;
+	return clamp(length(pu) / max(length(pv), 1e-5), 0.2, 8.0);
 }
 
 bool is_code(float c, float v) {
@@ -88,30 +99,42 @@ void fragment() {
 		} else if (is_code(code, 0.60)) {
 			vec2 uv = UV;
 			float inside = band(uv.x, 0.03, 0.97, 0.01) * band(uv.y, 0.05, 0.95, 0.01);
-			emit = screen_content(uv, seed, TIME, 0.02) * 1.7 * inside + vec3(0.01);
+			emit = screen_content(uv, seed, TIME, 0.02, quad_aspect(v_wpos, uv)) * 1.7 * inside + vec3(0.01);
 			col = mix(col, vec3(0.01), inside);
 		} else if (is_code(code, 0.70)) {
-			// neon blade sign: a dark board with glyph columns in a tube frame
+			// neon blade sign: a dark board, a shop word stacked letter by letter (the board's size comes from the instance scale: wall blades and the taller roof signs), in a tube frame
 			vec2 uv = UV;
 			vec3 nc = NEON[int(mod(floor(seed * 4.0), 4.0))];
-			float cells = 7.0;
-			float gi = floor(uv.y * cells);
-			vec2 g = vec2(fract(uv.x * 1.0) * 1.0, fract(uv.y * cells));
-			float code_g = floor(hash12(vec2(gi, seed * 31.0)) * 64.0);
-			float gl = glyph(vec2(uv.x, fract(uv.y * cells)), code_g, 0.08) * band(uv.x, 0.15, 0.85, 0.02);
+			float bw_m = length(MODEL_MATRIX[2].xyz);                                  // board width in metres (the mesh is 1 m wide)
+			float bh_m = 3.2 * length(MODEL_MATRIX[1].xyz);                            // board height (the mesh is 3.2 m tall)
+			int wi = int(floor(hash11(seed * 29.0 + 3.0) * float(SW_SHORT)));
+			float nl = float(SW_LEN[wi]);
+			float cell_h = min(bh_m / nl, bw_m * 1.25);
+			float unit_m = cell_h / 8.0;
+			float kx = min(1.25, 0.8 * bw_m / (6.0 * unit_m));
+			float ym = uv.y * bh_m - (bh_m - nl * cell_h) * 0.5;                       // metres from the top of the text block (UV.y runs top to bottom)
+			float ri = floor(ym / cell_h);
+			float dying = step(0.8, hash11(seed * 17.3));
+			vec2 cg = vec2(0.0);
+#ifdef SIGN_TEXT
+			if (ri >= 0.0 && ri < nl) {
+				float ppu = max(fwidth(uv.y) * bh_m, fwidth(uv.x) * bw_m / kx) / unit_m;
+				cg = sign_cell(SW_CH[wi * SW_MAX + int(ri)], vec2(3.0 + (uv.x - 0.5) * bw_m / (unit_m * kx), (1.0 - (ym / cell_h - ri)) * 8.0), ppu);
+				cg *= tube_fail(ri, dying, seed, TIME);
+			}
+#endif
 			float frame = max(band(uv.x, 0.03, 0.08, 0.01), band(uv.x, 0.92, 0.97, 0.01)) * band(uv.y, 0.01, 0.99, 0.01)
 					+ max(band(uv.y, 0.01, 0.03, 0.005), band(uv.y, 0.97, 0.99, 0.005)) * band(uv.x, 0.03, 0.97, 0.01);
 			float flick = 0.85 + 0.15 * sin(TIME * 2.2 + seed * 40.0);
 			flick *= 1.0 - 0.9 * step(0.99, hash11(floor(TIME * 7.0) + seed * 91.0));
-			// a dying sign (one in five): dark spells and a stuttering restart
-			float dying = step(0.8, hash11(seed * 17.3));
+			// a dying sign (one in five): dark spells and a stuttering restart (single tubes fail on their own, above)
 			float cyc = fract(TIME / (8.0 + 7.0 * seed) + seed * 5.0);
 			flick *= mix(1.0, cyc < 0.62 ? 1.0 : (cyc < 0.8 ? step(0.5, hash11(floor(TIME * 11.0) + seed * 60.0)) : 0.03), dying);
-			emit = nc * (gl * 3.0 + frame * 2.0) * flick;
+			emit = (sign_colour(nc, cg) + nc * frame * 2.0) * flick;
 			col = mix(col, vec3(0.015), 0.85);
 		} else if (is_code(code, 0.80)) {
 			vec2 uv = UV;
-			vec3 pc = screen_content(uv, seed, TIME * 0.1, 0.02);
+			vec3 pc = screen_content(uv, seed, TIME * 0.1, 0.02, quad_aspect(v_wpos, uv));
 			emit = (vec3(0.35, 0.40, 0.45) + pc * 0.8) * (0.9 + 0.1 * sin(TIME * 100.0 + seed));
 			col = vec3(0.02);
 		} else if (code > 0.88 && code < 0.98) {

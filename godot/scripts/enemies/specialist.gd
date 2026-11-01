@@ -19,6 +19,7 @@ var role: StringName = &""
 var shield_hp := 0.0
 var shield_max := 0.0
 var shield_node: MeshInstance3D
+var tell: MeshInstance3D                   ## the role's emissive tell mesh (EnemyTells), null for shield / sniper-less roles
 
 var _shield_flash := 0.0
 var _locked := false
@@ -40,6 +41,10 @@ func setup(t: StringName) -> void:
 	role = cfg.get("role", &"")
 	if role == &"shield":
 		_build_shield()
+	elif model != null:
+		tell = EnemyTells.make(role)                  # the emissive tell of the role (flanker streaks, sniper eye, brute heat cracks): ONE shared mesh, one draw
+		if tell != null:
+			model.add_child(tell)
 
 
 func _on_activate() -> void:
@@ -62,14 +67,15 @@ func _on_activate() -> void:
 func _build_shield() -> void:
 	shield_node = MeshInstance3D.new()
 	shield_node.name = "Shield"
-	var bm := BoxMesh.new()
-	bm.size = Vector3(1.5, 1.75, 0.06)
+	var bm := QuadMesh.new()                              # one double-sided quad with a hex-cell texture and a bright frame (glows at 25 m, was a flat 28 % box)
+	bm.size = Vector2(1.5, 1.8)
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.albedo_color = Color(0.3, 0.85, 1.0, 0.28)
+	mat.albedo_texture = EnemyTells.shield_texture()
+	mat.albedo_color = Color(1.25, 1.25, 1.25, 0.6)
 	bm.material = mat
 	shield_node.mesh = bm
 	shield_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -127,10 +133,15 @@ func _turn_rate() -> float:
 
 func _animate(delta: float) -> void:
 	super._animate(delta)
+	if tell != null:
+		tell.visible = not dead
 	if shield_node != null and shield_node.visible:
 		_shield_flash = maxf(0.0, _shield_flash - delta)
-		var m := (shield_node.mesh as BoxMesh).material as StandardMaterial3D
-		m.albedo_color.a = 0.28 + 0.5 * clampf(_shield_flash / 0.12, 0.0, 1.0) + 0.05 * sin(_clock * 6.0)
+		var m := (shield_node.mesh as QuadMesh).material as StandardMaterial3D
+		m.albedo_color.a = 0.6 + 0.4 * clampf(_shield_flash / 0.12, 0.0, 1.0) + 0.05 * sin(_clock * 6.0)
+		m.albedo_color.r = 1.25 + 2.4 * clampf(_shield_flash / 0.12, 0.0, 1.0)
+		m.albedo_color.g = m.albedo_color.r
+		m.albedo_color.b = m.albedo_color.r
 
 
 # --- movement and attacks per role -------------------------------------------------------------------------------------

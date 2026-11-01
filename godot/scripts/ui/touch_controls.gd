@@ -15,11 +15,11 @@ const BASE_H := 720.0
 const USE_REACH := 4.2              ## metres: a vehicle this close enables USE
 ## Buttons: action, centre offset from the bottom-right corner and radius (canvas px at the base height), label, and what they need to be shown.
 const BUTTONS := [
-	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 88.0, "fs": 28, "label": "FIRE", "need": &""},
+	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 88.0, "fs": 32, "label": "FIRE", "need": &""},
 	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &""},
 	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
-	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 52.0, "fs": 20, "label": "RELOAD", "need": &""},
-	{"action": &"swap", "dx": 345.0, "dy": 440.0, "r": 46.0, "fs": 22, "label": "SWAP", "need": &""},
+	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &""},
+	{"action": &"swap", "dx": 345.0, "dy": 440.0, "r": 48.0, "fs": 24, "label": "SWAP", "need": &""},
 	{"action": &"blink", "dx": 515.0, "dy": 110.0, "r": 56.0, "label": "BLINK", "need": &"quantum", "ability": 0},
 	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "LINK", "need": &"quantum", "ability": 1},
 	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},
@@ -152,11 +152,11 @@ func touch_down(id: int, pos: Vector2) -> void:
 		return
 	if not controls_on or not Game.is_playing():
 		return
-	if pos.distance_to(_pause_center()) <= 30.0 * _scale() * 1.3:
+	if pos.distance_to(_pause_center()) <= 36.0 * _scale() * 1.3:
 		pause_requested.emit()
 		return
 	for b: Dictionary in BUTTONS:
-		if button_visible(b) and pos.distance_to(_button_center(b)) <= float(b["r"]) * _scale() * 1.15:
+		if button_visible(b) and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]), UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
 			_held[id] = b
 			Input.action_press(b["action"])
 			if b["action"] == &"interact":
@@ -276,7 +276,7 @@ func _button_center(b: Dictionary) -> Vector2:
 
 func _pause_center() -> Vector2:
 	var s := _scale()
-	return Vector2(_vp_size().x - _insets().y - 50.0 * s, 128.0 * s + UiUtil.insets_v(_vp_size()).x)
+	return Vector2(_vp_size().x - _insets().y - 262.0 * s, 52.0 * s + UiUtil.insets_v(_vp_size()).x)     # left of the heat / credits plate, clear of the weapon slot column
 
 
 ## The perf readout sits under the minimap and is only shown while playing or paused.
@@ -347,7 +347,7 @@ func _draw_ui() -> void:
 		if on:
 			glows.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, 0.35)])
 		sprites.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, (1.0 if on else 0.85) * dim)])
-		var fs := int(b.get("fs", 22))
+		var fs := int(b.get("fs", 26))
 		labels.append([centre + Vector2(-r, float(fs) * 0.36 * s), str(b["label"]), r * 2.0, dim, fs])
 	for g: Array in glows:
 		c.draw_texture_rect(UiUtil.sprite(&"disc"), g[0], false, g[1])
@@ -367,7 +367,7 @@ func _draw_ui() -> void:
 				c.draw_string(font, l[0], l[1], HORIZONTAL_ALIGNMENT_CENTER, l[2], int(float(fsz) * s), Color(1, 1, 1, 0.97 * float(l[3])))
 	# pause
 	var pc := _pause_center()
-	var pr := 30.0 * s
+	var pr := 36.0 * s
 	c.draw_arc(pc, pr, 0.0, TAU, 28, Color(1, 1, 1, 0.45), 2.0 * s, false)
 	c.draw_rect(Rect2(pc + Vector2(-8, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
 	c.draw_rect(Rect2(pc + Vector2(3, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))

@@ -130,3 +130,28 @@ in the sandbox cannot reproduce phone GPU behaviour.
 - All test_*.gd pass; `tests/bot_cine_integ.gd` (real game: intro, chapter, boss_in, boss_out each started and skipped; state, camera rig, hero position, time scale and movement input all restored; also under Compat). Full bot desktop and --touch run clean.
 - Perf gate re-baselined after the character pass (hero 17.8k, 4 troopers 8.3k): MED triangles 280k -> 300k, MED death spike 150 -> 160, LOW death spike 110 -> 118 (measured MED 295k / 157, LOW 114, HIGH OK; Compat MED OK). Not an optimisation: if a phone is GPU-bound, cut trooper shadow casters or VFX first.
 - Open: boss-contract intro never seen with a real Overseer; roof fly-through can clip a taller neighbour; everything above is unmeasured on a device.
+
+## Phone HUD and feedback pass - software renderer, nothing run on a phone
+- Gameplay text floor 26 px (captions 22) at 720 p, bigger bars/ammo/credits plates, touch hit areas >= 64 px (pause 72), 24 px wide-screen safe margin at 20:9; checked by screenshots at 1280x720 and 1600x720 (bot_hud_phone).
+- Hit-confirm X + camera tick, thick damage-direction arc with chevron, muzzle flash capped in size and brightness near screen centre (`gain` uniform); test_hud text-size assertion raised to 26/22.
+- Open: damage arc and muzzle cap were not captured in a live firefight screenshot; the 1-4 weapon slot column (not in scripts/ui) still sits at the top right.
+
+## Hero / enemy silhouette clean-up - software renderer, nothing run on a phone
+- Hero rebuilt dark (no pale plates, spikes, halo ring, glow strips or jagged hem; 15.1k triangles, UV padding 8 so mips do not bleed); specialists get one emissive tell mesh each (flanker streaks, sniper laser eye + antenna, brute heat cracks, shield hex plate) and `EnemyMarks` rings now show only off screen, occluded or beyond 40 m. Details: ARCHITECTURE.md "Hero / enemy silhouette clean-up".
+- Verified: test_assets / test_enemies / test_enemy_types and the full test run, bot phases 10-11 at MED Mobile and Compat; not verified: a phone, the troopers' plain look (geometry unchanged except UV padding), whether rings-only-when-hidden is wanted for telegraphing attacks (the muzzle flare and aim line remain).
+- Open: the plain trooper still has no tell of its own beyond its red eyes and orange seams, the Overseer boss is unchanged, tell and plate brightness were tuned by eye at MED (additive, bloom whitens them on a bright phone panel).
+\n
+
+## Signage and facade depth - software renderer, nothing run on a phone
+- Neon signs now read: a generated distance-field glyph atlas (`godot/tools/textures/gen_signage.py` -> `signage_atlas.png` + `signage_words.gdshaderinc`) drives real stylised words (NOODLES, CLINIC, ARMS, HOTEL, CLUB, 24H, TECH, BAR, PAWN, VAEL WATCH ...) on shop bands, stacked blade / roof signs and LED screens (ticker + 6 s ad loop); flicker and dying tubes kept (single letters fail). Facade: ribbed cladding bump on ~40 % of buildings, FacadeKit 4 -> 8 modules (ledge, dish, street cabinet, wall lamp) and per-instance tank proportions, all in the same draw calls.
+- Verified: `tests/test_signage.gd` plus every `tests/test_*.gd` (all pass except `test_perf_budget`, whose two checks compare against 140 draws / 280 k / 150 death while `PerfProbe.BUDGETS` says 300 k / 160: not world code); before / after street frames at MED Mobile, LOW and Compatibility; primitives at the same street pose 173.2 k -> 172.7 k, draws unchanged. Not verified: a phone, long-distance legibility on a small screen.
+- Open: no text on the far-LOD tower copies, fire escapes / awnings / balconies untouched, lamps are emissive-only, hologram columns keep pseudo-glyphs.
+
+
+## Optimisation pass (perf area)
+- MED is back inside its original budget (staged 126 draws / 268k triangles, 4-enemy death peak 146; was 129 / 292k / 156) through per-tier shadow range (MED 16 m), capped pickup columns and a later pickup drop; the gate in `perf_probe.gd` is tightened (MED 140 / 280k / 150, HIGH 160 / 430k / 180, LOW 100 / 160k / 115).
+- Still unverified on a real phone: GPU time of the fragment-heavy shaders (building interior mapping, ground reflection, post), shadow-cascade cost on MED, the 141-draw sustained death tail, HIGH death 162 draws; hero/trooper LOD meshes beyond the importer LODs and far-street building culling were not built.
+
+## Integration of the polish pass (hero/enemies, HUD, signage, perf) - software renderer, nothing run on a phone
+- All 39 `tests/test_*.gd` pass; `PERF_CHECK=1 tools/perf_report.sh 0 1 2` OK on the tightened gate (LOW 95/132k, MED 125/268k death 145, HIGH 136/389k death 163; Compat MED 142/268k death 153); `bot_full` desktop and `--touch` at MED run all 14 phases without script errors (only the known exit-time RID leak messages).
+- Seen in frames: readable neon words, large HUD and 96 px touch buttons, dark hero silhouette. Still open: the hero reads silvery-blue on wet MED lighting, no live damage-arc / hit-X shot, perf is draws/triangles only (no GPU timing), `tools/bot.sh` hard-codes `timeout 300` (a 14-phase run needs ~560).

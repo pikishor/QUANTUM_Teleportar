@@ -11,14 +11,14 @@ const REACH := 4.2                  ## metres: a vehicle this close can be enter
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
 const VIGNETTE_MAX := 0.35          ## hard cap of the one damage vignette's alpha: the world stays readable, never a screen fill
 const HURT_TIME := 0.45             ## seconds the hit vignette lasts
-const MARKER_TIME := 0.7            ## seconds the attacker marker lasts
+const MARKER_TIME := 1.0            ## seconds the attacker marker lasts
 const DEAD_DIM := 0.30              ## alpha of the DECOHERED / SECTOR STABILIZED dimming (never above 0.35)
 ## Base-px baseline of the centre message: below the top stack and the radio subtitle lane, above the crosshair.
 const MSG_Y := 262.0
 const MINIMAP := 148.0              ## base px: the round minimap, top left
-const BAR_W := 168.0                ## base px of an integrity / coherence / hull bar
+const BAR_W := 190.0                ## base px of an integrity / coherence / hull bar
 const LABEL_W := 92.0               ## base px: the least width of the caption column left of the bars (it grows to fit the widest caption in the font in use)
-const VALUE_W := 44.0
+const VALUE_W := 54.0
 ## Volume sliders of the settings rows: slider id -> the buses it sets (saved in settings.volumes). SFX also carries the ambience beds and the radio voice.
 const SLIDERS := {&"vol_music": ["Music"], &"vol_sfx": ["SFX", "Ambient", "Voice"]}
 const CONTROLS_DESKTOP := "WASD MOVE    MOUSE LOOK    LMB FIRE    RMB AIM    SHIFT SPRINT    SPACE JUMP    R RELOAD    Q BLINK    E LINK    G SUPERPOSE    F USE    ESC PAUSE"
@@ -56,6 +56,7 @@ var _lw := LABEL_W                  ## base px of the caption column, measured p
 var _lw_key := -1
 var _drag := &""                    ## the volume slider a finger / the mouse is dragging
 var _t := 0.0
+var _seen_hit := -100.0              ## last_hit_time already answered with a hit-confirm camera tick
 var _q: Array = []                  ## queued draws (see _text): text, rectangles, sprites, outlines
 var _fills: Array = []
 var _frames: Array = []
@@ -490,6 +491,12 @@ func hint_text() -> String:
 func _process(delta: float) -> void:
 	var real := delta / maxf(Engine.time_scale, 0.05)       # screens and locks count real seconds, so a slow-motion death never delays the respawn button
 	_t += real
+	if Game.state == &"play" and is_instance_valid(Game.player):                 # hit-confirm: a tiny camera tick (a bigger one on a kill) next to the crosshair X
+		var lh := UiUtil.num(Game.player, &"last_hit_time", -100.0)
+		if lh > _seen_hit:
+			_seen_hit = lh
+			if PlayerUtil.now() - lh < 0.25:
+				FX.shake(0.16 if Game.player.get("last_hit_kill") == true else 0.07)
 	screen_age += real
 	message_left = maxf(message_left - delta, 0.0)
 	_text_t -= delta
@@ -646,20 +653,20 @@ func _draw_hud_body() -> void:
 		var hp_col := Color(0.4, 1.0, 0.72, 0.95) if f > 0.35 else Color(1.0, 0.3, 0.3, 0.95)
 		var has_hull := veh != null and UiUtil.num(veh, &"hp", -1.0) >= 0.0
 		var rows := 3 if has_hull else 2
-		var plate := Rect2(vp.x * 0.5 - total * 0.5 - 10.0 * s, top, total + 20.0 * s, (8.0 + 22.0 * (rows - 1) + 12.0 + 6.0) * s)
+		var plate := Rect2(vp.x * 0.5 - total * 0.5 - 10.0 * s, top, total + 20.0 * s, (8.0 + 30.0 * (rows - 1) + 14.0 + 12.0) * s)
 		_plate(c, plate, s)
 		var y0 := top + 8.0 * s
-		_bar(c, font, bx, y0, bw, 12.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
+		_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
 		var en := UiUtil.num(p, &"energy", 100.0)
 		var men := maxf(UiUtil.num(p, &"max_energy", 100.0), 1.0)
-		_bar(c, font, bx, y0 + 22.0 * s, bw, 12.0 * s, en / men, Color(0.35, 0.8, 1.0, 0.95), "COHERENCE", str(floori(en)), s)
+		_bar(c, font, bx, y0 + 30.0 * s, bw, 14.0 * s, en / men, Color(0.35, 0.8, 1.0, 0.95), "COHERENCE", str(floori(en)), s)
 		if has_hull:
 			var vh := UiUtil.num(veh, &"hp", 0.0)
-			_bar(c, font, bx, y0 + 44.0 * s, bw, 12.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
+			_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
 		stack_end = _draw_priority(c, vp, s, font, plate.end.y + 3.0 * s)
 	UiUtil.stack_bottom = stack_end / s
 	# top right: heat stars and credits on one plate
-	_plate(c, Rect2(right - 176.0 * s, top, 184.0 * s, 76.0 * s), s)
+	_plate(c, Rect2(right - 196.0 * s, top, 204.0 * s, 84.0 * s), s)
 	var heat := Game.heat
 	for i in 5:
 		var centre := Vector2(right - (4 - i) * 30.0 * s - 14.0 * s, top + 22.0 * s)
@@ -670,7 +677,7 @@ func _draw_hud_body() -> void:
 			var col := UiUtil.AMBER if heat < 3.0 else UiUtil.RED
 			var pulse := 1.0 if heat < 3.0 else 0.8 + 0.2 * sin(_t * 8.0)
 			_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
-	_text(c, font, Vector2(right - 172.0 * s, top + 64.0 * s), _cred_text, HORIZONTAL_ALIGNMENT_RIGHT, 170.0 * s, int(24.0 * s), Color(1, 1, 1, 0.97), 1.5 * s)
+	_text(c, font, Vector2(right - 192.0 * s, top + 72.0 * s), _cred_text, HORIZONTAL_ALIGNMENT_RIGHT, 190.0 * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.97), 1.5 * s)
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return
@@ -680,17 +687,17 @@ func _draw_hud_body() -> void:
 	# bottom: ammo or speed (on phones left of the touch buttons), power hints (desktop), vehicle hint above the ammo
 	var base_y := vp.y - insv.y
 	var touch_on := touch_ui_on()
-	var aw := 230.0 * s
+	var aw := 260.0 * s
 	var ax := vp.x * 0.5
 	if touch_on:
-		ax = minf(ax, vp.x - ins.y - 600.0 * s - aw * 0.5 - 10.0 * s)
-	var ab := Rect2(ax - aw * 0.5, base_y - 70.0 * s, aw, 54.0 * s)
+		ax = minf(ax, vp.x - ins.y - 600.0 * s - 215.0 * s - 10.0 * s)     # clear of the 430 px weapon plate above the ammo
+	var ab := Rect2(ax - aw * 0.5, base_y - 82.0 * s, aw, 66.0 * s)
 	_plate(c, ab, s)
-	_text(c, font, Vector2(ab.position.x, ab.position.y + 41.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(38.0 * s), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
+	_text(c, font, Vector2(ab.position.x, ab.position.y + 50.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(48.0 * s), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
 	if veh == null and weapon_text() != "":
-		var wr := Rect2(ab.get_center().x - 215.0 * s, ab.position.y - 32.0 * s, 430.0 * s, 28.0 * s)
+		var wr := Rect2(ab.get_center().x - 215.0 * s, ab.position.y - 42.0 * s, 430.0 * s, 36.0 * s)
 		_plate(c, wr, s)
-		_text(c, font, Vector2(wr.position.x, wr.position.y + 21.0 * s), weapon_text(), HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
+		_text(c, font, Vector2(wr.position.x, wr.position.y + 27.0 * s), weapon_text(), HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
 		var wch := weapon_charge()
 		if wch > 0.0:
 			_rect(c, Rect2(wr.position.x, wr.position.y - 8.0 * s, wr.size.x * wch, 5.0 * s), Color(UiUtil.CYAN, 0.95))
@@ -698,7 +705,7 @@ func _draw_hud_body() -> void:
 		for i in 3:
 			var info: Dictionary = UiUtil.ABILITIES[i]
 			var st := UiUtil.ability_state(p, info)
-			var r := Rect2(ax - 188.0 * s + i * 128.0 * s, base_y - 152.0 * s, 120.0 * s, 36.0 * s)
+			var r := Rect2(ax - 236.0 * s + i * 160.0 * s, base_y - 172.0 * s, 152.0 * s, 44.0 * s)
 			var tint := UiUtil.AMBER if st["active"] else UiUtil.CYAN
 			var dim := 1.0 if (st["ready"] or st["active"]) else 0.5
 			_rect(c, r, UiUtil.PLATE)
@@ -710,14 +717,14 @@ func _draw_hud_body() -> void:
 			var label := "%s  %s" % [info["key"], info["label"]]
 			if st["active"]:
 				label += "  %d" % ceili(float(st["left"]))
-			_text(c, font, Vector2(r.position.x, r.position.y + 27.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(UiUtil.TEXT_MIN * 0.9 * s), Color(1, 1, 1, 0.97 * dim), 1.0 * s)
+			_text(c, font, Vector2(r.position.x, r.position.y + 32.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.97 * dim), 1.0 * s)
 	if playing:
 		_draw_quantum_readout(c, vp, s, font)
 		_draw_tutorial(c, vp, s, font)
 	if playing and veh == null:
 		_draw_crosshair(c, p, vp, s, now)
 	if playing and _hint_text != "":
-		_plate_text(c, font, ab.get_center().x, ab.position.y - (78.0 * s if (p.get("quantum") == null or touch_on) else 132.0 * s), _hint_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 1.0), s)
+		_plate_text(c, font, ab.get_center().x, ab.position.y - (92.0 * s if (p.get("quantum") == null or touch_on) else 152.0 * s), _hint_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 1.0), s)
 	_draw_message(c, vp, s, font)
 
 
@@ -795,10 +802,17 @@ func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -
 		_rect(c, arm, col)
 	_sprite(c, &"disc", Rect2(mid - Vector2(1.6, 1.6) * s, Vector2(3.2, 3.2) * s), Color(1, 1, 1, 0.9))
 	var since := now - UiUtil.num(p, &"last_hit_time", -100.0)
-	if since < 0.18:
-		var hc := Color(1.0, 0.3, 0.25, 0.95) if (p.get("last_hit_kill") == true or p.get("last_hit_crit") == true) else Color(1, 1, 1, 0.95)
+	if since < 0.28:
+		var kill: bool = p.get("last_hit_kill") == true
+		var strong: bool = kill or p.get("last_hit_crit") == true
+		var k := 1.0 - since / 0.28                                     # 1 -> 0
+		var hc := Color(1.0, 0.3, 0.25, 0.4 + 0.6 * k) if strong else Color(1, 1, 1, 0.4 + 0.6 * k)
+		var out := (22.0 + (8.0 if kill else 0.0) + 8.0 * (1.0 - k)) * s     # the X pops outward as it fades
+		var inner := 10.0 * s
+		var w := (4.5 if strong else 3.5) * s
 		for d: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-			c.draw_line(mid + d * 9.0 * s, mid + d * 17.0 * s, hc, 2.2 * s, false)
+			c.draw_line(mid + d * inner, mid + d * out, Color(0, 0, 0, 0.55 * k), w + 2.0 * s, false)
+			c.draw_line(mid + d * inner, mid + d * out, hc, w, false)
 
 
 ## A red arc around the crosshair that points at where the last hit came from (relative to the view direction).
@@ -815,7 +829,13 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 	var right := Vector2(-fwd.y, fwd.x)
 	var flat := Vector2(d.x, d.z)
 	var ang := atan2(flat.dot(right), flat.dot(fwd)) - PI * 0.5
-	c.draw_arc(vp * 0.5, 150.0 * s, ang - 0.22, ang + 0.22, 8, Color(1.0, 0.25, 0.2, 0.8 * alpha), 5.0 * s, true)    # a small arc toward the attacker
+	var mid := vp * 0.5
+	var rad := minf(vp.y * 0.30, 230.0 * s)                         # well clear of the crosshair and the target, readable at a glance on a phone
+	c.draw_arc(mid, rad, ang - 0.42, ang + 0.42, 14, Color(0.0, 0.0, 0.0, 0.45 * alpha), 16.0 * s, true)
+	c.draw_arc(mid, rad, ang - 0.38, ang + 0.38, 14, Color(1.0, 0.22, 0.18, 0.95 * alpha), 11.0 * s, true)
+	var tip := mid + Vector2(cos(ang), sin(ang)) * (rad + 18.0 * s)    # chevron tip pointing at the attacker
+	c.draw_line(tip, tip + Vector2(cos(ang + 2.6), sin(ang + 2.6)) * 22.0 * s, Color(1.0, 0.3, 0.25, alpha), 5.0 * s, true)
+	c.draw_line(tip, tip + Vector2(cos(ang - 2.6), sin(ang - 2.6)) * 22.0 * s, Color(1.0, 0.3, 0.25, alpha), 5.0 * s, true)
 
 
 # ---------------------------------------------------------------------------------------------------------------------

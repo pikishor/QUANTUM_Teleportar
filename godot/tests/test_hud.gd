@@ -349,7 +349,7 @@ func _find(action: StringName) -> Dictionary:
 ## Buttons stay inside the screen and big enough to touch at 16:9 and 20:9.
 ## Phone readability: gameplay text is at least 22 px at 720 p, the batching sprites exist, and the story layer starts below the HUD's top stack.
 func _phone_text(host: Node) -> void:
-	TestLib.check(UiUtil.TEXT_MIN >= 22 and UiUtil.BAR_LABEL >= 18, "gameplay text sizes: at least 22 px (bar captions 18 px) at 720 p")
+	TestLib.check(UiUtil.TEXT_MIN >= 26 and UiUtil.BAR_LABEL >= 22, "gameplay text sizes: at least 26 px (bar captions 22 px) at 720 p")
 	var ok := true
 	for k: StringName in [&"disc", &"ring", &"diamond", &"star", &"button"]:
 		ok = ok and UiUtil.sprite(k) != null and UiUtil.sprite(k) == UiUtil.sprite(k)

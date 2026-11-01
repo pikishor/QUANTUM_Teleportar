@@ -217,9 +217,9 @@ func set_quality(level: int) -> void:
 ## Tier-scaled PBR surface taps (SurfaceTextures): LOW none, MED one albedo+normal pair per surface at half size, HIGH two pairs, full size and the decal mask.
 func _apply_surfaces() -> void:
 	SurfaceTextures.apply(_ground.material, ["road", "walk", "decal"], quality)
-	SurfaceTextures.apply(_building_mat, ["brick", "wall", "roof"], quality)
+	SurfaceTextures.apply(_building_mat, ["brick", "wall", "roof", "sign"], quality)
 	for m in _prop_mats:
-		SurfaceTextures.apply(m, ["metal", "corr", "trim"], quality)
+		SurfaceTextures.apply(m, ["metal", "corr", "trim", "sign"], quality)
 
 
 ## The node that holds the mirrored copy of the city under the wet ground (scale (1, -1, 1), hidden on the LOW tier). Dynamic objects (the player,

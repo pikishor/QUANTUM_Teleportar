@@ -543,8 +543,17 @@ func _marks() -> void:
 	TestLib.check(marks != null and marks.get_parent() == mgr, "the manager owns the EnemyMarks node")
 	var sent := _spawn(&"sentinel", Vector3(-12.0, 0.0, 4.0), false)
 	var op := _spawn(&"operative", Vector3(-14.0, 0.0, 9.0), false)
+	var far_op := _spawn(&"operative", Vector3(30.0, 0.0, 4.0), false)       # 60 m from the camera: beyond RING_RANGE
 	await e.frames(3)
-	TestLib.check(marks.ring_count == 2, "one threat ring per enemy (%d)" % marks.ring_count)
+	# rings are a fallback: visible, unoccluded enemies within RING_RANGE are readable by their own silhouette, a distant one still gets a ring
+	TestLib.check(marks.ring_count == 1, "only the distant enemy gets a threat ring (%d)" % marks.ring_count)
+	TestLib.check(far_op != null, "the distant operative exists")
+	cam.look_at(Vector3(-30.0, 1.0, 40.0))                                      # looking away: all three are off screen, so they get their rings back
+	await e.frames(3)
+	TestLib.check(marks.ring_count == 3, "off-screen enemies get a ring (%d)" % marks.ring_count)
+	cam.look_at(Vector3(20.0, 1.0, 4.0))
+	await e.frames(3)
+	TestLib.check(marks.ring_count == 1, "back in view: the two near, unoccluded enemies lose their rings (%d)" % marks.ring_count)
 	TestLib.check(marks.bar_count == 0 and marks.lines.visible_instance_count == 0, "no health bar and no aim line on healthy enemies that are not shooting")
 	TestLib.check(sent.threat_charge() == 0.0 and op.threat_charge() == 0.0, "no telegraph while idle")
 	TestLib.check(sent.radius > 1.2 and is_equal_approx(sent.model.scale.x, 1.35), "the sentinel is drawn large (radius %.2f, model scale %.2f)" % [sent.radius, sent.model.scale.x])

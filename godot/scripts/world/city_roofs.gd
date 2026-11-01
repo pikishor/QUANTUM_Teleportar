@@ -314,7 +314,10 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 		if lot.h <= 70.0 and rng.randf() < 0.55:
 			var p3 := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 4.2, reserved_centre, reserved_r)
 			if p3 != Vector2.INF:
-				tanks.append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU), Vector3(p3.x, roof_y, p3.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
+				var tsv := rng.randf()
+				# variety without a second mesh: the tank's own seed picks a squat or a standard tank and a footprint (the pooled collider stays valid), no random stream moves
+				var tk := Vector3(0.9 + 0.35 * fposmod(tsv * 5.3, 1.0), 0.7 + 0.3 * fposmod(tsv * 11.7, 1.0), 0.9 + 0.35 * fposmod(tsv * 5.3, 1.0))
+				tanks.append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU) * Basis.from_scale(tk), Vector3(p3.x, roof_y, p3.y)), Color(tsv, 0.0, 0.0, 1.0)])
 		# more roof families on every roof class: HVAC units, pipe runs, skylights and low cover walls
 		if rng.randf() < 0.75:
 			var ph := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.4, reserved_centre, reserved_r)

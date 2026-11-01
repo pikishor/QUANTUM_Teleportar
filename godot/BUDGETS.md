@@ -18,13 +18,13 @@ This is a **mobile-first** game that aims for a premium, console-adjacent look. 
 | Budget | Mid-range phone (MED) | Flagship (HIGH) |
 |---|---|---|
 | Frame rate | 60 fps target, graceful 30 fps fallback | 60 fps (90/120 where the display allows) |
-| Draw calls (whole frame incl. shadow passes and canvas) | at most 140 (LOW 100) | at most 220 |
-| Triangles (whole frame incl. shadow passes) | at most 300 k (LOW 200 k; raised from 280 k after the character pass, hero 17.8k + 4 troopers 8.3k) | at most 600 k |
+| Draw calls (whole frame incl. shadow passes and canvas) | at most 140 (LOW 100) | at most 160 |
+| Triangles (whole frame incl. shadow passes) | at most 280 k (LOW 160 k; restored to 280 k by shadow range LOD) | at most 430 k |
 | Texture memory | gate 260 MB staged scene (staged scene today 201 MB incl. about 13 MB of surface sets; hard ceiling 600 MB) | gate 360 MB (302 MB today; ceiling 1.2 GB) |
 | RAM | at most 1.5 GB | at most 3 GB |
 | Per-frame allocations | none in hot paths (pool nodes, reuse vectors) | same |
 
-Measured and gated by `tools/perf_report.sh` (`PERF_CHECK=1`, budgets in `scripts/common/perf_probe.gd`): staged full-game view = hero, 4 enemies, the starter car, HUD; the 4-enemy simultaneous death stays under 160 draws (LOW 118); the touch layout adds at most 15 canvas draws; the Compatibility fallback gets +20 draws of headroom and 25 % smaller pools.
+Measured and gated by `tools/perf_report.sh` (`PERF_CHECK=1`, budgets in `scripts/common/perf_probe.gd`): staged full-game view = hero, 4 enemies, the starter car, HUD; the 4-enemy simultaneous death stays under 150 draws (LOW 115, HIGH 180); the touch layout adds at most 15 canvas draws; the Compatibility fallback gets +20 draws of headroom and 25 % smaller pools.
 
 LOW tier: render scale 0.7, no shadows, 1K textures, no surface texture taps (procedural look, gate 200 MB, 153 MB today), reduced particles. Dynamic resolution is a later task.
 The Mobile renderer is primary; Compatibility is the automatic fallback for devices without Vulkan 1.1 / Metal support.

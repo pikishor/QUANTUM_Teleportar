@@ -5,6 +5,8 @@ extends Node3D
 ##    death) plus a muzzle flare that swells as a shot is charged (the telegraph, 0.3-0.5 s before bolts and bursts);
 ##  * aim line: a thin beam from the muzzle towards the target while a shot is charged, so the player can see where it comes from and dodge;
 ##  * health bar: a small floating bar, only on enemies that were damaged in the last BAR_SECONDS, drawn larger with distance so it stays readable at 25 m.
+## Rings are a FALLBACK now: an enemy that is on screen, within RING_RANGE and not hidden behind the world is readable by its own silhouette and emissive tell (EnemyTells, the
+## shield plate, the eyes), so it gets no ring; the ring stays for off-screen, occluded (a cached world ray, one per enemy every OCC_EVERY frames) and distant (small) enemies and for death shock rings.
 ## The rings and the bars are ONE draw (the same MultiMesh `halos`, bars appended after the rings, shader mode 3); the aim lines are a box mesh and keep their own draw.
 ## The EnemyManager owns one and calls refresh() each frame. Enemies feed it through Drone.threat_charge(), Drone.mark_size(), Drone.muzzle_world(), Drone.aim_point().
 
@@ -12,6 +14,8 @@ const CAPACITY := 16
 const HALO_SHADER := preload("res://assets/shaders/fx_threat.gdshader")
 const LINE_SHADER := preload("res://assets/shaders/fx_aimline.gdshader")
 const FAR := 90.0                       ## no marks beyond this distance (metres)
+const RING_RANGE := 40.0                ## beyond this the body is a few pixels: the ring returns
+const OCC_EVERY := 6                    ## frames between the occlusion rays of one enemy
 
 var halos: MultiMesh                     ## rings, flares, death rings, then the health bars (one draw)
 var lines: MultiMesh
@@ -22,6 +26,9 @@ var _line_node: MultiMeshInstance3D
 var _bar_xf: Array[Transform3D] = []     ## bars of this refresh, written behind the rings once their number is known (no allocation per frame)
 var _bar_col := PackedColorArray()
 var _bar_hp := PackedFloat32Array()
+var _occluded := PackedByteArray()       ## per list slot: 1 = the world is between the camera and that enemy (cached)
+var _tick := 0
+var _ray := PhysicsRayQueryParameters3D.new()
 
 
 func _ready() -> void:
@@ -36,6 +43,9 @@ func _ready() -> void:
 	_bar_xf.resize(CAPACITY)
 	_bar_col.resize(CAPACITY)
 	_bar_hp.resize(CAPACITY)
+	_occluded.resize(CAPACITY)
+	_ray.collision_mask = Game.L_WORLD
+	_ray.collide_with_areas = false
 
 
 func _make(mesh: Mesh, shader: Shader, count: int, node_name: String) -> MultiMesh:
@@ -64,6 +74,8 @@ func refresh(list: Array[Drone]) -> void:
 	if not is_instance_valid(cam) or halos == null:
 		return
 	var cpos := cam.global_position
+	_tick += 1
+	var space := get_world_3d().direct_space_state if is_inside_tree() else null
 	var hn := 0
 	var ln := 0
 	var bn := 0
@@ -92,12 +104,18 @@ func refresh(list: Array[Drone]) -> void:
 			hn += 1
 			continue
 		var charge := d.threat_charge()
+		if (_tick + n) % OCC_EVERY == 0 and space != null:                 # the cached occlusion test (staggered per enemy)
+			_ray.from = cpos
+			_ray.to = c
+			_occluded[n - 1] = 0 if space.intersect_ray(_ray).is_empty() else 1
+		var needs_ring := dist > RING_RANGE or _occluded[n - 1] == 1 or not cam.is_position_in_frustum(c)
 		# the ring floats a little in front of the body (towards the camera) so the quad never sinks into the body or the street
-		var at := c + toward * minf(size * 0.28, dist * 0.5)
-		halos.set_instance_transform(hn, Transform3D(Basis.from_scale(Vector3.ONE * size), at))
-		halos.set_instance_color(hn, col)
-		halos.set_instance_custom_data(hn, Color(charge, 1.0 if d.aware else 0.0, d.hit_flash(), 0.0))
-		hn += 1
+		if needs_ring:
+			var at := c + toward * minf(size * 0.28, dist * 0.5)
+			halos.set_instance_transform(hn, Transform3D(Basis.from_scale(Vector3.ONE * size), at))
+			halos.set_instance_color(hn, col)
+			halos.set_instance_custom_data(hn, Color(charge, 1.0 if d.aware else 0.0, d.hit_flash(), 0.0))
+			hn += 1
 		if charge > 0.02:
 			var m := d.muzzle_world()
 			var fs := (0.7 + 1.5 * charge) * (1.0 + dist * 0.025)

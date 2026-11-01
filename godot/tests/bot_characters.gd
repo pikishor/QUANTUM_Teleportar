@@ -7,11 +7,12 @@ extends RefCounted
 ##   BOT_ZOOM=0.6 pulls the free camera closer (default 1).   BOT_QUALITY=0..2 (default 2).
 ## Phases: 0 hero idle 3/4 front  1 hero sprint (side)  2 hero firing  3 hero reload  4 game camera, operatives at 4 / 12 / 25 m  5 operative close-up
 ##   6 operative firing at 12 m  7 hero hit and flinch  8 hero death  9 operative death (3 m)
+##   10 game camera: flanker 7 m, brute 11 m, shield 16 m, sniper 24 m (the silhouette / emissive-tell check, no HUD rings)  11 close-up of the four specialists at 3-5 m
 
 const Fixture := preload("res://tests/player_fixture.gd")
 
 const TIME_SCALE := 0.3
-const NAMES: Array[String] = ["hero_idle", "hero_sprint", "hero_fire", "hero_reload", "game_cam", "op_closeup", "op_fire", "hero_hit", "hero_dead", "op_dead"]
+const NAMES: Array[String] = ["hero_idle", "hero_sprint", "hero_fire", "hero_reload", "game_cam", "op_closeup", "op_fire", "hero_hit", "hero_dead", "op_dead", "spec_game", "spec_close"]
 
 var _every := 45
 var _count := 10
@@ -80,8 +81,18 @@ func _stage(offsets: Array, types: Array, aware: bool) -> void:
 			_group.append(d)
 
 
+## Freeze the staged enemies where they stand, facing the hero (a still picture of the silhouettes and tells; TestMode.freeze is cleared by every other phase).
+func _freeze_facing() -> void:
+	TestMode.freeze = true
+	for d in _group:
+		if is_instance_valid(d):
+			d.yaw = PI * 0.5
+			d.rotation.y = d.yaw
+
+
 func _enter(phase: int) -> void:
 	Fixture.release_inputs()
+	TestMode.freeze = false
 	_mgr.clear()
 	match phase:
 		0:
@@ -120,20 +131,33 @@ func _enter(phase: int) -> void:
 		8:
 			_reset_player()
 			_cam_off = Vector3(2.6, 0.9, -3.2)
+		10:
+			_reset_player()
+			_p.camera_rig.camera.make_current()
+			_stage([Vector3(7.0, 0.0, 1.2), Vector3(11.0, 0.0, -2.8), Vector3(16.0, 0.0, 2.5), Vector3(24.0, 0.0, -1.0)], [&"flanker", &"brute", &"shield", &"sniper"], false)
+			_freeze_facing()
+		11:
+			_reset_player()
+			_stage([Vector3(7.5, 0.0, -2.0), Vector3(7.5, 0.0, -0.7), Vector3(7.5, 0.0, 0.8), Vector3(7.5, 0.0, 2.3)], [&"flanker", &"sniper", &"brute", &"shield"], false)
+			_freeze_facing()
 		9:
 			_reset_player()
 			_stage([Vector3(3.5, 0.0, 0.0)], [&"operative"], false)
 			_cam_target = 1.0
 			_cam_off = Vector3(-2.4, 0.6, -2.4)
-	if phase != 4:
+	if phase != 4 and phase != 10:
 		_cam.make_current()
 
 
 func _place_cam(phase: int) -> void:
-	if phase == 4:
+	if phase == 4 or phase == 10:
 		return
 	var tgt := _p.global_position
 	var yaw := _p.yaw
+	if phase == 11:                                              # the specialists stand in a row 6 m ahead: look at the row's centre from the front
+		_cam.global_position = Game.SPAWN + Vector3(3.2, 1.6, 0.2)
+		_cam.look_at(Game.SPAWN + Vector3(7.5, 1.2, 0.2), Vector3.UP)
+		return
 	if phase >= 5 and phase != 7 and phase != 8 and not _group.is_empty() and is_instance_valid(_group[0]):
 		tgt = _group[0].global_position
 		yaw = _group[0].yaw

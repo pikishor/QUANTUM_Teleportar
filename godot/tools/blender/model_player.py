@@ -14,7 +14,9 @@ from alienlib import make_finalize, surf_y, two_bone, xy_rings  # noqa: E402
 from helpers import (empty, export_model, hexc, light, make_material, new_scene, ring_se, rotm, scale_c, set_detail)  # noqa: E402
 from humanoid import RigPart, p_visor_sheen  # noqa: E402
 from shade import Decal  # noqa: E402
+import atlas  # noqa: E402
 
+atlas.PAD = 8             # UV island padding (was 4): no atlas bleed at mip 3+ (10+ m) and on the LOW 1K read
 new_scene()
 set_detail(1.4)            # round limbs and plates: more segments, tube rings and bevel steps (helpers.DETAIL)
 BRIGHT = 2.0
@@ -30,14 +32,17 @@ def T(h, k=BRIGHT):
     return scale_c(hexc(h), k)
 
 
-SKIN = T("#3a6677")
-SKIN2 = T("#2b4f5e")
-DARK = T("#0e1d27", 1.9)
-PEARL = scale_c(hexc("#e9f2f2"), 1.0)
-PEARL2 = scale_c(hexc("#c3d9dd"), 1.05)
-CLOAK = T("#2c5566")
-CLOAK2 = T("#142f3b", 1.8)
-BONE = T("#34454d", 1.5)
+# value structure (clean-up pass): DARK armour body, slightly lighter slate plates (never pale: the old pearl plates + spikes read as a white halo),
+# a lighter helmet shell against an obsidian faceplate, cyan only on the slit, the chest core, the spine line and the rifle coil, amber only on the belt and wrists
+SKIN = T("#2c4552", 1.9)
+SKIN2 = T("#203540", 1.9)
+DARK = T("#0b161e", 2.0)
+PEARL = T("#56748a", 1.45)           # plates: mid slate (was near white)
+PEARL2 = T("#3a5361", 1.5)
+HELM = T("#46606e", 1.25)            # helmet shell: the lightest value, so the dark faceplate reads against it
+CLOAK = T("#1f3c4a", 1.9)
+CLOAK2 = T("#0f2230", 1.9)
+BONE = T("#3b4f58", 1.5)
 
 HIP = (0.0, 0.0, 1.02)
 WAIST = (0.0, 0.0, 1.15)
@@ -67,23 +72,17 @@ hips.loft(xy_rings([(0.95, 0.0, 0.11, 0.085), (1.03, 0.0, 0.14, 0.10), (1.11, 0.
 hips.loft(xy_rings([(1.105, 0.0, 0.132, 0.101), (1.117, 0.0, 0.132, 0.101)]), mat=gla)                      # amber belt line
 hips.box((0.07, 0.03, 0.09), (0, 0.10, 1.0), mat=chit, tint=PEARL2, bevel=0.006, top=(0.7, 1.0))                # groin plate
 for s in (-1, 1):
-    hips.rod((s * 0.07, -0.06, 1.0), (s * 0.12, -0.2, 0.88), 0.014, mat=chit, tint=PEARL, r2=0.002, segs=6)         # hip spurs
-for s in (-1, 1):
     x0 = 0.10 * s
     p, q, f = thigh[s], shin[s], foot[s]
     p.tube([(x0, 0.0, 1.03), (x0, 0.05, 0.84), (x0, KNEE[1], KNEE[2])], [(0.098, 0.108), (0.092, 0.106), (0.064, 0.07)], mat=chit, tint=SKIN, n=10, exp=2.2, sub=2)
     p.sphere(0.05, (x0, KNEE[1], KNEE[2]), mat=chit, tint=SKIN2, segs=10, rings=6)
-    p.rod((x0 + s * 0.055, 0.06, 0.78), (x0 + s * 0.058, 0.115, 0.6), 0.005, mat=glc, segs=4)                      # cyan thigh vein
-    p.rod((x0, KNEE[1] + 0.045, KNEE[2] + 0.01), (x0, KNEE[1] + 0.13, KNEE[2] - 0.05), 0.02, mat=chit, tint=PEARL, r2=0.003, segs=6)    # knee spur
     q.tube([(x0, KNEE[1], KNEE[2]), (x0, 0.03, 0.46), (x0, HOCK[1], HOCK[2])], [(0.064, 0.068), (0.058, 0.074), (0.042, 0.045)], mat=chit, tint=SKIN, n=9, exp=2.2, sub=2)
-    q.rod((x0 + s * 0.03, 0.095, 0.58), (x0 + s * 0.028, -0.03, 0.37), 0.0045, mat=glc, segs=4)
     q.bar((x0, 0.115, 0.56), (x0, 0.02, 0.4), 0.052, 0.018, mat=chit, tint=PEARL2, bevel=0.005, taper=(0.7, 0.7))   # shin guard
     f.sphere(0.036, (x0, HOCK[1], HOCK[2]), mat=chit, tint=SKIN2, segs=9, rings=6)
     f.tube([(x0, HOCK[1], HOCK[2]), (x0, 0.04, 0.17), (x0, 0.12, 0.05)], [(0.04, 0.044), (0.034, 0.038), (0.038, 0.034)], mat=chit, tint=SKIN, n=8, exp=2.2, sub=1)
     for k, dx in enumerate((-0.032, 0.0, 0.032)):                                                                   # three toes with claws
         f.rod((x0 + dx * 0.4, 0.115, 0.045), (x0 + dx, 0.26, 0.018), 0.017, mat=chit, tint=SKIN2, r2=0.011, segs=7)
-        f.rod((x0 + dx, 0.255, 0.02), (x0 + dx, 0.31, 0.008), 0.011, mat=chit, tint=PEARL, r2=0.002, segs=6)
-    f.rod((x0, HOCK[1] - 0.02, HOCK[2] + 0.02), (x0, -0.15, 0.2), 0.016, mat=chit, tint=PEARL, r2=0.003, segs=6)     # heel spur
+        f.rod((x0 + dx, 0.255, 0.02), (x0 + dx, 0.31, 0.008), 0.011, mat=chit, tint=PEARL2, r2=0.004, segs=6)
 
 # ------------------------------------------------------------------ torso
 torso.loft(xy_rings(TORSO), mat=chit, tint=SKIN)
@@ -107,36 +106,24 @@ def vein(part, mat, pts, r=0.007, back=False):
 
 
 for sx in (-1, 1):
-    vein(torso, glc, [(sx * 0.05, 1.40), (sx * 0.10, 1.45), (sx * 0.14, 1.50)])
     vein(torso, glc, [(sx * 0.045, 1.35), (sx * 0.085, 1.27), (sx * 0.09, 1.17)])
-    vein(torso, glc, [(sx * 0.03, 1.43), (sx * 0.035, 1.5), (sx * 0.03, 1.55)])
-    vein(torso, glc, [(sx * 0.1, 1.45), (sx * 0.16, 1.40), (sx * 0.16, 1.30)], back=True)
 vein(torso, glc, [(0.0, 1.56), (0.0, 1.45), (0.0, 1.30), (0.0, 1.14)], r=0.0055, back=True)                           # glowing spine line (seen from behind)
-for k in range(6):                                                                                                  # dorsal ridges
-    z = 1.50 - 0.07 * k
-    cy = surf_y(TORSO, z, 0, back=True)
-    torso.rod((0, cy + 0.01, z), (0, cy - 0.095 + 0.008 * k, z + 0.045), 0.011, mat=chit, tint=PEARL2, r2=0.002, segs=5)
 # phase halo behind the shoulders (a thin luminous ring held by two struts) and an amber node
-torso.torus(0.2, 0.0085, (0, -0.2, 1.40), rot=(90, 0, 0), mat=glc, segs=30, sides=5)
-for sx in (-1, 1):
-    torso.rod((sx * 0.1, -0.1, 1.46), (sx * 0.19, -0.2, 1.50), 0.01, mat=chit, tint=DARK, segs=5)
-torso.sphere(0.018, (0, -0.2, 1.6), mat=gla, segs=8, rings=6)
 
 # ------------------------------------------------------------------ head: swept cranium, smooth faceplate with a cyan slit, crest
 neck_pts = [(0, 0.0, 1.5), (0, 0.025, 1.6), (0, 0.045, 1.69)]
 head.tube(neck_pts, [(0.045, 0.045), (0.04, 0.04), (0.04, 0.05)], mat=chit, tint=SKIN2, n=8, sub=1)
 cran = [(-0.38, 1.745, 0.012, 0.014), (-0.34, 1.77, 0.03, 0.045), (-0.26, 1.80, 0.06, 0.085), (-0.16, 1.81, 0.085, 0.115),
         (-0.06, 1.80, 0.098, 0.13), (0.04, 1.785, 0.095, 0.125), (0.10, 1.765, 0.075, 0.105), (0.125, 1.75, 0.04, 0.07)]
-head.loft([ring_se(0, y, zc, rx, rz, 12, 2.2, plane="xz") for y, zc, rx, rz in cran], mat=chit, tint=SKIN)
+head.loft([ring_se(0, y, zc, rx, rz, 12, 2.2, plane="xz") for y, zc, rx, rz in cran], mat=chit, tint=HELM)
 head.sphere((0.083, 0.062, 0.112), (0, 0.075, 1.755), mat=obs, tint=scale_c(hexc("#1b2832"), 1.7), segs=14, rings=9)    # faceplate (obsidian, pearl sheen decal)
 head.loft([ring_se(0, y, zc, rx, rz, 4, 2.0, plane="xz") for y, zc, rx, rz in
            [(0.06, 1.90, 0.011, 0.02), (-0.05, 1.925, 0.011, 0.04), (-0.2, 1.915, 0.011, 0.05), (-0.34, 1.87, 0.011, 0.045),
-            (-0.46, 1.8, 0.011, 0.03), (-0.55, 1.72, 0.008, 0.012)]], mat=chit, tint=PEARL, bevel=0.0)                 # swept crest
+            (-0.46, 1.8, 0.011, 0.03), (-0.55, 1.72, 0.008, 0.012)]], mat=chit, tint=HELM, bevel=0.0)                 # swept crest
 slit = [(x, 0.075 + 0.062 * math.sqrt(max(0.02, 1 - (0.02 / 0.112) ** 2 - (x / 0.083) ** 2)) + 0.001, 1.775) for x in (-0.06, -0.04, -0.02, 0.0, 0.02, 0.04, 0.06)]
 head.tube(slit, [(0.0065, 0.0055)] * len(slit), mat=glc, n=4, sub=1, up=(0, 1, 0))                              # the thin cyan slit
 for sx in (-1, 1):
-    head.rod((sx * 0.09, -0.04, 1.74), (sx * 0.17, -0.24, 1.78), 0.012, mat=chit, tint=PEARL2, r2=0.002, segs=5)     # cheek blades
-    head.rod((sx * 0.055, 0.06, 1.69), (sx * 0.03, 0.115, 1.65), 0.012, mat=chit, tint=PEARL, r2=0.004, segs=5)       # chin spurs
+    pass                                                                                                           # (cheek blades and chin spurs removed: spike clutter)
 
 # ------------------------------------------------------------------ rifle: alien-tech fork-prong weapon (rifle-local axes: +Y muzzle, +Z up)
 RR = rotm(1.2, 0, 0)
@@ -188,16 +175,12 @@ for s, side in ((-1, "L"), (1, "R")):
     # translucent layered pearl shoulder plates + a swept spike
     for k, (rx, ry, rz, dx, dz) in enumerate([(0.12, 0.09, 0.03, 0.03, 0.065), (0.105, 0.08, 0.026, 0.065, 0.035), (0.085, 0.068, 0.022, 0.095, 0.008)]):
         ua.sphere((rx, ry, rz), Sv + Vector((s * dx, 0.0, dz)), rot=(0, s * (18 + 10 * k), 0), mat=chit, tint=PEARL if k == 0 else PEARL2, segs=12, rings=7)
-    ua.box((0.1, 0.006, 0.006), Sv + Vector((s * 0.06, 0.082, 0.062)), rot=(0, s * 20, 0), mat=glc)
-    ua.rod(Sv + Vector((s * 0.06, -0.05, 0.075)), Sv + Vector((s * 0.1, -0.22, 0.16)), 0.02, mat=chit, tint=PEARL, r2=0.003, segs=6)
     ua.tube([Sv + Vector((0, 0, 0.0)), (Sv + E) / 2 + Vector((s * 0.01, 0, 0)), E], [(0.044, 0.044), (0.038, 0.038), (0.034, 0.034)], mat=chit, tint=SKIN, n=9, sub=1)
     fa_.sphere(0.036, E, mat=chit, tint=SKIN2, segs=9, rings=6)
-    fa_.rod(E + Vector((0, 0.0, 0.0)), E + Vector((s * 0.02, -0.085, 0.045)), 0.015, mat=chit, tint=PEARL, r2=0.002, segs=6)       # elbow spur
     fv = W - E
     fa_.tube([E, E + fv * 0.5, W], [(0.034, 0.034), (0.031, 0.031), (0.024, 0.024)], mat=chit, tint=SKIN, n=9, sub=1)
     fa_.bar(E + fv * 0.25, E + fv * 0.72, 0.062, 0.05, mat=chit, tint=DARK, bevel=0.006, taper=(0.8, 0.8))                # bracer
     fa_.rod(E + fv * 0.78, E + fv * 0.82, 0.032, mat=gla, segs=10)                                                        # amber wrist ring
-    fa_.rod(E + fv * 0.1 + Vector((s * 0.03, 0, 0.012)), E + fv * 0.74 + Vector((s * 0.027, 0, 0.008)), 0.0045, mat=glc, segs=4)
     # hand: palm + FOUR long fingers wrapping the rifle + thumb spur
     h = hands[s]
     fa_.tube([W - fv.normalized() * 0.02, h], [(0.026, 0.026), (0.032, 0.03)], mat=chit, tint=SKIN2, n=8, sub=0)
@@ -219,23 +202,17 @@ for s in (-1, 1):
     for k in range(3):                                       # descending lamellae: a stepped pauldron that reads from every side
         ua.sphere((0.135 - 0.012 * k, 0.105 - 0.006 * k, 0.02), Sv + Vector((s * (0.095 + 0.04 * k), 0.0, -0.005 - 0.065 * k)), rot=(0, s * (34 + 17 * k), 0),
                   mat=chit, tint=PEARL2 if k % 2 else PEARL, segs=12, rings=6)
-        ua.box((0.09 - 0.008 * k, 0.005, 0.005), Sv + Vector((s * (0.11 + 0.04 * k), 0.098 - 0.006 * k, -0.012 - 0.065 * k)), rot=(0, s * (34 + 17 * k), 0), mat=glc)
-    ua.rod(Sv + Vector((s * 0.07, 0.0, 0.08)), Sv + Vector((s * 0.15, -0.06, 0.31)), 0.034, mat=chit, tint=PEARL, r2=0.003, segs=7)     # tall blade spike
-    ua.rod(Sv + Vector((s * 0.12, 0.05, 0.05)), Sv + Vector((s * 0.27, 0.12, 0.14)), 0.02, mat=chit, tint=PEARL2, r2=0.003, segs=6)       # forward spike
+    ua.sphere((0.1, 0.085, 0.04), Sv + Vector((s * 0.06, -0.01, 0.075)), rot=(0, s * 20, 0), mat=chit, tint=PEARL, segs=12, rings=6)     # one smooth dome instead of the spikes
 torso.loft(xy_rings([(1.50, 0.02, 0.215, 0.14), (1.57, 0.03, 0.17, 0.12)], n=12), mat=chit, tint=PEARL2, bevel=0.004)                 # flared gorget
-torso.box((0.36, 0.03, 0.24), (0, -0.105, 1.64), rot=(-14, 0, 0), mat=chit, tint=PEARL, bevel=0.008, top=(0.55, 1.0))             # standing collar behind the head
-torso.box((0.3, 0.02, 0.012), (0, -0.098, 1.72), rot=(-14, 0, 0), mat=glc)
+torso.box((0.3, 0.03, 0.2), (0, -0.105, 1.63), rot=(-14, 0, 0), mat=chit, tint=SKIN2, bevel=0.008, top=(0.55, 1.0))             # standing collar behind the head
 torso.loft(xy_rings([(1.52, -0.02, 0.25, 0.15), (1.42, -0.055, 0.27, 0.165), (1.31, -0.085, 0.225, 0.165)], n=12), mat=silk, tint=CLOAK)  # mantle over the shoulders
 for s in (-1, 1):
     hips.box((0.05, 0.19, 0.21), (s * 0.165, 0.0, 0.96), rot=(0, 0, -s * 10), mat=chit, tint=PEARL2, bevel=0.008, top=(0.8, 1.0))      # hip skirt plates
-    hips.box((0.03, 0.01, 0.2), (s * 0.17, 0.092, 0.96), rot=(0, 0, -s * 10), mat=glc)
     x0 = 0.10 * s
     thigh[s].box((0.13, 0.1, 0.26), (x0 + s * 0.02, 0.08, 0.8), rot=(-6, 0, s * 4), mat=chit, tint=PEARL, bevel=0.01, bsegs=2, top=(0.85, 0.9))   # thigh armour
     thigh[s].sphere((0.075, 0.05, 0.075), (x0, KNEE[1] + 0.045, KNEE[2] + 0.015), mat=chit, tint=PEARL2, segs=12, rings=7)             # knee guard
-    thigh[s].torus(0.062, 0.011, (x0, KNEE[1], KNEE[2]), mat=gla, segs=12, sides=4)                                    # amber knee joint ring
     shin[s].torus(0.052, 0.009, (x0, 0.03, 0.45), mat=chit, tint=PEARL, segs=12, sides=4)
     foot[s].box((0.075, 0.13, 0.05), (x0, 0.09, 0.075), rot=(8, 0, 0), mat=chit, tint=PEARL2, bevel=0.008, top=(0.7, 0.9))                 # toe cap
-    farm[s].torus(0.04, 0.008, farm[s].origin, mat=gla, segs=12, sides=5)                                               # elbow ring
     h = hands[s]
     farm[s].box((0.052, 0.075, 0.014), h + R3 @ Vector((0, 0.01, 0.05)), frame=RR, mat=chit, tint=PEARL2, bevel=0.004)                  # back-of-hand plate
 rbox((0.04, 0.07, 0.17), (0, 0.235, -0.1), chit, DARK, bevel=0.006)                                                                    # fuller grip
@@ -250,19 +227,16 @@ for si, (p, z0, z1, rad, flare) in enumerate(seg_defs):
         phi = -68.0 + 136.0 * j / (n - 1)
         a = math.radians(phi)
         rd = Vector((math.sin(a), -math.cos(a), 0.0))
-        jag = 0.7 + 0.55 * (0.5 + 0.5 * math.sin(j * 2.9 + si * 1.7)) if si == 2 else 1.0
+        jag = 1.0                     # a straight clean hem (the jagged hem read as noise from the chase camera)
         L = (z0 - z1) * jag
         top = Vector((rad * 1.45 * math.sin(a), -0.115 - rad * 0.9 * math.cos(a) - 0.05 * si, z0 + 0.02))
         bot = top + Vector((rd.x * flare, rd.y * (flare + 0.03), -L - 0.02))
         w = 0.066 + 0.016 * si                                   # half width: neighbouring ribbons overlap, so the cloak reads as one solid sheet
-        tip = 0.42 if si == 2 else (0.7 if si == 1 else 0.85)
+        tip = 0.8 if si == 2 else (0.9 if si == 1 else 0.95)       # wider hem: a solid cape shape, not tattered strips
         mid = top + (bot - top) * 0.5 + rd * 0.012
         # a solid satin ribbon (smooth elliptic section, thin along the radial direction, wide along the tangent), no alpha, no grain
         p.tube([top, mid, bot], [(0.006, w), (0.0065, w * (0.5 + 0.5 * tip)), (0.003, w * tip * 0.5)], mat=silk,
                tint=CLOAK if (j + si) % 2 == 0 else CLOAK2, n=6, up=rd, sub=1, exp=2.6)
-        if si == 2:
-            p.rod(bot + Vector((0, 0, L * 0.28)), bot + rd * 0.004, 0.0055, mat=glc, segs=4)                              # glowing tip
-            p.rod(top + (bot - top) * 0.52 + rd * 0.01, top + (bot - top) * 0.82 + rd * 0.01, 0.0045, mat=glc, segs=4)    # short glowing edge vein
     if si == 0:
         p.loft(xy_rings([(1.50, -0.02, 0.17, 0.115), (1.44, -0.05, 0.19, 0.13)]), mat=silk, tint=CLOAK)
 
@@ -275,5 +249,5 @@ rig = [empty("Muzzle", muzzle), empty("WristL", wrist_pos[-1]), empty("WristR", 
        light("Rim", (0.25, -0.8, 2.15), "omni", (0.35, 0.85, 1.0), 1.5, 3.8, mask="own", attenuation=1.2, fade=(30, 12))]
 print("  parts=%d tris(before culling)=%d" % (len(parts), sum(p.tri_count() for p in parts)), {p.name: p.tri_count() for p in parts})
 decals = [Decal((0.0, 0.1, 1.76), (0, 1, 0), (0, 0, 1), (0.2, 0.2), p_visor_sheen(hexc("#19d8ff")), depth=0.08, kinds=("glass",), min_dot=0.2)]
-export_model("player", parts, extras=rig, size=1024, decals=decals, ao_dist=0.2, ao_strength=0.55, emit_strength=1.5,
+export_model("player", parts, extras=rig, size=1024, decals=decals, ao_dist=0.2, ao_strength=0.55, emit_strength=1.25,
              finalize=make_finalize(["Sec1", "Sec2", "Sec3"]), hipoly=dict(levels=2))

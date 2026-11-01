@@ -13,7 +13,9 @@ from mathutils import Matrix, Vector  # noqa: E402
 from alienlib import make_finalize, surf_y, two_bone, xy_rings  # noqa: E402
 from helpers import (empty, export_model, hexc, light, make_material, new_scene, ring_se, rotm, scale_c, set_detail)  # noqa: E402
 from humanoid import RigPart  # noqa: E402
+import atlas  # noqa: E402
 
+atlas.PAD = 8             # UV island padding (was 4): no atlas bleed at mip 3+ and on the LOW 1K read
 new_scene()
 set_detail(1.1)
 BRIGHT = 1.6
