@@ -35,6 +35,8 @@ const ANCHOR_LEASH := 62.0
 const ANCHOR_LEASH_TIME := 10.0
 const WAVE_GAP := 5.0
 const SPAWN_STEP := 0.6
+const BOSS_LEASH := 170.0
+const BOSS_LEASH_TIME := 12.0
 const OFFICER_HP := 240.0
 const OFFICER_SCALE := 1.18
 const OFFICER_HINT_FAR := 70.0         ## beyond this the minimap shows an area, not a point
@@ -59,6 +61,7 @@ var done_count := 0
 var failed_count := 0
 var last_reward: Dictionary = {}
 var last_fail := ""
+var boss_drop: StringName = &""          ## the weapon the last Overseer dropped
 var is_retry := false
 var target: Node3D                     ## officer (Drone) or chase car (Vehicle)
 var foes: Array = []                   ## enemies this contract spawned (Drone)
@@ -188,6 +191,9 @@ func hud_line() -> String:
 				&"courier": return "%s  %s  %d M" % [title, _clock_text(time_left), roundi(distance_to_goal())]
 				&"survive": return "%s  WAVE %d / %d  FOES %d" % [title, mini(wave + 1, waves), waves, foes_alive() + pending]
 				&"drones": return "%s  %d / %d  %s" % [title, got, need, _clock_text(time_left)]
+				&"boss":
+					var ov := target as Overseer
+					return "%s  PHASE %d / 3  %s  %d M" % [title, ov.phase if ov != null else 1, _clock_text(time_left), roundi(distance_to_goal())]
 		&"cooldown":
 			return "" if not is_retry else "CONTRACT FAILED  RETRY SOON"
 	return ""
@@ -200,7 +206,7 @@ func distance_to_goal() -> float:
 	var goal := pos
 	if state == &"active":
 		match kind:
-			&"officer", &"chase":
+			&"officer", &"chase", &"boss":
 				if is_instance_valid(target):
 					goal = target.global_position
 			&"courier":
@@ -219,6 +225,10 @@ func boss() -> Dictionary:
 		var d := target as Drone
 		if d != null and not d.dead:
 			return {"name": "VAEL OFFICER", "frac": clampf(d.hp / maxf(d.max_hp, 1.0), 0.0, 1.0)}
+	if state == &"active" and kind == &"boss" and is_instance_valid(target):
+		var o := target as Overseer
+		if o != null and not o.dead:
+			return {"name": "VAEL OVERSEER  PHASE %d / 3" % o.phase, "frac": o.hp_fraction(), "phase": o.phase}
 	return {}
 
 
@@ -251,6 +261,9 @@ func markers() -> Array[Dictionary]:
 				&"chase":
 					if is_instance_valid(target):
 						_add_marker(target.global_position, ContractTypes.AMBER, &"target", 0.0)
+				&"boss":
+					if is_instance_valid(target):
+						_add_marker(target.global_position, ContractTypes.VIOLET, &"target", 0.0)
 				&"hack":
 					_add_marker(pos, ContractTypes.CYAN, &"zone", HACK_RADIUS)
 				&"survive":
@@ -342,6 +355,9 @@ func _process(delta: float) -> void:
 # --- choosing and showing ----------------------------------------------------------------------------------------------
 
 func _pick_kind() -> StringName:
+	var prog := Game.progress as Progress
+	if ContractTypes.is_boss_chapter(chapter()) and (prog == null or not chapter() in prog.bosses_cleared):
+		return &"boss"                                      # the end of the sector: the Overseer, until it is down
 	var banned: Array = []
 	if not _car_in_reach():
 		banned.append(&"chase")
@@ -457,6 +473,7 @@ func _begin() -> bool:
 		&"courier": ok = _begin_courier(ch)
 		&"survive": ok = _begin_survive(ch)
 		&"drones": ok = _begin_drones(ch)
+		&"boss": ok = _begin_boss(ch)
 	if not ok:
 		Game.say("AREA CROWDED, STAND BY", 1.6)
 		return false
@@ -503,6 +520,63 @@ func _begin_officer(ch: int, diff: Dictionary) -> bool:
 	visuals.show_marker(0, at, 2.0, ContractTypes.RED, -1.0, true)
 	progress = 0.0
 	return true
+
+
+func _begin_boss(_ch: int) -> bool:
+	var p := _ref_pos()
+	var at := road_point(p, 70.0, 110.0)
+	var o := _spawn(&"overseer", at, false)
+	if o == null:
+		return false
+	target = o
+	_escape_t = 0.0
+	Game.add_heat(1.0)
+	pos = at
+	visuals.hide_all()
+	visuals.show_marker(0, at, 2.0, ContractTypes.VIOLET, -1.0, true)
+	progress = 0.0
+	return true
+
+
+func _tick_boss(delta: float) -> void:
+	var o := target as Overseer
+	if o == null or not is_instance_valid(o):
+		_fail("TARGET LOST")
+		return
+	if o.dead or o.hp <= 0.0:
+		_boss_down(o)
+		_complete(clampf(time_left / maxf(time_total, 1.0), 0.0, 1.0))
+		return
+	if not o.active or o.remove:
+		_fail("TARGET LOST")
+		return
+	progress = 1.0 - o.hp_fraction()
+	visuals.move_marker(0, o.global_position)
+	var p := _ref_pos()
+	if p.is_finite() and Vector2(o.global_position.x - p.x, o.global_position.z - p.z).length() > BOSS_LEASH:
+		_escape_t += delta                                  # leaving the Overseer behind for too long loses the fight
+		if _escape_t > BOSS_LEASH_TIME:
+			_fail("TOO FAR")
+	else:
+		_escape_t = 0.0
+
+
+## The Overseer's last breath: its unique drop (the chapter's weapon, or an ammo pack when owned) lands where it fell; the credits and upgrades come with _complete().
+func _boss_down(o: Overseer) -> void:
+	var ch := chapter()
+	var prog := Game.progress as Progress
+	var wid: StringName = ContractTypes.BOSS_DROPS.get(ch, &"scatter")
+	boss_drop = wid
+	var m := Game.missions
+	if prog != null:
+		prog.grant_weapon(wid)                               # unlocked at once (a pickup on the ground lasts only 40 s) ...
+	if is_instance_valid(m) and m.has_method(&"drop_weapon"):
+		m.call(&"drop_weapon", wid, Vector3(o.global_position.x, 0.0, o.global_position.z))     # ... and the same weapon lies where it fell (an ammo pack once owned)
+	if prog != null and not ch in prog.bosses_cleared:
+		prog.bosses_cleared.append(ch)
+		prog.add_reputation(10)
+		prog.grant_upgrade(&"", rng)                        # the sector-clear bonus: a second free upgrade on top of the contract's
+	Game.say("SECTOR CLEARED  OVERSEER DOWN", 3.0)
 
 
 func _begin_hack(ch: int) -> bool:
@@ -638,6 +712,7 @@ func _tick_active(delta: float) -> void:
 		&"courier": _tick_courier(p)
 		&"survive": _tick_survive(delta, p)
 		&"drones": _tick_drones(delta)
+		&"boss": _tick_boss(delta)
 	if state != &"active":
 		return
 	if time_left <= 0.0:
@@ -656,6 +731,7 @@ func _is_mid() -> bool:
 		&"courier": return time_left < time_total * 0.5
 		&"survive": return wave >= 1
 		&"drones": return got * 2 >= need
+		&"boss": return progress >= 0.5
 	return false
 
 
@@ -937,6 +1013,12 @@ func _cleanup(release_foes: bool) -> void:
 			car.exploded.disconnect(_on_target_exploded)
 	if release_foes:
 		var em := Game.enemies as EnemyManager
+		var ov := target as Overseer
+		if em != null and ov != null and is_instance_valid(ov):
+			for s in ov.summoned.duplicate():
+				if is_instance_valid(s) and s.active:
+					em.release(s)                           # his drones go with him
+			Sfx.boss_active = false
 		if em != null:
 			for f: Variant in foes:
 				var d := f as Drone

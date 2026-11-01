@@ -53,6 +53,7 @@ const MUSIC_STATES := {
 	&"alert": [-2.0, -3.0, -6.0, -12.0, -60.0],
 	&"combat": [-4.0, 0.0, 0.0, 0.0, -3.0],
 	&"driving": [-8.0, -2.0, -3.0, -4.0, -4.0],
+	&"boss": [-3.0, 0.0, 0.0, 0.0, 0.0],
 	&"death": [-18.0, -60.0, -60.0, -60.0, -60.0],
 	&"win": [-3.0, -10.0, -60.0, -60.0, -2.0],
 }
@@ -114,6 +115,8 @@ var muted := false:
 ## When true the music state follows the game (heat, vehicle, death, win); tests and cutscenes may switch it off and call set_music_state themselves.
 var auto_music := true
 var music_state: StringName = &"explore"
+## True while the Vael Overseer lives (Overseer sets it): the music state follows to `boss` (every stem up) until he falls or the contract ends.
+var boss_active := false
 var _state_since := 0.0
 var _state_clock := 0.0
 var _state_poll := 0.0
@@ -668,7 +671,7 @@ func set_music_state(state: StringName, snap := false) -> void:
 		_stem_target[i] = float(tgt[i])
 		if snap:
 			_stem_db[i] = float(tgt[i])
-	_stem_tau = 0.25 if state == &"death" else (0.45 if state == &"combat" else STATE_TAU)
+	_stem_tau = 0.25 if state == &"death" else (0.45 if state in [&"combat", &"boss"] else STATE_TAU)
 	_push_stem_volumes()
 	if changed and not muted:
 		match state:
@@ -676,7 +679,7 @@ func set_music_state(state: StringName, snap := false) -> void:
 				_play_sting(&"sting_death")
 			&"win":
 				_play_sting(&"sting_win")
-			&"alert", &"combat":
+			&"alert", &"combat", &"boss":
 				if old in [&"explore", &"driving", &"menu"]:
 					play(&"heat_up", -6.0)
 			&"explore":
@@ -730,6 +733,8 @@ func wanted_music_state() -> StringName:
 			return &"death"
 		&"win":
 			return &"win"
+	if boss_active:
+		return &"boss"
 	var heat := Game.heat
 	var driving := is_instance_valid(Game.vehicles) and Game.vehicles.get(&"driven") != null
 	var base: StringName = &"driving" if driving else &"explore"

@@ -47,12 +47,24 @@ var _have_last := false
 var _fdir := Vector2.ZERO               ## where the last hit came from, body space (x right, y forward)
 var _death_kind := 0                    ## 0 onto the side, 1 forward, 2 backward
 var _rest_drop := 0.0
+var _aim_override := Vector3.INF            ## where the next round is aimed when it is not at the target (the sniper lock)
+var _called := false                    ## the squad callout of this life has been made
+var _assigned_t := 0.0                  ## seconds of an assigned flank left
+var _cover_on := false
+var _cover := Vector3.INF
+var _cover_state := 0                   ## 0 none, 1 running to cover, 2 hidden, 3 peeking
+var _cover_t := 0.0
+var _cover_cd := 0.0
+var _cover_dir := Vector2.ZERO
+var _cover_search_t := 0.0
+var _peeked := false
 
 
 func _make_shape() -> Shape3D:
 	var cap := CapsuleShape3D.new()
-	cap.radius = 0.35
-	cap.height = 1.5
+	var k := float(cfg.get("scale", 1.0))
+	cap.radius = 0.35 * k
+	cap.height = 1.5 * k
 	return cap
 
 
@@ -118,6 +130,15 @@ func _apply_shadow(on: bool) -> void:
 
 
 func _on_activate() -> void:
+	_called = false
+	_assigned_t = 0.0
+	_cover_on = bool(cfg.get("cover", false))
+	_cover = Vector3.INF
+	_cover_state = 0
+	_cover_t = 0.0
+	_cover_cd = 0.0
+	_cover_search_t = randf() * 0.5
+	_peeked = false
 	_aim_t = 0.0
 	_burst_left = 0
 	_shot_t = 0.0
@@ -220,14 +241,54 @@ func _death_effect() -> void:
 	_aim_t = 0.0
 
 
+## How fast the body turns towards the target (a shield trooper turns slowly: that is the window to flank him).
+func _turn_rate() -> float:
+	return 8.0
+
+
 func _think_aware(delta: float, dx: float, dz: float, d: float) -> void:
 	var speed: float = cfg["speed"]
 	var rng: float = cfg["range"]
-	yaw = lerp_angle(yaw, atan2(-dx, -dz), 1.0 - exp(-8.0 * delta))
+	yaw = lerp_angle(yaw, atan2(-dx, -dz), 1.0 - exp(-_turn_rate() * delta))
 	var ux := dx / d
 	var uz := dz / d
 	_no_los = 0.0 if los else _no_los + delta
-	if d > rng * 0.95 or not los:
+	if not _called:
+		_called = true
+		var mgr := Game.enemies as EnemyManager
+		if mgr != null:
+			mgr.squad_callout(self, _tgt)                  # the squad is told: neighbours wake up and get flank sides
+	_assigned_t = maxf(0.0, _assigned_t - delta)
+	_move_aware(delta, ux, uz, d, speed, rng)
+	_fire_cycle(delta, d, rng)
+
+
+## The squad leader's order: come in from this side (+1 / -1) for `seconds`.
+func assign_flank(side: float, seconds := 8.0) -> void:
+	_flank = side
+	_assigned_t = seconds
+	_leave_cover(0.0)
+
+
+func flank_side() -> float:
+	return _flank
+
+
+## Does this soldier take flank orders? (brutes charge, the boss is its own plan)
+func role_flanks() -> bool:
+	return type != &"brute" and type != &"overseer"
+
+
+## Default operative movement: close in when far or blind (at an angle after FLANK_AFTER s without sight), back off when pressed, strafe in between; cover first when the cfg
+## asks for it (cover_on): run behind a nearby prop collider, wait hidden, peek to fire a burst, leave when flanked or rushed.
+func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
+	if _cover_on and _assigned_t <= 0.0 and _cover_move(delta, ux, uz, d, speed, rng):
+		return
+	if _assigned_t > 0.0 and d > rng * 0.45:                  # an assigned flank: arc round the target even while it can see us
+		_mx = ux * 0.55 - uz * 0.85 * _flank
+		_mz = uz * 0.55 + ux * 0.85 * _flank
+		_speed = speed * 1.05
+	elif d > rng * 0.95 or not los:
 		_mx = ux
 		_mz = uz
 		_speed = speed
@@ -246,7 +307,13 @@ func _think_aware(delta: float, dx: float, dz: float, d: float) -> void:
 		_mx = -uz * _strafe
 		_mz = ux * _strafe
 		_speed = speed * 0.45
-	# aim, then a short burst, then a pause
+
+
+## Aim, then a short burst, then a pause.
+func _fire_cycle(delta: float, d: float, rng: float) -> void:
+	if _cover_state == 1 or _cover_state == 2:
+		_aim_t = 0.0                                          # running to cover or hiding behind it: no shooting
+		return
 	if _aim_t > 0.0:
 		_speed *= 0.2
 		_aim_t -= delta
@@ -271,6 +338,84 @@ func _think_aware(delta: float, dx: float, dz: float, d: float) -> void:
 			_aim_t = float(cfg["aim_time"])
 
 
+# --- cover: pooled prop colliders (EnemyCover.find) ------------------------------------------------------------------
+
+func cover_state() -> int:
+	return _cover_state
+
+
+func cover_point() -> Vector3:
+	return _cover
+
+
+func _leave_cover(cooldown: float) -> void:
+	_cover_state = 0
+	_cover = Vector3.INF
+	_cover_cd = cooldown
+
+
+func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> bool:
+	if _tgt_clone:
+		return false
+	_cover_cd = maxf(0.0, _cover_cd - delta)
+	var to_t := Vector2(ux, uz)
+	if _cover_state != 0:
+		if to_t.dot(_cover_dir) < 0.5 or d < 5.5:           # the target went round the side (more than 60 degrees) or rushed us: the cover is spent
+			_leave_cover(3.5)
+			return false
+	if _cover_state == 0:
+		if _cover_cd > 0.0 or d > rng * 1.1 or d < 7.0:
+			return false
+		_cover_search_t -= delta
+		if _cover_search_t > 0.0:
+			return false
+		_cover_search_t = 0.5
+		var c := EnemyCover.find(self, _tgt, float(cfg.get("cover_radius", 22.0)))
+		if not c.is_finite():
+			_cover_cd = 1.5
+			return false
+		_cover = c
+		_cover_state = 1
+		_cover_dir = to_t
+	var to_c := Vector2(_cover.x - global_position.x, _cover.z - global_position.z)
+	match _cover_state:
+		1:
+			if to_c.length() < 0.7:
+				_cover_state = 2
+				_cover_t = randf_range(0.9, 1.8)
+			else:
+				var u := to_c.normalized()
+				_mx = u.x
+				_mz = u.y
+				_speed = speed * 1.15
+		2:
+			_speed = 0.0
+			_cover_t -= delta
+			if _cover_t <= 0.0:
+				_cover_state = 3
+				_cover_t = 3.0
+				_peeked = false
+				_fire_t = 0.0
+				_los_t = 0.0                                  # look again at once
+		3:
+			var side := Vector2(-to_t.y, to_t.x) * _strafe       # step out sideways to get a line of fire
+			var spot := Vector2(_cover.x, _cover.z) + side * 1.3
+			var to_s := spot - Vector2(global_position.x, global_position.z)
+			if to_s.length() > 0.25:
+				var u2 := to_s.normalized()
+				_mx = u2.x
+				_mz = u2.y
+				_speed = speed * 0.6
+			_cover_t -= delta
+			if _aim_t > 0.0 or _burst_left > 0:
+				_peeked = true
+			if (_peeked and _aim_t <= 0.0 and _burst_left == 0) or _cover_t <= 0.0:
+				_cover_state = 2
+				_cover_t = randf_range(1.0, 2.2)
+				_strafe = -_strafe
+	return true
+
+
 ## Attack telegraph: the rifle charges during the aim windup (a flare at the muzzle and an aim line), full during the burst.
 func threat_charge() -> float:
 	if dead:
@@ -289,7 +434,7 @@ func muzzle_world() -> Vector3:
 
 
 func mark_size() -> float:
-	return 2.5
+	return 2.5 * _base_scale
 
 
 func death_progress() -> float:
@@ -300,12 +445,17 @@ func _muzzle_pos() -> Vector3:
 	return muzzle.global_position if muzzle != null else center() + Vector3(0.0, 0.3, 0.0)
 
 
+func _tracer_color() -> Color:
+	return Color(1.0, 0.45, 0.35)
+
+
 ## One round: hitscan with a spread that grows with distance. The tracer ends at the first world hit or past the target.
 func _shoot(d: float) -> void:
 	var origin := _muzzle_pos()
 	var aim := _tgt
 	var spread: float = float(cfg["spread"]) + float(cfg["spread_per_m"]) * d
-	var dir := (aim - origin).normalized()
+	var fire_at := _aim_override if _aim_override.is_finite() else aim      # a sniper's shot goes where the laser LOCKED, the hit test below still asks where the target really is
+	var dir := (fire_at - origin).normalized()
 	var off := Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0))
 	dir = (dir + (off - dir * off.dot(dir)) * spread).normalized()
 	var t_close := maxf((aim - origin).dot(dir), 0.0)
@@ -320,7 +470,7 @@ func _shoot(d: float) -> void:
 		end = hit["position"]
 		blocked = origin.distance_to(end) < t_close - 0.3
 	_kick = 1.0
-	FX.tracer(origin, end, Color(1.0, 0.45, 0.35))
+	FX.tracer(origin, end, _tracer_color())
 	FX.burst(origin, Color(1.0, 0.8, 0.45), 3, 2.5, 0.08, 0.0)
 	var mgr := Game.enemies as EnemyManager
 	var p := Game.player

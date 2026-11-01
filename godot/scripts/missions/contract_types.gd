@@ -8,6 +8,12 @@ extends RefCounted
 
 const KINDS: Array[StringName] = [&"officer", &"hack", &"chase", &"courier", &"survive", &"drones"]
 
+## The boss contract (the Vael Overseer) is not in KINDS (random offers never pick it): Contracts offers it by itself in the chapters of BOSS_CHAPTERS (index 2 = sector 3,
+## index 5 = sector 6) until it has been cleared. Its DATA row (title, base reward, time) is used like any other kind.
+const BOSS_CHAPTERS: Array[int] = [2, 5]
+const BOSS_DROPS := {2: &"lance", 5: &"grenade"}          ## the unique weapon the Overseer of that chapter drops (an ammo pack when already owned)
+const VIOLET := Color(0.72, 0.3, 1.0)
+
 const AMBER := Color(1.0, 0.72, 0.25)
 const RED := Color(1.0, 0.3, 0.28)
 const CYAN := Color(0.3, 0.94, 1.0)
@@ -20,6 +26,7 @@ const DATA := {
 	&"courier": {"title": "COURIER RUN", "base": 220, "time": 90.0, "color": AMBER, "upgrade": false},
 	&"survive": {"title": "HOLD THE ANCHOR", "base": 420, "time": 240.0, "color": CYAN, "upgrade": true},
 	&"drones": {"title": "LINK KILL TRIAL", "base": 280, "time": 150.0, "color": CYAN, "upgrade": false},
+	&"boss": {"title": "VAEL OVERSEER", "base": 1200, "time": 420.0, "color": VIOLET, "upgrade": true},
 }
 
 ## Weight of each kind per chapter (index = chapter; the last row covers every later sector). Every kind has weight >= 1 in every chapter, the story decides
@@ -35,6 +42,10 @@ const WEIGHTS: Array[Dictionary] = [
 
 const COURIER_SPEED := 8.5           ## metres per second the time limit assumes (sprinting on foot)
 const COURIER_SLACK := 14.0          ## seconds on top of the route time
+
+
+static func is_boss_chapter(chapter: int) -> bool:
+	return chapter in BOSS_CHAPTERS
 
 
 static func title(kind: StringName) -> String:

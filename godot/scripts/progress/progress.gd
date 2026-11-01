@@ -31,6 +31,7 @@ var best := 0
 var tutorial_done := false
 var contracts_done := 0
 var contracts_failed := 0
+var bosses_cleared: Array[int] = []      ## chapters whose Vael Overseer is down (saved)
 var last_save_ok := false
 
 var _last_score := 0
@@ -55,6 +56,7 @@ func _exit_tree() -> void:
 	if Game.progress == self:
 		Game.progress = null
 		Upgrades.reset()
+		WeaponDefs.reset_unlocked()
 
 
 # --- pure rules (static, tested) ------------------------------------------------------------------------------------
@@ -180,11 +182,53 @@ func _apply_to_player(top_up := false) -> void:
 	var p := Game.player
 	if not is_instance_valid(p) or p.get(&"mag") == null:
 		return
+	var w: Variant = p.get(&"weapon")
+	if w is PlayerWeapon:
+		(w as PlayerWeapon).apply_upgrades(top_up)                 # every weapon's magazine follows its own base
+		return
 	var before := int(p.get(&"mag"))
 	var size := Upgrades.mag_size()
 	p.set(&"mag", size)
 	var ammo := int(p.get(&"ammo"))
 	p.set(&"ammo", ammo + maxi(size - before, 0) if top_up else mini(ammo, size))
+
+
+## Weapons: the shop sells the three alien weapons (WeaponDefs.price, reputation discount); an owned weapon is saved with the campaign.
+func weapon_price(id: StringName) -> int:
+	return WeaponDefs.price(id, rep_discount(reputation))
+
+
+func can_buy_weapon(id: StringName) -> bool:
+	return WeaponDefs.DEFS.has(id) and id != &"carbine" and not WeaponDefs.is_unlocked(id) and credits >= weapon_price(id)
+
+
+func buy_weapon(id: StringName) -> bool:
+	if not can_buy_weapon(id):
+		return false
+	credits -= weapon_price(id)
+	_give_weapon(id)
+	changed.emit()
+	if autosave_enabled:
+		save_file()
+	return true
+
+
+## Unlock a weapon for free (a boss drop, a pickup, the shop after paying); the player's weapon node learns about it at once.
+func _give_weapon(id: StringName) -> void:
+	var p := Game.player
+	if is_instance_valid(p) and p.get(&"weapon") is PlayerWeapon:
+		(p.get(&"weapon") as PlayerWeapon).grant(id)
+	else:
+		WeaponDefs.unlock(id)
+	purchased.emit(id, 1)
+
+
+func grant_weapon(id: StringName) -> bool:
+	if WeaponDefs.is_unlocked(id) or not WeaponDefs.DEFS.has(id):
+		return false
+	_give_weapon(id)
+	changed.emit()
+	return true
 
 
 func add_reputation(n: int) -> void:
@@ -204,6 +248,8 @@ func new_campaign() -> void:
 	sector = 0
 	contracts_done = 0
 	contracts_failed = 0
+	bosses_cleared.clear()
+	WeaponDefs.reset_unlocked()
 	_frac = 0.0
 	_apply_to_player()
 	changed.emit()
@@ -262,6 +308,7 @@ func _autosave() -> void:
 func snapshot() -> Dictionary:
 	return {
 		"version": SAVE_VERSION, "credits": credits, "levels": levels.duplicate(), "reputation": reputation, "sector": sector,
+		"weapons": WeaponDefs.unlocked.duplicate(), "weapon": WeaponDefs.last_used, "bosses": bosses_cleared.duplicate(),
 		"best": maxi(best, Game.score), "tutorial_done": tutorial_done, "contracts_done": contracts_done, "contracts_failed": contracts_failed,
 	}
 
@@ -279,6 +326,12 @@ func save_file() -> bool:
 	cf.set_value("campaign", "contracts_done", d["contracts_done"])
 	cf.set_value("campaign", "contracts_failed", d["contracts_failed"])
 	cf.set_value("flags", "tutorial_done", d["tutorial_done"])
+	var names := PackedStringArray()
+	for id: StringName in WeaponDefs.unlocked:
+		names.append(String(id))
+	cf.set_value("weapons", "unlocked", names)
+	cf.set_value("weapons", "current", String(WeaponDefs.last_used))
+	cf.set_value("campaign", "bosses", PackedInt32Array(bosses_cleared))
 	last_save_ok = cf.save(path) == OK
 	if last_save_ok:
 		saved.emit()
@@ -295,7 +348,7 @@ func has_save() -> bool:
 	for id: StringName in Upgrades.IDS:
 		if int(cf.get_value("upgrades", String(id), 0)) > 0:
 			return true
-	return false
+	return Array(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))).size() > 1
 
 
 ## Loads the file into this node (and the static Upgrades state). Returns false (and changes nothing) for a missing, foreign or damaged file.
@@ -314,7 +367,17 @@ func load_file() -> bool:
 	contracts_done = maxi(0, int(cf.get_value("campaign", "contracts_done", 0)))
 	contracts_failed = maxi(0, int(cf.get_value("campaign", "contracts_failed", 0)))
 	tutorial_done = bool(cf.get_value("flags", "tutorial_done", false))
+	WeaponDefs.set_unlocked(Array(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))))
+	var cur := StringName(str(cf.get_value("weapons", "current", "carbine")))
+	WeaponDefs.last_used = cur if WeaponDefs.is_unlocked(cur) else &"carbine"
+	bosses_cleared.clear()
+	for b: int in Array(cf.get_value("campaign", "bosses", PackedInt32Array())):
+		bosses_cleared.append(b)
 	changed.emit()
+	var pl := Game.player
+	if is_instance_valid(pl) and pl.get(&"weapon") is PlayerWeapon:
+		var w := pl.get(&"weapon") as PlayerWeapon
+		w.switch_to(WeaponDefs.last_used, true)
 	return true
 
 

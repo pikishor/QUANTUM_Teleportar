@@ -3,7 +3,7 @@ render_mode unshaded, blend_premul_alpha, cull_disabled, depth_draw_never, fog_d
 // Threat marker of an enemy (scripts/enemies/enemy_marks.gd, ONE MultiMesh draw for every enemy, no light): a billboard around the body. The same draw also carries the
 // small health bars (mode 3, was a second draw): premultiplied alpha makes the glow modes (ALPHA 0 = additive) and the bar (a normal blend) one pipeline.
 // Instance colour = the hostile colour. INSTANCE_CUSTOM: x = attack charge 0..1 (the telegraph), y = alertness 0..1, z = hit flash 0..1 (or the
-// death progress in mode 2), w = mode (0 rim ring + glow around the body, 1 muzzle flare that swells while the shot charges, 2 death shock ring,
+// death progress in mode 2), w = mode (0 thin crisp rim ring around the body (dashed when unaware), 1 muzzle flare that swells while the shot charges, 2 death shock ring,
 // 3 health bar: x = health fraction 0..1, instance scale (w, w / 8, w) for the 8:1 plate).
 
 varying vec4 v_data;
@@ -39,13 +39,17 @@ void fragment() {
 		float aware = v_data.y;
 		float mode = v_data.w;
 		if (mode < 0.5) {
-			float thorn = 0.02 * sin(ang * 7.0 + TIME * 1.6) * (0.4 + aware);          // a slowly crawling, jagged rim: alien, not a UI circle
-			float ring = exp(-pow((r - 0.76 - thorn) / (0.07 + 0.03 * charge), 2.0));
-			float glow = exp(-r * r * 3.0) * 0.12;
-			float pulse = 0.82 + 0.18 * sin(TIME * (3.0 + 14.0 * charge));
-			float k = (0.3 + 0.4 * aware + 0.9 * charge * charge) * pulse + v_data.z * 0.8;
-			a = (ring + glow) * k * (1.0 - smoothstep(0.95, 1.0, r));
-			col = mix(v_col, vec3(1.0), clamp(charge * 0.2 + v_data.z * 0.6, 0.0, 0.7)) * a;
+			// a THIN, crisp ring (never a fuzzy halo): its width is at least ~1.5 screen pixels so it stays a clean line at 15-40 m. Unaware = a dashed, dim ring;
+			// aware = solid and brighter; charging = brightest, a little thicker and pulsing; a hit flashes it white.
+			float aa = max(fwidth(r), 0.002);
+			float w = max(0.016 + 0.014 * charge + 0.004 * aware, aa * 1.6);
+			float d = abs(r - 0.78);                                                      // a true circle: no wobble
+			float ring = 1.0 - smoothstep(w - aa, w + aa, d);
+			float dash = mix(smoothstep(0.30, 0.38, abs(fract(ang * 1.2732 + 0.5) - 0.5) * 2.0), 1.0, clamp(aware * 2.0 + charge, 0.0, 1.0));
+			float pulse = 0.88 + 0.12 * sin(TIME * (3.0 + 14.0 * charge));
+			float k = (0.35 + 0.65 * aware + 1.0 * charge) * pulse + v_data.z * 1.0;
+			a = ring * dash * k * (1.0 - smoothstep(0.97, 1.0, r));
+			col = mix(v_col, vec3(1.0), clamp(charge * 0.25 + v_data.z * 0.6, 0.0, 0.7)) * a;
 		} else if (mode < 1.5) {
 			float star = exp(-r * r * 30.0) * 1.8;
 			float rays = (exp(-abs(p.x) * 26.0) + exp(-abs(p.y) * 26.0)) * exp(-r * 2.2);
@@ -53,7 +57,7 @@ void fragment() {
 			col = mix(v_col, vec3(1.0), 0.55) * a;
 		} else {
 			float t = v_data.z;
-			float ring = exp(-pow((r - (0.18 + 0.78 * (1.0 - pow(1.0 - t, 2.0)))) / 0.07, 2.0));
+			float ring = exp(-pow((r - (0.18 + 0.78 * (1.0 - pow(1.0 - t, 2.0)))) / 0.04, 2.0));
 			a = ring * (1.0 - t) * 1.2 + exp(-r * r * 9.0) * pow(1.0 - t, 3.0) * 0.8;
 			col = mix(v_col, vec3(1.0), 0.2) * a;
 		}

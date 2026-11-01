@@ -201,7 +201,7 @@ func _pause_dead_and_victory() -> void:
 	TestLib.check(slide > 0.2 and slide < 2.5, "...after a short slide of %.2f m, not instantly and not forever" % slide)
 	TestLib.check(not p.sprinting and not p.aiming, "dead: the sprint and aim flags are cleared")
 	var key := b.get_node("KeyLight") as DirectionalLight3D
-	TestLib.check(key.light_energy < 1.7 * 0.6, "the hero lighting dims on a dead body (key light %.2f)" % key.light_energy)
+	TestLib.check(key.light_energy < float(b.get("_key_energy")) * 0.6, "the hero lighting dims on a dead body (key light %.2f)" % key.light_energy)
 	Game.do_respawn()
 	await e.frames(3)
 	Fixture.release_inputs()

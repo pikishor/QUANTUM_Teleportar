@@ -19,6 +19,7 @@ const BUTTONS := [
 	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &""},
 	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 52.0, "fs": 20, "label": "RELOAD", "need": &""},
+	{"action": &"swap", "dx": 345.0, "dy": 440.0, "r": 46.0, "fs": 22, "label": "SWAP", "need": &""},
 	{"action": &"blink", "dx": 515.0, "dy": 110.0, "r": 56.0, "label": "BLINK", "need": &"quantum", "ability": 0},
 	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "LINK", "need": &"quantum", "ability": 1},
 	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},

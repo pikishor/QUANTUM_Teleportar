@@ -26,9 +26,11 @@ const LIGHT_COUNT := 2
 const FABRIC_LIFT := 2.6
 const FABRIC_EMISSION := Color(0.035, 0.075, 0.095)
 ## The baked "Gear" atlas of the articulated model is already built around albedo 0.10 and up, so its lift is much smaller.
-const GEAR_LIFT := 2.4
-const GEAR_RIM := 0.6                      ## a strong cool fresnel edge: the hero reads as a bright rim-lit silhouette from the chase camera
-const GEAR_EMISSION := Color(0.045, 0.10, 0.13)
+const GEAR_LIFT := 2.1                     ## the baked atlas keeps its own albedo variation (a bigger lift washed the plates out to one flat cyan)
+const GEAR_RIM := 0.16                     ## a subtle always-on cool fresnel edge; it swells (RIM_BOOST) only on a hit, while aiming and while the quantum powers are active
+const RIM_BOOST := 0.85                    ## extra rim at full excitement
+const GLOW_BOOST := 0.7                    ## extra emission-texture energy (veins, core, slit) at full excitement
+const GEAR_EMISSION := Color(0.012, 0.026, 0.034)   ## a faint silhouette floor only; the glow comes from the emission texture
 ## The Compatibility (OpenGL) renderer lights the same scene much brighter than the Mobile renderer the boosts were tuned on: scale them down there.
 ## Its world environment also carries a flat teal ambient (the sky radiance map does not exist there), which fills every shadow of a standard material and
 ## turned the hero into pale-blue plastic: the hero's materials ignore ambient light on that renderer (the key and rim lights model him instead).
@@ -61,6 +63,8 @@ static var _flash_mat_star: StandardMaterial3D
 static var _flash_mat_streak: StandardMaterial3D
 
 var muzzle: Node3D
+var _wp_mi: MeshInstance3D
+var _wp_mat: StandardMaterial3D
 var leg_l: Node3D
 var leg_r: Node3D
 var upper: Node3D
@@ -89,6 +93,10 @@ var _light_t := PackedFloat32Array()
 var _li := 0
 var _key_light: DirectionalLight3D
 var _rim_light: DirectionalLight3D
+var _gear_mats: Array[BaseMaterial3D] = []   ## the Gear override materials (rim and glow follow `_excite`)
+var _gear_rim := 0.0
+var _excite := 0.0                    ## 0..1: hit, aim or quantum-active moment (what the rim and glow react to)
+var _excite_applied := -1.0
 var _key_energy := 1.0
 var _rim_energy := 1.0
 var _quality := 2
@@ -173,7 +181,9 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	_since_fire += adt
 	var reload_k := -1.0
 	if not dying and p.weapon != null and p.reloading:
-		reload_k = clampf(1.0 - p.weapon.reload_t / PlayerWeapon.RELOAD_TIME, 0.0, 1.0)
+		reload_k = clampf(1.0 - p.weapon.reload_t / maxf(p.weapon.reload_total, 0.1), 0.0, 1.0)
+	elif not dying and p.weapon != null and p.weapon.swap_t > 0.0:
+		reload_k = clampf(1.0 - p.weapon.swap_t / PlayerWeapon.SWAP_TIME, 0.0, 1.0)         # the quick weapon swap: the rifle drops and comes back up (the reload pose)
 	var want_ready := 1.0 if (p.aiming or _since_fire < 2.5 or reload_k >= 0.0) else 0.75
 	_ready_w = PlayerUtil.damp(_ready_w, want_ready, 8.0, adt)
 	var lean := -(0.10 * _sprint + 0.03 * minf(1.0, speed / 6.2))
@@ -215,6 +225,17 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	if e > 0.0:
 		global_position += Vector3(cos(yaw), 0.0, -sin(yaw)) * (DEAD_SHIFT * e)
 		_rest_on_floor(view_pos.y)
+
+	# --- rim and glow: subtle at rest, brighter on a hit, while aiming and while a quantum power is active (no allocation: a few property writes on shared materials)
+	var q = p.quantum
+	var quantum_on: bool = q != null and (("clone" in q and q.clone != null) or ("links" in q and not q.links.is_empty()) or ("bits_left" in q and q.bits_left > 0.0))
+	var want_ex := maxf(maxf(_flinch * 1.4, 0.45 if p.aiming else 0.0), 0.9 if quantum_on else 0.0)
+	_excite = PlayerUtil.damp(_excite, minf(want_ex, 1.0), 10.0 if want_ex > _excite else 3.0, dt)
+	if absf(_excite - _excite_applied) > 0.01:
+		_excite_applied = _excite
+		for gm in _gear_mats:
+			gm.rim = _gear_rim + RIM_BOOST * _excite
+			gm.emission_energy_multiplier = 1.0 + GLOW_BOOST * _excite
 
 	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
 	if character_light and rig_view != null:
@@ -264,6 +285,27 @@ func _lowest_point() -> float:
 		for pt: Vector3 in _hulls[i]:
 			lo = minf(lo, (xf * pt).y)
 	return lo if lo != INF else global_position.y
+
+
+## The rifle's weapon look: one emissive strip riding on the muzzle (the rifle bone), tinted and shaped per weapon (WeaponDefs look / look_size). One extra draw call, no new model.
+func set_weapon_look(id: StringName) -> void:
+	if muzzle == null:
+		return
+	var d := WeaponDefs.def(id)
+	if _wp_mi == null:
+		_wp_mi = MeshInstance3D.new()
+		_wp_mi.name = "WeaponLook"
+		_wp_mi.mesh = BoxMesh.new()
+		_wp_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_wp_mat = StandardMaterial3D.new()
+		_wp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_wp_mi.material_override = _wp_mat
+		muzzle.add_child(_wp_mi)
+	var sz: Vector3 = d["look_size"]
+	(_wp_mi.mesh as BoxMesh).size = sz
+	_wp_mi.position = Vector3(0.0, 0.0, sz.z * 0.5 + 0.02)         # behind the muzzle along the barrel (muzzle forward is -Z)
+	var col: Color = d["look"]
+	_wp_mat.albedo_color = col * 1.4
 
 
 ## One shot: flash card, light pulse and the body's recoil. intensity scales the flash.
@@ -406,6 +448,8 @@ func remove_child_safe(n: Node) -> void:
 ## ambient light (see COMPAT_BOOST). Nothing else about the materials is changed on purpose: the lighting of this model was tuned and verified with exactly these
 ## shader variants, and adding a per-material feature (a dithered distance fade, alpha scissor) changes its shading a lot (3x brighter or black on the same lights).
 func _prepare_materials(root: Node, lift_fabric: bool) -> void:
+	if lift_fabric:
+		_gear_mats.clear()
 	var compat := _is_compat()
 	var boost := COMPAT_BOOST if compat else 1.0
 	var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
@@ -429,8 +473,10 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 				own.albedo_color = Color(k, k, k, 1.0)
 				if gear:
 					own.rim_enabled = true                      # a fresnel edge light in the model's own cool tint keeps the silhouette against wet asphalt and neon
-					own.rim = GEAR_RIM * (0.6 if compat else 1.0)
-					own.rim_tint = 0.75
+					_gear_rim = GEAR_RIM * (0.6 if compat else 1.0)
+					own.rim = _gear_rim
+					own.rim_tint = 0.5
+					_gear_mats.append(own)
 					own.emission_enabled = true
 					own.emission_texture = mat.emission_texture if mat.emission_enabled else null
 					own.emission = (mat.emission if mat.emission_enabled else GEAR_EMISSION * boost)
@@ -631,8 +677,8 @@ func _build_character_lights() -> void:
 	var mask := 1 << (CHARACTER_LAYER - 1)
 	_set_layer(self, mask)
 	var boost := COMPAT_LIGHT if _is_compat() else 1.0
-	_key_energy = 1.7 * boost
-	_rim_energy = 2.0 * boost
+	_key_energy = 2.4 * boost                                  # a stronger front key: the face plate, chest core and weapon read at 3-15 m
+	_rim_energy = 1.1 * boost                                  # a soft edge light, not an outline (the rim material term carries the excited moments)
 	_key_light = _make_character_light("KeyLight", Color(0.82, 0.9, 1.0), _key_energy, mask)
 	_rim_light = _make_character_light("RimLight", Color(0.55, 0.88, 1.0), _rim_energy, mask)
 	_apply_lights()

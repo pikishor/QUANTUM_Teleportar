@@ -282,6 +282,39 @@ void fragment() {
 		// yellow paint on some kerbs
 		float paint_k = kerb * step(0.82, hash12(vec2(floor((ax < az ? q.y : q.x) / 14.0), 3.0)));
 		albedo = mix(albedo, vec3(0.45, 0.33, 0.06), paint_k * 0.9);
+		// near-field paving detail (full tiers, near the camera): kerb edge highlight and chips, foot-worn lane, tactile pads at the crossings,
+		// utility lids, gum. Everything reuses the noise above and fades with the pixel footprint
+		if (fine) {
+			float chip = smoothstep(0.55, 0.78, tone);
+			float hi = line_aa(sd - 0.014, 0.011, aa) * (1.0 - 0.75 * chip) * dk;                    // the rounded kerb arris catches the light
+			albedo = mix(albedo, albedo * 1.9 + 0.02, hi * 0.65);
+			albedo *= 1.0 - 0.3 * chip * kerb;                                                          // chipped, grimy kerb stone
+			float wear = (1.0 - smoothstep(0.0, 2.2, abs(sd - 2.8))) * smoothstep(0.35, 0.62, tone) * (1.0 - plz);   // where people walk: lighter, smoother
+			albedo *= 1.0 + 0.14 * wear * dk;
+			rough = max(rough - 0.10 * wear * dk, 0.3);
+			float oc = ax < az ? az : ax;                                                               // distance to the crossing road's centre line
+			float tpad = band(sd, 0.28, 1.5, aa) * band(oc, 10.8, 14.3, aa) * (1.0 - plz) * (1.0 - kerb);   // tactile paving at the zebra ramps
+			float tdot = mix(0.6, smoothstep(0.30, 0.20, length(fract(q / 0.22) - 0.5)), resolve(0.22, aa));
+			albedo = mix(albedo, vec3(0.30, 0.23, 0.045) * (0.6 + 0.5 * tdot), tpad * 0.8 * (1.0 - joint));
+			float lidh = hash12(tid + 23.0);
+			if (plz < 0.5 && lidh > 0.955) {                                                            // a utility lid set in the slab (round or square)
+				vec2 lp = (tf - 0.5) * sx;
+				float ldist = lidh > 0.978 ? length(lp) : max(abs(lp.x), abs(lp.y)) * 1.25;
+				float lid = 1.0 - smoothstep(0.30 - aa, 0.30 + aa, ldist);
+				float lring = band(ldist, 0.30, 0.34, aa);
+				float lrib = mix(0.75, 0.55 + 0.45 * step(0.5, fract(lp.x * 8.0 + lp.y * 8.0)), resolve(0.12, aa));
+				albedo = mix(albedo, vec3(0.040, 0.038, 0.036) * lrib, lid);
+				albedo = mix(albedo, albedo * 0.45, lring * (1.0 - lid));                                 // a dark rim of grime
+				rough = mix(rough, 0.4, lid);
+				flat_mask = max(flat_mask, lid * 0.35);
+			}
+			if (dist < 24.0) {                                                                          // chewing gum, darker spots in the paving
+				vec2 gq = q / 0.45;
+				vec2 gid = floor(gq);
+				float gdd = length((fract(gq) - 0.5 - (hash22(gid + 61.0) - 0.5) * 0.5) * 0.45);
+				albedo *= 1.0 - 0.45 * step(0.955, hash12(gid + 61.0)) * (1.0 - smoothstep(0.03 - aa, 0.03 + aa, gdd)) * (1.0 - plz);
+			}
+		}
 		// plaza: inlaid light strips
 		if (plz > 0.5) {
 			float gx = abs(fract(q.x / 7.2 + 0.5) - 0.5) * 7.2;

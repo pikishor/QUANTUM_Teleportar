@@ -269,6 +269,8 @@ func _drop() -> void:
 		m.call(&"drop", &"health", at)
 	elif r < 0.6:
 		m.call(&"drop", &"energy", at)
+	elif r < 0.7 and cfg.get("drops_weapon", true) and m.has_method(&"drop_weapon"):
+		m.call(&"drop_weapon", WeaponDefs.pick_drop(randf(), randf()), at)
 
 
 # --- simulation -----------------------------------------------------------------------------------------------------

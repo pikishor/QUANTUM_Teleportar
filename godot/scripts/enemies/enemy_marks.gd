@@ -1,7 +1,7 @@
 class_name EnemyMarks
 extends Node3D
 ## Readability layer of the enemies, TWO MultiMesh draws for ALL enemies together (at most 2 draw calls, none when nobody is in view range) and no light:
-##  * halo: a hostile-colour rim ring and glow around every body (brighter when aware, swelling and pulsing while an attack charges, a flash on hits, a shock ring on
+##  * halo: a THIN, crisp hostile-colour ring around every body (dashed and dim when unaware, solid and brighter when aware, swelling and pulsing while an attack charges, a flash on hits, a shock ring on
 ##    death) plus a muzzle flare that swells as a shot is charged (the telegraph, 0.3-0.5 s before bolts and bursts);
 ##  * aim line: a thin beam from the muzzle towards the target while a shot is charged, so the player can see where it comes from and dodge;
 ##  * health bar: a small floating bar, only on enemies that were damaged in the last BAR_SECONDS, drawn larger with distance so it stays readable at 25 m.

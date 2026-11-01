@@ -296,6 +296,23 @@ def shade_chitin(c, i):
     c.height[i] = -0.0009 * groove + 0.00025 * (fine - 0.5) + 0.0002 * (band - 0.5)
 
 
+def panel_seams(c, i, freq, width=0.0035, jitter=0.35, seed=61):
+    """Armour plate / scute seams: a noise-warped 3D grid of thin grooves (planes cut the surface into irregular plates). Returns (groove 0..1,
+    per-plate tone -1..1, plate id hash) so plates differ in value and each seam can be pressed into the normal map."""
+    P = c.P[i]
+    w = np.stack([c.noise.fbm3(P, 9.0, 2, 0.5, seed + k) for k in range(3)], axis=1) - 0.5
+    Q = P * freq + w * (jitter * 2.0)
+    F = Q - np.floor(Q)
+    d = np.minimum(F, 1.0 - F)                                                   # distance to the nearest cell wall per axis (cell units)
+    dmin = np.sort(d, axis=1)[:, :2]                                             # the two nearest walls: seams meet in corners
+    gw = width * freq
+    groove = sm(gw, gw * 0.25, dmin[:, 0])
+    cell = np.floor(Q).astype(np.int64)
+    h = (cell[:, 0] * 73856093) ^ (cell[:, 1] * 19349663) ^ (cell[:, 2] * 83492791)
+    tone = ((h & 1023) / 1023.0) * 2.0 - 1.0
+    return groove, tone, dmin[:, 0]
+
+
 def shade_shell(c, i):
     """Lacquered chitin (the hero, the troopers): the chitin look with a wet clear coat (low roughness, a little metal on the ridges), a
     smoother low-frequency mottle so the shell reads as polished plates, and bright ridge lines."""
@@ -305,12 +322,15 @@ def shade_shell(c, i):
     edge = sm(0.008, 0.0, c.cx[i])
     cav = grime_mask(c, i, 0.8, 0.5, 1.0, 0.5, 6)
     groove = sm(0.003, 0.0, c.cc[i])
-    alb = C * (0.88 + 0.24 * mott)[:, None] * (0.97 + 0.06 * fine)[:, None]
-    alb = alb * (1.0 - 0.22 * cav - 0.4 * groove)[:, None] + C * (edge * 0.55)[:, None]
+    seam, tone, wall = panel_seams(c, i, 11.0)                                  # plates about 9 cm across: seams, a per-plate value shift
+    seam2, tone2, _ = panel_seams(c, i, 31.0, 0.0045, 0.5, 71)                  # finer scutes (about 3 cm): visible when close
+    pit = c.noise.fbm3(P, 180.0, 1, 0.5, 53)                                    # chitin pores / cloth grain, mostly in the normal map
+    alb = C * (0.78 + 0.34 * mott)[:, None] * (0.95 + 0.1 * fine)[:, None] * (1.0 + 0.16 * tone + 0.07 * tone2)[:, None]
+    alb = alb * (1.0 - 0.22 * cav - 0.4 * groove - 0.55 * seam - 0.25 * seam2)[:, None] + C * (edge * 0.55 + 0.5 * sm(0.03, 0.012, wall) * (1.0 - seam))[:, None] * 0.6
     c.alb[i] = alb
-    c.rough[i] = np.clip(0.36 + 0.12 * mott + 0.15 * cav - 0.12 * edge, 0.2, 1.0)
+    c.rough[i] = np.clip(0.38 + 0.14 * mott + 0.15 * cav + 0.12 * seam - 0.12 * edge + 0.05 * tone, 0.2, 1.0)
     c.metal[i] = 0.0 + 0.06 * edge                                          # no metal: there is no environment to reflect at night, metal turns black
-    c.height[i] = -0.0007 * groove + 0.00008 * (fine - 0.5)
+    c.height[i] = -0.0007 * groove - 0.0011 * seam - 0.0005 * seam2 + 0.0003 * tone + 0.00012 * (fine - 0.5) + 0.0001 * (pit - 0.5)
 
 
 def shade_silk(c, i):
@@ -321,7 +341,7 @@ def shade_silk(c, i):
     c.alb[i] = alb
     c.rough[i] = 0.42
     c.metal[i] = 0.2
-    c.height[i] = 0.0
+    c.height[i] = 0.00012 * np.sin(P[:, 2] * 420.0)                          # long fine threads (along the drape): a normal-map weave that is smooth in the albedo
 
 
 KINDS = {

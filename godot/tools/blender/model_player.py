@@ -30,14 +30,14 @@ def T(h, k=BRIGHT):
     return scale_c(hexc(h), k)
 
 
-SKIN = T("#3f7f95")
-SKIN2 = T("#336a7d")
-DARK = T("#173342", 1.8)
-PEARL = scale_c(hexc("#d3e6e8"), 1.0)
-PEARL2 = scale_c(hexc("#a8c8cf"), 1.05)
-CLOAK = T("#35697c")
-CLOAK2 = T("#1d4150", 1.8)
-BONE = T("#7d9aa2", 1.2)
+SKIN = T("#3a6677")
+SKIN2 = T("#2b4f5e")
+DARK = T("#0e1d27", 1.9)
+PEARL = scale_c(hexc("#e9f2f2"), 1.0)
+PEARL2 = scale_c(hexc("#c3d9dd"), 1.05)
+CLOAK = T("#2c5566")
+CLOAK2 = T("#142f3b", 1.8)
+BONE = T("#34454d", 1.5)
 
 HIP = (0.0, 0.0, 1.02)
 WAIST = (0.0, 0.0, 1.15)
@@ -95,8 +95,8 @@ for k in range(4):                                                              
     z = 1.26 + 0.065 * k
     for sx in (-1, 1):
         torso.box((0.1, 0.014, 0.016), (sx * 0.055, surf_y(TORSO, z, 0.055) + 0.003, z), rot=(0, 0, -sx * 22), mat=chit, tint=PEARL2, bevel=0.003)
-torso.torus(0.062, 0.011, (0, surf_y(TORSO, 1.38) - 0.004, 1.38), rot=(90, 0, 0), mat=chit, tint=PEARL, segs=18, sides=6)            # core frame
-torso.sphere(0.042, (0, surf_y(TORSO, 1.38) - 0.006, 1.38), mat=glc, segs=12, rings=8)                                           # quantum core
+torso.torus(0.07, 0.013, (0, surf_y(TORSO, 1.38) - 0.004, 1.38), rot=(90, 0, 0), mat=chit, tint=PEARL, segs=18, sides=6)            # core frame
+torso.sphere(0.05, (0, surf_y(TORSO, 1.38) - 0.008, 1.38), mat=glc, segs=12, rings=8)                                           # quantum core
 torso.torus(0.05, 0.004, (0, surf_y(TORSO, 1.38) + 0.004, 1.38), rot=(90, 0, 0), mat=gla, segs=16, sides=4)
 
 
@@ -244,5 +244,5 @@ rig = [empty("Muzzle", muzzle), empty("WristL", wrist_pos[-1]), empty("WristR", 
        light("Rim", (0.25, -0.8, 2.15), "omni", (0.35, 0.85, 1.0), 1.5, 3.8, mask="own", attenuation=1.2, fade=(30, 12))]
 print("  parts=%d tris(before culling)=%d" % (len(parts), sum(p.tri_count() for p in parts)))
 decals = [Decal((0.0, 0.1, 1.76), (0, 1, 0), (0, 0, 1), (0.2, 0.2), p_visor_sheen(hexc("#19d8ff")), depth=0.08, kinds=("glass",), min_dot=0.2)]
-export_model("player", parts, extras=rig, size=1024, decals=decals, ao_dist=0.2, ao_strength=0.55, emit_strength=2.0,
+export_model("player", parts, extras=rig, size=1024, decals=decals, ao_dist=0.2, ao_strength=0.55, emit_strength=1.5,
              finalize=make_finalize(["Sec1", "Sec2", "Sec3"]))

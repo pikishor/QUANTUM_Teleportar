@@ -274,6 +274,16 @@ func _button_at(pos: Vector2) -> StringName:
 ## The effect of every screen button (the tests press them through here).
 func press_button(id: StringName) -> bool:
 	var sid := String(id)
+	if sid.begins_with("buy_") and WeaponDefs.DEFS.has(StringName(sid.substr(4))):
+		if Game.state != &"paused" or not _shop_open or Game.progress == null:
+			return false
+		if not bool(Game.progress.call(&"buy_weapon", StringName(sid.substr(4)))):
+			Sfx.play(&"ui_deny")
+			return false
+		Sfx.play(&"ui_purchase")
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
 	if sid.begins_with("buy_"):
 		if Game.state != &"paused" or not _shop_open or Game.progress == null:
 			return false
@@ -434,6 +444,24 @@ func ammo_text() -> String:
 		else:
 			_ammo_text = "%d / %d" % [roundi(UiUtil.num(p, &"ammo", 0.0)), roundi(UiUtil.num(p, &"mag", 30.0))]
 	return _ammo_text
+
+
+## "SHARD SCATTER  SCT   RESERVE 24": the weapon in hand and its spare rounds (the carbine's are unlimited). Empty without a weapon.
+func weapon_text() -> String:
+	var p: Object = Game.player if is_instance_valid(Game.player) else null
+	if p == null or not (p.get("weapon") is PlayerWeapon):
+		return ""
+	var w := p.get("weapon") as PlayerWeapon
+	var d := w.def
+	return "%s  %s   %s" % [d["name"], d["tag"], "RESERVE INF" if w.reserve < 0 else "RESERVE %d" % w.reserve]
+
+
+## 0..1 charge of the Pulse Lance (0 for the others).
+func weapon_charge() -> float:
+	var p: Object = Game.player if is_instance_valid(Game.player) else null
+	if p == null or not (p.get("weapon") is PlayerWeapon):
+		return 0.0
+	return (p.get("weapon") as PlayerWeapon).charge
 
 
 func hint_text() -> String:
@@ -647,11 +675,18 @@ func _draw_hud_body() -> void:
 	var ab := Rect2(ax - aw * 0.5, base_y - 70.0 * s, aw, 54.0 * s)
 	_plate(c, ab, s)
 	_text(c, font, Vector2(ab.position.x, ab.position.y + 41.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(38.0 * s), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
+	if veh == null and weapon_text() != "":
+		var wr := Rect2(ab.position.x - 40.0 * s, ab.position.y - 32.0 * s, ab.size.x + 80.0 * s, 28.0 * s)
+		_plate(c, wr, s)
+		_text(c, font, Vector2(wr.position.x, wr.position.y + 21.0 * s), weapon_text(), HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
+		var wch := weapon_charge()
+		if wch > 0.0:
+			_rect(c, Rect2(wr.position.x, wr.position.y - 8.0 * s, wr.size.x * wch, 5.0 * s), Color(UiUtil.CYAN, 0.95))
 	if p.get("quantum") != null and not touch_on:
 		for i in 3:
 			var info: Dictionary = UiUtil.ABILITIES[i]
 			var st := UiUtil.ability_state(p, info)
-			var r := Rect2(ax - 188.0 * s + i * 128.0 * s, base_y - 118.0 * s, 120.0 * s, 36.0 * s)
+			var r := Rect2(ax - 188.0 * s + i * 128.0 * s, base_y - 152.0 * s, 120.0 * s, 36.0 * s)
 			var tint := UiUtil.AMBER if st["active"] else UiUtil.CYAN
 			var dim := 1.0 if (st["ready"] or st["active"]) else 0.5
 			_rect(c, r, UiUtil.PLATE)
@@ -670,7 +705,7 @@ func _draw_hud_body() -> void:
 	if playing and veh == null:
 		_draw_crosshair(c, p, vp, s, now)
 	if playing and _hint_text != "":
-		_plate_text(c, font, ab.get_center().x, ab.position.y - (46.0 * s if (p.get("quantum") == null or touch_on) else 98.0 * s), _hint_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 1.0), s)
+		_plate_text(c, font, ab.get_center().x, ab.position.y - (78.0 * s if (p.get("quantum") == null or touch_on) else 132.0 * s), _hint_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 1.0), s)
 	_draw_message(c, vp, s, font)
 
 

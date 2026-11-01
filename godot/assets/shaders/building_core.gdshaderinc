@@ -71,6 +71,10 @@ void vertex() {
 #endif
 }
 
+float line_aa_b(float d, float w, float a) {
+	return (1.0 - smoothstep(w - a, w + a, abs(d))) * min(1.0, w / max(a, 1e-4));
+}
+
 vec3 lit_color(float r, float pal) {
 	vec3 warm = vec3(1.0, 0.68, 0.36);
 	vec3 amber = vec3(1.0, 0.52, 0.20);
@@ -127,7 +131,8 @@ void fragment() {
 	// per-building window groups (a few hashes, every tier): a brightness mood, a mono-hue minority and a dark-floor habit
 	float bmood = 0.62 + 0.95 * hash11(bseed * 5.3 + 1.1);
 	float hgrp = hash11(bseed * 7.9 + 3.3);
-	float dark_habit = hash11(bseed * 2.9 + 8.1);
+		float dark_habit = hash11(bseed * 2.9 + 8.1);
+	float wv = hash11(bseed * 4.7 + 2.2);                       // weathering: 0 = kept clean, 1 = neglected (grime, fade, streaks)
 
 	vec3 albedo = vec3(0.05);
 	float rough = 0.8;
@@ -295,8 +300,10 @@ void fragment() {
 		// ---- interior of a lit window ---------------------------------------------------------------------------------
 		vec2 wf = vec2((gc.x - w0.x) / (w1.x - w0.x), (gc.y - w0.y) / (w1.y - w0.y));
 		float inter = 0.8 + 0.4 * wf.y;
-		float ac_unit = 0.0;
+				float ac_unit = 0.0;
 		float mull = 1.0;
+		float ra = 0.0;
+		float lintel = 1.0;
 		if (detail > 0.5) {
 			float rs = hash12(cid + fseed * 0.7);
 			inter = room_shade(clamp(gc, vec2(0.0), vec2(1.0)) * vec2(cw, fh), rd, cw, fh, 3.2 + 2.2 * hash12(cid + fseed + 17.0), rs) * 1.15;
@@ -316,7 +323,10 @@ void fragment() {
 			}
 			inter *= 0.78 + 0.22 * smoothstep(0.0, 0.3, min(wf.x, 1.0 - wf.x));
 			// window air-conditioner boxes
-			float ra = hash12(cid + fseed + 61.0);
+			ra = hash12(cid + fseed + 61.0);
+			// inner shadow: the lintel shades the top of the pane, the reveal shades the left side
+			lintel = 1.0 - 0.5 * (1.0 - smoothstep(0.0, 0.24, 1.0 - clamp(wf.y, 0.0, 1.0))) - 0.22 * (1.0 - smoothstep(0.0, 0.10, clamp(wf.x, 0.0, 1.0)));
+			inter *= lintel;
 			ac_unit = step(0.90, ra) * band(wf.x, 0.12, 0.62, 0.03) * band(wf.y, 0.06, 0.46, 0.03);
 		}
 
@@ -344,8 +354,37 @@ void fragment() {
 			float sill = band(ff, w0.y - 0.07, w0.y - 0.005, av) * band(cf, w0.x - 0.06, w1.x + 0.06, au);
 			wall = mix(wall, wall * 1.7 + 0.01, sill * 0.7);
 			hf += 0.05 * sill - 0.02 * pj;
+			// metal panel tone (1.2 m cast panels, each a shade apart)
+			float ptone = hash12(floor(vec2(u / 1.2, gy / 1.75)) + fseed * 0.3);
+			wall *= 0.9 + 0.2 * ptone;
+			// rivet rows along every floor line (fade out when a pixel spans a rivet pitch), strongest on the big ledges
+			if (dist < 45.0) {
+				vec2 rq = vec2(fract(u / 0.2) - 0.5, (fdist - 0.085) / 0.2);
+				float rvt = (1.0 - smoothstep(0.015, 0.045, am)) * (1.0 - smoothstep(25.0, 45.0, dist));
+				float rivet = (1.0 - smoothstep(0.075, 0.115, length(rq))) * rvt * (0.45 + 0.55 * big_ledge) * (1.0 - win);
+				wall = mix(wall, wall * 1.55 + 0.012, rivet * (0.7 + 0.3 * (1.0 - ptone)));
+				hf += 0.035 * rivet;
+			}
+			// grime: weathering per building. Streaks hang from the ledges, and drip from window sills and air-conditioners
+			{
+				float colm = smoothstep(0.50, 0.85, vnoise(vec2(u * 3.1 + fseed * 1.3, 4.4)));
+				float below = ff * fh;                                           // metres under the floor line (the ledge)
+				float slen = fh * (0.45 + 0.9 * hash12(vec2(floor(u * 3.1 + fseed * 1.3), fi) + 6.0));
+				float lstreak = colm * (1.0 - smoothstep(0.0, slen, below)) * (0.4 + 0.6 * big_ledge) * (1.0 - win);
+				float sillv = step(ff, w0.y) * smoothstep(w0.y - 0.42, w0.y, ff);                  // below the window
+				float cor = band(cf, w0.x - 0.02, w0.x + 0.09, au) + band(cf, w1.x - 0.09, w1.x + 0.02, au);
+				float acd = step(0.90, ra) * band(cf, 0.3, 0.7, au);                               // under an air-conditioner: a wide drip
+				float drip = (cor * 0.55 + acd) * sillv * colm * (1.0 - win_open);
+				float nbv = 0.35 + 0.9 * wv;
+				wall *= 1.0 - clamp(0.42 * lstreak * nbv + 0.5 * drip * nbv, 0.0, 0.7) * (1.0 - smoothstep(60.0, 140.0, dist));
+				// neglected buildings fade to a chalky grey
+				wall = mix(wall, vec3(dot(wall, vec3(0.33))) * 1.08, 0.38 * smoothstep(0.55, 1.0, wv));
+			}
 		}
 		wall *= mix(0.62, 1.1, streak);
+		// splash-back: the foot of every wall is soaked and darker, with a ragged top edge (reuses the streak noise)
+		float wbase = detail > 0.5 ? wet * (1.0 - smoothstep(0.0, 0.9 + 1.7 * streak, gy)) : 0.0;
+		wall *= 1.0 - 0.38 * wbase;
 		wall *= 1.0 - 0.6 * reveal;                          // shadowed reveal inside the recess
 		// brick: mortar lines
 		if (style > 3.5) {
@@ -377,6 +416,7 @@ void fragment() {
 		albedo = mix(albedo, tint * 0.16, frame * 0.6);
 		albedo = mix(albedo, vec3(0.10, 0.11, 0.12), ac_unit);
 		rough = mix(mix(0.84, 0.35, wet * (0.3 + 0.7 * runnel)), 0.07, win);
+		rough = mix(rough, 0.22, wbase * (1.0 - win));
 		metal = win * 0.6;
 		float height_field = -0.10 * win_open + 0.07 * pil + 0.06 * led - 0.04 * frame + 0.08 * ac_unit;
 		if (detail > 0.5) {
@@ -404,7 +444,7 @@ void fragment() {
 			float graze = 0.35 + 0.65 * pow(1.0 - nvv, 2.0);
 			float grad = 0.55 + 0.45 * smoothstep(0.0, 1.0, ff) + 0.5 * exp(-gy * 0.06);
 			vec3 sky_r = mix(vec3(0.035, 0.060, 0.085), vec3(0.075, 0.095, 0.120), hash12(cid + 2.7));
-			emit += (sky_r * pane * graze * grad + neon * 0.025 * exp(-gy * 0.08)) * win * (1.0 - lit);
+			emit += (sky_r * pane * graze * grad + neon * 0.025 * exp(-gy * 0.08)) * lintel * win * (1.0 - lit);
 		}
 
 #ifndef FAR
@@ -503,6 +543,34 @@ void fragment() {
 			float handle = is_door * band(abs(bf - 0.5) * bw, 0.05, 0.09, amu) * band(y, 1.0, 1.9, abv);
 			emit += tung * 0.5 * handle * dark_bay;
 			emit += tung * 0.18 * door * (0.5 + 0.5 * smoothstep(0.0, 1.0, 1.0 - y)) * dark_bay;
+			// pasted paper and stickers (near field only): posters across the bay joints, stickers and a spray tag on the shutters
+			if (detail > 0.5 && dist < 60.0) {
+				float pfade = 1.0 - smoothstep(30.0, 60.0, dist);
+				float ds = xm < bw * 0.5 ? xm : xm - bw;                                     // signed metres from the bay joint
+				vec2 pid = vec2(bidx + (xm < bw * 0.5 ? 0.0 : 1.0), fseed);
+				float pbot = 0.85 + 0.9 * hash12(pid + 2.2);
+				float phgt = 0.7 + 0.8 * hash12(pid + 5.5);
+				float tear = vnoise(vec2(ds * 18.0 + pid.x * 3.0, y * 2.0));
+				float pst = step(0.40, hash12(pid + 13.7)) * band(ds, -0.14, 0.14, amu) * band(y, pbot, pbot + phgt - 0.25 * tear, abv) * pfade;
+				vec3 pcl = lit_color(hash12(pid + 8.8), pal) * 0.42;
+				float prow = 0.55 + 0.45 * step(0.5, fract((y - pbot) * 11.0 + hash12(pid) * 5.0));
+				float hdl = band(y, pbot + phgt * 0.62, pbot + phgt, abv);                      // a big headline block
+				pcl = mix(pcl * prow, pcl * 1.5, hdl);
+				albedo = mix(albedo, pcl, pst * 0.92);
+				rough = mix(rough, 0.55, pst);
+				metal = mix(metal, 0.0, pst);
+				emit += pcl * 0.10 * pst * hdl;
+				vec2 sq = vec2(u, y) / 0.33;
+				vec2 sidc = floor(sq);
+				vec2 sfc = fract(sq);
+				float stick = step(0.88, hash12(sidc + fseed * 0.2 + 29.0)) * band(sfc.x, 0.22, 0.78, amu / 0.33) * band(sfc.y, 0.22, 0.78, abv / 0.33) * (shop * shut + inset) * pfade;
+				vec3 stc = lit_color(hash12(sidc + 3.1), pal) * 0.45;
+				albedo = mix(albedo, stc, stick);
+				emit += stc * 0.05 * stick;
+				float tagy = 1.55 + 0.25 * sin(u * 7.0 + rb0 * 20.0) + 0.10 * sin(u * 19.0 + rb0 * 5.0);
+				float tag = line_aa_b(y - tagy, 0.028, abv) * band(bf, 0.15, 0.85, abu) * shop * shut * step(0.55, hash12(bid + 63.0)) * pfade;
+				albedo = mix(albedo, sc * 0.35, tag * 0.85);
+			}
 			// neon sign band with glyphs
 			vec3 nc = NEON[int(mod(rb0 * 4.0 + v_data.y, 4.0))];
 			float gcell = 0.62;
@@ -522,6 +590,8 @@ void fragment() {
 			// grime and wet streaks run down the stone below the sign, street spill on the base of the wall
 			albedo *= 1.0 - 0.35 * sn * (1.0 - open_shop) * smoothstep(3.5, 0.0, y);
 			emit += neon * 0.05 * exp(-y * 0.55) * (1.0 - open_shop);
+				albedo *= 1.0 - 0.3 * wbase * (1.0 - open_shop);
+				rough = mix(rough, 0.2, wbase * (1.0 - open_shop));
 		}
 
 #endif
@@ -535,6 +605,12 @@ void fragment() {
 			hf = mix(hf, 0.0, k);
 			float coping = band(y, ph - 0.28, ph, am);
 			albedo = mix(albedo, tint * 0.18, coping);
+			if (detail > 0.5 && dist < 80.0) {      // dentil course under the coping: small blocks with dark gaps
+				float dk_ = band(y, ph - 0.62, ph - 0.32, am) * (1.0 - smoothstep(0.08, 0.2, am));
+				float dstep = step(0.5, fract(u / 0.46));
+				albedo = mix(albedo, albedo * 0.62, dk_ * (1.0 - dstep));
+				hf += 0.045 * dk_ * dstep + 0.03 * coping;
+			}
 		}
 
 #ifndef FAR

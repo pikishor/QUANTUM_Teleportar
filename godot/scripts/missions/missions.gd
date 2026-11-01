@@ -28,7 +28,7 @@ const PICKUP_HOVER := 0.5
 const HEALTH_AMOUNT := 30.0
 const ENERGY_AMOUNT := 35.0
 const VERTICAL_REACH := 6.0            ## a player on a roof above a junction does not collect it
-const KINDS: Array[StringName] = [&"health", &"energy"]
+const KINDS: Array[StringName] = [&"health", &"energy", &"weapon"]     ## weapon pickups carry a weapon id (drop(&"weapon", pos, &"scatter")): a new weapon or an ammo pack
 
 var cores: Array = []
 var pickups: Array = []
@@ -106,7 +106,7 @@ func new_round(n_cores := 6) -> int:
 
 
 ## Spawn a pickup of kind `health` or `energy` at a world position (it settles on the floor below). Reuses the oldest slot when all are in use.
-func drop(kind: StringName, pos: Vector3) -> void:
+func drop(kind: StringName, pos: Vector3, weapon_id := &"") -> void:
 	if not kind in KINDS:
 		return
 	var slot: Dictionary = {}
@@ -127,6 +127,7 @@ func drop(kind: StringName, pos: Vector3) -> void:
 		ground.y = 0.0
 	slot.active = true
 	slot.kind = kind
+	slot.weapon = weapon_id if kind == &"weapon" else &""
 	slot.pos = ground
 	slot.t = PICKUP_LIFE
 	slot.phase = rng.randf() * TAU
@@ -139,6 +140,11 @@ func drop(kind: StringName, pos: Vector3) -> void:
 	(slot.halo as MeshInstance3D).visible = true
 	node.visible = true
 	pickups.append(slot)
+
+
+## A weapon pickup (a new weapon or an ammo pack) of weapon id `id`.
+func drop_weapon(id: StringName, pos: Vector3) -> void:
+	drop(&"weapon", pos, id)
 
 
 func nearest_core(pos: Vector3) -> Dictionary:
@@ -266,17 +272,27 @@ func _physics_process(delta: float) -> void:
 
 
 func _collect_pickup(s: Dictionary, idx: int, player: Node3D) -> void:
-	if s.kind == &"health":
+	if s.kind == &"weapon":
+		var w: Variant = player.get(&"weapon")
+		if w is PlayerWeapon:
+			Game.say((w as PlayerWeapon).grant(s.weapon), 2.0)
+	elif s.kind == &"health":
 		player.call(&"heal", HEALTH_AMOUNT)
 		Game.say("+30 INTEGRITY", 1.2)
 	else:
 		player.call(&"add_energy", ENERGY_AMOUNT)
 		Game.say("+35 COHERENCE", 1.2)
-	var col: Color = MissionVisuals.HEALTH_GREEN if s.kind == &"health" else MissionVisuals.ENERGY_CYAN
+	var col := _kind_color(s.kind)
 	var at: Vector3 = (s.node as Node3D).global_position
 	FX.burst(at, col, 14, 4.0, 0.5, 4.0, 1.0)
 	Sfx.play(&"pickup")
 	_release_pickup(s, idx)
+
+
+static func _kind_color(kind: StringName) -> Color:
+	if kind == &"weapon":
+		return WeaponDefs.COLOR_PICKUP
+	return MissionVisuals.HEALTH_GREEN if kind == &"health" else MissionVisuals.ENERGY_CYAN
 
 
 func _release_pickup(s: Dictionary, idx: int) -> void:
@@ -402,7 +418,7 @@ func _build_pickup_pool() -> void:
 		var halos := {}
 		var columns := {}
 		for kind: StringName in KINDS:
-			var col: Color = MissionVisuals.HEALTH_GREEN if kind == &"health" else MissionVisuals.ENERGY_CYAN
+			var col := _kind_color(kind)
 			var model := Game.load_model("pickup_%s" % kind)
 			if model == null:
 				model = MissionVisuals.fallback_pickup(col)
@@ -425,7 +441,7 @@ func _build_pickup_pool() -> void:
 		root.add_child(column)
 		_root.add_child(root)
 		_pickup_pool.append({node = root, models = models, halos = halos, columns = columns, halo = halo, column = column,
-				active = false, kind = &"health", pos = Vector3.ZERO, t = 0.0, phase = 0.0})
+				active = false, kind = &"health", weapon = &"", pos = Vector3.ZERO, t = 0.0, phase = 0.0})
 	_flush_mirror()
 
 

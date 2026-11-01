@@ -111,6 +111,7 @@ var _mode_mix := 0.0
 var _orbit_w := 0.0
 var _dead_w := 0.0
 var _dead_age := 0.0                         ## seconds of game time in the dead state
+var ads_fov := FOV_ADS        ## degrees at full ADS for the weapon in hand (the Pulse Lance zooms like a sniper scope)
 var _fov := FOV_HIP
 var _fov_punch := 0.0
 var _punch := 0.0                            ## visual-only backwards camera punch, metres
@@ -501,7 +502,7 @@ func _update_view(dt: float) -> void:
 	# --- distance, shoulder, height and FOV for the current situation
 	var foot_dist := lerpf(HIP_DIST, ADS_DIST, ads_s)
 	var foot_shoulder := lerpf(HIP_SHOULDER, ADS_SHOULDER, ads_s)
-	var foot_fov := lerpf(lerpf(FOV_HIP, FOV_SPRINT, _sprint), FOV_ADS, ads_s)
+	var foot_fov := lerpf(lerpf(FOV_HIP, FOV_SPRINT, _sprint), ads_fov, ads_s)
 	var veh_dist := VEH_DIST + clampf(absf(veh_speed) * 0.04, 0.0, 1.2)
 	var veh_fov := VEH_FOV + minf(18.0, absf(veh_speed) * 0.5)
 	var dist := lerpf(foot_dist, veh_dist, _mode_mix)

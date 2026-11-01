@@ -549,6 +549,7 @@ func _foot_tick(dt: float) -> void:
 	_was_on_floor = landed
 
 	# --- weapon
+	weapon.poll_switch()
 	weapon.tick(dt, Input.is_action_pressed(&"fire"), reload_pressed, aiming, horizontal > 1.0)
 
 

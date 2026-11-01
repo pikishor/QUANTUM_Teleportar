@@ -18,6 +18,7 @@ const BOLT_SHADER := preload("res://assets/shaders/fx_bolt.gdshader")
 const BOLT_LEN := 3.6             ## streak length of a bolt (metres), see fx_bolt.gdshader
 const REINFORCE_EVERY := 1.4
 const NEAR_RADIUS := 110.0
+const CALLOUT_RADIUS := 45.0
 const DESPAWN_DIST := 170.0
 const PATROL_GROUPS := 7
 const PATROL_MIN_SPAWN_DIST := 110.0
@@ -300,6 +301,8 @@ func warm_begin(at: Vector3) -> Array[Drone]:
 	var out: Array[Drone] = []
 	var i := 0
 	for t: StringName in EnemyTypes.TYPES:
+		if bool(EnemyTypes.TYPES[t].get("boss", false)):
+			continue                                  # the Overseer is warmed by its contract (it would start the boss music)
 		var d := _acquire(t)
 		d.activate(at + Vector3(2.5 * i - 4.0, 0.0, 0.0), true)
 		d.warm_marks()
@@ -393,13 +396,59 @@ func _tick_reinforcements(delta: float, ppos: Vector3) -> void:
 	var pt: Vector3 = w.call(&"road_point_near", ppos, 38.0, 75.0)
 	if not pt.is_finite():
 		return
-	var type := pick_reinforcement_type(heat, randf())
+	var type := pick_type(heat, randf(), _chapter(), randf(), randf())
+	if count_type(type) >= int(EnemyTypes.get_cfg(type).get("limit", 99)):
+		type = &"operative"                                          # a specialist is capped per type (draw budget): the slot becomes a plain operative
 	var d := spawn(type, pt, true, true)
 	if d != null:
 		FX.burst(pt + Vector3(0.0, 1.0, 0.0), d.cfg["color"], 25, 6.0, 0.6, 0.0)
 
 
 ## Reinforcement mix for a roll r in 0..1: heavy from heat 3 (25 %), strikers 10 % (35 % band from heat 3), then a third operatives, rest sentinels.
+## The reinforcement of a roll: the classic mix (pick_reinforcement_type) with operative slots turned into specialists by chapter and heat (EnemyTypes.specialist_for).
+static func pick_type(heat: float, r: float, chapter: int, r_spec: float, r_pick: float) -> StringName:
+	var t := pick_reinforcement_type(heat, r)
+	if t == &"operative":
+		return EnemyTypes.specialist_for(chapter, heat, r_spec, r_pick)
+	return t
+
+
+func count_type(type: StringName) -> int:
+	var n := 0
+	for e in list:
+		if e.type == type and e.active and not e.dead:
+			n += 1
+	return n
+
+
+func _chapter() -> int:
+	return int(Game.story.get("chapter")) if is_instance_valid(Game.story) and Game.story.get("chapter") != null else 0
+
+
+## Squad callout of `caller` (an operative that just noticed the target at `target`): every neighbour within CALLOUT_RADIUS wakes up and the operatives among them get
+## alternating flank sides (nearest first: left, right, left...) for 8 s, so a squad arrives from both sides. Returns how many were alerted (not counting the flank orders).
+func squad_callout(caller: Drone, _target: Vector3) -> int:
+	var alerted := 0
+	var near: Array[Operative] = []
+	for e in list:
+		if e == caller or e.dead or not e.active:
+			continue
+		if Vector2(e.global_position.x - caller.global_position.x, e.global_position.z - caller.global_position.z).length() > CALLOUT_RADIUS:
+			continue
+		if not e.aware:
+			e.alert()
+			alerted += 1
+		if e is Operative and (e as Operative).role_flanks():
+			near.append(e as Operative)
+	near.sort_custom(func(a: Operative, b: Operative) -> bool:
+		return a.global_position.distance_to(caller.global_position) < b.global_position.distance_to(caller.global_position))
+	var side := -1.0 if (caller is Operative and (caller as Operative).flank_side() > 0.0) else 1.0
+	for o in near:
+		o.assign_flank(side)
+		side = -side
+	return alerted
+
+
 static func pick_reinforcement_type(heat: float, r: float) -> StringName:
 	if heat >= 3.0 and r < 0.25:
 		return &"heavy"
@@ -445,7 +494,15 @@ func _acquire(type: StringName) -> Drone:
 	var arr: Array = _pool.get(type, [])
 	if not arr.is_empty():
 		return arr.pop_back() as Drone
-	var d: Drone = Operative.new() if type == &"operative" else Drone.new()
+	var d: Drone
+	if type == &"overseer":
+		d = Overseer.new()
+	elif EnemyTypes.is_specialist(type):
+		d = Specialist.new()
+	elif type == &"operative":
+		d = Operative.new()
+	else:
+		d = Drone.new()
 	add_child(d)
 	d.setup(type)
 	return d

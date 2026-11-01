@@ -222,6 +222,24 @@ const DEATH: Array[Dictionary] = [
 # ---------------------------------------------------------------------------------------------------------------------
 
 const CONTRACT_RADIO := {
+	"boss": {
+		"offer": [
+			{"s": O, "t": "A Vael Overseer holds this sector's last anchor. It is huge and angry. Step into the marker when you are ready."},
+		],
+		"start": [
+			{"s": O, "t": "Overseer engaged. Three phases, if my scans hold. Watch its shield and keep your distance."},
+		],
+		"mid": [
+			{"s": A, "t": "Overseer to hive: the vessel is cutting through us. Release the field."},
+		],
+		"done": [
+			{"s": K, "t": "It is down. Whatever that thing was, it was still speaking when it fell."},
+			{"s": O, "t": "Sector cleared. A unique core fragment dropped from the wreck. Take it."},
+		],
+		"fail": [
+			{"s": O, "t": "The Overseer holds. Regroup, restock, and we go again. Same marker."},
+		],
+	},
 	"officer": {
 		"offer": [
 			{"s": O, "t": "A Vael officer is coordinating this block. Remove him and the street goes quiet. Step into the marker."},
@@ -334,6 +352,26 @@ const CONTRACT_RADIO := {
 }
 
 ## One extra line when a contract is offered, by chapter index (the last entry covers every later sector).
+## The Vael Overseer fight (scripts/enemies/overseer.gd says phase1, phase2, phase3, pulse, down; the contract uses CONTRACT_RADIO["boss"]).
+const BOSS_RADIO := {
+	"phase1": [
+		{"s": O, "t": "The Overseer. Big, old, and wired into every drone here. It will keep calling reinforcements. Kill the calls."},
+	],
+	"phase2": [
+		{"s": O, "t": "Phase two. It is shielding in pulses. Break line of sight when it charges, hit it when it drops the field."},
+	],
+	"pulse": [
+		{"s": O, "t": "Pulse charging. Get behind something solid. Now, Kestrel!"},
+		{"s": O, "t": "That field is lethal in the open. Put a wall between you and it."},
+	],
+	"phase3": [
+		{"s": O, "t": "It is enraged. Ground slams at close range. Keep moving, keep your distance, finish it."},
+	],
+	"down": [
+		{"s": O, "t": "Overseer down. The whole sector just went quiet. The hive felt that, Kestrel."},
+	],
+}
+
 const CONTRACT_CHAPTER: Array[Dictionary] = [
 	{"s": O, "t": "Old Exchange runs on rumour and rent. Contracts pay in credits, and credits buy survival."},
 	{"s": O, "t": "Glass District jobs bend toward entanglement. Practise linking, it pays double in these streets."},
