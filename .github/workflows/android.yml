@@ -88,6 +88,8 @@ jobs:
           if [ -n "$PLAY" ]; then echo "play=true" >> "$GITHUB_OUTPUT"; else echo "play=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
         if: steps.gate.outputs.signed == 'true'
+        with:
+          persist-credentials: false                # the Play upload action below is third-party: it must not find the token in .git/config
       - uses: actions/setup-java@v4
         if: steps.gate.outputs.signed == 'true'
         with:
@@ -117,26 +119,28 @@ jobs:
         if: steps.gate.outputs.signed == 'true'
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEYSTORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"
-          echo "::add-mask::$KEYSTORE_PW"
-          echo "::add-mask::$KEY_PW"
+          chmod 600 "$RUNNER_TEMP/upload.keystore"
+          # Only the file's path goes to GITHUB_ENV. The alias and the password are given to the two export steps below through their own env:, so no other step
+          # (the third-party Play upload included) inherits them.
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$RUNNER_TEMP/upload.keystore" >> "$GITHUB_ENV"
           # Godot takes one password for the release keystore; tools/release/ documents that store and key password must match (docs/RELEASE.md).
           if [ "$KEYSTORE_PW" != "$KEY_PW" ]; then echo "::warning::ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_PASSWORD differ; Godot uses the key password. Create the keystore with identical passwords (docs/RELEASE.md)."; fi
-          {
-            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$RUNNER_TEMP/upload.keystore"
-            echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$KEY_ALIAS"
-            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$KEY_PW"
-          } >> "$GITHUB_ENV"
       - name: Signed release AAB (Google Play)
         if: steps.gate.outputs.signed == 'true'
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: godot/tools/export_android.sh aab
       - name: Signed release APK (sideload / testers)
         if: steps.gate.outputs.signed == 'true'
         working-directory: godot
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           BIN="$(tools/get_godot.sh)"
           "$BIN" --headless --path . --export-release "Android" build/android/quantum-teleportar-release.apk
@@ -153,6 +157,9 @@ jobs:
           path: |
             godot/build/android/quantum-teleportar.aab
             godot/build/android/quantum-teleportar-release.apk
+      - name: Remove the decoded keystore (also when a build step failed)
+        if: ${{ always() && steps.gate.outputs.signed == 'true' }}
+        run: rm -f "$RUNNER_TEMP/upload.keystore"
       - name: Publish to Google Play (internal testing track)
         if: steps.gate.outputs.signed == 'true' && steps.gate.outputs.play == 'true' && (inputs.publish == true || startsWith(github.ref, 'refs/tags/v'))
         uses: r0adkll/upload-google-play@v1

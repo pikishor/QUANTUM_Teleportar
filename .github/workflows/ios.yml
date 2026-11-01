@@ -26,10 +26,11 @@ jobs:
       HAVE_ASC: ${{ secrets.APPSTORE_API_PRIVATE_KEY != '' && secrets.APPSTORE_API_KEY_ID != '' && secrets.APPSTORE_ISSUER_ID != '' }}
       WANT_RELEASE: ${{ inputs.release == true || startsWith(github.ref, 'refs/tags/v') }}
       WANT_TESTFLIGHT: ${{ inputs.testflight == true || startsWith(github.ref, 'refs/tags/v') }}
-      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
-      IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID }}
+      # The team and bundle ids are NOT job-level env: only the two steps that need them get them (the third-party TestFlight action must not inherit them).
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false                # the TestFlight upload action below is third-party: it must not find the token in .git/config
       - name: Cache Godot and export templates
         uses: actions/cache@v4
         with:
@@ -45,8 +46,14 @@ jobs:
           echo "VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"; else echo "VERSION_NAME=0.1.0" >> "$GITHUB_ENV"; fi
       - name: Generate the Xcode project
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID }}
         run: godot/tools/export_ios.sh
+      # With the signing secrets set, the team and bundle ids are written into this project, and artifacts of a public repository are downloadable by anyone: keep it only
+      # when it carries no ids (no signing secrets) or the repository is private.
       - name: Keep the Xcode project as an artifact (open it on a Mac, set your signing team, archive)
+        if: ${{ env.HAVE_SIGNING != 'true' || github.event.repository.private == true }}
         uses: actions/upload-artifact@v4
         with:
           name: ios-xcode-project
@@ -60,6 +67,8 @@ jobs:
       - name: Signed App Store .ipa
         if: env.HAVE_SIGNING == 'true' && env.WANT_RELEASE == 'true'
         env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID }}
           IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
           IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
           IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}

@@ -16,6 +16,8 @@ case "$MODE" in
   ipa)
     : "${IOS_TEAM_ID:?}" "${IOS_BUNDLE_ID:?}" "${IOS_CERT_P12_BASE64:?}" "${IOS_CERT_PASSWORD:?}" "${IOS_PROVISION_PROFILE_BASE64:?}"
     TMPD="$(mktemp -d)"; KC="$TMPD/build.keychain"; KCPW="$(uuidgen)"
+    # the keychain (certificate and its key) and the decoded certificate / profile are removed on every exit, a failed archive included (matters on a self-hosted Mac)
+    trap 'security delete-keychain "$KC" >/dev/null 2>&1 || true; rm -rf "$TMPD"' EXIT
     echo "$IOS_CERT_P12_BASE64" | base64 --decode > "$TMPD/cert.p12"
     security create-keychain -p "$KCPW" "$KC"
     security set-keychain-settings -lut 21600 "$KC"
@@ -45,7 +47,6 @@ case "$MODE" in
 </dict></plist>
 P
     xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$TMPD/ExportOptions.plist" -exportPath build/ios/ipa
-    security delete-keychain "$KC" || true
     ls -la build/ios/ipa ;;
   *) echo "usage: $0 compile|ipa" >&2; exit 2 ;;
 esac
