@@ -16,6 +16,7 @@ import bmesh
 from mathutils import Vector
 
 from helpers import (Part, empty, export_model, hexc, light, make_material, new_scene, paint)
+from lodlib import make_lod1, tri_count
 from shade import Decal, p_lines
 
 
@@ -395,8 +396,14 @@ def build_car(spec):
     glow_items.append(("Underglow", *glow_ellipse((0.0, 0.0, 0.03), W / 2 + 0.75, L / 2 + 0.7, [(0.0, 0.22), (0.6, 0.42), (0.78, 0.2), (1.0, 0.0)])))
 
     def finalize(parts_, objs_, extras_):
+        out = list(objs_) + list(extras_)
+        if spec.get("lod1"):                                  # Body_LOD1: the decimated body for the far view (lodlib.py), made before the glow fans are added
+            lod = make_lod1(parts_[0].obj, spec["lod1"])
+            print("  LOD0 body %d tris, LOD1 %d tris" % (tri_count(parts_[0].obj), tri_count(lod)))
+            add_glow(lod, glow_items)
+            out.append(lod)
         add_glow(parts_[0].obj, glow_items)
-        return list(objs_) + list(extras_)
+        return out
 
     print("  body tris %d, wheel tris %d" % (P.tri_count(), sum(w.tri_count() for w in wheels)))
     groups = {"paint": dict(base=spec["name"] + "_paint", material="Body", size=spec.get("atlas_paint", 1024)),

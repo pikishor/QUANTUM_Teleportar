@@ -10,7 +10,7 @@ extends RefCounted
 
 const CHARACTERS := ["player", "operative"]
 const DRONES := ["drone_sentinel", "drone_striker", "drone_heavy"]
-const CARS := ["car_sedan", "car_sport", "car_suv"]
+const CARS := ["car_sedan", "car_sport", "car_suv", "car_taxi", "car_wagon", "car_van", "car_truck"]
 const PROPS := ["pickup_health", "pickup_energy", "core_gem"]
 const BUDGET_CHARACTER := 18000                     ## hero (the operative has BUDGET_OPERATIVE)
 const BUDGET_OPERATIVE := 12000
@@ -171,7 +171,7 @@ func _aabb_solid(root: Node3D) -> AABB:
 func _surfaces(root: Node) -> int:
 	var n := 0
 	for mi in _meshes(root):
-		if mi.mesh:
+		if mi.mesh and not String(mi.name).ends_with("_LOD1"):      # the LOD1 body replaces Body (never drawn with it)
 			n += mi.mesh.get_surface_count()
 	return n
 
@@ -431,9 +431,10 @@ func _car(host: Node, model_name: String) -> void:
 	var limit := SURFACES_CAR if baked else SURFACES_LEGACY_CAR
 	TestLib.check(_surfaces(m) <= limit, "%s draws in %d surfaces (<= %d)" % [model_name, _surfaces(m), limit])
 	var box := _aabb_solid(m)
-	TestLib.check(box.size.z > 4.2 and box.size.z < 5.2, "%s is about 4.5 m long (%.2f)" % [model_name, box.size.z])
-	TestLib.check(box.size.x > 1.7 and box.size.x < 2.3, "%s is about 1.9 m wide (%.2f)" % [model_name, box.size.x])
-	TestLib.check(box.size.y > 1.1 and box.size.y < 1.95, "%s is %.2f m tall" % [model_name, box.size.y])
+	var big := model_name in ["car_van", "car_truck"]
+	TestLib.check(box.size.z > (4.2 if not big else 4.8) and box.size.z < (5.2 if not big else 7.0), "%s is about 4.5 m long (%.2f)" % [model_name, box.size.z])
+	TestLib.check(box.size.x > 1.7 and box.size.x < (2.3 if not big else 2.6), "%s is about 1.9 m wide (%.2f)" % [model_name, box.size.x])
+	TestLib.check(box.size.y > 1.1 and box.size.y < (1.95 if not big else 3.2), "%s is %.2f m tall" % [model_name, box.size.y])
 	TestLib.check(box.position.y > -0.02 and box.position.y < 0.05, "%s touches the ground (min y %.3f)" % [model_name, box.position.y])
 	var radii := []
 	for pair in [["WheelFL", -1, -1], ["WheelFR", 1, -1], ["WheelRL", -1, 1], ["WheelRR", 1, 1]]:

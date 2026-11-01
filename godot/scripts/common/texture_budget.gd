@@ -6,7 +6,7 @@ extends RefCounted
 ## the model scenes, so the full-size textures are freed. Run it BEFORE the models are instantiated (main.gd), only on the LOW tier; the textures stay at half size
 ## until the next launch. Skips quietly when the texture data cannot be read (headless, a GPU-only format).
 
-const MODELS: Array[String] = ["player", "operative", "drone_heavy", "drone_sentinel", "drone_striker", "car_sedan", "car_sport", "car_suv", "core_gem", "pickup_energy", "pickup_health"]
+const MODELS: Array[String] = ["player", "operative", "drone_heavy", "drone_sentinel", "drone_striker", "car_sedan", "car_sport", "car_suv", "car_taxi", "car_wagon", "car_van", "car_truck", "bike_street", "car_hover", "car_vael_patrol", "core_gem", "pickup_energy", "pickup_health"]
 const MIN_SIDE := 1024
 
 static var halved_count := 0

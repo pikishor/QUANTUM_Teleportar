@@ -2,7 +2,7 @@ extends Node3D
 ## Look-dev stage for the generated models: lit wet asphalt, night sky, haze, neon practicals and rim lights.
 ## Pick the camera with the environment variable QT_VIEW (shot.sh passes the environment through):
 ##   QT_VIEW=overview                      every model in rows (default)
-##   QT_VIEW=row0..row3[f]                 one row (0 characters, 1 drones, 2 cars, 3 pickups/core), "f" = seen from the front
+##   QT_VIEW=row0..row3[f]                 one row (0 characters, 1 drones, 2 cars, 3 vans and trucks, 4 bikes and hovers, 5 pickups/core), "f" = seen from the front
 ##   QT_VIEW=<model>,<dist>,<yaw>,<pitch>  one model at the origin; yaw 0 = seen from the front (-Z side), 180 = from behind
 ##                                         e.g. QT_VIEW=player,3.5,180,8   QT_VIEW=drone_sentinel,20,35,6   QT_VIEW=car_sport,10,30,8
 ## QT_MOOD=studio switches to neutral bright lighting for judging shapes (default: night with neon).
@@ -12,6 +12,8 @@ const ROWS := [
 	{"z": 0.0, "step": 2.6, "models": ["player", "operative"]},
 	{"z": -7.0, "step": 4.5, "models": ["drone_sentinel", "drone_striker", "drone_heavy"]},
 	{"z": -17.0, "step": 6.5, "models": ["car_sedan", "car_sport", "car_suv"]},
+	{"z": -26.0, "step": 6.5, "models": ["car_taxi", "car_wagon", "car_van", "car_truck"]},
+	{"z": -34.0, "step": 5.0, "models": ["bike_street", "car_hover", "car_vael_patrol"]},
 	{"z": 5.0, "step": 1.6, "models": ["pickup_health", "pickup_energy", "core_gem"]},
 ]
 

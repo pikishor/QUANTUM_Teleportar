@@ -20,7 +20,7 @@ import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 IMPORT_SCRIPT = '"res://tools/blender/post_import.gd"'
-MODEL_PREFIXES = ("player_", "operative_", "drone_", "car_", "pickup_", "core_gem")
+MODEL_PREFIXES = ("player_", "operative_", "drone_", "car_", "bike_", "pickup_", "core_gem")
 
 
 def patch(path, changes):

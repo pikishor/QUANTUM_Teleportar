@@ -14,6 +14,13 @@ const COAT_ROUGHNESS := 0.07
 const LAMP_GAIN := 0.6                      ## lamp surfaces are drawn additively (unshaded, vertex colour = soft falloff): albedo = colour x base energy x this x state
 const PAINT_GLOW := 0.15                    ## faint emission in the paint colour, so a car keeps its colour in the dark
 const WHEEL_NAMES := [&"WheelFL", &"WheelFR", &"WheelRL", &"WheelRR"]
+const BIKE_WHEEL_NAMES := [&"WheelF", &"WheelR"]    ## bikes: front (steers) and rear wheel; a hover craft has none
+## LOD1: the new Wave 14 models ship a second, decimated body mesh ("Body_LOD1", about 30 % of the triangles, same UVs, materials and lamp surfaces, see tools/blender/lodlib.py).
+## Body is shown up to LOD1_DIST metres from the camera, Body_LOD1 beyond (a hard switch with a small hysteresis margin, no fade pass). Both share the SAME per-instance materials,
+## so the paint and the lamp colours follow. The older three cars have no LOD1 (the importer's own mesh LODs are all they use).
+const LOD1_NAME := &"Body_LOD1"
+const LOD1_DIST := 42.0
+const LOD1_MARGIN := 3.0
 ## The three lamp surfaces (headlight, taillight and underglow halos, each its own additive material) are merged into ONE surface ("Lamps") with one tiny shader: the vertex alpha
 ## says which lamp a vertex belongs to, three colour uniforms carry the per-state colours. Two draw calls less per car (and per shadow-free pass), same look.
 const LAMP_CODES := [0.1, 0.5, 0.9]                  ## vertex alpha of headlight / taillight / underglow vertices
@@ -39,6 +46,10 @@ var wheels: Array[Node3D] = []              ## FL FR RL RR; steer = rotation.y o
 var meshes: Array[MeshInstance3D] = []      ## every mesh of the model
 var mirror_meshes: Array[MeshInstance3D] = []   ## what MirrorProxy tracks: the body only (the wheels are not worth their draw calls)
 var uses_model := false
+var model_name := ""                        ## the Game.load_model name that was used ("" = primitive fallback)
+var body_lod1: MeshInstance3D               ## the decimated far body (null for models without LOD1)
+var cls: StringName = &"car"
+var _front: Array[bool] = []                ## per wheel: steers with the handlebars / front axle
 var lights: Array[Light3D] = []             ## the model lights that were kept (the underglow omni), on only within PerfTiers.light_range() of the camera
 var lights_on := true
 var shadow_on := true                       ## the body currently casts a shadow (Vehicle.update_lod: only within PerfTiers.SHADOW_RANGE of the camera)
@@ -47,6 +58,8 @@ var wheel_radius := 0.335
 var _body_mat: BaseMaterial3D
 var _lamp_mat: ShaderMaterial                ## per-car instance of the merged lamp shader (null for the primitive fallback and models without the lamp surfaces)
 var _lamp_idx := -1
+var _lamp_idx1 := -1                         ## the merged lamp surface of the LOD1 mesh
+var _kind: StringName = &""
 var _shadow: MeshInstance3D                 ## shadow-only copy of the body without the lamp surfaces (ShadowProxy), null when the body has nothing to drop
 var _lift := 1.0
 var _mats: Array = [[], [], []]             ## per light kind: Array of BaseMaterial3D
@@ -61,16 +74,31 @@ var _wheels_shown := true
 func build(kind: StringName, glow: Color) -> Node3D:
 	var spec: Dictionary = VehicleSpecs.SPECS[kind]
 	wheel_radius = spec["wheel"]
-	model = Game.load_model(spec["model"])
+	_kind = kind
+	cls = VehicleSpecs.cls_of(kind)
+	model = null
+	for mn in VehicleSpecs.model_names(kind):            # best model first; a missing one (not built yet) falls through to the next and finally to primitives
+		model = Game.load_model(mn)
+		if model != null:
+			model_name = mn
+			break
 	uses_model = model != null
 	if model == null:
 		model = _fallback(spec)
 	body = model.get_node_or_null("Body") as MeshInstance3D
-	for n: StringName in WHEEL_NAMES:
+	for n: StringName in WHEEL_NAMES + BIKE_WHEEL_NAMES:
 		var w := model.get_node_or_null(NodePath(n)) as Node3D
 		if w != null:
 			wheels.append(w)
+			_front.append(String(n).begins_with("WheelF"))
 	var lamp_src := _merge_lamps(body)
+	body_lod1 = model.get_node_or_null(NodePath(LOD1_NAME)) as MeshInstance3D
+	if body_lod1 != null:
+		var idx0 := _lamp_idx
+		_lamp_idx = -1
+		_merge_lamps(body_lod1)                            # the far mesh gets its own merged "Lamps" surface (same shader, same per-car material below)
+		_lamp_idx1 = _lamp_idx
+		_lamp_idx = idx0
 	lights = DynamicFill.trim_lights(model, PackedStringArray(["UnderglowLight"]))      # the headlight spot and the car's own fill go (shared fill + emissive lamps); the underglow pool stays, within range
 	meshes = DynamicFill._meshes(model)
 	DynamicFill.apply(model, glow)
@@ -78,7 +106,7 @@ func build(kind: StringName, glow: Color) -> Node3D:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		var mesh := mi.mesh
-		if mesh == null:
+		if mesh == null or mi == body_lod1:                # LOD1 takes the materials of the body (_link_lod1)
 			continue
 		for s in mesh.get_surface_count():
 			var src := mesh.surface_get_material(s) as BaseMaterial3D
@@ -115,11 +143,37 @@ func build(kind: StringName, glow: Color) -> Node3D:
 				if int(info[0]) == k:
 					_cols[k].append(glow if k == 2 else info[1])
 					_base[k].append(info[2])
+	if body_lod1 != null and body != null:
+		_link_lod1()
 	if body != null:
 		_shadow = ShadowProxy.static_proxy(body)        # the lamp glow surfaces would cast a shadow draw each, in every cascade
 		mirror_meshes.append(_make_mirror_source(body))
 	set_lights(0.1, 0.35, 0.35)
 	return model
+
+
+## Body_LOD1 shares the per-instance materials of Body (matched by the source material's name; its merged lamp surface gets the lamp shader material) and takes over beyond LOD1_DIST.
+func _link_lod1() -> void:
+	var m0 := body.mesh
+	var m1 := body_lod1.mesh
+	if m0 == null or m1 == null:
+		return
+	for s in m1.get_surface_count():
+		if s == _lamp_idx1 and _lamp_mat != null:
+			body_lod1.set_surface_override_material(s, _lamp_mat)
+			continue
+		var nm := StringName((m1.surface_get_material(s) as Material).resource_name) if m1.surface_get_material(s) != null else &""
+		for t in m0.get_surface_count():
+			var m := m0.surface_get_material(t)
+			if t != _lamp_idx and m != null and StringName(m.resource_name) == nm:
+				body_lod1.set_surface_override_material(s, body.get_surface_override_material(t))
+				break
+	body.visibility_range_end = LOD1_DIST
+	body.visibility_range_end_margin = LOD1_MARGIN
+	body_lod1.visibility_range_begin = LOD1_DIST
+	body_lod1.visibility_range_begin_margin = LOD1_MARGIN
+	body.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+	body_lod1.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 
 
 ## Merge the Headlights / Taillights / Underglow surfaces of the body mesh into one "Lamps" surface (once per source mesh, shared). Returns [[kind, colour, base energy], ...] of the
@@ -206,6 +260,7 @@ func _make_mirror_source(src: MeshInstance3D) -> MeshInstance3D:
 func set_paint(color: Color) -> void:
 	if _body_mat == null:
 		return
+	color = VehicleSpecs.paint_for(_kind, color)            # taxis, vans, trucks and Vael patrols wear their own palettes (a husk's colour passes through)
 	var c := color * VehicleSpecs.PAINT_GAIN
 	_body_mat.albedo_color = Color(c.r * _lift, c.g * _lift, c.b * _lift, 1.0)
 	_body_mat.emission = color
@@ -285,7 +340,7 @@ func spin(dist: float, steer: float) -> void:
 		return
 	_roll = fposmod(_roll - dist / wheel_radius, TAU)
 	for i in wheels.size():
-		wheels[i].rotation = Vector3(_roll, steer if i < 2 else 0.0, 0.0)
+		wheels[i].rotation = Vector3(_roll, steer if _front[i] else 0.0, 0.0)
 
 
 func set_wheels_visible(v: bool) -> void:
@@ -339,6 +394,30 @@ func _fallback(spec: Dictionary) -> Node3D:
 	_strip(hull, "Taillights", Vector3(wid * 0.8, 0.1, 0.06), Vector3(0.0, hgt * 0.05, ln * 0.5), Color(1.0, 0.06, 0.12), 5.0)
 	_strip(hull, "Underglow", Vector3(wid * 0.9, 0.04, ln * 0.8), Vector3(0.0, -hgt * 0.21 - r * 0.5, 0.0), Color(1.0, 0.18, 0.84), 4.0)
 	var axle := ln * 0.3
+	var spec_cls := StringName(spec.get("cls", &"car"))
+	if spec_cls == &"hover":                         # no wheels: a flat hull on an underglow pool
+		cabin.position.y = hgt * 0.3
+		return root
+	if spec_cls == &"bike":                          # two wheels on the centre line, a narrow hull
+		hm.size = Vector3(wid * 0.55, hgt * 0.3, ln * 0.62)
+		cm.size = Vector3(wid * 0.45, hgt * 0.3, ln * 0.25)
+		for j in 2:
+			var bw := Node3D.new()
+			bw.name = String(BIKE_WHEEL_NAMES[j])
+			var bmi := MeshInstance3D.new()
+			var bc := CylinderMesh.new()
+			bc.top_radius = r
+			bc.bottom_radius = r
+			bc.height = 0.16
+			bc.radial_segments = 14
+			bc.rings = 1
+			bc.material = _mat("Wheel", Color(0.06, 0.06, 0.07), 0.2, 0.7)
+			bmi.mesh = bc
+			bmi.rotation = Vector3(0.0, 0.0, PI * 0.5)
+			bw.add_child(bmi)
+			bw.position = Vector3(0.0, r, -ln * 0.36 if j == 0 else ln * 0.36)
+			root.add_child(bw)
+		return root
 	for i in 4:
 		var w := Node3D.new()
 		w.name = String(WHEEL_NAMES[i])

@@ -40,7 +40,7 @@ func run(host: Node) -> void:
 
 func _test_traffic(city: City, amb: Node3D) -> void:
 	var t: RefCounted = amb.traffic
-	TestLib.check(Traffic.CAP == 300 and Traffic.BUILT <= Traffic.CAP, "far traffic is capped at 300 instances (built %d)" % Traffic.BUILT)
+	TestLib.check(Traffic.CAP == 420 and Traffic.BUILT <= Traffic.CAP, "far traffic is capped at 420 instances (built %d)" % Traffic.BUILT)
 	TestLib.check(t.mm.instance_count == Traffic.BUILT, "the traffic MultiMesh holds %d cars" % t.mm.instance_count)
 	# every car sits on one of the 36 lane lines, on the road, driving right-hand
 	var on_lane := true

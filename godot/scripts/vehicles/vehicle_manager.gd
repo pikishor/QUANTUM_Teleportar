@@ -16,6 +16,10 @@ var starter: Vehicle                 ## the starter sport car near the spawn (nu
 var respawn_time := VehicleSpecs.RESPAWN_TIME
 var stream_every := VehicleSpecs.STREAM_EVERY   ## seconds between streaming passes (tests shorten it)
 
+var radio: CarRadio                  ## the car radio (3 synthesised stations), a child node
+var patrols_spawned := 0             ## Vael patrol vehicles sent after the player so far (tests, stats)
+
+var _patrol_t := 0.0
 var _pool := {}                      ## kind -> Array[Vehicle] (inactive)
 var _stream_t := 0.0
 var _clock := 0.0
@@ -33,6 +37,9 @@ func _ready() -> void:
 	Game.respawn.connect(_reset_all)
 	Game.next_sector.connect(_reset_all)
 	Game.quality_changed.connect(_on_quality)
+	radio = CarRadio.new()
+	radio.name = "Radio"
+	add_child(radio)
 	_spawn_starter()
 
 
@@ -85,13 +92,15 @@ func enter(car: Vehicle) -> void:
 	var p := Game.player
 	if not is_instance_valid(p) or car == null or car.dead or not car.active:
 		return
-	if car.ai:
+	if car.ai or car.chasing:
 		car.ai = false
+		car.chasing = false
 		Game.add_heat(VehicleSpecs.CARJACK_HEAT)
 		Game.say("VEHICLE COMMANDEERED", 1.4)
 	car.driver_is_player = true
 	driven = car
 	p.set(&"vehicle", car)
+	car.on_enter()
 	Sfx.play(&"pickup")
 
 
@@ -104,13 +113,17 @@ func exit_vehicle() -> void:
 	if car == null:
 		return
 	driven = null
+	var exit_speed := absf(car.speed)
 	car.driver_is_player = false
 	car.steer_in = 0.0
 	car.braking = false
+	car.on_exit()
 	if is_instance_valid(p):
 		var pos := _exit_point(car)
 		p.call(&"teleport_to", pos)
 		p.set(&"vehicle", null)
+		if not car.dead and exit_speed > VehicleSpecs.EXIT_SAFE_SPEED and p.has_method(&"damage"):
+			p.call(&"damage", (exit_speed - VehicleSpecs.EXIT_SAFE_SPEED) * VehicleSpecs.EXIT_HURT)      # bailing out of a fast car hurts
 
 
 func spawn_parked(kind: StringName, pos: Vector3, heading: float) -> Vehicle:
@@ -182,6 +195,7 @@ func _reset_all() -> void:
 	_ram_cd.clear()
 	_clock = 0.0
 	_stream_t = 0.0
+	_patrol_t = 0.0
 	starter = null
 	_spawn_starter()
 
@@ -274,7 +288,7 @@ func _release(v: Vehicle) -> void:
 ## Hand the returned cars back with warm_end().
 func warm_begin(at: Vector3) -> Array[Vehicle]:
 	var out: Array[Vehicle] = []
-	for k: StringName in VehicleSpecs.KINDS:
+	for k: StringName in [&"vael_patrol", &"hover", &"bike", &"sedan", &"suv"]:
 		var v := spawn_parked(k, at, 0.0)
 		if v != null:
 			out.append(v)
@@ -311,6 +325,8 @@ func _physics_process(delta: float) -> void:
 	_clock += delta
 	if Input.is_action_just_pressed(&"interact"):
 		toggle_enter_exit()
+	if radio != null:
+		radio.poll_input()
 	_sync_driver()
 	var i := 0
 	while i < list.size():
@@ -332,6 +348,7 @@ func _physics_process(delta: float) -> void:
 		_tick_wrecks(_player_pos(), true)
 	_tick_wrecks(Vector3.INF, false)
 	_tick_respawns()
+	_tick_patrols(delta)
 
 
 ## The player's own state is the truth: a car he sits in (set from outside too) is the driven one, and one he left is not.
@@ -451,7 +468,7 @@ func _stream() -> void:
 	var i := list.size() - 1
 	while i >= 0:
 		var v := list[i]
-		if v != starter and not v.driver_is_player and not v.has_meta(&"hold") and _dist(v, ppos) > VehicleSpecs.DESPAWN_RADIUS:
+		if v != starter and not v.driver_is_player and not v.has_meta(&"hold") and not (v.patrol and v.chasing) and _dist(v, ppos) > VehicleSpecs.DESPAWN_RADIUS:
 			_release(v)
 		i -= 1
 	_trim_to_cap()
@@ -462,13 +479,89 @@ func _stream() -> void:
 		_spawn_streamed(float(parked_now) < VehicleSpecs.PARKED_SHARE * float(total + 1))
 
 
+# --- Vael patrols ----------------------------------------------------------------------------------------------------------
+
+func patrol_cap() -> int:
+	return VehicleSpecs.PATROL_CAPS[clampi(Game.quality, 0, 2)]
+
+
+func patrol_count(chasing_only := false) -> int:
+	var n := 0
+	for v in list:
+		if v.patrol and not v.driver_is_player and (v.chasing or not chasing_only):
+			n += 1
+	return n
+
+
+## From heat 3 Vael patrol vehicles (hover chassis, spec `vael_patrol`) are sent after the player: one per tier (two on HIGH), one new attempt every PATROL_EVERY seconds,
+## 55-100 m away in a lane, using a free car slot or the slot of the farthest ordinary car. Below heat 2 they stand down and are released once 45 m away.
+func _tick_patrols(delta: float) -> void:
+	var ppos := _player_pos()
+	if not ppos.is_finite():
+		return
+	if Game.heat < VehicleSpecs.PATROL_STAND_DOWN:
+		for v in list.duplicate():
+			if v.patrol and not v.driver_is_player:
+				v.chasing = false
+				if _dist(v, ppos) > 45.0:
+					_release(v)
+		return
+	for v in list:
+		if v.patrol and v.active and not v.dead and not v.driver_is_player and not v.chasing and not v.ai and Game.heat >= VehicleSpecs.PATROL_HEAT:
+			v.chasing = true                                  # a standing-down patrol picks the chase up again
+	if Game.heat < VehicleSpecs.PATROL_HEAT:
+		return
+	_patrol_t -= delta
+	if _patrol_t > 0.0 or patrol_count(true) >= patrol_cap():
+		return
+	_patrol_t = VehicleSpecs.PATROL_EVERY
+	spawn_patrol()
+
+
+## Place one chasing patrol vehicle (null when no free road spot or no slot could be made).
+func spawn_patrol() -> Vehicle:
+	var ppos := _player_pos()
+	if not ppos.is_finite():
+		return null
+	var spot := _find_spot(ppos, false, VehicleSpecs.PATROL_MIN, VehicleSpecs.PATROL_MAX)
+	if spot.is_empty():
+		return null
+	if list.size() >= cap() and not _free_slot():
+		return null
+	var v := _acquire(&"vael_patrol")
+	v.activate(spot[0], spot[4])
+	v.chasing = true
+	list.append(v)
+	patrols_spawned += 1
+	v.update_lod(_dist(v, ppos))
+	return v
+
+
+## Make room for one car: the farthest car that is not the starter, driven, held by a mission or a patrol goes back to the pool.
+func _free_slot() -> bool:
+	var ppos := _player_pos()
+	var far: Vehicle = null
+	var far_d := -1.0
+	for v in list:
+		if v == starter or v.driver_is_player or v.patrol or v.has_meta(&"hold"):
+			continue
+		var d := _dist(v, ppos) if ppos.is_finite() else 0.0
+		if d > far_d:
+			far_d = d
+			far = v
+	if far == null:
+		return false
+	_release(far)
+	return true
+
+
 func _trim_to_cap() -> void:
 	var ppos := _player_pos()
 	while list.size() > cap():
 		var far: Vehicle = null
 		var far_d := -1.0
 		for v in list:
-			if v == starter or v.driver_is_player or v.has_meta(&"hold"):       # a mission's target car (Contracts) is never recycled
+			if v == starter or v.driver_is_player or v.has_meta(&"hold") or (v.patrol and v.chasing):       # a mission's target car (Contracts) is never recycled, nor a chasing patrol
 				continue
 			var d := _dist(v, ppos) if ppos.is_finite() else 0.0
 			if d > far_d:
@@ -510,12 +603,12 @@ func _spawn_streamed(parked: bool) -> Vehicle:
 
 
 ## [position, axis, dir, lane line, heading] of a free spot, or [].
-func _find_spot(center: Vector3, parked: bool) -> Array:
+func _find_spot(center: Vector3, parked: bool, rmin := VehicleSpecs.SPAWN_MIN, rmax := VehicleSpecs.SPAWN_MAX) -> Array:
 	var w := Game.world
 	if not is_instance_valid(w) or not w.has_method(&"road_point_near"):
 		return []
 	for attempt in 6:
-		var pt: Vector3 = w.call(&"road_point_near", center, VehicleSpecs.SPAWN_MIN, VehicleSpecs.SPAWN_MAX)
+		var pt: Vector3 = w.call(&"road_point_near", center, rmin, rmax)
 		if not pt.is_finite():
 			continue
 		var ix := VehicleSpecs.road_index(pt.x)
@@ -557,8 +650,9 @@ func _exit_point(car: Vehicle) -> Vector3:
 	var r := car.right()
 	var f := car.forward()
 	var w := Game.world
-	var best := base + r * 2.8
-	for off: Vector3 in [r * 2.8, -r * 2.8, -f * 3.6, f * 3.6]:
+	var side := 1.5 if car.cls == &"bike" else (2.6 if car.cls == &"hover" else 2.8)      # a bike has no doors: step off right beside it
+	var best := base + r * side
+	for off: Vector3 in [r * side, -r * side, -f * 3.6, f * 3.6]:
 		var p := base + off
 		if absf(p.x) > Game.HALF + 25.0 or absf(p.z) > Game.HALF + 25.0:
 			continue
@@ -571,4 +665,4 @@ func _exit_point(car: Vehicle) -> Vector3:
 
 func stats() -> Dictionary:
 	return {"live": list.size(), "traffic": traffic_count(), "parked": parked_count(), "pooled": total_nodes() - list.size(), "cap": cap(),
-		"driven": driven != null, "respawns": _respawns.size()}
+		"driven": driven != null, "respawns": _respawns.size(), "patrols": patrol_count(), "chasing": patrol_count(true), "radio": radio.station if radio != null and radio.on else -1}

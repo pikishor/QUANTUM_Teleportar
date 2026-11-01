@@ -8,12 +8,16 @@ const SHADER := preload("res://assets/shaders/prop_traffic.gdshader")
 
 const LANE_MIN := -340.0
 const LANE_LEN := 680.0
-const BUILT := 240                       ## instances in the MultiMesh (the HIGH count); the hard cap of the feature is CAP
-const CAP := 300
-const COUNTS: Array[int] = [80, 150, 240]
+const BUILT := 380                       ## instances in the MultiMesh (the HIGH count); the hard cap of the feature is CAP
+const CAP := 420
+const COUNTS: Array[int] = [110, 220, 380]      ## denser than before (80 / 150 / 240): still ONE draw call, the cost is vertex-stage only
 const LANES := 36
 const EMERGENCY_EVERY := 40
 const EMERGENCY_AT := 7
+## What the far cars are, by VehicleSpecs name and share of the cars (the rest of each 40 are plain cars; every 40th car is the emergency / Vael patrol vehicle). The look
+## (head light tint, speed factor) comes from VehicleSpecs.far_look(): a kind whose model has not been built yet drives with the sedan's look, never fails.
+const KIND_MIX: Array = [[&"sedan", 0.30], [&"sport", 0.14], [&"suv", 0.12], [&"bike", 0.16], [&"hover", 0.28]]
+const EMERGENCY_KIND := &"vael_patrol"
 
 var mm: MultiMesh
 var material: ShaderMaterial
@@ -24,6 +28,8 @@ var lat := PackedFloat32Array()
 var start := PackedFloat32Array()
 var speed := PackedFloat32Array()
 var axis := PackedByteArray()
+var kind := PackedByteArray()            ## index into kind_names() per instance
+var _kind_names: Array[StringName] = []
 
 
 func build() -> void:
@@ -56,16 +62,26 @@ func build() -> void:
 	start.resize(BUILT)
 	speed.resize(BUILT)
 	axis.resize(BUILT)
+	kind.resize(BUILT)
+	_kind_names.clear()
+	for km: Array in KIND_MIX:
+		_kind_names.append(km[0])
+	_kind_names.append(EMERGENCY_KIND)
 	for i in BUILT:
 		var lane := order[i % LANES]
 		var slot := i / LANES
 		var s := LANE_MIN + fposmod(float(slot) * 0.6180339 + lane_phase[lane], 1.0) * LANE_LEN
 		var seed_v := rng.randf() * 0.98
 		var emergency := i % EMERGENCY_EVERY == EMERGENCY_AT
-		var tint := Color(1.0, 0.92, 0.78).lerp(Color(0.80, 0.90, 1.0), rng.randf())
+		var base_tint := Color(1.0, 0.92, 0.78).lerp(Color(0.80, 0.90, 1.0), rng.randf())
+		var kr := rng.randf()
+		var ki := _kind_names.size() - 1 if emergency else _pick_kind(kr)
+		var look := VehicleSpecs.far_look(_kind_names[ki])
+		var tint: Color = base_tint if ki < 3 or emergency else base_tint.lerp(look["tint"], 0.85)      # cars keep the random city white, bikes and hovers carry their own light
+		kind[i] = ki
 		lat[i] = lane_lat[lane]
 		start[i] = s
-		speed[i] = lane_speed[lane] * (0.55 if emergency else 1.0) * (1.0 + 0.04 * (seed_v - 0.5))
+		speed[i] = lane_speed[lane] * (0.55 if emergency else float(look["speed"])) * (1.0 + 0.04 * (seed_v - 0.5))
 		axis[i] = lane_axis[lane]
 		var o := i * 20
 		buf[o] = 1.0
@@ -134,6 +150,21 @@ func set_count(n: int) -> void:
 func set_time(t: float) -> void:
 	material.set_shader_parameter(&"ambient_time", t)
 	mirror_material.set_shader_parameter(&"ambient_time", t)
+
+
+## Index into _kind_names for a random number 0..1 (the shares of KIND_MIX).
+static func _pick_kind(r: float) -> int:
+	var acc := 0.0
+	for j in KIND_MIX.size():
+		acc += float((KIND_MIX[j] as Array)[1])
+		if r < acc:
+			return j
+	return KIND_MIX.size() - 1
+
+
+## VehicleSpecs name of far car `i` (emergency cars are the Vael patrol vehicles).
+func kind_of(i: int) -> StringName:
+	return _kind_names[kind[i]]
 
 
 func is_emergency(i: int) -> bool:

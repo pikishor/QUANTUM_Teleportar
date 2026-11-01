@@ -9,6 +9,7 @@ extends CharacterBody3D
 ## A car is pooled by the manager: activate() / deactivate() reuse the same nodes, materials and (cheap) MirrorProxy.
 
 signal exploded(vehicle: Vehicle)
+signal damage_state_changed(vehicle: Vehicle, state: int)     ## 0 sound, 1 smoking (hp < 40 %), 2 burning (hp < 15 %, the car burns down and explodes)
 
 var kind: StringName = &"sedan"
 var spec: Dictionary = VehicleSpecs.SPECS[&"sedan"]
@@ -35,6 +36,13 @@ var slip := 0.0                     ## lateral speed, m/s (body roll)
 var visual: VehicleVisual
 var manager: Node
 var hits := 0                       ## wall and car impacts that hurt (tests, stats)
+var cls: StringName = &"car"        ## handling class from the spec: car / bike / hover
+var lean := 0.0                     ## bike: body roll in rad (+ = leaning right), also the roll of an AI bike in a turn
+var bob := 0.0                      ## hover: current height offset of the model above the ride height (m)
+var dmg_state := 0                  ## see damage_state_changed
+var patrol := false                 ## a Vael patrol vehicle (spec flag)
+var chasing := false                ## patrol: drives at the player and rams him
+var ram_hits := 0                   ## patrol rams that landed (tests)
 
 var _mirror: MirrorProxy
 var _mirror_on := false
@@ -44,6 +52,17 @@ var _lean_p := 0.0
 var _lean_r := 0.0
 var _last_vf := 0.0
 var _heading_set := NAN
+var _prev_h := 0.0
+var _bob_t := 0.0
+var _fx_t := 0.0
+var _fx_n := 0
+var _dist := 0.0                    ## distance to the player (update_lod)
+var _stuck := 0.0
+var _rev := 0.0
+var _ram_cd := 0.0
+var _siren_t := 0.0
+var _siren_i := 0
+var _warned := 0
 
 
 ## One-time construction: model, collider, MirrorProxy.
@@ -53,6 +72,8 @@ func setup(k: StringName, mgr: Node) -> void:
 	manager = mgr
 	max_hp = spec["hp"]
 	hp = max_hp
+	cls = VehicleSpecs.cls_of(k)
+	patrol = bool(spec.get("patrol", false))
 	name = "Car_%s" % k
 	collision_layer = 0
 	collision_mask = Game.L_WORLD
@@ -64,7 +85,7 @@ func setup(k: StringName, mgr: Node) -> void:
 	var h: float = float(spec["hgt"]) - 0.2
 	box.size = Vector3(float(spec["wid"]) - 0.1, h, float(spec["len"]) - 0.3)
 	cs.shape = box
-	cs.position = Vector3(0.0, 0.2 + h * 0.5, 0.0)
+	cs.position = Vector3(0.0, 0.2 + h * 0.5 + float(spec.get("hover_h", 0.0)), 0.0)      # a hover craft's hull floats: so does its hit box
 	add_child(cs)
 	_mirror = MirrorProxy.new()
 	add_child(_mirror)
@@ -86,6 +107,18 @@ func activate(pos: Vector3, h: float) -> void:
 	steer_in = 0.0
 	slip = 0.0
 	hits = 0
+	lean = 0.0
+	bob = 0.0
+	patrol = bool(spec.get("patrol", false))
+	dmg_state = 0
+	chasing = false
+	ram_hits = 0
+	_prev_h = h
+	_fx_t = 0.0
+	_stuck = 0.0
+	_rev = 0.0
+	_ram_cd = 0.0
+	_warned = 0
 	_steer_vis = 0.0
 	_lean_p = 0.0
 	_lean_r = 0.0
@@ -95,6 +128,7 @@ func activate(pos: Vector3, h: float) -> void:
 	rotation = Vector3(0.0, h, 0.0)
 	_heading_set = h
 	visual.model.rotation = Vector3.ZERO
+	visual.model.position = Vector3(0.0, 0.0, 0.0)
 	var ci := randi() % VehicleSpecs.COLORS.size()
 	visual.set_paint(VehicleSpecs.COLORS[ci])
 	visual.set_glow(VehicleSpecs.GLOWS[randi() % VehicleSpecs.GLOWS.size()])
@@ -113,6 +147,7 @@ func become_wreck() -> void:
 	active = false
 	driver_is_player = false
 	ai = false
+	chasing = false
 	speed = 0.0
 	vel = Vector3.ZERO
 	braking = false
@@ -133,6 +168,7 @@ func deactivate() -> void:
 	active = false
 	driver_is_player = false
 	ai = false
+	chasing = false
 	collision_layer = 0
 	visible = false
 	if is_in_group(&"vehicle"):
@@ -154,6 +190,23 @@ func set_traffic(axis: int, dir: int, line: float, cruise: float) -> void:
 	_apply_lights()
 
 
+## The player takes the wheel (VehicleManager.enter): door sound, a patrol vehicle stops being one, lights on at once.
+func on_enter() -> void:
+	patrol = false
+	chasing = false
+	lean = 0.0
+	Sfx.play(&"car_door", -6.0)
+	_apply_lights()
+
+
+## The player leaves the wheel (VehicleManager.exit_vehicle): the car keeps a share of its speed and rolls to a stop (no input), a bike drops its lean.
+func on_exit() -> void:
+	vel *= VehicleSpecs.EXIT_BRAKE
+	speed *= VehicleSpecs.EXIT_BRAKE
+	Sfx.play(&"car_door", -6.0)
+	_apply_lights()
+
+
 func forward() -> Vector3:
 	return Vector3(-sin(heading), 0.0, -cos(heading))
 
@@ -171,6 +224,58 @@ func damage(amount: float) -> void:
 	hp -= amount
 	if hp <= 0.0:
 		explode()
+	else:
+		_update_damage_state()
+
+
+## 0 sound, 1 smoking below 40 % hp, 2 burning below 15 % hp.
+static func state_for(hp_now: float, hp_max: float) -> int:
+	var f := hp_now / maxf(hp_max, 1.0)
+	if f < VehicleSpecs.FIRE_BELOW:
+		return 2
+	return 1 if f < VehicleSpecs.SMOKE_BELOW else 0
+
+
+func damage_state() -> int:
+	return dmg_state
+
+
+func _update_damage_state() -> void:
+	var ns := state_for(hp, max_hp)
+	if ns == dmg_state:
+		return
+	dmg_state = ns
+	if ns == 2:
+		visual.set_glow(Color(1.0, 0.42, 0.08))                 # the underglow turns into the colour of the fire
+	if driver_is_player and ns > _warned:
+		_warned = ns
+		Game.say("ENGINE ON FIRE · GET OUT" if ns == 2 else "ENGINE DAMAGED", 1.8)
+	damage_state_changed.emit(self, ns)
+
+
+## Smoke and fire: pooled FX bursts only while the player is near (or driving it); fire also burns hp until the car blows up.
+func _damage_fx(dt: float) -> void:
+	if dmg_state == 0 or dead or not active:
+		return
+	if dmg_state == 2:
+		damage(VehicleSpecs.BURN_DPS * dt)
+		if dead:
+			return
+	if _dist > VehicleSpecs.FX_RANGE and not driver_is_player:
+		return
+	_fx_t -= dt
+	if _fx_t > 0.0:
+		return
+	_fx_n += 1
+	var at := global_position + forward() * float(spec["len"]) * 0.3 + Vector3(0.0, float(spec["hgt"]) * 0.75 + float(spec.get("hover_h", 0.0)), 0.0)
+	if dmg_state == 2:
+		_fx_t = VehicleSpecs.FIRE_EVERY
+		FX.burst(at, Color(1.0, 0.5, 0.14, 0.9), 4, 2.4, 0.5, -5.0, 1.3)
+		if _fx_n % 2 == 0:
+			FX.burst(at + Vector3(0.0, 0.5, 0.0), Color(0.08, 0.08, 0.09, 0.8), 2, 1.6, 1.2, -2.5, 1.9)
+	else:
+		_fx_t = VehicleSpecs.SMOKE_EVERY
+		FX.burst(at, Color(0.35, 0.35, 0.37, 0.7), 2, 1.5, 1.1, -2.0, 1.7)
 
 
 ## Blow up: the driver is thrown out first, then Game.explode (radius 9: enemies 80, cars 70, player 35), heat +0.2; the manager respawns it as parked.
@@ -187,6 +292,8 @@ func explode() -> void:
 		if is_instance_valid(pl) and pl.get(&"vehicle") == self:       # never leave the player (and the chase camera) tied to a wreck
 			pl.set(&"vehicle", null)
 		driver_is_player = false
+	dmg_state = 3
+	damage_state_changed.emit(self, 3)
 	Game.explode(pos + Vector3(0.0, 1.0, 0.0), 9.0, {"enemy_dmg": 80.0, "car_dmg": 70.0, "player_dmg": 35.0, "color": Color(1.0, 0.54, 0.19)})
 	Game.add_heat(VehicleSpecs.CARJACK_HEAT)
 	exploded.emit(self)
@@ -200,11 +307,14 @@ func explode() -> void:
 func sim(dt: float) -> void:
 	if driver_is_player:
 		step_drive(dt, Input.get_axis(&"move_back", &"move_forward"), Input.get_axis(&"move_left", &"move_right"), Input.is_action_pressed(&"jump"))
+	elif chasing:
+		_chase_step(dt)
 	elif ai:
 		_ai_step(dt)
 	else:
 		_coast(dt)
 	_sync(dt)
+	_damage_fx(dt)
 
 
 ## Arcade driving (src/vehicles.js drive()): thr -1..1 (brake / reverse .. throttle), steer -1..1 (left .. right), handbrake.
@@ -213,6 +323,8 @@ func step_drive(dt: float, thr: float, steer: float, handbrake: bool) -> void:
 	var vmax: float = T["max"]
 	var fwd := forward()
 	var rgt := right()
+	var fwd0 := fwd
+	var rgt0 := rgt
 	var vf := vel.dot(fwd)
 	var vl := vel.dot(rgt)
 	if thr > 0.05:
@@ -220,16 +332,25 @@ func step_drive(dt: float, thr: float, steer: float, handbrake: bool) -> void:
 	elif thr < -0.05:
 		vf += (-float(T["brake"]) if vf > 0.5 else -float(T["acc"]) * 0.45) * -thr * dt
 	else:
-		vf *= exp(-VehicleSpecs.COAST_DRAG * dt)
+		vf *= exp(-float(T.get("coast", VehicleSpecs.COAST_DRAG)) * dt)
 	if handbrake:
 		vf *= exp(-VehicleSpecs.HANDBRAKE_DRAG * dt)
 	vf = clampf(vf, -vmax * VehicleSpecs.REVERSE_FRACTION, vmax)
 	var auth := clampf(absf(vf) / 5.0, 0.0, 1.0) / (1.0 + absf(vf) / 38.0)
-	heading -= steer * VehicleSpecs.STEER_RATE * auth * (1.0 if vf >= 0.0 else -1.0) * dt
-	vl *= exp(-(VehicleSpecs.HANDBRAKE_GRIP if handbrake else float(T["grip"])) * dt)
+	if cls == &"bike":
+		auth *= 1.0 + 0.3 * absf(lean) / maxf(float(T["lean_max"]), 0.1)      # a leaning bike turns in tighter
+		vf *= 1.0 - 0.06 * absf(lean) * dt                                      # and scrubs a little speed
+	heading -= steer * VehicleSpecs.STEER_RATE * float(T.get("steer", 1.0)) * auth * (1.0 if vf >= 0.0 else -1.0) * dt
+	var grip: float = float(T["grip"])
+	if handbrake:
+		grip = VehicleSpecs.HANDBRAKE_GRIP * (0.45 if cls == &"hover" else 1.0)
+	vl *= exp(-grip * dt)
 	fwd = forward()
 	rgt = right()
 	vel = fwd * vf + rgt * vl
+	if cls == &"hover":                                  # a hover craft keeps part of its old momentum while the nose swings round: it drifts
+		var share := clampf(float(T.get("drift", 0.0)) * (0.8 if handbrake else 0.3), 0.0, 0.9)
+		vel = vel.lerp(fwd0 * vf + rgt0 * vl, share)
 	speed = vf
 	slip = vl
 	braking = handbrake or (thr < -0.05 and vf > 0.5)
@@ -247,6 +368,7 @@ func _coast(dt: float) -> void:
 	vel *= exp(-VehicleSpecs.UNPOWERED_DRAG * dt)
 	_move(dt)
 	speed = vel.dot(forward())
+	slip = vel.dot(right())
 	braking = false
 
 
@@ -361,6 +483,57 @@ func _turn(c: float, idx: int, p: Vector3) -> void:
 	ai_cool = VehicleSpecs.AI_TURN_COOLDOWN
 
 
+# --- Vael patrol chase ---------------------------------------------------------------------------------------------------
+
+## Drive at the player (his vehicle when he drives): steer towards him, back out when stuck on a wall, ram him when close. Siren colours flash on the lamps.
+func _chase_step(dt: float) -> void:
+	var pl := Game.player
+	if not is_instance_valid(pl):
+		_coast(dt)
+		return
+	var to := pl.global_position - global_position
+	to.y = 0.0
+	var dist := to.length()
+	var err := wrapf(atan2(-to.x, -to.z) - heading, -PI, PI)
+	var thr := 1.0
+	var steer := clampf(-err * 2.4, -1.0, 1.0)
+	if _rev > 0.0:
+		_rev -= dt
+		thr = -1.0
+		steer = -steer
+	else:
+		if absf(err) > 1.9 and dist < 30.0:
+			thr = 0.45                                       # he is behind: swing round
+		if absf(speed) < 2.0 and dist > 6.0:
+			_stuck += dt
+			if _stuck > 1.1:
+				_stuck = 0.0
+				_rev = 0.9
+		else:
+			_stuck = 0.0
+	step_drive(dt, thr, steer, false)
+	_ram_cd -= dt
+	if dist < 3.4 and absf(speed) > 6.0 and _ram_cd <= 0.0:
+		_ram(pl)
+	_siren_t -= dt
+	if _siren_t <= 0.0:
+		_siren_t = 0.25
+		_siren_i = 1 - _siren_i
+		visual.set_glow(VehicleSpecs.PATROL_SIREN[_siren_i])
+
+
+## A ram: the player (or the car he drives, through Player.damage) loses PATROL_RAM_DAMAGE, the patrol rebounds.
+func _ram(pl: Node) -> void:
+	_ram_cd = VehicleSpecs.PATROL_RAM_COOLDOWN
+	ram_hits += 1
+	if pl.has_method(&"damage"):
+		pl.call(&"damage", VehicleSpecs.PATROL_RAM_DAMAGE, global_position)
+	vel *= -0.35
+	speed = vel.dot(forward())
+	FX.burst(global_position + Vector3(0.0, 0.9, 0.0) + forward() * 2.0, Color(0.6, 1.0, 0.4), 8, 5.0, 0.3, 8.0, 0.3)
+	Sfx.play_at(&"hit", global_position, -3.0)
+
+
 # --- visuals ------------------------------------------------------------------------------------------------------------
 
 func _sync(dt: float) -> void:
@@ -371,25 +544,53 @@ func _sync(dt: float) -> void:
 	if moving or absf(_steer_vis) > 0.01:
 		_steer_vis = _damp(_steer_vis, steer_in * 0.5, 10.0, dt)
 		visual.spin(speed * dt, _steer_vis)
-	if driver_is_player:
+	if cls == &"bike":
+		_sync_bike(dt)
+	elif cls == &"hover":
+		_sync_hover(dt)
+	elif driver_is_player:
 		var acc := (speed - _last_vf) / maxf(dt, 0.0001)
 		_lean_p = _damp(_lean_p, clampf(acc * 0.0016, -0.035, 0.035), 6.0, dt)
 		_lean_r = _damp(_lean_r, clampf(-slip * 0.01, -0.06, 0.06), 6.0, dt)
 		visual.model.rotation = Vector3(_lean_p, 0.0, _lean_r)
 	_last_vf = speed
+	_prev_h = heading
 	_apply_lights()
+
+
+## Bike: the body rolls into the turn, lean = atan(v * yaw rate / g), for the player's bike and for traffic alike.
+func _sync_bike(dt: float) -> void:
+	var yaw_rate := wrapf(heading - _prev_h, -PI, PI) / maxf(dt, 0.0001)
+	var want := clampf(atan(-yaw_rate * speed / 9.8), -float(spec["lean_max"]), float(spec["lean_max"]))
+	lean = _damp(lean, want, 8.0, dt)
+	var acc := (speed - _last_vf) / maxf(dt, 0.0001)
+	_lean_p = _damp(_lean_p, clampf(-acc * 0.002, -0.07, 0.07), 6.0, dt)       # nose lifts when accelerating
+	visual.model.rotation = Vector3(_lean_p, 0.0, -lean)
+
+
+## Hover craft: rides at hover_h (the model has its underside at hover_h baked in, so only the bob moves it) and bobs on two slow sine waves (stronger when moving), pitching with throttle and rolling into a slide.
+func _sync_hover(dt: float) -> void:
+	_bob_t += dt
+	var amp := float(spec["bob"]) * (0.6 + 0.4 * clampf(absf(speed) / 20.0, 0.0, 1.0))
+	bob = sin(_bob_t * 2.3 + float(get_instance_id() % 7)) * amp + sin(_bob_t * 5.1) * amp * 0.25
+	var acc := (speed - _last_vf) / maxf(dt, 0.0001)
+	_lean_p = _damp(_lean_p, clampf(acc * 0.0014, -0.05, 0.05) + sin(_bob_t * 1.7) * 0.012, 6.0, dt)
+	_lean_r = _damp(_lean_r, clampf(-slip * 0.012, -0.14, 0.14) + sin(_bob_t * 1.3) * 0.01, 6.0, dt)
+	visual.model.position = Vector3(0.0, bob, 0.0)
+	visual.model.rotation = Vector3(_lean_p, 0.0, _lean_r)
 
 
 ## Lights follow the state: parked cars glow faintly, moving ones show full headlights, brake lights flare.
 func _apply_lights() -> void:
-	if driver_is_player or ai:
-		visual.set_lights(0.9, 1.0 if braking else 0.5, 1.0)
+	if driver_is_player or ai or chasing:
+		visual.set_lights(0.9, 1.0 if braking else 0.5, 1.4 if cls == &"hover" else 1.0)
 	else:
 		visual.set_lights(0.1, 0.35, 0.3)
 
 
 ## Level of detail from the distance to the player (the manager calls it a few times a second).
 func update_lod(dist: float) -> void:
+	_dist = dist
 	visual.set_wheels_visible(dist < VehicleSpecs.WHEELS_NEAR)
 	visual.set_shadow(Game.quality >= 1 and dist < PerfTiers.shadow_range() + (4.0 if visual.shadow_on else 0.0))
 	visual.set_model_lights(dist < PerfTiers.light_range(Game.quality) + (4.0 if visual.lights_on else 0.0))
