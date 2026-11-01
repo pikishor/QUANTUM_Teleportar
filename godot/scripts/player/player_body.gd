@@ -306,6 +306,7 @@ func set_weapon_look(id: StringName) -> void:
 	_wp_mi.position = Vector3(0.0, 0.0, sz.z * 0.5 + 0.02)         # behind the muzzle along the barrel (muzzle forward is -Z)
 	var col: Color = d["look"]
 	_wp_mat.albedo_color = col * 1.4
+	_wp_mi.visible = id != &"carbine"                              # the carbine is the plain rifle: the hero stays ONE mesh until another weapon is in hand
 
 
 ## One shot: flash card, light pulse and the body's recoil. intensity scales the flash.

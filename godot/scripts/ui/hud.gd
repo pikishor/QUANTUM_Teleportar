@@ -676,7 +676,7 @@ func _draw_hud_body() -> void:
 	_plate(c, ab, s)
 	_text(c, font, Vector2(ab.position.x, ab.position.y + 41.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(38.0 * s), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
 	if veh == null and weapon_text() != "":
-		var wr := Rect2(ab.position.x - 40.0 * s, ab.position.y - 32.0 * s, ab.size.x + 80.0 * s, 28.0 * s)
+		var wr := Rect2(ab.get_center().x - 215.0 * s, ab.position.y - 32.0 * s, 430.0 * s, 28.0 * s)
 		_plate(c, wr, s)
 		_text(c, font, Vector2(wr.position.x, wr.position.y + 21.0 * s), weapon_text(), HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
 		var wch := weapon_charge()

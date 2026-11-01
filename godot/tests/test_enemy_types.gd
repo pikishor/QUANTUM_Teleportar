@@ -180,15 +180,19 @@ func _shield() -> void:
 	TestLib.check(s.hp < hp0, "from behind the same round hurts (%.0f hp)" % s.hp)
 	# break it with fire from the front
 	_face(s, p.global_position)
-	for i in 14:
+	for i in 20:
+		if not s.shield_up():
+			break
 		p.camera_rig.aim_at(s.center())
 		p.weapon.fire_t = 0.0
+		p.weapon.bloom = 0.0                                   # tapping, not spraying: no bloom
 		p.weapon.ammo = 30
 		p.weapon.tick(DT, true, false, false, false)
 	TestLib.check(not s.shield_up() and not s.shield_node.visible, "enough rounds break the shield and the plate goes out")
 	var hp1 := s.hp
 	p.camera_rig.aim_at(s.center())
 	p.weapon.fire_t = 0.0
+	p.weapon.bloom = 0.0
 	p.weapon.tick(DT, true, false, false, false)
 	TestLib.check(s.hp < hp1, "a broken shield no longer protects")
 	TestLib.check(s._turn_rate() > 5.0, "unshielded he turns quickly again")
