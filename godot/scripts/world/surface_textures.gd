@@ -44,7 +44,7 @@ static func apply(mat: ShaderMaterial, keys: Array, tier: int) -> void:
 	mat.set_shader_parameter(&"srf_bias", PerfTiers.surface_mip_bias(tier))
 	for k: String in keys:
 		if k == "decal":
-			mat.set_shader_parameter(&"srf_decal", tex("decals", tier))
+			mat.set_shader_parameter(&"srf_decal", tex("decals", tier) if n_taps >= 2 else null)        # the decal mask is a HIGH tap
 		elif k == "trim":
 			mat.set_shader_parameter(&"srf_trim_a", tex("trim_albedo", tier))
 			mat.set_shader_parameter(&"srf_trim_n", tex("trim_normal", tier))

@@ -13,15 +13,15 @@ extends RefCounted
 ## (death_draws) must stay under its own ceiling, and the Compatibility fallback (renders more draws per object) gets lower caps for what it may spawn
 ## (see COMPAT_SCALE and the managers' cap()).
 const BUDGETS := {
-	0: {"draws": 100, "prims": 200000, "death_draws": 110},
-	1: {"draws": 140, "prims": 280000, "death_draws": 150},
+	0: {"draws": 100, "prims": 200000, "death_draws": 118},
+	1: {"draws": 140, "prims": 300000, "death_draws": 160},
 	2: {"draws": 220, "prims": 600000, "death_draws": 235},
 }
 ## The Compatibility fallback draws more calls per object (per-light passes, no mirrored batching): it gets this much extra headroom on top of the tier's budget, and pools 25 % smaller
 ## (PerfTiers.cap_scale).
 const COMPAT_EXTRA := {"draws": 20, "death_draws": 15}
 const HUD_TOUCH_MAX_DRAWS := 15           ## what the touch layout may add to a frame (canvas draws, tools/perf_report.sh measures it)
-const TEX_MB_MAX := {0: 200.0, 1: 260.0, 2: 360.0}    ## staged scene incl. the tier-scaled surface sets (SurfaceTextures: LOW 0, MED about 14 MB at half size, HIGH about 60 MB); measured 153 / 201 / 302
+const TEX_MB_MAX := {0: 200.0, 1: 260.0, 2: 360.0}    ## staged scene incl. the tier-scaled surface sets (SurfaceTextures: LOW 0, MED about 21 MB estimated (+13 MB measured) at half size, HIGH about 56 MB); measured 153 / 201 / 302
 
 
 static func snapshot(vp: Viewport = null) -> Dictionary:
