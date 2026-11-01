@@ -62,6 +62,9 @@ func _environment() -> void:
 	env.glow_hdr_threshold = 0.9
 	env.glow_hdr_scale = 2.0
 	env.glow_hdr_luminance_cap = 12.0
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility":      # the city's Compatibility lift (CityEnv.COMPAT_*): the game's WorldEnvironment applies it inside interiors too
+		env.tonemap_exposure = preload("res://scripts/world/city_env.gd").COMPAT_EXPOSURE
+		env.glow_strength = preload("res://scripts/world/city_env.gd").COMPAT_GLOW_STRENGTH
 	var levels := [0.35, 0.55, 0.8, 0.65, 0.4, 0.2, 0.0]
 	for i in levels.size():
 		env.set_glow_level(i, levels[i])
@@ -145,3 +148,5 @@ func _apply(k: int) -> void:
 func _process(_delta: float) -> void:
 	_frame += 1
 	_apply((_frame - 1) / _every)
+	if _args.has("stats") and _frame % _every == _every - 1:
+		print("STATS ", _args.get("interior", "club"), " q", Game.quality, " pose ", (_frame - 1) / _every, " ", PerfProbe.line("frame", PerfProbe.snapshot(get_viewport())))

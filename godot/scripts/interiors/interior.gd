@@ -79,7 +79,9 @@ func _make_materials() -> void:
 	_mat_surface = ShaderMaterial.new()
 	_mat_surface.shader = SURFACE_SHADER
 	var amb: Color = pal["amb"]
-	_mat_surface.set_shader_parameter(&"ambient_col", Vector3(amb.r, amb.g, amb.b) * 0.7)
+	_mat_surface.set_shader_parameter(&"ambient_col", Vector3(amb.r, amb.g, amb.b) * 1.1)
+	var compat := 1.0 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0
+	_mat_surface.set_shader_parameter(&"compat", compat)
 	_mat_surface.set_shader_parameter(&"floor_y", origin.y)
 	_mat_surface.set_shader_parameter(&"show", 1.0 if type == &"club" else 0.0)
 	for i in 8:
@@ -102,6 +104,7 @@ func _make_materials() -> void:
 	_mat_glow = ShaderMaterial.new()
 	_mat_glow.shader = GLOW_SHADER
 	_mat_glow.set_shader_parameter(&"show", 1.0 if type == &"club" else 0.5)
+	_mat_glow.set_shader_parameter(&"compat", compat)
 
 
 func _make_instance(nm: String, mesh: Mesh, mat: Material) -> MeshInstance3D:
@@ -182,10 +185,22 @@ func _apply_tier() -> void:
 func _enter_tree() -> void:
 	if plan != null:
 		_register_space()
+	# an interior never outlives a new game, a respawn or the next sector (the street is where those put the hero)
+	for sig: Signal in [Game.new_game, Game.respawn, Game.next_sector]:
+		if not sig.is_connected(_on_lifecycle):
+			sig.connect(_on_lifecycle)
 
 
 func _exit_tree() -> void:
 	InteriorSpace.unregister(self)
+	for sig: Signal in [Game.new_game, Game.respawn, Game.next_sector]:
+		if sig.is_connected(_on_lifecycle):
+			sig.disconnect(_on_lifecycle)
+
+
+func _on_lifecycle() -> void:
+	InteriorSpace.unregister(self)
+	queue_free()
 
 
 func _register_space() -> void:

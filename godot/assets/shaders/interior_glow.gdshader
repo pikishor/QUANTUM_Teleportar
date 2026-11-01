@@ -4,6 +4,7 @@ shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled;
 
 uniform float show = 1.0;
+uniform float compat = 0.0;            // see interior_surface.gdshader
 
 varying vec4 vcol;
 varying vec2 vuv;
@@ -37,5 +38,6 @@ void fragment() {
 		float edge = pow(clamp(abs(dot(normalize(NORMAL), normalize(VIEW))), 0.0, 1.0), 1.4);   // soft sides: the cone fades where it turns away from the eye
 		a = (1.0 - k * 0.85) * 0.5 * edge * (0.35 + 0.65 * show);
 	}
-	ALBEDO = vcol.rgb * vcol.a * a;     // unshaded ignores EMISSION: the additive result is written as albedo
+	vec3 gc = compat > 0.5 ? pow(max(vcol.rgb, vec3(0.0)), vec3(0.4545)) : vcol.rgb;
+	ALBEDO = gc * vcol.a * a;     // unshaded ignores EMISSION: the additive result is written as albedo
 }

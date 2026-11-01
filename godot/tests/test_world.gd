@@ -531,7 +531,7 @@ func _test_surfaces(host: Node, city: City) -> void:
 			var path := "res://assets/textures/surface_%s_%s.png" % [st, suffix]
 			all_there = all_there and ResourceLoader.exists(path)
 			var imp := FileAccess.get_file_as_string(path + ".import")
-			packed = packed and imp.contains("compress/mode=2") and imp.contains("mipmaps/generate=true") and imp.contains("compress/normal_map=0")
+			packed = packed and imp.contains("compress/mode=2") and imp.contains("mipmaps/generate=true") and imp.contains("compress/normal_map=2")
 	TestLib.check(all_there and ResourceLoader.exists("res://assets/textures/surface_decals.png"), "the 8 surface sets and the decal mask are imported")
 	TestLib.check(packed, "surface textures are VRAM compressed with mipmaps, packed normals stay colour textures")
 	TestLib.check(PerfTiers.surface_taps(0) == 0 and PerfTiers.surface_taps(1) == 1 and PerfTiers.surface_taps(2) == 2, "taps per tier: LOW 0, MED 1, HIGH 2")

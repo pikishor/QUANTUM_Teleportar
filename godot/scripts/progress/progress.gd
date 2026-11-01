@@ -37,6 +37,7 @@ var last_save_ok := false
 var _last_score := 0
 var _frac := 0.0
 var _continue_pending := false
+var continued := false                  ## the last new_game was a CONTINUE (scripts/interiors_gameplay/ resumes the saved interior)
 
 
 func _ready() -> void:
@@ -258,6 +259,7 @@ func new_campaign() -> void:
 func _on_new_game() -> void:
 	_last_score = 0
 	_frac = 0.0
+	continued = _continue_pending
 	if _continue_pending:
 		_continue_pending = false
 	else:

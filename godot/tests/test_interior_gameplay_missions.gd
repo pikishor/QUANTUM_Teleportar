@@ -141,9 +141,9 @@ func _officer() -> void:
 	var mk := m.markers()
 	TestLib.check(mk.size() == 1 and mk[0]["kind"] == &"area", "the officer is only an area on the minimap until found")
 	TestLib.check(ig.minimap_markers().any(func(e: Dictionary) -> bool: return e["kind"] == &"area"), "the minimap layer carries the area")
-	await stand_near(o.global_position, Vector3(6.0, 0.0, 4.0))
+	await stand_near(o.global_position, Vector3(2.5, 0.0, 2.5))
 	await advance(0.5)
-	TestLib.check(m.found and m.markers()[0]["kind"] == &"target", "within 14 m the target is spotted")
+	TestLib.check(m.found and m.markers()[0]["kind"] == &"target", "within 7 m the target is spotted")
 	TestLib.check(InteriorGameplay.hud_line.find("SPOTTED") >= 0, "the HUD says spotted")
 	var credits := prog.credits
 	o.damage(9999.0, true)

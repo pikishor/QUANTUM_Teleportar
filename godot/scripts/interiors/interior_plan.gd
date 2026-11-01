@@ -438,7 +438,7 @@ func _can_fit(room: int, c: Vector2, f: Vector2, gap: float, ignore_reserved := 
 func _tint_for(kind: String) -> Color:
 	var base: Color = pal["wall"]
 	var k := float(kind.hash() % 97) / 97.0
-	return Color(0.12, 0.12, 0.14).lerp(base, 0.35 + 0.4 * k)
+	return Color(0.24, 0.23, 0.23).lerp(base, 0.3 + 0.4 * k)
 
 
 func _new_prop(room: int, kind: String, pos: Vector3, yaw: float, size_override := Vector3.ZERO) -> Dictionary:
@@ -1036,6 +1036,10 @@ func _finish_anchors() -> void:
 # lighting
 # ---------------------------------------------------------------------------------------------------------------------
 
+func area_big(r: Rect2) -> bool:
+	return r.size.x * r.size.y > 90.0
+
+
 func _lighting() -> void:
 	var key: Color = pal["key"]
 	var neon: Array = pal["neon"]
@@ -1053,11 +1057,14 @@ func _lighting() -> void:
 				c = c.lerp(neon[0], 0.2)
 			if long_x:
 				var z := r.position.y + r.size.y * f
-				strips.append({"a": Vector3(r.position.x + 0.8, h - 0.05, z), "b": Vector3(r.end.x - 0.8, h - 0.05, z), "th": 0.16, "col": c, "em": 1.4, "cls": 8.0})
+				strips.append({"a": Vector3(r.position.x + 0.8, h - 0.05, z), "b": Vector3(r.end.x - 0.8, h - 0.05, z), "th": 0.14, "col": c, "em": 1.1, "cls": 8.0})
 			else:
 				var x := r.position.x + r.size.x * f
-				strips.append({"a": Vector3(x, h - 0.05, r.position.y + 0.8), "b": Vector3(x, h - 0.05, r.end.y - 0.8), "th": 0.16, "col": c, "em": 1.4, "cls": 8.0})
+				strips.append({"a": Vector3(x, h - 0.05, r.position.y + 0.8), "b": Vector3(x, h - 0.05, r.end.y - 0.8), "th": 0.14, "col": c, "em": 1.1, "cls": 8.0})
 		_add_pool(Vector3(r.get_center().x, h - 0.6, r.get_center().y), maxf(r.size.x, r.size.y) * 0.75 + 1.0, key, 0.42 if i == 0 else 0.38, 4)
+		if area_big(r):
+			for q in [0.25, 0.75]:
+				_add_pool(Vector3(r.position.x + r.size.x * q, h - 0.8, r.position.y + r.size.y * (1.0 - q)), maxf(r.size.x, r.size.y) * 0.5 + 1.0, key.lerp(neon[(i + 1) % neon.size()], 0.25), 0.4, 3)
 		# a neon trim line round the room's back wall
 		if i == 0 or type == &"club":
 			var col: Color = neon[(i + 1) % neon.size()]
@@ -1122,23 +1129,13 @@ func _wall_colliders() -> void:
 		colliders.append(AABB(Vector3(p.x - T * 0.5, 0.0, p.y - T * 0.5), Vector3(T, hh + 2.0, T)))
 	# the street door is closed: a plug in its gap (the way out is the door interaction, never a walk-through)
 	var dd: Dictionary = doors[0]
-	var s0 := _front_seg()
 	colliders.append(AABB(Vector3(float(dd["c"]) - float(dd["w"]) * 0.5, 0.0, float(dd["line"]) - T * 0.5), Vector3(float(dd["w"]), DOOR_H, T)))
 	for i in rooms.size():
 		var r: Rect2 = rooms[i]["rect"]
 		var h: float = rooms[i]["h"]
 		colliders.append(AABB(Vector3(r.position.x - T, h, r.position.y - T), Vector3(r.size.x + 2.0 * T, 0.4, r.size.y + 2.0 * T)))
 	colliders.append(AABB(Vector3(bounds.position.x - 0.5, -0.6, bounds.position.y - 0.5), Vector3(bounds.size.x + 1.0, 0.6, bounds.size.y + 1.0)))
-	if s0.is_empty():
-		pass
 	_collect_prop_colliders(0)
-
-
-func _front_seg() -> Dictionary:
-	for s: Dictionary in segs:
-		if int(s["owner"]) == 0 and int(s["side"]) == SIDE_FRONT and not (s["doors"] as Array).is_empty():
-			return s
-	return {}
 
 
 var _prop_collider_start := 0
@@ -1214,16 +1211,6 @@ func nav_unreachable() -> Array:
 				continue
 			seen[ni] = 1
 			queue.append(ni)
-	if OS.get_environment("INTERIOR_MAP") == "%s:%d" % [String(type), seed_value]:
-		var lines := PackedStringArray()
-		for z in range(nz - 1, -1, -1):
-			var row := ""
-			for x in nx:
-				var i := x + z * nx
-				row += "#" if blocked[i] == 1 else ("." if seen[i] == 1 else (" " if open[i] == 0 else "o"))
-			lines.append(row)
-		print("\n".join(lines))
-		print("vendor anchors ", anchors.get(&"vendor", []), " entry ", entry, " bounds ", bounds)
 	var bad: Array = []
 	for i in rooms.size():
 		if not _room_reached(seen, (rooms[i]["rect"] as Rect2).grow(-0.3), nx, nz, gx0, gz0):
@@ -1283,8 +1270,6 @@ func _repair_walkability() -> void:
 		if bad.is_empty():
 			return
 		guard += 1
-		if OS.get_environment("INTERIOR_DEBUG") != "":
-			print("nav repair ", type, " ", seed_value, " unreachable: ", bad, " props ", props.size())
 		var rooms_bad := false
 		var anchors_bad: Array = []
 		for b: Array in bad:
@@ -1327,10 +1312,6 @@ func _rebuild_occ() -> void:
 			var f := _footprint(p["size"], float(p["yaw"]))
 			var pos: Vector3 = p["pos"]
 			_occ.append(Rect2(Vector2(pos.x, pos.z) - f * 0.5, f))
-
-
-func _prune_anchor_conflicts() -> void:
-	pass
 
 
 func _finish_entry() -> void:

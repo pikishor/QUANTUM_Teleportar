@@ -164,8 +164,6 @@ func road_point_near(center: Vector3, rmin: float, rmax: float) -> Vector3:
 func is_inside_building(p: Vector3) -> bool:
 	if p.y < 0.0:
 		return false
-	if p.x > InteriorGameplay.EAST_STRIP and InteriorGameplay.active:      # the interior east of the grid: its walls and furniture stop enemy steps (no lot exists there)
-		return InteriorGameplay.blocks(p)
 	var lot := layout.lot_at(p.x, p.z)
 	if lot == null:
 		return false

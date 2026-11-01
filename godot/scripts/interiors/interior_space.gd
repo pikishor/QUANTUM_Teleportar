@@ -45,6 +45,11 @@ static func contains(p: Vector3) -> bool:
 	return active and p.y > min_y and p.y < max_y and bounds.grow(3.0).has_point(Vector2(p.x, p.z))
 
 
+## The same without the height test: enemies spawn at the street level (y = 0) and are lifted onto the floor by the first step.
+static func contains_xz(x: float, z: float) -> bool:
+	return active and bounds.grow(3.0).has_point(Vector2(x, z))
+
+
 ## True when a body of radius r centred at (x, z) overlaps a solid.
 static func blocked(x: float, z: float, r: float) -> bool:
 	var n := _rects.size()

@@ -356,7 +356,7 @@ SETS = {
 
 
 def patch_imports(out):
-    """VRAM compression (ASTC 4x4 / BPTC, high quality) with mipmaps. The packed normal texture stays a plain colour texture (normal_map=0): RG + cavity + wet
+    """VRAM compression (ASTC 4x4 / BPTC, high quality) with mipmaps. The packed normal texture stays a plain colour texture (normal_map=2, disabled): RG + cavity + wet
     roughness are packed, so the engine must not treat it as a two-channel normal map."""
     n = 0
     for fn in sorted(os.listdir(out)):
@@ -364,7 +364,7 @@ def patch_imports(out):
             continue
         p = os.path.join(out, fn)
         s = open(p).read()
-        for key, val in (("compress/mode", "2"), ("compress/high_quality", "true"), ("compress/normal_map", "0"), ("mipmaps/generate", "true"),
+        for key, val in (("compress/mode", "2"), ("compress/high_quality", "true"), ("compress/normal_map", "2"), ("mipmaps/generate", "true"),
                          ("compress/channel_pack", "0"), ("process/fix_alpha_border", "false")):
             s = re.sub(r"^%s=.*$" % re.escape(key), "%s=%s" % (key, val), s, flags=re.M)
         open(p, "w").write(s)

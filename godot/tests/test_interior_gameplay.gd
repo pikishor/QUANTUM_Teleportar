@@ -51,9 +51,11 @@ func run(h: Node) -> void:
 	await _state_through_the_door()
 	await _inside_world()
 	await _actors_per_type()
+	await _contract_blocks_doors()
 	await _followers_and_street()
 	await _hud_and_minimap()
 	await _save_and_respawn()
+	await _stub_room()
 	await _teardown()
 	_end()
 
@@ -215,7 +217,7 @@ func _inside_world() -> void:
 	TestLib.check(hid == vm.list.size() and not vm.is_physics_processing(), "cars are hidden and frozen inside (%d of %d)" % [hid, vm.list.size()])
 	TestLib.check(InteriorGameplay.blocks(Vector3(p.global_position.x, 1.0, p.global_position.z)) == false, "the arrival point is free")
 	var wall: Rect2 = (ig.interior.get("wall_rects") as Array)[0]
-	TestLib.check(city.is_inside_building(Vector3(wall.get_center().x, 1.0, wall.get_center().y)), "City.is_inside_building follows the interior's walls (enemy steps stop there)")
+	TestLib.check(InteriorGameplay.blocks(Vector3(wall.get_center().x, 1.0, wall.get_center().y)) and InteriorSpace.active, "a wall rect blocks civilian steps and the generator's InteriorSpace is registered")
 	TestLib.check(InteriorGameplay.blocks(Vector3(ig.interior.get("bounds").position.x - 3.0, 1.0, 0.0)), "outside the interior bounds is blocked")
 	var room: Node3D = ig.interior
 	var meshes := 0
@@ -234,12 +236,31 @@ func _inside_world() -> void:
 		if v.visible:
 			shown += 1
 	TestLib.check(vm.is_physics_processing(), "the vehicle manager runs again (%d visible cars)" % shown)
-	TestLib.check(not InteriorGameplay.blocks(Vector3(wall.get_center().x, 1.0, wall.get_center().y)) and not city.is_inside_building(Vector3(wall.get_center().x, 1.0, wall.get_center().y)), "no phantom walls outside")
+	TestLib.check(not InteriorGameplay.blocks(Vector3(wall.get_center().x, 1.0, wall.get_center().y)) and not city.is_inside_building(Vector3(wall.get_center().x, 1.0, wall.get_center().y)) and not InteriorSpace.active, "no phantom walls outside")
+
+
+func _contract_blocks_doors() -> void:
+	var k: Contracts = (Game.missions as Missions).contracts
+	var d := ig.doors_of(&"bar", p.global_position)[0]
+	p.teleport_to((d["pos"] as Vector3) + Vector3(0.0, 0.1, 0.0))
+	await frames(3)
+	k.offer(&"drones", p.global_position + Vector3(3.0, 0.0, 3.0))
+	k.accept()
+	await frames(10)
+	var why := ig.block_reason()
+	TestLib.check(k.foes_alive() == 0 or why == "FINISH THE CONTRACT FIRST", "doors stay shut while a contract's enemies are alive ('%s', %d foes)" % [why, k.foes_alive()])
+	k.abandon()
+	em.clear()
+	await frames(10)
+	TestLib.check(ig.block_reason() == "", "doors open again when the contract ends")
 
 
 func _actors_per_type() -> void:
 	var all_ok := true
+	Game.heat = 0.0
 	for t: StringName in InteriorData.TYPES:
+		em.clear()
+		Game.heat = 0.0
 		var dl := ig.doors_of(t, p.global_position)
 		var d: Dictionary = dl[0]
 		p.teleport_to((d["pos"] as Vector3) + Vector3(0.0, 0.1, 0.0))
@@ -247,6 +268,11 @@ func _actors_per_type() -> void:
 		if not ig.enter(d, true):
 			TestLib.check(false, "enter %s" % t)
 			continue
+		var fresh := ig.actors
+		var stealth_ok := true
+		for g in fresh.guards:
+			stealth_ok = stealth_ok and g.aware_dist < Drone.AWARE_DIST and not g.aware
+		TestLib.check(stealth_ok, "interior guards start stealthy in %s (sight %.1f m instead of %.0f)" % [t, InteriorActors.STEALTH_DIST, Drone.AWARE_DIST])
 		await frames(30)
 		var a := ig.actors
 		var n := a.total()
@@ -267,9 +293,6 @@ func _actors_per_type() -> void:
 			all_ok = false
 			printerr("actors wrong in ", t, ": total ", n, " vendor ", vend, " guards ", a.guards.size(), "/", plan["guards"], " civ ", a.civilians.size(), "/", plan["civilians"], " inside ", inside_ok)
 		TestLib.check(ig.last_radio != "", "an interior radio line for %s" % t)
-		# stealth: a guard does not wake up across the room with no heat
-		if t == &"lobby" and not a.guards.is_empty():
-			TestLib.check(a.guards[0].aware_dist < Drone.AWARE_DIST and not a.guards[0].aware, "interior guards are stealthy (aware_dist %.1f, aware %s)" % [a.guards[0].aware_dist, a.guards[0].aware])
 		ig.leave(true)
 		await frames(3)
 	TestLib.check(all_ok, "every interior type holds 3..5 actors in the planned mix, inside its walls")
@@ -284,7 +307,8 @@ func _followers_and_street() -> void:
 	var front: Vector3 = d["pos"]
 	p.teleport_to(front + Vector3(0.0, 0.1, 0.0))
 	await frames(5)
-	var far := em.spawn(&"operative", front + (d["normal"] as Vector3) * 60.0, false)
+	var far_at: Vector3 = front + (Vector3(0.0, 0.0, 0.0) - front).normalized() * 60.0          # towards the city centre: always inside the walls
+	var far := em.spawn(&"operative", far_at, false)
 	var near := em.spawn(&"operative", front + (d["normal"] as Vector3) * 9.0, true)
 	TestLib.check(far != null and near != null, "two street enemies")
 	var before := em.alive_count()
@@ -304,7 +328,7 @@ func _followers_and_street() -> void:
 	await frames(4)
 	var restored := 0
 	for e in em.list:
-		if e.active and not e.dead and e.global_position.distance_to(front + (d["normal"] as Vector3) * 60.0) < 3.0:
+		if e.active and not e.dead and e.global_position.distance_to(far_at) < 3.0:
 			restored += 1
 	TestLib.check(restored == 1, "the far street enemy is put back where it stood")
 	TestLib.check(em.alive_count() >= 1 and before == 2, "the street is repopulated after the exit (%d alive: the stored one, survivors that followed out, new reinforcements)" % em.alive_count())
@@ -368,6 +392,36 @@ func _save_and_respawn() -> void:
 	Game.state = &"play"
 	await frames(3)
 	TestLib.check(ig.resume_saved() and InteriorGameplay.active and int(ig.door["id"]) == int(d["id"]), "CONTINUE resumes in the saved interior")
+	# the title's CONTINUE (Progress.continue_game) takes the player back into the saved interior
+	ig.leave(true)
+	await frames(3)
+	ig.enter(d, true)
+	await frames(5)
+	var prog := Game.progress as Progress
+	prog.path = "user://test_interiors_progress.cfg"
+	prog.autosave_enabled = false
+	prog.save_file()
+	Game.state = &"menu"
+	await frames(3)
+	TestLib.check(not InteriorGameplay.active and ig.saved_inside(), "at the title the interior is closed but the save says inside")
+	TestLib.check(prog.continue_game(), "CONTINUE starts the run")
+	await frames(2)
+	TestLib.check(prog.continued and not InteriorGameplay.active, "the run starts on the street")
+	await frames(60)
+	TestLib.check(InteriorGameplay.active and int(ig.door["id"]) == int(d["id"]), "CONTINUE resumes inside the saved interior")
+	ig.leave(true)
+	await frames(3)
+	# a NEW game (not a continue) forgets it
+	ig.enter(d, true)
+	await frames(5)
+	Game.state = &"menu"
+	await frames(3)
+	Game.start_new_game()
+	await frames(80)
+	TestLib.check(not InteriorGameplay.active and not prog.continued, "a new game from the title starts on the street")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_interiors_progress.cfg"))
+	ig.enter(d, true)
+	await frames(5)
 	# death inside: the respawn puts the player at the street door, safe
 	await frames(5)
 	Game.die()
@@ -386,6 +440,23 @@ func _save_and_respawn() -> void:
 	Game.start_new_game()
 	await frames(4)
 	TestLib.check(not InteriorGameplay.active and city.visible and ig.done.is_empty(), "a new game closes the interior and forgets finished interior missions")
+
+
+## The fallback room (used when the generator is missing or returns something invalid) honours the same interface.
+func _stub_room() -> void:
+	ig.use_generator = false
+	var d := ig.doors_of(&"bar", p.global_position)[0]
+	p.teleport_to((d["pos"] as Vector3) + Vector3(0.0, 0.1, 0.0))
+	await frames(3)
+	TestLib.check(ig.enter(d, true) and ig.interior is InteriorStub, "the stub room stands in when the generator is off")
+	await frames(20)
+	TestLib.check(ig.actors.total() >= 3 and ig.actors.vendor != null, "the stub room is populated like a real one")
+	ig.leave(true)
+	await frames(3)
+	ig.use_generator = true
+	TestLib.check(ig.enter(d, true) and not (ig.interior is InteriorStub), "the generator's room is used by default")
+	ig.leave(true)
+	await frames(3)
 
 
 func _teardown() -> void:

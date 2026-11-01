@@ -12,6 +12,7 @@ uniform float floor_y = 0.0;
 uniform float detail = 1.0;            // 0 LOW, 1 MED, 2 HIGH: grime octaves
 uniform float show = 0.0;              // club light show: pools and dance floor pulse
 uniform float pool_n = 8.0;
+uniform float compat = 0.0;            // 1 in the Compatibility renderer, which reads vertex colours as sRGB: they are converted back so both renderers see the same values
 uniform vec4 pool_pos0 = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 pool_col0 = vec4(0.0);
 uniform vec4 pool_pos1 = vec4(0.0, 0.0, 0.0, 1.0);
@@ -63,7 +64,7 @@ vec3 pool(vec4 pp, vec4 pc, float i, vec3 p, vec3 n, vec3 rv, float gloss, out v
 	float pul = 1.0 + show * 0.75 * sin(TIME * (2.0 + i * 0.9) + i * 2.1);
 	float att = clamp(1.0 - dist / pp.w, 0.0, 1.0);
 	att *= att;
-	float facing = clamp(dot(n, ld) * 0.65 + 0.35, 0.0, 1.0);
+	float facing = 0.28 + 0.72 * pow(clamp(dot(n, ld) * 0.5 + 0.5, 0.0, 1.0), 1.5);      // half-lambert with a floor: the pools are baked bounce light, so a face turned away is dim, not black
 	vec3 diff = pc.rgb * pc.a * att * facing * pul;
 	if (gloss > 0.02) {
 		float att2 = clamp(1.0 - dist / (pp.w * 1.6), 0.0, 1.0);
@@ -82,6 +83,9 @@ void vertex() {
 
 void fragment() {
 	vec3 alb = vcol.rgb;
+	if (compat > 0.5) {
+		alb = pow(max(alb, vec3(0.0)), vec3(0.4545));
+	}
 	float cls = vuv.x;
 	float h = wpos.y - floor_y;
 	float rough = 0.8;

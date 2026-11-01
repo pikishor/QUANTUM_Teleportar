@@ -21,7 +21,7 @@ const BUDGETS := {
 ## (PerfTiers.cap_scale).
 const COMPAT_EXTRA := {"draws": 20, "death_draws": 15}
 const HUD_TOUCH_MAX_DRAWS := 15           ## what the touch layout may add to a frame (canvas draws, tools/perf_report.sh measures it)
-const TEX_MB_MAX := {0: 300.0, 1: 600.0, 2: 1200.0}
+const TEX_MB_MAX := {0: 200.0, 1: 260.0, 2: 360.0}    ## staged scene incl. the tier-scaled surface sets (SurfaceTextures: LOW 0, MED about 14 MB at half size, HIGH about 60 MB); measured 153 / 201 / 302
 
 
 static func snapshot(vp: Viewport = null) -> Dictionary:

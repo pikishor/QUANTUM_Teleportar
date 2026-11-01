@@ -174,7 +174,7 @@ func _idle_speed() -> float:
 
 
 func _ground_y(x: float, z: float) -> float:
-	if InteriorSpace.contains(global_position):      # standing on the floor of a generated interior (scripts/interiors/)
+	if InteriorSpace.contains_xz(x, z):              # standing on the floor of a generated interior (scripts/interiors/)
 		return InteriorSpace.floor_y
 	var city := Game.world as City
 	if city != null:

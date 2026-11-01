@@ -50,7 +50,7 @@ const FADE_END := 0.9                        ## ... and is fully hidden at this 
 const MIN_ARM := 0.85                        ## shortest camera arm in metres, however close the wall is (the prototype's floor was 0.5 m)
 const RIG_PRIORITY := 100                    ## process priority: after the nodes it follows (lower numbers run first)
 const INTERIOR_ARM_SCALE := 0.68             ## inside a generated interior (scripts/interiors/) the on-foot arm is this fraction of its length ...
-const INTERIOR_MIN_ARM := 0.3                ## ... and may shrink to this: the hero capsule (0.35 m) keeps the camera in front of the wall behind him, the hero fades out when the camera is that close
+const INTERIOR_MIN_ARM := 0.22               ## ... and may shrink to this: the hero capsule (0.35 m) keeps the camera in front of the wall behind him, the hero fades out when the camera is that close
 const SQUEEZE_START := 2.0                   ## an arm shorter than this (metres) starts to slide the camera toward a free shoulder ...
 const SQUEEZE_SIDE := 0.5                    ## ... by this much sideways at full squeeze (arm at the MIN_ARM floor) ...
 const SQUEEZE_UP := 0.1                      ## ... and this much up
@@ -452,6 +452,25 @@ func _blocked(space: PhysicsDirectSpaceState3D, dir: Vector3, length: float) -> 
 	return not space.intersect_ray(_probe).is_empty()
 
 
+## Inside an interior only: pulls a camera that ended up in or right at a wall back along the line from the head to just in front of whatever that line hits.
+func _keep_out_of_walls(cam: Vector3) -> Vector3:
+	var space := get_world_3d().direct_space_state
+	var dir := cam - _pivot_pos
+	var len := dir.length()
+	if len < 0.001:
+		return cam
+	_probe.collision_mask = Game.L_WORLD
+	_probe.from = _pivot_pos
+	_probe.to = cam + dir / len * 0.14
+	var hit := space.intersect_ray(_probe)
+	if hit.is_empty():
+		return cam
+	var at: Vector3 = hit["position"]
+	var back := _pivot_pos - at
+	var bl := back.length()
+	return at + back / maxf(bl, 0.001) * minf(0.14, bl)
+
+
 ## The pooled prop colliders (lamp poles, dumpsters, kiosks, roof clutter) are world bodies for walking, shooting and blinking but never shorten the camera arm.
 func _exclude_props() -> void:
 	if arm == null or not is_instance_valid(Game.world) or not Game.world.has_method(&"prop_colliders"):
@@ -655,6 +674,8 @@ func _update_view(dt: float) -> void:
 	var bob_y := sin(_bob_t) * 0.012 * minf(1.0, speed_h / 6.0) * (1.0 - ads_s * 0.7)
 	var cam_basis := Basis.from_euler(Vector3(pitch_t + s_rot.x, yaw_t + s_rot.y, _roll + s_rot.z), EULER_ORDER_YXZ)
 	cam_pos += cam_basis * Vector3(s_off.x, s_off.y + bob_y + _bump, s_off.z + _punch)
+	if InteriorSpace.active:
+		cam_pos = _keep_out_of_walls(cam_pos)           # a squeeze slide or a shake must never put the camera in a wall of a tight room
 	cam_pos.y = maxf(cam_pos.y, base.y + 0.25)          # never below the feet, even with a pitched-up low camera
 	if not cam_pos.is_finite():                         # a broken position must never freeze the picture: fall back to the pivot
 		cam_pos = _pivot_pos + Vector3(0.0, 1.0, 3.0)

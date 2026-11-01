@@ -55,6 +55,7 @@ func run(h: Node) -> void:
 	await _clinic()
 	await _tech()
 	await _bar()
+	await _bodega()
 	await _poor_and_maxed()
 	Engine.time_scale = 1.0
 	Engine.physics_ticks_per_second = 60
@@ -209,6 +210,19 @@ func _bar() -> void:
 	res = VendorLogic.buy(&"bar", &"drink")
 	TestLib.check(res["ok"] and p.hp >= 74.0, "a synth drink heals 25 hp (%d)" % int(p.hp))
 	vs.close()
+	await frames(2)
+
+
+func _bodega() -> void:
+	await go(&"bodega")
+	prog.credits = 300
+	p.hp = 30.0
+	ig.vendor_screen.open(&"bodega")
+	await frames(1)
+	var res := VendorLogic.buy(&"bodega", &"heal")
+	TestLib.check(res["ok"] and is_equal_approx(p.hp, p.max_hp) and prog.credits == 300 - VendorLogic.discount_price(55), "the corner store sells field kits")
+	TestLib.check(ig.actors.vendor != null and InteriorData.has_vendor(&"bodega"), "the corner store has a clerk")
+	ig.vendor_screen.close()
 	await frames(2)
 
 

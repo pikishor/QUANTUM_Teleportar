@@ -136,8 +136,11 @@ static func build(sb: RefCounted, gb: RefCounted, p: Dictionary) -> void:
 			if kind == "reception":
 				_bx(sb, Vector3(0, h + 0.5, d * 0.5 - 0.05), Vector3(w * 0.7, 0.5, 0.05), trim.lerp(acc, 0.4), C_STRIP, 0.8)
 		"shelf":
-			var back := _shade(tint, 0.65)
+			var back := _shade(tint, 0.85)
 			_bx(sb, Vector3(0, h * 0.5, d * 0.5 - 0.02), Vector3(w, h, 0.04), back, C_METAL)
+			sb.strut(Vector3(-w * 0.5 + 0.06, 0.1, d * 0.5 + 0.01), Vector3(w * 0.5 - 0.06, h - 0.1, d * 0.5 + 0.01), 0.035, Color(0.5, 0.45, 0.35, 0.0), false)
+			sb.strut(Vector3(w * 0.5 - 0.06, 0.1, d * 0.5 + 0.01), Vector3(-w * 0.5 + 0.06, h - 0.1, d * 0.5 + 0.01), 0.035, Color(0.5, 0.45, 0.35, 0.0), false)
+			_bx(sb, Vector3(0, h - 0.18, d * 0.5 + 0.012), Vector3(0.5, 0.12, 0.012), acc, C_STRIP, 0.8)
 			_bx(sb, Vector3(-w * 0.5 + 0.02, h * 0.5, 0), Vector3(0.04, h, d), tint, C_METAL)
 			_bx(sb, Vector3(w * 0.5 - 0.02, h * 0.5, 0), Vector3(0.04, h, d), tint, C_METAL)
 			var levels := 5

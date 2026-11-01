@@ -18,7 +18,7 @@ const NEAR_CAP := 24                     ## people drawn with the full mesh (abo
 const NEAR_RADIUS := 24.0                ## everybody else is drawn with the cut-down mesh "CitizenFar" (about 250 triangles)
 const ARCHETYPES := 6                    ## the shader shows archetype floor(seed * 5.999) of the citizen mesh
 const BUILT := 100                       ## pool size = MultiMesh instances (the HIGH count)
-const COUNTS: Array[int] = [24, 48, 100]
+const COUNTS: Array[int] = [24, 40, 90]
 const RADII: Array[float] = [40.0, 70.0, 90.0]
 const LINE_OFF := 11.3                   ## sidewalk line offset from the road centre (kerb at 10, building faces from 12)
 const ROAD_SPAN := 22.6                  ## the part of a line that lies on a crossing road (zebra) : 2 * LINE_OFF

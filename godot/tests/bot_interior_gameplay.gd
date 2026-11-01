@@ -57,15 +57,15 @@ func step(_t: float, _delta: float) -> bool:
 				ig.leave(true)
 				ig.enter(_door(ig, &"apartment"), true)
 				p.camera_rig.aim_at(ig.actors.hostage.global_position + Vector3(0.0, 1.2, 0.0)) if ig.actors.hostage != null else null
-			5:
-				ig.leave(true)
-				ig.enter(_door(ig, &"club"), true)
-			6:
-				ig.leave(true)
-				ig.enter(_door(ig, &"checkpoint"), true)
-				p.camera_rig.aim_at(ig.missions.target_pos + Vector3(0.0, 1.0, 0.0))
-			7:
-				ig.leave(true)
+			_:
+				var order: Array[StringName] = [&"club", &"checkpoint", &"tech", &"warehouse", &"lobby", &"bar", &"clinic", &"bodega"]
+				if slot - 5 < order.size():
+					ig.leave(true)
+					ig.enter(_door(ig, order[slot - 5]), true)
+					if order[slot - 5] == &"checkpoint":
+						p.camera_rig.aim_at(ig.missions.target_pos + Vector3(0.0, 1.0, 0.0))
+				else:
+					ig.leave(true)
 	if k == _every - 2:
 		_stats("slot %d" % slot)
 	return false

@@ -6,7 +6,7 @@ extends Node3D
 ## Simulates only while Game.is_playing() (the manager ticks it). No allocation per frame.
 
 const POOL := 5
-const STEALTH_DIST := 7.0
+const STEALTH_DIST := 5.0
 const PATROL_EVERY := 9.0
 const SHOT_RADIUS := 26.0
 const FOLLOW_DELAY := 1.4
@@ -102,6 +102,8 @@ func populate(room: Node3D, t: StringName, plan: Dictionary, follow_types: Array
 	_guard_anchors.clear()
 	var n_g := int(plan["guards"])
 	var ga: Array = InteriorGameplay.anchor_points(room, &"guard", maxi(n_g, 2), seed_value)
+	var door_at: Vector3 = room.get("door_pos")
+	ga.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return (a["pos"] as Vector3).distance_to(door_at) > (b["pos"] as Vector3).distance_to(door_at))       # guards stand far from the door
 	for a: Dictionary in ga:
 		_guard_anchors.append(a["pos"])
 	var em := Game.enemies as EnemyManager
@@ -116,6 +118,7 @@ func populate(room: Node3D, t: StringName, plan: Dictionary, follow_types: Array
 			if mission == &"assassinate" and i == 0:
 				officer = g
 				var op: Array = InteriorGameplay.anchor_points(room, &"officer", 1, seed_value)
+				op.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return (a["pos"] as Vector3).distance_to(door_at) > (b["pos"] as Vector3).distance_to(door_at))
 				g.global_position = op[0]["pos"]
 				g.home = Vector3(op[0]["pos"].x, 0.0, op[0]["pos"].z)
 				var hp := 240.0 * Progress.enemy_hp_mult()

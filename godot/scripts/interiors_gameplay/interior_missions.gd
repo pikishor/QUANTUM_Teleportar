@@ -3,7 +3,7 @@ extends Node3D
 ## The four interior missions, one per mission interior (InteriorData.mission_for):
 ##   safe         OFFICE LOBBY: press USE at the glowing safe, stay beside it while it cracks (5 s, progress decays when you step away), the alarm goes off at the end
 ##   hostage      APARTMENT:    kill every Vael guard in the flat (the hostage kneels, cyan diamond), then USE beside the hostage to cut the restraints
-##   assassinate  CLUB:         a Vael officer (240 hp, bigger than the troopers) hides at the back; the minimap shows only an area until you are within 14 m; kill him
+##   assassinate  CLUB:         a Vael officer (240 hp, bigger than the troopers) hides at the back; the minimap shows only an area until you are within 7 m; kill him
 ##   hack         CHECKPOINT:   stand at the terminal (16 s fill, decays at half speed outside the ring) while the guards close in: one alerted at 20 %, 50 % and 80 %
 ## Rewards (credits, score, reputation) scale with the sector and reputation like contracts (InteriorData.reward). A completed mission is remembered per door (InteriorGameplay.done),
 ## the door glow goes back to the plain colour. Leaving or dying mid-mission resets it (the interior is rebuilt next time). Props are primitive: a marker disc, a safe box, a console.
@@ -16,7 +16,7 @@ const HACK_TIME := 16.0
 const HACK_REACH := 2.8
 const HACK_DECAY := 0.5
 const HOSTAGE_REACH := 2.6
-const OFFICER_FOUND := 14.0
+const OFFICER_FOUND := 7.0
 const OFFICER_AREA := 18.0
 
 var kind: StringName = &""

@@ -30,6 +30,7 @@ func run(host: Node) -> void:
 	await _budgets(host)
 	_ambience()
 	await _space(host)
+	await _street_origin(host)
 	_quality_scaling(host)
 
 
@@ -165,8 +166,6 @@ func _flood(plan: InteriorPlan) -> Array:
 		if bx.end.y < 0.2 or bx.position.y > 1.6:
 			continue
 		_fill(blocked, nx, nz, b, cell, Rect2(bx.position.x - 0.3, bx.position.z - 0.3, bx.size.x + 0.6, bx.size.z + 0.6))
-	for dd: Dictionary in plan.doors:   # the street door is closed (its plug is a collider): nothing to add
-		pass
 	var start := Vector2(plan.entry.x, plan.entry.z)
 	var seen := PackedByteArray()
 	seen.resize(nx * nz)
@@ -511,3 +510,29 @@ func _quality_scaling(_host: Node) -> void:
 	TestLib.check(int(it.stats()["props_drawn"]) >= int(lo["props_drawn"]) and int(it.stats()["shapes"]) == int(hi["shapes"]), "set_quality can be called any time and never changes the colliders")
 	it.free()
 	InteriorGen.clear_cache()
+
+
+## The gameplay layer places the room at street level in the strip east of the city grid (327.5, 0, 0) and hides the city while inside; the interface doc says (900, 600, 900).
+## The generator must not care where it is built: same plan, same relative door, floor at the origin's height, the city rescue and the teleport clamp leave a hero in it alone.
+func _street_origin(host: Node) -> void:
+	var street := Vector3(327.5, 0.0, 0.0)
+	var same := true
+	var floor_ok := true
+	var guards_ok := true
+	for t in InteriorGen.TYPES:
+		var a := InteriorGen.build(t, 2, ORIGIN, 1) as Interior
+		var b := InteriorGen.build(t, 2, street, 1) as Interior
+		same = same and a.plan.signature() == b.plan.signature() and ((a.door_pos - ORIGIN) - (b.door_pos - street)).length() < 0.001 and a.stats()["shapes"] == b.stats()["shapes"]
+		root.add_child(b)
+		await TestLib.frames(host, 2)
+		var space := root.get_world_3d().direct_space_state
+		var c := b.door_pos + Vector3(0, 1.0, 0)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(c, c - Vector3(0, 3.0, 0), 1))
+		floor_ok = floor_ok and not hit.is_empty() and absf((hit["position"] as Vector3).y) < 0.05
+		guards_ok = guards_ok and InteriorSpace.contains(b.door_pos + Vector3(0, 0.5, 0)) and not PlayerUtil.outside_city(b.door_pos) and PlayerUtil.safe_spot(b.door_pos, null, null).is_equal_approx(b.door_pos)
+		b.queue_free()
+		a.free()
+		await TestLib.frames(host, 1)
+	TestLib.check(same, "an interior built at street level east of the grid is the same plan, door and colliders as one built at (900, 600, 900)")
+	TestLib.check(floor_ok, "at street level the floor slab is at y = 0 (the city ground is hidden or below, never in front of it)")
+	TestLib.check(guards_ok, "at street level InteriorSpace, the city rescue and the teleport clamp still treat the room as the room")

@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b4re4rgpx8b3t"
-path.s3tc="res://.godot/imported/surface_trim_albedo.png-23aa248640ac768e32e648707209c15f.s3tc.ctex"
-path.etc2="res://.godot/imported/surface_trim_albedo.png-23aa248640ac768e32e648707209c15f.etc2.ctex"
+path.bptc="res://.godot/imported/surface_trim_albedo.png-23aa248640ac768e32e648707209c15f.bptc.ctex"
+path.astc="res://.godot/imported/surface_trim_albedo.png-23aa248640ac768e32e648707209c15f.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,17 +13,17 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/surface_trim_albedo.png"
-dest_files=["res://.godot/imported/surface_trim_albedo.png-23aa248640ac768e32e648707209c15f.s3tc.ctex", "res://.godot/imported/surface_trim_albedo.png-23aa248640ac768e32e648707209c15f.etc2.ctex"]
+dest_files=["res://.godot/imported/surface_trim_albedo.png-23aa248640ac768e32e648707209c15f.bptc.ctex", "res://.godot/imported/surface_trim_albedo.png-23aa248640ac768e32e648707209c15f.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=2
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1

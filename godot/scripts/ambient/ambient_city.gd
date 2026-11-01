@@ -2,7 +2,7 @@ extends Node3D
 ## The living city: far traffic, a pedestrian crowd and overhead patrols on top of the static world. A child of City (city.gd builds it and fans the
 ## graphics tier out), it owns three cheap systems (see ambient_traffic.gd, ambient_crowd.gd, ambient_sky.gd) and the rules they share:
 ## - simulation only while Game.is_playing() (paused, dead, menu: everything stands still), an ambient clock that restarts on new game / respawn / next sector;
-## - tiers (Game.quality through City.set_quality): far cars LOW 80 / MED 150 / HIGH 240 (cap 300), crowd LOW 24 (nobody beyond 40 m) / MED 56 / HIGH 100,
+## - tiers (Game.quality through City.set_quality): far cars LOW 80 / MED 150 / HIGH 240 (cap 300), crowd LOW 24 (nobody beyond 40 m) / MED 40 / HIGH 90 (a near and a far MultiMesh, see ambient_crowd.gd),
 ##   no airship searchlight on LOW; the crowd reacts to the player's gunfire (`Player.fired`);
 ## - budget: traffic 1 draw (+1 mirrored copy on MED / HIGH), crowd 1 draw (+1 mirrored copy on HIGH only), searchlight 1 draw while a sweep is on;
 ##   all nodes and buffers are created once, nothing is allocated per frame.

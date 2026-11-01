@@ -6,7 +6,7 @@ extends Node
 ##
 ## Where the room lives: one interior at a time at ORIGIN, street level in the strip east of the city grid (x 310..345, no lot, no prop). While one is active the city is hidden
 ## (Game.world.visible = false: ground, props, traffic, mirror cost nothing), the cars are frozen and hidden, rain is 0, the street's enemies are stored (positions, hp, awareness) and
-## put back on exit, and unspawned patrol groups are held back. `City.is_inside_building` consults `blocks()` east of x = EAST_STRIP so enemy steps stop at the interior's walls.
+## put back on exit, and unspawned patrol groups are held back. Enemy steps stop at the interior's walls through the generator's `InteriorSpace`; `blocks()` is the same test for the civilians.
 ## Static state for the other modules (read-only for them): `active`, `vendor_open`, `prompt` (HUD / touch USE), `hud_line` (HUD priority line).
 ## Simulates only while Game.is_playing(); resets on new_game / respawn / next_sector; the node is added by main.gd after the world and before the test menu.
 
@@ -15,7 +15,6 @@ signal exited(door: Dictionary)
 
 const GEN_PATH := "res://scripts/interiors/interior_gen.gd"
 const ORIGIN := Vector3(327.5, 0.0, 0.0)
-const EAST_STRIP := 305.0
 const REACH_DOOR := 2.8
 const REACH_VENDOR := 3.2
 const REACH_EXIT := 2.2
@@ -65,6 +64,8 @@ var _groups_saved: Array[bool] = []
 var _hidden_cars: Array[Node3D] = []
 var _weather := Vector2(-1.0, -1.0)
 var _doors_key := -1
+var _exit_line_t := -1.0
+var _tip_shown := false
 var _resume_door := -1
 var _resume_t := 0.0
 var _saved_inside := false
@@ -185,6 +186,19 @@ static func radio(speaker: String, text: String, id: String, wait := 0.0, prio :
 	return ok
 
 
+## Interior lines still waiting in the story's radio queue belong to the place the player just left: drop them (the line on screen finishes).
+static func drop_queued_radio() -> void:
+	var st: Object = Game.story if is_instance_valid(Game.story) else null
+	if st == null or not (st.get(&"queue") is Array):
+		return
+	var q: Array = st.get(&"queue")
+	var i := q.size() - 1
+	while i >= 0:
+		if str((q[i] as Dictionary).get("id", "")).begins_with("int_"):
+			q.remove_at(i)
+		i -= 1
+
+
 static func exit_point(room: Node3D) -> Vector3:
 	var p = room.get("exit_pos")
 	return p if p is Vector3 else ORIGIN
@@ -268,6 +282,9 @@ func block_reason() -> String:
 		for e in em.list:
 			if e.active and not e.dead and e.type == &"overseer":
 				return "OVERSEER ON THE STREET"
+	var k: Object = Game.missions.get(&"contracts") if is_instance_valid(Game.missions) else null
+	if k != null and bool(k.call(&"is_active")) and int(k.call(&"foes_alive")) > 0:
+		return "FINISH THE CONTRACT FIRST"             # a contract's enemies live in the street's enemy pool, which the interior empties
 	return ""
 
 
@@ -355,6 +372,8 @@ func _apply_enter(d: Dictionary) -> void:
 		busy = false
 		return
 	door = d
+	_exit_line_t = -1.0
+	drop_queued_radio()
 	var type: StringName = d["type"]
 	var seed_value := int(d["id"])
 	_stash_street(Vector3(d["pos"]))
@@ -390,6 +409,7 @@ func _apply_exit() -> void:
 		busy = false
 		return
 	var d := door
+	drop_queued_radio()
 	var out_types: Array[StringName] = []
 	for list: Array in [actors.guards, actors.followers]:
 		for g: Drone in list:
@@ -410,7 +430,7 @@ func _apply_exit() -> void:
 			em.spawn(t, Vector3(d["pos"]) + Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0)), true)
 	exit_count += 1
 	if enter_count % 3 == 1:
-		radio("ORACLE", str((InteriorData.RADIO[&"exit"] as Array)[0][1]), "int_exit", 0.5, 0)
+		_exit_line_t = 1.5                  # a line for the street, said only when the player stays out
 	if autosave:
 		save_state()
 	exited.emit(d)
@@ -550,7 +570,7 @@ func _on_new_game() -> void:
 
 func _resume_flag() -> bool:
 	var prog := Game.progress
-	return prog != null and prog.get(&"_continue_pending") == true
+	return prog != null and prog.get(&"continued") == true
 
 
 func _on_respawn() -> void:
@@ -604,6 +624,10 @@ func _physics_process(delta: float) -> void:
 
 func _tick_outside(delta: float) -> void:
 	hud_line = ""
+	if _exit_line_t > 0.0:
+		_exit_line_t -= delta
+		if _exit_line_t <= 0.0:
+			radio("ORACLE", str((InteriorData.RADIO[&"exit"] as Array)[0][1]), "int_exit", 0.0, 0)
 	_scan_t -= delta
 	if _scan_t <= 0.0:
 		_scan_t = SCAN_EVERY
@@ -618,6 +642,9 @@ func _tick_outside(delta: float) -> void:
 				_near_door = d
 				var why := block_reason()
 				prompt = ("ENTER  %s" % str(d["name"])) if why == "" else why
+				if why == "" and not _tip_shown and Game.autostart == false:
+					_tip_shown = true
+					Game.say("GLOWING DOORS LEAD INSIDE: USE TO ENTER", 3.0)
 	if Input.is_action_just_pressed(&"interact") and not _near_door.is_empty() and prompt.begins_with("ENTER"):
 		enter(_near_door)
 
