@@ -11,6 +11,8 @@ Every set is two files, both sampled with ONE tap each by the shaders (see asset
   surface_<name>_normal.png  RG = tangent normal xy (z rebuilt), B = cavity / ambient occlusion, A = WET roughness (the wet variant of the same surface)
 Extra: surface_decals.png  (R oil + tyre polish, G puddle tide-mark rings, B litter flecks, A gutter grime; one mask tap),
        surface_trim_albedo/normal.png (2048 x 1024 atlas of 4 x 2 cells of 512 px: shopfront and billboard trim).
+District paving (wave 16): walk_market (hexagonal flagstones), walk_foundry (diamond plate steel), walk_towers (polished stone slabs); with the sidewalk (slums) they are the four
+layers of the ground shader's district sidewalk array (SurfaceTextures.walk_array). All four are 2048 tileable; MED uploads them at half size (1024), LOW loads none of them.
 Sizes: asphalt, sidewalk, brick, decals 2048; concrete, corrugated, painted metal, roof tar 1024; trim 2048 x 1024. PNG on disk, ASTC / BPTC at import."""
 import argparse
 import os
@@ -156,6 +158,136 @@ def sidewalk(n, out):
     nx, ny = height_to_normal(blur(h, 0.45), 1.8 * (k + 0.5))
     save_pair(out, "sidewalk", rgb, 0.83 - 0.06 * trowel + 0.05 * pores, nx, ny, 1.0 - 0.6 * pores,
               0.30 + 0.25 * smooth(-1, 2, broom) + 0.15 * fine)
+
+
+def walk_market(n, out):
+    """Hexagonal flagstones (market district): dished warm stone cells in grey-ochre mortar, worn centres, a few chipped cells. Tile 2.4 m, 16 x 18 cells."""
+    k = n / 2048.0
+    cols, rows = 16, 18
+    cw, rh = n / cols, n / rows
+    yy, xx = np.mgrid[0:n, 0:n].astype(np.float32)
+    r0 = np.floor(yy / rh).astype(np.int32)
+    rng = np.random.default_rng(41)
+    tone_tab = rng.random((rows, cols)).astype(np.float32)
+    hue_tab = rng.random((rows, cols)).astype(np.float32)
+    f1 = np.full((n, n), 1e9, np.float32)
+    f2 = np.full((n, n), 1e9, np.float32)
+    cid_r = np.zeros((n, n), np.int32)
+    cid_c = np.zeros((n, n), np.int32)
+    aspect = 0.8660254 * cw / rh
+    for dr in (-1, 0, 1):
+        r = r0 + dr
+        off = 0.5 * cw * (np.mod(r, 2)).astype(np.float32)
+        cy = (r + 0.5) * rh
+        c0 = np.floor((xx - off) / cw).astype(np.int32)
+        for dc in (0, 1):
+            c = c0 + dc
+            cx = off + (c + 0.5) * cw
+            dx = np.mod(xx - cx + n / 2, n) - n / 2
+            dy = (np.mod(yy - cy + n / 2, n) - n / 2) * aspect
+            d = np.sqrt(dx * dx + dy * dy)
+            better = d < f1
+            second = (~better) & (d < f2)
+            f2 = np.where(better, f1, np.where(second, d, f2))
+            cid_r = np.where(better, np.mod(r, rows), cid_r)
+            cid_c = np.where(better, np.mod(c, cols), cid_c)
+            f1 = np.where(better, d, f1)
+    edge = f2 - f1                                                           # distance to the nearest joint (px, roughly)
+    tone = tone_tab[cid_r, cid_c]
+    hue = hue_tab[cid_r, cid_c]
+    joint = 1.0 - smooth(1.5 * k + 0.5, 9.0 * k + 1.0, edge)
+    dish = smooth(0.0, 60.0 * k + 2.0, edge)                                   # cells are slightly dished: low at the joint, high in the middle
+    fine = norm(blur(white(n, 51), 0.9 * k + 0.2))
+    mid = spectral(n, 1.6, 52, lo=0.003, hi=0.1)
+    macro = spectral(n, 2.4, 53, hi=0.015)
+    wear = smooth(0.2, 1.1, spectral(n, 2.2, 54, hi=0.02)) * dish
+    chip = smooth(1.4, 2.4, -norm(blur(white(n, 55), 2.0 * k + 0.3))) * smooth(10.0 * k, 3.0 * k, edge)
+    base = (0.78 + 0.34 * tone) * (1.0 + 0.10 * macro + 0.07 * mid + 0.06 * fine) * (1.0 - 0.30 * wear) - 0.35 * chip
+    base = np.where(joint > 0.5, 0.30 + 0.08 * fine, base)
+    base = np.clip(base * (1.0 - 0.45 * joint) + 0.30 * joint, 0.04, None)
+    rgb = base[..., None] * (tint(1.08, 0.97, 0.84) * (1.0 - hue[..., None] * 0.18) + tint(0.0, 0.0, 0.08) * hue[..., None])
+    h = 0.55 * dish * (0.8 + 0.4 * tone) - 0.9 * joint + 0.12 * fine + 0.08 * mid - 0.5 * chip
+    nx, ny = height_to_normal(blur(h, 0.6), 2.4 * (k + 0.5))
+    rough = 0.80 - 0.10 * wear + 0.08 * joint + 0.04 * fine
+    save_pair(out, "walk_market", rgb, rough, nx, ny, 1.0 - 0.6 * joint - 0.4 * chip,
+              0.22 + 0.45 * joint + 0.15 * smooth(-1, 2, fine))
+
+
+def walk_foundry(n, out):
+    """Diamond (tread) plate steel with plate seams, rivets, heat tint and rust bloom (foundry district). Tile 1.2 m, lugs every 25 mm."""
+    k = n / 2048.0
+    p = 48.0 * k                                                               # lug pitch (px)
+    yy, xx = np.mgrid[0:n, 0:n].astype(np.float32)
+    ci = np.floor(xx / p)
+    cj = np.floor(yy / p)
+    u = (xx / p - ci) - 0.5
+    v = (yy / p - cj) - 0.5
+    sgn = np.where(np.mod(ci + cj, 2) == 0, 1.0, -1.0).astype(np.float32)
+    ca, sa = 0.70710678, 0.70710678 * sgn
+    a = u * ca + v * sa                                                        # along the lug
+    b = -u * sa + v * ca                                                       # across it
+    lug = np.exp(-((a / 0.36) ** 2 + (b / 0.10) ** 2) * 1.6)
+    lug = np.clip(lug, 0.0, 1.0)
+    seam_x = np.abs(np.mod(xx + n / 4, n / 2) - n / 4)
+    seam_y = np.abs(np.mod(yy + n / 4, n / 2) - n / 4)
+    seam = np.maximum(1.0 - smooth(1.0 * k, 5.0 * k + 0.5, seam_x), 1.0 - smooth(1.0 * k, 5.0 * k + 0.5, seam_y))
+    rivets = np.zeros((n, n), np.float32)
+    # rivet rows along the horizontal and vertical seams (every n/16 px)
+    rpx = n / 16.0
+    for axis_pos in (n / 4.0, 3.0 * n / 4.0):
+        rx = np.mod(xx - rpx / 2, rpx) - rpx / 2
+        dyr = yy - axis_pos
+        dyr = np.minimum(np.abs(dyr - 8.0 * k), np.abs(dyr + 8.0 * k))
+        rivets = np.maximum(rivets, np.exp(-((rx ** 2 + dyr ** 2) / (3.2 * k + 0.5) ** 2)))
+        rx2 = np.mod(yy - rpx / 2, rpx) - rpx / 2
+        dxr = xx - axis_pos
+        dxr = np.minimum(np.abs(dxr - 8.0 * k), np.abs(dxr + 8.0 * k))
+        rivets = np.maximum(rivets, np.exp(-((rx2 ** 2 + dxr ** 2) / (3.2 * k + 0.5) ** 2)))
+    grime = smooth(0.2, 1.2, spectral(n, 2.2, 61, hi=0.02))
+    rust = smooth(0.7, 1.4, spectral(n, 2.0, 62, hi=0.03)) * (0.35 + 0.65 * grime)
+    scratch = smooth(1.8, 3.0, norm(blur(white(n, 63), 14.0 * k + 1.0, 0.5 * k + 0.2)))
+    fine = norm(blur(white(n, 64), 0.8 * k + 0.2))
+    heat = smooth(0.1, 1.0, spectral(n, 2.4, 65, hi=0.012))
+    steel = 0.80 + 0.35 * lug - 0.30 * grime + 0.06 * fine + 0.12 * scratch
+    steel = steel * (1.0 - 0.55 * seam) + 0.20 * rivets
+    rgb = np.clip(steel, 0.05, None)[..., None] * (tint(0.96, 0.98, 1.04) * (1.0 - 0.45 * rust[..., None]) + tint(0.50, 0.27, 0.15) * 0.45 * rust[..., None]) \
+        * (1.0 + tint(0.20, 0.0, -0.12) * heat[..., None])
+    h = 0.7 * lug - 0.5 * seam + 0.35 * rivets + 0.05 * fine - 0.25 * rust
+    nx, ny = height_to_normal(blur(h, 0.5), 3.0 * (k + 0.5))
+    rough = 0.50 + 0.35 * rust + 0.12 * grime - 0.10 * lug
+    save_pair(out, "walk_foundry", rgb, rough, nx, ny, 1.0 - 0.5 * seam - 0.3 * rust, 0.12 + 0.35 * rust + 0.1 * grime)
+
+
+def walk_towers(n, out):
+    """Large polished stone slabs (glass towers district): four 1.2 m slabs per tile, thin bevelled joints, marble veining, polish scuffs. Tile 2.4 m."""
+    k = n / 2048.0
+    yy, xx = np.mgrid[0:n, 0:n].astype(np.float32)
+    half = n / 2.0
+    # slabs of n/2 with a half-slab running bond on every second row
+    row = np.floor(yy / half).astype(np.int32)
+    xs = np.mod(xx + half * 0.5 * (row % 2), n)
+    jx = np.minimum(np.mod(xs, half), half - np.mod(xs, half))
+    jy = np.minimum(np.mod(yy, half), half - np.mod(yy, half))
+    jd = np.minimum(jx, jy)
+    joint = 1.0 - smooth(1.2 * k, 5.0 * k + 0.5, jd)
+    bevel = 1.0 - smooth(0.0, 24.0 * k + 1.0, jd)
+    sid = (np.floor(xs / half).astype(np.int32) + 2 * row) % 4
+    rng = np.random.default_rng(71)
+    stone_tone = rng.random(4).astype(np.float32)[sid]
+    warp = spectral(n, 2.2, 72, hi=0.012) * 24.0 * k
+    vein_a = np.abs(np.sin((xx * 0.011 / max(k, 0.1) + yy * 0.007 / max(k, 0.1)) * 2.0 + warp * 0.18))
+    vein = smooth(0.92, 0.995, 1.0 - vein_a) * smooth(0.2, 1.0, spectral(n, 2.0, 73, hi=0.02))
+    cloud = spectral(n, 2.4, 74, hi=0.02)
+    fine = norm(blur(white(n, 75), 0.9 * k + 0.2))
+    scuff = smooth(1.6, 2.8, norm(blur(white(n, 76), 9.0 * k + 1.0, 0.7 * k + 0.2)))
+    pit = smooth(2.0, 3.0, norm(blur(white(n, 77), 1.2 * k + 0.2)))
+    base = (0.86 + 0.20 * stone_tone) * (1.0 + 0.09 * cloud + 0.03 * fine) + 0.30 * vein - 0.30 * pit
+    base = base * (1.0 - 0.55 * joint) * (1.0 - 0.10 * bevel)
+    rgb = np.clip(base, 0.05, None)[..., None] * tint(0.95, 1.0, 1.08)
+    h = -0.9 * joint - 0.25 * bevel + 0.04 * fine - 0.3 * pit + 0.03 * cloud
+    nx, ny = height_to_normal(blur(h, 0.45), 1.8 * (k + 0.5))
+    rough = 0.46 + 0.22 * scuff + 0.20 * joint + 0.06 * fine
+    save_pair(out, "walk_towers", rgb, rough, nx, ny, 1.0 - 0.7 * joint - 0.3 * pit, 0.07 + 0.20 * scuff + 0.4 * joint)
 
 
 def concrete(n, out):
@@ -352,6 +484,7 @@ SETS = {
     "asphalt": (asphalt, 2048), "sidewalk": (sidewalk, 2048), "brick": (brick, 2048), "concrete": (concrete, 1024),
     "corrugated": (corrugated, 1024), "painted_metal": (painted_metal, 1024), "roof_tar": (roof_tar, 1024),
     "decals": (decals, 2048), "trim": (trim, 512),
+    "walk_market": (walk_market, 2048), "walk_foundry": (walk_foundry, 2048), "walk_towers": (walk_towers, 2048),
 }
 
 

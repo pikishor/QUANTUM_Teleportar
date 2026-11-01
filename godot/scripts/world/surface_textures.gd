@@ -10,6 +10,8 @@ const DIR := "res://assets/textures/surface_%s.png"
 const SETS := {
 	"road": "asphalt", "walk": "sidewalk", "brick": "brick", "wall": "concrete", "roof": "roof_tar", "metal": "painted_metal", "corr": "corrugated",
 }
+## file stems of the four layers of the district sidewalk array (district id order)
+const WALK_LAYERS: Array[String] = ["walk_market", "walk_foundry", "sidewalk", "walk_towers"]
 static var _cache := {}
 
 
@@ -36,6 +38,38 @@ static func tex(file: String, tier: int) -> Texture2D:
 	return t
 
 
+## District sidewalk variants as ONE texture array (layer = district id: 0 market hex flagstones, 1 foundry tread plate, 2 slums = the plain sidewalk set, 3 towers polished slabs),
+## `kind` "albedo" or "normal". HIGH uploads the 2048 px layers, MED the 1024 px level of each (the top mip is cut off the compressed data, no re-encode), LOW loads nothing.
+## Null when the data cannot be read (headless, a GPU-only format): the shader then keeps its single sidewalk set (`srf_walkv` = 0).
+static func walk_array(kind: String, tier: int) -> Texture2DArray:
+	if taps(tier) == 0:
+		return null
+	var half := tier == 1
+	var key := "walkv_%s|%d" % [kind, 1 if half else 2]
+	if _cache.has(key):
+		return _cache[key]
+	var images: Array[Image] = []
+	for stem in WALK_LAYERS:
+		var path := DIR % ("%s_%s" % [stem, kind])
+		if not ResourceLoader.exists(path):
+			_cache[key] = null
+			return null
+		var t := load(path) as Texture2D
+		var img: Image = null if t == null else t.get_image()
+		if img == null or img.is_empty() or img.get_mipmap_count() < 1:
+			_cache[key] = null
+			return null
+		if half and img.get_width() >= 2048:
+			img = Image.create_from_data(img.get_width() / 2, img.get_height() / 2, img.get_mipmap_count() > 1, img.get_format(), img.get_data().slice(img.get_mipmap_offset(1)))
+		images.append(img)
+	var arr := Texture2DArray.new()
+	if arr.create_from_images(images) != OK:
+		_cache[key] = null
+		return null
+	_cache[key] = arr
+	return arr
+
+
 ## The neon-text glyph atlas (tools/textures/gen_signage.py), cached; null when the file is missing.
 static func sign_atlas() -> Texture2D:
 	if not _cache.has("sign_atlas"):
@@ -52,6 +86,16 @@ static func apply(mat: ShaderMaterial, keys: Array, tier: int) -> void:
 	for k: String in keys:
 		if k == "sign":
 			mat.set_shader_parameter(&"sign_atlas", sign_atlas())        # the neon-text distance atlas (18 KB, lossless, every tier: it IS the signage)
+		elif k == "walkv":
+			# the district sidewalks: the array when it can be built (then the plain sidewalk pair stays unloaded), else the single sidewalk set
+			var wa := walk_array("albedo", tier)
+			var wn := walk_array("normal", tier)
+			var ok := wa != null and wn != null
+			mat.set_shader_parameter(&"srf_walkv_a", wa if ok else null)
+			mat.set_shader_parameter(&"srf_walkv_n", wn if ok else null)
+			mat.set_shader_parameter(&"srf_walkv", 1.0 if ok else 0.0)
+			mat.set_shader_parameter(&"srf_walk_a", null if ok else tex("sidewalk_albedo", tier))
+			mat.set_shader_parameter(&"srf_walk_n", null if ok else tex("sidewalk_normal", tier))
 		elif k == "decal":
 			mat.set_shader_parameter(&"srf_decal", tex("decals", tier) if n_taps >= 2 else null)        # the decal mask is a HIGH tap
 		elif k == "trim":
@@ -69,7 +113,8 @@ static func estimate_bytes(tier: int) -> int:
 		return 0
 	var total := 0
 	for f in ["asphalt_albedo", "asphalt_normal", "sidewalk_albedo", "sidewalk_normal", "brick_albedo", "brick_normal", "concrete_albedo", "concrete_normal",
-			"roof_tar_albedo", "roof_tar_normal", "painted_metal_albedo", "painted_metal_normal", "corrugated_albedo", "corrugated_normal", "trim_albedo", "trim_normal", "decals"]:
+			"roof_tar_albedo", "roof_tar_normal", "painted_metal_albedo", "painted_metal_normal", "corrugated_albedo", "corrugated_normal", "trim_albedo", "trim_normal", "decals",
+			"walk_market_albedo", "walk_market_normal", "walk_foundry_albedo", "walk_foundry_normal", "walk_towers_albedo", "walk_towers_normal"]:
 		var t := load(DIR % f) as Texture2D
 		if t == null:
 			continue

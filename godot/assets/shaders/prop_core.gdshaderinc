@@ -32,9 +32,14 @@ varying flat vec2 v_mr;
 void vertex() {
 	v_loc = VERTEX;
 	v_wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	v_cust = INSTANCE_CUSTOM;
 	v_col = COLOR;
 	v_mr = UV2;
+#ifdef KIT
+	// street kit window (city_kit.gd): ONE merged mesh of the props around the camera, already in world space; there is no instance, so the per-prop seed comes as
+	// a vertex attribute (CUSTOM0.x, one float) and the distance LOD is done by the window itself (near cells full detail, far cells simplified)
+	v_cust = vec4(CUSTOM0.x, 0.0, 0.0, 1.0);
+#else
+	v_cust = INSTANCE_CUSTOM;
 	if (UV.x < -0.5) {
 		// facade kit (city_facade.gd): one mesh holds several modules, UV.x = -(1 + module); the instance keeps the one in INSTANCE_CUSTOM.w
 		if (abs(-UV.x - 1.0 - floor(INSTANCE_CUSTOM.w * 8.0)) > 0.5) {
@@ -42,6 +47,7 @@ void vertex() {
 		}
 	}
 	VERTEX *= 1.0 - smoothstep(lod_range.x, lod_range.y, distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz));
+#endif
 }
 
 // width / height of a UV quad in metres (from the derivatives of its world position and its UV): text on screens and posters keeps its shape on any panel.
@@ -206,6 +212,10 @@ void fragment() {
 	// almost no light at night and used to read as a flat black hole; this keeps its form, brighter on faces that look up at the sky glow.
 	vec3 n_up = (INV_VIEW_MATRIX * vec4(normalize(NORMAL), 0.0)).xyz;
 	vec3 fill = vec3(0.012, 0.019, 0.027) * (0.45 + 0.55 * clamp(n_up.y * 0.5 + 0.5, 0.0, 1.0));
+#ifdef KIT
+	// the street kit stands in the lit street: lift its paint with a share of its own albedo (the bounce of the neon and shop windows) so the furniture reads at night
+	fill = fill * 2.2 + col * 0.20 * (0.5 + 0.5 * clamp(n_up.y * 0.5 + 0.5, 0.0, 1.0));
+#endif
 	EMISSION = emit + fill;
 #ifdef SRF
 	if (dot(srf_nw, srf_nw) > 1e-6) {

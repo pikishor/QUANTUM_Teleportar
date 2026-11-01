@@ -25,7 +25,21 @@ uniform sampler2D srf_road_n : filter_linear_mipmap_anisotropic, repeat_enable, 
 uniform sampler2D srf_walk_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;      // sidewalk concrete, 2.4 m tile
 uniform sampler2D srf_walk_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
 uniform sampler2D srf_decal : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_black;       // HIGH: oil, tide marks, litter, gutter grime, 12 m tile
+// District sidewalks (wave 16): one layer per district, in the order market, foundry, slums (= the sidewalk set above), towers; 1 = bound (SurfaceTextures.walk_array), 0 = use srf_walk_*
+uniform sampler2DArray srf_walkv_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2DArray srf_walkv_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform float srf_walkv = 0.0;
 #endif
+// Sidewalk slab tint per district (x < 0 / z < 0 = market, x >= 0 / z < 0 = foundry, x < 0 / z >= 0 = slums, x >= 0 / z >= 0 = towers): the one district tint that also reaches LOW.
+uniform vec3 dist_walk0 = vec3(1.0);
+uniform vec3 dist_walk1 = vec3(1.0);
+uniform vec3 dist_walk2 = vec3(1.0);
+uniform vec3 dist_walk3 = vec3(1.0);
+vec3 district_walk(vec2 q) {
+	float fx = step(0.0, q.x);
+	float fz = step(0.0, q.y);
+	return mix(mix(dist_walk0, dist_walk1, fx), mix(dist_walk2, dist_walk3, fx), fz);
+}
 uniform vec3 moon_dir = vec3(-0.43, 0.46, -0.78);
 uniform vec3 moon_color : source_color = vec3(0.55, 0.70, 1.0);
 
@@ -266,20 +280,37 @@ void fragment() {
 		float tv = mix(0.5, hash12(tid + 3.0), res_t);                                // per-slab tone, averaged away when slabs are sub-pixel
 		float tone = fbm2a(q * 0.3, 3.3, aa);
 		float grit = mix(0.5, hash12(floor(q * 55.0)), resolve(0.018, aa));                // aggregate: only where single grains are resolved
-		vec3 conc = mix(vec3(0.145, 0.15, 0.155), vec3(0.19, 0.182, 0.175), tv) * (0.75 + 0.5 * tone) * (0.93 + 0.14 * grit);
+		vec3 conc = mix(vec3(0.145, 0.15, 0.155), vec3(0.19, 0.182, 0.175), tv) * (0.75 + 0.5 * tone) * (0.93 + 0.14 * grit) * district_walk(q);
 #ifndef LITE
 		if (srf > 0.002) {
+			vec4 ta;
+			vec4 tn;
 			vec2 wu = q / 2.4;
-			vec4 ta = srf_tap(srf_walk_a, wu, gdx / 2.4, gdy / 2.4);
-			vec4 tn = srf_tap(srf_walk_n, wu, gdx / 2.4, gdy / 2.4);
+			float wtile = 2.4;
+			int wlay = (q.x >= 0.0 ? 1 : 0) + (q.y >= 0.0 ? 2 : 0);
+			if (srf_walkv > 0.5) {
+				wtile = wlay == 0 ? 2.4 : (wlay == 1 ? 1.2 : (wlay == 2 ? 2.4 : 2.8));           // metres per tile: hex flagstones, tread plate, patched concrete, slabs
+				ta = srf_tap_a(srf_walkv_a, vec3(q / wtile, float(wlay)), gdx / wtile, gdy / wtile);
+				tn = srf_tap_a(srf_walkv_n, vec3(q / wtile, float(wlay)), gdx / wtile, gdy / wtile);
+			} else {
+				ta = srf_tap(srf_walk_a, wu, gdx / 2.4, gdy / 2.4);
+				tn = srf_tap(srf_walk_n, wu, gdx / 2.4, gdy / 2.4);
+			}
 			vec3 modc = 2.0 * ta.rgb;
 			vec2 sl = srf_slope(tn);
 			if (srf_hi > 0.5) {
 				vec2 r2 = vec2(q.x * 0.64 + q.y * 0.77, -q.x * 0.77 + q.y * 0.64) / 0.91 + 0.19;
 				vec2 d2x = vec2(gdx.x * 0.64 + gdx.y * 0.77, -gdx.x * 0.77 + gdx.y * 0.64) / 0.91;
 				vec2 d2y = vec2(gdy.x * 0.64 + gdy.y * 0.77, -gdy.x * 0.77 + gdy.y * 0.64) / 0.91;
-				vec4 ta2 = srf_tap(srf_walk_a, r2, d2x, d2y);
-				vec4 tn2 = srf_tap(srf_walk_n, r2, d2x, d2y);
+				vec4 ta2;
+				vec4 tn2;
+				if (srf_walkv > 0.5) {
+					ta2 = srf_tap_a(srf_walkv_a, vec3(r2, float(wlay)), d2x, d2y);
+					tn2 = srf_tap_a(srf_walkv_n, vec3(r2, float(wlay)), d2x, d2y);
+				} else {
+					ta2 = srf_tap(srf_walk_a, r2, d2x, d2y);
+					tn2 = srf_tap(srf_walk_n, r2, d2x, d2y);
+				}
 				modc = mix(modc, modc * 2.0 * ta2.rgb, 0.5);
 				sl += srf_slope(tn2) * 0.45;
 			}

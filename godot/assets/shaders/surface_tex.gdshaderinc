@@ -16,3 +16,9 @@ vec4 srf_tap(sampler2D s, vec2 uv, vec2 dx, vec2 dy) {
 vec2 srf_slope(vec4 n) {
 	return (n.rg - 0.5) * 2.0;
 }
+
+// the same tap on a texture ARRAY layer (the district sidewalk variants: one tap per pixel whatever the district)
+vec4 srf_tap_a(sampler2DArray s, vec3 uvl, vec2 dx, vec2 dy) {
+	float m = exp2(srf_bias);
+	return textureGrad(s, uvl, dx * m, dy * m);
+}

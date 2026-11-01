@@ -45,6 +45,7 @@ var last_line := ""
 var reactions := 0                       ## cower / point reactions made
 var car_scares := 0
 var blasts_seen := 0
+var barks := 0                    ## alien calls voiced through Sfx.bark
 
 var _promote_t := 0.0
 var _scan_t := 0.0
@@ -170,6 +171,7 @@ func _after_scare(pos: Vector3, player_pos: Vector3, close_r: float) -> void:
 			if roll < COWER_CHANCE:
 				crowd.cower_person(i, rng.randf_range(3.0, 7.0))
 				reactions += 1
+				_voice(&"yelp", i)
 			elif roll < COWER_CHANCE + POINT_CHANCE:
 				crowd.attend(i, player_pos, rng.randf_range(2.0, 4.0))
 				reactions += 1
@@ -242,6 +244,7 @@ func _talk(player_pos: Vector3) -> void:
 	var line := line_for(i)
 	_talked[i] = clock
 	_talk_cd = TALK_CD
+	_voice(&"chitter", i)
 	if not crowd.is_cowering(i):
 		crowd.attend(i, player_pos, 3.0)
 	_say(line, 3.2)
@@ -266,6 +269,12 @@ func _on_game_message(text: String, seconds: float) -> void:
 		_ext_until = clock + seconds
 
 
+## An alien call from person `i` (same pitch every time for the same person). Capped by Sfx's single bark voice family.
+func _voice(kind: StringName, i: int) -> void:
+	barks += 1
+	Sfx.bark(kind, crowd.person_position(i), 0.85 + 0.3 * float((i * 7919) % 100) / 100.0)
+
+
 func _say(text: String, seconds: float) -> void:
 	if clock < _ext_until:                  # never overwrite a mission / pickup / tutorial message with a bark
 		return
@@ -275,4 +284,4 @@ func _say(text: String, seconds: float) -> void:
 
 
 func stats() -> Dictionary:
-	return {"actors": actors.size(), "calls": calls, "lines": lines_said, "reactions": reactions, "car_scares": car_scares, "blasts": blasts_seen}
+	return {"actors": actors.size(), "calls": calls, "lines": lines_said, "reactions": reactions, "car_scares": car_scares, "blasts": blasts_seen, "barks": barks}

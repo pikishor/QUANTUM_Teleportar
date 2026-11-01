@@ -9,6 +9,8 @@ extends RefCounted
 const MB := preload("res://scripts/world/mesh_builder.gd")
 const Roofs := preload("res://scripts/world/city_roofs.gd")
 const Facade := preload("res://scripts/world/city_facade.gd")
+const Kit := preload("res://scripts/world/city_kit.gd")
+const Districts := preload("res://scripts/world/city_districts.gd")
 
 ## Distance (metres) beyond which a family is no longer drawn (before the quality scale; see city_stream.gd). Tuned against the fog:
 ## at 200 m the exponential haze already covers about two thirds of an object.
@@ -38,6 +40,7 @@ const EM_GLOW := 1.0
 ## Result entries: {name, mm, kind (&"prop" | &"glow" | &"shaft"), mirror, shadow}
 var parts: Array[Dictionary] = []
 var vents: Array[Vector3] = []            ## steam vent positions (x, 0, z), filled by build()
+var kit: Kit = Kit.new()                  ## the street kit (16 district props, merged window; city_kit.gd), filled by build()
 var rng := RandomNumberGenerator.new()
 
 var _glow: Array = []                     ## [pos: Vector3, color: Color(rgb, brightness), kind, size, phase, seed]
@@ -318,6 +321,7 @@ func build(layout: CityLayout, building_data: Array = []) -> void:
 	rng.seed = 90210
 	parts.clear()
 	_glow.clear()
+	kit = Kit.new()
 	_place_lamps()
 	_place_signals()
 	_place_bus_stops()
@@ -328,6 +332,7 @@ func build(layout: CityLayout, building_data: Array = []) -> void:
 	if not building_data.is_empty():
 		Roofs.new().build(self, layout, building_data)
 		Facade.new().build(self, layout, building_data)
+	kit.build(self, layout, parts)        # after every other family: it keeps clear of them (and adds its light sprites to the shared Glow family)
 	_flush_glow()
 
 
@@ -343,6 +348,8 @@ func _place_lamps() -> void:
 			variant = 1.0
 		elif r > 0.72:
 			variant = 0.5
+		if float(Districts.palette(Districts.at(lamp.x, lamp.y))["lamp"]) > 0.5 and r > 0.3:
+			variant = 1.0 if r > 0.6 else 0.5                        # glass towers: the street lamps run cool (white and cyan) instead of warm
 		var seed_v := rng.randf()
 		var xf := Transform3D(Basis(Vector3.UP, theta), Vector3(lamp.x, 0.0, lamp.y))
 		items.append([xf, Color(seed_v, variant, 0.0, 1.0)])
@@ -444,7 +451,7 @@ func _place_lot_props(layout: CityLayout) -> void:
 			kiosks.append([Transform3D(Basis(Vector3.UP, theta), Vector3(lot.cx + rng.randf_range(-lot.w * 0.3, lot.w * 0.3), 0.0, wz2)), Color(rng.randf(), 0.0, 0.0, 1.0)])
 	add_family("Dumpsters", dumpster_mesh(), dump, false, false, 0, RADIUS_DUMPSTERS)
 	add_family("Trash", trash_mesh(), trash, false, false, 1, RADIUS_TRASH)
-	add_family("Kiosks", kiosk_mesh(), kiosks, false, false, 0, RADIUS_KIOSKS)
+	kit.fold_family(Kit.KIOSK_LIT, kiosk_mesh(), kiosks)
 	add_family("Planters", planter_mesh(), planters, false, false, 0, RADIUS_PLANTERS)
 	for k in kiosks.size():
 		var xf: Transform3D = kiosks[k][0]
@@ -480,7 +487,7 @@ func _place_corner_props() -> void:
 			barr.append([Transform3D(Basis(Vector3.UP, theta), pos), Color(rng.randf(), 0.0, float(q), 1.0)])
 			if q == 0 or q == cnt - 1:
 				glow_add(pos + Vector3(0, 0.9, 0), Color(1.0, 0.5, 0.08, 1.0), 4, 1.6, 0.0, rng.randf())
-	add_family("Hydrants", hydrant_mesh(), hyd, false, false, 0, RADIUS_HYDRANTS)
+	kit.fold_family(Kit.HYDRANT, hydrant_mesh(), hyd)
 	add_family("Barriers", barrier_mesh(), barr, false, false, 0, RADIUS_BARRIERS)
 
 
@@ -532,4 +539,4 @@ func _place_vents() -> void:
 		items.append([Transform3D(Basis(Vector3.UP, 0.0 if axis2 == 0 else PI * 0.5), pos2), Color(vr.randf(), 0.0, 0.0, 1.0)])
 		vents.append(pos2)
 		glow_add(pos2 + Vector3(0, 0.15, 0), Color(1.0, 0.5, 0.2, 0.8), 0, 2.6, 0.0, vr.randf())
-	add_family("VentGrates", vent_mesh(), items, false, false, 0, RADIUS_VENTS)
+	kit.fold_family(Kit.VENT_GRATE, vent_mesh(), items)

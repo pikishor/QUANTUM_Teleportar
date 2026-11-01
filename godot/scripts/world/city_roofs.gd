@@ -371,7 +371,7 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 
 	props.add_family("Awnings", awning_mesh(), awn, false, false, 0, 170.0)
 	props.add_family("FireEscapes", fire_escape_mesh(), fire, false, false, 1, 170.0)
-	props.add_family("BladeSigns", blade_mesh(), blades, true, false, 0, 270.0)
+	props.add_family("BladeSigns", blade_mesh(), blades, true, false, 0, 230.0)
 	props.add_family("RoofAC", ac_mesh(), ac, false, false, 0, 230.0)
 	props.add_family("RoofVents", hvac_mesh(), hvacs, false, false, 0, 210.0)
 	props.add_family("RoofPipes", pipes_mesh(), pipes, false, false, 1, 180.0)
@@ -380,7 +380,7 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 	props.add_family("RoofTanks", tank_mesh(), tanks, false, false, 0, 270.0)
 	props.add_family("RoofMasts", mast_mesh(), masts, false, false, 0, 330.0)
 	props.add_family("RoofHouses", stair_house_mesh(), houses, false, false, 0, 250.0)
-	props.add_family("Billboards", billboard_mesh(), boards, true, false, 0, 360.0)
+	props.add_family("Billboards", billboard_mesh(), boards, true, false, 0, 290.0)
 
 
 ## A random free spot on a coarse grid (so clutter never overlaps); Vector2.INF when the roof is full.

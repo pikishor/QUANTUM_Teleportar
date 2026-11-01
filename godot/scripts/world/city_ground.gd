@@ -4,6 +4,7 @@ extends RefCounted
 
 const GROUND_SHADER := preload("res://assets/shaders/ground.gdshader")
 const GROUND_LITE_SHADER := preload("res://assets/shaders/ground_lite.gdshader")
+const Districts := preload("res://scripts/world/city_districts.gd")
 
 const LIGHT_SIZE := 704.0            ## metres covered by the light map (centred on the city)
 const LIGHT_TEXELS := 352            ## 2 m per texel
@@ -123,6 +124,9 @@ func _material(shader: Shader) -> ShaderMaterial:
 	m.set_shader_parameter(&"lot_map", lot_texture)
 	m.set_shader_parameter(&"light_map", light_texture)
 	m.set_shader_parameter(&"light_rect", Vector4(-LIGHT_SIZE * 0.5, -LIGHT_SIZE * 0.5, LIGHT_SIZE, LIGHT_SIZE))
+	for d in Districts.COUNT:                                   # sidewalk slab tint per district (reaches the LOW tier as well)
+		var w: Color = Districts.palette(d)["walk"]
+		m.set_shader_parameter(StringName("dist_walk%d" % d), Vector3(w.r, w.g, w.b))
 	return m
 
 

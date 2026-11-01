@@ -13,6 +13,10 @@ extends Node
 ## driving, menu, death, win; stings on death and win). With auto_music the state follows Game (heat 1-3 alert, 3+ combat, a driven car, dead, win).
 ## Living sound, all simulated only while Game.is_playing(): footsteps from the hero's foot plants (Locomotion.footfalls), the player's car (RPM loop pair, tyre
 ## squeal, crashes), traffic hum on the three nearest moving cars, quantum loops, heartbeat and breath at low health, rain/wind/traffic/hum beds with thunder.
+## Wave 17 depth: a theme layer (own player, started at the stems' playback position so it stays in time) with one colour per district (district_at), the boss theme and the
+## chase theme; intensity stingers on heat steps (sting_combat_0..2, sting_boss, sting_chase); inside a building the Ambient and Music buses close their low-pass and the
+## SFX bus gets a small room reverb (indoors); weather picks the beds (rain surfaces, wind gusts, the storm howl, thunder rate, weather_state()); a patrol airship hum that
+## follows the sky patrol; synthesised alien barks (bark / bark_at, kinds growl, chitter, yelp); ui(kind) cue helper.
 ## Lifecycle signals (new_game, respawn, next_sector, player_died) reset every loop and timer.
 ## main.gd starts it for a real run (play_music() also starts the ambience); tools, tests and bots (Game.autostart) stay silent unless they call it.
 
@@ -39,7 +43,7 @@ const FAMILIES: Array = [
 	["boom", 4, 3, 0.12, 0.03], ["explosion", 4, 3, 0.12, 0.03], ["distant_", 0, 2, 0.50, 0.05], ["thunder", 3, 2, 2.0, 0.03], ["siren", 0, 2, 1.0, 0.02],
 	["trooper_", 2, 4, 0.10, 0.07], ["hero_", 3, 2, 0.20, 0.04], ["drone_", 1, 3, 0.10, 0.03], ["hit", 1, 5, 0.03, 0.0], ["hurt", 3, 2, 0.10, 0.0],
 	["blink", 3, 2, 0.10, 0.0], ["link", 3, 2, 0.10, 0.0], ["superpos", 3, 2, 0.10, 0.0], ["quantum_", 3, 2, 0.10, 0.0], ["entangle", 3, 1, 0.10, 0.0],
-	["car_", 2, 3, 0.10, 0.05], ["horn", 2, 1, 0.20, 0.02], ["engine_", 2, 2, 0.10, 0.0], ["tyre", 1, 1, 0.10, 0.0],
+	["alien_", 2, 3, 0.25, 0.08], ["car_", 2, 3, 0.10, 0.05], ["horn", 2, 1, 0.20, 0.02], ["engine_", 2, 2, 0.10, 0.0], ["tyre", 1, 1, 0.10, 0.0],
 	["ui_", 4, 3, 0.03, 0.0], ["pickup", 3, 3, 0.05, 0.0], ["credit", 3, 2, 0.05, 0.0], ["mission_", 4, 1, 0.50, 0.0], ["objective", 3, 1, 0.30, 0.0], ["heat_", 3, 1, 0.50, 0.0],
 	["heartbeat", 2, 2, 0.20, 0.0], ["breath", 1, 2, 0.30, 0.03], ["gasp", 2, 1, 0.50, 0.0], ["radio_", 3, 2, 0.05, 0.0], ["babble", 1, 3, 0.04, 0.0], ["core", 3, 2, 0.20, 0.0],
 ]
@@ -54,9 +58,21 @@ const MUSIC_STATES := {
 	&"combat": [-4.0, 0.0, 0.0, 0.0, -3.0],
 	&"driving": [-8.0, -2.0, -3.0, -4.0, -4.0],
 	&"boss": [-3.0, 0.0, 0.0, 0.0, 0.0],
+	&"chase": [-6.0, -1.0, -1.0, -2.0, -8.0],
 	&"death": [-18.0, -60.0, -60.0, -60.0, -60.0],
 	&"win": [-3.0, -10.0, -60.0, -60.0, -2.0],
 }
+## theme layer: one extra looping layer over the stems (same 30 s grid). Level in dB per layer kind.
+const DISTRICTS: Array[StringName] = [&"market", &"foundry", &"slums", &"towers"]   ## quadrants of the city: x<0,z<0 / x>=0,z<0 / x<0,z>=0 / x>=0,z>=0
+const LAYER_DB := {&"district": -7.0, &"boss": -3.0, &"chase": -3.0}
+const LAYER_TAU := 1.6
+const STINGS := ["sting_combat_0", "sting_combat_1", "sting_combat_2"]     ## heat 2, 3, 4+ (first time the heat reaches that step)
+const STING_GAP := 8.0
+const BARKS := {&"growl": [0, 3], &"chitter": [4, 7]}                       ## kind -> first and last alien_bark_N
+const UI_CUES := {&"notify": &"ui_notify", &"hover": &"ui_hover", &"click": &"ui_click", &"tap": &"ui_tap", &"confirm": &"ui_confirm", &"back": &"ui_back", &"deny": &"ui_deny", &"error": &"ui_error"}
+const INSIDE_MUSIC_HZ := 5500.0
+const INSIDE_AMBIENT_HZ := 1500.0
+const REVERB_WET := 0.28
 const STATE_TAU := 0.7            ## seconds of the stem crossfades
 const MUSIC_MIN_HOLD := 6.0       ## a state is kept at least this long before the music drops back to a calmer one
 const HEAT_ALERT := 1.0
@@ -66,6 +82,7 @@ const HEAT_COMBAT := 3.0
 const DUCKS := {
 	&"explosion": {"depth": {&"Music": -9.0, &"Ambient": -11.0}, "attack": 0.04, "hold": 0.9, "release": 2.2},
 	&"radio": {"depth": {&"Music": -7.0, &"Ambient": -9.0, &"SFX": -2.5}, "attack": 0.15, "hold": 0.4, "release": 0.9},
+	&"stinger": {"depth": {&"Music": -5.0, &"Ambient": -5.0}, "attack": 0.03, "hold": 0.7, "release": 1.4},
 }
 
 var _cache := {}                  ## name -> Array[AudioStream] (variants; empty when the sound does not exist)
@@ -92,13 +109,30 @@ var _stem_tau := STATE_TAU
 var _legacy_music := false
 var _vol_music := MUSIC_DB
 var _user_db := {}                ## bus -> the player's volume choice in dB
-var _duck_level := {&"explosion": 0.0, &"radio": 0.0}
-var _duck_hold := {&"explosion": 0.0, &"radio": 0.0}
+var _duck_level := {&"explosion": 0.0, &"radio": 0.0, &"stinger": 0.0}
+var _duck_hold := {&"explosion": 0.0, &"radio": 0.0, &"stinger": 0.0}
 var _bus_db_applied := {}
 var _lp_music: AudioEffectLowPassFilter
 var _lp_ambient: AudioEffectLowPassFilter
 var _muffle := 0.0                ## 0..1: how far the music / ambience low-pass is closed (low health, inside a car)
 var _muffle_target := 0.0
+var _reverb: AudioEffectReverb
+var _inside := 0.0                ## 0..1 smoothed: how far indoors the listener is (low-pass, reverb, quieter street beds)
+var indoors_override := -1        ## -1 follows the game (InteriorSpace), 0 or 1 forces it (tests, cutscenes)
+var _layers: Array[AudioStreamPlayer] = []
+var _layer_db := PackedFloat32Array([OFF_DB, OFF_DB])
+var _layer_goal := PackedFloat32Array([OFF_DB, OFF_DB])
+var _layer_name: Array[StringName] = [&"", &""]
+var layer_wanted: StringName = &""    ## the theme layer that should be heard now (music_district_N, music_boss, music_chase or empty)
+var _layer_cur := -1                  ## index of the player that carries layer_wanted
+var chase_active := false             ## a chase contract or pursuit sets it: the chase theme (boss still wins)
+var _sting_t := -100.0
+var _sting_step := 0
+var _bark_in := 3.0
+var _airship_em: AudioStreamPlayer3D
+var _airship_poll := 0.0
+var _airship = null
+var _gust := 0.5
 
 ## Mutes everything, music included (the settings screen toggles it).
 var muted := false:
@@ -199,6 +233,16 @@ func _ready() -> void:
 	_music.volume_db = MUSIC_DB
 	_music.stream_paused = muted
 	add_child(_music)
+	var layers_root := Node.new()
+	layers_root.name = "Layers"
+	add_child(layers_root)
+	for i in 2:
+		var lyr := AudioStreamPlayer.new()
+		lyr.name = "Layer%d" % i
+		lyr.bus = _bus_or_master(MUSIC_BUS)
+		lyr.volume_db = OFF_DB
+		layers_root.add_child(lyr)
+		_layers.append(lyr)
 	var voices := Node.new()
 	voices.name = "Voices"
 	add_child(voices)
@@ -252,6 +296,12 @@ func _ready() -> void:
 		h.volume_db = OFF_DB
 		amb_root.add_child(h)
 		_hum_emitters.append(h)
+	_airship_em = AudioStreamPlayer3D.new()
+	_airship_em.unit_size = 40.0
+	_airship_em.max_distance = 420.0
+	_airship_em.bus = _bus_or_master(SFX_BUS)
+	_airship_em.volume_db = OFF_DB
+	amb_root.add_child(_airship_em)
 	var loops_root := Node.new()
 	loops_root.name = "Loops"
 	add_child(loops_root)
@@ -265,6 +315,7 @@ func _ready() -> void:
 		_user_db[b] = 0.0
 	_lp_music = _find_lowpass(MUSIC_BUS)
 	_lp_ambient = _find_lowpass(AMBIENT_BUS)
+	_setup_mix_effects()
 	_vol_music = MUSIC_DB
 	_connect_game()                                                # Game is an earlier autoload: its signals exist already
 
@@ -593,18 +644,88 @@ func _find_lowpass(bus: StringName) -> AudioEffectLowPassFilter:
 	return null
 
 
-func _set_muffle(amount: float) -> void:
-	for pair: Array in [[MUSIC_BUS, _lp_music], [AMBIENT_BUS, _lp_ambient]]:
+func _find_fx(bus: StringName, kind: Script) -> AudioEffect:
+	var i := AudioServer.get_bus_index(bus)
+	if i < 0:
+		return null
+	for k in AudioServer.get_bus_effect_count(i):
+		var e := AudioServer.get_bus_effect(i, k)
+		if e.get_script() == kind or is_instance_of(e, kind):
+			return e
+	return null
+
+
+## Mix pass effects that the layout file does not carry: a room reverb on the SFX bus (off until indoors) and a limiter on Music so stems plus layer plus sting never push the
+## Master limiter hard. Existing effects keep their indexes (the low-passes stay at 0).
+func _setup_mix_effects() -> void:
+	var si := AudioServer.get_bus_index(SFX_BUS)
+	if si >= 0:
+		for k in AudioServer.get_bus_effect_count(si):
+			if AudioServer.get_bus_effect(si, k) is AudioEffectReverb:
+				_reverb = AudioServer.get_bus_effect(si, k) as AudioEffectReverb
+		if _reverb == null:
+			_reverb = AudioEffectReverb.new()
+			_reverb.room_size = 0.35
+			_reverb.damping = 0.6
+			_reverb.wet = 0.0
+			_reverb.dry = 1.0
+			_reverb.spread = 0.8
+			AudioServer.add_bus_effect(si, _reverb)
+		_reverb.wet = 0.0
+	var mi := AudioServer.get_bus_index(MUSIC_BUS)
+	if mi >= 0:
+		var has := false
+		for k in AudioServer.get_bus_effect_count(mi):
+			has = has or AudioServer.get_bus_effect(mi, k) is AudioEffectLimiter
+		if not has:
+			var lim := AudioEffectLimiter.new()
+			lim.ceiling_db = -2.0
+			lim.threshold_db = -4.0
+			AudioServer.add_bus_effect(mi, lim)
+
+
+## The cutoffs the two low-passes should have right now: the stronger of the "muffled" (low health, in a car) and the "indoors" closing.
+func music_cutoff_hz() -> float:
+	return minf(lerpf(20500.0, 900.0, _muffle), lerpf(20500.0, INSIDE_MUSIC_HZ, _inside))
+
+
+func ambient_cutoff_hz() -> float:
+	return minf(lerpf(20500.0, 900.0, _muffle), lerpf(20500.0, INSIDE_AMBIENT_HZ, _inside))
+
+
+func _set_muffle(_amount: float) -> void:
+	for pair: Array in [[MUSIC_BUS, _lp_music, music_cutoff_hz()], [AMBIENT_BUS, _lp_ambient, ambient_cutoff_hz()]]:
 		var fx: AudioEffectLowPassFilter = pair[1]
 		var i := AudioServer.get_bus_index(pair[0])
 		if fx == null or i < 0:
 			continue
-		var on := amount > 0.02
+		var cut: float = pair[2]
+		var on := cut < 20000.0
 		for k in AudioServer.get_bus_effect_count(i):
 			if AudioServer.get_bus_effect(i, k) == fx:
 				if AudioServer.is_bus_effect_enabled(i, k) != on:
 					AudioServer.set_bus_effect_enabled(i, k, on)
-		fx.cutoff_hz = lerpf(20500.0, 900.0, amount)
+		fx.cutoff_hz = cut
+
+
+## True while the listener stands inside an enterable interior (or indoors_override forces it).
+func is_indoors() -> bool:
+	if indoors_override >= 0:
+		return indoors_override == 1
+	if not InteriorSpace.active or not is_instance_valid(Game.player):
+		return false
+	return InteriorSpace.contains(Game.player.global_position)
+
+
+func indoors_amount() -> float:
+	return _inside
+
+
+func _step_indoors(delta: float) -> void:
+	var goal := 1.0 if is_indoors() else 0.0
+	_inside = move_toward(_inside, goal, delta / 0.6)
+	if _reverb != null:
+		_reverb.wet = REVERB_WET * _inside
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -671,7 +792,7 @@ func set_music_state(state: StringName, snap := false) -> void:
 		_stem_target[i] = float(tgt[i])
 		if snap:
 			_stem_db[i] = float(tgt[i])
-	_stem_tau = 0.25 if state == &"death" else (0.45 if state in [&"combat", &"boss"] else STATE_TAU)
+	_stem_tau = 0.25 if state == &"death" else (0.45 if state in [&"combat", &"boss", &"chase"] else STATE_TAU)
 	_push_stem_volumes()
 	if changed and not muted:
 		match state:
@@ -679,9 +800,13 @@ func set_music_state(state: StringName, snap := false) -> void:
 				_play_sting(&"sting_death")
 			&"win":
 				_play_sting(&"sting_win")
-			&"alert", &"combat", &"boss":
+			&"alert", &"combat", &"boss", &"chase":
 				if old in [&"explore", &"driving", &"menu"]:
 					play(&"heat_up", -6.0)
+				if state == &"boss":
+					_play_intensity_sting(&"sting_boss")
+				elif state == &"chase":
+					_play_intensity_sting(&"sting_chase")
 			&"explore":
 				if old in [&"alert", &"combat"]:
 					play(&"heat_down", -8.0)
@@ -739,6 +864,8 @@ func wanted_music_state() -> StringName:
 	var driving := is_instance_valid(Game.vehicles) and Game.vehicles.get(&"driven") != null
 	var base: StringName = &"driving" if driving else &"explore"
 	var cur := music_state
+	if chase_active or (driving and heat >= HEAT_ALERT and heat < HEAT_COMBAT):
+		return &"chase"
 	var calm_ok := _state_clock - _state_since >= MUSIC_MIN_HOLD
 	if heat >= HEAT_COMBAT:
 		return &"combat"
@@ -760,6 +887,152 @@ func _poll_music_state() -> void:
 	var want := wanted_music_state()
 	if want != music_state:
 		set_music_state(want)
+	_step_intensity_stings()
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# wave 17 music depth: district layers, boss and chase themes, intensity stingers
+# ---------------------------------------------------------------------------------------------------------------------
+
+## Which of the four districts (index into DISTRICTS) a world position belongs to.
+func district_at(pos: Vector3) -> int:
+	return (1 if pos.x >= 0.0 else 0) + (2 if pos.z >= 0.0 else 0)
+
+
+func district_name(pos: Vector3) -> StringName:
+	return DISTRICTS[district_at(pos)]
+
+
+## The theme layer for the current game facts: the boss and chase themes win, otherwise the district colour under the hero while playing (none in the menu, dead or won).
+func wanted_layer() -> StringName:
+	match Game.state:
+		&"menu", &"dead", &"win":
+			return &""
+	if boss_active or music_state == &"boss":
+		return &"music_boss"
+	if music_state == &"chase":
+		return &"music_chase"
+	if is_instance_valid(Game.player):
+		return StringName("music_district_%d" % district_at((Game.player as Node3D).global_position))
+	return &"music_district_0"
+
+
+func _layer_kind(layer: StringName) -> StringName:
+	return &"boss" if layer == &"music_boss" else (&"chase" if layer == &"music_chase" else &"district")
+
+
+## Crossfades the theme layer: the old one fades out on one player while the new one starts on the other at the stems' playback position (same 30 s grid).
+func _step_layers(delta: float) -> void:
+	if _layers.is_empty():
+		return
+	var want: StringName = &""
+	if is_music_playing() and not _legacy_music and auto_music:
+		want = wanted_layer()
+	layer_wanted = want
+	if want != &"" and (_layer_cur < 0 or _layer_name[_layer_cur] != want):
+		var s := _loop_stream(want)
+		if s != null:
+			var nxt := 1 - maxi(_layer_cur, 0) if _layer_cur >= 0 else 0
+			var pl := _layers[nxt]
+			pl.stream = s
+			pl.stream_paused = muted
+			var pos := _music.get_playback_position() if _music.playing else 0.0
+			_layer_db[nxt] = OFF_DB
+			pl.volume_db = OFF_DB
+			pl.play(fposmod(pos, 30.0))
+			_layer_name[nxt] = want
+			_layer_cur = nxt
+	var k := 1.0 - exp(-delta / LAYER_TAU)
+	for i in 2:
+		var goal := OFF_DB
+		if i == _layer_cur and want != &"" and _layer_name[i] == want:
+			goal = float(LAYER_DB[_layer_kind(want)])
+		_layer_goal[i] = goal
+		_layer_db[i] = lerpf(_layer_db[i], goal, k)
+		var pl := _layers[i]
+		if pl.playing and goal <= OFF_DB and _layer_db[i] < -50.0:
+			pl.stop()
+			pl.volume_db = OFF_DB
+			_layer_name[i] = &""
+			if _layer_cur == i:
+				_layer_cur = -1
+		elif pl.playing:
+			pl.volume_db = maxf(_layer_db[i], OFF_DB)
+		pl.stream_paused = muted
+
+
+func layer_db(i: int) -> float:
+	return _layer_db[i]
+
+
+func layer_goal_db(i: int) -> float:
+	return _layer_goal[i]
+
+
+func layer_player_name(i: int) -> StringName:
+	return _layer_name[i]
+
+
+func _play_intensity_sting(sting_name: StringName) -> void:
+	if _state_clock - _sting_t < STING_GAP and sting_name != &"sting_boss":
+		return
+	if _get(sting_name) == null:
+		return
+	_sting_t = _state_clock
+	_play_sting(sting_name)
+	duck(&"stinger")
+
+
+## Heat steps up: sting_combat_0 at heat 2, _1 at 3, _2 at 4 or more (each step once per rise, never twice inside STING_GAP seconds). Called from the state poll.
+func _step_intensity_stings() -> void:
+	if not is_music_playing() or muted:
+		return
+	var step := 0
+	if Game.heat >= 4.0:
+		step = 3
+	elif Game.heat >= 3.0:
+		step = 2
+	elif Game.heat >= 2.0:
+		step = 1
+	if step > _sting_step:
+		_sting_step = step
+		_play_intensity_sting(StringName(STINGS[step - 1]))
+	elif step < _sting_step:
+		_sting_step = step
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# alien barks and UI cues
+# ---------------------------------------------------------------------------------------------------------------------
+
+## A short synthesised alien call at a world position. kind: &"growl" (low, Vael troopers), &"chitter" (high, hive scouts and civilians) or &"yelp" (hurt). `pitch` tints one
+## individual (give each NPC the same pitch every time).
+func bark(kind: StringName, pos: Vector3, pitch := 1.0, volume_db := -3.0) -> void:
+	var n := _bark_name(kind)
+	if n != &"":
+		play_at(n, pos, volume_db, pitch)
+
+
+## Same, flat (a voice in the head, a menu).
+func bark_flat(kind: StringName, pitch := 1.0, volume_db := -3.0) -> void:
+	var n := _bark_name(kind)
+	if n != &"":
+		play(n, volume_db, pitch)
+
+
+func _bark_name(kind: StringName) -> StringName:
+	if kind == &"yelp":
+		return StringName("alien_yelp_%d" % (randi() % 2))
+	if not BARKS.has(kind):
+		return &""
+	var r: Array = BARKS[kind]
+	return StringName("alien_bark_%d" % randi_range(int(r[0]), int(r[1])))
+
+
+func ui(kind: StringName, volume_db := -4.0) -> void:
+	var n: StringName = UI_CUES.get(kind, &"")
+	if n != &"":
+		play(n, volume_db)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -767,7 +1040,7 @@ func _poll_music_state() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 const BEDS := {
-	&"rain_asphalt": -3.0, &"rain_metal": -3.0, &"rain_awning": -4.0, &"traffic_far": -2.0, &"wind": -3.0, &"city_hum": 0.0,
+	&"rain_asphalt": -3.0, &"rain_metal": -3.0, &"rain_awning": -4.0, &"traffic_far": -2.0, &"wind": -3.0, &"city_hum": 0.0, &"wind_howl": -5.0,
 }
 
 
@@ -808,6 +1081,20 @@ func is_ambience_on() -> bool:
 	return _ambience_on
 
 
+## The weather as the sound sees it: &"clear" (no rain), &"drizzle", &"rain", &"storm" (heavy rain: wind howl, frequent thunder).
+func weather_state() -> StringName:
+	var rain := 0.7
+	if is_instance_valid(Game.atmosphere):
+		rain = float(Game.atmosphere.get(&"rain_now"))
+	if rain < 0.08:
+		return &"clear"
+	if rain < 0.35:
+		return &"drizzle"
+	if rain < 0.8:
+		return &"rain"
+	return &"storm"
+
+
 ## Which surface the rain falls on around the listener: &"asphalt" (street), &"metal" (roofs, the inside of a car), &"awning". Normally decided from the hero's position.
 func set_rain_surface(surface: StringName) -> void:
 	_rain_surface = surface
@@ -832,6 +1119,9 @@ func _step_ambience(delta: float) -> void:
 	var playing := Game.is_playing() or Game.state == &"paused" or Game.state == &"menu" or Game.state == &"cutscene"
 	var w := _rain_weights(_rain_surface)
 	var k := 1.0 - exp(-delta / 1.2)
+	_gust = 0.5 + 0.5 * sin(_state_clock * 0.37) * sin(_state_clock * 0.113 + 1.0)
+	var storm := clampf((rain - 0.6) / 0.4, 0.0, 1.0)
+	var open_air := 1.0 - 0.65 * _inside                      # indoors the street beds drop (the low-pass on the Ambient bus does the rest)
 	for bed: StringName in _amb:
 		var goal := 0.0
 		if playing:
@@ -843,9 +1133,11 @@ func _step_ambience(delta: float) -> void:
 				&"rain_awning":
 					goal = float(w[2]) * rain
 				&"traffic_far":
-					goal = 0.75
+					goal = 0.75 * open_air
 				&"wind":
-					goal = 0.4 + 0.5 * rain
+					goal = (0.3 + 0.5 * rain) * (0.75 + 0.5 * _gust) * open_air
+				&"wind_howl":
+					goal = storm * (0.35 + 0.65 * _gust) * open_air
 				_:
 					goal = 0.6
 		var v: float = lerpf(float(_amb_vol[bed]), goal, k)
@@ -855,7 +1147,7 @@ func _step_ambience(delta: float) -> void:
 		return
 	_thunder_in -= delta
 	if _thunder_in <= 0.0:
-		_thunder_in = randf_range(18.0, 55.0)
+		_thunder_in = randf_range(18.0, 55.0) * lerpf(1.0, 0.45, storm)
 		if rain > 0.3:
 			_play_oneshot(&"thunder", -3.0 + 3.0 * rain)
 			if randf() < 0.4:
@@ -1103,6 +1395,7 @@ func _footstep(p: Node3D) -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _poll_enemies() -> void:
+	_bark_in -= 0.1
 	if not is_instance_valid(Game.enemies) or not Game.is_playing():
 		return
 	var list = Game.enemies.get(&"list")
@@ -1128,8 +1421,15 @@ func _poll_enemies() -> void:
 			continue
 		if cur.x > 0.5 and prev.x < 0.5:
 			play_at(&"trooper_alert" if trooper else &"drone_alert", pos, -2.0)
+			if trooper and randf() < 0.6:
+				_later(StringName("alien_bark_%d" % randi_range(0, 3)), pos, -5.0, randf_range(0.9, 1.1), 0.35)
 		if trooper and cur.y < prev.y - 0.5:
 			play_at(&"trooper_pain", pos, -2.0)
+			if randf() < 0.4:
+				bark(&"yelp", pos, randf_range(0.9, 1.1), -6.0)
+		if trooper and cur.x > 0.5 and have_pp and _bark_in <= 0.0 and pos.distance_to(pp) < 38.0:
+			_bark_in = randf_range(3.0, 7.0)                           # an aware trooper calls out now and then (growl, sometimes a chitter to a squad mate)
+			bark(&"growl" if randf() < 0.75 else &"chitter", pos, randf_range(0.88, 1.12), -6.0)
 		if cur.w >= 0.05 and prev.w < 0.05:                       # a telegraph began: the rifle or the drone's muzzle charges
 			if trooper:
 				if randf() < 0.5:
@@ -1141,6 +1441,38 @@ func _poll_enemies() -> void:
 			n_hum += 1
 	for k in range(n_hum, _hum_emitters.size()):
 		_hum_target[k] = null
+
+
+## The patrol airship's rotor hum: one 3D emitter that rides the sky patrol (World.ambient.sky) while a sweep is on. Found by duck typing, polled once a second.
+func _step_airship(delta: float) -> void:
+	if _airship_em == null:
+		return
+	_airship_poll -= delta
+	if _airship_poll <= 0.0:
+		_airship_poll = 1.0
+		_airship = null
+		if is_instance_valid(Game.world):
+			var amb = Game.world.get(&"ambient")
+			var sky = amb.get(&"sky") if amb != null else null
+			if sky != null and bool(sky.get(&"active")) and is_instance_valid(sky.get(&"node")):
+				_airship = sky.get(&"node")
+	var on := _airship != null and is_instance_valid(_airship) and not muted and Game.is_playing()
+	if not on:
+		if _airship_em.playing:
+			_airship_em.volume_db = OFF_DB
+			_airship_em.stop()
+		return
+	_airship_em.global_position = (_airship as Node3D).global_position
+	_airship_em.volume_db = -6.0
+	_airship_em.pitch_scale = 0.95 + 0.1 * _gust
+	if _airship_em.stream == null:
+		_airship_em.stream = _loop_stream(&"airship_hum")
+	if not _airship_em.playing and _airship_em.stream != null:
+		_airship_em.play()
+
+
+func airship_hum_active() -> bool:
+	return _airship_em != null and _airship_em.playing
 
 
 func _step_hum() -> void:
@@ -1258,9 +1590,12 @@ func _process(delta: float) -> void:
 	_step_quantum(delta)
 	_step_hero(delta)
 	_muffle = lerpf(_muffle, _muffle_target, 1.0 - exp(-delta * 2.5))
-	if absf(_muffle - float(_bus_db_applied.get(&"_muffle", -1.0))) > 0.01:
-		_bus_db_applied[&"_muffle"] = _muffle
+	_step_indoors(delta)
+	var cut_key := music_cutoff_hz() + ambient_cutoff_hz() * 0.001
+	if absf(cut_key - float(_bus_db_applied.get(&"_muffle", -1.0))) > 1.0:
+		_bus_db_applied[&"_muffle"] = cut_key
 		_set_muffle(_muffle)
+	_step_layers(delta)
 	_emit_poll -= delta
 	if _emit_poll <= 0.0:
 		_emit_poll = 0.5
@@ -1273,6 +1608,7 @@ func _process(delta: float) -> void:
 	if _ambience_on:
 		_step_emitters()
 		_step_hum()
+		_step_airship(delta)
 
 
 func _on_state(state: StringName) -> void:
@@ -1301,6 +1637,8 @@ func _silence_gameplay_loops() -> void:
 		e.stop()
 	for h in _hum_emitters:
 		h.stop()
+	if _airship_em != null:
+		_airship_em.stop()
 	_heart_t = 0.0
 	_muffle_target = 0.0
 
@@ -1322,6 +1660,10 @@ func reset_world() -> void:
 		_duck_hold[k] = 0.0
 		_duck_level[k] = 0.0
 	_sting.stop()
+	chase_active = false
+	_sting_step = 0
+	_sting_t = -100.0
+	_airship = null
 	_emitter_car = [null, null, null]
 	_hum_target = [null, null]
 	_en_state.clear()

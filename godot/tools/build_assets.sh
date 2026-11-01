@@ -50,6 +50,7 @@ if [ "$HIRES" = 1 ]; then
 fi
 echo "== audio"
 "$PY" tools/audio/make_audio.py
+"$PY" tools/audio/make_depth.py
 if [ "$MODELS" = 1 ]; then
   echo "== models + atlases"
   tools/blender/build_all.sh

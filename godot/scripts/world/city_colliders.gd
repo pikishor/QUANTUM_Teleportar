@@ -5,6 +5,8 @@ extends RefCounted
 ## are assigned to the pool bodies. The shape count never changes after build(); a body that is not in use is parked far below the city with its shapes off.
 ## The source data is the full MultiMesh buffer of each family (read once at build time, before city_stream.gd windows it).
 
+const KitSpecs := preload("res://scripts/world/city_kit.gd")
+
 const POOL := 56                      ## bodies, one CollisionShape3D each (56 shapes, constant)
 const REACH := 38.0                   ## metres (XZ) around the follow point that can receive colliders
 const VERT := 14.0                    ## colliders further than this above / below the follow point are ignored (roofs over the street)
@@ -57,7 +59,8 @@ static func spec_for(family_name: String) -> Array:
 
 
 ## Read every collidable family out of the props builder's parts ({name, mm, ...}) and create the pool under `parent`.
-func build(parent: Node3D, parts: Array[Dictionary]) -> void:
+## `extra`: more collidable instances that do not live in a MultiMesh (the street kit window): family name -> Array[Transform3D]; the shapes come from `Kit.collider_spec`.
+func build(parent: Node3D, parts: Array[Dictionary], extra: Dictionary = {}) -> void:
 	_xf.clear()
 	_grid.clear()
 	_spec_list.clear()
@@ -85,6 +88,20 @@ func build(parent: Node3D, parts: Array[Dictionary]) -> void:
 			var arr: PackedInt32Array = _grid.get(key, PackedInt32Array())
 			arr.append(id)
 			_grid[key] = arr
+	for fam: String in extra:
+		var sp2: Array = KitSpecs.collider_spec(fam)
+		if sp2.is_empty():
+			continue
+		var si2 := _spec_list.size()
+		_spec_list.append([sp2[0], sp2[1], sp2[2], fam])
+		for xf: Transform3D in extra[fam]:
+			var id2 := _xf.size()
+			_xf.append(xf)
+			spec_tmp.append(si2)
+			var key2 := _key(xf.origin.x, xf.origin.z)
+			var arr2: PackedInt32Array = _grid.get(key2, PackedInt32Array())
+			arr2.append(id2)
+			_grid[key2] = arr2
 	_spec = PackedInt32Array(spec_tmp)
 	source_count = _xf.size()
 	if root == null:

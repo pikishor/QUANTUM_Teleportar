@@ -284,6 +284,7 @@ func _test_dialogue(c: RefCounted, n: RefCounted, player: Node3D) -> void:
 	n._talk_cd = 0.0
 	n._talk(player.global_position)
 	TestLib.check(_said.size() == 1 and _said[0].begins_with(Lines.PREFIX) and _said[0].length() <= StoryData.LINE_MAX, "standing next to a citizen shows one bark through Game.say: %s" % (_said[0] if _said.size() > 0 else "-"))
+	TestLib.check(n.barks >= 1, "a spoken line also voices an alien chitter through Sfx.bark")
 	var first := _said.size()
 	n._talk(player.global_position)
 	TestLib.check(_said.size() == first, "the prompt has a cooldown")

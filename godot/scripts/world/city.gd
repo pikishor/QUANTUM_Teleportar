@@ -26,6 +26,10 @@ const GLOW_SHADER := preload("res://assets/shaders/glow.gdshader")
 const SHAFT_SHADER := preload("res://assets/shaders/shaft.gdshader")
 const Ambient := preload("res://scripts/ambient/ambient_city.gd")
 const Doors := preload("res://scripts/world/city_doors.gd")
+const Districts := preload("res://scripts/world/city_districts.gd")
+const KitWindow := preload("res://scripts/world/city_kit_window.gd")
+const Landmarks := preload("res://scripts/world/city_landmarks.gd")
+const KIT_SHADER := preload("res://assets/shaders/prop_kit.gdshader")
 
 ## Inner junctions (y = 0), 7 x 7 = 49.
 var intersections: Array[Vector3] = []
@@ -72,6 +76,8 @@ var _prop_mats: Array[ShaderMaterial] = []    ## the lit (non-mirror) prop mater
 var _building_mirror_mat: ShaderMaterial
 var _shadow_casters: Array[GeometryInstance3D] = []
 var _tiered: Array = []            ## [GeometryInstance3D, min quality] pairs: families that only exist from a given tier up
+var _kit_window := KitWindow.new() ## the street kit: one merged mesh of the props around the camera (city_kit_window.gd)
+var _landmarks := Landmarks.new()  ## the four district landmarks (city_landmarks.gd)
 
 
 func _ready() -> void:
@@ -99,6 +105,7 @@ func _ready() -> void:
 	_build_ground()
 	_build_buildings()
 	_build_props()
+	_build_kit()
 	_build_skyline()
 	_build_misc()
 	_build_ambient()
@@ -140,6 +147,7 @@ func _process(_delta: float) -> void:
 	if cam != null:
 		var p := cam.global_position
 		_stream.update(Vector2(p.x, p.z))
+		_kit_window.update(Vector2(p.x, p.z))
 
 
 # --- API ---------------------------------------------------------------------------------------------------------------
@@ -149,6 +157,7 @@ func _process(_delta: float) -> void:
 func update_streaming(cam_xz: Vector2, force := true) -> void:
 	if stream_enabled:
 		_stream.update(cam_xz, force)
+		_kit_window.update(cam_xz, force)
 
 
 func random_road_point() -> Vector3:
@@ -193,6 +202,7 @@ func set_quality(level: int) -> void:
 		return
 	_env.apply_quality(quality, get_viewport())
 	_stream.set_scale([0.65, 0.85, 1.0][quality])
+	_kit_window.scale = [0.65, 0.85, 1.0][quality]
 	var shadows := quality >= 1
 	for n in _shadow_casters:
 		n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -216,7 +226,7 @@ func set_quality(level: int) -> void:
 
 ## Tier-scaled PBR surface taps (SurfaceTextures): LOW none, MED one albedo+normal pair per surface at half size, HIGH two pairs, full size and the decal mask.
 func _apply_surfaces() -> void:
-	SurfaceTextures.apply(_ground.material, ["road", "walk", "decal"], quality)
+	SurfaceTextures.apply(_ground.material, ["road", "walkv", "decal"], quality)
 	SurfaceTextures.apply(_building_mat, ["brick", "wall", "roof", "sign"], quality)
 	for m in _prop_mats:
 		SurfaceTextures.apply(m, ["metal", "corr", "trim", "sign"], quality)
@@ -408,7 +418,7 @@ func _shader_mat(shader: Shader, priority := 0) -> ShaderMaterial:
 
 func _build_props() -> void:
 	_props.build(layout, building_data)
-	_colliders.build(self, _props.parts)
+	_colliders.build(self, _props.parts, _props.kit.collider_sources())
 	var prop_mat := _shader_mat(PROP_SHADER)
 	_prop_mats.append(prop_mat)
 	var prop_mirror := _shader_mat(PROP_MIRROR_SHADER)
@@ -441,6 +451,30 @@ func _build_props() -> void:
 					_stream.add(part["name"], mm, radius, Stream.mesh_triangles(mm.mesh), mats)
 
 
+## The street kit window and the district landmarks (city_kit.gd, city_landmarks.gd): ONE mesh, ONE draw call, merged around the camera.
+func _build_kit() -> void:
+	var mat := _shader_mat(KIT_SHADER)
+	_prop_mats.append(mat)
+	_kit_window.setup(_real_root, _props.kit, mat)
+	_landmarks.build(layout)
+	_kit_window.landmarks = _landmarks.items
+
+
+## The street kit builder (placements per kind and district, geometry cache): for tests and gameplay queries.
+func street_kit() -> RefCounted:
+	return _props.kit
+
+
+## The camera-centred window mesh of the street kit (city_kit_window.gd).
+func kit_window() -> RefCounted:
+	return _kit_window
+
+
+## The four district landmarks (city_landmarks.gd).
+func landmarks() -> RefCounted:
+	return _landmarks
+
+
 func _build_collision() -> void:
 	collision_body = StaticBody3D.new()
 	collision_body.name = "Collision"
@@ -455,6 +489,9 @@ func _build_collision() -> void:
 		var boxes := BM.collision_boxes(b.cls, lot.cx, lot.cz, lot.w, lot.d, lot.h)
 		for k in boxes.size():
 			_add_box(boxes[k][0], boxes[k][1], "Building%d_%d" % [lot.index, k])
+	# the district landmarks: a solid core column each (the crowns are overhead)
+	for box: Array in _landmarks.collision_boxes():
+		_add_box(box[0], box[1], box[2])
 	# invisible walls just outside the border roads (HALF + 30)
 	var e := CityLayout.WALK
 	var t := CityLayout.WALL_T

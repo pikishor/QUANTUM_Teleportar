@@ -6,6 +6,7 @@ extends RefCounted
 
 const MB := preload("res://scripts/world/mesh_builder.gd")
 const BM := preload("res://scripts/world/building_meshes.gd")
+const Districts := preload("res://scripts/world/city_districts.gd")
 const BUILDING_SHADER := preload("res://assets/shaders/building.gdshader")
 const MIRROR_SHADER := preload("res://assets/shaders/building_mirror.gdshader")
 
@@ -89,7 +90,9 @@ func assign(layout: CityLayout) -> void:
 		b.flags = fl
 		var tint := TINTS[lot.tint % TINTS.size()]
 		var lit_p := lerpf(0.30, 0.62, hash01(i, 8)) if h >= 44.0 else lerpf(0.14, 0.42, hash01(i, 8))
-		b.tint = Color(tint.r, tint.g, tint.b, lit_p)
+		var district := Districts.at(lot.cx, lot.cz)
+		b.tint = Districts.wall_tint(Color(tint.r, tint.g, tint.b, lit_p), district)           # district palette: warm market, rust foundry, green-grey slums, cool towers
+		lot.neon = Districts.neon_index(lot.neon, i, district)                                # most lots take the district's neon colour (ground spill and signs follow lot.neon)
 		buildings.append(b)
 
 
