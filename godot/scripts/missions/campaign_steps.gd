@@ -22,7 +22,9 @@ extends RefCounted
 ##   hack            count (drones per pulse)
 ##   kill_target     enemy (type, default operative) | target ("specialist" / "boss", scope A's keys), guards (count), hp_mult (2.5), name (boss bar)
 ##   chase           hp (140), cruise (m/s)
-##   escape          clear (heat level that counts as lost, 0.5), dist (metres from the start that counts as away, 110)
+##   escape          clear (heat level that counts as lost, 0.5), dist (metres from the start that counts as away, 110), patrol (0..3 Vael patrol vehicles sent after the player the moment
+##                   the step starts, topped up while the heat stays up, at most VehicleManager.patrol_cap(); 0 = only the heat; the step is done when the player is far, the heat is
+##                   below `clear` AND no chasing patrol is within CampaignRunner.PATROL_LOSE metres)
 ##   survive         gap (10 s), count, types
 ## CHAPTER DICTIONARY: {id, title?, steps: [step...], clears_sector: bool (default true: the last step calls Game.win())}. Scope A's CampaignData chapters work as they are.
 
@@ -126,6 +128,7 @@ static func normalize_step(step: Dictionary, index: int, _chapter_index := 0) ->
 		out["heat"] = float(step.get("heat", 3.0))
 		out["clear"] = float(step.get("clear", 0.5))
 		out["dist"] = float(step.get("dist", 110.0))
+		out["patrol"] = clampi(int(step.get("patrol", 0)), 0, 3)
 	if k == &"enter_interior":
 		out["leave"] = bool(step.get("leave", false))
 		out["door"] = int(step.get("door", -1))

@@ -25,7 +25,22 @@ static func _quad(mm: Control, r: Rect2, radius: float, c: Vector2, col: Color) 
 		pts.append(c + m.limit_length(radius - 2.0))
 	if not inside and r.size.x < 60.0 and r.size.y < 60.0 and pts[0].distance_to(c) > radius * 1.6:
 		return false
+	if not _drawable(pts):
+		return false
 	mm.draw_colored_polygon(pts, col)
+	return true
+
+
+## True when the four projected corners still make a proper convex quad. Pulling every corner into the map circle (limit_length above) can collapse a rectangle to a
+## line or fold it into a bow tie, and draw_colored_polygon then fails to triangulate ("Invalid polygon data": hundreds of errors a minute while walking along some
+## walls; found by tests/bot_soak.gd). Such a sliver at the rim is not worth drawing.
+static func _drawable(p: PackedVector2Array) -> bool:
+	var turn := 0.0
+	for i in 4:
+		var cr := (p[(i + 1) % 4] - p[i]).cross(p[(i + 2) % 4] - p[(i + 1) % 4])
+		if absf(cr) < 0.01 or turn * cr < 0.0:
+			return false
+		turn = cr
 	return true
 
 

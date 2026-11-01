@@ -6,7 +6,7 @@ extends RefCounted
 ##
 ## A step is {kind, obj, radio}: kind is one of STEP_KINDS, obj the objective line (at most StoryData.OBJ_MAX characters), radio one line {s, t} said when the
 ## step starts (at most StoryData.LINE_MAX). Optional keys: "interior" (infiltrate only: a mission interior type of InteriorData.MISSION_TYPES), "target"
-## (assassinate only: "specialist" or "boss"). A chapter's "cutscenes" are ids the Cinematics node can play (KNOWN_CUTSCENES): intro (once per run, may be ""),
+## (assassinate only: "specialist" or "boss"), "patrol" (escape only: how many Vael patrol vehicles chase the player, see campaign_steps.gd). A chapter's "cutscenes" are ids the Cinematics node can play (KNOWN_CUTSCENES): intro (once per run, may be ""),
 ## chapter (the objective card), boss (played before the boss step, required exactly when a step has target "boss", "" otherwise).
 ## Rules checked by tests/test_campaign_data.gd.
 
@@ -61,7 +61,7 @@ const CAMPAIGN: Array[Dictionary] = [
 			{"kind": "reach", "obj": "Reach the arcade overpass", "radio": {"s": O, "t": "The overpass is the only crossing the Vael do not hover over. Reach it fast."}},
 			{"kind": "chase", "obj": "Chase the Vael hauler across the bridge", "radio": {"s": O, "t": "That hauler carries a cradle. Run it down before it reaches the foundry gate."}},
 			{"kind": "defend", "obj": "Hold the bridge against the counterstrike", "radio": {"s": O, "t": "They are sending copies of what they cannot copy. Hold the span, Kestrel."}},
-			{"kind": "escape", "obj": "Escape the Vael patrol", "radio": {"s": O, "t": "A hunter patrol is on your frequency. Break line of sight and lose them in the arches."}},
+			{"kind": "escape", "patrol": 1, "obj": "Escape the Vael patrol", "radio": {"s": O, "t": "A hunter patrol is on your frequency. Break line of sight and lose them in the arches."}},
 		],
 	},
 	{
@@ -92,7 +92,7 @@ const CAMPAIGN: Array[Dictionary] = [
 			{"kind": "reach", "obj": "Reach the festival arch before the sweep", "radio": {"s": O, "t": "The sweep starts at the south arch. Be through it before the lanterns turn red."}},
 			{"kind": "infiltrate", "interior": "club", "obj": "Infiltrate the back-room club", "radio": {"s": O, "t": "The club hides a Vael dispatcher behind the music. Walk in like you belong."}},
 			{"kind": "chase", "obj": "Chase the dispatcher through the stalls", "radio": {"s": O, "t": "He bolted with the patrol schedule. Take him down before he calls it in."}},
-			{"kind": "escape", "obj": "Escape the Vael patrol sweep", "radio": {"s": O, "t": "The patrol is on you. Run for the dark end of the market and do not stop."}},
+			{"kind": "escape", "patrol": 2, "obj": "Escape the Vael patrol sweep", "radio": {"s": O, "t": "The patrol is on you. Run for the dark end of the market and do not stop."}},
 		],
 	},
 	{

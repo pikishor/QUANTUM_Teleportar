@@ -13,8 +13,9 @@ func _ready() -> void:
 			path = a.substr(7)
 		elif a.begins_with("--timeout="):
 			limit = float(a.substr(10))
-	# Watchdog: a runtime error inside an awaited test leaves the await pending forever.
-	get_tree().create_timer(limit).timeout.connect(func() -> void:
+	# Watchdog: a runtime error inside an awaited test leaves the await pending forever. It runs in REAL seconds (ignore_time_scale): a test that sets Engine.time_scale = 4
+	# (test_enemies) would otherwise get a 15 s wall-clock budget and time out whenever its marks / frame waits took a little longer.
+	get_tree().create_timer(limit, true, false, true).timeout.connect(func() -> void:
 		printerr("FAIL: test timed out after %ss (a SCRIPT ERROR above usually explains why)" % limit)
 		get_tree().quit(3))
 	var script := load(path) as GDScript

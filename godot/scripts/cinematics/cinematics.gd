@@ -25,6 +25,7 @@ const GRADE_KEYS: Array[StringName] = [&"vignette_amount", &"vignette_start", &"
 const COLD_GAIN := Vector3(0.9, 1.02, 1.13)
 const WARM_GAIN := Vector3(1.12, 1.0, 0.86)
 const TITLE_DRONES := 2
+const ENDING_SCENES: Array[String] = ["credits"]
 
 static var instance: Cinematics
 
@@ -63,6 +64,7 @@ var _saved := {}
 var _boss: Overseer
 var _boss_in_for := 0
 var _boss_out_for := 0
+var _ending_id: StringName = &""     ## the ending scene of the chapter that was just cleared (CampaignData "ending"), played after NEXT SECTOR
 var _sub_key := ""
 var _sub_lines := PackedStringArray()
 var _wrap_key := ""
@@ -81,6 +83,7 @@ func _ready() -> void:
 			enabled = true
 	Game.new_game.connect(_on_new_game)
 	Game.next_sector.connect(_on_next_sector)
+	Game.sector_cleared.connect(_on_cleared)
 	Game.state_changed.connect(_on_state)
 	_last_state = Game.state
 
@@ -196,6 +199,7 @@ static func dir_of_yaw(yaw: float) -> Vector3:
 
 func _on_new_game() -> void:
 	_pending = &""
+	_ending_id = &""
 	var prog := Game.progress
 	var cont: bool = prog != null and prog.get(&"_continue_pending") == true     # CONTINUE re-uses start_new_game(): no intro
 	if cont or not scenes_allowed():
@@ -205,8 +209,28 @@ func _on_new_game() -> void:
 		_pending = &"intro"
 
 
+## The sector was cleared: when it was a chapter whose data names an ending scene (the last one: "credits"), remember it. The ending cards type over the win screen first
+## (Story), the credits follow on NEXT SECTOR.
+func _on_cleared() -> void:
+	_ending_id = &""
+	var st := Game.story
+	if not is_instance_valid(st):
+		return
+	var cs: Variant = CampaignData.chapter(int(st.get(&"chapter"))).get("cutscenes", {})
+	var id := str((cs as Dictionary).get("ending", "")) if cs is Dictionary else ""
+	if id in ENDING_SCENES:
+		_ending_id = StringName(id)
+
+
 func _on_next_sector() -> void:
-	_pending = &"chapter" if scenes_allowed() else &""
+	var ending := _ending_id
+	_ending_id = &""
+	if not scenes_allowed():
+		_pending = &""
+	elif ending != &"":
+		_pending = ending                            # the credits replace the chapter orbit; the aftermath sector's banner follows them
+	else:
+		_pending = &"chapter"
 
 
 func _on_state(s: StringName) -> void:
@@ -260,6 +284,9 @@ func play(id: StringName, ctx := {}) -> bool:
 				c["sub"] = str(d.get("sub", ""))
 				c["obj"] = str(st.call(&"objective_text"))
 			plan = CinePlan.chapter(c)
+		&"credits":
+			c = {"hero": _hero_pos(), "face": face}
+			plan = CinePlan.credits_scene(c)
 		&"boss_in", &"boss_out":
 			if not c.has("boss"):
 				c["boss"] = _boss.global_position if is_instance_valid(_boss) else _hero_pos() + face * 30.0
@@ -671,6 +698,7 @@ func _draw_overlay() -> void:
 		c.draw_rect(Rect2(0.0, vp.y - bh, vp.x, bh), Color.BLACK)
 	if active and font != null:
 		_draw_title(c, vp, s, font)
+		_draw_credits(c, vp, s, font)
 		_draw_subtitle(c, vp, s, font, bh)
 		if plan.skippable and t > 1.0 and t < plan.duration - 1.0:
 			var a := 0.45 + 0.2 * sin(t * 3.0)
@@ -711,6 +739,25 @@ func _draw_title(c: Control, vp: Vector2, s: float, font: Font) -> void:
 		for ln in _wrap_lines:
 			_shadow(c, font, x0, yy, width, ln, size, Color(UiUtil.AMBER, 0.95 * a), 1.0 * s)
 			yy += size * 1.3
+
+
+## The credits block of the moment: a head line with a rule under it and its lines, in the same band as the chapter title (above Kestrel's head).
+func _draw_credits(c: Control, vp: Vector2, s: float, font: Font) -> void:
+	var i := plan.credit_index(t)
+	if i < 0:
+		return
+	var a := plan.credit_alpha(t)
+	if a <= 0.01:
+		return
+	var blk: Dictionary = plan.credits[i]
+	var y := vp.y * 0.26
+	var big := i == 0 or i == plan.credits.size() - 1
+	_shadow(c, font, 0.0, y, vp.x, str(blk["head"]), int((72.0 if big else 56.0) * s), Color(1, 1, 1, a), 3.0 * s)
+	c.draw_line(Vector2(vp.x * 0.5 - 200.0 * s, y + 22.0 * s), Vector2(vp.x * 0.5 + 200.0 * s, y + 22.0 * s), Color(UiUtil.MAGENTA, 0.85 * a), 2.0 * s)
+	var yy := y + 62.0 * s
+	for ln: Variant in blk["lines"]:
+		_shadow(c, font, 0.0, yy, vp.x, str(ln), int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95 * a), 1.0 * s)
+		yy += UiUtil.TEXT_MIN * s * 1.4
 
 
 func _draw_subtitle(c: Control, vp: Vector2, s: float, font: Font, bh: float) -> void:

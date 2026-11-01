@@ -73,16 +73,33 @@ static func is_specialist(type: StringName) -> bool:
 	return TYPES.has(type) and TYPES[type].has("role")
 
 
+## Share of the operative reinforcement slots that become specialists, per chapter index (the last row covers every later sector). Chapters 1-4 keep the original 55 %,
+## the late chapters push it up to 75 % (the Gate and the free city are all specialists and squads); the per-type `limit` and the tier caps keep the draw budget the same.
+const SPECIALIST_SHARE: Array[float] = [0.55, 0.55, 0.55, 0.55, 0.60, 0.65, 0.70, 0.75, 0.75]
+## Extra pick weight of a specialist type per chapter index (1 each for every type in the pool otherwise), the last row covers every later sector: snipers from chapter 5,
+## brutes from chapter 6, shields from chapter 7 (index 6), so the late fights are long-range and heavy rather than just more flankers.
+const PICK_BIAS: Array[Dictionary] = [
+	{}, {}, {}, {}, {&"sniper": 1}, {&"sniper": 1, &"brute": 1}, {&"sniper": 1, &"brute": 1, &"shield": 1}, {&"sniper": 2, &"brute": 1, &"shield": 1}, {&"sniper": 2, &"brute": 1, &"shield": 1},
+]
+
+
+static func specialist_share(chapter: int) -> float:
+	return SPECIALIST_SHARE[clampi(chapter, 0, SPECIALIST_SHARE.size() - 1)]
+
+
 ## The operative slot of a reinforcement, replaced by a specialist by chapter and heat: flankers and shields from chapter 2 (index 1), snipers from chapter 3, brutes from
-## chapter 4 at heat 2.5. `r` and `r2` are rolls 0..1. Falls back to the operative.
+## chapter 4 at heat 2.5. `r` and `r2` are rolls 0..1 (the slot is a specialist when r <= specialist_share(chapter)); the late chapters weight the pool (PICK_BIAS).
+## Falls back to the operative.
 static func specialist_for(chapter: int, heat: float, r: float, r2: float) -> StringName:
-	if r > 0.55:
+	if r > specialist_share(chapter):
 		return &"operative"
 	var pool: Array[StringName] = []
+	var bias: Dictionary = PICK_BIAS[clampi(chapter, 0, PICK_BIAS.size() - 1)]
 	for t: StringName in [&"flanker", &"shield", &"sniper", &"brute"]:
 		var c: Dictionary = TYPES[t]
 		if chapter >= int(c["min_chapter"]) and (t != &"brute" or heat >= 2.5) and (t != &"shield" or heat >= 1.5 or chapter >= 2):
-			pool.append(t)
+			for k in 1 + int(bias.get(t, 0)):
+				pool.append(t)
 	if pool.is_empty():
 		return &"operative"
 	return pool[mini(int(r2 * pool.size()), pool.size() - 1)]

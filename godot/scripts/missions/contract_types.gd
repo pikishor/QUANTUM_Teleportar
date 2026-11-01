@@ -29,8 +29,9 @@ const DATA := {
 	&"boss": {"title": "VAEL OVERSEER", "base": 1200, "time": 420.0, "color": VIOLET, "upgrade": true},
 }
 
-## Weight of each kind per chapter (index = chapter; the last row covers every later sector). Every kind has weight >= 1 in every chapter, the story decides
-## which ones come up most: Glass District teaches the link, the Harvest Floor is relay nodes, Bridge Arcade is traffic, the Gate is sieges.
+## Weight of each kind per chapter (index = chapter; the last row, the aftermath, covers every later sector). Every kind has weight >= 1 in every chapter, the story decides
+## which ones come up most: Glass District teaches the link, the Harvest Floor is relay nodes, Bridge Arcade is traffic, Neon Market is timing, the Gate is sieges.
+## One row per story chapter (CampaignData.CAMPAIGN, 8) plus the endless row; tests/test_difficulty_tables.gd checks the coverage.
 const WEIGHTS: Array[Dictionary] = [
 	{&"officer": 4, &"hack": 1, &"chase": 1, &"courier": 3, &"survive": 1, &"drones": 1},
 	{&"officer": 2, &"hack": 2, &"chase": 1, &"courier": 2, &"survive": 1, &"drones": 4},
@@ -38,6 +39,9 @@ const WEIGHTS: Array[Dictionary] = [
 	{&"officer": 2, &"hack": 1, &"chase": 4, &"courier": 3, &"survive": 1, &"drones": 2},
 	{&"officer": 3, &"hack": 2, &"chase": 2, &"courier": 1, &"survive": 4, &"drones": 2},
 	{&"officer": 2, &"hack": 2, &"chase": 2, &"courier": 2, &"survive": 2, &"drones": 2},
+	{&"officer": 2, &"hack": 1, &"chase": 3, &"courier": 4, &"survive": 1, &"drones": 2},      # 6 Neon Market: timing (couriers, chases)
+	{&"officer": 3, &"hack": 3, &"chase": 1, &"courier": 1, &"survive": 4, &"drones": 3},      # 7 Meridian Gate: sieges (anchors, nodes, link trials)
+	{&"officer": 3, &"hack": 2, &"chase": 2, &"courier": 2, &"survive": 3, &"drones": 2},      # 8+ the free city: a hard, even mix
 ]
 
 const COURIER_SPEED := 8.5           ## metres per second the time limit assumes (sprinting on foot)

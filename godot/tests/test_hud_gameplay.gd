@@ -122,7 +122,9 @@ func _title(host: Node) -> void:
 	TestLib.check(_ids()[0] == &"continue" and _ids().has(&"deploy") and _button(&"deploy")["label"] == "NEW GAME" and _button(&"continue")["label"] == "CONTINUE", "with a save the title offers CONTINUE first and NEW GAME")
 	var cr: Rect2 = _button(&"continue")["rect"]
 	var nr: Rect2 = _button(&"deploy")["rect"]
-	TestLib.check(cr.size.y > nr.size.y and cr.end.y < nr.position.y, "CONTINUE is the big primary button above NEW GAME")
+	var ui_s := UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size)
+	TestLib.check(cr.size.y >= nr.size.y and cr.end.y < nr.position.y, "CONTINUE is the primary button above NEW GAME (as tall, first)")
+	TestLib.check(nr.size.y >= UiUtil.TOUCH_MIN * ui_s - 0.01, "NEW GAME meets the touch minimum (%.0f base px)" % (nr.size.y / ui_s))
 	prog.autosave_enabled = true
 	prog.credits = 0
 	prog.levels = Upgrades.set_levels({})

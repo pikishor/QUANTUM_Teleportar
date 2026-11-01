@@ -11,7 +11,9 @@ extends Node
 ##   hack            hold a node's ring for `hold` seconds under drone pulses (progress fills inside, drains outside)
 ##   kill_target     one tougher Vael (an operative, a specialist or the Overseer) with guards; boss bar on the HUD
 ##   chase           wreck a fleeing car (it escapes beyond 120 m for 6 s)
-##   escape          the heat jumps to `heat` stars: get `dist` metres away and lose them until the heat falls below `clear`
+##   escape          the heat jumps to `heat` stars: get `dist` metres away and lose them until the heat falls below `clear`. With `patrol` n > 0 (chapters 4 and 7 "Escape the Vael
+##                   patrol") n Vael patrol vehicles (VehicleManager.spawn_patrol, the wave 14 hover chase and ram) are sent after the player at once and topped up while the heat
+##                   stays up; the step also needs every chasing patrol more than PATROL_LOSE metres away
 ##   survive         outlast `hold` seconds against waves that come at you wherever you are
 ##
 ## Lifecycle: start_chapter(index) arms the chapter (state armed -> active), a step ends with a checkpoint (Progress.checkpoint, saved with the campaign: chapter, step, where the player
@@ -42,6 +44,8 @@ const ZONE_LEASH := 1.6                ## defend: the zone's leash is this many 
 const ZONE_LEASH_TIME := 10.0
 const HACK_DECAY := 0.6
 const HACK_PULSE := 11.0
+const PATROL_LOSE := 60.0              ## escape with patrols: a chasing Vael patrol vehicle this close keeps the step open
+const PATROL_TOPUP := 4.0              ## seconds between the attempts to bring the chase back up to the step's patrol count while the heat is up
 const CHASE_ESCAPE := 120.0
 const CHASE_ESCAPE_TIME := 6.0
 const ESCORT_THREAT := 16.0            ## aware enemies this close make the escortee stop
@@ -111,6 +115,8 @@ var _esc_s := 0.0
 var _ambush: Array = []
 var _car_dead := false
 var _heat0 := 3.0
+var _patrol_want := 0                  ## escape: the patrol vehicles the step keeps after the player (0 = heat only)
+var _patrol_t := 0.0
 var _markers: Array[Dictionary] = []
 var _marker_n := 0
 
@@ -353,7 +359,7 @@ func hud_line() -> String:
 		&"hack":
 			return "%s  %d%%%s%s" % [head, roundi(maxf(progress, 0.0) * 100.0), clock, "" if inside else "  RETURN TO THE RING"]
 		&"escape":
-			return "%s%s  HEAT %.1f  %d M" % [head, clock, Game.heat, roundi(_origin_dist())]
+			return "%s%s  HEAT %.1f  %d M%s" % [head, clock, Game.heat, roundi(_origin_dist()), "  PATROL" if _patrol_want > 0 and _patrols_chasing() > 0 else ""]
 		&"survive":
 			return "%s  %s" % [head, _clock_text(maxf(float(step["hold"]) - _hold_t, 0.0))]
 	return head
@@ -435,6 +441,9 @@ func markers() -> Array[Dictionary]:
 		&"escape":
 			if _origin_dist() < float(step["dist"]):
 				_add_marker(_origin, ContractTypes.RED, &"area", float(step["dist"]))
+			if _patrol_want > 0:
+				for v: Vehicle in _chasing_patrols():
+					_add_marker(v.global_position, ContractTypes.RED, &"target", 0.0)
 	return _markers
 
 
@@ -1036,12 +1045,60 @@ func _on_car_exploded(_v: Vehicle) -> void:
 func _begin_escape() -> bool:
 	_origin = _ref_pos_or_spawn()
 	_heat0 = maxf(float(step["heat"]), float(step["clear"]) + 0.5)
+	_patrol_want = int(step.get("patrol", 0))
+	if _patrol_want > 0:
+		_heat0 = maxf(_heat0, VehicleSpecs.PATROL_HEAT)            # a patrol chase needs the heat the Vael patrols answer to
 	if Game.heat < _heat0:
 		Game.add_heat(_heat0 - Game.heat)
 	Game.quiet = 0.0
 	visuals.show_marker(0, _origin, float(step["dist"]), ContractTypes.RED, -1.0, false)
 	progress = 0.0
+	_patrol_t = 0.0
+	if _patrol_want > 0:
+		_send_patrols()                                           # the chase starts now, not at the vehicle manager's next patrol attempt
 	return true
+
+
+## The Vael patrol vehicles that are chasing the player right now (VehicleManager's pool; empty without a manager).
+func _chasing_patrols() -> Array[Vehicle]:
+	var out: Array[Vehicle] = []
+	var vm := Game.vehicles
+	if not is_instance_valid(vm):
+		return out
+	var list: Variant = vm.get("list")
+	if list is Array:
+		for v: Variant in list:
+			var car := v as Vehicle
+			if car != null and car.patrol and car.chasing and car.active and not car.dead and not car.driver_is_player:
+				out.append(car)
+	return out
+
+
+func _patrols_chasing() -> int:
+	return _chasing_patrols().size()
+
+
+## Bring the chase up to the step's patrol count (within the tier's patrol cap: the car and draw budget of the vehicle module). A spot that cannot be found is simply tried again
+## at the next top-up; it never fails the step.
+func _send_patrols() -> void:
+	var vm := Game.vehicles
+	if not is_instance_valid(vm) or not vm.has_method(&"spawn_patrol"):
+		return
+	var want := mini(_patrol_want, int(vm.call(&"patrol_cap")))
+	var have := _patrols_chasing()
+	while have < want:
+		if vm.call(&"spawn_patrol") == null:
+			break
+		have += 1
+
+
+func _patrol_near(p: Vector3) -> bool:
+	if not p.is_finite():
+		return false
+	for v: Vehicle in _chasing_patrols():
+		if Vector2(v.global_position.x - p.x, v.global_position.z - p.z).length() < PATROL_LOSE:
+			return true
+	return false
 
 
 func _begin_survive() -> bool:
@@ -1067,7 +1124,7 @@ func _tick_active(delta: float) -> void:
 		&"hack": _tick_hack(delta, p)
 		&"kill_target": _tick_kill(delta)
 		&"chase": _tick_chase(delta, p)
-		&"escape": _tick_escape(p)
+		&"escape": _tick_escape(delta, p)
 		&"survive": _tick_survive(delta, p)
 	if state != &"active":
 		return
@@ -1286,14 +1343,19 @@ func _tick_chase(delta: float, p: Vector3) -> void:
 	visuals.move_marker(0, car.global_position)
 
 
-func _tick_escape(p: Vector3) -> void:
+func _tick_escape(delta: float, p: Vector3) -> void:
+	if _patrol_want > 0 and Game.heat >= VehicleSpecs.PATROL_STAND_DOWN:
+		_patrol_t -= delta
+		if _patrol_t <= 0.0:
+			_patrol_t = PATROL_TOPUP
+			_send_patrols()
 	var dist := float(step["dist"])
 	var clear := float(step["clear"])
 	var d := _origin_dist()
 	var far_part := clampf(d / maxf(dist, 1.0), 0.0, 1.0)
 	var heat_part := 1.0 - clampf((Game.heat - clear) / maxf(_heat0 - clear, 0.1), 0.0, 1.0)
 	progress = clampf(0.5 * far_part + 0.5 * heat_part, 0.0, 0.99)
-	if d >= dist and Game.heat <= clear:
+	if d >= dist and Game.heat <= clear and not (_patrol_want > 0 and _patrol_near(p)):
 		_complete_step(p if p.is_finite() else _origin)
 
 
@@ -1314,6 +1376,8 @@ func _tick_survive(delta: float, p: Vector3) -> void:
 # --- cleanup, radio ----------------------------------------------------------------------------------------------------------
 
 func _clean_runtime() -> void:
+	_patrol_want = 0
+	_patrol_t = 0.0
 	_beat_t = 0.0
 	progress = -1.0
 	inside = false

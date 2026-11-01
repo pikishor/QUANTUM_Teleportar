@@ -38,7 +38,7 @@ void fragment() {
 }
 """
 static var _lamp_shader: Shader
-static var _merged := {}                               ## source mesh id -> ArrayMesh with the lamps merged (shared by every car of the model)
+static var _merged := {}                               ## source mesh key (resource_path, see _merge_lamps) -> ArrayMesh with the lamps merged (shared by every car of the model)
 
 var model: Node3D
 var body: MeshInstance3D
@@ -191,7 +191,7 @@ func _merge_lamps(mi: MeshInstance3D) -> Array:
 			info.append([lamp_of[s], m.emission, maxf(m.emission_energy_multiplier, 1.0)])
 	if lamp_of.size() < 2:
 		return []
-	var key := src.get_instance_id()
+	var key: Variant = src.resource_path if src.resource_path != "" else src.get_instance_id()     # the path, not the instance id: a reloaded model has new mesh objects (see ShadowProxy._shadow_mesh)
 	var out: ArrayMesh = _merged.get(key)
 	if out == null:
 		if _lamp_shader == null:

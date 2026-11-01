@@ -27,7 +27,7 @@ const FILL_PITCH := -32.0                    ## degrees: the light shines down a
 
 static var _light: DirectionalLight3D
 static var _tex_cache := {}
-static var _lift_cache := {}                 ## mesh instance id * 16 + surface -> albedo multiplier
+static var _lift_cache := {}                 ## mesh key (resource_path + "#" + surface, else instance id * 16 + surface) -> albedo multiplier
 
 
 ## Put `model` on the fill layer and give every surface its own readable material. Call once per model instance (it is idempotent only
@@ -102,7 +102,7 @@ static func _meshes(root: Node) -> Array[MeshInstance3D]:
 
 ## Albedo multiplier that brings the surface (its albedo colour times the mean vertex colour) to about TARGET_ALBEDO.
 static func _lift_for(mesh: Mesh, surface: int, m: BaseMaterial3D) -> float:
-	var key: int = mesh.get_instance_id() * 16 + surface
+	var key: Variant = (mesh.resource_path + "#" + str(surface)) if mesh.resource_path != "" else mesh.get_instance_id() * 16 + surface     # path first: a reloaded model has new mesh objects
 	if _lift_cache.has(key):
 		return _lift_cache[key]
 	var lum := _lum(m.albedo_color)
@@ -127,7 +127,7 @@ static func _lift_for(mesh: Mesh, surface: int, m: BaseMaterial3D) -> float:
 
 ## Mean luminance of an albedo texture (read once per texture; 0.3 when the pixels cannot be read, e.g. a GPU-only format).
 static func _texture_lum(tex: Texture2D) -> float:
-	var key: int = tex.get_instance_id()
+	var key: Variant = tex.resource_path if tex.resource_path != "" else tex.get_instance_id()     # path first: a reloaded model has new texture objects, and each miss decompresses the image
 	if _tex_cache.has(key):
 		return _tex_cache[key]
 	var lum := 0.3

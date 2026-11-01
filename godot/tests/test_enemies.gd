@@ -530,58 +530,95 @@ func _heat_decay() -> void:
 	Game.heat = 0.0
 
 
+## EnemyMarks.refresh runs in the manager's _process (one rendered frame) while e.frames() counts physics ticks. At 4x time scale on a slow (software) renderer several
+## ticks pass per rendered frame, so a "wait 3 frames" could see ZERO refreshes and the ring / bar counts were read from a stale one: that was the flake. Marks assertions
+## wait for the refresh counter itself and never for a number of physics ticks.
+func _refreshes(n := 1) -> void:
+	var t0 := mgr.marks._tick
+	var guard := 0
+	while mgr.marks._tick - t0 < n and guard < 3000:
+		await root.get_tree().process_frame
+		guard += 1
+	if guard >= 3000:
+		TestLib.check(false, "EnemyMarks refreshed %d time(s) within 3000 process frames" % n)
+
+
+## One physics tick of game time, then one marks refresh that ran after it.
+func _mark_step() -> void:
+	await e.frames(1)
+	await _refreshes(1)
+
+
+## Settle a static scene: every enemy slot has had its (staggered) occlusion ray and its ring state redrawn from the current camera pose.
+func _marks_settle() -> void:
+	await _refreshes(EnemyMarks.OCC_EVERY + 2)
+
+
 ## Readability layer (EnemyMarks): hostile-colour rings for everybody, an attack telegraph before shots, a health bar only on damaged enemies, a death dissolve.
 func _marks() -> void:
 	await _fresh()
 	var cam := Camera3D.new()
 	root.add_child(cam)
-	cam.global_position = Vector3(-30.0, 2.0, 4.0)
-	cam.look_at(Vector3(20.0, 1.0, 4.0))
+	# The static ring checks run 56 m north of the player (who stands at (-30, 0, 4)): the enemies are beyond the 32 m awareness radius (heat is 0), so they stay idle for as long
+	# as the refreshes take and nothing charges, fires or wakes up while the counts are read. (At 18 m from the player they woke up within a few ticks and the result depended on
+	# how many ticks had passed.) The player and the wall are not involved; the camera is the test's own.
+	var cam_pos := Vector3(-30.0, 2.0, 60.0)
+	cam.global_position = cam_pos
+	cam.look_at(Vector3(20.0, 1.0, 60.0))
 	var old_cam := Game.camera
 	Game.camera = cam
 	var marks := mgr.marks
 	TestLib.check(marks != null and marks.get_parent() == mgr, "the manager owns the EnemyMarks node")
-	var sent := _spawn(&"sentinel", Vector3(-12.0, 0.0, 4.0), false)
-	var op := _spawn(&"operative", Vector3(-14.0, 0.0, 9.0), false)
-	var far_op := _spawn(&"operative", Vector3(30.0, 0.0, 4.0), false)       # 60 m from the camera: beyond RING_RANGE
-	await e.frames(3)
+	var sent := _spawn(&"sentinel", Vector3(-12.0, 0.0, 60.0), false)
+	var op := _spawn(&"operative", Vector3(-14.0, 0.0, 65.0), false)
+	var far_op := _spawn(&"operative", Vector3(30.0, 0.0, 60.0), false)      # 60 m from the camera: beyond RING_RANGE
+	TestLib.check(not sent.aware and not op.aware and not far_op.aware, "the three start idle (all beyond 32 m of the player, no heat)")
+	await _marks_settle()
 	# rings are a fallback: visible, unoccluded enemies within RING_RANGE are readable by their own silhouette, a distant one still gets a ring
 	TestLib.check(marks.ring_count == 1, "only the distant enemy gets a threat ring (%d)" % marks.ring_count)
 	TestLib.check(far_op != null, "the distant operative exists")
-	cam.look_at(Vector3(-30.0, 1.0, 40.0))                                      # looking away: all three are off screen, so they get their rings back
-	await e.frames(3)
+	cam.look_at(Vector3(-30.0, 1.0, 100.0))                                     # looking away: all three are off screen, so they get their rings back
+	await _marks_settle()
 	TestLib.check(marks.ring_count == 3, "off-screen enemies get a ring (%d)" % marks.ring_count)
-	cam.look_at(Vector3(20.0, 1.0, 4.0))
-	await e.frames(3)
+	cam.look_at(Vector3(20.0, 1.0, 60.0))
+	await _marks_settle()
 	TestLib.check(marks.ring_count == 1, "back in view: the two near, unoccluded enemies lose their rings (%d)" % marks.ring_count)
 	TestLib.check(marks.bar_count == 0 and marks.lines.visible_instance_count == 0, "no health bar and no aim line on healthy enemies that are not shooting")
 	TestLib.check(sent.threat_charge() == 0.0 and op.threat_charge() == 0.0, "no telegraph while idle")
+	TestLib.check(not sent.aware and not op.aware, "...and still idle after all those refreshes")
 	TestLib.check(sent.radius > 1.2 and is_equal_approx(sent.model.scale.x, 1.35), "the sentinel is drawn large (radius %.2f, model scale %.2f)" % [sent.radius, sent.model.scale.x])
 	sent.damage(10.0)
-	await e.frames(2)
+	await _refreshes(2)
 	TestLib.check(marks.bar_count == 1, "a damaged enemy shows its health bar")
 	sent._bar_t = 0.05
 	for i in 40:
-		await e.frames(1)
+		await _mark_step()
 		if marks.bar_count == 0:
 			break
 	TestLib.check(marks.bar_count == 0, "the health bar goes away again")
+	# the fight part: back to the player's arena (the camera behind the player, both enemies 16-18 m ahead with a line of sight)
+	cam.global_position = Vector3(-30.0, 2.0, 4.0)
+	cam.look_at(Vector3(20.0, 1.0, 4.0))
+	sent.global_position = Vector3(-12.0, 0.0, 4.0)
+	op.global_position = Vector3(-14.0, 0.0, 9.0)
 	# attack telegraph: the muzzle charges and the aim line shows in the last TELEGRAPH seconds before a drone shot
 	sent.aware = true
 	sent._fire_t = 0.3
 	var seen := 0.0
-	for i in 6:
-		await e.frames(1)
+	var flare := false
+	for i in 12:
+		await _mark_step()
 		seen = maxf(seen, sent.threat_charge())
+		flare = flare or (sent.threat_charge() > 0.02 and marks.ring_count >= 2)
 	TestLib.check(seen > 0.2, "the sentinel charges before it fires (peak charge %.2f)" % seen)
-	TestLib.check(marks.ring_count >= 2, "the muzzle flare joins the ring while charging")
+	TestLib.check(flare, "the muzzle flare joins the ring while charging")
 	# operative windup
 	op.aware = true
 	op._fire_t = 0.0
 	var op_seen := 0.0
 	var line := false
 	for i in 10:
-		await e.frames(1)
+		await _mark_step()
 		op_seen = maxf(op_seen, op.threat_charge())
 		line = line or op.shows_aim_line()
 	TestLib.check(op_seen > 0.3 and line, "the operative's aim windup is a charge with an aim line (peak %.2f)" % op_seen)
@@ -590,16 +627,16 @@ func _marks() -> void:
 	Game.graphic_violence = false
 	sent.damage(9999.0)
 	TestLib.check(sent.dead and sent.death_progress() < 1.0, "a dead drone starts its dissolve")
-	await e.frames(3)
+	await _refreshes(2)
 	TestLib.check(marks.ring_count >= 1, "the death shock ring is drawn")
 	for i in 60:                                         # polls: how many game seconds a frame covers depends on the time scale of this test
-		await e.frames(1)
+		await _mark_step()
 		if sent.remove:
 			break
 	TestLib.check(sent.remove, "the dissolve ends and the drone is released by the manager")
 	Game.graphic_violence = true
 	op.damage(9999.0)                                  # the ichor variant runs without errors
-	await e.frames(2)
+	await _refreshes(2)
 	Game.graphic_violence = was
 	Game.camera = old_cam
 	cam.free()

@@ -268,6 +268,12 @@ func start_cards(list: Array, kind: StringName) -> void:
 	_epi_wait = -1.0
 
 
+## The cards typed over the win screen after the final chapter: the campaign's ending cards (CampaignData.ENDING, which end with the credits cinematic on NEXT SECTOR);
+## StoryData.EPILOGUE stays as the fallback when the campaign data has none.
+func ending_cards() -> Array:
+	return CampaignData.ENDING if not CampaignData.ENDING.is_empty() else StoryData.EPILOGUE
+
+
 func start_prologue() -> void:
 	start_cards(StoryData.PROLOGUE, &"prologue")
 	shown.append("prologue")
@@ -335,7 +341,9 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventKey:
 		var k := event as InputEventKey
 		hit = k.pressed and not k.echo and (k.keycode == KEY_ENTER or k.keycode == KEY_KP_ENTER or k.keycode == KEY_SPACE)
-	if hit and Game.state != &"paused" and advance_card():
+	# Only while the cards are on screen (play, dead, win: the same states as `view.visible` and advance()). Cards left over from an aborted run stay frozen and invisible in the
+	# menu; swallowing taps there made DEPLOY / NEW GAME unreachable after "ABORT TO MENU" during the prologue (found by tests/bot_soak.gd).
+	if hit and (Game.state == &"play" or Game.state == &"dead" or Game.state == &"win") and advance_card():
 		get_viewport().set_input_as_handled()
 
 
@@ -556,7 +564,7 @@ func advance(delta: float) -> void:
 		if _epi_wait >= 0.0:
 			_epi_wait -= delta
 			if _epi_wait < 0.0:
-				start_cards(StoryData.EPILOGUE, &"epilogue")
+				start_cards(ending_cards(), &"epilogue")
 				shown.append("epilogue")
 	if st != &"play":
 		return

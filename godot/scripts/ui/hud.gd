@@ -13,6 +13,7 @@ const VIGNETTE_MAX := 0.35          ## hard cap of the one damage vignette's alp
 const HURT_TIME := 0.45             ## seconds the hit vignette lasts
 const MARKER_TIME := 1.0            ## seconds the attacker marker lasts
 const DEAD_DIM := 0.30              ## alpha of the DECOHERED / SECTOR STABILIZED dimming (never above 0.35)
+const PAUSE_SETTINGS_Y := 396.0     ## base px: first settings row of the pause screen with progress (under the 64 px UPGRADES / CHAPTERS row)
 ## Base-px baseline of the centre message: below the top stack and the radio subtitle lane, above the crosshair.
 const MSG_Y := 262.0
 const MINIMAP := 148.0              ## base px: the round minimap, top left
@@ -895,20 +896,21 @@ func _ensure_layout() -> void:
 	var cx := vp.x * 0.5
 	match Game.state:
 		&"menu":
+			var dy := _title_shift()                                       # the title block moves up when a second 64 px row joins the first
 			if _chapters_open:
 				ChapterSelect.layout(self, cx, s)
 			elif _has_save:
-				_add(&"continue", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "CONTINUE", false)
+				_add(&"continue", Rect2(cx - 170.0 * s, (318.0 + dy) * s, 340.0 * s, 64.0 * s), "CONTINUE", false)
 				if _chapters_ok():                                    # NEW GAME and CHAPTERS share the row
-					_add(&"deploy", Rect2(cx - 170.0 * s, 392.0 * s, 166.0 * s, 44.0 * s), "NEW GAME", false)
-					_add(&"chapters", Rect2(cx + 4.0 * s, 392.0 * s, 166.0 * s, 44.0 * s), "CHAPTERS", false)
+					_add(&"deploy", Rect2(cx - 170.0 * s, (392.0 + dy) * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "NEW GAME", false)
+					_add(&"chapters", Rect2(cx + 4.0 * s, (392.0 + dy) * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "CHAPTERS", false)
 				else:
-					_add(&"deploy", Rect2(cx - 170.0 * s, 392.0 * s, 340.0 * s, 44.0 * s), "NEW GAME", false)
-				_settings_rows(cx, 470.0, s)
+					_add(&"deploy", Rect2(cx - 170.0 * s, (392.0 + dy) * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "NEW GAME", false)
+				_settings_rows(cx, 484.0 + dy, s)
 			elif _chapters_ok():                                      # no save, but chapters were unlocked on an earlier run
-				_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
-				_add(&"chapters", Rect2(cx - 170.0 * s, 392.0 * s, 340.0 * s, 44.0 * s), "CHAPTERS", false)
-				_settings_rows(cx, 470.0, s)
+				_add(&"deploy", Rect2(cx - 170.0 * s, (318.0 + dy) * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
+				_add(&"chapters", Rect2(cx - 170.0 * s, (392.0 + dy) * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "CHAPTERS", false)
+				_settings_rows(cx, 484.0 + dy, s)
 			else:
 				_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
 				_settings_rows(cx, 430.0, s)
@@ -920,12 +922,12 @@ func _ensure_layout() -> void:
 			elif Game.progress != null:
 				_add(&"resume", Rect2(cx - 170.0 * s, 232.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				if _chapters_ok():
-					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 166.0 * s, 44.0 * s), "UPGRADES", false)
-					_add(&"chapters", Rect2(cx + 4.0 * s, 304.0 * s, 166.0 * s, 44.0 * s), "CHAPTERS", false)
+					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "UPGRADES", false)
+					_add(&"chapters", Rect2(cx + 4.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "CHAPTERS", false)
 				else:
-					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 340.0 * s, 44.0 * s), "UPGRADES", false)
-				_settings_rows(cx, 388.0, s)
-				_add(&"menu", Rect2(cx - 154.0 * s, 550.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
+					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "UPGRADES", false)
+				_settings_rows(cx, PAUSE_SETTINGS_Y, s)
+				_add(&"menu", Rect2(cx - 154.0 * s, (PAUSE_SETTINGS_Y + 160.0) * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
 			else:
 				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_settings_rows(cx, 350.0, s)
@@ -934,6 +936,12 @@ func _ensure_layout() -> void:
 			_add(&"respawn", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)      # low on the screen: the middle stays free for the world
 		&"win":
 			_add(&"next", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "NEXT SECTOR", false)
+
+
+## Vertical shift (base px) of the title block (name, rule, subtitle, tagline and the buttons under them) on the title screen: -20 when a second row of 64 px buttons (NEW GAME /
+## CHAPTERS) needs the room, so the settings rows still end above the BEST line. 0 with the single DEPLOY button.
+func _title_shift() -> float:
+	return -20.0 if (_has_save or _chapters_ok()) else 0.0
 
 
 func _settings_rows(cx: float, y: float, s: float) -> void:
@@ -982,12 +990,13 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		&"menu" when _chapters_open:
 			ChapterSelect.draw(self, c, vp, s, font, cx)
 		&"menu":
-			_text(c, font, Vector2(0.0, 196.0 * s), "QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(76.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
-			c.draw_line(Vector2(cx - 240.0 * s, 222.0 * s), Vector2(cx + 240.0 * s, 222.0 * s), Color(UiUtil.MAGENTA, 0.8), 2.0 * s)
-			_text(c, font, Vector2(0.0, 258.0 * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+			var dy := _title_shift()
+			_text(c, font, Vector2(0.0, (196.0 + dy) * s), "QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(76.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+			c.draw_line(Vector2(cx - 240.0 * s, (222.0 + dy) * s), Vector2(cx + 240.0 * s, (222.0 + dy) * s), Color(UiUtil.MAGENTA, 0.8), 2.0 * s)
+			_text(c, font, Vector2(0.0, (258.0 + dy) * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 			if is_instance_valid(Game.story) and Game.story.has_method(&"tagline"):
-				_text(c, font, Vector2(0.0, 294.0 * s), str(Game.story.call(&"tagline")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.85), 1.0 * s)
-			_text(c, font, Vector2(0.0, (464.0 if (_has_save or _chapters_ok()) else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
+				_text(c, font, Vector2(0.0, (294.0 + dy) * s), str(Game.story.call(&"tagline")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.85), 1.0 * s)
+			_text(c, font, Vector2(0.0, (476.0 + dy if (_has_save or _chapters_ok()) else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 			_footer(c, vp, s, font)
 		&"paused":
 			if _chapters_open:
@@ -996,7 +1005,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				ShopScreen.draw(self, c, vp, s, font, cx)
 			else:
 				_text(c, font, Vector2(0.0, 190.0 * s), "PAUSED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(64.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
-				_text(c, font, Vector2(0.0, (382.0 if Game.progress != null else 344.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
+				_text(c, font, Vector2(0.0, (PAUSE_SETTINGS_Y - 6.0 if Game.progress != null else 344.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 				_footer(c, vp, s, font)
 		&"dead":
 			_text(c, font, Vector2(0.0, 170.0 * s), "DECOHERED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(84.0 * s), Color(UiUtil.RED, 0.97), 3.0 * s)

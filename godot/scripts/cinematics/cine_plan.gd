@@ -47,6 +47,8 @@ var warm_base := 0.3
 var bars := 0.10                             ## letterbox bar height, fraction of the screen height
 var skippable := true
 var slowmo := false                          ## the boss defeat: Stability slow motion while the scene plays
+var credits: Array = []                      ## the credits scene: blocks {head, lines}, one after the other, each `credit_seconds` long (empty in every other scene)
+var credit_seconds := 3.6
 
 # sampled by sample()
 var cam_pos := Vector3.ZERO
@@ -159,6 +161,23 @@ func title_alpha(t: float) -> float:
 	if title_t1 <= title_t0:
 		return 0.0
 	return smooth((t - title_t0) / 0.6) * (1.0 - smooth((t - (title_t1 - 0.6)) / 0.6))
+
+
+## Index of the credits block shown at scene time t, -1 outside the blocks (or in a scene without credits).
+func credit_index(t: float) -> int:
+	if credits.is_empty() or t < 0.0:
+		return -1
+	var i := int(t / maxf(credit_seconds, 0.1))
+	return i if i < credits.size() else -1
+
+
+## Opacity 0..1 of the credits block shown at t: it fades in and out inside its own slot, so two blocks never overlap.
+func credit_alpha(t: float) -> float:
+	if credit_index(t) < 0:
+		return 0.0
+	var local := fposmod(t, maxf(credit_seconds, 0.1))
+	var f := minf(0.6, credit_seconds * 0.25)
+	return smooth(local / f) * (1.0 - smooth((local - (credit_seconds - f)) / f))
 
 
 func subtitle_at(t: float) -> Dictionary:
@@ -337,6 +356,55 @@ static func boss_out(ctx: Dictionary) -> CinePlan:
 	p.subs = CineData.BOSS_OUT_SUBS
 	p.warm_base = 0.7
 	p.slowmo = true
+	return p
+
+
+## The ending: credits over a slow pull-away from Kestrel in the street (an orbit in front of the hero, a rise along the avenue, a wide high orbit over the rain), the radio
+## lines of CampaignData.CREDITS_SUBS and the blocks of CampaignData.CREDITS. Lasts CREDITS_BLOCK_SECONDS * blocks. ctx: hero, face. Skippable by a tap like every scene.
+static func credits_scene(ctx: Dictionary) -> CinePlan:
+	var p := CinePlan.new()
+	p.id = &"credits"
+	p.credits = CampaignData.CREDITS
+	p.credit_seconds = CampaignData.CREDITS_BLOCK_SECONDS
+	p.duration = p.credit_seconds * float(maxi(p.credits.size(), 1))
+	var H: Vector3 = ctx["hero"]
+	var F: Vector3 = flat_dir(ctx["face"])
+	var R := F.cross(UP)
+	var d := p.duration
+	var a := _shot(0.0, d * 0.36, 58.0, 50.0)                      # in front of Kestrel, a slow arc, the rain in the light
+	a.kind = ORBIT
+	a.center = H
+	a.face = F
+	a.r0 = 3.6
+	a.r1 = 6.0
+	a.a0 = PI - 0.6
+	a.a1 = PI + 0.5
+	a.h0 = 1.0
+	a.h1 = 2.4
+	a.look_h = 2.2
+	p.shots.append(a)
+	var b := _shot(d * 0.36, d * 0.68, 56.0, 68.0)                 # rising behind the hero, looking down the avenue at the sky
+	b.pos = PackedVector3Array([H - F * 7.0 + R * 2.0 + UP * 2.6, H - F * 10.0 + R * 5.0 + UP * 8.0, H - F * 15.0 - R * 3.0 + UP * 17.0, H - F * 22.0 + UP * 30.0])
+	b.look = PackedVector3Array([H + F * 6.0 + UP * 2.0, H + F * 24.0 + UP * 8.0, H + F * 44.0 + UP * 14.0, H + F * 70.0 + UP * 20.0])
+	b.roll = 0.02
+	p.shots.append(b)
+	var c := _shot(d * 0.68, d, 62.0, 72.0)                        # a wide, high orbit over the city: the rain goes on
+	c.kind = ORBIT
+	c.center = H
+	c.face = F
+	c.r0 = 24.0
+	c.r1 = 34.0
+	c.a0 = 0.4
+	c.a1 = 1.6
+	c.h0 = 34.0
+	c.h1 = 46.0
+	c.look_h = 4.0
+	p.shots.append(c)
+	p.drones.append(_drone("drone_sentinel", H + F * 70.0 + R * 40.0 + UP * 34.0, -R * 1.4, 4.0))     # the Observers hang silent
+	p.drones.append(_drone("drone_heavy", H + F * 120.0 - R * 50.0 + UP * 46.0, R * 1.0, 5.5))
+	p.subs = CampaignData.CREDITS_SUBS
+	p.warm_base = 0.8
+	p.bars = 0.11
 	return p
 
 

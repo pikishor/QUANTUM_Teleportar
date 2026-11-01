@@ -13,7 +13,7 @@ const PROXY_NAME := "ShadowProxy"
 const NO_SHADOW := [&"Headlights", &"Taillights", &"Underglow", &"Lamps", &"Glow", &"Eye", &"Visor"]
 const SKINNED_LOD_BIAS := 0.25
 
-static var _meshes := {}                      ## source mesh instance id -> ArrayMesh of the shadow surfaces (or null when no surface can be dropped)
+static var _meshes := {}                      ## source mesh key (its resource_path, see _shadow_mesh) -> ArrayMesh of the shadow surfaces (or null when no surface can be dropped)
 
 
 ## The casting surfaces of `mi` as one SHADOWS_ONLY child (identity transform), or null when all surfaces cast anyway (then `mi` simply keeps casting).
@@ -72,7 +72,9 @@ static func kept_surfaces(src: Mesh) -> Array[int]:
 
 
 static func _shadow_mesh(src: Mesh) -> ArrayMesh:
-	var key := src.get_instance_id()
+	# Key by the resource path ("res://assets/models/car_sedan.glb::ArrayMesh_x"): a model that is instantiated again after its PackedScene was dropped comes back with NEW mesh
+	# objects (new instance ids), so an instance-id key never hit and the cache grew by one mesh per car that was built (found by tests/bot_soak.gd). Code-made meshes have no path.
+	var key: Variant = src.resource_path if src.resource_path != "" else src.get_instance_id()
 	if _meshes.has(key):
 		return _meshes[key]
 	var keep := kept_surfaces(src)
