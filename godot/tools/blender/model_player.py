@@ -254,8 +254,8 @@ for si, (p, z0, z1, rad, flare) in enumerate(seg_defs):
         L = (z0 - z1) * jag
         top = Vector((rad * 1.45 * math.sin(a), -0.115 - rad * 0.9 * math.cos(a) - 0.05 * si, z0 + 0.02))
         bot = top + Vector((rd.x * flare, rd.y * (flare + 0.03), -L - 0.02))
-        w = 0.062 + 0.014 * si                                   # half width: neighbouring ribbons overlap, so the cloak reads as one solid sheet
-        tip = 0.12 if si == 2 else (0.45 if si == 1 else 0.8)
+        w = 0.066 + 0.016 * si                                   # half width: neighbouring ribbons overlap, so the cloak reads as one solid sheet
+        tip = 0.42 if si == 2 else (0.7 if si == 1 else 0.85)
         mid = top + (bot - top) * 0.5 + rd * 0.012
         # a solid satin ribbon (smooth elliptic section, thin along the radial direction, wide along the tangent), no alpha, no grain
         p.tube([top, mid, bot], [(0.006, w), (0.0065, w * (0.5 + 0.5 * tip)), (0.003, w * tip * 0.5)], mat=silk,

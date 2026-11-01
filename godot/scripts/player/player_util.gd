@@ -71,6 +71,7 @@ static func now() -> float:
 ## `safe_spot` clamps the XZ, drops the point onto the floor or roof below it (physics ray on the world layer, else the city's ground_height) and moves a point that is
 ## inside a building volume out to the nearest street. `outside_city` is the rescue test (outside the walls, below the floor, not a number).
 const SAFE_MARGIN := 3.0
+const MAX_AIR := 60.0
 
 
 static func outside_city(p: Vector3) -> bool:
@@ -109,4 +110,5 @@ static func safe_spot(p: Vector3, world: Node = null, space: PhysicsDirectSpaceS
 		floor_y = maxf(floor_y, float(world.call(&"ground_height", q.x, q.z, maxf(q.y, 0.0) + 0.5)))
 	if clamped or q.y < floor_y - 0.5 or q.y < -1.0:
 		q.y = floor_y
+	q.y = minf(q.y, floor_y + MAX_AIR)                        # a blink into the sky ends a few metres up at most, never 900 m in the air
 	return q

@@ -30,7 +30,7 @@ const EDGE := 336.0
 const STRIDE := 20
 const OFF_MIN := -0.75                   ## lateral offset range around the sidewalk line (metres)
 const OFF_MAX := 0.62
-const GROUP_CHANCE := 0.22               ## a fresh spawn that starts a little group chatting on the pavement (2-3 people, facing each other)
+const GROUP_CHANCE := 0.09               ## a fresh spawn that starts a little group chatting on the pavement (2-3 people, facing each other)
 const IDLE_CHANCE := 0.012               ## per second, for a walker: stop for a moment
 
 var mm: MultiMesh
