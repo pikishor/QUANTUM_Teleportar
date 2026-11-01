@@ -27,6 +27,16 @@ const float detail = 0.0;
 uniform float detail : hint_range(0.0, 1.0) = 1.0;      // 0 = cheap (no relief, no interiors), 1 = full
 #endif
 uniform float emission_scale = 1.0;
+#if !defined(MIRROR) && !defined(FAR)
+#define SRF 1
+#include "res://assets/shaders/surface_tex.gdshaderinc"
+uniform sampler2D srf_brick_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;     // brick, 8 x 8 bricks of 0.46 x 0.22 m per tile
+uniform sampler2D srf_brick_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2D srf_wall_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;      // wall concrete, 2 m tile
+uniform sampler2D srf_wall_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2D srf_roof_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;      // roof gravel and tar, 2 m tile
+uniform sampler2D srf_roof_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+#endif
 uniform float far_fade_start = 240.0;                   // windows melt into an average colour beyond this distance
 uniform float far_fade_end = 800.0;
 #ifdef FAR
@@ -134,6 +144,12 @@ void fragment() {
 		float dark_habit = hash11(bseed * 2.9 + 8.1);
 	float wv = hash11(bseed * 4.7 + 2.2);                       // weathering: 0 = kept clean, 1 = neglected (grime, fade, streaks)
 
+#ifdef SRF
+	vec3 gdx3 = dFdx(v_loc);
+	vec3 gdy3 = dFdy(v_loc);
+	vec3 srf_n = vec3(0.0);                                  // surface-tap normal offset in the instance's local axes
+	float srf_wk = srf_k * (1.0 - smoothstep(45.0, 130.0, dist));
+#endif
 	vec3 albedo = vec3(0.05);
 	float rough = 0.8;
 	float metal = 0.0;
@@ -156,6 +172,20 @@ void fragment() {
 		albedo *= 1.0 - 0.55 * pud;
 		rough = mix(0.88, 0.04, pud);
 		rough = mix(rough, 0.7, lip);
+#ifdef SRF
+		{
+			float rk = srf_k * (1.0 - smoothstep(30.0, 100.0, dist)) * (1.0 - max(lip, v_ledge));
+			if (rk > 0.002) {
+				vec2 ru = p / 2.0 + bseed * 0.37;
+				vec4 ta = srf_tap(srf_roof_a, ru, gdx3.xz / 2.0, gdy3.xz / 2.0);
+				vec4 tn = srf_tap(srf_roof_n, ru, gdx3.xz / 2.0, gdy3.xz / 2.0);
+				albedo *= mix(vec3(1.0), 2.0 * ta.rgb, rk) * mix(1.0, tn.b, 0.6 * rk);
+				vec2 sl = srf_slope(tn);
+				srf_n += vec3(sl.x, 0.0, sl.y) * 0.9 * rk * (1.0 - pud);
+				rough = mix(rough, mix(ta.a, 0.04 + 0.9 * tn.a, wet), 0.6 * rk * (1.0 - pud));
+			}
+		}
+#endif
 		hf = 0.05 * lip + 0.01 * gr;
 		float seam_x = 1.0 - band(abs(fract((p.x + bseed) / 3.0) - 0.5), 0.0, 0.49, 0.008);
 		float seam_z = 1.0 - band(abs(fract((p.y + bseed * 1.7) / 5.0) - 0.5), 0.0, 0.49, 0.008);
@@ -392,8 +422,13 @@ void fragment() {
 			float stag = mod(floor(row), 2.0) * 0.5;
 			float mort = (1.0 - band(fract(row), 0.06, 1.0, 0.04)) + (1.0 - band(fract((u + 0.0) / 0.46 + stag), 0.04, 1.0, 0.03));
 			float bv = hash12(vec2(floor((u) / 0.46 + stag), floor(row)) + fseed);
-			wall *= (0.75 + 0.5 * bv) * (1.0 - 0.45 * clamp(mort, 0.0, 1.0));
-			hf -= 0.03 * clamp(mort, 0.0, 1.0);
+#ifdef SRF
+			float mk = 1.0 - 0.85 * srf_wk;                   // the texture carries the real mortar joints near the camera
+#else
+			float mk = 1.0;
+#endif
+			wall *= (0.75 + 0.5 * bv) * (1.0 - 0.45 * clamp(mort, 0.0, 1.0) * mk);
+			hf -= 0.03 * clamp(mort, 0.0, 1.0) * mk;
 		}
 		// dirt gathers at the base, soot under ledges, wet runnels
 		wall *= mix(0.45, 1.0, smoothstep(0.0, 12.0, gy));
@@ -404,6 +439,28 @@ void fragment() {
 		wall *= 1.0 - 0.28 * runnel * wet;
 		wall *= mix(1.0, 0.68, wet);
 		float wallmask = 1.0 - win;
+#ifdef SRF
+		if (srf_wk > 0.002) {
+			vec3 ad = xf ? vec3(0.0, 0.0, nrm.x > 0.0 ? -1.0 : 1.0) : vec3(nrm.z > 0.0 ? 1.0 : -1.0, 0.0, 0.0);
+			vec2 dx = vec2(dot(gdx3, ad), gdx3.y);
+			vec2 dy = vec2(dot(gdy3, ad), gdy3.y);
+			vec4 ta;
+			vec4 tn;
+			if (style > 3.5) {                                // the brick tile matches the shader's own 0.46 x 0.22 m layout (half-brick offset on odd rows)
+				vec2 bs = vec2(3.68, 1.76);
+				ta = srf_tap(srf_brick_a, vec2(u, gy) / bs, dx / bs, dy / bs);
+				tn = srf_tap(srf_brick_n, vec2(u, gy) / bs, dx / bs, dy / bs);
+			} else {
+				vec2 cu2 = vec2(u, gy) / 2.0 + vec2(bseed * 0.173, 0.0);
+				ta = srf_tap(srf_wall_a, cu2, dx / 2.0, dy / 2.0);
+				tn = srf_tap(srf_wall_n, cu2, dx / 2.0, dy / 2.0);
+			}
+			float wk = srf_wk * wallmask;
+			wall *= mix(vec3(1.0), 2.0 * ta.rgb, wk) * mix(1.0, tn.b, 0.6 * wk);
+			vec2 sl = srf_slope(tn);
+			srf_n += (ad * sl.x + vec3(0.0, 1.0, 0.0) * sl.y) * 0.9 * wk;
+		}
+#endif
 #ifndef MIRROR
 		{
 			vec3 pool = texture(light_map, (v_wxz - light_rect.xy) / light_rect.zw).rgb;
@@ -685,5 +742,11 @@ void fragment() {
 		vec3 grad = sign(det) * (dFdx(hf) * r1 + dFdy(hf) * r2);
 		NORMAL = normalize(abs(det) * N - grad * (1.25 * (1.0 - smoothstep(60.0, 150.0, dist))));
 	}
+#ifdef SRF
+	if (dot(srf_n, srf_n) > 1e-6) {
+		vec3 nv = (VIEW_MATRIX * MODEL_MATRIX * vec4(srf_n, 0.0)).xyz;
+		NORMAL = normalize(NORMAL + normalize(nv + vec3(1e-6)) * length(srf_n));
+	}
+#endif
 #endif
 }

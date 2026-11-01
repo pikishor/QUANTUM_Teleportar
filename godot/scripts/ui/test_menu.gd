@@ -11,7 +11,7 @@ signal closed
 
 const TABS: Array[String] = ["CHEATS", "LOOT", "WORLD", "SPAWN", "GO", "MISSION", "STATS"]
 const BASE_H := 720.0
-const BG := Color(0.01, 0.03, 0.05, 0.96)
+const BG := Color(0.01, 0.03, 0.05, 1.0)
 const PANEL := Color(0.05, 0.13, 0.17, 1.0)
 const ON := Color(0.1, 0.55, 0.45, 1.0)
 const EDGE := Color(0.45, 0.95, 1.0, 0.8)
@@ -201,7 +201,8 @@ func _toggle_errors() -> void:
 		var tc := n as TouchControls
 		tc.errors_on = not tc.errors_on
 		tc.perf_on = true
-		tc.queue_redraw()
+		if tc.get(&"_canvas") != null:
+			(tc.get(&"_canvas") as Control).queue_redraw()
 	status = "ERROR PANEL TOGGLED (SHOWN ON THE FPS BOX SIDE OF THE HUD)"
 
 

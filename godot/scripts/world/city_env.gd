@@ -120,7 +120,8 @@ func apply_quality(level: int, vp: Viewport) -> void:
 	RenderingServer.directional_shadow_atlas_set_size([1024, 2048, 2048][level], true)
 	# LOW: bloom starts higher and is capped lower, so a bright, rim-lit character (the hero's gear) can never bloom into one white blob on a bright phone panel
 	var compat_gl := RenderingServer.get_current_rendering_method() == "gl_compatibility"
-	env.glow_hdr_threshold = (COMPAT_GLOW_THRESHOLD if compat_gl else 0.9) + (0.3 if level == 0 else 0.0)
-	env.glow_hdr_luminance_cap = 3.5 if level == 0 else 12.0
+	var tame := level == 0 or compat_gl                  # the Compatibility renderer (a phone without Vulkan) shows the hero as a white blob at MED too: same limits there
+	env.glow_hdr_threshold = (COMPAT_GLOW_THRESHOLD if compat_gl else 0.9) + (0.3 if tame else 0.0)
+	env.glow_hdr_luminance_cap = 3.5 if tame else 12.0
 	env.adjustment_contrast = [1.14, 1.08, 1.06][level]       # LOW: a light 'sharpen' (the post-process filter is off there)
 	env.fog_density = 0.0042 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0052

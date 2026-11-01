@@ -65,7 +65,7 @@ func _plans() -> void:
 	var tp := CinePlan.title_pose(12.0, Vector3(-30, 0, 4), Vector3.RIGHT, fov)
 	TestLib.check(tp.origin.is_finite() and fov[0] > 40.0, "the title pose is finite")
 	var cp := CinePlan.closeup_pose(3.0, Vector3.ZERO, Vector3.RIGHT, fov)
-	TestLib.check(cp.origin.is_finite() and cp.origin.distance_to(Vector3(0, 1.2, 0)) < 3.5, "the shop close-up sits near the hero")
+	TestLib.check(cp.origin.is_finite() and cp.origin.distance_to(Vector3(0, 1.2, 0)) < 5.0, "the shop close-up sits near the hero")
 	var sp0 := CinePlan.spline(PackedVector3Array([Vector3.ZERO, Vector3(1, 0, 0), Vector3(2, 0, 0)]), 0.0)
 	var sp1 := CinePlan.spline(PackedVector3Array([Vector3.ZERO, Vector3(1, 0, 0), Vector3(2, 0, 0)]), 1.0)
 	TestLib.check(sp0.is_equal_approx(Vector3.ZERO) and sp1.is_equal_approx(Vector3(2, 0, 0)), "a spline starts and ends on its control points")

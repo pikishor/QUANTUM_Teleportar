@@ -224,7 +224,7 @@ func _low_tier() -> void:
 	TestLib.check(env.glow_hdr_luminance_cap <= 4.0 and env.glow_hdr_threshold > 1.0, "LOW caps and delays the bloom so the hero cannot bloom to white")
 	TestLib.check(get_viewport_msaa() == Viewport.MSAA_DISABLED, "LOW has no MSAA")
 	Game.set_quality(1)
-	TestLib.check(atm.post.visible and env.glow_hdr_luminance_cap > 8.0, "MED keeps the post pass and the full bloom")
+	TestLib.check(atm.post.visible and (env.glow_hdr_luminance_cap > 8.0 or RenderingServer.get_current_rendering_method() == "gl_compatibility"), "MED keeps the post pass and (on Mobile) the full bloom")
 	Game.set_quality(0)
 	TestLib.check(ProjectSettings.get_setting("rendering/anti_aliasing/quality/msaa_3d", 0) is int, "the msaa project setting exists (the tier overrides it per viewport)")
 	TestLib.check(TextureBudget.MODELS.size() >= 9, "the texture budget lists the model atlases")

@@ -10,12 +10,12 @@ func _init() -> void:
 			_prefix = a.get_slice("=", 1)
 
 func _shot(tag: String) -> void:
-	var img := Engine.get_main_loop().root.get_viewport().get_texture().get_image()
+	var img: Image = (Engine.get_main_loop() as SceneTree).root.get_viewport().get_texture().get_image()
 	img.save_png("%s_menu_%s.png" % [_prefix, tag])
 
 func step(_t: float, _dt: float) -> bool:
 	_n += 1
-	var menu := Engine.get_main_loop().root.get_tree().get_first_node_in_group(&"test_menu") as TestMenu
+	var menu := (Engine.get_main_loop() as SceneTree).get_first_node_in_group(&"test_menu") as TestMenu
 	if menu == null:
 		return false
 	match _n:

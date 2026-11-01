@@ -12,6 +12,17 @@ global uniform float wetness;
 // only keeps the instances near the camera in the MultiMesh (city_stream.gd); this makes the edge of that window invisible.
 uniform vec2 lod_range = vec2(100000.0, 110000.0);
 
+#ifndef MIRROR
+#define SRF 1
+#include "res://assets/shaders/surface_tex.gdshaderinc"
+uniform sampler2D srf_metal_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;     // painted steel (and, at lower strength, plastic / concrete), 1 m tile
+uniform sampler2D srf_metal_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2D srf_corr_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;      // corrugated sheet (dumpsters, containers, shutters), 1.52 m tile
+uniform sampler2D srf_corr_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2D srf_trim_a : filter_linear_mipmap_anisotropic, repeat_disable, hint_default_white;     // trim atlas, 4 x 2 cells: LED cabinet bezels
+uniform sampler2D srf_trim_n : filter_linear_mipmap_anisotropic, repeat_disable, hint_default_white;
+#endif
+
 varying vec3 v_loc;
 varying vec3 v_wpos;
 varying flat vec4 v_cust;
@@ -117,6 +128,50 @@ void fragment() {
 	}
 
 	float rough = mix(v_mr.y, v_mr.y * 0.55, wet);
+#ifdef SRF
+	vec3 srf_nw = vec3(0.0);                                  // surface-tap normal offset in world axes
+	if (srf_k > 0.0) {
+		float sk = srf_k * (1.0 - smoothstep(22.0, 65.0, length(VERTEX)));
+		if (sk > 0.002) {
+			vec3 wn = (INV_VIEW_MATRIX * vec4(normalize(NORMAL), 0.0)).xyz;
+			vec3 an = abs(wn);
+			vec3 gx3 = dFdx(v_wpos);
+			vec3 gy3 = dFdy(v_wpos);
+			if (code < 0.1) {
+				// planar projection on the dominant axis of the face (props are boxes, poles and slabs: faces are axis aligned)
+				vec2 uv = an.y > max(an.x, an.z) ? v_wpos.xz : (an.x > an.z ? v_wpos.zy : v_wpos.xy);
+				vec2 dx = an.y > max(an.x, an.z) ? gx3.xz : (an.x > an.z ? gx3.zy : gx3.xy);
+				vec2 dy = an.y > max(an.x, an.z) ? gy3.xz : (an.x > an.z ? gy3.zy : gy3.xy);
+				bool corr = v_mr.x > 0.5 && hash11(seed * 3.3 + 0.7) > 0.5;         // half of the metal pieces are corrugated sheet
+				vec4 ta;
+				vec4 tn;
+				if (corr) {
+					uv = uv / 1.52 + seed;
+					ta = srf_tap(srf_corr_a, uv, dx / 1.52, dy / 1.52);
+					tn = srf_tap(srf_corr_n, uv, dx / 1.52, dy / 1.52);
+				} else {
+					uv = uv + seed * 3.7;
+					ta = srf_tap(srf_metal_a, uv, dx, dy);
+					tn = srf_tap(srf_metal_n, uv, dx, dy);
+				}
+				float st = sk * mix(0.55, 1.0, v_mr.x);
+				col *= mix(vec3(1.0), 2.0 * ta.rgb, st) * mix(1.0, tn.b, 0.6 * st);
+				vec2 sl = srf_slope(tn);
+				srf_nw = (an.y > max(an.x, an.z) ? vec3(sl.x, 0.0, sl.y) : (an.x > an.z ? vec3(0.0, sl.y, sl.x) : vec3(sl.x, sl.y, 0.0))) * 0.8 * st;
+				rough = mix(rough, mix(ta.a, 0.04 + 0.9 * tn.a, wet), 0.6 * st);
+			} else if (is_code(code, 0.60)) {
+				// LED screen: the cabinet bezel around the picture comes from the trim atlas (cell 1,1)
+				vec2 uv = UV;
+				float inside = band(uv.x, 0.03, 0.97, 0.01) * band(uv.y, 0.05, 0.95, 0.01);
+				vec2 cuv = (clamp(uv, 0.002, 0.998) + vec2(1.0, 1.0)) * vec2(0.25, 0.5);
+				vec4 ta = textureLod(srf_trim_a, cuv, 1.0 + srf_bias + 2.0 * (1.0 - sk));
+				vec4 tn = textureLod(srf_trim_n, cuv, 1.0 + srf_bias + 2.0 * (1.0 - sk));
+				col *= mix(vec3(1.0), 2.0 * ta.rgb, sk * (1.0 - inside));
+				srf_nw = (INV_VIEW_MATRIX * vec4(srf_slope(tn) * 0.5 * sk * (1.0 - inside), 0.0, 0.0)).xyz;
+			}
+		}
+	}
+#endif
 #ifdef MIRROR
 	ALBEDO = emit + col * vec3(0.05, 0.07, 0.09);
 #else
@@ -129,5 +184,10 @@ void fragment() {
 	vec3 n_up = (INV_VIEW_MATRIX * vec4(normalize(NORMAL), 0.0)).xyz;
 	vec3 fill = vec3(0.012, 0.019, 0.027) * (0.45 + 0.55 * clamp(n_up.y * 0.5 + 0.5, 0.0, 1.0));
 	EMISSION = emit + fill;
+#ifdef SRF
+	if (dot(srf_nw, srf_nw) > 1e-6) {
+		NORMAL = normalize(NORMAL + (VIEW_MATRIX * vec4(srf_nw, 0.0)).xyz);
+	}
+#endif
 #endif
 }

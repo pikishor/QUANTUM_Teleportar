@@ -71,11 +71,11 @@ for s in (-1, 1):
 for s in (-1, 1):
     x0 = 0.10 * s
     p, q, f = thigh[s], shin[s], foot[s]
-    p.tube([(x0, 0.0, 1.03), (x0, 0.05, 0.84), (x0, KNEE[1], KNEE[2])], [(0.085, 0.095), (0.08, 0.095), (0.058, 0.064)], mat=chit, tint=SKIN, n=10, exp=2.2, sub=2)
+    p.tube([(x0, 0.0, 1.03), (x0, 0.05, 0.84), (x0, KNEE[1], KNEE[2])], [(0.098, 0.108), (0.092, 0.106), (0.064, 0.07)], mat=chit, tint=SKIN, n=10, exp=2.2, sub=2)
     p.sphere(0.05, (x0, KNEE[1], KNEE[2]), mat=chit, tint=SKIN2, segs=10, rings=6)
     p.rod((x0 + s * 0.055, 0.06, 0.78), (x0 + s * 0.058, 0.115, 0.6), 0.005, mat=glc, segs=4)                      # cyan thigh vein
     p.rod((x0, KNEE[1] + 0.045, KNEE[2] + 0.01), (x0, KNEE[1] + 0.13, KNEE[2] - 0.05), 0.02, mat=chit, tint=PEARL, r2=0.003, segs=6)    # knee spur
-    q.tube([(x0, KNEE[1], KNEE[2]), (x0, 0.03, 0.46), (x0, HOCK[1], HOCK[2])], [(0.058, 0.062), (0.052, 0.068), (0.04, 0.042)], mat=chit, tint=SKIN, n=9, exp=2.2, sub=2)
+    q.tube([(x0, KNEE[1], KNEE[2]), (x0, 0.03, 0.46), (x0, HOCK[1], HOCK[2])], [(0.064, 0.068), (0.058, 0.074), (0.042, 0.045)], mat=chit, tint=SKIN, n=9, exp=2.2, sub=2)
     q.rod((x0 + s * 0.03, 0.095, 0.58), (x0 + s * 0.028, -0.03, 0.37), 0.0045, mat=glc, segs=4)
     q.bar((x0, 0.115, 0.56), (x0, 0.02, 0.4), 0.052, 0.018, mat=chit, tint=PEARL2, bevel=0.005, taper=(0.7, 0.7))   # shin guard
     f.sphere(0.036, (x0, HOCK[1], HOCK[2]), mat=chit, tint=SKIN2, segs=9, rings=6)
@@ -261,8 +261,8 @@ for si, (p, z0, z1, rad, flare) in enumerate(seg_defs):
         p.tube([top, mid, bot], [(0.006, w), (0.0065, w * (0.5 + 0.5 * tip)), (0.003, w * tip * 0.5)], mat=silk,
                tint=CLOAK if (j + si) % 2 == 0 else CLOAK2, n=6, up=rd, sub=1, exp=2.6)
         if si == 2:
-            p.rod(bot + Vector((0, 0, L * 0.75)) - rd * 0.0, bot + rd * 0.004, 0.0055, mat=glc, segs=4)                  # glowing tip
-            p.rod(top + (bot - top) * 0.1 + rd * 0.01, top + (bot - top) * 0.9 + rd * 0.01, 0.0045, mat=glc, segs=4)    # glowing edge vein
+            p.rod(bot + Vector((0, 0, L * 0.28)), bot + rd * 0.004, 0.0055, mat=glc, segs=4)                              # glowing tip
+            p.rod(top + (bot - top) * 0.52 + rd * 0.01, top + (bot - top) * 0.82 + rd * 0.01, 0.0045, mat=glc, segs=4)    # short glowing edge vein
     if si == 0:
         p.loft(xy_rings([(1.50, -0.02, 0.17, 0.115), (1.44, -0.05, 0.19, 0.13)]), mat=silk, tint=CLOAK)
 

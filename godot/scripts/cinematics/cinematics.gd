@@ -79,6 +79,16 @@ func _ready() -> void:
 		if a == "--cine":
 			force = true
 			enabled = true
+	Game.new_game.connect(_on_new_game)
+	Game.next_sector.connect(_on_next_sector)
+	Game.state_changed.connect(_on_state)
+	_last_state = Game.state
+
+
+## The canvas layer, overlay and prop root are built on first use: a game that never shows a scene (tools, tests, bots) carries one node of ours.
+func _ensure_nodes() -> void:
+	if _overlay != null:
+		return
 	_layer = CanvasLayer.new()
 	_layer.name = "CineLayer"
 	_layer.layer = 9                                # under the HUD (10) and the story layer (11): the dead and win screens draw over the bars
@@ -103,10 +113,6 @@ func _ready() -> void:
 	_props_root = Node3D.new()
 	_props_root.name = "Props"
 	add_child(_props_root)
-	Game.new_game.connect(_on_new_game)
-	Game.next_sector.connect(_on_next_sector)
-	Game.state_changed.connect(_on_state)
-	_last_state = Game.state
 
 
 func _exit_tree() -> void:
@@ -279,6 +285,7 @@ func play(id: StringName, ctx := {}) -> bool:
 		var stab := _find_stab()
 		if stab != null:
 			stab.call(&"begin_slowmo", 0.25, 1.25, 0.8)
+	_ensure_nodes()
 	_overlay.visible = true
 	if id != &"intro":
 		Sfx.play(&"ui_confirm", -6.0, 0.6)
@@ -455,6 +462,7 @@ func _acquire(model: String, scale: float) -> Node3D:
 			n.visible = true
 			n.scale = Vector3.ONE * scale
 			return n
+	_ensure_nodes()
 	var node := Game.load_model(model)
 	if node == null:
 		var mi := MeshInstance3D.new()
@@ -569,9 +577,13 @@ func _process(delta: float) -> void:
 		_vig = plan.grade_at(t) * 0.8 if active else _vig
 	else:
 		_idle(real)
-	_overlay.visible = active or _bars > 0.002 or _vig > 0.01 or _fade > 0.01 or _flash > 0.01
-	if _overlay.visible:
-		_overlay.queue_redraw()
+	var show := active or _bars > 0.002 or _vig > 0.01 or _fade > 0.01 or _flash > 0.01
+	if show:
+		_ensure_nodes()
+	if _overlay != null:
+		_overlay.visible = show
+		if show:
+			_overlay.queue_redraw()
 
 
 func _idle(real: float) -> void:

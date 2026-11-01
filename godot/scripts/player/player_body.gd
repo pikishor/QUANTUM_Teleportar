@@ -30,6 +30,9 @@ const GEAR_LIFT := 2.1                     ## the baked atlas keeps its own albe
 const GEAR_RIM := 0.16                     ## a subtle always-on cool fresnel edge; it swells (RIM_BOOST) only on a hit, while aiming and while the quantum powers are active
 const RIM_BOOST := 0.85                    ## extra rim at full excitement
 const GLOW_BOOST := 0.7                    ## extra emission-texture energy (veins, core, slit) at full excitement
+const LOW_ALBEDO := Color(0.72, 0.74, 0.78, 1.0)    ## LOW tier: the armour albedo is multiplied by this ...
+const COMPAT_GLOW := 0.55                           ## the Compatibility renderer (exposure and bloom lift) shows the emission texture much brighter: whitish plates on a bright phone
+const LOW_GLOW := 0.6                                ## ... and the emission texture (veins, core, slit) is this strong
 const GEAR_EMISSION := Color(0.012, 0.026, 0.034)   ## a faint silhouette floor only; the glow comes from the emission texture
 ## The Compatibility (OpenGL) renderer lights the same scene much brighter than the Mobile renderer the boosts were tuned on: scale them down there.
 ## Its world environment also carries a flat teal ambient (the sky radiance map does not exist there), which fills every shadow of a standard material and
@@ -94,6 +97,7 @@ var _li := 0
 var _key_light: DirectionalLight3D
 var _rim_light: DirectionalLight3D
 var _gear_mats: Array[BaseMaterial3D] = []   ## the Gear override materials (rim and glow follow `_excite`)
+var _gear_base: Array[Color] = []             ## the albedo each Gear override material was made with (the LOW tier darkens it a little)
 var _gear_rim := 0.0
 var _excite := 0.0                    ## 0..1: hit, aim or quantum-active moment (what the rim and glow react to)
 var _excite_applied := -1.0
@@ -252,7 +256,7 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		_excite_applied = _excite
 		for gm in _gear_mats:
 			gm.rim = _gear_rim + RIM_BOOST * _excite
-			gm.emission_energy_multiplier = 1.0 + GLOW_BOOST * _excite
+			gm.emission_energy_multiplier = (LOW_GLOW if _quality == 0 else 1.0) * (COMPAT_GLOW if _is_compat() else 1.0) * (1.0 + GLOW_BOOST * _excite)
 
 	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
 	if character_light and rig_view != null:
@@ -495,6 +499,7 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 					own.rim = _gear_rim
 					own.rim_tint = 0.5
 					_gear_mats.append(own)
+					_gear_base.append(own.albedo_color)
 					own.emission_enabled = true
 					own.emission_texture = mat.emission_texture if mat.emission_enabled else null
 					own.emission = (mat.emission if mat.emission_enabled else GEAR_EMISSION * boost)
@@ -506,7 +511,7 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 			if compat:
 				own.disable_ambient_light = true
 				# the baked atlas is much lighter than the legacy fabric the warm tint was calibrated on: darker and neutral-cool there
-				own.albedo_color = Color(0.46, 0.52, 0.6, 1.0) if gear else own.albedo_color * COMPAT_TINT
+				own.albedo_color = Color(0.36, 0.42, 0.5, 1.0) if gear else own.albedo_color * COMPAT_TINT
 			mi.set_surface_override_material(i, own)
 
 
@@ -706,12 +711,18 @@ func _build_character_lights() -> void:
 func set_quality(level: int) -> void:
 	_quality = level
 	_apply_lights()
+	# LOW (phones with bright panels, no rim light, no post grade): darker armour and a calmer emission, so the hero reads as dark plates with cyan accents, never a pale glow
+	for i in _gear_mats.size():
+		_gear_mats[i].albedo_color = _gear_base[i] * (LOW_ALBEDO if level == 0 else Color.WHITE)
+	_excite_applied = -1.0
+
+
 
 
 func _apply_lights() -> void:
 	if _key_light != null:
 		_key_light.visible = character_light
-		_rim_light.visible = character_light and _quality >= 1
+		_rim_light.visible = character_light and _quality >= 1 and not _is_compat()      # Compat: no rim light (it, the exposure lift and the bloom made the hero white)
 
 
 func _make_character_light(light_name: String, color: Color, energy: float, mask: int) -> DirectionalLight3D:

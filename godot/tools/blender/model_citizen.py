@@ -146,6 +146,10 @@ bpy.ops.object.join()
 body = bpy.context.view_layer.objects.active
 body.name = "Citizen"
 body.data.name = "Citizen"
+for name in [a.name for a in body.data.color_attributes if a.name != "Col"]:      # COLOR_0 must be OUR attribute (Godot imports only that one)
+    body.data.color_attributes.remove(body.data.color_attributes[name])
+body.data.color_attributes.active_color = body.data.color_attributes["Col"]
+body.data.color_attributes.render_color_index = 0
 body.data.materials.clear()
 body.data.materials.append(M.bmat if M.bmat is not None else helpers._placeholder(M))
 tris = sum(len(p.vertices) - 2 for p in body.data.polygons)

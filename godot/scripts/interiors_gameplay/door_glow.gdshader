@@ -1,0 +1,38 @@
+shader_type spatial;
+render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
+// Glowing door marker. ONE MultiMesh for every door of the city. Each instance = a vertical frame quad (UV 0..1) and a floor pad quad (UV.x 2..3);
+// COLOR = door colour (rgb) and alpha = hint boost (a mission door pulses brighter), INSTANCE_CUSTOM.x = phase.
+uniform float strength = 1.6;
+uniform vec2 door_size = vec2(2.4, 3.2);
+uniform vec2 pad_size = vec2(3.0, 2.2);
+varying vec4 vc;
+varying float ph;
+
+void vertex() {
+	vc = COLOR;
+	ph = INSTANCE_CUSTOM.x;
+}
+
+void fragment() {
+	vec2 uv = UV;
+	float pulse = 0.72 + 0.28 * sin(TIME * 2.6 + ph * 6.28);
+	float a;
+	if (uv.x > 1.5) {
+		vec2 p = vec2(uv.x - 2.0, uv.y) - 0.5;
+		p *= pad_size;
+		float edge = 1.0 - clamp(length(p / (pad_size * 0.5)), 0.0, 1.0);
+		float frame = smoothstep(0.0, 0.12, edge) * smoothstep(0.34, 0.12, edge);
+		float sweep = 0.5 + 0.5 * sin(uv.y * 14.0 - TIME * 4.0);
+		a = frame * 1.4 + edge * 0.35 * sweep;
+	} else {
+		float dx = min(uv.x, 1.0 - uv.x) * door_size.x;
+		float dy = min(uv.y, 1.0 - uv.y) * door_size.y;
+		float edge = min(dx, dy);
+		float line = smoothstep(0.1, 0.0, edge);
+		float glow = smoothstep(0.7, 0.0, edge) * 0.25;
+		float sheet = 0.12 + 0.1 * sin(uv.y * 20.0 - TIME * 3.0);
+		a = line * 2.2 + glow + sheet * step(0.1, edge);
+	}
+	ALBEDO = vc.rgb * a * pulse * strength * (1.0 + vc.a);
+	ALPHA = clamp(a * pulse, 0.0, 1.0);
+}

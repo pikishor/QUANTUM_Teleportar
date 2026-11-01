@@ -2,9 +2,9 @@ extends RefCounted
 ## Rendered bot: the hero's pixels (difference of two frames, hero meshes shown / hidden) at graphics tiers 0, 1, 2 with the game camera.
 ## Numeric gate: the hero must read as a dark-armoured figure with a subtle rim, never a blown-out white blob.
 ##   BOT_TIERS=0,1,2 (default)   tools/bot.sh res://tests/bot_hero_luma.gd <prefix> 1 1   (prints HERO_LUMA lines; PNG crops saved as <prefix>_tier<N>.png)
-## Exit gate: prints HERO_LUMA_OK / HERO_LUMA_FAIL. Thresholds: mean luma < 0.42 and highlight fraction (luma > 0.9) < 0.08 on every tier.
+## Exit gate: prints HERO_LUMA_OK / HERO_LUMA_FAIL. Thresholds: mean luma < 0.34 and highlight fraction (luma > 0.9) < 0.08 on every tier.
 
-const MAX_MEAN := 0.42
+const MAX_MEAN := 0.34
 const MAX_HI := 0.08
 const SETTLE := 14
 

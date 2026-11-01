@@ -11,6 +11,8 @@ extends Node
 const LOD_THRESHOLD := [5.0, 3.0, 1.5]
 const MIP_BIAS := [1.0, 0.0, -0.25]
 const ANISO := [Viewport.ANISOTROPY_2X, Viewport.ANISOTROPY_4X, Viewport.ANISOTROPY_8X]
+const SURFACE_TAPS := [0, 1, 2]       ## surface texture taps per tier (assets/shaders/surface_tex.gdshaderinc): LOW none (procedural look), MED one albedo+normal pair, HIGH two pairs + the decal mask
+const SURFACE_MIP_BIAS := [0.0, 0.0, -0.3]   ## extra mip bias of the surface taps (on top of the viewport's `MIP_BIAS`), sharper on HIGH
 const SHADOW_RANGE := 25.0            ## characters and cars cast no shadow beyond this camera distance (metres)
 const PART_RANGE := 45.0              ## small parts (drone fins, car wheels) are hidden beyond this
 const MODEL_RANGE := 130.0            ## an enemy model is hidden entirely beyond this (its marks stop at 90 m)
@@ -42,6 +44,14 @@ static func compat() -> bool:
 ## A pool cap for the running renderer: Mobile as given, Compatibility 75 % (at least 2).
 static func cap_scale(n: int) -> int:
 	return n if not compat() else maxi(2, int(floor(float(n) * COMPAT_CAP_SCALE)))
+
+
+static func surface_taps(level: int) -> int:
+	return int(SURFACE_TAPS[clampi(level, 0, 2)])
+
+
+static func surface_mip_bias(level: int) -> float:
+	return float(SURFACE_MIP_BIAS[clampi(level, 0, 2)])
 
 
 ## Camera distance within which a model's own lights are on (see DynamicFill.trim_lights).

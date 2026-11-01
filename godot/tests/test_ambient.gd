@@ -123,7 +123,7 @@ func _test_crowd(host: Node, amb: Node3D, player: Node3D) -> void:
 		# on a sidewalk line: 11.3 m (+-0.25) from a road centre line, and not inside a road
 		var lat := p.z if c._axis[i] == 0 else p.x
 		var off := absf(fposmod(lat + CityLayout.HALF + CityLayout.PITCH * 0.5, CityLayout.PITCH) - CityLayout.PITCH * 0.5)
-		if absf(off - Crowd.LINE_OFF) > 0.35:
+		if absf(off - Crowd.LINE_OFF) > 0.35 + maxf(-Crowd.OFF_MIN, Crowd.OFF_MAX):       # the line (+-0.2) plus the person's own lateral offset
 			ok_walk = false
 	TestLib.check(ok_pos, "everybody stays inside the ring (farthest %.0f m of %.0f m)" % [worst, c.radius])
 	TestLib.check(ok_walk, "everybody walks a sidewalk line (11.3 m from a road centre)")
@@ -135,7 +135,7 @@ func _test_crowd(host: Node, amb: Node3D, player: Node3D) -> void:
 	for i in 8:
 		if c.person_position(i).distance_to(before[i]) > 0.3:
 			moved += 1
-	TestLib.check(moved >= 5, "pedestrians walk (%d of 8 moved)" % moved)
+	TestLib.check(moved >= 4, "pedestrians walk, a few stand in groups (%d of 8 moved)" % moved)
 	# a long walk: people leave the ring and re-appear, the ring never empties
 	player.global_position = Vector3(-30.0, 0.0, 4.0)
 	for k in 6:

@@ -33,6 +33,7 @@ var hp := 60.0
 var max_hp := 60.0
 var radius := 0.95
 var aware := false
+var aware_dist := AWARE_DIST        ## sight range; interiors lower it for stealthy guards (scripts/interiors_gameplay/interior_actors.gd), activate() resets it
 var linked: Drone
 var dead := false
 var reinforce := false
@@ -120,6 +121,7 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	dead = false
 	remove = false
 	aware = is_aware
+	aware_dist = AWARE_DIST
 	reinforce = is_reinforce
 	linked = null
 	los = false
@@ -294,7 +296,7 @@ func _physics_process(delta: float) -> void:
 	var dx := _tgt.x - pos.x
 	var dz := _tgt.z - pos.z
 	var d := maxf(sqrt(dx * dx + dz * dz), 0.001)
-	if _tgt_ok and not aware and (d < AWARE_DIST or (Game.heat > 0.0 and d < AWARE_HEAT_DIST)):
+	if _tgt_ok and not aware and (d < aware_dist or (Game.heat > 0.0 and d < AWARE_HEAT_DIST)):
 		aware = true
 	_mx = 0.0
 	_mz = 0.0

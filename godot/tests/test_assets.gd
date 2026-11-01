@@ -46,6 +46,7 @@ const POOL := 12                  ## Sfx.POOL: AudioStreamPlayers used round rob
 func run(host: Node) -> void:
 	for n in CHARACTERS:
 		_character(host, n)
+	_citizen(host)
 	for n in DRONES:
 		_drone(host, n)
 	for n in CARS:
@@ -56,6 +57,32 @@ func run(host: Node) -> void:
 	_textures()
 	_audio()
 	_mix()
+
+
+# ------------------------------------------------------------------ the pedestrian citizen mesh (vertex colours, no texture) and the high-poly bake of the characters
+func _citizen(host: Node) -> void:
+	var m := _load(host, "citizen")
+	if m == null:
+		return
+	var meshes := _meshes(m)
+	TestLib.check(meshes.size() == 1 and meshes[0].mesh.get_surface_count() == 1, "citizen is ONE mesh with ONE surface (the crowd is one draw)")
+	var tris := _tris(m)
+	TestLib.check(tris >= 600 and tris <= 900, "citizen triangle count %d within 600..900 (all optional pieces included)" % tris)
+	var arrays: Array = meshes[0].mesh.surface_get_arrays(0)
+	var cols: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+	TestLib.check(cols.size() == (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() and cols.size() > 0, "citizen carries vertex colours (surface / piece / shadow / part tag)")
+	var tags := {}
+	var pieces := {}
+	for c in cols:
+		tags[snappedf(c.a, 0.1)] = true
+		pieces[roundi(c.g * 10.0)] = true
+	TestLib.check(tags.size() >= 6 and pieces.size() >= 7, "citizen has every part tag (%d) and every optional piece (%d of 7 ids)" % [tags.size(), pieces.size()])
+	var box := meshes[0].mesh.get_aabb()
+	TestLib.check(box.size.y > 1.9 and box.size.y < 2.2 and absf(box.position.y) < 0.05, "citizen stands on the origin, %.2f m with the umbrella" % box.size.y)
+	# the hero and the trooper are baked from a high-poly source: their normal maps are not flat (a procedural-only map is nearly flat on large plates)
+	for n in CHARACTERS:
+		var tex := load("res://assets/textures/%s_normal.png" % n) as Texture2D
+		TestLib.check(tex != null and tex.get_width() >= 2048, "%s normal map is a 2K bake" % n)
 
 
 # ------------------------------------------------------------------ helpers

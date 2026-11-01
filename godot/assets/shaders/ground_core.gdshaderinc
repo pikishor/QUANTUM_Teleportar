@@ -18,6 +18,14 @@ uniform float ambient_boost = 0.32;
 #ifndef LITE
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;   // holds the mirrored city (opaque pass)
 #endif
+#ifndef LITE
+#include "res://assets/shaders/surface_tex.gdshaderinc"
+uniform sampler2D srf_road_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;      // asphalt, 3.2 m tile
+uniform sampler2D srf_road_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2D srf_walk_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;      // sidewalk concrete, 2.4 m tile
+uniform sampler2D srf_walk_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2D srf_decal : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_black;       // HIGH: oil, tide marks, litter, gutter grime, 12 m tile
+#endif
 uniform vec3 moon_dir = vec3(-0.43, 0.46, -0.78);
 uniform vec3 moon_color : source_color = vec3(0.55, 0.70, 1.0);
 
@@ -113,6 +121,16 @@ void fragment() {
 	float polish = 0.0;                                     // tyre-polished / oily patches
 	float flat_mask = 0.0;                                  // surfaces that are always glossy (water, metal)
 	float matte = 0.0;                                      // painted crosswalks / arrows: never mirror-like
+	float wet_r = 0.22;                                     // roughness a wet surface settles at (the texture's wet variant replaces it near the camera)
+	float tex_rough = 0.88;                                 // the texture's dry roughness (blended in with srf)
+	vec3 stone_mod = vec3(1.0);
+	vec3 tex_n = vec3(0.0);
+	float srf = 0.0;                                        // strength of the texture taps at this pixel (0 on LOW and far away: the procedural look)
+	vec2 gdx = dFdx(q);
+	vec2 gdy = dFdy(q);
+#ifndef LITE
+	srf = srf_k * (1.0 - smoothstep(32.0, 95.0, dist));
+#endif
 	vec3 slab_n = vec3(0.0);                                // analytic normal offset in world space: kerb bevel, rocking slabs (no screen-space derivatives)
 
 	if (sd < 0.0) {
@@ -136,6 +154,29 @@ void fragment() {
 		asph *= mix(1.0, 0.62, smoothstep(0.62, 0.72, patch_n));                    // darker re-surfaced patches
 		float lane_w = (1.0 - junction) * (1.0 - smoothstep(0.6, 1.1, abs(abs(alat - 5.0) - 0.85)));
 		float lane_noise = fine ? vn(vec2(al * 0.7, lat * 3.0) + 5.0, 0.35, aa) : 0.5;
+#ifndef LITE
+		if (srf > 0.002) {
+			vec2 ru = q / 3.2;
+			vec4 ta = srf_tap(srf_road_a, ru, gdx / 3.2, gdy / 3.2);
+			vec4 tn = srf_tap(srf_road_n, ru, gdx / 3.2, gdy / 3.2);
+			vec3 modc = 2.0 * ta.rgb;
+			vec2 sl = srf_slope(tn);
+			if (srf_hi > 0.5) {                                                             // HIGH: a second, rotated and larger scale breaks the repeat and adds near detail
+				vec2 r2 = vec2(q.x * 0.82 - q.y * 0.57, q.x * 0.57 + q.y * 0.82) / 1.13 + 0.37;
+				vec2 d2x = vec2(gdx.x * 0.82 - gdx.y * 0.57, gdx.x * 0.57 + gdx.y * 0.82) / 1.13;
+				vec2 d2y = vec2(gdy.x * 0.82 - gdy.y * 0.57, gdy.x * 0.57 + gdy.y * 0.82) / 1.13;
+				vec4 ta2 = srf_tap(srf_road_a, r2, d2x, d2y);
+				vec4 tn2 = srf_tap(srf_road_n, r2, d2x, d2y);
+				modc = mix(modc, modc * 2.0 * ta2.rgb, 0.55);
+				sl += srf_slope(tn2) * 0.5;
+				ta.a = mix(ta.a, ta2.a, 0.4);
+			}
+			asph *= mix(vec3(1.0), modc, srf) * mix(1.0, tn.b, 0.7 * srf);
+			slab_n += vec3(sl.x, 0.0, sl.y) * 0.8 * srf;
+			wet_r = mix(wet_r, 0.04 + 0.9 * tn.a, srf);
+			tex_rough = ta.a;
+		}
+#endif
 		asph *= 1.0 - 0.38 * lane_w * (0.5 + 0.5 * lane_noise);                    // tyre tracks wear dark
 		polish = lane_w * (0.5 + 0.5 * lane_noise);
 		pool_bias += 0.16 * lane_w;                                                   // ruts hold water
@@ -152,7 +193,7 @@ void fragment() {
 		}
 		asph *= 1.0 - 0.30 * crack * dk;
 		albedo = asph;
-		rough = 0.88;
+		rough = mix(0.88, tex_rough, 0.8 * srf);
 
 		// ---- paint -----------------------------------------------------------------------------------------
 		float paint = 0.0;
@@ -226,6 +267,29 @@ void fragment() {
 		float tone = fbm2a(q * 0.3, 3.3, aa);
 		float grit = mix(0.5, hash12(floor(q * 55.0)), resolve(0.018, aa));                // aggregate: only where single grains are resolved
 		vec3 conc = mix(vec3(0.145, 0.15, 0.155), vec3(0.19, 0.182, 0.175), tv) * (0.75 + 0.5 * tone) * (0.93 + 0.14 * grit);
+#ifndef LITE
+		if (srf > 0.002) {
+			vec2 wu = q / 2.4;
+			vec4 ta = srf_tap(srf_walk_a, wu, gdx / 2.4, gdy / 2.4);
+			vec4 tn = srf_tap(srf_walk_n, wu, gdx / 2.4, gdy / 2.4);
+			vec3 modc = 2.0 * ta.rgb;
+			vec2 sl = srf_slope(tn);
+			if (srf_hi > 0.5) {
+				vec2 r2 = vec2(q.x * 0.64 + q.y * 0.77, -q.x * 0.77 + q.y * 0.64) / 0.91 + 0.19;
+				vec2 d2x = vec2(gdx.x * 0.64 + gdx.y * 0.77, -gdx.x * 0.77 + gdx.y * 0.64) / 0.91;
+				vec2 d2y = vec2(gdy.x * 0.64 + gdy.y * 0.77, -gdy.x * 0.77 + gdy.y * 0.64) / 0.91;
+				vec4 ta2 = srf_tap(srf_walk_a, r2, d2x, d2y);
+				vec4 tn2 = srf_tap(srf_walk_n, r2, d2x, d2y);
+				modc = mix(modc, modc * 2.0 * ta2.rgb, 0.5);
+				sl += srf_slope(tn2) * 0.45;
+			}
+			conc *= mix(vec3(1.0), modc, srf) * mix(1.0, tn.b, 0.7 * srf);
+			stone_mod = mix(vec3(1.0), modc, srf);
+			tex_rough = ta.a;
+			wet_r = mix(wet_r, 0.04 + 0.9 * tn.a, srf);
+			tex_n = vec3(sl.x, 0.0, sl.y) * 0.7 * srf;
+		}
+#endif
 		// stains and, in about one slab in eight, a hairline crack straight through the slab (it ends at the joints, like a real slab crack)
 		float stain = smoothstep(0.62, 0.8, vnoise(q * 0.55 + 31.0));
 		conc *= 1.0 - 0.45 * stain;
@@ -250,17 +314,17 @@ void fragment() {
 		float g_a = (gcell + 0.2 + 0.6 * hash12(vec2(gcell, side_s) + 4.0)) * 13.0;
 		float grate = step(0.45, gh_) * band(al_s, g_a - 0.5, g_a + 0.5, aa) * band(sd, 0.75, 1.45, aa) * (1.0 - plz);
 		float slats = mix(0.5, step(0.5, fract(al_s * 5.5)), resolve(0.18, aa));
-		vec3 stone = vec3(0.075, 0.08, 0.092) * (0.8 + 0.5 * tv) * (0.8 + 0.4 * tone);
+		vec3 stone = vec3(0.075, 0.08, 0.092) * (0.8 + 0.5 * tv) * (0.8 + 0.4 * tone) * stone_mod;
 		albedo = mix(conc, stone, plz);
 		albedo *= (1.0 - 0.65 * joint) * slab_ao;
 		albedo = mix(albedo, vec3(0.018, 0.019, 0.021) * (0.5 + 0.9 * slats), grate);
 		flat_mask = max(flat_mask, grate * 0.55);
-		rough = mix(0.82, 0.55, plz);
+		rough = mix(mix(0.82, tex_rough, 0.8 * srf), 0.55, plz);
 		porous = 0.55 * (1.0 - plz);
 		pool_bias += 0.12 * joint - 0.1;
 		// slabs rock a little: each one reflects the wet night slightly differently (no relief taken from derivatives, so nothing shimmers)
 		vec2 tilt = (hash22(tid + 7.0) - 0.5) * (0.026 + 0.016 * plz) * res_t * (1.0 - joint) * dk;
-		slab_n = vec3(tilt.x, 0.0, tilt.y);
+		slab_n = vec3(tilt.x, 0.0, tilt.y) + tex_n;
 		// kerb stone and the dropped gutter edge
 		float kerb = band(sd, 0.0, 0.26, aa);
 		albedo = mix(albedo, vec3(0.20, 0.20, 0.205) * (0.8 + 0.4 * tone), kerb);
@@ -358,6 +422,23 @@ void fragment() {
 			rough = mix(rough, 0.6, flk);
 		}
 	}
+#ifndef LITE
+	if (srf_hi > 0.5 && srf > 0.002) {
+		// HIGH: one mask tap (12 m tile): oil stains and tyre polish, puddle tide marks, litter by the kerb, gutter grime
+		vec4 dc = srf_tap(srf_decal, q / 12.0, gdx / 12.0, gdy / 12.0);
+		float kz = 1.0 - smoothstep(0.4, 4.5, abs(sd + 0.5));
+		float onroad = sd < 0.0 ? 1.0 : 0.0;
+		float oil_d = dc.r * onroad * srf;
+		albedo *= 1.0 - 0.38 * oil_d;
+		polish = max(polish, oil_d);
+		albedo *= 1.0 - 0.22 * dc.g * mix(0.4, 1.0, wet) * srf;
+		albedo *= 1.0 - 0.3 * dc.a * kz * srf;
+		float lit_m = smoothstep(0.35, 0.6, dc.b) * kz * srf * step(0.0, hash12(floor(q * 3.0)));
+		vec3 lcol = mix(vec3(0.06, 0.09, 0.07), mix(vec3(0.30, 0.28, 0.24), vec3(0.22, 0.05, 0.04), step(0.5, fract(dc.b * 9.7))), step(0.55, fract(dc.b * 5.3)));
+		albedo = mix(albedo, lcol, lit_m * 0.85);
+		rough = mix(rough, 0.6, lit_m);
+	}
+#endif
 	// the dark wet halo around a puddle (damp ground stays darker for a few centimetres)
 	albedo *= 1.0 - 0.22 * (1.0 - puddle) * smoothstep(thr - 0.08, thr, pn) * smoothstep(0.15, 0.55, wet);
 
@@ -374,8 +455,8 @@ void fragment() {
 #else
 	albedo *= mix(1.0, 0.76, soak);
 #endif
-	rough = mix(rough, 0.22, wet * (1.0 - porous) * 0.9);
-	rough = mix(rough, 0.35, wet * porous);
+	rough = mix(rough, wet_r, wet * (1.0 - porous) * 0.9);
+	rough = mix(rough, wet_r + 0.13, wet * porous);
 	rough = mix(rough, 0.10, polish * wet * 0.5);
 	albedo = mix(albedo, albedo * 0.55, puddle);
 	rough = mix(rough, 0.02, puddle);

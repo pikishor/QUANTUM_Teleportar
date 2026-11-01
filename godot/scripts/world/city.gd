@@ -25,6 +25,7 @@ const PROP_MIRROR_SHADER := preload("res://assets/shaders/prop_mirror.gdshader")
 const GLOW_SHADER := preload("res://assets/shaders/glow.gdshader")
 const SHAFT_SHADER := preload("res://assets/shaders/shaft.gdshader")
 const Ambient := preload("res://scripts/ambient/ambient_city.gd")
+const Doors := preload("res://scripts/world/city_doors.gd")
 
 ## Inner junctions (y = 0), 7 x 7 = 49.
 var intersections: Array[Vector3] = []
@@ -42,6 +43,8 @@ var collision_body: StaticBody3D
 ## The living city (far traffic, crowd, patrols; scripts/ambient/ambient_city.gd), a child of the world.
 var ambient: Node3D
 var building_data: Array = []      ## Buildings.Building per lot index
+## Enterable doors (city_doors.gd): about one lot in five, see scripts/interiors_gameplay/. Each {id, type, name, wall, pos, normal, yaw, face_yaw, width}.
+var doors: Array[Dictionary] = []
 ## Footprints (x, z) of the far-skyline towers (visual only; none reaches into the walkable square or the border walls).
 var skyline_rects: Array[Rect2] = []
 ## When true the static prop and skyline families only draw the instances near the camera (see city_stream.gd).
@@ -65,6 +68,7 @@ var _real_root: Node3D
 var _ground_node: MeshInstance3D
 var _steam_node: MultiMeshInstance3D
 var _building_mat: ShaderMaterial
+var _prop_mats: Array[ShaderMaterial] = []    ## the lit (non-mirror) prop materials: they carry the surface taps (SurfaceTextures)
 var _building_mirror_mat: ShaderMaterial
 var _shadow_casters: Array[GeometryInstance3D] = []
 var _tiered: Array = []            ## [GeometryInstance3D, min quality] pairs: families that only exist from a given tier up
@@ -90,6 +94,7 @@ func _ready() -> void:
 
 	_buildings.assign(layout)
 	building_data = _buildings.buildings
+	doors = Doors.compute(layout, building_data)
 	_buildings.build_multimeshes()
 	_build_ground()
 	_build_buildings()
@@ -159,6 +164,8 @@ func road_point_near(center: Vector3, rmin: float, rmax: float) -> Vector3:
 func is_inside_building(p: Vector3) -> bool:
 	if p.y < 0.0:
 		return false
+	if p.x > InteriorGameplay.EAST_STRIP and InteriorGameplay.active:      # the interior east of the grid: its walls and furniture stop enemy steps (no lot exists there)
+		return InteriorGameplay.blocks(p)
 	var lot := layout.lot_at(p.x, p.z)
 	if lot == null:
 		return false
@@ -204,8 +211,17 @@ func set_quality(level: int) -> void:
 	for m: ShaderMaterial in [_ground.material, _ground.material_lite]:
 		m.set_shader_parameter(&"detail", 1.0 if quality >= 1 else 0.0)
 	_building_mat.set_shader_parameter(&"detail", 1.0 if quality >= 1 else 0.0)
+	_apply_surfaces()
 	_building_mat.set_shader_parameter(&"far_fade_start", 240.0 if quality >= 1 else 110.0)
 	_building_mat.set_shader_parameter(&"far_fade_end", 800.0 if quality >= 1 else 420.0)
+
+
+## Tier-scaled PBR surface taps (SurfaceTextures): LOW none, MED one albedo+normal pair per surface at half size, HIGH two pairs, full size and the decal mask.
+func _apply_surfaces() -> void:
+	SurfaceTextures.apply(_ground.material, ["road", "walk", "decal"], quality)
+	SurfaceTextures.apply(_building_mat, ["brick", "wall", "roof"], quality)
+	for m in _prop_mats:
+		SurfaceTextures.apply(m, ["metal", "corr", "trim"], quality)
 
 
 ## The node that holds the mirrored copy of the city under the wet ground (scale (1, -1, 1), hidden on the LOW tier). Dynamic objects (the player,
@@ -396,6 +412,7 @@ func _build_props() -> void:
 	_props.build(layout, building_data)
 	_colliders.build(self, _props.parts)
 	var prop_mat := _shader_mat(PROP_SHADER)
+	_prop_mats.append(prop_mat)
 	var prop_mirror := _shader_mat(PROP_MIRROR_SHADER)
 	var glow_mat := _shader_mat(GLOW_SHADER)
 	var glow_mirror := _shader_mat(GLOW_SHADER, -120)     # transparent copies must be in the screen copy the ground reads
@@ -408,6 +425,8 @@ func _build_props() -> void:
 			&"prop":
 				# windowed families own their materials: the distance LOD range is a per-family uniform
 				var mat := _shader_mat(PROP_SHADER) if radius > 0.0 else prop_mat
+				if radius > 0.0:
+					_prop_mats.append(mat)
 				var mmat := _shader_mat(PROP_MIRROR_SHADER) if radius > 0.0 else prop_mirror
 				add_multimesh(part["name"], mm, mat, mmat if mirror else null, part["shadow"], part.get("min", 0))
 				if radius > 0.0:

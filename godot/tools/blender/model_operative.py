@@ -215,7 +215,7 @@ for s in (-1, 1):
     Sv = Vector((SH[0] * s, SH[1], SH[2]))
     ua, fa_ = uarm[s], farm[s]
     for k in range(3):                                                                                              # stacked pauldron lamellae (the left one heavier)
-        big = 1.35 if s == -1 else 1.0
+        big = 1.12 if s == -1 else 1.0
         ua.sphere((0.15 * big - 0.015 * k, 0.12 * big, 0.026), Sv + Vector((s * (0.1 + 0.05 * k) * big, 0.0, -0.02 - 0.06 * k)), rot=(0, s * (30 + 16 * k), 0),
                   mat=chit, tint=BONE2 if k % 2 else SHELL, segs=12, rings=6)
     ua.torus(0.07, 0.016, Sv + Vector((s * 0.0, 0, -0.17)), mat=chit, tint=BONE, segs=12, sides=5)                       # elbow-side joint rings
