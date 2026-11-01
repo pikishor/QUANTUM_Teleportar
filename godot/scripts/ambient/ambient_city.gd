@@ -32,6 +32,7 @@ func setup(city: Node3D, light_map: Texture2D) -> void:
 	sky.build(self)
 	city.add_multimesh("AmbientTraffic", traffic.mm, traffic.material, traffic.mirror_material, false, 0, 1)
 	city.add_multimesh("AmbientCrowd", crowd.mm, crowd.material, crowd.mirror_material, false, 0, 2)
+	city.add_multimesh("AmbientCrowdNear", crowd.mm_near, crowd.material, crowd.mirror_material, false, 0, 2)
 	Game.new_game.connect(reset)
 	Game.respawn.connect(reset)
 	Game.next_sector.connect(reset)

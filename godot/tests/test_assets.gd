@@ -65,10 +65,25 @@ func _citizen(host: Node) -> void:
 	if m == null:
 		return
 	var meshes := _meshes(m)
-	TestLib.check(meshes.size() == 1 and meshes[0].mesh.get_surface_count() == 1, "citizen is ONE mesh with ONE surface (the crowd is one draw)")
-	var tris := _tris(m)
-	TestLib.check(tris >= 600 and tris <= 900, "citizen triangle count %d within 600..900 (all optional pieces included)" % tris)
-	var arrays: Array = meshes[0].mesh.surface_get_arrays(0)
+	var near: MeshInstance3D = null
+	var far: MeshInstance3D = null
+	for mi in meshes:
+		if String(mi.name).begins_with("CitizenFar"):
+			far = mi
+		elif String(mi.name).begins_with("Citizen"):
+			near = mi
+	TestLib.check(meshes.size() == 2 and near != null and far != null and near.mesh.get_surface_count() == 1 and far.mesh.get_surface_count() == 1, "citizen = a near and a far mesh of ONE surface each (the crowd is 2 draws)")
+	if near == null or far == null:
+		return
+	var tris: int = 0
+	var tris_far: int = 0
+	for si in near.mesh.get_surface_count():
+		tris += (near.mesh.surface_get_arrays(si)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+	for si in far.mesh.get_surface_count():
+		tris_far += (far.mesh.surface_get_arrays(si)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+	TestLib.check(tris >= 600 and tris <= 900, "citizen (near) triangle count %d within 600..900 (all optional pieces included)" % tris)
+	TestLib.check(tris_far >= 150 and tris_far <= 350, "citizen (far) triangle count %d within 150..350" % tris_far)
+	var arrays: Array = near.mesh.surface_get_arrays(0)
 	var cols: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
 	TestLib.check(cols.size() == (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() and cols.size() > 0, "citizen carries vertex colours (surface / piece / shadow / part tag)")
 	var tags := {}
@@ -77,7 +92,7 @@ func _citizen(host: Node) -> void:
 		tags[snappedf(c.a, 0.1)] = true
 		pieces[roundi(c.g * 10.0)] = true
 	TestLib.check(tags.size() >= 6 and pieces.size() >= 7, "citizen has every part tag (%d) and every optional piece (%d of 7 ids)" % [tags.size(), pieces.size()])
-	var box := meshes[0].mesh.get_aabb()
+	var box := near.mesh.get_aabb()
 	TestLib.check(box.size.y > 1.9 and box.size.y < 2.2 and absf(box.position.y) < 0.05, "citizen stands on the origin, %.2f m with the umbrella" % box.size.y)
 	# the hero and the trooper are baked from a high-poly source: their normal maps are not flat (a procedural-only map is nearly flat on large plates)
 	for n in CHARACTERS:

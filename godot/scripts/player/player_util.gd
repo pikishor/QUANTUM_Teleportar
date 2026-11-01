@@ -75,6 +75,8 @@ const MAX_AIR := 60.0
 
 
 static func outside_city(p: Vector3) -> bool:
+	if InteriorSpace.contains(p):            # inside a generated interior (scripts/interiors/), far from the street map by design
+		return false
 	return not (is_finite(p.x) and is_finite(p.y) and is_finite(p.z)) or absf(p.x) > CityLayout.WALK + 1.0 or absf(p.z) > CityLayout.WALK + 1.0 or p.y < -6.0
 
 
@@ -93,6 +95,8 @@ static func safe_spot(p: Vector3, world: Node = null, space: PhysicsDirectSpaceS
 	var q := p
 	if not (is_finite(q.x) and is_finite(q.y) and is_finite(q.z)):
 		return Game.SPAWN
+	if InteriorSpace.contains(q):            # a point inside the interior is valid as it is (the city clamp would throw it to the street map)
+		return q
 	var lim := CityLayout.WALK - SAFE_MARGIN
 	var clamped := absf(q.x) > lim or absf(q.z) > lim
 	q.x = clampf(q.x, -lim, lim)

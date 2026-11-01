@@ -35,6 +35,8 @@ const DEFS := {
 	"terminal": [1.3, 1.35, 0.8, F_COLLIDER], "safe": [0.7, 0.8, 0.55, F_COLLIDER], "elevator": [2.2, 2.7, 0.3, F_WALL], "screen": [1.4, 0.8, 0.1, F_WALL | F_DETAIL],
 	"poster": [0.8, 1.1, 0.04, F_WALL | F_DETAIL], "rack": [2.2, 1.5, 0.2, F_WALL], "neon_sign": [1.8, 0.5, 0.08, F_WALL],
 	"lamp_floor": [0.4, 1.7, 0.4, F_DETAIL], "lamp_hang": [0.7, 0.5, 0.7, F_CEILING], "pipe_run": [4.0, 0.3, 0.3, F_CEILING | F_DETAIL],
+	"wall_light": [0.3, 0.4, 0.14, F_WALL | F_DETAIL], "vent": [0.9, 0.12, 0.6, F_CEILING | F_DETAIL], "cables": [1.4, 0.8, 0.08, F_WALL | F_DETAIL],
+	"ac_unit": [1.0, 0.34, 0.3, F_WALL | F_DETAIL], "box_stack": [0.9, 0.62, 0.7, F_DETAIL], "trash_bag": [0.5, 0.45, 0.5, F_DETAIL],
 	"rug": [2.4, 0.02, 1.7, F_DETAIL], "bin": [0.42, 0.7, 0.42, F_DETAIL], "crate_small": [0.5, 0.5, 0.5, F_DETAIL],
 }
 
@@ -369,6 +371,40 @@ static func build(sb: RefCounted, gb: RefCounted, p: Dictionary) -> void:
 		"rug":
 			_bx(sb, Vector3(0, 0.01, 0), size, acc.lerp(tint, 0.6) * 0.45, C_SOFT)
 			_bx(sb, Vector3(0, 0.012, 0), Vector3(w - 0.3, 0.02, d - 0.3), tint * 0.7, C_SOFT)
+		"wall_light":
+			_bx(sb, Vector3(0, 0, 0.05), Vector3(w, h, 0.06), Color(0.06, 0.06, 0.07), C_METAL)
+			_bx(sb, Vector3(0, h * 0.18, -0.01), Vector3(w * 0.6, h * 0.5, 0.05), acc.lerp(Color(1.0, 0.85, 0.6), 0.55), C_STRIP, 1.6)
+			_halo(gb, Vector3(0, h * 0.2, -0.15), 1.3, 1.5, acc.lerp(Color(1.0, 0.85, 0.6), 0.5), 0.4)
+		"vent":
+			_bx(sb, Vector3(0, -0.04, 0), Vector3(w, 0.08, d), Color(0.12, 0.12, 0.13), C_METAL)
+			for i in 5:
+				_bx(sb, Vector3(0, -0.09, -d * 0.5 + 0.08 + i * (d - 0.16) / 4.0), Vector3(w - 0.12, 0.03, 0.04), Color(0.03, 0.03, 0.03), C_METAL)
+		"cables":
+			var cols: Array = [Color(0.05, 0.05, 0.06), Color(0.04, 0.04, 0.05), acc.lerp(Color(0.1, 0.1, 0.1), 0.6)]
+			for k in 3:
+				var y0 := h * 0.45 - k * 0.08
+				var prev := Vector3(-w * 0.5, y0 + 0.2 * k, 0.04)
+				for i in range(1, 7):
+					var t := float(i) / 6.0
+					var sag := -sin(t * PI) * (0.25 + 0.06 * k)
+					var cur := Vector3(-w * 0.5 + w * t, y0 + 0.2 * k * (1.0 - t) + sag, 0.04 + 0.01 * k)
+					sb.uv = Vector2(C_METAL, 0.0)
+					sb.strut(prev, cur, 0.035, Color(cols[k].r, cols[k].g, cols[k].b, 0.0), false)
+					prev = cur
+		"ac_unit":
+			_bx(sb, Vector3(0, 0, 0.1), size, Color(0.55, 0.57, 0.6), C_METAL)
+			for i in 5:
+				_bx(sb, Vector3(0, -h * 0.35 + i * 0.045, -0.055), Vector3(w - 0.16, 0.02, 0.02), Color(0.2, 0.2, 0.22), C_METAL)
+			_bx(sb, Vector3(w * 0.38, h * 0.28, -0.055), Vector3(0.04, 0.04, 0.02), Color(0.2, 1.0, 0.5), C_STRIP, 2.0)
+			_bx(sb, Vector3(-w * 0.45, -h * 0.5 - 0.12, 0.12), Vector3(0.03, 0.26, 0.03), Color(0.1, 0.1, 0.11), C_METAL)
+		"box_stack":
+			_bx(sb, Vector3(-0.15, 0.17, 0.0), Vector3(0.55, 0.34, 0.5), Color(0.3, 0.24, 0.17), C_SOFT)
+			_bx(sb, Vector3(0.28, 0.14, 0.1), Vector3(0.4, 0.28, 0.4), Color(0.26, 0.22, 0.18), C_SOFT)
+			_bx(sb, Vector3(-0.1, 0.46, 0.02), Vector3(0.4, 0.26, 0.38), Color(0.34, 0.27, 0.2), C_SOFT)
+			_bx(sb, Vector3(-0.1, 0.46, -0.18), Vector3(0.3, 0.05, 0.012), acc, C_STRIP, 1.0)
+		"trash_bag":
+			mb_sphere(sb, Vector3(0, 0.2, 0), Vector3(0.26, 0.2, 0.24), Color(0.03, 0.03, 0.035))
+			mb_sphere(sb, Vector3(0.22, 0.14, 0.12), Vector3(0.16, 0.13, 0.15), Color(0.04, 0.045, 0.04))
 		"bin":
 			_cyl(sb, Vector3(0, 0, 0), 0.2, h, Color(0.14, 0.15, 0.16), C_METAL, 0.0, 8)
 			_cyl(sb, Vector3(0, h - 0.04, 0), 0.215, 0.06, Color(0.2, 0.2, 0.22), C_METAL, 0.0, 8)

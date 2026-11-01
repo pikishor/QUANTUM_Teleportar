@@ -111,6 +111,20 @@ func _test_crowd(host: Node, amb: Node3D, player: Node3D) -> void:
 	var c: RefCounted = amb.crowd
 	var alive: int = c.alive_count()
 	TestLib.check(alive == c.count, "the whole MED crowd is on the street after a few frames (%d of %d)" % [alive, c.count])
+	# near / far crowd: the nearest people use the full citizen mesh (capped), nobody is drawn twice, the far buffer hides whoever is near
+	var near_expected := 0
+	for i in c.count:
+		var q: Vector3 = c.person_position(i)
+		if Vector2(q.x - player.global_position.x, q.z - player.global_position.z).length() < Crowd.NEAR_RADIUS:
+			near_expected += 1
+	near_expected = mini(near_expected, Crowd.NEAR_CAP)
+	var far_drawn := 0
+	for i in c.count:
+		far_drawn += 1 if c._buf[i * Crowd.STRIDE + 5] > 0.0 else 0
+	TestLib.check(c.mm_near.visible_instance_count == c._nn and c._nn <= Crowd.NEAR_CAP and absi(c._nn - near_expected) <= 2,
+			"the near crowd (%d people, %d expected within %.0f m, cap %d) uses the full mesh" % [c._nn, near_expected, Crowd.NEAR_RADIUS, Crowd.NEAR_CAP])
+	TestLib.check(c._nn + far_drawn == alive, "every pedestrian is drawn exactly once (%d near + %d far of %d)" % [c._nn, far_drawn, alive])
+	TestLib.check(c.mm_near.mesh != c.mm.mesh and c.mm.mesh.get_surface_count() == 1 and c.mm_near.mesh.get_surface_count() == 1, "near and far crowd are two one-surface meshes (2 draws)")
 	var ok_pos := true
 	var ok_walk := true
 	var worst := 0.0
@@ -298,6 +312,6 @@ func _test_no_growth(host: Node, city: City, amb: Node3D) -> void:
 		amb.crowd.on_shot(Vector3(-30.0, 0.0, 4.0))
 		await TestLib.frames(host, 40)
 	TestLib.check(host.get_tree().get_node_count() <= nodes_before, "no nodes are created while the city lives (%d -> %d)" % [nodes_before, host.get_tree().get_node_count()])
-	TestLib.check(city.multimesh_nodes.size() == mm_nodes and amb.traffic.mm.instance_count == inst_t and amb.crowd.mm.instance_count == inst_c, "MultiMesh nodes and instance counts stay constant")
+	TestLib.check(city.multimesh_nodes.size() == mm_nodes and amb.traffic.mm.instance_count == inst_t and amb.crowd.mm.instance_count == inst_c and amb.crowd.mm_near.instance_count == Crowd.NEAR_CAP, "MultiMesh nodes and instance counts stay constant")
 	TestLib.check(amb.crowd._u.size() + amb.crowd._buf.size() == arrays_before, "the crowd's arrays never grow")
 	TestLib.check(Crowd.BUILT * Crowd.STRIDE == amb.crowd._buf.size(), "the crowd writes one fixed buffer (%d floats)" % amb.crowd._buf.size())

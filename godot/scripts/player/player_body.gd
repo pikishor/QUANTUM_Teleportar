@@ -38,7 +38,7 @@ const GEAR_EMISSION := Color(0.012, 0.026, 0.034)   ## a faint silhouette floor 
 ## Its world environment also carries a flat teal ambient (the sky radiance map does not exist there), which fills every shadow of a standard material and
 ## turned the hero into pale-blue plastic: the hero's materials ignore ambient light on that renderer (the key and rim lights model him instead).
 const COMPAT_BOOST := 0.22
-const COMPAT_LIGHT := 0.2
+const COMPAT_LIGHT := 0.4
 ## ... and its albedo is tinted down on that renderer, where the moon (no shadows reach the hero there), the exposure lift and the blue key and rim lights would
 ## still wash him out and turn him cold blue. Calibrated on the title view: his mean luminance and hue then match the Mobile renderer's (0.09 vs 0.084).
 const COMPAT_TINT := Color(0.95, 0.74, 0.55)
@@ -744,7 +744,11 @@ static func _is_compat() -> bool:
 ## Put every mesh of `node` on the character layer in addition to the default layer 1.
 static func _set_layer(node: Node, mask: int) -> void:
 	if node is GeometryInstance3D and (node as GeometryInstance3D).layers != 0:     # a mesh on no layer (the rig's rest-pose twin) must stay invisible
-		(node as GeometryInstance3D).layers |= mask
+		var g := node as GeometryInstance3D
+		if _is_compat() and g.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
+			g.layers = mask                                  # Compat: ONLY the hero layer, so the world's lights (the unshadowed moon, lamps) cannot wash him out; his own key light stays
+		else:
+			g.layers |= mask
 	for c in node.get_children():
 		_set_layer(c, mask)
 

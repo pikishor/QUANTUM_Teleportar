@@ -6,7 +6,7 @@
   tools/textures/build_surfaces.sh                              (all of it: generate, import, patch, import)
 
 Every set is two files, both sampled with ONE tap each by the shaders (see assets/shaders/surface_tex.gdshaderinc):
-  surface_<name>_albedo.png  RGB = albedo as a DETAIL MODULATOR (mean luminance 0.5: the shader multiplies the world's own palette and macro tone by 2 x RGB, so
+  surface_<name>_albedo.png  RGB = albedo as a DETAIL MODULATOR (median luminance 0.5: the shader multiplies the world's own palette and macro tone by 2 x RGB, so
                              wear, tints and the day-night look stay under the world's control), A = dry roughness
   surface_<name>_normal.png  RG = tangent normal xy (z rebuilt), B = cavity / ambient occlusion, A = WET roughness (the wet variant of the same surface)
 Extra: surface_decals.png  (R oil + tyre polish, G puddle tide-mark rings, B litter flecks, A gutter grime; one mask tap),
@@ -96,8 +96,8 @@ def height_to_normal(h, strength):
 
 
 def modulate(rgb):
-    """Rescale an albedo so its mean luminance is exactly 0.5 (a detail modulator)."""
-    return np.clip(rgb * (0.5 / (rgb @ LUMA).mean()), 0.0, 1.0).astype(np.float32)
+    """Rescale an albedo so its MEDIAN luminance is 0.5 (a detail modulator: the typical pixel keeps the world's tone, bright flecks go up, pits go down)."""
+    return np.clip(rgb * (0.5 / np.median(rgb @ LUMA)), 0.0, 1.0).astype(np.float32)
 
 
 def u8(x):
@@ -110,7 +110,8 @@ def tint(*c):
 
 def save_pair(out, name, rgb, rough, nx, ny, cavity, wet_rough):
     alb = np.dstack([modulate(rgb), np.clip(rough, 0, 1)])
-    nrm = np.dstack([nx * 0.5 + 0.5, ny * 0.5 + 0.5, np.clip(cavity, 0, 1), np.clip(wet_rough, 0, 1)])
+    cavity = np.clip(cavity / np.percentile(cavity, 75), 0, 1)                 # 1 on the typical surface, below 1 only in pits, joints and cracks
+    nrm = np.dstack([nx * 0.5 + 0.5, ny * 0.5 + 0.5, cavity, np.clip(wet_rough, 0, 1)])
     for suffix, arr in (("albedo", alb), ("normal", nrm)):
         path = os.path.join(out, "surface_%s_%s.png" % (name, suffix))
         Image.fromarray(u8(arr), "RGBA").save(path, optimize=True, compress_level=9)

@@ -1,5 +1,5 @@
 // Tier-scaled PBR surface taps (tools/textures/gen_surfaces.py). Every set is ONE albedo tap + ONE normal tap:
-//   *_a : RGB = detail modulator (mean luminance 0.5, the shader multiplies the world's own colour by 2 x RGB), A = dry roughness
+//   *_a : RGB = detail modulator (median luminance 0.5, the shader multiplies the world's own colour by 2 x RGB), A = dry roughness
 //   *_n : RG = tangent normal xy (0.5 = flat), B = cavity, A = WET roughness
 // All taps use textureGrad with derivatives taken OUTSIDE the branches (no undefined derivatives at material borders) and a tier mip bias.
 // srf_k (0 on LOW: the procedural look stays) scales the effect, srf_hi (HIGH only) adds the second, rotated scale and the decal mask.

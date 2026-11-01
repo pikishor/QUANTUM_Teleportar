@@ -14,6 +14,8 @@ const MIRROR_SHADER := preload("res://assets/shaders/prop_crowd_mirror.gdshader"
 const MB := preload("res://scripts/world/mesh_builder.gd")
 
 const MODEL := "res://assets/models/citizen.glb"
+const NEAR_CAP := 24                     ## people drawn with the full mesh (about 730 triangles): the nearest ones, within NEAR_RADIUS of the player
+const NEAR_RADIUS := 24.0                ## everybody else is drawn with the cut-down mesh "CitizenFar" (about 250 triangles)
 const ARCHETYPES := 6                    ## the shader shows archetype floor(seed * 5.999) of the citizen mesh
 const BUILT := 100                       ## pool size = MultiMesh instances (the HIGH count)
 const COUNTS: Array[int] = [24, 48, 100]
@@ -33,7 +35,8 @@ const OFF_MAX := 0.62
 const GROUP_CHANCE := 0.09               ## a fresh spawn that starts a little group chatting on the pavement (2-3 people, facing each other)
 const IDLE_CHANCE := 0.012               ## per second, for a walker: stop for a moment
 
-var mm: MultiMesh
+var mm: MultiMesh                        ## the far crowd (cut-down mesh, every pool slot; a person who is near has a zero-scale record here)
+var mm_near: MultiMesh                   ## the near crowd (full mesh), compacted every step
 var material: ShaderMaterial
 var mirror_material: ShaderMaterial
 var count := 0                           ## pool in use (tier)
@@ -58,12 +61,20 @@ var _alive := PackedByteArray()
 var _first := PackedByteArray()          ## 1 until the first successful spawn after a reset: the first fill may use the whole ring
 var _reg := PackedInt32Array()           ## region id along the line (sidewalk / zebra spans), a change = a corner was passed
 var _buf := PackedFloat32Array()
+var _nbuf := PackedFloat32Array()
+var _nn := 0                             ## people in the near buffer this step
 var _fled := 0                           ## people sent running so far (tests, debugging)
 
 
 func build(light_map: Texture2D) -> void:
 	rng.seed = 424242
-	mm = MB.new_multimesh(_person_mesh(), BUILT, true, true)
+	var meshes := _person_meshes()
+	mm_near = MB.new_multimesh(meshes[0], NEAR_CAP, true, true)
+	mm = MB.new_multimesh(meshes[1], BUILT, true, true)
+	_nbuf.resize(NEAR_CAP * STRIDE)
+	for i in NEAR_CAP:
+		for c in 4:
+			_nbuf[i * STRIDE + 12 + c] = 1.0
 	for a: PackedFloat32Array in [_u, _lat, _off, _idle, _dir, _spd, _phase, _flee, _age, _seed, _size, _umb]:
 		a.resize(BUILT)
 	_axis.resize(BUILT)
@@ -85,26 +96,33 @@ func build(light_map: Texture2D) -> void:
 	for m: ShaderMaterial in [material, mirror_material]:
 		m.set_shader_parameter(&"light_map", light_map)
 	mm.buffer = _buf
+	mm_near.buffer = _nbuf
+	mm_near.visible_instance_count = 0
 	set_tier(quality)
 
 
-## The citizen mesh of the model (1.76 m, origin at the feet, facing -Z, vertex colours = surface / piece / shadow / part tag); the box silhouette below is only the
-## fallback of a checkout whose models were not imported yet.
-static func _person_mesh() -> Mesh:
+## The two citizen meshes of the model [near, far] (1.76 m, origin at the feet, facing -Z, vertex colours = surface / piece / shadow / part tag); the box silhouette below
+## is only the fallback of a checkout whose models were not imported yet.
+static func _person_meshes() -> Array[Mesh]:
+	var near: Mesh = null
+	var far: Mesh = null
 	var ps := load(MODEL) as PackedScene
 	if ps != null:
 		var root := ps.instantiate()
-		var found: Mesh = null
-		var stack: Array[Node] = [root]
-		while not stack.is_empty() and found == null:
-			var n: Node = stack.pop_back()
-			if n is MeshInstance3D and (n as MeshInstance3D).mesh != null:
-				found = (n as MeshInstance3D).mesh
-			stack.append_array(n.get_children())
+		for n in root.find_children("*", "MeshInstance3D", true, false):
+			var mi := n as MeshInstance3D
+			if mi.mesh == null:
+				continue
+			if String(mi.name).begins_with("CitizenFar"):
+				far = mi.mesh
+			elif String(mi.name).begins_with("Citizen"):
+				near = mi.mesh
 		root.free()
-		if found != null:
-			return found
-	return _box_person_mesh()
+	if near == null:
+		near = _box_person_mesh()
+	if far == null:
+		far = near
+	return [near, far]
 
 
 ## COLOR.r = surface (0 skin, 0.5 trousers, 1 coat), g = piece 0, b = 1 (lit), a = part tag (see the shader).
@@ -273,6 +291,7 @@ func _spawn_group(i: int) -> void:
 ## Advance everything by `delta` seconds around `center` and refresh the MultiMesh (one buffer write).
 func step(delta: float, center: Vector3) -> void:
 	var spawned := 0
+	_nn = 0
 	var r2 := radius * radius * 1.04
 	for i in count:
 		if _alive[i] == 0:
@@ -281,7 +300,7 @@ func step(delta: float, center: Vector3) -> void:
 				# first fill: anywhere in the ring; later: at its outer edge, so nobody pops into the street in front of the player
 				if _spawn(i, center, MIN_SPAWN if _first[i] == 1 else radius * 0.7):
 					_first[i] = 0
-			_write(i, 0.0)
+			_write(i, 0.0, false)
 			continue
 		var sp := FLEE_SPEED if _flee[i] > 0.0 else _spd[i]
 		if _idle[i] > 0.0 and _flee[i] <= 0.0:
@@ -324,14 +343,24 @@ func step(delta: float, center: Vector3) -> void:
 		var dz := p.z - center.z
 		if dx * dx + dz * dz > r2:
 			_alive[i] = 0
-			_write(i, 0.0)
+			_write(i, 0.0, false)
 			continue
-		_write(i, minf(1.0, _age[i] * 1.5))
+		_write(i, minf(1.0, _age[i] * 1.5), dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS)
 	mm.buffer = _buf
+	mm_near.buffer = _nbuf
+	mm_near.visible_instance_count = _nn
 
 
-func _write(i: int, fade: float) -> void:
-	var o := i * STRIDE
+func _write(i: int, fade: float, near: bool) -> void:
+	if near and _nn < NEAR_CAP and _alive[i] != 0:
+		_fill(_nbuf, _nn * STRIDE, i, fade)
+		_nn += 1
+		_fill(_buf, i * STRIDE, i, 0.0)                              # the far mesh draws nobody who is drawn near
+	else:
+		_fill(_buf, i * STRIDE, i, fade)
+
+
+func _fill(buf: PackedFloat32Array, o: int, i: int, fade: float) -> void:
 	var k := _size[i] * fade
 	var c := 0.0
 	var s := 0.0
@@ -349,19 +378,19 @@ func _write(i: int, fade: float) -> void:
 		s = 0.0
 		c = 0.0
 	# Basis(UP, yaw) scaled by k, row-major 3x4: [c 0 s x; 0 1 0 y; -s 0 c z]
-	_buf[o] = c * k
-	_buf[o + 1] = 0.0
-	_buf[o + 2] = s * k
-	_buf[o + 3] = x
-	_buf[o + 4] = 0.0
-	_buf[o + 5] = k
-	_buf[o + 6] = 0.0
-	_buf[o + 7] = 0.0
-	_buf[o + 8] = -s * k
-	_buf[o + 9] = 0.0
-	_buf[o + 10] = c * k
-	_buf[o + 11] = z
-	_buf[o + 16] = _seed[i]
-	_buf[o + 17] = _phase[i]
-	_buf[o + 18] = 0.0 if (_idle[i] > 0.0 and _flee[i] <= 0.0) else 0.5 + 0.38 * (FLEE_SPEED if _flee[i] > 0.0 else _spd[i])
-	_buf[o + 19] = _umb[i]
+	buf[o] = c * k
+	buf[o + 1] = 0.0
+	buf[o + 2] = s * k
+	buf[o + 3] = x
+	buf[o + 4] = 0.0
+	buf[o + 5] = k
+	buf[o + 6] = 0.0
+	buf[o + 7] = 0.0
+	buf[o + 8] = -s * k
+	buf[o + 9] = 0.0
+	buf[o + 10] = c * k
+	buf[o + 11] = z
+	buf[o + 16] = _seed[i]
+	buf[o + 17] = _phase[i]
+	buf[o + 18] = 0.0 if (_idle[i] > 0.0 and _flee[i] <= 0.0) else 0.5 + 0.38 * (FLEE_SPEED if _flee[i] > 0.0 else _spd[i])
+	buf[o + 19] = _umb[i]

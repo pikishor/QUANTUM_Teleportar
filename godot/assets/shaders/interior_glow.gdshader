@@ -34,7 +34,8 @@ void fragment() {
 		a = fx * fx * fy * fy;
 	} else {
 		float k = vuv.y;
-		a = (1.0 - k * 0.85) * 0.5 * (0.35 + 0.65 * show);
+		float edge = pow(clamp(abs(dot(normalize(NORMAL), normalize(VIEW))), 0.0, 1.0), 1.4);   // soft sides: the cone fades where it turns away from the eye
+		a = (1.0 - k * 0.85) * 0.5 * edge * (0.35 + 0.65 * show);
 	}
 	ALBEDO = vcol.rgb * vcol.a * a;     // unshaded ignores EMISSION: the additive result is written as albedo
 }

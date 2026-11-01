@@ -207,7 +207,7 @@ func tick(delta: float) -> void:
 				if _dist(pp, target_pos) < SAFE_REACH + 0.6:
 					progress = minf(1.0, progress + delta / SAFE_TIME)
 				else:
-					progress = maxf(0.0, progress - delta * 0.6)
+					progress = maxf(0.0, progress - delta * 0.25)
 					if progress <= 0.0:
 						state = &"active"
 				if progress >= 1.0:
@@ -299,10 +299,7 @@ func _say(stage: StringName) -> void:
 	if not lines.has(str(stage)) and not lines.has(stage):
 		return
 	var text := str(lines.get(str(stage), lines.get(stage, "")))
-	if is_instance_valid(Game.story) and Game.story.has_method(&"say"):
-		Game.story.call(&"say", "ORACLE", text, "int_%s_%s" % [str(kind), str(stage)], 0.0, 1)
-	else:
-		Game.say(text, 3.0)
+	InteriorGameplay.radio("ORACLE", text, "int_%s_%s" % [str(kind), str(stage)], 0.0, 1)
 
 
 # --- display ----------------------------------------------------------------------------------------------------------

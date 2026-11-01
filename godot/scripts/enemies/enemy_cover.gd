@@ -12,6 +12,8 @@ const MIN_THREAT_DIST := 6.0
 
 ## The nearest cover spot for `who` (an Operative) against the point `threat`, within `radius` metres of who, or Vector3.INF.
 static func find(who: Node3D, threat: Vector3, radius := 22.0) -> Vector3:
+	if InteriorSpace.contains(who.global_position):      # a generated interior: its own props are the cover
+		return InteriorSpace.cover_spot(who.global_position, threat, radius)
 	var city := Game.world
 	if not is_instance_valid(city) or not city.has_method(&"prop_colliders"):
 		return Vector3.INF

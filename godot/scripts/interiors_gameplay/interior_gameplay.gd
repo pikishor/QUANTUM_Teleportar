@@ -173,6 +173,18 @@ static func _rects_of(arr: Variant) -> Array[Rect2]:
 	return out
 
 
+## One radio line through the story layer (also recorded in Story.shown like the story's own groups). Falls back to the HUD message line without a story.
+static func radio(speaker: String, text: String, id: String, wait := 0.0, prio := 0) -> bool:
+	var st: Object = Game.story if is_instance_valid(Game.story) else null
+	if st == null or not st.has_method(&"say"):
+		Game.say(text, 3.0)
+		return false
+	var ok: bool = st.call(&"say", speaker, text, id, wait, prio)
+	if ok and st.get(&"shown") is Array:
+		(st.get(&"shown") as Array).append(id)
+	return ok
+
+
 static func exit_point(room: Node3D) -> Vector3:
 	var p = room.get("exit_pos")
 	return p if p is Vector3 else ORIGIN
@@ -397,8 +409,8 @@ func _apply_exit() -> void:
 		for t in out_types:
 			em.spawn(t, Vector3(d["pos"]) + Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0)), true)
 	exit_count += 1
-	if is_instance_valid(Game.story) and enter_count % 3 == 1:
-		Game.story.call(&"say", "ORACLE", str((InteriorData.RADIO[&"exit"] as Array)[0][1]), "int_exit", 0.5, 0)
+	if enter_count % 3 == 1:
+		radio("ORACLE", str((InteriorData.RADIO[&"exit"] as Array)[0][1]), "int_exit", 0.5, 0)
 	if autosave:
 		save_state()
 	exited.emit(d)
@@ -676,8 +688,7 @@ func tell_rumour() -> String:
 			hinted[int(best["id"])] = true
 			text += "  [%s MARKED]" % str(best["name"])
 			_refresh_markers()
-	if is_instance_valid(Game.story) and Game.story.has_method(&"say"):
-		Game.story.call(&"say", "ORACLE", text.get_slice("  [", 0), "int_rumour_%d" % i, 0.0, 1)
+	radio("ORACLE", text.get_slice("  [", 0), "int_rumour_%d" % i, 0.0, 1)
 	return text
 
 
@@ -689,8 +700,7 @@ func _radio_enter(type: StringName, id: int, hunted: bool) -> void:
 		return
 	var pair: Array = lines[(id + enter_count) % lines.size()]
 	last_radio = str(pair[1])
-	if is_instance_valid(Game.story) and Game.story.has_method(&"say"):
-		Game.story.call(&"say", str(pair[0]), str(pair[1]), "int_%s_%d" % [str(type), (id + enter_count) % lines.size()], 0.8, 0)
+	radio(str(pair[0]), str(pair[1]), "int_%s_%d" % [str(type), (id + enter_count) % lines.size()], 0.8, 0)
 
 
 ## Markers for InteriorMinimap: {pos, color, kind (&"diamond" / &"disc" / &"target" / &"area" / &"zone"), size}.

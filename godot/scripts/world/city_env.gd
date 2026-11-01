@@ -88,6 +88,8 @@ func build(parent: Node3D) -> void:
 	sun.light_energy = 0.9
 	sun.light_angular_distance = 1.2
 	sun.light_specular = 1.0
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
+		sun.light_cull_mask = 0xFFFFF & ~(1 << 19)       # Compat: the unshadowed moon plus the exposure lift lit the hero to white; he keeps his own key light (player_body.gd, layer 20)
 	sun.shadow_bias = 0.04
 	sun.shadow_normal_bias = 1.2
 	sun.shadow_blur = 1.4

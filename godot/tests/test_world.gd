@@ -24,6 +24,7 @@ func run(host: Node) -> void:
 	_test_prop_colours(city)
 	_test_skyline(city)
 	await _test_quality(host, city)
+	await _test_surfaces(host, city)
 	await _test_streaming(host, city)
 	_test_stats(city)
 
@@ -517,6 +518,45 @@ func _test_quality(host: Node, city: City) -> void:
 	TestLib.check(city.quality == 0, "set_quality clamps below 0")
 	city.set_quality(99)
 	TestLib.check(city.quality == 2, "set_quality clamps above 2")
+	city.set_quality(1)
+
+
+## Tier-scaled PBR surfaces (SurfaceTextures, assets/shaders/surface_tex.gdshaderinc): files, import settings, per-tier taps, samplers, memory estimate.
+func _test_surfaces(host: Node, city: City) -> void:
+	var stems := ["asphalt", "sidewalk", "brick", "concrete", "corrugated", "painted_metal", "roof_tar", "trim"]
+	var all_there := true
+	var packed := true
+	for st in stems:
+		for suffix in ["albedo", "normal"]:
+			var path := "res://assets/textures/surface_%s_%s.png" % [st, suffix]
+			all_there = all_there and ResourceLoader.exists(path)
+			var imp := FileAccess.get_file_as_string(path + ".import")
+			packed = packed and imp.contains("compress/mode=2") and imp.contains("mipmaps/generate=true") and imp.contains("compress/normal_map=0")
+	TestLib.check(all_there and ResourceLoader.exists("res://assets/textures/surface_decals.png"), "the 8 surface sets and the decal mask are imported")
+	TestLib.check(packed, "surface textures are VRAM compressed with mipmaps, packed normals stay colour textures")
+	TestLib.check(PerfTiers.surface_taps(0) == 0 and PerfTiers.surface_taps(1) == 1 and PerfTiers.surface_taps(2) == 2, "taps per tier: LOW 0, MED 1, HIGH 2")
+	TestLib.check(PerfTiers.surface_mip_bias(2) < PerfTiers.surface_mip_bias(1), "HIGH samples the surfaces sharper than MED")
+	var ground: ShaderMaterial = city._ground.material
+	var bmat: ShaderMaterial = city._building_mat
+	var want := {0: [0.0, 0.0], 1: [1.0, 0.0], 2: [1.0, 1.0]}
+	for level in [0, 1, 2]:
+		city.set_quality(level)
+		await TestLib.frames(host, 2)
+		var ok := is_equal_approx(float(ground.get_shader_parameter(&"srf_k")), want[level][0]) and is_equal_approx(float(ground.get_shader_parameter(&"srf_hi")), want[level][1])
+		ok = ok and is_equal_approx(float(bmat.get_shader_parameter(&"srf_k")), want[level][0])
+		TestLib.check(ok, "quality %d: surface taps k=%s hi=%s on ground and buildings" % [level, want[level][0], want[level][1]])
+		var road = ground.get_shader_parameter(&"srf_road_a")
+		var brick = bmat.get_shader_parameter(&"srf_brick_n")
+		TestLib.check((road == null) == (level == 0) and (brick == null) == (level == 0), "quality %d: surface textures %s" % [level, "not loaded" if level == 0 else "bound"])
+		var decal = ground.get_shader_parameter(&"srf_decal")
+		TestLib.check((decal != null) == (level == 2), "quality %d: decal mask %s" % [level, "bound" if level == 2 else "not bound"])
+	var med := SurfaceTextures.estimate_bytes(1)
+	var high := SurfaceTextures.estimate_bytes(2)
+	TestLib.check(SurfaceTextures.estimate_bytes(0) == 0 and med > 0 and med < 40_000_000 and high < 90_000_000 and med < high,
+			"surface texture memory: LOW 0, MED %.1f MB (limit 40), HIGH %.1f MB (limit 90)" % [med / 1e6, high / 1e6])
+	for m: ShaderMaterial in city._prop_mats:
+		TestLib.check(is_equal_approx(float(m.get_shader_parameter(&"srf_k")), 1.0), "prop material carries the surface taps at the last tier (HIGH)")
+		break
 	city.set_quality(1)
 
 

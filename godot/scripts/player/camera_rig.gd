@@ -49,6 +49,8 @@ const FADE_START := 1.2                      ## the hero fades out smoothly when
 const FADE_END := 0.9                        ## ... and is fully hidden at this distance
 const MIN_ARM := 0.85                        ## shortest camera arm in metres, however close the wall is (the prototype's floor was 0.5 m)
 const RIG_PRIORITY := 100                    ## process priority: after the nodes it follows (lower numbers run first)
+const INTERIOR_ARM_SCALE := 0.68             ## inside a generated interior (scripts/interiors/) the on-foot arm is this fraction of its length ...
+const INTERIOR_MIN_ARM := 0.3                ## ... and may shrink to this: the hero capsule (0.35 m) keeps the camera in front of the wall behind him, the hero fades out when the camera is that close
 const SQUEEZE_START := 2.0                   ## an arm shorter than this (metres) starts to slide the camera toward a free shoulder ...
 const SQUEEZE_SIDE := 0.5                    ## ... by this much sideways at full squeeze (arm at the MIN_ARM floor) ...
 const SQUEEZE_UP := 0.1                      ## ... and this much up
@@ -552,7 +554,7 @@ func _update_view(dt: float) -> void:
 			recoil_yaw = 0.0
 
 	# --- distance, shoulder, height and FOV for the current situation
-	var foot_dist := lerpf(HIP_DIST, ADS_DIST, ads_s)
+	var foot_dist := lerpf(HIP_DIST, ADS_DIST, ads_s) * (INTERIOR_ARM_SCALE if InteriorSpace.active else 1.0)      # a shorter arm in the tight rooms of a generated interior
 	var foot_shoulder := lerpf(HIP_SHOULDER, ADS_SHOULDER, ads_s)
 	var foot_fov := lerpf(lerpf(FOV_HIP, FOV_SPRINT, _sprint), ads_fov, ads_s)
 	var veh_dist := VEH_DIST + clampf(absf(veh_speed) * 0.04, 0.0, 1.2)
@@ -613,7 +615,7 @@ func _update_view(dt: float) -> void:
 	arm.notification(Node.NOTIFICATION_INTERNAL_PHYSICS_PROCESS)
 	var arm_len := maxf(arm.spring_length, 0.001)
 	var arm_free := arm.get_hit_length()
-	var free_ratio := clampf(arm_free / arm_len, minf(1.0, MIN_ARM / arm_len), 1.0)     # never closer than MIN_ARM, even inside a wall
+	var free_ratio := clampf(arm_free / arm_len, minf(1.0, (INTERIOR_MIN_ARM if InteriorSpace.active else MIN_ARM) / arm_len), 1.0)     # never closer than MIN_ARM, even inside a wall
 	if free_ratio < _ratio or dt <= 0.0:
 		_ratio = free_ratio                  # walls pull the camera in at once
 	else:

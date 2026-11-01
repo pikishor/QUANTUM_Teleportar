@@ -442,6 +442,10 @@ func _step(sx: float, sz: float) -> void:
 	var pos := global_position
 	var nx := pos.x + sx
 	var nz := pos.z + sz
+	if InteriorSpace.contains(pos):                  # inside a generated interior: slide along its walls and props; the street map's clamp and buildings do not apply there
+		var rs := InteriorSpace.resolve(pos.x, pos.z, nx, nz, radius * 0.7)
+		global_position = Vector3(rs.x, _ground_y(rs.x, rs.y), rs.y)
+		return
 	var city := Game.world as City
 	if city != null:
 		var m := radius * 0.7
@@ -462,7 +466,7 @@ func _step(sx: float, sz: float) -> void:
 
 ## Drones hover with a bob; an operative overrides this to stand on the ground.
 func _ground_y(_x: float, _z: float) -> float:
-	return _hover + sin(_t * 2.2) * 0.12
+	return _hover + sin(_t * 2.2) * 0.12 + (InteriorSpace.floor_y if InteriorSpace.contains(global_position) else 0.0)
 
 
 func _place(delta: float) -> void:

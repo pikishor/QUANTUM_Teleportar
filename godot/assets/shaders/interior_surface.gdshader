@@ -1,6 +1,6 @@
 shader_type spatial;
 // Interior surfaces (scripts/interiors/): walls, floors, ceilings and every merged prop of one interior in ONE draw call.
-// Baked-looking light: ambient colour + up to six fake light pools (distance falloff, plus a cheap glossy floor reflection of each pool) + emissive strips and neon.
+// Baked-looking light: ambient colour + up to eight fake light pools (distance falloff, plus a cheap glossy floor reflection of each pool) + emissive strips and neon.
 // Nothing here reads the city's moon, fog or ambient: the interior is lit by itself, so it looks the same under any environment.
 // Vertex data: COLOR.rgb = albedo (emissive classes: the glow colour), COLOR.a = emission strength; UV.x = surface class, UV.y = ceiling height (walls) or a per-object phase.
 //   class 0 wall (baseboard, dado rail, crown, panel seams, grime), 1 floor (tiles, grout, puddles), 2 ceiling (panels), 3 metal prop, 4 soft / painted prop,
@@ -11,7 +11,7 @@ uniform vec3 ambient_col = vec3(0.07, 0.07, 0.09);
 uniform float floor_y = 0.0;
 uniform float detail = 1.0;            // 0 LOW, 1 MED, 2 HIGH: grime octaves
 uniform float show = 0.0;              // club light show: pools and dance floor pulse
-uniform float pool_n = 6.0;
+uniform float pool_n = 8.0;
 uniform vec4 pool_pos0 = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 pool_col0 = vec4(0.0);
 uniform vec4 pool_pos1 = vec4(0.0, 0.0, 0.0, 1.0);
@@ -24,6 +24,10 @@ uniform vec4 pool_pos4 = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 pool_col4 = vec4(0.0);
 uniform vec4 pool_pos5 = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 pool_col5 = vec4(0.0);
+uniform vec4 pool_pos6 = vec4(0.0, 0.0, 0.0, 1.0);
+uniform vec4 pool_col6 = vec4(0.0);
+uniform vec4 pool_pos7 = vec4(0.0, 0.0, 0.0, 1.0);
+uniform vec4 pool_col7 = vec4(0.0);
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -198,6 +202,8 @@ void fragment() {
 	pl += pool(pool_pos3, pool_col3, 3.0, wpos, wnrm, rv, gloss, g); gsum += g;
 	pl += pool(pool_pos4, pool_col4, 4.0, wpos, wnrm, rv, gloss, g); gsum += g;
 	pl += pool(pool_pos5, pool_col5, 5.0, wpos, wnrm, rv, gloss, g); gsum += g;
+	pl += pool(pool_pos6, pool_col6, 6.0, wpos, wnrm, rv, gloss, g); gsum += g;
+	pl += pool(pool_pos7, pool_col7, 7.0, wpos, wnrm, rv, gloss, g); gsum += g;
 	if (lit) {
 		emit += alb * pl + gsum;
 	}
@@ -210,12 +216,12 @@ void fragment() {
 
 // Only the interior's own (shadowless) omni lights count: the moon is skipped, so the roof and the weather never leak in.
 void light() {
-	if (LIGHT_IS_DIRECTIONAL) {
-		return;
+	// LIGHT_IS_DIRECTIONAL: skip the moon (a `return` is not allowed in light(), so the work sits inside the branch)
+	if (!LIGHT_IS_DIRECTIONAL) {
+		float ndl = max(dot(NORMAL, LIGHT), 0.0);
+		DIFFUSE_LIGHT += LIGHT_COLOR * ATTENUATION * ndl * 0.32;
+		vec3 hv = normalize(LIGHT + VIEW);
+		float sh = mix(10.0, 110.0, 1.0 - ROUGHNESS);
+		SPECULAR_LIGHT += LIGHT_COLOR * ATTENUATION * pow(max(dot(NORMAL, hv), 0.0), sh) * (1.0 - ROUGHNESS) * ndl * 0.5;
 	}
-	float ndl = max(dot(NORMAL, LIGHT), 0.0);
-	DIFFUSE_LIGHT += LIGHT_COLOR * ATTENUATION * ndl * 0.32;
-	vec3 hv = normalize(LIGHT + VIEW);
-	float sh = mix(10.0, 110.0, 1.0 - ROUGHNESS);
-	SPECULAR_LIGHT += LIGHT_COLOR * ATTENUATION * pow(max(dot(NORMAL, hv), 0.0), sh) * (1.0 - ROUGHNESS) * ndl * 0.5;
 }

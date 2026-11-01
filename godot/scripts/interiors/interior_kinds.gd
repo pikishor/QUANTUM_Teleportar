@@ -81,9 +81,9 @@ const SPECS := {
 	&"club": {
 		"name": "CLUB", "ceil": [5.4, 6.0], "windows": 0.3, "hostile": false,
 		"pal": {"wall": Color(0.07, 0.05, 0.10), "wall2": Color(0.05, 0.05, 0.09), "floor": Color(0.05, 0.045, 0.07), "ceil": Color(0.04, 0.04, 0.06), "trim": Color(0.25, 0.1, 0.35),
-			"neon": [Color(1.0, 0.1, 0.65), Color(0.15, 0.7, 1.0), Color(0.7, 0.2, 1.0)], "key": Color(0.8, 0.4, 1.0), "amb": Color(0.05, 0.035, 0.07)},
+			"neon": [Color(1.0, 0.1, 0.65), Color(0.15, 0.7, 1.0), Color(0.7, 0.2, 1.0)], "key": Color(0.8, 0.4, 1.0), "amb": Color(0.085, 0.06, 0.115)},
 		"rooms": [
-			{"role": "hall", "w": [11.0, 14.0], "d": [9.0, 12.0], "prog": [["dance"], ["wall", "dj", 1, 1, "back"], ["wall", "speaker", 2, 4, "back"], ["counter", "bar"], ["wall", "couch", 2, 4, "left"],
+			{"role": "hall", "w": [11.0, 14.0], "d": [9.0, 12.0], "prog": [["dance"], ["wall", "dj", 1, 1, "back"], ["wall", "speaker", 2, 4, "back"], ["counter", "bar", "right"], ["wall", "couch", 2, 4, "left"],
 				["sets", "table_round", "stool", 1, 2, 2], ["wm", "screen", 2, 3, "right"], ["beams", 5], ["hang", 3], ["detail", "bin", 1, 2], ["anchor", "civilian", 5, 7], ["anchor", "guard", 2, 3]]},
 			{"role": "vip", "w": [5.0, 6.0], "d": [4.0, 5.0], "prog": [["officer"], ["wall", "couch", 2, 2, "back"], ["free", "table_round", 1, 1], ["wm", "screen", 1, 2, "any"], ["anchor", "guard", 2, 3], ["anchor", "civilian", 1, 2]]},
 			{"role": "store", "w": [4.0, 5.0], "d": [3.5, 4.5], "prog": [["free", "crate", 2, 4], ["wall", "shelf", 1, 1, "back"], ["pipes", 2], ["anchor", "civilian", 1, 1]]},

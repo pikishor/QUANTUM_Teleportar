@@ -74,6 +74,10 @@ func step(_t: float, _dt: float) -> bool:
 
 func _begin_tier() -> void:
 	Game.set_quality(tiers[_i])
+	if OS.get_environment("BOT_NOPOST") != "":           # look-dev switch: the film pass off
+		Game.atmosphere.set(&"enabled", false)
+	if OS.get_environment("BOT_NOSHADOW") != "":
+		(Game.world as City)._env.sun.shadow_enabled = false
 	_p.teleport_to(Game.SPAWN)
 	_p.camera_rig.reset_view(-PI * 0.5, -0.1)
 	_p.yaw = -PI * 0.5

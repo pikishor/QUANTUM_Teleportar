@@ -172,8 +172,8 @@ void fragment() {
 				ta.a = mix(ta.a, ta2.a, 0.4);
 			}
 			asph *= mix(vec3(1.0), modc, srf) * mix(1.0, tn.b, 0.7 * srf);
-			slab_n += vec3(sl.x, 0.0, sl.y) * 0.8 * srf;
-			wet_r = mix(wet_r, 0.04 + 0.9 * tn.a, srf);
+			slab_n += vec3(sl.x, 0.0, sl.y) * 0.8 * srf * (1.0 - 0.65 * wet);        // a water film hides most of the micro relief
+			wet_r = mix(wet_r, 0.05 + 0.33 * tn.a, srf);
 			tex_rough = ta.a;
 		}
 #endif
@@ -286,8 +286,8 @@ void fragment() {
 			conc *= mix(vec3(1.0), modc, srf) * mix(1.0, tn.b, 0.7 * srf);
 			stone_mod = mix(vec3(1.0), modc, srf);
 			tex_rough = ta.a;
-			wet_r = mix(wet_r, 0.04 + 0.9 * tn.a, srf);
-			tex_n = vec3(sl.x, 0.0, sl.y) * 0.7 * srf;
+			wet_r = mix(wet_r, 0.05 + 0.33 * tn.a, srf);
+			tex_n = vec3(sl.x, 0.0, sl.y) * 0.7 * srf * (1.0 - 0.65 * wet);
 		}
 #endif
 		// stains and, in about one slab in eight, a hairline crack straight through the slab (it ends at the joints, like a real slab crack)

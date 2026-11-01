@@ -50,9 +50,10 @@ Taillights, Underglow) stay separate on purpose, because gameplay recolours or t
 
 | Model | Nodes (direct children of the root) | Materials (draw calls) | Tris |
 |---|---|---|---|
-| `player` (Kestrel), `operative` (Vael trooper) | ONE skinned `Body` mesh under `Rig/Skeleton3D` (bones `Hips > Torso > Head, UpperArmL/R > ForeArmL/R, Rifle`; `Hips > ThighL/R > ShinL/R > FootL/R`, plus optional `Sec1 > Sec2 > Sec3` cloak / tail chain; rest rotation identity, origin = pivot) + root empties `Muzzle`, `WristL/R`, `MagWell`, `MagPouch` | one baked `Gear` (**1 draw call**) | 14.8k / 5.6k |
+| `player` (Kestrel), `operative` (Vael trooper) | ONE skinned `Body` mesh under `Rig/Skeleton3D` (bones `Hips > Torso > Head, UpperArmL/R > ForeArmL/R, Rifle`; `Hips > ThighL/R > ShinL/R > FootL/R`, plus optional `Sec1 > Sec2 > Sec3` cloak / tail chain; rest rotation identity, origin = pivot) + root empties `Muzzle`, `WristL/R`, `MagWell`, `MagPouch` | one baked `Gear` (**1 draw call**) | 17.8k / 8.3k |
 | `drone_sentinel/striker/heavy` (jelly / living bomb / beetle gunship) | `Body`, `Fins` (origin on the body axis: tendril frill, thorn ring, cilia skirt; the game turns and pulses it), `Eye` (flat emissive material, recolour a duplicate), `Muzzle` (sentinel, heavy) | baked `Hull` (Body + Fins) + flat `Eye` (**3 draw calls**) | 2.5k-3.9k |
 | `car_sedan/sport/suv` | `Body`, `WheelFL/FR/RL/RR` (origin = axle centre; steer by Y rotation, roll about X) | `Body` (neutral paint, recolour), baked `Details` (trim, rubber, chrome, tinted opaque glass), flat `Headlights`, `Taillights`, `Underglow`; wheels use `Details` (**9 draw calls**) | ~8k |
+| `citizen` (pedestrian, no atlas) | two meshes `Citizen` (near) and `CitizenFar`, each ONE surface with COLOR_0 (R surface, G piece id, B baked shadow, A part tag; see `model_citizen.py`), shaded by `prop_crowd_core.gdshaderinc` | vertex-colour only (**1 draw call per mesh**) | 734 / 251 |
 | `pickup_health`, `pickup_energy`, `core_gem` | `Body` | one baked material named `Glow` (duplicate it and change `emission` to retint) (**1 draw call**) | 1.2k-2.4k |
 
 Authored at final size (human 1.82 m, sedan 4.75 x 1.86 x 1.48 m, sport 4.45 x 1.92 x 1.20 m, SUV 4.85 x 1.98 x 1.83 m,
@@ -64,6 +65,9 @@ texture is neutral and only carries wear, grime and clear-coat variation). Emiss
 colours, strength 2-3) and the glowing details baked into `Gear` / `Hull` / `Glow` (emission strength 1.3-1.8). Emission is kept low on purpose:
 the city's ACES tonemap turns anything hotter than about 2 into white and the colour code (green health, cyan energy, red / amber / purple
 drones) would be lost; the colour is carried by saturated emitters and by the lights below.
+
+## High-poly bake (`hipoly.py`)
+`export_model(..., hipoly=dict(levels=2))` (hero and trooper): the built parts are subdivided (Catmull-Clark) and displaced with real per-kind relief (scutes, panel seams and rivets, cloak folds), then `atlas.bake` ray-casts every texel of the low-poly mesh onto that surface and bakes the tangent-space normal and a cavity term into the 2K normal / ORM / albedo atlases (UDN-blended with the procedural relief). pip `bpy` has no Cycles, so this is a numpy + mathutils BVH baker, deterministic and byte-identical. `QT_NOHIPOLY=1` disables it; options `levels`, `scale`, `kind_scale`.
 
 ## Lights, light layers and LOD tags (`post_import.gd`)
 The model scripts place marker empties (`helpers.light(...)`, a `qt_light` JSON property); `tools/blender/post_import.gd` (the import script

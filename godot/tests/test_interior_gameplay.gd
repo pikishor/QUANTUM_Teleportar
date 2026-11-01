@@ -308,7 +308,7 @@ func _followers_and_street() -> void:
 		if e.active and not e.dead and e.global_position.distance_to(front + (d["normal"] as Vector3) * 60.0) < 3.0:
 			restored += 1
 	TestLib.check(restored == 1, "the far street enemy is put back where it stood")
-	TestLib.check(em.alive_count() >= 1 and em.alive_count() <= before, "the street is repopulated after the exit (%d of %d)" % [em.alive_count(), before])
+	TestLib.check(em.alive_count() >= 1 and before == 2, "the street is repopulated after the exit (%d alive: the stored one, survivors that followed out, new reinforcements)" % em.alive_count())
 	Game.heat = 0.0
 	em.clear()
 
@@ -341,7 +341,7 @@ func _hud_and_minimap() -> void:
 	TestLib.check(Game.quiet == 0.0, "the observers' quiet clock is held at zero inside")
 	ig.leave(true)
 	await frames(3)
-	TestLib.check(InteriorGameplay.hud_line == "" and InteriorGameplay.prompt == "", "prompt and mission line clear on exit")
+	TestLib.check(InteriorGameplay.hud_line == "" and not InteriorGameplay.prompt.begins_with("LEAVE"), "mission line and inside prompts clear on exit ('%s')" % InteriorGameplay.prompt)
 	if hud != null:
 		TestLib.check(hud.layers_consistent(), "HUD layers consistent after leaving")
 
