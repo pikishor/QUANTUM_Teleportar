@@ -143,7 +143,7 @@ func _boss(at := Vector3(32.0, 0.0, 0.0), aware := true) -> Overseer:
 func _data() -> void:
 	TestLib.check(EnemyTypes.TYPES.has(&"overseer") and EnemyTypes.TYPES[&"overseer"]["boss"] == true, "the overseer is in the type table")
 	TestLib.check(EnemyTypes.TYPES[&"overseer"]["scale"] > 1.8 and EnemyTypes.TYPES[&"overseer"]["hp"] >= 1000.0, "large and tough: 1.95x, 1500 hp")
-	TestLib.check(ContractTypes.BOSS_CHAPTERS == [2, 5] and ContractTypes.DATA.has(&"boss") and not ContractTypes.KINDS.has(&"boss"), "boss contract: chapters 3 and 6, not a random kind")
+	TestLib.check(ContractTypes.BOSS_CHAPTERS == [2, 5, 7] and ContractTypes.DATA.has(&"boss") and not ContractTypes.KINDS.has(&"boss"), "boss contract: chapters 3, 6 and 8, not a random kind")
 	TestLib.check(ContractTypes.BOSS_DROPS[2] == &"lance" and ContractTypes.BOSS_DROPS[5] == &"grenade", "unique drops: the lance and the grenade")
 	var ok := true
 	for k: String in ["phase1", "phase2", "pulse", "phase3", "down"]:

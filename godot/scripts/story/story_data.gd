@@ -21,7 +21,7 @@ const CARD_MAX := 200
 const OBJ_MAX := 56
 const TITLE_MAX := 24
 ## Index of the last story chapter; every sector after it plays the aftermath chapter (the last entry of CHAPTERS).
-const FINAL := 4
+const FINAL := 7
 
 const TAGLINE := "They farm your fear. Be in two places."
 
@@ -105,14 +105,65 @@ const CHAPTERS: Array[Dictionary] = [
 		"cores": {
 			1: {"s": O, "t": "Your hologram lasts six seconds. Drones that loved you for nine years last longer. Ask yourself why."},
 			3: {"s": K, "t": "Every anchor I take, a piece of the hive goes quiet in my skull, like a tooth coming out."},
-			5: {"s": O, "t": "After this, the gate. After the gate, the truth. Breathe. You are still you."},
+			5: {"s": O, "t": "After this, the forges. After the forges, the truth. Breathe. You are still you."},
 		},
 		"heat1": {"s": A, "t": "Hive to all drones: the Scout is located. Do not harm the vessel. Bring the vessel."},
 		"heat3": {"s": A, "t": "You always ran toward what you feared to measure. Come and measure it."},
-		"end": {"head": "CHAPTER 4 COMPLETE", "text": "The hive has a name for you, and it is not Kestrel. The Meridian Gate is one sector of rain away, and ORACLE is very quiet."},
+		"end": {"head": "CHAPTER 4 COMPLETE", "text": "The hive has a name for you, and it is not Kestrel. Three sectors of rain lie between you and the Meridian Gate, and ORACLE is very quiet."},
 	},
 	{
-		"id": "meridian_gate", "title": "THE MERIDIAN GATE", "sub": "SECTOR 05  //  MERIDIAN GATE",
+		"id": "forge_of_mirrors", "title": "FORGE OF MIRRORS", "sub": "SECTOR 05  //  FOUNDRY ROW",
+		"obj": "Break the forges. Take the cores.",
+		"intro": [
+			{"s": O, "t": "Sector 05, Foundry Row. The Vael grow their Observers in these furnaces. Break the line and the sky thins."},
+			{"s": K, "t": "The heat smells like blood and solder. Who is the hive building all this for?"},
+			{"s": O, "t": "For the Scout's return, Kestrel. Do not look too long at the cradles."},
+		],
+		"cores": {
+			1: {"s": K, "t": "The cradle is human-shaped, ribs and all. Somebody grew a spare of me in this furnace."},
+			3: {"s": O, "t": "Nine cradles, all empty. No-cloning holds, so the Vael keep failing to copy you."},
+			5: {"s": K, "t": "One cradle is still warm. It has my pulse, and it opened its eyes when I walked past."},
+		},
+		"heat1": {"s": A, "t": "Foundry hands, stand clear. The Scout walks the line. Open every door and let it through."},
+		"heat3": {"s": A, "t": "Heavy guard to the forge floor. Spare the vessel and break everything it loves."},
+		"end": {"head": "CHAPTER 5 COMPLETE", "text": "The furnaces go cold and nine empty cradles stare back. You were copied once, and the hive wants the original home. ORACLE keeps steering."},
+	},
+	{
+		"id": "drowned_relay", "title": "THE DROWNED RELAY", "sub": "SECTOR 06  //  RAIN SLUMS",
+		"obj": "Silence the relay. Bring the Lamplighters home.",
+		"intro": [
+			{"s": O, "t": "Sector 06. A Vael relay drowns the slums in the hive song. Take it down and the Lamplighters can breathe."},
+			{"s": K, "t": "Lamplighters? Humans who still talk back?"},
+			{"s": O, "t": "A cell of stubborn engineers. Get them out alive and they will keep your streets lit."},
+		],
+		"cores": {
+			1: {"s": O, "t": "The song just stuttered. Every window in this block flickered once, as if the city blinked."},
+			3: {"s": K, "t": "I can hear the relay in my teeth now. It is not noise, ORACLE. It is a lullaby."},
+			5: {"s": O, "t": "The relay was built on a translator. Mine. Part of me is the hive's voice, and I hate it."},
+		},
+		"heat1": {"s": A, "t": "Rain Slums, hum with us. Every voice in the song is a voice we do not have to harvest."},
+		"heat3": {"s": A, "t": "Dissonance in sector six. Drones, remove the noise and keep the singer intact."},
+		"end": {"head": "CHAPTER 6 COMPLETE", "text": "The relay falls silent and the slums hear their own rain for the first time. ORACLE admits it was grown from the hive's own translator."},
+	},
+	{
+		"id": "lantern_night", "title": "LANTERN NIGHT", "sub": "SECTOR 07  //  NEON MARKET",
+		"obj": "Survive the sweep. Take the last anchors.",
+		"intro": [
+			{"s": O, "t": "Sector 07. The Neon Market is lit for a festival no human may attend. A Vael patrol sweeps it every hour."},
+			{"s": K, "t": "Everything is bright and nobody is breathing. I hate this place already."},
+			{"s": O, "t": "Then be quick. The gate is one district away, and the hive knows where you are headed."},
+		],
+		"cores": {
+			1: {"s": K, "t": "A paper lantern, still burning on a dead stall. Somebody hoped. I will keep that one."},
+			3: {"s": O, "t": "Patrol incoming from the north arch. Do not fight it in the lanes. Run, then turn."},
+			5: {"s": K, "t": "Tell me the truth before the gate, ORACLE. Did you bring me here to end the Vael, or to deliver me?"},
+		},
+		"heat1": {"s": A, "t": "Festival hours, citizens. Lanterns on, voices off. The Scout is welcome in every doorway."},
+		"heat3": {"s": A, "t": "The patrol has the Scout's scent. Close the market and bring the vessel home."},
+		"end": {"head": "CHAPTER 7 COMPLETE", "text": "ORACLE finally answers: it was ordered to deliver you, and it chose not to. Only the gate is left, and the choice is yours."},
+	},
+	{
+		"id": "meridian_gate", "title": "THE MERIDIAN GATE", "sub": "SECTOR 08  //  MERIDIAN GATE",
 		"obj": "Recover the final cores. Power the gate.",
 		"intro": [
 			{"s": O, "t": "Last sector. Everything you took is humming in the gate. It wants one more breath."},
@@ -377,6 +428,9 @@ const CONTRACT_CHAPTER: Array[Dictionary] = [
 	{"s": O, "t": "Glass District jobs bend toward entanglement. Practise linking, it pays double in these streets."},
 	{"s": O, "t": "The Harvest Floor is full of relay nodes. Crack them and the drones go blind."},
 	{"s": O, "t": "Bridge Arcade has fast traffic and faster couriers. Wheels will matter here."},
+	{"s": O, "t": "Foundry Row pays in scrap and fear. Contracts here run hot, loud and over fast."},
+	{"s": O, "t": "The Rain Slums owe the Lamplighters everything. Every job here keeps somebody's lights on."},
+	{"s": O, "t": "Neon Market jobs are all about timing. Miss the patrol window and the job takes you instead."},
 	{"s": O, "t": "Meridian Gate is crowded with anchors. Every job here is a siege. Bring everything."},
 	{"s": O, "t": "The city is free, but not quiet. There is always another contract for a hand that will take it."},
 ]

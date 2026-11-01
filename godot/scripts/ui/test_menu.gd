@@ -178,6 +178,10 @@ func _page_items() -> Array[Dictionary]:
 				out.append(_act(ContractTypes.title(k), TestMode.start_contract.bind(k)))
 			out.append(_head("CURRENT CONTRACT"))
 			out.append(_act("SKIP (PAID)", TestMode.skip_contract))
+			out.append(_head("CAMPAIGN STEP"))
+			out.append(_act("SKIP THE STEP", _campaign_skip))
+			out.append(_act("RETRY THE STEP", _campaign_retry))
+			out.append(_act("UNLOCK ALL CHAPTERS", _unlock_chapters))
 		6:
 			out.append(_head("STATS"))
 			out.append(_btn("STATS OVERLAY", func() -> void: TestMode.toggle(&"stats"), &"stats"))
@@ -191,6 +195,28 @@ func _page_items() -> Array[Dictionary]:
 			out.append(_act("COMPLETE THE MISSION", InteriorTestActions.complete))
 			out.append(_act("LEAVE THE INTERIOR", InteriorTestActions.leave))
 	return out
+
+
+## The scripted campaign step (scripts/missions/campaign_runner.gd): finish it as if its objective was met, restart it from its checkpoint, unlock every chapter of the chapter select.
+func _campaign_skip() -> String:
+	var k: CampaignRunner = (Game.missions as Missions).campaign if Game.missions is Missions else null
+	if k == null or not k.is_active():
+		return "NO CAMPAIGN STEP RUNNING"
+	k.skip_step()
+	return "STEP SKIPPED"
+
+
+func _campaign_retry() -> String:
+	var k: CampaignRunner = (Game.missions as Missions).campaign if Game.missions is Missions else null
+	return "STEP RESTARTED FROM THE CHECKPOINT" if k != null and k.retry() else "NO CAMPAIGN STEP RUNNING"
+
+
+func _unlock_chapters() -> String:
+	var prog := Game.progress as Progress
+	if prog == null:
+		return "NO PROGRESS"
+	prog.unlock(CampaignRunner.chapter_count() - 1)
+	return "ALL %d CHAPTERS UNLOCKED" % CampaignRunner.chapter_count()
 
 
 func _heal() -> String:

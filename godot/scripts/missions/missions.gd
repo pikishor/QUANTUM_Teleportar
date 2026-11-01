@@ -9,6 +9,7 @@ extends Node
 ## API: cores: Array (remaining cores, each {pos: Vector3, node: Node3D, got: bool}) · pickups: Array (active pickups, each {kind, pos, t, node}) ·
 ## got · total · rounds · new_round(total := 6) · drop(kind, pos) · nearest_core(pos) -> {pos, dist} ({} if none) · clear_pickups().
 ## Lifecycle: new_game -> rounds = 0 and a fresh round of 6; next_sector -> min(9, 6 + rounds) cores; respawn keeps the cores and drops the pickups.
+## Campaign: `campaign` (CampaignRunner, scripts/missions/campaign_runner.gd) plays a chapter's scripted objective steps; while one runs `win_on_cores` is false (the cores become optional pickups).
 ## Contracts: `contracts` (Contracts) adds six procedural side-mission kinds chosen by the story chapter; `progress` (Progress, also Game.progress) holds the credit wallet,
 ## shop upgrades, reputation and the save file. See ARCHITECTURE.md "Gameplay depth as implemented".
 ## Cost: a core is one beam (1 draw), one ground ring (1 draw), and, within GEM_NEAR metres of the camera only, the gem model (4 draws) and an omni light.
@@ -39,6 +40,9 @@ var rounds := 0
 ## Procedural side missions (scripts/missions/contracts.gd) and the campaign state (scripts/progress/progress.gd): both are children of this node.
 var contracts: Contracts
 var progress: Progress
+var campaign: CampaignRunner
+## False while a scripted campaign chapter runs: collecting the last core then does not clear the sector (the runner's last step does).
+var win_on_cores := true
 ## Placement randomness: tests seed it for reproducible layouts.
 var rng := RandomNumberGenerator.new()
 
@@ -72,6 +76,9 @@ func _ready() -> void:
 	contracts = Contracts.new()
 	contracts.name = "Contracts"
 	add_child(contracts)
+	campaign = CampaignRunner.new()
+	campaign.name = "Campaign"
+	add_child(campaign)
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
 	Game.next_sector.connect(_on_next_sector)
@@ -273,7 +280,7 @@ func _physics_process(delta: float) -> void:
 		if Vector2(cp.x - ref.x, cp.z - ref.z).length() < CORE_RADIUS and absf(cp.y - ref.y) < VERTICAL_REACH:
 			_collect_core(c, i, player)
 		i -= 1
-	if cores.is_empty() and total > 0 and Game.is_playing():
+	if cores.is_empty() and total > 0 and win_on_cores and Game.is_playing():
 		Game.win()
 
 

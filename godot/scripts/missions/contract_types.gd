@@ -10,7 +10,7 @@ const KINDS: Array[StringName] = [&"officer", &"hack", &"chase", &"courier", &"s
 
 ## The boss contract (the Vael Overseer) is not in KINDS (random offers never pick it): Contracts offers it by itself in the chapters of BOSS_CHAPTERS (index 2 = sector 3,
 ## index 5 = sector 6) until it has been cleared. Its DATA row (title, base reward, time) is used like any other kind.
-const BOSS_CHAPTERS: Array[int] = [2, 5]
+const BOSS_CHAPTERS: Array[int] = [2, 5, 7]
 const BOSS_DROPS := {2: &"lance", 5: &"grenade"}          ## the unique weapon the Overseer of that chapter drops (an ammo pack when already owned)
 const VIOLET := Color(0.72, 0.3, 1.0)
 

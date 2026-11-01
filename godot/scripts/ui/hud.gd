@@ -44,6 +44,8 @@ var _obj_text := ""
 var _cred_text := ""
 var _contract_text := ""
 var _shop_open := false             ## the pause screen shows the upgrade shop instead of the settings
+var _chapters_open := false         ## the title / pause screen shows the chapter select (scripts/ui/chapter_select.gd)
+var _camp_text := ""                ## the scripted campaign step's HUD line (CampaignRunner.hud_line), "" when none runs
 var _has_save := false              ## a save file exists (the title offers CONTINUE)
 var _hint_text := ""
 var _text_t := 0.0
@@ -135,6 +137,7 @@ func _on_state(s: StringName) -> void:
 	screen_age = 0.0
 	_hover = &""
 	_shop_open = false
+	_chapters_open = false
 	if s == &"menu":
 		_has_save = Game.progress != null and bool(Game.progress.call(&"has_save"))
 	if s == &"dead" or s == &"win":
@@ -301,7 +304,28 @@ func press_button(id: StringName) -> bool:
 		_layout_key = ""
 		_screen.queue_redraw()
 		return true
+	if sid.begins_with("chapter_") and sid != "chapters_back":
+		if not _chapters_open or Game.progress == null:
+			return false
+		if not bool(Game.progress.call(&"start_chapter", sid.substr(8).to_int())):
+			Sfx.play(&"ui_deny")
+			return false
+		Sfx.play(&"ui_confirm")
+		_chapters_open = false
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
 	match id:
+		&"chapters":
+			if (Game.state != &"menu" and Game.state != &"paused") or not _chapters_ok():
+				return false
+			_chapters_open = true
+			Sfx.play(&"ui_confirm")
+		&"chapters_back":
+			if not _chapters_open:
+				return false
+			_chapters_open = false
+			Sfx.play(&"ui_back")
 		&"continue":
 			if Game.state != &"menu" or Game.progress == null or not _has_save:
 				return false
@@ -517,6 +541,7 @@ func _process(delta: float) -> void:
 		_obj_text = objective_text()
 		_cred_text = "CREDITS  %d" % (int(Game.progress.get(&"credits")) if Game.progress != null else Game.score)
 		_contract_text = _contract_line()
+		_camp_text = _campaign_line()
 		_hint_text = hint_text()
 	var vp := get_viewport().get_visible_rect().size
 	var s := UiUtil.ui_scale(vp)
@@ -677,6 +702,8 @@ func _draw_hud_body() -> void:
 			_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
 		stack_end = _draw_priority(c, vp, s, font, plate.end.y + 3.0 * s)
 	UiUtil.stack_bottom = stack_end / s
+	if playing and _camp_text != "":
+		_draw_waypoint(c, vp, s, font, ins, insv)
 	# top right: heat stars and credits on one plate
 	_plate(c, Rect2(right - 196.0 * s, top, 204.0 * s, 84.0 * s), s)
 	var heat := Game.heat
@@ -859,7 +886,7 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 
 func _ensure_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
-	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet()]
+	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
 	if key == _layout_key:
 		return
 	_layout_key = key
@@ -868,19 +895,35 @@ func _ensure_layout() -> void:
 	var cx := vp.x * 0.5
 	match Game.state:
 		&"menu":
-			if _has_save:
+			if _chapters_open:
+				ChapterSelect.layout(self, cx, s)
+			elif _has_save:
 				_add(&"continue", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "CONTINUE", false)
-				_add(&"deploy", Rect2(cx - 170.0 * s, 392.0 * s, 340.0 * s, 44.0 * s), "NEW GAME", false)
+				if _chapters_ok():                                    # NEW GAME and CHAPTERS share the row
+					_add(&"deploy", Rect2(cx - 170.0 * s, 392.0 * s, 166.0 * s, 44.0 * s), "NEW GAME", false)
+					_add(&"chapters", Rect2(cx + 4.0 * s, 392.0 * s, 166.0 * s, 44.0 * s), "CHAPTERS", false)
+				else:
+					_add(&"deploy", Rect2(cx - 170.0 * s, 392.0 * s, 340.0 * s, 44.0 * s), "NEW GAME", false)
+				_settings_rows(cx, 470.0, s)
+			elif _chapters_ok():                                      # no save, but chapters were unlocked on an earlier run
+				_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
+				_add(&"chapters", Rect2(cx - 170.0 * s, 392.0 * s, 340.0 * s, 44.0 * s), "CHAPTERS", false)
 				_settings_rows(cx, 470.0, s)
 			else:
 				_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
 				_settings_rows(cx, 430.0, s)
 		&"paused":
-			if _shop_open:
+			if _chapters_open:
+				ChapterSelect.layout(self, cx, s)
+			elif _shop_open:
 				ShopScreen.layout(self, cx, s)
 			elif Game.progress != null:
 				_add(&"resume", Rect2(cx - 170.0 * s, 232.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
-				_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 340.0 * s, 44.0 * s), "UPGRADES", false)
+				if _chapters_ok():
+					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 166.0 * s, 44.0 * s), "UPGRADES", false)
+					_add(&"chapters", Rect2(cx + 4.0 * s, 304.0 * s, 166.0 * s, 44.0 * s), "CHAPTERS", false)
+				else:
+					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 340.0 * s, 44.0 * s), "UPGRADES", false)
 				_settings_rows(cx, 388.0, s)
 				_add(&"menu", Rect2(cx - 154.0 * s, 550.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
 			else:
@@ -926,7 +969,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.4))            # light: the animated city behind the title (scripts/cinematics) shows through
 			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.26))     # a darker column behind the title and buttons keeps them readable
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if _shop_open else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _chapters_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -936,16 +979,20 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 	c.draw_line(Vector2(0.0, 74.0 * s), Vector2(vp.x, 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
 	c.draw_line(Vector2(0.0, vp.y - 74.0 * s), Vector2(vp.x, vp.y - 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
 	match st:
+		&"menu" when _chapters_open:
+			ChapterSelect.draw(self, c, vp, s, font, cx)
 		&"menu":
 			_text(c, font, Vector2(0.0, 196.0 * s), "QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(76.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
 			c.draw_line(Vector2(cx - 240.0 * s, 222.0 * s), Vector2(cx + 240.0 * s, 222.0 * s), Color(UiUtil.MAGENTA, 0.8), 2.0 * s)
 			_text(c, font, Vector2(0.0, 258.0 * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 			if is_instance_valid(Game.story) and Game.story.has_method(&"tagline"):
 				_text(c, font, Vector2(0.0, 294.0 * s), str(Game.story.call(&"tagline")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.85), 1.0 * s)
-			_text(c, font, Vector2(0.0, (464.0 if _has_save else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
+			_text(c, font, Vector2(0.0, (464.0 if (_has_save or _chapters_ok()) else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 			_footer(c, vp, s, font)
 		&"paused":
-			if _shop_open:
+			if _chapters_open:
+				ChapterSelect.draw(self, c, vp, s, font, cx)
+			elif _shop_open:
 				ShopScreen.draw(self, c, vp, s, font, cx)
 			else:
 				_text(c, font, Vector2(0.0, 190.0 * s), "PAUSED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(64.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
@@ -1011,6 +1058,25 @@ func _contracts() -> Object:
 	return m.get(&"contracts") if m != null else null
 
 
+## The scripted campaign runner (Game.missions.campaign), null without one.
+func _campaign() -> Object:
+	var m: Object = Game.missions if is_instance_valid(Game.missions) else null
+	return m.get(&"campaign") if m != null else null
+
+
+## The campaign step line ("2/3  HACK THE LEDGER NODE  62%") or "" when no scripted step runs. It outranks the contract line and the core objective.
+func _campaign_line() -> String:
+	if InteriorGameplay.hud_line != "":
+		return ""                                          # an interior mission's own line owns the plate inside
+	var k := _campaign()
+	return str(k.call(&"hud_line")) if k != null else ""
+
+
+## True when the title / pause screen has chapters to choose from (Progress.can_select_chapter).
+func _chapters_ok() -> bool:
+	return Game.progress != null and Game.progress.has_method(&"can_select_chapter") and bool(Game.progress.call(&"can_select_chapter"))
+
+
 ## The contract line ("HACK NODE  62%  1:20") or "" when none is offered or running.
 func _contract_line() -> String:
 	if InteriorGameplay.hud_line != "":                     # an interior mission replaces the contract line while you are inside
@@ -1029,10 +1095,13 @@ func tutorial() -> Object:
 ## The officer's boss bar hangs under it. Returns the new bottom of the stack (px).
 func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
 	var k := _contracts()
-	var contract := _contract_text != "" and k != null
-	var text := _contract_text if contract else _obj_text
-	var col := Color(UiUtil.AMBER.lerp(Color.WHITE, 0.35), 1.0) if contract else Color(UiUtil.MAGENTA.lerp(Color.WHITE, 0.45), 1.0)
-	var accent := Color(UiUtil.AMBER, 0.7) if contract else Color(UiUtil.MAGENTA, 0.6)
+	var camp := _camp_text != "" and _campaign() != null
+	if camp:
+		k = _campaign()                                    # a scripted step takes the plate; its progress bar and boss bar use the same calls as a contract's
+	var contract := camp or (_contract_text != "" and k != null)
+	var text := _camp_text if camp else (_contract_text if contract else _obj_text)
+	var col := Color(UiUtil.CYAN.lerp(Color.WHITE, 0.45), 1.0) if camp else (Color(UiUtil.AMBER.lerp(Color.WHITE, 0.35), 1.0) if contract else Color(UiUtil.MAGENTA.lerp(Color.WHITE, 0.45), 1.0))
+	var accent := Color(UiUtil.CYAN, 0.8) if camp else (Color(UiUtil.AMBER, 0.7) if contract else Color(UiUtil.MAGENTA, 0.6))
 	var size := int(UiUtil.TEXT_MIN * s)
 	while size > int(16.0 * s) and _text_width(font, text, size) + 36.0 * s > vp.x * 0.5 - 20.0 * s:     # a long line shrinks instead of growing under the side plates
 		size -= 1
@@ -1045,7 +1114,7 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 		if pf >= 0.0:
 			var bar := Rect2(r.position.x, r.end.y, r.size.x, 5.0 * s)
 			_rect(c, bar, Color(0.0, 0.03, 0.05, 0.7))
-			_rect(c, Rect2(bar.position, Vector2(bar.size.x * clampf(pf, 0.0, 1.0), bar.size.y)), Color(UiUtil.AMBER, 0.95))
+			_rect(c, Rect2(bar.position, Vector2(bar.size.x * clampf(pf, 0.0, 1.0), bar.size.y)), Color(UiUtil.CYAN if camp else UiUtil.AMBER, 0.95))
 			end = bar.end.y
 	var boss: Dictionary = k.call(&"boss")
 	if not boss.is_empty():
@@ -1058,6 +1127,40 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 		_frame(c, br, Color(UiUtil.RED, 0.8), 1.0 * s)
 		end = br.end.y + 4.0 * s
 	return end
+
+
+## The scripted step's waypoint on the screen: a diamond over the goal with its distance, pinned to the edge of the safe area (pointing the way) when the goal is off screen or behind.
+func _draw_waypoint(c: Control, vp: Vector2, s: float, font: Font, ins: Vector2, insv: Vector2) -> void:
+	var k := _campaign()
+	if k == null or not is_instance_valid(Game.camera):
+		return
+	var w: Dictionary = k.call(&"waypoint")
+	if w.is_empty():
+		return
+	var cam := Game.camera
+	var head: Vector3 = (w["pos"] as Vector3) + Vector3(0.0, 5.0, 0.0)
+	var col: Color = w["color"]
+	var box := Rect2(Vector2(ins.x + 44.0 * s, UiUtil.stack_bottom * s + 36.0 * s), Vector2.ZERO)
+	box.end = Vector2(vp.x - ins.y - 44.0 * s, vp.y - insv.y - 230.0 * s)
+	if box.size.x < 40.0 * s or box.size.y < 40.0 * s:
+		return
+	var sp := cam.unproject_position(head)
+	var behind := cam.is_position_behind(head)
+	var pt := sp
+	if behind or not box.has_point(sp):
+		var cc := box.get_center()
+		var dir := sp - cc
+		if behind:
+			dir = -dir
+		if dir.length() < 1.0:
+			dir = Vector2(0.0, -1.0)
+		var half := box.size * 0.5
+		pt = cc + dir * minf(half.x / maxf(absf(dir.x), 0.001), half.y / maxf(absf(dir.y), 0.001))
+	var pulse := 0.8 + 0.2 * sin(_t * 5.0)
+	var hs := 13.0 * s
+	_sprite(c, &"diamond", Rect2(pt - Vector2(hs, hs), Vector2(hs, hs) * 2.0), Color(col, pulse))
+	_sprite(c, &"ring", Rect2(pt - Vector2(hs, hs) * 1.6, Vector2(hs, hs) * 3.2), Color(col, 0.6 * pulse))
+	_text(c, font, Vector2(pt.x - 60.0 * s, pt.y + hs * 2.6), "%d M" % roundi(float(k.call(&"distance_to_goal"))), HORIZONTAL_ALIGNMENT_CENTER, 120.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.95), 1.5 * s)
 
 
 ## The training prompt: a plate low in the middle (between the stick and the buttons on phones) with a SKIP plate beside it.

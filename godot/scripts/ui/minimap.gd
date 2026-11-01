@@ -17,6 +17,7 @@ var markers_drawn := 0              ## markers inside the rim in the last redraw
 var core_markers := 0               ## cores drawn (clamped to the rim when far) in the last redraw
 var contract_markers := 0           ## contract markers drawn (offer, target, zone, destination, officer area) in the last redraw
 var route_drawn := false            ## a courier route line was drawn in the last redraw
+var campaign_markers := 0           ## scripted campaign step markers drawn (waypoint, zone, target, escort, destination; also counted in contract_markers) in the last redraw
 
 var _key := 0
 var _t := 0.0
@@ -113,6 +114,7 @@ func _draw() -> void:
 	markers_drawn = 0
 	core_markers = 0
 	contract_markers = 0
+	campaign_markers = 0
 	route_drawn = false
 	draw_circle(c, radius, Color(0.02, 0.06, 0.08, 0.82))
 	if InteriorGameplay.active:                  # inside an interior: its floor plan, vendors, guards and mission markers instead of the city
@@ -188,6 +190,11 @@ func _draw() -> void:
 	var con: Object = mis.get("contracts") if mis != null else null
 	if con != null:
 		_contract_layer(con, c, inner, s, diamonds, rings)
+	var camp: Object = mis.get("campaign") if mis != null else null
+	if camp != null:                                      # the scripted step's markers have the same shape as a contract's (CampaignRunner.markers / route_points)
+		var before := contract_markers
+		_contract_layer(camp, c, inner, s, diamonds, rings)
+		campaign_markers = contract_markers - before
 	for r: Rect2 in cars:
 		draw_rect(r, Color(0.7, 0.75, 0.8, 0.6))
 	for kind: Array in [[&"disc", discs], [&"diamond", diamonds], [&"ring", rings]]:

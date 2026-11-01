@@ -6,6 +6,9 @@ extends Node
 ## Credits come from score gains (a kill or a core is worth 40 % of its score in credits) and from contract rewards (add_credits). The shop (buy) spends them on the
 ## six Upgrades; reputation (-25..100) moves the shop price and the contract payout. Autosave: when a sector is cleared, on pause, on death and when the tutorial ends
 ## (never under Game.autostart, i.e. tools / tests / bots, unless a test turns `autosave_enabled` on and points `path` at a temp file).
+## Campaign extras (scripts/missions/campaign_runner.gd): `unlocked` (how many chapters the chapter select offers: kept through NEW GAME, saved as campaign/unlocked, older saves get sector + 1) and
+## `checkpoint` (the scripted chapter's last checkpoint {chapter, step, pos, tp, goal?}, saved in the [checkpoint] section and cleared when the chapter ends). Both are new optional keys of
+## SAVE_VERSION 1: files without them load as before, and builds that do not know them ignore them. start_chapter(i) (title / pause chapter select) replays an unlocked chapter keeping the wallet.
 ## Lifecycle: new_game starts a fresh campaign (credits, upgrades, reputation reset; the tutorial flag and the best score survive), continue_game() resumes the saved
 ## sector with its credits and upgrades. Upgrades go live through the static Upgrades class (also applied to the player's magazine on purchase).
 
@@ -32,11 +35,14 @@ var tutorial_done := false
 var contracts_done := 0
 var contracts_failed := 0
 var bosses_cleared: Array[int] = []      ## chapters whose Vael Overseer is down (saved)
+var unlocked := 1                       ## chapters the chapter select offers (>= 1, saved, never lowered by a new campaign)
+var checkpoint: Dictionary = {}          ## the running scripted chapter's checkpoint (see CampaignRunner), {} when none
 var last_save_ok := false
 
 var _last_score := 0
 var _frac := 0.0
 var _continue_pending := false
+var _select_pending := false            ## start_chapter() is starting a run that keeps the wallet (no continued flag: the saved interior is not resumed)
 var continued := false                  ## the last new_game was a CONTINUE (scripts/interiors_gameplay/ resumes the saved interior)
 
 
@@ -250,6 +256,7 @@ func new_campaign() -> void:
 	contracts_done = 0
 	contracts_failed = 0
 	bosses_cleared.clear()
+	checkpoint.clear()
 	WeaponDefs.reset_unlocked()
 	_frac = 0.0
 	_apply_to_player()
@@ -262,6 +269,8 @@ func _on_new_game() -> void:
 	continued = _continue_pending
 	if _continue_pending:
 		_continue_pending = false
+	elif _select_pending:
+		_select_pending = false
 	else:
 		new_campaign()
 		if autosave_enabled:
@@ -288,11 +297,14 @@ func _chapter() -> int:
 func _on_state(s: StringName) -> void:
 	if s == &"paused" or s == &"dead":
 		sector = _chapter()
+		unlock(sector)
 		_autosave()
 
 
 func _on_cleared() -> void:
 	sector = _chapter() + 1
+	unlock(sector)
+	checkpoint.clear()
 	_autosave()
 
 
@@ -305,6 +317,72 @@ func _autosave() -> void:
 		save_file()
 
 
+# --- chapters, checkpoint -------------------------------------------------------------------------------------------
+
+## Chapter `index` (0-based) and everything before it are selectable from now on.
+func unlock(index: int) -> void:
+	if index + 1 > unlocked:
+		unlocked = clampi(index + 1, 1, 99)
+		changed.emit()
+
+
+## How many chapters the chapter select offers: unlocked ones, at most the story's chapters.
+func chapters_unlocked() -> int:
+	return mini(unlocked, CampaignRunner.chapter_count())
+
+
+## The chapter select is worth showing from the second unlocked chapter on.
+func can_select_chapter() -> bool:
+	return chapters_unlocked() >= 2
+
+
+## Stores the scripted chapter's checkpoint (the runner calls it after every step) and autosaves when saving is on.
+func set_checkpoint(cp: Dictionary) -> void:
+	checkpoint = cp.duplicate()
+	if autosave_enabled:
+		save_file()
+
+
+func clear_checkpoint() -> void:
+	if checkpoint.is_empty():
+		return
+	checkpoint.clear()
+	if autosave_enabled:
+		save_file()
+
+
+## Title / pause chapter select: starts unlocked chapter `index` from its first step, keeping credits, upgrades, weapons and reputation. Only on the title or pause screen. False otherwise.
+func start_chapter(index: int) -> bool:
+	if Game.state != &"menu" and Game.state != &"paused":
+		return false
+	if index < 0 or index >= chapters_unlocked():
+		return false
+	_select_pending = true
+	_continue_pending = false
+	Game.start_new_game()
+	_select_pending = false
+	sector = index
+	checkpoint.clear()
+	_begin_chapter_run(index)
+	if autosave_enabled:
+		save_file()
+	return true
+
+
+## Shared by CONTINUE and the chapter select after the run has started: the story, the cores and the scripted steps go to chapter `chapter`.
+func _begin_chapter_run(chapter: int, cp := {}) -> void:
+	if is_instance_valid(Game.story) and Game.story.has_method(&"set_chapter"):
+		Game.story.call(&"set_chapter", chapter)
+	var m := Game.missions as Missions
+	if m != null:
+		m.rounds = chapter
+		m.new_round(mini(Missions.CORE_MAX, 6 + chapter))
+		if m.campaign != null and m.campaign.enabled:                 # off under tools / tests / bots (Game.autostart): they keep the plain core hunt
+			if cp.is_empty() or not m.campaign.resume(cp):
+				m.campaign.start_chapter(chapter)
+	_apply_to_player()
+
+
 # --- save / load ----------------------------------------------------------------------------------------------------
 
 func snapshot() -> Dictionary:
@@ -312,6 +390,7 @@ func snapshot() -> Dictionary:
 		"version": SAVE_VERSION, "credits": credits, "levels": levels.duplicate(), "reputation": reputation, "sector": sector,
 		"weapons": WeaponDefs.unlocked.duplicate(), "weapon": WeaponDefs.last_used, "bosses": bosses_cleared.duplicate(),
 		"best": maxi(best, Game.score), "tutorial_done": tutorial_done, "contracts_done": contracts_done, "contracts_failed": contracts_failed,
+		"unlocked": unlocked, "checkpoint": checkpoint.duplicate(),
 	}
 
 
@@ -334,6 +413,14 @@ func save_file() -> bool:
 	cf.set_value("weapons", "unlocked", names)
 	cf.set_value("weapons", "current", String(WeaponDefs.last_used))
 	cf.set_value("campaign", "bosses", PackedInt32Array(bosses_cleared))
+	cf.set_value("campaign", "unlocked", unlocked)
+	if not checkpoint.is_empty():
+		cf.set_value("checkpoint", "chapter", int(checkpoint.get("chapter", 0)))
+		cf.set_value("checkpoint", "step", int(checkpoint.get("step", 0)))
+		cf.set_value("checkpoint", "pos", checkpoint.get("pos", Vector3.ZERO))
+		cf.set_value("checkpoint", "tp", bool(checkpoint.get("tp", false)))
+		if checkpoint.get("goal", null) is Vector3:
+			cf.set_value("checkpoint", "goal", checkpoint["goal"])
 	last_save_ok = cf.save(path) == OK
 	if last_save_ok:
 		saved.emit()
@@ -346,6 +433,8 @@ func has_save() -> bool:
 	if cf.load(path) != OK or int(cf.get_value("meta", "version", 0)) != SAVE_VERSION:
 		return false
 	if int(cf.get_value("campaign", "sector", 0)) > 0 or int(cf.get_value("wallet", "credits", 0)) > 0 or int(cf.get_value("wallet", "reputation", 0)) != 0:
+		return true
+	if int(cf.get_value("checkpoint", "step", 0)) > 0:
 		return true
 	for id: StringName in Upgrades.IDS:
 		if int(cf.get_value("upgrades", String(id), 0)) > 0:
@@ -375,12 +464,30 @@ func load_file() -> bool:
 	bosses_cleared.clear()
 	for b: int in Array(cf.get_value("campaign", "bosses", PackedInt32Array())):
 		bosses_cleared.append(b)
+	unlocked = clampi(maxi(int(cf.get_value("campaign", "unlocked", 1)), sector + 1), 1, 99)     # a save from before the chapter select has no key: every chapter up to the saved sector
+	checkpoint = _load_checkpoint(cf)
 	changed.emit()
 	var pl := Game.player
 	if is_instance_valid(pl) and pl.get(&"weapon") is PlayerWeapon:
 		var w := pl.get(&"weapon") as PlayerWeapon
 		w.switch_to(WeaponDefs.last_used, true)
 	return true
+
+
+## The [checkpoint] section as a dictionary, {} when absent or damaged (wrong types or negative numbers).
+static func _load_checkpoint(cf: ConfigFile) -> Dictionary:
+	if not cf.has_section("checkpoint"):
+		return {}
+	var ch: Variant = cf.get_value("checkpoint", "chapter", -1)
+	var st: Variant = cf.get_value("checkpoint", "step", -1)
+	var at: Variant = cf.get_value("checkpoint", "pos", Vector2.ZERO)        # (a Vector2 default is no valid position: a missing key damages the section)
+	if not (ch is int) or not (st is int) or int(ch) < 0 or int(st) < 0 or not (at is Vector3) or not (at as Vector3).is_finite():
+		return {}
+	var cp := {"chapter": int(ch), "step": int(st), "pos": at, "tp": bool(cf.get_value("checkpoint", "tp", false))}
+	var g: Variant = cf.get_value("checkpoint", "goal", Vector2.ZERO)
+	if g is Vector3 and (g as Vector3).is_finite():
+		cp["goal"] = g
+	return cp
 
 
 func mark_tutorial_done() -> void:
@@ -396,14 +503,10 @@ func continue_game() -> bool:
 	if not load_file() and autosave_enabled:
 		return false
 	_continue_pending = true
+	var cp := checkpoint.duplicate()
 	Game.start_new_game()
 	_continue_pending = false
 	var chapter := sector
-	if is_instance_valid(Game.story) and Game.story.has_method(&"set_chapter"):
-		Game.story.call(&"set_chapter", chapter)
-	var m := Game.missions as Missions
-	if m != null:
-		m.rounds = chapter
-		m.new_round(mini(Missions.CORE_MAX, 6 + chapter))
-	_apply_to_player()
+	checkpoint = cp if int(cp.get("chapter", -1)) == chapter else {}          # a checkpoint of another chapter is stale (the chapter select replayed one)
+	_begin_chapter_run(chapter, checkpoint)
 	return true

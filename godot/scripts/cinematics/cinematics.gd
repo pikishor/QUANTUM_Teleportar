@@ -627,9 +627,13 @@ func _poll_boss() -> void:
 	if _boss == null:
 		var m: Object = Game.missions if is_instance_valid(Game.missions) else null
 		var cs: Object = m.get(&"contracts") if m != null else null
-		if cs == null or cs.get(&"state") != &"active" or cs.get(&"kind") != &"boss":
-			return
-		var tgt := cs.get(&"target") as Overseer
+		var tgt: Overseer = null
+		if cs != null and cs.get(&"state") == &"active" and cs.get(&"kind") == &"boss":
+			tgt = cs.get(&"target") as Overseer
+		else:
+			var cr: Object = m.get(&"campaign") if m != null else null     # a scripted campaign step that hunts an Overseer
+			if cr != null and cr.get(&"state") == &"active" and cr.get(&"kind") == &"kill_target":
+				tgt = cr.get(&"target") as Overseer
 		if tgt == null or not is_instance_valid(tgt):
 			return
 		_boss = tgt

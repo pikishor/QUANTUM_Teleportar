@@ -86,7 +86,7 @@ func run(host: Node) -> void:
 		ch_ok = ch_ok and str(ch["end"]["text"]).length() <= 220 and str(ch["end"]["head"]).length() <= 30
 		for k: Variant in (ch["cores"] as Dictionary):
 			ch_ok = ch_ok and int(k) >= 1 and int(k) <= 5          # every sector has at least 6 cores; the last core ends the chapter
-	TestLib.check(ch_ok, "5 story chapters + aftermath: titles, objectives, core lines (1..5) and end cards fit")
+	TestLib.check(ch_ok, "8 story chapters + aftermath: titles, objectives, core lines (1..5) and end cards fit")
 	TestLib.check(StoryData.TAGLINE.length() > 10 and StoryData.TAGLINE.length() < 60, "title tagline fits")
 	var triggers_ok := true
 	for t: Dictionary in StoryData.MESSAGE_TRIGGERS:
@@ -312,9 +312,9 @@ func run(host: Node) -> void:
 	TestLib.check(story.objective_text() == str(StoryData.CHAPTERS[1]["obj"]), "the objective line follows the chapter")
 
 	# final chapter: epilogue
-	for i in 3:
+	for i in 6:
 		Game.next_sector.emit()
-	TestLib.check(story.chapter == 4 and story.chapter_data()["id"] == "meridian_gate", "chapter 5 is the Meridian Gate")
+	TestLib.check(story.chapter == 7 and story.chapter_data()["id"] == "meridian_gate", "chapter 8 is the Meridian Gate")
 	Game.state = &"win"
 	Game.sector_cleared.emit()
 	TestLib.check(story.end_card.get("head", "") == "FINAL CHAPTER COMPLETE", "final end card reveals the twist")
@@ -329,7 +329,7 @@ func run(host: Node) -> void:
 	TestLib.check(story.epilogue_seen and not story.cards_active(), "the epilogue ends")
 	Game.state = &"play"
 	Game.next_sector.emit()
-	TestLib.check(story.chapter == 5 and story.chapter_data()["id"] == "open_city" and story.chapter_label() == "FREE SECTOR 06", "after the story: the aftermath chapter")
+	TestLib.check(story.chapter == 8 and story.chapter_data()["id"] == "open_city" and story.chapter_label() == "FREE SECTOR 09", "after the story: the aftermath chapter")
 	Game.next_sector.emit()
 	TestLib.check(story.chapter_data()["id"] == "open_city", "the aftermath repeats")
 
