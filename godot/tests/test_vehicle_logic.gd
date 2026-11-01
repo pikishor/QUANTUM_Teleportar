@@ -263,6 +263,11 @@ func _enter_exit_polish() -> void:
 	_extras()
 
 
+func _process_frames(n: int) -> void:
+	for i in n:
+		await mgr.get_tree().process_frame
+
+
 func _radio() -> void:
 	_extras()
 	var r := mgr.radio
@@ -314,9 +319,11 @@ func _radio() -> void:
 	TestLib.check(r.station == 2 and r._player.stream == r._streams[2], "then station 2")
 	Game.state = &"paused"
 	await e.frames(3)
+	await _process_frames(3)                   # the radio reacts in _process; physics frames can run several per rendered frame
 	TestLib.check(not r.is_audible() and r._player.stream_paused, "pausing the game pauses the radio")
 	Game.state = &"play"
 	await e.frames(3)
+	await _process_frames(3)
 	TestLib.check(r.is_audible(), "resuming brings it back")
 	r.cycle()
 	TestLib.check(not r.on and not r._player.playing, "the next press turns it off")
@@ -428,6 +435,8 @@ func _patrol_on_city(host: Node) -> void:
 	await e.secs(10.0)
 	TestLib.check(mgr.total_nodes() <= before + 3 and mgr.total_nodes() <= VehicleSpecs.CAPS[2] + VehicleSpecs.MAX_WRECKS + 1, "vehicle nodes stay bounded (%d)" % mgr.total_nodes())
 	Game.heat = 0.0
+	if Game.state == &"dead":                  # a chasing patrol can kill the idle player during the long waits; the manager only ticks while playing
+		Game.state = &"play"
 	await e.secs(1.0)
 	TestLib.check(mgr.patrol_count(true) == 0, "heat 0: every patrol vehicle stands down")
 	Game.set_quality(1)
