@@ -24,6 +24,7 @@ const BUTTONS := [
 	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "LINK", "need": &"quantum", "ability": 1},
 	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
+	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
@@ -118,7 +119,8 @@ func release_all() -> void:
 	for a: StringName in MOVE_ACTIONS:
 		Input.action_release(a)
 	for b: Dictionary in BUTTONS:
-		Input.action_release(b["action"])
+		if not b.get("call", false):                 # call buttons (RADIO) press no action, and its action only exists once a radio does
+			Input.action_release(b["action"])
 	_held.clear()
 	_stick_id = -1
 	_look_id = -1
@@ -157,6 +159,10 @@ func touch_down(id: int, pos: Vector2) -> void:
 		return
 	for b: Dictionary in BUTTONS:
 		if button_visible(b) and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]), UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
+			if b.get("call", false):                                   # RADIO: one tap = Game.vehicles.radio.cycle() (no action press, so the key path cannot double-cycle)
+				Game.vehicles.radio.cycle()
+				Sfx.play(&"ui_tap")
+				return
 			_held[id] = b
 			Input.action_press(b["action"])
 			if b["action"] == &"interact":
@@ -240,6 +246,8 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.player) and Game.player.get("quantum") != null
 		&"vehicle":
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
+		&"radio":
+			return is_instance_valid(Game.vehicles) and Game.vehicles.get("radio") != null and _driving()
 	return true
 
 

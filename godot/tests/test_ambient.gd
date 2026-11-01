@@ -203,11 +203,11 @@ func _test_gunfire(host: Node, amb: Node3D, player: Node3D) -> void:
 		var d: float = c.person_position(i).distance_to(player.global_position)
 		if d < r - 0.5:
 			range_n += 1
-			if not c.is_fleeing(i):
+			if not (c.is_fleeing(i) or c.is_cowering(i) or c.state_of(i) == &"linger"):      # NPC life: a close person may cower or point instead of running
 				wrong += 1
-		elif d > r + 0.5 and c.is_fleeing(i):
+		elif d > r + 0.5 and (c.is_fleeing(i) or c.is_cowering(i)):
 			wrong += 1
-	TestLib.check(c.is_fleeing(5) and c.fled_total() - fled_before >= range_n and wrong == 0, "player.fired sends the %d pedestrians within %.0f m running, nobody beyond" % [range_n, r])
+	TestLib.check((c.is_fleeing(5) or c.is_cowering(5) or c.state_of(5) == &"linger") and c.fled_total() - fled_before >= range_n and wrong == 0, "player.fired sends the %d pedestrians within %.0f m running, nobody beyond" % [range_n, r])
 	# put a pedestrian right next to the muzzle and fire: he runs away along his line
 	var w := 0
 	while w < c.count - 1 and not c.is_alive(w):

@@ -90,8 +90,8 @@ func _citizen(host: Node) -> void:
 	var pieces := {}
 	for c in cols:
 		tags[snappedf(c.a, 0.1)] = true
-		pieces[roundi(c.g * 10.0)] = true
-	TestLib.check(tags.size() >= 6 and pieces.size() >= 7, "citizen has every part tag (%d) and every optional piece (%d of 7 ids)" % [tags.size(), pieces.size()])
+		pieces[roundi(c.g * 20.0)] = true
+	TestLib.check(tags.size() >= 6 and pieces.size() >= 14, "citizen has every part tag (%d) and every optional piece (%d of 14 ids, piece = G * 20)" % [tags.size(), pieces.size()])
 	var box := near.mesh.get_aabb()
 	TestLib.check(box.size.y > 1.9 and box.size.y < 2.2 and absf(box.position.y) < 0.05, "citizen stands on the origin, %.2f m with the umbrella" % box.size.y)
 	# the hero and the trooper are baked from a high-poly source: their normal maps are not flat (a procedural-only map is nearly flat on large plates)

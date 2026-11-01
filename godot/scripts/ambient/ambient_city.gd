@@ -10,10 +10,12 @@ extends Node3D
 const Traffic := preload("res://scripts/ambient/ambient_traffic.gd")
 const Crowd := preload("res://scripts/ambient/ambient_crowd.gd")
 const Patrol := preload("res://scripts/ambient/ambient_sky.gd")
+const NpcLife := preload("res://scripts/npc/npc_life.gd")
 
 var traffic := Traffic.new()
 var crowd := Crowd.new()
 var sky := Patrol.new()
+var npc := NpcLife.new()                 ## citizen schedules / reactions / barks on top of the crowd (scripts/npc)
 var quality := 1
 ## The ambient clock in seconds of game time (drives the traffic shader).
 var clock := 0.0
@@ -30,6 +32,7 @@ func setup(city: Node3D, light_map: Texture2D) -> void:
 	traffic.build()
 	crowd.build(light_map)
 	sky.build(self)
+	npc.setup(crowd)
 	city.add_multimesh("AmbientTraffic", traffic.mm, traffic.material, traffic.mirror_material, false, 0, 1)
 	city.add_multimesh("AmbientCrowd", crowd.mm, crowd.material, crowd.mirror_material, false, 0, 2)
 	city.add_multimesh("AmbientCrowdNear", crowd.mm_near, crowd.material, crowd.mirror_material, false, 0, 2)
@@ -57,6 +60,7 @@ func reset() -> void:
 	clock = 0.0
 	traffic.set_time(0.0)
 	crowd.reset()
+	npc.reset()
 	sky.reset()
 
 
@@ -70,6 +74,7 @@ func _process(delta: float) -> void:
 	var p := _center()
 	if p != Vector3.INF:
 		crowd.step(delta, p)
+		npc.step(delta, p)
 		sky.step(delta, p, traffic, clock, quality)
 	_hook_player()
 
@@ -94,7 +99,8 @@ func _hook_player() -> void:
 
 func _on_player_fired() -> void:
 	if Game.is_playing() and is_instance_valid(Game.player):
-		crowd.on_shot((Game.player as Node3D).global_position)
+		var pp := (Game.player as Node3D).global_position
+		npc.on_shot(pp, pp)
 
 
 ## Counts for tests and the budget report.
@@ -107,4 +113,5 @@ func stats() -> Dictionary:
 		"crowd_radius": crowd.radius,
 		"sweeping": sky.active,
 		"clock": clock,
+		"npc": npc.stats(),
 	}

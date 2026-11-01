@@ -34,6 +34,16 @@ const OFF_MIN := -0.75                   ## lateral offset range around the side
 const OFF_MAX := 0.62
 const GROUP_CHANCE := 0.09               ## a fresh spawn that starts a little group chatting on the pavement (2-3 people, facing each other)
 const IDLE_CHANCE := 0.012               ## per second, for a walker: stop for a moment
+const SHOP_STAY := Vector2(5.0, 14.0)    ## seconds a person lingers at a shop front / a bus stop (see _assign_goal, NpcLife)
+const BUS_STAY := Vector2(10.0, 24.0)
+const STOP_MID := 51.3                   ## middle of a sidewalk span, in line coordinates (from the span's road crossing)
+const STOP_SHOP := 1
+const STOP_BUS := 2
+const LOOK_ALONG := 0                    ## facing: along the walking direction / sideways (+ or - lateral) / along the line (+ or -)
+const LOOK_LAT_POS := 1
+const LOOK_LAT_NEG := 2
+const LOOK_U_POS := 3
+const LOOK_U_NEG := 4
 
 var mm: MultiMesh                        ## the far crowd (cut-down mesh, every pool slot; a person who is near has a zero-scale record here)
 var mm_near: MultiMesh                   ## the near crowd (full mesh), compacted every step
@@ -64,6 +74,12 @@ var _buf := PackedFloat32Array()
 var _nbuf := PackedFloat32Array()
 var _nn := 0                             ## people in the near buffer this step
 var _fled := 0                           ## people sent running so far (tests, debugging)
+var _look := PackedByteArray()           ## LOOK_* while a person stands (facing a shop, the road, the player); 0 = along the walk
+var _cower := PackedFloat32Array()       ## seconds left crouching still (a scare that did not make them run)
+var _goal := PackedFloat32Array()        ## the next stop (position along the line) when _gkind != 0
+var _gkind := PackedByteArray()          ## 0 none, STOP_SHOP, STOP_BUS
+var _stopk := PackedByteArray()          ## the kind of the last stop person i made (shop / bus), for the right bark
+var _lingers := 0                        ## stops made at shops / bus stops so far (tests, debugging)
 
 
 func build(light_map: Texture2D) -> void:
@@ -82,6 +98,11 @@ func build(light_map: Texture2D) -> void:
 	_first.resize(BUILT)
 	_first.fill(1)
 	_reg.resize(BUILT)
+	_look.resize(BUILT)
+	_gkind.resize(BUILT)
+	_stopk.resize(BUILT)
+	for a: PackedFloat32Array in [_cower, _goal]:
+		a.resize(BUILT)
 	_buf.resize(BUILT * STRIDE)
 	for i in BUILT:
 		_seed[i] = (float(i % ARCHETYPES) + 0.02 + 0.96 * rng.randf()) / float(ARCHETYPES)        # archetype = i % 6 (an even mix), the rest of the seed picks the palette
@@ -169,7 +190,12 @@ func reset() -> void:
 
 ## Gunfire at `pos`: pedestrians within the shot radius run away along their sidewalk (cheap: one pass over the pool in use).
 func on_shot(pos: Vector3) -> int:
-	var r2: float = SHOT_RADIUS[quality] * SHOT_RADIUS[quality]
+	return scare_from(pos, SHOT_RADIUS[quality])
+
+
+## Everybody within `r` metres of `pos` runs away from it (gunfire, explosions, a speeding car). Returns how many were sent running.
+func scare_from(pos: Vector3, r: float) -> int:
+	var r2 := r * r
 	var n := 0
 	for i in count:
 		if _alive[i] == 0:
@@ -178,13 +204,140 @@ func on_shot(pos: Vector3) -> int:
 		var dx := p.x - pos.x
 		var dz := p.z - pos.z
 		if dx * dx + dz * dz < r2:
-			var along := pos.x if _axis[i] == 0 else pos.z
-			var d := signf(_u[i] - along)
-			_dir[i] = d if d != 0.0 else (1.0 if rng.randf() < 0.5 else -1.0)
-			_flee[i] = FLEE_TIME + rng.randf() * 2.0
+			scare_person(i, pos)
 			n += 1
-	_fled += n
 	return n
+
+
+## Person `i` runs away from `pos` (along its sidewalk line, away from the point's coordinate).
+func scare_person(i: int, pos: Vector3) -> void:
+	var along := pos.x if _axis[i] == 0 else pos.z
+	var d := signf(_u[i] - along)
+	_dir[i] = d if d != 0.0 else (1.0 if rng.randf() < 0.5 else -1.0)
+	_flee[i] = FLEE_TIME + rng.randf() * 2.0
+	_cower[i] = 0.0
+	_idle[i] = 0.0
+	_look[i] = LOOK_ALONG
+	_fled += 1
+
+
+## Person `i` freezes and crouches for `seconds` (no walk, no animation).
+func cower_person(i: int, seconds: float) -> void:
+	_flee[i] = 0.0
+	_idle[i] = 0.0
+	_look[i] = LOOK_ALONG
+	_cower[i] = seconds
+
+
+## Person `i` stops for `seconds` and turns to face `toward` (pointing, listening, answering).
+func attend(i: int, toward: Vector3, seconds: float) -> void:
+	var p := _position(i)
+	var d := toward - p
+	var lat := d.z if _axis[i] == 0 else d.x
+	var al := d.x if _axis[i] == 0 else d.z
+	if absf(lat) >= absf(al):
+		_look[i] = LOOK_LAT_POS if lat > 0.0 else LOOK_LAT_NEG
+	else:
+		_look[i] = LOOK_U_POS if al > 0.0 else LOOK_U_NEG
+	_flee[i] = 0.0
+	_cower[i] = 0.0
+	_idle[i] = seconds
+
+
+## What person `i` does now: &"flee", &"cower", &"linger" (at a shop or bus stop or turned to someone), &"idle" (a chat) or &"walk".
+func state_of(i: int) -> StringName:
+	if _alive[i] == 0:
+		return &"gone"
+	if _flee[i] > 0.0:
+		return &"flee"
+	if _cower[i] > 0.0:
+		return &"cower"
+	if _idle[i] > 0.0:
+		return &"linger" if _look[i] != LOOK_ALONG else &"idle"
+	return &"walk"
+
+
+## 0 / STOP_SHOP / STOP_BUS: the stop person `i` is walking to.
+func goal_kind(i: int) -> int:
+	return _gkind[i]
+
+
+func goal_u(i: int) -> float:
+	return _goal[i]
+
+
+func is_cowering(i: int) -> bool:
+	return _cower[i] > 0.0
+
+
+func last_stop_kind(i: int) -> int:
+	return _stopk[i]
+
+
+func lingers_total() -> int:
+	return _lingers
+
+
+## The kind of stop in span `k` of the line (axis, lateral coordinate): a pure hash, so a street keeps its shops and bus stops.
+static func stop_kind(axis: int, lat: float, k: int) -> int:
+	var h := ((axis + 1) * 73856093) ^ (int(roundf(lat)) * 19349663) ^ (k * 83492791)
+	h = (h ^ (h >> 15)) * 0x2c1b3c6d
+	h = h ^ (h >> 12)
+	match (h & 0x7fffffff) % 4:
+		0:
+			return STOP_BUS
+		1, 2:
+			return STOP_SHOP
+	return 0
+
+
+## The next shop front / bus stop ahead of person `i` along its line (a middle of a sidewalk span); none = keep walking.
+func _assign_goal(i: int) -> void:
+	_gkind[i] = 0
+	var d := _dir[i]
+	var step := 1 if d > 0.0 else -1
+	var k0 := floori((_u[i] + 320.0 + LINE_OFF) / 80.0)
+	for n in 6:
+		var kk := k0 + n * step
+		var mid := 80.0 * float(kk) + STOP_MID - 320.0 - LINE_OFF
+		if (mid - _u[i]) * d < 0.8:
+			continue
+		if absf(mid) > EDGE - 4.0:
+			return
+		var kind := stop_kind(_axis[i], _lat[i], kk)
+		if kind != 0:
+			_goal[i] = mid
+			_gkind[i] = kind
+			return
+
+
+## Arrived at the stop: stand there for a while facing the shop window (shop) or the road (bus stop).
+func _start_linger(i: int, kind: int) -> void:
+	var building := 1 if fposmod(_lat[i] + 320.0, 80.0) < 40.0 else -1
+	var face := building if kind == STOP_SHOP else -building
+	_look[i] = LOOK_LAT_POS if face > 0 else LOOK_LAT_NEG
+	var r := SHOP_STAY if kind == STOP_SHOP else BUS_STAY
+	_idle[i] = rng.randf_range(r.x, r.y)
+	_gkind[i] = 0
+	_stopk[i] = kind
+	_lingers += 1
+
+
+func _end_linger(i: int) -> void:
+	_look[i] = LOOK_ALONG
+	_assign_goal(i)
+
+
+func _forward(i: int) -> Vector2:
+	var lk := _look[i]
+	var ax := _axis[i]
+	if lk == LOOK_LAT_POS or lk == LOOK_LAT_NEG:
+		var l := 1.0 if lk == LOOK_LAT_POS else -1.0
+		return Vector2(0.0, l) if ax == 0 else Vector2(l, 0.0)
+	var a := _dir[i]
+	if lk == LOOK_U_POS or lk == LOOK_U_NEG:
+		a = 1.0 if lk == LOOK_U_POS else -1.0
+	return Vector2(a, 0.0) if ax == 0 else Vector2(0.0, a)
 
 
 func fled_total() -> int:
@@ -255,6 +408,9 @@ func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
 		_age[i] = 0.0
 		_reg[i] = _region(u)
 		_alive[i] = 1
+		_look[i] = LOOK_ALONG
+		_cower[i] = 0.0
+		_assign_goal(i)
 		if rng.randf() < GROUP_CHANCE:
 			_spawn_group(i)
 		return true
@@ -285,6 +441,9 @@ func _spawn_group(i: int) -> void:
 		_idle[j] = stay + rng.randf_range(-2.0, 3.0)
 		_reg[j] = _region(_u[j])
 		_alive[j] = 1
+		_look[j] = LOOK_ALONG
+		_cower[j] = 0.0
+		_gkind[j] = 0
 		_first[j] = 0
 
 
@@ -302,21 +461,36 @@ func step(delta: float, center: Vector3) -> void:
 					_first[i] = 0
 			_write(i, 0.0, false)
 			continue
-		var sp := FLEE_SPEED if _flee[i] > 0.0 else _spd[i]
-		if _idle[i] > 0.0 and _flee[i] <= 0.0:
+		var fleeing := _flee[i] > 0.0
+		var sp := FLEE_SPEED if fleeing else _spd[i]
+		if fleeing:
+			_idle[i] = 0.0
+			_cower[i] = 0.0
+			_look[i] = LOOK_ALONG
+		elif _cower[i] > 0.0:
+			_cower[i] -= delta                           # crouching: no walk, no animation
+			sp = 0.0
+		elif _idle[i] > 0.0:
 			_idle[i] -= delta                            # standing: no walk, no animation
 			sp = 0.0
-		elif _flee[i] <= 0.0 and rng.randf() < IDLE_CHANCE * delta:
+			if _idle[i] <= 0.0 and _look[i] != LOOK_ALONG:
+				_end_linger(i)
+		elif rng.randf() < IDLE_CHANCE * delta:
 			_idle[i] = rng.randf_range(4.0, 12.0)
 		else:
 			_idle[i] = 0.0
 		_flee[i] = maxf(0.0, _flee[i] - delta)
+		if fleeing and _flee[i] <= 0.0:
+			_assign_goal(i)
+		var prev_u := _u[i]
 		var u := _u[i] + _dir[i] * sp * delta
 		_phase[i] += sp * delta * 2.7
 		_age[i] += delta
 		if absf(u) > EDGE:
 			_dir[i] = -_dir[i]
 			u = clampf(u, -EDGE, EDGE)
+			_u[i] = u
+			_assign_goal(i)
 		var reg := _region(u)
 		if reg != _reg[i]:
 			_reg[i] = reg
@@ -337,6 +511,11 @@ func step(delta: float, center: Vector3) -> void:
 				_axis[i] = 1 - _axis[i]
 				_dir[i] = 1.0 if rng.randf() < 0.5 else -1.0
 				_reg[i] = _region(u + _dir[i] * 0.02)
+				_u[i] = u
+				_assign_goal(i)
+		elif _gkind[i] != 0 and not fleeing and sp > 0.0 and (prev_u - _goal[i]) * _dir[i] < 0.0 and (u - _goal[i]) * _dir[i] >= 0.0:
+			u = _goal[i]
+			_start_linger(i, _gkind[i])
 		_u[i] = u
 		var p := _position(i)
 		var dx := p.x - center.x
@@ -362,12 +541,9 @@ func _write(i: int, fade: float, near: bool) -> void:
 
 func _fill(buf: PackedFloat32Array, o: int, i: int, fade: float) -> void:
 	var k := _size[i] * fade
-	var c := 0.0
-	var s := 0.0
-	if _axis[i] == 0:
-		s = -_dir[i]
-	else:
-		c = -_dir[i]
+	var f := _forward(i)
+	var c := -f.y                                             # forward is -Z in the model: Basis(UP, yaw) maps it to (-s, -c)
+	var s := -f.x
 	var l := _lat[i] + _off[i]
 	var x := _u[i] if _axis[i] == 0 else l
 	var z := l if _axis[i] == 0 else _u[i]
@@ -392,5 +568,8 @@ func _fill(buf: PackedFloat32Array, o: int, i: int, fade: float) -> void:
 	buf[o + 11] = z
 	buf[o + 16] = _seed[i]
 	buf[o + 17] = _phase[i]
-	buf[o + 18] = 0.0 if (_idle[i] > 0.0 and _flee[i] <= 0.0) else 0.5 + 0.38 * (FLEE_SPEED if _flee[i] > 0.0 else _spd[i])
-	buf[o + 19] = _umb[i]
+	buf[o + 18] = 0.0 if ((_idle[i] > 0.0 or _cower[i] > 0.0) and _flee[i] <= 0.0) else 0.5 + 0.38 * (FLEE_SPEED if _flee[i] > 0.0 else _spd[i])
+	if _cower[i] > 0.0 and _flee[i] <= 0.0:
+		buf[o + 18] = -1.0                                           # the shader crouches them, hands over the head
+	# w: bit 0 umbrella, bit 1 (+2) a chatting group (standing, not at a shop / stop, not looking anywhere): the shader gestures and nods
+	buf[o + 19] = _umb[i] + (2.0 if (_idle[i] > 0.0 and _cower[i] <= 0.0 and _flee[i] <= 0.0 and _gkind[i] == 0 and _look[i] == LOOK_ALONG) else 0.0)

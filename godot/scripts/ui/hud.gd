@@ -475,6 +475,18 @@ func weapon_charge() -> float:
 	return (p.get("weapon") as PlayerWeapon).charge
 
 
+## The car radio line shown while driving: "RADIO  NEON FM", or "RADIO OFF"; "" when not driving or there is no radio.
+func radio_text() -> String:
+	if not is_instance_valid(Game.vehicles) or not is_instance_valid(Game.player) or Game.player.get("vehicle") == null:
+		return ""
+	var r: Object = Game.vehicles.get("radio")
+	if r == null:
+		return ""
+	if not r.get("on"):
+		return "RADIO OFF"
+	return "RADIO  " + CarRadio.station_name(int(r.get("station")))
+
+
 func hint_text() -> String:
 	if not is_instance_valid(Game.vehicles) or not is_instance_valid(Game.player):
 		return ""
@@ -723,6 +735,9 @@ func _draw_hud_body() -> void:
 		_draw_tutorial(c, vp, s, font)
 	if playing and veh == null:
 		_draw_crosshair(c, p, vp, s, now)
+	if playing and veh != null and radio_text() != "":
+		var rt := radio_text()
+		_plate_text(c, font, ab.get_center().x, ab.position.y - 42.0 * s, rt, int(UiUtil.BAR_LABEL * s), (UiUtil.CYAN if rt != "RADIO OFF" else Color(1, 1, 1, 0.6)), s)
 	if playing and _hint_text != "":
 		_plate_text(c, font, ab.get_center().x, ab.position.y - (92.0 * s if (p.get("quantum") == null or touch_on) else 152.0 * s), _hint_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 1.0), s)
 	_draw_message(c, vp, s, font)

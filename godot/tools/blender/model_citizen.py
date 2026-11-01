@@ -1,11 +1,12 @@
-"""Pedestrian "citizen" (the crowd of the living city): ONE low-poly mesh "Citizen" (about 730 triangles, for the crowd near the camera) plus a cut-down copy "CitizenFar" (about 250, for the rest) of a clothed human-alien hybrid with every optional
-piece the six archetypes need (hood, long coat tail, backpack, swept crest and visor, umbrella). The crowd shader (assets/shaders/prop_crowd_core.gdshaderinc)
-shows the pieces an archetype wears, swings the limbs and tail in the vertex stage and colours the surfaces from a cyber-noir palette, so six silhouettes
-cost one draw call per mesh. No texture: the colour comes from the vertex colours.
+"""Pedestrian "citizen" (the crowd of the living city): ONE low-poly mesh "Citizen" (about 880 triangles, for the crowd near the camera) plus a cut-down copy "CitizenFar" (about 320, for the rest) of a clothed human-alien hybrid with every optional
+piece the thirteen archetypes need (hood, cowl, long coat tail, backpack, swept crest and visor, umbrella, shoulder mantle, cap peak, wide hat, vendor tray, pauldrons, antennae). The crowd shader (assets/shaders/prop_crowd_core.gdshaderinc)
+shows the pieces an archetype wears, proportions the body (height, width, neck, head, arm length), animates walk / idle / talk / flee / cower in the vertex stage and colours the surfaces
+from palettes (hi-vis vest, armour, robes, species skins), so thirteen silhouettes cost one draw call per mesh. No texture: the colour comes from the vertex colours.
 
 Vertex colour contract (COLOR_0, linear values written as given):
-  R  surface   0 skin, 0.15 visor / eyes (emissive), 0.3 dark (hair, shoes, gloves, umbrella ribs), 0.5 trousers, 0.7 accent (scarf, bag, trim), 1.0 coat
-  G  piece     0 body, 0.1 hood, 0.2 coat tail, 0.3 backpack, 0.4 crest, 0.5 scarf, 0.6 visor   (piece id = round(G * 10), shown per archetype by the shader)
+  R  surface   0 skin, 0.15 visor / eyes / glowing wares (emissive), 0.3 dark (hair, shoes, gloves, umbrella ribs), 0.5 trousers, 0.7 accent (scarf, bag, trim, hat, helmet peak, pauldrons), 1.0 coat
+  G  piece     piece id / 20 (shown per archetype by the shader): 0 body, 1 hood or helmet shell, 2 coat tail, 3 backpack, 4 crest and fins, 5 scarf, 6 visor, 7 mantle, 8 cap peak, 9 wide hat,
+               10 vendor tray, 11 pauldrons, 13 antennae, 14 cowl (the hood's drape over the shoulders). The ids are written with `chunk(..., g=id / 10)` (tenths).
   B  baked shadow 0..1 (hood interior, under the arms, face under the hood, between the legs): multiplies the light
   A  part tag  0 body, 0.2 left leg, 0.4 right leg, 0.6 left arm, 0.8 right arm, 0.9 coat tail, 1.0 umbrella (the walk cycle pivots)
 Authored at 1.76 m, origin at the feet, facing +Y in Blender (= -Z in Godot), limb pivots: hips (+-0.1, 0.9), shoulders (+-0.27, 1.42).
@@ -31,8 +32,9 @@ chunks = []
 
 
 def chunk(name, surf, g=0.0, b=1.0, tag=0.0):
+    """g = piece id / 10 (tenths of the id; stored as id / 20, see the contract above)."""
     p = Part(name, (0, 0, 0), seed=len(chunks) + 1)
-    chunks.append((p, (surf, g, b), tag))
+    chunks.append((p, (surf, round(g * 10.0) / 20.0, b), tag))
     return p
 
 
@@ -51,16 +53,17 @@ def make(F):
     for s, tag in ((-1, 0.2), (1, 0.4)):
         x0 = 0.1 * s
         leg = chunk("leg%d" % s, 0.5, 0.0, 0.85, tag)
-        leg.tube([(x0, 0.0, 0.93), (x0, 0.015, 0.5), (x0, 0.0, 0.1)], [(0.078, 0.08), (0.064, 0.066), (0.048, 0.05)], mat=M, tint=(0.5, 0.0, 0.85), n=S6, exp=2.0, sub=0 if F else 1)
+        leg.tube([(x0, 0.0, 0.93), (x0, 0.015, 0.5), (x0, 0.0, 0.1)], [(0.078, 0.08), (0.064, 0.066), (0.048, 0.05)], mat=M, tint=(0.5, 0.0, 0.85), n=S6, exp=2.0, sub=0 if F else 1, caps=(False, True))   # the cap at the hip is hidden
         shoe = chunk("shoe%d" % s, 0.3, 0.0, 1.0, tag)
         shoe.box((0.1, 0.24, 0.085), (x0, 0.04, 0.045), mat=M, tint=(0.3, 0.0, 1.0), top=(0.8, 0.7))
     hip = chunk("hip", 0.5, 0.0, 0.8)
-    hip.tube([(0, 0, 0.84), (0, 0, 0.96)], [(0.185, 0.115), (0.19, 0.12)], mat=M, tint=(0.5, 0.0, 0.8), n=S8, sub=0)
+    hip.tube([(0, 0, 0.84), (0, 0, 0.96)], [(0.185, 0.115), (0.19, 0.12)], mat=M, tint=(0.5, 0.0, 0.8), n=S8, sub=0, caps=(False, False))     # hidden inside the coat and the legs
 
     # ------------------------------------------------------------------ coat torso, optional long tail, shoulders
     coat = chunk("coat", 1.0, 0.0, 1.0)
-    coat.tube([(0, 0, 0.93), (0, 0, 1.15), (0, 0.005, 1.36), (0, 0.01, 1.5)], [(0.185, 0.115), (0.2, 0.125), (0.215, 0.13), (0.15, 0.1)], mat=M, tint=(1.0, 0.0, 1.0), n=S8, exp=2.2, sub=0)
-    coat.loft([helpers.ring_se(0, 0.0, 1.5, 0.17, 0.11, 8, 2.2, plane="xy"), helpers.ring_se(0, 0.01, 1.57, 0.06, 0.06, 8, 2.0, plane="xy")], mat=M, tint=(1.0, 0.0, 0.9))   # collar
+    coat.tube([(0, 0, 0.93), (0, 0, 1.15), (0, 0.005, 1.36), (0, 0.01, 1.5)], [(0.185, 0.115), (0.2, 0.125), (0.215, 0.13), (0.15, 0.1)], mat=M, tint=(1.0, 0.0, 1.0), n=S8, exp=2.2, sub=0, caps=(False, F))   # the ends are hidden by the hip and the collar (the far copy has no collar: it keeps the top cap)
+    if not F:
+        coat.loft([helpers.ring_se(0, 0.0, 1.5, 0.17, 0.11, 8, 2.2, plane="xy"), helpers.ring_se(0, 0.01, 1.57, 0.06, 0.06, 8, 2.0, plane="xy")], mat=M, tint=(1.0, 0.0, 0.9))   # collar (near only)
     belt = chunk("belt", 0.7, 0.0, 1.0)
     belt.tube([(0, 0, 0.935), (0, 0, 0.965)], [(0.192, 0.122), (0.192, 0.122)], mat=M, tint=(0.7, 0.0, 1.0), n=S8, sub=0)
     tail = chunk("tail", 1.0, 0.2, 0.7, 0.9)
@@ -79,7 +82,7 @@ def make(F):
 
     # ------------------------------------------------------------------ head, hair, face patch, neck, hood, scarf, crest and visor
     neck = chunk("neck", 0.0, 0.0, 0.6)
-    neck.tube([(0, 0.0, 1.5), (0, 0.01, 1.58)], [(0.05, 0.05), (0.048, 0.048)], mat=M, tint=(0.0, 0.0, 0.6), n=6, sub=0)
+    neck.tube([(0, 0.0, 1.5), (0, 0.01, 1.58)], [(0.05, 0.05), (0.048, 0.048)], mat=M, tint=(0.0, 0.0, 0.6), n=6, sub=0, caps=(False, False))
     headc = chunk("head", 0.0, 0.0, 1.0)
     headc.sphere((0.092, 0.108, 0.118), (0, 0.01, 1.64), mat=M, tint=(0.0, 0.0, 1.0), segs=S8, rings=S5)
     hair = chunk("hair", 0.3, 0.0, 1.0)
@@ -96,7 +99,7 @@ def make(F):
     hood_in.sphere((0.125, 0.14, 0.145), (0, -0.01, 1.65), mat=M, tint=(0.3, 0.1, 0.12), segs=S8, rings=S5)
     cut_front(hood_in, 0.055)
     bmesh.ops.reverse_faces(hood_in.bm, faces=hood_in.bm.faces[:])
-    drape = chunk("hood_drape", 1.0, 0.1, 0.9)                                               # the hood's drape over the shoulders
+    drape = chunk("hood_drape", 1.0, 1.4, 0.9)                                               # the hood's drape over the shoulders
     drape.tube([(0, -0.07, 1.62), (0, -0.1, 1.5), (0, -0.07, 1.4)], [(0.15, 0.07), (0.2, 0.1), (0.24, 0.12)], mat=M, tint=(1.0, 0.1, 0.9), n=S8, sub=0, caps=(False, False))
     scarf = chunk("scarf", 0.7, 0.5, 1.0)
     scarf.torus(0.095, 0.034, (0, 0.005, 1.52), mat=M, tint=(0.7, 0.5, 1.0), segs=S8, sides=3)
@@ -127,8 +130,28 @@ def make(F):
     bmesh.ops.reverse_faces(dome_in.bm, faces=dome_in.bm.faces[:])
 
 
+    # ------------------------------------------------------------------ pieces of the later archetypes (ids 7 to 13): mantle, cap peak, wide hat, vendor tray, pauldrons, antennae
+    mantle = chunk("mantle", 1.0, 0.7, 0.9)                                                 # a wide shoulder cape that hides the arms (the mantled monk); a tube that runs downwards has its first radius along Y (front to back), the second along X
+    mantle.tube([(0, 0.0, 1.47), (0, -0.01, 1.22), (0, -0.02, 0.98)], [(0.12, 0.18), (0.22, 0.37), (0.26, 0.44)], mat=M, tint=(1.0, 0.7, 0.9), n=S8, exp=2.2, sub=0, caps=(False, False))
+    peak = chunk("peak", 0.7, 0.8, 1.0)                                                     # the peak of a hard hat / cap (the helmet shell is the hood piece, recoloured)
+    peak.box((0.2, 0.13, 0.014), (0, 0.15, 1.745), rot=(-14, 0, 0), mat=M, tint=(0.7, 0.8, 1.0))
+    hat = chunk("hat", 0.7, 0.9, 1.0)                                                       # the vendor's wide conical hat
+    hat.cyl(0.25, 0.14, (0, 0, 1.78), mat=M, tint=(0.7, 0.9, 1.0), r2=0.03, segs=S6 if not F else 5, caps=(False, False))
+    tray = chunk("tray", 0.3, 1.0, 1.0)                                                     # the vendor's tray, held at hip height in front of the body, with glowing wares
+    tray.box((0.5, 0.34, 0.035), (0, 0.4, 1.04), mat=M, tint=(0.3, 1.0, 1.0))
+    if not F:
+        wares = chunk("wares", 0.15, 1.0, 1.0)
+        wares.box((0.22, 0.18, 0.15), (0, 0.4, 1.135), mat=M, tint=(0.15, 1.0, 1.0))
+    for s in (-1, 1):
+        pad = chunk("pauldron%d" % s, 0.7, 1.1, 1.0)
+        pad.box((0.17, 0.16, 0.05), (s * 0.31, 0.0, 1.5), rot=(0, s * 24, 0), mat=M, tint=(0.7, 1.1, 1.0))
+    if not F:
+        for s in (-1, 1):
+            ant = chunk("antenna%d" % s, 0.15, 1.3, 1.0)
+            ant.rod((s * 0.04, -0.01, 1.74), (s * 0.12, -0.07, 2.0), 0.011, mat=M, tint=(0.15, 1.3, 1.0), r2=0.004, segs=3)
+
     if F:
-        for nm in ("brow", "strap", "neck", "tail_in", "hood_in", "dome_in", "hood_drape", "crest1", "fin-1", "fin1", "scarf", "visor", "belt", "hand-1", "hand1", "face", "hair", "shoe-1", "shoe1"):
+        for nm in ("peak", "pauldron-1", "pauldron1", "brow", "strap", "neck", "tail_in", "hood_in", "dome_in", "hood_drape", "crest1", "fin-1", "fin1", "scarf", "visor", "belt", "hand-1", "hand1", "face", "hair", "shoe-1", "shoe1"):
             chunks[:] = [c for c in chunks if c[0].name != nm]
 
     return chunks
