@@ -25,6 +25,8 @@ static var _font: Font
 static var _sprites := {}
 ## Bottom of the HUD's top-centre stack (bars + objective plate) in base px: the story layer starts its own lines below it, so nothing collides.
 static var stack_bottom := 100.0
+## Bottom of the HUD's top-left column (minimap, then the perf readout on phones) in base px: the radio subtitle plate sits right under it.
+static var left_bottom := 190.0
 
 
 static func ui_scale(vp: Vector2) -> float:

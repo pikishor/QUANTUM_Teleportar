@@ -134,6 +134,46 @@ func _dead_and_win() -> void:
 	TestLib.check(_hud.press_button(&"next") and Game.state == &"play" and _events.has("next"), "NEXT SECTOR calls Game.do_next_sector()")
 
 
+## Music and SFX sliders on the settings rows (tap and drag, persisted, applied to the buses) and the UI cues the screen buttons play.
+func _volume_and_cues() -> void:
+	var was_muted := Sfx.muted
+	Sfx.muted = false
+	var was_state := Game.state
+	Game.state = &"menu"
+	_hud._ensure_layout()
+	var rects := {}
+	for b: Dictionary in _hud.buttons:
+		rects[b["id"]] = b["rect"]
+	TestLib.check(rects.has(&"vol_music") and rects.has(&"vol_sfx") and rects.has(&"mute"), "the settings rows hold the music and SFX sliders next to the mute button")
+	var r: Rect2 = rects[&"vol_music"]
+	TestLib.check(not _hud.press_button(&"vol_music"), "a slider is not a press")
+	TestLib.check(_hud.tap(Vector2(r.position.x + r.size.x * 0.5, r.get_center().y)), "a tap on the music slider sets it")
+	_hud.end_drag()
+	var half := _hud.volume_of(&"vol_music")
+	TestLib.check(half > 0.35 and half < 0.65, "the middle of the track is about half volume (%.2f)" % half)
+	TestLib.check(absf(Sfx.bus_volume(&"Music") - half) < 0.02, "the Music bus follows the slider at once (%.2f)" % Sfx.bus_volume(&"Music"))
+	_hud.slide(&"vol_music", r.end.x + 50.0)
+	TestLib.check(_hud.volume_of(&"vol_music") == 1.0, "dragging past the end gives full volume")
+	_hud.slide(&"vol_music", r.position.x - 50.0)
+	TestLib.check(_hud.volume_of(&"vol_music") == 0.0 and Sfx.bus_volume(&"Music") < 0.01, "dragging past the start mutes the music bus")
+	_hud.set_volume(&"vol_sfx", 0.3)
+	TestLib.check(absf(Sfx.bus_volume(&"SFX") - 0.3) < 0.02 and absf(Sfx.bus_volume(&"Ambient") - 0.3) < 0.02 and absf(Sfx.bus_volume(&"Voice") - 0.3) < 0.02, "the SFX slider drives SFX, ambience and radio voice")
+	var fresh := UiSettings.new(TMP)
+	TestLib.check(float(fresh.volumes.get("Music", 1.0)) == 0.0 and absf(float(fresh.volumes.get("SFX", 1.0)) - 0.3) < 0.01, "both volumes persist with the settings (%s)" % str(fresh.volumes))
+	_hud.set_volume(&"vol_music", 1.0)
+	_hud.set_volume(&"vol_sfx", 1.0)
+	# UI cues
+	OS.delay_msec(60)
+	Sfx.last_played = &""
+	_hud.press_button(&"q1")
+	TestLib.check(Sfx.last_played == &"ui_tap", "a settings button answers with ui_tap (%s)" % Sfx.last_played)
+	OS.delay_msec(60)
+	_hud.press_button(&"post")
+	_hud.press_button(&"post")
+	Sfx.muted = was_muted
+	Game.state = was_state
+
+
 func _settings(host: Node, atmo: StubAtmosphere) -> void:
 	TestLib.check(_hud.press_button(&"q2") and Game.quality == 2 and _hud.settings.quality == 2, "HIGH sets Game.set_quality(2)")
 	TestLib.check(_hud.press_button(&"q0") and Game.quality == 0, "LOW sets Game.set_quality(0)")
@@ -153,6 +193,7 @@ func _settings(host: Node, atmo: StubAtmosphere) -> void:
 	_hud.press_button(&"post")
 	_hud.press_button(&"mute")
 	_hud.press_button(&"q1")
+	await _volume_and_cues()
 	# best score
 	Game.state = &"play"
 	Game.score = 1250

@@ -70,6 +70,7 @@ const DUCKS := {
 var _cache := {}                  ## name -> Array[AudioStream] (variants; empty when the sound does not exist)
 var _rules := {}
 var _last_pick := {}
+var last_played: StringName = &""   ## the last flat sound that actually started (tests check UI cue wiring with it)
 var _last_start := {}             ## family -> seconds of the last start
 var _players: Array[AudioStreamPlayer] = []
 var _players3d: Array[AudioStreamPlayer3D] = []
@@ -303,6 +304,7 @@ func play(sfx_name: StringName, volume_db := 0.0, pitch := 1.0) -> void:
 	_prio_flat[i] = int(rule[1])
 	_t_flat[i] = now
 	_last_start[fam] = now
+	last_played = sfx_name
 	p.play()
 	_after_play(sfx_name)
 

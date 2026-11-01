@@ -4,6 +4,13 @@ extends RefCounted
 ## render scale and the sky radiance size.
 
 const SKY_SHADER := preload("res://assets/shaders/sky.gdshader")
+## Compatibility renderer constants (no sky radiance map, weaker bloom): tuned so one MED frame has about the luma of the Mobile renderer (see docs/HANDOFF.md).
+const COMPAT_AMBIENT := Color(0.30, 0.40, 0.55)
+const COMPAT_AMBIENT_ENERGY := 2.6
+const COMPAT_EXPOSURE := 1.95
+const COMPAT_GLOW_THRESHOLD := 0.9
+const COMPAT_GLOW_STRENGTH := 1.05
+const COMPAT_GLOW_ADD := 0.1
 
 var world_env: WorldEnvironment
 var env: Environment
@@ -63,10 +70,12 @@ func build(parent: Node3D) -> void:
 	# give it a flat teal ambient and a small exposure lift so the city still reads.
 	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		env.ambient_light_color = Color(0.22, 0.30, 0.42)
-		env.ambient_light_energy = 0.7
-		env.tonemap_exposure = 1.45
+		env.ambient_light_color = COMPAT_AMBIENT
+		env.ambient_light_energy = COMPAT_AMBIENT_ENERGY
+		env.tonemap_exposure = COMPAT_EXPOSURE
 		env.fog_density = 0.0042
+		env.glow_hdr_threshold = COMPAT_GLOW_THRESHOLD
+		env.glow_strength = COMPAT_GLOW_STRENGTH
 
 	world_env = WorldEnvironment.new()
 	world_env.name = "Environment"
@@ -101,6 +110,6 @@ func apply_quality(level: int, vp: Viewport) -> void:
 	if vp != null:
 		vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][level]
 		vp.scaling_3d_scale = 0.7 if level == 0 else 1.0
-	env.glow_intensity = [0.8, 0.9, 1.0][level]
+	env.glow_intensity = [0.8, 0.9, 1.0][level] + (COMPAT_GLOW_ADD if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0)
 	env.adjustment_contrast = [1.14, 1.08, 1.06][level]       # LOW: a light 'sharpen' (the post-process filter is off there)
 	env.fog_density = 0.0042 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0052

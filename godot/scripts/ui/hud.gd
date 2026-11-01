@@ -14,7 +14,13 @@ const HURT_TIME := 0.45             ## seconds the hit vignette lasts
 const MARKER_TIME := 0.7            ## seconds the attacker marker lasts
 const DEAD_DIM := 0.30              ## alpha of the DECOHERED / SECTOR STABILIZED dimming (never above 0.35)
 ## Base-px baseline of the centre message: below the top stack and the radio subtitle lane, above the crosshair.
-const MSG_Y := 276.0
+const MSG_Y := 262.0
+const MINIMAP := 148.0              ## base px: the round minimap, top left
+const BAR_W := 168.0                ## base px of an integrity / coherence / hull bar
+const LABEL_W := 92.0               ## base px: the least width of the caption column left of the bars (it grows to fit the widest caption in the font in use)
+const VALUE_W := 44.0
+## Volume sliders of the settings rows: slider id -> the buses it sets (saved in settings.volumes). SFX also carries the ambience beds and the radio voice.
+const SLIDERS := {&"vol_music": ["Music"], &"vol_sfx": ["SFX", "Ambient", "Voice"]}
 const CONTROLS_DESKTOP := "WASD MOVE    MOUSE LOOK    LMB FIRE    RMB AIM    SHIFT SPRINT    SPACE JUMP    R RELOAD    Q BLINK    E LINK    G SUPERPOSE    F USE    ESC PAUSE"
 const CONTROLS_TOUCH := "LEFT THUMB MOVE (PUSH FAR TO SPRINT)    RIGHT THUMB LOOK    HOLD FIRE TO SHOOT AND AIM AT ONCE"
 
@@ -46,6 +52,9 @@ var _ammo_text := ""
 var _star := PackedVector2Array()
 var _vignette: GradientTexture2D
 var _mouse_captured := false
+var _lw := LABEL_W                  ## base px of the caption column, measured per scale (see _caption_width)
+var _lw_key := -1
+var _drag := &""                    ## the volume slider a finger / the mouse is dragging
 var _t := 0.0
 var _q: Array = []                  ## queued draws (see _text): text, rectangles, sprites, outlines
 var _fills: Array = []
@@ -206,11 +215,20 @@ func _input(event: InputEvent) -> void:
 		var mb := event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			tap(mb.position)
+		elif not mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			end_drag()
 	elif event is InputEventScreenTouch:
 		var st := event as InputEventScreenTouch
 		if st.pressed:
 			tap(st.position)
+		else:
+			end_drag()
+	elif event is InputEventScreenDrag and _drag != &"":
+		slide(_drag, (event as InputEventScreenDrag).position.x)
 	elif event is InputEventMouseMotion:
+		if _drag != &"":
+			slide(_drag, (event as InputEventMouseMotion).position.x)
+			return
 		var h := _button_at((event as InputEventMouseMotion).position)
 		if h != _hover:
 			_hover = h
@@ -232,6 +250,10 @@ func tap(pos: Vector2) -> bool:
 		return false
 	_ensure_layout()
 	var id := _button_at(pos)
+	if SLIDERS.has(id):
+		_drag = id
+		slide(id, pos.x)
+		return true
 	if id != &"":
 		return press_button(id)
 	if Game.state == &"dead":
@@ -256,8 +278,9 @@ func press_button(id: StringName) -> bool:
 		if Game.state != &"paused" or not _shop_open or Game.progress == null:
 			return false
 		if not bool(Game.progress.call(&"buy", StringName(sid.substr(4)))):
+			Sfx.play(&"ui_deny")                                       # not enough credits (or the upgrade is maxed)
 			return false
-		Sfx.play(&"pickup")
+		Sfx.play(&"ui_upgrade" if (Game.progress as Progress).level(StringName(sid.substr(4))) >= Upgrades.MAX_LEVEL else &"ui_purchase")
 		_layout_key = ""
 		_screen.queue_redraw()
 		return true
@@ -267,17 +290,21 @@ func press_button(id: StringName) -> bool:
 				return false
 			if not bool(Game.progress.call(&"continue_game")):
 				return false
+			Sfx.play(&"ui_confirm")
 		&"shop":
 			if Game.state != &"paused" or Game.progress == null:
 				return false
 			_shop_open = true
+			Sfx.play(&"ui_confirm")
 		&"shop_back":
 			if Game.state != &"paused":
 				return false
 			_shop_open = false
+			Sfx.play(&"ui_back")
 		&"deploy":
 			if Game.state != &"menu":
 				return false
+			Sfx.play(&"ui_confirm")
 			Game.start_new_game()
 		&"resume":
 			if Game.state != &"paused":
@@ -286,20 +313,25 @@ func press_button(id: StringName) -> bool:
 		&"menu":
 			if Game.state != &"paused":
 				return false
+			Sfx.play(&"ui_back")
 			Game.state = &"menu"
 		&"respawn":
 			if Game.state != &"dead" or screen_age < LOCK:
 				return false
+			Sfx.play(&"ui_confirm")
 			Game.do_respawn()
 		&"next":
 			if Game.state != &"win" or screen_age < LOCK:
 				return false
+			Sfx.play(&"ui_confirm")
 			Game.do_next_sector()
 		&"q0", &"q1", &"q2":
+			Sfx.play(&"ui_tap")
 			settings.quality = int(String(id).substr(1))
 			Game.set_quality(settings.quality)
 			settings.save()
 		&"post":
+			Sfx.play(&"ui_tap")
 			settings.post = not settings.post
 			apply_settings(false)
 			settings.save()
@@ -307,11 +339,51 @@ func press_button(id: StringName) -> bool:
 			settings.muted = not settings.muted
 			apply_settings(false)
 			settings.save()
+			Sfx.play(&"ui_tap")                                         # silent when this press muted
+		&"vol_music", &"vol_sfx":
+			return false                                                # sliders act through slide() (tap / drag), not as presses
 		_:
 			return false
 	_layout_key = ""
 	_screen.queue_redraw()
 	return true
+
+
+## The saved volume 0..1 of a slider (`&"vol_music"` or `&"vol_sfx"`).
+func volume_of(slider: StringName) -> float:
+	return clampf(float(settings.volumes.get(SLIDERS[slider][0], 1.0)), 0.0, 1.0)
+
+
+## Sets a slider's volume (snapped to 5 %), applies it at once to its buses and optionally saves it.
+func set_volume(slider: StringName, v: float, save := true) -> void:
+	if not SLIDERS.has(slider):
+		return
+	v = snappedf(clampf(v, 0.0, 1.0), 0.05)
+	for bus: String in SLIDERS[slider]:
+		settings.volumes[bus] = v
+	Sfx.apply_volumes(settings.volumes)
+	if save:
+		settings.save()
+
+
+## Moves a slider to the screen x of a finger (the track is the button's rect, a little inset); the new value is heard on every volume bus at once, saved on release.
+func slide(slider: StringName, x: float) -> void:
+	_ensure_layout()
+	for b: Dictionary in buttons:
+		if b["id"] == slider:
+			var r: Rect2 = b["rect"]
+			var inset := minf(8.0, r.size.x * 0.05)
+			set_volume(slider, (x - r.position.x - inset) / maxf(r.size.x - 2.0 * inset, 1.0), false)
+			return
+
+
+## Ends a slider drag: the value is saved and a tap confirms it (a quiet sound, so the new SFX level is audible).
+func end_drag() -> void:
+	if _drag == &"":
+		return
+	_drag = &""
+	settings.save()
+	Sfx.play(&"ui_tap")
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -390,9 +462,13 @@ func _process(delta: float) -> void:
 	var vp := get_viewport().get_visible_rect().size
 	var s := UiUtil.ui_scale(vp)
 	var ins := UiUtil.insets(vp)
-	var side := 176.0 * s
+	var side := MINIMAP * s
 	minimap.position = Vector2(ins.x + 16.0 * s, 14.0 * s + UiUtil.insets_v(vp).x)
 	minimap.size = Vector2(side, side)
+	var col_bottom := minimap.position.y + side
+	if touch != null and touch.perf_visible():
+		col_bottom = maxf(col_bottom, (touch._perf_box() as Rect2).end.y)
+	UiUtil.left_bottom = col_bottom / s
 	if _hud.visible:
 		_hud.queue_redraw()
 	if _screen.visible:
@@ -475,8 +551,19 @@ func _bar(c: Control, font: Font, x: float, y: float, w: float, h: float, frac: 
 	_rect(c, r.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.6))
 	_rect(c, Rect2(x, y, w * clampf(frac, 0.0, 1.0), h), col)
 	_frame(c, r, Color(col, 0.7), 1.0 * s)
-	_text(c, font, Vector2(x - 8.0 * s - 132.0 * s, y + h + 3.0 * s), label, HORIZONTAL_ALIGNMENT_RIGHT, 132.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
-	_text(c, font, Vector2(x + w + 8.0 * s, y + h + 4.0 * s), value, HORIZONTAL_ALIGNMENT_LEFT, 56.0 * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.95), 1.0 * s)
+	_text(c, font, Vector2(x - 8.0 * s - _lw * s, y + h + 2.0 * s), label, HORIZONTAL_ALIGNMENT_RIGHT, _lw * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+	_text(c, font, Vector2(x + w + 8.0 * s, y + h + 3.0 * s), value, HORIZONTAL_ALIGNMENT_LEFT, VALUE_W * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.95), 1.0 * s)
+
+
+## Measures the widest bar caption once per UI scale (the font differs per device), so no caption is ever cut.
+func _caption_width(font: Font, s: float) -> void:
+	var key := int(s * 100.0)
+	if key == _lw_key:
+		return
+	_lw_key = key
+	var size := int(UiUtil.BAR_LABEL * s)
+	var w := maxf(maxf(_text_width(font, "INTEGRITY", size), _text_width(font, "COHERENCE", size)), _text_width(font, "HULL", size))
+	_lw = maxf(LABEL_W, w / s + 6.0)
 
 
 func _draw_hud(_ignored: Control = null) -> void:
@@ -505,31 +592,31 @@ func _draw_hud_body() -> void:
 			c.draw_texture_rect(_vignette, Rect2(Vector2.ZERO, vp), false, Color(1, 1, 1, a))
 		if since_hurt < MARKER_TIME and playing:
 			_draw_hurt_direction(c, p, vp, s, 1.0 - since_hurt / MARKER_TIME)
-	# top centre, one stack: integrity / coherence (/ hull) bars on a plate, the objective line on a plate under them. The story layer starts below it.
+	# top centre, one compact stack: the bars on a plate, then ONE priority line (the active / offered contract, else the core objective) and its extras.
 	var top := insv.x + 6.0 * s
 	var stack_end := top
 	if p != null:
-		var bw := 220.0 * s
-		var total := 132.0 * s + 8.0 * s + bw + 8.0 * s + 56.0 * s
-		var bx := vp.x * 0.5 - total * 0.5 + 140.0 * s
+		var bw := BAR_W * s
+		_caption_width(font, s)
+		var total := (_lw + 8.0 + VALUE_W + 8.0) * s + bw
+		var bx := vp.x * 0.5 - total * 0.5 + (_lw + 8.0) * s
 		var hp := UiUtil.num(p, &"hp", 100.0)
 		var mhp := maxf(UiUtil.num(p, &"max_hp", 100.0), 1.0)
 		var f := clampf(hp / mhp, 0.0, 1.0)
 		var hp_col := Color(0.4, 1.0, 0.72, 0.95) if f > 0.35 else Color(1.0, 0.3, 0.3, 0.95)
 		var has_hull := veh != null and UiUtil.num(veh, &"hp", -1.0) >= 0.0
 		var rows := 3 if has_hull else 2
-		var plate := Rect2(vp.x * 0.5 - total * 0.5 - 12.0 * s, top, total + 24.0 * s, (12.0 + 24.0 * (rows - 1) + 14.0 + 8.0) * s)
+		var plate := Rect2(vp.x * 0.5 - total * 0.5 - 10.0 * s, top, total + 20.0 * s, (8.0 + 22.0 * (rows - 1) + 12.0 + 6.0) * s)
 		_plate(c, plate, s)
-		var y0 := top + 10.0 * s
-		_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
+		var y0 := top + 8.0 * s
+		_bar(c, font, bx, y0, bw, 12.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
 		var en := UiUtil.num(p, &"energy", 100.0)
 		var men := maxf(UiUtil.num(p, &"max_energy", 100.0), 1.0)
-		_bar(c, font, bx, y0 + 24.0 * s, bw, 14.0 * s, en / men, Color(0.35, 0.8, 1.0, 0.95), "COHERENCE", str(floori(en)), s)
+		_bar(c, font, bx, y0 + 22.0 * s, bw, 12.0 * s, en / men, Color(0.35, 0.8, 1.0, 0.95), "COHERENCE", str(floori(en)), s)
 		if has_hull:
 			var vh := UiUtil.num(veh, &"hp", 0.0)
-			_bar(c, font, bx, y0 + 48.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
-		var obj := _plate_text(c, font, vp.x * 0.5, plate.end.y + 4.0 * s, _obj_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.MAGENTA.lerp(Color.WHITE, 0.45), 1.0), s, Color(UiUtil.MAGENTA, 0.6), 300.0 * s)
-		stack_end = _draw_contract(c, vp, s, font, obj.end.y)
+			_bar(c, font, bx, y0 + 44.0 * s, bw, 12.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
+		stack_end = _draw_priority(c, vp, s, font, plate.end.y + 3.0 * s)
 	UiUtil.stack_bottom = stack_end / s
 	# top right: heat stars and credits on one plate
 	_plate(c, Rect2(right - 176.0 * s, top, 184.0 * s, 76.0 * s), s)
@@ -702,7 +789,7 @@ func _ensure_layout() -> void:
 			if _has_save:
 				_add(&"continue", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "CONTINUE", false)
 				_add(&"deploy", Rect2(cx - 170.0 * s, 392.0 * s, 340.0 * s, 44.0 * s), "NEW GAME", false)
-				_settings_rows(cx, 478.0, s)
+				_settings_rows(cx, 470.0, s)
 			else:
 				_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
 				_settings_rows(cx, 430.0, s)
@@ -713,11 +800,11 @@ func _ensure_layout() -> void:
 				_add(&"resume", Rect2(cx - 170.0 * s, 232.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 340.0 * s, 44.0 * s), "UPGRADES", false)
 				_settings_rows(cx, 388.0, s)
-				_add(&"menu", Rect2(cx - 154.0 * s, 520.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
+				_add(&"menu", Rect2(cx - 154.0 * s, 550.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
 			else:
 				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_settings_rows(cx, 350.0, s)
-				_add(&"menu", Rect2(cx - 154.0 * s, 484.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
+				_add(&"menu", Rect2(cx - 154.0 * s, 514.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
 		&"dead":
 			_add(&"respawn", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)      # low on the screen: the middle stays free for the world
 		&"win":
@@ -727,8 +814,10 @@ func _ensure_layout() -> void:
 func _settings_rows(cx: float, y: float, s: float) -> void:
 	for i in 3:
 		_add(StringName("q%d" % i), Rect2(cx - 154.0 * s + i * 106.0 * s, y * s, 96.0 * s, 40.0 * s), TIER_NAMES[i], Game.quality == i)
-	_add(&"post", Rect2(cx - 154.0 * s, (y + 56.0) * s, 150.0 * s, 40.0 * s), "POST FX  " + ("ON" if settings.post else "OFF"), settings.post)
-	_add(&"mute", Rect2(cx + 4.0 * s, (y + 56.0) * s, 150.0 * s, 40.0 * s), "SOUND  " + ("OFF" if settings.muted else "ON"), not settings.muted)
+	_add(&"post", Rect2(cx - 154.0 * s, (y + 50.0) * s, 150.0 * s, 40.0 * s), "POST FX  " + ("ON" if settings.post else "OFF"), settings.post)
+	_add(&"mute", Rect2(cx + 4.0 * s, (y + 50.0) * s, 150.0 * s, 40.0 * s), "SOUND  " + ("OFF" if settings.muted else "ON"), not settings.muted)
+	_add(&"vol_music", Rect2(cx - 154.0 * s, (y + 100.0) * s, 150.0 * s, 40.0 * s), "MUSIC", true)          # sliders: the rect is the track, the fill and value are drawn from settings
+	_add(&"vol_sfx", Rect2(cx + 4.0 * s, (y + 100.0) * s, 150.0 * s, 40.0 * s), "SFX", true)
 
 
 func _add(id: StringName, r: Rect2, label: String, on: bool) -> void:
@@ -769,7 +858,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			_text(c, font, Vector2(0.0, 258.0 * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 			if is_instance_valid(Game.story) and Game.story.has_method(&"tagline"):
 				_text(c, font, Vector2(0.0, 294.0 * s), str(Game.story.call(&"tagline")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.85), 1.0 * s)
-			_text(c, font, Vector2(0.0, (472.0 if _has_save else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
+			_text(c, font, Vector2(0.0, (464.0 if _has_save else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 			_footer(c, vp, s, font)
 		&"paused":
 			if _shop_open:
@@ -794,6 +883,15 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		var on: bool = b["on"]
 		var hot: bool = _hover == b["id"]
 		var tint := UiUtil.MAGENTA if (big and b["id"] != &"next" and b["id"] != &"resume") else UiUtil.CYAN
+		if SLIDERS.has(b["id"]):
+			var vol := volume_of(b["id"])
+			var inset := minf(8.0, r.size.x * 0.05)
+			c.draw_rect(r, Color(tint, 0.10))
+			c.draw_rect(Rect2(r.position.x + inset, r.position.y + r.size.y - 12.0 * s, (r.size.x - 2.0 * inset) * vol, 6.0 * s), Color(tint, 0.85))
+			c.draw_rect(Rect2(r.position.x + inset + (r.size.x - 2.0 * inset) * vol - 2.0 * s, r.position.y + r.size.y - 19.0 * s, 4.0 * s, 14.0 * s), Color(1, 1, 1, 0.95))
+			c.draw_rect(r, Color(tint, 0.95 if (hot or _drag == b["id"]) else 0.5), false, 1.5 * s)
+			_text(c, font, Vector2(r.position.x, r.position.y + 21.0 * s), "%s  %d" % [b["label"], roundi(vol * 100.0)], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(20.0 * s), Color(1, 1, 1, 0.95))
+			continue
 		c.draw_rect(r, Color(tint, 0.30 if (on or hot) else 0.10))
 		c.draw_rect(r, Color(tint, 0.95 if (on or hot or big) else 0.5), false, 2.0 * s if big else 1.5 * s)
 		_text(c, font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + (10.0 if big else 7.0) * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int((30.0 if big else 20.0) * s), Color(1, 1, 1, 0.97 if (on or hot or big) else 0.75))
@@ -841,28 +939,34 @@ func tutorial() -> Object:
 	return st.get(&"tutorial") if st != null else null
 
 
-## Under the objective plate: the contract plate with a thin progress bar, then the officer's boss bar. Returns the new bottom of the stack (px).
-func _draw_contract(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+## THE priority line under the bars: the contract line while one is offered or running (amber, with a thin progress bar), otherwise the core objective (magenta).
+## The officer's boss bar hangs under it. Returns the new bottom of the stack (px).
+func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
 	var k := _contracts()
+	var contract := _contract_text != "" and k != null
+	var text := _contract_text if contract else _obj_text
+	var col := Color(UiUtil.AMBER.lerp(Color.WHITE, 0.35), 1.0) if contract else Color(UiUtil.MAGENTA.lerp(Color.WHITE, 0.45), 1.0)
+	var accent := Color(UiUtil.AMBER, 0.7) if contract else Color(UiUtil.MAGENTA, 0.6)
+	var size := int(UiUtil.TEXT_MIN * s)
+	while size > int(16.0 * s) and _text_width(font, text, size) + 36.0 * s > vp.x * 0.5 - 20.0 * s:     # a long line shrinks instead of growing under the side plates
+		size -= 1
+	var r := _plate_text(c, font, vp.x * 0.5, y, text, size, col, s, accent, 260.0 * s)
+	var end := r.end.y
 	if k == null:
-		return y
-	var end := y
-	if _contract_text != "":
-		var col := Color(UiUtil.AMBER.lerp(Color.WHITE, 0.35), 1.0)
-		var r := _plate_text(c, font, vp.x * 0.5, y + 4.0 * s, _contract_text, int(UiUtil.TEXT_MIN * s), col, s, Color(UiUtil.AMBER, 0.7), 300.0 * s)
-		end = r.end.y
+		return end
+	if contract:
 		var pf := float(k.call(&"progress_fraction"))
 		if pf >= 0.0:
-			var bar := Rect2(r.position.x, r.end.y, r.size.x, 6.0 * s)
+			var bar := Rect2(r.position.x, r.end.y, r.size.x, 5.0 * s)
 			_rect(c, bar, Color(0.0, 0.03, 0.05, 0.7))
 			_rect(c, Rect2(bar.position, Vector2(bar.size.x * clampf(pf, 0.0, 1.0), bar.size.y)), Color(UiUtil.AMBER, 0.95))
 			end = bar.end.y
 	var boss: Dictionary = k.call(&"boss")
 	if not boss.is_empty():
-		var bw := 360.0 * s
-		var by := end + 8.0 * s
-		var br := Rect2(vp.x * 0.5 - bw * 0.5, by + 22.0 * s, bw, 12.0 * s)
-		_text(c, font, Vector2(br.position.x, by + 18.0 * s), str(boss["name"]), HORIZONTAL_ALIGNMENT_CENTER, bw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.RED, 0.97), 1.0 * s)
+		var bw := 320.0 * s
+		var by := end + 6.0 * s
+		var br := Rect2(vp.x * 0.5 - bw * 0.5, by + 20.0 * s, bw, 10.0 * s)
+		_text(c, font, Vector2(br.position.x, by + 16.0 * s), str(boss["name"]), HORIZONTAL_ALIGNMENT_CENTER, bw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.RED, 0.97), 1.0 * s)
 		_rect(c, br.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.7))
 		_rect(c, Rect2(br.position, Vector2(bw * float(boss["frac"]), br.size.y)), Color(UiUtil.RED, 0.95))
 		_frame(c, br, Color(UiUtil.RED, 0.8), 1.0 * s)

@@ -275,6 +275,17 @@ func _test_patrol(host: Node, amb: Node3D) -> void:
 			break
 	s.step(0.1, centre, amb.traffic, amb.clock, 1)
 	TestLib.check(s.sirens == asked + 1, "a siren is requested for an emergency car 120 m away")
+	TestLib.check(s.siren_player != null and s.siren_player.stream != null and s._siren_left > 0.0, "the siren is the seamless loop on ONE follow emitter (siren_loop.wav)")
+	var car: int = s._siren_car
+	s.step(0.5, centre, amb.traffic, amb.clock + 2.0, 1)
+	var want: Vector3 = amb.traffic.car_position(car, amb.clock + 2.0) + Vector3(0, 1.0, 0)
+	TestLib.check(s.siren_player.global_position.distance_to(want) < 0.01, "the emitter rides the emergency car")
+	var emitters_before: int = s.siren_player.get_parent().get_child_count()
+	s._siren_in = 0.0
+	s.step(0.1, centre, amb.traffic, amb.clock, 1)
+	TestLib.check(s.siren_player.get_parent().get_child_count() == emitters_before, "a second siren call re-uses the emitter (no new node)")
+	s.reset()
+	TestLib.check(not s.siren_player.playing and s._siren_left == 0.0, "reset stops the siren")
 
 
 func _test_no_growth(host: Node, city: City, amb: Node3D) -> void:

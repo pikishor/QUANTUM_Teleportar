@@ -463,6 +463,7 @@ func _begin() -> bool:
 	time_left = time_total
 	state = &"active"
 	started.emit(kind)
+	Sfx.play(&"ui_contract_accept")
 	_radio("start")
 	Game.say(ContractTypes.title(kind), 2.0)
 	Sfx.play(&"core")
@@ -886,6 +887,7 @@ func _complete(speed: float) -> void:
 	_last_kind = k
 	kind = k
 	completed.emit(k, r)
+	Sfx.play(&"ui_contract_complete")
 	_radio("done", String(k))
 	if upgrade != &"":
 		_radio_generic("upgrade")
@@ -908,6 +910,7 @@ func _fail(reason: String) -> void:
 	Game.say("CONTRACT FAILED  %s" % reason, 3.0)
 	Sfx.play(&"hurt")
 	failed.emit(k, reason)
+	Sfx.play(&"ui_contract_fail")
 	_radio("fail", String(k))
 	if retries_used <= MAX_RETRIES and reason != "ABANDONED":
 		state = &"cooldown"

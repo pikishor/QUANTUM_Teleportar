@@ -158,12 +158,20 @@ func _shop(host: Node) -> void:
 		buys += 1 if ids.has(StringName("buy_%s" % id)) else 0
 	TestLib.check(buys == 6 and ids.has(&"shop_back") and not ids.has(&"resume") and not ids.has(&"q0"), "the shop has six buy buttons and BACK (%s)" % str(ids))
 	TestLib.check(_button(&"buy_damage")["label"] == "BUY  240" and not _button(&"buy_damage")["on"], "a row shows its price and is dim without credits")
+	var cue_muted := Sfx.muted
+	Sfx.muted = false
+	OS.delay_msec(60)
+	Sfx.last_played = &""
 	TestLib.check(not hud.press_button(&"buy_damage") and prog.level(&"damage") == 0, "a purchase without credits is refused")
+	TestLib.check(Sfx.last_played == &"ui_deny", "a refused purchase plays ui_deny (%s)" % Sfx.last_played)
 	prog.add_credits(700)
 	hud._layout_key = ""
 	hud._ensure_layout()
 	TestLib.check(_button(&"buy_damage")["on"] and _button(&"buy_armour")["label"] == "BUY  260", "with credits the row lights up")
+	OS.delay_msec(60)
 	TestLib.check(hud.press_button(&"buy_damage") and prog.credits == 460 and prog.level(&"damage") == 1, "pressing BUY spends and levels up")
+	TestLib.check(Sfx.last_played == &"ui_purchase", "a purchase plays ui_purchase (%s)" % Sfx.last_played)
+	Sfx.muted = cue_muted
 	hud._ensure_layout()
 	TestLib.check(_button(&"buy_damage")["label"] == "BUY  430", "the row now shows the next price")
 	TestLib.check(hud.tap(_button(&"buy_mag")["rect"].get_center()) and prog.level(&"mag") == 1, "a tap on a buy button works")
@@ -199,7 +207,7 @@ func _wallet_and_contract(host: Node) -> void:
 	hud._process(0.3)
 	TestLib.check(hud._contract_text.begins_with("CONTRACT  HACK NODE"), "an offer is on the HUD (%s)" % hud._contract_text)
 	hud._draw_hud()
-	TestLib.check(UiUtil.stack_bottom > base + 20.0, "the contract plate extends the top stack, so the story lines move below it (%.0f > %.0f)" % [UiUtil.stack_bottom, base])
+	TestLib.check(absf(UiUtil.stack_bottom - base) < 8.0, "the contract REPLACES the core objective line: one priority line, the stack does not grow (%.0f vs %.0f)" % [UiUtil.stack_bottom, base])
 	# an active hack shows the thin progress bar
 	pl.global_position = Vector3(61.0, 0.0, 61.0)
 	c.tick(0.1)
@@ -209,6 +217,7 @@ func _wallet_and_contract(host: Node) -> void:
 	hud._draw_hud()
 	TestLib.check(c.progress_fraction() > 0.0, "the plate has a progress bar (%.2f)" % c.progress_fraction())
 	var with_bar := UiUtil.stack_bottom
+	TestLib.check(with_bar > base + 2.0 and with_bar < base + 20.0, "the thin progress bar is the only thing the active contract adds under the line (%.0f vs %.0f)" % [with_bar, base])
 	# the officer's boss bar
 	c.abandon()
 	c._on_new_sector()

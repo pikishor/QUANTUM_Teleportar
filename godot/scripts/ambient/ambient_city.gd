@@ -61,6 +61,7 @@ func reset() -> void:
 
 func _process(delta: float) -> void:
 	if not simulate or not Game.is_playing():
+		sky.pause_siren()
 		return
 	delta = minf(delta, 0.1)
 	clock += delta

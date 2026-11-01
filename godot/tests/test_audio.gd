@@ -15,12 +15,14 @@ const GROUPS := {
 	&"blink": [3, 0.5, 2.5], &"link": [3, 0.5, 2.5], &"superpos": [1, 0.8, 3.0], &"superpos_enter": [1, 0.8, 2.5], &"quantum_ready": [1, 0.3, 1.0], &"quantum_fail": [1, 0.3, 1.0],
 	&"engine_start": [1, 1.0, 2.0], &"car_crash": [3, 1.0, 3.0], &"car_bump": [3, 0.3, 1.0], &"horn": [2, 0.4, 1.2], &"car_door": [1, 0.2, 0.8],
 	&"ui_click": [1, 0.05, 0.3], &"ui_tick": [1, 0.03, 0.2], &"ui_confirm": [1, 0.2, 1.0], &"ui_back": [1, 0.2, 1.0], &"ui_error": [1, 0.2, 0.8], &"ui_pause": [1, 0.2, 1.0], &"ui_resume": [1, 0.2, 1.0],
+	&"ui_tap": [1, 0.04, 0.2], &"ui_deny": [1, 0.15, 0.6], &"ui_purchase": [1, 0.3, 1.2], &"ui_upgrade": [1, 0.5, 1.5], &"ui_contract_accept": [1, 0.4, 1.2],
+	&"ui_contract_complete": [1, 0.6, 2.0], &"ui_contract_fail": [1, 0.5, 1.5],
 	&"heartbeat": [1, 0.4, 1.2], &"breath_in": [2, 0.3, 1.0], &"breath_out": [2, 0.3, 1.0], &"gasp": [1, 0.2, 0.8], &"radio_open": [1, 0.2, 0.6], &"radio_close": [1, 0.1, 0.5],
 	&"radio_glitch": [3, 0.1, 0.6], &"babble": [8, 0.05, 0.2], &"pickup_health": [1, 0.3, 1.5], &"pickup_energy": [1, 0.3, 1.5], &"pickup_ammo": [1, 0.2, 1.0], &"credit": [1, 0.3, 1.5],
 	&"mission_start": [1, 0.8, 3.0], &"mission_complete": [1, 1.0, 4.0], &"objective_ping": [1, 0.3, 1.5], &"heat_up": [1, 0.5, 2.0], &"heat_down": [1, 0.5, 2.0],
 	&"siren": [2, 2.0, 4.0], &"sting_death": [1, 3.0, 7.0], &"sting_win": [1, 3.0, 8.0],
 }
-const LOOPS: Array[StringName] = [&"drone_hum", &"radio_static", &"superpos_loop", &"entangle_loop", &"engine_low", &"engine_high", &"tyre_squeal", &"traffic_loop"]
+const LOOPS: Array[StringName] = [&"drone_hum", &"radio_static", &"superpos_loop", &"entangle_loop", &"engine_low", &"engine_high", &"tyre_squeal", &"traffic_loop", &"siren_loop"]
 const BEDS: Array[StringName] = [&"rain_asphalt", &"rain_metal", &"rain_awning", &"traffic_far", &"wind", &"city_hum"]
 const PEAK_MAX_DB := -9.0            ## every one-shot sits below this (headroom for a dozen of them at once)
 const PEAK_MIN_DB := -30.0
@@ -61,6 +63,7 @@ func run(host: Node) -> void:
 	_vehicle_hooks()
 	_quantum_and_ambience()
 	_radio()
+	_ui_cues()
 	_lifecycle()
 	Sfx.stop_music()
 	Sfx.stop_ambience()
@@ -732,6 +735,22 @@ func _quantum_and_ambience() -> void:
 
 
 # ------------------------------------------------------------------ radio
+## The phone UI cues: each plays through the flat pool under its own name, and the siren loop is a seamless 2-3 s wail (loop and level are checked with the other loops).
+func _ui_cues() -> void:
+	var names: Array[StringName] = [&"ui_tap", &"ui_confirm", &"ui_back", &"ui_deny", &"ui_purchase", &"ui_upgrade", &"ui_contract_accept", &"ui_contract_complete", &"ui_contract_fail"]
+	var played := 0
+	for n in names:
+		OS.delay_msec(40)
+		Sfx.last_played = &""
+		Sfx.play(n)
+		played += 1 if Sfx.last_played == n else 0
+	TestLib.check(played == names.size(), "all %d UI cues start through Sfx.play (%d did)" % [names.size(), played])
+	var w := _wav(Sfx.variants_of(&"siren_loop")[0] if not Sfx.variants_of(&"siren_loop").is_empty() else null)
+	TestLib.check(w != null and w.loop_mode == AudioStreamWAV.LOOP_FORWARD and w.get_length() > 2.0 and w.get_length() < 3.5, "siren_loop is a seamless 2-3 s wail for the emergency cars' follow emitter")
+	var pk := _peak_db(_pcm(w)) if w != null else 0.0
+	TestLib.check(pk <= PEAK_MAX_DB and pk >= PEAK_MIN_DB, "siren_loop peaks inside the window (%.1f dBFS)" % pk)
+
+
 func _radio() -> void:
 	Sfx.reset_world()
 	Game.state = &"play"

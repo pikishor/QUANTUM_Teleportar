@@ -1008,6 +1008,96 @@ def heat_down():
     return done(wet(out, 0.7, mix=0.25, damp=0.3, seed=171), -19.0, 150.0, fout=0.3, max_len=1.0)
 
 
+# ------------------------------------------------------------------ phone UI cues and the looping siren (phone polish pass)
+def ui_tap():
+    """A soft wooden tap (lighter than ui_click): button presses that only toggle something."""
+    n = int(0.07 * SR)
+    out = modal(n, [900, 1700], [0.012, 0.007], [0.6, 0.3]) + band(white(n, 125), 1200, 5000) * expenv(n, 0.002) * 0.3
+    return done(out, -21.0, 400.0, fout=0.03, max_len=0.07)
+
+
+def ui_deny():
+    """Refused: two short low buzzes, a fourth apart and falling (not the error double tone)."""
+    n = int(0.3 * SR)
+    out = np.zeros(n)
+    for k, f in enumerate((174.6, 130.8)):
+        m = int(0.11 * SR)
+        tm = np.arange(m) / SR
+        v = np.sign(np.sin(2 * np.pi * f * tm)) * 0.35 + np.sin(2 * np.pi * f * tm) + 0.4 * np.sin(2 * np.pi * f * 2 * tm)
+        place(out, v * np.exp(-tm / 0.06) * np.minimum(tm / 0.004, 1.0), k * 0.12)
+    return done(lp(out, 1800), -18.0, 90.0, fout=0.06, max_len=0.3)
+
+
+def ui_purchase():
+    """Credits spent: a dry two-note till ping with a sparkle of noise."""
+    n = int(0.7 * SR)
+    out = np.zeros(n)
+    for k, f in enumerate((1318.5, 1760.0)):
+        place(out, ma.fm_bell(0.5, f, 3.0, 1.2, 0.16, 0.05), k * 0.07, 0.6)
+    out += band(white(n, 126), 5000, 12000) * expenv(n, 0.012) * 0.12
+    return done(wet(out, 0.5, mix=0.12, damp=0.3, seed=1910), -17.0, 500.0, fout=0.15, max_len=0.7)
+
+
+def ui_upgrade():
+    """An upgrade installed: a rising four-note arpeggio over a short shimmer."""
+    n = int(1.1 * SR)
+    out = np.zeros(n)
+    for k, f in enumerate((392.0, 493.88, 587.33, 783.99)):
+        place(out, ma.fm_bell(0.9, f, 2.0, 0.9, 0.3, 0.12), k * 0.075, 0.55)
+        place(out, ma.fm_bell(0.6, f * 2, 3.0, 0.6, 0.15, 0.06), k * 0.075, 0.18)
+    s, _ = sine_sweep(0.4, 300, 1800)
+    out[: len(s)] += s * expenv(len(s), 0.12) * 0.12
+    return done(wet(out, 0.9, mix=0.22, damp=0.3, seed=1911), -16.0, 200.0, fout=0.3, max_len=1.1)
+
+
+def ui_contract_accept():
+    """Contract taken: a low confirming pulse and a rising fifth, radio-dry."""
+    n = int(0.8 * SR)
+    out = np.zeros(n)
+    s, _ = sine_sweep(0.25, 110, 70)
+    out[: len(s)] += s * expenv(len(s), 0.08) * 0.5
+    for k, f in enumerate((440.0, 659.25)):
+        place(out, ma.fm_bell(0.6, f, 2.0, 0.8, 0.22, 0.08), 0.06 + k * 0.1, 0.5)
+    return done(wet(out, 0.6, mix=0.15, damp=0.4, seed=1912), -16.0, 70.0, fout=0.2, max_len=0.8)
+
+
+def ui_contract_complete():
+    """Contract done: a bright major triad bell with a high shimmer (shorter and lighter than mission_complete)."""
+    n = int(1.4 * SR)
+    out = np.zeros(n)
+    for k, f in enumerate((523.25, 659.25, 783.99, 1046.5)):
+        place(out, ma.fm_bell(1.1, f, 2.0, 1.0, 0.45, 0.15), k * 0.09, 0.5)
+    out += band(white(n, 127), 6000, 13000) * expenv(n, 0.2) * 0.05
+    return done(wet(out, 1.0, mix=0.25, damp=0.3, seed=1913), -15.0, 200.0, fout=0.4, max_len=1.4)
+
+
+def ui_contract_fail():
+    """Contract failed: a falling minor figure on a dull bell, then a low thud."""
+    n = int(1.0 * SR)
+    out = np.zeros(n)
+    for k, f in enumerate((440.0, 392.0, 329.63)):
+        place(out, ma.fm_bell(0.7, f, 1.5, 0.5, 0.25, 0.1), k * 0.16, 0.5)
+    s, _ = sine_sweep(0.3, 90, 45)
+    place(out, s * expenv(len(s), 0.1) * 0.6, 0.45)
+    return done(wet(out, 0.7, mix=0.2, damp=0.6, seed=1914), -16.0, 60.0, fout=0.3, max_len=1.0)
+
+
+def siren_loop():
+    """A seamless emergency wail (2.6 s, exactly 2 up-down sweeps, whole number of carrier cycles): the follow emitter of a far-traffic emergency car loops it.
+    Dry and circular-filtered only: a reverb tail would break the seam."""
+    d = 2.6
+    n = int(d * SR)
+    t = np.arange(n) / SR
+    f = 600.0 + 700.0 * (0.5 - 0.5 * np.cos(2 * np.pi * t / 1.3))
+    inc = f / SR * 2 * np.pi
+    inc *= round(float(np.sum(inc)) / (2 * np.pi)) * 2 * np.pi / float(np.sum(inc))                # the phase closes exactly: no click at the loop point
+    ph = np.concatenate([[0.0], np.cumsum(inc)[:-1]])
+    x = np.sin(ph) + 0.5 * np.sin(2 * ph) + 0.3 * np.sin(3 * ph)
+    x = saturate(x / np.max(np.abs(x)), 1.8)
+    x = lp(x, 3000, 2) * (0.85 + 0.15 * np.cos(2 * np.pi * t / 1.3))
+    return done_loop(x, -15.0, 350.0)
+
+
 # ------------------------------------------------------------------ the registry
 def variants(fn, count, base_seed=1, **kw):
     return [(lambda s=base_seed + 17 * i: fn(s, **kw)) for i in range(count)]
@@ -1016,7 +1106,7 @@ def variants(fn, count, base_seed=1, **kw):
 # name -> list of generator callables (one per variant). Base names whose .wav already exists in make_audio.py keep it as variant 0.
 # Files: a single entry -> name.wav, several -> name_0.wav .. name_N.wav. The set of loops is LOOPS.
 SFX = {}
-LOOPS = {"drone_hum", "radio_static", "superpos_loop", "entangle_loop", "engine_low", "engine_high", "tyre_squeal", "traffic_loop"}
+LOOPS = {"siren_loop", "drone_hum", "radio_static", "superpos_loop", "entangle_loop", "engine_low", "engine_high", "tyre_squeal", "traffic_loop"}
 
 
 def _reg(name, fns):
@@ -1082,6 +1172,14 @@ SFX["ui_back"] = [lambda: beep((659.25, 440.0), 0.07, 0.2, 0.5, seed=1901, level
 SFX["ui_error"] = [ui_error]
 SFX["ui_pause"] = [lambda: beep((880.0, 660.0, 440.0), 0.06, 0.2, 0.6, seed=1902, level=-18.0, hp=250.0)]
 SFX["ui_resume"] = [lambda: beep((440.0, 660.0, 880.0), 0.06, 0.2, 0.6, seed=1903, level=-18.0, hp=250.0)]
+SFX["ui_tap"] = [ui_tap]
+SFX["ui_deny"] = [ui_deny]
+SFX["ui_purchase"] = [ui_purchase]
+SFX["ui_upgrade"] = [ui_upgrade]
+SFX["ui_contract_accept"] = [ui_contract_accept]
+SFX["ui_contract_complete"] = [ui_contract_complete]
+SFX["ui_contract_fail"] = [ui_contract_fail]
+SFX["siren_loop"] = [siren_loop]
 SFX["heartbeat"] = [heartbeat]
 _reg("breath_in", [lambda s=2000 + i: breath("in", s) for i in range(2)])
 _reg("breath_out", [lambda s=2010 + i: breath("out", s) for i in range(2)])

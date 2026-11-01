@@ -154,6 +154,8 @@ func touch_down(id: int, pos: Vector2) -> void:
 		if button_visible(b) and pos.distance_to(_button_center(b)) <= float(b["r"]) * _scale() * 1.15:
 			_held[id] = b
 			Input.action_press(b["action"])
+			if b["action"] == &"interact":
+				Sfx.play(&"ui_tap")                                    # USE (enter / exit a car) answers with a soft tap
 			return
 	if pos.x < _vp_size().x * 0.42 and _stick_id == -1:
 		_stick_id = id
@@ -279,7 +281,7 @@ func perf_visible() -> bool:
 
 func _perf_box() -> Rect2:
 	var s := _scale()
-	return Rect2(Vector2(16.0 * s + _insets().x, 204.0 * s + UiUtil.insets_v(_vp_size()).x), Vector2(280.0, 74.0) * s)
+	return Rect2(Vector2(16.0 * s + _insets().x, 168.0 * s + UiUtil.insets_v(_vp_size()).x), Vector2(300.0, 70.0) * s)
 
 
 func _refresh_perf() -> void:

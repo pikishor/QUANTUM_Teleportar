@@ -100,6 +100,27 @@ func run(host: Node) -> void:
 	for l: Dictionary in lines:
 		worst = maxi(worst, StoryView.wrap_text(font, str(l["t"]), 340.0 - 24.0, 17).size())
 	TestLib.check(worst <= 4, "every radio line fits in 4 lines even at the narrowest subtitle width (%d)" % worst)
+	# the phone subtitle plate: measured and wrapped to a 320 px plate, never clipped, never taller than SUB_MAX_LINES
+	var sv := StoryView.new()
+	var inner := StoryView.SUB_W - 26.0
+	var too_wide := 0
+	var too_tall := 0
+	var shrunk := 0
+	for l: Dictionary in lines:
+		var fl := sv.fit_lines(str(l["t"]), inner, int(StoryView.SUB_FONT), int(StoryView.SUB_SMALL), StoryView.SUB_MAX_LINES)
+		var fs := sv.fit_size()
+		shrunk += 1 if fs < int(StoryView.SUB_FONT) else 0
+		too_tall += 1 if fl.size() > StoryView.SUB_MAX_LINES + 1 else 0
+		for ln in fl:
+			too_wide += 1 if font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > inner + 1.0 else 0
+	TestLib.check(too_wide == 0 and too_tall == 0, "every radio line wraps inside the %d px subtitle plate and needs at most %d lines (%d too wide, %d too tall, %d shrunk to %d px)" % [int(StoryView.SUB_W), StoryView.SUB_MAX_LINES + 1, too_wide, too_tall, shrunk, int(StoryView.SUB_SMALL)])
+	var broken := StoryView.wrap_text(font, "A" + "W".repeat(60) + " end", inner, 22)
+	var broken_ok := broken.size() >= 3
+	for ln in broken:
+		broken_ok = broken_ok and font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x <= inner + 1.0
+	TestLib.check(broken_ok, "a single word wider than the plate is broken by characters instead of clipping (%d lines)" % broken.size())
+	TestLib.check(StoryView.fit_font(font, "A rather long chapter subtitle that cannot fit", 120.0, 22, 15) == 15, "fit_font shrinks to its floor when nothing fits")
+	sv.free()
 
 	# --- behaviour ----------------------------------------------------------------------------------------------
 	var story := Story.new()
