@@ -550,6 +550,8 @@ func _kill_target() -> void:
 	TestLib.check(camp.boss().get("name", "") == "VAEL OVERSEER", "the boss bar names him")
 	camp.target.set("hp", 0.0)
 	camp.tick(0.1)
+	TestLib.check(done_steps.is_empty() and camp.state == &"active", "the Overseer's death holds the step open for a beat (the defeat scene starts, tests/test_campaign_review.gd)")
+	camp.tick(CampaignRunner.BOSS_BEAT + 0.1)
 	TestLib.check(done_steps.size() == 1 and 0 in prog.bosses_cleared, "his death completes the step and clears the chapter's boss")
 	await e.frames(1)
 	_reset_world()

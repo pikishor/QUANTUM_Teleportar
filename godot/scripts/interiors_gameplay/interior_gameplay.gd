@@ -285,6 +285,9 @@ func block_reason() -> String:
 	var k: Object = Game.missions.get(&"contracts") if is_instance_valid(Game.missions) else null
 	if k != null and bool(k.call(&"is_active")) and int(k.call(&"foes_alive")) > 0:
 		return "FINISH THE CONTRACT FIRST"             # a contract's enemies live in the street's enemy pool, which the interior empties
+	var camp: Object = Game.missions.get(&"campaign") if is_instance_valid(Game.missions) else null
+	if camp != null and bool(camp.call(&"is_active")) and int(camp.call(&"foes_alive")) > 0:
+		return "FINISH THE OBJECTIVE FIRST"            # same for a scripted step: the empty pool would lose its target (TARGET LOST) and its waves
 	return ""
 
 

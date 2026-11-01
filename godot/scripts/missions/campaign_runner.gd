@@ -52,6 +52,8 @@ const MAX_ALIVE_WAVE := 12
 const TARGET_HINT_FAR := 70.0
 const TARGET_HINT_R := 34.0
 const VERTICAL_REACH := 6.0
+const BOSS_BEAT := 0.5                 ## an Overseer that just died stays the step's target this long, so the defeat scene (Cinematics, which only starts in the play state) can start before the win
+const WAIT_OUTSIDE := 1.0              ## a step that is armed while the player is inside a building begins this long after the player is back on the street
 
 ## Whether the runner starts chapters by itself (the story's chapter has steps) and whether Progress's CONTINUE / chapter select start it. Like autosave it is off under tools, tests and bots
 ## (Game.autostart) so they keep their exact old behaviour; a test turns it on (or calls start_chapter() directly, which always works).
@@ -84,6 +86,8 @@ var visuals: ContractVisuals
 var rng := RandomNumberGenerator.new()
 
 var _clock := 0.0
+var _beat_t := 0.0                     ## kill_target: seconds since an Overseer target died
+var _win_pending := false              ## the last step ended while the game was not playing (the TEST menu on the pause screen): Game.win() follows in play
 var _arm_t := 0.0
 var _origin := Vector3.ZERO            ## where the current step's goal was generated from (the checkpoint position)
 var _goals := {}                       ## step index -> goal pre-resolved at the checkpoint (kept through retries and saved)
@@ -212,6 +216,7 @@ func start_chapter(index: int, from_step := 0, immediate := false) -> bool:
 	last_fail = ""
 	_goals.clear()
 	_pending_tp = Vector3.INF
+	_win_pending = false
 	_begin_tries = 0
 	_origin = _ref_pos_or_spawn()
 	_last_started = index
@@ -243,6 +248,9 @@ func resume(cp: Dictionary) -> bool:
 	if g is Vector3 and (g as Vector3).is_finite():
 		_goals[step_index] = g
 	checkpoint = cp.duplicate()
+	var prog := Game.progress as Progress
+	if prog != null:
+		prog.set_checkpoint(checkpoint)                      # start_chapter() above stored a fresh checkpoint (spawn position, regenerated goal): put the saved one back (and in the file)
 	return true
 
 
@@ -271,6 +279,7 @@ func skip_step() -> bool:
 func abort() -> void:
 	_cleanup(true)
 	_release_flags()
+	_win_pending = false
 	state = &"idle"
 	step = {}
 	kind = &""
@@ -291,11 +300,18 @@ func tick(delta: float) -> void:
 				_poll_start()
 		&"armed":
 			if _gate_open():
-				_arm_t -= delta
-				if _arm_t <= 0.0:
-					_begin_step()
+				if _inside_blocks_step():
+					_arm_t = maxf(_arm_t, WAIT_OUTSIDE)           # the street steps wait for the player to come out of the building
+				else:
+					_arm_t -= delta
+					if _arm_t <= 0.0:
+						_begin_step()
 		&"active":
 			_tick_active(delta)
+		&"done":
+			if _win_pending and Game.is_playing():
+				_win_pending = false
+				Game.win()
 		&"retry":
 			retry_left -= delta
 			if retry_left <= 0.0:
@@ -493,6 +509,15 @@ func _gate_open() -> bool:
 	return true
 
 
+## True while the player is inside a building (or in the fade through its door) and the armed step is not the one that wants the door: it would be built in the interior's
+## coordinates (an escort asset, a target, waves), which sit far from the street.
+func _inside_blocks_step() -> bool:
+	if step_index >= steps.size() or steps[step_index]["kind"] == &"enter_interior":
+		return false
+	var ig := InteriorGameplay.instance
+	return InteriorGameplay.active or (ig != null and is_instance_valid(ig) and ig.busy)
+
+
 # --- step flow ---------------------------------------------------------------------------------------------------------------
 
 func _begin_step() -> void:
@@ -595,8 +620,11 @@ func _complete_chapter() -> void:
 	if prog != null:
 		prog.clear_checkpoint()
 	chapter_completed.emit(done)
-	if bool(ch.get("clears_sector", true)) and Game.is_playing():
-		Game.win()
+	if bool(ch.get("clears_sector", true)):
+		if Game.is_playing():
+			Game.win()
+		else:
+			_win_pending = true
 
 
 func _fail(reason: String) -> void:
@@ -1037,13 +1065,13 @@ func _tick_active(delta: float) -> void:
 		&"escort": _tick_escort(delta, p)
 		&"defend": _tick_defend(delta, p)
 		&"hack": _tick_hack(delta, p)
-		&"kill_target": _tick_kill()
+		&"kill_target": _tick_kill(delta)
 		&"chase": _tick_chase(delta, p)
 		&"escape": _tick_escape(p)
 		&"survive": _tick_survive(delta, p)
 	if state != &"active":
 		return
-	if time_total > 0.0 and time_left <= 0.0:
+	if time_total > 0.0 and time_left <= 0.0 and _beat_t <= 0.0:
 		_fail("TIME OUT")
 
 
@@ -1202,12 +1230,16 @@ func _tick_hack(delta: float, p: Vector3) -> void:
 		_complete_step(p if p.is_finite() else pos)
 
 
-func _tick_kill() -> void:
+func _tick_kill(delta: float) -> void:
 	var d := target as Drone
 	if d == null or not is_instance_valid(d):
 		_fail("TARGET LOST")
 		return
 	if d.dead or d.hp <= 0.0:
+		if d is Overseer:
+			_beat_t += maxf(delta, 0.001)                   # hold the step open: Cinematics notices the dead boss in _process and plays the slow-motion defeat (the game state leaves play, so this waits for it)
+			if _beat_t < BOSS_BEAT:
+				return
 		var at := d.global_position
 		_target_down(d)
 		_complete_step(Vector3(at.x, 0.0, at.z))
@@ -1282,6 +1314,7 @@ func _tick_survive(delta: float, p: Vector3) -> void:
 # --- cleanup, radio ----------------------------------------------------------------------------------------------------------
 
 func _clean_runtime() -> void:
+	_beat_t = 0.0
 	progress = -1.0
 	inside = false
 	wave = 0
