@@ -107,7 +107,7 @@ func _process(delta: float) -> void:
 	_use_t -= delta
 	if _use_t <= 0.0:
 		_use_t = 0.15
-		_use_near = _vehicle_in_reach()
+		_use_near = _vehicle_in_reach() or InteriorGameplay.prompt != ""
 	if Game.state == &"play" or Game.state == &"paused" or _last_state == &"play" or _last_state == &"paused":
 		_canvas.queue_redraw()      # one extra redraw after leaving play, so the dead screen does not keep the dimmed buttons
 	_last_state = Game.state

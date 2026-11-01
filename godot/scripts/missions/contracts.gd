@@ -330,7 +330,7 @@ func _hold_after_death() -> void:
 
 
 func _can_offer() -> bool:
-	if not Game.is_playing() or not is_instance_valid(Game.player):
+	if not Game.is_playing() or not is_instance_valid(Game.player) or InteriorGameplay.active:
 		return false
 	if Game.heat >= 3.0:
 		return false

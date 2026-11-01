@@ -9,7 +9,7 @@ extends CanvasLayer
 signal opened
 signal closed
 
-const TABS: Array[String] = ["CHEATS", "LOOT", "WORLD", "SPAWN", "GO", "MISSION", "STATS"]
+const TABS: Array[String] = ["CHEATS", "LOOT", "WORLD", "SPAWN", "GO", "MISSION", "STATS", "INTERIORS"]
 const BASE_H := 720.0
 const BG := Color(0.01, 0.03, 0.05, 1.0)
 const PANEL := Color(0.05, 0.13, 0.17, 1.0)
@@ -183,6 +183,13 @@ func _page_items() -> Array[Dictionary]:
 			out.append(_btn("STATS OVERLAY", func() -> void: TestMode.toggle(&"stats"), &"stats"))
 			out.append(_btn("ERROR PANEL", _toggle_errors))
 			out.append(_btn("KEEP TEST MODE (SAVED)", _toggle_forced, &"forced"))
+		7:
+			out.append(_head("GO INSIDE (NEAREST DOOR OF THE TYPE)"))
+			for t: StringName in InteriorData.TYPES:
+				out.append(_act("GO: " + InteriorData.title(t), InteriorTestActions.enter.bind(t)))
+			out.append(_head("WHILE INSIDE"))
+			out.append(_act("COMPLETE THE MISSION", InteriorTestActions.complete))
+			out.append(_act("LEAVE THE INTERIOR", InteriorTestActions.leave))
 	return out
 
 

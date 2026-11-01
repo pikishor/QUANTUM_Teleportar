@@ -115,6 +115,9 @@ func _draw() -> void:
 	contract_markers = 0
 	route_drawn = false
 	draw_circle(c, radius, Color(0.02, 0.06, 0.08, 0.82))
+	if InteriorGameplay.active:                  # inside an interior: its floor plan, vendors, guards and mission markers instead of the city
+		InteriorMinimap.draw(self, c, radius, s)
+		return
 	if ensure_static():
 		var inv := 1.0 / (2.0 * EXTENT)
 		for i in SEGMENTS:

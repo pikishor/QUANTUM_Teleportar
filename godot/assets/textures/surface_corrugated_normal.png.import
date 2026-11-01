@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://f2xxg72ugv2n"
-path.bptc="res://.godot/imported/surface_corrugated_normal.png-e960a9266b63f5ba8f36a23a9ad91122.bptc.ctex"
-path.astc="res://.godot/imported/surface_corrugated_normal.png-e960a9266b63f5ba8f36a23a9ad91122.astc.ctex"
+path.s3tc="res://.godot/imported/surface_corrugated_normal.png-e960a9266b63f5ba8f36a23a9ad91122.s3tc.ctex"
+path.etc2="res://.godot/imported/surface_corrugated_normal.png-e960a9266b63f5ba8f36a23a9ad91122.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,17 +13,17 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/surface_corrugated_normal.png"
-dest_files=["res://.godot/imported/surface_corrugated_normal.png-e960a9266b63f5ba8f36a23a9ad91122.bptc.ctex", "res://.godot/imported/surface_corrugated_normal.png-e960a9266b63f5ba8f36a23a9ad91122.astc.ctex"]
+dest_files=["res://.godot/imported/surface_corrugated_normal.png-e960a9266b63f5ba8f36a23a9ad91122.s3tc.ctex", "res://.godot/imported/surface_corrugated_normal.png-e960a9266b63f5ba8f36a23a9ad91122.etc2.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1

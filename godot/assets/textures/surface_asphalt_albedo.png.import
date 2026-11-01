@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ct0c86awb4nbn"
-path.bptc="res://.godot/imported/surface_asphalt_albedo.png-91d2f73cfb8693e591322e128671c172.bptc.ctex"
-path.astc="res://.godot/imported/surface_asphalt_albedo.png-91d2f73cfb8693e591322e128671c172.astc.ctex"
+path.s3tc="res://.godot/imported/surface_asphalt_albedo.png-91d2f73cfb8693e591322e128671c172.s3tc.ctex"
+path.etc2="res://.godot/imported/surface_asphalt_albedo.png-91d2f73cfb8693e591322e128671c172.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/surface_asphalt_albedo.png"
-dest_files=["res://.godot/imported/surface_asphalt_albedo.png-91d2f73cfb8693e591322e128671c172.bptc.ctex", "res://.godot/imported/surface_asphalt_albedo.png-91d2f73cfb8693e591322e128671c172.astc.ctex"]
+dest_files=["res://.godot/imported/surface_asphalt_albedo.png-91d2f73cfb8693e591322e128671c172.s3tc.ctex", "res://.godot/imported/surface_asphalt_albedo.png-91d2f73cfb8693e591322e128671c172.etc2.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

@@ -139,7 +139,7 @@ func _on_state(s: StringName) -> void:
 	if s == &"dead" or s == &"win":
 		record_best()
 	_hud.visible = s != &"menu" and s != &"cutscene"        # a cutscene (scripts/cinematics) owns the whole picture
-	_screen.visible = s != &"play" and s != &"cutscene"
+	_screen.visible = s != &"play" and s != &"cutscene" and not InteriorGameplay.vendor_open      # the vendor window is its own layer
 	minimap.visible = _hud.visible
 	_layout_key = ""
 	_apply_mouse()
@@ -148,7 +148,7 @@ func _on_state(s: StringName) -> void:
 ## True when the HUD and screen layers show what the state asks for (HUD hidden only in the menu, the screen layer hidden only while playing).
 func layers_consistent() -> bool:
 	var cine := Game.state == &"cutscene"
-	return _hud.visible == (Game.state != &"menu" and not cine) and _screen.visible == (Game.state != &"play" and not cine) and minimap.visible == _hud.visible
+	return _hud.visible == (Game.state != &"menu" and not cine) and _screen.visible == (Game.state != &"play" and not cine and not InteriorGameplay.vendor_open) and minimap.visible == _hud.visible
 
 
 ## Puts the layers back in line with the state (the stability audit calls it when they drifted).
@@ -478,6 +478,8 @@ func hint_text() -> String:
 	if not is_instance_valid(Game.vehicles) or not is_instance_valid(Game.player):
 		return ""
 	var key := "" if touch_ui_on() else "[F]  "
+	if InteriorGameplay.prompt != "":                       # a door, a vendor or a mission object (scripts/interiors_gameplay/)
+		return key + InteriorGameplay.prompt
 	if Game.player.get("vehicle") != null:
 		return key + "EXIT VEHICLE"
 	if Game.vehicles.has_method(&"nearest") and Game.vehicles.call(&"nearest", Game.player.global_position, REACH) != null:
@@ -976,6 +978,8 @@ func _contracts() -> Object:
 
 ## The contract line ("HACK NODE  62%  1:20") or "" when none is offered or running.
 func _contract_line() -> String:
+	if InteriorGameplay.hud_line != "":                     # an interior mission replaces the contract line while you are inside
+		return InteriorGameplay.hud_line
 	var k := _contracts()
 	return str(k.call(&"hud_line")) if k != null else ""
 
