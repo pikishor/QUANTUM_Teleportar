@@ -64,7 +64,6 @@ func run(h: Node) -> void:
 	prog = Game.progress as Progress
 	prog.autosave_enabled = false
 	prog.new_campaign()
-	ig.use_generator = false
 	m = ig.missions
 	await _safe()
 	await _hostage()

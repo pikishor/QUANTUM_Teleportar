@@ -3,30 +3,32 @@ extends RefCounted
 ## Plain data of the interior gameplay: door types and names, actor budgets, vendor stock, rumours, mission definitions and the interior radio lines.
 ## Nothing here touches the scene tree; tests/test_interior_gameplay.gd checks the limits (radio lines fit a phone screen, actor budgets stay in 3..5).
 
-const TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"club", &"lobby", &"apartment", &"checkpoint"]
-const VENDOR_TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar"]
+const TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"club", &"lobby", &"apartment", &"checkpoint", &"bodega", &"warehouse"]
+const VENDOR_TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"bodega"]
 const MISSION_TYPES: Array[StringName] = [&"lobby", &"apartment", &"club", &"checkpoint"]
 const ACTOR_CAP := 5
 const ACTOR_MIN := 3
 
 const TITLES := {
 	&"weapons": "ARMS DEALER", &"clinic": "CLINIC", &"tech": "TECH DEN", &"bar": "BAR", &"club": "CLUB",
-	&"lobby": "OFFICE LOBBY", &"apartment": "APARTMENT", &"checkpoint": "VAEL CHECKPOINT",
+	&"lobby": "OFFICE LOBBY", &"apartment": "APARTMENT", &"checkpoint": "VAEL CHECKPOINT", &"bodega": "CORNER STORE", &"warehouse": "WAREHOUSE",
 }
 ## Door glow colours: vendors cyan, bars amber, mission interiors magenta (club, lobby, apartment) / red (Vael checkpoint).
 const COLORS := {
 	&"weapons": Color(0.35, 0.95, 1.0), &"clinic": Color(0.4, 1.0, 0.6), &"tech": Color(0.5, 0.7, 1.0), &"bar": Color(1.0, 0.72, 0.25),
 	&"club": Color(1.0, 0.25, 0.75), &"lobby": Color(1.0, 0.45, 0.9), &"apartment": Color(1.0, 0.6, 0.35), &"checkpoint": Color(1.0, 0.3, 0.32),
+	&"bodega": Color(0.7, 1.0, 0.45), &"warehouse": Color(0.8, 0.8, 0.9),
 }
 const NAME_A: Array[String] = ["KESTREL", "NEON", "ROOK", "HALCYON", "SILT", "ORBIT", "VANTA", "CINDER", "TIDE", "LUMEN", "SABLE", "ARC"]
 const NAME_B := {
 	&"weapons": ["ARMS", "ORDNANCE", "SURPLUS", "GUNWORKS"], &"clinic": ["CLINIC", "MEDBAY", "WARD", "CARE"], &"tech": ["DEN", "SALVAGE", "CIRCUITS", "LAB"],
 	&"bar": ["BAR", "TAP", "LOUNGE", "CANTINA"], &"club": ["CLUB", "PIT", "HALL", "ROOM"], &"lobby": ["TOWER", "HOLDINGS", "PLAZA", "OFFICES"],
 	&"apartment": ["APARTMENTS", "FLATS", "COURT", "BLOCK"], &"checkpoint": ["CHECKPOINT", "GATE", "POST", "STATION"],
+	&"bodega": ["MARKET", "GROCERY", "CORNER", "MART"], &"warehouse": ["STORAGE", "FREIGHT", "DEPOT", "YARD"],
 }
 
 ## Door type weights (sum 1.0), used by CityDoors in the world module.
-const WEIGHTS: Array[float] = [0.17, 0.13, 0.13, 0.17, 0.10, 0.10, 0.12, 0.08]
+const WEIGHTS: Array[float] = [0.14, 0.11, 0.11, 0.14, 0.09, 0.09, 0.10, 0.07, 0.09, 0.06]
 
 
 static func title(type: StringName) -> String:
@@ -70,6 +72,8 @@ const PLAN := {
 	&"lobby": {"vendor": 0, "civilians": 2, "guards": 2},
 	&"apartment": {"vendor": 0, "civilians": 1, "guards": 3},        # the civilian is the hostage
 	&"checkpoint": {"vendor": 0, "civilians": 0, "guards": 3},
+	&"bodega": {"vendor": 1, "civilians": 3, "guards": 0},
+	&"warehouse": {"vendor": 0, "civilians": 1, "guards": 3},
 }
 
 
@@ -113,6 +117,10 @@ const STOCK := {
 	],
 	&"bar": [
 		{"id": &"rumour", "kind": "rumour", "price": 20, "name": "BUY A RUMOUR"}, {"id": &"drink", "kind": "drink", "price": 10, "name": "SYNTH DRINK  +25 HP"},
+	],
+	&"bodega": [
+		{"id": &"drink", "kind": "drink", "price": 10, "name": "SYNTH DRINK  +25 HP"}, {"id": &"heal", "kind": "heal", "price": 55, "name": "FIELD KIT  FULL REPAIR"},
+		{"id": &"energy", "kind": "energy", "price": 35, "name": "COHERENCE CELL"},
 	],
 }
 
@@ -161,6 +169,14 @@ const RADIO := {
 	&"checkpoint": [
 		["ORACLE", "A Vael checkpoint. Armoured, watched, and wired into the old network. I can ride a terminal in."],
 		["KESTREL", "Walls full of eyes. Let them close in. I will be quicker."],
+	],
+	&"bodega": [
+		["ORACLE", "A corner store. Synth food, cheap kits, a clerk who has not looked up from the counter in years."],
+		["KESTREL", "Rain on the awning, a hum from the cooler. Almost like a normal night."],
+	],
+	&"warehouse": [
+		["ORACLE", "Freight depot. Vael crates, Vael guards, nothing a collaborator should be storing."],
+		["KESTREL", "Stacked cargo and long sight lines. Keep to the aisles."],
 	],
 	&"heat": [
 		["ORACLE", "They followed you in. Doors do not stop the Vael, only the rain."],

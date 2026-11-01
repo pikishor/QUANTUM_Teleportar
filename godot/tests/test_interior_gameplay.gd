@@ -46,7 +46,6 @@ func run(h: Node) -> void:
 	if ig == null or city == null or p == null:
 		_end()
 		return
-	ig.use_generator = false
 	_doors()
 	await _prompt_and_enter()
 	await _state_through_the_door()
@@ -86,7 +85,7 @@ func _data() -> void:
 	TestLib.check(ok, "every interior plan keeps 3..5 actors, with 0, 1 or 2 followers")
 	for t: StringName in InteriorData.VENDOR_TYPES:
 		TestLib.check((InteriorData.STOCK[t] as Array).size() >= 2, "vendor %s has stock" % t)
-	TestLib.check(InteriorData.TYPES.size() == 8 and InteriorData.WEIGHTS.size() == 8, "eight interior types with weights")
+	TestLib.check(InteriorData.TYPES.size() == 10 and InteriorData.WEIGHTS.size() == 10, "ten interior types with weights")
 	var wsum := 0.0
 	for w in InteriorData.WEIGHTS:
 		wsum += w
@@ -118,7 +117,7 @@ func _doors() -> void:
 			near_spawn = true
 		if not city.is_inside_building(Vector3(pos.x, 1.0, pos.z)) and not CityLayout.on_road(pos.x, pos.z, 0.0) and absf(pos.x) < 330.0 and absf(pos.z) < 330.0:
 			on_walk += 1
-	TestLib.check(types.size() == 8, "every interior type has a door (%d types)" % types.size())
+	TestLib.check(types.size() == InteriorData.TYPES.size(), "every interior type has a door (%d types)" % types.size())
 	TestLib.check(near_spawn, "a door within 100 m of the spawn")
 	TestLib.check(on_walk == doors.size(), "every door front is on the sidewalk, not inside a building (%d of %d)" % [on_walk, doors.size()])
 	TestLib.check(unique.size() == doors.size(), "door ids are unique")

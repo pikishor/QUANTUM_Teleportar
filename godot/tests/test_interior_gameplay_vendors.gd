@@ -48,7 +48,6 @@ func run(h: Node) -> void:
 	p = Game.player as Player
 	ig = InteriorGameplay.instance
 	prog = Game.progress as Progress
-	ig.use_generator = false
 	prog.autosave_enabled = false
 	prog.new_campaign()
 	await _prices_and_window()

@@ -10,9 +10,9 @@ signal closed
 signal purchased(id: StringName, result: Dictionary)
 
 const BASE_H := 720.0
-const ROW_H := 64.0
+const ROW_H := 54.0
 const ROW_W := 760.0
-const TOP := 150.0
+const TOP := 138.0
 const BG := Color(0.01, 0.03, 0.05, 0.9)
 const PANEL := Color(0.03, 0.09, 0.12, 0.92)
 
@@ -97,8 +97,8 @@ func layout() -> void:
 	var x0 := vp.x * 0.5 - ROW_W * 0.5 * s
 	for i in rows.size():
 		var y := (TOP + float(i) * ROW_H) * s
-		rects.append(Rect2(x0 + (ROW_W - 190.0) * s, y + 8.0 * s, 180.0 * s, ROW_H * 0.72 * s))
-	close_rect = Rect2(vp.x * 0.5 - 120.0 * s, (TOP + float(rows.size()) * ROW_H + 70.0) * s, 240.0 * s, 52.0 * s)
+		rects.append(Rect2(x0 + (ROW_W - 190.0) * s, y + 5.0 * s, 180.0 * s, (ROW_H - 16.0) * s))
+	close_rect = Rect2(vp.x * 0.5 - 120.0 * s, (TOP + float(rows.size()) * ROW_H + 44.0) * s, 240.0 * s, 50.0 * s)
 
 
 ## Buy the n-th row. Returns the VendorLogic result.
@@ -186,9 +186,9 @@ func _draw_all() -> void:
 	for i in rows.size():
 		var r: Dictionary = rows[i]
 		var y := (TOP + float(i) * ROW_H) * s
-		c.draw_rect(Rect2(x0, y, ROW_W * s, (ROW_H - 6.0) * s), PANEL)
-		c.draw_string(font, Vector2(x0 + 14.0 * s, y + 26.0 * s), "%d  %s" % [i + 1, str(r["name"])], HORIZONTAL_ALIGNMENT_LEFT, (ROW_W - 220.0) * s, int(24.0 * s), Color(1, 1, 1, 0.97))
-		c.draw_string(font, Vector2(x0 + 14.0 * s, y + 48.0 * s), str(r["sub"]), HORIZONTAL_ALIGNMENT_LEFT, (ROW_W - 220.0) * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.9))
+		c.draw_rect(Rect2(x0, y, ROW_W * s, (ROW_H - 5.0) * s), PANEL)
+		c.draw_string(font, Vector2(x0 + 14.0 * s, y + 22.0 * s), "%d  %s" % [i + 1, str(r["name"])], HORIZONTAL_ALIGNMENT_LEFT, (ROW_W - 220.0) * s, int(24.0 * s), Color(1, 1, 1, 0.97))
+		c.draw_string(font, Vector2(x0 + 14.0 * s, y + 42.0 * s), str(r["sub"]), HORIZONTAL_ALIGNMENT_LEFT, (ROW_W - 220.0) * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.9))
 		var br := rects[i]
 		var st := str(r["state"])
 		var fill := Color(0.1, 0.45, 0.38, 0.95) if st == "buy" else Color(0.18, 0.2, 0.22, 0.9)
