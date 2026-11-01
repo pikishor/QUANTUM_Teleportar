@@ -51,6 +51,7 @@ var _scan_t := 0.0
 var _talk_cd := 0.0
 var _call_cd := 0.0
 var _last_serial := 0
+var _ext_until := 0.0                    ## clock time until which a message that is not ours (mission, pickup, tutorial) owns the HUD centre line
 var _last_heat := 0.0
 var _talked := PackedFloat32Array()      ## clock time of the last line per pool slot
 var _rumours: Array[String] = []
@@ -63,6 +64,8 @@ func setup(crowd_ref: RefCounted) -> void:
 	_talked.resize(POOL)
 	_dist.resize(POOL)
 	_rumours = Lines.rumours()
+	if not Game.message.is_connected(_on_game_message):
+		Game.message.connect(_on_game_message)
 	reset()
 
 
@@ -73,6 +76,7 @@ func reset() -> void:
 	_scan_t = 0.0
 	_talk_cd = 3.0
 	_call_cd = 0.0
+	_ext_until = 0.0
 	_last_heat = Game.heat
 	_talked.fill(-1000.0)
 	_sync_serial()
@@ -228,7 +232,7 @@ func _scan_vehicles() -> void:
 
 ## The proximity prompt: the nearest actor within TALK_RANGE says one line (barks / rumours; scared or wanted lines by the situation).
 func _talk(player_pos: Vector3) -> void:
-	if _talk_cd > 0.0 or actors.is_empty() or not Game.is_playing():
+	if _talk_cd > 0.0 or clock < _ext_until or actors.is_empty() or not Game.is_playing():
 		return
 	if Game.vehicles != null and Game.vehicles.get("driven") != null:
 		return
@@ -257,7 +261,14 @@ func line_for(i: int) -> String:
 	return Lines.PREFIX + _rumours[rng.randi() % _rumours.size()]
 
 
+func _on_game_message(text: String, seconds: float) -> void:
+	if text != last_line:
+		_ext_until = clock + seconds
+
+
 func _say(text: String, seconds: float) -> void:
+	if clock < _ext_until:                  # never overwrite a mission / pickup / tutorial message with a bark
+		return
 	last_line = text
 	lines_said += 1
 	Game.say(text, seconds)

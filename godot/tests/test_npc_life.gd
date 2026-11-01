@@ -321,6 +321,19 @@ func _test_dialogue(c: RefCounted, n: RefCounted, player: Node3D) -> void:
 	TestLib.check(_said.is_empty(), "no prompt while driving")
 	Game.vehicles = prev_vm
 	vm.free()
+	# a mission / pickup message owns the HUD line: no bark overwrites it
+	n._promote(player.global_position)
+	n._talked.fill(-1000.0)
+	n._talk_cd = 0.0
+	c._cower[i] = 0.0
+	c._flee[i] = 0.0
+	_said.clear()
+	Game.say("MISSION UPDATE", 4.0)
+	n._talk(player.global_position)
+	TestLib.check(_said.size() == 1 and _said[0] == "MISSION UPDATE", "a bark waits while a mission message is on screen")
+	n.clock += 4.5
+	n._talk(player.global_position)
+	TestLib.check(_said.size() == 2 and _said[1].begins_with(Lines.PREFIX), "barks resume once the message has expired")
 
 
 func _test_pause(host: Node, amb: Node3D, n: RefCounted) -> void:
