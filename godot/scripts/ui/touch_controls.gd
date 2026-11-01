@@ -85,7 +85,11 @@ func _process(delta: float) -> void:
 		_perf_held += delta / maxf(Engine.time_scale, 0.05)
 		if _perf_held >= LONG_PRESS:
 			_perf_long = true
-			errors_on = not errors_on
+			var menu := get_tree().get_first_node_in_group(&"test_menu") if TestMode.available() else null
+			if menu != null:
+				menu.call(&"open")                       # test mode: the TEST MENU (it has the error panel switch); a release build keeps the error panel
+			else:
+				errors_on = not errors_on
 			_canvas.queue_redraw()
 	_win_t += delta
 	_win_n += 1

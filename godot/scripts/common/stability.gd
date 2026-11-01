@@ -24,6 +24,10 @@ var slowmo_active := false
 var menu_light := false
 
 var _base_scale := 1.0
+var _slow_scale := SLOWMO_SCALE
+var _slow_hold := SLOWMO_HOLD
+var _slow_ramp := SLOWMO_RAMP
+var _slow_state: StringName = &"dead"       ## the slow motion belongs to this state and ends with it (death: dead; the boss beat: the cutscene state)
 var _slow_t0 := 0.0
 var _audit_t := 0.0
 var _audit_soon := 0.0
@@ -74,8 +78,9 @@ func release_inputs() -> void:
 func _on_state(s: StringName) -> void:
 	if s != &"play":
 		release_inputs()
-	if s != &"dead":
+	if s != _slow_state:
 		end_slowmo()
+	if s != &"dead":
 		_atmosphere_dead(false)
 	if s == &"menu":
 		_clear_transients()
@@ -101,12 +106,17 @@ func _atmosphere_dead(on: bool) -> void:
 
 
 ## The death slow motion: Engine.time_scale SLOWMO_SCALE for SLOWMO_HOLD real seconds, then back to the value it replaced.
-func begin_slowmo() -> void:
+## The cinematics reuse it for the boss beats (scale / hold / ramp given, ending with the state they began in).
+func begin_slowmo(scale := SLOWMO_SCALE, hold := SLOWMO_HOLD, ramp := SLOWMO_RAMP) -> void:
 	if not slowmo_active:
 		_base_scale = Engine.time_scale if Engine.time_scale > 0.0 else 1.0
 		slowmo_active = true
+	_slow_scale = clampf(scale, 0.1, 1.0)
+	_slow_hold = hold
+	_slow_ramp = maxf(ramp, 0.05)
+	_slow_state = Game.state
 	_slow_t0 = Time.get_ticks_usec() * 0.000001
-	Engine.time_scale = minf(_base_scale, SLOWMO_SCALE) if _base_scale <= 1.0 else _base_scale * SLOWMO_SCALE
+	Engine.time_scale = minf(_base_scale, _slow_scale) if _base_scale <= 1.0 else _base_scale * _slow_scale
 
 
 ## Always safe: restores the time scale that begin_slowmo() replaced. Does nothing when no slow motion is running (never overrides someone else's scale).
@@ -114,15 +124,16 @@ func end_slowmo() -> void:
 	if slowmo_active:
 		slowmo_active = false
 		Engine.time_scale = _base_scale
+	_slow_state = &"dead"
 
 
 func _slowmo_step() -> void:
 	var t := Time.get_ticks_usec() * 0.000001 - _slow_t0
-	if t >= SLOWMO_HOLD + SLOWMO_RAMP or Game.state != &"dead":
+	if t >= _slow_hold + _slow_ramp or Game.state != _slow_state:
 		end_slowmo()
-	elif t > SLOWMO_HOLD:
-		var low := minf(_base_scale, SLOWMO_SCALE) if _base_scale <= 1.0 else _base_scale * SLOWMO_SCALE
-		Engine.time_scale = lerpf(low, _base_scale, smoothstep(0.0, 1.0, (t - SLOWMO_HOLD) / SLOWMO_RAMP))
+	elif t > _slow_hold:
+		var low := minf(_base_scale, _slow_scale) if _base_scale <= 1.0 else _base_scale * _slow_scale
+		Engine.time_scale = lerpf(low, _base_scale, smoothstep(0.0, 1.0, (t - _slow_hold) / _slow_ramp))
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -225,6 +236,14 @@ func audit() -> Array[String]:
 	if not (FX.shake_amount >= 0.0 and FX.shake_amount <= 1.0):
 		FX.shake_amount = clampf(FX.shake_amount if is_finite(FX.shake_amount) else 0.0, 0.0, 1.0)
 		fixed.append("shake out of range")
+	if Game.state == &"cutscene":              # a cutscene state with no cinematic running (it errored or was freed) would freeze the game for good
+		var cine := get_tree().get_first_node_in_group(&"cinematics")
+		if cine == null or not bool(cine.get(&"active")):
+			Game.state = &"play"
+			fixed.append("cutscene state left without a cinematic")
+	if p != null and is_instance_valid(p) and p.camera_rig != null and p.camera_rig.is_cinematic() and Game.state == &"play" and not _cine_allowed():
+		p.camera_rig.cine_clear()
+		fixed.append("cinematic camera left on during play")
 	if not slowmo_active and Game.state == &"play" and Engine.time_scale > 0.0 and Engine.time_scale < 0.9 and _base_scale >= 0.9:
 		Engine.time_scale = _base_scale
 		fixed.append("time scale left slowed")
@@ -236,6 +255,12 @@ func audit() -> Array[String]:
 	for f in fixed:
 		_fix(f)
 	return fixed
+
+
+## The cinematics themselves may hold the camera during play (never today: the boss beats run in the cutscene state), nothing else may.
+func _cine_allowed() -> bool:
+	var cine := get_tree().get_first_node_in_group(&"cinematics")
+	return cine != null and bool(cine.get(&"active"))
 
 
 func _find_hud() -> Object:

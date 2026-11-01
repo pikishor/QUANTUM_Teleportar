@@ -10,6 +10,9 @@ var post := true             ## post-process (grain, vignette, grade)
 var muted := false
 var volumes := {}            ## per-bus volume 0..1 {"Master", "SFX", "Music", "Ambient", "Voice"}; missing = full
 var best := 0
+var cutscenes := true        ## cutscenes (intro, chapter, boss beats) on / off
+var test_mode := false        ## test (hack) menu available in a release build too (debug builds always have it)
+var intro_seen := false      ## the intro plays once, at the first DEPLOY
 
 
 func _init(p := DEFAULT_PATH) -> void:
@@ -27,6 +30,9 @@ func load_file() -> void:
 	var vols = cf.get_value("audio", "volumes", {})
 	volumes = (vols as Dictionary).duplicate() if vols is Dictionary else {}
 	best = maxi(int(cf.get_value("progress", "best", 0)), 0)
+	cutscenes = bool(cf.get_value("graphics", "cutscenes", true))
+	intro_seen = bool(cf.get_value("progress", "intro_seen", false))
+	test_mode = bool(cf.get_value("debug", "test_mode", false))
 
 
 func save() -> bool:
@@ -36,4 +42,7 @@ func save() -> bool:
 	cf.set_value("audio", "muted", muted)
 	cf.set_value("audio", "volumes", volumes)
 	cf.set_value("progress", "best", best)
+	cf.set_value("graphics", "cutscenes", cutscenes)
+	cf.set_value("progress", "intro_seen", intro_seen)
+	cf.set_value("debug", "test_mode", test_mode)
 	return cf.save(path) == OK

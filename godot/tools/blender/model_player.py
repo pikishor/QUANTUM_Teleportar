@@ -207,28 +207,59 @@ for s, side in ((-1, "L"), (1, "R")):
         a = h + R3 @ Vector((0, 0.022, zk))
         b = h + R3 @ Vector((0, 0.07, zk + 0.002))
         c = h + R3 @ Vector((0, 0.088, zk + 0.02 - 0.003 * k))
-        fa_.rod(a, b, 0.0085, mat=chit, tint=SKIN2, r2=0.0075, segs=6)
-        fa_.rod(b, c, 0.0072, mat=chit, tint=PEARL, r2=0.0025, segs=5)
+        fa_.rod(a, b, 0.0108, mat=chit, tint=SKIN2, r2=0.0092, segs=7)
+        fa_.sphere(0.0105, a, mat=chit, tint=PEARL2, segs=6, rings=4)
+        fa_.rod(b, c, 0.0092, mat=chit, tint=PEARL, r2=0.003, segs=6)
     fa_.rod(h + R3 @ Vector((-s * 0.02, 0.0, 0.04)), h + R3 @ Vector((-s * 0.045, 0.05, 0.055)), 0.009, mat=chit, tint=PEARL, r2=0.002, segs=5)
+
+# ------------------------------------------------------------------ silhouette pass: layered pauldrons, gorget and standing collar, hip skirt, thigh and knee armour, hand plates, grip
+for s in (-1, 1):
+    ua = uarm[s]
+    Sv = Vector((0.205 * s, 0.0, SH_Z))
+    for k in range(3):                                       # descending lamellae: a stepped pauldron that reads from every side
+        ua.sphere((0.135 - 0.012 * k, 0.105 - 0.006 * k, 0.02), Sv + Vector((s * (0.095 + 0.04 * k), 0.0, -0.005 - 0.065 * k)), rot=(0, s * (34 + 17 * k), 0),
+                  mat=chit, tint=PEARL2 if k % 2 else PEARL, segs=12, rings=6)
+        ua.box((0.09 - 0.008 * k, 0.005, 0.005), Sv + Vector((s * (0.11 + 0.04 * k), 0.098 - 0.006 * k, -0.012 - 0.065 * k)), rot=(0, s * (34 + 17 * k), 0), mat=glc)
+    ua.rod(Sv + Vector((s * 0.07, 0.0, 0.08)), Sv + Vector((s * 0.15, -0.06, 0.31)), 0.034, mat=chit, tint=PEARL, r2=0.003, segs=7)     # tall blade spike
+    ua.rod(Sv + Vector((s * 0.12, 0.05, 0.05)), Sv + Vector((s * 0.27, 0.12, 0.14)), 0.02, mat=chit, tint=PEARL2, r2=0.003, segs=6)       # forward spike
+torso.loft(xy_rings([(1.50, 0.02, 0.215, 0.14), (1.57, 0.03, 0.17, 0.12)], n=12), mat=chit, tint=PEARL2, bevel=0.004)                 # flared gorget
+torso.box((0.36, 0.03, 0.24), (0, -0.105, 1.64), rot=(-14, 0, 0), mat=chit, tint=PEARL, bevel=0.008, top=(0.55, 1.0))             # standing collar behind the head
+torso.box((0.3, 0.02, 0.012), (0, -0.098, 1.72), rot=(-14, 0, 0), mat=glc)
+torso.loft(xy_rings([(1.52, -0.02, 0.25, 0.15), (1.42, -0.055, 0.27, 0.165), (1.31, -0.085, 0.225, 0.165)], n=12), mat=silk, tint=CLOAK)  # mantle over the shoulders
+for s in (-1, 1):
+    hips.box((0.05, 0.19, 0.21), (s * 0.165, 0.0, 0.96), rot=(0, 0, -s * 10), mat=chit, tint=PEARL2, bevel=0.008, top=(0.8, 1.0))      # hip skirt plates
+    hips.box((0.03, 0.01, 0.2), (s * 0.17, 0.092, 0.96), rot=(0, 0, -s * 10), mat=glc)
+    x0 = 0.10 * s
+    thigh[s].box((0.13, 0.1, 0.26), (x0 + s * 0.02, 0.08, 0.8), rot=(-6, 0, s * 4), mat=chit, tint=PEARL, bevel=0.01, bsegs=2, top=(0.85, 0.9))   # thigh armour
+    thigh[s].sphere((0.075, 0.05, 0.075), (x0, KNEE[1] + 0.045, KNEE[2] + 0.015), mat=chit, tint=PEARL2, segs=12, rings=7)             # knee guard
+    thigh[s].torus(0.062, 0.011, (x0, KNEE[1], KNEE[2]), mat=gla, segs=12, sides=4)                                    # amber knee joint ring
+    shin[s].torus(0.052, 0.009, (x0, 0.03, 0.45), mat=chit, tint=PEARL, segs=12, sides=4)
+    foot[s].box((0.075, 0.13, 0.05), (x0, 0.09, 0.075), rot=(8, 0, 0), mat=chit, tint=PEARL2, bevel=0.008, top=(0.7, 0.9))                 # toe cap
+    farm[s].torus(0.04, 0.008, farm[s].origin, mat=gla, segs=12, sides=5)                                               # elbow ring
+    h = hands[s]
+    farm[s].box((0.052, 0.075, 0.014), h + R3 @ Vector((0, 0.01, 0.05)), frame=RR, mat=chit, tint=PEARL2, bevel=0.004)                  # back-of-hand plate
+rbox((0.04, 0.07, 0.17), (0, 0.235, -0.1), chit, DARK, bevel=0.006)                                                                    # fuller grip
+rbox((0.008, 0.08, 0.035), (0, 0.3, -0.06), chit, PEARL2, bevel=0.002)                                                                 # trigger guard
+rbox((0.045, 0.05, 0.03), (0, 0.46, -0.07), chit, PEARL2, bevel=0.005)                                                                 # hand rest
 
 # ------------------------------------------------------------------ phase cloak: tattered tapering strips on the Sec chain (swayed by the rig)
 seg_defs = [(sec[0], 1.52, 1.22, 0.10, 0.0), (sec[1], 1.22, 0.92, 0.12, 0.04), (sec[2], 0.92, 0.5, 0.14, 0.09)]
 for si, (p, z0, z1, rad, flare) in enumerate(seg_defs):
-    n = 7
+    n = 8
     for j in range(n):
-        phi = -58.0 + 116.0 * j / (n - 1)
+        phi = -68.0 + 136.0 * j / (n - 1)
         a = math.radians(phi)
         rd = Vector((math.sin(a), -math.cos(a), 0.0))
-        jag = 0.8 + 0.4 * (0.5 + 0.5 * math.sin(j * 2.9 + si * 1.7)) if si == 2 else 1.0
+        jag = 0.7 + 0.55 * (0.5 + 0.5 * math.sin(j * 2.9 + si * 1.7)) if si == 2 else 1.0
         L = (z0 - z1) * jag
         top = Vector((rad * 1.45 * math.sin(a), -0.115 - rad * 0.9 * math.cos(a) - 0.05 * si, z0 + 0.02))
         bot = top + Vector((rd.x * flare, rd.y * (flare + 0.03), -L - 0.02))
-        w = 0.058 + 0.012 * si                                   # half width: neighbouring ribbons overlap, so the cloak reads as one solid sheet
-        tip = 0.2 if si == 2 else 0.8
+        w = 0.062 + 0.014 * si                                   # half width: neighbouring ribbons overlap, so the cloak reads as one solid sheet
+        tip = 0.12 if si == 2 else (0.45 if si == 1 else 0.8)
         mid = top + (bot - top) * 0.5 + rd * 0.012
         # a solid satin ribbon (smooth elliptic section, thin along the radial direction, wide along the tangent), no alpha, no grain
         p.tube([top, mid, bot], [(0.006, w), (0.0065, w * (0.5 + 0.5 * tip)), (0.003, w * tip * 0.5)], mat=silk,
-               tint=CLOAK if (j + si) % 2 == 0 else CLOAK2, n=8, up=rd, sub=2, exp=2.6)
+               tint=CLOAK if (j + si) % 2 == 0 else CLOAK2, n=6, up=rd, sub=1, exp=2.6)
         if si == 2:
             p.rod(bot + Vector((0, 0, L * 0.75)) - rd * 0.0, bot + rd * 0.004, 0.0055, mat=glc, segs=4)                  # glowing tip
             p.rod(top + (bot - top) * 0.1 + rd * 0.01, top + (bot - top) * 0.9 + rd * 0.01, 0.0045, mat=glc, segs=4)    # glowing edge vein
@@ -242,7 +273,7 @@ rig = [empty("Muzzle", muzzle), empty("WristL", wrist_pos[-1]), empty("WristR", 
        empty("MagWell", rp((0, 0.33, -0.2))), empty("MagPouch", (-0.09, 0.2, 1.13)),
        light("Fill", (0.0, 0.8, 1.55), "omni", (0.5, 0.85, 1.0), 1.1, 3.6, mask="own", attenuation=1.2, fade=(30, 12)),
        light("Rim", (0.25, -0.8, 2.15), "omni", (0.35, 0.85, 1.0), 1.5, 3.8, mask="own", attenuation=1.2, fade=(30, 12))]
-print("  parts=%d tris(before culling)=%d" % (len(parts), sum(p.tri_count() for p in parts)))
+print("  parts=%d tris(before culling)=%d" % (len(parts), sum(p.tri_count() for p in parts)), {p.name: p.tri_count() for p in parts})
 decals = [Decal((0.0, 0.1, 1.76), (0, 1, 0), (0, 0, 1), (0.2, 0.2), p_visor_sheen(hexc("#19d8ff")), depth=0.08, kinds=("glass",), min_dot=0.2)]
 export_model("player", parts, extras=rig, size=1024, decals=decals, ao_dist=0.2, ao_strength=0.55, emit_strength=1.5,
-             finalize=make_finalize(["Sec1", "Sec2", "Sec3"]))
+             finalize=make_finalize(["Sec1", "Sec2", "Sec3"]), hipoly=dict(levels=2))

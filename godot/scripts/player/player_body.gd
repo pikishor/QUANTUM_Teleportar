@@ -108,6 +108,23 @@ var _reflection: MirrorProxy              ## the hero's reflection on the wet st
 var _parts: Array[MeshInstance3D] = []   ## the character's meshes and the convex hull of each (points in the mesh's own space), for the corpse resting height
 var _hulls: Array = []
 var _rest_drop := 0.0                  ## lowest point of the fallen pose relative to the body's origin
+## 0 opaque .. 1 hidden: the camera rig fades the hero out when the lens is closer than 1.2 m (a wall at the back). Per-instance transparency (dithered, Mobile renderer),
+## and the meshes are hidden outright when nearly gone and on the Compatibility renderer, which has no instance transparency.
+var fade := 0.0
+func set_fade(f: float) -> void:
+	if is_equal_approx(f, fade):
+		return
+	fade = f
+	var compat := RenderingServer.get_current_rendering_method() == "gl_compatibility"
+	var gone := f >= (0.5 if compat else 0.96)
+	for m: MeshInstance3D in _parts:
+		if is_instance_valid(m):
+			m.transparency = 0.0 if compat else clampf(f, 0.0, 0.96)
+			m.visible = not gone
+	if is_instance_valid(_wp_mi):
+		_wp_mi.transparency = 0.0 if compat else clampf(f, 0.0, 0.96)       # its visibility belongs to the weapon switch (see set_weapon_look)
+
+
 ## Switch the character lights off (tests, or a graphics tier that wants the extra directional lights gone).
 var character_light := true:
 	set(v):
@@ -240,7 +257,7 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
 	if character_light and rig_view != null:
 		var lit := lerpf(1.0, DEAD_LIGHT, e)
-		_key_light.light_energy = _key_energy * lit
+		_key_light.light_energy = _key_energy * lit * (0.8 if _quality == 0 else 1.0)      # LOW: a softer key (no rim light there; the bright panel of a phone must not clip him)
 		_rim_light.light_energy = _rim_energy * lit
 		var f := PlayerUtil.forward_of(rig_view.yaw, 0.0)
 		var right := Vector3(-f.z, 0.0, f.x)
@@ -489,7 +506,7 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 			if compat:
 				own.disable_ambient_light = true
 				# the baked atlas is much lighter than the legacy fabric the warm tint was calibrated on: darker and neutral-cool there
-				own.albedo_color = Color(0.72, 0.78, 0.84, 1.0) if gear else own.albedo_color * COMPAT_TINT
+				own.albedo_color = Color(0.46, 0.52, 0.6, 1.0) if gear else own.albedo_color * COMPAT_TINT
 			mi.set_surface_override_material(i, own)
 
 

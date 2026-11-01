@@ -64,3 +64,49 @@ static func wobble(t: float, f1: float, f2: float, seed_offset: float) -> float:
 ## Seconds since engine start, the time base of Player.last_hit_time and friends.
 static func now() -> float:
 	return Time.get_ticks_msec() * 0.001
+
+
+## --- valid ground for teleports --------------------------------------------------------------------------------------------------------
+## The walkable square is |x|, |z| <= CityLayout.WALK (the inner faces of the invisible border walls). A blink or any other teleport must land on valid ground inside it:
+## `safe_spot` clamps the XZ, drops the point onto the floor or roof below it (physics ray on the world layer, else the city's ground_height) and moves a point that is
+## inside a building volume out to the nearest street. `outside_city` is the rescue test (outside the walls, below the floor, not a number).
+const SAFE_MARGIN := 3.0
+
+
+static func outside_city(p: Vector3) -> bool:
+	return not (is_finite(p.x) and is_finite(p.y) and is_finite(p.z)) or absf(p.x) > CityLayout.WALK + 1.0 or absf(p.z) > CityLayout.WALK + 1.0 or p.y < -6.0
+
+
+## The street point nearest to p (y = 0): p's x or z snapped onto the nearest road centre line, whichever is closer.
+static func nearest_street(p: Vector3) -> Vector3:
+	var ox := CityLayout.road_offset(p.x)
+	var oz := CityLayout.road_offset(p.z)
+	var q := Vector3(p.x - ox, 0.0, p.z) if absf(ox) <= absf(oz) else Vector3(p.x, 0.0, p.z - oz)
+	q.x = clampf(q.x, -CityLayout.HALF, CityLayout.HALF)
+	q.z = clampf(q.z, -CityLayout.HALF, CityLayout.HALF)
+	return q
+
+
+## `p` made valid (see above). `world` is the City (Game.world) or null (then only the clamp and the floor of y = 0 apply). `space` (optional) is a physics space for the floor ray.
+static func safe_spot(p: Vector3, world: Node = null, space: PhysicsDirectSpaceState3D = null) -> Vector3:
+	var q := p
+	if not (is_finite(q.x) and is_finite(q.y) and is_finite(q.z)):
+		return Game.SPAWN
+	var lim := CityLayout.WALK - SAFE_MARGIN
+	var clamped := absf(q.x) > lim or absf(q.z) > lim
+	q.x = clampf(q.x, -lim, lim)
+	q.z = clampf(q.z, -lim, lim)
+	if world != null and world.has_method(&"is_inside_building") and q.y >= 0.0 and world.call(&"is_inside_building", Vector3(q.x, maxf(q.y + 0.4, 0.05), q.z)):
+		q = nearest_street(q)
+		clamped = true
+	var floor_y := 0.0
+	if space != null:
+		var rq := PhysicsRayQueryParameters3D.create(Vector3(q.x, maxf(q.y, 0.0) + 2.0, q.z), Vector3(q.x, -20.0, q.z), Game.L_WORLD)
+		var hit := space.intersect_ray(rq)
+		if not hit.is_empty():
+			floor_y = (hit["position"] as Vector3).y
+	if world != null and world.has_method(&"ground_height") and (space == null or floor_y == 0.0):
+		floor_y = maxf(floor_y, float(world.call(&"ground_height", q.x, q.z, maxf(q.y, 0.0) + 0.5)))
+	if clamped or q.y < floor_y - 0.5 or q.y < -1.0:
+		q.y = floor_y
+	return q

@@ -26,7 +26,7 @@ const RainField := preload("res://scripts/fx/atmosphere_rain.gd")
 	set(v):
 		enabled = v
 		if post:
-			post.visible = v
+			post.visible = v and quality >= 1        # LOW draws no full-screen post pass at all (it needs a screen copy: GPU-bound phones lose 5-10 ms to it)
 ## Hides or shows the rain particles (the global `rain` value that wet materials read is not affected).
 @export var rain_enabled := true:
 	set(v):
@@ -91,6 +91,7 @@ func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
 	if post:
 		post.set_quality(quality)
+		post.visible = enabled and quality >= 1
 	if rainfield:
 		rainfield.set_quality(quality)
 

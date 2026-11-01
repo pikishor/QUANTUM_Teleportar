@@ -276,7 +276,7 @@ func _drop() -> void:
 # --- simulation -----------------------------------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
-	if not Game.is_playing():
+	if not Game.is_playing() or (TestMode.freeze and not dead):
 		return
 	if dead:
 		_tick_dead(delta)

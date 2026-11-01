@@ -111,5 +111,16 @@ func apply_quality(level: int, vp: Viewport) -> void:
 		vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][level]
 		vp.scaling_3d_scale = 0.7 if level == 0 else 1.0
 	env.glow_intensity = [0.8, 0.9, 1.0][level] + (COMPAT_GLOW_ADD if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0)
+	# LOW: a short bloom (four levels, no wide halo) and smaller shadow atlases (nothing casts positional shadows there, the sun has none): fewer passes and less texture memory
+	var glow_levels := [0.5, 0.75, 0.7, 0.35, 0.0, 0.0, 0.0] if level == 0 else [0.35, 0.55, 0.8, 0.65, 0.4, 0.2, 0.0]
+	for gi in glow_levels.size():
+		env.set_glow_level(gi, glow_levels[gi])
+	if vp != null:
+		vp.positional_shadow_atlas_size = [512, 2048, 4096][level]
+	RenderingServer.directional_shadow_atlas_set_size([1024, 2048, 2048][level], true)
+	# LOW: bloom starts higher and is capped lower, so a bright, rim-lit character (the hero's gear) can never bloom into one white blob on a bright phone panel
+	var compat_gl := RenderingServer.get_current_rendering_method() == "gl_compatibility"
+	env.glow_hdr_threshold = (COMPAT_GLOW_THRESHOLD if compat_gl else 0.9) + (0.3 if level == 0 else 0.0)
+	env.glow_hdr_luminance_cap = 3.5 if level == 0 else 12.0
 	env.adjustment_contrast = [1.14, 1.08, 1.06][level]       # LOW: a light 'sharpen' (the post-process filter is off there)
 	env.fog_density = 0.0042 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0052

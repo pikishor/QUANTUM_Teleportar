@@ -258,6 +258,7 @@ func reset() -> void:
 
 ## Instantly move to a world position (blink, scripted moves): velocity is cleared and neither the body nor the camera streaks there.
 func teleport_to(pos: Vector3) -> void:
+	pos = PlayerUtil.safe_spot(pos, Game.world if is_instance_valid(Game.world) else null, get_world_3d().direct_space_state if is_inside_tree() else null)   # never outside the city walls, below the floor or inside a building
 	global_position = pos
 	velocity = Vector3.ZERO
 	_ground_known = false
@@ -268,6 +269,30 @@ func teleport_to(pos: Vector3) -> void:
 	camera_rig.pivot_y_offset = 0.0
 	camera_rig.snap()
 	camera_rig.punch_fov(9.0)
+	_refresh_world(pos)
+
+
+## The windowed city (props, skyline), the pooled prop colliders and the camera's view must follow a jump at once, not over the next frames.
+func _refresh_world(pos: Vector3) -> void:
+	if is_instance_valid(Game.world):
+		if Game.world.has_method(&"update_streaming"):
+			Game.world.call(&"update_streaming", Vector2(pos.x, pos.z), true)
+		if Game.world.has_method(&"update_colliders"):
+			Game.world.call(&"update_colliders", pos)
+
+
+## Outside the walls, under the floor or not a number: back onto the nearest street (hp kept, a second of grace). Returns true when it moved the hero.
+func rescue_if_lost() -> bool:
+	if not PlayerUtil.outside_city(global_position):
+		return false
+	var p := global_position
+	if not (is_finite(p.x) and is_finite(p.y) and is_finite(p.z)):
+		p = Game.SPAWN
+	var street := PlayerUtil.nearest_street(Vector3(clampf(p.x, -CityLayout.WALK, CityLayout.WALK), 0.0, clampf(p.z, -CityLayout.WALK, CityLayout.WALK)))
+	teleport_to(street + Vector3(0.0, 0.1, 0.0))
+	invuln = maxf(invuln, 1.0)
+	Game.say("LOST SIGNAL · RETURNED TO THE STREET", 1.6)
+	return true
 
 
 func _snap_interpolation() -> void:
@@ -328,7 +353,7 @@ func is_dead() -> bool:
 ## damage(amount, from_pos): hp loss with 1.5 s spawn invulnerability, a 5 s regeneration pause and a camera / audio reaction.
 ## While driving the hit goes to the vehicle at 60 %. Reaching zero calls Game.die() exactly once.
 func damage(amount: float, from_pos := Vector3.ZERO) -> void:
-	if amount <= 0.0 or invuln > 0.0 or _dead or not Game.is_playing():
+	if amount <= 0.0 or invuln > 0.0 or _dead or not Game.is_playing() or TestMode.god:
 		return
 	if _vehicle_alive():
 		var share := amount * VEHICLE_DAMAGE_SHARE
@@ -449,6 +474,8 @@ func _tick(dt: float) -> void:
 			_set_vehicle(null)                              # the vehicle was freed under us (destroyed, despawned): on foot again, where it was
 		return
 	_foot_tick(dt)
+	if rescue_if_lost():
+		return
 	if global_position.y < VOID_Y:                      # fell out of the world: back to the spawn
 		var keep := hp
 		reset()

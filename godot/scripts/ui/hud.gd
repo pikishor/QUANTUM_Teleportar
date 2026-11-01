@@ -138,8 +138,8 @@ func _on_state(s: StringName) -> void:
 		_has_save = Game.progress != null and bool(Game.progress.call(&"has_save"))
 	if s == &"dead" or s == &"win":
 		record_best()
-	_hud.visible = s != &"menu"
-	_screen.visible = s != &"play"
+	_hud.visible = s != &"menu" and s != &"cutscene"        # a cutscene (scripts/cinematics) owns the whole picture
+	_screen.visible = s != &"play" and s != &"cutscene"
 	minimap.visible = _hud.visible
 	_layout_key = ""
 	_apply_mouse()
@@ -147,12 +147,18 @@ func _on_state(s: StringName) -> void:
 
 ## True when the HUD and screen layers show what the state asks for (HUD hidden only in the menu, the screen layer hidden only while playing).
 func layers_consistent() -> bool:
-	return _hud.visible == (Game.state != &"menu") and _screen.visible == (Game.state != &"play") and minimap.visible == _hud.visible
+	var cine := Game.state == &"cutscene"
+	return _hud.visible == (Game.state != &"menu" and not cine) and _screen.visible == (Game.state != &"play" and not cine) and minimap.visible == _hud.visible
 
 
 ## Puts the layers back in line with the state (the stability audit calls it when they drifted).
 func refresh_layers() -> void:
 	_on_state(Game.state)
+
+
+## True while the paused game shows the upgrade shop (the cinematics frame a close-up of the hero beside it).
+func shop_open() -> bool:
+	return _shop_open and Game.state == &"paused"
 
 
 func record_best() -> void:
@@ -246,7 +252,7 @@ func _confirm() -> void:
 
 ## A press (mouse or finger) on a screen. Returns true when it did something. On the dead and win screens a tap anywhere continues after LOCK seconds.
 func tap(pos: Vector2) -> bool:
-	if Game.state == &"play":
+	if Game.state == &"play" or Game.state == &"cutscene":
 		return false
 	_ensure_layout()
 	var id := _button_at(pos)
@@ -344,6 +350,10 @@ func press_button(id: StringName) -> bool:
 			Sfx.play(&"ui_tap")
 			settings.post = not settings.post
 			apply_settings(false)
+			settings.save()
+		&"cine":
+			Sfx.play(&"ui_tap")
+			settings.cutscenes = not settings.cutscenes
 			settings.save()
 		&"mute":
 			settings.muted = not settings.muted
@@ -812,7 +822,7 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 
 func _ensure_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
-	var key := "%s|%d|%d|%d|%d|%s%s|%s%s%d" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, _shop_open, _has_save, _wallet()]
+	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet()]
 	if key == _layout_key:
 		return
 	_layout_key = key
@@ -849,8 +859,9 @@ func _ensure_layout() -> void:
 func _settings_rows(cx: float, y: float, s: float) -> void:
 	for i in 3:
 		_add(StringName("q%d" % i), Rect2(cx - 154.0 * s + i * 106.0 * s, y * s, 96.0 * s, 40.0 * s), TIER_NAMES[i], Game.quality == i)
-	_add(&"post", Rect2(cx - 154.0 * s, (y + 50.0) * s, 150.0 * s, 40.0 * s), "POST FX  " + ("ON" if settings.post else "OFF"), settings.post)
-	_add(&"mute", Rect2(cx + 4.0 * s, (y + 50.0) * s, 150.0 * s, 40.0 * s), "SOUND  " + ("OFF" if settings.muted else "ON"), not settings.muted)
+	_add(&"post", Rect2(cx - 154.0 * s, (y + 50.0) * s, 100.0 * s, 40.0 * s), "POST " + ("ON" if settings.post else "OFF"), settings.post)
+	_add(&"mute", Rect2(cx - 50.0 * s, (y + 50.0) * s, 100.0 * s, 40.0 * s), "SFX " + ("OFF" if settings.muted else "ON"), not settings.muted)
+	_add(&"cine", Rect2(cx + 54.0 * s, (y + 50.0) * s, 100.0 * s, 40.0 * s), "CINE " + ("ON" if settings.cutscenes else "OFF"), settings.cutscenes)
 	_add(&"vol_music", Rect2(cx - 154.0 * s, (y + 100.0) * s, 150.0 * s, 40.0 * s), "MUSIC", true)          # sliders: the rect is the track, the fill and value are drawn from settings
 	_add(&"vol_sfx", Rect2(cx + 4.0 * s, (y + 100.0) * s, 150.0 * s, 40.0 * s), "SFX", true)
 
@@ -875,9 +886,10 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 	var ink := UiUtil.INK
 	match st:
 		&"menu":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.62))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.4))            # light: the animated city behind the title (scripts/cinematics) shows through
+			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.26))     # a darker column behind the title and buttons keeps them readable
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if _shop_open else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":

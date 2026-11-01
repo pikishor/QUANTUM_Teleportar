@@ -601,12 +601,20 @@ def normal_from_height(h, isl_img, valid, texel_m):
 DEFAULT_SCALE = "2"          # atlas size multiplier (env QT_ATLAS_SCALE overrides): the model scripts ask for 1024 (512 for pickups), so the committed atlases are 2048 (1024)
 
 
+HI_GAIN = 1.0
+
+
+def hipoly_sample(h, P, N, T, B):
+    import hipoly
+    return hipoly.sample(h, P, N, T, B)
+
+
 class BakeResult:
     pass
 
 
 def bake(name, parts, groups, out_dir, size=1024, decals=(), seed=1, ao_dist=0.3, ao_strength=0.75, ao_samples=20, max_ppm=900.0,
-         emit_gain=1.0, jpeg=True, normal_scale=1.0, log=True):
+         emit_gain=1.0, jpeg=True, normal_scale=1.0, log=True, hipoly=None):
     """Bake the atlas of one surface group set.
 
     groups: dict group name -> dict(kinds=[...surface kinds baked into it...], base=file prefix of its textures)
@@ -650,6 +658,14 @@ def bake(name, parts, groups, out_dir, size=1024, decals=(), seed=1, ao_dist=0.3
         Tt, Bt = tri_tangents(g, loop_px, n)
         T = Tt[tid]
         T /= np.linalg.norm(T, axis=1, keepdims=True) + 1e-12
+        hi_ts = hi_depth = None
+        if hipoly is not None:        # sculpt-style bake: the high-poly surface under every texel (tangent-space normal + relief depth)
+            Tn = T - N * (T * N).sum(1, keepdims=True)
+            Tn /= np.linalg.norm(Tn, axis=1, keepdims=True) + 1e-12
+            Bn = Bt[tid] - N * (Bt[tid] * N).sum(1, keepdims=True)
+            Bn -= Tn * (Bn * Tn).sum(1, keepdims=True)
+            Bn /= np.linalg.norm(Bn, axis=1, keepdims=True) + 1e-12
+            hi_ts, hi_depth = hipoly_sample(hipoly, P, N, Tn, Bn)
         tri_isl = isl[g.tri_f]
         isl_img = np.full((n, n), -1, np.int32)
         isl_img[ys, xs] = tri_isl[tid]
@@ -669,6 +685,15 @@ def bake(name, parts, groups, out_dir, size=1024, decals=(), seed=1, ao_dist=0.3
             if len(sel):
                 shade.KINDS[kname](c, sel)
         shade.apply_decals(c, decals, kind_img_ids)
+        if hi_depth is not None:      # the relief's cavities collect grime and shadow, its ridges catch the light
+            dimg = np.zeros((n, n), np.float32)
+            dimg[ys, xs] = hi_depth
+            hp_depth = hi_depth - smooth_by_island(dimg, isl_img, valid, 3, 3)[ys, xs]      # high-pass: the subdivision's overall shrink is not a cavity
+            cav = np.clip(-hp_depth / 0.0018, 0.0, 1.0)
+            top = np.clip(hp_depth / 0.0018, 0.0, 1.0)
+            c.alb *= (1.0 - 0.38 * cav + 0.10 * top)[:, None]
+            ao = ao * (1.0 - 0.5 * cav)
+            c.rough = np.clip(c.rough + 0.12 * cav - 0.05 * top, 0.04, 1.0)
         # assemble images
         alb = np.zeros((n, n, 3), np.float32)
         orm = np.zeros((n, n, 3), np.float32)
@@ -681,6 +706,13 @@ def bake(name, parts, groups, out_dir, size=1024, decals=(), seed=1, ao_dist=0.3
         emi[ys, xs] = c.emit * emit_gain
         hgt[ys, xs] = c.height * normal_scale
         nrm = normal_from_height(hgt, isl_img, valid, 1.0 / ppm)
+        if hi_ts is not None:         # UDN blend: the procedural micro relief on top of the baked high-poly normal
+            hn = np.zeros((n, n, 3), np.float32)
+            hn[..., 2] = 1.0
+            hn[ys, xs] = hi_ts
+            hn = smooth_by_island(hn, isl_img, valid, 1, 1)
+            nrm = np.stack([nrm[..., 0] + hn[..., 0] * HI_GAIN, nrm[..., 1] + hn[..., 1] * HI_GAIN, nrm[..., 2] * np.maximum(hn[..., 2], 0.2)], axis=-1)
+            nrm /= np.linalg.norm(nrm, axis=-1, keepdims=True) + 1e-12
         # tangent-space normal: perturbation only (the baked surface normal is the mesh normal), so it is (nx, ny, nz) directly
         nrm_img = (nrm * 0.5 + 0.5)
         neutral_n = np.array([0.5, 0.5, 1.0], np.float32)

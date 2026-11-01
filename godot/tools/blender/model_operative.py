@@ -209,6 +209,34 @@ for s, side in ((-1, "L"), (1, "R")):
         fa_.rod(b, c, 0.01, mat=chit, tint=CLAW, r2=0.002, segs=5)
     fa_.rod(h + R3 @ Vector((-s * 0.025, 0.0, 0.04)), h + R3 @ Vector((-s * 0.05, 0.05, 0.06)), 0.011, mat=chit, tint=CLAW, r2=0.002, segs=5)
 
+# ------------------------------------------------------------------ silhouette pass: heavier plating, readable joints, serrated mandibles, neck frill
+for s in (-1, 1):
+    x0 = 0.14 * s
+    Sv = Vector((SH[0] * s, SH[1], SH[2]))
+    ua, fa_ = uarm[s], farm[s]
+    for k in range(3):                                                                                              # stacked pauldron lamellae (the left one heavier)
+        big = 1.35 if s == -1 else 1.0
+        ua.sphere((0.15 * big - 0.015 * k, 0.12 * big, 0.026), Sv + Vector((s * (0.1 + 0.05 * k) * big, 0.0, -0.02 - 0.06 * k)), rot=(0, s * (30 + 16 * k), 0),
+                  mat=chit, tint=BONE2 if k % 2 else SHELL, segs=12, rings=6)
+    ua.torus(0.07, 0.016, Sv + Vector((s * 0.0, 0, -0.17)), mat=chit, tint=BONE, segs=12, sides=5)                       # elbow-side joint rings
+    fa_.torus(0.062, 0.015, fa_.origin, mat=chit, tint=BONE2, segs=12, sides=5)
+    thigh[s].box((0.15, 0.1, 0.3), (x0 + s * 0.04, 0.1, 0.78), rot=(-8, 0, s * 5), mat=chit, tint=BONE, bevel=0.012, bsegs=2, top=(0.85, 0.95), jitter=0.04)  # heavy thigh plate
+    thigh[s].torus(0.085, 0.018, (x0, KNEE[1], KNEE[2]), mat=glo, segs=12, sides=5)                                         # knee joint ring
+    thigh[s].sphere((0.09, 0.07, 0.09), (x0, KNEE[1] + 0.06, KNEE[2] + 0.02), mat=chit, tint=BONE2, segs=12, rings=6)         # knee cap
+    shin[s].box((0.11, 0.07, 0.2), (x0, 0.13, 0.5), rot=(-10, 0, 0), mat=chit, tint=BONE2, bevel=0.01, top=(0.8, 0.8))      # greave
+    shin[s].torus(0.062, 0.014, (x0, 0.02, 0.42), mat=chit, tint=BONE, segs=12, sides=5)
+    head.rod((s * 0.09, 0.6, 1.42), (s * 0.15, 0.72, 1.36), 0.018, mat=chit, tint=BONE, r2=0.008, segs=6)                  # outer mandible pair
+    for k in range(3):                                                                                              # serrations
+        head.rod((s * (0.085 + 0.012 * k), 0.63 + 0.04 * k, 1.395 - 0.005 * k), (s * (0.045 + 0.012 * k), 0.64 + 0.04 * k, 1.35 - 0.005 * k), 0.007, mat=chit, tint=CLAW, r2=0.001, segs=4)
+    head.rod((s * 0.12, 0.34, 1.62), (s * 0.28, 0.14, 1.78), 0.016, mat=chit, tint=CLAW, r2=0.002, segs=5)                  # second horn pair
+for k in range(7):                                                                                                  # neck frill of spikes
+    a = -75 + 25 * k
+    ar = math.radians(a)
+    torso.rod((0.09 * math.sin(ar), 0.2 - 0.09 * math.cos(ar) + 0.05, 1.45), (0.2 * math.sin(ar), 0.2 - 0.2 * math.cos(ar) + 0.0, 1.55), 0.014, mat=chit, tint=CLAW, r2=0.002, segs=5)
+torso.loft(xy_rings([(1.3, 0.18, 0.285, 0.18), (1.42, 0.22, 0.25, 0.145), (1.46, 0.23, 0.2, 0.12)], n=14), mat=chit, tint=BONE, bevel=0.006)      # front breast carapace
+torso.loft(xy_rings([(1.16, 0.08, 0.2, 0.15), (1.26, 0.13, 0.245, 0.17), (1.31, 0.15, 0.25, 0.17)], n=14), mat=chit, tint=BONE2, bevel=0.006)    # lower rib plate
+hips.box((0.07, 0.2, 0.2), (0.0, -0.02, 0.94), rot=(0, 0, 0), mat=chit, tint=BONE2, bevel=0.008, top=(1.0, 0.8))             # tail root plate
+
 # ------------------------------------------------------------------ export
 parts = [hips, torso, head, uarm[-1], farm[-1], uarm[1], farm[1], rifle] + [thigh[s] for s in (-1, 1)] + [shin[s] for s in (-1, 1)] + [foot[s] for s in (-1, 1)] + sec
 rig = [empty("Muzzle", muzzle), empty("WristL", wrist_pos[-1]), empty("WristR", wrist_pos[1]),
@@ -217,4 +245,4 @@ rig = [empty("Muzzle", muzzle), empty("WristL", wrist_pos[-1]), empty("WristR", 
        light("Rim", (0.25, -0.8, 2.1), "omni", (1.0, 0.35, 0.3), 1.4, 3.8, mask="own", attenuation=1.2, fade=(30, 12))]
 print("  parts=%d tris(before culling)=%d" % (len(parts), sum(p.tri_count() for p in parts)))
 export_model("operative", parts, extras=rig, size=1024, decals=[], ao_dist=0.2, ao_strength=0.55, emit_strength=2.0,
-             finalize=make_finalize(["Sec1", "Sec2", "Sec3"]))
+             finalize=make_finalize(["Sec1", "Sec2", "Sec3"]), hipoly=dict(levels=2))

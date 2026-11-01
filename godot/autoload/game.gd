@@ -52,7 +52,7 @@ var score := 0:
 		score_changed.emit(score)
 var heat := 0.0:             # Observation level, 0..5
 	set(v):
-		heat = clampf(v, 0.0, 5.0)
+		heat = 0.0 if TestMode.no_heat else clampf(v, 0.0, 5.0)
 		heat_changed.emit(heat)
 var quiet := 0.0             # seconds since any drone last had the player in sight
 ## True when launched by tests/bots/shot tools (or --autostart): skip the menu and start playing at once.
@@ -199,7 +199,7 @@ func explode(pos: Vector3, radius: float, opts := {}) -> void:
 			var reach := radius + 0.8
 			var d := e.global_position.distance_to(pos)
 			if d < reach:
-				e.damage(enemy_dmg * (1.0 - 0.6 * d / reach))
+				e.damage(TestMode.damage(enemy_dmg * (1.0 - 0.6 * d / reach)))
 	for v: Node3D in get_tree().get_nodes_in_group(&"vehicle"):
 		var d := v.global_position.distance_to(pos)
 		if d < radius + 2.0:

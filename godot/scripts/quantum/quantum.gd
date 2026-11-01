@@ -214,6 +214,7 @@ func _aim_floor_point() -> Vector3:
 	var t := o.distance_to(aim["hit"] as Vector3)
 	var reach := BLINK_RANGE + Upgrades.blink_bonus()
 	var pt := o + d * (maxf(0.0, t - 0.6) if t < reach else reach)
+	pt = PlayerUtil.safe_spot(pt, Game.world if is_instance_valid(Game.world) else null)      # inside the walls, not in a building volume (sky / horizon / off-map aims)
 	_rq.from = pt + Vector3(0.0, 0.5, 0.0)
 	_rq.to = pt + Vector3(0.0, -150.0, 0.0)
 	var res := _p.get_world_3d().direct_space_state.intersect_ray(_rq)

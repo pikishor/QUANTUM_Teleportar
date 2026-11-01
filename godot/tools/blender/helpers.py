@@ -653,13 +653,14 @@ def tag(obj, **kw):
 
 
 def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed=1, ao_dist=0.3, ao_strength=0.75, max_ppm=900.0,
-                 emit_strength=2.0, report=True, cull=True, jpeg=True, normal_scale=1.0, finalize=None, keep_vcol=()):
+                 emit_strength=2.0, report=True, cull=True, jpeg=True, normal_scale=1.0, finalize=None, keep_vcol=(), hipoly=None):
     """Cull hidden faces, build the parts, bake the atlas, assign the baked materials and export assets/models/<name>.glb.
 
     parts   Part objects (not yet built); extras: extra Blender objects (empties, lights) to export with them
     groups  {group: dict(base=<texture file prefix>, material=<Blender material name>, emit_strength=.., color=..)} for the baked
             groups; by default one "atlas" group named after the model, plus a "paint" group when a paint material exists.
     keep_vcol  names of the (flat) materials whose COLOR_0 vertex colours are exported (car lamps: the soft falloff of the glow fans); empty = none
+    hipoly  dict of hipoly.from_parts options (levels, scale, kind_scale) to bake a high-poly relief into the normal / AO / albedo; None = procedural only
     finalize  optional hook(parts, objs, extras) -> the objects to export, called once the materials are assigned (humanoid.py joins the parts into ONE
             skinned mesh there); glTF skins are exported when the hook returns an armature object.
     """
@@ -669,8 +670,15 @@ def export_model(name, parts, extras=(), groups=None, size=1024, decals=(), seed
             groups["paint"] = dict(base=name + "_paint", material="Body")
     removed = atlas.cull_hidden(parts) if (cull and not os.environ.get("QT_NOCULL")) else 0
     objs = [p.build() for p in parts]
+    hp = None
+    if hipoly is not None and not os.environ.get("QT_NOHIPOLY"):      # sculpt-style source for a normal / cavity bake (hipoly.py)
+        import hipoly as _hipoly
+        import shade as _shade
+        hp = _hipoly.from_parts(parts, _shade.Noise(seed + 100), **hipoly)
+        if report:
+            print("  high-poly source: %d triangles" % len(hp.T))
     res = atlas.bake(name, parts, groups, TEX_DIR, size=size, decals=decals, seed=seed, ao_dist=ao_dist, ao_strength=ao_strength,
-                     max_ppm=max_ppm, emit_gain=1.0, jpeg=jpeg, normal_scale=normal_scale, log=report)
+                     max_ppm=max_ppm, emit_gain=1.0, jpeg=jpeg, normal_scale=normal_scale, log=report, hipoly=hp)
     gmats = {}
     for gname, r in res.items():
         cfg = groups[gname]

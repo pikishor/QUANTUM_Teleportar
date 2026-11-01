@@ -45,6 +45,8 @@ const VEH_DIST := 7.5
 const VEH_HEIGHT := 1.6
 const VEH_FOV := 92.0
 const ARM_RADIUS := 0.22
+const FADE_START := 1.2                      ## the hero fades out smoothly when the camera is closer than this (metres from the head) ...
+const FADE_END := 0.9                        ## ... and is fully hidden at this distance
 const MIN_ARM := 0.85                        ## shortest camera arm in metres, however close the wall is (the prototype's floor was 0.5 m)
 const RIG_PRIORITY := 100                    ## process priority: after the nodes it follows (lower numbers run first)
 const SQUEEZE_START := 2.0                   ## an arm shorter than this (metres) starts to slide the camera toward a free shoulder ...
@@ -69,6 +71,8 @@ const DEAD_ARC_TIME := 3.2                   ## ... over this many seconds of ga
 const DEAD_KILLER_AGE := 4.0                 ## a hit older than this (seconds) is not "the killer"
 
 # shake caps: the camera never moves more than this, however many hits and blasts pile up
+const CINE_TTL := 0.25                       ## a scripted camera pose lapses by itself this many real seconds after the last cine_set(): nothing can leave the view stuck
+
 const SHAKE_MAX_OFF := 0.2                   ## metres
 const SHAKE_MAX_ROT := 0.03                  ## radians (about 1.7 degrees)
 
@@ -87,6 +91,8 @@ var recoil_yaw := 0.0
 var pivot_y_offset := 0.0                    ## the player sets this while smoothing a step so the camera does not pop
 var mouse_sensitivity := 1.0
 var free_look := 0.0                         ## seconds left of manual look (the vehicle chase camera waits)
+var hero_fade := 0.0                         ## 0..1: how far the hero is faded out because the camera is closer than FADE_START
+var _props_excluded := false
 
 var follow_target: Node3D:
 	get:
@@ -127,6 +133,9 @@ var _last_base := Vector3.ZERO               ## the followed position the last v
 var _swing := 0.0                            ## sideways slide of the camera while squeezed against a wall (metres, + is to the right), eased
 var _side := 1.0                             ## the shoulder the slide goes to: +1 right, -1 left, 0 none (kept while it stays free)
 var _probe := PhysicsRayQueryParameters3D.new()
+var _cine_ttl := 0.0                         ## > 0 while a cinematic drives the camera (scripts/cinematics/cinematics.gd calls cine_set() every frame)
+var _cine_xf := Transform3D.IDENTITY
+var _cine_fov := 70.0
 
 
 func _ready() -> void:
@@ -135,7 +144,7 @@ func _ready() -> void:
 	process_physics_priority = RIG_PRIORITY
 	_player = get_parent() as Player
 	_ensure_nodes()
-	arm.collision_mask = Game.L_WORLD | Game.L_VEHICLE
+	arm.collision_mask = Game.L_WORLD              # buildings and solid walls only: cars, pedestrians and the pooled prop colliders never shorten the arm (see _exclude_props)
 	camera.make_current()
 	Game.camera = camera
 	if _follow == null:
@@ -254,6 +263,7 @@ func recover_to_player() -> void:
 		_player.vehicle = null               # runs the player's own foot-state restore: body shown, collider back, camera foot mode
 	if arm != null:
 		arm.clear_excluded_objects()
+		_props_excluded = false
 	_mode = &"foot"
 	_mode_mix = 0.0
 	_follow = _player
@@ -261,6 +271,23 @@ func recover_to_player() -> void:
 	_snap_follow()
 	_ratio = 1.0
 	mode_changed.emit(&"foot")
+
+
+## Cinematic camera: from now on the rendered camera sits at `xf` with horizontal FOV `fov` (everything else keeps running underneath: look angles, spring, shake).
+## Must be called every frame; the pose lapses CINE_TTL real seconds after the last call, so a cinematic that ends, errors or is freed hands the view back by itself.
+func cine_set(xf: Transform3D, fov: float) -> void:
+	_cine_xf = xf
+	_cine_fov = fov
+	_cine_ttl = CINE_TTL
+
+
+## Hand the camera back to gameplay now (the gameplay view is already current underneath, so nothing is smoothed or snapped).
+func cine_clear() -> void:
+	_cine_ttl = 0.0
+
+
+func is_cinematic() -> bool:
+	return _cine_ttl > 0.0
 
 
 ## Jump the camera to where it belongs, with no smoothing (teleport, entering a vehicle).
@@ -322,6 +349,7 @@ func _set_follow_target(v: Node3D) -> void:
 	_follow = v
 	if arm != null:
 		arm.clear_excluded_objects()
+		_props_excluded = false
 		if _mode == &"vehicle" and v is CollisionObject3D:
 			arm.add_excluded_object((v as CollisionObject3D).get_rid())
 		_snap_follow()
@@ -334,6 +362,7 @@ func _set_mode(m: StringName) -> void:
 	free_look = 0.0
 	if arm != null:
 		arm.clear_excluded_objects()
+		_props_excluded = false
 		if m == &"vehicle" and _follow is CollisionObject3D:
 			arm.add_excluded_object((_follow as CollisionObject3D).get_rid())
 	mode_changed.emit(m)
@@ -404,7 +433,7 @@ func _vehicle_speed() -> float:
 ## Two short rays from the head; a side that was free stays free until the wall is clearly closer (no flicker at the boundary).
 func _free_side(right: Vector3) -> float:
 	var space := get_world_3d().direct_space_state
-	_probe.collision_mask = Game.L_WORLD | Game.L_VEHICLE
+	_probe.collision_mask = Game.L_WORLD
 	var right_ok := not _blocked(space, right, SIDE_PROBE - (0.2 if _side > 0.0 else 0.0))
 	if right_ok:
 		_side = 1.0
@@ -419,6 +448,29 @@ func _blocked(space: PhysicsDirectSpaceState3D, dir: Vector3, length: float) -> 
 	_probe.from = _pivot_pos
 	_probe.to = _pivot_pos + dir * length
 	return not space.intersect_ray(_probe).is_empty()
+
+
+## The pooled prop colliders (lamp poles, dumpsters, kiosks, roof clutter) are world bodies for walking, shooting and blinking but never shorten the camera arm.
+func _exclude_props() -> void:
+	if arm == null or not is_instance_valid(Game.world) or not Game.world.has_method(&"prop_colliders"):
+		return
+	var pool = Game.world.call(&"prop_colliders")
+	if pool == null:
+		return
+	_props_excluded = true
+	for b: StaticBody3D in pool.bodies:
+		arm.add_excluded_object(b.get_rid())
+
+
+## Smooth hero fade for a camera that is close to the head (a wall at the back, a corner): 0 at FADE_START metres, 1 at FADE_END.
+func _update_fade(cam_dist: float, driving: bool) -> void:
+	var f := 0.0 if driving else clampf((FADE_START - cam_dist) / (FADE_START - FADE_END), 0.0, 1.0)
+	f = f * f * (3.0 - 2.0 * f)
+	if absf(f - hero_fade) < 0.002 and f != 1.0 and f != 0.0:
+		return
+	hero_fade = f
+	if _player != null and _player.body != null and _player.body.has_method(&"set_fade"):
+		_player.body.call(&"set_fade", f)
 
 
 ## The camera position the current look angles give without any collision, used by aim_at().
@@ -568,6 +620,10 @@ func _update_view(dt: float) -> void:
 		_ratio = PlayerUtil.damp(_ratio, free_ratio, 5.0, dt)    # and let it out gently
 	var cam_pos := _pivot_pos + (aim_basis * Vector3(sin(a), 0.0, cos(a))) * (arm.spring_length * _ratio)
 
+	_update_fade(arm.spring_length * _ratio, drv)
+	if not _props_excluded:
+		_exclude_props()
+
 	# --- squeezed against a wall: slide toward the free shoulder and a little up (see the header)
 	var squeeze := 0.0 if drv else clampf((SQUEEZE_START - arm_free) / (SQUEEZE_START - MIN_ARM), 0.0, 1.0)
 	var swing_target := 0.0
@@ -603,3 +659,8 @@ func _update_view(dt: float) -> void:
 		if not cam_pos.is_finite():
 			cam_pos = Vector3(0.0, 3.0, 5.0)
 	camera.global_transform = Transform3D(cam_basis, cam_pos)
+	if _cine_ttl > 0.0:
+		_cine_ttl = maxf(_cine_ttl - dt / maxf(Engine.time_scale, 0.05), 0.0) if dt > 0.0 else _cine_ttl
+		if _cine_xf.origin.is_finite() and _cine_xf.basis.is_finite():
+			camera.global_transform = _cine_xf
+			camera.fov = clampf(_cine_fov, 20.0, 120.0)

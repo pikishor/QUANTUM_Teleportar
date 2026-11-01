@@ -829,7 +829,7 @@ func _step_ambience(delta: float) -> void:
 	var rain := 0.7
 	if is_instance_valid(Game.atmosphere):
 		rain = float(Game.atmosphere.get(&"rain_now"))
-	var playing := Game.is_playing() or Game.state == &"paused" or Game.state == &"menu"
+	var playing := Game.is_playing() or Game.state == &"paused" or Game.state == &"menu" or Game.state == &"cutscene"
 	var w := _rain_weights(_rain_surface)
 	var k := 1.0 - exp(-delta / 1.2)
 	for bed: StringName in _amb:

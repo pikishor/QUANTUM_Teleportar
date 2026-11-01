@@ -260,6 +260,10 @@ func _finish_reload() -> void:
 
 ## Advance the weapon by dt. firing / reload_pressed come from the input actions, aiming and moving from the player.
 func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: bool) -> void:
+	if TestMode.infinite_ammo:                                      # test mode: never dry, never reloading
+		ammo = mag
+		if reserve >= 0:
+			reserve = maxi(reserve, int(def["reserve"]))
 	fire_t -= dt
 	_since_shot += dt
 	swap_t = maxf(0.0, swap_t - dt)
@@ -438,7 +442,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 		var r := _radius_of(target)
 		crit = r > 0.0 and hit.y > c.y + r * CRIT_HEIGHT
 		human = target is Operative or target.get(&"type") == &"operative"
-		var amount := (float(def["crit"]) if crit else float(def["damage"])) * k * Upgrades.damage_mult()
+		var amount := TestMode.damage((float(def["crit"]) if crit else float(def["damage"])) * k * Upgrades.damage_mult())
 		if target.has_method(&"shield_blocks"):
 			if bool(def["pierce_shield"]):
 				target.call(&"break_shield")

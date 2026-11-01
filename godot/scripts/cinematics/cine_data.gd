@@ -1,0 +1,37 @@
+class_name CineData
+extends RefCounted
+## The words of the cutscenes (subtitles use StoryData's speakers and colours). A subtitle is {t0, t1, s, t}: seconds from the start of the scene, speaker, text.
+## Limits (tests/test_cinematic.gd): every line at most StoryData.LINE_MAX characters, known speaker, inside the scene's duration.
+
+const INTRO_TITLE := "QUANTUM TELEPORTAR"
+
+const INTRO_SUBS: Array[Dictionary] = [
+	{"t0": 1.0, "t1": 5.6, "s": StoryData.O, "t": "Neo-Meridian, 2091. The Vael own the sky, and the rain has not stopped in nine years."},
+	{"t0": 6.2, "t1": 10.4, "s": StoryData.O, "t": "Observers. They hang over every street and drink coherence from anyone who looks up."},
+	{"t0": 10.9, "t1": 13.4, "s": StoryData.O, "t": "Do not stare back, Kestrel. Looking is what they feed on."},
+	{"t0": 14.2, "t1": 17.6, "s": StoryData.O, "t": "There. The rooftop. Half of you is not from here. Let it fold space."},
+	{"t0": 17.8, "t1": 19.5, "s": StoryData.K, "t": "Two places at once."},
+]
+
+const CHAPTER_SUBS: Array[Dictionary] = []
+
+const BOSS_IN_SUBS: Array[Dictionary] = [
+	{"t0": 0.6, "t1": 4.2, "s": StoryData.O, "t": "Contact. A Vael Overseer, wired into every drone on this street. Do not fight it in the open."},
+]
+const BOSS_OUT_SUBS: Array[Dictionary] = [
+	{"t0": 0.5, "t1": 3.8, "s": StoryData.O, "t": "Its signal just dropped out of every drone in the sector. Breathe, Kestrel. You did that."},
+]
+
+const CHAPTER_HEAD := "OBJECTIVE"
+const BOSS_IN_HEAD := "VAEL OVERSEER"
+const BOSS_IN_SUB := "HIVE COMMANDER  //  THREE PHASES"
+const BOSS_OUT_HEAD := "OVERSEER DOWN"
+const BOSS_OUT_SUB := "THE HIVE FELT THAT"
+
+
+## Every subtitle of every scene (the test checks them against the story limits).
+static func all_subs() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for list: Array[Dictionary] in [INTRO_SUBS, CHAPTER_SUBS, BOSS_IN_SUBS, BOSS_OUT_SUBS]:
+		out.append_array(list)
+	return out

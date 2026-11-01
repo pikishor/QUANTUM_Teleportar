@@ -22,6 +22,9 @@ func _ready() -> void:
 		add_child(overlay)
 		await get_tree().process_frame
 		await get_tree().process_frame
+	# LOW tier (saved choice, --quality=0, or a touchscreen's first launch): the model atlases drop to 1024 px before any model is instantiated (scripts/common/texture_budget.gd)
+	if (not Game.autostart or OS.get_cmdline_user_args().has("--halve-textures")) and (Game.quality == 0 or UiSettings.new().quality == 0 or AutoQuality.wants_low_default()):
+		TextureBudget.halve_models()
 	var loaded := 0
 	for path: String in MODULES:
 		if ResourceLoader.exists(path):
@@ -33,6 +36,9 @@ func _ready() -> void:
 	add_child(PerfTiers.new())          # mesh LOD threshold, anisotropy and mip bias per tier, Compatibility pool caps (scripts/common/perf_tiers.gd)
 	add_child(AutoQuality.new())        # touchscreens start on LOW until the player chooses; a sustained low frame rate drops one tier
 	add_child(Stability.new())          # watchdog: held input, time scale, camera / player / HUD consistency, hurt and death feedback
+	add_child(Cinematics.new())         # cutscenes (intro, chapter, boss), title backdrop, shop close-up, dead / win bars and fades (scripts/cinematics/)
+	TestMode.forced = UiSettings.new().test_mode or OS.get_cmdline_user_args().has("--test-mode")
+	add_child(TestMenu.new())           # the hack / test menu, its TEST button and the weapon quick buttons (debug builds or the 'test mode' setting); LAST: it sees input first
 	if not Game.autostart:
 		Sfx.play_music()                # the ambient loop: not under tools, tests and bots (Game.autostart), which stay silent
 	if overlay != null:                 # behind the opaque loading overlay: draw every effect, enemy type and car kind once, so the first fight has no shader hitch

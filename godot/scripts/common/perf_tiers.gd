@@ -32,7 +32,7 @@ func apply(level: int) -> void:
 		return
 	vp.mesh_lod_threshold = float(LOD_THRESHOLD[tier])
 	vp.anisotropic_filtering_level = ANISO[tier] as Viewport.AnisotropicFiltering
-	vp.texture_mipmap_bias = float(MIP_BIAS[tier])
+	vp.texture_mipmap_bias = float(MIP_BIAS[tier]) if not (tier == 0 and TextureBudget.halved_count > 0) else 0.0      # LOW with half-size atlases already reads the 1K level
 
 
 static func compat() -> bool:
