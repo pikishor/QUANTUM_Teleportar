@@ -257,6 +257,7 @@ func _enrage_and_death() -> void:
 	var speed_seen := 0.0
 	var last := o.global_position
 	p.teleport_to(Vector3(-4.0, 0.05, 0.0))
+	p.invuln = 0.0
 	for i in int(6.0 / DT / 3.0):
 		await e.frames(3)
 		speed_seen = maxf(speed_seen, Vector2(o.global_position.x - last.x, o.global_position.z - last.z).length() / (DT * 3.0))
@@ -265,6 +266,7 @@ func _enrage_and_death() -> void:
 			slammed = true
 			break
 		p.teleport_to(Vector3(o.global_position.x - 3.0, 0.05, o.global_position.z))      # keep within reach
+		p.invuln = 0.0                                                                       # a teleport grants invulnerability; the slam must be able to hurt
 	TestLib.check(slammed and p.hp < hp0 - 10.0, "phase 3 slams the ground within 6 m (%.0f lost)" % (hp0 - p.hp))
 	TestLib.check(true, "enrage speed seen %.1f m/s" % speed_seen)
 	# death clears the boss state and his drones
