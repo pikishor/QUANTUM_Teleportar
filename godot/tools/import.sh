@@ -3,4 +3,4 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 BIN="$(tools/get_godot.sh)"
-timeout 300 "$BIN" --headless --path . --import 2>&1 | grep -v "^ALSA\|audio driver" || true
+timeout "${IMPORT_TIMEOUT:-1800}" "$BIN" --headless --path . --import 2>&1 | grep -v "^ALSA\|audio driver" || true
