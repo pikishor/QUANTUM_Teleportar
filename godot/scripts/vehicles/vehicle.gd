@@ -43,6 +43,11 @@ var dmg_state := 0                  ## see damage_state_changed
 var patrol := false                 ## a Vael patrol vehicle (spec flag)
 var chasing := false                ## patrol: drives at the player and rams him
 var ram_hits := 0                   ## patrol rams that landed (tests)
+var tactic: StringName = &"ram"      ## patrol pursuit tactic (VehicleSpecs.TACTICS)
+var weapons: VehicleWeapons         ## mounted weapon (sport / suv / hover), null on other kinds
+var nitro := 1.0                    ## boost tank 0..1
+var boosting := false
+var _nitro_wait := 0.0
 
 var _mirror: MirrorProxy
 var _mirror_on := false
@@ -92,6 +97,9 @@ func setup(k: StringName, mgr: Node) -> void:
 	cs.shape = box
 	cs.position = Vector3(0.0, 0.2 + h * 0.5 + float(spec.get("hover_h", 0.0)), 0.0)      # a hover craft's hull floats: so does its hit box
 	add_child(cs)
+	if VehicleWeapons.has_weapon(k):
+		weapons = VehicleWeapons.new()
+		weapons.setup(self)
 	_mirror = MirrorProxy.new()
 	add_child(_mirror)
 	set_physics_process(false)
@@ -118,6 +126,11 @@ func activate(pos: Vector3, h: float) -> void:
 	dmg_state = 0
 	chasing = false
 	ram_hits = 0
+	nitro = 1.0
+	boosting = false
+	_nitro_wait = 0.0
+	if weapons != null:
+		weapons.reload_full()
 	_prev_h = h
 	_fx_t = 0.0
 	_stuck = 0.0
@@ -314,7 +327,9 @@ func explode() -> void:
 ## One physics tick (called by the manager while Game.is_playing()).
 func sim(dt: float) -> void:
 	if driver_is_player:
-		step_drive(dt, Input.get_axis(&"move_back", &"move_forward"), Input.get_axis(&"move_left", &"move_right"), Input.is_action_pressed(&"jump"))
+		step_drive(dt, Input.get_axis(&"move_back", &"move_forward"), Input.get_axis(&"move_left", &"move_right"), Input.is_action_pressed(&"jump"), Input.is_action_pressed(&"sprint"))
+		if weapons != null:
+			weapons.tick(dt, Input.is_action_pressed(&"fire"))
 	elif chasing:
 		_chase_step(dt)
 	elif ai:
@@ -326,9 +341,22 @@ func sim(dt: float) -> void:
 
 
 ## Arcade driving (src/vehicles.js drive()): thr -1..1 (brake / reverse .. throttle), steer -1..1 (left .. right), handbrake.
-func step_drive(dt: float, thr: float, steer: float, handbrake: bool) -> void:
+func step_drive(dt: float, thr: float, steer: float, handbrake: bool, boost := false) -> void:
 	var T := spec
 	var vmax: float = T["max"]
+	var acc_k := 1.0
+	boosting = boost and thr > 0.05 and nitro > (0.0 if boosting else VehicleSpecs.NITRO_MIN)
+	if boosting:
+		nitro = maxf(0.0, nitro - VehicleSpecs.NITRO_DRAIN * dt)
+		_nitro_wait = VehicleSpecs.NITRO_DELAY
+		vmax *= VehicleSpecs.NITRO_SPEED
+		acc_k = VehicleSpecs.NITRO_ACC
+		if nitro <= 0.0:
+			boosting = false
+	else:
+		_nitro_wait -= dt
+		if _nitro_wait <= 0.0:
+			nitro = minf(1.0, nitro + VehicleSpecs.NITRO_REGEN * dt)
 	var fwd := forward()
 	var rgt := right()
 	var fwd0 := fwd
@@ -336,14 +364,17 @@ func step_drive(dt: float, thr: float, steer: float, handbrake: bool) -> void:
 	var vf := vel.dot(fwd)
 	var vl := vel.dot(rgt)
 	if thr > 0.05:
-		vf += float(T["acc"]) * thr * (1.0 - maxf(0.0, vf) / vmax) * dt
+		vf += float(T["acc"]) * acc_k * thr * (1.0 - maxf(0.0, vf) / vmax) * dt
 	elif thr < -0.05:
 		vf += (-float(T["brake"]) if vf > 0.5 else -float(T["acc"]) * 0.45) * -thr * dt
 	else:
 		vf *= exp(-float(T.get("coast", VehicleSpecs.COAST_DRAG)) * dt)
 	if handbrake:
 		vf *= exp(-VehicleSpecs.HANDBRAKE_DRAG * dt)
-	vf = clampf(vf, -vmax * VehicleSpecs.REVERSE_FRACTION, vmax)
+	var base_max: float = T["max"]
+	if not boosting and vf > base_max:
+		vf = maxf(base_max, vf - VehicleSpecs.NITRO_COOL * dt)
+	vf = clampf(vf, -base_max * VehicleSpecs.REVERSE_FRACTION, vmax)
 	var auth := clampf(absf(vf) / 5.0, 0.0, 1.0) / (1.0 + absf(vf) / 38.0)
 	if cls == &"bike":
 		auth *= 1.0 + 0.3 * absf(lean) / maxf(float(T["lean_max"]), 0.1)      # a leaning bike turns in tighter
@@ -508,10 +539,21 @@ func _chase_step(dt: float) -> void:
 	if not is_instance_valid(pl):
 		_coast(dt)
 		return
-	var to := pl.global_position - global_position
+	var real := pl.global_position - global_position
+	real.y = 0.0
+	var dist := real.length()
+	var goal := chase_goal()
+	var to := goal - global_position
 	to.y = 0.0
-	var dist := to.length()
 	var err := wrapf(atan2(-to.x, -to.z) - heading, -PI, PI)
+	var holding := tactic == &"block" and to.length() < VehicleSpecs.BLOCK_STOP
+	if holding:                                              # roadblock: stop and turn broadside to the target
+		var face := wrapf(atan2(-real.x, -real.z) + PI * 0.5 - heading, -PI, PI)
+		step_drive(dt, -1.0 if speed > 1.0 else 0.0, clampf(-face * 2.0, -1.0, 1.0), false)
+		_chase_siren(dt)
+		if dist < 3.4 and absf(speed) > 6.0 and _ram_cd <= 0.0:
+			_ram(pl)
+		return
 	var thr := 1.0
 	var steer := clampf(-err * 2.4, -1.0, 1.0)
 	if _rev > 0.0:
@@ -528,15 +570,41 @@ func _chase_step(dt: float) -> void:
 				_rev = 0.9
 		else:
 			_stuck = 0.0
-	step_drive(dt, thr, steer, false)
+	step_drive(dt, thr, steer, false, tactic == &"ram" and dist > 25.0)
 	_ram_cd -= dt
 	if dist < 3.4 and absf(speed) > 6.0 and _ram_cd <= 0.0:
 		_ram(pl)
+	_chase_siren(dt)
+
+
+func _chase_siren(dt: float) -> void:
 	_siren_t -= dt
 	if _siren_t <= 0.0:
 		_siren_t = 0.25
 		_siren_i = 1 - _siren_i
 		visual.set_glow(VehicleSpecs.PATROL_SIREN[_siren_i])
+
+
+## Where the pursuit tactic wants the patrol to be: ram = his position, boxin = a point beside him (the side we are already on), block = ahead of his motion.
+func chase_goal() -> Vector3:
+	var pl := Game.player
+	var pp := pl.global_position
+	var pv := Vector3.ZERO
+	var pcar: Object = pl.get(&"vehicle")
+	if pcar is Vehicle:
+		pv = (pcar as Vehicle).vel
+	pv.y = 0.0
+	var sp := pv.length()
+	if sp < 3.0 or tactic == &"ram":
+		return pp
+	var dir := pv / sp
+	var side := Vector3(-dir.z, 0.0, dir.x)
+	if tactic == &"boxin":
+		var s := 1.0 if (global_position - pp).dot(side) >= 0.0 else -1.0
+		if (global_position - pp).dot(dir) > 2.0:                  # behind him: first come up alongside
+			return pp + side * s * VehicleSpecs.BOXIN_SIDE - dir * 0.0
+		return pp + side * s * (VehicleSpecs.BOXIN_SIDE * 0.55)    # alongside: squeeze in
+	return pp + dir * (VehicleSpecs.BLOCK_AHEAD * clampf(sp / 25.0, 0.6, 1.4))
 
 
 ## A ram: the player (or the car he drives, through Player.damage) loses PATROL_RAM_DAMAGE, the patrol rebounds.

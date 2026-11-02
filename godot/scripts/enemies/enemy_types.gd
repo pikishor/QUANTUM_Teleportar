@@ -97,6 +97,25 @@ const TYPES := {
 		"model": "operative", "drone": false, "kamikaze": false, "role": &"overseer", "boss": true, "drops_weapon": false,
 		"walk": 1.3, "burst_gap": 0.1, "aim_time": 0.5, "spread": 0.03, "spread_per_m": 0.0006, "limit": 1,
 	},
+	# --- the verb bosses (scripts/enemies/verb_boss.gd): only the campaign (chapters 4 and 7) spawns them.
+	&"smelter": {
+		"hp": 2400.0, "speed": 3.0, "range": 30.0, "fire": Vector2(1.4, 2.0), "dmg": 7.0, "bolt": 0.0, "burst": 4,
+		"color": Color(1.0, 0.24, 0.94), "score": 2500, "radius": 1.4, "heat": 1.0, "center_y": 1.9, "hover": 0.0, "scale": 1.9,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"verb_boss", "verb": "hazard", "boss": true, "drops_weapon": false,
+		"walk": 1.2, "burst_gap": 0.1, "aim_time": 0.5, "spread": 0.03, "spread_per_m": 0.0006, "limit": 1,
+	},
+	&"bulwark": {
+		"hp": 2000.0, "speed": 2.8, "range": 32.0, "fire": Vector2(1.3, 1.9), "dmg": 7.0, "bolt": 0.0, "burst": 4,
+		"color": Color(0.3, 0.94, 1.0), "score": 2500, "radius": 1.5, "heat": 1.0, "center_y": 2.0, "hover": 0.0, "scale": 2.0,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"verb_boss", "verb": "shield", "boss": true, "drops_weapon": false,
+		"walk": 1.1, "burst_gap": 0.1, "aim_time": 0.5, "spread": 0.03, "spread_per_m": 0.0006, "limit": 1,
+	},
+	&"hound": {
+		"hp": 1800.0, "speed": 4.2, "range": 28.0, "fire": Vector2(1.0, 1.6), "dmg": 6.0, "bolt": 0.0, "burst": 3,
+		"color": Color(1.0, 0.55, 0.2), "score": 2500, "radius": 1.3, "heat": 1.0, "center_y": 1.8, "hover": 0.0, "scale": 1.8,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"verb_boss", "verb": "hunter", "boss": true, "drops_weapon": false,
+		"walk": 1.5, "burst_gap": 0.1, "aim_time": 0.4, "spread": 0.03, "spread_per_m": 0.0006, "limit": 1,
+	},
 }
 
 ## Alive at once, per graphics tier (Game.quality): LOW, MED, HIGH.

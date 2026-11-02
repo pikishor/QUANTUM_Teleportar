@@ -115,6 +115,29 @@ const EXIT_SAFE_SPEED := 9.0           ## leaving a car faster than this hurts (
 const EXIT_HURT := 2.0
 const EXIT_BRAKE := 0.6                ## a car the player leaves keeps this share of its speed (it rolls to a stop)
 
+# --- mounted weapons (E2): rate = shots/s, dmg per hit, heat per shot (1.0 locks), cool = heat/s, ammo = rounds, range m, spread rad, blast = radius (0 none) ---
+const WEAPONS := {
+	&"sport": {"name": "RAIL GUN", "rate": 9.0, "dmg": 9.0, "heat": 0.07, "cool": 0.35, "ammo": 240, "range": 90.0, "spread": 0.025, "color": Color(0.3, 0.95, 1.0)},
+	&"suv": {"name": "CANNON", "rate": 1.4, "dmg": 55.0, "heat": 0.4, "cool": 0.3, "ammo": 30, "range": 110.0, "spread": 0.0, "blast": 3.5, "color": Color(1.0, 0.6, 0.2)},
+	&"hover": {"name": "BOLT GUN", "rate": 5.0, "dmg": 16.0, "heat": 0.14, "cool": 0.3, "ammo": 120, "range": 100.0, "spread": 0.01, "color": Color(0.8, 0.4, 1.0)},
+}
+const WEAPON_LOCK_RESUME := 0.4        ## an overheated weapon fires again below this heat
+
+# --- nitro (E4): sprint while driving ---
+const NITRO_SPEED := 1.35              ## top speed factor
+const NITRO_ACC := 1.9                 ## acceleration factor
+const NITRO_DRAIN := 0.33              ## tank (0..1) per second
+const NITRO_REGEN := 0.12
+const NITRO_DELAY := 1.2               ## s after boosting before the tank refills
+const NITRO_MIN := 0.08                ## tank needed to start a boost
+const NITRO_COOL := 12.0               ## m/s2 the extra speed bleeds off after a boost
+
+# --- Vael pursuit tactics (E4): ram, boxin (hold station beside him, squeeze), block (get ahead and sit across the road) ---
+const TACTICS: Array[StringName] = [&"ram", &"boxin", &"block"]
+const BOXIN_SIDE := 4.2                ## m beside the target
+const BLOCK_AHEAD := 38.0              ## m ahead of the target (scaled by his speed, see Vehicle.chase_goal)
+const BLOCK_STOP := 7.0                ## within this of the road block point the patrol stops and turns broadside
+
 # --- Vael patrols (chase from heat PATROL_HEAT) ---
 const PATROL_HEAT := 3.0
 const PATROL_CAPS: Array[int] = [1, 1, 2]       ## patrol vehicles at once per tier (they use the car cap)

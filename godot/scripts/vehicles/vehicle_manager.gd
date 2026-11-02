@@ -531,6 +531,7 @@ func spawn_patrol() -> Vehicle:
 	var v := _acquire(&"vael_patrol")
 	v.activate(spot[0], spot[4])
 	v.chasing = true
+	v.tactic = VehicleSpecs.TACTICS[patrols_spawned % VehicleSpecs.TACTICS.size()]
 	list.append(v)
 	patrols_spawned += 1
 	v.update_lod(_dist(v, ppos))

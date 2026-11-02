@@ -288,3 +288,8 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 - New QuantumPuzzles (interior gate rooms) and PhaseThrough (QUANTUM TELEPORT phase, phase_step). Tests pass: test_quantum_puzzles, test_phase_through, plus smoke set.
 - Follow-ups: no street set-piece use of QuantumPuzzles.build(); no input/touch button for quantum.phase_step(); no phase shimmer shader; puzzle rooms not checked in a real interior; doors/fences not in thin_wall.
 - visual_qa: 11/12 pass; "hero" shot FAIL on sep=0.017 (hero blends in) in a bright-explosion frame; looks visually fine, heuristic only. Not investigated against prior commit.
+
+## Wave 34 note: verb bosses, vehicle weapons
+- Verb bosses (Smelter, Bulwark, Hound) in `verb_boss.gd`; Overseer COLLAPSE stun. Boss HP/timings are first guesses, untested in live fights.
+- Vehicle weapons, nitro, Vael pursuit tactics (ram/box-in/roadblock) in `vehicles/`.
+- Follow-ups: HUD readout for ammo/heat/nitro; chase mission polish in `campaign_runner.gd`; `boss_in` shot falls back since Cinematics only tracks Overseers; live-city playtest of weapons and tactics. Visual QA 12/12 pass; perf gate skipped.

@@ -423,6 +423,32 @@ const BOSS_RADIO := {
 	],
 }
 
+## The verb bosses (scripts/enemies/verb_boss.gd): keys intro, phase2, phase3, down plus the verb's own (break, reform, lock, backlash).
+const VERB_BOSS_RADIO := {
+	"hazard": {
+		"intro": [{"s": O, "t": "The Smelter armours up and vents the floor. Stand in a ring, then ENTANGLE it into the glow."}],
+		"phase2": [{"s": O, "t": "A third vent opened and the cycle is faster. Swap it in while the rings are armed."}],
+		"phase3": [{"s": O, "t": "It is faster and angrier. Same answer, Kestrel. Swap it into the vent."}],
+		"down": [{"s": O, "t": "Smelter down. The foundry vents are cold. Move on."}],
+	},
+	"shield": {
+		"intro": [{"s": O, "t": "The Bulwark's shield eats every shot. Use COLLAPSE to break it, then hit it hard."}],
+		"break": [{"s": O, "t": "Shield is down. Shoot it now, it will reform."}],
+		"reform": [{"s": O, "t": "Shield is back. Wait for the next COLLAPSE."}],
+		"phase2": [{"s": O, "t": "The window is shorter now. Collapse, then burn it down fast."}],
+		"phase3": [{"s": O, "t": "Last third. The shield reforms quickly. Do not waste the window."}],
+		"down": [{"s": O, "t": "Bulwark down. That shield will not come back."}],
+	},
+	"hunter": {
+		"intro": [{"s": O, "t": "The Hound ignores you if there is a decoy. Use SUPERPOSITION and let it close in."}],
+		"lock": [{"s": O, "t": "It locked on the decoy. Collapse it now, while it feeds."}],
+		"backlash": [{"s": O, "t": "Direct hit. Throw another decoy and do it again."}],
+		"phase2": [{"s": O, "t": "It is faster and brings friends. Keep making decoys."}],
+		"phase3": [{"s": O, "t": "It is desperate. One more decoy and it is over."}],
+		"down": [{"s": O, "t": "Hound down. The streets are quiet again."}],
+	},
+}
+
 const CONTRACT_CHAPTER: Array[Dictionary] = [
 	{"s": O, "t": "Old Exchange runs on rumour and rent. Contracts pay in credits, and credits buy survival."},
 	{"s": O, "t": "Glass District jobs bend toward entanglement. Practise linking, it pays double in these streets."},

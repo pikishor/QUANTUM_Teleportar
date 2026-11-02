@@ -554,6 +554,8 @@ func _acquire(type: StringName) -> Drone:
 	var d: Drone
 	if type == &"overseer":
 		d = Overseer.new()
+	elif EnemyTypes.TYPES.has(type) and EnemyTypes.TYPES[type].get("role", &"") == &"verb_boss":
+		d = VerbBoss.new()
 	elif EnemyTypes.is_specialist(type):
 		d = Specialist.new()
 	elif type == &"operative":

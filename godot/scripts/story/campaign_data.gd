@@ -56,11 +56,12 @@ const CAMPAIGN: Array[Dictionary] = [
 	},
 	{
 		"id": "no_cloning", "district": "foundry", "place": "BRIDGE ARCADE",
-		"cutscenes": {"intro": "", "chapter": "chapter", "boss": ""},
+		"cutscenes": {"intro": "", "chapter": "chapter", "boss": "boss_in"},
 		"steps": [
 			{"kind": "reach", "obj": "Reach the arcade overpass", "radio": {"s": O, "t": "The overpass is the only crossing the Vael do not hover over. Reach it fast."}},
 			{"kind": "chase", "obj": "Chase the Vael hauler across the bridge", "radio": {"s": O, "t": "That hauler carries a cradle. Run it down before it reaches the foundry gate."}},
 			{"kind": "defend", "obj": "Hold the bridge against the counterstrike", "radio": {"s": O, "t": "They are sending copies of what they cannot copy. Hold the span, Kestrel."}},
+			{"kind": "assassinate", "target": "boss", "enemy": "smelter", "hp_mult": 1.0, "guards": 0, "name": "VAEL SMELTER", "obj": "Kill the Vael Smelter", "radio": {"s": O, "t": "The Smelter vents the floor. ENTANGLE it into a ring while the vent is armed."}},
 			{"kind": "escape", "patrol": 1, "obj": "Escape the Vael patrol", "radio": {"s": O, "t": "A hunter patrol is on your frequency. Break line of sight and lose them in the arches."}},
 		],
 	},
@@ -87,11 +88,12 @@ const CAMPAIGN: Array[Dictionary] = [
 	},
 	{
 		"id": "lantern_night", "district": "market", "place": "NEON MARKET",
-		"cutscenes": {"intro": "", "chapter": "chapter", "boss": ""},
+		"cutscenes": {"intro": "", "chapter": "chapter", "boss": "boss_in"},
 		"steps": [
 			{"kind": "reach", "obj": "Reach the festival arch before the sweep", "radio": {"s": O, "t": "The sweep starts at the south arch. Be through it before the lanterns turn red."}},
 			{"kind": "infiltrate", "interior": "club", "obj": "Infiltrate the back-room club", "radio": {"s": O, "t": "The club hides a Vael dispatcher behind the music. Walk in like you belong."}},
-			{"kind": "chase", "obj": "Chase the dispatcher through the stalls", "radio": {"s": O, "t": "He bolted with the patrol schedule. Take him down before he calls it in."}},
+			{"kind": "assassinate", "target": "boss", "enemy": "bulwark", "hp_mult": 1.0, "guards": 0, "name": "VAEL BULWARK", "obj": "Break the Vael Bulwark", "radio": {"s": O, "t": "The dispatcher's guard carries a shield that stops everything. COLLAPSE breaks it."}},
+			{"kind": "assassinate", "target": "boss", "enemy": "hound", "hp_mult": 1.0, "guards": 0, "name": "VAEL HOUND", "obj": "Kill the Vael Hound", "radio": {"s": O, "t": "A Hound is hunting you through the stalls. Give it a decoy and collapse it up close."}},
 			{"kind": "escape", "patrol": 2, "obj": "Escape the Vael patrol sweep", "radio": {"s": O, "t": "The patrol is on you. Run for the dark end of the market and do not stop."}},
 		],
 	},

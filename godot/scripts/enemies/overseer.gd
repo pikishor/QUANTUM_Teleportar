@@ -21,6 +21,8 @@ const PULSE_DAMAGE := 30.0
 const PULSE_SHIELD_FACTOR := 0.12
 const INVULN := 1.0
 const ENRAGE_SPEED := 1.5
+const OPEN_TIME := 3.0
+const OPEN_FACTOR := 1.5
 
 var phase := 1
 var pulses_fired := 0
@@ -28,6 +30,7 @@ var pulse_hits := 0
 var summoned: Array[Drone] = []
 
 var _invuln_t := 0.0
+var _open_t := 0.0                     ## COLLAPSE broke the pulse: damage x1.5 for OPEN_TIME seconds
 var _summon_t := 4.0
 var _pulse_t := PULSE_EVERY
 var _ov_pulse_wind := 0.0
@@ -49,6 +52,7 @@ func _on_activate() -> void:
 	_summon_t = 4.0
 	_pulse_t = PULSE_EVERY
 	_ov_pulse_wind = 0.0
+	_open_t = 0.0
 	Sfx.boss_active = true
 	_say("phase1")
 
@@ -127,10 +131,26 @@ func damage(amount: float, crit := false, mirrored := false) -> void:
 		return
 	if _ov_pulse_wind > 0.0:
 		amount *= PULSE_SHIELD_FACTOR
+	elif _open_t > 0.0:
+		amount *= OPEN_FACTOR
 	super.damage(amount, crit, mirrored)
 	if not dead:
 		_bar_t = BAR_SECONDS
 		_check_phase()
+
+
+## COLLAPSE (Quantum.collapse_all disables every enemy in range): a charging pulse is cancelled and he is open for OPEN_TIME seconds.
+func disable(seconds: float) -> void:
+	if _ov_pulse_wind > 0.0 and not dead and active:
+		_ov_pulse_wind = 0.0
+		_open_t = OPEN_TIME
+		_pulse_t = PULSE_EVERY
+		FX.blast(center(), 6.0, Color(0.3, 0.94, 1.0), 0.4)
+	super.disable(minf(seconds, 1.0))
+
+
+func is_open() -> bool:
+	return _open_t > 0.0
 
 
 func _check_phase() -> void:
@@ -168,6 +188,7 @@ func _turn_rate() -> float:
 
 func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
 	_invuln_t = maxf(0.0, _invuln_t - delta)
+	_open_t = maxf(0.0, _open_t - delta)
 	_tick_boss(delta)
 	if _ov_pulse_wind > 0.0:
 		_speed = 0.0

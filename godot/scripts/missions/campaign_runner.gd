@@ -975,7 +975,7 @@ func _begin_kill() -> bool:
 	var hp := t.max_hp * float(step["hp_mult"])
 	t.max_hp = hp
 	t.hp = hp
-	if t.model != null and type != &"overseer":
+	if t.model != null and type != &"overseer" and not t is VerbBoss:
 		t.model.scale = t.model.scale * 1.18
 	target = t
 	var guards := int(step["guards"])
@@ -986,7 +986,7 @@ func _begin_kill() -> bool:
 		_spawn(&"operative" if i % 2 == 0 or chapter_index < 2 else &"sentinel", pos + Vector3(cos(a), 0.0, sin(a)) * rng.randf_range(5.0, 9.0), false)
 	var ang := rng.randf() * TAU
 	_hint_off = Vector3(cos(ang), 0.0, sin(ang)) * rng.randf_range(10.0, 18.0)
-	Game.add_heat(1.0 if type == &"overseer" else 0.5)
+	Game.add_heat(1.0 if (type == &"overseer" or t is VerbBoss) else 0.5)
 	visuals.show_marker(0, pos, 2.0, ContractTypes.RED, -1.0, true)
 	return true
 
@@ -1293,7 +1293,7 @@ func _tick_kill(delta: float) -> void:
 		_fail("TARGET LOST")
 		return
 	if d.dead or d.hp <= 0.0:
-		if d is Overseer:
+		if d is Overseer or d is VerbBoss:
 			_beat_t += maxf(delta, 0.001)                   # hold the step open: Cinematics notices the dead boss in _process and plays the slow-motion defeat (the game state leaves play, so this waits for it)
 			if _beat_t < BOSS_BEAT:
 				return
@@ -1309,9 +1309,19 @@ func _tick_kill(delta: float) -> void:
 	visuals.move_marker(0, d.global_position)
 
 
+func target_name_for(d: Drone) -> String:
+	return str(step.get("name", "BOSS"))
+
+
 ## An Overseer down counts as the chapter's boss: the contracts do not offer it again.
 func _target_down(d: Drone) -> void:
-	if d is Overseer:
+	if d is VerbBoss:
+		var vp := Game.progress as Progress
+		if vp != null and not chapter_index in vp.bosses_cleared:
+			vp.bosses_cleared.append(chapter_index)
+			vp.add_reputation(10)
+		Game.say(str(target_name_for(d)) + " DOWN", 3.0)
+	elif d is Overseer:
 		var prog := Game.progress as Progress
 		if prog != null and not chapter_index in prog.bosses_cleared:
 			prog.bosses_cleared.append(chapter_index)
@@ -1413,6 +1423,12 @@ func _cleanup(release_foes: bool) -> void:
 		var ov := target as Overseer
 		if em != null and ov != null and is_instance_valid(ov):
 			for s in ov.summoned.duplicate():
+				if is_instance_valid(s) and s.active:
+					em.release(s)
+			Sfx.boss_active = false
+		var vb := target as VerbBoss
+		if em != null and vb != null and is_instance_valid(vb):
+			for s in vb.summoned.duplicate():
 				if is_instance_valid(s) and s.active:
 					em.release(s)
 			Sfx.boss_active = false
