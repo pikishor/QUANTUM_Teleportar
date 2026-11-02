@@ -44,6 +44,9 @@ var _layout_key := ""
 var _obj_text := ""
 var _cred_text := ""
 var _contract_text := ""
+var _loadout_open := false          ## the pause screen shows the weapon wheel and attachment loadout
+var _loadout_quick := false         ## opened from the wheel gesture: a pick resumes the game
+var _loadout_w: StringName = &"carbine"  ## the weapon whose slots the loadout shows
 var _shop_open := false             ## the pause screen shows the upgrade shop instead of the settings
 var _options_open := false          ## the title / pause screen shows the options (scripts/ui/options_screen.gd)
 var _chapters_open := false         ## the title / pause screen shows the chapter select (scripts/ui/chapter_select.gd)
@@ -81,6 +84,7 @@ func _ready() -> void:
 	touch = get_node_or_null("Touch") as TouchControls
 	if touch != null:
 		touch.pause_requested.connect(pause_game)
+		touch.wheel_requested.connect(open_wheel)
 	for i in 10:
 		var a := -PI * 0.5 + i * PI / 5.0
 		_star.append(Vector2(cos(a), sin(a)) * (1.0 if i % 2 == 0 else 0.45))
@@ -140,6 +144,8 @@ func _on_state(s: StringName) -> void:
 	screen_age = 0.0
 	_hover = &""
 	_shop_open = false
+	_loadout_open = false
+	_loadout_quick = false
 	_chapters_open = false
 	_options_open = false
 	if s == &"menu":
@@ -179,6 +185,21 @@ func record_best() -> void:
 func pause_game() -> void:
 	if Game.state == &"play":
 		Game.state = &"paused"
+
+
+## The weapon wheel: pauses (Game.state only) and shows the loadout screen; picking a weapon resumes.
+func open_wheel() -> void:
+	if Game.state != &"play" or Game.progress == null:
+		return
+	Game.state = &"paused"
+	_loadout_open = true
+	_loadout_quick = true
+	_loadout_w = WeaponDefs.last_used
+	_layout_key = ""
+
+
+func loadout_open() -> bool:
+	return _loadout_open and Game.state == &"paused"
 
 
 func toggle_pause() -> void:
@@ -288,6 +309,35 @@ func _button_at(pos: Vector2) -> StringName:
 ## The effect of every screen button (the tests press them through here).
 func press_button(id: StringName) -> bool:
 	var sid := String(id)
+	if sid.begins_with("wheel_") or sid.begins_with("part_"):
+		if Game.state != &"paused" or not _loadout_open or Game.progress == null:
+			return false
+		var prog := Game.progress as Progress
+		if sid.begins_with("wheel_"):
+			var wid := StringName(sid.substr(6))
+			if not WeaponDefs.is_unlocked(wid):
+				return false
+			_loadout_w = wid
+			var pl := Game.player
+			if is_instance_valid(pl) and pl.get(&"weapon") is PlayerWeapon:
+				(pl.get(&"weapon") as PlayerWeapon).switch_to(wid)
+			Sfx.play(&"ui_tap")
+			if _loadout_quick:
+				Game.state = &"play"
+				return true
+		else:
+			var part := StringName(sid.substr(5))
+			if not Attachments.PARTS.has(part):
+				return false
+			if not Attachments.is_owned(part) and not prog.buy_part(part):
+				Sfx.play(&"ui_deny")
+				return false
+			if Attachments.part_in(_loadout_w, Attachments.slot_of(part)) != part or Attachments.is_owned(part):
+				prog.equip_part(_loadout_w, part)
+			Sfx.play(&"ui_purchase")
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
 	if sid.begins_with("buy_") and WeaponDefs.DEFS.has(StringName(sid.substr(4))):
 		if Game.state != &"paused" or not _shop_open or Game.progress == null:
 			return false
@@ -361,6 +411,22 @@ func press_button(id: StringName) -> bool:
 				return false
 			_shop_open = true
 			Sfx.play(&"ui_confirm")
+		&"loadout":
+			if Game.state != &"paused" or Game.progress == null or not _shop_open:
+				return false
+			_loadout_open = true
+			_loadout_quick = false
+			_loadout_w = WeaponDefs.last_used
+			Sfx.play(&"ui_confirm")
+		&"loadout_back":
+			if Game.state != &"paused" or not _loadout_open:
+				return false
+			_loadout_open = false
+			Sfx.play(&"ui_back")
+			if _loadout_quick:
+				_loadout_quick = false
+				Game.state = &"play"
+				return true
 		&"shop_back":
 			if Game.state != &"paused":
 				return false
@@ -944,6 +1010,7 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 func _ensure_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
+	key += "|%s%s%d%d%s" % [_loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size()]
 	key += "|%s%d" % [_options_open, int(settings.hud_scale * 100.0)]
 	if key == _layout_key:
 		return
@@ -978,6 +1045,8 @@ func _ensure_layout() -> void:
 				OptionsScreen.layout(self, settings, cx, s)
 			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
+			elif _loadout_open:
+				LoadoutScreen.layout(self, cx, s, _loadout_w)
 			elif _shop_open:
 				ShopScreen.layout(self, cx, s)
 			elif Game.progress != null:
@@ -1045,7 +1114,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.4))            # light: the animated city behind the title (scripts/cinematics) shows through
 			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.26))     # a darker column behind the title and buttons keeps them readable
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _loadout_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1073,6 +1142,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				OptionsScreen.draw(self, c, vp, s, font, cx)
 			elif _chapters_open:
 				ChapterSelect.draw(self, c, vp, s, font, cx)
+			elif _loadout_open:
+				LoadoutScreen.draw(self, c, vp, s, font, cx, _loadout_w)
 			elif _shop_open:
 				ShopScreen.draw(self, c, vp, s, font, cx)
 			else:

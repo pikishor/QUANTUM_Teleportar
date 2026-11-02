@@ -6,6 +6,7 @@ extends CanvasLayer
 ## CameraRig.add_look, so the Player needs no changes. The HUD (scripts/ui/hud.gd) owns everything else on screen and instances this node as a child.
 
 signal pause_requested
+signal wheel_requested              ## SWAP held: the weapon wheel
 
 const LOOK_SENS := 0.003            ## radians per canvas pixel of finger travel
 const STICK_RADIUS := 100.0         ## canvas px at the 720 px base height
@@ -30,6 +31,7 @@ const BUTTONS := [
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
 const LONG_PRESS := 0.6             ## seconds: holding the FPS box this long toggles the error panel (a short tap cycles the graphics tier)
+const WHEEL_HOLD := 0.4             ## seconds SWAP is held before the wheel opens (a short tap cycles the weapon)
 const ERROR_ROWS := 9               ## newest error lines shown in the panel
 
 var controls_on := false            ## the touch controls are drawn and active
@@ -52,6 +54,9 @@ var _avg_fps := 0.0
 var _min_fps := 0.0
 var _use_near := false
 var _use_t := 0.0
+var _swap_finger := -1              ## the finger on SWAP, or -1
+var _swap_held := 0.0
+var _swap_pulse := 0.0              ## seconds the swap action stays pressed after a tap
 var _perf_finger := -1              ## the finger held on the FPS box, or -1
 var _perf_held := 0.0
 var _perf_long := false             ## the current press already toggled the panel (so its release does not cycle the tier)
@@ -83,6 +88,15 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	if _swap_pulse > 0.0:
+		_swap_pulse -= delta
+		if _swap_pulse <= 0.0:
+			Input.action_release(&"swap")
+	if _swap_finger != -1:
+		_swap_held += delta / maxf(Engine.time_scale, 0.05)
+		if _swap_held >= WHEEL_HOLD:
+			_swap_finger = -1
+			wheel_requested.emit()
 	if _perf_finger != -1 and not _perf_long:
 		_perf_held += delta / maxf(Engine.time_scale, 0.05)
 		if _perf_held >= LONG_PRESS:
@@ -117,6 +131,7 @@ func _process(delta: float) -> void:
 
 ## Lets go of every action this layer pressed (state changes, exit, tests).
 func release_all() -> void:
+	_swap_finger = -1
 	for a: StringName in MOVE_ACTIONS:
 		Input.action_release(a)
 	for b: Dictionary in BUTTONS:
@@ -164,6 +179,10 @@ func touch_down(id: int, pos: Vector2) -> void:
 				Game.vehicles.radio.cycle()
 				Sfx.play(&"ui_tap")
 				return
+			if b["action"] == &"swap":                                 # a tap cycles (on release), a hold opens the wheel
+				_swap_finger = id
+				_swap_held = 0.0
+				return
 			_held[id] = b
 			Input.action_press(b["action"])
 			if b["action"] == &"interact":
@@ -187,6 +206,11 @@ func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
 
 
 func touch_up(id: int) -> void:
+	if id == _swap_finger:
+		_swap_finger = -1
+		Input.action_press(&"swap")
+		_swap_pulse = 0.12
+		return
 	if id == _perf_finger:
 		_perf_finger = -1
 		if not _perf_long:

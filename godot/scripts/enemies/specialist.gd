@@ -14,6 +14,10 @@ const SNIPER_LOCK := 0.25
 const SLAM_WIND := 0.55
 const ROAR_TIME := 0.4
 const SLAM_RADIUS := 4.0
+const BLINK_WIND := 0.25                     ## stalker: seconds phased out (no damage) before it reappears
+const SHELL_TIME := 1.5                      ## walker: seconds from the lock to the impact
+const PULSE_WIND := 0.9                      ## warden: windup of the phase pulse
+const SUMMON_WIND := 0.8                     ## hivemother: windup of the call
 
 var role: StringName = &""
 var shield_hp := 0.0
@@ -34,6 +38,19 @@ var _charge_dir := Vector2.ZERO
 var _orbit_t := 0.0
 var _dash := 0.0
 var _slams := 0
+var _blink_cd := 0.0
+var _blink_wind := 0.0
+var _blinks := 0
+var _shell_cd := 0.0
+var _shell_t := 0.0
+var _shell_at := Vector3.ZERO
+var _shells := 0
+var _pulse_cd := 0.0
+var _pulse_wind := 0.0
+var _pulses := 0
+var _summon_cd := 0.0
+var _summon_wind := 0.0
+var _summons := 0
 
 
 func setup(t: StringName) -> void:
@@ -41,7 +58,7 @@ func setup(t: StringName) -> void:
 	role = cfg.get("role", &"")
 	if model != null:
 		EnemyLook.apply_rim(model, EnemyLook.code_color(cfg), Game.quality)
-	if role == &"shield":
+	if role == &"shield" or role == &"carrier":
 		_build_shield()
 	elif model != null:
 		tell = EnemyTells.make(role)                  # the emissive tell of the role (flanker streaks, sniper eye, brute heat cracks): ONE shared mesh, one draw
@@ -62,6 +79,14 @@ func _on_activate() -> void:
 	_charge_cd = randf_range(1.0, 2.5)
 	_orbit_t = 0.0
 	_dash = 0.0
+	_blink_cd = randf_range(1.5, 3.0)
+	_blink_wind = 0.0
+	_shell_cd = randf_range(1.5, 3.0)
+	_shell_t = 0.0
+	_pulse_cd = randf_range(3.0, 5.0)
+	_pulse_wind = 0.0
+	_summon_cd = randf_range(3.0, 5.0)
+	_summon_wind = 0.0
 	if shield_node != null:
 		shield_node.visible = shield_hp > 0.0
 
@@ -91,6 +116,8 @@ func _build_shield() -> void:
 func shield_blocks(from: Vector3) -> bool:
 	if shield_hp <= 0.0 or dead:
 		return false
+	if role == &"carrier":
+		return true                                         # the carrier's ward wraps all round
 	var to := Vector3(from.x - global_position.x, 0.0, from.z - global_position.z)
 	if to.length() < 0.1:
 		return true
@@ -119,10 +146,68 @@ func break_shield() -> void:
 	shield_hp = 0.0
 	if shield_node != null:
 		shield_node.visible = false
-	if was and role == &"shield":
+	if was and (role == &"shield" or role == &"carrier"):
 		_burst(center() + Vector3(0.0, 0.0, 0.0), Color(0.4, 0.9, 1.0), 14, 6.0, 0.4, 3.0, 1.6)
 		_stagger = 0.4
 		Sfx.play_at(&"boom", center(), -8.0, 1.8)
+	if was and role == &"carrier":
+		_release(int(cfg.get("release", 2)))
+
+
+## Phased out (a stalker mid-blink): hits pass through.
+func damage(amount: float, crit := false, mirrored := false) -> void:
+	if _blink_wind > 0.0 and role == &"stalker":
+		return
+	super.damage(amount, crit, mirrored)
+
+
+## Release `n` swarmers next to this enemy (aware, reinforcements; the manager cap and the swarmer tier limit apply). Returns how many came out.
+func _release(n: int) -> int:
+	var mgr := Game.enemies as EnemyManager
+	if mgr == null:
+		return 0
+	var out := 0
+	for i in n:
+		if mgr.count_type(&"swarmer") >= EnemyTypes.tier_limit(&"swarmer", Game.quality):
+			break
+		var a := TAU * float(i) / maxf(float(n), 1.0) + randf() * 0.5
+		var pos := global_position + Vector3(cos(a) * 1.6, 0.0, sin(a) * 1.6)
+		if mgr.spawn(&"swarmer", pos, true, true) != null:
+			out += 1
+	return out
+
+
+## Phase out and reappear 6-9 m (elites 10-14 m) from the target, anywhere on the ring. Returns true.
+func blink() -> bool:
+	var far := EnemyTypes.is_elite(type)
+	var a := randf() * TAU
+	var r := randf_range(10.0, 14.0) if far else randf_range(6.0, 9.0)
+	var c := _tgt if _tgt_ok else global_position
+	var nx := c.x + cos(a) * r
+	var nz := c.z + sin(a) * r
+	_burst(center(), EnemyLook.code_color(cfg), 6, 5.0, 0.3, 0.0)
+	global_position = Vector3(nx, _ground_y(nx, nz), nz)
+	_have_last = false
+	_burst(center(), EnemyLook.code_color(cfg), 6, 5.0, 0.3, 0.0)
+	_blinks += 1
+	_blink_cd = randf_range(3.5, 5.0)
+	return true
+
+
+func blink_count() -> int:
+	return _blinks
+
+
+func shell_count() -> int:
+	return _shells
+
+
+func pulse_count() -> int:
+	return _pulses
+
+
+func summon_count() -> int:
+	return _summons
 
 
 func _turn_rate() -> float:
@@ -151,7 +236,15 @@ func _animate(delta: float) -> void:
 
 func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
 	match role:
-		&"shield":
+		&"stalker":
+			_move_stalker(delta, ux, uz, d, speed, rng)
+		&"walker":
+			_move_walker(delta, ux, uz, d, speed)
+		&"warden":
+			_move_warden(delta, ux, uz, d, speed, rng)
+		&"hivemother":
+			_move_hivemother(delta, ux, uz, d, speed, rng)
+		&"shield", &"carrier":
 			var k := 1.0 if shield_hp > 0.0 else 1.35
 			if d > rng * 0.55:
 				_mx = ux
@@ -182,6 +275,78 @@ func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng
 			_move_brute(delta, ux, uz, d, speed)
 		_:
 			super._move_aware(delta, ux, uz, d, speed, rng)
+
+
+func _move_stalker(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
+	_blink_cd = maxf(0.0, _blink_cd - delta)
+	if _blink_wind > 0.0:
+		_speed = 0.0
+		_blink_wind -= delta
+		if _blink_wind <= 0.0:
+			blink()
+		return
+	if _blink_cd <= 0.0 and d < 34.0:
+		_blink_wind = BLINK_WIND
+		return
+	super._move_aware(delta, ux, uz, d, speed, rng)
+
+
+## Artillery: keeps 25 m+ away, stands still while a shell is in the air (the lock is the target's ground point, a sidestep dodges it).
+func _move_walker(delta: float, ux: float, uz: float, d: float, speed: float) -> void:
+	if _shell_t > 0.0:
+		_speed = 0.0
+		return
+	if d < 22.0:
+		_mx = -ux
+		_mz = -uz
+		_speed = speed
+	elif d > 45.0 or not los:
+		_mx = ux
+		_mz = uz
+		_speed = speed
+	else:
+		_speed = 0.0
+
+
+func _move_warden(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
+	_pulse_cd = maxf(0.0, _pulse_cd - delta)
+	if _pulse_wind > 0.0:
+		_speed = 0.0
+		_pulse_wind -= delta
+		if _pulse_wind <= 0.0:
+			_pulse()
+		return
+	if _pulse_cd <= 0.0 and d < 24.0:
+		_pulse_wind = PULSE_WIND
+		return
+	super._move_aware(delta, ux, uz, d, speed, rng)
+
+
+## The phase pulse: a ring around the warden (Game.explode, player damage only), then it blinks away.
+func _pulse() -> void:
+	_pulses += 1
+	_pulse_cd = randf_range(6.0, 8.0)
+	var at := Vector3(global_position.x, global_position.y + 0.15, global_position.z)
+	Game.explode(at, float(cfg.get("pulse_radius", 6.5)), {"enemy_dmg": 0.0, "car_dmg": 12.0, "player_dmg": float(cfg.get("pulse_dmg", 20.0)), "color": Color(0.8, 0.8, 1.0)})
+	FX.shake(0.4)
+	blink()
+
+
+func _move_hivemother(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
+	_summon_cd = maxf(0.0, _summon_cd - delta)
+	if _summon_wind > 0.0:
+		_speed = 0.0
+		_summon_wind -= delta
+		if _summon_wind <= 0.0:
+			_summons += 1
+			_summon_cd = randf_range(8.0, 10.0)
+			_release(int(cfg.get("summon", 2)))
+			Sfx.play_at(&"boom", center(), -8.0, 0.8)
+		return
+	if _summon_cd <= 0.0 and d < 40.0:
+		_summon_wind = SUMMON_WIND
+		return
+	super._move_aware(delta, ux, uz, d, speed, rng)
 
 
 func _move_flanker(delta: float, ux: float, uz: float, d: float, speed: float) -> void:
@@ -266,6 +431,9 @@ func slam_count() -> int:
 
 func _fire_cycle(delta: float, d: float, rng: float) -> void:
 	match role:
+		&"walker":
+			_fire_walker(delta, d, rng)
+			return
 		&"brute":
 			return                                              # no ranged attack
 		&"sniper":
@@ -275,6 +443,22 @@ func _fire_cycle(delta: float, d: float, rng: float) -> void:
 			elif _aim_t <= 0.0 and _burst_left == 0:
 				_locked = false
 	super._fire_cycle(delta, d, rng)
+
+
+## Mortar: lock the target's ground point, land a shell SHELL_TIME later (Game.explode, shell_radius).
+func _fire_walker(delta: float, d: float, rng: float) -> void:
+	if _shell_t > 0.0:
+		_shell_t -= delta
+		if _shell_t <= 0.0:
+			_shells += 1
+			_shell_cd = randf_range(float((cfg["fire"] as Vector2).x), float((cfg["fire"] as Vector2).y))
+			Game.explode(_shell_at, float(cfg.get("shell_radius", 4.5)), {"enemy_dmg": 0.0, "car_dmg": 20.0, "player_dmg": float(cfg["dmg"]), "color": Color(0.6, 0.65, 1.0)})
+		return
+	_shell_cd -= delta
+	if _shell_cd <= 0.0 and _tgt_ok and d > 12.0 and d < rng:
+		_shell_at = Vector3(_tgt.x, _ground_y(_tgt.x, _tgt.z) + 0.15, _tgt.z)
+		_shell_t = SHELL_TIME
+		Sfx.play_at(&"enemy_shot", center(), -2.0, 0.6)
 
 
 func _shoot(d: float) -> void:
@@ -293,8 +477,14 @@ func _tracer_color() -> Color:
 			return Color(1.0, 0.25, 0.85)
 		&"flanker":
 			return Color(1.0, 0.7, 0.25)
-		&"shield":
+		&"shield", &"carrier":
 			return Color(0.4, 0.85, 1.0)
+		&"stalker":
+			return Color(0.4, 1.0, 0.7)
+		&"warden":
+			return Color(0.9, 0.9, 1.0)
+		&"hivemother":
+			return Color(1.0, 0.5, 0.65)
 	return super._tracer_color()
 
 
@@ -307,11 +497,19 @@ func threat_charge() -> float:
 		if _roar_t > 0.0:
 			return clampf(1.0 - _roar_t / ROAR_TIME, 0.0, 1.0)
 		return 1.0 if _charging else 0.0
+	if role == &"stalker" and _blink_wind > 0.0:
+		return clampf(1.0 - _blink_wind / BLINK_WIND, 0.0, 1.0)
+	if role == &"walker" and _shell_t > 0.0:
+		return clampf(1.0 - _shell_t / SHELL_TIME, 0.0, 1.0)
+	if role == &"warden" and _pulse_wind > 0.0:
+		return clampf(1.0 - _pulse_wind / PULSE_WIND, 0.0, 1.0)
+	if role == &"hivemother" and _summon_wind > 0.0:
+		return clampf(1.0 - _summon_wind / SUMMON_WIND, 0.0, 1.0)
 	return super.threat_charge()
 
 
 func shows_aim_line() -> bool:
-	if role == &"brute":
+	if role == &"brute" or role == &"walker":
 		return false
 	return super.shows_aim_line()
 

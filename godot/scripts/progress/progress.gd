@@ -64,6 +64,7 @@ func _exit_tree() -> void:
 		Game.progress = null
 		Upgrades.reset()
 		WeaponDefs.reset_unlocked()
+		Attachments.reset()
 
 
 # --- pure rules (static, tested) ------------------------------------------------------------------------------------
@@ -205,6 +206,34 @@ func weapon_price(id: StringName) -> int:
 	return WeaponDefs.price(id, rep_discount(reputation))
 
 
+## Attachments: bought with credits (reputation discount), equipped per weapon, saved in the "attachments" section.
+func part_price(part: StringName) -> int:
+	return Attachments.price(part, rep_discount(reputation))
+
+
+func buy_part(part: StringName) -> bool:
+	if not Attachments.PARTS.has(part) or Attachments.is_owned(part) or credits < part_price(part):
+		return false
+	credits -= part_price(part)
+	Attachments.give(part)
+	changed.emit()
+	if autosave_enabled:
+		save_file()
+	return true
+
+
+## Equip (or take off) an owned part and make the weapon in hand pick up the new numbers.
+func equip_part(weapon: StringName, part: StringName) -> bool:
+	if not Attachments.toggle(weapon, part):
+		return false
+	var p := Game.player
+	if is_instance_valid(p) and p.get(&"weapon") is PlayerWeapon:
+		(p.get(&"weapon") as PlayerWeapon).apply_upgrades(false)
+	if autosave_enabled:
+		save_file()
+	return true
+
+
 func can_buy_weapon(id: StringName) -> bool:
 	return WeaponDefs.DEFS.has(id) and id != &"carbine" and not WeaponDefs.is_unlocked(id) and credits >= weapon_price(id)
 
@@ -258,6 +287,7 @@ func new_campaign() -> void:
 	bosses_cleared.clear()
 	checkpoint.clear()
 	WeaponDefs.reset_unlocked()
+	Attachments.reset()
 	_frac = 0.0
 	_apply_to_player()
 	changed.emit()
@@ -388,7 +418,7 @@ func _begin_chapter_run(chapter: int, cp := {}) -> void:
 func snapshot() -> Dictionary:
 	return {
 		"version": SAVE_VERSION, "credits": credits, "levels": levels.duplicate(), "reputation": reputation, "sector": sector,
-		"weapons": WeaponDefs.unlocked.duplicate(), "weapon": WeaponDefs.last_used, "bosses": bosses_cleared.duplicate(),
+		"weapons": WeaponDefs.unlocked.duplicate(), "weapon": WeaponDefs.last_used, "attachments": Attachments.to_save(), "bosses": bosses_cleared.duplicate(),
 		"best": maxi(best, Game.score), "tutorial_done": tutorial_done, "contracts_done": contracts_done, "contracts_failed": contracts_failed,
 		"unlocked": unlocked, "checkpoint": checkpoint.duplicate(),
 	}
@@ -412,6 +442,9 @@ func save_file() -> bool:
 		names.append(String(id))
 	cf.set_value("weapons", "unlocked", names)
 	cf.set_value("weapons", "current", String(WeaponDefs.last_used))
+	var att := Attachments.to_save()
+	cf.set_value("attachments", "owned", att["owned"])
+	cf.set_value("attachments", "equipped", att["equipped"])
 	cf.set_value("campaign", "bosses", PackedInt32Array(bosses_cleared))
 	cf.set_value("campaign", "unlocked", unlocked)
 	if not checkpoint.is_empty():
@@ -461,6 +494,7 @@ func load_file() -> bool:
 	WeaponDefs.set_unlocked(Array(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))))
 	var cur := StringName(str(cf.get_value("weapons", "current", "carbine")))
 	WeaponDefs.last_used = cur if WeaponDefs.is_unlocked(cur) else &"carbine"
+	Attachments.from_save({"owned": Array(cf.get_value("attachments", "owned", PackedStringArray())), "equipped": cf.get_value("attachments", "equipped", {})})
 	bosses_cleared.clear()
 	for b: int in Array(cf.get_value("campaign", "bosses", PackedInt32Array())):
 		bosses_cleared.append(b)

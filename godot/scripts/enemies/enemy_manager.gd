@@ -432,8 +432,8 @@ func _tick_reinforcements(delta: float, ppos: Vector3) -> void:
 	var pt: Vector3 = w.call(&"road_point_near", ppos, 38.0, 75.0)
 	if not pt.is_finite():
 		return
-	var type := pick_type(heat, randf(), _chapter(), randf(), randf())
-	if count_type(type) >= int(EnemyTypes.get_cfg(type).get("limit", 99)):
+	var type := pick_type(heat, randf(), _chapter(), randf(), randf(), randf())
+	if count_type(type) >= EnemyTypes.tier_limit(type, Game.quality) or (EnemyTypes.is_elite(type) and elite_count() >= EnemyTypes.ELITE_CAPS[clampi(Game.quality, 0, 2)]):
 		type = &"operative"                                          # a specialist is capped per type (draw budget): the slot becomes a plain operative
 	var d := spawn(type, pt, true, true)
 	if d != null:
@@ -442,11 +442,24 @@ func _tick_reinforcements(delta: float, ppos: Vector3) -> void:
 
 ## Reinforcement mix for a roll r in 0..1: heavy from heat 3 (25 %), strikers 10 % (35 % band from heat 3), then a third operatives, rest sentinels.
 ## The reinforcement of a roll: the classic mix (pick_reinforcement_type) with operative slots turned into specialists by chapter and heat (EnemyTypes.specialist_for).
-static func pick_type(heat: float, r: float, chapter: int, r_spec: float, r_pick: float) -> StringName:
+## `r_var` (default 1.0 = none) rolls the variety types and elites over an operative slot (EnemyTypes.variety_for).
+static func pick_type(heat: float, r: float, chapter: int, r_spec: float, r_pick: float, r_var := 1.0) -> StringName:
 	var t := pick_reinforcement_type(heat, r)
 	if t == &"operative":
+		var v := EnemyTypes.variety_for(chapter, heat, r_var, r_pick)
+		if v != &"":
+			return v
 		return EnemyTypes.specialist_for(chapter, heat, r_spec, r_pick)
 	return t
+
+
+## Elite minibosses alive.
+func elite_count() -> int:
+	var n := 0
+	for e in list:
+		if e.active and not e.dead and EnemyTypes.is_elite(e.type):
+			n += 1
+	return n
 
 
 func count_type(type: StringName) -> int:

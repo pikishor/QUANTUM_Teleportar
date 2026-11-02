@@ -15,7 +15,7 @@ const PHASE_3_AT := 0.33
 const SUMMON_EVERY := 9.0
 const SUMMON_MAX := 3
 const PULSE_EVERY := 8.0
-const PULSE_WIND := 2.0
+const OV_PULSE_WIND := 2.0
 const PULSE_RADIUS := 38.0
 const PULSE_DAMAGE := 30.0
 const PULSE_SHIELD_FACTOR := 0.12
@@ -30,7 +30,7 @@ var summoned: Array[Drone] = []
 var _invuln_t := 0.0
 var _summon_t := 4.0
 var _pulse_t := PULSE_EVERY
-var _pulse_wind := 0.0
+var _ov_pulse_wind := 0.0
 var _spikes: MeshInstance3D
 
 
@@ -48,7 +48,7 @@ func _on_activate() -> void:
 	_invuln_t = 0.0
 	_summon_t = 4.0
 	_pulse_t = PULSE_EVERY
-	_pulse_wind = 0.0
+	_ov_pulse_wind = 0.0
 	Sfx.boss_active = true
 	_say("phase1")
 
@@ -112,7 +112,7 @@ func _phase_for(f: float) -> int:
 
 
 func shield_active() -> bool:
-	return _pulse_wind > 0.0
+	return _ov_pulse_wind > 0.0
 
 
 func is_invulnerable() -> bool:
@@ -125,7 +125,7 @@ func damage(amount: float, crit := false, mirrored := false) -> void:
 	if _invuln_t > 0.0:
 		_flash = 0.1
 		return
-	if _pulse_wind > 0.0:
+	if _ov_pulse_wind > 0.0:
 		amount *= PULSE_SHIELD_FACTOR
 	super.damage(amount, crit, mirrored)
 	if not dead:
@@ -139,7 +139,7 @@ func _check_phase() -> void:
 		return
 	phase = np
 	_invuln_t = INVULN
-	_pulse_wind = 0.0
+	_ov_pulse_wind = 0.0
 	_slam_wind = 0.0
 	FX.blast(center(), 7.0, Color(0.72, 0.3, 1.0), 0.5)
 	FX.shake(0.6)
@@ -163,18 +163,18 @@ func _say(key: String) -> void:
 
 
 func _turn_rate() -> float:
-	return 1.4 if _pulse_wind > 0.0 else 5.0
+	return 1.4 if _ov_pulse_wind > 0.0 else 5.0
 
 
 func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
 	_invuln_t = maxf(0.0, _invuln_t - delta)
 	_tick_boss(delta)
-	if _pulse_wind > 0.0:
+	if _ov_pulse_wind > 0.0:
 		_speed = 0.0
-		_pulse_wind -= delta
+		_ov_pulse_wind -= delta
 		_tele = 0.0
-		if _pulse_wind <= 0.0:
-			_pulse_wind = 0.0
+		if _ov_pulse_wind <= 0.0:
+			_ov_pulse_wind = 0.0
 			_pulse()
 		return
 	if phase == 3:
@@ -197,7 +197,7 @@ func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng
 
 
 func _fire_cycle(delta: float, d: float, rng: float) -> void:
-	if _pulse_wind > 0.0 or _slam_wind > 0.0:
+	if _ov_pulse_wind > 0.0 or _slam_wind > 0.0:
 		return
 	super._fire_cycle(delta, d, rng)
 
@@ -213,9 +213,9 @@ func _tick_boss(delta: float) -> void:
 		_summon(2 if phase == 1 else 1, &"sentinel" if phase == 1 and randf() < 0.7 else &"striker")
 	if phase == 2:
 		_pulse_t -= delta
-		if _pulse_t <= 0.0 and _pulse_wind <= 0.0:
+		if _pulse_t <= 0.0 and _ov_pulse_wind <= 0.0:
 			_pulse_t = PULSE_EVERY
-			_pulse_wind = PULSE_WIND
+			_ov_pulse_wind = OV_PULSE_WIND
 			Sfx.play_at(&"boom", center(), -6.0, 0.6)
 			_say("pulse")
 
@@ -266,8 +266,8 @@ func _slam_damage() -> float:
 func threat_charge() -> float:
 	if dead:
 		return 0.0
-	if _pulse_wind > 0.0:
-		return clampf(1.0 - _pulse_wind / PULSE_WIND, 0.0, 1.0)
+	if _ov_pulse_wind > 0.0:
+		return clampf(1.0 - _ov_pulse_wind / OV_PULSE_WIND, 0.0, 1.0)
 	if _slam_wind > 0.0:
 		return clampf(1.0 - _slam_wind / SLAM_WIND, 0.0, 1.0)
 	return super.threat_charge()
@@ -279,4 +279,4 @@ func bar_time() -> float:
 
 ## Where the pulse is in its cycle (tests): seconds of charge left, 0 when not charging.
 func pulse_left() -> float:
-	return _pulse_wind
+	return _ov_pulse_wind

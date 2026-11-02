@@ -389,7 +389,7 @@ func _retreat(delta: float, ux: float, uz: float, d: float, speed: float) -> voi
 
 ## Does this soldier take flank orders? (brutes charge, the boss is its own plan)
 func role_flanks() -> bool:
-	return type != &"brute" and type != &"overseer"
+	return type != &"brute" and type != &"overseer" and type != &"walker" and not EnemyTypes.is_elite(type)
 
 
 ## Default operative movement: close in when far or blind (at an angle after FLANK_AFTER s without sight), back off when pressed, strafe in between; cover first when the cfg

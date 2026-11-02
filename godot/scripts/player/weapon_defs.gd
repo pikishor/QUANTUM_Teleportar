@@ -7,7 +7,7 @@ extends RefCounted
 ##   grenade  Singularity Grenade: thrown in an arc, lands, a gravity well pulls and burns everything within 9 m for 1.6 s, then it collapses into Game.explode.
 ## kind: "hit" (hitscan, pellets), "charge" (lance), "throw" (grenade). reserve < 0 = unlimited spare ammo. look = the emissive tint of the strip on the rifle.
 
-const IDS: Array[StringName] = [&"carbine", &"scatter", &"lance", &"grenade"]
+const IDS: Array[StringName] = [&"carbine", &"scatter", &"lance", &"grenade", &"burst", &"rail", &"flux", &"gravity"]
 
 const DEFS := {
 	&"carbine": {
@@ -38,6 +38,35 @@ const DEFS := {
 		"kick": 0.012, "kick_end": 0.012, "kick_yaw": 0.0, "reload": 1.4, "range": 60.0, "falloff_from": 9999.0,
 		"tracer": Color(0.8, 0.45, 1.0), "look": Color(0.75, 0.35, 1.0), "look_size": Vector3(0.12, 0.12, 0.12), "zoom": 62.0, "price": 650, "pierce_shield": true,
 		"speed": 21.0, "fuse": 2.2, "well_time": 1.6, "well_radius": 9.0, "well_pull": 7.5, "well_dps": 24.0, "blast_radius": 7.5,
+	},
+	&"burst": {
+		"name": "ARC BURST PISTOL", "tag": "BRP", "kind": "hit", "mag": 18, "reserve": 90, "interval": 0.42, "damage": 12.0, "crit": 26.0, "pellets": 1, "burst": 3, "burst_gap": 0.065,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 1.1), Vector2(-0.2, 1.2)], "shake": 0.04, "vol": -3.0, "pitch_lo": 1.15, "pitch_hi": 1.3, "eject": 1, "flash": 1.0, "ads_kick": 0.5, "ads_spread": 0.4,
+		"spread_hip": 0.012, "spread_ads": 0.003, "spread_move": 0.012, "bloom": 0.004, "bloom_max": 0.02,
+		"kick": 0.008, "kick_end": 0.008, "kick_yaw": 0.003, "reload": 1.1, "range": 150.0, "falloff_from": 60.0,
+		"tracer": Color(1.0, 0.55, 0.9), "look": Color(1.0, 0.45, 0.85), "look_size": Vector3(0.03, 0.03, 0.3), "zoom": 58.0, "price": 400, "pierce_shield": false,
+	},
+	&"rail": {
+		"name": "RAIL RIFLE", "tag": "RAL", "kind": "hit", "mag": 4, "reserve": 24, "interval": 1.0, "damage": 85.0, "crit": 170.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0)], "shake": 0.18, "vol": 1.0, "pitch_lo": 0.55, "pitch_hi": 0.6, "eject": 0, "flash": 2.2, "ads_kick": 0.4, "ads_spread": 0.1,
+		"spread_hip": 0.02, "spread_ads": 0.0008, "spread_move": 0.02, "bloom": 0.0, "bloom_max": 0.0,
+		"kick": 0.045, "kick_end": 0.045, "kick_yaw": 0.004, "reload": 2.0, "range": 400.0, "falloff_from": 9999.0,
+		"tracer": Color(0.6, 0.9, 1.0), "look": Color(0.5, 0.85, 1.0), "look_size": Vector3(0.025, 0.025, 0.65), "zoom": 32.0, "price": 950, "pierce_shield": true,
+	},
+	&"flux": {
+		"name": "FLUX SMG", "tag": "FLX", "kind": "hit", "mag": 45, "reserve": 180, "interval": 0.055, "damage": 6.0, "crit": 12.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.5, 0.8), Vector2(-0.6, 0.8), Vector2(0.3, 0.7), Vector2(-0.4, 0.7)], "shake": 0.02, "vol": -5.0, "pitch_lo": 1.2, "pitch_hi": 1.5, "eject": 1, "flash": 0.8, "ads_kick": 0.7, "ads_spread": 0.5,
+		"spread_hip": 0.022, "spread_ads": 0.009, "spread_move": 0.012, "bloom": 0.0045, "bloom_max": 0.045,
+		"kick": 0.005, "kick_end": 0.0035, "kick_yaw": 0.004, "reload": 1.5, "range": 90.0, "falloff_from": 25.0,
+		"tracer": Color(0.7, 1.0, 0.5), "look": Color(0.6, 1.0, 0.4), "look_size": Vector3(0.05, 0.04, 0.4), "zoom": 60.0, "price": 600, "pierce_shield": false,
+	},
+	&"gravity": {
+		"name": "GRAVITY LAUNCHER", "tag": "GVL", "kind": "throw", "mag": 3, "reserve": 9, "interval": 1.3, "damage": 45.0, "crit": 45.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0)], "shake": 0.09, "vol": -3.0, "pitch_lo": 0.6, "pitch_hi": 0.7, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0,
+		"kick": 0.03, "kick_end": 0.03, "kick_yaw": 0.0, "reload": 2.2, "range": 80.0, "falloff_from": 9999.0,
+		"tracer": Color(0.5, 0.4, 1.0), "look": Color(0.45, 0.35, 1.0), "look_size": Vector3(0.14, 0.1, 0.3), "zoom": 56.0, "price": 1100, "pierce_shield": true,
+		"speed": 30.0, "fuse": 1.4, "well_time": 2.4, "well_radius": 12.0, "well_pull": 12.0, "well_dps": 10.0, "blast_radius": 5.0,
 	},
 }
 
@@ -95,7 +124,7 @@ static func price(id: StringName, discount := 0.0) -> int:
 
 ## Magazine size with the shop's magazine upgrade, per weapon: +20 % of the weapon's own base per level (the carbine keeps its +6), small magazines at least +1 every second level.
 static func mag_size(id: StringName, level: int) -> int:
-	var base := int(def(id)["mag"])
+	var base := int(Attachments.effective(id)["mag"])
 	var extra := int(roundf(float(base) * 0.2 * float(level)))
 	if base < 30 and level > 0:
 		extra = maxi(extra, (level + 1) / 2)

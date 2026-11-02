@@ -266,3 +266,9 @@ Vehicle thin-film sheen/flicker/damage wear/wet gloss (vehicle_visual.gd uses a 
 ## Wave 29 note
 Interior kit (6 new interior types, kit_*.glb, shader classes 10-12) and CharacterImport pipeline landed. Perf OK tiers 0-2, VQA 12/12.
 Follow-ups: new interior types not yet on city doors (InteriorData/door weights); kit MESH_YAW front direction guessed; CharacterImport not wired to spawners; Blender import script untested; rest-pose bone realignment missing.
+
+## Wave 30: weapons and attachments, enemy variety
+- 4 new weapons (burst, rail, flux, gravity), 9 attachments (optic/barrel/core), loadout screen; 4 new enemy types, 2 elites, specialist roles.
+- Integration fixes: Overseer constants renamed (OV_PULSE_WIND) to avoid clash with Specialist; test_weapons counts updated to 8; shop weapon buttons 40 px.
+- Visual QA 12/12 pass. Perf gate not run.
+- Follow-ups: test_wave2_integration entangle checks fail (also at HEAD before this wave); no keys 5-8 for new weapons; shop/loadout layouts not visually reviewed; no flicker/phase shader or tell meshes for new enemies; walker shell has no ground marker; patrols and kill_target do not use new types; swarmers spawn singly.

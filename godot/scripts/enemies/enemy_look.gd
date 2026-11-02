@@ -3,6 +3,7 @@ extends RefCounted
 ## Enemy readability (D7): one colour code per role shared by troopers, specialists and drones, a rim light on the body for distance (strongest on LOW, where
 ## there is no shadow or post glow to separate a dark figure from the street) and the telegraph boost of the glowing weak points. No new draw calls: the rim is a
 ## material parameter of the per-enemy override materials, the boost scales and fades the shared tell mesh instance.
+##   stalker green, carrier pale yellow, walker periwinkle, elites warden pearl / hivemother rose, swarmers by cfg colour (ice blue).
 ##   shield cyan, sniper magenta, brute orange, flanker amber, trooper red, drones by their cfg colour (sentinel rose, striker amber, heavy violet).
 
 const ROLE_COLORS := {
@@ -11,6 +12,11 @@ const ROLE_COLORS := {
 	&"brute": Color(1.0, 0.5, 0.1),
 	&"flanker": Color(1.0, 0.62, 0.15),
 	&"overseer": Color(0.72, 0.3, 1.0),
+	&"stalker": Color(0.3, 1.0, 0.6),
+	&"carrier": Color(0.95, 0.95, 0.4),
+	&"walker": Color(0.55, 0.6, 0.95),
+	&"warden": Color(0.9, 0.9, 1.0),
+	&"hivemother": Color(1.0, 0.4, 0.55),
 }
 ## Rim strength per graphics tier (LOW, MED, HIGH).
 const RIM_BY_TIER: Array[float] = [1.0, 0.7, 0.5]

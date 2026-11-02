@@ -98,7 +98,7 @@ func _tick_idle(seconds: float) -> void:
 # --- data ------------------------------------------------------------------------------------------------------------
 
 func _defs() -> void:
-	TestLib.check(WeaponDefs.IDS.size() == 4, "four weapons")
+	TestLib.check(WeaponDefs.IDS.size() == 8, "eight weapons")
 	var ok := true
 	for id: StringName in WeaponDefs.IDS:
 		var d := WeaponDefs.def(id)
@@ -110,7 +110,7 @@ func _defs() -> void:
 	var intervals := {}
 	for id: StringName in WeaponDefs.IDS:
 		intervals[WeaponDefs.def(id)["interval"]] = true
-	TestLib.check(intervals.size() == 4, "four distinct fire intervals")
+	TestLib.check(intervals.size() == 8, "eight distinct fire intervals")
 	WeaponDefs.reset_unlocked()
 	TestLib.check(WeaponDefs.unlocked == [&"carbine"], "only the carbine is owned at first")
 	TestLib.check(WeaponDefs.unlock(&"lance") and not WeaponDefs.unlock(&"lance") and WeaponDefs.is_unlocked(&"lance"), "unlock once")

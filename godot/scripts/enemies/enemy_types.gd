@@ -53,6 +53,43 @@ const TYPES := {
 		"model": "operative", "drone": false, "kamikaze": false, "role": &"brute",
 		"walk": 1.6, "burst_gap": 0.1, "aim_time": 0.5, "spread": 0.0, "spread_per_m": 0.0, "min_chapter": 3, "limit": 2,
 	},
+	# --- enemy variety (D3/D4): four more types and two elite minibosses, picked through variety_for() / tier_limit(); "variety" marks them for the tier limit scale.
+	&"stalker": {
+		"hp": 60.0, "speed": 5.6, "range": 20.0, "fire": Vector2(1.0, 1.6), "dmg": 6.0, "bolt": 0.0, "burst": 2,
+		"color": Color(0.3, 1.0, 0.6), "score": 130, "radius": 0.52, "heat": 0.3, "center_y": 1.0, "hover": 0.0, "scale": 0.98,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"stalker", "variety": true,
+		"walk": 1.8, "burst_gap": 0.09, "aim_time": 0.3, "spread": 0.04, "spread_per_m": 0.001, "min_chapter": 2, "limit": 2,
+	},
+	&"carrier": {
+		"hp": 120.0, "speed": 3.2, "range": 24.0, "fire": Vector2(1.5, 2.3), "dmg": 5.0, "bolt": 0.0, "burst": 3,
+		"color": Color(0.95, 0.95, 0.4), "score": 150, "radius": 0.66, "heat": 0.4, "center_y": 1.12, "hover": 0.0, "scale": 1.12,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"carrier", "variety": true, "shield_hp": 140.0, "release": 2,
+		"walk": 1.3, "burst_gap": 0.14, "aim_time": 0.55, "spread": 0.04, "spread_per_m": 0.0008, "min_chapter": 3, "limit": 2,
+	},
+	&"walker": {
+		"hp": 210.0, "speed": 2.4, "range": 60.0, "fire": Vector2(3.5, 5.0), "dmg": 24.0, "bolt": 0.0, "burst": 0,
+		"color": Color(0.55, 0.6, 0.95), "score": 180, "radius": 0.8, "heat": 0.5, "center_y": 1.3, "hover": 0.0, "scale": 1.25,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"walker", "variety": true, "shell_radius": 4.5,
+		"walk": 1.1, "burst_gap": 0.1, "aim_time": 0.5, "spread": 0.0, "spread_per_m": 0.0, "min_chapter": 4, "limit": 1,
+	},
+	&"swarmer": {
+		"hp": 10.0, "speed": 12.5, "range": 0.0, "fire": Vector2(1.0, 1.0), "dmg": 9.0, "bolt": 0.0, "burst": 0,
+		"color": Color(0.4, 0.9, 1.0), "score": 15, "radius": 0.45, "heat": 0.03, "center_y": 0.42, "hover": 0.25, "scale": 0.45,
+		"model": "drone_striker", "drone": true, "kamikaze": true, "variety": true, "min_chapter": 2, "limit": 4,
+	},
+	# --- the elite minibosses (Specialist roles, one at a time by tier: ELITE_CAPS), no new model.
+	&"warden": {
+		"hp": 700.0, "speed": 4.8, "range": 26.0, "fire": Vector2(1.1, 1.7), "dmg": 6.0, "bolt": 0.0, "burst": 3,
+		"color": Color(0.9, 0.9, 1.0), "score": 600, "radius": 1.05, "heat": 0.8, "center_y": 1.55, "hover": 0.0, "scale": 1.5,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"warden", "variety": true, "elite": true, "pulse_radius": 6.5, "pulse_dmg": 20.0,
+		"walk": 1.5, "burst_gap": 0.1, "aim_time": 0.4, "spread": 0.03, "spread_per_m": 0.0006, "min_chapter": 3, "limit": 1,
+	},
+	&"hivemother": {
+		"hp": 600.0, "speed": 3.2, "range": 32.0, "fire": Vector2(1.4, 2.0), "dmg": 6.0, "bolt": 0.0, "burst": 3,
+		"color": Color(1.0, 0.4, 0.55), "score": 600, "radius": 1.1, "heat": 0.8, "center_y": 1.6, "hover": 0.0, "scale": 1.55,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"hivemother", "variety": true, "elite": true, "summon": 2,
+		"walk": 1.2, "burst_gap": 0.12, "aim_time": 0.5, "spread": 0.035, "spread_per_m": 0.0007, "min_chapter": 5, "limit": 1,
+	},
 	# --- the boss (Overseer, scripts/enemies/overseer.gd): only a contract spawns it.
 	&"overseer": {
 		"hp": 1500.0, "speed": 3.6, "range": 34.0, "fire": Vector2(1.2, 1.8), "dmg": 7.0, "bolt": 0.0, "burst": 4,
@@ -102,6 +139,54 @@ static func specialist_for(chapter: int, heat: float, r: float, r2: float) -> St
 				pool.append(t)
 	if pool.is_empty():
 		return &"operative"
+	return pool[mini(int(r2 * pool.size()), pool.size() - 1)]
+
+
+## Share of the reinforcement slots that become a variety type (not the elites), per chapter index (the last row covers every later sector).
+const VARIETY_SHARE: Array[float] = [0.0, 0.0, 0.15, 0.2, 0.25, 0.3, 0.3, 0.35, 0.35]
+const VARIETY_TYPES: Array[StringName] = [&"stalker", &"swarmer", &"carrier", &"walker"]
+const ELITE_TYPES: Array[StringName] = [&"warden", &"hivemother"]
+## Elites alive at once per graphics tier (LOW, MED, HIGH) and the heat at which they start to show.
+const ELITE_CAPS: Array[int] = [0, 1, 2]
+const ELITE_HEAT := 3.0
+const ELITE_SHARE := 0.1
+## Per-type limit scale by tier for the variety types (LOW, MED, HIGH).
+const TIER_LIMIT_SCALE: Array[float] = [0.5, 0.75, 1.0]
+
+
+static func is_elite(type: StringName) -> bool:
+	return TYPES.has(type) and bool(TYPES[type].get("elite", false))
+
+
+## Alive at once of a type on a tier: the cfg limit scaled down on LOW / MED for the variety types, the tier elite cap for elites, the plain cfg limit otherwise.
+static func tier_limit(type: StringName, tier: int) -> int:
+	var c := get_cfg(type)
+	var t := clampi(tier, 0, 2)
+	if bool(c.get("elite", false)):
+		return mini(int(c.get("limit", 1)), ELITE_CAPS[t])
+	if not bool(c.get("variety", false)):
+		return int(c.get("limit", 99))
+	return maxi(1, ceili(float(c.get("limit", 1)) * TIER_LIMIT_SCALE[t]))
+
+
+## The variety type of a reinforcement slot, or &"" for none. `r` rolls the slot (variety when r <= the chapter share), `r2` picks the type; an elite takes the slot
+## when heat >= ELITE_HEAT and r <= ELITE_SHARE (warden from chapter 4, hivemother from chapter 6, index 3 / 5), the elite pick alternating by r2.
+static func variety_for(chapter: int, heat: float, r: float, r2: float) -> StringName:
+	if heat >= ELITE_HEAT and r <= ELITE_SHARE:
+		var pool_e: Array[StringName] = []
+		for t: StringName in ELITE_TYPES:
+			if chapter >= int(TYPES[t]["min_chapter"]):
+				pool_e.append(t)
+		if not pool_e.is_empty():
+			return pool_e[mini(int(r2 * pool_e.size()), pool_e.size() - 1)]
+	if r > VARIETY_SHARE[clampi(chapter, 0, VARIETY_SHARE.size() - 1)]:
+		return &""
+	var pool: Array[StringName] = []
+	for t: StringName in VARIETY_TYPES:
+		if chapter >= int(TYPES[t]["min_chapter"]):
+			pool.append(t)
+	if pool.is_empty():
+		return &""
 	return pool[mini(int(r2 * pool.size()), pool.size() - 1)]
 
 

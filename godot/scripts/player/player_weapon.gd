@@ -45,10 +45,12 @@ const MASK_SHOT := 1 | 4 | 8                 # world + enemy + vehicle (Game.L_*
 const SWAP_TIME := 0.32
 const GRENADE_GRAVITY := 22.0
 const WELL_TICK := 0.2
-const AMMO_PACK := {&"scatter": 12, &"lance": 5, &"grenade": 2}
+const AMMO_PACK := {&"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2}
 
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
+var _burst_left := 0                ## shots still to come in the current burst (burst pistol)
+var _burst_t := 0.0
 var mag := MAG_SIZE
 var ammo := MAG_SIZE
 var reserve := -1                            ## spare rounds of the current weapon (-1 = unlimited)
@@ -128,7 +130,7 @@ func reset() -> void:
 
 func _load(id: StringName) -> void:
 	current = id
-	def = WeaponDefs.def(id)
+	def = Attachments.effective(id)
 	var st: Vector2i = _store.get(id, Vector2i(_mag_for(id), int(def["reserve"])))
 	mag = _mag_for(id)
 	_mags[id] = mag
@@ -175,6 +177,7 @@ func switch_to(id: StringName, instant := false) -> bool:
 	charge = 0.0
 	_burst = 0
 	bloom = 0.0
+	_burst_left = 0
 	swap_t = 0.0 if instant else SWAP_TIME
 	Sfx.play(&"reload", -9.0, 1.5)
 	weapon_changed.emit(id)
@@ -196,7 +199,7 @@ func cycle(dir: int) -> bool:
 ## Keyboard 1-4, wheel and the touch SWAP button (Player calls it every physics frame on foot).
 func poll_switch() -> void:
 	for i in WeaponDefs.IDS.size():
-		if Input.is_action_just_pressed(StringName("weapon_%d" % (i + 1))):
+		if InputMap.has_action(StringName("weapon_%d" % (i + 1))) and Input.is_action_just_pressed(StringName("weapon_%d" % (i + 1))):
 			switch_to(WeaponDefs.IDS[i])
 	if Input.is_action_just_pressed(&"weapon_next") or Input.is_action_just_pressed(&"swap"):
 		cycle(1)
@@ -292,10 +295,22 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 					Sfx.dry_fire()
 					start_reload()
 				elif fire_t <= 0.0:
+					_burst_left = int(def.get("burst", 1)) - 1
+					_burst_t = float(def.get("burst_gap", 0.07))
 					if String(def["kind"]) == "throw":
 						_throw()
 					else:
 						_shoot(dt, aiming)
+	if _burst_left > 0 and String(def["kind"]) == "hit" and can_fire:       # the rest of a burst rides on its own short gap
+		_burst_t -= dt
+		if _burst_t <= 0.0 and ammo > 0:
+			_burst_left -= 1
+			_burst_t = float(def.get("burst_gap", 0.07))
+			var keep := fire_t
+			_shoot(dt, aiming)
+			fire_t = maxf(keep, fire_t) if _burst_left <= 0 else keep
+	elif _burst_left > 0:
+		_burst_left = 0
 	if _since_shot > BLOOM_HOLD:
 		bloom = maxf(0.0, bloom - BLOOM_RECOVER * dt)
 	if _since_shot > BURST_RESET:
@@ -652,6 +667,7 @@ func _throw() -> void:
 	var t := clampf(flat / float(def["speed"]), 0.3, 2.0)
 	var g := _free_grenade()
 	g["state"] = 0
+	g["wid"] = current
 	g["pos"] = from
 	g["vel"] = Vector3(delta.x / t, delta.y / t + 0.5 * GRENADE_GRAVITY * t, delta.z / t)
 	g["t"] = 0.0
@@ -754,8 +770,13 @@ func _fly(g: Dictionary, dt: float) -> void:
 				break
 	g["pos"] = nxt
 	(g["node"] as Node3D).global_position = nxt
-	if land or float(g["t"]) >= float(def_of_grenade()["fuse"]):
+	if land or float(g["t"]) >= float(_gdef(g)["fuse"]):
 		_start_well(g)
+
+
+## The definition a thrown projectile uses (the grenade or the gravity launcher that threw it).
+func _gdef(g: Dictionary) -> Dictionary:
+	return WeaponDefs.def(g.get("wid", &"grenade"))
 
 
 static func def_of_grenade() -> Dictionary:
@@ -763,7 +784,7 @@ static func def_of_grenade() -> Dictionary:
 
 
 func _start_well(g: Dictionary) -> void:
-	var d := def_of_grenade()
+	var d := _gdef(g)
 	g["state"] = 1
 	g["well"] = float(d["well_time"])
 	g["tick"] = 0.0
@@ -772,7 +793,7 @@ func _start_well(g: Dictionary) -> void:
 
 
 func _well(g: Dictionary, dt: float) -> void:
-	var d := def_of_grenade()
+	var d := _gdef(g)
 	var pos: Vector3 = g["pos"]
 	var left := float(g["well"]) - dt
 	g["well"] = left
@@ -807,7 +828,7 @@ func _well(g: Dictionary, dt: float) -> void:
 
 
 func _collapse(g: Dictionary) -> void:
-	var d := def_of_grenade()
+	var d := _gdef(g)
 	var pos: Vector3 = g["pos"]
 	g["state"] = -1
 	(g["node"] as Node3D).visible = false
