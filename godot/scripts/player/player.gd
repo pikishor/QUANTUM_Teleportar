@@ -196,6 +196,10 @@ func _ensure_children() -> void:
 		sparks.name = "Sparks"
 		add_child(sparks)
 	weapon.set_effects(decals, sparks)
+	if get_node_or_null("AimAssist") == null:
+		var aa := AimAssist.new()
+		aa.name = "AimAssist"
+		add_child(aa)
 
 
 ## Quantum is another module's script; a missing or broken file must never break the player.
@@ -577,7 +581,9 @@ func _foot_tick(dt: float) -> void:
 
 	# --- weapon
 	weapon.poll_switch()
-	weapon.tick(dt, Input.is_action_pressed(&"fire"), reload_pressed, aiming, horizontal > 1.0)
+	var assist := get_node_or_null("AimAssist") as AimAssist
+	var auto := assist != null and assist.wants_auto_fire()
+	weapon.tick(dt, Input.is_action_pressed(&"fire") or auto, reload_pressed, aiming, horizontal > 1.0)
 
 
 func _on_land(fall_speed: float) -> void:

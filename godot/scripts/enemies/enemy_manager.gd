@@ -39,6 +39,12 @@ var list: Array[Drone] = []          ## every active enemy, corpses included unt
 var _pool := {}                      ## type -> Array[Drone] (inactive)
 var _groups: Array = []              ## dormant / spawned patrol spots {pos, types, spawned}
 var _spawn_t := 0.0
+var _think_frame := -1
+var _think_used := 0
+var _call_cd := 0.0
+var reinforcement_calls := 0
+const THINKERS := [2, 3, 5]                   ## expensive tactical searches (cover) allowed per physics frame, by tier
+const CALL_COOLDOWN := 15.0
 var _stream_t := 0.0
 var _patrols_built := false
 var _clone: Node3D
@@ -340,7 +346,37 @@ func death_blast() -> bool:
 	return true
 
 
+## Cap on simultaneous thinkers: true when this frame still has a tactical-search slot.
+func try_think() -> bool:
+	var f := Engine.get_physics_frames()
+	if f != _think_frame:
+		_think_frame = f
+		_think_used = 0
+	if _think_used >= int(THINKERS[clampi(Game.quality, 0, 2)]):
+		return false
+	_think_used += 1
+	return true
+
+
+## A wounded soldier radios for help: one aware operative joins 38-75 m away (cap and cool-down apply). Returns it, or null.
+func call_reinforcement(caller: Drone) -> Drone:
+	if _call_cd > 0.0 or alive_count() >= cap():
+		return null
+	var w := Game.world
+	if not is_instance_valid(w) or not w.has_method(&"road_point_near"):
+		return null
+	var pt: Vector3 = w.call(&"road_point_near", caller.global_position, 38.0, 75.0)
+	if not pt.is_finite():
+		return null
+	var d := spawn(&"operative", pt, true, true)
+	if d != null:
+		_call_cd = CALL_COOLDOWN
+		reinforcement_calls += 1
+	return d
+
+
 func _physics_process(delta: float) -> void:
+	_call_cd = maxf(0.0, _call_cd - delta)
 	if not Game.is_playing():
 		return
 	var p := Game.player
@@ -443,9 +479,17 @@ func squad_callout(caller: Drone, _target: Vector3) -> int:
 	near.sort_custom(func(a: Operative, b: Operative) -> bool:
 		return a.global_position.distance_to(caller.global_position) < b.global_position.distance_to(caller.global_position))
 	var side := -1.0 if (caller is Operative and (caller as Operative).flank_side() > 0.0) else 1.0
+	if caller is Operative and (caller as Operative).uses_tactics():
+		(caller as Operative).tactic_role = &"anchor"             # the one who spotted the target holds the line
+	var i := 0
 	for o in near:
-		o.assign_flank(side)
-		side = -side
+		if i % 3 == 2 and o.uses_tactics():
+			o.tactic_role = &"pusher"                              # every third neighbour pushes straight in
+		else:
+			o.tactic_role = &"flanker"
+			o.assign_flank(side)
+			side = -side
+		i += 1
 	return alerted
 
 

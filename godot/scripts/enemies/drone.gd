@@ -186,6 +186,15 @@ func center() -> Vector3:
 
 ## The damage contract (see the player's enemy contract): crit only changes the effect, the amount is already scaled by the weapon.
 ## mirrored = damage that came through a quantum link (does not alert neighbours nor bounce back).
+## Weapon hit reaction: power 0.4 (carbine) .. 1.5 (lance) lengthens the stagger (the body slows and leans) and deepens the flinch.
+func stagger(power: float) -> void:
+	if dead:
+		return
+	_stagger = maxf(_stagger, 0.15 + 0.25 * power)
+	if "_flinch" in self:
+		set("_flinch", maxf(float(get("_flinch")), clampf(0.4 + 0.4 * power, 0.0, 1.0)))
+
+
 func damage(amount: float, crit := false, mirrored := false) -> void:
 	if dead or not active:
 		return

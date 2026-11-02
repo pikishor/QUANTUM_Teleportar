@@ -58,6 +58,18 @@ var _cover_cd := 0.0
 var _cover_dir := Vector2.ZERO
 var _cover_search_t := 0.0
 var _peeked := false
+var tactic_role: StringName = &""       ## squad role from the callout: anchor (holds cover, suppresses), flanker (arcs round), pusher (closes in)
+var _camp_t := 0.0                      ## seconds the target has stayed put
+var _camp_ref := Vector3.INF
+var _camp_flank_cd := 0.0
+var _suppress_cd := 0.0
+var _suppressing := false
+var suppress_bursts := 0                ## suppressing bursts fired this life (blind fire at the target from cover)
+var _retreating := false
+var _reinforce_called := false
+const RETREAT_HP := 0.25
+const CALL_HP := 0.5
+const CAMP_SECONDS := 3.5
 
 
 func _make_shape() -> Shape3D:
@@ -139,6 +151,15 @@ func _on_activate() -> void:
 	_cover_cd = 0.0
 	_cover_search_t = randf() * 0.5
 	_peeked = false
+	tactic_role = &""
+	_camp_t = 0.0
+	_camp_ref = Vector3.INF
+	_camp_flank_cd = 0.0
+	_suppress_cd = 0.0
+	_suppressing = false
+	suppress_bursts = 0
+	_retreating = false
+	_reinforce_called = false
 	_aim_t = 0.0
 	_burst_left = 0
 	_shot_t = 0.0
@@ -261,6 +282,8 @@ func _think_aware(delta: float, dx: float, dz: float, d: float) -> void:
 		if mgr != null:
 			mgr.squad_callout(self, _tgt)                  # the squad is told: neighbours wake up and get flank sides
 	_assigned_t = maxf(0.0, _assigned_t - delta)
+	if _tactics(delta, ux, uz, d, speed, rng):
+		return
 	_move_aware(delta, ux, uz, d, speed, rng)
 	_fire_cycle(delta, d, rng)
 
@@ -274,6 +297,94 @@ func assign_flank(side: float, seconds := 8.0) -> void:
 
 func flank_side() -> float:
 	return _flank
+
+
+## Plain operatives and flankers play the full tactics (the other specialists keep their own plans).
+func uses_tactics() -> bool:
+	return type == &"operative" or type == &"flanker"
+
+
+func is_retreating() -> bool:
+	return _retreating
+
+
+## Squad tactics on top of cover: low-hp retreat, a call for reinforcement, a flank when the target camps, suppressing fire from cover, pusher advance.
+## Returns true when it drove the frame itself (the retreat).
+func _tactics(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> bool:
+	if not uses_tactics() or _tgt_clone:
+		return false
+	_camp_flank_cd = maxf(0.0, _camp_flank_cd - delta)
+	_suppress_cd = maxf(0.0, _suppress_cd - delta)
+	var frac := hp / maxf(max_hp, 1.0)
+	if frac < CALL_HP and not _reinforce_called:
+		_reinforce_called = true
+		var mgr := Game.enemies as EnemyManager
+		if mgr != null:
+			mgr.call_reinforcement(self)
+	if frac < RETREAT_HP and _cover_on:
+		_retreating = true
+	if _retreating:
+		_retreat(delta, ux, uz, d, speed)
+		return true
+	# the target camps: the anchors and covered shooters send themselves round the side
+	if _camp_ref.is_finite() and Vector2(_tgt.x - _camp_ref.x, _tgt.z - _camp_ref.z).length() < 2.0:
+		_camp_t += delta
+	else:
+		_camp_t = 0.0
+		_camp_ref = _tgt
+	if _camp_t > CAMP_SECONDS and _camp_flank_cd <= 0.0 and _assigned_t <= 0.0 and tactic_role != &"pusher" and d < rng * 1.3:
+		_camp_flank_cd = 12.0
+		_camp_t = 0.0
+		assign_flank(-_flank if _cover_state != 0 else _flank, 7.0)
+		return false
+	# suppress: an anchor hidden behind cover keeps the target's head down with blind bursts
+	if tactic_role == &"anchor" and _cover_state == 2 and _suppress_cd <= 0.0 and _burst_left == 0 and d < rng:
+		_suppress_cd = randf_range(2.2, 3.4)
+		_suppressing = true
+		_burst_left = 2
+		_shot_t = 0.0
+		var off := Vector3(randf_range(-2.5, 2.5), randf_range(-0.5, 0.5), randf_range(-2.5, 2.5))
+		_aim_override = _tgt + off
+		suppress_bursts += 1
+	if tactic_role == &"pusher" and _assigned_t <= 0.0 and d > rng * 0.3 and _cover_state == 0:
+		_mx = ux
+		_mz = uz
+		_speed = speed * 0.9
+		_fire_cycle(delta, d, rng)
+		return true
+	return false
+
+
+## Low hp: run for cover (hide for good) or, with none, straight away from the target.
+func _retreat(delta: float, ux: float, uz: float, d: float, speed: float) -> void:
+	_aim_t = 0.0
+	_burst_left = 0
+	_cover_cd = maxf(0.0, _cover_cd - delta)
+	if _cover_state == 0 and _cover_cd <= 0.0:
+		var mgr := Game.enemies as EnemyManager
+		if mgr == null or mgr.try_think():
+			var c := EnemyCover.find(self, _tgt, 30.0)
+			_cover_cd = 1.0
+			if c.is_finite():
+				_cover = c
+				_cover_state = 1
+				_cover_dir = Vector2(ux, uz)
+	if _cover_state == 1:
+		var to_c := Vector2(_cover.x - global_position.x, _cover.z - global_position.z)
+		if to_c.length() < 0.7:
+			_cover_state = 2
+		else:
+			var u := to_c.normalized()
+			_mx = u.x
+			_mz = u.y
+			_speed = speed * 1.2
+			return
+	if _cover_state == 2:
+		_speed = 0.0
+		return
+	_mx = -ux
+	_mz = -uz
+	_speed = speed * 1.1
 
 
 ## Does this soldier take flank orders? (brutes charge, the boss is its own plan)
@@ -313,6 +424,16 @@ func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng
 
 ## Aim, then a short burst, then a pause.
 func _fire_cycle(delta: float, d: float, rng: float) -> void:
+	if _suppressing:
+		_shot_t -= delta
+		if _burst_left > 0 and _shot_t <= 0.0:
+			_shoot(d)
+			_burst_left -= 1
+			_shot_t = float(cfg["burst_gap"]) * 1.5
+		if _burst_left <= 0:
+			_suppressing = false
+			_aim_override = Vector3.INF
+		return
 	if _cover_state == 1 or _cover_state == 2:
 		_aim_t = 0.0                                          # running to cover or hiding behind it: no shooting
 		return
@@ -361,7 +482,7 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 		return false
 	_cover_cd = maxf(0.0, _cover_cd - delta)
 	var to_t := Vector2(ux, uz)
-	if _cover_state != 0:
+	if _cover_state != 0 and not _retreating:
 		if to_t.dot(_cover_dir) < 0.5 or d < 5.5:           # the target went round the side (more than 60 degrees) or rushed us: the cover is spent
 			_leave_cover(3.5)
 			return false
@@ -372,6 +493,9 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 		if _cover_search_t > 0.0:
 			return false
 		_cover_search_t = 0.5
+		var gm := Game.enemies as EnemyManager
+		if gm != null and not gm.try_think():
+			return false                                      # too many thinkers this frame: try again at the next search
 		var c := EnemyCover.find(self, _tgt, float(cfg.get("cover_radius", 22.0)))
 		if not c.is_finite():
 			_cover_cd = 1.5

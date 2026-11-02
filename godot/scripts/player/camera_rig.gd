@@ -92,6 +92,7 @@ var recoil_pitch := 0.0                      ## extra aim offset from the rifle 
 var recoil_yaw := 0.0
 var pivot_y_offset := 0.0                    ## the player sets this while smoothing a step so the camera does not pop
 var mouse_sensitivity := 1.0
+var look_scale := 1.0                        ## multiplier on look deltas (AimAssist slows the look near enemies)
 var free_look := 0.0                         ## seconds left of manual look (the vehicle chase camera waits)
 var hero_fade := 0.0                         ## 0..1: how far the hero is faded out because the camera is closer than FADE_START
 var _props_excluded := false
@@ -200,6 +201,8 @@ func _input(event: InputEvent) -> void:
 ## Turn the view by screen-space deltas in radians: yaw > 0 turns right, pitch > 0 looks down. Used by mouse look and the touch look zone.
 ## Looking against the rifle kick first removes the kick, so compensating never overshoots when the view settles.
 func add_look(d_yaw: float, d_pitch: float) -> void:
+	d_yaw *= look_scale
+	d_pitch *= look_scale
 	var turn := -d_yaw                       # Node3D convention: positive = left
 	if recoil_yaw != 0.0 and turn * recoil_yaw < 0.0:
 		var absorbed := minf(absf(recoil_yaw), absf(turn)) * signf(turn)

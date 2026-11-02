@@ -466,6 +466,8 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 					_sparks.impact_machine(hit, n)
 				return
 		target.call(&"damage", amount, crit)
+		if target.has_method(&"stagger"):
+			target.call(&"stagger", AimAssist.stagger_for(current))
 	else:
 		target.call(&"damage", DAMAGE_VEHICLE * float(def["damage"]) / DAMAGE * k)
 	var kill := (not is_vehicle) and _is_dead(target)

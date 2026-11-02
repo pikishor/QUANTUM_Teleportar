@@ -846,6 +846,13 @@ func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -
 	var spread_px := float(p.call(&"spread_in_pixels", vp.y)) if p.has_method(&"spread_in_pixels") else 0.0
 	var gap := maxf(7.0 * s, spread_px)
 	var col := Color(1, 1, 1, 0.9)
+	var assist := p.get_node_or_null("AimAssist") as AimAssist
+	if assist != null and assist.on_target:
+		col = Color(1.0, 0.82, 0.3, 0.95)                               # the crosshair is over an enemy
+		gap *= 0.85
+	var hit_age := now - UiUtil.num(p, &"last_hit_time", -100.0)
+	if hit_age < 0.12:
+		gap *= 0.7 + 0.3 * (hit_age / 0.12)                             # the arms snap inward on a hit, then relax
 	for dir: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:       # arms are axis-aligned rectangles (they batch with the plates), dark edge under white
 		var a0 := mid + dir * gap
 		var a1 := mid + dir * (gap + 11.0 * s)
@@ -861,6 +868,8 @@ func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -
 		var k := 1.0 - since / 0.28                                     # 1 -> 0
 		var hc := Color(1.0, 0.3, 0.25, 0.4 + 0.6 * k) if strong else Color(1, 1, 1, 0.4 + 0.6 * k)
 		var out := (22.0 + (8.0 if kill else 0.0) + 8.0 * (1.0 - k)) * s     # the X pops outward as it fades
+		if kill:
+			c.draw_arc(mid, (26.0 + 22.0 * (1.0 - k)) * s, 0.0, TAU, 24, Color(1.0, 0.3, 0.25, 0.8 * k), 2.5 * s, false)   # kill confirmation ring
 		var inner := 10.0 * s
 		var w := (4.5 if strong else 3.5) * s
 		for d: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:

@@ -236,3 +236,8 @@ in the sandbox cannot reproduce phone GPU behaviour.
 
 ## Wave 22
 Scanned-material pipeline (tools/materials/import_scanned.py, MaterialLib, scanned_surface shader; callers not wired yet, importer untested on real sets) and weapon feel (per-weapon recoil/shake/sfx/shell eject/damage numbers). Carbine interval now 0.105; test_weapons loosened. All tests and perf tiers 0-2 OK.
+
+## Wave 23: aim assist, enemy tactics
+- Aim assist (A1): scripts/player/aim_assist.gd, hooks in camera_rig/player/player_weapon/hud/ui_settings; settings aim_assist (on) and auto_fire (off) have no settings-screen toggle yet.
+- Enemy tactics (D2): roles, suppress, camp flank, retreat, radio call in operative.gd; squad_callout/try_think/call_reinforcement in enemy_manager.gd. Plain operatives and flankers only.
+- Integrated: all 62 tests pass; perf tiers 0/1/2 verdict OK.
