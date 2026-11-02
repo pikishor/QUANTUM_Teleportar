@@ -14,6 +14,7 @@ const CELL := 16.0
 const STEP := 2.0                     ## refresh when the follow point moved this far ...
 const MAX_AGE := 0.35                 ## ... or after this many seconds while moving
 const PARK := Vector3(0.0, -1000.0, 0.0)
+const THIN := ["Barriers", "RoofCover", "Planters"]   ## thin families: the pool body joins group "thin_wall" (phase-through) while it stands for one
 
 enum Shape { BOX, CAPSULE, CYLINDER }
 
@@ -218,6 +219,7 @@ func _release(k: int) -> void:
 	_assigned[k] = -1
 	(_shapes[k][0] as CollisionShape3D).disabled = true
 	bodies[k].position = PARK
+	bodies[k].remove_from_group(&"thin_wall")
 
 
 func _assign(k: int, src: int) -> void:
@@ -243,6 +245,10 @@ func _assign(k: int, src: int) -> void:
 	cs.disabled = false
 	var body := bodies[k]
 	body.transform = Transform3D(xf.basis, xf.origin + xf.basis * (sp[2] as Vector3))
+	if THIN.has(sp[3]):
+		body.add_to_group(&"thin_wall")
+	else:
+		body.remove_from_group(&"thin_wall")
 
 
 ## World transforms of every source instance of a family (for tests and gameplay queries such as "find cover").

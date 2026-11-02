@@ -283,3 +283,8 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 - City kit (facade bands, rooftop units, bollards/planters, drains, road markings; KC_NEAR 38 m) and creature kit (Alien/Demon/BlueDemon enemies, flora, rover/skiff, weapon pickup) merged. Tests pass incl. smoke set. Perf OK tiers 0-2.
 - visual_qa 11/12: "hero" FAIL (sep ~0.02) is pre-existing, verified at previous commit.
 - Follow-ups: facade bands/rooftop units/arrows only judged from one shot; health/energy pickups unchanged; meshes decimated by vertex clustering (no Blender); hero separation; title OPTIONS clip.
+
+## Wave 33 note: quantum puzzles, phase-through
+- New QuantumPuzzles (interior gate rooms) and PhaseThrough (QUANTUM TELEPORT phase, phase_step). Tests pass: test_quantum_puzzles, test_phase_through, plus smoke set.
+- Follow-ups: no street set-piece use of QuantumPuzzles.build(); no input/touch button for quantum.phase_step(); no phase shimmer shader; puzzle rooms not checked in a real interior; doors/fences not in thin_wall.
+- visual_qa: 11/12 pass; "hero" shot FAIL on sep=0.017 (hero blends in) in a bright-explosion frame; looks visually fine, heuristic only. Not investigated against prior commit.

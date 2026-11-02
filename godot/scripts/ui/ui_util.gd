@@ -164,6 +164,10 @@ static func ability_state(player: Node, info: Dictionary) -> Dictionary:
 		&"blink":
 			active = q.get("has_beacon") == true
 			remaining = num(q, &"beacon_left", 0.0)
+			var ph: Object = q.get("phase") as Object
+			if ph != null and num(ph, &"left", 0.0) > 0.0 and not active:
+				active = true
+				remaining = num(ph, &"left", 0.0)
 		&"entangle":
 			var links: Variant = q.get("links")
 			active = links is Array and not (links as Array).is_empty()

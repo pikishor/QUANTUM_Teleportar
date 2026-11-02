@@ -108,6 +108,7 @@ var last_fix := ""                     ## "" before the first teleport, else NOT
 var bits_left := 0.0
 var fx_root: Node3D                    ## top-level parent of every visual of this module
 
+var phase: PhaseThrough               ## phase-through thin walls during QUANTUM TELEPORT and the short phase-step
 var _p: Player
 var _rich := true                      ## MED / HIGH: glow sprite, second ring, ghost ring and second beam
 var _clock := 0.0
@@ -132,6 +133,7 @@ var _slot_used: Array[bool] = []
 func _ready() -> void:
 	_p = get_parent() as Player
 	_rq.collision_mask = Game.L_WORLD
+	phase = PhaseThrough.new(_p)
 	_build_visuals()
 	Game.new_game.connect(reset)
 	Game.respawn.connect(reset)
@@ -141,6 +143,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if phase != null:
+		phase.end()
 	reset()
 
 
@@ -151,6 +155,7 @@ func _exit_tree() -> void:
 func _physics_process(delta: float) -> void:
 	if _p == null or not Game.is_playing():
 		return
+	phase.tick(delta)
 	cd_blink = maxf(cd_blink - delta, 0.0)
 	cd_link = maxf(cd_link - delta, 0.0)
 	cd_super = maxf(cd_super - delta, 0.0)
@@ -194,6 +199,9 @@ func reset() -> void:
 		_drop_link(i)
 		i -= 1
 	_kill_clone()
+	if phase != null:
+		phase.end()
+		phase.cd = 0.0
 	cd_blink = 0.0
 	cd_link = 0.0
 	cd_super = 0.0
@@ -267,6 +275,11 @@ func aim_go() -> bool:
 	beacon_pos = aim_pos
 	has_beacon = true
 	return teleport()
+
+
+## Short phase-step (touch / key hook): pass thin walls for PhaseThrough.STEP_TIME.
+func phase_step() -> bool:
+	return phase.step()
 
 
 func cancel_aim() -> void:
@@ -353,6 +366,7 @@ func teleport() -> bool:
 	var to := dest + Vector3(0.0, 1.0, 0.0)
 	FX.tracer(from, to, CYAN)
 	FX.burst(from, CYAN, _fx_count(40), 7.0, 0.6, 0.0)
+	phase.begin(PhaseThrough.TELEPORT_TIME)
 	_p.teleport_to(dest + Vector3(0.0, 0.05, 0.0))
 	FX.burst(to, MAGENTA, _fx_count(40), 7.0, 0.6, 0.0)
 	if _rich:
@@ -495,6 +509,8 @@ func entangle() -> bool:
 			if "linear_velocity" in node:
 				node.set("linear_velocity", Vector3.ZERO)
 				node.set("angular_velocity", Vector3.ZERO)
+		&"crate":
+			node.global_position = Vector3(from.x, to.y, from.z)
 		&"pickup":
 			node.global_position = tgt_pos + Vector3(0.0, 0.5, 0.0)
 			var pd: Dictionary = t["pd"]
@@ -533,6 +549,15 @@ func swap_target() -> Dictionary:
 		if r < best and _clear(o, ctr):
 			best = r
 			res = {"kind": &"car", "node": c, "pos": c.global_position}
+	for cr: Node in get_tree().get_nodes_in_group(&"puzzle_crate"):   # QuantumPuzzles key crates (phase doors)
+		var cn := cr as Node3D
+		if cn == null or not cn.is_inside_tree():
+			continue
+		var cc := cn.global_position + Vector3(0.0, 0.5, 0.0)
+		var r := _ray_sphere(o, dir, cc, 1.4)
+		if r < best and _clear(o, cc):
+			best = r
+			res = {"kind": &"crate", "node": cn, "pos": cn.global_position}
 	var mis: Object = Game.missions if is_instance_valid(Game.missions) else null
 	if mis != null and mis.get("pickups") is Array:
 		for pk: Variant in mis.get("pickups"):

@@ -27,6 +27,7 @@ var last_reward: Dictionary = {}
 var target_pos := Vector3.ZERO             ## the safe / terminal / hostage / officer position (world)
 var found := false                         ## the officer was spotted
 
+var puzzles: QuantumPuzzles                ## the verb-gated corridor around the mission object (B8)
 var _actors: InteriorActors
 var _interior: Node3D
 var _marker: MeshInstance3D
@@ -80,6 +81,8 @@ func begin(room: Node3D, k: StringName, id: int, actors: InteriorActors) -> void
 			target_pos = InteriorGameplay.anchor_points(room, &"terminal", 1, seed_value)[0]["pos"]
 			_make_console(target_pos)
 			_marker_at(target_pos, Color(0.45, 0.95, 1.0))
+	var toward: Vector3 = (room.get("door_pos") as Vector3) - target_pos
+	puzzles = QuantumPuzzles.build(self, QuantumPuzzles.room_for(k, seed_value), target_pos, toward)
 	_say(&"start")
 	Sfx.play(&"mission_start")
 
@@ -92,6 +95,9 @@ func reset() -> void:
 	_actors = null
 	_interior = null
 	found = false
+	if is_instance_valid(puzzles):
+		puzzles.queue_free()
+	puzzles = null
 	if _marker != null:
 		_marker.queue_free()
 		_marker = null
@@ -197,6 +203,8 @@ func tick(delta: float) -> void:
 	if not is_active() or not Game.is_playing() or _actors == null:
 		return
 	_t += delta
+	if is_instance_valid(puzzles):
+		puzzles.tick_live(delta)
 	var pl := Game.player
 	var pp: Vector3 = pl.global_position if is_instance_valid(pl) else Vector3.ZERO
 	if _marker != null and _marker.visible:
