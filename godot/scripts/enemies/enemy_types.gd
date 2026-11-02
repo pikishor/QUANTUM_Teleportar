@@ -50,14 +50,14 @@ const TYPES := {
 	&"brute": {
 		"hp": 380.0, "speed": 6.0, "range": 4.0, "fire": Vector2(1.0, 1.0), "dmg": 26.0, "bolt": 0.0, "burst": 0,
 		"color": Color(1.0, 0.5, 0.1), "score": 200, "radius": 0.9, "heat": 0.6, "center_y": 1.45, "hover": 0.0, "scale": 1.38,
-		"model": "operative", "drone": false, "kamikaze": false, "role": &"brute",
+		"model": "operative", "body": "enemy_bluedemon", "drone": false, "kamikaze": false, "role": &"brute",
 		"walk": 1.6, "burst_gap": 0.1, "aim_time": 0.5, "spread": 0.0, "spread_per_m": 0.0, "min_chapter": 3, "limit": 2,
 	},
 	# --- enemy variety (D3/D4): four more types and two elite minibosses, picked through variety_for() / tier_limit(); "variety" marks them for the tier limit scale.
 	&"stalker": {
 		"hp": 60.0, "speed": 5.6, "range": 20.0, "fire": Vector2(1.0, 1.6), "dmg": 6.0, "bolt": 0.0, "burst": 2,
 		"color": Color(0.3, 1.0, 0.6), "score": 130, "radius": 0.52, "heat": 0.3, "center_y": 1.0, "hover": 0.0, "scale": 0.98,
-		"model": "operative", "drone": false, "kamikaze": false, "role": &"stalker", "variety": true,
+		"model": "operative", "body": "enemy_alien", "drone": false, "kamikaze": false, "role": &"stalker", "variety": true,
 		"walk": 1.8, "burst_gap": 0.09, "aim_time": 0.3, "spread": 0.04, "spread_per_m": 0.001, "min_chapter": 2, "limit": 2,
 	},
 	&"carrier": {
@@ -69,7 +69,7 @@ const TYPES := {
 	&"walker": {
 		"hp": 210.0, "speed": 2.4, "range": 60.0, "fire": Vector2(3.5, 5.0), "dmg": 24.0, "bolt": 0.0, "burst": 0,
 		"color": Color(0.55, 0.6, 0.95), "score": 180, "radius": 0.8, "heat": 0.5, "center_y": 1.3, "hover": 0.0, "scale": 1.25,
-		"model": "operative", "drone": false, "kamikaze": false, "role": &"walker", "variety": true, "shell_radius": 4.5,
+		"model": "operative", "body": "enemy_demon", "drone": false, "kamikaze": false, "role": &"walker", "variety": true, "shell_radius": 4.5,
 		"walk": 1.1, "burst_gap": 0.1, "aim_time": 0.5, "spread": 0.0, "spread_per_m": 0.0, "min_chapter": 4, "limit": 1,
 	},
 	&"swarmer": {

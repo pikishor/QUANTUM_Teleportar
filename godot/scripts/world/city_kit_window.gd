@@ -12,6 +12,7 @@ const Kit := preload("res://scripts/world/city_kit.gd")
 const STEP := 10.0
 const NEAR_BASE := 64.0                  ## metres, scaled by the quality
 const FAR_BASE := 175.0
+const KC_NEAR := 38.0                    ## city-kit pieces (city_kit_world.gd) draw within this many metres (scaled by the quality)
 const LM_NEAR := 230.0                   ## landmarks switch to their coarse silhouette beyond this distance (metres, not scaled by the quality)
 
 var kit: Kit
@@ -27,6 +28,7 @@ var scale := 1.0:
 var built_at := Vector2(1.0e9, 1.0e9)
 var sig := -1
 var near_props := 0                      ## props at full detail in the current window
+var kc_props := 0                        ## city-kit pieces in the current window (facade, rooftop, street dressing, markings)
 var far_props := 0                       ## props at the simplified level
 var triangles := 0
 var rebuilds := 0
@@ -129,6 +131,7 @@ func _fill(cam: Vector2, everything: bool) -> void:
 	var sd := PackedFloat32Array()
 	near_props = 0
 	far_props = 0
+	kc_props = 0
 	for level in 2:
 		var list := _sel_near if level == 0 else _sel_far
 		for c in list:
@@ -141,10 +144,13 @@ func _fill(cam: Vector2, everything: bool) -> void:
 				var x := arr[o + 1]
 				var z := arr[o + 2]
 				var d := _district(x, z)
-				var g := kit.geo(kind, level == 0, d, int(arr[o + 5]))
+				if level == 0 and kind >= Kit.KC_FIRST and dmin > KC_NEAR * scale:
+					continue                                              # facade bands, markings and street dressing only close to the camera
+				var vr := int(arr[o + 5])
+				var g := kit.geo(kind, level == 0, d, vr & 3)
 				if g.is_empty():
 					continue
-				var xf := Transform3D(Basis(Vector3.UP, arr[o + 3]), Vector3(x, 0.0, z))
+				var xf := Transform3D(Basis(Vector3.UP, arr[o + 3]), Vector3(x, float(vr >> 2) * 0.25, z))
 				v.append_array(xf * (g["v"] as PackedVector3Array))
 				nr.append_array(Transform3D(xf.basis, Vector3.ZERO) * (g["n"] as PackedVector3Array))
 				uv.append_array(g["uv"])
@@ -154,7 +160,9 @@ func _fill(cam: Vector2, everything: bool) -> void:
 				seeds.resize(int(g["count"]))
 				seeds.fill(arr[o + 4])
 				sd.append_array(seeds)
-				if level == 0:
+				if level == 0 and kind >= Kit.KC_FIRST:
+					kc_props += 1
+				elif level == 0:
 					near_props += 1
 				else:
 					far_props += 1

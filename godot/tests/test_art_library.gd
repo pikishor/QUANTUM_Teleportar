@@ -184,7 +184,7 @@ func _test_placement(city: City) -> void:
 	for p in kit.placements:
 		var pos: Vector3 = p["pos"]
 		var k: int = p["kind"]
-		if city.layout.lot_at(pos.x, pos.z, 0.2) != null:
+		if k < Kit.KC_FIRST and city.layout.lot_at(pos.x, pos.z, 0.2) != null:          # city-kit facade bands and rooftop units stand on buildings on purpose
 			bad_lot += 1
 		if k < Kit.KIND_COUNT and CityLayout.on_road(pos.x, pos.z, 0.6):
 			bad_road += 1
@@ -320,7 +320,10 @@ func _test_window(city: City) -> void:
 	var rn := kw.near_radius()
 	for c in Kit.GRID_N * Kit.GRID_N:
 		if kit.counts[c] > 0 and kw._min_dist(c, spawn) <= rn:
-			expect += kit.counts[c]
+			var carr: PackedFloat32Array = kit.cells[c]
+			for o in range(0, carr.size(), 6):
+				if int(carr[o]) < Kit.KC_FIRST:                       # the city-kit pieces (facade, markings) have their own, shorter range (kc_props)
+					expect += 1
 	TestLib.check(kw.near_props == expect, "all %d props of the cells within %.0f m are drawn at full detail (got %d)" % [expect, rn, kw.near_props])
 	# LOD: far cells show only kinds with a far level
 	var far_ok := true

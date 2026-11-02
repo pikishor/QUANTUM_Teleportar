@@ -26,6 +26,10 @@ const SPECS := {
 	&"wagon": {"max": 33.0, "acc": 16.5, "brake": 38.0, "grip": 6.4, "hp": 135.0, "mass": 1600.0, "seats": 5, "model": "car_wagon", "len": 4.92, "wid": 1.86, "hgt": 1.55, "wheel": 0.35},
 	&"van": {"max": 28.0, "acc": 12.0, "brake": 32.0, "grip": 6.0, "hp": 175.0, "mass": 2300.0, "seats": 3, "model": "car_van", "len": 5.2, "wid": 2.0, "hgt": 2.25, "wheel": 0.37},
 	&"truck": {"max": 24.0, "acc": 9.0, "brake": 28.0, "grip": 5.4, "hp": 260.0, "mass": 7500.0, "seats": 3, "model": "car_truck", "len": 6.4, "wid": 2.1, "hgt": 3.0, "wheel": 0.42},
+	# --- creature kit (tools/creature_kit.py, Quaternius space kit, CC0): a moon rover on four wheels and a hover skiff, both rare in the traffic mix.
+	&"rover": {"max": 26.0, "acc": 14.0, "brake": 34.0, "grip": 6.2, "hp": 170.0, "mass": 1900.0, "seats": 2, "model": "car_rover", "len": 2.3, "wid": 1.9, "hgt": 2.03, "wheel": 0.3},
+	&"skiff": {"cls": "hover", "max": 54.0, "acc": 26.0, "brake": 32.0, "grip": 2.0, "hp": 80.0, "mass": 900.0, "seats": 2, "model": "car_skiff", "len": 5.2, "wid": 1.85, "hgt": 1.4, "wheel": 0.3,
+		"hover_h": 0.6, "bob": 0.09, "drift": 1.1, "coast": 0.25, "steer": 1.2, "far": {"tint": Color(0.7, 0.85, 1.0), "speed": 1.2}},
 }
 ## Paints of the kinds that do not wear the random street palette (VehicleVisual.set_paint maps the random COLORS pick to an entry; a husk keeps WRECK_COLOR).
 const PALETTES := {
@@ -42,9 +46,9 @@ const BASE_STATS := {
 ## Cars of the original set (shader warm-up and legacy tests); streaming uses STREAM_KINDS.
 const KINDS: Array[StringName] = [&"sedan", &"sport", &"suv"]
 const KIND_WEIGHTS: Array[float] = [0.5, 0.25, 0.25]
-## Spawn weights of a streamed vehicle (sedan, sport, suv, bike, hover, taxi, wagon, van, truck). Patrols (vael_patrol) are never streamed, the manager adds them from heat 3.
-const STREAM_KINDS: Array[StringName] = [&"sedan", &"sport", &"suv", &"bike", &"hover", &"taxi", &"wagon", &"van", &"truck"]
-const STREAM_WEIGHTS: Array[float] = [0.24, 0.14, 0.12, 0.1, 0.1, 0.1, 0.06, 0.08, 0.06]
+## Spawn weights of a streamed vehicle (sedan, sport, suv, bike, hover, taxi, wagon, van, truck, rover, skiff). Patrols (vael_patrol) are never streamed, the manager adds them from heat 3.
+const STREAM_KINDS: Array[StringName] = [&"sedan", &"sport", &"suv", &"bike", &"hover", &"taxi", &"wagon", &"van", &"truck", &"rover", &"skiff"]
+const STREAM_WEIGHTS: Array[float] = [0.18, 0.14, 0.12, 0.1, 0.1, 0.1, 0.06, 0.08, 0.06, 0.03, 0.03]
 
 ## Live cars at once (starter car and a driven car included): LOW 3 / MED 5 / HIGH 8. Each legacy car costs about 10 draw calls.
 const CAPS: Array[int] = [3, 5, 8]

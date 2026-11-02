@@ -278,3 +278,8 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 - Tests pass: wave2_integration, progress, interior_gameplay, hud, hud_followups, options, touch, smoke, integration, soak_quick. Perf gate not run.
 - visual_qa 11/12: "hero" FAILS heuristic (sep=0.015, hero blends in) - may be pre-existing, not checked at previous commit.
 - Follow-ups: hero separation vs. background; title OPTIONS button looks clipped/overlapping the TEST badge (top right); shop has 7th row (weapon list +58 px) unchecked on phone size; no kit type is a vendor/mission interior; touch weapon select has no swipe cycle.
+
+## Wave 32: city kit and creature/flora/vehicle kit integration
+- City kit (facade bands, rooftop units, bollards/planters, drains, road markings; KC_NEAR 38 m) and creature kit (Alien/Demon/BlueDemon enemies, flora, rover/skiff, weapon pickup) merged. Tests pass incl. smoke set. Perf OK tiers 0-2.
+- visual_qa 11/12: "hero" FAIL (sep ~0.02) is pre-existing, verified at previous commit.
+- Follow-ups: facade bands/rooftop units/arrows only judged from one shot; health/energy pickups unchanged; meshes decimated by vertex clustering (no Blender); hero separation; title OPTIONS clip.

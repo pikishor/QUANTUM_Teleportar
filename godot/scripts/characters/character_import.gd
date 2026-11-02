@@ -16,12 +16,14 @@ const ANIM_KEYWORDS := {&"idle": ["idle", "stand", "breath"], &"walk": ["walk"],
 const TRI_BUDGET := {"hero": 18000, "enemy": 12000, "citizen": 4000}
 const TARGET_HEIGHT := {"hero": 1.8, "enemy": 1.85, "citizen": 1.75}
 const PALETTE := {"hero": Color(0.45, 0.8, 1.0), "enemy": Color(1.0, 0.45, 0.7), "citizen": Color(0.7, 0.75, 0.85)}
+## Per-role palette tint of the imported creature kit (quantum realism: muted body, the tint carries the species colour); a role not listed uses PALETTE of its class.
+const ROLE_TINT := {"enemy_alien": Color(0.45, 0.95, 0.75), "enemy_demon": Color(1.0, 0.5, 0.38), "enemy_bluedemon": Color(0.5, 0.65, 1.0)}
 const FALLBACK := {"hero": "player", "enemy": "operative", "citizen": "citizen"}
 const MAX_SURFACES := 4
 ## contract bone -> candidate base names (normalised: lower case, no prefix / side / separators), best first
 const ALIASES := {
 	&"Hips": ["hips", "pelvis", "hip"],
-	&"Torso": ["spine2", "chest", "upperchest", "spine003", "spine03", "spine1", "spine02", "spine"],
+	&"Torso": ["spine2", "chest", "upperchest", "spine003", "spine03", "spine1", "spine02", "spine", "torso", "abdomen"],
 	&"Head": ["head", "spine006"],
 	&"UpperArm": ["upperarm", "uparm", "arm"],
 	&"ForeArm": ["forearm", "lowerarm", "lowarm"],
@@ -223,10 +225,10 @@ static func limit_mesh(mesh: ArrayMesh, budget: int, info: Dictionary) -> ArrayM
 
 
 ## The quantum-realism skin for a role class; takes the albedo texture and colour of the source material when it has one.
-static func make_material(cls: String, source: Material, seed_value: float) -> ShaderMaterial:
+static func make_material(cls: String, source: Material, seed_value: float, role := "") -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = load("res://assets/shaders/character_quantum.gdshader")
-	m.set_shader_parameter(&"palette_tint", PALETTE.get(cls, Color.WHITE))
+	m.set_shader_parameter(&"palette_tint", ROLE_TINT.get(role, PALETTE.get(cls, Color.WHITE)))
 	m.set_shader_parameter(&"film_seed", seed_value)
 	var sm := source as BaseMaterial3D
 	if sm != null:
@@ -263,7 +265,7 @@ static func process(scene: Node3D, role: String) -> Dictionary:
 		var src_mat: Material = mi.get_active_material(0)
 		mi.mesh = lim
 		for s in lim.get_surface_count():
-			lim.surface_set_material(s, make_material(cls, src_mat, seed_value))
+			lim.surface_set_material(s, make_material(cls, src_mat, seed_value, role))
 		tris += int(minfo["tris"])
 		surfaces += lim.get_surface_count()
 		info["over"] = bool(info.get("over", false)) or bool(minfo["over"])

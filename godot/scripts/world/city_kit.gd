@@ -12,6 +12,7 @@ extends RefCounted
 
 const MB := preload("res://scripts/world/mesh_builder.gd")
 const Districts := preload("res://scripts/world/city_districts.gd")
+const KitWorld := preload("res://scripts/world/city_kit_world.gd")
 
 const PAINT_GAIN := 3.0
 const EM_BEACON := 0.30
@@ -40,7 +41,11 @@ const KIND_COUNT := 16                ## the new props (random, per-district pla
 const HYDRANT := 16                   ## folded families: the existing hydrants, lit kiosks and vent grates now ride in the same merged mesh (three draw calls less)
 const KIOSK_LIT := 17
 const VENT_GRATE := 18
-const TOTAL_KINDS := 19
+const FLORA_TREE := 19                ## creature kit flora (creature_kit.gd): trees, plants and rocks round the plazas, geometry from assets/models/kit_flora.glb
+const FLORA_PLANT := 20
+const FLORA_ROCK := 21
+const KC_FIRST := 22                  ## the city-kit kinds (city_kit_world.gd, Quaternius CC0 pieces): facade bands, rooftop units, street furniture, road markings
+const TOTAL_KINDS := KC_FIRST + KitWorld.COUNT
 
 const MODE_KERB := 1
 const MODE_ALLEY := 2
@@ -71,6 +76,21 @@ const KINDS: Array[Dictionary] = [
 	{"name": "Hydrant", "hw": 0.45, "hd": 0.45, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "fam": "Hydrants", "col": [2, Vector3(0.22, 0.85, 0.0), Vector3(0.0, 0.42, 0.0)]},
 	{"name": "KioskLit", "hw": 1.35, "hd": 1.0, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "fam": "Kiosks", "col": [0, Vector3(2.4, 2.6, 1.7), Vector3(0.0, 1.3, 0.0)]},
 	{"name": "VentGrate", "hw": 0.75, "hd": 0.5, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "fam": "VentGrates", "col": []},
+	{"name": "FloraTree", "hw": 0.7, "hd": 0.7, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "fam": "Flora", "col": []},
+	{"name": "FloraPlant", "hw": 0.5, "hd": 0.5, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "fam": "Flora", "col": []},
+	{"name": "FloraRock", "hw": 0.8, "hd": 0.8, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "fam": "Flora", "col": []},
+	{"name": "KcCornice", "hw": 2.0, "hd": 0.2, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "KcPilaster", "hw": 0.2, "hd": 0.2, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "KcWindow", "hw": 1.0, "hd": 0.2, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "KcAcUnit", "hw": 0.45, "hd": 0.2, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "KcBollard", "hw": 0.12, "hd": 0.12, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": [2, Vector3(0.12, 0.9, 0.0), Vector3(0.0, 0.45, 0.0)]},
+	{"name": "KcPlanter", "hw": 1.0, "hd": 1.0, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": [0, Vector3(2.0, 0.6, 2.0), Vector3(0.0, 0.3, 0.0)]},
+	{"name": "KcDrain", "hw": 0.3, "hd": 0.3, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "KcManhole", "hw": 0.5, "hd": 0.5, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "KcArrow", "hw": 1.0, "hd": 1.2, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "KcCrosswalk", "hw": 2.3, "hd": 2.7, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "KcDashLine", "hw": 6.0, "hd": 0.1, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "KcDoubleLine", "hw": 6.0, "hd": 0.2, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
 ]
 
 const CELL := 20.0
@@ -690,7 +710,69 @@ func build(props: RefCounted, layout: CityLayout, parts: Array[Dictionary]) -> v
 				var kind2 := _pick_kind(d2, MODE_ALLEY)
 				var yaw2 := (0.0 if along_x else PI * 0.5) + float(rng.randi() % 2) * PI + rng.randf_range(-0.12, 0.12)
 				_try_place(layout, kind2, pos2.x, pos2.y, yaw2)
+	_place_flora(layout)
+	_build_city_kit(layout)
 	_add_glow(props)
+
+
+## Park / plaza dressing of the creature kit: trees, plants and rocks in a ring round every plaza (own generator per plaza, the rest of the kit is unaffected).
+func _place_flora(layout: CityLayout) -> void:
+	for pl: Vector2 in layout.plazas:
+		for it in CreatureKit.ring(pl):
+			var pos: Vector2 = it["pos"]
+			var kind := FLORA_TREE + int(it["kind"])
+			var c := _cell_of(pos.x, pos.y)
+			var arr: PackedFloat32Array = cells[c]
+			arr.append_array(PackedFloat32Array([float(kind), pos.x, pos.y, float(it["yaw"]), float(it["seed"]), float(it["variant"])]))
+			cells[c] = arr
+			counts[c] += 1
+			placements.append({"kind": kind, "pos": Vector3(pos.x, 0.0, pos.y), "yaw": float(it["yaw"]), "district": Districts.at(pos.x, pos.y), "variant": int(it["variant"]), "seed": float(it["seed"])})
+			kind_count[kind] += 1
+			district_count[Districts.at(pos.x, pos.y)] += 1
+
+
+## City-kit placements (facade bands, rooftop units, road markings from city_kit_world.gd) plus kerb furniture (bollards, planters, drains, manholes).
+## Height rides in the variant slot: variant = (variant & 3) | (round(y * 4) << 2).
+func _build_city_kit(layout: CityLayout) -> void:
+	for it in KitWorld.layout_items(layout):
+		_add_raw(KC_FIRST + int(it["kind"]), it["x"], it["z"], it["yaw"], it["y"], int(it["variant"]))
+	var r2 := RandomNumberGenerator.new()
+	r2.seed = 190020
+	for i in CityLayout.N:
+		for j in CityLayout.N:
+			var base := Vector2(-CityLayout.HALF + (float(i) + 0.5) * CityLayout.PITCH, -CityLayout.HALF + (float(j) + 0.5) * CityLayout.PITCH)
+			for face in 4:
+				var nrm := Vector2(1, 0) if face == 0 else (Vector2(-1, 0) if face == 1 else (Vector2(0, 1) if face == 2 else Vector2(0, -1)))
+				var tan_v := Vector2(-nrm.y, nrm.x)
+				var yaw := atan2(nrm.x, nrm.y)
+				if r2.randf() < 0.6:                                              # a short row of bollards at the kerb
+					var v0 := r2.randf_range(-20.0, 20.0)
+					for b in 3:
+						var pb := base + nrm * 29.2 + tan_v * (v0 + float(b) * 1.8)
+						_try_place(layout, KC_FIRST + KitWorld.BOLLARD, pb.x, pb.y, yaw)
+				if r2.randf() < 0.3:
+					var pp := base + nrm * (30.0 - 1.45) + tan_v * r2.randf_range(-20.0, 20.0)
+					_try_place(layout, KC_FIRST + KitWorld.PLANTER, pp.x, pp.y, yaw)
+				if r2.randf() < 0.5:                                              # storm drain in the gutter
+					var pd := base + nrm * 30.35 + tan_v * r2.randf_range(-22.0, 22.0)
+					_add_raw(KC_FIRST + KitWorld.DRAIN, pd.x, pd.y, yaw, KitWorld.DECAL_Y, 0)
+				if r2.randf() < 0.35:                                             # manhole in the lane
+					var pm := base + nrm * 35.0 + tan_v * r2.randf_range(-22.0, 22.0)
+					_add_raw(KC_FIRST + KitWorld.MANHOLE, pm.x, pm.y, r2.randf() * TAU, KitWorld.DECAL_Y, 0)
+
+
+## A placement without spacing or lot tests (the caller knows it is clear): decals, facade bands, rooftop units.
+func _add_raw(kind: int, x: float, z: float, yaw: float, y: float, variant: int) -> void:
+	var d := Districts.at(x, z)
+	var packed := (variant & 3) | (int(round(y * 4.0)) << 2)
+	var c := _cell_of(x, z)
+	var arr: PackedFloat32Array = cells[c]
+	arr.append_array(PackedFloat32Array([float(kind), x, z, yaw, 0.5, float(packed)]))
+	cells[c] = arr
+	counts[c] += 1
+	placements.append({"kind": kind, "pos": Vector3(x, y, z), "yaw": yaw, "district": d, "variant": variant & 3, "seed": 0.5})
+	kind_count[kind] += 1
+	district_count[d] += 1
 
 
 func _add_glow(props: RefCounted) -> void:
@@ -724,6 +806,15 @@ func _add_glow(props: RefCounted) -> void:
 
 ## Cached geometry of (kind, level, district, variant); {} when the kind has no far level.
 func geo(kind: int, near: bool, d: int, variant: int) -> Dictionary:
+	if kind >= KC_FIRST:
+		if not near:
+			return {}
+		var ckey := ((kind * 4 + d) * 4 + (variant & 3)) + 100000
+		if not _geo.has(ckey):
+			_geo[ckey] = KitWorld.make_geo(kind - KC_FIRST, d, variant & 3, Districts.palette(d)["tint"])
+		return _geo[ckey]
+	if kind >= FLORA_TREE:
+		return CreatureKit.geo(kind, variant) if near else {}
 	if kind >= KIND_COUNT:
 		return _folded_geo.get(kind, {}) if near else {}
 	var key := ((kind * 2 + (1 if near else 0)) * 4 + d) * 4 + variant

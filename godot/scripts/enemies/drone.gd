@@ -570,7 +570,7 @@ func _line_clear(from: Vector3, to: Vector3) -> bool:
 # --- visuals --------------------------------------------------------------------------------------------------------
 
 func _build_visual() -> void:
-	var m := Game.load_model(String(cfg["model"]))
+	var m: Node3D = CharacterImport.instantiate(String(cfg["body"])) if cfg.has("body") else Game.load_model(String(cfg["model"]))   # "body": imported creature kit (assets_incoming/characters), falls back to the model
 	uses_model = m != null
 	if m == null:
 		m = _make_fallback()
