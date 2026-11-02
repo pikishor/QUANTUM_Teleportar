@@ -24,3 +24,11 @@ J Tech: J1 LOD + batching, J2 streaming, J3 Play Asset Delivery split, J4 PNG ic
 
 ## Order
 Wave 21 F1+B1, 22 G1+C1, 23 A1+D2, 24 B2+B3, 25 H1+H2, 26 E1+E2, 27 F2+F3, 28 C2+C3, then rotate tracks by owner feedback. Revisit after every owner test.
+
+## Wave process (from wave 27, owner-approved)
+- Builders: 2 low-effort agents, one narrow task each, each with a headless test.
+- Integrator (low effort): tools/import.sh; run only the tests touching changed code plus the quick smoke set (test_smoke, test_integration, test_hud, test_touch, test_soak_quick); full suite runs in GitHub CI on push.
+- Perf gate (PERF_CHECK=1 tools/perf_report.sh 0 1 2) only when a wave changes rendering (shaders, materials, models, lights, draw counts).
+- Visual QA step after the integrator: tools/visual_qa.sh shoots ~12 fixed spots, numeric checks, contact sheet to docs/shots/latest.png; fix defects or list follow-ups.
+- If CI turns red after a push, fix it before starting the next wave. Fresh-clone check + Android build every few waves.
+- Owner feedback after each build: FPS reading, 1-2 screenshots, one line on feel.
