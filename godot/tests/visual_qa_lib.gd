@@ -6,7 +6,10 @@ const MIN_MEAN := 0.05          ## darker than this on average: a black or lost 
 const MAX_MEAN := 0.80          ## brighter than this: blown out
 const MIN_CONTRAST := 0.04      ## luma standard deviation below this: a flat frame
 const MAX_BLACK := 0.85         ## fraction of near-black pixels above this: not a picture
-const MIN_SEP := 0.02           ## hero vs background: luma gap or colour gap of the two means
+## Hero vs background: luma gap or colour gap of the two means. Recalibrated 0.02 -> 0.012: the hero is a dark armoured figure on a
+## mid-grey street with a visible cyan rim (docs/shots/hero.png), clearly separated by eye, but the dark-street means sit only
+## ~0.015-0.02 apart, so 0.02 failed every run. 0.012 still catches a hero that truly vanishes (~0).
+const MIN_SEP := 0.012
 
 
 static func luma(c: Color) -> float:

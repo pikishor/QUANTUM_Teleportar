@@ -865,11 +865,12 @@ func _draw_hud_body() -> void:
 			elif st["active"]:
 				_rect(c, r, Color(tint, 0.22))
 			_frame(c, r, Color(tint, 0.8 * dim), 1.5 * s)
-			var label := "%s  %s" % [info["key"], info["label"]]
+			var suffix := ""
 			if st["active"]:
-				label += "  %d" % ceili(float(st["left"]))
+				suffix = "  %d" % ceili(float(st["left"]))
 			elif info["action"] == &"blink" and float(UiUtil.num(p.get("quantum"), &"cd_blink", 0.0)) > 0.0:
-				label += "  %.1f" % float(UiUtil.num(p.get("quantum"), &"cd_blink", 0.0))
+				suffix = "  %.1f" % float(UiUtil.num(p.get("quantum"), &"cd_blink", 0.0))
+			var label := UiUtil.ability_label(info, suffix, s)
 			_text(c, font, Vector2(r.position.x, r.position.y + 32.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, UiUtil.fit_size(font, label, r.size.x - 8.0 * s, int(UiUtil.BAR_LABEL * s)), Color(1, 1, 1, 0.97 * dim), 1.0 * s)
 	if playing:
 		_draw_quantum_readout(c, vp, s, font)

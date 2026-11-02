@@ -145,6 +145,12 @@ static func num(o: Object, prop: StringName, fallback: float) -> float:
 
 ## State of one quantum power: {on: bool (the module exists), ready: bool, low: bool (not enough energy), active: bool, cd: 0..1 (cooldown left), left: seconds the active effect has left}.
 ## Largest font size <= `size` at which `text` fits `width` px (never below 8).
+static func ability_label(info: Dictionary, suffix: String, s: float) -> String:
+	## On small viewports (s < 0.7, phones) the key letter is dropped so the name can stay readable.
+	var base := str(info["label"]) if s < 0.7 else "%s  %s" % [info["key"], info["label"]]
+	return base + suffix
+
+
 static func fit_size(font: Font, text: String, width: float, size: int) -> int:
 	var fs := size
 	while fs > 8 and font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x > width:

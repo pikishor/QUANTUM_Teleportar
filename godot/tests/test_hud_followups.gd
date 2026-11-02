@@ -20,9 +20,10 @@ func run(host: Node) -> void:
 		var w := 152.0 * s - 8.0 * s
 		var ok := true
 		for info: Dictionary in UiUtil.ABILITIES:
-			var label := "%s  %s  %d" % [info["key"], info["label"], 9]
-			var fs := UiUtil.fit_size(font, label, w, int(UiUtil.BAR_LABEL * s))
-			ok = ok and font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x <= w + 0.5
+			var label := UiUtil.ability_label(info, "  9", s)
+			var fs := UiUtil.fit_size(font, label, w * 0.9, int(UiUtil.BAR_LABEL * s))
+			## Fit with a 10 % margin (font metrics differ between machines); fit_size floors at 8, so also require a readable size.
+			ok = ok and fs >= 9 and font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x <= w * 0.9
 		TestLib.check(ok, "ability labels fit at %s" % str(vp))
 		var hud := Hud.new()
 		var btn := hud._options_btn(vp, s)
