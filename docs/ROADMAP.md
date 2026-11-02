@@ -1,47 +1,26 @@
-# Roadmap: from vertical slice to a premium mobile release
+# Roadmap to a AAA-feeling game (iteration plan, low-effort agents)
 
-This repo today is a **playable vertical slice** that proves the design (quantum powers, heat system, driving,
-objectives) in Three.js. GTA-/CoD-class visual quality needs content and a native pipeline, not only code.
+Honest limit: code-generated (procedural) art tops out around 5-6/10 next to GTA/CoD. Gameplay, feel, systems, audio and
+polish can improve a lot with code alone. Real character/vehicle art (licensed packs or an artist) is the one thing code cannot replace.
 
-## What code can and cannot deliver
-| Code and tooling (engineering) | Content (needs artists/vendors) |
-|---|---|
-| shooting, driving, AI, abilities, missions, UI | hero characters, weapons, vehicles, environments |
-| netcode, backend, anti-cheat, live-ops | mocap/animation sets, facial animation |
-| build/CI, tests, performance tuning | voice acting, music, sound design |
-| store packaging and release tooling | VFX, UI art, trailers, key art |
+Rules for every iteration (small, 1-2 agents, low effort): one focused change, a headless test, perf gate green, commit + push, no secrets.
+Quantum theme rule: effects and names are plain (QUANTUM TELEPORT, SUPERPOSITION, ENTANGLE, COLLAPSE); no lessons, no
+physics dialogue. Quantum is a gameplay verb set, not a lecture.
 
-## Engine decision (the biggest fork)
-**Decided (current): Godot 4 now, Unreal Engine 5 later.** Unreal was the first choice for its visual ceiling, but it cannot run in the
-cloud sandbox this project is built in (no GPU, no Epic download, no Mac). Godot 4 runs, renders and tests there end to end, ships to both
-stores, and has no royalties. It is not AAA-class engine tech; the plan is to ship a polished game on Godot and revisit Unreal when an art
-team and a GPU build machine exist. The design, tuning and tests carry over. `unreal/` stays as a parked scaffold.
-Original rationale for Unreal (kept for context): a dev machine with a GPU and the UE5 editor, macOS + Xcode or a macOS CI runner for iOS,
-an Epic account, and a content pipeline (artists/vendors/licensed assets).
+## Tracks (each wave = one small iteration; run tracks in rotation)
+A Gameplay feel: A1 aim assist/hit feedback/recoil, A2 cover + vaulting + climbing, A3 melee/takedowns, A4 dodge/slide/sprint stamina,
+  A5 hero abilities upgrade tree, A6 stealth + alert states, A7 combo/score multiplier, A8 difficulty options, A9 checkpoint/retry flow, A10 camera tuning.
+B Quantum verbs (core identity): B1 QUANTUM TELEPORT (aim-targeted, trail, slow-mo), B2 SUPERPOSITION decoy clone, B3 ENTANGLE swap places
+  with enemy/car/object, B4 COLLAPSE shockwave, B5 phase-through thin walls, B6 time-ghost rewind (short), B7 quantum grenade variants,
+  B8 puzzle doors/terminals using verbs, B9 enemy counters (suppressor fields), B10 boss fights built around verbs.
+C Weapons: C1 weapon feel (recoil patterns, sounds, muzzle), C2 8+ weapon classes, C3 attachments/mods, C4 alt-fire, C5 reload animations, C6 loot/shop/crafting, C7 weapon wheel UI.
+D Enemies/AI: D1 squad tactics, D2 cover use + flanking, D3 12+ enemy types, D4 elites/minibosses, D5 aerial/drone enemies, D6 faction patrols in districts, D7 enemy readability.
+E Vehicles: E1 handling tuning + drift, E2 vehicle weapons, E3 car customisation, E4 chases, E5 bikes/hover polish, E6 garage, E7 destruction.
+F World: F1 enter ALL buildings (every door), F2 more interior variety (30+ layouts), F3 rooftops traversal, F4 districts landmarks, F5 day/night cycle, F6 weather states, F7 city events, F8 side activities.
+G Player image: G1 hero silhouette/armour pass, G2 hero customisation (suits, colours), G3 first-person-ish aim camera polish, G4 animation set (cover, vault, takedown), G5 hero VFX (quantum glow).
+H UI/options: H1 settings (controls, sensitivity, layout editor), H2 HUD redesign, H3 map + waypoints, H4 inventory, H5 accessibility, H6 localisation scaffolding.
+I Content: I1 side missions x20, I2 collectibles, I3 achievements, I4 boss set pieces, I5 cutscene polish.
+J Tech: J1 LOD + batching, J2 streaming, J3 Play Asset Delivery split, J4 PNG icon, J5 phone profiling from owner reports, J6 crash/ANR safety.
 
-- **Current: Three.js in a WebView (Capacitor).** Fastest to iterate and test in a browser/CI, one codebase for both stores.
-  Lower ceiling for fidelity, draw distance and physics on phones.
-- **Native engine (Unity or Unreal).** Needed for console-adjacent fidelity: PBR materials, skinned/mocap characters,
-  baked lighting, streaming worlds, mobile GPU profilers. Unity is the usual mobile choice; Unreal gives a higher visual ceiling at a
-  larger build size and device floor. Requires the editor and (for iOS) macOS/Xcode.
-- **Design carries over:** the mechanics, tuning values, level logic and test plans in this repo are the blueprint either way.
-
-## Phases
-1. **Pre-production** – lock engine, art direction, rating target, platform floor (min devices), monetization, single- vs multiplayer.
-2. **Vertical slice (native engine)** – one district, one mission chain, final-quality character + weapon + vehicle, 60 fps on the target device.
-3. **Production** – content pipeline, open-world streaming, mission/story content, audio, localization.
-4. **Alpha/Beta** – device-farm QA, soft launch in a few regions, telemetry-driven balance.
-5. **Launch and live-ops** – store featuring, seasonal content, support.
-
-## How the build agents are run (cost control; agreed with the owner)
-Wave 1 measured about 82% of generated tokens as reasoning and about 15% as code, because every agent inherited the maximum reasoning effort.
-From wave 2 on the default is lean:
-- **Effort:** builders `high`, reviewers and mechanical fixes `medium`; `max` only for a stage that is genuinely hard (for example a rendering or physics design question).
-- **Scope:** several small agents with one clear deliverable each, not one agent per whole module; fresh contexts keep the per-step re-read of the conversation small.
-- **Caps:** at most about 20 screenshots viewed per agent, and a fixed polish budget (one polish pass after the tests pass, then report). Reviewers measure and report; they do not redesign.
-- **Safety:** never message an agent that a workflow runs (it forks a second copy that edits the same files); scratch files go in `<scratchpad>/<module>/` only; report token totals after every wave.
-- **Ceiling:** the owner can set a token ceiling at any time; the orchestrator stops at the next safe point.
-
-## Team roles to fill (typical for this scope)
-Game director, technical director, gameplay/engine/online engineers, technical artist, art director, character/environment/vehicle artists,
-animators (+ mocap vendor), VFX artist, level and mission designers, audio lead + composer, QA lead, producer, live-ops/analytics.
+## Order
+Wave 21 F1+B1, 22 G1+C1, 23 A1+D2, 24 B2+B3, 25 H1+H2, 26 E1+E2, 27 F2+F3, 28 C2+C3, then rotate tracks by owner feedback. Revisit after every owner test.
