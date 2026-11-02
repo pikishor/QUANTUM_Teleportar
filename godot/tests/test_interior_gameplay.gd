@@ -87,7 +87,7 @@ func _data() -> void:
 	TestLib.check(ok, "every interior plan keeps 3..5 actors, with 0, 1 or 2 followers")
 	for t: StringName in InteriorData.VENDOR_TYPES:
 		TestLib.check((InteriorData.STOCK[t] as Array).size() >= 2, "vendor %s has stock" % t)
-	TestLib.check(InteriorData.TYPES.size() == 10 and InteriorData.WEIGHTS.size() == 10, "ten interior types with weights")
+	TestLib.check(InteriorData.TYPES.size() == 16 and InteriorData.WEIGHTS.size() == 16 and InteriorData.TYPES.size() == InteriorKinds.TYPES.size(), "sixteen interior types (ten classic + six kit) with weights")
 	var wsum := 0.0
 	for w in InteriorData.WEIGHTS:
 		wsum += w

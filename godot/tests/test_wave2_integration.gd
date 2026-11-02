@@ -82,10 +82,26 @@ func run(h: Node) -> void:
 	var qb := em.spawn(&"sentinel", Game.SPAWN + Vector3(19.0, 0.0, -3.0), false)
 	p.camera_rig.aim_at(qa.center())
 	await frames(3)
-	TestLib.check(q.entangle() and qa.linked == qb and qb.linked == qa, "entangle links two drones in the city")
+	TestLib.check(q.link_drones() and qa.linked == qb and qb.linked == qa, "link_drones links two drones in the city")
 	var qhp := qb.hp
 	qa.damage(12.0)
 	TestLib.check(absf(qb.hp - (qhp - 12.0)) < 0.01, "damage to one linked drone reaches the other")
+	# ENTANGLE is the swap ability: it trades places with a target in sight
+	em.clear()
+	p.energy = 100.0
+	q.cd_link = 0.0
+	p.teleport_to(Game.SPAWN)
+	p.camera_rig.reset_view(-PI * 0.5, -0.1)
+	await frames(4)
+	var qs := em.spawn(&"sentinel", Game.SPAWN + Vector3(14.0, 0.0, 2.0), false)
+	p.camera_rig.aim_at(qs.center())
+	await frames(3)
+	var from := p.global_position
+	var tpos := qs.global_position
+	var e0 := p.energy
+	TestLib.check(q.entangle() and p.energy < e0 and q.cd_link > 0.0, "entangle swaps with a target in sight and costs coherence")
+	await frames(4)
+	TestLib.check(p.global_position.distance_to(tpos) < 1.0 and qs.global_position.distance_to(from) < 4.0, "the player and the drone traded places (player %.1f m from the drone's old spot, drone %.1f m from the player's)" % [p.global_position.distance_to(tpos), qs.global_position.distance_to(from)])
 	q.cd_super = 0.0
 	TestLib.check(q.superpose() and q.clone != null and p.speed_boost == 1.3 and em.get_clone() == q.clone, "superposition leaves a clone the enemies can see, with the speed boost")
 	var cpos := q.clone.global_position

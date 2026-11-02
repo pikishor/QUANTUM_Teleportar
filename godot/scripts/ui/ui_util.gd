@@ -144,6 +144,14 @@ static func num(o: Object, prop: StringName, fallback: float) -> float:
 
 
 ## State of one quantum power: {on: bool (the module exists), ready: bool, low: bool (not enough energy), active: bool, cd: 0..1 (cooldown left), left: seconds the active effect has left}.
+## Largest font size <= `size` at which `text` fits `width` px (never below 8).
+static func fit_size(font: Font, text: String, width: float, size: int) -> int:
+	var fs := size
+	while fs > 8 and font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x > width:
+		fs -= 1
+	return fs
+
+
 static func ability_state(player: Node, info: Dictionary) -> Dictionary:
 	var q: Object = player.get("quantum") if is_instance_valid(player) else null
 	if q == null:
@@ -159,7 +167,11 @@ static func ability_state(player: Node, info: Dictionary) -> Dictionary:
 		&"entangle":
 			var links: Variant = q.get("links")
 			active = links is Array and not (links as Array).is_empty()
-			if active:
+			var swl := num(q, &"_swap_left", 0.0)
+			if swl > 0.0:
+				active = true
+				remaining = swl
+			if links is Array:
 				for l: Variant in links as Array:
 					remaining = maxf(remaining, float((l as Dictionary).get("t", 0.0)))
 		&"superpose":

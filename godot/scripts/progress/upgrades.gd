@@ -2,11 +2,11 @@ class_name Upgrades
 extends RefCounted
 ## The shop's maths and the live upgrade state. Pure data plus static helpers, so the player, the weapon, the quantum module and the tests all read the same numbers.
 ##
-## Six upgrades with MAX_LEVEL levels each. `levels` is the live state (set by Progress when a save loads, an upgrade is bought or a contract grants one);
+## Seven upgrades with MAX_LEVEL levels each. `levels` is the live state (set by Progress when a save loads, an upgrade is bought or a contract grants one);
 ## nothing here touches the scene tree. Other modules read the multipliers (damage_mult, reload_mult, ...), which are neutral (1.0 / 0) at level 0.
 ## Prices: cost(id, level) = base * (1 + 0.8 * level), rounded to 5; price() applies the reputation discount (Progress.rep_discount) and rounds to 5.
 
-const IDS: Array[StringName] = [&"damage", &"mag", &"reload", &"blink", &"regen", &"armour"]
+const IDS: Array[StringName] = [&"damage", &"mag", &"reload", &"blink", &"regen", &"armour", &"decoy"]
 const MAX_LEVEL := 5
 
 const DATA := {
@@ -16,6 +16,7 @@ const DATA := {
 	&"blink": {"name": "BLINK RANGE", "base": 200, "per": 8.0},          ## +8 m per level (48 -> 88 m)
 	&"regen": {"name": "COHERENCE REGEN", "base": 200, "per": 0.20},     ## +20 % coherence regeneration per level
 	&"armour": {"name": "ARMOUR", "base": 260, "per": 0.08},             ## -8 % damage taken per level (-40 % at the top)
+	&"decoy": {"name": "DECOY TIME", "base": 180, "per": 0.5},          ## +0.5 s SUPERPOSITION clone lifetime per level
 }
 
 const MAG_BASE := 30
@@ -64,9 +65,9 @@ static func reload_mult() -> float:
 	return maxf(RELOAD_FLOOR, 1.0 - float(DATA[&"reload"]["per"]) * level(&"reload"))
 
 
-## Extra SUPERPOSITION decoy lifetime in seconds. Hook for a future shop row (id &"decoy", not in IDS yet): neutral 0 until then.
+## Extra SUPERPOSITION decoy lifetime in seconds (shop row &"decoy"): neutral 0 at level 0.
 static func decoy_bonus() -> float:
-	return float(levels.get(&"decoy", 0)) * 0.5
+	return float(DATA[&"decoy"]["per"]) * level(&"decoy")
 
 
 ## Extra blink range in metres.
@@ -119,4 +120,5 @@ static func _value_text(id: StringName, lvl: int) -> String:
 		&"blink": return "%d M BLINK" % roundi(BLINK_BASE + per * lvl)
 		&"regen": return "%d%% REGEN" % roundi(100.0 + per * 100.0 * lvl)
 		&"armour": return "%d%% DAMAGE TAKEN" % roundi((1.0 - per * lvl) * 100.0)
+		&"decoy": return "+%.1f S DECOY" % (per * lvl)
 	return ""

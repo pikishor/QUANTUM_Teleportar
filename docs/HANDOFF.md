@@ -272,3 +272,9 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 - Integration fixes: Overseer constants renamed (OV_PULSE_WIND) to avoid clash with Specialist; test_weapons counts updated to 8; shop weapon buttons 40 px.
 - Visual QA 12/12 pass. Perf gate not run.
 - Follow-ups: test_wave2_integration entangle checks fail (also at HEAD before this wave); no keys 5-8 for new weapons; shop/loadout layouts not visually reviewed; no flicker/phase shader or tell meshes for new enemies; walker shell has no ground marker; patrols and kill_target do not use new types; swarmers spawn singly.
+
+## Wave 31: fix wave2 test, wire kit interiors, HUD follow-ups
+- test_wave2_integration fixed (ENTANGLE swap checks); 6 kit interior types now in InteriorData weights (city doors); DECOY TIME upgrade row; HUD ability labels fit (UiUtil.fit_size); OPTIONS moved above title; keys 5-8 bound; ENTANGLE active during swap.
+- Tests pass: wave2_integration, progress, interior_gameplay, hud, hud_followups, options, touch, smoke, integration, soak_quick. Perf gate not run.
+- visual_qa 11/12: "hero" FAILS heuristic (sep=0.015, hero blends in) - may be pre-existing, not checked at previous commit.
+- Follow-ups: hero separation vs. background; title OPTIONS button looks clipped/overlapping the TEST badge (top right); shop has 7th row (weapon list +58 px) unchecked on phone size; no kit type is a vendor/mission interior; touch weapon select has no swipe cycle.

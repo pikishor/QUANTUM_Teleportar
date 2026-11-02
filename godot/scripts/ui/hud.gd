@@ -870,7 +870,7 @@ func _draw_hud_body() -> void:
 				label += "  %d" % ceili(float(st["left"]))
 			elif info["action"] == &"blink" and float(UiUtil.num(p.get("quantum"), &"cd_blink", 0.0)) > 0.0:
 				label += "  %.1f" % float(UiUtil.num(p.get("quantum"), &"cd_blink", 0.0))
-			_text(c, font, Vector2(r.position.x, r.position.y + 32.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.97 * dim), 1.0 * s)
+			_text(c, font, Vector2(r.position.x, r.position.y + 32.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, UiUtil.fit_size(font, label, r.size.x - 8.0 * s, int(UiUtil.BAR_LABEL * s)), Color(1, 1, 1, 0.97 * dim), 1.0 * s)
 	if playing:
 		_draw_quantum_readout(c, vp, s, font)
 		_draw_tutorial(c, vp, s, font)
@@ -1078,7 +1078,7 @@ func _title_shift() -> float:
 
 ## The OPTIONS button: top right of the title and pause screens, 64 px tall.
 func _options_btn(vp: Vector2, s: float) -> Rect2:
-	return Rect2(vp.x - UiUtil.insets(vp).y - 196.0 * s, 90.0 * s, 180.0 * s, UiUtil.TOUCH_MIN * s)
+	return Rect2(vp.x - UiUtil.insets(vp).y - 196.0 * s, 6.0 * s, 180.0 * s, UiUtil.TOUCH_MIN * s)
 
 
 func _settings_rows(cx: float, y: float, s: float) -> void:

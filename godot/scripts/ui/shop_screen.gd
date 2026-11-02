@@ -1,6 +1,6 @@
 class_name ShopScreen
 extends RefCounted
-## The upgrade shop of the pause menu (Hud draws it when `_shop_open`): six rows (name, level pips, what the next level changes, a BUY button with the price after the
+## The upgrade shop of the pause menu (Hud draws it when `_shop_open`): seven rows (name, level pips, what the next level changes, a BUY button with the price after the
 ## reputation discount) and a BACK button. Buttons are ordinary Hud screen buttons: `buy_<id>`, `shop_back`; the purchase itself is Progress.buy(). Pure layout and drawing,
 ## no state of its own; every number comes from Upgrades and Progress.
 

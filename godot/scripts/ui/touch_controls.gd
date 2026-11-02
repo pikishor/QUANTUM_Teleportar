@@ -386,6 +386,7 @@ func _draw_ui() -> void:
 			glows.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, 0.35)])
 		sprites.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, (1.0 if on else 0.85) * dim)])
 		var fs := int(b.get("fs", 26))
+		fs = mini(fs, int(UiUtil.fit_size(font, str(b["label"]), r * 2.0 - 6.0 * s, int(float(fs) * s)) / s))
 		labels.append([centre + Vector2(-r, float(fs) * 0.36 * s), str(b["label"]), r * 2.0, dim, fs])
 	for g: Array in glows:
 		c.draw_texture_rect(UiUtil.sprite(&"disc"), g[0], false, g[1])

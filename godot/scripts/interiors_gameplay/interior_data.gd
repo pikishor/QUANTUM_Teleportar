@@ -3,7 +3,7 @@ extends RefCounted
 ## Plain data of the interior gameplay: door types and names, actor budgets, vendor stock, rumours, mission definitions and the interior radio lines.
 ## Nothing here touches the scene tree; tests/test_interior_gameplay.gd checks the limits (radio lines fit a phone screen, actor budgets stay in 3..5).
 
-const TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"club", &"lobby", &"apartment", &"checkpoint", &"bodega", &"warehouse"]
+const TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"club", &"lobby", &"apartment", &"checkpoint", &"bodega", &"warehouse", &"corridor_lab", &"teleporter_hall", &"server_room", &"cargo_bay", &"med_bay", &"control_room"]
 const VENDOR_TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"bodega"]
 const MISSION_TYPES: Array[StringName] = [&"lobby", &"apartment", &"club", &"checkpoint"]
 const ACTOR_CAP := 5
@@ -12,12 +12,14 @@ const ACTOR_MIN := 3
 const TITLES := {
 	&"weapons": "ARMS DEALER", &"clinic": "CLINIC", &"tech": "TECH DEN", &"bar": "BAR", &"club": "CLUB",
 	&"lobby": "OFFICE LOBBY", &"apartment": "APARTMENT", &"checkpoint": "VAEL CHECKPOINT", &"bodega": "CORNER STORE", &"warehouse": "WAREHOUSE",
+	&"corridor_lab": "LAB CORRIDOR", &"teleporter_hall": "TELEPORTER HALL", &"server_room": "SERVER ROOM", &"cargo_bay": "CARGO BAY", &"med_bay": "MED BAY", &"control_room": "CONTROL ROOM",
 }
 ## Door glow colours: vendors cyan, bars amber, mission interiors magenta (club, lobby, apartment) / red (Vael checkpoint).
 const COLORS := {
 	&"weapons": Color(0.35, 0.95, 1.0), &"clinic": Color(0.4, 1.0, 0.6), &"tech": Color(0.5, 0.7, 1.0), &"bar": Color(1.0, 0.72, 0.25),
 	&"club": Color(1.0, 0.25, 0.75), &"lobby": Color(1.0, 0.45, 0.9), &"apartment": Color(1.0, 0.6, 0.35), &"checkpoint": Color(1.0, 0.3, 0.32),
 	&"bodega": Color(0.7, 1.0, 0.45), &"warehouse": Color(0.8, 0.8, 0.9),
+	&"corridor_lab": Color(0.45, 0.9, 1.0), &"teleporter_hall": Color(0.7, 0.55, 1.0), &"server_room": Color(0.35, 1.0, 0.85), &"cargo_bay": Color(0.9, 0.8, 0.5), &"med_bay": Color(0.5, 1.0, 0.75), &"control_room": Color(1.0, 0.55, 0.4),
 }
 const NAME_A: Array[String] = ["KESTREL", "NEON", "ROOK", "HALCYON", "SILT", "ORBIT", "VANTA", "CINDER", "TIDE", "LUMEN", "SABLE", "ARC"]
 const NAME_B := {
@@ -25,10 +27,12 @@ const NAME_B := {
 	&"bar": ["BAR", "TAP", "LOUNGE", "CANTINA"], &"club": ["CLUB", "PIT", "HALL", "ROOM"], &"lobby": ["TOWER", "HOLDINGS", "PLAZA", "OFFICES"],
 	&"apartment": ["APARTMENTS", "FLATS", "COURT", "BLOCK"], &"checkpoint": ["CHECKPOINT", "GATE", "POST", "STATION"],
 	&"bodega": ["MARKET", "GROCERY", "CORNER", "MART"], &"warehouse": ["STORAGE", "FREIGHT", "DEPOT", "YARD"],
+	&"corridor_lab": ["LAB", "RESEARCH", "ANNEX", "LABS"], &"teleporter_hall": ["TRANSIT", "GATEWAY", "RELAY", "HALL"], &"server_room": ["DATA", "SERVERS", "NODE", "CORE"],
+	&"cargo_bay": ["CARGO", "DOCK", "BAY", "HOLD"], &"med_bay": ["MEDICAL", "CARE BAY", "SURGERY", "BAY"], &"control_room": ["CONTROL", "COMMAND", "OPS", "DESK"],
 }
 
 ## Door type weights (sum 1.0), used by CityDoors in the world module.
-const WEIGHTS: Array[float] = [0.14, 0.11, 0.11, 0.14, 0.09, 0.09, 0.10, 0.07, 0.09, 0.06]
+const WEIGHTS: Array[float] = [0.115, 0.09, 0.09, 0.115, 0.075, 0.075, 0.08, 0.06, 0.075, 0.05, 0.03, 0.03, 0.03, 0.03, 0.03, 0.025]
 
 
 static func title(type: StringName) -> String:
@@ -74,6 +78,12 @@ const PLAN := {
 	&"checkpoint": {"vendor": 0, "civilians": 0, "guards": 3},
 	&"bodega": {"vendor": 1, "civilians": 3, "guards": 0},
 	&"warehouse": {"vendor": 0, "civilians": 1, "guards": 3},
+	&"corridor_lab": {"vendor": 0, "civilians": 2, "guards": 1},
+	&"teleporter_hall": {"vendor": 0, "civilians": 1, "guards": 3},
+	&"server_room": {"vendor": 0, "civilians": 1, "guards": 2},
+	&"cargo_bay": {"vendor": 0, "civilians": 1, "guards": 3},
+	&"med_bay": {"vendor": 0, "civilians": 3, "guards": 0},
+	&"control_room": {"vendor": 0, "civilians": 1, "guards": 3},
 }
 
 
