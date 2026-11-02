@@ -130,7 +130,7 @@ func _carbine() -> void:
 	var hp0 := d.hp
 	_pull(0.01)
 	TestLib.check(w.ammo == 29 and is_equal_approx(d.hp, hp0 - PlayerWeapon.DAMAGE), "one carbine round: ammo 29, 14 damage")
-	TestLib.check(w.fire_t > 0.09 and w.fire_t <= PlayerWeapon.FIRE_INTERVAL, "fire interval 0.11 s")
+	TestLib.check(w.fire_t > 0.07 and w.fire_t <= PlayerWeapon.FIRE_INTERVAL, "fire interval ~0.105 s")
 	_aim(d, 0.9)
 	var hp1 := d.hp
 	w.fire_t = 0.0

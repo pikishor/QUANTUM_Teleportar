@@ -11,25 +11,29 @@ const IDS: Array[StringName] = [&"carbine", &"scatter", &"lance", &"grenade"]
 
 const DEFS := {
 	&"carbine": {
-		"name": "RIFT CARBINE", "tag": "CRB", "kind": "hit", "mag": 30, "reserve": -1, "interval": 0.11, "damage": 14.0, "crit": 30.0, "pellets": 1,
+		"name": "RIFT CARBINE", "tag": "CRB", "kind": "hit", "mag": 30, "reserve": -1, "interval": 0.105, "damage": 14.0, "crit": 30.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.3, 1.0), Vector2(-0.5, 0.9), Vector2(0.6, 0.85), Vector2(-0.2, 0.8), Vector2(-0.7, 0.8)], "shake": 0.03, "vol": -2.0, "pitch_lo": 0.93, "pitch_hi": 1.07, "eject": 1, "flash": 1.0, "ads_kick": 0.65, "ads_spread": 0.3,
 		"spread_hip": 0.014, "spread_ads": 0.004, "spread_move": 0.010, "bloom": 0.0032, "bloom_max": 0.03,
 		"kick": 0.0095, "kick_end": 0.0055, "kick_yaw": 0.0035, "reload": 1.3, "range": 220.0, "falloff_from": 9999.0,
 		"tracer": Color(1.0, 0.86, 0.5), "look": Color(1.0, 0.7, 0.3), "look_size": Vector3(0.035, 0.035, 0.5), "zoom": 62.0, "price": 0, "pierce_shield": false,
 	},
 	&"scatter": {
-		"name": "SHARD SCATTER", "tag": "SCT", "kind": "hit", "mag": 6, "reserve": 36, "interval": 0.72, "damage": 9.0, "crit": 18.0, "pellets": 8,
+		"name": "SHARD SCATTER", "tag": "SCT", "kind": "hit", "mag": 6, "reserve": 36, "interval": 0.8, "damage": 9.0, "crit": 18.0, "pellets": 8,
+		"pattern": [Vector2(0.0, 1.0), Vector2(-0.4, 1.15), Vector2(0.4, 1.15)], "shake": 0.14, "vol": 2.0, "pitch_lo": 0.5, "pitch_hi": 0.62, "eject": 0, "flash": 1.7, "ads_kick": 0.8, "ads_spread": 0.67,
 		"spread_hip": 0.075, "spread_ads": 0.05, "spread_move": 0.015, "bloom": 0.0, "bloom_max": 0.0,
 		"kick": 0.042, "kick_end": 0.042, "kick_yaw": 0.012, "reload": 1.9, "range": 38.0, "falloff_from": 12.0,
 		"tracer": Color(0.45, 1.0, 0.82), "look": Color(0.3, 1.0, 0.75), "look_size": Vector3(0.1, 0.07, 0.34), "zoom": 56.0, "price": 500, "pierce_shield": false,
 	},
 	&"lance": {
-		"name": "PULSE LANCE", "tag": "LNC", "kind": "charge", "mag": 5, "reserve": 20, "interval": 0.45, "damage": 120.0, "crit": 200.0, "pellets": 1,
+		"name": "PULSE LANCE", "tag": "LNC", "kind": "charge", "mag": 5, "reserve": 20, "interval": 0.5, "damage": 120.0, "crit": 200.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0)], "shake": 0.22, "vol": 0.0, "pitch_lo": 0.66, "pitch_hi": 0.76, "eject": 0, "flash": 2.0, "ads_kick": 0.5, "ads_spread": 0.05,
 		"spread_hip": 0.012, "spread_ads": 0.0006, "spread_move": 0.02, "bloom": 0.0, "bloom_max": 0.0, "charge_time": 1.1, "min_charge": 0.35,
 		"kick": 0.05, "kick_end": 0.05, "kick_yaw": 0.004, "reload": 2.2, "range": 420.0, "falloff_from": 9999.0,
 		"tracer": Color(0.4, 0.72, 1.0), "look": Color(0.35, 0.6, 1.0), "look_size": Vector3(0.025, 0.025, 0.75), "zoom": 24.0, "price": 800, "pierce_shield": true,
 	},
 	&"grenade": {
 		"name": "SINGULARITY GRENADE", "tag": "GRN", "kind": "throw", "mag": 1, "reserve": 5, "interval": 0.9, "damage": 80.0, "crit": 80.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0)], "shake": 0.05, "vol": -4.0, "pitch_lo": 0.9, "pitch_hi": 1.1, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
 		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0,
 		"kick": 0.012, "kick_end": 0.012, "kick_yaw": 0.0, "reload": 1.4, "range": 60.0, "falloff_from": 9999.0,
 		"tracer": Color(0.8, 0.45, 1.0), "look": Color(0.75, 0.35, 1.0), "look_size": Vector3(0.12, 0.12, 0.12), "zoom": 62.0, "price": 650, "pierce_shield": true,
@@ -48,6 +52,12 @@ static var last_used: StringName = &"carbine"
 
 static func def(id: StringName) -> Dictionary:
 	return DEFS[id] if DEFS.has(id) else DEFS[&"carbine"]
+
+
+## Recoil pattern step for the nth shot of a burst: x = yaw multiplier (-1 left .. 1 right), y = pitch multiplier. The pattern repeats, so each weapon climbs the same way every burst.
+static func pattern_at(id: StringName, n: int) -> Vector2:
+	var pat: Array = def(id)["pattern"]
+	return pat[posmod(n, pat.size())]
 
 
 static func title(id: StringName) -> String:

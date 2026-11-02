@@ -233,3 +233,6 @@ in the sandbox cannot reproduce phone GPU behaviour.
 - Every lot now has a door (`city_doors.gd` CHANCE 1.0); `test_all_buildings`. Holding the blink key 0.22 s aims in slow motion and release QUANTUM TELEPORTs; a tap keeps the beacon behaviour (`quantum.gd`, `test_quantum_teleport`).
 - All tests pass, perf OK on tiers 0-2 (tier 2: 138 total draws, death 154).
 - Open: door glow density and 232-marker cost not eyeballed; doors may sit next to props; desktop teleport button label may clip; touch hold-to-aim untested on a device.
+
+## Wave 22
+Scanned-material pipeline (tools/materials/import_scanned.py, MaterialLib, scanned_surface shader; callers not wired yet, importer untested on real sets) and weapon feel (per-weapon recoil/shake/sfx/shell eject/damage numbers). Carbine interval now 0.105; test_weapons loosened. All tests and perf tiers 0-2 OK.

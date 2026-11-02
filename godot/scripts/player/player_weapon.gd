@@ -35,7 +35,9 @@ const BLOOM_RECOVER := 0.08                  ## per second
 const RECOIL_START := 0.0095                 ## camera kick per shot (radians): first shots kick hardest, settling toward RECOIL_END
 const RECOIL_END := 0.0055
 const RECOIL_YAW := 0.0035
-const RECOIL_ADS_SCALE := 0.65
+const RECOIL_ADS_SCALE := 0.65               ## (kept for reference, now per weapon: def "ads_kick")
+const NUMBER_POOL := 8
+const NUMBER_LIFE := 0.7
 const BURST_RESET := 0.35
 
 const TRACER_COLOR := Color(1.0, 0.86, 0.5)
@@ -74,6 +76,11 @@ var _mags := {}                              ## weapon id -> magazine size last 
 var _grenades: Array[Dictionary] = []
 var _grenade_mat: StandardMaterial3D
 var _charge_fx := 0.0
+var shells_ejected := 0                      ## lifetime counters for tests
+var numbers_spawned := 0
+var _numbers: Array[Label3D] = []
+var _number_t: Array[float] = []
+var _number_i := 0
 
 
 func _ready() -> void:
@@ -266,6 +273,7 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 			reserve = maxi(reserve, int(def["reserve"]))
 	fire_t -= dt
 	_since_shot += dt
+	_tick_numbers(dt)
 	swap_t = maxf(0.0, swap_t - dt)
 	if reload_t > 0.0:
 		reload_t -= dt
@@ -293,7 +301,7 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 	if _since_shot > BURST_RESET:
 		_burst = 0
 	_move_spread = PlayerUtil.damp(_move_spread, float(def["spread_move"]) if moving else 0.0, 12.0, dt)
-	spread = (float(def["spread_ads"]) if aiming else float(def["spread_hip"])) + bloom + _move_spread
+	spread = (float(def["spread_ads"]) if aiming else float(def["spread_hip"])) + bloom * (float(def["ads_spread"]) if aiming else 1.0) + _move_spread
 
 
 ## Dispersion applied to a unit direction: uniform inside a cone of half angle `angle` around `dir`, using the camera basis.
@@ -317,12 +325,14 @@ func _aim_ray(sp: float) -> Array:
 func _recoil(aiming: bool) -> void:
 	var rig := _player.camera_rig
 	var k := clampf(float(_burst - 1) / 10.0, 0.0, 1.0)
-	var kick := lerpf(float(def["kick"]), float(def["kick_end"]), k) * randf_range(0.85, 1.15)
-	var kick_yaw := randf_range(-1.0, 1.0) * float(def["kick_yaw"])
+	var step := WeaponDefs.pattern_at(current, _burst - 1)
+	var kick := lerpf(float(def["kick"]), float(def["kick_end"]), k) * step.y * randf_range(0.92, 1.08)
+	var kick_yaw := (step.x + randf_range(-0.15, 0.15)) * float(def["kick_yaw"])
 	if aiming:
-		kick *= RECOIL_ADS_SCALE
-		kick_yaw *= RECOIL_ADS_SCALE
+		kick *= float(def["ads_kick"])
+		kick_yaw *= float(def["ads_kick"])
 	rig.kick(kick, kick_yaw)
+	FX.shake(float(def["shake"]) * (0.6 if aiming else 1.0))
 	rig.punch(0.03 if String(def["kind"]) == "hit" and int(def["pellets"]) == 1 else 0.07)
 	bloom = minf(float(def["bloom_max"]), bloom + float(def["bloom"]))
 
@@ -337,14 +347,14 @@ func _shoot(dt: float, aiming: bool) -> void:
 	_since_shot = 0.0
 	_burst += 1
 	var pellets := int(def["pellets"])
+	Sfx.play(&"shot", float(def["vol"]), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
 	if pellets > 1:
-		Sfx.play(&"shot", 2.0, randf_range(0.5, 0.6))
-		Sfx.play(&"explosion_small", -8.0, 1.5)
-	else:
-		Sfx.play(&"shot", -2.0, randf_range(0.95, 1.05))
+		Sfx.play(&"explosion_small", -8.0, randf_range(1.4, 1.6))
+	if int(def["eject"]) > 0:
+		_eject_shell()
 	for i in pellets:
 		_trace_pellet()
-	p.body.fire_flash(1.0 if pellets == 1 else 1.7)
+	p.body.fire_flash(float(def["flash"]))
 	_recoil(aiming)
 	p.fired.emit()
 
@@ -463,6 +473,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 	p.last_hit_kill = kill
 	p.last_hit_crit = crit
 	p.hit_confirmed.emit(kill, crit)
+	_damage_number(hit, float(def["damage"]) * k * Upgrades.damage_mult() if not crit else float(def["crit"]) * k * Upgrades.damage_mult(), crit, kill)
 	if _sparks != null:
 		if is_vehicle:
 			_sparks.impact_machine(hit, n)
@@ -472,6 +483,57 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 			_sparks.impact_person(hit, n)
 		else:
 			_sparks.impact_machine(hit, n)
+
+
+## A spent casing popped out of the rifle (a tiny pooled spark burst, no nodes).
+func _eject_shell() -> void:
+	if _player == null or _player.body == null or _player.body.muzzle == null:
+		return
+	shells_ejected += 1
+	var side := _player.camera_rig.camera.global_basis.x
+	FX.burst(_player.body.muzzle.global_position - side * -0.12, Color(1.0, 0.8, 0.35), 1, 2.2, 0.45, 9.0, 0.5)
+
+
+## Floating damage number at a hit: a pooled Label3D (8 of them), crits larger and gold, a kill red, it rises and fades in 0.7 s.
+func _damage_number(pos: Vector3, amount: float, crit: bool, kill: bool) -> void:
+	if _player == null:
+		return
+	if _numbers.is_empty():
+		for i in NUMBER_POOL:
+			var l := Label3D.new()
+			l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			l.no_depth_test = true
+			l.fixed_size = true
+			l.pixel_size = 0.0012
+			l.outline_size = 6
+			l.top_level = true
+			l.visible = false
+			_player.add_child(l)
+			_numbers.append(l)
+			_number_t.append(0.0)
+	var i := _number_i
+	_number_i = (_number_i + 1) % NUMBER_POOL
+	var l := _numbers[i]
+	l.text = str(int(roundf(amount)))
+	l.font_size = 40 if crit else 28
+	l.modulate = Color(1.0, 0.85, 0.3) if crit else (Color(1.0, 0.35, 0.3) if kill else Color(1.0, 1.0, 1.0))
+	l.global_position = pos + Vector3(randf_range(-0.2, 0.2), 0.3, 0.0)
+	l.visible = true
+	_number_t[i] = NUMBER_LIFE
+	numbers_spawned += 1
+
+
+func _tick_numbers(dt: float) -> void:
+	for i in _numbers.size():
+		if _number_t[i] <= 0.0:
+			continue
+		_number_t[i] -= dt
+		var l := _numbers[i]
+		if _number_t[i] <= 0.0:
+			l.visible = false
+		else:
+			l.global_position += Vector3(0.0, 1.2 * dt, 0.0)
+			l.modulate.a = clampf(_number_t[i] / (NUMBER_LIFE * 0.5), 0.0, 1.0)
 
 
 func _hit_world(hit: Vector3, normal: Vector3) -> void:
@@ -549,7 +611,7 @@ func _fire_lance(c: float, aiming: bool) -> void:
 	var end := origin + dir * wall_t
 	FX.tracer(mz, end, def["tracer"])
 	FX.tracer(mz, end, Color(1.0, 1.0, 1.0))
-	p.body.fire_flash(2.0)
+	p.body.fire_flash(float(def["flash"]))
 	for v: Array in victims:
 		var e: Node = v[1]
 		if is_instance_valid(e) and not _is_dead(e):
