@@ -45,6 +45,7 @@ var _obj_text := ""
 var _cred_text := ""
 var _contract_text := ""
 var _shop_open := false             ## the pause screen shows the upgrade shop instead of the settings
+var _options_open := false          ## the title / pause screen shows the options (scripts/ui/options_screen.gd)
 var _chapters_open := false         ## the title / pause screen shows the chapter select (scripts/ui/chapter_select.gd)
 var _camp_text := ""                ## the scripted campaign step's HUD line (CampaignRunner.hud_line), "" when none runs
 var _has_save := false              ## a save file exists (the title offers CONTINUE)
@@ -122,6 +123,7 @@ func _make_canvas(node_name: String) -> Control:
 
 ## Pushes the saved choices to the services that own them: post-process, mute, and (when `with_quality`) the graphics tier.
 func apply_settings(with_quality := true) -> void:
+	settings.publish()
 	if is_instance_valid(Game.atmosphere):
 		Game.atmosphere.set(&"enabled", settings.post)
 	Sfx.muted = settings.muted
@@ -139,6 +141,7 @@ func _on_state(s: StringName) -> void:
 	_hover = &""
 	_shop_open = false
 	_chapters_open = false
+	_options_open = false
 	if s == &"menu":
 		_has_save = Game.progress != null and bool(Game.progress.call(&"has_save"))
 	if s == &"dead" or s == &"win":
@@ -261,7 +264,7 @@ func tap(pos: Vector2) -> bool:
 		return false
 	_ensure_layout()
 	var id := _button_at(pos)
-	if SLIDERS.has(id):
+	if SLIDERS.has(id) or (_options_open and OptionsScreen.is_slider(id)):
 		_drag = id
 		slide(id, pos.x)
 		return true
@@ -316,7 +319,27 @@ func press_button(id: StringName) -> bool:
 		_layout_key = ""
 		_screen.queue_redraw()
 		return true
+	if OptionsScreen.is_option(id):
+		if not _options_open or OptionsScreen.is_slider(id):
+			return false
+		Sfx.play(&"ui_tap")
+		OptionsScreen.press(settings, id)
+		apply_settings(false)
+		settings.save()
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
 	match id:
+		&"options":
+			if Game.state != &"menu" and Game.state != &"paused":
+				return false
+			_options_open = true
+			Sfx.play(&"ui_confirm")
+		&"options_back":
+			if not _options_open:
+				return false
+			_options_open = false
+			Sfx.play(&"ui_back")
 		&"chapters":
 			if (Game.state != &"menu" and Game.state != &"paused") or not _chapters_ok():
 				return false
@@ -419,7 +442,15 @@ func slide(slider: StringName, x: float) -> void:
 		if b["id"] == slider:
 			var r: Rect2 = b["rect"]
 			var inset := minf(8.0, r.size.x * 0.05)
-			set_volume(slider, (x - r.position.x - inset) / maxf(r.size.x - 2.0 * inset, 1.0), false)
+			var f := (x - r.position.x - inset) / maxf(r.size.x - 2.0 * inset, 1.0)
+			if OptionsScreen.is_slider(slider):
+				OptionsScreen.set_fraction(settings, slider, f)
+				if slider != &"opt_hud":                               # the HUD scale re-lays the screen out under the finger: applied on release
+					settings.publish(false)
+				b["label"] = OptionsScreen.label(settings, slider)
+				_screen.queue_redraw()
+			else:
+				set_volume(slider, f, false)
 			return
 
 
@@ -428,7 +459,10 @@ func end_drag() -> void:
 	if _drag == &"":
 		return
 	_drag = &""
+	settings.publish(false)
 	settings.save()
+	_layout_key = ""
+	_screen.queue_redraw()
 	Sfx.play(&"ui_tap")
 
 
@@ -907,6 +941,7 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 func _ensure_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
+	key += "|%s%d" % [_options_open, int(settings.hud_scale * 100.0)]
 	if key == _layout_key:
 		return
 	_layout_key = key
@@ -916,7 +951,9 @@ func _ensure_layout() -> void:
 	match Game.state:
 		&"menu":
 			var dy := _title_shift()                                       # the title block moves up when a second 64 px row joins the first
-			if _chapters_open:
+			if _options_open:
+				OptionsScreen.layout(self, settings, cx, s)
+			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
 			elif _has_save:
 				_add(&"continue", Rect2(cx - 170.0 * s, (318.0 + dy) * s, 340.0 * s, 64.0 * s), "CONTINUE", false)
@@ -934,7 +971,9 @@ func _ensure_layout() -> void:
 				_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
 				_settings_rows(cx, 430.0, s)
 		&"paused":
-			if _chapters_open:
+			if _options_open:
+				OptionsScreen.layout(self, settings, cx, s)
+			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
 			elif _shop_open:
 				ShopScreen.layout(self, cx, s)
@@ -955,12 +994,19 @@ func _ensure_layout() -> void:
 			_add(&"respawn", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)      # low on the screen: the middle stays free for the world
 		&"win":
 			_add(&"next", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "NEXT SECTOR", false)
+	if (Game.state == &"menu" or Game.state == &"paused") and not _options_open:
+		_add(&"options", _options_btn(vp, s), "OPTIONS", false)       # last: screens index their own buttons from 0
 
 
 ## Vertical shift (base px) of the title block (name, rule, subtitle, tagline and the buttons under them) on the title screen: -20 when a second row of 64 px buttons (NEW GAME /
 ## CHAPTERS) needs the room, so the settings rows still end above the BEST line. 0 with the single DEPLOY button.
 func _title_shift() -> float:
 	return -20.0 if (_has_save or _chapters_ok()) else 0.0
+
+
+## The OPTIONS button: top right of the title and pause screens, 64 px tall.
+func _options_btn(vp: Vector2, s: float) -> Rect2:
+	return Rect2(vp.x - UiUtil.insets(vp).y - 196.0 * s, 90.0 * s, 180.0 * s, UiUtil.TOUCH_MIN * s)
 
 
 func _settings_rows(cx: float, y: float, s: float) -> void:
@@ -996,7 +1042,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.4))            # light: the animated city behind the title (scripts/cinematics) shows through
 			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.26))     # a darker column behind the title and buttons keeps them readable
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _chapters_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1006,6 +1052,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 	c.draw_line(Vector2(0.0, 74.0 * s), Vector2(vp.x, 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
 	c.draw_line(Vector2(0.0, vp.y - 74.0 * s), Vector2(vp.x, vp.y - 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
 	match st:
+		&"menu" when _options_open:
+			OptionsScreen.draw(self, c, vp, s, font, cx)
 		&"menu" when _chapters_open:
 			ChapterSelect.draw(self, c, vp, s, font, cx)
 		&"menu":
@@ -1018,7 +1066,9 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			_text(c, font, Vector2(0.0, (476.0 + dy if (_has_save or _chapters_ok()) else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 			_footer(c, vp, s, font)
 		&"paused":
-			if _chapters_open:
+			if _options_open:
+				OptionsScreen.draw(self, c, vp, s, font, cx)
+			elif _chapters_open:
 				ChapterSelect.draw(self, c, vp, s, font, cx)
 			elif _shop_open:
 				ShopScreen.draw(self, c, vp, s, font, cx)
@@ -1042,14 +1092,14 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		var on: bool = b["on"]
 		var hot: bool = _hover == b["id"]
 		var tint := UiUtil.MAGENTA if (big and b["id"] != &"next" and b["id"] != &"resume") else UiUtil.CYAN
-		if SLIDERS.has(b["id"]):
-			var vol := volume_of(b["id"])
+		if SLIDERS.has(b["id"]) or OptionsScreen.is_slider(b["id"]):
+			var vol := volume_of(b["id"]) if SLIDERS.has(b["id"]) else OptionsScreen.fraction(settings, b["id"])
 			var inset := minf(8.0, r.size.x * 0.05)
 			c.draw_rect(r, Color(tint, 0.10))
 			c.draw_rect(Rect2(r.position.x + inset, r.position.y + r.size.y - 12.0 * s, (r.size.x - 2.0 * inset) * vol, 6.0 * s), Color(tint, 0.85))
 			c.draw_rect(Rect2(r.position.x + inset + (r.size.x - 2.0 * inset) * vol - 2.0 * s, r.position.y + r.size.y - 19.0 * s, 4.0 * s, 14.0 * s), Color(1, 1, 1, 0.95))
 			c.draw_rect(r, Color(tint, 0.95 if (hot or _drag == b["id"]) else 0.5), false, 1.5 * s)
-			_text(c, font, Vector2(r.position.x, r.position.y + 21.0 * s), "%s  %d" % [b["label"], roundi(vol * 100.0)], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(20.0 * s), Color(1, 1, 1, 0.95))
+			_text(c, font, Vector2(r.position.x, r.position.y + 21.0 * s), (b["label"] if OptionsScreen.is_slider(b["id"]) else "%s  %d" % [b["label"], roundi(vol * 100.0)]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(20.0 * s), Color(1, 1, 1, 0.95))
 			continue
 		c.draw_rect(r, Color(tint, 0.30 if (on or hot) else 0.10))
 		c.draw_rect(r, Color(tint, 0.95 if (on or hot or big) else 0.5), false, 2.0 * s if big else 1.5 * s)

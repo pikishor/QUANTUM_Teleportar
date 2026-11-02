@@ -63,6 +63,11 @@ var _ram_cd := 0.0
 var _siren_t := 0.0
 var _siren_i := 0
 var _warned := 0
+var _fin_t := 0.0                   ## time of the finish shimmer
+var _fin_acc := 0.0
+var _smoke_t := 0.0
+var _drift_t := 0.0                 ## seconds since the handbrake was released: traction comes back gradually
+var drifting := false               ## sliding hard enough to smoke (tests)
 
 
 ## One-time construction: model, collider, MirrorProxy.
@@ -131,6 +136,8 @@ func activate(pos: Vector3, h: float) -> void:
 	visual.model.position = Vector3(0.0, 0.0, 0.0)
 	var ci := randi() % VehicleSpecs.COLORS.size()
 	visual.set_paint(VehicleSpecs.COLORS[ci])
+	_drift_t = 9.0
+	drifting = false
 	visual.set_glow(VehicleSpecs.GLOWS[randi() % VehicleSpecs.GLOWS.size()])
 	_apply_lights()
 	collision_layer = Game.L_VEHICLE
@@ -225,6 +232,7 @@ func damage(amount: float) -> void:
 	if hp <= 0.0:
 		explode()
 	else:
+		visual.set_damage_look(1.0 - hp / maxf(max_hp, 1.0))
 		_update_damage_state()
 
 
@@ -344,7 +352,16 @@ func step_drive(dt: float, thr: float, steer: float, handbrake: bool) -> void:
 	var grip: float = float(T["grip"])
 	if handbrake:
 		grip = VehicleSpecs.HANDBRAKE_GRIP * (0.45 if cls == &"hover" else 1.0)
+		_drift_t = 0.0
+	else:
+		# a slide ends gradually: traction returns over DRIFT_RECOVER s instead of snapping back (a controllable, linkable drift)
+		_drift_t += dt
+		grip = lerpf(VehicleSpecs.HANDBRAKE_GRIP * 1.6, grip, clampf(_drift_t / VehicleSpecs.DRIFT_RECOVER, 0.0, 1.0))
+		# counter-steer assist: steering against the slide turns the nose back faster
+		if absf(vl) > 3.0 and steer * vl > 0.0 and cls == &"car":
+			heading -= steer * VehicleSpecs.DRIFT_ASSIST * clampf(absf(vl) / 12.0, 0.0, 1.0) * dt
 	vl *= exp(-grip * dt)
+	drifting = absf(vl) > VehicleSpecs.SMOKE_SLIP and absf(vf) > 6.0 and cls != &"hover"
 	fwd = forward()
 	rgt = right()
 	vel = fwd * vf + rgt * vl
@@ -556,6 +573,7 @@ func _sync(dt: float) -> void:
 	_last_vf = speed
 	_prev_h = heading
 	_apply_lights()
+	_finish_fx(dt)
 
 
 ## Bike: the body rolls into the turn, lean = atan(v * yaw rate / g), for the player's bike and for traffic alike.
@@ -578,6 +596,27 @@ func _sync_hover(dt: float) -> void:
 	_lean_r = _damp(_lean_r, clampf(-slip * 0.012, -0.14, 0.14) + sin(_bob_t * 1.3) * 0.01, 6.0, dt)
 	visual.model.position = Vector3(0.0, bob, 0.0)
 	visual.model.rotation = Vector3(_lean_p, 0.0, _lean_r)
+
+
+## Finish and tyre smoke, only for cars near the player: thin-film / flicker shimmer, wet gloss, drift smoke from the rear tyres.
+func _finish_fx(dt: float) -> void:
+	_fin_t += dt
+	if _dist < 60.0 or driver_is_player:
+		_fin_acc += dt
+		if _fin_acc > 0.1:
+			_fin_acc = 0.0
+			visual.shimmer(_fin_t, speed)
+			var wv = RenderingServer.global_shader_parameter_get(&"wetness")
+			visual.set_wet(float(wv) if wv != null else 0.0)
+		if drifting and (driver_is_player or _dist < VehicleSpecs.FX_RANGE * 0.6):
+			_smoke_t -= dt
+			if _smoke_t <= 0.0:
+				_smoke_t = VehicleSpecs.TYRE_SMOKE_EVERY
+				var back := -forward() * float(spec["len"]) * 0.32
+				var side := right() * float(spec["wid"]) * 0.4
+				var c := Color(0.8, 0.82, 0.86, 0.55)
+				FX.burst(global_position + back + side + Vector3(0.0, 0.2, 0.0), c, 2, 1.2, 0.8, -1.0, 2.2)
+				FX.burst(global_position + back - side + Vector3(0.0, 0.2, 0.0), c, 2, 1.2, 0.8, -1.0, 2.2)
 
 
 ## Lights follow the state: parked cars glow faintly, moving ones show full headlights, brake lights flare.

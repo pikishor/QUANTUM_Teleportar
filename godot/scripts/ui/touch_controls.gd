@@ -158,7 +158,7 @@ func touch_down(id: int, pos: Vector2) -> void:
 		pause_requested.emit()
 		return
 	for b: Dictionary in BUTTONS:
-		if button_visible(b) and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]), UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
+		if button_visible(b) and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]) * UiSettings.s_button_size, UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
 			if b.get("call", false):                                   # RADIO: one tap = Game.vehicles.radio.cycle() (no action press, so the key path cannot double-cycle)
 				Game.vehicles.radio.cycle()
 				Sfx.play(&"ui_tap")
@@ -168,7 +168,8 @@ func touch_down(id: int, pos: Vector2) -> void:
 			if b["action"] == &"interact":
 				Sfx.play(&"ui_tap")                                    # USE (enter / exit a car) answers with a soft tap
 			return
-	if pos.x < _vp_size().x * 0.42 and _stick_id == -1:
+	var stick_side := pos.x > _vp_size().x * 0.58 if UiSettings.s_left_hand else pos.x < _vp_size().x * 0.42
+	if stick_side and _stick_id == -1:
 		_stick_id = id
 		_stick_origin = pos
 		_stick_pos = pos
@@ -232,7 +233,8 @@ func _look(rel: Vector2) -> void:
 		return
 	var rig: Object = p.get("camera_rig")
 	if rig != null and rig.has_method("add_look"):
-		rig.call("add_look", rel.x * LOOK_SENS, rel.y * LOOK_SENS)
+		var ak := lerpf(1.0, UiSettings.s_ads, clampf(float(rig.call("get_ads_amount")), 0.0, 1.0)) if rig.has_method("get_ads_amount") else 1.0
+		rig.call("add_look", rel.x * LOOK_SENS * UiSettings.s_look_x * ak, rel.y * LOOK_SENS * UiSettings.s_look_y * ak)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -279,7 +281,10 @@ func _insets() -> Vector2:
 
 func _button_center(b: Dictionary) -> Vector2:
 	var s := _scale()
-	return Vector2(_vp_size().x - _insets().y - float(b["dx"]) * s, _vp_size().y - UiUtil.insets_v(_vp_size()).y - float(b["dy"]) * s)
+	var x := _vp_size().x - _insets().y - float(b["dx"]) * s
+	if UiSettings.s_left_hand:
+		x = _insets().x + float(b["dx"]) * s
+	return Vector2(x, _vp_size().y - UiUtil.insets_v(_vp_size()).y - float(b["dy"]) * s)
 
 
 func _pause_center() -> Vector2:
@@ -324,7 +329,7 @@ func _draw_ui() -> void:
 		return
 	# move stick: a hint ring while idle, base and thumb while a finger is down
 	if _stick_id == -1:
-		c.draw_arc(Vector2(190 * s + _insets().x, size.y - 170 * s - UiUtil.insets_v(size).y), STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 2.0 * s, false)
+		c.draw_arc(Vector2(size.x - 190 * s - _insets().y if UiSettings.s_left_hand else 190 * s + _insets().x, size.y - 170 * s - UiUtil.insets_v(size).y), STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 2.0 * s, false)
 	else:
 		c.draw_circle(_stick_origin, STICK_RADIUS * s, Color(1, 1, 1, 0.07))
 		c.draw_arc(_stick_origin, STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0 * s, false)
@@ -340,7 +345,7 @@ func _draw_ui() -> void:
 		if not button_visible(b):
 			continue
 		var centre := _button_center(b)
-		var r := float(b["r"]) * s
+		var r := float(b["r"]) * s * UiSettings.s_button_size
 		var on := down.has(b["action"])
 		var tint := UiUtil.CYAN
 		var dim := 1.0

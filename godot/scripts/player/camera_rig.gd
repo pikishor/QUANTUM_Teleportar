@@ -195,7 +195,8 @@ func _input(event: InputEvent) -> void:
 		var rel := (event as InputEventMouseMotion).relative
 		rel = rel.clamp(Vector2(-MOUSE_SPIKE_PX, -MOUSE_SPIKE_PX), Vector2(MOUSE_SPIKE_PX, MOUSE_SPIKE_PX))
 		var k := MOUSE_SENS * mouse_sensitivity * lerpf(1.0, ADS_MOUSE_SCALE, clampf(_ads.x, 0.0, 1.0))
-		add_look(rel.x * k, rel.y * k)
+		var ak := lerpf(1.0, UiSettings.s_ads, clampf(_ads.x, 0.0, 1.0))
+		add_look(rel.x * k * UiSettings.s_look_x * ak, rel.y * k * UiSettings.s_look_y * ak)
 
 
 ## Turn the view by screen-space deltas in radians: yaw > 0 turns right, pitch > 0 looks down. Used by mouse look and the touch look zone.

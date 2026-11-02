@@ -8,6 +8,22 @@ const MAGENTA := Color(1.0, 0.25, 0.75)
 const AMBER := Color(1.0, 0.72, 0.25)
 const RED := Color(1.0, 0.3, 0.32)
 const GREEN := Color(0.4, 1.0, 0.6)
+const CB_HOSTILE := Color(1.0, 0.62, 0.1)     ## colour-blind safe: orange for hostile
+const CB_FRIEND := Color(0.35, 0.65, 1.0)     ## blue for pickups / friendly
+const CB_OBJECTIVE := Color(1.0, 1.0, 1.0)
+
+
+## Marker colours that honour the colour-blind safe setting.
+static func hostile_col() -> Color:
+	return CB_HOSTILE if UiSettings.s_cb_safe else RED
+
+
+static func friend_col() -> Color:
+	return CB_FRIEND if UiSettings.s_cb_safe else GREEN
+
+
+static func objective_col() -> Color:
+	return CB_OBJECTIVE if UiSettings.s_cb_safe else MAGENTA
 const INK := Color(0.02, 0.05, 0.07)
 ## Quantum powers: action, label, key hint, energy cost and cooldown (seconds) as in the prototype / quantum contract.
 const ABILITIES := [
@@ -32,7 +48,7 @@ static var left_bottom := 190.0
 
 
 static func ui_scale(vp: Vector2) -> float:
-	return maxf(vp.y / BASE_H, 0.1)
+	return maxf(vp.y / BASE_H * UiSettings.s_hud_scale, 0.1)
 
 
 ## Notch and rounded-corner insets (left, right) in canvas px.

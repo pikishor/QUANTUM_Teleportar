@@ -138,7 +138,8 @@ func _draw_layer() -> void:
 				if story.banner_visible():
 					_draw_banner(vp, s, font, ins)
 				if story.line_visible():
-					_draw_subtitle(vp, s, font, ins)
+					if UiSettings.s_subtitles:
+						_draw_subtitle(vp, s, font, ins)
 		&"dead":
 			if not story.death_quote.is_empty():
 				_draw_quote(vp, s, font)

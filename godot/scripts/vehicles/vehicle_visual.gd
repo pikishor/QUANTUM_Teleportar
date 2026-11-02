@@ -269,6 +269,97 @@ func set_paint(color: Color) -> void:
 	_body_mat.metallic = lerpf(0.55, BODY_METALLIC + 0.1, k)
 	_body_mat.roughness = lerpf(BODY_ROUGHNESS, 0.6, k)
 	_body_mat.clearcoat = lerpf(COAT, 1.0, k)
+	_base_col = c
+	damage_look = 0.0
+	_flick = 0.0
+	_setup_finish()
+
+
+## --- quantum-realism finish (material parameters only: no extra draw call, no extra material) ---
+const IRIS_KINDS := [&"hover", &"vael_patrol"]       ## thin-film iridescent sheen on the paint
+const IRIS_SPAN := 0.16                               ## hue swing of the film
+const FLICKER_CHANCE := 0.06                          ## share of cars that now and then flick to a second paint state
+const FLICKER_EVERY := 7.0
+const WEAR_ROUGH := 0.35                              ## roughness added at full damage
+const SEAM_BELOW := 0.55                              ## damage fraction (0..1) from which phase-seam cracks glow
+var iridescent := false
+var flicker_car := false
+var damage_look := 0.0
+var wet_look := 0.0
+var _base_col := Color.WHITE
+var _phase := 0.0
+var _flick := 0.0
+
+
+## Called once per paint: thin-film cars get a rim sheen, a few cars carry a second state.
+func _setup_finish() -> void:
+	iridescent = _kind in IRIS_KINDS
+	var _rng := RandomNumberGenerator.new()  # local, so global RNG streams stay untouched
+	_rng.seed = hash(str(get_instance_id()))
+	_phase = float(_rng.randi() % 1000) * 0.01
+	flicker_car = (not iridescent) and _rng.randf() < FLICKER_CHANCE
+	if _body_mat != null:
+		_body_mat.rim_enabled = iridescent
+		if iridescent:
+			_body_mat.rim = 0.7
+			_body_mat.rim_tint = 0.35
+
+
+## Thin-film shimmer: the hue of the film drifts with time and with how fast the car moves; a flicker car swaps to its second state for a blink.
+func shimmer(t: float, speed: float) -> void:
+	if _body_mat == null or not (iridescent or flicker_car):
+		return
+	var c := _base_col
+	if iridescent:
+		var h := fposmod(c.h + IRIS_SPAN * sin(t * 0.9 + _phase + absf(speed) * 0.05) + 0.08, 1.0)
+		var film := Color.from_hsv(h, clampf(c.s + 0.35, 0.0, 1.0), clampf(c.v + 0.25, 0.0, 1.0))
+		_body_mat.emission = film
+		_body_mat.emission_energy_multiplier = (0.12 if DynamicFill._is_compat() else PAINT_GLOW) * (1.6 + 0.8 * sin(t * 1.7 + _phase))
+		_body_mat.rim_tint = 0.2 + 0.3 * (0.5 + 0.5 * sin(t * 0.6 + _phase))
+	else:
+		var on := fposmod(t + _phase * 10.0, FLICKER_EVERY) < 0.18
+		var f := 1.0 if on else 0.0
+		if absf(f - _flick) > 0.5:
+			_flick = f
+			var alt := Color.from_hsv(fposmod(c.h + 0.5, 1.0), 0.6, 0.9) if on else c
+			_body_mat.emission = alt
+			_body_mat.emission_energy_multiplier = (0.12 if DynamicFill._is_compat() else PAINT_GLOW) * (4.0 if on else 1.0)
+
+
+## Wear and damage decals as material state: scuffed clear coat, duller flake, soot, and glowing phase seams (emission) when hurt badly.
+## `frac` = 0 sound .. 1 wrecked.
+func set_damage_look(frac: float) -> void:
+	frac = clampf(frac, 0.0, 1.0)
+	if _body_mat == null or absf(frac - damage_look) < 0.02:
+		return
+	damage_look = frac
+	_apply_surface()
+	if frac >= SEAM_BELOW and not iridescent:
+		_body_mat.emission = Color(0.55, 0.9, 1.0)
+		_body_mat.emission_energy_multiplier = 0.4 + 1.2 * (frac - SEAM_BELOW) / (1.0 - SEAM_BELOW)
+	elif frac < SEAM_BELOW:
+		_body_mat.emission = _base_col
+		_body_mat.emission_energy_multiplier = 0.12 if DynamicFill._is_compat() else PAINT_GLOW
+
+
+## Wet streets: a wet car is glossier (lower roughness, full clear coat). Follows the global `wetness`.
+func set_wet(w: float) -> void:
+	w = clampf(w, 0.0, 1.0)
+	if _body_mat == null or absf(w - wet_look) < 0.03:
+		return
+	wet_look = w
+	_apply_surface()
+
+
+func _apply_surface() -> void:
+	var k := fposmod(_base_col.h * 5.0 + _base_col.v * 3.0, 1.0)
+	var r := lerpf(BODY_ROUGHNESS, 0.6, k)
+	r = r + WEAR_ROUGH * damage_look - 0.28 * wet_look * (1.0 - damage_look)
+	_body_mat.roughness = clampf(r, 0.12, 1.0)
+	var cc := lerpf(COAT, 1.0, k)
+	_body_mat.clearcoat = clampf(cc * (1.0 - 0.7 * damage_look) + 0.15 * wet_look, 0.0, 1.0)
+	var soot := 1.0 - 0.45 * damage_look
+	_body_mat.albedo_color = Color(_base_col.r * _lift * soot, _base_col.g * _lift * soot, _base_col.b * _lift * soot, 1.0)
 
 
 func get_paint() -> Color:

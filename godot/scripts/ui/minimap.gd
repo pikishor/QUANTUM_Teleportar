@@ -147,7 +147,7 @@ func _draw() -> void:
 		if en != null and en.visible and en.get("dead") != true:
 			var m := to_map(en.global_position.x, en.global_position.z)
 			if m.length() < inner:
-				discs.append([c + m, 2.8 * s, UiUtil.RED])
+				discs.append([c + m, 2.8 * s, UiUtil.hostile_col()])
 				markers_drawn += 1
 	var mis: Object = Game.missions if is_instance_valid(Game.missions) else null
 	if mis != null:
@@ -158,7 +158,7 @@ func _draw() -> void:
 				var pp: Vector3 = pd.get("pos", Vector3.ZERO)
 				var m := to_map(pp.x, pp.z)
 				if m.length() < inner:
-					diamonds.append([c + m, 3.6 * s, UiUtil.GREEN if pd.get("kind", &"health") == &"health" else UiUtil.CYAN])
+					diamonds.append([c + m, 3.6 * s, UiUtil.friend_col() if pd.get("kind", &"health") == &"health" else UiUtil.CYAN])
 					markers_drawn += 1
 	var q: Object = Game.player.get("quantum") if is_instance_valid(Game.player) else null
 	if q != null:
@@ -183,9 +183,9 @@ func _draw() -> void:
 				var far := m.length() > inner - 4.0 * s
 				if far:
 					m = (m.normalized() if m.length() > 0.001 else Vector2(0, -1)) * (inner - 4.0 * s)
-				diamonds.append([c + m, 4.8 * s, UiUtil.MAGENTA])
+				diamonds.append([c + m, 4.8 * s, UiUtil.objective_col()])
 				if not far:
-					rings.append([c + m, 7.5 * s, Color(UiUtil.MAGENTA, 0.7)])
+					rings.append([c + m, 7.5 * s, Color(UiUtil.objective_col(), 0.7)])
 				core_markers += 1
 	var con: Object = mis.get("contracts") if mis != null else null
 	if con != null:

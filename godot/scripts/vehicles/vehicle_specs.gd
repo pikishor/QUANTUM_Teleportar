@@ -82,6 +82,12 @@ const HANDBRAKE_GRIP := 1.4            ## lateral grip with the handbrake (slide
 const STEER_RATE := 2.3                ## rad/s at full authority
 const UNPOWERED_DRAG := 3.0            ## a car nobody drives slows down with this rate
 
+# --- drift (E1) ---
+const DRIFT_RECOVER := 0.45            ## s: traction returns this slowly after the handbrake is released
+const DRIFT_ASSIST := 1.1              ## rad/s of extra yaw when steering against a slide
+const SMOKE_SLIP := 4.5                ## lateral speed (m/s) above which the tyres smoke
+const TYRE_SMOKE_EVERY := 0.09
+
 # --- collisions and damage ---
 const HIT_SPEED := 5.0                 ## wall impact (normal speed) above this hurts
 const HIT_DAMAGE := 2.2                ## hp per m/s of impact

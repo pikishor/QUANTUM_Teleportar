@@ -244,3 +244,6 @@ Scanned-material pipeline (tools/materials/import_scanned.py, MaterialLib, scann
 
 ## Wave 24: quantum-realism materials and wear layers
 quantum_surface.gdshaderinc (film, flicker, seam), wet shimmer + seams in ground_core, metal sheen in building_core, scanned_surface reads wetness, material_lib.apply_to; wear layers baked in gen_surfaces.py. All tests and perf tiers 0-2 OK. Not GPU-verified beyond one software screenshot (seams on wet road look strong; tune if too busy).
+
+## Wave 25: vehicle paint, options screen
+Vehicle thin-film sheen/flicker/damage wear/wet gloss (vehicle_visual.gd uses a local RNG so global streams stay stable), drift smoke + handbrake recovery; OPTIONS screen (options_screen.gd, ui_settings fields). All tests pass, perf tiers 0-2 OK. Gaps: vibration (UiSettings.buzz) unused, colour-blind markers minimap only, drift feel untested by a human, HUD ability labels clip ("QUANTU") at 1280x720.
