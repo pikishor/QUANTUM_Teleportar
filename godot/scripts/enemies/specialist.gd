@@ -39,6 +39,8 @@ var _slams := 0
 func setup(t: StringName) -> void:
 	super.setup(t)
 	role = cfg.get("role", &"")
+	if model != null:
+		EnemyLook.apply_rim(model, EnemyLook.code_color(cfg), Game.quality)
 	if role == &"shield":
 		_build_shield()
 	elif model != null:
@@ -135,11 +137,12 @@ func _animate(delta: float) -> void:
 	super._animate(delta)
 	if tell != null:
 		tell.visible = not dead
+		EnemyLook.boost_tell(tell, threat_charge())
 	if shield_node != null and shield_node.visible:
 		_shield_flash = maxf(0.0, _shield_flash - delta)
 		var m := (shield_node.mesh as QuadMesh).material as StandardMaterial3D
 		m.albedo_color.a = 0.6 + 0.4 * clampf(_shield_flash / 0.12, 0.0, 1.0) + 0.05 * sin(_clock * 6.0)
-		m.albedo_color.r = 1.25 + 2.4 * clampf(_shield_flash / 0.12, 0.0, 1.0)
+		m.albedo_color.r = EnemyLook.plate_glow(threat_charge()) + 2.4 * clampf(_shield_flash / 0.12, 0.0, 1.0)
 		m.albedo_color.g = m.albedo_color.r
 		m.albedo_color.b = m.albedo_color.r
 

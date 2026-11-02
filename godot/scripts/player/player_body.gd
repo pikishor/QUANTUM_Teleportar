@@ -33,6 +33,8 @@ const GLOW_BOOST := 0.7                    ## extra emission-texture energy (vei
 const LOW_ALBEDO := Color(0.72, 0.74, 0.78, 1.0)    ## LOW tier: the armour albedo is multiplied by this ...
 const COMPAT_GLOW := 0.55                           ## the Compatibility renderer (exposure and bloom lift) shows the emission texture much brighter: whitish plates on a bright phone
 const LOW_GLOW := 0.6                                ## ... and the emission texture (veins, core, slit) is this strong
+const FABRIC_RIM := 0.3                    ## cloak and legs get a cool edge too: a thicker, readable silhouette from the chase camera
+const TRIM_HUES := [Color(0.2, 0.95, 1.0), Color(0.75, 0.35, 1.0), Color(1.0, 0.35, 0.85)]   ## thin-film sheen of the armour trim: cyan to violet to magenta
 const GEAR_EMISSION := Color(0.012, 0.026, 0.034)   ## a faint silhouette floor only; the glow comes from the emission texture
 ## The Compatibility (OpenGL) renderer lights the same scene much brighter than the Mobile renderer the boosts were tuned on: scale them down there.
 ## Its world environment also carries a flat teal ambient (the sky radiance map does not exist there), which fills every shadow of a standard material and
@@ -99,6 +101,11 @@ var _rim_light: DirectionalLight3D
 var _gear_mats: Array[BaseMaterial3D] = []   ## the Gear override materials (rim and glow follow `_excite`)
 var _gear_base: Array[Color] = []             ## the albedo each Gear override material was made with (the LOW tier darkens it a little)
 var _gear_rim := 0.0
+var _gear_emis: Array[Color] = []             ## the base emission colour of each Gear material (the trim tint blends toward the sheen)
+var _fabric_mats: Array[BaseMaterial3D] = []
+var _clock_look := 0.0
+var _charge := 0.0                    ## 0..1 QUANTUM TELEPORT charge (aiming a destination), smoothed
+var _ready_k := 1.0                   ## 0..1 how recharged the powers are (cooldown dims the seams)
 var _excite := 0.0                    ## 0..1: hit, aim or quantum-active moment (what the rim and glow react to)
 var _excite_applied := -1.0
 var _key_energy := 1.0
@@ -257,6 +264,8 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		for gm in _gear_mats:
 			gm.rim = _gear_rim + RIM_BOOST * _excite
 			gm.emission_energy_multiplier = (LOW_GLOW if _quality == 0 else 1.0) * (COMPAT_GLOW if _is_compat() else 1.0) * (1.0 + GLOW_BOOST * _excite)
+
+	_update_quantum_look(q, dt)
 
 	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
 	if character_light and rig_view != null:
@@ -472,6 +481,8 @@ func remove_child_safe(n: Node) -> void:
 func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 	if lift_fabric:
 		_gear_mats.clear()
+		_gear_emis.clear()
+		_fabric_mats.clear()
 	var compat := _is_compat()
 	var boost := COMPAT_BOOST if compat else 1.0
 	var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
@@ -500,6 +511,7 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 					own.rim_tint = 0.2                           # mostly the cool light colour (a clean cool edge on DARK armour, not a pale outline)
 					_gear_mats.append(own)
 					_gear_base.append(own.albedo_color)
+					_gear_emis.append(mat.emission if mat.emission_enabled else GEAR_EMISSION * boost)
 					own.emission_enabled = true
 					own.emission_texture = mat.emission_texture if mat.emission_enabled else null
 					own.emission = (mat.emission if mat.emission_enabled else GEAR_EMISSION * boost)
@@ -508,11 +520,46 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 					own.emission_enabled = true
 					own.emission = FABRIC_EMISSION * boost
 					own.emission_energy_multiplier = 1.0
+					own.rim_enabled = true
+					own.rim = FABRIC_RIM * (0.6 if compat else 1.0)
+					own.rim_tint = 0.3
+					_fabric_mats.append(own)
 			if compat:
 				own.disable_ambient_light = true
 				# the baked atlas is much lighter than the legacy fabric the warm tint was calibrated on: darker and neutral-cool there
 				own.albedo_color = Color(0.36, 0.42, 0.5, 1.0) if gear else own.albedo_color * COMPAT_TINT
 			mi.set_surface_override_material(i, own)
+
+
+## Thin-film sheen of the trim: the hue drifts with time and view-independent phase; `charge` (QUANTUM TELEPORT aim) pushes it toward violet-magenta and brighter,
+## `ready_k` (1 recharged .. 0 just used) dims the seams. Pure, so the test can check it.
+static func trim_tint(t: float, charge: float, ready_k: float) -> Color:
+	var ph := fposmod(t * 0.35 + charge * 0.8, 1.0) * 3.0
+	var i := int(ph) % 3
+	var c: Color = (TRIM_HUES[i] as Color).lerp(TRIM_HUES[(i + 1) % 3] as Color, ph - floorf(ph))
+	return c * (0.55 + 0.45 * ready_k) * (1.0 + 0.8 * charge)
+
+
+func _update_quantum_look(q: Variant, dt: float) -> void:
+	var charge_t := 0.0
+	var cd := 0.0
+	if q != null:
+		if "aiming" in q and q.aiming:
+			charge_t = 1.0
+		if "cd_blink" in q:
+			cd = maxf(cd, minf(1.0, float(q.cd_blink) / 1.5))
+		if "cd_link" in q:
+			cd = maxf(cd, minf(1.0, float(q.cd_link) / 1.5))
+		if "cd_super" in q:
+			cd = maxf(cd, minf(1.0, float(q.cd_super) / 1.5))
+	_charge = PlayerUtil.damp(_charge, charge_t, 12.0 if charge_t > _charge else 4.0, dt)
+	_ready_k = PlayerUtil.damp(_ready_k, 1.0 - cd, 8.0, dt)
+	_clock_look += dt
+	var tint := trim_tint(_clock_look, _charge, _ready_k)
+	var k := 0.35 if _is_compat() else 1.0
+	for i in _gear_mats.size():
+		_gear_mats[i].emission = _gear_emis[i].lerp(tint, 0.5 * (0.4 + 0.6 * _charge)) * (1.0 + 0.0 * k) if _gear_mats[i].emission_texture == null else tint * 0.9 * k
+		_gear_mats[i].rim_tint = 0.2 + 0.4 * _charge
 
 
 ## The convex hull of every mesh of the character (body and legs, not the flash cards), kept in the mesh's own space: the corpse rests on them.

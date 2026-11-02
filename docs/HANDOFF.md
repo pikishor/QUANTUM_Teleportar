@@ -247,3 +247,6 @@ quantum_surface.gdshaderinc (film, flicker, seam), wet shimmer + seams in ground
 
 ## Wave 25: vehicle paint, options screen
 Vehicle thin-film sheen/flicker/damage wear/wet gloss (vehicle_visual.gd uses a local RNG so global streams stay stable), drift smoke + handbrake recovery; OPTIONS screen (options_screen.gd, ui_settings fields). All tests pass, perf tiers 0-2 OK. Gaps: vibration (UiSettings.buzz) unused, colour-blind markers minimap only, drift feel untested by a human, HUD ability labels clip ("QUANTU") at 1280x720.
+
+## Wave 26: hero and enemy quantum-realism look
+- player_body.gd: iridescent trim drift, ability-reactive seams, charge rim. enemy_look.gd: role rim colours, telegraph boost. Material params only, no new draws. Perf OK tiers 0-2; all tests pass. Cloak/leg rim untested if no fabric material.
