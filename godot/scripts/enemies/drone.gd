@@ -68,6 +68,7 @@ var _bar_t := 0.0
 var _bank := 0.0
 var _flash := 0.0
 var _stagger := 0.0
+var _off := 0.0              ## COLLAPSE: seconds left switched off (no thinking, no shooting, glow flickers)
 var _hover := 0.35
 var _rotors: Array[Node3D] = []
 var _fins: Node3D                      ## the `Fins` node of the living models (null for the primitive stand-in, which spins its rotors)
@@ -144,6 +145,7 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	_bank = 0.0
 	_flash = 0.0
 	_stagger = 0.0
+	_off = 0.0
 	yaw = randf() * TAU
 	rotation = Vector3(0.0, yaw, 0.0)
 	global_position = Vector3(pos.x, _hover, pos.z)
@@ -193,6 +195,18 @@ func stagger(power: float) -> void:
 	_stagger = maxf(_stagger, 0.15 + 0.25 * power)
 	if "_flinch" in self:
 		set("_flinch", maxf(float(get("_flinch")), clampf(0.4 + 0.4 * power, 0.0, 1.0)))
+
+
+## COLLAPSE: the drone is flipped off for `seconds` (it drifts to a stop, does not think or shoot, its glow flickers).
+func disable(seconds: float) -> void:
+	if dead or not active:
+		return
+	_off = maxf(_off, seconds)
+	_stagger = maxf(_stagger, seconds)
+
+
+func is_disabled() -> bool:
+	return _off > 0.0
 
 
 func damage(amount: float, crit := false, mirrored := false) -> void:
@@ -295,6 +309,17 @@ func _physics_process(delta: float) -> void:
 	_t += delta
 	_flash = maxf(0.0, _flash - delta)
 	_stagger = maxf(0.0, _stagger - delta)
+	if _off > 0.0:
+		_off -= delta
+		_mx = 0.0
+		_mz = 0.0
+		_speed = 0.0
+		_moved = 0.0
+		_tele = 0.0
+		_place(delta)
+		_animate(delta)
+		_bar_t = maxf(_bar_t - delta, 0.0)
+		return
 	var p := Game.player
 	_retarget -= delta
 	if _retarget <= 0.0:
@@ -503,7 +528,9 @@ func _animate(delta: float) -> void:
 			_fins.scale = Vector3(k * (1.0 - pulse * 0.4), k * (1.0 + pulse), k * (1.0 - pulse * 0.4))
 		else:
 			_fins.scale = Vector3(k * (1.0 + pulse), k * (1.0 + pulse), k * (1.0 + pulse))
-	if _flash > 0.0:
+	if _off > 0.0:
+		_set_glow(2.0 if int(floor(_t * 14.0)) % 2 == 0 else 0.2)
+	elif _flash > 0.0:
 		_set_glow(5.0 if _flash > 0.05 else 2.0)
 	elif _flare > 0.02:
 		_set_glow(2.0 + 2.2 * _flare)

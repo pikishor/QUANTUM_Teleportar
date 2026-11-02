@@ -98,7 +98,7 @@ func _run(phase: int, k: int) -> void:
 			if k == 3 and _group.size() >= 2:
 				_p.camera_rig.aim_at(_group[0].center())
 			elif k == 5:
-				_q.entangle()
+				_q.link_drones()
 			elif k == 20 and not _group.is_empty():
 				_group[0].damage(14.0)
 		3:

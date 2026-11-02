@@ -71,7 +71,7 @@ func _setup() -> void:
 			for i in 2:
 				_drones.append(Game.enemies.spawn(&"sentinel", Game.SPAWN + Vector3(14.0 + 3.0 * i, 0.0, -3.0 + 3.0 * i), true))
 			_p.energy = _p.max_energy
-			q.entangle(), 10],
+			q.link_drones(), 10],
 		["superpose", func() -> void:
 			_p.energy = _p.max_energy
 			q.superpose(), 10],

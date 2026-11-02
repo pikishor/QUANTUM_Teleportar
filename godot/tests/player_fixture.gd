@@ -6,7 +6,7 @@ const Dummy := preload("res://tests/player_dummy_enemy.gd")
 const DummyVehicle := preload("res://tests/player_dummy_vehicle.gd")
 
 const ACTIONS: Array[StringName] = [&"move_forward", &"move_back", &"move_left", &"move_right", &"jump", &"sprint", &"fire", &"aim",
-		&"reload", &"blink", &"entangle", &"superpose", &"interact", &"pause"]
+		&"reload", &"blink", &"entangle", &"superpose", &"collapse", &"interact", &"pause"]
 
 
 ## A flat floor whose top surface is at y, `half` metres each way.

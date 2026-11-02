@@ -28,8 +28,9 @@ const INK := Color(0.02, 0.05, 0.07)
 ## Quantum powers: action, label, key hint, energy cost and cooldown (seconds) as in the prototype / quantum contract.
 const ABILITIES := [
 	{"action": &"blink", "label": "TELEPORT", "key": "Q", "cost": 15.0, "cd": 0.3, "cd_prop": &"cd_blink"},
-	{"action": &"entangle", "label": "LINK", "key": "E", "cost": 25.0, "cd": 0.8, "cd_prop": &"cd_link"},
+	{"action": &"entangle", "label": "ENTANGLE", "key": "E", "cost": 25.0, "cd": 4.0, "cd_prop": &"cd_link"},
 	{"action": &"superpose", "label": "SUPER", "key": "G", "cost": 35.0, "cd": 1.5, "cd_prop": &"cd_super"},
+	{"action": &"collapse", "label": "COLLAPSE", "key": "C", "cost": 50.0, "cd": 8.0, "cd_prop": &"cd_collapse"},
 ]
 
 ## Phone text sizes (base px at 720 p height; the layout scales them with the viewport height). Gameplay text is never below TEXT_MIN except the small bar captions.

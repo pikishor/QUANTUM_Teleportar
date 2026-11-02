@@ -21,8 +21,9 @@ const BUTTONS := [
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &""},
 	{"action": &"swap", "dx": 345.0, "dy": 440.0, "r": 48.0, "fs": 24, "label": "SWAP", "need": &""},
 	{"action": &"blink", "dx": 515.0, "dy": 110.0, "r": 56.0, "label": "TELEPORT", "need": &"quantum", "ability": 0},
-	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "LINK", "need": &"quantum", "ability": 1},
+	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "ENTANGLE", "need": &"quantum", "ability": 1},
 	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},
+	{"action": &"collapse", "dx": 470.0, "dy": 450.0, "r": 46.0, "fs": 20, "label": "COLLAPSE", "need": &"quantum", "ability": 3},
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
 ]

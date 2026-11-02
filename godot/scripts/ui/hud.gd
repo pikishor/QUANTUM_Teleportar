@@ -22,7 +22,7 @@ const LABEL_W := 92.0               ## base px: the least width of the caption c
 const VALUE_W := 54.0
 ## Volume sliders of the settings rows: slider id -> the buses it sets (saved in settings.volumes). SFX also carries the ambience beds and the radio voice.
 const SLIDERS := {&"vol_music": ["Music"], &"vol_sfx": ["SFX", "Ambient", "Voice"]}
-const CONTROLS_DESKTOP := "WASD MOVE    MOUSE LOOK    LMB FIRE    RMB AIM    SHIFT SPRINT    SPACE JUMP    R RELOAD    Q QUANTUM TELEPORT    E LINK    G SUPERPOSE    F USE    ESC PAUSE"
+const CONTROLS_DESKTOP := "WASD MOVE    MOUSE LOOK    LMB FIRE    RMB AIM    SHIFT SPRINT    SPACE JUMP    R RELOAD    Q QUANTUM TELEPORT    E ENTANGLE    G SUPERPOSE    F USE    ESC PAUSE"
 const CONTROLS_TOUCH := "LEFT THUMB MOVE (PUSH FAR TO SPRINT)    RIGHT THUMB LOOK    HOLD FIRE TO SHOOT AND AIM AT ONCE"
 
 @export var settings_path := UiSettings.DEFAULT_PATH
@@ -712,11 +712,14 @@ func _draw_hud_body() -> void:
 		var qm: Object = p.get("quantum")
 		if qm != null and playing:
 			var fl := float(qm.get("fx_flash"))
-			var qa := maxf(fl * 0.55, 0.3 if qm.get("aiming") == true else 0.0)
+			var cf := float(qm.get("collapse_fx"))
+			var qa := maxf(maxf(fl * 0.55, 0.3 if qm.get("aiming") == true else 0.0), cf * 0.7)
 			if qa > 0.01:
 				c.draw_texture_rect(_vignette, Rect2(Vector2.ZERO, vp), false, Color(UiUtil.CYAN if fl < 0.5 else UiUtil.MAGENTA, qa))
 				if fl > 0.0:
 					c.draw_rect(Rect2(Vector2.ZERO, vp), Color(UiUtil.CYAN, fl * 0.18))
+				if cf > 0.0:
+					c.draw_rect(Rect2(Vector2.ZERO, vp), Color(UiUtil.MAGENTA, cf * 0.22))
 		if since_hurt < MARKER_TIME and playing:
 			_draw_hurt_direction(c, p, vp, s, 1.0 - since_hurt / MARKER_TIME)
 	# top centre, one compact stack: the bars on a plate, then ONE priority line (the active / offered contract, else the core objective) and its extras.
@@ -784,10 +787,10 @@ func _draw_hud_body() -> void:
 		if wch > 0.0:
 			_rect(c, Rect2(wr.position.x, wr.position.y - 8.0 * s, wr.size.x * wch, 5.0 * s), Color(UiUtil.CYAN, 0.95))
 	if p.get("quantum") != null and not touch_on:
-		for i in 3:
+		for i in UiUtil.ABILITIES.size():
 			var info: Dictionary = UiUtil.ABILITIES[i]
 			var st := UiUtil.ability_state(p, info)
-			var r := Rect2(ax - 236.0 * s + i * 160.0 * s, base_y - 172.0 * s, 152.0 * s, 44.0 * s)
+			var r := Rect2(ax - 316.0 * s + i * 160.0 * s, base_y - 172.0 * s, 152.0 * s, 44.0 * s)
 			var tint := UiUtil.AMBER if st["active"] else UiUtil.CYAN
 			var dim := 1.0 if (st["ready"] or st["active"]) else 0.5
 			_rect(c, r, UiUtil.PLATE)

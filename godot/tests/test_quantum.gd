@@ -225,7 +225,7 @@ func _blink_rules() -> void:
 	await e.secs(0.5)
 	Input.action_release(&"superpose")
 	TestLib.check(q.clone == null and absf(q.beacon_left - left) < 0.001, "paused: inputs are ignored and timers stand still")
-	TestLib.check(not q.blink() and not q.entangle() and not q.superpose(), "paused: the abilities refuse to fire")
+	TestLib.check(not q.blink() and not q.link_drones() and not q.superpose(), "paused: the abilities refuse to fire")
 	Game.state = &"play"
 	await e.frames(2)
 	TestLib.check(q.beacon_left < left, "playing again: the timers run on")
@@ -268,7 +268,7 @@ func _entangle() -> void:
 	var b := pair[1]
 	var far := _spawn(&"sentinel", Vector3(15.0, 0.0, 70.0))
 	await _aim_at(a)
-	TestLib.check(q.entangle(), "entangle links the aimed drone")
+	TestLib.check(q.link_drones(), "entangle links the aimed drone")
 	TestLib.check(a.linked == b and b.linked == a, "A and its nearest free neighbour B are linked both ways")
 	TestLib.check(far.linked == null, "the far drone is left alone")
 	TestLib.check(a.aware and b.aware, "both drones become aware")
@@ -295,7 +295,7 @@ func _entangle() -> void:
 	# expiry after 9 s and the beams go with it
 	pair = _link_pair(Vector3(15.0, 0.0, 4.0), Vector3(20.0, 0.0, 10.0))
 	await _aim_at(pair[0])
-	q.entangle()
+	q.link_drones()
 	await e.secs(1.0)
 	TestLib.check(absf(float(q.links[0]["t"]) - 8.0) < 0.2, "a link lasts 9 s (%.2f left after 1 s)" % float(q.links[0]["t"]))
 	q.links[0]["t"] = 0.1
@@ -310,10 +310,10 @@ func _entangle() -> void:
 	pair = _link_pair(Vector3(15.0, 0.0, 4.0), Vector3(20.0, 0.0, 10.0))
 	var third := _spawn(&"sentinel", Vector3(25.0, 0.0, 4.0))
 	await _aim_at(pair[0])
-	q.entangle()
+	q.link_drones()
 	q.cd_link = 0.0
 	await _aim_at(pair[0])
-	TestLib.check(not q.entangle() and q.links.size() == 1, "an already linked drone cannot be linked again")
+	TestLib.check(not q.link_drones() and q.links.size() == 1, "an already linked drone cannot be linked again")
 	TestLib.check(third.linked == null, "nothing else gets linked")
 
 
@@ -322,20 +322,20 @@ func _entangle_rules() -> void:
 	var a := _spawn(&"sentinel", Vector3(15.0, 0.0, 4.0))
 	await _aim_at(a)
 	p.energy = 24.0
-	TestLib.check(not q.entangle() and _has_msg("NOT ENOUGH COHERENCE"), "24 energy is not enough for a link")
+	TestLib.check(not q.link_drones() and _has_msg("NOT ENOUGH COHERENCE"), "24 energy is not enough for a link")
 	p.energy = 100.0
 	msgs.clear()
-	TestLib.check(not q.entangle() and _has_msg("NEED A SECOND TARGET WITHIN 45 m"), "a single drone cannot be linked")
+	TestLib.check(not q.link_drones() and _has_msg("NEED A SECOND TARGET WITHIN 45 m"), "a single drone cannot be linked")
 	TestLib.check(absf(p.energy - 100.0) < 0.5 and q.cd_link == 0.0, "a failed link costs nothing and starts no cooldown")
 	var b := _spawn(&"sentinel", Vector3(15.0, 0.0, 60.0))
-	TestLib.check(not q.entangle() and b.linked == null, "a partner 56 m away is out of range")
+	TestLib.check(not q.link_drones() and b.linked == null, "a partner 56 m away is out of range")
 	b.deactivate() if b.has_method(&"deactivate") else mgr.clear()
 	await _fresh()
 	_spawn(&"sentinel", Vector3(15.0, 0.0, 4.0))
 	_spawn(&"sentinel", Vector3(20.0, 0.0, 4.0))
 	p.camera_rig.reset_view(-PI * 0.5, 0.6)         # looking at the sky
 	await _settle()
-	TestLib.check(not q.entangle() and _has_msg("NO TARGET IN SIGHT"), "aiming at nothing finds no target")
+	TestLib.check(not q.link_drones() and _has_msg("NO TARGET IN SIGHT"), "aiming at nothing finds no target")
 	# a wall between the player and the drone blocks the aim (the ray stops at the wall)
 	await _fresh()
 	p.teleport_to(Vector3(-15.0, 0.0, 4.0))
@@ -343,7 +343,7 @@ func _entangle_rules() -> void:
 	await _settle()
 	var behind := _spawn(&"sentinel", Vector3(-3.0, 0.0, 4.0))
 	_spawn(&"sentinel", Vector3(0.0, 0.0, 8.0))
-	TestLib.check(behind != null and not q.entangle(), "a drone behind a wall cannot be targeted")
+	TestLib.check(behind != null and not q.link_drones(), "a drone behind a wall cannot be targeted")
 
 
 func _superposition() -> void:
@@ -432,7 +432,7 @@ func _lifecycle() -> void:
 		await _fresh()
 		var pair := _link_pair(Vector3(15.0, 0.0, 4.0), Vector3(20.0, 0.0, 10.0))
 		await _aim_at(pair[0])
-		q.entangle()
+		q.link_drones()
 		q.blink()
 		q.superpose()
 		TestLib.check(q.has_beacon and q.clone != null and q.links.size() == 1, "%s: beacon, clone and link are out" % sig)
@@ -459,11 +459,11 @@ func _tiers() -> void:
 	for i in 4:
 		drones.append(_spawn(&"sentinel", Vector3(15.0, 0.0, -12.0 + i * 10.0 + (i % 2) * 0.0)))
 	await _aim_at(drones[0])
-	q.entangle()
+	q.link_drones()
 	q.cd_link = 0.0
 	TestLib.check(Quantum.MAX_LINKS == [1, 2, 3], "caps are LOW 1, MED 2, HIGH 3 links")
 	await _aim_at(drones[2])
-	q.entangle()
+	q.link_drones()
 	TestLib.check(q.links.size() == 1, "LOW keeps one link at a time (%d)" % q.links.size())
 	TestLib.check(drones[0].linked == null or drones[2].linked != null, "the older link made room for the new one")
 	q.blink()
@@ -480,7 +480,7 @@ func _tiers() -> void:
 	for i in [0, 2, 4]:
 		await _aim_at(drones[i])
 		q.cd_link = 0.0
-		q.entangle()
+		q.link_drones()
 	TestLib.check(q.links.size() == 3, "HIGH keeps three links (%d)" % q.links.size())
 	p.energy = 100.0
 	q.blink()
@@ -504,7 +504,7 @@ func _pooling() -> void:
 		drones.append(_spawn(&"sentinel", Vector3(15.0, 0.0, 4.0 + i * 6.0)))
 	await _aim_at(drones[0])
 	# one full cycle first (builds the pools), then the node count must not grow
-	q.entangle()
+	q.link_drones()
 	q.blink()
 	q.teleport()
 	q.superpose()
@@ -522,7 +522,7 @@ func _pooling() -> void:
 		q.reset()
 		q.blink()
 		q.teleport()
-		q.entangle()
+		q.link_drones()
 		q.superpose()
 		await e.frames(3)
 		q.collapse()

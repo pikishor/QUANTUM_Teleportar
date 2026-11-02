@@ -7,6 +7,9 @@ extends Node
 ##               the other (Drone.linked, damage(..., mirrored = true)); a beam joins them and both become aware.
 ##   SUPERPOSE   superpose action: leaves a ghost clone (6 s, group "clone", the enemies shoot at it half of the time and collapse it when it is hit);
 ##               the player runs 30 % faster while it exists. Pressing again, expiry or a hit collapses it into Game.explode (r 9, 70 enemy / 40 car damage).
+##   COLLAPSE    collapse action: a shockwave around the player that collapses every quantum effect out at once: the decoy detonates (SUPERPOSITION combo),
+##               the beacon bursts where it lies, every entangled pair takes heavy damage whatever the distance (ENTANGLE combo, mirrored), and all enemies in
+##               WAVE_RADIUS take damage, stagger and are flipped off for a moment (drones stop thinking and shooting). Costs coherence, long cooldown.
 ## Everything is pooled: the beacon, the ghost (the player's own meshes under one shared hologram material, no lights) and the link beams are built once and
 ## only shown or hidden. All simulation and input reading happens only while Game.is_playing(). The three timers, the energy costs and the cooldowns are
 ## the prototype's. Graphics tiers (Game.quality): the number of simultaneous links (LOW 1, MED 2, HIGH 3), the particle counts, and LOW drops the glow sprite,
@@ -30,11 +33,23 @@ const LINK_RANGE := 70.0            ## how far the aimed drone may be
 const LINK_PARTNER := 45.0          ## the second drone must be this close to the first (metres, on the ground plane)
 const LINK_LIFE := 9.0
 const AIM_ASSIST := 1.7             ## multiplier on a drone's hit radius for choosing the first target
+const SWAP_COST := 25.0
+const SWAP_CD := 4.0
+const SWAP_RANGE := 40.0
+const SWAP_BEAM := 0.45
+const SWAP_CONFUSE := 2.0            ## seconds of slowed, unaware drone after a swap
 const SUPER_COST := 35.0
 const SUPER_LIFE := 6.0
 const COLLAPSE_CD := 1.5
 const SUPER_SPEED := 1.3
 const BLAST_RADIUS := 9.0
+const WAVE_COST := 50.0
+const WAVE_CD := 8.0
+const WAVE_RADIUS := 16.0
+const WAVE_DMG := 35.0              ## at the centre, 50 % at the rim
+const WAVE_OFF := 2.5               ## seconds the drones stay switched off
+const WAVE_LINK_DMG := 40.0         ## extra damage to each entangled pair (the link mirrors it to the partner)
+const WAVE_BEACON_RADIUS := 7.0
 const BITS_SHOWN := 5.0             ## seconds the HUD keeps the Alice / Bob readout after a teleport
 const MAX_LINKS := [1, 2, 3]        ## per graphics tier
 const FX_SCALE := [0.5, 0.8, 1.0]   ## particle count factor per graphics tier
@@ -79,6 +94,12 @@ var aim_pos := Vector3.ZERO
 var fx_flash := 0.0                    ## screen effect strength 0..1 (HUD), 1 at the moment of a teleport, decays
 var cd_link := 0.0
 var cd_super := 0.0
+var cd_collapse := 0.0
+var collapse_fx := 0.0                 ## COLLAPSE screen effect strength 0..1 (HUD), decays
+var _swap_a := Vector3.ZERO
+var _swap_b := Vector3.ZERO
+var _swap_left := 0.0
+var _swap_beams: Array[MeshInstance3D] = []
 var links: Array = []                  ## {a: Drone, b: Drone, t: float (seconds left), slot: int}
 ## The last teleport: Alice's classical bits and Bob's correction, kept for the HUD for BITS_SHOWN seconds.
 var last_m0 := 0
@@ -133,12 +154,15 @@ func _physics_process(delta: float) -> void:
 	cd_blink = maxf(cd_blink - delta, 0.0)
 	cd_link = maxf(cd_link - delta, 0.0)
 	cd_super = maxf(cd_super - delta, 0.0)
+	cd_collapse = maxf(cd_collapse - delta, 0.0)
 	bits_left = maxf(bits_left - delta, 0.0)
 	_blink_input(delta)
 	if Input.is_action_just_pressed(&"entangle"):
 		entangle()
 	if Input.is_action_just_pressed(&"superpose"):
 		superpose()
+	if Input.is_action_just_pressed(&"collapse"):
+		collapse_all()
 	if has_beacon:
 		beacon_left -= delta
 		if beacon_left <= 0.0:
@@ -173,6 +197,7 @@ func reset() -> void:
 	cd_blink = 0.0
 	cd_link = 0.0
 	cd_super = 0.0
+	_swap_left = 0.0
 	bits_left = 0.0
 	_holding = false
 	_hold = 0.0
@@ -370,7 +395,7 @@ func _remove_beacon() -> void:
 # --- entangle --------------------------------------------------------------------------------------------------------
 
 ## Links the drone under the crosshair with the nearest free drone within 45 m. Returns true when a link was made.
-func entangle() -> bool:
+func link_drones() -> bool:
 	if _p == null or not Game.is_playing() or _p.is_dead() or cd_link > 0.0:
 		return false
 	if _p.energy < LINK_COST:
@@ -427,6 +452,130 @@ func entangle() -> bool:
 	Sfx.play(&"link")
 	Game.say("ENTANGLED · DAMAGE IS SHARED ACROSS DISTANCE", 1.8)
 	return true
+
+
+# --- entangle (swap places) --------------------------------------------------------------------------------------------
+
+## ENTANGLE: swap places with the enemy, car or pickup in the crosshair (SWAP_RANGE, line of sight). Returns true when the swap happened.
+func entangle() -> bool:
+	if _p == null or not Game.is_playing() or _p.is_dead() or cd_link > 0.0:
+		return false
+	if _p.vehicle != null:
+		Game.say("ENTANGLE OFFLINE IN VEHICLE", 1.0)
+		return false
+	if _p.energy < SWAP_COST:
+		Game.say("NOT ENOUGH COHERENCE", 1.0)
+		return false
+	var t := swap_target()
+	if t.is_empty():
+		Game.say("NO TARGET IN SIGHT", 1.0)
+		return false
+	_p.energy -= SWAP_COST
+	cd_link = SWAP_CD
+	var node: Node3D = t["node"]
+	var from := _p.global_position
+	var to: Vector3 = t["pos"]
+	var kind: StringName = t["kind"]
+	var tgt_pos := PlayerUtil.safe_spot(from, Game.world if is_instance_valid(Game.world) else null)
+	FX.burst(from + Vector3(0.0, 1.0, 0.0), PALE, _fx_count(24), 6.0, 0.5, 0.0)
+	FX.burst(to + Vector3(0.0, 1.0, 0.0), MAGENTA, _fx_count(24), 6.0, 0.5, 0.0)
+	_swap_a = from + Vector3(0.0, 1.0, 0.0)
+	_swap_b = to + Vector3(0.0, 1.0, 0.0)
+	_swap_left = SWAP_BEAM
+	_p.teleport_to(to + Vector3(0.0, 0.05, 0.0))
+	match kind:
+		&"enemy":
+			node.global_position = Vector3(tgt_pos.x, node.global_position.y if tgt_pos.y < 0.5 else tgt_pos.y, tgt_pos.z)
+			var d := node as Drone
+			d.aware = false
+			d.set("_stagger", SWAP_CONFUSE)
+			d.stagger(1.0)
+		&"car":
+			node.global_position = Vector3(tgt_pos.x, tgt_pos.y + 0.6, tgt_pos.z)
+			if "linear_velocity" in node:
+				node.set("linear_velocity", Vector3.ZERO)
+				node.set("angular_velocity", Vector3.ZERO)
+		&"pickup":
+			node.global_position = tgt_pos + Vector3(0.0, 0.5, 0.0)
+			var pd: Dictionary = t["pd"]
+			pd["pos"] = tgt_pos
+	fx_flash = 1.0
+	_slow_begin(SLOW_AFTER)
+	FX.shake(0.25)
+	Sfx.play(&"link")
+	Game.say("ENTANGLE", 1.2)
+	return true
+
+
+## The best swap target in the crosshair: {kind, node, pos, pd?} or {} (nothing aimed, out of range, or no line of sight).
+func swap_target() -> Dictionary:
+	var aim := _p.get_aim()
+	var o: Vector3 = aim["origin"]
+	var dir: Vector3 = aim["dir"]
+	var best := SWAP_RANGE
+	var res := {}
+	var mgr := Game.enemies
+	if is_instance_valid(mgr):
+		for e: Variant in mgr.get("list"):
+			var d := e as Drone
+			if d == null or not _alive(d):
+				continue
+			var r := _ray_sphere(o, dir, d.center(), d.radius * AIM_ASSIST)
+			if r < best and _clear(o, d.center()):
+				best = r
+				res = {"kind": &"enemy", "node": d, "pos": d.global_position}
+	for v: Node in get_tree().get_nodes_in_group(&"vehicle"):
+		var c := v as Node3D
+		if c == null or not c.is_inside_tree() or c == _p.vehicle:
+			continue
+		var ctr := c.global_position + Vector3(0.0, 0.8, 0.0)
+		var r := _ray_sphere(o, dir, ctr, 2.6)
+		if r < best and _clear(o, ctr):
+			best = r
+			res = {"kind": &"car", "node": c, "pos": c.global_position}
+	var mis: Object = Game.missions if is_instance_valid(Game.missions) else null
+	if mis != null and mis.get("pickups") is Array:
+		for pk: Variant in mis.get("pickups"):
+			var pd: Dictionary = pk
+			var n := pd.get("node") as Node3D
+			if n == null or not is_instance_valid(n):
+				continue
+			var pp: Vector3 = pd.get("pos", n.global_position)
+			var ctr := pp + Vector3(0.0, 0.6, 0.0)
+			var r := _ray_sphere(o, dir, ctr, 1.4)
+			if r < best and _clear(o, ctr):
+				best = r
+				res = {"kind": &"pickup", "node": n, "pos": pp, "pd": pd}
+	return res
+
+
+func _clear(o: Vector3, to: Vector3) -> bool:
+	if _p == null or not _p.is_inside_tree():
+		return true
+	_rq.from = o
+	_rq.to = to
+	_rq.collision_mask = Game.L_WORLD
+	return _p.get_world_3d().direct_space_state.intersect_ray(_rq).is_empty()
+
+
+func _animate_swap(delta: float) -> void:
+	if _swap_beams.is_empty():
+		for k in 2:
+			var m := FX.make_beam(Color(0.25, 0.9, 1.0) if k == 0 else Color(1.0, 0.3, 0.9), 0.14 if k == 0 else 0.06)
+			m.visible = false
+			fx_root.add_child(m)
+			_swap_beams.append(m)
+	if _swap_left <= 0.0:
+		if _swap_beams[0].visible:
+			_swap_beams[0].visible = false
+			_swap_beams[1].visible = false
+		return
+	_swap_left -= delta
+	var on := _swap_left > 0.0 and int(floor(_clock * 20.0)) % 2 == 0
+	FX.place_beam(_swap_beams[0], _swap_a, _swap_b)
+	FX.place_beam(_swap_beams[1], _swap_a, _swap_b)
+	_swap_beams[0].visible = on
+	_swap_beams[1].visible = on and _rich
 
 
 ## Distance along the unit ray (o, d) to the sphere, INF when it is missed or behind.
@@ -513,6 +662,64 @@ func collapse(timeout := false) -> void:
 	Game.say("WAVEFUNCTION COLLAPSE", 1.4)
 
 
+# --- collapse ----------------------------------------------------------------------------------------------------------
+
+## COLLAPSE shockwave (see the header). Returns true when it fired.
+func collapse_all() -> bool:
+	if _p == null or not Game.is_playing() or _p.is_dead():
+		return false
+	if _p.vehicle != null:
+		Game.say("COLLAPSE OFFLINE IN VEHICLE", 1.2)
+		return false
+	if cd_collapse > 0.0:
+		return false
+	if _p.energy < WAVE_COST:
+		Game.say("NOT ENOUGH COHERENCE", 1.0)
+		return false
+	_p.energy -= WAVE_COST
+	cd_collapse = WAVE_CD
+	var origin := _p.global_position + Vector3(0.0, 1.0, 0.0)
+	var combo := ""
+	if clone != null:                                     # SUPERPOSITION: the decoy detonates at full strength
+		collapse()
+		combo = " · DECOY DETONATED"
+	if has_beacon:                                        # the beacon bursts where it lies instead of teleporting
+		var bp := beacon_pos + Vector3(0.0, 1.0, 0.0)
+		_remove_beacon()
+		Game.explode(bp, WAVE_BEACON_RADIUS, {"enemy_dmg": 50.0, "car_dmg": 25.0, "player_dmg": 0.0, "color": Color(CYAN)})
+	var pairs := links.duplicate()
+	for l: Dictionary in pairs:                           # ENTANGLE: both ends of every pair take the hit, however far apart
+		var a: Drone = l["a"]
+		if _alive(a):
+			a.damage(TestMode.damage(WAVE_LINK_DMG))
+			combo = " · LINKS SHATTERED"
+	var i := links.size() - 1
+	while i >= 0:
+		_drop_link(i)
+		i -= 1
+	for e: Node3D in get_tree().get_nodes_in_group(&"enemy"):
+		var d := e.global_position.distance_to(origin)
+		if d > WAVE_RADIUS + 0.8:
+			continue
+		var f := 1.0 - 0.5 * d / (WAVE_RADIUS + 0.8)
+		if e.has_method(&"damage"):
+			e.call(&"damage", TestMode.damage(WAVE_DMG * f))
+		if is_instance_valid(e) and e.has_method(&"stagger"):
+			e.call(&"stagger", 1.5)
+		if is_instance_valid(e) and e.has_method(&"disable"):
+			e.call(&"disable", WAVE_OFF * (0.6 + 0.4 * f))
+	FX.blast(origin, WAVE_RADIUS, MAGENTA, 0.6)
+	if _rich:
+		FX.blast(origin, WAVE_RADIUS * 0.6, CYAN, 0.4)
+	FX.burst(origin, PALE, _fx_count(40), 9.0, 0.6, 0.0)
+	FX.shake(0.9)
+	collapse_fx = 1.0
+	Sfx.play(&"blink")
+	Sfx.play_at(&"boom", origin, -2.0)
+	Game.say("COLLAPSE" + combo, 1.4)
+	return true
+
+
 ## Takes the ghost down without a blast and gives the player his normal speed back.
 func _kill_clone() -> void:
 	if clone == null:
@@ -582,6 +789,7 @@ func _process(delta: float) -> void:
 		return
 	_clock += delta
 	fx_flash = maxf(fx_flash - delta * 2.5, 0.0)
+	collapse_fx = maxf(collapse_fx - delta * 1.6, 0.0)
 	if _slow_on and not aiming and Time.get_ticks_msec() >= _slow_until:
 		_slow_end()
 	if has_beacon or aiming:
@@ -590,6 +798,7 @@ func _process(delta: float) -> void:
 		_animate_clone()
 	for l: Dictionary in links:
 		_animate_link(l)
+	_animate_swap(delta)
 
 
 func _show_beacon() -> void:

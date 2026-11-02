@@ -256,3 +256,9 @@ Vehicle thin-film sheen/flicker/damage wear/wet gloss (vehicle_visual.gd uses a 
 - SUPERPOSITION: ghost shader flicker/phase seams, small expiry pulse, `Upgrades.decoy_bonus()` hook.
 - Ability label shortened to TELEPORT.
 - Follow-ups: title screen OPTIONS button overlaps the title text; hero separation margin is thin (0.038 vs 0.02); chase/boss spots fall back to default view if contract target fails to spawn; `decoy` shop row not yet in `Upgrades.IDS`; ghost shader not perf-gated; street_nw has 5.8% black pixels.
+
+## Wave 28: ENTANGLE, COLLAPSE
+- ENTANGLE (E): swap places with targeted enemy/car/pickup, 40 m LOS, 25 energy, 4 s cooldown. Old drone-link is `link_drones()` (unbound).
+- COLLAPSE (C): 50 coherence, 8 s cooldown, 16 m blast, disables drones ~2.5 s, combos with SUPERPOSITION decoy and ENTANGLE pairs.
+- Tests: test_entangle, test_collapse plus smoke set pass; perf tiers 0/1/2 OK; visual_qa 12/12.
+- Follow-ups: ability bar labels clip at phone/low res ("TELEPORT E ENTANGLE", "C COLLAPS") - widen chips or shorten; car/pickup swap untested; no dedicated Sfx/art for ENTANGLE/COLLAPSE; tutorial/story text may still say LINK; HUD active state for ENTANGLE follows `links`; COLLAPSE visuals unchecked on GPU.
