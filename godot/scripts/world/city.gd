@@ -228,6 +228,8 @@ func set_quality(level: int) -> void:
 func _apply_surfaces() -> void:
 	SurfaceTextures.apply(_ground.material, ["road", "walkv", "decal"], quality)
 	SurfaceTextures.apply(_building_mat, ["brick", "wall", "roof", "sign"], quality)
+	MaterialLib.apply_to(_ground.material, ["road", "walk"], quality)           # scanned sets win when imported; no-op otherwise
+	MaterialLib.apply_to(_building_mat, ["brick", "wall"], quality)
 	for m in _prop_mats:
 		SurfaceTextures.apply(m, ["metal", "corr", "trim", "sign"], quality)
 

@@ -126,6 +126,8 @@ float room_shade(vec2 p, vec3 rd, float cw, float fh, float depth, float rs) {
 	return 0.38 + 0.4 * (1.0 - hp.z / depth);
 }
 
+#include "res://assets/shaders/quantum_surface.gdshaderinc"
+
 void fragment() {
 	vec3 nrm = v_nrm;
 	float bseed = v_data.x * 91.7;
@@ -761,6 +763,20 @@ void fragment() {
 		float det = dot(dpdx, r1);
 		vec3 grad = sign(det) * (dFdx(hf) * r1 + dFdy(hf) * r2);
 		NORMAL = normalize(abs(det) * N - grad * (1.25 * (1.0 - smoothstep(60.0, 150.0, dist))));
+	}
+	// quantum layer: thin-film sheen on the metal parts (window frames, shutters, panels), a glowing phase seam in the building's neon colour
+	// (near field, full tiers only), and the rare second-state flicker of a facade patch. ALU only, nothing here samples a texture.
+	if (qs_amount > 0.0 && far_k < 0.9) {
+		float ndv_q = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
+		float fk = 1.0 - far_k;
+		EMISSION += qs_film(ndv_q, hash11(bseed * 1.9 + 4.0)) * metal * (0.03 + 0.12 * pow(1.0 - ndv_q, 2.0)) * (1.0 + wet) * qs_amount * fk;
+		if (detail > 0.5 && far_k < 0.5) {
+			vec3 wq = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+			vec2 sp = abs(nrm.x) > 0.5 ? wq.zy : wq.xy;
+			float fl = qs_flicker(hash12(floor(sp / 5.0) + bseed), TIME);
+			float sm = qs_seam(sp * 0.8 + bseed, 0.02) * (1.0 - clamp(dot(emit, vec3(1.0)), 0.0, 1.0)) * (1.0 - metal) * (1.0 - smoothstep(60.0, 150.0, dist));
+			EMISSION += neon * sm * (0.3 + 1.5 * fl) * qs_amount;
+		}
 	}
 #ifdef SRF
 	if (dot(srf_n, srf_n) > 1e-6) {

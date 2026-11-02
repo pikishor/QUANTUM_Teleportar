@@ -35,6 +35,18 @@ uniform vec3 dist_walk0 = vec3(1.0);
 uniform vec3 dist_walk1 = vec3(1.0);
 uniform vec3 dist_walk2 = vec3(1.0);
 uniform vec3 dist_walk3 = vec3(1.0);
+// Phase-seam glow colour per district (same quadrants as dist_walk).
+uniform vec3 dist_seam0 : source_color = vec3(1.0, 0.15, 0.55);
+uniform vec3 dist_seam1 : source_color = vec3(0.6, 0.3, 1.0);
+uniform vec3 dist_seam2 : source_color = vec3(0.3, 1.0, 0.45);
+uniform vec3 dist_seam3 : source_color = vec3(0.25, 0.85, 1.0);
+#include "res://assets/shaders/quantum_surface.gdshaderinc"
+
+vec3 district_seam(vec2 q) {
+	float fx = step(0.0, q.x);
+	float fz = step(0.0, q.y);
+	return mix(mix(dist_seam0, dist_seam1, fx), mix(dist_seam2, dist_seam3, fx), fz);
+}
 vec3 district_walk(vec2 q) {
 	float fx = step(0.0, q.x);
 	float fz = step(0.0, q.y);
@@ -463,6 +475,7 @@ void fragment() {
 		albedo *= 1.0 - 0.38 * oil_d;
 		polish = max(polish, oil_d);
 		albedo *= 1.0 - 0.22 * dc.g * mix(0.4, 1.0, wet) * srf;
+		polish = max(polish, smoothstep(0.35, 0.5, dc.g) * onroad * wet * srf * 0.6);     // puddle bodies: damp, glossy patches on the road
 		albedo *= 1.0 - 0.3 * dc.a * kz * srf;
 		float lit_m = smoothstep(0.35, 0.6, dc.b) * kz * srf * step(0.0, hash12(floor(q * 3.0)));
 		vec3 lcol = mix(vec3(0.06, 0.09, 0.07), mix(vec3(0.30, 0.28, 0.24), vec3(0.22, 0.05, 0.04), step(0.5, fract(dc.b * 9.7))), step(0.55, fract(dc.b * 5.3)));
@@ -560,6 +573,20 @@ void fragment() {
 		rc += stk * 0.5 * (1.0 + puddle);
 	}
 #endif
+
+	// quantum layer: interference shimmer on wet ground (thin-film hue over the reflection, rides the same gloss, so dry ground stays plain)
+	// plus phase-seam cracks that glow in the district colour, and the rare second-state flicker of a patch of ground.
+	if (qs_amount > 0.0) {
+		float film_seed = patchy * 0.8 + 0.2 * vnoise(q * 0.07);
+		emit += qs_film(ndv, film_seed) * (0.05 + 0.25 * fres) * gloss * (1.0 - puddle * 0.4) * qs_amount * (0.6 + 0.4 * rn);
+		if (fine) {
+			float fl = qs_flicker(hash12(floor(q / 6.0)), TIME);
+			float sm = qs_seam(q * 0.9, 0.018 + aa * 0.9) * (1.0 - matte) * dk;
+			vec3 sc = district_seam(q);
+			emit += sc * sm * (0.35 + 1.6 * fl) * qs_amount;
+			emit += sc * fl * 0.06 * (1.0 - matte) * qs_amount;
+		}
+	}
 
 	// moon glint on the water
 	vec3 Rw = reflect(-V, Nw);

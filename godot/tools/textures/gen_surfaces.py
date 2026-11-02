@@ -9,7 +9,7 @@ Every set is two files, both sampled with ONE tap each by the shaders (see asset
   surface_<name>_albedo.png  RGB = albedo as a DETAIL MODULATOR (median luminance 0.5: the shader multiplies the world's own palette and macro tone by 2 x RGB, so
                              wear, tints and the day-night look stay under the world's control), A = dry roughness
   surface_<name>_normal.png  RG = tangent normal xy (z rebuilt), B = cavity / ambient occlusion, A = WET roughness (the wet variant of the same surface)
-Extra: surface_decals.png  (R oil + tyre polish, G puddle tide-mark rings, B litter flecks, A gutter grime; one mask tap),
+Extra: surface_decals.png  (R oil + tyre polish and tyre marks, G puddle bodies and tide-mark rings, B litter flecks, A gutter grime; one mask tap),
        surface_trim_albedo/normal.png (2048 x 1024 atlas of 4 x 2 cells of 512 px: shopfront and billboard trim).
 District paving (wave 16): walk_market (hexagonal flagstones), walk_foundry (diamond plate steel), walk_towers (polished stone slabs); with the sidewalk (slums) they are the four
 layers of the ground shader's district sidewalk array (SurfaceTextures.walk_array). All four are 2048 tileable; MED uploads them at half size (1024), LOW loads none of them.
@@ -95,6 +95,17 @@ def height_to_normal(h, strength):
     gx = (np.roll(h, -1, 1) - np.roll(h, 1, 1)) * 0.5
     gy = (np.roll(h, -1, 0) - np.roll(h, 1, 0)) * 0.5
     return np.clip(-gx * strength, -0.95, 0.95), np.clip(-gy * strength, -0.95, 0.95)
+
+
+def wear_layers(n, k, seed, stretch=40.0, soot=0.5):
+    """Baked wall wear shared by the facade sets (u = along the wall, v down it): returns (rain, soot, edge) in 0..1.
+    rain = vertical rain-streak darkening, soot = dark plumes that hang under a ledge, edge = broad AO rim."""
+    rain = smooth(0.4, 1.8, norm(blur(white(n, seed), 1.0 * k + 0.2, stretch * k + 1.0)))
+    plume = smooth(0.8, 1.9, norm(blur(white(n, seed + 1), 6.0 * k + 0.5, 70.0 * k + 2.0)))
+    ledge = np.exp(-((np.arange(n, dtype=np.float32) % (n // 2)) / (n * 0.09)) ** 2)[:, None]      # two ledges per tile, plumes start under them
+    sootm = np.clip(plume * (0.35 + 0.65 * ledge) * soot * 2.0, 0, 1)
+    edge = smooth(0.6, 1.6, norm(blur(white(n, seed + 2), 14.0 * k + 1.0)))
+    return rain.astype(np.float32), sootm.astype(np.float32), edge.astype(np.float32)
 
 
 def modulate(rgb):
@@ -300,9 +311,12 @@ def concrete(n, out):
     streak = norm(blur(white(n, 35), 1.2 * k + 0.2, 40.0 * k + 1.0))                    # vertical rain streaks
     bleed = smooth(0.5, 1.4, streak) * smooth(0.0, 1.0, macro)
     base = 1.0 + 0.10 * macro + 0.09 * mid + 0.08 * fine - 0.6 * pores - 0.16 * bleed + 0.06 * streak
+    rain, soot, edge = wear_layers(n, k, 36)
+    base = base * (1.0 - 0.22 * rain - 0.30 * soot) * (1.0 - 0.12 * edge)
     rgb = np.clip(base, 0.05, None)[..., None] * tint(1.0, 1.0, 0.985)
     nx, ny = height_to_normal(blur(0.35 * fine + 0.20 * mid - 0.9 * pores, 0.5), 1.6)
-    save_pair(out, "concrete", rgb, 0.84 - 0.05 * mid, nx, ny, 1 - 0.55 * pores, 0.34 + 0.2 * smooth(-1, 2, fine) + 0.1 * bleed)
+    save_pair(out, "concrete", rgb, 0.84 - 0.05 * mid + 0.06 * soot, nx, ny, np.clip(1 - 0.55 * pores - 0.25 * soot - 0.12 * edge, 0.05, 1),
+              0.34 + 0.2 * smooth(-1, 2, fine) + 0.1 * bleed - 0.1 * rain)
 
 
 def brick(n, out):
@@ -332,10 +346,14 @@ def brick(n, out):
     rgb = brickc * (1 - mortar[..., None]) + mort_c * mortar[..., None]
     lum = (rgb @ LUMA)[..., None]
     rgb = lum + 0.4 * (rgb - lum)                    # the modulator keeps only a hint of hue (the building's own tint decides the colour)
+    rain, soot, edge = wear_layers(n, k, 46)
+    edgewear = smooth(7.0, 1.5, d_mm) * (1.0 - mortar) * smooth(0.3, 1.2, fine)          # curvature wear: arrises rub pale and bare
+    rgb = rgb * (1.0 - 0.20 * rain[..., None] - 0.32 * soot[..., None]) * (1.0 + 0.30 * edgewear[..., None]) * (1.0 - 0.10 * edge[..., None])
     h = bevel * (0.8 + 0.12 * mid + 0.10 * fine - 0.4 * pit) - 0.35 * mortar - 0.3 * chip
     nx, ny = height_to_normal(blur(h, 0.6 * k + 0.2), 3.2)
-    save_pair(out, "brick", rgb, 0.88 - 0.06 * bval + 0.06 * mortar, nx, ny, 1 - 0.55 * mortar - 0.5 * pit - 0.25 * chip,
-              0.38 + 0.25 * mortar + 0.12 * fine)
+    save_pair(out, "brick", rgb, np.clip(0.88 - 0.06 * bval + 0.06 * mortar + 0.05 * soot - 0.08 * edgewear, 0, 1), nx, ny,
+              np.clip(1 - 0.55 * mortar - 0.5 * pit - 0.25 * chip - 0.2 * soot - 0.1 * edge, 0.05, 1),
+              0.38 + 0.25 * mortar + 0.12 * fine - 0.1 * rain)
 
 
 def corrugated(n, out):
@@ -411,9 +429,26 @@ def decals(n, out):
     oil = smooth(1.1, 1.9, spectral(n, 2.6, 81, hi=0.02) + 0.35 * spectral(n, 1.6, 82, lo=0.01, hi=0.1))
     oil = oil * (0.6 + 0.4 * unit(spectral(n, 1.8, 83, lo=0.01, hi=0.2)))
     oil = np.clip(oil + 0.8 * smooth(0.0, 0.5, (norm(blur(white(n, 84), 5 * k + 0.5)) - 1.6) * 1.2), 0, 1)     # small droplets beside the stains
+    tyre = np.zeros((n, n), np.float32)                                                                        # tyre marks: pairs of curved rubber lines
+    tr = np.random.default_rng(91)
+    for _ in range(26):
+        cx, cy = tr.random(2) * n
+        ang = tr.random() * np.pi
+        curv = (tr.random() - 0.5) * 0.0016 / k
+        ln = (0.25 + 0.5 * tr.random()) * n
+        t = np.linspace(-ln / 2, ln / 2, int(ln * 1.5))
+        ph = tr.random() * 6.0
+        for off in (-0.008 * n, 0.008 * n):
+            px = cx + t * np.cos(ang) - (off + curv * t * t) * np.sin(ang)
+            py = cy + t * np.sin(ang) + (off + curv * t * t) * np.cos(ang)
+            fade = 0.4 + 0.6 * np.abs(np.sin(t * 0.004 + ph))
+            np.maximum.at(tyre, (np.round(py).astype(int) % n, np.round(px).astype(int) % n), fade)
+    tyre = np.clip(blur(tyre, 1.2 * k + 0.4) * 9.0, 0, 1) * (0.5 + 0.5 * unit(spectral(n, 1.6, 92, lo=0.01, hi=0.2)))
+    oil = np.clip(np.maximum(oil, 0.8 * tyre), 0, 1)
     pb = spectral(n, 2.7, 85, hi=0.015) + 0.25 * spectral(n, 1.8, 86, lo=0.01, hi=0.08)
     ring = np.exp(-((pb - 0.55) / 0.045) ** 2) * 0.9 + np.exp(-((pb - 0.78) / 0.03) ** 2) * 0.6 + np.exp(-((pb - 0.36) / 0.05) ** 2) * 0.4
     ring = ring * (0.55 + 0.45 * unit(spectral(n, 1.6, 87, lo=0.01, hi=0.2)))                                 # a broken tide line
+    ring = np.maximum(ring, 0.5 * smooth(0.5, 0.62, pb))                                                       # the puddle body inside the outermost ring: damp patches
     r = np.random.default_rng(88)
     lit = np.zeros((n, n), np.float32)
     yy, xx = np.mgrid[-24:25, -24:25].astype(np.float32)

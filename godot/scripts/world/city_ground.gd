@@ -127,6 +127,8 @@ func _material(shader: Shader) -> ShaderMaterial:
 	for d in Districts.COUNT:                                   # sidewalk slab tint per district (reaches the LOW tier as well)
 		var w: Color = Districts.palette(d)["walk"]
 		m.set_shader_parameter(StringName("dist_walk%d" % d), Vector3(w.r, w.g, w.b))
+		var sc: Color = Districts.palette(d)["accent2"]          # phase-seam glow (quantum_surface.gdshaderinc)
+		m.set_shader_parameter(StringName("dist_seam%d" % d), Vector3(sc.r, sc.g, sc.b))
 	return m
 
 

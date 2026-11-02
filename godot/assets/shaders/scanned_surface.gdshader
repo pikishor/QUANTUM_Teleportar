@@ -7,6 +7,10 @@ uniform float tile_m = 2.0;
 uniform float metal_k = 0.0;
 uniform float grime = 0.5;
 uniform float wet = 0.0;
+global uniform float wetness;
+uniform vec3 seam_col : source_color = vec3(0.25, 0.85, 1.0);
+#include "res://assets/shaders/common.gdshaderinc"
+#include "res://assets/shaders/quantum_surface.gdshaderinc"
 varying vec3 wpos;
 varying vec3 wnor;
 
@@ -32,11 +36,17 @@ void fragment() {
 	float g = clamp(grime * (0.35 + cav * 1.2), 0.0, 1.0);
 	a *= 1.0 - 0.55 * g;
 	float edge = curv * 0.6 + sin(wpos.x * 0.7 + wpos.z * 0.9) * 0.2 + 0.2;
-	float wm = clamp(wet * (0.6 + edge) , 0.0, 1.0) * (1.0 - g * 0.5);
+	float wm = clamp(max(wet, clamp(wetness, 0.0, 1.0)) * (0.6 + edge) , 0.0, 1.0) * (1.0 - g * 0.5);
 	ALBEDO = a * (1.0 - 0.35 * wm);
 	ROUGHNESS = mix(o.g, 0.08, wm);
 	METALLIC = o.b * metal_k;
 	AO = o.r;
 	NORMAL_MAP = n;
 	NORMAL_MAP_DEPTH = 1.0;
+	// quantum layer (no extra taps): thin-film on metal, wet interference shimmer, phase seam, rare second-state flicker
+	float ndv = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
+	vec3 film = qs_film(ndv, 0.5 + 0.5 * vnoise(wpos.xz * 0.3));
+	EMISSION = film * (METALLIC * 0.10 + wm * 0.06 * (1.0 - o.g)) * qs_amount;
+	float fl = qs_flicker(hash12(floor(wpos.xz / 6.0) + floor(wpos.y / 6.0)), TIME);
+	EMISSION += seam_col * qs_seam(wpos.xz * 0.9 + wpos.y, 0.02) * (0.3 + 1.5 * fl) * qs_amount;
 }
