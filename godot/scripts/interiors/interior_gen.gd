@@ -6,7 +6,7 @@ extends RefCounted
 ## The same (type, seed) always gives the same rooms, props, anchors and colliders whatever the tier. Plans and mesh sets of the last few interiors are kept in two small LRU caches
 ## (re-entering the shop you just left costs milliseconds; at most CACHE_PLANS plans and CACHE_MESHES mesh sets stay alive, `clear_cache()` drops them).
 
-const TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"club", &"lobby", &"apartment", &"checkpoint", &"bodega", &"warehouse"]
+const TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"club", &"lobby", &"apartment", &"checkpoint", &"bodega", &"warehouse", &"corridor_lab", &"teleporter_hall", &"server_room", &"cargo_bay", &"med_bay", &"control_room"]
 const CACHE_PLANS := 6
 const CACHE_MESHES := 3
 

@@ -38,6 +38,11 @@ const DEFS := {
 	"wall_light": [0.3, 0.4, 0.14, F_WALL | F_DETAIL], "vent": [0.9, 0.12, 0.6, F_CEILING | F_DETAIL], "cables": [1.4, 0.8, 0.08, F_WALL | F_DETAIL],
 	"ac_unit": [1.0, 0.34, 0.3, F_WALL | F_DETAIL], "box_stack": [0.9, 0.62, 0.7, F_DETAIL], "trash_bag": [0.5, 0.45, 0.5, F_DETAIL],
 	"rug": [2.4, 0.02, 1.7, F_DETAIL], "bin": [0.42, 0.7, 0.42, F_DETAIL], "crate_small": [0.5, 0.5, 0.5, F_DETAIL],
+	# interior kit (scripts/interiors/interior_kit.gd): Quaternius pieces appended to the surface mesh
+	"kit_teleporter": [1.21, 1.34, 1.19, F_COLLIDER], "kit_pad": [1.23, 0.9, 1.19, F_COLLIDER], "kit_pod": [1.45, 2.8, 1.45, F_COLLIDER], "kit_server": [0.8, 2.08, 0.7, F_COLLIDER],
+	"kit_console": [0.9, 1.54, 0.55, F_COLLIDER], "kit_capsule": [0.88, 1.63, 0.88, F_COLLIDER], "kit_crate": [0.9, 0.9, 0.9, F_COLLIDER], "kit_crate_long": [1.3, 0.8, 0.8, F_COLLIDER],
+	"kit_container": [1.3, 0.8, 0.8, F_COLLIDER], "kit_shelf": [1.8, 2.5, 0.8, F_COLLIDER], "kit_shelf_tall": [1.9, 2.8, 0.75, F_COLLIDER], "kit_vessel": [0.3, 1.02, 0.3, F_DETAIL],
+	"kit_laser": [3.0, 1.1, 1.2, F_COLLIDER], "kit_column": [0.63, 3.0, 0.63, F_COLLIDER], "kit_base": [2.4, 0.2, 2.4, F_DETAIL], "kit_pipes": [3.5, 0.35, 0.3, F_WALL | F_DETAIL],
 }
 
 static var _rng := RandomNumberGenerator.new()
@@ -418,7 +423,14 @@ static func build(sb: RefCounted, gb: RefCounted, p: Dictionary) -> void:
 				_bx(sb, Vector3(-w * 0.5 + 0.4 + i * 1.3, 0.1, 0), Vector3(0.05, 0.3, 0.2), Color(0.1, 0.1, 0.11), C_METAL)
 			_bx(sb, Vector3(_rng.randf_range(-w * 0.3, w * 0.3), 0.0, -0.12), Vector3(0.14, 0.14, 0.05), Color(0.6, 0.12, 0.1), C_METAL)
 		_:
-			_bx(sb, Vector3(0, h * 0.5, 0), size, tint, C_METAL)
+			if InteriorKit.is_kit(kind):
+				var ok := InteriorKit.append(sb, kind, size, acc, tint, ph, -h * 0.5 if flags_of(kind) & F_WALL != 0 else 0.0)
+				if ok and kind in ["kit_teleporter", "kit_pad", "kit_pod", "kit_capsule"]:
+					_halo(gb, Vector3(0, h * 0.5, 0.0), w * 1.3, h * 1.1, acc, 0.35)
+				if not ok:
+					_bx(sb, Vector3(0, h * 0.5, 0), size, tint, C_METAL)
+			else:
+				_bx(sb, Vector3(0, h * 0.5, 0), size, tint, C_METAL)
 	var xf := Transform3D(Basis(Vector3.UP, float(p["yaw"])), p["pos"])
 	sb.xform_from(s0, xf)
 	gb.xform_from(g0, xf)

@@ -262,3 +262,7 @@ Vehicle thin-film sheen/flicker/damage wear/wet gloss (vehicle_visual.gd uses a 
 - COLLAPSE (C): 50 coherence, 8 s cooldown, 16 m blast, disables drones ~2.5 s, combos with SUPERPOSITION decoy and ENTANGLE pairs.
 - Tests: test_entangle, test_collapse plus smoke set pass; perf tiers 0/1/2 OK; visual_qa 12/12.
 - Follow-ups: ability bar labels clip at phone/low res ("TELEPORT E ENTANGLE", "C COLLAPS") - widen chips or shorten; car/pickup swap untested; no dedicated Sfx/art for ENTANGLE/COLLAPSE; tutorial/story text may still say LINK; HUD active state for ENTANGLE follows `links`; COLLAPSE visuals unchecked on GPU.
+
+## Wave 29 note
+Interior kit (6 new interior types, kit_*.glb, shader classes 10-12) and CharacterImport pipeline landed. Perf OK tiers 0-2, VQA 12/12.
+Follow-ups: new interior types not yet on city doors (InteriorData/door weights); kit MESH_YAW front direction guessed; CharacterImport not wired to spawners; Blender import script untested; rest-pose bone realignment missing.

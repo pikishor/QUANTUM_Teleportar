@@ -20,7 +20,7 @@ extends RefCounted
 ##   ["anchor", kind, n0, n1]           anchors (civilian, guard, ...) at free reachable floor spots
 ## Colours are linear and dark on purpose: the light comes from the neon, the pools and the emissive strips.
 
-const TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"club", &"lobby", &"apartment", &"checkpoint", &"bodega", &"warehouse"]
+const TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"club", &"lobby", &"apartment", &"checkpoint", &"bodega", &"warehouse", &"corridor_lab", &"teleporter_hall", &"server_room", &"cargo_bay", &"med_bay", &"control_room"]
 
 ## Anchors every type guarantees (docs/interiors_interface.md): kind -> minimum count.
 const GUARANTEED := {
@@ -34,6 +34,12 @@ const GUARANTEED := {
 	&"checkpoint": {&"guard": 4, &"terminal": 1},
 	&"bodega": {&"vendor": 1, &"civilian": 4},
 	&"warehouse": {&"civilian": 4, &"guard": 4},
+	&"corridor_lab": {&"civilian": 4, &"guard": 4},
+	&"teleporter_hall": {&"civilian": 4, &"guard": 4},
+	&"server_room": {&"civilian": 4, &"guard": 4, &"terminal": 1},
+	&"cargo_bay": {&"civilian": 4, &"guard": 4},
+	&"med_bay": {&"civilian": 4, &"guard": 4},
+	&"control_room": {&"civilian": 4, &"guard": 4, &"terminal": 1},
 }
 
 const SPECS := {
@@ -143,6 +149,69 @@ const SPECS := {
 			{"role": "office", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["terminal"], ["free", "desk", 1, 1], ["wall", "cabinet", 1, 2, "any"], ["wm", "screen", 1, 2, "any"], ["anchor", "guard", 1, 2], ["anchor", "civilian", 1, 1]]},
 		],
 	},
+	# --- interior kit layouts (Quaternius pieces, quantum-realism film in assets/shaders/interior_surface.gdshader) ---
+	&"corridor_lab": {
+		"name": "CORRIDOR LAB", "ceil": [3.0, 3.3], "windows": 0.5, "hostile": false,
+		"pal": {"wall": Color(0.13, 0.15, 0.18), "wall2": Color(0.09, 0.11, 0.14), "floor": Color(0.09, 0.10, 0.12), "ceil": Color(0.08, 0.09, 0.11), "trim": Color(0.25, 0.4, 0.5),
+			"neon": [Color(0.2, 0.9, 1.0), Color(0.8, 0.3, 1.0), Color(0.3, 1.0, 0.7)], "key": Color(0.6, 0.9, 1.0), "amb": Color(0.06, 0.08, 0.10)},
+		"rooms": [
+			{"role": "corridor", "w": [9.0, 12.0], "d": [4.5, 5.5], "prog": [["wall", "kit_shelf", 1, 2, "back"], ["wall", "kit_server", 2, 3, "left"], ["wall", "kit_console", 1, 2, "right"], ["free", "kit_vessel", 1, 2],
+				["wm", "screen", 1, 2, "any"], ["wm", "kit_pipes", 2, 3, "any"], ["detail", "kit_crate", 1, 2], ["anchor", "civilian", 3, 4], ["anchor", "guard", 2, 3]]},
+			{"role": "lab", "w": [6.0, 7.0], "d": [5.0, 6.0], "prog": [["wall", "kit_console", 2, 3, "back"], ["free", "kit_capsule", 1, 2], ["free", "workbench", 1, 1], ["wall", "kit_shelf_tall", 1, 1, "left"],
+				["wm", "screen", 1, 2, "any"], ["wm", "kit_pipes", 1, 2, "any"], ["anchor", "guard", 2, 3], ["anchor", "civilian", 1, 2]]},
+			{"role": "store", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["wall", "kit_shelf", 1, 2, "back"], ["free", "kit_crate", 1, 2], ["free", "kit_crate_long", 1, 1], ["anchor", "civilian", 1, 1], ["anchor", "guard", 1, 1]]},
+		],
+	},
+	&"teleporter_hall": {
+		"name": "TELEPORTER HALL", "ceil": [4.4, 5.0], "windows": 0.3, "hostile": false,
+		"pal": {"wall": Color(0.10, 0.11, 0.16), "wall2": Color(0.07, 0.08, 0.13), "floor": Color(0.07, 0.07, 0.10), "ceil": Color(0.05, 0.05, 0.08), "trim": Color(0.3, 0.25, 0.5),
+			"neon": [Color(0.55, 0.35, 1.0), Color(0.2, 0.85, 1.0), Color(1.0, 0.3, 0.8)], "key": Color(0.7, 0.6, 1.0), "amb": Color(0.07, 0.065, 0.11)},
+		"rooms": [
+			{"role": "hall", "w": [10.0, 13.0], "d": [8.0, 10.0], "prog": [["free", "kit_teleporter", 2, 3], ["free", "kit_pad", 1, 2], ["wall", "kit_pod", 2, 3, "back"], ["wall", "kit_console", 1, 2, "left"],
+				["wm", "screen", 2, 3, "right"], ["wm", "kit_pipes", 2, 3, "any"], ["detail", "kit_vessel", 1, 3], ["hang", 3], ["anchor", "civilian", 3, 4], ["anchor", "guard", 2, 3]]},
+			{"role": "prep", "w": [5.0, 6.0], "d": [4.0, 5.0], "prog": [["wall", "kit_capsule", 2, 3, "back"], ["wall", "locker", 1, 2, "left"], ["free", "kit_crate", 1, 1], ["anchor", "guard", 1, 2], ["anchor", "civilian", 1, 2]]},
+		],
+	},
+	&"server_room": {
+		"name": "SERVER ROOM", "ceil": [3.2, 3.6], "windows": 0.2, "hostile": false,
+		"pal": {"wall": Color(0.08, 0.10, 0.12), "wall2": Color(0.06, 0.08, 0.10), "floor": Color(0.06, 0.07, 0.08), "ceil": Color(0.05, 0.06, 0.07), "trim": Color(0.15, 0.4, 0.4),
+			"neon": [Color(0.1, 1.0, 0.8), Color(0.2, 0.6, 1.0), Color(1.0, 0.3, 0.5)], "key": Color(0.5, 1.0, 0.9), "amb": Color(0.05, 0.07, 0.075)},
+		"rooms": [
+			{"role": "racks", "w": [9.0, 12.0], "d": [7.0, 9.0], "prog": [["aisles", "kit_server", 4, 6], ["terminal"], ["wall", "kit_console", 1, 2, "back"], ["wm", "screen", 2, 3, "any"], ["wm", "kit_pipes", 3, 4, "any"],
+				["pipes", 2], ["anchor", "civilian", 3, 4], ["anchor", "guard", 2, 3]]},
+			{"role": "ops", "w": [4.5, 5.5], "d": [4.0, 5.0], "prog": [["free", "desk", 1, 1], ["wall", "kit_server", 1, 2, "back"], ["wm", "screen", 2, 2, "any"], ["anchor", "guard", 2, 3], ["anchor", "civilian", 1, 2]]},
+		],
+	},
+	&"cargo_bay": {
+		"name": "CARGO BAY", "ceil": [5.0, 5.8], "windows": 0.2, "hostile": true,
+		"pal": {"wall": Color(0.12, 0.12, 0.11), "wall2": Color(0.09, 0.09, 0.10), "floor": Color(0.08, 0.08, 0.08), "ceil": Color(0.06, 0.06, 0.06), "trim": Color(0.35, 0.28, 0.1),
+			"neon": [Color(1.0, 0.65, 0.1), Color(0.3, 0.9, 1.0), Color(1.0, 0.3, 0.2)], "key": Color(1.0, 0.85, 0.55), "amb": Color(0.07, 0.065, 0.06)},
+		"rooms": [
+			{"role": "bay", "w": [13.0, 16.0], "d": [10.0, 13.0], "prog": [["free", "kit_container", 4, 6], ["free", "kit_crate", 4, 6], ["free", "kit_crate_long", 2, 4], ["aisles", "kit_shelf_tall", 2, 3],
+				["wm", "kit_pipes", 3, 5, "any"], ["pipes", 3], ["hang", 4], ["wm", "poster", 1, 2, "any"], ["anchor", "civilian", 4, 5], ["anchor", "guard", 4, 6]]},
+			{"role": "office", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["free", "desk", 1, 1], ["wall", "kit_console", 1, 1, "back"], ["wall", "cabinet", 1, 2, "any"], ["anchor", "guard", 1, 2], ["anchor", "civilian", 1, 1]]},
+		],
+	},
+	&"med_bay": {
+		"name": "MED BAY", "ceil": [3.0, 3.4], "windows": 0.6, "hostile": false,
+		"pal": {"wall": Color(0.24, 0.28, 0.30), "wall2": Color(0.14, 0.22, 0.24), "floor": Color(0.18, 0.21, 0.22), "ceil": Color(0.18, 0.20, 0.21), "trim": Color(0.45, 0.6, 0.62),
+			"neon": [Color(0.3, 1.0, 0.8), Color(0.4, 0.8, 1.0), Color(1.0, 0.45, 0.6)], "key": Color(0.8, 1.0, 0.95), "amb": Color(0.10, 0.12, 0.125)},
+		"rooms": [
+			{"role": "ward", "w": [8.0, 10.0], "d": [6.0, 8.0], "prog": [["free", "medbed", 2, 3], ["wall", "kit_capsule", 1, 2, "back"], ["wall", "kit_console", 1, 2, "left"], ["wall", "cabinet", 1, 2, "right"],
+				["wm", "screen", 1, 2, "any"], ["detail", "kit_vessel", 2, 3], ["detail", "bin", 1, 2], ["anchor", "civilian", 4, 5], ["anchor", "guard", 1, 2]]},
+			{"role": "icu", "w": [5.0, 6.0], "d": [4.0, 5.0], "prog": [["free", "kit_pod", 1, 1], ["wall", "kit_console", 1, 2, "back"], ["wall", "locker", 1, 1, "left"], ["anchor", "civilian", 1, 2], ["anchor", "guard", 1, 2]]},
+		],
+	},
+	&"control_room": {
+		"name": "CONTROL ROOM", "ceil": [3.2, 3.6], "windows": 0.3, "hostile": true,
+		"pal": {"wall": Color(0.07, 0.09, 0.12), "wall2": Color(0.05, 0.07, 0.10), "floor": Color(0.05, 0.06, 0.08), "ceil": Color(0.04, 0.05, 0.07), "trim": Color(0.2, 0.35, 0.5),
+			"neon": [Color(0.2, 0.8, 1.0), Color(1.0, 0.25, 0.3), Color(0.5, 1.0, 0.5)], "key": Color(0.55, 0.85, 1.0), "amb": Color(0.05, 0.065, 0.085)},
+		"rooms": [
+			{"role": "deck", "w": [9.0, 11.0], "d": [7.0, 9.0], "prog": [["terminal"], ["wall", "kit_console", 3, 4, "back"], ["free", "kit_console", 1, 2], ["wall", "kit_server", 2, 3, "left"], ["wm", "screen", 3, 4, "any"],
+				["free", "kit_laser", 1, 1], ["wm", "kit_pipes", 2, 3, "any"], ["hang", 3], ["anchor", "civilian", 3, 4], ["anchor", "guard", 3, 4]]},
+			{"role": "armoury", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["wall", "locker", 1, 2, "back"], ["free", "kit_crate", 1, 2], ["wall", "kit_shelf", 1, 1, "left"], ["anchor", "guard", 1, 2], ["anchor", "civilian", 1, 1]]},
+		],
+	},
 }
 
 ## Audio hooks (data only: the Interior node plays nothing). Names are `Sfx` names (assets/audio/<name>[_N].wav|ogg); `Sfx.variants_of(name)` is non-empty for every one of them.
@@ -159,6 +228,12 @@ const AMBIENCE := {
 	&"checkpoint": {"dedicated": &"interior_checkpoint", "loops": [[&"drone_hum", -18.0], [&"radio_static", -28.0]], "oneshots": [[&"radio_glitch", 5.0, 12.0, -22.0], [&"drone_alert", 15.0, 30.0, -24.0]], "muffle": 0.85},
 	&"bodega": {"dedicated": &"interior_bodega", "loops": [[&"drone_hum", -24.0], [&"rain_awning", -26.0]], "oneshots": [[&"babble", 15.0, 30.0, -26.0], [&"impact_metal", 20.0, 40.0, -28.0]], "muffle": 0.8},
 	&"warehouse": {"dedicated": &"interior_warehouse", "loops": [[&"city_hum", -22.0], [&"rain_metal", -22.0]], "oneshots": [[&"impact_metal", 5.0, 12.0, -22.0], [&"distant_boom", 25.0, 50.0, -26.0]], "muffle": 0.6},
+	&"corridor_lab": {"dedicated": &"interior_tech", "loops": [[&"drone_hum", -22.0], [&"radio_static", -32.0]], "oneshots": [[&"radio_glitch", 10.0, 22.0, -26.0]], "muffle": 0.85},
+	&"teleporter_hall": {"dedicated": &"interior_tech", "loops": [[&"drone_hum", -18.0], [&"city_hum", -28.0]], "oneshots": [[&"radio_glitch", 6.0, 14.0, -24.0], [&"distant_boom", 25.0, 50.0, -28.0]], "muffle": 0.9},
+	&"server_room": {"dedicated": &"interior_tech", "loops": [[&"drone_hum", -16.0], [&"radio_static", -30.0]], "oneshots": [[&"ui_tick", 8.0, 18.0, -26.0]], "muffle": 0.9},
+	&"cargo_bay": {"dedicated": &"interior_warehouse", "loops": [[&"city_hum", -24.0], [&"rain_metal", -24.0]], "oneshots": [[&"impact_metal", 6.0, 14.0, -22.0]], "muffle": 0.6},
+	&"med_bay": {"dedicated": &"interior_clinic", "loops": [[&"drone_hum", -22.0]], "oneshots": [[&"heartbeat", 10.0, 22.0, -26.0]], "muffle": 0.85},
+	&"control_room": {"dedicated": &"interior_checkpoint", "loops": [[&"drone_hum", -18.0], [&"radio_static", -28.0]], "oneshots": [[&"radio_glitch", 6.0, 14.0, -24.0], [&"ui_tick", 10.0, 24.0, -28.0]], "muffle": 0.85},
 }
 
 

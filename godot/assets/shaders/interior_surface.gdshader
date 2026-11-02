@@ -4,7 +4,8 @@ shader_type spatial;
 // Nothing here reads the city's moon, fog or ambient: the interior is lit by itself, so it looks the same under any environment.
 // Vertex data: COLOR.rgb = albedo (emissive classes: the glow colour), COLOR.a = emission strength; UV.x = surface class, UV.y = ceiling height (walls) or a per-object phase.
 //   class 0 wall (baseboard, dado rail, crown, panel seams, grime), 1 floor (tiles, grout, puddles), 2 ceiling (panels), 3 metal prop, 4 soft / painted prop,
-//   5 neon tube (pulse and dropouts), 6 dance floor (animated tiles), 7 screen (scanlines, scrolling content), 8 static emissive strip, 9 sign glyph.
+//   5 neon tube (pulse and dropouts), 6 dance floor (animated tiles), 7 screen (scanlines, scrolling content), 8 static emissive strip, 9 sign glyph,
+//   10 kit metal, 11 kit phase glass, 12 kit light (interior kit pieces: plausible painted metal plus the quantum film: iridescent grazing sheen, a phase seam sweeping up the piece, flicker).
 render_mode fog_disabled, ambient_light_disabled, depth_draw_opaque;
 
 uniform vec3 ambient_col = vec3(0.07, 0.07, 0.09);
@@ -185,13 +186,37 @@ void fragment() {
 		emit = alb * vcol.a;
 		alb *= 0.15;
 		lit = false;
-	} else {
+	} else if (cls < 9.5) {
 		// ---- sign glyphs: steady, with a dying flicker on some signs
 		float k = hash21(vec2(floor(TIME * 5.0), floor(vuv.y * 53.0)));
 		float fl = (k > 0.9 && fract(vuv.y * 3.0) > 0.7) ? 0.15 : 1.0;
 		emit = alb * vcol.a * fl;
 		alb *= 0.1;
 		lit = false;
+	} else {
+		// ---- interior kit (10 metal, 11 phase glass, 12 light): quantum realism = believable worn metal + iridescent film + phase seam + flicker
+		vec3 kv = normalize((INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz);
+		float fres = pow(1.0 - clamp(dot(wnrm, kv), 0.0, 1.0), 3.0);
+		vec3 film = 0.5 + 0.5 * cos(vec3(0.0, 2.1, 4.2) + fres * 7.0 + h * 1.6 + vuv.y);
+		float n = vnoise(wpos.xz * 11.0 + vec2(wpos.y * 7.0, vuv.y));
+		float seam = 1.0 - smoothstep(0.0, 0.03, abs(fract(h * 0.42 - TIME * 0.11 + vuv.y * 0.37) - 0.5));    // thin bright line rising through the piece
+		float fk = hash21(vec2(floor(TIME * 9.0), floor(vuv.y * 71.0)));
+		float fl = (fk > 0.975) ? 0.3 : 1.0;                                                                             // rare dropout
+		if (cls < 10.5) {
+			alb *= 0.8 + 0.35 * n;
+			rough = 0.42;
+			metal = 0.5;
+			emit = film * fres * 0.34 + film * seam * 0.22 * (0.5 + 0.5 * sin(TIME * 0.7 + vuv.y));
+		} else if (cls < 11.5) {
+			rough = 0.1;
+			gloss = 0.8;
+			emit = alb * vcol.a * (0.45 + 0.25 * sin(TIME * 1.3 + vuv.y * 3.0)) * fl + film * (0.25 + 0.75 * fres) * 0.7 + film * seam * 0.6;
+			alb *= 0.25;
+		} else {
+			emit = alb * vcol.a * fl * (0.9 + 0.1 * sin(TIME * 2.4 + vuv.y * 5.0)) + film * seam * 0.12;
+			alb *= 0.12;
+			lit = false;
+		}
 	}
 
 	// ---- baked light: ambient + pools (+ glossy reflection of the pools on shiny surfaces)
