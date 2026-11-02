@@ -21,6 +21,9 @@ const BLINK_CD := 0.3
 const TELEPORT_CD := 0.4
 const BLINK_RANGE := 48.0
 const BEACON_LIFE := 8.0
+const HOLD_AIM := 0.22              ## QUANTUM TELEPORT: a tap throws / uses the beacon, holding this long (game seconds) aims a destination, release teleports there
+const SLOW_SCALE := 0.35            ## short slow motion while aiming and just after a teleport (Engine.time_scale factor, timed in real seconds)
+const SLOW_AFTER := 0.25
 const LINK_COST := 25.0
 const LINK_CD := 0.8
 const LINK_RANGE := 70.0            ## how far the aimed drone may be
@@ -66,6 +69,9 @@ var beacon_left := 0.0
 var clone: Node3D = null               ## the ghost while it exists (group "clone"), else null
 var clone_left := 0.0
 var cd_blink := 0.0
+var aiming := false                    ## QUANTUM TELEPORT hold-to-aim: the destination marker follows the crosshair, release goes
+var aim_pos := Vector3.ZERO
+var fx_flash := 0.0                    ## screen effect strength 0..1 (HUD), 1 at the moment of a teleport, decays
 var cd_link := 0.0
 var cd_super := 0.0
 var links: Array = []                  ## {a: Drone, b: Drone, t: float (seconds left), slot: int}
@@ -79,6 +85,11 @@ var fx_root: Node3D                    ## top-level parent of every visual of th
 var _p: Player
 var _rich := true                      ## MED / HIGH: glow sprite, second ring, ghost ring and second beam
 var _clock := 0.0
+var _hold := 0.0
+var _holding := false
+var _slow_until := 0
+var _slow_base := 1.0
+var _slow_on := false
 var _rq := PhysicsRayQueryParameters3D.new()
 var _ring: MeshInstance3D
 var _ring2: MeshInstance3D
@@ -118,8 +129,7 @@ func _physics_process(delta: float) -> void:
 	cd_link = maxf(cd_link - delta, 0.0)
 	cd_super = maxf(cd_super - delta, 0.0)
 	bits_left = maxf(bits_left - delta, 0.0)
-	if Input.is_action_just_pressed(&"blink"):
-		blink()
+	_blink_input(delta)
 	if Input.is_action_just_pressed(&"entangle"):
 		entangle()
 	if Input.is_action_just_pressed(&"superpose"):
@@ -159,6 +169,11 @@ func reset() -> void:
 	cd_link = 0.0
 	cd_super = 0.0
 	bits_left = 0.0
+	_holding = false
+	_hold = 0.0
+	aiming = false
+	fx_flash = 0.0
+	_slow_end()
 	last_fix = ""
 	last_m0 = 0
 	last_m1 = 0
@@ -178,6 +193,83 @@ func _fx_count(n: int) -> int:
 	return maxi(2, int(round(n * float(FX_SCALE[clampi(Game.quality, 0, 2)]))))
 
 
+# --- quantum teleport (hold to aim, release to go) -----------------------------------------------------------------------
+
+## Tap (released before HOLD_AIM): the beacon throw / teleport of blink(). Hold: aim a destination (marker + slow motion), release teleports straight there.
+func _blink_input(delta: float) -> void:
+	if Input.is_action_just_pressed(&"blink"):
+		_holding = true
+		_hold = 0.0
+	if not _holding:
+		return
+	if Input.is_action_pressed(&"blink"):
+		_hold += delta
+		if _hold >= HOLD_AIM and not has_beacon:
+			if not aiming and not can_aim():
+				_holding = false
+				return
+			aiming = true
+			aim_pos = _aim_floor_point()
+			beacon_pos = aim_pos
+			_slow_begin(0.0)
+			_animate_beacon()
+	else:
+		_holding = false
+		if aiming:
+			aim_go()
+		else:
+			blink()
+
+
+func can_aim() -> bool:
+	return _p != null and Game.is_playing() and not _p.is_dead() and _p.vehicle == null and cd_blink <= 0.0 and _p.energy >= BLINK_COST
+
+
+## Release of an aimed QUANTUM TELEPORT: go to the marker, pay the cost. Returns true when the teleport happened.
+func aim_go() -> bool:
+	var was := aiming
+	aiming = false
+	if not was or not can_aim():
+		_remove_beacon()
+		_slow_end()
+		return false
+	_p.energy -= BLINK_COST
+	beacon_pos = aim_pos
+	has_beacon = true
+	return teleport()
+
+
+func cancel_aim() -> void:
+	if aiming:
+		aiming = false
+		_remove_beacon()
+	_holding = false
+	_slow_end()
+
+
+func _slow_begin(after_real: float) -> void:
+	if not _slow_on:
+		_slow_base = Engine.time_scale if Engine.time_scale > 0.0 else 1.0
+		_slow_on = true
+		Engine.time_scale = _slow_base * SLOW_SCALE
+	_slow_until = Time.get_ticks_msec() + int(after_real * 1000.0) if after_real > 0.0 else 0
+
+
+func _slow_end() -> void:
+	if _slow_on:
+		_slow_on = false
+		Engine.time_scale = _slow_base
+	_slow_until = 0
+
+
+## A particle trail from the old position to the new one.
+func _trail(from: Vector3, to: Vector3) -> void:
+	var n := _fx_count(6)
+	for i in n:
+		var pt := from.lerp(to, float(i) / float(maxi(n - 1, 1)))
+		FX.burst(pt, CYAN if i % 2 == 0 else MAGENTA, _fx_count(6), 2.5, 0.5, 0.0)
+
+
 # --- blink -----------------------------------------------------------------------------------------------------------
 
 ## Throws the beacon at the aimed point, or teleports to it when one is out. Returns true when something happened.
@@ -185,7 +277,7 @@ func blink() -> bool:
 	if _p == null or not Game.is_playing() or _p.is_dead():
 		return false
 	if _p.vehicle != null:
-		Game.say("BLINK OFFLINE IN VEHICLE", 1.2)
+		Game.say("QUANTUM TELEPORT OFFLINE IN VEHICLE", 1.2)
 		return false
 	if has_beacon:
 		return teleport()
@@ -202,7 +294,7 @@ func blink() -> bool:
 	_show_beacon()
 	FX.burst(beacon_pos + Vector3(0.0, 0.5, 0.0), CYAN, _fx_count(14), 4.0, 0.5, 0.0)
 	Sfx.play(&"link")
-	Game.say("BELL-PAIR BEACON PLACED · BLINK AGAIN TO TELEPORT", 1.6)
+	Game.say("TELEPORT MARKER SET · QUANTUM TELEPORT AGAIN TO GO", 1.6)
 	return true
 
 
@@ -235,13 +327,17 @@ func teleport() -> bool:
 	FX.burst(to, MAGENTA, _fx_count(40), 7.0, 0.6, 0.0)
 	if _rich:
 		FX.blast(to, 2.5, MAGENTA, 0.35)
+	_trail(from, to)
 	FX.shake(0.35)
+	fx_flash = 1.0
+	aiming = false
+	_slow_begin(SLOW_AFTER)
 	Sfx.play(&"blink")
 	last_m0 = randi() & 1
 	last_m1 = randi() & 1
 	last_fix = fix_for(last_m0, last_m1)
 	bits_left = BITS_SHOWN
-	Game.say("TELEPORTED · ALICE BITS %d%d → BOB APPLIES %s" % [last_m0, last_m1, last_fix], 2.0)
+	Game.say("QUANTUM TELEPORT", 1.2)
 	_remove_beacon()
 	cd_blink = TELEPORT_CD
 	return true
@@ -477,7 +573,10 @@ func _process(delta: float) -> void:
 	if fx_root == null or not Game.is_playing():
 		return
 	_clock += delta
-	if has_beacon:
+	fx_flash = maxf(fx_flash - delta * 2.5, 0.0)
+	if _slow_on and not aiming and Time.get_ticks_msec() >= _slow_until:
+		_slow_end()
+	if has_beacon or aiming:
 		_animate_beacon()
 	if clone != null:
 		_animate_clone()

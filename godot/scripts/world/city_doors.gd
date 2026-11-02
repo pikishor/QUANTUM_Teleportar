@@ -1,6 +1,6 @@
 extends RefCounted
 ## Enterable doors of the city (interior gameplay, scripts/interiors_gameplay/). Pure data derived from the existing lots and building data, so nothing else moves:
-## about one lot in five gets ONE door on a street-facing ground-floor wall (the same two faces the awnings and blade signs use, scripts/world/city_roofs.gd).
+## EVERY lot gets ONE door on a street-facing ground-floor wall (the same two faces the awnings and blade signs use, scripts/world/city_roofs.gd).
 ## A door is a Dictionary {id (lot index, also the interior seed), type (InteriorData.TYPES), name, wall: Vector3 (on the facade, y 0), pos: Vector3 (the sidewalk point in front,
 ## where the USE prompt shows), normal: Vector3 (outward), yaw (mesh yaw of the facade, Roofs.wall_point convention), face_yaw (rotation.y that looks away from the wall), width}.
 ## Deterministic (own hashes, never the layout's random stream), at least one door within SPAWN_NEAR of the spawn, and every interior type appears at least once.
@@ -8,7 +8,8 @@ extends RefCounted
 const Roofs := preload("res://scripts/world/city_roofs.gd")
 const Buildings := preload("res://scripts/world/city_buildings.gd")
 
-const CHANCE := 0.2
+const CHANCE := 1.0           ## RULE: every building (lot) has exactly one door; towers get a lobby
+const TOWER_H := 45.0
 const SPAWN_NEAR := 80.0
 const FRONT := 1.3            ## metres in front of the facade (the sidewalk strip is 2 m wide)
 const WIDTH := 2.4
@@ -74,6 +75,8 @@ static func _make(lot: CityLayout.Lot, i: int) -> Dictionary:
 		if r < acc:
 			type = InteriorData.TYPES[k]
 			break
+	if lot.h >= TOWER_H:
+		type = &"lobby"
 	return {
 		"id": i, "type": type, "name": InteriorData.door_name(type, i), "wall": wall, "pos": wall + n * FRONT, "normal": n, "yaw": yaw,
 		"face_yaw": atan2(-n.x, -n.z), "width": WIDTH,

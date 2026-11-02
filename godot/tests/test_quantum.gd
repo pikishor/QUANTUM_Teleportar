@@ -126,7 +126,7 @@ func _blink_place() -> void:
 	TestLib.check(absf(p.energy - 85.0) < 0.5, "a beacon costs 15 energy (%.1f left)" % p.energy)
 	TestLib.check(q.cd_blink > 0.25 and q.cd_blink <= 0.3, "cooldown starts at 0.3 s (%.2f)" % q.cd_blink)
 	TestLib.check(absf(q.beacon_left - 8.0) < 0.1, "the beacon lives 8 s (%.2f)" % q.beacon_left)
-	TestLib.check(_has_msg("BELL-PAIR BEACON PLACED"), "the HUD message names the beacon")
+	TestLib.check(_has_msg("TELEPORT MARKER SET"), "the HUD message names the beacon")
 	await e.frames(3)
 	var shown := _visible_meshes(q.fx_root)
 	TestLib.check(shown.size() >= 4, "the beacon draws pillar, ring(s), core and glow (%d meshes)" % shown.size())
@@ -171,10 +171,11 @@ func _blink_teleport() -> void:
 	TestLib.check(p.velocity.length() < 0.01, "the player's velocity is cleared")
 	var m := ""
 	for t in msgs:
-		if t.begins_with("TELEPORTED"):
+		if t.begins_with("QUANTUM TELEPORT"):
 			m = t
 	TestLib.check(m != "", "the teleport message is shown")
-	TestLib.check(m.contains("ALICE BITS %d%d" % [q.last_m0, q.last_m1]) and m.contains("BOB APPLIES " + q.last_fix), "message carries the bits and the correction: " + m)
+	TestLib.check(m == "QUANTUM TELEPORT", "message reads QUANTUM TELEPORT: " + m)
+	q._slow_end()
 	TestLib.check(q.bits_left > 4.5 and q.last_fix != "", "the HUD readout stays up for about 5 s (%.1f)" % q.bits_left)
 	await e.secs(0.1)
 	TestLib.check(not q.blink(), "no new beacon during the 0.4 s cooldown")
@@ -197,7 +198,7 @@ func _blink_rules() -> void:
 	var veh := Fixture.add_vehicle(root, Vector3(-5.0, 0.0, 4.0))
 	p.vehicle = veh
 	await e.frames(2)
-	TestLib.check(not q.blink() and _has_msg("BLINK OFFLINE IN VEHICLE"), "blink is offline in a vehicle")
+	TestLib.check(not q.blink() and _has_msg("QUANTUM TELEPORT OFFLINE IN VEHICLE"), "blink is offline in a vehicle")
 	TestLib.check(not q.superpose() and _has_msg("SUPERPOSITION OFFLINE IN VEHICLE"), "superposition is offline in a vehicle")
 	p.teleport_to(Vector3(-5.0, 0.0, 4.0))
 	p.vehicle = null
@@ -208,10 +209,12 @@ func _blink_rules() -> void:
 	Input.action_press(&"blink")
 	await e.frames(3)
 	Input.action_release(&"blink")
+	await e.frames(3)
 	TestLib.check(q.has_beacon, "pressing the blink action throws a beacon")
 	Input.action_press(&"blink")
 	await e.frames(3)
 	Input.action_release(&"blink")
+	await e.frames(3)
 	TestLib.check(not q.has_beacon and p.global_position.distance_to(Vector3(-5.0, 0.0, 4.0)) > 5.0, "pressing it again teleports")
 	# paused: nothing runs, nothing is read
 	await _fresh()

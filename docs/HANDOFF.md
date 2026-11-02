@@ -228,3 +228,8 @@ in the sandbox cannot reproduce phone GPU behaviour.
   4. `ios_build.sh ipa` left the temporary keychain and the decoded certificate behind when `xcodebuild` failed: an EXIT trap removes both.
   Checked and clean: no `pull_request_target`, no `${{ secrets }}` or `github.event` inside a script, no echo of a secret (decoding into a file only), every signed step gated, signed artifacts only for private repositories, no keystore or key material in the tree (`git grep`).
 - **Not fixed / open:** third-party actions (`r0adkll/upload-google-play@v1`, `apple-actions/upload-testflight-build@v1`) are pinned by tag, not commit SHA (the SHAs could not be resolved from this sandbox); `VERSION_NAME` / `IOS_*` values go through `sed` unvalidated (a tag with `|` or `&` would garble the preset; only writers can push tags); the signed Android and iOS paths were still never run, so the edited steps are YAML-valid (PyYAML) and linted but not executed on GitHub.
+
+## Wave 21 (all buildings, quantum teleport) - headless only
+- Every lot now has a door (`city_doors.gd` CHANCE 1.0); `test_all_buildings`. Holding the blink key 0.22 s aims in slow motion and release QUANTUM TELEPORTs; a tap keeps the beacon behaviour (`quantum.gd`, `test_quantum_teleport`).
+- All tests pass, perf OK on tiers 0-2 (tier 2: 138 total draws, death 154).
+- Open: door glow density and 232-marker cost not eyeballed; doors may sit next to props; desktop teleport button label may clip; touch hold-to-aim untested on a device.

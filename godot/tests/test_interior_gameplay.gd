@@ -106,7 +106,7 @@ func _data() -> void:
 func _doors() -> void:
 	var doors := city.doors
 	var lots := city.layout.lots.size()
-	TestLib.check(doors.size() >= lots / 10 and doors.size() <= lots / 3, "about one lot in five has a door (%d of %d)" % [doors.size(), lots])
+	TestLib.check(doors.size() == lots, "every lot has a door (%d of %d)" % [doors.size(), lots])
 	var types := {}
 	var near_spawn := false
 	var on_walk := 0
