@@ -39,6 +39,8 @@ const BITS_SHOWN := 5.0             ## seconds the HUD keeps the Alice / Bob rea
 const MAX_LINKS := [1, 2, 3]        ## per graphics tier
 const FX_SCALE := [0.5, 0.8, 1.0]   ## particle count factor per graphics tier
 const MAX_GHOST_PARTS := 16
+const PULSE_RADIUS := 4.0           ## the small pulse when the decoy times out on its own (a manual or bolt collapse uses BLAST_RADIUS)
+const PULSE_DMG := 25.0
 
 ## The hologram look of the ghost: a Fresnel rim, scan lines running up the body, additive, unshaded (so it needs no light and works in every renderer).
 const GHOST_SHADER := "shader_type spatial;
@@ -50,7 +52,10 @@ void vertex() { wy = (MODEL_MATRIX * vec4(VERTEX, 1.0)).y; }
 void fragment() {
 	float f = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 2.0);
 	float scan = 0.7 + 0.3 * sin(wy * 38.0 - TIME * 7.0);
-	ALBEDO = tint * (0.32 + f * 1.5) * scan * gain;
+	float flick = 0.8 + 0.2 * sin(TIME * 47.0 + wy * 3.0) * sin(TIME * 13.0);
+	float seam = smoothstep(0.93, 1.0, sin(wy * 6.0 + TIME * 1.7));
+	vec3 film = 0.5 + 0.5 * cos(6.2832 * (wy * 0.35 + f * 0.6 + TIME * 0.15 + vec3(0.0, 0.33, 0.67)));
+	ALBEDO = mix(tint, film, 0.35 * f) * (0.32 + f * 1.5 + seam * 0.8) * scan * flick * gain;
 	ALPHA = clamp(0.42 + f * 0.6, 0.0, 1.0);
 }
 "
@@ -141,7 +146,7 @@ func _physics_process(delta: float) -> void:
 	if clone != null:
 		clone_left -= delta
 		if clone_left <= 0.0:
-			collapse()
+			collapse(true)
 	var i := links.size() - 1
 	while i >= 0:
 		var l: Dictionary = links[i]
@@ -495,13 +500,16 @@ func superpose() -> bool:
 
 
 ## The decoy collapses into a damaging blast. Called by the player (second press), the timer and the enemies (their bolts hit the ghost).
-func collapse() -> void:
+func collapse(timeout := false) -> void:
 	if clone == null:
 		return
 	var pos := clone.global_position
 	_kill_clone()
 	cd_super = COLLAPSE_CD
-	Game.explode(pos + Vector3(0.0, 1.0, 0.0), BLAST_RADIUS, {"enemy_dmg": 70.0, "car_dmg": 40.0, "player_dmg": 0.0, "color": Color(0.4, 1.0, 0.93)})
+	if timeout:
+		Game.explode(pos + Vector3(0.0, 1.0, 0.0), PULSE_RADIUS, {"enemy_dmg": PULSE_DMG, "car_dmg": 10.0, "player_dmg": 0.0, "color": Color(0.4, 1.0, 0.93)})
+	else:
+		Game.explode(pos + Vector3(0.0, 1.0, 0.0), BLAST_RADIUS, {"enemy_dmg": 70.0, "car_dmg": 40.0, "player_dmg": 0.0, "color": Color(0.4, 1.0, 0.93)})
 	Game.say("WAVEFUNCTION COLLAPSE", 1.4)
 
 
@@ -551,7 +559,7 @@ func _make_clone() -> void:
 	_animate_clone()
 	_ghost.add_to_group(&"clone")
 	clone = _ghost
-	clone_left = SUPER_LIFE
+	clone_left = SUPER_LIFE + Upgrades.decoy_bonus()
 
 
 func _ghost_mesh(i: int) -> MeshInstance3D:

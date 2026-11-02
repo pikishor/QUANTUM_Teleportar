@@ -64,6 +64,11 @@ static func reload_mult() -> float:
 	return maxf(RELOAD_FLOOR, 1.0 - float(DATA[&"reload"]["per"]) * level(&"reload"))
 
 
+## Extra SUPERPOSITION decoy lifetime in seconds. Hook for a future shop row (id &"decoy", not in IDS yet): neutral 0 until then.
+static func decoy_bonus() -> float:
+	return float(levels.get(&"decoy", 0)) * 0.5
+
+
 ## Extra blink range in metres.
 static func blink_bonus() -> float:
 	return float(DATA[&"blink"]["per"]) * level(&"blink")

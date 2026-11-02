@@ -59,7 +59,7 @@ func run(host: Node) -> void:
 	var names := ""
 	for a: Dictionary in UiUtil.ABILITIES:
 		names += a["label"]
-	TestLib.check(names.contains("QUANTUM TELEPORT") and not names.contains("BLINK"), "the HUD names it QUANTUM TELEPORT")
+	TestLib.check(names.contains("TELEPORT") and not names.contains("BLINK"), "the HUD names it TELEPORT")
 	TestLib.check(Quantum.fix_for(0, 0) == "NOTHING", "state unchanged")
 	Game.missions = null
 	TestLib.check(is_equal_approx(Engine.time_scale, scale0), "time scale untouched at the end")

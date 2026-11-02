@@ -250,3 +250,9 @@ Vehicle thin-film sheen/flicker/damage wear/wet gloss (vehicle_visual.gd uses a 
 
 ## Wave 26: hero and enemy quantum-realism look
 - player_body.gd: iridescent trim drift, ability-reactive seams, charge rim. enemy_look.gd: role rim colours, telegraph boost. Material params only, no new draws. Perf OK tiers 0-2; all tests pass. Cloak/leg rim untested if no fabric material.
+
+## Wave 27: visual QA tool, SUPERPOSITION decoy
+- Added `godot/tools/visual_qa.sh` (12 spots, shots in `docs/shots/`, `latest.png` contact sheet). All 12 PASS at QUALITY=1.
+- SUPERPOSITION: ghost shader flicker/phase seams, small expiry pulse, `Upgrades.decoy_bonus()` hook.
+- Ability label shortened to TELEPORT.
+- Follow-ups: title screen OPTIONS button overlaps the title text; hero separation margin is thin (0.038 vs 0.02); chase/boss spots fall back to default view if contract target fails to spawn; `decoy` shop row not yet in `Upgrades.IDS`; ghost shader not perf-gated; street_nw has 5.8% black pixels.

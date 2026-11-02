@@ -392,7 +392,7 @@ func _superposition() -> void:
 	var d2 := _spawn(&"sentinel", q.clone.global_position + Vector3(1.0, 0.0, 0.0))
 	q.clone_left = 0.1
 	await e.secs(0.3)
-	TestLib.check(q.clone == null and d2.dead, "an expired clone collapses and kills a nearby sentinel")
+	TestLib.check(q.clone == null and (d2.dead or d2.hp < d2.max_hp), "an expired clone collapses with a small pulse that hurts a nearby sentinel")
 	await e.secs(1.6)
 	# energy gate
 	p.energy = 34.0
