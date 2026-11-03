@@ -923,9 +923,9 @@ func _draw_hud_body() -> void:
 			_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
 	_text(c, font, Vector2(right - 192.0 * s, top + 72.0 * s), _cred_text + _clock_suffix(), HORIZONTAL_ALIGNMENT_RIGHT, 190.0 * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.97), 1.5 * s)
 	if _shard_text != "" and Game.state != &"menu":
-		var sr := Rect2(right - 196.0 * s, top + 90.0 * s, 204.0 * s, 30.0 * s)
+		var sr := Rect2(right - 262.0 * s, top + 90.0 * s, 182.0 * s, 30.0 * s)     ## left of the weapon slot column (x = right - 76 s), inside the screen
 		_plate(c, sr, s)
-		_text(c, font, Vector2(sr.position.x + 6.0 * s, sr.position.y + 23.0 * s), _shard_text, HORIZONTAL_ALIGNMENT_RIGHT, 192.0 * s, int(UiUtil.BAR_LABEL * s), Color(0.7, 0.55, 1.0, 0.97), 1.0 * s)
+		_text(c, font, Vector2(sr.position.x + 4.0 * s, sr.position.y + 23.0 * s), _shard_text, HORIZONTAL_ALIGNMENT_CENTER, 174.0 * s, int(UiUtil.BAR_LABEL * s), Color(0.7, 0.55, 1.0, 0.97), 1.0 * s)
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return
@@ -1305,7 +1305,7 @@ func _footer(c: Control, vp: Vector2, s: float, font: Font) -> void:
 	var size := int(18.0 * s)
 	while size > int(12.0 * s) and _text_width(font, line, size) > vp.x - 40.0 * s:      # a wider fallback font must still fit the screen
 		size -= 1
-	_text(c, font, Vector2(0.0, vp.y - 40.0 * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, size, Color(1, 1, 1, 0.75), 1.0 * s)
+	_text(c, font, Vector2(0.0, vp.y - 44.0 * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, size, Color(1, 1, 1, 0.75), 1.0 * s)
 	if Game.state == &"menu":
 		_text(c, font, Vector2(0.0, vp.y - 90.0 * s), "BEST  %d" % settings.best, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 

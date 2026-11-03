@@ -18,11 +18,12 @@ const NEAR_CAP := 24                     ## people drawn with the full mesh (abo
 const NEAR_RADIUS := 24.0                ## everybody else is drawn with the cut-down mesh "CitizenFar" (about 250 triangles)
 const ARCHETYPES := 6                    ## the shader shows archetype floor(seed * 5.999) of the citizen mesh
 const BUILT := 100                       ## pool size = MultiMesh instances (the HIGH count)
-const COUNTS: Array[int] = [24, 40, 90]
+const COUNTS: Array[int] = [24, 56, 90]
 const RADII: Array[float] = [40.0, 70.0, 90.0]
 const LINE_OFF := 11.3                   ## sidewalk line offset from the road centre (kerb at 10, building faces from 12)
 const ROAD_SPAN := 22.6                  ## the part of a line that lies on a crossing road (zebra) : 2 * LINE_OFF
 const MIN_SPAWN := 7.0
+const RESPAWN_MIN := 0.5                 ## a person who left the ring re-appears at least this share of the radius away (was 0.7: the street around the player stayed empty)
 const TURN_CHANCE := 0.3
 const FLEE_SPEED := 4.4
 const FLEE_TIME := 5.0
@@ -362,6 +363,17 @@ func person_position(i: int) -> Vector3:
 	return _position(i)
 
 
+## Living pedestrians within `r` metres (flat distance) of `pos`: the visual QA street check.
+func count_near(pos: Vector3, r: float) -> int:
+	var n := 0
+	for i in count:
+		if _alive[i] == 1:
+			var d := _position(i) - pos
+			if d.x * d.x + d.z * d.z <= r * r:
+				n += 1
+	return n
+
+
 func alive_count() -> int:
 	var n := 0
 	for i in count:
@@ -457,7 +469,7 @@ func step(delta: float, center: Vector3) -> void:
 			if spawned < SPAWNS_PER_STEP:
 				spawned += 1
 				# first fill: anywhere in the ring; later: at its outer edge, so nobody pops into the street in front of the player
-				if _spawn(i, center, MIN_SPAWN if _first[i] == 1 else radius * 0.7):
+				if _spawn(i, center, MIN_SPAWN if _first[i] == 1 else radius * RESPAWN_MIN):
 					_first[i] = 0
 			_write(i, 0.0, false)
 			continue

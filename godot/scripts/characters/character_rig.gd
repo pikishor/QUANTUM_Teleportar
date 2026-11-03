@@ -66,6 +66,7 @@ var flinch := 0.0
 var ready := 1.0
 var sprint := 0.0
 var reload := -1.0
+var reload_tilt := 1.0                                 ## per-weapon scale of the reload / inspect rifle tilt
 var clock := 0.0
 var dead := 0.0
 var knee_buckle := 0.0
@@ -437,7 +438,7 @@ func apply() -> void:
 	# ------------------------------------------------------------------ pelvis and torso
 	var tw := 0.0                                          # reload tilt weight
 	if reload >= 0.0:
-		tw = _smooth(reload / 0.14) * (1.0 - _smooth((reload - 0.8) / 0.2))
+		tw = _smooth(reload / 0.14) * (1.0 - _smooth((reload - 0.8) / 0.2)) * reload_tilt
 	var fdir := flinch_dir
 	var fl_pitch := -flinch * 0.22
 	var fl_roll := 0.0

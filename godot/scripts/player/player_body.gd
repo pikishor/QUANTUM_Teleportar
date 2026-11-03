@@ -219,6 +219,8 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		reload_k = clampf(1.0 - p.weapon.reload_t / maxf(p.weapon.reload_total, 0.1), 0.0, 1.0)
 	elif not dying and p.weapon != null and p.weapon.swap_t > 0.0:
 		reload_k = clampf(1.0 - p.weapon.swap_t / PlayerWeapon.SWAP_TIME, 0.0, 1.0)         # the quick weapon swap: the rifle drops and comes back up (the reload pose)
+	elif not dying and p.weapon != null and p.weapon.inspect_t > 0.0:
+		reload_k = clampf(1.0 - p.weapon.inspect_t / PlayerWeapon.INSPECT_TIME, 0.0, 1.0)      # idle inspect: the same hand-over-rifle motion, no ammo change
 	var want_ready := 1.0 if (p.aiming or _since_fire < 2.5 or reload_k >= 0.0) else 0.75
 	_ready_w = PlayerUtil.damp(_ready_w, want_ready, 8.0, adt)
 	var lean := -(0.10 * _sprint + 0.03 * minf(1.0, speed / 6.2))
@@ -243,6 +245,7 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		rig.flinch_dir = _fdir * minf(1.0, _flinch * 3.0)
 		rig.ready = _ready_w
 		rig.reload = reload_k
+		rig.reload_tilt = float(WeaponDefs.TILT.get(p.weapon.current, 1.0)) if p.weapon != null else 1.0
 		rig.dead = e
 		rig.head_yaw = 0.0
 		rig.apply()

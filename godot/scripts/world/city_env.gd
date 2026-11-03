@@ -33,7 +33,7 @@ func build(parent: Node3D) -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 1.6
+	env.ambient_light_energy = 1.9
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	# cool teal shadows, soft filmic shoulder so neon rolls off instead of clipping
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES

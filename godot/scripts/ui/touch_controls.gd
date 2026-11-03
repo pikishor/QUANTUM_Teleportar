@@ -21,6 +21,7 @@ const BUTTONS := [
 	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &""},
 	{"action": &"swap", "dx": 345.0, "dy": 440.0, "r": 48.0, "fs": 24, "label": "SWAP", "need": &""},
+	{"action": &"altfire", "dx": 300.0, "dy": 230.0, "r": 42.0, "fs": 22, "label": "ALT", "need": &""},
 	{"action": &"blink", "dx": 515.0, "dy": 110.0, "r": 56.0, "label": "TELEPORT", "need": &"quantum", "ability": 0},
 	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "ENTANGLE", "need": &"quantum", "ability": 1},
 	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},

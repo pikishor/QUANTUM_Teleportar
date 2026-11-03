@@ -12,7 +12,10 @@ const BODY_ROUGHNESS := 0.9
 const COAT := 0.85                          ## clear coat strength / roughness: the wet sheen of lacquered paint under the neon
 const COAT_ROUGHNESS := 0.07
 const LAMP_GAIN := 0.6                      ## lamp surfaces are drawn additively (unshaded, vertex colour = soft falloff): albedo = colour x base energy x this x state
-const PAINT_GLOW := 0.15                    ## faint emission in the paint colour, so a car keeps its colour in the dark
+const PAINT_ROUGH_MAX := 0.5                 ## paint roughness range (was 0.9 .. 0.6: a flat matte red): low values let the neon street reflect in the lacquer
+const PAINT_ROUGH_MIN := 0.22
+const PAINT_RIM := 0.3                        ## grazing-angle sheen of every paint (material parameter, no extra draw)
+const PAINT_GLOW := 0.2                    ## faint emission in the paint colour, so a car keeps its colour in the dark
 const WHEEL_NAMES := [&"WheelFL", &"WheelFR", &"WheelRL", &"WheelRR"]
 const BIKE_WHEEL_NAMES := [&"WheelF", &"WheelR"]    ## bikes: front (steers) and rear wheel; a hover craft has none
 ## LOD1: the new Wave 14 models ship a second, decimated body mesh ("Body_LOD1", about 30 % of the triangles, same UVs, materials and lamp surfaces, see tools/blender/lodlib.py).
@@ -267,7 +270,7 @@ func set_paint(color: Color) -> void:
 	# metallic / roughness split: every colour gets its own finish (flake-heavy metallic, satin pearl, deep gloss) on top of the baked texture
 	var k := fposmod(color.h * 5.0 + color.v * 3.0, 1.0)
 	_body_mat.metallic = lerpf(0.55, BODY_METALLIC + 0.1, k)
-	_body_mat.roughness = lerpf(BODY_ROUGHNESS, 0.6, k)
+	_body_mat.roughness = lerpf(PAINT_ROUGH_MAX, PAINT_ROUGH_MIN, k)
 	_body_mat.clearcoat = lerpf(COAT, 1.0, k)
 	_base_col = c
 	damage_look = 0.0
@@ -299,10 +302,9 @@ func _setup_finish() -> void:
 	_phase = float(_rng.randi() % 1000) * 0.01
 	flicker_car = (not iridescent) and _rng.randf() < FLICKER_CHANCE
 	if _body_mat != null:
-		_body_mat.rim_enabled = iridescent
-		if iridescent:
-			_body_mat.rim = 0.7
-			_body_mat.rim_tint = 0.35
+		_body_mat.rim_enabled = true
+		_body_mat.rim = 0.7 if iridescent else PAINT_RIM
+		_body_mat.rim_tint = 0.35 if iridescent else 0.6
 
 
 ## Thin-film shimmer: the hue of the film drifts with time and with how fast the car moves; a flicker car swaps to its second state for a blink.
@@ -353,7 +355,7 @@ func set_wet(w: float) -> void:
 
 func _apply_surface() -> void:
 	var k := fposmod(_base_col.h * 5.0 + _base_col.v * 3.0, 1.0)
-	var r := lerpf(BODY_ROUGHNESS, 0.6, k)
+	var r := lerpf(PAINT_ROUGH_MAX, PAINT_ROUGH_MIN, k)
 	r = r + WEAR_ROUGH * damage_look - 0.28 * wet_look * (1.0 - damage_look)
 	_body_mat.roughness = clampf(r, 0.12, 1.0)
 	var cc := lerpf(COAT, 1.0, k)

@@ -7,6 +7,7 @@ extends CanvasLayer
 signal closed
 
 var _root: Control
+var _box: VBoxContainer
 var _title: Label
 var _credits: Label
 var _info: Label
@@ -41,6 +42,7 @@ func _ready() -> void:
 	box.offset_bottom = 300.0
 	box.add_theme_constant_override("separation", 8)
 	_root.add_child(box)
+	_box = box
 	_title = _label(box, "GARAGE", 34, UiUtil.CYAN)
 	_credits = _label(box, "", 26, UiUtil.AMBER)
 	_info = _label(box, "", 24, Color.WHITE)
@@ -92,6 +94,14 @@ func _button(parent: Control, text: String, nm: StringName) -> Button:
 	return b
 
 
+## The 840 x 600 panel shrinks to fit a small screen (844 x 390 phone): scale about its centre, never above 1. Returns the scale used.
+func fit(vp: Vector2) -> float:
+	var k := clampf(minf((vp.x - 24.0) / 840.0, (vp.y - 16.0) / 600.0), 0.3, 1.0)
+	_box.pivot_offset = Vector2(420.0, 300.0)
+	_box.scale = Vector2(k, k)
+	return k
+
+
 func is_open() -> bool:
 	return _open
 
@@ -103,6 +113,7 @@ func open() -> void:
 	Game.state = &"paused"
 	_open = true
 	visible = true
+	fit(get_viewport().get_visible_rect().size)
 	refresh()
 
 

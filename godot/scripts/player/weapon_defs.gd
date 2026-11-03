@@ -70,6 +70,40 @@ const DEFS := {
 	},
 }
 
+## Alt-fire per class (key B / the ALT touch button). kind: "heavy" = one aimed shot x mult for `cost` rounds (slug / overcharge), "volley" = `count` rounds in a rapid burst,
+## "quick" = an instant full-charge lance shot, "cluster" = a pair of grenades thrown in a fan. cd = seconds before anything fires again.
+const ALTS := {
+	&"carbine": {"name": "OVERCHARGE", "kind": "heavy", "cost": 4, "mult": 3.2, "cd": 0.9},
+	&"scatter": {"name": "SLUG", "kind": "heavy", "cost": 1, "mult": 5.5, "cd": 1.0},
+	&"lance": {"name": "FULL PIERCE", "kind": "quick", "cost": 2, "mult": 1.0, "cd": 1.4},
+	&"grenade": {"name": "CLUSTER", "kind": "cluster", "cost": 1, "mult": 1.0, "cd": 1.3},
+	&"burst": {"name": "VOLLEY", "kind": "volley", "cost": 6, "count": 6, "cd": 0.8},
+	&"rail": {"name": "OVERCHARGE", "kind": "heavy", "cost": 2, "mult": 2.2, "cd": 1.3},
+	&"flux": {"name": "VOLLEY", "kind": "volley", "cost": 12, "count": 12, "cd": 0.7},
+	&"gravity": {"name": "CLUSTER", "kind": "cluster", "cost": 1, "mult": 1.0, "cd": 1.6},
+}
+## Ammo types for the hitscan weapons (key T): damage multiplier, fire-interval multiplier, shield piercing.
+const AMMO_TYPES := [
+	{"id": &"standard", "name": "STANDARD", "dmg": 1.0, "rate": 1.0, "pierce": false},
+	{"id": &"heavy", "name": "HEAVY", "dmg": 1.3, "rate": 1.25, "pierce": false},
+	{"id": &"piercing", "name": "PIERCING", "dmg": 0.85, "rate": 1.0, "pierce": true},
+]
+## Weapon-specific hit sound: [pitch, volume db, extra layer or &""]. Reload tilt: how far the rifle rolls during the reload / inspect (1 = rig default).
+const HIT_SND := {
+	&"carbine": [1.0, 0.0, &""], &"scatter": [0.7, 2.0, &"impact_concrete"], &"lance": [0.55, 3.0, &"impact_metal"], &"grenade": [0.8, 0.0, &""],
+	&"burst": [1.35, -2.0, &""], &"rail": [0.5, 4.0, &"impact_metal"], &"flux": [1.6, -5.0, &""], &"gravity": [0.65, 1.0, &""],
+}
+const TILT := {&"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3}
+
+
+static func alt_of(id: StringName) -> Dictionary:
+	return ALTS.get(id, ALTS[&"carbine"])
+
+
+static func hit_snd(id: StringName) -> Array:
+	return HIT_SND.get(id, HIT_SND[&"carbine"])
+
+
 const COLOR_PICKUP := Color(1.0, 0.45, 0.9)
 const COLLAPSE_COLOR := Color(0.4, 1.0, 0.93)
 

@@ -54,11 +54,18 @@ func step(_t: float, _dt: float) -> bool:
 		_set_hero(true)
 		sep = float(VisualQaLib.separation(_shown, hidden)["sep"])
 	var st := VisualQaLib.stats(img)
-	var why := VisualQaLib.verdict(st, sep)
+	var people := -1
+	if String(spot).begins_with("street_"):
+		for n in _p.get_tree().root.find_children("*", "Node3D", true, false):
+			var cr = n.get("crowd")
+			if cr != null and cr.has_method(&"count_near"):
+				people = cr.count_near(_p.global_position, VisualQaLib.PEOPLE_RADIUS)
+				break
+	var why := VisualQaLib.verdict(st, sep, people)
 	img.save_png("%s/%s.png" % [_out, spot])
 	if why != "":
 		_fails += 1
-	print("VQA %s %s mean=%.3f contrast=%.3f black=%.3f%s %s" % [spot, "PASS" if why == "" else "FAIL", st["mean"], st["contrast"], st["black"], (" sep=%.3f" % sep) if sep >= 0.0 else "", why])
+	print("VQA %s %s mean=%.3f contrast=%.3f black=%.3f%s %s" % [spot, "PASS" if why == "" else "FAIL", st["mean"], st["contrast"], st["black"], ((" sep=%.3f" % sep) if sep >= 0.0 else "") + ((" people=%d" % people) if people >= 0 else ""), why])
 	_i += 1
 	if _i >= _spots.size():
 		print("VQA_DONE fails=%d" % _fails)

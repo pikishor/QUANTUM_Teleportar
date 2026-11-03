@@ -45,10 +45,20 @@ const MASK_SHOT := 1 | 4 | 8                 # world + enemy + vehicle (Game.L_*
 const SWAP_TIME := 0.32
 const GRENADE_GRAVITY := 22.0
 const WELL_TICK := 0.2
+const INSPECT_TIME := 1.6
+const INSPECT_IDLE := 9.0                    ## seconds of doing nothing before the rifle is inspected
 const AMMO_PACK := {&"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2}
 
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
+var inspect_t := 0.0                         ## seconds of the idle inspect left
+var ammo_type := 0                           ## index into WeaponDefs.AMMO_TYPES (hitscan weapons only; not saved)
+var alt_fired := 0                           ## lifetime alt-fire counter, for tests
+var _alt_k := 1.0                            ## damage scale of the shot in flight (alt-fire heavy shot), 1 otherwise
+var _alt_spread := 1.0
+var _alt_single := false
+var _idle_t := 0.0
+var _reload_click := false
 var _burst_left := 0                ## shots still to come in the current burst (burst pistol)
 var _burst_t := 0.0
 var mag := MAG_SIZE
@@ -256,7 +266,9 @@ func start_reload() -> bool:
 	reload_total = float(def["reload"]) * Upgrades.reload_mult()
 	reload_t = reload_total
 	charge = 0.0
-	Sfx.play(&"reload")
+	Sfx.play(&"reload", 0.0, 1.0 if current != &"scatter" else 0.85)
+	_reload_click = false
+	inspect_t = 0.0
 	return true
 
 
@@ -285,7 +297,17 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 			_finish_reload()
 	if reload_pressed:
 		start_reload()
+	if reload_t > 0.0 and not _reload_click and reload_t < reload_total * 0.3:
+		_reload_click = true                                         # the new magazine seats: a second, higher click
+		Sfx.play(&"dry_fire", -6.0, 1.5 if current != &"scatter" else 0.8)
 	var can_fire := reload_t <= 0.0 and swap_t <= 0.0
+	if InputMap.has_action(&"altfire") and Input.is_action_just_pressed(&"altfire"):
+		alt_fire(aiming)
+	if InputMap.has_action(&"ammo_type") and Input.is_action_just_pressed(&"ammo_type"):
+		cycle_ammo_type()
+	if InputMap.has_action(&"inspect") and Input.is_action_just_pressed(&"inspect"):
+		start_inspect()
+	_tick_inspect(dt, firing or aiming or moving or reload_t > 0.0 or swap_t > 0.0)
 	match String(def["kind"]):
 		"charge":
 			_tick_charge(dt, firing and can_fire, aiming)
@@ -358,10 +380,10 @@ func _shoot(dt: float, aiming: bool) -> void:
 	var p := _player
 	ammo -= 1
 	shots_fired += 1
-	fire_t = maxf(fire_t, -dt) + float(def["interval"])      # keep the cadence exact whatever the tick rate, without banking shots
+	fire_t = maxf(fire_t, -dt) + float(def["interval"]) * float(ammo_info()["rate"])      # keep the cadence exact whatever the tick rate, without banking shots
 	_since_shot = 0.0
 	_burst += 1
-	var pellets := int(def["pellets"])
+	var pellets := 1 if _alt_single else int(def["pellets"])
 	Sfx.play(&"shot", float(def["vol"]), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
 	var gm := Game.enemies as EnemyManager
 	if gm != null and is_instance_valid(p) and float(def["vol"]) > -20.0:
@@ -379,7 +401,7 @@ func _shoot(dt: float, aiming: bool) -> void:
 
 func _trace_pellet() -> void:
 	var p := _player
-	var ar := _aim_ray(spread)
+	var ar := _aim_ray(spread * _alt_spread)
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]
 	var range_m := float(def["range"])
@@ -457,6 +479,7 @@ func _blocked_between(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vector3) 
 
 func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 	var p := _player
+	k *= _alt_k * float(ammo_info()["dmg"])
 	var is_vehicle := target.is_in_group(&"vehicle") and not target.is_in_group(&"enemy")
 	var crit := false
 	var human := false
@@ -472,7 +495,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 		human = target is Operative or target.get(&"type") == &"operative"
 		var amount := TestMode.damage((float(def["crit"]) if crit else float(def["damage"])) * k * Upgrades.damage_mult())
 		if target.has_method(&"shield_blocks"):
-			if bool(def["pierce_shield"]):
+			if bool(def["pierce_shield"]) or bool(ammo_info()["pierce"]):
 				target.call(&"break_shield")
 			elif bool(target.call(&"shield_blocks", p.global_position)):
 				target.call(&"shield_hit", amount, hit)                     # the frontal shield eats it: no damage, a cyan spark
@@ -489,6 +512,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 	else:
 		target.call(&"damage", DAMAGE_VEHICLE * float(def["damage"]) / DAMAGE * k)
 	var kill := (not is_vehicle) and _is_dead(target)
+	_hit_sound(kill, crit)
 	p.last_hit_time = PlayerUtil.now()
 	p.last_hit_kill = kill
 	p.last_hit_crit = crit
@@ -648,7 +672,7 @@ func _fire_lance(c: float, aiming: bool) -> void:
 
 # --- Singularity Grenade ----------------------------------------------------------------------------------------------
 
-func _throw() -> void:
+func _throw(yaw_off := 0.0) -> void:
 	var p := _player
 	ammo -= 1
 	shots_fired += 1
@@ -666,6 +690,8 @@ func _throw() -> void:
 	var aim_pt: Vector3 = res["position"] if not res.is_empty() else origin + dir * 40.0
 	var from := p.body.muzzle.global_position
 	var delta := aim_pt - from
+	if yaw_off != 0.0:
+		delta = delta.rotated(Vector3.UP, yaw_off)
 	var flat := Vector2(delta.x, delta.z).length()
 	var t := clampf(flat / float(def["speed"]), 0.3, 2.0)
 	var g := _free_grenade()
@@ -869,3 +895,97 @@ static func _is_dead(target: Object) -> bool:
 	if (h is float or h is int) and float(h) <= 0.0:
 		return true
 	return false
+
+
+# --- alt-fire, ammo types, inspect, hit sounds --------------------------------------------------------------------------
+
+func ammo_info() -> Dictionary:
+	return WeaponDefs.AMMO_TYPES[ammo_type] if String(def["kind"]) == "hit" else WeaponDefs.AMMO_TYPES[0]
+
+
+## Next ammo type (hitscan weapons only). Returns false when the weapon in hand has only one.
+func cycle_ammo_type() -> bool:
+	if String(def["kind"]) != "hit" or swap_t > 0.0:
+		return false
+	ammo_type = (ammo_type + 1) % WeaponDefs.AMMO_TYPES.size()
+	Sfx.play(&"ui_tap", -4.0, 1.3)
+	return true
+
+
+func alt_name() -> String:
+	return str(WeaponDefs.alt_of(current)["name"])
+
+
+## The alternate fire of the weapon in hand. False (nothing happens) while reloading / switching / on cooldown or short of rounds.
+func alt_fire(aiming := false) -> bool:
+	if _player == null or reload_t > 0.0 or swap_t > 0.0 or fire_t > 0.0:
+		return false
+	var a := WeaponDefs.alt_of(current)
+	var cost := int(a["cost"])
+	if ammo < cost:
+		Sfx.dry_fire()
+		return false
+	inspect_t = 0.0
+	var kind := String(a["kind"])
+	var start := ammo
+	var before := shots_fired
+	match kind:
+		"heavy":
+			_alt_k = float(a["mult"])
+			_alt_spread = 0.25
+			_alt_single = true
+			_burst = 1
+			_shoot(0.0, aiming)
+			_alt_k = 1.0
+			_alt_spread = 1.0
+			_alt_single = false
+			Sfx.play(&"boom", -10.0, 1.8)
+			FX.burst(_player.body.muzzle.global_position, def["tracer"], 5, 3.0, 0.25, 0.0, 0.8)
+			ammo = maxi(0, start - cost)
+		"volley":                                              # the remaining rounds ride the burst machinery (one round each)
+			_burst_left = mini(int(a["count"]), ammo) - 1
+			_burst_t = 0.04
+			_shoot(0.0, aiming)
+		"quick":
+			_fire_lance(1.0, aiming)
+			ammo = maxi(0, start - cost)
+		"cluster":
+			_throw(-0.12)
+			_throw(0.12)
+			ammo = maxi(0, start - cost)
+		_:
+			return false
+	fire_t = maxf(fire_t, float(a["cd"]))
+	alt_fired += 1
+	Sfx.play(&"link", -8.0, 1.6)
+	return shots_fired > before
+
+
+func start_inspect() -> bool:
+	if inspect_t > 0.0 or reload_t > 0.0 or swap_t > 0.0 or _player == null:
+		return false
+	inspect_t = INSPECT_TIME
+	_idle_t = 0.0
+	Sfx.play(&"ui_tap", -8.0, 0.7)
+	return true
+
+
+func _tick_inspect(dt: float, busy: bool) -> void:
+	if busy:
+		_idle_t = 0.0
+		inspect_t = 0.0
+		return
+	if inspect_t > 0.0:
+		inspect_t = maxf(0.0, inspect_t - dt)
+		return
+	_idle_t += dt
+	if _idle_t >= INSPECT_IDLE:
+		start_inspect()
+
+
+## Weapon-specific hit confirm: pitch / volume per class, a heavier layer on the slow weapons, a brighter tick on a kill.
+func _hit_sound(kill: bool, crit: bool) -> void:
+	var h := WeaponDefs.hit_snd(current)
+	Sfx.play(&"hit", float(h[1]) - 6.0, float(h[0]) * (1.25 if kill else (1.1 if crit else 1.0)))
+	if StringName(h[2]) != &"":
+		Sfx.play(StringName(h[2]), -9.0, float(h[0]) + 0.3)

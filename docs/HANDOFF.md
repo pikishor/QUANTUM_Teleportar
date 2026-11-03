@@ -323,3 +323,6 @@ Follow-up: per-frame allocation profiling of the HUD draw and NPC life needs a d
 
 ## Wave 40 integration
 Full suite: 94 pass, 1 flaky, 0 fail. PERF_CHECK tiers 0/1/2 all OK. Visual QA 12/12. Follow-ups: street_ne/sw shots show dark empty streets; car shot paint reads flat red; title text slightly clipped at bottom-left controls hint.
+
+## Wave 41 integration
+Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncated log), 0 fail. PERF_CHECK tiers 0/1/2 all OK (T2: 96 draws / 327k tris, death 158 / 412k). Visual QA 12/12 PASS. Follow-ups: street shots still fairly dark with few people visible at distance; car paint is better but still saturated red; title controls hint text tiny; alt-fire/ammo type have no HUD readout, ammo choice not saved, ALT touch button position untuned at phone size.

@@ -10,6 +10,11 @@ const MAX_BLACK := 0.85         ## fraction of near-black pixels above this: not
 ## mid-grey street with a visible cyan rim (docs/shots/hero.png), clearly separated by eye, but the dark-street means sit only
 ## ~0.015-0.02 apart, so 0.02 failed every run. 0.012 still catches a hero that truly vanishes (~0).
 const MIN_SEP := 0.012
+## Street spots: the frame must not be a dark empty street. MIN_STREET_MEAN sits under the tuned MED look (about 0.2 on the software renderer)
+## with a wide margin for renderer differences; MIN_PEOPLE is counted within PEOPLE_RADIUS of the player (MED pool 56 in a 70 m ring).
+const MIN_STREET_MEAN := 0.09
+const MIN_PEOPLE := 2
+const PEOPLE_RADIUS := 45.0
 
 
 static func luma(c: Color) -> float:
@@ -65,7 +70,7 @@ static func separation(shown: Image, hidden: Image, step := 2) -> Dictionary:
 
 
 ## Returns "" when the frame passes, otherwise the reasons (a short list).
-static func verdict(s: Dictionary, sep := -1.0) -> String:
+static func verdict(s: Dictionary, sep := -1.0, people := -1) -> String:
 	var why: PackedStringArray = []
 	if float(s["mean"]) < MIN_MEAN:
 		why.append("too dark")
@@ -75,6 +80,10 @@ static func verdict(s: Dictionary, sep := -1.0) -> String:
 		why.append("flat")
 	if float(s["black"]) > MAX_BLACK:
 		why.append("black")
+	if people >= 0 and (float(s["mean"]) < MIN_STREET_MEAN):
+		why.append("street too dark")
+	if people >= 0 and people < MIN_PEOPLE:
+		why.append("street empty")
 	if sep >= 0.0 and sep < MIN_SEP:
 		why.append("hero blends in")
 	return ", ".join(why)
