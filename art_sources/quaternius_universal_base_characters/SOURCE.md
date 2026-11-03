@@ -2,3 +2,4 @@ Universal Base Characters Kit (free Standard version, partial) by Quaternius, CC
 Part 1 (owner-supplied zip 'Godot - UE'): Superhero Male and Female full-body glTF, 65-bone UE-style skeleton, ~14.3k / 15k triangles, no animations, PBR textures (hair, eyes, body).
 More parts expected (remaining textures, animations). Planned use: the hero (and NPC variants) via CharacterImport + quantum material pass.
 Part 2 (owner zip 'Normals Unity - Godot'): normals_godot/ holds the Unity/Godot-convention (Y+) normal maps for hair 1 and 2, eyes and both bodies. Use THESE with Godot; the normal maps in the folder root came with the UE-skeleton zip and use the Unreal (Y-) convention. Same license (CC0).
+Part 3 (owner zip 'Textures'): textures_part3/ holds only the files not already present: the Light skin colour maps for both bodies and any normal map variants that differ from the others (compare conventions before use: Unity/Godot is Y+, Unreal is Y-).
