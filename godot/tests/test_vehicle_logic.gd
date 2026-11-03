@@ -272,12 +272,12 @@ func _radio() -> void:
 	_extras()
 	var r := mgr.radio
 	TestLib.check(r != null and r.get_parent() == mgr and InputMap.has_action(CarRadio.ACTION), "the manager owns a radio and the radio_next action exists")
-	TestLib.check(CarRadio.STATIONS.size() == 3 and CarRadio.station_name(0) != CarRadio.station_name(1) and CarRadio.station_name(1) != CarRadio.station_name(2), "three named stations")
+	TestLib.check(CarRadio.STATIONS.size() == 4 and CarRadio.station_name(0) != CarRadio.station_name(1) and CarRadio.station_name(1) != CarRadio.station_name(2), "four named stations")
 	var t0 := Time.get_ticks_msec()
 	r.render_all_now()
-	print("radio render: %d ms for 3 stations" % (Time.get_ticks_msec() - t0))
+	print("radio render: %d ms for 4 stations" % (Time.get_ticks_msec() - t0))
 	var sums: Array[int] = []
-	for i in 3:
+	for i in 4:
 		var s := r._streams[i] as AudioStreamWAV
 		TestLib.check(s != null and s.loop_mode == AudioStreamWAV.LOOP_FORWARD and s.mix_rate == CarRadio.RATE and s.data.size() > CarRadio.RATE * 2 * 2, "station %d is a looped stream of %.1f s" % [i, float(s.data.size()) / 2.0 / CarRadio.RATE])
 		var peak := 0
@@ -325,6 +325,8 @@ func _radio() -> void:
 	await e.frames(3)
 	await _process_frames(3)
 	TestLib.check(r.is_audible(), "resuming brings it back")
+	r.cycle()
+	TestLib.check(r.station == 3 and r._player.stream == r._streams[3], "then station 4")
 	r.cycle()
 	TestLib.check(not r.on and not r._player.playing, "the next press turns it off")
 	r.set_station(1)

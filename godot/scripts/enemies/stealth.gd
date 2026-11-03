@@ -81,6 +81,8 @@ static func noise_amount(d: float, r: float) -> float:
 
 ## Make noise at `pos`. Unaware enemies in range gain suspicion; at 1.0 they search `pos`; loud gunfire nearby alerts them.
 static func noise(list: Array, pos: Vector3, kind: StringName, speed := 0.0) -> void:
+	if kind == &"gun" and is_instance_valid(Game.vehicles):
+		(Game.vehicles as VehicleManager).hear(pos, &"gun")          # traffic flees from gunfire
 	var r := noise_range(kind, speed)
 	if r <= 0.0:
 		return

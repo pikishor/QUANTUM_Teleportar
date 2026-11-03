@@ -82,6 +82,7 @@ var _ray_b := PhysicsRayQueryParameters3D.new()
 var _exclude_base: Array[RID] = []
 var _exclude: Array[RID] = []
 var _decals: ImpactDecals
+var _last_collider: Object                   ## collider of the last pellet ray (decal surface, breakables)
 var _sparks: ImpactSparks
 var _store := {}                             ## weapon id -> Vector2i(ammo, reserve) of the weapons not in hand
 var _mags := {}                              ## weapon id -> magazine size last applied
@@ -411,6 +412,7 @@ func _trace_pellet() -> void:
 	var target: Node = null
 	var normal := Vector3.ZERO
 	var space := p.get_world_3d().direct_space_state
+	_last_collider = null
 	_exclude.assign(_exclude_base)
 	_ray.from = origin
 	_ray.to = origin + dir * range_m
@@ -427,6 +429,7 @@ func _trace_pellet() -> void:
 		best = origin.distance_to(hit_pos)
 		normal = res["normal"]
 		target = hit_target
+		_last_collider = res["collider"]
 		break
 	# collider-less (or generously sized) enemies: the prototype's ray-sphere test
 	for e: Node in get_tree().get_nodes_in_group(&"enemy"):
@@ -584,10 +587,13 @@ func _tick_numbers(dt: float) -> void:
 
 func _hit_world(hit: Vector3, normal: Vector3) -> void:
 	var n := normal if normal != Vector3.ZERO else Vector3.UP
+	var surface := Breakables.surface_of(_last_collider) if is_instance_valid(_last_collider) else &"concrete"
+	if is_instance_valid(_last_collider) and Breakables.current != null:
+		Breakables.current.hit_at(_last_collider, hit, n)
 	if _sparks != null:
 		_sparks.impact_world(hit, n)
 	if _decals != null:
-		_decals.add(hit, n, randf_range(0.14, 0.2))
+		_decals.add(hit, n, randf_range(0.14, 0.2), surface)
 
 
 # --- Pulse Lance --------------------------------------------------------------------------------------------------------

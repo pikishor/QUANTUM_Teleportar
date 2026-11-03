@@ -17,7 +17,7 @@ static var show_stats := false
 
 const WEATHER := {"CLEAR": &"clear", "OVERCAST": &"overcast", "DRIZZLE": &"drizzle", "RAIN": &"rain", "STORM": &"storm", "FOG": &"fog"}
 const ENEMIES: Array[StringName] = [&"sentinel", &"striker", &"heavy", &"operative", &"shield", &"flanker", &"sniper", &"brute", &"overseer"]
-const VEHICLES: Array[StringName] = [&"sedan", &"sport", &"suv", &"taxi", &"wagon", &"van", &"truck", &"bike", &"hover", &"vael_patrol"]
+const VEHICLES: Array[StringName] = [&"sedan", &"sport", &"suv", &"taxi", &"wagon", &"van", &"truck", &"bike", &"hover", &"vael_patrol", &"bus", &"interceptor", &"ambulance", &"qbike"]
 const CONTRACTS: Array[StringName] = [&"officer", &"hack", &"chase", &"courier", &"survive", &"drones", &"boss"]
 const KILL := 1.0e6
 

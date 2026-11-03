@@ -1,8 +1,8 @@
 class_name CarRadio
 extends Node
-## The car radio: three synthesised stations that play while the player drives. A child of VehicleManager (`Game.vehicles.radio`).
+## The car radio: four synthesised stations that play while the player drives. A child of VehicleManager (`Game.vehicles.radio`).
 ##
-## Switch: the `radio_next` action (key V, registered here when missing) cycles OFF -> NEON FM -> VAEL STATIC -> RIFT CLUB -> OFF while driving; a touch button calls
+## Switch: the `radio_next` action (key V, registered here when missing) cycles OFF -> NEON FM -> VAEL STATIC -> RIFT CLUB -> LOFI ORBIT -> OFF while driving; a touch button calls
 ## `Game.vehicles.radio.cycle()` the same way. The stations are rendered once, lazily, on a worker thread (a few seconds of 12 kHz mono, looped), so there is no
 ## hitch when the player first tunes in; nothing is shipped as a file and nothing is allocated per frame. Audio goes through the existing Music bus of `Sfx`
 ## (volume, mute and the in-car low-pass of Sfx apply); the adaptive score is stopped while the radio is audible and restarted when it is not.
@@ -17,15 +17,16 @@ const STATIONS: Array[Dictionary] = [
 	{"name": "NEON FM", "bpm": 104.0, "bars": 4},
 	{"name": "VAEL STATIC", "bpm": 70.0, "bars": 2},
 	{"name": "RIFT CLUB", "bpm": 126.0, "bars": 4},
+	{"name": "LOFI ORBIT", "bpm": 76.0, "bars": 4},
 ]
 const VOLUME_DB := -7.0
 
 var on := false
 var station := 0
 var _player: AudioStreamPlayer
-var _streams: Array = [null, null, null]
-var _tasks: Array[int] = [-1, -1, -1]
-var _data: Array = [null, null, null]
+var _streams: Array = [null, null, null, null]
+var _tasks: Array[int] = [-1, -1, -1, -1]
+var _data: Array = [null, null, null, null]
 var _stopped_music := false
 var _audible := false
 
@@ -41,7 +42,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	for i in 3:
+	for i in STATIONS.size():
 		if _tasks[i] >= 0:
 			WorkerThreadPool.wait_for_task_completion(_tasks[i])
 			_tasks[i] = -1
@@ -60,7 +61,7 @@ static func station_name(i: int) -> String:
 	return String(STATIONS[clampi(i, 0, STATIONS.size() - 1)]["name"])
 
 
-## OFF -> station 0 -> 1 -> 2 -> OFF. Returns true when the radio is on afterwards.
+## OFF -> station 0 -> 1 -> 2 -> 3 -> OFF. Returns true when the radio is on afterwards.
 func cycle() -> bool:
 	if not on:
 		set_station(0)
@@ -154,7 +155,7 @@ func _render_task(i: int) -> void:
 
 
 func _collect() -> void:
-	for i in 3:
+	for i in STATIONS.size():
 		if _tasks[i] >= 0 and WorkerThreadPool.is_task_completed(_tasks[i]):
 			WorkerThreadPool.wait_for_task_completion(_tasks[i])
 			_tasks[i] = -1
@@ -164,7 +165,7 @@ func _collect() -> void:
 
 ## Render every station now (tests, a warm-up); the result is cached like the lazy path.
 func render_all_now() -> void:
-	for i in 3:
+	for i in STATIONS.size():
 		if _tasks[i] >= 0:
 			WorkerThreadPool.wait_for_task_completion(_tasks[i])
 			_tasks[i] = -1
@@ -200,8 +201,10 @@ static func render(i: int) -> PackedByteArray:
 			_neon(buf, beat, int(cfg["bars"]), rng)
 		1:
 			_static(buf, beat, int(cfg["bars"]), rng)
-		_:
+		2:
 			_club(buf, beat, int(cfg["bars"]), rng)
+		_:
+			_lofi(buf, beat, int(cfg["bars"]), rng)
 	return _to_pcm(buf)
 
 
@@ -329,3 +332,24 @@ static func _club(buf: PackedFloat32Array, beat: float, bars: int, rng: RandomNu
 		_noise(buf, bt + 3.0 * beat, 0.12, 0.3, 28.0, rng, 0.6)
 		if b % 2 == 1:
 			_note(buf, bt + 2.0 * beat, beat * 2.0, _hz(69), 2, 0.05, 1.5, 0.003)           # a stab pad every other bar
+
+
+## LOFI ORBIT: slow dusty keys (soft sine / triangle seventh chords Am7 Fmaj7 Cmaj7 G6), a lazy kick and snare, soft brushed hats and a high bell every other bar.
+static func _lofi(buf: PackedFloat32Array, beat: float, bars: int, rng: RandomNumberGenerator) -> void:
+	var roots := [57, 53, 48, 55]
+	var chords := [[0, 3, 7, 10], [0, 4, 7, 11], [0, 4, 7, 11], [0, 4, 7, 9]]
+	for b in bars:
+		var bt := float(b) * 4.0 * beat
+		var root: int = roots[b % 4]
+		var ch: Array = chords[b % 4]
+		for n in ch:                                         # the chord, held for the bar, a hair out of tune per voice
+			_note(buf, bt, beat * 3.8, _hz(root + int(n)), 3, 0.09, 0.7, 0.003)
+		_note(buf, bt, beat * 3.6, _hz(root - 12), 0, 0.26, 0.9)
+		_kick(buf, bt, 0.5)
+		_kick(buf, bt + 2.5 * beat, 0.4)
+		_noise(buf, bt + beat, 0.14, 0.2, 26.0, rng, 0.45)
+		_noise(buf, bt + 3.0 * beat, 0.14, 0.2, 26.0, rng, 0.45)
+		for q in 8:
+			_noise(buf, bt + float(q) * beat * 0.5, 0.03, 0.05, 90.0, rng, 1.0)
+		if b % 2 == 0:
+			_note(buf, bt + 1.5 * beat, beat * 1.2, _hz(root + 24 + int(ch[3 % ch.size()])), 0, 0.06, 3.0, 0.002)

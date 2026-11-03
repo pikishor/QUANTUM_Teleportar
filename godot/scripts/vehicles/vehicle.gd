@@ -31,6 +31,12 @@ var ai_line := 0.0                  ## lane centre coordinate across the road
 var ai_speed := 0.0
 var ai_cruise := 11.0
 var ai_cool := 0.0                  ## metres to travel before the next junction may turn
+var ai_panic := 0.0                 ## s: fleeing after gunfire (faster, ignores lights) or hurrying on after a horn
+var ai_stun := 0.0                  ## s: stopped by a crash nearby
+var yielding := false               ## pulled over for a siren behind it
+var at_light := false               ## braking for a red or amber light (tests)
+var reactions := 0                  ## horn / gunfire / crash reactions so far (tests)
+var _yield_t := 0.0                 ## re-check timer of the siren search
 var vel := Vector3.ZERO             ## world velocity (y = 0)
 var braking := false                ## brake / handbrake lights
 var steer_in := 0.0                 ## last steering input -1..1 (wheel visual)
@@ -117,6 +123,11 @@ func activate(pos: Vector3, h: float) -> void:
 	vel = Vector3.ZERO
 	ai = false
 	ai_speed = 0.0
+	ai_panic = 0.0
+	ai_stun = 0.0
+	yielding = false
+	at_light = false
+	visual.set_deform(0.0)
 	driver_is_player = false
 	braking = false
 	steer_in = 0.0
@@ -281,6 +292,7 @@ func damage(amount: float) -> void:
 		explode()
 	else:
 		visual.set_damage_look(1.0 - hp / maxf(max_hp, 1.0))
+		visual.set_deform(1.0 - hp / maxf(max_hp, 1.0))
 		_update_damage_state()
 
 
@@ -497,19 +509,40 @@ func _bounce(col: KinematicCollision3D) -> void:
 func _ai_step(dt: float) -> void:
 	var fx := float(ai_dir) if ai_axis == 0 else 0.0
 	var fz := float(ai_dir) if ai_axis == 1 else 0.0
-	var blocked := _blocked(fx, fz)
-	ai_speed = _damp(ai_speed, 0.0 if blocked else ai_cruise, 5.0 if blocked else 1.5, dt)
+	var siren := is_emergency()
+	var blocked := _blocked(fx, fz, siren)
+	ai_panic = maxf(ai_panic - dt, 0.0)
+	ai_stun = maxf(ai_stun - dt, 0.0)
+	var u0 := global_position.x if ai_axis == 0 else global_position.z
+	at_light = not blocked and _light_blocks(u0)
+	if siren:
+		yielding = false
+	else:
+		_yield_t -= dt
+		yielding = _siren_behind()
+	var want := ai_cruise
+	if siren:
+		want *= VehicleSpecs.SIREN_SPEED
+		_chase_siren(dt)
+	elif ai_panic > 0.0:
+		want *= VehicleSpecs.PANIC_SPEED
+	if yielding:
+		want = minf(want, VehicleSpecs.YIELD_SPEED)
+	var halt := blocked or at_light or ai_stun > 0.0
+	ai_speed = _damp(ai_speed, 0.0 if halt else want, 5.0 if halt else 1.5, dt)
+	blocked = blocked or at_light or ai_stun > 0.0
 	var p := global_position
 	var ox := p.x
 	var oz := p.z
 	var prev_u := ox if ai_axis == 0 else oz
 	var step := float(ai_dir) * ai_speed * dt
+	var line := ai_line + (VehicleSpecs.lane_offset(ai_axis, ai_dir, VehicleSpecs.YIELD_SHIFT) if yielding else 0.0)
 	if ai_axis == 0:
 		p.x += step
-		p.z = _damp(p.z, ai_line, 2.5, dt)
+		p.z = _damp(p.z, line, 2.5, dt)
 	else:
 		p.z += step
-		p.x = _damp(p.x, ai_line, 2.5, dt)
+		p.x = _damp(p.x, line, 2.5, dt)
 	ai_cool -= absf(step)
 	var u := p.x if ai_axis == 0 else p.z
 	var idx := VehicleSpecs.road_index(u)
@@ -528,24 +561,93 @@ func _ai_step(dt: float) -> void:
 
 
 ## Something (the player on foot, another car) within AI_LOOK metres ahead and AI_SIDE to the side.
-func _blocked(fx: float, fz: float) -> bool:
+func _blocked(fx: float, fz: float, siren := false) -> bool:
 	var me := global_position
+	var side := VehicleSpecs.AI_SIDE * (0.6 if siren else 1.0)       # a siren car squeezes past a yielding car
 	var pl := Game.player
 	if is_instance_valid(pl) and pl.get(&"vehicle") == null and absf(pl.global_position.y - me.y) < 3.0:
-		if _ahead(pl.global_position - me, fx, fz):
+		if _ahead(pl.global_position - me, fx, fz, side):
 			return true
 	var mgr := manager as VehicleManager
 	if mgr != null:
 		for o in mgr.list:
-			if o != self and o.active and not o.dead and _ahead(o.global_position - me, fx, fz):
+			if o != self and o.active and not o.dead and _ahead(o.global_position - me, fx, fz, side):
 				return true
 	return false
 
 
-func _ahead(r: Vector3, fx: float, fz: float) -> bool:
+func _ahead(r: Vector3, fx: float, fz: float, half := VehicleSpecs.AI_SIDE) -> bool:
 	var ahead := r.x * fx + r.z * fz
 	var side := absf(r.x * fz - r.z * fx)
-	return ahead > 0.0 and ahead < VehicleSpecs.AI_LOOK and side < VehicleSpecs.AI_SIDE
+	return ahead > 0.0 and ahead < VehicleSpecs.AI_LOOK and side < half
+
+
+## A siren car: an interceptor or ambulance in traffic, or a chasing Vael patrol. It ignores lights and the others yield to it.
+func is_emergency() -> bool:
+	return active and not dead and not driver_is_player and ((ai and VehicleSpecs.is_siren(kind)) or (patrol and chasing))
+
+
+## The junction ahead shows red (or amber too far to stop at) and this car has not yet reached its stop distance. Panicking cars and sirens ignore lights.
+func _light_blocks(u: float) -> bool:
+	if ai_panic > 0.0 or is_emergency():
+		return false
+	var mgr := manager as VehicleManager
+	if mgr == null or not mgr.lights_on:
+		return false
+	var idx_f := (u + Game.HALF) / Game.PITCH
+	var ci := ceili(idx_f) if ai_dir > 0 else floori(idx_f)
+	if ci < 0 or ci > Game.N:
+		return false
+	var d := (VehicleSpecs.road_center(ci) - u) * float(ai_dir)
+	if d <= VehicleSpecs.LIGHT_COMMIT or d > VehicleSpecs.LIGHT_LOOK:
+		return false
+	var st := VehicleSpecs.signal_state(ai_axis, mgr.signal_clock)
+	return st == 2 or (st == 1 and d > VehicleSpecs.AMBER_STOP)
+
+
+## True while a siren car is behind or beside this one on the same road, within YIELD_RANGE (checked a few times a second, the answer is held).
+func _siren_behind() -> bool:
+	if _yield_t > 0.0:
+		return yielding
+	_yield_t = 0.2
+	var mgr := manager as VehicleManager
+	if mgr == null:
+		return false
+	var me := global_position
+	var fx := float(ai_dir) if ai_axis == 0 else 0.0
+	var fz := float(ai_dir) if ai_axis == 1 else 0.0
+	for o in mgr.list:
+		if o == self or not o.is_emergency():
+			continue
+		var r := o.global_position - me
+		var along := r.x * fx + r.z * fz
+		var across := absf(r.x * fz - r.z * fx)
+		if along < 6.0 and along > -VehicleSpecs.YIELD_RANGE and across < 8.0:
+			return true
+	return false
+
+
+## Horn, gunfire or a crash at `pos` (VehicleManager.hear): traffic reacts. Gunfire sends cars fleeing, a horn makes the car ahead of it hurry on, a crash stops cars nearby for a moment.
+func hear(pos: Vector3, what: StringName) -> void:
+	if not ai or not active or dead or driver_is_player or is_emergency():
+		return
+	var r := pos - global_position
+	r.y = 0.0
+	var d := r.length()
+	match what:
+		&"gun":
+			if d < VehicleSpecs.GUN_HEAR:
+				ai_panic = VehicleSpecs.PANIC_TIME
+				reactions += 1
+		&"horn":
+			var f := Vector3(float(ai_dir) if ai_axis == 0 else 0.0, 0.0, float(ai_dir) if ai_axis == 1 else 0.0)
+			if d < VehicleSpecs.HORN_HEAR and r.dot(f) < 0.0:               # the horn sounds behind this car
+				ai_panic = maxf(ai_panic, VehicleSpecs.HORN_NUDGE)
+				reactions += 1
+		&"crash":
+			if d < VehicleSpecs.CRASH_HEAR:
+				ai_stun = VehicleSpecs.STUN_TIME
+				reactions += 1
 
 
 ## At a junction: usually straight on, otherwise turn onto the crossing road into its right-hand lane of the new direction (always at the map edge).

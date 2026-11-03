@@ -390,6 +390,10 @@ func _act_garage() -> void:
 	if not _expect(starter != null and is_instance_valid(starter), "a car to keep exists (%d cars, cap %d)" % [vm.list.size(), vm.cap()]):
 		return
 	await _wait(0.3)
+	if not is_instance_valid(starter):                                     # streaming may recycle the car while we waited (more traffic kinds now): take a fresh one
+		starter = vm.spawn_parked(&"sport", _p.global_position + Vector3(4.0, 0.0, 0.0), 0.0)
+		if not _expect(starter != null and is_instance_valid(starter), "a replacement car to keep exists"):
+			return
 	_p.teleport_to(starter.global_position + Vector3(2.5, 0.0, 0.0))
 	await _wait(0.5)
 	for attempt in 3:                                                      # another system (mission, event, hit) may unseat the player: retry with a heal

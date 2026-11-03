@@ -30,12 +30,21 @@ const SPECS := {
 	&"rover": {"max": 26.0, "acc": 14.0, "brake": 34.0, "grip": 6.2, "hp": 170.0, "mass": 1900.0, "seats": 2, "model": "car_rover", "len": 2.3, "wid": 1.9, "hgt": 2.03, "wheel": 0.3},
 	&"skiff": {"cls": "hover", "max": 54.0, "acc": 26.0, "brake": 32.0, "grip": 2.0, "hp": 80.0, "mass": 900.0, "seats": 2, "model": "car_skiff", "len": 5.2, "wid": 1.85, "hgt": 1.4, "wheel": 0.3,
 		"hover_h": 0.6, "bob": 0.09, "drift": 1.1, "coast": 0.25, "steer": 1.2, "far": {"tint": Color(0.7, 0.85, 1.0), "speed": 1.2}},
+	# --- traffic and emergency set (primitive fallback until the art exists): a city bus, an interceptor and an ambulance (sirens: other traffic yields), a scooter-style quantum bike.
+	&"bus": {"max": 22.0, "acc": 7.0, "brake": 24.0, "grip": 5.0, "hp": 320.0, "mass": 11000.0, "seats": 4, "model": "car_bus", "alt": ["bus"], "len": 9.5, "wid": 2.5, "hgt": 3.2, "wheel": 0.5},
+	&"interceptor": {"siren": true, "max": 56.0, "acc": 30.0, "brake": 46.0, "grip": 6.0, "hp": 140.0, "mass": 1500.0, "seats": 2, "model": "car_interceptor", "alt": ["interceptor"], "len": 4.7, "wid": 1.95, "hgt": 1.3, "wheel": 0.34},
+	&"ambulance": {"siren": true, "max": 34.0, "acc": 14.0, "brake": 34.0, "grip": 6.0, "hp": 190.0, "mass": 2800.0, "seats": 3, "model": "car_ambulance", "len": 5.4, "wid": 2.05, "hgt": 2.4, "wheel": 0.37},
+	&"qbike": {"cls": "bike", "max": 62.0, "acc": 34.0, "brake": 36.0, "grip": 8.0, "hp": 45.0, "mass": 140.0, "seats": 1, "model": "bike_quantum", "alt": ["scooter", "bike_street"], "len": 1.8, "wid": 0.6, "hgt": 1.15,
+		"wheel": 0.26, "lean_max": 0.7, "steer": 1.4, "far": {"tint": Color(0.4, 0.95, 1.0), "speed": 1.3}},
 }
 ## Paints of the kinds that do not wear the random street palette (VehicleVisual.set_paint maps the random COLORS pick to an entry; a husk keeps WRECK_COLOR).
 const PALETTES := {
 	&"taxi": [Color(0.86, 0.66, 0.16), Color(0.92, 0.74, 0.2), Color(0.8, 0.58, 0.12), Color(0.88, 0.7, 0.18)],
 	&"van": [Color(0.84, 0.86, 0.88), Color(0.62, 0.66, 0.7), Color(0.3, 0.42, 0.56), Color(0.86, 0.87, 0.9), Color(0.4, 0.44, 0.48)],
 	&"truck": [Color(0.56, 0.62, 0.66), Color(0.3, 0.42, 0.56), Color(0.68, 0.4, 0.26), Color(0.8, 0.82, 0.84)],
+	&"bus": [Color(0.78, 0.5, 0.18), Color(0.28, 0.5, 0.62), Color(0.62, 0.66, 0.7), Color(0.3, 0.52, 0.48)],
+	&"interceptor": [Color(0.12, 0.14, 0.2), Color(0.86, 0.87, 0.9), Color(0.15, 0.18, 0.3), Color(0.2, 0.22, 0.26)],
+	&"ambulance": [Color(0.9, 0.91, 0.93), Color(0.86, 0.87, 0.9), Color(0.92, 0.93, 0.94), Color(0.88, 0.9, 0.92)],
 	&"vael_patrol": [Color(0.3, 0.36, 0.26), Color(0.26, 0.2, 0.36), Color(0.2, 0.3, 0.32), Color(0.34, 0.26, 0.3)],
 }
 ## mass (kg) and seats of the kinds that carry no inline "mass" / "seats" key (read them through mass_of() / seats_of()).
@@ -46,9 +55,9 @@ const BASE_STATS := {
 ## Cars of the original set (shader warm-up and legacy tests); streaming uses STREAM_KINDS.
 const KINDS: Array[StringName] = [&"sedan", &"sport", &"suv"]
 const KIND_WEIGHTS: Array[float] = [0.5, 0.25, 0.25]
-## Spawn weights of a streamed vehicle (sedan, sport, suv, bike, hover, taxi, wagon, van, truck, rover, skiff). Patrols (vael_patrol) are never streamed, the manager adds them from heat 3.
-const STREAM_KINDS: Array[StringName] = [&"sedan", &"sport", &"suv", &"bike", &"hover", &"taxi", &"wagon", &"van", &"truck", &"rover", &"skiff"]
-const STREAM_WEIGHTS: Array[float] = [0.18, 0.14, 0.12, 0.1, 0.1, 0.1, 0.06, 0.08, 0.06, 0.03, 0.03]
+## Spawn weights of a streamed vehicle (sedan, sport, suv, bike, hover, taxi, wagon, van, truck, rover, skiff, bus, interceptor, ambulance, qbike). Patrols (vael_patrol) are never streamed, the manager adds them from heat 3.
+const STREAM_KINDS: Array[StringName] = [&"sedan", &"sport", &"suv", &"bike", &"hover", &"taxi", &"wagon", &"van", &"truck", &"rover", &"skiff", &"bus", &"interceptor", &"ambulance", &"qbike"]
+const STREAM_WEIGHTS: Array[float] = [0.16, 0.12, 0.1, 0.08, 0.08, 0.09, 0.05, 0.07, 0.05, 0.03, 0.03, 0.04, 0.03, 0.02, 0.05]
 
 ## Live cars at once (starter car and a driven car included): LOW 3 / MED 5 / HIGH 8. Each legacy car costs about 10 draw calls.
 const CAPS: Array[int] = [3, 5, 8]
@@ -156,6 +165,36 @@ const AI_CRUISE_MIN := 9.0
 const AI_CRUISE_MAX := 14.0
 const AI_TURN_COOLDOWN := 14.0         ## metres before the next junction may turn again
 const AI_STRAIGHT_CHANCE := 0.55
+# --- traffic rules (wave 53): lights at every junction, yielding to sirens, reactions to horn / gunfire / crashes ---
+const SIGNAL_CYCLE := 18.0             ## s: axis 0 is green for 7.5 s, amber 1.5 s, then red while axis 1 runs (offset by half a cycle)
+const SIGNAL_GREEN := 7.5
+const SIGNAL_AMBER := 1.5
+const LIGHT_LOOK := 22.0               ## a car starts braking for a red this many metres before the junction centre
+const LIGHT_COMMIT := 4.5              ## closer than this it is committed and drives through
+const AMBER_STOP := 11.0               ## on amber it stops only when farther than this
+const SIREN_SPEED := 1.35              ## emergency cars cruise this much faster
+const YIELD_RANGE := 45.0              ## a siren this close behind makes traffic pull over
+const YIELD_SHIFT := 1.6               ## m towards the kerb while yielding
+const YIELD_SPEED := 4.0               ## m/s while yielding
+const PANIC_TIME := 4.0                ## s of flight after gunfire
+const PANIC_SPEED := 1.5
+const GUN_HEAR := 45.0
+const HORN_HEAR := 16.0
+const HORN_NUDGE := 1.5                ## s a car ahead of a horn hurries on
+const CRASH_HEAR := 20.0
+const STUN_TIME := 1.4                 ## s traffic near a crash stops
+
+
+## 0 green, 1 amber, 2 red for traffic travelling along `axis` at signal clock `clock` (s). The two axes are never green together.
+static func signal_state(axis: int, clock: float) -> int:
+	var t := fposmod(clock + (0.0 if axis == 0 else SIGNAL_CYCLE * 0.5), SIGNAL_CYCLE)
+	if t < SIGNAL_GREEN:
+		return 0
+	return 1 if t < SIGNAL_GREEN + SIGNAL_AMBER else 2
+
+
+static func is_siren(kind: StringName) -> bool:
+	return SPECS.has(kind) and bool(SPECS[kind].get("siren", false))
 
 
 static func starter_pos() -> Vector3:

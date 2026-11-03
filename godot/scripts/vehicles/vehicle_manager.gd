@@ -19,6 +19,10 @@ var stream_every := VehicleSpecs.STREAM_EVERY   ## seconds between streaming pas
 var radio: CarRadio                  ## the car radio (3 synthesised stations), a child node
 var patrols_spawned := 0             ## Vael patrol vehicles sent after the player so far (tests, stats)
 
+var signal_clock := 0.0              ## s: the junction lights (VehicleSpecs.signal_state); tests may set it and freeze it
+var signal_frozen := false
+var lights_on := true                ## false: traffic ignores the junction lights (tests of plain lane driving)
+
 var _patrol_t := 0.0
 var _pool := {}                      ## kind -> Array[Vehicle] (inactive)
 var _stream_t := 0.0
@@ -126,6 +130,17 @@ func exit_vehicle() -> void:
 			p.call(&"damage", (exit_speed - VehicleSpecs.EXIT_SAFE_SPEED) * VehicleSpecs.EXIT_HURT)      # bailing out of a fast car hurts
 
 
+## A horn (`&"horn"`), gunshot (`&"gun"`) or crash (`&"crash"`) at `pos`: traffic reacts (Vehicle.hear). Returns how many cars reacted.
+func hear(pos: Vector3, what: StringName) -> int:
+	var n := 0
+	for v in list:
+		var before := v.reactions
+		v.hear(pos, what)
+		if v.reactions != before:
+			n += 1
+	return n
+
+
 func spawn_parked(kind: StringName, pos: Vector3, heading: float) -> Vehicle:
 	if list.size() >= cap():
 		return null
@@ -230,6 +245,7 @@ func on_destroyed(v: Vehicle) -> void:
 	list.erase(v)
 	v.is_starter = false
 	v.become_wreck()
+	hear(where, &"crash")
 	_wrecks.append({"car": v, "t": _clock + respawn_time})
 	while _wrecks.size() > VehicleSpecs.MAX_WRECKS:
 		_release_wreck(0)
@@ -416,6 +432,8 @@ func _physics_process(delta: float) -> void:
 	if not Game.is_playing():
 		return
 	_clock += delta
+	if not signal_frozen:
+		signal_clock += delta
 	if Input.is_action_just_pressed(&"interact"):
 		toggle_enter_exit()
 	if radio != null:
@@ -482,6 +500,7 @@ func _bump_others(car: Vehicle) -> void:
 		o.vel = -n * imp * 0.8
 		o.ai = false
 		if imp > VehicleSpecs.CAR_HIT_SPEED:
+			hear(op, &"crash")
 			car.hits += 1
 			car.damage(imp * 1.2)
 			o.damage(imp * 2.0)

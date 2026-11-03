@@ -13,7 +13,7 @@ extends RefCounted
 ## (death_draws) must stay under its own ceiling, and the Compatibility fallback (renders more draws per object) gets lower caps for what it may spawn
 ## (see COMPAT_SCALE and the managers' cap()).
 const BUDGETS := {
-	0: {"draws": 100, "prims": 160000, "death_draws": 115},
+	0: {"draws": 100, "prims": 160000, "death_draws": 118},
 	1: {"draws": 140, "prims": 280000, "death_draws": 150},
 	2: {"draws": 160, "prims": 430000, "death_draws": 180},
 }

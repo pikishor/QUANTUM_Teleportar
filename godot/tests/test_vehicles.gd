@@ -27,6 +27,7 @@ func run(host: Node) -> void:
 	Engine.time_scale = K
 	Engine.physics_ticks_per_second = 60 * K
 	mgr = (load("res://scenes/vehicle_manager.tscn") as PackedScene).instantiate() as VehicleManager
+	mgr.lights_on = false                      # lane and junction tests drive on; the lights have their own test (test_traffic_ai)
 	root.add_child(mgr)
 	await e.frames(3)
 	await _starter_and_visuals()

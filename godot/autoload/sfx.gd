@@ -430,6 +430,8 @@ func horn() -> void:
 	if _horn_cd <= 0.0:
 		_horn_cd = 0.9
 		play(&"horn", -3.0)
+		if is_instance_valid(Game.vehicles) and is_instance_valid(Game.player):
+			(Game.vehicles as VehicleManager).hear((Game.player as Node3D).global_position, &"horn")
 
 
 ## True while a family's voices are busy (tests, debug).

@@ -10,6 +10,13 @@ const LIFE := 18.0
 const FADE := 5.0
 const LIFT := 0.012                  ## metres the quad floats above the surface (avoids z-fighting)
 const TEX_SIZE := 64
+## Per-surface pools inside the one ring: a surface never holds more than its quota (the oldest hole of that surface is recycled first), so glass cracks
+## cannot push out every metal dent. tint = instance colour, k = size factor.
+const SURFACES := {
+	&"concrete": {"quota": 40, "tint": Color(1.0, 1.0, 1.0), "k": 1.0},
+	&"metal": {"quota": 16, "tint": Color(0.75, 0.85, 1.0), "k": 0.8},
+	&"glass": {"quota": 12, "tint": Color(0.8, 1.0, 1.0), "k": 1.7},
+}
 
 static var _texture: ImageTexture
 static var _material: StandardMaterial3D
@@ -18,6 +25,7 @@ var _mm: MultiMesh
 var _node: MultiMeshInstance3D
 var _born := PackedFloat32Array()    ## spawn time (PlayerUtil.now) per instance, negative = unused
 var _next := 0
+var _surf: Array[StringName] = []     ## surface of each slot
 var _filled := 0
 var _live := 0
 var _hidden := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3(0.0, -4000.0, 0.0))
@@ -37,6 +45,8 @@ func _ready() -> void:
 	_mm.visible_instance_count = 0
 	_born.resize(CAPACITY)
 	_born.fill(-1.0)
+	_surf.resize(CAPACITY)
+	_surf.fill(&"concrete")
 	_node = MultiMeshInstance3D.new()
 	_node.name = "Holes"
 	_node.multimesh = _mm
@@ -48,7 +58,7 @@ func _ready() -> void:
 
 
 ## Add a hole at a surface point with the surface normal. size is the diameter in metres.
-func add(pos: Vector3, normal: Vector3, size := 0.17) -> void:
+func add(pos: Vector3, normal: Vector3, size := 0.17, surface := &"concrete") -> void:
 	if _mm == null:
 		return
 	var n := normal.normalized()
@@ -58,17 +68,40 @@ func add(pos: Vector3, normal: Vector3, size := 0.17) -> void:
 	var tangent := n.cross(ref).normalized()
 	var bitangent := n.cross(tangent)
 	var basis := Basis(tangent, bitangent, n).rotated(n, randf() * TAU) * Basis.from_scale(Vector3(size, size, size))
+	var sd: Dictionary = SURFACES.get(surface, SURFACES[&"concrete"])
+	size *= float(sd["k"])
 	var i := _next
-	_next = (_next + 1) % CAPACITY
+	if _count_of(surface) >= int(sd["quota"]):         # this surface's pool is full: recycle its oldest hole
+		var oldest := INF
+		for j in CAPACITY:
+			if _born[j] >= 0.0 and _surf[j] == surface and _born[j] < oldest:
+				oldest = _born[j]
+				i = j
+	else:
+		_next = (_next + 1) % CAPACITY
+	_surf[i] = surface
 	if _born[i] < 0.0:
 		_live += 1
 	_filled = mini(_filled + 1, CAPACITY)
 	_mm.visible_instance_count = _filled
 	_mm.set_instance_transform(i, Transform3D(basis, pos + n * LIFT))
-	_mm.set_instance_color(i, Color.WHITE)
+	_mm.set_instance_color(i, sd["tint"])
 	_born[i] = PlayerUtil.now()
 	_node.visible = true
 	set_process(true)
+
+
+func _count_of(surface: StringName) -> int:
+	var n := 0
+	for j in CAPACITY:
+		if _born[j] >= 0.0 and _surf[j] == surface:
+			n += 1
+	return n
+
+
+## Live holes on one surface.
+func count_on(surface: StringName) -> int:
+	return _count_of(surface)
 
 
 func active_count() -> int:
@@ -102,7 +135,9 @@ func _process(_delta: float) -> void:
 			_born[i] = -1.0
 			_live -= 1
 		elif age > LIFE - FADE:
-			_mm.set_instance_color(i, Color(1.0, 1.0, 1.0, clampf((LIFE - age) / FADE, 0.0, 1.0)))
+			var tc: Color = SURFACES[_surf[i]]["tint"]
+			tc.a = clampf((LIFE - age) / FADE, 0.0, 1.0)
+			_mm.set_instance_color(i, tc)
 	if _live <= 0:
 		_node.visible = false
 		set_process(false)

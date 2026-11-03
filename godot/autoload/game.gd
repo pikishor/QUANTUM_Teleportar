@@ -195,6 +195,8 @@ func explode(pos: Vector3, radius: float, opts := {}) -> void:
 	var cam_pos: Vector3 = camera.global_position if is_instance_valid(camera) else pos
 	FX.shake(clampf(radius * 1.6 / (cam_pos.distance_to(pos) + 6.0), 0.0, 1.0))
 	Sfx.play_at(&"boom" if radius >= 5.0 else &"explosion_small", pos, -3.0)                 # positional: an explosion across the street is quieter and comes from where it is
+	if Breakables.current != null:
+		Breakables.current.blast(pos, radius)
 	if enemy_dmg > 0.0:
 		for e: Node3D in get_tree().get_nodes_in_group(&"enemy"):
 			var reach := radius + 0.8

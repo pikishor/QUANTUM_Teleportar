@@ -344,6 +344,26 @@ func set_damage_look(frac: float) -> void:
 		_body_mat.emission_energy_multiplier = 0.12 if DynamicFill._is_compat() else PAINT_GLOW
 
 
+## Crash deformation, lite: the whole body crumples with the damage (lower, shorter, wider), no extra mesh, material or draw call. 0 restores the model.
+const DEFORM := Vector3(0.03, -0.1, -0.07)
+var deform := 0.0
+var _deform_base := Vector3.ONE
+var _deform_known := false
+
+
+func set_deform(frac: float) -> void:
+	if model == null:
+		return
+	frac = clampf(frac, 0.0, 1.0)
+	if not _deform_known:
+		_deform_known = true
+		_deform_base = model.scale
+	if absf(frac - deform) < 0.02 and frac > 0.0:
+		return
+	deform = frac
+	model.scale = _deform_base * (Vector3.ONE + DEFORM * frac)
+
+
 ## Wet streets: a wet car is glossier (lower roughness, full clear coat). Follows the global `wetness`.
 func set_wet(w: float) -> void:
 	w = clampf(w, 0.0, 1.0)

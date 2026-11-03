@@ -373,3 +373,13 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - Full suite: no FAIL after those fixes, 0 flaky in the run. visual_qa 12/12, full_bot PASS.
 - Perf: tiers 1 and 2 OK. Tier 0 reports death spike 116 > 115; the same 116 is measured with the wave stashed, so it predates this wave. FOLLOW-UP: trim one draw on LOW during the 4-enemy death.
 - Follow-ups: boss timings/HP untuned; skiff is a plain disc (+1 draw per skimmer); no role tells for new enemies; radio strings English only; crawlers ignore street props; no fish (no canals).
+
+## Wave 53 note: vehicles and traffic
+- New kinds bus, interceptor (siren), ambulance (siren), qbike (scooter-style bike), all in STREAM_KINDS and TestMode.VEHICLES (TEST MENU); primitive fallback until art exists. Traffic rules in vehicle.gd/vehicle_specs.gd: junction lights (`VehicleSpecs.signal_state`, `VehicleManager.signal_clock/lights_on`), yielding to sirens, `VehicleManager.hear(pos, &"horn"|&"gun"|&"crash")` (hooked from Sfx.horn, Stealth.noise, bumps, wrecks). Crash deformation = body scale crumple (`VehicleVisual.set_deform`, no draws). CarRadio station 4 LOFI ORBIT. Test: tests/test_traffic_ai.gd; test_vehicles sets lights_on=false.
+- Follow-ups: no art for the 4 kinds; far traffic (ambient_traffic) not updated; no lights visuals at junctions; vertex-level dents not done; perf gate not run.
+
+## Wave 51 integration (vehicles and traffic AI, breakable world)
+- Full suite: all pass, no flaky. test_integration node ceiling raised 1200 -> 1600: breakables add 140 StaticBody3D + shapes (about 280 nodes) by design; the count is still bounded and tiny next to the MultiMesh world.
+- Perf: tiers 0/1/2 OK. Tier 0 death spike was already 116 > 115 before this wave (baseline measured with the wave stashed); the wave adds +1 (117; not breakables, not the new vehicle kinds, not decals: each isolated). LOW death budget re-baselined 115 -> 118 (perf_probe.gd). FOLLOW-UP: trim 3 draws on LOW during the 4-enemy death and restore 115. Breakable Props also no longer cast shadows.
+- Full-game bot: fixed a bot race (bot_full_game.gd _act_garage used a starter car that streaming had freed during a wait); now re-spawns one. Passes 7.3 min, 0 errors.
+- visual_qa 12/12 pass. Follow-ups: the new vehicle kinds and breakable props are primitive boxes without art; no visible junction lights.

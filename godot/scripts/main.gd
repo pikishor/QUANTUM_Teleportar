@@ -39,6 +39,7 @@ func _ready() -> void:
 	add_child(Stability.new())          # watchdog: held input, time scale, camera / player / HUD consistency, hurt and death feedback
 	add_child(InteriorGameplay.new())   # enterable interiors: doors, fades, vendors, actors, missions (scripts/interiors_gameplay/)
 	add_child(preload("res://scripts/world/city_events.gd").new())   # city events: ambush, race, rescue, drop, rift (actors, rewards, minimap markers, rift gravity)
+	add_child(Breakables.new())         # breakable props (crates, glass, poles ...), pooled debris, bullet decal surfaces (scripts/world/breakables.gd)
 	add_child(Activities.new())         # F8: range, rooftop run, drift course, arena (scripts/activities/)
 	add_child(Cinematics.new())         # cutscenes (intro, chapter, boss), title backdrop, shop close-up, dead / win bars and fades (scripts/cinematics/)
 	TestMode.forced = UiSettings.new().test_mode or OS.get_cmdline_user_args().has("--test-mode")
