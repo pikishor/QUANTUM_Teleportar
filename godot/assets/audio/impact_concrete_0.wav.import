@@ -14,8 +14,8 @@ dest_files=["res://.godot/imported/impact_concrete_0.wav-493de882cfe02b4319c81e6
 
 force/8_bit=false
 force/mono=false
-force/max_rate=false
-force/max_rate_hz=44100
+force/max_rate=true
+force/max_rate_hz=22050
 edit/trim=false
 edit/normalize=false
 edit/loop_mode=0

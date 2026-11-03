@@ -14,8 +14,8 @@ dest_files=["res://.godot/imported/step_metal_5.wav-fe4a76bb7f2ec62d374d6ecee6d0
 
 force/8_bit=false
 force/mono=false
-force/max_rate=false
-force/max_rate_hz=44100
+force/max_rate=true
+force/max_rate_hz=22050
 edit/trim=false
 edit/normalize=false
 edit/loop_mode=0

@@ -14,8 +14,8 @@ dest_files=["res://.godot/imported/babble_1.wav-cd7aef63ed1cd7be6d67501ec3d67bad
 
 force/8_bit=false
 force/mono=false
-force/max_rate=false
-force/max_rate_hz=44100
+force/max_rate=true
+force/max_rate_hz=22050
 edit/trim=false
 edit/normalize=false
 edit/loop_mode=0

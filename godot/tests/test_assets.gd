@@ -543,7 +543,7 @@ func _wav(wav_name: String) -> AudioStreamWAV:
 	var s := load(path) as AudioStreamWAV if ResourceLoader.exists(path) else null
 	TestLib.check(s != null, "%s.wav loads as AudioStreamWAV" % wav_name)
 	if s:
-		TestLib.check(s.format == AudioStreamWAV.FORMAT_16_BITS and s.mix_rate == 44100 and not s.stereo, "%s.wav is 44.1 kHz mono 16-bit" % wav_name)
+		TestLib.check(s.format == AudioStreamWAV.FORMAT_16_BITS and (s.mix_rate == 44100 or s.mix_rate == 22050) and not s.stereo, "%s.wav is 44.1 or import-tuned 22.05 kHz mono 16-bit" % wav_name)
 	return s
 
 

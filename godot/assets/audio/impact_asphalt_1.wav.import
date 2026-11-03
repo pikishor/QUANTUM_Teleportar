@@ -14,8 +14,8 @@ dest_files=["res://.godot/imported/impact_asphalt_1.wav-e095917b60829967e3ccba9f
 
 force/8_bit=false
 force/mono=false
-force/max_rate=false
-force/max_rate_hz=44100
+force/max_rate=true
+force/max_rate_hz=22050
 edit/trim=false
 edit/normalize=false
 edit/loop_mode=0

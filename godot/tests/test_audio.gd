@@ -130,7 +130,7 @@ func _catalog() -> void:
 		for s in v:
 			files += 1
 			var w := _wav(s)
-			if w == null or w.format != AudioStreamWAV.FORMAT_16_BITS or w.mix_rate != SR or w.stereo:
+			if w == null or w.format != AudioStreamWAV.FORMAT_16_BITS or (w.mix_rate != SR and w.mix_rate != SR / 2) or w.stereo:
 				bad_fmt += 1
 				continue
 			var dur := w.get_length()

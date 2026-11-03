@@ -354,3 +354,9 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - FirstUse (scripts/story/first_use.gd): ten once-only icon hints, drawn by hud.gd, saved as hint_<id> in Progress.cine_seen, REPLAY HINTS on options page 2. Localisation: Spanish story/radio/contracts/missions/interiors; Hindi menus/HUD (strings_es.gd, strings_hi.gd generated); language cycles en/es/hi.
 - Full suite: 109 pass, 0 flaky, 0 fail. Perf gate skipped. Visual QA 12/12 pass.
 - Follow-ups: map/side-mission hints only time out; key labels Q/E/R/C/M unverified vs input map; Devanagari glyphs unverified (no font in sandbox); vendor-name fragments, touch and map labels untranslated; hint plate and Hindi layout not checked at 844x390/1280x720; ARCHITECTURE.md not updated.
+
+## Wave 48: app icon, size reduction, perf report overlay
+- Icon + adaptive layers (tools/release/make_icon.py), import size tuning (tools/release/tune_imports.py: ORM/emission 1K, long audio 22.05 kHz), size plan (docs/RELEASE.md s11), PerfOverlay (p50/p95/p99 report, COPY REPORT via long-press FPS, user://perf_log.txt).
+- test_assets/test_audio now accept 22.05 kHz imported WAVs (import-tuned), same intent.
+- Full suite: no flaky. Perf tiers 0/1/2 all OK (tier 0 death spike sits at 115/115 budget edge; one run saw 116, rerun and baseline 115).
+- Follow-ups: AAB still over 200 MB base without a Play Asset Delivery pack (plan in RELEASE.md); iOS team id placeholder; perf panel layout unseen on phone; battery/thermal n/a; visual_qa 12/12 pass, no new defects.

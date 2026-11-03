@@ -52,6 +52,7 @@ var _stick_pos := Vector2.ZERO
 var _look_id := -1
 var _held := {}                     ## finger index -> button dictionary
 var _perf_text := ""
+var _copied_t := 0.0                ## seconds the COPY REPORT button shows COPIED
 var _perf_t := 0.0
 var _win_t := 0.0
 var _win_n := 0
@@ -125,6 +126,7 @@ func _process(delta: float) -> void:
 		_win_t = 0.0
 		_win_n = 0
 		_win_worst = 0.0
+	_copied_t = maxf(_copied_t - delta, 0.0)
 	_perf_t -= delta
 	if _perf_t <= 0.0:
 		_perf_t = 0.5
@@ -172,6 +174,12 @@ func _input(event: InputEvent) -> void:
 
 
 func touch_down(id: int, pos: Vector2) -> void:
+	if perf_visible() and errors_on and _copy_rect().has_point(pos):
+		var po := get_tree().get_first_node_in_group(&"perf_overlay")      # COPY REPORT (debug panel): the device report to the clipboard and user://perf_log.txt
+		if po != null:
+			_copied_t = 2.0
+			(po as PerfOverlay).copy_report()
+		return
 	if perf_visible() and _perf_box().has_point(pos):
 		_perf_finger = id                               # decided on release: a tap cycles the tier, a long press toggles the error panel
 		_perf_held = 0.0
@@ -410,6 +418,7 @@ func _draw_ui() -> void:
 		c.draw_multiline_string(font, box.position + Vector2(8, 20) * s, _perf_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(15 * s), -1, Color(0.85, 1, 0.9, 0.95))
 	if perf_visible() and errors_on:
 		_draw_errors(c, font, s)
+		_draw_report(c, font, s)
 	if not controls_on or Game.state != &"play":
 		return
 	# move stick: a hint ring while idle, base and thumb while a finger is down
@@ -470,6 +479,35 @@ func _draw_ui() -> void:
 	c.draw_arc(pc, pr, 0.0, TAU, 28, Color(1, 1, 1, 0.45), 2.0 * s, false)
 	c.draw_rect(Rect2(pc + Vector2(-8, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
 	c.draw_rect(Rect2(pc + Vector2(3, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
+
+
+func _report_rect() -> Rect2:
+	var box := _perf_box()
+	var s := _scale()
+	var top := box.end.y + 6.0 * s + (ERROR_ROWS * 15.0 + 22.0) * s + 6.0 * s
+	return Rect2(Vector2(box.position.x, top), Vector2(minf(_vp_size().x - box.position.x - 12.0 * s, 620.0 * s), 150.0 * s))
+
+
+func _copy_rect() -> Rect2:
+	var r := _report_rect()
+	var s := _scale()
+	return Rect2(r.position + Vector2(r.size.x - 150.0 * s, 4.0 * s), Vector2(144.0, 30.0) * s)
+
+
+## Debug panel part two: the live device report (same text the COPY REPORT button sends) and the button.
+func _draw_report(c: Control, font: Font, s: float) -> void:
+	var po := get_tree().get_first_node_in_group(&"perf_overlay")
+	if po == null:
+		return
+	var r := _report_rect()
+	c.draw_rect(r, Color(0.0, 0.04, 0.06, 0.7))
+	c.draw_rect(r, Color(0.4, 0.9, 1.0, 0.6), false, 1.0 * s)
+	var cr := _copy_rect()
+	c.draw_rect(cr, Color(0.1, 0.35, 0.45, 0.9))
+	c.draw_string(font, cr.position + Vector2(8, 20) * s, "COPIED" if _copied_t > 0.0 else "COPY REPORT", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(14.0 * s), Color(1, 1, 1, 0.95))
+	var lines := (po as PerfOverlay).report().split("\n")
+	for i in range(1, mini(lines.size(), 9)):
+		c.draw_string(font, r.position + Vector2(6.0, 14.0 + (i - 1) * 16.0 + (30.0 if i > 5 else 0.0)) * s, lines[i], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 12.0 * s, int(10.0 * s), Color(0.85, 1, 0.95, 0.95))
 
 
 ## The on-device error log (Dev.errors, also in user://last_errors.txt): the newest lines, small, under the perf readout.

@@ -35,6 +35,7 @@ func _ready() -> void:
 	Game.set_quality(Game.quality)      # every module starts on the same graphics tier (--quality=N, saved setting)
 	add_child(PerfTiers.new())          # mesh LOD threshold, anisotropy and mip bias per tier, Compatibility pool caps (scripts/common/perf_tiers.gd)
 	add_child(AutoQuality.new())        # touchscreens start on LOW until the player chooses; a sustained low frame rate drops one tier
+	add_child(PerfOverlay.new())        # phone profiling: frame time percentiles, device report, user://perf_log.txt, governor log (long-press the FPS box)
 	add_child(Stability.new())          # watchdog: held input, time scale, camera / player / HUD consistency, hurt and death feedback
 	add_child(InteriorGameplay.new())   # enterable interiors: doors, fades, vendors, actors, missions (scripts/interiors_gameplay/)
 	add_child(preload("res://scripts/world/city_events.gd").new())   # city events: ambush, race, rescue, drop, rift (actors, rewards, minimap markers, rift gravity)

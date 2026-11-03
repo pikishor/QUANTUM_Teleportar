@@ -14,8 +14,8 @@ dest_files=["res://.godot/imported/land_metal_1.wav-bc3b0eba3853a5ca96dee7828741
 
 force/8_bit=false
 force/mono=false
-force/max_rate=false
-force/max_rate_hz=44100
+force/max_rate=true
+force/max_rate_hz=22050
 edit/trim=false
 edit/normalize=false
 edit/loop_mode=0

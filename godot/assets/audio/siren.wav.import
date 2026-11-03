@@ -14,8 +14,8 @@ dest_files=["res://.godot/imported/siren.wav-e70294bc7e157e67be910b9b4865b770.sa
 
 force/8_bit=false
 force/mono=false
-force/max_rate=false
-force/max_rate_hz=44100
+force/max_rate=true
+force/max_rate_hz=22050
 edit/trim=false
 edit/normalize=false
 edit/loop_mode=0
