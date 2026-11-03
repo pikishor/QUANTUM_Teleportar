@@ -571,8 +571,8 @@ func _probe() -> void:
 		await _ensure_back()
 	if Game.state == &"play" and speed > 0:
 		# the quantum slow motion is timed in REAL seconds; at a high sim speed the 1 s wait above is shorter than that, so let it run out first
-		var t0 := Time.get_ticks_msec()
-		while absf(Engine.time_scale - float(speed)) > 0.01 and Time.get_ticks_msec() - t0 < 6000:
+		var settle0 := Time.get_ticks_msec()
+		while absf(Engine.time_scale - float(speed)) > 0.01 and Time.get_ticks_msec() - settle0 < 6000:
 			await _tick()
 	if Game.state == &"play":
 		if absf(Engine.time_scale - float(maxi(speed, 1) if speed > 0 else restore)) > 0.01 and speed > 0:
