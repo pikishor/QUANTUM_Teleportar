@@ -11,7 +11,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 BIN="$(tools/get_godot.sh)"
-BOT=res://tests/bot_soak.gd
+BOT="${SOAK_BOT:-res://tests/bot_soak.gd}"
 RENDER=0
 ARGS=()
 for a in "$@"; do

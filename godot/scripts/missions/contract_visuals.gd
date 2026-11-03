@@ -24,6 +24,25 @@ void fragment() {
 }
 """
 
+## Strike-zone hazard ring (set pieces): a pulsing band while warning, a filled flash while hitting; one flat quad per zone, pooled, hidden when idle.
+const ZONE_SHADER_CODE := """
+shader_type spatial;
+render_mode blend_add, unshaded, cull_disabled, depth_draw_never, fog_disabled, shadows_disabled;
+uniform vec4 tint : source_color = vec4(1.0, 0.2, 0.25, 1.0);
+uniform float hit = 0.0;
+void fragment() {
+	vec2 p = UV * 2.0 - 1.0;
+	float r = length(p);
+	float band = smoothstep(0.86, 0.9, r) * (1.0 - smoothstep(0.985, 1.0, r));
+	float pulse = 0.55 + 0.45 * sin(TIME * 14.0);
+	float disc = (1.0 - smoothstep(0.0, 0.9, r)) * mix(0.10 + 0.08 * pulse, 0.85, hit);
+	ALBEDO = mix(tint.rgb, vec3(1.0, 0.9, 0.7), hit) * 1.5;
+	ALPHA = clamp(band * mix(pulse, 1.0, hit) + disc * step(r, 0.9), 0.0, 1.0);
+}
+"""
+const ZONE_POOL := 4
+static var _zone_shader: Shader
+
 const BEAM_HEIGHT := 150.0
 const BEAM_NEAR := 16.0
 const ROUTE_Y := 0.14
@@ -37,6 +56,7 @@ static var _route_mat: StandardMaterial3D
 var markers: Array[Dictionary] = []       ## [{node, beam, ring, mat, beams: {StringName: Material}}] for a and b
 var route: MeshInstance3D
 var _t := 0.0
+var zone_rings: Array[MeshInstance3D] = []
 
 
 func _init() -> void:
@@ -109,6 +129,42 @@ func show_marker(i: int, pos: Vector3, radius: float, color: Color, progress := 
 	mat.set_shader_parameter(&"progress", progress)
 
 
+## Shows the strike zones (centres, radius in metres); `hitting` flashes them. Extra zones beyond the pool are not drawn. An empty array hides all.
+func show_zones(centres: Array[Vector3], radius: float, hitting := false) -> void:
+	if centres.is_empty() and zone_rings.is_empty():
+		return
+	while zone_rings.size() < ZONE_POOL and not centres.is_empty():
+		if _zone_shader == null:
+			_zone_shader = Shader.new()
+			_zone_shader.code = ZONE_SHADER_CODE
+		var m := MeshInstance3D.new()
+		var q := PlaneMesh.new()
+		q.size = Vector2(2.0, 2.0)
+		m.mesh = q
+		var sm := ShaderMaterial.new()
+		sm.shader = _zone_shader
+		m.material_override = sm
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		m.visible = false
+		add_child(m)
+		zone_rings.append(m)
+	for i in zone_rings.size():
+		var m := zone_rings[i]
+		m.visible = i < centres.size()
+		if m.visible:
+			m.global_position = Vector3(centres[i].x, 0.12, centres[i].z)
+			m.scale = Vector3(radius, 1.0, radius)
+			(m.material_override as ShaderMaterial).set_shader_parameter(&"hit", 1.0 if hitting else 0.0)
+
+
+func zones_visible() -> int:
+	var n := 0
+	for m in zone_rings:
+		if m.visible:
+			n += 1
+	return n
+
+
 func move_marker(i: int, pos: Vector3) -> void:
 	var node: Node3D = markers[i].node
 	node.position = Vector3(pos.x, maxf(pos.y, 0.0), pos.z)
@@ -127,6 +183,8 @@ func marker_visible(i: int) -> bool:
 
 
 func hide_all() -> void:
+	for zr in zone_rings:
+		zr.visible = false
 	for i in markers.size():
 		hide_marker(i)
 	route.visible = false

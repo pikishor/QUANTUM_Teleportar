@@ -21,7 +21,7 @@ const BUTTONS := [
 	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &""},
 	{"action": &"swap", "dx": 345.0, "dy": 440.0, "r": 48.0, "fs": 24, "label": "SWAP", "need": &""},
-	{"action": &"altfire", "dx": 300.0, "dy": 230.0, "r": 42.0, "fs": 22, "label": "ALT", "need": &""},
+	{"action": &"altfire", "dx": 270.0, "dy": 252.0, "r": 42.0, "fs": 22, "label": "ALT", "need": &""},
 	{"action": &"blink", "dx": 515.0, "dy": 110.0, "r": 56.0, "label": "TELEPORT", "need": &"quantum", "ability": 0},
 	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "ENTANGLE", "need": &"quantum", "ability": 1},
 	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},
@@ -31,6 +31,7 @@ const BUTTONS := [
 	{"action": &"takedown", "dx": 175.0, "dy": 590.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
 	{"action": &"garage_call", "dx": 490.0, "dy": 570.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"garage_call", "fn": &"summon"},
 	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},
+	{"action": &"skip_piece", "dx": 320.0, "dy": 470.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
@@ -190,7 +191,9 @@ func touch_down(id: int, pos: Vector2) -> void:
 		if button_visible(b) and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]) * UiSettings.s_button_size, UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
 			if b.has("fn"):                                            # CALL CAR / GARAGE: one tap, no action press
 				Sfx.play(&"ui_tap")
-				if b["fn"] == &"summon":
+				if b["fn"] == &"skip":
+					get_parent().call(&"skip_set_piece")
+				elif b["fn"] == &"summon":
 					Game.vehicles.call(&"summon_garage")
 				else:
 					_open_garage()
@@ -303,6 +306,9 @@ func button_visible(b: Dictionary) -> bool:
 				and (Game.vehicles.call(&"get_garage") as Garage).has_car()
 		&"garage_open":      # GARAGE: while driving
 			return is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage") and _driving()
+		&"skip_piece":       # SKIP SET PIECE: only inside an optional set piece
+			var hud := get_parent()
+			return hud != null and hud.has_method(&"skip_available") and bool(hud.call(&"skip_available"))
 		&"radio":
 			return is_instance_valid(Game.vehicles) and Game.vehicles.get("radio") != null and _driving()
 	return true

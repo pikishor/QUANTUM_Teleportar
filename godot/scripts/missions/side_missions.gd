@@ -178,7 +178,7 @@ func _physics_process(delta: float) -> void:
 	if not active or Game.state != &"play" or not is_instance_valid(Game.player):
 		return
 	var fwd := -Game.camera.global_transform.basis.z if is_instance_valid(Game.camera) else Vector3.RIGHT
-	tick(delta, Game.player.global_position, fwd, Game.vehicle != null)
+	tick(delta, Game.player.global_position, fwd, (Game.player as Player).vehicle != null)
 	_update_marker()
 
 

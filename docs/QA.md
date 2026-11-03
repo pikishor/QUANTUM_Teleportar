@@ -119,3 +119,6 @@ seconds (`tests/runner.gd`; its timer counts real seconds in the working tree, w
   reached yet. A new leak limit is a decision: change `LIMITS` in `tests/soak_lib.gd` with the numbers of a healthy run in the table above.
 * Nightly job (optional; not added to `.github/workflows` because workflows are owned elsewhere): a `schedule` + `workflow_dispatch` job on `ubuntu-24.04` with the same packages as
   `ci.yml`, running `godot/tools/bootstrap.sh`, `godot/tools/soak.sh --minutes=10` and `godot/tools/soak.sh --monkey --real --minutes=5 --seed=$GITHUB_RUN_NUMBER`. It needs no secrets.
+
+## Full-feature bot
+`godot/tools/full_bot.sh` (8 simulated minutes, `--groups=quantum,weapons,stealth,vehicles,garage,world,events,activities,pieces,weather,ui,save` to narrow) runs `tests/bot_full_game.gd`, the soak bot plus one activity per system of waves 21-45; `tests/test_full_quick.gd` is the 60 s CI variant. It uses throw-away save/settings files under user://.

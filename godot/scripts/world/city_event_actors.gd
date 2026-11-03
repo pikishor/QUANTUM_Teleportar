@@ -70,7 +70,7 @@ static func step(e: Dictionary, dt: float, player_pos: Vector3) -> int:
 			var total: int = a["enemies"].size()
 			if total == 0:
 				return -1
-			for d: Object in a["enemies"]:
+			for d in a["enemies"]:
 				if is_instance_valid(d) and bool(d.get("active")) and not bool(d.get("dead")):
 					return -1
 			return 1
@@ -85,11 +85,11 @@ static func step(e: Dictionary, dt: float, player_pos: Vector3) -> int:
 			if i >= pts.size():
 				return 1
 			var last: Vector3 = pts[pts.size() - 1]
-			for v: Object in a["ai"]:
+			for v in a["ai"]:
 				if is_instance_valid(v) and bool(v.get("active")) and Vector2(v.global_position.x - last.x, v.global_position.z - last.z).length() <= CP_R:
 					return 0
 		&"rescue":
-			var civ: Object = a["civ"]
+			var civ: Variant = a["civ"]
 			if is_instance_valid(civ) and player_pos != Vector3.INF and Vector2(player_pos.x - civ.global_position.x, player_pos.z - civ.global_position.z).length() <= 4.0:
 				return 1
 			if is_instance_valid(civ):
@@ -107,7 +107,7 @@ static func finish(e: Dictionary, success: bool) -> void:
 		return
 	if is_instance_valid(a["node"]):
 		(a["node"] as Node).queue_free()
-	var civ: Object = a["civ"]
+	var civ: Variant = a["civ"]
 	if is_instance_valid(civ):
 		if success:
 			civ.call(&"free_up", civ.global_position + Vector3(24.0, 0.0, 0.0))
@@ -116,7 +116,7 @@ static func finish(e: Dictionary, success: bool) -> void:
 					(civ as Node).queue_free())
 		else:
 			(civ as Node).queue_free()
-	for v: Object in a["ai"]:
+	for v in a["ai"]:
 		if is_instance_valid(v) and not success:
 			v.set("ai_cruise", 12.0)          # the race is over: they go back to ordinary traffic speed
 	e.erase("a")

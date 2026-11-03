@@ -370,6 +370,7 @@ func teleport() -> bool:
 	FX.burst(from, CYAN, _fx_count(40), 7.0, 0.6, 0.0)
 	phase.begin(PhaseThrough.TELEPORT_TIME)
 	_p.teleport_to(dest + Vector3(0.0, 0.05, 0.0))
+	Cinematics.first_time(&"teleporter_first")
 	FX.burst(to, MAGENTA, _fx_count(40), 7.0, 0.6, 0.0)
 	if _rich:
 		FX.blast(to, 2.5, MAGENTA, 0.35)

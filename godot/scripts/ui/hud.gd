@@ -250,6 +250,8 @@ func _input(event: InputEvent) -> void:
 				if Game.state == &"play" or Game.state == &"paused":
 					toggle_pause()
 					get_viewport().set_input_as_handled()
+			elif k.keycode == KEY_K and Game.state == &"play" and skip_available():
+				skip_set_piece()
 			elif Game.state != &"play" and (k.keycode == KEY_ENTER or k.keycode == KEY_KP_ENTER or k.keycode == KEY_SPACE):
 				_confirm()
 	elif Game.state == &"play":
@@ -670,6 +672,25 @@ func ammo_text() -> String:
 
 
 ## "SHARD SCATTER  SCT   RESERVE 24": the weapon in hand and its spare rounds (the carbine's are unlimited). Empty without a weapon.
+## The alt-fire / ammo type line above the weapon plate ("" without a weapon).
+func alt_text() -> String:
+	var p: Object = Game.player if is_instance_valid(Game.player) else null
+	if p == null or not (p.get("weapon") is PlayerWeapon):
+		return ""
+	return (p.get("weapon") as PlayerWeapon).alt_text()
+
+
+## True while an optional set piece can be skipped (the SKIP SET PIECE button and hint).
+func skip_set_piece() -> bool:
+	var k := _campaign()
+	return k != null and bool(k.call(&"skip_set_piece"))
+
+
+func skip_available() -> bool:
+	var k := _campaign()
+	return k != null and bool(k.call(&"in_optional_set_piece"))
+
+
 func weapon_text() -> String:
 	var p: Object = Game.player if is_instance_valid(Game.player) else null
 	if p == null or not (p.get("weapon") is PlayerWeapon):
@@ -951,6 +972,7 @@ func _draw_hud_body() -> void:
 		var wr := Rect2(ab.get_center().x - 215.0 * s, ab.position.y - 42.0 * s, 430.0 * s, 36.0 * s)
 		_plate(c, wr, s)
 		_text(c, font, Vector2(wr.position.x, wr.position.y + 27.0 * s), weapon_text(), HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
+		_text(c, font, Vector2(ab.end.x + 10.0 * s, ab.position.y + 40.0 * s), alt_text(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s * 0.8), Color(UiUtil.AMBER, 0.9), 1.0 * s)
 		var wch := weapon_charge()
 		if wch > 0.0:
 			_rect(c, Rect2(wr.position.x, wr.position.y - 8.0 * s, wr.size.x * wch, 5.0 * s), Color(UiUtil.CYAN, 0.95))
@@ -1392,6 +1414,9 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 		size -= 1
 	var r := _plate_text(c, font, vp.x * 0.5, y, text, size, col, s, accent, 260.0 * s)
 	var end := r.end.y
+	if camp and skip_available():
+		var sr := _plate_text(c, font, vp.x * 0.5, end + 6.0 * s, "SKIP SET PIECE   K", int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), s, Color(UiUtil.AMBER, 0.6), 160.0 * s)
+		end = sr.end.y
 	if k == null:
 		return end
 	if contract:

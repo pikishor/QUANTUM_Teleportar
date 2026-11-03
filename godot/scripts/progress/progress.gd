@@ -32,6 +32,7 @@ var reputation := 0
 var sector := 0                         ## chapter index "Continue" resumes at
 var best := 0
 var tutorial_done := false
+var cine_seen: Array[StringName] = []     ## one-time cinematics already shown (garage_reveal, teleporter_first); saved under [flags]
 var contracts_done := 0
 var contracts_failed := 0
 var bosses_cleared: Array[int] = []      ## chapters whose Vael Overseer is down (saved)
@@ -58,6 +59,7 @@ func _init() -> void:
 	achievements = Achievements.new()
 	add_child(achievements)
 	hero.changed.connect(_on_hero_look)
+	achievements.unlocked.connect(_on_achievement_cosmetic)
 	collectibles.changed.connect(func(_n: int) -> void: achievements.evaluate(); changed.emit())
 
 
@@ -128,6 +130,23 @@ static func enemy_hp_mult() -> float:
 
 
 # --- hero look (G2) -------------------------------------------------------------------------------------------------
+
+## An achievement's cosmetic is worn at once: the suit or colour scheme that waits for it is equipped (the look screen can change it back).
+func _on_achievement_cosmetic(id: StringName) -> void:
+	var cos := ""
+	for d in Achievements.DEFS:
+		if d[0] == id:
+			cos = String(d[6])
+	if cos == "":
+		return
+	var cl: Array = achievements.cosmetics
+	for sid: StringName in HeroLook.SUIT_ORDER:
+		if HeroLook.item_need("suit:%s" % sid) == cos:
+			hero.equip_suit(sid, cl)
+	for i in HeroLook.scheme_count():
+		if HeroLook.item_need("scheme:%d" % i) == cos:
+			hero.equip_scheme(i, cl)
+
 
 func _on_hero_look() -> void:
 	var pl := Game.player
@@ -476,7 +495,7 @@ func snapshot() -> Dictionary:
 	return {
 		"version": SAVE_VERSION, "credits": credits, "levels": levels.duplicate(), "reputation": reputation, "sector": sector,
 		"weapons": WeaponDefs.unlocked.duplicate(), "weapon": WeaponDefs.last_used, "attachments": Attachments.to_save(), "bosses": bosses_cleared.duplicate(),
-		"best": maxi(best, Game.score), "tutorial_done": tutorial_done, "contracts_done": contracts_done, "contracts_failed": contracts_failed,
+		"best": maxi(best, Game.score), "tutorial_done": tutorial_done, "cine_seen": cine_seen.duplicate(), "ammo_type": ammo_type, "contracts_done": contracts_done, "contracts_failed": contracts_failed,
 		"unlocked": unlocked, "checkpoint": checkpoint.duplicate(), "weather": Weather.current,
 	}
 
@@ -518,6 +537,11 @@ func save_file() -> bool:
 	cf.set_value("campaign", "contracts_done", d["contracts_done"])
 	cf.set_value("campaign", "contracts_failed", d["contracts_failed"])
 	cf.set_value("flags", "tutorial_done", d["tutorial_done"])
+	var cs := PackedStringArray()
+	for c: StringName in d["cine_seen"]:
+		cs.append(String(c))
+	cf.set_value("flags", "cine_seen", cs)
+	cf.set_value("weapons", "ammo_type", int(d["ammo_type"]))
 	cf.set_value("weather", "state", String(d["weather"]))
 	var names := PackedStringArray()
 	for id: StringName in WeaponDefs.unlocked:
@@ -599,6 +623,10 @@ func load_file() -> bool:
 	contracts_done = maxi(0, _num(cf.get_value("campaign", "contracts_done", 0)))
 	contracts_failed = maxi(0, _num(cf.get_value("campaign", "contracts_failed", 0)))
 	tutorial_done = bool(cf.get_value("flags", "tutorial_done", false))
+	cine_seen.clear()
+	for c in _arr(cf.get_value("flags", "cine_seen", PackedStringArray())):
+		cine_seen.append(StringName(str(c)))
+	ammo_type = clampi(_num(cf.get_value("weapons", "ammo_type", 0)), 0, WeaponDefs.AMMO_TYPES.size() - 1)
 	WeaponDefs.set_unlocked(_arr(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))))
 	var cur := StringName(str(cf.get_value("weapons", "current", "carbine")))
 	WeaponDefs.last_used = cur if WeaponDefs.is_unlocked(cur) else &"carbine"
@@ -662,6 +690,26 @@ static func _load_checkpoint(cf: ConfigFile) -> Dictionary:
 	if g is Vector3 and (g as Vector3).is_finite():
 		cp["goal"] = g
 	return cp
+
+
+## The saved ammo type index (PlayerWeapon.ammo_type reads it on spawn and writes it back through set_ammo_type).
+var ammo_type := 0
+
+
+func set_ammo_type(i: int) -> void:
+	i = clampi(i, 0, WeaponDefs.AMMO_TYPES.size() - 1)
+	if i != ammo_type:
+		ammo_type = i
+		_autosave()
+
+
+## True once for each one-time cinematic id (and records it); false when it was already shown.
+func mark_cine(id: StringName) -> bool:
+	if cine_seen.has(id):
+		return false
+	cine_seen.append(id)
+	_autosave()
+	return true
 
 
 func mark_tutorial_done() -> void:

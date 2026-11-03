@@ -339,6 +339,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if visuals != null and (not sp_zones.is_empty() or visuals.zones_visible() > 0):
+		visuals.show_zones(sp_zones, float(step.get("hazard", {}).get("radius", 5.0)) if step is Dictionary else 5.0, sp_hazard_state == &"hit")
 	if visuals != null and has_marker():
 		visuals.animate(delta)
 

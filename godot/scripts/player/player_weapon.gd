@@ -97,6 +97,8 @@ var _number_i := 0
 
 func _ready() -> void:
 	_player = get_parent() as Player
+	if Game.progress != null and Game.progress.get(&"ammo_type") != null:
+		ammo_type = clampi(int(Game.progress.get(&"ammo_type")), 0, WeaponDefs.AMMO_TYPES.size() - 1)     # the saved choice
 	_ray.collide_with_areas = true
 	_ray.collide_with_bodies = true
 	_ray.collision_mask = MASK_SHOT
@@ -908,8 +910,18 @@ func cycle_ammo_type() -> bool:
 	if String(def["kind"]) != "hit" or swap_t > 0.0:
 		return false
 	ammo_type = (ammo_type + 1) % WeaponDefs.AMMO_TYPES.size()
+	if Game.progress != null and Game.progress.has_method(&"set_ammo_type"):
+		Game.progress.call(&"set_ammo_type", ammo_type)
 	Sfx.play(&"ui_tap", -4.0, 1.3)
 	return true
+
+
+## HUD line: the alt-fire of the weapon in hand and (hitscan weapons) the ammo type, "ALT HEAVY SHOT   AMMO PIERCING".
+func alt_text() -> String:
+	var t := "ALT " + alt_name()
+	if String(def["kind"]) == "hit":
+		t += "   AMMO " + str(ammo_info()["name"])
+	return t
 
 
 func alt_name() -> String:

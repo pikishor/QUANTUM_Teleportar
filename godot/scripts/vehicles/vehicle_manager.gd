@@ -352,6 +352,7 @@ func save_driven() -> bool:
 		_release(old)
 	driven.apply_garage(g)                                # the saved car wears the garage tuning from now on
 	Game.say("CAR SAVED TO GARAGE", 1.6)
+	Cinematics.first_time(&"garage_reveal")
 	return true
 
 

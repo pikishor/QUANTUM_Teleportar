@@ -332,6 +332,18 @@ func play(id: StringName, ctx := {}) -> bool:
 	return true
 
 
+## First garage use / first QUANTUM TELEPORT: plays `id` once per save (Progress.cine_seen). Silent under tools, tests and bots (Game.autostart) unless `force`.
+static func first_time(id: StringName, force := false) -> bool:
+	if instance == null or Game.progress == null or (Game.autostart and not force):
+		return false
+	if not Game.is_playing() or Game.progress.cine_seen.has(id):
+		return false
+	if not instance.play(id):
+		return false
+	Game.progress.mark_cine(id)
+	return true
+
+
 ## A tap, Esc, Enter or Space during a scene.
 func skip() -> void:
 	if active and plan.skippable and t >= MIN_SKIP_AGE:
