@@ -392,8 +392,14 @@ func _act_garage() -> void:
 	await _wait(0.3)
 	_p.teleport_to(starter.global_position + Vector3(2.5, 0.0, 0.0))
 	await _wait(0.5)
-	vm.enter(starter)
-	await _wait(0.5)
+	for attempt in 3:                                                      # another system (mission, event, hit) may unseat the player: retry with a heal
+		_p.hp = _p.max_hp
+		_p.invuln = 5.0
+		if is_instance_valid(starter) and starter.active and not starter.dead:
+			vm.enter(starter)
+		await _wait(0.5)
+		if vm.driven == starter:
+			break
 	if not _expect(vm.driven == starter, "the player took the wheel (active %s dead %s wreck %s)" % [starter.active, starter.dead, starter.wreck]):
 		return
 	var g := vm.get_garage()
