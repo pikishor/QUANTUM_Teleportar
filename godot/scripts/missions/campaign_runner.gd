@@ -90,6 +90,12 @@ var visuals: ContractVisuals
 var rng := RandomNumberGenerator.new()
 
 var _clock := 0.0
+var _sp_t := 0.0                       ## set piece phase: seconds into its hazard
+var _sp_anchor := Vector3.INF          ## where the current hazard cycle was aimed (the player's position when it began)
+var _sp_cycle := -1
+var _sp_hit := -1                      ## cycle that already dealt damage
+var sp_zones: Array[Vector3] = []      ## the strike zones of the running cycle while warning / hitting (markers)
+var sp_hazard_state: StringName = &"idle"
 var _beat_t := 0.0                     ## kill_target: seconds since an Overseer target died
 var _win_pending := false              ## the last step ended while the game was not playing (the TEST menu on the pause screen): Game.win() follows in play
 var _arm_t := 0.0
@@ -215,8 +221,10 @@ func start_chapter(index: int, from_step := 0, immediate := false) -> bool:
 		return false
 	_cleanup(true)
 	chapter_index = index
-	steps = list
+	steps = SetPieces.splice(list, index)
+	step_index = 0
 	step_index = clampi(from_step, 0, steps.size() - 1)
+	_sp_t = 0.0
 	fails = 0
 	steps_done = step_index
 	last_fail = ""
@@ -444,6 +452,8 @@ func markers() -> Array[Dictionary]:
 			if _patrol_want > 0:
 				for v: Vehicle in _chasing_patrols():
 					_add_marker(v.global_position, ContractTypes.RED, &"target", 0.0)
+	for z in sp_zones:
+		_add_marker(z, ContractTypes.RED, &"area", float(step.get("hazard", {}).get("radius", 5.0)))
 	return _markers
 
 
@@ -573,6 +583,7 @@ func _begin_step() -> void:
 	if heat > 0.0 and kind != &"escape":
 		Game.add_heat(heat)
 	state = &"active"
+	_begin_set_piece_phase()
 	step_started.emit(chapter_index, step_index, kind)
 	Sfx.play(&"ui_contract_accept")
 	Game.say(str(step["text"]).to_upper(), 2.5)
@@ -583,6 +594,7 @@ func _complete_step(cp_pos: Vector3) -> void:
 	var idx := step_index
 	var k := kind
 	var st := step
+	_end_set_piece_phase(st)
 	_cleanup(true)
 	steps_done += 1
 	var rew: Variant = st.get("reward", {})
@@ -637,6 +649,15 @@ func _complete_chapter() -> void:
 
 
 func _fail(reason: String) -> void:
+	if step.has("set_piece"):
+		sp_zones.clear()
+		sp_hazard_state = &"idle"
+		if bool(step.get("optional", false)) and fails + 1 >= SetPieces.SKIP_AFTER_FAILS:
+			fails += 1
+			_cleanup(true)
+			Game.say("SET PIECE DROPPED", 2.5)
+			_skip_to(SetPieces.end_index(steps, step_index))
+			return
 	var k := kind
 	var idx := step_index
 	last_fail = reason
@@ -1116,6 +1137,9 @@ func _tick_active(delta: float) -> void:
 	if time_total > 0.0:
 		time_left -= delta
 	var p := _ref_pos()
+	_tick_set_piece(delta, p)
+	if state != &"active":
+		return
 	match kind:
 		&"reach": _tick_reach(p)
 		&"enter_interior": _tick_interior(p)
@@ -1468,3 +1492,73 @@ func _radio(key: String) -> void:
 static func _clock_text(seconds: float) -> String:
 	var s := maxi(0, ceili(seconds))
 	return "%d:%02d" % [s / 60, s % 60]
+
+
+# --- boss set pieces (scripts/missions/set_pieces.gd) -----------------------------------------------------------------------------
+
+## The running step belongs to an optional set piece.
+func in_optional_set_piece() -> bool:
+	return state in [&"armed", &"active", &"retry"] and step_index < steps.size() and bool(steps[step_index].get("optional", false))
+
+
+## Drops the optional set piece the chapter is at (the remaining steps carry on). False for anything else.
+func skip_set_piece() -> bool:
+	if not in_optional_set_piece():
+		return false
+	_cleanup(true)
+	sp_zones.clear()
+	_skip_to(SetPieces.end_index(steps, step_index))
+	return true
+
+
+func _skip_to(i: int) -> void:
+	_begin_tries = 0
+	step_index = i
+	if step_index >= steps.size():
+		_complete_chapter()
+	else:
+		state = &"armed"
+		_arm_t = STEP_GAP
+
+
+func _begin_set_piece_phase() -> void:
+	_sp_t = 0.0
+	_sp_anchor = Vector3.INF
+	_sp_cycle = -1
+	_sp_hit = -1
+	sp_zones.clear()
+	sp_hazard_state = &"idle"
+	if bool(step.get("sp_first", false)) and fails == 0 and Cinematics.instance != null and Game.is_playing():
+		Cinematics.instance.play(&"sp_in", {"set_piece": step["set_piece"]})
+
+
+func _end_set_piece_phase(st: Dictionary) -> void:
+	sp_zones.clear()
+	sp_hazard_state = &"idle"
+	if bool(st.get("sp_last", false)) and Cinematics.instance != null and Game.is_playing():
+		Cinematics.instance.play(&"sp_out", {"set_piece": st["set_piece"]})
+
+
+func _tick_set_piece(delta: float, p: Vector3) -> void:
+	var h: Variant = step.get("hazard", null)
+	if not (h is Dictionary) or not p.is_finite():
+		return
+	_sp_t += delta
+	var hz := h as Dictionary
+	var cyc := SetPieces.cycle_of(hz, _sp_t)
+	if cyc != _sp_cycle:
+		_sp_cycle = cyc
+		_sp_anchor = p
+		sp_zones.clear()
+	sp_hazard_state = SetPieces.hazard_state(hz, _sp_t)
+	if sp_hazard_state == &"idle":
+		sp_zones.clear()
+		return
+	if sp_zones.is_empty():
+		sp_zones = SetPieces.zones(hz, cyc, _sp_anchor)
+	if sp_hazard_state == &"hit" and _sp_hit != cyc:
+		var dmg := SetPieces.damage_at(hz, _sp_t, _sp_anchor, p)
+		_sp_hit = cyc
+		var pl := Game.player as Player
+		if dmg > 0.0 and pl != null and is_instance_valid(pl):
+			pl.damage(dmg, _sp_anchor)

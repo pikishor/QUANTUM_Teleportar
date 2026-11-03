@@ -26,6 +26,9 @@ class Shot extends RefCounted:
 	var fov0 := 70.0
 	var fov1 := 70.0
 	var roll := 0.0                          ## radians of slow sway
+	var dolly_k := 0.0                       ## > 0: dolly zoom, the fov follows 2*atan(k / distance to the look point) so the subject keeps its size while the room stretches
+	var focus0 := 0.0                        ## rack focus: 0 sharp .. 1 soft at the start and end of the shot (drawn as grade softness by Cinematics)
+	var focus1 := 0.0
 
 var id: StringName = &""
 var duration := 10.0
@@ -49,6 +52,8 @@ var skippable := true
 var slowmo := false                          ## the boss defeat: Stability slow motion while the scene plays
 var credits: Array = []                      ## the credits scene: blocks {head, lines}, one after the other, each `credit_seconds` long (empty in every other scene)
 var credit_seconds := 3.6
+var glitches: Array[float] = []              ## quantum glitch transitions: times of the hard cuts (a short tear / chromatic burst around each)
+const GLITCH_LEN := 0.45
 
 # sampled by sample()
 var cam_pos := Vector3.ZERO
@@ -56,6 +61,7 @@ var cam_look := Vector3.ZERO
 var cam_fov := 70.0
 var cam_roll := 0.0
 var shot_index := 0
+var cam_focus := 0.0                         ## rack focus softness 0..1 of the current shot
 
 
 static func smooth(u: float) -> float:
@@ -122,6 +128,9 @@ func sample(t: float) -> void:
 		cam_pos = spline(s.pos, u)
 		cam_look = spline(s.look, u)
 	cam_fov = lerpf(s.fov0, s.fov1, u)
+	if s.dolly_k > 0.0:
+		cam_fov = clampf(rad_to_deg(2.0 * atan(s.dolly_k / maxf(cam_pos.distance_to(cam_look), 0.5))), 25.0, 100.0)
+	cam_focus = lerpf(s.focus0, s.focus1, smooth((t - s.t0) / maxf(s.t1 - s.t0, 0.001)))
 	cam_roll = s.roll * sin(t * 0.7)
 
 
@@ -178,6 +187,33 @@ func credit_alpha(t: float) -> float:
 	var local := fposmod(t, maxf(credit_seconds, 0.1))
 	var f := minf(0.6, credit_seconds * 0.25)
 	return smooth(local / f) * (1.0 - smooth((local - (credit_seconds - f)) / f))
+
+
+## 0..1 strength of the quantum glitch at t: a burst that peaks at each glitch time and dies within GLITCH_LEN seconds.
+func glitch_at(t: float) -> float:
+	var g := 0.0
+	for gt in glitches:
+		var d := absf(t - gt)
+		if d < GLITCH_LEN:
+			g = maxf(g, 1.0 - d / GLITCH_LEN)
+	return g
+
+
+## Problems with the subtitle timing (empty when fine): inside the scene, in order, no overlap, each readable (>= 0.9 s).
+func sub_problems() -> Array[String]:
+	var out: Array[String] = []
+	var last := -1.0
+	for s in subs:
+		var a := float(s["t0"])
+		var b := float(s["t1"])
+		if a < last - 0.001:
+			out.append("overlap at %.1f" % a)
+		if b - a < 0.9:
+			out.append("too short at %.1f" % a)
+		if a < 0.0 or b > duration:
+			out.append("outside the scene at %.1f" % a)
+		last = b
+	return out
 
 
 func subtitle_at(t: float) -> Dictionary:
@@ -263,6 +299,7 @@ static func intro(ctx: Dictionary) -> CinePlan:
 	p.flash_t = 19.8
 	p.warm_t = 19.8
 	p.events = [{"t": 19.8, "name": "teleport"}]
+	p.glitches = [8.0, 13.5, 19.8]
 	return p
 
 
@@ -291,6 +328,8 @@ static func chapter(ctx: Dictionary) -> CinePlan:
 	p.title_t1 = 6.2
 	p.warm_base = 0.45
 	p.subs = CineData.CHAPTER_SUBS
+	s.focus0 = 0.7                          # rack focus: the shot opens soft and pulls sharp on the hero
+	s.focus1 = 0.0
 	return p
 
 
@@ -306,6 +345,7 @@ static func boss_in(ctx: Dictionary) -> CinePlan:
 	var s := _shot(0.0, 3.6, 66.0, 48.0)
 	s.pos = PackedVector3Array([O + to_p * 24.0 + UP * 1.6, O + to_p * 16.0 + side * 3.0 + UP * 3.5, O + to_p * 10.5 - side * 1.0 + UP * 5.0])
 	s.look = PackedVector3Array([O + UP * 3.2, O + UP * 3.4, O + UP * 3.6])
+	s.focus0 = 0.6
 	p.shots.append(s)
 	var f := flat_dir(ctx["face"])
 	var h := _shot(3.6, 4.8, 62.0, 54.0)
@@ -320,6 +360,7 @@ static func boss_in(ctx: Dictionary) -> CinePlan:
 	h.h1 = 0.8
 	h.look_h = 1.4
 	p.shots.append(h)
+	p.glitches = [3.6]
 	p.head = CineData.BOSS_IN_HEAD
 	p.sub_line = CineData.BOSS_IN_SUB
 	p.title_t0 = 0.7
@@ -356,6 +397,93 @@ static func boss_out(ctx: Dictionary) -> CinePlan:
 	p.subs = CineData.BOSS_OUT_SUBS
 	p.warm_base = 0.7
 	p.slowmo = true
+	return p
+
+
+## The garage revealed: a slow dolly in through the door, a dolly zoom on the machine, an orbit. ctx: hero, face (the garage mouth is ahead of the hero).
+static func garage_reveal(ctx: Dictionary) -> CinePlan:
+	var p := CinePlan.new()
+	p.id = &"garage_reveal"
+	p.duration = 9.0
+	var H: Vector3 = ctx["hero"]
+	var F: Vector3 = flat_dir(ctx["face"])
+	var R := F.cross(UP)
+	var a := _shot(0.0, 4.0, 62.0, 54.0)
+	a.pos = PackedVector3Array([H - F * 4.0 + R * 1.5 + UP * 1.3, H + F * 0.5 + R * 0.8 + UP * 1.4, H + F * 4.0 + UP * 1.5])
+	a.look = PackedVector3Array([H + F * 6.0 + UP * 1.4, H + F * 8.0 + UP * 1.5, H + F * 9.0 + UP * 1.6])
+	a.focus0 = 0.8
+	p.shots.append(a)
+	var b := _shot(4.0, 6.6, 60.0, 60.0)
+	b.pos = PackedVector3Array([H + F * 3.0 + R * 2.5 + UP * 1.2, H + F * 4.0 + R * 2.0 + UP * 1.2, H + F * 5.0 + R * 1.5 + UP * 1.2])
+	b.look = PackedVector3Array([H + F * 9.0 + UP * 1.2, H + F * 9.0 + UP * 1.2, H + F * 9.0 + UP * 1.2])
+	b.dolly_k = 3.4
+	p.shots.append(b)
+	var c := _shot(6.6, 9.0, 56.0, 50.0)
+	c.kind = ORBIT
+	c.center = H + F * 9.0
+	c.face = F
+	c.r0 = 6.0
+	c.r1 = 4.6
+	c.a0 = 0.3
+	c.a1 = 1.1
+	c.h0 = 1.2
+	c.h1 = 2.0
+	c.look_h = 1.3
+	p.shots.append(c)
+	p.glitches = [4.0, 6.6]
+	p.head = CineData.GARAGE_HEAD
+	p.sub_line = CineData.GARAGE_SUB
+	p.title_t0 = 5.4
+	p.title_t1 = 8.6
+	p.subs = CineData.GARAGE_SUBS
+	p.warm_base = 0.5
+	return p
+
+
+## The first QUANTUM TELEPORT through a pad: the camera orbits tight, a rack focus into the rift, the flash, a pull back out the other side. ctx: hero, face.
+static func teleporter_first(ctx: Dictionary) -> CinePlan:
+	var p := CinePlan.new()
+	p.id = &"teleporter_first"
+	p.duration = 7.0
+	var H: Vector3 = ctx["hero"]
+	var F: Vector3 = flat_dir(ctx["face"])
+	var a := _shot(0.0, 3.4, 64.0, 50.0)
+	a.kind = ORBIT
+	a.center = H
+	a.face = F
+	a.r0 = 5.0
+	a.r1 = 3.0
+	a.a0 = PI - 0.9
+	a.a1 = PI - 0.1
+	a.h0 = 0.9
+	a.h1 = 1.4
+	a.look_h = 1.3
+	a.focus1 = 0.8
+	p.shots.append(a)
+	var b := _shot(3.4, 7.0, 46.0, 72.0)
+	b.kind = ORBIT
+	b.center = H
+	b.face = F
+	b.r0 = 2.6
+	b.r1 = 7.0
+	b.a0 = PI + 0.3
+	b.a1 = PI + 1.3
+	b.h0 = 1.2
+	b.h1 = 2.8
+	b.look_h = 1.4
+	b.focus0 = 0.5
+	p.shots.append(b)
+	p.glitches = [3.4]
+	p.flash_t = 3.4
+	p.flash_rise = 0.6
+	p.flash_fall = 1.0
+	p.warm_t = 3.4
+	p.warm_base = 0.3
+	p.head = CineData.TELEPORT_HEAD
+	p.sub_line = CineData.TELEPORT_SUB
+	p.title_t0 = 4.4
+	p.title_t1 = 6.6
+	p.subs = CineData.TELEPORT_SUBS
 	return p
 
 
@@ -400,6 +528,7 @@ static func credits_scene(ctx: Dictionary) -> CinePlan:
 	c.h1 = 46.0
 	c.look_h = 4.0
 	p.shots.append(c)
+	p.glitches = [d * 0.36, d * 0.68]
 	p.drones.append(_drone("drone_sentinel", H + F * 70.0 + R * 40.0 + UP * 34.0, -R * 1.4, 4.0))     # the Observers hang silent
 	p.drones.append(_drone("drone_heavy", H + F * 120.0 - R * 50.0 + UP * 46.0, R * 1.0, 5.5))
 	p.subs = CampaignData.CREDITS_SUBS

@@ -326,3 +326,8 @@ Full suite: 94 pass, 1 flaky, 0 fail. PERF_CHECK tiers 0/1/2 all OK. Visual QA 1
 
 ## Wave 41 integration
 Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncated log), 0 fail. PERF_CHECK tiers 0/1/2 all OK (T2: 96 draws / 327k tris, death 158 / 412k). Visual QA 12/12 PASS. Follow-ups: street shots still fairly dark with few people visible at distance; car paint is better but still saturated red; title controls hint text tiny; alt-fire/ammo type have no HUD readout, ammo choice not saved, ALT touch button position untuned at phone size.
+
+## Wave 42 note: boss set pieces, cutscene polish
+- Set pieces (ch 2/5/8) in scripts/missions/set_pieces.gd, spliced into chapter steps; checkpoint step indexes for ch 2/5/8 shifted. Follow-ups: no in-game test of runtime hooks, no UI for skip_set_piece(), hazards only have map markers, campaign_data.gd does not name pieces.
+- Cutscene polish: dolly zoom, rack focus, glitch cuts. Follow-ups: wire Cinematics.play(&"garage_reveal") and &"teleporter_first" call sites; rack focus is a grade approximation; no glitch on skip.
+- Full suite: 98 pass, FLAKY test_perf_budget.gd (passed on retry), 0 fail. Visual QA 12/12 pass; no glaring defects in latest.png.

@@ -47,6 +47,7 @@ var _vig := 0.0
 var _bars := 0.0
 var _fade := 0.0
 var _flash := 0.0
+var _glitch := 0.0                      ## quantum glitch burst 0..1 (plan.glitch_at), drawn as torn bars in the overlay
 var _title_t := 0.0
 var _closeup_t := 0.0
 var _fov_out := PackedFloat32Array([70.0])
@@ -287,12 +288,21 @@ func play(id: StringName, ctx := {}) -> bool:
 		&"credits":
 			c = {"hero": _hero_pos(), "face": face}
 			plan = CinePlan.credits_scene(c)
+		&"garage_reveal", &"teleporter_first":
+			c = {"hero": _hero_pos(), "face": face}
+			plan = CinePlan.garage_reveal(c) if id == &"garage_reveal" else CinePlan.teleporter_first(c)
 		&"boss_in", &"boss_out":
 			if not c.has("boss"):
 				c["boss"] = _boss.global_position if is_instance_valid(_boss) else _hero_pos() + face * 30.0
 			c["hero"] = _hero_pos()
 			c["face"] = face
 			plan = CinePlan.boss_in(c) if id == &"boss_in" else CinePlan.boss_out(c)
+		&"sp_in", &"sp_out":
+			if not c.has("boss"):
+				c["boss"] = _hero_pos() + face * 30.0
+			c["hero"] = _hero_pos()
+			c["face"] = face
+			plan = SetPieces.plan(id, StringName(str(c.get("set_piece", ""))), c)
 		_:
 			return false
 	active = true
@@ -302,6 +312,7 @@ func play(id: StringName, ctx := {}) -> bool:
 	_ev_i = 0
 	_fade = 1.0
 	_flash = 0.0
+	_glitch = 0.0
 	_sub_key = ""
 	if id == &"intro":
 		_move_hero_to_roof(plan)
@@ -374,6 +385,7 @@ func _end(was_skipped: bool, set_state: bool) -> void:
 		Game.state = &"play"
 	_fade = 0.7 if not was_skipped else 1.0
 	_flash = 0.0
+	_glitch = 0.0
 	plays += 1
 	if id == &"boss_in":
 		_boss_in_for = _boss.get_instance_id() if is_instance_valid(_boss) else 0
@@ -394,8 +406,9 @@ func _apply_scene(delta: float) -> void:
 		var n := _used[i]
 		n.global_position = plan.drone_pos(i, t)
 	_flash = plan.flash_at(t)
+	_glitch = plan.glitch_at(t)
 	_fade = maxf(_fade - delta * FADE_RATE, 0.0)
-	_grade_apply(plan.grade_at(t), plan.warm_at(t), _flash)
+	_grade_apply(plan.grade_at(t), plan.warm_at(t), maxf(_flash, maxf(_glitch, plan.cam_focus * 0.5)))
 	var bar_t := plan.bars * CinePlan.smooth(t / 0.9) * (1.0 - CinePlan.smooth((t - (plan.duration - 0.6)) / 0.6))
 	_bars = bar_t
 
@@ -703,6 +716,12 @@ func _draw_overlay() -> void:
 		if plan.skippable and t > 1.0 and t < plan.duration - 1.0:
 			var a := 0.45 + 0.2 * sin(t * 3.0)
 			c.draw_string(font, Vector2(vp.x - 190.0 * s, vp.y - maxf(bh * 0.3, 14.0 * s)), "TAP TO SKIP", HORIZONTAL_ALIGNMENT_RIGHT, 170.0 * s, int(16.0 * s), Color(1, 1, 1, a))
+	if _glitch > 0.02 and active:
+		var n := 5
+		for i in n:                                  # five torn bands, offset by a hash of the band and the time slice: one draw each, no allocation
+			var h := fposmod(sin(float(i) * 12.9 + floorf(t * 24.0) * 78.2) * 4375.5, 1.0)
+			var band := Rect2(vp.x * (h - 0.5) * 0.2 * _glitch, vp.y * (float(i) / n + h * 0.1), vp.x, vp.y * 0.03 * (0.4 + _glitch))
+			c.draw_rect(band, Color(0.3, 0.9, 1.0, 0.16 * _glitch))
 	if _flash > 0.005:
 		c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.86, 0.96, 1.0, clampf(_flash, 0.0, 1.0)))
 	if _fade > 0.005:

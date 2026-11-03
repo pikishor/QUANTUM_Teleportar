@@ -22,6 +22,19 @@ const BOSS_OUT_SUBS: Array[Dictionary] = [
 	{"t0": 0.5, "t1": 3.8, "s": StoryData.O, "t": "Its signal just dropped out of every drone in the sector. Breathe, Kestrel. You did that."},
 ]
 
+const GARAGE_SUBS: Array[Dictionary] = [
+	{"t0": 0.8, "t1": 3.6, "s": StoryData.O, "t": "This is the garage. Everything you need is under that tarp."},
+	{"t0": 4.4, "t1": 7.4, "s": StoryData.K, "t": "It still runs."},
+]
+const TELEPORT_SUBS: Array[Dictionary] = [
+	{"t0": 0.8, "t1": 3.0, "s": StoryData.O, "t": "Step onto the pad, Kestrel."},
+	{"t0": 4.6, "t1": 6.4, "s": StoryData.K, "t": "Two places at once."},
+]
+const GARAGE_HEAD := "THE GARAGE"
+const GARAGE_SUB := "YOUR BASE"
+const TELEPORT_HEAD := "QUANTUM TELEPORT"
+const TELEPORT_SUB := "FIRST JUMP"
+
 const CHAPTER_HEAD := "OBJECTIVE"
 const BOSS_IN_HEAD := "VAEL OVERSEER"
 const BOSS_IN_SUB := "HIVE COMMANDER  //  THREE PHASES"
@@ -32,6 +45,6 @@ const BOSS_OUT_SUB := "THE HIVE FELT THAT"
 ## Every subtitle of every scene (the test checks them against the story limits).
 static func all_subs() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for list: Array[Dictionary] in [INTRO_SUBS, CHAPTER_SUBS, BOSS_IN_SUBS, BOSS_OUT_SUBS]:
+	for list: Array[Dictionary] in [INTRO_SUBS, CHAPTER_SUBS, GARAGE_SUBS, TELEPORT_SUBS, BOSS_IN_SUBS, BOSS_OUT_SUBS]:
 		out.append_array(list)
 	return out
