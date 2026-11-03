@@ -173,9 +173,10 @@ func _draw_banner(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 
 ## The radio subtitle: a narrow plate in the top-left column under the minimap, speaker name over the wrapped lines, whole words revealed as the line types.
 func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
-	var width := minf(SUB_W * s, vp.x * 0.36)
+	var zoom := UiSettings.s_sub_size
+	var width := minf(SUB_W * s * zoom, vp.x * (0.36 if zoom <= 1.0 else 0.5))
 	var full := str(story.current.get("t", ""))
-	var lines: PackedStringArray = fit_lines(full, width - 26.0 * s, int(SUB_FONT * s), int(SUB_SMALL * s), SUB_MAX_LINES)
+	var lines: PackedStringArray = fit_lines(full, width - 26.0 * s, int(SUB_FONT * s * zoom), int(SUB_SMALL * s * zoom), SUB_MAX_LINES)
 	var fsize := _fit_size
 	var lh := float(fsize) * 1.28
 	var h: float = float(lines.size()) * lh + 32.0 * s
@@ -183,9 +184,9 @@ func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 	var a := story.line_alpha()
 	var speaker := str(story.current.get("s", ""))
 	var col := speaker_color(speaker)
-	draw_rect(box, Color(UiUtil.PLATE, 0.78 * a))
+	draw_rect(box, Color(UiUtil.PLATE, [0.4, 0.78, 1.0][UiSettings.s_sub_bg] * a))
 	draw_rect(Rect2(box.position, Vector2(3.0 * s, box.size.y)), Color(col, 0.9 * a))
-	_shadow_text(font, box.position + Vector2(14.0 * s, 20.0 * s), speaker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(col, 0.98 * a), s)
+	_shadow_text(font, box.position + Vector2(14.0 * s, 20.0 * s), Tr.t(speaker), HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s * zoom), Color(col, 0.98 * a), s)
 	var left_chars := int(story.typed)
 	var y := box.position.y + 20.0 * s + lh
 	for ln: String in lines:

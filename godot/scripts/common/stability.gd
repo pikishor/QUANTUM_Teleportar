@@ -109,6 +109,8 @@ func _atmosphere_dead(on: bool) -> void:
 ## The death slow motion: Engine.time_scale SLOWMO_SCALE for SLOWMO_HOLD real seconds, then back to the value it replaced.
 ## The cinematics reuse it for the boss beats (scale / hold / ramp given, ending with the state they began in).
 func begin_slowmo(scale := SLOWMO_SCALE, hold := SLOWMO_HOLD, ramp := SLOWMO_RAMP) -> void:
+	if UiSettings.s_reduce_motion:
+		return
 	if not slowmo_active:
 		_base_scale = Engine.time_scale if Engine.time_scale > 0.0 else 1.0
 		slowmo_active = true

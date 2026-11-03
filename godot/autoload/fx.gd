@@ -244,6 +244,8 @@ func _near_fade(pos: Vector3, radius: float) -> float:
 
 
 func shake(amount: float) -> void:
+	if UiSettings.s_reduce_motion:
+		return
 	shake_amount = maxf(shake_amount, clampf(amount, 0.0, 1.0))
 
 

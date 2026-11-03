@@ -335,3 +335,7 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 ## Wave 43 note: city events, side activities
 - city_events.gd (data-only scheduler: rescue, ambush, race, drop, rift; markers(), gravity_scale_at()) is NOT wired in: orchestrator must add the node, minimap markers, player gravity hook; no actor spawns; ambush/race need resolve(). Activities (scripts/activities/activities.gd, added in main.gd): target range, rooftop run, drift course, arena; saves user://activities.cfg. Follow-ups: no HUD readout for activity time/score, marker positions unchecked vs map, arena has no end condition, no integration/bot coverage.
 - Full suite: 101 pass, 0 flaky, 0 fail. Visual QA 12/12 pass; no glaring defects in latest.png.
+
+## Wave 44 note: accessibility and localisation, audio pass 2
+- Tr (scripts/common/strings.gd): Spanish table, text scale, colour-safe deutan/tritan, reduce flash/motion, subtitle options. Audio pass 2: night/dawn/insects/thunder layers, ability sounds, new ducking kinds. Follow-ups: story/radio text not translated; unscaled lines without width limit; reduce flash only covers lightning and quantum flash; no real-device check of 1.5x text or Spanish layout; link/blink cues shared with contract completion; MUSIC_DB not retuned.
+- Full suite: 103 pass, 0 flaky, 0 fail. Perf gate skipped. Visual QA 11/11 pass; no new glaring defects in latest.png.

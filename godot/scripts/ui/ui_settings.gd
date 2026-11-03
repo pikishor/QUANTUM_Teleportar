@@ -25,6 +25,13 @@ var fps_cap := 60            ## one of FPS_CHOICES (0 = uncapped)
 var vibration := true
 var subtitles := true        ## radio subtitle plate
 var freeze_time := false     ## day/night cycle frozen at the current hour
+var language := "en"         ## Tr.LANGS
+var text_scale := 1.0        ## Tr.SCALES (1.0 / 1.25 / 1.5)
+var cb_variant := 0          ## colour-safe palette when cb_safe: 0 deutan/protan (blue / orange), 1 tritan (red / teal)
+var reduce_flash := false    ## no lightning exposure pulse, no full-screen quantum flash
+var reduce_motion := false   ## no screen shake, no slow motion
+var sub_size := 1.0          ## subtitle text multiplier (Tr.SCALES)
+var sub_bg := 1              ## subtitle plate opacity step 0 soft, 1 normal, 2 solid
 var cb_safe := false         ## colour-blind safe markers (blue / orange / white instead of red / green / magenta)
 
 const SENS_MIN := 0.3
@@ -46,6 +53,12 @@ static var s_vibration := true
 static var s_subtitles := true
 static var s_cb_safe := false
 static var s_freeze_time := false
+static var s_cb_variant := 0
+static var s_reduce_flash := false
+static var s_reduce_motion := false
+static var s_sub_size := 1.0
+static var s_sub_bg := 1
+static var s_opt_page := 0                 ## options screen page (0 main, 1 accessibility); UI state only, never saved
 
 
 func _init(p := DEFAULT_PATH) -> void:
@@ -88,6 +101,16 @@ func load_file() -> void:
 	subtitles = _b(cf.get_value("ui", "subtitles", true))
 	cb_safe = _b(cf.get_value("ui", "cb_safe", false))
 	freeze_time = _b(cf.get_value("gameplay", "freeze_time", false))
+	var lg = cf.get_value("ui", "language", "en")
+	language = lg if lg is String and Tr.LANGS.has(lg) else "en"
+	var ts := clampf(_f(cf.get_value("ui", "text_scale", 1.0)), 1.0, 1.5)
+	text_scale = ts if Tr.SCALES.any(func(x): return is_equal_approx(x, ts)) else 1.0
+	cb_variant = clampi(Progress._num(cf.get_value("ui", "cb_variant", 0)), 0, 1)
+	reduce_flash = _b(cf.get_value("ui", "reduce_flash", false))
+	reduce_motion = _b(cf.get_value("ui", "reduce_motion", false))
+	var ss := clampf(_f(cf.get_value("ui", "sub_size", 1.0)), 1.0, 1.5)
+	sub_size = ss if Tr.SCALES.any(func(x): return is_equal_approx(x, ss)) else 1.0
+	sub_bg = clampi(Progress._num(cf.get_value("ui", "sub_bg", 1), 1), 0, 2)
 
 
 ## Next FPS cap in FPS_CHOICES (wraps).
@@ -107,6 +130,13 @@ func publish(engine := true) -> void:
 	s_subtitles = subtitles
 	s_cb_safe = cb_safe
 	s_freeze_time = freeze_time
+	s_cb_variant = cb_variant
+	s_reduce_flash = reduce_flash
+	s_reduce_motion = reduce_motion
+	s_sub_size = sub_size
+	s_sub_bg = sub_bg
+	Tr.set_lang(language)
+	Tr.text_scale = text_scale
 	if engine:
 		AimAssist.enabled = aim_assist
 		AimAssist.auto_fire = auto_fire
@@ -142,4 +172,11 @@ func save() -> bool:
 	cf.set_value("ui", "subtitles", subtitles)
 	cf.set_value("ui", "cb_safe", cb_safe)
 	cf.set_value("gameplay", "freeze_time", freeze_time)
+	cf.set_value("ui", "language", language)
+	cf.set_value("ui", "text_scale", text_scale)
+	cf.set_value("ui", "cb_variant", cb_variant)
+	cf.set_value("ui", "reduce_flash", reduce_flash)
+	cf.set_value("ui", "reduce_motion", reduce_motion)
+	cf.set_value("ui", "sub_size", sub_size)
+	cf.set_value("ui", "sub_bg", sub_bg)
 	return cf.save(path) == OK

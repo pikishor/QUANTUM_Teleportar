@@ -42,7 +42,7 @@ const FAMILIES: Array = [
 	["shot_far", 1, 4, 0.05, 0.04], ["enemy_shot", 2, 5, 0.05, 0.04], ["shot", 2, 6, 0.04, 0.0], ["dry_fire", 2, 1, 0.10, 0.0], ["reload", 2, 1, 0.30, 0.0],
 	["boom", 4, 3, 0.12, 0.03], ["explosion", 4, 3, 0.12, 0.03], ["distant_", 0, 2, 0.50, 0.05], ["thunder", 3, 2, 2.0, 0.03], ["siren", 0, 2, 1.0, 0.02],
 	["trooper_", 2, 4, 0.10, 0.07], ["hero_", 3, 2, 0.20, 0.04], ["drone_", 1, 3, 0.10, 0.03], ["hit", 1, 5, 0.03, 0.0], ["hurt", 3, 2, 0.10, 0.0],
-	["blink", 3, 2, 0.10, 0.0], ["link", 3, 2, 0.10, 0.0], ["superpos", 3, 2, 0.10, 0.0], ["quantum_", 3, 2, 0.10, 0.0], ["entangle", 3, 1, 0.10, 0.0],
+	["blink", 3, 2, 0.10, 0.0], ["link", 3, 2, 0.10, 0.0], ["superpos_split", 3, 1, 0.0, 0.02], ["superpos", 3, 2, 0.10, 0.0], ["quantum_", 3, 2, 0.10, 0.0], ["entangle", 3, 1, 0.10, 0.0],
 	["alien_", 2, 3, 0.25, 0.08], ["car_", 2, 3, 0.10, 0.05], ["horn", 2, 1, 0.20, 0.02], ["engine_", 2, 2, 0.10, 0.0], ["tyre", 1, 1, 0.10, 0.0],
 	["ui_", 4, 3, 0.03, 0.0], ["pickup", 3, 3, 0.05, 0.0], ["credit", 3, 2, 0.05, 0.0], ["mission_", 4, 1, 0.50, 0.0], ["objective", 3, 1, 0.30, 0.0], ["heat_", 3, 1, 0.50, 0.0],
 	["heartbeat", 2, 2, 0.20, 0.0], ["breath", 1, 2, 0.30, 0.03], ["gasp", 2, 1, 0.50, 0.0], ["radio_", 3, 2, 0.05, 0.0], ["babble", 1, 3, 0.04, 0.0], ["core", 3, 2, 0.20, 0.0],
@@ -64,12 +64,12 @@ const MUSIC_STATES := {
 }
 ## theme layer: one extra looping layer over the stems (same 30 s grid). Level in dB per layer kind.
 const DISTRICTS: Array[StringName] = [&"market", &"foundry", &"slums", &"towers"]   ## quadrants of the city: x<0,z<0 / x>=0,z<0 / x<0,z>=0 / x>=0,z>=0
-const LAYER_DB := {&"district": -7.0, &"boss": -3.0, &"chase": -3.0}
+const LAYER_DB := {&"district": -7.0, &"boss": -3.0, &"chase": -3.0, &"night": -8.0}
 const LAYER_TAU := 1.6
 const STINGS := ["sting_combat_0", "sting_combat_1", "sting_combat_2"]     ## heat 2, 3, 4+ (first time the heat reaches that step)
 const STING_GAP := 8.0
 const BARKS := {&"growl": [0, 3], &"chitter": [4, 7]}                       ## kind -> first and last alien_bark_N
-const UI_CUES := {&"notify": &"ui_notify", &"hover": &"ui_hover", &"click": &"ui_click", &"tap": &"ui_tap", &"confirm": &"ui_confirm", &"back": &"ui_back", &"deny": &"ui_deny", &"error": &"ui_error"}
+const UI_CUES := {&"notify": &"ui_notify", &"hover": &"ui_hover", &"click": &"ui_click", &"tap": &"ui_tap", &"slide": &"ui_slide", &"toggle": &"ui_toggle", &"confirm": &"ui_confirm", &"back": &"ui_back", &"deny": &"ui_deny", &"error": &"ui_error"}
 const INSIDE_MUSIC_HZ := 5500.0
 const INSIDE_AMBIENT_HZ := 1500.0
 const REVERB_WET := 0.28
@@ -83,7 +83,15 @@ const DUCKS := {
 	&"explosion": {"depth": {&"Music": -9.0, &"Ambient": -11.0}, "attack": 0.04, "hold": 0.9, "release": 2.2},
 	&"radio": {"depth": {&"Music": -7.0, &"Ambient": -9.0, &"SFX": -2.5}, "attack": 0.15, "hold": 0.4, "release": 0.9},
 	&"stinger": {"depth": {&"Music": -5.0, &"Ambient": -5.0}, "attack": 0.03, "hold": 0.7, "release": 1.4},
+	&"thunder": {"depth": {&"Music": -4.0, &"Ambient": -3.0}, "attack": 0.05, "hold": 0.8, "release": 2.0},       # the rain bed and the music step back for the crack
+	&"ability": {"depth": {&"Music": -3.5, &"Ambient": -4.0}, "attack": 0.03, "hold": 0.35, "release": 0.8},    # COLLAPSE, ENTANGLE, SUPERPOSITION, phase step
 }
+const ABILITY_LAYERS := {&"blink": [&"phase_step", -5.0], &"link": [&"entangle_link", -6.0], &"superpos": [&"superpos_split", -5.0]}   ## the dedicated ability sound laid under the older cue
+const UI_TRIM := {&"hover": -3.0, &"slide": -2.0, &"tap": -1.0, &"toggle": 0.0, &"notify": 0.0}
+const NIGHT_FROM := 20.0          ## the night pad layer and the night insects are heard from this hour ...
+const NIGHT_TO := 5.0             ## ... until this one; the dawn chirps cover DAWN_FROM..DAWN_TO
+const DAWN_FROM := 4.5
+const DAWN_TO := 7.5
 
 var _cache := {}                  ## name -> Array[AudioStream] (variants; empty when the sound does not exist)
 var _rules := {}
@@ -109,8 +117,10 @@ var _stem_tau := STATE_TAU
 var _legacy_music := false
 var _vol_music := MUSIC_DB
 var _user_db := {}                ## bus -> the player's volume choice in dB
-var _duck_level := {&"explosion": 0.0, &"radio": 0.0, &"stinger": 0.0}
-var _duck_hold := {&"explosion": 0.0, &"radio": 0.0, &"stinger": 0.0}
+var _duck_level := {&"explosion": 0.0, &"radio": 0.0, &"stinger": 0.0, &"thunder": 0.0, &"ability": 0.0}
+var _duck_hold := {&"explosion": 0.0, &"radio": 0.0, &"stinger": 0.0, &"thunder": 0.0, &"ability": 0.0}
+var hour_override := -1.0         ## >= 0 forces the hour the sound sees (tests); -1 follows the city's DayNight
+var _was_super := false
 var _bus_db_applied := {}
 var _lp_music: AudioEffectLowPassFilter
 var _lp_ambient: AudioEffectLowPassFilter
@@ -484,6 +494,12 @@ func _after_play(sfx_name: StringName) -> void:
 	var s := String(sfx_name)
 	if s.begins_with("boom") or s.begins_with("explosion") or s.begins_with("car_crash"):
 		duck(&"explosion")
+	elif ABILITY_LAYERS.has(sfx_name):
+		var a: Array = ABILITY_LAYERS[sfx_name]
+		duck(&"ability")
+		play(a[0], float(a[1]))
+	elif s == "collapse":
+		duck(&"ability")
 	elif s == "hurt":
 		play(&"hero_pain", -3.0)                                  # Kestrel's own grunt on top of the hit
 
@@ -912,12 +928,16 @@ func wanted_layer() -> StringName:
 		return &"music_boss"
 	if music_state == &"chase":
 		return &"music_chase"
+	if night_weight() > 0.5:
+		return &"music_night"
 	if is_instance_valid(Game.player):
 		return StringName("music_district_%d" % district_at((Game.player as Node3D).global_position))
 	return &"music_district_0"
 
 
 func _layer_kind(layer: StringName) -> StringName:
+	if layer == &"music_night":
+		return &"night"
 	return &"boss" if layer == &"music_boss" else (&"chase" if layer == &"music_chase" else &"district")
 
 
@@ -1032,7 +1052,7 @@ func _bark_name(kind: StringName) -> StringName:
 func ui(kind: StringName, volume_db := -4.0) -> void:
 	var n: StringName = UI_CUES.get(kind, &"")
 	if n != &"":
-		play(n, volume_db)
+		play(n, volume_db + float(UI_TRIM.get(kind, 0.0)))
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -1041,7 +1061,39 @@ func ui(kind: StringName, volume_db := -4.0) -> void:
 
 const BEDS := {
 	&"rain_asphalt": -3.0, &"rain_metal": -3.0, &"rain_awning": -4.0, &"traffic_far": -2.0, &"wind": -3.0, &"city_hum": 0.0, &"wind_howl": -5.0,
+	&"night_insects": -9.0, &"dawn_chirps": -8.0,
 }
+
+
+## The hour of day as the sound sees it (0..24); -1 when the world has no clock.
+func hour_now() -> float:
+	if hour_override >= 0.0:
+		return hour_override
+	if is_instance_valid(Game.world):
+		var dn = Game.world.get(&"day_night")
+		if dn != null and is_instance_valid(dn):
+			return float(dn.get(&"hour"))
+	return -1.0
+
+
+## 0..1: how night it is for the sound (the night pad layer and the insects). 0 when there is no clock.
+func night_weight() -> float:
+	var h := hour_now()
+	if h < 0.0:
+		return 0.0
+	h = fposmod(h, 24.0)
+	return 1.0 if (h >= NIGHT_FROM or h < NIGHT_TO) else 0.0
+
+
+## 0..1: the dawn window (alien morning calls), a soft bell between DAWN_FROM and DAWN_TO.
+func dawn_weight() -> float:
+	var h := hour_now()
+	if h < 0.0:
+		return 0.0
+	h = fposmod(h, 24.0)
+	if h < DAWN_FROM or h > DAWN_TO:
+		return 0.0
+	return smoothstep(DAWN_FROM, DAWN_FROM + 0.5, h) * (1.0 - smoothstep(DAWN_TO - 1.0, DAWN_TO, h))
 
 
 func start_ambience() -> void:
@@ -1138,6 +1190,10 @@ func _step_ambience(delta: float) -> void:
 					goal = (0.3 + 0.5 * rain) * (0.75 + 0.5 * _gust) * open_air
 				&"wind_howl":
 					goal = storm * (0.35 + 0.65 * _gust) * open_air
+				&"night_insects":
+					goal = night_weight() * (1.0 - clampf(rain * 1.4, 0.0, 1.0)) * 0.7 * open_air
+				&"dawn_chirps":
+					goal = dawn_weight() * (1.0 - clampf(rain * 1.2, 0.0, 1.0)) * 0.8 * open_air
 				_:
 					goal = 0.6
 		var v: float = lerpf(float(_amb_vol[bed]), goal, k)
@@ -1149,7 +1205,7 @@ func _step_ambience(delta: float) -> void:
 	if _thunder_in <= 0.0:
 		_thunder_in = randf_range(18.0, 55.0) * lerpf(1.0, 0.45, storm)
 		if rain > 0.3:
-			_play_oneshot(&"thunder", -3.0 + 3.0 * rain)
+			_play_oneshot(&"thunder_roll" if (storm > 0.3 and randf() < 0.4) else &"thunder", -3.0 + 3.0 * rain)
 			if randf() < 0.4:
 				_later(&"distant_boom", Vector3.ZERO, -16.0, 1.0, randf_range(1.5, 4.0))
 	_distant_in -= delta
@@ -1161,6 +1217,8 @@ func _step_ambience(delta: float) -> void:
 func _play_oneshot(sfx_name: StringName, volume_db: float) -> void:
 	if muted:
 		return
+	if String(sfx_name).begins_with("thunder"):
+		duck(&"thunder")
 	var s := _pick(sfx_name)
 	if s == null:
 		return
@@ -1305,6 +1363,9 @@ func _step_quantum(delta: float) -> void:
 	var links_on: bool = lk is Array and (lk as Array).size() > 0
 	_drive_loop(&"superpos_loop", -6.0 if super_on else OFF_DB, delta, 1.0, 30.0)
 	_drive_loop(&"entangle_loop", -6.0 if links_on else OFF_DB, delta, 1.0, 30.0)
+	if _was_super and not super_on and Game.is_playing() and not muted:
+		play(&"collapse", -3.0)                                   # the decoy is gone: COLLAPSE
+	_was_super = super_on
 
 
 # ---------------------------------------------------------------------------------------------------------------------

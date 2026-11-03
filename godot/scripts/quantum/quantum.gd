@@ -291,6 +291,8 @@ func cancel_aim() -> void:
 
 
 func _slow_begin(after_real: float) -> void:
+	if UiSettings.s_reduce_motion:
+		return
 	if not _slow_on:
 		_slow_base = Engine.time_scale if Engine.time_scale > 0.0 else 1.0
 		_slow_on = true

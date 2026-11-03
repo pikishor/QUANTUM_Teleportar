@@ -438,11 +438,13 @@ func press_button(id: StringName) -> bool:
 			if Game.state != &"menu" and Game.state != &"paused":
 				return false
 			_options_open = true
+			UiSettings.s_opt_page = 0
 			Sfx.play(&"ui_confirm")
 		&"options_back":
 			if not _options_open:
 				return false
 			_options_open = false
+			UiSettings.s_opt_page = 0
 			Sfx.play(&"ui_back")
 		&"chapters":
 			if (Game.state != &"menu" and Game.state != &"paused") or not _chapters_ok():
@@ -760,7 +762,8 @@ func _clock_suffix() -> String:
 
 
 func _text(c: Control, font: Font, pos: Vector2, text: String, align: HorizontalAlignment, width: float, size: int, col: Color, shadow := 0.0) -> void:
-	_q.append([c, font, pos, text, align, width, size, col, shadow])
+	var tt := Tr.t(text)
+	_q.append([c, font, pos, tt, align, width, Tr.scaled_size(font, tt, width, size), col, shadow])
 
 
 func _rect(c: Control, r: Rect2, col: Color) -> void:
@@ -870,7 +873,7 @@ func _draw_hud_body() -> void:
 			c.draw_texture_rect(_vignette, Rect2(Vector2.ZERO, vp), false, Color(1, 1, 1, a))
 		var qm: Object = p.get("quantum")
 		if qm != null and playing:
-			var fl := float(qm.get("fx_flash"))
+			var fl := 0.0 if UiSettings.s_reduce_flash else float(qm.get("fx_flash"))
 			var cf := float(qm.get("collapse_fx"))
 			var qa := maxf(maxf(fl * 0.55, 0.3 if qm.get("aiming") == true else 0.0), cf * 0.7)
 			if qa > 0.01:

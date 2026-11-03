@@ -22,11 +22,18 @@ const SLIDERS := {
 const TOGGLES := {
 	&"opt_aim": &"aim_assist", &"opt_auto": &"auto_fire", &"opt_left": &"left_hand",
 	&"opt_vib": &"vibration", &"opt_subs": &"subtitles", &"opt_cb": &"cb_safe",
+	&"opt_flash": &"reduce_flash", &"opt_motion": &"reduce_motion",
 }
 const TOGGLE_NAMES := {
 	&"opt_aim": "AIM ASSIST", &"opt_auto": "AUTO FIRE", &"opt_left": "LEFT HAND",
 	&"opt_vib": "VIBRATION", &"opt_subs": "SUBTITLES", &"opt_cb": "COLOUR SAFE",
+	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION",
 }
+## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
+const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg"]
+const PAGE_CELL := 13
+const SUB_BG_NAMES: Array[String] = ["SOFT", "", "SOLID"]
+const CB_NAMES: Array[String] = ["DEUTAN", "TRITAN"]
 const ORDER: Array[StringName] = [
 	&"opt_look_x", &"opt_look_y", &"opt_ads", &"opt_hud", &"opt_btn", &"opt_tier",
 	&"opt_aim", &"opt_auto", &"opt_left", &"opt_vib", &"opt_subs", &"opt_cb",
@@ -39,7 +46,7 @@ static func is_slider(id: StringName) -> bool:
 
 
 static func is_option(id: StringName) -> bool:
-	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_tier"
+	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_tier" or id == &"opt_page" or PAGE2.has(id)
 
 
 static func fraction(st: UiSettings, id: StringName) -> float:
@@ -58,13 +65,26 @@ static func set_fraction(st: UiSettings, id: StringName, f: float) -> float:
 
 static func label(st: UiSettings, id: StringName) -> String:
 	if SLIDERS.has(id):
-		return "%s  %d%%" % [SLIDERS[id][0], roundi(float(st.get(SLIDERS[id][3])) * 100.0)]
+		return "%s  %d%%" % [Tr.t(SLIDERS[id][0]), roundi(float(st.get(SLIDERS[id][3])) * 100.0)]
 	if TOGGLES.has(id):
-		return "%s %s" % [TOGGLE_NAMES[id], "ON" if bool(st.get(TOGGLES[id])) else "OFF"]
+		var on := bool(st.get(TOGGLES[id]))
+		if id == &"opt_cb" and on:
+			return "%s %s" % [Tr.t(TOGGLE_NAMES[id]), Tr.t(CB_NAMES[st.cb_variant])]
+		return "%s %s" % [Tr.t(TOGGLE_NAMES[id]), Tr.t("ON" if on else "OFF")]
 	if id == &"opt_fps":
-		return "FPS CAP  " + ("OFF" if st.fps_cap == 0 else str(st.fps_cap))
+		return Tr.t("FPS CAP") + "  " + (Tr.t("OFF") if st.fps_cap == 0 else str(st.fps_cap))
 	if id == &"opt_tier":
-		return "GRAPHICS  " + Hud.TIER_NAMES[clampi(Game.quality, 0, 2)]
+		return Tr.t("GRAPHICS") + "  " + Tr.t(Hud.TIER_NAMES[clampi(Game.quality, 0, 2)])
+	if id == &"opt_page":
+		return Tr.t("MORE") + "  " + str(UiSettings.s_opt_page + 1) + "/2"
+	if id == &"opt_lang":
+		return Tr.t("LANGUAGE") + "  " + str(Tr.LANG_NAMES.get(st.language, st.language))
+	if id == &"opt_text":
+		return Tr.t("TEXT SIZE") + "  %d%%" % roundi(st.text_scale * 100.0)
+	if id == &"opt_subsize":
+		return Tr.t("SUBTITLE SIZE") + "  %d%%" % roundi(st.sub_size * 100.0)
+	if id == &"opt_subbg":
+		return Tr.t("SUBTITLE BG") + "  " + Tr.t(SUB_BG_NAMES[st.sub_bg] if st.sub_bg != 1 else "ON")
 	return ""
 
 
@@ -74,8 +94,33 @@ static func is_on(st: UiSettings, id: StringName) -> bool:
 
 ## Flips a toggle or cycles FPS cap / graphics tier. Returns true when it changed something.
 static func press(st: UiSettings, id: StringName) -> bool:
+	if id == &"opt_cb":                                  # off -> deutan/protan -> tritan -> off
+		if not st.cb_safe:
+			st.cb_safe = true
+			st.cb_variant = 0
+		elif st.cb_variant == 0:
+			st.cb_variant = 1
+		else:
+			st.cb_safe = false
+			st.cb_variant = 0
+		return true
 	if TOGGLES.has(id):
 		st.set(TOGGLES[id], not bool(st.get(TOGGLES[id])))
+		return true
+	if id == &"opt_page":
+		UiSettings.s_opt_page = 1 - UiSettings.s_opt_page
+		return true
+	if id == &"opt_lang":
+		st.language = Tr.next_lang(st.language)
+		return true
+	if id == &"opt_text":
+		st.text_scale = Tr.next_scale(st.text_scale)
+		return true
+	if id == &"opt_subsize":
+		st.sub_size = Tr.next_scale(st.sub_size)
+		return true
+	if id == &"opt_subbg":
+		st.sub_bg = (st.sub_bg + 1) % 3
 		return true
 	if id == &"opt_fps":
 		st.fps_cap = st.next_fps_cap()
@@ -94,9 +139,11 @@ static func cell_rect(i: int, cx: float, s: float) -> Rect2:
 
 
 static func layout(hud: Hud, st: UiSettings, cx: float, s: float) -> void:
-	for i in ORDER.size():
-		var id: StringName = ORDER[i]
+	var ids: Array[StringName] = PAGE2 if UiSettings.s_opt_page == 1 else ORDER
+	for i in ids.size():
+		var id: StringName = ids[i]
 		hud._add(id, cell_rect(i, cx, s), label(st, id), is_slider(id) or is_on(st, id))
+	hud._add(&"opt_page", cell_rect(PAGE_CELL, cx, s), label(st, &"opt_page"), false)
 	hud._add(&"options_back", Rect2(cx - 110.0 * s, BACK_Y * s, 220.0 * s, ROW_H * s), "BACK", false)
 
 

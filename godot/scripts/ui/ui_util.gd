@@ -11,15 +11,21 @@ const GREEN := Color(0.4, 1.0, 0.6)
 const CB_HOSTILE := Color(1.0, 0.62, 0.1)     ## colour-blind safe: orange for hostile
 const CB_FRIEND := Color(0.35, 0.65, 1.0)     ## blue for pickups / friendly
 const CB_OBJECTIVE := Color(1.0, 1.0, 1.0)
+const CB3_HOSTILE := Color(1.0, 0.15, 0.3)      ## tritan variant: saturated red hostile, teal friendly
+const CB3_FRIEND := Color(0.2, 0.9, 0.8)
 
 
 ## Marker colours that honour the colour-blind safe setting.
 static func hostile_col() -> Color:
-	return CB_HOSTILE if UiSettings.s_cb_safe else RED
+	if UiSettings.s_cb_safe:
+		return CB3_HOSTILE if UiSettings.s_cb_variant == 1 else CB_HOSTILE
+	return RED
 
 
 static func friend_col() -> Color:
-	return CB_FRIEND if UiSettings.s_cb_safe else GREEN
+	if UiSettings.s_cb_safe:
+		return CB3_FRIEND if UiSettings.s_cb_variant == 1 else CB_FRIEND
+	return GREEN
 
 
 static func objective_col() -> Color:
