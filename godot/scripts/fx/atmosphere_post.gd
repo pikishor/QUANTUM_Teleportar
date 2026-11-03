@@ -97,8 +97,8 @@ func effective(param: StringName) -> Variant:
 func set_feedback(ca: float, sat: float) -> void:
 	ca = clampf(ca, 0.0, FB_CA_MAX)
 	sat = clampf(sat, 1.0 - FB_SAT_LOSS_MAX, 1.0)
-	if is_equal_approx(ca, _fb_ca) and is_equal_approx(sat, _fb_sat):
-		return
+	if ca == _fb_ca and sat == _fb_sat or (is_equal_approx(ca, _fb_ca) and is_equal_approx(sat, _fb_sat) and ca > 0.0 and sat < 1.0):
+		return           # near-equal values skip the push, but the exact rest state (0, 1) is always written
 	_fb_ca = ca
 	_fb_sat = sat
 	_push(&"ca_amount")
