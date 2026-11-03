@@ -10,11 +10,13 @@ extends Node3D
 const Traffic := preload("res://scripts/ambient/ambient_traffic.gd")
 const Crowd := preload("res://scripts/ambient/ambient_crowd.gd")
 const Patrol := preload("res://scripts/ambient/ambient_sky.gd")
+const Fauna := preload("res://scripts/ambient/ambient_fauna.gd")
 const NpcLife := preload("res://scripts/npc/npc_life.gd")
 
 var traffic := Traffic.new()
 var crowd := Crowd.new()
 var sky := Patrol.new()
+var fauna := Fauna.new()                 ## flocks above the roofs and street crawlers: one MultiMesh, one draw (ambient_fauna.gd)
 var npc := NpcLife.new()                 ## citizen schedules / reactions / barks on top of the crowd (scripts/npc)
 var quality := 1
 var density := 1.0
@@ -34,6 +36,8 @@ func setup(city: Node3D, light_map: Texture2D) -> void:
 	crowd.build(light_map)
 	sky.build(self)
 	npc.setup(crowd)
+	fauna.build()
+	city.add_multimesh("AmbientFauna", fauna.mm, fauna.material, null, false, 0, 1)
 	city.add_multimesh("AmbientTraffic", traffic.mm, traffic.material, traffic.mirror_material, false, 0, 1)
 	city.add_multimesh("AmbientCrowd", crowd.mm, crowd.material, crowd.mirror_material, false, 0, 2)
 	city.add_multimesh("AmbientCrowdNear", crowd.mm_near, crowd.material, crowd.mirror_material, false, 0, 2)
@@ -55,6 +59,7 @@ func set_quality(level: int) -> void:
 	traffic.set_count(int(Traffic.COUNTS[quality] * density))
 	crowd.set_tier(quality, density)
 	sky.set_enabled(quality >= 1)
+	fauna.set_tier(quality)
 
 
 ## Hour-of-day multiplier (DayNight): slightly fewer cars and people in the small hours, more at rush hour.
@@ -70,6 +75,7 @@ func reset() -> void:
 	crowd.reset()
 	npc.reset()
 	sky.reset()
+	fauna.reset()
 
 
 func _process(delta: float) -> void:
@@ -83,8 +89,14 @@ func _process(delta: float) -> void:
 	if p != Vector3.INF:
 		crowd.step(delta, p)
 		npc.step(delta, p)
+		fauna.step(delta, p, _night())
 		sky.step(delta, p, traffic, clock, quality)
 	_hook_player()
+
+
+func _night() -> float:
+	var v: Variant = RenderingServer.global_shader_parameter_get(&"night")
+	return clampf(float(v), 0.0, 1.0) if v != null else 1.0
 
 
 func _center() -> Vector3:
@@ -109,6 +121,7 @@ func _on_player_fired() -> void:
 	if Game.is_playing() and is_instance_valid(Game.player):
 		var pp := (Game.player as Node3D).global_position
 		npc.on_shot(pp, pp)
+		fauna.on_shot(pp)
 
 
 ## Counts for tests and the budget report.
@@ -122,4 +135,6 @@ func stats() -> Dictionary:
 		"sweeping": sky.active,
 		"clock": clock,
 		"npc": npc.stats(),
+		"fauna": fauna.count,
+		"fauna_alive": fauna.alive_count(),
 	}

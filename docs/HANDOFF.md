@@ -366,3 +366,10 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - Integrator fixes: `test_boss` now scales the pulse damage by Difficulty/Upgrades (meaning unchanged: it checks the pulse hits unblocked); `test_hud_gameplay` shop prices now read from Upgrades.price instead of hardcoded numbers; `enemy_manager._tick_noise` used `bool(null)` for players without `sprinting` (script error in tests), now `== true`.
 - Full suite: 113 pass, 0 flaky, 0 fail. visual_qa 12/12, full_bot PASS. Perf gate skipped.
 - Follow-ups: checkpoint health restore untested; boss timings and chapter caps untuned; achievement/campaign-step credits not in Economy table; new strings untranslated.
+
+## Wave 50: new enemies and bosses, alien fauna
+- Enemies pouncer/mender/wisp, bosses skimmer/phasewright (VerbBoss modes), AmbientFauna (1 MultiMesh draw). Tests: test_new_enemies_bosses, test_fauna; test_campaign_wiring expects verb bosses in chapters [1,3,4,6,6].
+- Fixes: fauna writes its buffer once in build() (test_world buffer-size check saw an empty buffer before the first step). test_perf_budget pre-warm node bound raised 200 -> 260: the three new enemy types add pooled nodes (+173 before, +213 now); they are pooled, not leaked.
+- Full suite: no FAIL after those fixes, 0 flaky in the run. visual_qa 12/12, full_bot PASS.
+- Perf: tiers 1 and 2 OK. Tier 0 reports death spike 116 > 115; the same 116 is measured with the wave stashed, so it predates this wave. FOLLOW-UP: trim one draw on LOW during the 4-enemy death.
+- Follow-ups: boss timings/HP untuned; skiff is a plain disc (+1 draw per skimmer); no role tells for new enemies; radio strings English only; crawlers ignore street props; no fish (no canals).

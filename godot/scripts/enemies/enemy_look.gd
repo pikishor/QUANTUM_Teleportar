@@ -15,6 +15,8 @@ const ROLE_COLORS := {
 	&"stalker": Color(0.3, 1.0, 0.6),
 	&"carrier": Color(0.95, 0.95, 0.4),
 	&"walker": Color(0.55, 0.6, 0.95),
+	&"pouncer": Color(0.85, 1.0, 0.2),
+	&"mender": Color(0.2, 1.0, 0.9),
 	&"warden": Color(0.9, 0.9, 1.0),
 	&"hivemother": Color(1.0, 0.4, 0.55),
 }

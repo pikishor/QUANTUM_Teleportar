@@ -41,7 +41,7 @@ func run(_host: Node) -> void:
 	TestLib.check(radio_ok and interior_ok, "radio lines {s, t} and interior types of the data fit the runner")
 	TestLib.check(kinds.size() == 8, "the campaign uses 8 step kinds (%s)" % str(kinds.keys()))
 	TestLib.check(bosses == [2, 5, 7], "Overseer boss steps are in chapters 3, 6 and 8 (%s)" % str(bosses))
-	TestLib.check(verb_bosses == [3, 6, 6], "verb boss steps (own enemy type) are in chapters 4 and 7 (%s)" % str(verb_bosses))
+	TestLib.check(verb_bosses == [1, 3, 4, 6, 6], "verb boss steps (own enemy type) are in chapters 2, 4, 5 and 7 (%s)" % str(verb_bosses))
 	for b: int in bosses:
 		TestLib.check(ContractTypes.is_boss_chapter(b), "chapter %d is a boss chapter of the contracts" % (b + 1))
 	for b: int in bosses + verb_bosses:

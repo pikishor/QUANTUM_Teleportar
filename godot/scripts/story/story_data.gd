@@ -447,6 +447,20 @@ const VERB_BOSS_RADIO := {
 		"phase3": [{"s": O, "t": "It is desperate. One more decoy and it is over."}],
 		"down": [{"s": O, "t": "Hound down. The streets are quiet again."}],
 	},
+	"hover": {
+		"intro": [{"s": O, "t": "The Skimmer rides a hover skiff and rams on a locked line. Sidestep, then COLLAPSE to crash it."}],
+		"crash": [{"s": O, "t": "The skiff is down. It cannot move. Burn it now."}],
+		"phase2": [{"s": O, "t": "It rams more often and the crash window is shorter. Stay moving."}],
+		"phase3": [{"s": O, "t": "Last third. Dodge the ram, collapse the skiff, finish it."}],
+		"down": [{"s": O, "t": "Skimmer down. The skiff is scrap."}],
+	},
+	"phase": {
+		"intro": [{"s": O, "t": "The Phasewright uses QUANTUM TELEPORT against you. Watch the windup, COLLAPSE to break the jump."}],
+		"break": [{"s": O, "t": "The jump broke. It is exposed. Hit it hard."}],
+		"phase2": [{"s": O, "t": "It jumps faster and calls help. Do not stand where it lands."}],
+		"phase3": [{"s": O, "t": "Last third. Leave the landing ring and punish the slash."}],
+		"down": [{"s": O, "t": "Phasewright down. Nothing phases through that."}],
+	},
 }
 
 const CONTRACT_CHAPTER: Array[Dictionary] = [

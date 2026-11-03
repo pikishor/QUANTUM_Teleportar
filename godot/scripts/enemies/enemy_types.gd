@@ -77,6 +77,24 @@ const TYPES := {
 		"color": Color(0.4, 0.9, 1.0), "score": 15, "radius": 0.45, "heat": 0.03, "center_y": 0.42, "hover": 0.25, "scale": 0.45,
 		"model": "drone_striker", "drone": true, "kamikaze": true, "variety": true, "min_chapter": 2, "limit": 4,
 	},
+	# --- wave 50 variety: pouncer (leap), mender (heals allies), wisp (procedural flyer); picked through VARIETY_TYPES.
+	&"pouncer": {
+		"hp": 70.0, "speed": 5.2, "range": 16.0, "fire": Vector2(1.0, 1.0), "dmg": 18.0, "bolt": 0.0, "burst": 0,
+		"color": Color(0.85, 1.0, 0.2), "score": 140, "radius": 0.5, "heat": 0.3, "center_y": 0.95, "hover": 0.0, "scale": 0.9,
+		"model": "operative", "body": "enemy_alien", "drone": false, "kamikaze": false, "role": &"pouncer", "variety": true,
+		"walk": 1.9, "burst_gap": 0.1, "aim_time": 0.3, "spread": 0.0, "spread_per_m": 0.0, "min_chapter": 3, "limit": 2,
+	},
+	&"mender": {
+		"hp": 90.0, "speed": 3.6, "range": 20.0, "fire": Vector2(2.0, 3.0), "dmg": 4.0, "bolt": 0.0, "burst": 2,
+		"color": Color(0.2, 1.0, 0.9), "score": 170, "radius": 0.7, "heat": 0.35, "center_y": 1.2, "hover": 0.0, "scale": 1.0,
+		"model": "operative", "body": "enemy_demon", "drone": false, "kamikaze": false, "role": &"mender", "variety": true, "heal_rate": 14.0, "heal_radius": 9.0,
+		"walk": 1.2, "burst_gap": 0.14, "aim_time": 0.5, "spread": 0.04, "spread_per_m": 0.0008, "min_chapter": 4, "limit": 1,
+	},
+	&"wisp": {
+		"hp": 30.0, "speed": 7.5, "range": 26.0, "fire": Vector2(0.7, 1.1), "dmg": 4.0, "bolt": 36.0, "burst": 1,
+		"color": Color(0.75, 0.55, 1.0), "score": 60, "radius": 0.55, "heat": 0.1, "center_y": 0.7, "hover": 3.4, "scale": 0.7,
+		"model": "drone_sentinel", "drone": true, "kamikaze": false, "variety": true, "min_chapter": 3, "limit": 3,
+	},
 	# --- the elite minibosses (Specialist roles, one at a time by tier: ELITE_CAPS), no new model.
 	&"warden": {
 		"hp": 700.0, "speed": 4.8, "range": 26.0, "fire": Vector2(1.1, 1.7), "dmg": 6.0, "bolt": 0.0, "burst": 3,
@@ -114,6 +132,19 @@ const TYPES := {
 		"hp": 1800.0, "speed": 4.2, "range": 28.0, "fire": Vector2(1.0, 1.6), "dmg": 6.0, "bolt": 0.0, "burst": 3,
 		"color": Color(1.0, 0.55, 0.2), "score": 2500, "radius": 1.3, "heat": 1.0, "center_y": 1.8, "hover": 0.0, "scale": 1.8,
 		"model": "operative", "drone": false, "kamikaze": false, "role": &"verb_boss", "verb": "hunter", "boss": true, "drops_weapon": false,
+		"walk": 1.5, "burst_gap": 0.1, "aim_time": 0.4, "spread": 0.03, "spread_per_m": 0.0006, "limit": 1,
+	},
+	# --- wave 50 verb bosses: SKIMMER (hover vehicle, COLLAPSE crashes it) in chapter 5, PHASEWRIGHT (QUANTUM TELEPORT, COLLAPSE breaks a jump) in chapter 2.
+	&"skimmer": {
+		"hp": 1900.0, "speed": 3.4, "range": 30.0, "fire": Vector2(1.0, 1.5), "dmg": 6.0, "bolt": 0.0, "burst": 4,
+		"color": Color(1.0, 0.85, 0.2), "score": 2500, "radius": 1.5, "heat": 1.0, "center_y": 2.1, "hover": 0.0, "scale": 1.8,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"verb_boss", "verb": "hover", "boss": true, "drops_weapon": false,
+		"walk": 1.2, "burst_gap": 0.1, "aim_time": 0.45, "spread": 0.03, "spread_per_m": 0.0006, "limit": 1,
+	},
+	&"phasewright": {
+		"hp": 1600.0, "speed": 3.8, "range": 28.0, "fire": Vector2(1.1, 1.7), "dmg": 6.0, "bolt": 0.0, "burst": 3,
+		"color": Color(0.5, 0.7, 1.0), "score": 2500, "radius": 1.3, "heat": 1.0, "center_y": 1.8, "hover": 0.0, "scale": 1.8,
+		"model": "operative", "body": "enemy_alien", "drone": false, "kamikaze": false, "role": &"verb_boss", "verb": "phase", "boss": true, "drops_weapon": false,
 		"walk": 1.5, "burst_gap": 0.1, "aim_time": 0.4, "spread": 0.03, "spread_per_m": 0.0006, "limit": 1,
 	},
 }
@@ -163,7 +194,7 @@ static func specialist_for(chapter: int, heat: float, r: float, r2: float) -> St
 
 ## Share of the reinforcement slots that become a variety type (not the elites), per chapter index (the last row covers every later sector).
 const VARIETY_SHARE: Array[float] = [0.0, 0.0, 0.15, 0.2, 0.25, 0.3, 0.3, 0.35, 0.35]
-const VARIETY_TYPES: Array[StringName] = [&"stalker", &"swarmer", &"carrier", &"walker"]
+const VARIETY_TYPES: Array[StringName] = [&"stalker", &"swarmer", &"carrier", &"walker", &"pouncer", &"mender", &"wisp"]
 const ELITE_TYPES: Array[StringName] = [&"warden", &"hivemother"]
 ## Elites alive at once per graphics tier (LOW, MED, HIGH) and the heat at which they start to show.
 const ELITE_CAPS: Array[int] = [0, 1, 2]

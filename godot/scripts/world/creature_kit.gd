@@ -12,7 +12,7 @@ const FAMILIES := ["Tree", "Plant", "Rock"]
 const VARIANTS := 3
 ## Per plaza: [family, count, ring radius min, ring radius max] (the lot is 18-26 m, the plaza keeps its middle free)
 const RING := [["Tree", 2, 7.0, 9.0], ["Plant", 3, 5.5, 9.0], ["Rock", 2, 6.0, 9.5]]
-const ENEMY_BODIES := {&"stalker": "enemy_alien", &"brute": "enemy_bluedemon", &"walker": "enemy_demon"}
+const ENEMY_BODIES := {&"stalker": "enemy_alien", &"brute": "enemy_bluedemon", &"walker": "enemy_demon", &"pouncer": "enemy_alien", &"mender": "enemy_demon", &"phasewright": "enemy_alien"}
 const EXTRA_VEHICLES: Array[StringName] = [&"rover", &"skiff"]
 const PICKUP_MODELS := ["pickup_weapon"]
 

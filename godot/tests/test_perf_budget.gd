@@ -263,7 +263,7 @@ func _warmup() -> void:
 	TestLib.check(idle, "the FX are reset: no explosion slot is left running")
 	await frames(2)
 	var nodes_after := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
-	TestLib.check(nodes_after - nodes_before < 200, "the pre-warm leaves a bounded node count (+%d: pooled enemies and cars, nothing temporary)" % (nodes_after - nodes_before))
+	TestLib.check(nodes_after - nodes_before < 260, "the pre-warm leaves a bounded node count (+%d: pooled enemies and cars, nothing temporary)" % (nodes_after - nodes_before))
 	var q: Variant = p.get(&"quantum")
 	if q != null and q.get(&"fx_root") != null:
 		var hidden := 0

@@ -35,12 +35,13 @@ const CAMPAIGN: Array[Dictionary] = [
 	},
 	{
 		"id": "bell_state", "district": "towers", "place": "GLASS DISTRICT",
-		"cutscenes": {"intro": "", "chapter": "chapter", "boss": ""},
+		"cutscenes": {"intro": "", "chapter": "chapter", "boss": "boss_in"},
 		"steps": [
 			{"kind": "reach", "obj": "Blink up to the sky bridge", "radio": {"s": O, "t": "The sky bridge is the only blind spot. Throw a beacon, cross the gap, count two bits."}},
 			{"kind": "hack", "obj": "Hack the relay under the glass", "radio": {"s": O, "t": "The relay node watches every pane. Blind it and the towers stop reporting you."}},
 			{"kind": "chase", "obj": "Run down the courier convoy", "radio": {"s": O, "t": "A Vael courier is carrying a core fragment east. Take a car and cut it off."}},
 			{"kind": "assassinate", "target": "specialist", "obj": "Eliminate the Glass specialist", "radio": {"s": O, "t": "Their measurement specialist watches from the tallest pane. End the observer."}},
+			{"kind": "assassinate", "target": "boss", "enemy": "phasewright", "hp_mult": 1.0, "guards": 0, "name": "VAEL PHASEWRIGHT", "obj": "Break the Vael Phasewright", "radio": {"s": O, "t": "The observer had a keeper. It jumps like you do. COLLAPSE the windup, punish the landing."}},
 		],
 	},
 	{
@@ -67,11 +68,12 @@ const CAMPAIGN: Array[Dictionary] = [
 	},
 	{
 		"id": "forge_of_mirrors", "district": "foundry", "place": "FOUNDRY ROW",
-		"cutscenes": {"intro": "", "chapter": "chapter", "boss": ""},
+		"cutscenes": {"intro": "", "chapter": "chapter", "boss": "boss_in"},
 		"steps": [
 			{"kind": "infiltrate", "interior": "checkpoint", "obj": "Infiltrate the forge checkpoint", "radio": {"s": O, "t": "The checkpoint controls the forge doors. Take it from the inside, one guard at a time."}},
 			{"kind": "hack", "obj": "Hack the cradle control node", "radio": {"s": K, "t": "Cradle control. If I cannot shut it down, I can at least make it blind."}},
 			{"kind": "assassinate", "target": "specialist", "obj": "Eliminate the forge master", "radio": {"s": O, "t": "The forge master tends the cradles like a gardener. Make the garden stop growing."}},
+			{"kind": "assassinate", "target": "boss", "enemy": "skimmer", "hp_mult": 1.0, "guards": 0, "name": "VAEL SKIMMER", "obj": "Crash the Vael Skimmer", "radio": {"s": O, "t": "A Skimmer is circling the forge on a hover skiff. Dodge the ram, COLLAPSE to crash it."}},
 			{"kind": "escape", "obj": "Escape the burning forge", "radio": {"s": O, "t": "The forge is venting. Out, out, out. The Vael will not follow into the fire."}},
 		],
 	},

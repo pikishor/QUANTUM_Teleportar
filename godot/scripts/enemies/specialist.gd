@@ -18,6 +18,8 @@ const BLINK_WIND := 0.25                     ## stalker: seconds phased out (no 
 const SHELL_TIME := 1.5                      ## walker: seconds from the lock to the impact
 const PULSE_WIND := 0.9                      ## warden: windup of the phase pulse
 const SUMMON_WIND := 0.8                     ## hivemother: windup of the call
+const POUNCE_WIND := 0.5                     ## pouncer: crouch before the leap
+const POUNCE_TIME := 0.45                    ## pouncer: seconds of the leap along the locked line
 
 var role: StringName = &""
 var shield_hp := 0.0
@@ -51,6 +53,13 @@ var _pulses := 0
 var _summon_cd := 0.0
 var _summon_wind := 0.0
 var _summons := 0
+var _pounce_cd := 0.0
+var _pounce_wind := 0.0
+var _pounce_t := 0.0
+var _pounce_dir := Vector2.ZERO
+var _pounce_hit := false
+var _pounces := 0
+var healed := 0.0                            ## mender: total health given to allies (tests)
 
 
 func setup(t: StringName) -> void:
@@ -87,6 +96,11 @@ func _on_activate() -> void:
 	_pulse_wind = 0.0
 	_summon_cd = randf_range(3.0, 5.0)
 	_summon_wind = 0.0
+	_pounce_cd = randf_range(1.0, 2.5)
+	_pounce_wind = 0.0
+	_pounce_t = 0.0
+	_pounce_hit = false
+	healed = 0.0
 	if shield_node != null:
 		shield_node.visible = shield_hp > 0.0
 
@@ -240,6 +254,10 @@ func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng
 			_move_stalker(delta, ux, uz, d, speed, rng)
 		&"walker":
 			_move_walker(delta, ux, uz, d, speed)
+		&"pouncer":
+			_move_pouncer(delta, ux, uz, d, speed)
+		&"mender":
+			_move_mender(delta, ux, uz, d, speed, rng)
 		&"warden":
 			_move_warden(delta, ux, uz, d, speed, rng)
 		&"hivemother":
@@ -306,6 +324,70 @@ func _move_walker(delta: float, ux: float, uz: float, d: float, speed: float) ->
 		_speed = speed
 	else:
 		_speed = 0.0
+
+
+## Leap: a 0.5 s crouch (the lock is the direction at its end, a sidestep dodges it), then a fast straight lunge that hurts the player once on contact.
+func _move_pouncer(delta: float, ux: float, uz: float, d: float, speed: float) -> void:
+	_pounce_cd = maxf(0.0, _pounce_cd - delta)
+	if _pounce_wind > 0.0:
+		_speed = 0.0
+		_pounce_wind -= delta
+		if _pounce_wind <= 0.0:
+			_pounce_t = POUNCE_TIME
+			_pounce_hit = false
+			_pounce_dir = Vector2(ux, uz)
+		return
+	if _pounce_t > 0.0:
+		_pounce_t -= delta
+		_mx = _pounce_dir.x
+		_mz = _pounce_dir.y
+		_speed = speed * 4.2
+		if d < 1.8 and not _pounce_hit:
+			_pounce_hit = true
+			_pounces += 1
+			var p := Game.player
+			if is_instance_valid(p):
+				p.call(&"damage", float(cfg["dmg"]), global_position)
+			FX.shake(0.25)
+		if _pounce_t <= 0.0 or _pounce_hit:
+			_pounce_t = 0.0
+			_pounce_cd = randf_range(2.0, 3.5)
+		return
+	if _pounce_cd <= 0.0 and d > 4.0 and d < 16.0 and los:
+		_pounce_wind = POUNCE_WIND
+		return
+	_mx = ux
+	_mz = uz
+	_speed = speed * (0.6 if d < 5.0 else 1.0)
+
+
+## Support: stays 12-20 m from the target and mends allies within heal_radius (cfg heal_rate hp/s each, not itself). Kill it first.
+func _move_mender(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
+	var mgr := Game.enemies as EnemyManager
+	if mgr != null:
+		var rate := float(cfg.get("heal_rate", 14.0)) * delta
+		var r := float(cfg.get("heal_radius", 9.0))
+		for e in mgr.list:
+			if e == self or not e.active or e.dead or e.hp >= e.max_hp:
+				continue
+			if e.global_position.distance_to(global_position) <= r:
+				var add := minf(rate, e.max_hp - e.hp)
+				e.hp += add
+				healed += add
+	if d < 12.0:
+		_mx = -ux
+		_mz = -uz
+		_speed = speed
+	elif d > rng:
+		_mx = ux
+		_mz = uz
+		_speed = speed
+	else:
+		super._move_aware(delta, ux, uz, d, speed * 0.5, rng)
+
+
+func pounce_count() -> int:
+	return _pounces
 
 
 func _move_warden(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
@@ -434,7 +516,7 @@ func _fire_cycle(delta: float, d: float, rng: float) -> void:
 		&"walker":
 			_fire_walker(delta, d, rng)
 			return
-		&"brute":
+		&"brute", &"pouncer":
 			return                                              # no ranged attack
 		&"sniper":
 			if _aim_t > 0.0 and _aim_t <= SNIPER_LOCK and not _locked:
@@ -497,6 +579,8 @@ func threat_charge() -> float:
 		if _roar_t > 0.0:
 			return clampf(1.0 - _roar_t / ROAR_TIME, 0.0, 1.0)
 		return 1.0 if _charging else 0.0
+	if role == &"pouncer" and _pounce_wind > 0.0:
+		return clampf(1.0 - _pounce_wind / POUNCE_WIND, 0.0, 1.0)
 	if role == &"stalker" and _blink_wind > 0.0:
 		return clampf(1.0 - _blink_wind / BLINK_WIND, 0.0, 1.0)
 	if role == &"walker" and _shell_t > 0.0:
@@ -509,7 +593,7 @@ func threat_charge() -> float:
 
 
 func shows_aim_line() -> bool:
-	if role == &"brute" or role == &"walker":
+	if role == &"brute" or role == &"walker" or role == &"pouncer":
 		return false
 	return super.shows_aim_line()
 
