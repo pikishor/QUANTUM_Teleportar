@@ -33,3 +33,22 @@ Wave 21 F1+B1, 22 G1+C1, 23 A1+D2, 24 B2+B3, 25 H1+H2, 26 E1+E2, 27 F2+F3, 28 C2
 - CI gate: after pushing, wait for the GitHub CI run of that exact commit to finish green BEFORE the next wave starts (never push two waves inside one CI run; pushes cancel earlier runs). If it is red, fix it first.
 - Android build every few waves; fresh-clone check every ~6 waves.
 - Owner feedback after each build: FPS reading, 1-2 screenshots, one line on feel.
+
+## Plan for waves 53-100 (draft for owner review; revised after every owner test)
+Done through wave 52 (in progress): abilities, weapons, enemies, vehicles, interiors, campaign, activities, events, accessibility, balance, sky/lighting.
+Phase A, Look and phone fit (53-60)
+- 53 Render resolution option (Balanced/High/Native + FSR upscaling), full-res maps on HIGH, restore 2K ORM where visible.
+- 54 Character art integration #1: owner-supplied rigged hero/citizens via CharacterImport, quantum material pass.
+- 55 Character art integration #2: enemies from owner packs, LODs, animation retarget polish, hit reactions.
+- 56 Vehicle art integration: owner-supplied cars/bikes, wheel setups, damage states, paint.
+- 57 Environment art integration: scanned PBR textures + HDR skies from owner packs, kit pieces for facades.
+- 58 Visual consistency pass: palette, exposure, tone mapping, per-district look, QA contact sheets vs references.
+- 59 Animation polish: locomotion blends, cover/vault, takedowns, facial/eye-lite, weapon handling.
+- 60 First owner-device tuning round: use perf overlay reports to set tier defaults, fix hotspots.
+Phase B, Content depth (61-75)
+- 61-62 Campaign chapters 9-12 (sequel arc) with set pieces. 63 New district + 6 interiors. 64-65 20 more side missions with variety. 66 Heist missions. 67 Co-op-free companion AI ally. 68 Vehicle chase scenarios x6. 69 Stealth missions x4. 70 Boss rush + arena. 71 Collectible lore (text, no lectures). 72 Photo mode. 73 Replays/ghosts for races. 74 New Game+. 75 Content balance pass.
+Phase C, Systems depth (76-88)
+- 76 Skill tree (ability upgrades per verb). 77 Weapon crafting/mods. 78 Cover AI v2. 79 Squad tactics v2 and enemy factions. 80 Wanted/heat system v2 with patrol responses. 81 Dynamic economy events. 82 Property/safehouses. 83 NPC schedules v2 and dialogue barks. 84 Weather gameplay v2. 85 Day/night missions. 86 Radio shows (synth) and music director v2. 87 Haptics (vibration) and controller support. 88 Tutorial/onboarding v2 from playtest.
+Phase D, Release hardening (89-100)
+- 89 Play Asset Delivery split + AAB under limits. 90 Signed release pipeline dry run (owner secrets). 91 iOS build/TestFlight dry run (owner accounts). 92 Crash/ANR audit, soak 60 min. 93 Memory/thermal tuning, battery mode. 94 Accessibility audit + localisation QA. 95 Store assets: icon, screenshots, trailer capture mode. 96 Privacy/age-rating docs finalised with owner. 97 Fresh-clone + CI hardening, flaky test purge. 98 Beta build, owner feedback round. 99 Fix list from beta. 100 Release candidate.
+Owner dependencies: character/vehicle/texture packs (54-57), device reports (60+), store accounts and secrets (90-91), legal review of privacy text (96).
