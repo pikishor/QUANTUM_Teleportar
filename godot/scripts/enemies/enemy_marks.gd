@@ -26,6 +26,8 @@ var _line_node: MultiMeshInstance3D
 var _bar_xf: Array[Transform3D] = []     ## bars of this refresh, written behind the rings once their number is known (no allocation per frame)
 var _bar_col := PackedColorArray()
 var _bar_hp := PackedFloat32Array()
+var _pip_xf: Array[Transform3D] = []     ## alert pips of this refresh (Drone.alert_pip: 1 suspicious, 2 searching, 3 alerted)
+var _pip_col := PackedFloat32Array()
 var _occluded := PackedByteArray()       ## per list slot: 1 = the world is between the camera and that enemy (cached)
 var _tick := 0
 var _ray := PhysicsRayQueryParameters3D.new()
@@ -36,13 +38,15 @@ func _ready() -> void:
 	global_transform = Transform3D.IDENTITY
 	var quad := QuadMesh.new()
 	quad.size = Vector2.ONE
-	halos = _make(quad, HALO_SHADER, CAPACITY * 4, "Halos")
+	halos = _make(quad, HALO_SHADER, CAPACITY * 5, "Halos")
 	var box := BoxMesh.new()
 	box.size = Vector3(0.06, 0.06, 1.0)
 	lines = _make(box, LINE_SHADER, CAPACITY, "AimLines")
 	_bar_xf.resize(CAPACITY)
 	_bar_col.resize(CAPACITY)
 	_bar_hp.resize(CAPACITY)
+	_pip_xf.resize(CAPACITY)
+	_pip_col.resize(CAPACITY)
 	_occluded.resize(CAPACITY)
 	_ray.collision_mask = Game.L_WORLD
 	_ray.collide_with_areas = false
@@ -79,6 +83,7 @@ func refresh(list: Array[Drone]) -> void:
 	var hn := 0
 	var ln := 0
 	var bn := 0
+	var pn := 0
 	var n := 0
 	for d in list:
 		if not d.active or not d.visible:
@@ -136,6 +141,12 @@ func refresh(list: Array[Drone]) -> void:
 					lines.set_instance_color(ln, col)
 					lines.set_instance_custom_data(ln, Color(charge, 0.0, 0.0, 0.0))
 					ln += 1
+		var pip := d.alert_pip()
+		if pip > 0.0 and pn < CAPACITY and dist < FAR * 0.7:
+			var ps := clampf(0.7 + dist * 0.045, 0.9, 2.6)
+			_pip_xf[pn] = Transform3D(Basis.from_scale(Vector3.ONE * ps), d.global_position + Vector3(0.0, d.center_y + d.radius * (1.0 if d.type != &"operative" else 1.25) + 0.6 + ps * 0.5, 0.0))
+			_pip_col[pn] = float(pip)
+			pn += 1
 		var bt := d.bar_time()
 		if bt > 0.0 and bn < CAPACITY:
 			var w := clampf(0.5 + dist * 0.11, 1.5, 3.4) * (1.0 if d.max_hp < 150.0 else 1.25)
@@ -146,11 +157,15 @@ func refresh(list: Array[Drone]) -> void:
 			bn += 1
 	ring_count = hn
 	bar_count = bn
+	for i in pn:                                                       # the alert pips (stealth, shader mode 4) follow the bars in the same MultiMesh
+		halos.set_instance_transform(hn + bn + i, _pip_xf[i])
+		halos.set_instance_color(hn + bn + i, Color.WHITE)
+		halos.set_instance_custom_data(hn + bn + i, Color(_pip_col[i], 0.0, 0.0, 4.0))
 	for i in bn:                                                       # the bars follow the rings in the same MultiMesh (shader mode 3)
 		halos.set_instance_transform(hn + i, _bar_xf[i])
 		halos.set_instance_color(hn + i, _bar_col[i])
 		halos.set_instance_custom_data(hn + i, Color(_bar_hp[i], 0.0, 0.0, 3.0))
-	halos.visible_instance_count = hn + bn
+	halos.visible_instance_count = hn + bn + pn
 	lines.visible_instance_count = ln
 
 

@@ -35,6 +35,13 @@ var radius := 0.95
 var aware := false
 var aware_dist := AWARE_DIST        ## sight range; interiors lower it for stealthy guards (scripts/interiors_gameplay/interior_actors.gd), activate() resets it
 var linked: Drone
+var suspicion := 0.0          ## 0..1 (Stealth): seeing or hearing the player fills it; 1 = searching, sight at close range = alerted
+var search_t := 0.0           ## seconds left searching `last_known` (Stealth.Level.SEARCHING)
+var last_known := Vector3.ZERO
+var _lost_t := 0.0
+var _pip_t := 0.0            ## seconds the '!' pip still shows after becoming alerted
+var _was_aware := false
+var _unaware_hit := false     ## the damage in progress hits an unaware enemy (a silent takedown when it kills)
 var dead := false
 var reinforce := false
 var active := false          ## in play (pooled drones are inactive, hidden and out of the group)
@@ -122,6 +129,10 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	dead = false
 	remove = false
 	aware = is_aware
+	_was_aware = is_aware
+	suspicion = 0.0
+	search_t = 0.0
+	_lost_t = 0.0
 	aware_dist = AWARE_DIST
 	reinforce = is_reinforce
 	linked = null
@@ -182,6 +193,64 @@ func alert() -> void:
 	aware = true
 
 
+## Alert level (Stealth.Level) for the indicator.
+func alert_level() -> int:
+	return Stealth.level_of(aware, search_t, suspicion)
+
+
+## Alert pip shown above the head: 0 none, 1 suspicious '?', 2 searching '?', 3 alerted '!' (briefly after the alert).
+func alert_pip() -> int:
+	if dead or not active:
+		return 0
+	var lv := alert_level()
+	if lv == Stealth.Level.ALERTED:
+		return 3 if _pip_t > 0.0 else 0
+	return lv
+
+
+## Heard a noise at `pos`: suspicion rises; at 1.0 the enemy searches the spot.
+func hear(pos: Vector3, amount: float) -> void:
+	if aware or dead:
+		return
+	suspicion = minf(suspicion + amount, 1.0)
+	last_known = Vector3(pos.x, 0.0, pos.z)
+	if suspicion >= 1.0:
+		search_t = Stealth.t("search_sec")
+
+
+func _tick_stealth(delta: float, d: float) -> void:
+	var seen := _tgt_ok and not aware and (d < aware_dist * Weather.sight_mult())
+	if seen:
+		suspicion = minf(suspicion + delta * Stealth.sight_rate(d, aware_dist), 1.0)
+		last_known = Vector3(_tgt.x, 0.0, _tgt.z)
+		if suspicion >= 1.0:
+			aware = true
+	elif not aware:
+		suspicion = maxf(suspicion - delta * Stealth.t("susp_decay"), 0.0) if search_t <= 0.0 else suspicion
+	if aware:
+		if not _was_aware:
+			Stealth.alerts += 1
+			_pip_t = 1.5
+		_pip_t = maxf(_pip_t - delta, 0.0)
+		suspicion = 1.0
+		search_t = 0.0
+		if not reinforce and Game.heat <= 0.0 and not los and _tgt_ok:
+			_lost_t += delta
+			if _lost_t > Stealth.t("lose_sec"):
+				aware = false
+				_lost_t = 0.0
+				suspicion = 0.5
+				search_t = Stealth.t("search_sec")
+				last_known = Vector3(_tgt.x, 0.0, _tgt.z)
+		else:
+			_lost_t = 0.0
+	elif search_t > 0.0:
+		search_t -= delta
+		if search_t <= 0.0:
+			suspicion = 0.0
+	_was_aware = aware
+
+
 func center() -> Vector3:
 	return global_position + Vector3(0.0, center_y, 0.0)
 
@@ -212,6 +281,7 @@ func is_disabled() -> bool:
 func damage(amount: float, crit := false, mirrored := false) -> void:
 	if dead or not active:
 		return
+	_unaware_hit = not aware and not mirrored
 	hp -= amount
 	aware = true
 	_bar_t = BAR_SECONDS
@@ -258,6 +328,11 @@ func die() -> void:
 	_death_effect()
 	_drop_pending = true
 	Game.score += int(cfg["score"])
+	if _unaware_hit and not reinforce:
+		Game.add_score(Stealth.takedown_bonus())
+		Stealth.takedowns += 1
+		Game.say("SILENT TAKEDOWN  +%d" % Stealth.takedown_bonus(), 1.2)
+	_unaware_hit = false
 	Game.heat += float(cfg["heat"])
 	Game.quiet = 0.0
 	var p := Game.player
@@ -330,8 +405,9 @@ func _physics_process(delta: float) -> void:
 	var dx := _tgt.x - pos.x
 	var dz := _tgt.z - pos.z
 	var d := maxf(sqrt(dx * dx + dz * dz), 0.001)
-	if _tgt_ok and not aware and (d < aware_dist * Weather.sight_mult() or (Game.heat > 0.0 and d < AWARE_HEAT_DIST)):
+	if _tgt_ok and not aware and Game.heat > 0.0 and d < AWARE_HEAT_DIST:
 		aware = true
+	_tick_stealth(delta, d)
 	_mx = 0.0
 	_mz = 0.0
 	_speed = 0.0
@@ -377,6 +453,19 @@ func _pick_target(p: Node3D) -> bool:
 
 func _think_idle(delta: float) -> void:
 	var pos := global_position
+	if search_t > 0.0 or suspicion > 0.05:
+		var sx := last_known.x - pos.x
+		var sz := last_known.z - pos.z
+		var sd := sqrt(sx * sx + sz * sz)
+		if search_t > 0.0 and sd > Stealth.t("search_arrive"):
+			_mx = sx / sd
+			_mz = sz / sd
+			_speed = _idle_speed() * 1.8
+			yaw = lerp_angle(yaw, atan2(-_mx, -_mz), 1.0 - exp(-4.0 * delta))
+			return
+		if sd > 0.5:                                  # suspicious or arrived: stand and face the spot (look around)
+			yaw = lerp_angle(yaw, atan2(-sx, -sz) + sin(_t * 1.3) * 0.6 * float(search_t > 0.0), 1.0 - exp(-4.0 * delta))
+			return
 	_wander_t -= delta
 	if _wander_t <= 0.0:
 		_wander_t = randf_range(2.0, 5.0)

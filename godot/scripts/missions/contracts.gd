@@ -479,6 +479,7 @@ func _begin() -> bool:
 		return false
 	time_left = time_total
 	state = &"active"
+	Stealth.reset_run()
 	started.emit(kind)
 	Sfx.play(&"ui_contract_accept")
 	_radio("start")
@@ -950,6 +951,14 @@ func _complete(speed: float) -> void:
 	done_count += 1
 	var k := kind
 	var msg := "CONTRACT COMPLETE  +%d CREDITS" % credits
+	if Stealth.contract_bonus_due():
+		var sb := int(Stealth.TUNING["contract_bonus"])
+		if prog != null:
+			prog.bonus_score(sb)
+		else:
+			Game.add_score(sb)
+		r["stealth_bonus"] = sb
+		msg += "  STEALTH +%d" % sb
 	if upgrade != &"":
 		msg += "  +%s" % Upgrades.title(upgrade)
 	Game.say(msg, 3.2)

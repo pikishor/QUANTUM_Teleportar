@@ -437,7 +437,7 @@ func _caps_and_budget() -> void:
 	for t: StringName in EnemyTypes.TYPES:
 		cap_total += int(EnemyTypes.TYPES[t].get("limit", 0))
 	TestLib.check(int(EnemyTypes.TYPES[&"brute"]["limit"]) <= 2 and int(EnemyTypes.TYPES[&"sniper"]["limit"]) <= 2 and int(EnemyTypes.TYPES[&"shield"]["limit"]) <= 3, "per-type limits keep the extra draws bounded")
-	TestLib.check(em.marks.halos.instance_count == EnemyMarks.CAPACITY * 4, "the marks stay two shared draws whatever the types")
+	TestLib.check(em.marks.halos.instance_count == EnemyMarks.CAPACITY * 5, "the marks stay two shared draws whatever the types")
 	# the scale and tint variants
 	var br := em.spawn(&"brute", Vector3(60.0, 0.0, 60.0), false)
 	var op := em.spawn(&"operative", Vector3(63.0, 0.0, 60.0), false)

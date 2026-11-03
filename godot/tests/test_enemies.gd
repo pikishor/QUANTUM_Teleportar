@@ -223,7 +223,7 @@ func _death() -> void:
 	p.energy = 50.0
 	d.damage(1000.0)
 	TestLib.check(d.dead and not d.is_in_group(&"enemy"), "a dead drone leaves the enemy group")
-	TestLib.check(Game.score == 50, "sentinel kill: +50 score (got %d)" % Game.score)
+	TestLib.check(Game.score == 50 + Stealth.takedown_bonus(), "sentinel kill: +50 score (got %d)" % Game.score)
 	TestLib.check(is_equal_approx(Game.heat, 0.22), "sentinel kill: +0.22 heat (got %.2f)" % Game.heat)
 	TestLib.check(is_equal_approx(p.energy, 58.0), "energy refund +8 (got %.1f)" % p.energy)
 	TestLib.check(mgr.alive_count() == 0, "a corpse does not count towards the cap")
@@ -289,7 +289,7 @@ func _awareness() -> void:
 	mgr.clear()
 	var near := _spawn(&"sentinel", Vector3(-10.0, 0.0, 40.0))   # about 41 m: outside 32
 	var close := _spawn(&"sentinel", Vector3(-30.0, 0.0, 30.0))  # 26 m
-	await secs(0.3)
+	await secs(1.2)
 	TestLib.check(close.aware and not near.aware, "within 32 m: aware; at 41 m: not")
 	Game.heat = 0.0
 

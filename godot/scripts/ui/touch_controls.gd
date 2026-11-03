@@ -78,6 +78,9 @@ func _ready() -> void:
 	add_child(_canvas)
 	_canvas.draw.connect(_draw_ui)
 	Game.state_changed.connect(func(_s: StringName) -> void: release_all())
+	var ms := MapScreen.new()                       # H3: tracks discovered cells even while closed; opened by a minimap tap or key M
+	ms.name = "MapScreen"
+	add_child(ms)
 	set_process(controls_on or perf_on)
 
 
@@ -176,6 +179,11 @@ func touch_down(id: int, pos: Vector2) -> void:
 		return
 	if pos.distance_to(_pause_center()) <= 36.0 * _scale() * 1.3:
 		pause_requested.emit()
+		return
+	var mm := _minimap_rect()
+	if mm.has_point(pos):                                              # H3: a tap on the minimap opens the full map
+		Sfx.play(&"ui_tap")
+		open_map()
 		return
 	for b: Dictionary in BUTTONS:
 		if button_visible(b) and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]) * UiSettings.s_button_size, UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
@@ -297,6 +305,21 @@ func button_visible(b: Dictionary) -> bool:
 		&"radio":
 			return is_instance_valid(Game.vehicles) and Game.vehicles.get("radio") != null and _driving()
 	return true
+
+
+func _minimap_rect() -> Rect2:
+	var vp := _vp_size()
+	var s := _scale()
+	return Rect2(Vector2(UiUtil.insets(vp).x + 16.0 * s, 14.0 * s + UiUtil.insets_v(vp).x), Vector2(Hud.MINIMAP, Hud.MINIMAP) * s)
+
+
+func open_map() -> void:
+	var ms := get_node_or_null("MapScreen") as MapScreen
+	if ms == null:
+		ms = MapScreen.new()
+		ms.name = "MapScreen"
+		add_child(ms)
+	ms.open()
 
 
 func _open_garage() -> void:

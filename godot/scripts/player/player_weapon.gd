@@ -363,6 +363,9 @@ func _shoot(dt: float, aiming: bool) -> void:
 	_burst += 1
 	var pellets := int(def["pellets"])
 	Sfx.play(&"shot", float(def["vol"]), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
+	var gm := Game.enemies as EnemyManager
+	if gm != null and is_instance_valid(p) and float(def["vol"]) > -20.0:
+		Stealth.noise(gm.list, p.global_position, &"gun")
 	if pellets > 1:
 		Sfx.play(&"explosion_small", -8.0, randf_range(1.4, 1.6))
 	if int(def["eject"]) > 0:

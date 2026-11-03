@@ -38,7 +38,28 @@ void fragment() {
 		float charge = v_data.x;
 		float aware = v_data.y;
 		float mode = v_data.w;
-		if (mode < 0.5) {
+		if (mode > 3.5) {
+			// alert pip (stealth): x = level 1 suspicious / 2 searching / 3 alerted; '?' for 1-2, '!' for 3, above the head. Colour by level, pulsing while searching.
+			float lvl = v_data.x;
+			vec2 q = p * 1.15;
+			float aa2 = max(fwidth(q.x), 0.01);
+			float dotm = 1.0 - smoothstep(0.13 - aa2, 0.13 + aa2, length(q - vec2(0.0, -0.62)));
+			float shape;
+			if (lvl > 2.5) {
+				float bar = (1.0 - smoothstep(0.13 - aa2, 0.13 + aa2, abs(q.x))) * step(-0.38, q.y) * step(q.y, 0.7);
+				shape = max(bar, dotm);
+			} else {
+				vec2 c = q - vec2(0.0, 0.36);
+				float arc = 1.0 - smoothstep(0.1 - aa2, 0.1 + aa2, abs(length(c) - 0.34));
+				float keep = max(step(0.0, c.y), step(0.0, c.x) * step(-0.24, c.y));       // the arc without its lower-left part
+				float stem = (1.0 - smoothstep(0.1 - aa2, 0.1 + aa2, abs(q.x))) * step(-0.34, q.y) * step(q.y, -0.05);
+				shape = max(arc * keep, max(stem * 0.0, dotm));
+			}
+			vec3 pc = lvl > 2.5 ? vec3(1.0, 0.18, 0.12) : (lvl > 1.5 ? vec3(1.0, 0.55, 0.1) : vec3(1.0, 0.9, 0.25));
+			float pl = lvl > 1.5 && lvl < 2.5 ? 0.8 + 0.2 * sin(TIME * 9.0) : 1.0;
+			a = shape * pl * step(max(abs(q.x), abs(q.y)), 1.0);
+			col = pc * a;
+		} else if (mode < 0.5) {
 			// a THIN, crisp ring (never a fuzzy halo): its width is at least ~1.5 screen pixels so it stays a clean line at 15-40 m. Unaware = a dashed, dim ring;
 			// aware = solid and brighter; charging = brightest, a little thicker and pulsing; a hit flashes it white.
 			float aa = max(fwidth(r), 0.002);

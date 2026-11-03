@@ -311,3 +311,7 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 - Integrator fixes: hud layout key format (StringName with %d) and stub-progress guards.
 - Full suite green (test_stability flaky once). Visual QA 12/12.
 - Follow-ups: LookScreen/GarageScreen layouts and 3D suit preview not checked visually; no 844x390 run; garage car HP resets on tune; garage car art unchanged.
+
+## Wave 39: stealth and alert states, map screen
+- Stealth (stealth.gd, drone suspicion/search, noise, '?'/'!' pip in the halo draw) and MapScreen (M or minimap tap, waypoint, markers, fog, user://map.cfg). Full suite green (test_map_screen flaky once, passed on retry). Visual QA 12/12. Perf gate not run.
+- Follow-ups: sight alert takes up to 0.6 s; suppressor noise not handled; '?' pip glyph unchecked visually; garage markers use warehouse/cargo_bay doors; waypoint not on HUD/minimap; map not checked at 844x390 or 1280x720; test_map_screen flake cause unknown; minimap tap path untested.

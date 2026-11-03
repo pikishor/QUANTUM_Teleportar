@@ -49,6 +49,7 @@ var _stream_t := 0.0
 var _patrols_built := false
 var _clone: Node3D
 var _clone_frame := -1
+var _noise_t := 0.0
 var marks: EnemyMarks                ## threat rings, attack telegraph, health bars (3 draws for everybody)
 var _mm: MultiMesh
 var _mmi: MultiMeshInstance3D
@@ -384,6 +385,7 @@ func _physics_process(delta: float) -> void:
 	_sweep(ppos)
 	if is_instance_valid(p):
 		_tick_heat(delta, ppos)
+		_tick_noise(delta, p)
 		_tick_reinforcements(delta, ppos)
 		_tick_stream(delta, ppos)
 	_tick_bolts(delta)
@@ -399,6 +401,22 @@ func _sweep(ppos: Vector3) -> void:
 				and Vector2(e.global_position.x - ppos.x, e.global_position.z - ppos.z).length() > DESPAWN_DIST:
 			release(e)
 		i = mini(i - 1, list.size() - 1)
+
+
+## Stealth noise from the player: sprinting footsteps, a loud vehicle, and the SUPERPOSITION clone as a decoy.
+func _tick_noise(delta: float, p: Node3D) -> void:
+	_noise_t -= delta
+	if _noise_t > 0.0:
+		return
+	_noise_t = Stealth.t("sprint_every")
+	if bool(p.get(&"sprinting")):
+		Stealth.noise(list, p.global_position, &"sprint")
+	var v: Variant = p.get(&"vehicle")
+	if v is Node3D and is_instance_valid(v):
+		Stealth.noise(list, (v as Node3D).global_position, &"vehicle", absf(float((v as Node3D).get(&"speed"))))
+	var c := get_clone()
+	if c != null:
+		Stealth.noise(list, c.global_position, &"decoy")
 
 
 func _tick_heat(delta: float, ppos: Vector3) -> void:
