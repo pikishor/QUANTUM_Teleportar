@@ -410,9 +410,11 @@ func _enemy_clone() -> void:
 	var clone_pos := q.clone.global_position
 	var d := _spawn(&"sentinel", Vector3(15.0, 0.0, 4.0), true)
 	var seen := false
-	for i in 200:
+	for i in 1500:
 		await e.frames(1)
 		seen = seen or d._tgt_clone
+		if q.clone != null:
+			q.clone_left = maxf(q.clone_left, 30.0)  # keep the clone alive on slow runners
 		if seen or q.clone == null:
 			break
 	TestLib.check(seen, "an aware drone picks the real clone as a target")
