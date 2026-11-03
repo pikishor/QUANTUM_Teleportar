@@ -58,6 +58,17 @@ static func fire_escape_mesh() -> ArrayMesh:
 	return b.build(null, true, true)
 
 
+## A rooftop access ladder, 30 m tall (rails, rungs every metre), standing 0.12 m off the wall (+Z outward). Instances scale y to the building height.
+static func ladder_mesh() -> ArrayMesh:
+	var b := _mb(0.85, 0.55)
+	var iron := Color(0.04, 0.042, 0.045, 0.0)
+	for x in [-0.28, 0.28]:
+		b.box(Vector3(x, 15.0, 0.12), Vector3(0.05, 30.0, 0.05), iron, false)
+	for i in 30:
+		b.box(Vector3(0.0, 0.5 + float(i), 0.12), Vector3(0.56, 0.03, 0.03), iron, false)
+	return b.build(null, true, true)
+
+
 ## Vertical neon blade sign sticking out of a wall (+Z outward), double sided.
 static func blade_mesh() -> ArrayMesh:
 	var b := _mb(0.2, 0.5)
@@ -217,6 +228,10 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 	var rng: RandomNumberGenerator = props.rng
 	var awn: Array = []
 	var fire: Array = []
+	var ladders: Array = []
+	var lrng := RandomNumberGenerator.new()        ## own stream: the ladders must not move any other roof family
+	lrng.seed = 7301
+	Traversal.clear_zones()
 	var blades: Array = []
 	var ac: Array = []
 	var tanks: Array = []
@@ -280,6 +295,15 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 				var xf3 := Transform3D(Basis(Vector3.UP, float(wp3[1])) * Basis.from_scale(Vector3(1.0, fh / 3.5, 1.0)), Vector3(lot.cx + q3.x, y3, lot.cz + q3.y))
 				fire.append([xf3, Color(rng.randf(), 0.0, 0.0, 1.0)])
 				fl += 2
+
+		# ---- rooftop access ladder on some low buildings (a climb zone for Traversal, one instanced mesh) ----
+		if b.cls == &"block" and lot.h <= 30.0 and lot.h >= 6.0 and lrng.randf() < 0.3:
+			var lface := street_faces[lrng.randi() % 2]
+			var lwp: Array = wall_point(lot, lface, wall_width(lot, lface) * lrng.randf_range(0.2, 0.8))
+			var lq: Vector2 = lwp[0]
+			var lxf := Transform3D(Basis(Vector3.UP, float(lwp[1])) * Basis.from_scale(Vector3(1.0, lot.h / 30.0, 1.0)), Vector3(lot.cx + lq.x, 0.0, lot.cz + lq.y))
+			ladders.append([lxf, Color(lrng.randf(), 0.0, 0.0, 1.0)])
+			Traversal.add_zone(lxf.origin, lxf.basis.orthonormalized() * Vector3(0.0, 0.0, 1.0), lot.h)
 
 		# ---- roof clutter ------------------------------------------------------------------------------------------------
 		var tp: Array = BM.top_part(b.cls)
@@ -371,6 +395,7 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 
 	props.add_family("Awnings", awning_mesh(), awn, false, false, 0, 170.0)
 	props.add_family("FireEscapes", fire_escape_mesh(), fire, false, false, 1, 170.0)
+	props.add_family("RoofLadders", ladder_mesh(), ladders, false, false, 1, 120.0)
 	props.add_family("BladeSigns", blade_mesh(), blades, true, false, 0, 230.0)
 	props.add_family("RoofAC", ac_mesh(), ac, false, false, 0, 230.0)
 	props.add_family("RoofVents", hvac_mesh(), hvacs, false, false, 0, 210.0)

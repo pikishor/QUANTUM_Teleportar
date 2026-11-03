@@ -26,6 +26,8 @@ const BUTTONS := [
 	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},
 	{"action": &"collapse", "dx": 470.0, "dy": 450.0, "r": 46.0, "fs": 20, "label": "COLLAPSE", "need": &"quantum", "ability": 3},
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
+	{"action": &"crouch", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"foot"},
+	{"action": &"takedown", "dx": 175.0, "dy": 590.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
@@ -273,6 +275,11 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.player) and Game.player.get("quantum") != null
 		&"vehicle":
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
+		&"foot":
+			return is_instance_valid(Game.player) and not _driving()
+		&"takedown":
+			var pc: Object = Game.player.get("cover") if is_instance_valid(Game.player) else null
+			return pc != null and pc.get("target") != null and is_instance_valid(pc.get("target"))
 		&"radio":
 			return is_instance_valid(Game.vehicles) and Game.vehicles.get("radio") != null and _driving()
 	return true

@@ -98,6 +98,7 @@ var quantum: Node
 var camera_rig: CameraRig
 var body: PlayerBody
 var weapon: PlayerWeapon
+var cover: PlayerCover
 var decals: ImpactDecals
 var sparks: ImpactSparks
 ## Facing of the body (Node3D.rotation.y convention); eases toward the aim yaw.
@@ -130,6 +131,7 @@ var _phys_cur := Vector3.ZERO
 var _step_offset := 0.0                      ## visual drop smoothing after a step-up (metres, decays to 0)
 var _kc := KinematicCollision3D.new()
 var _kc2 := KinematicCollision3D.new()
+var traversal := Traversal.new()             ## vault / mantle / ledge grab / ladders (traversal.gd)
 var _aim_frame := -1
 var _aim_cache := {}
 
@@ -196,6 +198,11 @@ func _ensure_children() -> void:
 		sparks.name = "Sparks"
 		add_child(sparks)
 	weapon.set_effects(decals, sparks)
+	cover = get_node_or_null("Cover") as PlayerCover
+	if cover == null:
+		cover = PlayerCover.new()
+		cover.name = "Cover"
+		add_child(cover)
 	if get_node_or_null("AimAssist") == null:
 		var aa := AimAssist.new()
 		aa.name = "AimAssist"
@@ -230,6 +237,7 @@ func _on_next_sector() -> void:
 
 ## Fresh state at the spawn point: full hp / energy / ammo, 1.5 s of invulnerability, foot mode, camera behind the player.
 func reset() -> void:
+	traversal.cancel()
 	_set_vehicle(null)
 	_dead = false
 	hp = max_hp
@@ -263,6 +271,7 @@ func reset() -> void:
 ## Instantly move to a world position (blink, scripted moves): velocity is cleared and neither the body nor the camera streaks there.
 func teleport_to(pos: Vector3) -> void:
 	pos = PlayerUtil.safe_spot(pos, Game.world if is_instance_valid(Game.world) else null, get_world_3d().direct_space_state if is_inside_tree() else null)   # never outside the city walls, below the floor or inside a building
+	traversal.cancel()
 	global_position = pos
 	velocity = Vector3.ZERO
 	_ground_known = false
@@ -367,7 +376,7 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 		last_hurt_from = from_pos
 		hurt.emit(share)
 		return
-	hp -= amount * Upgrades.damage_taken()
+	hp -= amount * Upgrades.damage_taken() * (cover.damage_mult() if cover != null else 1.0)
 	since_hurt = 0.0
 	last_hurt_time = PlayerUtil.now()
 	last_hurt_from = from_pos
@@ -526,7 +535,9 @@ func _foot_tick(dt: float) -> void:
 	input_strafe = iv.x
 	input_move = iv
 	aiming = Input.is_action_pressed(&"aim")
-	var want_sprint := Input.is_action_pressed(&"sprint") and not aiming and forward_in > 0.3
+	var on_floor := is_on_floor() and _ground_known
+	cover.update(dt, on_floor, Vector2(velocity.x, velocity.z).length())
+	var want_sprint := Input.is_action_pressed(&"sprint") and not aiming and forward_in > 0.3 and not cover.crouching
 	var jump_down := Input.is_action_pressed(&"jump")
 	if jump_down and not _jump_was_down:
 		_jump_buffer = JUMP_BUFFER
@@ -540,13 +551,29 @@ func _foot_tick(dt: float) -> void:
 	var fwd := Vector3(-sin(look_yaw), 0.0, -cos(look_yaw))
 	var right := Vector3(cos(look_yaw), 0.0, -sin(look_yaw))
 	var wish := fwd * forward_in + right * iv.x
+	if traversal.tick(self, dt, forward_in, wish, _jump_buffer > 0.0):
+		if traversal.consumed_jump:
+			_jump_buffer = 0.0
+		sprinting = false
+		_ground_known = false
+		_was_on_floor = false
+		_fall_speed = 0.0
+		_coyote = 0.0
+		air_time = 0.0
+		weapon.poll_switch()
+		weapon.tick(dt, Input.is_action_pressed(&"fire"), reload_pressed, aiming, false)
+		return
+	if traversal.consumed_jump:
+		_jump_buffer = 0.0
+		_coyote = 0.0
 	var boost := speed_boost if speed_boost >= 1.0 else 1.0 + speed_boost
-	var top_speed := (AIM_SPEED if aiming else WALK_SPEED) * (SPRINT_MULT if want_sprint else 1.0) * boost
-	var on_floor := is_on_floor() and _ground_known
+	var top_speed := (AIM_SPEED if aiming else WALK_SPEED) * (SPRINT_MULT if want_sprint else 1.0) * boost * cover.speed_mult()
 	var k := GROUND_ACCEL if on_floor else AIR_ACCEL
 	velocity.x = PlayerUtil.damp(velocity.x, wish.x * top_speed, k, dt)
 	velocity.z = PlayerUtil.damp(velocity.z, wish.z * top_speed, k, dt)
 	var horizontal := Vector2(velocity.x, velocity.z).length()
+	cover.apply_velocity(dt)
+	horizontal = Vector2(velocity.x, velocity.z).length()
 	sprinting = want_sprint and horizontal > 3.0
 
 	# --- vertical: coyote time, jump buffering, half-step gravity (exact parabola at any tick rate)
@@ -583,7 +610,7 @@ func _foot_tick(dt: float) -> void:
 	weapon.poll_switch()
 	var assist := get_node_or_null("AimAssist") as AimAssist
 	var auto := assist != null and assist.wants_auto_fire()
-	weapon.tick(dt, Input.is_action_pressed(&"fire") or auto, reload_pressed, aiming, horizontal > 1.0)
+	weapon.tick(dt, (Input.is_action_pressed(&"fire") or auto) and not cover.sliding, reload_pressed, aiming, horizontal > 1.0)
 
 
 func _on_land(fall_speed: float) -> void:
@@ -634,7 +661,7 @@ func _process(delta: float) -> void:
 		yaw = PlayerUtil.damp_angle(yaw, camera_rig.get_aim_yaw(), 14.0, dt)
 	rotation.y = yaw
 	_step_offset = PlayerUtil.damp(_step_offset, 0.0, 14.0, dt)
-	camera_rig.pivot_y_offset = _step_offset
+	camera_rig.pivot_y_offset = _step_offset - (cover.drop() if cover != null else 0.0)
 	var view_pos := _phys_prev.lerp(_phys_cur, Engine.get_physics_interpolation_fraction())
 	view_pos.y += _step_offset
 	body.update_view(self, dt, view_pos, yaw)

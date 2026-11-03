@@ -253,6 +253,8 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	if e > 0.0:
 		global_position += Vector3(cos(yaw), 0.0, -sin(yaw)) * (DEAD_SHIFT * e)
 		_rest_on_floor(view_pos.y)
+	else:
+		_apply_cover_pose(p.cover, yaw)
 
 	# --- rim and glow: subtle at rest, brighter on a hit, while aiming and while a quantum power is active (no allocation: a few property writes on shared materials)
 	var q = p.quantum
@@ -293,6 +295,18 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 
 
 ## How far the fall has come, 0..1, for a normalised time k: it starts slowly and the weight of the body takes it down faster and faster.
+## Crouch squats the whole body (scale), a slide leans it back, a takedown lunges and tips it forward for a moment (G4).
+func _apply_cover_pose(c: PlayerCover, yaw: float) -> void:
+	var k := 1.0
+	if c != null:
+		k = clampf(c.height / PlayerCover.STAND_HEIGHT, 0.4, 1.0)
+		if c.peeking:
+			k = lerpf(k, 1.0, 0.55)
+		rotation.x += (0.55 if c.sliding else 0.0) - 0.45 * c.strike
+		global_position += Vector3(-sin(yaw), 0.0, -cos(yaw)) * (0.3 * c.strike)
+	scale = Vector3(1.0, k, 1.0)
+
+
 static func _fall_curve(k: float) -> float:
 	return pow(k, 1.6)
 

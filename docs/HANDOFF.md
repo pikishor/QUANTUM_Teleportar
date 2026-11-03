@@ -297,3 +297,7 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 ## Wave 35 note: day/night cycle, weather states
 - `DayNight` (12-min cycle from 21:00, sun/moon light, sky/fog/ambient, `night` shader param, traffic/crowd density, HUD clock appended to the credits line) and `Weather` (clear/overcast/drizzle/rain/storm/fog, sight/snipe multipliers, TEST MENU buttons, saved under `[weather]`). Weather uses its own RNG: using the global one shifted world layout and pushed tier 0 to 101-102 draws (budget 100). Perf OK tiers 0-2 (96/126/140 total draws). Visual QA 12/12.
 - Follow-ups: no Options toggle for freeze_time; thunder not synced to flash; interiors do not reset sight multiplier; test_interiors_world prop-vs-camera flake root cause unproven; tier 0 has only ~4 draws of headroom.
+
+## Wave 36 note: rooftop traversal, cover, takedowns
+- `Traversal` (vault/mantle/ladders on ~30% of low roofs, `RoofLadders` family = 1 extra draw) and `PlayerCover` (crouch, cover snap, peek, slide, takedown; Ctrl/V; touch CROUCH/TAKEDOWN). Full suite 87/87 after moving the touch CROUCH button clear of RADIO. Visual QA 12/12. Perf gate not run (one new draw call).
+- Follow-ups: no vault/mantle/slide/takedown animation; fire-escape stairs not walkable; no cover shoulder swap; takedown ignores awareness; vault test assumes ~0.8 m start; perf gate should be run for the RoofLadders draw.
