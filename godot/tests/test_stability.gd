@@ -103,6 +103,10 @@ func _vignette_and_hurt() -> void:
 	var cam := p.camera_rig.camera
 	TestLib.check(cam.global_position.is_finite() and cam.global_position.distance_to(p.global_position) < 6.0, "hurt spam: the camera stays with the player (%.1f m)" % cam.global_position.distance_to(p.global_position))
 	await e.secs(0.8)
+	var guard := 0
+	while (atmo.hurt_level != 0.0 or atmo.post.feedback() != Vector2(0.0, 1.0)) and guard < 20:
+		guard += 1
+		await e.secs(0.5)
 	TestLib.check(atmo.hurt_level == 0.0 and atmo.post.feedback() == Vector2(0.0, 1.0), "the hurt effect recovers completely")
 	TestLib.check(FX.shake_amount == 0.0, "the shake decays to zero")
 
