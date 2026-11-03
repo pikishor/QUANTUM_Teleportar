@@ -305,3 +305,9 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 ## Wave 37: side missions, collectibles, achievements
 - Added side missions (side_missions.gd, side_board.gd), 30 shards (collectibles.gd), 25 achievements (achievements.gd, achievements_screen.gd; tested in test_collectibles.gd). Full suite 89/89 pass, visual QA 12/12.
 - Follow-ups: HUD "SHARDS 0/30" label sits tight under the credits/heat row at top-right (minor crowding); cosmetic ids from achievements are recorded but not yet applied to the hero.
+
+## Wave 38 (hero customisation, garage)
+- G2 hero look (HeroLook, LookScreen, SUIT button in shop) and Garage (GarageScreen, CALL CAR / GARAGE touch buttons) added. Shop bottom row is now four 160 px buttons (LOADOUT, MISSIONS, SUIT, BACK).
+- Integrator fixes: hud layout key format (StringName with %d) and stub-progress guards.
+- Full suite green (test_stability flaky once). Visual QA 12/12.
+- Follow-ups: LookScreen/GarageScreen layouts and 3D suit preview not checked visually; no 844x390 run; garage car HP resets on tune; garage car art unchanged.

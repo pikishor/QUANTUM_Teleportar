@@ -194,6 +194,7 @@ func _reset_all() -> void:
 	_respawns.clear()
 	_ram_cd.clear()
 	_clock = 0.0
+	_summon_ready = 0.0
 	_stream_t = 0.0
 	_patrol_t = 0.0
 	starter = null
@@ -210,6 +211,7 @@ func _spawn_starter() -> void:
 	var v := _acquire(&"sport")
 	v.activate(VehicleSpecs.starter_pos(), VehicleSpecs.STARTER_HEADING)
 	v.visual.set_paint(VehicleSpecs.COLORS[VehicleSpecs.STARTER_COLOR])
+	v.paint_i = VehicleSpecs.STARTER_COLOR
 	v.is_starter = true
 	starter = v
 	list.append(v)
@@ -315,6 +317,96 @@ func _acquire(kind: StringName) -> Vehicle:
 	add_child(v)
 	v.setup(kind, self)
 	return v
+
+
+# --- garage (E3 / E6) ---------------------------------------------------------------------------------------------------
+
+var _garage_local: Garage             ## used when there is no Progress node (tests)
+var _summon_ready := 0.0              ## clock when CALL CAR works again
+
+
+## The garage of the player's save (Progress), or a local one without it.
+func get_garage() -> Garage:
+	if Game.progress != null and Game.progress.get(&"garage") is Garage:
+		return Game.progress.get(&"garage") as Garage
+	if _garage_local == null:
+		_garage_local = Garage.new()
+	return _garage_local
+
+
+## The live garage car, or null.
+func garage_car() -> Vehicle:
+	for v in list:
+		if v.garage_car:
+			return v
+	return null
+
+
+## Keeps the car being driven in the garage (the phone GARAGE button). Returns true when it was kept.
+func save_driven() -> bool:
+	var g := get_garage()
+	if driven == null or not g.save_car(driven):
+		return false
+	var old := garage_car()
+	if old != null and old != driven:
+		_release(old)
+	driven.apply_garage(g)                                # the saved car wears the garage tuning from now on
+	Game.say("CAR SAVED TO GARAGE", 1.6)
+	return true
+
+
+## Phone button CALL CAR: the garage car arrives beside the player. Only outdoors, on foot, while playing, and not more often than SUMMON_COOLDOWN.
+## Returns the car, or null (a message says why).
+func summon_garage() -> Vehicle:
+	var p := Game.player
+	var g := get_garage()
+	if not is_instance_valid(p) or not Game.is_playing() or not g.has_car() or driven != null or p.get(&"vehicle") != null:
+		return null
+	if InteriorGameplay.active or p.global_position.y >= 2.0:
+		Game.say("CALL CAR NEEDS OPEN STREET", 1.4)
+		return null
+	if _clock < _summon_ready:
+		Game.say("GARAGE CAR RECHARGING", 1.2)
+		return null
+	var yaw := float(p.get(&"yaw")) if p.get(&"yaw") != null else 0.0
+	var fwd := Vector3(-sin(yaw), 0.0, -cos(yaw))
+	var pos := p.global_position + fwd * 7.0
+	if is_instance_valid(Game.world) and Game.world.has_method(&"is_inside_building") and Game.world.call(&"is_inside_building", Vector3(pos.x, 1.0, pos.z)):
+		if Game.world.has_method(&"road_point_near"):
+			pos = Game.world.call(&"road_point_near", p.global_position, 6.0, 30.0)
+	var car := garage_car()
+	if car == null:
+		if list.size() >= cap():
+			_release_farthest(p.global_position)
+		car = _acquire(g.kind)
+		car.activate(pos, yaw)
+		car.apply_garage(g)
+		list.append(car)
+	else:
+		car.global_position = Vector3(pos.x, 0.0, pos.z)
+		car.rotation = Vector3(0.0, yaw, 0.0)
+		car.heading = yaw
+		car._heading_set = yaw
+		car.vel = Vector3.ZERO
+		car.speed = 0.0
+	car.update_lod(0.0)
+	_summon_ready = _clock + Garage.SUMMON_COOLDOWN
+	Game.say("GARAGE CAR INBOUND", 1.4)
+	return car
+
+
+func _release_farthest(from: Vector3) -> void:
+	var far: Vehicle = null
+	var best := -1.0
+	for v in list:
+		if v == driven or v.driver_is_player or v.garage_car:
+			continue
+		var d := _dist(v, from)
+		if d > best:
+			best = d
+			far = v
+	if far != null:
+		_release(far)
 
 
 # --- simulation -----------------------------------------------------------------------------------------------------------

@@ -103,6 +103,13 @@ var _gear_base: Array[Color] = []             ## the albedo each Gear override m
 var _gear_rim := 0.0
 var _gear_emis: Array[Color] = []             ## the base emission colour of each Gear material (the trim tint blends toward the sheen)
 var _fabric_mats: Array[BaseMaterial3D] = []
+var _look_gear0: Array[Color] = []            ## G2: the albedo of each Gear / Fabric material before the hero look (apply_look multiplies it)
+var _look_fab0: Array[Color] = []
+var _look_emis0: Array[Color] = []
+var _look_metal0: Array[float] = []
+var _look_rough0: Array[float] = []
+var _look_accent := Color.WHITE
+var _look_mix := 0.0                           ## how far the trim sheen is pulled toward the look's accent
 var _clock_look := 0.0
 var _charge := 0.0                    ## 0..1 QUANTUM TELEPORT charge (aiming a destination), smoothed
 var _ready_k := 1.0                   ## 0..1 how recharged the powers are (cooldown dims the seams)
@@ -543,6 +550,45 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 				# the baked atlas is much lighter than the legacy fabric the warm tint was calibrated on: darker and neutral-cool there
 				own.albedo_color = Color(0.36, 0.42, 0.5, 1.0) if gear else own.albedo_color * COMPAT_TINT
 			mi.set_surface_override_material(i, own)
+	if lift_fabric:
+		_look_gear0.clear()
+		_look_fab0.clear()
+		_look_emis0 = _gear_emis.duplicate()
+		_look_metal0.clear()
+		_look_rough0.clear()
+		for gm in _gear_mats:
+			_look_gear0.append(gm.albedo_color)
+			_look_metal0.append(gm.metallic)
+			_look_rough0.append(gm.roughness)
+		for fm in _fabric_mats:
+			_look_fab0.append(fm.albedo_color)
+		_look_mix = 0.0
+		if Game.progress != null and Game.progress.get(&"hero") is HeroLook:
+			apply_look(Game.progress.get(&"hero") as HeroLook)
+
+
+## G2: the hero look as material parameters only (albedo tint, metallic, roughness, emission, trim accent) on the existing override materials. Safe before the model exists.
+func apply_look(look: HeroLook) -> void:
+	if look == null or _look_gear0.size() != _gear_mats.size():
+		return
+	var sd := look.suit_def()
+	var mult := (sd["albedo"] as Color) * look.tint()
+	var acc := look.accent()
+	var glow := float(sd["glow"])
+	var neutral := look.suit == &"standard" and look.scheme == 0 and look.accent_hue < 0
+	_look_accent = acc
+	_look_mix = 0.0 if neutral else HeroLook.ACCENT_MIX
+	for i in _gear_mats.size():
+		var gm := _gear_mats[i]
+		_gear_base[i] = Color(_look_gear0[i].r * mult.r, _look_gear0[i].g * mult.g, _look_gear0[i].b * mult.b, 1.0)
+		gm.albedo_color = _gear_base[i] * (LOW_ALBEDO if _quality == 0 else Color.WHITE)
+		gm.metallic = clampf(_look_metal0[i] + float(sd["metal"]), 0.0, 1.0)
+		gm.roughness = clampf(_look_rough0[i] + float(sd["rough"]), 0.05, 1.0)
+		_gear_emis[i] = _look_emis0[i].lerp(acc * (_look_emis0[i].get_luminance() + 0.02) * 4.0, 0.0 if neutral else HeroLook.ACCENT_MIX) * glow
+		gm.emission_energy_multiplier = glow if gm.emission_texture != null else 1.0
+	for i in _fabric_mats.size():
+		var fm := _fabric_mats[i]
+		fm.albedo_color = Color(_look_fab0[i].r * lerpf(1.0, mult.r, 0.5), _look_fab0[i].g * lerpf(1.0, mult.g, 0.5), _look_fab0[i].b * lerpf(1.0, mult.b, 0.5), 1.0)
 
 
 ## Thin-film sheen of the trim: the hue drifts with time and view-independent phase; `charge` (QUANTUM TELEPORT aim) pushes it toward violet-magenta and brighter,
@@ -569,7 +615,7 @@ func _update_quantum_look(q: Variant, dt: float) -> void:
 	_charge = PlayerUtil.damp(_charge, charge_t, 12.0 if charge_t > _charge else 4.0, dt)
 	_ready_k = PlayerUtil.damp(_ready_k, 1.0 - cd, 8.0, dt)
 	_clock_look += dt
-	var tint := trim_tint(_clock_look, _charge, _ready_k)
+	var tint := trim_tint(_clock_look, _charge, _ready_k).lerp(_look_accent, _look_mix)
 	var k := 0.35 if _is_compat() else 1.0
 	for i in _gear_mats.size():
 		_gear_mats[i].emission = _gear_emis[i].lerp(tint, 0.5 * (0.4 + 0.6 * _charge)) * (1.0 + 0.0 * k) if _gear_mats[i].emission_texture == null else tint * 0.9 * k

@@ -45,6 +45,7 @@ var _obj_text := ""
 var _cred_text := ""
 var _shard_text := ""               ## I2 tracker under the credits plate
 var _contract_text := ""
+var _look_open := false             ## G2: the pause shop shows the hero suit / colour screen (scripts/ui/look_screen.gd)
 var _loadout_open := false          ## the pause screen shows the weapon wheel and attachment loadout
 var _loadout_quick := false         ## opened from the wheel gesture: a pick resumes the game
 var _loadout_w: StringName = &"carbine"  ## the weapon whose slots the loadout shows
@@ -151,6 +152,7 @@ func _on_state(s: StringName) -> void:
 	_ach_open = false
 	_side_open = false
 	_loadout_open = false
+	_look_open = false
 	_loadout_quick = false
 	_chapters_open = false
 	_options_open = false
@@ -312,9 +314,46 @@ func _button_at(pos: Vector2) -> StringName:
 	return &""
 
 
+## The suit screen's buttons (`look_*`): equip or buy a suit / scheme / accent hue; `look_back` returns to the shop.
+func _press_look(sid: String) -> bool:
+	if sid == "look_back":
+		if not _look_open:
+			return false
+		_look_open = false
+		Sfx.play(&"ui_back")
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
+	if Game.state != &"paused" or not _look_open or Game.progress == null:
+		return false
+	var prog := Game.progress as Progress
+	var cos: Array = prog.achievements.cosmetics
+	var key := ""
+	var ok := false
+	if sid.begins_with("look_suit_"):
+		key = "suit:%s" % sid.substr(10)
+		ok = prog.hero.is_unlocked(key, cos) or prog.buy_look(key)
+		ok = ok and prog.hero.equip_suit(StringName(sid.substr(10)), cos)
+	elif sid.begins_with("look_scheme_"):
+		var i := int(sid.substr(12))
+		key = "scheme:%d" % i
+		ok = prog.hero.is_unlocked(key, cos) or prog.buy_look(key)
+		ok = ok and prog.hero.equip_scheme(i, cos)
+	elif sid == "look_hue_buy":
+		ok = prog.buy_look("accent")
+	elif sid.begins_with("look_hue_"):
+		ok = prog.hero.set_accent(int(sid.substr(9)))
+	Sfx.play(&"ui_purchase" if ok else &"ui_deny")
+	_layout_key = ""
+	_screen.queue_redraw()
+	return ok
+
+
 ## The effect of every screen button (the tests press them through here).
 func press_button(id: StringName) -> bool:
 	var sid := String(id)
+	if sid.begins_with("look_") and sid != "look_open":
+		return _press_look(sid)
 	if sid.begins_with("wheel_") or sid.begins_with("part_"):
 		if Game.state != &"paused" or not _loadout_open or Game.progress == null:
 			return false
@@ -432,6 +471,11 @@ func press_button(id: StringName) -> bool:
 			_loadout_open = true
 			_loadout_quick = false
 			_loadout_w = WeaponDefs.last_used
+			Sfx.play(&"ui_confirm")
+		&"look_open":
+			if Game.state != &"paused" or Game.progress == null or not _shop_open:
+				return false
+			_look_open = true
 			Sfx.play(&"ui_confirm")
 		&"loadout_back":
 			if Game.state != &"paused" or not _loadout_open:
@@ -681,7 +725,7 @@ func _process(delta: float) -> void:
 	if _text_t <= 0.0:
 		_text_t = 0.2
 		_obj_text = objective_text()
-		_shard_text = ("SHARDS  %d / %d" % [(Game.progress as Progress).collectibles.count(), Collectibles.COUNT]) if Game.progress != null else ""
+		_shard_text = ("SHARDS  %d / %d" % [(Game.progress as Progress).collectibles.count() if Game.progress.get("collectibles") != null else 0, Collectibles.COUNT]) if Game.progress != null else ""
 		_cred_text = "CREDITS  %d" % (int(Game.progress.get(&"credits")) if Game.progress != null else Game.score)
 		_contract_text = _contract_line()
 		_camp_text = _campaign_line()
@@ -1066,7 +1110,7 @@ func _ensure_layout() -> void:
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
 	key += "|%s" % _side_open
 	key += "|a%s%d" % [_ach_open, _ach_page]
-	key += "|%s%s%d%d%s" % [_loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size()]
+	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size()]
 	key += "|%s%d" % [_options_open, int(settings.hud_scale * 100.0)]
 	if key == _layout_key:
 		return
@@ -1103,6 +1147,8 @@ func _ensure_layout() -> void:
 				ChapterSelect.layout(self, cx, s)
 			elif _side_open:
 				SideBoard.layout(self, cx, s)
+			elif _look_open:
+				LookScreen.layout(self, cx, s)
 			elif _loadout_open:
 				LoadoutScreen.layout(self, cx, s, _loadout_w)
 			elif _shop_open:
@@ -1175,7 +1221,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.4))            # light: the animated city behind the title (scripts/cinematics) shows through
 			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.26))     # a darker column behind the title and buttons keeps them readable
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _ach_open or _side_open or _loadout_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _ach_open or _side_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1207,6 +1253,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				AchievementsScreen.draw(self, c, vp, s, font, cx, _ach_page)
 			elif _side_open:
 				SideBoard.draw(self, c, vp, s, font, cx)
+			elif _look_open:
+				LookScreen.draw(self, c, vp, s, font, cx)
 			elif _loadout_open:
 				LoadoutScreen.draw(self, c, vp, s, font, cx, _loadout_w)
 			elif _shop_open:

@@ -41,6 +41,8 @@ var side_done := {}                      ## side mission id -> completions (save
 var side_best := {}                      ## side mission id -> best time in seconds (saved in [side])
 var last_save_ok := false
 var collectibles: Collectibles                  ## I2: the 30 shards (saved in [collectibles])
+var hero := HeroLook.new()                      ## G2: suit, colour scheme and accent of the hero (saved in [hero])
+var garage := Garage.new()                      ## E3 / E6: the player's own car (saved in [garage])
 var achievements: Achievements                  ## I3: 25 achievements (saved in [achievements] and [ach_stats])
 
 var _last_score := 0
@@ -55,6 +57,7 @@ func _init() -> void:
 	add_child(collectibles)
 	achievements = Achievements.new()
 	add_child(achievements)
+	hero.changed.connect(_on_hero_look)
 	collectibles.changed.connect(func(_n: int) -> void: achievements.evaluate(); changed.emit())
 
 
@@ -122,6 +125,30 @@ static func enemy_hp_mult() -> float:
 	if is_instance_valid(Game.story):
 		ch = int(Game.story.get("chapter"))
 	return float(difficulty(ch)["hp"])
+
+
+# --- hero look (G2) -------------------------------------------------------------------------------------------------
+
+func _on_hero_look() -> void:
+	var pl := Game.player
+	if is_instance_valid(pl) and pl.get(&"body") is PlayerBody:
+		(pl.get(&"body") as PlayerBody).apply_look(hero)
+	changed.emit()
+	if autosave_enabled:
+		save_file()
+
+
+## Buys an item ("suit:<id>", "scheme:<i>", "accent") with credits. False when it is free, earned by achievement, owned, unknown or too dear.
+func buy_look(key: String) -> bool:
+	var price := HeroLook.item_price(key)
+	if price <= 0 or HeroLook.item_need(key) != "" or hero.owned.has(key) or not spend(price):
+		return false
+	hero.grant(key)
+	purchased.emit(StringName(key), 1)
+	changed.emit()
+	if autosave_enabled:
+		save_file()
+	return true
 
 
 # --- wallet, shop ---------------------------------------------------------------------------------------------------
@@ -314,6 +341,8 @@ func new_campaign() -> void:
 	checkpoint.clear()
 	collectibles.reset()
 	achievements.reset()
+	garage.reset()
+	hero.reset()
 	WeaponDefs.reset_unlocked()
 	Attachments.reset()
 	_frac = 0.0
@@ -477,11 +506,20 @@ func save_file() -> bool:
 	cf.set_value("campaign", "bosses", PackedInt32Array(bosses_cleared))
 	cf.set_value("campaign", "unlocked", unlocked)
 	cf.set_value("collectibles", "got", collectibles.to_save())
+	var hd := hero.to_save()
+	for hk: String in hd:
+		cf.set_value("hero", hk, hd[hk])
 	var ad := achievements.to_save()
 	cf.set_value("achievements", "done", ad["done"])
 	cf.set_value("achievements", "cosmetics", ad["cosmetics"])
 	for k: String in ad["stats"]:
 		cf.set_value("ach_stats", k, ad["stats"][k])
+	if garage.has_car():
+		var gd := garage.to_save()
+		cf.set_value("garage", "kind", gd["kind"])
+		cf.set_value("garage", "paint", gd["paint"])
+		for st in Garage.STATS:
+			cf.set_value("garage", "lv_%s" % st, garage.level(st))
 	for sid: StringName in side_done:
 		cf.set_value("side", "done_%s" % sid, int(side_done[sid]))
 		if side_best.has(sid):
@@ -545,6 +583,15 @@ func load_file() -> bool:
 		for k in cf.get_section_keys("ach_stats"):
 			ast[k] = cf.get_value("ach_stats", k, 0)
 	achievements.from_save({"done": cf.get_value("achievements", "done", PackedStringArray()), "cosmetics": cf.get_value("achievements", "cosmetics", PackedStringArray()), "stats": ast})
+	var hd := {}
+	if cf.has_section("hero"):
+		for hk in cf.get_section_keys("hero"):
+			hd[hk] = cf.get_value("hero", hk)
+	hero.from_save(hd, achievements.cosmetics)
+	var gd := {"kind": str(cf.get_value("garage", "kind", "")), "paint": cf.get_value("garage", "paint", Garage.DEFAULT_PAINT), "levels": {}}
+	for st in Garage.STATS:
+		gd["levels"][String(st)] = cf.get_value("garage", "lv_%s" % st, 0)
+	garage.from_save(gd)
 	side_done.clear()
 	side_best.clear()
 	for sid: StringName in SideMissions.ORDER:

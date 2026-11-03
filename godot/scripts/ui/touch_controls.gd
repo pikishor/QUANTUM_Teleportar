@@ -28,6 +28,8 @@ const BUTTONS := [
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
 	{"action": &"crouch", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"foot"},
 	{"action": &"takedown", "dx": 175.0, "dy": 590.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
+	{"action": &"garage_call", "dx": 490.0, "dy": 570.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"garage_call", "fn": &"summon"},
+	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
@@ -137,7 +139,7 @@ func release_all() -> void:
 	for a: StringName in MOVE_ACTIONS:
 		Input.action_release(a)
 	for b: Dictionary in BUTTONS:
-		if not b.get("call", false):                 # call buttons (RADIO) press no action, and its action only exists once a radio does
+		if not b.get("call", false) and not b.has("fn"):   # call and fn buttons (RADIO) press no action, and its action only exists once a radio does
 			Input.action_release(b["action"])
 	_held.clear()
 	_stick_id = -1
@@ -177,6 +179,13 @@ func touch_down(id: int, pos: Vector2) -> void:
 		return
 	for b: Dictionary in BUTTONS:
 		if button_visible(b) and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]) * UiSettings.s_button_size, UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
+			if b.has("fn"):                                            # CALL CAR / GARAGE: one tap, no action press
+				Sfx.play(&"ui_tap")
+				if b["fn"] == &"summon":
+					Game.vehicles.call(&"summon_garage")
+				else:
+					_open_garage()
+				return
 			if b.get("call", false):                                   # RADIO: one tap = Game.vehicles.radio.cycle() (no action press, so the key path cannot double-cycle)
 				Game.vehicles.radio.cycle()
 				Sfx.play(&"ui_tap")
@@ -280,9 +289,23 @@ func button_visible(b: Dictionary) -> bool:
 		&"takedown":
 			var pc: Object = Game.player.get("cover") if is_instance_valid(Game.player) else null
 			return pc != null and pc.get("target") != null and is_instance_valid(pc.get("target"))
+		&"garage_call":      # CALL CAR: on foot, outdoors, with a car kept in the garage
+			return is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage") and not _driving() and not InteriorGameplay.active \
+				and (Game.vehicles.call(&"get_garage") as Garage).has_car()
+		&"garage_open":      # GARAGE: while driving
+			return is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage") and _driving()
 		&"radio":
 			return is_instance_valid(Game.vehicles) and Game.vehicles.get("radio") != null and _driving()
 	return true
+
+
+func _open_garage() -> void:
+	var gs := get_node_or_null("GarageScreen") as GarageScreen
+	if gs == null:
+		gs = GarageScreen.new()
+		gs.name = "GarageScreen"
+		add_child(gs)
+	gs.open()
 
 
 func _driving() -> bool:

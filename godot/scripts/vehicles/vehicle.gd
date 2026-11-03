@@ -22,6 +22,8 @@ var active := false                 ## in play (a pooled car is inactive, hidden
 var dead := false                   ## exploded: stays as a husk (wreck) until the respawn, then goes back to the pool
 var wreck := false                  ## the visible, dark, unlit husk of an exploded car (no group, no simulation, never enterable)
 var is_starter := false
+var garage_car := false             ## the player's garage car (tuned spec, see apply_garage); reset when it goes back to the pool
+var paint_i := -1                   ## index into VehicleSpecs.COLORS of the current paint (-1 unknown)
 var ai := false                     ## traffic: follows its lane
 var ai_axis := 0                    ## 0 = along X, 1 = along Z
 var ai_dir := 1
@@ -149,6 +151,7 @@ func activate(pos: Vector3, h: float) -> void:
 	visual.model.position = Vector3(0.0, 0.0, 0.0)
 	var ci := randi() % VehicleSpecs.COLORS.size()
 	visual.set_paint(VehicleSpecs.COLORS[ci])
+	paint_i = ci
 	_drift_t = 9.0
 	drifting = false
 	visual.set_glow(VehicleSpecs.GLOWS[randi() % VehicleSpecs.GLOWS.size()])
@@ -183,7 +186,39 @@ func become_wreck() -> void:
 	visible = true
 
 
+## Makes this car the player's garage car: tuned spec, hit points, mounted weapon and paint from `g` (call after activate()).
+func apply_garage(g: Garage) -> void:
+	garage_car = true
+	spec = g.tuned_spec()
+	max_hp = float(spec["hp"])
+	hp = max_hp
+	var wd := g.weapon_def()
+	if not wd.is_empty():
+		if weapons == null:
+			weapons = VehicleWeapons.new()
+			weapons.setup(self)
+		weapons.def = wd
+		weapons.reload_full()
+	paint_i = g.paint
+	visual.set_paint(VehicleSpecs.COLORS[g.paint])
+
+
+func _reset_garage() -> void:
+	if not garage_car:
+		return
+	garage_car = false
+	spec = VehicleSpecs.SPECS[kind]
+	max_hp = float(spec["hp"])
+	hp = max_hp
+	if weapons != null:
+		if VehicleWeapons.has_weapon(kind):
+			weapons.setup(self)
+		else:
+			weapons = null
+
+
 func deactivate() -> void:
+	_reset_garage()
 	wreck = false
 	active = false
 	driver_is_player = false
