@@ -184,7 +184,7 @@ func _camera(host: Node) -> void:
 						outside += 1
 						bad = true
 					var sph := SphereShape3D.new()
-					sph.radius = 0.04
+					sph.radius = 0.01      # a point-like probe: only a camera really inside a solid fails (a few cm of skin differs between physics builds)
 					var qp := PhysicsShapeQueryParameters3D.new()
 					qp.shape = sph
 					qp.collision_mask = 1
