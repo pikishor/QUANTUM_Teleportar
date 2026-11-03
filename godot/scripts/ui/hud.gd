@@ -909,6 +909,8 @@ func _draw_hud_body() -> void:
 			var vh := UiUtil.num(veh, &"hp", 0.0)
 			_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
 		stack_end = _draw_priority(c, vp, s, font, plate.end.y + 3.0 * s)
+	if playing:
+		stack_end = _draw_activity(c, vp, s, font, stack_end + 3.0 * s)
 	UiUtil.stack_bottom = stack_end / s
 	if playing and _camp_text != "":
 		_draw_waypoint(c, vp, s, font, ins, insv)
@@ -1361,6 +1363,21 @@ func tutorial() -> Object:
 
 ## THE priority line under the bars: the contract line while one is offered or running (amber, with a thin progress bar), otherwise the core objective (magenta).
 ## The officer's boss bar hangs under it. Returns the new bottom of the stack (px).
+## Side-activity plate (time, score, best) under the top stack; returns the new bottom of the stack.
+func _draw_activity(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+	var a := get_tree().get_first_node_in_group(&"activities")
+	if a == null:
+		return y - 3.0 * s
+	var ro: Dictionary = a.call(&"readout")
+	if not ro["visible"]:
+		return y - 3.0 * s
+	var text := "%s   %s   %s   %s" % [ro["title"], ro["time"], ro["score"], ro["best"]]
+	var size := int(UiUtil.TEXT_MIN * s)
+	while size > int(14.0 * s) and _text_width(font, text, size) + 36.0 * s > vp.x - 40.0 * s:
+		size -= 1
+	return _plate_text(c, font, vp.x * 0.5, y, text, size, Color(UiUtil.AMBER.lerp(Color.WHITE, 0.35), 1.0), s, Color(UiUtil.AMBER, 0.7)).end.y
+
+
 func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
 	var k := _contracts()
 	var camp := _camp_text != "" and _campaign() != null

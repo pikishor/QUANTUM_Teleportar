@@ -6,6 +6,7 @@ const CE := preload("res://scripts/world/city_events.gd")
 
 func run(host: Node) -> void:
 	var ev := CE.new()
+	ev.spawn_actors = false
 	host.add_child(ev)
 	var prev := Game.state
 	Game.state = &"play"

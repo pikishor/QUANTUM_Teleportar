@@ -75,6 +75,7 @@ func run(host: Node) -> void:
 	var mgr := StubMgr.new()
 	host.add_child(mgr)
 	Game.enemies = mgr
+	player.global_position = Activities.entries()[&"arena"]
 	TestLib.check(a.start(&"arena"), "arena starts")
 	TestLib.check(a.progress_i == 1 and mgr.spawned == 2, "wave 1 spawned (%d)" % mgr.spawned)
 	for f in mgr.foes:

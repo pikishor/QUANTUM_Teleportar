@@ -339,3 +339,8 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 ## Wave 44 note: accessibility and localisation, audio pass 2
 - Tr (scripts/common/strings.gd): Spanish table, text scale, colour-safe deutan/tritan, reduce flash/motion, subtitle options. Audio pass 2: night/dawn/insects/thunder layers, ability sounds, new ducking kinds. Follow-ups: story/radio text not translated; unscaled lines without width limit; reduce flash only covers lightning and quantum flash; no real-device check of 1.5x text or Spanish layout; link/blink cues shared with contract completion; MUSIC_DB not retuned.
 - Full suite: 103 pass, 0 flaky, 0 fail. Perf gate skipped. Visual QA 11/11 pass; no new glaring defects in latest.png.
+
+## Wave 45 note: city events and activities wired into the live game
+- city_events.gd instantiated in main.gd (actors in city_event_actors.gd, rift gravity in player.gd, minimap markers). Activities got HUD plate, arena end (5 waves, 100 cr bonus), range/arena auto-end at 70 m, saved bests. New live tests: test_city_events_live, test_activities_live.
+- Full suite: 105 pass, 0 flaky, 0 fail. Perf gate skipped (not run; rift shader and event markers add draws, worth a gate next wave). Visual QA 12/12 pass; no glaring defects in latest.png.
+- Follow-ups: race failure path (AI car first) untested; heat on event success only loosely tested; drift needs real-car device check; parkour checkpoint reachability untested with real player; HUD plate not checked at 844x390/1280x720; events/activities not visible in the QA shots.

@@ -23,6 +23,9 @@ const DRIFT_TIME := 120.0
 const TARGETS := 5
 const BOARD_SIZE := 5
 const REWARD := {RANGE: 3, PARKOUR: 150, DRIFT: 200, ARENA: 40}   ## credits: per hit (range) / on finish / per wave (arena)
+const ARENA_WAVES := 5               ## clearing this many waves finishes the arena
+const ARENA_CLEAR_BONUS := 100
+const LEAVE_RADIUS := 70.0          ## range / arena end quietly when the player walks this far from the marker
 const COOLDOWN := 3.0
 const CHECK := 0.1
 
@@ -45,6 +48,7 @@ var progress_i := 0          ## checkpoint index (parkour / drift) or wave numbe
 var hits := 0
 var auto_enter := true
 var require_car := true
+var _car_run := false
 var _cool := 0.0
 var _check := 0.0
 var _mmi: MultiMeshInstance3D
@@ -64,6 +68,22 @@ static func entries() -> Dictionary:
 		DRIFT: Vector3(rc.call(1), 0.0, rc.call(1)) + o,
 		ARENA: Vector3(rc.call(6), 0.0, rc.call(6)) + o,
 	}
+
+
+## Arena spawn points: on the two roads crossing at the arena junction (never inside a building), 20-34 m from the marker.
+static func arena_spawns() -> Array[Vector3]:
+	var j: Vector3 = entries()[ARENA] - Vector3(7.0, 0.0, 7.0)
+	var out: Array[Vector3] = []
+	for d in [-34.0, -20.0, 20.0, 34.0]:
+		out.append(j + Vector3(d, 0.0, -5.0))
+		out.append(j + Vector3(5.0, 0.0, d))
+	return out
+
+
+## Range target positions: floating over the road the range marker stands on.
+static func target_pos(k: int) -> Vector3:
+	var b: Vector3 = entries()[RANGE]
+	return Vector3(b.x - 18.0 + 6.0 * (k % 7), 1.4 + 0.7 * (k % 3), b.z - 10.0 + 3.0 * (k % 3))
 
 
 ## Gate loop of the drift course: the ring of junctions (1,1)-(3,3), returning to the start.
@@ -95,9 +115,10 @@ static func parkour_points() -> Array[Vector3]:
 
 func _ready() -> void:
 	name = "Activities"
+	add_to_group(&"activities")
 	load_scores()
 	_build_visual()
-	Game.player_died.connect(stop)
+	Game.player_died.connect(_on_died)
 	Game.respawn.connect(stop)
 	Game.new_game.connect(stop)
 
@@ -126,6 +147,15 @@ func step(dt: float) -> void:
 		_check = 0.0
 		return
 	elapsed += dt
+	var e2: Vector3 = entries()[active]
+	if (active == RANGE or active == ARENA) and Vector2(p.global_position.x - e2.x, p.global_position.z - e2.z).length() > LEAVE_RADIUS:
+		Game.say("%s  LEFT" % NAMES[active], 1.5)
+		stop()
+		return
+	if active == DRIFT and _car_run and p.get(&"vehicle") == null:
+		Game.say("DRIFT COURSE  LEFT THE CAR", 1.5)
+		stop()
+		return
 	match active:
 		RANGE: _step_range()
 		PARKOUR: _step_course(ROOF_RADIUS, PARKOUR_TIME, true)
@@ -148,6 +178,7 @@ func start(id: StringName, ignore_car := false) -> bool:
 	if id == ARENA and not is_instance_valid(Game.enemies):
 		return false
 	active = id
+	_car_run = Game.player.get(&"vehicle") != null
 	elapsed = 0.0
 	progress_i = 0
 	hits = 0
@@ -161,6 +192,28 @@ func start(id: StringName, ignore_car := false) -> bool:
 	Game.say("%s  GO" % NAMES[id], 1.5)
 	started.emit(id)
 	return true
+
+
+func _on_died() -> void:
+	if active == ARENA:
+		_finish(false)      # the waves reached still count
+	else:
+		stop()
+
+
+## HUD data: {visible, title, time, score, best}.
+func readout() -> Dictionary:
+	if active == &"":
+		return {"visible": false}
+	var t := "%d" % ceili(maxf(RANGE_TIME - elapsed, 0.0)) if active == RANGE else "%.1f" % elapsed
+	var sc := ""
+	var b := float(best[active])
+	match active:
+		RANGE: sc = "HITS %d" % hits
+		ARENA: sc = "WAVE %d / %d" % [progress_i, ARENA_WAVES]
+		_: sc = "GATE %d / %d" % [mini(progress_i + 1, _course.size()), _course.size()]
+	var bs := "BEST --" if b <= 0.0 else "BEST " + _fmt(active, b)
+	return {"visible": true, "title": NAMES[active], "time": t, "score": sc, "best": bs}
 
 
 ## Ends the running activity without a result (death, respawn, new game, leaving).
@@ -209,6 +262,12 @@ func _step_arena() -> void:
 		var prog := Game.progress as Progress
 		if prog != null:
 			prog.add_credits(int(REWARD[ARENA]) * progress_i)
+		if progress_i >= ARENA_WAVES:
+			if prog != null:
+				prog.add_credits(ARENA_CLEAR_BONUS)
+			progress_i += 1         # waves cleared = progress_i - 1
+			_finish(true)
+			return
 		_next_wave()
 
 
@@ -216,11 +275,10 @@ func _next_wave() -> void:
 	progress_i += 1
 	_foes.clear()
 	var types: Array[StringName] = [&"operative", &"sentinel", &"striker", &"heavy"]
-	var base: Vector3 = entries()[ARENA]
 	var n := mini(progress_i + 1, 6)
+	var spots := arena_spawns()
 	for k in n:
-		var a := TAU * float(k) / float(n)
-		var d: Variant = Game.enemies.call(&"spawn", types[(k + progress_i) % types.size() if progress_i > 2 else 0], base + Vector3(cos(a), 0.0, sin(a)) * 18.0, true)
+		var d: Variant = Game.enemies.call(&"spawn", types[(k + progress_i) % types.size() if progress_i > 2 else 0], spots[k % spots.size()], true)
 		if d != null:
 			_foes.append(d)
 	Game.say("ARENA  WAVE %d" % progress_i, 1.5)
@@ -285,7 +343,6 @@ func _cleanup() -> void:
 
 
 func _spawn_targets() -> void:
-	var base: Vector3 = entries()[RANGE]
 	for k in TARGETS:
 		var t := Target.new()
 		t.collision_layer = Game.L_ENEMY
@@ -305,15 +362,13 @@ func _spawn_targets() -> void:
 		mi.material_override = _glow(Color(1.0, 0.35, 0.2))
 		t.add_child(mi)
 		add_child(t)
-		t.position = base + Vector3(-12.0 + 6.0 * k, 1.6 + 0.6 * (k % 2), 14.0 + 3.0 * (k % 3))
+		t.position = target_pos(k)
 		_targets.append(t)
 
 
 func _respawn_target(t: Target) -> void:
-	var base: Vector3 = entries()[RANGE]
 	t.dead = false
-	var k := randi() % 8
-	t.position = base + Vector3(-14.0 + 4.0 * k, 1.4 + 0.8 * (k % 3), 12.0 + 4.0 * (randi() % 3))
+	t.position = target_pos(randi() % 7)
 
 
 func target_count() -> int:

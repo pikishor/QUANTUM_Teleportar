@@ -4,6 +4,7 @@ extends Control
 ## once into a texture and drawn as ONE textured polygon; only the markers (enemies, cars, pickups, beacon, clone, cores clamped to the rim) are drawn live,
 ## and the whole thing redraws at about 15 Hz.
 
+const CityEventsScript := preload("res://scripts/world/city_events.gd")
 const RANGE_M := 130.0              ## metres from the centre to the rim
 const REFRESH := 1.0 / 15.0
 const EXTENT := 360.0               ## the texture covers |x|, |z| <= EXTENT
@@ -20,6 +21,7 @@ var contract_markers := 0           ## contract markers drawn (offer, target, zo
 var route_drawn := false            ## a courier route line was drawn in the last redraw
 var campaign_markers := 0           ## scripted campaign step markers drawn (waypoint, zone, target, escort, destination; also counted in contract_markers) in the last redraw
 
+var city_event_markers := 0         ## city event markers drawn in the last redraw (tests)
 var _key := 0
 var _t := 0.0
 var _t_clock := 0.0
@@ -116,6 +118,7 @@ func _draw() -> void:
 	core_markers = 0
 	contract_markers = 0
 	campaign_markers = 0
+	city_event_markers = 0
 	route_drawn = false
 	draw_circle(c, radius, Color(0.02, 0.06, 0.08, 0.82))
 	if InteriorGameplay.active:                  # inside an interior: its floor plan, vendors, guards and mission markers instead of the city
@@ -213,6 +216,19 @@ func _draw() -> void:
 		var before := contract_markers
 		_contract_layer(camp, c, inner, s, diamonds, rings)
 		campaign_markers = contract_markers - before
+	var cev: Object = CityEventsScript.current
+	if is_instance_valid(cev):                            # city events: a pulsing diamond and a ring (clamped to the rim when far)
+		for mk: Dictionary in cev.markers():
+			var ep: Vector3 = mk["pos"]
+			var em := to_map(ep.x, ep.z)
+			var far := em.length() > inner
+			if far:
+				em = em.normalized() * (inner - 3.0 * s)
+			var ecol := Color(0.85, 0.5, 1.0) if mk["kind"] == &"rift" else (UiUtil.hostile_col() if mk["kind"] == &"ambush" else UiUtil.objective_col())
+			diamonds.append([c + em, 4.4 * s, ecol])
+			if not far:
+				rings.append([c + em, maxf(float(mk["radius"]) * _k, 6.0 * s), Color(ecol, 0.55)])
+			city_event_markers += 1
 	for r: Rect2 in cars:
 		draw_rect(r, Color(0.7, 0.75, 0.8, 0.6))
 	for kind: Array in [[&"disc", discs], [&"diamond", diamonds], [&"ring", rings]]:

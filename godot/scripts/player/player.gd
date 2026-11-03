@@ -25,6 +25,7 @@ const AIM_SPEED := 3.4
 const SPRINT_MULT := 1.6
 const JUMP_SPEED := 7.6
 const GRAVITY := 22.0
+const CityEventsScript := preload("res://scripts/world/city_events.gd")
 const MAX_FALL_SPEED := 40.0
 const GROUND_ACCEL := 14.0                   ## exponential approach rates (1/s), src/player.js
 const AIR_ACCEL := 4.0
@@ -512,7 +513,7 @@ func _settle_tick(dt: float) -> void:
 	velocity.x = PlayerUtil.damp(velocity.x, 0.0, SETTLE_FRICTION, dt)
 	velocity.z = PlayerUtil.damp(velocity.z, 0.0, SETTLE_FRICTION, dt)
 	if not on_floor:
-		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * dt * 0.5)
+		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * _event_gravity() * dt * 0.5)
 	elif velocity.y < 0.0:
 		velocity.y = 0.0
 	move_and_slide()
@@ -520,7 +521,7 @@ func _settle_tick(dt: float) -> void:
 	var landed := is_on_floor()
 	air_time = 0.0 if landed else air_time + dt
 	if not landed:
-		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * dt * 0.5)
+		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * _event_gravity() * dt * 0.5)
 	_was_on_floor = landed
 	if global_position.y < VOID_Y:                      # fell out of the world while dead: back to the spawn, still dead
 		global_position = Game.SPAWN
@@ -588,7 +589,7 @@ func _foot_tick(dt: float) -> void:
 		_coyote = 0.0
 		on_floor = false
 	if not on_floor:
-		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * dt * 0.5)
+		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * _event_gravity() * dt * 0.5)
 	elif velocity.y < 0.0:
 		velocity.y = 0.0
 
@@ -601,7 +602,7 @@ func _foot_tick(dt: float) -> void:
 	var landed := is_on_floor()
 	air_time = 0.0 if landed else air_time + dt
 	if not landed:
-		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * dt * 0.5)
+		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * _event_gravity() * dt * 0.5)
 	if landed and not _was_on_floor:
 		_on_land(_fall_speed)
 	_was_on_floor = landed
@@ -665,3 +666,9 @@ func _process(delta: float) -> void:
 	var view_pos := _phys_prev.lerp(_phys_cur, Engine.get_physics_interpolation_fraction())
 	view_pos.y += _step_offset
 	body.update_view(self, dt, view_pos, yaw)
+
+
+## Gravity multiplier from a city-event rift zone under the player (1 outside; scripts/world/city_events.gd).
+func _event_gravity() -> float:
+	var ev := CityEventsScript.current
+	return ev.gravity_scale_at(global_position) if is_instance_valid(ev) else 1.0

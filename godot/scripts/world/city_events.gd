@@ -4,6 +4,12 @@ extends Node
 ## Kinds: ambush (patrol convoy ambush), race (street race), rescue (civilian rescue), drop (black-market drop), rift (dimensional rift zone, low gravity).
 ## Simulation only while Game.is_playing(). Wiring (orchestrator): add as a child of the world, minimap iterates markers(), player gravity uses gravity_scale_at().
 
+const Actors := preload("res://scripts/world/city_event_actors.gd")
+signal spawned(e: Dictionary)
+signal ended(e: Dictionary, success: bool)
+static var current: Node          ## the live instance (player gravity and the minimap read it)
+var spawn_actors := true          ## false: records only (headless unit test)
+
 const KINDS: Array[StringName] = [&"ambush", &"race", &"rescue", &"drop", &"rift"]
 const DEF := {
 	&"ambush": {"ttl": 60.0, "credits": 120, "heat": 1.0, "radius": 18.0, "label": "CONVOY AMBUSH"},
@@ -31,11 +37,15 @@ var _rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	_rng.seed = 7
+	current = self
+	add_to_group(&"city_events")
 	for sig: Signal in [Game.new_game, Game.respawn, Game.next_sector]:
 		sig.connect(reset)
 
 
 func reset() -> void:
+	for e in events:
+		Actors.finish(e, false)
 	events.clear()
 	_cool.clear()
 	clock = 0.0
@@ -56,7 +66,10 @@ func tick(dt: float, player_pos: Vector3) -> void:
 		e["ttl"] = float(e["ttl"]) - dt
 		var inside := player_pos != Vector3.INF and _flat(player_pos, e["pos"]) <= float(DEF[e["kind"]]["radius"])
 		var k: StringName = e["kind"]
-		if inside and (k == &"rescue" or k == &"drop"):
+		var st := Actors.step(e, dt, player_pos) if spawn_actors and player_pos != Vector3.INF else -1
+		if st >= 0:
+			resolve(int(e["id"]), st == 1)
+		elif inside and (k == &"rescue" or k == &"drop"):
 			resolve(int(e["id"]), true)
 		elif float(e["ttl"]) <= 0.0:
 			resolve(int(e["id"]), k == &"rift")     # a rift simply closes; the rest expire as failures
@@ -83,11 +96,21 @@ func spawn_near(player_pos: Vector3, kind: StringName = &"") -> Dictionary:
 	pos.x = clampf(pos.x, -lim, lim)
 	pos.z = clampf(pos.z, -lim, lim)
 	pos.y = 0.0
-	var e := {"id": _next_id, "kind": k, "pos": pos, "ttl": float(DEF[k]["ttl"])}
+	var axis := _rng.randi() % 2                     ## snap onto a street so the actors stand on asphalt (axis 0 = a road along X)
+	var road := clampi(roundi(((pos.z if axis == 0 else pos.x) + Game.HALF) / CityLayout.PITCH), 0, CityLayout.N)
+	var rc := clampf(CityLayout.road_center(road), -lim, lim)
+	if axis == 0:
+		pos.z = rc
+	else:
+		pos.x = rc
+	var e := {"axis": axis, "road": road, "id": _next_id, "kind": k, "pos": pos, "ttl": float(DEF[k]["ttl"])}
 	_next_id += 1
 	_cool[k] = clock + KIND_COOLDOWN
 	events.append(e)
 	Game.say(String(DEF[k]["label"]))
+	if spawn_actors:
+		Actors.build(self, e)
+	spawned.emit(e)
 	return e
 
 
@@ -96,7 +119,10 @@ func resolve(id: int, success: bool) -> bool:
 	for i in events.size():
 		if int(events[i]["id"]) == id:
 			var d: Dictionary = DEF[events[i]["kind"]]
+			var ev := events[i]
 			events.remove_at(i)
+			Actors.finish(ev, success)
+			ended.emit(ev, success)
 			if success:
 				completed += 1
 				if is_instance_valid(Game.progress):
