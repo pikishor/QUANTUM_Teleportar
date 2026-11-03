@@ -118,6 +118,7 @@ func _camera(host: Node) -> void:
 	var outside := 0
 	var hidden_view := 0
 	var min_arm := 99.0
+	var forced := 0
 	var by_type := {}
 	for t in InteriorGen.TYPES:
 		var it := InteriorGen.build(t, 1, ORIGIN, 1) as Interior
@@ -189,7 +190,10 @@ func _camera(host: Node) -> void:
 					qp.collision_mask = 1
 					qp.transform = Transform3D(Basis(), cam)
 					var hits := space.intersect_shape(qp, 1)
-					if not hits.is_empty():
+					var at_floor := cam.distance_to(piv) <= CameraRig.INTERIOR_MIN_ARM + 0.06      # the arm is clamped at its minimum: a prop closer than that to the head may touch the camera (it fades the hero out), not a fault
+					if not hits.is_empty() and at_floor:
+						forced += 1
+					elif not hits.is_empty():
 						clipped += 1
 						bad = true
 						var hb := instance_from_id(int(hits[0]["collider_id"])) as StaticBody3D

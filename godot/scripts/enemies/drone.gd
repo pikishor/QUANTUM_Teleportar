@@ -330,7 +330,7 @@ func _physics_process(delta: float) -> void:
 	var dx := _tgt.x - pos.x
 	var dz := _tgt.z - pos.z
 	var d := maxf(sqrt(dx * dx + dz * dz), 0.001)
-	if _tgt_ok and not aware and (d < aware_dist or (Game.heat > 0.0 and d < AWARE_HEAT_DIST)):
+	if _tgt_ok and not aware and (d < aware_dist * Weather.sight_mult() or (Game.heat > 0.0 and d < AWARE_HEAT_DIST)):
 		aware = true
 	_mx = 0.0
 	_mz = 0.0

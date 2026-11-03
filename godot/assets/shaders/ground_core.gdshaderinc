@@ -3,6 +3,7 @@
 #include "res://assets/shaders/signage.gdshaderinc"
 
 global uniform float wetness;
+global uniform float night;                             // 0 day .. 1 night (DayNight): the baked lamp and neon pools fade by day
 global uniform float rain;
 
 uniform sampler2D light_map : filter_linear, repeat_disable, hint_default_black;   // baked lamp + neon pools (HDR)
@@ -509,7 +510,7 @@ void fragment() {
 	// lamp / neon pools baked into the light map: diffuse light on the ground
 	vec2 luv = (q - light_rect.xy) / light_rect.zw;
 	vec3 pool = texture(light_map, luv).rgb;
-	emit += albedo * pool * 1.8;
+	emit += albedo * pool * 1.8 * mix(0.08, 1.0, night);
 
 	// ---------------------------------------------------------------------------------------------------------
 	// normal: the flat ground plus ripples, slab rocking and the analytic kerb slope. Nothing is taken from screen-space derivatives

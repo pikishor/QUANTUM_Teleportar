@@ -24,6 +24,7 @@ var button_size := 1.0       ## touch button size multiplier, BTN_MIN..BTN_MAX
 var fps_cap := 60            ## one of FPS_CHOICES (0 = uncapped)
 var vibration := true
 var subtitles := true        ## radio subtitle plate
+var freeze_time := false     ## day/night cycle frozen at the current hour
 var cb_safe := false         ## colour-blind safe markers (blue / orange / white instead of red / green / magenta)
 
 const SENS_MIN := 0.3
@@ -44,6 +45,7 @@ static var s_button_size := 1.0
 static var s_vibration := true
 static var s_subtitles := true
 static var s_cb_safe := false
+static var s_freeze_time := false
 
 
 func _init(p := DEFAULT_PATH) -> void:
@@ -77,6 +79,7 @@ func load_file() -> void:
 	vibration = bool(cf.get_value("controls", "vibration", true))
 	subtitles = bool(cf.get_value("ui", "subtitles", true))
 	cb_safe = bool(cf.get_value("ui", "cb_safe", false))
+	freeze_time = bool(cf.get_value("gameplay", "freeze_time", false))
 
 
 ## Next FPS cap in FPS_CHOICES (wraps).
@@ -95,6 +98,7 @@ func publish(engine := true) -> void:
 	s_vibration = vibration
 	s_subtitles = subtitles
 	s_cb_safe = cb_safe
+	s_freeze_time = freeze_time
 	if engine:
 		AimAssist.enabled = aim_assist
 		AimAssist.auto_fire = auto_fire
@@ -129,4 +133,5 @@ func save() -> bool:
 	cf.set_value("controls", "vibration", vibration)
 	cf.set_value("ui", "subtitles", subtitles)
 	cf.set_value("ui", "cb_safe", cb_safe)
+	cf.set_value("gameplay", "freeze_time", freeze_time)
 	return cf.save(path) == OK

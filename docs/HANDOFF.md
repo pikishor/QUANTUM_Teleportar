@@ -293,3 +293,7 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 - Verb bosses (Smelter, Bulwark, Hound) in `verb_boss.gd`; Overseer COLLAPSE stun. Boss HP/timings are first guesses, untested in live fights.
 - Vehicle weapons, nitro, Vael pursuit tactics (ram/box-in/roadblock) in `vehicles/`.
 - Follow-ups: HUD readout for ammo/heat/nitro; chase mission polish in `campaign_runner.gd`; `boss_in` shot falls back since Cinematics only tracks Overseers; live-city playtest of weapons and tactics. Visual QA 12/12 pass; perf gate skipped.
+
+## Wave 35 note: day/night cycle, weather states
+- `DayNight` (12-min cycle from 21:00, sun/moon light, sky/fog/ambient, `night` shader param, traffic/crowd density, HUD clock appended to the credits line) and `Weather` (clear/overcast/drizzle/rain/storm/fog, sight/snipe multipliers, TEST MENU buttons, saved under `[weather]`). Weather uses its own RNG: using the global one shifted world layout and pushed tier 0 to 101-102 draws (budget 100). Perf OK tiers 0-2 (96/126/140 total draws). Visual QA 12/12.
+- Follow-ups: no Options toggle for freeze_time; thunder not synced to flash; interiors do not reset sight multiplier; test_interiors_world prop-vs-camera flake root cause unproven; tier 0 has only ~4 draws of headroom.

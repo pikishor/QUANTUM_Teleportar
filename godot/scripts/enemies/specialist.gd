@@ -263,7 +263,7 @@ func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng
 				_mx = -ux                                          # too close: back off and keep the lane
 				_mz = -uz
 				_speed = speed * 1.1
-			elif d > rng * 0.9 or (not los and _no_los > 2.0):
+			elif d > rng * 0.9 * Weather.snipe_mult() or (not los and _no_los > 2.0):
 				_mx = ux
 				_mz = uz
 				_speed = speed

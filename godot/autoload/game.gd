@@ -81,6 +81,7 @@ func _ready() -> void:
 	# wetness 0..1 = how wet/reflective surfaces look; rain 0..1 = rain intensity. The Atmosphere module drives them.
 	RenderingServer.global_shader_parameter_add(&"wetness", RenderingServer.GLOBAL_VAR_TYPE_FLOAT, 0.8)
 	RenderingServer.global_shader_parameter_add(&"rain", RenderingServer.GLOBAL_VAR_TYPE_FLOAT, 1.0)
+	RenderingServer.global_shader_parameter_add(&"night", RenderingServer.GLOBAL_VAR_TYPE_FLOAT, 1.0)      # 0 day .. 1 night, driven by DayNight (windows and lamp pools read it)
 	for a in OS.get_cmdline_user_args():
 		if a in ["--autostart", "--shot", "--bot", "--shot-seq"] or a.begins_with("--shot=") or a.begins_with("--bot=") or a.begins_with("--shot-seq="):
 			autostart = true

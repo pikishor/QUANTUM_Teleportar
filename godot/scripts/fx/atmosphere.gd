@@ -43,6 +43,7 @@ var rain_target := 0.0
 var wetness_target := 0.0
 var post: PostLayer
 var rainfield: RainField
+var weather: Weather                        ## the weather state machine (scripts/fx/weather.gd)
 
 var hurt_level := 0.0                       ## 0..1: a short chromatic-aberration kick after a hit (never accumulates, recovers in about 0.35 s)
 var dead_level := 0.0                       ## 0..1: eased desaturation while the player is dead (at most 35 % of the colour)
@@ -65,6 +66,9 @@ func _ready() -> void:
 	rainfield.rain_visible = rain_enabled
 	set_quality(quality)
 	set_weather(default_rain, default_wetness, true)
+	weather = Weather.new()
+	weather.name = "Weather"
+	add_child(weather)
 
 
 func _exit_tree() -> void:

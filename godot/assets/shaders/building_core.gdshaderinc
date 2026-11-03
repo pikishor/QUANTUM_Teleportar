@@ -17,6 +17,7 @@
 #include "res://assets/shaders/signage.gdshaderinc"
 
 global uniform float wetness;
+global uniform float night;                             // 0 day .. 1 night (DayNight)
 
 uniform sampler2D light_map : filter_linear, repeat_disable, hint_default_black;     // lamp + neon pools baked on the ground
 uniform vec4 light_rect = vec4(-352.0, -352.0, 704.0, 704.0);
@@ -503,7 +504,7 @@ void fragment() {
 		if (detail > 0.5) {
 			spill = band(cf, w0.x - 0.16, w1.x + 0.16, au * 2.0) * band(ff, w0.y - 0.2, w1.y + 0.2, av * 2.0) * (1.0 - win);
 		}
-		float wl = lit;
+		float wl = lit * mix(0.12, 1.0, night);
 		emit += wc * wint * inter * win * wl * (1.0 - ac_unit) * mull;
 		emit += wc * 0.07 * spill * wl;
 		// unlit glass reflects the hazy night sky and the street glow: per-pane tone, brighter at grazing angles and near the street

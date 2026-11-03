@@ -666,6 +666,13 @@ func _process(delta: float) -> void:
 
 ## Everything the HUD draws every frame is queued and flushed in batch-friendly order: plain rectangles, then sprites (grouped by texture), then outlines, then text
 ## (grouped by size). Canvas draws only batch when consecutive commands share their kind and texture, so the order of calls in the code is NOT the draw order.
+## Clock rides on the credits line (same draw call, the tier-0 budget is tight).
+func _clock_suffix() -> String:
+	if is_instance_valid(Game.world) and Game.world.get("day_night") is DayNight:
+		return "   " + DayNight.clock_text((Game.world.get("day_night") as DayNight).hour)
+	return ""
+
+
 func _text(c: Control, font: Font, pos: Vector2, text: String, align: HorizontalAlignment, width: float, size: int, col: Color, shadow := 0.0) -> void:
 	_q.append([c, font, pos, text, align, width, size, col, shadow])
 
@@ -828,7 +835,7 @@ func _draw_hud_body() -> void:
 			var col := UiUtil.AMBER if heat < 3.0 else UiUtil.RED
 			var pulse := 1.0 if heat < 3.0 else 0.8 + 0.2 * sin(_t * 8.0)
 			_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
-	_text(c, font, Vector2(right - 192.0 * s, top + 72.0 * s), _cred_text, HORIZONTAL_ALIGNMENT_RIGHT, 190.0 * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.97), 1.5 * s)
+	_text(c, font, Vector2(right - 192.0 * s, top + 72.0 * s), _cred_text + _clock_suffix(), HORIZONTAL_ALIGNMENT_RIGHT, 190.0 * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.97), 1.5 * s)
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return

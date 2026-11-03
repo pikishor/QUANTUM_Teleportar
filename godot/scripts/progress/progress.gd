@@ -420,7 +420,7 @@ func snapshot() -> Dictionary:
 		"version": SAVE_VERSION, "credits": credits, "levels": levels.duplicate(), "reputation": reputation, "sector": sector,
 		"weapons": WeaponDefs.unlocked.duplicate(), "weapon": WeaponDefs.last_used, "attachments": Attachments.to_save(), "bosses": bosses_cleared.duplicate(),
 		"best": maxi(best, Game.score), "tutorial_done": tutorial_done, "contracts_done": contracts_done, "contracts_failed": contracts_failed,
-		"unlocked": unlocked, "checkpoint": checkpoint.duplicate(),
+		"unlocked": unlocked, "checkpoint": checkpoint.duplicate(), "weather": Weather.current,
 	}
 
 
@@ -437,6 +437,7 @@ func save_file() -> bool:
 	cf.set_value("campaign", "contracts_done", d["contracts_done"])
 	cf.set_value("campaign", "contracts_failed", d["contracts_failed"])
 	cf.set_value("flags", "tutorial_done", d["tutorial_done"])
+	cf.set_value("weather", "state", String(d["weather"]))
 	var names := PackedStringArray()
 	for id: StringName in WeaponDefs.unlocked:
 		names.append(String(id))
@@ -500,6 +501,13 @@ func load_file() -> bool:
 		bosses_cleared.append(b)
 	unlocked = clampi(maxi(int(cf.get_value("campaign", "unlocked", 1)), sector + 1), 1, 99)     # a save from before the chapter select has no key: every chapter up to the saved sector
 	checkpoint = _load_checkpoint(cf)
+	var ws := StringName(str(cf.get_value("weather", "state", "rain")))
+	if Weather.PRESETS.has(ws):
+		var wn: Weather = Game.atmosphere.get(&"weather") if is_instance_valid(Game.atmosphere) else null
+		if wn:
+			wn.set_state(ws, true)
+		else:
+			Weather.pending = ws
 	changed.emit()
 	var pl := Game.player
 	if is_instance_valid(pl) and pl.get(&"weapon") is PlayerWeapon:

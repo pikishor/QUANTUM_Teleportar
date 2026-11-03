@@ -17,6 +17,7 @@ var crowd := Crowd.new()
 var sky := Patrol.new()
 var npc := NpcLife.new()                 ## citizen schedules / reactions / barks on top of the crowd (scripts/npc)
 var quality := 1
+var density := 1.0
 ## The ambient clock in seconds of game time (drives the traffic shader).
 var clock := 0.0
 ## Master switch (tests, photo mode): false freezes the clock and hides nothing.
@@ -51,9 +52,16 @@ func _exit_tree() -> void:
 ## 0 low, 1 medium, 2 high (called by City.set_quality).
 func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
-	traffic.set_count(Traffic.COUNTS[quality])
-	crowd.set_tier(quality)
+	traffic.set_count(int(Traffic.COUNTS[quality] * density))
+	crowd.set_tier(quality, density)
 	sky.set_enabled(quality >= 1)
+
+
+## Hour-of-day multiplier (DayNight): slightly fewer cars and people in the small hours, more at rush hour.
+func set_density(f: float) -> void:
+	density = f
+	traffic.set_count(int(Traffic.COUNTS[quality] * f))
+	crowd.set_tier(quality, f)
 
 
 func reset() -> void:

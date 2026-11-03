@@ -46,6 +46,7 @@ var mirror_nodes: Array[MultiMeshInstance3D] = []
 var collision_body: StaticBody3D
 ## The living city (far traffic, crowd, patrols; scripts/ambient/ambient_city.gd), a child of the world.
 var ambient: Node3D
+var day_night: DayNight                       ## time of day (scripts/world/day_night.gd)
 var building_data: Array = []      ## Buildings.Building per lot index
 ## Enterable doors (city_doors.gd): about one lot in five, see scripts/interiors_gameplay/. Each {id, type, name, wall, pos, normal, yaw, face_yaw, width}.
 var doors: Array[Dictionary] = []
@@ -109,6 +110,11 @@ func _ready() -> void:
 	_build_skyline()
 	_build_misc()
 	_build_ambient()
+	day_night = DayNight.new()
+	day_night.name = "DayNight"
+	add_child(day_night)
+	day_night.ambient = ambient
+	day_night.setup(_env, quality)
 	_build_collision()
 	set_quality(quality)
 
@@ -201,6 +207,8 @@ func set_quality(level: int) -> void:
 	if not is_inside_tree():
 		return
 	_env.apply_quality(quality, get_viewport())
+	if day_night != null:
+		day_night.set_tier(quality)
 	_stream.set_scale([0.65, 0.85, 1.0][quality])
 	_kit_window.scale = [0.65, 0.85, 1.0][quality]
 	var shadows := quality >= 1

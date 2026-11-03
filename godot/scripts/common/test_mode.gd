@@ -15,7 +15,7 @@ static var freeze := false
 static var quick_weapons := true        ## the 1-4 touch weapon buttons on the HUD while test mode is available
 static var show_stats := false
 
-const WEATHER := {"CLEAR": Vector2(0.0, 0.25), "DRIZZLE": Vector2(0.35, 0.6), "RAIN": Vector2(0.75, 0.85), "STORM": Vector2(1.0, 1.0)}
+const WEATHER := {"CLEAR": &"clear", "OVERCAST": &"overcast", "DRIZZLE": &"drizzle", "RAIN": &"rain", "STORM": &"storm", "FOG": &"fog"}
 const ENEMIES: Array[StringName] = [&"sentinel", &"striker", &"heavy", &"operative", &"shield", &"flanker", &"sniper", &"brute", &"overseer"]
 const VEHICLES: Array[StringName] = [&"sedan", &"sport", &"suv", &"taxi", &"wagon", &"van", &"truck", &"bike", &"hover", &"vael_patrol"]
 const CONTRACTS: Array[StringName] = [&"officer", &"hack", &"chase", &"courier", &"survive", &"drones", &"boss"]
@@ -183,8 +183,10 @@ static func set_heat(level: float) -> String:
 static func set_weather(weather: String) -> String:
 	if not WEATHER.has(weather) or not is_instance_valid(Game.atmosphere):
 		return ""
-	var v: Vector2 = WEATHER[weather]
-	Game.atmosphere.call(&"set_weather", v.x, v.y, true)
+	var w: Weather = Game.atmosphere.get(&"weather")
+	if w == null:
+		return ""
+	w.set_state(WEATHER[weather], true)
 	return _say("WEATHER  %s" % weather)
 
 
