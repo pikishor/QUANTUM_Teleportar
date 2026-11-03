@@ -30,7 +30,7 @@ const TOGGLE_NAMES := {
 	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION",
 }
 ## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
-const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg"]
+const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints"]
 const PAGE_CELL := 13
 const SUB_BG_NAMES: Array[String] = ["SOFT", "", "SOLID"]
 const CB_NAMES: Array[String] = ["DEUTAN", "TRITAN"]
@@ -83,6 +83,8 @@ static func label(st: UiSettings, id: StringName) -> String:
 		return Tr.t("TEXT SIZE") + "  %d%%" % roundi(st.text_scale * 100.0)
 	if id == &"opt_subsize":
 		return Tr.t("SUBTITLE SIZE") + "  %d%%" % roundi(st.sub_size * 100.0)
+	if id == &"opt_hints":
+		return Tr.t("REPLAY HINTS")
 	if id == &"opt_subbg":
 		return Tr.t("SUBTITLE BG") + "  " + Tr.t(SUB_BG_NAMES[st.sub_bg] if st.sub_bg != 1 else "ON")
 	return ""
@@ -118,6 +120,11 @@ static func press(st: UiSettings, id: StringName) -> bool:
 		return true
 	if id == &"opt_subsize":
 		st.sub_size = Tr.next_scale(st.sub_size)
+		return true
+	if id == &"opt_hints":
+		var st_node: Variant = Game.story.get(&"first_use") if is_instance_valid(Game.story) else null
+		if st_node != null:
+			(st_node as Object).call(&"replay")
 		return true
 	if id == &"opt_subbg":
 		st.sub_bg = (st.sub_bg + 1) % 3

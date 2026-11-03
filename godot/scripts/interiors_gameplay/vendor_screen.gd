@@ -176,10 +176,10 @@ func _draw_all() -> void:
 	c.draw_rect(Rect2(Vector2.ZERO, vp), BG)
 	var col := InteriorData.color(type)
 	var x0 := vp.x * 0.5 - ROW_W * 0.5 * s
-	c.draw_string(font, Vector2(0.0, 74.0 * s), InteriorData.title(type), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(50.0 * s), Color(1, 1, 1, 0.97))
+	c.draw_string(font, Vector2(0.0, 74.0 * s), Tr.t(InteriorData.title(type)), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(50.0 * s), Color(1, 1, 1, 0.97))
 	var prog := Game.progress as Progress
 	if prog != null:
-		var line := "CREDITS  %d      REPUTATION  %s" % [prog.credits, Progress.rep_name(prog.reputation)]
+		var line := "%s  %d      %s  %s" % [Tr.t("CREDITS"), prog.credits, Tr.t("REPUTATION"), Tr.t(Progress.rep_name(prog.reputation))]
 		c.draw_string(font, Vector2(0.0, 112.0 * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97))
 	c.draw_rect(Rect2(x0, 124.0 * s, ROW_W * s, 2.0 * s), Color(col, 0.8))
 	layout()
@@ -187,19 +187,19 @@ func _draw_all() -> void:
 		var r: Dictionary = rows[i]
 		var y := (TOP + float(i) * ROW_H) * s
 		c.draw_rect(Rect2(x0, y, ROW_W * s, (ROW_H - 5.0) * s), PANEL)
-		c.draw_string(font, Vector2(x0 + 14.0 * s, y + 22.0 * s), "%d  %s" % [i + 1, str(r["name"])], HORIZONTAL_ALIGNMENT_LEFT, (ROW_W - 220.0) * s, int(24.0 * s), Color(1, 1, 1, 0.97))
-		c.draw_string(font, Vector2(x0 + 14.0 * s, y + 42.0 * s), str(r["sub"]), HORIZONTAL_ALIGNMENT_LEFT, (ROW_W - 220.0) * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.9))
+		c.draw_string(font, Vector2(x0 + 14.0 * s, y + 22.0 * s), "%d  %s" % [i + 1, Tr.t(str(r["name"]))], HORIZONTAL_ALIGNMENT_LEFT, (ROW_W - 220.0) * s, int(24.0 * s), Color(1, 1, 1, 0.97))
+		c.draw_string(font, Vector2(x0 + 14.0 * s, y + 42.0 * s), Tr.t(str(r["sub"])), HORIZONTAL_ALIGNMENT_LEFT, (ROW_W - 220.0) * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.9))
 		var br := rects[i]
 		var st := str(r["state"])
 		var fill := Color(0.1, 0.45, 0.38, 0.95) if st == "buy" else Color(0.18, 0.2, 0.22, 0.9)
 		c.draw_rect(br, fill)
 		c.draw_rect(br, Color(col, 0.9) if st == "buy" else Color(1, 1, 1, 0.25), false, 2.0 * s)
-		c.draw_string(font, Vector2(br.position.x, br.position.y + br.size.y * 0.5 + 8.0 * s), str(r["label"]), HORIZONTAL_ALIGNMENT_CENTER, br.size.x, int(22.0 * s), Color(1, 1, 1, 0.97 if st == "buy" else 0.55))
+		c.draw_string(font, Vector2(br.position.x, br.position.y + br.size.y * 0.5 + 8.0 * s), Tr.t(str(r["label"])), HORIZONTAL_ALIGNMENT_CENTER, br.size.x, int(22.0 * s), Color(1, 1, 1, 0.97 if st == "buy" else 0.55))
 	if rumour_text != "":
 		var ry := (TOP + float(rows.size()) * ROW_H + 6.0) * s
-		c.draw_string(font, Vector2(x0, ry + 20.0 * s), rumour_text, HORIZONTAL_ALIGNMENT_LEFT, ROW_W * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95))
+		c.draw_string(font, Vector2(x0, ry + 20.0 * s), Tr.t(rumour_text), HORIZONTAL_ALIGNMENT_LEFT, ROW_W * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95))
 	if status != "":
-		c.draw_string(font, Vector2(0.0, close_rect.position.y - 8.0 * s), status, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.GREEN, 0.95))
+		c.draw_string(font, Vector2(0.0, close_rect.position.y - 8.0 * s), Tr.t(status), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.GREEN, 0.95))
 	c.draw_rect(close_rect, Color(0.3, 0.1, 0.1, 0.9))
 	c.draw_rect(close_rect, Color(UiUtil.RED, 0.8), false, 2.0 * s)
-	c.draw_string(font, Vector2(close_rect.position.x, close_rect.position.y + close_rect.size.y * 0.5 + 8.0 * s), "CLOSE", HORIZONTAL_ALIGNMENT_CENTER, close_rect.size.x, int(24.0 * s), Color.WHITE)
+	c.draw_string(font, Vector2(close_rect.position.x, close_rect.position.y + close_rect.size.y * 0.5 + 8.0 * s), Tr.t("CLOSE"), HORIZONTAL_ALIGNMENT_CENTER, close_rect.size.x, int(24.0 * s), Color.WHITE)

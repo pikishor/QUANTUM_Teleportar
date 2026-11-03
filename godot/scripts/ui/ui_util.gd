@@ -127,6 +127,15 @@ static func insets_v(vp: Vector2) -> Vector2:
 	return Vector2(maxf(sa.position.y, 0.0) * k, maxf(float(win.y - sa.end.y), 0.0) * k)
 
 
+## Devanagari glyph source for Hindi (Tr "hi"): the first installed of Noto Sans / Noto Serif Devanagari, Nirmala UI, Mangal, Lohit, Kohinoor (Android and iOS ship one; the engine font has none).
+static func devanagari_font() -> Font:
+	var d := SystemFont.new()
+	d.font_names = PackedStringArray(["Noto Sans Devanagari", "Noto Sans Devanagari UI", "Nirmala UI", "Mangal", "Lohit Devanagari", "Kohinoor Devanagari", "Noto Serif Devanagari"])
+	d.font_weight = 600
+	d.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
+	return d
+
+
 ## Condensed, slightly tracked sans (system condensed faces first, then the engine fallback).
 static func font() -> Font:
 	if _font == null:
@@ -134,6 +143,7 @@ static func font() -> Font:
 		sys.font_names = PackedStringArray(["Roboto Condensed", "sans-serif-condensed", "Bahnschrift", "Arial Narrow", "DIN Condensed", "Oswald", "Inter", "Sans-Serif"])
 		sys.font_weight = 600
 		sys.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
+		sys.fallbacks = [devanagari_font()]
 		var fv := FontVariation.new()
 		fv.base_font = sys
 		fv.spacing_glyph = 1

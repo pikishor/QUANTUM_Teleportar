@@ -47,6 +47,7 @@ var end_card: Dictionary = {}
 var end_age := 0.0
 var epilogue_seen := false
 var view: StoryView
+var first_use: FirstUse              ## icon first-use prompts (scripts/story/first_use.gd)
 var tutorial: Tutorial               ## first-launch training (scripts/story/tutorial.gd)
 
 var _seen := {}
@@ -82,6 +83,9 @@ func _ready() -> void:
 	tutorial = Tutorial.new()
 	tutorial.name = "Tutorial"
 	add_child(tutorial)
+	first_use = FirstUse.new()
+	first_use.name = "FirstUse"
+	add_child(first_use)
 	cards_finished.connect(_on_cards_finished)
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
@@ -101,8 +105,19 @@ func _exit_tree() -> void:
 # data access
 # ---------------------------------------------------------------------------------------------------------------------
 
+## A card or quote with its drawn strings in the active language (the typewriter counts the translated characters).
+static func _tr_card(c: Dictionary) -> Dictionary:
+	if Tr.lang == "en":
+		return c
+	var d := c.duplicate()
+	for k: String in ["head", "text", "t"]:
+		if d.has(k):
+			d[k] = Tr.t(str(d[k]))
+	return d
+
+
 func tagline() -> String:
-	return StoryData.TAGLINE
+	return Tr.t(StoryData.TAGLINE)
 
 
 func chapter_data() -> Dictionary:
@@ -110,11 +125,11 @@ func chapter_data() -> Dictionary:
 
 
 func chapter_label() -> String:
-	return "CHAPTER %d" % (chapter + 1) if chapter <= StoryData.FINAL else "FREE SECTOR %02d" % (chapter + 1)
+	return Tr.t("CHAPTER %d" % (chapter + 1)) if chapter <= StoryData.FINAL else Tr.t("FREE SECTOR %02d" % (chapter + 1))
 
 
 func objective_text() -> String:
-	return str(chapter_data().get("obj", ""))
+	return Tr.t(str(chapter_data().get("obj", "")))
 
 
 func cards_active() -> bool:
@@ -156,7 +171,7 @@ func has_text_on_screen() -> bool:
 func say(speaker: String, text: String, id := "", wait := 0.0, prio := 0) -> bool:
 	if not enabled:
 		return false
-	var entry := {"s": speaker, "t": text, "id": id, "wait": wait, "prio": prio}
+	var entry := {"s": speaker, "t": Tr.t(text), "id": id, "wait": wait, "prio": prio}
 	if queue.size() >= QUEUE_MAX:
 		var drop := -1
 		for i in queue.size():
@@ -260,7 +275,7 @@ func _tick_radio(delta: float) -> void:
 func start_cards(list: Array, kind: StringName) -> void:
 	cards.clear()
 	for c: Variant in list:
-		cards.append(c as Dictionary)
+		cards.append(_tr_card(c as Dictionary))
 	card_kind = kind
 	card_typed = 0.0
 	card_age = 0.0
@@ -426,7 +441,7 @@ func _on_died() -> void:
 	end_card = {}
 	death_age = 0.0
 	if enabled:
-		death_quote = pick("death", StoryData.DEATH)
+		death_quote = _tr_card(pick("death", StoryData.DEATH))
 		shown.append("death")
 
 
@@ -436,7 +451,7 @@ func _on_cleared() -> void:
 	banner_t = -1.0
 	if not enabled:
 		return
-	end_card = chapter_data()["end"]
+	end_card = _tr_card(chapter_data()["end"])
 	end_age = 0.0
 	shown.append("c%d.end" % (chapter + 1))
 	if chapter == StoryData.FINAL and not epilogue_seen:

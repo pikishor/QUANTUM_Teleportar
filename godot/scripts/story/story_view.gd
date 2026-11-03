@@ -64,6 +64,17 @@ func fit_lines(text: String, width: float, big: int, small: int, max_lines: int)
 	return _fit_lines
 
 
+## Wraps `text` at the text scale (Tr.text_scale) and shrinks the size, never below `floor_px`, until the block fits `max_h` tall: a long translated card or quote never runs off a 844x390 screen at 1.5x.
+## Returns {size, step (line height px), lines}.
+func scaled_block(text: String, width: float, base_px: float, floor_px: int, max_h: float) -> Dictionary:
+	var size := maxi(int(round(base_px * Tr.text_scale)), floor_px)
+	var lines := wrapped_lines(text, width, size)
+	while size > floor_px and float(lines.size()) * float(size) * 1.36 > max_h:
+		size -= 1
+		lines = wrapped_lines(text, width, size)
+	return {"size": size, "step": float(size) * 1.36, "lines": lines}
+
+
 func fit_size() -> int:
 	return _fit_size
 
@@ -162,11 +173,11 @@ func _draw_banner(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 	var inner := bw - 24.0 * s
 	draw_rect(Rect2(x0, y0, bw, 128.0 * s), Color(UiUtil.PLATE, UiUtil.PLATE.a * a))
 	_shadow_text(font, Vector2(x0, y0 + 24.0 * s), story.chapter_label(), HORIZONTAL_ALIGNMENT_CENTER, bw, int(20.0 * s), Color(UiUtil.CYAN, 0.95 * a), s)
-	var title := str(d["title"])
+	var title := Tr.t(str(d["title"]))
 	_shadow_text(font, Vector2(x0, y0 + 64.0 * s), title, HORIZONTAL_ALIGNMENT_CENTER, bw, fit_font(font, title, inner, int(40.0 * s), int(24.0 * s)), Color(1, 1, 1, 0.97 * a), 2.0 * s)
 	draw_line(Vector2(cx - 110.0 * s, y0 + 72.0 * s), Vector2(cx + 110.0 * s, y0 + 72.0 * s), Color(UiUtil.MAGENTA, 0.8 * a), 2.0 * s)
-	var sub := str(d["sub"])
-	var obj := "OBJ  " + str(d["obj"])
+	var sub := Tr.t(str(d["sub"]))
+	var obj := Tr.t("OBJ  ") + Tr.t(str(d["obj"]))
 	_shadow_text(font, Vector2(x0, y0 + 96.0 * s), sub, HORIZONTAL_ALIGNMENT_CENTER, bw, fit_font(font, sub, inner, int(UiUtil.TEXT_MIN * s), int(15.0 * s)), Color(1, 1, 1, 0.88 * a), s)
 	_shadow_text(font, Vector2(x0, y0 + 120.0 * s), obj, HORIZONTAL_ALIGNMENT_CENTER, bw, fit_font(font, obj, inner, int(UiUtil.TEXT_MIN * s), int(15.0 * s)), Color(UiUtil.AMBER, 0.95 * a), s)
 
@@ -176,7 +187,7 @@ func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 	var zoom := UiSettings.s_sub_size
 	var width := minf(SUB_W * s * zoom, vp.x * (0.36 if zoom <= 1.0 else 0.5))
 	var full := str(story.current.get("t", ""))
-	var lines: PackedStringArray = fit_lines(full, width - 26.0 * s, int(SUB_FONT * s * zoom), int(SUB_SMALL * s * zoom), SUB_MAX_LINES)
+	var lines: PackedStringArray = fit_lines(full, width - 26.0 * s, int(SUB_FONT * s * zoom * Tr.text_scale), int(SUB_SMALL * s * zoom), SUB_MAX_LINES)
 	var fsize := _fit_size
 	var lh := float(fsize) * 1.28
 	var h: float = float(lines.size()) * lh + 32.0 * s
@@ -212,8 +223,10 @@ func _draw_cards(vp: Vector2, s: float, font: Font) -> void:
 	var width := minf(vp.x * 0.84, 880.0 * s)
 	var x0 := (vp.x - width) * 0.5
 	_shadow_text(font, Vector2(x0, y0 + 30.0 * s), str(card["head"]), HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(14.0 * s), Color(UiUtil.CYAN, 0.95), s)
-	var fsize := int(22.0 * s)
-	var lines: PackedStringArray = wrapped_lines(str(card["text"]), width, fsize)
+	var blk := scaled_block(str(card["text"]), width, 22.0 * s, 11, h - 64.0 * s - 22.0 * s)
+	var fsize: int = blk["size"]
+	var step: float = blk["step"]
+	var lines: PackedStringArray = blk["lines"]
 	var left_chars := int(story.card_typed)
 	var y := y0 + 64.0 * s
 	for ln: String in lines:
@@ -221,12 +234,12 @@ func _draw_cards(vp: Vector2, s: float, font: Font) -> void:
 		if part != "":
 			_shadow_text(font, Vector2(x0, y), part, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fsize, Color(1, 1, 1, 0.97), s)
 		left_chars -= ln.length() + 1
-		y += 30.0 * s
+		y += step
 		if left_chars <= 0:
 			break
 	var pulse := 0.55 + 0.45 * sin(Time.get_ticks_msec() * 0.005)
 	var typing := story.card_typed < str(card["text"]).length()
-	_shadow_text(font, Vector2(x0, band.end.y - 12.0 * s), "TAP TO SKIP" if typing else "TAP TO CONTINUE", HORIZONTAL_ALIGNMENT_RIGHT, width, int(12.0 * s), Color(1, 1, 1, pulse * 0.8), s)
+	_shadow_text(font, Vector2(x0, band.end.y - 12.0 * s), Tr.t("TAP TO SKIP" if typing else "TAP TO CONTINUE"), HORIZONTAL_ALIGNMENT_RIGHT, width, int(12.0 * s), Color(1, 1, 1, pulse * 0.8), s)
 
 
 ## Death quote on the DECOHERED screen: a thin band between the score lines and the RESPAWN button, the world stays visible around it.
@@ -238,16 +251,18 @@ func _draw_quote(vp: Vector2, s: float, font: Font) -> void:
 	var speaker := str(q["s"])
 	var col := speaker_color(speaker)
 	var width := minf(vp.x * 0.8, 760.0 * s)
-	var fsize := int(20.0 * s)
-	var lines: PackedStringArray = wrapped_lines("“" + str(q["t"]) + "”", width, fsize)
-	var h: float = lines.size() * 28.0 * s + 40.0 * s
+	var blk := scaled_block("“" + str(q["t"]) + "”", width, 20.0 * s, 11, vp.y - 296.0 * s - 40.0 * s - 8.0 * s)
+	var fsize: int = blk["size"]
+	var step: float = blk["step"]
+	var lines: PackedStringArray = blk["lines"]
+	var h: float = lines.size() * step + 40.0 * s
 	var box := Rect2((vp.x - width) * 0.5 - 16.0 * s, 296.0 * s, width + 32.0 * s, h)
 	draw_rect(box, Color(0.0, 0.0, 0.0, 0.42 * a))
-	_shadow_text(font, Vector2(0.0, box.position.y + 22.0 * s), speaker, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(13.0 * s), Color(col, 0.95 * a), s)
-	var y := box.position.y + 22.0 * s + 28.0 * s
+	_shadow_text(font, Vector2(0.0, box.position.y + 22.0 * s), Tr.t(speaker), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(13.0 * s), Color(col, 0.95 * a), s)
+	var y := box.position.y + 22.0 * s + step
 	for ln: String in lines:
 		_shadow_text(font, Vector2(0.0, y), ln, HORIZONTAL_ALIGNMENT_CENTER, vp.x, fsize, Color(1, 1, 1, 0.96 * a), s)
-		y += 28.0 * s
+		y += step
 
 
 ## Chapter end card on the SECTOR STABILIZED screen, same band as the death quote.
@@ -255,13 +270,15 @@ func _draw_end_card(vp: Vector2, s: float, font: Font) -> void:
 	var a := clampf(story.end_age / 0.5, 0.0, 1.0)
 	var c := story.end_card
 	var width := minf(vp.x * 0.8, 800.0 * s)
-	var fsize := int(19.0 * s)
-	var lines: PackedStringArray = wrapped_lines(str(c["text"]), width, fsize)
-	var h: float = lines.size() * 27.0 * s + 40.0 * s
+	var blk := scaled_block(str(c["text"]), width, 19.0 * s, 11, vp.y - 296.0 * s - 40.0 * s - 8.0 * s)
+	var fsize: int = blk["size"]
+	var step: float = blk["step"]
+	var lines: PackedStringArray = blk["lines"]
+	var h: float = lines.size() * step + 40.0 * s
 	var box := Rect2((vp.x - width) * 0.5 - 16.0 * s, 296.0 * s, width + 32.0 * s, h)
 	draw_rect(box, Color(0.0, 0.0, 0.0, 0.42 * a))
 	_shadow_text(font, Vector2(0.0, box.position.y + 22.0 * s), str(c["head"]), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(13.0 * s), Color(UiUtil.CYAN, 0.95 * a), s)
-	var y := box.position.y + 22.0 * s + 27.0 * s
+	var y := box.position.y + 22.0 * s + step
 	for ln: String in lines:
 		_shadow_text(font, Vector2(0.0, y), ln, HORIZONTAL_ALIGNMENT_CENTER, vp.x, fsize, Color(1, 1, 1, 0.96 * a), s)
-		y += 27.0 * s
+		y += step

@@ -704,6 +704,7 @@ func _poll_boss() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _shadow(c: Control, font: Font, x: float, y: float, w: float, text: String, size: int, col: Color, sh: float) -> void:
+	text = Tr.t(text)
 	c.draw_string(font, Vector2(x + sh, y + sh), text, HORIZONTAL_ALIGNMENT_CENTER, w, size, Color(0.0, 0.0, 0.0, col.a * 0.85))
 	c.draw_string(font, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_CENTER, w, size, col)
 
@@ -727,7 +728,7 @@ func _draw_overlay() -> void:
 		_draw_subtitle(c, vp, s, font, bh)
 		if plan.skippable and t > 1.0 and t < plan.duration - 1.0:
 			var a := 0.45 + 0.2 * sin(t * 3.0)
-			c.draw_string(font, Vector2(vp.x - 190.0 * s, vp.y - maxf(bh * 0.3, 14.0 * s)), "TAP TO SKIP", HORIZONTAL_ALIGNMENT_RIGHT, 170.0 * s, int(16.0 * s), Color(1, 1, 1, a))
+			c.draw_string(font, Vector2(vp.x - 190.0 * s, vp.y - maxf(bh * 0.3, 14.0 * s)), Tr.t("TAP TO SKIP"), HORIZONTAL_ALIGNMENT_RIGHT, 170.0 * s, int(16.0 * s), Color(1, 1, 1, a))
 	if _glitch > 0.02 and active:
 		var n := 5
 		for i in n:                                  # five torn bands, offset by a hash of the band and the time slice: one draw each, no allocation

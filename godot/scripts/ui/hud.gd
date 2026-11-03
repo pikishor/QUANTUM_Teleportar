@@ -999,6 +999,7 @@ func _draw_hud_body() -> void:
 	if playing:
 		_draw_quantum_readout(c, vp, s, font)
 		_draw_tutorial(c, vp, s, font)
+		_draw_first_use(c, vp, s, font)
 	if playing and veh == null:
 		_draw_crosshair(c, p, vp, s, now)
 	if playing and veh != null and radio_text() != "":
@@ -1471,6 +1472,27 @@ func _draw_waypoint(c: Control, vp: Vector2, s: float, font: Font, ins: Vector2,
 	_sprite(c, &"diamond", Rect2(pt - Vector2(hs, hs), Vector2(hs, hs) * 2.0), Color(col, pulse))
 	_sprite(c, &"ring", Rect2(pt - Vector2(hs, hs) * 1.6, Vector2(hs, hs) * 3.2), Color(col, 0.6 * pulse))
 	_text(c, font, Vector2(pt.x - 60.0 * s, pt.y + hs * 2.6), "%d M" % roundi(float(k.call(&"distance_to_goal"))), HORIZONTAL_ALIGNMENT_CENTER, 120.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.95), 1.5 * s)
+
+
+## First-use hint: an icon glyph and a short label on a small plate low in the middle (only while the tutorial is not showing).
+func _draw_first_use(c: Control, vp: Vector2, s: float, font: Font) -> void:
+	var st: Object = Game.story
+	var fu: Object = st.get(&"first_use") if st != null else null
+	if fu == null or fu.get(&"cur") < 0:
+		return
+	var t: Object = tutorial()
+	if t != null and t.get(&"active") == true:
+		return
+	var text := str(fu.call(&"label"))
+	var d: Dictionary = fu.call(&"current")
+	var size := int(22.0 * s)
+	var w := minf(_text_width(font, text, size) + 84.0 * s, vp.x - 120.0 * s)
+	var h := 52.0 * s
+	var r := Rect2((vp.x - w) * 0.5, vp.y - UiUtil.insets_v(vp).y - 218.0 * s, w, h)
+	_plate(c, r, s, Color(UiUtil.CYAN, 0.7))
+	var isz := 30.0 * s
+	_sprite(c, d["icon"], Rect2(r.position.x + 12.0 * s, r.position.y + (h - isz) * 0.5, isz, isz), d["col"])
+	_text(c, font, Vector2(r.position.x + 48.0 * s, r.position.y + h - 16.0 * s), text, HORIZONTAL_ALIGNMENT_CENTER, w - 52.0 * s, size, Color(1, 1, 1, 0.98), 1.5 * s)
 
 
 ## The training prompt: a plate low in the middle (between the stick and the buttons on phones) with a SKIP plate beside it.

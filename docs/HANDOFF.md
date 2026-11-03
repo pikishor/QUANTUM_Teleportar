@@ -349,3 +349,8 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - Wired: Cinematics garage_reveal/teleporter_first (first-time, saved in Progress.cine_seen); SKIP SET PIECE (touch button, HUD plate, K key); strike-zone ground rings; alt-fire/ammo HUD line (right of the ammo plate) with saved ammo choice; achievement cosmetics equipped on unlock. Full-game bot: tests/bot_full_game.gd, tools/full_bot.sh, test_full_quick. Bugs fixed: side_missions read Game.vehicle (now Game.player.vehicle); city_event_actors typed freed refs.
 - Full suite: 107 pass, FLAKY test_full_quick.gd (passed on retry), 0 fail after fixing SKIP SET PIECE overlapping RADIO (moved to 320,470). Perf gate skipped. Visual QA 12/12 pass.
 - Follow-ups: touch has no ammo-type cycle control; cinematics silent under Game.autostart; strike ring draws only while a hazard is active; full bot trend check needs 6+ checkpoints (8-min run gives 4); alt-fire line not checked at 844x390.
+
+## Wave 47 note: onboarding prompts, localisation depth
+- FirstUse (scripts/story/first_use.gd): ten once-only icon hints, drawn by hud.gd, saved as hint_<id> in Progress.cine_seen, REPLAY HINTS on options page 2. Localisation: Spanish story/radio/contracts/missions/interiors; Hindi menus/HUD (strings_es.gd, strings_hi.gd generated); language cycles en/es/hi.
+- Full suite: 109 pass, 0 flaky, 0 fail. Perf gate skipped. Visual QA 12/12 pass.
+- Follow-ups: map/side-mission hints only time out; key labels Q/E/R/C/M unverified vs input map; Devanagari glyphs unverified (no font in sandbox); vendor-name fragments, touch and map labels untranslated; hint plate and Hindi layout not checked at 844x390/1280x720; ARCHITECTURE.md not updated.

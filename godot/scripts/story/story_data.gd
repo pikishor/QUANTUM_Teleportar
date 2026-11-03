@@ -206,7 +206,7 @@ const RADIO := {
 		{"s": K, "t": "And Bob corrects the rest: X when the second bit is one, then Z when the first is."},
 	],
 	"first_link": [
-		{"s": O, "t": "Linked. Hurt one drone and the other bleeds. Entanglement is a terrible secret to keep."},
+		{"s": O, "t": "Entangled. Hurt one drone and the other bleeds. Entanglement is a terrible secret to keep."},
 	],
 	"first_super": [
 		{"s": O, "t": "A hologram for six seconds, one of you in two places. Let it draw their fire, then collapse it."},
@@ -316,7 +316,7 @@ const CONTRACT_RADIO := {
 			{"s": O, "t": "Node ahead. Hold the zone, keep breathing, and let me do the arithmetic."},
 		],
 		"start": [
-			{"s": O, "t": "Link established. Stay inside the ring. If you step out, the handshake decays."},
+			{"s": O, "t": "Entangled. Stay inside the ring. If you step out, the handshake decays."},
 		],
 		"mid": [
 			{"s": O, "t": "Halfway through the key. They know. Drones inbound, hold your ground."},
@@ -373,7 +373,7 @@ const CONTRACT_RADIO := {
 			{"s": O, "t": "Anchor live. Waves incoming. Stay within sixty metres or the pulse collapses without you."},
 		],
 		"mid": [
-			{"s": O, "t": "Next wave is heavier. Use your blink to reposition and your link to thin them."},
+			{"s": O, "t": "Next wave is heavier. Use your blink to reposition and ENTANGLE to thin them."},
 		],
 		"done": [
 			{"s": O, "t": "Anchor stabilized. The Vael pulled back. That bought the city a little more quiet."},
@@ -384,11 +384,11 @@ const CONTRACT_RADIO := {
 	},
 	"drones": {
 		"offer": [
-			{"s": O, "t": "Entanglement trial. Link two Observers with the link ability and let one shot do the work of two."},
-			{"s": O, "t": "A drone nest is waiting for a clean demonstration. Link them, hit one, watch both fall."},
+			{"s": O, "t": "Entanglement trial. Entangle two Observers and let one shot do the work of two."},
+			{"s": O, "t": "A drone nest is waiting for a clean demonstration. Entangle them, hit one, watch both fall."},
 		],
 		"start": [
-			{"s": O, "t": "Only kills made through a quantum link count. Aim, press link, then shoot either drone."},
+			{"s": O, "t": "Only kills made through ENTANGLE count. Aim, press ENTANGLE, then shoot either drone."},
 		],
 		"mid": [
 			{"s": K, "t": "Mirrored damage. Hurt one drone and the other bleeds. I am starting to enjoy this."},
@@ -397,7 +397,7 @@ const CONTRACT_RADIO := {
 			{"s": O, "t": "Trial complete. Entanglement is a terrible secret to keep, and a wonderful one to spend."},
 		],
 		"fail": [
-			{"s": O, "t": "Too many direct kills. The nest scattered. Link first, shoot second."},
+			{"s": O, "t": "Too many direct kills. The nest scattered. Entangle first, shoot second."},
 		],
 	},
 }
@@ -451,7 +451,7 @@ const VERB_BOSS_RADIO := {
 
 const CONTRACT_CHAPTER: Array[Dictionary] = [
 	{"s": O, "t": "Old Exchange runs on rumour and rent. Contracts pay in credits, and credits buy survival."},
-	{"s": O, "t": "Glass District jobs bend toward entanglement. Practise linking, it pays double in these streets."},
+	{"s": O, "t": "Glass District jobs bend toward entanglement. Practise ENTANGLE, it pays double in these streets."},
 	{"s": O, "t": "The Harvest Floor is full of relay nodes. Crack them and the drones go blind."},
 	{"s": O, "t": "Bridge Arcade has fast traffic and faster couriers. Wheels will matter here."},
 	{"s": O, "t": "Foundry Row pays in scrap and fear. Contracts here run hot, loud and over fast."},
@@ -497,8 +497,8 @@ const TUTORIAL: Array[Dictionary] = [
 		"done": {"s": O, "t": "Eyes work too. Keep the crosshair on the Vael and off the sky."}},
 	{"id": "shoot", "kb": "HOLD LEFT MOUSE TO FIRE", "touch": "HOLD THE FIRE BUTTON TO SHOOT",
 		"done": {"s": O, "t": "Rifle online. Reload when it clicks, and keep aiming high for the head."}},
-	{"id": "blink", "kb": "PRESS Q TO THROW A BEACON", "touch": "TAP BLINK TO THROW A BEACON",
-		"kb2": "PRESS Q AGAIN TO BLINK THERE", "touch2": "TAP BLINK AGAIN TO JUMP THERE",
+	{"id": "blink", "kb": "PRESS Q TO MARK A BEACON", "touch": "TAP QUANTUM TELEPORT TO THROW A BEACON",
+		"kb2": "PRESS Q AGAIN TO BLINK THERE", "touch2": "TAP QUANTUM TELEPORT AGAIN TO JUMP THERE",
 		"done": {"s": K, "t": "Two bits crossed the dark and I came out the other side. I will never get used to that."}},
 	{"id": "car", "kb": "WALK TO THE CAR AND PRESS F", "touch": "WALK TO THE CAR AND TAP USE",
 		"done": {"s": O, "t": "Four wheels. Contracts show up as markers on your map. Take one, earn credits, buy upgrades."}},
