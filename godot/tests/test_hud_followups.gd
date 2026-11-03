@@ -22,8 +22,9 @@ func run(host: Node) -> void:
 		for info: Dictionary in UiUtil.ABILITIES:
 			var label := UiUtil.ability_label(info, "  9", s)
 			var fs := UiUtil.fit_size(font, label, w * 0.9, int(UiUtil.BAR_LABEL * s))
-			## Fit with a 10 % margin (font metrics differ between machines); fit_size floors at 8, so also require a readable size.
-			ok = ok and fs >= 9 and font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x <= w * 0.9
+			## Fit with a 10 % margin (font metrics differ between machines: CI's wide fallback font lands on fit_size's 8 px floor where Inter gets 9);
+			## the label must always fit its plate and never fall below that floor.
+			ok = ok and fs >= 8 and font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x <= w * 0.9
 		TestLib.check(ok, "ability labels fit at %s" % str(vp))
 		var hud := Hud.new()
 		var btn := hud._options_btn(vp, s)
