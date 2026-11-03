@@ -158,7 +158,7 @@ func _shop(host: Node) -> void:
 	var buys := 0
 	for id: StringName in Upgrades.IDS:
 		buys += 1 if ids.has(StringName("buy_%s" % id)) else 0
-	TestLib.check(buys == 6 and ids.has(&"shop_back") and not ids.has(&"resume") and not ids.has(&"q0"), "the shop has six buy buttons and BACK (%s)" % str(ids))
+	TestLib.check(buys == Upgrades.IDS.size() and ids.has(&"shop_back") and not ids.has(&"resume") and not ids.has(&"q0"), "the shop has a buy button per upgrade and BACK (%s)" % str(ids))
 	TestLib.check(_button(&"buy_damage")["label"] == "BUY  240" and not _button(&"buy_damage")["on"], "a row shows its price and is dim without credits")
 	var cue_muted := Sfx.muted
 	Sfx.muted = false

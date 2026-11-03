@@ -4,8 +4,8 @@ extends RefCounted
 ## reputation discount) and a BACK button. Buttons are ordinary Hud screen buttons: `buy_<id>`, `shop_back`; the purchase itself is Progress.buy(). Pure layout and drawing,
 ## no state of its own; every number comes from Upgrades and Progress.
 
-const ROW_Y := 168.0                 ## base px of the first row
-const ROW_STEP := 58.0
+const ROW_Y := 150.0                 ## base px of the first row
+const ROW_STEP := 52.0
 const ROW_W := 700.0
 const BUY_W := 150.0
 const SHOP_WEAPONS: Array[StringName] = [&"scatter", &"lance", &"grenade", &"burst", &"rail", &"flux", &"gravity"]
@@ -42,7 +42,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	hud._text(c, font, Vector2(0.0, 92.0 * s), "UPGRADES", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(52.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
 	if prog != null:
 		var line := "CREDITS  %d      REPUTATION  %s" % [prog.credits, Progress.rep_name(prog.reputation)]
-		hud._text(c, font, Vector2(0.0, 134.0 * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
+		hud._text(c, font, Vector2(0.0, 128.0 * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	var x0 := cx - ROW_W * 0.5 * s
 	for i in Upgrades.IDS.size():
 		var id: StringName = Upgrades.IDS[i]

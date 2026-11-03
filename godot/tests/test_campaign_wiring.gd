@@ -12,6 +12,7 @@ func run(_host: Node) -> void:
 	var all_ok := true
 	var kinds := {}
 	var bosses := []
+	var verb_bosses := []
 	var radio_ok := true
 	var interior_ok := true
 	for i in n:
@@ -28,16 +29,22 @@ func run(_host: Node) -> void:
 			if st["kind"] == &"enter_interior":
 				interior_ok = interior_ok and st["interior"] == StringName(str(src["interior"])) and InteriorData.MISSION_TYPES.has(st["interior"])
 			if st["kind"] == &"kill_target" and str(src.get("target", "")) == "boss":
-				bosses.append(i)
-				all_ok = all_ok and st["enemy"] == &"overseer"
+				if src.has("enemy"):
+					verb_bosses.append(i)   # wave 34 verb bosses: their own enemy type, not the contracts' Overseer
+					all_ok = all_ok and st["enemy"] == StringName(str(src["enemy"]))
+				else:
+					bosses.append(i)
+					all_ok = all_ok and st["enemy"] == &"overseer"
 			if st["kind"] == &"kill_target" and str(src.get("target", "")) == "specialist":
 				all_ok = all_ok and st["enemy"] == &""
 	TestLib.check(all_ok, "every campaign step normalises (same count, canonical kind, objective text from obj, boss = overseer, specialist = picked per chapter)")
 	TestLib.check(radio_ok and interior_ok, "radio lines {s, t} and interior types of the data fit the runner")
 	TestLib.check(kinds.size() == 8, "the campaign uses 8 step kinds (%s)" % str(kinds.keys()))
-	TestLib.check(bosses == [2, 5, 7], "boss steps are in chapters 3, 6 and 8 (%s)" % str(bosses))
+	TestLib.check(bosses == [2, 5, 7], "Overseer boss steps are in chapters 3, 6 and 8 (%s)" % str(bosses))
+	TestLib.check(verb_bosses == [3, 6, 6], "verb boss steps (own enemy type) are in chapters 4 and 7 (%s)" % str(verb_bosses))
 	for b: int in bosses:
 		TestLib.check(ContractTypes.is_boss_chapter(b), "chapter %d is a boss chapter of the contracts" % (b + 1))
+	for b: int in bosses + verb_bosses:
 		TestLib.check(str(CampaignData.chapter(b)["cutscenes"]["boss"]) == "boss_in", "chapter %d plays the boss_in cutscene" % (b + 1))
 	TestLib.check(not camp.has_steps(n) and camp.chapter_data(n).is_empty() and CampaignData.is_endless(n), "the aftermath chapter has no scripted steps (plain core hunt)")
 	TestLib.check(not camp.start_chapter(n), "the runner refuses to start the aftermath")
