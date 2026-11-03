@@ -9,6 +9,8 @@ func run(host: Node) -> void:
 	host.add_child(ms)
 	await host.get_tree().process_frame
 	TestLib.check(not ms.is_open() and ms.discovered_count() >= 0, "map starts closed")
+	ms._seen = PackedByteArray()
+	ms._seen.resize(MapScreen.CELLS * MapScreen.CELLS)
 	var start_n := ms.discovered_count()
 	ms.discover(Vector3(-250, 0, -250))
 	TestLib.check(ms.is_discovered(-250, -250) and ms.discovered_count() > start_n, "walking near a cell discovers it")
