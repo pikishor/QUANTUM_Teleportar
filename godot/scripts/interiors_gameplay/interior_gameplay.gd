@@ -774,14 +774,16 @@ func load_state() -> bool:
 	if cf.load(save_path) != OK:
 		return false
 	_saved_inside = bool(cf.get_value("interiors", "inside", false))
-	_saved_door = int(cf.get_value("interiors", "door", -1))
+	_saved_door = Progress._num(cf.get_value("interiors", "door", -1), -1)
 	done.clear()
-	for i: int in Array(cf.get_value("interiors", "done", PackedInt32Array())):
-		done[i] = true
+	for i: Variant in Progress._arr(cf.get_value("interiors", "done", PackedInt32Array())):
+		if i is int:
+			done[int(i)] = true
 	hinted.clear()
-	for i: int in Array(cf.get_value("interiors", "hinted", PackedInt32Array())):
-		hinted[i] = true
-	rumour_index = int(cf.get_value("interiors", "rumours", 0))
+	for i: Variant in Progress._arr(cf.get_value("interiors", "hinted", PackedInt32Array())):
+		if i is int:
+			hinted[int(i)] = true
+	rumour_index = maxi(0, Progress._num(cf.get_value("interiors", "rumours", 0)))
 	return true
 
 

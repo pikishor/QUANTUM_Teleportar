@@ -30,6 +30,7 @@ func run(h: Node) -> void:
 	await _soak()
 	await _monkey()
 	await _prologue_then_menu()
+	await _systems_watchdog()
 	Game.force_touch = false
 	Sfx.muted = false
 
@@ -181,3 +182,38 @@ func _prologue_then_menu() -> void:
 		TestLib.check(Game.state == &"play", "round %d: a tap on DEPLOY starts the game although the old prologue cards are still queued" % round)
 		await frames(5)
 	story.skip_cards()
+
+
+# --- J6: the watchdog covers cover, traversal, garage and weather ------------------------------------------------------------------
+
+func _systems_watchdog() -> void:
+	var stab := Lib.find_node_of("Stability") as Stability
+	var p := Game.player as Player
+	TestLib.check(stab != null and p != null and is_instance_valid(p), "the watchdog and the player exist")
+	if stab == null or p == null:
+		return
+	if Game.state != &"play":
+		Game.state = &"play"
+		await frames(5)
+	Weather.current = &"no_such_weather"
+	Weather.flash = 7.0
+	var fixed := stab.audit()
+	TestLib.check(Weather.PRESETS.has(Weather.current) and Weather.flash <= 1.0, "an unknown weather state and an out-of-range flash are repaired")
+	TestLib.check("weather state unknown" in fixed, "the repair is reported")
+	var g: Garage = Game.progress.garage if Game.progress != null else null
+	if g != null:
+		var had := g.kind
+		g.kind = &"sedan"
+		g.paint = 999
+		stab.audit()
+		TestLib.check(g.paint < VehicleSpecs.COLORS.size(), "a garage paint out of range is clamped")
+		g.kind = had
+		g.paint = Garage.DEFAULT_PAINT
+	var dead_state := Game.state
+	Game.state = &"menu"
+	p.cover.in_cover = true
+	var fx2 := stab.audit()
+	TestLib.check(not p.cover.in_cover and "cover left on while off foot" in fx2, "cover left on in the menu is cleared")
+	Game.state = dead_state
+	await frames(10)
+	TestLib.check(Game.state == &"play" and p.global_position.is_finite(), "the game is still running after the system repairs")

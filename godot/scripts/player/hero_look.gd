@@ -137,7 +137,8 @@ func to_save() -> Dictionary:
 ## Damaged or unknown values fall back to the default look; an equipped item must be unlocked, otherwise it is reset (`cosmetics` as in is_unlocked).
 func from_save(d: Dictionary, cosmetics: Array = []) -> void:
 	owned.clear()
-	for k: Variant in Array(d.get("owned", [])):
+	var ow: Variant = d.get("owned", [])
+	for k: Variant in (Array(ow) if ow is Array or ow is PackedStringArray else []):
 		var key := str(k)
 		if valid_key(key) and not owned.has(key):
 			owned.append(key)

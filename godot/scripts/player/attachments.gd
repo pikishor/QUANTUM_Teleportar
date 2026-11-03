@@ -140,11 +140,15 @@ static func to_save() -> Dictionary:
 
 static func from_save(d: Dictionary) -> void:
 	reset()
-	for n: Variant in Array(d.get("owned", [])):
+	var ov: Variant = d.get("owned", [])
+	for n: Variant in (Array(ov) if ov is Array or ov is PackedStringArray else []):
 		if PARTS.has(StringName(str(n))):
 			give(StringName(str(n)))
-	var eq: Dictionary = d.get("equipped", {})
+	var ev: Variant = d.get("equipped", {})
+	var eq: Dictionary = ev if ev is Dictionary else {}
 	for w: Variant in eq:
+		if not (eq[w] is Dictionary):
+			continue
 		var row: Dictionary = eq[w]
 		for s: Variant in row:
 			var part := StringName(str(row[s]))

@@ -315,3 +315,11 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 ## Wave 39: stealth and alert states, map screen
 - Stealth (stealth.gd, drone suspicion/search, noise, '?'/'!' pip in the halo draw) and MapScreen (M or minimap tap, waypoint, markers, fog, user://map.cfg). Full suite green (test_map_screen flaky once, passed on retry). Visual QA 12/12. Perf gate not run.
 - Follow-ups: sight alert takes up to 0.6 s; suppressor noise not handled; '?' pip glyph unchecked visually; garage markers use warehouse/cargo_bay doors; waypoint not on HUD/minimap; map not checked at 844x390 or 1280x720; test_map_screen flake cause unknown; minimap tap path untested.
+
+## Performance pass (J1/J2)
+Audit of the busiest systems found them already pooled and capped: explosion pool (fixed slots per tier, no node creation), crowd/traffic (one MultiMesh and one fixed buffer, tested in test_ambient), enemy thinkers (`EnemyManager.THINKERS` 2/3/5 per physics frame by tier), FX tokens and death-blast caps, shadow ranges (LOW none, MED 16 m) and LOD thresholds (LOW 5 px). No behaviour was changed in this pass; `tests/test_perf_pass.gd` now locks the budgets, thinker caps and pool reuse.
+Measured (tools/perf_report.sh, HIGH, mobile renderer, software Vulkan): staged view visible 96 draws / 327k tris, total 142 draws / 400k tris, 1211 nodes, tex 322 MB, HUD 20 draws; 4-enemy death worst 158 total draws / 412k tris (budget 160 / 430k, death 180). Frame times from software Vulkan are not representative. LOW numbers were not captured in this run (output truncated); re-run `tools/perf_report.sh 0`.
+Follow-up: per-frame allocation profiling of the HUD draw and NPC life needs a device or GPU run.
+
+## Wave 40 integration
+Full suite: 94 pass, 1 flaky, 0 fail. PERF_CHECK tiers 0/1/2 all OK. Visual QA 12/12. Follow-ups: street_ne/sw shots show dark empty streets; car shot paint reads flat red; title text slightly clipped at bottom-left controls hint.

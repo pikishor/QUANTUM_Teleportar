@@ -481,6 +481,30 @@ func snapshot() -> Dictionary:
 	}
 
 
+## A saved value as an Array whatever it was (a damaged file may hold a string, a number or nothing).
+static func _arr(v: Variant) -> Array:
+	if v is Array or v is PackedStringArray or v is PackedInt32Array or v is PackedInt64Array:
+		return Array(v)
+	return []
+
+
+## A saved value as a finite int, `d` when it is not a number.
+static func _num(v: Variant, d := 0) -> int:
+	if v is int:
+		return v
+	if v is float and is_finite(v):
+		return int(v)
+	return d
+
+
+## Loads `p` into a ConfigFile; null for a missing, empty, truncated or foreign file (never raises).
+static func _read(p: String) -> ConfigFile:
+	var cf := ConfigFile.new()
+	if cf.load(p) != OK:
+		return null
+	return cf
+
+
 func save_file() -> bool:
 	var cf := ConfigFile.new()
 	var d := snapshot()
@@ -531,7 +555,14 @@ func save_file() -> bool:
 		cf.set_value("checkpoint", "tp", bool(checkpoint.get("tp", false)))
 		if checkpoint.get("goal", null) is Vector3:
 			cf.set_value("checkpoint", "goal", checkpoint["goal"])
-	last_save_ok = cf.save(path) == OK
+	var tmp := path + ".tmp"                                      # write beside, then swap in: a kill mid-write never leaves a half file as the save
+	last_save_ok = cf.save(tmp) == OK
+	if last_save_ok:
+		var g_tmp := ProjectSettings.globalize_path(tmp)
+		var g_dst := ProjectSettings.globalize_path(path)
+		if DirAccess.rename_absolute(g_tmp, g_dst) != OK:
+			last_save_ok = cf.save(path) == OK
+			DirAccess.remove_absolute(g_tmp)
 	if last_save_ok:
 		saved.emit()
 	return last_save_ok
@@ -539,50 +570,51 @@ func save_file() -> bool:
 
 ## True when `path` holds a usable save of this version with progress worth continuing (a sector past 0, credits, upgrades or reputation).
 func has_save() -> bool:
-	var cf := ConfigFile.new()
-	if cf.load(path) != OK or int(cf.get_value("meta", "version", 0)) != SAVE_VERSION:
+	var cf := _read(path)
+	if cf == null or _num(cf.get_value("meta", "version", 0)) != SAVE_VERSION:
 		return false
-	if int(cf.get_value("campaign", "sector", 0)) > 0 or int(cf.get_value("wallet", "credits", 0)) > 0 or int(cf.get_value("wallet", "reputation", 0)) != 0:
+	if _num(cf.get_value("campaign", "sector", 0)) > 0 or _num(cf.get_value("wallet", "credits", 0)) > 0 or _num(cf.get_value("wallet", "reputation", 0)) != 0:
 		return true
-	if int(cf.get_value("checkpoint", "step", 0)) > 0:
+	if _num(cf.get_value("checkpoint", "step", 0)) > 0:
 		return true
 	for id: StringName in Upgrades.IDS:
-		if int(cf.get_value("upgrades", String(id), 0)) > 0:
+		if _num(cf.get_value("upgrades", String(id), 0)) > 0:
 			return true
-	return Array(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))).size() > 1
+	return _arr(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))).size() > 1
 
 
 ## Loads the file into this node (and the static Upgrades state). Returns false (and changes nothing) for a missing, foreign or damaged file.
 func load_file() -> bool:
-	var cf := ConfigFile.new()
-	if cf.load(path) != OK or int(cf.get_value("meta", "version", 0)) != SAVE_VERSION:
+	var cf := _read(path)
+	if cf == null or _num(cf.get_value("meta", "version", 0)) != SAVE_VERSION:
 		return false
-	credits = maxi(0, int(cf.get_value("wallet", "credits", 0)))
-	reputation = clampi(int(cf.get_value("wallet", "reputation", 0)), REP_MIN, REP_MAX)
+	credits = maxi(0, _num(cf.get_value("wallet", "credits", 0)))
+	reputation = clampi(_num(cf.get_value("wallet", "reputation", 0)), REP_MIN, REP_MAX)
 	var lv := {}
 	for id: StringName in Upgrades.IDS:
-		lv[id] = int(cf.get_value("upgrades", String(id), 0))
+		lv[id] = _num(cf.get_value("upgrades", String(id), 0))
 	levels = Upgrades.set_levels(lv)
-	sector = clampi(int(cf.get_value("campaign", "sector", 0)), 0, 99)
-	best = maxi(0, int(cf.get_value("campaign", "best", 0)))
-	contracts_done = maxi(0, int(cf.get_value("campaign", "contracts_done", 0)))
-	contracts_failed = maxi(0, int(cf.get_value("campaign", "contracts_failed", 0)))
+	sector = clampi(_num(cf.get_value("campaign", "sector", 0)), 0, 99)
+	best = maxi(0, _num(cf.get_value("campaign", "best", 0)))
+	contracts_done = maxi(0, _num(cf.get_value("campaign", "contracts_done", 0)))
+	contracts_failed = maxi(0, _num(cf.get_value("campaign", "contracts_failed", 0)))
 	tutorial_done = bool(cf.get_value("flags", "tutorial_done", false))
-	WeaponDefs.set_unlocked(Array(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))))
+	WeaponDefs.set_unlocked(_arr(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))))
 	var cur := StringName(str(cf.get_value("weapons", "current", "carbine")))
 	WeaponDefs.last_used = cur if WeaponDefs.is_unlocked(cur) else &"carbine"
-	Attachments.from_save({"owned": Array(cf.get_value("attachments", "owned", PackedStringArray())), "equipped": cf.get_value("attachments", "equipped", {})})
+	Attachments.from_save({"owned": _arr(cf.get_value("attachments", "owned", PackedStringArray())), "equipped": cf.get_value("attachments", "equipped", {}) if cf.get_value("attachments", "equipped", {}) is Dictionary else {}})
 	bosses_cleared.clear()
-	for b: int in Array(cf.get_value("campaign", "bosses", PackedInt32Array())):
-		bosses_cleared.append(b)
-	unlocked = clampi(maxi(int(cf.get_value("campaign", "unlocked", 1)), sector + 1), 1, 99)     # a save from before the chapter select has no key: every chapter up to the saved sector
+	for b: Variant in _arr(cf.get_value("campaign", "bosses", PackedInt32Array())):
+		if b is int and int(b) >= 0 and int(b) < 99 and not bosses_cleared.has(int(b)):
+			bosses_cleared.append(int(b))
+	unlocked = clampi(maxi(_num(cf.get_value("campaign", "unlocked", 1)), sector + 1), 1, 99)     # a save from before the chapter select has no key: every chapter up to the saved sector
 	checkpoint = _load_checkpoint(cf)
 	collectibles.from_save(cf.get_value("collectibles", "got", PackedInt32Array()))
 	var ast := {}
 	if cf.has_section("ach_stats"):
 		for k in cf.get_section_keys("ach_stats"):
 			ast[k] = cf.get_value("ach_stats", k, 0)
-	achievements.from_save({"done": cf.get_value("achievements", "done", PackedStringArray()), "cosmetics": cf.get_value("achievements", "cosmetics", PackedStringArray()), "stats": ast})
+	achievements.from_save({"done": _arr(cf.get_value("achievements", "done", PackedStringArray())), "cosmetics": _arr(cf.get_value("achievements", "cosmetics", PackedStringArray())), "stats": ast})
 	var hd := {}
 	if cf.has_section("hero"):
 		for hk in cf.get_section_keys("hero"):

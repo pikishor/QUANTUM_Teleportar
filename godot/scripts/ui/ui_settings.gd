@@ -53,33 +53,41 @@ func _init(p := DEFAULT_PATH) -> void:
 	load_file()
 
 
+static func _f(v: Variant, d := 1.0) -> float:
+	return float(v) if (v is float and is_finite(v)) or v is int else d
+
+
+static func _b(v: Variant, d := false) -> bool:
+	return bool(v) if v is bool or v is int else d
+
+
 func load_file() -> void:
-	var cf := ConfigFile.new()
-	if cf.load(path) != OK:
+	var cf := Progress._read(path)
+	if cf == null:
 		return
-	quality = clampi(int(cf.get_value("graphics", "quality", -1)), -1, 2)
-	post = bool(cf.get_value("graphics", "post", true))
-	muted = bool(cf.get_value("audio", "muted", false))
+	quality = clampi(Progress._num(cf.get_value("graphics", "quality", -1)), -1, 2)
+	post = _b(cf.get_value("graphics", "post", true))
+	muted = _b(cf.get_value("audio", "muted", false))
 	var vols = cf.get_value("audio", "volumes", {})
 	volumes = (vols as Dictionary).duplicate() if vols is Dictionary else {}
-	best = maxi(int(cf.get_value("progress", "best", 0)), 0)
-	cutscenes = bool(cf.get_value("graphics", "cutscenes", true))
-	intro_seen = bool(cf.get_value("progress", "intro_seen", false))
-	test_mode = bool(cf.get_value("debug", "test_mode", false))
-	aim_assist = bool(cf.get_value("gameplay", "aim_assist", true))
-	auto_fire = bool(cf.get_value("gameplay", "auto_fire", false))
-	look_x = clampf(float(cf.get_value("controls", "look_x", 1.0)), SENS_MIN, SENS_MAX)
-	look_y = clampf(float(cf.get_value("controls", "look_y", 1.0)), SENS_MIN, SENS_MAX)
-	ads_sens = clampf(float(cf.get_value("controls", "ads_sens", 1.0)), SENS_MIN, SENS_MAX)
-	hud_scale = clampf(float(cf.get_value("ui", "hud_scale", 1.0)), HUD_MIN, HUD_MAX)
-	left_hand = bool(cf.get_value("ui", "left_hand", false))
-	button_size = clampf(float(cf.get_value("ui", "button_size", 1.0)), BTN_MIN, BTN_MAX)
-	var cap := int(cf.get_value("graphics", "fps_cap", 60))
+	best = maxi(Progress._num(cf.get_value("progress", "best", 0)), 0)
+	cutscenes = _b(cf.get_value("graphics", "cutscenes", true))
+	intro_seen = _b(cf.get_value("progress", "intro_seen", false))
+	test_mode = _b(cf.get_value("debug", "test_mode", false))
+	aim_assist = _b(cf.get_value("gameplay", "aim_assist", true))
+	auto_fire = _b(cf.get_value("gameplay", "auto_fire", false))
+	look_x = clampf(_f(cf.get_value("controls", "look_x", 1.0)), SENS_MIN, SENS_MAX)
+	look_y = clampf(_f(cf.get_value("controls", "look_y", 1.0)), SENS_MIN, SENS_MAX)
+	ads_sens = clampf(_f(cf.get_value("controls", "ads_sens", 1.0)), SENS_MIN, SENS_MAX)
+	hud_scale = clampf(_f(cf.get_value("ui", "hud_scale", 1.0)), HUD_MIN, HUD_MAX)
+	left_hand = _b(cf.get_value("ui", "left_hand", false))
+	button_size = clampf(_f(cf.get_value("ui", "button_size", 1.0)), BTN_MIN, BTN_MAX)
+	var cap := Progress._num(cf.get_value("graphics", "fps_cap", 60), 60)
 	fps_cap = cap if FPS_CHOICES.has(cap) else 60
-	vibration = bool(cf.get_value("controls", "vibration", true))
-	subtitles = bool(cf.get_value("ui", "subtitles", true))
-	cb_safe = bool(cf.get_value("ui", "cb_safe", false))
-	freeze_time = bool(cf.get_value("gameplay", "freeze_time", false))
+	vibration = _b(cf.get_value("controls", "vibration", true))
+	subtitles = _b(cf.get_value("ui", "subtitles", true))
+	cb_safe = _b(cf.get_value("ui", "cb_safe", false))
+	freeze_time = _b(cf.get_value("gameplay", "freeze_time", false))
 
 
 ## Next FPS cap in FPS_CHOICES (wraps).

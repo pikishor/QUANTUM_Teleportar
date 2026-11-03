@@ -31,6 +31,7 @@ var _slow_state: StringName = &"dead"       ## the slow motion belongs to this s
 var _slow_t0 := 0.0
 var _audit_t := 0.0
 var _audit_soon := 0.0
+var _trav_t := 0.0
 var _player: Object
 var _hud: Object
 
@@ -233,6 +234,7 @@ func audit() -> Array[String]:
 		if is_instance_valid(rig.camera) and not rig.camera.current:
 			rig.camera.make_current()
 			fixed.append("gameplay camera not current")
+	_audit_systems(p, fixed)
 	if not (FX.shake_amount >= 0.0 and FX.shake_amount <= 1.0):
 		FX.shake_amount = clampf(FX.shake_amount if is_finite(FX.shake_amount) else 0.0, 0.0, 1.0)
 		fixed.append("shake out of range")
@@ -255,6 +257,44 @@ func audit() -> Array[String]:
 	for f in fixed:
 		_fix(f)
 	return fixed
+
+
+## J6: cover, traversal, garage and weather. A vault or cover state that outlives the foot controls (vehicle, death, menu) or a traversal that never ends would hold the body for good.
+func _audit_systems(p: Player, fixed: Array[String]) -> void:
+	if p != null and is_instance_valid(p):
+		if not p.global_position.is_finite() or not p.velocity.is_finite():
+			p.velocity = Vector3.ZERO
+			p.global_position = Vector3(0.0, 2.0, 0.0)
+			fixed.append("player position not finite")
+		var off_foot := p.vehicle != null or Game.state == &"dead" or Game.state == &"menu"
+		if p.traversal != null:
+			if off_foot and p.traversal.active():
+				p.traversal.cancel()
+				fixed.append("traversal left running off foot")
+			elif p.traversal.active() and Game.state == &"play":
+				_trav_t += AUDIT_EVERY
+				if _trav_t > 6.0:
+					p.traversal.cancel()
+					fixed.append("traversal stuck")
+					_trav_t = 0.0
+			else:
+				_trav_t = 0.0
+		if p.cover != null and off_foot and (p.cover.in_cover or p.cover.peeking):
+			p.cover.in_cover = false
+			p.cover.peeking = false
+			fixed.append("cover left on while off foot")
+	if not Weather.PRESETS.has(Weather.current):
+		Weather.current = &"rain"
+		fixed.append("weather state unknown")
+	if not (Weather.flash >= 0.0 and Weather.flash <= 1.0):
+		Weather.flash = 0.0
+		fixed.append("weather flash out of range")
+	var prog: Object = Game.progress if &"progress" in Game else null
+	if prog != null and is_instance_valid(prog):
+		var g: Garage = prog.get(&"garage")
+		if g != null and g.has_car() and (g.paint < 0 or g.paint >= VehicleSpecs.COLORS.size()):
+			g.paint = clampi(g.paint, 0, VehicleSpecs.COLORS.size() - 1)
+			fixed.append("garage paint out of range")
 
 
 ## The cinematics themselves may hold the camera during play (never today: the boss beats run in the cutscene state), nothing else may.
