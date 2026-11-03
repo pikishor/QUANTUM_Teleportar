@@ -33,8 +33,9 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		var wl := "OWNED" if owned else "BUY  %d" % (prog.weapon_price(wid) if prog != null else 0)
 		var ry := wy + (k / PER_ROW) * 50.0 * s
 		hud._add(StringName("buy_%s" % wid), Rect2(cx + (-ROW_W * 0.5 + (k % PER_ROW) * colw + 52.0) * s, ry + 26.0 * s, (colw - 58.0) * s, 40.0 * s), wl, prog != null and prog.can_buy_weapon(wid))
-	hud._add(&"loadout", Rect2(cx - 330.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 220.0 * s, 44.0 * s), "LOADOUT", false)
-	hud._add(&"shop_back", Rect2(cx + 110.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 220.0 * s, 44.0 * s), "BACK", false)
+	hud._add(&"side_open", Rect2(cx - 100.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 200.0 * s, 44.0 * s), "MISSIONS", false)
+	hud._add(&"loadout", Rect2(cx - 340.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 220.0 * s, 44.0 * s), "LOADOUT", false)
+	hud._add(&"shop_back", Rect2(cx + 120.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 220.0 * s, 44.0 * s), "BACK", false)
 
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:

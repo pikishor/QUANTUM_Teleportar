@@ -37,7 +37,11 @@ var contracts_failed := 0
 var bosses_cleared: Array[int] = []      ## chapters whose Vael Overseer is down (saved)
 var unlocked := 1                       ## chapters the chapter select offers (>= 1, saved, never lowered by a new campaign)
 var checkpoint: Dictionary = {}          ## the running scripted chapter's checkpoint (see CampaignRunner), {} when none
+var side_done := {}                      ## side mission id -> completions (saved in [side])
+var side_best := {}                      ## side mission id -> best time in seconds (saved in [side])
 var last_save_ok := false
+var collectibles: Collectibles                  ## I2: the 30 shards (saved in [collectibles])
+var achievements: Achievements                  ## I3: 25 achievements (saved in [achievements] and [ach_stats])
 
 var _last_score := 0
 var _frac := 0.0
@@ -46,10 +50,19 @@ var _select_pending := false            ## start_chapter() is starting a run tha
 var continued := false                  ## the last new_game was a CONTINUE (scripts/interiors_gameplay/ resumes the saved interior)
 
 
+func _init() -> void:
+	collectibles = Collectibles.new()
+	add_child(collectibles)
+	achievements = Achievements.new()
+	add_child(achievements)
+	collectibles.changed.connect(func(_n: int) -> void: achievements.evaluate(); changed.emit())
+
+
 func _ready() -> void:
 	Game.progress = self
 	add_to_group(&"progress")
 	autosave_enabled = not Game.autostart
+	achievements.enabled = not Game.autostart
 	if autosave_enabled:
 		load_file()
 	Game.new_game.connect(_on_new_game)
@@ -275,6 +288,17 @@ func add_reputation(n: int) -> void:
 		changed.emit()
 
 
+## A side mission was finished: pay, reputation, tally and best time.
+func complete_side(mid: StringName, pay: int, rep: int, time: float) -> void:
+	side_done[mid] = int(side_done.get(mid, 0)) + 1
+	if not side_best.has(mid) or time < float(side_best[mid]):
+		side_best[mid] = snappedf(time, 0.1)
+	add_credits(pay)
+	add_reputation(rep)
+	if autosave_enabled:
+		save_file()
+
+
 # --- lifecycle ------------------------------------------------------------------------------------------------------
 
 func new_campaign() -> void:
@@ -285,7 +309,11 @@ func new_campaign() -> void:
 	contracts_done = 0
 	contracts_failed = 0
 	bosses_cleared.clear()
+	side_done.clear()
+	side_best.clear()
 	checkpoint.clear()
+	collectibles.reset()
+	achievements.reset()
 	WeaponDefs.reset_unlocked()
 	Attachments.reset()
 	_frac = 0.0
@@ -448,6 +476,16 @@ func save_file() -> bool:
 	cf.set_value("attachments", "equipped", att["equipped"])
 	cf.set_value("campaign", "bosses", PackedInt32Array(bosses_cleared))
 	cf.set_value("campaign", "unlocked", unlocked)
+	cf.set_value("collectibles", "got", collectibles.to_save())
+	var ad := achievements.to_save()
+	cf.set_value("achievements", "done", ad["done"])
+	cf.set_value("achievements", "cosmetics", ad["cosmetics"])
+	for k: String in ad["stats"]:
+		cf.set_value("ach_stats", k, ad["stats"][k])
+	for sid: StringName in side_done:
+		cf.set_value("side", "done_%s" % sid, int(side_done[sid]))
+		if side_best.has(sid):
+			cf.set_value("side", "best_%s" % sid, float(side_best[sid]))
 	if not checkpoint.is_empty():
 		cf.set_value("checkpoint", "chapter", int(checkpoint.get("chapter", 0)))
 		cf.set_value("checkpoint", "step", int(checkpoint.get("step", 0)))
@@ -501,6 +539,21 @@ func load_file() -> bool:
 		bosses_cleared.append(b)
 	unlocked = clampi(maxi(int(cf.get_value("campaign", "unlocked", 1)), sector + 1), 1, 99)     # a save from before the chapter select has no key: every chapter up to the saved sector
 	checkpoint = _load_checkpoint(cf)
+	collectibles.from_save(cf.get_value("collectibles", "got", PackedInt32Array()))
+	var ast := {}
+	if cf.has_section("ach_stats"):
+		for k in cf.get_section_keys("ach_stats"):
+			ast[k] = cf.get_value("ach_stats", k, 0)
+	achievements.from_save({"done": cf.get_value("achievements", "done", PackedStringArray()), "cosmetics": cf.get_value("achievements", "cosmetics", PackedStringArray()), "stats": ast})
+	side_done.clear()
+	side_best.clear()
+	for sid: StringName in SideMissions.ORDER:
+		var n: Variant = cf.get_value("side", "done_%s" % sid, 0)
+		if n is int and int(n) > 0:
+			side_done[sid] = mini(int(n), 9999)
+			var b: Variant = cf.get_value("side", "best_%s" % sid, 0.0)
+			if (b is float or b is int) and float(b) > 0.0 and is_finite(float(b)):
+				side_best[sid] = float(b)
 	var ws := StringName(str(cf.get_value("weather", "state", "rain")))
 	if Weather.PRESETS.has(ws):
 		var wn: Weather = Game.atmosphere.get(&"weather") if is_instance_valid(Game.atmosphere) else null

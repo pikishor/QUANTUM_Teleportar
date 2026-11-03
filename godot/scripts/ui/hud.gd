@@ -13,7 +13,7 @@ const VIGNETTE_MAX := 0.35          ## hard cap of the one damage vignette's alp
 const HURT_TIME := 0.45             ## seconds the hit vignette lasts
 const MARKER_TIME := 1.0            ## seconds the attacker marker lasts
 const DEAD_DIM := 0.30              ## alpha of the DECOHERED / SECTOR STABILIZED dimming (never above 0.35)
-const PAUSE_SETTINGS_Y := 396.0     ## base px: first settings row of the pause screen with progress (under the 64 px UPGRADES / CHAPTERS row)
+const PAUSE_SETTINGS_Y := 448.0     ## base px: first settings row of the pause screen with progress (under the 64 px UPGRADES / CHAPTERS row)
 ## Base-px baseline of the centre message: below the top stack and the radio subtitle lane, above the crosshair.
 const MSG_Y := 262.0
 const MINIMAP := 148.0              ## base px: the round minimap, top left
@@ -43,12 +43,16 @@ var _hover := &""
 var _layout_key := ""
 var _obj_text := ""
 var _cred_text := ""
+var _shard_text := ""               ## I2 tracker under the credits plate
 var _contract_text := ""
 var _loadout_open := false          ## the pause screen shows the weapon wheel and attachment loadout
 var _loadout_quick := false         ## opened from the wheel gesture: a pick resumes the game
 var _loadout_w: StringName = &"carbine"  ## the weapon whose slots the loadout shows
+var _ach_open := false             ## the pause screen shows the achievements (scripts/ui/achievements_screen.gd)
+var _ach_page := 0
 var _shop_open := false             ## the pause screen shows the upgrade shop instead of the settings
 var _options_open := false          ## the title / pause screen shows the options (scripts/ui/options_screen.gd)
+var _side_open := false             ## the pause shop shows the side-mission board (scripts/ui/side_board.gd)
 var _chapters_open := false         ## the title / pause screen shows the chapter select (scripts/ui/chapter_select.gd)
 var _camp_text := ""                ## the scripted campaign step's HUD line (CampaignRunner.hud_line), "" when none runs
 var _has_save := false              ## a save file exists (the title offers CONTINUE)
@@ -144,6 +148,8 @@ func _on_state(s: StringName) -> void:
 	screen_age = 0.0
 	_hover = &""
 	_shop_open = false
+	_ach_open = false
+	_side_open = false
 	_loadout_open = false
 	_loadout_quick = false
 	_chapters_open = false
@@ -338,6 +344,15 @@ func press_button(id: StringName) -> bool:
 		_layout_key = ""
 		_screen.queue_redraw()
 		return true
+	if sid.begins_with("side_") and SideMissions.DEFS.has(StringName(sid.substr(5))):
+		var sm := (Game.missions as Missions).sides if Game.missions is Missions else null
+		if Game.state != &"paused" or not _side_open or sm == null or not sm.can_start(StringName(sid.substr(5))):
+			Sfx.play(&"ui_deny")
+			return false
+		Game.state = &"play"                                           # _on_state closes the board; the job starts in the live city
+		sm.start(StringName(sid.substr(5)))
+		Sfx.play(&"ui_contract_accept")
+		return true
 	if sid.begins_with("buy_") and WeaponDefs.DEFS.has(StringName(sid.substr(4))):
 		if Game.state != &"paused" or not _shop_open or Game.progress == null:
 			return false
@@ -427,6 +442,32 @@ func press_button(id: StringName) -> bool:
 				_loadout_quick = false
 				Game.state = &"play"
 				return true
+		&"side_open":
+			if Game.state != &"paused" or Game.progress == null or not _shop_open:
+				return false
+			_side_open = true
+			Sfx.play(&"ui_confirm")
+		&"side_back":
+			if Game.state != &"paused" or not _side_open:
+				return false
+			_side_open = false
+			Sfx.play(&"ui_back")
+		&"ach":
+			if Game.state != &"paused" or Game.progress == null:
+				return false
+			_ach_open = true
+			_ach_page = 0
+			Sfx.play(&"ui_confirm")
+		&"ach_back":
+			if not _ach_open:
+				return false
+			_ach_open = false
+			Sfx.play(&"ui_back")
+		&"ach_prev", &"ach_next":
+			if not _ach_open:
+				return false
+			_ach_page = clampi(_ach_page + (1 if id == &"ach_next" else -1), 0, AchievementsScreen.pages() - 1)
+			Sfx.play(&"ui_tap")
 		&"shop_back":
 			if Game.state != &"paused":
 				return false
@@ -640,6 +681,7 @@ func _process(delta: float) -> void:
 	if _text_t <= 0.0:
 		_text_t = 0.2
 		_obj_text = objective_text()
+		_shard_text = ("SHARDS  %d / %d" % [(Game.progress as Progress).collectibles.count(), Collectibles.COUNT]) if Game.progress != null else ""
 		_cred_text = "CREDITS  %d" % (int(Game.progress.get(&"credits")) if Game.progress != null else Game.score)
 		_contract_text = _contract_line()
 		_camp_text = _campaign_line()
@@ -836,6 +878,10 @@ func _draw_hud_body() -> void:
 			var pulse := 1.0 if heat < 3.0 else 0.8 + 0.2 * sin(_t * 8.0)
 			_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
 	_text(c, font, Vector2(right - 192.0 * s, top + 72.0 * s), _cred_text + _clock_suffix(), HORIZONTAL_ALIGNMENT_RIGHT, 190.0 * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.97), 1.5 * s)
+	if _shard_text != "" and Game.state != &"menu":
+		var sr := Rect2(right - 196.0 * s, top + 90.0 * s, 204.0 * s, 30.0 * s)
+		_plate(c, sr, s)
+		_text(c, font, Vector2(sr.position.x + 6.0 * s, sr.position.y + 23.0 * s), _shard_text, HORIZONTAL_ALIGNMENT_RIGHT, 192.0 * s, int(UiUtil.BAR_LABEL * s), Color(0.7, 0.55, 1.0, 0.97), 1.0 * s)
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return
@@ -1018,6 +1064,8 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 func _ensure_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
+	key += "|%s" % _side_open
+	key += "|a%s%d" % [_ach_open, _ach_page]
 	key += "|%s%s%d%d%s" % [_loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size()]
 	key += "|%s%d" % [_options_open, int(settings.hud_scale * 100.0)]
 	if key == _layout_key:
@@ -1053,10 +1101,14 @@ func _ensure_layout() -> void:
 				OptionsScreen.layout(self, settings, cx, s)
 			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
+			elif _side_open:
+				SideBoard.layout(self, cx, s)
 			elif _loadout_open:
 				LoadoutScreen.layout(self, cx, s, _loadout_w)
 			elif _shop_open:
 				ShopScreen.layout(self, cx, s)
+			elif _ach_open:
+				AchievementsScreen.layout(self, cx, s, _ach_page)
 			elif Game.progress != null:
 				_add(&"resume", Rect2(cx - 170.0 * s, 232.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				if _chapters_ok():
@@ -1064,6 +1116,7 @@ func _ensure_layout() -> void:
 					_add(&"chapters", Rect2(cx + 4.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "CHAPTERS", false)
 				else:
 					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "UPGRADES", false)
+				_add(&"ach", Rect2(cx - 170.0 * s, 376.0 * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "ACHIEVEMENTS", false)
 				_settings_rows(cx, PAUSE_SETTINGS_Y, s)
 				_add(&"menu", Rect2(cx - 154.0 * s, (PAUSE_SETTINGS_Y + 160.0) * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
 			else:
@@ -1122,7 +1175,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.4))            # light: the animated city behind the title (scripts/cinematics) shows through
 			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.26))     # a darker column behind the title and buttons keeps them readable
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _loadout_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _ach_open or _side_open or _loadout_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1150,6 +1203,10 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				OptionsScreen.draw(self, c, vp, s, font, cx)
 			elif _chapters_open:
 				ChapterSelect.draw(self, c, vp, s, font, cx)
+			elif _ach_open:
+				AchievementsScreen.draw(self, c, vp, s, font, cx, _ach_page)
+			elif _side_open:
+				SideBoard.draw(self, c, vp, s, font, cx)
 			elif _loadout_open:
 				LoadoutScreen.draw(self, c, vp, s, font, cx, _loadout_w)
 			elif _shop_open:

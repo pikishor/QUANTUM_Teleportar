@@ -301,3 +301,7 @@ Follow-ups: new interior types not yet on city doors (InteriorData/door weights)
 ## Wave 36 note: rooftop traversal, cover, takedowns
 - `Traversal` (vault/mantle/ladders on ~30% of low roofs, `RoofLadders` family = 1 extra draw) and `PlayerCover` (crouch, cover snap, peek, slide, takedown; Ctrl/V; touch CROUCH/TAKEDOWN). Full suite 87/87 after moving the touch CROUCH button clear of RADIO. Visual QA 12/12. Perf gate not run (one new draw call).
 - Follow-ups: no vault/mantle/slide/takedown animation; fire-escape stairs not walkable; no cover shoulder swap; takedown ignores awareness; vault test assumes ~0.8 m start; perf gate should be run for the RoofLadders draw.
+
+## Wave 37: side missions, collectibles, achievements
+- Added side missions (side_missions.gd, side_board.gd), 30 shards (collectibles.gd), 25 achievements (achievements.gd, achievements_screen.gd; tested in test_collectibles.gd). Full suite 89/89 pass, visual QA 12/12.
+- Follow-ups: HUD "SHARDS 0/30" label sits tight under the credits/heat row at top-right (minor crowding); cosmetic ids from achievements are recorded but not yet applied to the hero.

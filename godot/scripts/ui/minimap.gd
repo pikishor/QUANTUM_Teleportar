@@ -14,6 +14,7 @@ const ARROW := [Vector2(0, -1.3), Vector2(0.85, 0.9), Vector2(0, 0.4), Vector2(-
 
 var tex: ImageTexture
 var markers_drawn := 0              ## markers inside the rim in the last redraw (for tests)
+var shard_markers := 0              ## collectible shards drawn (in range, plus the nearest pinned to the rim) in the last redraw
 var core_markers := 0               ## cores drawn (clamped to the rim when far) in the last redraw
 var contract_markers := 0           ## contract markers drawn (offer, target, zone, destination, officer area) in the last redraw
 var route_drawn := false            ## a courier route line was drawn in the last redraw
@@ -187,6 +188,23 @@ func _draw() -> void:
 				if not far:
 					rings.append([c + m, 7.5 * s, Color(UiUtil.objective_col(), 0.7)])
 				core_markers += 1
+	# collectible shards: violet diamonds in range, and the nearest one pinned to the rim as a hint
+	shard_markers = 0
+	var col: Object = (Game.progress.get(&"collectibles") if is_instance_valid(Game.progress) else null)
+	if col is Collectibles and is_instance_valid(Game.player):
+		var cl2 := col as Collectibles
+		var sp := Collectibles.spots()
+		var near := cl2.nearest_uncollected(Game.player.global_position)
+		for i in Collectibles.COUNT:
+			if cl2.is_collected(i):
+				continue
+			var m := to_map(sp[i].x, sp[i].z)
+			if m.length() < inner:
+				diamonds.append([c + m, 3.2 * s, Color(0.7, 0.5, 1.0)])
+				shard_markers += 1
+			elif i == near:
+				diamonds.append([c + m.normalized() * (inner - 3.0 * s), 3.2 * s, Color(0.7, 0.5, 1.0, 0.8)])
+				shard_markers += 1
 	var con: Object = mis.get("contracts") if mis != null else null
 	if con != null:
 		_contract_layer(con, c, inner, s, diamonds, rings)

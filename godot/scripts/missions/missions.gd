@@ -39,6 +39,7 @@ var total := 6
 var rounds := 0
 ## Procedural side missions (scripts/missions/contracts.gd) and the campaign state (scripts/progress/progress.gd): both are children of this node.
 var contracts: Contracts
+var sides: SideMissions                 ## the ten side missions of the shop's board
 var progress: Progress
 var campaign: CampaignRunner
 ## False while a scripted campaign chapter runs: collecting the last core then does not clear the sector (the runner's last step does).
@@ -76,6 +77,9 @@ func _ready() -> void:
 	contracts = Contracts.new()
 	contracts.name = "Contracts"
 	add_child(contracts)
+	sides = SideMissions.new()
+	sides.name = "Sides"
+	add_child(sides)
 	campaign = CampaignRunner.new()
 	campaign.name = "Campaign"
 	add_child(campaign)
