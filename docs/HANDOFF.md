@@ -331,3 +331,7 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - Set pieces (ch 2/5/8) in scripts/missions/set_pieces.gd, spliced into chapter steps; checkpoint step indexes for ch 2/5/8 shifted. Follow-ups: no in-game test of runtime hooks, no UI for skip_set_piece(), hazards only have map markers, campaign_data.gd does not name pieces.
 - Cutscene polish: dolly zoom, rack focus, glitch cuts. Follow-ups: wire Cinematics.play(&"garage_reveal") and &"teleporter_first" call sites; rack focus is a grade approximation; no glitch on skip.
 - Full suite: 98 pass, FLAKY test_perf_budget.gd (passed on retry), 0 fail. Visual QA 12/12 pass; no glaring defects in latest.png.
+
+## Wave 43 note: city events, side activities
+- city_events.gd (data-only scheduler: rescue, ambush, race, drop, rift; markers(), gravity_scale_at()) is NOT wired in: orchestrator must add the node, minimap markers, player gravity hook; no actor spawns; ambush/race need resolve(). Activities (scripts/activities/activities.gd, added in main.gd): target range, rooftop run, drift course, arena; saves user://activities.cfg. Follow-ups: no HUD readout for activity time/score, marker positions unchecked vs map, arena has no end condition, no integration/bot coverage.
+- Full suite: 101 pass, 0 flaky, 0 fail. Visual QA 12/12 pass; no glaring defects in latest.png.

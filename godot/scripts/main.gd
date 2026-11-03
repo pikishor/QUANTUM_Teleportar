@@ -37,6 +37,7 @@ func _ready() -> void:
 	add_child(AutoQuality.new())        # touchscreens start on LOW until the player chooses; a sustained low frame rate drops one tier
 	add_child(Stability.new())          # watchdog: held input, time scale, camera / player / HUD consistency, hurt and death feedback
 	add_child(InteriorGameplay.new())   # enterable interiors: doors, fades, vendors, actors, missions (scripts/interiors_gameplay/)
+	add_child(Activities.new())         # F8: range, rooftop run, drift course, arena (scripts/activities/)
 	add_child(Cinematics.new())         # cutscenes (intro, chapter, boss), title backdrop, shop close-up, dead / win bars and fades (scripts/cinematics/)
 	TestMode.forced = UiSettings.new().test_mode or OS.get_cmdline_user_args().has("--test-mode")
 	add_child(TestMenu.new())           # the hack / test menu, its TEST button and the weapon quick buttons (debug builds or the 'test mode' setting); LAST: it sees input first
