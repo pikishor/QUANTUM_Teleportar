@@ -50,7 +50,7 @@ func _on_activate() -> void:
 	summoned.clear()
 	_invuln_t = 0.0
 	_summon_t = 4.0
-	_pulse_t = PULSE_EVERY
+	_pulse_t = PULSE_EVERY / Difficulty.mult("aggr")
 	_ov_pulse_wind = 0.0
 	_open_t = 0.0
 	Sfx.boss_active = true
@@ -144,7 +144,7 @@ func disable(seconds: float) -> void:
 	if _ov_pulse_wind > 0.0 and not dead and active:
 		_ov_pulse_wind = 0.0
 		_open_t = OPEN_TIME
-		_pulse_t = PULSE_EVERY
+		_pulse_t = PULSE_EVERY / Difficulty.mult("aggr")
 		FX.blast(center(), 6.0, Color(0.3, 0.94, 1.0), 0.4)
 	super.disable(minf(seconds, 1.0))
 
@@ -230,12 +230,12 @@ func _tick_boss(delta: float) -> void:
 			summoned.remove_at(i)
 	_summon_t -= delta
 	if phase != 2 and _summon_t <= 0.0:
-		_summon_t = SUMMON_EVERY if phase == 1 else 14.0
+		_summon_t = (SUMMON_EVERY if phase == 1 else 14.0) / Difficulty.mult("aggr")
 		_summon(2 if phase == 1 else 1, &"sentinel" if phase == 1 and randf() < 0.7 else &"striker")
 	if phase == 2:
 		_pulse_t -= delta
 		if _pulse_t <= 0.0 and _ov_pulse_wind <= 0.0:
-			_pulse_t = PULSE_EVERY
+			_pulse_t = PULSE_EVERY / Difficulty.mult("aggr")
 			_ov_pulse_wind = OV_PULSE_WIND
 			Sfx.play_at(&"boom", center(), -6.0, 0.6)
 			_say("pulse")

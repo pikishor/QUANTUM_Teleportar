@@ -171,7 +171,7 @@ func _setup_input_map() -> void:
 
 
 func add_heat(v: float) -> void:
-	heat += v
+	heat += v * (Difficulty.mult("heat") if v > 0.0 else 1.0)
 	quiet = 0.0
 
 

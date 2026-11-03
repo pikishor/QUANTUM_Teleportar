@@ -91,7 +91,7 @@ static func pick(chapter: int, rng: RandomNumberGenerator, exclude := &"", banne
 ## (a courier or a fast kill pays up to +25 % extra). credits = base * sector factor * (1 + bonus) * (1 + 0.25 speed).
 static func reward(kind: StringName, chapter: int, bonus := 0.0, speed := 0.0) -> Dictionary:
 	var diff := Progress.difficulty(chapter)
-	var credits := int(roundf(float(DATA[kind]["base"]) * float(diff["reward"]) * (1.0 + bonus) * (1.0 + 0.25 * clampf(speed, 0.0, 1.0)) / 5.0)) * 5
+	var credits := int(roundf(float(Economy.CONTRACT_BASE[kind]) * float(diff["reward"]) * (1.0 + bonus) * (1.0 + 0.25 * clampf(speed, 0.0, 1.0)) / 5.0)) * 5
 	return {"credits": credits, "energy": 100.0, "heal": 40.0, "upgrade": bool(DATA[kind]["upgrade"]) and chapter >= 1, "rep": 8}
 
 

@@ -333,7 +333,7 @@ func die() -> void:
 		Stealth.takedowns += 1
 		Game.say("SILENT TAKEDOWN  +%d" % Stealth.takedown_bonus(), 1.2)
 	_unaware_hit = false
-	Game.heat += float(cfg["heat"])
+	Game.heat += float(cfg["heat"]) * Difficulty.mult("heat")
 	Game.quiet = 0.0
 	var p := Game.player
 	if is_instance_valid(p) and p.has_method(&"add_energy"):
@@ -523,7 +523,7 @@ func _think_aware(delta: float, dx: float, dz: float, d: float) -> void:
 		_tele = clampf(1.0 - _fire_t / TELEGRAPH, 0.0, 1.0)       # the muzzle charges and the aim line shows for the last 0.45 s
 	if los and d < rng * 1.15 and _fire_t <= 0.0:
 		var f: Vector2 = cfg["fire"]
-		_fire_t = randf_range(f.x, f.y)
+		_fire_t = randf_range(f.x, f.y) / Difficulty.mult("aggr")
 		_fire()
 
 

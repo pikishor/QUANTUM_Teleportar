@@ -60,7 +60,7 @@ static func unlocked(mid: StringName, chapter: int) -> bool:
 static func reward(mid: StringName, chapter: int, rep: int, time_left_frac: float) -> int:
 	if not DEFS.has(mid):
 		return 0
-	var v := float(DEFS[mid]["pay"]) * float(Progress.difficulty(chapter)["reward"]) * (1.0 + Progress.rep_bonus(rep))
+	var v := float(Economy.SIDE_PAY[mid]) * float(Progress.difficulty(chapter)["reward"]) * (1.0 + Progress.rep_bonus(rep))
 	if time_left_frac >= 1.0 / 3.0:
 		v *= 1.25
 	return maxi(1, int(round(v / 5.0)) * 5)

@@ -12,11 +12,11 @@ var spawn_actors := true          ## false: records only (headless unit test)
 
 const KINDS: Array[StringName] = [&"ambush", &"race", &"rescue", &"drop", &"rift"]
 const DEF := {
-	&"ambush": {"ttl": 60.0, "credits": 120, "heat": 1.0, "radius": 18.0, "label": "CONVOY AMBUSH"},
-	&"race": {"ttl": 75.0, "credits": 150, "heat": 0.5, "radius": 14.0, "label": "STREET RACE"},
-	&"rescue": {"ttl": 50.0, "credits": 90, "heat": -0.5, "radius": 4.0, "label": "RESCUE"},
-	&"drop": {"ttl": 45.0, "credits": 200, "heat": 0.8, "radius": 4.0, "label": "BLACK MARKET DROP"},
-	&"rift": {"ttl": 40.0, "credits": 60, "heat": 0.0, "radius": 22.0, "label": "DIMENSIONAL RIFT"},
+	&"ambush": {"ttl": 60.0, "credits": Economy.EVENT_REWARD[&"ambush"], "heat": 1.0, "radius": 18.0, "label": "CONVOY AMBUSH"},
+	&"race": {"ttl": 75.0, "credits": Economy.EVENT_REWARD[&"race"], "heat": 0.5, "radius": 14.0, "label": "STREET RACE"},
+	&"rescue": {"ttl": 50.0, "credits": Economy.EVENT_REWARD[&"rescue"], "heat": -0.5, "radius": 4.0, "label": "RESCUE"},
+	&"drop": {"ttl": 45.0, "credits": Economy.EVENT_REWARD[&"drop"], "heat": 0.8, "radius": 4.0, "label": "BLACK MARKET DROP"},
+	&"rift": {"ttl": 40.0, "credits": Economy.EVENT_REWARD[&"rift"], "heat": 0.0, "radius": 22.0, "label": "DIMENSIONAL RIFT"},
 }
 const MIN_DIST := 45.0
 const MAX_DIST := 140.0

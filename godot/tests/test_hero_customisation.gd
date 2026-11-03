@@ -38,9 +38,9 @@ func run(host: Node) -> void:
 		TestLib.check(false, "progress and hero present")
 		return
 	prog.credits = 5000
-	TestLib.check(prog.buy_look("scheme:1") and prog.credits == 4850, "buying a scheme pays its price")
+	TestLib.check(prog.buy_look("scheme:1") and prog.credits == 5000 - Economy.scheme_price(1), "buying a scheme pays its price")
 	TestLib.check(not prog.buy_look("scheme:1") and not prog.buy_look("suit:phase") and not prog.buy_look("suit:standard"), "no double buy, no buying achievement or free items")
-	TestLib.check(prog.credits == 4850, "refused buys cost nothing")
+	TestLib.check(prog.credits == 5000 - Economy.scheme_price(1), "refused buys cost nothing")
 	var gears: Array = p.body._gear_mats
 	if gears.is_empty():
 		return                                           # primitive fallback body: no override materials to compare
@@ -71,7 +71,7 @@ func run(host: Node) -> void:
 		hud.press_button(&"pause_shop") if false else null
 		hud._shop_open = true
 		TestLib.check(hud.press_button(&"look_open") and hud._look_open, "SUIT button opens the screen")
-		prog.credits = 1000
+		prog.credits = 5000
 		TestLib.check(hud.press_button(&"look_scheme_3") and prog.hero.scheme == 3, "tap a scheme: buy and equip")
 		TestLib.check(hud.press_button(&"look_hue_buy") and hud.press_button(&"look_hue_4") and prog.hero.accent_hue == 4, "buy the picker and pick a hue")
 		TestLib.check(not hud.press_button(&"look_suit_phase"), "a locked achievement suit does not equip")

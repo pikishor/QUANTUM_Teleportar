@@ -42,7 +42,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 	var ay := (Y0 + ROW_STEP + 150.0) * s
 	for i in HeroLook.HUES:
 		hud._add(StringName("look_hue_%d" % i), Rect2(cx + (LEFT + i * 40.0) * s, ay + 20.0 * s, 36.0 * s, 36.0 * s), "", h.accent_hue == i)
-	hud._add(&"look_hue_buy", Rect2(cx + LEFT * s, ay + 62.0 * s, 200.0 * s, 40.0 * s), "ACCENT  OWNED" if h.owned.has("accent") else "ACCENT  BUY  %d" % HeroLook.ACCENT_PRICE, h.owned.has("accent"))
+	hud._add(&"look_hue_buy", Rect2(cx + LEFT * s, ay + 62.0 * s, 200.0 * s, 40.0 * s), "ACCENT  OWNED" if h.owned.has("accent") else "ACCENT  BUY  %d" % Economy.accent_price(), h.owned.has("accent"))
 	hud._add(&"look_back", Rect2(cx + (LEFT + 300.0) * s, ay + 62.0 * s, 200.0 * s, 40.0 * s), "BACK", false)
 
 

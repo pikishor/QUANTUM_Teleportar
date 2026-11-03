@@ -32,6 +32,7 @@ var reduce_flash := false    ## no lightning exposure pulse, no full-screen quan
 var reduce_motion := false   ## no screen shake, no slow motion
 var sub_size := 1.0          ## subtitle text multiplier (Tr.SCALES)
 var sub_bg := 1              ## subtitle plate opacity step 0 soft, 1 normal, 2 solid
+var difficulty := 1         ## Difficulty.NAMES index (default NORMAL)
 var cb_safe := false         ## colour-blind safe markers (blue / orange / white instead of red / green / magenta)
 
 const SENS_MIN := 0.3
@@ -89,6 +90,7 @@ func load_file() -> void:
 	test_mode = _b(cf.get_value("debug", "test_mode", false))
 	aim_assist = _b(cf.get_value("gameplay", "aim_assist", true))
 	auto_fire = _b(cf.get_value("gameplay", "auto_fire", false))
+	difficulty = Difficulty.clamp_mode(Progress._num(cf.get_value("gameplay", "difficulty", 1), 1))
 	look_x = clampf(_f(cf.get_value("controls", "look_x", 1.0)), SENS_MIN, SENS_MAX)
 	look_y = clampf(_f(cf.get_value("controls", "look_y", 1.0)), SENS_MIN, SENS_MAX)
 	ads_sens = clampf(_f(cf.get_value("controls", "ads_sens", 1.0)), SENS_MIN, SENS_MAX)
@@ -135,6 +137,7 @@ func publish(engine := true) -> void:
 	s_reduce_motion = reduce_motion
 	s_sub_size = sub_size
 	s_sub_bg = sub_bg
+	Difficulty.set_mode(difficulty)
 	Tr.set_lang(language)
 	Tr.text_scale = text_scale
 	if engine:
@@ -161,6 +164,7 @@ func save() -> bool:
 	cf.set_value("debug", "test_mode", test_mode)
 	cf.set_value("gameplay", "aim_assist", aim_assist)
 	cf.set_value("gameplay", "auto_fire", auto_fire)
+	cf.set_value("gameplay", "difficulty", difficulty)
 	cf.set_value("controls", "look_x", look_x)
 	cf.set_value("controls", "look_y", look_y)
 	cf.set_value("controls", "ads_sens", ads_sens)

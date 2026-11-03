@@ -153,7 +153,7 @@ static func set_unlocked(names: Array) -> void:
 
 
 static func price(id: StringName, discount := 0.0) -> int:
-	return maxi(5, int(roundf(float(def(id)["price"]) * (1.0 - discount) / 5.0)) * 5)
+	return maxi(5, int(roundf(float(Economy.weapon_price(id)) * (1.0 - discount) / 5.0)) * 5)
 
 
 ## Magazine size with the shop's magazine upgrade, per weapon: +20 % of the weapon's own base per level (the carbine keeps its +6), small magazines at least +1 every second level.

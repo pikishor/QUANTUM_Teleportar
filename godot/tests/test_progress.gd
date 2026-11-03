@@ -95,9 +95,9 @@ func _upgrade_maths() -> void:
 		var c := Upgrades.cost(&"damage", lvl)
 		rising = rising and c > prev and c % 5 == 0
 		prev = c
-	TestLib.check(rising and Upgrades.cost(&"damage", 0) == 240 and Upgrades.cost(&"damage", 4) == 1010, "costs rise per level and are multiples of 5 (240 ... 1010)")
+	TestLib.check(rising and Upgrades.cost(&"damage", 0) == Economy.upgrade_base(&"damage") and Upgrades.cost(&"damage", 4) > 4 * Upgrades.cost(&"damage", 0), "costs rise per level and are multiples of 5")
 	TestLib.check(Upgrades.cost(&"damage", 5) == -1 and Upgrades.price(&"damage", 5) == -1 and Upgrades.cost(&"mag", -1) == -1, "no price beyond the last level")
-	TestLib.check(Upgrades.price(&"damage", 0, 0.2) == 190 and Upgrades.price(&"damage", 0, -0.1) == 265 and Upgrades.price(&"damage", 0, 0.0) == 240, "reputation moves the price: LEGEND 190, SUSPECT 265, normal 240")
+	TestLib.check(Upgrades.price(&"damage", 0, 0.2) < Upgrades.price(&"damage", 0, 0.0) and Upgrades.price(&"damage", 0, -0.1) > Upgrades.price(&"damage", 0, 0.0) and Upgrades.price(&"damage", 0, 0.0) == Upgrades.cost(&"damage", 0), "reputation moves the price: LEGEND cheaper, SUSPECT dearer")
 	TestLib.check(Upgrades.price(&"mag", 0, 0.99) >= 5, "a price is never below 5")
 	TestLib.check(Upgrades.effect_text(&"mag", 0) == "30 ROUNDS  >  36 ROUNDS" and Upgrades.effect_text(&"damage", 5) == "160% DAMAGE" and "100% DAMAGE" in Upgrades.effect_text(&"damage", 0), "the shop row shows what the next level changes")
 	var texts_ok := true
@@ -112,12 +112,14 @@ func _wallet_and_shop() -> void:
 	var bought: Array = []
 	prog.purchased.connect(func(id: StringName, lvl: int) -> void: bought.append([id, lvl]))
 	TestLib.check(not prog.can_buy(&"damage") and not prog.buy(&"damage") and prog.credits == 0, "with no credits nothing can be bought")
-	prog.add_credits(1000)
-	TestLib.check(prog.credits == 1000 and prog.can_buy(&"damage"), "credits arrive")
-	TestLib.check(prog.buy(&"damage") and prog.credits == 760 and prog.level(&"damage") == 1 and is_equal_approx(Upgrades.damage_mult(), 1.12), "buying damage level 1 costs 240 and raises damage +12 %%")
+	prog.add_credits(2000)
+	TestLib.check(prog.credits == 2000 and prog.can_buy(&"damage"), "credits arrive")
+	TestLib.check(prog.buy(&"damage") and prog.credits == 2000 - Economy.upgrade_base(&"damage") and prog.level(&"damage") == 1 and is_equal_approx(Upgrades.damage_mult(), 1.12), "buying damage level 1 costs 240 and raises damage +12 %%")
 	TestLib.check(bought.size() == 1 and bought[0][0] == &"damage" and bought[0][1] == 1, "the purchase signal fires")
-	TestLib.check(prog.price(&"damage") == 430 and prog.buy(&"damage") and prog.credits == 330, "level 2 costs 430")
-	TestLib.check(not prog.buy(&"damage") and prog.credits == 330 and prog.level(&"damage") == 2, "level 3 (625) is too dear: nothing changes")
+	var p2 := prog.price(&"damage")
+	var left := prog.credits - p2
+	TestLib.check(p2 == Upgrades.cost(&"damage", 1) and prog.buy(&"damage") and prog.credits == left, "level 2 costs %d" % p2)
+	TestLib.check(prog.price(&"damage") > prog.credits and not prog.buy(&"damage") and prog.credits == left and prog.level(&"damage") == 2, "level 3 is too dear: nothing changes")
 	TestLib.check(not prog.buy(&"nonsense") and not prog.can_buy(&"nonsense"), "an unknown id is refused")
 	prog.add_credits(10000)
 	for i in 3:
@@ -146,10 +148,10 @@ func _reputation() -> void:
 	TestLib.check(prog.reputation == Progress.REP_MAX, "reputation is capped at %d" % Progress.REP_MAX)
 	prog.add_reputation(-5000)
 	TestLib.check(prog.reputation == Progress.REP_MIN, "and floored at %d" % Progress.REP_MIN)
-	prog.add_credits(1000)
+	prog.add_credits(2000)
 	TestLib.check(prog.price(&"damage") == Upgrades.price(&"damage", 0, -0.1), "a SUSPECT pays more in the shop")
 	prog.reputation = 40
-	TestLib.check(prog.price(&"damage") == Upgrades.price(&"damage", 0, 0.2) and prog.buy(&"damage") and prog.credits == 1000 - 190, "a LEGEND buys at 20 %% off")
+	TestLib.check(prog.price(&"damage") == Upgrades.price(&"damage", 0, 0.2) and prog.buy(&"damage") and prog.credits == 2000 - Upgrades.price(&"damage", 0, 0.2), "a LEGEND buys at 20 %% off")
 	_fresh()
 
 

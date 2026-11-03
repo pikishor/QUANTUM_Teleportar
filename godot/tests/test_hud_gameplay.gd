@@ -159,23 +159,24 @@ func _shop(host: Node) -> void:
 	for id: StringName in Upgrades.IDS:
 		buys += 1 if ids.has(StringName("buy_%s" % id)) else 0
 	TestLib.check(buys == Upgrades.IDS.size() and ids.has(&"shop_back") and not ids.has(&"resume") and not ids.has(&"q0"), "the shop has a buy button per upgrade and BACK (%s)" % str(ids))
-	TestLib.check(_button(&"buy_damage")["label"] == "BUY  240" and not _button(&"buy_damage")["on"], "a row shows its price and is dim without credits")
+	TestLib.check(_button(&"buy_damage")["label"] == "BUY  %d" % Upgrades.price(&"damage", 0) and not _button(&"buy_damage")["on"], "a row shows its price and is dim without credits")
 	var cue_muted := Sfx.muted
 	Sfx.muted = false
 	OS.delay_msec(60)
 	Sfx.last_played = &""
 	TestLib.check(not hud.press_button(&"buy_damage") and prog.level(&"damage") == 0, "a purchase without credits is refused")
 	TestLib.check(Sfx.last_played == &"ui_deny", "a refused purchase plays ui_deny (%s)" % Sfx.last_played)
-	prog.add_credits(700)
+	var bank := Upgrades.price(&"damage", 0) + Upgrades.price(&"mag", 0) + 100
+	prog.add_credits(bank)
 	hud._layout_key = ""
 	hud._ensure_layout()
-	TestLib.check(_button(&"buy_damage")["on"] and _button(&"buy_armour")["label"] == "BUY  260", "with credits the row lights up")
+	TestLib.check(_button(&"buy_damage")["on"] and _button(&"buy_armour")["label"] == "BUY  %d" % Upgrades.price(&"armour", 0), "with credits the row lights up")
 	OS.delay_msec(60)
-	TestLib.check(hud.press_button(&"buy_damage") and prog.credits == 460 and prog.level(&"damage") == 1, "pressing BUY spends and levels up")
+	TestLib.check(hud.press_button(&"buy_damage") and prog.credits == bank - Upgrades.price(&"damage", 0) and prog.level(&"damage") == 1, "pressing BUY spends and levels up")
 	TestLib.check(Sfx.last_played == &"ui_purchase", "a purchase plays ui_purchase (%s)" % Sfx.last_played)
 	Sfx.muted = cue_muted
 	hud._ensure_layout()
-	TestLib.check(_button(&"buy_damage")["label"] == "BUY  430", "the row now shows the next price")
+	TestLib.check(_button(&"buy_damage")["label"] == "BUY  %d" % Upgrades.price(&"damage", 1), "the row now shows the next price")
 	TestLib.check(hud.tap(_button(&"buy_mag")["rect"].get_center()) and prog.level(&"mag") == 1, "a tap on a buy button works")
 	for i in 5:
 		prog.grant_upgrade(&"reload")

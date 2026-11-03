@@ -366,8 +366,9 @@ func _upgrades_and_shop() -> void:
 	root.add_child(prog)
 	prog.path = "user://test_weapons_shop.cfg"
 	prog.new_campaign()
-	prog.credits = 600
-	TestLib.check(prog.weapon_price(&"scatter") == 500 and prog.can_buy_weapon(&"scatter") and not prog.can_buy_weapon(&"lance"), "the scatter costs 500, the lance is out of reach")
+	var sp := Economy.weapon_price(&"scatter")
+	prog.credits = sp + 100
+	TestLib.check(prog.weapon_price(&"scatter") == sp and prog.can_buy_weapon(&"scatter") and not prog.can_buy_weapon(&"lance"), "the scatter costs 500, the lance is out of reach")
 	TestLib.check(prog.buy_weapon(&"scatter") and prog.credits == 100 and WeaponDefs.is_unlocked(&"scatter"), "buying unlocks the scatter and pays")
 	TestLib.check(not prog.buy_weapon(&"scatter") and not prog.buy_weapon(&"lance") and not prog.buy_weapon(&"carbine"), "no double purchase, no unaffordable, no carbine")
 	prog.set(&"levels", {})

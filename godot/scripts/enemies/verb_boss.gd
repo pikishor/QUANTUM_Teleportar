@@ -276,7 +276,7 @@ func _tick_boss(delta: float) -> void:
 	if mode != &"hunter" or phase >= 2:
 		_summon_t -= delta
 		if _summon_t <= 0.0 and phase >= (2 if mode == &"hazard" else 1):
-			_summon_t = SUMMON_EVERY
+			_summon_t = SUMMON_EVERY / Difficulty.mult("aggr")
 			_summon(1, &"sentinel" if phase == 1 else &"striker")
 	match mode:
 		&"hazard":

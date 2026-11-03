@@ -377,7 +377,7 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 		last_hurt_from = from_pos
 		hurt.emit(share)
 		return
-	hp -= amount * Upgrades.damage_taken() * (cover.damage_mult() if cover != null else 1.0)
+	hp -= amount * Difficulty.damage_taken(Difficulty.story_chapter()) * Upgrades.damage_taken() * (cover.damage_mult() if cover != null else 1.0)
 	since_hurt = 0.0
 	last_hurt_time = PlayerUtil.now()
 	last_hurt_from = from_pos

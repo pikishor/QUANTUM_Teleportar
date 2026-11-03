@@ -360,3 +360,9 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - test_assets/test_audio now accept 22.05 kHz imported WAVs (import-tuned), same intent.
 - Full suite: no flaky. Perf tiers 0/1/2 all OK (tier 0 death spike sits at 115/115 budget edge; one run saw 116, rerun and baseline 115).
 - Follow-ups: AAB still over 200 MB base without a Play Asset Delivery pack (plan in RELEASE.md); iOS team id placeholder; perf panel layout unseen on phone; battery/thermal n/a; visual_qa 12/12 pass, no new defects.
+
+## Wave 49: difficulty settings and balance, economy table
+- Difficulty (Story/Normal/Hard/Quantum, options page 2, `gameplay/difficulty`) with `tools/balance_sim.gd`; Economy table (`scripts/progress/economy.gd`, PRICE_SCALE 2.8) wired into shop, vendors, contracts, events, activities; `tools/economy_sim.sh`.
+- Integrator fixes: `test_boss` now scales the pulse damage by Difficulty/Upgrades (meaning unchanged: it checks the pulse hits unblocked); `test_hud_gameplay` shop prices now read from Upgrades.price instead of hardcoded numbers; `enemy_manager._tick_noise` used `bool(null)` for players without `sprinting` (script error in tests), now `== true`.
+- Full suite: 113 pass, 0 flaky, 0 fail. visual_qa 12/12, full_bot PASS. Perf gate skipped.
+- Follow-ups: checkpoint health restore untested; boss timings and chapter caps untuned; achievement/campaign-step credits not in Economy table; new strings untranslated.

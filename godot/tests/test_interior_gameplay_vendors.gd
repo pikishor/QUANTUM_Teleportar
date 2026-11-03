@@ -147,12 +147,12 @@ func _weapons() -> void:
 func _clinic() -> void:
 	await go(&"clinic")
 	var vs := ig.vendor_screen
-	prog.credits = 1000
+	prog.credits = 3000
 	p.hp = 20.0
 	vs.open(&"clinic")
 	await frames(1)
 	var res := VendorLogic.buy(&"clinic", &"heal")
-	TestLib.check(res["ok"] and is_equal_approx(p.hp, p.max_hp) and prog.credits == 1000 - VendorLogic.discount_price(40), "full repair restores hp (%d)" % int(p.hp))
+	TestLib.check(res["ok"] and is_equal_approx(p.hp, p.max_hp) and prog.credits == 3000 - VendorLogic.discount_price(40), "full repair restores hp (%d)" % int(p.hp))
 	p.energy = 10.0
 	res = VendorLogic.buy(&"clinic", &"energy")
 	TestLib.check(res["ok"] and is_equal_approx(p.energy, p.max_energy), "a coherence dose refills energy")

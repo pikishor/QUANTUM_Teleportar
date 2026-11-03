@@ -112,7 +112,7 @@ func spawn(type: StringName, pos: Vector3, aware := false, reinforce := false) -
 		return null
 	var d := _acquire(type)
 	d.activate(pos, aware, reinforce)
-	d.max_hp = float(d.cfg["hp"]) * Progress.enemy_hp_mult()       # sector difficulty (1.0 in sector 1)
+	d.max_hp = float(d.cfg["hp"]) * (Progress.boss_hp_mult() if bool(d.cfg.get("boss", false)) else Progress.enemy_hp_mult())       # sector difficulty (1.0 in sector 1)
 	d.hp = d.max_hp
 	if not list.has(d):
 		list.append(d)
@@ -409,7 +409,7 @@ func _tick_noise(delta: float, p: Node3D) -> void:
 	if _noise_t > 0.0:
 		return
 	_noise_t = Stealth.t("sprint_every")
-	if bool(p.get(&"sprinting")):
+	if p.get(&"sprinting") == true:
 		Stealth.noise(list, p.global_position, &"sprint")
 	var v: Variant = p.get(&"vehicle")
 	if v is Node3D and is_instance_valid(v):

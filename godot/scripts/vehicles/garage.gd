@@ -67,7 +67,7 @@ func price(stat: StringName) -> int:
 	var l := level(stat)
 	if l >= MAX_LEVEL or not BASE_PRICE.has(stat):
 		return 0
-	return int(BASE_PRICE[stat]) * (l + 1)
+	return Economy.garage_base(stat) * (l + 1)
 
 
 func can_upgrade(stat: StringName, wallet: Object) -> bool:

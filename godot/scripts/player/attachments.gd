@@ -42,7 +42,7 @@ static func parts_for(slot: StringName) -> Array[StringName]:
 
 
 static func price(part: StringName, discount := 0.0) -> int:
-	return maxi(5, int(roundf(float(PARTS[part]["price"]) * (1.0 - discount) / 5.0)) * 5)
+	return maxi(5, int(roundf(float(Economy.attachment_price(part)) * (1.0 - discount) / 5.0)) * 5)
 
 
 static func is_owned(part: StringName) -> bool:

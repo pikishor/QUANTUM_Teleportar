@@ -112,25 +112,25 @@ const STOCK := {
 	&"weapons": [
 		{"id": &"scatter", "kind": "weapon", "name": "SHARD SCATTER"}, {"id": &"lance", "kind": "weapon", "name": "PULSE LANCE"},
 		{"id": &"grenade", "kind": "weapon", "name": "SINGULARITY GRENADE"},
-		{"id": &"ammo_scatter", "kind": "ammo", "weapon": &"scatter", "rounds": 12, "price": 60, "name": "SCATTER SHELLS  +12"},
-		{"id": &"ammo_lance", "kind": "ammo", "weapon": &"lance", "rounds": 5, "price": 90, "name": "LANCE CELLS  +5"},
-		{"id": &"ammo_grenade", "kind": "ammo", "weapon": &"grenade", "rounds": 2, "price": 120, "name": "SINGULARITIES  +2"},
+		{"id": &"ammo_scatter", "kind": "ammo", "weapon": &"scatter", "rounds": 12, "price": Economy.AMMO[&"ammo_scatter"]["price"], "name": "SCATTER SHELLS  +12"},
+		{"id": &"ammo_lance", "kind": "ammo", "weapon": &"lance", "rounds": 5, "price": Economy.AMMO[&"ammo_lance"]["price"], "name": "LANCE CELLS  +5"},
+		{"id": &"ammo_grenade", "kind": "ammo", "weapon": &"grenade", "rounds": 2, "price": Economy.AMMO[&"ammo_grenade"]["price"], "name": "SINGULARITIES  +2"},
 		{"id": &"damage", "kind": "upgrade", "name": "WEAPON DAMAGE"},
 	],
 	&"clinic": [
-		{"id": &"heal", "kind": "heal", "price": 40, "name": "FULL REPAIR"}, {"id": &"energy", "kind": "energy", "price": 30, "name": "COHERENCE DOSE"},
+		{"id": &"heal", "kind": "heal", "price": Economy.SERVICE[&"heal"], "name": "FULL REPAIR"}, {"id": &"energy", "kind": "energy", "price": Economy.SERVICE[&"energy"], "name": "COHERENCE DOSE"},
 		{"id": &"armour", "kind": "upgrade", "name": "ARMOUR"}, {"id": &"regen", "kind": "upgrade", "name": "COHERENCE REGEN"},
 	],
 	&"tech": [
 		{"id": &"blink", "kind": "upgrade", "name": "BLINK RANGE"}, {"id": &"reload", "kind": "upgrade", "name": "RELOAD SPEED"},
-		{"id": &"mag", "kind": "upgrade", "name": "MAGAZINE"}, {"id": &"energy", "kind": "energy", "price": 30, "name": "COHERENCE CELL"},
+		{"id": &"mag", "kind": "upgrade", "name": "MAGAZINE"}, {"id": &"energy", "kind": "energy", "price": Economy.SERVICE[&"energy"], "name": "COHERENCE CELL"},
 	],
 	&"bar": [
-		{"id": &"rumour", "kind": "rumour", "price": 20, "name": "BUY A RUMOUR"}, {"id": &"drink", "kind": "drink", "price": 10, "name": "SYNTH DRINK  +25 HP"},
+		{"id": &"rumour", "kind": "rumour", "price": Economy.SERVICE[&"rumour"], "name": "BUY A RUMOUR"}, {"id": &"drink", "kind": "drink", "price": Economy.SERVICE[&"drink"], "name": "SYNTH DRINK  +25 HP"},
 	],
 	&"bodega": [
-		{"id": &"drink", "kind": "drink", "price": 10, "name": "SYNTH DRINK  +25 HP"}, {"id": &"heal", "kind": "heal", "price": 55, "name": "FIELD KIT  FULL REPAIR"},
-		{"id": &"energy", "kind": "energy", "price": 35, "name": "COHERENCE CELL"},
+		{"id": &"drink", "kind": "drink", "price": Economy.SERVICE[&"drink"], "name": "SYNTH DRINK  +25 HP"}, {"id": &"heal", "kind": "heal", "price": Economy.SERVICE[&"heal_kit"], "name": "FIELD KIT  FULL REPAIR"},
+		{"id": &"energy", "kind": "energy", "price": Economy.SERVICE[&"energy_cell"], "name": "COHERENCE CELL"},
 	],
 }
 
@@ -218,7 +218,8 @@ const REWARDS := {
 
 
 static func reward(kind: StringName, chapter: int, rep: int) -> Dictionary:
-	var r: Dictionary = REWARDS.get(kind, {"credits": 100, "score": 100, "rep": 1})
+	var r: Dictionary = REWARDS.get(kind, {"credits": 100, "score": 100, "rep": 1}).duplicate()
+	r["credits"] = Economy.INTERIOR_REWARD.get(kind, r["credits"])
 	var diff := Progress.difficulty(chapter)
 	var f: float = float(diff["reward"]) * (1.0 + Progress.rep_bonus(rep))
 	return {"credits": int(roundf(float(r["credits"]) * f / 5.0)) * 5, "score": int(float(r["score"]) * f), "rep": int(r["rep"])}

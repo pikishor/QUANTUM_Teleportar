@@ -26,7 +26,7 @@ const SCHEMES: Array[Array] = [
 	["CRIMSON", Color(1.2, 0.75, 0.75), Color(1.0, 0.2, 0.25), 200, ""],
 	["ICE", Color(0.9, 0.95, 1.1), Color(0.8, 0.95, 1.0), 250, ""],
 ]
-const ACCENT_PRICE := 250
+const ACCENT_PRICE := Economy.ACCENT_PRICE   ## raw; the charged price is Economy.accent_price()
 const HUES := 12
 const ACCENT_MIX := 0.6
 
@@ -46,12 +46,12 @@ static func hue_color(i: int) -> Color:
 
 static func item_price(key: String) -> int:
 	if key == "accent":
-		return ACCENT_PRICE
+		return Economy.accent_price()
 	if key.begins_with("suit:"):
-		return int(SUITS.get(StringName(key.substr(5)), {}).get("price", -1))
+		return Economy.suit_price(StringName(key.substr(5))) if SUITS.has(StringName(key.substr(5))) else -1
 	if key.begins_with("scheme:"):
 		var i := int(key.substr(7))
-		return int(SCHEMES[i][3]) if i >= 0 and i < SCHEMES.size() else -1
+		return Economy.scheme_price(i) if i >= 0 and i < SCHEMES.size() else -1
 	return -1
 
 

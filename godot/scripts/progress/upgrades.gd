@@ -92,7 +92,7 @@ static func title(id: StringName) -> String:
 static func cost(id: StringName, lvl: int) -> int:
 	if lvl >= MAX_LEVEL or lvl < 0:
 		return -1
-	return int(roundf(float(DATA[id]["base"]) * (1.0 + 0.8 * lvl) / 5.0)) * 5
+	return int(roundf(float(Economy.upgrade_base(id)) * (1.0 + 0.8 * lvl) / 5.0)) * 5
 
 
 ## What the shop asks for the next level: cost times (1 - discount), rounded to 5, never below 5. `discount` is Progress.rep_discount (-0.1 .. 0.2).

@@ -678,6 +678,9 @@ func _fail(reason: String) -> void:
 func _restart_step(teleport: bool) -> void:
 	_cleanup(true)
 	_begin_tries = 0
+	var pl := Game.player as Player
+	if is_instance_valid(pl) and not pl.is_dead():
+		pl.hp = maxf(pl.hp, pl.max_hp * Difficulty.mult("cp"))
 	var cp_pos: Variant = checkpoint.get("pos", null)
 	if teleport and bool(checkpoint.get("tp", false)) and cp_pos is Vector3 and (cp_pos as Vector3).is_finite():
 		_pending_tp = cp_pos

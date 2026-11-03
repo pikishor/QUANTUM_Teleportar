@@ -116,7 +116,7 @@ static func difficulty(chapter: int) -> Dictionary:
 	return {
 		"hp": 1.0 + 0.10 * minf(c, 8.0),
 		"extra": mini(int(c * 0.5), 3),
-		"reward": 1.0 + 0.20 * minf(c, 8.0),
+		"reward": (1.0 + 0.20 * minf(c, 8.0)) * Difficulty.mult("credits"),
 		"time": maxf(0.7, 1.0 - 0.05 * c),
 	}
 
@@ -126,7 +126,12 @@ static func enemy_hp_mult() -> float:
 	var ch := 0
 	if is_instance_valid(Game.story):
 		ch = int(Game.story.get("chapter"))
-	return float(difficulty(ch)["hp"])
+	return float(difficulty(ch)["hp"]) * Difficulty.mult("hp")
+
+
+## Boss health factor: the gentler boss curve times the difficulty setting.
+static func boss_hp_mult() -> float:
+	return Difficulty.boss_hp(Difficulty.story_chapter()) * Difficulty.mult("hp")
 
 
 # --- hero look (G2) -------------------------------------------------------------------------------------------------
@@ -388,7 +393,7 @@ func _on_score(score: int) -> void:
 	_last_score = score
 	if delta <= 0:
 		return
-	_frac += float(delta) * SCORE_TO_CREDITS
+	_frac += float(delta) * SCORE_TO_CREDITS * Difficulty.mult("credits")
 	var whole := int(_frac)
 	if whole > 0:
 		_frac -= float(whole)

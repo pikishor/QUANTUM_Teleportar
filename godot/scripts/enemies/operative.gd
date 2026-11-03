@@ -454,7 +454,7 @@ func _fire_cycle(delta: float, d: float, rng: float) -> void:
 			_shot_t = float(cfg["burst_gap"])
 			if _burst_left == 0:
 				var f: Vector2 = cfg["fire"]
-				_fire_t = randf_range(f.x, f.y)
+				_fire_t = randf_range(f.x, f.y) / Difficulty.mult("aggr")
 	else:
 		_fire_t -= delta
 		if los and d < rng * 1.15 and _fire_t <= 0.0:
@@ -579,7 +579,7 @@ func _tracer_color() -> Color:
 func _shoot(d: float) -> void:
 	var origin := _muzzle_pos()
 	var aim := _tgt
-	var spread: float = float(cfg["spread"]) + float(cfg["spread_per_m"]) * d
+	var spread: float = (float(cfg["spread"]) + float(cfg["spread_per_m"]) * d) * Difficulty.mult("spread")
 	var fire_at := _aim_override if _aim_override.is_finite() else aim      # a sniper's shot goes where the laser LOCKED, the hit test below still asks where the target really is
 	var dir := (fire_at - origin).normalized()
 	var off := Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0))

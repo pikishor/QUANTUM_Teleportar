@@ -232,7 +232,7 @@ func _pulse_and_cover() -> void:
 	wall.queue_free()
 	await e.frames(3)
 	o2._pulse()
-	TestLib.check(is_equal_approx(hp0 - p.hp, Overseer.PULSE_DAMAGE) and o2.pulse_hits == 1, "in the open it hits for %.0f" % Overseer.PULSE_DAMAGE)
+	TestLib.check(is_equal_approx(hp0 - p.hp, Overseer.PULSE_DAMAGE * Difficulty.damage_taken(Difficulty.story_chapter()) * Upgrades.damage_taken()) and o2.pulse_hits == 1, "in the open it hits for %.0f (scaled by difficulty and armour)" % Overseer.PULSE_DAMAGE)
 	p.teleport_to(Vector3(-20.0, 0.05, 0.0))
 	await e.frames(3)
 	var hp1 := p.hp
