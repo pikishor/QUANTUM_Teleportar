@@ -107,7 +107,7 @@ func _vignette_and_hurt() -> void:
 	while (atmo.hurt_level != 0.0 or atmo.post.feedback() != Vector2(0.0, 1.0)) and guard < 20:
 		guard += 1
 		await e.secs(0.5)
-	TestLib.check(atmo.hurt_level == 0.0 and atmo.post.feedback() == Vector2(0.0, 1.0), "the hurt effect recovers completely")
+	TestLib.check(atmo.hurt_level == 0.0 and atmo.post.feedback() == Vector2(0.0, 1.0), "the hurt effect recovers completely (hurt %.4f fb %s dead %.3f scale %.2f)" % [atmo.hurt_level, atmo.post.feedback(), atmo.dead_level, Engine.time_scale])
 	TestLib.check(FX.shake_amount == 0.0, "the shake decays to zero")
 
 
