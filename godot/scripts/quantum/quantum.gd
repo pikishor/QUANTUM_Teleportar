@@ -54,6 +54,7 @@ const BITS_SHOWN := 5.0             ## seconds the HUD keeps the Alice / Bob rea
 const MAX_LINKS := [1, 2, 3]        ## per graphics tier
 const FX_SCALE := [0.5, 0.8, 1.0]   ## particle count factor per graphics tier
 const MAX_GHOST_PARTS := 16
+const MAX_ECHOES := 2
 const PULSE_RADIUS := 4.0           ## the small pulse when the decoy times out on its own (a manual or bolt collapse uses BLAST_RADIUS)
 const PULSE_DMG := 25.0
 
@@ -88,6 +89,8 @@ var beacon_pos := Vector3.ZERO
 var beacon_left := 0.0
 var clone: Node3D = null               ## the ghost while it exists (group "clone"), else null
 var clone_left := 0.0
+var _boost := 0.0                      ## the speed boost SUPERPOSITION gave (SUPER_SPEED x skill tree), to take it back exactly
+var _echoes: Array[MeshInstance3D] = []
 var cd_blink := 0.0
 var chain_left := 0                    ## QUANTUM TELEPORT hops still free in the current chain (HeroPower)
 var _chain_t := 0.0
@@ -141,6 +144,7 @@ func _ready() -> void:
 	Game.respawn.connect(reset)
 	Game.next_sector.connect(reset)
 	Game.quality_changed.connect(_on_quality)
+	Game.player_died.connect(_on_player_died)
 	_on_quality(Game.quality)
 
 
@@ -227,7 +231,7 @@ func _on_quality(level: int) -> void:
 
 
 func _max_links() -> int:
-	return MAX_LINKS[clampi(Game.quality, 0, 2)]
+	return MAX_LINKS[clampi(Game.quality, 0, 2)] + SkillTree.extra_links()
 
 
 func _fx_count(n: int) -> int:
@@ -263,7 +267,7 @@ func _blink_input(delta: float) -> void:
 
 
 func can_aim() -> bool:
-	return _p != null and Game.is_playing() and not _p.is_dead() and _p.vehicle == null and cd_blink <= 0.0 and _p.energy >= HeroPower.cost(BLINK_COST)
+	return _p != null and Game.is_playing() and not _p.is_dead() and _p.vehicle == null and cd_blink <= 0.0 and _p.energy >= HeroPower.cost(BLINK_COST) * SkillTree.cost_mult(&"teleport")
 
 
 ## Release of an aimed QUANTUM TELEPORT: go to the marker, pay the cost. Returns true when the teleport happened.
@@ -274,7 +278,7 @@ func aim_go() -> bool:
 		_remove_beacon()
 		_slow_end()
 		return false
-	_p.energy -= HeroPower.cost(BLINK_COST)
+	_p.energy -= HeroPower.cost(BLINK_COST) * SkillTree.cost_mult(&"teleport")
 	beacon_pos = aim_pos
 	has_beacon = true
 	return teleport()
@@ -331,13 +335,13 @@ func blink() -> bool:
 		return teleport()
 	if cd_blink > 0.0:
 		return false
-	if _p.energy < HeroPower.cost(BLINK_COST):
+	if _p.energy < HeroPower.cost(BLINK_COST) * SkillTree.cost_mult(&"teleport"):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
 	beacon_pos = _aim_floor_point()
 	has_beacon = true
 	beacon_left = BEACON_LIFE
-	_p.energy -= HeroPower.cost(BLINK_COST)
+	_p.energy -= HeroPower.cost(BLINK_COST) * SkillTree.cost_mult(&"teleport")
 	cd_blink = HeroPower.cd(BLINK_CD)
 	_show_beacon()
 	FX.burst(beacon_pos + Vector3(0.0, 0.5, 0.0), CYAN, _fx_count(14), 4.0, 0.5, 0.0)
@@ -352,7 +356,7 @@ func _aim_floor_point() -> Vector3:
 	var o: Vector3 = aim["origin"]
 	var d: Vector3 = aim["dir"]
 	var t := o.distance_to(aim["hit"] as Vector3)
-	var reach := (BLINK_RANGE + Upgrades.blink_bonus()) * HeroPower.f("tp_range")
+	var reach := (BLINK_RANGE + Upgrades.blink_bonus()) * HeroPower.f("tp_range") * SkillTree.range_mult()
 	var pt := o + d * (maxf(0.0, t - 0.6) if t < reach else reach)
 	pt = PlayerUtil.safe_spot(pt, Game.world if is_instance_valid(Game.world) else null)      # inside the walls, not in a building volume (sky / horizon / off-map aims)
 	_rq.from = pt + Vector3(0.0, 0.5, 0.0)
@@ -378,6 +382,7 @@ func teleport() -> bool:
 	if _rich:
 		FX.blast(to, 2.5, MAGENTA, 0.35)
 	_trail(from, to)
+	_skill_blink_damage(from, to)
 	GameFeel.fire(&"teleport")
 	fx_flash = 1.0
 	aiming = false
@@ -394,9 +399,19 @@ func teleport() -> bool:
 		chain_left -= 1
 		cd_blink = 0.0
 	else:
-		chain_left = HeroPower.hops() - 1
+		chain_left = HeroPower.hops() + SkillTree.hops_extra() - 1
 	_chain_t = HeroPower.CHAIN_WINDOW
 	return true
+
+
+## Skill tree: BLINK STRIKE hurts what stands at the arrival point, AFTERIMAGE what stood at the departure point.
+func _skill_blink_damage(from: Vector3, to: Vector3) -> void:
+	var strike := SkillTree.strike_damage()
+	if strike > 0.0:
+		Game.explode(to, 4.0, {"enemy_dmg": TestMode.damage(strike), "car_dmg": 0.0, "player_dmg": 0.0, "color": MAGENTA})
+	var after := SkillTree.afterimage_damage()
+	if after > 0.0:
+		Game.explode(from, 3.5, {"enemy_dmg": TestMode.damage(after), "car_dmg": 0.0, "player_dmg": 0.0, "color": CYAN})
 
 
 ## Bob's correction for Alice's classical bits (teleportation protocol): m1 = 1 means X, m0 = 1 means Z, X first.
@@ -424,7 +439,7 @@ func _remove_beacon() -> void:
 func link_drones() -> bool:
 	if _p == null or not Game.is_playing() or _p.is_dead() or cd_link > 0.0:
 		return false
-	if _p.energy < HeroPower.cost(LINK_COST):
+	if _p.energy < HeroPower.cost(LINK_COST) * SkillTree.cost_mult(&"entangle"):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
 	var mgr := Game.enemies
@@ -461,7 +476,7 @@ func link_drones() -> bool:
 	if b == null:
 		Game.say("NEED A SECOND TARGET WITHIN 45 m", 1.4)
 		return false
-	_p.energy -= HeroPower.cost(LINK_COST)
+	_p.energy -= HeroPower.cost(LINK_COST) * SkillTree.cost_mult(&"entangle")
 	cd_link = HeroPower.cd(LINK_CD)
 	while links.size() >= _max_links():
 		_drop_link(0)
@@ -471,7 +486,7 @@ func link_drones() -> bool:
 	b.aware = true
 	var slot := _free_slot()
 	_slot_beams(slot)
-	links.append({"a": a, "b": b, "t": LINK_LIFE, "slot": slot})
+	links.append({"a": a, "b": b, "t": LINK_LIFE + SkillTree.link_life(), "slot": slot})
 	_animate_link(links[links.size() - 1])
 	for d: Drone in [a, b]:
 		FX.burst(d.center(), PALE, _fx_count(18), 5.0, 0.5, 0.0)
@@ -489,15 +504,15 @@ func entangle() -> bool:
 	if _p.vehicle != null:
 		Game.say("ENTANGLE OFFLINE IN VEHICLE", 1.0)
 		return false
-	if _p.energy < HeroPower.cost(SWAP_COST):
+	if _p.energy < HeroPower.cost(SWAP_COST) * SkillTree.cost_mult(&"entangle"):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
 	var t := swap_target()
 	if t.is_empty():
 		Game.say("NO TARGET IN SIGHT", 1.0)
 		return false
-	_p.energy -= HeroPower.cost(SWAP_COST)
-	cd_link = HeroPower.cd(SWAP_CD)
+	_p.energy -= HeroPower.cost(SWAP_COST) * SkillTree.cost_mult(&"entangle")
+	cd_link = HeroPower.cd(SWAP_CD) * SkillTree.swap_cd_mult()
 	var node: Node3D = t["node"]
 	var from := _p.global_position
 	var to: Vector3 = t["pos"]
@@ -673,12 +688,13 @@ func superpose() -> bool:
 		return false
 	if cd_super > 0.0:
 		return false
-	if _p.energy < HeroPower.cost(SUPER_COST):
+	if _p.energy < HeroPower.cost(SUPER_COST) * SkillTree.cost_mult(&"superposition"):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
-	_p.energy -= HeroPower.cost(SUPER_COST)
+	_p.energy -= HeroPower.cost(SUPER_COST) * SkillTree.cost_mult(&"superposition")
 	_make_clone()
-	_p.speed_boost = SUPER_SPEED
+	_boost = SUPER_SPEED * SkillTree.split_speed()
+	_p.speed_boost = _boost
 	FX.burst(_p.global_position + Vector3(0.0, 1.0, 0.0), Color(0.4, 1.0, 0.93), _fx_count(30), 5.0, 0.6, 0.0)
 	Sfx.play(&"superpos")
 	Game.say("SUPERPOSITION · ENEMIES SEE TWO OF YOU · BE FAST", 1.8)
@@ -710,10 +726,10 @@ func collapse_all() -> bool:
 		return false
 	if cd_collapse > 0.0:
 		return false
-	if _p.energy < HeroPower.cost(WAVE_COST):
+	if _p.energy < HeroPower.cost(WAVE_COST) * SkillTree.cost_mult(&"collapse"):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
-	_p.energy -= HeroPower.cost(WAVE_COST)
+	_p.energy -= HeroPower.cost(WAVE_COST) * SkillTree.cost_mult(&"collapse")
 	cd_collapse = HeroPower.cd(WAVE_CD)
 	var origin := _p.global_position + Vector3(0.0, 1.0, 0.0)
 	var combo := ""
@@ -734,20 +750,31 @@ func collapse_all() -> bool:
 	while i >= 0:
 		_drop_link(i)
 		i -= 1
+	var rad := WAVE_RADIUS * SkillTree.wave_radius_mult()
+	var pull := SkillTree.wave_pull()
+	var chain := SkillTree.wave_chain()
+	var chained := 0
 	for e: Node3D in get_tree().get_nodes_in_group(&"enemy"):
 		var d := e.global_position.distance_to(origin)
-		if d > WAVE_RADIUS + 0.8:
+		if d > rad + 0.8:
 			continue
-		var f := 1.0 - 0.5 * d / (WAVE_RADIUS + 0.8)
+		var f := 1.0 - 0.5 * d / (rad + 0.8)
+		if pull > 0.0 and d > 2.0:                          # skill tree PULL: drawn toward the centre before the hit lands
+			var flat := Vector3(origin.x - e.global_position.x, 0.0, origin.z - e.global_position.z)
+			if flat.length() > 0.1:
+				e.global_position += flat.normalized() * minf(pull, maxf(flat.length() - 1.5, 0.0))
 		if e.has_method(&"damage"):
-			e.call(&"damage", TestMode.damage(WAVE_DMG * f))
+			e.call(&"damage", TestMode.damage(WAVE_DMG * f * SkillTree.wave_damage_mult()))
+			if chain > 0.0 and chained < 6 and is_instance_valid(e) and bool(e.get(&"dead")):      # skill tree CHAIN: a kill detonates
+				chained += 1
+				Game.explode(e.global_position + Vector3(0.0, 1.0, 0.0), 5.0, {"enemy_dmg": TestMode.damage(chain), "car_dmg": 0.0, "player_dmg": 0.0, "color": MAGENTA})
 		if is_instance_valid(e) and e.has_method(&"stagger"):
 			e.call(&"stagger", 1.5)
 		if is_instance_valid(e) and e.has_method(&"disable"):
 			e.call(&"disable", WAVE_OFF * (0.6 + 0.4 * f))
-	FX.blast(origin, WAVE_RADIUS, MAGENTA, 0.6)
+	FX.blast(origin, rad, MAGENTA, 0.6)
 	if _rich:
-		FX.blast(origin, WAVE_RADIUS * 0.6, CYAN, 0.4)
+		FX.blast(origin, rad * 0.6, CYAN, 0.4)
 	FX.burst(origin, PALE, _fx_count(40), 9.0, 0.6, 0.0)
 	FX.shake(0.9)
 	collapse_fx = 1.0
@@ -766,10 +793,50 @@ func _kill_clone() -> void:
 	clone.visible = false
 	clone = null
 	clone_left = 0.0
+	for e: MeshInstance3D in _echoes:
+		e.visible = false
 	if _ghost_ring != null:
 		_ghost_ring.visible = false
-	if _p != null and _p.speed_boost == SUPER_SPEED:
+	if _p != null and _boost > 0.0 and is_equal_approx(_p.speed_boost, _boost):
 		_p.speed_boost = 1.0
+
+
+## Skill tree DECOY COUNT: extra holograms beside the ghost. Enemies pick among all of them (decoy_pick); they vanish with the ghost.
+func _make_echoes(xf: Transform3D) -> void:
+	for i in SkillTree.extra_decoys():
+		if i >= MAX_ECHOES:
+			break
+		while _echoes.size() <= i:
+			var m := MeshInstance3D.new()
+			var cap := CapsuleMesh.new()
+			cap.radius = 0.3
+			cap.height = 1.7
+			m.mesh = cap
+			m.material_override = _mat_ghost
+			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			fx_root.add_child(m)
+			_echoes.append(m)
+		var ang := _p.yaw + (1.0 if i % 2 == 0 else -1.0) * (1.2 + 0.5 * float(i / 2))
+		var off := Vector3(sin(ang), 0.0, cos(ang)) * 3.0
+		_echoes[i].global_position = xf.origin + off + Vector3(0.0, 0.85, 0.0)
+		_echoes[i].visible = true
+
+
+## The decoy the enemies look at this moment: the ghost or one of its echoes (changes twice a second).
+func decoy_pick() -> Node3D:
+	if clone == null:
+		return null
+	var live: Array[Node3D] = [clone]
+	for e: MeshInstance3D in _echoes:
+		if e.visible:
+			live.append(e)
+	return live[(Engine.get_physics_frames() / 30) % live.size()]
+
+
+func _on_player_died() -> void:
+	var dmg := SkillTree.death_blast()
+	if dmg > 0.0 and _p != null:
+		Game.explode(_p.global_position + Vector3(0.0, 1.0, 0.0), 8.0, {"enemy_dmg": TestMode.damage(dmg), "car_dmg": 30.0, "player_dmg": 0.0, "color": CYAN})
 
 
 ## The ghost is the player's own meshes (one per body part, in the pose of this moment) under one shared hologram material.
@@ -803,7 +870,8 @@ func _make_clone() -> void:
 	_animate_clone()
 	_ghost.add_to_group(&"clone")
 	clone = _ghost
-	clone_left = SUPER_LIFE + Upgrades.decoy_bonus()
+	clone_left = SUPER_LIFE + Upgrades.decoy_bonus() + SkillTree.decoy_life()
+	_make_echoes(xf)
 
 
 func _ghost_mesh(i: int) -> MeshInstance3D:

@@ -144,6 +144,9 @@ func _page_items() -> Array[Dictionary]:
 			for id: StringName in WeaponDefs.IDS:
 				out.append(_act(WeaponDefs.title(id), TestMode.give_weapon.bind(id)))
 			out.append(_act("ALL WEAPONS", TestMode.give_all_weapons))
+			out.append(_head("QUANTUM VERBS"))
+			for id: StringName in QuantumVerbs.IDS:
+				out.append(_act(QuantumVerbs.TITLES[id], TestMode.use_verb.bind(id)))
 			out.append(_head("THROWABLES AND GADGETS"))
 			for id: StringName in Gear.THROW_IDS + Gear.GADGET_IDS:
 				out.append(_act(Gear.title(id), TestMode.give_gear.bind(id)))
@@ -152,6 +155,10 @@ func _page_items() -> Array[Dictionary]:
 			for n: int in [1000, 5000, 25000]:
 				out.append(_act("+%d CREDITS" % n, TestMode.add_credits.bind(n)))
 			out.append(_act("MAX ALL UPGRADES", TestMode.max_upgrades))
+			out.append(_head("SKILLS"))
+			out.append(_act("+500 XP", TestMode.give_xp.bind(500)))
+			out.append(_act("+5000 XP", TestMode.give_xp.bind(5000)))
+			out.append(_act("MAX ALL SKILLS", TestMode.max_skills))
 		2:
 			out.append(_head("WEATHER (TIME OF DAY: THE CITY IS NIGHT ONLY)"))
 			for w: String in TestMode.WEATHER:

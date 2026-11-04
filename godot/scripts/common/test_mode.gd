@@ -127,6 +127,16 @@ static func give_gear(id: StringName) -> String:
 	return _say("%s EQUIPPED" % Gear.title(id))
 
 
+static func give_xp(n: int) -> String:
+	SkillTree.add_xp(n)
+	return _say("LEVEL %d · %d SKILL POINTS" % [SkillTree.level(), SkillTree.points()])
+
+
+static func max_skills() -> String:
+	SkillTree.max_all()
+	return _say("ALL SKILLS MAXED")
+
+
 static func give_all_gear() -> String:
 	Gear.give_all()
 	var p := _player()
@@ -213,6 +223,18 @@ static func set_weather(weather: String) -> String:
 static func set_materials_v2(on: bool) -> String:
 	MaterialsV2.set_enabled(on)
 	return _say("SURFACE LOOK  %s" % ("MATERIALS V2" if on else "V1"))
+
+
+## Uses a quantum verb (PHASE SHIELD, TIME SLIP, ARC) at once: energy refilled, cooldown cleared.
+static func use_verb(id: StringName) -> String:
+	var p := _player()
+	if p == null or p.qverbs == null or not QuantumVerbs.TITLES.has(id):
+		return ""
+	p.energy = p.max_energy
+	p.qverbs.clear_cooldown(id)
+	if p.qverbs.use(id):
+		return QuantumVerbs.TITLES[id]
+	return _say("%s: NO TARGET" % QuantumVerbs.TITLES[id] if id == &"arc" else "%s NOT READY" % QuantumVerbs.TITLES[id])
 
 
 static func kill_all_enemies() -> String:

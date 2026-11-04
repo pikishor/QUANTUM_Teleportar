@@ -12,7 +12,7 @@ const SUB_W := 320.0                ## base px: the subtitle plate (narrow, top 
 const SUB_FONT := 22.0
 const SUB_SMALL := 18.0             ## the font a long line shrinks to before the plate grows beyond SUB_MAX_LINES
 const SUB_MAX_LINES := 5
-const TOUCH_BUTTONS_W := 592.0      ## base px from the right edge covered by the touch buttons (touch_controls.gd BUTTONS)
+const TOUCH_BUTTONS_W := 690.0      ## base px from the right edge covered by the touch buttons (touch_controls.gd BUTTONS)
 const CARD_TOP := 0.40              ## the card band spans 40 % .. 70 % of the screen height: clear of the HUD bars (top) and the continue button (bottom)
 const CARD_H := 0.30
 

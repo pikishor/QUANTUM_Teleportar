@@ -43,6 +43,7 @@ var _pip_t := 0.0            ## seconds the '!' pip still shows after becoming a
 var _was_aware := false
 var _unaware_hit := false     ## the damage in progress hits an unaware enemy (a silent takedown when it kills)
 var dead := false
+var slipped := 0                                ## physics ticks scaled by TIME SLIP (tests wait on it)
 var reinforce := false
 var active := false          ## in play (pooled drones are inactive, hidden and out of the group)
 var remove := false          ## the death animation is over: the manager releases it
@@ -297,7 +298,7 @@ func damage(amount: float, crit := false, mirrored := false) -> void:
 			mgr.alert_near(global_position, ALERT_RADIUS, self)
 		if is_instance_valid(linked) and not linked.dead and linked.active:
 			var other := linked
-			other.damage(amount, false, true)
+			other.damage(amount * SkillTree.share_mult(), false, true)
 			FX.burst(other.center(), Color(0.5, 0.98, 1.0), 8, 6.0, 0.4, 2.0)
 	if hp <= 0.0:
 		die()
@@ -330,6 +331,7 @@ func die() -> void:
 	_death_effect()
 	_drop_pending = true
 	Game.score += int(cfg["score"])
+	SkillTree.add_xp(SkillTree.kill_xp(int(cfg["score"])))
 	if _unaware_hit and not reinforce:
 		Game.add_score(Stealth.takedown_bonus())
 		Stealth.takedowns += 1
@@ -383,6 +385,11 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		_tick_dead(delta)
 		return
+	if QuantumVerbs.slip_on:                                    # TIME SLIP bubble: this enemy runs slower while inside it (flankers / stalkers resist, bosses most)
+		var ss := QuantumVerbs.slip_scale(global_position, cfg.get("role", &""), self is Overseer or self is VerbBoss)
+		if ss < 1.0:
+			delta *= ss
+			slipped += 1
 	_t += delta
 	_flash = maxf(0.0, _flash - delta)
 	_stagger = maxf(0.0, _stagger - delta)

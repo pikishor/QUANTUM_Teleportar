@@ -465,3 +465,8 @@ Noted in visual QA (not caused by this wave): translucent white rectangles in th
 
 ## Wave 62 integration note
 Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one transient fail in the first run passed on rerun. Perf gate OK on tiers 0/1/2 (draws 65/95/106, tex 166/216/307 MB). visual_qa 16/16, full_bot SOAK PASS. latest.png reviewed: no glaring defects; city roofs still dark silhouettes, upper-floor window styles unchanged, LOW skips dressing, shop-front glass not on v2 glass term.
+
+## Wave 63: skill tree, three new quantum abilities
+- Skill tree (4 verbs x 5 nodes, SKILLS button in shop, RESPEC) and PHASE SHIELD / TIME SLIP / ARC (keys Y/U/I, touch MORE ring) integrated.
+- Full suite: 140 pass, 0 flaky, 0 fail. visual_qa 16/16. full_bot 8 min PASS. Perf gate not run.
+- Follow-ups: no desktop HUD chips for the three new verbs (shot shows only Q/E/G/C); new verbs reuse the `blink` sound; extra skill decoys are not in the perf gate; no visual_qa shot of the skill screen; no strings_es entries; title screen DEMO tag overlaps the top-left.

@@ -26,6 +26,10 @@ const BUTTONS := [
 	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "ENTANGLE", "need": &"quantum", "ability": 1},
 	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},
 	{"action": &"collapse", "dx": 470.0, "dy": 450.0, "r": 46.0, "fs": 20, "label": "COLLAPSE", "need": &"quantum", "ability": 3},
+	{"action": &"ring", "dx": 640.0, "dy": 110.0, "r": 46.0, "fs": 22, "label": "MORE", "need": &"quantum", "fn": &"ring"},
+	{"action": &"shield", "dx": 640.0, "dy": 215.0, "r": 46.0, "fs": 20, "label": "SHIELD", "need": &"ring", "verb": &"shield"},
+	{"action": &"slip", "dx": 640.0, "dy": 320.0, "r": 46.0, "fs": 22, "label": "SLIP", "need": &"ring", "verb": &"slip"},
+	{"action": &"arc", "dx": 640.0, "dy": 425.0, "r": 46.0, "fs": 22, "label": "ARC", "need": &"ring", "verb": &"arc"},
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
 	{"action": &"crouch", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"foot"},
 	{"action": &"grab", "dx": 270.0, "dy": 660.0, "r": 46.0, "fs": 22, "label": "GRAB", "need": &"foot"},
@@ -44,6 +48,7 @@ const LONG_PRESS := 0.6             ## seconds: holding the FPS box this long to
 const WHEEL_HOLD := 0.4             ## seconds SWAP is held before the wheel opens (a short tap cycles the weapon)
 const ERROR_ROWS := 9               ## newest error lines shown in the panel
 
+var ring_open := false              ## the expandable ability ring (SHIELD / SLIP / ARC) is shown
 var controls_on := false            ## the touch controls are drawn and active
 var perf_on := false                ## the perf readout is drawn (always with the controls, or with --perf)
 var errors_on := false              ## the on-device error panel is shown (long-press the FPS box)
@@ -205,6 +210,8 @@ func touch_down(id: int, pos: Vector2) -> void:
 				Sfx.play(&"ui_tap")
 				if b["fn"] == &"skip":
 					get_parent().call(&"skip_set_piece")
+				elif b["fn"] == &"ring":
+					ring_open = not ring_open
 				elif b["fn"] == &"summon":
 					Game.vehicles.call(&"summon_garage")
 				else:
@@ -310,6 +317,8 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
 		&"foot":
 			return is_instance_valid(Game.player) and not _driving()
+		&"ring":
+			return ring_open and is_instance_valid(Game.player) and Game.player.get("qverbs") != null and not _driving()
 		&"gadget":
 			return is_instance_valid(Game.player) and not _driving() and Gear.gadget != &""
 		&"takedown":
@@ -449,6 +458,16 @@ func _draw_ui() -> void:
 		var on := down.has(b["action"])
 		var tint := UiUtil.CYAN
 		var dim := 1.0
+		if b["action"] == &"ring":
+			tint = UiUtil.AMBER if ring_open else UiUtil.CYAN
+		if b.has("verb"):
+			var vs := ((Game.player.get("qverbs") as QuantumVerbs).ui_state(b["verb"]) as Dictionary) if Game.player.get("qverbs") != null else {"active": false, "ready": true, "cd": 0.0}
+			if vs["active"]:
+				tint = UiUtil.AMBER
+			elif not vs["ready"]:
+				dim = 0.45
+			if float(vs["cd"]) > 0.0:
+				arcs.append([centre, r + 4.0 * s, -PI * 0.5 + TAU * float(vs["cd"]), Color(tint, 0.9)])
 		if b.has("ability"):
 			var st := UiUtil.ability_state(Game.player, UiUtil.ABILITIES[int(b["ability"])])
 			if st["active"]:

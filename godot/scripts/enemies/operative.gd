@@ -609,6 +609,14 @@ func _shoot(d: float) -> void:
 	if not is_instance_valid(p):
 		return
 	var reach := 1.5 if p.get(&"vehicle") != null else 0.5
+	if miss < reach and QuantumVerbs.shield_on and QuantumVerbs.shield_hit(origin, closest):     # PHASE SHIELD: absorbed, or sent back at the shooter (snipers see through it)
+		var qv := p.get(&"qverbs") as QuantumVerbs
+		var res := qv.shield_block(type, float(cfg["dmg"])) if qv != null else 0
+		if res == 2:
+			qv.reflect_hits += 1
+			damage(maxf(float(cfg["dmg"]) * QuantumVerbs.REFLECT_MULT, QuantumVerbs.REFLECT_MIN), false)
+		if res != 0:
+			return
 	if miss < reach:
 		p.call(&"damage", float(cfg["dmg"]), origin)
 

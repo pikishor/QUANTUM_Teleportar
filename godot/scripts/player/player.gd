@@ -104,6 +104,7 @@ var weapon: PlayerWeapon
 var cover: PlayerCover
 var melee: Melee                          ## light / heavy / finisher melee (scripts/combat/melee.gd)
 var throwables: Throwables                ## singularity frag, flux mine, decoy, shroud, EMP
+var qverbs: QuantumVerbs                ## PHASE SHIELD, TIME SLIP, ARC (scripts/quantum/quantum_verbs.gd)
 var gadgets: Gadgets                      ## scanner pulse, drone buddy, grapple hook
 var decals: ImpactDecals
 var sparks: ImpactSparks
@@ -220,6 +221,11 @@ func _ensure_children() -> void:
 		throwables = Throwables.new()
 		throwables.name = "Throwables"
 		add_child(throwables)
+	qverbs = get_node_or_null("QuantumVerbs") as QuantumVerbs
+	if qverbs == null:
+		qverbs = QuantumVerbs.new()
+		qverbs.name = "QuantumVerbs"
+		add_child(qverbs)
 	gadgets = get_node_or_null("Gadgets") as Gadgets
 	if gadgets == null:
 		gadgets = Gadgets.new()

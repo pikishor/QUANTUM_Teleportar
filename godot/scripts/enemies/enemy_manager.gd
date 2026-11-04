@@ -59,6 +59,8 @@ var _b_org := PackedVector3Array()
 var _b_life := PackedFloat32Array()
 var _b_wait := PackedFloat32Array()
 var _b_dmg := PackedFloat32Array()
+var _b_refl := PackedByteArray()      ## 1 = reflected by the PHASE SHIELD: flies back and hurts enemies
+var _b_type: Array[StringName] = []   ## the shooter's type per bolt (the barrier lets a sniper's bolt through)
 var _fx_tokens := 6.0
 var _fx_clock := 0.0
 var _death_ends := PackedFloat32Array()
@@ -193,7 +195,7 @@ func get_clone() -> Node3D:
 		_clone = null
 		var q := _quantum()
 		if q != null:
-			var c: Variant = q.get(&"clone")
+			var c: Variant = q.call(&"decoy_pick") if q.has_method(&"decoy_pick") else q.get(&"clone")
 			if c is Node3D and is_instance_valid(c):
 				_clone = c as Node3D
 	return _clone
@@ -232,6 +234,8 @@ func bolt(from: Vector3, to: Vector3, type: StringName, delay := 0.0) -> void:
 	_b_life[slot] = BOLT_LIFE
 	_b_wait[slot] = delay
 	_b_dmg[slot] = float(cfg["dmg"])
+	_b_refl[slot] = 0
+	_b_type[slot] = type
 	var c: Color = cfg["color"]
 	_mm.set_instance_color(slot, Color(c.r * BOLT_COLOR_BOOST, c.g * BOLT_COLOR_BOOST, c.b * BOLT_COLOR_BOOST, 1.0))
 	if delay <= 0.0:
@@ -594,6 +598,9 @@ func _build_bolts() -> void:
 	_b_life.resize(BOLT_POOL)
 	_b_wait.resize(BOLT_POOL)
 	_b_dmg.resize(BOLT_POOL)
+	_b_refl.resize(BOLT_POOL)
+	_b_type.resize(BOLT_POOL)
+	_b_type.fill(&"")
 	var sm := QuadMesh.new()                      # a glowing streak (white-hot head, coloured halo, tail), turned to the camera by the shader
 	sm.size = Vector2.ONE
 	var mat := ShaderMaterial.new()
@@ -649,9 +656,45 @@ func _tick_bolts(delta: float) -> void:
 			if _b_wait[i] <= 0.0:
 				_set_bolt(i, _b_pos[i], _b_vel[i].normalized())
 			continue
-		_b_life[i] -= delta
-		var pos := _b_pos[i] + _b_vel[i] * delta
+		var bd := delta * QuantumVerbs.slip_bolt(_b_pos[i]) if QuantumVerbs.slip_on else delta    # TIME SLIP slows bolts inside the bubble
+		_b_life[i] -= bd
+		var prev := _b_pos[i]
+		var pos := prev + _b_vel[i] * bd
 		_b_pos[i] = pos
+		if QuantumVerbs.shield_on and _b_refl[i] == 0 and QuantumVerbs.shield_hit(prev, pos) and player_ok:
+			var qv := p.get(&"qverbs") as QuantumVerbs
+			var res := qv.shield_block(_b_type[i], _b_dmg[i]) if qv != null else 0
+			if res == 1:
+				_kill_bolt(i)
+				FX.burst(pos, Color(0.4, 0.85, 1.0), 8, 5.0, 0.3, 4.0, 1.6)
+				continue
+			if res == 2:
+				_b_refl[i] = 1
+				var back := (_b_org[i] + Vector3(0, 1.0, 0) - pos).normalized()
+				_b_vel[i] = back * maxf(_b_vel[i].length(), 20.0)
+				_b_life[i] = maxf(_b_life[i], 1.2)
+				FX.burst(pos, Color(0.4, 0.85, 1.0), 8, 5.0, 0.3, 4.0, 1.6)
+				_set_bolt(i, pos, back)
+				continue
+		if _b_refl[i] == 1:
+			var hit: Drone = null
+			for d: Drone in list:
+				if d.active and not d.dead and d.center().distance_to(pos) < d.radius + 0.5:
+					hit = d
+					break
+			var spent := _b_life[i] <= 0.0 or pos.y < 0.0
+			if hit != null:
+				var rp := p.get(&"qverbs") as QuantumVerbs if player_ok else null
+				if rp != null:
+					rp.reflect_hits += 1
+				hit.damage(maxf(_b_dmg[i] * QuantumVerbs.REFLECT_MULT, QuantumVerbs.REFLECT_MIN), false)
+				spent = true
+			if spent:
+				_kill_bolt(i)
+				FX.burst(pos, Color(0.4, 0.85, 1.0), 8, 5.0, 0.3, 4.0, 1.6)
+			else:
+				_set_bolt(i, pos, _b_vel[i].normalized())
+			continue
 		var gone := _b_life[i] <= 0.0 or pos.y < 0.0
 		if not gone and city != null:
 			gone = city.is_inside_building(pos)

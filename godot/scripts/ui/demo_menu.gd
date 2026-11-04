@@ -112,9 +112,15 @@ static func entries() -> Array[Dictionary]:
 	out.append({"head": true, "label": "WEAPONS"})
 	for id: StringName in WeaponDefs.IDS:
 		out.append({"label": WeaponDefs.title(id), "fn": TestMode.give_weapon.bind(id)})
+	out.append({"head": true, "label": "QUANTUM VERBS"})
+	for id: StringName in QuantumVerbs.IDS:
+		out.append({"label": QuantumVerbs.TITLES[id], "fn": TestMode.use_verb.bind(id)})
 	out.append({"head": true, "label": "THROWABLES AND GADGETS"})
 	for id: StringName in Gear.THROW_IDS + Gear.GADGET_IDS:
 		out.append({"label": Gear.title(id), "fn": TestMode.give_gear.bind(id)})
+	out.append({"head": true, "label": "SKILLS"})
+	out.append({"label": "+5000 XP", "fn": TestMode.give_xp.bind(5000)})
+	out.append({"label": "MAX ALL SKILLS", "fn": TestMode.max_skills})
 	out.append({"head": true, "label": "WEATHER"})
 	for w: String in TestMode.WEATHER:
 		out.append({"label": w, "fn": TestMode.set_weather.bind(w)})

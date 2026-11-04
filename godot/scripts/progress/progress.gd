@@ -48,6 +48,7 @@ var achievements: Achievements                  ## I3: 25 achievements (saved in
 
 var _last_score := 0
 var _frac := 0.0
+var _in_score := false
 var _continue_pending := false
 var _select_pending := false            ## start_chapter() is starting a run that keeps the wallet (no continued flag: the saved interior is not resumed)
 var continued := false                  ## the last new_game was a CONTINUE (scripts/interiors_gameplay/ resumes the saved interior)
@@ -84,6 +85,7 @@ func _exit_tree() -> void:
 		WeaponDefs.reset_unlocked()
 		Attachments.reset()
 		Gear.reset()
+		SkillTree.reset()
 
 
 # --- pure rules (static, tested) ------------------------------------------------------------------------------------
@@ -181,6 +183,8 @@ func buy_look(key: String) -> bool:
 func add_credits(n: int) -> void:
 	if n == 0:
 		return
+	if n > 0 and not _in_score:
+		SkillTree.add_xp(int(float(n) / SkillTree.CREDITS_PER_XP))      # mission, contract and activity payouts
 	credits = maxi(0, credits + n)
 	changed.emit()
 
@@ -269,6 +273,24 @@ func _apply_to_player(top_up := false) -> void:
 ## Weapons: the shop sells the three alien weapons (WeaponDefs.price, reputation discount); an owned weapon is saved with the campaign.
 func weapon_price(id: StringName) -> int:
 	return WeaponDefs.price(id, rep_discount(reputation))
+
+
+## Skill tree (SkillTree): points come from levelling; the shop's respec refunds every rank for credits.
+func buy_skill(id: StringName) -> bool:
+	if not SkillTree.buy(id):
+		return false
+	changed.emit()
+	return true
+
+
+func respec_skills() -> bool:
+	var price := SkillTree.respec_price()
+	if SkillTree.spent() == 0 or credits < price:
+		return false
+	credits -= price
+	SkillTree.respec()
+	changed.emit()
+	return true
 
 
 ## Throwables and gadgets (Gear): bought with credits (reputation discount), equipped into the two slots, four saved loadouts.
@@ -417,6 +439,7 @@ func new_campaign() -> void:
 	WeaponDefs.reset_unlocked()
 	Attachments.reset()
 	Gear.reset()
+	SkillTree.reset()
 	_frac = 0.0
 	_apply_to_player()
 	changed.emit()
@@ -445,7 +468,9 @@ func _on_score(score: int) -> void:
 	var whole := int(_frac)
 	if whole > 0:
 		_frac -= float(whole)
+		_in_score = true                                    # kills already pay XP through the hit signal: the score-to-credits payout does not
 		add_credits(whole)
+		_in_score = false
 	best = maxi(best, score)
 
 
@@ -618,6 +643,9 @@ func save_file() -> bool:
 	var gd0 := Gear.to_save()
 	for gk: String in gd0:
 		cf.set_value("gear", gk, gd0[gk])
+	var sk := SkillTree.to_save()
+	for sk_k: String in sk:
+		cf.set_value("skills", sk_k, sk[sk_k])
 	cf.set_value("campaign", "bosses", PackedInt32Array(bosses_cleared))
 	cf.set_value("campaign", "unlocked", unlocked)
 	cf.set_value("collectibles", "got", collectibles.to_save())
@@ -703,6 +731,11 @@ func load_file() -> bool:
 		for gk in cf.get_section_keys("gear"):
 			gear_d[gk] = cf.get_value("gear", gk)
 	Gear.from_save(gear_d)                                  # older saves have no [gear] section: defaults
+	var skill_d := {}
+	if cf.has_section("skills"):
+		for sk_k in cf.get_section_keys("skills"):
+			skill_d[sk_k] = cf.get_value("skills", sk_k)
+	SkillTree.from_save(skill_d)                            # older saves have no [skills] section: level 1, no ranks
 	bosses_cleared.clear()
 	for b: Variant in _arr(cf.get_value("campaign", "bosses", PackedInt32Array())):
 		if b is int and int(b) >= 0 and int(b) < 99 and not bosses_cleared.has(int(b)):

@@ -50,6 +50,7 @@ var _loadout_open := false          ## the pause screen shows the weapon wheel a
 var _loadout_page := 0             ## 0 weapons and attachments, 1 GEAR (throwables, gadget, saved loadouts: scripts/ui/gear_screen.gd)
 var _loadout_quick := false         ## opened from the wheel gesture: a pick resumes the game
 var _loadout_w: StringName = &"carbine"  ## the weapon whose slots the loadout shows
+var _skills_open := false          ## the pause screen shows the skill tree (scripts/ui/skill_screen.gd)
 var _ach_open := false             ## the pause screen shows the achievements (scripts/ui/achievements_screen.gd)
 var _ach_page := 0
 var _shop_open := false             ## the pause screen shows the upgrade shop instead of the settings
@@ -151,6 +152,7 @@ func _on_state(s: StringName) -> void:
 	_hover = &""
 	_shop_open = false
 	_ach_open = false
+	_skills_open = false
 	_side_open = false
 	_loadout_open = false
 	_loadout_page = 0
@@ -376,6 +378,13 @@ func press_button(id: StringName) -> bool:
 		_layout_key = ""
 		_screen.queue_redraw()
 		return done
+	if sid.begins_with("sk_") and sid != "sk_back":
+		if Game.state != &"paused" or not _skills_open:
+			return false
+		var sdone := SkillScreen.press(sid)
+		_layout_key = ""
+		_screen.queue_redraw()
+		return sdone
 	if sid.begins_with("wheel_") or sid.begins_with("part_"):
 		if Game.state != &"paused" or not _loadout_open or Game.progress == null:
 			return false
@@ -497,6 +506,16 @@ func press_button(id: StringName) -> bool:
 			_loadout_w = WeaponDefs.last_used
 			LoadoutScreen.reset_page()
 			Sfx.play(&"ui_confirm")
+		&"skills_open":
+			if Game.state != &"paused" or Game.progress == null or not _shop_open:
+				return false
+			_skills_open = true
+			Sfx.play(&"ui_confirm")
+		&"sk_back":
+			if Game.state != &"paused" or not _skills_open:
+				return false
+			_skills_open = false
+			Sfx.play(&"ui_back")
 		&"look_open":
 			if Game.state != &"paused" or Game.progress == null or not _shop_open:
 				return false
@@ -1181,6 +1200,7 @@ func _ensure_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
 	key += "|%s" % _side_open
+	key += "|k%s%d%d%d" % [_skills_open, SkillTree.xp, SkillTree.spent(), _wallet()]
 	key += "|a%s%d" % [_ach_open, _ach_page]
 	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100]
 	key += "|g%d%s%s%d%d" % [_loadout_page, Gear.throwable, Gear.gadget, Gear.owned.size(), Gear.active_slot]
@@ -1218,6 +1238,8 @@ func _ensure_layout() -> void:
 				OptionsScreen.layout(self, settings, cx, s)
 			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
+			elif _skills_open:
+				SkillScreen.layout(self, cx, s)
 			elif _side_open:
 				SideBoard.layout(self, cx, s)
 			elif _look_open:
@@ -1298,7 +1320,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.4))            # light: the animated city behind the title (scripts/cinematics) shows through
 			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.26))     # a darker column behind the title and buttons keeps them readable
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _ach_open or _side_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _ach_open or _skills_open or _side_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1328,6 +1350,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				ChapterSelect.draw(self, c, vp, s, font, cx)
 			elif _ach_open:
 				AchievementsScreen.draw(self, c, vp, s, font, cx, _ach_page)
+			elif _skills_open:
+				SkillScreen.draw(self, c, vp, s, font, cx)
 			elif _side_open:
 				SideBoard.draw(self, c, vp, s, font, cx)
 			elif _look_open:
