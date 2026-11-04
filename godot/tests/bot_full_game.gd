@@ -18,6 +18,7 @@ var group_filter := PackedStringArray()    ## run only these groups (debugging):
 var _wallet_backup := 0
 var _ui_backup := {}
 var _story_chapter_backup: Variant = null
+var _held: Array[Vehicle] = []              ## cars the garage step pinned against streaming (released again by _unhold_cars)
 
 
 func _init() -> void:
@@ -83,9 +84,93 @@ func _restore_isolation() -> void:
 
 
 func run(host: Node) -> void:
+	_seed_everything()
 	# the soak's run() sets everything up, then calls _warm() and _one_cycle(); the isolation is applied in _warm (the first thing the game is up for)
 	await super.run(host)
 	_restore_isolation()
+
+
+## Every random source the game and the bot draw from starts from the bot's seed (traffic, crowds, missions, story): two runs of one seed differ only by timing.
+func _seed_everything() -> void:
+	seed(seed_value)
+	for pair: Array in [[Game.missions, &"rng"], [Game.story, &"_rng"]]:
+		var holder: Object = pair[0]
+		if is_instance_valid(holder) and holder.get(pair[1]) is RandomNumberGenerator:
+			(holder.get(pair[1]) as RandomNumberGenerator).seed = seed_value
+		if is_instance_valid(holder) and pair[0] == Game.missions:
+			var ct: Variant = holder.get("contracts")
+			if ct is Object and (ct as Object).get(&"rng") is RandomNumberGenerator:
+				((ct as Object).get(&"rng") as RandomNumberGenerator).seed = seed_value
+
+
+## Waits (real time, so the hit-stop and slow motion that stretch game time cannot hide it) until the engine speed is the bot's again; forces it back when something
+## really holds it down. Returns whether it came back on its own.
+func _settle_time(real_limit := 6.0) -> bool:
+	if speed <= 0:
+		return true
+	var t0 := Time.get_ticks_msec()
+	while Engine.time_scale < float(speed) * 0.99 and float(Time.get_ticks_msec() - t0) / 1000.0 < real_limit and fails.is_empty():
+		await _tick()
+	if Engine.time_scale < float(speed) * 0.99:
+		Engine.time_scale = float(speed)
+		return false
+	return true
+
+
+## The common preconditions of every group: playing, at the bot's speed, full health, nothing held down, no leftover car or interior from the step before.
+func _ensure_play(limit := 40.0) -> void:
+	await super._ensure_play(limit)
+	if Game.state == &"play" and fails.is_empty():
+		await _settle_time(3.0)
+
+
+## Fills the car and enemy pools the way a long session would (two of every kind alive at once, at the biggest tier's caps) so the baseline checkpoint already holds them:
+## otherwise a random kind meeting its second instance late in the run reads as node growth.
+func _warm_pools() -> void:
+	_note = "pools"
+	var em := Game.enemies as EnemyManager
+	var vm := Game.vehicles as VehicleManager
+	var q := Game.quality
+	Game.set_quality(2)
+	var types: Array[StringName] = []
+	types.append_array(ENEMY_TYPES)
+	types.append(&"overseer")
+	types.append_array(EnemyTypes.VARIETY_TYPES)
+	types.append_array(EnemyTypes.ELITE_TYPES)
+	var doubled: Array[StringName] = []
+	for t in types:
+		doubled.append(t)
+		doubled.append(t)
+	var i := 0
+	while i < doubled.size() and fails.is_empty():
+		for k in em.cap():
+			if i >= doubled.size():
+				break
+			em.spawn(doubled[i], _p.global_position + Vector3(10.0 + float(k) * 1.5, 0.0, float(k % 3) * 2.0), true)
+			i += 1
+		await _wait(0.3)
+		em.clear()
+	var kinds: Array[StringName] = []
+	for kind in TestMode.VEHICLES:
+		kinds.append(kind)
+		kinds.append(kind)
+	i = 0
+	while i < kinds.size() and fails.is_empty():
+		var made: Array[Vehicle] = []
+		for k in vm.cap():
+			if i >= kinds.size():
+				break
+			var c := vm.spawn_parked(kinds[i], _p.global_position + Vector3(-12.0 + float(k) * 3.0, 0.0, 18.0), 0.0)
+			i += 1
+			if c != null:
+				made.append(c)
+		await _wait(0.2)
+		for c in made:
+			if is_instance_valid(c) and vm.list.has(c) and c != vm.starter and not c.driver_is_player:
+				vm._release(c)
+	Game.set_quality(q)
+	em.clear()
+	await _wait(0.5)
 
 
 func _warm() -> void:
@@ -99,6 +184,7 @@ func _warm() -> void:
 		await _wait(0.2)
 	_p.weapon.switch_to(&"carbine", true)
 	em.clear()
+	await _warm_pools()
 	await super._warm()
 
 
@@ -199,7 +285,8 @@ func _act_quantum() -> void:
 	await _wait(1.5)
 	if _expect(not q.aiming, "the aimed teleport ended"):
 		_count("teleports")
-	_expect(Engine.time_scale >= float(speed) * 0.99 or speed == 0, "slow motion ended after the aimed teleport (time scale %.2f)" % Engine.time_scale)
+	var back := await _settle_time(8.0)
+	_expect(back, "slow motion ended after the aimed teleport, hit-stop allowed for (time scale %.2f, aiming %s)" % [Engine.time_scale, q.aiming])
 	# ENTANGLE: link two drones, swap
 	_note = "entangle"
 	_p.energy = _p.max_energy
@@ -253,27 +340,50 @@ func _act_weapons() -> void:
 	for id: StringName in ids:
 		_note = "weapon " + String(id)
 		_p.energy = _p.max_energy
+		await _ensure_play()                                               # a death or pause meanwhile (the respawn resets the loadout) must not read as a dead weapon
+		_p.hp = _p.max_hp
+		_p.invuln = 5.0
+		var vm := Game.vehicles as VehicleManager
+		if vm != null and vm.driven != null:
+			vm.exit_vehicle()
+		if (Game.enemies as EnemyManager).list.size() < 2:
+			drones = _spawn_ring(3, [&"sentinel", &"heavy", &"shield"], 16.0)
+		WeaponDefs.unlock(id)
 		if not _expect(w.switch_to(id, true) or w.current == id, "switch to %s" % id):
 			continue
 		await _wait(0.15)
-		var tgt: Drone = null
-		for e: Drone in (Game.enemies as EnemyManager).list:
-			if e.active and not e.dead:
-				tgt = e
-				break
-		if tgt != null:
-			_p.camera_rig.look_at_point(tgt.center())
-		w.ammo = w.mag
-		w.tick(3.0, false, false, false, false)                             # the previous weapon's alt-fire cooldown does not carry over
 		var s0 := w.shots_fired
 		var c0 := w.combo_hits
-		Input.action_press(&"aim")
-		Input.action_press(&"fire")
-		await _wait(0.9 if id != &"lance" else 1.5)
-		Input.action_release(&"fire")
-		Input.action_release(&"aim")
-		await _wait(0.2)
-		_expect(w.shots_fired > s0 or w.combo_hits > c0 or w.ammo < w.mag or w.is_reloading() or w.grenades_active() > 0, "%s fires (shots %d -> %d, current %s, state %s, hp %.0f, ammo %d/%d, reload %s)" % [id, s0, w.shots_fired, w.current, Game.state, _p.hp, w.ammo, w.mag, w.is_reloading()])
+		var fired := false
+		for attempt in 3:                                                  # the first press can land in a hit-stop, a swap or a spin-up: press again, wait on the counters
+			var tgt: Drone = null
+			for e: Drone in (Game.enemies as EnemyManager).list:
+				if e.active and not e.dead:
+					tgt = e
+					break
+			if tgt != null:
+				_p.camera_rig.look_at_point(tgt.center())
+			w.ammo = w.mag
+			w.tick(3.0, false, false, false, false)                         # the previous weapon's alt-fire cooldown and swap do not carry over
+			Input.action_press(&"aim")
+			Input.action_press(&"fire")
+			for i in 14:
+				await _wait(0.2)
+				if w.shots_fired > s0 or w.combo_hits > c0 or w.grenades_active() > 0 or Game.state != &"play":
+					break
+			Input.action_release(&"fire")
+			Input.action_release(&"aim")
+			await _wait(0.2)
+			fired = w.shots_fired > s0 or w.combo_hits > c0 or w.ammo < w.mag or w.is_reloading() or w.grenades_active() > 0
+			if fired:
+				break
+			await _settle_time(4.0)
+			await _release_all()
+			_p.hp = _p.max_hp
+			_p.invuln = 5.0
+			if w.current != id:
+				w.switch_to(id, true)
+		_expect(fired, "%s fires (shots %d -> %d, current %s, state %s, hp %.0f, ammo %d/%d, reload %s, time scale %.2f)" % [id, s0, w.shots_fired, w.current, Game.state, _p.hp, w.ammo, w.mag, w.is_reloading(), Engine.time_scale])
 		w.tick(5.0, false, false, false, false)                             # alt-fire cooldown
 		w.ammo = w.mag
 		if w.alt_fire(false):
@@ -381,40 +491,34 @@ func _act_garage() -> void:
 	await _fresh_street()
 	pr.credits = maxi(pr.credits, 5000)
 	_note = "keep the starter"
-	var starter := vm.spawn_parked(&"sport", _p.global_position + Vector3(4.0, 0.0, 0.0), 0.0)    # always a fresh live car (the starter may be a wreck)
-	if starter == null:                                                    # the car list is at its cap: take the nearest ordinary live car instead
-		var best := 1.0e9
-		for c: Vehicle in vm.list:
-			if Garage.can_keep(c):
-				var d := c.global_position.distance_to(_p.global_position)
-				if d < best:
-					best = d
-					starter = c
-	if not _expect(starter != null and is_instance_valid(starter), "a car to keep exists (%d cars, cap %d)" % [vm.list.size(), vm.cap()]):
+	var starter := _garage_starter(vm)
+	if not _expect(starter != null, "a car to keep exists (%d cars, cap %d)" % [vm.list.size(), vm.cap()]):
 		return
 	await _wait(0.3)
-	if not is_instance_valid(starter):                                     # streaming may recycle the car while we waited (more traffic kinds now): take a fresh one
-		starter = vm.spawn_parked(&"sport", _p.global_position + Vector3(4.0, 0.0, 0.0), 0.0)
-		if not _expect(starter != null and is_instance_valid(starter), "a replacement car to keep exists"):
-			return
-	_p.teleport_to(starter.global_position + Vector3(2.5, 0.0, 0.0))
-	await _wait(0.5)
-	for attempt in 3:                                                      # another system (mission, event, hit) may unseat the player: retry with a heal
+	for attempt in 4:                                                      # another system (mission, event, hit, streaming) may unseat the player or recycle the car: re-establish, retry
 		_p.hp = _p.max_hp
 		_p.invuln = 5.0
-		if not is_instance_valid(starter):                             # recycled by streaming mid-retry: take a fresh car beside the player
-			starter = vm.spawn_parked(&"sport", _p.global_position + Vector3(4.0, 0.0, 0.0), 0.0)
-		if is_instance_valid(starter) and starter.active and not starter.dead:
-			vm.enter(starter)
+		if not _car_usable(starter):
+			starter = _garage_starter(vm)
+			if starter == null:
+				continue
+		_p.teleport_to(starter.global_position + Vector3(2.5, 0.0, 0.0))
+		if vm.driven != null and vm.driven != starter:
+			vm.exit_vehicle()
+		vm.enter(starter)
 		await _wait(0.5)
-		if vm.driven == starter:
+		if vm.driven == starter and starter != null:
 			break
-	if not _expect(vm.driven == starter, "the player took the wheel"):
+	var took := starter != null and vm.driven == starter
+	if not _expect(took, "the player took the wheel (starter usable %s, driven %s, player vehicle %s, state %s, cars %d/%d)" % [_car_usable(starter), vm.driven, _p.vehicle, Game.state, vm.list.size(), vm.cap()]):
+		_unhold_cars(vm)
 		return
 	var g := vm.get_garage()
-	if vm.save_driven():
+	var saved := vm.save_driven()
+	_unhold_cars(vm)
+	if saved:
 		_count("garage_saves")
-	_expect(g.has_car(), "the driven car is kept in the garage")
+	_expect(g.has_car(), "the driven car is kept in the garage (saved %s)" % saved)
 	g.set_paint(rng.randi() % VehicleSpecs.COLORS.size())
 	for st: StringName in [&"speed", &"armour", &"grip", &"weapon"]:
 		if g.can_upgrade(st, pr):
@@ -452,6 +556,8 @@ func _act_garage() -> void:
 	_p.teleport_to(_random_road_spot())
 	await _wait(0.5)
 	_note = "summon"
+	for c: Vehicle in vm.list:
+		c.remove_meta(&"dbg")
 	if vm.summon_garage() != null:
 		_count("summons")
 	await _wait(1.5)
@@ -459,6 +565,35 @@ func _act_garage() -> void:
 		vm.exit_vehicle()
 	(Game.enemies as EnemyManager).clear()
 	await _release_all()
+
+
+## A live, enterable car (not freed, wrecked, dead or recycled into the pool).
+func _car_usable(c: Vehicle) -> bool:
+	return c != null and is_instance_valid(c) and c.active and not c.dead and not c.wreck and Garage.can_keep(c)
+
+
+## A fresh parked car beside the player that streaming cannot recycle meanwhile (the manager's own `hold` meta). Makes room first when the tier's car cap is full.
+func _garage_starter(vm: VehicleManager) -> Vehicle:
+	for i in 12:
+		if vm.list.size() < vm.cap():
+			break
+		var n := vm.list.size()
+		vm._release_farthest(_p.global_position)
+		if vm.list.size() >= n:
+			break
+	var c := vm.spawn_parked(&"sport", _p.global_position + Vector3(4.0, 0.0, 0.0), 0.0)
+	if c != null:
+		c.set_meta(&"hold", true)
+		_held.append(c)
+	return c
+
+
+func _unhold_cars(_vm: VehicleManager) -> void:
+	for c in _held:
+		if is_instance_valid(c):
+			c.remove_meta(&"hold")
+	_held.clear()
+
 
 
 # --- side missions, collectibles --------------------------------------------------------------------------------------------

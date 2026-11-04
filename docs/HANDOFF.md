@@ -484,3 +484,8 @@ Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one tran
 - Full suite 142 tests: 0 fail; FLAKY: tests/test_demo_mode.gd (passed on retry). Perf gate OK on all tiers (draws 65/92/106, death 113/147/169, tex 166/216/307 MB; the builder's MED/HIGH death-spike overrun did not reproduce on the combined tree). visual_qa 16/16 (one first-run hero fail passed on rerun: flaky hero shot). full_bot exit 0.
 - latest.png: no new glaring defects. Existing: broadcast box over minimap, car shot flat colour, interior hero cropped, title DEMO tag overlaps corner, mission toast over hero.
 - Follow-ups: see builder notes above (shotgun flash small, no per-weapon sounds, LOW no district grade).
+
+## Wave 65 integration: parallel CI shards, deterministic full-game bot
+- Full suite 142 tests via tools/test_all.sh: 142 pass, 0 flaky, 0 fail. Perf gate skipped (no rendering/texture changes). full_bot exit 0 (SOAK verdict PASS, 7.6 min, errors=0; only exit-time headless RID leak warnings). visual_qa 19/19 pass.
+- ci_shard.sh (4 shards by file size) and ci.yml matrix are untested on the real runner: CI wall time, import-cache hit rate and visual_qa.sh on the runner are unverified.
+- latest.png: no new glaring defects. Existing follow-ups: title DEMO tag overlaps the top-left, broadcast box overlaps the minimap, car shot flat colour, interior hero cropped, mission toast over hero, sky_noon / storm shots slightly washed.

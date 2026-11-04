@@ -30,7 +30,8 @@ Wave 21 F1+B1, 22 G1+C1, 23 A1+D2, 24 B2+B3, 25 H1+H2, 26 E1+E2, 27 F2+F3, 28 C2
 - Integrator (low effort): tools/import.sh, then the FULL suite in parallel: `godot/tools/test_all.sh` (3 jobs, retries a failure once and reports FLAKY vs FAIL). Never push with a FAIL. UI/text/layout waves also run test_hud*, test_touch*, test_options at 844x390 and 1280x720.
 - Perf gate (PERF_CHECK=1 tools/perf_report.sh 0 1 2) only when a wave changes rendering (shaders, materials, models, lights, draw counts).
 - Visual QA after the integrator: tools/visual_qa.sh, contact sheet docs/shots/latest.png; fix defects or list follow-ups.
-- CI gate: after pushing, wait for the GitHub CI run of that exact commit to finish green BEFORE the next wave starts (never push two waves inside one CI run; pushes cancel earlier runs). If it is red, fix it first.
+- CI gate (parallel pipeline): CI runs the suite in 4 shards (`godot/tools/ci_shard.sh <i> 4`) plus one visual job. Builders of wave N+1 may start while CI of wave N runs. The integrator never waits for CI. A CI watcher watches the run of the pushed commit and fixes red with explicit-path staging (never `git add -A`), pushing the fix as its own commit.
+- `full_bot` runs every third wave, not every wave.
 - Android build every few waves; fresh-clone check every ~6 waves.
 - Owner feedback after each build: FPS reading, 1-2 screenshots, one line on feel.
 

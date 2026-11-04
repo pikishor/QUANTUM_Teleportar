@@ -9,6 +9,10 @@ var main: Node
 var hud: Hud
 var prog: Progress
 var panel: DemoPanel
+## The "real" profile of this test lives in files of its own (per process): the shared user://save.cfg and map.cfg are written by every other test that runs beside this
+## one on the runner (tools/test_all.sh runs several at once), which made the byte-for-byte checks flaky. DemoMode stashes and restores whatever path Progress had.
+var _real_save := "user://test_demo_real_%d.cfg" % OS.get_process_id()
+var _real_map := "user://test_demo_real_map_%d.cfg" % OS.get_process_id()
 
 
 func frames(n: int) -> void:
@@ -43,14 +47,17 @@ func run(h: Node) -> void:
 	hud = huds[0] as Hud
 
 	# a real profile on disk, recorded byte for byte
+	prog.path = _real_save
+	prog.autosave_enabled = false
+	MapScreen.path_override = _real_map
 	prog.new_campaign()
 	prog.credits = 1234
 	prog.reputation = 3
 	prog.unlocked = 4
 	prog.sector = 2
-	TestLib.check(prog.save_file() and FileAccess.file_exists(Progress.DEFAULT_PATH), "a real save is written for the test")
-	var real_md5 := _md5(Progress.DEFAULT_PATH)
-	var map_md5 := _md5(MapScreen.SAVE_PATH)
+	TestLib.check(prog.save_file() and FileAccess.file_exists(_real_save), "a real save is written for the test")
+	var real_md5 := _md5(_real_save)
+	var map_md5 := _md5(_real_map)
 	var real_difficulty := Difficulty.current
 
 	await _title_button()
@@ -63,8 +70,11 @@ func run(h: Node) -> void:
 	TestMode.reset_toggles()
 	Difficulty.set_mode(real_difficulty)
 	_clean_files()
-	if FileAccess.file_exists(Progress.DEFAULT_PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(Progress.DEFAULT_PATH))
+	for f in [_real_save, _real_map]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	MapScreen.path_override = ""
+	prog.path = Progress.DEFAULT_PATH
 	main.queue_free()
 	await frames(5)
 	Game.state = &"menu"
@@ -234,21 +244,21 @@ func _tools() -> void:
 
 
 func _files_and_real_profile(real_md5: String, map_md5: String, real_difficulty: int) -> void:
-	TestLib.check(_md5(Progress.DEFAULT_PATH) == real_md5, "the real save is byte for byte untouched while the demo runs")
-	TestLib.check(_md5(MapScreen.SAVE_PATH) == map_md5, "the real map file is untouched while the demo runs")
+	TestLib.check(_md5(_real_save) == real_md5, "the real save is byte for byte untouched while the demo runs")
+	TestLib.check(_md5(_real_map) == map_md5, "the real map file is untouched while the demo runs")
 	_press(panel.entry_rect())
 	panel.set_page(DemoPanel.TABS.find("TOOLS"))
 	TestLib.check(panel.press_label("QUIT DEMO"), "QUIT DEMO is pressed")
 	TestLib.check(not DemoMode.active and Game.state == &"menu", "quit returns to the title screen")
-	TestLib.check(prog.path == Progress.DEFAULT_PATH and not prog.autosave_enabled, "Progress points at the real save again")
+	TestLib.check(prog.path == _real_save and not prog.autosave_enabled, "Progress points at the real save again")
 	TestLib.check(prog.credits == 1234 and prog.reputation == 3 and prog.unlocked == 4, "the real profile is back (credits, reputation, chapters)")
 	TestLib.check(not WeaponDefs.is_unlocked(&"lance") or prog.level(&"damage") == 0, "demo weapons / upgrades are gone with the demo")
 	TestLib.check(prog.level(&"damage") == 0 and not prog.garage.has_car(), "demo upgrades and garage car are gone")
 	TestLib.check(not TestMode.god and not TestMode.infinite_ammo, "the toggles are reset")
 	TestLib.check(Difficulty.current == real_difficulty, "the difficulty is back")
-	TestLib.check(MapScreen.path_override == "", "the map points at its real file again")
-	TestLib.check(_md5(Progress.DEFAULT_PATH) == real_md5, "the real save is byte for byte untouched after the demo")
-	TestLib.check(_md5(MapScreen.SAVE_PATH) == map_md5, "the real map file is untouched after the demo")
+	TestLib.check(MapScreen.path_override == _real_map, "the map points at its real file again")
+	TestLib.check(_md5(_real_save) == real_md5, "the real save is byte for byte untouched after the demo")
+	TestLib.check(_md5(_real_map) == map_md5, "the real map file is untouched after the demo")
 	TestLib.check((Game.missions as Missions).campaign.enabled == (not Game.autostart) or true, "the campaign runner setting is restored")
 
 
@@ -261,5 +271,5 @@ func _abort_to_menu(real_md5: String) -> void:
 	hud._layout_key = ""
 	hud._ensure_layout()
 	TestLib.check(hud.press_button(&"menu") and Game.state == &"menu", "ABORT TO MENU from the pause screen")
-	TestLib.check(not DemoMode.active and prog.path == Progress.DEFAULT_PATH, "ABORT TO MENU ends the demo and restores the real paths")
-	TestLib.check(_md5(Progress.DEFAULT_PATH) == real_md5, "the real save is still untouched after the second demo")
+	TestLib.check(not DemoMode.active and prog.path == _real_save, "ABORT TO MENU ends the demo and restores the real paths")
+	TestLib.check(_md5(_real_save) == real_md5, "the real save is still untouched after the second demo")

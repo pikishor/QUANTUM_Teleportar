@@ -16,9 +16,13 @@ concurrency:
 
 jobs:
   godot-tests:
-    name: Godot tests and screenshot
+    name: Godot tests (shard ${{ matrix.shard }} of 4)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - name: System packages (virtual display, software Vulkan/GL, audio stubs)
@@ -30,27 +34,55 @@ jobs:
         with:
           path: ~/.cache/godot-4.6.1-stable
           key: godot-4.6.1-stable-linux-v1
+      - name: Cache the import (class cache and imported assets)
+        uses: actions/cache@v4
+        with:
+          path: godot/.godot
+          key: godot-import-${{ hashFiles('godot/project.godot', 'godot/**/*.import', 'godot/**/*.gd') }}
+          restore-keys: |
+            godot-import-
       - name: Bootstrap (download Godot, verify checksum, import project)
         run: godot/tools/bootstrap.sh
-      - name: Run every headless test
+      - name: Run this shard of the headless tests
+        run: godot/tools/ci_shard.sh ${{ matrix.shard }} 4
+
+  godot-visual:
+    name: Screenshot and visual checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages (virtual display, software Vulkan/GL, audio stubs)
         run: |
-          set -e
-          count=0
-          for t in godot/tests/test_*.gd; do
-            echo "::group::$t"
-            godot/tools/test.sh "tests/$(basename "$t")"
-            echo "::endgroup::"
-            count=$((count + 1))
-          done
-          echo "ran $count test script(s)"
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libvulkan1 mesa-vulkan-drivers libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64
+      - name: Cache the Godot binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/godot-4.6.1-stable
+          key: godot-4.6.1-stable-linux-v1
+      - name: Cache the import (class cache and imported assets)
+        uses: actions/cache@v4
+        with:
+          path: godot/.godot
+          key: godot-import-${{ hashFiles('godot/project.godot', 'godot/**/*.import', 'godot/**/*.gd') }}
+          restore-keys: |
+            godot-import-
+      - name: Bootstrap (download Godot, verify checksum, import project)
+        run: godot/tools/bootstrap.sh
       - name: Screenshot smoke test (Mobile renderer on software Vulkan)
-        continue-on-error: true
-        run: godot/tools/shot.sh "$RUNNER_TEMP/main.png" res://scenes/main.tscn 20
+        run: |
+          godot/tools/shot.sh "$RUNNER_TEMP/main.png" res://scenes/main.tscn 20
+          test -s "$RUNNER_TEMP/main.png"
+      - name: Visual QA spots
+        run: godot/tools/visual_qa.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: screenshot
-          path: ${{ runner.temp }}/main.png
+          name: screenshots
+          path: |
+            ${{ runner.temp }}/main.png
+            docs/shots/latest.png
           if-no-files-found: ignore
 
   unreal-syntax:
