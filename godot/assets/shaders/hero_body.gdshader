@@ -110,7 +110,7 @@ void fragment() {
 		rough = 0.42;
 		metal = 0.55;
 		float ndv2 = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
-		emis = trim_color * pow(1.0 - ndv2, 3.0) * 0.18 * (0.4 + 0.6 * ready_k) * glow;
+		emis = trim_color * (pow(1.0 - ndv2, 3.0) * 0.18 + step(0.5, v_suit) * 1.1) * (0.4 + 0.6 * ready_k) * glow;
 	}
 	ALBEDO = alb * brightness;
 	ROUGHNESS = rough;

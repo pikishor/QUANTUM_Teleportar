@@ -117,4 +117,5 @@ func _apply_env() -> void:
 		_base_fog = _env.fog_density
 		_base_exposure = _env.tonemap_exposure
 	_env.fog_density = _base_fog * fog_mult
-	_env.tonemap_exposure = _base_exposure * (1.0 + (0.0 if UiSettings.s_reduce_flash else 0.7) * flash)
+	var base: float = _env.get_meta(&"base_exposure", _base_exposure)
+	_env.tonemap_exposure = base * (1.0 + (0.0 if UiSettings.s_reduce_flash else 0.7) * flash)

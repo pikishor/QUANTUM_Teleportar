@@ -74,9 +74,20 @@ static func sky_look(h: float, weather: StringName, level: int) -> Dictionary:
 		"star_amount": 0.55 * smoothstep(0.55, 1.0, n) * (1.0 - oc * 0.85)}
 
 
+## Tone-mapper exposure for an hour and weather: nearly constant (0.94 by day .. 1.0 at night, a touch more under heavy overcast), so day, dusk,
+## night and weather all land in one exposure band. DayNight.apply() writes it as the Environment meta `base_exposure`, which Weather scales for lightning.
+static func exposure_for(h: float, weather: StringName) -> float:
+	var n := night_amount(h)
+	var oc: float = OVERCAST.get(weather, 0.0)
+	return lerpf(0.94, 1.0, n) * (1.0 + 0.05 * oc)
+
+
 static func clock_text(h: float) -> String:
 	h = fposmod(h, 24.0)
 	return "%02d:%02d" % [int(h), int((h - floorf(h)) * 60.0)]
+
+
+var _exposure_base := 1.0
 
 
 func setup(owner_env: RefCounted, level: int) -> void:
@@ -88,6 +99,7 @@ func setup(owner_env: RefCounted, level: int) -> void:
 	_fog_night = e.fog_light_color
 	_amb_night = e.ambient_light_energy
 	_glow_base = e.glow_strength
+	_exposure_base = e.tonemap_exposure
 	_acc = 99.0
 	apply()
 
@@ -150,6 +162,7 @@ func apply() -> void:
 	e.fog_light_color = fogc.lerp(Color(grey, grey, grey * 1.04), oc * 0.45)
 	e.fog_sky_affect = lerpf(0.2, 0.5, oc)
 	e.ambient_light_energy = lerpf(_amb_night * 0.85, _amb_night, n)
+	e.set_meta(&"base_exposure", exposure_for(hour, Weather.current) * _exposure_base)
 	density = density_for(hour)
 	if ambient != null and absf(density - _density_applied) > 0.02 and ambient.has_method(&"set_density"):
 		_density_applied = density

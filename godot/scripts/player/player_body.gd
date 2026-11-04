@@ -55,6 +55,9 @@ const DEAD_SHIFT := 0.7                ## metres sideways, so the fallen body en
 const DEAD_CURL := 0.22                ## the torso bends a little against the legs
 const DEAD_LEG_L := Vector3(0.45, 0.0, -0.17)
 const DEAD_LEG_R := Vector3(-0.3, 0.0, -0.09)
+const DEAD_LEGS_HERO_L := Vector3(0.3, 0.35, -0.65)   ## the superhero's slack legs (long legs: the lower one lies on the floor, the upper one on it)
+const DEAD_LEGS_HERO_R := Vector3(-0.3, 0.15, -0.2)
+const STANCE_SHIFT_HERO := 0.03        ## the superhero's ankles rest 5 cm behind its hip joints: the idle stance moves them back, so the idle thigh angle stays near zero through the idle sway
 const DEAD_REST_GAP := 0.012           ## the lowest point of the corpse floats this far above the floor (no z-fighting with the asphalt)
 const DEAD_SETTLE := 0.6               ## seconds after the fall during which the resting height is still recomputed
 const DEAD_LIGHT := 0.5                ## the hero lighting (key and rim) of a dead body: this fraction is left, so a corpse does not glow
@@ -73,6 +76,8 @@ static var _flash_mat_streak: StandardMaterial3D
 
 var muzzle: Node3D
 var _wp_mi: MeshInstance3D
+var _wp_attach := false                       ## the weapon look still has to move onto the hand mount
+var _finger_mode: StringName = &""
 var _wp_mat: StandardMaterial3D
 var leg_l: Node3D
 var leg_r: Node3D
@@ -262,6 +267,13 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		rig.head_yaw = 0.0
 		rig.apply()
 		muzzle.transform = rig.muzzle_transform()
+		if hero_mat != null:
+			var fm: StringName = &"relaxed" if (e > 0.5 or p.sprinting) else (&"aim" if (p.aiming and reload_k < 0.0) else &"grip")
+			if fm != _finger_mode:
+				_finger_mode = fm
+				HeroFingers.pose(rig.skeleton, fm)
+			if _wp_attach:
+				_attach_weapon_look()
 		if leg_l != null:
 			leg_l.basis = Basis.from_euler(Vector3(rig.hip_l.x, 0.0, rig.hip_l.y))
 			leg_r.basis = Basis.from_euler(Vector3(rig.hip_r.x, 0.0, rig.hip_r.y))
@@ -372,12 +384,43 @@ func set_weapon_look(id: StringName) -> void:
 		_wp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		_wp_mi.material_override = _wp_mat
 		muzzle.add_child(_wp_mi)
+	_wp_attach = rig != null and hero_mat != null                  # the superhero: the look moves onto the hand mount after the next rig pose (see _attach_weapon_look)
 	var sz: Vector3 = d["look_size"]
 	(_wp_mi.mesh as BoxMesh).size = sz
 	_wp_mi.position = Vector3(0.0, 0.0, sz.z * 0.5 + 0.02)         # behind the muzzle along the barrel (muzzle forward is -Z)
 	var col: Color = d["look"]
 	_wp_mat.albedo_color = col * 1.4
 	_wp_mi.visible = id != &"carbine"                              # the carbine is the plain rifle: the hero stays ONE mesh until another weapon is in hand
+
+
+## The weapon look rides on the right hand's bone mount (HandRMount) instead of the rifle bone, so it follows every hand animation. The offset is taken from where the look sits
+## now (behind the muzzle, in the current pose), so the placement is unchanged at rest.
+func _attach_weapon_look() -> void:
+	_wp_attach = false
+	if _wp_mi == null or not is_instance_valid(_wp_mi) or rig == null or muzzle == null:
+		return
+	var mount := HeroPresentation.hand_mount(rig.skeleton, &"r")
+	var hb := HeroPresentation.hand_bone(rig.skeleton, &"r")
+	if mount == null or hb < 0:
+		return
+	var sz: Vector3 = (_wp_mi.mesh as BoxMesh).size
+	var world := muzzle.global_transform * Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, sz.z * 0.5 + 0.02))
+	var hand := rig.skeleton.global_transform * rig.skeleton.get_bone_global_pose(hb)
+	if _wp_mi.get_parent() != mount:
+		_wp_mi.get_parent().remove_child(_wp_mi)
+		mount.add_child(_wp_mi)
+	_wp_mi.transform = Transform3D(hand.basis.orthonormalized(), hand.origin).affine_inverse() * world
+
+
+## Create the pooled burst node and show it for the shader warm-up (an idle hidden emitter costs nothing; the first burst then needs no allocation).
+func warm_burst() -> void:
+	_fire_burst(global_position + Vector3(0.0, 1.0, 0.0), 2)
+
+
+func warm_burst_end() -> void:
+	if _burst != null and is_instance_valid(_burst):
+		_burst.emitting = false
+		_burst.visible = false
 
 
 ## One shot: flash card, light pulse and the body's recoil. intensity scales the flash.
@@ -514,6 +557,8 @@ func _rebuild_model(look: HeroLook = null) -> void:
 	_lights.clear()
 	_flash_root = null
 	_wp_mi = null
+	_wp_attach = false
+	_finger_mode = &""
 	rig = null
 	loco = null
 	if old != null and is_instance_valid(old):
@@ -588,6 +633,12 @@ func _adopt_model(model: Node3D) -> void:
 		_apply_hero_look(_pending_look if _pending_look != null else (Game.progress.get(&"hero") as HeroLook if Game.progress != null else null))
 	HeroPresentation.set_height(HeroPresentation.measure_height(model))
 	if rig != null:
+		if hero_mat != null:
+			rig.dead_leg_l = DEAD_LEGS_HERO_L
+			rig.dead_leg_r = DEAD_LEGS_HERO_R
+			rig.stance_shift = STANCE_SHIFT_HERO
+			if loco != null:
+				loco.reset()
 		HeroPresentation.hand_mount(rig.skeleton, &"r")
 		HeroPresentation.hand_mount(rig.skeleton, &"l")
 

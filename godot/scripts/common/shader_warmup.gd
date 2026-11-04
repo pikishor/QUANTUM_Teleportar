@@ -66,6 +66,8 @@ static func run(host: Node, force := false) -> Dictionary:
 		em.warm_end(enemies)
 	if vm != null:
 		vm.warm_end(cars)
+	if is_instance_valid(Game.player) and Game.player.body != null and Game.player.body.has_method(&"warm_burst_end"):
+		Game.player.body.warm_burst_end()
 	FX.reset()
 	finished = true
 	return {"items": items, "ms": Time.get_ticks_msec() - t0}
@@ -90,6 +92,9 @@ static func _warm_fx(at: Vector3) -> int:
 			n += 3
 		if p.decals != null:
 			p.decals.add(at + Vector3(0.0, 0.05, 0.0), Vector3.UP, 0.2)
+			n += 1
+		if p.body != null and p.body.has_method(&"warm_burst"):                  # the hero's quantum burst node is created here, not on the first hit
+			p.body.warm_burst()
 			n += 1
 	return n
 

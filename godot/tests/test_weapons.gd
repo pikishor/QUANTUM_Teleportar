@@ -349,7 +349,7 @@ func _switching() -> void:
 	# the rifle's look follows the weapon
 	WeaponDefs.unlock(&"lance")
 	w.switch_to(&"lance", true)
-	var look := p.body.muzzle.get_node_or_null("WeaponLook") as MeshInstance3D
+	var look := p.body.find_child("WeaponLook", true, false) as MeshInstance3D   # rides on the muzzle or (superhero) the hand mount
 	TestLib.check(look != null and (look.mesh as BoxMesh).size.z > 0.7, "the lance wears a long rail on the rifle")
 
 

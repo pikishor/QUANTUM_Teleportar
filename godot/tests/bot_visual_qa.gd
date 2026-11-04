@@ -61,7 +61,10 @@ func step(_t: float, _dt: float) -> bool:
 			if cr != null and cr.has_method(&"count_near"):
 				people = cr.count_near(_p.global_position, VisualQaLib.PEOPLE_RADIUS)
 				break
-	var why := VisualQaLib.verdict(st, sep, people)
+	var extra := ""
+	if spot == &"title":
+		extra = _badge_overlap()
+	var why := VisualQaLib.verdict(st, sep, people, float(VisualQaLib.flat_rects(img)["frac"]), extra)
 	img.save_png("%s/%s.png" % [_out, spot])
 	if why != "":
 		_fails += 1
@@ -145,6 +148,18 @@ func _begin() -> void:
 			_p.teleport_to(Game.SPAWN)
 			_p.camera_rig.reset_view(-PI * 0.5, -0.1)
 			TestMode.set_weather("RAIN" if spot == &"rain" else "STORM")
+
+
+## Title screen: the HUD buttons (DEMO, OPTIONS, ...) and the TEST badge must not overlap each other.
+func _badge_overlap() -> String:
+	var rects := {}
+	for n in _p.get_tree().root.find_children("*", "Hud", true, false):
+		for b: Dictionary in (n as Hud).buttons:
+			if String(b["id"]) in ["demo", "options"]:
+				rects[String(b["id"]).to_upper()] = b["rect"]
+	for n in _p.get_tree().root.find_children("*", "TestMenu", true, false):
+		rects["TEST"] = (n as TestMenu).entry_rect()
+	return VisualQaLib.overlap(rects)
 
 
 func _nearest_vehicle() -> Node3D:

@@ -13,7 +13,7 @@ const PUFF_POOL := 6
 const SPARK_AMOUNT := 14
 const PUFF_AMOUNT := 5
 
-static var _dot_tex: GradientTexture2D
+static var _dot_tex: Texture2D
 static var _spark_mat: ShaderMaterial
 const STREAK_SHADER := preload("res://assets/shaders/fx_streak.gdshader")
 static var _puff_mat: StandardMaterial3D
@@ -204,19 +204,13 @@ func _make_emitter(is_puff: bool) -> CPUParticles3D:
 	return p
 
 
-static func _get_dot() -> GradientTexture2D:
+static func _get_dot() -> Texture2D:
 	if _dot_tex == null:
 		var g := Gradient.new()
 		g.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
 		g.add_point(0.4, Color(1.0, 1.0, 1.0, 0.55))
 		g.set_color(g.get_point_count() - 1, Color(1.0, 1.0, 1.0, 0.0))
-		_dot_tex = GradientTexture2D.new()
-		_dot_tex.gradient = g
-		_dot_tex.fill = GradientTexture2D.FILL_RADIAL
-		_dot_tex.fill_from = Vector2(0.5, 0.5)
-		_dot_tex.fill_to = Vector2(1.0, 0.5)
-		_dot_tex.width = 64
-		_dot_tex.height = 64
+		_dot_tex = SoftDot.radial(g)
 	return _dot_tex
 
 

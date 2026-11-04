@@ -34,13 +34,14 @@ const EXPOSED := ["head", "neck", "hand", "index", "middle", "ring", "pinky", "t
 const RIFLE_PIVOT := Vector3(0.085, 1.38, 0.02)
 const MUZZLE_AT := Vector3(0.0, 0.01, -0.86)
 const WRIST_R := Vector3(0.0, -0.085, -0.18)
-const WRIST_L := Vector3(-0.012, -0.07, -0.37)
-const MAG_WELL := Vector3(0.0, -0.13, -0.27)
+const WRIST_L := Vector3(-0.012, -0.07, -0.47)
+const MAG_WELL := Vector3(0.0, -0.13, -0.405)
 const MAG_POUCH := Vector3(-0.13, 1.18, -0.12)
 const ELBOW_OUT := 0.45                          ## elbow pole of the arm solve: down, a little outward and back
 const ELBOW_BACK := 0.35
 const HAND_ROLL_R := 1.5708                         ## extra twist of each hand about its forearm (radians)
 const HAND_ROLL_L := 3.1416
+const RIFLE_MODEL := "res://assets/models/hero_rifle.glb"   ## tools/blender/model_hero_rifle.py: 2.3k triangles, glow seams in vertex colour G
 
 static var _half := {}                          ## path -> halved texture (LOW)
 
@@ -550,6 +551,62 @@ static func _curl_fingers(sk: Skeleton3D) -> void:
 
 ## A compact carbine (about 200 triangles) skinned to the Rifle bone: boxes and an 8 sided barrel, in the Rig's (kit) space, the pivot at the butt.
 static func _rifle_piece(rifle_bone: int) -> Dictionary:
+	var arrs := _rifle_arrays()
+	if not arrs.is_empty():
+		return _rifle_from_arrays(arrs, rifle_bone)
+	return _rifle_boxes(rifle_bone)
+
+
+## The Blender rifle's surface arrays (cached), or an empty array when the model is not imported.
+static var _rifle_cache: Array = []
+
+static func _rifle_arrays() -> Array:
+	if not _rifle_cache.is_empty():
+		return _rifle_cache
+	if not ResourceLoader.exists(RIFLE_MODEL):
+		return []
+	var ps := load(RIFLE_MODEL) as PackedScene
+	if ps == null:
+		return []
+	var root := ps.instantiate()
+	var mis := root.find_children("*", "MeshInstance3D", true, false)
+	if not mis.is_empty():
+		var mi := mis[0] as MeshInstance3D
+		if mi.mesh != null and mi.mesh.get_surface_count() > 0:
+			_rifle_cache = mi.mesh.surface_get_arrays(0)
+	root.free()
+	return _rifle_cache
+
+
+static func _rifle_from_arrays(arr: Array, rifle_bone: int) -> Dictionary:
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var n: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+	var count := v.size()
+	var cols: PackedColorArray = arr[Mesh.ARRAY_COLOR] if arr[Mesh.ARRAY_COLOR] != null else PackedColorArray()
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	if idx.is_empty():
+		for i in count:
+			idx.append(i)
+	var vv := PackedVector3Array()
+	var nn := PackedVector3Array()
+	var bones := PackedInt32Array()
+	var weights := PackedFloat32Array()
+	var tan := PackedFloat32Array()
+	var glow := PackedFloat32Array()
+	for i in count:
+		var m := v[i] + RIFLE_PIVOT
+		vv.append(Vector3(-m.x, m.y, -m.z))
+		nn.append(Vector3(-n[i].x, n[i].y, -n[i].z))
+		bones.append_array(PackedInt32Array([rifle_bone, 0, 0, 0]))
+		weights.append_array(PackedFloat32Array([1.0, 0.0, 0.0, 0.0]))
+		tan.append_array(PackedFloat32Array([1.0, 0.0, 0.0, 1.0]))
+		glow.append(cols[i].g if i < cols.size() else 0.0)
+	var uv := PackedVector2Array()
+	uv.resize(count)
+	return {"v": vv, "n": nn, "t": tan, "uv": uv, "bones": bones, "weights": weights, "idx": idx, "mode": MODE_GEAR, "suit": glow, "lod": 0}
+
+
+static func _rifle_boxes(rifle_bone: int) -> Dictionary:
 	var v := PackedVector3Array()
 	var n := PackedVector3Array()
 	var idx := PackedInt32Array()

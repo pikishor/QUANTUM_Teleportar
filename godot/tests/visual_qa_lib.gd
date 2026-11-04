@@ -69,8 +69,88 @@ static func separation(shown: Image, hidden: Image, step := 2) -> Dictionary:
 	return {"sep": maxf(dl, dc), "n": nh}
 
 
+## Big flat bright rectangles (an untextured / not-yet-textured billboard or quad): the frame is cut into BLOCK px cells, a cell is flat when its luma range is
+## under FLAT_RANGE and bright when its mean is over FLAT_LUMA; 4-connected flat-bright regions at least FLAT_MIN_CELLS across both ways whose cells fill
+## at least 85 % of their bounding box count. Returns the biggest one as {frac (of the frame), rect (px)}, frac 0 when none.
+const FLAT_BLOCK := 8
+const FLAT_RANGE := 0.035
+const FLAT_LUMA := 0.55
+const FLAT_MIN_CELLS := 5
+const MAX_FLAT_RECT := 0.03     # a clear sky gap between two towers is flat and rectangular too (about 0.015); the old white quads were 0.05 and more
+
+
+static func flat_rects(img: Image) -> Dictionary:
+	var cw := img.get_width() / FLAT_BLOCK
+	var ch := img.get_height() / FLAT_BLOCK
+	var flat := PackedByteArray()
+	flat.resize(cw * ch)
+	for cy in ch:
+		for cx in cw:
+			var lo := 1.0
+			var hi := 0.0
+			var sum := 0.0
+			for y in range(cy * FLAT_BLOCK, (cy + 1) * FLAT_BLOCK, 2):
+				for x in range(cx * FLAT_BLOCK, (cx + 1) * FLAT_BLOCK, 2):
+					var l := luma(img.get_pixel(x, y))
+					lo = minf(lo, l)
+					hi = maxf(hi, l)
+					sum += l
+			var m := sum / float(FLAT_BLOCK * FLAT_BLOCK / 4)
+			flat[cy * cw + cx] = 1 if (hi - lo < FLAT_RANGE and m > FLAT_LUMA) else 0
+	var best := {"frac": 0.0, "rect": Rect2i()}
+	var seen := PackedByteArray()
+	seen.resize(cw * ch)
+	for start in cw * ch:
+		if flat[start] == 0 or seen[start] == 1:
+			continue
+		var stack: Array[int] = [start]
+		seen[start] = 1
+		var n := 0
+		var x0 := cw
+		var y0 := ch
+		var x1 := 0
+		var y1 := 0
+		while not stack.is_empty():
+			var c: int = stack.pop_back()
+			var cx := c % cw
+			var cy := c / cw
+			n += 1
+			x0 = mini(x0, cx)
+			x1 = maxi(x1, cx)
+			y0 = mini(y0, cy)
+			y1 = maxi(y1, cy)
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var nx: int = cx + d.x
+				var ny: int = cy + d.y
+				if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
+					continue
+				var ni := ny * cw + nx
+				if flat[ni] == 1 and seen[ni] == 0:
+					seen[ni] = 1
+					stack.append(ni)
+		var bw := x1 - x0 + 1
+		var bh := y1 - y0 + 1
+		if bw >= FLAT_MIN_CELLS and bh >= FLAT_MIN_CELLS and float(n) >= 0.85 * bw * bh:
+			var frac := float(n) / float(cw * ch)
+			if frac > float(best["frac"]):
+				best = {"frac": frac, "rect": Rect2i(x0 * FLAT_BLOCK, y0 * FLAT_BLOCK, bw * FLAT_BLOCK, bh * FLAT_BLOCK)}
+	return best
+
+
+## Names of the first pair of rects (label -> Rect2) that overlap by more than 1 px each way; "" when none. Used for the title screen badges.
+static func overlap(rects: Dictionary) -> String:
+	var keys := rects.keys()
+	for i in keys.size():
+		for j in range(i + 1, keys.size()):
+			var a: Rect2 = rects[keys[i]]
+			var b: Rect2 = rects[keys[j]]
+			if a.grow(-1.0).intersects(b.grow(-1.0)):
+				return "%s overlaps %s" % [keys[i], keys[j]]
+	return ""
+
+
 ## Returns "" when the frame passes, otherwise the reasons (a short list).
-static func verdict(s: Dictionary, sep := -1.0, people := -1) -> String:
+static func verdict(s: Dictionary, sep := -1.0, people := -1, flat := 0.0, extra := "") -> String:
 	var why: PackedStringArray = []
 	if float(s["mean"]) < MIN_MEAN:
 		why.append("too dark")
@@ -86,4 +166,8 @@ static func verdict(s: Dictionary, sep := -1.0, people := -1) -> String:
 		why.append("street empty")
 	if sep >= 0.0 and sep < MIN_SEP:
 		why.append("hero blends in")
+	if flat > MAX_FLAT_RECT:
+		why.append("flat white rectangle")
+	if extra != "":
+		why.append(extra)
 	return ", ".join(why)

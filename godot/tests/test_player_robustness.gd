@@ -273,7 +273,7 @@ func _death_in_the_air_and_the_corpse() -> void:
 	TestLib.check(legs.z > 0.99 and legs.x > -0.03, "the legs are not buried in the ground (%.0f %% of their vertices above the floor, lowest %.3f)" % [legs.z * 100.0, legs.x])
 	TestLib.check(parts.y < 1.25, "the corpse is not standing or propped up: highest point %.2f m" % parts.y)
 	var left := _bone_heights(b, PackedInt32Array([CharacterRig.SHIN_L, CharacterRig.FOOT_L]))
-	TestLib.check(left.x < (0.65 if b.hero_mat != null else 0.2), "a leg lies on the ground instead of floating above it (lowest vertex of the lower leg at %.3f; the superhero lies on a 0.9 m leg, follow-up: tune its death leg angles)" % left.x)
+	TestLib.check(left.x < 0.2, "a leg lies on the ground instead of floating above it (lowest vertex of the lower leg at %.3f)" % left.x)
 	Game.do_respawn()
 	await e.frames(3)
 	TestLib.check(b.global_basis.y.y > 0.99 and not p.is_dead(), "respawn: the body stands up again")

@@ -496,12 +496,15 @@ func _body() -> void:
 	var fwd := Vector3(-sin(p.yaw), 0.0, -cos(p.yaw))
 	TestLib.check(m.dot(fwd) > 0.7 and m.y > 1.0 and m.y < 1.6, "the muzzle is ahead of the body at rifle height (%s)" % str(m))
 	var idle_angle := b.leg_l.basis.get_rotation_quaternion().get_angle()
+	for k in 8:                                                  # the idle sway swings the angle: the peak over four seconds counts
+		idle_angle = maxf(idle_angle, b.leg_l.basis.get_rotation_quaternion().get_angle())
+		await e.secs(0.5)
 	Input.action_press(&"move_forward")
 	var max_angle := 0.0
 	for i in 40:
 		await e.frames(1)
 		max_angle = maxf(max_angle, b.leg_l.basis.get_rotation_quaternion().get_angle())
-	TestLib.check(idle_angle < (0.08 if b.hero_mat != null else 0.05), "legs are at rest when idle (%.3f rad; the superhero stands with its ankles 5 cm behind the hip joints, a 3 degree thigh angle)" % idle_angle)
+	TestLib.check(idle_angle < 0.05, "legs are at rest when idle (%.3f rad)" % idle_angle)
 	TestLib.check(max_angle > 0.3, "legs swing when running (max %.2f rad)" % max_angle)
 	Fixture.release_inputs()
 	await e.secs(0.6)

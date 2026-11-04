@@ -31,7 +31,7 @@ void fragment() {
 """
 
 static var _beam_shader: Shader
-static var _soft_tex: GradientTexture2D
+static var _soft_tex: Texture2D
 static var _tint_cache: Dictionary = {}
 static var _beam_cache: Dictionary = {}
 static var _halo_cache: Dictionary = {}
@@ -100,20 +100,13 @@ static func make_ring(radius: float) -> MeshInstance3D:
 	return m
 
 
-static func soft_texture() -> GradientTexture2D:
+static func soft_texture() -> Texture2D:
 	if _soft_tex == null:
 		var g := Gradient.new()
 		g.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
 		g.add_point(0.35, Color(1.0, 1.0, 1.0, 0.45))
 		g.set_color(g.get_point_count() - 1, Color(1.0, 1.0, 1.0, 0.0))
-		var t := GradientTexture2D.new()
-		t.gradient = g
-		t.fill = GradientTexture2D.FILL_RADIAL
-		t.fill_from = Vector2(0.5, 0.5)
-		t.fill_to = Vector2(1.0, 0.5)
-		t.width = 64
-		t.height = 64
-		_soft_tex = t
+		_soft_tex = SoftDot.radial(g)
 	return _soft_tex
 
 

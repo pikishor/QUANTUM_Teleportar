@@ -80,7 +80,7 @@ static var _mat_magenta: StandardMaterial3D
 static var _mat_pale: StandardMaterial3D
 static var _mat_glow: StandardMaterial3D
 static var _mat_ghost: ShaderMaterial
-static var _glow_tex: GradientTexture2D
+static var _glow_tex: Texture2D
 
 # --- public state (read by the HUD, the minimap and the enemies) ---------------------------------------------------------
 var has_beacon := false
@@ -980,13 +980,7 @@ static func _build_materials() -> void:
 	g.set_color(0, Color(1.0, 1.0, 1.0, 0.9))
 	g.add_point(0.3, Color(1.0, 1.0, 1.0, 0.35))
 	g.set_color(g.get_point_count() - 1, Color(1.0, 1.0, 1.0, 0.0))
-	_glow_tex = GradientTexture2D.new()
-	_glow_tex.gradient = g
-	_glow_tex.fill = GradientTexture2D.FILL_RADIAL
-	_glow_tex.fill_from = Vector2(0.5, 0.5)
-	_glow_tex.fill_to = Vector2(1.0, 0.5)
-	_glow_tex.width = 64
-	_glow_tex.height = 64
+	_glow_tex = SoftDot.radial(g)
 	_mat_glow = _additive(Color(CYAN, 0.8))
 	_mat_glow.albedo_texture = _glow_tex
 	_mat_glow.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED

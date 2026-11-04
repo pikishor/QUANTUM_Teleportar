@@ -24,7 +24,7 @@ const ExplosionPool := preload("res://scripts/fx/explosion_pool.gd")
 const TRACER_SHADER := preload("res://assets/shaders/fx_tracer.gdshader")
 const MUZZLE_SHADER := preload("res://assets/shaders/fx_muzzle.gdshader")
 
-static var _soft_tex: GradientTexture2D
+static var _soft_tex: Texture2D
 
 var _particles: Array[CPUParticles3D] = []
 var _particle_left := PackedFloat32Array()
@@ -291,18 +291,11 @@ func _additive(billboard: bool) -> StandardMaterial3D:
 
 
 ## One soft round dot (radial gradient, procedural: no import, no file), shared by every spark and blast core.
-static func _soft_texture() -> GradientTexture2D:
+static func _soft_texture() -> Texture2D:
 	if _soft_tex == null:
 		var g := Gradient.new()
 		g.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
 		g.add_point(0.3, Color(1.0, 1.0, 1.0, 0.55))
 		g.set_color(g.get_point_count() - 1, Color(1.0, 1.0, 1.0, 0.0))
-		var t := GradientTexture2D.new()
-		t.gradient = g
-		t.fill = GradientTexture2D.FILL_RADIAL
-		t.fill_from = Vector2(0.5, 0.5)
-		t.fill_to = Vector2(1.0, 0.5)
-		t.width = 64
-		t.height = 64
-		_soft_tex = t
+		_soft_tex = SoftDot.radial(g)
 	return _soft_tex

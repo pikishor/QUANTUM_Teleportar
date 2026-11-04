@@ -69,6 +69,9 @@ var reload := -1.0
 var reload_tilt := 1.0                                 ## per-weapon scale of the reload / inspect rifle tilt
 var clock := 0.0
 var dead := 0.0
+var stance_shift := 0.0                        ## metres the idle soles sit further back than the rest ankles (model z is back); the owner sets it before the Locomotion reads its home spots
+var dead_leg_l := Vector3(0.45, 0.35, -0.17)   ## the slack legs of a fallen body: thigh swing forward, knee bend, sideways swing (radians); the owner may tune them for its leg length
+var dead_leg_r := Vector3(-0.3, 0.15, 0.09)
 var knee_buckle := 0.0
 var head_yaw := 0.0
 var hip_l := Vector2.ZERO               ## outputs: the thigh angles of the last apply() (x forward swing, y sideways), for the owner's leg proxies and tests
@@ -368,7 +371,7 @@ func world_points(only := PackedInt32Array()) -> PackedVector3Array:
 ## The sole contact point of a foot (k: 0 left, 1 right) at rest, model space: the hock's x and z on the floor.
 func sole_rest(k: int) -> Vector3:
 	var p := (_to_model * _grest[FOOT_L if k == 0 else FOOT_R]).origin
-	return Vector3(p.x, 0.0, p.z)
+	return Vector3(p.x, 0.0, p.z + stance_shift)
 
 
 ## Where the glove cuff of a hand is now (k: 0 left, 1 right), model space: the forearm bone's pose applied to the rest wrist.
@@ -640,9 +643,10 @@ func _legs_ik(d: float, hb: Basis) -> Vector3:
 		var b_foot := qs.transposed() * gf
 		if kneeling > 0.0:                                 # a collapsing or fallen body: blend to the slack pose of the old model
 			var left := k == 0
-			var bax := lerpf(0.65 if left else 0.4, 0.45 if left else -0.3, d)
-			var bkn := lerpf(1.5 if left else 1.2, 0.35 if left else 0.15, d)
-			var baz := lerpf(0.0, -0.17 if left else 0.09, d)
+			var dl: Vector3 = dead_leg_l if left else dead_leg_r
+			var bax := lerpf(0.65 if left else 0.4, dl.x, d)
+			var bkn := lerpf(1.5 if left else 1.2, dl.y, d)
+			var baz := lerpf(0.0, dl.z, d)
 			if death_kind == 1:
 				bax = lerpf(bax, -0.25, d)
 				bkn = lerpf(bkn, 0.5, d)

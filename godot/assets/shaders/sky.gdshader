@@ -85,10 +85,11 @@ void sky() {
 			float mk = max(kd, 0.0);
 			cc += moon_color * (pow(mk, 10.0) * 0.20 + pow(mk, 60.0) * 0.6) * (1.0 - thick * 0.75);
 			cc = mix(cc, dcl, day);
-			col = mix(col, cc, cm * 0.93);
+			col = mix(col, cc, cm * 0.95);
+			col *= 1.0 - 0.22 * thick * (1.0 - day) * smoothstep(0.0, 0.3, y);       // darker cloud undersides read against the lit haze at low pitch
 		}
 		// the cloud deck dissolves into the ground haze at the horizon
-		col = mix(col, horizon_color * 0.95 + glow_color * 0.012, exp(-ay * 14.0) * 0.9);
+		col = mix(col, horizon_color * 0.95 + glow_color * 0.012, exp(-ay * 26.0) * 0.8);
 		float clear = 1.0 - cm * 0.95;
 		float nite = 1.0 - day;
 
@@ -114,14 +115,14 @@ void sky() {
 			for (int i = 0; i < nr; i++) {
 				float fi = float(i);
 				float az2 = atan(d.x, d.z) + fi * 2.1;
-				float curve = 0.34 + 0.10 * fi + 0.07 * sin(az2 * 3.0 + TIME * 0.05 + fi * 2.0) + 0.04 * sin(az2 * 7.0 - TIME * 0.08);
-				float w = exp(-pow((y - curve) * (9.0 + 3.0 * fi), 2.0));
+				float curve = 0.30 + 0.12 * fi + 0.07 * sin(az2 * 3.0 + TIME * 0.05 + fi * 2.0) + 0.04 * sin(az2 * 7.0 - TIME * 0.08);
+				float w = exp(-pow((y - curve) * (6.5 + 2.0 * fi), 2.0));
 				float curtain = lod > 0.5 ? 0.55 + 0.45 * vnoise(vec2(az2 * 9.0 + TIME * 0.06, y * 6.0)) : 0.8;
 				float r = w * curtain * (0.6 + 0.4 * sin(az2 * 2.0 + TIME * 0.1 + fi));
 				ribbons += r;
 				rc += mix(aurora_a, aurora_b, clamp(0.5 + 0.5 * sin(az2 + fi), 0.0, 1.0)) * r;
 			}
-			col += rc * 0.22 * aurora_amount * nite * (1.0 - cm * 0.8) * smoothstep(0.05, 0.2, y);
+			col += rc * 0.85 * aurora_amount * nite * (1.0 - cm * 0.7) * smoothstep(0.05, 0.12, y);
 		}
 
 		// ---- planet silhouette with a thin rim light ---------------------------------------------------------------

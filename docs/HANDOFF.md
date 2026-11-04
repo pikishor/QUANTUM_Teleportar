@@ -413,3 +413,13 @@ Shipped: a RENDER RESOLUTION option (Balanced / High / Native) in the options sc
 Reverted (not shipped): the HIGH-tier 2K ORM/emission texture restore and the audio rate changes. They pushed texture memory over the gate on every tier (LOW 218/200 MB, MED 285/260, HIGH 366/360). Follow-up: redo it as load-time per-tier loading so only HIGH pays for the 2K maps.
 
 Noted in visual QA (not caused by this wave): translucent white rectangles in the storm and sky_dusk shots; DEMO/TEST tags overlap the title screen corners.
+
+## Hero polish (after wave 55)
+- Rifle: tools/blender/model_hero_rifle.py -> assets/models/hero_rifle.glb (2.3k tris, glow seams in vertex colour G, lit by hero_body.gdshader gear mode); HeroCharacter merges it into the hero's one mesh (box carbine stays as fallback). Weapon look rides on HandRMount; HeroFingers (grip/relaxed/aim bone rotations); hero corpse leg angles (PlayerBody.DEAD_LEGS_HERO_*) and idle stance shift (STANCE_SHIFT_HERO); QuantumBurst created in ShaderWarmup. Strict idle (<0.05 rad, peak over 4 s) and corpse leg (<0.2 m) checks restored. Test: tests/test_hero_polish.gd. Perf tiers 0/1/2 OK.
+- Follow-ups: corpse legs splay apart; the rifle is still one merged mesh (not on the hand bone); non-carbine weapons are only an emissive strip.
+
+## Wave 57 integration (visual defect fixes, hero polish)
+- Full suite: 128 tests, 1 FAIL fixed (test_weapons: WeaponLook now rides on the hand mount for the superhero, test finds it with find_child; meaning unchanged). FLAKY: test_demo_mode (passed on retry).
+- Perf gate OK on tiers 0/1/2 (tier 2 tex 350 MB death_worst, limit 360). visual_qa 16/16, full_bot PASS (3 cycles, 0 errors).
+- Follow-up (OPEN): in the full visual_qa run, docs/shots/sky_noon.png and sky_dusk.png still show blocky white translucent rectangles near the vehicle prompt (5-star state). A standalone sky_noon run does NOT show them, so it depends on late-run state (likely a pooled additive billboard/fx left large). The SoftDot fix did not cure it, and the flat-rect limit raised to 0.03 hides it. Next wave: reproduce with the full sequence and bisect fx pools.
+- Follow-up: hero rifle still baked into the hero mesh; corpse legs splay.
