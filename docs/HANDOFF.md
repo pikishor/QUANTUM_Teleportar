@@ -423,3 +423,10 @@ Noted in visual QA (not caused by this wave): translucent white rectangles in th
 - Perf gate OK on tiers 0/1/2 (tier 2 tex 350 MB death_worst, limit 360). visual_qa 16/16, full_bot PASS (3 cycles, 0 errors).
 - Follow-up (OPEN): in the full visual_qa run, docs/shots/sky_noon.png and sky_dusk.png still show blocky white translucent rectangles near the vehicle prompt (5-star state). A standalone sky_noon run does NOT show them, so it depends on late-run state (likely a pooled additive billboard/fx left large). The SoftDot fix did not cure it, and the flat-rect limit raised to 0.03 hides it. Next wave: reproduce with the full sequence and bisect fx pools.
 - Follow-up: hero rifle still baked into the hero mesh; corpse legs splay.
+
+## Wave 58: humanoid enemy and citizen variants (integrator)
+- Wired: `HumanoidVariants` (Vael trooper on the base operative, 3D citizens via `CitizenActors`, cap LOW 0 / MED 6 / HIGH 12), `HumanoidAnim` (upper-body state machine, not yet driven by live enemies).
+- Fix 1: perf gate was OVER on texture memory (MED 281 > 260, HIGH 372 > 360) because variants loaded the female and light-skin maps. Variants now load the hero's male/dark maps (`map_body`/`map_skin` in `HeroCharacter.make_material`) and only tint the skin. Gate now OK: LOW 166, MED 216, HIGH 307 MB.
+- Fix 2: `test_campaign_review` boss-defeat check was frame-count dependent (the boss intro started after the 6-frame wait and was never skipped); it now waits on `cine._boss` and skips the intro. Meaning unchanged.
+- Results: test_all 130 pass, 0 flaky after fixes (test_demo_mode flaked once, passed on retry). visual_qa 16/16, full_bot PASS (7.4 min, 3 cycles, 0 errors).
+- Follow-ups: HumanoidAnim not wired into live enemies (tell meshes untouched); citizens are unarmed but the rig still holds arms forward; specialist enemies keep the old model; trooper/citizen too small in the visual_qa shots to judge.

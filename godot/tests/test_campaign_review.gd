@@ -293,11 +293,15 @@ func _boss_down_beat() -> void:
 	await e.frames(4)
 	_begin([{"kind": "kill_target", "target": "boss", "guards": 0, "pos": Vector3(-60, 0, -60)}])
 	camp.set_physics_process(true)
-	await e.frames(6)
-	if cine.active:
-		cine.t = 3.0
-		cine.skip()
-		await e.frames(6)
+	# wait on state, not a frame count: the boss intro starts when the poll first sees the Overseer; skip it whenever it plays
+	for i in 60:
+		await e.frames(1)
+		if cine.active:
+			cine.t = 3.0
+			cine.skip()
+			await e.frames(6)
+		if cine._boss != null and not cine.active:
+			break
 	var plays0 := cine.plays
 	(camp.target as Overseer).damage(1.0e6)
 	var saw_defeat := false

@@ -80,6 +80,7 @@ var _cower := PackedFloat32Array()       ## seconds left crouching still (a scar
 var _goal := PackedFloat32Array()        ## the next stop (position along the line) when _gkind != 0
 var _gkind := PackedByteArray()          ## 0 none, STOP_SHOP, STOP_BUS
 var _stopk := PackedByteArray()          ## the kind of the last stop person i made (shop / bus), for the right bark
+var _hide := PackedByteArray()           ## 1: this person is drawn by a real 3D actor (CitizenActors), the MultiMesh skips them
 var _lingers := 0                        ## stops made at shops / bus stops so far (tests, debugging)
 
 
@@ -102,6 +103,7 @@ func build(light_map: Texture2D) -> void:
 	_look.resize(BUILT)
 	_gkind.resize(BUILT)
 	_stopk.resize(BUILT)
+	_hide.resize(BUILT)
 	for a: PackedFloat32Array in [_cower, _goal]:
 		a.resize(BUILT)
 	_buf.resize(BUILT * STRIDE)
@@ -186,6 +188,7 @@ func reset() -> void:
 	for i in BUILT:
 		_alive[i] = 0
 		_first[i] = 1
+	_hide.fill(0)
 	_fled = 0
 
 
@@ -343,6 +346,27 @@ func _forward(i: int) -> Vector2:
 
 func fled_total() -> int:
 	return _fled
+
+
+## A person drawn by a real actor is skipped by both MultiMeshes.
+func set_hidden(i: int, on: bool) -> void:
+	_hide[i] = 1 if on else 0
+
+
+func is_hidden(i: int) -> bool:
+	return _hide[i] != 0
+
+
+## Facing (yaw about +Y, model forward = -Z) and walking speed of person `i` (0 while standing, lingering or cowering), for the 3D actors.
+func person_yaw(i: int) -> float:
+	var f := _forward(i)
+	return atan2(-f.x, -f.y)
+
+
+func person_speed(i: int) -> float:
+	if _idle[i] > 0.0 or _cower[i] > 0.0:
+		return 0.0
+	return FLEE_SPEED if _flee[i] > 0.0 else _spd[i]
 
 
 func is_alive(i: int) -> bool:
@@ -543,6 +567,9 @@ func step(delta: float, center: Vector3) -> void:
 
 
 func _write(i: int, fade: float, near: bool) -> void:
+	if _hide[i] != 0:
+		_fill(_buf, i * STRIDE, i, 0.0)
+		return
 	if near and _nn < NEAR_CAP and _alive[i] != 0:
 		_fill(_nbuf, _nn * STRIDE, i, fade)
 		_nn += 1

@@ -12,12 +12,14 @@ const Crowd := preload("res://scripts/ambient/ambient_crowd.gd")
 const Patrol := preload("res://scripts/ambient/ambient_sky.gd")
 const Fauna := preload("res://scripts/ambient/ambient_fauna.gd")
 const NpcLife := preload("res://scripts/npc/npc_life.gd")
+const CitizenActors := preload("res://scripts/npc/citizen_actors.gd")
 
 var traffic := Traffic.new()
 var crowd := Crowd.new()
 var sky := Patrol.new()
 var fauna := Fauna.new()                 ## flocks above the roofs and street crawlers: one MultiMesh, one draw (ambient_fauna.gd)
 var npc := NpcLife.new()                 ## citizen schedules / reactions / barks on top of the crowd (scripts/npc)
+var citizens := CitizenActors.new()      ## the nearest promoted citizens as real skinned humanoids (HumanoidVariants), the crowd skips them
 var quality := 1
 var density := 1.0
 ## The ambient clock in seconds of game time (drives the traffic shader).
@@ -36,6 +38,8 @@ func setup(city: Node3D, light_map: Texture2D) -> void:
 	crowd.build(light_map)
 	sky.build(self)
 	npc.setup(crowd)
+	citizens.setup(crowd, npc)
+	add_child(citizens)
 	fauna.build()
 	city.add_multimesh("AmbientFauna", fauna.mm, fauna.material, null, false, 0, 1)
 	city.add_multimesh("AmbientTraffic", traffic.mm, traffic.material, traffic.mirror_material, false, 0, 1)
@@ -60,6 +64,7 @@ func set_quality(level: int) -> void:
 	crowd.set_tier(quality, density)
 	sky.set_enabled(quality >= 1)
 	fauna.set_tier(quality)
+	citizens.set_tier(quality)
 
 
 ## Hour-of-day multiplier (DayNight): slightly fewer cars and people in the small hours, more at rush hour.
@@ -73,6 +78,7 @@ func reset() -> void:
 	clock = 0.0
 	traffic.set_time(0.0)
 	crowd.reset()
+	citizens.reset()
 	npc.reset()
 	sky.reset()
 	fauna.reset()
@@ -89,6 +95,7 @@ func _process(delta: float) -> void:
 	if p != Vector3.INF:
 		crowd.step(delta, p)
 		npc.step(delta, p)
+		citizens.step(delta, p)
 		fauna.step(delta, p, _night())
 		sky.step(delta, p, traffic, clock, quality)
 	_hook_player()
@@ -135,6 +142,7 @@ func stats() -> Dictionary:
 		"sweeping": sky.active,
 		"clock": clock,
 		"npc": npc.stats(),
+		"citizen_actors": citizens.active_count(),
 		"fauna": fauna.count,
 		"fauna_alive": fauna.alive_count(),
 	}

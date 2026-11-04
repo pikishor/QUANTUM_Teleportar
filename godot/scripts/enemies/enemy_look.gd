@@ -19,6 +19,13 @@ const ROLE_COLORS := {
 	&"mender": Color(0.2, 1.0, 0.9),
 	&"warden": Color(0.9, 0.9, 1.0),
 	&"hivemother": Color(1.0, 0.4, 0.55),
+	# humanoid variants (distinct from the roles above)
+	&"rifleman": Color(1.0, 0.25, 0.22),
+	&"gunner": Color(0.6, 0.35, 1.0),
+	&"marksman": Color(0.85, 0.1, 0.45),
+	&"medic": Color(0.4, 1.0, 0.75),
+	&"grenadier": Color(1.0, 0.8, 0.2),
+	&"commander": Color(0.95, 0.95, 0.95),
 }
 ## Rim strength per graphics tier (LOW, MED, HIGH).
 const RIM_BY_TIER: Array[float] = [1.0, 0.7, 0.5]
@@ -69,3 +76,16 @@ static func boost_tell(tell: GeometryInstance3D, charge: float) -> void:
 ## Brightness of the shield plate: calm 1.25, up to 3 while the wearer charges a shot.
 static func plate_glow(charge: float) -> float:
 	return 1.25 + 1.0 * clampf(charge, 0.0, 1.0)
+
+
+## Windup telegraph of a humanoid: charge 0..1 lifts the tell and the rim; returns the rim strength used (base at 0, doubled at 1).
+static func windup_rim(root: Node, tier: int, charge: float) -> float:
+	var r := rim_strength(tier) * (1.0 + clampf(charge, 0.0, 1.0))
+	for mi: MeshInstance3D in DynamicFill._meshes(root):
+		if mi.mesh == null:
+			continue
+		for si in mi.mesh.get_surface_count():
+			var ov := mi.get_surface_override_material(si) as BaseMaterial3D
+			if ov != null and ov.rim_enabled:
+				ov.rim = r
+	return r

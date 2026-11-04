@@ -25,7 +25,7 @@ const TYPES := {
 	&"operative": {
 		"hp": 80.0, "speed": 4.4, "range": 30.0, "fire": Vector2(1.1, 2.0), "dmg": 5.0, "bolt": 0.0, "burst": 3,
 		"color": Color(1.0, 0.22, 0.2), "score": 70, "radius": 0.55, "heat": 0.25, "center_y": 1.05, "hover": 0.0,
-		"model": "operative", "drone": false, "kamikaze": false,
+		"model": "operative", "drone": false, "kamikaze": false, "humanoid": &"vael",
 		"walk": 1.5, "burst_gap": 0.12, "aim_time": 0.45, "spread": 0.035, "spread_per_m": 0.0008, "cover": true,
 	},
 	# --- the specialists (Specialist, scripts/enemies/specialist.gd): the operative model and rig with a tint and a scale, no new model.

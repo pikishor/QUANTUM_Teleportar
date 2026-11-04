@@ -78,7 +78,10 @@ static func make_material(opts: Dictionary) -> ShaderMaterial:
 	m.resource_name = "HeroBody"
 	m.shader = load(SHADER)
 	m.set_shader_parameter(&"skin_mult", SKIN_MULT[o["skin"]])
-	var pairs := {"skin_albedo": "hero_%s_%s.png" % [o["body"], o["skin"]], "skin_normal": "hero_%s_normal.png" % o["body"], "skin_rough": "hero_%s_rough.png" % o["body"],
+	# "map_body"/"map_skin" (NPC variants): load the maps of this body and skin instead, so NPCs share the hero's textures (no extra texture memory); the tint stays that of "skin"
+	var mb := StringName(str(opts.get("map_body", o["body"])))
+	var ms := StringName(str(opts.get("map_skin", o["skin"])))
+	var pairs := {"skin_albedo": "hero_%s_%s.png" % [mb, ms], "skin_normal": "hero_%s_normal.png" % mb, "skin_rough": "hero_%s_rough.png" % mb,
 			"eye_albedo": "hero_eye_albedo.png", "eye_normal": "hero_eye_normal.png", "hair1_albedo": "hero_hair1_albedo.png", "hair1_normal": "hero_hair1_normal.png",
 			"hair2_albedo": "hero_hair2_albedo.png", "hair2_normal": "hero_hair2_normal.png"}
 	for k: String in pairs:
@@ -201,8 +204,9 @@ static func build(opts: Dictionary) -> Dictionary:
 
 	# ---- the shouldered carbine pose is baked into the REST pose (the rig's IK expects a rest pose that already holds the rifle): arms solved onto the grips, fingers curled,
 	# the mesh skinned once on the CPU, and the bones re-framed at their posed positions (identity frames again), so rig.apply() with neutral inputs changes nothing
-	var gear := _rifle_piece(rifle)
-	comps.append(gear)
+	var armed := bool(opts.get("armed", true))               # false: no carbine mesh (citizens)
+	if armed:
+		comps.append(_rifle_piece(rifle))
 	var binds: Array[Transform3D] = []
 	for i in n_bones:
 		binds.append(sk.get_bone_global_rest(i).affine_inverse())
@@ -220,9 +224,10 @@ static func build(opts: Dictionary) -> Dictionary:
 	_apply_rest(sk, parents, posed)
 
 	# ---- the merged mesh
-	var total := _fit(comps, BUDGET)
+	var budget := clampi(int(opts.get("budget", BUDGET)), 1500, BUDGET)
+	var total := _fit(comps, budget)
 	var merged := _merge(comps)
-	var mat := make_material(o)
+	var mat := make_material(opts.merged(o, true))
 	var hp := head_rest
 	mat.set_shader_parameter(&"scalp_y", hp.y + 0.11)
 	mat.set_shader_parameter(&"scalp_z", hp.z)
@@ -249,7 +254,7 @@ static func build(opts: Dictionary) -> Dictionary:
 		e.name = r[0]
 		e.position = r[1]
 		wrapper.add_child(e)
-	var ok := total <= BUDGET and mesh.get_surface_count() == 1
+	var ok := total <= budget and mesh.get_surface_count() == 1
 	info["surfaces"] = mesh.get_surface_count()
 	info["ok"] = ok
 	return {"root": wrapper, "ok": ok, "info": info, "body": body, "material": mat}
@@ -452,6 +457,10 @@ static func _fit(comps: Array, budget: int) -> int:
 		if pick < 0:
 			for i in comps.size():
 				if int(comps[i]["mode"]) == MODE_SKIN and int(comps[i]["lod"]) < 3:
+					pick = i
+		if pick < 0:                                   # last resort (tight mid-LOD budgets): the carbine loses detail too
+			for i in comps.size():
+				if int(comps[i]["mode"]) == MODE_GEAR and int(comps[i]["lod"]) < 3:
 					pick = i
 		if pick < 0:
 			return total

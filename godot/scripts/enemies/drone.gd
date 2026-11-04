@@ -52,6 +52,8 @@ var yaw := 0.0
 var center_y := 0.95
 var model: Node3D
 var uses_model := false
+var humanoid := {}                              ## HumanoidVariants variant of this enemy's model (empty: the old model)
+var humanoid_body: MeshInstance3D
 var muzzle: Node3D
 
 var _t := 0.0
@@ -658,8 +660,25 @@ func _line_clear(from: Vector3, to: Vector3) -> bool:
 
 # --- visuals --------------------------------------------------------------------------------------------------------
 
+## "humanoid": a HumanoidVariants kind (Vael trooper on the Superhero base meshes); null when the files are absent (the old model stays).
+func _humanoid_model() -> Node3D:
+	if not cfg.has("humanoid"):
+		return null
+	var r := HumanoidVariants.build(StringName(cfg["humanoid"]), get_instance_id() + int(cfg.get("hp", 0)))
+	if r["root"] == null:
+		return null
+	if not bool(r["ok"]):
+		(r["root"] as Node).free()
+		return null
+	humanoid = r["variant"]
+	humanoid_body = r["body"]
+	return r["root"]
+
+
 func _build_visual() -> void:
-	var m: Node3D = CharacterImport.instantiate(String(cfg["body"])) if cfg.has("body") else Game.load_model(String(cfg["model"]))   # "body": imported creature kit (assets_incoming/characters), falls back to the model
+	var m: Node3D = _humanoid_model()
+	if m == null:
+		m = CharacterImport.instantiate(String(cfg["body"])) if cfg.has("body") else Game.load_model(String(cfg["model"]))   # "body": imported creature kit (assets_incoming/characters), falls back to the model
 	uses_model = m != null
 	if m == null:
 		m = _make_fallback()
@@ -689,6 +708,8 @@ func _build_visual() -> void:
 ## Distance LOD (EnemyManager calls it a few times a second with the camera distance): the shadow only within PerfTiers.SHADOW_RANGE, the small parts (fins) within
 ## PART_RANGE, the whole model hidden beyond MODEL_RANGE (the marks stop at 90 m). Hysteresis, so nothing flickers at a border; only changes are written.
 func update_lod(dist: float) -> void:
+	if humanoid_body != null:
+		HumanoidVariants.set_lod(humanoid_body, humanoid, dist)
 	var sh := Game.quality >= 1 and dist < PerfTiers.shadow_range() + (4.0 if _lod_shadow else 0.0)
 	if sh != _lod_shadow:
 		_lod_shadow = sh

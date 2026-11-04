@@ -22,6 +22,7 @@ func run(host: Node) -> void:
 	var prev_state := Game.state
 	Game.state = &"play"
 
+	amb.citizens.enabled = false                         # the MultiMesh crowd is tested alone; the 3D actors have tests/test_humanoid_variants.gd
 	_test_traffic(city, amb)
 	await _test_tiers(host, city, amb)
 	await _test_crowd(host, amb, player)
