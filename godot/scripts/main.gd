@@ -25,6 +25,8 @@ func _ready() -> void:
 	# LOW tier (saved choice, --quality=0, or a touchscreen's first launch): the model atlases drop to 1024 px before any model is instantiated (scripts/common/texture_budget.gd)
 	if (not Game.autostart or OS.get_cmdline_user_args().has("--halve-textures")) and (Game.quality == 0 or UiSettings.new().quality == 0 or AutoQuality.wants_low_default()):
 		TextureBudget.halve_models()
+	elif (not Game.autostart or OS.get_cmdline_user_args().has("--high-textures")) and (Game.quality >= 2 or UiSettings.new().quality >= 2):
+		TextureBudget.upgrade_high()
 	var loaded := 0
 	for path: String in MODULES:
 		if ResourceLoader.exists(path):

@@ -23,7 +23,7 @@ const BEAM_HEIGHT := 420.0
 const GEM_HOVER := 1.1                 ## the gem model (origin at ground contact) floats this far above the street
 const GEM_NEAR := 110.0                ## gem model and light are shown within this camera distance (hysteresis +20 m)
 const PICKUP_POOL := 8
-const COLUMN_CAP := [1, 2, 8]               ## light columns of pickups drawn at once per tier (LOW, MED, HIGH): a 4-enemy wipe would add 4 draws (+4 more in the mirror)
+const COLUMN_CAP := [0, 2, 8]               ## light columns of pickups drawn at once per tier (LOW, MED, HIGH): a 4-enemy wipe would add 4 draws (+4 more in the mirror)
 const PICKUP_RADIUS := 2.2
 const PICKUP_LIFE := 40.0
 const PICKUP_HOVER := 0.5
@@ -149,11 +149,15 @@ func drop(kind: StringName, pos: Vector3, weapon_id := &"") -> void:
 		(slot.models[k] as Node3D).visible = (k == kind)
 	(slot.halo as MeshInstance3D).material_override = slot.halos[kind]
 	(slot.column as MeshInstance3D).material_override = slot.columns[kind]
-	(slot.halo as MeshInstance3D).visible = true
+	var halos_on := 0
 	var columns_on := 0                                  # the light column is a draw of its own: only the first few at once (tier cap), the rest keep halo + gem
 	for o: Dictionary in pickups:
 		if o != slot and (o.column as MeshInstance3D).visible:
 			columns_on += 1
+		if o != slot and (o.halo as MeshInstance3D).visible:
+			halos_on += 1
+	slot.halo_ok = Game.quality > 0 or halos_on < 1
+	(slot.halo as MeshInstance3D).visible = slot.halo_ok      # LOW: one halo at once (death-spike draw budget)
 	(slot.column as MeshInstance3D).visible = columns_on < COLUMN_CAP[clampi(Game.quality, 0, 2)]
 	node.visible = true
 	pickups.append(slot)
@@ -362,7 +366,7 @@ func _process(delta: float) -> void:
 		node.rotation.y += delta * 2.0
 		# the last 5 s of its life it blinks, like a timed pickup should
 		var blink: bool = s.t < 5.0 and int(s.t * 6.0) % 2 == 0
-		(s.halo as MeshInstance3D).visible = not blink
+		(s.halo as MeshInstance3D).visible = not blink and s.get("halo_ok", true)
 
 
 # --- nodes ---------------------------------------------------------------------------------------------------------

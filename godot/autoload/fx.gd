@@ -13,6 +13,7 @@ extends Node
 var shake_amount := 0.0      ## 0..1, decays on its own; camera rigs read it each frame
 
 const PARTICLE_POOL := 24
+const LOW_PARTICLES := 2            ## burst emitters in rotation on LOW (the death-spike draw budget)
 const TRACER_POOL := 20
 const MUZZLE_POOL := 10
 const MUZZLE_CENTRE_MAX := 0.7   ## flash scale cap at the screen centre
@@ -151,7 +152,7 @@ func reset() -> void:
 func burst(pos: Vector3, color: Color, count := 12, speed := 6.0, life := 0.6, gravity := 8.0, size := 1.0) -> void:
 	var i := _pi
 	var p := _particles[i]
-	_pi = (_pi + 1) % _particles.size()
+	_pi = (_pi + 1) % (LOW_PARTICLES if Game.quality == 0 else _particles.size())      # LOW rotates fewer emitters: fewer live draws in a death burst
 	p.global_position = pos
 	var n := maxi(1, roundi(count * ExplosionPool.tier_scale(Game.quality)))
 	if p.amount != n:                                  # a change reallocates the emitter's buffer: pooled bursts mostly repeat their count

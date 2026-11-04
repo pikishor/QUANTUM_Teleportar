@@ -436,3 +436,10 @@ Noted in visual QA (not caused by this wave): translucent white rectangles in th
 - Integrator fix: CameraRig._end_stop never restored Engine.time_scale (it checked _stop_left > 0 after the timer had expired), leaving the game at 0.05x after the first slam; this broke test_hero_verbs. Now restores whenever the scale is STOP_SCALE.
 - Full suite 132/132 pass; test_demo_mode flaked once (passed on retry). visual_qa: hero shot failed once, passed on rerun (flaky). full_bot PASS (7.4 min).
 - Follow-ups: blink/saccades move the head only (no eye bones); foot IK untested on stairs; sprint FOV kick has no profile; `explosion` game-feel profile has no live caller; heavy-kill hit-stop skipped during teleport slow motion; hero screenshot shows mission toast overlapping the hero's head. Perf gate not run.
+
+## Wave 60 integration (per-tier textures, LOW draw trim, phone readiness)
+- Full suite 134 pass, 0 flaky, 0 fail. Perf tiers 0/1/2 all OK: tex 166/216/307 MB (limits 200/260/360), LOW death spike 113-116 vs 115 budget (was 117 over: fixed by LOW_PARTICLES 4 -> 2 in autoload/fx.gd, LOW pickup light columns cap 1 -> 0 and one pickup halo at a time on LOW in scripts/missions/missions.gd). No thresholds changed.
+- visual_qa 16/16.
+- full_bot: FLAKY (name: tools/full_bot.sh). Passed 7.4 min with this wave's code; other runs failed with "player took the wheel (garage)" or "slow motion ended after aimed teleport" followed by "weapon X fires" failures. The same failures also occurred on the unmodified Wave 59 tree (1 of 2 runs), so not caused by this wave. Follow-up: make those bot checks wait on state, not time.
+- LOW death spike margin is only 0-2 draws; a HIGH/MED run was fine.
+- visual_qa latest.png defects (not fixed): car shot sedan is a flat saturated purple with little detail; the "hero" shot has the mission-complete banner across the hero's face; the broadcast text box overlaps the minimap in the top-left on several shots; interior shot hero is cropped by the camera.

@@ -216,7 +216,7 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	s.fire_t = 0.8 if quantum else clampf(0.45 + 0.09 * r, 0.5, 1.3)
 	s.ring_t = s.fire_t * (1.1 if quantum else 0.85)
 	s.smoke_t = 0.0 if quantum else clampf(2.1 + 0.12 * r, 2.4, 3.6)
-	s.n_puffs = 0 if quantum else (1 if s.small else mini(PUFFS, puff_count(tier)))
+	s.n_puffs = 0 if quantum or (tier == 0 and s.small and burn <= 0.0) else (1 if s.small else mini(PUFFS, puff_count(tier)))
 	s.fire_size = r * (2.1 if quantum else 1.5)
 	s.glow = 1.0
 	var mid := color if quantum else color.lerp(ORANGE, 0.4)
@@ -266,7 +266,7 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	var big := clampf(0.3 + r / 9.0 * 0.7, 0.3, 1.0)
 	_shoot(s.sparks, pos + Vector3(0.0, 0.4, 0.0), r * 0.9, r * 2.4 if not quantum else r * 1.6, 0.5 + 0.045 * r, 14.0 if not quantum else 2.0,
 			big * ts, hot if quantum else Color.WHITE, 0.7 if quantum else 1.0)       # the quad is 0.05 x 0.5 m: scale 1 = a half metre streak
-	if quantum:
+	if quantum or tier == 0:                                # LOW drops the debris emitter (one draw per slot: the death-spike draw budget)
 		s.debris.visible = false
 		s.debris.emitting = false
 	else:

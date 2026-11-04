@@ -17,6 +17,7 @@ var frames_total := 0
 var copies := 0
 var governor_events := 0
 
+var _aq: AutoQuality
 var _head := 0
 var _last_us := 0
 var _log_t := 0.0
@@ -33,8 +34,44 @@ func _ready() -> void:
 			if c is AutoQuality:
 				aq = c
 	if aq != null:
-		(aq as AutoQuality).lowered.connect(on_governor_lowered)
+		_aq = aq as AutoQuality
+		_aq.lowered.connect(on_governor_lowered)
+		_aq.res_lowered.connect(on_governor_res)
 	_last_us = Time.get_ticks_usec()
+	startup_check()
+
+
+## Tier the startup self-check recommends: touchscreens and the Compatibility renderer LOW, software renderers LOW, other desktops HIGH.
+static func recommended_tier() -> int:
+	if DisplayServer.is_touchscreen_available() or Game.force_touch:
+		return 0
+	var adapter := RenderingServer.get_video_adapter_name().to_lower()
+	if adapter.contains("llvmpipe") or adapter.contains("swiftshader") or adapter.contains("software"):
+		return 0
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
+		return 1
+	return 2
+
+
+## One line with everything the owner needs to know about the device; logged once per session into the perf log.
+func startup_line() -> String:
+	var vp := get_viewport()
+	return "STARTUP CHECK device=%s os=%s %s gpu=%s vendor=%s renderer=%s/%s touch=%s window=%s first_launch=%s recommended=%s current=%s" % [OS.get_model_name(), OS.get_name(),
+		OS.get_version(), RenderingServer.get_video_adapter_name(), RenderingServer.get_video_adapter_vendor(), RenderingServer.get_current_rendering_method(),
+		RenderingServer.get_current_rendering_driver_name(), str(DisplayServer.is_touchscreen_available() or Game.force_touch), str(Vector2i(vp.get_visible_rect().size)),
+		str(UiSettings.new().quality < 0), TIER_NAMES[recommended_tier()], tier_name()]
+
+
+func startup_check() -> void:
+	log_line(startup_line())
+
+
+## What the governor settled on, in one line: tier, render resolution, FPS, how many steps it took.
+func governor_text() -> String:
+	var vp := get_viewport()
+	return "Governor: tier %s | render %s (scale %.2f, %s) | FPS %d (sample %.0f) | tier drops %d, resolution steps %d" % [tier_name(), str(Vector2i(vp.get_visible_rect().size * vp.scaling_3d_scale)),
+		vp.scaling_3d_scale, RenderRes.mode_name(RenderRes.mode()), roundi(Engine.get_frames_per_second()), _aq.last_fps if _aq != null else 0.0, governor_events,
+		_aq.res_steps if _aq != null else 0]
 
 
 func _process(delta: float) -> void:
@@ -109,6 +146,7 @@ func report() -> String:
 		RenderingServer.get_current_rendering_method(), RenderingServer.get_current_rendering_driver_name()])
 	out.append("Render %s scale %.2f (%s, %s) of window %s" % [str(Vector2i(get_viewport().get_visible_rect().size * get_viewport().scaling_3d_scale)), get_viewport().scaling_3d_scale, RenderRes.mode_name(RenderRes.mode()), "FSR" if get_viewport().scaling_3d_mode == Viewport.SCALING_3D_MODE_FSR else "bilinear/native", str(Vector2i(get_viewport().get_visible_rect().size))])
 	out.append("Viewport %s | tier %s | quality drops by governor %d" % [str(Vector2i(get_viewport().get_visible_rect().size)), tier_name(), governor_events])
+	out.append(governor_text())
 	out.append("Frame ms (last %d): p50 %.1f  p95 %.1f  p99 %.1f  worst %.1f | FPS now %d" % [count(), percentile(50), percentile(95), percentile(99), worst_ms(), roundi(Engine.get_frames_per_second())])
 	out.append("Draws %d  Tris %dk  Nodes %d  Objects %d" % [s["total_draws"], int(s["total_prims"]) / 1000, s["nodes"], s["objects"]])
 	out.append("Memory: static %d MB, textures %d MB, buffers %d MB" % [mem_mb(), roundi(s["tex_mb"]), roundi(s["buf_mb"])])
@@ -128,7 +166,11 @@ func copy_report() -> String:
 
 func on_governor_lowered(level: int) -> void:
 	governor_events += 1
-	log_line("GOVERNOR lowered to %s | %s" % [TIER_NAMES[clampi(level, 0, 2)], summary()])
+	log_line("GOVERNOR lowered tier to %s | %s | %s" % [TIER_NAMES[clampi(level, 0, 2)], governor_text(), summary()])
+
+
+func on_governor_res(mode_name: String) -> void:
+	log_line("GOVERNOR lowered resolution to %s | %s | %s" % [mode_name, governor_text(), summary()])
 
 
 ## Appends a timestamped line; the file is cut to its newest half past LOG_MAX_BYTES.

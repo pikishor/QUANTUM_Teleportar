@@ -14,7 +14,7 @@ if [ "${RENDERER:-mobile}" = "compat" ]; then RENDER_ARGS="--rendering-driver op
 status=0
 for q in $TIERS; do
   out="$(timeout "${PERF_TIMEOUT:-420}" xvfb-run -a -s "-screen 0 1280x720x24" "$BIN" $RENDER_ARGS --fixed-fps 30 --resolution "${PERF_RES:-1280x720}" --path . res://scenes/main.tscn -- \
-    --bot=res://tests/bot_perf.gd --quality="$q" ${PERF_SHOTS:+--shot-seq="${PERF_SHOTS}_q$q" --every=30 --count=3} 2>&1 | grep -E "^PERF|SCRIPT ERROR|^SHOT_SAVED|^ERROR: .*(shader|Shader)" )"
+    --bot=res://tests/bot_perf.gd --quality="$q" ${PERF_HIGHTEX:+--high-textures} ${PERF_SHOTS:+--shot-seq="${PERF_SHOTS}_q$q" --every=30 --count=3} 2>&1 | grep -E "^PERF|SCRIPT ERROR|^SHOT_SAVED|^ERROR: .*(shader|Shader)" )"
   echo "$out"
   echo "$out" | grep -q "^PERF RESULT" || { echo "PERF RESULT tier=$q verdict=NO_RESULT (the bot did not finish)"; status=1; }
   echo "$out" | grep -q "verdict=OVER" && status=1

@@ -8,6 +8,8 @@ extends Node
 ## after a tier change (shader compiles and mode switches are one-off hitches).
 
 signal lowered(level: int)
+signal res_lowered(mode_name: String)      ## the governor took a smaller 3D render scale (before any tier drop)
+signal sample_slow(avg_fps: float)
 
 const LOW_FPS := 30.0
 const LOW_FOR := 4.0
@@ -20,6 +22,7 @@ var enabled := true
 var drops := 0
 var res_steps := 0                   ## resolution steps taken before a tier drop
 var notice_left := 0.0
+var last_fps := 0.0                  ## the newest frame-rate sample (average over WINDOW seconds)
 
 var _win_t := 0.0
 var _win_n := 0
@@ -41,6 +44,14 @@ func _ready() -> void:
 	if wants_low_default():
 		Game.set_quality(0)
 	_build_notice()
+	if not Game.autostart and UiSettings.new().quality < 0 and not OS.get_cmdline_user_args().has("--governor-quiet"):
+		call_deferred(&"announce_first_launch")
+
+
+## First launch (no saved tier): says which tier the startup self-check recommends (the tier a touchscreen already runs on).
+func announce_first_launch() -> void:
+	var tier := PerfOverlay.recommended_tier()
+	_show_notice("FIRST LAUNCH: RECOMMENDED GRAPHICS %s" % ["LOW", "MED", "HIGH"][tier])
 
 
 ## Touchscreen, no tool run, no --quality flag and no saved choice: the first launch starts on LOW.
@@ -93,6 +104,7 @@ func _process(delta: float) -> void:
 
 ## One frame-rate sample covering `dt` seconds (the tests feed it directly). Returns true when it lowered the tier.
 func tick(avg_fps: float, dt: float) -> bool:
+	last_fps = avg_fps
 	if avg_fps >= LOW_FPS or Game.quality <= 0:             # nothing to lower at LOW: no slow time is banked either
 		_low_t = 0.0
 		return false
@@ -104,6 +116,7 @@ func tick(avg_fps: float, dt: float) -> bool:
 	if RenderRes.governor_lower():                          # a smaller 3D render scale first: cheaper than losing shadows and MSAA
 		res_steps += 1
 		_warm = WARMUP
+		res_lowered.emit(RenderRes.mode_name(RenderRes.mode()))
 		_show_notice("RESOLUTION LOWERED TO %s FOR SMOOTHER PLAY" % RenderRes.mode_name(RenderRes.mode()))
 		return false
 	drops += 1

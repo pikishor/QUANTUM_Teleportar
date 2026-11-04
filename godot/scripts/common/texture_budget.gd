@@ -70,3 +70,56 @@ static func _halved(tex: Texture2D) -> Texture2D:
 		return tex
 	saved_bytes += img.get_mipmap_offset(1)
 	return ImageTexture.create_from_image(out)
+
+
+## HIGH tier only: full-resolution (2K) ORM / emission maps for the hero and the starter car (sedan). Every other asset keeps its 1K import, so LOW and MED never load these
+## files (they are separate `*_2k` imports, loaded only here). Replaces the textures in the SHARED materials of the model scenes, before the models are instantiated.
+const HIGH_MODELS: Array[String] = ["player", "car_sedan"]
+static var high_count := 0
+static var high_active := false
+static var _held: Array[PackedScene] = []        ## keeps the upgraded scenes (and their shared materials) cached, otherwise the changes are lost when the scene is freed
+
+
+## "res://assets/textures/x_orm.jpg" -> its 2K twin path (or "" when there is none).
+static func high_path(path: String) -> String:
+	var stem := path.get_basename()
+	if not (stem.ends_with("_orm") or stem.ends_with("_emit")):
+		return ""
+	var p2 := "%s_2k.%s" % [stem, path.get_extension()]
+	return p2 if ResourceLoader.exists(p2) else ""
+
+
+static func upgrade_high() -> int:
+	high_active = true
+	var n := 0
+	for model_name in HIGH_MODELS:
+		var path := "res://assets/models/%s.glb" % model_name
+		if not ResourceLoader.exists(path):
+			continue
+		var scene := load(path) as PackedScene
+		if scene == null:
+			continue
+		_held.append(scene)
+		var inst := scene.instantiate()
+		for node in inst.find_children("*", "MeshInstance3D", true, false):
+			var mesh := (node as MeshInstance3D).mesh
+			if mesh == null:
+				continue
+			for i in mesh.get_surface_count():
+				var mat := mesh.surface_get_material(i) as BaseMaterial3D
+				if mat == null:
+					continue
+				for slot in [BaseMaterial3D.TEXTURE_ORM, BaseMaterial3D.TEXTURE_ROUGHNESS, BaseMaterial3D.TEXTURE_METALLIC, BaseMaterial3D.TEXTURE_AMBIENT_OCCLUSION, BaseMaterial3D.TEXTURE_EMISSION]:
+					var tex := mat.get_texture(slot)
+					if tex == null or tex.resource_path == "":
+						continue
+					var p2 := high_path(tex.resource_path)
+					if p2 == "":
+						continue
+					var t2 := load(p2) as Texture2D
+					if t2 != null and t2 != tex:
+						mat.set_texture(slot, t2)
+						n += 1
+		inst.free()
+	high_count += n
+	return n

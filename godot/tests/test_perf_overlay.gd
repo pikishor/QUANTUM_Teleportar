@@ -33,7 +33,7 @@ func run(h: Node) -> void:
 	TestLib.check(not DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD) or DisplayServer.clipboard_get().contains("perf report"), "clipboard holds the report (or the platform has none)")
 	po.on_governor_lowered(0)
 	var log := FileAccess.get_file_as_string(path)
-	TestLib.check(log.contains("SESSION START") and log.contains("COPY") and log.contains("GOVERNOR lowered to LOW"), "perf_log has session, copy and governor lines")
+	TestLib.check(log.contains("SESSION START") and log.contains("COPY") and log.contains("GOVERNOR lowered tier to LOW"), "perf_log has session, copy and governor lines")
 	DirAccess.remove_absolute(path)
 	po.queue_free()
 	# wiring: main.gd composes it and the touch controls draw the COPY REPORT button and call it
