@@ -526,6 +526,10 @@ func press_button(id: StringName) -> bool:
 				return false
 			Sfx.play(&"ui_confirm")
 			Game.start_new_game()
+		&"demo":
+			if Game.state != &"menu" or not DemoMode.enter():
+				return false
+			Sfx.play(&"ui_confirm")
 		&"resume":
 			if Game.state != &"paused":
 				return false
@@ -1201,6 +1205,8 @@ func _ensure_layout() -> void:
 			_add(&"respawn", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)      # low on the screen: the middle stays free for the world
 		&"win":
 			_add(&"next", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "NEXT SECTOR", false)
+	if Game.state == &"menu" and not _options_open and not _chapters_open and Game.progress != null:
+		_add(&"demo", Rect2(UiUtil.insets(vp).x + 16.0 * s, 6.0 * s, 180.0 * s, UiUtil.TOUCH_MIN * s), "DEMO", false)       # DEMO MODE: a sandbox profile with everything unlocked (scripts/demo/)
 	if (Game.state == &"menu" or Game.state == &"paused") and not _options_open:
 		_add(&"options", _options_btn(vp, s), "OPTIONS", false)       # last: screens index their own buttons from 0
 

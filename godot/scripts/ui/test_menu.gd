@@ -9,7 +9,7 @@ extends CanvasLayer
 signal opened
 signal closed
 
-const TABS: Array[String] = ["CHEATS", "LOOT", "WORLD", "SPAWN", "GO", "MISSION", "STATS", "INTERIORS"]
+const TABS: Array[String] = ["CHEATS", "LOOT", "WORLD", "SPAWN", "GO", "MISSION", "STATS", "INTERIORS", "DEMO"]
 const BASE_H := 720.0
 const BG := Color(0.01, 0.03, 0.05, 1.0)
 const PANEL := Color(0.05, 0.13, 0.17, 1.0)
@@ -194,6 +194,9 @@ func _page_items() -> Array[Dictionary]:
 			out.append(_head("WHILE INSIDE"))
 			out.append(_act("COMPLETE THE MISSION", InteriorTestActions.complete))
 			out.append(_act("LEAVE THE INTERIOR", InteriorTestActions.leave))
+		8:
+			for e: Dictionary in DemoMenu.entries():
+				out.append(_head(e["label"]) if e.has("head") else _act(e["label"], e["fn"]))
 	return out
 
 

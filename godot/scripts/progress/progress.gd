@@ -423,6 +423,17 @@ func _on_died() -> void:
 	best = maxi(best, Game.score)
 
 
+## DEMO MODE (scripts/demo/demo_mode.gd): starts a run that keeps the wallet, weapons and unlocks just granted (no new campaign, no scripted chapter).
+func begin_sandbox_run() -> void:
+	_select_pending = true
+	_continue_pending = false
+	Game.start_new_game()
+	_select_pending = false
+	sector = 0
+	checkpoint.clear()
+	_apply_to_player()
+
+
 func _autosave() -> void:
 	if autosave_enabled:
 		save_file()

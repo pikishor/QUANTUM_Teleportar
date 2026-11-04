@@ -387,3 +387,9 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 ## Wave 52 integration (sky and atmosphere, lighting polish)
 - Full suite 119 pass, 0 flaky, 0 fail. Perf tiers 0/1/2 all OK (draws 66/88/103). visual_qa 16/16 (incl. sky_dawn/noon/dusk/night), full_bot PASS (7.2 min, 0 errors).
 - Follow-ups: sky layers barely visible at camera pitch 0.45 (frames mostly buildings), not checked in other framings; lens flare relies on existing bloom; no headlight cones, puddle neon reflections or bloom-threshold tuning; CPU flicker() only tested; window shader and lamp cones unseen on a real renderer; THIRD_PARTY.md unchanged (no new art).
+
+## Wave 53 integration (demo mode)
+- Full suite 121 pass, 0 flaky, 0 fail. visual_qa 16/16. full_bot PASS (7.3 min, 0 errors). Perf gate skipped (no rendering change).
+- Merged two builders: DemoPanel/DemoMode (title DEMO button, sandbox profile; real save and map.cfg untouched) and DemoMenu (TEST MENU tab 8 spawn/weather/time/heat entries).
+- Bot fixes (bot_full_game.gd): `_act_demo` now runs only the first entry of each group so pooled kinds saturate in cycle 1 (random picks grew pools and tripped the leak check; all entries still run in test_demo_menu) and clears enemies after; `_act_garage` re-spawns the starter inside the retry loop and its messages no longer read a freed car (the demo's spawns recycle cars faster).
+- Follow-ups: title screenshot shows the OPTIONS button top-right partly covered by the TEST button (check overlap); DEMO badge placement vs HUD unchecked; demo set-piece launches start an intro cutscene; demo strings English only; DemoMenu tests do not reset persisted weapon unlocks.

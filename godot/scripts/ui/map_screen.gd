@@ -20,6 +20,7 @@ const KINDS: Array[StringName] = [&"mission", &"side", &"items", &"garage", &"sh
 const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"items": "ITEMS", &"garage": "GARAGE", &"shop": "SHOP"}
 const KIND_COLOR := {&"mission": Color(1.0, 0.75, 0.15), &"side": Color(0.2, 0.9, 1.0), &"items": Color(0.75, 0.45, 1.0), &"garage": Color(1.0, 0.45, 0.2), &"shop": Color(0.3, 1.0, 0.55)}
 const SAVE_PATH := "user://map.cfg"
+static var path_override := ""             ## DEMO MODE points the map at its own file (scripts/demo/demo_mode.gd); "" = SAVE_PATH
 const GARAGE_TYPES: Array[StringName] = [&"warehouse", &"cargo_bay"]
 const TAP_CLEAR_PX := 28.0
 
@@ -414,17 +415,39 @@ func _draw_map() -> void:
 # save
 # ---------------------------------------------------------------------------------------------------------------------
 
+static func file_path() -> String:
+	return path_override if path_override != "" else SAVE_PATH
+
+
+## DEMO MODE: every cell charted (kept in the demo file only).
+func reveal_all() -> void:
+	_seen = PackedByteArray()
+	_seen.resize(CELLS * CELLS)
+	_seen.fill(1)
+	_dirty = true
+	_save()
+
+
+## Reads the discovery file again (the demo ended: back to the real map).
+func reload() -> void:
+	_seen = PackedByteArray()
+	_seen.resize(CELLS * CELLS)
+	waypoint = Vector3.INF
+	_dirty = false
+	_load()
+
+
 func _save() -> void:
 	_dirty = false
 	var cf := ConfigFile.new()
 	cf.set_value("map", "seen", _seen)
 	cf.set_value("map", "waypoint", waypoint if waypoint.is_finite() else Vector3(1e9, 0, 1e9))
-	cf.save(SAVE_PATH)
+	cf.save(file_path())
 
 
 func _load() -> void:
 	var cf := ConfigFile.new()
-	if cf.load(SAVE_PATH) != OK:
+	if cf.load(file_path()) != OK:
 		return
 	var v: Variant = cf.get_value("map", "seen", null)
 	if v is PackedByteArray and (v as PackedByteArray).size() == CELLS * CELLS:

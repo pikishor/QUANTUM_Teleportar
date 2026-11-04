@@ -53,7 +53,7 @@ static func def(mid: StringName) -> Dictionary:
 
 
 static func unlocked(mid: StringName, chapter: int) -> bool:
-	return DEFS.has(mid) and chapter >= int(DEFS[mid]["chapter"])
+	return DEFS.has(mid) and (chapter >= int(DEFS[mid]["chapter"]) or DemoMode.active)      # DEMO MODE: every job from the start
 
 
 ## Credits for a completion: base x sector reward factor x reputation bonus, +25 % when finished with at least a third of the clock left, never below 1.

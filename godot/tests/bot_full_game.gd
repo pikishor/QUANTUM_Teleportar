@@ -126,6 +126,8 @@ func _one_cycle() -> void:
 		await _act_pieces()
 	if _g("weather"):
 		await _act_weather()
+	if _g("demo"):
+		await _act_demo()
 	if _g("ui"):
 		await _act_ui()
 	if _g("save"):
@@ -399,17 +401,19 @@ func _act_garage() -> void:
 	for attempt in 3:                                                      # another system (mission, event, hit) may unseat the player: retry with a heal
 		_p.hp = _p.max_hp
 		_p.invuln = 5.0
+		if not is_instance_valid(starter):                             # recycled by streaming mid-retry: take a fresh car beside the player
+			starter = vm.spawn_parked(&"sport", _p.global_position + Vector3(4.0, 0.0, 0.0), 0.0)
 		if is_instance_valid(starter) and starter.active and not starter.dead:
 			vm.enter(starter)
 		await _wait(0.5)
 		if vm.driven == starter:
 			break
-	if not _expect(vm.driven == starter, "the player took the wheel (active %s dead %s wreck %s)" % [starter.active, starter.dead, starter.wreck]):
+	if not _expect(vm.driven == starter, "the player took the wheel"):
 		return
 	var g := vm.get_garage()
 	if vm.save_driven():
 		_count("garage_saves")
-	_expect(g.has_car(), "the driven car is kept in the garage (kind %s, active %s, dead %s, wreck %s, patrol %s)" % [starter.kind, starter.active, starter.dead, starter.wreck, starter.patrol])
+	_expect(g.has_car(), "the driven car is kept in the garage")
 	g.set_paint(rng.randi() % VehicleSpecs.COLORS.size())
 	for st: StringName in [&"speed", &"armour", &"grip", &"weapon"]:
 		if g.can_upgrade(st, pr):
@@ -624,6 +628,29 @@ func _fresh_street_quiet() -> void:
 
 
 # --- weather and time of day --------------------------------------------------------------------------------------------------
+
+## DEMO menu entries (scripts/ui/demo_menu.gd): one of each group launched from the live game.
+func _act_demo() -> void:
+	_activity = "demo"
+	_count("demo")
+	await _ensure_play()
+	var seen := {}
+	for e in DemoMenu.entries():
+		if e.has("head"):
+			seen["_head"] = e["label"]
+			continue
+		var grp: String = seen["_head"]
+		if seen.has(grp) and grp != "PRESET":
+			continue                               # the FIRST entry of each group every cycle: same pooled kinds each time, so the leak check sees steady state (all entries run in test_demo_menu)
+		seen[grp] = true
+		_note = "demo " + String(e["label"])
+		_expect(str((e["fn"] as Callable).call()) != "", "DEMO entry %s works" % e["label"])
+		await _wait(0.3)
+		_count("demo_entries")
+	(Game.world as City).day_night.set_hour(20.0)
+	TestMode.set_heat(0.0)
+	(Game.enemies as EnemyManager).clear()                     # the demo spawns pools of enemies and cars: drop them so the leak check sees steady state
+
 
 func _act_weather() -> void:
 	_activity = "weather"
