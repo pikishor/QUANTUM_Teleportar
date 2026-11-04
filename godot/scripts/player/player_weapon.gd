@@ -498,7 +498,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 		var r := _radius_of(target)
 		crit = r > 0.0 and hit.y > c.y + r * CRIT_HEIGHT
 		human = target is Operative or target.get(&"type") == &"operative"
-		var amount := TestMode.damage((float(def["crit"]) if crit else float(def["damage"])) * k * Upgrades.damage_mult())
+		var amount := TestMode.damage((float(def["crit"]) if crit else float(def["damage"])) * k * Upgrades.damage_mult() * HeroPower.f("dmg"))
 		if target.has_method(&"shield_blocks"):
 			if bool(def["pierce_shield"]) or bool(ammo_info()["pierce"]):
 				target.call(&"break_shield")

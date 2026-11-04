@@ -67,6 +67,8 @@ func _mantle() -> void:
 
 
 func _too_high() -> void:
+	var mode := Difficulty.current
+	Difficulty.set_mode(2)                    # HARD has no wall-run (HeroVerbs): the wall-run would climb this wall on purpose
 	var wall := Fixture.add_box(e.root, Vector3(20.0, 2.5, 0.0), Vector3(4.0, 5.0, 6.0))
 	await e.prep(Vector3(16.5, 0.0, 0.0), -PI * 0.5, 0.0)
 	var c0 := p.traversal.count
@@ -74,6 +76,7 @@ func _too_high() -> void:
 	await e.secs(1.0)
 	Input.action_release(&"jump")
 	Input.action_release(&"move_forward")
+	Difficulty.set_mode(mode)
 	TestLib.check(p.traversal.count == c0 and p.global_position.y < 1.5, "a 5 m wall is not climbed (jump reach + 2.5 m ledge grab is below it) (y %.2f)" % p.global_position.y)
 	wall.queue_free()
 

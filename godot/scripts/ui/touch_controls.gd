@@ -28,6 +28,7 @@ const BUTTONS := [
 	{"action": &"collapse", "dx": 470.0, "dy": 450.0, "r": 46.0, "fs": 20, "label": "COLLAPSE", "need": &"quantum", "ability": 3},
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
 	{"action": &"crouch", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"foot"},
+	{"action": &"grab", "dx": 270.0, "dy": 660.0, "r": 46.0, "fs": 22, "label": "GRAB", "need": &"foot"},
 	{"action": &"takedown", "dx": 175.0, "dy": 590.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
 	{"action": &"garage_call", "dx": 490.0, "dy": 570.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"garage_call", "fn": &"summon"},
 	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},

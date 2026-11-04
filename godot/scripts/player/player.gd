@@ -78,6 +78,8 @@ var spread: float:
 
 var aiming := false
 var sprinting := false
+var wall_running := false
+var gliding := false
 ## Seconds since the feet last touched the ground (0 on the ground). The body pose waits a moment before it shows "airborne", so rolling
 ## off a curb does not flicker the legs.
 var air_time := 0.0
@@ -132,6 +134,7 @@ var _phys_cur := Vector3.ZERO
 var _step_offset := 0.0                      ## visual drop smoothing after a step-up (metres, decays to 0)
 var _kc := KinematicCollision3D.new()
 var _kc2 := KinematicCollision3D.new()
+var verbs := HeroVerbs.new()                 ## wall-run, slam, warp grab (hero_verbs.gd)
 var traversal := Traversal.new()             ## vault / mantle / ledge grab / ladders (traversal.gd)
 var _aim_frame := -1
 var _aim_cache := {}
@@ -239,6 +242,7 @@ func _on_next_sector() -> void:
 ## Fresh state at the spawn point: full hp / energy / ammo, 1.5 s of invulnerability, foot mode, camera behind the player.
 func reset() -> void:
 	traversal.cancel()
+	verbs.cancel()
 	_set_vehicle(null)
 	_dead = false
 	hp = max_hp
@@ -273,6 +277,7 @@ func reset() -> void:
 func teleport_to(pos: Vector3) -> void:
 	pos = PlayerUtil.safe_spot(pos, Game.world if is_instance_valid(Game.world) else null, get_world_3d().direct_space_state if is_inside_tree() else null)   # never outside the city walls, below the floor or inside a building
 	traversal.cancel()
+	verbs.cancel()
 	global_position = pos
 	velocity = Vector3.ZERO
 	_ground_known = false
@@ -377,7 +382,7 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 		last_hurt_from = from_pos
 		hurt.emit(share)
 		return
-	hp -= amount * Difficulty.damage_taken(Difficulty.story_chapter()) * Upgrades.damage_taken() * (cover.damage_mult() if cover != null else 1.0)
+	hp -= amount * Difficulty.damage_taken(Difficulty.story_chapter()) * Upgrades.damage_taken() * HeroPower.f("taken") * (cover.damage_mult() if cover != null else 1.0)
 	since_hurt = 0.0
 	last_hurt_time = PlayerUtil.now()
 	last_hurt_from = from_pos
@@ -391,6 +396,7 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 
 
 func _die() -> void:
+	verbs.cancel()
 	if _dead:
 		return
 	_dead = true
@@ -413,6 +419,7 @@ func _vehicle_alive() -> bool:
 
 
 func _set_vehicle(v: Node3D) -> void:
+	verbs.cancel()
 	var next: Node3D = v if is_instance_valid(v) else null
 	if next == null and not _in_vehicle:
 		_vehicle = null
@@ -476,9 +483,9 @@ func _physics_process(delta: float) -> void:
 func _tick(dt: float) -> void:
 	invuln = maxf(0.0, invuln - dt)
 	since_hurt += dt
-	if hp < max_hp and since_hurt > REGEN_DELAY and not _dead:
-		hp += REGEN_RATE * dt
-	energy += (ENERGY_REGEN_DRIVING if _in_vehicle else ENERGY_REGEN) * Upgrades.regen_mult() * dt
+	if hp < max_hp and since_hurt > REGEN_DELAY / HeroPower.f("regen") and not _dead:
+		hp += REGEN_RATE * HeroPower.f("regen") * dt
+	energy += (ENERGY_REGEN_DRIVING if _in_vehicle else ENERGY_REGEN) * Upgrades.regen_mult() * HeroPower.f("energy_regen") * dt
 	if _dead:
 		return
 	if _in_vehicle:
@@ -568,7 +575,7 @@ func _foot_tick(dt: float) -> void:
 		_jump_buffer = 0.0
 		_coyote = 0.0
 	var boost := speed_boost if speed_boost >= 1.0 else 1.0 + speed_boost
-	var top_speed := (AIM_SPEED if aiming else WALK_SPEED) * (SPRINT_MULT if want_sprint else 1.0) * boost * cover.speed_mult()
+	var top_speed := (AIM_SPEED if aiming else WALK_SPEED) * (SPRINT_MULT * HeroPower.f("sprint") if want_sprint else 1.0) * boost * cover.speed_mult()
 	var k := GROUND_ACCEL if on_floor else AIR_ACCEL
 	velocity.x = PlayerUtil.damp(velocity.x, wish.x * top_speed, k, dt)
 	velocity.z = PlayerUtil.damp(velocity.z, wish.z * top_speed, k, dt)
@@ -584,15 +591,17 @@ func _foot_tick(dt: float) -> void:
 		_coyote = maxf(0.0, _coyote - dt)
 	_jump_buffer = maxf(0.0, _jump_buffer - dt)
 	if _jump_buffer > 0.0 and _coyote > 0.0:
-		velocity.y = JUMP_SPEED
+		velocity.y = JUMP_SPEED * HeroPower.f("jump")
 		_jump_buffer = 0.0
 		_coyote = 0.0
 		on_floor = false
 	if not on_floor:
-		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * _event_gravity() * dt * 0.5)
+		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * _event_gravity() * _hero_gravity(jump_down, dt) * dt * 0.5)
 	elif velocity.y < 0.0:
 		velocity.y = 0.0
 
+	if verbs.tick(self, dt, forward_in, wish, on_floor, _jump_buffer > 0.0):
+		_jump_buffer = 0.0
 	_fall_speed = 0.0 if on_floor else minf(_fall_speed, velocity.y)
 	if on_floor and _hit_wall:
 		_try_step_up(dt)
@@ -602,7 +611,7 @@ func _foot_tick(dt: float) -> void:
 	var landed := is_on_floor()
 	air_time = 0.0 if landed else air_time + dt
 	if not landed:
-		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * _event_gravity() * dt * 0.5)
+		velocity.y = maxf(-MAX_FALL_SPEED, velocity.y - GRAVITY * _event_gravity() * _hero_gravity(jump_down, 0.0) * dt * 0.5)
 	if landed and not _was_on_floor:
 		_on_land(_fall_speed)
 	_was_on_floor = landed
@@ -612,6 +621,23 @@ func _foot_tick(dt: float) -> void:
 	var assist := get_node_or_null("AimAssist") as AimAssist
 	var auto := assist != null and assist.wants_auto_fire()
 	weapon.tick(dt, (Input.is_action_pressed(&"fire") or auto) and not cover.sliding, reload_pressed, aiming, horizontal > 1.0)
+
+
+## Hero verbs from HeroPower: holding jump in the air glides (fall speed capped), a sprint along a wall runs it (gravity almost off). Returns the gravity factor.
+func _hero_gravity(jump_down: bool, _dt: float) -> float:
+	wall_running = false
+	gliding = false
+	if _fall_speed > -0.01 and velocity.y >= 0.0:
+		return 1.0
+	if sprinting and _hit_wall and HeroPower.can_wall_run() and velocity.y < 2.0:
+		wall_running = true
+		return HeroPower.WALL_GRAVITY
+	var cap := HeroPower.f("glide")
+	if jump_down and cap > 0.0 and velocity.y < -cap:
+		gliding = true
+		velocity.y = -cap
+		return 0.0
+	return 1.0
 
 
 func _on_land(fall_speed: float) -> void:

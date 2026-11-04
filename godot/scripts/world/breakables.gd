@@ -238,6 +238,19 @@ func break_prop(i: int, push := Vector3.ZERO) -> void:
 		_timer.start()
 
 
+## A prop is lifted away (WARP GRAB): hidden and not solid, no debris; it comes back after RESPAWN like a broken one.
+func take_prop(i: int) -> void:
+	if i < 0 or i >= COUNT or broken[i] == 1:
+		return
+	broken[i] = 1
+	broken_count += 1
+	respawn_at[i] = PlayerUtil.now() + RESPAWN
+	_mm.set_instance_transform(i, _hidden)
+	bodies[i].collision_layer = 0
+	if _timer != null and _timer.is_stopped():
+		_timer.start()
+
+
 ## Explosion at `pos`: every prop within radius breaks, pushed away.
 func blast(pos: Vector3, radius: float) -> int:
 	var n := 0

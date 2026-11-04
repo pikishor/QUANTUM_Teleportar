@@ -113,6 +113,8 @@ var _look_mix := 0.0                           ## how far the trim sheen is pull
 var _clock_look := 0.0
 var _charge := 0.0                    ## 0..1 QUANTUM TELEPORT charge (aiming a destination), smoothed
 var _ready_k := 1.0                   ## 0..1 how recharged the powers are (cooldown dims the seams)
+var _verb_roll := 0.0                ## wall-run roll / glide and slam lean from HeroVerbs, eased
+var _verb_pitch := 0.0
 var _excite := 0.0                    ## 0..1: hit, aim or quantum-active moment (what the rim and glow react to)
 var _excite_applied := -1.0
 var _key_energy := 1.0
@@ -257,6 +259,8 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		upper.rotation = Vector3(_aim_pitch + lean + _recoil_pitch + breathe + DEAD_CURL * e, twist, roll)
 		upper.position = Vector3(0.0, HIP_Y + bob + sin(_clock * 1.7) * 0.0025 * calm, _recoil_push)
 
+	_verb_roll = PlayerUtil.damp(_verb_roll, p.verbs.pose_roll, 10.0, adt)
+	_verb_pitch = PlayerUtil.damp(_verb_pitch, p.verbs.pose_pitch, 10.0, adt)
 	# --- placement (and the death fall: Euler YXZ = roll about the forward axis first, then the lean about the long axis, then the heading)
 	global_position = view_pos
 	rotation = Vector3(DEAD_TWIST * e, yaw + DEAD_SLEW * e, DEAD_ROLL * e)
@@ -265,6 +269,8 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		_rest_on_floor(view_pos.y)
 	else:
 		_apply_cover_pose(p.cover, yaw)
+		rotation.z += _verb_roll
+		rotation.x += _verb_pitch
 
 	# --- rim and glow: subtle at rest, brighter on a hit, while aiming and while a quantum power is active (no allocation: a few property writes on shared materials)
 	var q = p.quantum

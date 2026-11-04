@@ -71,7 +71,7 @@ const ACTION_KEYS := {
 	&"jump": [KEY_SPACE], &"sprint": [KEY_SHIFT], &"reload": [KEY_R],
 	&"blink": [KEY_Q], &"entangle": [KEY_E], &"superpose": [KEY_G], &"collapse": [KEY_C],
 	&"interact": [KEY_F], &"crouch": [KEY_CTRL], &"takedown": [KEY_V], &"pause": [KEY_ESCAPE],
-	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z],
+	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z], &"grab": [KEY_H],
 }
 
 

@@ -89,6 +89,8 @@ var beacon_left := 0.0
 var clone: Node3D = null               ## the ghost while it exists (group "clone"), else null
 var clone_left := 0.0
 var cd_blink := 0.0
+var chain_left := 0                    ## QUANTUM TELEPORT hops still free in the current chain (HeroPower)
+var _chain_t := 0.0
 var aiming := false                    ## QUANTUM TELEPORT hold-to-aim: the destination marker follows the crosshair, release goes
 var aim_pos := Vector3.ZERO
 var fx_flash := 0.0                    ## screen effect strength 0..1 (HUD), 1 at the moment of a teleport, decays
@@ -157,6 +159,7 @@ func _physics_process(delta: float) -> void:
 		return
 	phase.tick(delta)
 	cd_blink = maxf(cd_blink - delta, 0.0)
+	_chain_t = maxf(_chain_t - delta, 0.0)
 	cd_link = maxf(cd_link - delta, 0.0)
 	cd_super = maxf(cd_super - delta, 0.0)
 	cd_collapse = maxf(cd_collapse - delta, 0.0)
@@ -260,7 +263,7 @@ func _blink_input(delta: float) -> void:
 
 
 func can_aim() -> bool:
-	return _p != null and Game.is_playing() and not _p.is_dead() and _p.vehicle == null and cd_blink <= 0.0 and _p.energy >= BLINK_COST
+	return _p != null and Game.is_playing() and not _p.is_dead() and _p.vehicle == null and cd_blink <= 0.0 and _p.energy >= HeroPower.cost(BLINK_COST)
 
 
 ## Release of an aimed QUANTUM TELEPORT: go to the marker, pay the cost. Returns true when the teleport happened.
@@ -271,7 +274,7 @@ func aim_go() -> bool:
 		_remove_beacon()
 		_slow_end()
 		return false
-	_p.energy -= BLINK_COST
+	_p.energy -= HeroPower.cost(BLINK_COST)
 	beacon_pos = aim_pos
 	has_beacon = true
 	return teleport()
@@ -328,14 +331,14 @@ func blink() -> bool:
 		return teleport()
 	if cd_blink > 0.0:
 		return false
-	if _p.energy < BLINK_COST:
+	if _p.energy < HeroPower.cost(BLINK_COST):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
 	beacon_pos = _aim_floor_point()
 	has_beacon = true
 	beacon_left = BEACON_LIFE
-	_p.energy -= BLINK_COST
-	cd_blink = BLINK_CD
+	_p.energy -= HeroPower.cost(BLINK_COST)
+	cd_blink = HeroPower.cd(BLINK_CD)
 	_show_beacon()
 	FX.burst(beacon_pos + Vector3(0.0, 0.5, 0.0), CYAN, _fx_count(14), 4.0, 0.5, 0.0)
 	Sfx.play(&"link")
@@ -349,7 +352,7 @@ func _aim_floor_point() -> Vector3:
 	var o: Vector3 = aim["origin"]
 	var d: Vector3 = aim["dir"]
 	var t := o.distance_to(aim["hit"] as Vector3)
-	var reach := BLINK_RANGE + Upgrades.blink_bonus()
+	var reach := (BLINK_RANGE + Upgrades.blink_bonus()) * HeroPower.f("tp_range")
 	var pt := o + d * (maxf(0.0, t - 0.6) if t < reach else reach)
 	pt = PlayerUtil.safe_spot(pt, Game.world if is_instance_valid(Game.world) else null)      # inside the walls, not in a building volume (sky / horizon / off-map aims)
 	_rq.from = pt + Vector3(0.0, 0.5, 0.0)
@@ -386,7 +389,13 @@ func teleport() -> bool:
 	bits_left = BITS_SHOWN
 	Game.say("QUANTUM TELEPORT", 1.2)
 	_remove_beacon()
-	cd_blink = TELEPORT_CD
+	cd_blink = HeroPower.cd(TELEPORT_CD)
+	if _chain_t > 0.0 and chain_left > 0:                  # chained hop (HeroPower tp_hops): no cooldown, the window keeps running
+		chain_left -= 1
+		cd_blink = 0.0
+	else:
+		chain_left = HeroPower.hops() - 1
+	_chain_t = HeroPower.CHAIN_WINDOW
 	return true
 
 
@@ -415,7 +424,7 @@ func _remove_beacon() -> void:
 func link_drones() -> bool:
 	if _p == null or not Game.is_playing() or _p.is_dead() or cd_link > 0.0:
 		return false
-	if _p.energy < LINK_COST:
+	if _p.energy < HeroPower.cost(LINK_COST):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
 	var mgr := Game.enemies
@@ -452,8 +461,8 @@ func link_drones() -> bool:
 	if b == null:
 		Game.say("NEED A SECOND TARGET WITHIN 45 m", 1.4)
 		return false
-	_p.energy -= LINK_COST
-	cd_link = LINK_CD
+	_p.energy -= HeroPower.cost(LINK_COST)
+	cd_link = HeroPower.cd(LINK_CD)
 	while links.size() >= _max_links():
 		_drop_link(0)
 	a.linked = b
@@ -480,15 +489,15 @@ func entangle() -> bool:
 	if _p.vehicle != null:
 		Game.say("ENTANGLE OFFLINE IN VEHICLE", 1.0)
 		return false
-	if _p.energy < SWAP_COST:
+	if _p.energy < HeroPower.cost(SWAP_COST):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
 	var t := swap_target()
 	if t.is_empty():
 		Game.say("NO TARGET IN SIGHT", 1.0)
 		return false
-	_p.energy -= SWAP_COST
-	cd_link = SWAP_CD
+	_p.energy -= HeroPower.cost(SWAP_COST)
+	cd_link = HeroPower.cd(SWAP_CD)
 	var node: Node3D = t["node"]
 	var from := _p.global_position
 	var to: Vector3 = t["pos"]
@@ -664,10 +673,10 @@ func superpose() -> bool:
 		return false
 	if cd_super > 0.0:
 		return false
-	if _p.energy < SUPER_COST:
+	if _p.energy < HeroPower.cost(SUPER_COST):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
-	_p.energy -= SUPER_COST
+	_p.energy -= HeroPower.cost(SUPER_COST)
 	_make_clone()
 	_p.speed_boost = SUPER_SPEED
 	FX.burst(_p.global_position + Vector3(0.0, 1.0, 0.0), Color(0.4, 1.0, 0.93), _fx_count(30), 5.0, 0.6, 0.0)
@@ -682,7 +691,7 @@ func collapse(timeout := false) -> void:
 		return
 	var pos := clone.global_position
 	_kill_clone()
-	cd_super = COLLAPSE_CD
+	cd_super = HeroPower.cd(COLLAPSE_CD)
 	if timeout:
 		Game.explode(pos + Vector3(0.0, 1.0, 0.0), PULSE_RADIUS, {"enemy_dmg": PULSE_DMG, "car_dmg": 10.0, "player_dmg": 0.0, "color": Color(0.4, 1.0, 0.93)})
 	else:
@@ -701,11 +710,11 @@ func collapse_all() -> bool:
 		return false
 	if cd_collapse > 0.0:
 		return false
-	if _p.energy < WAVE_COST:
+	if _p.energy < HeroPower.cost(WAVE_COST):
 		Game.say("NOT ENOUGH COHERENCE", 1.0)
 		return false
-	_p.energy -= WAVE_COST
-	cd_collapse = WAVE_CD
+	_p.energy -= HeroPower.cost(WAVE_COST)
+	cd_collapse = HeroPower.cd(WAVE_CD)
 	var origin := _p.global_position + Vector3(0.0, 1.0, 0.0)
 	var combo := ""
 	if clone != null:                                     # SUPERPOSITION: the decoy detonates at full strength

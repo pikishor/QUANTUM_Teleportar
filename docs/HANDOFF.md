@@ -393,3 +393,9 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - Merged two builders: DemoPanel/DemoMode (title DEMO button, sandbox profile; real save and map.cfg untouched) and DemoMenu (TEST MENU tab 8 spawn/weather/time/heat entries).
 - Bot fixes (bot_full_game.gd): `_act_demo` now runs only the first entry of each group so pooled kinds saturate in cycle 1 (random picks grew pools and tripped the leak check; all entries still run in test_demo_menu) and clears enemies after; `_act_garage` re-spawns the starter inside the retry loop and its messages no longer read a freed car (the demo's spawns recycle cars faster).
 - Follow-ups: title screenshot shows the OPTIONS button top-right partly covered by the TEST button (check overlap); DEMO badge placement vs HUD unchecked; demo set-piece launches start an intro cutscene; demo strings English only; DemoMenu tests do not reset persisted weapon unlocks.
+
+## Wave 54 integration: hero power by difficulty, new hero verbs
+- Full suite: 123 tests pass. test_hud failed on the new GRAB touch button (outside StoryView.TOUCH_BUTTONS_W); moved GRAB to dx 270 / dy 660. No test weakened.
+- full_bot: first run SOAK FAIL (nodes 1877 vs limit 1872, a marginal leak check), second run PASS. Treat the soak node-growth check as FLAKY; watch it.
+- visual_qa 8/8 pass; latest.png looks fine (no new defects seen).
+- Follow-ups: HeroPower wall-run/glide may overlap HeroVerbs; no rig animation or sounds for slam/throw; no HUD for hop count; GRAB/slam labels untranslated; GRAB button position overlaps contextual buttons (TAKEDOWN/RADIO) only when those show.
