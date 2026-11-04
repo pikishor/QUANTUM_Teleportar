@@ -453,3 +453,15 @@ Noted in visual QA (not caused by this wave): translucent white rectangles in th
 - Fixes: (1) bot weapon check counted only shots, melee weapons (whip, blade) never raise shots_fired; it now also accepts combo_hits growth (meaning kept). (2) Real bug, CameraRig._end_stop restored Engine.time_scale to 1.0 after a hit-stop, dropping any faster base scale (the bot's --speed=4), which caused the full_bot flake from wave 60; it now restores the scale saved at hit_stop (never below 1.0).
 - latest.png: no new glaring defects from this wave. Existing: broadcast box overlaps minimap top-left, mission toast over hero head in the hero shot, car shot sedan flat-coloured, title DEMO/TEST tags overlap corners.
 - Follow-ups: weapon keys 9-14 unbound; melee has no animation; no HUD plate for throwable stock or gadget cooldown; gear nodes created on first use; shroud only drops awareness. See builder notes above.
+
+## Materials v2 (builder note)
+- Texture-free shader layer (macro variation, triplanar wear, edge dirt, road decals, window glass reflection + refraction-lite, sign flicker), global `mv2_amount` by tier, TEST/DEMO MATERIALS V2/V1 switch, test tests/test_materials_v2.gd. Before/after shots at market, foundry, slums and a road view looked clean (no artifacts seen); the change is subtle at night by design. Perf gate: see integrator run.
+- Follow-ups: tar snakes read as thin dark loops on the road (tuned down); patches are rare at 8 m cells; props with hard-edged boxes get no edge wear; shop-front glass not yet on `mv2_glass`; ground shader cost not measured on a device.
+
+## City variety (builder note: district dressing)
+- Added 11 facade / rooftop / sidewalk kinds (`godot/scripts/world/city_kit_dress.gd`, 9 new flat-colour Quaternius pieces via `godot/tools/city_kit_extra.py` (no Blender), see ARCHITECTURE "City variety") merged into the street-kit window (still ONE draw, no texture). Per-district rules: market awnings/signs/cafes/lantern roofs, foundry shutters/escapes/stacks/crates, slums stoops/balconies/water towers/junk, towers colonnades/glass balconies/crowns/helipads. Test: tests/test_city_variety.gd. New visual_qa spots `district_*` and `roofs_*` (8 more shots; latest.png NOT regenerated, rerun tools/visual_qa.sh).
+- Perf: tiers 0/1/2 OK (draws 66/92/107, tex 166/216/307 MB). The dressing measured +1..+2 draws on LOW (chaotic, tied to scene content, cause not found), so LOW (window scale < 0.8) skips it; MED/HIGH draw it. test_art_library window budgets raised for MED/HIGH (13500 / 17000; LOW stays 5000).
+- Follow-ups: find why content in the window changes the staged draw count on LOW by +-2; upper-floor window styles unchanged; stoops have no collider; roofs read as dark silhouettes.
+
+## Wave 62 integration note
+Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one transient fail in the first run passed on rerun. Perf gate OK on tiers 0/1/2 (draws 65/95/106, tex 166/216/307 MB). visual_qa 16/16, full_bot SOAK PASS. latest.png reviewed: no glaring defects; city roofs still dark silhouettes, upper-floor window styles unchanged, LOW skips dressing, shop-front glass not on v2 glass term.

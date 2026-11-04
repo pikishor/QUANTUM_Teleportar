@@ -45,6 +45,7 @@ const FLORA_TREE := 19                ## creature kit flora (creature_kit.gd): t
 const FLORA_PLANT := 20
 const FLORA_ROCK := 21
 const KC_FIRST := 22                  ## the city-kit kinds (city_kit_world.gd, Quaternius CC0 pieces): facade bands, rooftop units, street furniture, road markings
+const DRESS_FIRST := KC_FIRST + KitWorld.DRESS_FIRST  ## first of the district dressing kinds (city_kit_dress.gd)
 const TOTAL_KINDS := KC_FIRST + KitWorld.COUNT
 
 const MODE_KERB := 1
@@ -91,6 +92,17 @@ const KINDS: Array[Dictionary] = [
 	{"name": "KcCrosswalk", "hw": 2.3, "hd": 2.7, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
 	{"name": "KcDashLine", "hw": 6.0, "hd": 0.1, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
 	{"name": "KcDoubleLine", "hw": 6.0, "hd": 0.2, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrStoop", "hw": 1.0, "hd": 1.0, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrAwning", "hw": 2.5, "hd": 1.0, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrBalcony", "hw": 1.5, "hd": 0.6, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrShutter", "hw": 2.0, "hd": 0.2, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrColonnade", "hw": 2.4, "hd": 0.5, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrParapet", "hw": 2.0, "hd": 0.2, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrRooftop", "hw": 2.0, "hd": 2.0, "mode": 0, "far": 160.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrFireEscape", "hw": 1.0, "hd": 0.5, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrCluster", "hw": 1.2, "hd": 0.6, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": [0, Vector3(1.8, 1.0, 1.0), Vector3(0.0, 0.5, 0.0)]},
+	{"name": "DrBladeSign", "hw": 0.1, "hd": 0.6, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
+	{"name": "DrLedge", "hw": 2.0, "hd": 0.3, "mode": 0, "far": 0.0, "w": [0, 0, 0, 0], "col": []},
 ]
 
 const CELL := 20.0
@@ -808,7 +820,10 @@ func _add_glow(props: RefCounted) -> void:
 func geo(kind: int, near: bool, d: int, variant: int) -> Dictionary:
 	if kind >= KC_FIRST:
 		if not near:
-			return {}
+			var fkey := ((kind * 4 + d) * 4 + (variant & 3)) + 200000
+			if not _geo.has(fkey):
+				_geo[fkey] = KitWorld.make_far(kind - KC_FIRST, d, variant & 3)
+			return _geo[fkey]
 		var ckey := ((kind * 4 + d) * 4 + (variant & 3)) + 100000
 		if not _geo.has(ckey):
 			_geo[ckey] = KitWorld.make_geo(kind - KC_FIRST, d, variant & 3, Districts.palette(d)["tint"])

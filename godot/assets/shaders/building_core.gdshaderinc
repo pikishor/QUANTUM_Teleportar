@@ -128,6 +128,7 @@ float room_shade(vec2 p, vec3 rd, float cw, float fh, float depth, float rs) {
 	return 0.38 + 0.4 * (1.0 - hp.z / depth);
 }
 
+#include "res://assets/shaders/material_v2.gdshaderinc"
 #include "res://assets/shaders/quantum_surface.gdshaderinc"
 
 void fragment() {
@@ -344,7 +345,7 @@ void fragment() {
 		float lintel = 1.0;
 		if (detail > 0.5) {
 			float rs = hash12(cid + fseed * 0.7);
-			inter = room_shade(clamp(gc, vec2(0.0), vec2(1.0)) * vec2(cw, fh), rd, cw, fh, 3.2 + 2.2 * hash12(cid + fseed + 17.0), rs) * 1.15;
+			inter = room_shade(clamp(gc + mv2_pane_wobble(gc, hash12(cid + fseed + 77.0), dist), vec2(0.0), vec2(1.0)) * vec2(cw, fh), rd, cw, fh, 3.2 + 2.2 * hash12(cid + fseed + 17.0), rs) * 1.15;
 			// mullions: a centre post in wide windows, a transom near the top of tall ones
 			float cwin = (w1.x - w0.x) * cw;
 			float mv = cwin > 1.7 ? band(abs(wf.x - 0.5), 0.0, 0.022, 0.012) : 0.0;
@@ -440,6 +441,18 @@ void fragment() {
 		}
 		// dirt gathers at the base, soot under ledges, wet runnels
 		wall *= mix(0.45, 1.0, smoothstep(0.0, 12.0, gy));
+		// materials v2: macro drift over a facade, sun-bleached upper floors against sooty lower ones, chipped light edges on pilasters and ledges
+		// with dark soot in the concave corner under them (the analytic stand-in for baked edge AO), and a dirt tide line from the triplanar grime
+		if (detail > 0.5) {
+			vec2 mc = mv2_macro(vec2(v_wxz.x + v_wxz.y, gy * 0.55) + bseed, dist);
+			wall = mv2_tint(wall, mc);
+			wall = mix(wall, wall * vec3(1.10, 1.07, 1.0) + 0.006, clamp(smoothstep(18.0, 70.0, gy) * 0.5 * mv2_amount, 0.0, 0.5));
+			float edge_w = clamp(max(pil, led) * (1.0 - smoothstep(60.0, 140.0, dist)), 0.0, 1.0);
+			float chip = smoothstep(0.55, 0.8, vnoise(vec2(u, gy) * 6.0 + fseed));
+			wall = mix(wall, wall * 1.45 + 0.008, edge_w * chip * 0.7 * mv2_amount * (1.0 - win));
+			float gd = mv2_tri(vec3(v_wxz.x, gy, v_wxz.y), nrm, gy, bseed, dist);
+			wall *= 1.0 - 0.42 * gd * (1.0 - win);
+		}
 		float under = (1.0 - smoothstep(0.0, 1.1, ff * fh)) * (1.0 - win) * step(0.5, big_ledge);
 		wall *= 1.0 - 0.35 * under;
 		float runnel = vnoise(vec2(u * 2.4 + fseed, gy * 0.045)) * smoothstep(0.55, 0.85, vnoise(vec2(u * 0.9 + fseed * 2.0, 1.7)));
@@ -519,6 +532,11 @@ void fragment() {
 			float grad = 0.55 + 0.45 * smoothstep(0.0, 1.0, ff) + 0.5 * exp(-gy * 0.06);
 			vec3 sky_r = mix(vec3(0.035, 0.060, 0.085), vec3(0.075, 0.095, 0.120), hash12(cid + 2.7));
 			emit += (sky_r * pane * graze * grad + neon * 0.025 * exp(-gy * 0.08)) * lintel * win * (1.0 - lit);
+			// materials v2: the pane also mirrors the skyline and the haze (world-space reflection vector), a little over lit panes too
+			vec3 vw = normalize((INV_VIEW_MATRIX * vec4(VERTEX, 0.0)).xyz);
+			vec3 nw = normalize((MODEL_MATRIX * vec4(nrm, 0.0)).xyz);
+			vec3 gr_ = mv2_glass(reflect(vw, nw), hash12(cid * 0.61 + fseed), exp(-gy * 0.05));
+			emit += gr_ * (0.35 + 0.65 * graze) * lintel * win * (1.0 - 0.7 * lit) * (1.0 - smoothstep(120.0, 260.0, dist));
 		}
 
 #ifndef FAR
@@ -669,6 +687,7 @@ void fragment() {
 			float cyc = fract(TIME / (9.0 + 8.0 * rb0) + rb0 * 7.0 + bidx * 0.37);
 			flick *= mix(1.0, cyc < 0.6 ? 1.0 : (cyc < 0.78 ? step(0.5, hash11(floor(TIME * 12.0) + rb0 * 91.0)) : 0.04), dying);
 			float lit_s = step(0.25, rb0);
+			flick *= mv2_flicker(rb0 * 3.0 + bidx * 0.13, TIME);
 			emit += (sign_colour(nc, cg) + nc * tube * 1.5) * flick * mix(0.03, 1.0, lit_s);
 			albedo = mix(albedo, vec3(0.02), signb * 0.8);
 			// grime and wet streaks run down the stone below the sign, street spill on the base of the wall

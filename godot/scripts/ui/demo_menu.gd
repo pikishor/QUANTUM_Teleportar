@@ -118,6 +118,9 @@ static func entries() -> Array[Dictionary]:
 	out.append({"head": true, "label": "WEATHER"})
 	for w: String in TestMode.WEATHER:
 		out.append({"label": w, "fn": TestMode.set_weather.bind(w)})
+	out.append({"head": true, "label": "SURFACE LOOK"})
+	out.append({"label": "MATERIALS V2", "fn": TestMode.set_materials_v2.bind(true)})
+	out.append({"label": "MATERIALS V1", "fn": TestMode.set_materials_v2.bind(false)})
 	out.append({"head": true, "label": "TIME OF DAY"})
 	for n: String in HOURS:
 		out.append({"label": n, "fn": set_time.bind(HOURS[n])})

@@ -13,6 +13,8 @@ const STEP := 10.0
 const NEAR_BASE := 64.0                  ## metres, scaled by the quality
 const FAR_BASE := 175.0
 const KC_NEAR := 38.0                    ## city-kit pieces (city_kit_world.gd) draw within this many metres (scaled by the quality)
+const DRESS_NEAR := 44.0                 ## the district dressing (city_kit_dress.gd) reads a little further: its rooftop structures also draw to their own far radius
+const DRESS_MIN_SCALE := 0.8             ## the LOW tier (scale 0.65) skips the district dressing: its draw budget has no room for the extra draws the dressing was measured to cost there
 const LM_NEAR := 230.0                   ## landmarks switch to their coarse silhouette beyond this distance (metres, not scaled by the quality)
 
 var kit: Kit
@@ -144,7 +146,9 @@ func _fill(cam: Vector2, everything: bool) -> void:
 				var x := arr[o + 1]
 				var z := arr[o + 2]
 				var d := _district(x, z)
-				if level == 0 and kind >= Kit.KC_FIRST and dmin > KC_NEAR * scale:
+				if kind >= Kit.DRESS_FIRST and scale < DRESS_MIN_SCALE:
+					continue
+				if level == 0 and kind >= Kit.KC_FIRST and dmin > (DRESS_NEAR if kind >= Kit.DRESS_FIRST else KC_NEAR) * scale and Kit.far_radius(kind) <= 0.0:
 					continue                                              # facade bands, markings and street dressing only close to the camera
 				var vr := int(arr[o + 5])
 				var g := kit.geo(kind, level == 0, d, vr & 3)

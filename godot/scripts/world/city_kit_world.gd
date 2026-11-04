@@ -4,6 +4,8 @@ extends RefCounted
 ## rooftop units, street furniture and painted road markings cost triangles and no draw call. Vertex data follows the prop shader (COLOR.rgb = base colour, COLOR.a = emission
 ## code (0), UV2 = (metallic, roughness)). Local +Z is the front of a prop; road markings lie flat at y = 0 and point along local -Z (or lie along local X for the lane lines).
 
+const Dress := preload("res://scripts/world/city_kit_dress.gd")
+
 const CORNICE := 0          ## 4 m ground-floor cornice band (variant: metal / brick)
 const PILASTER := 1         ## brick column at a lot corner
 const WINDOW := 2           ## metal window frame on a ground floor wall
@@ -16,9 +18,11 @@ const ARROW := 8            ## variant: 0 straight, 1 turn left, 2 turn right
 const CROSSWALK := 9        ## one 4.5 m zebra block (four across a road)
 const DASH := 10            ## 12 m of white dashed line along local X
 const DOUBLE := 11          ## 12 m of double yellow line along local X
-const COUNT := 12
+const DRESS_FIRST := 12     ## the eleven facade, rooftop and sidewalk dressing kinds of city_kit_dress.gd (district composition rules) follow: local kind = DRESS_FIRST + Dress kind
+const COUNT := DRESS_FIRST + Dress.COUNT
 
-const NAMES: Array[String] = ["Cornice", "Pilaster", "Window", "AcUnit", "Bollard", "Planter", "Drain", "Manhole", "Arrow", "Crosswalk", "DashLine", "DoubleLine"]
+const NAMES: Array[String] = ["Cornice", "Pilaster", "Window", "AcUnit", "Bollard", "Planter", "Drain", "Manhole", "Arrow", "Crosswalk", "DashLine", "DoubleLine",
+		"Stoop", "Awning", "Balcony", "Shutter", "Colonnade", "Parapet", "Rooftop", "FireEscape", "Cluster", "BladeSign", "Ledge"]
 ## Pieces (glb basenames without "kit_city_") used by a kind, per variant.
 const PIECES := {
 	CORNICE: ["cornice_metal", "cornice_brick"], PILASTER: ["pilaster"], WINDOW: ["window_metal"], ACUNIT: ["acunit"], BOLLARD: ["bollard"], PLANTER: ["planter"],
@@ -35,6 +39,10 @@ static func all_pieces() -> Array:
 	var out := []
 	for k in PIECES:
 		for p in PIECES[k]:
+			if not out.has(p):
+				out.append(p)
+	for k in Dress.PIECES:
+		for p in Dress.PIECES[k]:
 			if not out.has(p):
 				out.append(p)
 	return out
@@ -113,6 +121,8 @@ static func tris_of(name: String) -> int:
 
 ## Geometry of a kind (flat arrays like city_kit.gd's make_geo: v, n, uv, uv2, c, count); {} while the glb pieces are missing.
 static func make_geo(kind: int, d: int, variant: int, tint: Color) -> Dictionary:
+	if kind >= DRESS_FIRST:
+		return Dress.make_geo(kind - DRESS_FIRST, d, variant, true, piece)
 	var names: Array = PIECES[kind]
 	var d_piece := piece(String(names[variant % names.size()]))
 	if d_piece.is_empty():
@@ -133,6 +143,15 @@ static func make_geo(kind: int, d: int, variant: int, tint: Color) -> Dictionary
 		_:
 			_add(g, d_piece, Vector3.ZERO, 0.0, tint, metal, rough)
 	return g
+
+
+## Simplified geometry of a dressing kind seen from afar ({} for the kinds without a far level).
+static func make_far(kind: int, d: int, variant: int) -> Dictionary:
+	return Dress.make_geo(kind - DRESS_FIRST, d, variant, false, piece) if kind >= DRESS_FIRST else {}
+
+
+static func far_radius(kind: int) -> float:
+	return Dress.far_radius(kind - DRESS_FIRST) if kind >= DRESS_FIRST else 0.0
 
 
 static func _add(g: Dictionary, p: Dictionary, off: Vector3, yaw: float, tint: Color, metal: float, rough: float) -> void:
@@ -175,6 +194,8 @@ static func layout_items(layout: CityLayout) -> Array[Dictionary]:
 	_facades(out, rng, layout)
 	_roofs(out, rng, layout)
 	_markings(out, rng)
+	for it in Dress.layout(layout.lots):                                        # district dressing (own random streams, so the placements above do not move)
+		out.append(_item(DRESS_FIRST + int(it["kind"]), it["x"], it["y"], it["z"], it["yaw"], int(it["variant"])))
 	return out
 
 

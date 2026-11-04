@@ -1,7 +1,11 @@
 extends RefCounted
 ## Visual QA bot: ~12 fixed spots, one PNG each plus numeric checks (tests/visual_qa_lib.gd). Use tools/visual_qa.sh.
 ##   VQA_OUT=<dir> (PNG folder)  VQA_SPOTS=a,b (subset)   prints VQA <spot> PASS|FAIL mean= contrast= black= [sep=] [why]
-const SPOTS: Array[StringName] = [&"street_nw", &"street_ne", &"street_sw", &"street_se", &"interior", &"car", &"chase", &"boss", &"title", &"hero", &"rain", &"storm", &"sky_dawn", &"sky_noon", &"sky_dusk", &"sky_night"]
+const SPOTS: Array[StringName] = [&"street_nw", &"street_ne", &"street_sw", &"street_se", &"interior", &"car", &"chase", &"boss", &"title", &"hero", &"rain", &"storm", &"sky_dawn", &"sky_noon", &"sky_dusk", &"sky_night", &"district_market", &"district_foundry", &"district_slums", &"district_towers", &"roofs_market", &"roofs_foundry", &"roofs_slums", &"roofs_towers"]
+const Kit := preload("res://scripts/world/city_kit.gd")
+const KitWorld := preload("res://scripts/world/city_kit_world.gd")
+const Districts := preload("res://scripts/world/city_districts.gd")
+const Dress := preload("res://scripts/world/city_kit_dress.gd")
 const SETTLE := 16
 var _i := 0
 var _wait := 0
@@ -107,6 +111,10 @@ func _begin() -> void:
 			corner = String(spot).trim_prefix("street_")
 			TestMode.teleport(corner)
 			_p.camera_rig.reset_view(-PI * 0.5 if corner.ends_with("e") else PI * 0.5, -0.08)
+		&"district_market", &"district_foundry", &"district_slums", &"district_towers":
+			_district_view(String(spot).trim_prefix("district_"))
+		&"roofs_market", &"roofs_foundry", &"roofs_slums", &"roofs_towers":
+			_roof_view(String(spot).trim_prefix("roofs_"))
 		&"interior":
 			var ig := InteriorGameplay.instance
 			if ig != null:
@@ -148,6 +156,71 @@ func _begin() -> void:
 			_p.teleport_to(Game.SPAWN)
 			_p.camera_rig.reset_view(-PI * 0.5, -0.1)
 			TestMode.set_weather("RAIN" if spot == &"rain" else "STORM")
+
+
+## City dressing close-up: a sidewalk-level view of a storefront of the district (nearest dressed ground floor to the district's target point), looking up the facade.
+func _district_view(id: String) -> void:
+	var ig := InteriorGameplay.instance
+	if ig != null:
+		ig.leave(true)
+	var d: int = Districts.IDS.find(StringName(id))
+	var kit = (Game.world as City).street_kit()
+	var target: Vector2 = Districts.LANDMARK_TARGETS[d] * 0.7
+	var best := Vector3.INF
+	var best_yaw := 0.0
+	var bd := 1.0e9
+	var first: int = Kit.KC_FIRST + KitWorld.DRESS_FIRST
+	for pl in kit.placements:
+		var k := int(pl["kind"])
+		if k < first or int(pl["district"]) != d:
+			continue
+		var local := k - first
+		if local != Dress.AWNING and local != Dress.SHUTTER and local != Dress.COLONNADE and local != Dress.STOOP:
+			continue
+		var pos: Vector3 = pl["pos"]
+		var dist := Vector2(pos.x, pos.z).distance_to(target)
+		if dist < bd:
+			bd = dist
+			best = pos
+			best_yaw = float(pl["yaw"])
+	if not best.is_finite():
+		return
+	var n := Vector3(sin(best_yaw), 0.0, cos(best_yaw))
+	var t := Vector3(n.z, 0.0, -n.x)
+	var cam := Vector3(best.x, 0.0, best.z) + n * 11.0 + t * 7.0
+	cam.y = 2.1
+	_p.teleport_to(Vector3(cam.x, 0.2, cam.z))
+	_cine = Transform3D(Basis.IDENTITY, cam).looking_at(Vector3(best.x, 6.0, best.z) - t * 3.0, Vector3.UP)
+	_use_cine = true
+
+
+## City dressing from above: a rooftop structure of the district seen from a point over the street, at roof height.
+func _roof_view(id: String) -> void:
+	var ig := InteriorGameplay.instance
+	if ig != null:
+		ig.leave(true)
+	var d: int = Districts.IDS.find(StringName(id))
+	var kit = (Game.world as City).street_kit()
+	var target: Vector2 = Districts.LANDMARK_TARGETS[d] * 0.6
+	var best := Vector3.INF
+	var best_yaw := 0.0
+	var bd := 1.0e9
+	for pl in kit.placements:
+		if int(pl["kind"]) != Kit.KC_FIRST + KitWorld.DRESS_FIRST + Dress.ROOFTOP or int(pl["district"]) != d or float((pl["pos"] as Vector3).y) < 28.0:
+			continue
+		var pos: Vector3 = pl["pos"]
+		var dist := Vector2(pos.x, pos.z).distance_to(target)
+		if dist < bd:
+			bd = dist
+			best = pos
+			best_yaw = float(pl["yaw"])
+	if not best.is_finite():
+		return
+	var n := Vector3(sin(best_yaw), 0.0, cos(best_yaw))
+	var cam := best + n * 30.0 + Vector3(0.0, 5.0, 0.0)
+	_p.teleport_to(Vector3(cam.x, 0.2, cam.z))
+	_cine = Transform3D(Basis.IDENTITY, cam).looking_at(best + Vector3(0.0, 2.0, 0.0), Vector3.UP)
+	_use_cine = true
 
 
 ## Title screen: the HUD buttons (DEMO, OPTIONS, ...) and the TEST badge must not overlap each other.

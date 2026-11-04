@@ -156,6 +156,9 @@ func _page_items() -> Array[Dictionary]:
 			out.append(_head("WEATHER (TIME OF DAY: THE CITY IS NIGHT ONLY)"))
 			for w: String in TestMode.WEATHER:
 				out.append(_act(w, TestMode.set_weather.bind(w)))
+			out.append(_head("SURFACE LOOK"))
+			out.append(_act("MATERIALS V2", TestMode.set_materials_v2.bind(true)))
+			out.append(_act("MATERIALS V1", TestMode.set_materials_v2.bind(false)))
 			out.append(_head("HEAT LEVEL"))
 			for h in 6:
 				out.append(_act("HEAT %d" % h, TestMode.set_heat.bind(float(h))))

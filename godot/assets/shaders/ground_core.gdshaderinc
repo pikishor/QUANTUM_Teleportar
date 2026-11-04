@@ -1,6 +1,7 @@
 // Ground core shared by ground.gdshader (full: reads the mirrored city back from the screen) and ground_lite.gdshader (LOW tier).
 #include "res://assets/shaders/common.gdshaderinc"
 #include "res://assets/shaders/signage.gdshaderinc"
+#include "res://assets/shaders/material_v2.gdshaderinc"
 
 global uniform float wetness;
 global uniform float night;                             // 0 day .. 1 night (DayNight): the baked lamp and neon pools fade by day
@@ -447,6 +448,21 @@ void fragment() {
 	// ---------------------------------------------------------------------------------------------------------
 	// puddles: noise mask, more where the ground dips (ruts, joints, gutters); gone on dry weather
 	// ---------------------------------------------------------------------------------------------------------
+	// materials v2: macro colour / roughness drift over tens of metres (no visible tiling), road decals (repair patches, trenches, tar snakes, oil)
+	// and a puddle bias from the same macro height (low drifts hold water)
+	vec2 mac = mv2_macro(q, dist);
+	albedo = mv2_tint(albedo, mac);
+	rough = clamp(rough + 0.10 * mac.y, 0.05, 1.0);
+	pool_bias += 0.07 * mac.x;
+	if (sd < 0.0 && fine) {
+		vec4 dc2 = mv2_road_decals(q, aa, dist);
+		albedo = mix(albedo, albedo * 0.62 + vec3(0.004), clamp(dc2.x, 0.0, 1.0));       // fresh patches: darker, smoother asphalt
+		albedo *= 1.0 - 0.45 * clamp(dc2.y + 0.5 * dc2.z, 0.0, 1.0);                            // trench sealant and tar snakes
+		rough = mix(rough, 0.55, clamp(dc2.x * 0.5, 0.0, 1.0));
+		polish = max(polish, dc2.w);
+		albedo *= 1.0 - 0.35 * dc2.w;
+		pool_bias += 0.10 * dc2.x;
+	}
 	float pn = vnoise(q * 0.11 + 7.0) * 0.55 + vnoise(q * 0.43 + 1.3) * 0.30 + (fine ? vn(q * 1.7, 0.6, aa) * 0.15 * dk : 0.075);
 	float thr = mix(0.90, 0.64, wet) - pool_bias;
 	float puddle = smoothstep(thr, thr + 0.07, pn) * smoothstep(0.15, 0.55, wet);

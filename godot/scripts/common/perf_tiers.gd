@@ -30,6 +30,7 @@ func _ready() -> void:
 
 func apply(level: int) -> void:
 	tier = clampi(level, 0, 2)
+	MaterialsV2.set_tier(tier)
 	var vp := get_viewport()
 	if vp == null:
 		return

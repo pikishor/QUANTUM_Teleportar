@@ -6,6 +6,7 @@
 
 #include "res://assets/shaders/common.gdshaderinc"
 #include "res://assets/shaders/signage.gdshaderinc"
+#include "res://assets/shaders/material_v2.gdshaderinc"
 
 global uniform float wetness;
 // Distance LOD: an instance shrinks to its base point between lod_range.x and lod_range.y metres from the camera (ground plane). The city
@@ -86,6 +87,17 @@ void fragment() {
 	float dirt = mix(0.55, 1.0, smoothstep(0.0, 1.4, h));
 	vec3 col = base * (0.72 + 0.5 * gn) * dirt * (1.0 - 0.18 * streak * v_mr.x);
 	col *= mix(1.0, 0.72, wet);
+	// materials v2 (painted surfaces only): macro drift between neighbouring props, triplanar grime with a height-based tide line, and edge wear from the
+	// curvature of the normal (rounded metal edges rub through to a lighter metal, concave runs collect dirt)
+	if (code < 0.1) {
+		vec3 wn2 = normalize((INV_VIEW_MATRIX * vec4(normalize(NORMAL), 0.0)).xyz);
+		col = mv2_tint(col, mv2_macro(v_wpos.xz, length(VERTEX)));
+		float gd = mv2_tri(v_wpos, wn2, h, seed * 17.0, length(VERTEX));
+		col *= 1.0 - 0.38 * gd;
+		float ed = mv2_edge(normalize(NORMAL));
+		col = mix(col, col * 1.6 + vec3(0.012), ed * 0.5 * v_mr.x);
+		col *= 1.0 - 0.25 * ed * (1.0 - v_mr.x);
+	}
 
 	vec3 emit = vec3(0.0);
 	if (code > 0.1) {
@@ -136,12 +148,13 @@ void fragment() {
 			// a dying sign (one in five): dark spells and a stuttering restart (single tubes fail on their own, above)
 			float cyc = fract(TIME / (8.0 + 7.0 * seed) + seed * 5.0);
 			flick *= mix(1.0, cyc < 0.62 ? 1.0 : (cyc < 0.8 ? step(0.5, hash11(floor(TIME * 11.0) + seed * 60.0)) : 0.03), dying);
+			flick *= mv2_flicker(seed * 5.0, TIME);
 			emit = (sign_colour(nc, cg) + nc * frame * 2.0) * flick;
 			col = mix(col, vec3(0.015), 0.85);
 		} else if (is_code(code, 0.80)) {
 			vec2 uv = UV;
 			vec3 pc = screen_content(uv, seed, TIME * 0.1, 0.02, quad_aspect(v_wpos, uv));
-			emit = (vec3(0.35, 0.40, 0.45) + pc * 0.8) * (0.9 + 0.1 * sin(TIME * 100.0 + seed));
+			emit = (vec3(0.35, 0.40, 0.45) + pc * 0.8) * (0.9 + 0.1 * sin(TIME * 100.0 + seed)) * mv2_flicker(seed * 9.0 + 1.0, TIME);
 			col = vec3(0.02);
 		} else if (code > 0.88 && code < 0.98) {
 			float t = mod(TIME + v_cust.z, 22.0);

@@ -210,6 +210,11 @@ static func set_weather(weather: String) -> String:
 	return _say("WEATHER  %s" % weather)
 
 
+static func set_materials_v2(on: bool) -> String:
+	MaterialsV2.set_enabled(on)
+	return _say("SURFACE LOOK  %s" % ("MATERIALS V2" if on else "V1"))
+
+
 static func kill_all_enemies() -> String:
 	if not is_instance_valid(Game.enemies):
 		return ""

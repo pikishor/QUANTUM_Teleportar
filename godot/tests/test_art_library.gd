@@ -11,6 +11,12 @@ const Landmarks := preload("res://scripts/world/city_landmarks.gd")
 const EMISSION_CODES: Array[float] = [0.0, 0.15, 0.30, 0.45, 0.60, 0.70, 0.80, 0.90, 0.93, 0.96, 1.0]
 
 
+## Window triangle budgets at the spawn (street kit + city kit + district dressing + landmarks, ONE draw call). MED / HIGH raised from 9000 / 14000 by the city variety wave
+## (city_kit_dress.gd: +4 k near triangles on MED, +3 % of the 160 k triangle frame; textures unchanged); LOW skips the dressing and keeps 5000.
+const WINDOW_MED := 13500
+const WINDOW_LOW := 5000
+const WINDOW_HIGH := 17000
+
 func run(host: Node) -> void:
 	_test_districts(host)
 	_test_geometry()
@@ -312,7 +318,7 @@ func _test_window(city: City) -> void:
 	city.update_streaming(spawn, true)
 	TestLib.check(kw.mesh.get_surface_count() == 1, "the window mesh has a single surface")
 	TestLib.check(kw.near_props > 10 and kw.far_props > 5, "at the spawn the window holds %d full-detail props and %d far silhouettes" % [kw.near_props, kw.far_props])
-	TestLib.check(kw.triangles < 9000, "MED window at the spawn: %d triangles incl. %d of landmarks (budget 9000)" % [kw.triangles, kw.landmark_tris])
+	TestLib.check(kw.triangles < WINDOW_MED, "MED window at the spawn: %d triangles incl. %d of landmarks (budget %d)" % [kw.triangles, kw.landmark_tris, WINDOW_MED])
 	var fmt := kw.mesh.surface_get_format(0)
 	TestLib.check((fmt & Mesh.ARRAY_FORMAT_CUSTOM0) != 0, "the window carries the per-prop seed as CUSTOM0")
 	# completeness: every prop of every cell inside the near radius is in the window at full detail
@@ -539,13 +545,13 @@ func _test_cost(city: City) -> void:
 	var kw := city.kit_window() as KitWindow
 	city.set_quality(1)
 	city.update_streaming(Vector2(Game.SPAWN.x, Game.SPAWN.z), true)
-	TestLib.check(kw.triangles < 9000, "street kit plus landmarks at the spawn on MED: %d triangles in ONE draw call" % kw.triangles)
+	TestLib.check(kw.triangles < WINDOW_MED, "street kit plus landmarks at the spawn on MED: %d triangles in ONE draw call" % kw.triangles)
 	city.set_quality(0)
 	city.update_streaming(Vector2(Game.SPAWN.x, Game.SPAWN.z), true)
 	var low := kw.triangles
 	city.set_quality(2)
 	city.update_streaming(Vector2(Game.SPAWN.x, Game.SPAWN.z), true)
-	TestLib.check(low < 5000 and kw.triangles < 14000, "LOW %d / HIGH %d window triangles" % [low, kw.triangles])
+	TestLib.check(low < WINDOW_LOW and kw.triangles < WINDOW_HIGH, "LOW %d / HIGH %d window triangles" % [low, kw.triangles])
 	city.set_quality(1)
 	# the kit node is a plain MeshInstance3D without shadows and without mirror copy (no extra passes)
 	TestLib.check(kw.node.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "the street kit casts no shadow pass")
