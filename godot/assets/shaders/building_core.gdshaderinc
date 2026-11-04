@@ -17,6 +17,7 @@
 #include "res://assets/shaders/signage.gdshaderinc"
 
 global uniform float wetness;
+global uniform vec4 window_mood;                         // rgb tint of lit windows by hour, a = share still lit (LightingPolish)
 global uniform float night;                             // 0 day .. 1 night (DayNight)
 
 uniform sampler2D light_map : filter_linear, repeat_disable, hint_default_black;     // lamp + neon pools baked on the ground
@@ -320,12 +321,15 @@ void fragment() {
 		if (rt > 0.965) {            // a few windows switch on and off over time
 			lit = step(0.5, fract(TIME * (0.03 + 0.05 * hash12(cid + 5.0)) + rt * 10.0));
 		}
+		// small hours thin the lit windows out (nightlife districts stay up later)
+		float up_late = (pal > 1.5 && pal < 2.5) ? 0.5 : 0.0;
+		lit *= step(hash12(cid * 1.9 + vec2(fseed, 31.0)), clamp(window_mood.a + up_late, 0.0, 1.0));
 		float cr = hash12(cid * 0.77 + vec2(fseed, 3.1));
 		cr = mix(cr, hash12(vec2(fi, fseed) + 9.9), step(0.5, rf));   // half of the floors share one hue
 		if (hgrp > 0.74) {                                   // a mono-hue building: one lamp colour (never the rare pink / tv blue) with a little spread
 			cr = clamp(fract(hgrp * 31.0) * 0.9 + (cr - 0.5) * 0.06, 0.0, 0.93);
 		}
-		vec3 wc = lit_color(cr, pal);
+		vec3 wc = lit_color(cr, pal) * window_mood.rgb;
 		float wint = (0.75 + 0.95 * hash12(cid + fseed + 13.0)) * bmood * (0.8 + 0.4 * hash12(vec2(fi, fseed) + 2.2));
 		// television glow flickers
 		float is_tv = (wc.b > 0.9 && wc.r < 0.5) ? 1.0 : 0.0;

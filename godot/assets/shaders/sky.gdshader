@@ -17,6 +17,18 @@ uniform vec3 band_color : source_color = vec3(0.95, 0.30, 0.55);        // magen
 uniform vec3 ground_color : source_color = vec3(0.018, 0.024, 0.034);
 uniform float cloud_cover : hint_range(0.0, 1.0) = 0.78;
 uniform float star_amount : hint_range(0.0, 1.0) = 0.55;
+// time of day / weather / tier (driven by DayNight): day 0 night .. 1 noon, lod 0 LOW .. 1 full
+uniform float day : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 sun_dir = vec3(0.4, 0.3, -0.6);
+uniform vec3 sun_color : source_color = vec3(1.0, 0.9, 0.74);
+uniform float twilight_amount : hint_range(0.0, 1.0) = 0.0;
+uniform float overcast : hint_range(0.0, 1.0) = 0.0;
+uniform float aurora_amount : hint_range(0.0, 1.0) = 0.0;
+uniform float planet_amount : hint_range(0.0, 1.0) = 0.0;
+uniform float skyline_amount : hint_range(0.0, 1.0) = 0.0;
+uniform float lod : hint_range(0.0, 1.0) = 1.0;
+uniform vec3 aurora_a : source_color = vec3(0.20, 0.90, 0.85);
+uniform vec3 aurora_b : source_color = vec3(0.65, 0.30, 0.95);
 
 vec3 star_layer(vec3 d, float scale, float prob, float size, float t) {
 	vec3 p = d * scale;
@@ -65,15 +77,82 @@ void sky() {
 			cm = smoothstep(lo, lo + 0.34, cn) * smoothstep(0.0, 0.05, y);
 			thick = smoothstep(lo + 0.10, lo + 0.55, cn);
 			vec3 cc = vec3(0.010, 0.014, 0.022) * (0.6 + cn);
+			vec3 dcl = mix(vec3(0.95, 0.96, 0.98), vec3(0.50, 0.54, 0.60), thick * (0.35 + 0.5 * overcast));
+			float sk = max(dot(d, normalize(sun_dir)), 0.0);
+			dcl = mix(dcl, sun_color * 1.25, (0.25 * twilight_amount + 0.35 * pow(sk, 6.0)) * (1.0 - thick * 0.5));
 			cc += glow_color * 0.085 * exp(-y * 3.2) * (0.25 + 0.75 * thick);
 			cc += neon_glow * 0.025 * exp(-y * 4.0) * thick;
 			float mk = max(kd, 0.0);
 			cc += moon_color * (pow(mk, 10.0) * 0.20 + pow(mk, 60.0) * 0.6) * (1.0 - thick * 0.75);
+			cc = mix(cc, dcl, day);
 			col = mix(col, cc, cm * 0.93);
 		}
 		// the cloud deck dissolves into the ground haze at the horizon
 		col = mix(col, horizon_color * 0.95 + glow_color * 0.012, exp(-ay * 14.0) * 0.9);
 		float clear = 1.0 - cm * 0.95;
+		float nite = 1.0 - day;
+
+		// ---- sun: disc, glow and shafts through the cloud deck -----------------------------------------------------
+		if (day > 0.02) {
+			vec3 S = normalize(sun_dir);
+			float ks = max(dot(d, S), 0.0);
+			float sup = smoothstep(-0.05, 0.08, y);
+			col += sun_color * (pow(ks, 8.0) * 0.16 + pow(ks, 64.0) * 0.5 + smoothstep(0.9995, 0.9999, ks) * 6.0) * day * sup * (1.0 - overcast * 0.7);
+			if (lod > 0.5) {
+				// crepuscular shafts: radial streaks around the sun azimuth
+				float az = atan(d.x * S.z - d.z * S.x, d.x * S.x + d.z * S.z);
+				float sh = vnoise(vec2(az * 14.0, TIME * 0.02)) * pow(ks, 3.0);
+				col += sun_color * sh * 0.12 * day * sup * (0.4 + 0.6 * twilight_amount) * (1.0 - overcast * 0.8);
+			}
+		}
+
+		// ---- quantum ribbons (aurora-like), night only -------------------------------------------------------------
+		if (aurora_amount > 0.01 && y > 0.05) {
+			float ribbons = 0.0;
+			vec3 rc = vec3(0.0);
+			int nr = lod > 0.5 ? 2 : 1;
+			for (int i = 0; i < nr; i++) {
+				float fi = float(i);
+				float az2 = atan(d.x, d.z) + fi * 2.1;
+				float curve = 0.34 + 0.10 * fi + 0.07 * sin(az2 * 3.0 + TIME * 0.05 + fi * 2.0) + 0.04 * sin(az2 * 7.0 - TIME * 0.08);
+				float w = exp(-pow((y - curve) * (9.0 + 3.0 * fi), 2.0));
+				float curtain = lod > 0.5 ? 0.55 + 0.45 * vnoise(vec2(az2 * 9.0 + TIME * 0.06, y * 6.0)) : 0.8;
+				float r = w * curtain * (0.6 + 0.4 * sin(az2 * 2.0 + TIME * 0.1 + fi));
+				ribbons += r;
+				rc += mix(aurora_a, aurora_b, clamp(0.5 + 0.5 * sin(az2 + fi), 0.0, 1.0)) * r;
+			}
+			col += rc * 0.22 * aurora_amount * nite * (1.0 - cm * 0.8) * smoothstep(0.05, 0.2, y);
+		}
+
+		// ---- planet silhouette with a thin rim light ---------------------------------------------------------------
+		if (planet_amount > 0.01) {
+			vec3 P = normalize(vec3(0.62, 0.38, 0.55));
+			float kp = dot(d, P);
+			float pr = 0.11;
+			if (kp > cos(pr * 1.3)) {
+				vec3 up1 = vec3(0.0, 1.0, 0.0);
+				vec3 R1 = normalize(cross(up1, P));
+				vec3 U1 = cross(P, R1);
+				vec2 pp = vec2(dot(d, R1), dot(d, U1)) / sin(pr);
+				float prr = length(pp);
+				float disc = 1.0 - smoothstep(0.97, 1.0, prr);
+				float rim = smoothstep(0.80, 1.0, prr) * smoothstep(-0.2, 0.7, dot(normalize(pp + 0.001), vec2(-0.7, 0.7)));
+				vec3 pcol = vec3(0.004, 0.006, 0.012) + moon_color * 0.05 * rim + band_color * 0.03 * rim;
+				col = mix(col, pcol, disc * planet_amount * (1.0 - thick * 0.7) * nite);
+			}
+		}
+
+		// ---- distant skyline silhouette against the horizon haze ---------------------------------------------------
+		if (skyline_amount > 0.01 && y < 0.12) {
+			float azs = atan(d.x, d.z) * 38.0;
+			float cell = floor(azs);
+			float hgt = 0.012 + 0.05 * hash11(cell) * hash11(cell + 7.0) + 0.02 * step(0.85, hash11(cell + 3.0));
+			float inside = step(0.08, fract(azs)) * step(fract(azs), 0.94);
+			float sil = inside * (1.0 - smoothstep(hgt - 0.002, hgt, y)) * step(-0.01, y);
+			vec3 scol = mix(horizon_color * 0.55, horizon_color * 0.8, day) * (1.0 - 0.4 * (1.0 - day)) ;
+			float win = step(0.93, hash12(vec2(cell, floor(y * 260.0)))) * nite * step(0.3, fract(azs * 3.0));
+			col = mix(col, scol + vec3(0.9, 0.7, 0.4) * win * 0.05, sil * skyline_amount);
+		}
 
 		// ---- stars in the gaps -------------------------------------------------------------------------------------
 		vec3 st = star_layer(d, 80.0, 0.93, 0.15, TIME) + star_layer(d, 170.0, 0.95, 0.2, TIME + 3.0) * 0.6;

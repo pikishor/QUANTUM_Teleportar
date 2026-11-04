@@ -1,7 +1,7 @@
 extends RefCounted
 ## Visual QA bot: ~12 fixed spots, one PNG each plus numeric checks (tests/visual_qa_lib.gd). Use tools/visual_qa.sh.
 ##   VQA_OUT=<dir> (PNG folder)  VQA_SPOTS=a,b (subset)   prints VQA <spot> PASS|FAIL mean= contrast= black= [sep=] [why]
-const SPOTS: Array[StringName] = [&"street_nw", &"street_ne", &"street_sw", &"street_se", &"interior", &"car", &"chase", &"boss", &"title", &"hero", &"rain", &"storm"]
+const SPOTS: Array[StringName] = [&"street_nw", &"street_ne", &"street_sw", &"street_se", &"interior", &"car", &"chase", &"boss", &"title", &"hero", &"rain", &"storm", &"sky_dawn", &"sky_noon", &"sky_dusk", &"sky_night"]
 const SETTLE := 16
 var _i := 0
 var _wait := 0
@@ -135,6 +135,12 @@ func _begin() -> void:
 			var o := _p.global_position
 			_cine = Transform3D(Basis.IDENTITY, o + Vector3(1.6, 1.5, 1.4)).looking_at(o + Vector3(0, 1.2, 0), Vector3.UP)
 			_use_cine = true
+		&"sky_dawn", &"sky_noon", &"sky_dusk", &"sky_night":
+			_p.teleport_to(Game.SPAWN)
+			_p.camera_rig.reset_view(-PI * 0.5, 0.45)
+			var dn: DayNight = (Game.world as City).day_night
+			dn.frozen = true
+			dn.set_hour({&"sky_dawn": 6.0, &"sky_noon": 12.0, &"sky_dusk": 18.5, &"sky_night": 1.0}[spot])
 		&"rain", &"storm":
 			_p.teleport_to(Game.SPAWN)
 			_p.camera_rig.reset_view(-PI * 0.5, -0.1)

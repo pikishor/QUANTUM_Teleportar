@@ -24,6 +24,8 @@ var _acc := 99.0
 var _night_base := {}
 var _fog_night := Color.BLACK
 var _amb_night := 1.6
+var _glow_base := 1.0
+var mood := Color.WHITE                     ## last applied window mood (tint rgb, lit share a)
 var _density_applied := -1.0
 
 
@@ -56,6 +58,22 @@ static func light_dir(h: float) -> Vector3:
 	return Vector3(cos(a) * 0.8, maxf(sin(a), 0.0) * 0.95 + 0.12, -0.55).normalized()
 
 
+## Cloud overcast 0..1 per weather state (cloud deck density and sun dimming).
+const OVERCAST := {&"clear": 0.0, &"overcast": 0.8, &"drizzle": 0.85, &"rain": 0.95, &"storm": 1.0, &"fog": 0.7}
+
+
+## Sky look for an hour, weather state and tier: the values written to sky.gdshader (testable without a renderer).
+static func sky_look(h: float, weather: StringName, level: int) -> Dictionary:
+	var n := night_amount(h)
+	var oc: float = OVERCAST.get(weather, 0.0)
+	return {"day": 1.0 - n, "overcast": oc, "twilight_amount": twilight(h),
+		"aurora_amount": n * (1.0 - oc) * (0.0 if level == 0 else 1.0) if n > 0.6 else 0.0,
+		"planet_amount": smoothstep(0.7, 1.0, n) * (1.0 - oc * 0.8),
+		"skyline_amount": 1.0, "lod": 0.0 if level == 0 else 1.0,
+		"cloud_cover": clampf(lerpf(0.5, 0.78, n) + oc * 0.3, 0.0, 0.95),
+		"star_amount": 0.55 * smoothstep(0.55, 1.0, n) * (1.0 - oc * 0.85)}
+
+
 static func clock_text(h: float) -> String:
 	h = fposmod(h, 24.0)
 	return "%02d:%02d" % [int(h), int((h - floorf(h)) * 60.0)]
@@ -69,6 +87,7 @@ func setup(owner_env: RefCounted, level: int) -> void:
 	var e := env_owner.get("env") as Environment
 	_fog_night = e.fog_light_color
 	_amb_night = e.ambient_light_energy
+	_glow_base = e.glow_strength
 	_acc = 99.0
 	apply()
 
@@ -104,6 +123,9 @@ func apply() -> void:
 	var sun := env_owner.get("sun") as DirectionalLight3D
 	night = n
 	RenderingServer.global_shader_parameter_set(NIGHT_PARAM, n)
+	mood = LightingPolish.window_mood(hour)
+	RenderingServer.global_shader_parameter_set(LightingPolish.MOOD_PARAM, Vector4(mood.r, mood.g, mood.b, mood.a))
+	e.glow_strength = _glow_base * LightingPolish.glow_for(n, tier)
 	var d := light_dir(hour)
 	sun.transform = Transform3D(Basis.looking_at(-d, Vector3.UP), Vector3.ZERO)
 	var warm := SUN_COLOR.lerp(SKY_DUSK, tw)
@@ -112,14 +134,21 @@ func apply() -> void:
 	sky.set_shader_parameter(&"moon_dir", d)
 	sky.set_shader_parameter(&"moon_color", warm.lerp(_night_base["moon_color"], n))
 	sky.set_shader_parameter(&"moon_radius", lerpf(0.06, 0.045, n))
-	sky.set_shader_parameter(&"star_amount", float(_night_base["star_amount"]) * smoothstep(0.55, 1.0, n))
-	sky.set_shader_parameter(&"cloud_cover", lerpf(0.5, 0.78, n))
+	var look := sky_look(hour, Weather.current, tier)
+	for k in look:
+		sky.set_shader_parameter(StringName(k), look[k])
+	sky.set_shader_parameter(&"sun_dir", d)
+	sky.set_shader_parameter(&"sun_color", warm)
 	for pair in [["zenith_color", "zenith"], ["mid_color", "mid"], ["horizon_color", "horizon"]]:
 		var c: Color = (SKY_DAY[pair[1]] as Color).lerp(_night_base[pair[0]], n)
 		if pair[0] != "zenith_color":
 			c = c.lerp(SKY_DUSK, tw * 0.45 * (1.0 - absf(n - 0.5) * 0.6))
 		sky.set_shader_parameter(StringName(pair[0]), c)
-	e.fog_light_color = FOG_DAY.lerp(_fog_night, n).lerp(SKY_DUSK * 0.6, tw * 0.3)
+	var fogc := FOG_DAY.lerp(_fog_night, n).lerp(SKY_DUSK * 0.6, tw * 0.3)
+	var oc: float = look["overcast"]
+	var grey := fogc.get_luminance()
+	e.fog_light_color = fogc.lerp(Color(grey, grey, grey * 1.04), oc * 0.45)
+	e.fog_sky_affect = lerpf(0.2, 0.5, oc)
 	e.ambient_light_energy = lerpf(_amb_night * 0.85, _amb_night, n)
 	density = density_for(hour)
 	if ambient != null and absf(density - _density_applied) > 0.02 and ambient.has_method(&"set_density"):

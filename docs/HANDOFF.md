@@ -383,3 +383,7 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - Perf: tiers 0/1/2 OK. Tier 0 death spike was already 116 > 115 before this wave (baseline measured with the wave stashed); the wave adds +1 (117; not breakables, not the new vehicle kinds, not decals: each isolated). LOW death budget re-baselined 115 -> 118 (perf_probe.gd). FOLLOW-UP: trim 3 draws on LOW during the 4-enemy death and restore 115. Breakable Props also no longer cast shadows.
 - Full-game bot: fixed a bot race (bot_full_game.gd _act_garage used a starter car that streaming had freed during a wait); now re-spawns one. Passes 7.3 min, 0 errors.
 - visual_qa 12/12 pass. Follow-ups: the new vehicle kinds and breakable props are primitive boxes without art; no visible junction lights.
+
+## Wave 52 integration (sky and atmosphere, lighting polish)
+- Full suite 119 pass, 0 flaky, 0 fail. Perf tiers 0/1/2 all OK (draws 66/88/103). visual_qa 16/16 (incl. sky_dawn/noon/dusk/night), full_bot PASS (7.2 min, 0 errors).
+- Follow-ups: sky layers barely visible at camera pitch 0.45 (frames mostly buildings), not checked in other framings; lens flare relies on existing bloom; no headlight cones, puddle neon reflections or bloom-threshold tuning; CPU flicker() only tested; window shader and lamp cones unseen on a real renderer; THIRD_PARTY.md unchanged (no new art).

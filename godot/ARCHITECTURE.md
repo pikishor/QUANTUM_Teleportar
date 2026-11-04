@@ -507,3 +507,6 @@ Cinematics, character models and PBR surfaces compose without extra systems. `te
 
 ## Rooftop traversal (scripts/player/traversal.gd)
 `Player.traversal` (class Traversal): forward + jump next to an obstacle vaults (<= 1.25 m, far side clear) or mantles (<= 2.5 m); an airborne player pushing into a ledge grabs it; ladders are climb zones (`Traversal.zones`, filled by city_roofs.gd, one instanced `RoofLadders` family) ending in a mantle onto the roof. Scripted position moves in `_foot_tick`, `Game.state` play only; `teleport_to`/`reset` cancel it.
+
+### Sky layers (sky.gdshader, driven by DayNight.sky_look)
+Visible pass only (radiance stays cheap): sun disc, glow and shafts, day clouds lit by the sun, quantum ribbons (night, clear weather, not on LOW), planet silhouette, horizon skyline silhouette, stars. Uniforms `day`, `overcast`, `twilight_amount`, `aurora_amount`, `planet_amount`, `skyline_amount`, `lod` are set by `DayNight.apply` from the hour, `Weather.current` and the tier; fog colour greys with overcast. No extra draws.

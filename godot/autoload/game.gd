@@ -82,6 +82,7 @@ func _ready() -> void:
 	RenderingServer.global_shader_parameter_add(&"wetness", RenderingServer.GLOBAL_VAR_TYPE_FLOAT, 0.8)
 	RenderingServer.global_shader_parameter_add(&"rain", RenderingServer.GLOBAL_VAR_TYPE_FLOAT, 1.0)
 	RenderingServer.global_shader_parameter_add(&"night", RenderingServer.GLOBAL_VAR_TYPE_FLOAT, 1.0)      # 0 day .. 1 night, driven by DayNight (windows and lamp pools read it)
+	RenderingServer.global_shader_parameter_add(LightingPolish.MOOD_PARAM, RenderingServer.GLOBAL_VAR_TYPE_VEC4, Vector4(1, 1, 1, 1))     # lit-window tint + lit share by hour (DayNight)
 	for a in OS.get_cmdline_user_args():
 		if a in ["--autostart", "--shot", "--bot", "--shot-seq"] or a.begins_with("--shot=") or a.begins_with("--bot=") or a.begins_with("--shot-seq="):
 			autostart = true

@@ -76,6 +76,7 @@ var _building_mat: ShaderMaterial
 var _prop_mats: Array[ShaderMaterial] = []    ## the lit (non-mirror) prop materials: they carry the surface taps (SurfaceTextures)
 var _building_mirror_mat: ShaderMaterial
 var _shadow_casters: Array[GeometryInstance3D] = []
+var lamp_cones: MeshInstance3D          ## one merged additive mesh of street-lamp light cones (LightingPolish), MED and HIGH
 var _tiered: Array = []            ## [GeometryInstance3D, min quality] pairs: families that only exist from a given tier up
 var _kit_window := KitWindow.new() ## the street kit: one merged mesh of the props around the camera (city_kit_window.gd)
 var _landmarks := Landmarks.new()  ## the four district landmarks (city_landmarks.gd)
@@ -207,6 +208,8 @@ func set_quality(level: int) -> void:
 	if not is_inside_tree():
 		return
 	_env.apply_quality(quality, get_viewport())
+	if lamp_cones != null:
+		lamp_cones.visible = quality >= 1
 	if day_night != null:
 		day_night.set_tier(quality)
 	_stream.set_scale([0.65, 0.85, 1.0][quality])
@@ -332,6 +335,12 @@ func add_multimesh(node_name: String, mm: MultiMesh, material: Material, mirror_
 func _build_ground() -> void:
 	_ground.make_lot_map(layout)
 	_ground.begin_light_map()
+	var cone_heads: Array = []
+	for lamp in Props.lamp_list():
+		cone_heads.append(Vector3(lamp.x + lamp.z * 2.4, 7.0, lamp.y + lamp.w * 2.4))
+	lamp_cones = LightingPolish.make_cone_node(cone_heads)
+	lamp_cones.visible = quality >= 1
+	add_child(lamp_cones)
 	for lamp in Props.lamp_list():
 		# pool centre sits under the lamp head, a couple of metres out along the arm
 		var head := Vector2(lamp.x, lamp.y) + Vector2(lamp.z, lamp.w) * 2.4
