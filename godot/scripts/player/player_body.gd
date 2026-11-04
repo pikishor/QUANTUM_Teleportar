@@ -61,6 +61,10 @@ const DEAD_LIGHT := 0.5                ## the hero lighting (key and rim) of a d
 
 ## Tests flip this to exercise the primitive fallback.
 static var force_primitive := false
+## The superhero (HeroCharacter: Quaternius base character, male / female, skin, hair, beard from HeroLook) replaces the old skinned hero whenever its files are imported; tests flip this off.
+static var use_superhero := true
+const SUPERHERO_STEP := 1.15
+const SUPERHERO_TURN := 0.2
 
 static var _flash_star_tex: ImageTexture
 static var _flash_streak_tex: ImageTexture
@@ -75,6 +79,11 @@ var leg_r: Node3D
 var upper: Node3D
 var rig: CharacterRig
 var uses_model := false
+var hero_mat: ShaderMaterial                    ## the superhero's material (hero_body.gdshader); null with the old hero
+var hero_info := {}                             ## HeroCharacter.build info of the current model (tris, lods, ...)
+var _hero_opts := {}                            ## body / skin / hair / beard the current superhero was built with
+var _weapon_id: StringName = &""
+var _pending_look: HeroLook                  ## the look a rebuild is made for (so the new model gets it before Progress knows)
 
 var _phase := 0.0
 var _amp := 0.0
@@ -119,6 +128,7 @@ var _excite := 0.0                    ## 0..1: hit, aim or quantum-active moment
 var _excite_applied := -1.0
 var _key_energy := 1.0
 var _rim_energy := 1.0
+var _burst: CPUParticles3D                    ## quantum motes on a hit and on death (HeroPresentation)
 var _quality := 2
 var loco: Locomotion                      ## foot planting, pelvis, weight shifts, cloak springs (the model's gait; see locomotion.gd)
 var _last_pos := Vector3.ZERO
@@ -349,6 +359,7 @@ func _lowest_point() -> float:
 
 ## The rifle's weapon look: one emissive strip riding on the muzzle (the rifle bone), tinted and shaped per weapon (WeaponDefs look / look_size). One extra draw call, no new model.
 func set_weapon_look(id: StringName) -> void:
+	_weapon_id = id
 	if muzzle == null:
 		return
 	var d := WeaponDefs.def(id)
@@ -400,11 +411,21 @@ func flinch(strength := 1.0, from_pos := Vector3.ZERO) -> void:
 	_recoil_pitch = minf(_recoil_pitch + 0.1 * strength, 0.25)
 	_recoil_push = minf(_recoil_push + 0.06 * strength, 0.15)
 	_flinch = minf(_flinch + 0.55 * strength, 1.0)
+	_fire_burst(global_position + Vector3(0.0, 1.3, 0.0), int(HeroPresentation.HIT_MOTES * clampf(strength, 0.4, 1.5)))
+
+
+## The pooled quantum burst is created on the first hit (an idle emitter node costs draw calls in the tier-0 budget).
+func _fire_burst(at: Vector3, count: int) -> void:
+	if _burst == null or not is_instance_valid(_burst):
+		_burst = HeroPresentation.make_burst(self)
+	HeroPresentation.burst(_burst, at, count)
 
 
 func set_dead(is_dead: bool) -> void:
 	_dead_t = 0.0 if is_dead else -1.0
 	_rest_drop = 0.0
+	if is_dead:
+		_fire_burst(global_position + Vector3(0.0, 1.0, 0.0), HeroPresentation.DEATH_MOTES)
 	if not is_dead:
 		rotation = Vector3(0.0, rotation.y, 0.0)
 
@@ -441,7 +462,7 @@ func _build() -> void:
 	upper.name = "Upper"
 	upper.position = Vector3(0.0, HIP_Y, 0.0)
 	add_child(upper)
-	var model: Node3D = null if force_primitive else Game.load_model("player")
+	var model: Node3D = null if force_primitive else _make_model()
 	if model != null and CharacterRig.has_rig(model):
 		_adopt_model(model)
 	else:
@@ -461,11 +482,78 @@ func _build() -> void:
 	_reflection.track(reflected)
 
 
+## The hero model: the superhero when available, else the old skinned hero.
+func _make_model(look: HeroLook = null) -> Node3D:
+	hero_mat = null
+	hero_info = {}
+	if use_superhero:
+		_hero_opts = _look_opts(look if look != null else (Game.progress.get(&"hero") as HeroLook if Game.progress != null else null))
+		var r := HeroCharacter.build(_hero_opts)
+		if r["root"] != null:
+			if bool(r["ok"]):
+				hero_mat = r["material"]
+				hero_info = r["info"]
+				return r["root"]
+			(r["root"] as Node).free()
+	return Game.load_model("player")
+
+
+static func _look_opts(look: HeroLook) -> Dictionary:
+	if look == null:
+		return HeroCharacter.sanitize({})
+	return HeroCharacter.sanitize({"body": look.body, "skin": look.skin_tone, "hair": look.hair, "beard": look.beard})
+
+
+## A changed body, skin, hair or beard replaces the model in place (the same sequence as _build, without the lights and the reflection).
+func _rebuild_model(look: HeroLook = null) -> void:
+	var old := upper
+	for pv: Node3D in [leg_l, leg_r]:
+		remove_child_safe(pv)
+	leg_l = null
+	leg_r = null
+	_lights.clear()
+	_flash_root = null
+	_wp_mi = null
+	rig = null
+	loco = null
+	if old != null and is_instance_valid(old):
+		remove_child(old)
+		old.free()
+	upper = Node3D.new()
+	upper.name = "Upper"
+	upper.position = Vector3(0.0, HIP_Y, 0.0)
+	add_child(upper)
+	uses_model = false
+	_pending_look = look
+	var model: Node3D = _make_model(look)
+	if model != null and CharacterRig.has_rig(model):
+		_adopt_model(model)
+	else:
+		if model != null:
+			model.free()
+		_build_primitive()
+	_collect_hulls()
+	_build_flash()
+	_set_layer(self, 1 << (CHARACTER_LAYER - 1))
+	if rig != null:
+		var reflected: Array[MeshInstance3D] = []
+		_reflection.track(reflected)
+	if _weapon_id != &"":
+		set_weapon_look(_weapon_id)
+	_pending_look = null
+	_have_last = false
+	_excite_applied = -1.0
+	set_fade(fade)
+
+
 func _adopt_model(model: Node3D) -> void:
 	uses_model = true
 	rig = CharacterRig.find(model)
 	if rig != null:
 		loco = Locomotion.new(rig)
+		if hero_mat != null:
+			loco.turn_scale = SUPERHERO_TURN
+			loco.scale_amp = SUPERHERO_STEP      # longer, human legs: longer strides and a longer leash than the short digitigrade legs of the old hero
 	model.name = "Model"
 	remove_child_safe(upper)
 	upper = model
@@ -496,6 +584,12 @@ func _adopt_model(model: Node3D) -> void:
 		else:
 			leg_r = pivot
 	_prepare_materials(model, true)
+	if hero_mat != null:
+		_apply_hero_look(_pending_look if _pending_look != null else (Game.progress.get(&"hero") as HeroLook if Game.progress != null else null))
+	HeroPresentation.set_height(HeroPresentation.measure_height(model))
+	if rig != null:
+		HeroPresentation.hand_mount(rig.skeleton, &"r")
+		HeroPresentation.hand_mount(rig.skeleton, &"l")
 
 
 func remove_child_safe(n: Node) -> void:
@@ -578,6 +672,10 @@ func _prepare_materials(root: Node, lift_fabric: bool) -> void:
 
 ## G2: the hero look as material parameters only (albedo tint, metallic, roughness, emission, trim accent) on the existing override materials. Safe before the model exists.
 func apply_look(look: HeroLook) -> void:
+	if look != null and use_superhero and not force_primitive and (hero_mat != null or HeroCharacter.available(look.body)) and _look_opts(look) != _hero_opts and is_inside_tree():
+		_rebuild_model(look)
+	if hero_mat != null:
+		_apply_hero_look(look)
 	if look == null or _look_gear0.size() != _gear_mats.size():
 		return
 	var sd := look.suit_def()
@@ -598,6 +696,23 @@ func apply_look(look: HeroLook) -> void:
 	for i in _fabric_mats.size():
 		var fm := _fabric_mats[i]
 		fm.albedo_color = Color(_look_fab0[i].r * lerpf(1.0, mult.r, 0.5), _look_fab0[i].g * lerpf(1.0, mult.g, 0.5), _look_fab0[i].b * lerpf(1.0, mult.b, 0.5), 1.0)
+
+
+## The look on the superhero's material: suit finish (albedo multiplier, metal, rough, glow) and the scheme's accent for the seams. Parameters only.
+func _apply_hero_look(look: HeroLook) -> void:
+	if hero_mat == null or look == null:
+		return
+	var sd := look.suit_def()
+	var mult := (sd["albedo"] as Color) * look.tint()
+	var neutral := look.suit == &"standard" and look.scheme == 0 and look.accent_hue < 0
+	_look_accent = look.accent()
+	_look_mix = 0.0 if neutral else HeroLook.ACCENT_MIX
+	hero_mat.set_shader_parameter(&"look_tint", Color(mult.r, mult.g, mult.b))
+	hero_mat.set_shader_parameter(&"suit_metal", clampf(0.3 + float(sd["metal"]), 0.0, 1.0))
+	hero_mat.set_shader_parameter(&"suit_rough", clampf(0.5 + float(sd["rough"]), 0.05, 1.0))
+	hero_mat.set_shader_parameter(&"glow", float(sd["glow"]) * (LOW_GLOW if _quality == 0 else 1.0))
+	hero_mat.set_shader_parameter(&"accent", _look_accent)
+	hero_mat.set_shader_parameter(&"accent_mix", _look_mix)
 
 
 ## Thin-film sheen of the trim: the hue drifts with time and view-independent phase; `charge` (QUANTUM TELEPORT aim) pushes it toward violet-magenta and brighter,
@@ -625,6 +740,11 @@ func _update_quantum_look(q: Variant, dt: float) -> void:
 	_ready_k = PlayerUtil.damp(_ready_k, 1.0 - cd, 8.0, dt)
 	_clock_look += dt
 	var tint := trim_tint(_clock_look, _charge, _ready_k).lerp(_look_accent, _look_mix)
+	if hero_mat != null:
+		hero_mat.set_shader_parameter(&"trim_color", tint)
+		hero_mat.set_shader_parameter(&"charge", _charge)
+		hero_mat.set_shader_parameter(&"ready_k", _ready_k)
+		hero_mat.set_shader_parameter(&"excite", _excite)
 	var k := 0.35 if _is_compat() else 1.0
 	for i in _gear_mats.size():
 		_gear_mats[i].emission = _gear_emis[i].lerp(tint, 0.5 * (0.4 + 0.6 * _charge)) * (1.0 + 0.0 * k) if _gear_mats[i].emission_texture == null else tint * 0.9 * k
@@ -827,6 +947,8 @@ func _build_character_lights() -> void:
 func set_quality(level: int) -> void:
 	_quality = level
 	_apply_lights()
+	if hero_mat != null:
+		hero_mat.set_shader_parameter(&"brightness", 0.9 if level == 0 else 1.0)
 	# LOW (phones with bright panels, no rim light, no post grade): darker armour and a calmer emission, so the hero reads as dark plates with cyan accents, never a pale glow
 	for i in _gear_mats.size():
 		_gear_mats[i].albedo_color = _gear_base[i] * (LOW_ALBEDO if level == 0 else Color.WHITE)
@@ -957,3 +1079,8 @@ static func _paint_flash_textures() -> void:
 			var a := pow(t, 1.6) * exp(-s * s * 5.0)
 			img2.set_pixel(x, y, Color(1.0, 0.9, 0.7, clampf(a, 0.0, 1.0)))
 	_flash_streak_tex = ImageTexture.create_from_image(img2)
+
+
+## True when no mirror copy of an unskinned (rest pose) mesh is tracked for a skinned hero.
+func reflection_free() -> bool:
+	return rig == null or _reflection == null or _reflection.get_child_count() == 0

@@ -309,6 +309,12 @@ static func load_file(path: String, role: String) -> Dictionary:
 
 ## The model for a role: the imported one when its folder holds a usable rigged file, else the procedural model (Game.load_model), else null.
 static func instantiate(role: String) -> Node3D:
+	if role == "hero" and HeroCharacter.available():            # the superhero kit (hero_character.gd) has its own builder: merged mesh, rig contract, quantum material
+		var hr := HeroCharacter.build({})
+		if hr["root"] != null and bool(hr["ok"]):
+			return hr["root"]
+		if hr["root"] != null:
+			(hr["root"] as Node).free()
 	var src := find_source(role)
 	if src != "":
 		var r := load_file(src, role)

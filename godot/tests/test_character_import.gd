@@ -137,8 +137,8 @@ func run(host: Node) -> void:
 	TestLib.check(int(small["tris"]) == 200 and not bool(small["over"]), "mesh under budget is kept")
 
 	# --- fallback and unusable sources
-	TestLib.check(CharacterImport.find_source("hero") == "", "nothing dropped: no source")
-	var fb := CharacterImport.instantiate("hero")
+	TestLib.check(CharacterImport.find_source("hero_none") == "", "nothing dropped: no source")
+	var fb := CharacterImport.instantiate("hero_none")
 	TestLib.check(fb != null and CharacterRig.has_rig(fb), "empty folder falls back to the procedural hero")
 	if fb:
 		fb.free()

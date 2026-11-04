@@ -26,6 +26,7 @@ const REACH_LEASH := 0.42            ## a planted foot farther than this from it
 
 var rig: CharacterRig
 var scale_amp := 1.0                 ## 1 hero, a little less for the shorter trooper
+var turn_scale := 0.0                ## > 0: replaces scale_amp in the stepping rate of a turn on the spot (the superhero: long legs, short turn steps)
 
 # --- public outputs besides the rig fields
 var speed := 0.0                     ## smoothed ground speed (m/s)
@@ -205,7 +206,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 		if moving:
 			advance = dist / cyc
 		elif turning:
-			advance = absf(dyaw) * 0.3 / (1.1 * scale_amp)
+			advance = absf(dyaw) * 0.3 / (1.1 * (turn_scale if turn_scale > 0.0 else scale_amp))
 		else:
 			var misplaced := false
 			for k in FEET:

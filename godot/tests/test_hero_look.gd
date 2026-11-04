@@ -13,7 +13,7 @@ func run(host: Node) -> void:
 	TestLib.check(spent.get_luminance() < rest.get_luminance() * 0.7, "cooldown dims the seams")
 	var body := PlayerBody.new()
 	host.add_child(body)
-	TestLib.check(body._gear_mats.size() > 0 and body._gear_mats.size() == body._gear_emis.size(), "armour materials are tracked with their base emission")
+	TestLib.check(body.hero_mat != null or (body._gear_mats.size() > 0 and body._gear_mats.size() == body._gear_emis.size()), "armour materials (the old hero) or the superhero material are tracked")
 	TestLib.check(body._fabric_mats.size() >= 0, "fabric materials tracked (the articulated model may carry only Gear)")
 	if body._fabric_mats.size() > 0:
 		TestLib.check(body._fabric_mats[0].rim_enabled and body._fabric_mats[0].rim >= 0.1, "fabric rim is on")

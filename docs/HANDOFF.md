@@ -399,3 +399,9 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - full_bot: first run SOAK FAIL (nodes 1877 vs limit 1872, a marginal leak check), second run PASS. Treat the soak node-growth check as FLAKY; watch it.
 - visual_qa 8/8 pass; latest.png looks fine (no new defects seen).
 - Follow-ups: HeroPower wall-run/glide may overlap HeroVerbs; no rig animation or sounds for slam/throw; no HUD for hop count; GRAB/slam labels untranslated; GRAB button position overlaps contextual buttons (TAKEDOWN/RADIO) only when those show.
+
+## Wave 55: superhero character integration (integrator note)
+- Full suite 125/125 (test_ambient flaked once, passed on retry). Perf tiers 0/1/2 all OK (65/89/103 draws on screen). full_bot PASS (7.3 min). visual_qa: all pass after the fix below.
+- Fixed at integration: HeroPresentation.camera_scale ignored its height (always 1.0; test caught it). The idle QuantumBurst emitter cost +7 draws in tier 0 (106 > 100), so it is now created on the first hit/death (test updated to match, meaning kept). Visual QA "hero blends in" (near-black suit): suit_color lightened and rim emission raised in hero_body.gdshader.
+- Relaxed superhero assertions (old hero unchanged): idle thigh angle < 0.08 rad, corpse left-leg height < 0.65 m (longer legs).
+- Follow-ups: carbine is simple box geometry; fingers are static curls; corpse pose untuned for long legs; weapon models not yet parented to the hand BoneAttachment mounts; camera scale deadband means the 1.8 m-class hero keeps the old camera (re-check if height measured differs); the first burst creates a node (one-time hitch).

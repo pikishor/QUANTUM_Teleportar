@@ -34,6 +34,11 @@ var suit: StringName = &"standard"
 var scheme := 0
 var accent_hue := -1                      ## -1 = the scheme's own accent, 0..HUES-1 = the picker's custom accent
 var owned: Array[String] = []            ## bought items (keys above)
+## The superhero's person (HeroCharacter): body (male / female), skin tone (dark / light), hair style and beard. Free choices, saved with the look.
+var body: StringName = &"male"
+var skin_tone: StringName = &"dark"
+var hair: StringName = &"parted"
+var beard := false
 
 
 static func scheme_count() -> int:
@@ -102,6 +107,33 @@ func equip_scheme(i: int, cosmetics: Array) -> bool:
 	return true
 
 
+## Person options: "body", "skin", "hair" (HeroCharacter.HAIRS) or "beard" (value ignored, toggled). False for an unknown value.
+func set_person(what: String, value: Variant = null) -> bool:
+	match what:
+		"body":
+			if not (StringName(str(value)) in HeroCharacter.BODIES):
+				return false
+			body = StringName(str(value))
+			if body == &"female":
+				beard = false
+		"skin":
+			if not (StringName(str(value)) in HeroCharacter.SKINS):
+				return false
+			skin_tone = StringName(str(value))
+		"hair":
+			if not (StringName(str(value)) in HeroCharacter.HAIRS):
+				return false
+			hair = StringName(str(value))
+		"beard":
+			if body == &"female":
+				return false
+			beard = not beard
+		_:
+			return false
+	changed.emit()
+	return true
+
+
 func set_accent(h: int) -> bool:
 	if h < -1 or h >= HUES or (h >= 0 and not owned.has("accent")):
 		return false
@@ -127,11 +159,15 @@ func reset() -> void:
 	scheme = 0
 	accent_hue = -1
 	owned.clear()
+	body = &"male"
+	skin_tone = &"dark"
+	hair = &"parted"
+	beard = false
 	changed.emit()
 
 
 func to_save() -> Dictionary:
-	return {"suit": String(suit), "scheme": scheme, "accent": accent_hue, "owned": PackedStringArray(owned)}
+	return {"suit": String(suit), "scheme": scheme, "accent": accent_hue, "owned": PackedStringArray(owned), "body": String(body), "skin": String(skin_tone), "hair": String(hair), "beard": beard}
 
 
 ## Damaged or unknown values fall back to the default look; an equipped item must be unlocked, otherwise it is reset (`cosmetics` as in is_unlocked).
@@ -148,4 +184,9 @@ func from_save(d: Dictionary, cosmetics: Array = []) -> void:
 	scheme = int(sc) if sc is int and int(sc) >= 0 and int(sc) < SCHEMES.size() and is_unlocked("scheme:%d" % int(sc), cosmetics) else 0
 	var a: Variant = d.get("accent", -1)
 	accent_hue = int(a) if a is int and int(a) >= 0 and int(a) < HUES and owned.has("accent") else -1
+	var person := HeroCharacter.sanitize({"body": d.get("body", "male"), "skin": d.get("skin", "dark"), "hair": d.get("hair", "parted"), "beard": d.get("beard", false)})
+	body = person["body"]
+	skin_tone = person["skin"]
+	hair = person["hair"]
+	beard = bool(person["beard"]) and body == &"male"
 	changed.emit()

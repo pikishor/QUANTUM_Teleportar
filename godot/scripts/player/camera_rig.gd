@@ -501,13 +501,14 @@ func _update_fade(cam_dist: float, driving: bool) -> void:
 ## The camera position the current look angles give without any collision, used by aim_at().
 func _camera_rest_position() -> Vector3:
 	var ads_s := clampf(_ads.x, 0.0, 1.0)
-	var dist := lerpf(HIP_DIST, ADS_DIST, ads_s)
-	var shoulder := lerpf(HIP_SHOULDER, ADS_SHOULDER, ads_s)
+	var hs := HeroPresentation.camera_scale()
+	var dist := lerpf(HIP_DIST, ADS_DIST, ads_s) * float(hs["dist"])
+	var shoulder := lerpf(HIP_SHOULDER, ADS_SHOULDER, ads_s) * float(hs["shoulder"])
 	var base := _pos_cur
 	if is_instance_valid(_follow) and _follow.is_inside_tree():
 		base = _follow.global_position
 	var b := Basis.from_euler(Vector3(pitch + recoil_pitch, yaw + recoil_yaw, 0.0), EULER_ORDER_YXZ)
-	return base + Vector3(0.0, EYE_HEIGHT, 0.0) + b * Vector3(shoulder, 0.0, dist)
+	return base + Vector3(0.0, EYE_HEIGHT * float(hs["eye"]), 0.0) + b * Vector3(shoulder, 0.0, dist)
 
 
 ## The camera must never keep chasing something that is gone: a vehicle that was freed, deactivated, hidden or exploded, or that the player no longer sits in.
@@ -577,14 +578,15 @@ func _update_view(dt: float) -> void:
 			recoil_yaw = 0.0
 
 	# --- distance, shoulder, height and FOV for the current situation
-	var foot_dist := lerpf(HIP_DIST, ADS_DIST, ads_s) * (INTERIOR_ARM_SCALE if InteriorSpace.active else 1.0)      # a shorter arm in the tight rooms of a generated interior
-	var foot_shoulder := lerpf(HIP_SHOULDER, ADS_SHOULDER, ads_s)
+	var hs := HeroPresentation.camera_scale()
+	var foot_dist := lerpf(HIP_DIST, ADS_DIST, ads_s) * float(hs["dist"]) * (INTERIOR_ARM_SCALE if InteriorSpace.active else 1.0)      # a shorter arm in the tight rooms of a generated interior
+	var foot_shoulder := lerpf(HIP_SHOULDER, ADS_SHOULDER, ads_s) * float(hs["shoulder"])
 	var foot_fov := lerpf(lerpf(FOV_HIP, FOV_HIP + (FOV_SPRINT - FOV_HIP) * HeroPower.f("sprint"), _sprint), ads_fov, ads_s)
 	var veh_dist := VEH_DIST + clampf(absf(veh_speed) * 0.04, 0.0, 1.2)
 	var veh_fov := VEH_FOV + minf(18.0, absf(veh_speed) * 0.5)
 	var dist := lerpf(foot_dist, veh_dist, _mode_mix)
 	var shoulder := lerpf(foot_shoulder, 0.0, _mode_mix)
-	var height := lerpf(EYE_HEIGHT, VEH_HEIGHT, _mode_mix)
+	var height := lerpf(EYE_HEIGHT * float(hs["eye"]), VEH_HEIGHT, _mode_mix)
 	var fov_target := lerpf(foot_fov, veh_fov, _mode_mix)
 	if _orbit_w > 0.001:
 		dist = lerpf(dist, ORBIT_DIST, _orbit_w)

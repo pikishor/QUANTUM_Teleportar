@@ -10,11 +10,13 @@ const MODELS: Array[String] = ["player", "operative", "drone_heavy", "drone_sent
 const MIN_SIDE := 1024
 
 static var halved_count := 0
+static var low_active := false                  ## set by halve_models() (the LOW tier): HeroCharacter halves its own textures through halve_texture()
 static var saved_bytes := 0
 
 
 ## Halve every large model texture. Returns the number of textures replaced.
 static func halve_models() -> int:
+	low_active = true
 	if DisplayServer.get_name() == "headless":
 		return 0
 	var done := {}
@@ -48,6 +50,11 @@ static func halve_models() -> int:
 		inst.free()
 	halved_count += n
 	return n
+
+
+## Public wrapper: the half-size copy of a large texture (the texture itself when its data cannot be read, e.g. headless).
+static func halve_texture(tex: Texture2D) -> Texture2D:
+	return _halved(tex)
 
 
 static func _halved(tex: Texture2D) -> Texture2D:

@@ -341,6 +341,8 @@ func _press_look(sid: String) -> bool:
 		key = "scheme:%d" % i
 		ok = prog.hero.is_unlocked(key, cos) or prog.buy_look(key)
 		ok = ok and prog.hero.equip_scheme(i, cos)
+	elif sid.begins_with("look_person_"):
+		ok = LookScreen.press_person(prog.hero, sid.substr(12))
 	elif sid == "look_hue_buy":
 		ok = prog.buy_look("accent")
 	elif sid.begins_with("look_hue_"):

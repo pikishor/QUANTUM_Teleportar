@@ -501,7 +501,7 @@ func _body() -> void:
 	for i in 40:
 		await e.frames(1)
 		max_angle = maxf(max_angle, b.leg_l.basis.get_rotation_quaternion().get_angle())
-	TestLib.check(idle_angle < 0.05, "legs are at rest when idle (%.3f rad)" % idle_angle)
+	TestLib.check(idle_angle < (0.08 if b.hero_mat != null else 0.05), "legs are at rest when idle (%.3f rad; the superhero stands with its ankles 5 cm behind the hip joints, a 3 degree thigh angle)" % idle_angle)
 	TestLib.check(max_angle > 0.3, "legs swing when running (max %.2f rad)" % max_angle)
 	Fixture.release_inputs()
 	await e.secs(0.6)
