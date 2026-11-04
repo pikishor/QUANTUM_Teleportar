@@ -111,7 +111,7 @@ func apply_quality(level: int, vp: Viewport) -> void:
 	sky.radiance_size = Sky.RADIANCE_SIZE_32 if level == 0 else Sky.RADIANCE_SIZE_64
 	if vp != null:
 		vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][level]
-		vp.scaling_3d_scale = 0.7 if level == 0 else 1.0
+		RenderRes.apply(vp, level)
 	env.glow_intensity = [0.8, 0.9, 1.0][level] + (COMPAT_GLOW_ADD if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0)
 	# LOW: a short bloom (four levels, no wide halo) and smaller shadow atlases (nothing casts positional shadows there, the sun has none): fewer passes and less texture memory
 	var glow_levels := [0.5, 0.75, 0.7, 0.35, 0.0, 0.0, 0.0] if level == 0 else [0.35, 0.55, 0.8, 0.65, 0.4, 0.2, 0.0]

@@ -405,3 +405,11 @@ Full suite: 95 pass, 2 flaky (passed on retry; names not captured in the truncat
 - Fixed at integration: HeroPresentation.camera_scale ignored its height (always 1.0; test caught it). The idle QuantumBurst emitter cost +7 draws in tier 0 (106 > 100), so it is now created on the first hit/death (test updated to match, meaning kept). Visual QA "hero blends in" (near-black suit): suit_color lightened and rim emission raised in hero_body.gdshader.
 - Relaxed superhero assertions (old hero unchanged): idle thigh angle < 0.08 rad, corpse left-leg height < 0.65 m (longer legs).
 - Follow-ups: carbine is simple box geometry; fingers are static curls; corpse pose untuned for long legs; weapon models not yet parented to the hand BoneAttachment mounts; camera scale deadband means the 1.8 m-class hero keeps the old camera (re-check if height measured differs); the first burst creates a node (one-time hitch).
+
+## Wave 56: render resolution option
+
+Shipped: a RENDER RESOLUTION option (Balanced / High / Native) in the options screen (scripts/common/render_res.gd, saved in UiSettings). It drives the 3D render scale (FSR upscaling for the sub-native steps), with per-tier defaults, shown in the perf overlay/report. The AutoQuality governor interacts with it: a sustained low frame rate drops the tier, which re-applies that tier's default scale unless the player chose one explicitly. Tests: tests/test_render_resolution.gd plus updates to test_integration and test_stability. Perf gate OK on all tiers (tex 178 / 237 / 350 MB death_worst for LOW / MED / HIGH); render scale does not change draws, triangles or texture memory.
+
+Reverted (not shipped): the HIGH-tier 2K ORM/emission texture restore and the audio rate changes. They pushed texture memory over the gate on every tier (LOW 218/200 MB, MED 285/260, HIGH 366/360). Follow-up: redo it as load-time per-tier loading so only HIGH pays for the 2K maps.
+
+Noted in visual QA (not caused by this wave): translucent white rectangles in the storm and sky_dusk shots; DEMO/TEST tags overlap the title screen corners.

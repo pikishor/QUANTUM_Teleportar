@@ -405,6 +405,7 @@ func _auto_quality() -> void:
 	aq.lowered.connect(func(l: int) -> void: lowered.append(l))
 	aq._warm = 0.0
 	aq._since_drop = 99.0
+	RenderRes.user_mode = 0             # already at BALANCED: the governor has no resolution step left, it drops the tier (test_render_resolution covers the step)
 	var dropped := false
 	for i in 7:                               # 3.5 s of slow frames: not yet
 		dropped = aq.tick(20.0, 0.5) or dropped
@@ -445,6 +446,8 @@ func _auto_quality() -> void:
 	Game.force_touch = was_touch
 	Game.quality = 1
 	aq.queue_free()
+	RenderRes.user_mode = -1
+	RenderRes.gov_mode = -1
 
 
 func _error_log() -> void:

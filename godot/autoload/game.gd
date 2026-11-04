@@ -99,6 +99,8 @@ func is_playing() -> bool:
 ## The one switch for everything that scales with the graphics tier: the world (shadows, reflections, render scale, MSAA) and the
 ## atmosphere (rain density, post effects). Safe to call at any time, with or without those modules present.
 func set_quality(level: int) -> void:
+	if clampi(level, 0, 2) != quality:
+		RenderRes.on_tier_changed()          # a governor resolution step belongs to the tier it lowered
 	quality = clampi(level, 0, 2)
 	if is_instance_valid(world) and world.has_method(&"set_quality"):
 		world.call(&"set_quality", quality)

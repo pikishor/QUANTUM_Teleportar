@@ -30,7 +30,7 @@ const TOGGLE_NAMES := {
 	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION",
 }
 ## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
-const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff"]
+const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res"]
 const PAGE_CELL := 13
 const SUB_BG_NAMES: Array[String] = ["SOFT", "", "SOLID"]
 const CB_NAMES: Array[String] = ["DEUTAN", "TRITAN"]
@@ -46,7 +46,7 @@ static func is_slider(id: StringName) -> bool:
 
 
 static func is_option(id: StringName) -> bool:
-	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_tier" or id == &"opt_page" or PAGE2.has(id)
+	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_tier" or id == &"opt_res" or id == &"opt_page" or PAGE2.has(id)
 
 
 static func fraction(st: UiSettings, id: StringName) -> float:
@@ -75,6 +75,8 @@ static func label(st: UiSettings, id: StringName) -> String:
 		return Tr.t("FPS CAP") + "  " + (Tr.t("OFF") if st.fps_cap == 0 else str(st.fps_cap))
 	if id == &"opt_tier":
 		return Tr.t("GRAPHICS") + "  " + Tr.t(Hud.TIER_NAMES[clampi(Game.quality, 0, 2)])
+	if id == &"opt_res":
+		return Tr.t("RESOLUTION") + "  " + Tr.t(RenderRes.mode_name(RenderRes.mode()))
 	if id == &"opt_page":
 		return Tr.t("MORE") + "  " + str(UiSettings.s_opt_page + 1) + "/2"
 	if id == &"opt_lang":
@@ -137,6 +139,10 @@ static func press(st: UiSettings, id: StringName) -> bool:
 		return true
 	if id == &"opt_fps":
 		st.fps_cap = st.next_fps_cap()
+		return true
+	if id == &"opt_res":
+		st.res_mode = RenderRes.next_mode()
+		RenderRes.set_user(st.res_mode)
 		return true
 	if id == &"opt_tier":
 		st.quality = (clampi(Game.quality, 0, 2) + 1) % 3

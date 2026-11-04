@@ -368,7 +368,7 @@ func _quality_tiers() -> void:
 		await frames(2)
 		var ok: bool = city.quality == level and Game.atmosphere.quality == level and Game.quality == level
 		TestLib.check(ok, "Game.set_quality(%d) reaches the world (%d) and the atmosphere (%d)" % [level, city.quality, Game.atmosphere.quality])
-		TestLib.check(is_equal_approx(vp.scaling_3d_scale, 0.7 if level == 0 else 1.0), "tier %d: the world sets the render scale (%.2f)" % [level, vp.scaling_3d_scale])
+		TestLib.check(is_equal_approx(vp.scaling_3d_scale, RenderRes.scale(level)), "tier %d: the world sets the render scale (%.2f)" % [level, vp.scaling_3d_scale])
 		TestLib.check(city.sun.shadow_enabled == (level >= 1), "tier %d: moon shadows %s" % [level, "on" if level >= 1 else "off"])
 		TestLib.check(Game.atmosphere.particle_count() <= Atmosphere.particle_budget(level), "tier %d: rain stays within its budget (%d <= %d)" % [level, Game.atmosphere.particle_count(), Atmosphere.particle_budget(level)])
 	Game.quality_changed.disconnect(listener)

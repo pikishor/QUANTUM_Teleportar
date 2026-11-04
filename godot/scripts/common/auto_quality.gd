@@ -18,6 +18,7 @@ const NOTICE_TIME := 4.0
 
 var enabled := true
 var drops := 0
+var res_steps := 0                   ## resolution steps taken before a tier drop
 var notice_left := 0.0
 
 var _win_t := 0.0
@@ -100,6 +101,11 @@ func tick(avg_fps: float, dt: float) -> bool:
 		return false
 	_low_t = 0.0
 	_since_drop = 0.0
+	if RenderRes.governor_lower():                          # a smaller 3D render scale first: cheaper than losing shadows and MSAA
+		res_steps += 1
+		_warm = WARMUP
+		_show_notice("RESOLUTION LOWERED TO %s FOR SMOOTHER PLAY" % RenderRes.mode_name(RenderRes.mode()))
+		return false
 	drops += 1
 	var level := Game.quality - 1
 	Game.set_quality(level)

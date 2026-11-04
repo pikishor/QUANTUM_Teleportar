@@ -83,8 +83,8 @@ func worst_ms() -> float:
 
 func summary() -> String:
 	var s := PerfProbe.snapshot(get_viewport())
-	return "t=%d fps=%d p50=%.1f p95=%.1f p99=%.1f worst=%.1fms draws=%d tris=%dk nodes=%d mem=%dMB tier=%s" % [Time.get_ticks_msec() / 1000, roundi(Engine.get_frames_per_second()),
-		percentile(50), percentile(95), percentile(99), worst_ms(), s["total_draws"], int(s["total_prims"]) / 1000, s["nodes"], mem_mb(), tier_name()]
+	return "t=%d fps=%d p50=%.1f p95=%.1f p99=%.1f worst=%.1fms draws=%d tris=%dk nodes=%d mem=%dMB tier=%s res=%.2f" % [Time.get_ticks_msec() / 1000, roundi(Engine.get_frames_per_second()),
+		percentile(50), percentile(95), percentile(99), worst_ms(), s["total_draws"], int(s["total_prims"]) / 1000, s["nodes"], mem_mb(), tier_name(), get_viewport().scaling_3d_scale]
 
 
 func tier_name() -> String:
@@ -107,6 +107,7 @@ func report() -> String:
 	out.append("Device: %s | OS %s %s" % [OS.get_model_name(), OS.get_name(), OS.get_version()])
 	out.append("GPU: %s (%s) | renderer %s / %s" % [RenderingServer.get_video_adapter_name(), RenderingServer.get_video_adapter_vendor(),
 		RenderingServer.get_current_rendering_method(), RenderingServer.get_current_rendering_driver_name()])
+	out.append("Render %s scale %.2f (%s, %s) of window %s" % [str(Vector2i(get_viewport().get_visible_rect().size * get_viewport().scaling_3d_scale)), get_viewport().scaling_3d_scale, RenderRes.mode_name(RenderRes.mode()), "FSR" if get_viewport().scaling_3d_mode == Viewport.SCALING_3D_MODE_FSR else "bilinear/native", str(Vector2i(get_viewport().get_visible_rect().size))])
 	out.append("Viewport %s | tier %s | quality drops by governor %d" % [str(Vector2i(get_viewport().get_visible_rect().size)), tier_name(), governor_events])
 	out.append("Frame ms (last %d): p50 %.1f  p95 %.1f  p99 %.1f  worst %.1f | FPS now %d" % [count(), percentile(50), percentile(95), percentile(99), worst_ms(), roundi(Engine.get_frames_per_second())])
 	out.append("Draws %d  Tris %dk  Nodes %d  Objects %d" % [s["total_draws"], int(s["total_prims"]) / 1000, s["nodes"], s["objects"]])
