@@ -98,6 +98,10 @@ var ads := 0.0
 var head_look := Vector2.ZERO
 var flinch_dir := Vector2.ZERO
 var death_kind := 0
+var hand_w := Vector2.ZERO               ## hand placement (vault, mantle): weight of each hand (L, R) 0..1 and its target relative to the shoulder, torso frame (the polish layer writes them)
+var hand_off_l := Vector3.ZERO
+var hand_off_r := Vector3.ZERO
+var pose_hips := Vector3.ZERO            ## extra pelvis offset (model axes, metres) for crouches, landings and vaults
 var sec_pitch := PackedFloat32Array([0.0, 0.0, 0.0])
 var sec_side := PackedFloat32Array([0.0, 0.0, 0.0])
 var use_springs := false
@@ -452,6 +456,7 @@ func apply() -> void:
 		fl_yaw = -flinch * 0.3 * fdir.x
 	var breath_y := breathe * 0.2 - 0.12 * d
 	hips_pos.y += breath_y
+	hips_pos += pose_hips
 	hips_pos.z += recoil * 0.012
 	_pose(HIPS, hips_basis, hips_pos)
 	var tp := aim_pitch * 0.55 + lean + breathe + recoil * 0.05 + fl_pitch + extra_torso.x + 0.05 * tw
@@ -507,6 +512,9 @@ func apply() -> void:
 		var target: Vector3 = _rifle_o + rpos + rb * (_w0[k] - _rifle_o)
 		if left and reload >= 0.0:
 			target = _reload_hand(reload, target, rpos, rb)
+		var hw := hand_w.x if left else hand_w.y
+		if hw > 0.001:
+			target = target.lerp(_sh[k] + (hand_off_l if left else hand_off_r), hw)
 		if left:
 			target += Vector3(0.0, 0.0, -0.05 * swing)
 		else:

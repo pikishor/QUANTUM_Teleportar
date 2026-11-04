@@ -135,6 +135,7 @@ var _key_energy := 1.0
 var _rim_energy := 1.0
 var _burst: CPUParticles3D                    ## quantum motes on a hit and on death (HeroPresentation)
 var _quality := 2
+var polish: HeroAnimPolish                ## the animation polish layer (hero_anim_tuning.gd holds its numbers)
 var loco: Locomotion                      ## foot planting, pelvis, weight shifts, cloak springs (the model's gait; see locomotion.gd)
 var _last_pos := Vector3.ZERO
 var _have_last := false
@@ -256,13 +257,17 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 			var air_flag := p.air_time > 0.14 or (p.air_time > 0.0 and p.velocity.y > 2.0)
 			var aim_off := angle_difference(yaw, rig_view.get_aim_yaw()) if rig_view != null else 0.0
 			loco.update(adt, disp, yaw, not air_flag, p.velocity.y, p.input_move.length(), p.sprinting, p.aiming, aim_off)
+			if polish != null:
+				var swap_k: bool = p.weapon != null and not p.reloading and (p.weapon.swap_t > 0.0)
+				var aim_t = p.cover.target if p.cover != null else null
+				polish.update(adt, p, self, loco, not air_flag, p.weapon.current if p.weapon != null else &"carbine", reload_k, swap_k, aim_t)
 		rig.aim_pitch = _aim_pitch
 		rig.recoil = _kick
 		rig.flinch = _flinch
 		rig.flinch_dir = _fdir * minf(1.0, _flinch * 3.0)
 		rig.ready = _ready_w
 		rig.reload = reload_k
-		rig.reload_tilt = float(WeaponDefs.TILT.get(p.weapon.current, 1.0)) if p.weapon != null else 1.0
+		rig.reload_tilt = (float(WeaponDefs.TILT.get(p.weapon.current, 1.0)) * (HeroAnimTuning.cls("reload_tilt_mul", p.weapon.current) if polish != null else 1.0)) if p.weapon != null else 1.0
 		rig.dead = e
 		rig.head_yaw = 0.0
 		rig.apply()
@@ -489,6 +494,8 @@ func reset_pose() -> void:
 		rig.death_kind = 0
 		if loco != null:
 			loco.reset()
+			if polish != null:
+				polish.reset()
 	if _flash_root != null:
 		_flash_root.visible = false
 	for i in _lights.size():
@@ -561,6 +568,7 @@ func _rebuild_model(look: HeroLook = null) -> void:
 	_finger_mode = &""
 	rig = null
 	loco = null
+	polish = null
 	if old != null and is_instance_valid(old):
 		remove_child(old)
 		old.free()
@@ -596,6 +604,7 @@ func _adopt_model(model: Node3D) -> void:
 	rig = CharacterRig.find(model)
 	if rig != null:
 		loco = Locomotion.new(rig)
+		polish = HeroAnimPolish.new(rig) if hero_mat != null else null
 		if hero_mat != null:
 			loco.turn_scale = SUPERHERO_TURN
 			loco.scale_amp = SUPERHERO_STEP      # longer, human legs: longer strides and a longer leash than the short digitigrade legs of the old hero
@@ -639,6 +648,8 @@ func _adopt_model(model: Node3D) -> void:
 			rig.stance_shift = STANCE_SHIFT_HERO
 			if loco != null:
 				loco.reset()
+				if polish != null:
+					polish.reset()
 		HeroPresentation.hand_mount(rig.skeleton, &"r")
 		HeroPresentation.hand_mount(rig.skeleton, &"l")
 

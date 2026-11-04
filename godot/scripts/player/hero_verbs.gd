@@ -238,7 +238,7 @@ func _slam_impact() -> void:
 	last_slam_hits = _area_damage(pos, r, cfg("slam") * HeroPower.f("dmg"), null, 1.5)
 	FX.blast(pos + Vector3.UP * 0.2, r * 0.6, Color(0.45, 0.95, 1.0), 0.45)
 	FX.burst(pos + Vector3.UP * 0.3, Color(0.6, 1.0, 1.0), 24, 9.0, 0.5, 4.0)
-	FX.shake(0.9)
+	GameFeel.fire(&"slam")
 	if is_instance_valid(_p.camera_rig):
 		_p.camera_rig.bump(0.8)
 	Sfx.play_at(&"explosion_small", pos, -8.0)

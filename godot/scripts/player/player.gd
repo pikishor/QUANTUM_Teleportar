@@ -387,7 +387,7 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 	last_hurt_time = PlayerUtil.now()
 	last_hurt_from = from_pos
 	hurt.emit(amount)
-	FX.shake(0.3)
+	GameFeel.fire(&"heavy_hurt" if amount >= 25.0 else &"hurt")
 	Sfx.play(&"hurt")
 	body.flinch(clampf(amount / 25.0, 0.3, 1.5), from_pos)
 	camera_rig.bump(clampf(amount / 40.0, 0.1, 0.6))
@@ -407,6 +407,7 @@ func _die() -> void:
 	input_move = Vector2.ZERO
 	weapon.cancel_reload()
 	body.set_dead(true)
+	GameFeel.fire(&"die")
 	Game.die()
 
 

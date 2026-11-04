@@ -378,7 +378,7 @@ func teleport() -> bool:
 	if _rich:
 		FX.blast(to, 2.5, MAGENTA, 0.35)
 	_trail(from, to)
-	FX.shake(0.35)
+	GameFeel.fire(&"teleport")
 	fx_flash = 1.0
 	aiming = false
 	_slow_begin(SLOW_AFTER)

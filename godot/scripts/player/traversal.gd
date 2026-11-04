@@ -148,6 +148,11 @@ func _fits(p: Player, at: Vector3) -> bool:
 	return not p.test_move(xf, Vector3.UP * 0.01)
 
 
+## 0..1 progress of the traversal in flight (0 when none): the hero's hand placement reads it.
+func progress() -> float:
+	return clampf(_t / maxf(_dur, 0.01), 0.0, 1.0) if kind != Kind.NONE else 0.0
+
+
 func _begin(p: Player, r: Dictionary) -> void:
 	kind = r["kind"]
 	last_kind = kind

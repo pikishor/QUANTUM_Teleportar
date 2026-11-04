@@ -430,3 +430,9 @@ Noted in visual QA (not caused by this wave): translucent white rectangles in th
 - Fix 2: `test_campaign_review` boss-defeat check was frame-count dependent (the boss intro started after the 6-frame wait and was never skipped); it now waits on `cine._boss` and skips the intro. Meaning unchanged.
 - Results: test_all 130 pass, 0 flaky after fixes (test_demo_mode flaked once, passed on retry). visual_qa 16/16, full_bot PASS (7.4 min, 3 cycles, 0 errors).
 - Follow-ups: HumanoidAnim not wired into live enemies (tell meshes untouched); citizens are unarmed but the rig still holds arms forward; specialist enemies keep the old model; trooper/citizen too small in the visual_qa shots to judge.
+
+## Wave 59: animation polish, game feel (integrator)
+- New HeroAnimPolish layer (hero_anim_tuning.gd table) and GameFeel (hit-stop, blur, haptics, FOV kicks); tests test_hero_animation_polish and test_game_feel.
+- Integrator fix: CameraRig._end_stop never restored Engine.time_scale (it checked _stop_left > 0 after the timer had expired), leaving the game at 0.05x after the first slam; this broke test_hero_verbs. Now restores whenever the scale is STOP_SCALE.
+- Full suite 132/132 pass; test_demo_mode flaked once (passed on retry). visual_qa: hero shot failed once, passed on rerun (flaky). full_bot PASS (7.4 min).
+- Follow-ups: blink/saccades move the head only (no eye bones); foot IK untested on stairs; sprint FOV kick has no profile; `explosion` game-feel profile has no live caller; heavy-kill hit-stop skipped during teleport slow motion; hero screenshot shows mission toast overlapping the hero's head. Perf gate not run.

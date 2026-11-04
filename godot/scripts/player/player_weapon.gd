@@ -522,6 +522,8 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 	p.last_hit_kill = kill
 	p.last_hit_crit = crit
 	p.hit_confirmed.emit(kill, crit)
+	if kill:
+		GameFeel.fire(&"heavy_kill" if GameFeel.is_heavy_kill(crit, current) else &"kill")
 	_damage_number(hit, float(def["damage"]) * k * Upgrades.damage_mult() if not crit else float(def["crit"]) * k * Upgrades.damage_mult(), crit, kill)
 	if _sparks != null:
 		if is_vehicle:

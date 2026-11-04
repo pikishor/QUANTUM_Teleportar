@@ -28,6 +28,11 @@ static func load_settings() -> void:
 
 
 ## True for weapons the assist applies to (every weapon but the Pulse Lance).
+## A taller hero looks down on enemies from higher up: the assist cone grows with the eye height (1.0 .. 1.3).
+static func cone_scale() -> float:
+	return clampf(float(HeroPresentation.camera_scale()["eye"]), 1.0, 1.3)
+
+
 static func applies_to(weapon_id: StringName) -> bool:
 	return weapon_id != &"lance"
 
@@ -69,7 +74,7 @@ func find(origin: Vector3, dir: Vector3) -> Dictionary:
 		var r := maxf(float(n.get(&"radius")) if n.get(&"radius") != null else 0.5, 0.3)
 		var rad_ang := atan(r / d)
 		var ang := dir.angle_to(to / d)
-		if ang < best_ang and ang < CONE + rad_ang:
+		if ang < best_ang and ang < CONE * cone_scale() + rad_ang:
 			best_ang = ang
 			var flat_dir := Vector2(dir.x, dir.z)
 			var flat_to := Vector2(to.x, to.z)

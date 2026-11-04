@@ -898,6 +898,10 @@ func _draw_hud_body() -> void:
 		var a := vignette_alpha(since_hurt, hp_f, playing, _t)
 		if a > 0.01:
 			c.draw_texture_rect(_vignette, Rect2(Vector2.ZERO, vp), false, Color(1, 1, 1, a))
+		var rig_b: Object = p.get("camera_rig")
+		var blur_a := float(rig_b.get("blur")) * 0.35 if rig_b != null and not UiSettings.s_reduce_motion and not UiSettings.s_reduce_flash else 0.0
+		if blur_a > 0.01:
+			c.draw_texture_rect(_vignette, Rect2(Vector2.ZERO, vp), false, Color(0.75, 0.95, 1.0, blur_a))
 		var qm: Object = p.get("quantum")
 		if qm != null and playing:
 			var fl := 0.0 if UiSettings.s_reduce_flash else float(qm.get("fx_flash"))
@@ -1021,7 +1025,7 @@ func _draw_hud_body() -> void:
 static func vignette_alpha(since_hurt: float, hp_f: float, playing: bool, t: float) -> float:
 	var a := clampf(1.0 - since_hurt / HURT_TIME, 0.0, 1.0) * 0.3
 	if hp_f < 0.3 and playing:
-		a = maxf(a, (0.3 - hp_f) / 0.3 * (0.14 + 0.05 * sin(t * 5.0)))
+		a = maxf(a, (0.3 - hp_f) / 0.3 * (0.14 + (0.0 if UiSettings.s_reduce_flash else 0.05 * sin(t * 5.0))))
 	return minf(a, VIGNETTE_MAX)
 
 

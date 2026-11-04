@@ -79,6 +79,7 @@ const SHAKE_MAX_OFF := 0.2                   ## metres
 const SHAKE_MAX_ROT := 0.03                  ## radians (about 1.7 degrees)
 
 # recoil
+const STOP_SCALE := 0.05                    ## Engine.time_scale during a hit-stop
 const RECOIL_DELAY := 0.1                    ## seconds after the last kick before the view starts to settle
 const RECOIL_RATE := 5.0
 const RECOIL_MAX := 0.3
@@ -123,6 +124,10 @@ var _dead_age := 0.0                         ## seconds of game time in the dead
 var ads_fov := FOV_ADS        ## degrees at full ADS for the weapon in hand (the Pulse Lance zooms like a sniper scope)
 var _fov := FOV_HIP
 var _fov_punch := 0.0
+var blur := 0.0                              ## motion-blur-lite strength 0..1 after a teleport (the HUD draws a soft edge streak), decays by itself
+var heartbeats := 0                          ## low-health haptic beats so far (tests)
+var _stop_left := 0.0                        ## real seconds of hit-stop left
+var _beat := 0.0
 var _punch := 0.0                            ## visual-only backwards camera punch, metres
 var _bump := 0.0                             ## landing dip, metres
 var _bump_v := 0.0
@@ -157,6 +162,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_end_stop()
 	if Game.camera == camera:
 		Game.camera = null
 
@@ -229,12 +235,16 @@ func kick(up: float, left := 0.0) -> void:
 
 ## Visual-only thump: the camera is pushed back by `amount` metres and the FOV opens a hair. Does not move the aim.
 func punch(amount: float) -> void:
+	if UiSettings.s_reduce_motion:
+		return
 	_punch = minf(_punch + amount, 0.1)
 	_fov_punch = minf(_fov_punch + amount * 16.0, 4.0)
 
 
 ## FOV kick in degrees (teleports, explosions), decays by itself.
 func punch_fov(degrees: float) -> void:
+	if UiSettings.s_reduce_motion:
+		return
 	_fov_punch = minf(_fov_punch + degrees, 16.0)
 
 
@@ -404,7 +414,43 @@ func _physics_process(delta: float) -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	_tick_feel(delta)
 	_update_view(minf(delta, 0.1))
+
+
+## Hit-stop: a near-freeze for `sec` real seconds on a heavy kill or slam. Skipped under reduce-motion, outside play and during the teleport slow motion.
+func hit_stop(sec: float) -> void:
+	if UiSettings.s_reduce_motion or Game.state != &"play" or _stop_left > 0.0 or Engine.time_scale < 0.99:
+		return
+	_stop_left = clampf(sec, 0.0, GameFeel.STOP_MAX)
+	if _stop_left > 0.0:
+		Engine.time_scale = STOP_SCALE
+
+
+func _end_stop() -> void:
+	if is_equal_approx(Engine.time_scale, STOP_SCALE):
+		Engine.time_scale = 1.0
+	_stop_left = 0.0
+
+
+## Per-frame feel: hit-stop timer (real seconds), motion-blur-lite decay, low-health heartbeat haptics.
+func _tick_feel(delta: float) -> void:
+	var real := delta / maxf(Engine.time_scale, 0.05)
+	if _stop_left > 0.0:
+		_stop_left -= real
+		if _stop_left <= 0.0 or Game.state != &"play":
+			_end_stop()
+	blur = maxf(0.0, blur - real * 3.0)
+	if _player != null and Game.state == &"play" and not _player.is_dead():
+		var per := GameFeel.heartbeat_period(_player.hp / maxf(_player.max_hp, 1.0))
+		if per > 0.0:
+			_beat -= real
+			if _beat <= 0.0:
+				_beat = per
+				heartbeats += 1
+				UiSettings.buzz(25)
+		else:
+			_beat = 0.0
 
 
 ## Yaw that looks from the fallen player toward the last attacker, or NAN when the hit is too old or unknown (a fall, an unknown source).
@@ -581,7 +627,7 @@ func _update_view(dt: float) -> void:
 	var hs := HeroPresentation.camera_scale()
 	var foot_dist := lerpf(HIP_DIST, ADS_DIST, ads_s) * float(hs["dist"]) * (INTERIOR_ARM_SCALE if InteriorSpace.active else 1.0)      # a shorter arm in the tight rooms of a generated interior
 	var foot_shoulder := lerpf(HIP_SHOULDER, ADS_SHOULDER, ads_s) * float(hs["shoulder"])
-	var foot_fov := lerpf(lerpf(FOV_HIP, FOV_HIP + (FOV_SPRINT - FOV_HIP) * HeroPower.f("sprint"), _sprint), ads_fov, ads_s)
+	var foot_fov := lerpf(lerpf(FOV_HIP, FOV_HIP + (FOV_SPRINT - FOV_HIP) * HeroPower.f("sprint") * (0.4 if UiSettings.s_reduce_motion else 1.0), _sprint), ads_fov, ads_s)
 	var veh_dist := VEH_DIST + clampf(absf(veh_speed) * 0.04, 0.0, 1.2)
 	var veh_fov := VEH_FOV + minf(18.0, absf(veh_speed) * 0.5)
 	var dist := lerpf(foot_dist, veh_dist, _mode_mix)
@@ -640,7 +686,7 @@ func _update_view(dt: float) -> void:
 	arm.notification(Node.NOTIFICATION_INTERNAL_PHYSICS_PROCESS)
 	var arm_len := maxf(arm.spring_length, 0.001)
 	var arm_free := arm.get_hit_length()
-	var free_ratio := clampf(arm_free / arm_len, minf(1.0, (INTERIOR_MIN_ARM if InteriorSpace.active else MIN_ARM) / arm_len), 1.0)     # never closer than MIN_ARM, even inside a wall
+	var free_ratio := clampf(arm_free / arm_len, minf(1.0, (INTERIOR_MIN_ARM if InteriorSpace.active else MIN_ARM * clampf(float(hs["eye"]), 1.0, 1.3)) / arm_len), 1.0)     # never closer than MIN_ARM, even inside a wall
 	if free_ratio < _ratio or dt <= 0.0:
 		_ratio = free_ratio                  # walls pull the camera in at once
 	else:
