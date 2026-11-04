@@ -47,7 +47,7 @@ const GRENADE_GRAVITY := 22.0
 const WELL_TICK := 0.2
 const INSPECT_TIME := 1.6
 const INSPECT_IDLE := 9.0                    ## seconds of doing nothing before the rifle is inspected
-const AMMO_PACK := {&"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2}
+const AMMO_PACK := {&"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12}
 
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
@@ -59,6 +59,17 @@ var _alt_spread := 1.0
 var _alt_single := false
 var _idle_t := 0.0
 var _reload_click := false
+var heat := 0.0                              ## Plasma Minigun: 0..1, overheats at 1
+var overheated := false
+var spin := 0.0                              ## Plasma Minigun barrel speed 0..1 (the fire rate follows it)
+var combo := 0                               ## melee: index (0..2) of the next swing in the combo
+var combo_hits := 0                          ## lifetime melee swings, for tests
+var finishers := 0                           ## lifetime combo finishers
+var chain_hits := 0                          ## lifetime arc-caster chain jumps
+var overheats := 0
+var _combo_t := 0.0
+var _lock_t := 0.0
+var _side := 1.0                             ## akimbo: which hand fires next (-1 left, 1 right)
 var _burst_left := 0                ## shots still to come in the current burst (burst pistol)
 var _burst_t := 0.0
 var mag := MAG_SIZE
@@ -134,11 +145,21 @@ func reset() -> void:
 	bloom = 0.0
 	charge = 0.0
 	swap_t = 0.0
+	_clear_gun_state()
 	_since_shot = 99.0
 	_burst = 0
 	_move_spread = 0.0
 	spread = float(def["spread_hip"])
 	_clear_grenades()
+
+
+func _clear_gun_state() -> void:
+	heat = 0.0
+	spin = 0.0
+	overheated = false
+	_lock_t = 0.0
+	combo = 0
+	_combo_t = 0.0
 
 
 func _load(id: StringName) -> void:
@@ -191,6 +212,7 @@ func switch_to(id: StringName, instant := false) -> bool:
 	_burst = 0
 	bloom = 0.0
 	_burst_left = 0
+	_clear_gun_state()
 	swap_t = 0.0 if instant else SWAP_TIME
 	Sfx.play(&"reload", -9.0, 1.5)
 	weapon_changed.emit(id)
@@ -229,6 +251,8 @@ func grant(id: StringName) -> String:
 		if not _store.has(id):
 			_store[id] = Vector2i(_mag_for(id), int(WeaponDefs.def(id)["reserve"]))
 		return "NEW WEAPON  %s" % WeaponDefs.title(id)
+	if int(WeaponDefs.def(id)["reserve"]) < 0:
+		return "%s  OWNED" % WeaponDefs.title(id)
 	var st: Vector2i = _store.get(id, Vector2i(_mag_for(id), 0))
 	var cap := int(WeaponDefs.def(id)["reserve"]) * 2
 	st.y = mini(st.y + int(AMMO_PACK.get(id, 6)), cap)
@@ -289,6 +313,13 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 		ammo = mag
 		if reserve >= 0:
 			reserve = maxi(reserve, int(def["reserve"]))
+	if String(def["kind"]) == "melee":                              # melee never runs dry
+		ammo = mag
+		_combo_t -= dt
+		if _combo_t <= 0.0:
+			combo = 0
+	if def.has("spin_up"):
+		_tick_heat(dt, firing and reload_t <= 0.0 and swap_t <= 0.0)
 	fire_t -= dt
 	_since_shot += dt
 	_tick_numbers(dt)
@@ -319,13 +350,16 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 				if ammo <= 0:
 					Sfx.dry_fire()
 					start_reload()
-				elif fire_t <= 0.0:
+				elif fire_t <= 0.0 and _gun_ready():
 					_burst_left = int(def.get("burst", 1)) - 1
 					_burst_t = float(def.get("burst_gap", 0.07))
-					if String(def["kind"]) == "throw":
-						_throw()
-					else:
-						_shoot(dt, aiming)
+					match String(def["kind"]):
+						"throw":
+							_throw()
+						"melee":
+							_melee_swing(aiming)
+						_:
+							_shoot(dt, aiming)
 	if _burst_left > 0 and String(def["kind"]) == "hit" and can_fire:       # the rest of a burst rides on its own short gap
 		_burst_t -= dt
 		if _burst_t <= 0.0 and ammo > 0:
@@ -383,11 +417,15 @@ func _shoot(dt: float, aiming: bool) -> void:
 	var p := _player
 	ammo -= 1
 	shots_fired += 1
-	fire_t = maxf(fire_t, -dt) + float(def["interval"]) * float(ammo_info()["rate"])      # keep the cadence exact whatever the tick rate, without banking shots
+	fire_t = maxf(fire_t, -dt) + float(def["interval"]) * float(ammo_info()["rate"]) * _spin_mult()      # keep the cadence exact whatever the tick rate, without banking shots
 	_since_shot = 0.0
 	_burst += 1
 	var pellets := 1 if _alt_single else int(def["pellets"])
-	Sfx.play(&"shot", float(def["vol"]), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
+	Sfx.play(StringName(def.get("snd", &"shot")), float(def["vol"]), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
+	if def.has("heat_per"):
+		heat = minf(1.0, heat + float(def["heat_per"]))
+		if heat >= 1.0 and not overheated:
+			_overheat()
 	var gm := Game.enemies as EnemyManager
 	if gm != null and is_instance_valid(p) and float(def["vol"]) > -20.0:
 		Stealth.noise(gm.list, p.global_position, &"gun")
@@ -399,6 +437,8 @@ func _shoot(dt: float, aiming: bool) -> void:
 		_trace_pellet()
 	p.body.fire_flash(float(def["flash"]))
 	_recoil(aiming)
+	if def.has("twin"):
+		_side = -_side
 	p.fired.emit()
 
 
@@ -459,6 +499,8 @@ func _trace_pellet() -> void:
 		target = _damageable_of(blocked["collider"] as Node)
 		hit_something = true
 
+	if def.has("twin"):                                             # akimbo: the shot leaves the hand whose turn it is
+		mz += p.camera_rig.camera.global_basis.x * (_side * 0.16)
 	FX.tracer(mz, hit, def["tracer"])
 
 	var from_d := float(def["falloff_from"])
@@ -467,6 +509,8 @@ func _trace_pellet() -> void:
 		k = lerpf(1.0, 0.25, clampf((mz.distance_to(hit) - from_d) / maxf(range_m - from_d, 1.0), 0.0, 1.0))
 	if target != null and not _is_dead(target):
 		_hit_target(target, hit, normal, k)
+		if def.has("chain"):
+			_chain(target, hit, k)
 	elif hit_something:
 		_hit_world(hit, normal)
 
@@ -907,6 +951,141 @@ static func _is_dead(target: Object) -> bool:
 	return false
 
 
+# --- Wave 61: minigun spin / heat, arc chain, melee ------------------------------------------------------------------
+
+func _spin_mult() -> float:
+	return lerpf(3.0, 1.0, spin) if def.has("spin_up") else 1.0
+
+
+## Can the trigger fire a shot right now (minigun: spun up and not overheated; everything else always).
+func _gun_ready() -> bool:
+	if not def.has("spin_up"):
+		return true
+	return not overheated and spin >= float(def["spin_ready"])
+
+
+func _tick_heat(dt: float, trigger: bool) -> void:
+	var up := float(def["spin_up"])
+	if trigger and not overheated:
+		spin = minf(1.0, spin + dt / up)
+	else:
+		spin = maxf(0.0, spin - dt / (up * 0.8))
+	if overheated:
+		_lock_t -= dt
+		heat = maxf(0.0, 1.0 - (1.0 - 0.3) * (1.0 - _lock_t / float(def["heat_lock"])))
+		if _lock_t <= 0.0:
+			overheated = false
+			heat = 0.3
+	elif _since_shot > 0.2:
+		heat = maxf(0.0, heat - float(def["heat_cool"]) * dt)
+
+
+func _overheat() -> void:
+	overheated = true
+	overheats += 1
+	heat = 1.0
+	_lock_t = float(def["heat_lock"])
+	_burst_left = 0
+	Sfx.play(&"overheat", -2.0, 1.0)
+	if _player != null and _player.body != null and _player.body.muzzle != null:
+		FX.burst(_player.body.muzzle.global_position, Color(1.0, 0.5, 0.2), 6, 2.5, 0.5, 0.0, 1.0)
+
+
+## 0..1 gauge for the HUD: the lance charge, or the minigun heat.
+func gauge() -> float:
+	return heat if def.has("heat_per") else charge
+
+
+## The arc caster: the hit jumps to up to `chain` other enemies near the target, each for `chain_k` of the damage (a bolt between them).
+func _chain(first: Node, at: Vector3, k: float) -> void:
+	if _player == null or not (first is Node3D):
+		return
+	var prev := at
+	var used: Array[Node] = [first]
+	for _j in int(def["chain"]):
+		var best: Node = null
+		var best_d := float(def["chain_range"])
+		for e: Node in get_tree().get_nodes_in_group(&"enemy"):
+			if used.has(e) or not (e is Node3D) or not e.has_method(&"center") or _is_dead(e):
+				continue
+			var d: float = (e.call(&"center") as Vector3).distance_to(prev)
+			if d < best_d:
+				best_d = d
+				best = e
+		if best == null:
+			return
+		used.append(best)
+		var c: Vector3 = best.call(&"center")
+		FX.tracer(prev, c, def["tracer"])
+		_hit_target(best, c, Vector3.UP, k * float(def["chain_k"]))
+		chain_hits += 1
+		prev = c
+
+
+## One melee swing: the next step of the 3-hit combo (the third is the finisher, a bigger hit with more stagger). Hits every enemy in reach inside the cone in front of the camera.
+func _melee_swing(aiming: bool, mult := 1.0, reach_add := 0.0) -> int:
+	var p := _player
+	var steps: Array = def["combo"]
+	var step := combo % steps.size()
+	var finisher := step == steps.size() - 1
+	combo = (step + 1) % steps.size()
+	_combo_t = float(def["combo_window"])
+	combo_hits += 1
+	if finisher:
+		finishers += 1
+	fire_t = float(def["interval"]) * (1.7 if finisher else 1.0)
+	_since_shot = 0.0
+	_burst = step + 1
+	Sfx.play(StringName(def.get("snd", &"shot")), float(def["vol"]), (0.85 if finisher else 1.0) + 0.06 * step)
+	var fwd := -p.camera_rig.camera.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	var origin := p.global_position
+	var reach := float(def["reach"]) + reach_add
+	var k: float = float(steps[step]) * mult
+	var n := 0
+	for e: Node in get_tree().get_nodes_in_group(&"enemy"):
+		if not (e is Node3D) or not e.has_method(&"center") or _is_dead(e):
+			continue
+		var c: Vector3 = e.call(&"center")
+		var off := Vector3(c.x - origin.x, 0.0, c.z - origin.z)
+		var dist := off.length() - _radius_of(e)
+		if dist > reach or (dist > 1.2 and off.normalized().dot(fwd) < float(def["cone"])):
+			continue
+		_melee_hit(e, c, k, finisher)
+		n += 1
+	var mz := p.body.muzzle.global_position
+	var tip := origin + Vector3(0.0, 1.2, 0.0) + fwd * minf(reach, 3.0)
+	FX.tracer(mz, tip + p.camera_rig.camera.global_basis.x * (0.8 if step % 2 == 0 else -0.8), def["tracer"])
+	_recoil(aiming)
+	if finisher:
+		FX.shake(0.12)
+	p.fired.emit()
+	return n
+
+
+func _melee_hit(e: Node, c: Vector3, k: float, finisher: bool) -> void:
+	var p := _player
+	k *= float(ammo_info()["dmg"])
+	var amount := TestMode.damage(float(def["damage"]) * k * Upgrades.damage_mult() * HeroPower.f("dmg"))
+	if e.has_method(&"shield_blocks") and bool(def["pierce_shield"]):
+		e.call(&"break_shield")
+	e.call(&"damage", amount, finisher)
+	if e.has_method(&"stagger"):
+		e.call(&"stagger", AimAssist.stagger_for(current) * (1.8 if finisher else 1.0))
+	var kill := _is_dead(e)
+	_hit_sound(kill, finisher)
+	p.last_hit_time = PlayerUtil.now()
+	p.last_hit_kill = kill
+	p.last_hit_crit = finisher
+	p.hit_confirmed.emit(kill, finisher)
+	if kill:
+		GameFeel.fire(&"heavy_kill" if finisher else &"kill")
+	_damage_number(c, amount, finisher, kill)
+	if _sparks != null:
+		_sparks.impact_machine(c, Vector3.UP)
+
+
 # --- alt-fire, ammo types, inspect, hit sounds --------------------------------------------------------------------------
 
 func ammo_info() -> Dictionary:
@@ -973,12 +1152,70 @@ func alt_fire(aiming := false) -> bool:
 			_throw(-0.12)
 			_throw(0.12)
 			ammo = maxi(0, start - cost)
+		"vent":                                                 # the minigun dumps its heat at once
+			heat = 0.0
+			overheated = false
+			_lock_t = 0.0
+			spin = 0.0
+			Sfx.play(&"overheat", -8.0, 1.6)
+			FX.burst(_player.body.muzzle.global_position, Color(0.7, 0.9, 1.0), 5, 2.0, 0.6, 0.0, 0.8)
+		"pull":                                                 # the whip yanks the nearest enemy in front to arm's length and staggers it
+			if not _whip_pull(float(a["range"])):
+				return false
+		"lunge":                                                # the blade dashes forward (the wall stops it) and strikes for a multiple
+			_blade_lunge(float(a["dist"]), float(a["mult"]), aiming)
 		_:
 			return false
 	fire_t = maxf(fire_t, float(a["cd"]))
 	alt_fired += 1
 	Sfx.play(&"link", -8.0, 1.6)
-	return shots_fired > before
+	return shots_fired > before or kind in ["vent", "pull", "lunge"]
+
+
+func _whip_pull(range_m: float) -> bool:
+	var p := _player
+	var fwd := -p.camera_rig.camera.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	var best: Node = null
+	var best_d := range_m
+	for e: Node in get_tree().get_nodes_in_group(&"enemy"):
+		if not (e is Node3D) or _is_dead(e):
+			continue
+		var off := (e as Node3D).global_position - p.global_position
+		off.y = 0.0
+		if off.length() < best_d and off.normalized().dot(fwd) > 0.5:
+			best_d = off.length()
+			best = e
+	if best == null:
+		Sfx.dry_fire()
+		return false
+	var en := best as Node3D
+	en.global_position = p.global_position + fwd * 2.4
+	if best.has_method(&"stagger"):
+		best.call(&"stagger", 1.6)
+	best.call(&"damage", float(def["damage"]) * 0.5 * Upgrades.damage_mult() * HeroPower.f("dmg"), false)
+	FX.tracer(p.body.muzzle.global_position, en.global_position + Vector3(0.0, 1.0, 0.0), def["tracer"])
+	Sfx.play(&"melee_whip", -2.0, 0.7)
+	shots_fired += 1
+	return true
+
+
+func _blade_lunge(dist: float, mult: float, aiming: bool) -> void:
+	var p := _player
+	var fwd := -p.camera_rig.camera.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	var from := p.global_position + Vector3(0.0, 1.0, 0.0)
+	_ray_b.from = from
+	_ray_b.to = from + fwd * dist
+	var res := p.get_world_3d().direct_space_state.intersect_ray(_ray_b)
+	var d := dist if res.is_empty() else maxf(0.0, from.distance_to(res["position"]) - 0.7)
+	p.global_position += fwd * d
+	FX.burst(p.global_position + Vector3(0.0, 1.0, 0.0), def["tracer"], 6, 3.0, 0.3, 0.0, 0.9)
+	combo = 2                                               # the lunge always lands as a finisher
+	_melee_swing(aiming, mult / 1.9)
+	shots_fired += 1
 
 
 func start_inspect() -> bool:

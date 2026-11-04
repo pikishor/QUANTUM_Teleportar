@@ -115,6 +115,26 @@ static func give_weapon(id: StringName) -> String:
 	return _say("GIVEN  %s" % WeaponDefs.title(id))
 
 
+## Own and equip one throwable or gadget (and refill the throwable stock).
+static func give_gear(id: StringName) -> String:
+	if not (Gear.is_throwable(id) or Gear.is_gadget(id)):
+		return ""
+	Gear.give(id)
+	Gear.equip(id)
+	var p := _player()
+	if p != null and p.throwables != null:
+		p.throwables.refill()
+	return _say("%s EQUIPPED" % Gear.title(id))
+
+
+static func give_all_gear() -> String:
+	Gear.give_all()
+	var p := _player()
+	if p != null and p.throwables != null:
+		p.throwables.refill()
+	return _say("ALL THROWABLES AND GADGETS")
+
+
 static func give_all_weapons() -> String:
 	for id: StringName in WeaponDefs.IDS:
 		give_weapon(id)

@@ -102,6 +102,9 @@ var camera_rig: CameraRig
 var body: PlayerBody
 var weapon: PlayerWeapon
 var cover: PlayerCover
+var melee: Melee                          ## light / heavy / finisher melee (scripts/combat/melee.gd)
+var throwables: Throwables                ## singularity frag, flux mine, decoy, shroud, EMP
+var gadgets: Gadgets                      ## scanner pulse, drone buddy, grapple hook
 var decals: ImpactDecals
 var sparks: ImpactSparks
 ## Facing of the body (Node3D.rotation.y convention); eases toward the aim yaw.
@@ -207,6 +210,21 @@ func _ensure_children() -> void:
 		cover = PlayerCover.new()
 		cover.name = "Cover"
 		add_child(cover)
+	melee = get_node_or_null("Melee") as Melee
+	if melee == null:
+		melee = Melee.new()
+		melee.name = "Melee"
+		add_child(melee)
+	throwables = get_node_or_null("Throwables") as Throwables
+	if throwables == null:
+		throwables = Throwables.new()
+		throwables.name = "Throwables"
+		add_child(throwables)
+	gadgets = get_node_or_null("Gadgets") as Gadgets
+	if gadgets == null:
+		gadgets = Gadgets.new()
+		gadgets.name = "Gadgets"
+		add_child(gadgets)
 	if get_node_or_null("AimAssist") == null:
 		var aa := AimAssist.new()
 		aa.name = "AimAssist"

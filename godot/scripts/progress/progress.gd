@@ -83,6 +83,7 @@ func _exit_tree() -> void:
 		Upgrades.reset()
 		WeaponDefs.reset_unlocked()
 		Attachments.reset()
+		Gear.reset()
 
 
 # --- pure rules (static, tested) ------------------------------------------------------------------------------------
@@ -270,6 +271,52 @@ func weapon_price(id: StringName) -> int:
 	return WeaponDefs.price(id, rep_discount(reputation))
 
 
+## Throwables and gadgets (Gear): bought with credits (reputation discount), equipped into the two slots, four saved loadouts.
+func gear_price(id: StringName) -> int:
+	var base := Economy.gear_price(id)
+	return 0 if base <= 0 else maxi(5, int(roundf(float(base) * (1.0 - rep_discount(reputation)) / 5.0)) * 5)
+
+
+func buy_gear(id: StringName) -> bool:
+	if not (Gear.is_throwable(id) or Gear.is_gadget(id)) or Gear.is_owned(id) or credits < gear_price(id):
+		return false
+	credits -= gear_price(id)
+	Gear.give(id)
+	changed.emit()
+	if autosave_enabled:
+		save_file()
+	return true
+
+
+## Equips an owned throwable / gadget (an unowned one is bought first). id "" empties the gadget slot.
+func equip_gear(id: StringName) -> bool:
+	if id != &"" and not Gear.is_owned(id) and not buy_gear(id):
+		return false
+	if not Gear.equip(id):
+		return false
+	changed.emit()
+	if autosave_enabled:
+		save_file()
+	return true
+
+
+func save_loadout(i: int) -> bool:
+	if not Gear.save_loadout(i):
+		return false
+	if autosave_enabled:
+		save_file()
+	return true
+
+
+func apply_loadout(i: int) -> bool:
+	if not Gear.apply_loadout(i):
+		return false
+	changed.emit()
+	if autosave_enabled:
+		save_file()
+	return true
+
+
 ## Attachments: bought with credits (reputation discount), equipped per weapon, saved in the "attachments" section.
 func part_price(part: StringName) -> int:
 	return Attachments.price(part, rep_discount(reputation))
@@ -369,6 +416,7 @@ func new_campaign() -> void:
 	hero.reset()
 	WeaponDefs.reset_unlocked()
 	Attachments.reset()
+	Gear.reset()
 	_frac = 0.0
 	_apply_to_player()
 	changed.emit()
@@ -567,6 +615,9 @@ func save_file() -> bool:
 	var att := Attachments.to_save()
 	cf.set_value("attachments", "owned", att["owned"])
 	cf.set_value("attachments", "equipped", att["equipped"])
+	var gd0 := Gear.to_save()
+	for gk: String in gd0:
+		cf.set_value("gear", gk, gd0[gk])
 	cf.set_value("campaign", "bosses", PackedInt32Array(bosses_cleared))
 	cf.set_value("campaign", "unlocked", unlocked)
 	cf.set_value("collectibles", "got", collectibles.to_save())
@@ -647,6 +698,11 @@ func load_file() -> bool:
 	var cur := StringName(str(cf.get_value("weapons", "current", "carbine")))
 	WeaponDefs.last_used = cur if WeaponDefs.is_unlocked(cur) else &"carbine"
 	Attachments.from_save({"owned": _arr(cf.get_value("attachments", "owned", PackedStringArray())), "equipped": cf.get_value("attachments", "equipped", {}) if cf.get_value("attachments", "equipped", {}) is Dictionary else {}})
+	var gear_d := {}
+	if cf.has_section("gear"):
+		for gk in cf.get_section_keys("gear"):
+			gear_d[gk] = cf.get_value("gear", gk)
+	Gear.from_save(gear_d)                                  # older saves have no [gear] section: defaults
 	bosses_cleared.clear()
 	for b: Variant in _arr(cf.get_value("campaign", "bosses", PackedInt32Array())):
 		if b is int and int(b) >= 0 and int(b) < 99 and not bosses_cleared.has(int(b)):

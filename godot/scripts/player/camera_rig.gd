@@ -418,18 +418,22 @@ func _process(delta: float) -> void:
 	_update_view(minf(delta, 0.1))
 
 
+var _stop_prev_scale := 1.0
+
+
 ## Hit-stop: a near-freeze for `sec` real seconds on a heavy kill or slam. Skipped under reduce-motion, outside play and during the teleport slow motion.
 func hit_stop(sec: float) -> void:
 	if UiSettings.s_reduce_motion or Game.state != &"play" or _stop_left > 0.0 or Engine.time_scale < 0.99:
 		return
 	_stop_left = clampf(sec, 0.0, GameFeel.STOP_MAX)
 	if _stop_left > 0.0:
+		_stop_prev_scale = Engine.time_scale
 		Engine.time_scale = STOP_SCALE
 
 
 func _end_stop() -> void:
 	if is_equal_approx(Engine.time_scale, STOP_SCALE):
-		Engine.time_scale = 1.0
+		Engine.time_scale = maxf(_stop_prev_scale, 1.0)      # a faster base scale (the bot's speed-up) survives the stop
 	_stop_left = 0.0
 
 

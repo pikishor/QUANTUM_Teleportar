@@ -17,7 +17,7 @@ const SLOWMO_HOLD := 1.1                    ## real seconds at that speed ...
 const SLOWMO_RAMP := 0.5                    ## ... then eased back to normal over this many
 const AUDIT_EVERY := 0.5
 const INPUT_ACTIONS: Array[StringName] = [&"move_forward", &"move_back", &"move_left", &"move_right", &"jump", &"sprint", &"reload", &"blink",
-		&"entangle", &"superpose", &"collapse", &"interact", &"fire", &"aim", &"crouch", &"takedown"]
+		&"entangle", &"superpose", &"collapse", &"interact", &"fire", &"aim", &"crouch", &"takedown", &"melee", &"throw_item", &"gadget"]
 
 var repairs: Array[String] = []              ## what the audit had to fix (tests and the error log read it)
 var slowmo_active := false

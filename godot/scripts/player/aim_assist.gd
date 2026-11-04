@@ -11,7 +11,7 @@ const PULL_MAX := 0.9               ## rad/s cap
 const RANGE := 60.0
 
 ## Hit reaction strength per weapon (flinch / stagger on the enemy): the scatter and lance rock a target, the carbine only flinches it.
-const STAGGER := {&"carbine": 0.4, &"scatter": 0.9, &"lance": 1.5, &"grenade": 1.2}
+const STAGGER := {&"carbine": 0.4, &"scatter": 0.9, &"lance": 1.5, &"grenade": 1.2, &"minigun": 0.15, &"akimbo": 0.3, &"arc": 0.7, &"revolver": 1.1, &"whip": 0.9, &"blade": 1.0}
 
 static var enabled := true
 static var auto_fire := false

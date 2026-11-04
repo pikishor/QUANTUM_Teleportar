@@ -144,6 +144,10 @@ func _page_items() -> Array[Dictionary]:
 			for id: StringName in WeaponDefs.IDS:
 				out.append(_act(WeaponDefs.title(id), TestMode.give_weapon.bind(id)))
 			out.append(_act("ALL WEAPONS", TestMode.give_all_weapons))
+			out.append(_head("THROWABLES AND GADGETS"))
+			for id: StringName in Gear.THROW_IDS + Gear.GADGET_IDS:
+				out.append(_act(Gear.title(id), TestMode.give_gear.bind(id)))
+			out.append(_act("ALL GEAR", TestMode.give_all_gear))
 			out.append(_head("CREDITS AND UPGRADES"))
 			for n: int in [1000, 5000, 25000]:
 				out.append(_act("+%d CREDITS" % n, TestMode.add_credits.bind(n)))

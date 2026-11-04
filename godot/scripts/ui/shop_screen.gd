@@ -8,8 +8,27 @@ const ROW_Y := 150.0                 ## base px of the first row
 const ROW_STEP := 52.0
 const ROW_W := 700.0
 const BUY_W := 150.0
-const SHOP_WEAPONS: Array[StringName] = [&"scatter", &"lance", &"grenade", &"burst", &"rail", &"flux", &"gravity"]
+const SHOP_WEAPONS: Array[StringName] = [&"scatter", &"lance", &"grenade", &"burst", &"rail", &"flux", &"gravity", &"minigun", &"akimbo", &"arc", &"revolver", &"whip", &"blade"]
 const PER_ROW := 4
+const PER_PAGE := 8                  ## two rows; the MORE button flips the page
+
+static var weapon_page := 0
+
+
+static func page_weapons() -> Array[StringName]:
+	weapon_page = clampi(weapon_page, 0, pages() - 1)
+	var out: Array[StringName] = []
+	for i in range(weapon_page * PER_PAGE, mini(SHOP_WEAPONS.size(), (weapon_page + 1) * PER_PAGE)):
+		out.append(SHOP_WEAPONS[i])
+	return out
+
+
+static func pages() -> int:
+	return maxi(1, (SHOP_WEAPONS.size() + PER_PAGE - 1) / PER_PAGE)
+
+
+static func flip() -> void:
+	weapon_page = (weapon_page + 1) % pages()
 
 
 static func layout(hud: Hud, cx: float, s: float) -> void:
@@ -27,8 +46,9 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		hud._add(StringName("buy_%s" % id), Rect2(cx + (ROW_W * 0.5 - BUY_W) * s, y + 4.0 * s, BUY_W * s, 42.0 * s), label, affordable)
 	var wy := (ROW_Y + Upgrades.IDS.size() * ROW_STEP) * s
 	var colw := ROW_W / PER_ROW
-	for k in SHOP_WEAPONS.size():
-		var wid: StringName = SHOP_WEAPONS[k]
+	var pw := page_weapons()
+	for k in pw.size():
+		var wid: StringName = pw[k]
 		var owned := WeaponDefs.is_unlocked(wid)
 		var wl := "OWNED" if owned else "BUY  %d" % (prog.weapon_price(wid) if prog != null else 0)
 		var ry := wy + (k / PER_ROW) * 50.0 * s
@@ -36,6 +56,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 	hud._add(&"side_open", Rect2(cx - 170.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 160.0 * s, 44.0 * s), "MISSIONS", false)
 	hud._add(&"look_open", Rect2(cx + 10.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 160.0 * s, 44.0 * s), "SUIT", false)
 	hud._add(&"loadout", Rect2(cx - 340.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 160.0 * s, 44.0 * s), "LOADOUT", false)
+	hud._add(&"shop_wpage", Rect2(cx + 350.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 100.0) * s, 150.0 * s, 64.0 * s), "MORE %d/%d" % [weapon_page + 1, pages()], false)
 	hud._add(&"shop_back", Rect2(cx + 180.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 160.0 * s, 44.0 * s), "BACK", false)
 
 
@@ -59,6 +80,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var wy := (ROW_Y + Upgrades.IDS.size() * ROW_STEP) * s
 	hud._text(c, font, Vector2(x0, wy + 18.0 * s), "ALIEN WEAPONS", HORIZONTAL_ALIGNMENT_LEFT, 300.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 	var colw := ROW_W / PER_ROW
-	for k in SHOP_WEAPONS.size():
-		var wid: StringName = SHOP_WEAPONS[k]
+	var pw := page_weapons()
+	for k in pw.size():
+		var wid: StringName = pw[k]
 		hud._text(c, font, Vector2(x0 + (k % PER_ROW) * colw * s, wy + (56.0 + (k / PER_ROW) * 50.0) * s), String(WeaponDefs.def(wid)["tag"]), HORIZONTAL_ALIGNMENT_LEFT, 80.0 * s, int(22.0 * s), Color(1, 1, 1, 0.97), 1.0 * s)

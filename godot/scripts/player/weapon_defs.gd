@@ -5,9 +5,12 @@ extends RefCounted
 ##   scatter  Shard Scatter: 8 pellets in a wide cone, each pellet rolls the head test on its own (a crit is 2x the pellet), full damage to 12 m, 25 % at 38 m.
 ##   lance    Pulse Lance: hold to charge (1.1 s, glow at the muzzle and a bar on the HUD), release for a piercing hitscan through every enemy on the line; ADS zooms to 24 degrees.
 ##   grenade  Singularity Grenade: thrown in an arc, lands, a gravity well pulls and burns everything within 9 m for 1.6 s, then it collapses into Game.explode.
-## kind: "hit" (hitscan, pellets), "charge" (lance), "throw" (grenade). reserve < 0 = unlimited spare ammo. look = the emissive tint of the strip on the rifle.
+## kind: "hit" (hitscan, pellets), "charge" (lance), "throw" (grenade), "melee" (whip, blade: a 3-step combo, no ammo).
+## Wave 61 weapons: minigun (spin_up / heat_per / heat_lock: slow to start, fast once spun, overheats), akimbo (twin: shots alternate hands), arc (chain: a hit jumps to nearby enemies),
+## revolver (slow heavy rounds, FAN HAMMER alt), whip (long reach, PULL alt), blade (short reach, LUNGE alt). "snd" = the sound name of a shot (default "shot"). reserve < 0 = unlimited spare ammo. look = the emissive tint of the strip on the rifle.
 
-const IDS: Array[StringName] = [&"carbine", &"scatter", &"lance", &"grenade", &"burst", &"rail", &"flux", &"gravity"]
+const IDS: Array[StringName] = [&"carbine", &"scatter", &"lance", &"grenade", &"burst", &"rail", &"flux", &"gravity", &"minigun", &"akimbo", &"arc", &"revolver", &"whip", &"blade"]
+const PAGE_SIZE := 8                       ## weapons per page of the touch weapon wheel
 
 const DEFS := {
 	&"carbine": {
@@ -68,6 +71,52 @@ const DEFS := {
 		"tracer": Color(0.5, 0.4, 1.0), "look": Color(0.45, 0.35, 1.0), "look_size": Vector3(0.14, 0.1, 0.3), "zoom": 56.0, "price": 1100, "pierce_shield": true,
 		"speed": 30.0, "fuse": 1.4, "well_time": 2.4, "well_radius": 12.0, "well_pull": 12.0, "well_dps": 10.0, "blast_radius": 5.0,
 	},
+	&"minigun": {
+		"name": "PLASMA MINIGUN", "tag": "PMG", "kind": "hit", "mag": 120, "reserve": 360, "interval": 0.05, "damage": 5.0, "crit": 9.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 0.8), Vector2(0.4, 0.7), Vector2(-0.4, 0.7), Vector2(0.2, 0.6), Vector2(-0.2, 0.6)], "shake": 0.015, "vol": -6.0, "pitch_lo": 0.95, "pitch_hi": 1.05, "eject": 0, "flash": 0.9, "ads_kick": 0.7, "ads_spread": 0.6,
+		"spread_hip": 0.03, "spread_ads": 0.016, "spread_move": 0.02, "bloom": 0.003, "bloom_max": 0.05, "snd": &"shot_mini",
+		"kick": 0.003, "kick_end": 0.002, "kick_yaw": 0.003, "reload": 3.0, "range": 80.0, "falloff_from": 25.0,
+		"spin_up": 0.8, "spin_ready": 0.35, "heat_per": 0.012, "heat_cool": 0.35, "heat_lock": 1.8,
+		"tracer": Color(1.0, 0.45, 0.25), "look": Color(1.0, 0.4, 0.2), "look_size": Vector3(0.09, 0.09, 0.55), "zoom": 64.0, "price": 1400, "pierce_shield": false,
+	},
+	&"akimbo": {
+		"name": "TWIN PISTOLS", "tag": "TWN", "kind": "hit", "mag": 24, "reserve": 144, "interval": 0.14, "damage": 11.0, "crit": 24.0, "pellets": 1, "twin": true,
+		"pattern": [Vector2(-1.0, 0.9), Vector2(1.0, 0.9)], "shake": 0.03, "vol": -3.0, "pitch_lo": 1.0, "pitch_hi": 1.12, "eject": 1, "flash": 1.0, "ads_kick": 0.6, "ads_spread": 0.6,
+		"spread_hip": 0.018, "spread_ads": 0.01, "spread_move": 0.012, "bloom": 0.004, "bloom_max": 0.03, "snd": &"shot_twin",
+		"kick": 0.006, "kick_end": 0.005, "kick_yaw": 0.005, "reload": 1.6, "range": 110.0, "falloff_from": 40.0,
+		"tracer": Color(1.0, 0.9, 0.4), "look": Color(1.0, 0.85, 0.35), "look_size": Vector3(0.05, 0.04, 0.26), "zoom": 60.0, "price": 700, "pierce_shield": false,
+	},
+	&"arc": {
+		"name": "ARC CASTER", "tag": "ARC", "kind": "hit", "mag": 14, "reserve": 70, "interval": 0.3, "damage": 20.0, "crit": 34.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.3, 0.8), Vector2(-0.3, 0.8)], "shake": 0.05, "vol": -2.0, "pitch_lo": 0.95, "pitch_hi": 1.08, "eject": 0, "flash": 1.2, "ads_kick": 0.6, "ads_spread": 0.4,
+		"spread_hip": 0.016, "spread_ads": 0.005, "spread_move": 0.012, "bloom": 0.004, "bloom_max": 0.02, "snd": &"shot_arc",
+		"kick": 0.01, "kick_end": 0.008, "kick_yaw": 0.003, "reload": 1.7, "range": 120.0, "falloff_from": 50.0,
+		"chain": 3, "chain_range": 9.0, "chain_k": 0.6,
+		"tracer": Color(0.55, 0.85, 1.0), "look": Color(0.5, 0.8, 1.0), "look_size": Vector3(0.05, 0.05, 0.42), "zoom": 58.0, "price": 850, "pierce_shield": true,
+	},
+	&"revolver": {
+		"name": "SPIKE REVOLVER", "tag": "REV", "kind": "hit", "mag": 6, "reserve": 42, "interval": 0.55, "damage": 48.0, "crit": 110.0, "pellets": 1,
+		"pattern": [Vector2(0.2, 1.4), Vector2(-0.3, 1.3)], "shake": 0.12, "vol": 0.0, "pitch_lo": 0.8, "pitch_hi": 0.9, "eject": 0, "flash": 1.6, "ads_kick": 0.55, "ads_spread": 0.3,
+		"spread_hip": 0.012, "spread_ads": 0.002, "spread_move": 0.014, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_rev", "burst_gap": 0.1,
+		"kick": 0.032, "kick_end": 0.03, "kick_yaw": 0.006, "reload": 2.2, "range": 170.0, "falloff_from": 70.0,
+		"tracer": Color(1.0, 0.75, 0.35), "look": Color(1.0, 0.65, 0.3), "look_size": Vector3(0.05, 0.05, 0.3), "zoom": 50.0, "price": 750, "pierce_shield": false,
+	},
+	&"whip": {
+		"name": "ARC WHIP", "tag": "WHP", "kind": "melee", "mag": 1, "reserve": -1, "interval": 0.38, "damage": 24.0, "crit": 24.0, "pellets": 1,
+		"pattern": [Vector2(0.6, 0.3), Vector2(-0.6, 0.3), Vector2(0.0, 0.6)], "shake": 0.05, "vol": -4.0, "pitch_lo": 0.95, "pitch_hi": 1.05, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"melee_whip",
+		"kick": 0.01, "kick_end": 0.01, "kick_yaw": 0.004, "reload": 1.0, "range": 6.0, "falloff_from": 9999.0,
+		"reach": 6.0, "cone": 0.55, "combo": [1.0, 1.0, 1.9], "combo_window": 0.9,
+		"tracer": Color(0.5, 0.9, 1.0), "look": Color(0.45, 0.85, 1.0), "look_size": Vector3(0.03, 0.03, 0.5), "zoom": 62.0, "price": 600, "pierce_shield": false,
+	},
+	&"blade": {
+		"name": "QUANTUM BLADE", "tag": "BLD", "kind": "melee", "mag": 1, "reserve": -1, "interval": 0.32, "damage": 38.0, "crit": 38.0, "pellets": 1,
+		"pattern": [Vector2(-0.8, 0.2), Vector2(0.8, 0.2), Vector2(0.0, 0.5)], "shake": 0.07, "vol": -4.0, "pitch_lo": 0.95, "pitch_hi": 1.05, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"melee_blade",
+		"kick": 0.012, "kick_end": 0.012, "kick_yaw": 0.005, "reload": 1.0, "range": 3.6, "falloff_from": 9999.0,
+		"reach": 3.6, "cone": 0.15, "combo": [1.0, 1.15, 2.3], "combo_window": 0.8,
+		"tracer": Color(0.7, 0.55, 1.0), "look": Color(0.65, 0.5, 1.0), "look_size": Vector3(0.04, 0.04, 0.8), "zoom": 62.0, "price": 900, "pierce_shield": true,
+	},
 }
 
 ## Alt-fire per class (key B / the ALT touch button). kind: "heavy" = one aimed shot x mult for `cost` rounds (slug / overcharge), "volley" = `count` rounds in a rapid burst,
@@ -81,6 +130,12 @@ const ALTS := {
 	&"rail": {"name": "OVERCHARGE", "kind": "heavy", "cost": 2, "mult": 2.2, "cd": 1.3},
 	&"flux": {"name": "VOLLEY", "kind": "volley", "cost": 12, "count": 12, "cd": 0.7},
 	&"gravity": {"name": "CLUSTER", "kind": "cluster", "cost": 1, "mult": 1.0, "cd": 1.6},
+	&"minigun": {"name": "VENT", "kind": "vent", "cost": 0, "cd": 0.8},
+	&"akimbo": {"name": "FAN", "kind": "volley", "cost": 8, "count": 8, "cd": 0.9},
+	&"arc": {"name": "OVERLOAD", "kind": "heavy", "cost": 3, "mult": 2.6, "cd": 1.2},
+	&"revolver": {"name": "FAN HAMMER", "kind": "volley", "cost": 6, "count": 6, "cd": 1.2},
+	&"whip": {"name": "PULL", "kind": "pull", "cost": 0, "range": 12.0, "cd": 1.6},
+	&"blade": {"name": "LUNGE", "kind": "lunge", "cost": 0, "dist": 4.5, "mult": 2.5, "cd": 1.4},
 }
 ## Ammo types for the hitscan weapons (key T): damage multiplier, fire-interval multiplier, shield piercing.
 const AMMO_TYPES := [
@@ -92,8 +147,9 @@ const AMMO_TYPES := [
 const HIT_SND := {
 	&"carbine": [1.0, 0.0, &""], &"scatter": [0.7, 2.0, &"impact_concrete"], &"lance": [0.55, 3.0, &"impact_metal"], &"grenade": [0.8, 0.0, &""],
 	&"burst": [1.35, -2.0, &""], &"rail": [0.5, 4.0, &"impact_metal"], &"flux": [1.6, -5.0, &""], &"gravity": [0.65, 1.0, &""],
+	&"minigun": [1.5, -6.0, &""], &"akimbo": [1.2, -2.0, &""], &"arc": [1.1, 0.0, &"impact_metal"], &"revolver": [0.6, 3.0, &"impact_concrete"], &"whip": [0.9, 0.0, &""], &"blade": [0.75, 2.0, &"impact_metal"],
 }
-const TILT := {&"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3}
+const TILT := {&"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3, &"minigun": 2.0, &"akimbo": 1.5, &"arc": 1.0, &"revolver": 1.1, &"whip": 0.5, &"blade": 0.5}
 
 
 static func alt_of(id: StringName) -> Dictionary:
@@ -177,3 +233,8 @@ static func pick_drop(r: float, rng_pick: float) -> StringName:
 	if pool.is_empty():
 		return &"scatter"
 	return pool[mini(int(rng_pick * pool.size()), pool.size() - 1)]
+
+
+## Number of pages of the touch weapon wheel for n weapons (PAGE_SIZE each).
+static func pages_for(n: int) -> int:
+	return maxi(1, (n + PAGE_SIZE - 1) / PAGE_SIZE)

@@ -158,6 +158,7 @@ static func _grant_all(prog: Progress) -> void:
 		prog.grant_weapon(id)
 	for part: StringName in Attachments.IDS:
 		Attachments.give(part)
+	Gear.give_all()
 	for id: StringName in Upgrades.IDS:
 		var guard := 0
 		while prog.level(id) < Upgrades.MAX_LEVEL and guard < 12:

@@ -29,6 +29,9 @@ const BUTTONS := [
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
 	{"action": &"crouch", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"foot"},
 	{"action": &"grab", "dx": 270.0, "dy": 660.0, "r": 46.0, "fs": 22, "label": "GRAB", "need": &"foot"},
+	{"action": &"melee", "dx": 70.0, "dy": 440.0, "r": 50.0, "fs": 22, "label": "MELEE", "need": &"foot"},
+	{"action": &"throw_item", "dx": 70.0, "dy": 550.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"foot"},
+	{"action": &"gadget", "dx": 70.0, "dy": 650.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"gadget"},
 	{"action": &"takedown", "dx": 175.0, "dy": 590.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
 	{"action": &"garage_call", "dx": 490.0, "dy": 570.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"garage_call", "fn": &"summon"},
 	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},
@@ -307,6 +310,8 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
 		&"foot":
 			return is_instance_valid(Game.player) and not _driving()
+		&"gadget":
+			return is_instance_valid(Game.player) and not _driving() and Gear.gadget != &""
 		&"takedown":
 			var pc: Object = Game.player.get("cover") if is_instance_valid(Game.player) else null
 			return pc != null and pc.get("target") != null and is_instance_valid(pc.get("target"))

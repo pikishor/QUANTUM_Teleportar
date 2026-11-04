@@ -13,8 +13,11 @@ const PRICE_SCALE := 2.8
 
 ## Shop upgrade base price (Upgrades.cost multiplies by 1 + 0.8 * level).
 const UPGRADE_BASE := {&"damage": 240, &"mag": 160, &"reload": 160, &"blink": 200, &"regen": 200, &"armour": 260, &"decoy": 180}
-const WEAPON_PRICE := {&"carbine": 0, &"scatter": 500, &"lance": 800, &"grenade": 650, &"burst": 400, &"rail": 950, &"flux": 600, &"gravity": 1100}
+const WEAPON_PRICE := {&"carbine": 0, &"scatter": 500, &"lance": 800, &"grenade": 650, &"burst": 400, &"rail": 950, &"flux": 600, &"gravity": 1100, &"minigun": 1400, &"akimbo": 700, &"arc": 850, &"revolver": 750, &"whip": 600, &"blade": 900}
 const ATTACHMENT_PRICE := {&"reddot": 250, &"scope": 450, &"halo": 350, &"suppressor": 300, &"longbarrel": 400, &"compensator": 350, &"overcharge": 500, &"rapid": 450, &"extended": 400}
+## Throwables and gadgets (Gear, scripts/combat/gear.gd): base price, scaled like the rest of the gear. The singularity frag is the free starter.
+const THROW_PRICE := {&"singularity": 0, &"mine": 300, &"decoy": 220, &"shroud": 260, &"emp": 380}
+const GADGET_PRICE := {&"scanner": 300, &"grapple": 520, &"drone": 700}
 const GARAGE_BASE := {&"speed": 300, &"armour": 250, &"grip": 200, &"weapon": 400}   ## x (level + 1)
 const GARAGE_LEVELS := 3
 const SUIT_PRICE := {&"standard": 0, &"stealth": 300, &"phase": 0, &"gilded": 0}
@@ -54,6 +57,10 @@ static func attachment_price(id: StringName) -> int:
 	return scaled(int(ATTACHMENT_PRICE.get(id, 0)))
 
 
+static func gear_price(id: StringName) -> int:
+	return scaled(int(THROW_PRICE[id] if THROW_PRICE.has(id) else GADGET_PRICE.get(id, 0)))
+
+
 static func garage_base(stat: StringName) -> int:
 	return scaled(int(GARAGE_BASE.get(stat, 0)))
 
@@ -91,6 +98,9 @@ static func gear_items() -> Array:
 			out.append({"name": "weapon %s" % id, "price": weapon_price(id)})
 	for id: StringName in ATTACHMENT_PRICE:
 		out.append({"name": "part %s" % id, "price": attachment_price(id)})
+	for id: StringName in Gear.THROW_IDS + Gear.GADGET_IDS:
+		if gear_price(id) > 0:
+			out.append({"name": "gear %s" % id, "price": gear_price(id)})
 	for stat: StringName in GARAGE_BASE:
 		for lvl in GARAGE_LEVELS:
 			out.append({"name": "car %s %d" % [stat, lvl + 1], "price": garage_base(stat) * (lvl + 1)})

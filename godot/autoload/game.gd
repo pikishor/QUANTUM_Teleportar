@@ -71,7 +71,7 @@ const ACTION_KEYS := {
 	&"jump": [KEY_SPACE], &"sprint": [KEY_SHIFT], &"reload": [KEY_R],
 	&"blink": [KEY_Q], &"entangle": [KEY_E], &"superpose": [KEY_G], &"collapse": [KEY_C],
 	&"interact": [KEY_F], &"crouch": [KEY_CTRL], &"takedown": [KEY_V], &"pause": [KEY_ESCAPE],
-	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z], &"grab": [KEY_H],
+	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z], &"grab": [KEY_H], &"melee": [KEY_N], &"throw_item": [KEY_J], &"gadget": [KEY_K],
 }
 
 
@@ -165,7 +165,7 @@ func _setup_input_map() -> void:
 			var ev := InputEventKey.new()
 			ev.physical_keycode = key as Key
 			InputMap.action_add_event(action, ev)
-	for pair: Array in [[&"fire", MOUSE_BUTTON_LEFT], [&"aim", MOUSE_BUTTON_RIGHT], [&"weapon_prev", MOUSE_BUTTON_WHEEL_UP], [&"weapon_next", MOUSE_BUTTON_WHEEL_DOWN]]:
+	for pair: Array in [[&"fire", MOUSE_BUTTON_LEFT], [&"aim", MOUSE_BUTTON_RIGHT], [&"melee", MOUSE_BUTTON_MIDDLE], [&"weapon_prev", MOUSE_BUTTON_WHEEL_UP], [&"weapon_next", MOUSE_BUTTON_WHEEL_DOWN]]:
 		if not InputMap.has_action(pair[0]):
 			InputMap.add_action(pair[0])
 		var mb := InputEventMouseButton.new()

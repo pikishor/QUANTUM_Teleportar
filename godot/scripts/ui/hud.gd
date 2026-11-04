@@ -47,6 +47,7 @@ var _shard_text := ""               ## I2 tracker under the credits plate
 var _contract_text := ""
 var _look_open := false             ## G2: the pause shop shows the hero suit / colour screen (scripts/ui/look_screen.gd)
 var _loadout_open := false          ## the pause screen shows the weapon wheel and attachment loadout
+var _loadout_page := 0             ## 0 weapons and attachments, 1 GEAR (throwables, gadget, saved loadouts: scripts/ui/gear_screen.gd)
 var _loadout_quick := false         ## opened from the wheel gesture: a pick resumes the game
 var _loadout_w: StringName = &"carbine"  ## the weapon whose slots the loadout shows
 var _ach_open := false             ## the pause screen shows the achievements (scripts/ui/achievements_screen.gd)
@@ -152,6 +153,7 @@ func _on_state(s: StringName) -> void:
 	_ach_open = false
 	_side_open = false
 	_loadout_open = false
+	_loadout_page = 0
 	_look_open = false
 	_loadout_quick = false
 	_chapters_open = false
@@ -203,6 +205,7 @@ func open_wheel() -> void:
 	_loadout_open = true
 	_loadout_quick = true
 	_loadout_w = WeaponDefs.last_used
+	LoadoutScreen.reset_page()
 	_layout_key = ""
 
 
@@ -358,6 +361,21 @@ func press_button(id: StringName) -> bool:
 	var sid := String(id)
 	if sid.begins_with("look_") and sid != "look_open":
 		return _press_look(sid)
+	if sid == "loadout_gear" or sid == "gear_weapons":
+		if Game.state != &"paused" or not _loadout_open or Game.progress == null:
+			return false
+		_loadout_page = 1 if sid == "loadout_gear" else 0
+		Sfx.play(&"ui_confirm")
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
+	if sid.begins_with("gt_") or sid.begins_with("gg_") or sid.begins_with("ls_") or sid.begins_with("lsave_"):
+		if Game.state != &"paused" or not _loadout_open or _loadout_page != 1:
+			return false
+		var done := GearScreen.press(sid)
+		_layout_key = ""
+		_screen.queue_redraw()
+		return done
 	if sid.begins_with("wheel_") or sid.begins_with("part_"):
 		if Game.state != &"paused" or not _loadout_open or Game.progress == null:
 			return false
@@ -477,16 +495,27 @@ func press_button(id: StringName) -> bool:
 			_loadout_open = true
 			_loadout_quick = false
 			_loadout_w = WeaponDefs.last_used
+			LoadoutScreen.reset_page()
 			Sfx.play(&"ui_confirm")
 		&"look_open":
 			if Game.state != &"paused" or Game.progress == null or not _shop_open:
 				return false
 			_look_open = true
 			Sfx.play(&"ui_confirm")
+		&"wheelpg_prev", &"wheelpg_next":
+			if Game.state != &"paused" or not _loadout_open or not LoadoutScreen.flip(-1 if id == &"wheelpg_prev" else 1):
+				return false
+			Sfx.play(&"ui_tap")
+		&"shop_wpage":
+			if Game.state != &"paused" or not _shop_open:
+				return false
+			ShopScreen.flip()
+			Sfx.play(&"ui_tap")
 		&"loadout_back":
 			if Game.state != &"paused" or not _loadout_open:
 				return false
 			_loadout_open = false
+			_loadout_page = 0
 			Sfx.play(&"ui_back")
 			if _loadout_quick:
 				_loadout_quick = false
@@ -672,6 +701,8 @@ func ammo_text() -> String:
 			_ammo_text = "%d KM/H" % roundi(absf(UiUtil.num(veh, &"speed", 0.0)) * 3.6)
 		elif p.get("reloading") == true:
 			_ammo_text = "RELOADING"
+		elif UiUtil.num(p, &"mag", 30.0) <= 1.0 and p.get("weapon") is PlayerWeapon and String((p.get("weapon") as PlayerWeapon).def["kind"]) == "melee":
+			_ammo_text = "MELEE"
 		else:
 			_ammo_text = "%d / %d" % [roundi(UiUtil.num(p, &"ammo", 0.0)), roundi(UiUtil.num(p, &"mag", 30.0))]
 	return _ammo_text
@@ -711,7 +742,7 @@ func weapon_charge() -> float:
 	var p: Object = Game.player if is_instance_valid(Game.player) else null
 	if p == null or not (p.get("weapon") is PlayerWeapon):
 		return 0.0
-	return (p.get("weapon") as PlayerWeapon).charge
+	return (p.get("weapon") as PlayerWeapon).gauge()
 
 
 ## The car radio line shown while driving: "RADIO  NEON FM", or "RADIO OFF"; "" when not driving or there is no radio.
@@ -982,10 +1013,13 @@ func _draw_hud_body() -> void:
 		var wr := Rect2(ab.get_center().x - 215.0 * s, ab.position.y - 42.0 * s, 430.0 * s, 36.0 * s)
 		_plate(c, wr, s)
 		_text(c, font, Vector2(wr.position.x, wr.position.y + 27.0 * s), weapon_text(), HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
+		if p.get("weapon") is PlayerWeapon:
+			WeaponIcons.draw(c, (p.get("weapon") as PlayerWeapon).current, Rect2(wr.position.x + 6.0 * s, wr.position.y + 3.0 * s, 54.0 * s, 30.0 * s), Color(UiUtil.CYAN, 0.9))
 		_text(c, font, Vector2(ab.end.x + 10.0 * s, ab.position.y + 40.0 * s), alt_text(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s * 0.8), Color(UiUtil.AMBER, 0.9), 1.0 * s)
 		var wch := weapon_charge()
 		if wch > 0.0:
-			_rect(c, Rect2(wr.position.x, wr.position.y - 8.0 * s, wr.size.x * wch, 5.0 * s), Color(UiUtil.CYAN, 0.95))
+			var hot := p.get("weapon") is PlayerWeapon and (p.get("weapon") as PlayerWeapon).def.has("heat_per")
+			_rect(c, Rect2(wr.position.x, wr.position.y - 8.0 * s, wr.size.x * wch, 5.0 * s), Color(UiUtil.AMBER if hot else UiUtil.CYAN, 0.95) if wch < 0.999 or not hot else Color(1.0, 0.3, 0.2, 0.95))
 	if p.get("quantum") != null and not touch_on:
 		for i in UiUtil.ABILITIES.size():
 			var info: Dictionary = UiUtil.ABILITIES[i]
@@ -1148,7 +1182,8 @@ func _ensure_layout() -> void:
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
 	key += "|%s" % _side_open
 	key += "|a%s%d" % [_ach_open, _ach_page]
-	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size()]
+	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100]
+	key += "|g%d%s%s%d%d" % [_loadout_page, Gear.throwable, Gear.gadget, Gear.owned.size(), Gear.active_slot]
 	key += "|%s%d" % [_options_open, int(settings.hud_scale * 100.0)]
 	if key == _layout_key:
 		return
@@ -1187,6 +1222,8 @@ func _ensure_layout() -> void:
 				SideBoard.layout(self, cx, s)
 			elif _look_open:
 				LookScreen.layout(self, cx, s)
+			elif _loadout_open and _loadout_page == 1:
+				GearScreen.layout(self, cx, s)
 			elif _loadout_open:
 				LoadoutScreen.layout(self, cx, s, _loadout_w)
 			elif _shop_open:
@@ -1295,6 +1332,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				SideBoard.draw(self, c, vp, s, font, cx)
 			elif _look_open:
 				LookScreen.draw(self, c, vp, s, font, cx)
+			elif _loadout_open and _loadout_page == 1:
+				GearScreen.draw(self, c, vp, s, font, cx)
 			elif _loadout_open:
 				LoadoutScreen.draw(self, c, vp, s, font, cx, _loadout_w)
 			elif _shop_open:
@@ -1330,6 +1369,10 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			continue
 		c.draw_rect(r, Color(tint, 0.30 if (on or hot) else 0.10))
 		c.draw_rect(r, Color(tint, 0.95 if (on or hot or big) else 0.5), false, 2.0 * s if big else 1.5 * s)
+		if String(b["id"]).begins_with("wheel_") and WeaponIcons.has_icon(StringName(String(b["id"]).substr(6))):      # weapon wheel: icon over the tag
+			WeaponIcons.draw(c, StringName(String(b["id"]).substr(6)), Rect2(r.position.x + r.size.x * 0.1, r.position.y + 3.0 * s, r.size.x * 0.8, r.size.y * 0.5), Color(1, 1, 1, 0.95 if (on or hot) else 0.8))
+			_text(c, font, Vector2(r.position.x, r.position.y + r.size.y - 9.0 * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(17.0 * s), Color(1, 1, 1, 0.97 if (on or hot) else 0.75))
+			continue
 		_text(c, font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + (10.0 if big else 7.0) * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int((30.0 if big else 20.0) * s), Color(1, 1, 1, 0.97 if (on or hot or big) else 0.75))
 
 

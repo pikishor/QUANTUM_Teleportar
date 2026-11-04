@@ -20,7 +20,7 @@ func run(host: Node) -> void:
 	Attachments.reset()
 	WeaponDefs.reset_unlocked()
 
-	TestLib.check(WeaponDefs.IDS.size() == 8, "eight weapon classes")
+	TestLib.check(WeaponDefs.IDS.size() >= 8, "at least eight weapon classes")
 	for id: StringName in NEW:
 		var d := WeaponDefs.def(id)
 		TestLib.check(WeaponDefs.DEFS.has(id) and d.has("pattern") and d.has("tracer") and int(d["mag"]) > 0 and WeaponDefs.price(id) > 0, "%s has a full definition" % id)

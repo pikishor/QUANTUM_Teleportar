@@ -266,13 +266,14 @@ func _act_weapons() -> void:
 		w.ammo = w.mag
 		w.tick(3.0, false, false, false, false)                             # the previous weapon's alt-fire cooldown does not carry over
 		var s0 := w.shots_fired
+		var c0 := w.combo_hits
 		Input.action_press(&"aim")
 		Input.action_press(&"fire")
 		await _wait(0.9 if id != &"lance" else 1.5)
 		Input.action_release(&"fire")
 		Input.action_release(&"aim")
 		await _wait(0.2)
-		_expect(w.shots_fired > s0 or w.ammo < w.mag or w.is_reloading() or w.grenades_active() > 0, "%s fires (shots %d -> %d, current %s, state %s, hp %.0f, ammo %d/%d, reload %s)" % [id, s0, w.shots_fired, w.current, Game.state, _p.hp, w.ammo, w.mag, w.is_reloading()])
+		_expect(w.shots_fired > s0 or w.combo_hits > c0 or w.ammo < w.mag or w.is_reloading() or w.grenades_active() > 0, "%s fires (shots %d -> %d, current %s, state %s, hp %.0f, ammo %d/%d, reload %s)" % [id, s0, w.shots_fired, w.current, Game.state, _p.hp, w.ammo, w.mag, w.is_reloading()])
 		w.tick(5.0, false, false, false, false)                             # alt-fire cooldown
 		w.ammo = w.mag
 		if w.alt_fire(false):
