@@ -55,7 +55,7 @@ jobs:
       - name: System packages (virtual display, software Vulkan/GL, audio stubs)
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libgl1 libvulkan1 mesa-vulkan-drivers libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64
+          sudo apt-get install -y xvfb libgl1 libvulkan1 mesa-vulkan-drivers libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64 python3-pil
       - name: Cache the Godot binary
         uses: actions/cache@v4
         with:
