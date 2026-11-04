@@ -22,6 +22,7 @@ const MUZZLE_LIFE := 0.09    ## seconds a muzzle flash shows
 const TRACER_LIFE := 0.14
 const SPARK_SIZE := 0.16     ## metres: one spark is a small soft dot
 const ExplosionPool := preload("res://scripts/fx/explosion_pool.gd")
+const QuantumVfx := preload("res://scripts/fx/quantum_vfx.gd")
 const TRACER_SHADER := preload("res://assets/shaders/fx_tracer.gdshader")
 const MUZZLE_SHADER := preload("res://assets/shaders/fx_muzzle.gdshader")
 
@@ -34,6 +35,7 @@ var _tracer_left: Array[float] = []
 var _muzzles: Array[MeshInstance3D] = []
 var _muzzle_left := PackedFloat32Array()
 var explosions: Node3D       ## the ExplosionPool (scripts/fx/explosion_pool.gd)
+var qvfx: Node3D             ## the quantum VFX layer (scripts/fx/quantum_vfx.gd): rings, trails, dust, hero aura
 var _pi := 0
 var _ti := 0
 var _mi := 0
@@ -102,6 +104,9 @@ func _ready() -> void:
 	explosions = ExplosionPool.new()
 	explosions.name = &"Explosions"
 	add_child(explosions)
+	qvfx = QuantumVfx.new()
+	qvfx.name = &"QuantumVfx"
+	add_child(qvfx)
 	Game.new_game.connect(reset)
 	Game.respawn.connect(reset)
 	Game.next_sector.connect(reset)
@@ -145,6 +150,8 @@ func reset() -> void:
 		_muzzles[i].visible = false
 		_muzzle_left[i] = 0.0
 	explosions.clear()
+	if qvfx != null:
+		qvfx.reset()
 
 
 ## Radial burst at a world position: `count` soft sprites flying out at up to `speed` m/s for `life` seconds. `size` scales the sprites (1 = small sparks of
@@ -218,7 +225,7 @@ func muzzle_flash(pos: Vector3, dir: Vector3, color := Color(1.0, 0.85, 0.5), si
 ## `radius` and by Game.quality. `style` (optional): -1 picks by colour and size (cyan or magenta = quantum collapse with a ripple ring, radius 8 and
 ## up = a car wreck that burns for `burn` seconds), or pass ExplosionPool.STYLE_FIRE / STYLE_QUANTUM / STYLE_WRECK. `duration` is kept for API
 ## compatibility: the length follows the radius.
-func blast(pos: Vector3, radius: float, color := Color(1.0, 0.54, 0.19), duration := 0.5, style := -1, burn := 0.0) -> void:
+func blast(pos: Vector3, radius: float, color := Color(1.0, 0.54, 0.19), duration := 0.5, style := -1, burn := 0.0, embers := true) -> void:
 	var st := style
 	var burn_s := burn
 	if st < 0:
@@ -231,7 +238,8 @@ func blast(pos: Vector3, radius: float, color := Color(1.0, 0.54, 0.19), duratio
 	if st == ExplosionPool.STYLE_WRECK and burn_s <= 0.0:
 		burn_s = 6.0
 	explosions.play(pos, radius, color, st, burn_s)
-	if st != ExplosionPool.STYLE_QUANTUM and radius >= 2.5:      # embers drift up out of the fire
+	qvfx.blast_ring(pos, radius, color, st)
+	if embers and st != ExplosionPool.STYLE_QUANTUM and radius >= 2.5:      # embers drift up out of the fire
 		burst(pos + Vector3(0.0, 0.8, 0.0), Color(1.0, 0.62, 0.22), 14, radius * 0.7, 1.1, -1.6, 0.8)
 
 

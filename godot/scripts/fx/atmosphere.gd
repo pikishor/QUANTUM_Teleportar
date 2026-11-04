@@ -49,6 +49,9 @@ var hurt_level := 0.0                       ## 0..1: a short chromatic-aberratio
 var dead_level := 0.0                       ## 0..1: eased desaturation while the player is dead (at most 35 % of the colour)
 
 var _globals_dirty := true
+var ability_level := 0.0                    ## 0..1: film kick after a QUANTUM verb (PostFx2.pulse), eases out by itself
+var _look_acc := 1.0
+var _sun: Node3D
 var _dead_target := 0.0
 
 
@@ -147,10 +150,47 @@ func _process(delta: float) -> void:
 	if _globals_dirty:
 		_push_weather()
 	_feedback_step(delta)
+	_look_step(delta)
 	var cam := _camera()
 	rainfield.update(delta, cam, rain_now)
 	if cam != null and rainfield.is_visible_in_tree():
 		post.set_slant(rainfield.screen_slant(cam))
+
+
+## QUANTUM verb used: a short chromatic-aberration / grain / cool-edge kick (MED and HIGH). Never accumulates above 1; off with reduce-flash.
+func ability_pulse(strength := 1.0) -> void:
+	if UiSettings.s_reduce_flash:
+		return
+	ability_level = maxf(ability_level, clampf(strength, 0.0, 1.0))
+
+
+## District grade, light shafts and the ability kick (PostFx2). The grade follows the hero through the city and eases between districts.
+func _look_step(delta: float) -> void:
+	if post == null:
+		return
+	if ability_level > 0.0:
+		ability_level = maxf(0.0, ability_level - delta / maxf(Engine.time_scale, 0.05) * PostFx2.PULSE_DECAY)
+		post.set_param(&"ability_amount", ability_level)
+	if not post.visible:
+		return                                              # LOW: no post pass, nothing more to drive
+	_look_acc += delta
+	if _look_acc < 0.1:
+		return
+	_look_acc = 0.0
+	var pos: Variant = (Game.player as Node3D).global_position if is_instance_valid(Game.player) and Game.player is Node3D else null
+	var g := PostFx2.district_grade(pos)
+	post.set_param(&"d_gain", g["gain"])
+	post.set_param(&"d_lift", g["lift"])
+	post.set_param(&"d_sat", g["sat"])
+	var nv: Variant = RenderingServer.global_shader_parameter_get(&"night")
+	var night := float(nv) if nv != null else 1.0
+	if _sun == null or not is_instance_valid(_sun):
+		_sun = get_tree().root.find_child("Moon", true, false) as Node3D
+	var cam := _camera()
+	if _sun != null and cam != null:
+		var to_light := _sun.global_transform.basis.z
+		var tw := 4.0 * night * (1.0 - night)               # dusk and dawn: the night amount is half way
+		post.set_shafts(PostFx2.sun_screen(cam, to_light), (_sun as DirectionalLight3D).light_color, PostFx2.shaft_amount(night, tw, rain_now))
 
 
 func _feedback_step(delta: float) -> void:

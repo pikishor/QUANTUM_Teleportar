@@ -127,6 +127,12 @@ static func entries() -> Array[Dictionary]:
 	out.append({"head": true, "label": "SURFACE LOOK"})
 	out.append({"label": "MATERIALS V2", "fn": TestMode.set_materials_v2.bind(true)})
 	out.append({"label": "MATERIALS V1", "fn": TestMode.set_materials_v2.bind(false)})
+	out.append({"head": true, "label": "VFX SHOWCASE"})
+	for id: StringName in FX.QuantumVfx.SHOWCASE:
+		out.append({"label": String(FX.QuantumVfx.SHOWCASE_TITLES[id]), "fn": FX.qvfx.play_demo.bind(id)})
+	out.append({"head": true, "label": "POST LOOK"})
+	out.append({"label": "FILM FX2", "fn": TestMode.set_post_fx2.bind(true)})
+	out.append({"label": "BASE", "fn": TestMode.set_post_fx2.bind(false)})
 	out.append({"head": true, "label": "TIME OF DAY"})
 	for n: String in HOURS:
 		out.append({"label": n, "fn": set_time.bind(HOURS[n])})

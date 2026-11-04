@@ -254,6 +254,8 @@ func use(id: StringName) -> bool:
 	_cd[id] = HeroPower.cd(float(CD[id]))
 	uses[id] = int(uses.get(id, 0)) + 1
 	used.emit(id)
+	FX.qvfx.verb_used(id)
+	PostFx2.pulse(0.7)
 	Game.say(String(TITLES[id]), 0.8)
 	return true
 

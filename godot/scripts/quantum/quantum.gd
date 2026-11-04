@@ -316,10 +316,7 @@ func _slow_end() -> void:
 
 ## A particle trail from the old position to the new one.
 func _trail(from: Vector3, to: Vector3) -> void:
-	var n := _fx_count(6)
-	for i in n:
-		var pt := from.lerp(to, float(i) / float(maxi(n - 1, 1)))
-		FX.burst(pt, CYAN if i % 2 == 0 else MAGENTA, _fx_count(6), 2.5, 0.5, 0.0)
+	FX.qvfx.teleport(from, to)                    # portals at both ends, tapered trail, dust, aura (scripts/fx/quantum_vfx.gd)
 
 
 # --- blink -----------------------------------------------------------------------------------------------------------
@@ -384,6 +381,7 @@ func teleport() -> bool:
 	_trail(from, to)
 	_skill_blink_damage(from, to)
 	GameFeel.fire(&"teleport")
+	PostFx2.pulse(1.0)
 	fx_flash = 1.0
 	aiming = false
 	_slow_begin(SLOW_AFTER)
@@ -523,6 +521,8 @@ func entangle() -> bool:
 	_swap_a = from + Vector3(0.0, 1.0, 0.0)
 	_swap_b = to + Vector3(0.0, 1.0, 0.0)
 	_swap_left = SWAP_BEAM
+	FX.qvfx.entangle(_swap_a, _swap_b, SWAP_BEAM)
+	PostFx2.pulse(0.8)
 	_p.teleport_to(to + Vector3(0.0, 0.05, 0.0))
 	match kind:
 		&"enemy":
@@ -623,7 +623,7 @@ func _animate_swap(delta: float) -> void:
 			_swap_beams[1].visible = false
 		return
 	_swap_left -= delta
-	var on := _swap_left > 0.0 and int(floor(_clock * 20.0)) % 2 == 0
+	var on := false                                           # the braid (FX.qvfx.entangle) replaced the flickering box beams
 	FX.place_beam(_swap_beams[0], _swap_a, _swap_b)
 	FX.place_beam(_swap_beams[1], _swap_a, _swap_b)
 	_swap_beams[0].visible = on
@@ -693,6 +693,7 @@ func superpose() -> bool:
 		return false
 	_p.energy -= HeroPower.cost(SUPER_COST) * SkillTree.cost_mult(&"superposition")
 	_make_clone()
+	FX.qvfx.superposition_start(_p.global_position + Vector3(0.0, 1.0, 0.0))
 	_boost = SUPER_SPEED * SkillTree.split_speed()
 	_p.speed_boost = _boost
 	FX.burst(_p.global_position + Vector3(0.0, 1.0, 0.0), Color(0.4, 1.0, 0.93), _fx_count(30), 5.0, 0.6, 0.0)
@@ -712,6 +713,7 @@ func collapse(timeout := false) -> void:
 		Game.explode(pos + Vector3(0.0, 1.0, 0.0), PULSE_RADIUS, {"enemy_dmg": PULSE_DMG, "car_dmg": 10.0, "player_dmg": 0.0, "color": Color(0.4, 1.0, 0.93)})
 	else:
 		Game.explode(pos + Vector3(0.0, 1.0, 0.0), BLAST_RADIUS, {"enemy_dmg": 70.0, "car_dmg": 40.0, "player_dmg": 0.0, "color": Color(0.4, 1.0, 0.93)})
+	PostFx2.pulse(1.0)
 	Game.say("WAVEFUNCTION COLLAPSE", 1.4)
 
 
@@ -772,6 +774,7 @@ func collapse_all() -> bool:
 			e.call(&"stagger", 1.5)
 		if is_instance_valid(e) and e.has_method(&"disable"):
 			e.call(&"disable", WAVE_OFF * (0.6 + 0.4 * f))
+	FX.qvfx.collapse(origin, rad)
 	FX.blast(origin, rad, MAGENTA, 0.6)
 	if _rich:
 		FX.blast(origin, rad * 0.6, CYAN, 0.4)

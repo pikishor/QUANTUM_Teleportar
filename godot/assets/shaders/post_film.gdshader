@@ -39,6 +39,17 @@ uniform float lens_amount : hint_range(0.0, 1.0) = 0.0;                // refrac
 uniform float overlay_amount : hint_range(0.0, 1.0) = 0.0;             // far rain curtain, visible against lit areas only
 uniform float wind_slant : hint_range(-0.5, 0.5) = 0.08;               // lean of the curtain streaks (dx/dy on screen)
 
+// ---- district grade, ability kick and light shafts (PostFx2, scripts/fx/post_fx2.gd) ---------------------------------
+uniform vec3 d_gain = vec3(1.0);                                       // per-district grade: highlight multiplier,
+uniform vec3 d_lift = vec3(0.0);                                       // shadow tint,
+uniform float d_sat : hint_range(0.0, 2.0) = 1.0;                      // and colour scale (blended by position on the CPU)
+uniform float ability_amount : hint_range(0.0, 1.0) = 0.0;             // QUANTUM verb film kick: extra aberration, grain, cool edge tint
+uniform float shaft_amount : hint_range(0.0, 1.0) = 0.0;               // fake light shafts toward the sun on screen (0 skips the loop)
+uniform int shaft_steps : hint_range(0, 12) = 0;
+uniform vec2 sun_uv = vec2(0.5, 0.2);
+uniform vec3 sun_color = vec3(1.0, 0.9, 0.75);
+uniform float drip_amount : hint_range(0.0, 1.0) = 0.0;                // rain drops that slide down the lens leaving a thin wet trail
+
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 // sine-free hashes: identical on every GPU
@@ -72,6 +83,23 @@ vec3 drop_layer(vec2 p, float scale, float t, float density, float seed, float s
 	float rim = smoothstep(r * 0.5, r, l) * body;
 	float glint = (1.0 - smoothstep(0.0, r * 0.22, length(d - vec2(-0.30, -0.32) * r))) * body;
 	return vec3(refr, glint * 0.45 - rim * 0.18);
+}
+
+// Drops sliding down the lens: each lane holds one bead falling at its own speed with a thin refractive trail above it.
+vec3 drip_layer(vec2 p, float lanes, float t, float density, float seed) {
+	float lane = floor(p.x * lanes);
+	float fx = fract(p.x * lanes) - 0.5;
+	vec3 h = hash32(vec2(lane, seed));
+	float on = step(1.0 - density, h.x);
+	float pos = fract(t * (0.02 + 0.03 * h.y) + h.z);               // 0 at the top of the frame, 1 at the bottom
+	float y = 1.0 - p.y;
+	float dl = (pos - y) * lanes;                                   // lane units; > 0 above the bead (its trail)
+	float wob = sin(y * 40.0 + h.z * 6.0) * 0.06;
+	float w = abs(fx - wob);
+	float bead = (1.0 - smoothstep(0.0, 0.16, length(vec2(fx - wob, dl * 1.4)))) * on;
+	float trail = (1.0 - smoothstep(0.03, 0.10, w)) * smoothstep(0.0, 0.15, dl) * (1.0 - smoothstep(0.8, 4.5, dl)) * on * 0.35;
+	float amt = max(bead, trail);
+	return vec3(-vec2(fx - wob, 0.2) * amt * 0.004, bead * 0.35);
 }
 
 // Distant rain as vertical streak lanes that drift down the screen: only a hint of density behind the real 3D streaks.
@@ -114,6 +142,12 @@ void fragment() {
 		duv += d1.xy + d2.xy;
 		lens_light = d1.z + d2.z;
 	}
+	if (drip_amount > 0.0 && rain_amount > 0.0) {
+		vec2 pa = uv * vec2(aspect, 1.0);
+		vec3 dr = drip_layer(pa, 17.0, t, 0.35 * drip_amount * rain_amount, 11.0) + drip_layer(pa + 2.3, 29.0, t * 1.2, 0.22 * drip_amount * rain_amount, 23.0);
+		duv += dr.xy;
+		lens_light += dr.z;
+	}
 	if (fx_heat.w > 0.0) {
 		// the air above an explosion ripples outwards: a radial wobble that dies off with distance from the blast and with time
 		vec2 hd = (uv - fx_heat.xy) * vec2(aspect, 1.0);
@@ -126,8 +160,9 @@ void fragment() {
 
 	// ---- 2. fetch, with chromatic aberration growing towards the edges --------------------------------------------
 	vec3 c = texture(screen_tex, suv).rgb;
-	if (ca_amount > 0.0) {
-		vec2 off = cen * (ca_amount * r * r * 2.2);
+	float ca_total = ca_amount + ability_amount * 0.003;
+	if (ca_total > 0.0) {
+		vec2 off = cen * (ca_total * (r * r + 0.25 * ability_amount) * 2.2);
 		if (dot(off * res, off * res) > 0.15) {                   // the central region needs no extra reads
 			c.r = texture(screen_tex, suv + off).r;
 			c.b = texture(screen_tex, suv - off).b;
@@ -155,6 +190,9 @@ void fragment() {
 	c = mix(c, c * c * (3.0 - 2.0 * c), contrast);
 	float lum = dot(c, LUMA);
 	c = mix(vec3(lum), c, saturation);
+	c = max(c * d_gain + d_lift * (1.0 - c), 0.0);                    // per-district grade
+	lum = dot(c, LUMA);
+	c = mix(vec3(lum), c, d_sat);
 
 	// ---- 5. weather on the lens -----------------------------------------------------------------------------------
 	if (overlay_amount > 0.0 && rain_amount > 0.0) {
@@ -169,19 +207,36 @@ void fragment() {
 		c *= 1.0 + min(lens_light, 0.0);
 	}
 
+	// ---- 5b. light shafts: bright pixels smeared toward the sun on screen (a handful of reads, MED 4 / HIGH 8) ------------
+	if (shaft_amount > 0.0 && shaft_steps > 0) {
+		vec2 dir = sun_uv - uv;
+		float acc = 0.0;
+		float jit = hash12(FRAGCOORD.xy) * 0.5;
+		for (int i = 0; i < shaft_steps; i++) {
+			vec2 sp = uv + dir * ((float(i) + jit) / float(shaft_steps)) * 0.7;
+			acc += smoothstep(0.75, 1.0, dot(texture(screen_tex, sp).rgb, LUMA));
+		}
+		acc /= float(shaft_steps);
+		float near = exp(-length(dir * vec2(aspect, 1.0)) * 1.4);
+		c += sun_color * acc * near * shaft_amount * 0.35;
+	}
+	if (ability_amount > 0.0) {
+		c = mix(c, c * vec3(0.90, 1.04, 1.12), ability_amount * smoothstep(0.3, 1.0, r) * 0.6);
+	}
+
 	// ---- 6. vignette: darkens and cools the corners ---------------------------------------------------------------
 	float vg = smoothstep(vignette_start, 1.08, r);
 	c *= 1.0 - vignette_amount * vg * (0.55 + 0.45 * vg);
 	c = mix(c, c * vec3(0.88, 1.0, 1.07), vg * 0.4);
 
 	// ---- 7. film grain: temporal, triangular, strongest in the dark; also dithers 8-bit banding in the fog ---------
-	if (grain_amount > 0.0) {
+	if (grain_amount + ability_amount > 0.0) {
 		float gs = max(grain_size * res.y / 1080.0, 1.0);
 		vec2 gp = floor(FRAGCOORD.xy / gs);
 		float f = mod(floor(t * grain_fps), 64.0);
 		float n = hash12(gp + f * vec2(17.13, 31.71)) + hash12(gp * 1.137 + f * vec2(7.31, 13.97) + 19.19) - 1.0;
 		float l2 = dot(c, LUMA);
-		c += vec3(n) * grain_amount * (1.1 - 0.85 * sqrt(l2)) * vec3(0.95, 1.0, 1.08);
+		c += vec3(n) * (grain_amount + ability_amount * 0.03) * (1.1 - 0.85 * sqrt(l2)) * vec3(0.95, 1.0, 1.08);
 	}
 
 	COLOR = vec4(clamp(c, 0.0, 1.0), 1.0);

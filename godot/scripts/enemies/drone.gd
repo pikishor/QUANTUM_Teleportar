@@ -350,9 +350,10 @@ func _death_effect() -> void:
 	var pos := center()
 	var mgr := Game.enemies as EnemyManager
 	if mgr == null or mgr.death_blast():
-		FX.blast(pos, 2.5 * maxf(0.85, radius), c, 0.35)             # the burst: fireball, ring, sparks (one pooled slot), then the shell dissolves
+		FX.blast(pos, 2.5 * maxf(0.85, radius), c, 0.35, -1, 0.0, Game.quality < 2)             # (HIGH: the dissolve dust below replaces the ember burst) the burst: fireball, ring, sparks (one pooled slot), then the shell dissolves
 	else:
 		_burst(pos, c, 18, 6.0, 0.5, 2.0, 2.2)                       # the tier's blast slots are busy (4 deaths at once): one particle draw (if the budget allows) instead of a slot
+	FX.qvfx.death_dust(pos, 1.7 * maxf(0.85, radius), 0.45 * maxf(0.85, radius), c)           # the shell dissolves into quantum dust (MED / HIGH)
 	if Game.graphic_violence:
 		ichor(pos, 1.0)
 	Sfx.play_at(&"boom", pos, -3.0)

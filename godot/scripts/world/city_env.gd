@@ -104,10 +104,8 @@ func build(parent: Node3D) -> void:
 ## level 0 low, 1 medium, 2 high. `vp` is the viewport the world renders into (MSAA / render scale live there).
 func apply_quality(level: int, vp: Viewport) -> void:
 	level = clampi(level, 0, 2)
-	sun.shadow_enabled = level >= 1
-	sun.directional_shadow_max_distance = 55.0 if level == 1 else 150.0
+	PostFx2.apply_shadow(sun, level)                     # shadow quality per tier (distance, blur, bias, opacity)
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.shadow_blur = 1.0 if level == 1 else 1.6
 	sky.radiance_size = Sky.RADIANCE_SIZE_32 if level == 0 else Sky.RADIANCE_SIZE_64
 	if vp != null:
 		vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][level]
@@ -124,6 +122,7 @@ func apply_quality(level: int, vp: Viewport) -> void:
 	var compat_gl := RenderingServer.get_current_rendering_method() == "gl_compatibility"
 	var tame := level == 0 or compat_gl                  # the Compatibility renderer (a phone without Vulkan) shows the hero as a white blob at MED too: same limits there
 	env.glow_hdr_threshold = (COMPAT_GLOW_THRESHOLD if compat_gl else 0.9) + (0.3 if tame else 0.0)
+	env.set_meta(&"glow_thr_base", env.glow_hdr_threshold)   # DayNight (PostFx2.apply_env) raises it by day from this base
 	env.glow_hdr_luminance_cap = 3.5 if tame else 12.0
 	env.adjustment_contrast = [1.14, 1.08, 1.06][level]       # LOW: a light 'sharpen' (the post-process filter is off there)
 	env.fog_density = 0.0042 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0052

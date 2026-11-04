@@ -236,6 +236,7 @@ func _slam_impact() -> void:
 	var pos := _p.global_position
 	var r := slam_radius()
 	last_slam_hits = _area_damage(pos, r, cfg("slam") * HeroPower.f("dmg"), null, 1.5)
+	FX.qvfx.slam(pos, r)
 	FX.blast(pos + Vector3.UP * 0.2, r * 0.6, Color(0.45, 0.95, 1.0), 0.45)
 	FX.burst(pos + Vector3.UP * 0.3, Color(0.6, 1.0, 1.0), 24, 9.0, 0.5, 4.0)
 	GameFeel.fire(&"slam")

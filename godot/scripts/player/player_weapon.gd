@@ -502,6 +502,7 @@ func _trace_pellet() -> void:
 	if def.has("twin"):                                             # akimbo: the shot leaves the hand whose turn it is
 		mz += p.camera_rig.camera.global_basis.x * (_side * 0.16)
 	FX.tracer(mz, hit, def["tracer"])
+	FX.qvfx.weapon_shot(current, mz, hit)
 
 	var from_d := float(def["falloff_from"])
 	var k := 1.0
@@ -708,7 +709,7 @@ func _fire_lance(c: float, aiming: bool) -> void:
 	var mz := p.body.muzzle.global_position
 	var end := origin + dir * wall_t
 	FX.tracer(mz, end, def["tracer"])
-	FX.tracer(mz, end, Color(1.0, 1.0, 1.0))
+	FX.qvfx.weapon_shot(current, mz, end)
 	p.body.fire_flash(float(def["flash"]))
 	for v: Array in victims:
 		var e: Node = v[1]
@@ -1017,6 +1018,7 @@ func _chain(first: Node, at: Vector3, k: float) -> void:
 		used.append(best)
 		var c: Vector3 = best.call(&"center")
 		FX.tracer(prev, c, def["tracer"])
+		FX.qvfx.bolt(prev, c, def["tracer"])
 		_hit_target(best, c, Vector3.UP, k * float(def["chain_k"]))
 		chain_hits += 1
 		prev = c
@@ -1056,7 +1058,10 @@ func _melee_swing(aiming: bool, mult := 1.0, reach_add := 0.0) -> int:
 		n += 1
 	var mz := p.body.muzzle.global_position
 	var tip := origin + Vector3(0.0, 1.2, 0.0) + fwd * minf(reach, 3.0)
-	FX.tracer(mz, tip + p.camera_rig.camera.global_basis.x * (0.8 if step % 2 == 0 else -0.8), def["tracer"])
+	var swing := p.camera_rig.camera.global_basis.x * (0.8 if step % 2 == 0 else -0.8)
+	FX.tracer(mz, tip + swing, def["tracer"])
+	FX.qvfx.weapon_id = current
+	FX.qvfx.bolt(origin + Vector3(0.0, 1.5, 0.0) - swing, tip + swing, def["tracer"])
 	_recoil(aiming)
 	if finisher:
 		FX.shake(0.12)

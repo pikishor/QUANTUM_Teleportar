@@ -24,6 +24,7 @@ func _advance(seconds: float) -> void:
 	for i in roundi(seconds / 0.1):
 		FX._process(0.1)
 		FX.explosions._process(0.1)
+		FX.qvfx._process(0.1)
 
 
 func run(host: Node) -> void:

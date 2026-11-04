@@ -166,6 +166,12 @@ func _page_items() -> Array[Dictionary]:
 			out.append(_head("SURFACE LOOK"))
 			out.append(_act("MATERIALS V2", TestMode.set_materials_v2.bind(true)))
 			out.append(_act("MATERIALS V1", TestMode.set_materials_v2.bind(false)))
+			out.append(_head("VFX SHOWCASE"))
+			for id: StringName in FX.QuantumVfx.SHOWCASE:
+				out.append(_act(String(FX.QuantumVfx.SHOWCASE_TITLES[id]), FX.qvfx.play_demo.bind(id)))
+			out.append(_head("POST LOOK"))
+			out.append(_act("FILM FX2", TestMode.set_post_fx2.bind(true)))
+			out.append(_act("BASE", TestMode.set_post_fx2.bind(false)))
 			out.append(_head("HEAT LEVEL"))
 			for h in 6:
 				out.append(_act("HEAT %d" % h, TestMode.set_heat.bind(float(h))))

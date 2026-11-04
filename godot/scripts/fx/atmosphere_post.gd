@@ -27,12 +27,18 @@ const DEFAULTS := {
 	&"haze_amount": 0.8,
 	&"lens_amount": 0.6,
 	&"overlay_amount": 0.8,
+	&"d_gain": Vector3.ONE,
+	&"d_lift": Vector3.ZERO,
+	&"d_sat": 1.0,
+	&"ability_amount": 0.0,
+	&"shaft_amount": 0.0,
+	&"drip_amount": 0.8,
 }
 
 ## Per quality tier (0 LOW, 1 MED, 2 HIGH): the fraction of an effect that exists. 0 = the shader branch is skipped entirely.
 const TIER_MASK: Array[Dictionary] = [
-	{&"ca_amount": 0.0, &"sharpen_amount": 0.0, &"haze_amount": 0.0, &"lens_amount": 0.0, &"overlay_amount": 0.0, &"grain_size": 1.5},
-	{&"ca_amount": 1.0, &"sharpen_amount": 0.0, &"haze_amount": 1.0, &"lens_amount": 0.0, &"overlay_amount": 0.55, &"grain_size": 1.15},
+	{&"ca_amount": 0.0, &"sharpen_amount": 0.0, &"haze_amount": 0.0, &"lens_amount": 0.0, &"overlay_amount": 0.0, &"grain_size": 1.5, &"shaft_amount": 0.0, &"drip_amount": 0.0, &"ability_amount": 0.0},
+	{&"ca_amount": 1.0, &"sharpen_amount": 0.0, &"haze_amount": 1.0, &"lens_amount": 0.5, &"overlay_amount": 0.55, &"grain_size": 1.15, &"shaft_amount": 0.7, &"drip_amount": 0.0, &"ability_amount": 0.8},
 	{&"ca_amount": 1.0, &"sharpen_amount": 1.0, &"haze_amount": 1.0, &"lens_amount": 1.0, &"overlay_amount": 1.0, &"grain_size": 1.0},
 ]
 
@@ -132,9 +138,21 @@ func set_slant(slant: float) -> void:
 		mat.set_shader_parameter(&"wind_slant", _slant)
 
 
+## Fake light shafts toward the sun: `sun` = (u, v, in_front 0/1), `color` the light colour, `amount` 0..1 (PostFx2.shaft_amount).
+func set_shafts(sun: Vector3, color: Color, amount: float) -> void:
+	if mat == null:
+		return
+	mat.set_shader_parameter(&"sun_uv", Vector2(sun.x, sun.y))
+	mat.set_shader_parameter(&"sun_color", Vector3(color.r, color.g, color.b))
+	mat.set_shader_parameter(&"shaft_steps", PostFx2.shaft_steps(tier))
+	_base[&"shaft_amount"] = amount if sun.z > 0.5 else 0.0
+	_push(&"shaft_amount")
+
+
 func _push_all() -> void:
 	if mat == null:
 		return
+	mat.set_shader_parameter(&"shaft_steps", PostFx2.shaft_steps(tier))
 	for param: StringName in DEFAULTS:
 		_push(param)
 	mat.set_shader_parameter(&"rain_amount", _rain)

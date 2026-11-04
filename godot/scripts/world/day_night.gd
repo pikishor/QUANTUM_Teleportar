@@ -138,6 +138,7 @@ func apply() -> void:
 	mood = LightingPolish.window_mood(hour)
 	RenderingServer.global_shader_parameter_set(LightingPolish.MOOD_PARAM, Vector4(mood.r, mood.g, mood.b, mood.a))
 	e.glow_strength = _glow_base * LightingPolish.glow_for(n, tier)
+	PostFx2.apply_env(e, n, tier)                      # filmic white point, bloom threshold and AO by time of day
 	var d := light_dir(hour)
 	sun.transform = Transform3D(Basis.looking_at(-d, Vector3.UP), Vector3.ZERO)
 	var warm := SUN_COLOR.lerp(SKY_DUSK, tw)

@@ -82,7 +82,13 @@ static func _warm_fx(at: Vector3) -> int:
 	FX.blast(at + Vector3(-3.0, 0.0, 0.0), 3.0, Color(1.0, 0.5, 0.15), 0.5)                 # fire
 	FX.blast(at + Vector3(3.0, 0.0, 0.0), 3.0, Color(0.3, 0.94, 1.0), 0.5)                  # quantum collapse
 	FX.blast(at + Vector3(0.0, 0.0, -3.0), 9.0, Color(1.0, 0.5, 0.15), 0.5, FX.ExplosionPool.STYLE_WRECK, 0.5)   # burning wreck
-	var n := 7
+	var qv := FX.qvfx                                                 # quantum layer: every ring mode, every ribbon mode, dust and the aura
+	for m in 4:
+		qv.ring(at + Vector3(m * 0.5, 0.0, 0.0), Vector3.UP, 1.0, Color(0.3, 0.9, 1.0), Color(1.0, 0.3, 0.9), m, 0.3, m == 3)
+		qv.trail(at + Vector3(0.0, 0.5 + m * 0.2, 0.0), at + Vector3(2.0, 0.7 + m * 0.2, 0.0), Color(0.3, 0.9, 1.0), Color(1.0, 0.3, 0.9), m, 0.3)
+	qv.dust(at, 8, Color(0.3, 0.9, 1.0), Color(1.0, 0.3, 0.9))
+	qv.aura(Color(0.3, 0.9, 1.0), 0.3)
+	var n := 7 + 6
 	var p := Game.player as Player
 	if is_instance_valid(p):                                          # the player's bullet impacts: sparks, mist, dust and the decal (no sound: Sfx is not touched)
 		if p.sparks != null:
