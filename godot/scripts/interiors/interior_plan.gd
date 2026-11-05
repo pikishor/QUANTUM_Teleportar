@@ -153,8 +153,8 @@ func _layout() -> void:
 		var h := rng.randf_range(ceil_rng[0], ceil_rng[1])
 		if i > 0 and float(ceil_rng[0]) > 4.6:
 			h = rng.randf_range(3.2, 3.6)
-		var wall_c: Color = pal["wall"] if i % 2 == 0 else pal["wall2"]
-		var fl: Color = pal["floor"]
+		var wall_c: Color = _natural(pal["wall"] if i % 2 == 0 else pal["wall2"])
+		var fl: Color = _natural(pal["floor"])
 		var room := {"rect": rr, "h": snappedf(h, 0.05), "role": String(rs["role"]), "wall": wall_c, "floor": fl.lerp(wall_c, rng.randf() * 0.3), "ceil": pal["ceil"],
 			"dance": Rect2(), "parent": parents[i], "spec_i": kept[i]}
 		rooms.append(room)
@@ -435,6 +435,12 @@ func _can_fit(room: int, c: Vector2, f: Vector2, gap: float, ignore_reserved := 
 	return true
 
 
+## Colour balance of a surface: the kinds' palettes are warm and dark, and under warm light the post grade turned them crimson. 55 % of the saturation goes, the hue stays.
+static func _natural(c: Color) -> Color:
+	var l := c.get_luminance()
+	return c.lerp(Color(l, l, l * 1.04), 0.55)
+
+
 func _tint_for(kind: String) -> Color:
 	var base: Color = pal["wall"]
 	var k := float(kind.hash() % 97) / 97.0
@@ -573,7 +579,7 @@ func _sign_for_room0() -> void:
 	p["acc"] = neon[0]
 	props.append(p)
 	_wm_used[0][side].append([c - sw * 0.5 - 0.3, c + sw * 0.5 + 0.3])
-	pools.append({"pos": Vector3(c, 1.9, float(g["face"]) + 1.3), "radius": 3.8, "col": neon[0], "inten": 0.6, "prio": 4})
+	pools.append({"pos": Vector3(c, 1.9, float(g["face"]) + 1.3), "radius": 3.8, "col": (neon[0] as Color).lerp(Color(1.0, 0.95, 0.88), 0.6 if type != &"club" else 0.0), "inten": 0.6, "prio": 4})
 
 
 func _step(room: int, step: Array) -> void:
@@ -919,6 +925,8 @@ func _op_beams(room: int, n: int) -> void:
 
 
 func _add_pool(pos: Vector3, radius: float, col: Color, inten: float, prio: int) -> void:
+	if type != &"club":
+		col = col.lerp(Color(0.98, 0.96, 0.92), 0.6)         # colour balance: stacked saturated neon pools wash a room one colour; the club keeps its light show
 	pools.append({"pos": pos, "radius": radius, "col": col, "inten": inten, "prio": prio})
 
 
@@ -1074,15 +1082,16 @@ func _lighting() -> void:
 	for s: Dictionary in segs:
 		if int(s["side"]) == SIDE_FRONT and int(s["owner"]) == 0 and int(s["other"]) < 0 and not (s["windows"] as Array).is_empty():
 			var wv: Array = s["windows"][0]
-			var street_col: Color = neon[1] if neon.size() > 1 else neon[0]
+			var street_col: Color = (neon[1] if neon.size() > 1 else neon[0]).lerp(key, 0.5)      # the street's neon, warmed toward the room's key light: never a red wash
 			_add_pool(Vector3(float(wv[0]), 1.4, float(s["line"]) - 1.5), 4.4, street_col, 0.5, 3)
 			break
 	pools.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["prio"]) > int(b["prio"]))
 	var r0: Rect2 = rooms[0]["rect"]
 	var h0: float = rooms[0]["h"]
-	lights.append({"pos": Vector3(r0.get_center().x, minf(h0 - 0.5, 3.0), r0.get_center().y), "col": key, "energy": 0.9, "range": maxf(r0.size.x, r0.size.y) * 0.9 + 2.0})
+	lights.append({"pos": Vector3(r0.get_center().x, minf(h0 - 0.5, 3.0), r0.get_center().y), "col": key.lerp(Color(1.0, 0.95, 0.88), 0.6), "energy": 1.0, "range": maxf(r0.size.x, r0.size.y) * 0.9 + 2.0})
 	var r1: Rect2 = rooms[1]["rect"] if rooms.size() > 1 and type == &"apartment" else r0
-	lights.append({"pos": Vector3(r1.get_center().x + (r1.size.x * 0.25 if r1 == r0 else 0.0), 2.3, r1.position.y + r1.size.y * 0.35), "col": neon[0], "energy": 1.1, "range": 6.5})
+	var accent: Color = (neon[0] as Color).lerp(Color(0.85, 0.92, 1.0), 0.72)             # the second real light is an accent, balanced against the key (a pure neon red lit whole rooms red)
+	lights.append({"pos": Vector3(r1.get_center().x + (r1.size.x * 0.25 if r1 == r0 else 0.0), 2.3, r1.position.y + r1.size.y * 0.35), "col": accent, "energy": 0.9, "range": 6.5})
 
 
 # ---------------------------------------------------------------------------------------------------------------------

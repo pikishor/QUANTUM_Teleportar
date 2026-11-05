@@ -14,6 +14,8 @@ const PANEL := Color(0.05, 0.13, 0.17, 1.0)
 const ON := Color(0.1, 0.55, 0.45, 1.0)
 const EDGE := Color(0.45, 0.95, 1.0, 0.8)
 const AMBER := Color(1.0, 0.72, 0.25)
+const TAB_ROW := 70.0                       ## base px: pitch of a tab row (a 64 px tab and a gap)
+const TAB_MIN_W := 150.0                    ## base px: a tab is never narrower than this; more tabs than fit one row wrap onto more rows
 const BTN_H := 64.0                         ## base px (never below UiUtil.TOUCH_MIN)
 
 var is_open := false
@@ -105,7 +107,7 @@ func _s() -> float:
 
 
 func _top() -> float:
-	return 156.0 * _s()
+	return (156.0 + float(tab_rows() - 1) * TAB_ROW) * _s()
 
 
 func _left() -> float:
@@ -250,14 +252,24 @@ func _close_rect() -> Rect2:
 	return Rect2(_vp().x - _left() - w, 84.0 * s, w, BTN_H * s)
 
 
+## Number of rows the tabs wrap onto at this viewport (each tab keeps at least TAB_MIN_W base px; the rows are balanced).
+func tab_rows() -> int:
+	var s := _s()
+	var avail := _vp().x - _left() * 2.0 - 120.0 * s - 12.0 * s
+	var per_row := maxi(1, int(avail / (TAB_MIN_W * s)))
+	return ceili(float(TABS.size()) / float(per_row))
+
+
 func _tab_rects() -> Array[Rect2]:
 	var s := _s()
 	var left := _left()
 	var avail := _vp().x - left * 2.0 - _close_rect().size.x - 12.0 * s
-	var tw := avail / float(TABS.size())
+	var rows := tab_rows()
+	var per_row := ceili(float(TABS.size()) / float(rows))
+	var tw := avail / float(per_row)
 	var out: Array[Rect2] = []
 	for i in TABS.size():
-		out.append(Rect2(left + tw * float(i), 84.0 * s, tw - 4.0 * s, BTN_H * s))
+		out.append(Rect2(left + tw * float(i % per_row), (84.0 + TAB_ROW * float(i / per_row)) * s, tw - 4.0 * s, BTN_H * s))
 	return out
 
 
@@ -467,7 +479,7 @@ func _draw_menu(vp: Vector2, s: float, font: Font) -> void:
 	for i in tabs.size():
 		_canvas.draw_rect(tabs[i], ON if i == page else PANEL)
 		_canvas.draw_rect(tabs[i], EDGE, false, 2.0)
-		_text(font, Vector2(tabs[i].position.x, tabs[i].position.y + tabs[i].size.y * 0.5 + 6.0 * s), TABS[i], int(16.0 * s), Color.WHITE, tabs[i].size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		_text(font, Vector2(tabs[i].position.x, tabs[i].position.y + tabs[i].size.y * 0.5 + 8.0 * s), TABS[i], int(22.0 * s), Color.WHITE, tabs[i].size.x, HORIZONTAL_ALIGNMENT_CENTER)
 	var cr := _close_rect()
 	_canvas.draw_rect(cr, Color(0.45, 0.1, 0.1, 1.0))
 	_canvas.draw_rect(cr, EDGE, false, 2.0)

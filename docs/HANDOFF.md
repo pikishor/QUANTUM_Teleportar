@@ -533,3 +533,13 @@ Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one tran
 ## Wave 68 integration note
 - Full tools/test_all.sh: 148 pass, 0 flaky, 0 fail. tools/full_bot.sh: SOAK PASS (8 min, 0 errors). Perf gate skipped (no rendering changes).
 - visual_qa 24/24 pass. Looked at latest.png: no glaring defects. Follow-ups: title shot has the DEMO button crowded by the harness label (cosmetic); no live playthrough of chapters 11-12; DEMO panel now has 12 narrow tabs at 844 px.
+
+## Visual defect pass 2 (builder note, tests/test_visual_fixes4.gd)
+- Title: backing plate under every title button, darker column, TEST badge 12 px under OPTIONS. Interior: the surface shader summed every non-directional light (street neon, mission lights) so rooms went red; the surface and the room's own two lights now share render layer `Interior.LIGHT_LAYER`, lights are neutralised (plan), pools/lights balanced in the shader (`balance`), walls/floors desaturated 55 %, district post grade is neutral inside a room. DemoPanel tabs wrap onto rows (`tab_rows()`, TAB_MIN_W 150). Toast: `Hud.msg_rect` drops below / beside the hero's face (`face_rect`). Boss name is fitted and spaced over its bar. Full-screen pause panels dim the world 0.86 and long button labels shrink to fit.
+- Visual QA: new spots skill, gear, look (27 total); the bot keeps health full, clears hurt time and heat per spot (the old 1e6 max HP showed the low-health red vignette). Flat-rect limit unchanged at 0.01.
+- Follow-ups: GEAR panel row captions (SCAN / LOADOUTS) sit on the rows below; LOOK colour rows overlap their captions; the minimap stays bright over pause panels.
+
+## Wave 69 integrator note (hero look pass, visual defect pass 2)
+- Full tools/test_all.sh: 150 pass, 0 flaky, 0 fail (includes test_full_quick). full_bot skipped.
+- Perf gate 0 1 2 all OK: tier0 draws=65 tex=166MB, tier1 draws=92 tex=216MB (no_hud 224), tier2 draws=106 tex=307MB (death 337MB). Limits untouched.
+- visual_qa 27/27 pass. latest.png: interior now brown and natural, hero has visible rim/key colour split. Remaining defects (follow-ups): GEAR/LOOK captions overlap rows; HUD (ammo, chain bar, hotbar) still bleeds through GEAR/SKILLS/LOOK pause panels; boss name still touches the red phase line under its bar; hero from behind still reads dark; viewer lights do not rotate with the camera (front view dark); rifle still skinned into hero mesh.

@@ -345,7 +345,7 @@ func _play_rect() -> Rect2:
 func entry_rect() -> Rect2:
 	var vp := _vp()
 	var s := _s()
-	return Rect2(vp.x - maxf(_inset(), 16.0 * s) - 180.0 * s, 72.0 * s, 180.0 * s, 64.0 * s)      # below the OPTIONS button (6..70): never over it
+	return Rect2(vp.x - maxf(_inset(), 16.0 * s) - 180.0 * s, 82.0 * s, 180.0 * s, 64.0 * s)      # below the OPTIONS button (6..70) with a 12 px gap: never over or touching it
 
 
 func quick_rect(i: int) -> Rect2:

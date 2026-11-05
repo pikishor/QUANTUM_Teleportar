@@ -16,7 +16,7 @@ uniform sampler2D hair2_albedo : source_color, filter_linear_mipmap, repeat_enab
 uniform sampler2D hair2_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 
 uniform vec3 hair_color : source_color = vec3(0.16, 0.11, 0.085);
-uniform vec3 suit_color : source_color = vec3(0.2, 0.23, 0.3);
+uniform vec3 suit_color : source_color = vec3(0.2, 0.22, 0.27);
 uniform vec3 look_tint : source_color = vec3(1.0);
 uniform float suit_metal : hint_range(0.0, 1.0) = 0.3;
 uniform float suit_rough : hint_range(0.0, 1.0) = 0.5;
@@ -64,13 +64,47 @@ void fragment() {
 		spec = 0.45;
 		float crown = scalp * smoothstep(0.0, 0.02, v_pos.y - scalp_y - 0.6 * max(v_pos.z - scalp_z, 0.0)) * (1.0 - smoothstep(0.3, 0.6, v_suit));
 		alb = mix(alb, hair_color * 0.85, crown);
-		rough = mix(rough, 0.6, crown);
+		rough = mix(rough, 0.75, crown);
 		suit = smoothstep(0.35, 0.65, v_suit);
+		float ndv0 = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
+		// subsurface-lite skin: a warm red grazing falloff, back-scatter for lights behind (BACKLIGHT) and a little sheen
+		float sk = 1.0 - suit;
+		alb *= 1.0 + sk * pow(1.0 - ndv0, 2.2) * vec3(0.55, 0.2, 0.08);
+		BACKLIGHT = sk * alb * vec3(0.55, 0.22, 0.12);
 		if (suit > 0.001) {
 			float lum = dot(alb, vec3(0.299, 0.587, 0.114));
-			vec3 fabric = suit_color * look_tint * (0.55 + 1.5 * lum);
-			float ndv = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
+			float ndv = ndv0;
 			float rim = pow(1.0 - ndv, 2.6);
+			// fabric micro-normal: the skin normal map sampled at a high frequency reads as a knit; gloss varies with a low-frequency cloud (worn / stretched)
+			vec3 weave = texture(skin_normal, UV * 7.0).rgb;
+			nm = mix(nm, vec3((nm.xy - 0.5) * 0.7 + (weave.xy - 0.5) * 0.22 + 0.5, nm.z), suit);
+			float cloud = texture(skin_rough, UV * 2.3).r;
+			float fw = max(fwidth(v_pos.y), 0.0015);
+			float ay = abs(v_pos.y);
+			float ax = abs(v_pos.x);
+			// armour panels (secondary material, glossier and metallic): shoulder caps, chest plate, forearm bracers, knee pads, shins, belt
+			float shoulder = smoothstep(0.14, 0.2, ax) * smoothstep(1.36, 1.4, ay) * (1.0 - smoothstep(1.52, 1.56, ay));
+			float chest = (1.0 - smoothstep(0.15, 0.19, ax)) * smoothstep(1.15, 1.19, ay) * (1.0 - smoothstep(1.38, 1.42, ay)) * step(0.25, abs(v_nrm.z));
+			float belt = smoothstep(0.96, 0.98, ay) * (1.0 - smoothstep(1.04, 1.06, ay));
+			float knee = smoothstep(0.4, 0.43, ay) * (1.0 - smoothstep(0.54, 0.57, ay)) * step(0.2, -v_nrm.z);
+			float shin = smoothstep(0.1, 0.13, ay) * (1.0 - smoothstep(0.36, 0.39, ay));
+			float arm = smoothstep(0.44, 0.5, ax) * smoothstep(1.0, 1.04, ay) * (1.0 - smoothstep(1.36, 1.4, ay));
+			float panel = clamp(shoulder + chest + belt + knee + shin * 0.7 + arm * 0.8, 0.0, 1.0);
+			// panel lines: dark grooves at ribs, waist, thigh, knee and down the chest and back
+			float gy = 0.0;
+			gy += 1.0 - smoothstep(0.0, fw * 1.6 + 0.004, abs(ay - 1.12));
+			gy += 1.0 - smoothstep(0.0, fw * 1.6 + 0.004, abs(ay - 0.93));
+			gy += 1.0 - smoothstep(0.0, fw * 1.6 + 0.004, abs(ay - 0.76));
+			gy += 1.0 - smoothstep(0.0, fw * 1.6 + 0.004, abs(ay - 0.58));
+			gy += 1.0 - smoothstep(0.0, fw * 1.6 + 0.004, abs(ay - 0.3));
+			float gx = (1.0 - smoothstep(0.0, 0.004 + fw, abs(ax - 0.105))) * smoothstep(0.95, 1.1, ay) * (1.0 - smoothstep(1.35, 1.42, ay));
+			float groove = clamp(gy + gx, 0.0, 1.0);
+			// palette: a warm graphite base, panels toward the complement of the accent (cyan gives bronze, ember gives slate): never one blue
+			vec3 comp = normalize(vec3(1.0) - accent * 0.8 + 0.001);
+			vec3 panel_col = mix(suit_color * 1.6, comp * 0.2 + suit_color * 0.8, 0.5) * look_tint;
+			vec3 fabric = suit_color * look_tint * (0.6 + 1.3 * lum);
+			fabric *= 0.8 + 0.4 * cloud;
+			fabric = mix(fabric, panel_col * (0.7 + 0.8 * lum), panel * 0.85);
 			float ph = (0.7 + 1.3 * film_seed) * (1.0 - 0.55 * ndv) * 12.566;
 			vec3 film = 0.5 + 0.5 * cos(vec3(0.0, 2.094, 4.188) + ph * vec3(1.0, 1.13, 1.27));
 			film = mix(film, trim_color, 0.55);
@@ -83,12 +117,15 @@ void fragment() {
 			float slot = floor(TIME * 0.4 + film_seed * 97.0);
 			float flick = step(0.975, h11(slot * 1.37 + film_seed * 13.0)) * step(0.5, h11(floor(TIME * 17.0) + film_seed * 5.0));
 			float k = (0.35 + 0.65 * ready_k) * (1.0 + 0.9 * charge + 0.6 * excite) * glow;
+			fabric *= 1.0 - 0.6 * groove * (1.0 - 0.5 * panel);
 			alb = mix(alb, fabric, suit);
-			alb = mix(alb, film * 0.5, suit * rim * 0.5);
-			emis = suit * film * (seam * 0.6 * k + rim * 0.7 * k + flick * 0.18);
-			rough = mix(rough, suit_rough, suit);
-			metal = suit * (suit_metal + 0.3 * rim);
-			nd = mix(1.0, 0.55, suit);
+			alb = mix(alb, film * 0.35, suit * rim * 0.35);
+			// hemisphere fill (no light needed): the suit never goes black from behind or below
+			float hemi = 0.55 + 0.45 * v_nrm.y;
+			emis = suit * (film * (seam * 0.6 * k + rim * 0.45 * k + flick * 0.18) + fabric * 0.16 * hemi);
+			rough = mix(rough, clamp(suit_rough + 0.15 - 0.22 * panel + 0.25 * (cloud - 0.5), 0.12, 0.95), suit);
+			metal = suit * (suit_metal * 0.3 + 0.3 * panel + 0.2 * rim);
+			nd = mix(1.0, 0.85, suit);
 		}
 	} else if (v_mode < 1.5) {
 		alb = texture(eye_albedo, UV).rgb;
@@ -98,13 +135,19 @@ void fragment() {
 	} else if (v_mode < 2.5) {
 		alb = texture(hair1_albedo, UV).rgb * hair_color * 2.6;
 		nm = texture(hair1_normal, UV).rgb;
-		rough = 0.58;
-		spec = 0.35;
+		float hr = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 3.0);
+		alb += hair_color * vec3(1.4, 1.2, 1.0) * hr * 0.9;
+		rough = 0.5;
+		spec = 0.5;
+		BACKLIGHT = alb * 0.3;
 	} else if (v_mode < 3.5) {
 		alb = texture(hair2_albedo, UV).rgb * hair_color * 2.6;
 		nm = texture(hair2_normal, UV).rgb;
-		rough = 0.58;
-		spec = 0.35;
+		float hr2 = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 3.0);
+		alb += hair_color * vec3(1.4, 1.2, 1.0) * hr2 * 0.9;
+		rough = 0.5;
+		spec = 0.5;
+		BACKLIGHT = alb * 0.3;
 	} else {
 		alb = vec3(0.13, 0.14, 0.155);
 		rough = 0.42;

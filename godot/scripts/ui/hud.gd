@@ -16,6 +16,7 @@ const DEAD_DIM := 0.30              ## alpha of the DECOHERED / SECTOR STABILIZE
 const PAUSE_SETTINGS_Y := 448.0     ## base px: first settings row of the pause screen with progress (under the 64 px UPGRADES / CHAPTERS row)
 ## Centre message (toast) region: a plate directly under the top stack, between the radio subtitle column and the right-hand plates, so it never covers the hero (who
 ## stands in the middle of the screen) or the minimap. `msg_rect` is the plate; the quantum readout hangs under it. Same lane width as the chapter banner (story_view.gd).
+const SUBSCREEN_DIM := 0.86          ## backdrop of the full-screen pause panels (skills, gear, look, shop...): the world and the HUD behind recede so the panel's labels never fight them
 const MSG_H := 46.0                 ## base px: plate height
 const MSG_GAP := 6.0                ## base px: below UiUtil.stack_bottom
 const SUB_LANE := 320.0 + 34.0      ## base px of the radio subtitle column (StoryView.SUB_W) plus its margin
@@ -1148,10 +1149,48 @@ func msg_top(s: float) -> float:
 	return y
 
 
-## The toast plate for `text` (its text shrinks to the plate, see _text).
+## The toast plate for `text` (its text shrinks to the plate, see _text). Position rule: the plate never covers the hero's face (face_rect): when the default spot under the
+## top stack would, it drops below the face (over the chest), else moves beside it, else sits as far from it as the lane allows.
 func msg_rect(vp: Vector2, s: float, text: String, size: int, font: Font) -> Rect2:
 	var w := minf(_text_width(font, text, size) + 40.0 * s, msg_max_width(vp, s))
-	return Rect2(vp.x * 0.5 - w * 0.5, msg_top(s), w, MSG_H * s)
+	var r := Rect2(vp.x * 0.5 - w * 0.5, msg_top(s), w, MSG_H * s)
+	var face := face_rect(vp, s)
+	if face.size.x <= 0.0 or not r.intersects(face):
+		return r
+	var lane := Rect2(Vector2.ZERO, vp).grow(-8.0 * s)
+	var low := Rect2(r.position.x, face.end.y + 6.0 * s, w, r.size.y)
+	if lane.encloses(low) and low.end.y <= vp.y - UiUtil.insets_v(vp).y - 240.0 * s:       # keep clear of the bottom row of buttons and the ammo plate
+		return low
+	for x: float in [face.end.x + 6.0 * s, face.position.x - 6.0 * s - w]:
+		var side := Rect2(x, r.position.y, w, r.size.y)
+		if lane.encloses(side) and not side.intersects(face):
+			return side
+	return r
+
+
+## Screen rectangle (px of the real viewport, scaled to `vp`) of the hero's face: head and chin projected through the live camera, padded. Empty (size 0) when the hero is not
+## drawn there: in a vehicle, no camera, or behind it.
+func face_rect(vp: Vector2, _s: float) -> Rect2:
+	var p := Game.player as Node3D
+	if p == null or not is_instance_valid(p) or not is_instance_valid(Game.camera) or p.get(&"vehicle") != null:
+		return Rect2()
+	var cam := Game.camera
+	var right := cam.global_transform.basis.x
+	right.y = 0.0
+	right = right.normalized()
+	var o := p.global_position
+	var pts: Array[Vector3] = [o + Vector3(0.0, 1.86, 0.0), o + Vector3(0.0, 1.44, 0.0), o + Vector3(0.0, 1.65, 0.0) + right * 0.2, o + Vector3(0.0, 1.65, 0.0) - right * 0.2]
+	var lo := Vector2(1.0e9, 1.0e9)
+	var hi := Vector2(-1.0e9, -1.0e9)
+	for pt in pts:
+		if cam.is_position_behind(pt):
+			return Rect2()
+		var sp := cam.unproject_position(pt)
+		lo = lo.min(sp)
+		hi = hi.max(sp)
+	var real := get_viewport().get_visible_rect().size
+	var k := Vector2(vp.x / maxf(real.x, 1.0), vp.y / maxf(real.y, 1.0))
+	return Rect2(lo * k, (hi - lo) * k).grow(10.0 * k.y)
 
 
 func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -> void:
@@ -1339,9 +1378,11 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 	match st:
 		&"menu":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.4))            # light: the animated city behind the title (scripts/cinematics) shows through
-			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.26))     # a darker column behind the title and buttons keeps them readable
+			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.34))     # a darker column behind the title and buttons keeps them readable
+			c.draw_rect(Rect2(vp.x * 0.5 - 330.0 * s, 0.0, 80.0 * s, vp.y), Color(ink, 0.12))      # soft shoulders: the column does not end in a hard edge
+			c.draw_rect(Rect2(vp.x * 0.5 + 250.0 * s, 0.0, 80.0 * s, vp.y), Color(ink, 0.12))
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, 0.45 if (_shop_open or _ach_open or _skills_open or _side_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1403,6 +1444,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		var on: bool = b["on"]
 		var hot: bool = _hover == b["id"]
 		var tint := UiUtil.MAGENTA if (big and b["id"] != &"next" and b["id"] != &"resume") else UiUtil.CYAN
+		if st == &"menu":
+			c.draw_rect(r, Color(ink, 0.72))                  # a backing plate: a sign or a lit window behind a title button never shows through its label
 		if SLIDERS.has(b["id"]) or OptionsScreen.is_slider(b["id"]):
 			var vol := volume_of(b["id"]) if SLIDERS.has(b["id"]) else OptionsScreen.fraction(settings, b["id"])
 			var inset := minf(8.0, r.size.x * 0.05)
@@ -1418,7 +1461,9 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			WeaponIcons.draw(c, StringName(String(b["id"]).substr(6)), Rect2(r.position.x + r.size.x * 0.1, r.position.y + 3.0 * s, r.size.x * 0.8, r.size.y * 0.5), Color(1, 1, 1, 0.95 if (on or hot) else 0.8))
 			_text(c, font, Vector2(r.position.x, r.position.y + r.size.y - 9.0 * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(17.0 * s), Color(1, 1, 1, 0.97 if (on or hot) else 0.75))
 			continue
-		_text(c, font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + (10.0 if big else 7.0) * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int((30.0 if big else 20.0) * s), Color(1, 1, 1, 0.97 if (on or hot or big) else 0.75))
+		var bl := Tr.t(str(b["label"]))
+		var bsz := UiUtil.fit_size(font, bl, r.size.x - 10.0 * s, int((30.0 if big else 20.0) * s))      # a long node or colour name shrinks to its button instead of being cut
+		_text(c, font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + (10.0 if big else 7.0) * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, bsz, Color(1, 1, 1, 0.97 if (on or hot or big) else 0.75))
 
 
 func _score_lines(c: Control, vp: Vector2, s: float, font: Font, y: float) -> void:
@@ -1534,8 +1579,10 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 	if not boss.is_empty():
 		var bw := 320.0 * s
 		var by := end + 6.0 * s
-		var br := Rect2(vp.x * 0.5 - bw * 0.5, by + 20.0 * s, bw, 10.0 * s)
-		_text(c, font, Vector2(br.position.x, by + 16.0 * s), str(boss["name"]), HORIZONTAL_ALIGNMENT_CENTER, bw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.RED, 0.97), 1.0 * s)
+		var br := Rect2(vp.x * 0.5 - bw * 0.5, by + 26.0 * s, bw, 10.0 * s)
+		var bname := str(boss["name"])
+		var bsz := UiUtil.fit_size(font, bname, bw + 120.0 * s, int(UiUtil.BAR_LABEL * s))      # the whole name and phase, centred over the bar (it may be wider than the bar, never clipped)
+		_text(c, font, Vector2(br.position.x - 60.0 * s, by + 20.0 * s), bname, HORIZONTAL_ALIGNMENT_CENTER, bw + 120.0 * s, bsz, Color(UiUtil.RED, 0.97), 1.0 * s)
 		_rect(c, br.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.7))
 		_rect(c, Rect2(br.position, Vector2(bw * float(boss["frac"]), br.size.y)), Color(UiUtil.RED, 0.95))
 		_frame(c, br, Color(UiUtil.RED, 0.8), 1.0 * s)

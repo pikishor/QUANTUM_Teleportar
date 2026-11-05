@@ -7,6 +7,9 @@ extends Node3D
 const SURFACE_SHADER := preload("res://assets/shaders/interior_surface.gdshader")
 const WINDOW_SHADER := preload("res://assets/shaders/interior_window.gdshader")
 const GLOW_SHADER := preload("res://assets/shaders/interior_glow.gdshader")
+## Render layer of the interior's surface and of its own two lights: the surface shader adds every non-directional light that reaches it, so the street's neon, mission and
+## muzzle lights (default layer 1) must not (a red neon lamp outside washed the whole room red). Only the room's own lights share this layer.
+const LIGHT_LAYER := 1 << 19
 const POOLS_BY_TIER := [4, 6, 8]
 const LIGHTS_BY_TIER := [1, 2, 2]
 
@@ -79,11 +82,14 @@ func _make_materials() -> void:
 	_mat_surface = ShaderMaterial.new()
 	_mat_surface.shader = SURFACE_SHADER
 	var amb: Color = pal["amb"]
-	_mat_surface.set_shader_parameter(&"ambient_col", Vector3(amb.r, amb.g, amb.b) * 1.1)
+	var amb_l := amb.get_luminance()
+	amb = amb.lerp(Color(amb_l * 0.95, amb_l, amb_l * 1.08), 0.45)             # a neutral-cool fill under the warm key: shadows are not tinted with the kind's accent
+	_mat_surface.set_shader_parameter(&"ambient_col", Vector3(amb.r, amb.g, amb.b) * 1.35)
 	var compat := 1.0 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0
 	_mat_surface.set_shader_parameter(&"compat", compat)
 	_mat_surface.set_shader_parameter(&"floor_y", origin.y)
 	_mat_surface.set_shader_parameter(&"show", 1.0 if type == &"club" else 0.0)
+	_mat_surface.set_shader_parameter(&"balance", 1.0 if type == &"club" else 0.45)
 	for i in 8:
 		var pos := Vector4(0.0, 0.0, 0.0, 1.0)
 		var col := Vector4(0.0, 0.0, 0.0, 0.0)
@@ -114,6 +120,8 @@ func _make_instance(nm: String, mesh: Mesh, mat: Material) -> MeshInstance3D:
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	if mat == _mat_surface:
+		mi.layers = LIGHT_LAYER
 	add_child(mi)
 	return mi
 
@@ -169,6 +177,7 @@ func _make_lights() -> void:
 		l.omni_attenuation = 1.3
 		l.light_specular = 0.5
 		l.shadow_enabled = false
+		l.light_cull_mask = LIGHT_LAYER
 		add_child(l)
 		_lights.append(l)
 

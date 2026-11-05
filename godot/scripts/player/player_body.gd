@@ -1000,8 +1000,8 @@ func _build_character_lights() -> void:
 	var boost := COMPAT_LIGHT if _is_compat() else 1.0
 	_key_energy = 2.4 * boost                                  # a stronger front key: the face plate, chest core and weapon read at 3-15 m
 	_rim_energy = 1.1 * boost                                  # a soft edge light, not an outline (the rim material term carries the excited moments)
-	_key_light = _make_character_light("KeyLight", Color(0.82, 0.9, 1.0), _key_energy, mask)
-	_rim_light = _make_character_light("RimLight", Color(0.55, 0.88, 1.0), _rim_energy, mask)
+	_key_light = _make_character_light("KeyLight", Color(1.0, 0.93, 0.84), _key_energy, mask)
+	_rim_light = _make_character_light("RimLight", Color(0.62, 0.84, 1.0), _rim_energy, mask)
 	_apply_lights()
 
 

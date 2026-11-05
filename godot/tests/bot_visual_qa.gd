@@ -1,7 +1,7 @@
 extends RefCounted
 ## Visual QA bot: ~12 fixed spots, one PNG each plus numeric checks (tests/visual_qa_lib.gd). Use tools/visual_qa.sh.
 ##   VQA_OUT=<dir> (PNG folder)  VQA_SPOTS=a,b (subset)   prints VQA <spot> PASS|FAIL mean= contrast= black= [sep=] [why]
-const SPOTS: Array[StringName] = [&"street_nw", &"street_ne", &"street_sw", &"street_se", &"interior", &"car", &"chase", &"boss", &"title", &"hero", &"rain", &"storm", &"sky_dawn", &"sky_noon", &"sky_dusk", &"sky_night", &"district_market", &"district_foundry", &"district_slums", &"district_towers", &"roofs_market", &"roofs_foundry", &"roofs_slums", &"roofs_towers"]
+const SPOTS: Array[StringName] = [&"street_nw", &"street_ne", &"street_sw", &"street_se", &"interior", &"car", &"chase", &"boss", &"title", &"hero", &"rain", &"storm", &"sky_dawn", &"sky_noon", &"sky_dusk", &"sky_night", &"district_market", &"district_foundry", &"district_slums", &"district_towers", &"roofs_market", &"roofs_foundry", &"roofs_slums", &"roofs_towers", &"skill", &"gear", &"look"]
 const Kit := preload("res://scripts/world/city_kit.gd")
 const KitWorld := preload("res://scripts/world/city_kit_world.gd")
 const Districts := preload("res://scripts/world/city_districts.gd")
@@ -40,6 +40,7 @@ func step(_t: float, _dt: float) -> bool:
 		for n in _p.get_tree().root.find_children("*", "Stability", true, false):
 			n.set_process(false)
 		_p.max_hp = 1.0e6
+		_p.hp = _p.max_hp       # full health: a near-empty health bar would put the low-health red vignette over every shot (the interior looked red because of it)
 		DirAccess.make_dir_recursive_absolute(_out)
 		_begin()
 	if _wait > 0:
@@ -125,6 +126,8 @@ var _use_cine := false
 
 
 func _hold() -> void:
+	_p.hp = _p.max_hp
+	_p.set(&"last_hurt_time", -100.0)       # no hurt vignette / direction chevron left over from the previous spot's fight
 	if _spots[_i] == &"hero":
 		for n in _p.get_tree().root.find_children("*", "Hud", true, false):
 			(n as Hud).message_left = 0.0       # a leftover mission toast must not sit over the hero (it now lives under the top stack, but the shot is about the hero)
@@ -143,6 +146,7 @@ func _begin() -> void:
 	if is_instance_valid(Game.enemies):
 		TestMode.kill_all_enemies()
 	TestMode.set_weather("CLEAR")
+	TestMode.set_heat(0.0)
 	var spot := _spots[_i]
 	var corner := ""
 	match spot:
@@ -196,10 +200,33 @@ func _begin() -> void:
 			var dn: DayNight = (Game.world as City).day_night
 			dn.frozen = true
 			dn.set_hour({&"sky_dawn": 6.0, &"sky_noon": 12.0, &"sky_dusk": 18.5, &"sky_night": 1.0}[spot])
+		&"skill", &"gear", &"look":
+			_p.teleport_to(Game.SPAWN)
+			_p.camera_rig.reset_view(-PI * 0.5, -0.1)
+			_open_screen(spot)
 		&"rain", &"storm":
 			_p.teleport_to(Game.SPAWN)
 			_p.camera_rig.reset_view(-PI * 0.5, -0.1)
 			TestMode.set_weather("RAIN" if spot == &"rain" else "STORM")
+
+
+## The pause screens of the upgrade shop: SKILLS, GEAR (the loadout's second page) and LOOK, opened through the HUD's own buttons (the same path as a tap).
+func _open_screen(spot: StringName) -> void:
+	var hud: Hud
+	for n in _p.get_tree().root.find_children("*", "Hud", true, false):
+		hud = n as Hud
+	if hud == null:
+		return
+	Game.state = &"paused"
+	hud._shop_open = true
+	match spot:
+		&"skill":
+			hud.press_button(&"skills_open")
+		&"gear":
+			hud.press_button(&"loadout")
+			hud.press_button(&"loadout_gear")
+		&"look":
+			hud.press_button(&"look_open")
 
 
 ## City dressing close-up: a sidewalk-level view of a storefront of the district (nearest dressed ground floor to the district's target point), looking up the facade.

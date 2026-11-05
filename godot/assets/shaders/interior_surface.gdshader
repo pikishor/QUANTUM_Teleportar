@@ -11,6 +11,7 @@ render_mode fog_disabled, ambient_light_disabled, depth_draw_opaque;
 uniform vec3 ambient_col = vec3(0.07, 0.07, 0.09);
 uniform float floor_y = 0.0;
 uniform float detail = 1.0;            // 0 LOW, 1 MED, 2 HIGH: grime octaves
+uniform float balance = 0.55;          // colour balance: how much of the pools' saturation survives (1 = the club keeps all of it)
 uniform float show = 0.0;              // club light show: pools and dance floor pulse
 uniform float pool_n = 8.0;
 uniform float compat = 0.0;            // 1 in the Compatibility renderer, which reads vertex colours as sRGB: they are converted back so both renderers see the same values
@@ -233,6 +234,11 @@ void fragment() {
 	pl += pool(pool_pos5, pool_col5, 5.0, wpos, wnrm, rv, gloss, g); gsum += g;
 	pl += pool(pool_pos6, pool_col6, 6.0, wpos, wnrm, rv, gloss, g); gsum += g;
 	pl += pool(pool_pos7, pool_col7, 7.0, wpos, wnrm, rv, gloss, g); gsum += g;
+	// colour balance: the pools stack up (key, neon, street glow); a saturated sum turns the whole room one colour, so the baked light keeps `balance` of its saturation (the club: all of it)
+	float pl_l = dot(pl, vec3(0.2126, 0.7152, 0.0722));
+	pl = mix(vec3(pl_l), pl, balance);
+	float gs_l = dot(gsum, vec3(0.2126, 0.7152, 0.0722));
+	gsum = mix(vec3(gs_l), gsum, balance * 0.8);
 	if (lit) {
 		emit += alb * pl + gsum;
 	}
@@ -248,9 +254,11 @@ void light() {
 	// LIGHT_IS_DIRECTIONAL: skip the moon (a `return` is not allowed in light(), so the work sits inside the branch)
 	if (!LIGHT_IS_DIRECTIONAL) {
 		float ndl = max(dot(NORMAL, LIGHT), 0.0);
-		DIFFUSE_LIGHT += LIGHT_COLOR * ATTENUATION * ndl * 0.32;
+		float lc_l = dot(LIGHT_COLOR, vec3(0.2126, 0.7152, 0.0722));
+		vec3 lc = mix(vec3(lc_l), LIGHT_COLOR, balance);                  // the same colour balance as the baked pools
+		DIFFUSE_LIGHT += lc * ATTENUATION * ndl * 0.32;
 		vec3 hv = normalize(LIGHT + VIEW);
 		float sh = mix(10.0, 110.0, 1.0 - ROUGHNESS);
-		SPECULAR_LIGHT += LIGHT_COLOR * ATTENUATION * pow(max(dot(NORMAL, hv), 0.0), sh) * (1.0 - ROUGHNESS) * ndl * 0.5;
+		SPECULAR_LIGHT += lc * ATTENUATION * pow(max(dot(NORMAL, hv), 0.0), sh) * (1.0 - ROUGHNESS) * ndl * 0.5;
 	}
 }

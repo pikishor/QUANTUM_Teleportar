@@ -178,6 +178,8 @@ func _look_step(delta: float) -> void:
 		return
 	_look_acc = 0.0
 	var pos: Variant = (Game.player as Node3D).global_position if is_instance_valid(Game.player) and Game.player is Node3D else null
+	if InteriorSpace.active:
+		pos = null                                          # inside a room the interior's own palette is the look: the street district's grade (the Foundry's red) never tints it
 	var g := PostFx2.district_grade(pos)
 	post.set_param(&"d_gain", g["gain"])
 	post.set_param(&"d_lift", g["lift"])
