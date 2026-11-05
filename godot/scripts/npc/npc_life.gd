@@ -12,6 +12,7 @@ extends RefCounted
 ## Nothing is allocated per frame (fixed arrays, counters).
 
 const Lines := preload("res://scripts/npc/npc_lines.gd")
+const Dlg := preload("res://scripts/npc/npc_dialogue.gd")
 
 const PROMOTE_MAX := 12
 const PROMOTE_RADIUS := 26.0
@@ -33,6 +34,8 @@ const BLAST_REACH := 5.0                 ## blast radius multiplier for the run-
 const BLAST_MIN := 28.0
 const CAR_SPEED := 7.0                   ## vehicles slower than this do not scare anybody
 const POOL := 100
+const EXCHANGE_CHANCE := 0.4             ## a chatting / lingering person starts a 2-3 line exchange this often
+const EXCHANGE_GAP := 3.4                ## seconds between the lines of an exchange
 
 var crowd: RefCounted
 var rng := RandomNumberGenerator.new()
@@ -45,6 +48,8 @@ var last_line := ""
 var reactions := 0                       ## cower / point reactions made
 var car_scares := 0
 var blasts_seen := 0
+var exchanges := 0                       ## 2-3 line exchanges started
+var theft_seen := 0                      ## vehicle thefts noted (COMMANDEERED)
 var barks := 0                    ## alien calls voiced through Sfx.bark
 
 var _promote_t := 0.0
@@ -56,6 +61,8 @@ var _ext_until := 0.0                    ## clock time until which a message tha
 var _last_heat := 0.0
 var _talked := PackedFloat32Array()      ## clock time of the last line per pool slot
 var _rumours: Array[String] = []
+var _queue: Array[String] = []           ## the rest of an exchange, spoken from step()
+var _queue_t := 0.0
 var _dist := PackedFloat32Array()
 
 
@@ -65,6 +72,7 @@ func setup(crowd_ref: RefCounted) -> void:
 	_talked.resize(POOL)
 	_dist.resize(POOL)
 	_rumours = Lines.rumours()
+	Dlg.reset_memory()
 	if not Game.message.is_connected(_on_game_message):
 		Game.message.connect(_on_game_message)
 	reset()
@@ -78,6 +86,7 @@ func reset() -> void:
 	_talk_cd = 3.0
 	_call_cd = 0.0
 	_ext_until = 0.0
+	_queue.clear()
 	_last_heat = Game.heat
 	_talked.fill(-1000.0)
 	_sync_serial()
@@ -101,6 +110,8 @@ func step(delta: float, center: Vector3) -> void:
 	if not enabled or crowd == null:
 		return
 	clock += delta
+	Dlg.tick(delta)
+	_speak_queue()
 	_talk_cd = maxf(0.0, _talk_cd - delta)
 	_call_cd = maxf(0.0, _call_cd - delta)
 	_promote_t -= delta
@@ -113,6 +124,7 @@ func step(delta: float, center: Vector3) -> void:
 		_poll_blasts(center)
 		_poll_heat(center)
 		_scan_vehicles()
+		Dlg.poll_kills()
 		_talk(center)
 
 
@@ -241,6 +253,21 @@ func _talk(player_pos: Vector3) -> void:
 	var i: int = actors[0]
 	if _dist[i] > TALK_RANGE * TALK_RANGE or crowd.is_fleeing(i) or clock - _talked[i] < PERSON_TALK_CD:
 		return
+	var st: StringName = crowd.state_of(i)
+	if (st == &"idle" or st == &"linger") and Game.heat < 3.0 and rng.randf() < EXCHANGE_CHANCE:
+		var ex := Dlg.exchange(Dlg.context(player_pos), rng)
+		if ex.size() >= 2:
+			_talked[i] = clock
+			_talk_cd = TALK_CD + EXCHANGE_GAP * float(ex.size())
+			_voice(&"chitter", i)
+			if not crowd.is_cowering(i):
+				crowd.attend(i, player_pos, 3.0 + EXCHANGE_GAP * float(ex.size()))
+			exchanges += 1
+			for k in range(1, ex.size()):
+				_queue.append(ex[k])
+			_queue_t = clock + EXCHANGE_GAP
+			_say(ex[0], 3.2)
+			return
 	var line := line_for(i)
 	_talked[i] = clock
 	_talk_cd = TALK_CD
@@ -257,14 +284,38 @@ func line_for(i: int) -> String:
 		return Lines.pick(Lines.SCARED, rng)
 	if Game.heat >= 3.0:
 		return Lines.pick(Lines.WANTED, rng)
+	var ctx := Dlg.context(crowd.person_position(i))
 	if st == &"linger":
+		if rng.randf() < 0.6:
+			return Dlg.bark(ctx, rng)
 		return Lines.pick(Lines.SHOP if crowd.last_stop_kind(i) != 2 else Lines.BUS, rng)
 	if st == &"idle":
+		if rng.randf() < 0.6:
+			return Dlg.bark(ctx, rng)
 		return Lines.pick(Lines.CHAT, rng)
+	if rng.randf() < 0.4:
+		var h := Dlg.hint(rng)
+		if h != "":
+			return h
 	return Lines.PREFIX + _rumours[rng.randi() % _rumours.size()]
 
 
+## The next line of a running exchange (dropped when the game is not playing or a mission message owns the HUD line).
+func _speak_queue() -> void:
+	if _queue.is_empty() or clock < _queue_t:
+		return
+	if not Game.is_playing() or clock < _ext_until:
+		_queue.clear()
+		return
+	var line: String = _queue.pop_front()
+	_queue_t = clock + EXCHANGE_GAP
+	_say(line, 3.2)
+
+
 func _on_game_message(text: String, seconds: float) -> void:
+	if text == "VEHICLE COMMANDEERED":
+		Dlg.note_theft()
+		theft_seen += 1
 	if text != last_line:
 		_ext_until = clock + seconds
 
@@ -284,4 +335,4 @@ func _say(text: String, seconds: float) -> void:
 
 
 func stats() -> Dictionary:
-	return {"actors": actors.size(), "calls": calls, "lines": lines_said, "reactions": reactions, "car_scares": car_scares, "blasts": blasts_seen, "barks": barks}
+	return {"actors": actors.size(), "calls": calls, "lines": lines_said, "reactions": reactions, "car_scares": car_scares, "blasts": blasts_seen, "barks": barks, "exchanges": exchanges}

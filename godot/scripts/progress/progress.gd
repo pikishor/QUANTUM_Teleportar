@@ -42,6 +42,9 @@ var side_done := {}                      ## side mission id -> completions (save
 var side_best := {}                      ## side mission id -> best time in seconds (saved in [side])
 var heist_done := {}                      ## heist id -> completions (optional [heist] section)
 var arena := {}                           ## boss rush / arena tallies (optional [arena] section): rush_<diff> best times, clear_<diff>, wave_best, score_best, runs
+var safehouses_owned: Array[StringName] = []   ## owned safehouse ids (optional [safehouse] section, scripts/progress/safehouses.gd)
+var safehouse_lv := {}                    ## "<house>:<upgrade>" -> level 1..2
+var safehouse_save: StringName = &""       ## the house of the last fast save ("" none)
 var companion_met := false              ## the Vael defector ally has been recruited at least once (optional [companion] section; older files load as false)
 var last_save_ok := false
 var collectibles: Collectibles                  ## I2: the 30 shards (saved in [collectibles])
@@ -435,6 +438,9 @@ func new_campaign() -> void:
 	side_done.clear()
 	side_best.clear()
 	companion_met = false
+	safehouses_owned.clear()
+	safehouse_lv.clear()
+	safehouse_save = &""
 	heist_done.clear()
 	arena.clear()
 	checkpoint.clear()
@@ -675,6 +681,14 @@ func save_file() -> bool:
 			cf.set_value("side", "best_%s" % sid, float(side_best[sid]))
 	if companion_met:
 		cf.set_value("companion", "met", 1)
+	for shid: StringName in safehouses_owned:
+		cf.set_value("safehouse", "own_%s" % shid, 1)
+		for up: StringName in SafehouseData.UPS:
+			var slv := int(safehouse_lv.get("%s:%s" % [shid, up], 0))
+			if slv > 0:
+				cf.set_value("safehouse", "lv_%s_%s" % [shid, up], mini(slv, SafehouseData.MAX_LEVEL))
+	if safehouse_save != &"":
+		cf.set_value("safehouse", "save_at", String(safehouse_save))
 	for hid: StringName in heist_done:
 		cf.set_value("heist", "done_%s" % hid, int(heist_done[hid]))
 	for adf: StringName in ArenaScripts.DIFFS:
@@ -785,6 +799,17 @@ func load_file() -> bool:
 			if (b is float or b is int) and float(b) > 0.0 and is_finite(float(b)):
 				side_best[sid] = float(b)
 	companion_met = int(_num(cf.get_value("companion", "met", 0))) == 1
+	safehouses_owned.clear()
+	safehouse_lv.clear()
+	for shid: StringName in SafehouseData.IDS:
+		if int(_num(cf.get_value("safehouse", "own_%s" % shid, 0))) == 1:
+			safehouses_owned.append(shid)
+			for up: StringName in SafehouseData.UPS:
+				var shl := clampi(int(_num(cf.get_value("safehouse", "lv_%s_%s" % [shid, up], 0))), 0, SafehouseData.MAX_LEVEL)
+				if shl > 0:
+					safehouse_lv["%s:%s" % [shid, up]] = shl
+	var sat := StringName(str(cf.get_value("safehouse", "save_at", "")))
+	safehouse_save = sat if safehouses_owned.has(sat) else &""
 	heist_done.clear()
 	for hid: StringName in HeistScripts.IDS:
 		var hn: Variant = cf.get_value("heist", "done_%s" % hid, 0)

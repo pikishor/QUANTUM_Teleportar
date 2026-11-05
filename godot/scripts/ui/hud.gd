@@ -62,6 +62,7 @@ var _shop_open := false             ## the pause screen shows the upgrade shop i
 var _options_open := false          ## the title / pause screen shows the options (scripts/ui/options_screen.gd)
 var _arena_open := false            ## the boss rush / arena planning screen is open (title or pause; scripts/ui/arena_board.gd)
 var photo: PhotoMode                ## PHOTO MODE (scripts/ui/photo_mode.gd): free camera while the game stays paused; controls in scripts/ui/photo_screen.gd
+var _safe_open := false             ## the pause menu shows the safehouse screen (scripts/ui/safehouse_screen.gd)
 var _heist_open := false            ## the pause shop shows the heist planning screen (scripts/ui/heist_board.gd)
 var _side_open := false             ## the pause shop shows the side-mission board (scripts/ui/side_board.gd)
 var _chapters_open := false         ## the title / pause screen shows the chapter select (scripts/ui/chapter_select.gd)
@@ -168,6 +169,7 @@ func _on_state(s: StringName) -> void:
 	_skills_open = false
 	_side_open = false
 	_heist_open = false
+	_safe_open = false
 	_arena_open = false
 	_loadout_open = false
 	_loadout_page = 0
@@ -188,7 +190,7 @@ func _on_state(s: StringName) -> void:
 
 ## True while a full-screen pause panel (shop, skills, gear, look, boards, options...) is open: it owns the whole picture, the gameplay HUD and minimap are hidden behind it.
 func panel_cover() -> bool:
-	return Game.state == &"paused" and not photo_open() and (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open)
+	return Game.state == &"paused" and not photo_open() and (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open)
 
 
 ## What the gameplay HUD layer (and the minimap on it) should show: not in the title, a cutscene, photo mode or behind a full-screen pause panel.
@@ -465,6 +467,8 @@ func press_button(id: StringName) -> bool:
 		_layout_key = ""
 		_screen.queue_redraw()
 		return true
+	if sid.begins_with("sh_"):
+		return _press_safehouse(sid)
 	if sid.begins_with("heist_"):
 		return _press_heist(sid)
 	if sid.begins_with("arena_"):
@@ -1371,6 +1375,9 @@ func _ensure_layout() -> void:
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
 	key += "|%s%d" % [_side_open, SideBoard.page]
 	key += "|h%s%s%s%s" % [_heist_open, HeistBoard.sel, HeistBoard.approach, HeistBoard.crew]
+	var shp := Game.progress as Progress
+	var shlv := str(shp.safehouse_lv).hash() if shp != null else 0
+	key += "|s%s%s%d%d%s" % [_safe_open, Safehouses.sel, Safehouses.rest_to, Safehouses.owned_count(shp), shlv]
 	key += "|r%s%s%s%s" % [_arena_open, ArenaBoard.mode, ArenaBoard.diff, ArenaBoard.mods]
 	key += "|k%s%d%d%d" % [_skills_open, SkillTree.xp, SkillTree.spent(), _wallet()]
 	key += "|a%s%d" % [_ach_open, _ach_page]
@@ -1434,9 +1441,12 @@ func _ensure_layout() -> void:
 				ShopScreen.layout(self, cx, s)
 			elif _ach_open:
 				AchievementsScreen.layout(self, cx, s, _ach_page)
+			elif _safe_open:
+				SafehouseScreen.layout(self, cx, s)
 			elif Game.progress != null:
 				_add(&"resume", Rect2(cx - 170.0 * s, 232.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_add(&"photo_open", Rect2(cx + 180.0 * s, 232.0 * s, 150.0 * s, UiUtil.TOUCH_MIN * s), "PHOTO", false)
+				_add(&"sh_open", Rect2(cx - 330.0 * s, 232.0 * s, 150.0 * s, UiUtil.TOUCH_MIN * s), "SAFEHOUSE", false)
 				if _chapters_ok():
 					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "UPGRADES", false)
 					_add(&"chapters", Rect2(cx + 4.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "CHAPTERS", false)
@@ -1509,7 +1519,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		&"paused" when photo_open():
 			PhotoScreen.draw(self, photo, c, vp, s, font)      # no dim: the live world is the picture
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1558,6 +1568,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				GearScreen.draw(self, c, vp, s, font, cx)
 			elif _loadout_open:
 				LoadoutScreen.draw(self, c, vp, s, font, cx, _loadout_w)
+			elif _safe_open:
+				SafehouseScreen.draw(self, c, vp, s, font, cx)
 			elif _shop_open:
 				ShopScreen.draw(self, c, vp, s, font, cx)
 			else:
@@ -1653,6 +1665,85 @@ func _campaign_line() -> String:
 	return line
 
 
+## The safehouse screen's buttons (scripts/ui/safehouse_screen.gd): `sh_open` on the pause menu, then pick, buy / claim, the services of an owned house, upgrades, BACK.
+func _press_safehouse(sid: String) -> bool:
+	var prog := Game.progress as Progress
+	if Game.state != &"paused" or prog == null:
+		return false
+	var id := Safehouses.sel
+	var ok := true
+	if sid == "sh_open":
+		if _safe_open or photo_open() or _shop_open or _options_open or _chapters_open or _arena_open or _heist_open or _side_open or _skills_open or _look_open or _loadout_open or _ach_open:
+			return false
+		_safe_open = true
+		Sfx.play(&"ui_confirm")
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
+	if not _safe_open or look_or_sub_open():
+		return false
+	if sid.begins_with("sh_pick_") and Safehouses.DEFS.has(StringName(sid.substr(8))):
+		Safehouses.sel = StringName(sid.substr(8))
+		Sfx.play(&"ui_tap")
+	elif sid == "sh_back":
+		_safe_open = false
+		Sfx.play(&"ui_back")
+	elif sid == "sh_buy":
+		ok = Safehouses.buy(prog, id)
+		Sfx.play(&"ui_purchase" if ok else &"ui_deny")
+	elif sid == "sh_claim":
+		ok = Safehouses.claim(prog, id)
+		Sfx.play(&"ui_purchase" if ok else &"ui_deny")
+	elif not Safehouses.is_owned(prog, id):
+		return false
+	elif sid == "sh_wardrobe":
+		_look_open = true
+		Sfx.play(&"ui_confirm")
+	elif sid == "sh_bench":
+		_loadout_open = true
+		_loadout_quick = false
+		_loadout_page = 0
+		_loadout_w = WeaponDefs.last_used
+		LoadoutScreen.reset_page()
+		Sfx.play(&"ui_confirm")
+	elif sid == "sh_trophy":
+		_ach_open = true
+		_ach_page = 0
+		Sfx.play(&"ui_confirm")
+	elif sid == "sh_garage":
+		var tc: Array[Node] = get_tree().root.find_children("*", "TouchControls", true, false)
+		if tc.is_empty():
+			Sfx.play(&"ui_deny")
+			return false
+		(tc[0] as TouchControls)._open_garage()
+		Sfx.play(&"ui_confirm")
+	elif sid == "sh_rest":
+		ok = Safehouses.rest(prog, id)
+		Sfx.play(&"ui_confirm" if ok else &"ui_deny")
+	elif sid == "sh_time":
+		Safehouses.cycle_time()
+		Sfx.play(&"ui_tap")
+	elif sid == "sh_save":
+		ok = Safehouses.fast_save(prog, id)
+		Sfx.play(&"ui_confirm" if ok else &"ui_deny")
+	elif sid == "sh_go":
+		ok = Safehouses.travel(prog, id)
+		Sfx.play(&"ui_confirm" if ok else &"ui_deny")
+	elif sid.begins_with("sh_up_") and Safehouses.UPS.has(StringName(sid.substr(6))):
+		ok = Safehouses.upgrade(prog, id, StringName(sid.substr(6)))
+		Sfx.play(&"ui_upgrade" if ok else &"ui_deny")
+	else:
+		return false
+	_layout_key = ""
+	_screen.queue_redraw()
+	return ok
+
+
+## True while a sub-screen opened from the safehouse (look, loadout, achievements) is on top of it.
+func look_or_sub_open() -> bool:
+	return _look_open or _loadout_open or _ach_open
+
+
 ## The heist planning screen's buttons (scripts/ui/heist_board.gd): open from the shop, pick, approach, crew, LAUNCH, BACK.
 func _press_heist(sid: String) -> bool:
 	if Game.state != &"paused" or Game.progress == null:
@@ -1697,7 +1788,7 @@ func _press_heist(sid: String) -> bool:
 ## The photo mode buttons (scripts/ui/photo_screen.gd): `photo_open` on the pause menu, the rest only while photo mode runs. Sliders act through slide().
 func _press_photo(sid: String) -> bool:
 	if sid == "photo_open":
-		if Game.state != &"paused" or photo_open() or _shop_open or _options_open or _chapters_open or _arena_open or _heist_open or _side_open or _skills_open or _look_open or _loadout_open or _ach_open:
+		if Game.state != &"paused" or photo_open() or _shop_open or _options_open or _chapters_open or _arena_open or _heist_open or _safe_open or _side_open or _skills_open or _look_open or _loadout_open or _ach_open:
 			return false
 		if not photo.begin():
 			return false

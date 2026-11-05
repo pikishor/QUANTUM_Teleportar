@@ -6,6 +6,9 @@ extends RefCounted
 
 const DRINK_HP := 25.0
 const RUMOUR_HEALTH_NEED := 0.0
+const Dlg := preload("res://scripts/npc/npc_dialogue.gd")
+const DlgData := preload("res://scripts/npc/npc_dialogue_data.gd")
+const SPECIAL_ID := &"special"
 
 
 static func _prog() -> Progress:
@@ -60,7 +63,20 @@ static func rows(type: StringName) -> Array[Dictionary]:
 		if row["label"] == "":
 			row["label"] = "BUY  %d" % int(row["price"])
 		out.append(row)
+	var sp := special(type)
+	if not sp.is_empty():
+		var price := discount_price(int(sp["price"]))
+		var st := "buy" if price <= credits else "poor"
+		out.append({"id": SPECIAL_ID, "name": sp["name"], "kind": "drink", "price": price, "state": st, "label": "BUY  %d" % price, "sub": "RESTORES %d HP" % int(sp["hp"]), "hp": int(sp["hp"])})
 	return out
+
+
+## The rotating special on the shelf of `type` (changes with every door the hero walks through): {name, hp, price}, empty for a type without one.
+static func special(type: StringName) -> Dictionary:
+	if not DlgData.ROTATION.has(type):
+		return {}
+	var e: Dictionary = (DlgData.ROTATION[type] as Array)[Dlg.rotation_index(type)]
+	return {"name": (e["name"] as Array)[0], "hp": e["hp"], "price": e["price"]}
 
 
 static func _sub_of(kind: String) -> String:
@@ -134,7 +150,7 @@ static func buy(type: StringName, id: StringName) -> Dictionary:
 		"drink":
 			if pl == null or not p.spend(price):
 				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}
-			pl.heal(DRINK_HP)
+			pl.heal(float(row.get("hp", DRINK_HP)))
 		"rumour":
 			if not p.spend(price):
 				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}

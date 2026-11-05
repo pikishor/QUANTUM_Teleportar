@@ -9,6 +9,7 @@ signal opened(type: StringName)
 signal closed
 signal purchased(id: StringName, result: Dictionary)
 
+const Dlg := preload("res://scripts/npc/npc_dialogue.gd")
 const BASE_H := 720.0
 const ROW_H := 54.0
 const ROW_W := 760.0
@@ -21,6 +22,8 @@ var type: StringName = &"bar"
 var rows: Array[Dictionary] = []
 var status := ""
 var rumour_text := ""
+var greeting := ""                           ## the vendor's line for this visit (NpcDialogue.vendor_line)
+var _rng := RandomNumberGenerator.new()
 var rects: Array[Rect2] = []                 ## BUY button rect per row (screen px), valid after layout()
 var close_rect := Rect2()
 var _canvas: Control
@@ -56,6 +59,8 @@ func open(t: StringName) -> bool:
 	type = t
 	status = ""
 	rumour_text = ""
+	_rng.randomize()
+	greeting = Dlg.vendor_line(t, Dlg.context(_player_pos()), _rng)
 	is_open = true
 	visible = true
 	InteriorGameplay.vendor_open = true
@@ -66,6 +71,10 @@ func open(t: StringName) -> bool:
 	Sfx.play(&"ui_confirm")
 	opened.emit(t)
 	return true
+
+
+func _player_pos() -> Vector3:
+	return (Game.player as Node3D).global_position if is_instance_valid(Game.player) else Vector3.ZERO
 
 
 func close() -> void:
@@ -195,6 +204,9 @@ func _draw_all() -> void:
 		c.draw_rect(br, fill)
 		c.draw_rect(br, Color(col, 0.9) if st == "buy" else Color(1, 1, 1, 0.25), false, 2.0 * s)
 		c.draw_string(font, Vector2(br.position.x, br.position.y + br.size.y * 0.5 + 8.0 * s), Tr.t(str(r["label"])), HORIZONTAL_ALIGNMENT_CENTER, br.size.x, int(22.0 * s), Color(1, 1, 1, 0.97 if st == "buy" else 0.55))
+	if rumour_text == "" and greeting != "":
+		var gy := (TOP + float(rows.size()) * ROW_H + 6.0) * s
+		c.draw_string(font, Vector2(x0, gy + 20.0 * s), Tr.t(greeting), HORIZONTAL_ALIGNMENT_LEFT, ROW_W * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.9))
 	if rumour_text != "":
 		var ry := (TOP + float(rows.size()) * ROW_H + 6.0) * s
 		c.draw_string(font, Vector2(x0, ry + 20.0 * s), Tr.t(rumour_text), HORIZONTAL_ALIGNMENT_LEFT, ROW_W * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95))

@@ -28,6 +28,7 @@ const ES := {
 
 const _ES_X := preload("res://scripts/common/strings_es.gd")
 const _HI := preload("res://scripts/common/strings_hi.gd")
+const _NPC := preload("res://scripts/npc/npc_dialogue_data.gd")
 
 static var _tables := {}
 static var _pats := {}          ## lang -> {key with numbers as # -> translation with a \u0001 slot per number}
@@ -42,8 +43,10 @@ static func table(l: String) -> Dictionary:
 		if l == "es":
 			d.merge(ES)
 			d.merge(_ES_X.S)
+			d.merge(_NPC.table("es"))
 		elif l == "hi":
 			d.merge(_HI.S)
+			d.merge(_NPC.table("hi"))
 		_tables[l] = d
 	return _tables[l]
 

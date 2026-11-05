@@ -175,6 +175,7 @@ static func _grant_all(prog: Progress) -> void:
 		var need := HeroLook.item_need(k)
 		if need != "" and not prog.achievements.cosmetics.has(StringName(need)):
 			prog.achievements.cosmetics.append(StringName(need))
+	Safehouses.grant_all(prog)
 	prog.garage.kind = &"sport"
 	prog.garage.levels = {}
 	for st: StringName in Garage.STATS:
@@ -249,6 +250,10 @@ static func catalog() -> Array[Dictionary]:
 	ars.append({"id": "endless:", "label": "ENDLESS ARENA"})
 	ars.append({"id": "endless:armoured,swarm,brutal", "label": "ENDLESS ARENA  ALL MODIFIERS"})
 	out.append({"kind": &"arena", "title": "BOSS RUSH AND ARENA", "items": ars})
+	var shs: Array[Dictionary] = []
+	for id: StringName in Safehouses.IDS:
+		shs.append({"id": id, "label": "SAFEHOUSE  %s" % Safehouses.title(id)})
+	out.append({"kind": &"safehouse", "title": "SAFEHOUSES", "items": shs})
 	return out
 
 
@@ -267,6 +272,7 @@ static func launch(kind: StringName, id: Variant) -> String:
 		&"stealth": return start_stealth(StringName(id))
 		&"heist": return start_heist(str(id))
 		&"arena": return start_arena(str(id))
+		&"safehouse": return start_safehouse(StringName(id))
 		&"boss":
 			_prepare()
 			return TestMode.start_contract(&"boss") if StringName(id) == &"contract" else TestMode.spawn_enemy(StringName(id))
@@ -380,6 +386,29 @@ static func start_heist(key: String) -> String:
 
 
 ## A boss rush ("rush:hard") or an endless arena ("endless:armoured,swarm"; empty = no modifiers), started where the player stands.
+## A safehouse: moves the hero to its door and opens its screen (the house is owned in the demo already).
+static func start_safehouse(id: StringName) -> String:
+	var prog := Game.progress as Progress
+	if prog == null or not Safehouses.DEFS.has(id) or not Safehouses.is_owned(prog, id):
+		return ""
+	_prepare()
+	Safehouses.sel = id
+	Safehouses.travel(prog, id)
+	var hud := _hud()
+	if hud == null:
+		return ""
+	Game.state = &"paused"
+	return "SAFEHOUSE  %s" % Safehouses.title(id) if hud.press_button(&"sh_open") else ""
+
+
+static func _hud() -> Hud:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return null
+	var n := tree.root.find_children("*", "Hud", true, false)
+	return n[0] as Hud if not n.is_empty() else null
+
+
 static func start_arena(key: String) -> String:
 	var m := Game.missions as Missions
 	var parts := key.split(":")

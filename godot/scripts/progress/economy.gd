@@ -42,6 +42,10 @@ const HEIST_PAY := {&"vault": 900, &"convoy": 1000, &"datacenter": 1150}
 const HEIST_CHAPTER := {&"vault": 2, &"convoy": 4, &"datacenter": 6}
 const HEIST_APPROACH := {&"stealth": 1.0, &"loud": 1.4, &"quantum": 1.2}
 const HEIST_REPLAY := 0.6
+## Safehouses (Safehouses): buy price, sector needed (index of the chapter select), and the upgrade base price (x (level + 1), two levels). Credit sinks outside the gear tree and the hourly model.
+const SAFEHOUSE_PRICE := {&"loft": 1800, &"depot": 3600, &"penthouse": 6500, &"bunker": 9000}
+const SAFEHOUSE_CHAPTER := {&"loft": 0, &"depot": 2, &"penthouse": 4, &"bunker": 6}
+const SAFEHOUSE_UPGRADE := {&"bed": 400, &"locker": 600, &"bench": 800}
 const EVENT_REWARD := {&"ambush": 120, &"race": 150, &"rescue": 90, &"drop": 200, &"rift": 60}
 const ACTIVITY_REWARD := {&"range": 3, &"parkour": 150, &"drift": 200, &"arena": 40}   ## per hit / on finish / on finish / per wave
 const ARENA_CLEAR_BONUS := 100

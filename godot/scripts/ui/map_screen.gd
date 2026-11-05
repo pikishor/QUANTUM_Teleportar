@@ -16,16 +16,16 @@ const CELLS := 16
 const CELL := 40.0                                  ## metres per cell (CELLS * CELL = 640 = 2 * CityLayout.HALF)
 const HALF := CELLS * CELL * 0.5
 const DISCOVER_R := 70.0
-const KINDS: Array[StringName] = [&"mission", &"side", &"items", &"garage", &"shop"]
-const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"items": "ITEMS", &"garage": "GARAGE", &"shop": "SHOP"}
-const KIND_COLOR := {&"mission": Color(1.0, 0.75, 0.15), &"side": Color(0.2, 0.9, 1.0), &"items": Color(0.75, 0.45, 1.0), &"garage": Color(1.0, 0.45, 0.2), &"shop": Color(0.3, 1.0, 0.55)}
+const KINDS: Array[StringName] = [&"mission", &"side", &"items", &"garage", &"shop", &"home"]
+const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"items": "ITEMS", &"garage": "GARAGE", &"shop": "SHOP", &"home": "HOME"}
+const KIND_COLOR := {&"mission": Color(1.0, 0.75, 0.15), &"side": Color(0.2, 0.9, 1.0), &"items": Color(0.75, 0.45, 1.0), &"garage": Color(1.0, 0.45, 0.2), &"shop": Color(0.3, 1.0, 0.55), &"home": Color(1.0, 1.0, 1.0)}
 const SAVE_PATH := "user://map.cfg"
 static var path_override := ""             ## DEMO MODE points the map at its own file (scripts/demo/demo_mode.gd); "" = SAVE_PATH
 const GARAGE_TYPES: Array[StringName] = [&"warehouse", &"cargo_bay"]
 const TAP_CLEAR_PX := 28.0
 
 var waypoint := Vector3.INF
-var filters := {&"mission": true, &"side": true, &"items": true, &"garage": true, &"shop": true}
+var filters := {&"mission": true, &"side": true, &"items": true, &"garage": true, &"shop": true, &"home": true}
 
 var _seen := PackedByteArray()
 var _open := false
@@ -307,6 +307,8 @@ func collect_markers() -> Array[Dictionary]:
 				var p: Vector3 = d["pos"]
 				out.append({"kind": kind, "pos": p, "fog": true})
 	var prog := Game.progress as Progress
+	for sh: Dictionary in Safehouses.markers(prog):
+		out.append({"kind": &"home", "pos": sh["pos"], "fog": false})      # owned safehouses: fast-save points
 	if prog != null and prog.collectibles != null:
 		var spots := Collectibles.spots()
 		for i in spots.size():
@@ -392,6 +394,9 @@ func _draw_map() -> void:
 			_map.draw_colored_polygon(PackedVector2Array([mp + Vector2(0, -rr), mp + Vector2(rr, 0), mp + Vector2(0, rr), mp + Vector2(-rr, 0)]), col)
 		elif k == &"items":
 			_map.draw_circle(mp, rr * 0.8, col)
+		elif k == &"home":
+			_map.draw_arc(mp, rr * 1.2, 0.0, TAU, 16, col, 2.5 * s)
+			_map.draw_circle(mp, rr * 0.5, col)
 		else:
 			_map.draw_rect(Rect2(mp - Vector2(rr, rr) * 0.8, Vector2(rr, rr) * 1.6), col)
 		_counts[k] = int(_counts.get(k, 0)) + 1

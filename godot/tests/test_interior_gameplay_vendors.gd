@@ -82,7 +82,7 @@ func _prices_and_window() -> void:
 	if hud != null:
 		TestLib.check(hud.layers_consistent(), "no pause screen behind the trade window")
 	vs.layout()
-	TestLib.check(vs.rects.size() == (InteriorData.STOCK[&"weapons"] as Array).size() and vs.close_rect.size.x > 0.0, "one BUY button per stock row plus CLOSE")
+	TestLib.check(vs.rects.size() == (InteriorData.STOCK[&"weapons"] as Array).size() + 1 and vs.close_rect.size.x > 0.0, "one BUY button per stock row, the rotating special, plus CLOSE")
 	TestLib.check(vs.tap(vs.close_rect.get_center()), "tapping CLOSE closes the window")
 	await frames(2)
 	TestLib.check(not vs.is_open and Game.state == &"play" and not InteriorGameplay.vendor_open, "closing resumes the game")

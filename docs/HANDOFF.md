@@ -589,3 +589,12 @@ Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one tran
 - Full suite: 157 pass, 1 fail under parallel load: test_companion.gd ("ally does not wake an unaware patrol"); it passes alone (3 of 3 runs) and via test_all with fewer jobs, so treat as FLAKY under load (timing). No thresholds changed.
 - Perf gate tiers 0/1/2 all verdict=OK (tex 166/216/307 MB, death draws 114/150/168). test_full_quick PASS.
 - Visual QA 27/27 pass. Follow-ups from latest.png: title screen shows the city's "NEON" sign and "CLUB" text bleeding through the subtitle line behind "OBSERVER CORP INCURSION"; roof shots (roofs_market, roofs_towers) have low-contrast radio subtitle text on bright backgrounds; shop BUY cells stay under 64 px (see above).
+
+## Safehouses (builder note, tests/test_safehouses.gd)
+- Four houses LOFT, DEPOT, PENTHOUSE, BUNKER (`Safehouses` / `SafehouseData`, `Economy.SAFEHOUSE_*`): bought with credits (sector gated) or claimed free when an EARN goal is met (3 contracts, 5 side jobs, 3 overseers, 3 heists). Save: optional `[safehouse]` section (own_<id>, lv_<id>_<up>, save_at); old saves load with none.
+- Live: pause menu SAFEHOUSE button opens `SafehouseScreen` (ids `sh_*`, 64 px): WARDROBE (look screen), WEAPON BENCH (loadout), GARAGE (GarageScreen), TROPHIES (achievements), REST (heal, hour via TIME: dawn/noon/dusk/night), SAVE (fast save, HOME marker on the map), GO TO DOOR, upgrades BED (clears heat, then energy), LOCKER (look items), BENCH (weapon parts). DEMO tab SAFEHOUSE (all owned and maxed).
+- Gaps: houses are a screen, not a walkable interior or a door in the city (each names an existing interior kind in `room`); the map HOME marker is display only; no Spanish/Hindi strings; no radio lines; perf gate not run (no rendering change).
+
+## Wave 74 integration (NPC dialogue v2, safehouses)
+- Full suite (tools/test_all.sh): 160 tests, 0 flaky. One real bug fixed: `hud.gd` `_ensure_layout` read `Game.progress.safehouse_lv` on the title screen with null progress (broke test_title_buttons); now guarded via a local. test_full_quick PASS, visual_qa 27/27 PASS. Perf gate not run (no rendering change).
+- Visual follow-ups (not fixed): title screen DEMO/ARENA tabs crowd the title label top-left; ORACLE subtitle text is clipped or cut mid-sentence in sky_noon/dusk shots; safehouses have no Spanish/Hindi strings; kill/theft memory pauses inside interiors; safehouse map marker display only.

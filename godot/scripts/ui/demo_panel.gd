@@ -8,7 +8,7 @@ extends CanvasLayer
 signal opened
 signal closed
 
-const TABS: Array[String] = ["CHAPTERS", "SIDE", "ACTIVITY", "SET PIECE", "BOSS", "EVENT", "CONTRACT", "INTERIOR", "SEQUEL", "CHASE", "ALLY", "STEALTH", "HEIST", "ARENA", "SPAWN", "TOOLS"]
+const TABS: Array[String] = ["CHAPTERS", "SIDE", "ACTIVITY", "SET PIECE", "BOSS", "EVENT", "CONTRACT", "INTERIOR", "SEQUEL", "CHASE", "ALLY", "STEALTH", "HEIST", "ARENA", "SAFEHOUSE", "SPAWN", "TOOLS"]
 const BG := Color(0.01, 0.03, 0.05, 1.0)
 const PANEL := Color(0.05, 0.13, 0.17, 1.0)
 const ON := Color(0.1, 0.55, 0.45, 1.0)
