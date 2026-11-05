@@ -25,7 +25,7 @@ const GRADE_KEYS: Array[StringName] = [&"vignette_amount", &"vignette_start", &"
 const COLD_GAIN := Vector3(0.9, 1.02, 1.13)
 const WARM_GAIN := Vector3(1.12, 1.0, 0.86)
 const TITLE_DRONES := 2
-const ENDING_SCENES: Array[String] = ["credits"]
+const ENDING_SCENES: Array[String] = ["credits", "credits2"]
 
 static var instance: Cinematics
 
@@ -285,9 +285,9 @@ func play(id: StringName, ctx := {}) -> bool:
 				c["sub"] = str(d.get("sub", ""))
 				c["obj"] = str(st.call(&"objective_text"))
 			plan = CinePlan.chapter(c)
-		&"credits":
+		&"credits", &"credits2":
 			c = {"hero": _hero_pos(), "face": face}
-			plan = CinePlan.credits_scene(c)
+			plan = CinePlan.credits_scene(c, id)
 		&"garage_reveal", &"teleporter_first":
 			c = {"hero": _hero_pos(), "face": face}
 			plan = CinePlan.garage_reveal(c) if id == &"garage_reveal" else CinePlan.teleporter_first(c)

@@ -21,7 +21,7 @@ const CARD_MAX := 200
 const OBJ_MAX := 56
 const TITLE_MAX := 24
 ## Index of the last story chapter; every sector after it plays the aftermath chapter (the last entry of CHAPTERS).
-const FINAL := 9
+const FINAL := 11
 
 const TAGLINE := "They farm your fear. Be in two places."
 
@@ -211,7 +211,41 @@ const CHAPTERS: Array[Dictionary] = [
 		},
 		"heat1": {"s": A, "t": "You have come so far, Scout. The spire will lower itself for you."},
 		"heat3": {"s": A, "t": "Do not close the aperture. Everything you love is on the other side of it."},
-		"end": {"head": "FINAL CHAPTER COMPLETE", "text": "The spire folds into the rain and the last Vael falls silent. ORACLE stays in your ear. The city is quiet, and the choice was yours."},
+		"end": {"head": "CHAPTER 10 COMPLETE", "text": "The spire folds into the rain and the last Vael falls silent. ORACLE stays in your ear. Then a choir starts up in Lantern Yard, and it knows your name."},
+	},
+	{
+		"id": "hollow_choir", "title": "THE HOLLOW CHOIR", "sub": "SECTOR 11  //  LANTERN YARD",
+		"obj": "Recover the cores. Silence the choir.",
+		"intro": [
+			{"s": O, "t": "The spire is gone and the singing is not. It is coming out of Lantern Yard, one voice at a time."},
+			{"s": K, "t": "Those are Lamplighter voices. Are they alive?"},
+			{"s": O, "t": "Not the way you mean. Six cores, Kestrel. Take them and the yard goes quiet."},
+		],
+		"cores": {
+			1: {"s": K, "t": "The core hums my old lullaby. Somebody taught the hive that."},
+			3: {"s": O, "t": "Halfway. The choir is flat where you have been. Keep moving."},
+			5: {"s": O, "t": "One core left. Whoever is conducting is right behind it."},
+		},
+		"heat1": {"s": A, "t": "Scout, the choir has a verse for you. It is the one you forgot."},
+		"heat3": {"s": A, "t": "Sing with us. Every voice you silence only makes the others louder."},
+		"end": {"head": "CHAPTER 11 COMPLETE", "text": "The conductor drops its baton and the yard falls silent. Under the market a vault door begins to hum. ORACLE tells you the last gate is open, and it is waiting for you."},
+	},
+	{
+		"id": "second_gate", "title": "THE SECOND GATE", "sub": "SECTOR 12  //  EXCHANGE VAULT",
+		"obj": "Recover the last cores. Close the second gate.",
+		"intro": [
+			{"s": O, "t": "The Old Exchange. The vault below it is the second gate, and everything left in the hive is behind it."},
+			{"s": K, "t": "Where it started. Of course it ends here."},
+			{"s": O, "t": "Take the cores, Kestrel. Use everything you have. I will be in your ear to the end."},
+		],
+		"cores": {
+			1: {"s": K, "t": "The vault is humming a chord I know. Every gate I closed is in it."},
+			3: {"s": O, "t": "Halfway down. Use all of it, Kestrel: the jump, the decoy, the swap, the collapse."},
+			5: {"s": K, "t": "Last core. Whatever is behind the door, it can wait one more minute."},
+		},
+		"heat1": {"s": A, "t": "You came back to the Exchange, Scout. We kept your seat warm."},
+		"heat3": {"s": A, "t": "This is the last aperture. Close it and nothing will ever answer you again."},
+		"end": {"head": "FINAL CHAPTER COMPLETE", "text": "The vault folds into itself and the second gate shuts for good. ORACLE is quiet for a long moment, then says your name. Just your name."},
 	},
 	{
 		"id": "open_city", "title": "THE OPEN CITY", "sub": "FREE SECTOR",
@@ -508,6 +542,8 @@ const CONTRACT_CHAPTER: Array[Dictionary] = [
 	{"s": O, "t": "Meridian Gate is crowded with anchors. Every job here is a siege. Bring everything."},
 	{"s": O, "t": "Cold Docks jobs pay in salvage and silence. The tide keeps what you drop, so do not drop anything."},
 	{"s": O, "t": "Echo Spire work is the last of it. Every contract here is a favour to the whole city."},
+	{"s": O, "t": "Lantern Yard jobs are done by lamplight. Every contract here is a favour to a neighbour."},
+	{"s": O, "t": "Exchange Vault work is the very last. Whatever it pays, it is paying for the city."},
 	{"s": O, "t": "The city is free, but not quiet. There is always another contract for a hand that will take it."},
 ]
 

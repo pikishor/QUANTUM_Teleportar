@@ -65,7 +65,7 @@ func run(_host: Node) -> void:
 	# --- sector scaling ----------------------------------------------------------------------------------------------------------------
 	var mono := true
 	var prev := Progress.difficulty(0)
-	for c in range(1, 12):
+	for c in range(1, 15):
 		var d := Progress.difficulty(c)
 		mono = mono and float(d["hp"]) >= float(prev["hp"]) and float(d["reward"]) >= float(prev["reward"]) and float(d["time"]) <= float(prev["time"]) and int(d["extra"]) >= int(prev["extra"])
 		prev = d
@@ -80,7 +80,7 @@ func run(_host: Node) -> void:
 		share_ok = share_ok and EnemyTypes.SPECIALIST_SHARE[i] >= EnemyTypes.SPECIALIST_SHARE[i - 1] and EnemyTypes.SPECIALIST_SHARE[i] <= 0.85
 	TestLib.check(share_ok, "the share only rises, and stays below 85 % so plain operatives remain")
 	TestLib.check(is_equal_approx(EnemyTypes.specialist_share(1), 0.55) and is_equal_approx(EnemyTypes.specialist_share(3), 0.55), "chapters 2-4 keep the original 55 %")
-	TestLib.check(EnemyTypes.specialist_share(7) > EnemyTypes.specialist_share(3) and EnemyTypes.specialist_share(9) > EnemyTypes.specialist_share(7) and EnemyTypes.specialist_share(10) == EnemyTypes.specialist_share(40) and EnemyTypes.specialist_share(-1) == EnemyTypes.specialist_share(0), "chapter 8 is above chapter 4, the sequel chapters 9-10 climb further, later sectors share the last row")
+	TestLib.check(EnemyTypes.specialist_share(7) > EnemyTypes.specialist_share(3) and EnemyTypes.specialist_share(9) > EnemyTypes.specialist_share(7) and EnemyTypes.specialist_share(12) == EnemyTypes.specialist_share(40) and EnemyTypes.specialist_share(-1) == EnemyTypes.specialist_share(0), "chapter 8 is above chapter 4, the sequel chapters 9-12 climb further, later sectors share the last row")
 	for c in [3, 5, 7, 9]:
 		var n := 0
 		for i in 1000:
@@ -96,7 +96,7 @@ func run(_host: Node) -> void:
 	TestLib.check(int(c7[&"sniper"]) > int(c7[&"brute"]) and int(c7[&"brute"]) == int(c7[&"shield"]) and int(c7[&"shield"]) > int(c7[&"flanker"]), "chapter 8: snipers lead, then brutes and shields, then flankers (%s)" % str(c7))
 	var late := _spec_counts(30, 4.0)
 	var c10 := _spec_counts(9, 4.0)
-	TestLib.check(late == _spec_counts(10, 4.0) and int(c10[&"brute"]) > int(c7[&"brute"]) and int(late[&"shield"]) > int(c10[&"shield"]) , "every later sector uses the last row; chapter 10 leans on brutes more than chapter 8")
+	TestLib.check(late == _spec_counts(12, 4.0) and int(c10[&"brute"]) > int(c7[&"brute"]) and int(late[&"shield"]) > int(c10[&"shield"]) , "every later sector uses the last row; chapter 10 leans on brutes more than chapter 8")
 	var lowheat := _spec_counts(7, 1.0)
 	TestLib.check(int(lowheat.get(&"brute", 0)) == 0 and int(lowheat[&"sniper"]) > 0, "no brutes below heat 2.5 in the late chapters either")
 	var only_known := true

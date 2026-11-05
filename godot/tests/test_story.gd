@@ -86,7 +86,7 @@ func run(host: Node) -> void:
 		ch_ok = ch_ok and str(ch["end"]["text"]).length() <= 220 and str(ch["end"]["head"]).length() <= 30
 		for k: Variant in (ch["cores"] as Dictionary):
 			ch_ok = ch_ok and int(k) >= 1 and int(k) <= 5          # every sector has at least 6 cores; the last core ends the chapter
-	TestLib.check(ch_ok, "10 story chapters + aftermath: titles, objectives, core lines (1..5) and end cards fit")
+	TestLib.check(ch_ok, "12 story chapters + aftermath: titles, objectives, core lines (1..5) and end cards fit")
 	TestLib.check(StoryData.TAGLINE.length() > 10 and StoryData.TAGLINE.length() < 60, "title tagline fits")
 	var triggers_ok := true
 	for t: Dictionary in StoryData.MESSAGE_TRIGGERS:
@@ -312,9 +312,9 @@ func run(host: Node) -> void:
 	TestLib.check(story.objective_text() == str(StoryData.CHAPTERS[1]["obj"]), "the objective line follows the chapter")
 
 	# final chapter: epilogue
-	for i in 8:
+	for i in StoryData.FINAL - 1:
 		Game.next_sector.emit()
-	TestLib.check(story.chapter == StoryData.FINAL and story.chapter_data()["id"] == "last_aperture", "chapter 10 is the Last Aperture")
+	TestLib.check(story.chapter == StoryData.FINAL and story.chapter_data()["id"] == "second_gate", "chapter 12 is the Second Gate")
 	Game.state = &"win"
 	Game.sector_cleared.emit()
 	TestLib.check(story.end_card.get("head", "") == "FINAL CHAPTER COMPLETE", "final end card reveals the twist")
@@ -329,7 +329,7 @@ func run(host: Node) -> void:
 	TestLib.check(story.epilogue_seen and not story.cards_active(), "the epilogue ends")
 	Game.state = &"play"
 	Game.next_sector.emit()
-	TestLib.check(story.chapter == 10 and story.chapter_data()["id"] == "open_city" and story.chapter_label() == "FREE SECTOR 11", "after the story: the aftermath chapter")
+	TestLib.check(story.chapter == StoryData.FINAL + 1 and story.chapter_data()["id"] == "open_city" and story.chapter_label() == "FREE SECTOR 13", "after the story: the aftermath chapter")
 	Game.next_sector.emit()
 	TestLib.check(story.chapter_data()["id"] == "open_city", "the aftermath repeats")
 

@@ -161,14 +161,14 @@ func run(host: Node) -> void:
 	e.prep(spawn)
 	Game.state = &"win"
 	Game.sector_cleared.emit()
-	TestLib.check(cine._ending_id == &"credits", "clearing the final chapter remembers the ending scene")
+	TestLib.check(cine._ending_id == &"credits2", "clearing the final chapter remembers the second ending scene")
 	story.advance(Story.EPILOGUE_DELAY + 0.1)
 	TestLib.check(story.cards_active() and story.card_kind == &"epilogue", "the ending cards follow the final end card")
 	var heads: Array[String] = []
 	for c: Dictionary in story.cards:
 		heads.append(str(c["head"]))
 	var want: Array[String] = []
-	for c: Dictionary in CampaignData.ENDING:
+	for c: Dictionary in CampaignData.ENDING_2:
 		want.append(str(c["head"]))
 	TestLib.check(heads == want, "the cards are the campaign's ending cards (%s)" % ", ".join(heads))
 	TestLib.check(not cine.active, "no scene runs over the win screen")
@@ -178,7 +178,7 @@ func run(host: Node) -> void:
 	TestLib.check(not cine.active and Game.state == &"win", "the credits wait for NEXT SECTOR")
 	Game.do_next_sector()
 	await _frames(4)
-	TestLib.check(cine.active and cine.active_id == &"credits" and Game.state == Cinematics.STATE, "NEXT SECTOR after the last chapter plays the credits")
+	TestLib.check(cine.active and cine.active_id == &"credits2" and Game.state == Cinematics.STATE, "NEXT SECTOR after the last chapter plays the second credits scene")
 	TestLib.check(cine._ending_id == &"", "the ending is consumed")
 	cine.t = 5.0
 	cine._input(ev)
@@ -225,7 +225,7 @@ func run(host: Node) -> void:
 	story.chapter = StoryData.FINAL
 	Game.state = &"win"
 	Game.sector_cleared.emit()
-	TestLib.check(cine._ending_id == &"credits", "(ending armed again)")
+	TestLib.check(cine._ending_id == &"credits2", "(ending armed again)")
 	Game.state = &"menu"
 	await _frames(2)
 	Game.start_new_game()

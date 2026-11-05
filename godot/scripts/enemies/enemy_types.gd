@@ -162,12 +162,13 @@ static func is_specialist(type: StringName) -> bool:
 
 ## Share of the operative reinforcement slots that become specialists, per chapter index (the last row covers every later sector). Chapters 1-4 keep the original 55 %,
 ## the late chapters push it up to 75 % (the Gate and the free city are all specialists and squads); the per-type `limit` and the tier caps keep the draw budget the same.
-const SPECIALIST_SHARE: Array[float] = [0.55, 0.55, 0.55, 0.55, 0.60, 0.65, 0.70, 0.75, 0.75, 0.78, 0.80]
+const SPECIALIST_SHARE: Array[float] = [0.55, 0.55, 0.55, 0.55, 0.60, 0.65, 0.70, 0.75, 0.75, 0.78, 0.80, 0.82, 0.84]
 ## Extra pick weight of a specialist type per chapter index (1 each for every type in the pool otherwise), the last row covers every later sector: snipers from chapter 5,
 ## brutes from chapter 6, shields from chapter 7 (index 6), so the late fights are long-range and heavy rather than just more flankers.
 const PICK_BIAS: Array[Dictionary] = [
 	{}, {}, {}, {}, {&"sniper": 1}, {&"sniper": 1, &"brute": 1}, {&"sniper": 1, &"brute": 1, &"shield": 1}, {&"sniper": 2, &"brute": 1, &"shield": 1}, {&"sniper": 2, &"brute": 1, &"shield": 1},
 	{&"sniper": 2, &"brute": 2, &"shield": 1}, {&"sniper": 2, &"brute": 2, &"shield": 2},
+	{&"sniper": 2, &"brute": 3, &"shield": 2}, {&"sniper": 3, &"brute": 3, &"shield": 3},
 ]
 
 

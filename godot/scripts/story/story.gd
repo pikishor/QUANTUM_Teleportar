@@ -286,7 +286,8 @@ func start_cards(list: Array, kind: StringName) -> void:
 ## The cards typed over the win screen after the final chapter: the campaign's ending cards (CampaignData.ENDING, which end with the credits cinematic on NEXT SECTOR);
 ## StoryData.EPILOGUE stays as the fallback when the campaign data has none.
 func ending_cards() -> Array:
-	return CampaignData.ENDING if not CampaignData.ENDING.is_empty() else StoryData.EPILOGUE
+	var c := CampaignData.ending_cards_for(chapter)
+	return c if not c.is_empty() else StoryData.EPILOGUE
 
 
 func start_prologue() -> void:
@@ -325,7 +326,7 @@ func _next_card() -> void:
 		cards_finished.emit(kind)
 		if kind == &"prologue":
 			_begin_chapter()
-		elif kind == &"epilogue":
+		elif kind == &"epilogue" and chapter == StoryData.FINAL:
 			epilogue_seen = true
 
 
@@ -454,7 +455,7 @@ func _on_cleared() -> void:
 	end_card = _tr_card(chapter_data()["end"])
 	end_age = 0.0
 	shown.append("c%d.end" % (chapter + 1))
-	if chapter == StoryData.FINAL and not epilogue_seen:
+	if not CampaignData.ending_cards_for(chapter).is_empty() and not (chapter == StoryData.FINAL and epilogue_seen):
 		_epi_wait = EPILOGUE_DELAY
 
 

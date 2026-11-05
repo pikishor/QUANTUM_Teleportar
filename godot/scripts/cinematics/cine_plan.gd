@@ -489,10 +489,10 @@ static func teleporter_first(ctx: Dictionary) -> CinePlan:
 
 ## The ending: credits over a slow pull-away from Kestrel in the street (an orbit in front of the hero, a rise along the avenue, a wide high orbit over the rain), the radio
 ## lines of CampaignData.CREDITS_SUBS and the blocks of CampaignData.CREDITS. Lasts CREDITS_BLOCK_SECONDS * blocks. ctx: hero, face. Skippable by a tap like every scene.
-static func credits_scene(ctx: Dictionary) -> CinePlan:
+static func credits_scene(ctx: Dictionary, scene_id: StringName = &"credits") -> CinePlan:
 	var p := CinePlan.new()
-	p.id = &"credits"
-	p.credits = CampaignData.CREDITS
+	p.id = scene_id
+	p.credits = CampaignData.credits_for(scene_id)
 	p.credit_seconds = CampaignData.CREDITS_BLOCK_SECONDS
 	p.duration = p.credit_seconds * float(maxi(p.credits.size(), 1))
 	var H: Vector3 = ctx["hero"]
@@ -531,7 +531,7 @@ static func credits_scene(ctx: Dictionary) -> CinePlan:
 	p.glitches = [d * 0.36, d * 0.68]
 	p.drones.append(_drone("drone_sentinel", H + F * 70.0 + R * 40.0 + UP * 34.0, -R * 1.4, 4.0))     # the Observers hang silent
 	p.drones.append(_drone("drone_heavy", H + F * 120.0 - R * 50.0 + UP * 46.0, R * 1.0, 5.5))
-	p.subs = CampaignData.CREDITS_SUBS
+	p.subs = CampaignData.credits_subs_for(scene_id)
 	p.warm_base = 0.8
 	p.bars = 0.11
 	return p

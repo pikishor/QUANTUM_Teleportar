@@ -6,8 +6,8 @@ extends RefCounted
 func run(_host: Node) -> void:
 	var Districts := load("res://scripts/world/city_districts.gd")
 	var n := CampaignData.count()
-	TestLib.check(n == 10 and CampaignData.CHAPTER_COUNT == 10, "the campaign has 10 chapters (8 + the sequel arc)")
-	TestLib.check(StoryData.FINAL == n - 1 and StoryData.CHAPTERS.size() == n + 1, "story data: 10 story chapters then the aftermath, FINAL points at the last")
+	TestLib.check(n == 12 and CampaignData.CHAPTER_COUNT == 12, "the campaign has 12 chapters (8 + the sequel arc)")
+	TestLib.check(StoryData.FINAL == n - 1 and StoryData.CHAPTERS.size() == n + 1, "story data: 12 story chapters then the aftermath, FINAL points at the last")
 
 	var ids := {}
 	var titles := {}
@@ -57,6 +57,8 @@ func run(_host: Node) -> void:
 			texts[t] = true
 			if kind == &"infiltrate":
 				interior_ok = interior_ok and interior_types.has(StringName(str(st.get("interior", ""))))
+			elif kind == &"heist":
+				interior_ok = interior_ok and interior_types.has(StringName(str(st.get("interior", ""))))
 			else:
 				interior_ok = interior_ok and not st.has("interior")
 			if kind == &"assassinate":
@@ -80,7 +82,7 @@ func run(_host: Node) -> void:
 	TestLib.check(kinds_seen.size() == CampaignData.STEP_KINDS.size(), "all %d step kinds appear in the campaign (%d)" % [CampaignData.STEP_KINDS.size(), kinds_seen.size()])
 	TestLib.check(obj_ok, "objective lines are 8..%d characters" % StoryData.OBJ_MAX)
 	TestLib.check(line_ok, "step radio lines have a known speaker and fit %d characters" % StoryData.LINE_MAX)
-	TestLib.check(interior_ok, "infiltrate steps name a mission interior type, no other step does")
+	TestLib.check(interior_ok, "infiltrate and heist steps name a mission interior type, no other step does")
 	TestLib.check(target_ok, "assassinate steps name specialist or boss, no other step does")
 	TestLib.check(cut_ok, "cutscene ids are known and every chapter has a chapter card")
 	TestLib.check(boss_ok, "a boss cutscene exists exactly where a boss step does")
@@ -92,7 +94,7 @@ func run(_host: Node) -> void:
 	TestLib.check(str(CampaignData.CAMPAIGN[0]["cutscenes"]["intro"]) == "intro", "chapter 1 starts with the intro cutscene")
 
 	# all lines unique, including the story data lines
-	for l: Dictionary in CampaignData.CREDITS_SUBS:
+	for l: Dictionary in CampaignData.CREDITS_SUBS + CampaignData.CREDITS_2_SUBS:
 		var t := str(l["t"])
 		if texts.has(t):
 			dup_text += 1
@@ -126,7 +128,7 @@ func run(_host: Node) -> void:
 	for c: Dictionary in CampaignData.ENDING:
 		end_ok = end_ok and str(c["head"]).length() <= 30 and str(c["text"]).length() > 20 and str(c["text"]).length() <= StoryData.CARD_MAX
 	TestLib.check(end_ok, "ending cards fit (head 30, text %d)" % StoryData.CARD_MAX)
-	TestLib.check(str(CampaignData.CAMPAIGN[n - 1]["cutscenes"].get("ending", "")) == "credits" and not CampaignData.CAMPAIGN[7]["cutscenes"].has("ending"), "only the final chapter (10) ends with the credits cinematic")
+	TestLib.check(str(CampaignData.CAMPAIGN[n - 1]["cutscenes"].get("ending", "")) == "credits2" and str(CampaignData.CAMPAIGN[9]["cutscenes"].get("ending", "")) == "credits" and not CampaignData.CAMPAIGN[7]["cutscenes"].has("ending") and not CampaignData.CAMPAIGN[10]["cutscenes"].has("ending"), "chapter 10 ends with the credits, the final chapter (12) with the second credits scene")
 	var cr_ok := CampaignData.CREDITS.size() >= 4
 	for blk: Dictionary in CampaignData.CREDITS:
 		cr_ok = cr_ok and str(blk["head"]).length() <= 30 and (blk["lines"] as Array).size() >= 1
@@ -148,7 +150,7 @@ func run(_host: Node) -> void:
 		for e: Dictionary in st:
 			endless_ok = endless_ok and CampaignData.STEP_KINDS.has(StringName(str(e["kind"]))) and str(e["obj"]).length() <= StoryData.OBJ_MAX
 	TestLib.check(endless_ok, "endless sectors give 3..5 known steps")
-	TestLib.check(str(StoryData.CHAPTERS[StoryData.FINAL + 1]["id"]) == "open_city" and CampaignData.ENDLESS_LABEL % 11 == "FREE SECTOR 11", "the aftermath chapter continues as endless sectors")
+	TestLib.check(str(StoryData.CHAPTERS[StoryData.FINAL + 1]["id"]) == "open_city" and CampaignData.ENDLESS_LABEL % 13 == "FREE SECTOR 13", "the aftermath chapter continues as endless sectors")
 
 
 func _story_intro_count() -> int:

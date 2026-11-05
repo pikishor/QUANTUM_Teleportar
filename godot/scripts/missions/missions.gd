@@ -42,6 +42,7 @@ var contracts: Contracts
 var sides: SideMissions                 ## the ten side missions of the shop's board
 var progress: Progress
 var campaign: CampaignRunner
+var chases: ChaseRunner                 ## the six vehicle chase set pieces (scripts/missions/chase_runner.gd)
 ## False while a scripted campaign chapter runs: collecting the last core then does not clear the sector (the runner's last step does).
 var win_on_cores := true
 ## Placement randomness: tests seed it for reproducible layouts.
@@ -83,6 +84,9 @@ func _ready() -> void:
 	campaign = CampaignRunner.new()
 	campaign.name = "Campaign"
 	add_child(campaign)
+	chases = ChaseRunner.new()
+	chases.name = "Chases"
+	add_child(chases)
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
 	Game.next_sector.connect(_on_next_sector)

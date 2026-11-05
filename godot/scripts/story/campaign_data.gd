@@ -1,6 +1,6 @@
 class_name CampaignData
 extends RefCounted
-## The ten-chapter campaign (eight chapters plus the sequel arc, chapters 9 and 10) as plain data: for each chapter a place (district), a chain of 3..5 scripted objective steps, one radio line per step, and the
+## The twelve-chapter campaign (eight chapters plus the sequel arc, chapters 9 to 12) as plain data: for each chapter a place (district), a chain of 3..5 scripted objective steps, one radio line per step, and the
 ## cutscene trigger ids. Nothing here runs; it only extends scripts/story/story_data.gd (CHAPTERS[i] has the same id as CAMPAIGN[i], the intro / core / heat
 ## lines and the end card live there). After the last chapter the game continues as endless sectors (StoryData's aftermath chapter), see is_endless().
 ##
@@ -14,13 +14,13 @@ const O := StoryData.O
 const K := StoryData.K
 const A := StoryData.A
 
-const STEP_KINDS: Array[StringName] = [&"reach", &"infiltrate", &"escort", &"defend", &"hack", &"assassinate", &"chase", &"escape"]
+const STEP_KINDS: Array[StringName] = [&"reach", &"infiltrate", &"escort", &"defend", &"hack", &"assassinate", &"chase", &"escape", &"rift_hold", &"heist", &"convoy_intercept"]
 ## Cutscene ids: the first three exist in cinematics (cine_plan.gd), "credits" is the ending sequence described by CREDITS below.
-const KNOWN_CUTSCENES: Array[String] = ["", "intro", "chapter", "boss_in", "boss_out", "credits"]
+const KNOWN_CUTSCENES: Array[String] = ["", "intro", "chapter", "boss_in", "boss_out", "credits", "credits2"]
 const DISTRICT_IDS: Array[String] = ["market", "foundry", "slums", "towers"]   ## same ids as CityDistricts.IDS
 const MIN_STEPS := 3
 const MAX_STEPS := 5
-const CHAPTER_COUNT := 10
+const CHAPTER_COUNT := 12
 const CREDIT_LINE_MAX := 40
 
 const CAMPAIGN: Array[Dictionary] = [
@@ -132,6 +132,28 @@ const CAMPAIGN: Array[Dictionary] = [
 			{"kind": "escape", "obj": "Escape the folding spire", "radio": {"s": K, "t": "It is closing, ORACLE. Two bits and out. I am not staying to see what is behind it."}},
 		],
 	},
+	{
+		"id": "hollow_choir", "district": "slums", "place": "LANTERN YARD",
+		"cutscenes": {"intro": "", "chapter": "chapter", "boss": ""},
+		"steps": [
+			{"kind": "reach", "obj": "Reach the dark end of Lantern Yard", "radio": {"s": O, "t": "The spire fell and the Lamplighters went quiet. Something in the yard is singing instead."}},
+			{"kind": "heist", "interior": "lobby", "obj": "Steal the choir ledger from the counting house", "radio": {"s": K, "t": "In, take the data, out before the patrols close the street. I have done worse for rent."}},
+			{"kind": "convoy_intercept", "cars": 3, "obj": "Stop the convoy hauling the choir relays", "radio": {"s": O, "t": "Three trucks, one road. ENTANGLE swaps you in, COLLAPSE stops what is left."}},
+			{"kind": "rift_hold", "hold": 40.0, "count": 2, "obj": "Hold the choir rift open for the relay", "radio": {"s": K, "t": "Feed it everything I have. Keep moving, keep firing, keep it breathing."}},
+			{"kind": "assassinate", "target": "specialist", "obj": "Eliminate the choir master", "radio": {"s": O, "t": "The choir master conducts every drone left in the slums. Cut the baton, Kestrel."}},
+		],
+	},
+	{
+		"id": "second_gate", "district": "market", "place": "EXCHANGE VAULT",
+		"cutscenes": {"intro": "", "chapter": "chapter", "boss": "boss_in", "ending": "credits2"},
+		"steps": [
+			{"kind": "reach", "obj": "Reach the sealed Exchange vault", "radio": {"s": O, "t": "It ends where it began. The vault under the Old Exchange is the second gate."}},
+			{"kind": "hack", "obj": "Hack the vault's last anchor", "radio": {"s": K, "t": "Same signal, last time. If it screams, I will keep my hands on the keys."}},
+			{"kind": "defend", "obj": "Hold the vault door against the hive", "radio": {"s": O, "t": "Everything that is left is coming down the stairs. Hold the door, Kestrel."}},
+			{"kind": "assassinate", "target": "boss", "enemy": "bulwark", "hp_mult": 1.2, "guards": 0, "name": "VAEL BULWARK PRIME", "obj": "Break the Bulwark Prime", "radio": {"s": O, "t": "It hides behind its own shield. Wait for the shield to drop, then COLLAPSE it."}},
+			{"kind": "escape", "obj": "Escape the folding vault", "radio": {"s": K, "t": "It is folding up, ORACLE. Two bits, one run, and nothing left behind us."}},
+		],
+	},
 ]
 
 ## Endless sectors: after the last chapter every sector plays StoryData's aftermath chapter and draws its objective chain from these kinds.
@@ -161,6 +183,46 @@ const CREDITS_SUBS: Array[Dictionary] = [
 	{"t0": 5.2, "t1": 9.0, "s": O, "t": "The gate is closed, Kestrel. Whatever you decide to be next, I will be in your ear."},
 	{"t0": 10.0, "t1": 14.0, "s": K, "t": "Then keep talking, ORACLE. The city has a lot of rain left to name."},
 ]
+
+## Chapter 12's ending: typed over the win screen after its end card, then the second credits scene ("credits2") plays on NEXT SECTOR.
+const ENDING_2: Array[Dictionary] = [
+	{"head": "THE SECOND GATE", "text": "Every anchor, every echo and every Observer folded into the vault and the vault folded into nothing. The sky over Neo-Meridian is only sky."},
+	{"head": "TWO PLACES", "text": "You stopped running between them. Kestrel stands in one city, with one voice in her ear, and it is enough."},
+	{"head": "THE LAMPLIGHTERS", "text": "Lantern Yard lights up one window at a time. Nobody counts how many. Somebody is already carrying the first of them upstairs."},
+]
+
+## The second credits scene ("credits2"): same format as CREDITS, plays after chapter 12.
+const CREDITS_2: Array[Dictionary] = [
+	{"head": "QUANTUM TELEPORTAR", "lines": ["The sequel", "Two places, then one"]},
+	{"head": "KESTREL", "lines": ["Who closed three gates", "And kept the key"]},
+	{"head": "ORACLE", "lines": ["Whole again", "Still in her ear"]},
+	{"head": "THE LAMPLIGHTERS", "lines": ["Who lit Lantern Yard", "One window at a time"]},
+	{"head": "NEO-MERIDIAN", "lines": ["The rain goes on", "Nobody is watching"]},
+	{"head": "THANK YOU FOR PLAYING", "lines": ["The gates are closed", "The city is yours"]},
+]
+const CREDITS_2_SUBS: Array[Dictionary] = [
+	{"t0": 1.0, "t1": 4.8, "s": O, "t": "Three gates, Kestrel. You closed every one and you are still here."},
+	{"t0": 5.4, "t1": 9.2, "s": K, "t": "I had good company. Even when the company was just a voice."},
+	{"t0": 10.0, "t1": 14.2, "s": O, "t": "Then walk. The street is open, and I will name every puddle for you."},
+]
+
+
+## The cards typed over the win screen after chapter `sector` (0-based): ENDING after chapter 10, ENDING_2 after chapter 12, [] for every other chapter.
+static func ending_cards_for(sector: int) -> Array:
+	var cs: Variant = chapter(sector).get("cutscenes", {})
+	match str((cs as Dictionary).get("ending", "")) if cs is Dictionary else "":
+		"credits": return ENDING
+		"credits2": return ENDING_2
+	return []
+
+
+## The credits blocks and subtitles of an ending scene id ("credits" or "credits2").
+static func credits_for(id: StringName) -> Array[Dictionary]:
+	return CREDITS_2 if id == &"credits2" else CREDITS
+
+
+static func credits_subs_for(id: StringName) -> Array[Dictionary]:
+	return CREDITS_2_SUBS if id == &"credits2" else CREDITS_SUBS
 
 
 static func count() -> int:
@@ -206,4 +268,5 @@ static func all_lines() -> Array[Dictionary]:
 		for st: Dictionary in ch["steps"]:
 			out.append(st["radio"])
 	out.append_array(CREDITS_SUBS)
+	out.append_array(CREDITS_2_SUBS)
 	return out

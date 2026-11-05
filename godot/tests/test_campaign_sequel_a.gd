@@ -6,7 +6,7 @@ extends RefCounted
 
 func run(_host: Node) -> void:
 	var n := CampaignData.count()
-	TestLib.check(n == 10 and StoryData.FINAL == 9 and StoryData.CHAPTERS.size() == 11, "ten story chapters, FINAL is index 9, then the aftermath")
+	TestLib.check(n == 12 and StoryData.FINAL == 11 and StoryData.CHAPTERS.size() == 13, "twelve story chapters, FINAL is index 11, then the aftermath")
 	for i in [8, 9]:
 		var ch: Dictionary = CampaignData.CAMPAIGN[i]
 		var sc: Dictionary = StoryData.CHAPTERS[i]
@@ -39,12 +39,12 @@ func run(_host: Node) -> void:
 	TestLib.check(verb_bosses == ["hound", "phasewright"], "chapter 10 fights two verb bosses (%s)" % str(verb_bosses))
 	TestLib.check(str(CampaignData.CAMPAIGN[9]["cutscenes"]["boss"]) == "boss_in" and str(CampaignData.CAMPAIGN[9]["cutscenes"]["ending"]) == "credits", "chapter 10 plays boss_in and ends with the credits")
 	TestLib.check(not CampaignData.CAMPAIGN[7]["cutscenes"].has("ending") and str(CampaignData.CAMPAIGN[8]["cutscenes"]["boss"]) == "", "chapter 8 no longer ends the game, chapter 9 has no boss cutscene")
-	TestLib.check(str(StoryData.CHAPTERS[7]["end"]["head"]) == "CHAPTER 8 COMPLETE" and str(StoryData.CHAPTERS[9]["end"]["head"]) == "FINAL CHAPTER COMPLETE", "the final end card moved to chapter 10")
+	TestLib.check(str(StoryData.CHAPTERS[7]["end"]["head"]) == "CHAPTER 8 COMPLETE" and str(StoryData.CHAPTERS[9]["end"]["head"]) == "CHAPTER 10 COMPLETE" and str(StoryData.CHAPTERS[11]["end"]["head"]) == "FINAL CHAPTER COMPLETE", "the final end card moved on to chapter 12")
 	for cs: String in [str(CampaignData.CAMPAIGN[8]["cutscenes"]["chapter"]), str(CampaignData.CAMPAIGN[9]["cutscenes"]["chapter"])]:
 		TestLib.check(CampaignData.KNOWN_CUTSCENES.has(cs) and cs != "", "chapter card cutscene '%s' is known" % cs)
 
 	# the chapter select lists all ten, an old save keeps its unlocked count
-	TestLib.check(CampaignRunner.chapter_count() == 10 and CampaignRunner.chapter_title(9) == "THE LAST APERTURE" and CampaignRunner.chapter_title(8) == "THE ECHO TIDE", "the chapter select lists ten chapters with their titles")
+	TestLib.check(CampaignRunner.chapter_count() == 12 and CampaignRunner.chapter_title(9) == "THE LAST APERTURE" and CampaignRunner.chapter_title(8) == "THE ECHO TIDE", "the chapter select lists twelve chapters with their titles")
 	TestLib.check(StoryData.CONTRACT_CHAPTER.size() == StoryData.CHAPTERS.size(), "one contract line per chapter, sequel included")
 
 	# difficulty and economy tables reach chapters 9 and 10
@@ -53,14 +53,14 @@ func run(_host: Node) -> void:
 	var d10 := Progress.difficulty(9)
 	var d11 := Progress.difficulty(10)
 	TestLib.check(float(d9["hp"]) > float(d8["hp"]) and float(d10["hp"]) > float(d9["hp"]) and float(d10["reward"]) > float(d9["reward"]) and float(d9["reward"]) > float(d8["reward"]), "enemy health and pay keep rising through chapters 9 and 10")
-	TestLib.check(float(d11["hp"]) >= float(d10["hp"]) and float(Progress.difficulty(40)["hp"]) == float(Progress.difficulty(10)["hp"]), "the curve flattens after chapter 11")
-	TestLib.check(Economy.sector_at(10.0) == 9 and Economy.sector_at(30.0) == 10 and Economy.hourly_income(9.5)["net"] != null, "the economy model plays to the sequel sectors")
-	TestLib.check(ContractTypes.WEIGHTS.size() == 11 and ContractTypes.weights(8) != ContractTypes.weights(9) and ContractTypes.weights(9) != ContractTypes.weights(10), "contract weights have rows for chapters 9 and 10")
+	TestLib.check(float(d11["hp"]) >= float(d10["hp"]) and float(Progress.difficulty(40)["hp"]) == float(Progress.difficulty(12)["hp"]), "the curve flattens after chapter 12")
+	TestLib.check(Economy.sector_at(10.0) == 9 and Economy.sector_at(30.0) == 12 and Economy.hourly_income(9.5)["net"] != null, "the economy model plays to the sequel sectors")
+	TestLib.check(ContractTypes.WEIGHTS.size() == 13 and ContractTypes.weights(8) != ContractTypes.weights(9) and ContractTypes.weights(9) != ContractTypes.weights(10), "contract weights have rows for chapters 9 and 10")
 	var all_kinds := true
 	for k: StringName in ContractTypes.KINDS:
 		all_kinds = all_kinds and float(ContractTypes.weights(8)[k]) >= 1.0 and float(ContractTypes.weights(9)[k]) >= 1.0
 	TestLib.check(all_kinds, "every contract kind stays possible in the sequel")
-	TestLib.check(EnemyTypes.specialist_share(8) <= EnemyTypes.specialist_share(9) and EnemyTypes.specialist_share(9) < EnemyTypes.specialist_share(10), "specialist share rises through the sequel")
+	TestLib.check(EnemyTypes.specialist_share(8) <= EnemyTypes.specialist_share(9) and EnemyTypes.specialist_share(9) < EnemyTypes.specialist_share(10), "specialist share rises through the sequel (chapters 9-11)")
 
 	# radio lines: speakers and length
 	var lines_ok := true

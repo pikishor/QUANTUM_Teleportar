@@ -3,7 +3,7 @@ extends RefCounted
 ## Run: tools/test.sh tests/test_set_pieces.gd
 
 func run(_host: Node) -> void:
-	TestLib.check(SetPieces.IDS.size() == 3, "three set pieces")
+	TestLib.check(SetPieces.IDS.size() == 5, "five set pieces")
 	var chapters := {}
 	for id: StringName in SetPieces.IDS:
 		var steps := SetPieces.phase_steps(id)
@@ -14,8 +14,8 @@ func run(_host: Node) -> void:
 			hz = hz and s.get("hazard") is Dictionary and CampaignSteps.kind_of(s) != &""
 		TestLib.check(hz, "%s: every phase has a hazard and a valid kind" % id)
 		chapters[SetPieces.DEFS[id]["chapter"]] = id
-	TestLib.check(chapters.has(1) and chapters.has(4) and chapters.has(7), "hooked into chapters 2, 5 and 8")
-	TestLib.check(SetPieces.is_optional(&"bridge_chase") and SetPieces.is_optional(&"rooftop_siege") and not SetPieces.is_optional(&"reactor_core"), "ch2 and ch5 optional, ch8 finale")
+	TestLib.check(chapters.has(1) and chapters.has(4) and chapters.has(7) and chapters.has(10) and chapters.has(11), "hooked into chapters 2, 5, 8, 11 and 12")
+	TestLib.check(SetPieces.is_optional(&"bridge_chase") and SetPieces.is_optional(&"rooftop_siege") and not SetPieces.is_optional(&"reactor_core") and SetPieces.is_optional(&"choir_surge") and not SetPieces.is_optional(&"final_aperture"), "ch2, ch5 and ch11 optional, ch8 and ch12 finales")
 	for ci: int in chapters:
 		var base := CampaignSteps.normalize_chapter(CampaignData.CAMPAIGN[ci], ci)
 		var sp := SetPieces.splice(base, ci)

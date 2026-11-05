@@ -383,10 +383,10 @@ func _old_saves() -> void:
 	cf = ConfigFile.new()
 	cf.set_value("meta", "version", 1)
 	cf.set_value("wallet", "credits", 900)
-	cf.set_value("campaign", "sector", 11)
+	cf.set_value("campaign", "sector", 13)
 	cf.save(TMP)
 	Game.state = &"menu"
-	TestLib.check(prog.continue_game() and story.set_to == 11 and camp.state == &"idle" and prog.credits == 900, "an old endless-sector save resumes as the plain core hunt")
+	TestLib.check(prog.continue_game() and story.set_to == 13 and camp.state == &"idle" and prog.credits == 900, "an old endless-sector save resumes as the plain core hunt")
 	TestLib.check(prog.chapters_unlocked() == CampaignRunner.chapter_count() and prog.can_select_chapter(), "and all chapters are open in the chapter select")
 	TestLib.check(m.win_on_cores == true and m.contracts.enabled == true, "the cores win the sector and contracts are offered, as before")
 	# damaged new keys on an otherwise old save

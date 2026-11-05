@@ -519,3 +519,17 @@ Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one tran
 - visual_qa: 23/24 on one run, 21/24 on a rerun; sky_dawn/noon/dusk flagged "flat white rectangle" intermittently. latest.png shows normal skies, so likely a detector false positive on bright sky; follow-up: make the check tolerant or deterministic.
 - Screenshot defects (follow-ups): hero reads as a flat bluish figure with little material detail; title screen DEPLOY button overlaps the sign art; HUD tips overlap quest text on the boss shot.
 - Still open from sequel work: no live-scene playthrough of ch 9-10, new rift_hold/heist/convoy kinds not used by any chapter yet, no radio lines or dedicated visuals for them.
+
+## Campaign sequel part 2 (builder note, chapters 11-12, tests/test_campaign_sequel_b.gd)
+- Chapter 11 THE HOLLOW CHOIR (Lantern Yard, slums): reach, heist, convoy_intercept, rift_hold, choir master; optional set piece `choir_surge` (defend, survive, Phasewright boss). Chapter 12 THE SECOND GATE (Exchange Vault, market): reach, hack, defend, Bulwark Prime boss (boss_in), escape; finale set piece `final_aperture` (rift_hold fed by every verb, then Hound, Phasewright, Skimmer bosses). StoryData.FINAL = 11, CampaignData.CHAPTER_COUNT = 12.
+- Ending: chapter 10 keeps ENDING cards + "credits"; chapter 12 plays ENDING_2 cards (CampaignData.ending_cards_for) + the new "credits2" scene (CREDITS_2 / CREDITS_2_SUBS, CinePlan.credits_scene(ctx, id)). Story.epilogue_seen only latches on the final chapter.
+- Tables extended to chapter 12 (difficulty hp x2.2 / pay x3.4 cap, Economy.sector_at, ContractTypes.WEIGHTS 13 rows, EnemyTypes share/bias 13 rows); Spanish added. Endless sectors start at FREE SECTOR 13. Updated tests: sequel_a, campaign_data, set_pieces, difficulty_tables, story, credits, campaign_wiring, campaign_review, missions_contracts.
+- Gaps: no live-scene playthrough of ch 11-12 (heist/convoy/rift in a real chapter untested), credits2 reuses the credits camera shots, endless sectors do not use the sequel step kinds, Hindi has no new strings.
+
+## Vehicle chase set pieces (builder note, wave 68, tests/test_chase_set_pieces.gd)
+- Six chases (convoy, roadblock, rooftop = hover target, gate, escort, duel) in `ChaseScripts` (one DEFS table + one RUBBER table for all rubber-banding) run by `ChaseRunner` (Game.missions.chases): checkpoints at progress fractions, fail then auto-retry from the last checkpoint after 3 s (3 tries), pay on completion, HUD plate line via Hud._campaign_line, DEMO tab CHASE (`DemoMode.start_chase`).
+- Gaps: routes are one straight street toward the centre (no real route planning); ROOFTOP TO STREET is only the hover pursuit (the player does not start on a roof); chasers cap speed only (no boost rubber); one marker, no per-gate geometry; 12 DEMO tabs are narrow at 844 px; no Spanish/Hindi strings; no campaign chapter uses the chases yet.
+
+## Wave 68 integration note
+- Full tools/test_all.sh: 148 pass, 0 flaky, 0 fail. tools/full_bot.sh: SOAK PASS (8 min, 0 errors). Perf gate skipped (no rendering changes).
+- visual_qa 24/24 pass. Looked at latest.png: no glaring defects. Follow-ups: title shot has the DEMO button crowded by the harness label (cosmetic); no live playthrough of chapters 11-12; DEMO panel now has 12 narrow tabs at 844 px.

@@ -6,11 +6,14 @@ extends RefCounted
 ##   bridge_chase   chapter 2 (index 1), optional   collapsing bridge: run down the courier, then hold while spans drop
 ##   rooftop_siege  chapter 5 (index 4), optional   helicopter-drone siege: survive waves under rocket strikes, then break the lead drone
 ##   reactor_core   chapter 8 (index 7), finale     reactor hall: defend the vents under arcs, then kill the Warden's core guard
+##   choir_surge     chapter 11 (index 10), optional the choir turns on the yard: defend it, survive the surge, break the Phasewright
+##   final_aperture chapter 12 (index 11), finale   the last gate, built around every verb: rift_hold (ENTANGLE, SUPERPOSITION, COLLAPSE, link, SHIELD, SLIP, ARC all feed it), a COLLAPSE
+##                                                  fight against the Hound (decoy), a QUANTUM TELEPORT fight against the Phasewright (break the jump), then the Skimmer
 ## Optional pieces can be skipped (CampaignRunner.skip_set_piece()) or are dropped after SKIP_AFTER_FAILS failures; the finale cannot.
 ## A phase step carries: set_piece (id), phase (index), phases (count), sp_first / sp_last (bool), optional (bool), hazard {period, warn, radius, dmg, count, spread}.
 
 const SKIP_AFTER_FAILS := 2
-const IDS: Array[StringName] = [&"bridge_chase", &"rooftop_siege", &"reactor_core"]
+const IDS: Array[StringName] = [&"bridge_chase", &"rooftop_siege", &"reactor_core", &"choir_surge", &"final_aperture"]
 
 const DEFS := {
 	&"bridge_chase": {
@@ -42,6 +45,30 @@ const DEFS := {
 				"hazard": {"period": 4.0, "warn": 1.2, "radius": 5.5, "dmg": 24.0, "count": 3, "spread": 14.0}},
 			{"kind": "kill_target", "enemy": "overseer", "target": "boss", "guards": 0, "hp_mult": 1.2, "name": "CORE GUARD", "obj": "Destroy the core guard",
 				"hazard": {"period": 5.0, "warn": 1.3, "radius": 5.5, "dmg": 22.0, "count": 3, "spread": 14.0}},
+		],
+	},
+	&"choir_surge": {
+		"title": "CHOIR SURGE", "chapter": 10, "optional": true, "after": 4,
+		"phases": [
+			{"kind": "defend", "obj": "Hold the yard against the choir drones", "hold": 40.0, "gap": 11.0,
+				"hazard": {"period": 6.5, "warn": 1.5, "radius": 5.0, "dmg": 20.0, "count": 2, "spread": 13.0}},
+			{"kind": "survive", "obj": "Survive the choir surge", "hold": 30.0, "gap": 9.0,
+				"hazard": {"period": 4.5, "warn": 1.2, "radius": 5.5, "dmg": 22.0, "count": 3, "spread": 14.0}},
+			{"kind": "kill_target", "enemy": "phasewright", "target": "boss", "guards": 0, "hp_mult": 0.9, "name": "CHOIR PHASEWRIGHT", "obj": "Break the choir's Phasewright",
+				"hazard": {"period": 5.5, "warn": 1.3, "radius": 5.5, "dmg": 22.0, "count": 3, "spread": 14.0}},
+		],
+	},
+	&"final_aperture": {
+		"title": "THE LAST GATE", "chapter": 11, "optional": false, "after": 4,
+		"phases": [
+			{"kind": "rift_hold", "obj": "Feed the gate every verb you have", "hold": 40.0, "count": 3,
+				"hazard": {"period": 6.0, "warn": 1.4, "radius": 5.0, "dmg": 22.0, "count": 2, "spread": 13.0}},
+			{"kind": "kill_target", "enemy": "hound", "target": "boss", "guards": 0, "hp_mult": 1.0, "name": "GATE HOUND", "obj": "Decoy and COLLAPSE the Gate Hound",
+				"hazard": {"period": 5.5, "warn": 1.3, "radius": 5.5, "dmg": 22.0, "count": 3, "spread": 14.0}},
+			{"kind": "kill_target", "enemy": "phasewright", "target": "boss", "guards": 0, "hp_mult": 1.1, "name": "GATE PHASEWRIGHT", "obj": "Break the Gate Phasewright's jump",
+				"hazard": {"period": 5.0, "warn": 1.2, "radius": 5.5, "dmg": 24.0, "count": 3, "spread": 14.0}},
+			{"kind": "kill_target", "enemy": "skimmer", "target": "boss", "guards": 0, "hp_mult": 1.2, "name": "GATE SKIMMER", "obj": "Crash the Gate Skimmer",
+				"hazard": {"period": 4.5, "warn": 1.2, "radius": 6.0, "dmg": 24.0, "count": 3, "spread": 16.0}},
 		],
 	},
 }

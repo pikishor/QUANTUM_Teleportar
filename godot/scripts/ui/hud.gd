@@ -1462,7 +1462,10 @@ func _campaign_line() -> String:
 	if InteriorGameplay.hud_line != "":
 		return ""                                          # an interior mission's own line owns the plate inside
 	var k := _campaign()
-	return str(k.call(&"hud_line")) if k != null else ""
+	var line := str(k.call(&"hud_line")) if k != null else ""
+	if line == "" and Game.missions is Missions and (Game.missions as Missions).chases != null:
+		line = (Game.missions as Missions).chases.hud_line()      # a vehicle chase set piece (ChaseRunner)
+	return line
 
 
 ## True when the title / pause screen has chapters to choose from (Progress.can_select_chapter).

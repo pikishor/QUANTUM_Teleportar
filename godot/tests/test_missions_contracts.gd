@@ -549,7 +549,7 @@ func _scaling() -> void:
 	var d0 := Progress.difficulty(0)
 	var d5 := Progress.difficulty(5)
 	TestLib.check(float(d5["hp"]) > float(d0["hp"]) and int(d5["extra"]) > int(d0["extra"]) and float(d5["reward"]) > float(d0["reward"]) and float(d5["time"]) < float(d0["time"]), "difficulty rises per sector: hp %.2f -> %.2f, extra foes %d -> %d, pay x%.1f -> x%.1f" % [d0["hp"], d5["hp"], d0["extra"], d5["extra"], d0["reward"], d5["reward"]])
-	TestLib.check(float(Progress.difficulty(40)["time"]) >= 0.7 and float(Progress.difficulty(40)["hp"]) <= 2.0, "the scaling is capped (chapter 10 = x2.0)")
+	TestLib.check(float(Progress.difficulty(40)["time"]) >= 0.7 and float(Progress.difficulty(40)["hp"]) <= 2.21, "the scaling is capped (chapter 12 = x2.2)")
 	_reset(4)
 	var s := em.spawn(&"sentinel", Vector3(30.0, 0.0, 30.0))
 	TestLib.check(s != null and is_equal_approx(s.max_hp, 60.0 * 1.4), "enemies spawned in sector 5 have 40 %% more health (%.0f)" % s.max_hp)

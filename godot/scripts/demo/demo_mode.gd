@@ -229,6 +229,10 @@ static func catalog() -> Array[Dictionary]:
 	for id: StringName in CampaignSteps.DEMO_IDS:
 		seq.append({"id": id, "label": String(CampaignSteps.DEMO_TITLES[id])})
 	out.append({"kind": &"sequel", "title": "SEQUEL MECHANICS", "items": seq})
+	var chs: Array[Dictionary] = []
+	for id: StringName in ChaseScripts.IDS:
+		chs.append({"id": id, "label": ChaseScripts.title(id)})
+	out.append({"kind": &"chase", "title": "VEHICLE CHASES", "items": chs})
 	return out
 
 
@@ -242,6 +246,7 @@ static func launch(kind: StringName, id: Variant) -> String:
 		&"activity": return start_activity(StringName(id))
 		&"setpiece": return start_set_piece(StringName(id))
 		&"sequel": return start_sequel(StringName(id))
+		&"chase": return start_chase(StringName(id))
 		&"boss":
 			_prepare()
 			return TestMode.start_contract(&"boss") if StringName(id) == &"contract" else TestMode.spawn_enemy(StringName(id))
@@ -272,6 +277,8 @@ static func _prepare(leave_interior := true) -> void:
 		m.contracts.abandon()
 	if m.campaign != null and m.campaign.is_running():
 		m.campaign.abort()
+	if m.chases != null and m.chases.is_running():
+		m.chases.abort("DEMO")
 
 
 static func _stop_everything() -> void:
@@ -308,6 +315,15 @@ static func start_sequel(id: StringName) -> String:
 		return ""
 	_prepare()
 	return "SEQUEL  %s" % String(CampaignSteps.DEMO_TITLES[id]) if m.campaign.start_demo(id) else ""
+
+
+## One of the six vehicle chase set pieces (ChaseScripts.IDS), started where the player stands.
+static func start_chase(id: StringName) -> String:
+	var m := Game.missions as Missions
+	if m == null or m.chases == null or not ChaseScripts.DEFS.has(id):
+		return ""
+	_prepare()
+	return "CHASE  %s" % ChaseScripts.title(id) if m.chases.start(id) else ""
 
 
 ## Index of a set piece's first step inside its chapter's spliced step list (-1 when it has none).
