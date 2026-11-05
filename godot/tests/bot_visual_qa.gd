@@ -91,20 +91,24 @@ func step(_t: float, _dt: float) -> bool:
 	return false
 
 
-## True when the view rays through the corners and the middle of `r` (viewport px) all leave the city without hitting anything: that flat bright rectangle is the sky between
+## True when the view rays through the corners and the middle of `r` (viewport px) nearly all leave the city without hitting anything: that flat bright rectangle is the sky between
 ## two towers. A quad drawn over the street, a car or a facade hits geometry on its rays and is NOT exempt.
 func _is_open_sky(r: Rect2i) -> bool:
 	var cam := _p.get_viewport().get_camera_3d()
 	if cam == null:
 		return false
 	var space := _p.get_world_3d().direct_space_state
-	var c := Vector2(r.get_center())
-	for pt: Vector2 in [Vector2(r.position) + Vector2(2, 2), Vector2(r.end) - Vector2(2, 2), Vector2(r.end.x - 2, r.position.y + 2), Vector2(r.position.x + 2, r.end.y - 2), c]:
-		var from := cam.project_ray_origin(pt)
-		var q := PhysicsRayQueryParameters3D.create(from, from + cam.project_ray_normal(pt) * 1500.0)
-		if not space.intersect_ray(q).is_empty():
-			return false
-	return true
+	var open_n := 0
+	var total := 0
+	for iy in 3:
+		for ix in 3:
+			var pt := Vector2(r.position) + Vector2(r.size) * Vector2((ix + 0.5) / 3.0, (iy + 0.5) / 3.0)
+			var from := cam.project_ray_origin(pt)
+			var q := PhysicsRayQueryParameters3D.create(from, from + cam.project_ray_normal(pt) * 1500.0)
+			total += 1
+			if space.intersect_ray(q).is_empty():
+				open_n += 1
+	return open_n >= 7      # a sky gap's bounding rect may clip a tower edge or a cable, so most (not all) rays must leave the city
 
 
 var _look := Vector3.INF
