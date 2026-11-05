@@ -63,7 +63,7 @@ def seam_ratio(x):
 
 def parse_states(src):
     out = {}
-    for m in re.finditer(r'&"(\w+)":\s*\[([^\]]+)\]', src):
+    for m in re.finditer(r'&"(\w+)":\s*\[(\s*-?[\d.]+(?:\s*,\s*-?[\d.]+)+)\s*\]', src):
         vals = [float(v) for v in m.group(2).split(",")]
         if len(vals) == 5:
             out[m.group(1)] = vals

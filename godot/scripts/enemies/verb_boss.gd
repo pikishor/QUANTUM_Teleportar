@@ -130,6 +130,7 @@ func _on_activate() -> void:
 	if shield_node != null:
 		shield_node.visible = shield_is_up
 	Sfx.boss_active = true
+	Sfx.boss_phase = 1
 	_say("intro")
 
 
@@ -302,6 +303,7 @@ func _check_phase() -> void:
 	if np <= phase:
 		return
 	phase = np
+	Sfx.boss_phase = np
 	_invuln_t = INVULN
 	FX.blast(center(), 7.0, COLOR, 0.5)
 	FX.shake(0.6)

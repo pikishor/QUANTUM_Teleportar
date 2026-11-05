@@ -23,6 +23,9 @@ var left_hand := false       ## touch layout mirrored: stick on the right, butto
 var button_size := 1.0       ## touch button size multiplier, BTN_MIN..BTN_MAX
 var fps_cap := 60            ## one of FPS_CHOICES (0 = uncapped)
 var vibration := true
+var haptic_level := 1        ## haptic intensity 0 light, 1 normal, 2 strong (HAPTIC_NAMES)
+var key_binds := {}          ## keyboard overrides: action name -> physical keycode (ControlMap)
+var pad_binds := ControlMap.default_pad()   ## controller layout: slot -> action (ControlMap)
 var subtitles := true        ## radio subtitle plate
 var freeze_time := false     ## day/night cycle frozen at the current hour
 var language := "en"         ## Tr.LANGS
@@ -43,6 +46,9 @@ const HUD_MAX := 1.2
 const BTN_MIN := 0.8
 const BTN_MAX := 1.4
 const FPS_CHOICES: Array[int] = [30, 60, 90, 120, 0]
+const HAPTIC_NAMES: Array[String] = ["LIGHT", "NORMAL", "STRONG"]
+const HAPTIC_SCALE: Array[float] = [0.5, 1.0, 1.6]
+const REDUCED_MS := 60           ## longest buzz under reduce-motion
 
 ## Live values read by the consumers (touch controls, camera rig, UiUtil, story view); `publish()` copies the saved choices here.
 static var s_look_x := 1.0
@@ -52,6 +58,9 @@ static var s_hud_scale := 1.0
 static var s_left_hand := false
 static var s_button_size := 1.0
 static var s_vibration := true
+static var s_haptic := 1
+static var buzzed := 0                     ## buzzes issued (tests)
+static var last_plan := {}                 ## the last buzz plan (tests)
 static var s_subtitles := true
 static var s_cb_safe := false
 static var s_freeze_time := false
@@ -102,6 +111,9 @@ func load_file() -> void:
 	var cap := Progress._num(cf.get_value("graphics", "fps_cap", 60), 60)
 	fps_cap = cap if FPS_CHOICES.has(cap) else 60
 	vibration = _b(cf.get_value("controls", "vibration", true))
+	haptic_level = clampi(Progress._num(cf.get_value("controls", "haptic_level", 1), 1), 0, 2)
+	key_binds = ControlMap.sanitize_keys(cf.get_value("controls", "key_binds", {}))
+	pad_binds = ControlMap.sanitize_pad(cf.get_value("controls", "pad_binds", {}))
 	subtitles = _b(cf.get_value("ui", "subtitles", true))
 	cb_safe = _b(cf.get_value("ui", "cb_safe", false))
 	freeze_time = _b(cf.get_value("gameplay", "freeze_time", false))
@@ -131,6 +143,8 @@ func publish(engine := true) -> void:
 	s_left_hand = left_hand
 	s_button_size = button_size
 	s_vibration = vibration
+	s_haptic = haptic_level
+	ControlMap.pad_binds = pad_binds.duplicate()
 	s_subtitles = subtitles
 	s_cb_safe = cb_safe
 	s_freeze_time = freeze_time
@@ -147,12 +161,34 @@ func publish(engine := true) -> void:
 		AimAssist.enabled = aim_assist
 		AimAssist.auto_fire = auto_fire
 		Engine.max_fps = fps_cap
+		ControlMap.apply_keys(key_binds)
 
 
-## A short haptic tick when vibration is on (handhelds only).
+## What a buzz of `ms` does with the settings applied: {ms, amp 0..1, weak, strong}; empty when vibration is off. The intensity level scales the length and the strength;
+## reduce-motion keeps haptics but caps them (short, at most 40 % strength) and drops the continuous engine rumble (ControllerInput).
+static func haptic_plan(ms: int) -> Dictionary:
+	if not s_vibration or ms <= 0:
+		return {}
+	var k := HAPTIC_SCALE[clampi(s_haptic, 0, 2)]
+	var amp := clampf(float(ms) / 120.0 * k, 0.15, 1.0)
+	var dur := clampf(float(ms) * k, 10.0, 400.0)
+	if s_reduce_motion:
+		amp = minf(amp, 0.4)
+		dur = minf(dur, float(REDUCED_MS))
+	return {"ms": int(dur), "amp": amp, "weak": amp * 0.6, "strong": amp}
+
+
+## A haptic tick when vibration is on: the controller rumbles when one is in use, else the handheld vibrates (touchscreens).
 static func buzz(ms := 30) -> void:
-	if s_vibration and DisplayServer.is_touchscreen_available():
-		Input.vibrate_handheld(ms)
+	var plan := haptic_plan(ms)
+	if plan.is_empty():
+		return
+	buzzed += 1
+	last_plan = plan
+	if ControllerInput.device >= 0:
+		Input.start_joy_vibration(ControllerInput.device, float(plan["weak"]), float(plan["strong"]), float(plan["ms"]) / 1000.0)
+	elif DisplayServer.is_touchscreen_available():
+		Input.vibrate_handheld(int(plan["ms"]), float(plan["amp"]))
 
 
 func save() -> bool:
@@ -177,6 +213,9 @@ func save() -> bool:
 	cf.set_value("graphics", "fps_cap", fps_cap)
 	cf.set_value("graphics", "res_mode", res_mode)
 	cf.set_value("controls", "vibration", vibration)
+	cf.set_value("controls", "haptic_level", haptic_level)
+	cf.set_value("controls", "key_binds", key_binds)
+	cf.set_value("controls", "pad_binds", pad_binds)
 	cf.set_value("ui", "subtitles", subtitles)
 	cf.set_value("ui", "cb_safe", cb_safe)
 	cf.set_value("gameplay", "freeze_time", freeze_time)

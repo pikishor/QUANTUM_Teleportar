@@ -54,6 +54,7 @@ func _on_activate() -> void:
 	_ov_pulse_wind = 0.0
 	_open_t = 0.0
 	Sfx.boss_active = true
+	Sfx.boss_phase = 1
 	_say("phase1")
 
 
@@ -158,6 +159,7 @@ func _check_phase() -> void:
 	if np <= phase:
 		return
 	phase = np
+	Sfx.boss_phase = np
 	_invuln_t = INVULN
 	_ov_pulse_wind = 0.0
 	_slam_wind = 0.0

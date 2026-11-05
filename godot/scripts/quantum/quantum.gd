@@ -171,12 +171,12 @@ func _physics_process(delta: float) -> void:
 	cd_collapse = maxf(cd_collapse - delta, 0.0)
 	bits_left = maxf(bits_left - delta, 0.0)
 	_blink_input(delta)
-	if Input.is_action_just_pressed(&"entangle"):
-		entangle()
-	if Input.is_action_just_pressed(&"superpose"):
-		superpose()
-	if Input.is_action_just_pressed(&"collapse"):
-		collapse_all()
+	if Input.is_action_just_pressed(&"entangle") and entangle():
+		GameFeel.fire(&"ability")
+	if Input.is_action_just_pressed(&"superpose") and superpose():
+		GameFeel.fire(&"ability")
+	if Input.is_action_just_pressed(&"collapse") and collapse_all():
+		GameFeel.fire(&"ability")
 	if has_beacon:
 		beacon_left -= delta
 		if beacon_left <= 0.0:

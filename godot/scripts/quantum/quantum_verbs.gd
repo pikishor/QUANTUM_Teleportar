@@ -255,7 +255,9 @@ func use(id: StringName) -> bool:
 	uses[id] = int(uses.get(id, 0)) + 1
 	used.emit(id)
 	FX.qvfx.verb_used(id)
+	Sfx.verb(id)
 	PostFx2.pulse(0.7)
+	GameFeel.fire(&"ability")
 	Game.say(String(TITLES[id]), 0.8)
 	return true
 

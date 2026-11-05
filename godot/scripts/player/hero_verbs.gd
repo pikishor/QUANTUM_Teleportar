@@ -35,6 +35,7 @@ var holding := false
 var held_kind: StringName = &""               ## enemy, vehicle, prop
 var pose_roll := 0.0                         ## body hints read by PlayerBody (eased there)
 var pose_pitch := 0.0
+var _scrape_t := 0.0
 var slams := 0                               ## counters (tests wait on these, not on frames)
 var grabs := 0
 var throws := 0
@@ -176,7 +177,12 @@ func _wall_tick(p: Player, dt: float, forward_in: float, wish: Vector3, on_floor
 		wall_runs += 1
 		_wall_t = 0.0
 		_spent = true
+		_scrape_t = 0.0
 	_wall_t += dt
+	_scrape_t -= dt
+	if _scrape_t <= 0.0:
+		_scrape_t = 0.3
+		Sfx.verb(&"wallrun")
 	if _wall_t > cfg("wall_time"):
 		_end_wall()
 		return false
@@ -242,6 +248,7 @@ func _slam_impact() -> void:
 	GameFeel.fire(&"slam")
 	if is_instance_valid(_p.camera_rig):
 		_p.camera_rig.bump(0.8)
+	Sfx.verb(&"slam", pos)
 	Sfx.play_at(&"explosion_small", pos, -8.0)
 
 
@@ -326,6 +333,7 @@ func _try_grab() -> bool:
 	_lift = 0.0
 	holding = true
 	grabs += 1
+	Sfx.verb(&"grab")
 	_held_from = t["pos"]
 	if held_kind == &"prop":
 		_take_prop(_held_prop, t["pos"])
@@ -425,6 +433,7 @@ func _throw(weak: bool) -> void:
 	_held = null
 	_held_prop = -1
 	throws += 1
+	Sfx.verb(&"throw")
 	var speed := THROW_SPEED * cfg("throw") * (0.6 if kind == &"vehicle" else 1.0) * (0.1 if weak else 1.0)
 	_flights.append({"node": node, "kind": kind, "pos": from, "vel": _look_forward() * speed + Vector3.UP * 2.0, "t": 0.0, "layer": _held_layer})
 	pose_pitch = 0.0

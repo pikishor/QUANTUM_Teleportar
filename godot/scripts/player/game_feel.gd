@@ -14,6 +14,7 @@ const PROFILES := {
 	&"explosion": {"shake": 0.6, "fov": 3.0, "stop": 0.0, "buzz": 70, "blur": 0.0},
 	&"kill": {"shake": 0.0, "fov": 0.0, "stop": 0.0, "buzz": 15, "blur": 0.0},
 	&"heavy_kill": {"shake": 0.2, "fov": 1.5, "stop": 0.06, "buzz": 45, "blur": 0.0},
+	&"ability": {"shake": 0.0, "fov": 0.0, "stop": 0.0, "buzz": 30, "blur": 0.0},
 	&"sprint": {"shake": 0.0, "fov": 0.0, "stop": 0.0, "buzz": 0, "blur": 0.0},
 }
 const HEAVY_WEAPONS: Array[StringName] = [&"lance", &"scatter", &"grenade", &"revolver", &"blade"]

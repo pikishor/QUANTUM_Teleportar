@@ -43,7 +43,7 @@ const FAMILIES: Array = [
 	["boom", 4, 3, 0.12, 0.03], ["explosion", 4, 3, 0.12, 0.03], ["distant_", 0, 2, 0.50, 0.05], ["thunder", 3, 2, 2.0, 0.03], ["siren", 0, 2, 1.0, 0.02],
 	["trooper_", 2, 4, 0.10, 0.07], ["hero_", 3, 2, 0.20, 0.04], ["drone_", 1, 3, 0.10, 0.03], ["hit", 1, 5, 0.03, 0.0], ["hurt", 3, 2, 0.10, 0.0],
 	["blink", 3, 2, 0.10, 0.0], ["link", 3, 2, 0.10, 0.0], ["superpos_split", 3, 1, 0.0, 0.02], ["superpos", 3, 2, 0.10, 0.0], ["quantum_", 3, 2, 0.10, 0.0], ["entangle", 3, 1, 0.10, 0.0],
-	["alien_", 2, 3, 0.25, 0.08], ["car_", 2, 3, 0.10, 0.05], ["horn", 2, 1, 0.20, 0.02], ["engine_", 2, 2, 0.10, 0.0], ["tyre", 1, 1, 0.10, 0.0],
+	["verb_", 3, 2, 0.10, 0.03], ["alien_", 2, 3, 0.25, 0.08], ["car_", 2, 3, 0.10, 0.05], ["horn", 2, 1, 0.20, 0.02], ["engine_", 2, 2, 0.10, 0.0], ["tyre", 1, 1, 0.10, 0.0],
 	["ui_", 4, 3, 0.03, 0.0], ["pickup", 3, 3, 0.05, 0.0], ["credit", 3, 2, 0.05, 0.0], ["mission_", 4, 1, 0.50, 0.0], ["objective", 3, 1, 0.30, 0.0], ["heat_", 3, 1, 0.50, 0.0],
 	["heartbeat", 2, 2, 0.20, 0.0], ["breath", 1, 2, 0.30, 0.03], ["gasp", 2, 1, 0.50, 0.0], ["radio_", 3, 2, 0.05, 0.0], ["babble", 1, 3, 0.04, 0.0], ["core", 3, 2, 0.20, 0.0],
 ]
@@ -59,6 +59,8 @@ const MUSIC_STATES := {
 	&"driving": [-8.0, -2.0, -3.0, -4.0, -4.0],
 	&"boss": [-3.0, 0.0, 0.0, 0.0, 0.0],
 	&"chase": [-6.0, -1.0, -1.0, -2.0, -8.0],
+	&"sneak": [-1.0, -18.0, -8.0, -60.0, -60.0],         ## AUDIO v3 stealth: an unaware guard is close, the score holds its breath (bass and pad only)
+	&"suspect": [-2.0, -8.0, -5.0, -16.0, -60.0],        ## a guard is suspicious or searching
 	&"death": [-18.0, -60.0, -60.0, -60.0, -60.0],
 	&"win": [-3.0, -10.0, -60.0, -60.0, -2.0],
 }
@@ -161,6 +163,19 @@ var auto_music := true
 var music_state: StringName = &"explore"
 ## True while the Vael Overseer lives (Overseer sets it): the music state follows to `boss` (every stem up) until he falls or the contract ends.
 var boss_active := false
+## Boss phase (1-3) for the music director: Overseer / VerbBoss set it. A rise while a boss lives plays sting_phase; phase 1 is restrained, 3 lifts the boss layer.
+var boss_phase := 1:
+	set(v):
+		if v > boss_phase and boss_active and not muted and is_music_playing():
+			_play_intensity_sting(&"sting_phase")
+		boss_phase = v
+var director_on := true                ## AudioDirector offsets (weather, hour, heat, chapter, boss phase); tests may switch it off
+var stealth_level := -1                ## strongest awareness among enemies near the hero (Stealth.Level, -1 none), polled with the enemies
+var _stealth_unaware := 999.0
+var _stealth_suspicious := 999.0
+var _chapter_seen := -1
+var _engine_variant: StringName = &"x"
+var verb_count := 0                    ## ability sounds played (tests wait on this)
 var _state_since := 0.0
 var _state_clock := 0.0
 var _state_poll := 0.0
@@ -315,7 +330,7 @@ func _ready() -> void:
 	var loops_root := Node.new()
 	loops_root.name = "Loops"
 	add_child(loops_root)
-	for ln: StringName in [&"engine_low", &"engine_high", &"tyre_squeal", &"superpos_loop", &"entangle_loop"]:
+	for ln: StringName in [&"engine_low", &"engine_high", &"engine_bike_low", &"engine_bike_high", &"engine_hover_low", &"engine_hover_high", &"engine_heavy_low", &"engine_heavy_high", &"tyre_squeal", &"superpos_loop", &"entangle_loop"]:
 		var lpl := AudioStreamPlayer.new()
 		lpl.bus = _bus_or_master(SFX_BUS)
 		lpl.volume_db = OFF_DB
@@ -805,12 +820,12 @@ func set_music_state(state: StringName, snap := false) -> void:
 	var old := music_state
 	music_state = state
 	_state_since = _state_clock
-	var tgt: Array = MUSIC_STATES[state]
+	var tgt := director_targets(state)
 	for i in STEMS.size():
-		_stem_target[i] = float(tgt[i])
+		_stem_target[i] = tgt[i]
 		if snap:
-			_stem_db[i] = float(tgt[i])
-	_stem_tau = 0.25 if state == &"death" else (0.45 if state in [&"combat", &"boss", &"chase"] else STATE_TAU)
+			_stem_db[i] = tgt[i]
+	_stem_tau = 0.25 if state == &"death" else (0.45 if state in [&"combat", &"boss", &"chase"] else (1.1 if state in [&"sneak", &"suspect"] else STATE_TAU))
 	_push_stem_volumes()
 	if changed and not muted:
 		match state:
@@ -818,8 +833,11 @@ func set_music_state(state: StringName, snap := false) -> void:
 				_play_sting(&"sting_death")
 			&"win":
 				_play_sting(&"sting_win")
+			&"suspect":
+				if old in [&"explore", &"driving", &"sneak"]:
+					_play_intensity_sting(&"sting_stealth_spot")
 			&"alert", &"combat", &"boss", &"chase":
-				if old in [&"explore", &"driving", &"menu"]:
+				if old in [&"explore", &"driving", &"menu", &"sneak", &"suspect"]:
 					play(&"heat_up", -6.0)
 				if state == &"boss":
 					_play_intensity_sting(&"sting_boss")
@@ -828,6 +846,9 @@ func set_music_state(state: StringName, snap := false) -> void:
 			&"explore":
 				if old in [&"alert", &"combat"]:
 					play(&"heat_down", -8.0)
+				elif old == &"suspect" and _get(&"sting_stealth_clear") != null:
+					_play_sting(&"sting_stealth_clear")
+					duck(&"stinger")
 
 
 func stem_db(i: int) -> float:
@@ -894,6 +915,11 @@ func wanted_music_state() -> StringName:
 		return &"alert"
 	if cur == &"alert" and (heat >= HEAT_ALERT - 0.5 or not calm_ok):
 		return &"alert"
+	var st := AudioDirector.stealth_state(stealth_level, _stealth_unaware, _stealth_suspicious) if not driving else &""
+	if st != &"":
+		return st
+	if cur in [&"sneak", &"suspect"] and not calm_ok:
+		return cur
 	return base
 
 
@@ -905,7 +931,67 @@ func _poll_music_state() -> void:
 	var want := wanted_music_state()
 	if want != music_state:
 		set_music_state(want)
+	else:
+		_refresh_director()
 	_step_intensity_stings()
+	_step_chapter()
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# AUDIO v3: music director v2 (weather, hour, heat, chapter, boss phase, stealth), ability sounds, engine and footstep variants
+# ---------------------------------------------------------------------------------------------------------------------
+
+func chapter_index() -> int:
+	if is_instance_valid(Game.story):
+		var c = Game.story.get(&"chapter")
+		if c != null:
+			return int(c)
+	return 0
+
+
+## What the director sees: the weather only when the city has an atmosphere (no atmosphere = no change), the hour only with a clock.
+func director_context() -> Dictionary:
+	return {"weather": weather_state() if is_instance_valid(Game.atmosphere) else &"clear", "hour": hour_now(), "heat": Game.heat, "chapter": chapter_index(),
+		"boss_phase": boss_phase if boss_active else 0}
+
+
+func director_targets(state: StringName) -> PackedFloat32Array:
+	var base: Array = MUSIC_STATES[state]
+	if not director_on:
+		return PackedFloat32Array([float(base[0]), float(base[1]), float(base[2]), float(base[3]), float(base[4])])
+	return AudioDirector.stem_targets(base, state, director_context())
+
+
+## Re-aims the stem targets of the CURRENT state at the live facts (rain starts, dusk falls, the heat creeps up, the boss enters phase 3). The crossfade does the rest.
+func _refresh_director() -> void:
+	if _stems == null or _legacy_music or not MUSIC_STATES.has(music_state):
+		return
+	var tgt := director_targets(music_state)
+	for i in STEMS.size():
+		_stem_target[i] = tgt[i]
+
+
+## A chapter change plays sting_chapter (once per rise; the first poll only learns the chapter).
+func _step_chapter() -> void:
+	var c := chapter_index()
+	if _chapter_seen >= 0 and c > _chapter_seen and not muted and _get(&"sting_chapter") != null:
+		_play_sting(&"sting_chapter")
+		duck(&"stinger")
+	_chapter_seen = c
+
+
+## An ability sound: `id` is a key of AudioDirector.VERB_SOUNDS (shield, slip, arc, slam, grab, throw, wallrun). Plays flat, with the verb's duck.
+func verb(id: StringName, pos := Vector3.INF) -> void:
+	if not AudioDirector.VERB_SOUNDS.has(id):
+		return
+	var row: Array = AudioDirector.VERB_SOUNDS[id]
+	verb_count += 1
+	if pos == Vector3.INF:
+		play(row[0], float(row[1]))
+	else:
+		play_at(row[0], pos, float(row[1]))
+	if StringName(row[2]) != &"":
+		duck(row[2])
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -969,6 +1055,8 @@ func _step_layers(delta: float) -> void:
 		var goal := OFF_DB
 		if i == _layer_cur and want != &"" and _layer_name[i] == want:
 			goal = float(LAYER_DB[_layer_kind(want)])
+			if want == &"music_boss" and director_on:
+				goal += AudioDirector.boss_layer_boost(boss_phase)
 		_layer_goal[i] = goal
 		_layer_db[i] = lerpf(_layer_db[i], goal, k)
 		var pl := _layers[i]
@@ -1329,8 +1417,9 @@ func _step_vehicle(delta: float) -> void:
 	_crash_cd -= delta
 	_horn_cd -= delta
 	if v == null or not Game.is_playing() or muted:
-		_drive_loop(&"engine_low", OFF_DB, delta, 1.0, 60.0)
-		_drive_loop(&"engine_high", OFF_DB, delta, 1.0, 60.0)
+		for ln in _loops:
+			if String(ln).begins_with("engine_"):
+				_drive_loop(ln, OFF_DB, delta, 1.0, 60.0)
 		_drive_loop(&"tyre_squeal", OFF_DB, delta, 1.0, 80.0)
 		return
 	var sp: float = float(v.speed)
@@ -1342,8 +1431,21 @@ func _step_vehicle(delta: float) -> void:
 		rpm_goal = 0.35
 	_rpm = lerpf(_rpm, rpm_goal, 1.0 - exp(-delta * 6.0))
 	var blend := smoothstep(0.35, 0.7, _rpm)
-	_drive_loop(&"engine_low", -8.0 + linear_to_db(maxf(1.0 - blend, 0.001)), delta, 0.75 + _rpm * 0.7, 60.0)
-	_drive_loop(&"engine_high", -9.0 + linear_to_db(maxf(blend, 0.001)), delta, 0.7 + _rpm * 0.6, 60.0)
+	var eng := AudioDirector.engine_for(StringName(v.get(&"kind")) if v.get(&"kind") != null else &"sedan")
+	var variant: StringName = eng[0]
+	if variant != &"" and _get(StringName("engine_%s_low" % variant)) == null:
+		variant = &""                                                  # the variant files are missing: the car loops stand in
+	if variant != _engine_variant:
+		_engine_variant = variant
+	for other: StringName in [&"", &"bike", &"hover", &"heavy"]:
+		if other != variant:
+			for ln in AudioDirector.engine_loops(other):
+				_drive_loop(ln, OFF_DB, delta, 1.0, 60.0)
+	var loops := AudioDirector.engine_loops(variant)
+	var epitch := float(eng[1])
+	var edb := float(eng[2])
+	_drive_loop(loops[0], edb - 8.0 + linear_to_db(maxf(1.0 - blend, 0.001)), delta, (0.75 + _rpm * 0.7) * epitch, 60.0)
+	_drive_loop(loops[1], edb - 9.0 + linear_to_db(maxf(blend, 0.001)), delta, (0.7 + _rpm * 0.6) * epitch, 60.0)
 	var slip := absf(float(v.slip))
 	var squeal := clampf((slip - 3.0) / 5.0, 0.0, 1.0) * clampf((asp - 6.0) / 10.0, 0.0, 1.0)
 	_drive_loop(&"tyre_squeal", -22.0 + 22.0 * squeal if squeal > 0.02 else OFF_DB, delta, 0.85 + 0.4 * r, 80.0)
@@ -1447,10 +1549,19 @@ func _footstep(p: Node3D) -> void:
 	var spd := Vector2(vel.x, vel.z).length()
 	if spd < 0.3 or p.get(&"vehicle") != null:
 		return
-	var surf := surface_under(p.global_position, vel.y > 1.2)
-	_rain_surface = &"metal" if surf == &"metal" else &"asphalt"
+	var surf := footstep_surface(p.global_position, vel.y > 1.2)
+	_rain_surface = &"metal" if (surf == &"metal" or surf == &"roof") else &"asphalt"
 	var loud := clampf(spd / 6.2, 0.0, 1.3)
-	play(StringName("step_" + String(surf)), -9.0 + 9.0 * loud, 0.95 + 0.1 * loud)
+	var nm := StringName("step_" + String(surf))
+	if _get(nm) == null:
+		nm = StringName("step_" + String(surface_under(p.global_position, vel.y > 1.2)))
+	play(nm, -9.0 + 9.0 * loud, 0.95 + 0.1 * loud)
+
+
+## The sound surface under a world position: interiors are tile or carpet (by room type), roofs are tar and gravel, ledges ring, the street is wet asphalt.
+func footstep_surface(pos: Vector3, climbing: bool) -> StringName:
+	var indoors := is_indoors()
+	return AudioDirector.footstep_surface(pos.y, climbing, indoors, InteriorSpace.room_type() if indoors else &"")
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -1460,18 +1571,32 @@ func _footstep(p: Node3D) -> void:
 func _poll_enemies() -> void:
 	_bark_in -= 0.1
 	if not is_instance_valid(Game.enemies) or not Game.is_playing():
+		stealth_level = -1
 		return
 	var list = Game.enemies.get(&"list")
 	if list == null:
+		stealth_level = -1
 		return
 	var pp := Vector3.ZERO
 	var have_pp := is_instance_valid(Game.player)
 	if have_pp:
 		pp = (Game.player as Node3D).global_position
 	var n_hum := 0
+	var lvl := -1
+	var near_un := 999.0
+	var near_su := 999.0
 	for e in list:
 		if not is_instance_valid(e):
 			continue
+		if not e.dead and have_pp and e.has_method(&"alert_level"):
+			var dd: float = (e as Node3D).global_position.distance_to(pp)
+			var al: int = int(e.alert_level())
+			if dd <= AudioDirector.SUSPECT_RANGE:
+				lvl = maxi(lvl, al)
+				if al == AudioDirector.LEVEL_UNAWARE:
+					near_un = minf(near_un, dd)
+				else:
+					near_su = minf(near_su, dd)
 		var id: int = e.get_instance_id()
 		var cur := Vector4(1.0 if e.aware else 0.0, float(e.hp), 1.0 if e.dead else 0.0, float(e.threat_charge()))
 		var prev: Vector4 = _en_state.get(id, cur)
@@ -1504,6 +1629,9 @@ func _poll_enemies() -> void:
 			n_hum += 1
 	for k in range(n_hum, _hum_emitters.size()):
 		_hum_target[k] = null
+	stealth_level = lvl
+	_stealth_unaware = near_un
+	_stealth_suspicious = near_su
 
 
 ## The patrol airship's rotor hum: one 3D emitter that rides the sky patrol (World.ambient.sky) while a sweep is on. Found by duck typing, polled once a second.
@@ -1730,5 +1858,10 @@ func reset_world() -> void:
 	_emitter_car = [null, null, null]
 	_hum_target = [null, null]
 	_en_state.clear()
+	stealth_level = -1
+	_stealth_unaware = 999.0
+	_stealth_suspicious = 999.0
+	_chapter_seen = -1
+	boss_phase = 1
 	if auto_music and is_music_playing():
 		set_music_state(&"explore" if Game.state != &"menu" else &"menu")

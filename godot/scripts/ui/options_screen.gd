@@ -30,7 +30,7 @@ const TOGGLE_NAMES := {
 	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION",
 }
 ## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
-const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res"]
+const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls"]
 const PAGE_CELL := 13
 const SUB_BG_NAMES: Array[String] = ["SOFT", "", "SOLID"]
 const CB_NAMES: Array[String] = ["DEUTAN", "TRITAN"]
@@ -89,6 +89,10 @@ static func label(st: UiSettings, id: StringName) -> String:
 		return Tr.t("REPLAY HINTS")
 	if id == &"opt_diff":
 		return Tr.t("DIFFICULTY") + "  " + Tr.t(Difficulty.mode_name(st.difficulty))
+	if id == &"opt_haptic":
+		return Tr.t("HAPTICS") + "  " + Tr.t(UiSettings.HAPTIC_NAMES[clampi(st.haptic_level, 0, 2)])
+	if id == &"opt_controls":
+		return Tr.t("CONTROLS")
 	if id == &"opt_subbg":
 		return Tr.t("SUBTITLE BG") + "  " + Tr.t(SUB_BG_NAMES[st.sub_bg] if st.sub_bg != 1 else "ON")
 	return ""
@@ -134,6 +138,15 @@ static func press(st: UiSettings, id: StringName) -> bool:
 		st.difficulty = Difficulty.next_mode(st.difficulty)
 		Difficulty.set_mode(st.difficulty)
 		return true
+	if id == &"opt_haptic":
+		st.haptic_level = (st.haptic_level + 1) % 3
+		UiSettings.s_haptic = st.haptic_level
+		UiSettings.buzz(60)                                  # a preview at the new strength
+		return true
+	if id == &"opt_controls":                                # page 2: the remap screen (scripts/ui/controls_screen.gd)
+		UiSettings.s_opt_page = 2
+		ControlsScreen.reset_state()
+		return true
 	if id == &"opt_subbg":
 		st.sub_bg = (st.sub_bg + 1) % 3
 		return true
@@ -158,6 +171,9 @@ static func cell_rect(i: int, cx: float, s: float) -> Rect2:
 
 
 static func layout(hud: Hud, st: UiSettings, cx: float, s: float) -> void:
+	if UiSettings.s_opt_page == 2:
+		ControlsScreen.layout(hud, st, cx, s)
+		return
 	var ids: Array[StringName] = PAGE2 if UiSettings.s_opt_page == 1 else ORDER
 	for i in ids.size():
 		var id: StringName = ids[i]
@@ -167,4 +183,7 @@ static func layout(hud: Hud, st: UiSettings, cx: float, s: float) -> void:
 
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, _cx: float) -> void:
+	if UiSettings.s_opt_page == 2:
+		ControlsScreen.draw(hud, c, vp, s, font)
+		return
 	hud._text(c, font, Vector2(0.0, 84.0 * s), "OPTIONS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(40.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)

@@ -9,6 +9,11 @@ const SLOW_MIN := 0.45              ## look speed multiplier right on a target
 const PULL := 1.6                   ## magnetism, fraction of the angular error closed per second
 const PULL_MAX := 0.9               ## rad/s cap
 const RANGE := 60.0
+## Right-stick aiming (a controller) gets a stronger assist than touch: a wider cone, a deeper slowdown and a harder pull.
+const PAD_CONE := 1.6
+const PAD_SLOW_MIN := 0.3
+const PAD_PULL := 2.2
+const PAD_PULL_MAX := 1.3
 
 ## Hit reaction strength per weapon (flinch / stagger on the enemy): the scatter and lance rock a target, the carbine only flinches it.
 const STAGGER := {&"carbine": 0.4, &"scatter": 0.9, &"lance": 1.5, &"grenade": 1.2, &"minigun": 0.15, &"akimbo": 0.3, &"arc": 0.7, &"revolver": 1.1, &"whip": 0.9, &"blade": 1.0}
@@ -38,19 +43,21 @@ static func applies_to(weapon_id: StringName) -> bool:
 
 
 ## Look speed multiplier for a target `ang` radians off the crosshair whose body spans `rad_ang` radians: 1 outside the cone, SLOW_MIN on it.
-static func slow_factor(ang: float, rad_ang: float) -> float:
-	var edge := CONE + rad_ang
+static func slow_factor(ang: float, rad_ang: float, pad := false) -> float:
+	var edge := CONE * (PAD_CONE if pad else 1.0) + rad_ang
 	if ang >= edge:
 		return 1.0
-	return lerpf(SLOW_MIN, 1.0, smoothstep(rad_ang * 0.5, edge, ang))
+	return lerpf(PAD_SLOW_MIN if pad else SLOW_MIN, 1.0, smoothstep(rad_ang * 0.5, edge, ang))
 
 
 ## Magnetism: the angular correction (radians) toward the target for one frame. Zero on the target's centre line and outside the cone.
-static func pull(err: float, ang: float, rad_ang: float, dt: float) -> float:
-	if ang >= CONE + rad_ang:
+static func pull(err: float, ang: float, rad_ang: float, dt: float, pad := false) -> float:
+	var edge := CONE * (PAD_CONE if pad else 1.0) + rad_ang
+	if ang >= edge:
 		return 0.0
-	var k := 1.0 - smoothstep(0.0, CONE + rad_ang, ang)
-	return clampf(err * PULL * k * dt, -PULL_MAX * dt, PULL_MAX * dt)
+	var k := 1.0 - smoothstep(0.0, edge, ang)
+	var cap := PAD_PULL_MAX if pad else PULL_MAX
+	return clampf(err * (PAD_PULL if pad else PULL) * k * dt, -cap * dt, cap * dt)
 
 
 func _ready() -> void:
@@ -74,7 +81,7 @@ func find(origin: Vector3, dir: Vector3) -> Dictionary:
 		var r := maxf(float(n.get(&"radius")) if n.get(&"radius") != null else 0.5, 0.3)
 		var rad_ang := atan(r / d)
 		var ang := dir.angle_to(to / d)
-		if ang < best_ang and ang < CONE * cone_scale() + rad_ang:
+		if ang < best_ang and ang < CONE * cone_scale() * (PAD_CONE if ControllerInput.stick_aim else 1.0) + rad_ang:
 			best_ang = ang
 			var flat_dir := Vector2(dir.x, dir.z)
 			var flat_to := Vector2(to.x, to.z)
@@ -102,11 +109,12 @@ func _process(dt: float) -> void:
 	if not enabled:
 		return
 	var rad_ang: float = f["rad_ang"]
-	rig.look_scale = slow_factor(f["ang"], rad_ang)
+	var pad := ControllerInput.stick_aim
+	rig.look_scale = slow_factor(f["ang"], rad_ang, pad)
 	if Input.is_action_pressed(&"fire") or Input.is_action_pressed(&"aim"):
 		# yaw_err is the 2D (x,z) angle, which runs opposite to the Node3D yaw
-		rig.yaw -= pull(f["yaw_err"], f["ang"], rad_ang, dt)
-		rig.pitch = clampf(rig.pitch + pull(f["pitch_err"], f["ang"], rad_ang, dt), CameraRig.PITCH_MIN, CameraRig.PITCH_MAX)
+		rig.yaw -= pull(f["yaw_err"], f["ang"], rad_ang, dt, pad)
+		rig.pitch = clampf(rig.pitch + pull(f["pitch_err"], f["ang"], rad_ang, dt, pad), CameraRig.PITCH_MIN, CameraRig.PITCH_MAX)
 
 
 ## True when auto-fire should hold the trigger this frame.

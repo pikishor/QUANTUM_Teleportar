@@ -28,11 +28,14 @@ const VALUE_W := 54.0
 ## Volume sliders of the settings rows: slider id -> the buses it sets (saved in settings.volumes). SFX also carries the ambience beds and the radio voice.
 const SLIDERS := {&"vol_music": ["Music"], &"vol_sfx": ["SFX", "Ambient", "Voice"]}
 const CONTROLS_DESKTOP := "WASD MOVE    MOUSE LOOK    LMB FIRE    RMB AIM    SHIFT SPRINT    SPACE JUMP    R RELOAD    Q QUANTUM TELEPORT    E ENTANGLE    G SUPERPOSE    F USE    ESC PAUSE"
+const CONTROLS_PAD_PLAY := "LEFT STICK MOVE    RIGHT STICK LOOK    RT FIRE    LT AIM    A JUMP    X RELOAD    Y USE    RB TELEPORT    D-PAD ABILITIES    LB HELD: VERBS    START PAUSE"
+const CONTROLS_PAD_MENU := "D-PAD MOVE    A SELECT    B BACK    LB RB ADJUST    START RESUME"
 const CONTROLS_TOUCH := "LEFT THUMB MOVE (PUSH FAR TO SPRINT)    RIGHT THUMB LOOK    HOLD FIRE TO SHOOT AND AIM AT ONCE"
 
 @export var settings_path := UiSettings.DEFAULT_PATH
 var settings: UiSettings
 var minimap: Minimap
+var pad: ControllerInput            ## gamepad input (scripts/ui/controller_input.gd): play actions, menu focus, haptics, touch / pad scheme switch
 var touch: TouchControls
 ## Active screen buttons: {id: StringName, rect: Rect2, label: String, on: bool}. Rebuilt whenever the state or the viewport changes.
 var buttons: Array[Dictionary] = []
@@ -104,6 +107,9 @@ func _ready() -> void:
 	if touch != null:
 		touch.pause_requested.connect(pause_game)
 		touch.wheel_requested.connect(open_wheel)
+	pad = ControllerInput.new()
+	pad.name = "Pad"
+	add_child(pad)
 	for i in 10:
 		var a := -PI * 0.5 + i * PI / 5.0
 		_star.append(Vector2(cos(a), sin(a)) * (1.0 if i % 2 == 0 else 0.45))
@@ -276,7 +282,7 @@ func touch_ui_on() -> bool:
 
 ## Desktop: the mouse is captured while playing (mouse look), released in every other state. Never under tools/tests or with the touch overlay.
 func wants_mouse_capture() -> bool:
-	return Game.state == &"play" and not touch_ui_on() and not Game.autostart and DisplayServer.get_name() != "headless"
+	return Game.state == &"play" and not touch_ui_on() and not ControllerInput.pad_ui and not Game.autostart and DisplayServer.get_name() != "headless"
 
 
 func _apply_mouse() -> void:
@@ -513,6 +519,16 @@ func press_button(id: StringName) -> bool:
 		_layout_key = ""
 		_screen.queue_redraw()
 		return true
+	if ControlsScreen.is_id(id):                          # the CONTROLS remap screen (options page 2)
+		if not _options_open or UiSettings.s_opt_page != 2:
+			return false
+		Sfx.play(&"ui_tap")
+		var cok := ControlsScreen.press(settings, id)
+		settings.publish(false)
+		settings.save()
+		_layout_key = ""
+		_screen.queue_redraw()
+		return cok
 	if OptionsScreen.is_option(id):
 		if not _options_open or OptionsScreen.is_slider(id):
 			return false
@@ -1383,7 +1399,7 @@ func _ensure_layout() -> void:
 	key += "|a%s%d" % [_ach_open, _ach_page]
 	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100]
 	key += "|g%d%s%s%d%d" % [_loadout_page, Gear.throwable, Gear.gadget, Gear.owned.size(), Gear.active_slot]
-	key += "|%s%d" % [_options_open, int(settings.hud_scale * 100.0)]
+	key += "|%s%d%d%d%d%s" % [_options_open, int(settings.hud_scale * 100.0), UiSettings.s_opt_page, ControlsScreen.tab, ControlsScreen.page, ControlsScreen.listening]
 	if photo != null and photo.active:
 		key += "|p%s%s%s%d%d%s%d%d%d%d" % [photo.hide_ui, photo.hide_hero, photo.pan_mode, photo.filter_i, photo.pose_i, photo.hour_text(), roundi(photo.fov), roundi(photo.dof * 100.0), roundi(photo.dist * 10.0), int(photo.status_left > 0.0)]
 	if key == _layout_key:
@@ -1586,6 +1602,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			_score_lines(c, vp, s, font, 226.0)
 			var blink2 := 0.55 + 0.45 * sin(_t * 4.0) if screen_age >= LOCK else 0.25
 			_text(c, font, Vector2(0.0, 664.0 * s), "TAP TO CONTINUE", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(24.0 * s), Color(1, 1, 1, blink2))
+	var focus_ring := pad != null and pad.focus_visible()          # a controller is in use: the focused button gets a ring
 	for b: Dictionary in buttons:
 		var r: Rect2 = b["rect"]
 		var big := r.size.y > 50.0 * s
@@ -1601,10 +1618,16 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(r.position.x + inset, r.position.y + r.size.y - 12.0 * s, (r.size.x - 2.0 * inset) * vol, 6.0 * s), Color(tint, 0.85))
 			c.draw_rect(Rect2(r.position.x + inset + (r.size.x - 2.0 * inset) * vol - 2.0 * s, r.position.y + r.size.y - 19.0 * s, 4.0 * s, 14.0 * s), Color(1, 1, 1, 0.95))
 			c.draw_rect(r, Color(tint, 0.95 if (hot or _drag == b["id"]) else 0.5), false, 1.5 * s)
+			if focus_ring and b["id"] == pad.focus:
+				c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
+				c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
 			_text(c, font, Vector2(r.position.x, r.position.y + 21.0 * s), (b["label"] if (OptionsScreen.is_slider(b["id"]) or PhotoScreen.is_slider(b["id"])) else "%s  %d" % [b["label"], roundi(vol * 100.0)]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(20.0 * s), Color(1, 1, 1, 0.95))
 			continue
 		c.draw_rect(r, Color(tint, 0.30 if (on or hot) else 0.10))
 		c.draw_rect(r, Color(tint, 0.95 if (on or hot or big) else 0.5), false, 2.0 * s if big else 1.5 * s)
+		if focus_ring and b["id"] == pad.focus:
+			c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
+			c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
 		if String(b["id"]).begins_with("wheel_") and WeaponIcons.has_icon(StringName(String(b["id"]).substr(6))):      # weapon wheel: icon over the tag
 			WeaponIcons.draw(c, StringName(String(b["id"]).substr(6)), Rect2(r.position.x + r.size.x * 0.1, r.position.y + 3.0 * s, r.size.x * 0.8, r.size.y * 0.5), Color(1, 1, 1, 0.95 if (on or hot) else 0.8))
 			_text(c, font, Vector2(r.position.x, r.position.y + r.size.y - 9.0 * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(17.0 * s), Color(1, 1, 1, 0.97 if (on or hot) else 0.75))
@@ -1622,7 +1645,7 @@ func _score_lines(c: Control, vp: Vector2, s: float, font: Font, y: float) -> vo
 
 
 func _footer(c: Control, vp: Vector2, s: float, font: Font) -> void:
-	var line := CONTROLS_TOUCH if touch_ui_on() else CONTROLS_DESKTOP
+	var line := (CONTROLS_PAD_PLAY if Game.state == &"menu" else CONTROLS_PAD_MENU) if ControllerInput.pad_ui else (CONTROLS_TOUCH if touch_ui_on() else CONTROLS_DESKTOP)
 	var size := int(18.0 * s)
 	while size > int(12.0 * s) and _text_width(font, line, size) > vp.x - 40.0 * s:      # a wider fallback font must still fit the screen
 		size -= 1

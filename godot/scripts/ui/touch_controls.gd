@@ -52,6 +52,7 @@ const ERROR_ROWS := 9               ## newest error lines shown in the panel
 
 var ring_open := false              ## the expandable ability ring (SHIELD / SLIP / ARC) is shown
 var controls_on := false            ## the touch controls are drawn and active
+var touch_capable := false          ## the device has a touchscreen (controls_on while no controller is in use)
 var perf_on := false                ## the perf readout is drawn (always with the controls, or with --perf)
 var errors_on := false              ## the on-device error panel is shown (long-press the FPS box)
 
@@ -84,6 +85,7 @@ func _ready() -> void:
 	layer = 9
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	controls_on = Game.force_touch or DisplayServer.is_touchscreen_available()
+	touch_capable = controls_on
 	perf_on = controls_on or OS.get_cmdline_user_args().has("--perf")
 	_canvas = Control.new()
 	_canvas.name = "Canvas"
@@ -96,6 +98,15 @@ func _ready() -> void:
 	ms.name = "MapScreen"
 	add_child(ms)
 	set_process(controls_on or perf_on)
+
+
+## A controller took over (true) or a finger / key came back (false): the touch overlay hides and shows itself (ControllerInput calls this).
+func set_pad_mode(on: bool) -> void:
+	controls_on = touch_capable and not on
+	if on:
+		release_all()
+	if _canvas != null:
+		_canvas.queue_redraw()
 
 
 ## A held finger never survives losing the app (no touch-up event comes): everything is let go when the app is paused or loses focus.

@@ -41,6 +41,15 @@ static func clear() -> void:
 	_covers = PackedFloat32Array()
 
 
+## The type of the interior the player stands in (&"" when none): the sound layer picks the floor from it.
+static func room_type() -> StringName:
+	if active and _owner != null and is_instance_valid(_owner):
+		var t = _owner.get(&"type")
+		if t != null:
+			return StringName(t)
+	return &""
+
+
 static func contains(p: Vector3) -> bool:
 	return active and p.y > min_y and p.y < max_y and bounds.grow(3.0).has_point(Vector2(p.x, p.z))
 

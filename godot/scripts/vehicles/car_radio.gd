@@ -29,6 +29,15 @@ var _tasks: Array[int] = [-1, -1, -1, -1]
 var _data: Array = [null, null, null, null]
 var _stopped_music := false
 var _audible := false
+## Radio shows (AUDIO v3, RadioShows): songs, host chatter and ads in a fixed programme per station. The loop is the song, a talk or ad segment ducks it.
+var seg_index := 0
+var segment: Dictionary = {}                  ## the segment on air (RadioShows.segment), empty when off
+var seg_left := 0.0
+var counts := {"song": 0, "talk": 0, "ad": 0}  ## segments started since the radio was last switched on (tests wait on these)
+var song_secs := RadioShows.SONG_SECS
+var _talk_player: AudioStreamPlayer
+var _duck := 0.0
+var _duck_goal := 0.0
 
 
 func _ready() -> void:
@@ -39,6 +48,11 @@ func _ready() -> void:
 	_player.bus = Sfx.MUSIC_BUS if AudioServer.get_bus_index(Sfx.MUSIC_BUS) >= 0 else &"Master"
 	_player.volume_db = VOLUME_DB
 	add_child(_player)
+	_talk_player = AudioStreamPlayer.new()
+	_talk_player.name = "TalkPlayer"
+	_talk_player.bus = _player.bus
+	_talk_player.volume_db = VOLUME_DB + 2.0
+	add_child(_talk_player)
 
 
 func _exit_tree() -> void:
@@ -76,6 +90,7 @@ func set_station(i: int) -> void:
 	station = clampi(i, 0, STATIONS.size() - 1)
 	on = true
 	_request(station)
+	_begin_show()
 	_apply_stream()
 	Game.say("RADIO · %s" % station_name(station), 1.5)
 	changed.emit(on, station)
@@ -84,6 +99,8 @@ func set_station(i: int) -> void:
 func turn_off() -> void:
 	on = false
 	_player.stop()
+	_talk_player.stop()
+	segment = {}
 	_set_audible(false)
 	Game.say("RADIO OFF", 1.0)
 	changed.emit(on, station)
@@ -98,7 +115,7 @@ func is_ready(i: int) -> bool:
 	return _streams[i] != null
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_collect()
 	var mgr := get_parent() as VehicleManager
 	var driving := mgr != null and mgr.driven != null and is_instance_valid(mgr.driven)
@@ -107,9 +124,61 @@ func _process(_delta: float) -> void:
 		_player.stream = _streams[station]
 		_player.play()
 	_player.stream_paused = not Game.is_playing()
+	_talk_player.stream_paused = not Game.is_playing()
 	_set_audible(want and Game.is_playing())
 	if not driving and _player.playing:
 		_player.stop()
+	if not driving and _talk_player.playing:
+		_talk_player.stop()
+		seg_left = minf(seg_left, 0.0)
+	if _audible and Game.is_playing():
+		advance_show(delta)
+	_duck = move_toward(_duck, _duck_goal, 70.0 * delta)
+	_player.volume_db = VOLUME_DB + _duck
+
+
+# --- shows -----------------------------------------------------------------------------------------------------------------
+
+func _begin_show() -> void:
+	seg_index = 0
+	counts = {"song": 0, "talk": 0, "ad": 0}
+	_duck = 0.0
+	_duck_goal = 0.0
+	_talk_player.stop()
+	_start_segment()
+
+
+func _start_segment() -> void:
+	segment = RadioShows.segment(station, seg_index)
+	var kind: String = segment["kind"]
+	counts[kind] = int(counts[kind]) + 1
+	_player.pitch_scale = float(segment["pitch"])
+	if kind == "song":
+		_duck_goal = 0.0
+		seg_left = song_secs
+		_talk_player.stop()
+	else:
+		var path := "res://assets/audio/%s.ogg" % String(segment["clip"])
+		var st: AudioStream = load(path) as AudioStream if ResourceLoader.exists(path) else null
+		_duck_goal = -14.0 if kind == "talk" else -40.0
+		seg_left = 3.0
+		if st != null:
+			_talk_player.stream = st
+			_talk_player.play()
+			seg_left = st.get_length() + 0.25
+	Game.say(RadioShows.caption(segment, station_name(station)), 1.5)
+
+
+## Runs the programme clock by `dt` seconds of listening (only while the radio is audible): the next segment starts when the current one ends.
+func advance_show(dt: float) -> void:
+	if not on:
+		return
+	if segment.is_empty():
+		_start_segment()
+	seg_left -= dt
+	if seg_left <= 0.0 and not (_talk_player.playing and String(segment["kind"]) != "song"):
+		seg_index += 1
+		_start_segment()
 
 
 ## Called by VehicleManager's physics tick while playing (like `interact`): the key cycles the stations while driving.
