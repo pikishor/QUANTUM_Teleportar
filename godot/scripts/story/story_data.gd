@@ -21,7 +21,7 @@ const CARD_MAX := 200
 const OBJ_MAX := 56
 const TITLE_MAX := 24
 ## Index of the last story chapter; every sector after it plays the aftermath chapter (the last entry of CHAPTERS).
-const FINAL := 7
+const FINAL := 9
 
 const TAGLINE := "They farm your fear. Be in two places."
 
@@ -177,7 +177,41 @@ const CHAPTERS: Array[Dictionary] = [
 		},
 		"heat1": {"s": A, "t": "Welcome home, Scout. We kept the sky open for you."},
 		"heat3": {"s": A, "t": "Every drone is your eye. Every eye is ours. Why are you fighting yourself?"},
-		"end": {"head": "FINAL CHAPTER COMPLETE", "text": "The last core opens and plays your own voice: a Vael scout, a human mask, a mission to bring the hive home. ORACLE steered you here. The gate waits for your choice."},
+		"end": {"head": "CHAPTER 8 COMPLETE", "text": "The gate folds shut and plays your own voice one last time: a Vael scout, a human mask, a mission to bring the hive home. Then the docks answer. The signal did not stop."},
+	},
+	{
+		"id": "echo_tide", "title": "THE ECHO TIDE", "sub": "SECTOR 09  //  COLD DOCKS",
+		"obj": "Recover the cores. Silence the tide relay.",
+		"intro": [
+			{"s": O, "t": "The gate is gone and the signal is not. It is coming up out of the Cold Docks like a tide."},
+			{"s": K, "t": "Another door? I closed the last one with my own hands."},
+			{"s": O, "t": "A smaller one. Six cores, Kestrel. Take them before the water does."},
+		],
+		"cores": {
+			1: {"s": K, "t": "This core hums a half step lower. Like an echo of the first one."},
+			3: {"s": O, "t": "Halfway. The echo is learning your gait. Change it."},
+			5: {"s": O, "t": "One core left. Cut the relay and the docks go quiet."},
+		},
+		"heat1": {"s": A, "t": "Scout, you left the signal unfinished. We have kept your place at the docks."},
+		"heat3": {"s": A, "t": "The tide is rising. Every channel is open to you. Come down and be carried."},
+		"end": {"head": "CHAPTER 9 COMPLETE", "text": "The tide relay goes dark and the water stills. Under it, a spire hums on a frequency only you can hear. ORACLE asks you to climb it. ORACLE sounds afraid."},
+	},
+	{
+		"id": "last_aperture", "title": "THE LAST APERTURE", "sub": "SECTOR 10  //  ECHO SPIRE",
+		"obj": "Recover the final cores. Close the spire.",
+		"intro": [
+			{"s": O, "t": "The Echo Spire. What is left of the hive is standing in its shadow, waiting."},
+			{"s": K, "t": "If I close this one, does it stay closed?"},
+			{"s": O, "t": "I do not know. Take the cores, Kestrel, and we will find out together."},
+		],
+		"cores": {
+			1: {"s": K, "t": "The anchors are quiet now. They stopped singing my name."},
+			3: {"s": O, "t": "Halfway up. Whatever you hear, it is only the building settling."},
+			5: {"s": K, "t": "Last one. I will carry it down myself."},
+		},
+		"heat1": {"s": A, "t": "You have come so far, Scout. The spire will lower itself for you."},
+		"heat3": {"s": A, "t": "Do not close the aperture. Everything you love is on the other side of it."},
+		"end": {"head": "FINAL CHAPTER COMPLETE", "text": "The spire folds into the rain and the last Vael falls silent. ORACLE stays in your ear. The city is quiet, and the choice was yours."},
 	},
 	{
 		"id": "open_city", "title": "THE OPEN CITY", "sub": "FREE SECTOR",
@@ -472,6 +506,8 @@ const CONTRACT_CHAPTER: Array[Dictionary] = [
 	{"s": O, "t": "The Rain Slums owe the Lamplighters everything. Every job here keeps somebody's lights on."},
 	{"s": O, "t": "Neon Market jobs are all about timing. Miss the patrol window and the job takes you instead."},
 	{"s": O, "t": "Meridian Gate is crowded with anchors. Every job here is a siege. Bring everything."},
+	{"s": O, "t": "Cold Docks jobs pay in salvage and silence. The tide keeps what you drop, so do not drop anything."},
+	{"s": O, "t": "Echo Spire work is the last of it. Every contract here is a favour to the whole city."},
 	{"s": O, "t": "The city is free, but not quiet. There is always another contract for a hand that will take it."},
 ]
 

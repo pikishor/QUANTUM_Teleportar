@@ -225,6 +225,10 @@ static func catalog() -> Array[Dictionary]:
 	for t: StringName in InteriorData.TYPES:
 		ints.append({"id": t, "label": InteriorData.title(t)})
 	out.append({"kind": &"interior", "title": "INTERIORS", "items": ints})
+	var seq: Array[Dictionary] = []
+	for id: StringName in CampaignSteps.DEMO_IDS:
+		seq.append({"id": id, "label": String(CampaignSteps.DEMO_TITLES[id])})
+	out.append({"kind": &"sequel", "title": "SEQUEL MECHANICS", "items": seq})
 	return out
 
 
@@ -237,6 +241,7 @@ static func launch(kind: StringName, id: Variant) -> String:
 		&"side": return start_side(StringName(id))
 		&"activity": return start_activity(StringName(id))
 		&"setpiece": return start_set_piece(StringName(id))
+		&"sequel": return start_sequel(StringName(id))
 		&"boss":
 			_prepare()
 			return TestMode.start_contract(&"boss") if StringName(id) == &"contract" else TestMode.spawn_enemy(StringName(id))
@@ -294,6 +299,15 @@ static func start_side(id: StringName) -> String:
 		return ""
 	_prepare()
 	return "SIDE MISSION  %s" % String(SideMissions.def(id).get("title", String(id))) if m.sides.start(id) else ""
+
+
+## One of the sequel mechanics (rift hold, heist, convoy intercept) as a one-step sandbox chapter.
+static func start_sequel(id: StringName) -> String:
+	var m := Game.missions as Missions
+	if m == null or m.campaign == null or not CampaignSteps.DEMO_IDS.has(id):
+		return ""
+	_prepare()
+	return "SEQUEL  %s" % String(CampaignSteps.DEMO_TITLES[id]) if m.campaign.start_demo(id) else ""
 
 
 ## Index of a set piece's first step inside its chapter's spliced step list (-1 when it has none).

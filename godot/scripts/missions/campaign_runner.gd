@@ -15,6 +15,10 @@ extends Node
 ##                   patrol") n Vael patrol vehicles (VehicleManager.spawn_patrol, the wave 14 hover chase and ram) are sent after the player at once and topped up while the heat
 ##                   stays up; the step also needs every chasing patrol more than PATROL_LOSE metres away
 ##   survive         outlast `hold` seconds against waves that come at you wherever you are
+##   rift_hold       sequel: hold a collapse anomaly (ring) for `hold` seconds; the bar fills only while verbs keep feeding the rift, waves hit it and drain its integrity
+##   heist           sequel: go in through a door, steal (the interior's mission), get out and lose the patrol vehicles that chase you (3 phases, one step)
+##   convoy_intercept sequel: 1..3 traffic cars drive off in a line; ENTANGLE / COLLAPSE / damage stop each one, all stopped = done, one far away for 6 s = it got away
+## The three sequel kinds live in the section "sequel mechanics" at the end of this file; their data keys are in campaign_steps.gd.
 ##
 ## Lifecycle: start_chapter(index) arms the chapter (state armed -> active), a step ends with a checkpoint (Progress.checkpoint, saved with the campaign: chapter, step, where the player
 ## stands, the next step's goal) and the next step begins after a short breath. A failure (time out, target lost, escort dead, zone lost ...) or the player's death restarts the SAME step
@@ -33,7 +37,7 @@ signal chapter_completed(chapter: int)
 signal checkpoint_reached(cp: Dictionary)
 
 ## The step kinds the runner understands. Add a kind here, to CampaignSteps.KIND_DATA and to the match blocks (_begin_step, _tick_active, _markers) together.
-const StepKinds: Array[StringName] = [&"reach", &"enter_interior", &"escort", &"defend", &"hack", &"kill_target", &"chase", &"escape", &"survive"]
+const StepKinds: Array[StringName] = [&"reach", &"enter_interior", &"escort", &"defend", &"hack", &"kill_target", &"chase", &"escape", &"survive", &"rift_hold", &"heist", &"convoy_intercept"]
 
 const CAMPAIGN_DATA_PATH := "res://scripts/story/campaign_data.gd"
 const START_DELAY := 1.5               ## seconds after a chapter is armed (no card, no tutorial) before its first step begins
@@ -57,6 +61,16 @@ const TARGET_HINT_FAR := 70.0
 const TARGET_HINT_R := 34.0
 const VERTICAL_REACH := 6.0
 const BOSS_BEAT := 0.5                 ## an Overseer that just died stays the step's target this long, so the defeat scene (Cinematics, which only starts in the play state) can start before the win
+const FEED_MAX := 9.0                  ## rift_hold: most seconds of feeding a rift banks
+const RIFT_DECAY := 0.3                ## rift_hold: the bar drains at this fraction of the fill rate while the rift is not fed
+const RIFT_DPS := 4.0                  ## rift_hold: integrity per second each aware enemy near the rift drains
+const RIFT_REGEN := 1.5
+const ENTANGLE_STOP := 8.0             ## convoy: ENTANGLE swaps you into the car's place, so a car this close to the player after the swap is stopped
+const COLLAPSE_STOP := 16.0            ## convoy: the COLLAPSE shockwave radius (Quantum.WAVE_RADIUS)
+const CONVOY_DISABLE := 0.35           ## convoy: a car at or below this fraction of its hit points is disabled (stopped)
+const CONVOY_ESCAPE := 150.0
+const CONVOY_ESCAPE_TIME := 6.0
+const CONVOY_GAP := 14.0
 const WAIT_OUTSIDE := 1.0              ## a step that is armed while the player is inside a building begins this long after the player is back on the street
 
 ## Whether the runner starts chapters by itself (the story's chapter has steps) and whether Progress's CONTINUE / chapter select start it. Like autosave it is off under tools, tests and bots
@@ -124,6 +138,20 @@ var _heat0 := 3.0
 var _patrol_want := 0                  ## escape: the patrol vehicles the step keeps after the player (0 = heat only)
 var _patrol_t := 0.0
 var _markers: Array[Dictionary] = []
+var rift_hp := 0.0                     ## rift_hold: integrity of the anomaly
+var rift_max := 0.0
+var feed_left := 0.0                   ## rift_hold: seconds of feeding banked by verbs
+var loot := false                      ## heist: the data is in hand
+var convoy: Array[Vehicle] = []        ## convoy_intercept
+var stopped: Array[Vehicle] = []       ## convoy_intercept: cars brought to a halt
+var _grace_t := 0.0
+var _demo_idx := -1
+var _demo_prev: Dictionary = {}
+var _loot_said := false
+var _far_t := 0.0
+var _verbs_from: Object
+var _qverbs_from: Object
+var _missions_from: Object
 var _marker_n := 0
 
 
@@ -215,6 +243,8 @@ func has_marker() -> bool:
 
 ## Arms chapter `index` from step `from_step`. `immediate`: no START_DELAY (tests, resume). Returns false for a chapter without usable steps.
 func start_chapter(index: int, from_step := 0, immediate := false) -> bool:
+	if index != _demo_idx:
+		_drop_demo()
 	var ch := chapter_data(index)
 	var list := CampaignSteps.normalize_chapter(ch, index)
 	if list.is_empty():
@@ -243,6 +273,31 @@ func start_chapter(index: int, from_step := 0, immediate := false) -> bool:
 	_set_checkpoint(step_index, _origin, false)
 	chapter_started.emit(index)
 	return true
+
+
+## Starts one of the sequel sandbox chapters (CampaignSteps.DEMO_IDS) as the current story chapter's steps; the registry entry goes away again with the run (abort, another chapter).
+func start_demo(id: StringName) -> bool:
+	var ch := CampaignSteps.demo_chapter(id)
+	if ch.is_empty():
+		return false
+	_drop_demo()
+	var idx := maxi(chapter(), 0)
+	while chapters.size() <= idx:
+		chapters.append({})
+	_demo_prev = chapters[idx]
+	_demo_idx = idx
+	chapters[idx] = ch
+	if start_chapter(idx, 0, true):
+		return true
+	_drop_demo()
+	return false
+
+
+func _drop_demo() -> void:
+	if _demo_idx >= 0 and _demo_idx < chapters.size():
+		chapters[_demo_idx] = _demo_prev
+	_demo_idx = -1
+	_demo_prev = {}
 
 
 ## Resumes from a saved checkpoint {chapter, step, pos, tp, goal?} (Progress.continue_game): the player goes back to it and the step begins at once. False when the data does not fit.
@@ -292,6 +347,7 @@ func skip_step() -> bool:
 ## Stops the chapter without finishing it (the title screen, a new run).
 func abort() -> void:
 	_cleanup(true)
+	_drop_demo()
 	_release_flags()
 	_win_pending = false
 	state = &"idle"
@@ -372,6 +428,16 @@ func hud_line() -> String:
 			return "%s%s  HEAT %.1f  %d M%s" % [head, clock, Game.heat, roundi(_origin_dist()), "  PATROL" if _patrol_want > 0 and _patrols_chasing() > 0 else ""]
 		&"survive":
 			return "%s  %s" % [head, _clock_text(maxf(float(step["hold"]) - _hold_t, 0.0))]
+		&"rift_hold":
+			var tail := "  USE A VERB" if inside and feed_left <= 0.0 else ("" if inside else "  RETURN TO THE RIFT")
+			return "%s  %d%%  RIFT %d%%%s%s" % [head, roundi(maxf(progress, 0.0) * 100.0), roundi(100.0 * rift_hp / maxf(rift_max, 1.0)), clock, tail]
+		&"heist":
+			match _phase:
+				1: return "%s%s  %d M" % [head, clock, roundi(distance_to_goal())]
+				2: return "%d/%d  %s" % [step_index + 1, steps.size(), "GET OUT WITH THE DATA" if loot else "STEAL THE DATA"]
+			return "%d/%d  GETAWAY%s  HEAT %.1f  %d M%s" % [step_index + 1, steps.size(), clock, Game.heat, roundi(_origin_dist()), "  PATROL" if _patrol_want > 0 and _patrols_chasing() > 0 else ""]
+		&"convoy_intercept":
+			return "%s  STOPPED %d/%d%s" % [head, _stopped_count(), convoy.size(), clock]
 	return head
 
 
@@ -401,7 +467,7 @@ func boss() -> Dictionary:
 
 ## The one world point the HUD's edge waypoint and the distance line point at: {pos, color} or {} when there is none (hidden inside an interior).
 func waypoint() -> Dictionary:
-	if state != &"active" or InteriorGameplay.active and _phase != 2:
+	if state != &"active" or _inside_hides():
 		return {}
 	var c := _step_color()
 	match kind:
@@ -416,13 +482,21 @@ func waypoint() -> Dictionary:
 			return {"pos": pos, "color": ContractTypes.AMBER}
 		&"escape", &"survive":
 			return {}                                    # nothing to walk to: the minimap ring shows how far to get away
+		&"heist":
+			if _phase == 3:
+				return {}
+		&"convoy_intercept":
+			var near := _nearest_moving_car()
+			if near != null:
+				return {"pos": near.global_position, "color": c}
+			return {}
 	return {"pos": pos, "color": c}
 
 
 ## Minimap markers (reused entries): [{pos, color, kind (&"target" &"zone" &"dest" &"area"), radius}]. Call marker_count() for the valid ones; never keep the array.
 func markers() -> Array[Dictionary]:
 	_marker_n = 0
-	if state != &"active" or InteriorGameplay.active and _phase != 2:
+	if state != &"active" or _inside_hides():
 		return _markers
 	match kind:
 		&"reach":
@@ -449,11 +523,18 @@ func markers() -> Array[Dictionary]:
 				_add_marker(escortee.global_position, ContractTypes.CYAN, &"target", 0.0)
 			_add_marker(pos, ContractTypes.AMBER, &"dest", 0.0)
 		&"escape":
-			if _origin_dist() < float(step["dist"]):
-				_add_marker(_origin, ContractTypes.RED, &"area", float(step["dist"]))
-			if _patrol_want > 0:
-				for v: Vehicle in _chasing_patrols():
-					_add_marker(v.global_position, ContractTypes.RED, &"target", 0.0)
+			_escape_markers()
+		&"rift_hold":
+			_add_marker(pos, ContractTypes.CYAN, &"zone", float(step["radius"]))
+		&"heist":
+			if _phase == 3:
+				_escape_markers()
+			else:
+				_add_marker(pos, ContractTypes.AMBER, &"dest", 0.0)
+		&"convoy_intercept":
+			for c: Vehicle in convoy:
+				if is_instance_valid(c) and not stopped.has(c) and not c.dead:
+					_add_marker(c.global_position, ContractTypes.RED, &"target", 0.0)
 	for z in sp_zones:
 		_add_marker(z, ContractTypes.RED, &"area", float(step.get("hazard", {}).get("radius", 5.0)))
 	return _markers
@@ -461,6 +542,19 @@ func markers() -> Array[Dictionary]:
 
 func marker_count() -> int:
 	return _marker_n
+
+
+func _escape_markers() -> void:
+	if _origin_dist() < float(step["dist"]):
+		_add_marker(_origin, ContractTypes.RED, &"area", float(step["dist"]))
+	if _patrol_want > 0:
+		for v: Vehicle in _chasing_patrols():
+			_add_marker(v.global_position, ContractTypes.RED, &"target", 0.0)
+
+
+## True while the player is inside a building and the step's hints would sit in the interior's own coordinates.
+func _inside_hides() -> bool:
+	return InteriorGameplay.active and not (kind == &"enter_interior" and _phase == 2)
 
 
 func _add_marker(p: Vector3, c: Color, k: StringName, r: float) -> void:
@@ -533,7 +627,7 @@ func _gate_open() -> bool:
 ## True while the player is inside a building (or in the fade through its door) and the armed step is not the one that wants the door: it would be built in the interior's
 ## coordinates (an escort asset, a target, waves), which sit far from the street.
 func _inside_blocks_step() -> bool:
-	if step_index >= steps.size() or steps[step_index]["kind"] == &"enter_interior":
+	if step_index >= steps.size() or steps[step_index]["kind"] == &"enter_interior" or steps[step_index]["kind"] == &"heist":
 		return false
 	var ig := InteriorGameplay.instance
 	return InteriorGameplay.active or (ig != null and is_instance_valid(ig) and ig.busy)
@@ -568,6 +662,9 @@ func _begin_step() -> void:
 		&"chase": ok = _begin_chase()
 		&"escape": ok = _begin_escape()
 		&"survive": ok = _begin_survive()
+		&"rift_hold": ok = _begin_rift()
+		&"heist": ok = _begin_heist()
+		&"convoy_intercept": ok = _begin_convoy()
 	if not ok:
 		_cleanup(true)
 		_begin_tries += 1
@@ -582,7 +679,7 @@ func _begin_step() -> void:
 	time_left = time_total
 	progress = 0.0 if progress < 0.0 else progress
 	var heat := float(step["heat"])
-	if heat > 0.0 and kind != &"escape":
+	if heat > 0.0 and kind != &"escape" and kind != &"heist":
 		Game.add_heat(heat)
 	state = &"active"
 	_begin_set_piece_phase()
@@ -754,7 +851,7 @@ func _resolve_goal(st: Dictionary, origin: Vector3, idx: int) -> Vector3:
 	var p: Vector3 = st["pos"]
 	if p.is_finite():
 		return p
-	if k == &"enter_interior":
+	if k == &"enter_interior" or k == &"heist":
 		var d := _find_door(st, origin)
 		if not d.is_empty():
 			return d["pos"]
@@ -1137,7 +1234,7 @@ func _begin_survive() -> bool:
 # --- ticking an active step --------------------------------------------------------------------------------------------------
 
 func _tick_active(delta: float) -> void:
-	if InteriorGameplay.active and kind != &"enter_interior":
+	if InteriorGameplay.active and kind != &"enter_interior" and kind != &"heist":
 		return                                           # inside a building the street's objectives wait (enemies are stored, the clock stops)
 	if time_total > 0.0:
 		time_left -= delta
@@ -1155,6 +1252,9 @@ func _tick_active(delta: float) -> void:
 		&"chase": _tick_chase(delta, p)
 		&"escape": _tick_escape(delta, p)
 		&"survive": _tick_survive(delta, p)
+		&"rift_hold": _tick_rift(delta, p)
+		&"heist": _tick_heist(delta, p)
+		&"convoy_intercept": _tick_convoy(delta, p)
 	if state != &"active":
 		return
 	if time_total > 0.0 and time_left <= 0.0 and _beat_t <= 0.0:
@@ -1434,6 +1534,12 @@ func _clean_runtime() -> void:
 	_esc_s = 0.0
 	_ambush.clear()
 	_car_dead = false
+	rift_hp = 0.0
+	feed_left = 0.0
+	loot = false
+	_loot_said = false
+	_grace_t = 0.0
+	_far_t = 0.0
 
 
 ## Hide the visuals, release the car's hold and the escortee, and (when `release_foes`) send what the step spawned back to the pool.
@@ -1445,6 +1551,7 @@ func _cleanup(release_foes: bool) -> void:
 		if car.exploded.is_connected(_on_car_exploded):
 			car.exploded.disconnect(_on_car_exploded)
 	car = null
+	_release_convoy()
 	if escortee != null and is_instance_valid(escortee):
 		escortee.deactivate()
 	if release_foes:
@@ -1567,3 +1674,308 @@ func _tick_set_piece(delta: float, p: Vector3) -> void:
 		var pl := Game.player as Player
 		if dmg > 0.0 and pl != null and is_instance_valid(pl):
 			pl.damage(dmg, _sp_anchor)
+
+
+# --- sequel mechanics: rift hold, quantum heist, convoy intercept --------------------------------------------------------------
+# The three kinds only use existing systems: waves (EnemyManager), traffic cars (VehicleManager), interior doors and missions (InteriorGameplay), patrol vehicles and heat (the escape
+# step's own code). Verbs reach them through Quantum.verb_used (ENTANGLE, SUPERPOSITION, COLLAPSE, link) and QuantumVerbs.used (SHIELD, SLIP, ARC).
+
+## Listen to the player's verbs (idempotent; also follows a new player instance).
+func _hook_verbs() -> void:
+	var pl := Game.player
+	if not is_instance_valid(pl):
+		return
+	var q: Object = pl.get(&"quantum")
+	if q != null and is_instance_valid(q) and q != _verbs_from and q.has_signal(&"verb_used"):
+		q.connect(&"verb_used", _on_verb)
+		_verbs_from = q
+	var qv: Object = pl.get(&"qverbs")
+	if qv != null and is_instance_valid(qv) and qv != _qverbs_from and qv.has_signal(&"used"):
+		qv.connect(&"used", _on_verb)
+		_qverbs_from = qv
+
+
+## A verb fired (`id`: &"entangle", &"collapse", &"superposition", &"link", or a QuantumVerbs id).
+func _on_verb(id: StringName) -> void:
+	if state != &"active":
+		return
+	var p := _ref_pos()
+	if not p.is_finite():
+		return
+	match kind:
+		&"rift_hold":
+			if _hdist(p, pos) < float(step["radius"]) * ZONE_LEASH:
+				feed_left = minf(feed_left + float(step["feed"]), FEED_MAX)
+				FX.burst(pos + Vector3(0.0, 1.5, 0.0), ContractTypes.CYAN, 14, 4.0, 0.5, 0.0)
+		&"convoy_intercept":
+			for c: Vehicle in convoy:
+				if not is_instance_valid(c) or c.dead or stopped.has(c):
+					continue
+				var d := _hdist(c.global_position, p)
+				if id == &"entangle" and d < ENTANGLE_STOP:
+					_stop_car(c)
+				elif id == &"collapse" and d < COLLAPSE_STOP:
+					c.damage(c.max_hp * 0.3)
+					if is_instance_valid(c) and not c.dead:
+						_stop_car(c)
+
+
+# rift hold ------------------------------------------------------------------------------------------------------------------
+
+func _begin_rift() -> bool:
+	_hook_verbs()
+	_hold_t = 0.0
+	feed_left = 0.0
+	wave = 0
+	_gap_t = 3.0
+	_outside_t = 0.0
+	_nag_t = 4.0
+	inside = true
+	rift_max = maxf(float(step["integrity"]), 1.0)
+	rift_hp = rift_max
+	visuals.show_marker(0, pos, float(step["radius"]), ContractTypes.CYAN, 0.0, true)
+	return true
+
+
+func _tick_rift(delta: float, p: Vector3) -> void:
+	var radius := float(step["radius"])
+	var d := _hdist(p, pos) if p.is_finite() else 0.0
+	inside = d < radius * ZONE_LEASH
+	feed_left = maxf(feed_left - delta, 0.0)
+	var hold := maxf(float(step["hold"]), 0.1)
+	if inside:
+		_outside_t = 0.0
+		if feed_left > 0.0:
+			_hold_t = minf(_hold_t + delta, hold)
+		else:
+			_hold_t = maxf(_hold_t - delta * RIFT_DECAY, 0.0)
+			_nag_t -= delta
+			if _nag_t <= 0.0:
+				_nag_t = 5.0
+				Game.say("USE A VERB TO FEED THE RIFT", 1.6)
+	else:
+		_hold_t = maxf(_hold_t - delta * RIFT_DECAY, 0.0)
+		_outside_t += delta
+		_nag_t -= delta
+		if _nag_t <= 0.0:
+			_nag_t = 3.0
+			Game.say("RETURN TO THE RIFT", 1.5)
+		if _outside_t > ZONE_LEASH_TIME:
+			_fail("ZONE LOST")
+			return
+	_gap_t -= delta
+	if _gap_t <= 0.0:
+		_gap_t = float(step["gap"])
+		_spawn_wave(pos, radius + 6.0, radius + 28.0, _wave_size(wave), wave, step.get("types", []) as Array)
+		wave += 1
+	var drain := 0
+	var em := Game.enemies as EnemyManager
+	if em != null:
+		for e in em.list:
+			if e.active and not e.dead and e.aware and _hdist(e.global_position, pos) < radius + 4.0:
+				drain += 1
+	if drain > 0:
+		rift_hp -= RIFT_DPS * float(drain) * delta
+	else:
+		rift_hp = minf(rift_hp + RIFT_REGEN * delta, rift_max)
+	if rift_hp <= 0.0:
+		rift_hp = 0.0
+		_fail("RIFT LOST")
+		return
+	_prune_foes()
+	progress = clampf(_hold_t / hold, 0.0, 1.0)
+	visuals.set_progress(0, progress)
+	if _hold_t >= hold:
+		_complete_step(p if p.is_finite() else pos)
+
+
+# quantum heist --------------------------------------------------------------------------------------------------------------
+
+func _begin_heist() -> bool:
+	_door = _find_door(step, _origin)
+	if not _door.is_empty():
+		pos = _door["pos"]
+	loot = false
+	_loot_said = false
+	_grace_t = 0.0
+	_hold_t = 0.0
+	_phase = 1
+	var ig := InteriorGameplay.instance
+	if ig != null and is_instance_valid(ig):
+		if ig.missions != null and ig.missions != _missions_from:
+			ig.missions.completed.connect(_on_heist_mission)
+			_missions_from = ig.missions
+		if InteriorGameplay.active and (_door.is_empty() or _door_matches(ig.door)):
+			_phase = 2                                        # already inside the right building (a retry)
+	visuals.show_marker(0, pos, float(step["radius"]), ContractTypes.AMBER, -1.0, true)
+	return true
+
+
+func _on_heist_mission(_k: StringName, _id: int, _reward: Dictionary) -> void:
+	if state == &"active" and kind == &"heist" and _phase == 2 and not loot:
+		loot = true
+
+
+func _tick_heist(delta: float, p: Vector3) -> void:
+	var ig := InteriorGameplay.instance
+	var ig_ok := ig != null and is_instance_valid(ig)
+	match _phase:
+		1:
+			if _door.is_empty():                              # a city without doors: reaching the spot is the theft
+				if _in_ring(p, pos, maxf(float(step["radius"]), 4.0)):
+					loot = true
+					_start_getaway()
+				return
+			progress = clampf(1.0 - _hdist(p, pos) / maxf(_hdist(_origin, pos), 1.0), 0.0, 0.3) if p.is_finite() and not InteriorGameplay.active else progress
+			if ig_ok and InteriorGameplay.active and _door_matches(ig.door):
+				_phase = 2
+				_grace_t = 0.0
+				progress = 0.33
+				Game.say("TAKE THE DATA", 2.0)
+		2:
+			if not InteriorGameplay.active:
+				if ig_ok and ig.busy:
+					return
+				if loot:
+					_start_getaway()
+				else:
+					_phase = 1
+					progress = 0.1
+					Game.say("THE DATA IS STILL INSIDE", 2.0)
+				return
+			if ig_ok and not loot and not ig.busy and not ig.missions.is_active():
+				_grace_t += delta                             # a room with nothing to crack: the data is simply there
+				if _grace_t >= float(step["grace"]):
+					loot = true
+			if loot:
+				progress = 0.66
+				if not _loot_said:
+					_loot_said = true
+					Game.say("DATA TAKEN  GET OUT", 2.5)
+		3:
+			_hold_t += delta
+			if _hold_t > float(step["escape_time"]):
+				_fail("NOT LOST")
+				return
+			var prev := progress
+			_tick_escape(delta, p)
+			if state == &"active":
+				progress = maxf(progress, prev if prev > 0.66 else 0.66)
+
+
+## Phase 3: the escape step's own start (heat, patrol vehicles, the ring), anchored at the door the player just came out of.
+func _start_getaway() -> void:
+	_phase = 3
+	_hold_t = 0.0
+	visuals.hide_all()
+	_begin_escape()
+	progress = 0.66
+	Game.say("GETAWAY", 2.0)
+
+
+# convoy intercept -----------------------------------------------------------------------------------------------------------
+
+func _begin_convoy() -> bool:
+	var vm := Game.vehicles
+	if not is_instance_valid(vm) or not vm.has_method(&"spawn_traffic"):
+		return false
+	_hook_verbs()
+	_release_convoy()
+	var axis := rng.randi() % 2
+	var dir := 1 if rng.randf() < 0.5 else -1
+	var road_i: int = VehicleSpecs.road_index(pos.z if axis == 0 else pos.x)
+	var along := pos.x if axis == 0 else pos.z
+	for i in int(step["cars"]):
+		var at := along - float(dir) * CONVOY_GAP * float(i)
+		var c: Vehicle = vm.call(&"spawn_traffic", &"sedan", axis, road_i, dir, at)
+		if c == null:
+			_free_a_car(vm)
+			c = vm.call(&"spawn_traffic", &"sedan", axis, road_i, dir, at)
+		if c == null:
+			break
+		c.max_hp = float(step["hp"])
+		c.hp = c.max_hp
+		c.ai_cruise = float(step["cruise"])
+		c.set_meta(&"hold", true)
+		convoy.append(c)
+	if convoy.is_empty():
+		return false
+	pos = convoy[0].global_position
+	_far_t = 0.0
+	visuals.show_marker(0, pos, 3.0, ContractTypes.RED, -1.0, true)
+	Game.add_heat(0.2)
+	return true
+
+
+func _stopped_count() -> int:
+	var n := 0
+	for c: Vehicle in convoy:
+		if not is_instance_valid(c) or c.dead or stopped.has(c):
+			n += 1
+	return n
+
+
+func _nearest_moving_car() -> Vehicle:
+	var p := _ref_pos()
+	var best: Vehicle = null
+	var bd := INF
+	for c: Vehicle in convoy:
+		if is_instance_valid(c) and not c.dead and not stopped.has(c):
+			var d := _hdist(c.global_position, p) if p.is_finite() else 0.0
+			if d < bd:
+				bd = d
+				best = c
+	return best
+
+
+func _stop_car(c: Vehicle) -> void:
+	if stopped.has(c):
+		return
+	stopped.append(c)
+	c.ai_stun = 1.0e6
+	Sfx.play(&"ui_contract_accept")
+	Game.say("CAR STOPPED  %d/%d" % [_stopped_count(), convoy.size()], 1.4)
+
+
+func _tick_convoy(delta: float, p: Vector3) -> void:
+	var far := false
+	for c: Vehicle in convoy:
+		if not is_instance_valid(c) or (not c.active and not c.dead):
+			_fail("CONVOY LOST")
+			return
+		if c.dead or stopped.has(c):
+			continue
+		if c.hp <= c.max_hp * CONVOY_DISABLE:
+			_stop_car(c)
+			continue
+		if p.is_finite() and _hdist(c.global_position, p) > CONVOY_ESCAPE:
+			far = true
+	for c: Vehicle in stopped:
+		if is_instance_valid(c):
+			c.ai_stun = 1.0e6
+	var total := maxi(convoy.size(), 1)
+	progress = float(_stopped_count()) / float(total)
+	var near := _nearest_moving_car()
+	if near == null:
+		var last := convoy[convoy.size() - 1].global_position
+		_complete_step(Vector3(last.x, 0.0, last.z))
+		return
+	pos = near.global_position
+	visuals.move_marker(0, near.global_position)
+	if far:
+		_far_t += delta
+		if _far_t > CONVOY_ESCAPE_TIME:
+			_fail("CONVOY GOT AWAY")
+	else:
+		_far_t = 0.0
+
+
+## Lift the hold on the convoy cars (a stopped one drives on after a few seconds) and forget them.
+func _release_convoy() -> void:
+	for c: Vehicle in convoy:
+		if is_instance_valid(c):
+			c.remove_meta(&"hold")
+			if not c.dead:
+				c.ai_stun = 3.0
+	convoy.clear()
+	stopped.clear()

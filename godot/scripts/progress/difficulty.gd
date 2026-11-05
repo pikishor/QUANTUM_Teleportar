@@ -45,7 +45,7 @@ static func chapter_dmg(chapter: int) -> float:
 
 ## Chapter curve for normal enemy health (the same line Progress.difficulty uses, capped).
 static func chapter_hp(chapter: int) -> float:
-	return 1.0 + 0.10 * minf(float(maxi(chapter, 0)), 8.0)
+	return 1.0 + 0.10 * minf(float(maxi(chapter, 0)), 10.0)
 
 
 ## Boss health curve: bosses already carry big base health, so they scale at about the troops' rate (+9 % per chapter) so a boss fight keeps its length as the hero grows.

@@ -508,3 +508,14 @@ Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one tran
 - Full suite 144/144 pass, 0 flaky. test_full_quick passes. Visual QA 24/24.
 - Perf: tier0 draws=66 tex=166MB OK, tier1 draws=94 tex=216MB OK, tier2 draws=106 tex=307MB (death 337MB) OK. One tier-0 run in a combined 0 1 2 invocation read OVER; two isolated reruns were OK (cause not isolated, likely sandbox timing).
 - Follow-ups from latest.png look: player model reads dark/low-detail from behind; interior shot very red; hero rifle still baked into mesh (see humanoid notes); stray PNGs in / from an earlier builder need removal.
+
+## Campaign sequel mechanics (builder note, tests/test_sequel_mechanics.gd)
+- Three new campaign step kinds (CampaignRunner "sequel mechanics" section, keys in campaign_steps.gd): `rift_hold` (ring anomaly, bar fills only while verbs feed it, waves drain its integrity: RIFT LOST / ZONE LOST), `heist` (door, steal = interior mission or grace time, getaway = the escape step's heat + patrol vehicles; NOT LOST), `convoy_intercept` (1..3 held traffic cars, ENTANGLE within 8 m / COLLAPSE within 16 m / damage below 35 % stop them via `ai_stun`; CONVOY GOT AWAY / TIME OUT). `Quantum.verb_used(id)` is the new signal (link, entangle, superposition, collapse); QuantumVerbs.used feeds the rift too. DEMO menu: SEQUEL tab (`DemoMode.start_sequel`, `CampaignRunner.start_demo`).
+- Follow-ups: no campaign_data chapter uses the kinds yet (story chapters 9-12 are another scope); no dedicated rift or convoy visuals (ring + beam markers only); stopped convoy cars have no visual state; the heist reuses the stub-free interior missions only (no dedicated vault room); radio lines for the three kinds are per-step data, none written.
+
+## Wave 67 integration (campaign sequel ch 9-10, new mission mechanics)
+- Full suite via tools/test_all.sh: 146 pass, 0 flaky, 0 fail (includes test_full_quick). Perf gate and full_bot skipped (no render/texture changes).
+- Fixed: test_localisation_depth failed (53 missing Spanish lines for ch 8 end card, ch 9-10 and new steps). Added Spanish entries to strings_es.gd; no thresholds changed. Hindi still has no entries for the new text (test only measures it).
+- visual_qa: 23/24 on one run, 21/24 on a rerun; sky_dawn/noon/dusk flagged "flat white rectangle" intermittently. latest.png shows normal skies, so likely a detector false positive on bright sky; follow-up: make the check tolerant or deterministic.
+- Screenshot defects (follow-ups): hero reads as a flat bluish figure with little material detail; title screen DEPLOY button overlaps the sign art; HUD tips overlap quest text on the boss shot.
+- Still open from sequel work: no live-scene playthrough of ch 9-10, new rift_hold/heist/convoy kinds not used by any chapter yet, no radio lines or dedicated visuals for them.

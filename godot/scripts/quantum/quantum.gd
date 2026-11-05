@@ -15,6 +15,8 @@ extends Node
 ## the prototype's. Graphics tiers (Game.quality): the number of simultaneous links (LOW 1, MED 2, HIGH 3), the particle counts, and LOW drops the glow sprite,
 ## the second ring, the ghost's ground ring and the second beam of a link.
 
+signal verb_used(id: StringName)    ## a core verb fired: &"link" &"entangle" &"superposition" &"collapse" (the campaign's rift hold and convoy steps listen)
+
 const CYAN := Color(0.3, 0.94, 1.0)
 const MAGENTA := Color(1.0, 0.24, 0.94)
 const PALE := Color(0.62, 0.98, 1.0)
@@ -490,6 +492,7 @@ func link_drones() -> bool:
 		FX.burst(d.center(), PALE, _fx_count(18), 5.0, 0.5, 0.0)
 	Sfx.play(&"link")
 	Game.say("ENTANGLED · DAMAGE IS SHARED ACROSS DISTANCE", 1.8)
+	verb_used.emit(&"link")
 	return true
 
 
@@ -547,6 +550,7 @@ func entangle() -> bool:
 	FX.shake(0.25)
 	Sfx.play(&"link")
 	Game.say("ENTANGLE", 1.2)
+	verb_used.emit(&"entangle")
 	return true
 
 
@@ -699,6 +703,7 @@ func superpose() -> bool:
 	FX.burst(_p.global_position + Vector3(0.0, 1.0, 0.0), Color(0.4, 1.0, 0.93), _fx_count(30), 5.0, 0.6, 0.0)
 	Sfx.play(&"superpos")
 	Game.say("SUPERPOSITION · ENEMIES SEE TWO OF YOU · BE FAST", 1.8)
+	verb_used.emit(&"superposition")
 	return true
 
 
@@ -784,6 +789,7 @@ func collapse_all() -> bool:
 	Sfx.play(&"blink")
 	Sfx.play_at(&"boom", origin, -2.0)
 	Game.say("COLLAPSE" + combo, 1.4)
+	verb_used.emit(&"collapse")
 	return true
 
 

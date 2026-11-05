@@ -196,6 +196,7 @@ func _panel_and_launches() -> void:
 		[5, "event", &"", "EVENT"],
 		[6, "contract", &"", "CONTRACT"],
 		[7, "interior", &"", "INSIDE"],
+		[8, "sequel", &"", "SEQUEL"],
 	]
 	for c: Array in cases:
 		await _settle()

@@ -117,9 +117,9 @@ static func rep_bonus(rep: int) -> float:
 static func difficulty(chapter: int) -> Dictionary:
 	var c := float(maxi(chapter, 0))
 	return {
-		"hp": 1.0 + 0.10 * minf(c, 8.0),
+		"hp": 1.0 + 0.10 * minf(c, 10.0),
 		"extra": mini(int(c * 0.5), 3),
-		"reward": (1.0 + 0.20 * minf(c, 8.0)) * Difficulty.mult("credits"),
+		"reward": (1.0 + 0.20 * minf(c, 10.0)) * Difficulty.mult("credits"),
 		"time": maxf(0.7, 1.0 - 0.05 * c),
 	}
 

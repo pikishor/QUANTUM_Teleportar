@@ -126,7 +126,7 @@ static func total_gear_cost() -> int:
 
 ## Typical hour of play: sector reached, how many of each activity, reputation payout bonus.
 static func sector_at(hour: float) -> int:
-	return clampi(int(hour * 0.9), 0, 8)
+	return clampi(int(hour * 0.9), 0, 10)
 
 
 static func _rep_bonus_at(hour: float) -> float:

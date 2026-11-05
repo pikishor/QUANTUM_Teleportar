@@ -1,6 +1,6 @@
 class_name CampaignData
 extends RefCounted
-## The eight-chapter campaign as plain data: for each chapter a place (district), a chain of 3..5 scripted objective steps, one radio line per step, and the
+## The ten-chapter campaign (eight chapters plus the sequel arc, chapters 9 and 10) as plain data: for each chapter a place (district), a chain of 3..5 scripted objective steps, one radio line per step, and the
 ## cutscene trigger ids. Nothing here runs; it only extends scripts/story/story_data.gd (CHAPTERS[i] has the same id as CAMPAIGN[i], the intro / core / heat
 ## lines and the end card live there). After the last chapter the game continues as endless sectors (StoryData's aftermath chapter), see is_endless().
 ##
@@ -20,7 +20,7 @@ const KNOWN_CUTSCENES: Array[String] = ["", "intro", "chapter", "boss_in", "boss
 const DISTRICT_IDS: Array[String] = ["market", "foundry", "slums", "towers"]   ## same ids as CityDistricts.IDS
 const MIN_STEPS := 3
 const MAX_STEPS := 5
-const CHAPTER_COUNT := 8
+const CHAPTER_COUNT := 10
 const CREDIT_LINE_MAX := 40
 
 const CAMPAIGN: Array[Dictionary] = [
@@ -101,13 +101,35 @@ const CAMPAIGN: Array[Dictionary] = [
 	},
 	{
 		"id": "meridian_gate", "district": "towers", "place": "MERIDIAN GATE",
-		"cutscenes": {"intro": "", "chapter": "chapter", "boss": "boss_in", "ending": "credits"},
+		"cutscenes": {"intro": "", "chapter": "chapter", "boss": "boss_in"},
 		"steps": [
 			{"kind": "reach", "obj": "Reach the foot of the Meridian Gate", "radio": {"s": O, "t": "The gate is open and humming. Every anchor you took is singing in it."}},
 			{"kind": "hack", "obj": "Hack the gate's control spine", "radio": {"s": K, "t": "I know this protocol. It is mine. I can run the signal either way."}},
 			{"kind": "defend", "obj": "Defend the spine until the signal turns", "radio": {"s": O, "t": "The hive is throwing itself at the spine. Hold, Kestrel. Hold for the whole minute."}},
 			{"kind": "assassinate", "target": "boss", "obj": "Kill the Gate Warden", "radio": {"s": A, "t": "Scout, come home. The Warden will carry you. Nobody has to hurt anymore."}},
 			{"kind": "escape", "obj": "Escape the collapsing gate", "radio": {"s": O, "t": "The gate is folding in on itself. Teleport, Kestrel. Two bits, and run."}},
+		],
+	},
+	{
+		"id": "echo_tide", "district": "foundry", "place": "COLD DOCKS",
+		"cutscenes": {"intro": "", "chapter": "chapter", "boss": ""},
+		"steps": [
+			{"kind": "reach", "obj": "Reach the flooded loading bay", "radio": {"s": O, "t": "The gate fell, but something answers from the docks. Keep to the high gantries, Kestrel."}},
+			{"kind": "infiltrate", "interior": "checkpoint", "obj": "Infiltrate the dockmaster checkpoint", "radio": {"s": O, "t": "The checkpoint still takes orders from a signal that should be dead. Go in quiet."}},
+			{"kind": "hack", "obj": "Hack the tide relay", "radio": {"s": K, "t": "Same handshake as the gate, run backwards. Someone is listening on the other side."}},
+			{"kind": "chase", "obj": "Run down the salvage convoy", "radio": {"s": O, "t": "A convoy is hauling relay parts out of the docks. Take a car and stop it at the bridge."}},
+			{"kind": "assassinate", "target": "specialist", "obj": "Eliminate the dock warden", "radio": {"s": O, "t": "The warden keeps the tide gates shut. End it and the water goes where it wants."}},
+		],
+	},
+	{
+		"id": "last_aperture", "district": "towers", "place": "ECHO SPIRE",
+		"cutscenes": {"intro": "", "chapter": "chapter", "boss": "boss_in", "ending": "credits"},
+		"steps": [
+			{"kind": "reach", "obj": "Reach the base of the Echo Spire", "radio": {"s": O, "t": "The spire is the last aperture. Every Vael left in the city is leaning toward it."}},
+			{"kind": "defend", "obj": "Defend the climb until the lift is ready", "radio": {"s": O, "t": "The lift needs a minute to spin up. They know. Hold the lobby, Kestrel."}},
+			{"kind": "assassinate", "target": "boss", "enemy": "hound", "hp_mult": 1.0, "guards": 0, "name": "VAEL HOUND ALPHA", "obj": "Kill the Hound Alpha", "radio": {"s": O, "t": "The pack leader guards the lift. Decoy first, COLLAPSE it while it feeds."}},
+			{"kind": "assassinate", "target": "boss", "enemy": "phasewright", "hp_mult": 1.2, "guards": 0, "name": "VAEL PHASEWRIGHT PRIME", "obj": "Break the Phasewright Prime", "radio": {"s": O, "t": "The Prime jumps faster than the first one. Read the windup, COLLAPSE the jump."}},
+			{"kind": "escape", "obj": "Escape the folding spire", "radio": {"s": K, "t": "It is closing, ORACLE. Two bits and out. I am not staying to see what is behind it."}},
 		],
 	},
 ]
@@ -118,7 +140,7 @@ const ENDLESS_LABEL := "FREE SECTOR %02d"
 
 ## Typed over the win screen after the last chapter's end card, before the credits (head at most 30 characters, text at most StoryData.CARD_MAX).
 const ENDING: Array[Dictionary] = [
-	{"head": "THE GATE CLOSES", "text": "You ran the signal outward. The gate folded in on itself and every Observer in Neo-Meridian fell out of the sky like rain."},
+	{"head": "THE GATE CLOSES", "text": "You ran the signal outward. The last aperture folded in on itself and every Observer in Neo-Meridian fell out of the sky like rain."},
 	{"head": "THE CHOICE", "text": "You could have gone home. You stayed, and ORACLE stays with you. It says nothing, which for ORACLE is a kind of love."},
 	{"head": "NEO-MERIDIAN", "text": "The rain never stops. It no longer sounds like being watched. Somewhere a Lamplighter turns a lantern back on."},
 ]

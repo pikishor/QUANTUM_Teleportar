@@ -202,7 +202,7 @@ func _near(a: Vector3, b: Vector3, tol := 3.0) -> bool:
 # --- the documented contract ---------------------------------------------------------------------------------------------
 
 func _contract_data() -> void:
-	TestLib.check(CampaignRunner.StepKinds.size() == 9, "nine documented step kinds")
+	TestLib.check(CampaignRunner.StepKinds.size() == 12, "twelve documented step kinds (nine plus the sequel rift_hold, heist, convoy_intercept)")
 	var all_known := true
 	for k: StringName in CampaignRunner.StepKinds:
 		all_known = all_known and CampaignSteps.KIND_DATA.has(k)

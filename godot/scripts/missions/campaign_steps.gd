@@ -26,6 +26,14 @@ extends RefCounted
 ##                   the step starts, topped up while the heat stays up, at most VehicleManager.patrol_cap(); 0 = only the heat; the step is done when the player is far, the heat is
 ##                   below `clear` AND no chasing patrol is within CampaignRunner.PATROL_LOSE metres)
 ##   survive         gap (10 s), count, types
+##   rift_hold       a COLLAPSE anomaly at pos: stay within `radius` (12 m) and keep it fed with verbs (ENTANGLE, SUPERPOSITION, COLLAPSE, link or any quantum verb used inside 1.6 radii, each feeds `feed` 5 s,
+##                   at most 9 s banked); the hold bar fills only while it is fed, drains slowly otherwise; waves (gap 12, count, types) hit the rift, aware enemies near it drain its `integrity` (100)
+##                   and the step fails with RIFT LOST at 0 (retry), with ZONE LOST after 10 s outside. hold 40 s
+##   heist           quantum heist: door / interior as enter_interior (default interior lobby): phase 1 go inside, phase 2 steal (the interior's mission completes, or after `grace` 3 s in a room without
+##                   one), phase 3 getaway: heat jumps to `heat` (3), `patrol` (2) Vael patrol vehicles chase, done when `dist` (110) m from the door, heat below `clear` (0.5) and no patrol within
+##                   60 m; `escape_time` (100 s) of getaway fails with NOT LOST. Leaving without the loot sends you back in
+##   convoy_intercept `cars` (3, 1..3) traffic cars (hp 90, cruise 13) driving in a line from pos along a road: ENTANGLE (within 8 m of the swap), COLLAPSE (within 16 m, also 30 % damage) or damage
+##                   below 35 % hp STOP a car (ai_stun held), a wreck counts too; done when every car is stopped; one car 150 m away for 6 s: CONVOY GOT AWAY. time 120
 ## CHAPTER DICTIONARY: {id, title?, steps: [step...], clears_sector: bool (default true: the last step calls Game.win())}. Scope A's CampaignData chapters work as they are.
 
 const ALIASES := {&"infiltrate": &"enter_interior", &"assassinate": &"kill_target"}
@@ -41,9 +49,27 @@ const KIND_DATA := {
 	&"chase": {"title": "RUN DOWN THE TARGET", "color": &"amber", "dist": [55.0, 100.0], "time": 150.0},
 	&"escape": {"title": "LOSE THE PURSUIT", "color": &"red", "dist": [0.0, 0.0], "time": 120.0},
 	&"survive": {"title": "SURVIVE", "color": &"cyan", "dist": [0.0, 0.0], "time": 0.0},
+	&"rift_hold": {"title": "HOLD THE RIFT", "color": &"cyan", "dist": [70.0, 130.0], "time": 0.0},
+	&"heist": {"title": "STEAL THE DATA", "color": &"amber", "dist": [90.0, 170.0], "time": 0.0},
+	&"convoy_intercept": {"title": "STOP THE CONVOY", "color": &"red", "dist": [90.0, 150.0], "time": 120.0},
 }
 
 const MAX_TEXT := 56
+
+## One-step sandbox chapters of the sequel mechanics (the DEMO menu's SEQUEL tab, CampaignRunner.start_demo).
+const DEMO_IDS: Array[StringName] = [&"rift_hold", &"heist", &"convoy_intercept"]
+const DEMO_TITLES := {&"rift_hold": "RIFT HOLD", &"heist": "QUANTUM HEIST", &"convoy_intercept": "CONVOY INTERCEPT"}
+
+
+static func demo_chapter(id: StringName) -> Dictionary:
+	match id:
+		&"rift_hold":
+			return {"id": "demo_rift_hold", "clears_sector": false, "steps": [{"kind": "rift_hold", "text": "Hold the rift", "hold": 30.0, "count": 2}]}
+		&"heist":
+			return {"id": "demo_heist", "clears_sector": false, "steps": [{"kind": "heist", "interior": "lobby", "text": "Steal the Exchange data", "patrol": 2}]}
+		&"convoy_intercept":
+			return {"id": "demo_convoy", "clears_sector": false, "steps": [{"kind": "convoy_intercept", "text": "Stop the convoy", "cars": 3}]}
+	return {}
 
 
 ## Canonical kind (aliases resolved), &"" for an unknown one.
@@ -104,6 +130,7 @@ static func normalize_step(step: Dictionary, index: int, _chapter_index := 0) ->
 		&"hack": out["hold"] = float(step.get("hold", 24.0))
 		&"defend": out["hold"] = float(step.get("hold", 60.0))
 		&"survive": out["hold"] = float(step.get("hold", 45.0))
+		&"rift_hold": out["hold"] = float(step.get("hold", 40.0))
 	out["gap"] = float(step.get("gap", 12.0 if k == &"defend" else 10.0))
 	if k == &"kill_target":
 		var enemy := StringName(str(step.get("enemy", "")))
@@ -129,6 +156,23 @@ static func normalize_step(step: Dictionary, index: int, _chapter_index := 0) ->
 		out["clear"] = float(step.get("clear", 0.5))
 		out["dist"] = float(step.get("dist", 110.0))
 		out["patrol"] = clampi(int(step.get("patrol", 0)), 0, 3)
+	if k == &"rift_hold":
+		out["feed"] = float(step.get("feed", 5.0))
+		out["integrity"] = float(step.get("integrity", 100.0))
+	if k == &"convoy_intercept":
+		out["cars"] = clampi(int(step.get("cars", 3)), 1, 3)
+		out["hp"] = float(step.get("hp", 90.0))
+		out["cruise"] = float(step.get("cruise", 13.0))
+	if k == &"heist":
+		out["heat"] = float(step.get("heat", 3.0))
+		out["clear"] = float(step.get("clear", 0.5))
+		out["dist"] = float(step.get("dist", 110.0))
+		out["patrol"] = clampi(int(step.get("patrol", 2)), 0, 3)
+		out["escape_time"] = float(step.get("escape_time", 100.0))
+		out["grace"] = float(step.get("grace", 3.0))
+		out["leave"] = false
+		out["door"] = int(step.get("door", -1))
+		out["interior"] = StringName(str(step.get("interior", "lobby" if int(step.get("door", -1)) < 0 else "")))
 	if k == &"enter_interior":
 		out["leave"] = bool(step.get("leave", false))
 		out["door"] = int(step.get("door", -1))
@@ -139,9 +183,10 @@ static func normalize_step(step: Dictionary, index: int, _chapter_index := 0) ->
 static func _default_radius(k: StringName) -> float:
 	match k:
 		&"reach": return 6.0
-		&"enter_interior": return 2.6
+		&"enter_interior", &"heist": return 2.6
 		&"escort": return 4.0
 		&"defend": return 30.0
+		&"rift_hold": return 12.0
 		&"hack": return 9.0
 	return 4.0
 
@@ -158,6 +203,8 @@ static func validate_step(step: Variant) -> String:
 		return "objective text longer than %d characters" % MAX_TEXT
 	if s.has("pos") and not vec3(s["pos"]).is_finite():
 		return "pos is not a Vector3 / Vector2 / [x, z]"
+	if kind_of(s) == &"convoy_intercept" and s.has("cars") and not (s["cars"] is int and int(s["cars"]) >= 1 and int(s["cars"]) <= 3):
+		return "cars must be 1 to 3"
 	if s.has("radio"):
 		var r: Variant = s["radio"]
 		if not (r is Dictionary):
@@ -170,7 +217,7 @@ static func validate_step(step: Variant) -> String:
 					return "radio line needs s and t"
 				if str((l as Dictionary)["t"]).length() > StoryData.LINE_MAX:
 					return "radio line longer than %d characters" % StoryData.LINE_MAX
-	for key: String in ["time", "hold", "radius", "hp", "speed"]:
+	for key: String in ["time", "hold", "radius", "hp", "speed", "feed", "integrity", "cruise", "escape_time"]:
 		if s.has(key) and not (s[key] is float or s[key] is int):
 			return "%s is not a number" % key
 	return ""
