@@ -10,7 +10,7 @@ extends RefCounted
 const EXCEPTIONS := {
 	"title": ["q0", "q1", "q2", "post", "mute", "cine", "vol_music", "vol_sfx"],       # the quick settings strip duplicates the OPTIONS screen (all 64 px there); no room for 64 px rows next to DEPLOY
 	"pause": ["q0", "q1", "q2", "post", "mute", "cine", "vol_music", "vol_sfx"],
-	"pause_shop": ["buy_"],                                                             # the 7 upgrade rows and 8 weapon cells share one 720 px page (50 px rows); the shop's navigation row is 64 px
+
 }
 const MIN_EXCEPTION := 40.0                    ## an exception is never smaller than this (base px)
 

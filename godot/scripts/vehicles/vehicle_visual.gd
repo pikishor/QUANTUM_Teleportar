@@ -20,7 +20,14 @@ const PAINT_SPECULAR := 0.9                   ## dielectric specular of the lacq
 const PAINT_METAL_MIN := 0.12
 const PAINT_METAL_MAX := 0.4
 const PAINT_RIM := 0.45                       ## grazing-angle sheen of every paint (material parameter, no extra draw)
-const PAINT_GLOW := 0.2                    ## faint emission in the paint colour, so a car keeps its colour in the dark
+const PAINT_GLOW := 0.5                    ## emission in the paint colour, so a car keeps its colour and its shape in the dark (was 0.2: the night car shot read as a flat dark blob)
+const PAINT_GLOW_COMPAT := 0.34            ## the compatibility renderer lights the paint less, so it needs less of the lift
+
+
+static func paint_glow() -> float:
+	return PAINT_GLOW_COMPAT if DynamicFill._is_compat() else PAINT_GLOW
+
+
 const WHEEL_NAMES := [&"WheelFL", &"WheelFR", &"WheelRL", &"WheelRR"]
 const BIKE_WHEEL_NAMES := [&"WheelF", &"WheelR"]    ## bikes: front (steers) and rear wheel; a hover craft has none
 ## LOD1: the new Wave 14 models ship a second, decimated body mesh ("Body_LOD1", about 30 % of the triangles, same UVs, materials and lamp surfaces, see tools/blender/lodlib.py).
@@ -130,7 +137,7 @@ func build(kind: StringName, glow: Color) -> Node3D:
 				ov.clearcoat = COAT
 				ov.clearcoat_roughness = COAT_ROUGHNESS
 				ov.emission_enabled = true
-				ov.emission_energy_multiplier = 0.12 if DynamicFill._is_compat() else PAINT_GLOW
+				ov.emission_energy_multiplier = paint_glow()
 				ov.metallic_specular = PAINT_SPECULAR
 				var a := src.albedo_color
 				var b := ov.albedo_color
@@ -322,7 +329,7 @@ func shimmer(t: float, speed: float) -> void:
 		var h := fposmod(c.h + IRIS_SPAN * sin(t * 0.9 + _phase + absf(speed) * 0.05) + 0.08, 1.0)
 		var film := Color.from_hsv(h, clampf(c.s + 0.35, 0.0, 1.0), clampf(c.v + 0.25, 0.0, 1.0))
 		_body_mat.emission = film
-		_body_mat.emission_energy_multiplier = (0.12 if DynamicFill._is_compat() else PAINT_GLOW) * (1.6 + 0.8 * sin(t * 1.7 + _phase))
+		_body_mat.emission_energy_multiplier = paint_glow() * (1.6 + 0.8 * sin(t * 1.7 + _phase))
 		_body_mat.rim_tint = 0.2 + 0.3 * (0.5 + 0.5 * sin(t * 0.6 + _phase))
 	else:
 		var on := fposmod(t + _phase * 10.0, FLICKER_EVERY) < 0.18
@@ -331,7 +338,7 @@ func shimmer(t: float, speed: float) -> void:
 			_flick = f
 			var alt := Color.from_hsv(fposmod(c.h + 0.5, 1.0), 0.6, 0.9) if on else c
 			_body_mat.emission = alt
-			_body_mat.emission_energy_multiplier = (0.12 if DynamicFill._is_compat() else PAINT_GLOW) * (4.0 if on else 1.0)
+			_body_mat.emission_energy_multiplier = paint_glow() * (4.0 if on else 1.0)
 
 
 ## Wear and damage decals as material state: scuffed clear coat, duller flake, soot, and glowing phase seams (emission) when hurt badly.
@@ -347,7 +354,7 @@ func set_damage_look(frac: float) -> void:
 		_body_mat.emission_energy_multiplier = 0.4 + 1.2 * (frac - SEAM_BELOW) / (1.0 - SEAM_BELOW)
 	elif frac < SEAM_BELOW:
 		_body_mat.emission = _base_col
-		_body_mat.emission_energy_multiplier = 0.12 if DynamicFill._is_compat() else PAINT_GLOW
+		_body_mat.emission_energy_multiplier = paint_glow()
 
 
 ## Crash deformation, lite: the whole body crumples with the damage (lower, shorter, wider), no extra mesh, material or draw call. 0 restores the model.

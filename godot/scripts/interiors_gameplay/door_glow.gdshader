@@ -33,6 +33,7 @@ void fragment() {
 		float sheet = 0.12 + 0.1 * sin(uv.y * 20.0 - TIME * 3.0);
 		a = line * 2.2 + glow + sheet * step(0.1, edge);
 	}
-	ALBEDO = vc.rgb * a * pulse * strength * (1.0 + vc.a);
-	ALPHA = clamp(a * pulse, 0.0, 1.0);
+	float near = smoothstep(0.8, 3.5, length(VERTEX));      // standing in the doorway: the frame and pad fade instead of blowing the view out white
+	ALBEDO = min(vc.rgb * a * pulse * strength * (1.0 + vc.a), vec3(1.2)) * near;
+	ALPHA = clamp(a * pulse, 0.0, 1.0) * near;
 }

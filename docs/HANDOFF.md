@@ -639,3 +639,15 @@ Follow-ups from latest.png: interior shot is blown-out white around the window/d
 - Full suite: 166 pass, 0 flaky, 0 fail. Perf gate OK on all tiers (death draws LOW 103, MED 147, HIGH 167; tex 166/193/315 MB). full_bot soak PASS (8 min). Visual QA 27/27.
 - Visual follow-ups: contract HUD line and "CONTRACT AVAILABLE" banner stack closely in district/roof shots; title screen DEMO button is tight against the top-left tab row; ORACLE/VAEL log text box is clipped small on narrow shots.
 - Perf margins are thin (MED/HIGH death spikes); next cuts: traffic cars near spawn and their mirror sources.
+
+## UI and visual debt 3 (builder note, tests/test_ui_debt3.gd)
+- Shop: page 0 = the seven upgrades (64 px BUY rows), pages 1.. = ALIEN WEAPONS in a 4x4 grid of 64 px cells (caption above each); the nav button `shop_wpage` flips (WEAPONS / UPGRADES). `ShopScreen.weapon_page` is 0 on every shop open. The old `pause_shop` BUY exception in test_ui_debt is gone: every button on every screen is now 64 base px.
+- Title: `Hud.title_plate()` backs the name, subtitle and tagline (the city's NEON / CLUB signs no longer show through); DEMO / ARENA tabs are `Hud.TAB_W` wide with `Hud.TAB_GAP` between and clear the plate by 24+ base px.
+- Radio subtitle: plate opacity never below 0.55 (`StoryView.SUB_PLATE`) plus a soft backing; the line always wrapped whole, the "clipped" look was the typewriter reveal (the QA bot now shoots it fully typed).
+- Boss HUD: `Hud.boss_name_shown()`; when the priority line already names the boss the bar carries no second name and sits closer.
+- Neutral faction plate: a one-fill, one-text state ("DRONES  NEUTRAL") on neutral ground with no heat; the full two-fill plate appears with heat or a standing.
+- Look: interior emissive strips are capped (`STRIP_CAP` in interior_surface.gdshader) and window panes capped at 0.62 (no bloom burn); car paint glow 0.2 -> 0.5 (compat 0.34, `VehicleVisual.paint_glow()`).
+
+## Wave 78 integration (UI debt 3 + localisation completion)
+Full suite 168 pass, 0 flaky, 0 fail; test_full_quick passes; visual QA 27/27. Perf OK on all tiers (death draws 104/148/168, tex_mb 166/194/315).
+Follow-ups from latest.png: car paint reads flat purple at night; skills and gear sub-labels are small; white doorway fix still unproven (intermittent); no es/hi strings for new shop labels; Hindi widths measured without a Devanagari font.

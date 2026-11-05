@@ -39,5 +39,6 @@ void fragment() {
 		a = (1.0 - k * 0.85) * 0.5 * edge * (0.35 + 0.65 * show);
 	}
 	vec3 gc = compat > 0.5 ? pow(max(vcol.rgb, vec3(0.0)), vec3(0.4545)) : vcol.rgb;
-	ALBEDO = gc * vcol.a * a;     // unshaded ignores EMISSION: the additive result is written as albedo
+	a *= smoothstep(0.8, 3.5, length(VERTEX));        // a halo or beam right at the lens fades out instead of washing the frame white
+	ALBEDO = min(gc * vcol.a * a, vec3(0.6));        // unshaded ignores EMISSION: the additive result is written as albedo; capped below the bloom threshold
 }

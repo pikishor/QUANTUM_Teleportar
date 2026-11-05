@@ -71,5 +71,5 @@ void fragment() {
 	// faint reflection of the room: a vignette so the pane reads as glass, not a screen
 	float edge = pow(1.0 - clamp(dot(vw, n), 0.0, 1.0), 3.0);
 	glass += vec3(0.05, 0.07, 0.09) * edge;
-	ALBEDO = glass * 1.15;              // unshaded: albedo is the output
+	ALBEDO = min(glass * 1.05, vec3(0.62));   // unshaded: albedo is the output; capped so the pane (and a doorway) never blooms to white
 }

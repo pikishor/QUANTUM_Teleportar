@@ -126,6 +126,8 @@ var _use_cine := false
 
 
 func _hold() -> void:
+	if is_instance_valid(Game.story) and not Game.story.current.is_empty():
+		Game.story.typed = float(str(Game.story.current.get("t", "")).length())       # the radio line is shot fully typed (a half-typed line reads as clipped)
 	_p.hp = _p.max_hp
 	_p.set(&"last_hurt_time", -100.0)       # no hurt vignette / direction chevron left over from the previous spot's fight
 	if _spots[_i] == &"hero":

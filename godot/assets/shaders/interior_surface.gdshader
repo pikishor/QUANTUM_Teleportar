@@ -83,6 +83,8 @@ void vertex() {
 	vuv = UV;
 }
 
+const float STRIP_CAP = 0.78;
+
 void fragment() {
 	vec3 alb = vcol.rgb;
 	if (compat > 0.5) {
@@ -183,8 +185,9 @@ void fragment() {
 		alb *= 0.05;
 		lit = false;
 	} else if (cls < 8.5) {
-		// ---- static emissive strip / glow trim
+		// ---- static emissive strip / glow trim (peak capped below the bloom threshold: a ceiling strip or door trim stays a lit line, not a white burn)
 		emit = alb * vcol.a;
+		emit *= min(1.0, STRIP_CAP / max(max(emit.r, max(emit.g, emit.b)), 0.001));
 		alb *= 0.15;
 		lit = false;
 	} else if (cls < 9.5) {

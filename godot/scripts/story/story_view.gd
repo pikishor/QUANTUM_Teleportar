@@ -12,6 +12,7 @@ const SUB_W := 320.0                ## base px: the subtitle plate (narrow, top 
 const SUB_FONT := 22.0
 const SUB_SMALL := 18.0             ## the font a long line shrinks to before the plate grows beyond SUB_MAX_LINES
 const SUB_MAX_LINES := 5
+const SUB_PLATE := [0.55, 0.84, 1.0]      ## plate opacity by the SUBTITLE BG setting (OFF-ish / DEFAULT / SOLID): never lighter than 0.55, so bright roofs and signs do not wash the text out
 const TOUCH_BUTTONS_W := 690.0      ## base px from the right edge covered by the touch buttons (touch_controls.gd BUTTONS)
 const CARD_TOP := 0.40              ## the card band spans 40 % .. 70 % of the screen height: clear of the HUD bars (top) and the continue button (bottom)
 const CARD_H := 0.30
@@ -214,7 +215,8 @@ func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 	var a := story.line_alpha()
 	var speaker := str(story.current.get("s", ""))
 	var col := speaker_color(speaker)
-	draw_rect(box, Color(UiUtil.PLATE, [0.4, 0.78, 1.0][UiSettings.s_sub_bg] * a))
+	draw_rect(box.grow(5.0 * s), Color(UiUtil.PLATE, 0.28 * a))                  # a soft backing around the plate: a lit sign or a bright roof never touches the text
+	draw_rect(box, Color(UiUtil.PLATE, SUB_PLATE[clampi(UiSettings.s_sub_bg, 0, 2)] * a))
 	draw_rect(Rect2(box.position, Vector2(3.0 * s, box.size.y)), Color(col, 0.9 * a))
 	_shadow_text(font, box.position + Vector2(14.0 * s, 20.0 * s), Tr.t(speaker), HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s * zoom), Color(col, 0.98 * a), s)
 	var left_chars := int(story.typed)

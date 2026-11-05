@@ -20,6 +20,9 @@ const TITLE_SIZE := 64.0            ## base px: the game name on the title (narr
 const SUBSCREEN_DIM := 0.86          ## backdrop of the full-screen pause panels (skills, gear, look, shop...): the world and the HUD behind recede so the panel's labels never fight them
 const MSG_H := 46.0                 ## base px: plate height
 const MSG_GAP := 6.0                ## base px: below UiUtil.stack_bottom
+const TAB_W := 180.0                ## base px: the DEMO / ARENA tabs top left of the title
+const TAB_GAP := 14.0               ## base px between the tabs
+const TITLE_PLATE_PAD := 16.0       ## base px the title block's backing plate extends past the text
 const SUB_LANE := 320.0 + 34.0      ## base px of the radio subtitle column (StoryView.SUB_W) plus its margin
 const MINIMAP := 148.0              ## base px: the round minimap, top left
 const BAR_W := 190.0                ## base px of an integrity / coherence / hull bar
@@ -572,6 +575,7 @@ func press_button(id: StringName) -> bool:
 			if Game.state != &"paused" or Game.progress == null:
 				return false
 			_shop_open = true
+			ShopScreen.weapon_page = 0                            # always the upgrades page first
 			Sfx.play(&"ui_confirm")
 		&"loadout":
 			if Game.state != &"paused" or Game.progress == null or not _shop_open:
@@ -1035,11 +1039,17 @@ func wanted_rect(vp: Vector2, s: float, top: float) -> Rect2:
 
 func _draw_wanted_tag(c: Control, s: float, font: Font, vp: Vector2, top: float) -> void:
 	var tag := wanted_tag()
-	if tag.is_empty() or (String(tag["wanted"]) == "" and Factions.status(Game.progress, Factions.at((Game.player as Node3D).global_position)) == Factions.Status.NEUTRAL):   # nothing to say while neutral and unwanted: no draws (perf budget)
+	if tag.is_empty():
 		return
 	var r := wanted_rect(vp, s, top)
-	_plate(c, r, s, Color(tag["color"], 0.55))
+	var quiet := String(tag["wanted"]) == "" and Factions.status(Game.progress, Factions.at((Game.player as Node3D).global_position)) == Factions.Status.NEUTRAL
+	if quiet:                                           # neutral ground and no heat: a small one-line state (a shorter plate, one text draw)
+		r.size.y = 26.0 * s
+		_rect(c, r, UiUtil.PLATE)
+	else:
+		_plate(c, r, s, Color(tag["color"], 0.55))
 	var size := int(UiUtil.BAR_LABEL * s * 0.8)
+	size = UiUtil.fit_size(font, Tr.t(String(tag["faction"])), r.size.x - 12.0 * s, size)       # the whole standing ("DRONES  NEUTRAL") fits the plate
 	_text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 19.0 * s), String(tag["faction"]), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 10.0 * s, size, Color(tag["color"], 0.97), 1.0 * s)
 	if String(tag["wanted"]) != "":
 		_text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 38.0 * s), String(tag["wanted"]), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 10.0 * s, size, Color(tag["wcolor"], 0.97), 1.0 * s)
@@ -1513,8 +1523,8 @@ func _ensure_layout() -> void:
 		&"win":
 			_add(&"next", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "NEXT SECTOR", false)
 	if Game.state == &"menu" and not _options_open and not _chapters_open and not _arena_open and Game.progress != null:
-		_add(&"arena_open", Rect2(UiUtil.insets(vp).x + 16.0 * s + 190.0 * s, 6.0 * s, 180.0 * s, UiUtil.TOUCH_MIN * s), "ARENA", false)       # BOSS RUSH / ARENA from the title
-		_add(&"demo", Rect2(UiUtil.insets(vp).x + 16.0 * s, 6.0 * s, 180.0 * s, UiUtil.TOUCH_MIN * s), "DEMO", false)       # DEMO MODE: a sandbox profile with everything unlocked (scripts/demo/)
+		_add(&"arena_open", Rect2(UiUtil.insets(vp).x + 16.0 * s + (TAB_W + TAB_GAP) * s, 6.0 * s, TAB_W * s, UiUtil.TOUCH_MIN * s), "ARENA", false)       # BOSS RUSH / ARENA from the title
+		_add(&"demo", Rect2(UiUtil.insets(vp).x + 16.0 * s, 6.0 * s, TAB_W * s, UiUtil.TOUCH_MIN * s), "DEMO", false)       # DEMO MODE: a sandbox profile with everything unlocked (scripts/demo/)
 	if (Game.state == &"menu" or Game.state == &"paused") and not _options_open and not _arena_open and not photo_open():
 		_add(&"options", _options_btn(vp, s), "OPTIONS", false)       # last: screens index their own buttons from 0
 
@@ -1523,6 +1533,14 @@ func _ensure_layout() -> void:
 ## CHAPTERS) needs the room, so the settings rows still end above the BEST line. 0 with the single DEPLOY button.
 func _title_shift() -> float:
 	return -20.0 if (_has_save or _chapters_ok()) else 0.0
+
+
+## The plate behind the title block (name, rule, subtitle, tagline) on the title screen.
+func title_plate(vp: Vector2, s: float) -> Rect2:
+	var dy := _title_shift()
+	var w := minf(vp.x - 2.0 * (UiUtil.insets(vp).x + 8.0 * s), 820.0 * s)
+	var top := (196.0 + dy - TITLE_SIZE * 0.82 - TITLE_PLATE_PAD) * s
+	return Rect2(vp.x * 0.5 - w * 0.5, top, w, (304.0 + dy) * s - top)
 
 
 ## The OPTIONS button: top right of the title and pause screens, 64 px tall.
@@ -1586,6 +1604,9 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			ChapterSelect.draw(self, c, vp, s, font, cx)
 		&"menu":
 			var dy := _title_shift()
+			var tp := title_plate(vp, s)
+			c.draw_rect(tp, Color(ink, 0.7))                           # a backing plate: the city's NEON / CLUB signs never show through the name, subtitle or tagline
+			c.draw_rect(Rect2(tp.position, Vector2(tp.size.x, 2.0 * s)), Color(UiUtil.CYAN, 0.4))
 			_text(c, font, Vector2(0.0, (196.0 + dy) * s), "QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(TITLE_SIZE * s), Color(1, 1, 1, 0.97), 3.0 * s)
 			c.draw_line(Vector2(cx - 240.0 * s, (222.0 + dy) * s), Vector2(cx + 240.0 * s, (222.0 + dy) * s), Color(UiUtil.MAGENTA, 0.8), 2.0 * s)
 			_text(c, font, Vector2(0.0, (258.0 + dy) * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
@@ -2002,8 +2023,10 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 	if boss.is_empty() and Game.missions is Missions and (Game.missions as Missions).arena != null:
 		boss = (Game.missions as Missions).arena.boss()           # the boss rush / arena boss bar
 	if not boss.is_empty():
-		var bp := boss_plate(vp, s, font, end, str(boss["name"]))
-		_text(c, font, Vector2((bp["name_rect"] as Rect2).position.x, bp["baseline"]), str(boss["name"]), HORIZONTAL_ALIGNMENT_CENTER, (bp["name_rect"] as Rect2).size.x, bp["size"], Color(UiUtil.RED, 0.97), 1.0 * s)
+		var named := not boss_name_shown(text, str(boss["name"]))       # the priority line above already names the boss: the bar carries no second copy
+		var bp := boss_plate(vp, s, font, end, str(boss["name"]), named)
+		if named:
+			_text(c, font, Vector2((bp["name_rect"] as Rect2).position.x, bp["baseline"]), str(boss["name"]), HORIZONTAL_ALIGNMENT_CENTER, (bp["name_rect"] as Rect2).size.x, bp["size"], Color(UiUtil.RED, 0.97), 1.0 * s)
 		var br: Rect2 = bp["bar"]
 		_rect(c, br.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.7))
 		_rect(c, Rect2(br.position, Vector2(br.size.x * float(boss["frac"]), br.size.y)), Color(UiUtil.RED, 0.95))
@@ -2012,16 +2035,22 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 	return end
 
 
+## True when the priority line `line` already carries the boss's name (without its "PHASE n / 3" tail): the bar then shows no second name.
+static func boss_name_shown(line: String, bname: String) -> bool:
+	var base := bname.split("  PHASE")[0].strip_edges()
+	return base != "" and Tr.t(line).contains(Tr.t(base))
+
+
 ## Geometry of the boss plate hung under the priority line at `end`: the name (text box, baseline, font size; the whole name and phase, centred over the bar, may be wider than the bar,
 ## never clipped) and the bar. The bar starts below the descenders of the name (the name used to touch it).
-func boss_plate(vp: Vector2, s: float, font: Font, end: float, bname: String) -> Dictionary:
+func boss_plate(vp: Vector2, s: float, font: Font, end: float, bname: String, named := true) -> Dictionary:
 	var bw := 320.0 * s
 	var by := end + 6.0 * s
 	var bsz := UiUtil.fit_size(font, Tr.t(bname), bw + 120.0 * s, int(UiUtil.BAR_LABEL * s))
 	var baseline := by + 20.0 * s
 	var text_w := minf(font.get_string_size(Tr.t(bname), HORIZONTAL_ALIGNMENT_LEFT, -1.0, bsz).x, bw + 120.0 * s)
 	var name_rect := Rect2(vp.x * 0.5 - (bw + 120.0 * s) * 0.5, baseline - font.get_ascent(bsz), bw + 120.0 * s, font.get_ascent(bsz) + font.get_descent(bsz))
-	var bar := Rect2(vp.x * 0.5 - bw * 0.5, by + 34.0 * s, bw, 10.0 * s)       # 14 px under the name baseline: clear of the descenders
+	var bar := Rect2(vp.x * 0.5 - bw * 0.5, by + (34.0 if named else 4.0) * s, bw, 10.0 * s)       # 14 px under the name baseline: clear of the descenders
 	return {"name_rect": name_rect, "text_w": text_w, "baseline": baseline, "size": bsz, "bar": bar}
 
 
