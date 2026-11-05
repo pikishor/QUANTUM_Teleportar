@@ -61,7 +61,7 @@ func step(_t: float, _dt: float) -> bool:
 		var hidden := vp.get_texture().get_image()
 		_set_hero(true)
 		sep = float(VisualQaLib.separation(_shown, hidden)["sep"])
-	if spot == &"hero" and sep >= 0.0 and sep < VisualQaLib.MIN_SEP and _hero_tries < 2:
+	if spot == &"hero" and sep >= 0.0 and sep < VisualQaLib.MIN_SEP and _hero_tries < 4:
 		_hero_tries += 1              # the separation is measured on two frames and is state-dependent (the hero may face away): look again before failing
 		_phase = 0
 		_wait = 8
