@@ -59,6 +59,8 @@ var _ach_open := false             ## the pause screen shows the achievements (s
 var _ach_page := 0
 var _shop_open := false             ## the pause screen shows the upgrade shop instead of the settings
 var _options_open := false          ## the title / pause screen shows the options (scripts/ui/options_screen.gd)
+var _arena_open := false            ## the boss rush / arena planning screen is open (title or pause; scripts/ui/arena_board.gd)
+var photo: PhotoMode                ## PHOTO MODE (scripts/ui/photo_mode.gd): free camera while the game stays paused; controls in scripts/ui/photo_screen.gd
 var _heist_open := false            ## the pause shop shows the heist planning screen (scripts/ui/heist_board.gd)
 var _side_open := false             ## the pause shop shows the side-mission board (scripts/ui/side_board.gd)
 var _chapters_open := false         ## the title / pause screen shows the chapter select (scripts/ui/chapter_select.gd)
@@ -86,6 +88,9 @@ func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	settings = UiSettings.new(settings_path)
+	photo = PhotoMode.new()
+	photo.name = "Photo"
+	add_child(photo)
 	_hud = _make_canvas("Hud")
 	_screen = _make_canvas("Screen")
 	_hud.draw.connect(_draw_hud)
@@ -153,6 +158,8 @@ func apply_settings(with_quality := true) -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _on_state(s: StringName) -> void:
+	if photo != null and photo.active:
+		photo.end()                                            # any state change (RESUME, death, a cutscene) leaves photo mode and restores the camera
 	screen_age = 0.0
 	_hover = &""
 	_shop_open = false
@@ -160,6 +167,7 @@ func _on_state(s: StringName) -> void:
 	_skills_open = false
 	_side_open = false
 	_heist_open = false
+	_arena_open = false
 	_loadout_open = false
 	_loadout_page = 0
 	_look_open = false
@@ -170,17 +178,36 @@ func _on_state(s: StringName) -> void:
 		_has_save = Game.progress != null and bool(Game.progress.call(&"has_save"))
 	if s == &"dead" or s == &"win":
 		record_best()
-	_hud.visible = s != &"menu" and s != &"cutscene"        # a cutscene (scripts/cinematics) owns the whole picture
+	_hud.visible = s != &"menu" and s != &"cutscene" and not photo_open()        # a cutscene (scripts/cinematics) owns the whole picture
 	_screen.visible = s != &"play" and s != &"cutscene" and not InteriorGameplay.vendor_open      # the vendor window is its own layer
 	minimap.visible = _hud.visible
 	_layout_key = ""
 	_apply_mouse()
 
 
+## True while photo mode runs (the gameplay HUD is hidden, the photo controls are the screen).
+func photo_open() -> bool:
+	return photo != null and photo.active and Game.state == &"paused"
+
+
+## Photo mode started / ended / toggled its UI: the gameplay HUD and minimap stay hidden, the screen layer follows `hide_ui` only while a photo is grabbed.
+func photo_layers() -> void:
+	var on := photo_open()
+	_hud.visible = Game.state != &"menu" and Game.state != &"cutscene" and not on
+	minimap.visible = _hud.visible
+	_layout_key = ""
+	_screen.queue_redraw()
+
+
+## SHOT: the controls vanish for the grab (true), then come back (false).
+func photo_grab(on: bool) -> void:
+	_screen.visible = not on and Game.state != &"play" and Game.state != &"cutscene"
+
+
 ## True when the HUD and screen layers show what the state asks for (HUD hidden only in the menu, the screen layer hidden only while playing).
 func layers_consistent() -> bool:
 	var cine := Game.state == &"cutscene"
-	return _hud.visible == (Game.state != &"menu" and not cine) and _screen.visible == (Game.state != &"play" and not cine and not InteriorGameplay.vendor_open) and minimap.visible == _hud.visible
+	return _hud.visible == (Game.state != &"menu" and not cine and not photo_open()) and _screen.visible == (Game.state != &"play" and not cine and not InteriorGameplay.vendor_open) and minimap.visible == _hud.visible
 
 
 ## Puts the layers back in line with the state (the stability audit calls it when they drifted).
@@ -258,7 +285,10 @@ func _input(event: InputEvent) -> void:
 		var k := event as InputEventKey
 		if k.pressed and not k.echo:
 			if k.is_action_pressed(&"pause"):
-				if Game.state == &"play" or Game.state == &"paused":
+				if photo_open():
+					photo.end()                                         # Esc leaves photo mode for the pause menu
+					get_viewport().set_input_as_handled()
+				elif Game.state == &"play" or Game.state == &"paused":
 					toggle_pause()
 					get_viewport().set_input_as_handled()
 			elif k.keycode == KEY_K and Game.state == &"play" and skip_available():
@@ -306,7 +336,7 @@ func tap(pos: Vector2) -> bool:
 		return false
 	_ensure_layout()
 	var id := _button_at(pos)
-	if SLIDERS.has(id) or (_options_open and OptionsScreen.is_slider(id)):
+	if SLIDERS.has(id) or (_options_open and OptionsScreen.is_slider(id)) or (photo_open() and PhotoScreen.is_slider(id)):
 		_drag = id
 		slide(id, pos.x)
 		return true
@@ -367,6 +397,8 @@ func _press_look(sid: String) -> bool:
 ## The effect of every screen button (the tests press them through here).
 func press_button(id: StringName) -> bool:
 	var sid := String(id)
+	if sid.begins_with("photo_"):
+		return _press_photo(sid)
 	if sid.begins_with("look_") and sid != "look_open":
 		return _press_look(sid)
 	if sid == "loadout_gear" or sid == "gear_weapons":
@@ -422,6 +454,8 @@ func press_button(id: StringName) -> bool:
 		return true
 	if sid.begins_with("heist_"):
 		return _press_heist(sid)
+	if sid.begins_with("arena_"):
+		return _press_arena(sid)
 	if sid.begins_with("side_") and SideMissions.DEFS.has(StringName(sid.substr(5))):
 		var sm := (Game.missions as Missions).sides if Game.missions is Missions else null
 		if Game.state != &"paused" or not _side_open or sm == null or not sm.can_start(StringName(sid.substr(5))):
@@ -666,7 +700,12 @@ func slide(slider: StringName, x: float) -> void:
 			var r: Rect2 = b["rect"]
 			var inset := minf(8.0, r.size.x * 0.05)
 			var f := (x - r.position.x - inset) / maxf(r.size.x - 2.0 * inset, 1.0)
-			if OptionsScreen.is_slider(slider):
+			if PhotoScreen.is_slider(slider):
+				if photo_open():
+					photo.set_fraction(slider, f)
+					b["label"] = PhotoScreen.label(photo, slider)
+					_screen.queue_redraw()
+			elif OptionsScreen.is_slider(slider):
 				OptionsScreen.set_fraction(settings, slider, f)
 				if slider != &"opt_hud":                               # the HUD scale re-lays the screen out under the finger: applied on release
 					settings.publish(false)
@@ -1286,11 +1325,14 @@ func _ensure_layout() -> void:
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
 	key += "|%s%d" % [_side_open, SideBoard.page]
 	key += "|h%s%s%s%s" % [_heist_open, HeistBoard.sel, HeistBoard.approach, HeistBoard.crew]
+	key += "|r%s%s%s%s" % [_arena_open, ArenaBoard.mode, ArenaBoard.diff, ArenaBoard.mods]
 	key += "|k%s%d%d%d" % [_skills_open, SkillTree.xp, SkillTree.spent(), _wallet()]
 	key += "|a%s%d" % [_ach_open, _ach_page]
 	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100]
 	key += "|g%d%s%s%d%d" % [_loadout_page, Gear.throwable, Gear.gadget, Gear.owned.size(), Gear.active_slot]
 	key += "|%s%d" % [_options_open, int(settings.hud_scale * 100.0)]
+	if photo != null and photo.active:
+		key += "|p%s%s%s%d%d%s%d%d%d%d" % [photo.hide_ui, photo.hide_hero, photo.pan_mode, photo.filter_i, photo.pose_i, photo.hour_text(), roundi(photo.fov), roundi(photo.dof * 100.0), roundi(photo.dist * 10.0), int(photo.status_left > 0.0)]
 	if key == _layout_key:
 		return
 	_layout_key = key
@@ -1302,6 +1344,8 @@ func _ensure_layout() -> void:
 			var dy := _title_shift()                                       # the title block moves up when a second 64 px row joins the first
 			if _options_open:
 				OptionsScreen.layout(self, settings, cx, s)
+			elif _arena_open:
+				ArenaBoard.layout(self, cx, s)
 			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
 			elif _has_save:
@@ -1320,8 +1364,12 @@ func _ensure_layout() -> void:
 				_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
 				_settings_rows(cx, 430.0, s)
 		&"paused":
-			if _options_open:
+			if photo_open():
+				PhotoScreen.layout(self, photo, vp, s)
+			elif _options_open:
 				OptionsScreen.layout(self, settings, cx, s)
+			elif _arena_open:
+				ArenaBoard.layout(self, cx, s)
 			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
 			elif _skills_open:
@@ -1342,12 +1390,14 @@ func _ensure_layout() -> void:
 				AchievementsScreen.layout(self, cx, s, _ach_page)
 			elif Game.progress != null:
 				_add(&"resume", Rect2(cx - 170.0 * s, 232.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
+				_add(&"photo_open", Rect2(cx + 180.0 * s, 232.0 * s, 150.0 * s, UiUtil.TOUCH_MIN * s), "PHOTO", false)
 				if _chapters_ok():
 					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "UPGRADES", false)
 					_add(&"chapters", Rect2(cx + 4.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "CHAPTERS", false)
 				else:
 					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "UPGRADES", false)
-				_add(&"ach", Rect2(cx - 170.0 * s, 376.0 * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "ACHIEVEMENTS", false)
+				_add(&"ach", Rect2(cx - 170.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "ACHIEVEMENTS", false)
+				_add(&"arena_open", Rect2(cx + 4.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "ARENA", false)
 				_settings_rows(cx, PAUSE_SETTINGS_Y, s)
 				_add(&"menu", Rect2(cx - 154.0 * s, (PAUSE_SETTINGS_Y + 160.0) * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
 			else:
@@ -1358,9 +1408,10 @@ func _ensure_layout() -> void:
 			_add(&"respawn", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)      # low on the screen: the middle stays free for the world
 		&"win":
 			_add(&"next", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "NEXT SECTOR", false)
-	if Game.state == &"menu" and not _options_open and not _chapters_open and Game.progress != null:
+	if Game.state == &"menu" and not _options_open and not _chapters_open and not _arena_open and Game.progress != null:
+		_add(&"arena_open", Rect2(UiUtil.insets(vp).x + 16.0 * s + 190.0 * s, 6.0 * s, 180.0 * s, UiUtil.TOUCH_MIN * s), "ARENA", false)       # BOSS RUSH / ARENA from the title
 		_add(&"demo", Rect2(UiUtil.insets(vp).x + 16.0 * s, 6.0 * s, 180.0 * s, UiUtil.TOUCH_MIN * s), "DEMO", false)       # DEMO MODE: a sandbox profile with everything unlocked (scripts/demo/)
-	if (Game.state == &"menu" or Game.state == &"paused") and not _options_open:
+	if (Game.state == &"menu" or Game.state == &"paused") and not _options_open and not _arena_open and not photo_open():
 		_add(&"options", _options_btn(vp, s), "OPTIONS", false)       # last: screens index their own buttons from 0
 
 
@@ -1409,19 +1460,24 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(vp.x * 0.5 - 250.0 * s, 0.0, 500.0 * s, vp.y), Color(ink, 0.34))     # a darker column behind the title and buttons keeps them readable
 			c.draw_rect(Rect2(vp.x * 0.5 - 330.0 * s, 0.0, 80.0 * s, vp.y), Color(ink, 0.12))      # soft shoulders: the column does not end in a hard edge
 			c.draw_rect(Rect2(vp.x * 0.5 + 250.0 * s, 0.0, 80.0 * s, vp.y), Color(ink, 0.12))
+		&"paused" when photo_open():
+			PhotoScreen.draw(self, photo, c, vp, s, font)      # no dim: the live world is the picture
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.0, 0.06, 0.08, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))
 	# thin horizontal frame lines
 	var frame_col := Color(UiUtil.CYAN, 0.35)
-	c.draw_line(Vector2(0.0, 74.0 * s), Vector2(vp.x, 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
-	c.draw_line(Vector2(0.0, vp.y - 74.0 * s), Vector2(vp.x, vp.y - 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
+	if not photo_open():
+		c.draw_line(Vector2(0.0, 74.0 * s), Vector2(vp.x, 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
+		c.draw_line(Vector2(0.0, vp.y - 74.0 * s), Vector2(vp.x, vp.y - 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
 	match st:
 		&"menu" when _options_open:
 			OptionsScreen.draw(self, c, vp, s, font, cx)
+		&"menu" when _arena_open:
+			ArenaBoard.draw(self, c, vp, s, font, cx)
 		&"menu" when _chapters_open:
 			ChapterSelect.draw(self, c, vp, s, font, cx)
 		&"menu":
@@ -1434,12 +1490,16 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			_text(c, font, Vector2(0.0, (476.0 + dy if (_has_save or _chapters_ok()) else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 			_footer(c, vp, s, font)
 		&"paused":
-			if _options_open:
+			if photo_open():
+				pass                                               # drawn above (PhotoScreen.draw), buttons below
+			elif _options_open:
 				OptionsScreen.draw(self, c, vp, s, font, cx)
 			elif _chapters_open:
 				ChapterSelect.draw(self, c, vp, s, font, cx)
 			elif _ach_open:
 				AchievementsScreen.draw(self, c, vp, s, font, cx, _ach_page)
+			elif _arena_open:
+				ArenaBoard.draw(self, c, vp, s, font, cx)
 			elif _skills_open:
 				SkillScreen.draw(self, c, vp, s, font, cx)
 			elif _heist_open:
@@ -1474,16 +1534,16 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		var on: bool = b["on"]
 		var hot: bool = _hover == b["id"]
 		var tint := UiUtil.MAGENTA if (big and b["id"] != &"next" and b["id"] != &"resume") else UiUtil.CYAN
-		if st == &"menu":
+		if st == &"menu" or photo_open():
 			c.draw_rect(r, Color(ink, 0.72))                  # a backing plate: a sign or a lit window behind a title button never shows through its label
-		if SLIDERS.has(b["id"]) or OptionsScreen.is_slider(b["id"]):
-			var vol := volume_of(b["id"]) if SLIDERS.has(b["id"]) else OptionsScreen.fraction(settings, b["id"])
+		if SLIDERS.has(b["id"]) or OptionsScreen.is_slider(b["id"]) or PhotoScreen.is_slider(b["id"]):
+			var vol := volume_of(b["id"]) if SLIDERS.has(b["id"]) else (photo.fraction(b["id"]) if PhotoScreen.is_slider(b["id"]) else OptionsScreen.fraction(settings, b["id"]))
 			var inset := minf(8.0, r.size.x * 0.05)
 			c.draw_rect(r, Color(tint, 0.10))
 			c.draw_rect(Rect2(r.position.x + inset, r.position.y + r.size.y - 12.0 * s, (r.size.x - 2.0 * inset) * vol, 6.0 * s), Color(tint, 0.85))
 			c.draw_rect(Rect2(r.position.x + inset + (r.size.x - 2.0 * inset) * vol - 2.0 * s, r.position.y + r.size.y - 19.0 * s, 4.0 * s, 14.0 * s), Color(1, 1, 1, 0.95))
 			c.draw_rect(r, Color(tint, 0.95 if (hot or _drag == b["id"]) else 0.5), false, 1.5 * s)
-			_text(c, font, Vector2(r.position.x, r.position.y + 21.0 * s), (b["label"] if OptionsScreen.is_slider(b["id"]) else "%s  %d" % [b["label"], roundi(vol * 100.0)]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(20.0 * s), Color(1, 1, 1, 0.95))
+			_text(c, font, Vector2(r.position.x, r.position.y + 21.0 * s), (b["label"] if (OptionsScreen.is_slider(b["id"]) or PhotoScreen.is_slider(b["id"])) else "%s  %d" % [b["label"], roundi(vol * 100.0)]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(20.0 * s), Color(1, 1, 1, 0.95))
 			continue
 		c.draw_rect(r, Color(tint, 0.30 if (on or hot) else 0.10))
 		c.draw_rect(r, Color(tint, 0.95 if (on or hot or big) else 0.5), false, 2.0 * s if big else 1.5 * s)
@@ -1542,6 +1602,8 @@ func _campaign_line() -> String:
 		line = (Game.missions as Missions).chases.hud_line()      # a vehicle chase set piece (ChaseRunner)
 	if line == "" and Game.missions is Missions and (Game.missions as Missions).stealth != null:
 		line = (Game.missions as Missions).stealth.hud_line()     # a stealth mission (StealthRunner)
+	if line == "" and Game.missions is Missions and (Game.missions as Missions).arena != null:
+		line = (Game.missions as Missions).arena.hud_line()       # boss rush / arena (ArenaRunner)
 	return line
 
 
@@ -1576,6 +1638,84 @@ func _press_heist(sid: String) -> bool:
 		var hid := HeistBoard.sel
 		Game.state = &"play"                                           # _on_state closes the screen; the heist starts in the live city
 		if not hr.start(hid, HeistBoard.approach, HeistBoard.crew):
+			return false
+		Sfx.play(&"ui_contract_accept")
+		return true
+	else:
+		return false
+	_layout_key = ""
+	_screen.queue_redraw()
+	return true
+
+
+## The photo mode buttons (scripts/ui/photo_screen.gd): `photo_open` on the pause menu, the rest only while photo mode runs. Sliders act through slide().
+func _press_photo(sid: String) -> bool:
+	if sid == "photo_open":
+		if Game.state != &"paused" or photo_open() or _shop_open or _options_open or _chapters_open or _arena_open or _heist_open or _side_open or _skills_open or _look_open or _loadout_open or _ach_open:
+			return false
+		if not photo.begin():
+			return false
+		Sfx.play(&"ui_confirm")
+		return true
+	if not photo_open() or PhotoScreen.is_slider(StringName(sid)):
+		return false
+	match sid:
+		"photo_exit": photo.end()
+		"photo_shot": photo.capture()
+		"photo_share": photo.share()
+		"photo_ui": photo.toggle_ui()
+		"photo_hero": photo.toggle_hero()
+		"photo_filter": photo.set_filter(photo.filter_i + 1)
+		"photo_pose": photo.set_pose(photo.pose_i + 1)
+		"photo_mode": photo.toggle_pan_mode()
+		_: return false
+	Sfx.play(&"ui_tap")
+	_layout_key = ""
+	_screen.queue_redraw()
+	return true
+
+
+## The boss rush / arena screen's buttons (scripts/ui/arena_board.gd): open (title or pause), mode, difficulty, modifiers, LAUNCH, LEAVE, BACK.
+func _press_arena(sid: String) -> bool:
+	if Game.progress == null or (Game.state != &"menu" and Game.state != &"paused"):
+		return false
+	if sid == "arena_open":
+		if _shop_open or _options_open or _chapters_open:
+			return false
+		_arena_open = true
+		Sfx.play(&"ui_confirm")
+	elif not _arena_open:
+		return false
+	elif sid == "arena_back":
+		_arena_open = false
+		Sfx.play(&"ui_back")
+	elif sid == "arena_mode_rush" or sid == "arena_mode_endless":
+		ArenaBoard.mode = StringName(sid.substr(11))
+		Sfx.play(&"ui_tap")
+	elif sid.begins_with("arena_d_") and ArenaScripts.DIFF_DEFS.has(StringName(sid.substr(8))):
+		ArenaBoard.diff = StringName(sid.substr(8))
+		Sfx.play(&"ui_tap")
+	elif sid.begins_with("arena_m_") and ArenaScripts.MOD_DEFS.has(StringName(sid.substr(8))):
+		ArenaBoard.toggle_mod(StringName(sid.substr(8)))
+		Sfx.play(&"ui_tap")
+	elif sid == "arena_leave":
+		var ar := ArenaBoard.runner()
+		if ar == null or not ar.is_running():
+			return false
+		ar.abort("LEFT")
+		Sfx.play(&"ui_back")
+	elif sid == "arena_go":
+		var r := ArenaBoard.runner()
+		if r == null:
+			return false
+		if Game.state == &"menu":
+			Game.start_new_game()                                      # the title entry: deploy into the city first (like DEPLOY), then the run begins
+		elif not r.can_start():
+			Sfx.play(&"ui_deny")
+			return false
+		else:
+			Game.state = &"play"
+		if not r.start(ArenaBoard.mode, ArenaBoard.diff, ArenaBoard.mods):
 			return false
 		Sfx.play(&"ui_contract_accept")
 		return true
@@ -1667,6 +1807,8 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 			_rect(c, Rect2(bar.position, Vector2(bar.size.x * clampf(pf, 0.0, 1.0), bar.size.y)), Color(UiUtil.CYAN if camp else UiUtil.AMBER, 0.95))
 			end = bar.end.y
 	var boss: Dictionary = k.call(&"boss")
+	if boss.is_empty() and Game.missions is Missions and (Game.missions as Missions).arena != null:
+		boss = (Game.missions as Missions).arena.boss()           # the boss rush / arena boss bar
 	if not boss.is_empty():
 		var bw := 320.0 * s
 		var by := end + 6.0 * s

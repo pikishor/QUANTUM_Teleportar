@@ -42,6 +42,7 @@ var wetness_now := 0.0
 var rain_target := 0.0
 var wetness_target := 0.0
 var post: PostLayer
+var look_override := {}                     ## {gain, lift, sat} that replaces the district grade (photo mode filters); empty = follow the hero
 var rainfield: RainField
 var weather: Weather                        ## the weather state machine (scripts/fx/weather.gd)
 
@@ -180,7 +181,7 @@ func _look_step(delta: float) -> void:
 	var pos: Variant = (Game.player as Node3D).global_position if is_instance_valid(Game.player) and Game.player is Node3D else null
 	if InteriorSpace.active:
 		pos = null                                          # inside a room the interior's own palette is the look: the street district's grade (the Foundry's red) never tints it
-	var g := PostFx2.district_grade(pos)
+	var g := look_override if not look_override.is_empty() else PostFx2.district_grade(pos)      # photo mode pins a district's grade
 	post.set_param(&"d_gain", g["gain"])
 	post.set_param(&"d_lift", g["lift"])
 	post.set_param(&"d_sat", g["sat"])

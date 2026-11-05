@@ -41,6 +41,7 @@ var checkpoint: Dictionary = {}          ## the running scripted chapter's check
 var side_done := {}                      ## side mission id -> completions (saved in [side])
 var side_best := {}                      ## side mission id -> best time in seconds (saved in [side])
 var heist_done := {}                      ## heist id -> completions (optional [heist] section)
+var arena := {}                           ## boss rush / arena tallies (optional [arena] section): rush_<diff> best times, clear_<diff>, wave_best, score_best, runs
 var companion_met := false              ## the Vael defector ally has been recruited at least once (optional [companion] section; older files load as false)
 var last_save_ok := false
 var collectibles: Collectibles                  ## I2: the 30 shards (saved in [collectibles])
@@ -435,6 +436,7 @@ func new_campaign() -> void:
 	side_best.clear()
 	companion_met = false
 	heist_done.clear()
+	arena.clear()
 	checkpoint.clear()
 	collectibles.reset()
 	achievements.reset()
@@ -675,6 +677,14 @@ func save_file() -> bool:
 		cf.set_value("companion", "met", 1)
 	for hid: StringName in heist_done:
 		cf.set_value("heist", "done_%s" % hid, int(heist_done[hid]))
+	for adf: StringName in ArenaScripts.DIFFS:
+		if arena.has("rush_%s" % adf):
+			cf.set_value("arena", "rush_%s" % adf, PackedFloat32Array(arena["rush_%s" % adf]))
+		if int(arena.get("clear_%s" % adf, 0)) > 0:
+			cf.set_value("arena", "clear_%s" % adf, int(arena["clear_%s" % adf]))
+	for ak: String in ["wave_best", "score_best", "runs"]:
+		if int(arena.get(ak, 0)) > 0:
+			cf.set_value("arena", ak, int(arena[ak]))
 	if not checkpoint.is_empty():
 		cf.set_value("checkpoint", "chapter", int(checkpoint.get("chapter", 0)))
 		cf.set_value("checkpoint", "step", int(checkpoint.get("step", 0)))
@@ -780,6 +790,18 @@ func load_file() -> bool:
 		var hn: Variant = cf.get_value("heist", "done_%s" % hid, 0)
 		if hn is int and int(hn) > 0:
 			heist_done[hid] = mini(int(hn), 9999)
+	arena.clear()
+	for ad: StringName in ArenaScripts.DIFFS:
+		var rt: Variant = cf.get_value("arena", "rush_%s" % ad, PackedFloat32Array())
+		if rt is PackedFloat32Array and not (rt as PackedFloat32Array).is_empty():
+			arena["rush_%s" % ad] = ArenaScripts.insert_time(Array(rt as PackedFloat32Array), 1.0e9).filter(func(v: float) -> bool: return v < 1.0e9)
+		var cn: Variant = cf.get_value("arena", "clear_%s" % ad, 0)
+		if cn is int and int(cn) > 0:
+			arena["clear_%s" % ad] = mini(int(cn), 9999)
+	for ak: String in ["wave_best", "score_best", "runs"]:
+		var av: Variant = cf.get_value("arena", ak, 0)
+		if av is int and int(av) > 0:
+			arena[ak] = mini(int(av), 99999999)
 	var ws := StringName(str(cf.get_value("weather", "state", "rain")))
 	if Weather.PRESETS.has(ws):
 		var wn: Weather = Game.atmosphere.get(&"weather") if is_instance_valid(Game.atmosphere) else null

@@ -42,6 +42,7 @@ var contracts: Contracts
 var sides: SideMissions                 ## the twenty side missions of the shop's board
 var progress: Progress
 var campaign: CampaignRunner
+var arena: ArenaRunner               ## boss rush and endless arena (scripts/missions/arena_runner.gd)
 var heists: HeistRunner                ## the three heist missions (scripts/missions/heist_runner.gd)
 var stealth: StealthRunner             ## the four stealth missions (scripts/missions/stealth_runner.gd)
 var chases: ChaseRunner                 ## the six vehicle chase set pieces (scripts/missions/chase_runner.gd)
@@ -95,6 +96,9 @@ func _ready() -> void:
 	heists = HeistRunner.new()
 	heists.name = "Heists"
 	add_child(heists)
+	arena = ArenaRunner.new()
+	arena.name = "Arena"
+	add_child(arena)
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
 	Game.next_sector.connect(_on_next_sector)

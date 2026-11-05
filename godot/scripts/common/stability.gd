@@ -233,7 +233,7 @@ func audit() -> Array[String]:
 			if rig.follow_target != p:
 				rig.follow_target = p
 				fixed.append("camera follows something else on foot")
-		if is_instance_valid(rig.camera) and not rig.camera.current:
+		if is_instance_valid(rig.camera) and not rig.camera.current and not (Game.camera != null and Game.camera != rig.camera and Game.camera.current):      # photo mode owns the view
 			rig.camera.make_current()
 			fixed.append("gameplay camera not current")
 	_audit_systems(p, fixed)

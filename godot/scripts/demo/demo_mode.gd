@@ -243,6 +243,12 @@ static func catalog() -> Array[Dictionary]:
 		for ap: StringName in HeistScripts.APPROACHES:
 			hts.append({"id": "%s:%s" % [id, ap], "label": "%s  %s" % [HeistScripts.title(id), HeistScripts.approach_title(ap)]})
 	out.append({"kind": &"heist", "title": "HEIST MISSIONS", "items": hts})
+	var ars: Array[Dictionary] = []
+	for d: StringName in ArenaScripts.DIFFS:
+		ars.append({"id": "rush:%s" % d, "label": "BOSS RUSH  %s" % ArenaScripts.diff_title(d)})
+	ars.append({"id": "endless:", "label": "ENDLESS ARENA"})
+	ars.append({"id": "endless:armoured,swarm,brutal", "label": "ENDLESS ARENA  ALL MODIFIERS"})
+	out.append({"kind": &"arena", "title": "BOSS RUSH AND ARENA", "items": ars})
 	return out
 
 
@@ -260,6 +266,7 @@ static func launch(kind: StringName, id: Variant) -> String:
 		&"companion": return start_companion(StringName(id))
 		&"stealth": return start_stealth(StringName(id))
 		&"heist": return start_heist(str(id))
+		&"arena": return start_arena(str(id))
 		&"boss":
 			_prepare()
 			return TestMode.start_contract(&"boss") if StringName(id) == &"contract" else TestMode.spawn_enemy(StringName(id))
@@ -296,6 +303,8 @@ static func _prepare(leave_interior := true) -> void:
 		m.chases.abort("DEMO")
 	if m.stealth != null and m.stealth.is_running():
 		m.stealth.abort("DEMO")
+	if m.arena != null and m.arena.is_running():
+		m.arena.abort("DEMO")
 
 
 static func _stop_everything() -> void:
@@ -368,6 +377,23 @@ static func start_heist(key: String) -> String:
 		(Game.enemies as EnemyManager).clear()
 	Game.heat = 0.0
 	return "HEIST  %s  %s" % [HeistScripts.title(hid), HeistScripts.approach_title(ap)] if m.heists.start(hid, ap, true) else ""
+
+
+## A boss rush ("rush:hard") or an endless arena ("endless:armoured,swarm"; empty = no modifiers), started where the player stands.
+static func start_arena(key: String) -> String:
+	var m := Game.missions as Missions
+	var parts := key.split(":")
+	var mode := StringName(parts[0])
+	if m == null or m.arena == null or not (mode == &"rush" or mode == &"endless"):
+		return ""
+	var diff: StringName = StringName(parts[1]) if mode == &"rush" and parts.size() > 1 else &"normal"
+	var mods: Array = []
+	if mode == &"endless" and parts.size() > 1 and parts[1] != "":
+		for md in parts[1].split(","):
+			mods.append(StringName(md))
+	_prepare()
+	Game.heat = 0.0
+	return "ARENA  %s" % String(mode).to_upper() if m.arena.start(mode, diff, mods) else ""
 
 
 ## Index of a set piece's first step inside its chapter's spliced step list (-1 when it has none).

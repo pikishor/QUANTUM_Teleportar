@@ -566,3 +566,13 @@ Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one tran
 ## Wave 71 integration note (side missions 2, heists)
 - Full tools/test_all.sh: 154 pass; FLAKY test_companion (passed on retry); 0 fail after adding Spanish strings for the 10 new side jobs (test_localisation_depth had failed on them). Perf gate skipped. full_bot: SOAK 8 min completed, 0 stability repairs. visual_qa 27/27.
 - latest.png: no new defects. Follow-ups: HUD bleeds through SKILLS/GEAR/SUIT panels; "CONTRACT AVAILABLE COURIER RU" banner clipped; title DEMO button overlaps QA label; side board PAGE button 44 px (< 64); bounty has no real roaming elite; heists/new side jobs lack Hindi strings.
+
+## Boss rush and endless arena (builder note, wave 72, tests/test_boss_rush.gd)
+- `ArenaScripts` (data/rules) + `ArenaRunner` (Game.missions.arena) + `ArenaBoard` (planning screen). BOSS RUSH: overseer, hound, bulwark, smelter, skimmer, phasewright in a row, NORMAL / HARD / NIGHTMARE (boss hp x1/1.6/2.4, pay 1500/2400/3600, breaks 14/9/5 s that heal 35 %), one clock, five best times per difficulty (`Progress.arena`, `[arena]` save section), a fall ends the run unpaid. ENDLESS ARENA: waves of troops on roads 16-30 m away, modifiers ARMOURED (hp x1.6), SWARM (x1.5 foes), BRUTAL (boss every 4th wave); ends on a fall or LEAVE, pays 70 per wave x modifier score.
+- Rewards: credits plus free HeroLook items (rush: scheme 3 / scheme 6 / stealth suit by difficulty; endless wave 4 / 8: schemes 1 / 7).
+- Live: pause menu ARENA button (ACHIEVEMENTS shares its row), title ARENA button (LAUNCH deploys then starts), DEMO tab ARENA. While a run lasts the campaign and contract board physics are switched off and restored. HUD line and boss bar via `_campaign_line` / `_draw_priority`.
+- Gaps: verb bosses keep their rules (a rush needs COLLAPSE for the Bulwark); no arena venue (the city street); no Spanish/Hindi strings; no radio lines; the title entry uses the normal DEPLOY path (first-run intro plays); perf gate not run (no rendering changes).
+
+## Wave 72 integration (boss rush and arena, photo mode)
+- Full suite via tools/test_all.sh: 156 pass, 0 flaky, 0 fail (includes test_full_quick). Perf gate and full_bot skipped.
+- visual_qa: 27/27 pass. Looked at docs/shots/latest.png: no glaring defects. Follow-ups: title screen top-left DEMO/ARENA/TEST buttons are small and cramped versus the 64 px touch rule; photo-mode filters and blur not reviewed visually; photo filters are inert on LOW.
