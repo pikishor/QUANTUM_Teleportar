@@ -45,6 +45,7 @@ var arena := {}                           ## boss rush / arena tallies (optional
 var safehouses_owned: Array[StringName] = []   ## owned safehouse ids (optional [safehouse] section, scripts/progress/safehouses.gd)
 var safehouse_lv := {}                    ## "<house>:<upgrade>" -> level 1..2
 var safehouse_save: StringName = &""       ## the house of the last fast save ("" none)
+var faction_rep := {}                    ## camp id -> reputation -100..100 (Factions; optional [faction] section, older files load as {} = all neutral)
 var companion_met := false              ## the Vael defector ally has been recruited at least once (optional [companion] section; older files load as false)
 var last_save_ok := false
 var collectibles: Collectibles                  ## I2: the 30 shards (saved in [collectibles])
@@ -213,8 +214,13 @@ func level(id: StringName) -> int:
 	return int(levels.get(id, 0))
 
 
+## Shop price factor: the reputation tier plus the faction of the hero's district (Factions.price_discount: allied -10 %, hostile +15 %).
+func shop_discount() -> float:
+	return rep_discount(reputation) + Factions.price_discount(self)
+
+
 func price(id: StringName) -> int:
-	return Upgrades.price(id, level(id), rep_discount(reputation))
+	return Upgrades.price(id, level(id), shop_discount())
 
 
 func can_buy(id: StringName) -> bool:
@@ -278,7 +284,7 @@ func _apply_to_player(top_up := false) -> void:
 
 ## Weapons: the shop sells the three alien weapons (WeaponDefs.price, reputation discount); an owned weapon is saved with the campaign.
 func weapon_price(id: StringName) -> int:
-	return WeaponDefs.price(id, rep_discount(reputation))
+	return WeaponDefs.price(id, shop_discount())
 
 
 ## Skill tree (SkillTree): points come from levelling; the shop's respec refunds every rank for credits.
@@ -302,7 +308,7 @@ func respec_skills() -> bool:
 ## Throwables and gadgets (Gear): bought with credits (reputation discount), equipped into the two slots, four saved loadouts.
 func gear_price(id: StringName) -> int:
 	var base := Economy.gear_price(id)
-	return 0 if base <= 0 else maxi(5, int(roundf(float(base) * (1.0 - rep_discount(reputation)) / 5.0)) * 5)
+	return 0 if base <= 0 else maxi(5, int(roundf(float(base) * (1.0 - shop_discount()) / 5.0)) * 5)
 
 
 func buy_gear(id: StringName) -> bool:
@@ -347,7 +353,7 @@ func apply_loadout(i: int) -> bool:
 
 ## Attachments: bought with credits (reputation discount), equipped per weapon, saved in the "attachments" section.
 func part_price(part: StringName) -> int:
-	return Attachments.price(part, rep_discount(reputation))
+	return Attachments.price(part, shop_discount())
 
 
 func buy_part(part: StringName) -> bool:
@@ -419,8 +425,10 @@ func complete_side(mid: StringName, pay: int, rep: int, time: float) -> void:
 	side_done[mid] = int(side_done.get(mid, 0)) + 1
 	if not side_best.has(mid) or time < float(side_best[mid]):
 		side_best[mid] = snappedf(time, 0.1)
-	add_credits(pay)
+	add_credits(int(roundf(float(pay) * Factions.pay_mult(self, mid))))
 	add_reputation(rep)
+	if Factions.job_client(mid) != &"":
+		Factions.add_rep(self, Factions.job_client(mid), Factions.JOB_REP)
 	if autosave_enabled:
 		save_file()
 
@@ -438,6 +446,7 @@ func new_campaign() -> void:
 	side_done.clear()
 	side_best.clear()
 	companion_met = false
+	faction_rep.clear()
 	safehouses_owned.clear()
 	safehouse_lv.clear()
 	safehouse_save = &""
@@ -681,6 +690,9 @@ func save_file() -> bool:
 			cf.set_value("side", "best_%s" % sid, float(side_best[sid]))
 	if companion_met:
 		cf.set_value("companion", "met", 1)
+	for fid: StringName in Factions.IDS:
+		if float(faction_rep.get(fid, 0.0)) != 0.0:
+			cf.set_value("faction", "rep_%s" % fid, float(faction_rep[fid]))
 	for shid: StringName in safehouses_owned:
 		cf.set_value("safehouse", "own_%s" % shid, 1)
 		for up: StringName in SafehouseData.UPS:
@@ -799,6 +811,11 @@ func load_file() -> bool:
 			if (b is float or b is int) and float(b) > 0.0 and is_finite(float(b)):
 				side_best[sid] = float(b)
 	companion_met = int(_num(cf.get_value("companion", "met", 0))) == 1
+	faction_rep.clear()
+	for fid: StringName in Factions.IDS:
+		var raw: Variant = cf.get_value("faction", "rep_%s" % fid, 0.0)
+		if (raw is float or raw is int) and is_finite(float(raw)) and float(raw) != 0.0:
+			faction_rep[fid] = clampf(float(raw), Factions.REP_MIN, Factions.REP_MAX)
 	safehouses_owned.clear()
 	safehouse_lv.clear()
 	for shid: StringName in SafehouseData.IDS:

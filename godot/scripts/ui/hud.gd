@@ -1014,6 +1014,37 @@ func _caption_width(font: Font, s: float) -> void:
 	_lw = maxf(LABEL_W, w / s + 6.0)
 
 
+## Wanted v2 / faction plate left of the heat plate (scripts/enemies/wanted.gd, factions.gd): line 1 the faction that holds the hero's ground and its standing (HOSTILE / NEUTRAL /
+## ALLIED), line 2 while the heat burns the wanted state (SPOTTED, SEARCHING, HIDDEN, INSIDE, DISGUISED, DECOY) with the response level. In the gap between the bars and the heat plate.
+func wanted_tag() -> Dictionary:
+	var w := Wanted.current
+	if w == null or Game.state == &"menu" or not is_instance_valid(Game.player):
+		return {}
+	var camp := Factions.at((Game.player as Node3D).global_position)
+	var out := {"faction": "%s  %s" % [Factions.title(camp), Factions.status_name(Game.progress, camp)], "color": Factions.color(camp), "wanted": "", "wcolor": UiUtil.RED}
+	if Game.heat > 0.0:
+		out["wanted"] = "%s  L%d" % [w.state_label(), w.level()]
+		out["wcolor"] = UiUtil.RED if w.hide_mode == &"" else UiUtil.CYAN
+	return out
+
+
+func wanted_rect(vp: Vector2, s: float, top: float) -> Rect2:
+	var right := vp.x - UiUtil.insets(vp).y - 16.0 * s
+	return Rect2(right - 196.0 * s - 8.0 * s - 176.0 * s, top, 176.0 * s, 44.0 * s)
+
+
+func _draw_wanted_tag(c: Control, s: float, font: Font, vp: Vector2, top: float) -> void:
+	var tag := wanted_tag()
+	if tag.is_empty() or (String(tag["wanted"]) == "" and Factions.status(Game.progress, Factions.at((Game.player as Node3D).global_position)) == Factions.Status.NEUTRAL):   # nothing to say while neutral and unwanted: no draws (perf budget)
+		return
+	var r := wanted_rect(vp, s, top)
+	_plate(c, r, s, Color(tag["color"], 0.55))
+	var size := int(UiUtil.BAR_LABEL * s * 0.8)
+	_text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 19.0 * s), String(tag["faction"]), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 10.0 * s, size, Color(tag["color"], 0.97), 1.0 * s)
+	if String(tag["wanted"]) != "":
+		_text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 38.0 * s), String(tag["wanted"]), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 10.0 * s, size, Color(tag["wcolor"], 0.97), 1.0 * s)
+
+
 ## The ally's plate (name, health bar, order) under the heat plate while the Vael defector is recruited (scripts/npc/companion.gd).
 func _draw_ally(c: Control, s: float, font: Font, right: float, top: float) -> void:
 	var ally := Companion.current
@@ -1112,6 +1143,7 @@ func _draw_hud_body() -> void:
 			var pulse := 1.0 if heat < 3.0 else 0.8 + 0.2 * sin(_t * 8.0)
 			_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
 	_text(c, font, Vector2(right - 192.0 * s, top + 72.0 * s), _cred_text + _clock_suffix(), HORIZONTAL_ALIGNMENT_RIGHT, 190.0 * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.97), 1.5 * s)
+	_draw_wanted_tag(c, s, font, vp, top)
 	if _shard_text != "" and Game.state != &"menu":
 		var sr := Rect2(right - 262.0 * s, top + 90.0 * s, 182.0 * s, 30.0 * s)     ## left of the weapon slot column (x = right - 76 s), inside the screen
 		_plate(c, sr, s)

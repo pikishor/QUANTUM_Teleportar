@@ -47,6 +47,12 @@ var slipped := 0                                ## physics ticks scaled by TIME 
 var reinforce := false
 var active := false          ## in play (pooled drones are inactive, hidden and out of the group)
 var remove := false          ## the death animation is over: the manager releases it
+var buff_dmg := 1.0                  ## commander aura (TacticsTable.BUFF_*), refreshed by the EnemyManager
+var buff_speed := 1.0
+var camp: StringName = &""             ## FACTIONS camp (Factions.VAEL / GANG / DRONES), set by EnemyManager.spawn
+var camp_speed := 1.0                  ## the camp's speed factor (Factions.BEHAVIOUR)
+var friendly := false                  ## an allied camp's unprovoked enemy: ignores the heat, never raises suspicion
+var _camp_look: StringName = &""
 var los := false             ## last throttled line-of-sight result to the current target
 var home := Vector3.ZERO
 var yaw := 0.0
@@ -131,6 +137,11 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	hp = max_hp
 	dead = false
 	remove = false
+	buff_dmg = 1.0
+	buff_speed = 1.0
+	camp = &""
+	camp_speed = 1.0
+	friendly = false
 	aware = is_aware
 	_was_aware = is_aware
 	suspicion = 0.0
@@ -287,6 +298,7 @@ func damage(amount: float, crit := false, mirrored := false) -> void:
 	_unaware_hit = not aware and not mirrored
 	hp -= amount
 	aware = true
+	friendly = false                     # provoked: an allied camp's enemy fights back
 	_bar_t = BAR_SECONDS
 	_stagger = 0.25
 	_flash = 0.1
@@ -333,6 +345,8 @@ func die() -> void:
 	Game.score += int(cfg["score"])
 	SkillTree.add_xp(SkillTree.kill_xp(int(cfg["score"])))
 	var silent := _unaware_hit and not reinforce
+	if camp != &"" and not InteriorGameplay.active:
+		Factions.on_kill(Game.progress, camp)
 	if silent:
 		Game.add_score(Stealth.takedown_bonus())
 		Stealth.takedowns += 1
@@ -417,7 +431,7 @@ func _physics_process(delta: float) -> void:
 	var dx := _tgt.x - pos.x
 	var dz := _tgt.z - pos.z
 	var d := maxf(sqrt(dx * dx + dz * dz), 0.001)
-	if _tgt_ok and not aware and Game.heat > 0.0 and d < AWARE_HEAT_DIST:
+	if _tgt_ok and not aware and not friendly and Game.heat > 0.0 and d < AWARE_HEAT_DIST:
 		aware = true
 	_tick_stealth(delta, d)
 	_mx = 0.0
@@ -435,7 +449,7 @@ func _physics_process(delta: float) -> void:
 		if dead:
 			return
 	_separate()
-	var sp := _speed * (0.35 if _stagger > 0.0 else 1.0)
+	var sp := _speed * buff_speed * camp_speed * (0.35 if _stagger > 0.0 else 1.0)
 	_moved = sp
 	_step(_mx * sp * delta, _mz * sp * delta)
 	_place(delta)

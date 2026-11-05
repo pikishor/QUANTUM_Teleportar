@@ -187,7 +187,7 @@ func _state_through_the_door() -> void:
 	await frames(60)
 	TestLib.check(is_equal_approx(p.hp, 61.0) or p.hp >= 61.0, "hp carries through the door (%.1f)" % p.hp)
 	TestLib.check(p.weapon.current == &"scatter" and p.weapon.ammo == 4, "weapon and ammo carry through the door (%s, %d)" % [p.weapon.current, p.weapon.ammo])
-	TestLib.check(Game.heat >= 1.95, "heat does not decay inside (%.3f after 1 s with quiet = 100)" % Game.heat)
+	TestLib.check(Game.heat >= 1.5, "heat carries inside, only the wanted v2 interior hide rate bleeds it (%.3f after 1 s with quiet = 100)" % Game.heat)
 	TestLib.check(p.energy >= 47.0, "energy carries through the door (%.1f)" % p.energy)
 	var room: Node3D = ig.interior
 	var b: Rect2 = room.get("bounds")
@@ -198,7 +198,7 @@ func _state_through_the_door() -> void:
 	ig.leave(true)
 	await frames(5)
 	TestLib.check((p.global_position - (d["pos"] as Vector3)).length() < 3.0, "exit puts the player at the street door (%s)" % p.global_position)
-	TestLib.check(Game.heat >= 1.9 and p.hp >= 61.0, "heat and hp survive the way out too")
+	TestLib.check(Game.heat >= 1.4 and p.hp >= 61.0, "heat and hp survive the way out too")
 	Game.heat = 0.0
 
 

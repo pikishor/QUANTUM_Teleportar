@@ -99,20 +99,20 @@ const TYPES := {
 	&"warden": {
 		"hp": 700.0, "speed": 4.8, "range": 26.0, "fire": Vector2(1.1, 1.7), "dmg": 6.0, "bolt": 0.0, "burst": 3,
 		"color": Color(0.9, 0.9, 1.0), "score": 600, "radius": 1.05, "heat": 0.8, "center_y": 1.55, "hover": 0.0, "scale": 1.5,
-		"model": "operative", "drone": false, "kamikaze": false, "role": &"warden", "variety": true, "elite": true, "pulse_radius": 6.5, "pulse_dmg": 20.0,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"warden", "commander": true, "variety": true, "elite": true, "pulse_radius": 6.5, "pulse_dmg": 20.0,
 		"walk": 1.5, "burst_gap": 0.1, "aim_time": 0.4, "spread": 0.03, "spread_per_m": 0.0006, "min_chapter": 3, "limit": 1,
 	},
 	&"hivemother": {
 		"hp": 600.0, "speed": 3.2, "range": 32.0, "fire": Vector2(1.4, 2.0), "dmg": 6.0, "bolt": 0.0, "burst": 3,
 		"color": Color(1.0, 0.4, 0.55), "score": 600, "radius": 1.1, "heat": 0.8, "center_y": 1.6, "hover": 0.0, "scale": 1.55,
-		"model": "operative", "drone": false, "kamikaze": false, "role": &"hivemother", "variety": true, "elite": true, "summon": 2,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"hivemother", "commander": true, "variety": true, "elite": true, "summon": 2,
 		"walk": 1.2, "burst_gap": 0.12, "aim_time": 0.5, "spread": 0.035, "spread_per_m": 0.0007, "min_chapter": 5, "limit": 1,
 	},
 	# --- the boss (Overseer, scripts/enemies/overseer.gd): only a contract spawns it.
 	&"overseer": {
 		"hp": 1500.0, "speed": 3.6, "range": 34.0, "fire": Vector2(1.2, 1.8), "dmg": 7.0, "bolt": 0.0, "burst": 4,
 		"color": Color(0.72, 0.3, 1.0), "score": 2000, "radius": 1.45, "heat": 1.0, "center_y": 2.0, "hover": 0.0, "scale": 1.95,
-		"model": "operative", "drone": false, "kamikaze": false, "role": &"overseer", "boss": true, "drops_weapon": false,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"overseer", "commander": true, "boss": true, "drops_weapon": false,
 		"walk": 1.3, "burst_gap": 0.1, "aim_time": 0.5, "spread": 0.03, "spread_per_m": 0.0006, "limit": 1,
 	},
 	# --- the verb bosses (scripts/enemies/verb_boss.gd): only the campaign (chapters 4 and 7) spawns them.

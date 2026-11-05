@@ -42,7 +42,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		var mid: StringName = _id(i)
 		var o := _origin(cx, s, i)
 		var ok := sm != null and sm.can_start(mid)
-		hud._add(StringName("side_%s" % mid), Rect2(o.x + (COL_W - BTN_W) * s, o.y, BTN_W * s, ROW_H * s), "START" if SideMissions.unlocked(mid, _chapter()) else "LOCKED", ok)
+		hud._add(StringName("side_%s" % mid), Rect2(o.x + (COL_W - BTN_W) * s, o.y, BTN_W * s, ROW_H * s), "START" if SideMissions.unlocked(mid, _chapter()) and Factions.job_open(Game.progress, mid) else "LOCKED", ok)
 	hud._add(&"side_back", Rect2(cx - 230.0 * s, (ROW_Y + 5.0 * ROW_STEP + 10.0) * s, 220.0 * s, 64.0 * s), "BACK", false)
 	if pages() > 1:
 		hud._add(&"side_page", Rect2(cx + 10.0 * s, (ROW_Y + 5.0 * ROW_STEP + 10.0) * s, 220.0 * s, 64.0 * s), "PAGE %d / %d" % [page + 1, pages()], false)
@@ -62,8 +62,10 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		var d := SideMissions.def(mid)
 		var o := _origin(cx, s, i)
 		var open := SideMissions.unlocked(mid, _chapter())
+		var shut := open and not Factions.job_open(prog, mid)                       # the client camp is hostile (Factions)
+		open = open and not shut
 		hud._rect(c, Rect2(o.x, o.y, COL_W * s, ROW_H * s), Color(0.0, 0.03, 0.05, 0.55))
 		hud._text(c, font, Vector2(o.x + 10.0 * s, o.y + 27.0 * s), String(d["title"]), HORIZONTAL_ALIGNMENT_LEFT, (COL_W - BTN_W - 20.0) * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.97 if open else 0.45), 1.0 * s)
 		var done := int(prog.side_done.get(mid, 0)) if prog != null else 0
-		var info := "NEEDS SECTOR %d" % (int(d["chapter"]) + 1) if not open else "%d CR   REP +%d%s%s" % [int(d["pay"]), int(d["rep"]), ("   %d s" % int(d["limit"])) if float(d["limit"]) > 0.0 else "", ("   DONE x%d" % done) if done > 0 else ""]
+		var info := ("%s HOSTILE" % Factions.title(Factions.job_client(mid))) if shut else "NEEDS SECTOR %d" % (int(d["chapter"]) + 1) if not open else "%d CR   REP +%d%s%s" % [int(d["pay"]), int(d["rep"]), ("   %d s" % int(d["limit"])) if float(d["limit"]) > 0.0 else "", ("   DONE x%d" % done) if done > 0 else ""]
 		hud._text(c, font, Vector2(o.x + 10.0 * s, o.y + 53.0 * s), info, HORIZONTAL_ALIGNMENT_LEFT, (COL_W - BTN_W - 20.0) * s, int(18.0 * s), Color(UiUtil.CYAN, 0.9 if open else 0.4), 1.0 * s)

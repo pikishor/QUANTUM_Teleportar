@@ -109,13 +109,15 @@ func alive_count() -> int:
 
 
 ## Activate an enemy of `type` (sentinel, striker, heavy, operative) at the ground position `pos`. Returns null at the cap.
-func spawn(type: StringName, pos: Vector3, aware := false, reinforce := false) -> Drone:
+func spawn(type: StringName, pos: Vector3, aware := false, reinforce := false, want: StringName = &"") -> Drone:
 	if alive_count() >= cap():
 		return null
 	var d := _acquire(type)
 	d.activate(pos, aware, reinforce)
 	d.max_hp = float(d.cfg["hp"]) * (Progress.boss_hp_mult() if bool(d.cfg.get("boss", false)) else Progress.enemy_hp_mult())       # sector difficulty (1.0 in sector 1)
 	d.hp = d.max_hp
+	if not bool(d.cfg.get("boss", false)) and not InteriorGameplay.active:
+		Factions.apply(d, Game.progress, Factions.assign(type, pos, want))             # camp, sight, speed and rim colour (scripts/enemies/factions.gd)
 	if not list.has(d):
 		list.append(d)
 	return d
@@ -158,14 +160,15 @@ func init_patrols() -> void:
 			continue
 		var far := Vector2(p.x, p.z).length() > 200.0
 		var types: Array[StringName] = []
+		var camp := Factions.camp_for(p, fposmod(float(g) * 0.382, 1.0))            # the district's primary camp, its secondary one for about a quarter of the groups
 		for i in 2 + (g % 2):
+			var t: StringName = &"sentinel"
 			if g % 3 == 2:
-				types.append(&"operative")
+				t = &"operative"
 			elif far and i == 0 and g % 3 == 0:
-				types.append(&"heavy")
-			else:
-				types.append(&"sentinel")
-		_groups.append({"pos": p, "types": types, "spawned": false})
+				t = &"heavy"
+			types.append(Factions.fit_type(t, camp, 0))
+		_groups.append({"pos": p, "types": types, "spawned": false, "camp": camp})
 	var ref := Game.SPAWN
 	if is_instance_valid(Game.player):
 		ref = Game.player.global_position
@@ -393,6 +396,7 @@ func _physics_process(delta: float) -> void:
 		_tick_reinforcements(delta, ppos)
 		_tick_stream(delta, ppos)
 	_tick_bolts(delta)
+	_tick_tactics(delta)
 
 
 func _sweep(ppos: Vector3) -> void:
@@ -438,7 +442,7 @@ func _tick_heat(delta: float, ppos: Vector3) -> void:
 func _tick_reinforcements(delta: float, ppos: Vector3) -> void:
 	_spawn_t -= delta
 	var heat := Game.heat
-	var want := int(floor(2.0 + heat * 2.6)) if heat >= 1.0 else 0
+	var want := (int(floor(2.0 + heat * 2.6)) + Factions.extra_slots(Game.progress, ppos)) if heat >= 1.0 else 0       # a hostile camp on its own ground sends one more
 	if _spawn_t > 0.0 or want <= 0:
 		return
 	_spawn_t = REINFORCE_EVERY
@@ -454,10 +458,11 @@ func _tick_reinforcements(delta: float, ppos: Vector3) -> void:
 	var pt: Vector3 = w.call(&"road_point_near", ppos, 38.0, 75.0)
 	if not pt.is_finite():
 		return
-	var type := pick_type(heat, randf(), _chapter(), randf(), randf(), randf())
+	var camp := Factions.camp_for(pt, randf())
+	var type := Factions.fit_type(pick_type(heat, randf(), _chapter(), randf(), randf(), randf()), camp, _chapter())
 	if count_type(type) >= EnemyTypes.tier_limit(type, Game.quality) or (EnemyTypes.is_elite(type) and elite_count() >= EnemyTypes.ELITE_CAPS[clampi(Game.quality, 0, 2)]):
 		type = &"operative"                                          # a specialist is capped per type (draw budget): the slot becomes a plain operative
-	var d := spawn(type, pt, true, true)
+	var d := spawn(type, pt, true, true, camp)
 	if d != null:
 		FX.burst(pt + Vector3(0.0, 1.0, 0.0), d.cfg["color"], 25, 6.0, 0.6, 0.0)
 
@@ -492,6 +497,10 @@ func count_type(type: StringName) -> int:
 	return n
 
 
+func chapter_now() -> int:
+	return _chapter()
+
+
 func _chapter() -> int:
 	return int(Game.story.get("chapter")) if is_instance_valid(Game.story) and Game.story.get("chapter") != null else 0
 
@@ -513,12 +522,15 @@ func squad_callout(caller: Drone, _target: Vector3) -> int:
 			near.append(e as Operative)
 	near.sort_custom(func(a: Operative, b: Operative) -> bool:
 		return a.global_position.distance_to(caller.global_position) < b.global_position.distance_to(caller.global_position))
+	var every := 3
+	if caller is Operative:
+		every = int((caller as Operative)._row("push_every"))
 	var side := -1.0 if (caller is Operative and (caller as Operative).flank_side() > 0.0) else 1.0
 	if caller is Operative and (caller as Operative).uses_tactics():
 		(caller as Operative).tactic_role = &"anchor"             # the one who spotted the target holds the line
 	var i := 0
 	for o in near:
-		if i % 3 == 2 and o.uses_tactics():
+		if i % every == every - 1 and o.uses_tactics():
 			o.tactic_role = &"pusher"                              # every third neighbour pushes straight in
 		else:
 			o.tactic_role = &"flanker"
@@ -566,7 +578,7 @@ func _stream_patrols(initial: bool, ppos := Vector3.INF) -> void:
 			return
 		g["spawned"] = true
 		for t: StringName in types:
-			spawn(t, gp + Vector3(randf_range(-4.0, 4.0), 0.0, randf_range(-4.0, 4.0)))
+			spawn(t, gp + Vector3(randf_range(-4.0, 4.0), 0.0, randf_range(-4.0, 4.0)), false, false, g.get("camp", &""))
 
 
 func _acquire(type: StringName) -> Drone:
@@ -719,3 +731,140 @@ func _tick_bolts(delta: float) -> void:
 			FX.burst(pos, Color(1.0, 0.5, 0.6), 8, 5.0, 0.3, 4.0, 1.6)
 		else:
 			_set_bolt(i, pos, _b_vel[i].normalized())
+
+
+# --- tactics v2 (TacticsTable): hero hold, leapfrog slots, flush grenades, medics, commander buffs ----------------------
+
+var hero_hold_t := 0.0                       ## seconds the hero has held cover
+var force_hold := false                      ## tests: pretend the hero holds cover
+var flush_throws := 0
+var buffed_count := 0                        ## allies under a commander aura at the last refresh
+var _flush_cd := 0.0
+var _flush_live := 0
+var _buff_t := 0.0
+
+
+## The hero has held cover for at least `min_s` seconds.
+func hero_holding(min_s := 3.0) -> bool:
+	return hero_hold_t >= min_s
+
+
+func _hero_in_cover() -> bool:
+	var p := Game.player
+	if not is_instance_valid(p):
+		return false
+	var c: Variant = p.get(&"cover")
+	return c != null and bool((c as Object).get(&"in_cover"))
+
+
+func _tick_tactics(delta: float) -> void:
+	_flush_cd = maxf(0.0, _flush_cd - delta)
+	if force_hold or _hero_in_cover():
+		hero_hold_t += delta
+	else:
+		hero_hold_t = 0.0
+	_buff_t -= delta
+	if _buff_t <= 0.0:
+		_buff_t = TacticsTable.BUFF_EVERY
+		_refresh_buffs()
+
+
+func _refresh_buffs() -> void:
+	buffed_count = 0
+	var commanders: Array[Drone] = []
+	for e in list:
+		e.buff_dmg = 1.0
+		e.buff_speed = 1.0
+		if e.active and not e.dead and bool(e.cfg.get("commander", false)):
+			commanders.append(e)
+	if commanders.is_empty():
+		return
+	for e in list:
+		if not e.active or e.dead or bool(e.cfg.get("commander", false)):
+			continue
+		for c in commanders:
+			if c.global_position.distance_to(e.global_position) <= TacticsTable.BUFF_RADIUS:
+				e.buff_dmg = TacticsTable.BUFF_DMG
+				e.buff_speed = TacticsTable.BUFF_SPEED
+				buffed_count += 1
+				break
+
+
+func leaping_near(who: Operative) -> int:
+	var n := 0
+	for e in list:
+		if e != who and e.active and not e.dead and e is Operative and (e as Operative).is_leaping() \
+				and e.global_position.distance_to(who.global_position) < TacticsTable.LEAP_SQUAD_RADIUS:
+			n += 1
+	return n
+
+
+func flanking_near(who: Operative) -> int:
+	var n := 0
+	for e in list:
+		if e != who and e.active and not e.dead and e is Operative and (e as Operative).tactic_role == &"flanker" and (e as Operative)._assigned_t > 0.0 \
+				and e.global_position.distance_to(who.global_position) < TacticsTable.LEAP_SQUAD_RADIUS:
+			n += 1
+	return n
+
+
+## Living allies of `who` within `radius` that are not retreating.
+func allies_near(who: Drone, radius: float) -> int:
+	var n := 0
+	for e in list:
+		if e == who or not e.active or e.dead or not e.aware:
+			continue
+		if e is Operative and (e as Operative).is_retreating():
+			continue
+		if e.global_position.distance_to(who.global_position) <= radius:
+			n += 1
+	return n
+
+
+## The nearest living mender within MEDIC_CALL of `who`, or null.
+func medic_for(who: Drone) -> Drone:
+	var best: Drone = null
+	var best_d := TacticsTable.MEDIC_CALL
+	for e in list:
+		if e == who or not e.active or e.dead or e.cfg.get("role", &"") != &"mender":
+			continue
+		var d := e.global_position.distance_to(who.global_position)
+		if d < best_d:
+			best_d = d
+			best = e
+	return best
+
+
+## The most wounded ally of a mender (lowest health share below PATIENT_BELOW, within PATIENT_RADIUS), or null.
+func patient_for(medic: Drone) -> Drone:
+	var best: Drone = null
+	var best_f := TacticsTable.PATIENT_BELOW
+	for e in list:
+		if e == medic or not e.active or e.dead:
+			continue
+		var f := e.hp / maxf(e.max_hp, 1.0)
+		if f < best_f and e.global_position.distance_to(medic.global_position) <= TacticsTable.PATIENT_RADIUS:
+			best_f = f
+			best = e
+	return best
+
+
+## Flush grenade at `at` from `who`: allowed after the hero has held cover long enough, with the squad cooldown and the per-tier cap on grenades in flight.
+func try_flush(who: Operative, at: Vector3) -> bool:
+	if _flush_cd > 0.0 or _flush_live >= TacticsTable.tier_cap(TacticsTable.FLUSH_ACTIVE, Game.quality) or not hero_holding(float(who._row("flush_hold"))):
+		return false
+	_flush_cd = TacticsTable.FLUSH_COOLDOWN
+	_flush_live += 1
+	flush_throws += 1
+	FX.tracer(who.muzzle_world(), at + Vector3(0.0, 0.6, 0.0), Color(1.0, 0.7, 0.2))
+	FX.burst(at + Vector3(0.0, 0.2, 0.0), Color(1.0, 0.6, 0.2), 4, 2.0, 0.3, 0.0)
+	Sfx.play_at(&"enemy_shot", at, -6.0)
+	get_tree().create_timer(TacticsTable.FLUSH_FUSE, false).timeout.connect(_flush_blast.bind(at))
+	return true
+
+
+func _flush_blast(at: Vector3) -> void:
+	_flush_live = maxi(0, _flush_live - 1)
+	if not is_inside_tree():
+		return
+	Game.explode(at, TacticsTable.FLUSH_RADIUS, {"enemy_dmg": 0.0, "car_dmg": 10.0, "player_dmg": TacticsTable.FLUSH_DAMAGE, "color": Color(1.0, 0.6, 0.2)})

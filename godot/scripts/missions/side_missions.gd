@@ -127,7 +127,7 @@ func can_start(mid: StringName) -> bool:
 	var ct: Variant = Game.missions.get("contracts") if is_instance_valid(Game.missions) else null
 	if ct != null and ct.get("state") == &"active":
 		return false
-	return unlocked(mid, _chapter())
+	return unlocked(mid, _chapter()) and Factions.job_open(Game.progress, mid)       # closed while the job's client camp is hostile
 
 
 func start(mid: StringName, from := Vector3.INF) -> bool:

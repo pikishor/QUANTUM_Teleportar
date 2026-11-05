@@ -334,6 +334,8 @@ func _can_offer() -> bool:
 		return false
 	if Game.heat >= 3.0:
 		return false
+	if not Factions.contracts_open(Game.progress, (Game.player as Node3D).global_position):      # the district's camp is hostile: no offers on its ground
+		return false
 	if is_instance_valid(Game.story):
 		var tut: Variant = Game.story.get("tutorial")
 		if tut != null and (tut as Object).get("active") == true:

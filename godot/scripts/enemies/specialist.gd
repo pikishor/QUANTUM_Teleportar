@@ -364,16 +364,25 @@ func _move_pouncer(delta: float, ux: float, uz: float, d: float, speed: float) -
 ## Support: stays 12-20 m from the target and mends allies within heal_radius (cfg heal_rate hp/s each, not itself). Kill it first.
 func _move_mender(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
 	var mgr := Game.enemies as EnemyManager
+	var patient: Drone = null
 	if mgr != null:
+		patient = mgr.patient_for(self)                       # priority: the most wounded ally gets the full rate, the rest a share
 		var rate := float(cfg.get("heal_rate", 14.0)) * delta
 		var r := float(cfg.get("heal_radius", 9.0))
 		for e in mgr.list:
 			if e == self or not e.active or e.dead or e.hp >= e.max_hp:
 				continue
 			if e.global_position.distance_to(global_position) <= r:
-				var add := minf(rate, e.max_hp - e.hp)
+				var share := TacticsTable.MEDIC_FULL if (e == patient or patient == null) else TacticsTable.MEDIC_REST
+				var add := minf(rate * share, e.max_hp - e.hp)
 				e.hp += add
 				healed += add
+	if patient != null and patient.global_position.distance_to(global_position) > float(cfg.get("heal_radius", 9.0)) * 0.6:
+		var to_p := Vector2(patient.global_position.x - global_position.x, patient.global_position.z - global_position.z).normalized()
+		_mx = to_p.x                                          # walk to the patient (a mender never leaves one to bleed)
+		_mz = to_p.y
+		_speed = speed
+		return
 	if d < 12.0:
 		_mx = -ux
 		_mz = -uz

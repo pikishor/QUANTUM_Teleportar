@@ -68,9 +68,21 @@ var _suppressing := false
 var suppress_bursts := 0                ## suppressing bursts fired this life (blind fire at the target from cover)
 var _retreating := false
 var _reinforce_called := false
-const RETREAT_HP := 0.25
+var faction: StringName = TacticsTable.OBSERVER   ## TacticsTable row: observer (disciplined), vael (hive rush), raider (hit and run); picked on activation, tests may set it
+var _leaping := false                   ## running from one cover to a closer one while the squad covers (leapfrog)
+var leaps := 0                          ## leapfrog advances this life
+var flushes := 0                        ## flush grenades thrown this life
+var regroups := 0                       ## times it came back from a retreat
+var _retreat_t := 0.0
+var _regroup_immune := 0.0
+var unsticks := 0                       ## times it side-stepped along a wall it was pushing into (no path finding: a blocked flank or advance gets a sidestep)
+var _last_xz := Vector2.INF
+var _blk_t := 0.0
+var _unstick_t := 0.0
+var _unstick_dir := 1.0
+const UNSTICK_AFTER := 1.0
+const UNSTICK_FOR := 2.2
 const CALL_HP := 0.5
-const CAMP_SECONDS := 3.5
 
 
 func _make_shape() -> Shape3D:
@@ -167,6 +179,18 @@ func _on_activate() -> void:
 	suppress_bursts = 0
 	_retreating = false
 	_reinforce_called = false
+	_leaping = false
+	unsticks = 0
+	_last_xz = Vector2.INF
+	_blk_t = 0.0
+	_unstick_t = 0.0
+	leaps = 0
+	flushes = 0
+	regroups = 0
+	_retreat_t = 0.0
+	_regroup_immune = 0.0
+	var gm := Game.enemies as EnemyManager
+	faction = TacticsTable.faction_for(type, gm.chapter_now() if gm != null else 0, randf())
 	_aim_t = 0.0
 	_burst_left = 0
 	_shot_t = 0.0
@@ -295,10 +319,40 @@ func _think_aware(delta: float, dx: float, dz: float, d: float) -> void:
 		if mgr != null:
 			mgr.squad_callout(self, _tgt)                  # the squad is told: neighbours wake up and get flank sides
 	_assigned_t = maxf(0.0, _assigned_t - delta)
+	if _unstick(delta, ux, uz, d, speed, rng):
+		return
 	if _tactics(delta, ux, uz, d, speed, rng):
 		return
 	_move_aware(delta, ux, uz, d, speed, rng)
 	_fire_cycle(delta, d, rng)
+
+
+## Blocked-walker watchdog: it meant to move but a wall (a building edge, a prop) stopped it for UNSTICK_AFTER seconds, so it side-steps along the obstacle for UNSTICK_FOR seconds.
+## Returns true while the side-step drives the frame.
+func _unstick(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> bool:
+	var cur := Vector2(global_position.x, global_position.z)
+	if _last_xz.is_finite():
+		var wanted := _moved * delta
+		if wanted > 0.01 and cur.distance_to(_last_xz) < wanted * 0.25 and _cover_state != 2:
+			_blk_t += delta
+		else:
+			_blk_t = maxf(0.0, _blk_t - delta)
+	_last_xz = cur
+	if _unstick_t <= 0.0 and _blk_t > UNSTICK_AFTER and not _retreating:
+		_unstick_t = UNSTICK_FOR
+		_unstick_dir = 1.0 if randf() < 0.5 else -1.0
+		_blk_t = 0.0
+		_assigned_t = 0.0
+		unsticks += 1
+		_leave_cover(0.8)
+	if _unstick_t <= 0.0:
+		return false
+	_unstick_t -= delta
+	_mx = ux * 0.2 - uz * _unstick_dir
+	_mz = uz * 0.2 + ux * _unstick_dir
+	_speed = speed
+	_fire_cycle(delta, d, rng)
+	return true
 
 
 ## The squad leader's order: come in from this side (+1 / -1) for `seconds`.
@@ -321,6 +375,14 @@ func is_retreating() -> bool:
 	return _retreating
 
 
+func is_leaping() -> bool:
+	return _leaping
+
+
+func _row(key: String) -> Variant:
+	return TacticsTable.val(faction, key)
+
+
 ## Squad tactics on top of cover: low-hp retreat, a call for reinforcement, a flank when the target camps, suppressing fire from cover, pusher advance.
 ## Returns true when it drove the frame itself (the retreat).
 func _tactics(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> bool:
@@ -328,14 +390,19 @@ func _tactics(delta: float, ux: float, uz: float, d: float, speed: float, rng: f
 		return false
 	_camp_flank_cd = maxf(0.0, _camp_flank_cd - delta)
 	_suppress_cd = maxf(0.0, _suppress_cd - delta)
+	_regroup_immune = maxf(0.0, _regroup_immune - delta)
+	var gm := Game.enemies as EnemyManager
 	var frac := hp / maxf(max_hp, 1.0)
 	if frac < CALL_HP and not _reinforce_called:
 		_reinforce_called = true
 		var mgr := Game.enemies as EnemyManager
 		if mgr != null:
 			mgr.call_reinforcement(self)
-	if frac < RETREAT_HP and _cover_on:
+	var retreat_hp := float(_row("retreat_hp"))
+	if frac < retreat_hp and retreat_hp > 0.0 and _regroup_immune <= 0.0 and not _retreating:
 		_retreating = true
+		_retreat_t = 0.0
+		_leaping = false
 	if _retreating:
 		_retreat(delta, ux, uz, d, speed)
 		return true
@@ -345,14 +412,21 @@ func _tactics(delta: float, ux: float, uz: float, d: float, speed: float, rng: f
 	else:
 		_camp_t = 0.0
 		_camp_ref = _tgt
-	if _camp_t > CAMP_SECONDS and _camp_flank_cd <= 0.0 and _assigned_t <= 0.0 and tactic_role != &"pusher" and d < rng * 1.3:
-		_camp_flank_cd = 12.0
+	if _camp_t > float(_row("camp_s")) and _camp_flank_cd <= 0.0 and _assigned_t <= 0.0 and tactic_role != &"pusher" and d < rng * 1.3:
+		_camp_flank_cd = float(_row("flank_cd"))
 		_camp_t = 0.0
 		assign_flank(-_flank if _cover_state != 0 else _flank, 7.0)
 		return false
-	# suppress: an anchor hidden behind cover keeps the target's head down with blind bursts
-	if tactic_role == &"anchor" and _cover_state == 2 and _suppress_cd <= 0.0 and _burst_left == 0 and d < rng:
-		_suppress_cd = randf_range(2.2, 3.4)
+	# flush: the hero holds cover, so a grenade is lobbed at him (one at a time, squad cooldown)
+	if bool(_row("flush")) and gm != null and _cover_state != 1 and _burst_left == 0 and gm.hero_holding(float(_row("flush_hold"))):
+		var spot := Vector3(_tgt.x, Game.player.global_position.y if is_instance_valid(Game.player) else 0.0, _tgt.z)
+		if d > TacticsTable.FLUSH_RANGE.x and d < TacticsTable.FLUSH_RANGE.y and gm.try_think() and gm.try_flush(self, spot):
+			flushes += 1
+	# suppress: an anchor hidden behind cover (or any covered trooper while a teammate leaps or flanks) keeps the target's head down with blind bursts
+	var covering := gm != null and (gm.leaping_near(self) > 0 or gm.flanking_near(self) > 0)
+	if (tactic_role == &"anchor" or covering) and _cover_state == 2 and _suppress_cd <= 0.0 and _burst_left == 0 and d < rng:
+		var sr: Vector2 = _row("suppress")
+		_suppress_cd = randf_range(sr.x, sr.y) * (float(_row("suppress_flank_mult")) if covering else 1.0)
 		_suppressing = true
 		_burst_left = 2
 		_shot_t = 0.0
@@ -372,11 +446,26 @@ func _tactics(delta: float, ux: float, uz: float, d: float, speed: float, rng: f
 func _retreat(delta: float, ux: float, uz: float, d: float, speed: float) -> void:
 	_aim_t = 0.0
 	_burst_left = 0
+	_retreat_t += delta
 	_cover_cd = maxf(0.0, _cover_cd - delta)
+	var mgr0 := Game.enemies as EnemyManager
+	if _regroup_ready(mgr0):
+		_retreating = false
+		_regroup_immune = 15.0
+		regroups += 1
+		_leave_cover(1.0)
+		return
+	var medic: Drone = mgr0.medic_for(self) if mgr0 != null else null
+	if medic != null and medic.global_position.distance_to(global_position) > float(medic.cfg.get("heal_radius", 9.0)) * 0.5:
+		var to_m := Vector2(medic.global_position.x - global_position.x, medic.global_position.z - global_position.z).normalized()
+		_mx = to_m.x                                          # the medic is the priority: a hurt trooper falls back to the mender
+		_mz = to_m.y
+		_speed = speed * 1.15
+		return
 	if _cover_state == 0 and _cover_cd <= 0.0:
 		var mgr := Game.enemies as EnemyManager
 		if mgr == null or mgr.try_think():
-			var c := EnemyCover.find(self, _tgt, 30.0)
+			var c := EnemyCover.find(self, _tgt, 30.0, faction)
 			_cover_cd = 1.0
 			if c.is_finite():
 				_cover = c
@@ -398,6 +487,16 @@ func _retreat(delta: float, ux: float, uz: float, d: float, speed: float) -> voi
 	_mx = -ux
 	_mz = -uz
 	_speed = speed * 1.1
+
+
+## Back in the fight: the retreat has lasted regroup_s and either the health is back (a mender) or enough allies stand close.
+func _regroup_ready(mgr: EnemyManager) -> bool:
+	var need := float(_row("regroup_s"))
+	if need <= 0.0 or _retreat_t < need:
+		return false
+	if hp / maxf(max_hp, 1.0) >= float(_row("regroup_hp")):
+		return true
+	return mgr != null and mgr.allies_near(self, float(_row("regroup_radius"))) >= int(_row("regroup_allies"))
 
 
 ## Does this soldier take flank orders? (brutes charge, the boss is its own plan)
@@ -484,7 +583,26 @@ func cover_point() -> Vector3:
 	return _cover
 
 
+## Leapfrog: from hidden, the target still far, and the squad has a free leap slot: run to a cover at least leap_step closer while the others suppress.
+func _try_leap(d: float, rng: float, to_t: Vector2) -> bool:
+	if not bool(_row("leapfrog")) or _retreating or d < float(_row("leap_min")) or d > rng * 1.05:
+		return false
+	var gm := Game.enemies as EnemyManager
+	if gm == null or gm.leaping_near(self) >= TacticsTable.tier_cap(TacticsTable.LEAPERS, Game.quality) or not gm.try_think():
+		return false
+	var c := EnemyCover.find(self, _tgt, float(cfg.get("cover_radius", 22.0)), faction, float(_row("leap_step")))
+	if not c.is_finite():
+		return false
+	_cover = c
+	_cover_state = 1
+	_cover_dir = to_t
+	_leaping = true
+	leaps += 1
+	return true
+
+
 func _leave_cover(cooldown: float) -> void:
+	_leaping = false
 	_cover_state = 0
 	_cover = Vector3.INF
 	_cover_cd = cooldown
@@ -506,10 +624,13 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 		if _cover_search_t > 0.0:
 			return false
 		_cover_search_t = 0.5
+		if randf() > float(_row("cover_use")):
+			_cover_cd = 2.0                                   # the hive mostly just charges
+			return false
 		var gm := Game.enemies as EnemyManager
 		if gm != null and not gm.try_think():
 			return false                                      # too many thinkers this frame: try again at the next search
-		var c := EnemyCover.find(self, _tgt, float(cfg.get("cover_radius", 22.0)))
+		var c := EnemyCover.find(self, _tgt, float(cfg.get("cover_radius", 22.0)), faction)
 		if not c.is_finite():
 			_cover_cd = 1.5
 			return false
@@ -521,7 +642,9 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 		1:
 			if to_c.length() < 0.7:
 				_cover_state = 2
-				_cover_t = randf_range(0.9, 1.8)
+				_leaping = false
+				var hr: Vector2 = _row("hide")
+				_cover_t = randf_range(hr.x, hr.y)
 			else:
 				var u := to_c.normalized()
 				_mx = u.x
@@ -530,9 +653,11 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 		2:
 			_speed = 0.0
 			_cover_t -= delta
+			if _cover_t <= 0.0 and _try_leap(d, rng, to_t):
+				return true
 			if _cover_t <= 0.0:
 				_cover_state = 3
-				_cover_t = 3.0
+				_cover_t = float(_row("peek"))
 				_peeked = false
 				_fire_t = 0.0
 				_los_t = 0.0                                  # look again at once
@@ -550,7 +675,8 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 				_peeked = true
 			if (_peeked and _aim_t <= 0.0 and _burst_left == 0) or _cover_t <= 0.0:
 				_cover_state = 2
-				_cover_t = randf_range(1.0, 2.2)
+				var hr2: Vector2 = _row("hide")
+				_cover_t = randf_range(hr2.x, hr2.y) + 0.1
 				_strafe = -_strafe
 	return true
 
@@ -635,7 +761,7 @@ func _shoot(d: float) -> void:
 		if res != 0:
 			return
 	if miss < reach:
-		p.call(&"damage", float(cfg["dmg"]), origin)
+		p.call(&"damage", float(cfg["dmg"]) * buff_dmg, origin)
 
 
 func _animate(delta: float) -> void:
