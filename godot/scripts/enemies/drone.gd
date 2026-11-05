@@ -294,7 +294,7 @@ func damage(amount: float, crit := false, mirrored := false) -> void:
 	Sfx.play_at(&"hit", center(), -5.0)
 	if not mirrored:
 		var mgr := Game.enemies as EnemyManager
-		if mgr != null:
+		if mgr != null and not (hp <= 0.0 and _unaware_hit and InteriorGameplay.active):          # inside a room a killing blow on an unaware guard is silent: the others hear nothing
 			mgr.alert_near(global_position, ALERT_RADIUS, self)
 		if is_instance_valid(linked) and not linked.dead and linked.active:
 			var other := linked
@@ -332,13 +332,15 @@ func die() -> void:
 	_drop_pending = true
 	Game.score += int(cfg["score"])
 	SkillTree.add_xp(SkillTree.kill_xp(int(cfg["score"])))
-	if _unaware_hit and not reinforce:
+	var silent := _unaware_hit and not reinforce
+	if silent:
 		Game.add_score(Stealth.takedown_bonus())
 		Stealth.takedowns += 1
 		Game.say("SILENT TAKEDOWN  +%d" % Stealth.takedown_bonus(), 1.2)
 	_unaware_hit = false
-	Game.heat += float(cfg["heat"]) * Difficulty.mult("heat")
-	Game.quiet = 0.0
+	if not (silent and InteriorGameplay.active):                           # a silent takedown inside a room raises no heat: the other guards hear nothing
+		Game.heat += float(cfg["heat"]) * Difficulty.mult("heat")
+		Game.quiet = 0.0
 	var p := Game.player
 	if is_instance_valid(p) and p.has_method(&"add_energy"):
 		p.call(&"add_energy", EnemyTypes.ENERGY_REFUND)

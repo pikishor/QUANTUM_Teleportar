@@ -40,6 +40,8 @@ const BUTTONS := [
 	{"action": &"garage_call", "dx": 490.0, "dy": 570.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"garage_call", "fn": &"summon"},
 	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},
 	{"action": &"skip_piece", "dx": 320.0, "dy": 470.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
+	{"action": &"companion_hold", "dx": 640.0, "dy": 530.0, "r": 48.0, "fs": 22, "label": "HOLD", "need": &"companion", "fn": &"ally_hold"},
+	{"action": &"companion_attack", "dx": 560.0, "dy": 650.0, "r": 48.0, "fs": 20, "label": "ATTACK", "need": &"companion", "fn": &"ally_attack"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
@@ -212,6 +214,10 @@ func touch_down(id: int, pos: Vector2) -> void:
 					get_parent().call(&"skip_set_piece")
 				elif b["fn"] == &"ring":
 					ring_open = not ring_open
+				elif b["fn"] == &"ally_hold":
+					Companion.current.command(&"hold")
+				elif b["fn"] == &"ally_attack":
+					Companion.current.command(&"attack")
 				elif b["fn"] == &"summon":
 					Game.vehicles.call(&"summon_garage")
 				else:
@@ -334,6 +340,8 @@ func button_visible(b: Dictionary) -> bool:
 			return hud != null and hud.has_method(&"skip_available") and bool(hud.call(&"skip_available"))
 		&"radio":
 			return is_instance_valid(Game.vehicles) and Game.vehicles.get("radio") != null and _driving()
+		&"companion":        # HOLD / ATTACK: only while the ally is recruited and on foot with the hero
+			return Companion.controllable()
 	return true
 
 
@@ -476,6 +484,12 @@ func _draw_ui() -> void:
 				dim = 0.45
 			if float(st["cd"]) > 0.0:
 				arcs.append([centre, r + 4.0 * s, -PI * 0.5 + TAU * float(st["cd"]), Color(tint, 0.9)])
+		if b["action"] == &"companion_hold" and Companion.current != null and Companion.current.mode == Companion.Mode.HOLD:
+			tint = UiUtil.AMBER
+			on = true
+		elif b["action"] == &"companion_attack" and Companion.current != null and Companion.current.mode == Companion.Mode.ATTACK:
+			tint = UiUtil.AMBER
+			on = true
 		if on:
 			glows.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, 0.35)])
 		sprites.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, (1.0 if on else 0.85) * dim)])

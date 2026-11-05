@@ -33,6 +33,10 @@ const CONTRACT_BASE := {&"officer": 320, &"hack": 260, &"chase": 300, &"courier"
 const SIDE_PAY := {&"courier": 220, &"photo": 260, &"relay": 320, &"rescue": 300, &"car_drop": 380, &"turf": 420, &"rooftop": 440, &"heist": 520, &"hunt": 600, &"smuggler": 680}
 const SIDE_CHAPTER := {&"courier": 0, &"photo": 0, &"relay": 0, &"rescue": 1, &"car_drop": 1, &"turf": 2, &"rooftop": 2, &"heist": 3, &"hunt": 4, &"smuggler": 4}
 const INTERIOR_REWARD := {&"safe": 320, &"hostage": 420, &"assassinate": 620, &"hack": 460}
+## Stealth missions (StealthScripts): base pay, sector needed, and the bonus share added for a clean run (no kills; the silent route: under par). Not part of the hourly model.
+const STEALTH_PAY := {&"infiltrate": 360, &"plant": 440, &"datatheft": 520, &"takedown": 480}
+const STEALTH_CHAPTER := {&"infiltrate": 0, &"plant": 1, &"datatheft": 2, &"takedown": 3}
+const STEALTH_BONUS := 0.35
 const EVENT_REWARD := {&"ambush": 120, &"race": 150, &"rescue": 90, &"drop": 200, &"rift": 60}
 const ACTIVITY_REWARD := {&"range": 3, &"parkour": 150, &"drift": 200, &"arena": 40}   ## per hit / on finish / on finish / per wave
 const ARENA_CLEAR_BONUS := 100

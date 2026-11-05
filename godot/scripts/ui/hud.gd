@@ -928,6 +928,19 @@ func _caption_width(font: Font, s: float) -> void:
 	_lw = maxf(LABEL_W, w / s + 6.0)
 
 
+## The ally's plate (name, health bar, order) under the heat plate while the Vael defector is recruited (scripts/npc/companion.gd).
+func _draw_ally(c: Control, s: float, font: Font, right: float, top: float) -> void:
+	var ally := Companion.current
+	if ally == null or not ally.active or Game.state == &"menu":
+		return
+	var r := Rect2(right - 262.0 * s, top + (124.0 if _shard_text != "" else 90.0) * s, 182.0 * s, 44.0 * s)
+	_plate(c, r, s, Color(0.3, 0.9, 1.0, 0.55))
+	_text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 20.0 * s), "ALLY  " + ally.mode_name(), HORIZONTAL_ALIGNMENT_LEFT, 170.0 * s, int(UiUtil.BAR_LABEL * s * 0.85), Color(0.3, 0.9, 1.0, 0.97), 1.0 * s)
+	var f := ally.hp_fraction()
+	_rect(c, Rect2(r.position.x + 6.0 * s, r.position.y + 28.0 * s, 170.0 * s, 8.0 * s), Color(0.0, 0.03, 0.05, 0.7))
+	_rect(c, Rect2(r.position.x + 6.0 * s, r.position.y + 28.0 * s, 170.0 * s * f, 8.0 * s), Color(0.4, 1.0, 0.72, 0.95) if f > 0.35 else Color(1.0, 0.3, 0.3, 0.95))
+
+
 func _draw_hud(_ignored: Control = null) -> void:
 	_draw_hud_body()
 	_flush_text()
@@ -995,6 +1008,7 @@ func _draw_hud_body() -> void:
 			_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
 		stack_end = _draw_priority(c, vp, s, font, plate.end.y + 3.0 * s)
 	if playing:
+		stack_end = _draw_stealth_meter(c, vp, s, font, stack_end + 3.0 * s)
 		stack_end = _draw_activity(c, vp, s, font, stack_end + 3.0 * s)
 	UiUtil.stack_bottom = stack_end / s
 	if playing and _camp_text != "":
@@ -1016,6 +1030,7 @@ func _draw_hud_body() -> void:
 		var sr := Rect2(right - 262.0 * s, top + 90.0 * s, 182.0 * s, 30.0 * s)     ## left of the weapon slot column (x = right - 76 s), inside the screen
 		_plate(c, sr, s)
 		_text(c, font, Vector2(sr.position.x + 4.0 * s, sr.position.y + 23.0 * s), _shard_text, HORIZONTAL_ALIGNMENT_CENTER, 174.0 * s, int(UiUtil.BAR_LABEL * s), Color(0.7, 0.55, 1.0, 0.97), 1.0 * s)
+	_draw_ally(c, s, font, right, top)
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return
@@ -1510,6 +1525,8 @@ func _campaign_line() -> String:
 	var line := str(k.call(&"hud_line")) if k != null else ""
 	if line == "" and Game.missions is Missions and (Game.missions as Missions).chases != null:
 		line = (Game.missions as Missions).chases.hud_line()      # a vehicle chase set piece (ChaseRunner)
+	if line == "" and Game.missions is Missions and (Game.missions as Missions).stealth != null:
+		line = (Game.missions as Missions).stealth.hud_line()     # a stealth mission (StealthRunner)
 	return line
 
 
@@ -1547,6 +1564,24 @@ func _draw_activity(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 	while size > int(14.0 * s) and _text_width(font, text, size) + 36.0 * s > vp.x - 40.0 * s:
 		size -= 1
 	return _plate_text(c, font, vp.x * 0.5, y, text, size, Color(UiUtil.AMBER.lerp(Color.WHITE, 0.35), 1.0), s, Color(UiUtil.AMBER, 0.7)).end.y
+
+
+## The stealth mission's alert meter under the priority plate: a bar that fills with the worst guard's suspicion and turns red when one is alerted. Returns the new stack end.
+func _draw_stealth_meter(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+	var st: StealthRunner = (Game.missions as Missions).stealth if Game.missions is Missions else null
+	var mt: Dictionary = st.meter() if st != null else {}
+	if mt.is_empty():
+		return y - 3.0 * s
+	var w := minf(260.0 * s, vp.x * 0.4)
+	var frac := float(mt["frac"])
+	var col := UiUtil.CYAN.lerp(UiUtil.AMBER, clampf(frac * 1.6, 0.0, 1.0)).lerp(UiUtil.RED, clampf((frac - 0.6) * 2.5, 0.0, 1.0))
+	var plate := Rect2(vp.x * 0.5 - w * 0.5, y, w, 30.0 * s)
+	_plate(c, plate, s, Color(col, 0.55))
+	_text(c, font, Vector2(plate.position.x + 8.0 * s, plate.position.y + 15.0 * s), "ALERT  " + str(mt["label"]), HORIZONTAL_ALIGNMENT_LEFT, w - 16.0 * s, int(UiUtil.BAR_LABEL * s * 0.85), Color(col.lerp(Color.WHITE, 0.4), 0.97), 1.0 * s)
+	var bar := Rect2(plate.position.x + 8.0 * s, plate.position.y + 20.0 * s, w - 16.0 * s, 6.0 * s)
+	_rect(c, bar, Color(0.0, 0.03, 0.05, 0.7))
+	_rect(c, Rect2(bar.position, Vector2(bar.size.x * clampf(frac, 0.0, 1.0), bar.size.y)), Color(col, 0.95))
+	return plate.end.y + 3.0 * s
 
 
 func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:

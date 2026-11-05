@@ -750,6 +750,9 @@ func minimap_markers() -> Array[Dictionary]:
 				out.append({"pos": g.global_position, "color": Color(1.0, 0.3, 0.32), "kind": &"disc", "size": 3.0})
 	for m in missions.markers():
 		out.append(m)
+	if Game.missions is Missions and (Game.missions as Missions).stealth != null:
+		for m in (Game.missions as Missions).stealth.markers():
+			out.append(m)
 	return out
 
 

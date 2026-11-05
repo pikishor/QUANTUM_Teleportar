@@ -703,6 +703,8 @@ func _tick_bolts(delta: float) -> void:
 			if Vector2(pos.x - cp.x, pos.z - cp.z).length() < 0.9 and pos.y < cp.y + 1.9 and pos.y > cp.y:
 				gone = true
 				hit_clone()
+		if not gone and Companion.current != null and Companion.current.bolt_hit(pos, _b_dmg[i], _b_org[i]):
+			gone = true
 		if not gone and player_ok:
 			if veh != null:
 				var vp := veh.global_position

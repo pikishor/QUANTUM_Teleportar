@@ -613,6 +613,8 @@ func _shoot(d: float) -> void:
 		hanim.fire()
 	FX.tracer(origin, end, _tracer_color())
 	FX.burst(origin, Color(1.0, 0.8, 0.45), 3, 2.5, 0.08, 0.0)
+	if Companion.current != null:
+		Companion.current.shot_passes(origin, end, float(cfg["dmg"]))       # the ally standing in the line of fire takes the round
 	var mgr := Game.enemies as EnemyManager
 	var p := Game.player
 	if blocked or mgr == null:

@@ -233,6 +233,11 @@ static func catalog() -> Array[Dictionary]:
 	for id: StringName in ChaseScripts.IDS:
 		chs.append({"id": id, "label": ChaseScripts.title(id)})
 	out.append({"kind": &"chase", "title": "VEHICLE CHASES", "items": chs})
+	out.append({"kind": &"companion", "title": "COMPANION", "items": [{"id": &"recruit", "label": "RECRUIT VAEL DEFECTOR"}, {"id": &"dismiss", "label": "DISMISS ALLY"}]})
+	var sts: Array[Dictionary] = []
+	for id: StringName in StealthScripts.IDS:
+		sts.append({"id": id, "label": StealthScripts.title(id)})
+	out.append({"kind": &"stealth", "title": "STEALTH MISSIONS", "items": sts})
 	return out
 
 
@@ -247,6 +252,8 @@ static func launch(kind: StringName, id: Variant) -> String:
 		&"setpiece": return start_set_piece(StringName(id))
 		&"sequel": return start_sequel(StringName(id))
 		&"chase": return start_chase(StringName(id))
+		&"companion": return start_companion(StringName(id))
+		&"stealth": return start_stealth(StringName(id))
 		&"boss":
 			_prepare()
 			return TestMode.start_contract(&"boss") if StringName(id) == &"contract" else TestMode.spawn_enemy(StringName(id))
@@ -279,6 +286,8 @@ static func _prepare(leave_interior := true) -> void:
 		m.campaign.abort()
 	if m.chases != null and m.chases.is_running():
 		m.chases.abort("DEMO")
+	if m.stealth != null and m.stealth.is_running():
+		m.stealth.abort("DEMO")
 
 
 static func _stop_everything() -> void:
@@ -326,6 +335,18 @@ static func start_chase(id: StringName) -> String:
 	return "CHASE  %s" % ChaseScripts.title(id) if m.chases.start(id) else ""
 
 
+## One of the four stealth missions (StealthScripts.IDS): enters the nearest door of its interior (or a test room) and begins.
+static func start_stealth(id: StringName) -> String:
+	var m := Game.missions as Missions
+	if m == null or m.stealth == null or not StealthScripts.DEFS.has(id):
+		return ""
+	_prepare()
+	if is_instance_valid(Game.enemies):
+		(Game.enemies as EnemyManager).clear()          # hunters from an earlier alarm would follow through the door and spoil the run
+	Game.heat = 0.0
+	return "STEALTH  %s" % StealthScripts.title(id) if m.stealth.start(id) else ""
+
+
 ## Index of a set piece's first step inside its chapter's spliced step list (-1 when it has none).
 static func set_piece_step(id: StringName) -> int:
 	var m := Game.missions as Missions
@@ -371,6 +392,20 @@ static func start_event(kind: StringName) -> String:
 	ev.call(&"reset")
 	var e: Dictionary = ev.call(&"spawn_near", p.global_position, kind)
 	return "EVENT  %s" % String(kind).to_upper() if not e.is_empty() else ""
+
+
+## RECRUIT puts the Vael defector next to the hero (it stays until DISMISS, a new run or the title); DISMISS sends it away.
+static func start_companion(id: StringName) -> String:
+	var c := Companion.current
+	if c == null:
+		return ""
+	if id == &"dismiss":
+		c.dismiss()
+		return "ALLY DISMISSED"
+	if c.active:
+		c.manual = true
+		return "ALLY  ALREADY HERE"
+	return "ALLY  VAEL DEFECTOR" if c.recruit("demo") else ""
 
 
 static func set_difficulty(mode: int) -> String:
