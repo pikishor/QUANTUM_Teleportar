@@ -76,7 +76,10 @@ func step(_t: float, _dt: float) -> bool:
 	var extra := ""
 	if spot == &"title":
 		extra = _badge_overlap()
-	var why := VisualQaLib.verdict(st, sep, people, float(VisualQaLib.flat_rects(img, _is_open_sky)["frac"]), extra)
+	var fr := VisualQaLib.flat_rects(img, _is_open_sky)
+	var why := VisualQaLib.verdict(st, sep, people, float(fr["frac"]), extra)
+	if why.contains("rectangle"):
+		why += " [flat frac=%.3f rect=%s open_rays=%d]" % [fr["frac"], fr["rect"], _last_open]
 	img.save_png("%s/%s.png" % [_out, spot])
 	if why != "":
 		_fails += 1
@@ -98,6 +101,7 @@ func _is_open_sky(r: Rect2i) -> bool:
 	if cam == null:
 		return false
 	var space := _p.get_world_3d().direct_space_state
+	_last_open = 0
 	var open_n := 0
 	var total := 0
 	for iy in 3:
@@ -108,9 +112,11 @@ func _is_open_sky(r: Rect2i) -> bool:
 			total += 1
 			if space.intersect_ray(q).is_empty():
 				open_n += 1
+	_last_open = open_n
 	return open_n >= 7      # a sky gap's bounding rect may clip a tower edge or a cable, so most (not all) rays must leave the city
 
 
+var _last_open := -1
 var _look := Vector3.INF
 var _cine: Transform3D
 var _use_cine := false
