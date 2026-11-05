@@ -107,7 +107,7 @@ static func actor_total(p: Dictionary) -> int:
 
 # --- vendors --------------------------------------------------------------------------------------------------------
 
-## Stock per vendor type. kind: "upgrade" (Progress.buy), "weapon" (Progress.buy_weapon, owned = sold out), "ammo" (rounds for an owned weapon), "heal", "energy", "rumour", "drink".
+## Stock per vendor type. kind: "parts" (Crafting salvage bundle), "blueprint" (the next unknown Crafting blueprint), "upgrade" (Progress.buy), "weapon" (Progress.buy_weapon, owned = sold out), "ammo" (rounds for an owned weapon), "heal", "energy", "rumour", "drink".
 const STOCK := {
 	&"weapons": [
 		{"id": &"scatter", "kind": "weapon", "name": "SHARD SCATTER"}, {"id": &"lance", "kind": "weapon", "name": "PULSE LANCE"},
@@ -124,6 +124,7 @@ const STOCK := {
 	&"tech": [
 		{"id": &"blink", "kind": "upgrade", "name": "BLINK RANGE"}, {"id": &"reload", "kind": "upgrade", "name": "RELOAD SPEED"},
 		{"id": &"mag", "kind": "upgrade", "name": "MAGAZINE"}, {"id": &"energy", "kind": "energy", "price": Economy.SERVICE[&"energy"], "name": "COHERENCE CELL"},
+		{"id": &"parts", "kind": "parts", "name": "SALVAGE  SCRAP AND ALLOY"}, {"id": &"blueprint", "kind": "blueprint", "name": "WEAPON BLUEPRINT"},
 	],
 	&"bar": [
 		{"id": &"rumour", "kind": "rumour", "price": Economy.SERVICE[&"rumour"], "name": "BUY A RUMOUR"}, {"id": &"drink", "kind": "drink", "price": Economy.SERVICE[&"drink"], "name": "SYNTH DRINK  +25 HP"},

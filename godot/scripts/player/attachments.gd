@@ -88,7 +88,7 @@ static func toggle(weapon: StringName, part: StringName) -> bool:
 static func effective(id: StringName) -> Dictionary:
 	var base := WeaponDefs.def(id)
 	var d: Dictionary = equipped.get(id, {})
-	if d.is_empty():
+	if d.is_empty() and not Crafting.has_gear(id):
 		return base
 	var out := base.duplicate()
 	for slot: StringName in SLOTS:
@@ -105,6 +105,7 @@ static func effective(id: StringName) -> Dictionary:
 			elif NUMERIC.has(k):
 				var v := float(out[k]) * float(mods[k])
 				out[k] = maxi(1, int(roundf(v))) if k == "mag" else v
+	Crafting.apply(out, id)                     # crafted variant and mod (scripts/progress/crafting.gd) on top of the parts
 	return out
 
 

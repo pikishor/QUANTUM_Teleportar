@@ -7,7 +7,7 @@ extends RefCounted
 ## sprint: sprint speed multiplier | jump: jump speed multiplier | glide: fall speed cap while gliding (0 = no glide) | wall_run: bool | tp_range: QUANTUM TELEPORT range multiplier |
 ## tp_hops: teleports in one chain (extra hops inside CHAIN_WINDOW have no cooldown) | taken: extra damage-taken multiplier on top of Difficulty.
 const ROWS: Array[Dictionary] = [
-	{"regen": 8.0, "dmg": 4.0, "energy_regen": 6.0, "energy_cost": 0.05, "cooldown": 0.1, "sprint": 1.5, "jump": 1.6, "glide": 3.0, "wall_run": true, "tp_range": 3.0, "tp_hops": 6, "taken": 0.5},
+	{"regen": 8.0, "dmg": 1.4, "energy_regen": 6.0, "energy_cost": 0.05, "cooldown": 0.1, "sprint": 1.5, "jump": 1.6, "glide": 3.0, "wall_run": true, "tp_range": 3.0, "tp_hops": 6, "taken": 0.9},
 	{"regen": 1.0, "dmg": 1.0, "energy_regen": 1.0, "energy_cost": 1.0, "cooldown": 1.0, "sprint": 1.0, "jump": 1.0, "glide": 6.0, "wall_run": true, "tp_range": 1.0, "tp_hops": 2, "taken": 1.0},
 	{"regen": 0.7, "dmg": 0.95, "energy_regen": 0.85, "energy_cost": 1.1, "cooldown": 1.1, "sprint": 1.0, "jump": 1.0, "glide": 0.0, "wall_run": false, "tp_range": 1.0, "tp_hops": 1, "taken": 1.0},
 	{"regen": 0.5, "dmg": 0.9, "energy_regen": 0.7, "energy_cost": 1.2, "cooldown": 1.2, "sprint": 1.0, "jump": 1.0, "glide": 0.0, "wall_run": false, "tp_range": 1.0, "tp_hops": 1, "taken": 1.0},

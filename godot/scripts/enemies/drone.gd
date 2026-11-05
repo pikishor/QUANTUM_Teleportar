@@ -344,6 +344,7 @@ func die() -> void:
 	_drop_pending = true
 	Game.score += int(cfg["score"])
 	SkillTree.add_xp(SkillTree.kill_xp(int(cfg["score"])))
+	Crafting.on_kill(int(cfg["score"]), bool(cfg.get("boss", false)))         # weapon parts and blueprints
 	var silent := _unaware_hit and not reinforce
 	if camp != &"" and not InteriorGameplay.active:
 		Factions.on_kill(Game.progress, camp)

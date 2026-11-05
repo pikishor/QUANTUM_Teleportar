@@ -13,6 +13,7 @@ const ROW_INFO := 184.0
 const ROW_A := 318.0
 const ROW_B := 394.0
 const ROW_C := 470.0
+const ROW_D := 546.0                 ## the WORKBENCH (sh_craft) and BACK of an owned house
 
 
 static func _col(cx: float, s: float, i: int) -> float:
@@ -46,7 +47,9 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		hud._add(&"sh_buy", _r(cx, s, 0, ROW_A), "BUY  %d CR" % int(Economy.SAFEHOUSE_PRICE[id]), Safehouses.can_buy(prog, id))
 		var e := Safehouses.earn_progress(prog, id)
 		hud._add(&"sh_claim", _r(cx, s, 1, ROW_A), "CLAIM FREE" if Safehouses.earned(prog, id) else "EARN  %d/%d" % [e.x, e.y], Safehouses.earned(prog, id))
-	hud._add(&"sh_back", _r(cx, s, 3, ROW_C), "BACK", false)
+	if Safehouses.is_owned(prog, id):
+		hud._add(&"sh_craft", _r(cx, s, 0, ROW_D), "WORKBENCH", false)
+	hud._add(&"sh_back", _r(cx, s, 3, ROW_D if Safehouses.is_owned(prog, id) else ROW_C), "BACK", false)
 
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
@@ -68,4 +71,4 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 84.0) * s), Safehouses.trophy_text(prog), HORIZONTAL_ALIGNMENT_LEFT, w - 20.0 * s, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 	var note := Safehouses.last_rest if owned else ""
 	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 110.0) * s), note, HORIZONTAL_ALIGNMENT_LEFT, w - 20.0 * s, int(18.0 * s), Color(1, 1, 1, 0.8), 1.0 * s)
-	hud._text(c, font, Vector2(0.0, (ROW_C + BTN_H + 36.0) * s), "CREDITS  %d" % (prog.credits if prog != null else 0), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.AMBER, 0.9), 1.0 * s)
+	hud._text(c, font, Vector2(0.0, ((ROW_D if owned else ROW_C) + BTN_H + 36.0) * s), "CREDITS  %d" % (prog.credits if prog != null else 0), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.AMBER, 0.9), 1.0 * s)

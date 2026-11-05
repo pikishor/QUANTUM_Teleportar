@@ -30,7 +30,7 @@ const SERVICE := {&"heal": 40, &"heal_kit": 55, &"energy": 30, &"energy_cell": 3
 
 ## Rewards (credits, before sector factor and reputation bonus where the system applies them).
 const CONTRACT_BASE := {&"officer": 320, &"hack": 260, &"chase": 300, &"courier": 220, &"survive": 420, &"drones": 280, &"boss": 1200}
-const SIDE_PAY := {&"courier": 220, &"photo": 260, &"relay": 320, &"rescue": 300, &"car_drop": 380, &"turf": 420, &"rooftop": 440, &"heist": 520, &"hunt": 600, &"smuggler": 680, &"bounty": 360, &"sniper": 400, &"swarm": 460, &"car_theft": 500, &"hostage": 540, &"blackout": 560, &"data_courier": 330, &"arena": 640, &"demolition": 280, &"anomaly": 420}
+const SIDE_PAY := {&"courier": 220, &"photo": 290, &"relay": 320, &"rescue": 300, &"car_drop": 380, &"turf": 420, &"rooftop": 410, &"heist": 520, &"hunt": 560, &"smuggler": 500, &"bounty": 360, &"sniper": 400, &"swarm": 460, &"car_theft": 500, &"hostage": 540, &"blackout": 540, &"data_courier": 330, &"arena": 600, &"demolition": 280, &"anomaly": 420}
 const SIDE_CHAPTER := {&"courier": 0, &"photo": 0, &"relay": 0, &"rescue": 1, &"car_drop": 1, &"turf": 2, &"rooftop": 2, &"heist": 3, &"hunt": 4, &"smuggler": 4, &"bounty": 1, &"sniper": 2, &"swarm": 2, &"car_theft": 3, &"hostage": 3, &"blackout": 3, &"data_courier": 1, &"arena": 4, &"demolition": 0, &"anomaly": 2}
 const INTERIOR_REWARD := {&"safe": 320, &"hostage": 420, &"assassinate": 620, &"hack": 460}
 ## Stealth missions (StealthScripts): base pay, sector needed, and the bonus share added for a clean run (no kills; the silent route: under par). Not part of the hourly model.
@@ -40,12 +40,23 @@ const STEALTH_BONUS := 0.35
 ## Heist missions (HeistScripts): base pay, sector needed, approach pay factors (stealth / loud / quantum), the share kept on a replay. Not part of the hourly model.
 const HEIST_PAY := {&"vault": 900, &"convoy": 1000, &"datacenter": 1150}
 const HEIST_CHAPTER := {&"vault": 2, &"convoy": 4, &"datacenter": 6}
-const HEIST_APPROACH := {&"stealth": 1.0, &"loud": 1.4, &"quantum": 1.2}
+const HEIST_APPROACH := {&"stealth": 1.0, &"loud": 1.25, &"quantum": 1.2}
 const HEIST_REPLAY := 0.6
 ## Safehouses (Safehouses): buy price, sector needed (index of the chapter select), and the upgrade base price (x (level + 1), two levels). Credit sinks outside the gear tree and the hourly model.
-const SAFEHOUSE_PRICE := {&"loft": 1800, &"depot": 3600, &"penthouse": 6500, &"bunker": 9000}
+const SAFEHOUSE_PRICE := {&"loft": 2400, &"depot": 5400, &"penthouse": 9000, &"bunker": 13000}
 const SAFEHOUSE_CHAPTER := {&"loft": 0, &"depot": 2, &"penthouse": 4, &"bunker": 6}
 const SAFEHOUSE_UPGRADE := {&"bed": 400, &"locker": 600, &"bench": 800}
+## Weapon crafting (Crafting, scripts/progress/crafting.gd): part price per unit, blueprint prices, the credit fee per crafted item and what a dismantle returns. All gear-style prices go through
+## scaled(); a credit sink outside the gear tree and the hourly model. Variant blueprints cost a share of their weapon's price plus a base.
+const CRAFT_PART_PRICE := {&"scrap": 40, &"alloy": 120, &"core": 400}
+const CRAFT_PART_BUNDLE := {&"scrap": 5, &"alloy": 2, &"core": 1}              ## units per purchase at a vendor or the bench
+const BLUEPRINT_PRICE := {&"mod_basic": 0, &"mod_arc": 500, &"mod_phase": 650, &"mod_singularity": 900}
+const BLUEPRINT_VARIANT_SHARE := 0.6
+const BLUEPRINT_VARIANT_BASE := 150
+const CRAFT_FEE := {&"mod": 120, &"variant": 260}
+const CRAFT_BOOST_CORES := 1                                                    ## extra QUANTUM CORE a BOOST costs
+const CRAFT_BENCH_DISCOUNT := 0.1                                               ## fee discount per level of the best owned safehouse BENCH
+const DISMANTLE_YIELD := [{&"scrap": 2}, {&"scrap": 3, &"alloy": 1}, {&"scrap": 4, &"alloy": 2}, {&"scrap": 5, &"alloy": 3, &"core": 1}]   ## per rarity: COMMON .. LEGENDARY
 const EVENT_REWARD := {&"ambush": 120, &"race": 150, &"rescue": 90, &"drop": 200, &"rift": 60}
 const ACTIVITY_REWARD := {&"range": 3, &"parkour": 150, &"drift": 200, &"arena": 40}   ## per hit / on finish / on finish / per wave
 const ARENA_CLEAR_BONUS := 100
@@ -68,6 +79,23 @@ static func weapon_price(id: StringName) -> int:
 
 static func attachment_price(id: StringName) -> int:
 	return scaled(int(ATTACHMENT_PRICE.get(id, 0)))
+
+
+static func craft_part_price(id: StringName) -> int:
+	return scaled(int(CRAFT_PART_PRICE.get(id, 0)))
+
+
+static func craft_fee(kind: StringName) -> int:
+	return scaled(int(CRAFT_FEE.get(kind, 0)))
+
+
+## Price of a blueprint: a fixed one for the mod blueprints, a share of the weapon price (plus a base) for `var_<weapon>`; free when the weapon is free.
+static func blueprint_price(bp: StringName) -> int:
+	if BLUEPRINT_PRICE.has(bp):
+		return scaled(int(BLUEPRINT_PRICE[bp]))
+	var w := StringName(String(bp).trim_prefix("var_"))
+	var wp := int(WEAPON_PRICE.get(w, 0))
+	return 0 if wp <= 0 else scaled(int(float(wp) * BLUEPRINT_VARIANT_SHARE) + BLUEPRINT_VARIANT_BASE)
 
 
 static func gear_price(id: StringName) -> int:

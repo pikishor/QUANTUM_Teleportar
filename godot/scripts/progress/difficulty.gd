@@ -9,10 +9,10 @@ const NAMES: Array[String] = ["STORY", "NORMAL", "HARD", "QUANTUM"]
 const NORMAL := 1
 ## Per mode: hp, dmg (damage the player takes), spread (aim error), aggr (fire-rate factor, > 1 shoots more often), heat, credits, cp (health restored by a checkpoint retry, 0..1).
 const MODES: Array[Dictionary] = [
-	{"hp": 0.70, "dmg": 0.55, "spread": 1.50, "aggr": 0.80, "heat": 0.60, "credits": 0.80, "cp": 1.0},
+	{"hp": 0.70, "dmg": 0.65, "spread": 1.50, "aggr": 0.80, "heat": 0.60, "credits": 0.80, "cp": 1.0},
 	{"hp": 1.00, "dmg": 1.00, "spread": 1.00, "aggr": 1.00, "heat": 1.00, "credits": 1.00, "cp": 1.0},
 	{"hp": 1.35, "dmg": 1.35, "spread": 0.75, "aggr": 1.20, "heat": 1.30, "credits": 1.25, "cp": 0.6},
-	{"hp": 1.80, "dmg": 1.80, "spread": 0.50, "aggr": 1.45, "heat": 1.70, "credits": 1.60, "cp": 0.3},
+	{"hp": 1.60, "dmg": 1.65, "spread": 0.60, "aggr": 1.35, "heat": 1.70, "credits": 1.60, "cp": 0.3},
 ]
 
 static var current := NORMAL

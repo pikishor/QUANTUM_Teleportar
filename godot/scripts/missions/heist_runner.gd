@@ -143,6 +143,7 @@ func _end(ok: bool, reason: String) -> void:
 			prog.add_reputation(HeistScripts.WIN_REP)
 			prog.heist_done[hid] = int(prog.heist_done.get(hid, 0)) + 1
 			prog.contracts_done += 1
+			Crafting.award(&"heist")
 		else:
 			Game.add_score(pay)
 	elif reason != "RESET" and reason != "DEMO" and prog != null:

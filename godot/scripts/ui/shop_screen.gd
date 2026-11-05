@@ -58,12 +58,12 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		var wl := "OWNED" if owned else "BUY  %d" % (prog.weapon_price(wid) if prog != null else 0)
 		var ry := (ROW_Y + 60.0 + (k / PER_ROW) * CELL_STEP) * s
 		hud._add(StringName("buy_%s" % wid), Rect2(cx + (-ROW_W * 0.5 + (k % PER_ROW) * colw + 4.0) * s, ry, (colw - 8.0) * s, 64.0 * s), wl, prog != null and prog.can_buy_weapon(wid))
-	var by := NAV_Y * s                                           # one row of seven 64 px buttons under either page
-	var bw := 150.0
-	var x0 := cx - (7.0 * bw + 6.0 * 8.0) * 0.5 * s
+	var by := NAV_Y * s                                           # one row of eight 64 px buttons under either page
+	var bw := 134.0
+	var x0 := cx - (8.0 * bw + 7.0 * 8.0) * 0.5 * s
 	var more := "WEAPONS" if weapon_page == 0 else ("MORE %d/%d" % [weapon_page, pages() - 1] if pages() > 2 else "UPGRADES")
 	var specs: Array = [[&"skills_open", "SKILLS  %d" % SkillTree.points(), SkillTree.points() > 0], [&"loadout", "LOADOUT", false], [&"side_open", "MISSIONS", false], [&"look_open", "SUIT", false],
-		[&"heist_open", "HEISTS", false], [&"shop_wpage", more, false], [&"shop_back", "BACK", false]]
+		[&"heist_open", "HEISTS", false], [&"cr_open", "CRAFT", false], [&"shop_wpage", more, false], [&"shop_back", "BACK", false]]
 	for i in specs.size():
 		hud._add(specs[i][0], Rect2(x0 + i * (bw + 8.0) * s, by, bw * s, 64.0 * s), specs[i][1], specs[i][2])
 

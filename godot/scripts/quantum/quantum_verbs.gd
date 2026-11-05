@@ -33,7 +33,7 @@ const BOSS_SLIP := 0.75
 const ARC_RANGE := 30.0
 const ARC_HOP := 18.0
 const ARC_STEP := 0.14                ## seconds per hop
-const ARC_DMG := 55.0
+const ARC_DMG := 70.0
 const ARC_RESIST := 0.35              ## damage factor against shield troops, brutes and bosses
 const ARC_BEAMS := 7
 

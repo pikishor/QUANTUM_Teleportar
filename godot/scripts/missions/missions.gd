@@ -320,6 +320,7 @@ func _collect_pickup(s: Dictionary, idx: int, player: Node3D) -> void:
 	else:
 		player.call(&"add_energy", ENERGY_AMOUNT)
 		Game.say("+35 COHERENCE", 1.2)
+	Crafting.award(&"loot")                                    # a pickup may carry weapon parts
 	var col := _kind_color(s.kind)
 	var at: Vector3 = (s.node as Node3D).global_position
 	FX.burst(at, col, 14, 4.0, 0.5, 4.0, 1.0)

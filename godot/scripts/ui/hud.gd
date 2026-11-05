@@ -68,6 +68,7 @@ var _shop_open := false             ## the pause screen shows the upgrade shop i
 var _options_open := false          ## the title / pause screen shows the options (scripts/ui/options_screen.gd)
 var _arena_open := false            ## the boss rush / arena planning screen is open (title or pause; scripts/ui/arena_board.gd)
 var photo: PhotoMode                ## PHOTO MODE (scripts/ui/photo_mode.gd): free camera while the game stays paused; controls in scripts/ui/photo_screen.gd
+var _craft_open := false            ## the pause screen shows the workbench (scripts/ui/craft_screen.gd), over the shop, a safehouse or the DEMO menu
 var _safe_open := false             ## the pause menu shows the safehouse screen (scripts/ui/safehouse_screen.gd)
 var _heist_open := false            ## the pause shop shows the heist planning screen (scripts/ui/heist_board.gd)
 var _side_open := false             ## the pause shop shows the side-mission board (scripts/ui/side_board.gd)
@@ -179,6 +180,7 @@ func _on_state(s: StringName) -> void:
 	_side_open = false
 	_heist_open = false
 	_safe_open = false
+	_craft_open = false
 	_arena_open = false
 	_loadout_open = false
 	_loadout_page = 0
@@ -199,7 +201,7 @@ func _on_state(s: StringName) -> void:
 
 ## True while a full-screen pause panel (shop, skills, gear, look, boards, options...) is open: it owns the whole picture, the gameplay HUD and minimap are hidden behind it.
 func panel_cover() -> bool:
-	return Game.state == &"paused" and not photo_open() and (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open)
+	return Game.state == &"paused" and not photo_open() and (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open)
 
 
 ## What the gameplay HUD layer (and the minimap on it) should show: not in the title, a cutscene, photo mode or behind a full-screen pause panel.
@@ -478,6 +480,8 @@ func press_button(id: StringName) -> bool:
 		return true
 	if sid.begins_with("sh_"):
 		return _press_safehouse(sid)
+	if sid.begins_with("cr_"):
+		return _press_craft(sid)
 	if sid.begins_with("heist_"):
 		return _press_heist(sid)
 	if sid.begins_with("arena_"):
@@ -1439,6 +1443,7 @@ func _ensure_layout() -> void:
 	key += "|r%s%s%s%s" % [_arena_open, ArenaBoard.mode, ArenaBoard.diff, ArenaBoard.mods]
 	key += "|k%s%d%d%d" % [_skills_open, SkillTree.xp, SkillTree.spent(), _wallet()]
 	key += "|a%s%d" % [_ach_open, _ach_page]
+	key += "|c%s%d%d%d%d%s%d" % [_craft_open, CraftScreen.page, CraftScreen.grid_page, Crafting.rev, CraftScreen.sel_item, CraftScreen.sel_bp, WeaponDefs.last_used.hash()]
 	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100]
 	key += "|g%d%s%s%d%d" % [_loadout_page, Gear.throwable, Gear.gadget, Gear.owned.size(), Gear.active_slot]
 	key += "|%s%d%d%d%d%s" % [_options_open, int(settings.hud_scale * 100.0), UiSettings.s_opt_page, ControlsScreen.tab, ControlsScreen.page, ControlsScreen.listening]
@@ -1483,6 +1488,8 @@ func _ensure_layout() -> void:
 				ArenaBoard.layout(self, cx, s)
 			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
+			elif _craft_open:
+				CraftScreen.layout(self, cx, s)
 			elif _skills_open:
 				SkillScreen.layout(self, cx, s)
 			elif _heist_open:
@@ -1585,7 +1592,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		&"paused" when photo_open():
 			PhotoScreen.draw(self, photo, c, vp, s, font)      # no dim: the live world is the picture
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1621,6 +1628,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				OptionsScreen.draw(self, c, vp, s, font, cx)
 			elif _chapters_open:
 				ChapterSelect.draw(self, c, vp, s, font, cx)
+			elif _craft_open:
+				CraftScreen.draw(self, c, vp, s, font, cx)
 			elif _ach_open:
 				AchievementsScreen.draw(self, c, vp, s, font, cx, _ach_page)
 			elif _arena_open:
@@ -1749,7 +1758,7 @@ func _press_safehouse(sid: String) -> bool:
 	var id := Safehouses.sel
 	var ok := true
 	if sid == "sh_open":
-		if _safe_open or photo_open() or _shop_open or _options_open or _chapters_open or _arena_open or _heist_open or _side_open or _skills_open or _look_open or _loadout_open or _ach_open:
+		if _safe_open or photo_open() or _shop_open or _options_open or _chapters_open or _arena_open or _heist_open or _side_open or _skills_open or _look_open or _loadout_open or _ach_open or _craft_open:
 			return false
 		_safe_open = true
 		Sfx.play(&"ui_confirm")
@@ -1782,6 +1791,8 @@ func _press_safehouse(sid: String) -> bool:
 		_loadout_w = WeaponDefs.last_used
 		LoadoutScreen.reset_page()
 		Sfx.play(&"ui_confirm")
+	elif sid == "sh_craft":
+		return _press_craft("cr_open")
 	elif sid == "sh_trophy":
 		_ach_open = true
 		_ach_page = 0
@@ -1817,7 +1828,34 @@ func _press_safehouse(sid: String) -> bool:
 
 ## True while a sub-screen opened from the safehouse (look, loadout, achievements) is on top of it.
 func look_or_sub_open() -> bool:
-	return _look_open or _loadout_open or _ach_open
+	return _look_open or _loadout_open or _ach_open or _craft_open
+
+
+## The workbench (scripts/ui/craft_screen.gd): `cr_open` from the shop, a safehouse or the DEMO menu (the pause menu otherwise), then the screen's own buttons, `cr_back` returns.
+func _press_craft(sid: String) -> bool:
+	if Game.state != &"paused" or Game.progress == null or photo_open():
+		return false
+	if sid == "cr_open":
+		if _craft_open or _options_open or _chapters_open or _arena_open or _heist_open or _side_open or _skills_open or _look_open or _loadout_open or _ach_open:
+			return false
+		_craft_open = true
+		CraftScreen.reset_state()
+		Sfx.play(&"ui_confirm")
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
+	if not _craft_open:
+		return false
+	var ok := true
+	if sid == "cr_back":
+		_craft_open = false
+		Sfx.play(&"ui_back")
+	else:
+		ok = CraftScreen.press(sid)
+		Sfx.play(&"ui_purchase" if ok and (sid == "cr_make" or sid.begins_with("cr_cell_")) else (&"ui_tap" if ok else &"ui_deny"))
+	_layout_key = ""
+	_screen.queue_redraw()
+	return ok
 
 
 ## The heist planning screen's buttons (scripts/ui/heist_board.gd): open from the shop, pick, approach, crew, LAUNCH, BACK.
@@ -1864,7 +1902,7 @@ func _press_heist(sid: String) -> bool:
 ## The photo mode buttons (scripts/ui/photo_screen.gd): `photo_open` on the pause menu, the rest only while photo mode runs. Sliders act through slide().
 func _press_photo(sid: String) -> bool:
 	if sid == "photo_open":
-		if Game.state != &"paused" or photo_open() or _shop_open or _options_open or _chapters_open or _arena_open or _heist_open or _safe_open or _side_open or _skills_open or _look_open or _loadout_open or _ach_open:
+		if Game.state != &"paused" or photo_open() or _shop_open or _options_open or _chapters_open or _arena_open or _heist_open or _safe_open or _side_open or _skills_open or _look_open or _loadout_open or _ach_open or _craft_open:
 			return false
 		if not photo.begin():
 			return false

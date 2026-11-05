@@ -291,6 +291,7 @@ func _finish() -> void:
 		prog.bonus_score(int(r["score"]))
 		prog.add_reputation(int(r["rep"]))
 		prog.contracts_done += 1
+		Crafting.award(&"contract")
 	else:
 		Game.add_score(int(r["score"]))
 	if _marker != null:

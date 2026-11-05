@@ -176,6 +176,7 @@ static func _grant_all(prog: Progress) -> void:
 		if need != "" and not prog.achievements.cosmetics.has(StringName(need)):
 			prog.achievements.cosmetics.append(StringName(need))
 	Safehouses.grant_all(prog)
+	Crafting.grant_all(prog)
 	prog.garage.kind = &"sport"
 	prog.garage.levels = {}
 	for st: StringName in Garage.STATS:
@@ -254,6 +255,8 @@ static func catalog() -> Array[Dictionary]:
 	for id: StringName in Safehouses.IDS:
 		shs.append({"id": id, "label": "SAFEHOUSE  %s" % Safehouses.title(id)})
 	out.append({"kind": &"safehouse", "title": "SAFEHOUSES", "items": shs})
+	out.append({"kind": &"crafting", "title": "WORKBENCH", "items": [{"id": &"bench", "label": "OPEN THE WORKBENCH"}, {"id": &"parts", "label": "ADD PARTS AND BLUEPRINTS"},
+		{"id": &"kit", "label": "CRAFT AND EQUIP A LEGENDARY KIT"}, {"id": &"drop", "label": "ROLL A MISSION DROP"}]})
 	return out
 
 
@@ -273,6 +276,7 @@ static func launch(kind: StringName, id: Variant) -> String:
 		&"heist": return start_heist(str(id))
 		&"arena": return start_arena(str(id))
 		&"safehouse": return start_safehouse(StringName(id))
+		&"crafting": return start_crafting(StringName(id))
 		&"boss":
 			_prepare()
 			return TestMode.start_contract(&"boss") if StringName(id) == &"contract" else TestMode.spawn_enemy(StringName(id))
@@ -399,6 +403,38 @@ static func start_safehouse(id: StringName) -> String:
 		return ""
 	Game.state = &"paused"
 	return "SAFEHOUSE  %s" % Safehouses.title(id) if hud.press_button(&"sh_open") else ""
+
+
+## The workbench entries: open the bench, refill parts and blueprints, craft and equip one legendary item per perk, or roll a contract drop.
+static func start_crafting(what: StringName) -> String:
+	var prog := Game.progress as Progress
+	if prog == null:
+		return ""
+	match what:
+		&"bench":
+			_prepare()
+			var hud := _hud()
+			if hud == null:
+				return ""
+			Game.state = &"paused"
+			return "WORKBENCH" if hud.press_button(&"cr_open") else ""
+		&"parts":
+			Crafting.grant_all(prog)
+			return "PARTS AND BLUEPRINTS  ADDED"
+		&"kit":
+			var w := WeaponDefs.last_used
+			var made := 0
+			for bp: StringName in [&"mod_singularity", StringName("var_%s" % w)]:
+				if Crafting.knows(bp):
+					var it := Crafting.make_item(bp, 3, int(Time.get_ticks_usec()) & 0x7fffffff)
+					Crafting.add_item(it)
+					Crafting.equip(prog, int(it["uid"]), w)
+					made += 1
+			return "LEGENDARY KIT  %d EQUIPPED" % made if made > 0 else ""
+		&"drop":
+			var d := Crafting.award(&"contract")
+			return Crafting.drop_text(d) if not Crafting.drop_text(d).is_empty() else "NO DROP THIS TIME"
+	return ""
 
 
 static func _hud() -> Hud:

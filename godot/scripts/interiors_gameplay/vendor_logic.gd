@@ -55,6 +55,18 @@ static func rows(type: StringName) -> Array[Dictionary]:
 					row["state"] = "done"
 					row["label"] = "FULL"
 				row["sub"] = "RESERVE %d" % _reserve(wid)
+			"parts":
+				row["price"] = discount_price(Crafting.part_price(&"scrap", null) + Crafting.part_price(&"alloy", null))
+				row["sub"] = "SCRAP %d  ALLOY %d" % [Crafting.part_count(&"scrap"), Crafting.part_count(&"alloy")]
+			"blueprint":
+				var nb := _next_blueprint()
+				if nb == &"":
+					row["state"] = "done"
+					row["label"] = "ALL KNOWN"
+				else:
+					row["price"] = discount_price(Economy.blueprint_price(nb))
+					row["name"] = "BLUEPRINT  %s" % Crafting.bp_title(nb)
+				row["sub"] = "WORKBENCH RECIPE"
 			"heal", "energy", "drink", "rumour":
 				row["price"] = discount_price(int(it["price"]))
 				row["sub"] = _sub_of(str(it["kind"]))
@@ -87,6 +99,18 @@ static func _sub_of(kind: String) -> String:
 		"drink": return "RESTORES %d HP" % int(DRINK_HP)
 		"rumour": return "STORY OR A CONTRACT HINT"
 	return ""
+
+
+## The blueprint a tech vendor sells next: the cheapest one you do not know yet (&"" when you know them all).
+static func _next_blueprint() -> StringName:
+	var best: StringName = &""
+	var best_p := 1 << 30
+	for bp: StringName in Crafting.unknown_bps():
+		var pr := Economy.blueprint_price(bp)
+		if pr < best_p:
+			best_p = pr
+			best = bp
+	return best
 
 
 static func _weapon_node() -> PlayerWeapon:
@@ -126,6 +150,18 @@ static func buy(type: StringName, id: StringName) -> Dictionary:
 	var price := int(row["price"])
 	var pl := Game.player as Player
 	match str(row["kind"]):
+		"parts":
+			if not p.spend(price):
+				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}
+			Crafting.add_part(&"scrap", int(Economy.CRAFT_PART_BUNDLE[&"scrap"]))
+			Crafting.add_part(&"alloy", int(Economy.CRAFT_PART_BUNDLE[&"alloy"]))
+			p.changed.emit()
+		"blueprint":
+			var nb := _next_blueprint()
+			if nb == &"" or not p.spend(price):
+				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}
+			Crafting.learn(nb)
+			p.changed.emit()
 		"upgrade":
 			if not p.buy(id):
 				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}

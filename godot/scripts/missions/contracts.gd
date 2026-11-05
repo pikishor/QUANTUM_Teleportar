@@ -577,6 +577,7 @@ func _boss_down(o: Overseer) -> void:
 		m.call(&"drop_weapon", wid, Vector3(o.global_position.x, 0.0, o.global_position.z))     # ... and the same weapon lies where it fell (an ammo pack once owned)
 	if prog != null and not ch in prog.bosses_cleared:
 		prog.bosses_cleared.append(ch)
+		Crafting.award(&"boss")
 		prog.add_reputation(10)
 		prog.grant_upgrade(&"", rng)                        # the sector-clear bonus: a second free upgrade on top of the contract's
 	Game.say("SECTOR CLEARED  OVERSEER DOWN", 3.0)
@@ -937,6 +938,7 @@ func _complete(speed: float) -> void:
 		prog.add_reputation(int(r["rep"]))
 		prog.contracts_done += 1
 		prog.bonus_score(100)
+		Crafting.award(&"contract")
 	else:
 		Game.add_score(100)
 	var pl := Game.player

@@ -93,6 +93,7 @@ func _exit_tree() -> void:
 		Attachments.reset()
 		Gear.reset()
 		SkillTree.reset()
+		Crafting.reset()
 
 
 # --- pure rules (static, tested) ------------------------------------------------------------------------------------
@@ -291,6 +292,7 @@ func weapon_price(id: StringName) -> int:
 func buy_skill(id: StringName) -> bool:
 	if not SkillTree.buy(id):
 		return false
+	Crafting.refresh_weapon()                               # crafted perks scale with the tree
 	changed.emit()
 	return true
 
@@ -301,6 +303,7 @@ func respec_skills() -> bool:
 		return false
 	credits -= price
 	SkillTree.respec()
+	Crafting.refresh_weapon()
 	changed.emit()
 	return true
 
@@ -427,6 +430,7 @@ func complete_side(mid: StringName, pay: int, rep: int, time: float) -> void:
 		side_best[mid] = snappedf(time, 0.1)
 	add_credits(int(roundf(float(pay) * Factions.pay_mult(self, mid))))
 	add_reputation(rep)
+	Crafting.award(&"side")
 	if Factions.job_client(mid) != &"":
 		Factions.add_rep(self, Factions.job_client(mid), Factions.JOB_REP)
 	if autosave_enabled:
@@ -461,6 +465,7 @@ func new_campaign() -> void:
 	Attachments.reset()
 	Gear.reset()
 	SkillTree.reset()
+	Crafting.reset()
 	_frac = 0.0
 	_apply_to_player()
 	changed.emit()
@@ -667,6 +672,9 @@ func save_file() -> bool:
 	var sk := SkillTree.to_save()
 	for sk_k: String in sk:
 		cf.set_value("skills", sk_k, sk[sk_k])
+	var crd := Crafting.to_save()
+	for crk: String in crd:
+		cf.set_value("crafting", crk, crd[crk])
 	cf.set_value("campaign", "bosses", PackedInt32Array(bosses_cleared))
 	cf.set_value("campaign", "unlocked", unlocked)
 	cf.set_value("collectibles", "got", collectibles.to_save())
@@ -780,6 +788,11 @@ func load_file() -> bool:
 		for sk_k in cf.get_section_keys("skills"):
 			skill_d[sk_k] = cf.get_value("skills", sk_k)
 	SkillTree.from_save(skill_d)                            # older saves have no [skills] section: level 1, no ranks
+	var craft_d := {}
+	if cf.has_section("crafting"):
+		for crk in cf.get_section_keys("crafting"):
+			craft_d[crk] = cf.get_value("crafting", crk)
+	Crafting.from_save(craft_d)                             # older saves have no [crafting] section: the starter blueprints, no parts
 	bosses_cleared.clear()
 	for b: Variant in _arr(cf.get_value("campaign", "bosses", PackedInt32Array())):
 		if b is int and int(b) >= 0 and int(b) < 99 and not bosses_cleared.has(int(b)):

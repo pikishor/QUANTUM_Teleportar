@@ -66,6 +66,8 @@ var combo := 0                               ## melee: index (0..2) of the next 
 var combo_hits := 0                          ## lifetime melee swings, for tests
 var finishers := 0                           ## lifetime combo finishers
 var chain_hits := 0                          ## lifetime arc-caster chain jumps
+var singularities := 0                       ## lifetime SINGULARITY ON CRIT pulses (crafted perk, scripts/progress/crafting.gd)
+var _sing_t := 0.0
 var overheats := 0
 var _combo_t := 0.0
 var _lock_t := 0.0
@@ -569,6 +571,8 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 	p.hit_confirmed.emit(kill, crit)
 	if kill:
 		GameFeel.fire(&"heavy_kill" if GameFeel.is_heavy_kill(crit, current) else &"kill")
+	if crit and not is_vehicle and def.has("sing"):
+		_singularity(hit, target)
 	_damage_number(hit, float(def["damage"]) * k * Upgrades.damage_mult() if not crit else float(def["crit"]) * k * Upgrades.damage_mult(), crit, kill)
 	if _sparks != null:
 		if is_vehicle:
@@ -579,6 +583,30 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 			_sparks.impact_person(hit, n)
 		else:
 			_sparks.impact_machine(hit, n)
+
+
+## SINGULARITY ON CRIT (crafted perk): a crit pulls every enemy near the hit toward it and burns them, at most once per cooldown.
+func _singularity(at: Vector3, victim: Node) -> void:
+	var s: Dictionary = def["sing"]
+	var now := PlayerUtil.now()
+	if now < _sing_t:
+		return
+	_sing_t = now + float(s["cd"])
+	singularities += 1
+	var radius := float(s["radius"])
+	FX.burst(at, WeaponDefs.COLLAPSE_COLOR, 12, 5.0, 0.4, 0.0, 1.0)
+	Sfx.play_at(&"superpos", at, -8.0, 0.9)
+	for e: Node in get_tree().get_nodes_in_group(&"enemy"):
+		if e == victim or not (e is Node3D) or _is_dead(e):
+			continue
+		var en := e as Node3D
+		var off := Vector3(at.x - en.global_position.x, 0.0, at.z - en.global_position.z)
+		var dist := off.length()
+		if dist > radius:
+			continue
+		if dist > 1.2:
+			en.global_position += off / dist * minf(float(s["pull"]), dist - 1.0)
+		e.call(&"damage", float(s["dmg"]) * Upgrades.damage_mult(), false)
 
 
 ## A spent casing popped out of the rifle (a tiny pooled spark burst, no nodes).
