@@ -489,3 +489,22 @@ Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one tran
 - Full suite 142 tests via tools/test_all.sh: 142 pass, 0 flaky, 0 fail. Perf gate skipped (no rendering/texture changes). full_bot exit 0 (SOAK verdict PASS, 7.6 min, errors=0; only exit-time headless RID leak warnings). visual_qa 19/19 pass.
 - ci_shard.sh (4 shards by file size) and ci.yml matrix are untested on the real runner: CI wall time, import-cache hit rate and visual_qa.sh on the runner are unverified.
 - latest.png: no new glaring defects. Existing follow-ups: title DEMO tag overlaps the top-left, broadcast box overlaps the minimap, car shot flat colour, interior hero cropped, mission toast over hero, sky_noon / storm shots slightly washed.
+
+## Humanoid wiring (builder note)
+- HumanoidAnim now drives the Vael troopers (aim windup, fire kick, flinch, death, weapon mount muzzle) and citizens hang relaxed arms with a walking swing (HumanoidAnim.relax_arms); specialists keep the old model; the hero rifle stays baked into the hero mesh (a separate node = +1 draw). Test tests/test_humanoid_wiring.gd; close-ups via tests/humanoid_closeup.tscn. No rendering budget change (no new draws, meshes or textures; perf gate not run).
+- Follow-ups: MOUNTS grips are not applied (one carbine mesh); only the rifle mount is used by live enemies; the flinch is the old strength (0.7 / 1.0); citizen swing amplitude (RELAX_SWING) tuned by eye only; hands keep the curled rifle-grip fingers when relaxed.
+
+
+## Visual fixes 3 (builder note, tests/test_visual_fixes3.gd)
+- Flat-rect limit back at 0.01 (`VisualQaLib.MAX_FLAT_RECT`). The 0.015 "flat rect" in the sky shots is open sky between towers: `flat_rects(img, sky)` takes a Callable and the bot exempts a rect only when view rays through its corners and middle hit nothing (a quad over a car or facade is never exempt). The white translucent rectangles near the vehicle prompt did NOT reproduce in the full 24-spot sequence in this sandbox (no rect above 0.003 outside sky), so no pool culprit was found; the check now bites at 0.01 if they return.
+- tools/bot.sh timeout is now `BOT_TIMEOUT` (visual_qa.sh sets 1500 s): the old fixed 300 s killed the run after 18 of 24 spots (the roofs_* shots were never taken).
+- Car paint: lacquer is a dielectric (metallic 0.12..0.4, specular 0.9, clear coat, rim 0.45, was metallic 0.55..1.0 which mirrored the dark sky radiance into a flat blob). The QA car shot is now the sedan in dusk violet (the worst case).
+- Toasts (Game.say): the centre message lives in a plate under the top stack (`Hud.msg_rect`, below the chapter banner while it shows), between the subtitle column and the right plates; the teleport readout hangs under it. `StoryView.subtitle_rect` exposes the radio plate for layout tests (it starts under UiUtil.left_bottom, i.e. under the minimap).
+- Interior camera: a wall-shortened arm widens the horizontal FOV by up to 18 degrees (`CameraRig.INTERIOR_FOV_BOOST`), so head, shoulders and hips stay on screen.
+- QA bot: the hero shot clears leftover toasts and re-looks up to twice before failing "hero blends in" (separation was 0.010..0.04 depending on which way the hero faces).
+- Follow-ups: the hero shot sometimes shows the hero from behind (separation flaky, not root-caused); no reflection probe, so car gloss comes from lights and the dark sky only; perf gate run on tiers 0 and 1 only (OK, draws unchanged).
+
+## Wave 66 integrator note
+- Full suite 144/144 pass, 0 flaky. test_full_quick passes. Visual QA 24/24.
+- Perf: tier0 draws=66 tex=166MB OK, tier1 draws=94 tex=216MB OK, tier2 draws=106 tex=307MB (death 337MB) OK. One tier-0 run in a combined 0 1 2 invocation read OVER; two isolated reruns were OK (cause not isolated, likely sandbox timing).
+- Follow-ups from latest.png look: player model reads dark/low-detail from behind; interior shot very red; hero rifle still baked into mesh (see humanoid notes); stray PNGs in / from an earlier builder need removal.

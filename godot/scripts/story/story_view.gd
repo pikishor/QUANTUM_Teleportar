@@ -6,7 +6,7 @@ extends Control
 ## bars; the story layer adds nothing to the top centre but the chapter banner. The radio subtitle is a narrow plate in the TOP-LEFT column right under the minimap
 ## (and the perf readout on phones, UiUtil.left_bottom): the text is measured and wrapped to the plate, shrinks to 18 px when it needs more than SUB_MAX_LINES lines, and
 ## shows whole words only, so a line is never cut mid-word. It never covers the hero, the crosshair or the touch buttons; the centre message of the HUD starts below the
-## top stack (Hud.MSG_Y). The middle of the screen stays free except for the card band, which the player skips with a tap.
+## top stack (Hud.msg_top). The middle of the screen stays free except for the card band, which the player skips with a tap.
 
 const SUB_W := 320.0                ## base px: the subtitle plate (narrow, top left)
 const SUB_FONT := 22.0
@@ -182,8 +182,9 @@ func _draw_banner(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 	_shadow_text(font, Vector2(x0, y0 + 120.0 * s), obj, HORIZONTAL_ALIGNMENT_CENTER, bw, fit_font(font, obj, inner, int(UiUtil.TEXT_MIN * s), int(15.0 * s)), Color(UiUtil.AMBER, 0.95 * a), s)
 
 
-## The radio subtitle: a narrow plate in the top-left column under the minimap, speaker name over the wrapped lines, whole words revealed as the line types.
-func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
+## Where the radio subtitle plate sits and what it holds for the current line: {box, lines, fsize, lh}. The box starts under the HUD's top-left column (UiUtil.left_bottom:
+## the minimap, the perf readout on phones), so it can never overlap the minimap.
+func _sub_layout(vp: Vector2, s: float, ins: Vector2) -> Dictionary:
 	var zoom := UiSettings.s_sub_size
 	var width := minf(SUB_W * s * zoom, vp.x * (0.36 if zoom <= 1.0 else 0.5))
 	var full := str(story.current.get("t", ""))
@@ -191,7 +192,25 @@ func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 	var fsize := _fit_size
 	var lh := float(fsize) * 1.28
 	var h: float = float(lines.size()) * lh + 32.0 * s
-	var box := Rect2(ins.x + 16.0 * s, (UiUtil.left_bottom + 8.0) * s, width, h)
+	return {"box": Rect2(ins.x + 16.0 * s, (UiUtil.left_bottom + 8.0) * s, width, h), "lines": lines, "fsize": fsize, "lh": lh}
+
+
+## The plate rect of the current radio line for a viewport (Rect2() when no line shows). For layout tests.
+func subtitle_rect(vp: Vector2) -> Rect2:
+	if story == null or story.current.is_empty():
+		return Rect2()
+	var s := UiUtil.ui_scale(vp)
+	return _sub_layout(vp, s, UiUtil.insets(vp))["box"]
+
+
+## The radio subtitle: a narrow plate in the top-left column under the minimap, speaker name over the wrapped lines, whole words revealed as the line types.
+func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
+	var lay := _sub_layout(vp, s, ins)
+	var lines: PackedStringArray = lay["lines"]
+	var fsize: int = lay["fsize"]
+	var lh: float = lay["lh"]
+	var zoom := UiSettings.s_sub_size
+	var box: Rect2 = lay["box"]
 	var a := story.line_alpha()
 	var speaker := str(story.current.get("s", ""))
 	var col := speaker_color(speaker)

@@ -71,15 +71,16 @@ static func separation(shown: Image, hidden: Image, step := 2) -> Dictionary:
 
 ## Big flat bright rectangles (an untextured / not-yet-textured billboard or quad): the frame is cut into BLOCK px cells, a cell is flat when its luma range is
 ## under FLAT_RANGE and bright when its mean is over FLAT_LUMA; 4-connected flat-bright regions at least FLAT_MIN_CELLS across both ways whose cells fill
-## at least 85 % of their bounding box count. Returns the biggest one as {frac (of the frame), rect (px)}, frac 0 when none.
+## at least 85 % of their bounding box count. Returns the biggest one as {frac (of the frame), rect (px)}, frac 0 when none. `sky` (optional Callable(Rect2i) -> bool) says a
+## rect is open sky (a real gap in the skyline, not a drawn quad): such rects are not counted.
 const FLAT_BLOCK := 8
 const FLAT_RANGE := 0.035
 const FLAT_LUMA := 0.55
 const FLAT_MIN_CELLS := 5
-const MAX_FLAT_RECT := 0.03     # a clear sky gap between two towers is flat and rectangular too (about 0.015); the old white quads were 0.05 and more
+const MAX_FLAT_RECT := 0.01     # restored from 0.03 (wave 66). A clear sky gap between two towers is flat and rectangular too (about 0.015): the bot passes `sky` to exempt rects of open sky
 
 
-static func flat_rects(img: Image) -> Dictionary:
+static func flat_rects(img: Image, sky := Callable()) -> Dictionary:
 	var cw := img.get_width() / FLAT_BLOCK
 	var ch := img.get_height() / FLAT_BLOCK
 	var flat := PackedByteArray()
@@ -132,8 +133,9 @@ static func flat_rects(img: Image) -> Dictionary:
 		var bh := y1 - y0 + 1
 		if bw >= FLAT_MIN_CELLS and bh >= FLAT_MIN_CELLS and float(n) >= 0.85 * bw * bh:
 			var frac := float(n) / float(cw * ch)
-			if frac > float(best["frac"]):
-				best = {"frac": frac, "rect": Rect2i(x0 * FLAT_BLOCK, y0 * FLAT_BLOCK, bw * FLAT_BLOCK, bh * FLAT_BLOCK)}
+			var rect := Rect2i(x0 * FLAT_BLOCK, y0 * FLAT_BLOCK, bw * FLAT_BLOCK, bh * FLAT_BLOCK)
+			if frac > float(best["frac"]) and not (sky.is_valid() and bool(sky.call(rect))):
+				best = {"frac": frac, "rect": rect}
 	return best
 
 

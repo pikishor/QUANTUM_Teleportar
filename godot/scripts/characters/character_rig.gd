@@ -405,6 +405,11 @@ func muzzle_transform() -> Transform3D:
 	return Transform3D(bm, p)
 
 
+## Length of arm k (0 left, 1 right): upper arm plus forearm, metres.
+func arm_reach(k: int) -> float:
+	return float(_l1[k]) + float(_l2[k])
+
+
 func _pose(i: int, delta: Basis, pos := Vector3.ZERO) -> void:
 	var r := _rest[i]
 	skeleton.set_bone_pose(_idx[i], Transform3D(r.basis * delta, r.origin + r.basis * pos))

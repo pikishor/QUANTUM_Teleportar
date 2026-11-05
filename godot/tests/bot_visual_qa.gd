@@ -7,6 +7,8 @@ const KitWorld := preload("res://scripts/world/city_kit_world.gd")
 const Districts := preload("res://scripts/world/city_districts.gd")
 const Dress := preload("res://scripts/world/city_kit_dress.gd")
 const SETTLE := 16
+const CAR_KIND := &"sedan"
+const CAR_PAINT := 4          ## VehicleSpecs.COLORS: dusk violet
 var _i := 0
 var _wait := 0
 var _phase := 0
@@ -16,6 +18,7 @@ var _p: Player
 var _shown: Image
 var _hidden_nodes: Array[MeshInstance3D] = []
 var _fails := 0
+var _hero_tries := 0
 
 
 func _init() -> void:
@@ -57,6 +60,11 @@ func step(_t: float, _dt: float) -> bool:
 		var hidden := vp.get_texture().get_image()
 		_set_hero(true)
 		sep = float(VisualQaLib.separation(_shown, hidden)["sep"])
+	if spot == &"hero" and sep >= 0.0 and sep < VisualQaLib.MIN_SEP and _hero_tries < 2:
+		_hero_tries += 1              # the separation is measured on two frames and is state-dependent (the hero may face away): look again before failing
+		_phase = 0
+		_wait = 8
+		return false
 	var st := VisualQaLib.stats(img)
 	var people := -1
 	if String(spot).begins_with("street_"):
@@ -68,7 +76,7 @@ func step(_t: float, _dt: float) -> bool:
 	var extra := ""
 	if spot == &"title":
 		extra = _badge_overlap()
-	var why := VisualQaLib.verdict(st, sep, people, float(VisualQaLib.flat_rects(img)["frac"]), extra)
+	var why := VisualQaLib.verdict(st, sep, people, float(VisualQaLib.flat_rects(img, _is_open_sky)["frac"]), extra)
 	img.save_png("%s/%s.png" % [_out, spot])
 	if why != "":
 		_fails += 1
@@ -83,12 +91,31 @@ func step(_t: float, _dt: float) -> bool:
 	return false
 
 
+## True when the view rays through the corners and the middle of `r` (viewport px) all leave the city without hitting anything: that flat bright rectangle is the sky between
+## two towers. A quad drawn over the street, a car or a facade hits geometry on its rays and is NOT exempt.
+func _is_open_sky(r: Rect2i) -> bool:
+	var cam := _p.get_viewport().get_camera_3d()
+	if cam == null:
+		return false
+	var space := _p.get_world_3d().direct_space_state
+	var c := Vector2(r.get_center())
+	for pt: Vector2 in [Vector2(r.position) + Vector2(2, 2), Vector2(r.end) - Vector2(2, 2), Vector2(r.end.x - 2, r.position.y + 2), Vector2(r.position.x + 2, r.end.y - 2), c]:
+		var from := cam.project_ray_origin(pt)
+		var q := PhysicsRayQueryParameters3D.create(from, from + cam.project_ray_normal(pt) * 1500.0)
+		if not space.intersect_ray(q).is_empty():
+			return false
+	return true
+
+
 var _look := Vector3.INF
 var _cine: Transform3D
 var _use_cine := false
 
 
 func _hold() -> void:
+	if _spots[_i] == &"hero":
+		for n in _p.get_tree().root.find_children("*", "Hud", true, false):
+			(n as Hud).message_left = 0.0       # a leftover mission toast must not sit over the hero (it now lives under the top stack, but the shot is about the hero)
 	if _use_cine:
 		_p.camera_rig.cine_set(_cine, 80.0)
 	elif _look.is_finite():
@@ -124,10 +151,15 @@ func _begin() -> void:
 		&"car":
 			_p.teleport_to(Game.SPAWN)
 			_p.camera_rig.reset_view(-PI * 0.5, -0.1)
-			TestMode.spawn_vehicle(&"sport")
-			var veh := _nearest_vehicle()
+			## The car shot is the sedan in dusk violet (the paint that read as flat purple); VQA_CAR / VQA_PAINT override the kind and the COLORS index.
+			var kind := StringName(OS.get_environment("VQA_CAR") if OS.get_environment("VQA_CAR") != "" else CAR_KIND)
+			TestMode.spawn_vehicle(kind)
+			var veh := _nearest_vehicle(kind)
 			if veh != null:
-				_cine = Transform3D(Basis.looking_at(Vector3(-1, -0.15, 0.6)), veh.global_position + Vector3(3.2, 1.3, -1.8))
+				var pi := int(OS.get_environment("VQA_PAINT")) if OS.get_environment("VQA_PAINT") != "" else CAR_PAINT
+				veh.visual.set_paint(VehicleSpecs.COLORS[pi])
+				veh.paint_i = pi
+				_cine = Transform3D(Basis.looking_at(Vector3(-1, -0.15, 0.6)), veh.global_position + Vector3(4.3, 1.4, -2.5))
 				_cine = _cine.looking_at(veh.global_position + Vector3(0, 0.6, 0), Vector3.UP)
 				_use_cine = true
 		&"chase", &"boss":
@@ -235,11 +267,11 @@ func _badge_overlap() -> String:
 	return VisualQaLib.overlap(rects)
 
 
-func _nearest_vehicle() -> Node3D:
-	var best: Node3D
+func _nearest_vehicle(kind: StringName) -> Vehicle:
+	var best: Vehicle
 	var bd := 1.0e9
 	for v: Vehicle in (Game.vehicles as VehicleManager).list:
-		if is_instance_valid(v):
+		if is_instance_valid(v) and v.kind == kind:
 			var d := v.global_position.distance_to(_p.global_position)
 			if d < bd:
 				bd = d

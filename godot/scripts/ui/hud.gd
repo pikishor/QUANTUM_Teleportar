@@ -14,8 +14,11 @@ const HURT_TIME := 0.45             ## seconds the hit vignette lasts
 const MARKER_TIME := 1.0            ## seconds the attacker marker lasts
 const DEAD_DIM := 0.30              ## alpha of the DECOHERED / SECTOR STABILIZED dimming (never above 0.35)
 const PAUSE_SETTINGS_Y := 448.0     ## base px: first settings row of the pause screen with progress (under the 64 px UPGRADES / CHAPTERS row)
-## Base-px baseline of the centre message: below the top stack and the radio subtitle lane, above the crosshair.
-const MSG_Y := 262.0
+## Centre message (toast) region: a plate directly under the top stack, between the radio subtitle column and the right-hand plates, so it never covers the hero (who
+## stands in the middle of the screen) or the minimap. `msg_rect` is the plate; the quantum readout hangs under it. Same lane width as the chapter banner (story_view.gd).
+const MSG_H := 46.0                 ## base px: plate height
+const MSG_GAP := 6.0                ## base px: below UiUtil.stack_bottom
+const SUB_LANE := 320.0 + 34.0      ## base px of the radio subtitle column (StoryView.SUB_W) plus its margin
 const MINIMAP := 148.0              ## base px: the round minimap, top left
 const BAR_W := 190.0                ## base px of an integrity / coherence / hull bar
 const LABEL_W := 92.0               ## base px: the least width of the caption column left of the bars (it grows to fit the widest caption in the font in use)
@@ -1100,7 +1103,7 @@ func _draw_quantum_readout(c: Control, vp: Vector2, s: float, font: Font) -> voi
 		return
 	var a: float = ro["alpha"]
 	var w := 340.0 * s
-	var box := Rect2(vp.x * 0.5 - w * 0.5, MSG_Y * s + 10.0 * s, w, 56.0 * s)
+	var box := Rect2(vp.x * 0.5 - w * 0.5, msg_top(s) + (MSG_H + 4.0) * s, w, 56.0 * s)
 	_rect(c, box, Color(UiUtil.PLATE, UiUtil.PLATE.a * a))
 	_frame(c, box, Color(UiUtil.CYAN, 0.55 * a), 1.0 * s)
 	_text(c, font, Vector2(box.position.x, box.position.y + 18.0 * s), "QUANTUM TELEPORT", HORIZONTAL_ALIGNMENT_CENTER, box.size.x, int(16.0 * s), Color(UiUtil.CYAN, 0.95 * a), 1.0 * s)
@@ -1126,11 +1129,29 @@ func _draw_message(c: Control, vp: Vector2, s: float, font: Font) -> void:
 		return
 	var fade := clampf(minf(message_left / 0.4, (_msg_total - message_left) / 0.12 + 0.3), 0.0, 1.0)
 	var size := int(30.0 * s)
-	var w := minf(_text_width(font, message_text, size) + 40.0 * s, vp.x - 40.0 * s)
-	var r := Rect2(vp.x * 0.5 - w * 0.5, (MSG_Y - 34.0) * s, w, 46.0 * s)
+	var r := msg_rect(vp, s, message_text, size, font)
 	_rect(c, r, Color(UiUtil.PLATE, UiUtil.PLATE.a * fade))
 	_rect(c, Rect2(r.position.x, r.end.y - 2.0 * s, r.size.x, 2.0 * s), Color(UiUtil.CYAN, 0.5 * fade))
-	_text(c, font, Vector2(r.position.x, MSG_Y * s), message_text, HORIZONTAL_ALIGNMENT_CENTER, w, size, Color(1, 1, 1, 0.98 * fade), 2.0 * s)
+	_text(c, font, Vector2(r.position.x, r.position.y + 34.0 * s), message_text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, size, Color(1, 1, 1, 0.98 * fade), 2.0 * s)
+
+
+## The widest a toast may be: the screen minus the subtitle column on each side (the chapter banner's lane).
+func msg_max_width(vp: Vector2, s: float) -> float:
+	return clampf(vp.x - 2.0 * (UiUtil.insets(vp).x + SUB_LANE * s), 300.0 * s, 760.0 * s)
+
+
+## Top of the toast plate: under the top stack, and under the chapter banner while that one shows.
+func msg_top(s: float) -> float:
+	var y := (UiUtil.stack_bottom + MSG_GAP) * s
+	if is_instance_valid(Game.story) and Game.story.has_method(&"banner_visible") and Game.story.call(&"banner_visible"):
+		y += 134.0 * s
+	return y
+
+
+## The toast plate for `text` (its text shrinks to the plate, see _text).
+func msg_rect(vp: Vector2, s: float, text: String, size: int, font: Font) -> Rect2:
+	var w := minf(_text_width(font, text, size) + 40.0 * s, msg_max_width(vp, s))
+	return Rect2(vp.x * 0.5 - w * 0.5, msg_top(s), w, MSG_H * s)
 
 
 func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -> void:

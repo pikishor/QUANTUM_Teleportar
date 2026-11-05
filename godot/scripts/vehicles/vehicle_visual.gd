@@ -14,7 +14,12 @@ const COAT_ROUGHNESS := 0.07
 const LAMP_GAIN := 0.6                      ## lamp surfaces are drawn additively (unshaded, vertex colour = soft falloff): albedo = colour x base energy x this x state
 const PAINT_ROUGH_MAX := 0.5                 ## paint roughness range (was 0.9 .. 0.6: a flat matte red): low values let the neon street reflect in the lacquer
 const PAINT_ROUGH_MIN := 0.22
-const PAINT_RIM := 0.3                        ## grazing-angle sheen of every paint (material parameter, no extra draw)
+## Lacquer is a dielectric under a clear coat: a high metallic factor made the paint a mirror of the dark sky radiance (one flat purple / red blob at night, no shading, no highlights).
+## Low metal keeps the diffuse colour lit by the street lights; the clear coat adds the gloss.
+const PAINT_SPECULAR := 0.9                   ## dielectric specular of the lacquer (default 0.5): street lamps and neon leave a visible highlight
+const PAINT_METAL_MIN := 0.12
+const PAINT_METAL_MAX := 0.4
+const PAINT_RIM := 0.45                       ## grazing-angle sheen of every paint (material parameter, no extra draw)
 const PAINT_GLOW := 0.2                    ## faint emission in the paint colour, so a car keeps its colour in the dark
 const WHEEL_NAMES := [&"WheelFL", &"WheelFR", &"WheelRL", &"WheelRR"]
 const BIKE_WHEEL_NAMES := [&"WheelF", &"WheelR"]    ## bikes: front (steers) and rear wheel; a hover craft has none
@@ -126,6 +131,7 @@ func build(kind: StringName, glow: Color) -> Node3D:
 				ov.clearcoat_roughness = COAT_ROUGHNESS
 				ov.emission_enabled = true
 				ov.emission_energy_multiplier = 0.12 if DynamicFill._is_compat() else PAINT_GLOW
+				ov.metallic_specular = PAINT_SPECULAR
 				var a := src.albedo_color
 				var b := ov.albedo_color
 				_lift = (b.r + b.g + b.b) / maxf(a.r + a.g + a.b, 0.05)
@@ -269,7 +275,7 @@ func set_paint(color: Color) -> void:
 	_body_mat.emission = color
 	# metallic / roughness split: every colour gets its own finish (flake-heavy metallic, satin pearl, deep gloss) on top of the baked texture
 	var k := fposmod(color.h * 5.0 + color.v * 3.0, 1.0)
-	_body_mat.metallic = lerpf(0.55, BODY_METALLIC + 0.1, k)
+	_body_mat.metallic = lerpf(PAINT_METAL_MIN, PAINT_METAL_MAX, k)
 	_body_mat.roughness = lerpf(PAINT_ROUGH_MAX, PAINT_ROUGH_MIN, k)
 	_body_mat.clearcoat = lerpf(COAT, 1.0, k)
 	_base_col = c

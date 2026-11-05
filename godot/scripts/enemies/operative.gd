@@ -22,6 +22,7 @@ const READY_AWARE := 0.8
 var leg_l: Node3D                      ## hip pivots (the primitive's legs hang from them; with the model they mirror the thigh swing)
 var leg_r: Node3D
 var rig: CharacterRig
+var hanim: HumanoidAnim                ## upper-body state machine of the Vael humanoid model (aim, fire, flinch, die, weapon mount); null for the old model and every specialist
 
 var _aim_t := 0.0
 var _burst_left := 0
@@ -86,6 +87,12 @@ func _build_visual() -> void:
 	loco = Locomotion.new(rig) if rig != null else null
 	if loco != null:
 		loco.scale_amp = 0.9
+	hanim = null
+	if rig != null and not humanoid.is_empty():
+		hanim = HumanoidAnim.new()
+		hanim.set_weapon(StringName(cfg.get("weapon", &"rifle")))
+		hanim.windup_time = float(cfg.get("aim_time", 0.45))
+		hanim.death_time = FALL_TIME * 1.2
 	if rig != null and rig.reflection != null:
 		rig.reflection.range = 18.0                    # a trooper is reflected only when close (one draw call each)
 	_restore_baked_glow()
@@ -180,6 +187,8 @@ func _on_activate() -> void:
 	_have_last = false
 	if loco != null:
 		loco.reset()
+	if hanim != null:
+		hanim.reset()
 	if leg_l != null:
 		leg_l.rotation.x = 0.0
 	if leg_r != null:
@@ -206,6 +215,8 @@ func _ground_y(x: float, z: float) -> float:
 func _hit_effect(crit: bool) -> void:
 	_flinch = 1.0 if crit else 0.7
 	_fdir = _dir_to_player()
+	if hanim != null:
+		hanim.hit(_fdir, _flinch)
 	var c := center()
 	if hp <= 0.0:
 		pass                                                             # the killing blow gets the death effect only
@@ -262,6 +273,8 @@ func _death_effect() -> void:
 		_death_kind = randi() % 3
 	_burst_left = 0
 	_aim_t = 0.0
+	if hanim != null:
+		hanim.die(_death_kind)
 
 
 ## How fast the body turns towards the target (a shield trooper turns slowly: that is the window to flank him).
@@ -596,6 +609,8 @@ func _shoot(d: float) -> void:
 		end = hit["position"]
 		blocked = origin.distance_to(end) < t_close - 0.3
 	_kick = 1.0
+	if hanim != null:
+		hanim.fire()
 	FX.tracer(origin, end, _tracer_color())
 	FX.burst(origin, Color(1.0, 0.8, 0.45), 3, 2.5, 0.08, 0.0)
 	var mgr := Game.enemies as EnemyManager
@@ -632,8 +647,9 @@ func _animate(delta: float) -> void:
 	_last_pos = global_position
 	_have_last = true
 	var firing := _aim_t > 0.0 or _burst_left > 0
-	var want_ready := 1.0 if firing else (READY_AWARE if aware else READY_IDLE)
-	_ready = lerpf(_ready, want_ready, 1.0 - exp(-9.0 * delta))
+	if hanim == null:
+		var want_ready := 1.0 if firing else (READY_AWARE if aware else READY_IDLE)
+		_ready = lerpf(_ready, want_ready, 1.0 - exp(-9.0 * delta))
 	var want_pitch := 0.0
 	var look_off := 0.0
 	if aware and not dead:
@@ -641,28 +657,51 @@ func _animate(delta: float) -> void:
 		var hd := maxf(Vector2(_tgt.x - o.x, _tgt.z - o.z).length(), 1.0)
 		want_pitch = clampf(atan2(_tgt.y - o.y, hd) * 0.6, -0.55, 0.65)
 		look_off = angle_difference(yaw, atan2(-(_tgt.x - o.x), -(_tgt.z - o.z)))
-	_aim_pitch = lerpf(_aim_pitch, want_pitch, 1.0 - exp(-10.0 * delta))
 	_kick = maxf(0.0, _kick - delta * 7.0)
 	_flinch = maxf(0.0, _flinch - delta * 5.0)
 	_clock += delta
 	loco.update(delta, disp, yaw, true, 0.0, 1.0 if _moved > 0.1 else 0.0, false, firing, look_off)
-	rig.aim_pitch = _aim_pitch
-	rig.recoil = _kick
-	rig.flinch = _flinch
-	rig.flinch_dir = _fdir * minf(1.0, _flinch * 2.0)
-	rig.ready = _ready
-	rig.reload = -1.0
-	rig.dead = 0.0
-	rig.knee_buckle = 0.0
+	if hanim != null:
+		_sync_hanim(delta, want_pitch)
+		hanim.write(rig)
+		_ready = hanim.ready
+		_aim_pitch = hanim.aim_pitch
+	else:
+		_aim_pitch = lerpf(_aim_pitch, want_pitch, 1.0 - exp(-10.0 * delta))
+		rig.aim_pitch = _aim_pitch
+		rig.recoil = _kick
+		rig.flinch = _flinch
+		rig.flinch_dir = _fdir * minf(1.0, _flinch * 2.0)
+		rig.ready = _ready
+		rig.reload = -1.0
+		rig.dead = 0.0
+		rig.knee_buckle = 0.0
 	rig.head_yaw = 0.0
 	if _stagger > 0.0:
 		rig.lean += -0.1 * minf(1.0, _stagger * 8.0)
 	rig.apply()
 	if muzzle != null:
-		muzzle.transform = rig.muzzle_transform()
+		muzzle.transform = hanim.muzzle_transform(rig) if hanim != null else rig.muzzle_transform()
 	if leg_l != null:
 		leg_l.basis = Basis.from_euler(Vector3(rig.hip_l.x, 0.0, rig.hip_l.y))
 		leg_r.basis = Basis.from_euler(Vector3(rig.hip_r.x, 0.0, rig.hip_r.y))
+
+
+## Maps what the AI is doing onto the HumanoidAnim state machine: IDLE while unaware, AIM once aware, WINDUP during the aim time (the charge follows _aim_t), FIRE / HIT / DEAD come
+## from _shoot / _hit_effect / _death_effect themselves.
+func _sync_hanim(delta: float, want_pitch: float) -> void:
+	if not dead:
+		var st := hanim.state
+		if _aim_t > 0.0:
+			if st != HumanoidAnim.State.WINDUP:
+				hanim.set_state(HumanoidAnim.State.WINDUP)
+		elif st == HumanoidAnim.State.WINDUP:
+			hanim.set_state(HumanoidAnim.State.AIM)
+		elif aware and st == HumanoidAnim.State.IDLE:
+			hanim.set_state(HumanoidAnim.State.AIM)
+		elif not aware and st == HumanoidAnim.State.AIM:
+			hanim.set_state(HumanoidAnim.State.IDLE)
+	hanim.update(delta, want_pitch)
 
 
 ## The primitive operative (no model): legs swing with the real speed, the body leans when staggered.
@@ -689,18 +728,23 @@ func _tick_dead(delta: float) -> void:
 	var e := 1.0 - (1.0 - k) * (1.0 - k)
 	if rig != null:
 		# the knees give way first, the body falls (onto its side, forward or backward), then everything goes limp
-		_buckle = clampf(_dead_t / (FALL_TIME * 0.5), 0.0, 1.0)
 		_kick = 0.0
-		_flinch = maxf(0.0, _flinch - delta * 3.0)
-		rig.amp = lerpf(rig.amp, 0.0, k)
-		rig.ready = lerpf(_ready, 0.0, k)
-		rig.recoil = 0.0
-		rig.flinch = _flinch
-		rig.flinch_dir = _fdir * minf(1.0, _flinch * 2.0)
-		rig.death_kind = _death_kind
-		rig.knee_buckle = _buckle * (1.0 - e * 0.6)
-		rig.dead = clampf((_dead_t - FALL_TIME * 0.3) / (FALL_TIME * 0.9), 0.0, 1.0)
-		rig.reload = -1.0
+		if hanim != null:
+			hanim.update(delta, 0.0)
+			hanim.write(rig)
+			rig.amp = lerpf(rig.amp, 0.0, k)
+		else:
+			_buckle = clampf(_dead_t / (FALL_TIME * 0.5), 0.0, 1.0)
+			_flinch = maxf(0.0, _flinch - delta * 3.0)
+			rig.amp = lerpf(rig.amp, 0.0, k)
+			rig.ready = lerpf(_ready, 0.0, k)
+			rig.recoil = 0.0
+			rig.flinch = _flinch
+			rig.flinch_dir = _fdir * minf(1.0, _flinch * 2.0)
+			rig.death_kind = _death_kind
+			rig.knee_buckle = _buckle * (1.0 - e * 0.6)
+			rig.dead = clampf((_dead_t - FALL_TIME * 0.3) / (FALL_TIME * 0.9), 0.0, 1.0)
+			rig.reload = -1.0
 		rig.apply()
 		if leg_l != null:
 			leg_l.basis = Basis.from_euler(Vector3(rig.hip_l.x, 0.0, rig.hip_l.y))

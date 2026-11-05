@@ -143,6 +143,7 @@ func _drive(s: Dictionary, delta: float, center: Vector3, do_lod: bool) -> void:
 	# Locomotion takes the displacement in the world, the yaw of the body and whether the person wants to move
 	loco.update(maxf(delta, 0.001), disp, yaw, true, 0.0, 1.0 if sp > 0.1 else 0.0, sp > 3.5, false)
 	rig.ready = 0.0
+	HumanoidAnim.relax_arms(rig)                     # unarmed: arms hang at the sides and swing against the legs (no rifle pose)
 	rig.apply()
 	if do_lod:
 		HumanoidVariants.set_lod(s["body"], s["variant"], center.distance_to(p))

@@ -6,7 +6,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 OUT="$(realpath -m ../docs/shots)"
 mkdir -p "$OUT"
-export VQA_OUT="$OUT" BOT_FASTEXIT=1 QUALITY="${QUALITY:-1}"
+export VQA_OUT="$OUT" BOT_FASTEXIT=1 BOT_TIMEOUT="${BOT_TIMEOUT:-1500}" QUALITY="${QUALITY:-1}"
 LOG="$(mktemp)"
 tools/bot.sh res://tests/bot_visual_qa.gd "$OUT/_seq" 100000 1 | tee "$LOG" | grep "^VQA"
 python3 - "$OUT" "$LOG" <<'PY'
