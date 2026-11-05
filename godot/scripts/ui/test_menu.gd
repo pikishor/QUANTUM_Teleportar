@@ -105,7 +105,7 @@ func _s() -> float:
 
 
 func _top() -> float:
-	return 132.0 * _s()
+	return 148.0 * _s()
 
 
 func _inset() -> float:
@@ -325,20 +325,20 @@ func _tab_rects() -> Array[Rect2]:
 	var tw := avail / float(TABS.size())
 	var out: Array[Rect2] = []
 	for i in TABS.size():
-		out.append(Rect2(left + tw * float(i), 70.0 * s, tw - 6.0 * s, 52.0 * s))
+		out.append(Rect2(left + tw * float(i), 76.0 * s, tw - 6.0 * s, UiUtil.TOUCH_MIN * s))
 	return out
 
 
 func _close_rect() -> Rect2:
 	var vp := _vp()
 	var s := _s()
-	return Rect2(vp.x - maxf(_inset(), 18.0 * s) - 120.0 * s, 70.0 * s, 120.0 * s, 52.0 * s)
+	return Rect2(vp.x - maxf(_inset(), 18.0 * s) - 120.0 * s, 76.0 * s, 120.0 * s, UiUtil.TOUCH_MIN * s)
 
 
 func _play_rect() -> Rect2:
 	var vp := _vp()
 	var s := _s()
-	return Rect2(vp.x - maxf(_inset(), 18.0 * s) - 280.0 * s, 12.0 * s, 280.0 * s, 48.0 * s)
+	return Rect2(vp.x - maxf(_inset(), 18.0 * s) - 280.0 * s, 4.0 * s, 280.0 * s, UiUtil.TOUCH_MIN * s)
 
 
 ## The TEST button on the title and pause screens.

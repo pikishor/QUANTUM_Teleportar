@@ -28,6 +28,7 @@ const FABRIC_EMISSION := Color(0.035, 0.075, 0.095)
 ## The baked "Gear" atlas of the articulated model is already built around albedo 0.10 and up, so its lift is much smaller.
 const GEAR_LIFT := 2.1                     ## the baked atlas keeps its own albedo variation (a bigger lift washed the plates out to one flat cyan)
 const GEAR_RIM := 0.22                     ## a subtle always-on cool fresnel edge; it swells (RIM_BOOST) only on a hit, while aiming and while the quantum powers are active
+const BACK_GLOW := 0.5                     ## extra trim emission (x) while the camera sees the hero from behind: a faint quantum backlight
 const RIM_BOOST := 0.85                    ## extra rim at full excitement
 const GLOW_BOOST := 0.7                    ## extra emission-texture energy (veins, core, slit) at full excitement
 const LOW_ALBEDO := Color(0.72, 0.74, 0.78, 1.0)    ## LOW tier: the armour albedo is multiplied by this ...
@@ -133,6 +134,7 @@ var _excite := 0.0                    ## 0..1: hit, aim or quantum-active moment
 var _excite_applied := -1.0
 var _key_energy := 1.0
 var _rim_energy := 1.0
+var _back := 0.0                              ## 0..1 how far the camera sits behind the hero (eases in; drives the trim backlight)
 var _burst: CPUParticles3D                    ## quantum motes on a hit and on death (HeroPresentation)
 var _quality := 2
 var polish: HeroAnimPolish                ## the animation polish layer (hero_anim_tuning.gd holds its numbers)
@@ -308,19 +310,12 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		_excite_applied = _excite
 		for gm in _gear_mats:
 			gm.rim = _gear_rim + RIM_BOOST * _excite
-			gm.emission_energy_multiplier = (LOW_GLOW if _quality == 0 else 1.0) * (COMPAT_GLOW if _is_compat() else 1.0) * (1.0 + GLOW_BOOST * _excite)
+			gm.emission_energy_multiplier = _glow_mult()
 
 	_update_quantum_look(q, dt)
 
-	# --- character lights follow the camera, so the hero is always modelled from the viewer's side and edged from behind
-	if character_light and rig_view != null:
-		var lit := lerpf(1.0, DEAD_LIGHT, e)
-		_key_light.light_energy = _key_energy * lit * (0.8 if _quality == 0 else 1.0)      # LOW: a softer key (no rim light there; the bright panel of a phone must not clip him)
-		_rim_light.light_energy = _rim_energy * lit
-		var f := PlayerUtil.forward_of(rig_view.yaw, 0.0)
-		var right := Vector3(-f.z, 0.0, f.x)
-		_key_light.global_basis = Basis.looking_at((f * 0.82 - right * 0.28 + Vector3(0.0, -0.5, 0.0)).normalized(), Vector3.UP)
-		_rim_light.global_basis = Basis.looking_at((-f * 0.8 + right * 0.55 + Vector3(0.0, -0.22, 0.0)).normalized(), Vector3.UP)
+	# --- character lights follow the ACTIVE camera (the orbit yaw alone lies when a cinematic / QA / viewer camera looks from elsewhere)
+	update_character_lights(lerpf(1.0, DEAD_LIGHT, e), rig_view.yaw if rig_view != null else NAN)
 
 	# --- muzzle flash decay (real time)
 	if _flash_t > 0.0:
@@ -993,6 +988,41 @@ func _build_primitive() -> void:
 
 
 # --- character lights ---------------------------------------------------------------------------------------------------
+
+## Trim emission multiplier: tier, excitement and the backlight lift (the quantum trim glows a little more when the camera sees the hero from behind).
+func _glow_mult() -> float:
+	return (LOW_GLOW if _quality == 0 else 1.0) * (COMPAT_GLOW if _is_compat() else 1.0) * (1.0 + GLOW_BOOST * _excite + BACK_GLOW * _back)
+
+
+## Aim the key (from the viewer's side) and the rim / backlight (from behind the hero) by the line from the ACTIVE camera to the hero; `fallback_yaw` (NAN: none) is used when there is no camera.
+## Public so a look-dev viewer without a Player can call it every frame.
+func update_character_lights(lit := 1.0, fallback_yaw := NAN) -> void:
+	if not character_light or _key_light == null:
+		return
+	_key_light.light_energy = _key_energy * lit * (0.8 if _quality == 0 else 1.0)      # LOW: a softer key (no rim light there; the bright panel of a phone must not clip him)
+	_rim_light.light_energy = _rim_energy * lit
+	var f := Vector3.ZERO
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if cam != null:
+		var to_hero := global_position - cam.global_position
+		f = Vector3(to_hero.x, 0.0, to_hero.z)
+		if f.length_squared() < 0.09:
+			f = Vector3(-cam.global_basis.z.x, 0.0, -cam.global_basis.z.z)
+	if f.length_squared() < 0.0001 and not is_nan(fallback_yaw):
+		f = PlayerUtil.forward_of(fallback_yaw, 0.0)
+	if f.length_squared() < 0.0001:
+		return
+	f = f.normalized()
+	var facing := Vector3(-global_basis.z.x, 0.0, -global_basis.z.z)
+	var behind := 1.0 if facing.length_squared() > 0.0001 and facing.normalized().dot(f) > 0.25 else 0.0
+	if absf(behind - _back) > 0.001:
+		_back = move_toward(_back, behind, 0.08)
+		for gm in _gear_mats:
+			gm.emission_energy_multiplier = _glow_mult()
+	var right := Vector3(-f.z, 0.0, f.x)
+	_key_light.global_basis = Basis.looking_at((f * 0.82 - right * 0.28 + Vector3(0.0, -0.5, 0.0)).normalized(), Vector3.UP)
+	_rim_light.global_basis = Basis.looking_at((-f * 0.8 + right * 0.55 + Vector3(0.0, -0.22, 0.0)).normalized(), Vector3.UP)
+
 
 func _build_character_lights() -> void:
 	var mask := 1 << (CHARACTER_LAYER - 1)

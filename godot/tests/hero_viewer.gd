@@ -110,6 +110,7 @@ func _process(_dt: float) -> void:
 			"rifle": pos = Vector3(1.5, 1.5, -1.4); c = Vector3(0.0, 1.3, -0.4)
 		_cam.global_position = pos
 		_cam.look_at(c, Vector3.UP)
+		_body.update_character_lights()       # the key / rim follow the camera, as in the game
 		if _wait == 0:
 			_wait = -1
 			return

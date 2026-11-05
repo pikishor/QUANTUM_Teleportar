@@ -16,6 +16,7 @@ const DEAD_DIM := 0.30              ## alpha of the DECOHERED / SECTOR STABILIZE
 const PAUSE_SETTINGS_Y := 448.0     ## base px: first settings row of the pause screen with progress (under the 64 px UPGRADES / CHAPTERS row)
 ## Centre message (toast) region: a plate directly under the top stack, between the radio subtitle column and the right-hand plates, so it never covers the hero (who
 ## stands in the middle of the screen) or the minimap. `msg_rect` is the plate; the quantum readout hangs under it. Same lane width as the chapter banner (story_view.gd).
+const TITLE_SIZE := 64.0            ## base px: the game name on the title (narrow enough that the TEST badge and DEMO / ARENA never touch its letters)
 const SUBSCREEN_DIM := 0.86          ## backdrop of the full-screen pause panels (skills, gear, look, shop...): the world and the HUD behind recede so the panel's labels never fight them
 const MSG_H := 46.0                 ## base px: plate height
 const MSG_GAP := 6.0                ## base px: below UiUtil.stack_bottom
@@ -178,11 +179,21 @@ func _on_state(s: StringName) -> void:
 		_has_save = Game.progress != null and bool(Game.progress.call(&"has_save"))
 	if s == &"dead" or s == &"win":
 		record_best()
-	_hud.visible = s != &"menu" and s != &"cutscene" and not photo_open()        # a cutscene (scripts/cinematics) owns the whole picture
+	_hud.visible = _hud_wanted()        # a cutscene (scripts/cinematics) owns the whole picture
 	_screen.visible = s != &"play" and s != &"cutscene" and not InteriorGameplay.vendor_open      # the vendor window is its own layer
 	minimap.visible = _hud.visible
 	_layout_key = ""
 	_apply_mouse()
+
+
+## True while a full-screen pause panel (shop, skills, gear, look, boards, options...) is open: it owns the whole picture, the gameplay HUD and minimap are hidden behind it.
+func panel_cover() -> bool:
+	return Game.state == &"paused" and not photo_open() and (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open)
+
+
+## What the gameplay HUD layer (and the minimap on it) should show: not in the title, a cutscene, photo mode or behind a full-screen pause panel.
+func _hud_wanted() -> bool:
+	return Game.state != &"menu" and Game.state != &"cutscene" and not photo_open() and not panel_cover()
 
 
 ## True while photo mode runs (the gameplay HUD is hidden, the photo controls are the screen).
@@ -193,7 +204,7 @@ func photo_open() -> bool:
 ## Photo mode started / ended / toggled its UI: the gameplay HUD and minimap stay hidden, the screen layer follows `hide_ui` only while a photo is grabbed.
 func photo_layers() -> void:
 	var on := photo_open()
-	_hud.visible = Game.state != &"menu" and Game.state != &"cutscene" and not on
+	_hud.visible = _hud_wanted()
 	minimap.visible = _hud.visible
 	_layout_key = ""
 	_screen.queue_redraw()
@@ -207,7 +218,9 @@ func photo_grab(on: bool) -> void:
 ## True when the HUD and screen layers show what the state asks for (HUD hidden only in the menu, the screen layer hidden only while playing).
 func layers_consistent() -> bool:
 	var cine := Game.state == &"cutscene"
-	return _hud.visible == (Game.state != &"menu" and not cine and not photo_open()) and _screen.visible == (Game.state != &"play" and not cine and not InteriorGameplay.vendor_open) and minimap.visible == _hud.visible
+	var base := Game.state != &"menu" and not cine and not photo_open()
+	var hud_ok := (_hud.visible == base) if not panel_cover() else (_hud.visible == base or not _hud.visible)      # a panel opening hides the HUD in the next _process: either state is fine until then
+	return hud_ok and _screen.visible == (Game.state != &"play" and not cine and not InteriorGameplay.vendor_open) and minimap.visible == _hud.visible
 
 
 ## Puts the layers back in line with the state (the stability audit calls it when they drifted).
@@ -862,6 +875,10 @@ func _process(delta: float) -> void:
 		_contract_text = _contract_line()
 		_camp_text = _campaign_line()
 		_hint_text = hint_text()
+	var want_hud := _hud_wanted()
+	if _hud.visible != want_hud:
+		_hud.visible = want_hud
+		minimap.visible = want_hud
 	var vp := get_viewport().get_visible_rect().size
 	var s := UiUtil.ui_scale(vp)
 	var ins := UiUtil.insets(vp)
@@ -1195,9 +1212,34 @@ func _draw_message(c: Control, vp: Vector2, s: float, font: Font) -> void:
 	var fade := clampf(minf(message_left / 0.4, (_msg_total - message_left) / 0.12 + 0.3), 0.0, 1.0)
 	var size := int(30.0 * s)
 	var r := msg_rect(vp, s, message_text, size, font)
+	var lines := msg_wrap(vp, s, message_text, size, font)
+	var line_h := float(size) * 1.15
 	_rect(c, r, Color(UiUtil.PLATE, UiUtil.PLATE.a * fade))
 	_rect(c, Rect2(r.position.x, r.end.y - 2.0 * s, r.size.x, 2.0 * s), Color(UiUtil.CYAN, 0.5 * fade))
-	_text(c, font, Vector2(r.position.x, r.position.y + 34.0 * s), message_text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, size, Color(1, 1, 1, 0.98 * fade), 2.0 * s)
+	for i in lines.size():          # a long toast wraps onto a second line (never clipped at the plate edge); a line wider than the plate still shrinks to fit it
+		var fs := UiUtil.fit_size(font, Tr.t(lines[i]), r.size.x - 16.0 * s, size)
+		_text(c, font, Vector2(r.position.x, r.position.y + 34.0 * s + float(i) * line_h), lines[i], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, Color(1, 1, 1, 0.98 * fade), 2.0 * s)
+
+
+## The toast text as one or two lines: one when it fits the widest plate, else split at the space that balances the two halves.
+func msg_wrap(vp: Vector2, s: float, text: String, size: int, font: Font) -> Array[String]:
+	var tt := Tr.t(text)
+	var maxw := msg_max_width(vp, s) - 40.0 * s
+	if _text_width(font, tt, size) <= maxw:
+		return [text]
+	var words := text.split(" ", false)
+	var best := -1
+	var best_w := 1.0e9
+	for i in range(1, words.size()):
+		var a := " ".join(words.slice(0, i))
+		var b := " ".join(words.slice(i))
+		var w := maxf(_text_width(font, Tr.t(a), size), _text_width(font, Tr.t(b), size))
+		if w < best_w:
+			best_w = w
+			best = i
+	if best < 0:
+		return [text]
+	return [" ".join(words.slice(0, best)), " ".join(words.slice(best))]
 
 
 ## The widest a toast may be: the screen minus the subtitle column on each side (the chapter banner's lane).
@@ -1216,8 +1258,12 @@ func msg_top(s: float) -> float:
 ## The toast plate for `text` (its text shrinks to the plate, see _text). Position rule: the plate never covers the hero's face (face_rect): when the default spot under the
 ## top stack would, it drops below the face (over the chest), else moves beside it, else sits as far from it as the lane allows.
 func msg_rect(vp: Vector2, s: float, text: String, size: int, font: Font) -> Rect2:
-	var w := minf(_text_width(font, text, size) + 40.0 * s, msg_max_width(vp, s))
-	var r := Rect2(vp.x * 0.5 - w * 0.5, msg_top(s), w, MSG_H * s)
+	var lines := msg_wrap(vp, s, text, size, font)
+	var widest := 0.0
+	for ln in lines:
+		widest = maxf(widest, _text_width(font, Tr.t(ln), size))
+	var w := minf(widest + 40.0 * s, msg_max_width(vp, s))
+	var r := Rect2(vp.x * 0.5 - w * 0.5, msg_top(s), w, MSG_H * s + float(lines.size() - 1) * float(size) * 1.15)
 	var face := face_rect(vp, s)
 	if face.size.x <= 0.0 or not r.intersects(face):
 		return r
@@ -1399,11 +1445,11 @@ func _ensure_layout() -> void:
 				_add(&"ach", Rect2(cx - 170.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "ACHIEVEMENTS", false)
 				_add(&"arena_open", Rect2(cx + 4.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "ARENA", false)
 				_settings_rows(cx, PAUSE_SETTINGS_Y, s)
-				_add(&"menu", Rect2(cx - 154.0 * s, (PAUSE_SETTINGS_Y + 160.0) * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
+				_add(&"menu", Rect2(cx - 154.0 * s, (PAUSE_SETTINGS_Y + 148.0) * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
 			else:
 				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_settings_rows(cx, 350.0, s)
-				_add(&"menu", Rect2(cx - 154.0 * s, 514.0 * s, 308.0 * s, 40.0 * s), "ABORT TO MENU", false)
+				_add(&"menu", Rect2(cx - 154.0 * s, 514.0 * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
 		&"dead":
 			_add(&"respawn", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)      # low on the screen: the middle stays free for the world
 		&"win":
@@ -1482,7 +1528,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			ChapterSelect.draw(self, c, vp, s, font, cx)
 		&"menu":
 			var dy := _title_shift()
-			_text(c, font, Vector2(0.0, (196.0 + dy) * s), "QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(76.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+			_text(c, font, Vector2(0.0, (196.0 + dy) * s), "QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(TITLE_SIZE * s), Color(1, 1, 1, 0.97), 3.0 * s)
 			c.draw_line(Vector2(cx - 240.0 * s, (222.0 + dy) * s), Vector2(cx + 240.0 * s, (222.0 + dy) * s), Color(UiUtil.MAGENTA, 0.8), 2.0 * s)
 			_text(c, font, Vector2(0.0, (258.0 + dy) * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 			if is_instance_valid(Game.story) and Game.story.has_method(&"tagline"):
@@ -1810,17 +1856,27 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 	if boss.is_empty() and Game.missions is Missions and (Game.missions as Missions).arena != null:
 		boss = (Game.missions as Missions).arena.boss()           # the boss rush / arena boss bar
 	if not boss.is_empty():
-		var bw := 320.0 * s
-		var by := end + 6.0 * s
-		var br := Rect2(vp.x * 0.5 - bw * 0.5, by + 26.0 * s, bw, 10.0 * s)
-		var bname := str(boss["name"])
-		var bsz := UiUtil.fit_size(font, bname, bw + 120.0 * s, int(UiUtil.BAR_LABEL * s))      # the whole name and phase, centred over the bar (it may be wider than the bar, never clipped)
-		_text(c, font, Vector2(br.position.x - 60.0 * s, by + 20.0 * s), bname, HORIZONTAL_ALIGNMENT_CENTER, bw + 120.0 * s, bsz, Color(UiUtil.RED, 0.97), 1.0 * s)
+		var bp := boss_plate(vp, s, font, end, str(boss["name"]))
+		_text(c, font, Vector2((bp["name_rect"] as Rect2).position.x, bp["baseline"]), str(boss["name"]), HORIZONTAL_ALIGNMENT_CENTER, (bp["name_rect"] as Rect2).size.x, bp["size"], Color(UiUtil.RED, 0.97), 1.0 * s)
+		var br: Rect2 = bp["bar"]
 		_rect(c, br.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.7))
-		_rect(c, Rect2(br.position, Vector2(bw * float(boss["frac"]), br.size.y)), Color(UiUtil.RED, 0.95))
+		_rect(c, Rect2(br.position, Vector2(br.size.x * float(boss["frac"]), br.size.y)), Color(UiUtil.RED, 0.95))
 		_frame(c, br, Color(UiUtil.RED, 0.8), 1.0 * s)
 		end = br.end.y + 4.0 * s
 	return end
+
+
+## Geometry of the boss plate hung under the priority line at `end`: the name (text box, baseline, font size; the whole name and phase, centred over the bar, may be wider than the bar,
+## never clipped) and the bar. The bar starts below the descenders of the name (the name used to touch it).
+func boss_plate(vp: Vector2, s: float, font: Font, end: float, bname: String) -> Dictionary:
+	var bw := 320.0 * s
+	var by := end + 6.0 * s
+	var bsz := UiUtil.fit_size(font, Tr.t(bname), bw + 120.0 * s, int(UiUtil.BAR_LABEL * s))
+	var baseline := by + 20.0 * s
+	var text_w := minf(font.get_string_size(Tr.t(bname), HORIZONTAL_ALIGNMENT_LEFT, -1.0, bsz).x, bw + 120.0 * s)
+	var name_rect := Rect2(vp.x * 0.5 - (bw + 120.0 * s) * 0.5, baseline - font.get_ascent(bsz), bw + 120.0 * s, font.get_ascent(bsz) + font.get_descent(bsz))
+	var bar := Rect2(vp.x * 0.5 - bw * 0.5, by + 34.0 * s, bw, 10.0 * s)       # 14 px under the name baseline: clear of the descenders
+	return {"name_rect": name_rect, "text_w": text_w, "baseline": baseline, "size": bsz, "bar": bar}
 
 
 ## The scripted step's waypoint on the screen: a diamond over the goal with its distance, pinned to the edge of the safe area (pointing the way) when the goal is off screen or behind.
