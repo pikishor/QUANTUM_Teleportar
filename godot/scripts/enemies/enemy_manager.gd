@@ -96,7 +96,8 @@ func _initial_patrols() -> void:
 # --- API ------------------------------------------------------------------------------------------------------------
 
 func cap() -> int:
-	return PerfTiers.cap_scale(EnemyTypes.CAPS[clampi(Game.quality, 0, 2)])      # Compatibility: 75 %
+	var n := LowPlus.scaled(EnemyTypes.CAPS[clampi(Game.quality, 0, 2)], LowPlus.ENEMY_SHARE, 2) if Game.quality == 0 else EnemyTypes.CAPS[clampi(Game.quality, 0, 2)]      # LOW+: 3 instead of 5
+	return PerfTiers.cap_scale(n)      # Compatibility: 75 %
 
 
 ## Enemies that are alive (corpses do not count towards the cap).
@@ -285,6 +286,12 @@ func _on_quality(level: int) -> void:
 # --- simulation -----------------------------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.ENEMY_MGR, t0)
+
+
+func _process_body(delta: float) -> void:
 	var cam := Game.camera
 	if is_instance_valid(cam):
 		DynamicFill.aim_light(cam.global_rotation.y)
@@ -384,6 +391,12 @@ func call_reinforcement(caller: Drone) -> Drone:
 
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.ENEMY_MGR, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	_call_cd = maxf(0.0, _call_cd - delta)
 	if not Game.is_playing():
 		return

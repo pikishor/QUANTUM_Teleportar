@@ -8,8 +8,8 @@ extends RefCounted
 
 ## Buttons under 64 base px that stay, with the reason. A key is a screen; the ids match by prefix.
 const EXCEPTIONS := {
-	"title": ["q0", "q1", "q2", "post", "mute", "cine", "vol_music", "vol_sfx"],       # the quick settings strip duplicates the OPTIONS screen (all 64 px there); no room for 64 px rows next to DEPLOY
-	"pause": ["q0", "q1", "q2", "post", "mute", "cine", "vol_music", "vol_sfx"],
+	"title": ["qlp", "q0", "q1", "q2", "post", "mute", "cine", "vol_music", "vol_sfx"],       # the quick settings strip duplicates the OPTIONS screen (all 64 px there); no room for 64 px rows next to DEPLOY
+	"pause": ["qlp", "q0", "q1", "q2", "post", "mute", "cine", "vol_music", "vol_sfx"],
 
 }
 const MIN_EXCEPTION := 40.0                    ## an exception is never smaller than this (base px)

@@ -19,6 +19,8 @@ const BUDGETS := {
 }
 ## The Compatibility fallback draws more calls per object (per-light passes, no mirrored batching): it gets this much extra headroom on top of the tier's budget, and pools 25 % smaller
 ## (PerfTiers.cap_scale).
+## LOW+ (Game.low_plus): the same view at fewer enemies, cars and particles and a lean facade shader; it may never cost more than LOW, and the gate holds it to this tighter budget.
+const LOW_PLUS_BUDGET := {"draws": 95, "prims": 140000, "death_draws": 105}
 const COMPAT_EXTRA := {"draws": 20, "death_draws": 15}
 const HUD_TOUCH_MAX_DRAWS := 15           ## what the touch layout may add to a frame (canvas draws, tools/perf_report.sh measures it)
 const TEX_MB_MAX := {0: 200.0, 1: 260.0, 2: 360.0}    ## staged scene incl. the tier-scaled surface sets (SurfaceTextures: LOW 0, MED about 21 MB estimated (+13 MB measured) at half size, HIGH about 56 MB); measured 153 / 201 / 302
@@ -50,9 +52,11 @@ static func line(label: String, s: Dictionary) -> String:
 
 
 ## Messages for every budget the snapshot breaks (empty array = fine). `death` = the worst frame of the 4-enemy simultaneous death, optional.
-static func violations(s: Dictionary, tier: int, death: Dictionary = {}) -> PackedStringArray:
+static func violations(s: Dictionary, tier: int, death: Dictionary = {}, low_plus := false) -> PackedStringArray:
 	var out := PackedStringArray()
 	var b: Dictionary = BUDGETS[clampi(tier, 0, 2)].duplicate()
+	if low_plus and tier == 0:
+		b.merge(LOW_PLUS_BUDGET, true)
 	if PerfTiers.compat():
 		b["draws"] = int(b["draws"]) + int(COMPAT_EXTRA["draws"])
 		b["death_draws"] = int(b["death_draws"]) + int(COMPAT_EXTRA["death_draws"])

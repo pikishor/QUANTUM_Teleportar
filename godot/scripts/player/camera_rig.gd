@@ -393,6 +393,12 @@ func _snap_follow() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.PLAYER, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	if not is_instance_valid(_follow) or not _follow.is_inside_tree():
 		return
 	var p := _follow.global_position
@@ -415,6 +421,12 @@ func _physics_process(delta: float) -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.PLAYER, t0)
+
+
+func _process_body(delta: float) -> void:
 	_tick_feel(delta)
 	_update_view(minf(delta, 0.1))
 

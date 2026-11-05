@@ -229,7 +229,7 @@ func _apply_tier_look() -> void:
 func _apply_counts() -> void:
 	if streaks == null:
 		return
-	var n_s := int(float(STREAKS_BY_TIER[tier]) * _rain)
+	var n_s := int(float(STREAKS_BY_TIER[tier]) * _rain * (LowPlus.RAIN_SHARE if (tier == 0 and LowPlus.on()) else 1.0))
 	var n_p := int(float(SPLASHES_BY_TIER[tier]) * _rain)
 	if n_s != _last_streaks:
 		_last_streaks = n_s

@@ -55,6 +55,7 @@ var rng := RandomNumberGenerator.new()
 var _root: Node3D
 var _core_pool: Array[Dictionary] = []      ## the core entries themselves ({node, pos, got, gem, ring, beam, light}): built lazily, at most CORE_MAX
 var _pickup_pool: Array[Dictionary] = []
+var _pickup_lights: Array[Light3D] = []        ## the glow lights the pickup models carry: off on LOW and LOW+ (the halo and the emissive glow already mark a pickup; every omni light is per-pixel work)
 var _mirror: MirrorProxy
 var _mirror_list: Array[MeshInstance3D] = []
 var _t := 0.0
@@ -277,6 +278,12 @@ func _shuffle(a: Array[Vector3]) -> void:
 # --- simulation --------------------------------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.MISSIONS, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	if not Game.is_playing():
 		return
 	if not _auto_started:
@@ -357,6 +364,12 @@ func _collect_core(c: Dictionary, idx: int, player: Node3D) -> void:
 
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.MISSIONS, t0)
+
+
+func _process_body(delta: float) -> void:
 	_t += delta
 	var cam_pos := Vector3.ZERO
 	var have_cam := is_instance_valid(Game.camera)
@@ -476,6 +489,7 @@ func _build_pickup_pool() -> void:
 			else:
 				_apply_fill(model, col)
 				MissionVisuals.tint_glow(model, "pickup_%s" % kind, {&"Glow": [col, 2.0 if kind == &"health" else 2.3]})
+				_pickup_lights.append_array(DynamicFill.trim_lights(model))
 			model.name = String(kind)
 			root.add_child(model)
 			models[kind] = model
@@ -493,6 +507,7 @@ func _build_pickup_pool() -> void:
 		_root.add_child(root)
 		_pickup_pool.append({node = root, models = models, halos = halos, columns = columns, halo = halo, column = column,
 				active = false, kind = &"health", weapon = &"", pos = Vector3.ZERO, t = 0.0, phase = 0.0})
+	DynamicFill.set_lights_visible(_pickup_lights, Game.quality > 0)
 	_flush_mirror()
 
 
@@ -508,6 +523,7 @@ func _apply_fill(model: Node3D, tint: Color) -> void:
 
 
 func _on_quality(level: int) -> void:
+	DynamicFill.set_lights_visible(_pickup_lights, level > 0)
 	for c: Dictionary in _core_pool:
 		_core_ranges(c.ring, c.beam)
 		var l := c.light as OmniLight3D

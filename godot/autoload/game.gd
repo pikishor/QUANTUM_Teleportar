@@ -9,6 +9,7 @@ signal state_changed(state: StringName)
 signal player_died
 signal sector_cleared
 signal quality_changed(level: int)
+signal low_plus_changed(on: bool)       ## LOW+ (the tier below LOW) was switched; quality_changed(0) follows so every listener re-reads the tier
 ## Lifecycle: every module resets itself when these fire (see ARCHITECTURE.md).
 signal new_game             # fresh run: score/heat zeroed, player at spawn, new cores, patrols rebuilt
 signal respawn              # after death: player restored at spawn, reinforcements removed, cores kept
@@ -64,6 +65,10 @@ var force_touch := false
 ## Graphics tier 0 (low) .. 2 (high). Change it only through set_quality(), which reaches the world and the atmosphere.
 ## Tools take --quality=N; the settings screen persists the player's choice and re-applies it at startup.
 var quality := 1
+## LOW+ is the tier below LOW (quality stays 0 while it is on): render scale 0.55, no shadows / bloom / fog / MSAA / reflection / material v2 / quantum surface layers, fewer enemies,
+## cars, crowd and particles, a slower HUD redraw. Change it only through set_low_plus() / set_tier_index(); any quality above 0 clears it.
+var low_plus := false
+const TIER_LABELS: Array[String] = ["LOW+", "LOW", "MED", "HIGH"]       ## the player-facing tiers by tier_index()
 
 const ACTION_KEYS := {
 	&"move_forward": [KEY_W, KEY_UP], &"move_back": [KEY_S, KEY_DOWN],
@@ -91,6 +96,9 @@ func _ready() -> void:
 			force_touch = true
 		if a.begins_with("--quality="):
 			quality = clampi(a.get_slice("=", 1).to_int(), 0, 2)
+		if a == "--low-plus":
+			quality = 0
+			low_plus = true
 
 
 func is_playing() -> bool:
@@ -103,10 +111,48 @@ func set_quality(level: int) -> void:
 	if clampi(level, 0, 2) != quality:
 		RenderRes.on_tier_changed()          # a governor resolution step belongs to the tier it lowered
 	quality = clampi(level, 0, 2)
+	if quality > 0 and low_plus:
+		low_plus = false                       # leaving LOW leaves LOW+ (the world and the atmosphere read the flag when they apply the tier)
+		low_plus_changed.emit(false)
 	if is_instance_valid(world) and world.has_method(&"set_quality"):
 		world.call(&"set_quality", quality)
 	if is_instance_valid(atmosphere) and atmosphere.has_method(&"set_quality"):
 		atmosphere.call(&"set_quality", quality)
+	quality_changed.emit(quality)
+
+
+## 0 LOW+, 1 LOW, 2 MED, 3 HIGH: the tier the player sees (quality 0..2 plus the LOW+ flag).
+func tier_index() -> int:
+	return 0 if (quality == 0 and low_plus) else quality + 1
+
+
+func tier_label() -> String:
+	return TIER_LABELS[tier_index()]
+
+
+func set_tier_index(i: int) -> void:
+	i = clampi(i, 0, 3)
+	if i == 0:
+		set_low_plus(true)
+	else:
+		if i == 1 and low_plus:
+			set_low_plus(false)
+		set_quality(i - 1)
+
+
+## LOW+ on / off. On forces quality 0. Everything that scales with the tier re-reads the flag through quality_changed.
+func set_low_plus(on: bool) -> void:
+	if on and quality != 0:
+		set_quality(0)
+	if low_plus == on:
+		return
+	low_plus = on
+	RenderRes.on_tier_changed()
+	if is_instance_valid(world) and world.has_method(&"set_quality"):
+		world.call(&"set_quality", quality)            # the world / atmosphere re-apply tier 0 with the new flag
+	if is_instance_valid(atmosphere) and atmosphere.has_method(&"set_quality"):
+		atmosphere.call(&"set_quality", quality)
+	low_plus_changed.emit(on)
 	quality_changed.emit(quality)
 
 

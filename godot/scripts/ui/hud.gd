@@ -136,6 +136,7 @@ func _ready() -> void:
 		tool_quality = tool_quality or a.begins_with("--quality=")
 	if not Game.autostart and not tool_quality and settings.quality >= 0:
 		Game.quality = settings.quality             # main.gd applies it to the world and the atmosphere after composing the modules
+		Game.low_plus = settings.low_plus and settings.quality == 0
 	if not Game.autostart:
 		apply_settings(false)
 	_on_state(Game.state)
@@ -163,7 +164,7 @@ func apply_settings(with_quality := true) -> void:
 	Sfx.muted = settings.muted
 	Sfx.apply_volumes(settings.volumes)
 	if with_quality and settings.quality >= 0:
-		Game.set_quality(settings.quality)
+		Game.set_tier_index(0 if (settings.quality == 0 and settings.low_plus) else settings.quality + 1)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -545,6 +546,8 @@ func press_button(id: StringName) -> bool:
 			return false
 		Sfx.play(&"ui_tap")
 		OptionsScreen.press(settings, id)
+		if Game.state == &"menu":                           # RESET PROGRESS removes the save: the title must stop offering CONTINUE
+			_has_save = Game.progress != null and bool(Game.progress.call(&"has_save"))
 		apply_settings(false)
 		settings.save()
 		_layout_key = ""
@@ -562,6 +565,7 @@ func press_button(id: StringName) -> bool:
 				return false
 			_options_open = false
 			OptionsScreen.reset_armed = false
+			OptionsScreen.reset_demo_armed = false
 			UiSettings.s_opt_page = 0
 			Sfx.play(&"ui_back")
 		&"chapters":
@@ -693,10 +697,17 @@ func press_button(id: StringName) -> bool:
 				return false
 			Sfx.play(&"ui_confirm")
 			Game.do_next_sector()
+		&"qlp":
+			Sfx.play(&"ui_tap")
+			settings.quality = 0
+			settings.low_plus = true
+			Game.set_low_plus(true)
+			settings.save()
 		&"q0", &"q1", &"q2":
 			Sfx.play(&"ui_tap")
 			settings.quality = int(String(id).substr(1))
-			Game.set_quality(settings.quality)
+			settings.low_plus = false
+			Game.set_tier_index(settings.quality + 1)
 			settings.save()
 		&"post":
 			Sfx.play(&"ui_tap")
@@ -888,6 +899,9 @@ func hint_text() -> String:
 	return ""
 
 
+var _redraw_t := 0.0
+
+
 func _process(delta: float) -> void:
 	var real := delta / maxf(Engine.time_scale, 0.05)       # screens and locks count real seconds, so a slow-motion death never delays the respawn button
 	_t += real
@@ -922,10 +936,13 @@ func _process(delta: float) -> void:
 	if touch != null and touch.perf_visible():
 		col_bottom = maxf(col_bottom, (touch._perf_box() as Rect2).end.y)
 	UiUtil.left_bottom = col_bottom / s
-	if _hud.visible:
-		_hud.queue_redraw()
-	if _screen.visible:
-		_screen.queue_redraw()
+	_redraw_t -= real
+	if _redraw_t <= 0.0:                                    # LOW redraws the HUD and the screens 20 times a second, LOW+ 12 (the draw is script work every frame otherwise)
+		_redraw_t = LowPlus.hud_interval()
+		if _hud.visible:
+			_hud.queue_redraw()
+		if _screen.visible:
+			_screen.queue_redraw()
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -1078,8 +1095,10 @@ func _draw_ally(c: Control, s: float, font: Font, right: float, top: float) -> v
 
 
 func _draw_hud(_ignored: Control = null) -> void:
+	var t0 := PerfTimers.start()
 	_draw_hud_body()
 	_flush_text()
+	PerfTimers.stop(PerfTimers.HUD, t0)
 
 
 func _draw_hud_body() -> void:
@@ -1439,7 +1458,7 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 
 func _ensure_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
-	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
+	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.tier_index(), int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
 	key += "|%s%d" % [_side_open, SideBoard.page]
 	key += "|h%s%s%s%s" % [_heist_open, HeistBoard.sel, HeistBoard.approach, HeistBoard.crew]
 	var shp := Game.progress as Progress
@@ -1561,8 +1580,8 @@ func _options_btn(vp: Vector2, s: float) -> Rect2:
 
 
 func _settings_rows(cx: float, y: float, s: float) -> void:
-	for i in 3:
-		_add(StringName("q%d" % i), Rect2(cx - 154.0 * s + i * 106.0 * s, y * s, 96.0 * s, 40.0 * s), TIER_NAMES[i], Game.quality == i)
+	for i in 4:                                                  # LOW+ (id qlp), LOW, MED, HIGH (ids q0, q1, q2)
+		_add(&"qlp" if i == 0 else StringName("q%d" % (i - 1)), Rect2(cx - 154.0 * s + i * 78.0 * s, y * s, 74.0 * s, 40.0 * s), Game.TIER_LABELS[i], Game.tier_index() == i)
 	_add(&"post", Rect2(cx - 154.0 * s, (y + 50.0) * s, 100.0 * s, 40.0 * s), "POST " + ("ON" if settings.post else "OFF"), settings.post)
 	_add(&"mute", Rect2(cx - 50.0 * s, (y + 50.0) * s, 100.0 * s, 40.0 * s), "SFX " + ("OFF" if settings.muted else "ON"), not settings.muted)
 	_add(&"cine", Rect2(cx + 54.0 * s, (y + 50.0) * s, 100.0 * s, 40.0 * s), "CINE " + ("ON" if settings.cutscenes else "OFF"), settings.cutscenes)
@@ -1580,9 +1599,11 @@ func _draw_screen(_ignored: Control = null) -> void:
 	var s := UiUtil.ui_scale(vp)
 	var font := UiUtil.font()
 	var cx := vp.x * 0.5
+	var t0 := PerfTimers.start()
 	_ensure_layout()
 	_draw_screen_body(c, vp, s, font, cx)
 	_flush_text()
+	PerfTimers.stop(PerfTimers.SCREEN, t0)
 
 
 func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:

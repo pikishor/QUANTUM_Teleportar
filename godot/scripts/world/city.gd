@@ -121,6 +121,12 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.WORLD, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	# the pooled prop colliders follow the player (or, without one, the camera) while the game runs
 	if not Game.is_playing() and not Game.autostart:
 		return
@@ -148,6 +154,12 @@ func prop_colliders() -> Colliders:
 
 
 func _process(_delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(_delta)
+	PerfTimers.stop(PerfTimers.WORLD, t0)
+
+
+func _process_body(_delta: float) -> void:
 	if not stream_enabled:
 		return
 	var cam := get_viewport().get_camera_3d()
@@ -233,6 +245,17 @@ func set_quality(level: int) -> void:
 	_apply_surfaces()
 	_building_mat.set_shader_parameter(&"far_fade_start", 240.0 if quality >= 1 else 110.0)
 	_building_mat.set_shader_parameter(&"far_fade_end", 800.0 if quality >= 1 else 420.0)
+	_apply_low_plus(quality == 0 and LowPlus.on())
+
+
+## LOW+: the lean facade shader for every building (no shop floors, accents, screens or relief), no quantum surface layer on the ground and the facades, material v2 off (MaterialsV2).
+func _apply_low_plus(on: bool) -> void:
+	var want: Shader = Buildings.LEAN_SHADER if on else Buildings.BUILDING_SHADER
+	if _building_mat.shader != want:
+		_building_mat.shader = want
+	var qs := 0.0 if on else 1.0
+	for m: ShaderMaterial in [_ground.material, _ground.material_lite, _building_mat]:
+		m.set_shader_parameter(&"qs_amount", qs)
 
 
 ## Tier-scaled PBR surface taps (SurfaceTextures): LOW none, MED one albedo+normal pair per surface at half size, HIGH two pairs, full size and the decal mask.

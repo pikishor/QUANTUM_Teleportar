@@ -27,6 +27,8 @@ static func scale_for(m: int) -> float:
 
 
 static func scale(tier: int = Game.quality) -> float:
+	if tier == 0 and LowPlus.on():
+		return minf(scale_for(mode(tier)), LowPlus.SCALE_3D)         # LOW+: the smallest 3D scale whatever the Options resolution says
 	return scale_for(mode(tier))
 
 
@@ -43,7 +45,7 @@ static func apply(vp: Viewport, tier: int = Game.quality) -> void:
 		return
 	var s := scale(tier)
 	vp.scaling_3d_scale = s
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if (s < 0.999 and fsr_supported()) else Viewport.SCALING_3D_MODE_BILINEAR
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if (s < 0.999 and fsr_supported() and not (tier == 0 and LowPlus.on())) else Viewport.SCALING_3D_MODE_BILINEAR     # LOW+: no FSR pass (it costs fill rate at native resolution)
 	if s < 0.999:
 		vp.fsr_sharpness = 0.5
 
@@ -70,6 +72,8 @@ static func next_mode() -> int:
 
 ## Governor step: lowers the effective mode by one when it is above BALANCED. Returns true when it did.
 static func governor_lower() -> bool:
+	if LowPlus.on():
+		return false
 	var m := mode()
 	if m <= 0:
 		return false

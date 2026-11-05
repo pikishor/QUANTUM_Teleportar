@@ -43,9 +43,6 @@ const HAND_ROLL_R := 1.5708                         ## extra twist of each hand 
 const HAND_ROLL_L := 3.1416
 const RIFLE_MODEL := "res://assets/models/hero_rifle.glb"   ## tools/blender/model_hero_rifle.py: 2.3k triangles, glow seams in vertex colour G
 
-static var _half := {}                          ## path -> halved texture (LOW)
-
-
 static func path_for(body: StringName) -> String:
 	return "%s/Superhero_%s_FullBody.gltf" % [DIR, String(body).capitalize()]
 
@@ -66,9 +63,8 @@ static func sanitize(opts: Dictionary) -> Dictionary:
 static func tex(path: String) -> Texture2D:
 	var t := load(path) as Texture2D if ResourceLoader.exists(path) else null
 	if t != null and TextureBudget.low_active:
-		if not _half.has(path):
-			_half[path] = TextureBudget.halve_texture(t)
-		return _half[path]
+		var h := TextureBudget._low_tex(t)          # one half-size copy per file, shared with the model materials and found again by the tier switch
+		return h if h != null else t
 	return t
 
 

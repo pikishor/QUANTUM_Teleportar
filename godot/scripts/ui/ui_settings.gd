@@ -6,6 +6,7 @@ const DEFAULT_PATH := "user://settings.cfg"
 
 var path: String
 var quality := -1            ## graphics tier 0..2, -1 = never chosen (keep the default / --quality)
+var low_plus := false        ## LOW+ chosen (quality is 0 then): the tier below LOW
 var post := true             ## post-process (grain, vignette, grade)
 var muted := false
 var volumes := {}            ## per-bus volume 0..1 {"Master", "SFX", "Music", "Ambient", "Voice"}; missing = full
@@ -90,6 +91,7 @@ func load_file() -> void:
 	if cf == null:
 		return
 	quality = clampi(Progress._num(cf.get_value("graphics", "quality", -1)), -1, 2)
+	low_plus = quality == 0 and _b(cf.get_value("graphics", "low_plus", false))
 	post = _b(cf.get_value("graphics", "post", true))
 	muted = _b(cf.get_value("audio", "muted", false))
 	var vols = cf.get_value("audio", "volumes", {})
@@ -194,6 +196,7 @@ static func buzz(ms := 30) -> void:
 func save() -> bool:
 	var cf := ConfigFile.new()
 	cf.set_value("graphics", "quality", quality)
+	cf.set_value("graphics", "low_plus", low_plus and quality == 0)
 	cf.set_value("graphics", "post", post)
 	cf.set_value("audio", "muted", muted)
 	cf.set_value("audio", "volumes", volumes)

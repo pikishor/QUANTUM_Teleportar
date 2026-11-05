@@ -53,6 +53,12 @@ func reset() -> void:
 
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.MISSIONS, t0)
+
+
+func _process_body(delta: float) -> void:
 	if not Game.is_playing():
 		return
 	tick(delta, Game.player.global_position if is_instance_valid(Game.player) else Vector3.INF)

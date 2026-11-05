@@ -530,6 +530,12 @@ func weapon_impact(pos: Vector3, normal: Vector3) -> void:
 # --- simulation ----------------------------------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.EFFECTS, t0)
+
+
+func _process_body(delta: float) -> void:
 	_clock += delta
 	for i in RING_MAX:
 		if _ring_t[i] < 1.0:

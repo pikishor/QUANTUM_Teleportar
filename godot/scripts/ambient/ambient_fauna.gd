@@ -80,6 +80,8 @@ func build() -> void:
 
 func set_tier(level: int) -> void:
 	count = COUNTS[clampi(level, 0, 2)]
+	if level == 0:
+		count = LowPlus.scaled(count, LowPlus.FAUNA_SHARE, 6)
 	mm.visible_instance_count = count
 
 

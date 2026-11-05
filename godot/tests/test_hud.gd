@@ -177,6 +177,8 @@ func _volume_and_cues() -> void:
 func _settings(host: Node, atmo: StubAtmosphere) -> void:
 	TestLib.check(_hud.press_button(&"q2") and Game.quality == 2 and _hud.settings.quality == 2, "HIGH sets Game.set_quality(2)")
 	TestLib.check(_hud.press_button(&"q0") and Game.quality == 0, "LOW sets Game.set_quality(0)")
+	TestLib.check(_hud.press_button(&"qlp") and Game.quality == 0 and Game.low_plus and _hud.settings.low_plus and Game.tier_index() == 0, "LOW+ sets Game.set_low_plus(true) and is saved")
+	TestLib.check(_hud.press_button(&"q0") and not Game.low_plus and not _hud.settings.low_plus, "LOW leaves LOW+")
 	_hud._on_state(&"menu")
 	_hud.press_button(&"post")
 	TestLib.check(not atmo.enabled and not _hud.settings.post, "the post-process toggle drives atmosphere.enabled")

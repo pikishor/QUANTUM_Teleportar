@@ -162,6 +162,12 @@ func _exit_tree() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.MISSIONS, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	if _p == null or not Game.is_playing():
 		return
 	phase.tick(delta)
@@ -902,6 +908,12 @@ func _ghost_mesh(i: int) -> MeshInstance3D:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.MISSIONS, t0)
+
+
+func _process_body(delta: float) -> void:
 	if fx_root == null or not Game.is_playing():
 		return
 	_clock += delta

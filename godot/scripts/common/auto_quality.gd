@@ -42,7 +42,7 @@ func _ready() -> void:
 	Game.state_changed.connect(_on_state)
 	Game.quality_changed.connect(func(_q: int) -> void: _reset_window(true))
 	if wants_low_default():
-		Game.set_quality(0)
+		Game.set_tier_index(LowPlus.device_default(RenderingServer.get_video_adapter_name()))        # a weak GPU starts on LOW+, any other touchscreen on LOW
 	_build_notice()
 	if not Game.autostart and UiSettings.new().quality < 0 and not OS.get_cmdline_user_args().has("--governor-quiet"):
 		call_deferred(&"announce_first_launch")
@@ -51,7 +51,12 @@ func _ready() -> void:
 ## First launch (no saved tier): says which tier the startup self-check recommends (the tier a touchscreen already runs on).
 func announce_first_launch() -> void:
 	var tier := PerfOverlay.recommended_tier()
-	_show_notice("FIRST LAUNCH: RECOMMENDED GRAPHICS %s" % ["LOW", "MED", "HIGH"][tier])
+	_show_notice("FIRST LAUNCH: RECOMMENDED GRAPHICS %s" % ("LOW+" if (tier == 0 and LowPlus.device_default(RenderingServer.get_video_adapter_name()) == 0) else ["LOW", "MED", "HIGH"][tier]))
+
+
+## LOW+ for a touchscreen with a weak GPU (see LowPlus.weak_gpu) that has no saved choice; false everywhere else.
+static func wants_low_plus_default(settings_path := UiSettings.DEFAULT_PATH) -> bool:
+	return wants_low_default(settings_path) and LowPlus.device_default(RenderingServer.get_video_adapter_name()) == 0
 
 
 ## Touchscreen, no tool run, no --quality flag and no saved choice: the first launch starts on LOW.
@@ -105,11 +110,11 @@ func _process(delta: float) -> void:
 ## One frame-rate sample covering `dt` seconds (the tests feed it directly). Returns true when it lowered the tier.
 func tick(avg_fps: float, dt: float) -> bool:
 	last_fps = avg_fps
-	if avg_fps >= LOW_FPS or Game.quality <= 0:             # nothing to lower at LOW: no slow time is banked either
+	if avg_fps >= LOW_FPS or LowPlus.on():                  # nothing to lower at LOW+: no slow time is banked either
 		_low_t = 0.0
 		return false
 	_low_t += dt
-	if _low_t < LOW_FOR or _since_drop < MIN_GAP:
+	if _low_t < (LowPlus.GOVERNOR_FOR if Game.quality <= 0 else LOW_FOR) or _since_drop < MIN_GAP:       # LOW -> LOW+ waits 5 s
 		return false
 	_low_t = 0.0
 	_since_drop = 0.0
@@ -120,10 +125,13 @@ func tick(avg_fps: float, dt: float) -> bool:
 		_show_notice("RESOLUTION LOWERED TO %s FOR SMOOTHER PLAY" % RenderRes.mode_name(RenderRes.mode()))
 		return false
 	drops += 1
-	var level := Game.quality - 1
-	Game.set_quality(level)
+	var level := maxi(Game.quality - 1, 0)
+	if Game.quality <= 0:
+		Game.set_low_plus(true)                             # LOW -> LOW+ (never saved: the player's choice in Options stays)
+	else:
+		Game.set_quality(level)
 	_warm = WARMUP
-	_show_notice("GRAPHICS LOWERED TO %s FOR SMOOTHER PLAY" % ["LOW", "MED", "HIGH"][level])
+	_show_notice("GRAPHICS LOWERED TO %s FOR SMOOTHER PLAY" % Game.tier_label())
 	lowered.emit(level)
 	return true
 

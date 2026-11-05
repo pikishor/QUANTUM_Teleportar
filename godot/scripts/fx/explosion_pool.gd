@@ -175,7 +175,7 @@ static func _debris_ramp() -> Gradient:
 
 ## Number of slots in use at this graphics tier: LOW 2, MED 3, HIGH 4.
 static func slot_limit(tier: int) -> int:
-	return 2 + clampi(tier, 0, 2) if tier > 0 else 2
+	return 2 + clampi(tier, 0, 2) if tier > 0 else (1 if LowPlus.on() else 2)
 
 
 ## Smoke puffs per large explosion at this tier: LOW 1, MED 2, HIGH 3.
@@ -185,7 +185,8 @@ static func puff_count(tier: int) -> int:
 
 ## Particle count multiplier at this tier (sparks, debris, bursts).
 static func tier_scale(tier: int) -> float:
-	return [0.5, 0.8, 1.0][clampi(tier, 0, 2)]
+	var f: float = [0.5, 0.8, 1.0][clampi(tier, 0, 2)]
+	return f * LowPlus.FX_SHARE if (tier == 0 and LowPlus.on()) else f
 
 
 ## Start an explosion. style STYLE_FIRE / STYLE_QUANTUM / STYLE_WRECK (a burning car: `burn` seconds of flame and smoke).
@@ -314,6 +315,12 @@ func _shoot(p: CPUParticles3D, at: Vector3, v_min: float, v_max: float, life: fl
 
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.EFFECTS, t0)
+
+
+func _process_body(delta: float) -> void:
 	var any := false
 	for s in slots:
 		if s.active:

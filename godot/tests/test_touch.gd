@@ -74,7 +74,9 @@ func run(host: Node) -> void:
 	# the perf readout cycles the graphics tier through Game.set_quality
 	var q0 := Game.quality
 	var box: Rect2 = tc.call("_perf_box")
-	TestLib.check(tc.perf_visible(), "the readout shows while playing")
+	TestLib.check(not tc.perf_visible(), "the readout is hidden until a long press")
+	tc.show_perf(true)
+	TestLib.check(tc.perf_visible(), "the readout shows while playing once it is on")
 	tc.touch_down(4, box.get_center())
 	tc.touch_up(4)
 	TestLib.check(Game.quality == (q0 + 1) % 3, "tapping the readout cycles the tier (%d -> %d)" % [q0, Game.quality])

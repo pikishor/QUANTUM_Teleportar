@@ -240,7 +240,10 @@ func _reflection() -> void:
 	Game.set_quality(1)
 	await frames(4)
 	p.body.visible = false
-	await frames(4)
+	for _i in 30:                                       # wait on the mirror's own process frames, not on physics ticks (time_scale makes those several per frame)
+		await host.get_tree().process_frame
+		if not cp.visible:
+			break
 	TestLib.check(not cp.visible, "a hidden body (the player in a car) hides its reflection")
 	p.body.visible = true
 	await frames(4)

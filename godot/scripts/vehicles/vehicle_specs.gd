@@ -268,7 +268,10 @@ static func far_look(kind: StringName) -> Dictionary:
 
 
 static func cap_for(quality: int) -> int:
-	return PerfTiers.cap_scale(CAPS[clampi(quality, 0, 2)])        # the Compatibility renderer spawns fewer
+	var n: int = CAPS[clampi(quality, 0, 2)]
+	if quality == 0:
+		n = LowPlus.scaled(n, LowPlus.CAR_SHARE, 2)               # LOW+: 2 live cars
+	return PerfTiers.cap_scale(n)        # the Compatibility renderer spawns fewer
 
 
 ## Vehicle heading (Node3D.rotation.y, forward = -Z) for travelling along `axis` (0 = +-X, 1 = +-Z) in direction `dir` (+1 / -1).

@@ -117,6 +117,12 @@ func set_hour(h: float) -> void:
 
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.WORLD, t0)
+
+
+func _process_body(delta: float) -> void:
 	if env_owner == null:
 		return
 	var freeze := frozen or UiSettings.s_freeze_time

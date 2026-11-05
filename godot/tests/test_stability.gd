@@ -422,8 +422,9 @@ func _auto_quality() -> void:
 	aq._since_drop = 99.0
 	for i in 20:
 		aq.tick(5.0, 0.5)
-	TestLib.check(Game.quality == 0 and aq.drops == 2, "never below LOW")
+	TestLib.check(Game.quality == 0 and Game.low_plus and aq.drops == 3, "LOW steps to LOW+ after 5 s, never below LOW+")
 	aq._since_drop = 99.0
+	Game.low_plus = false
 	Game.quality = 2
 	aq.tick(20.0, 3.0)
 	aq.tick(60.0, 0.5)
@@ -478,6 +479,7 @@ func _touch_long_press(host: Node) -> void:
 	await e.frames(2)
 	var box := tc._perf_box()
 	var q0 := Game.quality
+	tc.show_perf(true)                                  # the readout is hidden until a long press (tests/test_benchmark_mode.gd covers that); here it is on
 	tc.touch_down(5, box.get_center())
 	await e.secs(0.9)
 	TestLib.check(tc.errors_on, "holding the FPS box opens the error panel")
@@ -486,7 +488,8 @@ func _touch_long_press(host: Node) -> void:
 	tc.touch_down(5, box.get_center())
 	await e.secs(0.9)
 	tc.touch_up(5)
-	TestLib.check(not tc.errors_on, "a second long press closes the panel")
+	TestLib.check(not tc.errors_on and not tc.perf_shown, "a second long press closes the panel and the readout")
+	tc.show_perf(true)
 	tc.touch_down(5, box.get_center())
 	tc.touch_up(5)
 	TestLib.check(Game.quality == (q0 + 1) % 3 and not tc.errors_on, "a short tap still cycles the tier")

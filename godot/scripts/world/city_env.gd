@@ -126,3 +126,12 @@ func apply_quality(level: int, vp: Viewport) -> void:
 	env.glow_hdr_luminance_cap = 3.5 if tame else 12.0
 	env.adjustment_contrast = [1.14, 1.08, 1.06][level]       # LOW: a light 'sharpen' (the post-process filter is off there)
 	env.fog_density = 0.0042 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0052
+	# LOW+: no bloom (the glow chain is several full-screen passes), no colour adjustment pass, no height fog layer and no aerial perspective; plain distance fog stays (it hides the pop-in)
+	var lowplus := level == 0 and LowPlus.on()
+	env.glow_enabled = not lowplus
+	env.adjustment_enabled = not lowplus
+	env.fog_height_density = 0.0 if lowplus else 0.03
+	env.fog_aerial_perspective = 0.0 if lowplus else 0.2
+	if vp != null:
+		vp.msaa_3d = Viewport.MSAA_DISABLED if lowplus else vp.msaa_3d
+		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED

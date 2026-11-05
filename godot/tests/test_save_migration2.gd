@@ -9,8 +9,17 @@ const BAD := "user://test_save_mig2.cfg/sub/x.cfg"          # its parent is a fi
 const W7 := "[meta]\nversion=1\n[wallet]\ncredits=120\nreputation=5\n[upgrades]\ndamage=2\n[campaign]\nsector=1\nbest=900\n[flags]\ntutorial_done=true\n"
 const W18 := W7 + "[weapons]\nunlocked=PackedStringArray(\"carbine\", \"scatter\")\ncurrent=\"scatter\"\n"
 const W30 := "[meta]\nversion=1\n[wallet]\ncredits=4000\nreputation=40\n[campaign]\nsector=4\nbest=50000\nunlocked=5\nbosses=PackedInt32Array(0, 1)\n[collectibles]\ngot=PackedInt32Array(1, 2, 3)\n"
-const W50 := W30 + "[side]\ndone_courier=3\nbest_courier=41.5\n[garage]\nkind=\"\"\n[achievements]\ndone=PackedStringArray()\n"
-const W65 := W50 + "[faction]\nrep_vael=-30.0\n[companion]\nmet=1\n[safehouse]\nown_loft=1\nlv_loft_bench=1\nsave_at=\"loft\"\n[heist]\ndone_vault=2\n[arena]\nclear_normal=1\nruns=4\nwave_best=9\n"
+## Waves 50 and 65 are REAL files: tests/fixtures/save_wave*.cfg were written by the actual Progress.save_file() checked out at git 645a3fb (wave 50) and b68e2a1 (wave 65)
+## (a throw-away worktree, a script setting the same fields, see docs/QA.md "Save fixtures"). Sections of later waves (factions, companion, safehouses, heists, arena)
+## did not exist at those revisions, so W_LATE stays hand-written: it is the only hand-written fixture left.
+const F50 := "res://tests/fixtures/save_wave50.cfg"
+const F65 := "res://tests/fixtures/save_wave65.cfg"
+const W_LATE := W30 + "[side]\ndone_courier=3\nbest_courier=41.5\n[faction]\nrep_vael=-30.0\n[companion]\nmet=1\n[safehouse]\nown_loft=1\nlv_loft_bench=1\nsave_at=\"loft\"\n[heist]\ndone_vault=2\n[arena]\nclear_normal=1\nruns=4\nwave_best=9\n"
+
+
+static func _text(p: String) -> String:
+	var f := FileAccess.open(p, FileAccess.READ)
+	return f.get_as_text() if f != null else ""
 
 
 func _rm(p: String) -> void:
@@ -38,6 +47,7 @@ func run(host: Node) -> void:
 	_partial()
 	_failed_write()
 	_first_launch()
+	_low_storage(host)
 	_reset(host)
 	_rm(TMP)
 	Upgrades.reset()
@@ -47,7 +57,7 @@ func run(host: Node) -> void:
 
 func _migrate() -> void:
 	TestLib.check(Progress.SAVE_VERSION >= 2, "save version is 2 or later")
-	for fx: Array in [["w7", W7], ["w18", W18], ["w30", W30], ["w50", W50], ["w65", W65]]:
+	for fx: Array in [["w7", W7], ["w18", W18], ["w30", W30], ["w50", _text(F50)], ["w65", _text(F65)]]:
 		_write(TMP, fx[1])
 		var p := _prog()
 		TestLib.check(p.has_save() and p.load_file(), "%s fixture loads" % fx[0])
@@ -61,11 +71,12 @@ func _migrate() -> void:
 		p.free()
 		q.free()
 		_rm(TMP)
-	_write(TMP, W65)
+	TestLib.check(_text(F50).contains("credits=4000") and _text(F65).contains("[gear]"), "the real wave 50 / 65 fixtures are present")
+	_write(TMP, W_LATE)
 	var p65 := _prog()
 	p65.load_file()
-	TestLib.check(p65.side_done.get(&"courier", 0) == 3 and p65.companion_met and p65.safehouses_owned.has(&"loft") and int(p65.heist_done.get(&"vault", 0)) == 2, "wave 65 sections load")
-	TestLib.check(float(p65.faction_rep.get(&"vael", 0.0)) < 0.0 and int(p65.arena.get("clear_normal", 0)) == 1 and int(p65.arena.get("runs", 0)) == 4, "wave 65 factions and arena load")
+	TestLib.check(p65.side_done.get(&"courier", 0) == 3 and p65.companion_met and p65.safehouses_owned.has(&"loft") and int(p65.heist_done.get(&"vault", 0)) == 2, "later sections load")
+	TestLib.check(float(p65.faction_rep.get(&"vael", 0.0)) < 0.0 and int(p65.arena.get("clear_normal", 0)) == 1 and int(p65.arena.get("runs", 0)) == 4, "later factions and arena load")
 	p65.free()
 	_write(TMP, "[meta]\nversion=99\n[wallet]\ncredits=5\n")
 	var pn := _prog()
@@ -104,7 +115,7 @@ func _backup() -> void:
 
 
 func _partial() -> void:
-	var cuts: Array[String] = [W65.substr(0, 40), W65.substr(0, W65.length() / 2), W65.substr(0, W65.length() - 7), W65 + "\n[arena\nruns="]
+	var cuts: Array[String] = [W_LATE.substr(0, 40), W_LATE.substr(0, W_LATE.length() / 2), W_LATE.substr(0, W_LATE.length() - 7), W_LATE + "\n[arena\nruns="]
 	for i in cuts.size():
 		_write(TMP, cuts[i])
 		var p := _prog()
@@ -137,6 +148,77 @@ func _failed_write() -> void:
 	Upgrades.reset()
 
 
+func _low_storage(host: Node) -> void:
+	var p := _prog()
+	p.credits = 10
+	TestLib.check(p.save_file(), "first write")
+	p.credits = 20
+	Progress.inject_full = 1                      # the first temp write fails like a full disk
+	TestLib.check(p.save_file() and not FileAccess.file_exists(TMP + ".bak") and not FileAccess.file_exists(TMP + ".tmp"), "a full disk drops the backup and retries once")
+	var q := _prog()
+	TestLib.check(q.load_file() and q.credits == 20, "the retried save is the new one")
+	p.credits = 30
+	Progress.inject_full = 2                      # both attempts fail: the live file stays, no partial files
+	var failed := [0]
+	p.save_failed.connect(func() -> void: failed[0] += 1)
+	TestLib.check(not p.save_file(), "no space at all fails")
+	TestLib.check(not FileAccess.file_exists(TMP + ".tmp") and not FileAccess.file_exists(TMP + ".bak.tmp"), "no partial file is left")
+	Progress.inject_full = 0
+	var r := _prog()
+	TestLib.check(r.load_file() and r.credits == 20, "the live file survived")
+	# a failure streak toasts once, not for every pickup
+	Progress.inject_full = 5
+	p.save_file()
+	p.save_file()
+	p.save_file()
+	Progress.inject_full = 0
+	TestLib.check(failed[0] == 1, "one failure notice per streak (%d)" % failed[0])
+	TestLib.check(p.save_file() and p._fail_streak == 0, "a good write ends the streak")
+	# the backup rotates at most every bak_gap_s
+	_rm(TMP)
+	var cf := ConfigFile.new()
+	cf.set_value("meta", "version", Progress.SAVE_VERSION)
+	cf.set_value("wallet", "credits", 1)
+	TestLib.check(Progress.write_atomic(cf, TMP, 60) and not FileAccess.file_exists(TMP + ".bak"), "first write has nothing to back up")
+	cf.set_value("wallet", "credits", 2)
+	Progress.write_atomic(cf, TMP, 60)
+	cf.set_value("wallet", "credits", 3)
+	Progress.write_atomic(cf, TMP, 60)
+	var bk := ConfigFile.new()
+	bk.load(TMP + ".bak")
+	TestLib.check(int(bk.get_value("wallet", "credits", 0)) == 1, "a fresh backup is kept for the gap (not rewritten every save)")
+	cf.set_value("wallet", "credits", 4)
+	Progress.write_atomic(cf, TMP, 0)
+	bk.load(TMP + ".bak")
+	TestLib.check(int(bk.get_value("wallet", "credits", 0)) == 3, "gap 0 rotates every write")
+	# soft saves coalesce in the live game and flush on exit
+	_rm(TMP)
+	var s := _prog()
+	host.add_child(s)
+	s.autosave_enabled = true
+	s.save_gap_ms = 60000
+	s.credits = 5
+	s.soft_save()
+	TestLib.check(FileAccess.file_exists(TMP), "the first soft save writes at once")
+	s.credits = 6
+	s.soft_save()
+	s.soft_save()
+	TestLib.check(s._save_pending, "later soft saves inside the gap are queued")
+	var t := _prog()
+	TestLib.check(t.load_file() and t.credits == 5, "nothing was written inside the gap")
+	host.remove_child(s)
+	var u := _prog()
+	TestLib.check(u.load_file() and u.credits == 6, "the queued save is flushed when the node leaves the tree")
+	s.free()
+	t.free()
+	u.free()
+	p.free()
+	q.free()
+	r.free()
+	_rm(TMP)
+	Upgrades.reset()
+
+
 func _first_launch() -> void:
 	var p := Progress.new()
 	p.path = "user://first_launch_%d.cfg" % Time.get_ticks_usec()
@@ -164,7 +246,7 @@ func _reset(host: Node) -> void:
 	p.save_file()
 	var side := "user://map.cfg"
 	var had_map := FileAccess.file_exists(side)
-	TestLib.check(OptionsScreen.PAGE2.has(&"opt_reset") and OptionsScreen.PAGE2.size() < OptionsScreen.PAGE_CELL and OptionsScreen.is_option(&"opt_reset"), "RESET PROGRESS sits on options page 2")
+	TestLib.check(OptionsScreen.PAGE2.has(&"opt_reset") and OptionsScreen.PAGE2.size() <= OptionsScreen.PAGE_CELL and OptionsScreen.is_option(&"opt_reset"), "RESET PROGRESS sits on options page 2")
 	var st := UiSettings.new("user://test_mig2_settings.cfg")
 	Game.state = &"play"
 	TestLib.check(not OptionsScreen.press(st, &"opt_reset") and p.credits == 900, "not allowed during play")

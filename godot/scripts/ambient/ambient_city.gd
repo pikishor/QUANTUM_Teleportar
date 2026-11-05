@@ -60,17 +60,22 @@ func _exit_tree() -> void:
 ## 0 low, 1 medium, 2 high (called by City.set_quality).
 func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
-	traffic.set_count(int(Traffic.COUNTS[quality] * density))
+	traffic.set_count(_traffic_n(density))
 	crowd.set_tier(quality, density)
 	sky.set_enabled(quality >= 1)
 	fauna.set_tier(quality)
 	citizens.set_tier(quality)
 
 
+func _traffic_n(f: float) -> int:
+	var n := int(Traffic.COUNTS[quality] * f)
+	return LowPlus.scaled(n, LowPlus.TRAFFIC_SHARE, 20) if quality == 0 else n        # LOW+ draws less than half of LOW's far cars
+
+
 ## Hour-of-day multiplier (DayNight): slightly fewer cars and people in the small hours, more at rush hour.
 func set_density(f: float) -> void:
 	density = f
-	traffic.set_count(int(Traffic.COUNTS[quality] * f))
+	traffic.set_count(_traffic_n(f))
 	crowd.set_tier(quality, f)
 
 
@@ -93,11 +98,21 @@ func _process(delta: float) -> void:
 	traffic.set_time(clock)
 	var p := _center()
 	if p != Vector3.INF:
+		var t0 := PerfTimers.start()
 		crowd.step(delta, p)
+		PerfTimers.stop(PerfTimers.CROWD, t0)
+		t0 = PerfTimers.start()
 		npc.step(delta, p)
+		PerfTimers.stop(PerfTimers.NPC, t0)
+		t0 = PerfTimers.start()
 		citizens.step(delta, p)
+		PerfTimers.stop(PerfTimers.CITIZENS, t0)
+		t0 = PerfTimers.start()
 		fauna.step(delta, p, _night())
+		PerfTimers.stop(PerfTimers.FAUNA, t0)
+		t0 = PerfTimers.start()
 		sky.step(delta, p, traffic, clock, quality)
+		PerfTimers.stop(PerfTimers.SKY, t0)
 	_hook_player()
 
 

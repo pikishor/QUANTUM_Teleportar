@@ -89,7 +89,7 @@ void fragment() {
 	col *= mix(1.0, 0.72, wet);
 	// materials v2 (painted surfaces only): macro drift between neighbouring props, triplanar grime with a height-based tide line, and edge wear from the
 	// curvature of the normal (rounded metal edges rub through to a lighter metal, concave runs collect dirt)
-	if (code < 0.1) {
+	if (code < 0.1 && mv2_amount > 0.001) {
 		vec3 wn2 = normalize((INV_VIEW_MATRIX * vec4(normalize(NORMAL), 0.0)).xyz);
 		col = mv2_tint(col, mv2_macro(v_wpos.xz, length(VERTEX)));
 		float gd = mv2_tri(v_wpos, wn2, h, seed * 17.0, length(VERTEX));

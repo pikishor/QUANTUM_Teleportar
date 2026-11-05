@@ -155,9 +155,12 @@ func step(_t: float, _delta: float) -> bool:
 	if _frame == SETTLE and OS.get_environment("BOT_DUMP") != "":
 		_dump_casters()
 		_census("staged")
+	if _frame == SETTLE:
+		PerfTimers.reset()                          # the per-system CPU table covers the staged frames only
 	if _frame >= SETTLE and _frame < STAGE_END:
 		_max_into(_stage, PerfProbe.snapshot(_p.get_viewport()))
 	elif _frame == STAGE_END:
+		print("PERF cpu (script ms per frame by system, staged view, tier %s)\n%s" % [Game.tier_label(), PerfTimers.table()])
 		for l in _hud_nodes:
 			l.visible = false
 	elif _frame > STAGE_END and _frame <= HUD_OFF_END:
@@ -186,11 +189,11 @@ func step(_t: float, _delta: float) -> bool:
 		print("PERF lights ", lights.size(), " ", lights)
 		print(PerfProbe.line("PERF death_worst", _death))
 		print("PERF death_series (total draws per frame after the trigger) ", _series)
-		var bad := PerfProbe.violations(_stage, _tier, _death)
+		var bad := PerfProbe.violations(_stage, _tier, _death, Game.low_plus)
 		if Game.force_touch and hud_draws > PerfProbe.HUD_TOUCH_MAX_DRAWS + 8:
 			bad.append("canvas draws %d" % hud_draws)
-		print("PERF RESULT tier=%d renderer=%s touch=%d draws=%d prims=%d total_draws=%d total_prims=%d nodes=%d tex_mb=%.0f lights=%d hud_draws=%d death_draws=%d death_prims=%d enemies=%d verdict=%s %s" % [
-			_tier, RenderingServer.get_current_rendering_method(), 1 if Game.force_touch else 0,
+		print("PERF RESULT tier=%d label=%s renderer=%s touch=%d draws=%d prims=%d total_draws=%d total_prims=%d nodes=%d tex_mb=%.0f lights=%d hud_draws=%d death_draws=%d death_prims=%d enemies=%d verdict=%s %s" % [
+			_tier, Game.tier_label(), RenderingServer.get_current_rendering_method(), 1 if Game.force_touch else 0,
 			_stage.get("draws", 0), _stage.get("prims", 0), _stage.get("total_draws", 0), _stage.get("total_prims", 0), _stage.get("nodes", 0), _stage.get("tex_mb", 0.0), lights.size(), hud_draws,
 			_death.get("total_draws", 0), _death.get("total_prims", 0), _drones.size(), "OVER" if not bad.is_empty() else "OK", ";".join(bad)])
 		return true

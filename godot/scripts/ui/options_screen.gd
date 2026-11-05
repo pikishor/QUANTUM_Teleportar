@@ -5,11 +5,11 @@ extends RefCounted
 ## markers, FPS cap, graphics tier) are plain presses. Pure layout and settings math, no state of its own: every value lives in UiSettings.
 
 const ROW_H := 64.0
-const PITCH := 70.0
-const TOP := 118.0
+const PITCH := 66.0                ## 8 rows of 64 px fit the 720 px design height with the BACK row
+const TOP := 98.0
 const COL_W := 300.0
 const GAP := 12.0
-const BACK_Y := 612.0
+const BACK_Y := 634.0
 
 ## slider id -> [label, min, max, UiSettings field]
 const SLIDERS := {
@@ -30,16 +30,18 @@ const TOGGLE_NAMES := {
 	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION",
 }
 ## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
-const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls", &"opt_reset"]
-const PAGE_CELL := 13
+const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls", &"opt_reset", &"opt_reset_demo"]
+const PAGE_CELL := 15
 ## RESET PROGRESS needs two presses: the first arms it (the label asks), the second wipes. Any other press, the page flip and BACK disarm it; only on the title screen.
 static var reset_armed := false
+## The demo slot has its own confirm (`opt_reset_demo`): press, then press again.
+static var reset_demo_armed := false
 const SUB_BG_NAMES: Array[String] = ["SOFT", "", "SOLID"]
 const CB_NAMES: Array[String] = ["DEUTAN", "TRITAN"]
 const ORDER: Array[StringName] = [
 	&"opt_look_x", &"opt_look_y", &"opt_ads", &"opt_hud", &"opt_btn", &"opt_tier",
 	&"opt_aim", &"opt_auto", &"opt_left", &"opt_vib", &"opt_subs", &"opt_cb",
-	&"opt_fps",
+	&"opt_fps", &"opt_bench",
 ]
 
 
@@ -48,7 +50,7 @@ static func is_slider(id: StringName) -> bool:
 
 
 static func is_option(id: StringName) -> bool:
-	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_tier" or id == &"opt_res" or id == &"opt_page" or PAGE2.has(id)
+	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_bench" or id == &"opt_tier" or id == &"opt_res" or id == &"opt_page" or PAGE2.has(id)
 
 
 static func fraction(st: UiSettings, id: StringName) -> float:
@@ -75,8 +77,10 @@ static func label(st: UiSettings, id: StringName) -> String:
 		return "%s %s" % [Tr.t(TOGGLE_NAMES[id]), Tr.t("ON" if on else "OFF")]
 	if id == &"opt_fps":
 		return Tr.t("FPS CAP") + "  " + (Tr.t("OFF") if st.fps_cap == 0 else str(st.fps_cap))
+	if id == &"opt_bench":
+		return Tr.t("RUN BENCHMARK")
 	if id == &"opt_tier":
-		return Tr.t("GRAPHICS") + "  " + Tr.t(Hud.TIER_NAMES[clampi(Game.quality, 0, 2)])
+		return Tr.t("GRAPHICS") + "  " + Tr.t(Game.tier_label())
 	if id == &"opt_res":
 		return Tr.t("RESOLUTION") + "  " + Tr.t(RenderRes.mode_name(RenderRes.mode()))
 	if id == &"opt_page":
@@ -97,6 +101,8 @@ static func label(st: UiSettings, id: StringName) -> String:
 		return Tr.t("CONTROLS")
 	if id == &"opt_reset":
 		return Tr.t("TAP AGAIN: ERASE ALL" if reset_armed else "RESET PROGRESS")
+	if id == &"opt_reset_demo":
+		return Tr.t("TAP AGAIN: ERASE DEMO" if reset_demo_armed else "RESET DEMO SLOT")
 	if id == &"opt_subbg":
 		return Tr.t("SUBTITLE BG") + "  " + Tr.t(SUB_BG_NAMES[st.sub_bg] if st.sub_bg != 1 else "ON")
 	return ""
@@ -109,6 +115,7 @@ static func is_on(st: UiSettings, id: StringName) -> bool:
 ## Flips a toggle or cycles FPS cap / graphics tier. Returns true when it changed something.
 static func press(st: UiSettings, id: StringName) -> bool:
 	if id == &"opt_reset":
+		reset_demo_armed = false
 		var pr: Variant = Game.progress
 		if Game.state != &"menu" or not is_instance_valid(pr):
 			reset_armed = false
@@ -120,7 +127,23 @@ static func press(st: UiSettings, id: StringName) -> bool:
 		(pr as Progress).reset_progress()
 		Game.message.emit("PROGRESS RESET", 2.0)
 		return true
+	if id == &"opt_reset_demo":
+		reset_armed = false
+		if Game.state != &"menu" or DemoMode.active:
+			reset_demo_armed = false
+			return false
+		if not reset_demo_armed:
+			reset_demo_armed = true
+			return true
+		reset_demo_armed = false
+		Progress.reset_demo_slot()
+		Game.message.emit("DEMO SLOT RESET", 2.0)
+		return true
 	reset_armed = false
+	reset_demo_armed = false
+	if id == &"opt_bench":                               # 30 s fixed route through the city on LOW, MED and HIGH (scripts/common/benchmark_run.gd); the HUD closes the screen when play starts
+		var bn := Game.get_tree().get_first_node_in_group(&"benchmark") if Game.is_inside_tree() else null
+		return bn != null and bool((bn as BenchmarkRun).start())
 	if id == &"opt_cb":                                  # off -> deutan/protan -> tritan -> off
 		if not st.cb_safe:
 			st.cb_safe = true
@@ -175,8 +198,10 @@ static func press(st: UiSettings, id: StringName) -> bool:
 		RenderRes.set_user(st.res_mode)
 		return true
 	if id == &"opt_tier":
-		st.quality = (clampi(Game.quality, 0, 2) + 1) % 3
-		Game.set_quality(st.quality)
+		var ti := (Game.tier_index() + 1) % 4                  # LOW+ -> LOW -> MED -> HIGH -> LOW+
+		st.quality = maxi(ti - 1, 0)
+		st.low_plus = ti == 0
+		Game.set_tier_index(ti)
 		return true
 	return false
 

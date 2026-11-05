@@ -30,6 +30,11 @@ const REP_TIERS: Array[String] = ["SUSPECT", "UNKNOWN", "TRUSTED", "LEGEND"]
 
 var path := DEFAULT_PATH
 var autosave_enabled := false
+var save_gap_ms := 0                    ## > 0 in the live game (set in _ready): frequent autosaves are coalesced (soft_save)
+var bak_gap_s := 0                      ## > 0 in the live game: the .bak is rotated at most this often
+var _save_pending := false
+var _last_save_ms := -1000000
+var _fail_streak := 0
 var credits := 0
 var levels := {}                        ## id -> level (mirrors Upgrades.levels)
 var reputation := 0
@@ -81,7 +86,10 @@ func _ready() -> void:
 	autosave_enabled = not Game.autostart
 	achievements.enabled = not Game.autostart
 	if autosave_enabled:
+		save_gap_ms = 2000
+		bak_gap_s = 60
 		load_file()
+	set_process(false)
 	save_failed.connect(func() -> void: Game.message.emit("SAVE FAILED - CHECK STORAGE", 3.0))
 	Game.new_game.connect(_on_new_game)
 	Game.score_changed.connect(_on_score)
@@ -91,6 +99,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _save_pending and autosave_enabled:
+		save_file()
 	if Game.progress == self:
 		Game.progress = null
 		Upgrades.reset()
@@ -174,8 +184,7 @@ func _on_hero_look() -> void:
 	if is_instance_valid(pl) and pl.get(&"body") is PlayerBody:
 		(pl.get(&"body") as PlayerBody).apply_look(hero)
 	changed.emit()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 
 
 ## Buys an item ("suit:<id>", "scheme:<i>", "accent") with credits. False when it is free, earned by achievement, owned, unknown or too dear.
@@ -186,8 +195,7 @@ func buy_look(key: String) -> bool:
 	hero.grant(key)
 	purchased.emit(StringName(key), 1)
 	changed.emit()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
@@ -243,8 +251,7 @@ func buy(id: StringName) -> bool:
 	_set_level(id, level(id) + 1)
 	purchased.emit(id, level(id))
 	changed.emit()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
@@ -325,8 +332,7 @@ func buy_gear(id: StringName) -> bool:
 	credits -= gear_price(id)
 	Gear.give(id)
 	changed.emit()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
@@ -337,16 +343,14 @@ func equip_gear(id: StringName) -> bool:
 	if not Gear.equip(id):
 		return false
 	changed.emit()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
 func save_loadout(i: int) -> bool:
 	if not Gear.save_loadout(i):
 		return false
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
@@ -354,8 +358,7 @@ func apply_loadout(i: int) -> bool:
 	if not Gear.apply_loadout(i):
 		return false
 	changed.emit()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
@@ -370,8 +373,7 @@ func buy_part(part: StringName) -> bool:
 	credits -= part_price(part)
 	Attachments.give(part)
 	changed.emit()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
@@ -382,8 +384,7 @@ func equip_part(weapon: StringName, part: StringName) -> bool:
 	var p := Game.player
 	if is_instance_valid(p) and p.get(&"weapon") is PlayerWeapon:
 		(p.get(&"weapon") as PlayerWeapon).apply_upgrades(false)
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
@@ -397,8 +398,7 @@ func buy_weapon(id: StringName) -> bool:
 	credits -= weapon_price(id)
 	_give_weapon(id)
 	changed.emit()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
@@ -438,8 +438,7 @@ func complete_side(mid: StringName, pay: int, rep: int, time: float) -> void:
 	Crafting.award(&"side")
 	if Factions.job_client(mid) != &"":
 		Factions.add_rep(self, Factions.job_client(mid), Factions.JOB_REP)
-	if autosave_enabled:
-		save_file()
+	soft_save()
 
 
 # --- lifecycle ------------------------------------------------------------------------------------------------------
@@ -538,8 +537,30 @@ func begin_sandbox_run() -> void:
 	_apply_to_player()
 
 
-func _autosave() -> void:
+func _autosave() -> void:                  ## checkpoints and state changes: always written now
 	if autosave_enabled:
+		save_file()
+
+
+## Frequent autosave sites (credits, rewards, drops) call this: with `save_gap_ms` > 0 (the live game) writes are coalesced to one per gap (one more is queued and flushed
+## by _process, on state changes and on exit), and after failed writes the gap grows (storage is full: do not hammer it). Tests keep gap 0 = immediate.
+func soft_save() -> void:
+	if not autosave_enabled:
+		return
+	var gap := save_gap_ms * (1 + mini(_fail_streak, 8) * 2) if save_gap_ms > 0 else 0
+	if gap <= 0 or Time.get_ticks_msec() - _last_save_ms >= gap:
+		save_file()
+		return
+	_save_pending = true
+	set_process(true)
+
+
+func _process(_dt: float) -> void:
+	if not _save_pending:
+		set_process(false)
+		return
+	var gap := save_gap_ms * (1 + mini(_fail_streak, 8) * 2)
+	if Time.get_ticks_msec() - _last_save_ms >= gap:
 		save_file()
 
 
@@ -565,16 +586,14 @@ func can_select_chapter() -> bool:
 ## Stores the scripted chapter's checkpoint (the runner calls it after every step) and autosaves when saving is on.
 func set_checkpoint(cp: Dictionary) -> void:
 	checkpoint = cp.duplicate()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 
 
 func clear_checkpoint() -> void:
 	if checkpoint.is_empty():
 		return
 	checkpoint.clear()
-	if autosave_enabled:
-		save_file()
+	soft_save()
 
 
 ## Title / pause chapter select: starts unlocked chapter `index` from its first step, keeping credits, upgrades, weapons and reputation. Only on the title or pause screen. False otherwise.
@@ -590,8 +609,7 @@ func start_chapter(index: int) -> bool:
 	sector = index
 	checkpoint.clear()
 	_begin_chapter_run(index)
-	if autosave_enabled:
-		save_file()
+	soft_save()
 	return true
 
 
@@ -673,23 +691,59 @@ func _read_save() -> ConfigFile:
 	return null
 
 
+## Low-storage safety. `inject_full` (tests) makes that many `ConfigFile.save` calls fail like a full disk. A save that cannot be written first frees the backup (the one
+## copy that is not the live file) and retries once; the backup is rotated through its own temp file, only when it is older than `bak_gap_s` (0 = every write), and a failed
+## backup copy never fails the save and never leaves a partial file.
+static var inject_full := 0
+
+
+static func _cf_save(cf: ConfigFile, p: String) -> bool:
+	if inject_full > 0:
+		inject_full -= 1
+		return false
+	return cf.save(p) == OK
+
+
+static func _rm(p: String) -> void:
+	if FileAccess.file_exists(p):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+
+
 ## Writes `cf` to `dst` through a temp file: the temp must read back as a save before it is swapped in, the previous good file becomes the .bak. A full disk or a
 ## failed write leaves the old file untouched.
-static func write_atomic(cf: ConfigFile, dst: String) -> bool:
+static func write_atomic(cf: ConfigFile, dst: String, bak_gap_s := 0) -> bool:
 	DirAccess.make_dir_recursive_absolute(dst.get_base_dir())      # first launch: the user dir may not exist yet
 	var tmp := dst + ".tmp"
+	var bak := dst + ".bak"
 	var g_tmp := ProjectSettings.globalize_path(tmp)
 	var g_dst := ProjectSettings.globalize_path(dst)
-	if cf.save(tmp) != OK or not version_ok(_read(tmp)):
+	var wrote_bak_room := false
+	if not _cf_save(cf, tmp) or not version_ok(_read(tmp)):
 		DirAccess.remove_absolute(g_tmp)
-		return false
-	if FileAccess.file_exists(dst) and version_ok(_read(dst)):
-		DirAccess.copy_absolute(g_dst, g_dst + ".bak")
+		# Probably no space left: the backup is the one file that can go (the live file is intact), then try once more without rotating it.
+		if not (FileAccess.file_exists(dst) and version_ok(_read(dst))):
+			return false
+		_rm(bak)
+		_rm(bak + ".tmp")
+		wrote_bak_room = true
+		if not _cf_save(cf, tmp) or not version_ok(_read(tmp)):
+			DirAccess.remove_absolute(g_tmp)
+			return false
+	if not wrote_bak_room and FileAccess.file_exists(dst) and version_ok(_read(dst)) and _bak_due(bak, bak_gap_s):
+		if DirAccess.copy_absolute(g_dst, g_dst + ".bak.tmp") == OK and version_ok(_read(bak + ".tmp")):
+			DirAccess.rename_absolute(g_dst + ".bak.tmp", g_dst + ".bak")
+		_rm(bak + ".tmp")                                               # a failed copy leaves nothing behind
 	if DirAccess.rename_absolute(g_tmp, g_dst) != OK:
 		var ok := cf.save(dst) == OK
 		DirAccess.remove_absolute(g_tmp)
 		return ok
 	return true
+
+
+static func _bak_due(bak: String, gap_s: int) -> bool:
+	if gap_s <= 0 or not FileAccess.file_exists(bak):
+		return true
+	return Time.get_unix_time_from_system() - float(FileAccess.get_modified_time(bak)) >= float(gap_s)
 
 
 ## RESET PROGRESS (options, title only): a fresh campaign plus the flags a new campaign keeps (tutorial, best score, cinematics, unlocked chapters), the save, backup, map,
@@ -701,10 +755,29 @@ func reset_progress() -> void:
 	unlocked = 1
 	cine_seen.clear()
 	ammo_type = 0
-	for f: String in [path, path + ".bak", path + ".tmp", "user://map.cfg", "user://interiors.cfg", "user://activities.cfg"]:
+	_save_pending = false
+	_fail_streak = 0
+	for f: String in [path, path + ".bak", path + ".tmp", path + ".bak.tmp", "user://map.cfg", "user://interiors.cfg", "user://activities.cfg"]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	changed.emit()
+
+
+## Separate confirm in the options: the DEMO slot (its own save, backups, map, interiors and activities files) is erased too. Only when no demo runs.
+static func reset_demo_slot() -> void:
+	if DemoMode.active:
+		return
+	for f: String in DemoMode.FILES:
+		for g: String in [f, f + ".bak", f + ".bak.tmp"]:
+			if FileAccess.file_exists(g):
+				DirAccess.remove_absolute(ProjectSettings.globalize_path(g))
+
+
+static func demo_slot_exists() -> bool:
+	for f: String in DemoMode.FILES:
+		if FileAccess.file_exists(f) or FileAccess.file_exists(f + ".bak"):
+			return true
+	return false
 
 
 func save_file() -> bool:
@@ -794,11 +867,16 @@ func save_file() -> bool:
 		cf.set_value("checkpoint", "tp", bool(checkpoint.get("tp", false)))
 		if checkpoint.get("goal", null) is Vector3:
 			cf.set_value("checkpoint", "goal", checkpoint["goal"])
-	last_save_ok = write_atomic(cf, path)
+	last_save_ok = write_atomic(cf, path, bak_gap_s)
+	_save_pending = false
+	_last_save_ms = Time.get_ticks_msec()
 	if last_save_ok:
+		_fail_streak = 0
 		saved.emit()
 	else:
-		save_failed.emit()
+		_fail_streak += 1
+		if _fail_streak == 1 or _fail_streak % 10 == 0:         # one toast per streak, not one per pickup
+			save_failed.emit()
 	return last_save_ok
 
 

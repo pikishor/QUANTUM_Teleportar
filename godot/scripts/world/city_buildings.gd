@@ -9,6 +9,7 @@ const BM := preload("res://scripts/world/building_meshes.gd")
 const Districts := preload("res://scripts/world/city_districts.gd")
 const BUILDING_SHADER := preload("res://assets/shaders/building.gdshader")
 const MIRROR_SHADER := preload("res://assets/shaders/building_mirror.gdshader")
+const LEAN_SHADER := preload("res://assets/shaders/building_far.gdshader")       ## LOW+: the lean facade of the distant megacity on every building
 
 ## Facade tints: desaturated concrete / glass / brick, the shader darkens them for night.
 const TINTS: Array[Color] = [

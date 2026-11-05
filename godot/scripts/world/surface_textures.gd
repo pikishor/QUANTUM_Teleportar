@@ -70,6 +70,21 @@ static func walk_array(kind: String, tier: int) -> Texture2DArray:
 	return arr
 
 
+## Drop the cached textures the tier does not use (LOW none, MED the half-size ones, HIGH the full-size ones); the materials were re-bound by `apply` already, so they are freed.
+static func prune(tier: int) -> int:
+	var n := 0
+	for key: String in _cache.keys():
+		if key == "sign_atlas":
+			continue
+		var keep := (tier == 1 and key.ends_with("|1")) or (tier >= 2 and key.ends_with("|2"))
+		if taps(tier) == 0:
+			keep = false
+		if not keep:
+			_cache.erase(key)
+			n += 1
+	return n
+
+
 ## The neon-text glyph atlas (tools/textures/gen_signage.py), cached; null when the file is missing.
 static func sign_atlas() -> Texture2D:
 	if not _cache.has("sign_atlas"):

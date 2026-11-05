@@ -429,6 +429,12 @@ func _release_farthest(from: Vector3) -> void:
 # --- simulation -----------------------------------------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.VEHICLES, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	if not Game.is_playing():
 		return
 	_clock += delta

@@ -55,6 +55,7 @@ var controls_on := false            ## the touch controls are drawn and active
 var touch_capable := false          ## the device has a touchscreen (controls_on while no controller is in use)
 var perf_on := false                ## the perf readout is drawn (always with the controls, or with --perf)
 var errors_on := false              ## the on-device error panel is shown (long-press the FPS box)
+var perf_shown := false             ## the FPS readout is on screen: hidden by default, a long-press on its corner (under the minimap) shows it, long-press again opens the report panel, once more hides both
 
 var _canvas: Control
 var _last_state: StringName = &""
@@ -78,6 +79,9 @@ var _swap_held := 0.0
 var _swap_pulse := 0.0              ## seconds the swap action stays pressed after a tap
 var _perf_finger := -1              ## the finger held on the FPS box, or -1
 var _perf_held := 0.0
+var _hot_finger := -1               ## the finger held on the hidden readout's corner (it still drives the stick or the look, the readout only listens)
+var _hot_held := 0.0
+var _hot_from := Vector2.ZERO
 var _perf_long := false             ## the current press already toggled the panel (so its release does not cycle the tier)
 
 
@@ -87,6 +91,7 @@ func _ready() -> void:
 	controls_on = Game.force_touch or DisplayServer.is_touchscreen_available()
 	touch_capable = controls_on
 	perf_on = controls_on or OS.get_cmdline_user_args().has("--perf")
+	perf_shown = OS.get_cmdline_user_args().has("--perf")
 	_canvas = Control.new()
 	_canvas.name = "Canvas"
 	_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -119,6 +124,22 @@ func _exit_tree() -> void:
 	release_all()
 
 
+var _redraw_t := 0.0
+var _fit_cache := {}                  ## button action -> [radius, scale, label, font size]: measuring a label is text shaping, it must not run for every button on every redraw
+
+
+## The font size of a button label (fitted inside the disc), measured once per radius / scale / label.
+func _label_size(b: Dictionary, font: Font, r: float, s: float) -> int:
+	var label := str(b["label"])
+	var e: Variant = _fit_cache.get(b["action"])
+	if e != null and e[0] == r and e[1] == s and e[2] == label:
+		return e[3]
+	var fs := int(b.get("fs", 26))
+	fs = mini(fs, int(UiUtil.fit_size(font, label, r * 2.0 - 6.0 * s, int(float(fs) * s)) / s))
+	_fit_cache[b["action"]] = [r, s, label, fs]
+	return fs
+
+
 func _process(delta: float) -> void:
 	if _swap_pulse > 0.0:
 		_swap_pulse -= delta
@@ -129,15 +150,23 @@ func _process(delta: float) -> void:
 		if _swap_held >= WHEEL_HOLD:
 			_swap_finger = -1
 			wheel_requested.emit()
+	if _hot_finger != -1:
+		_hot_held += delta / maxf(Engine.time_scale, 0.05)
+		if _hot_held >= LONG_PRESS and not perf_shown and Game.state == &"play":
+			_hot_finger = -1
+			show_perf(true)
 	if _perf_finger != -1 and not _perf_long:
 		_perf_held += delta / maxf(Engine.time_scale, 0.05)
 		if _perf_held >= LONG_PRESS:
 			_perf_long = true
 			var menu := get_tree().get_first_node_in_group(&"test_menu") if TestMode.available() else null
-			if menu != null:
+			if errors_on:
+				errors_on = false                        # the panel is open: this press closes it and the readout
+				show_perf(false)
+			elif menu != null:
 				menu.call(&"open")                       # test mode: the TEST MENU (it has the error panel switch); a release build keeps the error panel
 			else:
-				errors_on = not errors_on
+				errors_on = true
 			_canvas.queue_redraw()
 	_win_t += delta
 	_win_n += 1
@@ -157,8 +186,11 @@ func _process(delta: float) -> void:
 	if _use_t <= 0.0:
 		_use_t = 0.15
 		_use_near = _vehicle_in_reach() or InteriorGameplay.prompt != ""
+	_redraw_t -= delta
 	if Game.state == &"play" or Game.state == &"paused" or _last_state == &"play" or _last_state == &"paused":
-		_canvas.queue_redraw()      # one extra redraw after leaving play, so the dead screen does not keep the dimmed buttons
+		if _redraw_t <= 0.0 or Game.state != _last_state:         # LOW redraws the touch layer 20 times a second, LOW+ 12; a state change always redraws
+			_redraw_t = LowPlus.hud_interval()
+			_canvas.queue_redraw()      # one extra redraw after leaving play, so the dead screen does not keep the dimmed buttons
 	_last_state = Game.state
 
 
@@ -175,6 +207,7 @@ func release_all() -> void:
 	_look_id = -1
 	_perf_finger = -1
 	_perf_long = false
+	_hot_finger = -1
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -196,6 +229,10 @@ func _input(event: InputEvent) -> void:
 
 
 func touch_down(id: int, pos: Vector2) -> void:
+	if not perf_visible() and perf_on and controls_on and Game.state == &"play" and _perf_box().has_point(pos):
+		_hot_finger = id                                # hidden readout: a long hold here shows it (the press is NOT taken, the finger keeps playing)
+		_hot_held = 0.0
+		_hot_from = pos
 	if perf_visible() and errors_on and _copy_rect().has_point(pos):
 		var po := get_tree().get_first_node_in_group(&"perf_overlay")      # COPY REPORT (debug panel): the device report to the clipboard and user://perf_log.txt
 		if po != null:
@@ -257,6 +294,8 @@ func touch_down(id: int, pos: Vector2) -> void:
 
 
 func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
+	if id == _hot_finger and pos.distance_to(_hot_from) > 48.0 * _scale():
+		_hot_finger = -1                                # a stick drag or a look swipe is not a long press
 	if id == _stick_id:
 		_stick_pos = pos
 		_apply_stick()
@@ -265,6 +304,8 @@ func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
 
 
 func touch_up(id: int) -> void:
+	if id == _hot_finger:
+		_hot_finger = -1
 	if id == _swap_finger:
 		_swap_finger = -1
 		Input.action_press(&"swap")
@@ -273,7 +314,7 @@ func touch_up(id: int) -> void:
 	if id == _perf_finger:
 		_perf_finger = -1
 		if not _perf_long:
-			Game.set_quality((Game.quality + 1) % 3)
+			Game.set_tier_index((Game.tier_index() + 1) % 4)
 			_perf_t = 0.0
 		_perf_long = false
 		return
@@ -421,20 +462,33 @@ func _pause_center() -> Vector2:
 
 ## The perf readout sits under the minimap and is only shown while playing or paused.
 func perf_visible() -> bool:
-	return perf_on and (Game.state == &"play" or Game.state == &"paused")
+	return perf_on and perf_shown and (Game.state == &"play" or Game.state == &"paused")
+
+
+## Shows or hides the FPS readout (and with it the renderer's CPU / GPU frame timing, which costs a little).
+func show_perf(on: bool) -> void:
+	perf_shown = on
+	if not on:
+		errors_on = false
+	var po := get_tree().get_first_node_in_group(&"perf_overlay") if is_inside_tree() else null
+	if po != null:
+		(po as PerfOverlay).set_measure(on)
+	_perf_t = 0.0
+	if _canvas != null:
+		_canvas.queue_redraw()
 
 
 func _perf_box() -> Rect2:
 	var s := _scale()
-	return Rect2(Vector2(16.0 * s + _insets().x, 168.0 * s + UiUtil.insets_v(_vp_size()).x), Vector2(300.0, 70.0) * s)
+	return Rect2(Vector2(16.0 * s + _insets().x, 168.0 * s + UiUtil.insets_v(_vp_size()).x), Vector2(360.0, 90.0) * s)
 
 
 func _refresh_perf() -> void:
 	var draws := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
 	var prims := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
 	var tex_mb := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED)) / 1048576
-	_perf_text = "FPS %d  (avg %d  worst %d)\nDraws %d   Tris %dk   Tex %d MB\nTier %s - tap to change" % [
-		roundi(Engine.get_frames_per_second()), roundi(_avg_fps), roundi(_min_fps), draws, prims / 1000, tex_mb, TIER_NAMES[clampi(Game.quality, 0, 2)]]
+	_perf_text = "FPS %d  (avg %d  worst %d)\nDraws %d   Tris %dk   Tex %d MB\nTier %s - tap to change\n%s" % [
+		roundi(Engine.get_frames_per_second()), roundi(_avg_fps), roundi(_min_fps), draws, prims / 1000, tex_mb, PerfOverlay.tier_label(), PerfTimers.top_line()]
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -442,6 +496,12 @@ func _refresh_perf() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _draw_ui() -> void:
+	var t0 := PerfTimers.start()
+	_draw_ui_body()
+	PerfTimers.stop(PerfTimers.TOUCH, t0)
+
+
+func _draw_ui_body() -> void:
 	var c := _canvas
 	var size := _vp_size()
 	var s := _scale()
@@ -504,8 +564,7 @@ func _draw_ui() -> void:
 		if on:
 			glows.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, 0.35)])
 		sprites.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, (1.0 if on else 0.85) * dim)])
-		var fs := int(b.get("fs", 26))
-		fs = mini(fs, int(UiUtil.fit_size(font, str(b["label"]), r * 2.0 - 6.0 * s, int(float(fs) * s)) / s))
+		var fs := _label_size(b, font, r, s)
 		labels.append([centre + Vector2(-r, float(fs) * 0.36 * s), str(b["label"]), r * 2.0, dim, fs])
 	for g: Array in glows:
 		c.draw_texture_rect(UiUtil.sprite(&"disc"), g[0], false, g[1])
@@ -541,7 +600,7 @@ func _report_rect() -> Rect2:
 func _copy_rect() -> Rect2:
 	var r := _report_rect()
 	var s := _scale()
-	return Rect2(r.position + Vector2(r.size.x - 150.0 * s, 4.0 * s), Vector2(144.0, 30.0) * s)
+	return Rect2(r.position + Vector2(r.size.x - 204.0 * s, 4.0 * s), Vector2(200.0, 64.0) * s)      # a 64 px touch target
 
 
 ## Debug panel part two: the live device report (same text the COPY REPORT button sends) and the button.
@@ -554,7 +613,7 @@ func _draw_report(c: Control, font: Font, s: float) -> void:
 	c.draw_rect(r, Color(0.4, 0.9, 1.0, 0.6), false, 1.0 * s)
 	var cr := _copy_rect()
 	c.draw_rect(cr, Color(0.1, 0.35, 0.45, 0.9))
-	c.draw_string(font, cr.position + Vector2(8, 20) * s, "COPIED" if _copied_t > 0.0 else "COPY REPORT", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(14.0 * s), Color(1, 1, 1, 0.95))
+	c.draw_string(font, cr.position + Vector2(12, 42) * s, "COPIED" if _copied_t > 0.0 else "SEND REPORT", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(1, 1, 1, 0.95))
 	var lines := (po as PerfOverlay).report().split("\n")
 	for i in range(1, mini(lines.size(), 9)):
 		c.draw_string(font, r.position + Vector2(6.0, 14.0 + (i - 1) * 16.0 + (30.0 if i > 5 else 0.0)) * s, lines[i], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 12.0 * s, int(10.0 * s), Color(0.85, 1, 0.95, 0.95))

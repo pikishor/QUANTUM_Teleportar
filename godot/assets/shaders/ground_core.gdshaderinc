@@ -450,11 +450,13 @@ void fragment() {
 	// ---------------------------------------------------------------------------------------------------------
 	// materials v2: macro colour / roughness drift over tens of metres (no visible tiling), road decals (repair patches, trenches, tar snakes, oil)
 	// and a puddle bias from the same macro height (low drifts hold water)
+	if (mv2_amount > 0.001) {                                  // LOW+ switches material v2 off (global uniform: the whole block is skipped)
 	vec2 mac = mv2_macro(q, dist);
 	albedo = mv2_tint(albedo, mac);
 	rough = clamp(rough + 0.10 * mac.y, 0.05, 1.0);
 	pool_bias += 0.07 * mac.x;
-	if (sd < 0.0 && fine) {
+	}
+	if (mv2_amount > 0.001 && sd < 0.0 && fine) {
 		vec4 dc2 = mv2_road_decals(q, aa, dist);
 		albedo = mix(albedo, albedo * 0.62 + vec3(0.004), clamp(dc2.x, 0.0, 1.0));       // fresh patches: darker, smoother asphalt
 		albedo *= 1.0 - 0.45 * clamp(dc2.y + 0.5 * dc2.z, 0.0, 1.0);                            // trench sealant and tar snakes

@@ -409,8 +409,7 @@ static func _commit(prog: Progress) -> void:
 		(p.get(&"weapon") as PlayerWeapon).apply_upgrades(false)
 	if prog != null:
 		prog.changed.emit()
-		if prog.autosave_enabled:
-			prog.save_file()
+		prog.soft_save()
 
 
 ## The skill tree changed (a rank bought, a respec): perks scale with it, so the weapon in hand reloads its numbers.

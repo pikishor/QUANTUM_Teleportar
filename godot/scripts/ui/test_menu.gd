@@ -257,6 +257,7 @@ func _toggle_errors() -> void:
 		var tc := n as TouchControls
 		tc.errors_on = not tc.errors_on
 		tc.perf_on = true
+		tc.show_perf(tc.errors_on)
 		if tc.get(&"_canvas") != null:
 			(tc.get(&"_canvas") as Control).queue_redraw()
 	status = "ERROR PANEL TOGGLED (SHOWN ON THE FPS BOX SIDE OF THE HUD)"

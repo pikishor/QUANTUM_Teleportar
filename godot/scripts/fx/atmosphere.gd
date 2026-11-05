@@ -141,6 +141,12 @@ static func particle_budget(level: int) -> int:
 
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.EFFECTS, t0)
+
+
+func _process_body(delta: float) -> void:
 	var k := 1.0 - exp(-delta / maxf(weather_tau, 0.001))
 	if rain_now != rain_target:
 		rain_now = rain_target if absf(rain_target - rain_now) < 0.002 else lerpf(rain_now, rain_target, k)

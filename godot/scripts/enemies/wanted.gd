@@ -163,6 +163,12 @@ func reset() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.MISSIONS, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	if Game.is_playing():
 		tick(delta)
 

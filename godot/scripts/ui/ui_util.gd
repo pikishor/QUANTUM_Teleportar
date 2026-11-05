@@ -58,12 +58,31 @@ static func ui_scale(vp: Vector2) -> float:
 	return maxf(vp.y / BASE_H * UiSettings.s_hud_scale, 0.1)
 
 
+static var _win := Vector2i.ZERO          ## window size and safe area, read from the DisplayServer at most every DISPLAY_EVERY frames (a window / JNI query per button per frame was milliseconds on a phone)
+static var _safe := Rect2i()
+static var _display_frame := -1000
+const DISPLAY_EVERY := 20
+
+
+static var display_cache := true          ## false = query the DisplayServer on every call (what the game did before; the CPU probe's "before" numbers)
+
+
+static func _refresh_display() -> void:
+	var f := Engine.get_process_frames()
+	if display_cache and f - _display_frame < DISPLAY_EVERY and f >= _display_frame:
+		return
+	_display_frame = f
+	_win = DisplayServer.window_get_size()
+	_safe = DisplayServer.get_display_safe_area()
+
+
 ## Notch and rounded-corner insets (left, right) in canvas px.
 static func insets(vp: Vector2) -> Vector2:
-	var win := DisplayServer.window_get_size()
+	_refresh_display()
+	var win := _win
 	if win.x <= 0:
 		return _wide_floor(vp, Vector2.ZERO)
-	var sa := DisplayServer.get_display_safe_area()
+	var sa := _safe
 	if sa.size.x <= 0:
 		return _wide_floor(vp, Vector2.ZERO)
 	var k := vp.x / float(win.x)
@@ -117,10 +136,11 @@ static func sprite(kind: StringName) -> Texture2D:
 
 ## Notch / home-indicator insets (top, bottom) in canvas px, 0 on desktop.
 static func insets_v(vp: Vector2) -> Vector2:
-	var win := DisplayServer.window_get_size()
+	_refresh_display()
+	var win := _win
 	if win.y <= 0:
 		return Vector2.ZERO
-	var sa := DisplayServer.get_display_safe_area()
+	var sa := _safe
 	if sa.size.y <= 0:
 		return Vector2.ZERO
 	var k := vp.y / float(win.y)

@@ -554,6 +554,12 @@ func poll() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.MISSIONS, t0)
+
+
+func _process_body(delta: float) -> void:
 	advance(delta / maxf(Engine.time_scale, 0.05))      # real seconds, so slow motion never freezes a card
 	if view != null:
 		var st := Game.state

@@ -156,6 +156,12 @@ func _launch(p: CPUParticles3D, index: int, ratio: float) -> void:
 
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.EFFECTS, t0)
+
+
+func _process_body(delta: float) -> void:
 	for i in _left.size():
 		if _left[i] > 0.0:
 			_left[i] -= delta

@@ -41,6 +41,14 @@ static func scanned(kind: String, tier: int = 2) -> ShaderMaterial:
 	return m
 
 
+## Tier change: forget the scanned materials of the other size (LOW uses the _half files, MED / HIGH the full ones); nothing is cached for a kind that was never imported.
+static func prune(tier: int) -> void:
+	var keep := "|0" if tier == 0 else "|1"
+	for key: String in _cache.keys():
+		if not key.ends_with(keep):
+			_cache.erase(key)
+
+
 ## Scanned material when present, else `fallback` (the procedural one).
 static func get_material(kind: String, tier: int, fallback: Material) -> Material:
 	var m := scanned(kind, tier)

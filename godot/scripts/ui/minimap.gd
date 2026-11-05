@@ -45,7 +45,7 @@ func _process(delta: float) -> void:
 	_t_clock += delta
 	_t -= delta
 	if _t <= 0.0:
-		_t = REFRESH
+		_t = LowPlus.minimap_interval()       # LOW 10 redraws a second, LOW+ 7.5 (a map dot moves a few px between them)
 		queue_redraw()
 
 
@@ -110,6 +110,12 @@ func _update_view(radius: float) -> void:
 
 
 func _draw() -> void:
+	var t0 := PerfTimers.start()
+	_draw_body()
+	PerfTimers.stop(PerfTimers.MINIMAP, t0)
+
+
+func _draw_body() -> void:
 	var s := UiUtil.ui_scale(get_viewport_rect().size)
 	var c := size * 0.5
 	var radius := minf(size.x, size.y) * 0.5 - 2.0

@@ -851,6 +851,12 @@ func well_positions() -> Array[Vector3]:
 
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.PLAYER, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	if _grenades.is_empty() or not Game.is_playing():
 		return
 	for g in _grenades:

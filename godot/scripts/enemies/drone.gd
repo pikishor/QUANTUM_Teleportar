@@ -398,6 +398,12 @@ func _drop() -> void:
 # --- simulation -----------------------------------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.ENEMY_AI, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	if not Game.is_playing() or (TestMode.freeze and not dead):
 		return
 	if dead:

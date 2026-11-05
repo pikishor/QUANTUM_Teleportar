@@ -137,8 +137,7 @@ Software Vulkan (`--render`, 8 minutes, scale 0.3): texture memory 357.6 -> 360.
 * The stability audit ended photo mode while a photo was grabbed (the controls are hidden on purpose: `Hud._grabbing`, `layers_consistent`), took the teleport / aim slow motion (`Quantum.slow_active`)
   and a hit-stop (`CameraRig.stopping()`) for a stuck time scale and undid them (a false "time scale left slowed" repair).
 * `VehicleManager._physics_process`: a hard bump could wreck the driven car, which ejects the driver, and `_ram(driven)` then read `speed` of Nil (a script error in a 20 minute soak).
-**Not fixed (report):** after a HIGH tier visit the texture memory stays near 358 MB when the tier is set back to LOW (baseline 149 MB before the first tier cycle): resident HIGH textures are not released
-(it is the LOW budget of 200 MB that a player who flipped to HIGH and back would exceed until the next start). Real controller, a device and audio remain uncovered.
+**Fixed later (wave 81, `tests/test_tier_switch_memory.gd`):** the HIGH textures are released on the way back to LOW (`TextureBudget.set_tier`, surface and scanned caches pruned); the test cycles LOW, HIGH, LOW, MED, LOW and LOW+ and checks weak references and, where the renderer reports it, the texture memory. Real controller, a device and audio remain uncovered.
 
 ## Using them
 
@@ -151,3 +150,9 @@ Software Vulkan (`--render`, 8 minutes, scale 0.3): texture memory 357.6 -> 360.
 
 ## Full-feature bot
 `godot/tools/full_bot.sh` (8 simulated minutes, `--groups=quantum,weapons,stealth,vehicles,garage,world,events,activities,pieces,weather,ui,save,systems` to narrow; `--long` for 30 minutes) runs `tests/bot_full_game.gd`, the soak bot plus one activity per system of waves 21-45; `tests/test_full_quick.gd` is the 60 s CI variant. It uses throw-away save/settings files under user://.
+
+## Save fixtures
+`godot/tests/fixtures/save_wave50.cfg` and `save_wave65.cfg` are real files: written by the actual `Progress.save_file()` checked out at git 645a3fb (wave 50) and b68e2a1 (wave 65) in throw-away worktrees (a script set the wave's fields and saved). `tests/test_save_migration2.gd` loads them. Sections added later (factions, companion, safehouses, heists, arena) are covered by the one remaining hand-written fixture `W_LATE` in that test. To add a fixture for a new format: `git worktree add --detach <dir> <rev>`, symlink `godot/.godot`, run a small test script that fills a `Progress` and saves, copy the file from the user dir.
+
+## LOW+ and the per-system CPU timers
+`tests/test_low_plus.gd` (real main scene): LOW+ is quality 0 with `Game.low_plus`; render scale 0.55 bilinear, no bloom / adjustments / height fog / shadows / reflection / MSAA, material v2 and the quantum surface layer off, the lean facade shader, fewer enemies / cars / crowd / traffic / flocks / particles, 30 Hz physics, HUD / touch / minimap redraw limits (counted with `PerfTimers.calls`), governor LOW -> LOW+ after 5 s under 30 FPS, weak-GPU default, saved choice. `tools/cpu_frame.sh [tiers]` (headless; `CPU_RENDER=1` software renderer; `CPU_LOWPLUS=1`; `CPU_NOTHROTTLE=1` = the numbers before) prints the CPU frame time and the PerfTimers table; `tools/perf_report.sh 0 lp` gates LOW+ (`PerfProbe.LOW_PLUS_BUDGET`). Frame times are from a shared 4-core sandbox: compare runs made one after the other, not across days.

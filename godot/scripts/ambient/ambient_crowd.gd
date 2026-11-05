@@ -172,7 +172,7 @@ static func _box_person_mesh() -> ArrayMesh:
 ## The tier: pool in use, ring radius. Newly used people appear at once; the ones no longer used stay where they are (not drawn).
 func set_tier(level: int, density := 1.0) -> void:
 	quality = clampi(level, 0, 2)
-	var n := mini(int(COUNTS[quality] * density), BUILT)
+	var n := mini(LowPlus.scaled(int(COUNTS[quality] * density), LowPlus.CROWD_SHARE, 4) if quality == 0 else int(COUNTS[quality] * density), BUILT)
 	for i in range(n, count):
 		_alive[i] = 0
 	for i in range(count, n):

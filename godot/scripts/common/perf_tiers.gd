@@ -29,12 +29,19 @@ func _ready() -> void:
 
 
 func apply(level: int) -> void:
+	var prev := tier
 	tier = clampi(level, 0, 2)
+	if prev >= 0 and prev != tier:
+		TextureBudget.set_tier(tier)      # the world already re-bound its surfaces: load / release the model atlases and drop the unused caches
 	MaterialsV2.set_tier(tier)
+	LowPlus.apply_physics()
 	var vp := get_viewport()
 	if vp == null:
 		return
-	vp.mesh_lod_threshold = float(LOD_THRESHOLD[tier])
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED       # phone GPUs: no FXAA / TAA pass on any tier (MSAA is the world's, 2x / 4x only on MED / HIGH)
+	vp.use_taa = false
+	vp.use_debanding = tier >= 1                                 # the debanding noise pass is a full-screen read on LOW for a gradient the 0.67 render scale hides anyway
+	vp.mesh_lod_threshold = float(LOD_THRESHOLD[tier]) * (1.6 if (tier == 0 and LowPlus.on()) else 1.0)       # LOW+: the lower mesh LODs start sooner
 	vp.anisotropic_filtering_level = ANISO[tier] as Viewport.AnisotropicFiltering
 	vp.texture_mipmap_bias = float(MIP_BIAS[tier]) if not (tier == 0 and TextureBudget.halved_count > 0) else 0.0      # LOW with half-size atlases already reads the 1K level
 
@@ -58,6 +65,8 @@ static func surface_mip_bias(level: int) -> float:
 
 ## Camera distance within which a model's own lights are on (see DynamicFill.trim_lights).
 static func light_range(level: int) -> float:
+	if level == 0 and LowPlus.on():
+		return 1.0                       # LOW+: the lights a model carries are off (the emissive lamps stay)
 	return float(LIGHT_RANGE[clampi(level, 0, 2)])
 
 

@@ -491,6 +491,12 @@ func _apply_vehicle_state() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_physics_process_body(delta)
+	PerfTimers.stop(PerfTimers.PLAYER, t0)
+
+
+func _physics_process_body(delta: float) -> void:
 	# Somebody moved the node from outside (vehicle exit, a module assigning global_position): do not interpolate across the jump.
 	# Between ticks only outside code can move the body, so any difference to where the last tick left it is such a move.
 	if global_position.distance_squared_to(_phys_cur) > 1e-6:
@@ -709,6 +715,12 @@ func _try_step_up(dt: float) -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.PLAYER, t0)
+
+
+func _process_body(delta: float) -> void:
 	var dt := minf(delta, 0.1)
 	var playing := Game.is_playing()
 	if playing and not _in_vehicle and not _dead:

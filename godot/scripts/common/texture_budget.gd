@@ -12,6 +12,9 @@ const MIN_SIDE := 1024
 static var halved_count := 0
 static var low_active := false                  ## set by halve_models() (the LOW tier): HeroCharacter halves its own textures through halve_texture()
 static var saved_bytes := 0
+static var _half_cache := {}                    ## original path -> its half-size copy (one per file, shared by the model scenes and every instance copy of their materials)
+static var _half_path := {}                     ## instance id of a half-size copy -> the path of the full-size file
+static var _low_orig: Array = []                ## [material, slot, original resource path] of every halved model texture, so a switch to MED / HIGH can reload the full-size file
 
 
 ## Halve every large model texture. Returns the number of textures replaced.
@@ -19,7 +22,6 @@ static func halve_models() -> int:
 	low_active = true
 	if DisplayServer.get_name() == "headless":
 		return 0
-	var done := {}
 	var n := 0
 	for model_name in MODELS:
 		var path := "res://assets/models/%s.glb" % model_name
@@ -41,14 +43,124 @@ static func halve_models() -> int:
 					var tex := mat.get_texture(slot as BaseMaterial3D.TextureParam)
 					if tex == null:
 						continue
-					if not done.has(tex):
-						done[tex] = _halved(tex)
-					var half: Texture2D = done[tex]
-					if half != null and half != tex:
+					if tex.resource_path == "":
+						continue                # already a halved copy (no file behind it)
+					var half: Texture2D = _low_tex(tex)
+					if half != null:
+						_low_orig.append([mat, slot, tex.resource_path])
 						mat.set_texture(slot as BaseMaterial3D.TextureParam, half)
 						n += 1
 		inst.free()
 	halved_count += n
+	retarget_tree()
+	return n
+
+
+## The half-size copy of a model texture file (cached per file), null when the texture is not a file under assets/textures or cannot be halved.
+static func _low_tex(tex: Texture2D) -> Texture2D:
+	var p := tex.resource_path if tex != null else ""
+	if not p.begins_with("res://assets/textures/"):
+		return null
+	if not _half_cache.has(p):
+		var h := _halved(tex)
+		_half_cache[p] = h if h != tex else null
+		if h != tex:
+			_half_path[h.get_instance_id()] = p
+	return _half_cache[p]
+
+
+## Every material in the running scene tree that is a COPY of a model material (cars paint, drones, the hero shader) holds its own texture references, so the shared-material swaps above
+## do not reach them: bring their textures to the current state (half size on LOW, the full files otherwise, the 2K twins on HIGH, the 1K files otherwise).
+static func retarget_tree() -> int:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return 0
+	var n := 0
+	var seen := {}
+	var stack: Array = [tree.root]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		stack.append_array(node.get_children())
+		if not node is GeometryInstance3D:
+			continue
+		var gi := node as GeometryInstance3D
+		var mats: Array = []
+		if gi.material_override != null:
+			mats.append(gi.material_override)
+		if gi is MeshInstance3D and (gi as MeshInstance3D).mesh != null:
+			var mesh := (gi as MeshInstance3D).mesh
+			for i in mesh.get_surface_count():
+				mats.append(gi.get_surface_override_material(i))
+				mats.append(mesh.surface_get_material(i))
+		for m: Material in mats:
+			if m == null or seen.has(m):
+				continue
+			seen[m] = true
+			n += _retarget_material(m)
+	return n
+
+
+static func _retarget_material(m: Material) -> int:
+	var n := 0
+	if m is BaseMaterial3D:
+		var bm := m as BaseMaterial3D
+		for slot in BaseMaterial3D.TEXTURE_MAX:
+			var t := bm.get_texture(slot as BaseMaterial3D.TextureParam)
+			if t == null:
+				continue
+			var r := _retarget_texture(t, true)
+			if r != null:
+				bm.set_texture(slot as BaseMaterial3D.TextureParam, r)
+				n += 1
+	elif m is ShaderMaterial and (m as ShaderMaterial).shader != null and (m as ShaderMaterial).shader.resource_path == HeroCharacter.SHADER:
+		var sm := m as ShaderMaterial
+		for u in sm.shader.get_shader_uniform_list():
+			var v: Variant = sm.get_shader_parameter(u["name"])
+			if not v is Texture2D:
+				continue
+			var t := v as Texture2D
+			var r := _retarget_texture(t, false)
+			if r != null:
+				sm.set_shader_parameter(u["name"], r)
+				n += 1
+	return n
+
+
+## The texture `t` should be replaced by for the current tier state, or null when it is right already.
+static func _retarget_texture(t: Texture2D, twins: bool) -> Texture2D:
+	var out: Texture2D = null
+	if low_active:
+		out = _low_tex(t)
+	elif _half_path.has(t.get_instance_id()):
+		out = load(_half_path[t.get_instance_id()]) as Texture2D
+	if twins:
+		var base: Texture2D = out if out != null else t
+		var p := base.resource_path
+		if high_active:
+			var p2 := high_path(p) if p != "" else ""
+			if p2 != "":
+				out = load(p2) as Texture2D
+		elif p.contains("_2k."):
+			var p1 := p.replace("_2k.", ".")
+			if ResourceLoader.exists(p1):
+				out = load(p1) as Texture2D
+	return out if out != t else null
+
+
+## Leaving the LOW tier: reload the full-size model textures into the shared materials (the half-size copies are freed once nothing else uses them).
+static func restore_models() -> int:
+	var n := 0
+	for e: Array in _low_orig:
+		var mat := e[0] as BaseMaterial3D
+		var tex := load(e[2]) as Texture2D if ResourceLoader.exists(e[2]) else null
+		if mat != null and tex != null:
+			mat.set_texture(e[1] as BaseMaterial3D.TextureParam, tex)
+			n += 1
+	_low_orig.clear()
+	low_active = false
+	retarget_tree()
+	_half_cache.clear()
+	_half_path.clear()
 	return n
 
 
@@ -77,7 +189,8 @@ static func _halved(tex: Texture2D) -> Texture2D:
 const HIGH_MODELS: Array[String] = ["player", "car_sedan"]
 static var high_count := 0
 static var high_active := false
-static var _held: Array[PackedScene] = []        ## keeps the upgraded scenes (and their shared materials) cached, otherwise the changes are lost when the scene is freed
+static var _held: Array[PackedScene] = []
+static var _high_orig: Array = []               ## [material, slot, 1K file path] of every texture upgrade_high replaced        ## keeps the upgraded scenes (and their shared materials) cached, otherwise the changes are lost when the scene is freed
 
 
 ## "res://assets/textures/x_orm.jpg" -> its 2K twin path (or "" when there is none).
@@ -118,8 +231,45 @@ static func upgrade_high() -> int:
 						continue
 					var t2 := load(p2) as Texture2D
 					if t2 != null and t2 != tex:
+						_high_orig.append([mat, slot, tex.resource_path])
 						mat.set_texture(slot, t2)
 						n += 1
 		inst.free()
 	high_count += n
+	retarget_tree()
 	return n
+
+
+## Leaving the HIGH tier: put the 1K maps back into the shared materials and let go of the cached scenes, so the 2K twins are freed.
+static func downgrade_high() -> int:
+	var n := 0
+	for e: Array in _high_orig:
+		var mat := e[0] as BaseMaterial3D
+		var tex := load(e[2]) as Texture2D if ResourceLoader.exists(e[2]) else null
+		if mat != null and tex != null:
+			mat.set_texture(e[1] as int, tex)
+			n += 1
+	_high_orig.clear()
+	_held.clear()
+	high_active = false
+	retarget_tree()
+	return n
+
+
+## Runtime tier change (PerfTiers, after the world applied the tier): load or release what the new tier needs, then drop the surface caches the tier no longer uses.
+## LOW = half-size model atlases, MED = the 1K imports, HIGH = those plus the 2K twins. Idempotent: it acts on the actual state.
+static func set_tier(level: int) -> void:
+	if level <= 0:
+		if high_active:
+			downgrade_high()
+		if not low_active:
+			halve_models()
+	else:
+		if low_active:
+			restore_models()
+		if level >= 2 and not high_active:
+			upgrade_high()
+		elif level < 2 and high_active:
+			downgrade_high()
+	SurfaceTextures.prune(level)
+	MaterialLib.prune(level)

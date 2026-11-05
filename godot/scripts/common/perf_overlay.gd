@@ -10,8 +10,11 @@ const LOG_MAX_BYTES := 200000
 const SAMPLES := 600
 const LOG_EVERY := 30.0
 const TIER_NAMES := ["LOW", "MED", "HIGH"]
+const REPORT_FILE := "user://perf_report.txt"      ## SEND REPORT writes the compact report here (and puts the same text on the clipboard)
 
 var log_path := LOG_FILE
+var report_path := REPORT_FILE
+var measuring := false                   ## the renderer is timing the CPU / GPU side of the frame (costs a little, so only while the readout or a benchmark needs it)
 var samples := PackedFloat32Array()      ## frame times in ms, newest last (ring)
 var frames_total := 0
 var copies := 0
@@ -22,6 +25,7 @@ var _head := 0
 var _last_us := 0
 var _log_t := 0.0
 var _session_logged := false
+var _scale_seen := -1.0
 
 
 func _ready() -> void:
@@ -37,6 +41,8 @@ func _ready() -> void:
 		_aq = aq as AutoQuality
 		_aq.lowered.connect(on_governor_lowered)
 		_aq.res_lowered.connect(on_governor_res)
+	Game.quality_changed.connect(_on_tier)
+	PerfTimers.install(get_tree())
 	_last_us = Time.get_ticks_usec()
 	startup_check()
 
@@ -83,10 +89,14 @@ func _process(delta: float) -> void:
 	if dt_ms > 1000.0:                          # a load or a pause hitch is not a frame time
 		return
 	record(dt_ms)
+	var sc := get_viewport().scaling_3d_scale
+	if _scale_seen >= 0.0 and not is_equal_approx(sc, _scale_seen):
+		log_line("RES %.2f -> %.2f | %s" % [_scale_seen, sc, governor_text()])
+	_scale_seen = sc
 	_log_t += delta / maxf(Engine.time_scale, 0.05)
 	if _log_t >= LOG_EVERY:
 		_log_t = 0.0
-		log_line("SAMPLE " + summary())
+		log_line("SAMPLE " + summary() + " | " + PerfTimers.top_line(4))
 
 
 ## One frame time in ms (tests feed it directly).
@@ -120,20 +130,98 @@ func worst_ms() -> float:
 
 func summary() -> String:
 	var s := PerfProbe.snapshot(get_viewport())
-	return "t=%d fps=%d p50=%.1f p95=%.1f p99=%.1f worst=%.1fms draws=%d tris=%dk nodes=%d mem=%dMB tier=%s res=%.2f" % [Time.get_ticks_msec() / 1000, roundi(Engine.get_frames_per_second()),
-		percentile(50), percentile(95), percentile(99), worst_ms(), s["total_draws"], int(s["total_prims"]) / 1000, s["nodes"], mem_mb(), tier_name(), get_viewport().scaling_3d_scale]
+	return "t=%d fps=%d p50=%.1f p95=%.1f p99=%.1f worst=%.1fms draws=%d tris=%dk nodes=%d mem=%dMB tex=%dMB tier=%s res=%.2f sys[%s] temp=%s" % [Time.get_ticks_msec() / 1000, roundi(Engine.get_frames_per_second()),
+		percentile(50), percentile(95), percentile(99), worst_ms(), s["total_draws"], int(s["total_prims"]) / 1000, s["nodes"], mem_mb(), roundi(s["tex_mb"]), tier_name(), get_viewport().scaling_3d_scale,
+		systems_text(), thermal_text()]
+
+
+var _logged_tier := -1
+
+
+## A tier switch (the player's choice or the governor) goes into the log with the texture memory, so a phone log shows whether the switch released what the old tier loaded.
+func _on_tier(level: int) -> void:
+	var key := Game.tier_index()
+	if _logged_tier >= 0 and key != _logged_tier:
+		log_line("TIER %s -> %s | %s" % [Game.TIER_LABELS[_logged_tier], Game.TIER_LABELS[key], summary()])
+	_logged_tier = key
 
 
 func tier_name() -> String:
-	return TIER_NAMES[clampi(Game.quality, 0, 2)]
+	return tier_label()
+
+
+## "LOW+", "LOW", "MED" or "HIGH": the tier the player sees.
+static func tier_label() -> String:
+	return Game.tier_label()
 
 
 func mem_mb() -> int:
 	return int(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0)
 
 
+## Per-system milliseconds of the last frame: script (_process), physics, and the renderer's CPU and GPU time (the last two only while `measuring`; a headless or software renderer reports 0).
+func systems() -> Dictionary:
+	var rid := get_viewport().get_viewport_rid()
+	return {
+		"script": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+		"physics": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+		"render_cpu": RenderingServer.viewport_get_measured_render_time_cpu(rid) if measuring else 0.0,
+		"render_gpu": RenderingServer.viewport_get_measured_render_time_gpu(rid) if measuring else 0.0,
+	}
+
+
+func systems_text() -> String:
+	var m := systems()
+	return "script %.1f physics %.1f render-cpu %.1f render-gpu %.1f ms" % [m["script"], m["physics"], m["render_cpu"], m["render_gpu"]]
+
+
+## Turns the renderer's CPU / GPU frame timing on or off (the readout and the benchmark switch it on).
+func set_measure(on: bool) -> void:
+	measuring = on
+	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), on)
+
+
+## Battery level (and charging) from /sys/class/power_supply/battery where the OS allows the read (Godot 4 has no battery API); "n/a" otherwise.
 func battery_text() -> String:
-	return "n/a (no engine API)"
+	var base := "/sys/class/power_supply/battery/"
+	if not FileAccess.file_exists(base + "capacity"):
+		return "n/a"
+	var f := FileAccess.open(base + "capacity", FileAccess.READ)
+	if f == null:
+		return "n/a"
+	var out := "%d%%" % int(f.get_line().strip_edges())
+	if FileAccess.file_exists(base + "status"):
+		var g := FileAccess.open(base + "status", FileAccess.READ)
+		if g != null:
+			var st := g.get_line().strip_edges().to_lower()
+			if st == "charging":
+				out += " charging"
+	return out
+
+
+## Hottest thermal zone in Celsius, read from /sys/class/thermal where the OS allows it (many phones do, Godot itself has no thermal API); "n/a" otherwise.
+func thermal_text() -> String:
+	var hottest := -1.0
+	for i in 12:
+		var path := "/sys/class/thermal/thermal_zone%d/temp" % i
+		if not FileAccess.file_exists(path):
+			continue
+		var f := FileAccess.open(path, FileAccess.READ)
+		if f == null:
+			continue
+		var v := float(f.get_line().strip_edges())
+		if v > 1000.0:
+			v /= 1000.0                         # millidegrees on most kernels
+		if v > 0.0 and v < 150.0:
+			hottest = maxf(hottest, v)
+	return "n/a" if hottest < 0.0 else "%.0fC" % hottest
+
+
+## The render settings that matter on a phone GPU, in one line (so a report shows whether a device ran the safe defaults).
+func settings_text() -> String:
+	var vp := get_viewport()
+	return "MSAA %d | aniso %d | LOD %.1fpx | mip bias %.2f | dir shadow %d | pos atlas %d | debanding %s" % [vp.msaa_3d, vp.anisotropic_filtering_level, vp.mesh_lod_threshold,
+		vp.texture_mipmap_bias, int(ProjectSettings.get_setting("rendering/lights_and_shadows/directional_shadow/size", 0)), vp.positional_shadow_atlas_size, str(vp.use_debanding)]
 
 
 ## The full text report: what the owner sends.
@@ -150,15 +238,23 @@ func report() -> String:
 	out.append("Frame ms (last %d): p50 %.1f  p95 %.1f  p99 %.1f  worst %.1f | FPS now %d" % [count(), percentile(50), percentile(95), percentile(99), worst_ms(), roundi(Engine.get_frames_per_second())])
 	out.append("Draws %d  Tris %dk  Nodes %d  Objects %d" % [s["total_draws"], int(s["total_prims"]) / 1000, s["nodes"], s["objects"]])
 	out.append("Memory: static %d MB, textures %d MB, buffers %d MB" % [mem_mb(), roundi(s["tex_mb"]), roundi(s["buf_mb"])])
-	out.append("Battery: %s | Thermal: n/a (no engine API)" % battery_text())
+	out.append("Systems: " + systems_text())
+	out.append("Settings: " + settings_text())
+	out.append("Battery: %s | Thermal: %s" % [battery_text(), thermal_text()])
+	out.append(PerfTimers.table(8))
 	return "\n".join(out) + "\n"
 
 
-## COPY REPORT: clipboard plus the log. Returns the text.
+## SEND REPORT: the compact report goes to the clipboard, to user://perf_report.txt (with the last benchmark result when there is one) and into the log. Returns the text.
 func copy_report() -> String:
 	var r := report()
+	if BenchmarkRun.last_text != "":
+		r += "\n" + BenchmarkRun.last_text
 	if DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD):
 		DisplayServer.clipboard_set(r)
+	var f := FileAccess.open(report_path, FileAccess.WRITE)
+	if f != null:
+		f.store_string(r)
 	copies += 1
 	log_line("COPY\n" + r)
 	return r
@@ -166,7 +262,7 @@ func copy_report() -> String:
 
 func on_governor_lowered(level: int) -> void:
 	governor_events += 1
-	log_line("GOVERNOR lowered tier to %s | %s | %s" % [TIER_NAMES[clampi(level, 0, 2)], governor_text(), summary()])
+	log_line("GOVERNOR lowered tier to %s | %s | %s" % ["LOW+" if (level == 0 and LowPlus.on()) else TIER_NAMES[clampi(level, 0, 2)], governor_text(), summary()])
 
 
 func on_governor_res(mode_name: String) -> void:

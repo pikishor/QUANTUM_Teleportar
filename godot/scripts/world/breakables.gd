@@ -310,6 +310,12 @@ func _spawn_debris(pos: Vector3, vel: Vector3, color: Color, size: float) -> voi
 
 
 func _process(delta: float) -> void:
+	var t0 := PerfTimers.start()
+	_process_body(delta)
+	PerfTimers.stop(PerfTimers.EFFECTS, t0)
+
+
+func _process_body(delta: float) -> void:
 	for i in DEBRIS:
 		var left := _dleft[i]
 		if left <= 0.0:

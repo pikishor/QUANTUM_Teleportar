@@ -27,7 +27,7 @@ static func amount_for(tier: int) -> float:
 
 
 static func set_tier(tier: int) -> void:
-	amount = amount_for(tier)
+	amount = 0.0 if (tier == 0 and LowPlus.on()) else amount_for(tier)      # LOW+: the shaders skip the whole v2 block
 	_push()
 
 
