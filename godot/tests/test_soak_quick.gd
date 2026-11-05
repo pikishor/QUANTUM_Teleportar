@@ -28,6 +28,8 @@ func run(h: Node) -> void:
 	_minimap_polygon()
 	await _car_caches()
 	await _soak()
+	await _system_leaks()
+	_no_editor_only_calls()
 	await _monkey()
 	await _prologue_then_menu()
 	await _systems_watchdog()
@@ -117,6 +119,7 @@ func _soak() -> void:
 	bot.minutes = 1.0
 	bot.scale = 0.25
 	bot.max_cycles = 1
+	bot.systems = false                                          # the systems are probed one by one in _system_leaks
 	bot.speed = 4
 	bot.seed_value = 7
 	bot.limits["static_mb"]["abs"] = 96.0                      # two checkpoints only: the later lazy loads of a short run are not a trend
@@ -132,6 +135,50 @@ func _soak() -> void:
 	TestLib.check(int(c.get("screen_dead", 0)) >= 1, "the soak died and came back through the RESPAWN button")
 	TestLib.check(Game.state == &"play" and is_equal_approx(Engine.time_scale, 1.0) and Engine.physics_ticks_per_second == 60, "the soak leaves the engine at normal speed, in play")
 	await frames(10)
+
+
+## Per-system leak assertions (the systems since wave 40; the long version is tests/test_soak_systems.gd and `tools/soak.sh --long`): one warm round, one more, and the growth of nodes,
+## orphans, objects, resources and static memory between them stays under Soak.SYSTEM_LIMIT, with no error and the game back in play.
+func _system_leaks() -> void:
+	var bot := Soak.new()
+	bot.speed = 4
+	bot.scale = 0.2
+	bot.seed_value = 9
+	bot.verbose = false
+	var ok: bool = await bot.begin(host)
+	TestLib.check(ok, "the soak bot sets up for the system probes (%s)" % str(bot.fails))
+	if not ok:
+		bot.close()
+		return
+	await bot.warm_pools()
+	for sys: String in Soak.SYSTEMS:
+		var g: Dictionary = await bot.probe_system(sys, 1)
+		var bad := PackedStringArray()
+		for k: String in Soak.SYSTEM_LIMIT:
+			if float(g[k]) > float(Soak.SYSTEM_LIMIT[k]):
+				bad.append("%s %+.1f (limit %.0f)" % [k, float(g[k]), float(Soak.SYSTEM_LIMIT[k])])
+		TestLib.check(bad.is_empty() and bot.fails.is_empty() and Game.state == &"play", "%s: no leak over a round (%s %s)" % [sys, ", ".join(bad), str(bot.fails)])
+	TestLib.check(int(bot._tap.total) == 0, "no system raised an error (%s)" % str(bot._tap.snapshot()))
+	bot.close()
+	await frames(5)
+
+
+## RenderingServer.global_shader_parameter_get logs an error on every call outside the editor (the dummy renderer hides it; a real one logged 356 in half a minute): no game script may call it.
+func _no_editor_only_calls() -> void:
+	var hits := PackedStringArray()
+	var stack: Array[String] = ["res://scripts", "res://autoload"]
+	while not stack.is_empty():
+		var dir: String = stack.pop_back()
+		for sub in DirAccess.get_directories_at(dir):
+			stack.append(dir + "/" + sub)
+		for f in DirAccess.get_files_at(dir):
+			if f.ends_with(".gd") and FileAccess.get_file_as_string(dir + "/" + f).contains("RenderingServer.global_shader_parameter_get("):
+				hits.append(f)
+	TestLib.check(hits.is_empty(), "no script reads a global shader parameter back (%s)" % ", ".join(hits))
+	var dn := (Game.world as City).day_night
+	dn.set_hour(12.0)
+	TestLib.check(is_equal_approx(DayNight.night_now, DayNight.night_amount(12.0)), "DayNight publishes the night amount for readers (%.2f)" % DayNight.night_now)
+	dn.set_hour(21.0)
 
 
 func _monkey() -> void:

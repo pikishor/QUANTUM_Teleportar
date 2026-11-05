@@ -67,6 +67,7 @@ var _ach_page := 0
 var _shop_open := false             ## the pause screen shows the upgrade shop instead of the settings
 var _options_open := false          ## the title / pause screen shows the options (scripts/ui/options_screen.gd)
 var _arena_open := false            ## the boss rush / arena planning screen is open (title or pause; scripts/ui/arena_board.gd)
+var _grabbing := false              ## a photo is being grabbed: the controls are hidden on purpose for a few frames
 var photo: PhotoMode                ## PHOTO MODE (scripts/ui/photo_mode.gd): free camera while the game stays paused; controls in scripts/ui/photo_screen.gd
 var _craft_open := false            ## the pause screen shows the workbench (scripts/ui/craft_screen.gd), over the shop, a safehouse or the DEMO menu
 var _safe_open := false             ## the pause menu shows the safehouse screen (scripts/ui/safehouse_screen.gd)
@@ -225,11 +226,14 @@ func photo_layers() -> void:
 
 ## SHOT: the controls vanish for the grab (true), then come back (false).
 func photo_grab(on: bool) -> void:
+	_grabbing = on                                                  # layers_consistent() lets the hidden controls be: the stability audit repairing them mid-grab ended photo mode (soak under a real renderer)
 	_screen.visible = not on and Game.state != &"play" and Game.state != &"cutscene"
 
 
 ## True when the HUD and screen layers show what the state asks for (HUD hidden only in the menu, the screen layer hidden only while playing).
 func layers_consistent() -> bool:
+	if _grabbing:
+		return true
 	var cine := Game.state == &"cutscene"
 	var base := Game.state != &"menu" and not cine and not photo_open()
 	var hud_ok := (_hud.visible == base) if not panel_cover() else (_hud.visible == base or not _hud.visible)      # a panel opening hides the HUD in the next _process: either state is fine until then
@@ -557,6 +561,7 @@ func press_button(id: StringName) -> bool:
 			if not _options_open:
 				return false
 			_options_open = false
+			OptionsScreen.reset_armed = false
 			UiSettings.s_opt_page = 0
 			Sfx.play(&"ui_back")
 		&"chapters":

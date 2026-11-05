@@ -8,16 +8,20 @@ extends Node
 ## (never under Game.autostart, i.e. tools / tests / bots, unless a test turns `autosave_enabled` on and points `path` at a temp file).
 ## Campaign extras (scripts/missions/campaign_runner.gd): `unlocked` (how many chapters the chapter select offers: kept through NEW GAME, saved as campaign/unlocked, older saves get sector + 1) and
 ## `checkpoint` (the scripted chapter's last checkpoint {chapter, step, pos, tp, goal?}, saved in the [checkpoint] section and cleared when the chapter ends). Both are new optional keys of
-## SAVE_VERSION 1: files without them load as before, and builds that do not know them ignore them. start_chapter(i) (title / pause chapter select) replays an unlocked chapter keeping the wallet.
+## SAVE_VERSION 1+: files without them load as before, and builds that do not know them ignore them. start_chapter(i) (title / pause chapter select) replays an unlocked chapter keeping the wallet.
 ## Lifecycle: new_game starts a fresh campaign (credits, upgrades, reputation reset; the tutorial flag and the best score survive), continue_game() resumes the saved
 ## sector with its credits and upgrades. Upgrades go live through the static Upgrades class (also applied to the player's magazine on purchase).
 
 signal changed
 signal purchased(id: StringName, level: int)
 signal saved
+signal save_failed
 signal reputation_changed(rep: int)
 
-const SAVE_VERSION := 1
+## SAVE_VERSION 2 (save hardening wave): files of version 1 migrate on load (migrate_cf); a file written by a newer build is left alone. A good save is copied to path + ".bak"
+## before each write and the backup is read when the main file is missing its header or damaged.
+const SAVE_VERSION := 2
+const MIN_VERSION := 1
 const DEFAULT_PATH := "user://save.cfg"
 const SCORE_TO_CREDITS := 0.4
 const REP_MIN := -25
@@ -78,6 +82,7 @@ func _ready() -> void:
 	achievements.enabled = not Game.autostart
 	if autosave_enabled:
 		load_file()
+	save_failed.connect(func() -> void: Game.message.emit("SAVE FAILED - CHECK STORAGE", 3.0))
 	Game.new_game.connect(_on_new_game)
 	Game.score_changed.connect(_on_score)
 	Game.state_changed.connect(_on_state)
@@ -639,6 +644,69 @@ static func _read(p: String) -> ConfigFile:
 	return cf
 
 
+## True when `cf` carries a version this build can read (1..SAVE_VERSION).
+static func version_ok(cf: ConfigFile) -> bool:
+	if cf == null:
+		return false
+	var v := _num(cf.get_value("meta", "version", 0))
+	return v >= MIN_VERSION and v <= SAVE_VERSION
+
+
+## Brings an older save up to SAVE_VERSION in place (the keys later waves derived at load time are written explicitly) and returns the version it started at.
+static func migrate_cf(cf: ConfigFile) -> int:
+	var from := _num(cf.get_value("meta", "version", 0))
+	if from < 2:
+		if not cf.has_section_key("campaign", "unlocked"):
+			cf.set_value("campaign", "unlocked", clampi(_num(cf.get_value("campaign", "sector", 0)) + 1, 1, 99))
+		cf.set_value("meta", "migrated_from", from)
+	cf.set_value("meta", "version", SAVE_VERSION)
+	return from
+
+
+## The main file when it is a readable save, else the backup, else null. Migrated in memory (the file is rewritten by the next save).
+func _read_save() -> ConfigFile:
+	for p: String in [path, path + ".bak"]:
+		var cf := _read(p)
+		if version_ok(cf):
+			migrate_cf(cf)
+			return cf
+	return null
+
+
+## Writes `cf` to `dst` through a temp file: the temp must read back as a save before it is swapped in, the previous good file becomes the .bak. A full disk or a
+## failed write leaves the old file untouched.
+static func write_atomic(cf: ConfigFile, dst: String) -> bool:
+	DirAccess.make_dir_recursive_absolute(dst.get_base_dir())      # first launch: the user dir may not exist yet
+	var tmp := dst + ".tmp"
+	var g_tmp := ProjectSettings.globalize_path(tmp)
+	var g_dst := ProjectSettings.globalize_path(dst)
+	if cf.save(tmp) != OK or not version_ok(_read(tmp)):
+		DirAccess.remove_absolute(g_tmp)
+		return false
+	if FileAccess.file_exists(dst) and version_ok(_read(dst)):
+		DirAccess.copy_absolute(g_dst, g_dst + ".bak")
+	if DirAccess.rename_absolute(g_tmp, g_dst) != OK:
+		var ok := cf.save(dst) == OK
+		DirAccess.remove_absolute(g_tmp)
+		return ok
+	return true
+
+
+## RESET PROGRESS (options, title only): a fresh campaign plus the flags a new campaign keeps (tutorial, best score, cinematics, unlocked chapters), the save, backup, map,
+## interior and activity files are deleted. No cloud save exists, so this is final.
+func reset_progress() -> void:
+	new_campaign()
+	tutorial_done = false
+	best = 0
+	unlocked = 1
+	cine_seen.clear()
+	ammo_type = 0
+	for f: String in [path, path + ".bak", path + ".tmp", "user://map.cfg", "user://interiors.cfg", "user://activities.cfg"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	changed.emit()
+
+
 func save_file() -> bool:
 	var cf := ConfigFile.new()
 	var d := snapshot()
@@ -726,23 +794,18 @@ func save_file() -> bool:
 		cf.set_value("checkpoint", "tp", bool(checkpoint.get("tp", false)))
 		if checkpoint.get("goal", null) is Vector3:
 			cf.set_value("checkpoint", "goal", checkpoint["goal"])
-	var tmp := path + ".tmp"                                      # write beside, then swap in: a kill mid-write never leaves a half file as the save
-	last_save_ok = cf.save(tmp) == OK
-	if last_save_ok:
-		var g_tmp := ProjectSettings.globalize_path(tmp)
-		var g_dst := ProjectSettings.globalize_path(path)
-		if DirAccess.rename_absolute(g_tmp, g_dst) != OK:
-			last_save_ok = cf.save(path) == OK
-			DirAccess.remove_absolute(g_tmp)
+	last_save_ok = write_atomic(cf, path)
 	if last_save_ok:
 		saved.emit()
+	else:
+		save_failed.emit()
 	return last_save_ok
 
 
 ## True when `path` holds a usable save of this version with progress worth continuing (a sector past 0, credits, upgrades or reputation).
 func has_save() -> bool:
-	var cf := _read(path)
-	if cf == null or _num(cf.get_value("meta", "version", 0)) != SAVE_VERSION:
+	var cf := _read_save()
+	if cf == null:
 		return false
 	if _num(cf.get_value("campaign", "sector", 0)) > 0 or _num(cf.get_value("wallet", "credits", 0)) > 0 or _num(cf.get_value("wallet", "reputation", 0)) != 0:
 		return true
@@ -756,8 +819,8 @@ func has_save() -> bool:
 
 ## Loads the file into this node (and the static Upgrades state). Returns false (and changes nothing) for a missing, foreign or damaged file.
 func load_file() -> bool:
-	var cf := _read(path)
-	if cf == null or _num(cf.get_value("meta", "version", 0)) != SAVE_VERSION:
+	var cf := _read_save()
+	if cf == null:
 		return false
 	credits = maxi(0, _num(cf.get_value("wallet", "credits", 0)))
 	reputation = clampi(_num(cf.get_value("wallet", "reputation", 0)), REP_MIN, REP_MAX)

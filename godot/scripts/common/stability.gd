@@ -248,7 +248,7 @@ func audit() -> Array[String]:
 	if p != null and is_instance_valid(p) and p.camera_rig != null and p.camera_rig.is_cinematic() and Game.state == &"play" and not _cine_allowed():
 		p.camera_rig.cine_clear()
 		fixed.append("cinematic camera left on during play")
-	if not slowmo_active and Game.state == &"play" and Engine.time_scale > 0.0 and Engine.time_scale < 0.9 and _base_scale >= 0.9:
+	if not slowmo_active and not Quantum.slow_active and not (p != null and is_instance_valid(p) and p.camera_rig != null and p.camera_rig.stopping()) and Game.state == &"play" and Engine.time_scale > 0.0 and Engine.time_scale < 0.9 and _base_scale >= 0.9:
 		Engine.time_scale = _base_scale
 		fixed.append("time scale left slowed")
 	if _hud == null or not is_instance_valid(_hud):

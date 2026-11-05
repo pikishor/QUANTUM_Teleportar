@@ -662,3 +662,15 @@ Follow-ups from latest.png: car paint reads flat purple at night; skills and gea
 - Full suite: first run 169 pass, 1 flaky (name not captured; test_factions_wanted and test_companion are the known flakers), 0 fail; second run 170 pass, 0 flaky, 0 fail. test_side_missions2 passes with the balanced SIDE_PAY. No thresholds changed.
 - full_bot (8 min) exit 0 (PASS); log has the known "Parameter material is null" headless noise. Visual QA 27/27. Perf gate not run (no rendering change).
 - Visual follow-ups from latest.png: car paint reads flat purple; skills/gear sub-labels small; title DEMO tab sits on the QA label; no es/hi strings for crafting; no 3D workbench.
+
+## Long soak and crash audit (builder note, tests/test_soak_systems.gd)
+- `tools/soak.sh --long` (30 simulated minutes, `tools/full_bot.sh --long` too; group `systems` in the full bot) now plays every system since wave 40 each cycle (`SYSTEMS` in `tests/bot_soak.gd`, docs/QA.md "Systems since wave 40"): companion, wanted / factions, safehouses, crafting, photo mode, arena / boss rush, heists, controller events, weather / time, save / load. Throw-away profile `user://soak_progress.cfg`; the run prints the late-half census growth and logs stability repairs as they happen.
+- Per-system leak assertions: `Soak.probe_system` + `SYSTEM_LIMIT` in `test_soak_quick` (one round, about 12 s more) and `test_soak_systems` (two rounds, regressions, one systems-only cycle; about 40 s: the runner limit is 60 s, keep it lean). No memory leak was found (final 30 min: late slopes nodes +1.9, objects +4.5, static +0.09 per minute, orphans 0; pools fill to caps).
+- Fixed: editor-only `global_shader_parameter_get` called per frame (errors on a real renderer; scripts: ambient_city, atmosphere, vehicle, day_night), stability audit vs photo grab / quantum slow motion / hit-stop (hud.gd, quantum.gd, camera_rig.gd, stability.gd), `_ram(null)` after a wrecked driven car (vehicle_manager.gd).
+- Gaps: HIGH textures stay resident (about 358 MB) after switching back to LOW in the same session (over the LOW budget; unfixed, needs a tier-switch unload); `test_hud_gameplay` failed once in this tree ("no save: title offers DEPLOY only") from leftover `.bak` files of the concurrent save-hardening work, not from the soak; real pad / device not covered; perf gate not run (no rendering change).
+
+## Wave 80 integration note (long soak, crash audit, save safety)
+- Full suite: 171 pass, 0 flaky, 1 fail fixed: test_hud_gameplay left `.bak` files (new save backup) so "no save" saw a save; the test now also deletes SAVE + ".bak" (meaning unchanged).
+- full_bot.sh: PASS (soak verdict PASS, 0 errors). visual_qa: 27/27 pass; latest.png reviewed, no glaring defects (HUD, title, skills/gear/suit screens fine).
+- Perf gate skipped (no rendering changes).
+- Follow-ups: texture memory stays ~358 MB after HIGH tier returns to LOW (needs tier-switch unload); RESET PROGRESS not clicked in live scene; no Spanish/Hindi text for reset labels; demo slot save not reset; wave 50/65 fixtures hand-written; no real pad/device test.

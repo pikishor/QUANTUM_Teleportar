@@ -68,6 +68,7 @@ func run(host: Node) -> void:
 	c.set_physics_process(false)
 	prog.path = SAVE
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE + ".bak"))
 	Game.state = &"menu"
 	var scene := load("res://scenes/hud.tscn") as PackedScene
 	hud = scene.instantiate() as Hud
@@ -86,6 +87,7 @@ func run(host: Node) -> void:
 	await TestLib.frames(host, 2)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SETTINGS))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE + ".bak"))
 	Game.world = null
 	Game.player = null
 	Game.state = &"play"
@@ -141,6 +143,7 @@ func _title(host: Node) -> void:
 	TestLib.check(hud.press_button(&"deploy") and prog.credits == 0 and Upgrades.total_levels() == 0 and story.chapter == 0, "NEW GAME starts from scratch")
 	Game.state = &"menu"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE + ".bak"))
 	Game.state = &"play"
 	await TestLib.frames(host, 1)
 

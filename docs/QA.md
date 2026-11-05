@@ -5,13 +5,15 @@ after minutes of mixed play, and screens that cannot be left. Everything runs fr
 
 | What | Command | Real time | Use |
 |---|---|---|---|
-| Quick soak + monkey + regressions | `tools/test.sh tests/test_soak_quick.gd` | about 30 s | CI runs it with every other `tests/test_*.gd` (`.github/workflows/ci.yml`) |
+| Quick soak + monkey + regressions | `tools/test.sh tests/test_soak_quick.gd` | about 45 s | CI runs it with every other `tests/test_*.gd` (`.github/workflows/ci.yml`) |
+| Per-system leak probes + systems cycle | `tools/test.sh tests/test_soak_systems.gd` | about 40 s | companion, wanted / factions, safehouses, crafting, photo, arena, heists, controller events, weather / time, save / load; CI |
+| Long soak, 30 simulated minutes | `tools/soak.sh --long` (`tools/full_bot.sh --long`) | about 12 min | before a release: every system since wave 40 in every cycle, slopes printed |
 | Soak, 10 simulated minutes | `tools/soak.sh` | about 2.5 min | before a release, after touching pools, streaming, lifecycle or UI flow |
 | Monkey, 5 simulated minutes | `tools/soak.sh --monkey --minutes=5` | about 1 min | after touching screens, input, menus, state changes |
 | Same on the software renderer | `tools/soak.sh --render --minutes=1.5 --scale=0.4` | about 4 min | judges texture and video memory too |
 
 Exit code 0 = PASS, 1 = FAIL, 124 = timed out. Options (both bots, after the script flags): `--minutes=N --seed=N --speed=N --quality=N --real --quiet`;
-soak only: `--scale=F` (length of every activity), `--cycles=N`, `--only=walk,combat,drive,interior,tiers,pause,tour,die,sector,newgame`, `--no-reset`;
+soak only: `--scale=F` (length of every activity), `--cycles=N`, `--only=walk,combat,drive,interior,tiers,pause,tour,die,sector,newgame,companion,wanted,safehouse,crafting,photo,arena,heist,pad,cycles,saveload`, `--no-reset`, `--no-systems`, `--warm-rounds=N`, `--long` (30 minutes);
 monkey only: `--rate=N` (events per game second), `--no-chaos`, `--no-resize`, `--events=N`. Env: `SOAK_TIMEOUT` (real seconds), `RENDER_RES`, `SOAK_FPS`.
 
 Files: `tools/soak.sh` (launcher), `tests/bot_soak.gd`, `tests/bot_monkey.gd`, `tests/soak_lib.gd` (monitors, limits, error tap, event helpers), `tests/test_soak_quick.gd`.
@@ -74,7 +76,7 @@ their positions, test menu, vendor, interior, story cards, screen age).
 
 Output: events by kind, seconds per state (a healthy 5 minute run visits play, paused, dead, menu, win; with `--real` also cutscene), recovery counts.
 
-## The quick test (`tests/test_soak_quick.gd`, about 30 s, CI)
+## The quick test (`tests/test_soak_quick.gd`, about 45 s, CI)
 
 One composed game: the soak for one cycle at 1/4 length (warm-up, every activity once, 2 checkpoints, wide absolute limits because a trend needs more points), the monkey for 36
 game seconds (about 470 events, 2 probes), and four regression checks of the bugs below (minimap polygon test, car mesh cache hits after a model reload, DEPLOY after ABORT TO MENU
@@ -105,11 +107,38 @@ seconds (`tests/runner.gd`; its timer counts real seconds in the working tree, w
   The soak limits growth, not the baseline; finding the owner needs an editor with the remote tree or `--verbose`.
 * **Render mode is slow** (about 0.3 to 0.5 game seconds per real second at 480x270 to 640x360) and window resizes hang Godot at exit under xvfb, so the monkey resizes the window only headless (the phone
   layouts are therefore exercised headless only). Texture / video memory come from the render soak, which is short (1.5 to 3 minutes of game time, 3 checkpoints, no slope judged).
-* **Not covered:** audio (muted), saves (autosave is off under `Game.autostart`, so CONTINUE, `save_state` and `Progress.save_file` are not soaked: a leak or error there would not show),
+* **Not covered:** audio (muted), the autosave timer (off under `Game.autostart`; `save_file` / `load_file` are exercised by the SAVELOAD round to a throw-away file),
   suspend / resume of a real phone, GPU time and frame rate (the perf gate `tools/perf_report.sh` is separate and stays green), real touch hardware, the Compatibility renderer.
 * **Speed 4 changes timing.** Anything on wall-clock time (fades count real seconds, the death slow motion, the loading overlay) runs relatively slower than the game. Run `--speed=1` for a
   slow, closer-to-real pass.
 * A soak finds growth inside a run; a leak that only grows with the number of full application sessions (static state across scene reloads) is out of reach.
+
+## Systems since wave 40 (long soak, `tests/test_soak_systems.gd`)
+`SYSTEMS` in `tests/bot_soak.gd`, one `_sys_*` round each, run every cycle (twice in the warm-up so the baseline holds the pooled extras): COMPANION (recruit, HOLD / ATTACK, downed, dismiss),
+WANTED (heat 2.2 to 5 with faction standing, hide state, reset), SAFEHOUSE (pause button, pick, rest, time, fast save, wardrobe, travel), CRAFTING (parts, blueprints, craft, equip, CRAFT panel, dismantle),
+PHOTO (pause button, orbit / pan / zoom / FOV / DOF / hour / filter / pose / toggles, SHOT, end), ARENA (endless with SWARM, then boss rush; abort), HEIST (rotating heist x approach, crew; abort),
+PAD (simulated sticks / buttons / triggers, joypad events, wheel, menu focus, START), CYCLES (every weather preset, hours around the clock, lightning), SAVELOAD (`save_file`, mutate, `load_file`, compare).
+The profile is redirected to `user://soak_progress.cfg` (+ `.bak`, `.tmp`) and the photos written are deleted. `probe_system(sys, reps)` returns the growth of nodes, orphans, objects, resources, static memory
+(plus meshes / lights and the census diff) over `reps` rounds after a warm one; `test_soak_quick` (one round) and `test_soak_systems` (two rounds) assert it under `Soak.SYSTEM_LIMIT`, and that
+no system raises an error, leaves a mode on or makes the stability watchdog repair anything. The judge's absolute slack grows with the run (`_clock / 600`, at least 1): pools fill for about 20 minutes.
+**Slopes (headless, seed 3, 30 simulated minutes, per minute; all checkpoints / later half):**
+
+| | nodes | orphans | objects | static MB | texture MB |
+|---|---|---|---|---|---|
+| first long run, before the fixes below | +3.7 / +3.4 | 0 / 0 | +7.6 / +4.8 | +0.84 / +0.02 | n/a (headless) |
+| after the fixes (final run, 0 errors, 0 repairs) | +7.1 / +1.9 | 0 / 0 | +13.3 / +4.5 | +1.24 / +0.09 | n/a |
+
+The "all" slope is dominated by the pools filling in the first 10 minutes (second and third drone of a type, one car per kind, 12 HIGH-tier citizens x 6 nodes in Main/World/Ambient, a step of about +25 MB
+static when the first HIGH tier loads); the later half is flat (late nodes +1.9 / min = one pooled drone every 7 minutes). Orphans stay at the 60 of the start; resources do not move. No system leaked memory.
+Software Vulkan (`--render`, 8 minutes, scale 0.3): texture memory 357.6 -> 360.2 MB, flat after the first tier cycle, later slopes about 0.
+**Found by the longer runs and fixed:**
+* `RenderingServer.global_shader_parameter_get` (ambient_city.gd `_night`, atmosphere.gd, vehicle.gd) logs an error per call on a real renderer ("never use outside the editor"): 356 in 30 s under
+  software Vulkan, hidden by the dummy renderer. Readers use `DayNight.night_now` / `Atmosphere.wetness_now`; `test_soak_quick` scans the scripts for the call.
+* The stability audit ended photo mode while a photo was grabbed (the controls are hidden on purpose: `Hud._grabbing`, `layers_consistent`), took the teleport / aim slow motion (`Quantum.slow_active`)
+  and a hit-stop (`CameraRig.stopping()`) for a stuck time scale and undid them (a false "time scale left slowed" repair).
+* `VehicleManager._physics_process`: a hard bump could wreck the driven car, which ejects the driver, and `_ram(driven)` then read `speed` of Nil (a script error in a 20 minute soak).
+**Not fixed (report):** after a HIGH tier visit the texture memory stays near 358 MB when the tier is set back to LOW (baseline 149 MB before the first tier cycle): resident HIGH textures are not released
+(it is the LOW budget of 200 MB that a player who flipped to HIGH and back would exceed until the next start). Real controller, a device and audio remain uncovered.
 
 ## Using them
 
@@ -121,4 +150,4 @@ seconds (`tests/runner.gd`; its timer counts real seconds in the working tree, w
   `ci.yml`, running `godot/tools/bootstrap.sh`, `godot/tools/soak.sh --minutes=10` and `godot/tools/soak.sh --monkey --real --minutes=5 --seed=$GITHUB_RUN_NUMBER`. It needs no secrets.
 
 ## Full-feature bot
-`godot/tools/full_bot.sh` (8 simulated minutes, `--groups=quantum,weapons,stealth,vehicles,garage,world,events,activities,pieces,weather,ui,save` to narrow) runs `tests/bot_full_game.gd`, the soak bot plus one activity per system of waves 21-45; `tests/test_full_quick.gd` is the 60 s CI variant. It uses throw-away save/settings files under user://.
+`godot/tools/full_bot.sh` (8 simulated minutes, `--groups=quantum,weapons,stealth,vehicles,garage,world,events,activities,pieces,weather,ui,save,systems` to narrow; `--long` for 30 minutes) runs `tests/bot_full_game.gd`, the soak bot plus one activity per system of waves 21-45; `tests/test_full_quick.gd` is the 60 s CI variant. It uses throw-away save/settings files under user://.

@@ -124,6 +124,7 @@ var _holding := false
 var _slow_until := 0
 var _slow_base := 1.0
 var _slow_on := false
+static var slow_active := false              ## the teleport / aim slow motion is on: the stability audit must not take it for a stuck time scale
 var _rq := PhysicsRayQueryParameters3D.new()
 var _ring: MeshInstance3D
 var _ring2: MeshInstance3D
@@ -305,6 +306,7 @@ func _slow_begin(after_real: float) -> void:
 	if not _slow_on:
 		_slow_base = Engine.time_scale if Engine.time_scale > 0.0 else 1.0
 		_slow_on = true
+		slow_active = true
 		Engine.time_scale = _slow_base * SLOW_SCALE
 	_slow_until = Time.get_ticks_msec() + int(after_real * 1000.0) if after_real > 0.0 else 0
 
@@ -312,6 +314,7 @@ func _slow_begin(after_real: float) -> void:
 func _slow_end() -> void:
 	if _slow_on:
 		_slow_on = false
+		slow_active = false
 		Engine.time_scale = _slow_base
 	_slow_until = 0
 

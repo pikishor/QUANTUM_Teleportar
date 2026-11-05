@@ -16,6 +16,12 @@ extends RefCounted
 const Lib := preload("res://tests/soak_lib.gd")
 
 const ENEMY_TYPES: Array[StringName] = [&"sentinel", &"striker", &"heavy", &"operative", &"shield", &"flanker", &"sniper", &"brute"]
+const SOAK_SAVE := "user://soak_progress.cfg"
+## The systems added since wave 40 (one activity each, run every cycle): see _run_system.
+const SYSTEMS: Array[String] = ["companion", "wanted", "safehouse", "crafting", "photo", "arena", "heist", "pad", "cycles", "saveload"]
+## Allowed growth of one system over its extra rounds (probe_system), per monitor: far above pools still filling (a drone or car built for the first time), far below a leak of a node or
+## a mesh per round. Calibrated on headless runs: the worst system grew nodes +32 / objects +80 / static +8 MB over two rounds.
+const SYSTEM_LIMIT := {"nodes": 80.0, "orphans": 6.0, "objects": 400.0, "resources": 120.0, "static_mb": 24.0}
 const STALL_REAL_SECONDS := 90.0           ## no game time passing for this long in real seconds = the game hung
 const NONPLAY_LIMIT := 25.0                ## game seconds in a non-play state nobody asked for = soft lock
 
@@ -28,7 +34,9 @@ var base_quality := -1                      ## -1: the game's own
 var resets := true                          ## new games / next sectors inside the run
 var verbose := true
 var limits: Dictionary = Lib.LIMITS.duplicate(true)
-var only: PackedStringArray = PackedStringArray()   ## run just these activities (debugging a finding): walk combat drive interior tiers pause tour die sector newgame
+var only: PackedStringArray = PackedStringArray()   ## run just these activities (debugging a finding): walk combat drive interior tiers pause tour die sector newgame, and the SYSTEMS
+var systems := true                        ## the systems since wave 40 inside the cycles (off: the classic activities only; --no-systems; `only` naming one switches it on)
+var warm_rounds := 2                       ## rounds of every system in the warm-up (the second builds the extra pooled drones / patrol cars a heat 5 dispatch needs)
 var max_cycles := 0                         ## 0: until `minutes` have passed
 var real := false                           ## cutscenes, scripted campaign and tutorial on (Lib.enable_real); off by default like every tool run
 var quit_on_finish := false                 ## set by step() (the bot runs under Dev): the exit code is the verdict
@@ -57,12 +65,18 @@ var _hud: Hud
 var _ig: InteriorGameplay
 var _census0: Dictionary = {}
 var _census_last: Dictionary = {}
+var _census_all: Array[Dictionary] = []     ## the census of every checkpoint (the late growth is the diff of the middle one and the last)
 var _old_scale := 1.0
 var _old_ticks := 60
 var _old_muted := false
 var _cycle := 0
 var _activity := "setup"
 var _err_seen := 0
+var _stab: Stability
+var _repairs_seen := 0
+var _old_save_path := ""
+var _old_autosave := false
+var _photos0: PackedStringArray = PackedStringArray()
 var _note := ""                              ## the last notable thing the running activity did (printed with an error)
 
 
@@ -80,6 +94,8 @@ func _init() -> void:
 			"real": real = true
 			"quiet": verbose = false
 			"cycles": max_cycles = int(v)
+			"warm-rounds": warm_rounds = int(v)
+			"no-systems": systems = false
 			"only": only = v.split(",", false)
 
 
@@ -92,8 +108,9 @@ func step(_t: float, _delta: float) -> bool:
 	return finished
 
 
-## The whole soak as a coroutine (tests await it). `host` is any node in the tree.
-func run(host: Node) -> void:
+## Sets the bot up inside the running game (error tap, time scale, the hero and HUD, an isolated save file); false (and a fail) when the composed game is not there.
+## run() calls it; tests that only want one system (probe_system) call it themselves and then close().
+func begin(host: Node) -> bool:
 	_host = host
 	_tree = host.get_tree()
 	_tap = Lib.ErrorTap.new()
@@ -117,16 +134,26 @@ func run(host: Node) -> void:
 	_ig = InteriorGameplay.instance
 	if _p == null or _hud == null or not is_instance_valid(Game.world):
 		fails.append("setup: the composed game is not there (player %s, hud %s, world %s)" % [_p, _hud, Game.world])
-		await _finish()
-		return
+		return false
 	if real:
 		Lib.enable_real(_hud)
 	if base_quality >= 0:
 		Game.set_quality(base_quality)
 	base_quality = Game.quality
+	_isolate_progress()
+	_stab = Lib.find_node_of("Stability") as Stability
+	_repairs_seen = _stab.repairs.size() if _stab != null else 0
 	_err_seen = _tap.total
 	await _wait(2.0)
 	await _release_all()
+	return true
+
+
+## The whole soak as a coroutine (tests await it). `host` is any node in the tree.
+func run(host: Node) -> void:
+	if not await begin(host):
+		await _finish()
+		return
 	_log("SOAK start: seed=%d minutes=%.1f speed=%d scale=%.2f quality=%d renderer=%s resets=%s" % [seed_value, minutes, speed, scale, base_quality,
 			"software" if Lib.renders() else "headless", str(resets)])
 	_log("SOAK baseline: " + Lib.line(Lib.monitors()))
@@ -137,6 +164,45 @@ func run(host: Node) -> void:
 		await _one_cycle()
 		cycle_len = maxf(_clock - t0, 5.0)
 	await _finish()
+
+
+## The systems of waves 41-79 write saves and photos: a throw-away save file for the whole run, so a soak never touches the player's profile (autosave is off under autostart too).
+func _isolate_progress() -> void:
+	var pr := Game.progress as Progress
+	if pr == null:
+		return
+	_old_save_path = pr.path
+	_old_autosave = pr.autosave_enabled
+	pr.path = SOAK_SAVE
+	pr.autosave_enabled = false
+	for ext in ["", ".bak", ".tmp"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SOAK_SAVE + ext))
+	_photos0 = _photo_files()
+
+
+func _photo_files() -> PackedStringArray:
+	return DirAccess.get_files_at("user://photos") if DirAccess.dir_exists_absolute("user://photos") else PackedStringArray()
+
+
+## Puts back what begin() changed: logger, engine speed, mute, the save path, the files the systems wrote.
+func close() -> void:
+	Lib.release_everything()
+	var pr := Game.progress as Progress
+	if pr != null and _old_save_path != "":
+		pr.path = _old_save_path
+		pr.autosave_enabled = _old_autosave
+	for ext in ["", ".bak", ".tmp"]:                                    # the save writes a backup and goes through a temp file
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SOAK_SAVE + ext))
+	for f in _photo_files():
+		if not _photos0.has(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path("user://photos/" + f))
+	if _tap != null:
+		OS.remove_logger(_tap)
+		_tap = null
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://soak_settings.cfg"))
+	Engine.time_scale = _old_scale
+	Engine.physics_ticks_per_second = _old_ticks
+	Sfx.muted = _old_muted
 
 
 # --- clock and guards ---------------------------------------------------------------------------------------------------------
@@ -168,6 +234,9 @@ func _tick() -> void:
 		_err_seen = _tap.total
 		var el := _tap.snapshot()
 		_log("  ! error #%d at t=%.1fs during '%s' (%s): %s" % [_err_seen, _clock, _activity, _note, el[el.size() - 1] if not el.is_empty() else "?"])
+	if _stab != null and is_instance_valid(_stab) and _stab.repairs.size() != _repairs_seen:
+		_repairs_seen = _stab.repairs.size()
+		_log("  ~ stability repair #%d at t=%.1fs during '%s' (%s): %s" % [_repairs_seen, _clock, _activity, _note, str(_stab.repairs[_repairs_seen - 1])])
 	if _p != null and _clock >= _next_sample:
 		_next_sample = _clock + sample_every
 		var m := Lib.monitors()
@@ -253,7 +322,8 @@ func _ensure_play(limit := 40.0) -> void:
 
 ## The warm-up pass: every pooled thing the cycles can meet is made once (every enemy type, every car kind, every interior type, all three tiers), so the baseline
 ## checkpoint taken after it is the state a long session settles in and anything growing past it is a leak, not a pool filling up.
-func _warm() -> void:
+## Every enemy type and car kind made once (the pools the systems draw from too: a drone or car built for the first time is not a leak).
+func warm_pools() -> void:
 	_activity = "warm"
 	var em := Game.enemies as EnemyManager
 	var vm := Game.vehicles as VehicleManager
@@ -269,11 +339,24 @@ func _warm() -> void:
 		_note = "car " + String(k)
 		vm.spawn_parked(k, _p.global_position + Vector3(rng.randf_range(-20, 20), 0.0, rng.randf_range(-20, 20)), 0.0)
 		await _wait(0.2)
+
+
+func _warm() -> void:
+	await warm_pools()
 	for t in InteriorData.TYPES:
 		_note = "interior " + String(t)
 		await _act_interior(t, 0.5, false)
 	await _act_tiers()
+	for round in warm_rounds:
+		for sys in SYSTEMS:
+			if _sys_on(sys):
+				_note = "warm system %s (%d)" % [sys, round]
+				await _run_system(sys)
 	await _checkpoint()
+
+
+func _sys_on(sys: String) -> bool:
+	return (systems or only.has(sys)) and _on(sys)
 
 
 func _on(name: String) -> bool:
@@ -300,6 +383,9 @@ func _one_cycle() -> void:
 		await _act_tour(10)
 	if _on("die"):
 		await _act_die(_cycle % 3)
+	for sys in SYSTEMS:
+		if _sys_on(sys):
+			await _run_system(sys)
 	if resets and _on("sector") and _cycle % 2 == 0:
 		await _act_clear_sector()
 	if resets and _on("newgame") and _cycle % 2 == 1:
@@ -329,6 +415,7 @@ func _checkpoint() -> void:
 	cp["cycle"] = _cycle
 	checkpoints.append(cp)
 	_census_last = Lib.census(_tree)
+	_census_all.append(_census_last)
 	if checkpoints.size() == 1:
 		_census0 = _census_last                                            # growth is reported from the baseline checkpoint on
 	_log("SOAK checkpoint %d: %s" % [_cycle, Lib.line(cp)])
@@ -702,6 +789,386 @@ func _act_new_game(through_menu: bool) -> void:
 	await _wait(1.0)
 
 
+# --- the systems since wave 40 ------------------------------------------------------------------------------------------------
+
+## One round of a system the way a player meets it. Every round leaves the game in play on the street (the checkpoint normalises the rest).
+func _run_system(sys: String) -> void:
+	_activity = sys
+	_count("sys_" + sys)
+	await _ensure_play()
+	var vm := Game.vehicles as VehicleManager
+	if vm != null and vm.driven != null:
+		vm.exit_vehicle()
+	if InteriorGameplay.active and _ig != null:
+		_ig.leave(true)
+	match sys:
+		"companion": await _sys_companion()
+		"wanted": await _sys_wanted()
+		"safehouse": await _sys_safehouse()
+		"crafting": await _sys_crafting()
+		"photo": await _sys_photo()
+		"arena": await _sys_arena()
+		"heist": await _sys_heist()
+		"pad": await _sys_pad()
+		"cycles": await _sys_cycles()
+		"saveload": await _sys_saveload()
+	await _release_all()
+	await _ensure_play()
+
+
+## Open a pause-menu panel through its real button (the pause screen first).
+func _open_panel(id: StringName) -> bool:
+	_intended += 1
+	_hud.pause_game()
+	await _tick()
+	await _tick()
+	_hud.call(&"_ensure_layout")
+	var ok := _hud.press_button(id)
+	await _tick()
+	_hud.call(&"_ensure_layout")
+	return ok
+
+
+## Close whatever panel is open by leaving the pause state the way RESUME does, then wait for play.
+func _close_panel() -> void:
+	_intended -= 1
+	await _ensure_play()
+
+
+func _sys_companion() -> void:
+	var c := Companion.current
+	if c == null:
+		return
+	var em := Game.enemies as EnemyManager
+	_p.teleport_to(_random_road_spot())
+	if not c.recruit("soak"):
+		c.dismiss()
+		c.recruit("soak")
+	await _wait(1.0)
+	em.spawn(&"striker", _p.global_position + Vector3(16.0, 0.0, 4.0), true)
+	em.spawn(&"sentinel", _p.global_position + Vector3(-14.0, 0.0, 6.0), true)
+	c.command(&"hold")
+	await _wait(1.5)
+	c.command(&"hold")
+	c.command(&"attack")
+	await _wait(2.5)
+	_p.teleport_to(_random_road_spot())                                       # the ally has to catch up across the streaming
+	await _wait(1.5)
+	c.damage(1000.0, _p.global_position + Vector3(3.0, 0.0, 0.0))             # downed, then the revive timer
+	await _wait(1.0)
+	em.clear()
+	c.dismiss()
+	await _wait(0.5)
+	if c.active:
+		fails.append("the companion did not dismiss")
+
+
+func _sys_wanted() -> void:
+	var w := Wanted.current
+	var em := Game.enemies as EnemyManager
+	var pr := Game.progress as Progress
+	_p.teleport_to(_random_road_spot())
+	_p.hp = _p.max_hp
+	_p.invuln = 3.0
+	if pr != null:
+		for camp: StringName in Factions.IDS:
+			Factions.add_rep(pr, camp, -30.0 if camp != Factions.VAEL else 20.0)
+	for level in [2.2, 3.2, 4.2, 5.0]:                                         # patrol cars, roadblock, hunter drones, elite squad
+		Game.heat = level
+		em.spawn(ENEMY_TYPES[rng.randi() % ENEMY_TYPES.size()], _p.global_position + Vector3(rng.randf_range(-18, 18), 0.0, rng.randf_range(12, 24)), true)
+		await _wait(2.5)
+	if w != null:
+		_note = "wanted: hide"
+		w.hide_mode = &"cover"
+		w.hidden_t = 4.0
+	await _wait(1.5)
+	Game.heat = 0.0
+	if w != null:
+		w.reset()
+	em.clear()
+	if pr != null:
+		pr.faction_rep.clear()
+	await _wait(0.5)
+
+
+func _sys_safehouse() -> void:
+	var pr := Game.progress as Progress
+	if pr == null:
+		return
+	var credits0 := pr.credits
+	Safehouses.grant_all(pr)
+	_p.teleport_to(_random_road_spot())
+	if not await _open_panel(&"sh_open"):
+		fails.append("the SAFEHOUSE panel did not open from the pause menu")
+		await _close_panel()
+		return
+	for id: StringName in Safehouses.IDS:
+		_hud.press_button(StringName("sh_pick_" + String(id)))
+		Safehouses.cycle_time()
+		Safehouses.rest(pr, id)
+		await _tick()
+	Safehouses.fast_save(pr, Safehouses.IDS[0])
+	for sid: StringName in [&"sh_wardrobe", &"sh_back"]:                       # a sub screen and back out
+		_hud.press_button(sid)
+		await _tick()
+		_hud.call(&"_ensure_layout")
+	await _close_panel()
+	Safehouses.travel(pr, Safehouses.IDS[rng.randi() % Safehouses.IDS.size()])
+	await _wait(1.0)
+	pr.credits = credits0
+
+
+func _sys_crafting() -> void:
+	var pr := Game.progress as Progress
+	if pr == null:
+		return
+	var credits0 := pr.credits
+	pr.credits += 5000
+	for id: StringName in [&"scrap", &"alloy", &"core"]:
+		Crafting.add_part(id, 6)
+	for bp in Crafting.unknown_bps():
+		Crafting.learn(bp)
+	var made := 0
+	for bp in Crafting.bp_ids():
+		var it := Crafting.craft(pr, bp)
+		if it.is_empty():
+			continue
+		made += 1
+		Crafting.equip(pr, int(it["uid"]), WeaponDefs.last_used)
+		if made >= 4:
+			break
+	if await _open_panel(&"cr_open"):
+		await _wait(0.5)
+	await _close_panel()
+	Crafting.refresh_weapon()
+	for it: Dictionary in Crafting.items.duplicate():                         # the inventory is capped; a player dismantles
+		Crafting.dismantle(pr, int(it["uid"]))
+	pr.credits = credits0
+	await _wait(0.3)
+
+
+func _sys_photo() -> void:
+	if _hud.photo == null:
+		return
+	var ph := _hud.photo
+	if not await _open_panel(&"photo_open"):
+		fails.append("PHOTO did not start from the pause menu (state %s)" % Game.state)
+		await _close_panel()
+		return
+	await _tick()
+	ph.orbit(Vector2(40.0, -12.0))
+	ph.pan(Vector2(10.0, 6.0))
+	ph.zoom(0.8)
+	ph.set_fov(60.0)
+	ph.set_dof(0.5)
+	ph.set_hour(rng.randf_range(0.0, 24.0))
+	ph.set_filter(1 + rng.randi() % 3)
+	ph.set_pose(rng.randi() % 3)
+	ph.toggle_ui()
+	ph.toggle_hero()
+	for i in 6:
+		await _tick()
+	var before := ph.shots + ph.shot_fails
+	ph.capture()
+	var t_end := _clock + 6.0
+	while ph.shots + ph.shot_fails == before and _clock < t_end and fails.is_empty():
+		await _tick()
+	ph.toggle_ui()
+	ph.toggle_hero()
+	ph.end()
+	await _tick()
+	await _tick()
+	if not _hud.layers_consistent():
+		fails.append("leaving photo mode left the HUD layers out of line with the state (%s)" % Game.state)
+	await _close_panel()
+	if ph.active:
+		fails.append("photo mode stayed active after RESUME")
+
+
+func _sys_arena() -> void:
+	var m := Game.missions as Missions
+	if m == null or m.arena == null:
+		return
+	var em := Game.enemies as EnemyManager
+	for mode: StringName in [&"endless", &"rush"]:
+		_p.teleport_to(_random_road_spot())
+		_p.hp = _p.max_hp
+		if not m.arena.start(mode, &"normal", [&"swarm"] if mode == &"endless" else []):
+			_count("arena_blocked")
+			continue
+		var end := _clock + 14.0 * scale
+		while _clock < end and fails.is_empty() and m.arena.is_running():
+			_p.hp = _p.max_hp
+			_p.invuln = 1.0
+			await _wait(0.5)
+		m.arena.abort("LEFT")
+		await _wait(0.5)
+		if m.arena.is_running():
+			fails.append("the arena run did not end on abort")
+		em.clear()
+		Game.heat = 0.0
+
+
+func _sys_heist() -> void:
+	var m := Game.missions as Missions
+	if m == null or m.heists == null:
+		return
+	var was_demo := DemoMode.active
+	DemoMode.active = true                                                     # every sector open, like the heist test
+	var hid: StringName = HeistScripts.IDS[_cycle % HeistScripts.IDS.size()]
+	var ap: StringName = HeistScripts.APPROACHES[(_cycle + 1) % HeistScripts.APPROACHES.size()]
+	_p.teleport_to(_random_road_spot())
+	if m.heists.start(hid, ap, _cycle % 2 == 0):
+		await _wait(7.0)
+		m.heists.abort("ABANDONED")
+		await _wait(0.5)
+		if m.heists.is_running():
+			fails.append("the heist did not end on abort")
+	else:
+		_count("heist_blocked")
+	DemoMode.active = was_demo
+	if m.campaign != null and m.campaign.is_running() and m.campaign._demo_idx >= 0:
+		m.campaign.abort()
+	(Game.enemies as EnemyManager).clear()
+	Game.heat = 0.0
+	await _ensure_play()
+
+
+func _sys_pad() -> void:
+	var pad := _hud.pad
+	if pad == null:
+		return
+	pad.sim = true
+	pad.sim_buttons = {}
+	pad.sim_axes = {}
+	var steps: Array = [
+		{"axes": {JOY_AXIS_LEFT_X: 0.8, JOY_AXIS_LEFT_Y: -1.0, JOY_AXIS_RIGHT_X: 0.7}, "buttons": {JOY_BUTTON_A: true}},
+		{"axes": {JOY_AXIS_TRIGGER_RIGHT: 1.0, JOY_AXIS_TRIGGER_LEFT: 1.0, JOY_AXIS_RIGHT_Y: -0.4}, "buttons": {JOY_BUTTON_RIGHT_SHOULDER: true}},
+		{"axes": {}, "buttons": {JOY_BUTTON_DPAD_UP: true, JOY_BUTTON_X: true}},
+		{"axes": {}, "buttons": {JOY_BUTTON_LEFT_SHOULDER: true, JOY_BUTTON_A: true, JOY_BUTTON_Y: true}},
+		{"axes": {}, "buttons": {JOY_BUTTON_DPAD_RIGHT: true, JOY_BUTTON_B: true}},
+	]
+	for st: Dictionary in steps:
+		pad.sim_axes = st["axes"]
+		pad.sim_buttons = st["buttons"]
+		Lib.send(_joy_button(JOY_BUTTON_A, true))                             # the real event path (scheme switch) as well as the polled state
+		for i in 8:
+			await _tick()
+		Lib.send(_joy_button(JOY_BUTTON_A, false))
+	pad.sim_axes = {}
+	pad.sim_buttons = {JOY_BUTTON_DPAD_LEFT: true}                            # hold SWAP: the weapon wheel (pauses through Game.state)
+	_intended += 1
+	for i in 40:
+		await _tick()
+		if Game.state == &"paused":
+			break
+	pad.sim_buttons = {}
+	await _tick()
+	if Game.state == &"paused":
+		for dir: Vector2 in [Vector2(0, 1), Vector2(1, 0), Vector2(0, -1), Vector2(-1, 0)]:
+			pad.move_focus(dir)
+			await _tick()
+		pad.nudge(1)
+		pad.back()
+	_intended -= 1
+	pad.sim_buttons = {JOY_BUTTON_START: true}                                # START pauses, START again resumes
+	await _tick()
+	await _tick()
+	pad.sim_buttons = {}
+	await _tick()
+	pad.release_all()
+	pad.sim = false
+	pad.set_pad_ui(false)
+	await _release_all()
+	await _ensure_play()
+
+
+func _joy_button(b: int, pressed: bool) -> InputEventJoypadButton:
+	var e := InputEventJoypadButton.new()
+	e.button_index = b as JoyButton
+	e.pressed = pressed
+	return e
+
+
+func _sys_cycles() -> void:
+	var atm := Game.atmosphere as Atmosphere
+	var dn := (Game.world as City).day_night
+	_p.teleport_to(_random_road_spot())
+	var states: Array = Weather.PRESETS.keys()
+	var hours: Array[float] = [5.5, 12.0, 18.5, 23.0, 3.0]
+	for i in states.size():
+		atm.weather.set_state(states[i] as StringName, i % 2 == 0)
+		dn.set_hour(hours[i % hours.size()])
+		if states[i] == &"storm":
+			atm.weather.strike()
+		_look(rng.randf_range(-PI, PI))
+		Input.action_press(&"move_forward")
+		await _wait(1.2)
+		Input.action_release(&"move_forward")
+	atm.weather.set_state(&"rain", true)
+	dn.set_hour(21.0)
+	await _wait(0.5)
+
+
+func _sys_saveload() -> void:
+	var pr := Game.progress as Progress
+	if pr == null:
+		return
+	var credits0 := pr.credits
+	var scheme0 := pr.hero.scheme
+	var rep0 := pr.reputation
+	var owned0 := pr.safehouses_owned.size()
+	if not pr.save_file():
+		fails.append("the save file was not written")
+		return
+	pr.credits = credits0 + 555
+	pr.reputation = rep0 + 3
+	pr.safehouses_owned.clear()
+	pr.faction_rep[Factions.GANG] = -50.0
+	if not pr.load_file():
+		fails.append("the save file did not load")
+		return
+	if pr.credits != credits0 or pr.reputation != rep0 or pr.safehouses_owned.size() != owned0:
+		fails.append("a save / load round trip changed the profile (credits %d vs %d, safehouses %d vs %d)" % [pr.credits, credits0, pr.safehouses_owned.size(), owned0])
+	pr.faction_rep.clear()
+	await _wait(0.5)
+	if pr.hero.scheme != scheme0:
+		fails.append("the hero scheme changed over save / load")
+
+
+## Leak probe of ONE system: a warm round, then `reps` more; returns the growth of the monitors over those rounds, taken in the normalised checkpoint state.
+## tests/test_soak_quick.gd and test_soak_systems.gd assert on it per system. Call begin() first and close() after.
+func probe_system(sys: String, reps: int) -> Dictionary:
+	await _run_system(sys)
+	var a := await _settle()
+	var ca := Lib.census(_tree)
+	for i in reps:
+		await _run_system(sys)
+	var b := await _settle()
+	var cb := Lib.census(_tree)
+	var out := {}
+	for cls: String in ["MeshInstance3D", "OmniLight3D", "Node3D"]:
+		out[cls] = float(int((cb["class"] as Dictionary).get(cls, 0)) - int((ca["class"] as Dictionary).get(cls, 0)))
+	out["census"] = Lib.census_diff(ca, cb, 4)
+	for k: String in ["nodes", "orphans", "objects", "resources", "static_mb"]:
+		out[k] = float(b[k]) - float(a[k])
+	return out
+
+
+## The checkpoint's normalised state without recording a checkpoint.
+func _settle() -> Dictionary:
+	await _ensure_play()
+	if _ig != null and InteriorGameplay.active:
+		_ig.leave(true)
+	(Game.enemies as EnemyManager).clear()
+	Game.heat = 0.0
+	_p.hp = _p.max_hp
+	_p.teleport_to(Game.SPAWN)
+	await _release_all()
+	await _wait(3.0)
+	return Lib.monitors()
+
+
 # --- the verdict ------------------------------------------------------------------------------------------------------------
 
 ## Growth of every monitor from the baseline checkpoint (the first one) to each later one; returns the failures.
@@ -710,12 +1177,14 @@ func judge() -> PackedStringArray:
 	if checkpoints.size() < 2:
 		return out
 	var base := checkpoints[0]
+	var span := maxf(1.0, _clock / 600.0)                                   # the pools (HIGH-tier citizens, cars per kind, drones per type) keep filling for ~20 minutes: the absolute slack grows with the run, the slopes stay as strict
 	for key: String in limits:
 		if (key == "tex_mb" or key == "video_mb") and not Lib.renders():
 			continue
 		var lim: Dictionary = limits[key]
 		var b := float(base[key])
-		var allowed := maxf(b + float(lim["abs"]), b * (1.0 + float(lim["pct"]) / 100.0)) if float(lim["pct"]) > 0.0 else b + float(lim["abs"])
+		var slack := float(lim["abs"]) * span
+		var allowed := maxf(b + slack, b * (1.0 + float(lim["pct"]) / 100.0)) if float(lim["pct"]) > 0.0 else b + slack
 		for i in range(1, checkpoints.size()):
 			var v := float(checkpoints[i][key])
 			if v > allowed:
@@ -760,7 +1229,7 @@ func _finish() -> void:
 	var growth := judge()
 	for g in growth:
 		fails.append("leak: " + g)
-	var new_errors := _tap.total
+	var new_errors := _tap.total if _tap != null else 0
 	if new_errors > 0:
 		fails.append("%d new error(s) in the error log" % new_errors)
 	var stab := Lib.find_node_of("Stability")
@@ -779,6 +1248,9 @@ func _finish() -> void:
 			for k: String in sl:
 				parts.append("%s %+.2f/min" % [k, sl[k]])
 			print("SOAK slopes (%s checkpoints): %s" % [pair[0], ", ".join(parts)])
+	if (verdict == "FAIL" or verbose) and _census_all.size() >= 4:
+		for l in Lib.census_diff(_census_all[_census_all.size() / 2], _census_last, 10):
+			_log("SOAK census LATE growth (middle checkpoint to last): " + l)
 	if verdict == "FAIL" or verbose:
 		if not _census_last.is_empty():
 			for l in Lib.census_diff(_census0, _census_last, 10):
@@ -792,14 +1264,9 @@ func _finish() -> void:
 		printerr("SOAK FAIL: ", f)
 	if _tap.noise > 0:
 		_log("SOAK note: %d headless dummy-renderer error(s) ignored (see HEADLESS_NOISE in tests/soak_lib.gd and docs/QA.md)" % _tap.noise)
-	OS.remove_logger(_tap)
 	print("SOAK RESULT verdict=%s minutes=%.1f cycles=%d checkpoints=%d errors=%d renderer=%s" % [verdict, _clock / 60.0, _cycle, checkpoints.size(), new_errors,
 			"software" if Lib.renders() else "headless"])
-	Lib.release_everything()
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://soak_settings.cfg"))
-	Engine.time_scale = _old_scale
-	Engine.physics_ticks_per_second = _old_ticks
-	Sfx.muted = _old_muted
+	close()
 	finished = true
 	if quit_on_finish:
 		_tree.quit(0 if verdict == "PASS" else 1)

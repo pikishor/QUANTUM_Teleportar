@@ -30,8 +30,10 @@ const TOGGLE_NAMES := {
 	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION",
 }
 ## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
-const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls"]
+const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls", &"opt_reset"]
 const PAGE_CELL := 13
+## RESET PROGRESS needs two presses: the first arms it (the label asks), the second wipes. Any other press, the page flip and BACK disarm it; only on the title screen.
+static var reset_armed := false
 const SUB_BG_NAMES: Array[String] = ["SOFT", "", "SOLID"]
 const CB_NAMES: Array[String] = ["DEUTAN", "TRITAN"]
 const ORDER: Array[StringName] = [
@@ -93,6 +95,8 @@ static func label(st: UiSettings, id: StringName) -> String:
 		return Tr.t("HAPTICS") + "  " + Tr.t(UiSettings.HAPTIC_NAMES[clampi(st.haptic_level, 0, 2)])
 	if id == &"opt_controls":
 		return Tr.t("CONTROLS")
+	if id == &"opt_reset":
+		return Tr.t("TAP AGAIN: ERASE ALL" if reset_armed else "RESET PROGRESS")
 	if id == &"opt_subbg":
 		return Tr.t("SUBTITLE BG") + "  " + Tr.t(SUB_BG_NAMES[st.sub_bg] if st.sub_bg != 1 else "ON")
 	return ""
@@ -104,6 +108,19 @@ static func is_on(st: UiSettings, id: StringName) -> bool:
 
 ## Flips a toggle or cycles FPS cap / graphics tier. Returns true when it changed something.
 static func press(st: UiSettings, id: StringName) -> bool:
+	if id == &"opt_reset":
+		var pr: Variant = Game.progress
+		if Game.state != &"menu" or not is_instance_valid(pr):
+			reset_armed = false
+			return false
+		if not reset_armed:
+			reset_armed = true
+			return true
+		reset_armed = false
+		(pr as Progress).reset_progress()
+		Game.message.emit("PROGRESS RESET", 2.0)
+		return true
+	reset_armed = false
 	if id == &"opt_cb":                                  # off -> deutan/protan -> tritan -> off
 		if not st.cb_safe:
 			st.cb_safe = true

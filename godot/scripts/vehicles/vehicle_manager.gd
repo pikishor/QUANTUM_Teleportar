@@ -445,12 +445,15 @@ func _physics_process(delta: float) -> void:
 		v.sim(delta)
 		if i < list.size() and list[i] == v:
 			i += 1
+	if driven != null and not is_instance_valid(driven):
+		driven = null
 	if driven != null:
-		_bump_others(driven)
+		_bump_others(driven)                                # a hard bump can wreck the driven car, and the wreck ejects the driver: `driven` is null again after this call
 		_ram_t -= delta
 		if _ram_t <= 0.0:
 			_ram_t = 0.05
-			_ram(driven)
+			if driven != null:                              # (found by the 20 minute soak: _ram(null) read `speed` of Nil)
+				_ram(driven)
 	_sanity()
 	_stream_t -= delta
 	if _stream_t <= 0.0:

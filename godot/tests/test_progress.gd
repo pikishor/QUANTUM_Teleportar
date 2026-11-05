@@ -32,6 +32,7 @@ var story: FakeStory
 func run(host: Node) -> void:
 	seed(9)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP + ".bak"))
 	await e.setup(host)
 	p = e.p
 	root = e.root
@@ -371,6 +372,7 @@ func _new_vs_continue() -> void:
 	TestLib.check(not prog.continue_game(), "CONTINUE only works from the title screen")
 	Game.state = &"menu"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP + ".bak"))
 	prog.autosave_enabled = true
 	TestLib.check(not prog.has_save() and not prog.continue_game(), "without a save there is nothing to continue")
 	# NEW GAME wipes the campaign but keeps the tutorial flag and the best score

@@ -185,8 +185,7 @@ func _look_step(delta: float) -> void:
 	post.set_param(&"d_gain", g["gain"])
 	post.set_param(&"d_lift", g["lift"])
 	post.set_param(&"d_sat", g["sat"])
-	var nv: Variant = RenderingServer.global_shader_parameter_get(&"night")
-	var night := float(nv) if nv != null else 1.0
+	var night := DayNight.night_now
 	if _sun == null or not is_instance_valid(_sun):
 		_sun = get_tree().root.find_child("Moon", true, false) as Node3D
 	var cam := _camera()

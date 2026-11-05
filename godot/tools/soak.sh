@@ -4,6 +4,9 @@
 #   tools/soak.sh                          10 simulated minutes, headless (dummy renderer: fast; texture / video memory read 0 and are not judged)
 #   tools/soak.sh --render                 the same under software Vulkan + xvfb (texture / video memory judged; slow: use fewer minutes)
 #   tools/soak.sh --minutes=3 --seed=7     any bot option: --minutes --seed --speed --scale --quality --no-reset --cycles --quiet
+#   tools/soak.sh --long                   30 simulated minutes (~15 real) with every system since wave 40 in every cycle (companion, wanted / factions, safehouses, crafting, photo mode,
+#                                          boss rush / arena, heists, controller events, weather / time cycles, save / load) and the slopes of nodes / orphans / objects / static / texture memory
+#   tools/soak.sh --only=photo,arena       just those activities (walk combat drive interior tiers pause tour die sector newgame companion wanted safehouse crafting photo arena heist pad cycles saveload)
 #   tools/soak.sh --monkey                 the seeded random-input monkey instead (tests/bot_monkey.gd): touch, buttons, menus; must never crash or soft lock
 #   tools/soak.sh --real ...               (both bots) cutscenes, scripted campaign and tutorial on, like a player's first run (off in tools by default)
 # Env: SOAK_TIMEOUT=seconds (real-time cap, default 3600).  RENDER_RES=640x360 and SOAK_FPS=12 (render mode: software Vulkan runs at a few real frames a second, so
@@ -13,14 +16,22 @@ cd "$(dirname "$0")/.."
 BIN="$(tools/get_godot.sh)"
 BOT="${SOAK_BOT:-res://tests/bot_soak.gd}"
 RENDER=0
+HAS_LONG=0
 ARGS=()
 for a in "$@"; do
   case "$a" in
     --render) RENDER=1 ;;
     --monkey) BOT=res://tests/bot_monkey.gd ;;
+    --long) HAS_LONG=1 ;;
     *) ARGS+=("$a") ;;
   esac
 done
+if [ "$HAS_LONG" = 1 ]; then
+  has_min=0
+  for a in ${ARGS[@]+"${ARGS[@]}"}; do case "$a" in --minutes=*) has_min=1 ;; esac; done
+  if [ "$has_min" = 0 ]; then ARGS+=("--minutes=30"); fi
+  if [ -z "${SOAK_TIMEOUT:-}" ]; then SOAK_TIMEOUT=5400; fi
+fi
 if [ "$BOT" = "res://tests/bot_monkey.gd" ]; then ARGS+=("--touch"); fi
 LOG="$(mktemp "${TMPDIR:-/tmp}/soak.XXXXXX.log")"
 ID="soak-$$"

@@ -102,8 +102,7 @@ func _process(delta: float) -> void:
 
 
 func _night() -> float:
-	var v: Variant = RenderingServer.global_shader_parameter_get(&"night")
-	return clampf(float(v), 0.0, 1.0) if v != null else 1.0
+	return clampf(DayNight.night_now, 0.0, 1.0)                 # not RenderingServer.global_shader_parameter_get: editor only, an error per call on a device
 
 
 func _center() -> Vector3:

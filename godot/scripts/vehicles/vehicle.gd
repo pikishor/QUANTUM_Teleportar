@@ -811,8 +811,8 @@ func _finish_fx(dt: float) -> void:
 		if _fin_acc > 0.1:
 			_fin_acc = 0.0
 			visual.shimmer(_fin_t, speed)
-			var wv = RenderingServer.global_shader_parameter_get(&"wetness")
-			visual.set_wet(float(wv) if wv != null else 0.0)
+			var atm := Game.atmosphere as Atmosphere                   # not RenderingServer.global_shader_parameter_get: editor only, an error per call on a device
+			visual.set_wet(atm.wetness_now if atm != null else 0.0)
 		if drifting and (driver_is_player or _dist < VehicleSpecs.FX_RANGE * 0.6):
 			_smoke_t -= dt
 			if _smoke_t <= 0.0:

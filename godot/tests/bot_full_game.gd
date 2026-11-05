@@ -14,7 +14,7 @@ const SAVE_TMP := "user://full_bot_save.cfg"
 const SETTINGS_TMP := "user://full_bot_settings.cfg"
 const WEAPON_KEYS: Array[StringName] = [&"weapon_1", &"weapon_2", &"weapon_3", &"weapon_4", &"weapon_5", &"weapon_6", &"weapon_7", &"weapon_8"]
 
-var group_filter := PackedStringArray()    ## run only these groups (debugging): quantum weapons stealth vehicles garage world events activities pieces weather ui save
+var group_filter := PackedStringArray()    ## run only these groups (debugging): quantum weapons stealth vehicles garage world events activities pieces weather ui save systems
 var _wallet_backup := 0
 var _ui_backup := {}
 var _story_chapter_backup: Variant = null
@@ -218,6 +218,9 @@ func _one_cycle() -> void:
 		await _act_ui()
 	if _g("save"):
 		await _act_save()
+	if _g("systems"):
+		for sys in SYSTEMS:                                         # waves 41-79 (tests/bot_soak.gd _run_system): ally, factions / wanted, safehouses, crafting, photo, arena, heists, pad, weather / time, save / load
+			await _run_system(sys)
 	if _on("interior"):
 		await _act_interior(&"weapons" if _cycle % 2 == 1 else InteriorData.TYPES[_cycle % InteriorData.TYPES.size()], 3.0, _cycle % 2 == 0)
 	if _on("tiers") and _cycle % 2 == 0:

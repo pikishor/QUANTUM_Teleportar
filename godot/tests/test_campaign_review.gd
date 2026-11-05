@@ -426,7 +426,7 @@ func _old_saves() -> void:
 	var keys_ok := true
 	for pair: Array in [["meta", "version"], ["wallet", "credits"], ["wallet", "reputation"], ["campaign", "sector"], ["campaign", "best"], ["campaign", "bosses"], ["flags", "tutorial_done"], ["weapons", "unlocked"], ["weapons", "current"], ["upgrades", "magazine"]]:
 		keys_ok = keys_ok and (cf.has_section_key(pair[0], pair[1]) or pair[0] == "upgrades")
-	TestLib.check(keys_ok and int(cf.get_value("meta", "version", 0)) == 1, "a save written now keeps every key and version 1 (old builds still read it)")
+	TestLib.check(keys_ok and int(cf.get_value("meta", "version", 0)) == Progress.SAVE_VERSION, "a save written now keeps every key and the current version")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP))
 	camp.enabled = false
 	_reset_world()

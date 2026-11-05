@@ -432,6 +432,11 @@ func hit_stop(sec: float) -> void:
 		Engine.time_scale = STOP_SCALE
 
 
+## True while a hit-stop holds the time scale down (the stability audit must not take it for a stuck time scale).
+func stopping() -> bool:
+	return _stop_left > 0.0
+
+
 func _end_stop() -> void:
 	if is_equal_approx(Engine.time_scale, STOP_SCALE):
 		Engine.time_scale = maxf(_stop_prev_scale, 1.0)      # a faster base scale (the bot's speed-up) survives the stop

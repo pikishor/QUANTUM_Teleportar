@@ -8,6 +8,9 @@ extends Node
 const CYCLE := 720.0
 const START_HOUR := 21.0
 const NIGHT_PARAM := &"night"
+## The night amount last published to the shader global. RenderingServer.global_shader_parameter_get is editor-only: a real renderer logs an error on every call (356 in a 30 s soak under
+## software Vulkan, tests/test_soak_systems.gd), so readers use this instead (1.0 until the first apply, like the old null fallback).
+static var night_now := 1.0
 const SKY_DAY := {"zenith": Color(0.10, 0.24, 0.52), "mid": Color(0.30, 0.46, 0.72), "horizon": Color(0.60, 0.70, 0.80)}
 const SKY_DUSK := Color(0.95, 0.52, 0.30)
 const SUN_COLOR := Color(1.0, 0.90, 0.74)
@@ -134,6 +137,7 @@ func apply() -> void:
 	var e := env_owner.get("env") as Environment
 	var sun := env_owner.get("sun") as DirectionalLight3D
 	night = n
+	night_now = n
 	RenderingServer.global_shader_parameter_set(NIGHT_PARAM, n)
 	mood = LightingPolish.window_mood(hour)
 	RenderingServer.global_shader_parameter_set(LightingPolish.MOOD_PARAM, Vector4(mood.r, mood.g, mood.b, mood.a))
