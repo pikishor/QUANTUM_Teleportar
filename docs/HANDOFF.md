@@ -557,3 +557,12 @@ Full suite: 137 pass, FLAKY: tests/test_demo_mode.gd (passed on retry); one tran
 ## Wave 70 integration note
 - Full suite (tools/test_all.sh): pass 152, flaky 0, fail 0. test_full_quick run separately (passes; leak warnings at exit only). visual_qa 27/27 pass. Perf gate and full_bot skipped.
 - Visual follow-ups (docs/shots/latest.png): "CONTRACT AVAILABLE COURIER RU" banner text is clipped at the edge in district_foundry/roofs_market; skill/gear/suit screens show HUD (ammo 30/30, bars) bleeding through behind the panel; title shot DEMO button overlaps the shot label (QA label only).
+
+## Heist missions (builder note, wave 71, tests/test_heists.gd)
+- Three heists (EXCHANGE VAULT, CITY CONVOY, DATA CENTRE) x three approaches (STEALTH / LOUD / QUANTUM): `HeistScripts` builds a chapter dictionary of existing campaign step kinds (reach, hack, defend, rift_hold, convoy_intercept, heist, escape, kill_target); `HeistRunner` (Game.missions.heists) runs it through the new `CampaignRunner.start_custom(ch)` (start_demo now calls it), keeps the story chapter's checkpoint and resumes it afterwards, calls the run off after 3 failed stages, pays `HeistScripts.reward` (Economy.HEIST_PAY x HEIST_APPROACH, HEIST_REPLAY 0.6 on a repeat), tallies Progress.heist_done (`[heist]` save section). Crew = Companion for the run (reason "heist").
+- Live: pause shop HEISTS button opens the planning screen (`HeistBoard`, `Hud._heist_open`, buttons `heist_*`, 64 px); DEMO tab HEIST (9 entries, `DemoMode.start_heist("vault:quantum")`). Sectors 3 / 5 / 7 (DEMO opens all).
+- Gaps: the convoy runs on a road, not the tram line; no dedicated vault room or radio lines; no Spanish/Hindi strings; stages are skipped, not played, in the test beyond the live reach stage; perf gate not run (no rendering change).
+
+## Wave 71 integration note (side missions 2, heists)
+- Full tools/test_all.sh: 154 pass; FLAKY test_companion (passed on retry); 0 fail after adding Spanish strings for the 10 new side jobs (test_localisation_depth had failed on them). Perf gate skipped. full_bot: SOAK 8 min completed, 0 stability repairs. visual_qa 27/27.
+- latest.png: no new defects. Follow-ups: HUD bleeds through SKILLS/GEAR/SUIT panels; "CONTRACT AVAILABLE COURIER RU" banner clipped; title DEMO button overlaps QA label; side board PAGE button 44 px (< 64); bounty has no real roaming elite; heists/new side jobs lack Hindi strings.

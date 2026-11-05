@@ -59,6 +59,7 @@ var _ach_open := false             ## the pause screen shows the achievements (s
 var _ach_page := 0
 var _shop_open := false             ## the pause screen shows the upgrade shop instead of the settings
 var _options_open := false          ## the title / pause screen shows the options (scripts/ui/options_screen.gd)
+var _heist_open := false            ## the pause shop shows the heist planning screen (scripts/ui/heist_board.gd)
 var _side_open := false             ## the pause shop shows the side-mission board (scripts/ui/side_board.gd)
 var _chapters_open := false         ## the title / pause screen shows the chapter select (scripts/ui/chapter_select.gd)
 var _camp_text := ""                ## the scripted campaign step's HUD line (CampaignRunner.hud_line), "" when none runs
@@ -158,6 +159,7 @@ func _on_state(s: StringName) -> void:
 	_ach_open = false
 	_skills_open = false
 	_side_open = false
+	_heist_open = false
 	_loadout_open = false
 	_loadout_page = 0
 	_look_open = false
@@ -418,6 +420,8 @@ func press_button(id: StringName) -> bool:
 		_layout_key = ""
 		_screen.queue_redraw()
 		return true
+	if sid.begins_with("heist_"):
+		return _press_heist(sid)
 	if sid.begins_with("side_") and SideMissions.DEFS.has(StringName(sid.substr(5))):
 		var sm := (Game.missions as Missions).sides if Game.missions is Missions else null
 		if Game.state != &"paused" or not _side_open or sm == null or not sm.can_start(StringName(sid.substr(5))):
@@ -548,6 +552,12 @@ func press_button(id: StringName) -> bool:
 			if Game.state != &"paused" or Game.progress == null or not _shop_open:
 				return false
 			_side_open = true
+			SideBoard.page = 0
+			Sfx.play(&"ui_confirm")
+		&"side_page":
+			if Game.state != &"paused" or not _side_open:
+				return false
+			SideBoard.page = (SideBoard.page + 1) % SideBoard.pages()
 			Sfx.play(&"ui_confirm")
 		&"side_back":
 			if Game.state != &"paused" or not _side_open:
@@ -1274,7 +1284,8 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 func _ensure_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.quality, int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
-	key += "|%s" % _side_open
+	key += "|%s%d" % [_side_open, SideBoard.page]
+	key += "|h%s%s%s%s" % [_heist_open, HeistBoard.sel, HeistBoard.approach, HeistBoard.crew]
 	key += "|k%s%d%d%d" % [_skills_open, SkillTree.xp, SkillTree.spent(), _wallet()]
 	key += "|a%s%d" % [_ach_open, _ach_page]
 	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100]
@@ -1315,6 +1326,8 @@ func _ensure_layout() -> void:
 				ChapterSelect.layout(self, cx, s)
 			elif _skills_open:
 				SkillScreen.layout(self, cx, s)
+			elif _heist_open:
+				HeistBoard.layout(self, cx, s)
 			elif _side_open:
 				SideBoard.layout(self, cx, s)
 			elif _look_open:
@@ -1397,7 +1410,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(vp.x * 0.5 - 330.0 * s, 0.0, 80.0 * s, vp.y), Color(ink, 0.12))      # soft shoulders: the column does not end in a hard edge
 			c.draw_rect(Rect2(vp.x * 0.5 + 250.0 * s, 0.0, 80.0 * s, vp.y), Color(ink, 0.12))
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1429,6 +1442,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				AchievementsScreen.draw(self, c, vp, s, font, cx, _ach_page)
 			elif _skills_open:
 				SkillScreen.draw(self, c, vp, s, font, cx)
+			elif _heist_open:
+				HeistBoard.draw(self, c, vp, s, font, cx)
 			elif _side_open:
 				SideBoard.draw(self, c, vp, s, font, cx)
 			elif _look_open:
@@ -1528,6 +1543,47 @@ func _campaign_line() -> String:
 	if line == "" and Game.missions is Missions and (Game.missions as Missions).stealth != null:
 		line = (Game.missions as Missions).stealth.hud_line()     # a stealth mission (StealthRunner)
 	return line
+
+
+## The heist planning screen's buttons (scripts/ui/heist_board.gd): open from the shop, pick, approach, crew, LAUNCH, BACK.
+func _press_heist(sid: String) -> bool:
+	if Game.state != &"paused" or Game.progress == null:
+		return false
+	if sid == "heist_open":
+		if not _shop_open:
+			return false
+		_heist_open = true
+		Sfx.play(&"ui_confirm")
+	elif not _heist_open:
+		return false
+	elif sid == "heist_back":
+		_heist_open = false
+		Sfx.play(&"ui_back")
+	elif sid.begins_with("heist_pick_") and HeistScripts.DEFS.has(StringName(sid.substr(11))):
+		HeistBoard.sel = StringName(sid.substr(11))
+		Sfx.play(&"ui_tap")
+	elif sid.begins_with("heist_ap_") and HeistScripts.APPROACH_DEFS.has(StringName(sid.substr(9))):
+		HeistBoard.approach = StringName(sid.substr(9))
+		Sfx.play(&"ui_tap")
+	elif sid == "heist_crew":
+		HeistBoard.crew = not HeistBoard.crew
+		Sfx.play(&"ui_tap")
+	elif sid == "heist_go":
+		var hr := HeistBoard.runner()
+		if hr == null or not hr.can_start(HeistBoard.sel):
+			Sfx.play(&"ui_deny")
+			return false
+		var hid := HeistBoard.sel
+		Game.state = &"play"                                           # _on_state closes the screen; the heist starts in the live city
+		if not hr.start(hid, HeistBoard.approach, HeistBoard.crew):
+			return false
+		Sfx.play(&"ui_contract_accept")
+		return true
+	else:
+		return false
+	_layout_key = ""
+	_screen.queue_redraw()
+	return true
 
 
 ## True when the title / pause screen has chapters to choose from (Progress.can_select_chapter).

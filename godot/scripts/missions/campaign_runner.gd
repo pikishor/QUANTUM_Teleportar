@@ -277,7 +277,11 @@ func start_chapter(index: int, from_step := 0, immediate := false) -> bool:
 
 ## Starts one of the sequel sandbox chapters (CampaignSteps.DEMO_IDS) as the current story chapter's steps; the registry entry goes away again with the run (abort, another chapter).
 func start_demo(id: StringName) -> bool:
-	var ch := CampaignSteps.demo_chapter(id)
+	return start_custom(CampaignSteps.demo_chapter(id))
+
+
+## Runs a chapter dictionary that is not in the story data (sandbox chapters, the heists) as the current story chapter's steps; the registry entry goes away again with the run.
+func start_custom(ch: Dictionary) -> bool:
 	if ch.is_empty():
 		return false
 	_drop_demo()

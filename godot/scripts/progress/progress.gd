@@ -40,6 +40,7 @@ var unlocked := 1                       ## chapters the chapter select offers (>
 var checkpoint: Dictionary = {}          ## the running scripted chapter's checkpoint (see CampaignRunner), {} when none
 var side_done := {}                      ## side mission id -> completions (saved in [side])
 var side_best := {}                      ## side mission id -> best time in seconds (saved in [side])
+var heist_done := {}                      ## heist id -> completions (optional [heist] section)
 var companion_met := false              ## the Vael defector ally has been recruited at least once (optional [companion] section; older files load as false)
 var last_save_ok := false
 var collectibles: Collectibles                  ## I2: the 30 shards (saved in [collectibles])
@@ -433,6 +434,7 @@ func new_campaign() -> void:
 	side_done.clear()
 	side_best.clear()
 	companion_met = false
+	heist_done.clear()
 	checkpoint.clear()
 	collectibles.reset()
 	achievements.reset()
@@ -671,6 +673,8 @@ func save_file() -> bool:
 			cf.set_value("side", "best_%s" % sid, float(side_best[sid]))
 	if companion_met:
 		cf.set_value("companion", "met", 1)
+	for hid: StringName in heist_done:
+		cf.set_value("heist", "done_%s" % hid, int(heist_done[hid]))
 	if not checkpoint.is_empty():
 		cf.set_value("checkpoint", "chapter", int(checkpoint.get("chapter", 0)))
 		cf.set_value("checkpoint", "step", int(checkpoint.get("step", 0)))
@@ -771,6 +775,11 @@ func load_file() -> bool:
 			if (b is float or b is int) and float(b) > 0.0 and is_finite(float(b)):
 				side_best[sid] = float(b)
 	companion_met = int(_num(cf.get_value("companion", "met", 0))) == 1
+	heist_done.clear()
+	for hid: StringName in HeistScripts.IDS:
+		var hn: Variant = cf.get_value("heist", "done_%s" % hid, 0)
+		if hn is int and int(hn) > 0:
+			heist_done[hid] = mini(int(hn), 9999)
 	var ws := StringName(str(cf.get_value("weather", "state", "rain")))
 	if Weather.PRESETS.has(ws):
 		var wn: Weather = Game.atmosphere.get(&"weather") if is_instance_valid(Game.atmosphere) else null

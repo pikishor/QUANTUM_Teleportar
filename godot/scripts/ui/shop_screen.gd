@@ -54,6 +54,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		var ry := wy + (k / PER_ROW) * 50.0 * s
 		hud._add(StringName("buy_%s" % wid), Rect2(cx + (-ROW_W * 0.5 + (k % PER_ROW) * colw + 52.0) * s, ry + 26.0 * s, (colw - 58.0) * s, 40.0 * s), wl, prog != null and prog.can_buy_weapon(wid))
 	hud._add(&"side_open", Rect2(cx - 170.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 160.0 * s, 44.0 * s), "MISSIONS", false)
+	hud._add(&"heist_open", Rect2(cx + 180.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 100.0) * s, 160.0 * s, 64.0 * s), "HEISTS", false)
 	hud._add(&"look_open", Rect2(cx + 10.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 160.0 * s, 44.0 * s), "SUIT", false)
 	hud._add(&"loadout", Rect2(cx - 340.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 120.0) * s, 160.0 * s, 44.0 * s), "LOADOUT", false)
 	hud._add(&"skills_open", Rect2(cx - 530.0 * s, (ROW_Y + Upgrades.IDS.size() * ROW_STEP + 100.0) * s, 180.0 * s, 64.0 * s), "SKILLS  %d" % SkillTree.points(), SkillTree.points() > 0)

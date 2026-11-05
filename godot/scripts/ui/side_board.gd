@@ -1,6 +1,6 @@
 class_name SideBoard
 extends RefCounted
-## The side-mission board of the pause shop (Hud draws it when `_side_open`): ten jobs in two columns, each with title, reward, clock, completions and a START button
+## The side-mission board of the pause shop (Hud draws it when `_side_open`): ten jobs per page (PAGE button) in two columns, each with title, reward, clock, completions and a START button
 ## (`side_<id>`; locked jobs show the sector they need), and BACK (`side_back`). Pure layout and drawing; the rules live in SideMissions, the tallies in Progress.
 
 const ROW_Y := 130.0
@@ -8,6 +8,21 @@ const ROW_STEP := 62.0
 const COL_W := 410.0
 const GAP := 20.0
 const BTN_W := 112.0
+const PER_PAGE := 10
+
+static var page := 0                      ## board page (10 jobs each)
+
+
+static func pages() -> int:
+	return int(ceil(float(SideMissions.ORDER.size()) / PER_PAGE))
+
+
+static func _id(i: int) -> StringName:
+	return SideMissions.ORDER[page * PER_PAGE + i]
+
+
+static func _count() -> int:
+	return clampi(SideMissions.ORDER.size() - page * PER_PAGE, 0, PER_PAGE)
 
 
 static func _origin(cx: float, s: float, i: int) -> Vector2:
@@ -21,12 +36,15 @@ static func _chapter() -> int:
 
 static func layout(hud: Hud, cx: float, s: float) -> void:
 	var sm := _sides()
-	for i in SideMissions.ORDER.size():
-		var mid: StringName = SideMissions.ORDER[i]
+	page = clampi(page, 0, pages() - 1)
+	for i in _count():
+		var mid: StringName = _id(i)
 		var o := _origin(cx, s, i)
 		var ok := sm != null and sm.can_start(mid)
 		hud._add(StringName("side_%s" % mid), Rect2(o.x + (COL_W - BTN_W) * s, o.y + 6.0 * s, BTN_W * s, 42.0 * s), "START" if SideMissions.unlocked(mid, _chapter()) else "LOCKED", ok)
-	hud._add(&"side_back", Rect2(cx - 110.0 * s, (ROW_Y + 5.0 * ROW_STEP + 14.0) * s, 220.0 * s, 44.0 * s), "BACK", false)
+	hud._add(&"side_back", Rect2(cx - 230.0 * s, (ROW_Y + 5.0 * ROW_STEP + 14.0) * s, 220.0 * s, 44.0 * s), "BACK", false)
+	if pages() > 1:
+		hud._add(&"side_page", Rect2(cx + 10.0 * s, (ROW_Y + 5.0 * ROW_STEP + 14.0) * s, 220.0 * s, 44.0 * s), "PAGE %d / %d" % [page + 1, pages()], false)
 
 
 static func _sides() -> SideMissions:
@@ -38,8 +56,8 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	hud._text(c, font, Vector2(0.0, 84.0 * s), "SIDE MISSIONS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(46.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
 	if prog != null:
 		hud._text(c, font, Vector2(0.0, 116.0 * s), "CREDITS  %d      DONE  %d / %d" % [prog.credits, prog.side_done.size(), SideMissions.ORDER.size()], HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
-	for i in SideMissions.ORDER.size():
-		var mid: StringName = SideMissions.ORDER[i]
+	for i in _count():
+		var mid: StringName = _id(i)
 		var d := SideMissions.def(mid)
 		var o := _origin(cx, s, i)
 		var open := SideMissions.unlocked(mid, _chapter())

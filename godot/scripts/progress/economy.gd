@@ -30,13 +30,18 @@ const SERVICE := {&"heal": 40, &"heal_kit": 55, &"energy": 30, &"energy_cell": 3
 
 ## Rewards (credits, before sector factor and reputation bonus where the system applies them).
 const CONTRACT_BASE := {&"officer": 320, &"hack": 260, &"chase": 300, &"courier": 220, &"survive": 420, &"drones": 280, &"boss": 1200}
-const SIDE_PAY := {&"courier": 220, &"photo": 260, &"relay": 320, &"rescue": 300, &"car_drop": 380, &"turf": 420, &"rooftop": 440, &"heist": 520, &"hunt": 600, &"smuggler": 680}
-const SIDE_CHAPTER := {&"courier": 0, &"photo": 0, &"relay": 0, &"rescue": 1, &"car_drop": 1, &"turf": 2, &"rooftop": 2, &"heist": 3, &"hunt": 4, &"smuggler": 4}
+const SIDE_PAY := {&"courier": 220, &"photo": 260, &"relay": 320, &"rescue": 300, &"car_drop": 380, &"turf": 420, &"rooftop": 440, &"heist": 520, &"hunt": 600, &"smuggler": 680, &"bounty": 360, &"sniper": 400, &"swarm": 460, &"car_theft": 500, &"hostage": 540, &"blackout": 560, &"data_courier": 330, &"arena": 640, &"demolition": 280, &"anomaly": 420}
+const SIDE_CHAPTER := {&"courier": 0, &"photo": 0, &"relay": 0, &"rescue": 1, &"car_drop": 1, &"turf": 2, &"rooftop": 2, &"heist": 3, &"hunt": 4, &"smuggler": 4, &"bounty": 1, &"sniper": 2, &"swarm": 2, &"car_theft": 3, &"hostage": 3, &"blackout": 3, &"data_courier": 1, &"arena": 4, &"demolition": 0, &"anomaly": 2}
 const INTERIOR_REWARD := {&"safe": 320, &"hostage": 420, &"assassinate": 620, &"hack": 460}
 ## Stealth missions (StealthScripts): base pay, sector needed, and the bonus share added for a clean run (no kills; the silent route: under par). Not part of the hourly model.
 const STEALTH_PAY := {&"infiltrate": 360, &"plant": 440, &"datatheft": 520, &"takedown": 480}
 const STEALTH_CHAPTER := {&"infiltrate": 0, &"plant": 1, &"datatheft": 2, &"takedown": 3}
 const STEALTH_BONUS := 0.35
+## Heist missions (HeistScripts): base pay, sector needed, approach pay factors (stealth / loud / quantum), the share kept on a replay. Not part of the hourly model.
+const HEIST_PAY := {&"vault": 900, &"convoy": 1000, &"datacenter": 1150}
+const HEIST_CHAPTER := {&"vault": 2, &"convoy": 4, &"datacenter": 6}
+const HEIST_APPROACH := {&"stealth": 1.0, &"loud": 1.4, &"quantum": 1.2}
+const HEIST_REPLAY := 0.6
 const EVENT_REWARD := {&"ambush": 120, &"race": 150, &"rescue": 90, &"drop": 200, &"rift": 60}
 const ACTIVITY_REWARD := {&"range": 3, &"parkour": 150, &"drift": 200, &"arena": 40}   ## per hit / on finish / on finish / per wave
 const ARENA_CLEAR_BONUS := 100

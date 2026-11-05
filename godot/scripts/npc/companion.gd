@@ -434,6 +434,9 @@ func _poll_mission() -> void:
 		elif m.sides != null and m.sides.active and SIDE_IDS.has(m.sides.id):
 			want = true
 			why = "side"
+		elif m.heists != null and m.heists.is_running() and m.heists.crew:
+			want = true
+			why = "heist"
 	if want and not active:
 		recruit(why if why != "" else "chapter")
 	elif not want and active and not manual:

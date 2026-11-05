@@ -38,7 +38,7 @@ func run(host: Node) -> void:
 
 
 func _rules() -> void:
-	TestLib.check(SideMissions.ORDER.size() == 10 and SideMissions.DEFS.size() == 10, "ten side missions")
+	TestLib.check(SideMissions.ORDER.size() == 20 and SideMissions.DEFS.size() == 20, "twenty side missions")
 	var ok := true
 	for id: StringName in SideMissions.ORDER:
 		var d := SideMissions.def(id)
@@ -60,7 +60,7 @@ func _complete(id: StringName) -> bool:
 	if not sm.start(id, Vector3(10, 0, 10)):
 		return false
 	var guard := 0
-	while sm.active and guard < 40:
+	while sm.active and guard < 60:
 		guard += 1
 		var s: Dictionary = sm.stages[sm.stage]
 		var pos: Vector3 = s["pos"]
@@ -72,6 +72,10 @@ func _complete(id: StringName) -> bool:
 			"photo":
 				var from := pos + Vector3(-20, 0, 0)
 				sm.tick(0.1, from, Vector3.RIGHT, false)
+			"smash":
+				for i in int(s["n"]):
+					sm.on_smash()
+				sm.tick(0.1, pos, Vector3.RIGHT, false)
 			"kill":
 				for i in int(s["n"]):
 					sm.on_kill()
@@ -83,8 +87,8 @@ func _all_kinds() -> void:
 	var before := prog.credits
 	for id: StringName in SideMissions.ORDER:
 		TestLib.check(_complete(id), "%s completes through its stages" % id)
-	TestLib.check(prog.side_done.size() == 10 and prog.credits > before + 3000, "ten tallies and credits paid")
-	TestLib.check(prog.reputation > 0 and prog.side_best.size() == 10, "reputation and best times recorded")
+	TestLib.check(prog.side_done.size() == 20 and prog.credits > before + 3000, "ten tallies and credits paid")
+	TestLib.check(prog.reputation > 0 and prog.side_best.size() == 20, "reputation and best times recorded")
 	# primitives refuse wrong conditions
 	sm.start(&"car_drop", Vector3.ZERO)
 	var p: Vector3 = sm.stages[0]["pos"]

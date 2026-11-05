@@ -10,9 +10,10 @@ signal started(id: StringName)
 signal stage_changed(index: int)
 signal finished(id: StringName, ok: bool, reason: String)
 
-const ORDER: Array[StringName] = [&"courier", &"photo", &"relay", &"rescue", &"car_drop", &"turf", &"rooftop", &"heist", &"hunt", &"smuggler"]
+const ORDER: Array[StringName] = [&"courier", &"photo", &"relay", &"rescue", &"car_drop", &"turf", &"rooftop", &"heist", &"hunt", &"smuggler",
+	&"bounty", &"sniper", &"swarm", &"car_theft", &"hostage", &"blackout", &"data_courier", &"arena", &"demolition", &"anomaly"]
 ## title, one-line brief, base reward (credits), reputation, chapter needed, time limit (0 = none), stage recipe.
-## Stage recipe items: ["goto", dist, radius, car], ["dwell", secs, radius], ["photo", dist], ["kill", n].
+## Stage recipe items: ["goto", dist, radius, car], ["dwell", secs, radius], ["photo", dist], ["kill", n], ["smash", n] (break n props). Optional job keys: `heat` (heat added at start), `dark` (night vision overlay).
 const DEFS := {
 	&"courier": {"title": "COURIER", "brief": "Deliver the package across the district before the timer ends.", "pay": 220, "rep": 3, "chapter": 0, "limit": 80.0, "stages": [["goto", 90.0, 7.0, false], ["goto", 140.0, 7.0, false]]},
 	&"photo": {"title": "PHOTO CAPTURE", "brief": "Photograph three landmarks: get close and keep them in frame.", "pay": 260, "rep": 3, "chapter": 0, "limit": 0.0, "stages": [["photo", 80.0], ["photo", 120.0], ["photo", 160.0]]},
@@ -24,6 +25,16 @@ const DEFS := {
 	&"heist": {"title": "INTERIOR HEIST", "brief": "Reach the three vault nodes in the order shown, then crack the lock.", "pay": 520, "rep": 6, "chapter": 3, "limit": 140.0, "stages": [["goto", 60.0, 6.0, false], ["goto", 70.0, 6.0, false], ["goto", 70.0, 6.0, false], ["dwell", 8.0, 7.0]]},
 	&"hunt": {"title": "BOSS-LITE HUNT", "brief": "Hunt down the marked lieutenant's squad: eight confirmed kills.", "pay": 600, "rep": 8, "chapter": 4, "limit": 150.0, "stages": [["kill", 8]]},
 	&"smuggler": {"title": "SMUGGLER CHASE", "brief": "Run the contraband through two checkpoints by car.", "pay": 680, "rep": 6, "chapter": 4, "limit": 100.0, "stages": [["goto", 150.0, 10.0, true], ["goto", 200.0, 10.0, true]]},
+	&"bounty": {"title": "BOUNTY HUNT", "brief": "Track the roaming elite to the marked block and take down its escort.", "pay": 360, "rep": 5, "chapter": 1, "limit": 130.0, "stages": [["goto", 120.0, 12.0, false], ["kill", 3]]},
+	&"sniper": {"title": "ROOFTOP DEFENCE", "brief": "Hold the rooftop ring and pick off five attackers.", "pay": 400, "rep": 5, "chapter": 2, "limit": 140.0, "stages": [["dwell", 15.0, 10.0], ["kill", 5]]},
+	&"swarm": {"title": "DRONE SWARM", "brief": "Reach the swarm nest and clear ten drones.", "pay": 460, "rep": 5, "chapter": 2, "limit": 140.0, "stages": [["goto", 70.0, 10.0, false], ["kill", 10]]},
+	&"car_theft": {"title": "VEHICLE THEFT", "brief": "Take the car to the drop with the patrols on your tail.", "pay": 500, "rep": 5, "chapter": 3, "limit": 110.0, "heat": 1.5, "stages": [["goto", 40.0, 8.0, true], ["goto", 200.0, 10.0, true]]},
+	&"hostage": {"title": "HOSTAGE RESCUE", "brief": "Clear the captors, free the hostage, bring them back.", "pay": 540, "rep": 7, "chapter": 3, "limit": 150.0, "stages": [["goto", 80.0, 7.0, false], ["kill", 3], ["goto", 0.0, 8.0, false]]},
+	&"blackout": {"title": "BLACKOUT DISTRICT", "brief": "The lights are out: night vision on, reach the grid and restore it.", "pay": 560, "rep": 6, "chapter": 3, "limit": 130.0, "dark": true, "stages": [["goto", 80.0, 7.0, false], ["dwell", 12.0, 8.0], ["goto", 120.0, 8.0, false]]},
+	&"data_courier": {"title": "DATA COURIER", "brief": "Carry the drive through three districts before it expires.", "pay": 330, "rep": 4, "chapter": 1, "limit": 120.0, "stages": [["goto", 180.0, 8.0, false], ["goto", 220.0, 8.0, false], ["goto", 160.0, 8.0, false]]},
+	&"arena": {"title": "ARENA DUEL", "brief": "Step into the ring, hold it and defeat six challengers.", "pay": 640, "rep": 8, "chapter": 4, "limit": 150.0, "stages": [["dwell", 10.0, 14.0], ["kill", 6]]},
+	&"demolition": {"title": "TIMED DEMOLITION", "brief": "Break eight props before the clock runs out.", "pay": 280, "rep": 3, "chapter": 0, "limit": 80.0, "stages": [["smash", 8]]},
+	&"anomaly": {"title": "PHOTOGRAPH ANOMALIES", "brief": "Photograph four rifts: get close and keep them in frame.", "pay": 420, "rep": 4, "chapter": 2, "limit": 0.0, "stages": [["photo", 70.0], ["photo", 110.0], ["photo", 150.0], ["photo", 190.0]]},
 }
 
 var id: StringName = &""
@@ -37,6 +48,8 @@ var origin := Vector3.ZERO
 var last_result: Dictionary = {}        ## {id, ok, reason, reward} of the last job
 var _marker: MeshInstance3D
 var _kills_hooked := false
+var _smash_base := 0                    ## Breakables.break_total when the smash stage began
+var _nv: ColorRect                      ## night-vision overlay (blackout job)
 
 
 func _ready() -> void:
@@ -96,7 +109,7 @@ static func build_route(mid: StringName, from: Vector3, seed_val: int) -> Array:
 			"dwell":
 				s["secs"] = float(item[1])
 				s["r"] = float(item[2])
-			"kill":
+			"kill", "smash":
 				s["n"] = int(item[1])
 		out.append(s)
 	return out
@@ -132,6 +145,10 @@ func start(mid: StringName, from := Vector3.INF) -> bool:
 	limit = float(DEFS[mid]["limit"])
 	active = true
 	_hook_kills()
+	_smash_base = Breakables.current.break_total if Breakables.current != null else 0
+	if float(DEFS[mid].get("heat", 0.0)) > 0.0:
+		Game.add_heat(float(DEFS[mid]["heat"]))
+	_set_night_vision(bool(DEFS[mid].get("dark", false)))
 	_update_marker()
 	started.emit(mid)
 	Game.message.emit("%s: %s" % [DEFS[mid]["title"], DEFS[mid]["brief"]], 5.0)
@@ -170,6 +187,8 @@ func tick(delta: float, ppos: Vector3, look: Vector3, in_car: bool) -> void:
 				done = absf(fwd.angle_to(to)) <= deg_to_rad(28.0)
 		"kill":
 			done = progress_val >= float(s["n"])
+		"smash":
+			done = progress_val >= float(s["n"])
 	if done:
 		_next_stage()
 
@@ -178,8 +197,20 @@ func _physics_process(delta: float) -> void:
 	if not active or Game.state != &"play" or not is_instance_valid(Game.player):
 		return
 	var fwd := -Game.camera.global_transform.basis.z if is_instance_valid(Game.camera) else Vector3.RIGHT
+	var b := Breakables.current
+	if b != null:
+		var d := b.break_total - _smash_base
+		_smash_base = b.break_total
+		for i in maxi(d, 0):
+			on_smash()
 	tick(delta, Game.player.global_position, fwd, (Game.player as Player).vehicle != null)
 	_update_marker()
+
+
+## One prop broken (live: polled from Breakables.break_total in _physics_process).
+func on_smash() -> void:
+	if active and String(stages[stage]["kind"]) == "smash":
+		progress_val += 1.0
 
 
 func on_kill() -> void:
@@ -220,6 +251,7 @@ func _end(ok: bool, reason: String) -> void:
 	last_result = {"id": mid, "ok": ok, "reason": reason, "reward": pay, "time": clock}
 	active = false
 	stages = []
+	_set_night_vision(false)
 	_update_marker()
 	Game.message.emit(("%s COMPLETE  +%d" % [DEFS[mid]["title"], pay]) if ok else ("%s FAILED  %s" % [DEFS[mid]["title"], reason]), 4.0)
 	finished.emit(mid, ok, reason)
@@ -236,15 +268,38 @@ func status_line() -> String:
 		"dwell": what = "HOLD  %d / %d s" % [int(progress_val), int(s["secs"])]
 		"photo": what = "PHOTO  LOOK AT LANDMARK"
 		"kill": what = "TAKE DOWN  %d / %d" % [int(progress_val), int(s["n"])]
+		"smash": what = "BREAK PROPS  %d / %d" % [int(progress_val), int(s["n"])]
 	var t := "" if limit <= 0.0 else "   %d s" % int(ceilf(maxf(limit - clock, 0.0)))
 	return "%s  %d/%d  %s%s" % [DEFS[id]["title"], stage + 1, stages.size(), what, t]
 
 
 ## Current waypoint (Vector3.INF when none or the stage has no place, e.g. a kill stage).
 func waypoint() -> Vector3:
-	if not active or String(stages[stage]["kind"]) == "kill":
+	if not active or String(stages[stage]["kind"]) in ["kill", "smash"]:
 		return Vector3.INF
 	return stages[stage]["pos"]
+
+
+## Blackout: a cheap full-screen green multiply tint (one canvas rect, no 3D cost).
+func _set_night_vision(on: bool) -> void:
+	if on and _nv == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 5
+		_nv = ColorRect.new()
+		_nv.color = Color(0.45, 1.0, 0.55)
+		_nv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_nv.set_anchors_preset(Control.PRESET_FULL_RECT)
+		var mat := CanvasItemMaterial.new()
+		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MUL
+		_nv.material = mat
+		layer.add_child(_nv)
+		add_child(layer)
+	if _nv != null:
+		_nv.get_parent().visible = on
+
+
+func night_vision_on() -> bool:
+	return _nv != null and _nv.get_parent().visible
 
 
 func _update_marker() -> void:

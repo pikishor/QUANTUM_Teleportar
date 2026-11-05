@@ -238,6 +238,11 @@ static func catalog() -> Array[Dictionary]:
 	for id: StringName in StealthScripts.IDS:
 		sts.append({"id": id, "label": StealthScripts.title(id)})
 	out.append({"kind": &"stealth", "title": "STEALTH MISSIONS", "items": sts})
+	var hts: Array[Dictionary] = []
+	for id: StringName in HeistScripts.IDS:
+		for ap: StringName in HeistScripts.APPROACHES:
+			hts.append({"id": "%s:%s" % [id, ap], "label": "%s  %s" % [HeistScripts.title(id), HeistScripts.approach_title(ap)]})
+	out.append({"kind": &"heist", "title": "HEIST MISSIONS", "items": hts})
 	return out
 
 
@@ -254,6 +259,7 @@ static func launch(kind: StringName, id: Variant) -> String:
 		&"chase": return start_chase(StringName(id))
 		&"companion": return start_companion(StringName(id))
 		&"stealth": return start_stealth(StringName(id))
+		&"heist": return start_heist(str(id))
 		&"boss":
 			_prepare()
 			return TestMode.start_contract(&"boss") if StringName(id) == &"contract" else TestMode.spawn_enemy(StringName(id))
@@ -282,6 +288,8 @@ static func _prepare(leave_interior := true) -> void:
 		m.sides.abort("DEMO")
 	if m.contracts != null and bool(m.contracts.is_active()):
 		m.contracts.abandon()
+	if m.heists != null and m.heists.is_running():
+		m.heists.abort("DEMO")
 	if m.campaign != null and m.campaign.is_running():
 		m.campaign.abort()
 	if m.chases != null and m.chases.is_running():
@@ -345,6 +353,21 @@ static func start_stealth(id: StringName) -> String:
 		(Game.enemies as EnemyManager).clear()          # hunters from an earlier alarm would follow through the door and spoil the run
 	Game.heat = 0.0
 	return "STEALTH  %s" % StealthScripts.title(id) if m.stealth.start(id) else ""
+
+
+## One heist and approach ("vault:quantum"; no colon = stealth), started where the player stands. The companion joins for the run.
+static func start_heist(key: String) -> String:
+	var m := Game.missions as Missions
+	var parts := key.split(":")
+	var hid := StringName(parts[0])
+	var ap := StringName(parts[1]) if parts.size() > 1 else &"stealth"
+	if m == null or m.heists == null or not HeistScripts.DEFS.has(hid):
+		return ""
+	_prepare()
+	if is_instance_valid(Game.enemies):
+		(Game.enemies as EnemyManager).clear()
+	Game.heat = 0.0
+	return "HEIST  %s  %s" % [HeistScripts.title(hid), HeistScripts.approach_title(ap)] if m.heists.start(hid, ap, true) else ""
 
 
 ## Index of a set piece's first step inside its chapter's spliced step list (-1 when it has none).
