@@ -215,7 +215,7 @@ func _pickups(host: Node) -> void:
 	_stand_at(Vector3(-20.0, 0.0, 4.0) + Vector3(1.5, 0.0, 0.0))
 	await TestLib.frames(host, 3)
 	TestLib.check(m.pickups.is_empty() and absf(player.hp - 70.0) < 0.01, "a health pickup heals 30 (hp %.0f)" % player.hp)
-	TestLib.check(messages.size() > 0 and messages[-1].contains("INTEGRITY"), "a health pickup says so")
+	TestLib.check(messages.any(func(t: String) -> bool: return t.contains("INTEGRITY")), "a health pickup says so (a loot part message may follow it)")
 	m.drop(&"energy", Vector3(-20.0, 0.0, 4.0))
 	await TestLib.frames(host, 3)
 	TestLib.check(m.pickups.is_empty() and absf(player.energy - 55.0) < 0.01, "an energy pickup refunds 35 (energy %.0f)" % player.energy)
