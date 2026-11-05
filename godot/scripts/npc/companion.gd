@@ -682,7 +682,7 @@ func _muzzle() -> Vector3:
 
 
 func _fire(delta: float) -> void:
-	if life != Life.UP or not is_instance_valid(target) or target.dead:
+	if life != Life.UP or not is_instance_valid(target) or target.dead or not target.active:
 		_aim_t = 0.0
 		_burst_left = 0
 		return

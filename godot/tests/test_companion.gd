@@ -141,6 +141,7 @@ func _combat() -> void:
 		calm.aware = false
 		calm.aware_dist = 0.5
 		calm.set_physics_process(false)         # it never notices anything
+		await _wait(func() -> bool: return c._burst_left == 0 and not is_instance_valid(c.target), 1500)   # a burst at the released trooper may still be finishing
 		var shots1 := c.shots
 		await frames(90)
 		TestLib.check(c.shots == shots1 and calm.hp >= calm.max_hp - 0.01, "the ally does not wake an unaware patrol (shots %d, aware %s, hp %.0f of %.0f)" % [c.shots - shots1, calm.aware, calm.hp, calm.max_hp])
