@@ -53,6 +53,7 @@ echo "== audio"
 "$PY" tools/audio/make_depth.py
 "$PY" tools/audio/make_weapons.py
 "$PY" tools/audio/make_v3.py
+"$PY" -I tools/audio/shrink_audio.py
 if [ "$MODELS" = 1 ]; then
   echo "== models + atlases"
   tools/blender/build_all.sh

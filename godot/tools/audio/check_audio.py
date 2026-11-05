@@ -89,7 +89,7 @@ def main():
     total = sum(os.path.getsize(os.path.join(d, n)) for n in names if not n.endswith(".import"))
     check(total < 40e6, "total audio size %.1f MB (at most about 40 MB)" % (total / 1e6))
 
-    loops_wav = {"drone_hum", "radio_static", "superpos_loop", "entangle_loop", "engine_low", "engine_high", "tyre_squeal", "traffic_loop", "music_ambient"}
+    loops_wav = {"drone_hum", "radio_static", "superpos_loop", "entangle_loop", "engine_low", "engine_high", "tyre_squeal", "traffic_loop"}
     bad = []
     pcm = {}
     for n in wavs:
@@ -113,9 +113,12 @@ def main():
     dec = {}
     for n in oggs:
         dec[n[:-4]] = read_ogg(os.path.join(d, n))
+    for k in ("boom", "core"):   # long one-shots shipped as OGG by the size pass: decode into the mix table
+        if k not in pcm and k in dec:
+            pcm[k] = dec[k][0]
     for b in beds:
         x = dec.get(b)
-        check(x is not None and abs(x.shape[1] / SR - 24.0) < 0.2 and x.shape[0] == 2, "%s.ogg is a 24 s stereo bed" % b)
+        check(x is not None and abs(x.shape[1] / SR - 24.0) < 0.2 and x.shape[0] in (1, 2), "%s.ogg is a 24 s bed (mono since the size pass)" % b)
         if x is not None:
             r = seam_ratio(x)
             check(r <= 1.5, "%s.ogg loops seamlessly after Vorbis (seam %.2f)" % (b, r))

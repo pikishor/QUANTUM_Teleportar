@@ -4,6 +4,7 @@
 # frame of the 4-enemy simultaneous death. Software Vulkan under xvfb (numbers of draws / triangles are the same as on a phone, frame times are not).
 #   tools/perf_report.sh [tiers]            default "0 1 2"; e.g. tools/perf_report.sh 1
 #   env  RENDERER=compat   OpenGL Compatibility renderer;   BOT_TOUCH=1   touch layout;   BOT_DUMP=1   biggest shadow casters;   BOT_FAR=1   enemies at 55 m
+#   env  PERF_SEED=n       world seed of the bot (default 20260101: props, traffic and drops differ per seed)
 #   env  PERF_CHECK=1      exit status 1 when a tier is over its budget (scripts/common/perf_probe.gd BUDGETS): this is the budget gate
 #   env  PERF_RES=1280x720 resolution (draw counts hardly depend on it);   PERF_SHOTS=/path/prefix  also saves the pictures of frames 30 / 60 / 90 (staged view, hud off, death)
 set -uo pipefail

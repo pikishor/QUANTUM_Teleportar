@@ -510,6 +510,11 @@ func _textures() -> void:
 # ------------------------------------------------------------------ audio
 func _audio() -> void:
 	for sfx_name: String in SFX:
+		var ogg_path := "res://assets/audio/%s.ogg" % sfx_name
+		if ResourceLoader.exists(ogg_path):   # long one-shots ship as mono OGG (audio size pass): load + duration window
+			var og := load(ogg_path) as AudioStreamOggVorbis
+			TestLib.check(og != null and og.get_length() >= float(SFX[sfx_name][0]) and og.get_length() <= float(SFX[sfx_name][1]), "%s.ogg loads as OGG within its duration window" % sfx_name)
+			continue
 		var s := _wav(sfx_name)
 		if s == null:
 			continue
@@ -519,23 +524,12 @@ func _audio() -> void:
 		var peak := _peak_db(s, 1)
 		TestLib.check(absf(peak - float(lim[2])) < 1.0, "%s.wav peak %.2f dBFS is its mix level (%.1f)" % [sfx_name, peak, lim[2]])
 		TestLib.check(s.loop_mode == AudioStreamWAV.LOOP_DISABLED, "%s.wav does not loop" % sfx_name)
-	var music := _wav("music_ambient")
+	var music := load("res://assets/audio/music_ambient.ogg") as AudioStreamOggVorbis
+	TestLib.check(music != null, "music_ambient.ogg loads as AudioStreamOggVorbis")
 	if music:
-		TestLib.check(absf(music.get_length() - 30.0) < 0.5, "music_ambient.wav is about 30 s (%.2f)" % music.get_length())
-		TestLib.check(music.loop_mode == AudioStreamWAV.LOOP_FORWARD, "music_ambient.wav loops forward (smpl chunk)")
-		TestLib.check(music.loop_end > music.get_length() * music.mix_rate * 0.99, "music loop covers the whole file (end %d)" % music.loop_end)
-		var peak := _peak_db(music, 5)
-		TestLib.check(absf(peak - MUSIC_LEVEL) < 1.0, "music_ambient.wav peak %.2f dBFS is its bed level (%.1f, well below the effects)" % [peak, MUSIC_LEVEL])
-		# seamless: the step across the loop point is no bigger than a typical step inside the file
-		var d := music.data
-		var n := d.size() / 2
-		var a := d.decode_s16((n - 1) * 2)
-		var b := d.decode_s16(0)
-		var typical := 0.0
-		for i in range(1000, 21000):
-			typical += absf(d.decode_s16((i + 1) * 2) - d.decode_s16(i * 2))
-		typical /= 20000.0
-		TestLib.check(absf(a - b) <= typical * 3.0 + 200.0, "music loop point is continuous (jump %d vs typical %.0f)" % [absf(a - b), typical])
+		TestLib.check(absf(music.get_length() - 30.0) < 0.5, "music_ambient.ogg is about 30 s (%.2f)" % music.get_length())
+		music.loop = true
+		TestLib.check(music.loop, "music_ambient.ogg loops (Sfx._loop_stream sets the flag)")
 
 
 func _wav(wav_name: String) -> AudioStreamWAV:

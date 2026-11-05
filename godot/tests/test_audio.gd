@@ -129,6 +129,11 @@ func _catalog() -> void:
 			short_groups.append("%s (%d of %d)" % [g, v.size(), int(spec[0])])
 		for s in v:
 			files += 1
+			if s is AudioStreamOggVorbis:   # long one-shots ship as mono OGG (audio size pass): duration window only
+				var od := (s as AudioStreamOggVorbis).get_length()
+				if od < float(spec[1]) or od > float(spec[2]):
+					bad_dur += 1
+				continue
 			var w := _wav(s)
 			if w == null or w.format != AudioStreamWAV.FORMAT_16_BITS or (w.mix_rate != SR and w.mix_rate != SR / 2) or w.stereo:
 				bad_fmt += 1
@@ -149,7 +154,7 @@ func _catalog() -> void:
 	TestLib.check(Sfx.variants_of(&"step_asphalt").size() >= 4 and Sfx.variants_of(&"step_metal").size() >= 4 and Sfx.variants_of(&"step_stairs").size() >= 4, "footsteps: 4+ variants each on asphalt, metal and stairs")
 	TestLib.check(Sfx.variants_of(&"shot").size() >= 4 and Sfx.variants_of(&"enemy_shot").size() >= 3, "weapon shots have layered variants")
 	# the originals are still variant 0 of their families, unchanged (their own levels are checked by test_assets)
-	TestLib.check(Sfx.variants_of(&"boom")[0].resource_path.ends_with("boom.wav") and Sfx.variants_of(&"link")[0].resource_path.ends_with("link.wav"), "the original sounds stay variant 0 of their families")
+	TestLib.check(Sfx.variants_of(&"boom")[0].resource_path.get_file().begins_with("boom.") and Sfx.variants_of(&"link")[0].resource_path.get_file().begins_with("link."), "the original sounds stay variant 0 of their families")
 
 
 func _loops() -> void:

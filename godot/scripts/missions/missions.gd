@@ -23,7 +23,8 @@ const BEAM_HEIGHT := 420.0
 const GEM_HOVER := 1.1                 ## the gem model (origin at ground contact) floats this far above the street
 const GEM_NEAR := 110.0                ## gem model and light are shown within this camera distance (hysteresis +20 m)
 const PICKUP_POOL := 8
-const COLUMN_CAP := [0, 0, 8]               ## light columns of pickups drawn at once per tier (LOW, MED, HIGH): a 4-enemy wipe would add 4 draws (+4 more in the mirror)
+const HALO_CAP := [1, 1, 2]                 ## halos drawn at once per tier (a 4-enemy wipe on HIGH drew 4 halos + 4 columns: the death-spike overrun)
+const COLUMN_CAP := [0, 0, 2]               ## light columns of pickups drawn at once per tier (LOW, MED, HIGH): a 4-enemy wipe would add 4 draws (+4 more in the mirror)
 const PICKUP_RADIUS := 2.2
 const PICKUP_LIFE := 40.0
 const PICKUP_HOVER := 0.5
@@ -172,8 +173,8 @@ func drop(kind: StringName, pos: Vector3, weapon_id := &"") -> void:
 			columns_on += 1
 		if o != slot and (o.halo as MeshInstance3D).visible:
 			halos_on += 1
-	slot.halo_ok = Game.quality > 1 or halos_on < 1
-	(slot.halo as MeshInstance3D).visible = slot.halo_ok      # LOW and MED: one halo at once (death-spike draw budget)
+	slot.halo_ok = halos_on < HALO_CAP[clampi(Game.quality, 0, 2)]
+	(slot.halo as MeshInstance3D).visible = slot.halo_ok      # tier cap on halos at once (death-spike draw budget)
 	(slot.column as MeshInstance3D).visible = columns_on < COLUMN_CAP[clampi(Game.quality, 0, 2)]
 	node.visible = true
 	pickups.append(slot)
@@ -419,6 +420,7 @@ func _build_core() -> Dictionary:
 	ring.name = "Ring"
 	ring.position.y = 0.06
 	root.add_child(ring)
+	_core_ranges(ring, beam)
 	var light := OmniLight3D.new()
 	light.name = "Glow"
 	light.light_color = Color(1.0, 0.45, 0.95)
@@ -433,6 +435,17 @@ func _build_core() -> Dictionary:
 	_mirror_list.append_array(MissionVisuals.meshes_of(model))
 	_flush_mirror()
 	return {node = root, pos = Vector3.ZERO, got = false, gem = gem, ring = ring, beam = beam, light = light}
+
+
+## Distance gating of the core markers (perf debt): a ring is a flat disc, invisible beyond ~100 m; the beacon column is culled beyond a tier range (LOW 130 m, MED 170 m,
+## HIGH unlimited) so six cores in a long street do not each cost a draw (+ shadow-free) when the core is far away and only a sliver of the beam is on screen.
+const CORE_RING_RANGE := 100.0
+const CORE_BEAM_RANGE := {0: 130.0, 1: 170.0, 2: 0.0}
+
+
+func _core_ranges(ring: GeometryInstance3D, beam: GeometryInstance3D) -> void:
+	ring.visibility_range_end = CORE_RING_RANGE
+	beam.visibility_range_end = float(CORE_BEAM_RANGE.get(clampi(Game.quality, 0, 2), 0.0))
 
 
 func _show_core_parts(c: Dictionary, on: bool) -> void:
@@ -495,5 +508,6 @@ func _apply_fill(model: Node3D, tint: Color) -> void:
 
 func _on_quality(level: int) -> void:
 	for c: Dictionary in _core_pool:
+		_core_ranges(c.ring, c.beam)
 		var l := c.light as OmniLight3D
 		l.visible = l.visible and level > 0

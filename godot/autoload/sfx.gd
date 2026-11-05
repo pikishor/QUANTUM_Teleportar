@@ -95,6 +95,12 @@ const NIGHT_TO := 5.0             ## ... until this one; the dawn chirps cover D
 const DAWN_FROM := 4.5
 const DAWN_TO := 7.5
 
+## Rarely used streams (boss and chase themes, stings of big moments, airship hum, night/dawn beds, thunder, radio ads) are loaded on first use and dropped from the cache again
+## by `unload_rare()` once their player is done (players keep their own reference, so nothing playing is cut), which keeps startup and memory low.
+const RARE_NAMES: Array[StringName] = [&"music_boss", &"music_chase", &"music_night", &"sting_boss", &"sting_win", &"sting_death", &"sting_chapter", &"sting_phase",
+		&"airship_hum", &"night_insects", &"dawn_chirps", &"thunder_roll", &"thunder_0", &"thunder_1", &"thunder_2", &"ad_0", &"ad_1", &"ad_2", &"music_ambient"]
+const RARE_UNLOAD_EVERY := 45.0
+var _rare_clock := 0.0
 var _cache := {}                  ## name -> Array[AudioStream] (variants; empty when the sound does not exist)
 var _rules := {}
 var _last_pick := {}
@@ -550,6 +556,16 @@ func variants_of(sfx_name: StringName) -> Array:
 				break
 	_cache[sfx_name] = out
 	return out
+
+
+## Drops the cached streams of RARE_NAMES (they reload on the next use). Returns how many cache entries went. Streams held by a player stay alive.
+func unload_rare() -> int:
+	var n := 0
+	for k: StringName in RARE_NAMES:
+		if _cache.has(k):
+			_cache.erase(k)
+			n += 1
+	return n
 
 
 func _pick(sfx_name: StringName) -> AudioStream:
@@ -1757,6 +1773,11 @@ func _step_radio(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_state_clock += delta
+	_rare_clock += delta
+	if _rare_clock >= RARE_UNLOAD_EVERY:
+		_rare_clock = 0.0
+		if not boss_active:
+			unload_rare()
 	_step_ducks(delta)
 	if _stems != null:
 		_step_music(delta)

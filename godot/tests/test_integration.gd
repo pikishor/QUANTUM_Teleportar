@@ -396,9 +396,8 @@ func _audio() -> void:
 	TestLib.check(total >= 20 and on_sfx == total, "every effect voice plays on the SFX bus (%d of %d)" % [on_sfx, total])
 	var player := Sfx.get_node("Music") as AudioStreamPlayer
 	TestLib.check(player.bus == &"Music" and is_equal_approx(player.volume_db, Sfx.MUSIC_DB), "the music has its own player on the Music bus, %.0f dB below the effects" % -player.volume_db)
-	var loop := load("res://assets/audio/music_ambient.wav") as AudioStreamWAV
-	TestLib.check(loop != null and loop.loop_mode == AudioStreamWAV.LOOP_FORWARD and loop.format == AudioStreamWAV.FORMAT_16_BITS,
-			"music_ambient.wav is 16-bit PCM and loops forward by itself (loop mode %s)" % (str(loop.loop_mode) if loop != null else "?"))
+	var loop := load("res://assets/audio/music_ambient.ogg") as AudioStreamOggVorbis
+	TestLib.check(loop != null and absf(loop.get_length() - 30.0) < 0.5, "music_ambient.ogg is the 30 s legacy loop (OGG since the audio size pass)")
 	Sfx.play_music()
 	TestLib.check(Sfx.is_music_playing() and player.stream is AudioStreamSynchronized, "Sfx.play_music() starts the adaptive music (five stems under one synchronized stream)")
 	Sfx.stop_music()

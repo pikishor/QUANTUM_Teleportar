@@ -94,7 +94,15 @@ func _files() -> void:
 	for n: StringName in ONESHOTS:
 		var v := Sfx.variants_of(n)
 		var spec: Array = ONESHOTS[n]
-		if v.is_empty() or not (v[0] is AudioStreamWAV):
+		if v.is_empty():
+			bad += 1
+			continue
+		if v[0] is AudioStreamOggVorbis:   # stings ship as mono OGG (audio size pass): duration window only
+			var od := (v[0] as AudioStreamOggVorbis).get_length()
+			if od < float(spec[0]) or od > float(spec[1]):
+				bad += 1
+			continue
+		if not (v[0] is AudioStreamWAV):
 			bad += 1
 			continue
 		var w := v[0] as AudioStreamWAV

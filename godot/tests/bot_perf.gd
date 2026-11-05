@@ -28,7 +28,7 @@ var _tier := 1
 
 
 func _init() -> void:
-	seed(20260101)                      # the same traffic, drops and spread every run: the numbers are comparable (the frame step is fixed too)
+	seed(int(OS.get_environment("PERF_SEED")) if OS.get_environment("PERF_SEED") != "" else 20260101)                      # the same traffic, drops and spread every run: the numbers are comparable (the frame step is fixed too)
 	if OS.get_environment("BOT_TOUCH") != "":
 		Game.force_touch = true
 
@@ -108,11 +108,31 @@ func _census(label: String) -> void:
 			if n is MultiMeshInstance3D and (n as MultiMeshInstance3D).multimesh.visible_instance_count == 0:
 				continue
 			var key := "%s/%s" % [str(n.get_parent().name).rstrip("0123456789"), str(n.name).rstrip("0123456789")]
+			if not _p.camera_rig.camera.is_position_in_frustum((n as GeometryInstance3D).global_position):
+				key += "(off)"
 			agg[key] = int(agg.get(key, 0)) + surf
 	var total := 0
 	for k in agg:
 		total += int(agg[k])
 	print("PERF census %s (%d draw surfaces) %s" % [label, total, agg])
+
+
+## Experiment: hides every dynamic geometry node whose "parent/name" key contains one of `pats` (env BOT_HIDE=Core/,Rain) to read what a family costs in draws.
+func _hide_matching(pats: PackedStringArray) -> void:
+	var stack: Array = [_p.get_tree().root]
+	var hidden := 0
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n == Game.world:
+			continue
+		stack.append_array(n.get_children())
+		if n is GeometryInstance3D:
+			var key := "%s/%s" % [str(n.get_parent().name).rstrip("0123456789"), str(n.name).rstrip("0123456789")]
+			for pt in pats:
+				if key.contains(pt):
+					(n as GeometryInstance3D).visible = false
+					hidden += 1
+	print("PERF hid ", hidden)
 
 
 func _lights() -> Array:
@@ -130,6 +150,8 @@ func step(_t: float, _delta: float) -> bool:
 	if not _setup_done:
 		_setup()
 	_frame += 1
+	if _frame == 3 and OS.get_environment("BOT_HIDE") != "":
+		_hide_matching(OS.get_environment("BOT_HIDE").split(","))
 	if _frame == SETTLE and OS.get_environment("BOT_DUMP") != "":
 		_dump_casters()
 		_census("staged")

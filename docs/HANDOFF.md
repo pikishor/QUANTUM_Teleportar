@@ -629,3 +629,13 @@ Follow-ups from latest.png: interior shot is blown-out white around the window/d
   - Real saving added: pickup drops on MED draw no light columns (COLUMN_CAP MED 2 -> 0) and one halo at a time (as LOW), scripts/missions/missions.gd. Worth about 3-5 draws in the death spike.
   - Follow-up: the MED death-spike budget has 0-3 draws of real margin; the cheapest durable fix is a per-tier cap on pickups visible at once and on traffic near spawn, or making the perf bot's world fixed (props/traffic from a separate RNG).
 - Visual QA follow-ups (not fixed): title screen subtitle "OBSERVER CORP INCURSION // SECTOR 01" and tagline overlap the neon background art and the DEMO tab sits on the QA label; boss HUD shows the overseer name twice (red phase text overlapping the bar title); faction/wanted plate is hidden on neutral ground so it never shows in the street shots.
+
+## Wave 77 perf debt (perf agent)
+- `PERF_SEED=n tools/perf_report.sh` now picks the bot's world seed (default 20260101); `BOT_HIDE=Core/,Rain` hides families to read their draw cost; census marks off-screen nodes `(off)`.
+- Cuts: mission core rings/beacons carry `visibility_range_end` (ring 100 m; beam LOW 130 / MED 170 / HIGH off), -7 draws staged and -8 death on MED; burst emitters rotate `FX.TIER_PARTICLES` [2,5,8]; pickup halos `HALO_CAP` [1,1,2] and columns `COLUMN_CAP` [0,0,2] (HIGH wipe spike 174 -> 170).
+- Result at seeds 20260101 / 7 / 12345, all tiers OK. death draws LOW 103/101/104 (limit stays 115), MED 147/139/149 (150), HIGH 167/170/167 (170); MED staged 132/128/132. Margins on MED/HIGH death are 0-3 draws: next lever is traffic cars near spawn (car_hover Body+LOD both counted) and mirror sources. Test tests/test_perf_debt.gd.
+
+## Wave 77 integration note
+- Full suite: 166 pass, 0 flaky, 0 fail. Perf gate OK on all tiers (death draws LOW 103, MED 147, HIGH 167; tex 166/193/315 MB). full_bot soak PASS (8 min). Visual QA 27/27.
+- Visual follow-ups: contract HUD line and "CONTRACT AVAILABLE" banner stack closely in district/roof shots; title screen DEMO button is tight against the top-left tab row; ORACLE/VAEL log text box is clipped small on narrow shots.
+- Perf margins are thin (MED/HIGH death spikes); next cuts: traffic cars near spawn and their mirror sources.
