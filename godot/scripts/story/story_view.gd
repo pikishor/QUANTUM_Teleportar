@@ -13,7 +13,7 @@ const SUB_FONT := 22.0
 const SUB_SMALL := 18.0             ## the font a long line shrinks to before the plate grows beyond SUB_MAX_LINES
 const SUB_MAX_LINES := 5
 const SUB_PLATE := [0.55, 0.84, 1.0]      ## plate opacity by the SUBTITLE BG setting (OFF-ish / DEFAULT / SOLID): never lighter than 0.55, so bright roofs and signs do not wash the text out
-const TOUCH_BUTTONS_W := 690.0      ## base px from the right edge covered by the touch buttons (touch_controls.gd BUTTONS)
+const TOUCH_BUTTONS_W := 700.0      ## base px from the right edge covered by the touch buttons (touch_controls.gd BUTTONS); the CALL CAR / ally column (need more_garage, more_companion) sits further out, only while MORE is open
 const CARD_TOP := 0.40              ## the card band spans 40 % .. 70 % of the screen height: clear of the HUD bars (top) and the continue button (bottom)
 const CARD_H := 0.30
 
@@ -172,11 +172,14 @@ func _draw_banner(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 	var bw := clampf(vp.x - 2.0 * (ins.x + (SUB_W + 34.0) * s), 300.0 * s, 760.0 * s)
 	var x0 := cx - bw * 0.5
 	var inner := bw - 24.0 * s
-	draw_rect(Rect2(x0, y0, bw, 128.0 * s), Color(UiUtil.PLATE, UiUtil.PLATE.a * a))
+	var short := UiSettings.s_chatter < 2                          # LOW / OFF story chatter: chapter and title only (the objective line is on the HUD already)
+	draw_rect(Rect2(x0, y0, bw, (80.0 if short else 128.0) * s), Color(UiUtil.PLATE, UiUtil.PLATE.a * a))
 	_shadow_text(font, Vector2(x0, y0 + 24.0 * s), story.chapter_label(), HORIZONTAL_ALIGNMENT_CENTER, bw, int(20.0 * s), Color(UiUtil.CYAN, 0.95 * a), s)
 	var title := Tr.t(str(d["title"]))
 	_shadow_text(font, Vector2(x0, y0 + 64.0 * s), title, HORIZONTAL_ALIGNMENT_CENTER, bw, fit_font(font, title, inner, int(40.0 * s), int(24.0 * s)), Color(1, 1, 1, 0.97 * a), 2.0 * s)
 	draw_line(Vector2(cx - 110.0 * s, y0 + 72.0 * s), Vector2(cx + 110.0 * s, y0 + 72.0 * s), Color(UiUtil.MAGENTA, 0.8 * a), 2.0 * s)
+	if short:
+		return
 	var sub := Tr.t(str(d["sub"]))
 	var obj := Tr.t("OBJ  ") + Tr.t(str(d["obj"]))
 	_shadow_text(font, Vector2(x0, y0 + 96.0 * s), sub, HORIZONTAL_ALIGNMENT_CENTER, bw, fit_font(font, sub, inner, int(UiUtil.TEXT_MIN * s), int(15.0 * s)), Color(1, 1, 1, 0.88 * a), s)
@@ -188,8 +191,10 @@ func _draw_banner(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 func _sub_layout(vp: Vector2, s: float, ins: Vector2) -> Dictionary:
 	var zoom := UiSettings.s_sub_size
 	var width := minf(SUB_W * s * zoom, vp.x * (0.36 if zoom <= 1.0 else 0.5))
-	var full := str(story.current.get("t", ""))
-	var lines: PackedStringArray = fit_lines(full, width - 26.0 * s, int(SUB_FONT * s * zoom * Tr.text_scale), int(SUB_SMALL * s * zoom), SUB_MAX_LINES)
+	var full := story.display_text()
+	var lines: PackedStringArray = fit_lines(full, width - 26.0 * s, int(SUB_FONT * s * zoom * Tr.text_scale), int(SUB_SMALL * s * zoom), SUB_MAX_LINES if UiSettings.s_chatter >= 2 else 2)
+	if UiSettings.s_chatter < 2 and lines.size() > 2:
+		lines = lines.slice(0, 2)                                       # LOW / OFF story chatter: two lines at most
 	var fsize := _fit_size
 	var lh := float(fsize) * 1.28
 	var h: float = float(lines.size()) * lh + 32.0 * s

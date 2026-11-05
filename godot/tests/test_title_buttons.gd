@@ -31,13 +31,14 @@ func _rect(id: StringName) -> Rect2:
 	return Rect2()
 
 
-func _layout(state: StringName, save: bool, chapters: bool) -> void:
+func _layout(state: StringName, save: bool, chapters: bool, more := false) -> void:
 	stub.save = save
 	stub.chapters = chapters
 	Game.state = state
 	hud._has_save = save
 	hud._chapters_open = false
 	hud._shop_open = false
+	hud._gear_open = more
 	hud._layout_key = ""
 	hud._ensure_layout()
 
@@ -82,25 +83,23 @@ func run(host: Node) -> void:
 		var vp := hud.get_viewport().get_visible_rect().size
 		var s := UiUtil.ui_scale(vp)
 		var tag := "%dx%d" % [size.x, size.y]
-		# the title with a save and unlocked chapters: CONTINUE, NEW GAME + CHAPTERS side by side
+		# the title: PLAY / CONTINUE, OPTIONS and MORE, whatever the save or chapter state is
 		_layout(&"menu", true, true)
-		_check_screen(tag + " title (save, chapters)", vp, s, [&"continue", &"deploy", &"chapters"], vp.y - 90.0 * s - 18.0 * s)
-		TestLib.check(_rect(&"deploy").end.x < _rect(&"chapters").position.x and is_equal_approx(_rect(&"deploy").position.y, _rect(&"chapters").position.y), "%s: NEW GAME and CHAPTERS share one row" % tag)
-		# the title with a save only
-		_layout(&"menu", true, false)
-		_check_screen(tag + " title (save)", vp, s, [&"continue", &"deploy"], vp.y - 90.0 * s - 18.0 * s)
-		# no save, chapters unlocked on an earlier run
-		_layout(&"menu", false, true)
-		_check_screen(tag + " title (chapters only)", vp, s, [&"deploy", &"chapters"], vp.y - 90.0 * s - 18.0 * s)
-		# a first run: just DEPLOY
+		_check_screen(tag + " title (save, chapters)", vp, s, [&"continue", &"options", &"menu_gear"], vp.y - 90.0 * s - 18.0 * s)
+		TestLib.check(_rect(&"options").end.x < _rect(&"menu_gear").position.x and is_equal_approx(_rect(&"options").position.y, _rect(&"menu_gear").position.y), "%s: OPTIONS and MORE share one row" % tag)
 		_layout(&"menu", false, false)
-		_check_screen(tag + " title (first run)", vp, s, [&"deploy"], vp.y - 90.0 * s - 18.0 * s)
-		# pause with progress, with and without the chapter select
+		_check_screen(tag + " title (first run)", vp, s, [&"deploy", &"options", &"menu_gear"], vp.y - 90.0 * s - 18.0 * s)
+		TestLib.check(hud.buttons.size() == 3, "%s: the title shows three buttons" % tag)
+		# the title's MORE page: NEW GAME, CHAPTERS, DEMO, ARENA, BACK
+		_layout(&"menu", true, true, true)
+		_check_screen(tag + " title MORE", vp, s, [&"deploy", &"chapters", &"more_back"], vp.y - 90.0 * s - 18.0 * s)
+		# pause with progress: RESUME, MAP, LOADOUT, OPTIONS, MORE
 		_layout(&"paused", true, true)
-		_check_screen(tag + " pause (chapters)", vp, s, [&"resume", &"shop", &"chapters"], vp.y - 40.0 * s - 18.0 * s)
-		TestLib.check(_rect(&"menu").position.y > _rect(&"vol_music").end.y, "%s: ABORT TO MENU sits under the volume sliders" % tag)
-		_layout(&"paused", true, false)
-		_check_screen(tag + " pause (no chapters)", vp, s, [&"resume", &"shop"], vp.y - 40.0 * s - 18.0 * s)
+		_check_screen(tag + " pause", vp, s, [&"resume", &"pause_map", &"loadout", &"options", &"menu_gear"], vp.y - 40.0 * s - 18.0 * s)
+		TestLib.check(hud.buttons.size() == 5, "%s: the pause menu shows five buttons" % tag)
+		# the pause MORE page: HERO, MISSIONS, HEISTS, SUIT, SAFEHOUSE, ACHIEVEMENTS, PHOTO, ARENA, CHAPTERS, ABORT, BACK
+		_layout(&"paused", true, true, true)
+		_check_screen(tag + " pause MORE", vp, s, [&"hero_open", &"side_open", &"heist_open", &"look_open", &"sh_open", &"ach", &"photo_open", &"arena_open", &"chapters", &"menu", &"more_back"], vp.y - 40.0 * s - 18.0 * s)
 	win.size = old
 	await e.frames(3)
 	Game.state = &"play"

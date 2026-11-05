@@ -94,7 +94,7 @@ func _menu(host: Node) -> void:
 	_hud._on_state(Game.state)
 	_hud._ensure_layout()
 	var ids := _ids()
-	TestLib.check(ids.has(&"deploy") and ids.has(&"q0") and ids.has(&"q1") and ids.has(&"q2") and ids.has(&"post") and ids.has(&"mute"), "the menu has DEPLOY, LOW / MED / HIGH, post FX and sound (%s)" % str(ids))
+	TestLib.check(ids.has(&"deploy") and ids.has(&"menu_gear") and not ids.has(&"post") and not ids.has(&"q0"), "the title has DEPLOY and one small gear, no settings strip (%s)" % str(ids))
 	TestLib.check(_hud.get_node("Screen").visible and not _hud.get_node("Hud").visible, "the menu shows its screen and hides the play HUD")
 	_hud.screen_age = 5.0
 	var deploy: Rect2 = _hud.buttons[0]["rect"]
@@ -134,30 +134,28 @@ func _dead_and_win() -> void:
 	TestLib.check(_hud.press_button(&"next") and Game.state == &"play" and _events.has("next"), "NEXT SECTOR calls Game.do_next_sector()")
 
 
-## Music and SFX sliders on the settings rows (tap and drag, persisted, applied to the buses) and the UI cues the screen buttons play.
+## Music and SFX volume rows of the options screen (cycle 100 / 75 / 50 / 25 / 0 %, persisted, applied to the buses) and the UI cues the screen buttons play.
 func _volume_and_cues() -> void:
 	var was_muted := Sfx.muted
 	Sfx.muted = false
 	var was_state := Game.state
 	Game.state = &"menu"
+	_hud._on_state(&"menu")
+	_hud.press_button(&"options")
 	_hud._ensure_layout()
-	var rects := {}
-	for b: Dictionary in _hud.buttons:
-		rects[b["id"]] = b["rect"]
-	TestLib.check(rects.has(&"vol_music") and rects.has(&"vol_sfx") and rects.has(&"mute"), "the settings rows hold the music and SFX sliders next to the mute button")
-	var r: Rect2 = rects[&"vol_music"]
-	TestLib.check(not _hud.press_button(&"vol_music"), "a slider is not a press")
-	TestLib.check(_hud.tap(Vector2(r.position.x + r.size.x * 0.5, r.get_center().y)), "a tap on the music slider sets it")
-	_hud.end_drag()
-	var half := _hud.volume_of(&"vol_music")
-	TestLib.check(half > 0.35 and half < 0.65, "the middle of the track is about half volume (%.2f)" % half)
-	TestLib.check(absf(Sfx.bus_volume(&"Music") - half) < 0.02, "the Music bus follows the slider at once (%.2f)" % Sfx.bus_volume(&"Music"))
-	_hud.slide(&"vol_music", r.end.x + 50.0)
-	TestLib.check(_hud.volume_of(&"vol_music") == 1.0, "dragging past the end gives full volume")
-	_hud.slide(&"vol_music", r.position.x - 50.0)
-	TestLib.check(_hud.volume_of(&"vol_music") == 0.0 and Sfx.bus_volume(&"Music") < 0.01, "dragging past the start mutes the music bus")
+	var ids := _ids()
+	TestLib.check(ids.has(&"opt_vol_music") and ids.has(&"opt_vol_sfx") and ids.has(&"opt_mute") and ids.has(&"opt_post"), "the options hold music, SFX, sound and post FX")
+	_hud.settings.volumes = {}
+	TestLib.check(_hud.press_button(&"opt_vol_music") and absf(_hud.volume_of(&"vol_music") - 0.75) < 0.01, "MUSIC cycles 100 to 75 %")
+	TestLib.check(absf(Sfx.bus_volume(&"Music") - 0.75) < 0.02, "the Music bus follows the row at once (%.2f)" % Sfx.bus_volume(&"Music"))
+	for i in 4:
+		_hud.press_button(&"opt_vol_music")
+	TestLib.check(_hud.volume_of(&"vol_music") == 1.0, "after 0 % the row wraps to 100 %")
+	for i in 4:
+		_hud.press_button(&"opt_vol_music")
+	TestLib.check(_hud.volume_of(&"vol_music") == 0.0 and Sfx.bus_volume(&"Music") < 0.01, "the fifth stop mutes the music bus")
 	_hud.set_volume(&"vol_sfx", 0.3)
-	TestLib.check(absf(Sfx.bus_volume(&"SFX") - 0.3) < 0.02 and absf(Sfx.bus_volume(&"Ambient") - 0.3) < 0.02 and absf(Sfx.bus_volume(&"Voice") - 0.3) < 0.02, "the SFX slider drives SFX, ambience and radio voice")
+	TestLib.check(absf(Sfx.bus_volume(&"SFX") - 0.3) < 0.02 and absf(Sfx.bus_volume(&"Ambient") - 0.3) < 0.02 and absf(Sfx.bus_volume(&"Voice") - 0.3) < 0.02, "the SFX volume drives SFX, ambience and radio voice")
 	var fresh := UiSettings.new(TMP)
 	TestLib.check(float(fresh.volumes.get("Music", 1.0)) == 0.0 and absf(float(fresh.volumes.get("SFX", 1.0)) - 0.3) < 0.01, "both volumes persist with the settings (%s)" % str(fresh.volumes))
 	_hud.set_volume(&"vol_music", 1.0)
@@ -170,6 +168,7 @@ func _volume_and_cues() -> void:
 	OS.delay_msec(60)
 	_hud.press_button(&"post")
 	_hud.press_button(&"post")
+	_hud.press_button(&"options_back")
 	Sfx.muted = was_muted
 	Game.state = was_state
 
@@ -367,6 +366,8 @@ func _phone_text(host: Node) -> void:
 	TestLib.check(UiUtil.stack_bottom > 80.0 and UiUtil.stack_bottom < 200.0, "the HUD publishes the bottom of its top stack for the story layer (%.0f base px)" % UiUtil.stack_bottom)
 	for b: Dictionary in TouchControls.BUTTONS:
 		var dx := float(b["dx"]) + float(b["r"])
+		if str(b["need"]) in ["more_garage", "more_companion"]:
+			continue                                         # the outer MORE column: shown only while MORE is open
 		TestLib.check(dx <= StoryView.TOUCH_BUTTONS_W, "touch button %s stays inside the width the story layer reserves" % str(b["label"]))
 
 

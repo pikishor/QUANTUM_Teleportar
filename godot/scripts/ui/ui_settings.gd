@@ -36,6 +36,7 @@ var reduce_flash := false    ## no lightning exposure pulse, no full-screen quan
 var reduce_motion := false   ## no screen shake, no slow motion
 var sub_size := 1.0          ## subtitle text multiplier (Tr.SCALES)
 var sub_bg := 1              ## subtitle plate opacity step 0 soft, 1 normal, 2 solid
+var chatter := 1             ## story chatter: 0 off (urgent lines only), 1 low (story beats, short), 2 full
 var res_mode := -1          ## render resolution RenderRes 0 balanced .. 2 native, -1 = follow the graphics tier
 var difficulty := 1         ## Difficulty.NAMES index (default NORMAL)
 var cb_safe := false         ## colour-blind safe markers (blue / orange / white instead of red / green / magenta)
@@ -70,6 +71,8 @@ static var s_reduce_flash := false
 static var s_reduce_motion := false
 static var s_sub_size := 1.0
 static var s_sub_bg := 1
+static var s_chatter := 1
+const CHATTER_NAMES: Array[String] = ["OFF", "LOW", "FULL"]
 static var s_opt_page := 0                 ## options screen page (0 main, 1 accessibility); UI state only, never saved
 
 
@@ -129,6 +132,7 @@ func load_file() -> void:
 	var ss := clampf(_f(cf.get_value("ui", "sub_size", 1.0)), 1.0, 1.5)
 	sub_size = ss if Tr.SCALES.any(func(x): return is_equal_approx(x, ss)) else 1.0
 	sub_bg = clampi(Progress._num(cf.get_value("ui", "sub_bg", 1), 1), 0, 2)
+	chatter = clampi(Progress._num(cf.get_value("ui", "chatter", 1), 1), 0, 2)
 
 
 ## Next FPS cap in FPS_CHOICES (wraps).
@@ -155,6 +159,7 @@ func publish(engine := true) -> void:
 	s_reduce_motion = reduce_motion
 	s_sub_size = sub_size
 	s_sub_bg = sub_bg
+	s_chatter = chatter
 	RenderRes.user_mode = res_mode
 	Difficulty.set_mode(difficulty)
 	Tr.set_lang(language)
@@ -229,4 +234,5 @@ func save() -> bool:
 	cf.set_value("ui", "reduce_motion", reduce_motion)
 	cf.set_value("ui", "sub_size", sub_size)
 	cf.set_value("ui", "sub_bg", sub_bg)
+	cf.set_value("ui", "chatter", chatter)
 	return cf.save(path) == OK

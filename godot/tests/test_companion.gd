@@ -206,6 +206,7 @@ func _touch() -> void:
 	TestLib.check(not hold.is_empty() and not atk.is_empty(), "the two ally buttons exist (HOLD, ATTACK)")
 	if hold.is_empty() or atk.is_empty():
 		return
+	tc.more_open = true                         # the ally orders sit behind MORE
 	TestLib.check(tc.controls_on and tc.button_visible(hold) and tc.button_visible(atk), "the ally buttons show while it is recruited")
 	var win := host.get_window()
 	var old := win.size
@@ -215,7 +216,7 @@ func _touch() -> void:
 		Game.state = &"play"
 		var vp := host.get_viewport().get_visible_rect().size
 		for b: Dictionary in [hold, atk]:
-			TestLib.check(float(b["r"]) * 2.0 >= UiUtil.TOUCH_MIN and float(b["dx"]) + float(b["r"]) <= StoryView.TOUCH_BUTTONS_W, "%s: at least %d px across and inside the reserved width" % [b["label"], int(UiUtil.TOUCH_MIN)])
+			TestLib.check(float(b["r"]) * 2.0 >= UiUtil.TOUCH_MIN and float(b["dx"]) + float(b["r"]) <= StoryView.TOUCH_BUTTONS_W + 100.0, "%s: at least %d px across and inside the reserved width (+100: the ally column is MORE-only)" % [b["label"], int(UiUtil.TOUCH_MIN)])
 			var ctr := tc._button_center(b)
 			TestLib.check(Rect2(Vector2.ZERO, vp).grow(-float(b["r"])).has_point(ctr), "%s is on screen at %dx%d" % [b["label"], size.x, size.y])
 			var clear := true

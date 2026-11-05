@@ -180,6 +180,9 @@ func _screen() -> void:
 	await _reset_ui()
 	var s := UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size)
 	var open_btn := false
+	hud._gear_open = true                                          # SAFEHOUSE lives on the MORE page
+	hud._layout_key = ""
+	hud._ensure_layout()
 	for bt: Dictionary in hud.buttons:
 		if bt["id"] == &"sh_open":
 			open_btn = (bt["rect"] as Rect2).size.y >= UiUtil.TOUCH_MIN * s - 1.0

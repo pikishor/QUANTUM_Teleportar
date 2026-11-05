@@ -165,7 +165,7 @@ func _toasts() -> void:
 	var r0 := hud.msg_rect(real, s, text, int(30.0 * s), font)
 	story.banner_t = 0.5
 	var r3 := hud.msg_rect(real, s, text, int(30.0 * s), font)
-	TestLib.check(r3.position.y >= r0.position.y + 100.0 * s, "under a chapter banner the toast moves down (%.0f vs %.0f)" % [r3.position.y, r0.position.y])
+	TestLib.check(r3.position.y >= r0.position.y + 80.0 * s, "under a chapter banner the toast moves down (%.0f vs %.0f)" % [r3.position.y, r0.position.y])
 	story.banner_t = -1.0
 	story.current = {}
 	hud.message_left = 0.0

@@ -45,7 +45,8 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	var prog := Game.progress as Progress
 	var k := _fit(hud, s)
-	hud._text(c, font, Vector2(0.0, 80.0 * s), "SKILLS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(48.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	if not hud._hero_hub:
+		hud._text(c, font, Vector2(0.0, 80.0 * s), "SKILLS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(48.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
 	var lp := SkillTree.level_progress()
 	var xp_line := "MAX LEVEL" if int(lp[1]) == 0 else "XP  %d / %d" % [lp[0], lp[1]]
 	var line := "LEVEL  %d      POINTS  %d      %s" % [SkillTree.level(), SkillTree.points(), xp_line]

@@ -884,8 +884,11 @@ func _chapter_select_ui() -> void:
 	prog.credits = 321
 	Game.state = &"play"
 	Game.state = &"menu"
-	TestLib.check(not _ids().has(&"chapters") and _ids().has(&"deploy"), "title with one chapter unlocked: no CHAPTERS button")
+	TestLib.check(not _ids().has(&"chapters") and (_ids().has(&"deploy") or _ids().has(&"continue")), "title with one chapter unlocked: no CHAPTERS button")
 	prog.unlock(2)                                                                  # three chapters
+	hud._gear_open = true                                                           # CHAPTERS lives on the MORE page
+	hud._layout_key = ""
+	hud._ensure_layout()
 	TestLib.check(_ids().has(&"chapters") and _button(&"chapters")["label"] == "CHAPTERS", "title with chapters unlocked: a CHAPTERS button")
 	var vp := hud.get_viewport().get_visible_rect().size
 	var s := UiUtil.ui_scale(vp)
@@ -922,7 +925,7 @@ func _chapter_select_ui() -> void:
 	await e.frames(3)
 	# back, then again
 	hud.tap((_button(&"chapters_back")["rect"] as Rect2).get_center())
-	TestLib.check(not hud._chapters_open and _ids().has(&"deploy"), "BACK returns to the title")
+	TestLib.check(not hud._chapters_open and hud._gear_open and _ids().has(&"chapters"), "BACK returns to the MORE page of the title")
 	hud.press_button(&"chapters")
 	# choose chapter 2 by a touch
 	var r1: Rect2 = _button(&"chapter_1")["rect"]
@@ -935,11 +938,14 @@ func _chapter_select_ui() -> void:
 	TestLib.check(not hud._chapters_open, "the chapter select closes")
 	# the pause screen
 	Game.state = &"paused"
+	hud._gear_open = true
+	hud._layout_key = ""
+	hud._ensure_layout()
 	var ids2 := _ids()
-	TestLib.check(ids2.has(&"chapters") and ids2.has(&"shop") and ids2.has(&"resume"), "the pause screen has CHAPTERS next to UPGRADES")
+	TestLib.check(ids2.has(&"chapters") and ids2.has(&"hero_open") and ids2.has(&"menu"), "the pause MORE page has CHAPTERS next to HERO")
 	var pr: Rect2 = _button(&"chapters")["rect"]
-	var sr: Rect2 = _button(&"shop")["rect"]
-	TestLib.check(not pr.intersects(sr) and pr.size.y >= 44.0 * s - 0.5, "CHAPTERS and UPGRADES share the row without overlap")
+	var sr: Rect2 = _button(&"hero_open")["rect"]
+	TestLib.check(not pr.intersects(sr) and pr.size.y >= 44.0 * s - 0.5, "CHAPTERS and HERO share the grid without overlap")
 	TestLib.check(hud.press_button(&"chapters") and hud._chapters_open and _ids().has(&"chapter_2"), "CHAPTERS opens from the pause screen")
 	TestLib.check(_button(&"chapter_1")["on"] == true and _button(&"chapter_0")["on"] == false, "the running chapter is highlighted")
 	TestLib.check(hud.press_button(&"chapter_2") and Game.state == &"play" and story.set_to == 2, "chapter 3 starts from the pause screen")
@@ -957,7 +963,12 @@ func _chapter_select_ui() -> void:
 	prog.save_file()
 	Game.state = &"menu"
 	var ids3 := _ids()
-	TestLib.check(ids3.has(&"continue") and ids3.has(&"deploy") and ids3.has(&"chapters"), "with a save: CONTINUE, NEW GAME and CHAPTERS")
+	hud._gear_open = true
+	hud._layout_key = ""
+	hud._ensure_layout()
+	var ids4 := _ids()
+	hud._gear_open = false
+	TestLib.check(ids3.has(&"continue") and ids4.has(&"deploy") and ids4.has(&"chapters"), "with a save: CONTINUE on the title, NEW GAME and CHAPTERS on MORE")
 	var dr: Rect2 = _button(&"deploy")["rect"]
 	var cr: Rect2 = _button(&"chapters")["rect"]
 	TestLib.check(not dr.intersects(cr) and absf(dr.position.y - cr.position.y) < 1.0, "NEW GAME and CHAPTERS sit side by side")

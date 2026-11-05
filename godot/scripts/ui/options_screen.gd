@@ -22,16 +22,16 @@ const SLIDERS := {
 const TOGGLES := {
 	&"opt_aim": &"aim_assist", &"opt_auto": &"auto_fire", &"opt_left": &"left_hand",
 	&"opt_vib": &"vibration", &"opt_subs": &"subtitles", &"opt_cb": &"cb_safe",
-	&"opt_flash": &"reduce_flash", &"opt_motion": &"reduce_motion",
+	&"opt_flash": &"reduce_flash", &"opt_motion": &"reduce_motion", &"opt_post": &"post", &"opt_cine": &"cutscenes",
 }
 const TOGGLE_NAMES := {
 	&"opt_aim": "AIM ASSIST", &"opt_auto": "AUTO FIRE", &"opt_left": "LEFT HAND",
 	&"opt_vib": "VIBRATION", &"opt_subs": "SUBTITLES", &"opt_cb": "COLOUR SAFE",
-	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION",
+	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION", &"opt_post": "POST FX", &"opt_cine": "CUTSCENES",
 }
 ## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
-const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls", &"opt_reset", &"opt_reset_demo"]
-const PAGE_CELL := 15
+const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls", &"opt_reset", &"opt_reset_demo", &"opt_chatter", &"opt_fpsbox"]
+const PAGE_CELL := 23                ## three columns of eight rows: the MORE cell is the last
 ## RESET PROGRESS needs two presses: the first arms it (the label asks), the second wipes. Any other press, the page flip and BACK disarm it; only on the title screen.
 static var reset_armed := false
 ## The demo slot has its own confirm (`opt_reset_demo`): press, then press again.
@@ -41,8 +41,10 @@ const CB_NAMES: Array[String] = ["DEUTAN", "TRITAN"]
 const ORDER: Array[StringName] = [
 	&"opt_look_x", &"opt_look_y", &"opt_ads", &"opt_hud", &"opt_btn", &"opt_tier",
 	&"opt_aim", &"opt_auto", &"opt_left", &"opt_vib", &"opt_subs", &"opt_cb",
-	&"opt_fps", &"opt_bench",
+	&"opt_fps", &"opt_bench", &"opt_vol_music", &"opt_vol_sfx", &"opt_mute", &"opt_post", &"opt_cine",
 ]
+const VOLUME_STEPS: Array[float] = [1.0, 0.75, 0.5, 0.25, 0.0]
+const VOLUME_BUSES := {&"opt_vol_music": ["Music"], &"opt_vol_sfx": ["SFX", "Ambient", "Voice"]}
 
 
 static func is_slider(id: StringName) -> bool:
@@ -50,7 +52,7 @@ static func is_slider(id: StringName) -> bool:
 
 
 static func is_option(id: StringName) -> bool:
-	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_bench" or id == &"opt_tier" or id == &"opt_res" or id == &"opt_page" or PAGE2.has(id)
+	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_bench" or VOLUME_BUSES.has(id) or id == &"opt_mute" or id == &"opt_tier" or id == &"opt_res" or id == &"opt_page" or PAGE2.has(id)
 
 
 static func fraction(st: UiSettings, id: StringName) -> float:
@@ -75,6 +77,10 @@ static func label(st: UiSettings, id: StringName) -> String:
 		if id == &"opt_cb" and on:
 			return "%s %s" % [Tr.t(TOGGLE_NAMES[id]), Tr.t(CB_NAMES[st.cb_variant])]
 		return "%s %s" % [Tr.t(TOGGLE_NAMES[id]), Tr.t("ON" if on else "OFF")]
+	if VOLUME_BUSES.has(id):
+		return Tr.t("MUSIC" if id == &"opt_vol_music" else "SFX") + "  %d%%" % roundi(volume(st, id) * 100.0)
+	if id == &"opt_mute":
+		return Tr.t("SOUND") + " " + Tr.t("OFF" if st.muted else "ON")
 	if id == &"opt_fps":
 		return Tr.t("FPS CAP") + "  " + (Tr.t("OFF") if st.fps_cap == 0 else str(st.fps_cap))
 	if id == &"opt_bench":
@@ -103,12 +109,32 @@ static func label(st: UiSettings, id: StringName) -> String:
 		return Tr.t("TAP AGAIN: ERASE ALL" if reset_armed else "RESET PROGRESS")
 	if id == &"opt_reset_demo":
 		return Tr.t("TAP AGAIN: ERASE DEMO" if reset_demo_armed else "RESET DEMO SLOT")
+	if id == &"opt_chatter":
+		return Tr.t("STORY CHATTER") + "  " + Tr.t(UiSettings.CHATTER_NAMES[clampi(st.chatter, 0, 2)])
+	if id == &"opt_fpsbox":
+		return Tr.t("FPS DISPLAY") + "  " + Tr.t("ON" if _fps_on() else "OFF")
 	if id == &"opt_subbg":
 		return Tr.t("SUBTITLE BG") + "  " + Tr.t(SUB_BG_NAMES[st.sub_bg] if st.sub_bg != 1 else "ON")
 	return ""
 
 
+static func _touch() -> TouchControls:
+	var hud := Game.get_tree().get_first_node_in_group(&"hud") if Game.is_inside_tree() else null
+	return (hud as Hud).touch if hud is Hud else null
+
+
+static func _fps_on() -> bool:
+	var tc := _touch()
+	return tc != null and tc.perf_shown
+
+
+static func volume(st: UiSettings, id: StringName) -> float:
+	return clampf(float(st.volumes.get(VOLUME_BUSES[id][0], 1.0)), 0.0, 1.0)
+
+
 static func is_on(st: UiSettings, id: StringName) -> bool:
+	if id == &"opt_mute":
+		return not st.muted
 	return TOGGLES.has(id) and bool(st.get(TOGGLES[id]))
 
 
@@ -154,6 +180,20 @@ static func press(st: UiSettings, id: StringName) -> bool:
 			st.cb_safe = false
 			st.cb_variant = 0
 		return true
+	if id == &"opt_mute":
+		st.muted = not st.muted
+		return true
+	if VOLUME_BUSES.has(id):                             # 100 -> 75 -> 50 -> 25 -> 0 -> 100 %
+		var cur := volume(st, id)
+		var nxt := VOLUME_STEPS[0]
+		for i in VOLUME_STEPS.size() - 1:
+			if cur <= VOLUME_STEPS[i] + 0.01 and cur > VOLUME_STEPS[i + 1] + 0.01:
+				nxt = VOLUME_STEPS[i + 1]
+		if cur <= VOLUME_STEPS[VOLUME_STEPS.size() - 1] + 0.01:
+			nxt = 1.0
+		for b: String in VOLUME_BUSES[id]:
+			st.volumes[b] = nxt
+		return true
 	if TOGGLES.has(id):
 		st.set(TOGGLES[id], not bool(st.get(TOGGLES[id])))
 		return true
@@ -190,6 +230,15 @@ static func press(st: UiSettings, id: StringName) -> bool:
 	if id == &"opt_subbg":
 		st.sub_bg = (st.sub_bg + 1) % 3
 		return true
+	if id == &"opt_chatter":
+		st.chatter = (st.chatter + 1) % 3
+		UiSettings.s_chatter = st.chatter
+		return true
+	if id == &"opt_fpsbox":                              # the debug FPS box: hidden by default, also toggled by a long press under the minimap
+		var tc := _touch()
+		if tc != null:
+			tc.show_perf(not tc.perf_shown)
+		return true
 	if id == &"opt_fps":
 		st.fps_cap = st.next_fps_cap()
 		return true
@@ -207,9 +256,9 @@ static func press(st: UiSettings, id: StringName) -> bool:
 
 
 static func cell_rect(i: int, cx: float, s: float) -> Rect2:
-	var col := i % 2
-	var row := i / 2
-	return Rect2(cx - (COL_W + GAP * 0.5) * s + col * (COL_W + GAP) * s, (TOP + row * PITCH) * s, COL_W * s, ROW_H * s)
+	var col := i % 3
+	var row := i / 3
+	return Rect2(cx - (COL_W * 1.5 + GAP) * s + col * (COL_W + GAP) * s, (TOP + row * PITCH) * s, COL_W * s, ROW_H * s)
 
 
 static func layout(hud: Hud, st: UiSettings, cx: float, s: float) -> void:

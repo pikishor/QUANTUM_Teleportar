@@ -43,6 +43,7 @@ var touch: TouchControls
 ## Active screen buttons: {id: StringName, rect: Rect2, label: String, on: bool}. Rebuilt whenever the state or the viewport changes.
 var buttons: Array[Dictionary] = []
 var screen_age := 0.0               ## seconds since the current state began
+var toast := Toast.new()            ## the one toast channel (scripts/ui/toast.gd): message_text / message_left mirror it
 var message_text := ""
 var message_left := 0.0
 var new_best := false
@@ -56,6 +57,8 @@ var _obj_text := ""
 var _cred_text := ""
 var _shard_text := ""               ## I2 tracker under the credits plate
 var _contract_text := ""
+var _gear_open := false            ## the MORE page of the title / pause screen is open (the name is historic: it was a gear drop-down)
+var _hero_hub := false             ## the HERO hub (UPGRADES / WEAPONS / SKILLS / CRAFT tabs) is open: one tab bar over the shop, skills and workbench screens
 var _look_open := false             ## G2: the pause shop shows the hero suit / colour screen (scripts/ui/look_screen.gd)
 var _loadout_open := false          ## the pause screen shows the weapon wheel and attachment loadout
 var _loadout_page := 0             ## 0 weapons and attachments, 1 GEAR (throwables, gadget, saved loadouts: scripts/ui/gear_screen.gd)
@@ -96,6 +99,7 @@ var _sprites: Array = []
 
 func _ready() -> void:
 	layer = 10
+	add_to_group(&"hud")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	settings = UiSettings.new(settings_path)
 	photo = PhotoMode.new()
@@ -190,6 +194,8 @@ func _on_state(s: StringName) -> void:
 	_loadout_quick = false
 	_chapters_open = false
 	_options_open = false
+	_gear_open = false
+	_hero_hub = false
 	if s == &"menu":
 		_has_save = Game.progress != null and bool(Game.progress.call(&"has_save"))
 	if s == &"dead" or s == &"win":
@@ -203,7 +209,7 @@ func _on_state(s: StringName) -> void:
 
 ## True while a full-screen pause panel (shop, skills, gear, look, boards, options...) is open: it owns the whole picture, the gameplay HUD and minimap are hidden behind it.
 func panel_cover() -> bool:
-	return Game.state == &"paused" and not photo_open() and (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open)
+	return Game.state == &"paused" and not photo_open() and (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open or _gear_open)
 
 
 ## What the gameplay HUD layer (and the minimap on it) should show: not in the title, a cutscene, photo mode or behind a full-screen pause panel.
@@ -284,6 +290,29 @@ func toggle_pause() -> void:
 		Game.state = &"paused"
 	elif Game.state == &"paused":
 		Game.state = &"play"
+
+
+## Every control and read-out of a play frame, by id (the declutter contract: at most 12 in a default frame, tests/test_hud_declutter.gd). Touch: the stick, the visible buttons
+## (the ammo count rides on the WEAPON button) and pause; always: the minimap, the status bars and the one objective line; plus whatever is up right now (toast, subtitle,
+## wanted stars, FPS box, boss bar).
+func visible_controls() -> Array[StringName]:
+	var out: Array[StringName] = []
+	if Game.state != &"play" or not _hud.visible:
+		return out
+	if touch != null:
+		out.append_array(touch.visible_ids())
+	out.append_array([&"minimap", &"status", &"objective"])
+	if not touch_ui_on():
+		out.append(&"ammo")
+	if Game.heat > 0.01:
+		out.append(&"wanted")
+	if message_left > 0.0 and message_text != "":
+		out.append(&"toast")
+	if is_instance_valid(Game.story) and Game.story.line_visible() and UiSettings.s_subtitles:
+		out.append(&"subtitle")
+	if touch != null and touch.perf_visible():
+		out.append(&"fps")
+	return out
 
 
 func touch_ui_on() -> bool:
@@ -554,6 +583,21 @@ func press_button(id: StringName) -> bool:
 		_screen.queue_redraw()
 		return true
 	match id:
+		&"menu_gear":                                                 # MORE: opens the page of everything that is not on the main screen; a screen opened from it returns to it
+			if (Game.state != &"menu" and Game.state != &"paused") or not _main_screen():
+				return false
+			_gear_open = not _gear_open
+			Sfx.play(&"ui_confirm" if _gear_open else &"ui_back")
+		&"more_back":
+			if not _gear_open:
+				return false
+			_gear_open = false
+			Sfx.play(&"ui_back")
+		&"pause_map":
+			if Game.state != &"paused" or Game.progress == null or touch == null or not _main_screen():
+				return false
+			Sfx.play(&"ui_confirm")
+			touch.open_map()
 		&"options":
 			if Game.state != &"menu" and Game.state != &"paused":
 				return false
@@ -584,14 +628,31 @@ func press_button(id: StringName) -> bool:
 			if not bool(Game.progress.call(&"continue_game")):
 				return false
 			Sfx.play(&"ui_confirm")
-		&"shop":
+		&"shop", &"hero_open":                                        # the HERO hub: UPGRADES / WEAPONS / SKILLS / CRAFT tabs over one screen
 			if Game.state != &"paused" or Game.progress == null:
 				return false
 			_shop_open = true
+			_hero_hub = true
+			_skills_open = false
+			_craft_open = false
 			ShopScreen.weapon_page = 0                            # always the upgrades page first
 			Sfx.play(&"ui_confirm")
+		&"hero_tab_up", &"hero_tab_weapons", &"hero_tab_skills", &"hero_tab_craft":
+			if Game.state != &"paused" or Game.progress == null or not _hero_hub:
+				return false
+			_shop_open = true
+			_skills_open = id == &"hero_tab_skills"
+			if id == &"hero_tab_craft":
+				if not _craft_open:
+					CraftScreen.reset_state()
+				_craft_open = true
+			else:
+				_craft_open = false
+			if id == &"hero_tab_up" or id == &"hero_tab_weapons":
+				ShopScreen.weapon_page = 0 if id == &"hero_tab_up" else 1
+			Sfx.play(&"ui_tap")
 		&"loadout":
-			if Game.state != &"paused" or Game.progress == null or not _shop_open:
+			if Game.state != &"paused" or Game.progress == null or _loadout_open:
 				return false
 			_loadout_open = true
 			_loadout_quick = false
@@ -599,7 +660,7 @@ func press_button(id: StringName) -> bool:
 			LoadoutScreen.reset_page()
 			Sfx.play(&"ui_confirm")
 		&"skills_open":
-			if Game.state != &"paused" or Game.progress == null or not _shop_open:
+			if Game.state != &"paused" or Game.progress == null or _skills_open:
 				return false
 			_skills_open = true
 			Sfx.play(&"ui_confirm")
@@ -607,9 +668,10 @@ func press_button(id: StringName) -> bool:
 			if Game.state != &"paused" or not _skills_open:
 				return false
 			_skills_open = false
+			_close_hero()
 			Sfx.play(&"ui_back")
 		&"look_open":
-			if Game.state != &"paused" or Game.progress == null or not _shop_open:
+			if Game.state != &"paused" or Game.progress == null or _look_open:
 				return false
 			_look_open = true
 			Sfx.play(&"ui_confirm")
@@ -633,7 +695,7 @@ func press_button(id: StringName) -> bool:
 				Game.state = &"play"
 				return true
 		&"side_open":
-			if Game.state != &"paused" or Game.progress == null or not _shop_open:
+			if Game.state != &"paused" or Game.progress == null or _side_open:
 				return false
 			_side_open = true
 			SideBoard.page = 0
@@ -668,6 +730,7 @@ func press_button(id: StringName) -> bool:
 			if Game.state != &"paused":
 				return false
 			_shop_open = false
+			_hero_hub = false
 			Sfx.play(&"ui_back")
 		&"deploy":
 			if Game.state != &"menu":
@@ -790,9 +853,15 @@ func end_drag() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _on_message(text: String, seconds: float) -> void:
-	message_text = text
-	message_left = seconds
-	_msg_total = maxf(seconds, 0.1)
+	toast.left = message_left                                # the visible clock is the truth (screens and tests may clear it)
+	if toast.offer(text, seconds):
+		_sync_toast()
+
+
+func _sync_toast() -> void:
+	message_text = toast.text
+	message_left = toast.left
+	_msg_total = maxf(toast.total, 0.1)
 
 
 ## "QUANTUM CORES  2 / 6   NEAREST  143 M" with the horizontal distance to the nearest core (the Missions module may not exist).
@@ -913,11 +982,14 @@ func _process(delta: float) -> void:
 				FX.shake(0.16 if Game.player.get("last_hit_kill") == true else 0.07)
 	screen_age += real
 	message_left = maxf(message_left - delta, 0.0)
+	toast.left = message_left
+	if toast.tick(delta):
+		_sync_toast()
 	_text_t -= delta
 	if _text_t <= 0.0:
 		_text_t = 0.2
 		_obj_text = objective_text()
-		_shard_text = ("SHARDS  %d / %d" % [(Game.progress as Progress).collectibles.count() if Game.progress.get("collectibles") != null else 0, Collectibles.COUNT]) if Game.progress != null else ""
+		_shard_text = ""                                      # no shard counter on the HUD (the map and the pause screen keep it)
 		_cred_text = "CREDITS  %d" % (int(Game.progress.get(&"credits")) if Game.progress != null else Game.score)
 		_contract_text = _contract_line()
 		_camp_text = _campaign_line()
@@ -1086,7 +1158,7 @@ func _draw_ally(c: Control, s: float, font: Font, right: float, top: float) -> v
 	var ally := Companion.current
 	if ally == null or not ally.active or Game.state == &"menu":
 		return
-	var r := Rect2(right - 262.0 * s, top + (124.0 if _shard_text != "" else 90.0) * s, 182.0 * s, 44.0 * s)
+	var r := Rect2(right - 262.0 * s, top + 50.0 * s, 182.0 * s, 44.0 * s)
 	_plate(c, r, s, Color(0.3, 0.9, 1.0, 0.55))
 	_text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 20.0 * s), "ALLY  " + ally.mode_name(), HORIZONTAL_ALIGNMENT_LEFT, 170.0 * s, int(UiUtil.BAR_LABEL * s * 0.85), Color(0.3, 0.9, 1.0, 0.97), 1.0 * s)
 	var f := ally.hp_fraction()
@@ -1168,24 +1240,20 @@ func _draw_hud_body() -> void:
 	UiUtil.stack_bottom = stack_end / s
 	if playing and _camp_text != "":
 		_draw_waypoint(c, vp, s, font, ins, insv)
-	# top right: heat stars and credits on one plate
-	_plate(c, Rect2(right - 196.0 * s, top, 204.0 * s, 84.0 * s), s)
-	var heat := Game.heat
-	for i in 5:
-		var centre := Vector2(right - (4 - i) * 30.0 * s - 14.0 * s, top + 22.0 * s)
-		var sr := Rect2(centre - Vector2(12.0, 12.0) * s, Vector2(24.0, 24.0) * s)
-		_sprite(c, &"star", sr, Color(1, 1, 1, 0.16))
-		var fill := clampf(heat - i, 0.0, 1.0)
-		if fill > 0.0:
-			var col := UiUtil.AMBER if heat < 3.0 else UiUtil.RED
-			var pulse := 1.0 if heat < 3.0 else 0.8 + 0.2 * sin(_t * 8.0)
-			_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
-	_text(c, font, Vector2(right - 192.0 * s, top + 72.0 * s), _cred_text + _clock_suffix(), HORIZONTAL_ALIGNMENT_RIGHT, 190.0 * s, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.97), 1.5 * s)
-	_draw_wanted_tag(c, s, font, vp, top)
-	if _shard_text != "" and Game.state != &"menu":
-		var sr := Rect2(right - 262.0 * s, top + 90.0 * s, 182.0 * s, 30.0 * s)     ## left of the weapon slot column (x = right - 76 s), inside the screen
-		_plate(c, sr, s)
-		_text(c, font, Vector2(sr.position.x + 4.0 * s, sr.position.y + 23.0 * s), _shard_text, HORIZONTAL_ALIGNMENT_CENTER, 174.0 * s, int(UiUtil.BAR_LABEL * s), Color(0.7, 0.55, 1.0, 0.97), 1.0 * s)
+	# top right: the wanted stars, only while there is heat (credits are a toast on pickup and live in the pause screen; no shard counter, no faction plate on quiet ground)
+	if Game.heat > 0.01 and Game.state != &"menu":
+		var heat := Game.heat
+		_plate(c, Rect2(right - 196.0 * s, top, 204.0 * s, 44.0 * s), s)
+		for i in 5:
+			var centre := Vector2(right - (4 - i) * 30.0 * s - 14.0 * s, top + 22.0 * s)
+			var sr := Rect2(centre - Vector2(12.0, 12.0) * s, Vector2(24.0, 24.0) * s)
+			_sprite(c, &"star", sr, Color(1, 1, 1, 0.16))
+			var fill := clampf(heat - i, 0.0, 1.0)
+			if fill > 0.0:
+				var col := UiUtil.AMBER if heat < 3.0 else UiUtil.RED
+				var pulse := 1.0 if heat < 3.0 else 0.8 + 0.2 * sin(_t * 8.0)
+				_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
+		_draw_wanted_tag(c, s, font, vp, top)
 	_draw_ally(c, s, font, right, top)
 	if p == null:
 		_draw_message(c, vp, s, font)
@@ -1201,9 +1269,11 @@ func _draw_hud_body() -> void:
 	if touch_on:
 		ax = minf(ax, vp.x - ins.y - 600.0 * s - 215.0 * s - 10.0 * s)     # clear of the 430 px weapon plate above the ammo
 	var ab := Rect2(ax - aw * 0.5, base_y - 82.0 * s, aw, 66.0 * s)
-	_plate(c, ab, s)
-	_text(c, font, Vector2(ab.position.x, ab.position.y + 50.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(48.0 * s), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
-	if veh == null and weapon_text() != "":
+	var ammo_plate := not touch_on or veh != null           # on a phone the ammo count lives on the WEAPON button; the plate stays for the speed in a car
+	if ammo_plate:
+		_plate(c, ab, s)
+		_text(c, font, Vector2(ab.position.x, ab.position.y + 50.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(48.0 * s), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
+	if veh == null and not touch_on and weapon_text() != "":
 		var wr := Rect2(ab.get_center().x - 215.0 * s, ab.position.y - 42.0 * s, 430.0 * s, 36.0 * s)
 		_plate(c, wr, s)
 		_text(c, font, Vector2(wr.position.x, wr.position.y + 27.0 * s), weapon_text(), HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
@@ -1214,6 +1284,10 @@ func _draw_hud_body() -> void:
 		if wch > 0.0:
 			var hot := p.get("weapon") is PlayerWeapon and (p.get("weapon") as PlayerWeapon).def.has("heat_per")
 			_rect(c, Rect2(wr.position.x, wr.position.y - 8.0 * s, wr.size.x * wch, 5.0 * s), Color(UiUtil.AMBER if hot else UiUtil.CYAN, 0.95) if wch < 0.999 or not hot else Color(1.0, 0.3, 0.2, 0.95))
+	if touch_on and veh == null and weapon_charge() > 0.0:       # the Pulse Lance charge: a thin bar under the crosshair (the weapon plate is gone on phones)
+		var cw := 140.0 * s
+		_rect(c, Rect2(vp.x * 0.5 - cw * 0.5, vp.y * 0.5 + 58.0 * s, cw, 6.0 * s), Color(0.0, 0.03, 0.05, 0.7))
+		_rect(c, Rect2(vp.x * 0.5 - cw * 0.5, vp.y * 0.5 + 58.0 * s, cw * weapon_charge(), 6.0 * s), Color(UiUtil.CYAN, 0.95))
 	if p.get("quantum") != null and not touch_on:
 		for i in UiUtil.ABILITIES.size():
 			var info: Dictionary = UiUtil.ABILITIES[i]
@@ -1235,9 +1309,11 @@ func _draw_hud_body() -> void:
 			var label := UiUtil.ability_label(info, suffix, s)
 			_text(c, font, Vector2(r.position.x, r.position.y + 32.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, UiUtil.fit_size(font, label, r.size.x - 8.0 * s, int(UiUtil.BAR_LABEL * s)), Color(1, 1, 1, 0.97 * dim), 1.0 * s)
 	if playing:
-		_draw_quantum_readout(c, vp, s, font)
+		if UiSettings.s_chatter >= 2:
+			_draw_quantum_readout(c, vp, s, font)
 		_draw_tutorial(c, vp, s, font)
-		_draw_first_use(c, vp, s, font)
+		if UiSettings.s_chatter >= 2:
+			_draw_first_use(c, vp, s, font)
 	if playing and veh == null:
 		_draw_crosshair(c, p, vp, s, now)
 	if playing and veh != null and radio_text() != "":
@@ -1311,25 +1387,9 @@ func _draw_message(c: Control, vp: Vector2, s: float, font: Font) -> void:
 		_text(c, font, Vector2(r.position.x, r.position.y + 34.0 * s + float(i) * line_h), lines[i], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, Color(1, 1, 1, 0.98 * fade), 2.0 * s)
 
 
-## The toast text as one or two lines: one when it fits the widest plate, else split at the space that balances the two halves.
-func msg_wrap(vp: Vector2, s: float, text: String, size: int, font: Font) -> Array[String]:
-	var tt := Tr.t(text)
-	var maxw := msg_max_width(vp, s) - 40.0 * s
-	if _text_width(font, tt, size) <= maxw:
-		return [text]
-	var words := text.split(" ", false)
-	var best := -1
-	var best_w := 1.0e9
-	for i in range(1, words.size()):
-		var a := " ".join(words.slice(0, i))
-		var b := " ".join(words.slice(i))
-		var w := maxf(_text_width(font, Tr.t(a), size), _text_width(font, Tr.t(b), size))
-		if w < best_w:
-			best_w = w
-			best = i
-	if best < 0:
-		return [text]
-	return [" ".join(words.slice(0, best)), " ".join(words.slice(best))]
+## The toast text as lines: always exactly one (the toast channel allows a single line).
+func msg_wrap(_vp: Vector2, _s: float, text: String, _size: int, _font: Font) -> Array[String]:
+	return [text]                                            # ONE line always: a long one shrinks to the plate in _draw_message
 
 
 ## The widest a toast may be: the screen minus the subtitle column on each side (the chapter banner's lane).
@@ -1341,7 +1401,7 @@ func msg_max_width(vp: Vector2, s: float) -> float:
 func msg_top(s: float) -> float:
 	var y := (UiUtil.stack_bottom + MSG_GAP) * s
 	if is_instance_valid(Game.story) and Game.story.has_method(&"banner_visible") and Game.story.call(&"banner_visible"):
-		y += 134.0 * s
+		y += (134.0 if UiSettings.s_chatter >= 2 else 86.0) * s
 	return y
 
 
@@ -1470,6 +1530,7 @@ func _ensure_layout() -> void:
 	key += "|c%s%d%d%d%d%s%d" % [_craft_open, CraftScreen.page, CraftScreen.grid_page, Crafting.rev, CraftScreen.sel_item, CraftScreen.sel_bp, WeaponDefs.last_used.hash()]
 	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100]
 	key += "|g%d%s%s%d%d" % [_loadout_page, Gear.throwable, Gear.gadget, Gear.owned.size(), Gear.active_slot]
+	key += "|G%s%s" % [_gear_open, _hero_hub]
 	key += "|%s%d%d%d%d%s" % [_options_open, int(settings.hud_scale * 100.0), UiSettings.s_opt_page, ControlsScreen.tab, ControlsScreen.page, ControlsScreen.listening]
 	if photo != null and photo.active:
 		key += "|p%s%s%s%d%d%s%d%d%d%d" % [photo.hide_ui, photo.hide_hero, photo.pan_mode, photo.filter_i, photo.pose_i, photo.hour_text(), roundi(photo.fov), roundi(photo.dof * 100.0), roundi(photo.dist * 10.0), int(photo.status_left > 0.0)]
@@ -1488,21 +1549,12 @@ func _ensure_layout() -> void:
 				ArenaBoard.layout(self, cx, s)
 			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
-			elif _has_save:
-				_add(&"continue", Rect2(cx - 170.0 * s, (318.0 + dy) * s, 340.0 * s, 64.0 * s), "CONTINUE", false)
-				if _chapters_ok():                                    # NEW GAME and CHAPTERS share the row
-					_add(&"deploy", Rect2(cx - 170.0 * s, (392.0 + dy) * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "NEW GAME", false)
-					_add(&"chapters", Rect2(cx + 4.0 * s, (392.0 + dy) * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "CHAPTERS", false)
-				else:
-					_add(&"deploy", Rect2(cx - 170.0 * s, (392.0 + dy) * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "NEW GAME", false)
-				_settings_rows(cx, 484.0 + dy, s)
-			elif _chapters_ok():                                      # no save, but chapters were unlocked on an earlier run
-				_add(&"deploy", Rect2(cx - 170.0 * s, (318.0 + dy) * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
-				_add(&"chapters", Rect2(cx - 170.0 * s, (392.0 + dy) * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "CHAPTERS", false)
-				_settings_rows(cx, 484.0 + dy, s)
-			else:
-				_add(&"deploy", Rect2(cx - 170.0 * s, 318.0 * s, 340.0 * s, 64.0 * s), "DEPLOY", false)
-				_settings_rows(cx, 430.0, s)
+			elif _gear_open:
+				_layout_more(vp, cx, s)
+			else:                                                      # PLAY / CONTINUE, OPTIONS, MORE: nothing else on the title
+				_add(&"continue" if _has_save else &"deploy", Rect2(cx - 170.0 * s, (318.0 + dy) * s, 340.0 * s, 64.0 * s), "CONTINUE" if _has_save else "PLAY", false)
+				_add(&"options", Rect2(cx - 170.0 * s, (392.0 + dy) * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "OPTIONS", false)
+				_add(&"menu_gear", Rect2(cx + 4.0 * s, (392.0 + dy) * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "MORE", false)
 		&"paused":
 			if photo_open():
 				PhotoScreen.layout(self, photo, vp, s)
@@ -1513,8 +1565,12 @@ func _ensure_layout() -> void:
 			elif _chapters_open:
 				ChapterSelect.layout(self, cx, s)
 			elif _craft_open:
+				if _hero_hub:
+					ShopScreen.tabs(self, cx, s, &"hero_tab_craft")
 				CraftScreen.layout(self, cx, s)
 			elif _skills_open:
+				if _hero_hub:
+					ShopScreen.tabs(self, cx, s, &"hero_tab_skills")
 				SkillScreen.layout(self, cx, s)
 			elif _heist_open:
 				HeistBoard.layout(self, cx, s)
@@ -1532,38 +1588,81 @@ func _ensure_layout() -> void:
 				AchievementsScreen.layout(self, cx, s, _ach_page)
 			elif _safe_open:
 				SafehouseScreen.layout(self, cx, s)
-			elif Game.progress != null:
+			elif _gear_open:
+				_layout_more(vp, cx, s)
+			elif Game.progress != null:                                 # RESUME, MAP, LOADOUT, OPTIONS and MORE: the whole pause menu
 				_add(&"resume", Rect2(cx - 170.0 * s, 232.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
-				_add(&"photo_open", Rect2(cx + 180.0 * s, 232.0 * s, 150.0 * s, UiUtil.TOUCH_MIN * s), "PHOTO", false)
-				_add(&"sh_open", Rect2(cx - 330.0 * s, 232.0 * s, 150.0 * s, UiUtil.TOUCH_MIN * s), "SAFEHOUSE", false)
-				if _chapters_ok():
-					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "UPGRADES", false)
-					_add(&"chapters", Rect2(cx + 4.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "CHAPTERS", false)
-				else:
-					_add(&"shop", Rect2(cx - 170.0 * s, 304.0 * s, 340.0 * s, UiUtil.TOUCH_MIN * s), "UPGRADES", false)
-				_add(&"ach", Rect2(cx - 170.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "ACHIEVEMENTS", false)
-				_add(&"arena_open", Rect2(cx + 4.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "ARENA", false)
-				_settings_rows(cx, PAUSE_SETTINGS_Y, s)
-				_add(&"menu", Rect2(cx - 154.0 * s, (PAUSE_SETTINGS_Y + 148.0) * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
+				_add(&"pause_map", Rect2(cx - 170.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "MAP", false)
+				_add(&"loadout", Rect2(cx + 4.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "LOADOUT", false)
+				_add(&"options", Rect2(cx - 170.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "OPTIONS", false)
+				_add(&"menu_gear", Rect2(cx + 4.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "MORE", false)
 			else:
 				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
-				_settings_rows(cx, 350.0, s)
-				_add(&"menu", Rect2(cx - 154.0 * s, 514.0 * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
+				_add(&"menu", Rect2(cx - 154.0 * s, 314.0 * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
 		&"dead":
 			_add(&"respawn", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "RESPAWN", false)      # low on the screen: the middle stays free for the world
 		&"win":
 			_add(&"next", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "NEXT SECTOR", false)
-	if Game.state == &"menu" and not _options_open and not _chapters_open and not _arena_open and Game.progress != null:
-		_add(&"arena_open", Rect2(UiUtil.insets(vp).x + 16.0 * s + (TAB_W + TAB_GAP) * s, 6.0 * s, TAB_W * s, UiUtil.TOUCH_MIN * s), "ARENA", false)       # BOSS RUSH / ARENA from the title
-		_add(&"demo", Rect2(UiUtil.insets(vp).x + 16.0 * s, 6.0 * s, TAB_W * s, UiUtil.TOUCH_MIN * s), "DEMO", false)       # DEMO MODE: a sandbox profile with everything unlocked (scripts/demo/)
-	if (Game.state == &"menu" or Game.state == &"paused") and not _options_open and not _arena_open and not photo_open():
-		_add(&"options", _options_btn(vp, s), "OPTIONS", false)       # last: screens index their own buttons from 0
+
+
+## The entries of the MORE page (button id, label) for the current screen: the title lists what is not PLAY / OPTIONS, the pause menu everything else.
+func more_items() -> Array:
+	var items: Array = []
+	if Game.state == &"menu":
+		if _has_save:
+			items.append([&"deploy", "NEW GAME"])
+		if _chapters_ok():
+			items.append([&"chapters", "CHAPTERS"])
+		if Game.progress != null:
+			items.append_array([[&"demo", "DEMO"], [&"arena_open", "ARENA"]])
+	else:
+		items = [[&"hero_open", "HERO"], [&"side_open", "MISSIONS"], [&"heist_open", "HEISTS"], [&"look_open", "SUIT"], [&"sh_open", "SAFEHOUSE"], [&"ach", "ACHIEVEMENTS"], [&"photo_open", "PHOTO"], [&"arena_open", "ARENA"]]
+		if _chapters_ok():
+			items.append([&"chapters", "CHAPTERS"])
+		items.append([&"menu", "ABORT TO MENU"])
+	return items
+
+
+const MORE_COLS := 3
+const MORE_W := 226.0
+const MORE_GAP := 8.0
+const MORE_Y := 150.0
+
+
+## The cell `i` (row-major) of the MORE grid: three columns of 64 px buttons.
+func more_cell(i: int, cx: float, s: float) -> Rect2:
+	return Rect2(cx + (-1.5 * MORE_W - MORE_GAP + float(i % MORE_COLS) * (MORE_W + MORE_GAP)) * s, (MORE_Y + float(i / MORE_COLS) * 72.0) * s, MORE_W * s, UiUtil.TOUCH_MIN * s)
+
+
+## The reserved cell of the TEST button (test mode only; scripts/ui/test_menu.gd draws it): right after the last entry. Empty when the MORE page is closed.
+func more_test_rect() -> Rect2:
+	if not _gear_open or not (Game.state == &"menu" or Game.state == &"paused") or not _main_screen() or not TestMode.available():
+		return Rect2()
+	var vp := get_viewport().get_visible_rect().size
+	return more_cell(more_items().size(), vp.x * 0.5, UiUtil.ui_scale(vp))
+
+
+func _layout_more(vp: Vector2, cx: float, s: float) -> void:
+	var items := more_items()
+	for k in items.size():
+		_add(items[k][0], more_cell(k, cx, s), items[k][1], false)
+	var n := items.size() + (1 if TestMode.available() else 0)
+	_add(&"more_back", more_cell(n, cx, s), "BACK", false)
+
+
+## True on the plain title or pause screen (no sub screen open): the only place the gear shows.
+func _main_screen() -> bool:
+	if _options_open or _arena_open or _chapters_open or photo_open():
+		return false
+	if Game.state == &"paused":
+		return not (_craft_open or _skills_open or _heist_open or _side_open or _look_open or _loadout_open or _shop_open or _ach_open or _safe_open)
+	return Game.state == &"menu"
 
 
 ## Vertical shift (base px) of the title block (name, rule, subtitle, tagline and the buttons under them) on the title screen: -20 when a second row of 64 px buttons (NEW GAME /
 ## CHAPTERS) needs the room, so the settings rows still end above the BEST line. 0 with the single DEPLOY button.
 func _title_shift() -> float:
-	return -20.0 if (_has_save or _chapters_ok()) else 0.0
+	return -20.0                                                   # the OPTIONS / MORE row always joins PLAY
 
 
 ## The plate behind the title block (name, rule, subtitle, tagline) on the title screen.
@@ -1579,18 +1678,13 @@ func _options_btn(vp: Vector2, s: float) -> Rect2:
 	return Rect2(vp.x - UiUtil.insets(vp).y - 196.0 * s, 6.0 * s, 180.0 * s, UiUtil.TOUCH_MIN * s)
 
 
-func _settings_rows(cx: float, y: float, s: float) -> void:
-	for i in 4:                                                  # LOW+ (id qlp), LOW, MED, HIGH (ids q0, q1, q2)
-		_add(&"qlp" if i == 0 else StringName("q%d" % (i - 1)), Rect2(cx - 154.0 * s + i * 78.0 * s, y * s, 74.0 * s, 40.0 * s), Game.TIER_LABELS[i], Game.tier_index() == i)
-	_add(&"post", Rect2(cx - 154.0 * s, (y + 50.0) * s, 100.0 * s, 40.0 * s), "POST " + ("ON" if settings.post else "OFF"), settings.post)
-	_add(&"mute", Rect2(cx - 50.0 * s, (y + 50.0) * s, 100.0 * s, 40.0 * s), "SFX " + ("OFF" if settings.muted else "ON"), not settings.muted)
-	_add(&"cine", Rect2(cx + 54.0 * s, (y + 50.0) * s, 100.0 * s, 40.0 * s), "CINE " + ("ON" if settings.cutscenes else "OFF"), settings.cutscenes)
-	_add(&"vol_music", Rect2(cx - 154.0 * s, (y + 100.0) * s, 150.0 * s, 40.0 * s), "MUSIC", true)          # sliders: the rect is the track, the fill and value are drawn from settings
-	_add(&"vol_sfx", Rect2(cx + 4.0 * s, (y + 100.0) * s, 150.0 * s, 40.0 * s), "SFX", true)
-
-
 func _add(id: StringName, r: Rect2, label: String, on: bool) -> void:
 	buttons.append({"id": id, "rect": r, "label": label, "on": on})
+
+
+## A whole-row button: its plate and frame are drawn, its label is not (the screen paints the row itself; the label stays for tests and the screen reader).
+func _add_row(id: StringName, r: Rect2, label: String, on: bool) -> void:
+	buttons.append({"id": id, "rect": r, "label": label, "on": on, "flat": true})
 
 
 func _draw_screen(_ignored: Control = null) -> void:
@@ -1618,7 +1712,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		&"paused" when photo_open():
 			PhotoScreen.draw(self, photo, c, vp, s, font)      # no dim: the live world is the picture
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open or _gear_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -1635,6 +1729,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			ArenaBoard.draw(self, c, vp, s, font, cx)
 		&"menu" when _chapters_open:
 			ChapterSelect.draw(self, c, vp, s, font, cx)
+		&"menu" when _gear_open:
+			_text(c, font, Vector2(0.0, 96.0 * s), "MORE", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(52.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
 		&"menu":
 			var dy := _title_shift()
 			var tp := title_plate(vp, s)
@@ -1645,8 +1741,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			_text(c, font, Vector2(0.0, (258.0 + dy) * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 			if is_instance_valid(Game.story) and Game.story.has_method(&"tagline"):
 				_text(c, font, Vector2(0.0, (294.0 + dy) * s), str(Game.story.call(&"tagline")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, 0.85), 1.0 * s)
-			_text(c, font, Vector2(0.0, (476.0 + dy if (_has_save or _chapters_ok()) else 424.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
-			_footer(c, vp, s, font)
+			if not touch_ui_on():
+				_footer(c, vp, s, font)
 		&"paused":
 			if photo_open():
 				pass                                               # drawn above (PhotoScreen.draw), buttons below
@@ -1676,10 +1772,12 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				SafehouseScreen.draw(self, c, vp, s, font, cx)
 			elif _shop_open:
 				ShopScreen.draw(self, c, vp, s, font, cx)
+			elif _gear_open:
+				_text(c, font, Vector2(0.0, 96.0 * s), "MORE", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(52.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
 			else:
 				_text(c, font, Vector2(0.0, 190.0 * s), "PAUSED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(64.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
-				_text(c, font, Vector2(0.0, (PAUSE_SETTINGS_Y - 6.0 if Game.progress != null else 344.0) * s), "GRAPHICS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
-				_footer(c, vp, s, font)
+				if not touch_ui_on():
+					_footer(c, vp, s, font)
 		&"dead":
 			_text(c, font, Vector2(0.0, 170.0 * s), "DECOHERED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(84.0 * s), Color(UiUtil.RED, 0.97), 3.0 * s)
 			_score_lines(c, vp, s, font, 226.0)
@@ -1716,6 +1814,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		if focus_ring and b["id"] == pad.focus:
 			c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
 			c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+		if b.get("flat", false):
+			continue
 		if String(b["id"]).begins_with("wheel_") and WeaponIcons.has_icon(StringName(String(b["id"]).substr(6))):      # weapon wheel: icon over the tag
 			WeaponIcons.draw(c, StringName(String(b["id"]).substr(6)), Rect2(r.position.x + r.size.x * 0.1, r.position.y + 3.0 * s, r.size.x * 0.8, r.size.y * 0.5), Color(1, 1, 1, 0.95 if (on or hot) else 0.8))
 			_text(c, font, Vector2(r.position.x, r.position.y + r.size.y - 9.0 * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(17.0 * s), Color(1, 1, 1, 0.97 if (on or hot) else 0.75))
@@ -1857,6 +1957,15 @@ func look_or_sub_open() -> bool:
 	return _look_open or _loadout_open or _ach_open or _craft_open
 
 
+## Leaves the HERO hub when one of its tabs is backed out of (skills, workbench): the tab bar goes with it, the shop screen under it too.
+func _close_hero() -> void:
+	if _hero_hub:
+		_hero_hub = false
+		_shop_open = false
+		_skills_open = false
+		_craft_open = false
+
+
 ## The workbench (scripts/ui/craft_screen.gd): `cr_open` from the shop, a safehouse or the DEMO menu (the pause menu otherwise), then the screen's own buttons, `cr_back` returns.
 func _press_craft(sid: String) -> bool:
 	if Game.state != &"paused" or Game.progress == null or photo_open():
@@ -1875,6 +1984,7 @@ func _press_craft(sid: String) -> bool:
 	var ok := true
 	if sid == "cr_back":
 		_craft_open = false
+		_close_hero()
 		Sfx.play(&"ui_back")
 	else:
 		ok = CraftScreen.press(sid)
@@ -1889,7 +1999,7 @@ func _press_heist(sid: String) -> bool:
 	if Game.state != &"paused" or Game.progress == null:
 		return false
 	if sid == "heist_open":
-		if not _shop_open:
+		if _heist_open:
 			return false
 		_heist_open = true
 		Sfx.play(&"ui_confirm")

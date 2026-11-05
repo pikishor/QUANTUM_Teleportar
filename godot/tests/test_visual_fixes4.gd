@@ -40,6 +40,7 @@ func run(h: Node) -> void:
 func _title() -> void:
 	Game.state = &"menu"
 	await frames(4)
+	hud._gear_open = false
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var vp := hud.get_viewport().get_visible_rect().size
@@ -56,8 +57,8 @@ func _title() -> void:
 			named[k] = rects[k]
 	named["test"] = tm.entry_rect()
 	TestLib.check(VisualQaLib.overlap(named) == "", "title buttons do not overlap: %s" % VisualQaLib.overlap(named))
-	var gap := tm.entry_rect().position.y - (rects["options"] as Rect2).end.y
-	TestLib.check(gap >= 8.0 * s - 0.5, "the TEST badge keeps a gap under OPTIONS (%.1f px at scale %.2f)" % [gap, s])
+	var gap := (rects["menu_gear"] as Rect2).position.x - tm.entry_rect().end.x
+	TestLib.check(gap >= 8.0 * s - 0.5, "the TEST badge keeps a gap left of the gear (%.1f px at scale %.2f)" % [gap, s])
 	if rects.has("demo"):
 		TestLib.check(not (rects["demo"] as Rect2).grow(6.0 * s).intersects(tm.entry_rect()), "TEST does not crowd the DEMO button")
 		TestLib.check((rects["demo"] as Rect2).size.y >= 63.9 * s, "DEMO is 64 base px")

@@ -213,6 +213,8 @@ func _scene() -> void:
 	var moved := pad.focus
 	_tap(JOY_BUTTON_DPAD_UP)
 	TestLib.check(pad.focus == before or pad.focus != moved, "D-pad up moves it back")
+	hud._layout_key = ""
+	hud._ensure_layout()
 	pad._set_focus(&"options")
 	_tap(JOY_BUTTON_A)
 	TestLib.check(hud._options_open, "A presses the focused OPTIONS button")
@@ -229,7 +231,7 @@ func _scene() -> void:
 	pad._set_focus(&"opt_look_x")
 	for i in 40:
 		seen[pad.focus] = true
-		for d in [JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_RIGHT, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT]:
+		for d in [JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_RIGHT, JOY_BUTTON_DPAD_RIGHT, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_LEFT]:
 			_tap(d)
 			seen[pad.focus] = true
 	var ids := []

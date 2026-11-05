@@ -68,10 +68,10 @@ func run(host: Node) -> void:
 		found = found or a["action"] == &"collapse"
 	TestLib.check(found and InputMap.has_action(&"collapse"), "HUD ability and input action exist")
 	var btn := false
-	for b: Dictionary in TouchControls.BUTTONS:
-		if b["action"] == &"collapse":
-			btn = int(b["ability"]) < UiUtil.ABILITIES.size() and float(b["dx"]) + float(b["r"]) <= StoryView.TOUCH_BUTTONS_W
-	TestLib.check(btn, "touch button exists and fits")
+	for w: Dictionary in TouchControls.WHEEL_ABILITIES:
+		if w["id"] == &"collapse":
+			btn = int(w["ui"]) < UiUtil.ABILITIES.size()
+	TestLib.check(btn, "COLLAPSE is on the ABILITY wheel (the default HUD has one ABILITY button)")
 	Game.state = &"pause"
 	q.cd_collapse = 0.0
 	TestLib.check(not q.collapse_all(), "paused: refuses to fire")

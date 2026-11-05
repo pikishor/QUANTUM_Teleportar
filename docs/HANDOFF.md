@@ -693,3 +693,14 @@ Follow-ups from latest.png: car paint reads flat purple at night; skills and gea
 - Perf gate: LOW 93 draws / 125k tris / 166 MB, MED 133 / 248k / 193 MB, HIGH 146 / 354k / 315 MB, death-spike draws 104 / 148 / 168: all three OK.
 - full_bot.sh: exit 0 (soak PASS).
 - visual_qa: 26/27, FAIL "hero blends in" (sep 0.007, dark suit against dark street at night). Follow-ups: HUD is still crowded (resource bars, 4 ability chips, weapon line, ammo, side buttons) on every street shot; title screen "DEMO" button collides with the capture label; hero silhouette needs a rim/readable colour; no real-phone measurement of LOW+ yet.
+
+## Menu declutter (reboot wave, tests/test_menu_declutter.gd)
+- Title: PLAY / CONTINUE, OPTIONS, MORE. Pause: RESUME, MAP, LOADOUT, OPTIONS, MORE. MORE page (`Hud._gear_open`, `Hud.more_items()`): everything else, BACK returns to it from every screen opened there. TEST button is a MORE cell only. HERO hub: tabs UPGRADES / WEAPONS / SKILLS / CRAFT over one screen (`Hud._hero_hub`), upgrade rows are whole-row one-tap buys grouped WEAPON / ABILITY / BODY. Old tests that looked for OPTIONS / ARENA / PHOTO / SAFEHOUSE / ACHIEVEMENTS / CHAPTERS / NEW GAME on the main screen now open MORE first (`hud._gear_open = true`).
+- `tests/bot_menu_shots.gd` (BOT_RES=844x390 MENU_OUT=dir tools/bot.sh ...) saves title, pause, MORE, HERO tab, loadout, options shots.
+- Open: `test_collectibles` fails the `_shard_text` HUD tracker check (from the concurrent HUD declutter change, not the menus); gameplay HUD banners are another builder's scope.
+
+## Wave 82 integration: playability reboot 2 (HUD and menu declutter)
+- Full suite: 176 pass. test_soak_quick and test_visual_fixes4 failed under test_all.sh load twice but pass alone (treat as load-sensitive FLAKY); test_integration was flaky once.
+- Stale tests updated to the declutter by design: test_collapse (COLLAPSE now on the ABILITY wheel), test_collectibles (no shard counter on the play HUD), test_companion (ally orders need MORE open; column may extend 100 px past TOUCH_BUTTONS_W), test_photo_mode (HUD layer must match _hud_wanted(); exit returns to the MORE page which covers it).
+- Perf gate not run (no rendering change). Spanish/Hindi strings for new labels still missing.
+- visual_qa 27/27 pass. Looked at latest.png: the desktop frame still shows the key-hint strip, four ability chips, "QUANTUM CORES / NEAREST" line and a ring of status text at once; the touch layout is declutterd but the desktop HUD is not. Title (PLAY / OPTIONS / MORE) is clean. Follow-up: declutter the desktop HUD the same way; the "CONTRACT FAILED ABANDONED" banner overlaps the objective line in the boss shot.

@@ -145,7 +145,36 @@ func line_visible() -> bool:
 
 
 func line_text() -> String:
-	return str(current.get("t", "")).substr(0, int(typed)) if _started else ""
+	return display_text().substr(0, int(typed)) if _started else ""
+
+
+## The text of the current radio line as shown: the full line on FULL chatter, else its first sentence (at most MAX_SHORT characters).
+func display_text() -> String:
+	return str(current.get("ts", current.get("t", "")))
+
+
+const MAX_SHORT := 60               ## characters of a radio line on LOW / OFF story chatter (two lines of the subtitle plate)
+
+
+## A radio line cut down to its first sentence (a long one ends at a word with an ellipsis).
+static func shorten(t: String) -> String:
+	var s := t.strip_edges()
+	var cut := -1
+	for sep: String in [". ", "! ", "? ", " - ", " // "]:
+		var i := s.find(sep)
+		if i >= 12 and (cut < 0 or i < cut):
+			cut = i
+	if cut >= 0:
+		s = s.substr(0, cut + (0 if s.substr(cut, 2) == " -" or s.substr(cut, 3) == " //" else 1))
+	if s.length() > MAX_SHORT:
+		var sp := s.rfind(" ", MAX_SHORT - 1)
+		s = s.substr(0, sp if sp > 20 else MAX_SHORT - 1).rstrip(" ,;:") + "..."
+	return s
+
+
+## Story chatter filter: OFF keeps urgent lines only (prio 2), LOW keeps story beats too (prio 1, shown short), FULL everything.
+static func chatter_allows(prio: int) -> bool:
+	return prio >= 2 - clampi(UiSettings.s_chatter, 0, 2)
 
 
 ## 0..1: fades out in the last 0.4 s of a held line.
@@ -244,6 +273,10 @@ func _tick_radio(delta: float) -> void:
 		if queue.is_empty():
 			return
 		current = queue.pop_front()
+		if not chatter_allows(int(current.get("prio", 0))):
+			current = {}
+			return
+		current["ts"] = str(current["t"]) if UiSettings.s_chatter >= 2 else shorten(str(current["t"]))
 		typed = 0.0
 		hold_left = -1.0
 		wait_left = maxf(float(current["wait"]), LINE_GAP)
@@ -256,10 +289,10 @@ func _tick_radio(delta: float) -> void:
 		_started = true
 		Sfx.radio_begin()
 		line_started.emit(str(current["id"]), str(current["s"]))
-	var n := str(current["t"]).length()
+	var n := display_text().length()
 	if typed < n:
 		typed = minf(typed + CPS_LINE * delta, float(n))
-		Sfx.radio_type(str(current["t"]), int(typed))              # a syllable of radio babble per vowel typed, ducking the music under it
+		Sfx.radio_type(display_text(), int(typed))              # a syllable of radio babble per vowel typed, ducking the music under it
 		if typed >= n:
 			hold_left = HOLD_BASE + n * HOLD_PER_CHAR
 	else:

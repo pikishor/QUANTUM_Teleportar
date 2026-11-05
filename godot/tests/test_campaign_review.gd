@@ -452,6 +452,7 @@ func _chapter_select_layout() -> void:
 		for st: StringName in [&"menu", &"paused"]:
 			Game.state = st
 			hud._chapters_open = false
+			hud._gear_open = true                                  # CHAPTERS lives on the MORE page
 			hud._layout_key = ""
 			hud._ensure_layout()
 			var open_btn := {}

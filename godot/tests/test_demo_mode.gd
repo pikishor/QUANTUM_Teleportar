@@ -84,6 +84,7 @@ func run(h: Node) -> void:
 func _title_button() -> void:
 	Game.state = &"menu"
 	await frames(3)
+	hud._gear_open = true
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var vp := hud.get_viewport().get_visible_rect().size

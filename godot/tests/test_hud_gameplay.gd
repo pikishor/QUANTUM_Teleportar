@@ -110,7 +110,7 @@ func _title(host: Node) -> void:
 	Game.state = &"play"
 	Game.state = &"menu"
 	hud._ensure_layout()
-	TestLib.check(_ids().has(&"deploy") and not _ids().has(&"continue") and _button(&"deploy")["label"] == "DEPLOY", "no save: the title offers DEPLOY only")
+	TestLib.check(_ids().has(&"deploy") and not _ids().has(&"continue") and _button(&"deploy")["label"] == "PLAY" and _ids().size() == 3, "no save: the title offers PLAY, OPTIONS and MORE only")
 	TestLib.check(not hud.press_button(&"continue"), "CONTINUE does nothing without a save")
 	# a save with progress
 	prog.credits = 640
@@ -121,12 +121,19 @@ func _title(host: Node) -> void:
 	Game.state = &"play"
 	Game.state = &"menu"
 	hud._ensure_layout()
-	TestLib.check(_ids()[0] == &"continue" and _ids().has(&"deploy") and _button(&"deploy")["label"] == "NEW GAME" and _button(&"continue")["label"] == "CONTINUE", "with a save the title offers CONTINUE first and NEW GAME")
+	TestLib.check(_ids()[0] == &"continue" and not _ids().has(&"deploy") and _button(&"continue")["label"] == "CONTINUE" and _ids().size() == 3, "with a save the title offers CONTINUE, OPTIONS and MORE")
+	hud._gear_open = true
+	hud._layout_key = ""
+	hud._ensure_layout()
+	TestLib.check(_ids().has(&"deploy") and _button(&"deploy")["label"] == "NEW GAME", "NEW GAME lives on the MORE page")
+	hud._gear_open = false
+	hud._layout_key = ""
+	hud._ensure_layout()
 	var cr: Rect2 = _button(&"continue")["rect"]
-	var nr: Rect2 = _button(&"deploy")["rect"]
+	var nr: Rect2 = _button(&"options")["rect"]
 	var ui_s := UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size)
-	TestLib.check(cr.size.y >= nr.size.y and cr.end.y < nr.position.y, "CONTINUE is the primary button above NEW GAME (as tall, first)")
-	TestLib.check(nr.size.y >= UiUtil.TOUCH_MIN * ui_s - 0.01, "NEW GAME meets the touch minimum (%.0f base px)" % (nr.size.y / ui_s))
+	TestLib.check(cr.size.y >= nr.size.y and cr.end.y < nr.position.y, "CONTINUE is the primary button above OPTIONS (as tall, first)")
+	TestLib.check(nr.size.y >= UiUtil.TOUCH_MIN * ui_s - 0.01, "OPTIONS meets the touch minimum (%.0f base px)" % (nr.size.y / ui_s))
 	prog.autosave_enabled = true
 	prog.credits = 0
 	prog.levels = Upgrades.set_levels({})
@@ -153,7 +160,7 @@ func _shop(host: Node) -> void:
 	prog.new_campaign()
 	hud.pause_game()
 	hud._ensure_layout()
-	TestLib.check(_ids().has(&"shop") and _ids().has(&"resume") and _ids().has(&"menu") and _ids().has(&"q0"), "the pause screen has RESUME, UPGRADES, the graphics rows and ABORT")
+	TestLib.check(_ids().has(&"resume") and _ids().has(&"pause_map") and _ids().has(&"loadout") and _ids().has(&"options") and _ids().has(&"menu_gear") and _ids().size() == 5, "the pause screen has RESUME, MAP, LOADOUT, OPTIONS and MORE")
 	TestLib.check(not hud.press_button(&"buy_damage"), "buy buttons do nothing outside the shop")
 	TestLib.check(hud.press_button(&"shop") and hud._shop_open, "UPGRADES opens the shop")
 	hud._ensure_layout()

@@ -93,8 +93,8 @@ func _hud_hidden_behind_panels() -> void:
 	await frames(3)
 	TestLib.check(hud._hud.visible and not hud.panel_cover(), "the plain pause menu keeps the HUD layer (it has no panel)")
 	var steps := [
-		["shop", "shop"], ["skills_open", "skills"], ["sk_back", "shop"], ["look_open", "suit"], ["look_back", "shop"], ["loadout", "loadout"], ["loadout_gear", "gear"],
-		["gear_weapons", "loadout"], ["loadout_back", "shop"], ["side_open", "side"], ["side_back", "shop"], ["heist_open", "heist"], ["heist_back", "shop"], ["shop_back", "pause"],
+		["shop", "shop"], ["skills_open", "skills"], ["sk_back", "pause"], ["look_open", "suit"], ["look_back", "pause"], ["loadout", "loadout"], ["loadout_gear", "gear"],
+		["gear_weapons", "loadout"], ["loadout_back", "pause"], ["side_open", "side"], ["side_back", "pause"], ["heist_open", "heist"], ["heist_back", "pause"], ["shop", "shop"], ["shop_back", "pause"],
 		["ach", "achievements"], ["ach_back", "pause"], ["arena_open", "arena"], ["arena_back", "pause"], ["options", "options"], ["options_back", "pause"],
 	]
 	for st: Array in steps:
@@ -184,7 +184,7 @@ func _scan_other(size: Vector2i) -> void:
 	var tms := main.find_children("*", "TestMenu", true, false)
 	if not tms.is_empty():
 		var tm: TestMenu = tms[0]
-		_judge(tag, "test", "entry", tm.entry_rect(), s)
+		_judge(tag, "test", "entry", hud.more_cell(hud.more_items().size(), hud.get_viewport().get_visible_rect().size.x * 0.5, s), s)      # the TEST button is a cell of the MORE page
 		_judge(tag, "test", "close", tm._close_rect(), s)
 		_judge(tag, "test", "play", tm._play_rect(), s)
 		for i in tm._tab_rects().size():
@@ -233,6 +233,9 @@ func _captions(size: Vector2i) -> void:
 ## 6. Title: DEMO, ARENA, OPTIONS, TEST overlap neither each other nor the title text (the QA / TEST badge used to crowd DEMO and the last letter).
 func _title(size: Vector2i) -> void:
 	_open("title")
+	hud._gear_open = false
+	hud._layout_key = ""
+	hud._ensure_layout()
 	var vp := hud.get_viewport().get_visible_rect().size
 	var s := UiUtil.ui_scale(vp)
 	var tag := "%dx%d" % [size.x, size.y]
@@ -240,10 +243,10 @@ func _title(size: Vector2i) -> void:
 	var tm: TestMenu = main.find_children("*", "TestMenu", true, false)[0]
 	var named := {}
 	for b: Dictionary in hud.buttons:
-		if String(b["id"]) in ["demo", "arena_open", "options", "deploy", "continue"]:
+		if String(b["id"]) in ["menu_gear", "options", "deploy", "continue"]:
 			named[String(b["id"])] = (b["rect"] as Rect2).grow(4.0 * s)
-	named["test"] = tm.entry_rect()
-	TestLib.check(named.has("demo") and named.has("arena_open") and named.has("options"), "%s title has DEMO, ARENA and OPTIONS" % tag)
+	TestLib.check(named.has("menu_gear") and named.has("options") and (named.has("deploy") or named.has("continue")), "%s title has PLAY, OPTIONS and MORE only" % tag)
+	TestLib.check(hud.buttons.size() == 3 and tm.entry_rect().size.x == 0.0, "%s the title shows 3 buttons and no TEST badge (%d)" % [tag, hud.buttons.size()])
 	TestLib.check(VisualQaLib.overlap(named) == "", "%s title buttons keep a gap: %s" % [tag, VisualQaLib.overlap(named)])
 	var sz := int(Hud.TITLE_SIZE * s)
 	var tw := font.get_string_size("QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_LEFT, -1.0, sz).x
@@ -262,7 +265,6 @@ func _banner(size: Vector2i) -> void:
 	var texts: Array[String] = ["CONTRACT COMPLETE  +1815 CREDITS", "CONTRACT AVAILABLE  COURIER RUN"]
 	for k in ContractTypes.KINDS if "KINDS" in ContractTypes else []:
 		texts.append("CONTRACT AVAILABLE  %s" % ContractTypes.title(k))
-	texts.append("CONTRACT AVAILABLE  AN EXTREMELY LONG CONTRACT TITLE THAT NEEDS TWO LINES AT ANY SIZE")
 	var size30 := int(30.0 * s)
 	var all_ok := true
 	var why := ""
@@ -278,8 +280,8 @@ func _banner(size: Vector2i) -> void:
 			why = text
 	TestLib.check(all_ok, "%s: every toast fits its plate on at most two lines (%s)" % [tag, why])
 	var wide := "CONTRACT AVAILABLE  AN EXTREMELY LONG CONTRACT TITLE THAT NEEDS TWO LINES AT ANY SIZE"
-	TestLib.check(hud.msg_wrap(vp, s, wide, size30, font).size() == 2, "%s: a toast wider than the lane wraps" % tag)
-	TestLib.check(hud.msg_rect(vp, s, wide, size30, font).size.y > hud.msg_rect(vp, s, "OK", size30, font).size.y, "%s: the wrapped plate is taller" % tag)
+	TestLib.check(hud.msg_wrap(vp, s, wide, size30, font).size() == 1, "%s: a toast is always ONE line (it shrinks, never wraps)" % tag)
+	TestLib.check(is_equal_approx(hud.msg_rect(vp, s, wide, size30, font).size.y, hud.msg_rect(vp, s, "OK", size30, font).size.y), "%s: the plate height is one line" % tag)
 	TestLib.check(hud.msg_wrap(vp, s, "OK", size30, font).size() == 1, "%s: a short toast stays one line" % tag)
 
 
@@ -305,9 +307,9 @@ func _banner_live() -> void:
 	var vp := hud.get_viewport().get_visible_rect().size
 	var s := UiUtil.ui_scale(vp)
 	var font := UiUtil.font()
-	Game.say("CONTRACT AVAILABLE  COURIER RUN FOR THE HARBOUR DISTRICT", 3.0)
+	Game.say("COURIER RUN COMPLETE  +400 CREDITS", 3.0)
 	await frames(3)
-	TestLib.check(hud.message_text.begins_with("CONTRACT AVAILABLE") and hud.message_left > 0.0, "the live toast is on screen")
+	TestLib.check(hud.message_text.begins_with("COURIER RUN") and hud.message_left > 0.0, "the live toast is on screen")
 	var r := hud.msg_rect(vp, s, hud.message_text, int(30.0 * s), font)
 	var lines := hud.msg_wrap(vp, s, hud.message_text, int(30.0 * s), font)
 	TestLib.check(lines.size() <= 2 and r.size.x <= hud.msg_max_width(vp, s) + 0.5, "the live toast fits its plate (%d lines)" % lines.size())

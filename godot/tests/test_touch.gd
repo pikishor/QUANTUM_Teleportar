@@ -83,18 +83,28 @@ func run(host: Node) -> void:
 	Game.set_quality(1)
 
 	# the powers and USE appear only when their module exists
-	var blink := _button(tc, &"blink")
+	var ability := _button(tc, &"ability")
 	var use := _button(tc, &"interact")
-	TestLib.check(not tc.button_visible(blink) and not tc.button_visible(use), "BLINK and USE are hidden without the quantum and vehicle modules")
-	tc.touch_down(8, tc.call("_button_center", blink))
-	TestLib.check(not Input.is_action_pressed(&"blink"), "a hidden BLINK button does not press anything")
+	TestLib.check(not tc.button_visible(ability) and not tc.button_visible(use), "ABILITY and USE are hidden without the quantum and vehicle modules")
+	tc.touch_down(8, tc.call("_button_center", ability))
+	TestLib.check(not tc.wheel.is_open and not Input.is_action_pressed(&"blink"), "a hidden ABILITY button opens nothing")
 	tc.touch_up(8)
 	player.quantum = Node.new()
-	TestLib.check(tc.button_visible(blink) and tc.button_visible(_button(tc, &"entangle")) and tc.button_visible(_button(tc, &"superpose")), "the three powers show once player.quantum exists")
-	tc.touch_down(8, tc.call("_button_center", blink))
-	TestLib.check(Input.is_action_pressed(&"blink"), "BLINK presses the blink action")
+	TestLib.check(tc.button_visible(ability), "ABILITY shows once player.quantum exists; the verbs live in its wheel")
+	tc.touch_down(8, tc.call("_button_center", ability))
+	TestLib.check(tc.wheel.is_open and tc.wheel.kind == &"ability", "pressing ABILITY opens the wheel")
 	tc.touch_up(8)
-	TestLib.check(not Input.is_action_pressed(&"blink"), "BLINK releases it")
+	TestLib.check(tc.wheel.is_open and tc.wheel.sticky, "a quick tap leaves the wheel open")
+	var wi := -1
+	for i in tc.wheel.items.size():
+		if tc.wheel.item_id(i) == &"blink":
+			wi = i
+	TestLib.check(wi >= 0, "the wheel lists QUANTUM TELEPORT")
+	tc.touch_down(8, tc.wheel.item_centre(wi))
+	TestLib.check(Input.is_action_pressed(&"blink") and not tc.wheel.is_open, "tapping a disc presses its action and closes the wheel")
+	tc.touch_up(8)
+	await TestLib.frames(host, 14)
+	TestLib.check(not Input.is_action_pressed(&"blink"), "the pick lets go of the action again")
 	var vehicles := StubVehicles.new()
 	host.add_child(vehicles)
 	Game.vehicles = vehicles

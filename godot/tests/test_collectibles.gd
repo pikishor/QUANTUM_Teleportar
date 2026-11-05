@@ -142,6 +142,8 @@ func _screen() -> void:
 	Game.state = &"paused"
 	await e.frames(3)
 	var vp := hud.get_viewport().get_visible_rect().size
+	hud._gear_open = true                                          # ACHIEVEMENTS lives on the MORE page
+	hud._layout_key = ""
 	hud._ensure_layout()
 	var has := false
 	for b: Dictionary in hud.buttons:
@@ -170,7 +172,7 @@ func _screen() -> void:
 	Game.state = &"play"
 	hud._text_t = 0.0
 	await e.frames(3)
-	TestLib.check(hud._shard_text == "SHARDS  1 / 30", "the HUD tracker shows the count (%s)" % hud._shard_text)
+	TestLib.check(hud._shard_text == "", "the play HUD carries no shard counter (declutter: the map and pause screen keep it)")
 	# minimap hints
 	var mm := hud.minimap
 	e.p.global_position = Collectibles.spots()[0]

@@ -356,8 +356,8 @@ func _screen() -> void:
 	var sb := _button(&"skills_open")
 	TestLib.check(hud.press_button(&"shop") , "UPGRADES opens the shop")
 	hud._ensure_layout()
-	sb = _button(&"skills_open")
-	TestLib.check(not sb.is_empty() and (sb["rect"] as Rect2).size.y >= 64.0 * UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size) - 0.5, "the shop has a SKILLS button of at least 64 px")
+	sb = _button(&"hero_tab_skills")
+	TestLib.check(not sb.is_empty() and (sb["rect"] as Rect2).size.y >= 64.0 * UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size) - 0.5, "the HERO hub has a SKILLS tab of at least 64 px")
 	TestLib.check(hud.press_button(&"skills_open") and hud._skills_open, "SKILLS opens the tree")
 	hud._ensure_layout()
 	var vp := hud.get_viewport().get_visible_rect().size
@@ -403,7 +403,7 @@ func _screen() -> void:
 	prog.credits = 0
 	SkillTree.buy(&"tp_range")
 	TestLib.check(not hud.press_button(&"sk_respec") and SkillTree.rank(&"tp_range") == 1, "RESPEC needs the credits")
-	TestLib.check(hud.press_button(&"sk_back") and not hud._skills_open and hud._shop_open, "BACK returns to the shop")
+	TestLib.check(hud.press_button(&"sk_back") and not hud._skills_open and not hud._shop_open and not hud._hero_hub, "BACK leaves the HERO hub")
 	hud.press_button(&"shop_back")
 	hud.press_button(&"resume")
 	await frames(2)

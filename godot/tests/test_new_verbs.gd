@@ -117,45 +117,31 @@ func _actions() -> void:
 		TestLib.check(InputMap.has_action(a), "input action %s exists" % a)
 
 
-# --- touch ring layout ----------------------------------------------------------------------------------------------------
+# --- touch wheel layout ---------------------------------------------------------------------------------------------------
 
 func _touch() -> void:
-	var ring: Array[Dictionary] = []
-	var toggle := {}
-	for b: Dictionary in TouchControls.BUTTONS:
-		if b.get("need", &"") == &"ring":
-			ring.append(b)
-		if b.get("fn", &"") == &"ring":
-			toggle = b
-	TestLib.check(ring.size() == 3 and not toggle.is_empty(), "three ring buttons and one MORE toggle exist")
-	var good := true
-	var apart := true
-	for b: Dictionary in ring + [toggle]:
-		good = good and float(b["r"]) * 2.0 >= 64.0 and float(b["dx"]) + float(b["r"]) <= StoryView.TOUCH_BUTTONS_W
-		for o: Dictionary in TouchControls.BUTTONS:
-			if o == b or o.get("need", &"") in [&"vehicle", &"takedown", &"garage_open", &"radio", &"skip_piece", &"garage_call"]:
-				continue
-			var d := Vector2(float(b["dx"]) - float(o["dx"]), float(b["dy"]) - float(o["dy"])).length()
-			if d < float(b["r"]) + float(o["r"]) + 4.0:
-				apart = false
-	TestLib.check(good, "ring buttons are at least 64 px and inside the reserved width")
-	TestLib.check(apart, "ring buttons do not overlap any foot button (base layout)")
-	# at 844x390 every ring button lies inside the screen
+	var verbs := 0
+	for d: Dictionary in TouchControls.WHEEL_ABILITIES:
+		if d.has("verb"):
+			verbs += 1
+	TestLib.check(verbs == 3 and TouchControls.WHEEL_ABILITIES.size() == 7, "the ABILITY wheel lists the seven verbs, three of them the new ones")
+	TestLib.check(RadialWheel.ITEM_R * 2.0 >= 64.0, "a wheel disc is at least 64 px")
+	# at 844x390 every disc lies inside the screen
 	var win := host.get_window()
 	var old := win.size
 	win.size = Vector2i(844, 390)
 	await frames(3)
 	var tc := _tc()
 	if tc != null:
-		tc.ring_open = true
+		tc._open_wheel(&"ability", -1, Vector2.ZERO)
 		var inside := true
 		var vp := tc._vp_size()
-		for b: Dictionary in ring + [toggle]:
-			var c := tc._button_center(b)
-			var rr := float(b["r"]) * tc._scale()
+		var rr := RadialWheel.ITEM_R * tc._scale()
+		for i in tc.wheel.items.size():
+			var c := tc.wheel.item_centre(i)
 			inside = inside and c.x - rr >= 0.0 and c.x + rr <= vp.x and c.y - rr >= 0.0 and c.y + rr <= vp.y
-		TestLib.check(inside, "ring buttons fit the 844x390 window (canvas %s scale %.2f)" % [tc._vp_size(), tc._scale()])
-		tc.ring_open = false
+		TestLib.check(inside and tc.wheel.items.size() == 7, "all seven wheel discs fit the 844x390 window (canvas %s scale %.2f)" % [tc._vp_size(), tc._scale()])
+		tc.release_all()
 	win.size = old
 
 
@@ -170,29 +156,28 @@ func _touch_use() -> void:
 	if tc == null:
 		return
 	_reset_player()
-	var toggle := {}
-	var shield_b := {}
+	var ability := {}
 	for b: Dictionary in TouchControls.BUTTONS:
-		if b.get("fn", &"") == &"ring":
-			toggle = b
-		if b["action"] == &"shield":
-			shield_b = b
+		if b["action"] == &"ability":
+			ability = b
 	await frames(3)                                    # the key edge detector settles
-	tc.ring_open = false
-	TestLib.check(tc.button_visible(toggle) and not tc.button_visible(shield_b), "closed ring: only MORE shows")
 	var was := tc.controls_on
 	tc.controls_on = true
-	tc.touch_down(41, tc._button_center(toggle))
+	TestLib.check(tc.button_visible(ability) and not tc.wheel.is_open, "ABILITY shows, the wheel is closed")
+	tc.touch_down(41, tc._button_center(ability))
 	tc.touch_up(41)
-	TestLib.check(tc.ring_open and tc.button_visible(shield_b), "tapping MORE opens the ring")
+	TestLib.check(tc.wheel.is_open and tc.wheel.sticky, "tapping ABILITY opens the wheel")
+	var wi := -1
+	for i in tc.wheel.items.size():
+		if tc.wheel.item_id(i) == &"shield":
+			wi = i
+	TestLib.check(wi >= 0, "PHASE SHIELD is on the wheel")
 	var n0 := int(qv.uses.get(&"shield", 0))
-	tc.touch_down(42, tc._button_center(shield_b))
+	tc.touch_down(42, tc.wheel.item_centre(wi))
 	var ok := await _until(func() -> bool: return int(qv.uses.get(&"shield", 0)) > n0, 2.0)
 	tc.touch_up(42)
-	TestLib.check(ok and qv.shield_left > 0.0, "tapping SHIELD in the ring raises the barrier")
-	tc.touch_down(43, tc._button_center(toggle))
-	tc.touch_up(43)
-	TestLib.check(not tc.ring_open, "tapping MORE again closes the ring")
+	TestLib.check(ok and qv.shield_left > 0.0 and not tc.wheel.is_open, "tapping PHASE SHIELD in the wheel raises the barrier and closes the wheel")
+	# hold and drag: press ABILITY, drag towards TIME SLIP, release
 	tc.controls_on = was
 	tc.release_all()
 

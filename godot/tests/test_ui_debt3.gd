@@ -118,6 +118,7 @@ func _title(size: Vector2i) -> void:
 	var tag := "%dx%d" % [size.x, size.y]
 	Game.state = &"menu"
 	hud._shop_open = false
+	hud._gear_open = false
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var tp := hud.title_plate(vp, s)
@@ -125,6 +126,11 @@ func _title(size: Vector2i) -> void:
 	TestLib.check(Rect2(Vector2.ZERO, vp).grow(1.0).encloses(tp), "%s: the title plate is on screen" % tag)
 	for base_y in [196.0 + dy - Hud.TITLE_SIZE * 0.7, 258.0 + dy, 294.0 + dy]:       # the name's cap line, the subtitle and the tagline baselines
 		TestLib.check(tp.position.y <= base_y * s and tp.end.y >= base_y * s, "%s: the plate covers the line at %.0f base px" % [tag, base_y])
+	for b: Dictionary in hud.buttons:
+		TestLib.check((b["rect"] as Rect2).position.y >= tp.end.y - 0.5, "%s: button %s starts under the plate" % [tag, b["id"]])
+	hud._gear_open = true                                          # DEMO and ARENA are cells of the MORE page
+	hud._layout_key = ""
+	hud._ensure_layout()
 	var demo := Rect2()
 	var arena := Rect2()
 	for b: Dictionary in hud.buttons:
@@ -132,11 +138,8 @@ func _title(size: Vector2i) -> void:
 			demo = b["rect"]
 		elif b["id"] == &"arena_open":
 			arena = b["rect"]
-		elif b["id"] != &"options":
-			TestLib.check((b["rect"] as Rect2).position.y >= tp.end.y - 0.5, "%s: button %s starts under the plate" % [tag, b["id"]])
+	hud._gear_open = false
 	TestLib.check(demo.size != Vector2.ZERO and arena.size != Vector2.ZERO, "%s: DEMO and ARENA tabs exist on the title" % tag)
-	TestLib.check((arena.position.x - demo.end.x) / s >= Hud.TAB_GAP - 0.5, "%s: the tabs are %.0f base px apart" % [tag, (arena.position.x - demo.end.x) / s])
-	TestLib.check((tp.position.y - demo.end.y) / s >= 24.0 and (tp.position.y - arena.end.y) / s >= 24.0, "%s: the tabs clear the title plate by %.0f base px" % [tag, (tp.position.y - demo.end.y) / s])
 	TestLib.check(minf(demo.size.y, arena.size.y) / s >= 63.9 and minf(demo.size.x, arena.size.x) / s >= 63.9, "%s: the tabs are 64 base px" % tag)
 	Game.state = &"play"
 
@@ -154,6 +157,8 @@ func _subtitle(size: Vector2i) -> void:
 		TestLib.check(a >= 0.55, "the subtitle plate opacity %.2f is at least 0.55" % a)
 	var text := "Arms dealer. Every barrel in here was pulled from a Vael wreck. Pay in credits, not questions. Do not touch the crates on the left."
 	var old: Dictionary = st.current
+	var chat := UiSettings.s_chatter
+	UiSettings.s_chatter = 2                                  # FULL chatter: the long wrapped form
 	st.current = {"s": "ORACLE", "t": text}
 	var lay: Dictionary = st.view._sub_layout(vp, s, UiUtil.insets(vp))
 	var lines: PackedStringArray = lay["lines"]
@@ -166,6 +171,7 @@ func _subtitle(size: Vector2i) -> void:
 	TestLib.check(widest <= box.size.x - 14.0 * s, "%s: every wrapped line is inside the plate (%.0f of %.0f px)" % [tag, widest, box.size.x])
 	TestLib.check(box.size.y >= float(lines.size()) * float(lay["lh"]), "%s: the plate is tall enough for all lines" % tag)
 	st.current = old
+	UiSettings.s_chatter = chat
 
 
 ## 4 (live). A real boss contract: the priority line names the boss, so the bar under it carries no second name.

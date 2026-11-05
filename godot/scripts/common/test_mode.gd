@@ -12,7 +12,7 @@ static var infinite_ammo := false
 static var one_hit := false
 static var no_heat := false
 static var freeze := false
-static var quick_weapons := true        ## the 1-4 touch weapon buttons on the HUD while test mode is available
+static var quick_weapons := false       ## the 1-4 touch weapon buttons on the HUD while test mode is available
 static var show_stats := false
 
 const WEATHER := {"CLEAR": &"clear", "OVERCAST": &"overcast", "DRIZZLE": &"drizzle", "RAIN": &"rain", "STORM": &"storm", "FOG": &"fog"}

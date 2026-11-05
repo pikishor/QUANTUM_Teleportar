@@ -37,6 +37,8 @@ func run(h: Node) -> void:
 	hud.pause_game()
 	await TestLib.frames(host, 3)
 	TestLib.check(Game.state == &"paused", "pause is Game.state paused")
+	hud._gear_open = true                                          # PHOTO lives on the MORE page
+	hud._layout_key = ""
 	hud._ensure_layout()
 	var scale := UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size)
 	var opener := _button(&"photo_open")
@@ -294,7 +296,7 @@ func run(h: Node) -> void:
 	TestLib.check(not ph.active and Game.state == &"paused", "EXIT leaves photo mode for the pause menu")
 	TestLib.check(Game.camera == rig_cam and rig_cam.current, "the game camera is back")
 	TestLib.check(p.visible and atm.look_override.is_empty() and absf(dn.hour - hour0) < 0.05, "hero, grade and hour are restored")
-	TestLib.check(not is_instance_valid(ph.camera) and hud.layers_consistent() and hud._hud.visible, "the photo camera is gone and the HUD is back")
+	TestLib.check(not is_instance_valid(ph.camera) and hud.layers_consistent() and hud._hud.visible == hud._hud_wanted(), "the photo camera is gone and the HUD layer matches the state (the MORE page it returns to may cover it)")
 
 	# Esc leaves it too; RESUME (a state change) ends it and plays on
 	hud._layout_key = ""

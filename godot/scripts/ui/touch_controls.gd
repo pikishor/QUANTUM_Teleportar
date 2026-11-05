@@ -6,7 +6,7 @@ extends CanvasLayer
 ## CameraRig.add_look, so the Player needs no changes. The HUD (scripts/ui/hud.gd) owns everything else on screen and instances this node as a child.
 
 signal pause_requested
-signal wheel_requested              ## SWAP held: the weapon wheel
+signal wheel_requested              ## kept for the controller path (Hud.open_wheel); the touch WEAPON button opens its own radial wheel
 
 const LOOK_SENS := 0.003            ## radians per canvas pixel of finger travel
 const STICK_RADIUS := 100.0         ## canvas px at the 720 px base height
@@ -15,42 +15,52 @@ const SPRINT_AT := 0.94             ## pushing the stick this far means sprint
 const BASE_H := 720.0
 const USE_REACH := 4.2              ## metres: a vehicle this close enables USE
 ## Buttons: action, centre offset from the bottom-right corner and radius (canvas px at the base height), label, and what they need to be shown.
+## Default frame (on foot): FIRE, AIM, JUMP, RELOAD, ABILITY (opens the radial wheel), WEAPON (tap cycles, hold opens the weapon wheel) and MORE (opens the secondary
+## cluster). USE / GRAB / TAKEDOWN / SKIP / RADIO / GARAGE appear only when they apply; ALT, MELEE, THROW, CROUCH, GADGET, CALL CAR and the ally orders live in MORE.
 const BUTTONS := [
 	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 88.0, "fs": 32, "label": "FIRE", "need": &""},
 	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &""},
 	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &""},
-	{"action": &"swap", "dx": 345.0, "dy": 440.0, "r": 48.0, "fs": 24, "label": "SWAP", "need": &""},
-	{"action": &"altfire", "dx": 270.0, "dy": 252.0, "r": 42.0, "fs": 22, "label": "ALT", "need": &""},
-	{"action": &"blink", "dx": 515.0, "dy": 110.0, "r": 56.0, "label": "TELEPORT", "need": &"quantum", "ability": 0},
-	{"action": &"entangle", "dx": 530.0, "dy": 228.0, "r": 52.0, "label": "ENTANGLE", "need": &"quantum", "ability": 1},
-	{"action": &"superpose", "dx": 500.0, "dy": 340.0, "r": 52.0, "label": "SUPER", "need": &"quantum", "ability": 2},
-	{"action": &"collapse", "dx": 470.0, "dy": 450.0, "r": 46.0, "fs": 20, "label": "COLLAPSE", "need": &"quantum", "ability": 3},
-	{"action": &"ring", "dx": 640.0, "dy": 110.0, "r": 46.0, "fs": 22, "label": "MORE", "need": &"quantum", "fn": &"ring"},
-	{"action": &"shield", "dx": 640.0, "dy": 215.0, "r": 46.0, "fs": 20, "label": "SHIELD", "need": &"ring", "verb": &"shield"},
-	{"action": &"slip", "dx": 640.0, "dy": 320.0, "r": 46.0, "fs": 22, "label": "SLIP", "need": &"ring", "verb": &"slip"},
-	{"action": &"arc", "dx": 640.0, "dy": 425.0, "r": 46.0, "fs": 22, "label": "ARC", "need": &"ring", "verb": &"arc"},
+	{"action": &"ability", "dx": 515.0, "dy": 120.0, "r": 58.0, "fs": 22, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability"},
+	{"action": &"swap", "dx": 520.0, "dy": 262.0, "r": 58.0, "fs": 22, "label": "WEAPON", "need": &"weapon"},
+	{"action": &"more", "dx": 505.0, "dy": 395.0, "r": 40.0, "fs": 22, "label": "MORE", "need": &"foot", "fn": &"more"},
+	{"action": &"altfire", "dx": 650.0, "dy": 110.0, "r": 40.0, "fs": 22, "label": "ALT", "need": &"more"},
+	{"action": &"melee", "dx": 650.0, "dy": 205.0, "r": 46.0, "fs": 22, "label": "MELEE", "need": &"more"},
+	{"action": &"throw_item", "dx": 650.0, "dy": 300.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more"},
+	{"action": &"crouch", "dx": 650.0, "dy": 395.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"more"},
+	{"action": &"gadget", "dx": 650.0, "dy": 490.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"more_gadget"},
+	{"action": &"garage_call", "dx": 750.0, "dy": 110.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"more_garage", "fn": &"summon"},
+	{"action": &"companion_hold", "dx": 750.0, "dy": 215.0, "r": 46.0, "fs": 22, "label": "HOLD", "need": &"more_companion", "fn": &"ally_hold"},
+	{"action": &"companion_attack", "dx": 750.0, "dy": 320.0, "r": 46.0, "fs": 20, "label": "ATTACK", "need": &"more_companion", "fn": &"ally_attack"},
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
-	{"action": &"crouch", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"foot"},
-	{"action": &"grab", "dx": 270.0, "dy": 660.0, "r": 46.0, "fs": 22, "label": "GRAB", "need": &"foot"},
-	{"action": &"melee", "dx": 70.0, "dy": 440.0, "r": 50.0, "fs": 22, "label": "MELEE", "need": &"foot"},
-	{"action": &"throw_item", "dx": 70.0, "dy": 550.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"foot"},
-	{"action": &"gadget", "dx": 70.0, "dy": 650.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"gadget"},
+	{"action": &"grab", "dx": 320.0, "dy": 470.0, "r": 50.0, "fs": 22, "label": "GRAB", "need": &"grab"},
 	{"action": &"takedown", "dx": 175.0, "dy": 590.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
-	{"action": &"garage_call", "dx": 490.0, "dy": 570.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"garage_call", "fn": &"summon"},
 	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},
-	{"action": &"skip_piece", "dx": 320.0, "dy": 470.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
-	{"action": &"companion_hold", "dx": 640.0, "dy": 530.0, "r": 48.0, "fs": 22, "label": "HOLD", "need": &"companion", "fn": &"ally_hold"},
-	{"action": &"companion_attack", "dx": 560.0, "dy": 650.0, "r": 48.0, "fs": 20, "label": "ATTACK", "need": &"companion", "fn": &"ally_attack"},
+	{"action": &"skip_piece", "dx": 480.0, "dy": 560.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
+]
+## The ABILITY wheel: the seven quantum verbs, plain names. `ui` indexes UiUtil.ABILITIES (the four classic verbs), `verb` is a QuantumVerbs id.
+const WHEEL_ABILITIES := [
+	{"id": &"blink", "label": "QUANTUM TELEPORT", "ui": 0},
+	{"id": &"superpose", "label": "SUPERPOSITION", "ui": 2},
+	{"id": &"entangle", "label": "ENTANGLE", "ui": 1},
+	{"id": &"collapse", "label": "COLLAPSE", "ui": 3},
+	{"id": &"shield", "label": "PHASE SHIELD", "verb": &"shield"},
+	{"id": &"slip", "label": "TIME SLIP", "verb": &"slip"},
+	{"id": &"arc", "label": "ARC", "verb": &"arc"},
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
 const LONG_PRESS := 0.6             ## seconds: holding the FPS box this long toggles the error panel (a short tap cycles the graphics tier)
+const GRAB_SHOW := 9.0              ## metres: an enemy or a car this close in front shows GRAB
+const GRAB_SHOW_PROP := 3.5
+const PULSE := 0.14                ## seconds a wheel pick holds its action
 const WHEEL_HOLD := 0.4             ## seconds SWAP is held before the wheel opens (a short tap cycles the weapon)
 const ERROR_ROWS := 9               ## newest error lines shown in the panel
 
-var ring_open := false              ## the expandable ability ring (SHIELD / SLIP / ARC) is shown
+var more_open := false              ## the collapsed secondary cluster (ALT, MELEE, THROW, CROUCH, GADGET, CALL CAR, ally orders) is shown
+var wheel := RadialWheel.new()      ## the ABILITY / WEAPON radial wheel
 var controls_on := false            ## the touch controls are drawn and active
 var touch_capable := false          ## the device has a touchscreen (controls_on while no controller is in use)
 var perf_on := false                ## the perf readout is drawn (always with the controls, or with --perf)
@@ -76,6 +86,15 @@ var _use_near := false
 var _use_t := 0.0
 var _swap_finger := -1              ## the finger on SWAP, or -1
 var _swap_held := 0.0
+var _swap_from := Vector2.ZERO
+var _wheel_finger := -1             ## the finger dragging a wheel open from its button, or -1
+var _wheel_held := 0.0
+var _wheel_from_pos := Vector2.ZERO
+var _wheel_moved := false
+var _pulse_action: StringName = &""   ## the action a wheel pick holds pressed for PULSE seconds
+var _pulse_t := 0.0
+var _grab_near := false             ## something to GRAB is in front of the hero
+var _grab_t := 0.0
 var _swap_pulse := 0.0              ## seconds the swap action stays pressed after a tap
 var _perf_finger := -1              ## the finger held on the FPS box, or -1
 var _perf_held := 0.0
@@ -130,7 +149,7 @@ var _fit_cache := {}                  ## button action -> [radius, scale, label,
 
 ## The font size of a button label (fitted inside the disc), measured once per radius / scale / label.
 func _label_size(b: Dictionary, font: Font, r: float, s: float) -> int:
-	var label := str(b["label"])
+	var label := _label_of(b)
 	var e: Variant = _fit_cache.get(b["action"])
 	if e != null and e[0] == r and e[1] == s and e[2] == label:
 		return e[3]
@@ -148,8 +167,20 @@ func _process(delta: float) -> void:
 	if _swap_finger != -1:
 		_swap_held += delta / maxf(Engine.time_scale, 0.05)
 		if _swap_held >= WHEEL_HOLD:
+			var f := _swap_finger
 			_swap_finger = -1
-			wheel_requested.emit()
+			_open_wheel(&"weapon", f, _swap_from)
+	if _wheel_finger != -1:
+		_wheel_held += delta / maxf(Engine.time_scale, 0.05)
+	if _pulse_t > 0.0:
+		_pulse_t -= delta
+		if _pulse_t <= 0.0 and _pulse_action != &"":
+			Input.action_release(_pulse_action)
+			_pulse_action = &""
+	_grab_t -= delta
+	if _grab_t <= 0.0:
+		_grab_t = 0.25
+		_grab_near = _grab_in_front()
 	if _hot_finger != -1:
 		_hot_held += delta / maxf(Engine.time_scale, 0.05)
 		if _hot_held >= LONG_PRESS and not perf_shown and Game.state == &"play":
@@ -202,6 +233,12 @@ func release_all() -> void:
 	for b: Dictionary in BUTTONS:
 		if not b.get("call", false) and not b.has("fn"):   # call and fn buttons (RADIO) press no action, and its action only exists once a radio does
 			Input.action_release(b["action"])
+	if _pulse_action != &"":
+		Input.action_release(_pulse_action)
+		_pulse_action = &""
+	wheel.close()
+	_wheel_finger = -1
+	_swap_pulse = 0.0
 	_held.clear()
 	_stick_id = -1
 	_look_id = -1
@@ -246,6 +283,12 @@ func touch_down(id: int, pos: Vector2) -> void:
 		return
 	if not controls_on or not Game.is_playing():
 		return
+	if wheel.is_open and wheel.sticky:                                 # a wheel a tap left open: a disc picks, anything else closes it (and is not a stick or look touch)
+		var wi := wheel.hit(pos)
+		if wi >= 0:
+			_wheel_pick(wi)
+		wheel.close()
+		return
 	if pos.distance_to(_pause_center()) <= 36.0 * _scale() * 1.3:
 		pause_requested.emit()
 		return
@@ -256,12 +299,15 @@ func touch_down(id: int, pos: Vector2) -> void:
 		return
 	for b: Dictionary in BUTTONS:
 		if button_visible(b) and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]) * UiSettings.s_button_size, UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
-			if b.has("fn"):                                            # CALL CAR / GARAGE: one tap, no action press
+			if b.get("fn", &"") == &"wheel_ability":                   # ABILITY: press opens the wheel, drag and release picks, a quick tap leaves it open
+				_open_wheel(&"ability", id, pos)
+				return
+			if b.has("fn"):                                            # CALL CAR / GARAGE / MORE: one tap, no action press
 				Sfx.play(&"ui_tap")
 				if b["fn"] == &"skip":
 					get_parent().call(&"skip_set_piece")
-				elif b["fn"] == &"ring":
-					ring_open = not ring_open
+				elif b["fn"] == &"more":
+					more_open = not more_open
 				elif b["fn"] == &"ally_hold":
 					Companion.current.command(&"hold")
 				elif b["fn"] == &"ally_attack":
@@ -278,6 +324,7 @@ func touch_down(id: int, pos: Vector2) -> void:
 			if b["action"] == &"swap":                                 # a tap cycles (on release), a hold opens the wheel
 				_swap_finger = id
 				_swap_held = 0.0
+				_swap_from = pos
 				return
 			_held[id] = b
 			Input.action_press(b["action"])
@@ -296,6 +343,11 @@ func touch_down(id: int, pos: Vector2) -> void:
 func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
 	if id == _hot_finger and pos.distance_to(_hot_from) > 48.0 * _scale():
 		_hot_finger = -1                                # a stick drag or a look swipe is not a long press
+	if id == _wheel_finger:
+		wheel.sel = wheel.wedge(pos)
+		if pos.distance_to(_wheel_from_pos) > 24.0 * _scale():
+			_wheel_moved = true
+		return
 	if id == _stick_id:
 		_stick_pos = pos
 		_apply_stick()
@@ -306,6 +358,17 @@ func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
 func touch_up(id: int) -> void:
 	if id == _hot_finger:
 		_hot_finger = -1
+	if id == _wheel_finger:
+		_wheel_finger = -1
+		if wheel.is_open:
+			if wheel.kind == &"ability" and _wheel_held < RadialWheel.TAP_TIME and not _wheel_moved:
+				wheel.sticky = true                                    # a tap: the wheel stays, the next tap picks
+				wheel.sel = -1
+			else:
+				if wheel.sel >= 0:
+					_wheel_pick(wheel.sel)
+				wheel.close()
+		return
 	if id == _swap_finger:
 		_swap_finger = -1
 		Input.action_press(&"swap")
@@ -370,21 +433,27 @@ func _look(rel: Vector2) -> void:
 func button_visible(b: Dictionary) -> bool:
 	match b["need"]:
 		&"quantum":
-			return is_instance_valid(Game.player) and Game.player.get("quantum") != null
+			return is_instance_valid(Game.player) and Game.player.get("quantum") != null and not _driving()
+		&"weapon":
+			return is_instance_valid(Game.player) and not _driving()
+		&"more":
+			return more_open and is_instance_valid(Game.player) and not _driving()
+		&"more_gadget":
+			return more_open and is_instance_valid(Game.player) and not _driving() and Gear.gadget != &""
+		&"more_garage":
+			return more_open and is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage") and not _driving() and not InteriorGameplay.active \
+				and (Game.vehicles.call(&"get_garage") as Garage).has_car()
+		&"more_companion":
+			return more_open and not _driving() and Companion.controllable()
+		&"grab":
+			return is_instance_valid(Game.player) and not _driving() and (_grab_near or _grab_held())
 		&"vehicle":
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
 		&"foot":
 			return is_instance_valid(Game.player) and not _driving()
-		&"ring":
-			return ring_open and is_instance_valid(Game.player) and Game.player.get("qverbs") != null and not _driving()
-		&"gadget":
-			return is_instance_valid(Game.player) and not _driving() and Gear.gadget != &""
 		&"takedown":
 			var pc: Object = Game.player.get("cover") if is_instance_valid(Game.player) else null
 			return pc != null and pc.get("target") != null and is_instance_valid(pc.get("target"))
-		&"garage_call":      # CALL CAR: on foot, outdoors, with a car kept in the garage
-			return is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage") and not _driving() and not InteriorGameplay.active \
-				and (Game.vehicles.call(&"get_garage") as Garage).has_car()
 		&"garage_open":      # GARAGE: while driving
 			return is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage") and _driving()
 		&"skip_piece":       # SKIP SET PIECE: only inside an optional set piece
@@ -392,9 +461,154 @@ func button_visible(b: Dictionary) -> bool:
 			return hud != null and hud.has_method(&"skip_available") and bool(hud.call(&"skip_available"))
 		&"radio":
 			return is_instance_valid(Game.vehicles) and Game.vehicles.get("radio") != null and _driving()
-		&"companion":        # HOLD / ATTACK: only while the ally is recruited and on foot with the hero
-			return Companion.controllable()
 	return true
+
+
+## The label a button shows: USE reads ENTER on foot and EXIT in a car.
+func _label_of(b: Dictionary) -> String:
+	if b["action"] == &"interact":
+		return "EXIT" if _driving() else "ENTER"
+	return str(b["label"])
+
+
+## True while the hero holds something (the GRAB button stays so it can be released).
+func _grab_held() -> bool:
+	var vb: Object = Game.player.get("verbs") if is_instance_valid(Game.player) else null
+	return vb != null and vb.get("holding") == true
+
+
+## Something the hero could GRAB is in front (polled 4 times a second: it scans the enemy, vehicle and prop groups).
+func _grab_in_front() -> bool:
+	if not controls_on or Game.state != &"play" or not is_instance_valid(Game.player) or _driving():
+		return false
+	var vb: Object = Game.player.get("verbs")
+	if vb == null or not vb.has_method(&"find_target"):
+		return false
+	var t: Dictionary = vb.call(&"find_target")
+	if t.is_empty():
+		return false
+	var d := ((t["pos"] as Vector3) - (Game.player as Node3D).global_position).length()
+	return d <= (GRAB_SHOW if t["kind"] != &"prop" else GRAB_SHOW_PROP)           # a prop has to be close: the button must not sit on screen all the time
+
+
+## Opens the radial wheel for `kind` while `finger` holds its button at `pos`.
+func _open_wheel(kind: StringName, finger: int, pos: Vector2) -> void:
+	var vp := _vp_size()
+	var at := Vector2(vp.x * (0.38 if UiSettings.s_left_hand else 0.62), vp.y * 0.56)
+	wheel.open_at(kind, wheel_items(kind), at, _scale(), false)
+	_wheel_finger = finger if wheel.is_open else -1
+	_wheel_held = 0.0
+	_wheel_moved = false
+	_wheel_from_pos = pos
+	Sfx.play(&"ui_tap")
+	_canvas.queue_redraw()
+
+
+## The discs of a wheel: {id, label, ready, active, cd, current}.
+func wheel_items(kind: StringName) -> Array:
+	var out: Array = []
+	var p: Node = Game.player if is_instance_valid(Game.player) else null
+	if p == null:
+		return out
+	if kind == &"weapon":
+		var cur: StringName = (p.get("weapon") as PlayerWeapon).current if p.get("weapon") is PlayerWeapon else &""
+		for id: StringName in WeaponDefs.IDS:
+			if WeaponDefs.is_unlocked(id):
+				out.append({"id": id, "label": str(WeaponDefs.DEFS[id].get("tag", id)), "ready": true, "active": id == cur, "cd": 0.0, "current": id == cur})
+		return out
+	var qv: Object = p.get("qverbs")
+	for d: Dictionary in WHEEL_ABILITIES:
+		var st := {"ready": true, "active": false, "cd": 0.0}
+		if d.has("ui"):
+			if p.get("quantum") == null:
+				continue
+			st = UiUtil.ability_state(p, UiUtil.ABILITIES[int(d["ui"])])
+		else:
+			if qv == null:
+				continue
+			st = (qv as QuantumVerbs).ui_state(d["verb"])
+		out.append({"id": d["id"], "label": d["label"], "ready": bool(st["ready"]), "active": bool(st["active"]), "cd": float(st["cd"]), "current": false})
+	return out
+
+
+## A wheel pick: an ability holds its action for a moment (the same press the key makes), a weapon switches at once.
+func _wheel_pick(i: int) -> void:
+	var id := wheel.item_id(i)
+	if id == &"":
+		return
+	if wheel.kind == &"weapon":
+		var p: Node = Game.player if is_instance_valid(Game.player) else null
+		if p != null and p.get("weapon") is PlayerWeapon:
+			(p.get("weapon") as PlayerWeapon).switch_to(id)
+	else:
+		if _pulse_action != &"":
+			Input.action_release(_pulse_action)
+		Input.action_press(id)
+		_pulse_action = id
+		_pulse_t = PULSE
+	Sfx.play(&"ui_tap")
+
+
+## The WEAPON button face: the weapon's silhouette and "30 / 30" (reload shows RELOADING) instead of a text label.
+func _weapon_face(c: Control, font: Font, centre: Vector2, r: float, s: float, labels: Array) -> void:
+	var p: Node = Game.player if is_instance_valid(Game.player) else null
+	if p == null or not (p.get("weapon") is PlayerWeapon):
+		return
+	var hud := get_parent()
+	var ammo := str(hud.call(&"ammo_text")) if hud != null and hud.has_method(&"ammo_text") else ""
+	if ammo == "RELOADING":
+		ammo = "..."
+	WeaponIcons.draw(c, (p.get("weapon") as PlayerWeapon).current, Rect2(centre.x - r * 0.8, centre.y - r * 0.78, r * 1.6, r * 0.8), Color(UiUtil.CYAN, 0.95))
+	labels.append([centre + Vector2(-r, r * 0.62), ammo, r * 2.0, 1.0, int(18.0)])
+
+
+## The radial wheel: a faint disc behind, one button sprite per item (name or weapon silhouette), the picked wedge bright.
+func _draw_wheel(c: Control, font: Font, s: float) -> void:
+	var n := wheel.items.size()
+	c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(wheel.centre - Vector2.ONE * (RadialWheel.RADIUS + RadialWheel.ITEM_R + 14.0) * s, Vector2.ONE * (RadialWheel.RADIUS + RadialWheel.ITEM_R + 14.0) * s * 2.0), false, Color(0, 0.02, 0.04, 0.45))
+	var r := RadialWheel.ITEM_R * s
+	var texts: Array = []
+	for i in n:
+		var it: Dictionary = wheel.items[i]
+		var ic := wheel.item_centre(i)
+		var tint := UiUtil.CYAN
+		var dim := 1.0
+		if bool(it["active"]) or i == wheel.sel:
+			tint = UiUtil.AMBER
+		elif not bool(it["ready"]):
+			dim = 0.45
+		if i == wheel.sel:
+			c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(ic - Vector2.ONE * r * 1.12, Vector2.ONE * r * 2.24), false, Color(tint, 0.35))
+		c.draw_texture_rect(UiUtil.sprite(&"button"), Rect2(ic - Vector2.ONE * r, Vector2.ONE * r * 2.0), false, Color(tint, 0.95 * dim))
+		if float(it["cd"]) > 0.0:
+			c.draw_arc(ic, r + 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * float(it["cd"]), 28, Color(tint, 0.9), 3.0 * s, false)
+		if wheel.kind == &"weapon":
+			WeaponIcons.draw(c, StringName(it["id"]), Rect2(ic.x - r * 0.8, ic.y - r * 0.62, r * 1.6, r * 0.8), Color(tint, 0.95))
+			texts.append([ic + Vector2(-r, r * 0.62), str(it["label"]), r * 2.0, 20.0, dim])
+		else:
+			var words := str(it["label"]).split(" ")
+			var fsz := 18.0
+			for w: String in words:
+				fsz = minf(fsz, float(UiUtil.fit_size(font, w, r * 2.0 - 10.0 * s, int(18.0 * s))) / s)
+			var y0 := ic.y + fsz * s * 0.34 - (float(words.size() - 1) * fsz * s * 0.55)
+			for k in words.size():
+				texts.append([Vector2(ic.x - r, y0 + float(k) * fsz * s * 1.1), words[k], r * 2.0, fsz, dim])
+	for t: Array in texts:
+		c.draw_string(font, (t[0] as Vector2) + Vector2(1.2, 1.2) * s, t[1], HORIZONTAL_ALIGNMENT_CENTER, t[2], int(float(t[3]) * s), Color(0, 0, 0, 0.8 * float(t[4])))
+		c.draw_string(font, t[0], t[1], HORIZONTAL_ALIGNMENT_CENTER, t[2], int(float(t[3]) * s), Color(1, 1, 1, 0.97 * float(t[4])))
+
+
+## The touch controls on screen right now: the stick, every visible button (by action) and the pause button. Empty unless the controls are on and the game is playing.
+func visible_ids() -> Array[StringName]:
+	var out: Array[StringName] = []
+	if not controls_on or Game.state != &"play":
+		return out
+	out.append(&"stick")
+	for b: Dictionary in BUTTONS:
+		if button_visible(b):
+			out.append(b["action"])
+	out.append(&"pause")
+	return out
 
 
 func _minimap_rect() -> Rect2:
@@ -537,8 +751,10 @@ func _draw_ui_body() -> void:
 		var on := down.has(b["action"])
 		var tint := UiUtil.CYAN
 		var dim := 1.0
-		if b["action"] == &"ring":
-			tint = UiUtil.AMBER if ring_open else UiUtil.CYAN
+		if b["action"] == &"more":
+			tint = UiUtil.AMBER if more_open else UiUtil.CYAN
+		if b["action"] == &"ability":
+			tint = UiUtil.AMBER if (wheel.is_open and wheel.kind == &"ability") else UiUtil.CYAN
 		if b.has("verb"):
 			var vs := ((Game.player.get("qverbs") as QuantumVerbs).ui_state(b["verb"]) as Dictionary) if Game.player.get("qverbs") != null else {"active": false, "ready": true, "cd": 0.0}
 			if vs["active"]:
@@ -565,7 +781,10 @@ func _draw_ui_body() -> void:
 			glows.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, 0.35)])
 		sprites.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, (1.0 if on else 0.85) * dim)])
 		var fs := _label_size(b, font, r, s)
-		labels.append([centre + Vector2(-r, float(fs) * 0.36 * s), str(b["label"]), r * 2.0, dim, fs])
+		if b["action"] == &"swap":                      # WEAPON: the weapon's silhouette over the ammo count (no separate ammo plate)
+			_weapon_face(c, font, centre, r, s, labels)
+			continue
+		labels.append([centre + Vector2(-r, float(fs) * 0.36 * s), _label_of(b), r * 2.0, dim, fs])
 	for g: Array in glows:
 		c.draw_texture_rect(UiUtil.sprite(&"disc"), g[0], false, g[1])
 	for sp: Array in sprites:
@@ -582,6 +801,8 @@ func _draw_ui_body() -> void:
 		for l: Array in labels:
 			if l[4] == fsz:
 				c.draw_string(font, l[0], l[1], HORIZONTAL_ALIGNMENT_CENTER, l[2], int(float(fsz) * s), Color(1, 1, 1, 0.97 * float(l[3])))
+	if wheel.is_open:
+		_draw_wheel(c, font, s)
 	# pause
 	var pc := _pause_center()
 	var pr := 36.0 * s

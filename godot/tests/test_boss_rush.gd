@@ -219,9 +219,13 @@ func _board() -> void:
 	await TestLib.frames(host, 4)
 	var s := UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size)
 	var open_ok := false
+	hud._gear_open = true                                          # ARENA lives on the MORE page
+	hud._layout_key = ""
+	hud._ensure_layout()
 	for bt: Dictionary in hud.buttons:
 		if bt["id"] == &"arena_open":
 			open_ok = (bt["rect"] as Rect2).size.y >= UiUtil.TOUCH_MIN * s - 1.0
+	hud._gear_open = false
 	TestLib.check(open_ok, "the pause menu has a 64 px ARENA button")
 	TestLib.check(hud.press_button(&"arena_open") and hud._arena_open, "ARENA opens the planning screen from the pause menu")
 	await TestLib.frames(host, 3)
@@ -261,9 +265,13 @@ func _title() -> void:
 	await TestLib.frames(host, 4)
 	var s := UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size)
 	var open_ok := false
+	hud._gear_open = true                                          # ARENA lives on the MORE page
+	hud._layout_key = ""
+	hud._ensure_layout()
 	for bt: Dictionary in hud.buttons:
 		if bt["id"] == &"arena_open":
 			open_ok = (bt["rect"] as Rect2).size.y >= UiUtil.TOUCH_MIN * s - 1.0
+	hud._gear_open = false
 	TestLib.check(open_ok, "the title has a 64 px ARENA button")
 	TestLib.check(hud.press_button(&"arena_open") and hud._arena_open, "ARENA opens from the title")
 	await TestLib.frames(host, 3)

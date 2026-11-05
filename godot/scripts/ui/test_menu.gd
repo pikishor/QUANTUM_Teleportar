@@ -343,10 +343,10 @@ func _play_rect() -> Rect2:
 
 
 ## The TEST button on the title and pause screens.
+## The TEST button: one cell of the MORE page (Hud.more_test_rect), so it is on no other screen. Off the MORE page it has no rect.
 func entry_rect() -> Rect2:
-	var vp := _vp()
-	var s := _s()
-	return Rect2(vp.x - maxf(_inset(), 16.0 * s) - 180.0 * s, 82.0 * s, 180.0 * s, 64.0 * s)      # below the OPTIONS button (6..70) with a 12 px gap: never over or touching it
+	var h := get_tree().get_first_node_in_group(&"hud") as Hud if is_inside_tree() else null
+	return h.more_test_rect() if h != null else Rect2()
 
 
 func quick_rect(i: int) -> Rect2:
@@ -358,7 +358,7 @@ func quick_rect(i: int) -> Rect2:
 
 
 func _entry_visible() -> bool:
-	return TestMode.available() and not is_open and (Game.state == &"menu" or Game.state == &"paused")
+	return TestMode.available() and not is_open and (Game.state == &"menu" or Game.state == &"paused") and entry_rect().size.x > 0.0
 
 
 func _quick_visible() -> bool:

@@ -133,6 +133,7 @@ func _screen_and_touch(host: Node) -> void:
 	Game.vehicles = mgr
 	Game.player = p
 	p.vehicle = null
+	tc.more_open = true                                  # CALL CAR lives in the collapsed MORE cluster
 	TestLib.check(tc.button_visible(call_b) and not tc.button_visible(gar_b), "on foot CALL CAR shows, GARAGE does not")
 	var empty := Garage.new()
 	var kept := g.to_save()

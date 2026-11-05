@@ -54,11 +54,12 @@ func run(host: Node) -> void:
 	TestLib.check(not huds.is_empty() and not tms.is_empty(), "main.tscn has the Hud and the TestMenu")
 	if not huds.is_empty() and not tms.is_empty():
 		var hud := huds[0] as Hud
+		hud._gear_open = true                                  # DEMO and the TEST button are cells of the MORE page
 		hud._layout_key = ""
 		hud._ensure_layout()
 		var rects := {}
 		for b: Dictionary in hud.buttons:
-			if b["id"] in [&"demo", &"options"]:
+			if b["id"] in [&"demo", &"more_back"]:
 				rects[String(b["id"])] = b["rect"]
 		var tm := tms[0] as TestMenu
 		rects["test"] = tm.entry_rect()

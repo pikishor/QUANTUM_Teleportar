@@ -11,6 +11,14 @@ var p: Player
 var menu: TestMenu
 
 
+## Opens (or closes) the MORE page of the title / pause screen: the TEST button is one of its cells.
+func _more(on: bool) -> void:
+	var h := main.find_children("*", "Hud", true, false)[0] as Hud
+	h._gear_open = on
+	h._layout_key = ""
+	h._ensure_layout()
+
+
 func frames(n: int) -> void:
 	await TestLib.frames(host, n)
 
@@ -265,10 +273,12 @@ func _menu_input() -> void:
 	TestLib.check(not menu.handle_pointer(1, q2, 3), "quick buttons off: the touch passes through")
 	TestMode.quick_weapons = true
 	Game.state = &"paused"
+	_more(true)
 	TestLib.check(menu.handle_pointer(1, menu.entry_rect().get_center(), 4) and menu.handle_pointer(3, menu.entry_rect().get_center(), 4) and menu.is_open, "the TEST button of the pause screen opens the menu")
 	menu.close()
 	TestLib.check(Game.state == &"paused", "closing a menu opened from the pause screen stays paused")
 	Game.state = &"menu"
+	_more(true)
 	TestLib.check(menu.handle_pointer(1, menu.entry_rect().get_center(), 4) and menu.handle_pointer(3, menu.entry_rect().get_center(), 4) and menu.is_open, "the TEST button of the title screen opens the menu")
 	menu.close()
 	WeaponDefs.reset_unlocked()
