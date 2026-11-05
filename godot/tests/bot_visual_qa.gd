@@ -110,12 +110,14 @@ func _is_open_sky(r: Rect2i) -> bool:
 			var from := cam.project_ray_origin(pt)
 			var q := PhysicsRayQueryParameters3D.create(from, from + cam.project_ray_normal(pt) * 1500.0)
 			total += 1
-			if space.intersect_ray(q).is_empty():
+			var hit := space.intersect_ray(q)
+			if hit.is_empty() or from.distance_to(hit["position"]) > SKY_FOG_DIST:
 				open_n += 1
 	_last_open = open_n
 	return open_n >= 7      # a sky gap's bounding rect may clip a tower edge or a cable, so most (not all) rays must leave the city
 
 
+const SKY_FOG_DIST := 300.0     ## geometry this far away is fog-washed to sky colour (a far tower in a sky gap): it counts as open sky
 var _last_open := -1
 var _look := Vector3.INF
 var _cine: Transform3D
