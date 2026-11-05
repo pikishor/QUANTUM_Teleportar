@@ -171,7 +171,8 @@ func _process(delta: float) -> void:
 		if _snap_t <= 0.0:
 			_snap_t = 0.25
 			_sample_render()
-	if _t >= seconds_per_tier:
+	# a slow device can spend the whole slice on one load hitch (dropped above): keep going until a frame is measured, with a cap
+	if _t >= seconds_per_tier and (not _frames.is_empty() or _t >= seconds_per_tier * 4.0 + 4.0):
 		_end_tier()
 	_canvas.queue_redraw()
 
