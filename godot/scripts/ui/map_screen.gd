@@ -1,7 +1,8 @@
 class_name MapScreen
 extends CanvasLayer
 ## H3 full-screen map. Reached by tapping the minimap (touch), or key M. Pauses through Game.state only (&"paused"), closing resumes the previous state.
-## - Four districts (Districts.TITLES) as tinted quadrants of the 16 x 16 grid (CELL m). Cells you have not walked near (DISCOVER_R) sit under fog: no district name, no markers.
+## - Eight zones (Districts.ZONE_TITLES: the four core districts and the four outer ones of the big city) as tinted areas of the 32 x 32 grid (CELL m). Cells you have not walked near (DISCOVER_R) sit under fog: no zone name, no markers.
+## - ZOOM (button `Zoom`): 1x the whole 1280 m map, 2x and 4x centred on you; drag to pan when zoomed. `zoom`, `view_center`, `set_zoom(z)`.
 ## - Tap the map to place ONE custom waypoint (a ring plus a route line from you); tapping it again, or CLEAR, removes it. Saved in user://map.cfg with the discovered cells.
 ## - Markers (legend + filters): MISSION (campaign goal, always shown), SIDE (contract marker + mission doors), ITEMS (uncollected shards), GARAGE (warehouse doors), SHOP (vendor doors).
 ## - There is no fast travel. Buttons by name: Close, Clear, F_mission, F_side, F_items, F_garage, F_shop. The map area is the Control "Map" (tap = _tap(pos)).
@@ -12,9 +13,11 @@ signal closed
 
 const Districts := preload("res://scripts/world/city_districts.gd")
 
-const CELLS := 16
-const CELL := 40.0                                  ## metres per cell (CELLS * CELL = 640 = 2 * CityLayout.HALF)
+const CELLS := 32
+const CELL := 40.0                                  ## metres per cell (CELLS * CELL = 1280 = 2 * CityLayout.HALF)
 const HALF := CELLS * CELL * 0.5
+const ZOOMS: Array[int] = [1, 2, 4]
+const DRAG_PX := 14.0
 const DISCOVER_R := 70.0
 const KINDS: Array[StringName] = [&"mission", &"side", &"items", &"garage", &"shop", &"home"]
 const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"items": "ITEMS", &"garage": "GARAGE", &"shop": "SHOP", &"home": "HOME"}
@@ -27,12 +30,17 @@ const TAP_CLEAR_PX := 28.0
 var waypoint := Vector3.INF
 var filters := {&"mission": true, &"side": true, &"items": true, &"garage": true, &"shop": true, &"home": true}
 
+var zoom := 1                                        ## index into ZOOMS' values: 1, 2 or 4 (the map shows 2 * HALF / zoom metres across)
+var view_center := Vector2.ZERO                      ## world (x, z) at the middle of the square when zoomed in
+var _press := Vector2.INF
+var _dragging := false
 var _seen := PackedByteArray()
 var _open := false
 var _resume := &"play"
 var _root: Control
 var _map: Control
 var _title: Label
+var _zoom_btn: Button
 var _btns := {}
 var _rect := Rect2()                                 ## the square map inside _map (control px)
 var _counts := {}
@@ -75,6 +83,8 @@ func _ready() -> void:
 		b.button_pressed = true
 		b.pressed.connect(_on_filter.bind(k))
 		_btns[k] = b
+	_zoom_btn = _button(bar, "ZOOM 1X", &"Zoom")
+	_zoom_btn.pressed.connect(cycle_zoom)
 	_button(bar, "CLEAR", &"Clear").pressed.connect(clear_waypoint)
 	_button(bar, "CLOSE", &"Close").pressed.connect(close_screen)
 	_map = Control.new()
@@ -175,6 +185,32 @@ func district_discovered(d: int) -> bool:
 	return false
 
 
+## A cell of this zone (0..3 core districts, 4..7 outer zones) has been walked near.
+func zone_discovered(zone: int) -> bool:
+	for i in CELLS * CELLS:
+		if _seen[i] == 1:
+			var c := cell_center(i)
+			if Districts.zone_at(c.x, c.y) == zone:
+				return true
+	return false
+
+
+## Where a zone's name is written: the landmark spot of a core district, the middle of the ring side of an outer zone.
+func _zone_label_pos(zone: int) -> Vector2:
+	if zone < Districts.COUNT:
+		var t: Vector2 = Districts.LANDMARK_TARGETS[zone]
+		return t + Vector2(0.0, -CityLayout.CORE_HALF * 0.3)
+	var mid := (CityLayout.HALF + CityLayout.CORE_HALF) * 0.5
+	match zone:
+		Districts.DOCKYARDS:
+			return Vector2(0.0, -mid)
+		Districts.GROW_FIELDS:
+			return Vector2(0.0, mid)
+		Districts.AMBER_TERRACES:
+			return Vector2(mid, 0.0)
+	return Vector2(-mid, 0.0)
+
+
 func set_waypoint(w: Vector3) -> void:
 	waypoint = Vector3(clampf(w.x, -HALF, HALF), 0.0, clampf(w.z, -HALF, HALF))
 	_dirty = true
@@ -215,6 +251,7 @@ func open() -> void:
 		discover(Game.player.global_position)
 	_open = true
 	visible = true
+	set_zoom(1)
 	_update_rect()
 	_map.queue_redraw()
 
@@ -240,23 +277,94 @@ func _update_rect() -> void:
 	_rect = Rect2((sz.x - side) * 0.5, (sz.y - side) * 0.5, side, side)
 
 
+## Metres across the square at the current zoom.
+func span() -> float:
+	return 2.0 * HALF / float(zoom)
+
+
+## World (x, z) of the square's upper left corner.
+func _view_origin() -> Vector2:
+	return view_center - Vector2(span(), span()) * 0.5
+
+
 func world_to_map(x: float, z: float) -> Vector2:
-	return _rect.position + Vector2((x + HALF) / (2.0 * HALF), (z + HALF) / (2.0 * HALF)) * _rect.size
+	return _rect.position + ((Vector2(x, z) - _view_origin()) / span()) * _rect.size
 
 
 func map_to_world(p: Vector2) -> Vector3:
 	var u := (p - _rect.position) / _rect.size
-	return Vector3(clampf(u.x, 0.0, 1.0) * 2.0 * HALF - HALF, 0.0, clampf(u.y, 0.0, 1.0) * 2.0 * HALF - HALF)
+	var w := _view_origin() + Vector2(clampf(u.x, 0.0, 1.0), clampf(u.y, 0.0, 1.0)) * span()
+	return Vector3(clampf(w.x, -HALF, HALF), 0.0, clampf(w.y, -HALF, HALF))
+
+
+## Next zoom level: whole map, then 2x and 4x around you (the hero, or the map centre when no hero exists).
+func cycle_zoom() -> void:
+	set_zoom(ZOOMS[(ZOOMS.find(zoom) + 1) % ZOOMS.size()])
+
+
+func set_zoom(z: int) -> void:
+	zoom = z if ZOOMS.has(z) else 1
+	if zoom == 1:
+		view_center = Vector2.ZERO
+	elif is_instance_valid(Game.player):
+		var pp: Vector3 = Game.player.global_position
+		view_center = Vector2(pp.x, pp.z)
+	_clamp_view()
+	if _zoom_btn != null:
+		_zoom_btn.text = "ZOOM %dX" % zoom
+	if _map != null:
+		_map.queue_redraw()
+
+
+func pan(by_world: Vector2) -> void:
+	view_center += by_world
+	_clamp_view()
+	if _map != null:
+		_map.queue_redraw()
+
+
+func _clamp_view() -> void:
+	var lim := HALF - span() * 0.5
+	view_center = Vector2(clampf(view_center.x, -lim, lim), clampf(view_center.y, -lim, lim))
 
 
 func _on_map_input(event: InputEvent) -> void:
 	var p := Vector2.INF
-	if event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed:
+	var down := false
+	var up := false
+	var drag := Vector2.ZERO
+	if event is InputEventScreenTouch:
 		p = (event as InputEventScreenTouch).position
-	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		down = (event as InputEventScreenTouch).pressed
+		up = not down
+	elif event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		p = (event as InputEventMouseButton).position
-	if p.is_finite():
-		_tap(p)
+		down = (event as InputEventMouseButton).pressed
+		up = not down
+	elif event is InputEventScreenDrag:
+		p = (event as InputEventScreenDrag).position
+		drag = (event as InputEventScreenDrag).relative
+	elif event is InputEventMouseMotion and ((event as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		p = (event as InputEventMouseMotion).position
+		drag = (event as InputEventMouseMotion).relative
+	if not p.is_finite():
+		return
+	if down:
+		_press = p
+		_dragging = false
+		if zoom == 1:
+			_tap(p)                      # the whole map cannot be panned: a tap places the waypoint at once
+			_press = Vector2.INF
+	elif drag != Vector2.ZERO and _press.is_finite():
+		if not _dragging and p.distance_to(_press) > DRAG_PX * UiUtil.ui_scale(get_viewport().get_visible_rect().size):
+			_dragging = true
+		if _dragging:
+			pan(-drag / _rect.size.x * span())
+	elif up and _press.is_finite():
+		if not _dragging:
+			_tap(p)
+		_press = Vector2.INF
+		_dragging = false
 
 
 ## A tap at control position p: on the waypoint removes it, on the map places it.
@@ -348,46 +456,64 @@ func _draw_map() -> void:
 		return
 	var font := ThemeDB.fallback_font
 	var s := UiUtil.ui_scale(get_viewport().get_visible_rect().size)
-	var cs := _rect.size.x / CELLS
+	var cs := _rect.size.x / (span() / CELL)               # one cell on screen
 	var seen_n := 0
-	# districts: one tinted quadrant each, then fog on top of the cells not yet visited
-	for d in Districts.COUNT:
-		var q := Rect2(_rect.position + Vector2((d % 2) * 0.5, (d / 2) * 0.5) * _rect.size, _rect.size * 0.5)
-		var acc: Color = Districts.palette(d)["accent"]
-		_map.draw_rect(q, Color(acc.r * 0.18, acc.g * 0.18, acc.b * 0.18, 1.0))
+	_map.draw_rect(_rect, Color(0.01, 0.02, 0.04, 1.0))
+	# zones: every cell tinted with the accent of its zone (core district or outer zone), then fog on top of the cells not yet visited
 	for i in CELLS * CELLS:
-		var r := Rect2(_rect.position + Vector2(i % CELLS, i / CELLS) * cs, Vector2(cs, cs))
-		if _seen[i] == 1:
+		var c0 := cell_center(i)
+		var r := Rect2(world_to_map(c0.x - CELL * 0.5, c0.y - CELL * 0.5), Vector2(cs, cs))
+		var seen_c := _seen[i] == 1
+		if seen_c:
 			seen_n += 1
-			_map.draw_rect(r, Color(1, 1, 1, 0.045), false, 1.0)
+		if not r.intersects(_rect):
+			continue
+		var acc: Color = Districts.palette(Districts.look_at(c0.x, c0.y))["accent"]
+		var k := 0.18 if Districts.zone_at(c0.x, c0.y) < Districts.COUNT else 0.11       # the outer zones are dimmer than the core
+		_map.draw_rect(r.intersection(_rect), Color(acc.r * k, acc.g * k, acc.b * k, 1.0))
+		if seen_c:
+			if zoom > 1:
+				_map.draw_rect(r.intersection(_rect), Color(1, 1, 1, 0.045), false, 1.0)
 		else:
-			_map.draw_rect(r, Color(0.01, 0.02, 0.04, 0.82))
+			_map.draw_rect(r.intersection(_rect), Color(0.01, 0.02, 0.04, 0.82))
+	# the original core (the first sector) is outlined so the player sees where the big city starts
+	var core_a := world_to_map(-CityLayout.CORE_HALF, -CityLayout.CORE_HALF)
+	var core_b := world_to_map(CityLayout.CORE_HALF, CityLayout.CORE_HALF)
+	_map.draw_rect(Rect2(core_a, core_b - core_a), Color(1, 1, 1, 0.16), false, 1.5)
 	_map.draw_rect(_rect, Color(1, 1, 1, 0.35), false, 2.0)
-	for d in Districts.COUNT:
-		var tc: Vector2 = Districts.LANDMARK_TARGETS[d]
+	var zone_names: Array[int] = [0, 1, 2, 3, 4, 5, 6, 7]
+	for d in zone_names:
+		var tc := _zone_label_pos(d)
 		var p := world_to_map(tc.x, tc.y)
-		var seen := district_discovered(d)
-		var dname := Districts.title(d) if seen else "UNCHARTED"
-		var fs := int(22.0 * s)
+		if not _rect.grow(-30.0).has_point(p):
+			continue
+		var seen := zone_discovered(d)
+		var dname := Districts.zone_title(d) if seen else "UNCHARTED"
+		var fs := int((22.0 if d < Districts.COUNT else 18.0) * s)
 		var w := font.get_string_size(dname, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		_map.draw_string(font, p + Vector2(-w * 0.5, -_rect.size.y * 0.16), dname, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, 0.85 if seen else 0.35))
+		_map.draw_string(font, p + Vector2(-w * 0.5, 0.0), dname, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, 0.85 if seen else 0.35))
 	# waypoint route
 	var you := Vector2.INF
 	if is_instance_valid(Game.player):
 		var pp: Vector3 = Game.player.global_position
 		you = world_to_map(pp.x, pp.z)
+		if not _rect.grow(12.0).has_point(you):
+			you = Vector2.INF
 	if has_waypoint():
 		var wpm := world_to_map(waypoint.x, waypoint.z)
 		if you.is_finite():
 			_map.draw_dashed_line(you, wpm, Color(1, 1, 1, 0.85), 3.0, 10.0)
-		_map.draw_arc(wpm, 12.0 * s, 0.0, TAU, 20, Color(1, 1, 1, 0.95), 3.0)
-		_map.draw_circle(wpm, 4.0 * s, Color(1, 1, 1, 0.95))
+		if _rect.grow(12.0).has_point(wpm):
+			_map.draw_arc(wpm, 12.0 * s, 0.0, TAU, 20, Color(1, 1, 1, 0.95), 3.0)
+			_map.draw_circle(wpm, 4.0 * s, Color(1, 1, 1, 0.95))
 	# markers
 	_counts.clear()
 	for mk in visible_markers():
 		var k: StringName = mk["kind"]
 		var pw: Vector3 = mk["pos"]
 		var mp := world_to_map(pw.x, pw.z)
+		if not _rect.grow(8.0).has_point(mp):
+			continue
 		var col: Color = KIND_COLOR[k]
 		var rr := (8.0 if k == &"mission" else 5.5) * s
 		if k == &"mission" or k == &"side":
@@ -457,6 +583,15 @@ func _load() -> void:
 	var v: Variant = cf.get_value("map", "seen", null)
 	if v is PackedByteArray and (v as PackedByteArray).size() == CELLS * CELLS:
 		_seen = v
+	elif v is PackedByteArray and (v as PackedByteArray).size() == 256:
+		# a save from the 8 x 8 city (16 x 16 cells of 40 m): it is the core of the big map, cells 8 .. 23 on each axis
+		var old: PackedByteArray = v
+		_seen = PackedByteArray()
+		_seen.resize(CELLS * CELLS)
+		var off := (CELLS - 16) / 2
+		for k in 256:
+			if old[k] == 1:
+				_seen[(k / 16 + off) * CELLS + (k % 16 + off)] = 1
 	var w: Variant = cf.get_value("map", "waypoint", null)
 	if w is Vector3 and absf((w as Vector3).x) < 1e6:
 		waypoint = w

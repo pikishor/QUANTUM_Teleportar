@@ -48,7 +48,7 @@ func build(list: Array[Dictionary]) -> void:
 	mmi.name = "DoorGlow"
 	mmi.multimesh = mm
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mmi.custom_aabb = AABB(Vector3(-400, -2, -400), Vector3(800, 12, 800))
+	mmi.custom_aabb = AABB(Vector3(-900, -2, -900), Vector3(1800, 12, 1800))
 	add_child(mmi)
 
 

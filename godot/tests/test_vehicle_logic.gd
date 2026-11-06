@@ -104,7 +104,8 @@ func _handling_bike() -> void:
 	_extras()
 	var bike := mgr.spawn_parked(&"bike", Vector3(100.0, 0.0, -100.0), -PI * 0.5)
 	_drive(bike, 3.0, 1.0, 0.0)
-	TestLib.check(bike.speed > 40.0 and bike.speed <= 58.01, "the bike is fast (%.1f m/s, max 58)" % bike.speed)
+	var bike_max: float = VehicleSpecs.SPECS[&"bike"]["max"]
+	TestLib.check(bike.speed > bike_max * 0.7 and bike.speed <= bike_max + 0.01, "the bike is fast (%.1f m/s, max %.0f)" % [bike.speed, bike_max])
 	TestLib.check(absf(bike.lean) < 0.05 and absf(bike.visual.model.rotation.z) < 0.05, "no lean on a straight line")
 	var h0 := bike.heading
 	_drive(bike, 1.0, 1.0, 1.0)
@@ -144,7 +145,8 @@ func _handling_hover() -> void:
 		hi = maxf(hi, y)
 	TestLib.check(hi - lo > 0.04 and hi - lo < 0.3, "a hover craft bobs (%.3f m span)" % (hi - lo))
 	TestLib.check(lo > -0.15 and hi < 0.15, "and only bobs around its baked ride height (min %.2f)" % lo)
-	TestLib.check(hv.speed > 35.0 and hv.speed <= 46.01, "hover top speed (%.1f of 46)" % hv.speed)
+	var hv_max: float = VehicleSpecs.SPECS[&"hover"]["max"]
+	TestLib.check(hv.speed > hv_max * 0.7 and hv.speed <= hv_max + 0.01, "hover top speed (%.1f of %.0f)" % [hv.speed, hv_max])
 	for c in [hv, sd]:
 		(c as Vehicle).vel = (c as Vehicle).forward() * 32.0
 		(c as Vehicle).speed = 32.0
@@ -344,7 +346,7 @@ func _far_traffic() -> void:
 	var t: RefCounted = Traffic.new()
 	t.build()
 	t.set_count(Traffic.COUNTS[2])
-	TestLib.check(Traffic.COUNTS[0] >= 110 and Traffic.COUNTS[1] >= 220 and Traffic.COUNTS[2] >= 380 and Traffic.BUILT <= Traffic.CAP and Traffic.CAP <= 420, "far traffic is denser per tier (%s) and capped (%d)" % [str(Traffic.COUNTS), Traffic.CAP])
+	TestLib.check(Traffic.COUNTS[0] >= 110 and Traffic.COUNTS[1] >= 220 and Traffic.COUNTS[2] >= 380 and Traffic.BUILT <= Traffic.CAP and Traffic.CAP <= 760, "far traffic is denser per tier (%s) and capped (%d)" % [str(Traffic.COUNTS), Traffic.CAP])
 	var seen := {}
 	var speed_sum := {}
 	for i in Traffic.BUILT:

@@ -29,7 +29,7 @@ const FLEE_SPEED := 4.4
 const FLEE_TIME := 5.0
 const SHOT_RADIUS: Array[float] = [30.0, 38.0, 45.0]
 const SPAWNS_PER_STEP := 10
-const EDGE := 336.0
+const EDGE := CityLayout.HALF + 16.0
 const STRIDE := 20
 const OFF_MIN := -0.75                   ## lateral offset range around the sidewalk line (metres)
 const OFF_MAX := 0.62
@@ -315,10 +315,10 @@ func _assign_goal(i: int) -> void:
 	_gkind[i] = 0
 	var d := _dir[i]
 	var step := 1 if d > 0.0 else -1
-	var k0 := floori((_u[i] + 320.0 + LINE_OFF) / 80.0)
+	var k0 := floori((_u[i] + CityLayout.HALF + LINE_OFF) / 80.0)
 	for n in 6:
 		var kk := k0 + n * step
-		var mid := 80.0 * float(kk) + STOP_MID - 320.0 - LINE_OFF
+		var mid := 80.0 * float(kk) + STOP_MID - CityLayout.HALF - LINE_OFF
 		if (mid - _u[i]) * d < 0.8:
 			continue
 		if absf(mid) > EDGE - 4.0:
@@ -332,7 +332,7 @@ func _assign_goal(i: int) -> void:
 
 ## Arrived at the stop: stand there for a while facing the shop window (shop) or the road (bus stop).
 func _start_linger(i: int, kind: int) -> void:
-	var building := 1 if fposmod(_lat[i] + 320.0, 80.0) < 40.0 else -1
+	var building := 1 if fposmod(_lat[i] + CityLayout.HALF, 80.0) < 40.0 else -1
 	var face := building if kind == STOP_SHOP else -building
 	_look[i] = LOOK_LAT_POS if face > 0 else LOOK_LAT_NEG
 	var r := SHOP_STAY if kind == STOP_SHOP else BUS_STAY
@@ -543,7 +543,7 @@ func damage_in_radius(pos: Vector3, r: float, amount: float) -> int:
 
 
 static func _region(u: float) -> int:
-	var s := u + 320.0 + LINE_OFF
+	var s := u + CityLayout.HALF + LINE_OFF
 	var k := floori(s / 80.0)
 	return 2 * k + (0 if s - float(k) * 80.0 < ROAD_SPAN else 1)
 
@@ -553,13 +553,13 @@ func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
 		var ax := rng.randi() & 1
 		var perp := c.z if ax == 0 else c.x
 		var along_c := c.x if ax == 0 else c.z
-		var lo := maxi(0, ceili((perp - radius + 320.0 - LINE_OFF) / 80.0))
-		var hi := mini(8, floori((perp + radius + 320.0 + LINE_OFF) / 80.0))
+		var lo := maxi(0, ceili((perp - radius + CityLayout.HALF - LINE_OFF) / 80.0))
+		var hi := mini(CityLayout.N, floori((perp + radius + CityLayout.HALF + LINE_OFF) / 80.0))
 		if hi < lo:
 			continue
 		var k := lo + rng.randi() % (hi - lo + 1)
 		var side := 1.0 if rng.randf() < 0.5 else -1.0
-		var line := -320.0 + 80.0 * float(k) + side * (LINE_OFF + rng.randf_range(-0.2, 0.2))
+		var line := -CityLayout.HALF + 80.0 * float(k) + side * (LINE_OFF + rng.randf_range(-0.2, 0.2))
 		var dl := line - perp
 		if absf(dl) >= radius:
 			continue
@@ -567,7 +567,7 @@ func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
 		var u := along_c + rng.randf_range(-half, half)
 		if absf(u) > EDGE or Vector2(dl, u - along_c).length() < min_dist:
 			continue
-		if fposmod(u + 320.0 + LINE_OFF, 80.0) < ROAD_SPAN + 1.5:          # only on the sidewalk spans, never in the road
+		if fposmod(u + CityLayout.HALF + LINE_OFF, 80.0) < ROAD_SPAN + 1.5:          # only on the sidewalk spans, never in the road
 			continue
 		_axis[i] = ax
 		_lat[i] = line
@@ -676,10 +676,10 @@ func step(delta: float, center: Vector3) -> void:
 			_reg[i] = reg
 			if rng.randf() < TURN_CHANCE:
 				# a corner: turn onto the crossing line (the corner point is where this pedestrian stands)
-				var s := u + 320.0 + LINE_OFF
+				var s := u + CityLayout.HALF + LINE_OFF
 				var kk := floorf(s / 80.0)
 				var rem := s - kk * 80.0
-				var th := kk * 80.0 - 320.0 - LINE_OFF                  # the span boundary just crossed: at rem 0 / ROAD_SPAN, or at 80 when walking down
+				var th := kk * 80.0 - CityLayout.HALF - LINE_OFF                  # the span boundary just crossed: at rem 0 / ROAD_SPAN, or at 80 when walking down
 				if rem > ROAD_SPAN + 28.7:
 					th += 80.0
 				elif rem > LINE_OFF:

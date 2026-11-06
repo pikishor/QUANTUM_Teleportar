@@ -30,9 +30,21 @@ const Districts := preload("res://scripts/world/city_districts.gd")
 const KitWindow := preload("res://scripts/world/city_kit_window.gd")
 const Landmarks := preload("res://scripts/world/city_landmarks.gd")
 const KIT_SHADER := preload("res://assets/shaders/prop_kit.gdshader")
+const Chunks := preload("res://scripts/world/city_chunks.gd")
 
-## Inner junctions (y = 0), 7 x 7 = 49.
+## Half extent of the bounding boxes of the whole-city MultiMeshes (the walkable square plus a margin).
+const AABB_R := CityLayout.HALF + 100.0
+## Distance at which a building has sunk into the ground (before the quality scale 0.65 / 0.85 / 1.0; see city_stream.gd). The fog hides it long before.
+const RADIUS_BUILDINGS := 560.0
+## The light sprites (street lamps, signs, flashers) and the steam plumes are windowed around the camera as well (the big city has 8,700 sprites and 3,000 puffs).
+const RADIUS_GLOW := 320.0
+const CONE_WINDOW := 200.0                ## lamp light cones are drawn for lamps this close to the camera
+const CONE_STEP := 30.0                   ## ... and re-built when the camera has moved this far
+const RADIUS_STEAM := 140.0
+
+## Inner junctions of the CORE (y = 0), 7 x 7 = 49: where missions, shards and the original tables live (wave 84: the map is 16 x 16 blocks, `all_intersections` has all 225).
 var intersections: Array[Vector3] = []
+var all_intersections: Array[Vector3] = []
 ## Building footprints (x, z) for the minimap.
 var building_rects: Array[Rect2] = []
 ## The moon light.
@@ -66,16 +78,20 @@ var _props := Props.new()
 var _skyline := Skyline.new()
 var _stream := Stream.new()
 var _colliders := Colliders.new()
+var _chunks := Chunks.new()         ## streamed building colliders of the outer districts (city_chunks.gd)
 var _tri_cache := {}               ## Mesh -> triangle count (reading mesh arrays back is slow; stats() may be polled)
 var _misc := Misc.new()
 var _mirror_root: Node3D
 var _real_root: Node3D
 var _ground_node: MeshInstance3D
 var _steam_node: MultiMeshInstance3D
+var _steam_family: Stream.Family
 var _building_mat: ShaderMaterial
 var _prop_mats: Array[ShaderMaterial] = []    ## the lit (non-mirror) prop materials: they carry the surface taps (SurfaceTextures)
 var _building_mirror_mat: ShaderMaterial
 var _shadow_casters: Array[GeometryInstance3D] = []
+var _cone_heads: Array = []             ## every lamp head of the city; the cone mesh only holds the ones near the camera (CONE_WINDOW)
+var _cones_at := Vector2(1.0e9, 1.0e9)
 var lamp_cones: MeshInstance3D          ## one merged additive mesh of street-lamp light cones (LightingPolish), MED and HIGH
 var _tiered: Array = []            ## [GeometryInstance3D, min quality] pairs: families that only exist from a given tier up
 var _kit_window := KitWindow.new() ## the street kit: one merged mesh of the props around the camera (city_kit_window.gd)
@@ -86,6 +102,7 @@ func _ready() -> void:
 	Game.world = self
 	layout = CityLayout.new()
 	intersections = CityLayout.make_intersections()
+	all_intersections = CityLayout.make_all_intersections()
 	for lot in layout.lots:
 		building_rects.append(lot.rect)
 
@@ -133,6 +150,7 @@ func _physics_process_body(delta: float) -> void:
 	var p := _follow_point()
 	if p != Vector3.INF:
 		_colliders.follow(p, delta)
+		_chunks.follow(p)
 
 
 func _follow_point() -> Vector3:
@@ -146,6 +164,12 @@ func _follow_point() -> Vector3:
 ## Re-centre the pooled prop colliders on `p` now (they follow the player by themselves; this is for tests, teleports and cutscenes).
 func update_colliders(p: Vector3) -> void:
 	_colliders.refill(p)
+	_chunks.refill(p)
+
+
+## The streamed building colliders of the outer districts (city_chunks.gd): blocks within 300 m of the player, pooled bodies.
+func collision_chunks() -> Chunks:
+	return _chunks
 
 
 ## The pooled prop colliders (city_colliders.gd): bodies, constant shape count, instances in use.
@@ -167,6 +191,8 @@ func _process_body(_delta: float) -> void:
 		var p := cam.global_position
 		_stream.update(Vector2(p.x, p.z))
 		_kit_window.update(Vector2(p.x, p.z))
+		if lamp_cones != null and lamp_cones.visible and Vector2(p.x, p.z).distance_to(_cones_at) > CONE_STEP:
+			_refresh_cones(Vector2(p.x, p.z))
 
 
 # --- API ---------------------------------------------------------------------------------------------------------------
@@ -177,10 +203,30 @@ func update_streaming(cam_xz: Vector2, force := true) -> void:
 	if stream_enabled:
 		_stream.update(cam_xz, force)
 		_kit_window.update(cam_xz, force)
+		if lamp_cones != null and (force or cam_xz.distance_to(_cones_at) > CONE_STEP):
+			_refresh_cones(cam_xz)
+
+
+## The light cones are ONE mesh; re-built from the lamps within CONE_WINDOW of the camera (a few hundred of the city's 1,700), so its vertex cost does not grow with the city.
+func _refresh_cones(cam: Vector2) -> void:
+	_cones_at = cam
+	var near: Array = []
+	var r2 := CONE_WINDOW * CONE_WINDOW
+	for h in _cone_heads:
+		var dx: float = (h as Vector3).x - cam.x
+		var dz: float = (h as Vector3).z - cam.y
+		if dx * dx + dz * dz < r2:
+			near.append(h)
+	lamp_cones.mesh = LightingPolish.build_cones(near)
 
 
 func random_road_point() -> Vector3:
 	return layout.random_road_point()
+
+
+## A random road point inside the original core (|x|, |z| <= CORE_HALF): the first patrols and the mission tables of the original city.
+func random_core_road_point() -> Vector3:
+	return layout.random_core_road_point()
 
 
 ## A random road position whose XZ distance from `center` is within [rmin, rmax]; Vector3.INF when no road lies there.
@@ -222,6 +268,8 @@ func set_quality(level: int) -> void:
 	_env.apply_quality(quality, get_viewport())
 	if lamp_cones != null:
 		lamp_cones.visible = quality >= 1
+		if lamp_cones.visible:
+			_refresh_cones(_cones_at if _cones_at.x < 1.0e8 else Vector2(Game.SPAWN.x, Game.SPAWN.z))
 	if day_night != null:
 		day_night.set_tier(quality)
 	_stream.set_scale([0.65, 0.85, 1.0][quality])
@@ -233,7 +281,8 @@ func set_quality(level: int) -> void:
 		(entry[0] as GeometryInstance3D).visible = quality >= int(entry[1])
 	if _steam_node != null:
 		var per_vent: int = [9, 16, Misc.PUFFS_PER_VENT][quality]
-		_steam_node.multimesh.visible_instance_count = _props.vents.size() * per_vent
+		if _steam_family != null:
+			_stream.set_keep(_steam_family, 12, (float(per_vent) - 0.5) / float(Misc.PUFFS_PER_VENT))      # custom data r (float 12 of a record) = puff / PUFFS_PER_VENT
 	if ambient != null:
 		ambient.set_quality(quality)
 	var mirror_on := quality >= 1
@@ -332,7 +381,7 @@ func add_multimesh(node_name: String, mm: MultiMesh, material: Material, mirror_
 	mi.multimesh = mm
 	mi.material_override = material
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.custom_aabb = AABB(Vector3(-420.0, -4.0, -420.0), Vector3(840.0, 140.0, 840.0))
+	mi.custom_aabb = AABB(Vector3(-AABB_R, -4.0, -AABB_R), Vector3(2.0 * AABB_R, 140.0, 2.0 * AABB_R))
 	mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	_real_root.add_child(mi)
 	multimesh_nodes.append(mi)
@@ -361,7 +410,10 @@ func _build_ground() -> void:
 	var cone_heads: Array = []
 	for lamp in Props.lamp_list():
 		cone_heads.append(Vector3(lamp.x + lamp.z * 2.4, 7.0, lamp.y + lamp.w * 2.4))
-	lamp_cones = LightingPolish.make_cone_node(cone_heads)
+	_cone_heads = cone_heads
+	lamp_cones = LightingPolish.make_cone_node([])
+	lamp_cones.custom_aabb = AABB(Vector3(-AABB_R, 0.0, -AABB_R), Vector3(2.0 * AABB_R, 8.0, 2.0 * AABB_R))
+	_refresh_cones(Vector2(Game.SPAWN.x, Game.SPAWN.z))
 	lamp_cones.visible = quality >= 1
 	add_child(lamp_cones)
 	for lamp in Props.lamp_list():
@@ -414,6 +466,9 @@ func _build_buildings() -> void:
 		if mm.instance_count == 0:
 			continue
 		add_multimesh("Buildings_" + String(cls), mm, _building_mat, _building_mirror_mat, true)
+		# the big city: only the buildings around the camera are submitted (the families' windows, city_stream.gd), so triangles and shadow casters stay flat
+		var bmats: Array[ShaderMaterial] = [_building_mat, _building_mirror_mat]
+		_stream.add("Buildings_" + String(cls), mm, RADIUS_BUILDINGS, Stream.mesh_triangles(mm.mesh), bmats, Stream.CITY_ORIGIN, Stream.CITY_CELL, Stream.CITY_CELLS)
 
 
 func _build_misc() -> void:
@@ -424,10 +479,13 @@ func _build_misc() -> void:
 		mi.mesh = _misc.cable_mesh
 		mi.material_override = Misc.make_material(Misc.CABLE_SHADER)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mi.custom_aabb = AABB(Vector3(-420.0, -2.0, -420.0), Vector3(840.0, 24.0, 840.0))
+		mi.custom_aabb = AABB(Vector3(-AABB_R, -2.0, -AABB_R), Vector3(2.0 * AABB_R, 24.0, 2.0 * AABB_R))
 		_real_root.add_child(mi)
 	if _misc.steam_mm != null:
-		_steam_node = add_multimesh("Steam", _misc.steam_mm, Misc.make_material(Misc.STEAM_SHADER), null, false)
+		var steam_mat := Misc.make_material(Misc.STEAM_SHADER)
+		_steam_node = add_multimesh("Steam", _misc.steam_mm, steam_mat, null, false)
+		var smats: Array[ShaderMaterial] = [steam_mat]
+		_steam_family = _stream.add("Steam", _misc.steam_mm, RADIUS_STEAM, Stream.mesh_triangles(_misc.steam_mm.mesh), smats)
 	if _misc.hologram_mm != null:
 		add_multimesh("Holograms", _misc.hologram_mm, Misc.make_material(Misc.HOLO_SHADER), Misc.make_material(Misc.HOLO_SHADER, -120), false, 1, 2)
 
@@ -448,7 +506,7 @@ func _build_skyline() -> void:
 		var mm: MultiMesh = _skyline.multimeshes[cls]
 		if mm.instance_count > 0:
 			add_multimesh("Skyline_" + String(cls), mm, mat, mirror, false, 0, 2)       # the far reflections are a HIGH-tier luxury
-			_stream.add("Skyline_" + String(cls), mm, Skyline.RADIUS, Stream.mesh_triangles(mm.mesh), mats, -760.0, 80.0, 19)
+			_stream.add("Skyline_" + String(cls), mm, Skyline.RADIUS, Stream.mesh_triangles(mm.mesh), mats, Skyline.GRID_ORIGIN, 80.0, Skyline.GRID_CELLS)
 
 
 func _shader_mat(shader: Shader, priority := 0) -> ShaderMaterial:
@@ -486,6 +544,10 @@ func _build_props() -> void:
 					_stream.add(part["name"], mm, radius, Stream.mesh_triangles(mm.mesh), mats)
 			&"glow":
 				add_multimesh(part["name"], mm, glow_mat, glow_mirror if mirror else null, false)
+				var gmats: Array[ShaderMaterial] = [glow_mat]
+				if mirror:
+					gmats.append(glow_mirror)
+				_stream.add(part["name"], mm, RADIUS_GLOW, Stream.mesh_triangles(mm.mesh), gmats)
 			&"shaft":
 				add_multimesh(part["name"], mm, shaft_mat, null, false, part.get("min", 0))
 				if radius > 0.0:
@@ -524,13 +586,18 @@ func _build_collision() -> void:
 	collision_body.collision_mask = 0
 	add_child(collision_body)
 	# ground
-	_add_box(Vector3(0.0, -2.0, 0.0), Vector3(1600.0, 4.0, 1600.0), "Ground")
+	_add_box(Vector3(0.0, -2.0, 0.0), Vector3(2.0 * AABB_R + 800.0, 4.0, 2.0 * AABB_R + 800.0), "Ground")
 	# every part of every building (stepped crowns are separate boxes, so roofs and ledges are where you see them)
 	for b in building_data:
 		var lot: CityLayout.Lot = b.lot
+		if not CityLayout.is_core_block(lot.block_i, lot.block_j):
+			continue                                              # the outer districts are streamed (city_chunks.gd)
 		var boxes := BM.collision_boxes(b.cls, lot.cx, lot.cz, lot.w, lot.d, lot.h)
 		for k in boxes.size():
 			_add_box(boxes[k][0], boxes[k][1], "Building%d_%d" % [lot.index, k])
+	_chunks.build(self, layout, building_data)
+	var fp := _follow_point()
+	_chunks.refill(fp if fp != Vector3.INF else Game.SPAWN)
 	# the district landmarks: a solid core column each (the crowns are overhead)
 	for box: Array in _landmarks.collision_boxes():
 		_add_box(box[0], box[1], box[2])

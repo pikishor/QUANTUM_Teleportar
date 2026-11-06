@@ -515,7 +515,7 @@ func _quality_scaling(_host: Node) -> void:
 ## The gameplay layer places the room at street level in the strip east of the city grid (327.5, 0, 0) and hides the city while inside; the interface doc says (900, 600, 900).
 ## The generator must not care where it is built: same plan, same relative door, floor at the origin's height, the city rescue and the teleport clamp leave a hero in it alone.
 func _street_origin(host: Node) -> void:
-	var street := Vector3(327.5, 0.0, 0.0)
+	var street := Vector3(CityLayout.HALF + 7.5, 0.0, 0.0)
 	var same := true
 	var floor_ok := true
 	var guards_ok := true

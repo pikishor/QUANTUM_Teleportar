@@ -348,7 +348,7 @@ func _place_lamps() -> void:
 			variant = 1.0
 		elif r > 0.72:
 			variant = 0.5
-		if float(Districts.palette(Districts.at(lamp.x, lamp.y))["lamp"]) > 0.5 and r > 0.3:
+		if float(Districts.palette(Districts.look_at(lamp.x, lamp.y))["lamp"]) > 0.5 and r > 0.3:
 			variant = 1.0 if r > 0.6 else 0.5                        # glass towers: the street lamps run cool (white and cyan) instead of warm
 		var seed_v := rng.randf()
 		var xf := Transform3D(Basis(Vector3.UP, theta), Vector3(lamp.x, 0.0, lamp.y))

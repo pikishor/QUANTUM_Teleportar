@@ -196,7 +196,7 @@ func _test_placement(city: City) -> void:
 			bad_road += 1
 		if absf(pos.x) > CityLayout.HALF + 12.0 or absf(pos.z) > CityLayout.HALF + 12.0:
 			bad_border += 1
-		if int(p["district"]) != Districts.at(pos.x, pos.z):
+		if int(p["district"]) != Districts.look_at(pos.x, pos.z):
 			bad_wrong_district += 1
 	TestLib.check(bad_lot == 0, "no street-kit prop stands inside a building footprint (%d do)" % bad_lot)
 	TestLib.check(bad_road == 0, "no street-kit prop blocks the road surface (%d do)" % bad_road)
@@ -281,7 +281,7 @@ func _test_palette_in_world(city: City) -> void:
 	var neon_share := [0, 0, 0, 0]
 	for b in city.building_data:
 		var lot: CityLayout.Lot = b.lot
-		var d := Districts.at(lot.cx, lot.cz)
+		var d := Districts.look_at(lot.cx, lot.cz)
 		sum[d] = (sum[d] as Color) + (b.tint as Color)
 		cnt[d] += 1
 		if lot.neon == int(Districts.palette(d)["neon"]):

@@ -31,6 +31,8 @@ const BUTTONS := [
 	{"action": &"crouch", "dx": 650.0, "dy": 395.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"more"},
 	{"action": &"gadget", "dx": 650.0, "dy": 490.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"more_gadget"},
 	{"action": &"garage_call", "dx": 750.0, "dy": 110.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"more_garage", "fn": &"summon"},
+	{"action": &"charge_place", "dx": 750.0, "dy": 425.0, "r": 44.0, "fs": 22, "label": "C4", "need": &"more_c4"},
+	{"action": &"detonate", "dx": 590.0, "dy": 575.0, "r": 50.0, "fs": 20, "label": "DETONATE", "need": &"detonate"},
 	{"action": &"companion_hold", "dx": 750.0, "dy": 215.0, "r": 46.0, "fs": 22, "label": "HOLD", "need": &"more_companion", "fn": &"ally_hold"},
 	{"action": &"companion_attack", "dx": 750.0, "dy": 320.0, "r": 46.0, "fs": 20, "label": "ATTACK", "need": &"more_companion", "fn": &"ally_attack"},
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
@@ -313,7 +315,7 @@ func touch_down(id: int, pos: Vector2) -> void:
 				elif b["fn"] == &"ally_attack":
 					Companion.current.command(&"attack")
 				elif b["fn"] == &"summon":
-					Game.vehicles.call(&"summon_garage")
+					Game.vehicles.call(&"summon_any")        # the garage car, or a free quantum hover-bike while the garage is empty
 				else:
 					_open_garage()
 				return
@@ -438,11 +440,14 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.player) and not _driving()
 		&"more":
 			return more_open and is_instance_valid(Game.player) and not _driving()
+		&"more_c4":
+			return more_open and is_instance_valid(Game.player) and not _driving() and Charges.current != null
+		&"detonate":
+			return Charges.current != null and Charges.current.armed()
 		&"more_gadget":
 			return more_open and is_instance_valid(Game.player) and not _driving() and Gear.gadget != &""
 		&"more_garage":
-			return more_open and is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage") and not _driving() and not InteriorGameplay.active \
-				and (Game.vehicles.call(&"get_garage") as Garage).has_car()
+			return more_open and is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"summon_any") and not _driving() and not InteriorGameplay.active
 		&"more_companion":
 			return more_open and not _driving() and Companion.controllable()
 		&"grab":
@@ -642,6 +647,8 @@ func _driving() -> bool:
 func _vehicle_in_reach() -> bool:
 	if not is_instance_valid(Game.vehicles) or not is_instance_valid(Game.player) or not Game.vehicles.has_method(&"nearest"):
 		return false
+	if Game.vehicles.has_method(&"reach_car"):
+		return Game.vehicles.call(&"reach_car", Game.player.global_position) != null
 	return Game.vehicles.call(&"nearest", Game.player.global_position, USE_REACH) != null
 
 

@@ -6,6 +6,8 @@ render_mode unshaded, blend_add, depth_draw_never, cull_disabled;
 
 #include "res://assets/shaders/common.gdshaderinc"
 
+uniform vec2 lod_range = vec2(100000.0, 110000.0);      // a far sprite shrinks to nothing between these camera distances (the family window, city_stream.gd)
+
 varying vec2 v_uv;
 varying flat vec4 v_c;
 varying flat vec4 v_cust;
@@ -14,7 +16,7 @@ void vertex() {
 	v_uv = UV * 2.0 - 1.0;
 	v_c = COLOR;
 	v_cust = INSTANCE_CUSTOM;
-	float size = max(INSTANCE_CUSTOM.y, 0.01);
+	float size = max(INSTANCE_CUSTOM.y, 0.01) * (1.0 - smoothstep(lod_range.x, lod_range.y, distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz)));
 	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
 	MODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(size, 0.0, 0.0, 0.0), vec4(0.0, size, 0.0, 0.0), vec4(0.0, 0.0, size, 0.0), vec4(0.0, 0.0, 0.0, 1.0));
 }

@@ -75,7 +75,7 @@ func _build_cables(layout: CityLayout, rng: RandomNumberGenerator) -> void:
 	arrays[Mesh.ARRAY_INDEX] = idx
 	cable_mesh = ArrayMesh.new()
 	cable_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	cable_mesh.custom_aabb = AABB(Vector3(-400, 0, -400), Vector3(800, 20, 800))
+	cable_mesh.custom_aabb = AABB(Vector3(-CityLayout.HALF - 80.0, 0, -CityLayout.HALF - 80.0), Vector3(2.0 * CityLayout.HALF + 160.0, 20, 2.0 * CityLayout.HALF + 160.0))
 
 
 ## One span of 2-3 parallel wires between two facing walls. axis 0: wall points differ in z (x given), axis 1: differ in x (z given).

@@ -106,6 +106,11 @@ func build(kind: StringName, glow: Color) -> Node3D:
 		if w != null:
 			wheels.append(w)
 			_front.append(String(n).begins_with("WheelF"))
+	if kind == &"hoverbike":                              # a quantum cushion, no wheels: the bike model's wheels are hidden for good
+		for w in wheels:
+			w.visible = false
+		wheels.clear()
+		_front.clear()
 	var lamp_src := _merge_lamps(body)
 	body_lod1 = model.get_node_or_null(NodePath(LOD1_NAME)) as MeshInstance3D
 	if body_lod1 != null:

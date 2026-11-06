@@ -58,9 +58,14 @@ var _foes: Array = []
 var _course: Array[Vector3] = []
 
 
+## Road centre line of a CORE grid index (0 = the western border road of the original 8 x 8 city): the activities live in the core, the big city's outer districts are around it.
+static func core_road(i: int) -> float:
+	return CityLayout.road_center(i + CityLayout.CORE0)
+
+
 ## Entry marker ground positions (pure data, from the fixed city grid).
 static func entries() -> Dictionary:
-	var rc := CityLayout.road_center
+	var rc := core_road
 	var o := Vector3(7.0, 0.0, 7.0)
 	return {
 		RANGE: Vector3(rc.call(4), 0.0, rc.call(4)) + o,
@@ -90,7 +95,7 @@ static func target_pos(k: int) -> Vector3:
 static func drift_gates() -> Array[Vector3]:
 	var out: Array[Vector3] = []
 	for g: Vector2i in [Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 3), Vector2i(2, 3), Vector2i(1, 3), Vector2i(1, 2), Vector2i(1, 1)]:
-		out.append(Vector3(CityLayout.road_center(g.x), 1.0, CityLayout.road_center(g.y)))
+		out.append(Vector3(core_road(g.x), 1.0, core_road(g.y)))
 	return out
 
 

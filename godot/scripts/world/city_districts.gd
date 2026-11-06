@@ -38,9 +38,44 @@ const PALETTES: Array[Dictionary] = [
 ]
 
 
-## The district (0..3) under a world position (x, z).
+## Outer zones (wave 84, the big city): the ring of 192 blocks around the original core. The four sides of the ring are four more districts with their own names; their look
+## (facade tint, neon, prop paint, sidewalk, kit mix) is one of the four existing palettes, so no new texture or shader exists (`look_at`). Music, dialogue and the campaign keep the four
+## quadrants (`at`): the quadrants simply cover the whole 1280 m map now.
+const DOCKYARDS := 4              ## north side (z < -CORE_HALF): foundry palette, low sheds and yards
+const AMBER_TERRACES := 5         ## east side: market palette, warm terraces
+const GROW_FIELDS := 6            ## south side: slums palette (green), low blocks and gardens
+const OUTER_SPIRES := 7           ## west side: towers palette (cool glass)
+const ZONE_COUNT := 8
+const ZONE_TITLES: Array[String] = ["NEON MARKET", "FOUNDRY ROW", "RAIN SLUMS", "GLASS TOWERS", "DOCKYARDS", "AMBER TERRACES", "GROW FIELDS", "OUTER SPIRES"]
+const ZONE_LOOK: Array[int] = [0, 1, 2, 3, FOUNDRY, MARKET, SLUMS, TOWERS]       ## the palette (district 0..3) each zone wears
+
+
+## The district (0..3) under a world position (x, z): the quadrant, over the whole map.
 static func at(x: float, z: float) -> int:
 	return (1 if x >= 0.0 else 0) + (2 if z >= 0.0 else 0)
+
+
+## The zone (0..7) under a world position: the four core quadrants inside |x|, |z| <= CORE_HALF, else the outer zone of that side of the ring.
+static func zone_at(x: float, z: float) -> int:
+	# a block (and the half road around it) belongs to one zone: the side of the ring is decided by the block centre, so no building is dressed from two palettes
+	var bi := clampi(int(floor((x + CityLayout.HALF) / CityLayout.PITCH)), 0, CityLayout.N - 1)
+	var bj := clampi(int(floor((z + CityLayout.HALF) / CityLayout.PITCH)), 0, CityLayout.N - 1)
+	if CityLayout.is_core_block(bi, bj):
+		return at(x, z)
+	var cx := -CityLayout.HALF + (float(bi) + 0.5) * CityLayout.PITCH
+	var cz := -CityLayout.HALF + (float(bj) + 0.5) * CityLayout.PITCH
+	if absf(cz) >= absf(cx):
+		return DOCKYARDS if cz < 0.0 else GROW_FIELDS
+	return AMBER_TERRACES if cx > 0.0 else OUTER_SPIRES
+
+
+static func zone_title(zone: int) -> String:
+	return ZONE_TITLES[clampi(zone, 0, ZONE_COUNT - 1)]
+
+
+## The palette district (0..3) a world position is dressed with: the quadrant in the core, the look of the outer zone outside it.
+static func look_at(x: float, z: float) -> int:
+	return ZONE_LOOK[zone_at(x, z)]
 
 
 static func at_v(p: Vector3) -> int:

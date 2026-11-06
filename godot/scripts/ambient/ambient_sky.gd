@@ -43,7 +43,7 @@ func build(parent: Node3D) -> void:
 	node.mesh = _beam_mesh()
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	node.custom_aabb = AABB(Vector3(-400, -400, -400), Vector3(800, 800, 800))
+	node.custom_aabb = AABB(Vector3(-900, -400, -900), Vector3(1800, 800, 1800))
 	material = ShaderMaterial.new()
 	material.shader = SHADER
 	node.material_override = material
@@ -123,21 +123,23 @@ func set_enabled(on: bool) -> void:
 
 
 ## Begin a patrol now: the airship enters over one edge of the city and flies across it.
-func start_sweep() -> void:
+func start_sweep(center := Vector3.ZERO) -> void:
+	# the big city: the patrol enters 272 m (half of its 34 s crossing) before the player's position and crosses the streets around them
 	var edge := rng.randi() % 4
 	var along := rng.randf_range(-220.0, 220.0)
+	var half := AIRSHIP_SPEED * DURATION * 0.5
 	match edge:
 		0:
-			_p0 = Vector3(-420.0, ALTITUDE, along)
+			_p0 = Vector3(center.x - half, ALTITUDE, center.z + along)
 			_dir = Vector3.RIGHT
 		1:
-			_p0 = Vector3(420.0, ALTITUDE, along)
+			_p0 = Vector3(center.x + half, ALTITUDE, center.z + along)
 			_dir = Vector3.LEFT
 		2:
-			_p0 = Vector3(along, ALTITUDE, -420.0)
+			_p0 = Vector3(center.x + along, ALTITUDE, center.z - half)
 			_dir = Vector3.BACK
 		_:
-			_p0 = Vector3(along, ALTITUDE, 420.0)
+			_p0 = Vector3(center.x + along, ALTITUDE, center.z + half)
 			_dir = Vector3.FORWARD
 	_t = 0.0
 	_swing = rng.randf() * TAU
@@ -183,7 +185,7 @@ func step(delta: float, center: Vector3, traffic, t: float, quality: int) -> voi
 		else:
 			_next_in -= delta
 			if _next_in <= 0.0:
-				start_sweep()
+				start_sweep(center)
 	_follow_siren(delta, traffic, t)
 	_siren_in -= delta
 	if _siren_in <= 0.0:

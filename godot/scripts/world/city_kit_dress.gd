@@ -498,7 +498,7 @@ static func layout(lots: Array) -> Array[Dictionary]:
 	for lot in lots:
 		if lot.h <= 0.0:
 			continue
-		var d := Districts.at(lot.cx, lot.cz)
+		var d := Districts.look_at(lot.cx, lot.cz)
 		var bxz := Vector2(-CityLayout.HALF + (float(lot.block_i) + 0.5) * CityLayout.PITCH, -CityLayout.HALF + (float(lot.block_j) + 0.5) * CityLayout.PITCH)
 		for axis in 2:
 			rng.seed = 7000 + int(lot.index) * 31 + axis * 977

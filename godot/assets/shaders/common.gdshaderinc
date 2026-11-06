@@ -2,7 +2,7 @@
 // analytic city grid (roads every 80 m, 20 m wide) so every shader agrees where the roads are without textures.
 
 const float W_PITCH = 80.0;
-const float W_HALF = 320.0;
+const float W_HALF = 640.0;       // the playable city is 16 x 16 blocks (wave 84); the road grid itself repeats every 80 m from -W_HALF
 const float W_ROADH = 10.0;      // half road width
 
 float hash11(float p) {

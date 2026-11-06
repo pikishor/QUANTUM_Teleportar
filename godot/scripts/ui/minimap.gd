@@ -5,10 +5,12 @@ extends Control
 ## and the whole thing redraws at about 15 Hz.
 
 const CityEventsScript := preload("res://scripts/world/city_events.gd")
-const RANGE_M := 130.0              ## metres from the centre to the rim
+const RANGE_M := 130.0              ## metres from the centre to the rim on foot
+const RANGE_DRIVE := 280.0          ## ... at full driving speed (the big city: the map zooms out with the speed of the driven vehicle, smoothly)
+const DRIVE_FULL := 24.0            ## speed (m/s) at which the map has zoomed out completely
 const REFRESH := 1.0 / 15.0
-const EXTENT := 360.0               ## the texture covers |x|, |z| <= EXTENT
-const TEX_PX := 512
+const EXTENT := CityLayout.HALF + 40.0   ## the texture covers |x|, |z| <= EXTENT (the whole 16 x 16 map)
+const TEX_PX := 640                 ## 2.1 m per pixel (the whole 1360 m of the big city)
 const SEGMENTS := 44
 const DIAMOND := [Vector2(0, -1), Vector2(0.8, 0), Vector2(0, 1), Vector2(-0.8, 0)]
 const ARROW := [Vector2(0, -1.3), Vector2(0.85, 0.9), Vector2(0, 0.4), Vector2(-0.85, 0.9)]
@@ -33,6 +35,7 @@ var _fwd := Vector2(0, -1)
 var _right := Vector2(1, 0)
 var _pos := Vector2.ZERO
 var _k := 1.0
+var _range := RANGE_M               ## current metres from the centre to the rim (zoom: RANGE_M on foot .. RANGE_DRIVE in a fast vehicle)
 
 
 func _init() -> void:
@@ -41,7 +44,18 @@ func _init() -> void:
 	_uvs.resize(SEGMENTS)
 
 
+## The rim distance the map wants now: on foot RANGE_M, in a vehicle it opens up with the speed.
+static func range_for_speed(speed: float) -> float:
+	return lerpf(RANGE_M, RANGE_DRIVE, clampf(absf(speed) / DRIVE_FULL, 0.0, 1.0))
+
+
 func _process(delta: float) -> void:
+	var want := RANGE_M
+	if is_instance_valid(Game.vehicles):
+		var dv: Variant = Game.vehicles.get("driven")
+		if dv != null and is_instance_valid(dv):
+			want = range_for_speed(float((dv as Object).get("speed")))
+	_range = lerpf(_range, want, 1.0 - exp(-2.5 * delta))
 	_t_clock += delta
 	_t -= delta
 	if _t <= 0.0:
@@ -106,7 +120,7 @@ func _update_view(radius: float) -> void:
 	if f.length() > 0.001:
 		_fwd = f.normalized()
 	_right = Vector2(-_fwd.y, _fwd.x)
-	_k = radius / RANGE_M
+	_k = radius / _range
 
 
 func _draw() -> void:
@@ -235,6 +249,19 @@ func _draw_body() -> void:
 			if not far:
 				rings.append([c + em, maxf(float(mk["radius"]) * _k, 6.0 * s), Color(ecol, 0.55)])
 			city_event_markers += 1
+	for fm: Dictionary in Freedom.markers():               # open world jobs: a coloured diamond per marker, the live goal clamped to the rim with a ring
+		var fp: Vector3 = fm["pos"]
+		var fmm := to_map(fp.x, fp.z)
+		var ffar := fmm.length() > inner
+		var is_goal := bool(fm["goal"])
+		if ffar and not is_goal:
+			continue
+		if ffar:
+			fmm = fmm.normalized() * (inner - 3.0 * s)
+		var fcol: Color = fm["color"]
+		diamonds.append([c + fmm, (4.8 if is_goal else 3.6) * s, Color(fcol, 1.0 if is_goal else 0.8)])
+		if is_goal and not ffar:
+			rings.append([c + fmm, maxf(float(fm["radius"]) * _k, 6.0 * s), Color(fcol, 0.55)])
 	for r: Rect2 in cars:
 		draw_rect(r, Color(0.7, 0.75, 0.8, 0.6))
 	for kind: Array in [[&"disc", discs], [&"diamond", diamonds], [&"ring", rings]]:

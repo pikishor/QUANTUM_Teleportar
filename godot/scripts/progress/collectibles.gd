@@ -51,7 +51,7 @@ static func spots() -> Array[Vector3]:
 		var picked_roofs: Array[Vector3] = []
 		var cands: Array = []
 		for b: Bld.Building in bld.buildings:
-			if b.lot.h <= 30.0 and Districts.at(b.lot.cx, b.lot.cz) == d and b.cls != &"landmark":
+			if b.lot.h <= 30.0 and CityLayout.is_core_block(b.lot.block_i, b.lot.block_j) and Districts.at(b.lot.cx, b.lot.cz) == d and b.cls != &"landmark":     # the 30 shards stay in the original core
 				cands.append(b)
 		cands.sort_custom(func(a: Bld.Building, c: Bld.Building) -> bool: return a.index < c.index)
 		var want := ROOF_PER_DISTRICT[d]

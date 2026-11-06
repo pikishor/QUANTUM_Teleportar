@@ -4,7 +4,7 @@ extends Node
 ## (touch USE button or F), fades, the player's state carried through (hp, energy, weapons, ammo and HEAT: heat does not decay inside, hunters may follow through the door), vendors,
 ## civilians, Vael guards (cap 3..5 actors), four interior missions, interior radio lines, the minimap layout, saving inside an interior and a safe respawn at the door.
 ##
-## Where the room lives: one interior at a time at ORIGIN, street level in the strip east of the city grid (x 310..345, no lot, no prop). While one is active the city is hidden
+## Where the room lives: one interior at a time at ORIGIN, street level in the strip east of the city grid (x HALF - 10 .. HALF + 25, no lot, no prop). While one is active the city is hidden
 ## (Game.world.visible = false: ground, props, traffic, mirror cost nothing), the cars are frozen and hidden, rain is 0, the street's enemies are stored (positions, hp, awareness) and
 ## put back on exit, and unspawned patrol groups are held back. Enemy steps stop at the interior's walls through the generator's `InteriorSpace`; `blocks()` is the same test for the civilians.
 ## Static state for the other modules (read-only for them): `active`, `vendor_open`, `prompt` (HUD / touch USE), `hud_line` (HUD priority line).
@@ -14,7 +14,7 @@ signal entered(door: Dictionary)
 signal exited(door: Dictionary)
 
 const GEN_PATH := "res://scripts/interiors/interior_gen.gd"
-const ORIGIN := Vector3(327.5, 0.0, 0.0)
+const ORIGIN := Vector3(CityLayout.HALF + 7.5, 0.0, 0.0)
 const REACH_DOOR := 2.8
 const REACH_VENDOR := 3.2
 const REACH_EXIT := 2.2

@@ -26,6 +26,11 @@ const THROW_SPEED := 24.0
 const THROW_GRAVITY := 22.0
 const MAX_FLIGHT := 2.5
 const HIT_RADIUS := 3.2
+const BURST_TIME := 1.15                     ## QUANTUM GLIDE: second jump press in the air = a forward burst (open world freedom)
+const BURST_SPEED := 27.0
+const BURST_COST := 14.0
+const BURST_MIN_AIR := 0.18
+const BURST_LIFT := 4.5
 const GRAB_DRAIN := 0.5                      ## energy per second while holding, times the (difficulty scaled) grab cost
 
 var wall_running := false
@@ -39,6 +44,12 @@ var _scrape_t := 0.0
 var slams := 0                               ## counters (tests wait on these, not on frames)
 var grabs := 0
 var throws := 0
+var bursting := false                        ## QUANTUM GLIDE burst in progress
+var bursts := 0
+var _burst_t := 0.0
+var _burst_spent := false
+var _jump_was := false
+var _burst_dir := Vector3.ZERO
 var wall_runs := 0
 var wall_jumps := 0
 var impacts := 0
@@ -88,6 +99,8 @@ func active() -> bool:
 func cancel() -> void:
 	wall_running = false
 	slamming = false
+	bursting = false
+	_burst_spent = false
 	_spent = false
 	_release_held()
 	for f in _flights:
@@ -136,8 +149,42 @@ func tick(p: Player, dt: float, forward_in: float, wish: Vector3, on_floor: bool
 		pose_roll = 0.0
 		pose_pitch = 0.0
 
+	# --- QUANTUM GLIDE burst: a second jump press in the air throws the hero forward (camera direction) for BURST_TIME, gravity almost off, a cyan trail behind him
+	var jump := Input.is_action_pressed(&"jump")
+	var jump_pressed := jump and not _jump_was
+	_jump_was = jump
+	if on_floor:
+		_burst_spent = false
+		bursting = false
+	elif bursting:
+		_burst_t -= dt
+		if _burst_t <= 0.0 or wall_running or slamming or holding or p.get(&"vehicle") != null:
+			bursting = false
+		else:
+			var k := _burst_t / BURST_TIME
+			p.velocity.x = _burst_dir.x * BURST_SPEED * (0.55 + 0.45 * k)
+			p.velocity.z = _burst_dir.z * BURST_SPEED * (0.55 + 0.45 * k)
+			p.velocity.y = lerpf(-1.0, BURST_LIFT, k * k)
+			p.gliding = true
+			pose_pitch = 0.45
+			if int(_burst_t * 30.0) != int((_burst_t + dt) * 30.0):
+				FX.burst(p.global_position + Vector3(0.0, 1.0, 0.0), Color(0.4, 0.95, 1.0), 2, 1.2, 0.5, 0.0, 0.9)
+	elif jump_pressed and not _burst_spent and not slamming and not wall_running and not holding and p.air_time > BURST_MIN_AIR and p.energy >= HeroPower.cost(BURST_COST):
+		var look: float = p.camera_rig.yaw
+		_burst_dir = Vector3(-sin(look), 0.0, -cos(look))
+		if wish.length() > 0.3:
+			_burst_dir = Vector3(wish.x, 0.0, wish.z).normalized()
+		bursting = true
+		_burst_spent = true
+		_burst_t = BURST_TIME
+		bursts += 1
+		p.energy -= HeroPower.cost(BURST_COST)
+		FX.burst(p.global_position + Vector3(0.0, 1.0, 0.0), Color(0.5, 1.0, 1.0), 12, 6.0, 0.4, 0.0, 1.3)
+		FX.shake(0.12)
+		Sfx.play(&"blink", -5.0, 1.5)
+
 	# --- glide keeps its speed
-	if p.gliding and not wall_running and not slamming:
+	if p.gliding and not wall_running and not slamming and not bursting:
 		var top := Player.WALK_SPEED * 1.25 * (p.speed_boost if p.speed_boost >= 1.0 else 1.0 + p.speed_boost)
 		p.velocity.x = PlayerUtil.damp(p.velocity.x, wish.x * top, 1.5, dt)
 		p.velocity.z = PlayerUtil.damp(p.velocity.z, wish.z * top, 1.5, dt)

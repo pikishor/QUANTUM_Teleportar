@@ -53,6 +53,7 @@ var chasing := false                ## patrol: drives at the player and rams him
 var ram_hits := 0                   ## patrol rams that landed (tests)
 var tactic: StringName = &"ram"      ## patrol pursuit tactic (VehicleSpecs.TACTICS)
 var weapons: VehicleWeapons         ## mounted weapon (sport / suv / hover), null on other kinds
+var fuse := -1.0                    ## chain reaction (open world freedom): seconds until a burning car next to a wreck blows up (< 0 = none)
 var nitro := 1.0                    ## boost tank 0..1
 var boosting := false
 var _nitro_wait := 0.0
@@ -140,6 +141,7 @@ func activate(pos: Vector3, h: float) -> void:
 	chasing = false
 	ram_hits = 0
 	nitro = 1.0
+	fuse = -1.0
 	boosting = false
 	_nitro_wait = 0.0
 	if weapons != null:
@@ -310,6 +312,8 @@ func damage_state() -> int:
 
 func _update_damage_state() -> void:
 	var ns := state_for(hp, max_hp)
+	if fuse >= 0.0:
+		ns = 2                                              # a lit fuse keeps the fire going
 	if ns == dmg_state:
 		return
 	dmg_state = ns
@@ -364,15 +368,55 @@ func explode() -> void:
 	damage_state_changed.emit(self, 3)
 	Game.explode(pos + Vector3(0.0, 1.0, 0.0), 9.0, {"enemy_dmg": 80.0, "car_dmg": 70.0, "player_dmg": 35.0, "color": Color(1.0, 0.54, 0.19)})
 	Game.add_heat(VehicleSpecs.CARJACK_HEAT)
+	_chain_ignite(pos)
 	exploded.emit(self)
 	if mgr != null:
 		mgr.on_destroyed(self)
+
+
+## Chain reaction: every other live car within CHAIN_RADIUS of a blast catches fire and blows up CHAIN_DELAY (staggered by distance) seconds later.
+func _chain_ignite(pos: Vector3) -> void:
+	var mgr := manager as VehicleManager
+	if mgr == null:
+		return
+	for o in mgr.list:
+		if o == self or o.dead or not o.active or o.wreck:
+			continue
+		var d := o.global_position.distance_to(pos)
+		if d <= VehicleSpecs.CHAIN_RADIUS:
+			o.ignite(VehicleSpecs.CHAIN_DELAY * (0.4 + 0.6 * d / VehicleSpecs.CHAIN_RADIUS))
+
+
+## Sets the car alight: it burns and explodes after `delay` seconds (the earliest fuse wins).
+func ignite(delay: float) -> void:
+	if dead or not active:
+		return
+	if fuse < 0.0 or delay < fuse:
+		fuse = delay
+	if dmg_state < 2:
+		dmg_state = 2
+		damage_state_changed.emit(self, 2)
+
+
+## Horizontal distance from `pos` to the hull (an oriented box of the spec's length and width): 0 inside it. A long bus is reached at its flank, not its middle.
+func edge_distance(pos: Vector3) -> float:
+	var d := pos - global_position
+	var lx := absf(d.dot(right()))
+	var lz := absf(d.dot(forward()))
+	var dx := maxf(lx - float(spec["wid"]) * 0.5, 0.0)
+	var dz := maxf(lz - float(spec["len"]) * 0.5, 0.0)
+	return sqrt(dx * dx + dz * dz)
 
 
 # --- simulation --------------------------------------------------------------------------------------------------------
 
 ## One physics tick (called by the manager while Game.is_playing()).
 func sim(dt: float) -> void:
+	if fuse >= 0.0:
+		fuse -= dt
+		if fuse < 0.0:
+			explode()
+			return
 	if driver_is_player:
 		step_drive(dt, Input.get_axis(&"move_back", &"move_forward"), Input.get_axis(&"move_left", &"move_right"), Input.is_action_pressed(&"jump"), Input.is_action_pressed(&"sprint"))
 		if weapons != null:

@@ -106,8 +106,8 @@ const KINDS: Array[Dictionary] = [
 ]
 
 const CELL := 20.0
-const GRID_ORIGIN := -360.0
-const GRID_N := 36
+const GRID_ORIGIN := -CityLayout.HALF - 40.0
+const GRID_N := int((2.0 * CityLayout.HALF + 80.0) / 20.0)
 
 ## Placements per cell: stride 6 floats (kind, x, z, yaw, seed, variant). cells[c] is a PackedFloat32Array.
 var cells: Array = []
@@ -648,7 +648,7 @@ func _try_place(layout: CityLayout, kind: int, x: float, z: float, yaw: float) -
 		return false
 	if not _free(x, z, r):
 		return false
-	var d := Districts.at(x, z)
+	var d := Districts.look_at(x, z)
 	var variant := rng.randi() % 3
 	var seed_v := rng.randf()
 	var c := _cell_of(x, z)
@@ -689,7 +689,7 @@ func build(props: RefCounted, layout: CityLayout, parts: Array[Dictionary]) -> v
 			farr.append_array(PackedFloat32Array([float(fk), fxf.origin.x, fxf.origin.z, atan2(fxf.basis.z.x, fxf.basis.z.z), (it[1] as Color).r, 0.0]))
 			cells[fc] = farr
 			counts[fc] += 1
-			var fd := Districts.at(fxf.origin.x, fxf.origin.z)
+			var fd := Districts.look_at(fxf.origin.x, fxf.origin.z)
 			placements.append({"kind": fk, "pos": Vector3(fxf.origin.x, 0.0, fxf.origin.z), "yaw": atan2(fxf.basis.z.x, fxf.basis.z.z), "district": fd, "variant": 0, "seed": (it[1] as Color).r})
 			kind_count[fk] += 1
 			_block_obstacle(fxf.origin.x, fxf.origin.z, maxf(float(KINDS[fk]["hw"]), float(KINDS[fk]["hd"])))
@@ -704,7 +704,7 @@ func build(props: RefCounted, layout: CityLayout, parts: Array[Dictionary]) -> v
 				var tan_v := Vector2(-nrm.y, nrm.x)
 				var yaw := atan2(nrm.x, nrm.y)
 				for attempt in 6:
-					var d := Districts.at(bx + nrm.x * 29.0, bz + nrm.y * 29.0)
+					var d := Districts.look_at(bx + nrm.x * 29.0, bz + nrm.y * 29.0)
 					var kind := _pick_kind(d, MODE_KERB)
 					var info: Dictionary = KINDS[kind]
 					var hd: float = info["hd"]
@@ -718,7 +718,7 @@ func build(props: RefCounted, layout: CityLayout, parts: Array[Dictionary]) -> v
 				var w := rng.randf_range(-5.0, 5.0)
 				var s := rng.randf_range(-24.0, 24.0)
 				var pos2 := Vector2(bx + s, bz + w) if along_x else Vector2(bx + w, bz + s)
-				var d2 := Districts.at(pos2.x, pos2.y)
+				var d2 := Districts.look_at(pos2.x, pos2.y)
 				var kind2 := _pick_kind(d2, MODE_ALLEY)
 				var yaw2 := (0.0 if along_x else PI * 0.5) + float(rng.randi() % 2) * PI + rng.randf_range(-0.12, 0.12)
 				_try_place(layout, kind2, pos2.x, pos2.y, yaw2)
@@ -738,9 +738,9 @@ func _place_flora(layout: CityLayout) -> void:
 			arr.append_array(PackedFloat32Array([float(kind), pos.x, pos.y, float(it["yaw"]), float(it["seed"]), float(it["variant"])]))
 			cells[c] = arr
 			counts[c] += 1
-			placements.append({"kind": kind, "pos": Vector3(pos.x, 0.0, pos.y), "yaw": float(it["yaw"]), "district": Districts.at(pos.x, pos.y), "variant": int(it["variant"]), "seed": float(it["seed"])})
+			placements.append({"kind": kind, "pos": Vector3(pos.x, 0.0, pos.y), "yaw": float(it["yaw"]), "district": Districts.look_at(pos.x, pos.y), "variant": int(it["variant"]), "seed": float(it["seed"])})
 			kind_count[kind] += 1
-			district_count[Districts.at(pos.x, pos.y)] += 1
+			district_count[Districts.look_at(pos.x, pos.y)] += 1
 
 
 ## City-kit placements (facade bands, rooftop units, road markings from city_kit_world.gd) plus kerb furniture (bollards, planters, drains, manholes).
@@ -775,7 +775,7 @@ func _build_city_kit(layout: CityLayout) -> void:
 
 ## A placement without spacing or lot tests (the caller knows it is clear): decals, facade bands, rooftop units.
 func _add_raw(kind: int, x: float, z: float, yaw: float, y: float, variant: int) -> void:
-	var d := Districts.at(x, z)
+	var d := Districts.look_at(x, z)
 	var packed := (variant & 3) | (int(round(y * 4.0)) << 2)
 	var c := _cell_of(x, z)
 	var arr: PackedFloat32Array = cells[c]

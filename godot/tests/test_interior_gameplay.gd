@@ -117,7 +117,7 @@ func _doors() -> void:
 		var pos: Vector3 = d["pos"]
 		if Vector2(pos.x, pos.z).distance_to(Vector2(Game.SPAWN.x, Game.SPAWN.z)) < 100.0:
 			near_spawn = true
-		if not city.is_inside_building(Vector3(pos.x, 1.0, pos.z)) and not CityLayout.on_road(pos.x, pos.z, 0.0) and absf(pos.x) < 330.0 and absf(pos.z) < 330.0:
+		if not city.is_inside_building(Vector3(pos.x, 1.0, pos.z)) and not CityLayout.on_road(pos.x, pos.z, 0.0) and absf(pos.x) < CityLayout.HALF + 10.0 and absf(pos.z) < CityLayout.HALF + 10.0:
 			on_walk += 1
 	TestLib.check(types.size() == InteriorData.TYPES.size(), "every interior type has a door (%d types)" % types.size())
 	TestLib.check(near_spawn, "a door within 100 m of the spawn")

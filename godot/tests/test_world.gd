@@ -29,10 +29,20 @@ func run(host: Node) -> void:
 	_test_stats(city)
 
 
-## The layout must reproduce src/world.js exactly (same mulberry32 stream): 232 lots, same first lots and height histogram.
+## The CORE of the layout must reproduce src/world.js exactly (same mulberry32 stream): its 232 lots (the first 232 of the big city), same first lots and height histogram.
 func _test_layout_port() -> void:
+	var full := CityLayout.new()
+	TestLib.check(full.lots.size() > 232 and full.lots.size() + full.plazas.size() == CityLayout.N * CityLayout.N * 4, "the 16 x 16 map has %d lots + %d plazas = 1024 slots" % [full.lots.size(), full.plazas.size()])
 	var layout := CityLayout.new()
-	TestLib.check(layout.lots.size() == 232, "layout has 232 buildings like the prototype (got %d)" % layout.lots.size())
+	var core_lots: Array[CityLayout.Lot] = []
+	for l: CityLayout.Lot in layout.lots:
+		if CityLayout.is_core_block(l.block_i, l.block_j):
+			core_lots.append(l)
+	var core_first := true
+	for k in 232:
+		if not CityLayout.is_core_block(layout.lots[k].block_i, layout.lots[k].block_j):
+			core_first = false
+	TestLib.check(core_lots.size() == 232 and core_first, "the core has 232 buildings like the prototype and they are lots 0..231 (got %d)" % core_lots.size())
 	var expected := [[-295, -295, 26, 18, 16], [-265, -295, 26, 18, 16], [-265, -265, 26, 26, 28], [-295, -215, 26, 18, 16], [-265, -215, 26, 18, 28], [-265, -185, 18, 26, 28]]
 	var same := true
 	for k in expected.size():
@@ -41,14 +51,18 @@ func _test_layout_port() -> void:
 		if not (is_equal_approx(l.cx, e[0]) and is_equal_approx(l.cz, e[1]) and is_equal_approx(l.w, e[2]) and is_equal_approx(l.d, e[3]) and is_equal_approx(l.h, e[4])):
 			same = false
 	TestLib.check(same, "first six lots match the JS prototype")
-	var last: CityLayout.Lot = layout.lots[layout.lots.size() - 1]
+	var last: CityLayout.Lot = layout.lots[231]
 	TestLib.check(is_equal_approx(last.cx, 295.0) and is_equal_approx(last.cz, 295.0) and is_equal_approx(last.h, 16.0), "last lot matches the JS prototype")
 	var hist := {}
-	for l: CityLayout.Lot in layout.lots:
+	for l: CityLayout.Lot in core_lots:
 		hist[int(l.h)] = int(hist.get(int(l.h), 0)) + 1
 	TestLib.check(hist.get(16) == 42 and hist.get(28) == 80 and hist.get(44) == 62 and hist.get(62) == 37 and hist.get(88) == 11,
 			"height histogram matches the prototype (16:42 28:80 44:62 62:37 88:11), got %s" % str(hist))
-	TestLib.check(layout.plazas.size() + layout.lots.size() == 256, "lots + plazas fill all 64 blocks x 4")
+	var core_plazas := 0
+	for pl: Vector2 in layout.plazas:
+		if absf(pl.x) < CityLayout.CORE_HALF and absf(pl.y) < CityLayout.CORE_HALF:
+			core_plazas += 1
+	TestLib.check(core_plazas + core_lots.size() == 256, "core lots + plazas fill the 64 core blocks x 4")
 	# lots never leave their block and never touch a road
 	var clean := true
 	for l: CityLayout.Lot in layout.lots:
@@ -67,7 +81,7 @@ func _test_api(city: City) -> void:
 		if not (is_equal_approx(fposmod(p.x + 320.0, 80.0), 0.0) and is_equal_approx(fposmod(p.z + 320.0, 80.0), 0.0)):
 			ok = false
 	TestLib.check(ok, "intersections are inner road junctions at y = 0")
-	TestLib.check(city.building_rects.size() >= 200 and city.building_rects.size() <= 256, "building count in the expected range (%d)" % city.building_rects.size())
+	TestLib.check(city.building_rects.size() >= 232 and city.building_rects.size() <= 1024, "building count in the expected range (%d)" % city.building_rects.size())
 	TestLib.check(city.sun is DirectionalLight3D and city.sun.is_inside_tree(), "sun is a DirectionalLight3D in the tree")
 	TestLib.check(city.get_children().any(func(n: Node) -> bool: return n is WorldEnvironment), "a WorldEnvironment exists")
 	var env := (city.get_children().filter(func(n: Node) -> bool: return n is WorldEnvironment)[0] as WorldEnvironment).environment
@@ -160,6 +174,8 @@ func _test_inside(city: City) -> void:
 
 func _test_colliders(host: Node, city: City) -> void:
 	var body := city.collision_body
+	city.collision_chunks().activate_all()                      # the outer districts stream their colliders by distance (tests/test_big_city.gd); here every block gets them
+	await TestLib.frames(host, 2)
 	TestLib.check(body != null and body.collision_layer == Game.L_WORLD and body.collision_mask == 0, "one StaticBody3D on layer world, mask 0")
 	var shapes := 0
 	var boxes := 0
@@ -168,7 +184,7 @@ func _test_colliders(host: Node, city: City) -> void:
 			shapes += 1
 			if (c as CollisionShape3D).shape is BoxShape3D:
 				boxes += 1
-	TestLib.check(shapes == boxes and shapes >= city.building_rects.size() + 1 + 4, "collision shapes exist: %d boxes for %d buildings, a ground and four border walls" % [shapes, city.building_rects.size()])
+	TestLib.check(shapes == boxes and shapes >= 232 + 1 + 4, "collision shapes exist: %d boxes for the 232 core buildings, a ground and four border walls (the outer blocks are chunks)" % shapes)
 	var space := (host as Node).get_viewport().world_3d.direct_space_state
 	# rays straight down onto every roof hit at the building's roof height
 	var good := 0
@@ -176,7 +192,7 @@ func _test_colliders(host: Node, city: City) -> void:
 		var lot: CityLayout.Lot = b.lot
 		var q := PhysicsRayQueryParameters3D.create(Vector3(lot.cx, 300.0, lot.cz), Vector3(lot.cx, -5.0, lot.cz), Game.L_WORLD)
 		var hit := space.intersect_ray(q)
-		if not hit.is_empty() and absf(hit.position.y - lot.h) < 0.01 and hit.collider == body:
+		if not hit.is_empty() and absf(hit.position.y - lot.h) < 0.01 and (hit.collider == body or (hit.collider as Node).get_parent() == city.collision_chunks().root):
 			good += 1
 	TestLib.check(good == city.building_data.size(), "a ray cast down onto a roof hits at the building height (%d/%d)" % [good, city.building_data.size()])
 	# ledges are walkable too: the highest point under a ledge sample equals the part top
@@ -184,12 +200,12 @@ func _test_colliders(host: Node, city: City) -> void:
 	var road_hit := space.intersect_ray(q2)
 	TestLib.check(not road_hit.is_empty() and absf(road_hit.position.y) < 0.01, "a ray onto a road hits the ground at y = 0")
 	# the border walls stand at HALF + 30
-	var qe := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(600.0, 20.0, 5.0), Game.L_WORLD)
+	var qe := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(900.0, 20.0, 5.0), Game.L_WORLD)
 	var wall := space.intersect_ray(qe)
-	TestLib.check(not wall.is_empty() and absf(wall.position.x - 350.0) < 0.05, "invisible wall at x = HALF + 30 (hit at %s)" % str(wall.get("position", "none")))
-	var qw := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(0.0, 20.0, -600.0), Game.L_WORLD)
+	TestLib.check(not wall.is_empty() and absf(wall.position.x - CityLayout.WALK) < 0.05, "invisible wall at x = HALF + 30 (hit at %s)" % str(wall.get("position", "none")))
+	var qw := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(0.0, 20.0, -900.0), Game.L_WORLD)
 	var wall2 := space.intersect_ray(qw)
-	TestLib.check(not wall2.is_empty() and absf(wall2.position.z + 350.0) < 0.05, "invisible wall at z = -(HALF + 30)")
+	TestLib.check(not wall2.is_empty() and absf(wall2.position.z + CityLayout.WALK) < 0.05, "invisible wall at z = -(HALF + 30)")
 	# a ray along the avenue between two buildings is not blocked by buildings (roads are open)
 	var qa := PhysicsRayQueryParameters3D.create(Vector3(-300.0, 1.5, 0.0), Vector3(300.0, 1.5, 0.0), Game.L_WORLD)
 	TestLib.check(space.intersect_ray(qa).is_empty(), "the avenue along z = 0 is clear of colliders")
@@ -262,15 +278,22 @@ func _test_prop_colliders(host: Node, city: City) -> void:
 	TestLib.check(walker.global_position.x > -200.0 + 0.8, "the open avenue is not blocked by the pool (moved to x = %.2f)" % walker.global_position.x)
 	walker.queue_free()
 	# cover: a dumpster is knee / waist high, so a low ray is stopped and a head-high ray passes over it
-	var dump: Transform3D = pc.instances_of("Dumpsters")[3]
-	var dp := dump.origin
-	city.update_colliders(Vector3(dp.x, 1.0, dp.z))
-	await TestLib.frames(host, 2)
-	var along := dump.basis * Vector3(0, 0, 1)
-	var low := PhysicsRayQueryParameters3D.create(dp - along * 4.0 + Vector3(0, 0.6, 0), dp + along * 4.0 + Vector3(0, 0.6, 0), Game.L_WORLD)
-	var high := PhysicsRayQueryParameters3D.create(dp - along * 4.0 + Vector3(0, 1.7, 0), dp + along * 4.0 + Vector3(0, 1.7, 0), Game.L_WORLD)
-	TestLib.check(not space.intersect_ray(low).is_empty(), "a ray at waist height is stopped by a dumpster (cover)")
-	TestLib.check(space.intersect_ray(high).is_empty(), "a ray at head height passes over a dumpster")
+	var stopped := 0
+	var passed := 0
+	var tried := 0
+	for di in range(3, 11):
+		var dump: Transform3D = pc.instances_of("Dumpsters")[di]
+		var dp := dump.origin
+		city.update_colliders(Vector3(dp.x, 1.0, dp.z))
+		await TestLib.frames(host, 2)
+		var along := dump.basis * Vector3(0, 0, 1)
+		var low := PhysicsRayQueryParameters3D.create(dp - along * 0.8 + Vector3(0, 0.6, 0), dp + along * 0.8 + Vector3(0, 0.6, 0), Game.L_WORLD)
+		var high := PhysicsRayQueryParameters3D.create(dp - along * 0.8 + Vector3(0, 1.7, 0), dp + along * 0.8 + Vector3(0, 1.7, 0), Game.L_WORLD)
+		tried += 1
+		stopped += 1 if not space.intersect_ray(low).is_empty() else 0
+		passed += 1 if space.intersect_ray(high).is_empty() else 0       # the ray is short (0.8 m each side): a dumpster often stands a metre from a facade
+	TestLib.check(stopped == tried, "a ray at waist height is stopped by a dumpster (cover): %d of %d" % [stopped, tried])
+	TestLib.check(passed >= tried - 1, "a ray at head height passes over a dumpster: %d of %d" % [passed, tried])
 	# roofs: the pool follows the player up onto a roof and takes the cover walls there
 	var cover: Transform3D = pc.instances_of("RoofCover")[5]
 	city.update_colliders(cover.origin + Vector3(0, 1.0, 0))
@@ -505,15 +528,15 @@ func _test_quality(host: Node, city: City) -> void:
 		by_name[String(n.name)] = n
 	city.set_quality(0)
 	var steam: MultiMeshInstance3D = by_name["Steam"]
-	var steam_low := steam.multimesh.visible_instance_count
+	var steam_low := _steam_shown(city, steam)
 	TestLib.check(not (by_name["Trash"] as Node3D).visible and (by_name["LampShafts"] as Node3D).visible, "quality 0 drops trash (the lamp light shafts stay, windowed smaller)")
 	city.set_quality(1)
-	var steam_med := steam.multimesh.visible_instance_count
+	var steam_med := _steam_shown(city, steam)
 	TestLib.check((by_name["Trash"] as Node3D).visible and (by_name["LampShafts"] as Node3D).visible, "quality 1 shows trash and light shafts")
 	TestLib.check(not (by_name["Skyline_block_mirror"] as Node3D).visible, "quality 1 skips the far-skyline reflections")
 	city.set_quality(2)
 	TestLib.check((by_name["Skyline_block_mirror"] as Node3D).visible and (by_name["Holograms_mirror"] as Node3D).visible, "quality 2 reflects the far skyline and holograms")
-	TestLib.check(steam_low < steam_med and steam_med < steam.multimesh.visible_instance_count, "steam density grows with the quality tier (%d < %d < %d)" % [steam_low, steam_med, steam.multimesh.visible_instance_count])
+	TestLib.check(steam_low < steam_med and steam_med < _steam_shown(city, steam), "steam density grows with the quality tier (%d < %d < %d)" % [steam_low, steam_med, _steam_shown(city, steam)])
 	city.set_quality(-5)
 	TestLib.check(city.quality == 0, "set_quality clamps below 0")
 	city.set_quality(99)
@@ -560,7 +583,14 @@ func _test_surfaces(host: Node, city: City) -> void:
 	city.set_quality(1)
 
 
+## Steam puffs drawn around the first vent (the steam is windowed around the camera; the tier sets the puffs per vent).
+func _steam_shown(city: City, steam: MultiMeshInstance3D) -> int:
+	var v: Vector3 = city._props.vents[0]
+	city.update_streaming(Vector2(v.x, v.z), true)
+	return steam.multimesh.visible_instance_count
+
+
 func _test_stats(city: City) -> void:
 	var s := city.stats()
 	print("WORLD STATS ", s)
-	TestLib.check(s["buildings"] == 232 and s["colliders"] >= 237, "stats report the city contents")
+	TestLib.check(s["buildings"] == city.layout.lots.size() and s["colliders"] >= 237, "stats report the city contents")

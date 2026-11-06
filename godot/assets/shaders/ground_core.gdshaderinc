@@ -8,8 +8,8 @@ global uniform float night;                             // 0 day .. 1 night (Day
 global uniform float rain;
 
 uniform sampler2D light_map : filter_linear, repeat_disable, hint_default_black;   // baked lamp + neon pools (HDR)
-uniform vec4 light_rect = vec4(-352.0, -352.0, 704.0, 704.0);                         // x0, z0, width, depth of the light map
-uniform sampler2D lot_map : filter_nearest, repeat_disable, hint_default_white;     // 16x16, r = 1 where a lot has a building
+uniform vec4 light_rect = vec4(-704.0, -704.0, 1408.0, 1408.0);                         // x0, z0, width, depth of the light map
+uniform sampler2D lot_map : filter_nearest, repeat_disable, hint_default_white;     // 32x32 (2 per block and axis), r = 1 where a lot has a building
 uniform float mirror_amount : hint_range(0.0, 1.0) = 1.0;                             // 0 = opaque ground (no mirror pass)
 uniform float detail : hint_range(0.0, 1.0) = 1.0;
 #ifdef LITE
@@ -44,15 +44,25 @@ uniform vec3 dist_seam2 : source_color = vec3(0.3, 1.0, 0.45);
 uniform vec3 dist_seam3 : source_color = vec3(0.25, 0.85, 1.0);
 #include "res://assets/shaders/quantum_surface.gdshaderinc"
 
+// The palette district (0 market, 1 foundry, 2 slums, 3 towers) under a ground point: the quadrant inside the original core (|x|, |z| <= 320), outside it the look of the outer zone of that
+// side of the ring (CityDistricts.look_at: north dockyards = foundry, east amber terraces = market, south grow fields = slums, west outer spires = towers).
+int dist_idx(vec2 q) {
+	vec2 c = -W_HALF + (floor((q + W_HALF) / W_PITCH) + 0.5) * W_PITCH;      // centre of the block the point belongs to (zones are whole blocks)
+	if (abs(c.x) < 320.0 && abs(c.y) < 320.0) {
+		return (q.x >= 0.0 ? 1 : 0) + (q.y >= 0.0 ? 2 : 0);
+	}
+	if (abs(c.y) >= abs(c.x)) {
+		return c.y < 0.0 ? 1 : 2;
+	}
+	return c.x > 0.0 ? 0 : 3;
+}
 vec3 district_seam(vec2 q) {
-	float fx = step(0.0, q.x);
-	float fz = step(0.0, q.y);
-	return mix(mix(dist_seam0, dist_seam1, fx), mix(dist_seam2, dist_seam3, fx), fz);
+	int d = dist_idx(q);
+	return d == 0 ? dist_seam0 : (d == 1 ? dist_seam1 : (d == 2 ? dist_seam2 : dist_seam3));
 }
 vec3 district_walk(vec2 q) {
-	float fx = step(0.0, q.x);
-	float fz = step(0.0, q.y);
-	return mix(mix(dist_walk0, dist_walk1, fx), mix(dist_walk2, dist_walk3, fx), fz);
+	int d = dist_idx(q);
+	return d == 0 ? dist_walk0 : (d == 1 ? dist_walk1 : (d == 2 ? dist_walk2 : dist_walk3));
 }
 uniform vec3 moon_dir = vec3(-0.43, 0.46, -0.78);
 uniform vec3 moon_color : source_color = vec3(0.55, 0.70, 1.0);
@@ -94,7 +104,7 @@ vec3 lot_info(vec2 q) {
 	float cx = (fx - bi) > 0.5 ? 1.0 : 0.0;
 	float cz = (fy - bj) > 0.5 ? 1.0 : 0.0;
 	float ni = mod(bi + bj, 4.0);
-	if (bi < 0.0 || bj < 0.0 || bi > 7.5 || bj > 7.5) {
+	if (bi < 0.0 || bj < 0.0 || bi > 15.5 || bj > 15.5) {
 		return vec3(hash12(vec2(bi * 2.0 + cx, bj * 2.0 + cz) + 7.0) < 0.1 ? 1.0 : 0.0, 0.0, ni);
 	}
 	vec4 t = texelFetch(lot_map, ivec2(int(bi * 2.0 + cx), int(bj * 2.0 + cz)), 0);
@@ -301,7 +311,7 @@ void fragment() {
 			vec4 tn;
 			vec2 wu = q / 2.4;
 			float wtile = 2.4;
-			int wlay = (q.x >= 0.0 ? 1 : 0) + (q.y >= 0.0 ? 2 : 0);
+			int wlay = dist_idx(q);
 			if (srf_walkv > 0.5) {
 				wtile = wlay == 0 ? 2.4 : (wlay == 1 ? 1.2 : (wlay == 2 ? 2.4 : 2.8));           // metres per tile: hex flagstones, tread plate, patched concrete, slabs
 				ta = srf_tap_a(srf_walkv_a, vec3(q / wtile, float(wlay)), gdx / wtile, gdy / wtile);
@@ -434,14 +444,14 @@ void fragment() {
 		}
 		// the edge of the playable city (the invisible walls stand here): worn hazard chevrons and an amber guide light
 		float bd = max(abs(q.x), abs(q.y));
-		if (bd > 346.0 && bd < 350.5) {
+		if (bd > W_HALF + 26.0 && bd < W_HALF + 30.5) {
 			float lng = abs(q.x) > abs(q.y) ? q.y : q.x;
 			float chev = mix(0.5, step(fract((lng + bd) / 1.3), 0.5), resolve(0.65, aa));
-			float zone = band(bd, 348.0, 349.55, aa);
+			float zone = band(bd, W_HALF + 28.0, W_HALF + 29.55, aa);
 			vec3 hz = mix(vec3(0.015, 0.015, 0.017), vec3(0.50, 0.36, 0.05), chev) * (0.55 + 0.45 * vn(q * 2.3 + 9.0, 0.43, aa));
 			albedo = mix(albedo, hz, zone * 0.92);
 			rough = mix(rough, 0.7, zone);
-			emit += vec3(1.0, 0.55, 0.12) * band(bd, 349.62, 349.82, aa) * (1.1 + 0.4 * sin(TIME * 2.0 + lng * 0.35));
+			emit += vec3(1.0, 0.55, 0.12) * band(bd, W_HALF + 29.62, W_HALF + 29.82, aa) * (1.1 + 0.4 * sin(TIME * 2.0 + lng * 0.35));
 		}
 	}
 

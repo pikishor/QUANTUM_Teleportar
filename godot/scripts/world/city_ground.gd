@@ -6,8 +6,8 @@ const GROUND_SHADER := preload("res://assets/shaders/ground.gdshader")
 const GROUND_LITE_SHADER := preload("res://assets/shaders/ground_lite.gdshader")
 const Districts := preload("res://scripts/world/city_districts.gd")
 
-const LIGHT_SIZE := 704.0            ## metres covered by the light map (centred on the city)
-const LIGHT_TEXELS := 352            ## 2 m per texel
+const LIGHT_SIZE := 2.0 * CityLayout.HALF + 128.0   ## metres covered by the light map (centred on the city; the shaders default to the same rect)
+const LIGHT_TEXELS := 560            ## 2.5 m per texel (the whole 1408 m of the big city in 2.5 MB; the original 8 x 8 city had 2 m per texel in 1 MB)
 
 var material: ShaderMaterial
 var material_lite: ShaderMaterial
@@ -22,7 +22,7 @@ static func has_curb_strip(i: int, j: int) -> bool:
 
 
 func make_lot_map(layout: CityLayout) -> ImageTexture:
-	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	var img := Image.create(CityLayout.N * 2, CityLayout.N * 2, false, Image.FORMAT_RGBA8)
 	img.fill(Color(1, 1, 1, 1))
 	for bi in CityLayout.N:
 		for bj in CityLayout.N:

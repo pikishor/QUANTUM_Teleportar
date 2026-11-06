@@ -60,6 +60,7 @@ func _coyote_and_buffer() -> void:
 		guard += 1
 	Input.action_release(&"move_forward")
 	await e.secs(0.25)
+	p.energy = 0.0  # the QUANTUM GLIDE burst (second press in the air) needs energy; this checks the ground jump only
 	Input.action_press(&"jump")
 	await e.frames(3)
 	TestLib.check(p.velocity.y < 0.0, "no air jump after the coyote window (vy %.2f)" % p.velocity.y)
@@ -78,6 +79,7 @@ func _coyote_and_buffer() -> void:
 	TestLib.check(p.global_position.y > 0.3, "jump buffering: a press about 0.1 s before landing jumps on touchdown (y %.2f)" % p.global_position.y)
 	# ... but a press long before landing is forgotten
 	await e.prep(Vector3(-30.0, 0.8, 4.0), -PI * 0.5, -0.12, 0)
+	p.energy = 0.0  # the QUANTUM GLIDE burst (second press in the air) needs energy; this checks the ground jump only
 	Input.action_press(&"jump")
 	await e.frames(2)
 	Input.action_release(&"jump")
@@ -85,6 +87,7 @@ func _coyote_and_buffer() -> void:
 	TestLib.check(p.is_on_floor() and p.global_position.y < 0.05, "an early jump press (outside the 0.12 s buffer) is forgotten (y %.2f)" % p.global_position.y)
 	# teleporting does not leave the stale floor flag that would allow a jump in mid-air
 	await e.prep(Vector3(-30.0, 5.0, 4.0), -PI * 0.5, -0.12, 0)
+	p.energy = 0.0  # the QUANTUM GLIDE burst (second press in the air) needs energy; this checks the ground jump only
 	Input.action_press(&"jump")
 	await e.frames(3)
 	Input.action_release(&"jump")

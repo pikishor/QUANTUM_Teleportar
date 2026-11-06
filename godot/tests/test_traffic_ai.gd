@@ -5,8 +5,8 @@ extends RefCounted
 
 const Env := preload("res://tests/player_env.gd")
 const K := 4
-const ROAD := 4                      ## axis-0 road index used (z = 0)
-const JCT := 3                       ## junction column on it (x = -80)
+const ROAD := 4 + CityLayout.CORE0         ## axis-0 road index used (z = 0)
+const JCT := 3 + CityLayout.CORE0          ## junction column on it (x = -80)
 
 var e := Env.new()
 var p: Player

@@ -72,6 +72,25 @@ func nearest(pos: Vector3, r := 4.2) -> Vehicle:
 	return best
 
 
+## The car the hero can take from `pos`: the nearest within the old 4.2 m (middle to middle) or whose hull edge is within VehicleSpecs.ENTER_REACH (a long bus or truck is
+## taken at its flank), a moving car adds ENTER_MOVING per m/s so a hijack on the run works. Null when none.
+func reach_car(pos: Vector3) -> Vehicle:
+	var best: Vehicle = null
+	var best_d := INF
+	for c in list:
+		if c.dead or not c.active or c.wreck:
+			continue
+		var flat := Vector2(c.global_position.x - pos.x, c.global_position.z - pos.z).length()
+		var edge := c.edge_distance(pos)
+		var reach := VehicleSpecs.ENTER_REACH + minf(absf(c.speed) * VehicleSpecs.ENTER_MOVING, VehicleSpecs.ENTER_MOVING_MAX)
+		if edge <= reach or flat <= 4.2:
+			var score := minf(edge, flat - 2.0)
+			if score < best_d:
+				best_d = score
+				best = c
+	return best
+
+
 ## Enter the nearest car within reach, or leave the one being driven. Called when `interact` is pressed. Returns true when something happened.
 func toggle_enter_exit() -> bool:
 	var p := Game.player
@@ -84,7 +103,7 @@ func toggle_enter_exit() -> bool:
 		return false
 	if p.global_position.y >= 2.0:
 		return false
-	var car := nearest(p.global_position)
+	var car := reach_car(p.global_position)
 	if car == null:
 		return false
 	enter(car)
@@ -96,11 +115,14 @@ func enter(car: Vehicle) -> void:
 	var p := Game.player
 	if not is_instance_valid(p) or car == null or car.dead or not car.active:
 		return
-	if car.ai or car.chasing:
+	var had_driver := car.ai or car.chasing
+	if had_driver:
 		car.ai = false
 		car.chasing = false
 		Game.add_heat(VehicleSpecs.CARJACK_HEAT)
-		Game.say("VEHICLE COMMANDEERED", 1.4)
+		Game.say("HIJACKED  " + Hijack.vehicle_name(car.kind), 1.4)
+	if Hijack.current != null:                             # open world freedom: the entry ghost and the driver thrown out on the kerb side
+		Hijack.current.on_enter(car, p.global_position, had_driver)
 	car.driver_is_player = true
 	driven = car
 	p.set(&"vehicle", car)
@@ -126,6 +148,8 @@ func exit_vehicle() -> void:
 		var pos := _exit_point(car)
 		p.call(&"teleport_to", pos)
 		p.set(&"vehicle", null)
+		if exit_speed > 4.0 and p is CharacterBody3D:                  # bailing out on the move: the hero keeps part of the car's speed (a roll off the car)
+			(p as CharacterBody3D).velocity = car.forward() * signf(car.speed) * minf(exit_speed * 0.5, 9.0)
 		if not car.dead and exit_speed > VehicleSpecs.EXIT_SAFE_SPEED and p.has_method(&"damage"):
 			p.call(&"damage", (exit_speed - VehicleSpecs.EXIT_SAFE_SPEED) * VehicleSpecs.EXIT_HURT)      # bailing out of a fast car hurts
 
@@ -339,6 +363,8 @@ func _acquire(kind: StringName) -> Vehicle:
 
 var _garage_local: Garage             ## used when there is no Progress node (tests)
 var _summon_ready := 0.0              ## clock when CALL CAR works again
+var _bike_ready := 0.0                ## clock when CALL CAR may bring a hover-bike again
+const HOVERBIKE_COOLDOWN := 8.0
 
 
 ## The garage of the player's save (Progress), or a local one without it.
@@ -409,6 +435,57 @@ func summon_garage() -> Vehicle:
 	car.update_lod(0.0)
 	_summon_ready = _clock + Garage.SUMMON_COOLDOWN
 	Game.say("GARAGE CAR INBOUND", 1.4)
+	return car
+
+
+## CALL CAR: the garage car when there is one, else a free quantum HOVER-BIKE (own cooldown). The hover-bike stays in the world until it is streamed away.
+func summon_any() -> Vehicle:
+	if get_garage().has_car():
+		return summon_garage()
+	return summon_hoverbike()
+
+
+func summon_hoverbike() -> Vehicle:
+	var p := Game.player
+	if not is_instance_valid(p) or not Game.is_playing() or driven != null or p.get(&"vehicle") != null:
+		return null
+	if InteriorGameplay.active or p.global_position.y >= 2.0:
+		Game.say("HOVER-BIKE NEEDS OPEN STREET", 1.4)
+		return null
+	if _clock < _bike_ready:
+		Game.say("HOVER-BIKE RECHARGING", 1.2)
+		return null
+	var yaw := float(p.get(&"yaw")) if p.get(&"yaw") != null else 0.0
+	var fwd := Vector3(-sin(yaw), 0.0, -cos(yaw))
+	var pos := p.global_position + fwd * 4.5
+	if is_instance_valid(Game.world) and Game.world.has_method(&"is_inside_building") and Game.world.call(&"is_inside_building", Vector3(pos.x, 1.0, pos.z)):
+		var alt: Variant = Game.world.call(&"road_point_near", p.global_position, 4.0, 30.0) if Game.world.has_method(&"road_point_near") else Vector3.INF
+		if alt is Vector3 and alt != Vector3.INF:
+			pos = alt
+	var car: Vehicle = null
+	for v in list:
+		if v.kind == &"hoverbike" and not v.driver_is_player:
+			car = v
+			break
+	if car == null:
+		if list.size() >= cap():
+			_release_farthest(p.global_position)
+		car = _acquire(&"hoverbike")
+		car.activate(Vector3(pos.x, 0.0, pos.z), yaw)
+		list.append(car)
+	else:
+		car.global_position = Vector3(pos.x, 0.0, pos.z)
+		car.rotation = Vector3(0.0, yaw, 0.0)
+		car.heading = yaw
+		car._heading_set = yaw
+		car.vel = Vector3.ZERO
+		car.speed = 0.0
+		car.ai = false
+	car.update_lod(0.0)
+	FX.burst(Vector3(pos.x, 0.8, pos.z), Color(0.35, 0.95, 1.0), 14, 4.0, 0.5, 0.0)
+	Sfx.play_at(&"blink", pos, -6.0)
+	_bike_ready = _clock + HOVERBIKE_COOLDOWN
+	Game.say("HOVER-BIKE INBOUND", 1.4)
 	return car
 
 

@@ -13,6 +13,10 @@ extends RefCounted
 
 const MAX_PER_FRAME := 2
 const FADE_START := 0.75           ## fraction of the radius where instances start to shrink
+## The default cell grid of the playable city: 40 m cells from -(HALF + 40) over (2 * HALF + 80) / 40 cells per side.
+const CITY_ORIGIN := -CityLayout.HALF - 40.0
+const CITY_CELL := 40.0
+const CITY_CELLS := int((2.0 * CityLayout.HALF + 80.0) / 40.0)
 
 
 class Family extends RefCounted:
@@ -23,9 +27,9 @@ class Family extends RefCounted:
 	var tris := 0                  ## triangles of one instance
 	var radius := 150.0            ## metres from the camera where the family has faded out completely (before the quality scale)
 	var scale := 1.0               ## quality scale of the radius
-	var origin := -360.0           ## the cell grid: lower-left corner, cell size and cells per side
+	var origin := CITY_ORIGIN      ## the cell grid: lower-left corner, cell size and cells per side
 	var cell := 40.0
-	var n := 18
+	var n := CITY_CELLS
 	var cells: Array = []          ## n * n entries; each a PackedFloat32Array with `stride` floats per instance (empty cells stay empty)
 	var counts := PackedInt32Array()
 	var materials: Array[ShaderMaterial] = []
@@ -33,6 +37,8 @@ class Family extends RefCounted:
 	var step := 12.0
 	var shown := -1                ## instances currently drawn (-1: not windowed yet, all of them)
 	var sig := -1
+	var rank_off := -1             ## >= 0: float offset (in a record) of a 0..1 rank; only records with rank < keep are drawn (steam: puffs per vent by tier)
+	var keep := 1.0
 
 	func fade_end() -> float:
 		return radius * scale
@@ -48,7 +54,7 @@ var _sel := PackedInt32Array()
 
 
 ## Register a family whose MultiMesh already holds its full buffer (instance-major, `stride` floats per instance, origin in floats 3 and 11).
-func add(name: String, mm: MultiMesh, radius: float, tris: int, materials: Array[ShaderMaterial], grid_origin := -360.0, cell := 40.0, cells_per_side := 18) -> Family:
+func add(name: String, mm: MultiMesh, radius: float, tris: int, materials: Array[ShaderMaterial], grid_origin := CITY_ORIGIN, cell := CITY_CELL, cells_per_side := CITY_CELLS) -> Family:
 	var f := Family.new()
 	f.name = name
 	f.mm = mm
@@ -140,6 +146,13 @@ func rebuild(f: Family, cam: Vector2) -> void:
 	var out := PackedFloat32Array()
 	var shown := 0
 	for idx in _sel:
+		if f.rank_off >= 0 and f.keep < 1.0:
+			var cell: PackedFloat32Array = f.cells[idx]
+			for o in range(0, cell.size(), f.stride):
+				if cell[o + f.rank_off] < f.keep:
+					out.append_array(cell.slice(o, o + f.stride))
+					shown += 1
+			continue
 		out.append_array(f.cells[idx])
 		shown += f.counts[idx]
 	out.resize(f.total * f.stride)                       # the tail is never drawn (visible_instance_count)
@@ -160,6 +173,14 @@ func show_all() -> void:
 		f.shown = -1
 		f.sig = -1
 		f.built_at = Vector2(1.0e9, 1.0e9)
+
+
+## Draw only the records whose rank (float `rank_off` of a record) is below `keep` (the puffs per vent of the steam, by tier).
+func set_keep(f: Family, rank_off: int, keep: float) -> void:
+	f.rank_off = rank_off
+	f.keep = keep
+	f.built_at = Vector2(1.0e9, 1.0e9)
+	f.sig = -1
 
 
 ## Apply a new quality scale to the radii (and the shader fade ranges); the windows are rebuilt on the next update.

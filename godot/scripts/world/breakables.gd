@@ -26,6 +26,8 @@ const KINDS := [
 	{"name": "pole", "size": Vector3(0.2, 5.0, 0.2), "color": Color(0.2, 0.22, 0.25), "hp": 8, "surface": &"metal", "debris": 8, "spark": Color(1.0, 0.8, 0.45), "w": 1},
 	{"name": "vending", "size": Vector3(1.0, 1.9, 0.8), "color": Color(0.55, 0.12, 0.3), "hp": 6, "surface": &"metal", "debris": 9, "spark": Color(1.0, 0.5, 0.7), "w": 1},
 	{"name": "stall", "size": Vector3(2.4, 1.6, 1.4), "color": Color(0.5, 0.36, 0.18), "hp": 4, "surface": &"concrete", "debris": 8, "spark": Color(0.9, 0.7, 0.4), "w": 2},
+	# open world freedom: destructible COVER, a concrete road barrier at chest height. Bullets chew it (hp 14), a blast takes it down at once (Game.explode -> blast()).
+	{"name": "barrier", "size": Vector3(2.6, 1.05, 0.7), "color": Color(0.46, 0.47, 0.5), "hp": 14, "surface": &"concrete", "debris": 10, "spark": Color(0.85, 0.85, 0.8), "w": 3},
 ]
 
 static var current: Breakables

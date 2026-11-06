@@ -41,7 +41,7 @@ func run(host: Node) -> void:
 
 func _test_traffic(city: City, amb: Node3D) -> void:
 	var t: RefCounted = amb.traffic
-	TestLib.check(Traffic.CAP == 420 and Traffic.BUILT <= Traffic.CAP, "far traffic is capped at 420 instances (built %d)" % Traffic.BUILT)
+	TestLib.check(Traffic.CAP == 760 and Traffic.BUILT <= Traffic.CAP, "far traffic is capped at 760 instances (built %d)" % Traffic.BUILT)
 	TestLib.check(t.mm.instance_count == Traffic.BUILT, "the traffic MultiMesh holds %d cars" % t.mm.instance_count)
 	# every car sits on one of the 36 lane lines, on the road, driving right-hand
 	var on_lane := true
@@ -53,7 +53,7 @@ func _test_traffic(city: City, amb: Node3D) -> void:
 		if absf(off - CityLayout.LANE) > 0.01:
 			on_lane = false
 	TestLib.check(on_lane, "every far car is 5 m off a road centre line (a lane)")
-	TestLib.check(lanes.size() == Traffic.LANES, "the cars use all 36 lanes (%d)" % lanes.size())
+	TestLib.check(lanes.size() == Traffic.LANES, "the cars use all %d lanes" % Traffic.LANES + " (%d)" % lanes.size())
 	# the shader formula in GDScript: a car moves speed * dt along its lane and wraps inside the lane range
 	var p0: Vector3 = t.car_position(3, 0.0)
 	var p1: Vector3 = t.car_position(3, 2.0)
@@ -62,7 +62,7 @@ func _test_traffic(city: City, amb: Node3D) -> void:
 	var inside := true
 	for i in Traffic.BUILT:
 		var p: Vector3 = t.car_position(i, 123.4)
-		if absf(p.x) > 341.0 or absf(p.z) > 341.0:
+		if absf(p.x) > CityLayout.HALF + 21.0 or absf(p.z) > CityLayout.HALF + 21.0:
 			inside = false
 	TestLib.check(inside, "cars stay inside the lane range at any time")
 	var emerg := 0

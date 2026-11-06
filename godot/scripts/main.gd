@@ -47,6 +47,7 @@ func _ready() -> void:
 	add_child(Encounters.new())         # encounter director: a squad within 26-40 m almost always, rushing, with a threat cue (scripts/enemies/encounters.gd; off under tools / tests)
 	add_child(Companion.new())          # the Vael defector ally: recruited by chapters 11-12, some side missions and the DEMO menu (scripts/npc/companion.gd)
 	add_child(Activities.new())         # F8: range, rooftop run, drift course, arena (scripts/activities/)
+	add_child(Freedom.new())            # open world freedom: hijacks, quantum charges (C4), street races, taxi / delivery / bounty jobs, stunt jumps (scripts/freedom/)
 	add_child(Cinematics.new())         # cutscenes (intro, chapter, boss), title backdrop, shop close-up, dead / win bars and fades (scripts/cinematics/)
 	TestMode.forced = UiSettings.new().test_mode or OS.get_cmdline_user_args().has("--test-mode")
 	add_child(TestMenu.new())           # the hack / test menu, its TEST button and the weapon quick buttons (debug builds or the 'test mode' setting); LAST: it sees input first

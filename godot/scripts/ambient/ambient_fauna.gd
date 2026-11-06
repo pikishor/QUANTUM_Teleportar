@@ -254,5 +254,5 @@ static func _mesh() -> ArrayMesh:
 	arrays[Mesh.ARRAY_TEX_UV2] = uv2
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	mesh.custom_aabb = AABB(Vector3(-420, -4, -420), Vector3(840, 140, 840))
+	mesh.custom_aabb = AABB(Vector3(-900, -4, -900), Vector3(1800, 140, 1800))
 	return mesh

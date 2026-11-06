@@ -331,7 +331,7 @@ func _guards(host: Node) -> void:
 	host.add_child(p)
 	Game.player = p
 	await TestLib.frames(host, 6)
-	TestLib.check(_hud.hint_text() == "" and not _hud.touch.button_visible(_find(&"blink")), "no vehicles or quantum: no hint, no BLINK button")
+	TestLib.check(_hud.hint_text() == "" and not _hud.touch.button_visible(_find(&"ability")), "no vehicles or quantum: no hint, no BLINK button")
 	p.free()
 	Game.player = null
 	Game.state = &"menu"
@@ -366,7 +366,7 @@ func _phone_text(host: Node) -> void:
 	TestLib.check(UiUtil.stack_bottom > 80.0 and UiUtil.stack_bottom < 200.0, "the HUD publishes the bottom of its top stack for the story layer (%.0f base px)" % UiUtil.stack_bottom)
 	for b: Dictionary in TouchControls.BUTTONS:
 		var dx := float(b["dx"]) + float(b["r"])
-		if str(b["need"]) in ["more_garage", "more_companion"]:
+		if str(b["need"]) in ["more_garage", "more_companion", "more_c4"]:
 			continue                                         # the outer MORE column: shown only while MORE is open
 		TestLib.check(dx <= StoryView.TOUCH_BUTTONS_W, "touch button %s stays inside the width the story layer reserves" % str(b["label"]))
 

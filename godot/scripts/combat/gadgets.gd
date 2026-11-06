@@ -157,7 +157,7 @@ func _scan(d: Dictionary) -> bool:
 		m.no_depth_test = true
 		m.render_priority = 5
 		_marks.material_override = m
-		_marks.custom_aabb = AABB(Vector3(-400, -50, -400), Vector3(800, 200, 800))
+		_marks.custom_aabb = AABB(Vector3(-900, -50, -900), Vector3(1800, 200, 1800))
 		add_child(_marks)
 	_marks.visible = true
 	marked = _refresh_marks()

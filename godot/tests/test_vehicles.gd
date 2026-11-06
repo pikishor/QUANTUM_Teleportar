@@ -10,6 +10,7 @@ const Env := preload("res://tests/player_env.gd")
 const Fixture := preload("res://tests/player_fixture.gd")
 
 const K := 4
+const MID_ROAD := 4 + CityLayout.CORE0            ## road index of the middle avenue (z = 0)
 const DT := 1.0 / 60.0
 
 var e := Env.new()
@@ -91,9 +92,10 @@ func _physics_numbers() -> void:
 	var car := mgr.spawn_parked(&"sport", Vector3(40.0, 0.0, -40.0), -PI * 0.5)       # facing +X
 	car.global_position = Vector3(40.0, 0.0, -40.0)
 	_run_drive(car, 1.0, 1.0, 0.0)
-	TestLib.check(car.speed > 15.0 and car.speed < 28.0, "sport from rest: %.1f m/s after 1 s of throttle (about 21)" % car.speed)
+	var sport_max: float = VehicleSpecs.SPECS[&"sport"]["max"]
+	TestLib.check(car.speed > sport_max * 0.3 and car.speed < sport_max * 0.7, "sport from rest: %.1f m/s after 1 s of throttle (about 12)" % car.speed)
 	_run_drive(car, 9.0, 1.0, 0.0)
-	TestLib.check(car.speed > 45.0 and car.speed <= 50.01, "sport top speed approaches 50 m/s (%.1f)" % car.speed)
+	TestLib.check(car.speed > sport_max * 0.9 and car.speed <= sport_max + 0.01, "sport top speed approaches %.0f m/s (%.1f)" % [sport_max, car.speed])
 	var sp := car.speed
 	_run_drive(car, 0.5, -1.0, 0.0)
 	TestLib.check(car.speed < sp - 20.0, "braking takes 48 m/s2 (%.1f -> %.1f in 0.5 s)" % [sp, car.speed])
@@ -117,7 +119,8 @@ func _physics_numbers() -> void:
 	TestLib.check(car.speed < coast_end - 1.0, "the handbrake slows faster than coasting (%.1f vs %.1f)" % [car.speed, coast_end])
 	var sedan := mgr.spawn_parked(&"sedan", Vector3(40.0, 0.0, 30.0), -PI * 0.5)
 	_run_drive(sedan, 12.0, 1.0, 0.0)
-	TestLib.check(sedan.speed > 30.0 and sedan.speed <= 34.01 and sedan.max_hp == 120.0, "sedan top speed 34 m/s, hp 120 (%.1f)" % sedan.speed)
+	var sedan_max: float = VehicleSpecs.SPECS[&"sedan"]["max"]
+	TestLib.check(sedan.speed > sedan_max * 0.9 and sedan.speed <= sedan_max + 0.01 and sedan.max_hp == 120.0, "sedan top speed %.0f m/s, hp 120 (%.1f)" % [sedan_max, sedan.speed])
 	var suv := mgr.spawn_parked(&"suv", Vector3(40.0, 0.0, 60.0), -PI * 0.5)
 	TestLib.check(suv != null and suv.max_hp == 150.0 and suv.visual.uses_model, "the SUV spawns with its own model and hp")
 	_extras()
@@ -178,7 +181,7 @@ func _drive_in_the_open() -> void:
 	var x0 := car.global_position.x
 	Input.action_press(&"move_forward")
 	await e.secs(1.5)
-	TestLib.check(car.global_position.x - x0 > 12.0 and car.speed > 12.0, "holding forward drives the car (%.0f m, %.1f m/s)" % [car.global_position.x - x0, car.speed])
+	TestLib.check(car.global_position.x - x0 > 7.0 and car.speed > 6.0, "holding forward drives the car (%.0f m, %.1f m/s)" % [car.global_position.x - x0, car.speed])
 	TestLib.check(p.global_position.distance_to(car.global_position) < 0.6, "the player node rides with the car")
 	TestLib.check(absf(car.rotation.y - car.heading) < 1e-4, "the root rotates with the heading")
 	var h0 := car.heading
@@ -217,7 +220,7 @@ func _lanes_and_turns() -> void:
 	var cases := [[0, 1, -60.0, 5.0, -PI * 0.5], [0, -1, 90.0, -5.0, PI * 0.5], [1, 1, -60.0, -5.0, PI], [1, -1, 90.0, 5.0, 0.0]]
 	var cars: Array[Vehicle] = []
 	for c in cases:
-		var v := mgr.spawn_traffic(&"sedan", c[0], 4, c[1], c[2])
+		var v := mgr.spawn_traffic(&"sedan", c[0], MID_ROAD, c[1], c[2])
 		v.ai_cool = 1000.0
 		v.ai_speed = 10.0
 		cars.append(v)
@@ -231,17 +234,17 @@ func _lanes_and_turns() -> void:
 		TestLib.check(v.ai_speed > 3.0 and v.speed > 3.0, "traffic cruises (%.1f m/s)" % v.speed)
 	_extras()
 	# at the map edge the car must turn onto the crossing road, into its right-hand lane
-	await e.prep(Vector3(250.0, 0.0, 60.0), 0.0)
-	var t := mgr.spawn_traffic(&"sedan", 0, 4, 1, 308.0)
+	await e.prep(Vector3(Game.HALF - 70.0, 0.0, 60.0), 0.0)
+	var t := mgr.spawn_traffic(&"sedan", 0, MID_ROAD, 1, Game.HALF - 12.0)
 	t.ai_speed = 11.0
 	await e.secs(3.0)
-	var expected := 320.0 + VehicleSpecs.lane_offset(1, t.ai_dir, Game.LANE)
+	var expected := Game.HALF + VehicleSpecs.lane_offset(1, t.ai_dir, Game.LANE)
 	TestLib.check(t.ai_axis == 1 and absf(t.ai_line - expected) < 0.01, "the traffic car turned at the map edge (axis %d, line %.1f, expected %.1f)" % [t.ai_axis, t.ai_line, expected])
 	TestLib.check(absf(t.global_position.x - expected) < 0.6 and absf(wrapf(t.heading - VehicleSpecs.heading_for(1, t.ai_dir), -PI, PI)) < 0.2, "and drives in the new lane (x %.1f, heading %.2f)" % [t.global_position.x, t.heading])
 	_extras()
 	# stops for the player standing in the lane, and drives on when he steps aside
 	await e.prep(Vector3(-100.0, 0.0, 5.0), 0.0)
-	var a := mgr.spawn_traffic(&"sedan", 0, 4, 1, -125.0)
+	var a := mgr.spawn_traffic(&"sedan", 0, MID_ROAD, 1, -125.0)
 	a.ai_cool = 1000.0
 	a.ai_speed = 11.0
 	await e.secs(2.8)
@@ -252,7 +255,7 @@ func _lanes_and_turns() -> void:
 	TestLib.check(a.ai_speed > 6.0, "and moves on when the way is clear (%.1f m/s)" % a.ai_speed)
 	# stops behind a parked car in its lane
 	_extras()
-	var b := mgr.spawn_traffic(&"sedan", 0, 4, 1, -128.0)
+	var b := mgr.spawn_traffic(&"sedan", 0, MID_ROAD, 1, -128.0)
 	b.ai_cool = 1000.0
 	b.ai_speed = 11.0
 	var blocker := mgr.spawn_parked(&"sedan", Vector3(-110.0, 0.0, 5.0), -PI * 0.5)

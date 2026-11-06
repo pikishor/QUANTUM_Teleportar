@@ -70,6 +70,8 @@ const DEFS := {
 		"kick": 0.03, "kick_end": 0.03, "kick_yaw": 0.0, "reload": 2.2, "range": 80.0, "falloff_from": 9999.0,
 		"tracer": Color(0.5, 0.4, 1.0), "look": Color(0.45, 0.35, 1.0), "look_size": Vector3(0.14, 0.1, 0.3), "zoom": 56.0, "price": 1100, "pierce_shield": true,
 		"speed": 30.0, "fuse": 1.4, "well_time": 2.4, "well_radius": 12.0, "well_pull": 12.0, "well_dps": 16.0, "blast_radius": 5.0,
+		# open world freedom: the launcher is a GRENADE LAUNCHER, the round blows on impact (a short pull first), hard on cars and cover
+		"impact": true, "blast_damage": 130.0, "car_dmg": 110.0, "blast_color": Color(1.0, 0.6, 0.2), "impact_pull": 4.0,
 	},
 	&"minigun": {
 		"name": "PLASMA MINIGUN", "tag": "PMG", "kind": "hit", "mag": 120, "reserve": 480, "interval": 0.05, "damage": 6.5, "crit": 12.0, "pellets": 1,

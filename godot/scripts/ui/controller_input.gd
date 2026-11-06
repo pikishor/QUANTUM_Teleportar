@@ -493,8 +493,11 @@ func start() -> bool:
 func _haptics(dt: float) -> void:
 	if Game.state != &"play":
 		return
-	var p: Player = Game.player if is_instance_valid(Game.player) else null
-	if p == null or not is_instance_valid(p.vehicle):
+	if not is_instance_valid(Game.player):
+		_eng_t = 0.0
+		return
+	var p = Game.player
+	if not (p is Player) or not is_instance_valid(p.vehicle):
 		_eng_t = 0.0
 		return
 	_eng_t -= dt

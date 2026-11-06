@@ -1,17 +1,17 @@
 extends RefCounted
-## Far traffic of the living city: ONE MultiMesh of paired head / tail light points moving along the 36 lanes of the road grid (9 roads x 2 axes x 2
+## Far traffic of the living city: ONE MultiMesh of paired head / tail light points moving along the 68 lanes of the road grid (17 roads x 2 axes x 2
 ## directions). Motion is computed in the vertex shader from a time uniform (assets/shaders/prop_traffic.gdshader), so a car costs no CPU at all;
 ## the tiers only change how many instances are drawn (`visible_instance_count`). Every 40th car is an emergency vehicle with red / blue strobes.
 ## The cars are lights only: close to the camera they fade out and the real vehicles of VehicleManager take over.
 
 const SHADER := preload("res://assets/shaders/prop_traffic.gdshader")
 
-const LANE_MIN := -340.0
-const LANE_LEN := 680.0
-const BUILT := 380                       ## instances in the MultiMesh (the HIGH count); the hard cap of the feature is CAP
-const CAP := 420
-const COUNTS: Array[int] = [110, 220, 380]      ## denser than before (80 / 150 / 240): still ONE draw call, the cost is vertex-stage only
-const LANES := 36
+const LANE_MIN := -(CityLayout.HALF + 20.0)      ## the cars wrap around along each lane over the whole big city (the shader holds the same two numbers)
+const LANE_LEN := 2.0 * (CityLayout.HALF + 20.0)
+const BUILT := 700                       ## instances in the MultiMesh (the HIGH count); the hard cap of the feature is CAP
+const CAP := 760
+const COUNTS: Array[int] = [140, 320, 700]      ## 4x the area of the original city: about 1.8x the cars (the cars are lights only: still ONE draw call, the cost is vertex-stage only)
+const LANES := 4 * (CityLayout.N + 1)
 const EMERGENCY_EVERY := 40
 const EMERGENCY_AT := 7
 ## What the far cars are, by VehicleSpecs name and share of the cars (the rest of each 40 are plain cars; every 40th car is the emergency / Vael patrol vehicle). The look
@@ -137,7 +137,7 @@ static func _lamp_mesh() -> ArrayMesh:
 	arrays[Mesh.ARRAY_INDEX] = idx
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	mesh.custom_aabb = AABB(Vector3(-420, -4, -420), Vector3(840, 40, 840))
+	mesh.custom_aabb = AABB(Vector3(-900, -4, -900), Vector3(1800, 40, 1800))
 	return mesh
 
 

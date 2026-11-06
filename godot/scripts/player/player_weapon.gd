@@ -951,6 +951,17 @@ static func def_of_grenade() -> Dictionary:
 
 func _start_well(g: Dictionary) -> void:
 	var d := _gdef(g)
+	if bool(d.get("impact", false)):                        # grenade launcher: a short pull, then the blast at once (no well)
+		var ip: Vector3 = g["pos"]
+		for e: Node in get_tree().get_nodes_in_group(&"enemy"):
+			if e is Node3D and not _is_dead(e):
+				var off := ip - (e as Node3D).global_position
+				off.y = 0.0
+				var dist := off.length()
+				if dist < float(d["well_radius"]) * 0.6 and dist > 1.4:
+					(e as Node3D).global_position += off / dist * minf(float(d.get("impact_pull", 3.0)), dist - 1.2)
+		_collapse(g)
+		return
 	g["state"] = 1
 	g["well"] = float(d["well_time"])
 	g["tick"] = 0.0
@@ -998,7 +1009,8 @@ func _collapse(g: Dictionary) -> void:
 	var pos: Vector3 = g["pos"]
 	g["state"] = -1
 	(g["node"] as Node3D).visible = false
-	Game.explode(pos + Vector3(0.0, 0.5, 0.0), float(d["blast_radius"]), {"enemy_dmg": float(d["damage"]) * Upgrades.damage_mult(), "car_dmg": 40.0, "player_dmg": 0.0, "color": WeaponDefs.COLLAPSE_COLOR})
+	Game.explode(pos + Vector3(0.0, 0.5, 0.0), float(d["blast_radius"]), {"enemy_dmg": float(d.get("blast_damage", d["damage"])) * Upgrades.damage_mult(), "car_dmg": float(d.get("car_dmg", 40.0)),
+			"player_dmg": 0.0, "color": d.get("blast_color", WeaponDefs.COLLAPSE_COLOR)})
 	grenade_collapsed.emit(pos)
 
 

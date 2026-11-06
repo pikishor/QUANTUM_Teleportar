@@ -165,7 +165,7 @@ func _scatter() -> void:
 	em.clear()
 	var d2 := await _target(&"heavy", Vector3(5.0, 0.0, 0.0))
 	w.fire_t = 0.0
-	_aim(d2, 0.9)
+	_aim(d2, 0.5)
 	var hp2 := d2.hp
 	_pull(0.01)
 	TestLib.check(hp2 - d2.hp > near + 10.0, "high pellets crit one by one (%.0f vs %.0f)" % [hp2 - d2.hp, near])
@@ -350,7 +350,7 @@ func _switching() -> void:
 	WeaponDefs.unlock(&"lance")
 	w.switch_to(&"lance", true)
 	var look := p.body.find_child("WeaponLook", true, false) as MeshInstance3D   # rides on the muzzle or (superhero) the hand mount
-	TestLib.check(look != null and (look.mesh as BoxMesh).size.z > 0.7, "the lance wears a long rail on the rifle")
+	TestLib.check(look != null and look.mesh != null and look.mesh.get_aabb().size.z > 0.7, "the lance wears a long rail on the rifle")
 
 
 # --- upgrades, shop ----------------------------------------------------------------------------------------------------

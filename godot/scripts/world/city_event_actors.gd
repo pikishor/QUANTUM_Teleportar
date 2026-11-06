@@ -40,7 +40,7 @@ static func build(parent: Node, e: Dictionary) -> void:
 				for k in 3:
 					var v: Vehicle = Game.vehicles.call(&"spawn_traffic", &"sport", axis, road, dir, base - dir * k * 6.0 + dir * 4.0)
 					if v != null:
-						v.ai_cruise = 30.0 + 3.0 * k
+						v.ai_cruise = 20.0 + 2.0 * k
 						a["ai"].append(v)
 			_marker(parent, a, Color(1.0, 0.85, 0.3), 3.0, 14.0)
 			a["node"].global_position = pts[0]

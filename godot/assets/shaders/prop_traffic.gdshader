@@ -16,8 +16,8 @@ uniform float fade_near = 46.0;                      // real traffic and the pla
 uniform float fade_far = 560.0;
 uniform float intensity = 1.0;
 
-const float LANE_MIN = -340.0;
-const float LANE_LEN = 680.0;
+const float LANE_MIN = -660.0;      // CityLayout.HALF + 20 (ambient_traffic.gd holds the same numbers)
+const float LANE_LEN = 1320.0;
 
 varying vec2 v_uv;
 varying flat vec3 v_col;

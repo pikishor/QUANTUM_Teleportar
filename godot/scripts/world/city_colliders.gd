@@ -11,6 +11,7 @@ const POOL := 56                      ## bodies, one CollisionShape3D each (56 s
 const REACH := 38.0                   ## metres (XZ) around the follow point that can receive colliders
 const VERT := 14.0                    ## colliders further than this above / below the follow point are ignored (roofs over the street)
 const CELL := 16.0
+const OFF := CityLayout.HALF + 80.0       ## the cell grid starts at -OFF (key = cx << 10 | cz: up to 1024 cells per side)
 const STEP := 2.0                     ## refresh when the follow point moved this far ...
 const MAX_AGE := 0.35                 ## ... or after this many seconds while moving
 const PARK := Vector3(0.0, -1000.0, 0.0)
@@ -132,7 +133,7 @@ func _make_pool(parent: Node3D) -> void:
 
 
 static func _key(x: float, z: float) -> int:
-	return (int(floor((x + 400.0) / CELL)) << 10) | int(floor((z + 400.0) / CELL))
+	return (int(floor((x + OFF) / CELL)) << 10) | int(floor((z + OFF) / CELL))
 
 
 ## Total collision shapes owned by the pool (constant).
@@ -172,10 +173,10 @@ func refill(p: Vector3) -> void:
 	refills += 1
 	last_follow = p
 	var cands: Array[Vector2] = []
-	var c0x := int(floor((p.x - REACH + 400.0) / CELL))
-	var c1x := int(floor((p.x + REACH + 400.0) / CELL))
-	var c0z := int(floor((p.z - REACH + 400.0) / CELL))
-	var c1z := int(floor((p.z + REACH + 400.0) / CELL))
+	var c0x := int(floor((p.x - REACH + OFF) / CELL))
+	var c1x := int(floor((p.x + REACH + OFF) / CELL))
+	var c0z := int(floor((p.z - REACH + OFF) / CELL))
+	var c1z := int(floor((p.z + REACH + OFF) / CELL))
 	var r2 := REACH * REACH
 	for cx in range(c0x, c1x + 1):
 		for cz in range(c0z, c1z + 1):

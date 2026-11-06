@@ -3,39 +3,44 @@ extends RefCounted
 ## Numbers of the vehicles module: car specs (src/vehicles.js SPECS plus an SUV), the per-tier caps, colours, streaming distances and the traffic rules.
 ## Keep every tuning number here so the manager, the vehicle and the tests agree.
 
+## Big city (wave 84): top speeds are ARCADE 18-28 m/s (65-100 km/h; they were 22-62) and the acceleration keeps its ratio to the top speed (about 2 s time constant), so crossing the
+## 1.3 km map takes a minute or more instead of 20 s. Nitro adds NITRO_SPEED on top.
 ## max = top speed m/s, acc = acceleration m/s2, brake = braking m/s2, grip = lateral grip (1/s), hp, model = Game.load_model name,
 ## len / wid / hgt = the model's size in metres (assets contract), wheel = wheel radius, axle_z = axle offset from the centre (wheels sit at +-axle_z).
 const SPECS := {
-	&"sedan": {"max": 34.0, "acc": 18.0, "brake": 40.0, "grip": 6.5, "hp": 120.0, "model": "car_sedan", "len": 4.75, "wid": 1.86, "hgt": 1.48, "wheel": 0.335},
-	&"sport": {"max": 50.0, "acc": 28.0, "brake": 48.0, "grip": 5.2, "hp": 100.0, "model": "car_sport", "len": 4.45, "wid": 1.92, "hgt": 1.20, "wheel": 0.335},
-	&"suv": {"max": 30.0, "acc": 15.0, "brake": 36.0, "grip": 6.8, "hp": 150.0, "model": "car_suv", "len": 4.85, "wid": 1.98, "hgt": 1.83, "wheel": 0.385},
+	&"sedan": {"max": 22.0, "acc": 11.6, "brake": 40.0, "grip": 6.5, "hp": 120.0, "model": "car_sedan", "len": 4.75, "wid": 1.86, "hgt": 1.48, "wheel": 0.335},
+	&"sport": {"max": 28.0, "acc": 15.7, "brake": 48.0, "grip": 5.2, "hp": 100.0, "model": "car_sport", "len": 4.45, "wid": 1.92, "hgt": 1.20, "wheel": 0.335},
+	&"suv": {"max": 19.0, "acc": 9.5, "brake": 36.0, "grip": 6.8, "hp": 150.0, "model": "car_suv", "len": 4.85, "wid": 1.98, "hgt": 1.83, "wheel": 0.385},
 	# --- handling classes (optional keys, a spec without them is a plain car) ---
 	# cls = "car" | "bike" | "hover"; alt = further Game.load_model names tried when `model` does not exist (the primitive fallback is used when none does);
 	# bike: lean_max = body roll in rad at full lean, steer = steering rate factor; hover: hover_h = ride height of the model, bob = bob amplitude in m,
 	# drift = extra sideways slide (grip stays low), coast = coast drag; far = look of the kind in the far traffic (tint, speed factor, see ambient_traffic.gd).
-	&"bike": {"cls": "bike", "max": 58.0, "acc": 30.0, "brake": 38.0, "grip": 7.8, "hp": 55.0, "model": "bike_street", "alt": ["bike", "bike_sport"], "len": 2.1, "wid": 0.8, "hgt": 1.3,
+	&"bike": {"cls": "bike", "max": 27.0, "acc": 14.0, "brake": 38.0, "grip": 7.8, "hp": 55.0, "model": "bike_street", "alt": ["bike", "bike_sport"], "len": 2.1, "wid": 0.8, "hgt": 1.3,
 		"wheel": 0.34, "lean_max": 0.62, "steer": 1.3, "far": {"tint": Color(1.0, 0.95, 0.82), "speed": 1.25}},
-	&"hover": {"cls": "hover", "max": 46.0, "acc": 22.0, "brake": 30.0, "grip": 2.2, "hp": 90.0, "model": "car_hover", "alt": ["hover_car", "hovercar"], "len": 4.6, "wid": 2.0, "hgt": 1.15,
+	&"hover": {"cls": "hover", "max": 25.0, "acc": 12.0, "brake": 30.0, "grip": 2.2, "hp": 90.0, "model": "car_hover", "alt": ["hover_car", "hovercar"], "len": 4.6, "wid": 2.0, "hgt": 1.15,
 		"wheel": 0.3, "hover_h": 0.55, "bob": 0.07, "drift": 1.0, "coast": 0.28, "steer": 1.15, "far": {"tint": Color(0.45, 0.95, 1.0), "speed": 1.1}},
 	# Vael patrol vehicle: a hover chassis in the hive colours, chases the player from heat 3 (VehicleManager patrols), hp 160.
-	&"vael_patrol": {"cls": "hover", "patrol": true, "max": 44.0, "acc": 24.0, "brake": 34.0, "grip": 3.0, "hp": 160.0, "model": "car_vael_patrol", "alt": ["vael_patrol", "hover_vael"],
+	&"vael_patrol": {"cls": "hover", "patrol": true, "max": 26.0, "acc": 14.2, "brake": 34.0, "grip": 3.0, "hp": 160.0, "model": "car_vael_patrol", "alt": ["vael_patrol", "hover_vael"],
 		"len": 4.9, "wid": 2.1, "hgt": 1.3, "wheel": 0.3, "hover_h": 0.5, "bob": 0.05, "drift": 0.7, "coast": 0.3, "steer": 1.2, "far": {"tint": Color(0.75, 1.0, 0.45), "speed": 0.6}},
 	# --- the Wave 14 art set (tools/blender/model_car_taxi.py ... ): sedan platform variants, a van and a truck. mass = kg, seats = driver included,
 	# The paints of a kind are in PALETTES (taxis yellow, vans white and grey, the Vael patrol in hive tones).
-	&"taxi": {"max": 32.0, "acc": 17.0, "brake": 38.0, "grip": 6.4, "hp": 130.0, "mass": 1500.0, "seats": 5, "model": "car_taxi", "len": 4.75, "wid": 1.86, "hgt": 1.66, "wheel": 0.335},
-	&"wagon": {"max": 33.0, "acc": 16.5, "brake": 38.0, "grip": 6.4, "hp": 135.0, "mass": 1600.0, "seats": 5, "model": "car_wagon", "len": 4.92, "wid": 1.86, "hgt": 1.55, "wheel": 0.35},
-	&"van": {"max": 28.0, "acc": 12.0, "brake": 32.0, "grip": 6.0, "hp": 175.0, "mass": 2300.0, "seats": 3, "model": "car_van", "len": 5.2, "wid": 2.0, "hgt": 2.25, "wheel": 0.37},
-	&"truck": {"max": 24.0, "acc": 9.0, "brake": 28.0, "grip": 5.4, "hp": 260.0, "mass": 7500.0, "seats": 3, "model": "car_truck", "len": 6.4, "wid": 2.1, "hgt": 3.0, "wheel": 0.42},
+	&"taxi": {"max": 21.0, "acc": 11.2, "brake": 38.0, "grip": 6.4, "hp": 130.0, "mass": 1500.0, "seats": 5, "model": "car_taxi", "len": 4.75, "wid": 1.86, "hgt": 1.66, "wheel": 0.335},
+	&"wagon": {"max": 21.0, "acc": 10.5, "brake": 38.0, "grip": 6.4, "hp": 135.0, "mass": 1600.0, "seats": 5, "model": "car_wagon", "len": 4.92, "wid": 1.86, "hgt": 1.55, "wheel": 0.35},
+	&"van": {"max": 18.0, "acc": 7.7, "brake": 32.0, "grip": 6.0, "hp": 175.0, "mass": 2300.0, "seats": 3, "model": "car_van", "len": 5.2, "wid": 2.0, "hgt": 2.25, "wheel": 0.37},
+	&"truck": {"max": 18.0, "acc": 6.8, "brake": 28.0, "grip": 5.4, "hp": 260.0, "mass": 7500.0, "seats": 3, "model": "car_truck", "len": 6.4, "wid": 2.1, "hgt": 3.0, "wheel": 0.42},
 	# --- creature kit (tools/creature_kit.py, Quaternius space kit, CC0): a moon rover on four wheels and a hover skiff, both rare in the traffic mix.
-	&"rover": {"max": 26.0, "acc": 14.0, "brake": 34.0, "grip": 6.2, "hp": 170.0, "mass": 1900.0, "seats": 2, "model": "car_rover", "len": 2.3, "wid": 1.9, "hgt": 2.03, "wheel": 0.3},
-	&"skiff": {"cls": "hover", "max": 54.0, "acc": 26.0, "brake": 32.0, "grip": 2.0, "hp": 80.0, "mass": 900.0, "seats": 2, "model": "car_skiff", "len": 5.2, "wid": 1.85, "hgt": 1.4, "wheel": 0.3,
+	&"rover": {"max": 18.0, "acc": 9.7, "brake": 34.0, "grip": 6.2, "hp": 170.0, "mass": 1900.0, "seats": 2, "model": "car_rover", "len": 2.3, "wid": 1.9, "hgt": 2.03, "wheel": 0.3},
+	&"skiff": {"cls": "hover", "max": 27.0, "acc": 13.0, "brake": 32.0, "grip": 2.0, "hp": 80.0, "mass": 900.0, "seats": 2, "model": "car_skiff", "len": 5.2, "wid": 1.85, "hgt": 1.4, "wheel": 0.3,
 		"hover_h": 0.6, "bob": 0.09, "drift": 1.1, "coast": 0.25, "steer": 1.2, "far": {"tint": Color(0.7, 0.85, 1.0), "speed": 1.2}},
 	# --- traffic and emergency set (primitive fallback until the art exists): a city bus, an interceptor and an ambulance (sirens: other traffic yields), a scooter-style quantum bike.
-	&"bus": {"max": 22.0, "acc": 7.0, "brake": 24.0, "grip": 5.0, "hp": 320.0, "mass": 11000.0, "seats": 4, "model": "car_bus", "alt": ["bus"], "len": 9.5, "wid": 2.5, "hgt": 3.2, "wheel": 0.5},
-	&"interceptor": {"siren": true, "max": 56.0, "acc": 30.0, "brake": 46.0, "grip": 6.0, "hp": 140.0, "mass": 1500.0, "seats": 2, "model": "car_interceptor", "alt": ["interceptor"], "len": 4.7, "wid": 1.95, "hgt": 1.3, "wheel": 0.34},
-	&"ambulance": {"siren": true, "max": 34.0, "acc": 14.0, "brake": 34.0, "grip": 6.0, "hp": 190.0, "mass": 2800.0, "seats": 3, "model": "car_ambulance", "len": 5.4, "wid": 2.05, "hgt": 2.4, "wheel": 0.37},
-	&"qbike": {"cls": "bike", "max": 62.0, "acc": 34.0, "brake": 36.0, "grip": 8.0, "hp": 45.0, "mass": 140.0, "seats": 1, "model": "bike_quantum", "alt": ["scooter", "bike_street"], "len": 1.8, "wid": 0.6, "hgt": 1.15,
+	&"bus": {"max": 18.0, "acc": 5.7, "brake": 24.0, "grip": 5.0, "hp": 320.0, "mass": 11000.0, "seats": 4, "model": "car_bus", "alt": ["bus"], "len": 9.5, "wid": 2.5, "hgt": 3.2, "wheel": 0.5},
+	&"interceptor": {"siren": true, "max": 28.0, "acc": 15.0, "brake": 46.0, "grip": 6.0, "hp": 140.0, "mass": 1500.0, "seats": 2, "model": "car_interceptor", "alt": ["interceptor"], "len": 4.7, "wid": 1.95, "hgt": 1.3, "wheel": 0.34},
+	&"ambulance": {"siren": true, "max": 23.0, "acc": 9.5, "brake": 34.0, "grip": 6.0, "hp": 190.0, "mass": 2800.0, "seats": 3, "model": "car_ambulance", "len": 5.4, "wid": 2.05, "hgt": 2.4, "wheel": 0.37},
+	&"qbike": {"cls": "bike", "max": 28.0, "acc": 15.4, "brake": 36.0, "grip": 8.0, "hp": 45.0, "mass": 140.0, "seats": 1, "model": "bike_quantum", "alt": ["scooter", "bike_street"], "len": 1.8, "wid": 0.6, "hgt": 1.15,
 		"wheel": 0.26, "lean_max": 0.7, "steer": 1.4, "far": {"tint": Color(0.4, 0.95, 1.0), "speed": 1.3}},
+	# --- open world freedom: the hero's HOVER-BIKE (CALL CAR with an empty garage, also a rare traffic kind): a bike chassis floating on a quantum cushion, fast and slidey, one seat.
+	&"hoverbike": {"cls": "hover", "max": 30.0, "acc": 17.0, "brake": 34.0, "grip": 2.6, "hp": 60.0, "mass": 260.0, "seats": 1, "model": "bike_street", "alt": ["car_skiff"], "len": 2.1, "wid": 0.8, "hgt": 1.3,
+		"wheel": 0.3, "hover_h": 0.75, "bob": 0.1, "drift": 1.0, "coast": 0.3, "steer": 1.35, "far": {"tint": Color(0.4, 1.0, 0.95), "speed": 1.3}},
 }
 ## Paints of the kinds that do not wear the random street palette (VehicleVisual.set_paint maps the random COLORS pick to an entry; a husk keeps WRECK_COLOR).
 const PALETTES := {
@@ -56,8 +61,8 @@ const BASE_STATS := {
 const KINDS: Array[StringName] = [&"sedan", &"sport", &"suv"]
 const KIND_WEIGHTS: Array[float] = [0.5, 0.25, 0.25]
 ## Spawn weights of a streamed vehicle (sedan, sport, suv, bike, hover, taxi, wagon, van, truck, rover, skiff, bus, interceptor, ambulance, qbike). Patrols (vael_patrol) are never streamed, the manager adds them from heat 3.
-const STREAM_KINDS: Array[StringName] = [&"sedan", &"sport", &"suv", &"bike", &"hover", &"taxi", &"wagon", &"van", &"truck", &"rover", &"skiff", &"bus", &"interceptor", &"ambulance", &"qbike"]
-const STREAM_WEIGHTS: Array[float] = [0.16, 0.12, 0.1, 0.08, 0.08, 0.09, 0.05, 0.07, 0.05, 0.03, 0.03, 0.04, 0.03, 0.02, 0.05]
+const STREAM_KINDS: Array[StringName] = [&"sedan", &"sport", &"suv", &"bike", &"hover", &"taxi", &"wagon", &"van", &"truck", &"rover", &"skiff", &"bus", &"interceptor", &"ambulance", &"qbike", &"hoverbike"]
+const STREAM_WEIGHTS: Array[float] = [0.16, 0.12, 0.1, 0.08, 0.08, 0.09, 0.05, 0.07, 0.05, 0.03, 0.03, 0.04, 0.03, 0.02, 0.03, 0.02]
 
 ## Live cars at once (starter car and a driven car included): LOW 3 / MED 5 / HIGH 8. Each legacy car costs about 10 draw calls.
 const CAPS: Array[int] = [3, 5, 8]
@@ -122,6 +127,11 @@ const SMOKE_EVERY := 0.34
 const FIRE_EVERY := 0.2
 const EXIT_SAFE_SPEED := 9.0           ## leaving a car faster than this hurts (EXIT_HURT hp per m/s over it)
 const EXIT_HURT := 2.0
+const CHAIN_RADIUS := 7.0              ## open world: a car that blows up sets every car within this of it alight ...
+const CHAIN_DELAY := 1.4               ## ... and they follow after up to this many seconds (staggered by distance): a pile-up goes off one after the other
+const ENTER_REACH := 1.9               ## metres from the hull edge a car can be entered or hijacked (the old 4.2 m from the middle still works); a moving car adds ENTER_MOVING per m/s
+const ENTER_MOVING := 0.12
+const ENTER_MOVING_MAX := 2.6
 const EXIT_BRAKE := 0.6                ## a car the player leaves keeps this share of its speed (it rolls to a stop)
 
 # --- mounted weapons (E2): rate = shots/s, dmg per hit, heat per shot (1.0 locks), cool = heat/s, ammo = rounds, range m, spread rad, blast = radius (0 none) ---
@@ -133,7 +143,7 @@ const WEAPONS := {
 const WEAPON_LOCK_RESUME := 0.4        ## an overheated weapon fires again below this heat
 
 # --- nitro (E4): sprint while driving ---
-const NITRO_SPEED := 1.35              ## top speed factor
+const NITRO_SPEED := 1.3               ## top speed factor
 const NITRO_ACC := 1.9                 ## acceleration factor
 const NITRO_DRAIN := 0.33              ## tank (0..1) per second
 const NITRO_REGEN := 0.12

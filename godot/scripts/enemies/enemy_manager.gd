@@ -23,9 +23,11 @@ const REINFORCE_HEAT_SHARE := 0.5            ## their kills add this share of th
 const NEAR_RADIUS := 110.0
 const CALLOUT_RADIUS := 45.0
 const DESPAWN_DIST := 170.0
-const PATROL_GROUPS := 7
+const PATROL_GROUPS := 7                     ## in the core of the map (the original 8 x 8 city), awake from the start as far as the tier allows
+const PATROL_OUTER_GROUPS := 14              ## in the outer districts of the big city: dormant until the player comes within PATROL_STREAM_DIST
 const PATROL_MIN_SPAWN_DIST := 110.0
 const PATROL_STREAM_DIST := 150.0
+const PATROL_SLEEP_DIST := 260.0             ## an unaware patrol this far from the player goes back to sleep (pooled, its group waits for the player again): the cap is for the fights around the hero
 const QUIET_BEFORE_DECAY := 7.0
 const HEAT_DECAY := 0.12
 const AWARE_NEAR := 70.0
@@ -138,6 +140,13 @@ func clear(reinforcements_only := false) -> void:
 
 ## Back to the pool: the drone is hidden, out of the group and out of the simulation.
 func release(d: Drone) -> void:
+	if d.has_meta(&"patrol"):                                    # a patrol member: its group may go dormant again (see _sweep)
+		var pg: Dictionary = d.get_meta(&"patrol")
+		d.remove_meta(&"patrol")
+		pg["live"] = maxi(0, int(pg.get("live", 1)) - 1)
+		if bool(pg.get("sleeping", false)) and int(pg["live"]) == 0:
+			pg["sleeping"] = false
+			pg["spawned"] = false
 	list.erase(d)
 	d.deactivate()
 	var arr: Array = _pool.get(d.type, [])
@@ -146,17 +155,22 @@ func release(d: Drone) -> void:
 	_pool[d.type] = arr
 
 
-## 7 patrol groups far from the spawn; as many as the tier allows start right away, the rest wait for the player (see the class comment).
+## 7 patrol groups in the core far from the spawn (as many as the tier allows start right away, the rest wait for the player, see the class comment) plus
+## PATROL_OUTER_GROUPS in the outer districts of the big city that only wake when the player comes close.
 func init_patrols() -> void:
 	_patrols_built = true
 	_groups.clear()
 	var w := Game.world
 	if not is_instance_valid(w) or not w.has_method(&"random_road_point"):
 		return
-	for g in PATROL_GROUPS:
+	var core_call: StringName = &"random_core_road_point" if w.has_method(&"random_core_road_point") else &"random_road_point"
+	for g in PATROL_GROUPS + PATROL_OUTER_GROUPS:
+		var outer := g >= PATROL_GROUPS
 		var p := Vector3.INF
 		for tries in 40:
-			var q: Vector3 = w.call(&"random_road_point")
+			var q: Vector3 = w.call(&"random_road_point" if outer else core_call)
+			if outer and absf(q.x) <= CityLayout.CORE_HALF and absf(q.z) <= CityLayout.CORE_HALF:
+				continue
 			if Vector2(q.x - Game.SPAWN.x, q.z - Game.SPAWN.z).length() >= PATROL_MIN_SPAWN_DIST:
 				p = q
 				break
@@ -172,7 +186,7 @@ func init_patrols() -> void:
 			elif far and i == 0 and g % 3 == 0:
 				t = &"heavy"
 			types.append(Factions.fit_type(t, camp, 0))
-		_groups.append({"pos": p, "types": types, "spawned": false, "camp": camp})
+		_groups.append({"pos": p, "types": types, "spawned": false, "camp": camp, "outer": outer, "live": 0})
 	var ref := Game.SPAWN
 	if is_instance_valid(Game.player):
 		ref = Game.player.global_position
@@ -424,6 +438,10 @@ func _sweep(ppos: Vector3) -> void:
 		elif e.reinforce and not e.dead and ppos.is_finite() \
 				and Vector2(e.global_position.x - ppos.x, e.global_position.z - ppos.z).length() > DESPAWN_DIST:
 			release(e)
+		elif not e.reinforce and not e.dead and not e.aware and e.has_meta(&"patrol") and ppos.is_finite() \
+				and Vector2(e.global_position.x - ppos.x, e.global_position.z - ppos.z).length() > PATROL_SLEEP_DIST:
+			(e.get_meta(&"patrol") as Dictionary)["sleeping"] = true         # the big city: a patrol the player left behind frees its slots and waits for them again
+			release(e)
 		i = mini(i - 1, list.size() - 1)
 
 
@@ -584,6 +602,8 @@ func _stream_patrols(initial: bool, ppos := Vector3.INF) -> void:
 		if g["spawned"]:
 			continue
 		var gp: Vector3 = g["pos"]
+		if initial and bool(g.get("outer", false)):
+			continue                                           # the outer districts wake when the player comes close
 		if not initial and (not ppos.is_finite() or Vector2(gp.x - ppos.x, gp.z - ppos.z).length() > PATROL_STREAM_DIST):
 			continue
 		var types: Array = g["types"]
@@ -596,8 +616,12 @@ func _stream_patrols(initial: bool, ppos := Vector3.INF) -> void:
 				continue
 			return
 		g["spawned"] = true
+		g["sleeping"] = false
 		for t: StringName in types:
-			spawn(t, gp + Vector3(randf_range(-4.0, 4.0), 0.0, randf_range(-4.0, 4.0)), false, false, g.get("camp", &""))
+			var pd: Drone = spawn(t, gp + Vector3(randf_range(-4.0, 4.0), 0.0, randf_range(-4.0, 4.0)), false, false, g.get("camp", &""))
+			if pd != null:
+				pd.set_meta(&"patrol", g)
+				g["live"] = int(g.get("live", 0)) + 1
 
 
 func _acquire(type: StringName) -> Drone:
@@ -648,7 +672,7 @@ func _build_bolts() -> void:
 	_mmi = MultiMeshInstance3D.new()
 	_mmi.name = "Bolts"
 	_mmi.multimesh = _mm
-	_mmi.custom_aabb = AABB(Vector3(-600.0, -10.0, -600.0), Vector3(1200.0, 200.0, 1200.0))
+	_mmi.custom_aabb = AABB(Vector3(-900.0, -10.0, -900.0), Vector3(1800.0, 200.0, 1800.0))
 	_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mmi)
 

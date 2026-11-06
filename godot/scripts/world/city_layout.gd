@@ -6,11 +6,19 @@ extends RefCounted
 ## The rules and the random stream are ported from src/world.js (mulberry32(2025), same call order), so the lots
 ## are the same ones the play-tested Three.js prototype had: 8x8 blocks, 4 lots per block, footprints 18/26 m,
 ## heights 16/28/44/62/88 m (taller toward the centre) and 10 % plazas.
+##
+## Big city (wave 84): the world is 16 x 16 blocks (1280 m, 4x the area). The original 8x8 city is the CORE in the middle of it (blocks CORE0 .. CORE0 + CORE_N - 1,
+## world coordinates |x|, |z| <= CORE_HALF) and is generated first with the original stream, so every lot index, every position and every table that
+## refers to the core is unchanged. The 192 outer blocks come from a second stream (OUTER_SEED): lower, wider buildings, more open lots, four outer zones
+## (see city_districts.gd). The lot list is pure data and cheap; what is drawn, collided with and populated is windowed around the player.
 
 const PITCH := 80.0            ## distance between road centre lines
 const ROAD := 20.0             ## road width
-const N := 8                   ## blocks per side
-const HALF := 320.0            ## N * PITCH / 2
+const N := 16                  ## blocks per side (core 8 + a ring of 4 outer blocks on every side)
+const HALF := 640.0            ## N * PITCH / 2
+const CORE_N := 8              ## blocks per side of the original city
+const CORE0 := 4               ## index of the first core block ((N - CORE_N) / 2)
+const CORE_HALF := 320.0       ## CORE_N * PITCH / 2: the original city is |x|, |z| <= CORE_HALF
 const BLOCK := 60.0            ## PITCH - ROAD: the block (sidewalk) square between roads
 const LANE := 5.0              ## lane centre offset from a road's centre line
 const BORDER := 30.0           ## invisible walls stand at HALF + BORDER
@@ -18,6 +26,8 @@ const WALL_T := 8.0            ## thickness of the invisible border walls (they 
 const WALK := HALF + BORDER    ## the walkable square is |x|, |z| <= WALK: the inner faces of the border walls
 const LOT_OFFSET := 15.0       ## lot centre offset from the block centre
 const SEED := 2025
+const OUTER_SEED := 7919       ## second stream: the 192 outer blocks
+const PLAZA_OUTER := 0.24      ## share of outer lots left open (parks, yards, car parks)
 
 const HEIGHTS: Array[float] = [16.0, 28.0, 44.0, 62.0, 88.0]
 const FOOT: Array[float] = [18.0, 26.0]
@@ -88,42 +98,57 @@ class Mulberry extends RefCounted:
 
 # --- generation --------------------------------------------------------------------------------------------------
 
+static func is_core_block(i: int, j: int) -> bool:
+	return i >= CORE0 and i < CORE0 + CORE_N and j >= CORE0 and j < CORE0 + CORE_N
+
+
 func _generate() -> void:
 	var rnd := Mulberry.new(SEED)
 	_buckets.clear()
 	for k in N * N:
 		_buckets.append([] as Array[Lot])
+	for ci in CORE_N:                                                          # the core first, with the original stream and call order
+		for cj in CORE_N:
+			_generate_block(rnd, ci + CORE0, cj + CORE0, true)
+	var outer := Mulberry.new(OUTER_SEED)
 	for i in N:
 		for j in N:
-			var bx := -HALF + (i + 0.5) * PITCH
-			var bz := -HALF + (j + 0.5) * PITCH
-			var central := 1.0 - minf(1.0, Vector2(bx, bz).length() / (HALF * 1.1))
-			for sx in [-1.0, 1.0]:
-				for sz in [-1.0, 1.0]:
-					var cx: float = bx + sx * LOT_OFFSET
-					var cz: float = bz + sz * LOT_OFFSET
-					if rnd.next() < 0.1:                                   # plaza
-						plazas.append(Vector2(cx, cz))
-						continue
-					var w: float = FOOT[0 if rnd.next() < 0.5 else 1]
-					var d: float = FOOT[0 if rnd.next() < 0.5 else 1]
-					var hi := clampi(int(floor(rnd.next() * 2.0 + central * 3.4)), 0, 4)
-					var tint := int(floor(rnd.next() * NTINTS))
-					var neon := int(floor(rnd.next() * NNEON))
-					var lot := Lot.new()
-					lot.cx = cx
-					lot.cz = cz
-					lot.w = w
-					lot.d = d
-					lot.h = HEIGHTS[hi]
-					lot.rect = Rect2(cx - w * 0.5, cz - d * 0.5, w, d)
-					lot.tint = tint
-					lot.neon = neon
-					lot.block_i = i
-					lot.block_j = j
-					lot.index = lots.size()
-					lots.append(lot)
-					(_buckets[i * N + j] as Array).append(lot)
+			if not is_core_block(i, j):
+				_generate_block(outer, i, j, false)
+
+
+func _generate_block(rnd: Mulberry, i: int, j: int, core: bool) -> void:
+	var bx := -HALF + (i + 0.5) * PITCH
+	var bz := -HALF + (j + 0.5) * PITCH
+	var central := 1.0 - minf(1.0, Vector2(bx, bz).length() / (CORE_HALF * 1.1))
+	if not core:
+		central = clampf(1.0 - Vector2(bx, bz).length() / (HALF * 1.2), 0.0, 0.5)       # outer blocks: low and mid-rise, a little taller towards the core
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var cx: float = bx + sx * LOT_OFFSET
+			var cz: float = bz + sz * LOT_OFFSET
+			if rnd.next() < (0.1 if core else PLAZA_OUTER):                   # plaza
+				plazas.append(Vector2(cx, cz))
+				continue
+			var w: float = FOOT[0 if rnd.next() < 0.5 else 1]
+			var d: float = FOOT[0 if rnd.next() < 0.5 else 1]
+			var hi := clampi(int(floor(rnd.next() * 2.0 + central * 3.4)), 0, 4) if core else clampi(int(floor(rnd.next() * 1.7 + central * 2.6)), 0, 2)
+			var tint := int(floor(rnd.next() * NTINTS))
+			var neon := int(floor(rnd.next() * NNEON))
+			var lot := Lot.new()
+			lot.cx = cx
+			lot.cz = cz
+			lot.w = w
+			lot.d = d
+			lot.h = HEIGHTS[hi]
+			lot.rect = Rect2(cx - w * 0.5, cz - d * 0.5, w, d)
+			lot.tint = tint
+			lot.neon = neon
+			lot.block_i = i
+			lot.block_j = j
+			lot.index = lots.size()
+			lots.append(lot)
+			(_buckets[i * N + j] as Array).append(lot)
 
 
 # --- grid helpers ------------------------------------------------------------------------------------------------
@@ -146,8 +171,17 @@ static func on_road(x: float, z: float, margin := 0.0) -> bool:
 	return absf(road_offset(x)) <= half or absf(road_offset(z)) <= half
 
 
-## The 49 inner junctions (y = 0), x-major.
+## The 49 inner junctions of the CORE (y = 0), x-major: the junctions the missions, shards and every table of the original city use.
 static func make_intersections() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	for i in range(CORE0 + 1, CORE0 + CORE_N):
+		for j in range(CORE0 + 1, CORE0 + CORE_N):
+			out.append(Vector3(road_center(i), 0.0, road_center(j)))
+	return out
+
+
+## All 225 inner junctions of the big city (core and outer districts), x-major.
+static func make_all_intersections() -> Array[Vector3]:
 	var out: Array[Vector3] = []
 	for i in range(1, N):
 		for j in range(1, N):
@@ -184,6 +218,14 @@ func inside(p: Vector3, margin := 0.0) -> bool:
 func height_at(x: float, z: float) -> float:
 	var lot := lot_at(x, z)
 	return lot.h if lot != null else 0.0
+
+
+## A uniformly random point on the roads of the CORE (the original city): where the first patrols, cores and encounters live.
+func random_core_road_point() -> Vector3:
+	var c := road_center(CORE0 + randi() % (CORE_N + 1))
+	var u := randf_range(-1.0, 1.0) * (CORE_HALF - 12.0)
+	var o := randf_range(-1.0, 1.0) * 7.0
+	return Vector3(u, 0.0, c + o) if randf() < 0.5 else Vector3(c + o, 0.0, u)
 
 
 ## A uniformly random point on the road network (inside the lane band, never inside a building footprint).

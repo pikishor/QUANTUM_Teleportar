@@ -11,6 +11,7 @@ signal sector_cleared
 signal quality_changed(level: int)
 signal low_plus_changed(on: bool)       ## LOW+ (the tier below LOW) was switched; quality_changed(0) follows so every listener re-reads the tier
 ## Lifecycle: every module resets itself when these fire (see ARCHITECTURE.md).
+signal exploded(pos: Vector3, radius: float)   ## every Game.explode (open world freedom: charges and cars next to a blast go off in a chain)
 signal new_game             # fresh run: score/heat zeroed, player at spawn, new cores, patrols rebuilt
 signal respawn              # after death: player restored at spawn, reinforcements removed, cores kept
 signal next_sector          # after a win: new (larger) core set, patrols rebuilt, player restored
@@ -18,8 +19,9 @@ signal next_sector          # after a win: new (larger) core set, patrols rebuil
 # --- city layout: metres, Y up, forward is -Z ---------------------------------------------------
 const PITCH := 80.0          # distance between road centre lines
 const ROAD := 20.0           # road width
-const N := 8                 # blocks per side
+const N := 16                # blocks per side (wave 84: 16 x 16, the original 8 x 8 city is the core in the middle)
 const HALF := N * PITCH / 2.0
+const CORE_HALF := 320.0     # the original city, |x|, |z| <= CORE_HALF: missions, shards and the first hours happen here
 const LANE := 5.0            # lane centre offset from a road's centre line
 const SPAWN := Vector3(-30.0, 0.0, 4.0)
 
@@ -77,7 +79,7 @@ const ACTION_KEYS := {
 	&"jump": [KEY_SPACE], &"sprint": [KEY_SHIFT], &"reload": [KEY_R],
 	&"blink": [KEY_Q], &"entangle": [KEY_E], &"superpose": [KEY_G], &"collapse": [KEY_C],
 	&"interact": [KEY_F], &"crouch": [KEY_CTRL], &"takedown": [KEY_V], &"pause": [KEY_ESCAPE],
-	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z], &"grab": [KEY_H], &"melee": [KEY_N], &"throw_item": [KEY_J], &"gadget": [KEY_K], &"shield": [KEY_Y], &"slip": [KEY_U], &"arc": [KEY_I],
+	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z], &"grab": [KEY_H], &"melee": [KEY_N], &"throw_item": [KEY_J], &"gadget": [KEY_K], &"charge_place": [KEY_P], &"detonate": [KEY_L], &"shield": [KEY_Y], &"slip": [KEY_U], &"arc": [KEY_I],
 }
 
 
@@ -248,6 +250,7 @@ func explode(pos: Vector3, radius: float, opts := {}) -> void:
 	Sfx.play_at(&"boom" if radius >= 5.0 else &"explosion_small", pos, -3.0)                 # positional: an explosion across the street is quieter and comes from where it is
 	if Breakables.current != null:
 		Breakables.current.blast(pos, radius)
+	exploded.emit(pos, radius)
 	if civilian_casualties and radius >= 2.0 and is_instance_valid(world) and world.get(&"ambient") != null:
 		world.ambient.blast_civilians(pos, radius, enemy_dmg > 0.0)      # a blast that hurts enemies is the hero's (or his car's); an enemy's striker is not
 	if enemy_dmg > 0.0:
