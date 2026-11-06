@@ -424,6 +424,21 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 		_die()
 
 
+## The driver's own injury in a really hard crash (Vehicle.crash): goes to the hero, not to the car (damage() routes hits taken while driving to the car).
+func hurt_driver(amount: float, from_pos := Vector3.ZERO) -> void:
+	if amount <= 0.0 or invuln > 0.0 or _dead or not Game.is_playing() or TestMode.god:
+		return
+	hp -= amount * Difficulty.damage_taken(Difficulty.story_chapter()) * HeroPower.f("taken")
+	since_hurt = 0.0
+	last_hurt_time = PlayerUtil.now()
+	last_hurt_from = from_pos
+	hurt.emit(amount)
+	Sfx.play(&"hurt")
+	camera_rig.bump(clampf(amount / 40.0, 0.1, 0.6))
+	if hp <= 0.0:
+		_die()
+
+
 func _die() -> void:
 	verbs.cancel()
 	if _dead:

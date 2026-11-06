@@ -205,7 +205,7 @@ func _reactions() -> void:
 	var m := v.visual.model
 	var base := m.scale
 	v.damage(v.max_hp * 0.5)
-	TestLib.check(m.scale.y < base.y - 0.02 and m.scale.x > base.x, "damage crumples the body (scale %s)" % m.scale)
+	TestLib.check(m.scale == base and v.visual.deform > 0.3 and v.visual.damage_look > 0.3, "damage wears and sags the body, the model is never scaled (deform %.2f)" % v.visual.deform)
 	v.activate(v.global_position, 0.0)
 	TestLib.check(m.scale.is_equal_approx(base), "a repaired car is whole again")
 

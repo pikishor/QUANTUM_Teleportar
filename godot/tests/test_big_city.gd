@@ -338,7 +338,7 @@ func _drive_across(host: Node) -> void:
 	await _settle(host, 4)
 	TestLib.check(mgr.driven == car, "the player drives the sport car")
 	var top := float(VehicleSpecs.SPECS[&"sport"]["max"])
-	TestLib.check(top >= 18.0 and top <= 28.0, "the sport car's top speed is arcade (%.0f m/s)" % top)
+	TestLib.check(top >= 30.0 and top <= 40.0, "the sport car's top speed fits the city scale (%.0f m/s)" % top)
 	var t0 := Engine.get_physics_frames()
 	var tick := 60.0                                    # physics ticks per GAME second (the step is 1/60 s of game time at any time scale)
 	var peak := 0.0
@@ -369,7 +369,7 @@ func _drive_across(host: Node) -> void:
 	Input.action_release(&"move_forward")
 	var secs := float(Engine.get_physics_frames() - t0) / tick
 	TestLib.check(crossed, "the car crossed the whole map along the avenue (x %.0f after %.0f s)" % [car.global_position.x, secs])
-	TestLib.check(secs >= 40.0, "the crossing takes a minute of driving, not 15 s (%.0f s)" % secs)
+	TestLib.check(secs >= 36.0, "the crossing takes the better part of a minute, not 15 s (%.0f s)" % secs)
 	TestLib.check(peak >= 18.0 and peak <= top + 0.5, "top speed on the straight is arcade, 18 to 28 m/s (%.1f)" % peak)
 	TestLib.check(worst_y > -0.5 and holes == 0, "no hole in the road all the way across (lowest y %.2f, %d holes)" % [worst_y, holes])
 	TestLib.check(min_speed_after_start > 10.0, "the car never stopped on the way (slowest %.1f m/s)" % min_speed_after_start)

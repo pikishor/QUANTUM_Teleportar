@@ -35,7 +35,7 @@ const MUSIC_NAME := &"music_ambient"
 const MUSIC_DB := -5.0
 const FAR_SHOT_DIST := 45.0         ## beyond this a positional shot plays its distant version
 const OFF_DB := -60.0
-const TOP_SPEED := 30.0
+const TOP_SPEED := 38.0
 
 ## family prefix, priority (higher survives), voice cap, minimum seconds between two starts, random pitch jitter. The first matching prefix wins.
 const FAMILIES: Array = [
@@ -182,6 +182,7 @@ var _stealth_unaware := 999.0
 var _stealth_suspicious := 999.0
 var _chapter_seen := -1
 var _engine_variant: StringName = &"x"
+var _prev_impact_t := 99.0             ## Vehicle.impact_t of the driven car last step: it jumps back to 0 at every collision
 var verb_count := 0                    ## ability sounds played (tests wait on this)
 var _state_since := 0.0
 var _state_clock := 0.0
@@ -1440,6 +1441,7 @@ func _step_vehicle(delta: float) -> void:
 	if v != _driven:
 		_driven = v
 		_prev_speed = 0.0 if v == null else float(v.speed)
+		_prev_impact_t = 99.0 if v == null or not (v.get(&"impact_t") is float) else float(v.get(&"impact_t"))
 		if v != null:
 			play(&"engine_start", -6.0)
 			_rpm = 0.05
@@ -1454,11 +1456,17 @@ func _step_vehicle(delta: float) -> void:
 	var sp: float = float(v.speed)
 	var asp := absf(sp)
 	var r := clampf(asp / TOP_SPEED, 0.0, 1.0)
-	var gear := mini(int(r * 4.0), 3)
-	var rpm_goal := 0.22 + 0.78 * (r * 4.0 - float(gear)) if r > 0.02 else 0.05
-	if Input.is_action_pressed(&"move_forward") and r < 0.05:
-		rpm_goal = 0.35
-	_rpm = lerpf(_rpm, rpm_goal, 1.0 - exp(-delta * 6.0))
+	var thr := Input.get_action_strength(&"move_forward")
+	if v.get(&"rpm") is float:                                   # a car with a gearbox: the engine note follows its real rpm (it drops at every shift) and the throttle
+		var rpm_goal := float(v.get(&"rpm"))
+		_rpm = lerpf(_rpm, rpm_goal, 1.0 - exp(-delta * 18.0))
+		r = clampf(asp / maxf(float((v.get(&"spec") as Dictionary).get("max", TOP_SPEED)), 1.0), 0.0, 1.0)
+	else:
+		var gear := mini(int(r * 4.0), 3)
+		var rpm_goal2 := 0.22 + 0.78 * (r * 4.0 - float(gear)) if r > 0.02 else 0.05
+		if Input.is_action_pressed(&"move_forward") and r < 0.05:
+			rpm_goal2 = 0.35
+		_rpm = lerpf(_rpm, rpm_goal2, 1.0 - exp(-delta * 6.0))
 	var blend := smoothstep(0.35, 0.7, _rpm)
 	var eng := AudioDirector.engine_for(StringName(v.get(&"kind")) if v.get(&"kind") != null else &"sedan")
 	var variant: StringName = eng[0]
@@ -1472,16 +1480,31 @@ func _step_vehicle(delta: float) -> void:
 				_drive_loop(ln, OFF_DB, delta, 1.0, 60.0)
 	var loops := AudioDirector.engine_loops(variant)
 	var epitch := float(eng[1])
-	var edb := float(eng[2])
-	_drive_loop(loops[0], edb - 8.0 + linear_to_db(maxf(1.0 - blend, 0.001)), delta, (0.75 + _rpm * 0.7) * epitch, 60.0)
-	_drive_loop(loops[1], edb - 9.0 + linear_to_db(maxf(blend, 0.001)), delta, (0.7 + _rpm * 0.6) * epitch, 60.0)
+	var edb := float(eng[2]) + (1.5 * thr - 2.5 * (1.0 - thr) if v.get(&"rpm") is float else 0.0)    # on the power it is louder, lifting off it drops back
+	_drive_loop(loops[0], edb - 8.0 + linear_to_db(maxf(1.0 - blend, 0.001)), delta, (0.7 + _rpm * 0.85) * epitch, 60.0)
+	_drive_loop(loops[1], edb - 9.0 + linear_to_db(maxf(blend, 0.001)), delta, (0.62 + _rpm * 0.7) * epitch, 60.0)
 	var slip := absf(float(v.slip))
 	var squeal := clampf((slip - 3.0) / 5.0, 0.0, 1.0) * clampf((asp - 6.0) / 10.0, 0.0, 1.0)
+	if v.get(&"skid") is float:                                    # tyres: the car says how hard they slide, spin or lock
+		squeal = clampf(float(v.get(&"skid")) * 1.15, 0.0, 1.0) * clampf((asp - 3.0) / 6.0, 0.0, 1.0)
 	_drive_loop(&"tyre_squeal", -22.0 + 22.0 * squeal if squeal > 0.02 else OFF_DB, delta, 0.85 + 0.4 * r, 80.0)
-	var drop := _prev_speed - sp
-	if drop > 7.0 and _crash_cd <= 0.0:
-		_crash_cd = 0.5
-		play_at(&"car_crash" if drop > 11.0 else &"car_bump", (v as Node3D).global_position, -2.0 if drop > 11.0 else -5.0)
+	var it: Variant = v.get(&"impact_t")
+	if it is float:                                                # a collision the car just had: loud and long for a hard one, a thud for a bump
+		if float(it) < _prev_impact_t and float(v.get(&"last_impact")) > 3.0 and _crash_cd <= 0.0:
+			var sev := clampf((float(v.get(&"last_impact")) - 4.0) / 20.0, 0.0, 1.0)
+			_crash_cd = 0.35
+			var at := (v as Node3D).global_position
+			play_at(&"car_crash" if sev > 0.45 else &"car_bump", at, lerpf(-7.0, 0.0, sev))
+			if sev > 0.15:
+				play_at(&"impact_metal", at, lerpf(-9.0, -2.0, sev))
+			if sev > 0.55:
+				play_at(&"impact_glass", at, -5.0)               # the windows go
+		_prev_impact_t = float(it)
+	else:
+		var drop := _prev_speed - sp
+		if drop > 7.0 and _crash_cd <= 0.0:
+			_crash_cd = 0.5
+			play_at(&"car_crash" if drop > 11.0 else &"car_bump", (v as Node3D).global_position, -2.0 if drop > 11.0 else -5.0)
 	_prev_speed = sp
 	if InputMap.has_action(&"horn") and Input.is_action_just_pressed(&"horn"):
 		horn()

@@ -49,7 +49,7 @@ func _pure() -> void:
 	var base: Dictionary = VehicleSpecs.SPECS[&"sedan"]
 	var t := g.tuned_spec()
 	TestLib.check(float(t["max"]) > float(base["max"]) * 1.1 and float(t["hp"]) > float(base["hp"]) * 1.1 and float(t["grip"]) > float(base["grip"]), "tuned spec is faster, tougher and grippier")
-	TestLib.check(is_equal_approx(float(VehicleSpecs.SPECS[&"sedan"]["max"]), float(base["max"])) and float(base["max"]) == 22.0, "the shared spec stays untouched")
+	TestLib.check(is_equal_approx(float(VehicleSpecs.SPECS[&"sedan"]["max"]), float(base["max"])) and float(base["max"]) == 28.0, "the shared spec stays untouched")
 	TestLib.check(g.weapon_def().is_empty(), "a sedan has no weapon at level 0")
 	g.upgrade(&"weapon", wallet)
 	TestLib.check(not g.weapon_def().is_empty(), "weapon level 1 gives any car a gun slot")

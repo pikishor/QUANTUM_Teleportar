@@ -13,6 +13,7 @@ var hijack: Hijack
 var charges: Charges
 var jobs: Jobs
 var crates: WeaponCrates
+var repairs: RepairStations
 
 
 func _ready() -> void:
@@ -26,6 +27,8 @@ func _ready() -> void:
 	add_child(jobs)
 	crates = WeaponCrates.new()
 	add_child(crates)
+	repairs = RepairStations.new()
+	add_child(repairs)
 
 
 func _exit_tree() -> void:
@@ -58,4 +61,6 @@ static func markers() -> Array[Dictionary]:
 	var out := current.jobs.markers()
 	if current.crates != null:
 		out.append_array(current.crates.markers())
+	if current.repairs != null:
+		out.append_array(current.repairs.markers())
 	return out

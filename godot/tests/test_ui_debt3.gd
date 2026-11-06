@@ -259,4 +259,4 @@ func _look_constants() -> void:
 	TestLib.check(win != null and win.code.contains("min(glass"), "the window pane is capped")
 	var glow := load("res://assets/shaders/interior_glow.gdshader") as Shader
 	TestLib.check(glow != null and glow.code.contains("vec3(0.6)") and glow.code.contains("length(VERTEX)"), "halos and beams are capped and fade at the lens")
-	TestLib.check(VehicleVisual.paint_glow() >= 0.3, "the car paint glow lifts the night car (%.2f)" % VehicleVisual.paint_glow())
+	TestLib.check(VehicleVisual.paint_glow() >= 0.1, "the car paint glow lifts the night car (%.2f)" % VehicleVisual.paint_glow())

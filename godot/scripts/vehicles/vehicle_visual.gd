@@ -19,13 +19,47 @@ const PAINT_ROUGH_MIN := 0.22
 const PAINT_SPECULAR := 0.9                   ## dielectric specular of the lacquer (default 0.5): street lamps and neon leave a visible highlight
 const PAINT_METAL_MIN := 0.12
 const PAINT_METAL_MAX := 0.4
-const PAINT_RIM := 0.45                       ## grazing-angle sheen of every paint (material parameter, no extra draw)
-const PAINT_GLOW := 0.5                    ## emission in the paint colour, so a car keeps its colour and its shape in the dark (was 0.2: the night car shot read as a flat dark blob)
+const PAINT_RIM := 0.6                       ## grazing-angle sheen of every paint (material parameter, no extra draw)
+const PAINT_GLOW := 0.2                    ## emission in the paint colour, so a car keeps its colour and its shape in the dark (was 0.2: the night car shot read as a flat dark blob)
+const PAINT_GLOW_LOW := 0.26               ## LOW has no fill light: the paint carries more of its own light
 const PAINT_GLOW_COMPAT := 0.34            ## the compatibility renderer lights the paint less, so it needs less of the lift
 
 
 static func paint_glow() -> float:
-	return PAINT_GLOW_COMPAT if DynamicFill._is_compat() else PAINT_GLOW
+	if DynamicFill._is_compat():
+		return PAINT_GLOW_COMPAT
+	return PAINT_GLOW_LOW if Game.quality <= 0 else PAINT_GLOW
+
+
+## The cars' own key light: ONE shared directional light that lights only the cars (their meshes are on KEY_LAYER too), from the side and above relative to the camera, so a car
+## has a lit and a shaded side instead of the flat look the camera-facing fill gives (no shadows, one light for every car, any tier).
+const KEY_LAYER := 18
+const KEY_BIT := 1 << (KEY_LAYER - 1)
+const KEY_ENERGY := 2.6
+const KEY_YAW := 0.95                         ## rad from the camera heading
+const KEY_PITCH := -40.0
+static var _key: DirectionalLight3D
+
+
+static func ensure_key_light(parent: Node) -> DirectionalLight3D:
+	if is_instance_valid(_key) and _key.is_inside_tree():
+		return _key
+	var l := DirectionalLight3D.new()
+	l.name = "VehicleKeyLight"
+	l.light_cull_mask = KEY_BIT
+	l.shadow_enabled = false
+	l.light_color = Color(1.0, 0.93, 0.88)
+	l.light_energy = KEY_ENERGY * (0.55 if DynamicFill._is_compat() else 1.0)
+	l.light_specular = 1.0
+	l.rotation_degrees = Vector3(KEY_PITCH, 0.0, 0.0)
+	parent.add_child(l)
+	_key = l
+	return l
+
+
+static func aim_key(cam_yaw: float) -> void:
+	if is_instance_valid(_key):
+		_key.rotation = Vector3(deg_to_rad(KEY_PITCH), cam_yaw + KEY_YAW, 0.0)
 
 
 const WHEEL_NAMES := [&"WheelFL", &"WheelFR", &"WheelRL", &"WheelRR"]
@@ -44,11 +78,21 @@ render_mode unshaded, blend_add, cull_disabled, depth_draw_never, fog_disabled;
 uniform vec3 head : source_color = vec3(0.0);
 uniform vec3 tail : source_color = vec3(0.0);
 uniform vec3 under : source_color = vec3(0.0);
+uniform vec3 pool = vec3(0.0, 0.0, 0.12);       // gain of the glow that lies on the road (headlight and taillight pools, the underglow disc): flat translucent patches read as a toy
+uniform float halo = 0.3;                     // gain of the soft halos round the lamps (the lens boxes themselves stay at full strength)
+uniform float ground = 0.08;                   // vertices lower than this (model space) are road glow; < 0 = a hover craft, nothing is classified as road glow
 varying float v_g;
-void vertex() { v_g = COLOR.a; }
+varying float v_road;
+void vertex() {
+	v_g = COLOR.a;
+	v_road = VERTEX.y < ground ? 1.0 : 0.0;
+}
 void fragment() {
 	vec3 k = v_g < 0.3 ? head : (v_g < 0.7 ? tail : under);
-	ALBEDO = COLOR.rgb * k;
+	float pk = v_g < 0.3 ? pool.x : (v_g < 0.7 ? pool.y : pool.z);
+	float lens = step(0.95, max(COLOR.r, max(COLOR.g, COLOR.b)));
+	float g = mix(1.0, pk, v_road) * mix(halo, 1.0, lens);
+	ALBEDO = COLOR.rgb * k * g;
 	ALPHA = 1.0;
 }
 """
@@ -125,6 +169,7 @@ func build(kind: StringName, glow: Color) -> Node3D:
 	for mi in meshes:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		mi.layers = mi.layers | KEY_BIT
 		var mesh := mi.mesh
 		if mesh == null or mi == body_lod1:                # LOD1 takes the materials of the body (_link_lod1)
 			continue
@@ -346,40 +391,279 @@ func shimmer(t: float, speed: float) -> void:
 			_body_mat.emission_energy_multiplier = paint_glow() * (4.0 if on else 1.0)
 
 
-## Wear and damage decals as material state: scuffed clear coat, duller flake, soot, and glowing phase seams (emission) when hurt badly.
-## `frac` = 0 sound .. 1 wrecked.
+## Wear and damage as material state: scuffed clear coat, duller flake, soot (the paint darkens as the hull goes). `frac` = 0 sound .. 1 wrecked. No glow: a hurt car is dirty, not neon.
 func set_damage_look(frac: float) -> void:
 	frac = clampf(frac, 0.0, 1.0)
 	if _body_mat == null or absf(frac - damage_look) < 0.02:
 		return
 	damage_look = frac
 	_apply_surface()
-	if frac >= SEAM_BELOW and not iridescent:
-		_body_mat.emission = Color(0.55, 0.9, 1.0)
-		_body_mat.emission_energy_multiplier = 0.4 + 1.2 * (frac - SEAM_BELOW) / (1.0 - SEAM_BELOW)
-	elif frac < SEAM_BELOW:
+	if not iridescent:
 		_body_mat.emission = _base_col
-		_body_mat.emission_energy_multiplier = paint_glow()
+		_body_mat.emission_energy_multiplier = paint_glow() * (1.0 - 0.6 * frac)
 
 
-## Crash deformation, lite: the whole body crumples with the damage (lower, shorter, wider), no extra mesh, material or draw call. 0 restores the model.
-const DEFORM := Vector3(0.03, -0.1, -0.07)
+## Lopsided sag of a badly hurt car (a few centimetres lower, a little off level): no scaling of the model, the dents carry the shape. 0 restores it.
 var deform := 0.0
-var _deform_base := Vector3.ONE
-var _deform_known := false
 
 
 func set_deform(frac: float) -> void:
-	if model == null:
+	deform = clampf(frac, 0.0, 1.0)
+
+
+# --- crash damage: dents in the panels, cracked windows -----------------------------------------------------------------------------------------------------
+const MAX_DENTS := 7
+const DENT_MERGE := 0.55                      ## an impact this close (m) to an older dent deepens that dent instead of making a new one
+const GLASS_TEX := 128
+static var _crack_tex: ImageTexture
+var dents: Array[Dictionary] = []             ## {at: Vector3, dir: Vector3 (the way the panel is pushed, into the car), r: radius m, d: depth m}
+var cracks := 0.0                             ## 0..1 how much of the glass is cracked
+var _orig_mesh: Mesh
+var _src_arrays: Array = []                   ## per surface: the undented arrays of the body mesh (read once, on the first dent)
+var _crack_mi: MeshInstance3D
+var _crack_seed := 0
+
+
+## Dent the panels around `at` (model space, metres) pushed along `dir` (horizontal, into the car), by an impact of damage fraction `frac` (0..1 of a hull): a smooth crater
+## with a crumpled rim on the surfaces that face the impact, with the normals tilted so the light shows it. Rebuilds the body mesh once (a car has its own copy while dented);
+## nothing runs per frame. Up to MAX_DENTS dents, close ones deepen each other.
+func add_dent(at: Vector3, dir: Vector3, frac: float) -> void:
+	if body == null or body.mesh == null or frac < VehicleSpecs.DENT_MIN:
 		return
-	frac = clampf(frac, 0.0, 1.0)
-	if not _deform_known:
-		_deform_known = true
-		_deform_base = model.scale
-	if absf(frac - deform) < 0.02 and frac > 0.0:
+	dir.y = 0.0
+	if dir.length_squared() < 1e-6:
 		return
-	deform = frac
-	model.scale = _deform_base * (Vector3.ONE + DEFORM * frac)
+	dir = dir.normalized()
+	var radius := lerpf(0.45, 1.15, clampf(frac * 1.6, 0.0, 1.0))
+	var depth := lerpf(0.05, 0.34, clampf(frac * 1.8, 0.0, 1.0))
+	var merged := false
+	for dt in dents:
+		if (dt["at"] as Vector3).distance_to(at) < DENT_MERGE:
+			dt["d"] = minf(float(dt["d"]) + depth * 0.7, 0.42)
+			dt["r"] = maxf(float(dt["r"]), radius)
+			dt["dir"] = ((dt["dir"] as Vector3) + dir).normalized()
+			merged = true
+			break
+	if not merged:
+		if dents.size() >= MAX_DENTS:
+			dents.remove_at(0)
+		dents.append({"at": at, "dir": dir, "r": radius, "d": depth})
+	_rebuild_dents()
+
+
+func _rebuild_dents() -> void:
+	if _orig_mesh == null:
+		_orig_mesh = body.mesh
+		for s in _orig_mesh.get_surface_count():
+			_src_arrays.append(_orig_mesh.surface_get_arrays(s))
+	var out := ArrayMesh.new()
+	for s in _src_arrays.size():
+		var arrays: Array = (_src_arrays[s] as Array).duplicate()
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var nrm: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL] if arrays[Mesh.ARRAY_NORMAL] is PackedVector3Array else PackedVector3Array()
+		var has_n := nrm.size() == verts.size()
+		var vcount := verts.size()
+		for dt in dents:
+			var c: Vector3 = dt["at"]
+			var d: Vector3 = dt["dir"]
+			var r: float = dt["r"]
+			var depth: float = dt["d"]
+			var r2 := r * r
+			for i in vcount:
+				var v := verts[i]
+				var rel := v - c
+				var q := rel.length_squared()
+				if q >= r2:
+					continue
+				var face := 1.0
+				if has_n:
+					face = smoothstep(-0.15, 0.45, -nrm[i].dot(d))      # only the surfaces that face the impactor are pushed
+					if face <= 0.0:
+						continue
+				var sq := q / r2
+				var w := (1.0 - sq) * (1.0 - sq) * face
+				var jit := fposmod(sin(v.x * 127.1 + v.y * 311.7 + v.z * 74.7) * 43758.5453, 1.0) - 0.5
+				verts[i] = v + d * (depth * w * (1.0 + 0.35 * jit)) + Vector3(jit * 0.04, jit * 0.03, -jit * 0.04) * depth * w * 6.0
+				if has_n:
+					var radial := rel - d * rel.dot(d)
+					var tilt := radial * (depth * 4.0 * (1.0 - sq) * face / maxf(r, 0.1) / maxf(r, 0.1))
+					nrm[i] = (nrm[i] - tilt).normalized()
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		if has_n:
+			arrays[Mesh.ARRAY_NORMAL] = nrm
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		out.surface_set_material(s, _orig_mesh.surface_get_material(s))
+		out.surface_set_name(s, (_orig_mesh as ArrayMesh).surface_get_name(s) if _orig_mesh is ArrayMesh else "")
+	body.mesh = out
+	if body_lod1 != null:                                    # the far LOD is the undented model: a damaged car keeps its dented body at any distance
+		body.visibility_range_end = 0.0
+		body_lod1.visible = false
+
+
+## The windows crack: level 0..1 (only ever grows). A cracked-glass overlay (one transparent draw call, built on the first crack) over the windscreen first, then the rear
+## window and the side windows. `at` (model space) says which side took the hit, so that side's window goes first.
+func crack_glass(level: float, at := Vector3.ZERO) -> void:
+	level = clampf(level, 0.0, 1.0)
+	if body == null or level <= cracks + 0.02:
+		return
+	cracks = level
+	if _crack_mi == null:
+		_crack_mi = MeshInstance3D.new()
+		_crack_mi.name = "Cracks"
+		_crack_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_crack_mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.vertex_color_use_as_albedo = true
+		m.albedo_texture = _cracks_texture()
+		m.albedo_color = Color(0.9, 0.95, 1.0, 1.0)
+		m.no_depth_test = false
+		m.render_priority = 2
+		_crack_mi.material_override = m
+		model.add_child(_crack_mi)
+	_crack_seed = int(absf(at.x * 7.0 + at.z * 13.0))
+	_crack_mi.mesh = _crack_mesh(level, at)
+	_crack_mi.visible = true
+
+
+## Window quads from the car's proportions (windscreen, rear window, both side windows), pushed 1.5 cm off the glass. `reveal` per quad is its vertex alpha.
+func _crack_mesh(level: float, at: Vector3) -> ArrayMesh:
+	var spec: Dictionary = VehicleSpecs.SPECS[_kind]
+	var ln := float(spec["len"])
+	var wd := float(spec["wid"])
+	var hg := float(spec["hgt"])
+	var gl: Dictionary = spec.get("glass", {})
+	var ws_z0 := float(gl.get("ws_z0", -0.168)) * ln                  # windscreen: bottom edge z, top edge z (front is -Z)
+	var ws_z1 := float(gl.get("ws_z1", 0.02)) * ln
+	var ws_h0 := float(gl.get("ws_h0", 0.63)) * hg
+	var ws_h1 := float(gl.get("ws_h1", 0.97)) * hg
+	var ws_w0 := float(gl.get("ws_w0", 0.41)) * wd
+	var ws_w1 := float(gl.get("ws_w1", 0.30)) * wd
+	var rw_z0 := float(gl.get("rw_z0", 0.305)) * ln
+	var rw_z1 := float(gl.get("rw_z1", 0.17)) * ln
+	var rw_h0 := float(gl.get("rw_h0", 0.66)) * hg
+	var sd_z0 := float(gl.get("sd_z0", -0.02)) * ln
+	var sd_z1 := float(gl.get("sd_z1", 0.25)) * ln
+	var sd_h0 := float(gl.get("sd_h0", 0.64)) * hg
+	var sd_h1 := float(gl.get("sd_h1", 0.94)) * hg
+	var sd_x0 := float(gl.get("sd_x0", 0.455)) * wd
+	var sd_x1 := float(gl.get("sd_x1", 0.36)) * wd
+	var verts := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var cols := PackedColorArray()
+	var idx := PackedInt32Array()
+	var side_hit := signf(at.x)
+	var quads: Array = [
+		[[Vector3(-ws_w0, ws_h0, ws_z0), Vector3(ws_w0, ws_h0, ws_z0), Vector3(ws_w1, ws_h1, ws_z1), Vector3(-ws_w1, ws_h1, ws_z1)], clampf(level * 3.0, 0.0, 1.0)],
+		[[Vector3(-ws_w0 * 0.9, rw_h0, rw_z0), Vector3(ws_w0 * 0.9, rw_h0, rw_z0), Vector3(ws_w1 * 0.95, ws_h1, rw_z1), Vector3(-ws_w1 * 0.95, ws_h1, rw_z1)], clampf(level * 3.0 - 0.9, 0.0, 1.0)],
+		[[Vector3(sd_x0, sd_h0, sd_z0), Vector3(sd_x0, sd_h0, sd_z1), Vector3(sd_x1, sd_h1, sd_z1 - 0.15 * ln * 0.3), Vector3(sd_x1, sd_h1, sd_z0 + 0.04 * ln)], clampf(level * 3.0 - (0.4 if side_hit >= 0.0 else 1.6), 0.0, 1.0)],
+		[[Vector3(-sd_x0, sd_h0, sd_z1), Vector3(-sd_x0, sd_h0, sd_z0), Vector3(-sd_x1, sd_h1, sd_z0 + 0.04 * ln), Vector3(-sd_x1, sd_h1, sd_z1 - 0.15 * ln * 0.3)], clampf(level * 3.0 - (0.4 if side_hit < 0.0 else 1.6), 0.0, 1.0)],
+	]
+	var qi := 0
+	for q in quads:
+		var pts: Array = q[0]
+		var a: float = q[1]
+		if a > 0.02:
+			var n: Vector3 = ((pts[1] as Vector3) - (pts[0] as Vector3)).cross((pts[3] as Vector3) - (pts[0] as Vector3)).normalized()
+			var base := verts.size()
+			var flip := (_crack_seed + qi) % 2 == 0
+			for k in 4:
+				verts.append((pts[k] as Vector3) + n * (0.015 if n.dot(pts[k] as Vector3) >= 0.0 else -0.015))
+				cols.append(Color(1.0, 1.0, 1.0, a * 0.9))
+			var u: Array = [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
+			for k in 4:
+				uvs.append(Vector2(1.0 - (u[k] as Vector2).x, (u[k] as Vector2).y) if flip else u[k])
+			idx.append_array([base, base + 1, base + 2, base, base + 2, base + 3])
+		qi += 1
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts if verts.size() > 0 else PackedVector3Array([Vector3.ZERO, Vector3.ZERO, Vector3.ZERO])
+	arrays[Mesh.ARRAY_TEX_UV] = uvs if verts.size() > 0 else PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
+	arrays[Mesh.ARRAY_COLOR] = cols if verts.size() > 0 else PackedColorArray([Color(1, 1, 1, 0), Color(1, 1, 1, 0), Color(1, 1, 1, 0)])
+	arrays[Mesh.ARRAY_INDEX] = idx if verts.size() > 0 else PackedInt32Array([0, 1, 2])
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+## One shared 128 px cracked-glass texture: a star of cracks from near the middle, ring cracks and a few branches, white on transparent, drawn once.
+static func _cracks_texture() -> ImageTexture:
+	if _crack_tex != null:
+		return _crack_tex
+	var img := Image.create(GLASS_TEX, GLASS_TEX, false, Image.FORMAT_RGBA8)
+	img.fill(Color(1, 1, 1, 0))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 424242
+	var c := Vector2(GLASS_TEX * 0.46, GLASS_TEX * 0.5)
+	var n := 11
+	for i in n:
+		var a := TAU * float(i) / float(n) + rng.randf_range(-0.15, 0.15)
+		var p := c
+		var ang := a
+		var len_left := float(GLASS_TEX) * rng.randf_range(0.35, 0.8)
+		while len_left > 0.0:
+			var step := rng.randf_range(5.0, 11.0)
+			ang += rng.randf_range(-0.22, 0.22)
+			var q := p + Vector2(cos(ang), sin(ang)) * step
+			_line(img, p, q, 1.0 - clampf(p.distance_to(c) / (GLASS_TEX * 0.9), 0.0, 0.7))
+			if rng.randf() < 0.22:                                              # a branch
+				var b := ang + rng.randf_range(0.5, 1.1) * (1.0 if rng.randf() < 0.5 else -1.0)
+				_line(img, q, q + Vector2(cos(b), sin(b)) * rng.randf_range(8.0, 22.0), 0.65)
+			p = q
+			len_left -= step
+	for ring in [10.0, 21.0, 36.0]:                                             # ring cracks join the spokes
+		var prev := c + Vector2(ring, 0.0)
+		for k in range(1, 25):
+			var th := TAU * float(k) / 24.0
+			var rr: float = ring * rng.randf_range(0.9, 1.1)
+			var cur := c + Vector2(cos(th), sin(th)) * rr
+			if rng.randf() < 0.72:
+				_line(img, prev, cur, 0.8)
+			prev = cur
+	_crack_tex = ImageTexture.create_from_image(img)
+	return _crack_tex
+
+
+static func _line(img: Image, a: Vector2, b: Vector2, alpha: float) -> void:
+	var steps := int(maxf(absf(b.x - a.x), absf(b.y - a.y))) + 1
+	for i in steps + 1:
+		var p := a.lerp(b, float(i) / float(steps))
+		var x := int(p.x)
+		var y := int(p.y)
+		for o in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1)]:           # two pixels thick: a 1 px line is gone at a distance
+			var qx: int = x + o.x
+			var qy: int = y + o.y
+			if qx >= 0 and qy >= 0 and qx < img.get_width() and qy < img.get_height():
+				img.set_pixel(qx, qy, Color(1, 1, 1, alpha))
+
+
+## Hull condition from the damage fraction (0 sound .. 1 wrecked): the glass cracks from GLASS_BREAK_AT on even without a hard single hit.
+func set_condition(frac: float) -> void:
+	if frac >= VehicleSpecs.GLASS_BREAK_AT:
+		crack_glass((frac - VehicleSpecs.GLASS_BREAK_AT) / (1.0 - VehicleSpecs.GLASS_BREAK_AT) * 0.7 + 0.25)
+
+
+## Back to a sound, clean car (a pooled car being put into play again, the garage, a repair station): original body mesh, no dents, no cracks, no wear.
+func repair() -> void:
+	if _orig_mesh != null and body != null:
+		body.mesh = _orig_mesh
+		if body_lod1 != null:
+			body.visibility_range_end = LOD1_DIST
+			body_lod1.visible = true
+	dents.clear()
+	_src_arrays.clear()
+	_orig_mesh = null
+	cracks = 0.0
+	if _crack_mi != null:
+		_crack_mi.visible = false
+	deform = 0.0
+	if _body_mat != null and damage_look > 0.0:
+		damage_look = 0.0
+		_apply_surface()
+		_body_mat.emission = _base_col
+		_body_mat.emission_energy_multiplier = paint_glow()
 
 
 ## Wet streets: a wet car is glossier (lower roughness, full clear coat). Follows the global `wetness`.
@@ -499,6 +783,8 @@ func set_shadow(on: bool) -> void:
 
 ## Primitive car: a hull, a cabin, four wheels and emissive light strips, with the same node and material names as the real models.
 func _fallback(spec: Dictionary) -> Node3D:
+	if bool(spec.get("shape", false)):
+		return _fallback_shaped(spec)
 	var ln: float = spec["len"]
 	var wid: float = spec["wid"]
 	var hgt: float = spec["hgt"]
@@ -557,6 +843,64 @@ func _fallback(spec: Dictionary) -> Node3D:
 		cyl.top_radius = r
 		cyl.bottom_radius = r
 		cyl.height = 0.26
+		cyl.radial_segments = 14
+		cyl.rings = 1
+		cyl.material = _mat("Wheel", Color(0.06, 0.06, 0.07), 0.2, 0.7)
+		mi.mesh = cyl
+		mi.rotation = Vector3(0.0, 0.0, PI * 0.5)
+		w.add_child(mi)
+		w.position = Vector3(-(wid * 0.5 - 0.12) if i % 2 == 0 else (wid * 0.5 - 0.12), r, -axle if i < 2 else axle)
+		root.add_child(w)
+	return root
+
+
+## A shaped primitive (VehicleSilhouettes): compact, bus, interceptor, ambulance, scooter. Same node names as the art models (Body, Headlights, Taillights, Underglow, wheels).
+func _fallback_shaped(spec: Dictionary) -> Node3D:
+	var kind := StringName(String(spec["model"]).trim_prefix("car_").trim_prefix("bike_"))
+	for k: StringName in VehicleSpecs.SPECS:
+		if VehicleSpecs.SPECS[k] == spec:
+			kind = k
+	var ln: float = spec["len"]
+	var wid: float = spec["wid"]
+	var hgt: float = spec["hgt"]
+	var r: float = spec["wheel"]
+	var root := Node3D.new()
+	root.name = String(spec["model"])
+	var hull := VehicleSilhouettes.build_body(kind, spec)
+	root.add_child(hull)
+	var bike := StringName(spec.get("cls", &"car")) == &"bike"
+	_strip(root, "Headlights", Vector3(wid * (0.3 if bike else 0.8), 0.12, 0.06), Vector3(0.0, hgt * (0.9 if bike else 0.36), -ln * 0.5 + (0.3 if bike else 0.0)), Color(1.0, 0.94, 0.8), 7.0)
+	_strip(root, "Taillights", Vector3(wid * (0.3 if bike else 0.8), 0.1, 0.06), Vector3(0.0, hgt * (0.72 if bike else 0.5), ln * 0.5 - (0.2 if bike else 0.0)), Color(1.0, 0.06, 0.12), 5.0)
+	_strip(root, "Underglow", Vector3(wid * 0.9, 0.04, ln * 0.8), Vector3(0.0, 0.12, 0.0), Color(1.0, 0.18, 0.84), 4.0)
+	for row: Array in VehicleSilhouettes.lights_of(kind, spec):
+		_strip(root, String(row[0]), row[1], row[2], row[3], row[4])
+	if bike:
+		for j in 2:
+			var bw := Node3D.new()
+			bw.name = String(BIKE_WHEEL_NAMES[j])
+			var bmi := MeshInstance3D.new()
+			var bc := CylinderMesh.new()
+			bc.top_radius = r
+			bc.bottom_radius = r
+			bc.height = 0.16
+			bc.radial_segments = 14
+			bc.rings = 1
+			bc.material = _mat("Wheel", Color(0.06, 0.06, 0.07), 0.2, 0.7)
+			bmi.mesh = bc
+			bmi.rotation = Vector3(0.0, 0.0, PI * 0.5)
+			bw.add_child(bmi)
+			bw.position = Vector3(0.0, r, -ln * 0.36 if j == 0 else ln * 0.36)
+			root.add_child(bw)
+		return root
+	var axle := ln * (0.31 if ln < 6.0 else 0.28)
+	for i in 4:
+		var w := Node3D.new()
+		w.name = String(WHEEL_NAMES[i])
+		var mi := MeshInstance3D.new()
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = r
+		cyl.bottom_radius = r
+		cyl.height = 0.28 if r < 0.45 else 0.4
 		cyl.radial_segments = 14
 		cyl.rings = 1
 		cyl.material = _mat("Wheel", Color(0.06, 0.06, 0.07), 0.2, 0.7)

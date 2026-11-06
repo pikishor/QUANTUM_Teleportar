@@ -12,7 +12,7 @@ func run(host: Node) -> void:
 	var c0 := sedan._body_mat.clearcoat
 	sedan.set_damage_look(0.8)
 	TestLib.check(sedan._body_mat.roughness > r0 and sedan._body_mat.clearcoat < c0, "damage scuffs the clear coat and dulls the paint")
-	TestLib.check(sedan._body_mat.emission_energy_multiplier > 0.4, "a badly hurt car glows along its phase seams")
+	TestLib.check(sedan._body_mat.emission_energy_multiplier < VehicleVisual.paint_glow() and sedan._body_mat.albedo_color.v < sedan._lift * VehicleSpecs.COLORS[0].v, "a badly hurt car is sooty and dull, it does not glow")
 	sedan.set_damage_look(0.0)
 	var r1 := sedan._body_mat.roughness
 	sedan.set_wet(1.0)

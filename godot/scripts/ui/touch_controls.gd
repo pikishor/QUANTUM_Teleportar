@@ -41,6 +41,8 @@ const BUTTONS := [
 	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},
 	{"action": &"skip_piece", "dx": 480.0, "dy": 560.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
+	{"action": &"veh_view", "dx": 520.0, "dy": 262.0, "r": 46.0, "fs": 22, "label": "VIEW", "need": &"driving"},     # driving camera: chase / far / hood
+	{"action": &"look_back", "dx": 505.0, "dy": 395.0, "r": 46.0, "fs": 22, "label": "BACK", "need": &"driving"},       # held: look behind the car
 ]
 ## The ABILITY wheel: the seven quantum verbs, plain names. `ui` indexes UiUtil.ABILITIES (the four classic verbs), `verb` is a QuantumVerbs id.
 const WHEEL_ABILITIES := [
@@ -454,6 +456,8 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.player) and not _driving() and (_grab_near or _grab_held())
 		&"vehicle":
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
+		&"driving":
+			return is_instance_valid(Game.vehicles) and _driving()
 		&"foot":
 			return is_instance_valid(Game.player) and not _driving()
 		&"takedown":

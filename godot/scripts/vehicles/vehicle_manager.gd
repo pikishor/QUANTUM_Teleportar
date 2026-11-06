@@ -17,6 +17,10 @@ var respawn_time := VehicleSpecs.RESPAWN_TIME
 var stream_every := VehicleSpecs.STREAM_EVERY   ## seconds between streaming passes (tests shorten it)
 
 var radio: CarRadio                  ## the car radio (3 synthesised stations), a child node
+var cops_spawned := 0                ## police interceptors sent after the hero so far (tests, stats)
+var spikes: SpikeStrips              ## the spike strips the police lay at heat 3+
+var _cop_t := 0.0
+var _spike_t := 6.0
 var patrols_spawned := 0             ## Vael patrol vehicles sent after the player so far (tests, stats)
 
 var signal_clock := 0.0              ## s: the junction lights (VehicleSpecs.signal_state); tests may set it and freeze it
@@ -24,6 +28,7 @@ var signal_frozen := false
 var lights_on := true                ## false: traffic ignores the junction lights (tests of plain lane driving)
 
 var _patrol_t := 0.0
+var _key_yaw := 0.0                  ## the cars' key light follows the camera yaw, smoothed
 var _pool := {}                      ## kind -> Array[Vehicle] (inactive)
 var _stream_t := 0.0
 var _clock := 0.0
@@ -33,14 +38,32 @@ var _ram_cd := {}                    ## enemy instance id -> clock when it can b
 var _ram_t := 0.0
 
 
+## Driving inputs the manager registers when missing (like the radio's): VIEW (B) cycles the driving camera, BACK (N, held) looks behind, HORN (H).
+const EXTRA_ACTIONS := {&"veh_view": KEY_B, &"look_back": KEY_N, &"horn": KEY_H}
+
+
+static func ensure_actions() -> void:
+	for a: StringName in EXTRA_ACTIONS:
+		if not InputMap.has_action(a):
+			InputMap.add_action(a)
+			var ev := InputEventKey.new()
+			ev.physical_keycode = EXTRA_ACTIONS[a]
+			InputMap.action_add_event(a, ev)
+
+
 func _ready() -> void:
+	ensure_actions()
 	Game.vehicles = self
 	DynamicFill.ensure_light(self)
+	VehicleVisual.ensure_key_light(self)
 	DynamicFill.set_quality(Game.quality)
 	Game.new_game.connect(_reset_all)
 	Game.respawn.connect(_reset_all)
 	Game.next_sector.connect(_reset_all)
 	Game.quality_changed.connect(_on_quality)
+	spikes = SpikeStrips.new()
+	spikes.name = "SpikeStrips"
+	add_child(spikes)
 	radio = CarRadio.new()
 	radio.name = "Radio"
 	add_child(radio)
@@ -230,6 +253,10 @@ func _reset_all() -> void:
 	for v in list.duplicate():
 		_release(v)
 	_clear_wrecks()
+	if spikes != null:
+		spikes.clear()
+	_cop_t = 0.0
+	_spike_t = 6.0
 	_respawns.clear()
 	_ram_cd.clear()
 	_clock = 0.0
@@ -432,6 +459,8 @@ func summon_garage() -> Vehicle:
 		car._heading_set = yaw
 		car.vel = Vector3.ZERO
 		car.speed = 0.0
+		car.yaw_rate = 0.0
+		car.repair()                                          # the garage sends it back in good shape
 	car.update_lod(0.0)
 	_summon_ready = _clock + Garage.SUMMON_COOLDOWN
 	Game.say("GARAGE CAR INBOUND", 1.4)
@@ -522,6 +551,9 @@ func _physics_process_body(delta: float) -> void:
 	if radio != null:
 		radio.poll_input()
 	_sync_driver()
+	if is_instance_valid(Game.camera):
+		_key_yaw = lerp_angle(_key_yaw, Game.camera.global_rotation.y, 1.0 - exp(-3.0 * delta))
+		VehicleVisual.aim_key(_key_yaw)
 	var i := 0
 	while i < list.size():
 		var v := list[i]
@@ -530,8 +562,8 @@ func _physics_process_body(delta: float) -> void:
 			i += 1
 	if driven != null and not is_instance_valid(driven):
 		driven = null
+	_collide_all()                                          # a hard bump can wreck the driven car, and the wreck ejects the driver: `driven` is null again after this call
 	if driven != null:
-		_bump_others(driven)                                # a hard bump can wreck the driven car, and the wreck ejects the driver: `driven` is null again after this call
 		_ram_t -= delta
 		if _ram_t <= 0.0:
 			_ram_t = 0.05
@@ -546,6 +578,7 @@ func _physics_process_body(delta: float) -> void:
 	_tick_wrecks(Vector3.INF, false)
 	_tick_respawns()
 	_tick_patrols(delta)
+	_tick_cops(delta)
 
 
 ## The player's own state is the truth: a car he sits in (set from outside too) is the driven one, and one he left is not.
@@ -565,34 +598,97 @@ func _sync_driver() -> void:
 		driven = v
 
 
-## The driven car shoves the cars it touches (src/vehicles.js): positions pushed apart, the other car loses its AI and slides away, hard hits hurt both.
-func _bump_others(car: Vehicle) -> void:
-	var cp := car.global_position
-	for o in list:
-		if o == car or o.dead or not o.active:
+## Hull-to-hull contacts between the live cars (oriented boxes of the real sizes, separating-axis test) wherever at least one car is not following its lane: the driven car, a knocked
+## or parked car, a patrol. Rigid impulses with the masses and the points of contact (a hit off the centre line spins both cars), positions pushed apart, damage by the closing speed
+## and the mass ratio (Vehicle.crash). Lane traffic keeps clear of each other by braking (Vehicle._blocked) and is not tested against itself.
+func _collide_all() -> void:
+	var ppos := _player_pos()
+	var cars := list.duplicate()
+	for i in cars.size():
+		var a: Vehicle = cars[i]
+		if not is_instance_valid(a) or a.dead or not a.active:
 			continue
-		var op := o.global_position
-		var dx := cp.x - op.x
-		var dz := cp.z - op.z
-		var d := sqrt(dx * dx + dz * dz)
-		if d >= VehicleSpecs.CAR_SEPARATION or d <= 1e-3:
+		if ppos.is_finite() and _dist(a, ppos) > 90.0 and not a.driver_is_player:
 			continue
-		var n := Vector3(dx / d, 0.0, dz / d)
-		var imp := absf((car.vel.x - o.vel.x) * n.x + (car.vel.z - o.vel.z) * n.z)
-		var push := VehicleSpecs.CAR_SEPARATION - d
-		car.global_position += n * push * 0.6
-		o.global_position -= n * push * 0.4
-		car.vel *= 0.8
-		o.vel = -n * imp * 0.8
-		o.ai = false
-		if imp > VehicleSpecs.CAR_HIT_SPEED:
-			hear(op, &"crash")
-			car.hits += 1
-			car.damage(imp * 1.2)
-			o.damage(imp * 2.0)
-			FX.shake(0.4)
-			Sfx.play_at(&"hit", op, -3.0)
-		cp = car.global_position
+		for j in range(i + 1, cars.size()):
+			var b: Vehicle = cars[j]
+			if not is_instance_valid(b) or b.dead or not b.active or b.dead or a.dead or not a.active:
+				continue
+			if a.ai and b.ai and a.ai_panic <= 1.0 and b.ai_panic <= 1.0:        # lane traffic brakes for each other; cars in flight after gunfire really hit
+				continue
+			var reach := (float(a.spec["len"]) + float(b.spec["len"])) * 0.5 + 0.4
+			var dx := a.global_position.x - b.global_position.x
+			var dz := a.global_position.z - b.global_position.z
+			if dx * dx + dz * dz > reach * reach:
+				continue
+			collide_cars(a, b)
+
+
+## One pair: SAT on the four hull axes. Returns the closing speed (m/s) when the cars hit, 0 when they only touch or are apart.
+func collide_cars(a: Vehicle, b: Vehicle) -> float:
+	var pa := a.global_position
+	var pb := b.global_position
+	var axes: Array[Vector3] = [a.right(), a.forward(), b.right(), b.forward()]
+	var ha := Vector2(float(a.spec["wid"]) * 0.5, float(a.spec["len"]) * 0.5)
+	var hb := Vector2(float(b.spec["wid"]) * 0.5, float(b.spec["len"]) * 0.5)
+	var best := INF
+	var n := Vector3.ZERO
+	var dvec := Vector3(pa.x - pb.x, 0.0, pa.z - pb.z)
+	for ax in axes:
+		var ra := absf(ha.x * ax.dot(a.right())) + absf(ha.y * ax.dot(a.forward()))
+		var rb := absf(hb.x * ax.dot(b.right())) + absf(hb.y * ax.dot(b.forward()))
+		var dist := dvec.dot(ax)
+		var overlap := ra + rb - absf(dist)
+		if overlap <= 0.0:
+			return 0.0
+		if overlap < best:
+			best = overlap
+			n = ax if dist >= 0.0 else -ax                       # from b towards a: pointing into a
+	n.y = 0.0
+	if n.length_squared() < 1e-6:
+		return 0.0
+	n = n.normalized()
+	var p := _contact_point(a, b)
+	var ma := VehicleSpecs.mass_of(a.kind)
+	var mb := VehicleSpecs.mass_of(b.kind)
+	a.global_position += n * (best * mb / (ma + mb) * 1.03)      # the lighter car is pushed out further
+	b.global_position -= n * (best * ma / (ma + mb) * 1.03)
+	var vrel := (a.point_velocity(p) - b.point_velocity(p)).dot(n)
+	if vrel >= 0.0:
+		return 0.0
+	var inv := a.inverse_mass_at(n, p) + b.inverse_mass_at(-n, p)
+	var j := -(1.0 + VehicleSpecs.RESTITUTION) * vrel / inv
+	a.apply_impulse(n * j, p)
+	b.apply_impulse(-n * j, p)
+	if a.ai:
+		a.ai = false
+	if b.ai:
+		b.ai = false
+	var closing := -vrel
+	if closing > VehicleSpecs.CAR_HIT_SPEED:
+		hear(pb, &"crash")
+		if a.driver_is_player or b.driver_is_player:
+			FX.shake(clampf(closing / 22.0, 0.15, 0.9))
+		FX.burst(Vector3(p.x, 0.7, p.z), Color(1.0, 0.75, 0.38), 6, 4.0, 0.3, 7.0, 0.3)
+		Sfx.play_at(&"hit", p, -3.0)
+		a.crash(closing, p, n, mb)
+		b.crash(closing, p, -n, ma)
+	return closing
+
+
+## The point where two hulls meet: the middle of the two nearest points (each hull's box clamped to the other's centre).
+func _contact_point(a: Vehicle, b: Vehicle) -> Vector3:
+	var qa := _clamp_to_hull(a, b.global_position)
+	var qb := _clamp_to_hull(b, a.global_position)
+	return (qa + qb) * 0.5
+
+
+static func _clamp_to_hull(c: Vehicle, pt: Vector3) -> Vector3:
+	var d := pt - c.global_position
+	var lx := clampf(d.dot(c.right()), -float(c.spec["wid"]) * 0.5, float(c.spec["wid"]) * 0.5)
+	var lz := clampf(d.dot(c.forward()), -float(c.spec["len"]) * 0.5, float(c.spec["len"]) * 0.5)
+	var q := c.global_position + c.right() * lx + c.forward() * lz
+	return Vector3(q.x, 0.0, q.z)
 
 
 ## Running over drones and operatives: above 8 m/s everything within 2.4 m takes speed x 3.5 (a crit), once per 0.6 s per enemy.
@@ -686,7 +782,7 @@ func patrol_cap() -> int:
 func patrol_count(chasing_only := false) -> int:
 	var n := 0
 	for v in list:
-		if v.patrol and not v.driver_is_player and (v.chasing or not chasing_only):
+		if v.patrol and not v.cop and not v.driver_is_player and (v.chasing or not chasing_only):
 			n += 1
 	return n
 
@@ -699,13 +795,13 @@ func _tick_patrols(delta: float) -> void:
 		return
 	if Game.heat < VehicleSpecs.PATROL_STAND_DOWN:
 		for v in list.duplicate():
-			if v.patrol and not v.driver_is_player:
+			if v.patrol and not v.cop and not v.driver_is_player:
 				v.chasing = false
 				if _dist(v, ppos) > 45.0:
 					_release(v)
 		return
 	for v in list:
-		if v.patrol and v.active and not v.dead and not v.driver_is_player and not v.chasing and not v.ai and Game.heat >= VehicleSpecs.PATROL_HEAT:
+		if v.patrol and not v.cop and v.active and not v.dead and not v.driver_is_player and not v.chasing and not v.ai and Game.heat >= VehicleSpecs.PATROL_HEAT:
 			v.chasing = true                                  # a standing-down patrol picks the chase up again
 	if Game.heat < VehicleSpecs.PATROL_HEAT:
 		return
@@ -714,6 +810,92 @@ func _tick_patrols(delta: float) -> void:
 		return
 	_patrol_t = VehicleSpecs.PATROL_EVERY
 	spawn_patrol()
+
+
+# --- police pursuit ladder ---------------------------------------------------------------------------------------------------
+
+func cop_count(chasing_only := false) -> int:
+	var n := 0
+	for v in list:
+		if v.cop and not v.driver_is_player and (v.chasing or not chasing_only):
+			n += 1
+	return n
+
+
+## Interceptors wanted at a heat: 1 from COP_HEAT, 2 from heat 2, 3 from heat 4 (capped by the tier).
+func cop_want(heat: float) -> int:
+	if heat < VehicleSpecs.COP_HEAT:
+		return 0
+	return mini(1 + int(heat >= 2.0) + int(heat >= 4.0), VehicleSpecs.COP_CAPS[clampi(Game.quality, 0, 2)])
+
+
+## The ladder: heat 0.5 an interceptor tails the hero (siren, no contact), 2 they ram, 3 they box him in / block and lay SPIKE STRIPS across the road ahead of a driving hero, 4+ more cars.
+## Below COP_STAND_DOWN they stop chasing and are released once 45 m away. Interceptors are patrol-style chasers (patrol + cop) on pooled cars.
+func _tick_cops(delta: float) -> void:
+	var ppos := _player_pos()
+	if not ppos.is_finite():
+		return
+	if Game.heat < VehicleSpecs.COP_STAND_DOWN:
+		for v in list.duplicate():
+			if v.cop and not v.driver_is_player:
+				v.chasing = false
+				if _dist(v, ppos) > 45.0:
+					_release(v)
+		return
+	for v in list:
+		if v.cop and v.active and not v.dead and not v.driver_is_player and not v.chasing:
+			v.chasing = true
+	if Game.heat < VehicleSpecs.COP_HEAT:
+		return
+	for v in list:
+		if v.cop and v.chasing and Game.heat >= 3.0 and v.tactic == &"ram" and cops_spawned % 2 == 0:
+			v.tactic = &"boxin"
+	_cop_t -= delta
+	if _cop_t <= 0.0 and cop_count(true) < cop_want(Game.heat):
+		_cop_t = VehicleSpecs.COP_EVERY
+		spawn_cop()
+	if spikes != null and Game.heat >= VehicleSpecs.COP_SPIKE_HEAT and driven != null:
+		_spike_t -= delta
+		if _spike_t <= 0.0 and driven.speed > 8.0 and cop_count(true) > 0:
+			_spike_t = VehicleSpecs.SPIKE_EVERY
+			lay_spikes_ahead()
+
+
+## One strip across the road `SPIKE_AHEAD` m ahead of the driven car's motion, on the nearest road line. Returns the bar or null.
+func lay_spikes_ahead() -> Node3D:
+	if spikes == null or driven == null:
+		return null
+	var f := driven.forward()
+	f.y = 0.0
+	var at := driven.global_position + f.normalized() * VehicleSpecs.SPIKE_AHEAD
+	var axis := 0 if absf(f.x) > absf(f.z) else 1                      # travelling along x: the road centre line is z = road_center(...)
+	if axis == 0:
+		at.z = VehicleSpecs.road_center(VehicleSpecs.road_index(at.z))
+	else:
+		at.x = VehicleSpecs.road_center(VehicleSpecs.road_index(at.x))
+	return spikes.lay(at, Vector3(f.x, 0.0, f.z).normalized())
+
+
+## Place one chasing police interceptor on a road 50-95 m away (null when no spot or no slot).
+func spawn_cop() -> Vehicle:
+	var ppos := _player_pos()
+	if not ppos.is_finite():
+		return null
+	var spot := _find_spot(ppos, false, VehicleSpecs.COP_MIN, VehicleSpecs.COP_MAX)
+	if spot.is_empty():
+		return null
+	if list.size() >= cap() and not _free_slot():
+		return null
+	var v := _acquire(&"interceptor")
+	v.activate(spot[0], spot[4])
+	v.patrol = true
+	v.cop = true
+	v.chasing = true
+	v.tactic = VehicleSpecs.TACTICS[cops_spawned % VehicleSpecs.TACTICS.size()] if Game.heat >= VehicleSpecs.COP_RAM_HEAT else &"ram"
+	list.append(v)
+	cops_spawned += 1
+	v.update_lod(_dist(v, ppos))
+	return v
 
 
 ## Place one chasing patrol vehicle (null when no free road spot or no slot could be made).
@@ -776,8 +958,10 @@ func _lod_pass(ppos: Vector3) -> void:
 		return
 	for v in list:
 		v.update_lod(_dist(v, ppos))
-	if Game.enemies == null and is_instance_valid(Game.camera):
-		DynamicFill.aim_light(Game.camera.global_rotation.y)
+	if is_instance_valid(Game.camera):
+		VehicleVisual.aim_key(Game.camera.global_rotation.y)
+		if Game.enemies == null:
+			DynamicFill.aim_light(Game.camera.global_rotation.y)
 
 
 static func _dist(v: Node3D, pos: Vector3) -> float:

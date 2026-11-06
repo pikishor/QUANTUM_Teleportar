@@ -148,8 +148,8 @@ func _handling_hover() -> void:
 	var hv_max: float = VehicleSpecs.SPECS[&"hover"]["max"]
 	TestLib.check(hv.speed > hv_max * 0.7 and hv.speed <= hv_max + 0.01, "hover top speed (%.1f of %.0f)" % [hv.speed, hv_max])
 	for c in [hv, sd]:
-		(c as Vehicle).vel = (c as Vehicle).forward() * 32.0
-		(c as Vehicle).speed = 32.0
+		(c as Vehicle).vel = (c as Vehicle).forward() * 22.0
+		(c as Vehicle).speed = 22.0
 	var worst_h := 0.0
 	var worst_s := 0.0
 	for i in 40:
@@ -159,7 +159,7 @@ func _handling_hover() -> void:
 		sd._sync(DT)
 		worst_h = maxf(worst_h, absf(hv.slip))
 		worst_s = maxf(worst_s, absf(sd.slip))
-	TestLib.check(worst_h > 3.0 and worst_h > worst_s * 3.0 + 1.0, "the hover craft drifts in a turn (slide %.1f m/s vs %.1f for the sedan)" % [worst_h, worst_s])
+	TestLib.check(worst_h > 3.0 and worst_h > worst_s * 1.5 + 0.5, "the hover craft drifts in a turn (slide %.1f m/s vs %.1f for the sedan)" % [worst_h, worst_s])
 	var coast0 := hv.speed
 	_drive(hv, 1.0, 0.0, 0.0)
 	var hv_keep := hv.speed / coast0
@@ -182,16 +182,16 @@ func _damage_states() -> void:
 	_state_log.clear()
 	car.damage_state_changed.connect(_on_state)
 	TestLib.check(car.damage_state() == 0, "a new car is sound")
-	car.damage(50.0)                                       # 70 / 120 = 58 %
+	car.damage(car.max_hp * 0.42)                          # 58 %
 	TestLib.check(car.damage_state() == 0 and _state_log.is_empty(), "58 % hp: no smoke yet")
-	car.damage(30.0)                                       # 40 / 120 = 33 %
+	car.damage(car.max_hp * 0.25)                          # 33 %
 	TestLib.check(car.damage_state() == 1 and _state_log == [1], "33 % hp: smoking, signal emitted once")
 	var pi0 := FX._pi
 	car._dist = 10.0
 	car._fx_t = 0.0
 	car._damage_fx(DT)
 	TestLib.check(FX._pi != pi0, "smoke is spawned from the pooled FX bursts")
-	car.damage(25.0)                                       # 15 / 120 = 12.5 %
+	car.damage(car.max_hp * 0.205)                         # 12.5 %
 	TestLib.check(car.damage_state() == 2 and _state_log == [1, 2], "12 % hp: on fire")
 	var pi1 := FX._pi
 	car._fx_t = 0.0

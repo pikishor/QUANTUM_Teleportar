@@ -228,7 +228,7 @@ func _hijack() -> void:
 		TestLib.check(car.ai and Freedom.vehicle_prompt().begins_with("HIJACK"), "%s: a traffic car shows HIJACK (%s)" % [k, Freedom.vehicle_prompt()])
 		vm.toggle_enter_exit()
 		TestLib.check(vm.driven == car and not car.ai, "%s: the hijack puts the hero at the wheel and takes the AI off it" % k)
-		TestLib.check(hj.hijacks == before + 1 and hj.entries == entries + 1 and hj.ejected_live() == live_before + 1, "%s: the driver is thrown out and the entry animation plays" % k)
+		TestLib.check(hj.hijacks == before + 1 and hj.entries == entries + 1 and hj.ejected_live() >= live_before + 1, "%s: the driver is thrown out and the entry animation plays" % k)
 		TestLib.check(Game.heat >= VehicleSpecs.CARJACK_HEAT - 0.001, "%s: a hijack costs heat" % k)
 		vm.exit_vehicle()
 		await frames(2)

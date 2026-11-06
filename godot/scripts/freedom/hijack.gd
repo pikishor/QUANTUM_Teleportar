@@ -5,7 +5,7 @@ extends Node
 ## `Hijack.current` is read by the VehicleManager; without it (no Freedom node, a bare test) entering simply works as before.
 
 const BODY_COLORS: Array[Color] = [Color(0.55, 0.42, 0.3), Color(0.3, 0.38, 0.5), Color(0.5, 0.3, 0.34), Color(0.36, 0.46, 0.36)]
-const POOL := 2
+const POOL := 3
 const GHOST_TIME := 0.26
 const THROW_SIDE := 4.2
 const THROW_UP := 4.6
@@ -23,6 +23,7 @@ const NAMES := {
 static var current: Hijack
 
 var hijacks := 0                     ## drivers thrown out so far (tests wait on this)
+var passengers_ejected := 0          ## riders thrown out with a driver (tests)
 var entries := 0                     ## entry animations played (hijacks and plain entries)
 var last_kind: StringName = &""
 var _drivers: Array[Dictionary] = [] ## {node: Node3D, state: fly|down|run, t, vel, dir}
@@ -96,8 +97,19 @@ func on_enter(car: Vehicle, from: Vector3, driver: bool) -> void:
 	n.scale = Vector3.ONE
 	n.visible = true
 	var col := BODY_COLORS[_rng.randi() % BODY_COLORS.size()]
-	_tint(n, Color(0.75, 1.0, 0.45) if car.patrol else col)
+	_tint(n, Color(0.75, 1.0, 0.45) if car.patrol and not car.cop else col)
 	_drivers.append({"node": n, "state": &"fly", "t": 0.0, "vel": vel, "dir": car.right() * side + car.forward() * 0.4})
+	if car.passengers > 0:                                       # passengers-lite: one rider is thrown out the far side and runs the other way
+		var n2 := _take()
+		if n2 != null:
+			passengers_ejected += 1
+			n2.global_position = door - car.right() * side * (float(car.spec["wid"]) + 0.6) + Vector3(0.0, 0.5, 0.0)
+			n2.rotation = Vector3(0.0, car.heading, 0.0)
+			n2.scale = Vector3.ONE
+			n2.visible = true
+			_tint(n2, BODY_COLORS[_rng.randi() % BODY_COLORS.size()])
+			_drivers.append({"node": n2, "state": &"fly", "t": 0.0, "vel": -car.right() * side * THROW_SIDE * 0.8 + Vector3(0.0, THROW_UP * 0.8, 0.0), "dir": -car.right() * side - car.forward() * 0.3})
+		car.passengers = 0
 
 
 func _physics_process(dt: float) -> void:

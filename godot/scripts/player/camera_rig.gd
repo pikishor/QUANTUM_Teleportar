@@ -41,9 +41,20 @@ const ADS_SHOULDER := 0.55
 const FOV_HIP := 92.0          # horizontal degrees (keep_aspect = KEEP_WIDTH): the same view on 16:9 tablets and 20:9 phones
 const FOV_SPRINT := 100.0
 const FOV_ADS := 62.0
-const VEH_DIST := 7.5
+const VEH_DIST := 7.5          # legacy defaults (a bike or a car whose spec is unknown); cars use the proportions below
 const VEH_HEIGHT := 1.6
 const VEH_FOV := 92.0
+# --- driving camera (owner round 3): the view is sized by the car, widens and pulls back with speed, follows the drift, looks behind and has a hood view
+const VEH_FOV_REST := 64.0     # horizontal degrees at a standstill, VEH_FOV_FAST at top speed (+ NITRO_FOV while boosting)
+const VEH_FOV_FAST := 82.0
+const VEH_NITRO_FOV := 7.0
+const VEH_DIST_K := 1.2       # chase distance = car length x this + VEH_DIST_ADD, plus up to VEH_DIST_SPEED at top speed
+const VEH_DIST_ADD := 1.9
+const VEH_DIST_SPEED := 2.4
+const VEH_PITCH := -0.19
+const HOOD_FOV := 82.0
+const VEH_DRIFT_FOLLOW := 0.55 # how far the view turns toward the direction of travel of a sliding car (1 = fully)
+const VEH_VIEWS := 3           # 0 chase, 1 far, 2 hood
 const ARM_RADIUS := 0.22
 const FADE_START := 1.2                      ## the hero fades out smoothly when the camera is closer than this (metres from the head) ...
 const FADE_END := 0.9                        ## ... and is fully hidden at this distance
@@ -127,6 +138,9 @@ var _dead_age := 0.0                         ## seconds of game time in the dead
 var ads_fov := FOV_ADS        ## degrees at full ADS for the weapon in hand (the Pulse Lance zooms like a sniper scope)
 var _fov := FOV_HIP
 var _fov_punch := 0.0
+var veh_view := 0                            ## driving view: 0 chase, 1 far chase, 2 hood (the VIEW button / key B cycles it)
+var _back_w := 0.0                           ## 0..1 how far the view has swung to look behind (the BACK button / key N held)
+var _veh_dist_now := 0.0
 var blur := 0.0                              ## motion-blur-lite strength 0..1 after a teleport (the HUD draws a soft edge streak), decays by itself
 var heartbeats := 0                          ## low-health haptic beats so far (tests)
 var _stop_left := 0.0                        ## real seconds of hit-stop left
@@ -492,6 +506,65 @@ func _killer_yaw() -> float:
 	return PlayerUtil.yaw_of(d)
 
 
+## The driving camera numbers for the followed car at forward speed `v`: sized by the car (a bus gets more room than a sports car), pulled back and widened by speed and by
+## acceleration, a hood view and a far view. Bikes and unknown vehicles use the old fixed numbers scaled the same way.
+func _vehicle_params(v: float) -> Dictionary:
+	var spec: Variant = _follow.get(&"spec") if is_instance_valid(_follow) else null
+	var ln := 4.6
+	var hg := 1.45
+	var top := 30.0
+	if spec is Dictionary:
+		ln = float((spec as Dictionary).get("len", ln))
+		hg = float((spec as Dictionary).get("hgt", hg))
+		top = float((spec as Dictionary).get("max", top))
+	var k := clampf(absf(v) / maxf(top, 1.0), 0.0, 1.2)
+	var acc: float = 0.0
+	var la: Variant = _follow.get(&"long_acc") if is_instance_valid(_follow) else null
+	if la is float:
+		acc = clampf(la, -12.0, 12.0)
+	var boost: bool = is_instance_valid(_follow) and _follow.get(&"boosting") == true
+	var fov := lerpf(VEH_FOV_REST, VEH_FOV_FAST, smoothstep(0.0, 1.0, k)) + (VEH_NITRO_FOV if boost else 0.0)
+	var dist := ln * VEH_DIST_K + VEH_DIST_ADD + VEH_DIST_SPEED * smoothstep(0.0, 1.0, k) + clampf(acc * 0.045, -0.3, 0.6)
+	var height := 0.65 + hg * 0.4 + 0.12 * k
+	var fwd := 0.0
+	match veh_view:
+		1:
+			dist = ln * 1.55 + 2.4 + VEH_DIST_SPEED * 1.4 * smoothstep(0.0, 1.0, k)
+			height = hg + 1.5
+		2:
+			dist = 0.02
+			height = hg * 0.93
+			fov = HOOD_FOV + 8.0 * smoothstep(0.0, 1.0, k) + (VEH_NITRO_FOV if boost else 0.0)
+			fwd = ln * 0.02
+	if spec is Dictionary and (spec as Dictionary).get("cls", &"car") == &"bike" and veh_view == 0:
+		dist = maxf(dist, 4.8)
+	return {"dist": dist, "height": height, "fov": fov, "fwd": fwd}
+
+
+## The sliding car's travel direction pulls the view round (yaw offset, radians): in a drift you look where the car is going, not where its nose points.
+func _drift_offset(v: float) -> float:
+	if not is_instance_valid(_follow) or veh_view == 2:
+		return 0.0
+	var sl: Variant = _follow.get(&"slip")
+	if not (sl is float):
+		return 0.0
+	var ang := atan2(float(sl), maxf(absf(v), 0.5))
+	return -clampf(ang * VEH_DRIFT_FOLLOW, -0.7, 0.7) * smoothstep(3.0, 9.0, absf(v))
+
+
+## VIEW (veh_view action) cycles the driving view, BACK (look_back action, held) swings the view round behind the car.
+func _poll_vehicle_input(dt: float) -> void:
+	if InputMap.has_action(&"veh_view") and Input.is_action_just_pressed(&"veh_view"):
+		cycle_vehicle_view()
+	var back := InputMap.has_action(&"look_back") and Input.is_action_pressed(&"look_back") and veh_view != 2
+	_back_w = PlayerUtil.damp(_back_w, 1.0 if back else 0.0, 9.0, dt)
+
+
+func cycle_vehicle_view() -> void:
+	veh_view = (veh_view + 1) % VEH_VIEWS
+	_snap_follow()
+
+
 func _vehicle_heading() -> float:
 	if not is_instance_valid(_follow):
 		return yaw
@@ -622,9 +695,13 @@ func _update_view(dt: float) -> void:
 	var veh_speed := 0.0
 	if drv:
 		veh_speed = _vehicle_speed()
+		if playing:
+			_poll_vehicle_input(dt)
 		if playing and free_look <= 0.0:
-			yaw = PlayerUtil.damp_angle(yaw, _vehicle_heading(), 3.0 if absf(veh_speed) > 2.0 else 0.8, dt)
-			pitch = PlayerUtil.damp(pitch, -0.2, 3.0, dt)
+			var hood := veh_view == 2
+			var want_yaw := _vehicle_heading() + _drift_offset(veh_speed) + PI * _back_w
+			yaw = PlayerUtil.damp_angle(yaw, want_yaw, 14.0 if hood else (3.4 if absf(veh_speed) > 2.0 else 0.8) + 5.0 * _back_w, dt)
+			pitch = PlayerUtil.damp(pitch, -0.06 if hood else VEH_PITCH, 4.0, dt)
 
 	# --- cinematic drift (title screen, victory, death)
 	if _orbit_w > 0.001 or _dead_w > 0.001:
@@ -653,11 +730,13 @@ func _update_view(dt: float) -> void:
 	var foot_dist := lerpf(HIP_DIST, ADS_DIST, ads_s) * float(hs["dist"]) * (INTERIOR_ARM_SCALE if InteriorSpace.active else 1.0)      # a shorter arm in the tight rooms of a generated interior
 	var foot_shoulder := lerpf(HIP_SHOULDER, ADS_SHOULDER, ads_s) * float(hs["shoulder"])
 	var foot_fov := lerpf(lerpf(FOV_HIP, FOV_HIP + (FOV_SPRINT - FOV_HIP) * HeroPower.f("sprint") * (0.4 if UiSettings.s_reduce_motion else 1.0), _sprint), ads_fov, ads_s)
-	var veh_dist := VEH_DIST + clampf(absf(veh_speed) * 0.04, 0.0, 1.2)
-	var veh_fov := VEH_FOV + minf(18.0, absf(veh_speed) * 0.5)
+	var vp := _vehicle_params(veh_speed) if drv else {"dist": VEH_DIST, "height": VEH_HEIGHT, "fov": VEH_FOV, "fwd": 0.0}
+	var veh_dist: float = vp["dist"]
+	var veh_fov: float = vp["fov"]
+	_veh_dist_now = veh_dist
 	var dist := lerpf(foot_dist, veh_dist, _mode_mix)
 	var shoulder := lerpf(foot_shoulder, 0.0, _mode_mix)
-	var height := lerpf(EYE_HEIGHT * float(hs["eye"]), VEH_HEIGHT, _mode_mix)
+	var height := lerpf(EYE_HEIGHT * float(hs["eye"]), float(vp["height"]), _mode_mix)
 	var fov_target := lerpf(foot_fov, veh_fov, _mode_mix)
 	if InteriorSpace.active:
 		fov_target += INTERIOR_FOV_BOOST * clampf((1.0 - _ratio) / 0.5, 0.0, 1.0) * (1.0 - _mode_mix)     # _ratio: last frame's arm fraction (the wall pull-in)
@@ -699,6 +778,8 @@ func _update_view(dt: float) -> void:
 	elif dt > 0.0:
 		base = _pos_prev.lerp(_pos_cur, Engine.get_physics_interpolation_fraction())
 	base.y += pivot_y_offset
+	if drv and veh_view == 2 and is_instance_valid(_follow):
+		base += -_follow.global_transform.basis.z * float(vp["fwd"])       # the hood camera sits ahead of the car's centre, at the driver's eye
 	_last_base = base
 	_pivot_pos = base + Vector3(0.0, height, 0.0)
 	var yaw_t := yaw + recoil_yaw

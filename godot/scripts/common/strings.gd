@@ -34,6 +34,8 @@ const _ES3 := preload("res://scripts/common/strings_es3.gd")
 const _HI3 := preload("res://scripts/common/strings_hi3.gd")
 const _ES_PERF := preload("res://scripts/common/strings_es_perf.gd")
 const _HI_PERF := preload("res://scripts/common/strings_hi_perf.gd")
+const _ES_VEH := preload("res://scripts/common/strings_es_veh.gd")
+const _HI_VEH := preload("res://scripts/common/strings_hi_veh.gd")
 const _NPC := preload("res://scripts/npc/npc_dialogue_data.gd")
 
 static var _tables := {}
@@ -52,12 +54,14 @@ static func table(l: String) -> Dictionary:
 			d.merge(_ES2.S)
 			d.merge(_ES3.S)
 			d.merge(_ES_PERF.S)
+			d.merge(_ES_VEH.S)
 			d.merge(_NPC.table("es"))
 		elif l == "hi":
 			d.merge(_HI.S)
 			d.merge(_HI2.S)
 			d.merge(_HI3.S)
 			d.merge(_HI_PERF.S)
+			d.merge(_HI_VEH.S)
 			d.merge(_NPC.table("hi"))
 		_tables[l] = d
 	return _tables[l]

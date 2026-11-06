@@ -50,6 +50,9 @@ var bob := 0.0                      ## hover: current height offset of the model
 var dmg_state := 0                  ## see damage_state_changed
 var patrol := false                 ## a Vael patrol vehicle (spec flag)
 var chasing := false                ## patrol: drives at the player and rams him
+var cop := false                    ## a police interceptor of the pursuit ladder (VehicleManager._tick_cops): patrol-style chase, shadows the hero below COP_RAM_HEAT
+var tires_flat := 0.0               ## s: tyres shot by a spike strip (top speed x TIRES_SPEED, grip x TIRES_GRIP)
+var passengers := 0                 ## people riding along in a traffic car (thrown out with the driver by a hijack)
 var ram_hits := 0                   ## patrol rams that landed (tests)
 var tactic: StringName = &"ram"      ## patrol pursuit tactic (VehicleSpecs.TACTICS)
 var weapons: VehicleWeapons         ## mounted weapon (sport / suv / hover), null on other kinds
@@ -82,6 +85,28 @@ var _fin_acc := 0.0
 var _smoke_t := 0.0
 var _drift_t := 0.0                 ## seconds since the handbrake was released: traction comes back gradually
 var drifting := false               ## sliding hard enough to smoke (tests)
+## --- the car model (cars only, see _drive_car): gearbox, tyres, body motion, damage details ---
+var gear := 1                       ## 1..5 (the box shifts by itself)
+var rpm := 0.16                     ## 0..1 of the redline: the engine note, the HUD
+var yaw_rate := 0.0                 ## rad/s, + = turning left (the heading grows)
+var steer_angle := 0.0              ## front wheel angle in rad, + = left (visual and model)
+var long_acc := 0.0                 ## smoothed longitudinal acceleration m/s2 (+ = speeding up)
+var lat_acc := 0.0                  ## smoothed lateral acceleration m/s2 (+ = to the left)
+var skid := 0.0                     ## 0..1 how hard the tyres are sliding or spinning (squeal, smoke, skid marks)
+var wheelspin := 0.0                ## 0..1 the driven wheels break loose under power
+var last_impact := 0.0              ## closing speed (m/s) of the last collision that counted
+var impact_t := 99.0                ## seconds since then
+var crashes := 0                    ## collisions that hurt the hull (tests, stats)
+var _shift_t := 0.0
+var _shift_cool := 0.0
+var _ax := 0.0
+var _pitch := 0.0
+var _pitch_v := 0.0
+var _roll := 0.0
+var _roll_v := 0.0
+var _heave := 0.0
+var _heave_v := 0.0
+var _spin_fx := 0.0
 
 
 ## One-time construction: model, collider, MirrorProxy.
@@ -128,7 +153,6 @@ func activate(pos: Vector3, h: float) -> void:
 	ai_stun = 0.0
 	yielding = false
 	at_light = false
-	visual.set_deform(0.0)
 	driver_is_player = false
 	braking = false
 	steer_in = 0.0
@@ -137,6 +161,9 @@ func activate(pos: Vector3, h: float) -> void:
 	lean = 0.0
 	bob = 0.0
 	patrol = bool(spec.get("patrol", false))
+	cop = false
+	tires_flat = 0.0
+	passengers = 0
 	dmg_state = 0
 	chasing = false
 	ram_hits = 0
@@ -167,6 +194,27 @@ func activate(pos: Vector3, h: float) -> void:
 	paint_i = ci
 	_drift_t = 9.0
 	drifting = false
+	gear = 1
+	rpm = VehicleSpecs.IDLE_RPM
+	yaw_rate = 0.0
+	steer_angle = 0.0
+	long_acc = 0.0
+	lat_acc = 0.0
+	skid = 0.0
+	wheelspin = 0.0
+	last_impact = 0.0
+	impact_t = 99.0
+	crashes = 0
+	_shift_t = 0.0
+	_shift_cool = 0.0
+	_ax = 0.0
+	_pitch = 0.0
+	_pitch_v = 0.0
+	_roll = 0.0
+	_roll_v = 0.0
+	_heave = 0.0
+	_heave_v = 0.0
+	visual.repair()
 	visual.set_glow(VehicleSpecs.GLOWS[randi() % VehicleSpecs.GLOWS.size()])
 	_apply_lights()
 	collision_layer = Game.L_VEHICLE
@@ -255,12 +303,14 @@ func set_traffic(axis: int, dir: int, line: float, cruise: float) -> void:
 	ai_cruise = cruise
 	ai_speed = 0.0
 	ai_cool = 0.0
+	passengers = mini(randi() % maxi(VehicleSpecs.seats_of(kind), 1), 3) if cls == &"car" else 0
 	_apply_lights()
 
 
 ## The player takes the wheel (VehicleManager.enter): door sound, a patrol vehicle stops being one, lights on at once.
 func on_enter() -> void:
 	patrol = false
+	cop = false
 	chasing = false
 	lean = 0.0
 	Sfx.play(&"car_door", -6.0)
@@ -285,17 +335,100 @@ func right() -> Vector3:
 
 # --- damage -----------------------------------------------------------------------------------------------------------
 
-## The damage contract (see the player section): weapon hits, explosions, wall and car impacts.
+## The damage contract (see the player section): weapon hits, explosions and fire. Crashes go through crash() (speed, angle, mass and dents).
 func damage(amount: float) -> void:
 	if dead or not active or amount <= 0.0:
 		return
+	_hurt(amount * VehicleSpecs.EXTERNAL_DAMAGE)
+	if amount >= 45.0 and not dead and _dist < 60.0:             # a big blast leaves its dents on the panels facing it
+		var lp := Vector3(randf_range(-0.7, 0.7), float(spec["hgt"]) * 0.5, randf_range(-1.0, 1.0) * float(spec["len"]) * 0.4)
+		visual.add_dent(lp, Vector3(-signf(lp.x), 0.0, 0.0), clampf(amount / max_hp, 0.05, 0.4))
+
+
+## Takes `amount` hit points off the hull and updates what shows: wear, the windows, smoke and fire (an explosion only when the hull is gone).
+func _hurt(amount: float) -> void:
 	hp -= amount
 	if hp <= 0.0:
 		explode()
-	else:
-		visual.set_damage_look(1.0 - hp / maxf(max_hp, 1.0))
-		visual.set_deform(1.0 - hp / maxf(max_hp, 1.0))
-		_update_damage_state()
+		return
+	var f := 1.0 - hp / maxf(max_hp, 1.0)
+	visual.set_damage_look(f)
+	visual.set_deform(f)
+	visual.set_condition(f)
+	_update_damage_state()
+
+
+## The mechanic: full hull, dents hammered out, glass replaced, smoke and fire out, the fuse of a chain reaction cut. Works on a car in play (a repair bay, the garage, a pickup).
+func repair() -> void:
+	if dead or wreck:
+		return
+	hp = max_hp
+	fuse = -1.0
+	_warned = 0
+	visual.repair()
+	if dmg_state != 0:
+		dmg_state = 0
+		damage_state_changed.emit(self, 0)
+	visual.set_glow(VehicleSpecs.GLOWS[randi() % VehicleSpecs.GLOWS.size()])
+	last_impact = 0.0
+
+
+## Look-dev and tests: the car as it looks after a crash that took `frac` of its hull (a frontal dent, a side dent, wear, cracked glass, smoke or fire by the hp).
+func debug_damage(frac: float) -> void:
+	hp = max_hp * (1.0 - frac)
+	var ln := float(spec["len"])
+	var wd := float(spec["wid"])
+	visual.add_dent(Vector3(0.25, 0.65, -ln * 0.5), Vector3(0.0, 0.0, 1.0), frac)
+	visual.add_dent(Vector3(wd * 0.5, 0.7, -ln * 0.12), Vector3(-1.0, 0.0, 0.0), frac * 0.8)
+	visual.set_damage_look(frac)
+	visual.set_deform(frac)
+	visual.set_condition(frac)
+	_update_damage_state()
+
+
+## Damage fraction (0..1 of CRASH_REF_HP) of a collision at closing speed `v` m/s along the contact normal: nothing below CRASH_SAFE, then growing steeply.
+static func crash_fraction(v: float) -> float:
+	if v <= VehicleSpecs.CRASH_SAFE:
+		return 0.0
+	return pow(clampf((v - VehicleSpecs.CRASH_SAFE) / (VehicleSpecs.CRASH_WRECK - VehicleSpecs.CRASH_SAFE), 0.0, 1.5), VehicleSpecs.CRASH_POWER)
+
+
+## A collision at `at` (world) with the surface normal `n` pointing INTO this car, closing speed `v` along it, against a body of `other_mass` kg (INF = a wall).
+## The hull loses CRASH_REF_HP x crash_fraction(v) (a lighter car takes more from a heavy one), the panels dent at the contact, the windows crack on a hard hit and the
+## driver (the hero) is hurt only by really hard impacts. Returns the hp lost.
+func crash(v: float, at: Vector3, n: Vector3, other_mass := INF) -> float:
+	last_impact = v
+	impact_t = 0.0
+	if v <= VehicleSpecs.HIT_SPEED:
+		return 0.0
+	_heave_v -= clampf(v * 0.12, 0.0, 2.2)                       # the suspension compresses: the body drops and rebounds
+	_pitch_v += clampf(v * 0.05, 0.0, 0.9) * (1.0 if forward().dot(n) < 0.0 else -1.0)
+	var lost := 0.0
+	var frac := crash_fraction(v)
+	if frac > 0.0:
+		var share := 1.0
+		if other_mass < INF:
+			share = clampf(2.0 * other_mass / (other_mass + VehicleSpecs.mass_of(kind)), 0.5, 1.8)
+		lost = VehicleSpecs.CRASH_REF_HP * frac * share
+		hits += 1
+		crashes += 1
+		if driver_is_player:
+			var pl := Game.player
+			if v > VehicleSpecs.HERO_HURT_SPEED and is_instance_valid(pl) and not dead:
+				if pl.has_method(&"hurt_driver"):
+					pl.call(&"hurt_driver", (v - VehicleSpecs.HERO_HURT_SPEED) * VehicleSpecs.HERO_HURT, at)
+				elif pl.has_method(&"damage"):
+					pl.call(&"damage", (v - VehicleSpecs.HERO_HURT_SPEED) * VehicleSpecs.HERO_HURT, at)
+		var local_at := to_local(at)
+		local_at.y = clampf(local_at.y, 0.25, float(spec["hgt"]))
+		var local_dir := global_transform.basis.inverse() * n          # the way the panel is pushed: into the car
+		local_dir.y = 0.0
+		if _dist < 60.0 or driver_is_player:
+			visual.add_dent(local_at, local_dir, frac)
+		if frac > 0.28 and not dead:
+			visual.crack_glass(clampf(frac * 1.6, 0.0, 1.0), local_at)
+		_hurt(lost)
+	return lost
 
 
 ## 0 sound, 1 smoking below 40 % hp, 2 burning below 15 % hp.
@@ -431,10 +564,203 @@ func sim(dt: float) -> void:
 	_damage_fx(dt)
 
 
-## Arcade driving (src/vehicles.js drive()): thr -1..1 (brake / reverse .. throttle), steer -1..1 (left .. right), handbrake.
+## Driving: thr -1..1 (brake / reverse .. throttle), steer -1..1 (left .. right), handbrake, boost (nitro). Cars use the gearbox + tyre model, bikes and hover craft the arcade one.
 func step_drive(dt: float, thr: float, steer: float, handbrake: bool, boost := false) -> void:
+	tires_flat = maxf(tires_flat - dt, 0.0)
+	if cls == &"car":
+		_drive_car(dt, thr, steer, handbrake, boost)
+	else:
+		_drive_arcade(dt, thr, steer, handbrake, boost)
+
+
+## Tyre force curve: x = slip angle / the peak slip angle. Rises to the peak at x = 1, then the tyre starts to slide and keeps only SLIDE_GRIP of its peak force.
+static func tyre_curve(x: float) -> float:
+	var ax := absf(x)
+	var f := tanh(1.7 * ax) * (1.0 - (1.0 - VehicleSpecs.SLIDE_GRIP) * smoothstep(1.0, 2.8, ax))
+	return f if x >= 0.0 else -f
+
+
+## Wheel angle limit at speed v: a full lock at a standstill, a few degrees when fast (a phone stick cannot flick a car at 120 km/h into a spin).
+static func steer_limit(v: float) -> float:
+	return VehicleSpecs.STEER_MAX / (1.0 + pow(v / VehicleSpecs.STEER_V0, 1.4))
+
+
+## The car model. Single-track (bicycle) dynamics: front and rear axle with a slip angle curve each (grip peaks, then the tyre slides), weight transfer under braking and
+## power, a friction circle (braking or spinning wheels leave less cornering grip), a 5 speed gearbox with a torque curve and shift cuts, steering that narrows with speed, a counter-steer
+## assist and a handbrake that frees the rear. Below LOW_SPEED the car turns kinematically. Sub-stepped at 120 Hz so it is stable at any frame rate.
+func _drive_car(dt: float, thr: float, steer: float, handbrake: bool, boost: bool) -> void:
 	var T := spec
-	var vmax: float = T["max"]
+	var base_max: float = T["max"]
+	var vmax := base_max * (VehicleSpecs.TIRES_SPEED if tires_flat > 0.0 else 1.0)
+	var acc_k := 1.0
+	boosting = boost and thr > 0.05 and nitro > (0.0 if boosting else VehicleSpecs.NITRO_MIN)
+	if boosting:
+		nitro = maxf(0.0, nitro - VehicleSpecs.NITRO_DRAIN * dt)
+		_nitro_wait = VehicleSpecs.NITRO_DELAY
+		vmax *= VehicleSpecs.NITRO_SPEED
+		acc_k = VehicleSpecs.NITRO_ACC
+		if nitro <= 0.0:
+			boosting = false
+	else:
+		_nitro_wait -= dt
+		if _nitro_wait <= 0.0:
+			nitro = minf(1.0, nitro + VehicleSpecs.NITRO_REGEN * dt)
+	var m := VehicleSpecs.mass_of(kind)
+	var wb := VehicleSpecs.wheelbase(kind)
+	var a_f := wb * VehicleSpecs.CG_FRONT                         # centre of gravity to the front axle
+	var b_r := wb - a_f
+	var hcg: float = float(T["hgt"]) * VehicleSpecs.CG_HEIGHT
+	var iz := m * (float(T["len"]) * float(T["len"]) + float(T["wid"]) * float(T["wid"])) / 12.0 * 1.15
+	var atm := Game.atmosphere as Atmosphere
+	var mu := VehicleSpecs.mu_of(kind) * (1.0 - VehicleSpecs.WET_GRIP_LOSS * (atm.wetness_now if atm != null else 0.0)) * (VehicleSpecs.TIRES_GRIP if tires_flat > 0.0 else 1.0)
+	var steer_k := float(T.get("steer", 1.0))
+	var n_sub := maxi(1, ceili(dt / (1.0 / 120.0) - 0.001))
+	var h := dt / float(n_sub)
+	var vx := vel.dot(forward())
+	var vyl := -vel.dot(right())
+	_shift_t = maxf(_shift_t - dt, 0.0)
+	_shift_cool -= dt
+	# --- gearbox: by speed, with a torque cut while it changes
+	var top_g := vmax * float(VehicleSpecs.GEAR_TOPS[gear - 1])
+	var rpm_n := clampf(vx / maxf(top_g, 1.0), 0.0, 1.1)
+	if vx > 0.5 and thr > 0.05 and gear < VehicleSpecs.GEAR_TOPS.size() and rpm_n > VehicleSpecs.UPSHIFT_AT and _shift_cool <= 0.0:
+		gear += 1
+		_shift_t = VehicleSpecs.SHIFT_TIME
+		_shift_cool = 0.45
+	elif gear > 1 and _shift_cool <= 0.0 and vx / (vmax * float(VehicleSpecs.GEAR_TOPS[gear - 2])) < 0.78:
+		gear -= 1
+		_shift_cool = 0.3
+	elif vx < 0.6 and gear > 1:
+		gear = 1
+	top_g = vmax * float(VehicleSpecs.GEAR_TOPS[gear - 1])
+	rpm_n = clampf(vx / maxf(top_g, 1.0), 0.0, 1.1)
+	var rpm_goal := lerpf(VehicleSpecs.IDLE_RPM, 1.0, clampf(rpm_n, 0.0, 1.0))
+	if thr > 0.05 and vx < 3.0:
+		rpm_goal = maxf(rpm_goal, 0.3 + 0.35 * thr)              # revving on the spot: the clutch slips at a standstill
+	rpm = lerpf(rpm, rpm_goal + (0.06 * thr if _shift_t <= 0.0 else -0.12), 1.0 - exp(-14.0 * dt))
+	# --- throttle, brake, handbrake
+	var acc_eng := 0.0
+	var brake_dec := 0.0
+	var reversing := vx < 0.5 and thr < -0.05
+	if thr > 0.05 and _shift_t <= 0.0:
+		var r := clampf(vx / maxf(top_g, 1.0), 0.0, 1.05)
+		var tq := 0.78 + 0.22 * smoothstep(0.0, 0.45, r) - 0.28 * smoothstep(0.72, 1.0, r)
+		acc_eng = float(T["acc"]) * acc_k * float(VehicleSpecs.GEAR_ACC[gear - 1]) * tq * thr
+		if gear == VehicleSpecs.GEAR_TOPS.size():
+			acc_eng *= sqrt(clampf((1.0 - r) / 0.1, 0.0, 1.0))
+		elif r >= 1.0:
+			acc_eng = 0.0
+		if vx < -0.5:
+			brake_dec = float(T["brake"]) * VehicleSpecs.BRAKE_K * thr
+			acc_eng = 0.0
+	elif reversing:
+		acc_eng = -float(T["acc"]) * 0.5 * -thr * clampf(1.0 - absf(vx) / (base_max * VehicleSpecs.REVERSE_FRACTION), 0.0, 1.0)
+	elif thr < -0.05 and vx > 0.5:
+		brake_dec = float(T["brake"]) * VehicleSpecs.BRAKE_K * -thr
+	var coast := thr > -0.05 and thr < 0.05 and vx > 0.5
+	braking = handbrake or brake_dec > 0.5
+	# --- steering: the wheel follows the stick (fast in, faster out), narrower with speed; the assist catches a slide
+	var dmax := steer_limit(absf(vx)) * steer_k
+	var delta_want := -steer * dmax
+	var slew := (VehicleSpecs.STEER_RATE_CAR if absf(delta_want) > absf(steer_angle) or delta_want * steer_angle < 0.0 else VehicleSpecs.STEER_RETURN) * dt
+	steer_angle = clampf(steer_angle + clampf(delta_want - steer_angle, -slew, slew), -VehicleSpecs.STEER_MAX, VehicleSpecs.STEER_MAX)
+	if handbrake:
+		_drift_t = 0.0
+	else:
+		_drift_t += dt
+	var rear_k := 1.0
+	if handbrake or _drift_t < VehicleSpecs.DRIFT_RECOVER:
+		rear_k = lerpf(VehicleSpecs.HANDBRAKE_REAR, 1.0, clampf(_drift_t / VehicleSpecs.DRIFT_RECOVER, 0.0, 1.0))
+	var max_alpha := 0.0
+	var ax_sum := 0.0
+	var ay_sum := 0.0
+	var spin := 0.0
+	var ap := VehicleSpecs.PEAK_SLIP
+	# --- the sub-steps
+	for _i in n_sub:
+		var vxe := maxf(vx, 1.5)
+		var w := clampf((vx - VehicleSpecs.LOW_SPEED) / 1.5, 0.0, 1.0)
+		var delta := steer_angle
+		var ax_t := 0.0
+		var ay_t := 0.0
+		var r_dyn := yaw_rate
+		var vy_dyn := vyl
+		if w > 0.0:
+			var beta := atan2(vyl, vxe)
+			if absf(beta) > 0.05 and not handbrake:
+				delta = clampf(delta + VehicleSpecs.COUNTER_STEER * beta * w, -0.5, 0.5)
+			var nf := m * VehicleSpecs.G * b_r / wb - m * _ax * hcg / wb
+			var nr := m * VehicleSpecs.G * a_f / wb + m * _ax * hcg / wb
+			nf = maxf(nf, 0.2 * m * VehicleSpecs.G)
+			nr = maxf(nr, 0.2 * m * VehicleSpecs.G)
+			var cap_f := mu * nf
+			var cap_r := mu * nr * rear_k
+			var fd := m * acc_eng
+			if fd > cap_r:
+				spin = maxf(spin, clampf(fd / cap_r - 1.0, 0.0, 1.0))
+				fd = cap_r * 0.92
+			var fb_hand := m * VehicleSpecs.G * mu * 0.5 if handbrake else 0.0
+			var fb_f := m * brake_dec * 0.62
+			var fb_r := m * brake_dec * 0.38 + fb_hand
+			var kf := sqrt(maxf(0.25, 1.0 - 0.75 * minf(fb_f / cap_f, 1.0) ** 2))
+			var kr := sqrt(maxf(0.25, 1.0 - 0.75 * minf((absf(fd) + fb_r) / maxf(cap_r, 1.0), 1.0) ** 2))
+			var af := atan2(vyl + a_f * yaw_rate, vxe) - delta
+			var ar := atan2(vyl - b_r * yaw_rate, vxe)
+			max_alpha = maxf(max_alpha, maxf(absf(af), absf(ar)))
+			var fyf := -cap_f * kf * tyre_curve(af / ap)
+			var fyr := -cap_r * kr * tyre_curve(ar / ap)
+			var c := cos(delta)
+			ay_t = (fyf * c + fyr) / m
+			var long_f := fd - fb_f - fb_r
+			var drag := VehicleSpecs.AERO * vx * absf(vx) * m + (VehicleSpecs.ENGINE_BRAKE * m * clampf(vx / 4.0, 0.0, 1.0) if coast else 0.0)
+			ax_t = (long_f - drag - fyf * sin(delta)) / m
+			r_dyn = yaw_rate + ((a_f * fyf * c - b_r * fyr) / iz - VehicleSpecs.YAW_DAMP * yaw_rate) * h
+			vy_dyn = vyl + (ay_t - yaw_rate * vx) * h
+		else:
+			ax_t = acc_eng - brake_dec * signf(vx if absf(vx) > 0.05 else 1.0) - (VehicleSpecs.ENGINE_BRAKE * clampf(vx / 3.0, -1.0, 1.0) if coast else 0.0)
+			if absf(vx) < 0.4 and thr == 0.0:
+				ax_t = -vx / maxf(h, 0.001) * 0.5
+		# kinematic alternative, blended in at low speed (and used alone in reverse)
+		var r_kin := vx * tan(delta) / wb
+		var vy_kin := vyl * exp(-9.0 * h)
+		yaw_rate = lerpf(lerpf(yaw_rate, r_kin, 1.0 - exp(-14.0 * h)), r_dyn, w)
+		vyl = lerpf(vy_kin, vy_dyn, w)
+		# longitudinal: brakes never push through zero
+		var nvx := vx + (ax_t + yaw_rate * vyl * (1.0 if w > 0.0 else 0.0)) * h
+		if brake_dec > 0.0 and vx * nvx < 0.0 and not reversing:
+			nvx = 0.0
+		if handbrake and w <= 0.0:
+			nvx *= exp(-3.0 * h)
+		if vx > vmax and not boosting and vx > base_max:
+			nvx = maxf(base_max, nvx - VehicleSpecs.NITRO_COOL * h)
+		vx = clampf(nvx, -base_max * VehicleSpecs.REVERSE_FRACTION, vmax * 1.02)
+		yaw_rate = clampf(yaw_rate, -3.6, 3.6)
+		heading += yaw_rate * h
+		_ax = lerpf(_ax, ax_t, 1.0 - exp(-8.0 * h))
+		ax_sum += ax_t
+		ay_sum += ay_t if w > 0.0 else yaw_rate * vx
+	var inv := 1.0 / float(n_sub)
+	long_acc = lerpf(long_acc, ax_sum * inv, 1.0 - exp(-10.0 * dt))
+	lat_acc = lerpf(lat_acc, ay_sum * inv, 1.0 - exp(-10.0 * dt))
+	wheelspin = lerpf(wheelspin, spin, 1.0 - exp(-12.0 * dt))
+	var lock := clampf((brake_dec / maxf(float(T["brake"]) * VehicleSpecs.BRAKE_K, 1.0) - 0.8) * 5.0, 0.0, 1.0) * clampf(vx / 8.0, 0.0, 1.0)
+	if handbrake:
+		lock = clampf(vx / 10.0, 0.0, 1.0)
+	var slide := clampf((max_alpha / ap - 1.1) / 1.4, 0.0, 1.0) * clampf((absf(vx) - 3.0) / 7.0, 0.0, 1.0)
+	skid = lerpf(skid, maxf(maxf(slide, wheelspin * 0.8), lock * 0.6 * clampf(vx / 12.0, 0.0, 1.0)), 1.0 - exp(-12.0 * dt))
+	vel = forward() * vx - right() * vyl
+	speed = vx
+	slip = -vyl
+	drifting = absf(vyl) > VehicleSpecs.SMOKE_SLIP and absf(vx) > 6.0
+	steer_in = steer
+	_move(dt)
+	speed = vel.dot(forward())
+	slip = vel.dot(right())
+
+
+func _drive_arcade(dt: float, thr: float, steer: float, handbrake: bool, boost: bool) -> void:
+	var T := spec
+	var vmax: float = float(T["max"]) * (VehicleSpecs.TIRES_SPEED if tires_flat > 0.0 else 1.0)
 	var acc_k := 1.0
 	boosting = boost and thr > 0.05 and nitro > (0.0 if boosting else VehicleSpecs.NITRO_MIN)
 	if boosting:
@@ -498,21 +824,31 @@ func step_drive(dt: float, thr: float, steer: float, handbrake: bool, boost := f
 	speed = vel.dot(fwd)
 
 
-## A car nobody drives (parked, or knocked about): friction, no steering.
+## A car nobody drives (parked, or knocked about): friction, no steering, the spin of a knock dies away.
 func _coast(dt: float) -> void:
-	if vel.length_squared() < 0.01:
+	if vel.length_squared() < 0.01 and absf(yaw_rate) < 0.02:
 		vel = Vector3.ZERO
+		yaw_rate = 0.0
 		speed = 0.0
 		return
 	vel *= exp(-VehicleSpecs.UNPOWERED_DRAG * dt)
+	if absf(yaw_rate) > 0.01:
+		heading += yaw_rate * dt
+		yaw_rate *= exp(-2.2 * dt)
+	else:
+		yaw_rate = 0.0
 	_move(dt)
 	speed = vel.dot(forward())
 	slip = vel.dot(right())
 	braking = false
 
 
-## Move by vel * dt against the world (layer 1): bounce, damage and shake on a hard hit, then slide along the wall for the rest of the step.
+## Move by vel * dt against the world (layer 1): a hit is answered with an impulse (bounce, spin, scrape) and sounds, sparks and damage by its closing speed along the wall
+## normal, then the car slides along the wall for the rest of the step.
 func _move(dt: float) -> void:
+	if _heading_set != heading:                              # the collider turns with the car before it moves
+		rotation.y = heading
+		_heading_set = heading
 	var motion := Vector3(vel.x * dt, 0.0, vel.z * dt)
 	if motion.length_squared() < 1e-10:
 		return
@@ -529,23 +865,79 @@ func _bounce(col: KinematicCollision3D) -> void:
 	if n.length_squared() < 1e-6:
 		return
 	n = n.normalized()
-	var vn := vel.dot(n)
-	if vn < 0.0:
-		vel -= VehicleSpecs.BOUNCE * vn * n
-		var impact := -vn
-		if impact > VehicleSpecs.HIT_SPEED:
-			hits += 1
-			damage(impact * VehicleSpecs.HIT_DAMAGE)
+	var at := col.get_position()
+	if cls == &"car":
+		var vn_com := -vel.dot(n)                                  # the damage follows the speed INTO the wall (the angle counts), not the spin of the outer corner
+		var vimp := impulse_hit(n, at, VehicleSpecs.RESTITUTION, INF)
+		if vimp > VehicleSpecs.HIT_SPEED:
+			vimp = minf(vimp, maxf(vn_com, 0.0) * 1.15)
+			crash(vimp, at, n, INF)
 			if driver_is_player:
-				FX.shake(minf(1.0, impact / 25.0))
-			var at := col.get_position()
+				FX.shake(minf(1.0, vimp / 25.0))
 			FX.burst(Vector3(at.x, 0.8, at.z), Color(1.0, 0.75, 0.38), 8, 5.0, 0.3, 8.0, 0.3)
 			Sfx.play_at(&"hit", global_position, -4.0)
+	else:
+		var vn := vel.dot(n)
+		if vn < 0.0:
+			vel -= VehicleSpecs.BOUNCE * vn * n
+			var impact := -vn
+			if impact > VehicleSpecs.HIT_SPEED:
+				hits += 1
+				damage(impact * VehicleSpecs.HIT_DAMAGE)
+				if driver_is_player:
+					FX.shake(minf(1.0, impact / 25.0))
+				FX.burst(Vector3(at.x, 0.8, at.z), Color(1.0, 0.75, 0.38), 8, 5.0, 0.3, 8.0, 0.3)
+				Sfx.play_at(&"hit", global_position, -4.0)
 	var rem := col.get_remainder()
 	rem -= n * rem.dot(n)
 	rem.y = 0.0
 	if rem.length_squared() > 1e-6:
 		move_and_collide(rem)
+
+
+## Velocity of the hull at world point `at` (the car's velocity plus its spin about the centre).
+func point_velocity(at: Vector3) -> Vector3:
+	var r := Vector3(at.x - global_position.x, 0.0, at.z - global_position.z)
+	return vel + Vector3(yaw_rate * r.z, 0.0, -yaw_rate * r.x)
+
+
+## 1 / m + (r x n)^2 / I: how little a unit impulse along `n` at `at` moves this car (the denominator of the impulse formula).
+func inverse_mass_at(n: Vector3, at: Vector3) -> float:
+	var m := VehicleSpecs.mass_of(kind)
+	var iz := m * (float(spec["len"]) * float(spec["len"]) + float(spec["wid"]) * float(spec["wid"])) / 12.0 * 1.15
+	var r := Vector3(at.x - global_position.x, 0.0, at.z - global_position.z)
+	var rxn := r.z * n.x - r.x * n.z
+	return 1.0 / m + rxn * rxn / iz
+
+
+## Applies the impulse `j` (world, kg m/s) at `at`: changes the velocity and the spin. A car that was following its lane or parked is moved by it like any other.
+func apply_impulse(j: Vector3, at: Vector3) -> void:
+	var m := VehicleSpecs.mass_of(kind)
+	var iz := m * (float(spec["len"]) * float(spec["len"]) + float(spec["wid"]) * float(spec["wid"])) / 12.0 * 1.15
+	var r := Vector3(at.x - global_position.x, 0.0, at.z - global_position.z)
+	vel += Vector3(j.x, 0.0, j.z) / m
+	yaw_rate = clampf(yaw_rate + (r.z * j.x - r.x * j.z) / iz, -4.0, 4.0)
+	speed = vel.dot(forward())
+
+
+## Rigid impulse of a wall contact at world point `at` with normal `n` (pointing into this car): changes this car's velocity AND its spin (a hit off the centre line turns the car)
+## and scrapes some speed off along the wall. Returns the closing speed along the normal (0 when it was separating). Car against car is VehicleManager.collide_cars.
+func impulse_hit(n: Vector3, at: Vector3, e: float, _other_mass: float) -> float:
+	var m := VehicleSpecs.mass_of(kind)
+	var iz := m * (float(spec["len"]) * float(spec["len"]) + float(spec["wid"]) * float(spec["wid"])) / 12.0 * 1.15
+	var r := Vector3(at.x - global_position.x, 0.0, at.z - global_position.z)
+	var rxn := r.z * n.x - r.x * n.z
+	var vrel := point_velocity(at).dot(n)
+	if vrel >= 0.0:
+		return 0.0
+	var j := -(1.0 + e) * vrel / (1.0 / m + rxn * rxn / iz)
+	vel += n * (j / m)
+	yaw_rate = clampf(yaw_rate + j * rxn / iz, -4.0, 4.0)
+	var t := Vector3(-n.z, 0.0, n.x)                          # scraping along the surface costs speed
+	var vt := vel.dot(t)
+	var dvt := minf(absf(vt), VehicleSpecs.WALL_FRICTION * j / m) * signf(vt)
+	vel -= t * dvt
+	return -vrel
 
 
 # --- traffic AI ---------------------------------------------------------------------------------------------------------
@@ -613,7 +1005,7 @@ func _blocked(fx: float, fz: float, siren := false) -> bool:
 		if _ahead(pl.global_position - me, fx, fz, side):
 			return true
 	var mgr := manager as VehicleManager
-	if mgr != null:
+	if mgr != null and not (ai_panic > 1.0 and not siren):            # a car in flight does not brake for the traffic ahead: that is how AI cars crash into each other
 		for o in mgr.list:
 			if o != self and o.active and not o.dead and _ahead(o.global_position - me, fx, fz, side):
 				return true
@@ -737,6 +1129,11 @@ func _chase_step(dt: float) -> void:
 		return
 	var thr := 1.0
 	var steer := clampf(-err * 2.4, -1.0, 1.0)
+	var shadow := cop and Game.heat < VehicleSpecs.COP_RAM_HEAT            # low heat: the interceptor tails him with the siren on, no ramming
+	if shadow and dist < 14.0:
+		var pcar0: Object = pl.get(&"vehicle")
+		var psp := (pcar0 as Vehicle).speed if pcar0 is Vehicle else 0.0
+		thr = clampf((psp - speed) * 0.3 + 0.1, -1.0, 0.6)
 	if _rev > 0.0:
 		_rev -= dt
 		thr = -1.0
@@ -751,9 +1148,9 @@ func _chase_step(dt: float) -> void:
 				_rev = 0.9
 		else:
 			_stuck = 0.0
-	step_drive(dt, thr, steer, false, tactic == &"ram" and dist > 25.0)
+	step_drive(dt, thr, steer, false, tactic == &"ram" and dist > 25.0 and not shadow)
 	_ram_cd -= dt
-	if dist < 3.4 and absf(speed) > 6.0 and _ram_cd <= 0.0:
+	if dist < 3.4 and absf(speed) > 6.0 and _ram_cd <= 0.0 and not shadow:
 		_ram(pl)
 	_chase_siren(dt)
 
@@ -776,7 +1173,7 @@ func chase_goal() -> Vector3:
 		pv = (pcar as Vehicle).vel
 	pv.y = 0.0
 	var sp := pv.length()
-	if sp < 3.0 or tactic == &"ram":
+	if sp < 3.0 or tactic == &"ram" or (cop and Game.heat < VehicleSpecs.COP_RAM_HEAT):
 		return pp
 	var dir := pv / sp
 	var side := Vector3(-dir.z, 0.0, dir.x)
@@ -788,12 +1185,25 @@ func chase_goal() -> Vector3:
 	return pp + dir * (VehicleSpecs.BLOCK_AHEAD * clampf(sp / 25.0, 0.6, 1.4))
 
 
+## A spike strip got the tyres: slow, loose, a little hull damage, sparks and a bang. Police cars drive over their own strips.
+func blow_tires() -> void:
+	if tires_flat > 0.0 or cop or dead:
+		return
+	tires_flat = VehicleSpecs.TIRES_TIME
+	hp = maxf(hp - VehicleSpecs.TIRES_DAMAGE, 1.0)
+	FX.burst(global_position + Vector3(0.0, 0.3, 0.0), Color(1.0, 0.8, 0.4), 12, 6.0, 0.4, 5.0, 0.3)
+	Sfx.play_at(&"hit", global_position, -2.0)
+	if driver_is_player:
+		FX.shake(0.4)
+		Game.say("TYRES SHOT")
+
+
 ## A ram: the player (or the car he drives, through Player.damage) loses PATROL_RAM_DAMAGE, the patrol rebounds.
 func _ram(pl: Node) -> void:
 	_ram_cd = VehicleSpecs.PATROL_RAM_COOLDOWN
 	ram_hits += 1
 	if pl.has_method(&"damage"):
-		pl.call(&"damage", VehicleSpecs.PATROL_RAM_DAMAGE, global_position)
+		pl.call(&"damage", VehicleSpecs.PATROL_RAM_DAMAGE * (VehicleSpecs.COP_RAM_FACTOR if cop else 1.0), global_position)
 	vel *= -0.35
 	speed = vel.dot(forward())
 	FX.burst(global_position + Vector3(0.0, 0.9, 0.0) + forward() * 2.0, Color(0.6, 1.0, 0.4), 8, 5.0, 0.3, 8.0, 0.3)
@@ -806,23 +1216,56 @@ func _sync(dt: float) -> void:
 	if _heading_set != heading:
 		rotation.y = heading
 		_heading_set = heading
+	impact_t += dt
 	var moving := absf(speed) > 0.05
-	if moving or absf(_steer_vis) > 0.01:
+	var yaw_est := wrapf(heading - _prev_h, -PI, PI) / maxf(dt, 0.0001)
+	if cls == &"car":
+		var steer_vis := steer_angle if driver_is_player else clampf(atan(yaw_est * float(VehicleSpecs.wheelbase(kind)) / maxf(absf(speed), 2.0)), -0.5, 0.5)
+		if moving or absf(_steer_vis) > 0.01:
+			_steer_vis = _damp(_steer_vis, steer_vis, 14.0, dt)
+			visual.spin(speed * dt, _steer_vis)
+	elif moving or absf(_steer_vis) > 0.01:
 		_steer_vis = _damp(_steer_vis, steer_in * 0.5, 10.0, dt)
 		visual.spin(speed * dt, _steer_vis)
 	if cls == &"bike":
 		_sync_bike(dt)
 	elif cls == &"hover":
 		_sync_hover(dt)
-	elif driver_is_player:
-		var acc := (speed - _last_vf) / maxf(dt, 0.0001)
-		_lean_p = _damp(_lean_p, clampf(acc * 0.0016, -0.035, 0.035), 6.0, dt)
-		_lean_r = _damp(_lean_r, clampf(-slip * 0.01, -0.06, 0.06), 6.0, dt)
-		visual.model.rotation = Vector3(_lean_p, 0.0, _lean_r)
+	elif driver_is_player or _dist < 70.0:
+		_sync_body(dt, yaw_est)
 	_last_vf = speed
 	_prev_h = heading
 	_apply_lights()
 	_finish_fx(dt)
+
+
+## Body motion of a car: a spring-damper per axis driven by the accelerations (nose dives under braking, squats under power, leans out of a corner, rocks after a hit).
+func _sync_body(dt: float, yaw_est: float) -> void:
+	var acc := long_acc
+	var lat := lat_acc
+	if not driver_is_player:
+		acc = (speed - _last_vf) / maxf(dt, 0.0001)
+		long_acc = _damp(long_acc, clampf(acc, -14.0, 10.0), 8.0, dt)
+		lat_acc = _damp(lat_acc, clampf(yaw_est * speed, -12.0, 12.0), 8.0, dt)
+		acc = long_acc
+		lat = lat_acc
+	var tp := clampf(acc * VehicleSpecs.BODY_PITCH, -VehicleSpecs.BODY_PITCH_MAX, VehicleSpecs.BODY_PITCH_MAX)
+	var tr := clampf(-lat * VehicleSpecs.BODY_ROLL, -VehicleSpecs.BODY_ROLL_MAX, VehicleSpecs.BODY_ROLL_MAX)
+	var left := minf(dt, 0.05)
+	while left > 0.0:
+		var h := minf(left, 0.012)
+		_pitch_v += (225.0 * (tp - _pitch) - 13.0 * _pitch_v) * h
+		_pitch += _pitch_v * h
+		_roll_v += (225.0 * (tr - _roll) - 13.0 * _roll_v) * h
+		_roll += _roll_v * h
+		_heave_v += (160.0 * (0.0 - _heave) - 9.0 * _heave_v) * h
+		_heave += _heave_v * h
+		left -= h
+	_pitch = clampf(_pitch, -0.14, 0.14)
+	_roll = clampf(_roll, -0.16, 0.16)
+	_heave = clampf(_heave, -0.14, 0.1)
+	visual.model.rotation = Vector3(_pitch, 0.0, _roll - 0.02 * visual.deform)
+	visual.model.position = Vector3(0.0, _heave - 0.05 * visual.deform, 0.0)
 
 
 ## Bike: the body rolls into the turn, lean = atan(v * yaw rate / g), for the player's bike and for traffic alike.

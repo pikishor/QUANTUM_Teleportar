@@ -65,7 +65,7 @@ func _starter_and_visuals() -> void:
 	TestLib.check(s != null and s.kind == &"sport" and mgr.list.size() == 1, "the starter sport car exists")
 	if s == null:
 		return
-	TestLib.check(s.hp == 100.0 and s.max_hp == 100.0 and s.is_in_group(&"vehicle") and s.collision_layer == Game.L_VEHICLE, "sport hp 100, group vehicle, collider on layer 8")
+	TestLib.check(s.hp == 250.0 and s.max_hp == 250.0 and s.is_in_group(&"vehicle") and s.collision_layer == Game.L_VEHICLE, "sport hp 250, group vehicle, collider on layer 8")
 	TestLib.check(s.global_position.distance_to(VehicleSpecs.starter_pos()) < 0.1 and s.global_position.distance_to(Game.SPAWN) < 14.0, "the starter car stands near the spawn")
 	TestLib.check(mgr.nearest(s.global_position + Vector3(2.0, 0.0, 1.0)) == s and mgr.nearest(Vector3(500.0, 0.0, 500.0)) == null, "nearest() finds it within reach and nothing far away")
 	TestLib.check(s.visual.model.scale == Vector3.ONE and s.visual.uses_model, "the real model is used and never scaled")
@@ -93,12 +93,12 @@ func _physics_numbers() -> void:
 	car.global_position = Vector3(40.0, 0.0, -40.0)
 	_run_drive(car, 1.0, 1.0, 0.0)
 	var sport_max: float = VehicleSpecs.SPECS[&"sport"]["max"]
-	TestLib.check(car.speed > sport_max * 0.3 and car.speed < sport_max * 0.7, "sport from rest: %.1f m/s after 1 s of throttle (about 12)" % car.speed)
-	_run_drive(car, 9.0, 1.0, 0.0)
+	TestLib.check(car.speed > 4.0 and car.speed < sport_max * 0.5, "sport from rest: %.1f m/s after 1 s of throttle (first gear, about 8)" % car.speed)
+	_run_drive(car, 12.0, 1.0, 0.0)
 	TestLib.check(car.speed > sport_max * 0.9 and car.speed <= sport_max + 0.01, "sport top speed approaches %.0f m/s (%.1f)" % [sport_max, car.speed])
 	var sp := car.speed
 	_run_drive(car, 0.5, -1.0, 0.0)
-	TestLib.check(car.speed < sp - 20.0, "braking takes 48 m/s2 (%.1f -> %.1f in 0.5 s)" % [sp, car.speed])
+	TestLib.check(car.speed < sp - 6.5, "braking takes about 15 m/s2 (%.1f -> %.1f in 0.5 s)" % [sp, car.speed])
 	_run_drive(car, 3.0, -1.0, 0.0)
 	TestLib.check(car.speed < 0.0 and car.speed >= -50.0 * VehicleSpecs.REVERSE_FRACTION - 0.01, "reverse is capped at 35 %% of max (%.1f)" % car.speed)
 	car.vel = Vector3.ZERO
@@ -120,9 +120,9 @@ func _physics_numbers() -> void:
 	var sedan := mgr.spawn_parked(&"sedan", Vector3(40.0, 0.0, 30.0), -PI * 0.5)
 	_run_drive(sedan, 12.0, 1.0, 0.0)
 	var sedan_max: float = VehicleSpecs.SPECS[&"sedan"]["max"]
-	TestLib.check(sedan.speed > sedan_max * 0.9 and sedan.speed <= sedan_max + 0.01 and sedan.max_hp == 120.0, "sedan top speed %.0f m/s, hp 120 (%.1f)" % [sedan_max, sedan.speed])
+	TestLib.check(sedan.speed > sedan_max * 0.9 and sedan.speed <= sedan_max + 0.01 and sedan.max_hp == 300.0, "sedan top speed %.0f m/s, hp 300 (%.1f)" % [sedan_max, sedan.speed])
 	var suv := mgr.spawn_parked(&"suv", Vector3(40.0, 0.0, 60.0), -PI * 0.5)
-	TestLib.check(suv != null and suv.max_hp == 150.0 and suv.visual.uses_model, "the SUV spawns with its own model and hp")
+	TestLib.check(suv != null and suv.max_hp == 375.0 and suv.visual.uses_model, "the SUV spawns with its own model and hp")
 	_extras()
 
 
@@ -152,7 +152,7 @@ func _enter_wall_exit() -> void:
 		min_speed = minf(min_speed, s.speed)
 		max_shake = maxf(max_shake, FX.shake_amount)
 	Input.action_release(&"move_forward")
-	TestLib.check(s.hp < 90.0 and s.hp > 0.0 and s.hits >= 1, "hitting the wall hurts the car (hp %.0f)" % s.hp)
+	TestLib.check(s.hp < s.max_hp - 3.0 and s.hp > 0.0 and s.hits >= 1, "hitting the wall hurts the car, a 10 m run-up does not wreck it (hp %.0f / %.0f)" % [s.hp, s.max_hp])
 	TestLib.check(min_speed < -1.0, "the wall bounces the car back (min speed %.1f)" % min_speed)
 	TestLib.check(max_shake > 0.3, "a hard hit shakes the camera (%.2f)" % max_shake)
 	TestLib.check(s.global_position.x < -12.0, "the car stays outside the wall (x %.1f)" % s.global_position.x)
@@ -181,7 +181,7 @@ func _drive_in_the_open() -> void:
 	var x0 := car.global_position.x
 	Input.action_press(&"move_forward")
 	await e.secs(1.5)
-	TestLib.check(car.global_position.x - x0 > 7.0 and car.speed > 6.0, "holding forward drives the car (%.0f m, %.1f m/s)" % [car.global_position.x - x0, car.speed])
+	TestLib.check(car.global_position.x - x0 > 5.0 and car.speed > 5.0, "holding forward drives the car (%.0f m, %.1f m/s)" % [car.global_position.x - x0, car.speed])
 	TestLib.check(p.global_position.distance_to(car.global_position) < 0.6, "the player node rides with the car")
 	TestLib.check(absf(car.rotation.y - car.heading) < 1e-4, "the root rotates with the heading")
 	var h0 := car.heading
@@ -274,9 +274,9 @@ func _damage_and_respawn() -> void:
 	var neighbour := mgr.spawn_parked(&"sedan", spot + Vector3(8.0, 0.0, 0.0), 0.0)
 	var dummy := Fixture.add_dummy(root, spot + Vector3(0.0, 0.0, 4.0), 0.9, false)
 	car.damage(30.0)
-	TestLib.check(is_equal_approx(car.hp, 90.0) and not car.dead, "damage lowers hp (120 -> %.0f)" % car.hp)
+	TestLib.check(is_equal_approx(car.hp, car.max_hp - 30.0) and not car.dead, "damage lowers hp (%.0f -> %.0f)" % [car.max_hp, car.hp])
 	car.damage(-5.0)
-	TestLib.check(is_equal_approx(car.hp, 90.0), "negative damage is ignored")
+	TestLib.check(is_equal_approx(car.hp, car.max_hp - 30.0), "negative damage is ignored")
 	car.damage(1000.0)
 	TestLib.check(car.dead and not car.active and not car.is_in_group(&"vehicle") and not mgr.list.has(car), "a destroyed car leaves play and the group")
 	TestLib.check(Game.heat >= 0.19, "destroying a car adds heat (%.2f)" % Game.heat)
@@ -320,8 +320,8 @@ func _ramming() -> void:
 	_extras()
 	var car := mgr.spawn_parked(&"sport", Vector3(100.0, 0.0, 100.0), -PI * 0.5)
 	await e.prep(car.global_position + Vector3(0.0, 0.0, -3.0), 0.0)
-	var d1 := Fixture.add_dummy(root, Vector3(135.0, 0.0, 100.0), 0.9, false)
-	var d2 := Fixture.add_dummy(root, Vector3(135.0, 0.0, 112.0), 0.9, false)
+	var d1 := Fixture.add_dummy(root, Vector3(125.0, 0.0, 100.0), 0.9, false)
+	var d2 := Fixture.add_dummy(root, Vector3(125.0, 0.0, 112.0), 0.9, false)
 	Game.heat = 0.0
 	mgr.toggle_enter_exit()
 	await e.frames(2)
