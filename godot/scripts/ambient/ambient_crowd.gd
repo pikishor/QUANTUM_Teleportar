@@ -40,6 +40,14 @@ const BUS_STAY := Vector2(10.0, 24.0)
 const STOP_MID := 51.3                   ## middle of a sidewalk span, in line coordinates (from the span's road crossing)
 const STOP_SHOP := 1
 const STOP_BUS := 2
+const HP := 28.0                         ## a person's health: two body hits of the carbine, one head hit (a shot at the head is 2x), a blast kills outright
+const DIE_TIME := 1.6                    ## seconds from the hit to the last mote: fall (first FALL_AT), lie, then dissolve into quantum light (from DISSOLVE_FROM)
+const FALL_AT := 0.2
+const DISSOLVE_FROM := 0.6
+const BODY_R := 0.36                     ## the hit cylinder of a standing person (the carbine's ray must find them in the street)
+const BODY_H := 1.85
+const HEAD_FROM := 1.45                  ## a hit above this is a head shot
+const DISSOLVE_COLOR := Color(0.55, 0.95, 1.0)
 const LOOK_ALONG := 0                    ## facing: along the walking direction / sideways (+ or - lateral) / along the line (+ or -)
 const LOOK_LAT_POS := 1
 const LOOK_LAT_NEG := 2
@@ -81,6 +89,10 @@ var _goal := PackedFloat32Array()        ## the next stop (position along the li
 var _gkind := PackedByteArray()          ## 0 none, STOP_SHOP, STOP_BUS
 var _stopk := PackedByteArray()          ## the kind of the last stop person i made (shop / bus), for the right bark
 var _hide := PackedByteArray()           ## 1: this person is drawn by a real 3D actor (CitizenActors), the MultiMesh skips them
+var _hp := PackedFloat32Array()          ## health per person (HP at spawn)
+var _dying := PackedFloat32Array()       ## seconds of the death left (0 = not dying): the person stands still, falls, dissolves; then the slot is free and respawns elsewhere
+var _fall := PackedFloat32Array()        ## +1 falls backwards, -1 forwards
+var killed_total := 0                    ## people killed so far (tests, stats); a dying person is not alive (is_alive) and is not scared, promoted or drawn by a 3D actor
 var _lingers := 0                        ## stops made at shops / bus stops so far (tests, debugging)
 
 
@@ -104,8 +116,9 @@ func build(light_map: Texture2D) -> void:
 	_gkind.resize(BUILT)
 	_stopk.resize(BUILT)
 	_hide.resize(BUILT)
-	for a: PackedFloat32Array in [_cower, _goal]:
+	for a: PackedFloat32Array in [_cower, _goal, _hp, _dying, _fall]:
 		a.resize(BUILT)
+	_hp.fill(HP)
 	_buf.resize(BUILT * STRIDE)
 	for i in BUILT:
 		_seed[i] = (float(i % ARCHETYPES) + 0.02 + 0.96 * rng.randf()) / float(ARCHETYPES)        # archetype = i % 6 (an even mix), the rest of the seed picks the palette
@@ -189,6 +202,8 @@ func reset() -> void:
 		_alive[i] = 0
 		_first[i] = 1
 	_hide.fill(0)
+	_dying.fill(0.0)
+	_hp.fill(HP)
 	_fled = 0
 
 
@@ -202,7 +217,7 @@ func scare_from(pos: Vector3, r: float) -> int:
 	var r2 := r * r
 	var n := 0
 	for i in count:
-		if _alive[i] == 0:
+		if _alive[i] == 0 or _dying[i] > 0.0:
 			continue
 		var p := _position(i)
 		var dx := p.x - pos.x
@@ -364,13 +379,17 @@ func person_yaw(i: int) -> float:
 
 
 func person_speed(i: int) -> float:
-	if _idle[i] > 0.0 or _cower[i] > 0.0:
+	if _idle[i] > 0.0 or _cower[i] > 0.0 or _dying[i] > 0.0:
 		return 0.0
 	return FLEE_SPEED if _flee[i] > 0.0 else _spd[i]
 
 
 func is_alive(i: int) -> bool:
-	return _alive[i] != 0
+	return _alive[i] != 0 and _dying[i] <= 0.0
+
+
+func is_dying(i: int) -> bool:
+	return _alive[i] != 0 and _dying[i] > 0.0
 
 
 func is_fleeing(i: int) -> bool:
@@ -403,6 +422,124 @@ func alive_count() -> int:
 	for i in count:
 		n += _alive[i]
 	return n
+
+
+# --- being shot (scripts/npc/npc_life.gd decides the consequences) -----------------------------------------------------------
+
+## Pose of a dying person: x the fall angle about the body's side axis (radians), y the scale (1 -> 0 while the body dissolves), z the lift of the origin.
+func death_pose(i: int) -> Vector3:
+	if _dying[i] <= 0.0:
+		return Vector3(0.0, 1.0, 0.0)
+	var t := 1.0 - _dying[i] / DIE_TIME
+	var f := smoothstep(0.0, FALL_AT, t)
+	var dis := smoothstep(DISSOLVE_FROM, 1.0, t)
+	return Vector3(_fall[i] * f * (PI * 0.5 - 0.1), 1.0 - dis, 0.12 * f - 0.25 * dis)
+
+
+## Death progress 0..1 of person i (0 not dying): tests and the look bots read it.
+func death_t(i: int) -> float:
+	return 0.0 if _dying[i] <= 0.0 else 1.0 - _dying[i] / DIE_TIME
+
+
+func _tick_dying(i: int, delta: float, center: Vector3, r2: float) -> void:
+	var was := 1.0 - _dying[i] / DIE_TIME
+	_dying[i] -= delta
+	_age[i] += delta
+	var now := 1.0 - _dying[i] / DIE_TIME
+	var p := _position(i)
+	if was < DISSOLVE_FROM and now >= DISSOLVE_FROM:                       # the body starts to come apart: a column of quantum light
+		FX.burst(p + Vector3(0.0, 0.9, 0.0), DISSOLVE_COLOR, 16, 3.5, 0.9, -1.2, 1.4)
+	if _dying[i] <= 0.0:
+		_dying[i] = 0.0
+		_alive[i] = 0
+		_hide[i] = 0
+		_write(i, 0.0, false)
+		return
+	var dx := p.x - center.x
+	var dz := p.z - center.z
+	_write(i, 1.0, dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS)
+
+
+## First person a ray hits within `max_t` metres: Vector3(index, t, 1 for a head shot else 0), index -1 when nobody is hit. A person is a vertical cylinder; nobody is hit from inside it.
+func ray(origin: Vector3, dir: Vector3, max_t: float) -> Vector3:
+	var best := Vector3(-1.0, max_t, 0.0)
+	var a := dir.x * dir.x + dir.z * dir.z
+	if a < 1.0e-6:
+		return best
+	var reach := max_t + BODY_R + 1.0
+	for i in count:
+		if _alive[i] == 0 or _dying[i] > 0.0:
+			continue
+		var p := _position(i)
+		var ox := origin.x - p.x
+		var oz := origin.z - p.z
+		if ox * ox + oz * oz > reach * reach:
+			continue
+		var h := _size[i]
+		var b := 2.0 * (ox * dir.x + oz * dir.z)
+		var c := ox * ox + oz * oz - BODY_R * BODY_R
+		if c < 0.0:
+			continue
+		var disc := b * b - 4.0 * a * c
+		if disc < 0.0:
+			continue
+		var t := (-b - sqrt(disc)) / (2.0 * a)
+		if t < 0.0 or t >= best.y:
+			continue
+		var y := origin.y + dir.y * t - p.y
+		if y < 0.0 or y > BODY_H * h:
+			continue
+		best = Vector3(float(i), t, 1.0 if y > HEAD_FROM * h else 0.0)
+	return best
+
+
+## Person i takes `amount` from a source at `from`. Returns true when it killed. A hurt survivor runs.
+func damage_person(i: int, amount: float, from: Vector3) -> bool:
+	if _alive[i] == 0 or _dying[i] > 0.0:
+		return false
+	_hp[i] -= amount
+	if _hp[i] <= 0.0:
+		kill_person(i, from)
+		return true
+	scare_person(i, from)
+	return false
+
+
+## Person i dies now: stands still, falls away from `from`, dissolves (see death_pose), then the slot respawns elsewhere.
+func kill_person(i: int, from: Vector3) -> void:
+	if _alive[i] == 0 or _dying[i] > 0.0:
+		return
+	var p := _position(i)
+	var f := _forward(i)
+	var to_src := Vector2(from.x - p.x, from.z - p.z)
+	_fall[i] = 1.0 if (to_src.dot(f) > 0.0 or to_src.length() < 0.1) else -1.0       # shot from the front: falls on the back; from behind: on the face
+	_hp[i] = 0.0
+	_dying[i] = DIE_TIME
+	_flee[i] = 0.0
+	_cower[i] = 0.0
+	_idle[i] = 0.0
+	_look[i] = LOOK_ALONG
+	_gkind[i] = 0
+	killed_total += 1
+	FX.burst(p + Vector3(0.0, 1.1, 0.0), DISSOLVE_COLOR, 10, 4.5, 0.45, 1.0, 1.1)       # the hit: a puff of light at the chest, the body follows
+
+
+## Everybody within `r` metres (flat) of `pos` takes `amount` (a blast, a swing, a car); returns the killed. Damage falls off to 40 % at the edge.
+func damage_in_radius(pos: Vector3, r: float, amount: float) -> int:
+	var killed := 0
+	var r2 := r * r
+	for i in count:
+		if _alive[i] == 0 or _dying[i] > 0.0:
+			continue
+		var p := _position(i)
+		var dx := p.x - pos.x
+		var dz := p.z - pos.z
+		var d2 := dx * dx + dz * dz
+		if d2 >= r2:
+			continue
+		if damage_person(i, amount * (1.0 - 0.6 * sqrt(d2) / maxf(r, 0.01)), pos):
+			killed += 1
+	return killed
 
 
 static func _region(u: float) -> int:
@@ -444,6 +581,8 @@ func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
 		_age[i] = 0.0
 		_reg[i] = _region(u)
 		_alive[i] = 1
+		_hp[i] = HP
+		_dying[i] = 0.0
 		_look[i] = LOOK_ALONG
 		_cower[i] = 0.0
 		_assign_goal(i)
@@ -477,6 +616,8 @@ func _spawn_group(i: int) -> void:
 		_idle[j] = stay + rng.randf_range(-2.0, 3.0)
 		_reg[j] = _region(_u[j])
 		_alive[j] = 1
+		_hp[j] = HP
+		_dying[j] = 0.0
 		_look[j] = LOOK_ALONG
 		_cower[j] = 0.0
 		_gkind[j] = 0
@@ -496,6 +637,9 @@ func step(delta: float, center: Vector3) -> void:
 				if _spawn(i, center, MIN_SPAWN if _first[i] == 1 else radius * RESPAWN_MIN):
 					_first[i] = 0
 			_write(i, 0.0, false)
+			continue
+		if _dying[i] > 0.0:
+			_tick_dying(i, delta, center, r2)
 			continue
 		var fleeing := _flee[i] > 0.0
 		var sp := FLEE_SPEED if fleeing else _spd[i]
@@ -592,22 +736,32 @@ func _fill(buf: PackedFloat32Array, o: int, i: int, fade: float) -> void:
 		k = 0.0
 		s = 0.0
 		c = 0.0
-	# Basis(UP, yaw) scaled by k, row-major 3x4: [c 0 s x; 0 1 0 y; -s 0 c z]
+	var ca := 1.0
+	var sa := 0.0
+	var lift := 0.0
+	var dying := _dying[i] > 0.0
+	if dying:
+		var pose := death_pose(i)
+		ca = cos(pose.x)
+		sa = sin(pose.x)
+		k *= pose.y
+		lift = pose.z
+	# Basis(UP, yaw) * Basis(RIGHT, fall angle), scaled by k, row-major 3x4: standing it is [c 0 s x; 0 1 0 y; -s 0 c z]; a fallen person lies along the walking line
 	buf[o] = c * k
-	buf[o + 1] = 0.0
-	buf[o + 2] = s * k
+	buf[o + 1] = s * sa * k
+	buf[o + 2] = s * ca * k
 	buf[o + 3] = x
 	buf[o + 4] = 0.0
-	buf[o + 5] = k
-	buf[o + 6] = 0.0
-	buf[o + 7] = 0.0
+	buf[o + 5] = ca * k
+	buf[o + 6] = -sa * k
+	buf[o + 7] = lift
 	buf[o + 8] = -s * k
-	buf[o + 9] = 0.0
-	buf[o + 10] = c * k
+	buf[o + 9] = c * sa * k
+	buf[o + 10] = c * ca * k
 	buf[o + 11] = z
 	buf[o + 16] = _seed[i]
 	buf[o + 17] = _phase[i]
-	buf[o + 18] = 0.0 if ((_idle[i] > 0.0 or _cower[i] > 0.0) and _flee[i] <= 0.0) else 0.5 + 0.38 * (FLEE_SPEED if _flee[i] > 0.0 else _spd[i])
+	buf[o + 18] = 0.0 if (dying or ((_idle[i] > 0.0 or _cower[i] > 0.0) and _flee[i] <= 0.0)) else 0.5 + 0.38 * (FLEE_SPEED if _flee[i] > 0.0 else _spd[i])
 	if _cower[i] > 0.0 and _flee[i] <= 0.0:
 		buf[o + 18] = -1.0                                           # the shader crouches them, hands over the head
 	# w: bit 0 umbrella, bit 1 (+2) a chatting group (standing, not at a shop / stop, not looking anywhere): the shader gestures and nods

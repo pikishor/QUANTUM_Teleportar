@@ -62,4 +62,5 @@ const S := {
 	"INVENTORY FULL": "भंडार भरा है",
 	"BLUEPRINT NOT FOUND": "ब्लूप्रिंट नहीं मिला",
 	"UNKNOWN": "अज्ञात",
+	"CIVILIANS": "नागरिक",
 }

@@ -33,6 +33,13 @@ const CALL_HEAT_CAP := 2.5
 const BLAST_REACH := 5.0                 ## blast radius multiplier for the run-away zone (min BLAST_MIN)
 const BLAST_MIN := 28.0
 const CAR_SPEED := 7.0                   ## vehicles slower than this do not scare anybody
+const KILL_HEAT := 0.4                   ## a civilian killed by the player: heat (3 kills draw the patrol)
+const HURT_HEAT := 0.05                  ## ... one that is only wounded
+const KILL_CREDITS := Vector2i(4, 14)    ## credits a fallen citizen leaves (the Progress wallet, no pickup node)
+const PART_CHANCE := 0.35                ## ... and sometimes a weapon part (silent: no toast, the owner has enough text on screen)
+const RUNOVER_SPEED := 8.0               ## a vehicle faster than this kills the person it hits (GTA)
+const RUNOVER_REACH := 1.7
+const SCATTER_ON_KILL := 34.0            ## everybody this close to a killing runs
 const POOL := 100
 const EXCHANGE_CHANCE := 0.4             ## a chatting / lingering person starts a 2-3 line exchange this often
 const EXCHANGE_GAP := 3.4                ## seconds between the lines of an exchange
@@ -50,6 +57,11 @@ var car_scares := 0
 var blasts_seen := 0
 var exchanges := 0                       ## 2-3 line exchanges started
 var theft_seen := 0                      ## vehicle thefts noted (COMMANDEERED)
+var civilians_killed := 0                ## people killed by anybody (shots, blasts, swings, cars)
+var civilians_hurt := 0
+var credits_dropped := 0
+var parts_dropped := 0
+var witness_calls := 0
 var barks := 0                    ## alien calls voiced through Sfx.bark
 
 var _promote_t := 0.0
@@ -226,6 +238,7 @@ func _scan_vehicles() -> void:
 	var vm: Object = Game.vehicles
 	if vm == null or actors.is_empty():
 		return
+	_runover(vm)
 	var list: Array = vm.get("list") as Array
 	for v: Variant in list:
 		if not is_instance_valid(v):
@@ -242,6 +255,68 @@ func _scan_vehicles() -> void:
 			if Vector2(p.x - vp.x, p.z - vp.z).length() < reach:
 				crowd.scare_person(i, vp)
 				car_scares += 1
+
+
+## A fast vehicle kills the actor it hits (the nearest 12 are the only ones near enough to matter).
+func _runover(vm: Object) -> void:
+	if not Game.civilian_casualties:
+		return
+	for v: Variant in vm.get("list") as Array:
+		if not is_instance_valid(v):
+			continue
+		var speed := absf(float(v.get("speed")))
+		if speed < RUNOVER_SPEED:
+			continue
+		var vp: Vector3 = (v as Node3D).global_position
+		for i in actors:
+			if not crowd.is_alive(i):
+				continue
+			var p: Vector3 = crowd.person_position(i)
+			if Vector2(p.x - vp.x, p.z - vp.z).length() < RUNOVER_REACH:
+				crowd.kill_person(i, vp)
+				on_civilian_down(i, vp, bool(v.get("driver_is_player")), &"car")
+
+
+## Somebody hurt person `i` (not killed) at `pos`: a yelp, the street runs, a little heat when the hero did it.
+func on_civilian_hurt(i: int, pos: Vector3, by_player: bool) -> void:
+	civilians_hurt += 1
+	_voice(&"yelp", i)
+	if by_player:
+		Game.add_heat(HURT_HEAT)
+	_after_scare(pos, pos, CLOSE)
+
+
+## Person `i` died at `pos` of `cause` (gun, blast, melee, car). The consequences: a scream, the street scatters, witnesses cower and may call the patrol, heat when the hero did it,
+## and a few credits and maybe a part dropped straight into the wallet. Nothing is printed on screen.
+func on_civilian_down(i: int, pos: Vector3, by_player: bool, cause: StringName) -> void:
+	civilians_killed += 1
+	_voice(&"yelp", i)
+	Sfx.play_at(&"civ_dissolve", pos, -4.0, rng.randf_range(0.9, 1.1))
+	crowd.scare_from(pos, SCATTER_ON_KILL)
+	var calls0 := calls
+	var pp := pos
+	if is_instance_valid(Game.player):
+		pp = (Game.player as Node3D).global_position
+	if by_player:
+		Game.add_heat(KILL_HEAT)
+		_call_cd = 0.0
+		_after_scare(pos, pp, CLOSE * 1.5)
+		if calls == calls0 and crowd.count_near(pos, CALL_RADIUS) > 0:
+			_try_call(pp)
+	witness_calls += calls - calls0
+	if by_player and cause != &"car":
+		var amount := rng.randi_range(KILL_CREDITS.x, KILL_CREDITS.y)
+		var prog := Game.progress
+		if prog != null and prog.has_method(&"add_credits"):
+			prog.call(&"add_credits", amount)
+			credits_dropped += amount
+		if rng.randf() < PART_CHANCE:
+			var d := Crafting.roll_drop(&"loot", Crafting.rng)
+			for id: StringName in d["parts"]:
+				Crafting.add_part(id, int(d["parts"][id]))
+				parts_dropped += int(d["parts"][id])
+		FX.burst(pos + Vector3(0.0, 0.5, 0.0), Color(1.0, 0.85, 0.35), 6, 3.0, 0.5, 4.0, 0.9)
+		Sfx.play(&"credit", -8.0)
 
 
 ## The proximity prompt: the nearest actor within TALK_RANGE says one line (barks / rumours; scared or wanted lines by the situation).
@@ -335,4 +410,4 @@ func _say(text: String, seconds: float) -> void:
 
 
 func stats() -> Dictionary:
-	return {"actors": actors.size(), "calls": calls, "lines": lines_said, "reactions": reactions, "car_scares": car_scares, "blasts": blasts_seen, "barks": barks, "exchanges": exchanges}
+	return {"killed": civilians_killed, "hurt": civilians_hurt, "credits": credits_dropped, "parts": parts_dropped, "witness_calls": witness_calls, "actors": actors.size(), "calls": calls, "lines": lines_said, "reactions": reactions, "car_scares": car_scares, "blasts": blasts_seen, "barks": barks, "exchanges": exchanges}

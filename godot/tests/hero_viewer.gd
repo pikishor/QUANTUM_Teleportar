@@ -51,6 +51,8 @@ func _ready() -> void:
 	_body.apply_look(look)
 	print("VIEWER hero ", look.body, look.skin_tone, look.hair, " ", _body._hero_opts, " inside ", _body.is_inside_tree(), " args ", _args)
 	_body.set_quality(int(_args.get("q", "1")))
+	if _args.has("weapon"):
+		_body.set_weapon_look(StringName(str(_args["weapon"])))             # weapon=scatter|lance|... : the class silhouette on the hand mount
 	_cam = Camera3D.new()
 	_cam.fov = 38.0
 	add_child(_cam)

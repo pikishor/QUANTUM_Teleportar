@@ -40,6 +40,7 @@ const KNEE_RUN := 1.35
 const LOW_READY_PITCH := -0.5         ## rifle muzzle drop at low ready (radians)
 const SPRINT_PITCH := -0.78
 const SEC_NAMES: Array[StringName] = [&"Sec1", &"Sec2", &"Sec3"]    ## optional secondary chain (the hero's phase cloak on the Torso, the trooper's tail on the Hips)
+const H_SLACK := 0.05                 ## metres a planted leg may be overstretched while the pelvis catches up (only with the pelvis speed limit on)
 const REFLECTION_DIM := 0.4           ## albedo multiplier of the reflection twin (see find())
 
 var skeleton: Skeleton3D
@@ -105,6 +106,12 @@ var pose_hips := Vector3.ZERO            ## extra pelvis offset (model axes, met
 var sec_pitch := PackedFloat32Array([0.0, 0.0, 0.0])
 var sec_side := PackedFloat32Array([0.0, 0.0, 0.0])
 var use_springs := false
+var h_rise := 0.0                        ## m/s: the fastest the pelvis may rise / drop (0 = no limit, the old behaviour); the hero sets both so a touchdown, a toe-off or a stop never snaps the hips
+var h_drop := 0.0
+var _h_prev := NAN
+var _h_clock := 0.0
+var crouch := 0.0                        ## metres the pelvis rides lower than the straight-legged stand (a run is on bent knees: the stride then reaches its foot without a pelvis dip at every touchdown)
+var gait_arm := 0.0                      ## 0..1: how much the rifle and the hands move with the stride of a run (the hero sets 1; the old default keeps the carried rifle still)
 
 # --- rest data read from the model
 var _idx := PackedInt32Array()
@@ -489,8 +496,9 @@ func apply() -> void:
 	var ry := -0.12 * low - 0.35 * carry
 	var rpos := Vector3(0.0, -0.05 * low - 0.1 * carry, 0.04 * low + 0.06 * carry)
 	var a := amp * (1.0 - air)
-	var bounce := sin(phase * 2.0) * 0.012 * a
+	var bounce := sin(phase * 2.0) * 0.012 * a * (1.0 + gait_arm * 1.2 * run)      # a run bounces the carried rifle with every step
 	rpos.y += bounce * (1.0 + carry)
+	rpos.x += cos(phase) * 0.012 * a * run * gait_arm
 	rp += sin(phase) * 0.03 * a * (1.0 - ready * 0.7)
 	if ik:                                                 # the carried rifle rocks with the stride and the pelvis; shouldered, it stays steadier; aiming pulls it to the cheek
 		rr += sin(phase) * 0.07 * a * carry
@@ -511,7 +519,7 @@ func apply() -> void:
 	_pose(RIFLE, rb, rpos)
 
 	# ------------------------------------------------------------------ arms: IK onto the rifle (or the magazine / the pouch while reloading)
-	var swing := sin(phase) * a * (1.0 - ready)
+	var swing := sin(phase) * a * maxf(1.0 - ready, gait_arm * (0.25 + 0.55 * run))      # the support hand pumps with the stride
 	for k in 2:
 		var left := k == 0
 		var target: Vector3 = _rifle_o + rpos + rb * (_w0[k] - _rifle_o)
@@ -599,6 +607,11 @@ func _legs_legacy(d: float) -> Vector3:
 	return Vector3(0.0, sink + bob, 0.0)
 
 
+## True while the pelvis speed limit may run (standing or moving on the ground: not dead, not collapsing, not in the air).
+func kneeling_free() -> bool:
+	return dead < 0.01 and knee_buckle < 0.01 and air < 0.3
+
+
 ## Legs on planted feet: the owner gives the sole contact point, heel / toe pitch and yaw of each foot (model space); the pelvis is lowered to what the legs reach
 ## (so the stance foot with the longest reach decides the height: the pelvis bobs by itself, highest at mid stance), and each leg is a two-bone solve (knee forward, the
 ## hock behind) with the metatarsal foot rolled about the sole. Returns the hips position offset from the rest pose.
@@ -608,6 +621,8 @@ func _legs_ik(d: float, hb: Basis) -> Vector3:
 	var reach := (l1 + l2) * 0.995
 	var dref := lerpf(_d_rest, (l1 + l2) * 0.965, clampf(run, 0.0, 1.0) * (1.0 - air))
 	var hs := INF
+	var hsum := 0.0
+	var wsum := 0.0
 	var wmax := 0.0
 	var h_cap := INF                                       # a planted foot must stay within the reach of its leg whatever the blend below does
 	for k in 2:
@@ -617,22 +632,35 @@ func _legs_ik(d: float, hb: Basis) -> Vector3:
 		var j0 := Vector3(sway, 0.0, 0.0) + hb * (_leg_o[k] as Vector3)
 		var hz := Vector2(hock.x - j0.x, hock.z - j0.z).length()
 		var v := sqrt(maxf(dref * dref - hz * hz, 0.04))
-		var hk := hock.y + v - j0.y
+		var hk := hock.y + v - j0.y - crouch
 		var wk: float = support_l if k == 0 else support_r
-		if wk > 0.05:
-			hs = minf(hs, hk)
+		if wk > 0.0:
+			hsum += hk * wk                                # the pelvis height follows the legs that carry the body, weighted by how much each carries (a min over the feet snapped when a foot took over)
+			wsum += wk
 			wmax = maxf(wmax, wk)
-		if (sole_l if k == 0 else sole_r).y < 0.004:
-			var cap_k := hock.y + sqrt(maxf(reach * reach * 0.995 - hz * hz, 0.01)) - j0.y
-			if hz >= reach * 0.85:                       # out of reach (a landing after a hard stop, a foot just off the floor): the cap fades in with the weight it carries
-				cap_k = lerpf(_hips_rest_y, cap_k, clampf((wk - 0.05) * 2.0, 0.0, 1.0))
-			h_cap = minf(h_cap, cap_k)
-	var h_free := _hips_rest_y - 0.02
+		var sy: float = (sole_l if k == 0 else sole_r).y
+		var cap_k := hock.y + sqrt(maxf(reach * reach * 0.995 - hz * hz, 0.01)) - j0.y       # every foot, swinging or planted: the leg must reach it. A swinging foot rises and falls smoothly, so its cap does too (a cap that only
+		if hz >= reach * 0.85 and sy < 0.05:                 # applied to planted feet made the pelvis snap by centimetres at every touchdown and toe-off)
+			cap_k = lerpf(_hips_rest_y, cap_k, clampf((wk - 0.05) * 2.0, 0.0, 1.0))   # out of reach (a landing after a hard stop): the cap fades in with the weight the foot carries
+		if sy > 0.004 or wk < 0.999:                         # only a foot that carries the body is a hard limit (a swinging foot may lag out of reach, in a stop for instance, and must not drag the pelvis below the bob floor);
+			cap_k = lerpf(maxf(cap_k, _hips_rest_y - 0.02 - crouch - 0.09), cap_k, _smooth(wk))   # the limit grows with the weight the foot takes, so a touchdown never snaps the hips
+		h_cap = minf(h_cap, cap_k)
+	if wsum > 0.001:
+		hs = hsum / wsum
+	var h_free := _hips_rest_y - 0.02 - crouch
 	var h := h_free if hs == INF else lerpf(h_free, hs, wmax)
 	if hs != INF:                                          # a long stride must not fold the pelvis: the planted legs straighten first (bob stays a few centimetres)
 		var bob_max := lerpf(0.05, 0.09, clampf(run, 0.0, 1.0)) + 0.05 * clampf(ads, 0.0, 1.0)
-		h = maxf(h, minf(h_cap, _hips_rest_y - 0.02 - bob_max))
+		h = maxf(h, minf(h_cap, _hips_rest_y - 0.02 - crouch - bob_max))
 	h = minf(h, h_cap + 0.0) - squash
+	if h_rise > 0.0 and kneeling_free():                  # the pelvis never jumps: it rises and drops at a limited speed (the legs' reach, the hard cap above, still wins)
+		var dtr := clock - _h_clock
+		if not is_nan(_h_prev) and dtr > 0.0 and dtr < 0.25:
+			h = minf(clampf(h, _h_prev - h_drop * dtr, _h_prev + h_rise * dtr), h_cap + H_SLACK - squash)     # a few centimetres of leg overstretch are allowed for a moment (a start, a stop) instead of a pelvis dive
+		_h_prev = h
+		_h_clock = clock
+	else:
+		_h_prev = NAN
 	var hips_off := Vector3(sway, h - _hips_rest_y, 0.0)
 	var kneeling := maxf(d, knee_buckle)
 	var hips_world := Vector3(sway, h, 0.0)

@@ -28,6 +28,26 @@ var rig: CharacterRig
 var scale_amp := 1.0                 ## 1 hero, a little less for the shorter trooper
 var turn_scale := 0.0                ## > 0: replaces scale_amp in the stepping rate of a turn on the spot (the superhero: long legs, short turn steps)
 
+# --- gait numbers: the defaults are the trooper's; the hero loads HeroAnimTuning through apply_tuning() (hero_anim_tuning.gd is the one table that holds them)
+var g_cyc0 := 0.8                    ## metres per full cycle (two steps) = (g_cyc0 + g_cyck * speed) * scale_amp, never above g_cyc_max * scale_amp
+var g_cyck := 0.5
+var g_cyc_max := 99.0
+var g_step_max := STEP_MAX           ## longest ground contact travel of a foot (metres, before scale_amp)
+var g_leash := REACH_LEASH
+var g_h_walk := 0.07                 ## swing foot height at a walk / a sprint (metres), and where in the swing the peak is (exponent of u: smaller = earlier)
+var g_h_run := 0.3
+var g_peak := 0.75
+var g_lean_k := 0.022                ## torso pitch per m/s of forward speed (radians) and the extra pitch of a sprint
+var g_lean_sprint := 0.08
+var g_comp := 0.0                    ## metres the pelvis sinks at mid stance of a run (the legs absorb the step; the pelvis is highest in flight)
+var g_pelvis_yaw := 0.075            ## pelvis yaw per unit weight shift, and the share of it the shoulders turn back
+var g_counter := 0.5
+var g_follow := 0.0                  ## 0..1: how much of the body's motion the take-off point of a swinging foot follows at a run (0 = world fixed: the trailing leg is flung straight back)
+var g_crouch := 0.0                  ## metres the pelvis rides lower at a run (bent knees)
+var g_w_rate := 0.0                  ## 1/s: how fast a foot that just landed takes the body weight (0 = by stance progress only)
+var g_skew := 0.0                    ## > 0: the swing height is a sine skewed early by this much (the hero); 0 keeps the trooper's pow(u, g_peak) bell
+var g_centre := 0.0                  ## 1: the landing spots are centred under the pelvis at speed (the hero); 0: the trooper keeps its home offset
+
 # --- public outputs besides the rig fields
 var speed := 0.0                     ## smoothed ground speed (m/s)
 var vel := Vector2.ZERO              ## smoothed body-space velocity (x right, y forward)
@@ -90,6 +110,33 @@ func _init(r: CharacterRig = null) -> void:
 	_sec.resize(6)
 	if r != null:
 		_read_home()
+
+
+## Load the gait numbers of the hero from the tuning table.
+func apply_tuning() -> void:
+	var tx := HeroAnimTuning
+	g_cyc0 = tx.f("gait_cyc0")
+	g_cyck = tx.f("gait_cyck")
+	g_cyc_max = tx.f("gait_cyc_max")
+	g_step_max = tx.f("gait_step_max")
+	g_leash = tx.f("gait_leash")
+	g_h_walk = tx.f("swing_h_walk")
+	g_h_run = tx.f("swing_h_run")
+	g_peak = tx.f("swing_peak")
+	g_lean_k = tx.f("lean_per_speed")
+	g_lean_sprint = tx.f("lean_sprint")
+	g_comp = tx.f("stance_comp")
+	g_pelvis_yaw = tx.f("pelvis_yaw")
+	g_counter = tx.f("torso_counter")
+	g_centre = tx.f("land_centre")
+	g_skew = tx.f("swing_skew")
+	g_w_rate = tx.f("weight_rate")
+	g_crouch = tx.f("run_crouch")
+	g_follow = tx.f("swing_follow")
+	if rig != null:
+		rig.gait_arm = tx.f("arm_pump")
+		rig.h_rise = tx.f("pelvis_rise")
+		rig.h_drop = tx.f("pelvis_drop")
 
 
 func _read_home() -> void:
@@ -189,9 +236,9 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 	var back := clampf(-vel.y / sp, 0.0, 1.0)
 	var dscale := lerpf(1.0, 0.8, lat) * lerpf(1.0, 0.72, back)
 	var gspd := maxf(speed, raw_sp * 0.8)                # the first frames of a start: the smoothed speed still lags the real motion
-	var cyc := (0.8 + 0.5 * gspd) * dscale * scale_amp   # metres per full cycle (two steps)
+	var cyc := minf((g_cyc0 + g_cyck * gspd) * dscale, g_cyc_max) * scale_amp   # metres per full cycle (two steps)
 	cyc = maxf(cyc, 0.8)
-	var contact := minf(SIGMA_WALK * cyc, STEP_MAX * scale_amp)
+	var contact := minf(SIGMA_WALK * cyc, g_step_max * scale_amp)
 	var moving := gspd > 0.45 and grounded
 	var turning := absf(yaw_rate) > 0.7 and speed < 1.6 and grounded
 	var sigma_t := contact / cyc if moving else SIGMA_WALK
@@ -230,7 +277,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 		# the world fixed points follow the body motion
 		var p := _fp[k] - step
 		_fp[k] = Vector2(p.x * c + p.y * s, p.y * c - p.x * s)
-		var lp := _lo[k] - step
+		var lp := _lo[k] - step * (1.0 - (g_follow * clampf((speed - 1.5) / 3.0, 0.0, 1.0) if (was_swing and _forced[k] <= 0.0) else 0.0))      # a fast swing foot is carried along by the body, not left behind
 		_lo[k] = Vector2(lp.x * c + lp.y * s, lp.y * c - lp.x * s)
 		_fyaw[k] -= dyaw * (1.0 if not was_swing else 0.0)
 		if not grounded:
@@ -239,16 +286,20 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 		if _forced[k] > 0.0:                               # out of reach: a quick corrective step to the landing point, whatever the phase says
 			var fu := minf(_forced[k] + dt / 0.2, 1.0)
 			_forced[k] = fu if fu < 1.0 else 0.0
-			var ft := _home_now(k) + _rot(home_lead, yaw_rate * 0.18)
+			var ft := _land_at(k, home_lead)
 			_fp[k] = _lo[k].lerp(ft, fu * fu * (3.0 - 2.0 * fu))
 			_swing[k] = 1 if fu < 1.0 else 0
 			_kk[k] = fu if fu < 1.0 else 0.15
 			_w[k] = PlayerUtil.damp(_w[k], 0.0, 30.0, dt) if fu < 1.0 else 0.3
 			continue
-		if in_stance and not was_swing and (_fp[k] - Vector2(_home[k].x, 0.0)).length() > REACH_LEASH * scale_amp and (moving or turning):
+		if in_stance and not was_swing and (_fp[k] - Vector2(_home[k].x, 0.0)).length() > g_leash * scale_amp and (moving or turning):
 			_forced[k] = 0.001
 			_lo[k] = _fp[k]
 			_swing[k] = 1
+			continue
+		if in_stance and was_swing and not moving and not turning and (_fp[k] - _land_at(k, Vector2.ZERO)).length() > 0.3:
+			_forced[k] = 0.001                             # the body stopped while this foot was still far behind: it does not plant there (the hips would have to dive to reach it), it steps to its spot
+			_lo[k] = _fp[k]
 			continue
 		if in_stance:
 			if was_swing:                                  # touchdown
@@ -256,7 +307,8 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 				footfalls += 1
 			var kk := pk / maxf(sig, 0.05)
 			_kk[k] = kk
-			_w[k] = _smooth01(kk / 0.12) * (1.0 - _smooth01((kk - 0.88) / 0.12)) if moving or turning else 1.0
+			var w_t := _smooth01(kk / 0.12) * (1.0 - _smooth01((kk - 0.88) / 0.12)) if moving or turning else 1.0
+			_w[k] = PlayerUtil.damp(_w[k], w_t, g_w_rate, dt) if g_w_rate > 0.0 else w_t       # the foot takes the weight over a few frames, not in one (a fast stride crosses the whole ramp in a frame)
 			_fyaw[k] = clampf(_fyaw[k], -0.9, 0.9)
 		else:
 			if not was_swing:                              # lift off
@@ -264,7 +316,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 				_lo[k] = _fp[k]
 			var u := (pk - sig) / maxf(1.0 - sig, 0.05)
 			_kk[k] = u
-			var tgt := _home_now(k) + _rot(home_lead, yaw_rate * 0.18)
+			var tgt := _land_at(k, home_lead)
 			var e := u * u * (3.0 - 2.0 * u)
 			_fp[k] = _lo[k].lerp(tgt, e)
 			_w[k] = PlayerUtil.damp(_w[k], 0.0, 30.0, dt)
@@ -273,7 +325,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 	planted_r = _swing[1] == 0
 
 	# --- the air and ground poses of the soles, written into the rig
-	var run_h := lerpf(0.07, 0.3, run_amount)
+	var run_h := lerpf(g_h_walk, g_h_run, run_amount)
 	var rise := clampf(vy / 7.6, 0.0, 1.0)
 	var fall := clampf(-vy / 9.0, 0.0, 1.0)
 	var apex := clampf(1.0 - rise - fall, 0.0, 1.0)
@@ -283,7 +335,9 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 		var pitch := 0.0
 		if _swing[k] == 1:
 			var u := _kk[k]
-			sole.y = run_h * sin(PI * pow(clampf(u, 0.0, 1.0), 0.75))
+			var uc := clampf(u, 0.0, 1.0)
+			# the foot's lift: a bell skewed early (the knee drives up, the foot comes down late). The pow form has an infinite slope at toe-off (the foot teleported up by a hand's width in a frame); the skewed sine does not.
+			sole.y = run_h * (sin(PI * uc * (1.0 + g_skew * (1.0 - uc))) if g_skew > 0.0 else sin(PI * pow(uc, g_peak)))
 			pitch = lerpf(TOE_OFF, HEEL_STRIKE, _smooth01(u)) + 0.3 * sin(PI * u) * run_amount
 		else:
 			var kk := _kk[k]
@@ -319,7 +373,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 	var shift := sin(_clock * 0.9) * 0.012 * idle
 	_sway = PlayerUtil.spring(_sway, -wd * 0.03 * gate + shift, 14.0, dt)
 	_roll = PlayerUtil.spring(_roll, -wd * 0.045 * gate - shift * 1.2, 14.0, dt)
-	var py := wd * 0.075 * gate * (1.0 + 0.8 * run_amount)
+	var py := wd * g_pelvis_yaw * gate * (1.0 + 0.8 * run_amount)
 	rig.sway = _sway.x
 	rig.pelvis_roll = _roll.x
 	rig.pelvis_yaw = py
@@ -330,11 +384,18 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 	_antic = maxf(0.0, _antic - dt)
 	var antic_w := sin(PI * (1.0 - _antic / 0.13)) if _antic > 0.0 else 0.0
 	# lean: speed, acceleration (leans into the start, back into the stop), sprint, the anticipation dip
-	var lean_t := -0.022 * clampf(vel.y, -4.0, 10.0) - 0.0032 * clampf(acc.y, -60.0, 60.0) - 0.08 * _sprint + 0.055 * antic_w
+	var lean_t := -g_lean_k * clampf(vel.y, -4.0, 12.0) - 0.0032 * clampf(acc.y, -60.0, 60.0) - g_lean_sprint * _sprint + 0.055 * antic_w
 	_lean = PlayerUtil.spring(_lean, lean_t, 10.0, dt)
 	var brake := clampf(-acc.dot(vel / sp) / 50.0, 0.0, 1.0) * gate if speed > 0.5 else 0.0
 	var dip_t := 0.02 * antic_w + 0.035 * brake + 0.015 * run_amount + 0.02 * _ads
-	rig.squash = _squash.x + dip_t
+	var comp := 0.0                                       # mid stance of a run: the planted leg gives, the pelvis sinks (and rises again in flight)
+	if g_comp > 0.0 and run_amount > 0.0:
+		for k in FEET:
+			if _swing[k] == 0:
+				comp = maxf(comp, sin(PI * clampf(_kk[k], 0.0, 1.0)) * _w[k])
+		comp *= g_comp * run_amount * (1.0 - 0.5 * clampf((speed - 6.5) / 3.0, 0.0, 1.0)) * (1.0 - _air)
+	rig.squash = _squash.x + dip_t + comp
+	rig.crouch = g_crouch * clampf((speed - 1.5) / 3.5, 0.0, 1.0) * (1.0 - 0.75 * clampf((speed - 6.5) / 3.0, 0.0, 1.0)) * (1.0 - _air)      # a sprint is long and high, a run is on bent knees
 	rig.air = _air
 	rig.support = maxf(rig.support_l, rig.support_r)
 	# turn lag of the torso, the head leads the turn and the aim
@@ -343,7 +404,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 	_look = PlayerUtil.spring(_look, clampf(yaw_rate * 0.07 + look_off * 0.8, -0.8, 0.8) + glance, 11.0, dt)
 	_look_p = PlayerUtil.spring(_look_p, -0.06 * _ads, 9.0, dt)
 	var ads_twist := -0.13 * _ads
-	rig.extra_torso = Vector3(rig.extra_torso.x, _lag.x - 0.5 * py + ads_twist, rig.extra_torso.z)
+	rig.extra_torso = Vector3(rig.extra_torso.x, _lag.x - g_counter * py + ads_twist, rig.extra_torso.z)
 	rig.ads = _ads
 	rig.lean = _lean.x
 	rig.roll = clampf(-vel.x * 0.014, -0.1, 0.1) + _roll.x * 0.6
@@ -382,6 +443,14 @@ func _home_now(k: int) -> Vector2:
 	var h := _home[k]
 	var sgn := -1.0 if k == 0 else 1.0
 	return h + Vector2(sgn * 0.0 + (-0.03 if k == 0 else 0.03) * _ads, (0.12 if k == 0 else -0.1) * _ads)
+
+
+## Where a swinging foot lands: its home spot plus the lead along the velocity; with g_centre the home spot's offset behind the model origin fades out as the body moves, so the stance is symmetric about the pelvis
+## (a foot that lands 0.4 m ahead and leaves 0.6 m behind makes a lunge and a stretched trailing leg).
+func _land_at(k: int, lead: Vector2) -> Vector2:
+	var h := _home_now(k)
+	h.y -= _home[k].y * g_centre * clampf((speed - 0.8) / 1.2, 0.0, 1.0)
+	return h + _rot(lead, yaw_rate * 0.18)
 
 
 func _stance(k: int, ph: float) -> bool:

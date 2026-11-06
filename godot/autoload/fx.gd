@@ -17,13 +17,17 @@ const LOW_PARTICLES := 2            ## burst emitters in rotation on LOW (the fi
 const TIER_PARTICLES := [2, 5, 8]   ## burst emitters in rotation per tier (LOW, MED, HIGH): every live emitter is a draw call, a death burst of four drones used 6-7 on MED
 const TRACER_POOL := 20
 const MUZZLE_POOL := 10
-const MUZZLE_CENTRE_MAX := 0.7   ## flash scale cap at the screen centre
-const MUZZLE_CENTRE_GAIN := 0.4  ## flash brightness at the screen centre
-const MUZZLE_LIFE := 0.09    ## seconds a muzzle flash shows
-const TRACER_LIFE := 0.14
+const MUZZLE_CENTRE_MAX := 1.05  ## flash scale cap at the screen centre (was 0.7: the owner's phone test called the weapons weak)
+const MUZZLE_CENTRE_GAIN := 0.7  ## flash brightness at the screen centre (was 0.4)
+const MUZZLE_LIFE := 0.1     ## seconds a muzzle flash shows
+const TRACER_LIFE := 0.2             ## a streak flies for at most TRACER_FLIGHT, then the trail fades out over the rest
+const TRACER_FLIGHT := 0.085         ## seconds the head needs from the muzzle to the target (a long shot flies faster, a short one never slower than TRACER_MIN_SPEED)
+const TRACER_MIN_SPEED := 260.0
+const TRACER_WIDTH := 0.13
 const SPARK_SIZE := 0.16     ## metres: one spark is a small soft dot
 const ExplosionPool := preload("res://scripts/fx/explosion_pool.gd")
 const QuantumVfx := preload("res://scripts/fx/quantum_vfx.gd")
+const Casings := preload("res://scripts/fx/casings.gd")
 const TRACER_SHADER := preload("res://assets/shaders/fx_tracer.gdshader")
 const MUZZLE_SHADER := preload("res://assets/shaders/fx_muzzle.gdshader")
 
@@ -33,9 +37,12 @@ var _particles: Array[CPUParticles3D] = []
 var _particle_left := PackedFloat32Array()
 var _tracers: Array[MeshInstance3D] = []
 var _tracer_left: Array[float] = []
+var _tracer_age := PackedFloat32Array()      ## seconds since the streak left the muzzle
+var _tracer_speed := PackedFloat32Array()    ## head speed m/s
 var _muzzles: Array[MeshInstance3D] = []
 var _muzzle_left := PackedFloat32Array()
 var explosions: Node3D       ## the ExplosionPool (scripts/fx/explosion_pool.gd)
+var casings: Node3D          ## spent shell casings (scripts/fx/casings.gd): one MultiMesh, one draw while any is in flight
 var qvfx: Node3D             ## the quantum VFX layer (scripts/fx/quantum_vfx.gd): rings, trails, dust, hero aura
 var _pi := 0
 var _ti := 0
@@ -78,7 +85,7 @@ func _ready() -> void:
 	for i in TRACER_POOL:
 		var t := MeshInstance3D.new()
 		var box := BoxMesh.new()
-		box.size = Vector3(0.09, 0.09, 1.0)
+		box.size = Vector3(TRACER_WIDTH, TRACER_WIDTH, 1.0)
 		t.mesh = box
 		var tm := ShaderMaterial.new()
 		tm.shader = TRACER_SHADER
@@ -88,6 +95,8 @@ func _ready() -> void:
 		add_child(t)
 		_tracers.append(t)
 		_tracer_left.append(0.0)
+		_tracer_age.append(0.0)
+		_tracer_speed.append(TRACER_MIN_SPEED)
 	var quad := QuadMesh.new()
 	quad.size = Vector2(0.6, 1.2)
 	for i in MUZZLE_POOL:
@@ -108,6 +117,8 @@ func _ready() -> void:
 	qvfx = QuantumVfx.new()
 	qvfx.name = &"QuantumVfx"
 	add_child(qvfx)
+	casings = Casings.new()
+	add_child(casings)
 	Game.new_game.connect(reset)
 	Game.respawn.connect(reset)
 	Game.next_sector.connect(reset)
@@ -127,7 +138,10 @@ func _process(delta: float) -> void:
 			if _tracer_left[i] <= 0.0:
 				_tracers[i].visible = false
 			else:
-				(_tracers[i].material_override as ShaderMaterial).set_shader_parameter(&"fade", _tracer_left[i] / TRACER_LIFE)
+				_tracer_age[i] += delta
+				var tm := _tracers[i].material_override as ShaderMaterial
+				tm.set_shader_parameter(&"fade", minf(1.0, _tracer_left[i] / (TRACER_LIFE * 0.6)))
+				tm.set_shader_parameter(&"head_dist", _tracer_age[i] * _tracer_speed[i])
 	for i in _muzzles.size():
 		if _muzzle_left[i] > 0.0:
 			_muzzle_left[i] -= delta
@@ -151,6 +165,8 @@ func reset() -> void:
 		_muzzles[i].visible = false
 		_muzzle_left[i] = 0.0
 	explosions.clear()
+	if casings != null:
+		casings.clear()
 	if qvfx != null:
 		qvfx.reset()
 
@@ -187,15 +203,18 @@ func tracer(a: Vector3, b: Vector3, color := Color(1.0, 0.93, 0.6)) -> void:
 	var m := _tracers[i].material_override as ShaderMaterial
 	m.set_shader_parameter(&"color", Vector3(color.r, color.g, color.b))
 	m.set_shader_parameter(&"fade", 1.0)
+	m.set_shader_parameter(&"head_dist", 0.0)
 	place_beam(_tracers[i], a, b)
 	_tracer_left[i] = TRACER_LIFE
+	_tracer_age[i] = 0.0
+	_tracer_speed[i] = maxf(TRACER_MIN_SPEED, a.distance_to(b) / TRACER_FLIGHT)
 	var d := b - a
 	if d.length() > 0.3:
 		muzzle_flash(a, d.normalized(), color)
 
 
 ## Star-and-cone flash at a barrel (shell-free, 0.06 s). Dimmed when the camera is right on top of it.
-func muzzle_flash(pos: Vector3, dir: Vector3, color := Color(1.0, 0.85, 0.5), size := 1.5) -> void:
+func muzzle_flash(pos: Vector3, dir: Vector3, color := Color(1.0, 0.85, 0.5), size := 2.1) -> void:
 	var i := _mi
 	_mi = (_mi + 1) % _muzzles.size()
 	var up := Vector3.UP if absf(dir.y) < 0.95 else Vector3.RIGHT

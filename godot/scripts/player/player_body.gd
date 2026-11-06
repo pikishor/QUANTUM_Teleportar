@@ -77,9 +77,10 @@ static var _flash_mat_streak: StandardMaterial3D
 
 var muzzle: Node3D
 var _wp_mi: MeshInstance3D
+var _wp_off := Vector3.ZERO                    ## where the weapon look sits relative to the muzzle (zero for a silhouette mesh, behind the muzzle for the old strip)
 var _wp_attach := false                       ## the weapon look still has to move onto the hand mount
 var _finger_mode: StringName = &""
-var _wp_mat: StandardMaterial3D
+var _wp_glow := 1.0                           ## the silhouette's trim brightness: kicks to 3.4 on a shot, settles to 1
 var leg_l: Node3D
 var leg_r: Node3D
 var upper: Node3D
@@ -317,6 +318,10 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	# --- character lights follow the ACTIVE camera (the orbit yaw alone lies when a cinematic / QA / viewer camera looks from elsewhere)
 	update_character_lights(lerpf(1.0, DEAD_LIGHT, e), rig_view.yaw if rig_view != null else NAN)
 
+	# --- the weapon silhouette's trim kicks light on a shot and settles (the material is shared: one weapon is in hand at a time)
+	if _wp_glow > 1.0:
+		_wp_glow = maxf(1.0, _wp_glow - dt * 18.0)
+		WeaponModels.material().set_shader_parameter(&"glow", _wp_glow)
 	# --- muzzle flash decay (real time)
 	if _flash_t > 0.0:
 		_flash_t -= dt
@@ -378,19 +383,23 @@ func set_weapon_look(id: StringName) -> void:
 	if _wp_mi == null:
 		_wp_mi = MeshInstance3D.new()
 		_wp_mi.name = "WeaponLook"
-		_wp_mi.mesh = BoxMesh.new()
 		_wp_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_wp_mat = StandardMaterial3D.new()
-		_wp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_wp_mi.material_override = _wp_mat
+		_wp_mi.material_override = WeaponModels.material()
 		muzzle.add_child(_wp_mi)
 	_wp_attach = rig != null and hero_mat != null                  # the superhero: the look moves onto the hand mount after the next rig pose (see _attach_weapon_look)
-	var sz: Vector3 = d["look_size"]
-	(_wp_mi.mesh as BoxMesh).size = sz
-	_wp_mi.position = Vector3(0.0, 0.0, sz.z * 0.5 + 0.02)         # behind the muzzle along the barrel (muzzle forward is -Z)
-	var col: Color = d["look"]
-	_wp_mat.albedo_color = col * 1.4
+	var sil := WeaponModels.mesh(id)
+	if sil != null:
+		_wp_mi.mesh = sil                                          # the class's own silhouette (scripts/player/weapon_models.gd), origin at the muzzle, body behind it
+		_wp_off = Vector3.ZERO
+	else:
+		var box := BoxMesh.new()
+		var sz: Vector3 = d["look_size"]
+		box.size = sz
+		_wp_mi.mesh = box
+		_wp_off = Vector3(0.0, 0.0, sz.z * 0.5 + 0.02)
+	_wp_mi.position = _wp_off
 	_wp_mi.visible = id != &"carbine"                              # the carbine is the plain rifle: the hero stays ONE mesh until another weapon is in hand
+	WeaponModels.material().set_shader_parameter(&"glow", 1.0)
 
 
 ## The weapon look rides on the right hand's bone mount (HandRMount) instead of the rifle bone, so it follows every hand animation. The offset is taken from where the look sits
@@ -403,8 +412,7 @@ func _attach_weapon_look() -> void:
 	var hb := HeroPresentation.hand_bone(rig.skeleton, &"r")
 	if mount == null or hb < 0:
 		return
-	var sz: Vector3 = (_wp_mi.mesh as BoxMesh).size
-	var world := muzzle.global_transform * Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, sz.z * 0.5 + 0.02))
+	var world := muzzle.global_transform * Transform3D(Basis.IDENTITY, _wp_off)
 	var hand := rig.skeleton.global_transform * rig.skeleton.get_bone_global_pose(hb)
 	if _wp_mi.get_parent() != mount:
 		_wp_mi.get_parent().remove_child(_wp_mi)
@@ -425,6 +433,8 @@ func warm_burst_end() -> void:
 
 ## One shot: flash card, light pulse and the body's recoil. intensity scales the flash.
 func fire_flash(intensity := 1.0) -> void:
+	_wp_glow = 3.4
+	WeaponModels.material().set_shader_parameter(&"glow", _wp_glow)
 	if _flash_root != null:
 		_flash_t = FLASH_TIME
 		_flash_root.visible = true
@@ -602,6 +612,7 @@ func _adopt_model(model: Node3D) -> void:
 		polish = HeroAnimPolish.new(rig) if hero_mat != null else null
 		if hero_mat != null:
 			loco.turn_scale = SUPERHERO_TURN
+			loco.apply_tuning()
 			loco.scale_amp = SUPERHERO_STEP      # longer, human legs: longer strides and a longer leash than the short digitigrade legs of the old hero
 	model.name = "Model"
 	remove_child_safe(upper)
@@ -1092,21 +1103,21 @@ func _build_flash() -> void:
 	muzzle.add_child(_flash_root)
 	var star := MeshInstance3D.new()
 	var star_mesh := QuadMesh.new()
-	star_mesh.size = Vector2(0.5, 0.5)
+	star_mesh.size = Vector2(0.85, 0.85)
 	star.mesh = star_mesh
 	star.material_override = _get_flash_material(true)
 	star.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_flash_root.add_child(star)
 	# two crossed streaks that jet forward from the barrel
 	var streak_mesh := QuadMesh.new()
-	streak_mesh.size = Vector2(0.2, 0.75)
+	streak_mesh.size = Vector2(0.28, 1.1)
 	for i in 2:
 		var streak := MeshInstance3D.new()
 		streak.mesh = streak_mesh
 		streak.material_override = _get_flash_material(false)
 		streak.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var flat := Basis(Vector3.RIGHT, -PI * 0.5)                  # long axis along -Z, lying flat
-		streak.transform = Transform3D(Basis(Vector3.FORWARD, i * PI * 0.5) * flat, Vector3(0.0, 0.0, -0.37))
+		streak.transform = Transform3D(Basis(Vector3.FORWARD, i * PI * 0.5) * flat, Vector3(0.0, 0.0, -0.55))
 		_flash_root.add_child(streak)
 	for i in LIGHT_COUNT:
 		var l := OmniLight3D.new()

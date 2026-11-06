@@ -59,6 +59,7 @@ var quiet := 0.0             # seconds since any drone last had the player in si
 ## True when launched by tests/bots/shot tools (or --autostart): skip the menu and start playing at once.
 var autostart := false
 ## Blood and gore-style effects. Off until the store rating is decided; a settings toggle and regional builds can flip it.
+var civilian_casualties := true   ## the people in the street can be hurt and killed (a quantum dissolve, no gore); false = they only run, shots pass through them (UiSettings.civilians)
 var graphic_violence := false
 ## Force the touch overlay on (desktop testing). The HUD also shows it automatically on touchscreens.
 var force_touch := false
@@ -247,6 +248,8 @@ func explode(pos: Vector3, radius: float, opts := {}) -> void:
 	Sfx.play_at(&"boom" if radius >= 5.0 else &"explosion_small", pos, -3.0)                 # positional: an explosion across the street is quieter and comes from where it is
 	if Breakables.current != null:
 		Breakables.current.blast(pos, radius)
+	if civilian_casualties and radius >= 2.0 and is_instance_valid(world) and world.get(&"ambient") != null:
+		world.ambient.blast_civilians(pos, radius, enemy_dmg > 0.0)      # a blast that hurts enemies is the hero's (or his car's); an enemy's striker is not
 	if enemy_dmg > 0.0:
 		for e: Node3D in get_tree().get_nodes_in_group(&"enemy"):
 			var reach := radius + 0.8

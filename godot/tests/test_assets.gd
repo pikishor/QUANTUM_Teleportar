@@ -35,7 +35,7 @@ const SCENARIO_TRIS := 130000
 const FILL_MASK := 1 << 18
 ## name -> [min seconds, max seconds, peak level in dBFS]. Levels are mix levels (see tools/audio/make_audio.py LEVELS_DB).
 const SFX := {
-	"shot": [0.3, 1.5, -12.0], "enemy_shot": [0.2, 1.2, -13.0], "hit": [0.1, 0.8, -14.0], "hurt": [0.4, 1.8, -13.0],
+	"shot": [0.3, 1.5, -12.0], "enemy_shot": [0.2, 1.2, -14.5], "hit": [0.1, 0.8, -14.0], "hurt": [0.4, 1.8, -13.0],
 	"boom": [1.5, 5.0, -10.0], "blink": [0.5, 2.0, -12.0], "link": [0.5, 2.0, -13.0], "superpos": [0.8, 3.0, -13.0],
 	"pickup": [0.3, 1.5, -14.0], "reload": [0.8, 2.0, -14.0], "core": [1.5, 6.0, -10.0],
 }

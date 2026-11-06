@@ -145,6 +145,44 @@ func _on_player_fired() -> void:
 		fauna.on_shot(pp)
 
 
+## --- the people can be shot (crowd.gd has the bodies, npc_life.gd the consequences) ---------------------------------------------------------
+
+## A ray against the people of the street: {i, t, head} or an empty dictionary (also when civilian casualties are off: shots pass through them).
+func civilian_ray(origin: Vector3, dir: Vector3, max_t: float) -> Dictionary:
+	if not Game.civilian_casualties or crowd.count == 0:
+		return {}
+	var r := crowd.ray(origin, dir, max_t)
+	if r.x < 0.0:
+		return {}
+	return {"i": int(r.x), "t": r.y, "head": r.z > 0.5}
+
+
+## The hero's shot hits person `i`. Returns true when it killed.
+func hurt_civilian(i: int, amount: float, from: Vector3, head: bool) -> bool:
+	var pos: Vector3 = crowd.person_position(i)
+	var killed: bool = crowd.damage_person(i, amount * (2.0 if head else 1.0), from)
+	if killed:
+		npc.on_civilian_down(i, pos, true, &"gun")
+	else:
+		npc.on_civilian_hurt(i, pos, true)
+	return killed
+
+
+## A blast, a swing or a car hurts everybody within `r`; `by_player` = the hero's doing (heat, drops). Returns the killed.
+func blast_civilians(pos: Vector3, r: float, by_player: bool, amount := 200.0, cause := &"blast") -> int:
+	if not Game.civilian_casualties or crowd.count == 0:
+		return 0
+	var before := PackedInt32Array()
+	for i in crowd.count:
+		if crowd.is_alive(i) and Vector2(crowd.person_position(i).x - pos.x, crowd.person_position(i).z - pos.z).length() < r:
+			before.append(i)
+	var killed: int = crowd.damage_in_radius(pos, r, amount)
+	for i in before:
+		if crowd.is_dying(i):
+			npc.on_civilian_down(i, crowd.person_position(i), by_player, cause)
+	return killed
+
+
 ## Counts for tests and the budget report.
 func stats() -> Dictionary:
 	return {

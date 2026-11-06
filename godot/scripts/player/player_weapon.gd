@@ -36,6 +36,7 @@ const RECOIL_START := 0.0095                 ## camera kick per shot (radians): 
 const RECOIL_END := 0.0055
 const RECOIL_YAW := 0.0035
 const RECOIL_ADS_SCALE := 0.65               ## (kept for reference, now per weapon: def "ads_kick")
+const KICK_BOOST := 1.5                      ## the owner's phone test: shots felt like nothing. Camera kick x1.5 (a visible climb per burst), shake x1.35
 const NUMBER_POOL := 8
 const NUMBER_LIFE := 0.7
 const BURST_RESET := 0.35
@@ -102,6 +103,7 @@ var _mags := {}                              ## weapon id -> magazine size last 
 var _grenades: Array[Dictionary] = []
 var _grenade_mat: StandardMaterial3D
 var _charge_fx := 0.0
+var civilian_hits := 0                       ## lifetime shots that hit a citizen (tests)
 var shells_ejected := 0                      ## lifetime counters for tests
 var numbers_spawned := 0
 var _numbers: Array[Label3D] = []
@@ -407,8 +409,8 @@ func _recoil(aiming: bool) -> void:
 	if aiming:
 		kick *= float(def["ads_kick"])
 		kick_yaw *= float(def["ads_kick"])
-	rig.kick(kick, kick_yaw)
-	FX.shake(float(def["shake"]) * (0.6 if aiming else 1.0))
+	rig.kick(kick * KICK_BOOST, kick_yaw * KICK_BOOST)
+	FX.shake(float(def["shake"]) * (0.6 if aiming else 1.0) * 1.35)
 	rig.punch(0.03 if String(def["kind"]) == "hit" and int(def["pellets"]) == 1 else 0.07)
 	bloom = minf(float(def["bloom_max"]), bloom + float(def["bloom"]))
 
@@ -423,7 +425,7 @@ func _shoot(dt: float, aiming: bool) -> void:
 	_since_shot = 0.0
 	_burst += 1
 	var pellets := 1 if _alt_single else int(def["pellets"])
-	Sfx.play(StringName(def.get("snd", &"shot")), float(def["vol"]), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
+	Sfx.play(Sfx.shot_sound(StringName(def.get("snd", &"shot")), Attachments.part_in(current, &"barrel") == &"suppressor"), float(def["vol"]), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
 	if def.has("heat_per"):
 		heat = minf(1.0, heat + float(def["heat_per"]))
 		if heat >= 1.0 and not overheated:
@@ -486,6 +488,12 @@ func _trace_pellet() -> void:
 			best = t
 			target = e
 			normal = (origin + dir * t - c).normalized()
+	# the people of the street: a shot at a citizen in front of the wall hits the citizen
+	var civ := _civilian_ray(origin, dir, best)
+	if not civ.is_empty():
+		best = float(civ["t"])
+		target = null
+		normal = -dir
 	var hit := origin + dir * best
 	var hit_something := best < range_m - 0.001
 
@@ -500,6 +508,7 @@ func _trace_pellet() -> void:
 		normal = blocked["normal"]
 		target = _damageable_of(blocked["collider"] as Node)
 		hit_something = true
+		civ = {}
 
 	if def.has("twin"):                                             # akimbo: the shot leaves the hand whose turn it is
 		mz += p.camera_rig.camera.global_basis.x * (_side * 0.16)
@@ -514,8 +523,36 @@ func _trace_pellet() -> void:
 		_hit_target(target, hit, normal, k)
 		if def.has("chain"):
 			_chain(target, hit, k)
+	elif not civ.is_empty():
+		_hit_civilian(civ, hit, dir, k)
 	elif hit_something:
 		_hit_world(hit, normal)
+
+
+## The first person of the street a ray meets before `max_t` (AmbientCity.civilian_ray), {} for none.
+func _civilian_ray(origin: Vector3, dir: Vector3, max_t: float) -> Dictionary:
+	var city := Game.world as City
+	if city == null or city.ambient == null:
+		return {}
+	return city.ambient.civilian_ray(origin, dir, max_t)
+
+
+## A shot hit a citizen: damage (a head shot doubles), the usual hit sound / marker, a spark, and the consequences from the city (scream, heat, drops).
+func _hit_civilian(civ: Dictionary, hit: Vector3, dir: Vector3, k: float) -> void:
+	var city := Game.world as City
+	var p := _player
+	k *= _alt_k * float(ammo_info()["dmg"])
+	var head: bool = civ["head"]
+	var amount := TestMode.damage(float(def["damage"]) * k * Upgrades.damage_mult() * HeroPower.f("dmg"))
+	var kill: bool = city.ambient.hurt_civilian(int(civ["i"]), amount, p.global_position, head)
+	_hit_sound(kill, head)
+	p.last_hit_time = PlayerUtil.now()
+	p.last_hit_kill = false                                    # the HUD's kill streak is for enemies
+	p.last_hit_crit = head
+	p.hit_confirmed.emit(kill, head)
+	civilian_hits += 1
+	if _sparks != null:
+		_sparks.impact_person(hit, -dir)
 
 
 ## Is the segment a -> b blocked by the world or a vehicle? Returns the ray result (empty = clear).
@@ -609,13 +646,16 @@ func _singularity(at: Vector3, victim: Node) -> void:
 		e.call(&"damage", float(s["dmg"]) * Upgrades.damage_mult(), false)
 
 
-## A spent casing popped out of the rifle (a tiny pooled spark burst, no nodes).
+## A spent casing leaves the ejection port to the right of the rifle: real tumbling brass (FX.casings, one draw call) and a tiny spark where it left.
 func _eject_shell() -> void:
 	if _player == null or _player.body == null or _player.body.muzzle == null:
 		return
 	shells_ejected += 1
-	var side := _player.camera_rig.camera.global_basis.x
-	FX.burst(_player.body.muzzle.global_position - side * -0.12, Color(1.0, 0.8, 0.35), 1, 2.2, 0.45, 9.0, 0.5)
+	var cam := _player.camera_rig.camera.global_basis
+	var port := _player.body.muzzle.global_position + cam.z * 0.45 + cam.x * 0.1 - Vector3(0.0, 0.05, 0.0)       # behind the muzzle, towards the shooter's hand
+	var vel := cam.x * randf_range(2.4, 3.6) + Vector3.UP * randf_range(2.2, 3.4) + cam.z * randf_range(0.4, 1.2)
+	FX.casings.eject(port, vel, _player.global_position.y)
+	FX.burst(port, Color(1.0, 0.8, 0.35), 1, 2.2, 0.3, 9.0, 0.5)
 
 
 ## Floating damage number at a hit: a pooled Label3D (8 of them), crits larger and gold, a kill red, it rises and fades in 0.7 s.
@@ -703,8 +743,11 @@ func _fire_lance(c: float, aiming: bool) -> void:
 	fire_t = float(def["interval"])
 	_since_shot = 0.0
 	_burst = 1
-	Sfx.play(&"boom", -8.0, 1.7)
-	Sfx.play(&"shot", 0.0, 0.7)
+	if c >= 0.95:
+		Sfx.play(Sfx.shot_sound(&"shot", false, true), 0.0, 1.0)             # a full charge: the overcharged shot (sub fall, plasma zap, shimmering tail)
+	else:
+		Sfx.play(&"boom", -8.0, 1.7)
+		Sfx.play(&"shot", 0.0, 0.7)
 	var ar := _aim_ray(spread)
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]
@@ -734,6 +777,11 @@ func _fire_lance(c: float, aiming: bool) -> void:
 				at -= 1
 			victims.insert(at, [t, e])
 	var scale := lerpf(0.35, 1.0, clampf((c - float(def["min_charge"])) / (1.0 - float(def["min_charge"])), 0.0, 1.0))
+	for _pierced in 4:                                       # the beam goes through the people of the street too
+		var civ := _civilian_ray(origin, dir, wall_t)
+		if civ.is_empty():
+			break
+		_hit_civilian(civ, origin + dir * float(civ["t"]), dir, scale * 4.0)
 	var mz := p.body.muzzle.global_position
 	var end := origin + dir * wall_t
 	FX.tracer(mz, end, def["tracer"])
@@ -1090,6 +1138,11 @@ func _melee_swing(aiming: bool, mult := 1.0, reach_add := 0.0) -> int:
 			continue
 		_melee_hit(e, c, k, finisher)
 		n += 1
+	var city := Game.world as City
+	if city != null and city.ambient != null and Game.civilian_casualties:
+		var spot := origin + fwd * minf(reach, 3.0) * 0.6
+		if city.ambient.blast_civilians(spot, maxf(1.2, minf(reach, 3.0) * 0.6), true, float(def["damage"]) * k * 0.9, &"melee") > 0:
+			n += 1
 	var mz := p.body.muzzle.global_position
 	var tip := origin + Vector3(0.0, 1.2, 0.0) + fwd * minf(reach, 3.0)
 	var swing := p.camera_rig.camera.global_basis.x * (0.8 if step % 2 == 0 else -0.8)
@@ -1283,5 +1336,7 @@ func _tick_inspect(dt: float, busy: bool) -> void:
 func _hit_sound(kill: bool, crit: bool) -> void:
 	var h := WeaponDefs.hit_snd(current)
 	Sfx.play(&"hit", float(h[1]) - 6.0, float(h[0]) * (1.25 if kill else (1.1 if crit else 1.0)))
+	if kill:
+		Sfx.play(&"hit_kill", -4.0, float(h[0]) * 0.9 + 0.15)                     # a kill has its own dull thock and glassy tick on top of the hit
 	if StringName(h[2]) != &"":
 		Sfx.play(StringName(h[2]), -9.0, float(h[0]) + 0.3)

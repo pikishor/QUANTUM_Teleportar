@@ -17,6 +17,9 @@ const BOLT_COLOR_BOOST := 1.6
 const BOLT_SHADER := preload("res://assets/shaders/fx_bolt.gdshader")
 const BOLT_LEN := 3.6             ## streak length of a bolt (metres), see fx_bolt.gdshader
 const REINFORCE_EVERY := 1.4
+const REINFORCE_MIN := 28.0                  ## reinforcements arrive 28-55 m away on the road grid (was 38-75: the fight never reached the hero on a phone screen)
+const REINFORCE_MAX := 55.0
+const REINFORCE_HEAT_SHARE := 0.5            ## their kills add this share of the usual heat
 const NEAR_RADIUS := 110.0
 const CALLOUT_RADIUS := 45.0
 const DESPAWN_DIST := 170.0
@@ -468,7 +471,7 @@ func _tick_reinforcements(delta: float, ppos: Vector3) -> void:
 	var w := Game.world
 	if not is_instance_valid(w) or not w.has_method(&"road_point_near"):
 		return
-	var pt: Vector3 = w.call(&"road_point_near", ppos, 38.0, 75.0)
+	var pt: Vector3 = w.call(&"road_point_near", ppos, REINFORCE_MIN, REINFORCE_MAX)
 	if not pt.is_finite():
 		return
 	var camp := Factions.camp_for(pt, randf())
@@ -477,6 +480,9 @@ func _tick_reinforcements(delta: float, ppos: Vector3) -> void:
 		type = &"operative"                                          # a specialist is capped per type (draw budget): the slot becomes a plain operative
 	var d := spawn(type, pt, true, true, camp)
 	if d != null:
+		d.heat_scale = REINFORCE_HEAT_SHARE                       # a fight that goes on must not push the wanted level to the top by itself
+		if d is Operative:
+			(d as Operative).rush = true                          # reinforcements come in, they do not sit behind a car
 		FX.burst(pt + Vector3(0.0, 1.0, 0.0), d.cfg["color"], 25, 6.0, 0.6, 0.0)
 
 

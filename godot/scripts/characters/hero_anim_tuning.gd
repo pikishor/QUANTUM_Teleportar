@@ -30,6 +30,10 @@ const T := {
 	# vault / mantle hand placement (offset from the shoulder, torso frame: x outward, y up, z forward is negative)
 	"vault_hand_x": 0.04, "vault_hand_y": -0.3, "vault_hand_z": -0.5, "vault_lean": 0.3, "vault_hips": 0.1,
 	"mantle_hand_y": 0.12, "mantle_hand_z": -0.45, "mantle_lean": 0.35, "hand_spring": 14.0,
+	# gait (Locomotion.apply_tuning): metres per cycle = (cyc0 + cyck * speed) * 1.15, capped; foot contact travel and reach leash; swing height and its peak; run lean; stance give; shoulders
+	"gait_cyc0": 0.85, "gait_cyck": 0.40, "gait_cyc_max": 3.9, "gait_step_max": 0.7, "gait_leash": 0.47,
+	"swing_h_walk": 0.08, "swing_h_run": 0.40, "swing_peak": 0.6, "swing_skew": 0.5,
+	"lean_per_speed": 0.025, "lean_sprint": 0.08, "stance_comp": 0.05, "pelvis_yaw": 0.11, "torso_counter": 0.8, "arm_pump": 1.0, "land_centre": 1.0, "swing_follow": 0.75, "run_crouch": 0.07, "weight_rate": 40.0, "pelvis_rise": 1.8, "pelvis_drop": 2.4,
 	# foot IK on slopes and stairs
 	"foot_ray_up": 0.45, "foot_ray_down": 0.55, "foot_max_up": 0.28, "foot_max_down": 0.22, "foot_spring": 22.0,
 	"slope_pitch_max": 0.6, "slope_pitch_mul": 0.9,

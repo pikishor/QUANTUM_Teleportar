@@ -24,6 +24,7 @@ var leg_r: Node3D
 var rig: CharacterRig
 var hanim: HumanoidAnim                ## upper-body state machine of the Vael humanoid model (aim, fire, flinch, die, weapon mount); null for the old model and every specialist
 
+var rush := false                      ## an encounter squad member (Encounters): closes to the middle of its range and hides only for a moment (RUSH_* below); activate() clears it
 var _aim_t := 0.0
 var _burst_left := 0
 var _shot_t := 0.0
@@ -83,6 +84,9 @@ var _unstick_dir := 1.0
 const UNSTICK_AFTER := 1.0
 const UNSTICK_FOR := 2.2
 const CALL_HP := 0.5
+const RUSH_COVER_USE := 0.3            ## a rusher looks for cover this often (x the faction's cover_use)
+const RUSH_HIDE := 0.45                ## ... and hides this share of the faction's hide time
+const RUSH_CLOSE := 0.4                ## ... and keeps walking in until it stands this close to the middle of its range (share of range)
 
 
 func _make_shape() -> Shape3D:
@@ -161,6 +165,7 @@ func _apply_shadow(on: bool) -> void:
 
 
 func _on_activate() -> void:
+	rush = false
 	_called = false
 	_assigned_t = 0.0
 	_cover_on = bool(cfg.get("cover", false))
@@ -513,7 +518,7 @@ func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng
 		_mx = ux * 0.55 - uz * 0.85 * _flank
 		_mz = uz * 0.55 + ux * 0.85 * _flank
 		_speed = speed * 1.05
-	elif d > rng * 0.95 or not los:
+	elif d > rng * 0.95 or not los or (rush and d > rng * RUSH_CLOSE):
 		_mx = ux
 		_mz = uz
 		_speed = speed
@@ -624,7 +629,7 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 		if _cover_search_t > 0.0:
 			return false
 		_cover_search_t = 0.5
-		if randf() > float(_row("cover_use")):
+		if randf() > float(_row("cover_use")) * (RUSH_COVER_USE if rush else 1.0):
 			_cover_cd = 2.0                                   # the hive mostly just charges
 			return false
 		var gm := Game.enemies as EnemyManager
@@ -644,7 +649,7 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 				_cover_state = 2
 				_leaping = false
 				var hr: Vector2 = _row("hide")
-				_cover_t = randf_range(hr.x, hr.y)
+				_cover_t = randf_range(hr.x, hr.y) * (RUSH_HIDE if rush else 1.0)
 			else:
 				var u := to_c.normalized()
 				_mx = u.x
@@ -676,7 +681,7 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 			if (_peeked and _aim_t <= 0.0 and _burst_left == 0) or _cover_t <= 0.0:
 				_cover_state = 2
 				var hr2: Vector2 = _row("hide")
-				_cover_t = randf_range(hr2.x, hr2.y) + 0.1
+				_cover_t = randf_range(hr2.x, hr2.y) * (RUSH_HIDE if rush else 1.0) + 0.1
 				_strafe = -_strafe
 	return true
 

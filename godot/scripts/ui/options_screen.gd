@@ -22,15 +22,15 @@ const SLIDERS := {
 const TOGGLES := {
 	&"opt_aim": &"aim_assist", &"opt_auto": &"auto_fire", &"opt_left": &"left_hand",
 	&"opt_vib": &"vibration", &"opt_subs": &"subtitles", &"opt_cb": &"cb_safe",
-	&"opt_flash": &"reduce_flash", &"opt_motion": &"reduce_motion", &"opt_post": &"post", &"opt_cine": &"cutscenes",
+	&"opt_flash": &"reduce_flash", &"opt_motion": &"reduce_motion", &"opt_post": &"post", &"opt_cine": &"cutscenes", &"opt_civ": &"civilians",
 }
 const TOGGLE_NAMES := {
 	&"opt_aim": "AIM ASSIST", &"opt_auto": "AUTO FIRE", &"opt_left": "LEFT HAND",
 	&"opt_vib": "VIBRATION", &"opt_subs": "SUBTITLES", &"opt_cb": "COLOUR SAFE",
-	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION", &"opt_post": "POST FX", &"opt_cine": "CUTSCENES",
+	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION", &"opt_post": "POST FX", &"opt_cine": "CUTSCENES", &"opt_civ": "CIVILIANS",
 }
 ## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
-const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls", &"opt_reset", &"opt_reset_demo", &"opt_chatter", &"opt_fpsbox"]
+const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls", &"opt_reset", &"opt_reset_demo", &"opt_chatter", &"opt_fpsbox", &"opt_civ"]
 const PAGE_CELL := 23                ## three columns of eight rows: the MORE cell is the last
 ## RESET PROGRESS needs two presses: the first arms it (the label asks), the second wipes. Any other press, the page flip and BACK disarm it; only on the title screen.
 static var reset_armed := false

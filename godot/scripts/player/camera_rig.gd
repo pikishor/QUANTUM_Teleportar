@@ -135,6 +135,7 @@ var _bump_v := 0.0
 var _since_kick := 99.0
 var _roll := 0.0
 var _bob_t := 0.0
+var _bob_gain := 0.0                              ## 0..1: the step-synced bob fades in and out with the gait, so a stop never snaps the camera
 var _shake_t := 0.0
 var _ratio := 1.0                            ## fraction of the arm that is free of walls (smoothed: instant in, eased out)
 var _pivot_pos := Vector3.ZERO
@@ -737,6 +738,10 @@ func _update_view(dt: float) -> void:
 		strafe = _player.input_strafe
 		speed_h = Vector2(_player.velocity.x, _player.velocity.z).length()
 	_bob_t += dt * (3.0 + speed_h * 1.1)
+	var body_loco: Locomotion = _player.body.loco if (_player != null and playing and not drv and _player.body != null) else null
+	var gait_bob := body_loco != null and body_loco.rig != null and speed_h > 0.5 and _player.is_on_floor()
+	if gait_bob:                                    # the bob follows the hero's own steps (two bumps per gait cycle, a continuous phase), so the camera never beats against the feet
+		_bob_t = body_loco.rig.phase * 2.0
 	var roll_target := -strafe * 0.014 * (1.0 - ads_s) + sin(_bob_t * 0.5) * 0.0035 * _sprint
 	_roll = PlayerUtil.damp(_roll, roll_target, 8.0, dt)
 	var shake := clampf(FX.shake_amount, 0.0, 1.0)
@@ -748,6 +753,11 @@ func _update_view(dt: float) -> void:
 		s_off = Vector3(PlayerUtil.wobble(_shake_t, 31.0, 47.0, 0.3), PlayerUtil.wobble(_shake_t, 37.0, 53.0, 1.7), PlayerUtil.wobble(_shake_t, 29.0, 43.0, 3.1)) * amp
 		s_rot = Vector3(PlayerUtil.wobble(_shake_t, 33.0, 51.0, 2.2), PlayerUtil.wobble(_shake_t, 39.0, 49.0, 4.1), PlayerUtil.wobble(_shake_t, 27.0, 41.0, 5.3)) * minf(shake * 0.018, SHAKE_MAX_ROT)
 	var bob_y := sin(_bob_t) * 0.012 * minf(1.0, speed_h / 6.0) * (1.0 - ads_s * 0.7)
+	if not gait_bob:
+		_bob_gain = PlayerUtil.damp(_bob_gain, 0.0, 10.0, dt)
+	else:
+		_bob_gain = PlayerUtil.damp(_bob_gain, 1.0, 10.0, dt)
+	bob_y *= _bob_gain
 	var cam_basis := Basis.from_euler(Vector3(pitch_t + s_rot.x, yaw_t + s_rot.y, _roll + s_rot.z), EULER_ORDER_YXZ)
 	cam_pos += cam_basis * Vector3(s_off.x, s_off.y + bob_y + _bump, s_off.z + _punch)
 	if InteriorSpace.active:

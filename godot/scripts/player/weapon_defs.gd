@@ -22,7 +22,7 @@ const DEFS := {
 	},
 	&"scatter": {
 		"name": "SHARD SCATTER", "tag": "SCT", "kind": "hit", "mag": 6, "reserve": 36, "interval": 0.8, "damage": 9.0, "crit": 18.0, "pellets": 8,
-		"pattern": [Vector2(0.0, 1.0), Vector2(-0.4, 1.15), Vector2(0.4, 1.15)], "shake": 0.14, "vol": 2.0, "pitch_lo": 0.5, "pitch_hi": 0.62, "eject": 0, "flash": 1.7, "ads_kick": 0.8, "ads_spread": 0.67,
+		"pattern": [Vector2(0.0, 1.0), Vector2(-0.4, 1.15), Vector2(0.4, 1.15)], "shake": 0.14, "vol": -1.0, "pitch_lo": 0.94, "pitch_hi": 1.06, "snd": &"shot_scatter", "eject": 0, "flash": 1.7, "ads_kick": 0.8, "ads_spread": 0.67,
 		"spread_hip": 0.075, "spread_ads": 0.05, "spread_move": 0.015, "bloom": 0.0, "bloom_max": 0.0,
 		"kick": 0.042, "kick_end": 0.042, "kick_yaw": 0.012, "reload": 1.9, "range": 38.0, "falloff_from": 12.0,
 		"tracer": Color(0.45, 1.0, 0.82), "look": Color(0.3, 1.0, 0.75), "look_size": Vector3(0.1, 0.07, 0.34), "zoom": 56.0, "price": 500, "pierce_shield": false,

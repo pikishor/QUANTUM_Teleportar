@@ -51,6 +51,7 @@ var buff_dmg := 1.0                  ## commander aura (TacticsTable.BUFF_*), re
 var buff_speed := 1.0
 var camp: StringName = &""             ## FACTIONS camp (Factions.VAEL / GANG / DRONES), set by EnemyManager.spawn
 var camp_speed := 1.0                  ## the camp's speed factor (Factions.BEHAVIOUR)
+var heat_scale := 1.0                  ## share of the kill's heat that counts (an Encounters squad attacks unprovoked: killing it is not a crime); activate() resets it
 var friendly := false                  ## an allied camp's unprovoked enemy: ignores the heat, never raises suspicion
 var _camp_look: StringName = &""
 var los := false             ## last throttled line-of-sight result to the current target
@@ -142,6 +143,7 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	camp = &""
 	camp_speed = 1.0
 	friendly = false
+	heat_scale = 1.0
 	aware = is_aware
 	_was_aware = is_aware
 	suspicion = 0.0
@@ -354,7 +356,7 @@ func die() -> void:
 		Game.say("SILENT TAKEDOWN  +%d" % Stealth.takedown_bonus(), 1.2)
 	_unaware_hit = false
 	if not (silent and InteriorGameplay.active):                           # a silent takedown inside a room raises no heat: the other guards hear nothing
-		Game.heat += float(cfg["heat"]) * Difficulty.mult("heat")
+		Game.heat += float(cfg["heat"]) * Difficulty.mult("heat") * heat_scale
 		Game.quiet = 0.0
 	var p := Game.player
 	if is_instance_valid(p) and p.has_method(&"add_energy"):
