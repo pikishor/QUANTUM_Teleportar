@@ -21,15 +21,69 @@ const ICONS := {
 }
 
 
+static var _tex := {}
+const TEX_W := 96
+const TEX_H := 48
+
+
 static func has_icon(id: StringName) -> bool:
-	return ICONS.has(id)
+	return ICONS.has(id) or WeaponDefs.DEFS.has(id)
+
+
+## The side-view silhouette of a weapon's own mesh (the one in the hero's hand) as a white-on-clear texture, 2:1, muzzle on the right. Built once and cached, so the HUD, the wheel and the
+## loadout show exactly the shape the hero holds.
+static func texture(id: StringName) -> Texture2D:
+	if _tex.has(id):
+		return _tex[id]
+	var m := WeaponModels.mesh(id)
+	if m == null:
+		return null
+	var f := m.get_faces()
+	var bb := m.get_aabb()
+	var w := maxf(bb.size.z, 0.01)
+	var h := maxf(bb.size.y, 0.01)
+	var k := minf(float(TEX_W - 6) / w, float(TEX_H - 6) / h)
+	var ox := (float(TEX_W) - w * k) * 0.5
+	var oy := (float(TEX_H) - h * k) * 0.5
+	var img := Image.create(TEX_W, TEX_H, false, Image.FORMAT_RGBA8)
+	var i := 0
+	while i + 2 < f.size():
+		var p: Array[Vector2] = []
+		for j in 3:
+			var v := f[i + j]
+			p.append(Vector2(ox + (bb.end.z - v.z) * k, oy + (bb.end.y - v.y) * k))      # muzzle (z 0) on the right, up is up
+		i += 3
+		var x0 := maxi(0, int(floorf(minf(p[0].x, minf(p[1].x, p[2].x)))))
+		var x1 := mini(TEX_W - 1, int(ceilf(maxf(p[0].x, maxf(p[1].x, p[2].x)))))
+		var y0 := maxi(0, int(floorf(minf(p[0].y, minf(p[1].y, p[2].y)))))
+		var y1 := mini(TEX_H - 1, int(ceilf(maxf(p[0].y, maxf(p[1].y, p[2].y)))))
+		var den := (p[1].y - p[2].y) * (p[0].x - p[2].x) + (p[2].x - p[1].x) * (p[0].y - p[2].y)
+		if absf(den) < 0.0001:                                      # an edge-on face: a one pixel line
+			for xx in range(x0, x1 + 1):
+				for yy in range(y0, y1 + 1):
+					img.set_pixel(xx, yy, Color.WHITE)
+			continue
+		for yy in range(y0, y1 + 1):
+			for xx in range(x0, x1 + 1):
+				var q := Vector2(float(xx) + 0.5, float(yy) + 0.5)
+				var a := ((p[1].y - p[2].y) * (q.x - p[2].x) + (p[2].x - p[1].x) * (q.y - p[2].y)) / den
+				var b := ((p[2].y - p[0].y) * (q.x - p[2].x) + (p[0].x - p[2].x) * (q.y - p[2].y)) / den
+				if a >= -0.05 and b >= -0.05 and a + b <= 1.05:
+					img.set_pixel(xx, yy, Color.WHITE)
+	var t := ImageTexture.create_from_image(img)
+	_tex[id] = t
+	return t
 
 
 ## Draw the icon of a weapon fitted into `r` (a uniform scale, centred) on a CanvasItem.
 static func draw(c: CanvasItem, id: StringName, r: Rect2, col: Color) -> void:
-	if not ICONS.has(id):
-		return
 	var sz := minf(r.size.x, r.size.y * 2.0)
 	var box := Rect2(r.get_center() - Vector2(sz, sz * 0.5) * 0.5, Vector2(sz, sz * 0.5))
+	var tex := texture(id)
+	if tex != null:
+		c.draw_texture_rect(tex, box, false, col)
+		return
+	if not ICONS.has(id):
+		return
 	for q: Array in ICONS[id]:
 		c.draw_rect(Rect2(box.position + Vector2(float(q[0]) * box.size.x, float(q[1]) * box.size.y * 2.0 - box.size.y * 0.5), Vector2(float(q[2]) * box.size.x, float(q[3]) * box.size.y * 2.0)), col)

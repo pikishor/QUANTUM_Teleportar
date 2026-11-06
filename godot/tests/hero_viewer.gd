@@ -9,6 +9,8 @@ var _cam: Camera3D
 var _views: PackedStringArray
 var _i := 0
 var _wait := 0
+var _weapons: PackedStringArray = PackedStringArray()   ## weapons=a,b,c : every view of every weapon (images <out>_<weapon>_<view>.png)
+var _wi := 0
 
 
 func _ready() -> void:
@@ -51,6 +53,9 @@ func _ready() -> void:
 	_body.apply_look(look)
 	print("VIEWER hero ", look.body, look.skin_tone, look.hair, " ", _body._hero_opts, " inside ", _body.is_inside_tree(), " args ", _args)
 	_body.set_quality(int(_args.get("q", "1")))
+	if _args.has("weapons"):
+		_weapons = String(_args["weapons"]).split(",", false)
+		_args["weapon"] = _weapons[0]
 	if _args.has("weapon"):
 		_body.set_weapon_look(StringName(str(_args["weapon"])))             # weapon=scatter|lance|... : the class silhouette on the hand mount
 	_cam = Camera3D.new()
@@ -88,6 +93,7 @@ func _pose() -> void:
 			rig.amp = 0.6
 			rig.phase = 0.8
 	rig.apply()
+	_body.sync_muzzle()
 	_body.global_position = Vector3.ZERO
 
 
@@ -116,9 +122,22 @@ func _process(_dt: float) -> void:
 		if _wait == 0:
 			_wait = -1
 			return
-		get_viewport().get_texture().get_image().save_png("%s_%s.png" % [_args.get("out", "/tmp/v"), v])
+		if str(_args.get("dbg", "0")) == "1" and _i == 0:
+			var sk := _body.rig.skeleton
+			for side: StringName in [&"l", &"r"]:
+				var hb := HeroPresentation.hand_bone(sk, side)
+				print("VIEWER DBG hand ", side, " ", (sk.global_transform * sk.get_bone_global_pose(hb)).origin)
+			print("VIEWER DBG muzzle ", _body.muzzle.global_position, " basis z ", _body.muzzle.global_basis.z, " shift ", _body._muzzle_shift, " grip ", _body.rig.grip_off_l, _body.rig.grip_off_r)
+		var tag := v if _weapons.is_empty() else "%s_%s" % [_weapons[_wi], v]
+		get_viewport().get_texture().get_image().save_png("%s_%s.png" % [_args.get("out", "/tmp/v"), tag])
 		_i += 1
 		_wait = 4
+		if _i >= _views.size() and _wi + 1 < _weapons.size():
+			_wi += 1
+			_i = 0
+			_wait = 6
+			_body.set_weapon_look(StringName(_weapons[_wi]))
+			return
 		if _i >= _views.size():
 			print("VIEWER DONE draws=", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME), " prims=", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
 			get_tree().quit()

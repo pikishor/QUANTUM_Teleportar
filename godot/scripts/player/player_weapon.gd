@@ -43,12 +43,15 @@ const BURST_RESET := 0.35
 
 const TRACER_COLOR := Color(1.0, 0.86, 0.5)
 const MASK_SHOT := 1 | 4 | 8                 # world + enemy + vehicle (Game.L_*)
+const MUZZLE_CLEAR := 1.2                    ## metres in front of the muzzle that must be free; beyond that the camera ray through the crosshair decides what a shot hits
+const MID_BURST_KICK := 0.25                 ## camera kick share of a round that is not the last of its burst
+const BURST_BLOOM := 3.0                     ## a whole burst blooms the cone once, by this many single-shot steps
 const SWAP_TIME := 0.32
 const GRENADE_GRAVITY := 22.0
 const WELL_TICK := 0.2
 const INSPECT_TIME := 1.6
 const INSPECT_IDLE := 9.0                    ## seconds of doing nothing before the rifle is inspected
-const AMMO_PACK := {&"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12}
+const AMMO_PACK := {&"pistol": 30, &"marksman": 12, &"breacher": 8, &"rocket": 2, &"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12}
 
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
@@ -104,6 +107,8 @@ var _grenades: Array[Dictionary] = []
 var _grenade_mat: StandardMaterial3D
 var _charge_fx := 0.0
 var civilian_hits := 0                       ## lifetime shots that hit a citizen (tests)
+var spread_override := -1.0                  ## >= 0 forces the dispersion half angle (tests measuring pure aim; the crosshair follows it too)
+var last_shot: Dictionary = {}               ## the last pellet: origin, dir (the aimed ray), muzzle, hit, dist, target (Node or null), zone, civ, blocked, spread (tests and the HUD read it)
 var shells_ejected := 0                      ## lifetime counters for tests
 var numbers_spawned := 0
 var _numbers: Array[Label3D] = []
@@ -211,6 +216,7 @@ func switch_to(id: StringName, instant := false) -> bool:
 	_save_current()
 	_load(id)
 	WeaponDefs.last_used = id
+	WeaponDefs.last_in_class[WeaponDefs.class_of(id)] = id
 	reload_t = 0.0
 	charge = 0.0
 	_burst = 0
@@ -225,10 +231,7 @@ func switch_to(id: StringName, instant := false) -> bool:
 
 ## The next (dir 1) or previous (dir -1) owned weapon. Returns true when the weapon changed.
 func cycle(dir: int) -> bool:
-	var owned: Array[StringName] = []
-	for id: StringName in WeaponDefs.IDS:
-		if WeaponDefs.is_unlocked(id):
-			owned.append(id)
+	var owned := WeaponDefs.owned_ordered()
 	if owned.size() < 2:
 		return false
 	var i := owned.find(current)
@@ -266,6 +269,24 @@ func grant(id: StringName) -> String:
 	return "+%d %s" % [int(AMMO_PACK.get(id, 6)), WeaponDefs.title(id)]
 
 
+## An ammo crate: every owned limited weapon gets `frac` of its base reserve (at most twice the base, like a pickup) and the magazine in hand is topped up. Returns the rounds given.
+func restock(frac: float) -> int:
+	_save_current()
+	var given := 0
+	for id: StringName in WeaponDefs.IDS:
+		var base := int(WeaponDefs.def(id)["reserve"])
+		if base <= 0 or not WeaponDefs.is_unlocked(id):
+			continue
+		var st: Vector2i = _store.get(id, Vector2i(_mag_for(id), base))
+		var add := maxi(1, int(ceilf(float(base) * frac)))
+		var ny := mini(st.y + add, base * 2)
+		given += maxi(0, ny - st.y)
+		_store[id] = Vector2i(st.x, ny)
+		if id == current:
+			reserve = ny
+	return given
+
+
 ## Spare rounds of any weapon (the current one live), for the HUD and tests.
 func reserve_of(id: StringName) -> int:
 	if id == current:
@@ -279,6 +300,29 @@ func ammo_of(id: StringName) -> int:
 		return ammo
 	var st: Vector2i = _store.get(id, Vector2i(_mag_for(id), 0))
 	return st.x
+
+
+## The gun in hand is dry and has no spare rounds: take the best owned weapon that still shoots (same class first, then the unlimited sidearm) instead of clicking on an empty trigger.
+func _auto_swap() -> void:
+	if swap_t > 0.0:
+		return
+	var best: StringName = &""
+	var cls := WeaponDefs.class_of(current)
+	for pass_i in 2:
+		for id: StringName in WeaponDefs.owned_ordered():
+			if id == current or String(WeaponDefs.def(id)["kind"]) == "melee":
+				continue
+			if pass_i == 0 and WeaponDefs.class_of(id) != cls:
+				continue
+			if ammo_of(id) > 0 or reserve_of(id) != 0:
+				best = id
+				break
+		if best != &"":
+			break
+	if best == &"":
+		best = &"blade" if WeaponDefs.is_unlocked(&"blade") else &""
+	if best != &"" and switch_to(best):
+		Game.say("OUT OF AMMO  %s" % WeaponDefs.title(best), 1.6)
 
 
 # --- state ----------------------------------------------------------------------------------------------------------
@@ -380,6 +424,8 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 		_burst = 0
 	_move_spread = PlayerUtil.damp(_move_spread, float(def["spread_move"]) if moving else 0.0, 12.0, dt)
 	spread = (float(def["spread_ads"]) if aiming else float(def["spread_hip"])) + bloom * (float(def["ads_spread"]) if aiming else 1.0) + _move_spread
+	if spread_override >= 0.0:
+		spread = spread_override
 
 
 ## Dispersion applied to a unit direction: uniform inside a cone of half angle `angle` around `dir`, using the camera basis.
@@ -388,6 +434,11 @@ static func jitter_dir(basis: Basis, angle: float, rng_a: float, rng_r: float) -
 	var a := rng_a * TAU
 	var r := angle * sqrt(rng_r)
 	return (fwd + basis.x * (cos(a) * r) + basis.y * (sin(a) * r)).normalized()
+
+
+## The half angle of the cone a shot is rolled in right now: what the crosshair shows (tests can pin it with spread_override).
+func cone() -> float:
+	return spread_override if spread_override >= 0.0 else spread
 
 
 ## [origin, dir] of an aim ray: the camera through the crosshair with `sp` half angle of dispersion, starting at the player's depth.
@@ -409,10 +460,13 @@ func _recoil(aiming: bool) -> void:
 	if aiming:
 		kick *= float(def["ads_kick"])
 		kick_yaw *= float(def["ads_kick"])
-	rig.kick(kick * KICK_BOOST, kick_yaw * KICK_BOOST)
+	var mid_burst := _burst_left > 0 and String(def["kind"]) == "hit"      # the rounds of a burst leave on one line: the view kicks (almost) only after the last one, and the cone does not bloom between them
+	var burst_k := MID_BURST_KICK if mid_burst else 1.0
+	rig.kick(kick * KICK_BOOST * burst_k, kick_yaw * KICK_BOOST * burst_k)
 	FX.shake(float(def["shake"]) * (0.6 if aiming else 1.0) * 1.35)
 	rig.punch(0.03 if String(def["kind"]) == "hit" and int(def["pellets"]) == 1 else 0.07)
-	bloom = minf(float(def["bloom_max"]), bloom + float(def["bloom"]))
+	if not mid_burst:
+		bloom = minf(float(def["bloom_max"]), bloom + float(def["bloom"]) * (BURST_BLOOM if int(def.get("burst", 1)) > 1 else 1.0))
 
 
 # --- carbine and scatter (hitscan) ------------------------------------------------------------------------------------
@@ -448,7 +502,7 @@ func _shoot(dt: float, aiming: bool) -> void:
 
 func _trace_pellet() -> void:
 	var p := _player
-	var ar := _aim_ray(spread * _alt_spread)
+	var ar := _aim_ray(cone() * _alt_spread)
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]
 	var range_m := float(def["range"])
@@ -460,39 +514,41 @@ func _trace_pellet() -> void:
 	_exclude.assign(_exclude_base)
 	_ray.from = origin
 	_ray.to = origin + dir * range_m
-	for _attempt in 3:
+	for _attempt in 6:
 		_ray.exclude = _exclude
 		var res := space.intersect_ray(_ray)
 		if res.is_empty():
 			break
 		var hit_pos: Vector3 = res["position"]
 		var hit_target := _damageable_of(res["collider"] as Node)
-		if hit_target != null and _is_dead(hit_target):
-			_exclude.append(res["rid"])          # a corpse does not stop bullets
+		if hit_target != null and (_is_dead(hit_target) or hit_target.has_method(&"hit_ray")):
+			_exclude.append(res["rid"])          # a corpse does not stop bullets; people are tested on their real shape below (HitZones), not on the physics blob
 			continue
 		best = origin.distance_to(hit_pos)
 		normal = res["normal"]
 		target = hit_target
 		_last_collider = res["collider"]
 		break
-	# collider-less (or generously sized) enemies: the prototype's ray-sphere test
+	# every enemy is tested on its own shape: head sphere + body capsule for a person, a sphere for a drone (HitZones); the nearest hit of all wins
+	var zone: StringName = &""
 	for e: Node in get_tree().get_nodes_in_group(&"enemy"):
-		if not (e is Node3D) or not e.has_method(&"center") or _is_dead(e):
+		if not (e is Node3D) or _is_dead(e):
 			continue
-		var c: Vector3 = e.call(&"center")
-		var r := _radius_of(e)
-		if r <= 0.0:
+		var zh := HitZones.of(e, origin, dir)
+		if zh.is_empty():
 			continue
-		var t := PlayerUtil.ray_sphere(origin, dir, c, r)
+		var t := float(zh["t"])
 		if t < best:
 			best = t
 			target = e
-			normal = (origin + dir * t - c).normalized()
+			zone = zh["zone"]
+			normal = -dir
 	# the people of the street: a shot at a citizen in front of the wall hits the citizen
 	var civ := _civilian_ray(origin, dir, best)
 	if not civ.is_empty():
 		best = float(civ["t"])
 		target = null
+		zone = &""
 		normal = -dir
 	var hit := origin + dir * best
 	var hit_something := best < range_m - 0.001
@@ -501,8 +557,11 @@ func _trace_pellet() -> void:
 	var mz := p.body.muzzle.global_position
 	var anchor := p.camera_rig.get_pivot_position()
 	var blocked := _blocked_between(space, anchor, mz)
-	if blocked.is_empty():
-		blocked = _blocked_between(space, mz, hit)
+	if blocked.is_empty():                                          # cover right in front of the muzzle; nothing farther out: the crosshair is the truth, a lamp post or a corner beside the line never eats a shot the player sees land
+		var to_hit := hit - mz
+		var reach := minf(to_hit.length(), MUZZLE_CLEAR)
+		if reach > 0.05:
+			blocked = _blocked_between(space, mz, mz + to_hit.normalized() * reach)
 	if not blocked.is_empty():
 		hit = blocked["position"]
 		normal = blocked["normal"]
@@ -512,6 +571,7 @@ func _trace_pellet() -> void:
 
 	if def.has("twin"):                                             # akimbo: the shot leaves the hand whose turn it is
 		mz += p.camera_rig.camera.global_basis.x * (_side * 0.16)
+	last_shot = {"origin": origin, "dir": dir, "muzzle": mz, "hit": hit, "dist": best, "target": target, "zone": zone, "civ": not civ.is_empty(), "blocked": not blocked.is_empty(), "spread": cone() * _alt_spread, "frame": Engine.get_physics_frames()}
 	FX.tracer(mz, hit, def["tracer"])
 	FX.qvfx.weapon_shot(current, mz, hit)
 
@@ -520,7 +580,7 @@ func _trace_pellet() -> void:
 	if mz.distance_to(hit) > from_d:
 		k = lerpf(1.0, 0.25, clampf((mz.distance_to(hit) - from_d) / maxf(range_m - from_d, 1.0), 0.0, 1.0))
 	if target != null and not _is_dead(target):
-		_hit_target(target, hit, normal, k)
+		_hit_target(target, hit, normal, k, zone)
 		if def.has("chain"):
 			_chain(target, hit, k)
 	elif not civ.is_empty():
@@ -566,7 +626,7 @@ func _blocked_between(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vector3) 
 	return space.intersect_ray(_ray_b)
 
 
-func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
+func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: StringName = &"") -> void:
 	var p := _player
 	k *= _alt_k * float(ammo_info()["dmg"])
 	var is_vehicle := target.is_in_group(&"vehicle") and not target.is_in_group(&"enemy")
@@ -580,9 +640,12 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0) -> void:
 		else:
 			c = (target as Node3D).global_position
 		var r := _radius_of(target)
-		crit = r > 0.0 and hit.y > c.y + r * CRIT_HEIGHT
+		if zone == &"":                                             # no zone from the ray (melee, chains): the old upper-third rule
+			zone = HitZones.HEAD if (r > 0.0 and hit.y > c.y + r * CRIT_HEIGHT) else HitZones.BODY
+		crit = zone == HitZones.HEAD
 		human = target is Operative or target.get(&"type") == &"operative"
-		var amount := TestMode.damage((float(def["crit"]) if crit else float(def["damage"])) * k * Upgrades.damage_mult() * HeroPower.f("dmg"))
+		var base_dmg := float(def["crit"]) if crit else float(def["damage"]) * (HitZones.LEG_MULT if zone == HitZones.LEGS else 1.0)
+		var amount := TestMode.damage(base_dmg * k * Upgrades.damage_mult() * HeroPower.f("dmg"))
 		if target.has_method(&"shield_blocks"):
 			if bool(def["pierce_shield"]) or bool(ammo_info()["pierce"]):
 				target.call(&"break_shield")
@@ -748,7 +811,7 @@ func _fire_lance(c: float, aiming: bool) -> void:
 	else:
 		Sfx.play(&"boom", -8.0, 1.7)
 		Sfx.play(&"shot", 0.0, 0.7)
-	var ar := _aim_ray(spread)
+	var ar := _aim_ray(cone())
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]
 	var range_m := float(def["range"])
@@ -765,17 +828,17 @@ func _fire_lance(c: float, aiming: bool) -> void:
 		wall_collider = wall["collider"] as Node
 	var victims: Array = []                                 # [t, enemy] sorted by distance
 	for e: Node in get_tree().get_nodes_in_group(&"enemy"):
-		if not (e is Node3D) or not e.has_method(&"center") or _is_dead(e):
+		if not (e is Node3D) or _is_dead(e):
 			continue
-		var r := _radius_of(e)
-		if r <= 0.0:
+		var zh := HitZones.of(e, origin, dir)
+		if zh.is_empty():
 			continue
-		var t := PlayerUtil.ray_sphere(origin, dir, e.call(&"center"), r)
+		var t := float(zh["t"])
 		if t < wall_t:
 			var at := victims.size()
 			while at > 0 and float(victims[at - 1][0]) > t:
 				at -= 1
-			victims.insert(at, [t, e])
+			victims.insert(at, [t, e, zh["zone"]])
 	var scale := lerpf(0.35, 1.0, clampf((c - float(def["min_charge"])) / (1.0 - float(def["min_charge"])), 0.0, 1.0))
 	for _pierced in 4:                                       # the beam goes through the people of the street too
 		var civ := _civilian_ray(origin, dir, wall_t)
@@ -790,7 +853,7 @@ func _fire_lance(c: float, aiming: bool) -> void:
 	for v: Array in victims:
 		var e: Node = v[1]
 		if is_instance_valid(e) and not _is_dead(e):
-			_hit_target(e, origin + dir * float(v[0]), -dir, scale)
+			_hit_target(e, origin + dir * float(v[0]), -dir, scale, v[2])
 	if wall_collider != null:
 		var veh := _damageable_of(wall_collider)
 		if veh != null and veh.is_in_group(&"vehicle") and not veh.is_in_group(&"enemy"):
@@ -829,7 +892,9 @@ func _throw(yaw_off := 0.0) -> void:
 	g["state"] = 0
 	g["wid"] = current
 	g["pos"] = from
-	g["vel"] = Vector3(delta.x / t, delta.y / t + 0.5 * GRENADE_GRAVITY * t, delta.z / t)
+	var grav := float(def.get("grav", GRENADE_GRAVITY))
+	g["grav"] = grav
+	g["vel"] = Vector3(delta.x / t, delta.y / t + 0.5 * grav * t, delta.z / t)
 	g["t"] = 0.0
 	var node: MeshInstance3D = g["node"]
 	node.global_position = from
@@ -917,7 +982,7 @@ func _physics_process_body(delta: float) -> void:
 
 func _fly(g: Dictionary, dt: float) -> void:
 	var vel: Vector3 = g["vel"]
-	vel.y -= GRENADE_GRAVITY * dt
+	vel.y -= float(g.get("grav", GRENADE_GRAVITY)) * dt
 	g["vel"] = vel
 	var pos: Vector3 = g["pos"]
 	var nxt := pos + vel * dt

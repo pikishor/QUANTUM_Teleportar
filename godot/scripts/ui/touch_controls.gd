@@ -516,11 +516,7 @@ func wheel_items(kind: StringName) -> Array:
 	if p == null:
 		return out
 	if kind == &"weapon":
-		var cur: StringName = (p.get("weapon") as PlayerWeapon).current if p.get("weapon") is PlayerWeapon else &""
-		for id: StringName in WeaponDefs.IDS:
-			if WeaponDefs.is_unlocked(id):
-				out.append({"id": id, "label": str(WeaponDefs.DEFS[id].get("tag", id)), "ready": true, "active": id == cur, "cd": 0.0, "current": id == cur})
-		return out
+		return WeaponWheel.items()
 	var qv: Object = p.get("qverbs")
 	for d: Dictionary in WHEEL_ABILITIES:
 		var st := {"ready": true, "active": false, "cd": 0.0}
@@ -544,7 +540,7 @@ func _wheel_pick(i: int) -> void:
 	if wheel.kind == &"weapon":
 		var p: Node = Game.player if is_instance_valid(Game.player) else null
 		if p != null and p.get("weapon") is PlayerWeapon:
-			(p.get("weapon") as PlayerWeapon).switch_to(id)
+			WeaponWheel.pick(id, p.get("weapon") as PlayerWeapon)
 	else:
 		if _pulse_action != &"":
 			Input.action_release(_pulse_action)
@@ -588,7 +584,7 @@ func _draw_wheel(c: Control, font: Font, s: float) -> void:
 		if float(it["cd"]) > 0.0:
 			c.draw_arc(ic, r + 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * float(it["cd"]), 28, Color(tint, 0.9), 3.0 * s, false)
 		if wheel.kind == &"weapon":
-			WeaponIcons.draw(c, StringName(it["id"]), Rect2(ic.x - r * 0.8, ic.y - r * 0.62, r * 1.6, r * 0.8), Color(tint, 0.95))
+			WeaponIcons.draw(c, StringName(it.get("icon", it["id"])), Rect2(ic.x - r * 0.8, ic.y - r * 0.62, r * 1.6, r * 0.8), Color(tint, 0.95))
 			texts.append([ic + Vector2(-r, r * 0.62), str(it["label"]), r * 2.0, 20.0, dim])
 		else:
 			var words := str(it["label"]).split(" ")

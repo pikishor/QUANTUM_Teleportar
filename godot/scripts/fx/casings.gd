@@ -6,7 +6,7 @@ extends Node3D
 const CAP := 14
 const LIFE := 1.6
 const GRAVITY := 16.0
-const SIZE := Vector3(0.085, 0.03, 0.03)            ## a brass box, stylised big enough to read from the shoulder camera
+const SIZE := Vector3(0.055, 0.02, 0.02)            ## a brass box, big enough to read from the shoulder camera, small enough not to read as a floating block
 const BRASS := Color(1.0, 0.72, 0.28)
 
 var mm: MultiMesh

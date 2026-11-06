@@ -18,11 +18,7 @@ static var _page_sel: StringName = &""
 
 
 static func owned_weapons() -> Array[StringName]:
-	var out: Array[StringName] = []
-	for id: StringName in WeaponDefs.IDS:
-		if WeaponDefs.is_unlocked(id):
-			out.append(id)
-	return out
+	return WeaponDefs.owned_ordered()
 
 
 ## Weapons of the visible page (at most WeaponDefs.PAGE_SIZE).
@@ -82,6 +78,9 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var np := WeaponDefs.pages_for(owned_weapons().size())
 	if np > 1:
 		hud._text(c, font, Vector2(cx + (WHEEL_DX - 120.0) * s, (WHEEL_Y + 66.0) * s), "%d/%d" % [page + 1, np], HORIZONTAL_ALIGNMENT_CENTER, 240.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+	var nx := WeaponLadder.next_line()
+	if nx != "":
+		hud._text(c, font, Vector2(0.0, 166.0 * s), nx, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var d := Attachments.effective(sel)
 	hud._text(c, font, Vector2(cx + (WHEEL_DX - 120.0) * s, (WHEEL_Y + 20.0) * s), "DMG %d  MAG %d" % [int(roundf(float(d["damage"]))), int(d["mag"])], HORIZONTAL_ALIGNMENT_CENTER, 240.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.85), 1.0 * s)
 	for k in Attachments.SLOTS.size():

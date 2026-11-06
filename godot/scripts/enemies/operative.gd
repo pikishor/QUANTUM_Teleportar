@@ -97,6 +97,17 @@ func _make_shape() -> Shape3D:
 	return cap
 
 
+func body_box() -> Array:
+	var k := float(cfg.get("scale", 1.0))
+	return [global_position, global_position + Vector3(0.0, 1.8 * k, 0.0), 0.42 * k]
+
+
+## A person: a head sphere on a standing capsule from the feet (HitZones), sized by the type's `scale`. Feet, legs, torso and head all count, nothing beside the body does.
+func hit_ray(o: Vector3, d: Vector3) -> Dictionary:
+	var k := float(cfg.get("scale", 1.0))
+	return HitZones.ray(o, d, global_position, 1.8 * k, 0.36 * k, 0.2 * k)
+
+
 func _build_visual() -> void:
 	super._build_visual()
 	rig = CharacterRig.find(model) if uses_model else null

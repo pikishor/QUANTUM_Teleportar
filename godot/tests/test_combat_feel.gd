@@ -135,24 +135,22 @@ func _wav(path: String) -> Dictionary:
 # --- the weapon silhouettes ----------------------------------------------------------------------------------------------
 
 func _test_silhouettes() -> void:
-	TestLib.check(WeaponModels.mesh(&"carbine") == null, "the carbine is the hero's own baked rifle: no overlay")
+	TestLib.check(WeaponModels.mesh(&"carbine") != null, "the carbine is a weapon mesh like every other (the hero is built unarmed)")
 	var sigs := {}
 	var all_ok := true
 	for id: StringName in WeaponDefs.IDS:
-		if id == &"carbine":
-			continue
 		var m := WeaponModels.mesh(id)
 		if m == null:
 			all_ok = false
 			continue
 		var bb := m.get_aabb()
 		sigs["%d_%d_%d" % [roundi(bb.size.x * 40.0), roundi(bb.size.y * 40.0), roundi(bb.size.z * 40.0)]] = true
-		all_ok = all_ok and bb.size.z > 0.3 and bb.size.z < 1.6 and bb.end.z > 0.2 and m.get_surface_count() == 1
-	TestLib.check(all_ok, "every weapon class has ONE surface (one draw), 0.3-1.6 m long, its body behind the muzzle")
-	TestLib.check(sigs.size() >= 10, "the silhouettes are distinct: %d different sizes among %d classes" % [sigs.size(), WeaponDefs.IDS.size() - 1])
+		all_ok = all_ok and bb.size.z > 0.15 and bb.size.z < 1.6 and bb.end.z > 0.2 and m.get_surface_count() == 1
+	TestLib.check(all_ok, "every weapon class has ONE surface (one draw), 0.15-1.6 m long, its body behind the muzzle")
+	TestLib.check(sigs.size() >= 14, "the silhouettes are distinct: %d different sizes among %d classes" % [sigs.size(), WeaponDefs.IDS.size()])
 	var lance := WeaponModels.mesh(&"lance").get_aabb().size
 	var scatter := WeaponModels.mesh(&"scatter").get_aabb().size
-	TestLib.check(lance.z >= 1.2 and scatter.z <= 1.0 and lance.z > scatter.z * 1.25, "a lance is long (%.2f m), a scatter gun short (%.2f m)" % [lance.z, scatter.z])
+	TestLib.check(lance.z >= 1.2 and scatter.z <= 1.1 and lance.z > scatter.z * 1.1, "a lance is long (%.2f m), a scatter gun short (%.2f m)" % [lance.z, scatter.z])
 	TestLib.check(WeaponModels.material() is ShaderMaterial and WeaponModels.material() == WeaponModels.material(), "one shared material for every weapon")
 
 

@@ -55,7 +55,7 @@ func run(host: Node) -> void:
 		return
 	var info := b.hero_info
 	TestLib.check(int(info["tris"]) <= HeroCharacter.BUDGET and int(info["surfaces"]) == 1 and int(info["lods"]) > 0, "within the triangle budget: %s tris, one surface, %s LOD levels" % [str(info["tris"]), str(info["lods"])])
-	TestLib.check(drawn_meshes(p.body).size() == 1, "the hero draws exactly ONE mesh (got %d)" % drawn_meshes(p.body).size())
+	TestLib.check(drawn_meshes(p.body).size() == 2, "the hero draws his body and his weapon (two meshes, got %d)" % drawn_meshes(p.body).size())
 	var rig := b.rig
 	TestLib.check(rig.skeleton.get_bone_count() >= 65 and rig.skeleton.find_bone("hand_r") >= 0 and rig.skeleton.find_bone("Rifle") >= 0, "the 65-bone skeleton plus the Rifle bone, contract names on the rig")
 
@@ -196,7 +196,7 @@ func run(host: Node) -> void:
 		var names := PackedStringArray()
 		for mm in drawn_meshes(p.body):
 			names.append(String(p.get_path_to(mm)))
-		TestLib.check(b.hero_mat != null and b.rig != null and int(b.hero_info["tris"]) <= HeroCharacter.BUDGET and drawn_meshes(p.body).size() == 1, "still one mesh within budget after the rebuild (%d tris, was %d; %s)" % [int(b.hero_info["tris"]), tris_m, ", ".join(names)])
+		TestLib.check(b.hero_mat != null and b.rig != null and int(b.hero_info["tris"]) <= HeroCharacter.BUDGET and drawn_meshes(p.body).size() == 2, "still body + weapon within budget after the rebuild (%d tris, was %d; %s)" % [int(b.hero_info["tris"]), tris_m, ", ".join(names)])
 		await TestLib.frames(host, 4)
 		var lowf := b._lowest_point() - p.global_position.y
 		TestLib.check(absf(lowf) < 0.1, "the female body stands on the floor too (%.3f)" % lowf)

@@ -110,7 +110,7 @@ static func actor_total(p: Dictionary) -> int:
 ## Stock per vendor type. kind: "parts" (Crafting salvage bundle), "blueprint" (the next unknown Crafting blueprint), "upgrade" (Progress.buy), "weapon" (Progress.buy_weapon, owned = sold out), "ammo" (rounds for an owned weapon), "heal", "energy", "rumour", "drink".
 const STOCK := {
 	&"weapons": [
-		{"id": &"scatter", "kind": "weapon", "name": "SHARD SCATTER"}, {"id": &"lance", "kind": "weapon", "name": "PULSE LANCE"},
+		{"id": &"marksman", "kind": "weapon", "name": "PHASE MARKSMAN"}, {"id": &"lance", "kind": "weapon", "name": "PULSE LANCE"},
 		{"id": &"grenade", "kind": "weapon", "name": "SINGULARITY GRENADE"},
 		{"id": &"ammo_scatter", "kind": "ammo", "weapon": &"scatter", "rounds": 12, "price": Economy.AMMO[&"ammo_scatter"]["price"], "name": "SCATTER SHELLS  +12"},
 		{"id": &"ammo_lance", "kind": "ammo", "weapon": &"lance", "rounds": 5, "price": Economy.AMMO[&"ammo_lance"]["price"], "name": "LANCE CELLS  +5"},

@@ -149,7 +149,7 @@ func refresh(list: Array[Drone]) -> void:
 			pn += 1
 		var bt := d.bar_time()
 		if bt > 0.0 and bn < CAPACITY:
-			var w := clampf(0.5 + dist * 0.11, 1.5, 3.4) * (1.0 if d.max_hp < 150.0 else 1.25)
+			var w := clampf(0.4 + dist * 0.045, 0.9, 2.2) * (1.0 if d.max_hp < 150.0 else 1.2)       # about a body wide near, a little wider far (a plate wider than two bodies read as a floating pink rectangle)
 			var top := d.global_position + Vector3(0.0, d.center_y + d.radius * (1.0 if d.type != &"operative" else 1.25) + 0.45 + dist * 0.012, 0.0)
 			_bar_xf[bn] = Transform3D(Basis.from_scale(Vector3(w, w * 0.125, w)), top)         # the unit quad stretched to the 8:1 plate
 			_bar_col[bn] = col

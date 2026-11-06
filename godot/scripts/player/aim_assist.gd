@@ -16,12 +16,13 @@ const PAD_PULL := 2.2
 const PAD_PULL_MAX := 1.3
 
 ## Hit reaction strength per weapon (flinch / stagger on the enemy): the scatter and lance rock a target, the carbine only flinches it.
-const STAGGER := {&"carbine": 0.4, &"scatter": 0.9, &"lance": 1.5, &"grenade": 1.2, &"minigun": 0.15, &"akimbo": 0.3, &"arc": 0.7, &"revolver": 1.1, &"whip": 0.9, &"blade": 1.0}
+const STAGGER := {&"carbine": 0.4, &"scatter": 0.9, &"lance": 1.5, &"grenade": 1.2, &"minigun": 0.15, &"akimbo": 0.3, &"arc": 0.7, &"revolver": 1.1, &"whip": 0.9, &"blade": 1.0, &"pistol": 0.35, &"marksman": 0.8, &"breacher": 0.8, &"rocket": 1.3}
 
 static var enabled := true
 static var auto_fire := false
 
-var on_target := false              ## the crosshair is over an enemy (the HUD tints it)
+var on_target := false              ## a shot fired now would hit this enemy (its real shape, nothing in the way): the HUD tints the crosshair and brackets it
+var aim_zone: StringName = &""      ## head / body / legs of that hit
 var target: Node3D
 var _p: Player
 
@@ -93,6 +94,7 @@ func find(origin: Vector3, dir: Vector3) -> Dictionary:
 
 func _process(dt: float) -> void:
 	on_target = false
+	aim_zone = &""
 	target = null
 	var rig: CameraRig = _p.camera_rig if _p != null else null
 	if rig == null:
@@ -105,7 +107,10 @@ func _process(dt: float) -> void:
 	if f.is_empty():
 		return
 	target = f["node"]
-	on_target = (f["ang"] as float) < (f["rad_ang"] as float)
+	var zh := HitZones.of(target, aim["start"], aim["dir"])               # exactly the test a shot makes (zero spread): the real body shape, the world in the way
+	on_target = not zh.is_empty() and float(zh["t"]) <= (aim["start"] as Vector3).distance_to(aim["hit"]) + 0.05
+	if on_target:
+		aim_zone = zh["zone"]
 	if not enabled:
 		return
 	var rad_ang: float = f["rad_ang"]

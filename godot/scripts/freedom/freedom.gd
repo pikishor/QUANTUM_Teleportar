@@ -12,6 +12,7 @@ static var current: Freedom
 var hijack: Hijack
 var charges: Charges
 var jobs: Jobs
+var crates: WeaponCrates
 
 
 func _ready() -> void:
@@ -23,6 +24,8 @@ func _ready() -> void:
 	add_child(charges)
 	jobs = Jobs.new()
 	add_child(jobs)
+	crates = WeaponCrates.new()
+	add_child(crates)
 
 
 func _exit_tree() -> void:
@@ -52,4 +55,7 @@ static func vehicle_prompt() -> String:
 static func markers() -> Array[Dictionary]:
 	if current == null or current.jobs == null:
 		return []
-	return current.jobs.markers()
+	var out := current.jobs.markers()
+	if current.crates != null:
+		out.append_array(current.crates.markers())
+	return out

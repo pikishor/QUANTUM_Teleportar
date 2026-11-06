@@ -16,7 +16,7 @@ func run(_host: Node) -> void:
 
 
 func _weapons() -> void:
-	TestLib.check(WeaponDefs.IDS.size() == 14 and M.ACC.size() == 14, "the model covers all 14 weapons")
+	TestLib.check(WeaponDefs.IDS.size() >= 18 and M.ACC.size() == WeaponDefs.IDS.size(), "the model covers all %d weapons" % WeaponDefs.IDS.size())
 	var base := M.weapon_dps(&"carbine")
 	var worst := ""
 	var ok := true

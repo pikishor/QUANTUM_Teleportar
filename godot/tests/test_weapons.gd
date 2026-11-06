@@ -112,12 +112,12 @@ func _defs() -> void:
 		intervals[WeaponDefs.def(id)["interval"]] = true
 	TestLib.check(intervals.size() == WeaponDefs.IDS.size(), "distinct fire intervals")
 	WeaponDefs.reset_unlocked()
-	TestLib.check(WeaponDefs.unlocked == [&"carbine"], "only the carbine is owned at first")
+	TestLib.check(WeaponDefs.unlocked == WeaponDefs.STARTERS and WeaponDefs.STARTERS.size() == 7, "only the seven starters are owned at first")
 	TestLib.check(WeaponDefs.unlock(&"lance") and not WeaponDefs.unlock(&"lance") and WeaponDefs.is_unlocked(&"lance"), "unlock once")
-	WeaponDefs.set_unlocked(["scatter", "bogus"])
-	TestLib.check(WeaponDefs.unlocked == [&"carbine", &"scatter"], "set_unlocked drops unknown ids and keeps the carbine")
+	WeaponDefs.set_unlocked(["lance", "bogus"])
+	TestLib.check(WeaponDefs.unlocked.size() == 8 and WeaponDefs.is_unlocked(&"lance") and WeaponDefs.is_unlocked(&"pistol") and not WeaponDefs.is_unlocked(&"bogus"), "set_unlocked drops unknown ids and keeps the starters")
 	TestLib.check(WeaponDefs.mag_size(&"carbine", 0) == 30 and WeaponDefs.mag_size(&"carbine", 5) == 60, "carbine magazine 30..60 as before")
-	TestLib.check(WeaponDefs.pick_drop(0.1, 0.0) != &"carbine" and WeaponDefs.pick_drop(0.9, 0.99) != &"carbine", "drops are never the carbine")
+	TestLib.check(not WeaponDefs.STARTERS.has(WeaponDefs.pick_drop(0.1, 0.0)) and not WeaponDefs.STARTERS.has(WeaponDefs.pick_drop(0.9, 0.99)), "drops are never a starter")
 
 
 # --- carbine ---------------------------------------------------------------------------------------------------------
@@ -305,23 +305,30 @@ func _switching() -> void:
 	w.switch_to(&"scatter", true)
 	TestLib.check(w.ammo == 3, "the scatter remembers its 3 shells")
 	w.switch_to(&"carbine", true)
-	# keys 1-4 through the input map
-	Input.action_press(&"weapon_3")
+	# keys 1-8 through the input map: key 4 is the fourth weapon of WeaponDefs.IDS (the scatter)
+	Input.action_press(&"weapon_4")
 	await e.frames(3)
-	Input.action_release(&"weapon_3")
-	TestLib.check(w.current == &"lance", "key 3 selects the lance")
+	Input.action_release(&"weapon_4")
+	TestLib.check(w.current == &"scatter", "key 4 selects the scatter")
 	Input.action_press(&"swap")
 	await e.frames(3)
 	Input.action_release(&"swap")
-	TestLib.check(w.current == &"grenade", "SWAP cycles to the next weapon")
+	var ord := WeaponDefs.owned_ordered()
+	var at := ord.find(&"scatter")
+	TestLib.check(w.current == ord[(at + 1) % ord.size()], "SWAP cycles to the next owned weapon (%s)" % w.current)
+	var after := w.current
 	Input.action_press(&"weapon_next")
 	await e.frames(3)
 	Input.action_release(&"weapon_next")
-	TestLib.check(w.current == &"carbine", "the wheel wraps round to the carbine")
+	TestLib.check(w.current == ord[(at + 2) % ord.size()], "the wheel goes on (%s)" % w.current)
 	Input.action_press(&"weapon_prev")
 	await e.frames(3)
 	Input.action_release(&"weapon_prev")
-	TestLib.check(w.current == &"grenade", "wheel back")
+	TestLib.check(w.current == after, "wheel back")
+	for _k in WeaponDefs.unlocked.size():
+		w.cycle(1)
+	TestLib.check(w.current == after, "cycling wraps round the owned weapons")
+	w.switch_to(&"scatter", true)
 	# the swap animation locks the trigger
 	w.switch_to(&"carbine")
 	TestLib.check(w.swap_t > 0.2, "a swap takes %.2f s" % w.swap_t)
@@ -335,11 +342,12 @@ func _switching() -> void:
 	# locked weapons cannot be selected
 	WeaponDefs.reset_unlocked()
 	TestLib.check(not w.switch_to(&"lance") and w.current == &"carbine", "a locked weapon stays locked")
-	Input.action_press(&"weapon_2")
+	Input.action_press(&"weapon_8")
 	await e.frames(3)
-	Input.action_release(&"weapon_2")
-	TestLib.check(w.current == &"carbine", "key 2 does nothing while the scatter is not owned")
-	TestLib.check(not w.cycle(1), "cycling with one weapon does nothing")
+	Input.action_release(&"weapon_8")
+	TestLib.check(w.current == &"carbine", "key 8 does nothing while the marksman is not owned")
+	TestLib.check(w.cycle(1) and w.current != &"carbine", "cycling with the starters moves on")
+	w.switch_to(&"carbine", true)
 	# the touch SWAP button exists and drives the action
 	var has_swap := false
 	for b: Dictionary in TouchControls.BUTTONS:
@@ -366,11 +374,11 @@ func _upgrades_and_shop() -> void:
 	root.add_child(prog)
 	prog.path = "user://test_weapons_shop.cfg"
 	prog.new_campaign()
-	var sp := Economy.weapon_price(&"scatter")
+	var sp := Economy.weapon_price(&"marksman")
 	prog.credits = sp + 100
-	TestLib.check(prog.weapon_price(&"scatter") == sp and prog.can_buy_weapon(&"scatter") and not prog.can_buy_weapon(&"lance"), "the scatter costs 500, the lance is out of reach")
-	TestLib.check(prog.buy_weapon(&"scatter") and prog.credits == 100 and WeaponDefs.is_unlocked(&"scatter"), "buying unlocks the scatter and pays")
-	TestLib.check(not prog.buy_weapon(&"scatter") and not prog.buy_weapon(&"lance") and not prog.buy_weapon(&"carbine"), "no double purchase, no unaffordable, no carbine")
+	TestLib.check(prog.weapon_price(&"marksman") == sp and prog.can_buy_weapon(&"marksman") and not prog.can_buy_weapon(&"lance"), "the marksman is affordable, the lance is out of reach")
+	TestLib.check(prog.buy_weapon(&"marksman") and prog.credits == 100 and WeaponDefs.is_unlocked(&"marksman"), "buying unlocks the marksman and pays")
+	TestLib.check(not prog.buy_weapon(&"marksman") and not prog.buy_weapon(&"lance") and not prog.buy_weapon(&"carbine"), "no double purchase, no unaffordable, no starter")
 	prog.set(&"levels", {})
 	prog.credits = 5000
 	prog.buy(&"damage")
@@ -392,15 +400,15 @@ func _save_and_pickups() -> void:
 	root.add_child(prog)
 	prog.path = "user://test_weapons_save.cfg"
 	prog.new_campaign()
-	TestLib.check(WeaponDefs.unlocked == [&"carbine"], "a new campaign starts with the carbine only")
+	TestLib.check(WeaponDefs.unlocked == WeaponDefs.STARTERS, "a new campaign starts with the seven starters")
 	prog.grant_weapon(&"lance")
-	TestLib.check(WeaponDefs.is_unlocked(&"lance") and prog.grant_weapon(&"scatter") and not prog.grant_weapon(&"scatter"), "granting unlocks once")
+	TestLib.check(WeaponDefs.is_unlocked(&"lance") and prog.grant_weapon(&"burst") and not prog.grant_weapon(&"burst"), "granting unlocks once")
 	w.switch_to(&"lance", true)
 	TestLib.check(prog.save_file(), "saved")
 	WeaponDefs.reset_unlocked()
-	TestLib.check(WeaponDefs.unlocked == [&"carbine"], "wiped")
+	TestLib.check(WeaponDefs.unlocked == WeaponDefs.STARTERS, "wiped")
 	TestLib.check(prog.load_file(), "loaded")
-	TestLib.check(WeaponDefs.unlocked == [&"carbine", &"scatter", &"lance"] and WeaponDefs.last_used == &"lance", "the unlocked set and the weapon in hand come back")
+	TestLib.check(WeaponDefs.unlocked.size() == 9 and WeaponDefs.is_unlocked(&"burst") and WeaponDefs.is_unlocked(&"lance") and WeaponDefs.last_used == &"lance", "the unlocked set and the weapon in hand come back")
 	TestLib.check(w.current == &"lance", "the player's weapon is switched to the saved one")
 	prog.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_weapons_save.cfg"))

@@ -70,7 +70,7 @@ func run(host: Node) -> void:
 	TestLib.check(seen.size() >= 6, "the scheme palettes stay distinct (%d of %d)" % [seen.size(), HeroLook.scheme_count()])
 	TestLib.check(warm >= 3, "the palettes are not all blue-green (%d warm)" % warm)
 	b._apply_hero_look(HeroLook.new())
-	# the rifle stays one mesh with the hero (a separate node would be one more draw) yet the weapon look rides the hand mount
+	# the weapon is its own mesh (one draw) riding the muzzle node on the rifle bone
 	b.set_weapon_look(&"scatter")
 	await TestLib.frames(host, 6)
-	TestLib.check(b._wp_mi == null or b._wp_mi.get_parent() is BoneAttachment3D, "the weapon look is on the hand bone mount")
+	TestLib.check(b._wp_mi == null or b._wp_mi.get_parent() == b.muzzle, "the weapon look rides the muzzle node")

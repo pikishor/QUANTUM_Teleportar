@@ -376,8 +376,8 @@ func _spread_and_recoil() -> void:
 	Input.action_press(&"fire")
 	await e.secs(0.65)
 	var kicked := rig.recoil_pitch
-	TestLib.check(kicked > 0.03, "sustained fire kicks the view up (recoil %.3f rad)" % kicked)
-	TestLib.check(rig.get_aim_pitch() > pitch0 + 0.03, "the aim itself climbs with the kick (%.3f -> %.3f)" % [pitch0, rig.get_aim_pitch()])
+	TestLib.check(kicked > 0.012 and kicked <= CameraRig.RECOIL_SOFT_CAP + 0.002, "sustained fire kicks the view up, but only up to the soft cap (recoil %.3f rad, cap %.3f)" % [kicked, CameraRig.RECOIL_SOFT_CAP])
+	TestLib.check(rig.get_aim_pitch() > pitch0 + 0.012, "the aim itself climbs with the kick (%.3f -> %.3f)" % [pitch0, rig.get_aim_pitch()])
 	TestLib.check(p.spread > idle + 0.01, "spread has grown during the burst (%.4f)" % p.spread)
 	Input.action_release(&"fire")
 	await e.secs(1.0)

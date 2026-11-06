@@ -173,3 +173,7 @@ static func verdict(s: Dictionary, sep := -1.0, people := -1, flat := 0.0, extra
 	if extra != "":
 		why.append(extra)
 	return ", ".join(why)
+
+
+static func translucent_slabs(_img: Image) -> Dictionary:
+	return {"frac": 0.0, "rect": Rect2i(), "kind": ""}

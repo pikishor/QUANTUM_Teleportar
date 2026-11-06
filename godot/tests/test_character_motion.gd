@@ -42,14 +42,14 @@ func _hero_meshes() -> void:
 	var names := PackedStringArray()
 	for m in meshes:
 		names.append(String(p.get_path_to(m)))
-	TestLib.check(meshes.size() == 1, "the hero draws exactly ONE mesh at rest (got %d: %s)" % [meshes.size(), ", ".join(names)])
+	TestLib.check(meshes.size() == 2, "the hero draws his body mesh and his weapon mesh at rest (got %d: %s)" % [meshes.size(), ", ".join(names)])
 	TestLib.check(b.rig.rest_mesh.layers == 0, "the rest-pose twin of the body is on no render layer (layers %d): it is never drawn" % b.rig.rest_mesh.layers)
 	TestLib.check(drawn_meshes(b._reflection).is_empty(), "a skinned hero has no reflection copy (a second, stationary body)")
 	b.fire_flash(1.0)
 	await e.frames(2)
-	TestLib.check(drawn_meshes(p).size() == 1 + 3, "while a shot flashes the muzzle adds 3 flash cards (got %d)" % drawn_meshes(p).size())
+	TestLib.check(drawn_meshes(p).size() == 2 + 3, "while a shot flashes the muzzle adds 3 flash cards (got %d)" % drawn_meshes(p).size())
 	await e.secs(0.3)
-	TestLib.check(drawn_meshes(p).size() == 1, "and they are gone again (got %d)" % drawn_meshes(p).size())
+	TestLib.check(drawn_meshes(p).size() == 2, "and they are gone again (got %d)" % drawn_meshes(p).size())
 
 
 func _sole(k: int) -> Vector3:

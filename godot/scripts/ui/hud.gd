@@ -83,6 +83,7 @@ var _hint_text := ""
 var _text_t := 0.0
 var _ammo_key := -1
 var _ammo_text := ""
+const WEAPON_POP_MS := 2200
 var _star := PackedVector2Array()
 var _vignette: GradientTexture2D
 var _mouse_captured := false
@@ -926,6 +927,42 @@ func skip_available() -> bool:
 	return k != null and bool(k.call(&"in_optional_set_piece"))
 
 
+## The weapon plate that pops up for a moment when the weapon in hand changes (a wheel pick, SWAP, a pickup, a crate, an empty gun): the weapon's own silhouette, its name, class,
+## rounds and reserve, and the NEXT weapon of the unlock ladder with how to get it. Centre of the screen, under the crosshair, clear of every button.
+var _wpop_id: StringName = &""
+var _wpop_until := 0
+
+
+func _draw_weapon_pop(c: Control, s: float, font: Font, vp: Vector2, p: Object) -> void:
+	if not (p.get("weapon") is PlayerWeapon):
+		return
+	var w := p.get("weapon") as PlayerWeapon
+	var now := Time.get_ticks_msec()
+	if _wpop_id == &"":
+		_wpop_id = w.current
+	elif w.current != _wpop_id:
+		_wpop_id = w.current
+		_wpop_until = now + WEAPON_POP_MS
+	if now >= _wpop_until:
+		return
+	var left := float(_wpop_until - now) / float(WEAPON_POP_MS)
+	var a := clampf(left * 4.0, 0.0, 1.0)                            # fades out over the last quarter
+	var cx := vp.x * 0.5
+	if touch_ui_on():
+		cx = minf(cx, vp.x - UiUtil.insets(vp).y - 600.0 * s - 215.0 * s - 10.0 * s)         # clear of the button cluster on a phone
+	var nxt := WeaponLadder.next_target()
+	var r := Rect2(cx - 200.0 * s, vp.y * 0.58, 400.0 * s, (112.0 if nxt == &"" else 148.0) * s)
+	_plate(c, r, s)
+	WeaponIcons.draw(c, w.current, Rect2(r.position.x + 8.0 * s, r.position.y + 8.0 * s, 130.0 * s, 70.0 * s), Color(UiUtil.CYAN, 0.95 * a))
+	_text(c, font, Vector2(r.position.x + 146.0 * s, r.position.y + 36.0 * s), String(w.def["name"]), HORIZONTAL_ALIGNMENT_LEFT, 250.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.97 * a), 1.0 * s)
+	var cls := String(WeaponDefs.CLASS_NAMES.get(WeaponDefs.class_of(w.current), ""))
+	var rounds := "MELEE" if String(w.def["kind"]) == "melee" else "%d / %d  %s" % [w.ammo, w.mag, "INF" if w.reserve < 0 else str(w.reserve)]
+	_text(c, font, Vector2(r.position.x + 146.0 * s, r.position.y + 68.0 * s), "%s  %s" % [cls, rounds], HORIZONTAL_ALIGNMENT_LEFT, 250.0 * s, int(UiUtil.BAR_LABEL * s * 0.85), Color(UiUtil.AMBER, 0.95 * a), 1.0 * s)
+	if nxt != &"":
+		_text(c, font, Vector2(r.position.x + 10.0 * s, r.position.y + 104.0 * s), "NEXT  %s" % WeaponDefs.title(nxt), HORIZONTAL_ALIGNMENT_LEFT, 380.0 * s, int(18.0 * s), Color(UiUtil.CYAN, 0.95 * a), 0.5 * s)
+		_text(c, font, Vector2(r.position.x + 10.0 * s, r.position.y + 132.0 * s), WeaponLadder.route_text(nxt), HORIZONTAL_ALIGNMENT_LEFT, 380.0 * s, int(18.0 * s), Color(1, 1, 1, 0.85 * a), 0.5 * s)
+
+
 func weapon_text() -> String:
 	var p: Object = Game.player if is_instance_valid(Game.player) else null
 	if p == null or not (p.get("weapon") is PlayerWeapon):
@@ -1290,6 +1327,8 @@ func _draw_hud_body() -> void:
 		if wch > 0.0:
 			var hot := p.get("weapon") is PlayerWeapon and (p.get("weapon") as PlayerWeapon).def.has("heat_per")
 			_rect(c, Rect2(wr.position.x, wr.position.y - 8.0 * s, wr.size.x * wch, 5.0 * s), Color(UiUtil.AMBER if hot else UiUtil.CYAN, 0.95) if wch < 0.999 or not hot else Color(1.0, 0.3, 0.2, 0.95))
+	if veh == null:
+		_draw_weapon_pop(c, s, font, vp, p)
 	if touch_on and veh == null and weapon_charge() > 0.0:       # the Pulse Lance charge: a thin bar under the crosshair (the weapon plate is gone on phones)
 		var cw := 140.0 * s
 		_rect(c, Rect2(vp.x * 0.5 - cw * 0.5, vp.y * 0.5 + 58.0 * s, cw, 6.0 * s), Color(0.0, 0.03, 0.05, 0.7))
@@ -1321,6 +1360,7 @@ func _draw_hud_body() -> void:
 		if UiSettings.s_chatter >= 2:
 			_draw_first_use(c, vp, s, font)
 	if playing and veh == null:
+		_draw_target_brackets(c, p, vp, s, font)
 		_draw_crosshair(c, p, vp, s, now)
 	if playing and veh != null and radio_text() != "":
 		var rt := radio_text()
@@ -1459,14 +1499,48 @@ func face_rect(vp: Vector2, _s: float) -> Rect2:
 	return Rect2(lo * k, (hi - lo) * k).grow(10.0 * k.y)
 
 
+## TARGET HIGHLIGHT: while a shot fired now would land on an enemy (AimAssist.on_target: its real shape, nothing in the way) four red corner brackets frame the enemy from feet to
+## head, and the zone under the crosshair is named small under their feet (HEAD pays double). Nothing is drawn for an enemy the crosshair is merely near.
+func _draw_target_brackets(c: Control, p: Node3D, vp: Vector2, s: float, font: Font) -> void:
+	var assist := p.get_node_or_null("AimAssist") as AimAssist
+	if assist == null or not assist.on_target or not is_instance_valid(assist.target) or not assist.target.has_method(&"body_box") or not is_instance_valid(Game.camera):
+		return
+	var cam := Game.camera
+	var box: Array = assist.target.call(&"body_box")
+	var lo_w: Vector3 = box[0]
+	var hi_w: Vector3 = box[1]
+	if cam.is_position_behind(lo_w) or cam.is_position_behind(hi_w):
+		return
+	var right := cam.global_transform.basis.x * float(box[2])
+	var real := get_viewport().get_visible_rect().size
+	var k := Vector2(vp.x / maxf(real.x, 1.0), vp.y / maxf(real.y, 1.0))
+	var a := cam.unproject_position(lo_w) * k
+	var b := cam.unproject_position(hi_w) * k
+	var hw := maxf(absf((cam.unproject_position((lo_w + hi_w) * 0.5 + right) * k).x - (a.x + b.x) * 0.5), 6.0 * s)
+	var r := Rect2(Vector2((a.x + b.x) * 0.5 - hw, minf(a.y, b.y)), Vector2(hw * 2.0, absf(a.y - b.y))).grow(4.0 * s)
+	var arm := clampf(minf(r.size.x, r.size.y) * 0.28, 6.0 * s, 26.0 * s)
+	var col := Color(1.0, 0.32, 0.26, 0.92)
+	var w := 2.5 * s
+	for corner: Vector2 in [Vector2(0, 0), Vector2(1, 0), Vector2(0, 1), Vector2(1, 1)]:
+		var o := r.position + r.size * corner
+		var dx := Vector2(-1.0 if corner.x > 0.5 else 1.0, 0.0)
+		var dy := Vector2(0.0, -1.0 if corner.y > 0.5 else 1.0)
+		c.draw_line(o, o + dx * arm, Color(0, 0, 0, 0.55), w + 2.0 * s, false)
+		c.draw_line(o, o + dy * arm, Color(0, 0, 0, 0.55), w + 2.0 * s, false)
+		c.draw_line(o, o + dx * arm, col, w, false)
+		c.draw_line(o, o + dy * arm, col, w, false)
+	if assist.aim_zone == HitZones.HEAD and font != null:
+		_plate_text(c, font, r.get_center().x, r.end.y + 4.0 * s, "HEAD", int(UiUtil.TEXT_MIN * s), Color(1.0, 0.85, 0.3), s)       # under the feet: above the box it sat on the crosshair
+
+
 func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -> void:
 	var mid := vp * 0.5
-	var spread_px := float(p.call(&"spread_in_pixels", vp.y)) if p.has_method(&"spread_in_pixels") else 0.0
+	var spread_px := float(p.call(&"spread_in_pixels", vp.y, vp.x)) if p.has_method(&"spread_in_pixels") else 0.0
 	var gap := maxf(7.0 * s, spread_px)
 	var col := Color(1, 1, 1, 0.9)
 	var assist := p.get_node_or_null("AimAssist") as AimAssist
 	if assist != null and assist.on_target:
-		col = Color(1.0, 0.82, 0.3, 0.95)                               # the crosshair is over an enemy
+		col = Color(1.0, 0.3, 0.25, 0.97) if assist.aim_zone != HitZones.HEAD else Color(1.0, 0.82, 0.3, 0.97)       # a shot would hit: red (gold on the head)
 		gap *= 0.85
 	var hit_age := now - UiUtil.num(p, &"last_hit_time", -100.0)
 	if hit_age < 0.12:
@@ -1484,7 +1558,7 @@ func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -
 		var kill: bool = p.get("last_hit_kill") == true
 		var strong: bool = kill or p.get("last_hit_crit") == true
 		var k := 1.0 - since / 0.28                                     # 1 -> 0
-		var hc := Color(1.0, 0.3, 0.25, 0.4 + 0.6 * k) if strong else Color(1, 1, 1, 0.4 + 0.6 * k)
+		var hc := Color(1.0, 0.3, 0.25, 0.4 + 0.6 * k) if kill else (Color(1.0, 0.82, 0.3, 0.4 + 0.6 * k) if strong else Color(1, 1, 1, 0.4 + 0.6 * k))       # white hit, gold head shot, red kill
 		var out := (22.0 + (8.0 if kill else 0.0) + 8.0 * (1.0 - k)) * s     # the X pops outward as it fades
 		if kill:
 			c.draw_arc(mid, (26.0 + 22.0 * (1.0 - k)) * s, 0.0, TAU, 24, Color(1.0, 0.3, 0.25, 0.8 * k), 2.5 * s, false)   # kill confirmation ring

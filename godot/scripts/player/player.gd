@@ -354,7 +354,7 @@ func chest_position() -> Vector3:
 	return global_position + Vector3(0.0, 1.2, 0.0)
 
 
-## The camera ray through the crosshair: {origin: camera position, dir: unit forward, hit: first world point along it or the far point}.
+## The camera ray through the crosshair: {origin: camera position, start: where the rifle's ray starts (the hero's depth), dir: unit forward, hit: first world point along it or the far point}.
 ## Geometry behind the character (between the camera and the player) is ignored, like the rifle does. One dictionary per rendered frame.
 func get_aim() -> Dictionary:
 	var frame := Engine.get_process_frames()
@@ -369,14 +369,17 @@ func get_aim() -> Dictionary:
 	var far := start + dir * PlayerWeapon.RANGE
 	var q := PhysicsRayQueryParameters3D.create(start, far, Game.L_WORLD)
 	var res := get_world_3d().direct_space_state.intersect_ray(q)
-	_aim_cache = {"origin": origin, "dir": dir, "hit": res["position"] if not res.is_empty() else far}
+	_aim_cache = {"origin": origin, "start": start, "dir": dir, "hit": res["position"] if not res.is_empty() else far}
 	return _aim_cache
 
 
-## The crosshair radius in pixels for a viewport of the given height: the current spread seen through the live camera FOV.
-func spread_in_pixels(viewport_height: float) -> float:
+## The crosshair radius in pixels for a viewport (height, and width when known; 16:9 otherwise): the current cone of the weapon (`PlayerWeapon.cone()`) seen through the live camera.
+## The camera's FOV is HORIZONTAL (KEEP_WIDTH), so pixels per unit of tan are half the viewport WIDTH over tan(fov / 2): the old height-based number drew the cone 2.2 times too small on a phone.
+func spread_in_pixels(viewport_height: float, viewport_width := -1.0) -> float:
+	var w := viewport_width if viewport_width > 0.0 else viewport_height * 16.0 / 9.0
 	var half_fov := deg_to_rad(camera_rig.camera.fov) * 0.5
-	return tan(spread) / tan(half_fov) * viewport_height * 0.5
+	var cone := weapon.cone() if weapon != null else spread
+	return tan(cone) / tan(half_fov) * w * 0.5
 
 
 func heal(v: float) -> void:

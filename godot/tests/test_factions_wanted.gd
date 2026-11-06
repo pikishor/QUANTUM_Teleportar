@@ -173,12 +173,12 @@ func _economy() -> void:
 	var base := prog.price(&"damage")
 	prog.faction_rep[&"vael"] = 60.0
 	var cheap := prog.price(&"damage")
-	var cheap_w := prog.weapon_price(&"scatter")
+	var cheap_w := prog.weapon_price(&"marksman")
 	prog.faction_rep[&"vael"] = -60.0
 	var dear := prog.price(&"damage")
 	TestLib.check(cheap < base and base < dear, "shop prices: allied cheaper, hostile dearer (%d < %d < %d)" % [cheap, base, dear])
 	prog.faction_rep.clear()
-	TestLib.check(cheap_w < prog.weapon_price(&"scatter"), "weapons follow the same factor")
+	TestLib.check(cheap_w < prog.weapon_price(&"marksman"), "weapons follow the same factor")
 	_at(MARKET)
 	prog.faction_rep[&"vael"] = -60.0
 	TestLib.check(prog.price(&"damage") == base, "another district's camp does not touch the price")

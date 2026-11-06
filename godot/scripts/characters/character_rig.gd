@@ -100,6 +100,8 @@ var head_look := Vector2.ZERO
 var flinch_dir := Vector2.ZERO
 var death_kind := 0
 var hand_w := Vector2.ZERO               ## hand placement (vault, mantle): weight of each hand (L, R) 0..1 and its target relative to the shoulder, torso frame (the polish layer writes them)
+var grip_off_l := Vector3.ZERO           ## where the held weapon is gripped relative to the carbine's grips, rifle frame (PlayerBody writes WeaponModels.grip_offsets per weapon)
+var grip_off_r := Vector3.ZERO
 var hand_off_l := Vector3.ZERO
 var hand_off_r := Vector3.ZERO
 var pose_hips := Vector3.ZERO            ## extra pelvis offset (model axes, metres) for crouches, landings and vaults
@@ -522,7 +524,7 @@ func apply() -> void:
 	var swing := sin(phase) * a * maxf(1.0 - ready, gait_arm * (0.25 + 0.55 * run))      # the support hand pumps with the stride
 	for k in 2:
 		var left := k == 0
-		var target: Vector3 = _rifle_o + rpos + rb * (_w0[k] - _rifle_o)
+		var target: Vector3 = _rifle_o + rpos + rb * (_w0[k] + (grip_off_l if left else grip_off_r) - _rifle_o)
 		if left and reload >= 0.0:
 			target = _reload_hand(reload, target, rpos, rb)
 		var hw := hand_w.x if left else hand_w.y

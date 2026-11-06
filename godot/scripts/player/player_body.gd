@@ -77,8 +77,8 @@ static var _flash_mat_streak: StandardMaterial3D
 
 var muzzle: Node3D
 var _wp_mi: MeshInstance3D
-var _wp_off := Vector3.ZERO                    ## where the weapon look sits relative to the muzzle (zero for a silhouette mesh, behind the muzzle for the old strip)
-var _wp_attach := false                       ## the weapon look still has to move onto the hand mount
+var _muzzle_shift := 0.0                      ## metres the muzzle sits behind the carbine's (a short gun)
+var _wp_attach := false                       ## (kept for the rebuild reset)
 var _finger_mode: StringName = &""
 var _wp_glow := 1.0                           ## the silhouette's trim brightness: kicks to 3.4 on a shot, settles to 1
 var leg_l: Node3D
@@ -274,14 +274,12 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		rig.dead = e
 		rig.head_yaw = 0.0
 		rig.apply()
-		muzzle.transform = rig.muzzle_transform()
+		sync_muzzle()
 		if hero_mat != null:
 			var fm: StringName = &"relaxed" if (e > 0.5 or p.sprinting) else (&"aim" if (p.aiming and reload_k < 0.0) else &"grip")
 			if fm != _finger_mode:
 				_finger_mode = fm
 				HeroFingers.pose(rig.skeleton, fm)
-			if _wp_attach:
-				_attach_weapon_look()
 		if leg_l != null:
 			leg_l.basis = Basis.from_euler(Vector3(rig.hip_l.x, 0.0, rig.hip_l.y))
 			leg_r.basis = Basis.from_euler(Vector3(rig.hip_r.x, 0.0, rig.hip_r.y))
@@ -374,50 +372,39 @@ func _lowest_point() -> float:
 	return lo if lo != INF else global_position.y
 
 
-## The rifle's weapon look: one emissive strip riding on the muzzle (the rifle bone), tinted and shaped per weapon (WeaponDefs look / look_size). One extra draw call, no new model.
+## The muzzle node on the rifle bone (and back by the weapon's `muzzle_shift`): tracers, the flash and the weapon mesh ride on it. Called after every rig pose; look-dev viewers call it too.
+func sync_muzzle() -> void:
+	if rig != null and muzzle != null:
+		muzzle.transform = rig.muzzle_transform() * Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, _muzzle_shift))
+
+
+## The weapon in the hero's hands: the weapon's own mesh (scripts/player/weapon_models.gd, one draw call) on the muzzle node, which rides the rifle bone the arms are solved on. The muzzle
+## moves back for a short gun and the rig's grips follow the weapon (`WeaponModels.grip_offsets`), so a pistol is held like a pistol and a rail rifle like a rail rifle.
+## Only the superhero is built unarmed; the old fallback models keep the rifle they carry, so nothing is drawn on top of it.
 func set_weapon_look(id: StringName) -> void:
 	_weapon_id = id
 	if muzzle == null:
 		return
-	var d := WeaponDefs.def(id)
 	if _wp_mi == null:
 		_wp_mi = MeshInstance3D.new()
 		_wp_mi.name = "WeaponLook"
 		_wp_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_wp_mi.material_override = WeaponModels.material()
 		muzzle.add_child(_wp_mi)
-	_wp_attach = rig != null and hero_mat != null                  # the superhero: the look moves onto the hand mount after the next rig pose (see _attach_weapon_look)
-	var sil := WeaponModels.mesh(id)
-	if sil != null:
-		_wp_mi.mesh = sil                                          # the class's own silhouette (scripts/player/weapon_models.gd), origin at the muzzle, body behind it
-		_wp_off = Vector3.ZERO
-	else:
-		var box := BoxMesh.new()
-		var sz: Vector3 = d["look_size"]
-		box.size = sz
-		_wp_mi.mesh = box
-		_wp_off = Vector3(0.0, 0.0, sz.z * 0.5 + 0.02)
-	_wp_mi.position = _wp_off
-	_wp_mi.visible = id != &"carbine"                              # the carbine is the plain rifle: the hero stays ONE mesh until another weapon is in hand
-	WeaponModels.material().set_shader_parameter(&"glow", 1.0)
-
-
-## The weapon look rides on the right hand's bone mount (HandRMount) instead of the rifle bone, so it follows every hand animation. The offset is taken from where the look sits
-## now (behind the muzzle, in the current pose), so the placement is unchanged at rest.
-func _attach_weapon_look() -> void:
-	_wp_attach = false
-	if _wp_mi == null or not is_instance_valid(_wp_mi) or rig == null or muzzle == null:
-		return
-	var mount := HeroPresentation.hand_mount(rig.skeleton, &"r")
-	var hb := HeroPresentation.hand_bone(rig.skeleton, &"r")
-	if mount == null or hb < 0:
-		return
-	var world := muzzle.global_transform * Transform3D(Basis.IDENTITY, _wp_off)
-	var hand := rig.skeleton.global_transform * rig.skeleton.get_bone_global_pose(hb)
-	if _wp_mi.get_parent() != mount:
+		_set_layer(_wp_mi, 1 << (CHARACTER_LAYER - 1))              # on the hero's light layer: his key and rim lights shape the weapon too (it was a black cut-out in the dark street)
+	elif _wp_mi.get_parent() != muzzle:
 		_wp_mi.get_parent().remove_child(_wp_mi)
-		mount.add_child(_wp_mi)
-	_wp_mi.transform = Transform3D(hand.basis.orthonormalized(), hand.origin).affine_inverse() * world
+		muzzle.add_child(_wp_mi)
+	var sil := WeaponModels.mesh(id)
+	_wp_mi.mesh = sil
+	_wp_mi.position = Vector3.ZERO
+	_wp_mi.visible = hero_mat != null and sil != null
+	_muzzle_shift = WeaponModels.muzzle_shift(id) if hero_mat != null else 0.0
+	if rig != null and hero_mat != null:
+		var g := WeaponModels.grip_offsets(id)
+		rig.grip_off_l = g[0]
+		rig.grip_off_r = g[1]
+	WeaponModels.material().set_shader_parameter(&"glow", 1.0)
 
 
 ## Create the pooled burst node and show it for the shader warm-up (an idle hidden emitter costs nothing; the first burst then needs no allocation).
@@ -543,7 +530,9 @@ func _make_model(look: HeroLook = null) -> Node3D:
 	hero_info = {}
 	if use_superhero:
 		_hero_opts = _look_opts(look if look != null else (Game.progress.get(&"hero") as HeroLook if Game.progress != null else null))
-		var r := HeroCharacter.build(_hero_opts)
+		var armed_opts := _hero_opts.duplicate()
+		armed_opts["armed"] = false                                # the hero holds the weapon in his hand (WeaponModels, one mesh per weapon, the carbine included)
+		var r := HeroCharacter.build(armed_opts)
 		if r["root"] != null:
 			if bool(r["ok"]):
 				hero_mat = r["material"]

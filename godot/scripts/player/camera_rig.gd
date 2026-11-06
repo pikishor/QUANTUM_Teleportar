@@ -84,6 +84,8 @@ const STOP_SCALE := 0.05                    ## Engine.time_scale during a hit-st
 const RECOIL_DELAY := 0.1                    ## seconds after the last kick before the view starts to settle
 const RECOIL_RATE := 5.0
 const RECOIL_MAX := 0.3
+const RECOIL_SOFT_CAP := 0.06               ## radians (3.4 degrees): sustained fire settles about half of this above the aim point, it never walks the crosshair into the sky
+const RECOIL_FIRE_RECOVER := 0.4            ## share of the recovery rate that works while shots keep coming (a hand pulls the rifle back down between rounds)
 const RECOIL_YAW_MAX := 0.1
 
 var camera: Camera3D
@@ -230,7 +232,7 @@ func add_look(d_yaw: float, d_pitch: float) -> void:
 
 ## Rifle kick: up (radians, positive tilts the view up) and left. Recovers after RECOIL_DELAY.
 func kick(up: float, left := 0.0) -> void:
-	recoil_pitch = minf(recoil_pitch + up, RECOIL_MAX)
+	recoil_pitch = minf(recoil_pitch + up * clampf(1.0 - recoil_pitch / RECOIL_SOFT_CAP, 0.0, 1.0), RECOIL_MAX)       # soft cap: the view climbs towards RECOIL_SOFT_CAP and no further (the first heavy kick still lands whole)
 	recoil_yaw = clampf(recoil_yaw + left, -RECOIL_YAW_MAX, RECOIL_YAW_MAX)
 	_since_kick = 0.0
 
@@ -638,13 +640,13 @@ func _update_view(dt: float) -> void:
 
 	# --- rifle kick recovery
 	_since_kick += dt
-	if _since_kick > RECOIL_DELAY:
-		recoil_pitch = PlayerUtil.damp(recoil_pitch, 0.0, RECOIL_RATE, dt)
-		recoil_yaw = PlayerUtil.damp(recoil_yaw, 0.0, RECOIL_RATE * 1.3, dt)
-		if recoil_pitch < 0.00005:
-			recoil_pitch = 0.0
-		if absf(recoil_yaw) < 0.00005:
-			recoil_yaw = 0.0
+	var settle := 1.0 if _since_kick > RECOIL_DELAY else RECOIL_FIRE_RECOVER
+	recoil_pitch = PlayerUtil.damp(recoil_pitch, 0.0, RECOIL_RATE * settle, dt)
+	recoil_yaw = PlayerUtil.damp(recoil_yaw, 0.0, RECOIL_RATE * 1.3 * settle, dt)
+	if recoil_pitch < 0.00005:
+		recoil_pitch = 0.0
+	if absf(recoil_yaw) < 0.00005:
+		recoil_yaw = 0.0
 
 	# --- distance, shoulder, height and FOV for the current situation
 	var hs := HeroPresentation.camera_scale()

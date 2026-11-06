@@ -17,7 +17,7 @@ const PROFILES := {
 	&"ability": {"shake": 0.0, "fov": 0.0, "stop": 0.0, "buzz": 30, "blur": 0.0},
 	&"sprint": {"shake": 0.0, "fov": 0.0, "stop": 0.0, "buzz": 0, "blur": 0.0},
 }
-const HEAVY_WEAPONS: Array[StringName] = [&"lance", &"scatter", &"grenade", &"revolver", &"blade"]
+const HEAVY_WEAPONS: Array[StringName] = [&"lance", &"scatter", &"grenade", &"revolver", &"blade", &"marksman", &"breacher", &"rocket"]
 const STOP_MAX := 0.12
 const LOW_HP := 0.3
 

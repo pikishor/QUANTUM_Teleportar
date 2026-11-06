@@ -68,9 +68,9 @@ func run(hst: Node) -> void:
 		var d := WeaponDefs.def(id)
 		TestLib.check(WeaponDefs.DEFS.has(id) and d.has("pattern") and d.has("tracer") and int(d["mag"]) > 0, "%s has a full definition" % id)
 		TestLib.check(WeaponDefs.ALTS.has(id) and WeaponDefs.HIT_SND.has(id) and WeaponDefs.TILT.has(id), "%s has alt-fire, hit sound and tilt" % id)
-		TestLib.check(Economy.weapon_price(id) > 0 and WeaponDefs.price(id) > 0, "%s is priced through Economy" % id)
+		TestLib.check((Economy.weapon_price(id) > 0 and WeaponDefs.price(id) > 0) or WeaponDefs.STARTERS.has(id), "%s is priced through Economy (or a free starter)" % id)
 		TestLib.check(WeaponIcons.has_icon(id), "%s has a HUD icon" % id)
-		TestLib.check(ShopScreen.SHOP_WEAPONS.has(id), "%s is in the shop" % id)
+		TestLib.check(ShopScreen.SHOP_WEAPONS.has(id) or WeaponDefs.STARTERS.has(id), "%s is in the shop (or a free starter)" % id)
 		TestLib.check(Attachments.effective(id).has("damage"), "attachments apply to %s" % id)
 		var snd := StringName(d.get("snd", &"shot"))
 		TestLib.check(ResourceLoader.exists("res://assets/audio/%s.wav" % snd), "%s: synthesised sound %s exists" % [id, snd])
@@ -282,6 +282,8 @@ func run(hst: Node) -> void:
 	for id: StringName in ShopScreen.SHOP_WEAPONS:
 		TestLib.check(seen.has(id), "the shop offers %s on some page" % id)
 	for id: StringName in NEW:
+		if WeaponDefs.STARTERS.has(id):
+			continue                                       # a free starter: nothing to buy
 		var price := prog.weapon_price(id)
 		var before := prog.credits
 		TestLib.check(hud.press_button(StringName("buy_%s" % id)) or ShopScreen.page_weapons().has(id) == false, "buy %s (or on the other page)" % id)
@@ -330,7 +332,7 @@ func run(hst: Node) -> void:
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var pick: StringName = LoadoutScreen.page_items(WeaponDefs.last_used)[0] if false else &"blade"
-	LoadoutScreen.page = WeaponDefs.IDS.find(pick) / WeaponDefs.PAGE_SIZE
+	LoadoutScreen.page = LoadoutScreen.owned_weapons().find(pick) / WeaponDefs.PAGE_SIZE
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var ids: Array[String] = []

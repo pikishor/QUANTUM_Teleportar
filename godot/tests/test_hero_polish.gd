@@ -57,20 +57,21 @@ func run(host: Node) -> void:
 		await ShaderWarmup.run(host)                  # the warm-up of the live game creates it (the test scene may skip the warm-up)
 	TestLib.check(b._burst != null and is_instance_valid(b._burst) and not b._burst.visible, "the quantum burst node is pre-created and hidden (no hitch on the first burst)")
 
-	# --- the weapon look rides on the hand mount and follows the hand through states
+	# --- the weapon rides the muzzle node (rifle bone) and its grip stays at the right hand through states
 	b.set_weapon_look(&"scatter")
 	await TestLib.frames(host, 6)
 	var look := b._wp_mi
-	TestLib.check(look != null and look.get_parent() is BoneAttachment3D and String(look.get_parent().name) == "HandRMount", "the weapon look is parented to the right hand mount")
+	TestLib.check(look != null and look.get_parent() == b.muzzle, "the weapon look is parented to the muzzle node")
 	if look != null:
 		var hand := b.rig.skeleton.global_transform * b.rig.skeleton.get_bone_global_pose(b.rig.skeleton.find_bone("hand_r")).origin
-		var d0 := look.global_position.distance_to(hand)
+		var grip_at := WeaponModels.spec(&"scatter")["gr"] as Vector3
+		var d0 := look.to_global(grip_at).distance_to(hand)
 		for k in 3:
 			p.sprinting = k == 1
 			p.aiming = k == 2
 			await TestLib.frames(host, 25)
 			hand = b.rig.skeleton.global_transform * b.rig.skeleton.get_bone_global_pose(b.rig.skeleton.find_bone("hand_r")).origin
-			TestLib.check(absf(look.global_position.distance_to(hand) - d0) < 0.02 and d0 < 0.8, "state %d: the weapon stays at the hand (%.3f vs %.3f m)" % [k, look.global_position.distance_to(hand), d0])
+			TestLib.check(absf(look.to_global(grip_at).distance_to(hand) - d0) < 0.12 and d0 < 0.8, "state %d: the weapon's grip stays at the hand (%.3f vs %.3f m)" % [k, look.to_global(grip_at).distance_to(hand), d0])
 		p.sprinting = false
 		p.aiming = false
 

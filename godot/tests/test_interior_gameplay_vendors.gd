@@ -113,8 +113,12 @@ func _weapons() -> void:
 	var vs := ig.vendor_screen
 	vs.open(&"weapons")
 	await frames(1)
+	WeaponDefs.unlocked.erase(&"marksman")
 	var rows := VendorLogic.rows(&"weapons")
-	TestLib.check(rows[row_index(&"weapons", &"scatter")]["state"] == "done", "an owned weapon is sold out")
+	TestLib.check(rows[row_index(&"weapons", &"marksman")]["state"] == "buy", "a ladder weapon is for sale (the starters are not)")
+	WeaponDefs.unlock(&"marksman")
+	rows = VendorLogic.rows(&"weapons")
+	TestLib.check(rows[row_index(&"weapons", &"marksman")]["state"] == "done", "an owned weapon is sold out")
 	TestLib.check(rows[row_index(&"weapons", &"lance")]["state"] == "buy", "a weapon you can afford is for sale")
 	var c := prog.credits
 	var res := VendorLogic.buy(&"weapons", &"lance")

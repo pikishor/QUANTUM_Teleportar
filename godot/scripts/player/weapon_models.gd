@@ -1,90 +1,397 @@
 class_name WeaponModels
 extends RefCounted
-## Weapon silhouettes. The hero's carbine is baked into his mesh; every OTHER class used to be a thin glowing strip, so a scatter gun and a lance looked the same from the shoulder camera.
-## Each class now has its own readable shape, built once from boxes and cylinders into ONE ArrayMesh (vertex colours: rgb the part, alpha the glow), drawn as one extra draw call on the hand
-## mount (PlayerBody.set_weapon_look). The mesh origin is the MUZZLE and the weapon extends toward +Z (behind the muzzle): barrel forward is -Z, like the muzzle node.
-## Silhouette rules: LONG vs STUBBY, THIN vs FAT, one distinguishing feature per class (pump, fins, coils, drum, barrel cluster, prongs, tube, blade), a glow trim in the weapon's colour.
+## The weapons in the hero's hands: ONE ArrayMesh per weapon (vertex colour rgb = the part, alpha = how much of it glows), drawn as one extra draw call on the muzzle node.
+## Every weapon is a real shape (receiver, barrel, magazine, stock, optic, ...), not a strip: the hero is built UNARMED (HeroCharacter `armed` false) and every weapon, the carbine
+## included, rides the rifle bone the arms are solved on.
+## Frame of a mesh: the origin is the MUZZLE, the barrel points to -Z, the body extends toward +Z (behind the muzzle), +Y up, +X the hero's right.
+## SPEC[id]: `reach` = how far the muzzle sits in front of the rifle pivot (the carbine's is 0.86 m: shorter guns pull the muzzle back so the hands never reach for them),
+## `gr` / `gl` = where the right / left wrist grips, in the mesh frame (PlayerBody turns that into the rig's per-hand offset). Silhouette rules: one distinguishing feature per class.
 
-const GUN := Color(0.16, 0.17, 0.2)
-const DARK := Color(0.07, 0.075, 0.09)
-const STEEL := Color(0.34, 0.36, 0.4)
+const GUN := Color(0.15, 0.16, 0.19)
+const POLY := Color(0.085, 0.09, 0.105)
+const DARK := Color(0.05, 0.055, 0.065)
+const STEEL := Color(0.36, 0.38, 0.42)
+const BRASS := Color(0.62, 0.5, 0.28)
+const CARBINE_REACH := 0.86
+const CARBINE_GR := Vector3(0.0, -0.095, 0.68)       ## the carbine's grips in its own mesh frame: the rig's rest wrists
+const CARBINE_GL := Vector3(-0.012, -0.08, 0.39)
+const MUZZLE_AT := Vector3(0.0, 0.01, -0.86)          ## HeroCharacter: the muzzle in the rifle frame
+
+const SPEC := {
+	&"pistol": {"reach": 0.6, "gr": Vector3(0.0, -0.085, 0.17), "gl": Vector3(-0.025, -0.1, 0.12)},
+	&"burst": {"reach": 0.6, "gr": Vector3(0.0, -0.085, 0.2), "gl": Vector3(-0.025, -0.105, 0.14)},
+	&"revolver": {"reach": 0.62, "gr": Vector3(0.0, -0.095, 0.25), "gl": Vector3(-0.025, -0.115, 0.2)},
+	&"akimbo": {"reach": 0.62, "gr": Vector3(0.075, -0.085, 0.17), "gl": Vector3(-0.075, -0.085, 0.17)},
+	&"flux": {"reach": 0.66, "gr": Vector3(0.0, -0.09, 0.34), "gl": Vector3(0.0, -0.085, 0.14)},
+	&"carbine": {"reach": 0.86, "gr": Vector3(0.0, -0.095, 0.68), "gl": Vector3(-0.012, -0.08, 0.39)},
+	&"marksman": {"reach": 0.92, "gr": Vector3(0.0, -0.09, 0.74), "gl": Vector3(0.0, -0.075, 0.44)},
+	&"arc": {"reach": 0.8, "gr": Vector3(0.0, -0.09, 0.6), "gl": Vector3(0.0, -0.08, 0.32)},
+	&"scatter": {"reach": 0.84, "gr": Vector3(0.0, -0.09, 0.66), "gl": Vector3(0.0, -0.1, 0.34)},
+	&"breacher": {"reach": 0.74, "gr": Vector3(0.0, -0.1, 0.52), "gl": Vector3(0.0, -0.1, 0.24)},
+	&"rail": {"reach": 0.98, "gr": Vector3(0.0, -0.09, 0.8), "gl": Vector3(0.0, -0.08, 0.48)},
+	&"lance": {"reach": 1.0, "gr": Vector3(0.0, -0.07, 0.9), "gl": Vector3(0.0, -0.06, 0.52)},
+	&"gravity": {"reach": 0.82, "gr": Vector3(0.0, -0.1, 0.62), "gl": Vector3(0.0, -0.11, 0.3)},
+	&"rocket": {"reach": 0.8, "gr": Vector3(0.0, -0.11, 0.62), "gl": Vector3(0.0, -0.12, 0.3)},
+	&"minigun": {"reach": 0.84, "gr": Vector3(0.0, -0.12, 0.6), "gl": Vector3(0.0, -0.14, 0.3)},
+	&"grenade": {"reach": 0.5, "gr": Vector3(0.0, -0.02, 0.14), "gl": Vector3(-0.07, -0.12, 0.34)},
+	&"blade": {"reach": 1.1, "gr": Vector3(0.0, 0.0, 0.88), "gl": Vector3(0.0, 0.0, 1.02)},
+	&"whip": {"reach": 0.8, "gr": Vector3(0.0, -0.01, 0.28), "gl": Vector3(0.0, -0.01, 0.42)},
+}
 
 static var _cache := {}
 static var _material: ShaderMaterial
 
 
-## The silhouette mesh of weapon `id`, or null for the carbine (its model is part of the hero).
+## The mesh of weapon `id` (cached), null for an unknown id.
 static func mesh(id: StringName) -> ArrayMesh:
-	if id == &"carbine" or not WeaponDefs.DEFS.has(id):
+	if not WeaponDefs.DEFS.has(id):
 		return null
 	if _cache.has(id):
 		return _cache[id]
 	var glow: Color = WeaponDefs.def(id)["look"]
 	var b := _Builder.new()
 	match id:
-		&"scatter":                                                   # a fat short shotgun: a wide flared muzzle, a pump, a big stock block
-			b.box(Vector3(0, 0, 0.3), Vector3(0.12, 0.12, 0.6), GUN)
-			b.box(Vector3(0, -0.095, 0.34), Vector3(0.09, 0.07, 0.3), DARK)                  # the pump
-			b.box(Vector3(0, 0.0, 0.02), Vector3(0.19, 0.19, 0.07), glow, 1.0)               # the flared muzzle ring
-			b.box(Vector3(0, -0.02, 0.78), Vector3(0.1, 0.17, 0.3), STEEL)                   # stock
-			b.box(Vector3(0, 0.075, 0.3), Vector3(0.03, 0.02, 0.5), glow, 1.0)
-		&"lance":                                                     # a long thin rail with two fins and a glowing core
-			b.box(Vector3(0, 0, 0.62), Vector3(0.05, 0.05, 1.25), GUN)
-			b.box(Vector3(0, 0, 0.25), Vector3(0.26, 0.018, 0.2), STEEL)
-			b.box(Vector3(0, 0, 0.7), Vector3(0.018, 0.22, 0.2), STEEL)
-			b.box(Vector3(0, 0.0, 0.5), Vector3(0.025, 0.025, 1.0), glow, 1.0)
-			b.box(Vector3(0, -0.06, 0.95), Vector3(0.08, 0.14, 0.34), DARK)
-		&"grenade", &"gravity":                                       # a fat launcher tube with a drum
-			b.cyl(Vector3(0, 0, 0.35), 0.085 if id == &"grenade" else 0.11, 0.7, GUN)
-			b.cyl(Vector3(0, 0, 0.03), 0.105 if id == &"grenade" else 0.135, 0.06, glow, 1.0)
-			b.box(Vector3(0, -0.12, 0.55), Vector3(0.1, 0.14, 0.26), DARK)
-			b.box(Vector3(0, 0.1, 0.4), Vector3(0.05, 0.06, 0.2), STEEL)
-		&"burst", &"akimbo", &"revolver":                              # a heavy pistol: a tall slide, a glowing rail, a big grip
-			var big := 1.25 if id == &"revolver" else 1.0
-			b.box(Vector3(0, 0.0, 0.2), Vector3(0.075, 0.1, 0.4) * big, GUN)
-			b.box(Vector3(0, 0.0, 0.02), Vector3(0.1, 0.12, 0.05) * big, glow, 1.0)
-			b.box(Vector3(0, -0.14, 0.34), Vector3(0.06, 0.2, 0.09), DARK)
-			b.box(Vector3(0, 0.062, 0.2), Vector3(0.02, 0.015, 0.34), glow, 1.0)
-			if id == &"revolver":
-				b.cyl(Vector3(0, 0, 0.3), 0.075, 0.16, STEEL)                               # the cylinder
-		&"rail":                                                      # long with coil rings all along
-			b.box(Vector3(0, 0, 0.55), Vector3(0.07, 0.07, 1.1), GUN)
-			for k in 5:
-				b.box(Vector3(0, 0, 0.12 + 0.2 * float(k)), Vector3(0.17, 0.17, 0.05), glow, 1.0)
-			b.box(Vector3(0, -0.07, 0.95), Vector3(0.09, 0.14, 0.34), DARK)
-		&"flux":                                                      # a boxy SMG with a glowing block and a long curved magazine
-			b.box(Vector3(0, 0, 0.26), Vector3(0.11, 0.15, 0.52), GUN)
-			b.box(Vector3(0, -0.2, 0.34), Vector3(0.07, 0.3, 0.1), DARK)
-			b.box(Vector3(0, 0.0, 0.03), Vector3(0.13, 0.17, 0.06), glow, 1.0)
-			b.box(Vector3(0.062, 0.0, 0.3), Vector3(0.015, 0.08, 0.32), glow, 1.0)
-			b.box(Vector3(-0.062, 0.0, 0.3), Vector3(0.015, 0.08, 0.32), glow, 1.0)
-		&"minigun":                                                   # a barrel cluster and a drum
-			for k in 6:
-				var a := TAU * float(k) / 6.0
-				b.cyl(Vector3(cos(a) * 0.07, sin(a) * 0.07, 0.32), 0.026, 0.64, STEEL)
-			b.cyl(Vector3(0, 0, 0.03), 0.13, 0.05, glow, 1.0)
-			b.cyl(Vector3(0, 0, 0.5), 0.12, 0.16, DARK)
-			b.box(Vector3(0, -0.2, 0.62), Vector3(0.24, 0.24, 0.28), GUN)
-		&"arc":                                                       # two prongs that arc between their tips
-			b.box(Vector3(0.07, 0.0, 0.25), Vector3(0.035, 0.035, 0.5), STEEL)
-			b.box(Vector3(-0.07, 0.0, 0.25), Vector3(0.035, 0.035, 0.5), STEEL)
-			b.box(Vector3(0.07, 0.0, 0.02), Vector3(0.06, 0.06, 0.06), glow, 1.0)
-			b.box(Vector3(-0.07, 0.0, 0.02), Vector3(0.06, 0.06, 0.06), glow, 1.0)
-			b.box(Vector3(0, 0, 0.55), Vector3(0.14, 0.12, 0.32), GUN)
-			b.box(Vector3(0, 0.0, 0.3), Vector3(0.05, 0.05, 0.12), glow, 1.0)
-		&"whip":                                                      # a handle with a glowing coil
-			b.cyl(Vector3(0, 0, 0.3), 0.04, 0.5, GUN)
-			b.cyl(Vector3(0, 0, 0.05), 0.075, 0.1, glow, 1.0)
-			b.cyl(Vector3(0, 0, 0.4), 0.07, 0.12, glow, 1.0)
-		&"blade":                                                     # a glowing blade, a guard, a handle
-			b.box(Vector3(0, 0, -0.15), Vector3(0.035, 0.13, 0.92), glow, 1.0)
-			b.box(Vector3(0, 0, 0.36), Vector3(0.2, 0.05, 0.05), STEEL)
-			b.box(Vector3(0, 0, 0.6), Vector3(0.055, 0.055, 0.5), GUN)
-		_:
-			b.box(Vector3(0, 0, 0.3), Vector3(0.1, 0.1, 0.6), GUN)
-			b.box(Vector3(0, 0, 0.3), Vector3(0.03, 0.03, 0.5), glow, 1.0)
+		&"carbine":
+			if not _carbine(b, glow):
+				_boxy_carbine(b, glow)
+		&"pistol":
+			_pistol(b, glow, 1.0)
+		&"burst":
+			_pistol(b, glow, 1.35)
+		&"revolver":
+			_revolver(b, glow)
+		&"akimbo":
+			_pistol(b, glow, 1.0, 0.075)
+			_pistol(b, glow, 1.0, -0.075)
+		&"flux":
+			_smg(b, glow)
+		&"marksman":
+			_marksman(b, glow)
+		&"arc":
+			_arc(b, glow)
+		&"scatter":
+			_shotgun(b, glow, false)
+		&"breacher":
+			_shotgun(b, glow, true)
+		&"rail":
+			_rail(b, glow)
+		&"lance":
+			_lance(b, glow)
+		&"gravity":
+			_gravity(b, glow)
+		&"rocket":
+			_rocket(b, glow)
+		&"minigun":
+			_minigun(b, glow)
+		&"grenade":
+			_grenade(b, glow)
+		&"blade":
+			_blade(b, glow)
+		&"whip":
+			_whip(b, glow)
 	var m := b.build()
 	_cache[id] = m
+	return m
+
+
+# --- the models ---------------------------------------------------------------------------------------------------------
+
+## The Blender carbine of the hero kit (2.3k triangles, glow seams in vertex colour G), moved into the muzzle frame.
+static func _carbine(b: _Builder, glow: Color) -> bool:
+	var arr := HeroCharacter._rifle_arrays()
+	if arr.is_empty():
+		return false
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var n: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+	var cols: PackedColorArray = arr[Mesh.ARRAY_COLOR] if arr[Mesh.ARRAY_COLOR] != null else PackedColorArray()
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	if idx.is_empty():
+		for i in v.size():
+			idx.append(i)
+	var base := b.verts.size()
+	for i in v.size():
+		var g := cols[i].g if i < cols.size() else 0.0
+		b.verts.append(v[i] - MUZZLE_AT)
+		b.norms.append(n[i])
+		var c := GUN.lerp(STEEL, 0.25).lerp(glow, clampf(g, 0.0, 1.0))
+		b.cols.append(Color(c.r, c.g, c.b, clampf(g, 0.0, 1.0)))
+	for i in idx:
+		b.idx.append(base + i)
+	return true
+
+
+## The same rifle from boxes when the glb is not imported (a headless check without assets).
+static func _boxy_carbine(b: _Builder, glow: Color) -> void:
+	b.box(Vector3(0, 0.0, 0.36), Vector3(0.06, 0.08, 0.5), GUN)
+	b.box(Vector3(0, -0.08, 0.6), Vector3(0.04, 0.14, 0.1), POLY)
+	b.box(Vector3(0, 0.0, 0.8), Vector3(0.05, 0.1, 0.2), POLY)
+	b.cyl(Vector3(0, 0.01, 0.15), 0.014, 0.3, STEEL)
+	b.box(Vector3(0, 0.0, 0.3), Vector3(0.02, 0.02, 0.4), glow, 1.0)
+
+
+static func _pistol(b: _Builder, glow: Color, k: float, dx := 0.0) -> void:
+	var o := Vector3(dx, 0.0, 0.0)
+	var L := 0.2 * k
+	b.box(o + Vector3(0, 0.0, 0.01 + L * 0.5), Vector3(0.036, 0.046, L), GUN)                    # slide
+	b.box(o + Vector3(0, 0.0235, 0.01 + L * 0.5), Vector3(0.02, 0.006, L - 0.04), STEEL)         # slide top flat
+	b.cyl(o + Vector3(0, 0.002, 0.0), 0.012, 0.028, STEEL)                                          # barrel tip
+	b.box(o + Vector3(0, -0.038, 0.1 + 0.05 * (k - 1.0) + 0.04), Vector3(0.032, 0.03, 0.15 * k), POLY)   # frame under the slide
+	b.box(o + Vector3(0, -0.085, 0.12 * k + 0.07), Vector3(0.034, 0.105, 0.042), DARK, 0.0, -0.28)        # raked grip
+	b.box(o + Vector3(0, -0.075, 0.075 * k + 0.05), Vector3(0.012, 0.03, 0.05), POLY)                   # trigger guard front
+	b.box(o + Vector3(0, 0.032, 0.015), Vector3(0.008, 0.016, 0.012), STEEL)                            # front sight
+	b.box(o + Vector3(0, 0.032, 0.01 + L - 0.02), Vector3(0.022, 0.016, 0.012), STEEL)                  # rear sight
+	b.box(o + Vector3(0.0195, 0.0, 0.01 + L * 0.5), Vector3(0.004, 0.018, L - 0.06), glow, 1.0)           # glow strip, right
+	b.box(o + Vector3(-0.0195, 0.0, 0.01 + L * 0.5), Vector3(0.004, 0.018, L - 0.06), glow, 1.0)
+	if k > 1.1:                                                                                          # the burst pistol: a vented compensator and a long magazine
+		b.box(o + Vector3(0, 0.0, 0.0), Vector3(0.044, 0.05, 0.05), STEEL)
+		b.box(o + Vector3(0, 0.0, 0.0), Vector3(0.048, 0.012, 0.03), glow, 1.0)
+		b.box(o + Vector3(0, -0.15, 0.12 * k + 0.1), Vector3(0.03, 0.09, 0.05), DARK, 0.0, -0.28)
+
+
+static func _revolver(b: _Builder, glow: Color) -> void:
+	b.cyl(Vector3(0, 0.012, 0.15), 0.017, 0.3, STEEL)                                                   # the barrel
+	b.box(Vector3(0, 0.038, 0.13), Vector3(0.012, 0.016, 0.24), GUN)                                    # the rib
+	b.box(Vector3(0, 0.012, 0.012), Vector3(0.016, 0.014, 0.02), glow, 1.0)
+	b.cyl(Vector3(0, 0.002, 0.3), 0.044, 0.092, GUN, 0.0, 10)                                           # the cylinder
+	for k in 6:
+		var a := TAU * float(k) / 6.0
+		b.cyl(Vector3(cos(a) * 0.03, 0.002 + sin(a) * 0.03, 0.3), 0.009, 0.094, DARK)                   # chambers
+	b.box(Vector3(0, 0.0, 0.2), Vector3(0.04, 0.05, 0.06), STEEL)                                       # frame in front of the cylinder
+	b.box(Vector3(0, 0.003, 0.37), Vector3(0.04, 0.06, 0.07), GUN)                                      # frame behind
+	b.box(Vector3(0, 0.046, 0.395), Vector3(0.014, 0.026, 0.028), STEEL, 0.0, 0.5)                     # hammer
+	b.box(Vector3(0, -0.07, 0.4), Vector3(0.038, 0.12, 0.06), POLY, 0.0, -0.3)                           # grip
+	b.box(Vector3(0.0215, 0.002, 0.3), Vector3(0.004, 0.018, 0.07), glow, 1.0)
+	b.box(Vector3(-0.0215, 0.002, 0.3), Vector3(0.004, 0.018, 0.07), glow, 1.0)
+
+
+static func _smg(b: _Builder, glow: Color) -> void:
+	b.box(Vector3(0, 0.0, 0.3), Vector3(0.054, 0.07, 0.4), GUN)                                         # receiver
+	b.box(Vector3(0, 0.0, 0.1), Vector3(0.05, 0.062, 0.2), POLY)                                        # handguard
+	b.cyl(Vector3(0, 0.002, 0.04), 0.014, 0.08, STEEL)                                                  # barrel and suppressor
+	b.cyl(Vector3(0, 0.002, 0.1), 0.026, 0.12, DARK)
+	b.box(Vector3(0, 0.0, 0.0), Vector3(0.06, 0.07, 0.014), glow, 1.0)                                  # muzzle ring
+	b.box(Vector3(0, 0.0475, 0.3), Vector3(0.02, 0.025, 0.3), STEEL)                                    # top rail
+	b.box(Vector3(0, 0.07, 0.3), Vector3(0.03, 0.03, 0.07), DARK)                                       # red dot
+	b.box(Vector3(0, 0.07, 0.268), Vector3(0.018, 0.018, 0.004), glow, 1.0)
+	b.box(Vector3(0, -0.12, 0.33), Vector3(0.036, 0.19, 0.056), POLY, 0.0, -0.1)                         # long magazine
+	b.box(Vector3(0, -0.1, 0.43), Vector3(0.036, 0.1, 0.04), DARK, 0.0, -0.3)                            # grip
+	b.box(Vector3(0, -0.085, 0.14), Vector3(0.03, 0.08, 0.04), POLY, 0.0, 0.1)                         # foregrip
+	b.box(Vector3(0, 0.005, 0.54), Vector3(0.028, 0.02, 0.24), STEEL)                                   # stock rails
+	b.box(Vector3(0, -0.02, 0.66), Vector3(0.04, 0.095, 0.03), POLY)                                    # stock pad
+	b.box(Vector3(0.028, 0.0, 0.26), Vector3(0.004, 0.02, 0.22), glow, 1.0)
+	b.box(Vector3(-0.028, 0.0, 0.26), Vector3(0.004, 0.02, 0.22), glow, 1.0)
+
+
+static func _marksman(b: _Builder, glow: Color) -> void:
+	b.cyl(Vector3(0, 0.006, 0.2), 0.011, 0.4, STEEL)                                                    # long barrel
+	b.cyl(Vector3(0, 0.006, 0.03), 0.02, 0.06, DARK)                                                    # brake
+	b.box(Vector3(0, 0.006, 0.0), Vector3(0.05, 0.05, 0.012), glow, 1.0)
+	b.box(Vector3(0, 0.0, 0.46), Vector3(0.05, 0.075, 0.28), POLY)                                      # handguard
+	b.box(Vector3(0, 0.0, 0.68), Vector3(0.056, 0.08, 0.2), GUN)                                        # receiver
+	b.box(Vector3(0, 0.05, 0.62), Vector3(0.024, 0.016, 0.4), STEEL)                                    # top rail
+	b.cyl(Vector3(0, 0.085, 0.6), 0.024, 0.24, DARK)                                                    # scope body
+	b.cyl(Vector3(0, 0.085, 0.47), 0.032, 0.05, POLY)
+	b.cyl(Vector3(0, 0.085, 0.73), 0.028, 0.05, POLY)
+	b.box(Vector3(0, 0.085, 0.455), Vector3(0.04, 0.04, 0.004), glow, 1.0)                              # lens
+	b.box(Vector3(0, -0.08, 0.64), Vector3(0.036, 0.1, 0.058), DARK)                                    # box magazine
+	b.box(Vector3(0, -0.095, 0.77), Vector3(0.036, 0.11, 0.045), POLY, 0.0, -0.3)                        # grip
+	b.box(Vector3(0, 0.0, 0.92), Vector3(0.05, 0.085, 0.2), POLY)                                       # stock
+	b.box(Vector3(0, 0.05, 0.88), Vector3(0.04, 0.03, 0.14), DARK)                                      # cheek rest
+	b.box(Vector3(0, -0.01, 1.03), Vector3(0.044, 0.12, 0.03), DARK)
+	b.box(Vector3(0.0285, 0.0, 0.46), Vector3(0.004, 0.02, 0.2), glow, 1.0)
+	b.box(Vector3(-0.0285, 0.0, 0.46), Vector3(0.004, 0.02, 0.2), glow, 1.0)
+
+
+static func _arc(b: _Builder, glow: Color) -> void:
+	for sx in [-1.0, 1.0]:                                                                              # two prongs with a spark gap
+		b.box(Vector3(0.05 * sx, 0.0, 0.18), Vector3(0.024, 0.04, 0.36), STEEL)
+		b.box(Vector3(0.05 * sx, 0.0, 0.01), Vector3(0.05, 0.05, 0.03), glow, 1.0)
+		b.box(Vector3(0.034 * sx, 0.0, 0.32), Vector3(0.012, 0.012, 0.06), glow, 1.0)
+	b.box(Vector3(0.0, 0.0, 0.34), Vector3(0.12, 0.05, 0.06), POLY)                                     # yoke
+	b.box(Vector3(0, 0.0, 0.5), Vector3(0.07, 0.09, 0.26), GUN)                                         # body
+	b.cyl(Vector3(0, 0.0, 0.44), 0.05, 0.05, glow, 1.0, 10)                                             # coil
+	b.cyl(Vector3(0, 0.0, 0.54), 0.05, 0.05, glow, 1.0, 10)
+	b.box(Vector3(0, 0.06, 0.52), Vector3(0.024, 0.03, 0.2), STEEL)                                     # rail
+	b.box(Vector3(0, -0.07, 0.4), Vector3(0.034, 0.08, 0.05), POLY)                                     # foregrip
+	b.box(Vector3(0, -0.1, 0.62), Vector3(0.036, 0.11, 0.046), DARK, 0.0, -0.3)                          # grip
+	b.box(Vector3(0, -0.01, 0.78), Vector3(0.05, 0.1, 0.22), POLY)                                      # stock
+	b.box(Vector3(0, -0.09, 0.52), Vector3(0.04, 0.12, 0.07), DARK)                                     # cell
+
+
+static func _shotgun(b: _Builder, glow: Color, auto: bool) -> void:
+	var s := 0.0 if not auto else -0.1                                                                  # the breacher is stubbier
+	b.cyl(Vector3(0, 0.012, 0.28 + s), 0.02, 0.56 + 2.0 * s, STEEL)                                      # barrel
+	b.cyl(Vector3(0, 0.012, 0.02), 0.032, 0.05, DARK)                                                   # flared muzzle
+	b.box(Vector3(0, 0.012, 0.0), Vector3(0.07, 0.07, 0.012), glow, 1.0)
+	if not auto:
+		b.cyl(Vector3(0, -0.026, 0.26), 0.016, 0.44, GUN)                                               # magazine tube
+		b.box(Vector3(0, -0.032, 0.36), Vector3(0.05, 0.05, 0.2), POLY)                                 # the pump
+		for k in 4:
+			b.box(Vector3(0, -0.032, 0.3 + 0.045 * float(k)), Vector3(0.054, 0.054, 0.01), DARK)
+		b.box(Vector3(0, 0.005, 0.62), Vector3(0.056, 0.07, 0.24), GUN)                                 # receiver
+		b.box(Vector3(0.0285, 0.005, 0.62), Vector3(0.004, 0.02, 0.18), glow, 1.0)
+		b.box(Vector3(-0.0285, 0.005, 0.62), Vector3(0.004, 0.02, 0.18), glow, 1.0)
+		b.box(Vector3(0, -0.075, 0.72), Vector3(0.036, 0.1, 0.045), POLY, 0.0, -0.3)                     # grip
+		b.box(Vector3(0, -0.005, 0.9), Vector3(0.05, 0.1, 0.24), POLY, 0.0, 0.0)                        # stock
+		b.box(Vector3(0, -0.03, 1.04), Vector3(0.046, 0.13, 0.03), DARK)
+		b.box(Vector3(0, 0.044, 0.5), Vector3(0.01, 0.014, 0.04), STEEL)                                # bead sight
+	else:
+		b.cyl(Vector3(0, 0.012, 0.18), 0.042, 0.26, DARK)                                               # heat shield
+		for k in 3:
+			b.box(Vector3(0, 0.012, 0.1 + 0.07 * float(k)), Vector3(0.09, 0.09, 0.012), glow, 1.0)
+		b.box(Vector3(0, 0.005, 0.42), Vector3(0.07, 0.085, 0.3), GUN)                                  # receiver
+		b.cyl(Vector3(0, -0.085, 0.4), 0.085, 0.1, POLY, 0.0, 12, Basis(Vector3.UP, PI * 0.5))             # drum magazine (axis across the gun)
+		b.box(Vector3(0, 0.06, 0.42), Vector3(0.03, 0.04, 0.22), STEEL)                                 # carry handle
+		b.box(Vector3(0, 0.082, 0.42), Vector3(0.02, 0.016, 0.26), POLY)
+		b.box(Vector3(0, -0.095, 0.57), Vector3(0.038, 0.11, 0.05), POLY, 0.0, -0.3)                     # grip
+		b.box(Vector3(0, -0.04, 0.2), Vector3(0.036, 0.07, 0.05), DARK)                                 # foregrip
+		b.box(Vector3(0, -0.005, 0.7), Vector3(0.05, 0.085, 0.16), POLY)                                # stock
+		b.box(Vector3(0, -0.02, 0.8), Vector3(0.044, 0.11, 0.03), DARK)
+		b.box(Vector3(0.036, 0.005, 0.42), Vector3(0.004, 0.026, 0.22), glow, 1.0)
+		b.box(Vector3(-0.036, 0.005, 0.42), Vector3(0.004, 0.026, 0.22), glow, 1.0)
+
+
+static func _rail(b: _Builder, glow: Color) -> void:
+	b.box(Vector3(0, 0.0, 0.5), Vector3(0.05, 0.05, 1.0), GUN)                                          # long barrel shroud
+	for k in 5:                                                                                         # coil rings along the barrel
+		b.cyl(Vector3(0, 0.0, 0.1 + 0.15 * float(k)), 0.047, 0.04, STEEL, 0.0, 10)
+		b.cyl(Vector3(0, 0.0, 0.1 + 0.15 * float(k)), 0.04, 0.052, glow, 0.55, 10)
+	b.box(Vector3(0, 0.0, 0.0), Vector3(0.06, 0.06, 0.012), glow, 1.0)
+	b.box(Vector3(0, 0.0, 0.86), Vector3(0.06, 0.09, 0.24), POLY)                                       # receiver
+	b.box(Vector3(0, 0.06, 0.8), Vector3(0.026, 0.016, 0.36), STEEL)                                    # rail
+	b.cyl(Vector3(0, 0.095, 0.7), 0.03, 0.34, DARK)                                                     # scope
+	b.cyl(Vector3(0, 0.095, 0.53), 0.04, 0.06, POLY)
+	b.cyl(Vector3(0, 0.095, 0.87), 0.036, 0.06, POLY)
+	b.box(Vector3(0, 0.095, 0.5), Vector3(0.05, 0.05, 0.004), glow, 1.0)
+	b.box(Vector3(0, -0.07, 0.8), Vector3(0.034, 0.09, 0.07), DARK)                                     # magazine
+	b.box(Vector3(0, -0.09, 0.9), Vector3(0.036, 0.11, 0.045), POLY, 0.0, -0.3)                          # grip
+	b.box(Vector3(0, 0.0, 1.08), Vector3(0.052, 0.09, 0.22), POLY)                                      # stock
+	b.box(Vector3(0, 0.055, 1.04), Vector3(0.04, 0.03, 0.14), DARK)
+	b.box(Vector3(0, -0.01, 1.2), Vector3(0.046, 0.13, 0.03), DARK)
+	b.box(Vector3(0.0275, 0.0, 0.5), Vector3(0.004, 0.012, 0.8), glow, 0.8)
+	b.box(Vector3(-0.0275, 0.0, 0.5), Vector3(0.004, 0.012, 0.8), glow, 0.8)
+	b.box(Vector3(0.05, -0.05, 0.32), Vector3(0.008, 0.1, 0.008), STEEL, 0.0, 0.5)                      # folded bipod legs
+	b.box(Vector3(-0.05, -0.05, 0.32), Vector3(0.008, 0.1, 0.008), STEEL, 0.0, -0.5)
+
+
+static func _lance(b: _Builder, glow: Color) -> void:
+	b.box(Vector3(0, 0.0, 0.62), Vector3(0.04, 0.04, 1.24), GUN)                                        # long spine
+	b.box(Vector3(0, 0.0, 0.5), Vector3(0.022, 0.022, 1.0), glow, 1.0)                                  # the glowing core
+	for k in 3:
+		var z := 0.12 + 0.19 * float(k)
+		b.box(Vector3(0, 0.0, z), Vector3(0.24 - 0.04 * float(k), 0.014, 0.12), STEEL)                  # fins, wide at the tip
+		b.box(Vector3(0, 0.0, z + 0.09), Vector3(0.016, 0.2 - 0.04 * float(k), 0.1), STEEL)
+	b.box(Vector3(0, 0.0, 0.0), Vector3(0.05, 0.05, 0.012), glow, 1.0)
+	b.box(Vector3(0, 0.0, 0.88), Vector3(0.07, 0.1, 0.3), POLY)                                         # body
+	b.box(Vector3(0, -0.09, 0.9), Vector3(0.04, 0.09, 0.05), DARK, 0.0, -0.3)                            # grip
+	b.box(Vector3(0, -0.07, 0.52), Vector3(0.034, 0.08, 0.05), POLY)                                    # foregrip
+	b.cyl(Vector3(0, 0.07, 0.84), 0.026, 0.2, DARK)                                                     # scope
+	b.box(Vector3(0, 0.07, 0.74), Vector3(0.04, 0.04, 0.004), glow, 1.0)
+	b.box(Vector3(0, 0.0, 1.14), Vector3(0.06, 0.1, 0.16), POLY)                                        # butt
+	b.box(Vector3(0, 0.0, 1.24), Vector3(0.05, 0.13, 0.03), DARK)
+
+
+static func _gravity(b: _Builder, glow: Color) -> void:
+	b.cyl(Vector3(0, 0.0, 0.26), 0.058, 0.52, GUN, 0.0, 12)                                             # fat launcher tube
+	b.cyl(Vector3(0, 0.0, 0.03), 0.078, 0.06, STEEL, 0.0, 12)                                           # flared muzzle
+	b.cyl(Vector3(0, 0.0, 0.0), 0.07, 0.014, glow, 1.0, 12)
+	b.cyl(Vector3(0, 0.0, 0.4), 0.084, 0.06, STEEL, 0.0, 12)                                            # reinforcing bands
+	b.cyl(Vector3(0, 0.0, 0.4), 0.074, 0.07, glow, 0.5, 12)
+	b.cyl(Vector3(0, 0.0, 0.54), 0.09, 0.2, POLY, 0.0, 12)                                              # revolving drum
+	b.cyl(Vector3(0, 0.0, 0.54), 0.094, 0.015, STEEL, 0.0, 12)
+	b.box(Vector3(0, 0.1, 0.4), Vector3(0.012, 0.07, 0.1), STEEL)                                       # ladder sight
+	b.box(Vector3(0, 0.138, 0.4), Vector3(0.05, 0.01, 0.01), STEEL)
+	b.box(Vector3(0, -0.11, 0.62), Vector3(0.04, 0.1, 0.05), DARK, 0.0, -0.3)                            # grip
+	b.box(Vector3(0, -0.09, 0.3), Vector3(0.036, 0.09, 0.05), POLY)                                     # foregrip
+	b.box(Vector3(0, -0.02, 0.76), Vector3(0.05, 0.1, 0.18), POLY)                                      # stock
+	b.box(Vector3(0, -0.03, 0.86), Vector3(0.046, 0.13, 0.03), DARK)
+
+
+static func _rocket(b: _Builder, glow: Color) -> void:
+	b.cyl(Vector3(0, 0.0, 0.46), 0.085, 0.92, GUN, 0.0, 12)                                             # the tube
+	b.cyl(Vector3(0, 0.0, 0.03), 0.105, 0.07, STEEL, 0.0, 12)                                           # flared muzzle
+	b.cyl(Vector3(0, 0.0, 0.0), 0.1, 0.014, glow, 1.0, 12)
+	b.cyl(Vector3(0, 0.0, 0.95), 0.108, 0.1, STEEL, 0.0, 12)                                            # exhaust flare
+	b.cyl(Vector3(0, 0.0, 0.2), 0.092, 0.02, glow, 0.7, 12)                                             # glowing bands
+	b.cyl(Vector3(0, 0.0, 0.7), 0.092, 0.02, glow, 0.7, 12)
+	b.box(Vector3(0, 0.13, 0.5), Vector3(0.03, 0.05, 0.2), DARK)                                        # optic
+	b.box(Vector3(0, 0.162, 0.5), Vector3(0.05, 0.014, 0.14), POLY)
+	b.box(Vector3(0, 0.162, 0.43), Vector3(0.03, 0.01, 0.004), glow, 1.0)
+	b.box(Vector3(0, -0.13, 0.62), Vector3(0.04, 0.1, 0.05), DARK, 0.0, -0.3)                            # grip
+	b.box(Vector3(0, -0.12, 0.3), Vector3(0.036, 0.09, 0.05), POLY)                                     # foregrip
+	b.box(Vector3(0, -0.075, 0.5), Vector3(0.05, 0.05, 0.3), POLY)                                      # rail under the tube
+
+
+static func _minigun(b: _Builder, glow: Color) -> void:
+	for k in 6:                                                                                         # six barrels around the axis
+		var a := TAU * float(k) / 6.0
+		b.cyl(Vector3(cos(a) * 0.055, sin(a) * 0.055, 0.3), 0.017, 0.6, STEEL, 0.0, 8)
+	b.cyl(Vector3(0, 0.0, 0.0), 0.085, 0.03, DARK, 0.0, 12)                                             # muzzle clamp
+	b.cyl(Vector3(0, 0.0, 0.0), 0.08, 0.012, glow, 1.0, 12)
+	b.cyl(Vector3(0, 0.0, 0.32), 0.09, 0.03, STEEL, 0.0, 12)                                            # middle clamp
+	b.cyl(Vector3(0, 0.0, 0.62), 0.11, 0.22, GUN, 0.0, 12)                                              # housing
+	b.cyl(Vector3(0, 0.0, 0.5), 0.1, 0.02, glow, 0.7, 12)
+	b.box(Vector3(0, 0.1, 0.62), Vector3(0.03, 0.06, 0.22), POLY)                                       # carry handle
+	b.box(Vector3(0, 0.14, 0.62), Vector3(0.04, 0.02, 0.26), DARK)
+	b.box(Vector3(0, -0.14, 0.62), Vector3(0.14, 0.12, 0.2), POLY)                                      # ammo drum
+	b.box(Vector3(0, -0.12, 0.3), Vector3(0.036, 0.1, 0.05), DARK)                                      # front handle
+	b.box(Vector3(0, -0.13, 0.6), Vector3(0.04, 0.09, 0.05), DARK, 0.0, -0.3)                            # grip
+	b.box(Vector3(0, 0.0, 0.8), Vector3(0.1, 0.12, 0.08), POLY)                                         # rear
+
+
+static func _grenade(b: _Builder, glow: Color) -> void:
+	b.cyl(Vector3(0, 0.0, 0.14), 0.05, 0.1, GUN, 0.0, 12)                                               # the singularity grenade: a canister with a glowing band
+	b.cyl(Vector3(0, 0.0, 0.14), 0.054, 0.03, glow, 1.0, 12)
+	b.cyl(Vector3(0, 0.0, 0.07), 0.034, 0.04, STEEL, 0.0, 10)
+	b.cyl(Vector3(0, 0.0, 0.205), 0.04, 0.03, STEEL, 0.0, 10)
+	b.box(Vector3(0.0, 0.052, 0.11), Vector3(0.012, 0.012, 0.06), STEEL)                                # the pin and lever
+	b.box(Vector3(0.0, 0.058, 0.17), Vector3(0.016, 0.01, 0.07), STEEL)
+
+
+static func _blade(b: _Builder, glow: Color) -> void:
+	b.box(Vector3(0, 0.0, 0.4), Vector3(0.006, 0.07, 0.8), STEEL)                                       # blade
+	b.box(Vector3(0, 0.0, 0.4), Vector3(0.008, 0.05, 0.78), glow, 0.9)                                  # glowing edge core
+	b.box(Vector3(0, 0.0, 0.0), Vector3(0.004, 0.04, 0.012), glow, 1.0)                                 # tip
+	b.box(Vector3(0, 0.0, 0.82), Vector3(0.026, 0.2, 0.03), GUN)                                        # guard
+	b.box(Vector3(0, 0.1, 0.82), Vector3(0.036, 0.02, 0.04), STEEL)
+	b.box(Vector3(0, -0.1, 0.82), Vector3(0.036, 0.02, 0.04), STEEL)
+	b.cyl(Vector3(0, 0.0, 0.95), 0.016, 0.24, POLY, 0.0, 8)                                             # handle
+	for k in 4:
+		b.cyl(Vector3(0, 0.0, 0.88 + 0.05 * float(k)), 0.0185, 0.012, DARK, 0.0, 8)
+	b.cyl(Vector3(0, 0.0, 1.08), 0.024, 0.03, STEEL, 0.0, 8)                                            # pommel
+	b.cyl(Vector3(0, 0.0, 1.1), 0.012, 0.012, glow, 1.0, 8)
+
+
+static func _whip(b: _Builder, glow: Color) -> void:
+	b.cyl(Vector3(0, 0.0, 0.3), 0.022, 0.36, POLY, 0.0, 8)                                              # handle
+	for k in 5:
+		b.cyl(Vector3(0, 0.0, 0.17 + 0.07 * float(k)), 0.0255, 0.012, DARK, 0.0, 8)
+	b.cyl(Vector3(0, 0.0, 0.09), 0.04, 0.06, STEEL, 0.0, 10)                                            # emitter
+	b.cyl(Vector3(0, 0.0, 0.04), 0.03, 0.05, glow, 1.0, 10)
+	b.cyl(Vector3(0, 0.0, 0.5), 0.03, 0.04, STEEL, 0.0, 10)                                             # pommel
+	b.box(Vector3(0, 0.0, -0.1), Vector3(0.008, 0.008, 0.2), glow, 1.0)                                 # a short tendril of the whip
+	b.box(Vector3(0.012, 0.0, -0.24), Vector3(0.006, 0.006, 0.1), glow, 1.0)
+
+
+# --- material, icon, geometry helpers --------------------------------------------------------------------------------------
+
+## A weapon crate for the world (about 1.1 x 0.7 x 0.7 m, origin at its base): dark body, a glowing band and a glowing lid plate; tint it per instance (the glow follows the tint).
+static func crate_mesh() -> ArrayMesh:
+	if _cache.has(&"_crate"):
+		return _cache[&"_crate"]
+	var b := _Builder.new()
+	var w := Color(1, 1, 1)
+	b.box(Vector3(0, 0.3, 0), Vector3(1.1, 0.6, 0.7), GUN.lightened(0.05))
+	b.box(Vector3(0, 0.62, 0), Vector3(1.16, 0.06, 0.76), STEEL.darkened(0.3))                  # lid rim
+	b.box(Vector3(0, 0.655, 0), Vector3(0.8, 0.02, 0.4), w, 1.0)                                 # glowing lid plate
+	for sx in [-1.0, 1.0]:
+		b.box(Vector3(0.4 * sx, 0.3, 0), Vector3(0.06, 0.64, 0.74), STEEL.darkened(0.45))        # straps
+		b.box(Vector3(0.4 * sx, 0.3, 0.371), Vector3(0.05, 0.4, 0.01), w, 1.0)
+		b.box(Vector3(0.4 * sx, 0.3, -0.371), Vector3(0.05, 0.4, 0.01), w, 1.0)
+	b.box(Vector3(0.0, 0.3, 0.356), Vector3(0.3, 0.12, 0.02), DARK)                              # latch
+	b.box(Vector3(0.0, 0.3, -0.356), Vector3(0.3, 0.12, 0.02), DARK)
+	var m := b.build()
+	_cache[&"_crate"] = m
 	return m
 
 
@@ -96,10 +403,30 @@ static func material() -> ShaderMaterial:
 	return _material
 
 
-## Length of the weapon behind the muzzle (metres) for the tests and the hand mount.
+## Length of the weapon behind the muzzle (metres).
 static func length_of(id: StringName) -> float:
 	var m := mesh(id)
 	return m.get_aabb().end.z if m != null else 0.0
+
+
+static func spec(id: StringName) -> Dictionary:
+	return SPEC.get(id, SPEC[&"carbine"])
+
+
+## How far the muzzle node moves BACK along the rifle for this weapon (a pistol's muzzle is nearer the body than the carbine's).
+static func muzzle_shift(id: StringName) -> float:
+	return CARBINE_REACH - float(spec(id)["reach"])
+
+
+## Per-hand grip offsets for the rig, in the rifle frame relative to the carbine's wrists: [left, right]. Both are added to the rest wrist targets (CharacterRig `grip_off`).
+static func grip_offsets(id: StringName) -> Array[Vector3]:
+	var sp := spec(id)
+	var reach := float(sp["reach"])
+	var gr: Vector3 = sp["gr"]
+	var gl: Vector3 = sp["gl"]
+	var sr := Vector3(gr.x, gr.y, gr.z - reach) - Vector3(CARBINE_GR.x, CARBINE_GR.y, CARBINE_GR.z - CARBINE_REACH)
+	var sl := Vector3(gl.x, gl.y, gl.z - reach) - Vector3(CARBINE_GL.x, CARBINE_GL.y, CARBINE_GL.z - CARBINE_REACH)
+	return [sl, sr]
 
 
 class _Builder extends RefCounted:
@@ -108,10 +435,11 @@ class _Builder extends RefCounted:
 	var cols := PackedColorArray()
 	var idx := PackedInt32Array()
 
-	## A box: `center`, full `size`, colour; `glow` 0..1 goes into the colour's alpha.
-	func box(center: Vector3, size: Vector3, color: Color, glow := 0.0) -> void:
+	## A box: `center`, full `size`, colour; `glow` 0..1 goes into the colour's alpha; `rx` tilts it about X (a raked grip: positive leans the top forward... toward -Z).
+	func box(center: Vector3, size: Vector3, color: Color, glow := 0.0, rx := 0.0) -> void:
 		var h := size * 0.5
 		var c := Color(color.r, color.g, color.b, glow)
+		var rot := Basis(Vector3.RIGHT, rx)
 		for axis in 3:
 			for sgn in [-1.0, 1.0]:
 				var n := Vector3.ZERO
@@ -121,22 +449,22 @@ class _Builder extends RefCounted:
 				var v := n.cross(u)
 				var base := verts.size()
 				for q in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
-					verts.append(center + n * h[axis] + u * (q.x * h[(axis + 1) % 3]) + v * (q.y * h[(axis + 2) % 3]))
-					norms.append(n)
+					var local: Vector3 = n * h[axis] + u * (q.x * h[(axis + 1) % 3]) + v * (q.y * h[(axis + 2) % 3])
+					verts.append(center + rot * local)
+					norms.append(rot * n)
 					cols.append(c)
 				idx.append_array(PackedInt32Array([base, base + 2, base + 1, base, base + 3, base + 2]))      # u x v = n: counter-clockwise from outside, Godot's front face is clockwise
 
-	## A cylinder along Z (length `len`), 8 sides, centred at `center`.
-	func cyl(center: Vector3, radius: float, len: float, color: Color, glow := 0.0) -> void:
+	## A cylinder along Z (length `len`), `sides` sides, centred at `center`, smooth sides and flat caps.
+	func cyl(center: Vector3, radius: float, len: float, color: Color, glow := 0.0, sides := 8, rot := Basis.IDENTITY) -> void:
 		var c := Color(color.r, color.g, color.b, glow)
-		var sides := 8
 		var base := verts.size()
 		for k in sides:
 			var a := TAU * float(k) / float(sides)
 			var n := Vector3(cos(a), sin(a), 0.0)
 			for zz in [-0.5, 0.5]:
-				verts.append(center + Vector3(n.x * radius, n.y * radius, zz * len))
-				norms.append(n)
+				verts.append(center + rot * Vector3(n.x * radius, n.y * radius, zz * len))
+				norms.append(rot * n)
 				cols.append(c)
 		for k in sides:
 			var i0 := base + k * 2
@@ -144,13 +472,13 @@ class _Builder extends RefCounted:
 			idx.append_array(PackedInt32Array([i0, i0 + 1, i1, i1, i0 + 1, i1 + 1]))
 		for zz in [-0.5, 0.5]:                                       # the two caps
 			var cb := verts.size()
-			verts.append(center + Vector3(0.0, 0.0, zz * len))
-			norms.append(Vector3(0.0, 0.0, signf(zz)))
+			verts.append(center + rot * Vector3(0.0, 0.0, zz * len))
+			norms.append(rot * Vector3(0.0, 0.0, signf(zz)))
 			cols.append(c)
 			for k in sides:
 				var a := TAU * float(k) / float(sides)
-				verts.append(center + Vector3(cos(a) * radius, sin(a) * radius, zz * len))
-				norms.append(Vector3(0.0, 0.0, signf(zz)))
+				verts.append(center + rot * Vector3(cos(a) * radius, sin(a) * radius, zz * len))
+				norms.append(rot * Vector3(0.0, 0.0, signf(zz)))
 				cols.append(c)
 			for k in sides:
 				var a0 := cb + 1 + k

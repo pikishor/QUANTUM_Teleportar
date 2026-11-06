@@ -89,6 +89,7 @@ func _ready() -> void:
 	campaign = CampaignRunner.new()
 	campaign.name = "Campaign"
 	add_child(campaign)
+	campaign.chapter_completed.connect(WeaponLadder.on_chapter_done)        # a ladder weapon is the reward of chapters 1 and 2 (scripts/progress/weapon_ladder.gd)
 	chases = ChaseRunner.new()
 	chases.name = "Chases"
 	add_child(chases)

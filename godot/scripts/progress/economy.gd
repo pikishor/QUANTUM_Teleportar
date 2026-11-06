@@ -13,7 +13,8 @@ const PRICE_SCALE := 2.8
 
 ## Shop upgrade base price (Upgrades.cost multiplies by 1 + 0.8 * level).
 const UPGRADE_BASE := {&"damage": 240, &"mag": 160, &"reload": 160, &"blink": 200, &"regen": 200, &"armour": 260, &"decoy": 180}
-const WEAPON_PRICE := {&"carbine": 0, &"scatter": 500, &"lance": 800, &"grenade": 650, &"burst": 400, &"rail": 950, &"flux": 600, &"gravity": 1100, &"minigun": 1400, &"akimbo": 700, &"arc": 850, &"revolver": 750, &"whip": 600, &"blade": 900}
+## The seven starters (pistol, SMG, carbine, shotgun, rail, launcher, blade) cost nothing; the rest is the unlock ladder (scripts/progress/weapon_ladder.gd), every one of them can also be bought here.
+const WEAPON_PRICE := {&"carbine": 0, &"pistol": 0, &"flux": 0, &"scatter": 0, &"rail": 0, &"gravity": 0, &"blade": 0, &"marksman": 650, &"burst": 400, &"revolver": 750, &"akimbo": 700, &"breacher": 800, &"arc": 850, &"lance": 800, &"whip": 600, &"rocket": 1500, &"minigun": 1400, &"grenade": 650}
 const ATTACHMENT_PRICE := {&"reddot": 250, &"scope": 450, &"halo": 350, &"suppressor": 300, &"longbarrel": 400, &"compensator": 350, &"overcharge": 500, &"rapid": 450, &"extended": 400}
 ## Throwables and gadgets (Gear, scripts/combat/gear.gd): base price, scaled like the rest of the gear. The singularity frag is the free starter.
 const THROW_PRICE := {&"singularity": 0, &"mine": 300, &"decoy": 220, &"shroud": 260, &"emp": 380}

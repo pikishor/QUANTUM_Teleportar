@@ -271,6 +271,22 @@ func center() -> Vector3:
 	return global_position + Vector3(0.0, center_y, 0.0)
 
 
+## The standing box of this enemy for the HUD brackets: [bottom centre, top centre, half width] in world space (a drone: its body sphere).
+func body_box() -> Array:
+	var c := center()
+	return [c - Vector3(0.0, radius, 0.0), c + Vector3(0.0, radius, 0.0), radius]
+
+
+## Where a ray meets this enemy ({t, zone, point}, {} for a miss; HitZones.of asks, the rifle uses it): the body sphere, `head` in its upper part. People override it with a real shape.
+func hit_ray(o: Vector3, d: Vector3) -> Dictionary:
+	var c := center()
+	var t := PlayerUtil.ray_sphere(o, d, c, radius)
+	if t == INF:
+		return {}
+	var pt := o + d * t
+	return {"t": t, "zone": HitZones.HEAD if pt.y > c.y + radius * PlayerWeapon.CRIT_HEIGHT else HitZones.BODY, "point": pt}
+
+
 ## The damage contract (see the player's enemy contract): crit only changes the effect, the amount is already scaled by the weapon.
 ## mirrored = damage that came through a quantum link (does not alert neighbours nor bounce back).
 ## Weapon hit reaction: power 0.4 (carbine) .. 1.5 (lance) lengthens the stagger (the body slows and leans) and deepens the flinch.
@@ -389,12 +405,21 @@ func _drop() -> void:
 		return
 	var r := randf()
 	var at := Vector3(global_position.x, 0.0, global_position.z)
-	if r < 0.3:
+	if r < 0.25:
 		m.call(&"drop", &"health", at)
-	elif r < 0.6:
+	elif r < 0.45:
 		m.call(&"drop", &"energy", at)
-	elif r < 0.7 and cfg.get("drops_weapon", true) and m.has_method(&"drop_weapon"):
-		m.call(&"drop_weapon", WeaponDefs.pick_drop(randf(), randf()), at)
+	elif r < 0.8 and cfg.get("drops_weapon", true) and m.has_method(&"drop_weapon"):
+		# ammo for the gun in hand (always when it is dry), the next weapon of the ladder, or ammo for another owned weapon (scripts/progress/weapon_ladder.gd)
+		var cur: StringName = &"carbine"
+		var res := -1
+		var pl: Variant = Game.player
+		if is_instance_valid(pl) and pl.get(&"weapon") is PlayerWeapon:
+			cur = (pl.get(&"weapon") as PlayerWeapon).current
+			res = (pl.get(&"weapon") as PlayerWeapon).reserve
+		var wid := WeaponLadder.enemy_drop(type, randf(), randf(), cur, res)
+		if wid != &"":
+			m.call(&"drop_weapon", wid, at)
 
 
 # --- simulation -----------------------------------------------------------------------------------------------------

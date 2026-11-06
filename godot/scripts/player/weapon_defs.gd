@@ -9,10 +9,51 @@ extends RefCounted
 ## Wave 61 weapons: minigun (spin_up / heat_per / heat_lock: slow to start, fast once spun, overheats), akimbo (twin: shots alternate hands), arc (chain: a hit jumps to nearby enemies),
 ## revolver (slow heavy rounds, FAN HAMMER alt), whip (long reach, PULL alt), blade (short reach, LUNGE alt). "snd" = the sound name of a shot (default "shot"). reserve < 0 = unlimited spare ammo. look = the emissive tint of the strip on the rifle.
 
-const IDS: Array[StringName] = [&"carbine", &"scatter", &"lance", &"grenade", &"burst", &"rail", &"flux", &"gravity", &"minigun", &"akimbo", &"arc", &"revolver", &"whip", &"blade"]
+## Order = keys 1..8 and the order every list shows: the seven starters first (pistol, SMG, assault rifle, shotgun, sniper rail, launcher, melee), then the unlock ladder.
+const IDS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade", &"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade"]
+## Owned from the first minute (and in every save): one weapon of each class so the hero is never short of a gun. Everything else is on the ladder (scripts/progress/weapon_ladder.gd).
+const STARTERS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade"]
+## The weapon wheel groups the weapons by class (one wedge per class, tap again = the next weapon of that class).
+const CLASS_ORDER: Array[StringName] = [&"pistol", &"smg", &"rifle", &"shotgun", &"sniper", &"heavy", &"melee"]
+const CLASS_NAMES := {&"pistol": "PISTOL", &"smg": "SMG", &"rifle": "RIFLE", &"shotgun": "SHOTGUN", &"sniper": "SNIPER", &"heavy": "HEAVY", &"melee": "MELEE"}
+const CLASS_OF := {
+	&"pistol": &"pistol", &"burst": &"pistol", &"akimbo": &"pistol", &"revolver": &"pistol", &"flux": &"smg", &"carbine": &"rifle", &"marksman": &"rifle", &"arc": &"rifle",
+	&"scatter": &"shotgun", &"breacher": &"shotgun", &"rail": &"sniper", &"lance": &"sniper", &"gravity": &"heavy", &"rocket": &"heavy", &"grenade": &"heavy", &"minigun": &"heavy",
+	&"blade": &"melee", &"whip": &"melee",
+}
 const PAGE_SIZE := 8                       ## weapons per page of the touch weapon wheel
 
 const DEFS := {
+	&"pistol": {
+		"name": "VOLT PISTOL", "tag": "PST", "kind": "hit", "mag": 15, "reserve": -1, "interval": 0.2, "damage": 22.0, "crit": 46.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 1.1), Vector2(-0.25, 1.0)], "shake": 0.03, "vol": -3.0, "pitch_lo": 0.92, "pitch_hi": 1.0, "eject": 1, "flash": 0.9, "ads_kick": 0.6, "ads_spread": 0.4,
+		"spread_hip": 0.012, "spread_ads": 0.0035, "spread_move": 0.012, "bloom": 0.004, "bloom_max": 0.02, "snd": &"shot_twin",
+		"kick": 0.012, "kick_end": 0.01, "kick_yaw": 0.003, "reload": 1.0, "range": 120.0, "falloff_from": 45.0,
+		"tracer": Color(1.0, 0.95, 0.6), "look": Color(1.0, 0.85, 0.35), "look_size": Vector3(0.03, 0.03, 0.22), "zoom": 60.0, "price": 0, "pierce_shield": false,
+	},
+	&"marksman": {
+		"name": "PHASE MARKSMAN", "tag": "MRK", "kind": "hit", "mag": 12, "reserve": 72, "interval": 0.34, "damage": 36.0, "crit": 84.0, "pellets": 1,
+		"pattern": [Vector2(0.1, 1.2), Vector2(-0.1, 1.1)], "shake": 0.08, "vol": -1.5, "pitch_lo": 1.12, "pitch_hi": 1.2, "eject": 1, "flash": 1.3, "ads_kick": 0.5, "ads_spread": 0.15,
+		"spread_hip": 0.016, "spread_ads": 0.0015, "spread_move": 0.016, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_rev",
+		"kick": 0.02, "kick_end": 0.02, "kick_yaw": 0.004, "reload": 1.7, "range": 300.0, "falloff_from": 9999.0,
+		"tracer": Color(0.55, 1.0, 0.7), "look": Color(0.4, 1.0, 0.6), "look_size": Vector3(0.03, 0.03, 0.7), "zoom": 40.0, "price": 650, "pierce_shield": false,
+	},
+	&"breacher": {
+		"name": "SHARD BREACHER", "tag": "BRC", "kind": "hit", "mag": 8, "reserve": 48, "interval": 0.44, "damage": 8.0, "crit": 16.0, "pellets": 7,
+		"pattern": [Vector2(0.0, 1.0), Vector2(-0.3, 1.1), Vector2(0.3, 1.1)], "shake": 0.12, "vol": -1.5, "pitch_lo": 1.05, "pitch_hi": 1.15, "snd": &"shot_scatter", "eject": 1, "flash": 1.5, "ads_kick": 0.8, "ads_spread": 0.7,
+		"spread_hip": 0.065, "spread_ads": 0.045, "spread_move": 0.015, "bloom": 0.0, "bloom_max": 0.0,
+		"kick": 0.032, "kick_end": 0.03, "kick_yaw": 0.008, "reload": 2.3, "range": 34.0, "falloff_from": 11.0,
+		"tracer": Color(1.0, 0.6, 0.3), "look": Color(1.0, 0.5, 0.2), "look_size": Vector3(0.1, 0.07, 0.34), "zoom": 56.0, "price": 800, "pierce_shield": false,
+	},
+	&"rocket": {
+		"name": "NOVA LAUNCHER", "tag": "NVA", "kind": "throw", "mag": 1, "reserve": 6, "interval": 1.1, "damage": 220.0, "crit": 220.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0)], "shake": 0.16, "vol": -1.0, "pitch_lo": 0.72, "pitch_hi": 0.78, "flash": 0.0, "eject": 0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_gravity",
+		"kick": 0.045, "kick_end": 0.045, "kick_yaw": 0.0, "reload": 2.6, "range": 140.0, "falloff_from": 9999.0,
+		"tracer": Color(1.0, 0.55, 0.2), "look": Color(1.0, 0.5, 0.2), "look_size": Vector3(0.14, 0.14, 0.5), "zoom": 52.0, "price": 1500, "pierce_shield": true,
+		"speed": 46.0, "fuse": 2.6, "grav": 5.0, "well_time": 0.1, "well_radius": 8.0, "well_pull": 0.0, "well_dps": 0.0, "blast_radius": 7.0,
+		"impact": true, "blast_damage": 220.0, "car_dmg": 200.0, "blast_color": Color(1.0, 0.5, 0.15), "impact_pull": 0.0,
+	},
 	&"carbine": {
 		"name": "RIFT CARBINE", "tag": "CRB", "kind": "hit", "mag": 30, "reserve": -1, "interval": 0.105, "damage": 14.0, "crit": 30.0, "pellets": 1,
 		"pattern": [Vector2(0.0, 1.0), Vector2(0.3, 1.0), Vector2(-0.5, 0.9), Vector2(0.6, 0.85), Vector2(-0.2, 0.8), Vector2(-0.7, 0.8)], "shake": 0.03, "vol": -2.0, "pitch_lo": 0.93, "pitch_hi": 1.07, "eject": 1, "flash": 1.0, "ads_kick": 0.65, "ads_spread": 0.3,
@@ -59,7 +100,7 @@ const DEFS := {
 	&"flux": {
 		"name": "FLUX SMG", "tag": "FLX", "kind": "hit", "mag": 45, "reserve": 260, "interval": 0.055, "damage": 7.5, "crit": 15.0, "pellets": 1,
 		"pattern": [Vector2(0.0, 1.0), Vector2(0.5, 0.8), Vector2(-0.6, 0.8), Vector2(0.3, 0.7), Vector2(-0.4, 0.7)], "shake": 0.02, "vol": -4.0, "pitch_lo": 0.95, "pitch_hi": 1.1, "eject": 1, "flash": 0.8, "ads_kick": 0.7, "ads_spread": 0.5,
-		"spread_hip": 0.022, "spread_ads": 0.009, "spread_move": 0.012, "bloom": 0.0045, "bloom_max": 0.045, "snd": &"shot_flux",
+		"spread_hip": 0.018, "spread_ads": 0.008, "spread_move": 0.012, "bloom": 0.004, "bloom_max": 0.03, "snd": &"shot_flux",
 		"kick": 0.005, "kick_end": 0.0035, "kick_yaw": 0.004, "reload": 1.5, "range": 90.0, "falloff_from": 25.0,
 		"tracer": Color(0.7, 1.0, 0.5), "look": Color(0.6, 1.0, 0.4), "look_size": Vector3(0.05, 0.04, 0.4), "zoom": 60.0, "price": 600, "pierce_shield": false,
 	},
@@ -76,7 +117,7 @@ const DEFS := {
 	&"minigun": {
 		"name": "PLASMA MINIGUN", "tag": "PMG", "kind": "hit", "mag": 120, "reserve": 480, "interval": 0.05, "damage": 6.5, "crit": 12.0, "pellets": 1,
 		"pattern": [Vector2(0.0, 0.8), Vector2(0.4, 0.7), Vector2(-0.4, 0.7), Vector2(0.2, 0.6), Vector2(-0.2, 0.6)], "shake": 0.015, "vol": -6.0, "pitch_lo": 0.95, "pitch_hi": 1.05, "eject": 0, "flash": 0.9, "ads_kick": 0.7, "ads_spread": 0.6,
-		"spread_hip": 0.03, "spread_ads": 0.016, "spread_move": 0.02, "bloom": 0.003, "bloom_max": 0.05, "snd": &"shot_mini",
+		"spread_hip": 0.024, "spread_ads": 0.012, "spread_move": 0.02, "bloom": 0.003, "bloom_max": 0.034, "snd": &"shot_mini",
 		"kick": 0.003, "kick_end": 0.002, "kick_yaw": 0.003, "reload": 3.0, "range": 80.0, "falloff_from": 25.0,
 		"spin_up": 0.8, "spin_ready": 0.35, "heat_per": 0.012, "heat_cool": 0.35, "heat_lock": 1.8,
 		"tracer": Color(1.0, 0.45, 0.25), "look": Color(1.0, 0.4, 0.2), "look_size": Vector3(0.09, 0.09, 0.55), "zoom": 64.0, "price": 1400, "pierce_shield": false,
@@ -124,6 +165,10 @@ const DEFS := {
 ## Alt-fire per class (key B / the ALT touch button). kind: "heavy" = one aimed shot x mult for `cost` rounds (slug / overcharge), "volley" = `count` rounds in a rapid burst,
 ## "quick" = an instant full-charge lance shot, "cluster" = a pair of grenades thrown in a fan. cd = seconds before anything fires again.
 const ALTS := {
+	&"pistol": {"name": "OVERCHARGE", "kind": "heavy", "cost": 3, "mult": 3.0, "cd": 0.8},
+	&"marksman": {"name": "OVERCHARGE", "kind": "heavy", "cost": 2, "mult": 2.6, "cd": 1.0},
+	&"breacher": {"name": "SLUG", "kind": "heavy", "cost": 2, "mult": 5.0, "cd": 1.0},
+	&"rocket": {"name": "CLUSTER", "kind": "cluster", "cost": 1, "mult": 1.0, "cd": 1.8},
 	&"carbine": {"name": "OVERCHARGE", "kind": "heavy", "cost": 4, "mult": 3.2, "cd": 0.9},
 	&"scatter": {"name": "SLUG", "kind": "heavy", "cost": 1, "mult": 5.5, "cd": 1.0},
 	&"lance": {"name": "FULL PIERCE", "kind": "quick", "cost": 2, "mult": 1.0, "cd": 1.4},
@@ -147,11 +192,12 @@ const AMMO_TYPES := [
 ]
 ## Weapon-specific hit sound: [pitch, volume db, extra layer or &""]. Reload tilt: how far the rifle rolls during the reload / inspect (1 = rig default).
 const HIT_SND := {
+	&"pistol": [1.15, -1.0, &""], &"marksman": [0.8, 1.0, &"impact_metal"], &"breacher": [0.75, 1.0, &"impact_concrete"], &"rocket": [0.6, 2.0, &""],
 	&"carbine": [1.0, 0.0, &""], &"scatter": [0.7, 2.0, &"impact_concrete"], &"lance": [0.55, 3.0, &"impact_metal"], &"grenade": [0.8, 0.0, &""],
 	&"burst": [1.35, -2.0, &""], &"rail": [0.5, 4.0, &"impact_metal"], &"flux": [1.6, -5.0, &""], &"gravity": [0.65, 1.0, &""],
 	&"minigun": [1.5, -6.0, &""], &"akimbo": [1.2, -2.0, &""], &"arc": [1.1, 0.0, &"impact_metal"], &"revolver": [0.6, 3.0, &"impact_concrete"], &"whip": [0.9, 0.0, &""], &"blade": [0.75, 2.0, &"impact_metal"],
 }
-const TILT := {&"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3, &"minigun": 2.0, &"akimbo": 1.5, &"arc": 1.0, &"revolver": 1.1, &"whip": 0.5, &"blade": 0.5}
+const TILT := {&"pistol": 1.3, &"marksman": 0.9, &"breacher": 1.5, &"rocket": 1.1, &"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3, &"minigun": 2.0, &"akimbo": 1.5, &"arc": 1.0, &"revolver": 1.1, &"whip": 0.5, &"blade": 0.5}
 
 
 static func alt_of(id: StringName) -> Dictionary:
@@ -166,7 +212,7 @@ const COLOR_PICKUP := Color(1.0, 0.45, 0.9)
 const COLLAPSE_COLOR := Color(0.4, 1.0, 0.93)
 
 ## The weapons the player owns (set by Progress when a save loads, a weapon is bought or picked up).
-static var unlocked: Array[StringName] = [&"carbine"]
+static var unlocked: Array[StringName] = STARTERS.duplicate()
 ## The weapon in hand (saved with the unlocked set).
 static var last_used: StringName = &"carbine"
 
@@ -197,17 +243,52 @@ static func unlock(id: StringName) -> bool:
 
 
 static func reset_unlocked() -> void:
-	unlocked = [&"carbine"]
+	last_in_class.clear()
+	unlocked = STARTERS.duplicate()
 	last_used = &"carbine"
 
 
-## Replace the set from saved names (unknown names dropped, the carbine is always there, order follows IDS).
+## Replace the set from saved names (unknown names dropped, the starters are always there even in an old save, order follows IDS).
 static func set_unlocked(names: Array) -> void:
 	var out: Array[StringName] = []
 	for id: StringName in IDS:
-		if id == &"carbine" or names.has(String(id)) or names.has(id):
+		if STARTERS.has(id) or names.has(String(id)) or names.has(id):
 			out.append(id)
 	unlocked = out
+
+
+## The weapon last used in each class (the weapon wheel's class wedge selects it).
+static var last_in_class := {}
+
+
+## Every owned weapon, grouped by class (CLASS_ORDER) and in IDS order inside a class: the order SWAP / the mouse wheel cycle in.
+static func owned_ordered() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for cls: StringName in CLASS_ORDER:
+		out.append_array(owned_in_class(cls))
+	return out
+
+
+static func class_of(id: StringName) -> StringName:
+	return StringName(CLASS_OF.get(id, &"rifle"))
+
+
+## The weapons of one class in IDS order, owned or not.
+static func in_class(cls: StringName) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for id: StringName in IDS:
+		if class_of(id) == cls:
+			out.append(id)
+	return out
+
+
+## The owned weapons of one class in IDS order.
+static func owned_in_class(cls: StringName) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for id in in_class(cls):
+		if unlocked.has(id):
+			out.append(id)
+	return out
 
 
 static func price(id: StringName, discount := 0.0) -> int:
@@ -223,12 +304,12 @@ static func mag_size(id: StringName, level: int) -> int:
 	return base + extra
 
 
-## What a drop gives for a random roll 0..1: an unowned weapon (half of the drops) or ammo for an owned one. Never the carbine.
+## What a drop gives for a random roll 0..1: an unowned weapon (half of the drops) or ammo for an owned one. Never a starter (the starters are always owned).
 static func pick_drop(r: float, rng_pick: float) -> StringName:
 	var missing: Array[StringName] = []
 	var owned: Array[StringName] = []
 	for id: StringName in IDS:
-		if id == &"carbine":
+		if STARTERS.has(id):
 			continue
 		(owned if unlocked.has(id) else missing).append(id)
 	var pool := missing if (not missing.is_empty() and (r < 0.5 or owned.is_empty())) else owned

@@ -34,7 +34,7 @@ const AURA := {&"shield": Color(0.35, 0.8, 1.0), &"slip": Color(0.75, 0.5, 1.0),
 
 ## weapon id -> class. Look per class: muzzle tint / size, `ring` = radius of the ring at the muzzle (0 = none), `hit_ring` = ring radius at the impact, spark colour and count.
 const WEAPON_CLASS := {&"carbine": &"rifle", &"burst": &"rifle", &"akimbo": &"rifle", &"revolver": &"rifle", &"minigun": &"spray", &"scatter": &"shotgun",
-	&"lance": &"beam", &"rail": &"beam", &"flux": &"flux", &"gravity": &"gravity", &"arc": &"arc", &"grenade": &"gravity", &"whip": &"melee", &"blade": &"melee"}
+	&"lance": &"beam", &"rail": &"beam", &"flux": &"flux", &"gravity": &"gravity", &"arc": &"arc", &"grenade": &"gravity", &"whip": &"melee", &"blade": &"melee", &"pistol": &"rifle", &"marksman": &"beam", &"breacher": &"shotgun", &"rocket": &"gravity"}
 const CLASSES := {
 	&"rifle": {"muzzle": Color(1.0, 0.82, 0.5), "size": 1.0, "ring": 0.0, "hit_ring": 0.28, "spark": Color(1.0, 0.8, 0.45), "sparks": 4},
 	&"spray": {"muzzle": Color(1.0, 0.7, 0.35), "size": 0.8, "ring": 0.0, "hit_ring": 0.2, "spark": Color(1.0, 0.7, 0.35), "sparks": 2},
