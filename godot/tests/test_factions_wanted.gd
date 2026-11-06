@@ -385,6 +385,7 @@ func _hiding() -> void:
 		have_clone = q.clone != null or q.superpose()
 	if have_clone:
 		await TestLib.frames(host, 2)                            # the manager caches the clone per physics frame
+		em.clear()                                               # the live wanted tick may have dispatched sighted reinforcements meanwhile
 		var pursuer := em.spawn(&"operative", q.clone.global_position + Vector3(8, 0, 0), true, true)
 		pursuer.los = false
 		w._watch_t = 0.0
