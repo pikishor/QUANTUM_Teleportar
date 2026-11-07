@@ -205,7 +205,8 @@ void fragment() {
 			// fabric: the rucksack, belt, pouches, boots and the cape (cape = darker steel-blue with folds and an accent hem)
 			float fold = 0.5 + 0.5 * sin(UV.x * 18.0 + sin(UV.y * 5.0) * 1.5);
 			vec3 cloth2 = mix(pants_color * 0.8 + vec3(0.02, 0.022, 0.025), vec3(0.14, 0.22, 0.36), cape);
-			cloth2 = mix(cloth2, vec3(0.5, 0.36, 0.21), step(4.5, kind));                       // coyote canvas: rucksack and pouches
+			cloth2 = mix(cloth2, vec3(0.38, 0.27, 0.15), step(4.5, kind));                       // coyote canvas: rucksack and pouches (a weave, never one flat bright face)
+			cloth2 *= 1.0 + step(4.5, kind) * (0.2 * sin(UV.x * 140.0) * sin(UV.y * 140.0) - 0.08 * smoothstep(0.1, 0.5, 1.0 - abs(UV.y - 0.5) * 2.0));
 			cloth2 *= mix(0.8, 1.15, mix(0.5, fold, cape));
 			float groove2 = (1.0 - smoothstep(0.0, 0.07, edge)) * (1.0 - cape);
 			cloth2 *= 1.0 - 0.45 * groove2;
