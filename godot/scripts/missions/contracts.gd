@@ -495,6 +495,8 @@ func _spawn(type: StringName, at: Vector3, aware := true) -> Drone:
 	if em == null:
 		return null
 	var d := em.spawn(type, at, aware)
+	if d == null and em.make_room(foes + ([target] if is_instance_valid(target) else []), _ref_pos()):       # the street's patrols filled the cap: the contract comes first
+		d = em.spawn(type, at, aware)
 	if d != null:
 		foes.append(d)
 	return d

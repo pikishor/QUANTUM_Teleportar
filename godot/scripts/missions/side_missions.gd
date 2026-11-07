@@ -50,6 +50,10 @@ var _marker: MeshInstance3D
 var _kills_hooked := false
 var _smash_base := 0                    ## Breakables.break_total when the smash stage began
 var _nv: ColorRect                      ## night-vision overlay (blackout job)
+var _foes: Array = []                   ## enemies a kill stage spawned (the job's own intruders, topped up while kills are left)
+var _top_t := 0.0
+var _smash_t := 0.0
+var _smash_pos := Vector3.INF           ## nearest unbroken prop (the waypoint of a smash stage)
 
 
 func _ready() -> void:
@@ -139,16 +143,18 @@ func start(mid: StringName, from := Vector3.INF) -> bool:
 	var n := int(prog.side_done.get(mid, 0)) if prog != null else 0
 	id = mid
 	stages = build_route(mid, origin, n)
+	_snap_to_streets(origin)
 	stage = 0
 	clock = 0.0
 	progress_val = 0.0
-	limit = float(DEFS[mid]["limit"])
+	limit = _fit_limit(float(DEFS[mid]["limit"]))
 	active = true
 	_hook_kills()
 	_smash_base = Breakables.current.break_total if Breakables.current != null else 0
 	if float(DEFS[mid].get("heat", 0.0)) > 0.0:
 		Game.add_heat(float(DEFS[mid]["heat"]))
 	_set_night_vision(bool(DEFS[mid].get("dark", false)))
+	_stage_begins()
 	_update_marker()
 	started.emit(mid)
 	Game.message.emit("%s: %s" % [DEFS[mid]["title"], DEFS[mid]["brief"]], 5.0)
@@ -191,6 +197,33 @@ func tick(delta: float, ppos: Vector3, look: Vector3, in_car: bool) -> void:
 			done = progress_val >= float(s["n"])
 	if done:
 		_next_stage()
+		return
+	if String(s["kind"]) == "kill":
+		_top_t -= delta
+		if _top_t <= 0.0:
+			_top_t = 1.5
+			_topup_foes()
+	elif String(s["kind"]) == "smash":
+		_smash_t -= delta
+		if _smash_t <= 0.0:
+			_smash_t = 0.6
+			_smash_pos = _nearest_prop(ppos)
+
+
+func _nearest_prop(from: Vector3) -> Vector3:
+	var b := Breakables.current
+	if b == null:
+		return Vector3.INF
+	var best := Vector3.INF
+	var bd := INF
+	for i in b.positions.size():
+		if b.broken[i] == 1:
+			continue
+		var d := Vector2(b.positions[i].x - from.x, b.positions[i].z - from.z).length_squared()
+		if d < bd:
+			bd = d
+			best = b.positions[i]
+	return best
 
 
 func _physics_process(delta: float) -> void:
@@ -234,7 +267,116 @@ func _next_stage() -> void:
 		_end(true, "")
 		return
 	stage_changed.emit(stage)
+	_stage_begins()
 	_update_marker()
+
+
+## Waypoints are picked at a distance and a heading from the start, which lands inside a building as often as not (found by the mission audit: a courier job whose marker stood in a
+## tower). A goto / photo / dwell point that is not the start itself moves to the nearest street point, so every job can be walked.
+func _snap_to_streets(from: Vector3) -> void:
+	for st: Dictionary in stages:
+		var at: Vector3 = st["pos"]
+		if at.is_equal_approx(from) or String(st["kind"]) in ["kill", "smash"]:
+			continue
+		var q := PlayerUtil.nearest_street(at)
+		st["pos"] = Vector3(q.x, from.y, q.z)
+	var here := from
+	for st: Dictionary in stages:                           # the kill / smash stages keep the place of the stage before them
+		if String(st["kind"]) in ["kill", "smash"]:
+			st["pos"] = here
+		else:
+			here = st["pos"]
+
+
+## A timed job must be possible: the clock is at least 25 s plus the way (street legs at 5 m/s on foot, 9 m/s by car; a smash stage walks to the nearest props) so a job whose markers
+## landed far apart is not lost before it begins (found by the mission audit: TIMED DEMOLITION and SMUGGLER CHASE ran out of time for a bot that drove straight).
+func _fit_limit(base: float) -> float:
+	if base <= 0.0:
+		return 0.0
+	var need := 25.0
+	var here := origin
+	for st: Dictionary in stages:
+		match String(st["kind"]):
+			"goto":
+				need += (Vector2(st["pos"].x - here.x, st["pos"].z - here.z).length() * 1.3) / (9.0 if bool(st["car"]) else 5.0)
+				here = st["pos"]
+			"smash":
+				var b := Breakables.current
+				if b != null:
+					var left := int(st["n"])
+					var from := here
+					var used := {}
+					while left > 0:
+						var best := -1
+						var bd := INF
+						for i in b.positions.size():
+							if b.broken[i] == 1 or used.has(i):
+								continue
+							var d := Vector2(b.positions[i].x - from.x, b.positions[i].z - from.z).length()
+							if d < bd:
+								bd = d
+								best = i
+						if best < 0:
+							break
+						used[best] = true
+						need += bd * 1.3 / 5.0 + 2.0
+						from = b.positions[best]
+						left -= 1
+	return maxf(base, need)
+
+
+## A kill stage needs enemies: the job brings its own intruders (aware, on the streets around the ring) and tops them up while kills are left; a smash stage points at the nearest prop.
+func _stage_begins() -> void:
+	_release_foes()
+	_top_t = 0.0
+	_smash_t = 0.0
+	if not active:
+		return
+	if String(stages[stage]["kind"]) == "kill":
+		_topup_foes(true)
+
+
+func _kills_left() -> int:
+	return maxi(int(stages[stage]["n"]) - int(progress_val), 0)
+
+
+func _alive_foes() -> int:
+	var n := 0
+	for f: Variant in _foes:
+		var d := f as Drone
+		if d != null and is_instance_valid(d) and d.active and not d.dead:
+			n += 1
+	return n
+
+
+func _topup_foes(first := false) -> void:
+	var em := Game.enemies as EnemyManager
+	var pl := Game.player as Player
+	if em == null or not is_instance_valid(pl):
+		return
+	var want := mini(_kills_left(), 4)
+	var tries := 0
+	while _alive_foes() < want and tries < 6:
+		tries += 1
+		var a := randf() * TAU
+		var center: Vector3 = stages[stage]["pos"] if first else pl.global_position
+		var q := PlayerUtil.nearest_street(center + Vector3(cos(a), 0.0, sin(a)) * randf_range(22.0, 40.0))
+		var d := em.spawn(&"operative" if (_foes.size() % 2 == 0) else &"sentinel", Vector3(q.x, 0.0, q.z), true)
+		if d == null:                                       # the street's own patrols filled the tier's cap: the job comes first
+			if em.make_room(_foes, pl.global_position):
+				continue
+			break
+		_foes.append(d)
+
+
+func _release_foes() -> void:
+	var em := Game.enemies as EnemyManager
+	if em != null:
+		for f: Variant in _foes:
+			var d := f as Drone
+			if d != null and is_instance_valid(d) and d.active:
+				em.release(d)
+	_foes.clear()
 
 
 func _end(ok: bool, reason: String) -> void:
@@ -251,6 +393,7 @@ func _end(ok: bool, reason: String) -> void:
 	last_result = {"id": mid, "ok": ok, "reason": reason, "reward": pay, "time": clock}
 	active = false
 	stages = []
+	_release_foes()
 	_set_night_vision(false)
 	_update_marker()
 	Game.message.emit(("%s COMPLETE  +%d" % [DEFS[mid]["title"], pay]) if ok else ("%s FAILED  %s" % [DEFS[mid]["title"], reason]), 4.0)
@@ -275,8 +418,23 @@ func status_line() -> String:
 
 ## Current waypoint (Vector3.INF when none or the stage has no place, e.g. a kill stage).
 func waypoint() -> Vector3:
-	if not active or String(stages[stage]["kind"]) in ["kill", "smash"]:
+	if not active:
 		return Vector3.INF
+	match String(stages[stage]["kind"]):
+		"kill":
+			var best := Vector3.INF
+			var bd := INF
+			var pp := Game.player.global_position if is_instance_valid(Game.player) else Vector3.ZERO
+			for f: Variant in _foes:
+				var d := f as Drone
+				if d != null and is_instance_valid(d) and d.active and not d.dead:
+					var dist := d.global_position.distance_to(pp)
+					if dist < bd:
+						bd = dist
+						best = d.global_position
+			return best
+		"smash":
+			return _smash_pos
 	return stages[stage]["pos"]
 
 

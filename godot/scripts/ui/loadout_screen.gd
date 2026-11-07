@@ -4,13 +4,15 @@ extends RefCounted
 ## opened from a SWAP long-press it resumes the game at once). Right: the three slots (optic, barrel, core) of the selected weapon, three parts each (buttons `part_<id>`:
 ## BUY price, EQUIP, or ON to take it off). `loadout_back` returns. State lives in Hud (`_loadout_w`, `_loadout_quick`), numbers in Attachments and Progress.
 
-const WHEEL_R := 175.0
-const WHEEL_DX := -250.0
-const WHEEL_Y := 380.0
+const GRID_X := -560.0                    ## left edge of the weapon grid, base px from the screen centre
+const GRID_Y := 196.0
+const GRID_COLS := 4
+const TILE := Vector2(124.0, 72.0)        ## a weapon tile (icon over its tag), at least the 64 px touch minimum
+const TILE_GAP := 8.0
+const INFO_Y := 396.0                     ## the selected weapon's name (the stats line and the page buttons follow)
 const SLOT_Y := 190.0
 const SLOT_STEP := 112.0
-const PART_W := 150.0
-const BTN := Vector2(100.0, 64.0)         ## wheel button, base px (the 64 px touch minimum)
+const PART_W := 176.0
 
 ## The paged wheel: WeaponDefs.PAGE_SIZE weapons per page, buttons `wheelpg_prev` / `wheelpg_next` flip it. The page follows the selected weapon until a flip.
 static var page := 0
@@ -51,13 +53,12 @@ static func reset_page() -> void:
 static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 	var prog := Game.progress as Progress
 	var items := page_items(sel)
-	for i in items.size():
-		var a := -PI * 0.5 + TAU * float(i) / float(WeaponDefs.PAGE_SIZE)
-		var ctr := Vector2(cx + (WHEEL_DX + cos(a) * WHEEL_R) * s, (WHEEL_Y + sin(a) * WHEEL_R) * s)
-		hud._add(StringName("wheel_%s" % items[i]), Rect2(ctr - BTN * 0.5 * s, BTN * s), String(WeaponDefs.def(items[i])["tag"]), items[i] == sel)
+	for i in items.size():                                         # the owned weapons as a grid of tiles (the page flips with < >)
+		var tp := Vector2(cx + (GRID_X + float(i % GRID_COLS) * (TILE.x + TILE_GAP)) * s, (GRID_Y + float(i / GRID_COLS) * (TILE.y + TILE_GAP)) * s)
+		hud._add(StringName("wheel_%s" % items[i]), Rect2(tp, TILE * s), String(WeaponDefs.def(items[i])["tag"]), items[i] == sel)
 	if WeaponDefs.pages_for(owned_weapons().size()) > 1:
-		hud._add(&"wheelpg_prev", Rect2(cx + (WHEEL_DX - 76.0) * s, (WHEEL_Y + 28.0) * s, 64.0 * s, 64.0 * s), "<", false)
-		hud._add(&"wheelpg_next", Rect2(cx + (WHEEL_DX + 12.0) * s, (WHEEL_Y + 28.0) * s, 64.0 * s, 64.0 * s), ">", false)
+		hud._add(&"wheelpg_prev", Rect2(cx + GRID_X * s, (INFO_Y + 62.0) * s, 64.0 * s, 64.0 * s), "<", false)
+		hud._add(&"wheelpg_next", Rect2(cx + (GRID_X + 4.0 * TILE.x + 3.0 * TILE_GAP - 64.0) * s, (INFO_Y + 62.0) * s, 64.0 * s, 64.0 * s), ">", false)
 	for k in Attachments.SLOTS.size():
 		var parts := Attachments.parts_for(Attachments.SLOTS[k])
 		for j in parts.size():
@@ -71,18 +72,19 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float, sel: StringName) -> void:
 	var prog := Game.progress as Progress
-	hud._text(c, font, Vector2(0.0, 92.0 * s), "LOADOUT", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(52.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	hud.header(c, vp, s, font, "LOADOUT")
 	if prog != null:
 		hud._text(c, font, Vector2(0.0, 134.0 * s), "CREDITS  %d" % prog.credits, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
-	hud._text(c, font, Vector2(cx + (WHEEL_DX - 120.0) * s, (WHEEL_Y - 6.0) * s), WeaponDefs.title(sel), HORIZONTAL_ALIGNMENT_CENTER, 240.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+	var gw := (4.0 * TILE.x + 3.0 * TILE_GAP) * s
+	hud._text(c, font, Vector2(cx + GRID_X * s, INFO_Y * s), WeaponDefs.title(sel), HORIZONTAL_ALIGNMENT_CENTER, gw, int(26.0 * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
 	var np := WeaponDefs.pages_for(owned_weapons().size())
 	if np > 1:
-		hud._text(c, font, Vector2(cx + (WHEEL_DX - 120.0) * s, (WHEEL_Y + 66.0) * s), "%d/%d" % [page + 1, np], HORIZONTAL_ALIGNMENT_CENTER, 240.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+		hud._text(c, font, Vector2(cx + GRID_X * s, (INFO_Y + 104.0) * s), "PAGE %d / %d" % [page + 1, np], HORIZONTAL_ALIGNMENT_CENTER, gw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 	var nx := WeaponLadder.next_line()
 	if nx != "":
 		hud._text(c, font, Vector2(0.0, 166.0 * s), nx, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var d := Attachments.effective(sel)
-	hud._text(c, font, Vector2(cx + (WHEEL_DX - 120.0) * s, (WHEEL_Y + 20.0) * s), "DMG %d  MAG %d" % [int(roundf(float(d["damage"]))), int(d["mag"])], HORIZONTAL_ALIGNMENT_CENTER, 240.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.85), 1.0 * s)
+	hud._text(c, font, Vector2(cx + GRID_X * s, (INFO_Y + 34.0) * s), "DMG %d    MAG %d" % [int(roundf(float(d["damage"]))), int(d["mag"])], HORIZONTAL_ALIGNMENT_CENTER, gw, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.9), 1.0 * s)
 	for k in Attachments.SLOTS.size():
 		var y := (SLOT_Y + k * SLOT_STEP) * s
 		hud._text(c, font, Vector2(cx + 20.0 * s, y + 14.0 * s), String(Attachments.SLOTS[k]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)

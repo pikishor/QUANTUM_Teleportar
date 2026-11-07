@@ -129,6 +129,24 @@ func spawn(type: StringName, pos: Vector3, aware := false, reinforce := false, w
 	return d
 
 
+## Frees one slot of the tier's enemy cap for a mission: the enemy farthest from `from` that is not in `keep` goes back to the pool. A mission step, contract or side job has priority over the
+## street's own patrols (found by the mission audit: "AREA CROWDED" forever when patrols filled the cap). False when nobody can go.
+func make_room(keep: Array, from: Vector3) -> bool:
+	var best: Drone = null
+	var bd := -1.0
+	for e in list:
+		if not e.active or e.dead or keep.has(e):
+			continue
+		var d := Vector2(e.global_position.x - from.x, e.global_position.z - from.z).length() if from.is_finite() else 0.0
+		if d > bd:
+			bd = d
+			best = e
+	if best == null:
+		return false
+	release(best)
+	return true
+
+
 ## Remove everybody (or only the reinforcements) and every flying bolt.
 func clear(reinforcements_only := false) -> void:
 	for e in list.duplicate():
@@ -247,7 +265,11 @@ func bolt(from: Vector3, to: Vector3, type: StringName, delay := 0.0) -> void:
 		return
 	var cfg := EnemyTypes.get_cfg(type)
 	var dir := (to - from).normalized()
-	dir += Vector3(randf_range(-0.035, 0.035), randf_range(-0.02, 0.02), randf_range(-0.035, 0.035))
+	var err := 1.0
+	var pl := Game.player as Player
+	if pl != null and is_instance_valid(pl):
+		err = Difficulty.hurt_aim(pl.hp / maxf(pl.max_hp, 1.0)) * sqrt(Difficulty.mult("spread"))       # a hurt player is missed more often (Difficulty.hurt_aim); STORY 1.2x, HARD 0.87x
+	dir += Vector3(randf_range(-0.035, 0.035), randf_range(-0.02, 0.02), randf_range(-0.035, 0.035)) * err
 	dir = dir.normalized()
 	_b_pos[slot] = from
 	_b_org[slot] = from

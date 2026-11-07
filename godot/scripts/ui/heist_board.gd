@@ -51,7 +51,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	var prog := Game.progress as Progress
-	hud._text(c, font, Vector2(0.0, 84.0 * s), "HEISTS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(46.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	hud.header(c, vp, s, font, "HEISTS")
 	var d: Dictionary = HeistScripts.DEFS[sel]
 	var open := HeistScripts.unlocked(sel, _chapter())
 	var x := _col(cx, s, 0)

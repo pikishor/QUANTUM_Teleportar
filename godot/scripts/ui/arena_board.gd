@@ -60,7 +60,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	var prog := Game.progress as Progress
-	hud._text(c, font, Vector2(0.0, 84.0 * s), "BOSS RUSH  AND  ARENA", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(46.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	hud.header(c, vp, s, font, "BOSS RUSH  AND  ARENA")
 	var x := _col(cx, s, 0)
 	var w := (COL_W * 3.0 + GAP * 2.0) * s
 	hud._rect(c, Rect2(x, ROW_INFO * s, w, 230.0 * s), Color(0.0, 0.03, 0.05, 0.55))

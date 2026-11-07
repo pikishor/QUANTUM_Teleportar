@@ -79,7 +79,7 @@ static func captions(hud: Hud, cx: float, s: float) -> Array[Dictionary]:
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	var prog := Game.progress as Progress
-	hud._text(c, font, Vector2(0.0, 92.0 * s), "GEAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(52.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	hud.header(c, vp, s, font, "GEAR")
 	if prog != null:
 		hud._text(c, font, Vector2(0.0, 134.0 * s), "CREDITS  %d" % prog.credits, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	for cp: Dictionary in captions(hud, cx, s):

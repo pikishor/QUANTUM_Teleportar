@@ -57,11 +57,12 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var id := Safehouses.sel
 	var d: Dictionary = Safehouses.DEFS[id]
 	var owned := Safehouses.is_owned(prog, id)
-	hud._text(c, font, Vector2(0.0, 84.0 * s), "SAFEHOUSES", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(46.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	hud.header(c, vp, s, font, "SAFEHOUSES")
 	var x := _col(cx, s, 0)
 	var w := (COL_W * 4.0 + GAP * 3.0) * s
 	hud._rect(c, Rect2(x, ROW_INFO * s, w, 124.0 * s), Color(0.0, 0.03, 0.05, 0.55))
 	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 26.0) * s), "%s   %s" % [d["title"], d["brief"]], HORIZONTAL_ALIGNMENT_LEFT, w - 20.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.95), 1.0 * s)
+	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 26.0) * s), "CREDITS  %d" % (prog.credits if prog != null else 0), HORIZONTAL_ALIGNMENT_RIGHT, w - 20.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	var info := ""
 	if owned:
 		info = "OWNED   %d OF %d HOUSES" % [Safehouses.owned_count(prog), Safehouses.IDS.size()]
@@ -71,4 +72,3 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 84.0) * s), Safehouses.trophy_text(prog), HORIZONTAL_ALIGNMENT_LEFT, w - 20.0 * s, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 	var note := Safehouses.last_rest if owned else ""
 	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 110.0) * s), note, HORIZONTAL_ALIGNMENT_LEFT, w - 20.0 * s, int(18.0 * s), Color(1, 1, 1, 0.8), 1.0 * s)
-	hud._text(c, font, Vector2(0.0, ((ROW_D if owned else ROW_C) + BTN_H + 36.0) * s), "CREDITS  %d" % (prog.credits if prog != null else 0), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.AMBER, 0.9), 1.0 * s)

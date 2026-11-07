@@ -59,6 +59,8 @@ var _pickup_lights: Array[Light3D] = []        ## the glow lights the pickup mod
 var _mirror: MirrorProxy
 var _mirror_list: Array[MeshInstance3D] = []
 var _t := 0.0
+var _mercy_cd := 0.0                     ## seconds until the next mercy health pickup may drop
+var mercy_drops := 0                     ## mercy pickups dropped this run (tests, stats)
 var _auto_started := false
 var _fill_script: Script
 
@@ -315,6 +317,38 @@ func _physics_process_body(delta: float) -> void:
 		i -= 1
 	if cores.is_empty() and total > 0 and win_on_cores and Game.is_playing():
 		Game.win()
+	_tick_mercy(delta, player, ref)
+
+
+## Mercy (owner round 3: "sometimes too hard"): a player who is low on health with enemies around finds a health pickup a few metres away, once per MERCY_EVERY seconds
+## (Difficulty.mercy_below / mercy_every: STORY 45 % / 15 s, NORMAL 30 % / 25 s, HARD 20 % / 45 s, QUANTUM never). Not while a pickup of the kind already lies within 30 m.
+func _tick_mercy(delta: float, player: Node, ref: Vector3) -> void:
+	_mercy_cd = maxf(_mercy_cd - delta, 0.0)
+	var below := Difficulty.mercy_below()
+	if below <= 0.0 or _mercy_cd > 0.0 or InteriorGameplay.active:
+		return
+	var pl := player as Player
+	if pl == null or pl.is_dead() or pl.hp / maxf(pl.max_hp, 1.0) >= below:
+		return
+	var em := Game.enemies as EnemyManager
+	var hostile := false
+	var away := Vector3.ZERO
+	if em != null:
+		for e in em.list:
+			if e.active and not e.dead and e.aware and Vector2(e.global_position.x - ref.x, e.global_position.z - ref.z).length() < 45.0:
+				hostile = true
+				away += Vector3(ref.x - e.global_position.x, 0.0, ref.z - e.global_position.z)
+	if not hostile:
+		return
+	for s: Dictionary in pickups:
+		if s.kind == &"health" and Vector2(s.pos.x - ref.x, s.pos.z - ref.z).length() < 30.0:
+			return
+	var dir := away.normalized() if away.length() > 0.1 else Vector3.RIGHT
+	var at := PlayerUtil.nearest_street(ref + dir * 7.0)
+	drop(&"health", Vector3(at.x, ref.y, at.z))
+	mercy_drops += 1
+	_mercy_cd = Difficulty.mercy_every()
+	Game.say("HEALTH PACK NEARBY", 2.0)
 
 
 func _collect_pickup(s: Dictionary, idx: int, player: Node3D) -> void:

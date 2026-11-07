@@ -135,7 +135,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var prog := Game.progress as Progress
 	_fit(hud, s)
 	if not hud._hero_hub:
-		hud._text(c, font, Vector2(0.0, 84.0 * s), "WORKBENCH", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(46.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+		hud.header(c, vp, s, font, "WORKBENCH")
 	var x := _col(cx, s, 0)
 	var w := (COL_W * 4.0 + GAP * 3.0) * s * _k
 	var line := "SCRAP %d    ALLOY %d    QUANTUM CORE %d    ITEMS %d/%d    CREDITS %d" % [Crafting.part_count(&"scrap"), Crafting.part_count(&"alloy"), Crafting.part_count(&"core"), Crafting.items.size(), Crafting.ITEM_CAP, prog.credits if prog != null else 0]

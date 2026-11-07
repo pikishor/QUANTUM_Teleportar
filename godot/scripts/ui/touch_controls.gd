@@ -477,6 +477,10 @@ func button_visible(b: Dictionary) -> bool:
 func _label_of(b: Dictionary) -> String:
 	if b["action"] == &"interact":
 		return "EXIT" if _driving() else "ENTER"
+	if b["action"] == &"skip_piece":
+		var hud := get_parent()
+		if hud != null and hud.has_method(&"step_skip_offered") and bool(hud.call(&"step_skip_offered")):
+			return "SKIP STEP"
 	return str(b["label"])
 
 

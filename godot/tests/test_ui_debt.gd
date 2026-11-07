@@ -91,7 +91,7 @@ func _hud_hidden_behind_panels() -> void:
 	TestLib.check(hud._hud.visible and hud.minimap.visible and not hud.panel_cover(), "while playing the HUD and minimap show")
 	Game.state = &"paused"
 	await frames(3)
-	TestLib.check(hud._hud.visible and not hud.panel_cover(), "the plain pause menu keeps the HUD layer (it has no panel)")
+	TestLib.check(not hud._hud.visible and hud.panel_cover(), "the plain pause menu owns the picture too (menus round: no HUD bars and banners behind it)")
 	var steps := [
 		["shop", "shop"], ["skills_open", "skills"], ["sk_back", "pause"], ["look_open", "suit"], ["look_back", "pause"], ["loadout", "loadout"], ["loadout_gear", "gear"],
 		["gear_weapons", "loadout"], ["loadout_back", "pause"], ["side_open", "side"], ["side_back", "pause"], ["heist_open", "heist"], ["heist_back", "pause"], ["shop", "shop"], ["shop_back", "pause"],
@@ -99,7 +99,7 @@ func _hud_hidden_behind_panels() -> void:
 	]
 	for st: Array in steps:
 		var ok := hud.press_button(StringName(st[0]))
-		var covered := String(st[1]) != "pause"
+		var covered := true                                   # the pause screen itself hides the HUD as well
 		for i in 90:        # wait on the state (the layer follows in the next rendered frame), not on a frame count
 			if hud._hud.visible == (not covered):
 				break

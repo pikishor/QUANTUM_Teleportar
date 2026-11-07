@@ -98,7 +98,7 @@ func _title_button() -> void:
 		return
 	var r: Rect2 = found["rect"]
 	TestLib.check(r.size.y >= 63.9 * s and r.size.x >= 63.9 * s, "the DEMO button is at least 64 base px")
-	TestLib.check(r.position.x >= 0.0 and r.position.y >= 0.0 and r.end.x <= vp.x and r.end.y <= vp.y, "the DEMO button is on screen")
+	TestLib.check(r.position.x >= 0.0 and r.position.y >= 0.0 and r.end.x <= vp.x and r.end.y <= vp.y, "the DEMO button is on screen %s in %s" % [r, vp])
 	for b: Dictionary in hud.buttons:
 		if b["id"] != &"demo" and (b["rect"] as Rect2).intersects(r):
 			TestLib.check(false, "the DEMO button does not overlap %s" % b["id"])

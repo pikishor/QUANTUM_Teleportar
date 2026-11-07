@@ -36,7 +36,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	var prog := Game.progress as Progress
 	var open := prog.chapters_unlocked() if prog != null else 1
-	hud._text(c, font, Vector2(0.0, 92.0 * s), "CHAPTERS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(52.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	hud.header(c, vp, s, font, "CHAPTERS")
 	var sub := "%d OF %d UNLOCKED   CREDITS AND UPGRADES KEPT" % [open, CampaignRunner.chapter_count()]
 	hud._text(c, font, Vector2(0.0, 134.0 * s), sub, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	for i in CampaignRunner.chapter_count():

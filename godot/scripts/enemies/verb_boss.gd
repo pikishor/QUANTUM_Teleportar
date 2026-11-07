@@ -42,6 +42,9 @@ const SLASH_RADIUS := 4.0
 const SLASH_DMG := 22.0
 const EXPOSE_TIME := 3.0
 const BREAK_EXPOSE := 4.0
+const WEAKEN_AFTER := 40.0              ## seconds without the boss losing health before its armour starts to give (found by the mission audit: a verb puzzle nobody solves must not lock the chapter)
+const WEAKEN_RAMP := 40.0               ## ... and this many seconds until the armour is only ARMOR_WEAK
+const ARMOR_WEAK := 0.6
 
 var mode: StringName = &"hazard"
 var phase := 1
@@ -52,6 +55,8 @@ var backlashes := 0
 var hazard_burns := 0.0
 
 var _invuln_t := 0.0
+var _stall_t := 0.0                     ## seconds the boss's health has not dropped (armour weakens from WEAKEN_AFTER)
+var _stall_hp := -1.0
 var _hz_t := 0.0
 var _hz_hurt := 0.0
 var _arena_ready := false
@@ -93,6 +98,8 @@ func setup(t: StringName) -> void:
 
 func _on_activate() -> void:
 	super._on_activate()
+	_stall_t = 0.0
+	_stall_hp = -1.0
 	phase = 1
 	summoned.clear()
 	hazards.clear()
@@ -218,6 +225,32 @@ func exposed() -> bool:
 	return false
 
 
+## The one thing to do right now, in plain verb names, for the boss bar's hint line (owner round 3: "the game is not obvious"; a boss that takes a tenth of every shot looks like a bug without it).
+func hint() -> String:
+	if dead or not active:
+		return ""
+	if exposed():
+		return "SHOOT IT NOW"
+	if weakened():
+		return "ARMOUR FAILING  KEEP SHOOTING"
+	match mode:
+		&"phase": return "COLLAPSE WHEN IT JUMPS"
+		&"shield": return "COLLAPSE BREAKS THE SHIELD"
+		&"hover": return "COLLAPSE CRASHES THE SKIFF"
+		&"hunter": return "SUPERPOSITION DRAWS IT IN"
+		&"hazard": return "ENTANGLE IT INTO A VENT"
+	return ""
+
+
+## The armour has started to give because the verb puzzle went unsolved for a long time.
+func weakened() -> bool:
+	return _stall_t > WEAKEN_AFTER
+
+
+func _armor() -> float:
+	return lerpf(ARMOR, ARMOR_WEAK, clampf((_stall_t - WEAKEN_AFTER) / WEAKEN_RAMP, 0.0, 1.0))
+
+
 func break_left() -> float:
 	return _break_t
 
@@ -250,7 +283,7 @@ func damage(amount: float, crit := false, mirrored := false) -> void:
 		aware = true
 		return
 	if not exposed():
-		amount *= ARMOR
+		amount *= _armor()
 	super.damage(amount, crit, mirrored)
 	if not dead:
 		_bar_t = BAR_SECONDS
@@ -364,6 +397,11 @@ func _fire_cycle(delta: float, d: float, rng: float) -> void:
 
 
 func _tick_boss(delta: float) -> void:
+	if _stall_hp < 0.0 or hp < _stall_hp - max_hp * 0.06:
+		_stall_hp = hp
+		_stall_t = 0.0
+	elif aware:
+		_stall_t += delta
 	for i in range(summoned.size() - 1, -1, -1):
 		var s := summoned[i]
 		if not is_instance_valid(s) or not s.active or s.dead:

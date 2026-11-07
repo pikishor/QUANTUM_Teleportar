@@ -54,7 +54,7 @@ static func _sides() -> SideMissions:
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	var prog := Game.progress as Progress
-	hud._text(c, font, Vector2(0.0, 84.0 * s), "SIDE MISSIONS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(46.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	hud.header(c, vp, s, font, "SIDE MISSIONS")
 	if prog != null:
 		hud._text(c, font, Vector2(0.0, 116.0 * s), "CREDITS  %d      DONE  %d / %d" % [prog.credits, prog.side_done.size(), SideMissions.ORDER.size()], HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	for i in _count():

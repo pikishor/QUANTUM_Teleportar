@@ -24,6 +24,12 @@ var route_drawn := false            ## a courier route line was drawn in the las
 var campaign_markers := 0           ## scripted campaign step markers drawn (waypoint, zone, target, escort, destination; also counted in contract_markers) in the last redraw
 
 var city_event_markers := 0         ## city event markers drawn in the last redraw (tests)
+var gps_drawn := 0                  ## road-following objective line segments drawn in the last redraw (tests)
+var _gps := PackedVector3Array()    ## the cached road route to the objective (MapRoute), rebuilt when the goal or the player moved REFRESH_M
+var _gps_goal := Vector3.INF
+var _gps_from := Vector3.INF
+var _gps_custom := false
+var _map_screen: MapScreen
 var _key := 0
 var _t := 0.0
 var _t_clock := 0.0
@@ -154,6 +160,7 @@ func _draw_body() -> void:
 			_uvs[i] = Vector2((w.x + EXTENT) * inv, (w.y + EXTENT) * inv)
 		draw_colored_polygon(_pts, Color(1, 1, 1, 0.9), _uvs, tex)
 	var inner := radius - 3.0 * s
+	_draw_gps(c, inner, s)
 	var cars: Array = []        # markers are collected and drawn per kind at the end: sprites of one texture batch, circles / polygons / arcs cost a draw call each
 	var discs: Array = []
 	var diamonds: Array = []
@@ -276,6 +283,35 @@ func _draw_body() -> void:
 	var nl := Vector2(Vector2(0, -1).dot(_right), -Vector2(0, -1).dot(_fwd))
 	draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-5.0, 6.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(UiUtil.CYAN, 0.9))
 	draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s, false)
+
+
+## The objective as a line along the ROADS (MapRoute: your map waypoint, else the scripted step, else the side contract), cut at the rim. Cached; rebuilt every REFRESH_M metres.
+func _draw_gps(c: Vector2, inner: float, s: float) -> void:
+	gps_drawn = 0
+	if not is_instance_valid(Game.player):
+		return
+	if _map_screen == null or not is_instance_valid(_map_screen):
+		_map_screen = get_tree().root.find_child("MapScreen", true, false) as MapScreen
+	var custom := _map_screen.waypoint if _map_screen != null else Vector3.INF
+	var goal := MapRoute.goal(custom)
+	if not goal.is_finite():
+		_gps = PackedVector3Array()
+		_gps_goal = Vector3.INF
+		return
+	var from := Game.player.global_position
+	if goal != _gps_goal or _gps.is_empty() or Vector2(from.x - _gps_from.x, from.z - _gps_from.z).length() > MapRoute.REFRESH_M:
+		_gps = MapRoute.route(from, goal)
+		_gps_goal = goal
+		_gps_from = from
+		_gps_custom = custom.is_finite()
+	var pl := PackedVector2Array()
+	for rp: Vector3 in _gps:
+		pl.append(c + to_map(rp.x, rp.z))
+	var col := Color(UiUtil.CYAN, 0.95) if _gps_custom else Color(1.0, 0.78, 0.2, 0.95)
+	for seg: PackedVector2Array in MapRoute.clip_to_circle(pl, c, inner):
+		draw_polyline(seg, Color(0.0, 0.02, 0.04, 0.9), 5.2 * s)
+		draw_polyline(seg, col, 3.0 * s)
+		gps_drawn += 1
 
 
 ## Contract markers and the courier route (see Contracts.markers / route_points): a cyan diamond for an offer, a pulsing diamond with a ring for a target, a big ring for a

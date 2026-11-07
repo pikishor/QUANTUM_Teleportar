@@ -15,6 +15,13 @@ const MODES: Array[Dictionary] = [
 	{"hp": 1.60, "dmg": 1.65, "spread": 0.60, "aggr": 1.35, "heat": 1.70, "credits": 1.60, "cp": 0.3},
 ]
 
+## How much worse enemy aim gets as the player's health drops (owner round 3: "sometimes too hard"): the aim error is multiplied by 1 + (1 - health fraction) * HURT_AIM[mode], so a player at a
+## third of their health on STORY faces 2.0x the error, on NORMAL 1.6x, on HARD 1.27x, on QUANTUM 1.1x. A mercy pickup (Missions) and the checkpoint retry help the same way.
+const HURT_AIM: Array[float] = [1.5, 0.9, 0.4, 0.15]
+## Health fraction under which a mercy health pickup is dropped near the player, and the seconds between two of them, per mode (0 = never).
+const MERCY_BELOW: Array[float] = [0.45, 0.3, 0.2, 0.0]
+const MERCY_EVERY: Array[float] = [15.0, 25.0, 45.0, 0.0]
+
 static var current := NORMAL
 
 
@@ -36,6 +43,19 @@ static func next_mode(m: int) -> int:
 
 static func mult(key: String, m: int = -1) -> float:
 	return float((MODES[clamp_mode(current if m < 0 else m)] as Dictionary)[key])
+
+
+## Multiplier on enemy aim error for a player with `hp_frac` (0..1) health (see HURT_AIM).
+static func hurt_aim(hp_frac: float, m: int = -1) -> float:
+	return 1.0 + (1.0 - clampf(hp_frac, 0.0, 1.0)) * HURT_AIM[clamp_mode(current if m < 0 else m)]
+
+
+static func mercy_below(m: int = -1) -> float:
+	return MERCY_BELOW[clamp_mode(current if m < 0 else m)]
+
+
+static func mercy_every(m: int = -1) -> float:
+	return MERCY_EVERY[clamp_mode(current if m < 0 else m)]
 
 
 ## Chapter curve for the damage enemies deal (1.0 in chapter 1, +6 % per chapter, capped at chapter 12 so the endless sectors stay fair).

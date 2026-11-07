@@ -265,3 +265,40 @@ static func route_length(route: PackedVector3Array) -> float:
 	for i in route.size() - 1:
 		n += Vector2(route[i + 1].x - route[i].x, route[i + 1].z - route[i].z).length()
 	return n
+
+
+## A street route from a to b over the road grid: onto the nearest road, along it, across at a junction, off at b. Escorts and the reach line follow it (an L over the blocks ran through buildings:
+## found by the mission audit, the escortee walked through a tower and the player could not follow).
+static func street_route(a: Vector3, b: Vector3) -> PackedVector3Array:
+	var pts := PackedVector3Array()
+	var ax := CityLayout.road_offset(a.x)
+	var az := CityLayout.road_offset(a.z)
+	var bx := CityLayout.road_offset(b.x)
+	var bz := CityLayout.road_offset(b.z)
+	var a_on_z := absf(ax) <= absf(az)                 # a stands on / next to a road that runs along z (constant x)
+	var b_on_z := absf(bx) <= absf(bz)
+	var sa := Vector3(a.x - ax, 0.0, a.z) if a_on_z else Vector3(a.x, 0.0, a.z - az)
+	var sb := Vector3(b.x - bx, 0.0, b.z) if b_on_z else Vector3(b.x, 0.0, b.z - bz)
+	pts.append(Vector3(a.x, 0.0, a.z))
+	pts.append(sa)
+	if a_on_z and b_on_z:
+		if is_equal_approx(sa.x, sb.x):
+			pass
+		else:
+			var z0 := sa.z - CityLayout.road_offset(sa.z)
+			pts.append(Vector3(sa.x, 0.0, z0))
+			pts.append(Vector3(sb.x, 0.0, z0))
+	elif a_on_z and not b_on_z:
+		pts.append(Vector3(sa.x, 0.0, sb.z))
+	elif not a_on_z and b_on_z:
+		pts.append(Vector3(sb.x, 0.0, sa.z))
+	else:
+		if is_equal_approx(sa.z, sb.z):
+			pass
+		else:
+			var x0 := sa.x - CityLayout.road_offset(sa.x)
+			pts.append(Vector3(x0, 0.0, sa.z))
+			pts.append(Vector3(x0, 0.0, sb.z))
+	pts.append(sb)
+	pts.append(Vector3(b.x, 0.0, b.z))
+	return pts

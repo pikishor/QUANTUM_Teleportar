@@ -50,12 +50,18 @@ const HACK_DECAY := 0.6
 const HACK_PULSE := 11.0
 const PATROL_LOSE := 60.0              ## escape with patrols: a chasing Vael patrol vehicle this close keeps the step open
 const PATROL_TOPUP := 4.0              ## seconds between the attempts to bring the chase back up to the step's patrol count while the heat is up
-const CHASE_ESCAPE := 120.0
-const CHASE_ESCAPE_TIME := 6.0
+const ESCAPE_COOL := 0.3               ## escape: heat lost per second once the player is `dist` metres away (found by the mission audit: the heat climbed to 5 with 8 hunters in sight and never came down)
+const CHASE_ESCAPE := 150.0
+const CHASE_ESCAPE_TIME := 8.0
+const CHASE_GRACE := 25.0              ## the target cannot get away before this many seconds (the player has to reach a car and get going first; found by the mission audit)
+const TAKE_CAR_HINT := 20.0            ## seconds the HUD says TAKE THE CAR (and points at the car) while the player is still on foot
+const CHASE_CAR_NEAR := 30.0           ## a car this close to the player counts as "one at hand"
 const ESCORT_THREAT := 16.0            ## aware enemies this close make the escortee stop
 const ESCORT_HURT := 7.0               ## enemies this close hurt the escortee ...
 const ESCORT_DPS := 7.0                ## ... this many hit points per second each
 const ESCORT_LEFT_TIME := 15.0
+const ESCORT_PATIENCE := 14.0          ## seconds the escortee waits for hostiles near it before it walks on
+const ESCORT_PUSH := 6.0
 const MAX_ALIVE_WAVE := 12
 const TARGET_HINT_FAR := 70.0
 const TARGET_HINT_R := 34.0
@@ -68,9 +74,10 @@ const RIFT_REGEN := 1.5
 const ENTANGLE_STOP := 8.0             ## convoy: ENTANGLE swaps you into the car's place, so a car this close to the player after the swap is stopped
 const COLLAPSE_STOP := 16.0            ## convoy: the COLLAPSE shockwave radius (Quantum.WAVE_RADIUS)
 const CONVOY_DISABLE := 0.35           ## convoy: a car at or below this fraction of its hit points is disabled (stopped)
-const CONVOY_ESCAPE := 150.0
-const CONVOY_ESCAPE_TIME := 6.0
+const CONVOY_ESCAPE := 170.0
+const CONVOY_ESCAPE_TIME := 8.0
 const CONVOY_GAP := 14.0
+const RETRY_DIST := 32.0               ## a retried fight step starts the player this far from its goal (see _retry_spot)
 const WAIT_OUTSIDE := 1.0              ## a step that is armed while the player is inside a building begins this long after the player is back on the street
 
 ## Whether the runner starts chapters by itself (the story's chapter has steps) and whether Progress's CONTINUE / chapter select start it. Like autosave it is off under tools, tests and bots
@@ -102,6 +109,14 @@ var escort_max := 0.0
 var checkpoint: Dictionary = {}        ## the last checkpoint {chapter, step, pos, tp, goal?}
 var visuals: ContractVisuals
 var rng := RandomNumberGenerator.new()
+var guide: MissionGuide                ## the objective line between steps, the wander reminder and the stuck handler (scripts/missions/mission_guide.gd)
+var guide_enabled := true              ## false: no stuck offer / recovery (a test that idles a step on purpose)
+var _kept := {}                        ## step index -> share of a hold / hack / defend / rift bar kept for the retry (half of what the player had reached)
+var _threat_wait := 0.0
+var _push_t := 0.0
+var _reanchored := false
+var _chase_car: Vehicle                ## chase: the car left beside the player when none is near ("take a car and cut it off" needs one)
+var _chase_t := 0.0                    ## chase: seconds since the step began (the target cannot escape in the first CHASE_GRACE seconds on foot)               ## recover_step() already moved this step's goal once
 
 var _clock := 0.0
 var _sp_t := 0.0                       ## set piece phase: seconds into its hazard
@@ -157,6 +172,7 @@ var _marker_n := 0
 
 func _ready() -> void:
 	add_to_group(&"campaign")
+	guide = MissionGuide.new(self)
 	enabled = not Game.autostart
 	for i in 5:
 		_markers.append({pos = Vector3.ZERO, color = Color.WHITE, kind = &"", radius = 0.0})
@@ -259,6 +275,7 @@ func start_chapter(index: int, from_step := 0, immediate := false) -> bool:
 	steps_done = step_index
 	last_fail = ""
 	_goals.clear()
+	_kept.clear()
 	_pending_tp = Vector3.INF
 	_win_pending = false
 	_begin_tries = 0
@@ -348,6 +365,31 @@ func skip_step() -> bool:
 	return true
 
 
+## The game's own way out of a stuck step (MissionGuide.recover): a goal nobody reached (reach, hack, defend, rift) moves to a street point beside the player once, an unreachable kill
+## target is brought to the street beside the player, and a step that is still stuck (or of a kind with nothing to move) is completed like SKIP STEP. False when no step is active.
+func recover_step() -> bool:
+	if state != &"active":
+		return false
+	if not _reanchored and kind in [&"reach", &"hack", &"defend", &"rift_hold", &"kill_target"]:
+		_reanchored = true
+		var p := _ref_pos_or_spawn()
+		var np := road_point(p, 14.0, 30.0)
+		if kind == &"kill_target":
+			if is_instance_valid(target):
+				target.global_position = Vector3(np.x, _ground(np.x, np.z), np.z)
+				return true
+		else:
+			pos = np
+			_goals[step_index] = np
+			visuals.show_marker(0, pos, float(step["radius"]), _step_color(), -1.0, true)
+			if kind == &"reach":
+				_route = CampaignSteps.street_route(p, pos)
+				visuals.set_route(_route)
+			return true
+	_complete_step(_ref_pos_or_spawn())
+	return true
+
+
 ## Stops the chapter without finishing it (the title screen, a new run).
 func abort() -> void:
 	_cleanup(true)
@@ -368,6 +410,8 @@ func get_checkpoint() -> Dictionary:
 ## Advance by `delta` seconds (the physics process calls it while playing; tests call it directly).
 func tick(delta: float) -> void:
 	_clock += delta
+	if guide != null and guide_enabled:
+		guide.tick(delta)
 	match state:
 		&"idle":
 			if enabled:
@@ -416,7 +460,11 @@ func hud_line() -> String:
 	var head := "%d/%d  %s" % [step_index + 1, steps.size(), str(step["text"]).to_upper()]
 	var clock := "  " + _clock_text(time_left) if time_total > 0.0 else ""
 	match kind:
-		&"reach", &"kill_target", &"chase":
+		&"reach", &"kill_target":
+			return "%s%s  %d M" % [head, clock, roundi(distance_to_goal())]
+		&"chase":
+			if _take_the_car():
+				return "%d/%d  TAKE THE CAR  %d M" % [step_index + 1, steps.size(), roundi(_hdist(_ref_pos(), _chase_car.global_position))]
 			return "%s%s  %d M" % [head, clock, roundi(distance_to_goal())]
 		&"enter_interior":
 			if _phase == 2:
@@ -441,6 +489,8 @@ func hud_line() -> String:
 				2: return "%d/%d  %s" % [step_index + 1, steps.size(), "GET OUT WITH THE DATA" if loot else "STEAL THE DATA"]
 			return "%d/%d  GETAWAY%s  HEAT %.1f  %d M%s" % [step_index + 1, steps.size(), clock, Game.heat, roundi(_origin_dist()), "  PATROL" if _patrol_want > 0 and _patrols_chasing() > 0 else ""]
 		&"convoy_intercept":
+			if _take_the_car():
+				return "%d/%d  TAKE THE CAR  %d M" % [step_index + 1, steps.size(), roundi(_hdist(_ref_pos(), _chase_car.global_position))]
 			return "%s  STOPPED %d/%d%s" % [head, _stopped_count(), convoy.size(), clock]
 	return head
 
@@ -465,7 +515,10 @@ func boss() -> Dictionary:
 	if state == &"active" and kind == &"kill_target" and is_instance_valid(target):
 		var d := target as Drone
 		if d != null and not d.dead:
-			return {"name": str(step.get("name", "VAEL TARGET")), "frac": clampf(d.hp / maxf(d.max_hp, 1.0), 0.0, 1.0)}
+			var b := {"name": str(step.get("name", "VAEL TARGET")), "frac": clampf(d.hp / maxf(d.max_hp, 1.0), 0.0, 1.0)}
+			if d is VerbBoss:
+				b["hint"] = (d as VerbBoss).hint()
+			return b
 	return {}
 
 
@@ -474,6 +527,8 @@ func waypoint() -> Dictionary:
 	if state != &"active" or _inside_hides():
 		return {}
 	var c := _step_color()
+	if _take_the_car():
+		return {"pos": _chase_car.global_position, "color": ContractTypes.AMBER}
 	match kind:
 		&"kill_target", &"chase":
 			var t: Node3D = target if kind == &"kill_target" else car
@@ -593,6 +648,8 @@ func _on_next_sector() -> void:
 
 
 func _on_died() -> void:
+	if state == &"active":
+		_keep_progress()
 	if state == &"active" or state == &"retry" or state == &"armed":
 		_cleanup(true)
 		state = &"held"
@@ -646,6 +703,7 @@ func _begin_step() -> void:
 	step = steps[step_index]
 	kind = step["kind"]
 	_clean_runtime()
+	_reanchored = false
 	var ch_id := str(chapter_data(chapter_index).get("id", chapter_index))
 	rng.seed = hash("%s|%d|%d" % [ch_id, step_index, _begin_tries])
 	if _pending_tp.is_finite():
@@ -680,6 +738,8 @@ func _begin_step() -> void:
 		return
 	_begin_tries = 0
 	time_total = float(step["time"])
+	if time_total > 0.0 and fails > 0 and (kind == &"chase" or kind == &"convoy_intercept"):
+		time_total *= 1.0 + 0.25 * float(mini(fails, 3))               # every failed run gives the next one more time
 	time_left = time_total
 	progress = 0.0 if progress < 0.0 else progress
 	var heat := float(step["heat"])
@@ -697,6 +757,7 @@ func _complete_step(cp_pos: Vector3) -> void:
 	var idx := step_index
 	var k := kind
 	var st := step
+	_kept.erase(idx)
 	_end_set_piece_phase(st)
 	_cleanup(true)
 	steps_done += 1
@@ -751,7 +812,13 @@ func _complete_chapter() -> void:
 			_win_pending = true
 
 
+func _keep_progress() -> void:
+	if kind in [&"hack", &"defend", &"rift_hold", &"survive"] and progress > 0.05:
+		_kept[step_index] = clampf(progress * 0.5, 0.0, 0.6)
+
+
 func _fail(reason: String) -> void:
+	_keep_progress()
 	if step.has("set_piece"):
 		sp_zones.clear()
 		sp_hazard_state = &"idle"
@@ -783,11 +850,30 @@ func _restart_step(teleport: bool) -> void:
 	if is_instance_valid(pl) and not pl.is_dead():
 		pl.hp = maxf(pl.hp, pl.max_hp * Difficulty.mult("cp"))
 	var cp_pos: Variant = checkpoint.get("pos", null)
-	if teleport and bool(checkpoint.get("tp", false)) and cp_pos is Vector3 and (cp_pos as Vector3).is_finite():
+	var spot := _retry_spot()
+	if teleport and spot.is_finite():
+		_pending_tp = spot                                # a fight step restarts at the fight, not a block away at the old checkpoint
+	elif teleport and bool(checkpoint.get("tp", false)) and cp_pos is Vector3 and (cp_pos as Vector3).is_finite():
 		_pending_tp = cp_pos
 	state = &"armed"
 	_arm_t = 0.6
 	progress = -1.0
+
+
+## Where a retry of the running step starts the player (owner round 3: "retry right at the step"): hack, defend, rift hold and kill steps restart on the street RETRY_DIST metres from
+## the step's goal, on the side of the old checkpoint. Everything else (a walk, a chase, an escort, an escape) restarts at the checkpoint. Vector3.INF = use the checkpoint.
+func _retry_spot() -> Vector3:
+	if not (kind in [&"hack", &"defend", &"rift_hold", &"kill_target"]) or InteriorGameplay.active:
+		return Vector3.INF
+	var g: Variant = _goals.get(step_index, null)
+	if not (g is Vector3) or not (g as Vector3).is_finite():
+		return Vector3.INF
+	var goal := g as Vector3
+	var from := _origin if _origin.is_finite() else _ref_pos_or_spawn()
+	var dir := Vector3(from.x - goal.x, 0.0, from.z - goal.z)
+	dir = dir.normalized() if dir.length() > 1.0 else Vector3.RIGHT
+	var q := PlayerUtil.nearest_street(goal + dir * RETRY_DIST)
+	return Vector3(q.x, 0.0, q.z)
 
 
 func _teleport(at: Vector3) -> void:
@@ -973,9 +1059,19 @@ func _spawn(type: StringName, at: Vector3, aware := false) -> Drone:
 	if em == null:
 		return null
 	var d := em.spawn(type, at, aware)
+	if d == null and _make_room(em):                      # the street's own patrols filled the tier's enemy cap: the step has priority (found by the mission audit: AREA CROWDED forever)
+		d = em.spawn(type, at, aware)
 	if d != null:
 		foes.append(d)
 	return d
+
+
+## Sends the enemy farthest from the player that does not belong to the step back to the pool (EnemyManager.make_room), so a step can always spawn its target and waves.
+func _make_room(em: EnemyManager) -> bool:
+	var keep: Array = foes.duplicate()
+	if is_instance_valid(target):
+		keep.append(target)
+	return em.make_room(keep, _ref_pos())
 
 
 func foes_alive() -> int:
@@ -1026,7 +1122,7 @@ func _wave_size(w: int) -> int:
 func _begin_reach() -> bool:
 	var p := _ref_pos_or_spawn()
 	visuals.show_marker(0, pos, float(step["radius"]), _step_color(), -1.0, true)
-	_route = Contracts.build_route(p, pos)
+	_route = CampaignSteps.street_route(p, pos)
 	visuals.set_route(_route)
 	return true
 
@@ -1047,7 +1143,7 @@ func _begin_escort() -> bool:
 		from = Vector3(from.x + 3.0, 0.0, from.z)
 	from.y = 0.0
 	var dest := Vector3(pos.x, 0.0, pos.z)
-	_route = Contracts.build_route(from, dest)
+	_route = CampaignSteps.street_route(from, dest)
 	_route_len = CampaignSteps.route_length(_route)
 	_esc_s = 0.0
 	escort_max = float(step["hp"])
@@ -1072,7 +1168,7 @@ func _begin_escort() -> bool:
 
 
 func _begin_defend() -> bool:
-	_hold_t = 0.0
+	_hold_t = float(step["hold"]) * float(_kept.get(step_index, 0.0))
 	wave = 0
 	_gap_t = 2.0
 	_outside_t = 0.0
@@ -1083,6 +1179,7 @@ func _begin_defend() -> bool:
 
 func _begin_hack() -> bool:
 	_hold_t = 0.0
+	progress = float(_kept.get(step_index, 0.0))
 	_attack_t = 5.0
 	_nag_t = 0.0
 	inside = true
@@ -1133,7 +1230,7 @@ func _begin_chase() -> bool:
 		c = vm.call(&"spawn_traffic", &"sedan", axis, road_i, dir, along)
 	if c == null:
 		return false
-	c.max_hp = float(step["hp"])
+	c.max_hp = float(step["hp"]) * maxf(1.0 - 0.2 * float(mini(fails, 3)), 0.4)       # every failed run makes the target a little easier to wreck
 	c.hp = c.max_hp
 	var cruise := float(step["cruise"])
 	c.ai_cruise = cruise if cruise > 0.0 else minf(15.0 + 1.2 * float(chapter_index), 24.0)
@@ -1144,9 +1241,57 @@ func _begin_chase() -> bool:
 	car = c
 	pos = c.global_position
 	_escape_t = 0.0
+	_chase_t = 0.0
+	_ensure_chase_car(vm)
 	visuals.show_marker(0, pos, 3.0, ContractTypes.AMBER, -1.0, true)
 	Game.add_heat(0.1)
 	return true
+
+
+## "Take a car and cut it off": when the player is on foot and no car is at hand, a fast one is left beside them, nose toward the target, and the HUD says TAKE THE CAR.
+func _ensure_chase_car(vm: Node) -> void:
+	_chase_car = null
+	var p := _ref_pos()
+	if not p.is_finite() or not vm.has_method(&"spawn_parked"):
+		return
+	var pl := Game.player as Player
+	if is_instance_valid(pl) and pl.vehicle != null:
+		return
+	var list: Array = vm.get("list")
+	var nearest: Vehicle = null
+	var nd := CHASE_CAR_NEAR
+	for v: Vehicle in list:
+		if v != car and not convoy.has(v) and not v.dead and v.active and not v.wreck and _hdist(v.global_position, p) < nd:
+			nd = _hdist(v.global_position, p)
+			nearest = v
+	if nearest != null:
+		_chase_car = nearest                                  # a car is at hand: the HUD points at it (TAKE THE CAR)
+		return
+	var spot := _chase_car_spot(p)
+	var c: Vehicle = vm.call(&"spawn_parked", &"sport", spot["pos"], spot["heading"])
+	if c == null:
+		_free_a_car(vm)
+		c = vm.call(&"spawn_parked", &"sport", spot["pos"], spot["heading"])
+	_chase_car = c
+
+
+## Where the chase car stands: in the right-hand lane of the street the player is on, nose toward the target (a car left across a kerb or a wall could not drive away).
+func _chase_car_spot(p: Vector3) -> Dictionary:
+	var ox := CityLayout.road_offset(p.x)
+	var oz := CityLayout.road_offset(p.z)
+	var on_z_road := absf(ox) <= absf(oz)                    # the street runs along z: x is the road's coordinate
+	var axis := 1 if on_z_road else 0
+	var toward := (pos.z - p.z) if on_z_road else (pos.x - p.x)
+	var dir := 1 if toward >= 0.0 else -1
+	var line := VehicleSpecs.road_center(VehicleSpecs.road_index(p.x if on_z_road else p.z)) + VehicleSpecs.lane_offset(axis, dir, Game.LANE)
+	var along := p.z if on_z_road else p.x
+	var at := Vector3(line, 0.0, along + float(dir) * 4.0) if on_z_road else Vector3(along + float(dir) * 4.0, 0.0, line)
+	return {"pos": at, "heading": VehicleSpecs.heading_for(axis, dir)}
+
+
+func _take_the_car() -> bool:
+	var pl := Game.player as Player
+	return state == &"active" and (kind == &"chase" or kind == &"convoy_intercept") and _chase_t < TAKE_CAR_HINT and stopped.is_empty() and _chase_car != null and is_instance_valid(_chase_car) and not _chase_car.dead and is_instance_valid(pl) and pl.vehicle == null
 
 
 func _free_a_car(vm: Node) -> void:
@@ -1229,7 +1374,7 @@ func _patrol_near(p: Vector3) -> bool:
 
 
 func _begin_survive() -> bool:
-	_hold_t = 0.0
+	_hold_t = float(step["hold"]) * float(_kept.get(step_index, 0.0))
 	wave = 0
 	_gap_t = 2.0
 	return true
@@ -1327,7 +1472,17 @@ func _tick_escort(delta: float, p: Vector3) -> void:
 		_fail("ESCORT LOST")
 		return
 	var leash := float(step["leash"])
-	var waiting := dist_player > leash or threats > 0
+	# the escortee waits while hostiles are near, but not forever (found by the mission audit: two aware enemies that never closed in held it for four minutes): after ESCORT_PATIENCE seconds
+	# of waiting for them it walks on for ESCORT_PUSH seconds, with the player or without
+	if threats > 0:
+		_threat_wait += delta
+		if _threat_wait > ESCORT_PATIENCE:
+			_push_t = ESCORT_PUSH
+			_threat_wait = 0.0
+	else:
+		_threat_wait = maxf(_threat_wait - delta, 0.0)
+	_push_t = maxf(_push_t - delta, 0.0)
+	var waiting := dist_player > leash or (threats > 0 and _push_t <= 0.0)
 	if dist_player > leash:
 		_nag_t -= delta
 		if _nag_t <= 0.0:
@@ -1474,7 +1629,10 @@ func _tick_chase(delta: float, p: Vector3) -> void:
 		_fail("TARGET LOST")
 		return
 	var d := _hdist(car.global_position, p) if p.is_finite() else 0.0
-	if d > CHASE_ESCAPE:
+	_chase_t += delta
+	var pl := Game.player as Player
+	var driving := is_instance_valid(pl) and pl.vehicle != null
+	if d > CHASE_ESCAPE and _chase_t > CHASE_GRACE:
 		_escape_t += delta
 		if _escape_t > CHASE_ESCAPE_TIME:
 			_fail("TARGET ESCAPED")
@@ -1484,6 +1642,10 @@ func _tick_chase(delta: float, p: Vector3) -> void:
 	progress = 1.0 - clampf(car.hp / maxf(car.max_hp, 1.0), 0.0, 1.0)
 	pos = car.global_position
 	visuals.move_marker(0, car.global_position)
+	# the target eases off when the player falls behind (a chase must be catchable): full speed within 40 m, 55 % from 90 m, 40 % while the player is still on foot
+	var base := (float(step["cruise"]) if float(step["cruise"]) > 0.0 else minf(15.0 + 1.2 * float(chapter_index), 24.0)) * maxf(1.0 - 0.1 * float(mini(fails, 3)), 0.7)
+	var ease_k := clampf((d - 40.0) / 50.0, 0.0, 1.0)
+	car.ai_cruise = base * (0.4 if not driving else lerpf(1.0, 0.55, ease_k))
 
 
 func _tick_escape(delta: float, p: Vector3) -> void:
@@ -1495,6 +1657,9 @@ func _tick_escape(delta: float, p: Vector3) -> void:
 	var dist := float(step["dist"])
 	var clear := float(step["clear"])
 	var d := _origin_dist()
+	Game.heat = minf(Game.heat, _heat0 + 0.01)                  # the pursuit does not escalate while the step runs
+	if d >= dist and Game.heat > 0.0:
+		Game.heat = maxf(0.0, Game.heat - ESCAPE_COOL * delta)  # far enough: the hunters lose the trail
 	var far_part := clampf(d / maxf(dist, 1.0), 0.0, 1.0)
 	var heat_part := 1.0 - clampf((Game.heat - clear) / maxf(_heat0 - clear, 0.1), 0.0, 1.0)
 	progress = clampf(0.5 * far_part + 0.5 * heat_part, 0.0, 0.99)
@@ -1538,6 +1703,10 @@ func _clean_runtime() -> void:
 	_esc_s = 0.0
 	_ambush.clear()
 	_car_dead = false
+	_chase_car = null
+	_chase_t = 0.0
+	_threat_wait = 0.0
+	_push_t = 0.0
 	rift_hp = 0.0
 	feed_left = 0.0
 	loot = false
@@ -1728,7 +1897,7 @@ func _on_verb(id: StringName) -> void:
 
 func _begin_rift() -> bool:
 	_hook_verbs()
-	_hold_t = 0.0
+	_hold_t = float(step["hold"]) * float(_kept.get(step_index, 0.0))
 	feed_left = 0.0
 	wave = 0
 	_gap_t = 3.0
@@ -1906,6 +2075,8 @@ func _begin_convoy() -> bool:
 		return false
 	pos = convoy[0].global_position
 	_far_t = 0.0
+	_chase_t = 0.0
+	_ensure_chase_car(vm)
 	visuals.show_marker(0, pos, 3.0, ContractTypes.RED, -1.0, true)
 	Game.add_heat(0.2)
 	return true
@@ -1943,6 +2114,9 @@ func _stop_car(c: Vehicle) -> void:
 
 func _tick_convoy(delta: float, p: Vector3) -> void:
 	var far := false
+	_chase_t += delta
+	var pl := Game.player as Player
+	var driving := is_instance_valid(pl) and pl.vehicle != null
 	for c: Vehicle in convoy:
 		if not is_instance_valid(c) or (not c.active and not c.dead):
 			_fail("CONVOY LOST")
@@ -1952,8 +2126,12 @@ func _tick_convoy(delta: float, p: Vector3) -> void:
 		if c.hp <= c.max_hp * CONVOY_DISABLE:
 			_stop_car(c)
 			continue
-		if p.is_finite() and _hdist(c.global_position, p) > CONVOY_ESCAPE:
-			far = true
+		if p.is_finite():
+			var cd := _hdist(c.global_position, p)
+			var ease_k := clampf((cd - 40.0) / 50.0, 0.0, 1.0)
+			c.ai_cruise = float(step["cruise"]) * maxf(1.0 - 0.15 * float(mini(fails, 3)), 0.55) * (0.4 if not driving else lerpf(1.0, 0.55, ease_k))       # the convoy eases off when the player falls behind (catchable on foot and in a car)
+			if cd > CONVOY_ESCAPE and _chase_t > CHASE_GRACE:
+				far = true
 	for c: Vehicle in stopped:
 		if is_instance_valid(c):
 			c.ai_stun = 1.0e6

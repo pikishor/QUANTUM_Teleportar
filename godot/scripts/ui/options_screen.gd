@@ -5,11 +5,12 @@ extends RefCounted
 ## markers, FPS cap, graphics tier) are plain presses. Pure layout and settings math, no state of its own: every value lives in UiSettings.
 
 const ROW_H := 64.0
-const PITCH := 66.0                ## 8 rows of 64 px fit the 720 px design height with the BACK row
-const TOP := 98.0
-const COL_W := 300.0
-const GAP := 12.0
-const BACK_Y := 634.0
+const PITCH := 68.0                ## 7 rows of 64 px under the column captions, then the BACK row
+const TOP := 126.0
+const COL_W := 330.0
+const GAP := 14.0
+const BACK_Y := 620.0
+const ROWS := 7
 
 ## slider id -> [label, min, max, UiSettings field]
 const SLIDERS := {
@@ -31,7 +32,18 @@ const TOGGLE_NAMES := {
 }
 ## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
 const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls", &"opt_reset", &"opt_reset_demo", &"opt_chatter", &"opt_fpsbox", &"opt_civ"]
-const PAGE_CELL := 23                ## three columns of eight rows: the MORE cell is the last
+const PAGE_CELL := 20                ## three columns of seven rows: the MORE cell is the last (bottom right)
+## The two pages as columns (caption, ids top to bottom): a column is one topic, so a player finds a row by its heading instead of scanning 19 buttons.
+const COLS0 := [
+	["CONTROLS", [&"opt_look_x", &"opt_look_y", &"opt_ads", &"opt_aim", &"opt_auto", &"opt_left", &"opt_vib"]],
+	["DISPLAY", [&"opt_hud", &"opt_btn", &"opt_tier", &"opt_fps", &"opt_post", &"opt_subs", &"opt_cb"]],
+	["SOUND AND MORE", [&"opt_vol_music", &"opt_vol_sfx", &"opt_mute", &"opt_cine", &"opt_bench"]],
+]
+const COLS1 := [
+	["LANGUAGE AND TEXT", [&"opt_lang", &"opt_text", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_haptic", &"opt_controls"]],
+	["PLAY", [&"opt_flash", &"opt_motion", &"opt_diff", &"opt_res", &"opt_chatter", &"opt_fpsbox", &"opt_civ"]],
+	["SAVE DATA", [&"opt_reset", &"opt_reset_demo"]],
+]
 ## RESET PROGRESS needs two presses: the first arms it (the label asks), the second wipes. Any other press, the page flip and BACK disarm it; only on the title screen.
 static var reset_armed := false
 ## The demo slot has its own confirm (`opt_reset_demo`): press, then press again.
@@ -39,9 +51,9 @@ static var reset_demo_armed := false
 const SUB_BG_NAMES: Array[String] = ["SOFT", "", "SOLID"]
 const CB_NAMES: Array[String] = ["DEUTAN", "TRITAN"]
 const ORDER: Array[StringName] = [
-	&"opt_look_x", &"opt_look_y", &"opt_ads", &"opt_hud", &"opt_btn", &"opt_tier",
-	&"opt_aim", &"opt_auto", &"opt_left", &"opt_vib", &"opt_subs", &"opt_cb",
-	&"opt_fps", &"opt_bench", &"opt_vol_music", &"opt_vol_sfx", &"opt_mute", &"opt_post", &"opt_cine",
+	&"opt_look_x", &"opt_look_y", &"opt_ads", &"opt_aim", &"opt_auto", &"opt_left", &"opt_vib",
+	&"opt_hud", &"opt_btn", &"opt_tier", &"opt_fps", &"opt_post", &"opt_subs", &"opt_cb",
+	&"opt_vol_music", &"opt_vol_sfx", &"opt_mute", &"opt_cine", &"opt_bench",
 ]
 const VOLUME_STEPS: Array[float] = [1.0, 0.75, 0.5, 0.25, 0.0]
 const VOLUME_BUSES := {&"opt_vol_music": ["Music"], &"opt_vol_sfx": ["SFX", "Ambient", "Voice"]}
@@ -261,20 +273,31 @@ static func cell_rect(i: int, cx: float, s: float) -> Rect2:
 	return Rect2(cx - (COL_W * 1.5 + GAP) * s + col * (COL_W + GAP) * s, (TOP + row * PITCH) * s, COL_W * s, ROW_H * s)
 
 
+## The cell of column `col`, row `row` (the same grid as cell_rect).
+static func col_rect(col: int, row: int, cx: float, s: float) -> Rect2:
+	return cell_rect(row * 3 + col, cx, s)
+
+
 static func layout(hud: Hud, st: UiSettings, cx: float, s: float) -> void:
 	if UiSettings.s_opt_page == 2:
 		ControlsScreen.layout(hud, st, cx, s)
 		return
-	var ids: Array[StringName] = PAGE2 if UiSettings.s_opt_page == 1 else ORDER
-	for i in ids.size():
-		var id: StringName = ids[i]
-		hud._add(id, cell_rect(i, cx, s), label(st, id), is_slider(id) or is_on(st, id))
+	var cols: Array = COLS1 if UiSettings.s_opt_page == 1 else COLS0
+	for col in cols.size():
+		var ids: Array = cols[col][1]
+		for row in ids.size():
+			var id: StringName = ids[row]
+			hud._add(id, col_rect(col, row, cx, s), label(st, id), is_slider(id) or is_on(st, id))
 	hud._add(&"opt_page", cell_rect(PAGE_CELL, cx, s), label(st, &"opt_page"), false)
 	hud._add(&"options_back", Rect2(cx - 110.0 * s, BACK_Y * s, 220.0 * s, ROW_H * s), "BACK", false)
 
 
-static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, _cx: float) -> void:
+static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	if UiSettings.s_opt_page == 2:
 		ControlsScreen.draw(hud, c, vp, s, font)
 		return
-	hud._text(c, font, Vector2(0.0, 84.0 * s), "OPTIONS", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(40.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	var cols: Array = COLS1 if UiSettings.s_opt_page == 1 else COLS0
+	for col in cols.size():
+		var r0 := col_rect(col, 0, cx, s)
+		hud._text(c, font, Vector2(r0.position.x, r0.position.y - 8.0 * s), String(cols[col][0]), HORIZONTAL_ALIGNMENT_LEFT, r0.size.x, int(UiUtil.BAR_LABEL * s * 0.9), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+	hud.header(c, vp, s, font, "OPTIONS")

@@ -13,16 +13,19 @@ func _ready() -> void:
 			path = a.substr(7)
 		elif a.begins_with("--timeout="):
 			limit = float(a.substr(10))
-	# Watchdog: a runtime error inside an awaited test leaves the await pending forever. It runs in REAL seconds (ignore_time_scale): a test that sets Engine.time_scale = 4
-	# (test_enemies) would otherwise get a 15 s wall-clock budget and time out whenever its marks / frame waits took a little longer.
-	get_tree().create_timer(limit, true, false, true).timeout.connect(func() -> void:
-		printerr("FAIL: test timed out after %ss (a SCRIPT ERROR above usually explains why)" % limit)
-		get_tree().quit(3))
 	var script := load(path) as GDScript
 	if script == null:
 		printerr("FAIL: cannot load test script '%s'" % path)
 		get_tree().quit(2)
 		return
+	var consts0 := script.get_script_constant_map()
+	if consts0.has("TIMEOUT_SECONDS"):                   # a long real-scene test (tests/test_mission_audit.gd) declares its own limit; test.sh's wrapper still stops everything at 150 s
+		limit = maxf(limit, minf(float(consts0["TIMEOUT_SECONDS"]), 140.0))
+	# Watchdog: a runtime error inside an awaited test leaves the await pending forever. It runs in REAL seconds (ignore_time_scale): a test that sets Engine.time_scale = 4
+	# (test_enemies) would otherwise get a 15 s wall-clock budget and time out whenever its marks / frame waits took a little longer.
+	get_tree().create_timer(limit, true, false, true).timeout.connect(func() -> void:
+		printerr("FAIL: test timed out after %ss (a SCRIPT ERROR above usually explains why)" % limit)
+		get_tree().quit(3))
 	if not script.can_instantiate():
 		printerr("FAIL: '%s' has compile errors (see above). New class_name scripts also need tools/import.sh first." % path)
 		get_tree().quit(2)

@@ -730,11 +730,19 @@ func _tracer_color() -> Color:
 	return Color(1.0, 0.45, 0.35)
 
 
+## Aim error factor of the player's state (Difficulty.hurt_aim): a hurt player is missed more often.
+func _hurt_aim() -> float:
+	var pl := Game.player as Player
+	if pl == null or not is_instance_valid(pl):
+		return 1.0
+	return Difficulty.hurt_aim(pl.hp / maxf(pl.max_hp, 1.0))
+
+
 ## One round: hitscan with a spread that grows with distance. The tracer ends at the first world hit or past the target.
 func _shoot(d: float) -> void:
 	var origin := _muzzle_pos()
 	var aim := _tgt
-	var spread: float = (float(cfg["spread"]) + float(cfg["spread_per_m"]) * d) * Difficulty.mult("spread")
+	var spread: float = (float(cfg["spread"]) + float(cfg["spread_per_m"]) * d) * Difficulty.mult("spread") * _hurt_aim()
 	var fire_at := _aim_override if _aim_override.is_finite() else aim      # a sniper's shot goes where the laser LOCKED, the hit test below still asks where the target really is
 	var dir := (fire_at - origin).normalized()
 	var off := Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0))

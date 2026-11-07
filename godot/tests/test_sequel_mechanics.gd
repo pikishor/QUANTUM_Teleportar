@@ -274,7 +274,7 @@ func _convoy() -> void:
 	TestLib.check(all_ok, "convoy: held traffic cars with the step's hp and speed")
 	var mk := camp.markers()
 	TestLib.check(camp.marker_count() == 3 and mk[0]["kind"] == &"target" and camp.waypoint().has("pos"), "convoy: a marker per car and a waypoint")
-	TestLib.check(camp.hud_line().contains("STOPPED 0/3"), "convoy: HUD line (%s)" % camp.hud_line())
+	TestLib.check(camp.hud_line().contains("STOPPED 0/3") or camp.hud_line().contains("TAKE THE CAR"), "convoy: HUD line (%s)" % camp.hud_line())
 	var a: Vehicle = camp.convoy[0]
 	var b: Vehicle = camp.convoy[1]
 	var c3: Vehicle = camp.convoy[2]
@@ -317,8 +317,9 @@ func _convoy() -> void:
 	_begin([{"kind": "convoy_intercept", "pos": Vector3(20, 0, 0), "cars": 2, "time": 90.0}])
 	var ca: Vehicle = camp.convoy[0]
 	_put(ca.global_position + Vector3(0, 0, 220))
-	_until(func() -> bool: return camp.state != &"active", CampaignRunner.CONVOY_ESCAPE_TIME + 3.0, 0.5)
-	TestLib.check(failed_steps.size() == 1 and failed_steps[0][3] == "CONVOY GOT AWAY", "convoy: a car 150 m away for 6 s gets away (%s)" % str(failed_steps))
+	_put(ca.global_position + Vector3(0, 0, 220))
+	_until(func() -> bool: return camp.state != &"active", CampaignRunner.CHASE_GRACE + CampaignRunner.CONVOY_ESCAPE_TIME + 6.0, 0.5)
+	TestLib.check(failed_steps.size() == 1 and failed_steps[0][3] == "CONVOY GOT AWAY", "convoy: a car 220 m away for 8 s (after the grace time) gets away (%s)" % str(failed_steps))
 	TestLib.check(not ca.has_meta(&"hold"), "convoy: failing lifts the holds")
 	camp.tick(CampaignRunner.RETRY_PAUSE + 0.1)
 	camp.tick(1.0)

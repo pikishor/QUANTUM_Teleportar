@@ -94,6 +94,8 @@ var _t := 0.0
 var _seen_hit := -100.0              ## last_hit_time already answered with a hit-confirm camera tick
 var _q: Array = []                  ## queued draws (see _text): text, rectangles, sprites, outlines
 var _fills: Array = []
+var scan_text := false                ## tests/test_menus_map_quality.gd: record every queued text (text, rect, size) into scan_log while a screen draws
+var scan_log: Array[Dictionary] = []
 var _frames: Array = []
 var _sprites: Array = []
 
@@ -210,7 +212,7 @@ func _on_state(s: StringName) -> void:
 
 ## True while a full-screen pause panel (shop, skills, gear, look, boards, options...) is open: it owns the whole picture, the gameplay HUD and minimap are hidden behind it.
 func panel_cover() -> bool:
-	return Game.state == &"paused" and not photo_open() and (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open or _gear_open)
+	return Game.state == &"paused" and not photo_open()
 
 
 ## What the gameplay HUD layer (and the minimap on it) should show: not in the title, a cutscene, photo mode or behind a full-screen pause panel.
@@ -919,12 +921,28 @@ func alt_text() -> String:
 ## True while an optional set piece can be skipped (the SKIP SET PIECE button and hint).
 func skip_set_piece() -> bool:
 	var k := _campaign()
-	return k != null and bool(k.call(&"skip_set_piece"))
+	if k == null:
+		return false
+	if bool(k.call(&"skip_set_piece")):
+		return true
+	var g: Variant = k.get(&"guide")
+	return g != null and (g as MissionGuide).skip_step()                # SKIP STEP: offered after a minute and a half without progress
 
 
 func skip_available() -> bool:
 	var k := _campaign()
-	return k != null and bool(k.call(&"in_optional_set_piece"))
+	if k == null:
+		return false
+	if bool(k.call(&"in_optional_set_piece")):
+		return true
+	return step_skip_offered()
+
+
+## True while the mission guide offers SKIP STEP (a step made no progress for a minute and a half).
+func step_skip_offered() -> bool:
+	var k := _campaign()
+	var g: Variant = k.get(&"guide") if k != null else null
+	return g != null and (g as MissionGuide).offering and MissionGuide.hud_on
 
 
 ## The weapon plate that pops up for a moment when the weapon in hand changes (a wheel pick, SWAP, a pickup, a crate, an empty gun): the weapon's own silhouette, its name, class,
@@ -1012,6 +1030,9 @@ func hint_text() -> String:
 
 
 var _redraw_t := 0.0
+var _screen_sig := ""
+var _sub_t := 1.0
+const MENU_FADE := 0.16                ## seconds a menu screen takes to fade in when it opens or switches
 
 
 func _process(delta: float) -> void:
@@ -1051,6 +1072,12 @@ func _process(delta: float) -> void:
 	if touch != null and touch.perf_visible():
 		col_bottom = maxf(col_bottom, (touch._perf_box() as Rect2).end.y)
 	UiUtil.left_bottom = col_bottom / s
+	var sig := "%s|%s%s%s%s%s%s%s%d%s%s%s%s%s%s%s%d" % [Game.state, _options_open, _gear_open, _hero_hub, _shop_open, _skills_open, _craft_open, _loadout_open, _loadout_page, _look_open, _side_open, _heist_open, _safe_open, _ach_open, _arena_open, _chapters_open, UiSettings.s_opt_page]
+	if sig != _screen_sig:                                  # a screen opened or changed: it fades in over MENU_FADE (a cut between panels reads as clumsy)
+		_screen_sig = sig
+		_sub_t = 0.0
+	_sub_t += real
+	_screen.modulate.a = 1.0 if photo_open() else clampf(0.35 + 0.65 * _sub_t / MENU_FADE, 0.0, 1.0)
 	_redraw_t -= real
 	if _redraw_t <= 0.0:                                    # LOW redraws the HUD and the screens 20 times a second, LOW+ 12 (the draw is script work every frame otherwise)
 		_redraw_t = LowPlus.hud_interval()
@@ -1075,6 +1102,8 @@ func _clock_suffix() -> String:
 
 func _text(c: Control, font: Font, pos: Vector2, text: String, align: HorizontalAlignment, width: float, size: int, col: Color, shadow := 0.0) -> void:
 	var tt := Tr.t(text)
+	if c == _screen and size < int(BODY_MIN * UiUtil.ui_scale(c.size)):
+		size = int(BODY_MIN * UiUtil.ui_scale(c.size))                      # menus never print below BODY_MIN (22 px at 1080p): a longer text wraps or gets a wider box, it does not shrink
 	_q.append([c, font, pos, tt, align, width, Tr.scaled_size(font, tt, width, size), col, shadow])
 
 
@@ -1117,7 +1146,27 @@ func _flush_text() -> void:
 		for q: Array in _q:
 			if q[6] == sz:
 				(q[0] as Control).draw_string(q[1], q[2], q[3], q[4], q[5], q[6], q[7])
+	if scan_text:
+		for q2: Array in _q:
+			if q2[0] == _screen:                         # the menu layer only (the HUD behind a death screen has its own tests)
+				scan_log.append(_scan_entry(q2))
 	_q.clear()
+
+
+## One queued text as {text, rect (where the glyphs land), box (the width it was given), size, over (the text is wider than its box)} for the layout scan.
+func _scan_entry(q: Array) -> Dictionary:
+	var font := q[1] as Font
+	var sz: int = q[6]
+	var tw := font.get_string_size(str(q[3]), HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
+	var pos: Vector2 = q[2]
+	var box: float = q[5]
+	var x := pos.x
+	if box > 0.0:
+		if int(q[4]) == HORIZONTAL_ALIGNMENT_CENTER:
+			x = pos.x + (box - tw) * 0.5
+		elif int(q[4]) == HORIZONTAL_ALIGNMENT_RIGHT:
+			x = pos.x + box - tw
+	return {"text": str(q[3]), "rect": Rect2(x, pos.y - 0.78 * float(sz), tw, float(sz)), "box": box, "size": sz, "over": box > 0.0 and tw > box + 1.5}
 
 
 ## A backing plate (dark translucent rectangle with a thin accent line on its lower edge).
@@ -1277,6 +1326,8 @@ func _draw_hud_body() -> void:
 			var vh := UiUtil.num(veh, &"hp", 0.0)
 			_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
 		stack_end = _draw_priority(c, vp, s, font, plate.end.y + 3.0 * s)
+	if playing and _camp_text != "" and MissionGuide.hud_on:
+		stack_end = _draw_compass(c, vp, s, font, stack_end + 2.0 * s)
 	if playing:
 		stack_end = _draw_stealth_meter(c, vp, s, font, stack_end + 3.0 * s)
 		stack_end = _draw_activity(c, vp, s, font, stack_end + 3.0 * s)
@@ -1671,11 +1722,11 @@ func _ensure_layout() -> void:
 			elif _gear_open:
 				_layout_more(vp, cx, s)
 			elif Game.progress != null:                                 # RESUME, MAP, LOADOUT, OPTIONS and MORE: the whole pause menu
-				_add(&"resume", Rect2(cx - 170.0 * s, 232.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
-				_add(&"pause_map", Rect2(cx - 170.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "MAP", false)
-				_add(&"loadout", Rect2(cx + 4.0 * s, 304.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "LOADOUT", false)
-				_add(&"options", Rect2(cx - 170.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "OPTIONS", false)
-				_add(&"menu_gear", Rect2(cx + 4.0 * s, 376.0 * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "MORE", false)
+				_add(&"resume", Rect2(cx - 190.0 * s, PAUSE_Y * s, 380.0 * s, 72.0 * s), "RESUME", false)
+				_add(&"pause_map", Rect2(cx - 190.0 * s, (PAUSE_Y + 88.0) * s, 186.0 * s, UiUtil.TOUCH_MIN * s), "MAP", false)
+				_add(&"loadout", Rect2(cx + 4.0 * s, (PAUSE_Y + 88.0) * s, 186.0 * s, UiUtil.TOUCH_MIN * s), "LOADOUT", false)
+				_add(&"options", Rect2(cx - 190.0 * s, (PAUSE_Y + 160.0) * s, 186.0 * s, UiUtil.TOUCH_MIN * s), "OPTIONS", false)
+				_add(&"menu_gear", Rect2(cx + 4.0 * s, (PAUSE_Y + 160.0) * s, 186.0 * s, UiUtil.TOUCH_MIN * s), "MORE", false)
 			else:
 				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_add(&"menu", Rect2(cx - 154.0 * s, 314.0 * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
@@ -1704,14 +1755,15 @@ func more_items() -> Array:
 
 
 const MORE_COLS := 3
-const MORE_W := 226.0
+const MORE_W := 256.0
 const MORE_GAP := 8.0
-const MORE_Y := 150.0
+const MORE_Y := 170.0
 
 
 ## The cell `i` (row-major) of the MORE grid: three columns of 64 px buttons.
 func more_cell(i: int, cx: float, s: float) -> Rect2:
-	return Rect2(cx + (-1.5 * MORE_W - MORE_GAP + float(i % MORE_COLS) * (MORE_W + MORE_GAP)) * s, (MORE_Y + float(i / MORE_COLS) * 72.0) * s, MORE_W * s, UiUtil.TOUCH_MIN * s)
+	var w := minf(MORE_W, (get_viewport().get_visible_rect().size.x / s - 48.0) / float(MORE_COLS) - MORE_GAP)      # a narrow or square window shrinks the buttons instead of pushing the grid off screen
+	return Rect2(cx + (-1.5 * w - MORE_GAP + float(i % MORE_COLS) * (w + MORE_GAP)) * s, (MORE_Y + float(i / MORE_COLS) * 76.0) * s, w * s, UiUtil.TOUCH_MIN * s)
 
 
 ## The reserved cell of the TEST button (test mode only; scripts/ui/test_menu.gd draws it): right after the last entry. Empty when the MORE page is closed.
@@ -1797,11 +1849,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.0, 0.06, 0.08, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))
-	# thin horizontal frame lines
-	var frame_col := Color(UiUtil.CYAN, 0.35)
-	if not photo_open():
-		c.draw_line(Vector2(0.0, 74.0 * s), Vector2(vp.x, 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
-		c.draw_line(Vector2(0.0, vp.y - 74.0 * s), Vector2(vp.x, vp.y - 74.0 * s), Color(frame_col, 0.12), 1.0 * s)
+	# no frame lines across the screen: they cut through the rows of every panel
 	match st:
 		&"menu" when _options_open:
 			OptionsScreen.draw(self, c, vp, s, font, cx)
@@ -1810,7 +1858,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		&"menu" when _chapters_open:
 			ChapterSelect.draw(self, c, vp, s, font, cx)
 		&"menu" when _gear_open:
-			_text(c, font, Vector2(0.0, 96.0 * s), "MORE", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(52.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+			header(c, vp, s, font, "MORE")
 		&"menu":
 			var dy := _title_shift()
 			var tp := title_plate(vp, s)
@@ -1853,9 +1901,9 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			elif _shop_open:
 				ShopScreen.draw(self, c, vp, s, font, cx)
 			elif _gear_open:
-				_text(c, font, Vector2(0.0, 96.0 * s), "MORE", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(52.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+				header(c, vp, s, font, "MORE")
 			else:
-				_text(c, font, Vector2(0.0, 190.0 * s), "PAUSED", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(64.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+				_draw_pause_head(c, vp, s, font)
 				if not touch_ui_on():
 					_footer(c, vp, s, font)
 		&"dead":
@@ -1901,8 +1949,48 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			_text(c, font, Vector2(r.position.x, r.position.y + r.size.y - 9.0 * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(17.0 * s), Color(1, 1, 1, 0.97 if (on or hot) else 0.75))
 			continue
 		var bl := Tr.t(str(b["label"]))
-		var bsz := UiUtil.fit_size(font, bl, r.size.x - 10.0 * s, int((30.0 if big else 20.0) * s))      # a long node or colour name shrinks to its button instead of being cut
-		_text(c, font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + (10.0 if big else 7.0) * s), b["label"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, bsz, Color(1, 1, 1, 0.97 if (on or hot or big) else 0.75))
+		var bcol := Color(1, 1, 1, 0.97 if (on or hot or big) else 0.8)
+		var bw := r.size.x - 12.0 * s
+		var bsz := UiUtil.fit_size(font, bl, bw, int((30.0 if big else 22.0) * s))
+		if bsz < int(BODY_MIN * s) and bl.contains(" "):                  # too long for one line at a readable size: two lines (never a 10 px label)
+			var ln := _split_label(bl)
+			var longer: String = ln[0] if _text_width(font, ln[0], 20) >= _text_width(font, ln[1], 20) else ln[1]
+			var sz2 := maxi(UiUtil.fit_size(font, longer, bw, int(20.0 * s)), int(BODY_MIN * s))
+			var top := r.position.y + (r.size.y - sz2 * 2.15) * 0.5
+			_text(c, font, Vector2(r.position.x, top + sz2 * 0.9), ln[0], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, sz2, bcol)
+			_text(c, font, Vector2(r.position.x, top + sz2 * 2.0), ln[1], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, sz2, bcol)
+			continue
+		bsz = maxi(bsz, int(BODY_MIN * s))
+		_text(c, font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + (10.0 if big else 7.0) * s), bl, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, bsz, bcol)
+
+
+## A label split at the space nearest its middle (two lines of a button).
+static func _split_label(label: String) -> Array[String]:
+	var words := label.split(" ", false)
+	if words.size() < 2:
+		return [label, ""]
+	var best := 1
+	var best_d := 1 << 30
+	for i in range(1, words.size()):
+		var a := " ".join(words.slice(0, i)).length()
+		var b := " ".join(words.slice(i)).length()
+		if absi(a - b) < best_d:
+			best_d = absi(a - b)
+			best = i
+	return [" ".join(words.slice(0, best)), " ".join(words.slice(best))]
+
+
+## The plain pause screen: the title, then what to do now (the one objective) and the wallet, so a returning player knows the next step before pressing RESUME.
+func _draw_pause_head(c: Control, vp: Vector2, s: float, font: Font) -> void:
+	header(c, vp, s, font, "PAUSED")
+	var line := _campaign_line()
+	if line == "":
+		line = objective_text()
+	var shown := ("NOW  " + line.to_upper()) if line != "NO ACTIVE OBJECTIVE" else line
+	var size := maxi(UiUtil.fit_size(font, shown, vp.x - 140.0 * s, int(UiUtil.BAR_LABEL * s)), int(BODY_MIN * s))
+	var pr := _plate_text(c, font, vp.x * 0.5, 104.0 * s, shown, size, Color(UiUtil.CYAN, 1.0), s, Color(UiUtil.MAGENTA, 0.6), 320.0 * s)
+	if Game.progress != null:
+		_text(c, font, Vector2(0.0, pr.end.y + 32.0 * s), "CREDITS  %d" % _wallet(), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 
 
 func _score_lines(c: Control, vp: Vector2, s: float, font: Font, y: float) -> void:
@@ -1910,6 +1998,20 @@ func _score_lines(c: Control, vp: Vector2, s: float, font: Font, y: float) -> vo
 	_text(c, font, Vector2(0.0, y * s), line1, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(30.0 * s), Color(1, 1, 1, 0.95), 1.5 * s)
 	var line := "NEW BEST" if new_best else "BEST  %d" % settings.best
 	_text(c, font, Vector2(0.0, (y + 36.0) * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.AMBER, 0.95))
+
+
+const PAUSE_Y := 214.0              ## base px: the RESUME button of the pause screen (the objective plate sits above it)
+const HEAD_Y := 70.0                ## base px: baseline of the one title every pause / title sub screen shows (HEAD_SIZE tall)
+const HEAD_SIZE := 44.0
+const BODY_MIN := 15.0              ## base px: the smallest menu text (22 px at 1080p); anything smaller wraps or is cut from the design
+
+
+## The title of a sub screen: one size, one place, a short accent rule under it (every screen asks for this instead of drawing its own).
+func header(c: Control, vp: Vector2, s: float, font: Font, title: String, sub := "", sub_col := Color(UiUtil.AMBER, 0.97)) -> void:
+	_text(c, font, Vector2(0.0, HEAD_Y * s), title, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(HEAD_SIZE * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	_rect(c, Rect2(vp.x * 0.5 - 56.0 * s, (HEAD_Y + 12.0) * s, 112.0 * s, 3.0 * s), Color(UiUtil.MAGENTA, 0.9))
+	if sub != "":
+		_text(c, font, Vector2(0.0, (HEAD_Y + 44.0) * s), sub, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), sub_col, 1.0 * s)
 
 
 func _footer(c: Control, vp: Vector2, s: float, font: Font) -> void:
@@ -1943,10 +2045,16 @@ func _campaign() -> Object:
 
 ## The campaign step line ("2/3  HACK THE LEDGER NODE  62%") or "" when no scripted step runs. It outranks the contract line and the core objective.
 func _campaign_line() -> String:
+	var k := _campaign()
+	if InteriorGameplay.active and k != null and k.get(&"guide") != null:
+		var gl := str((k.get(&"guide") as MissionGuide).line())
+		if gl.begins_with("LEAVE"):
+			return gl                                      # the next step cannot start in here: the way out outranks the interior's own job line
 	if InteriorGameplay.hud_line != "":
 		return ""                                          # an interior mission's own line owns the plate inside
-	var k := _campaign()
 	var line := str(k.call(&"hud_line")) if k != null else ""
+	if line == "" and k != null and k.get(&"guide") != null:
+		line = str((k.get(&"guide") as MissionGuide).line())          # between two steps: what comes next, or the way out of the building
 	if line == "" and Game.missions is Missions and (Game.missions as Missions).chases != null:
 		line = (Game.missions as Missions).chases.hud_line()      # a vehicle chase set piece (ChaseRunner)
 	if line == "" and Game.missions is Missions and (Game.missions as Missions).stealth != null:
@@ -2262,7 +2370,7 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 	var r := _plate_text(c, font, vp.x * 0.5, y, text, size, col, s, accent, 260.0 * s)
 	var end := r.end.y
 	if camp and skip_available():
-		var sr := _plate_text(c, font, vp.x * 0.5, end + 6.0 * s, "SKIP SET PIECE   K", int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), s, Color(UiUtil.AMBER, 0.6), 160.0 * s)
+		var sr := _plate_text(c, font, vp.x * 0.5, end + 6.0 * s, ("SKIP STEP   K" if step_skip_offered() else "SKIP SET PIECE   K"), int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), s, Color(UiUtil.AMBER, 0.6), 160.0 * s)
 		end = sr.end.y
 	if k == null:
 		return end
@@ -2272,7 +2380,7 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 			var bar := Rect2(r.position.x, r.end.y, r.size.x, 5.0 * s)
 			_rect(c, bar, Color(0.0, 0.03, 0.05, 0.7))
 			_rect(c, Rect2(bar.position, Vector2(bar.size.x * clampf(pf, 0.0, 1.0), bar.size.y)), Color(UiUtil.CYAN if camp else UiUtil.AMBER, 0.95))
-			end = bar.end.y
+			end = maxf(end, bar.end.y)                         # (the SKIP plate above may hang lower than the thin bar)
 	var boss: Dictionary = k.call(&"boss")
 	if boss.is_empty() and Game.missions is Missions and (Game.missions as Missions).arena != null:
 		boss = (Game.missions as Missions).arena.boss()           # the boss rush / arena boss bar
@@ -2286,6 +2394,11 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 		_rect(c, Rect2(br.position, Vector2(br.size.x * float(boss["frac"]), br.size.y)), Color(UiUtil.RED, 0.95))
 		_frame(c, br, Color(UiUtil.RED, 0.8), 1.0 * s)
 		end = br.end.y + 4.0 * s
+		var hint := str(boss.get("hint", ""))
+		if hint != "":
+			var now := hint == "SHOOT IT NOW"
+			var hr := _plate_text(c, font, vp.x * 0.5, end, hint, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN if not now else UiUtil.AMBER, 1.0).lerp(Color.WHITE, 0.35), s, Color(UiUtil.AMBER if now else UiUtil.CYAN, 0.7), 150.0 * s)
+			end = hr.end.y
 	return end
 
 
@@ -2308,12 +2421,56 @@ func boss_plate(vp: Vector2, s: float, font: Font, end: float, bname: String, na
 	return {"name_rect": name_rect, "text_w": text_w, "baseline": baseline, "size": bsz, "bar": bar}
 
 
+## The compass strip under the objective: a thin line with ticks every 15 degrees, N / E / S / W, and a diamond where the goal lies (pinned to an end with an arrow when it is more than 90
+## degrees off), with the distance. Returns the new bottom of the stack. Drawn only while a step has a goal.
+func _draw_compass(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+	var k := _campaign()
+	if k == null or not is_instance_valid(Game.camera) or not is_instance_valid(Game.player):
+		return y - 2.0 * s
+	var w: Dictionary = k.call(&"waypoint")
+	if w.is_empty() and k.get(&"guide") != null:
+		w = (k.get(&"guide") as MissionGuide).waypoint()
+	if w.is_empty():
+		return y - 2.0 * s
+	var from: Vector3 = Game.player.global_position
+	var yaw := Game.camera.global_rotation.y
+	var width := minf(340.0 * s, vp.x * 0.34)
+	var x0 := vp.x * 0.5 - width * 0.5
+	var half := PI * 0.5
+	var base := y + 18.0 * s
+	_rect(c, Rect2(x0 - 14.0 * s, y, width + 28.0 * s, 38.0 * s), Color(UiUtil.PLATE, 0.8))       # a plate behind it: shop signs must not eat the ticks
+	_rect(c, Rect2(x0, base, width, 1.5 * s), Color(1, 1, 1, 0.45))
+	for i in range(-6, 7):
+		var a := float(i) * PI / 12.0                                        # 15 degree ticks over the +-90 degree window
+		var tx := x0 + width * (0.5 + a / (2.0 * half))
+		_rect(c, Rect2(tx - 1.0 * s, base - (8.0 if i % 3 == 0 else 5.0) * s, 2.0 * s, (8.0 if i % 3 == 0 else 5.0) * s), Color(1, 1, 1, 0.75))
+	var letters := {"N": Vector3(0, 0, -1), "E": Vector3(1, 0, 0), "S": Vector3(0, 0, 1), "W": Vector3(-1, 0, 0)}
+	var lsize := int(UiUtil.BAR_LABEL * s)
+	for l: String in letters:
+		var b := MissionGuide.compass_bearing(Vector3.ZERO, letters[l], yaw)
+		if absf(b) < half:
+			_text(c, font, Vector2(x0 + width * (0.5 + b / (2.0 * half)) - 10.0 * s, base - 9.0 * s), l, HORIZONTAL_ALIGNMENT_CENTER, 20.0 * s, lsize, Color(1, 1, 1, 0.95 if l == "N" else 0.7))
+	var gb := MissionGuide.compass_bearing(from, w["pos"], yaw)
+	var col: Color = w["color"]
+	var pinned := absf(gb) > half
+	var gx := x0 + width * (0.5 + clampf(gb, -half, half) / (2.0 * half))
+	var hs := 8.0 * s
+	var pulse := 0.8 + 0.2 * sin(_t * 5.0)
+	_sprite(c, &"diamond", Rect2(Vector2(gx - hs, base - hs * 2.2), Vector2(hs, hs) * 2.0), Color(col, pulse))
+	var dist := Vector2(w["pos"].x - from.x, w["pos"].z - from.z).length()
+	var label := ("<  " if pinned and gb < 0.0 else "") + "%d M" % roundi(dist) + ("  >" if pinned and gb > 0.0 else "")
+	_text(c, font, Vector2(gx - 50.0 * s, base + 15.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, 100.0 * s, int(UiUtil.BAR_LABEL * s), Color(col.lerp(Color.WHITE, 0.5), 1.0), 1.0 * s)
+	return base + 18.0 * s
+
+
 ## The scripted step's waypoint on the screen: a diamond over the goal with its distance, pinned to the edge of the safe area (pointing the way) when the goal is off screen or behind.
 func _draw_waypoint(c: Control, vp: Vector2, s: float, font: Font, ins: Vector2, insv: Vector2) -> void:
 	var k := _campaign()
 	if k == null or not is_instance_valid(Game.camera):
 		return
 	var w: Dictionary = k.call(&"waypoint")
+	if w.is_empty() and k.get(&"guide") != null:
+		w = (k.get(&"guide") as MissionGuide).waypoint()               # armed: the next goal, or the exit of the building the player is in
 	if w.is_empty():
 		return
 	var cam := Game.camera
@@ -2339,7 +2496,7 @@ func _draw_waypoint(c: Control, vp: Vector2, s: float, font: Font, ins: Vector2,
 	var hs := 13.0 * s
 	_sprite(c, &"diamond", Rect2(pt - Vector2(hs, hs), Vector2(hs, hs) * 2.0), Color(col, pulse))
 	_sprite(c, &"ring", Rect2(pt - Vector2(hs, hs) * 1.6, Vector2(hs, hs) * 3.2), Color(col, 0.6 * pulse))
-	_text(c, font, Vector2(pt.x - 60.0 * s, pt.y + hs * 2.6), "%d M" % roundi(float(k.call(&"distance_to_goal"))), HORIZONTAL_ALIGNMENT_CENTER, 120.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.95), 1.5 * s)
+	_text(c, font, Vector2(pt.x - 60.0 * s, pt.y + hs * 2.6), "%d M" % roundi(Vector2(float(w["pos"].x) - Game.player.global_position.x, float(w["pos"].z) - Game.player.global_position.z).length() if is_instance_valid(Game.player) else float(k.call(&"distance_to_goal"))), HORIZONTAL_ALIGNMENT_CENTER, 120.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.95), 1.5 * s)
 
 
 ## First-use hint: an icon glyph and a short label on a small plate low in the middle (only while the tutorial is not showing).
