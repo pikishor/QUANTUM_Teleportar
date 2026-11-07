@@ -378,6 +378,42 @@ func assign_flank(side: float, seconds := 8.0) -> void:
 	_leave_cover(0.0)
 
 
+## An encounter squad member's role from the director: pusher (rushes straight in), flanker (arcs round the side first, then rushes), anchor (takes cover and suppresses). The role is
+## final: the squad call that normally hands the roles out is skipped (`_called`), and the other specialists simply rush.
+func set_squad_role(role: StringName, side: float) -> void:
+	_called = true
+	if not uses_tactics():
+		rush = true
+		return
+	tactic_role = role
+	match role:
+		&"flanker":
+			rush = true
+			assign_flank(side, 9.0)
+		&"anchor":
+			rush = false
+			_cover_on = true
+		_:
+			rush = true
+
+
+## The director's pressure: a squad member that sits in cover or arcs round for too long is told to come in (a straggler must not stall a wave).
+func squad_rush() -> void:
+	if not uses_tactics():
+		rush = true
+		return
+	tactic_role = &"pusher"
+	rush = true
+	_cover_on = false
+	_assigned_t = 0.0
+	_leave_cover(0.0)
+
+
+## Still doing something other than coming in (cover, a flank arc, holding back)? The director's pressure keeps telling such a trooper until it pushes.
+func needs_push() -> bool:
+	return _cover_on or _cover_state != 0 or not rush or tactic_role != &"pusher"
+
+
 func flank_side() -> float:
 	return _flank
 

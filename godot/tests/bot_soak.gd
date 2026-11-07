@@ -335,6 +335,11 @@ func warm_pools() -> void:
 		em.spawn(t, _p.global_position + Vector3(14.0, 0.0, 0.0), true)
 		await _wait(0.4)
 		em.clear()
+	_note = "patrol"                                             # a patrol set is 5-8 troopers at once: warm the pool to that size (the first one is pool growth, not a leak)
+	for k in 8:
+		em.spawn(&"operative", _p.global_position + Vector3(14.0 + 2.0 * float(k), 0.0, 0.0), true)
+	await _wait(0.4)
+	em.clear()
 	for k in TestMode.VEHICLES:
 		_note = "car " + String(k)
 		vm.spawn_parked(k, _p.global_position + Vector3(rng.randf_range(-20, 20), 0.0, rng.randf_range(-20, 20)), 0.0)

@@ -207,6 +207,9 @@ func _after_scare(pos: Vector3, player_pos: Vector3, close_r: float) -> void:
 
 ## One person in sight calls the Vael patrol: heat goes up a little (never above CALL_HEAT_CAP through this).
 func _try_call(player_pos: Vector3) -> bool:
+	var enc := Encounters.current
+	if enc != null and enc.state == &"wave":
+		return false                                                  # the Vael patrol IS the Watch: nobody calls it while its own squad is fighting the hero (the call fed the wanted level and brought cars and drones into the set)
 	if _call_cd > 0.0 or rng.randf() >= CALL_CHANCE:
 		return false
 	_call_cd = CALL_CD

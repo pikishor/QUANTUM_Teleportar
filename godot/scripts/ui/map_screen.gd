@@ -28,6 +28,7 @@ const HALF := CELLS * CELL * 0.5
 const ZOOMS: Array[int] = [1, 2, 4]
 const ZOOM_MAX := 8.0
 const DRAG_PX := 14.0
+const START_HALF := 300.0                           ## metres: the original city (|x|, |z| <= this) is charted from the first second, so the map is not a black square with a dot (it was 6 %)
 const DISCOVER_R := 150.0                           ## metres: how far around you the map charts itself (it was 70: 6 % after a walk)
 const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items"]
 const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"interior": "INTERIORS", &"job": "JOBS", &"shop": "SHOPS", &"garage": "GARAGE", &"weapon": "WEAPONS", &"home": "HOME", &"items": "ITEMS"}
@@ -93,6 +94,7 @@ func _ready() -> void:
 	visible = false
 	_seen.resize(CELLS * CELLS)
 	_load()
+	reveal_start()
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1042,6 +1044,16 @@ static func file_path() -> String:
 	return path_override if path_override != "" else SAVE_PATH
 
 
+## The city core around the spawn is charted at the start (cells whose centre is within START_HALF on both axes).
+func reveal_start() -> void:
+	if _seen.size() != CELLS * CELLS:
+		_seen.resize(CELLS * CELLS)
+	for i in CELLS * CELLS:
+		var c := cell_center(i)
+		if _seen[i] == 0 and absf(c.x) <= START_HALF and absf(c.y) <= START_HALF:
+			_seen[i] = 1                                    # not _dirty: it is recomputed at every load, so it never makes a save of its own
+
+
 ## DEMO MODE: every cell charted (kept in the demo file only).
 func reveal_all() -> void:
 	_seen = PackedByteArray()
@@ -1058,6 +1070,7 @@ func reload() -> void:
 	waypoint = Vector3.INF
 	_dirty = false
 	_load()
+	reveal_start()
 
 
 func _save() -> void:

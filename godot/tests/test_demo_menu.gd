@@ -40,7 +40,7 @@ func run(h: Node) -> void:
 		await TestLib.frames(host, 2)
 		(Game.enemies as EnemyManager).list.duplicate().map(func(d: Drone) -> void: if is_instance_valid(d): d.damage(TestMode.KILL, true))
 	TestLib.check(Weather.current == &"fog", "weather was set (last entry wins: fog)")
-	TestLib.check(is_equal_approx(Game.heat, 5.0), "heat level set")
+	TestLib.check(Game.heat > 4.5, "heat level set (%.2f: the Watch's heat decays a little while nobody is aware, the last launch action set 5)" % Game.heat)
 	DemoMenu.full_hero_kit()
 	for id: StringName in WeaponDefs.IDS:
 		TestLib.check(WeaponDefs.is_unlocked(id), "full kit unlocks %s" % id)

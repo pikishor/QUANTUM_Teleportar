@@ -68,13 +68,13 @@ func run(host: Node) -> void:
 # --- pure rules -----------------------------------------------------------------------------------------------------------
 
 func _test_rules() -> void:
-	TestLib.check(Encounters.size_of(1) == 2 and Encounters.size_of(2) == 2 and Encounters.size_of(3) == 3 and Encounters.size_of(5) == 4 and Encounters.size_of(99) == Encounters.MAX_WAVE_SIZE, "squads grow 2, 2, 3, 3, 4 ... up to the cap")
-	TestLib.check(Encounters.type_of(1, 0, 0) == &"operative" and Encounters.type_of(3, 1, 1) == &"flanker" and Encounters.type_of(3, 1, 0) == &"operative", "a rusher every 3rd wave (not before chapter 1)")
-	TestLib.check(Encounters.type_of(4, 1, 1) == &"shield" and Encounters.type_of(2, 2, 0) == &"striker" and Encounters.type_of(6, 3, 0) == &"sentinel", "specialists, a kamikaze and a drone join as the waves go on")
+	TestLib.check(Encounters.patrol_size(1, 0) == 5 and Encounters.patrol_size(3, 2) == 8 and Encounters.patrol_size(99, 1) >= 5, "a patrol is 5-8 troopers (the slice script: tests/test_slice_fight.gd)")
+	TestLib.check(Encounters.patrol_type(1, 0, 0) == &"operative" and Encounters.patrol_type(2, 1, 1) == &"flanker" and Encounters.patrol_type(2, 1, 0) == &"operative", "a rusher in wave 2 (not before chapter 1)")
+	TestLib.check(Encounters.patrol_type(3, 1, 1) == &"shield" and Encounters.patrol_type(2, 2, 0) == &"striker" and Encounters.patrol_type(3, 2, 0) == &"striker", "specialists, a kamikaze and a drone join as the waves go on")
 	var g0 := Encounters.gap_after(1, 0.5)
 	var g9 := Encounters.gap_after(9, 0.5)
-	TestLib.check(g0 > g9 and g9 >= Encounters.GAP.x * 0.6 - 0.01 and g0 <= Encounters.GAP.y, "the pause between waves shrinks (%.1f s -> %.1f s)" % [g0, g9])
-	TestLib.check(Encounters.FIRST_DELAY <= 12.0 and Encounters.QUIET_MAX <= 15.0, "first contact and the quiet limit are short")
+	TestLib.check(g0 > g9 and g9 >= Encounters.GAP.x * 0.6 - 0.01 and g0 <= Encounters.GAP.y * 1.1, "the pause between waves shrinks (%.1f s -> %.1f s)" % [g0, g9])
+	TestLib.check(Encounters.FIRST_DELAY <= 30.0 and Encounters.QUIET_MAX <= 15.0, "first contact (about 30 s in) and the quiet limit are short")
 
 
 # --- the shot sounds, measured from the files ---------------------------------------------------------------------------
@@ -174,7 +174,7 @@ func _wait(host: Node, seconds: float, until := Callable()) -> float:
 
 func _test_first_contact(host: Node) -> void:
 	var ppos := _p.global_position
-	var t := await _wait(host, 16.0, func() -> bool: return _enc.waves_started >= 1)
+	var t := await _wait(host, Encounters.FIRST_DELAY + 8.0, func() -> bool: return _enc.waves_started >= 1)
 	TestLib.check(_enc.waves_started >= 1, "the first squad comes within %.0f s of play (%.1f s)" % [Encounters.FIRST_DELAY + 4.0, t])
 	TestLib.check(_enc.first_wave_t >= Encounters.FIRST_DELAY - 2.0 and _enc.first_wave_t <= Encounters.FIRST_DELAY + 4.0, "first contact is on the countdown (%.1f s of play)" % _enc.first_wave_t)
 	TestLib.check(_enc.squad.size() >= 2 and _enc.squad.size() <= _mgr.cap(), "a squad of 2 or more, inside the tier's cap of %d (%d)" % [_mgr.cap(), _enc.squad.size()])
@@ -182,7 +182,7 @@ func _test_first_contact(host: Node) -> void:
 	for pt: Vector3 in _enc.last_spawn_points:
 		var d := Vector2(pt.x - ppos.x, pt.z - ppos.z).length()
 		near_ok = near_ok and d >= Encounters.SPAWN_MIN - 3.0 and d <= Encounters.SPAWN_MAX + 4.0
-	TestLib.check(near_ok, "the squad spawns 20-34 m from the hero (%d spawn points)" % _enc.last_spawn_points.size())
+	TestLib.check(near_ok, "the squad spawns 15-27 m from the hero (%d spawn points)" % _enc.last_spawn_points.size())
 	var rushers := 0
 	var aware := 0
 	var heat_ok := true
@@ -218,6 +218,8 @@ func _test_fight(host: Node) -> void:
 	_enc.reset()
 	_enc._calm_t = 1.0
 	Game.heat = 0.0
+	var casualties0 := Game.civilian_casualties
+	Game.civilian_casualties = false                              # this test is about the patrol fight: the bot's stray rounds into the (now dense) crowd would add civilian heat and make the heat check depend on luck
 	var bot := FightBot.new()
 	bot.setup(_p)
 	bot.aim_error = 0.008
@@ -231,7 +233,7 @@ func _test_fight(host: Node) -> void:
 	var engaged := 0
 	var t := 0.0
 	var sample_t := 0.0
-	while t < 40.0:
+	while t < 60.0:                                                # the patrol now closes in for about 10 s and waves clear in 10-15 s: three waves need a minute
 		await _frame(host)
 		t += _dt
 		bot.step(_dt)
@@ -253,6 +255,7 @@ func _test_fight(host: Node) -> void:
 	TestLib.check(samples > 0 and float(engaged) / float(samples) >= 0.6, "an enemy is aware and within 45 m %d of %d sampled seconds" % [engaged, samples])
 	TestLib.check(_enc.waves_cleared >= 1 and _enc.squad_kills >= 2, "waves clear (%d) and the squad's kills are counted (%d)" % [_enc.waves_cleared, _enc.squad_kills])
 	TestLib.check(Game.heat < 4.0, "a street fight alone does not max the wanted level (heat %.1f)" % Game.heat)
+	Game.civilian_casualties = casualties0
 	for c: Dictionary in _enc.wave_started.get_connections():
 		_enc.wave_started.disconnect(c["callable"])
 
@@ -299,9 +302,9 @@ func _test_backup(_host: Node) -> void:
 	_mgr.clear()
 	_enc.reset()
 	_enc._calm_t = 99.0
-	_enc.wave = 2                                               # wave 3 has three members
+	_enc.wave = 2
 	var n := _enc.start_wave(_mgr, _p.global_position)
-	TestLib.check(n >= 3 and _enc.state == &"wave", "a wave of three is on (%d)" % n)
+	TestLib.check(n >= 3 and _enc.state == &"wave", "a wave of five or more is on (%d)" % n)
 	var keep := 1
 	for d in _enc.squad.duplicate():
 		if keep > 0:

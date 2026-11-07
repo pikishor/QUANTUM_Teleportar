@@ -18,8 +18,8 @@ const NEAR_CAP := 24                     ## people drawn with the full mesh (abo
 const NEAR_RADIUS := 24.0                ## everybody else is drawn with the cut-down mesh "CitizenFar" (about 250 triangles)
 const ARCHETYPES := 6                    ## the shader shows archetype floor(seed * 5.999) of the citizen mesh
 const BUILT := 100                       ## pool size = MultiMesh instances (the HIGH count)
-const COUNTS: Array[int] = [24, 56, 90]
-const RADII: Array[float] = [40.0, 70.0, 90.0]
+const COUNTS: Array[int] = [48, 84, 96]            ## LOW 48 (was 24: the market street must always hold 20+ people within 40 m of the hero, see LifeCensus / test_slice_life)
+const RADII: Array[float] = [42.0, 58.0, 68.0]
 const LINE_OFF := 11.3                   ## sidewalk line offset from the road centre (kerb at 10, building faces from 12)
 const ROAD_SPAN := 22.6                  ## the part of a line that lies on a crossing road (zebra) : 2 * LINE_OFF
 const MIN_SPAWN := 7.0
@@ -29,11 +29,15 @@ const FLEE_SPEED := 4.4
 const FLEE_TIME := 5.0
 const SHOT_RADIUS: Array[float] = [30.0, 38.0, 45.0]
 const SPAWNS_PER_STEP := 10
+const CORE_SHARE := 0.7                 ## share of the spawns that are drawn inside CORE_R of the hero whatever the tier's ring is
+const CORE_R := 46.0
+const VIEW_BIAS := 0.3                   ## share of the spawns that are refused when they would land behind the camera: the street in front of the hero fills first
+const VENDOR_SEED := 0.7 / 6.0           ## seed of a stall vendor: group 0, archetype 9 (wide hat, tray of glowing wares)
 const EDGE := CityLayout.HALF + 16.0
 const STRIDE := 20
 const OFF_MIN := -0.75                   ## lateral offset range around the sidewalk line (metres)
 const OFF_MAX := 0.62
-const GROUP_CHANCE := 0.09               ## a fresh spawn that starts a little group chatting on the pavement (2-3 people, facing each other)
+const GROUP_CHANCE := 0.15               ## a fresh spawn that starts a little group chatting on the pavement (2-3 people, facing each other)
 const IDLE_CHANCE := 0.012               ## per second, for a walker: stop for a moment
 const SHOP_STAY := Vector2(5.0, 14.0)    ## seconds a person lingers at a shop front / a bus stop (see _assign_goal, NpcLife)
 const BUS_STAY := Vector2(10.0, 24.0)
@@ -88,6 +92,9 @@ var _cower := PackedFloat32Array()       ## seconds left crouching still (a scar
 var _goal := PackedFloat32Array()        ## the next stop (position along the line) when _gkind != 0
 var _gkind := PackedByteArray()          ## 0 none, STOP_SHOP, STOP_BUS
 var _stopk := PackedByteArray()          ## the kind of the last stop person i made (shop / bus), for the right bark
+var _pin := PackedByteArray()            ## 1: a stall vendor, stands where it is (StreetVendors) until scared, shot or the hero leaves
+var _seed0 := PackedFloat32Array()       ## the slot's own seed (a vendor borrows the vendor look)
+var _cam_fwd := Vector2.ZERO             ## flat camera forward (spawn bias), set every step
 var _hide := PackedByteArray()           ## 1: this person is drawn by a real 3D actor (CitizenActors), the MultiMesh skips them
 var _hp := PackedFloat32Array()          ## health per person (HP at spawn)
 var _dying := PackedFloat32Array()       ## seconds of the death left (0 = not dying): the person stands still, falls, dissolves; then the slot is free and respawns elsewhere
@@ -116,6 +123,8 @@ func build(light_map: Texture2D) -> void:
 	_gkind.resize(BUILT)
 	_stopk.resize(BUILT)
 	_hide.resize(BUILT)
+	_pin.resize(BUILT)
+	_seed0.resize(BUILT)
 	for a: PackedFloat32Array in [_cower, _goal, _hp, _dying, _fall]:
 		a.resize(BUILT)
 	_hp.fill(HP)
@@ -123,6 +132,7 @@ func build(light_map: Texture2D) -> void:
 	for i in BUILT:
 		_seed[i] = (float(i % ARCHETYPES) + 0.02 + 0.96 * rng.randf()) / float(ARCHETYPES)        # archetype = i % 6 (an even mix), the rest of the seed picks the palette
 		_size[i] = 0.93 + 0.14 * rng.randf()
+		_seed0[i] = _seed[i]
 		_umb[i] = 1.0 if (i % ARCHETYPES == 2 or rng.randf() < 0.1) else 0.0
 		for c in 4:
 			_buf[i * STRIDE + 12 + c] = 1.0                       # white instance colour (vertex colours need one in the Compatibility renderer)
@@ -188,6 +198,7 @@ func set_tier(level: int, density := 1.0) -> void:
 	var n := mini(LowPlus.scaled(int(COUNTS[quality] * density), LowPlus.CROWD_SHARE, 4) if quality == 0 else int(COUNTS[quality] * density), BUILT)
 	for i in range(n, count):
 		_alive[i] = 0
+		_unpin(i)
 	for i in range(count, n):
 		_alive[i] = 0
 		_first[i] = 1
@@ -202,6 +213,8 @@ func reset() -> void:
 		_alive[i] = 0
 		_first[i] = 1
 	_hide.fill(0)
+	for i in BUILT:
+		_unpin(i)
 	_dying.fill(0.0)
 	_hp.fill(HP)
 	_fled = 0
@@ -230,6 +243,7 @@ func scare_from(pos: Vector3, r: float) -> int:
 
 ## Person `i` runs away from `pos` (along its sidewalk line, away from the point's coordinate).
 func scare_person(i: int, pos: Vector3) -> void:
+	_unpin(i)
 	var along := pos.x if _axis[i] == 0 else pos.z
 	var d := signf(_u[i] - along)
 	_dir[i] = d if d != 0.0 else (1.0 if rng.randf() < 0.5 else -1.0)
@@ -424,6 +438,83 @@ func alive_count() -> int:
 	return n
 
 
+## Slot for a new stall vendor: a free one, else the walker farthest from `center` (not a vendor, not drawn by an actor, not dying). -1 when the pool is empty.
+func claim_slot(center: Vector3) -> int:
+	var best := -1
+	var best_d := -1.0
+	for i in count:
+		if _pin[i] != 0 or _hide[i] != 0 or _dying[i] > 0.0:
+			continue
+		if _alive[i] == 0:
+			return i
+		var p := _position(i) - center
+		var d := p.x * p.x + p.z * p.z
+		if d > best_d:
+			best_d = d
+			best = i
+	return best
+
+
+## Person `i` becomes the vendor of a stall: stands on sidewalk line `lat` of axis `axis` at `u`, offset `off` from the line, facing sideways towards the road (`face` +1 / -1).
+func pin_vendor(i: int, axis: int, lat: float, u: float, off: float, face: int) -> void:
+	_axis[i] = axis
+	_lat[i] = lat
+	_u[i] = u
+	_off[i] = off
+	_dir[i] = 1.0
+	_spd[i] = 0.0
+	_phase[i] = rng.randf() * TAU
+	_flee[i] = 0.0
+	_cower[i] = 0.0
+	_age[i] = 0.0
+	_reg[i] = _region(u)
+	_alive[i] = 1
+	_hp[i] = HP
+	_dying[i] = 0.0
+	_look[i] = LOOK_LAT_POS if face > 0 else LOOK_LAT_NEG
+	_idle[i] = 1.0e9
+	_gkind[i] = 0
+	_first[i] = 0
+	_pin[i] = 1
+	_seed[i] = VENDOR_SEED
+
+
+func _unpin(i: int) -> void:
+	if _pin[i] != 0:
+		_pin[i] = 0
+		_seed[i] = _seed0[i]
+		if _idle[i] > 1.0e8:
+			_idle[i] = 0.0
+			_look[i] = LOOK_ALONG
+
+
+func is_pinned(i: int) -> bool:
+	return _pin[i] != 0
+
+
+func vendors_near(pos: Vector3, r: float) -> int:
+	var n := 0
+	for i in count:
+		if _pin[i] != 0 and _alive[i] == 1:
+			var d := _position(i) - pos
+			if d.x * d.x + d.z * d.z <= r * r:
+				n += 1
+	return n
+
+
+## World (x, z) of the living people who are crossing a road right now (on a zebra), written into `out` (at most its size); returns how many. The near traffic stops for them.
+func fill_crossing(out: PackedVector2Array) -> int:
+	var n := 0
+	for i in count:
+		if _alive[i] == 1 and _dying[i] <= 0.0 and (_reg[i] & 1) == 0:
+			var p := _position(i)
+			out[n] = Vector2(p.x, p.z)
+			n += 1
+			if n >= out.size():
+				break
+	return n
+
+
 # --- being shot (scripts/npc/npc_life.gd decides the consequences) -----------------------------------------------------------
 
 ## Pose of a dying person: x the fall angle about the body's side axis (radians), y the scale (1 -> 0 while the body dissolves), z the lift of the origin.
@@ -513,6 +604,7 @@ func kill_person(i: int, from: Vector3) -> void:
 	var f := _forward(i)
 	var to_src := Vector2(from.x - p.x, from.z - p.z)
 	_fall[i] = 1.0 if (to_src.dot(f) > 0.0 or to_src.length() < 0.1) else -1.0       # shot from the front: falls on the back; from behind: on the face
+	_unpin(i)
 	_hp[i] = 0.0
 	_dying[i] = DIE_TIME
 	_flee[i] = 0.0
@@ -549,26 +641,31 @@ static func _region(u: float) -> int:
 
 
 func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
-	for attempt in 6:
+	for attempt in 12:
+		var rr := radius if rng.randf() >= CORE_SHARE else minf(radius, CORE_R)          # half of the spawns land in the core: the street around the hero is as full on MED / HIGH as on LOW
 		var ax := rng.randi() & 1
 		var perp := c.z if ax == 0 else c.x
 		var along_c := c.x if ax == 0 else c.z
-		var lo := maxi(0, ceili((perp - radius + CityLayout.HALF - LINE_OFF) / 80.0))
-		var hi := mini(CityLayout.N, floori((perp + radius + CityLayout.HALF + LINE_OFF) / 80.0))
+		var lo := maxi(0, ceili((perp - rr + CityLayout.HALF - LINE_OFF) / 80.0))
+		var hi := mini(CityLayout.N, floori((perp + rr + CityLayout.HALF + LINE_OFF) / 80.0))
 		if hi < lo:
 			continue
 		var k := lo + rng.randi() % (hi - lo + 1)
 		var side := 1.0 if rng.randf() < 0.5 else -1.0
 		var line := -CityLayout.HALF + 80.0 * float(k) + side * (LINE_OFF + rng.randf_range(-0.2, 0.2))
 		var dl := line - perp
-		if absf(dl) >= radius:
+		if absf(dl) >= rr:
 			continue
-		var half := sqrt(radius * radius - dl * dl)
+		var half := sqrt(rr * rr - dl * dl)
 		var u := along_c + rng.randf_range(-half, half)
 		if absf(u) > EDGE or Vector2(dl, u - along_c).length() < min_dist:
 			continue
 		if fposmod(u + CityLayout.HALF + LINE_OFF, 80.0) < ROAD_SPAN + 1.5:          # only on the sidewalk spans, never in the road
 			continue
+		if _cam_fwd != Vector2.ZERO and rng.randf() < VIEW_BIAS:
+			var to := Vector2(dl, u - along_c) if ax == 1 else Vector2(u - along_c, dl)
+			if to.normalized().dot(_cam_fwd) < 0.3:
+				continue
 		_axis[i] = ax
 		_lat[i] = line
 		_u[i] = u
@@ -629,6 +726,12 @@ func step(delta: float, center: Vector3) -> void:
 	var spawned := 0
 	_nn = 0
 	var r2 := radius * radius * 1.04
+	_cam_fwd = Vector2.ZERO
+	if is_instance_valid(Game.camera):
+		var cf := -Game.camera.global_transform.basis.z
+		var cv := Vector2(cf.x, cf.z)
+		if cv.length_squared() > 0.04:
+			_cam_fwd = cv.normalized()
 	for i in count:
 		if _alive[i] == 0:
 			if spawned < SPAWNS_PER_STEP:
@@ -640,6 +743,18 @@ func step(delta: float, center: Vector3) -> void:
 			continue
 		if _dying[i] > 0.0:
 			_tick_dying(i, delta, center, r2)
+			continue
+		if _pin[i] != 0:                                   # a stall vendor: stands, fades in, leaves with the ring
+			_age[i] += delta
+			var pp := _position(i)
+			var pdx := pp.x - center.x
+			var pdz := pp.z - center.z
+			if pdx * pdx + pdz * pdz > r2:
+				_unpin(i)
+				_alive[i] = 0
+				_write(i, 0.0, false)
+				continue
+			_write(i, minf(1.0, _age[i] * 1.5), pdx * pdx + pdz * pdz < NEAR_RADIUS * NEAR_RADIUS)
 			continue
 		var fleeing := _flee[i] > 0.0
 		var sp := FLEE_SPEED if fleeing else _spd[i]

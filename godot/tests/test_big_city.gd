@@ -327,6 +327,9 @@ func _minimap_and_map(host: Node) -> void:
 ## and the car never falls, stops or leaves the city.
 func _drive_across(host: Node) -> void:
 	mgr.stream_every = 100000.0                         # a clear avenue: no new traffic while the car races (streaming is checked on its own)
+	if NearTraffic.instance != null:                    # the near (MultiMesh) cars are traffic too: the hero rams them and pushes them at walking pace; this test is about the empty avenue
+		NearTraffic.instance.count = 0
+		NearTraffic.instance.reset()
 	for v in mgr.list.duplicate():
 		if v != mgr.starter:
 			mgr._release(v)

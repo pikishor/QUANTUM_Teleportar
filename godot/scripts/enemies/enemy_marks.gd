@@ -14,6 +14,7 @@ const CAPACITY := 16
 const HALO_SHADER := preload("res://assets/shaders/fx_threat.gdshader")
 const LINE_SHADER := preload("res://assets/shaders/fx_aimline.gdshader")
 const FAR := 90.0                       ## no marks beyond this distance (metres)
+const RING_SQUAD := 14.0                ## an aware encounter trooper (the director's patrol) gets its ring from this far: at 15-40 m a dark thin figure is a few pixels on a phone (slice fight renders)
 const RING_RANGE := 40.0                ## beyond this the body is a few pixels: the ring returns
 const MARK_NEAR_K := 0.34               ## a ring / flare is at most this fraction of its distance to the camera (about 20 degrees of view)
 const MARK_MIN_DIST := 3.5              ## no fallback ring on an enemy closer than this (it is right there, readable by itself)
@@ -115,7 +116,7 @@ func refresh(list: Array[Drone]) -> void:
 			_ray.from = cpos
 			_ray.to = c
 			_occluded[n - 1] = 0 if space.intersect_ray(_ray).is_empty() else 1
-		var needs_ring := (dist > RING_RANGE or _occluded[n - 1] == 1 or not cam.is_position_in_frustum(c)) and dist > MARK_MIN_DIST
+		var needs_ring := (dist > (RING_SQUAD if d.reinforce and d.aware else RING_RANGE) or _occluded[n - 1] == 1 or not cam.is_position_in_frustum(c)) and dist > MARK_MIN_DIST
 		# the ring floats a little in front of the body (towards the camera) so the quad never sinks into the body or the street
 		if needs_ring:
 			var at := c + toward * minf(size * 0.28, dist * 0.5)

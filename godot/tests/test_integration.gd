@@ -58,6 +58,16 @@ func run(h: Node) -> void:
 	await _reflection()
 	await _quality_tiers()
 	_audio()
+	var amb: Variant = (Game.world as City).ambient if Game.world is City else null
+	if amb != null:
+		amb.beats.enabled = false                                  # a street show's light burst would take a pooled emitter of its own
+		for k in 240:
+			var busy := false
+			for c in FX.get_children():
+				busy = busy or (c is CPUParticles3D and (c as CPUParticles3D).visible)
+			if not busy:
+				break
+			await frames(1)
 	_fx_pool()
 	await _death_and_respawn()
 	await _teardown(nodes_before)

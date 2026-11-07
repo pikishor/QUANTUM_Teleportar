@@ -85,8 +85,8 @@ func _test_tiers(host: Node, city: City, amb: Node3D) -> void:
 		TestLib.check((amb.traffic.mm as MultiMesh).visible_instance_count == Traffic.COUNTS[q], "tier %d: the traffic MultiMesh draws %d instances" % [q, Traffic.COUNTS[q]])
 	TestLib.check(seen[0][0] < seen[1][0] and seen[1][0] < seen[2][0], "far traffic grows with the tier")
 	TestLib.check(seen[0][1] < seen[1][1] and seen[1][1] < seen[2][1], "the crowd grows with the tier")
-	TestLib.check(seen[0][2] <= 40.0, "LOW has no pedestrians beyond 40 m (ring %.0f m)" % seen[0][2])
-	TestLib.check(Crowd.COUNTS[0] <= 24 and Crowd.COUNTS[2] <= Crowd.BUILT, "crowd caps hold (LOW %d, HIGH %d of %d)" % [Crowd.COUNTS[0], Crowd.COUNTS[2], Crowd.BUILT])
+	TestLib.check(seen[0][2] <= 42.5, "LOW has no pedestrians beyond 42 m (ring %.0f m)" % seen[0][2])
+	TestLib.check(Crowd.COUNTS[0] <= 48 and Crowd.COUNTS[2] <= Crowd.BUILT, "crowd caps hold (LOW %d, HIGH %d of %d)" % [Crowd.COUNTS[0], Crowd.COUNTS[2], Crowd.BUILT])
 	# the mirrored copies: traffic from MED, crowd on HIGH only; LOW has none
 	var mirror_vis := {}
 	for m in city.mirror_nodes:

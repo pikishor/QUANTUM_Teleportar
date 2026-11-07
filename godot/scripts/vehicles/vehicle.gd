@@ -1004,6 +1004,8 @@ func _blocked(fx: float, fz: float, siren := false) -> bool:
 	if is_instance_valid(pl) and pl.get(&"vehicle") == null and absf(pl.global_position.y - me.y) < 3.0:
 		if _ahead(pl.global_position - me, fx, fz, side):
 			return true
+	if NearTraffic.instance != null and NearTraffic.instance.blocks(me, fx, fz, side, VehicleSpecs.AI_LOOK):       # the near (MultiMesh) cars are traffic too
+		return true
 	var mgr := manager as VehicleManager
 	if mgr != null and not (ai_panic > 1.0 and not siren):            # a car in flight does not brake for the traffic ahead: that is how AI cars crash into each other
 		for o in mgr.list:

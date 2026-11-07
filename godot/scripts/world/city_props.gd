@@ -27,6 +27,7 @@ const RADIUS_PLAZAS := 240.0
 const RADIUS_VENTS := 120.0
 const RADIUS_PLANTERS := 150.0
 const RADIUS_SHOP_SETS := 80.0
+const RADIUS_STALLS := 60.0
 
 const EM_LAMP := 0.15
 const EM_FLASHER := 0.45
@@ -151,6 +152,43 @@ static func kiosk_mesh() -> ArrayMesh:
 			Color(1, 1, 1, EM_BLADE), Vector2.ZERO, Vector2.ZERO, PackedVector2Array([Vector2(0, 0.2), Vector2(0.3, 0.2), Vector2(0.3, 0.0), Vector2(0, 0.0)]))
 	b.uv2 = Vector2(0.5, 0.55)
 	b.box(Vector3(0, 0.55, 0.9), Vector3(2.2, 0.1, 0.25), Color(0.04, 0.04, 0.045, 0.0))
+	return _finish(b)
+
+
+## A curbside market stall (owner round 3: no vendors): counter with glowing wares, two poles, a striped awning, a lit sign blade. Local +Z is the customer side, the vendor stands at -Z.
+static func stall_mesh() -> ArrayMesh:
+	var b := _mb(0.3, 0.6)
+	var wood := Color(0.52, 0.34, 0.19, 0.0)
+	var metal := Color(0.34, 0.36, 0.40, 0.0)
+	b.box(Vector3(0.0, 0.5, 0.0), Vector3(2.5, 1.0, 0.95), wood)                                    # counter
+	b.box(Vector3(0.0, 1.02, 0.0), Vector3(2.6, 0.06, 1.05), Color(0.55, 0.56, 0.6, 0.0))           # top
+	b.box(Vector3(0.0, 0.2, 0.49), Vector3(2.3, 0.3, 0.04), Color(0.15, 0.55, 0.6, 0.0))            # painted skirt
+	for sx in [-1.2, 1.2]:
+		b.box(Vector3(sx, 1.15, -1.75), Vector3(0.07, 2.3, 0.07), metal)                            # rear poles (the vendor stands between them and the counter)
+		b.box(Vector3(sx, 0.95, 0.55), Vector3(0.06, 1.9, 0.06), metal)                             # front poles
+	b.box(Vector3(0.0, 1.5, -1.75), Vector3(2.4, 1.0, 0.05), Color(0.95, 0.58, 0.26, EM_GLOW))        # back wall: a warm lit panel, so the vendor in front of it reads as a figure
+	b.box(Vector3(0.0, 0.5, -1.75), Vector3(2.4, 1.0, 0.05), Color(0.3, 0.2, 0.16, 0.0))              # its dark lower half behind the counter
+	# the awning: four stripes (lit, alternating warm and cool), sloping down to the customers, seen from above and from below
+	var cols := [Color(1.0, 0.62, 0.25), Color(0.2, 0.85, 0.9), Color(1.0, 0.3, 0.6), Color(0.95, 0.8, 0.3)]
+	for k in 4:
+		var x0 := -1.35 + 0.675 * float(k)
+		var x1 := x0 + 0.675
+		var cc: Color = cols[k]
+		var lit := Color(cc.r * 0.75, cc.g * 0.75, cc.b * 0.75, EM_GLOW)
+		b.quad(Vector3(x0, 2.32, -1.85), Vector3(x1, 2.32, -1.85), Vector3(x1, 1.98, 0.78), Vector3(x0, 1.98, 0.78), Vector3.UP, lit)
+		b.quad(Vector3(x0, 2.32, -1.85), Vector3(x1, 2.32, -1.85), Vector3(x1, 1.98, 0.78), Vector3(x0, 1.98, 0.78), Vector3.DOWN, lit)
+	b.box(Vector3(0.0, 1.96, 0.8), Vector3(2.7, 0.1, 0.05), Color(0.08, 0.08, 0.09, 0.0))
+	# wares on the counter: crates and glowing orbs
+	b.box(Vector3(-0.8, 1.14, 0.1), Vector3(0.55, 0.2, 0.45), Color(0.5, 0.34, 0.18, 0.0))
+	b.box(Vector3(0.1, 1.12, 0.1), Vector3(0.55, 0.16, 0.45), Color(0.42, 0.3, 0.17, 0.0))
+	b.box(Vector3(0.9, 1.14, 0.1), Vector3(0.5, 0.2, 0.42), Color(0.5, 0.34, 0.18, 0.0))
+	for k in 4:
+		var ox := -0.9 + 0.6 * float(k)
+		var oc: Color = cols[k % 4]
+		b.sphere(Vector3(ox, 1.31, 0.12 + 0.05 * float(k % 2)), Vector3(0.11, 0.11, 0.11), 4, 2, Color(oc.r, oc.g, oc.b, EM_GLOW))
+	# a lit sign board over the awning
+	b.box(Vector3(0.0, 2.62, -1.0), Vector3(1.9, 0.4, 0.06), Color(0.9, 0.5, 0.2, EM_GLOW))
+	b.cylinder(Vector3(0.0, 1.72, 0.55), 0.07, 0.1, 6, Color(1.0, 0.8, 0.5, EM_GLOW), -1.0, true)
 	return _finish(b)
 
 
@@ -507,6 +545,13 @@ func _place_lot_props(layout: CityLayout) -> void:
 			var bas := Basis(Vector3.UP, (0.0 if lsz > 0.0 else PI) + r2.randf_range(-0.12, 0.12))
 			sets.append([Transform3D(bas, other), Color(r2.randf(), 0.0, 0.0, 1.0)])
 	add_family("ShopSets", shop_set_mesh(), sets, false, false, 0, RADIUS_SHOP_SETS)
+	var stalls: Array = []
+	for site: Dictionary in StreetVendors.sites():                      # no rng here: the other placements keep their stream
+		stalls.append([Transform3D(Basis(Vector3.UP, float(site["yaw"])), site["pos"]), Color(fposmod(float(stalls.size()) * 0.6180339, 1.0), 0.0, 0.0, 1.0)])
+	add_family("MarketStalls", stall_mesh(), stalls, false, false, 0, RADIUS_STALLS)
+	for st in stalls:
+		var sxf: Transform3D = st[0]
+		glow_add(sxf.origin + sxf.basis * Vector3(0.0, 1.6, 0.5), Color(1.0, 0.8, 0.5, 0.9), 1, 3.0, 0.0, fposmod(sxf.origin.x * 0.137, 1.0))
 	add_family("Dumpsters", dumpster_mesh(), dump, false, false, 0, RADIUS_DUMPSTERS)
 	add_family("Trash", trash_mesh(), trash, false, false, 1, RADIUS_TRASH)
 	kit.fold_family(Kit.KIOSK_LIT, kiosk_mesh(), kiosks)

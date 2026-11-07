@@ -121,7 +121,7 @@ func setup(t: StringName) -> void:
 	cs.position = Vector3(0.0, center_y, 0.0)
 	add_child(cs)
 	_build_visual()
-	_ray.collision_mask = Game.L_WORLD
+	_ray.collision_mask = Game.L_WORLD | Game.L_VEHICLE            # a parked car stops a rifle round, so it also breaks the sight line (a trooper behind an SUV came no closer for 30 s: it believed it saw the hero)
 	_ray.collide_with_areas = false
 	visible = false
 	set_physics_process(false)
@@ -713,7 +713,10 @@ func _line_clear(from: Vector3, to: Vector3) -> bool:
 	_ray.from = from
 	_ray.to = to
 	var hit := get_world_3d().direct_space_state.intersect_ray(_ray)
-	return hit.is_empty()
+	if hit.is_empty():
+		return true
+	var pl := Game.player as Player
+	return pl != null and pl.vehicle != null and hit.get("collider") == pl.vehicle          # the hero's own car is not cover
 
 
 # --- visuals --------------------------------------------------------------------------------------------------------

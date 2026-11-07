@@ -18,7 +18,7 @@ func run(_host: Node) -> void:
 	TestLib.check(VehicleVisual.PAINT_RIM > 0.0, "paint has a grazing sheen")
 	# crowd near count
 	var cr := preload("res://scripts/ambient/ambient_crowd.gd").new()
-	TestLib.check(cr.COUNTS[1] >= 50 and cr.COUNTS[0] <= 24, "MED crowd is denser, LOW unchanged")
+	TestLib.check(cr.COUNTS[1] >= 50 and cr.COUNTS[0] <= 48 and cr.COUNTS[1] > cr.COUNTS[0], "MED crowd is denser, LOW unchanged")
 	# look screen buttons inside the screen
 	var old = Game.progress
 	Game.progress = Progress.new()

@@ -20,6 +20,9 @@ var radio: CarRadio                  ## the car radio (3 synthesised stations), 
 var cops_spawned := 0                ## police interceptors sent after the hero so far (tests, stats)
 var spikes: SpikeStrips              ## the spike strips the police lay at heat 3+
 var _cop_t := 0.0
+const LENS_CLEAR := 3.4              ## metres: a STANDING traffic car this close to the camera (XZ) goes
+var _lens_t := 0.0
+var _near_t := 0.0                   ## re-check timer of the near cars around the driven car
 var _spike_t := 6.0
 var patrols_spawned := 0             ## Vael patrol vehicles sent after the player so far (tests, stats)
 
@@ -100,6 +103,8 @@ func nearest(pos: Vector3, r := 4.2) -> Vehicle:
 func reach_car(pos: Vector3) -> Vehicle:
 	var best: Vehicle = null
 	var best_d := INF
+	if NearTraffic.instance != null and not is_instance_valid(driven):          # a near (MultiMesh) car in reach becomes a real one: any car can be taken
+		NearTraffic.instance.promote_near(pos, VehicleSpecs.ENTER_REACH + 0.6)
 	for c in list:
 		if c.dead or not c.active or c.wreck:
 			continue
@@ -180,6 +185,8 @@ func exit_vehicle() -> void:
 ## A horn (`&"horn"`), gunshot (`&"gun"`) or crash (`&"crash"`) at `pos`: traffic reacts (Vehicle.hear). Returns how many cars reacted.
 func hear(pos: Vector3, what: StringName) -> int:
 	var n := 0
+	if NearTraffic.instance != null:
+		NearTraffic.instance.hear(pos, what)                  # the near cars flee too; the count stays that of the real cars
 	for v in list:
 		var before := v.reactions
 		v.hear(pos, what)
@@ -193,6 +200,39 @@ func spawn_parked(kind: StringName, pos: Vector3, heading: float) -> Vehicle:
 		return null
 	var v := _acquire(kind)
 	v.activate(pos, heading)
+	list.append(v)
+	return v
+
+
+## A traffic car whose body is at the camera lens (the hero on foot, a car queued behind him or a hop onto the road) is taken out: its roof would fill a third of the screen (life bot frames).
+func _clear_lens(delta: float) -> void:
+	_lens_t -= delta
+	if _lens_t > 0.0 or not is_instance_valid(Game.camera):
+		return
+	_lens_t = 0.2
+	var cam := Game.camera.global_position
+	var i := list.size() - 1
+	while i >= 0:
+		var v := list[i]
+		if v.ai and not v.patrol and not v.is_starter and not v.driver_is_player and not v.has_meta(&"hold") and not v.garage_car and not v.wreck and absf(v.speed) < 1.0 and v.ai_speed < 1.0:
+			var d := v.global_position - cam
+			if d.x * d.x + d.z * d.z < LENS_CLEAR * LENS_CLEAR:
+				_release(v)
+		i -= 1
+
+
+## A near-traffic car handed over (NearTraffic.promote): a real traffic car at the same place, heading, lane and speed, in the same paint. Null when no slot can be freed.
+func spawn_promoted(kind: StringName, pos: Vector3, heading: float, axis: int, dir: int, line: float, speed: float, cruise: float, paint: int) -> Vehicle:
+	if list.size() >= cap() and not _free_slot():
+		return null
+	var v := _acquire(kind)
+	v.activate(Vector3(pos.x, 0.1, pos.z), heading)
+	v.set_traffic(axis, dir, line, cruise)
+	v.ai_speed = speed
+	v.speed = speed
+	if paint >= 0 and paint < VehicleSpecs.COLORS.size() and v.visual != null:
+		v.visual.set_paint(VehicleSpecs.COLORS[paint])
+		v.paint_i = paint
 	list.append(v)
 	return v
 
@@ -562,6 +602,13 @@ func _physics_process_body(delta: float) -> void:
 			i += 1
 	if driven != null and not is_instance_valid(driven):
 		driven = null
+	if driven == null:
+		_clear_lens(delta)
+	if driven != null and NearTraffic.instance != null:
+		_near_t -= delta
+		if _near_t <= 0.0:
+			_near_t = 0.1
+			NearTraffic.instance.promote_around(driven.global_position, 7.0 + minf(absf(driven.speed) * 0.45, 9.0))       # a crash with a near car is a real crash
 	_collide_all()                                          # a hard bump can wreck the driven car, and the wreck ejects the driver: `driven` is null again after this call
 	if driven != null:
 		_ram_t -= delta

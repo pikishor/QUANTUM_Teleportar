@@ -93,6 +93,9 @@ func _clear() -> void:
 			mgr._release(v)
 	mgr.stream_every = 9999.0
 	mgr._stream_t = 9999.0
+	if NearTraffic.instance != null:                      # the near (MultiMesh) cars are traffic the real cars wait for: this test is about the real ones on an empty road
+		NearTraffic.instance.count = 0
+		NearTraffic.instance.reset()
 
 
 ## Wait on a state with a timeout (game seconds at the test's time scale).

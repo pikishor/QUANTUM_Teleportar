@@ -42,6 +42,26 @@ func _setup() -> void:
 	_em.clear()
 	_p.invuln = 1.0e6
 	_p.hp = _p.max_hp
+	var no_life := OS.get_environment("PERF_NO_LIFE")                 # A / B of the street life: near cars (1), stalls (2), fauna (4), summed
+	if no_life != "":
+		var amb = (Game.world as City).ambient
+		var bits := int(no_life)
+		if bits & 1:
+			amb.near_traffic.count = 0
+			amb.near_traffic.mm.visible_instance_count = 0
+		if bits & 2:
+			for n in (Game.world as City).find_children("MarketStalls*", "", true, false):
+				(n as Node3D).visible = false
+		if bits & 4:
+			amb.fauna.count = 0
+		if bits & 32:                                                 # no civilian casualties (32)
+			Game.civilian_casualties = false
+		if bits & 16 and Encounters.current != null:                  # the fight director (16)
+			Encounters.current.enabled = false
+		if bits & 8:                                                  # the whole crowd (8)
+			amb.crowd.count = 0
+			amb.crowd.mm.visible_instance_count = 0
+			amb.crowd.mm_near.visible_instance_count = 0
 	_p.teleport_to(Game.SPAWN)
 	_p.camera_rig.reset_view(-PI * 0.5, -0.1)
 	_p.yaw = -PI * 0.5

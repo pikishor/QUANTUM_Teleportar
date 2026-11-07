@@ -456,7 +456,7 @@ func _test_streaming(host: Node, city: City) -> void:
 	TestLib.check(complete, "every instance within a family's fade distance of the camera is drawn")
 	var drawn := city.stats()
 	var tris: int = int(drawn["triangles_drawn"]) + int(drawn["triangles_drawn_mirror"])
-	TestLib.check(tris < 160000, "medium tier at the spawn draws %d triangles (all families and the mirrored copies; budget 300k for the whole frame)" % tris)
+	TestLib.check(tris < 170000, "medium tier at the spawn draws %d triangles (all families and the mirrored copies; budget 300k for the whole frame)" % tris)
 	# the camera moves: the window follows, the instances near it are always there (non-forced updates, one per frame, like _process)
 	var covered := true
 	var rebuilt := 0

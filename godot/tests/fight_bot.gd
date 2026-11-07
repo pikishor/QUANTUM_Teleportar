@@ -1,6 +1,6 @@
 extends RefCounted
 ## The fight bot of the combat-feel wave: a hero standing in the street who shoots the nearest aware enemy it can see (the way a player with aim assist would) and reloads when empty.
-## It plays through the real input actions and the real camera rig, so recoil, spread, tracers and hit feedback all run. It never moves (the director has to bring the fight to it), and it
+## It plays through the real input actions and the real camera rig, so recoil, spread, tracers and hit feedback all run. It stays put unless somebody aware is near but a parked car or wall hides every one of them: then it steps sideways (_step_aside) until it has a line, and it
 ## is made nearly unkillable so a measurement run is not cut short. Numbers it keeps: shots, hits (Player.hit_confirmed), kills, the time of the first shot at an enemy.
 ## Use through preload: const FightBot := preload("res://tests/fight_bot.gd"); bot.step(dt) once per physics frame.
 
@@ -15,6 +15,9 @@ var target: Drone
 var _err := Vector3.ZERO
 var _err_t := 0.0
 var _shots_at_start := 0
+var _strafe_t := 0.0
+var _strafe_dir := 1.0
+var strafes := 0                        ## times the hero stepped aside to get a clear line (a parked car in the way)
 
 
 func setup(player: Player) -> void:
@@ -33,6 +36,8 @@ func _on_hit(kill: bool, _crit: bool) -> void:
 
 func finish() -> void:
 	Input.action_release(&"fire")
+	Input.action_release(&"move_left")
+	Input.action_release(&"move_right")
 	if p != null and p.hit_confirmed.is_connected(_on_hit):
 		p.hit_confirmed.disconnect(_on_hit)
 
@@ -49,7 +54,7 @@ func pick(reach := 70.0) -> Drone:
 		var d := e.global_position.distance_to(p.global_position)
 		if d >= bd:
 			continue
-		var q := PhysicsRayQueryParameters3D.create(p.global_position + Vector3(0.0, 1.5, 0.0), e.center(), Game.L_WORLD)
+		var q := PhysicsRayQueryParameters3D.create(p.global_position + Vector3(0.0, 1.5, 0.0), e.center(), Game.L_WORLD | Game.L_VEHICLE)         # a parked car stops a round: the player does not shoot the car
 		if not space.intersect_ray(q).is_empty():
 			continue
 		best = e
@@ -69,7 +74,11 @@ func step(dt: float) -> void:
 		target = pick()
 	if target == null:
 		Input.action_release(&"fire")
+		_step_aside(dt)
 		return
+	Input.action_release(&"move_left")
+	Input.action_release(&"move_right")
+	_strafe_t = 0.0
 	_err_t -= dt
 	if _err_t <= 0.0:
 		_err_t = 0.35
@@ -83,3 +92,24 @@ func step(dt: float) -> void:
 
 func kills_per_minute() -> float:
 	return float(kills) / maxf(elapsed / 60.0, 0.001)
+
+
+## Somebody aware is near but no clear line (a car, a corner): a player steps sideways until there is one. Alternates sides every 0.9 s.
+func _step_aside(dt: float) -> void:
+	var mgr := Game.enemies as EnemyManager
+	var near := false
+	for e in mgr.list:
+		if e.active and not e.dead and e.aware and e.global_position.distance_to(p.global_position) < 45.0:
+			near = true
+			break
+	Input.action_release(&"move_left")
+	Input.action_release(&"move_right")
+	if not near:
+		_strafe_t = 0.0
+		return
+	if _strafe_t <= 0.0:
+		_strafe_t = 0.9
+		_strafe_dir = -_strafe_dir
+		strafes += 1
+	_strafe_t -= dt
+	Input.action_press(&"move_right" if _strafe_dir > 0.0 else &"move_left")

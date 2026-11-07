@@ -10,7 +10,8 @@ const SHADER := preload("res://assets/shaders/ambient_fauna.gdshader")
 const BUILT := 72
 const COUNTS: Array[int] = [28, 48, 72]
 const FLOCK := 6
-const RING_MIN := 50.0
+const RING_MIN := 22.0                   ## flocks circle from this far out (was 50: nothing lived within 40 m of the hero)
+const NEAR_LEN := 55.0                   ## street crawlers are seeded within this far along the road of the hero
 const RING_MAX := 150.0
 const FAR := 175.0                       ## beyond this distance (xz) from the player a creature is re-seeded near him
 const SHOT_RADIUS := 45.0
@@ -114,9 +115,9 @@ func _seed(i: int, center: Vector3) -> void:
 	else:
 		var ax := _rng.randi_range(0, 1)
 		var other := center.z if ax == 0 else center.x          # a road near the player's own coordinate across the street axis
-		var k := clampi(roundi((other + CityLayout.HALF) / CityLayout.PITCH) + _rng.randi_range(-1, 1), 0, CityLayout.N)
+		var k := clampi(roundi((other + CityLayout.HALF) / CityLayout.PITCH) + (0 if _rng.randf() < 0.7 else _rng.randi_range(-1, 1)), 0, CityLayout.N)
 		var rc := CityLayout.road_center(k)
-		var al := clampf((center.x if ax == 0 else center.z) + _rng.randf_range(-RING_MAX, RING_MAX), -CityLayout.HALF, CityLayout.HALF)
+		var al := clampf((center.x if ax == 0 else center.z) + _rng.randf_range(-NEAR_LEN, NEAR_LEN), -CityLayout.HALF, CityLayout.HALF)
 		_cen[i] = Vector3(rc, float(ax), al)
 		_rad[i] = _rng.randf_range(-7.0, 7.0)
 		_ang[i] = _rng.randf_range(0.8, 1.8) * (1.0 if _rng.randf() < 0.5 else -1.0)

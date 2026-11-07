@@ -4,7 +4,7 @@ extends Node3D
 ## Locomotion (shared with the hero). The actors never cast shadows (a draw each) and the pool is capped per tier: LOW 0, MED 6, HIGH 12 (every actor is one draw call).
 ## Without the hero files nothing is built and the crowd keeps drawing everybody.
 
-const CAPS: Array[int] = [0, 6, 12]
+const CAPS: Array[int] = [0, 2, 4]            ## wave 89: was 6 / 12; the street core is full of people now so the slots are always taken (+9 draws on MED, +20 on HIGH)
 const SHOW_RADIUS := 22.0                       ## only people this close become actors (the rest of the promoted 12 stay MultiMesh people)
 
 var crowd: RefCounted

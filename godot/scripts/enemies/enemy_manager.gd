@@ -497,6 +497,9 @@ func _tick_heat(delta: float, ppos: Vector3) -> void:
 
 func _tick_reinforcements(delta: float, ppos: Vector3) -> void:
 	_spawn_t -= delta
+	var enc := Encounters.current
+	if enc != null and enc.set_busy():
+		return                                                    # the director's patrol is the Watch's answer for now (Encounters.set_busy)
 	var heat := Game.heat
 	var want := (int(floor(2.0 + heat * 2.6)) + Factions.extra_slots(Game.progress, ppos)) if heat >= 1.0 else 0       # a hostile camp on its own ground sends one more
 	if _spawn_t > 0.0 or want <= 0:

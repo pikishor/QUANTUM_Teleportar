@@ -1310,6 +1310,8 @@ func _draw_hud_body() -> void:
 					c.draw_rect(Rect2(Vector2.ZERO, vp), Color(UiUtil.MAGENTA, cf * 0.22))
 		if since_hurt < MARKER_TIME and playing:
 			_draw_hurt_direction(c, p, vp, s, 1.0 - since_hurt / MARKER_TIME)
+		if playing and veh == null:
+			_draw_threat_edges(c, vp, s)
 	# top centre, one compact stack: the bars on a plate, then ONE priority line (the active / offered contract, else the core objective) and its extras.
 	var top := insv.x + 6.0 * s
 	var stack_end := top
@@ -1650,6 +1652,59 @@ func _draw_hurt_direction(c: Control, p: Node3D, vp: Vector2, s: float, alpha: f
 	var tip := mid + Vector2(cos(ang), sin(ang)) * (rad + 18.0 * s)    # chevron tip pointing at the attacker
 	c.draw_line(tip, tip + Vector2(cos(ang + 2.6), sin(ang + 2.6)) * 22.0 * s, Color(1.0, 0.3, 0.25, alpha), 5.0 * s, true)
 	c.draw_line(tip, tip + Vector2(cos(ang - 2.6), sin(ang - 2.6)) * 22.0 * s, Color(1.0, 0.3, 0.25, alpha), 5.0 * s, true)
+
+
+## Red wedges on an oval round the crosshair, one per trooper of the patrol wave that is NOT on screen (beside the view or behind the hero): where to look. Nothing for a trooper the
+## player can see (its own body says where it is) and nothing outside a wave. At most EDGE_MAX wedges, no allocation beyond the polygon points.
+const EDGE_MAX := 8
+
+
+## Screen angles (radians as drawn: 0 = right, y down) of the live wave's troopers that are off screen. At most EDGE_MAX. Empty outside a wave.
+func threat_edge_angles() -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	var enc := Encounters.current
+	if enc == null or enc.state != &"wave" or not is_instance_valid(Game.camera) or not is_instance_valid(Game.player):
+		return out
+	var cam := Game.camera
+	var b := cam.global_transform.basis
+	var fwd := Vector2(-b.z.x, -b.z.z)
+	if fwd.length() < 0.001:
+		return out
+	fwd = fwd.normalized()
+	var right := Vector2(-fwd.y, fwd.x)
+	var vp := get_viewport().get_visible_rect().size
+	var view := Rect2(Vector2.ZERO, vp).grow(-36.0)
+	var ppos := (Game.player as Node3D).global_position
+	for d in enc.squad:
+		if out.size() >= EDGE_MAX:
+			break
+		if not is_instance_valid(d) or d.dead or not d.active:
+			continue
+		var pos: Vector3 = d.global_position + Vector3(0.0, 1.2, 0.0)
+		if not cam.is_position_behind(pos) and view.has_point(cam.unproject_position(pos)):
+			continue
+		var flat := Vector2(pos.x - ppos.x, pos.z - ppos.z)
+		if flat.length() < 0.5:
+			continue
+		out.append(atan2(flat.dot(right), flat.dot(fwd)) - PI * 0.5)
+	return out
+
+
+func _draw_threat_edges(c: Control, vp: Vector2, s: float) -> void:
+	var angles := threat_edge_angles()
+	if angles.is_empty():
+		return
+	var mid := vp * 0.5
+	var pulse := 0.65 + 0.3 * sin(_t * 7.0)
+	for ang in angles:
+		var dir := Vector2(cos(ang), sin(ang))
+		var at := mid + Vector2(dir.x * (vp.x * 0.5 - 70.0 * s), dir.y * (vp.y * 0.5 - 70.0 * s))
+		var side := Vector2(-dir.y, dir.x)
+		var sz := 20.0 * s
+		var tri := PackedVector2Array([at + dir * sz, at - dir * sz * 0.6 + side * sz * 0.8, at - dir * sz * 0.6 - side * sz * 0.8])
+		var back := PackedVector2Array([at + dir * sz * 1.35, at - dir * sz * 0.85 + side * sz * 1.1, at - dir * sz * 0.85 - side * sz * 1.1])
+		c.draw_colored_polygon(back, Color(0.0, 0.0, 0.0, 0.5))
+		c.draw_colored_polygon(tri, Color(1.0, 0.25, 0.2, pulse))
 
 
 # ---------------------------------------------------------------------------------------------------------------------
