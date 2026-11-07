@@ -50,9 +50,9 @@ func _title() -> void:
 	for b: Dictionary in hud.buttons:
 		rects[String(b["id"])] = b["rect"]
 		TestLib.check((b["rect"] as Rect2).size.y >= 39.0 * s, "title button %s is tall enough" % b["id"])
-	TestLib.check(rects.has("deploy") and rects.has("options"), "the title has DEPLOY (or NEW GAME) and OPTIONS")
+	TestLib.check((rects.has("deploy") or rects.has("continue")) and rects.has("options"), "the title has DEPLOY (or NEW GAME) and OPTIONS")
 	var named := {}
-	for k in ["demo", "options", "deploy"]:
+	for k in ["demo", "options", "deploy", "continue"]:
 		if rects.has(k):
 			named[k] = rects[k]
 	named["test"] = tm.entry_rect()

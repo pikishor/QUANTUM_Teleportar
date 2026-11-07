@@ -217,7 +217,7 @@ func _prologue_then_menu() -> void:
 		hud.call(&"_ensure_layout")
 		var pos := Vector2.ZERO
 		for b: Dictionary in hud.buttons:
-			if b["id"] == &"deploy":
+			if b["id"] == &"deploy" or b["id"] == &"continue":   # a save from the round before turns PLAY into CONTINUE
 				pos = (b["rect"] as Rect2).get_center()
 		for tap in 4:                                            # a person taps again if nothing happens
 			Lib.mouse_event(pos, true)
