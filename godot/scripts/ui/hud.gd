@@ -1105,11 +1105,13 @@ func _text(c: Control, font: Font, pos: Vector2, text: String, align: Horizontal
 	if c == _screen and size < int(BODY_MIN * UiUtil.ui_scale(c.size)):
 		size = int(BODY_MIN * UiUtil.ui_scale(c.size))                      # menus never print below BODY_MIN (22 px at 1080p): a longer text wraps or gets a wider box, it does not shrink
 	var fsz := Tr.scaled_size(font, tt, width, size)
-	if c == _screen and width > 0.0 and align != HORIZONTAL_ALIGNMENT_RIGHT:
+	if c == _screen and width > 0.0:
 		var tw := font.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x
 		if tw > width:                                                      # the device font is wider than the box was drawn for: the box grows around the text, the size stays readable
 			if align == HORIZONTAL_ALIGNMENT_CENTER:
 				pos.x -= (tw - width) * 0.5
+			elif align == HORIZONTAL_ALIGNMENT_RIGHT:
+				pos.x -= tw - width
 			width = tw
 	_q.append([c, font, pos, tt, align, width, fsz, col, shadow])
 
