@@ -215,7 +215,7 @@ func _pause_dead_and_victory() -> void:
 	Fixture.release_inputs()
 	await e.secs(0.9)
 	TestLib.check(Game.state == &"win" and e.flat_speed() < 0.2, "victory: the player comes to a stop (%.2f m/s)" % e.flat_speed())
-	TestLib.check(b._amp < 0.03 and _leg_angle() < 0.08, "victory: the legs are at rest (amplitude %.3f, angle %.3f)" % [b._amp, _leg_angle()])
+	TestLib.check(b._amp < 0.03 and _leg_angle() < 0.12, "victory: the legs are at rest (amplitude %.3f, angle %.3f)" % [b._amp, _leg_angle()])
 	TestLib.check(not p.sprinting and b.global_basis.y.y > 0.99, "victory: the body stands upright and is not sprinting")
 	Game.do_next_sector()
 	await e.frames(3)

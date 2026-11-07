@@ -78,6 +78,9 @@ func _clear() -> void:
 	for v in mgr.list.duplicate():
 		mgr._release(v)
 	mgr.starter = null
+	if NearTraffic.instance != null:                    # the near (MultiMesh) cars become real ones in the way of a driven car: these tests are about an empty avenue
+		NearTraffic.instance.count = 0
+		NearTraffic.instance.reset()
 
 
 ## A fresh car of `kind` at x on the avenue, facing east, parked and ready for manual stepping (the manager's own physics is switched off while a test steps by hand).
@@ -543,7 +546,7 @@ func _camera() -> void:
 		await TestLib.frames(host, 5)
 		settle += 5
 	var fov1 := rig.camera.fov
-	TestLib.check(fov1 > fov0 + 8.0, "the field of view widens with speed (%.0f to %.0f)" % [fov0, fov1])
+	TestLib.check(fov1 > fov0 + 8.0, "the field of view widens with speed (%.0f to %.0f; car %.1f m/s, mode %s, hp %.0f, t %.1f, settle %d)" % [fov0, fov1, v.speed, rig.mode, v.hp, t, settle])
 	TestLib.check(rig._veh_dist_now > d0 + 1.0, "and the camera pulls back (%.1f to %.1f m)" % [d0, rig._veh_dist_now])
 	# look behind: hold BACK and the view swings round, release and it returns
 	Input.action_press(&"look_back")
