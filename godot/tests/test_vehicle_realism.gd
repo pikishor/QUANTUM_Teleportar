@@ -520,7 +520,7 @@ func _camera() -> void:
 	_clear()
 	mgr.set_physics_process(true)
 	mgr.stream_every = 1.0e9
-	var v := _car(&"sedan", -560.0, AVE_Z, -PI * 0.5, true)
+	var v := _car(&"sedan", -560.0, AVE_Z, -PI * 0.5, false)     # camera test: nothing on the avenue may stop the run to speed
 	p.teleport_to(Vector3(-560.0, 0.0, AVE_Z - 3.0))
 	await TestLib.frames(host, 8)
 	mgr.enter(v)
