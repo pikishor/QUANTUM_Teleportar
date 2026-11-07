@@ -538,7 +538,10 @@ func _camera() -> void:
 	while v.speed < 22.0 and t < 12.0:
 		await host.get_tree().physics_frame
 		t += DT
-	await TestLib.frames(host, 40)
+	var settle := 0
+	while (rig.camera.fov < fov0 + 12.0 or rig._veh_dist_now < d0 + 1.5) and settle < 400:     # the lens eases in: wait on the state, not a frame count (a slow runner renders fewer frames per tick)
+		await TestLib.frames(host, 5)
+		settle += 5
 	var fov1 := rig.camera.fov
 	TestLib.check(fov1 > fov0 + 8.0, "the field of view widens with speed (%.0f to %.0f)" % [fov0, fov1])
 	TestLib.check(rig._veh_dist_now > d0 + 1.0, "and the camera pulls back (%.1f to %.1f m)" % [d0, rig._veh_dist_now])
