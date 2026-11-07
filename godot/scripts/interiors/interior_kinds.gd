@@ -237,8 +237,42 @@ const AMBIENCE := {
 }
 
 
+static var _dressed := {}
+
+
 static func spec(type: StringName) -> Dictionary:
-	return SPECS.get(type, SPECS[&"bodega"])
+	var k: StringName = type if SPECS.has(type) else &"bodega"
+	if not _dressed.has(k):
+		_dressed[k] = _dress(SPECS[k])
+	return _dressed[k]
+
+
+## Every room behind the street room gets the same dressing floor: a hanging lamp, a rug, a poster and a bin (no collider props: the guaranteed anchors need the floor spots), whatever its recipe already has stays (director review 3 #11:
+## the back rooms were an empty grey box). Props are "detail" and wall-mounted pieces, so a lower tier drops them first.
+static func _dress(src: Dictionary) -> Dictionary:
+	var spec: Dictionary = src.duplicate(true)
+	var rooms: Array = spec.get("rooms", [])
+	for i in range(1, rooms.size()):
+		var prog: Array = (rooms[i] as Dictionary)["prog"]
+		var ops := {}
+		for st: Array in prog:
+			ops[str(st[0]) + ":" + (str(st[1]) if st.size() > 1 and st[1] is String else "")] = true
+		var add: Array = []
+		if not ops.has("hang:"):
+			add.append(["hang", 2])
+		if not ops.has("detail:rug"):
+			add.append(["detail", "rug", 1, 2])
+		if not ops.has("wm:poster"):
+			add.append(["wm", "poster", 1, 2, "any"])
+		if not ops.has("detail:bin"):
+			add.append(["detail", "bin", 1, 2])
+		# the anchors stay last: they take the floor spots that are still free
+		var anchors: Array = []
+		var body: Array = []
+		for st: Array in prog:
+			(anchors if str(st[0]) == "anchor" else body).append(st)
+		(rooms[i] as Dictionary)["prog"] = body + add + anchors
+	return spec
 
 
 static func has_type(type: StringName) -> bool:

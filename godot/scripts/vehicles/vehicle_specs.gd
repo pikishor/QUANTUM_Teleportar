@@ -145,9 +145,9 @@ const HIT_DAMAGE := 2.2                ## arcade classes: hp per m/s of impact
 const BOUNCE := 1.2                    ## arcade classes: vn restitution factor (vel -= BOUNCE * vn * n)
 const RESTITUTION := 0.22              ## cars: bounce off a wall or another car
 const WALL_FRICTION := 0.4             ## tangential speed lost per unit of normal impulse (a scrape)
-const CRASH_SAFE := 5.0                ## m/s along the contact normal (18 km/h): below this a bump does nothing to the hull
+const CRASH_SAFE := 8.0                ## m/s along the contact normal (18 km/h): below this a bump does nothing to the hull
 const CRASH_WRECK := 28.5              ## m/s (103 km/h): a wall hit this hard takes the whole hull of a stock car (CRASH_REF_HP). 25 km/h costs about 2 %, 40 km/h 13 %, 60 km/h 35 %, 90 km/h 78 %
-const CRASH_POWER := 1.5               ## damage fraction = ((v - SAFE) / (WRECK - SAFE)) ^ POWER
+const CRASH_POWER := 1.8               ## damage fraction = ((v - SAFE) / (WRECK - SAFE)) ^ POWER
 const CRASH_REF_HP := 300.0            ## hp that fraction is of (a sedan: the damage is absolute, a bus with 800 hp survives much more)
 const CAR_SEPARATION := 3.6            ## circle distance of the car-to-car bump (legacy, the OBB test uses the real hull sizes)
 const CAR_HIT_SPEED := 6.5             ## relative speed above which two cars hurt each other
@@ -157,6 +157,9 @@ const HERO_HURT_CAP := 0.3             ## one crash never takes more than this s
 const CRASH_SURVIVE_V := 26.5          ## closing speed (m/s, about 95 km/h): a hull above CRASH_LIMP_FROM is never wrecked by ONE hit up to this speed, it limps home with CRASH_LIMP_HP left
 const CRASH_LIMP_FROM := 0.3
 const CRASH_LIMP_HP := 0.1
+const CRASH_BUMP_MAX := 0.12           ## one bump at or below CRASH_BUMP_V never takes more than this share of the hull (director round 3: three 40-50 km/h bumps wrecked a car)
+const CRASH_BUMP_V := 15.5             ## m/s (56 km/h)
+const WEDGE_SECS := 1.5                ## the driver holds the throttle and the car does not move for this long: the car backs out by itself (a nudge) and the HUD says REVERSE
 const CRASH_REPEAT_GAP := 0.35         ## s: a scrape along a wall counts as one crash, not one per frame
 const EXTERNAL_DAMAGE := 1.0           ## factor of damage() from bullets, blasts and fire (the callers' numbers did not change, the hit points did)
 const RAM_SPEED := 8.0                 ## running over enemies needs this speed

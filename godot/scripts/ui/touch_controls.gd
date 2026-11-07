@@ -24,7 +24,7 @@ const BUTTONS := [
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &"foot"},
 	{"action": &"ability", "dx": 515.0, "dy": 120.0, "r": 58.0, "fs": 22, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability"},
 	{"action": &"swap", "dx": 520.0, "dy": 262.0, "r": 58.0, "fs": 22, "label": "WEAPON", "need": &"weapon"},
-	{"action": &"more", "dx": 505.0, "dy": 395.0, "r": 40.0, "fs": 22, "label": "MORE", "need": &"more_btn", "fn": &"more"},
+	{"action": &"more", "dx": 56.0, "dy": 520.0, "r": 40.0, "fs": 22, "label": "MORE", "need": &"more_btn", "fn": &"more"},
 	{"action": &"altfire", "dx": 650.0, "dy": 100.0, "r": 40.0, "fs": 22, "label": "ALT", "need": &"more"},
 	{"action": &"melee", "dx": 650.0, "dy": 212.0, "r": 46.0, "fs": 22, "label": "MELEE", "need": &"more"},
 	{"action": &"throw_item", "dx": 650.0, "dy": 322.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more"},
@@ -581,7 +581,7 @@ func _weapon_face(c: Control, font: Font, centre: Vector2, r: float, s: float, l
 	var hud := get_parent()
 	var ammo := str(hud.call(&"ammo_text")) if hud != null and hud.has_method(&"ammo_text") else ""
 	if ammo == "RELOADING":
-		ammo = "..."
+		ammo = "RELOAD"                                  # "..." said nothing (director review 3, #10)
 	WeaponIcons.draw(c, (p.get("weapon") as PlayerWeapon).current, Rect2(centre.x - r * 0.8, centre.y - r * 0.78, r * 1.6, r * 0.8), Color(UiUtil.CYAN, 0.95))
 	labels.append([centre + Vector2(-r, r * 0.62), ammo, r * 2.0, 1.0, int(18.0)])
 

@@ -86,6 +86,7 @@ const DEAD_ARC_TIME := 3.2                   ## ... over this many seconds of ga
 const DEAD_KILLER_AGE := 4.0                 ## a hit older than this (seconds) is not "the killer"
 
 # shake caps: the camera never moves more than this, however many hits and blasts pile up
+const PROP_CLEAR := 0.55                      ## metres: a prop closer than this to the camera pushes the camera aside
 const CINE_TTL := 0.25                       ## a scripted camera pose lapses by itself this many real seconds after the last cine_set(): nothing can leave the view stuck
 
 const SHAKE_MAX_OFF := 0.2                   ## metres
@@ -157,6 +158,10 @@ var _shake_t := 0.0
 var _ratio := 1.0                            ## fraction of the arm that is free of walls (smoothed: instant in, eased out)
 var _pivot_pos := Vector3.ZERO
 var _last_base := Vector3.ZERO               ## the followed position the last view update was built on (vehicle mode: for the in-tick shift)
+var _prop_push := Vector3.ZERO              ## eased slide of the camera out of a lamp post, kiosk or bin it would sit in or against (props never shorten the arm)
+var _prop_rids: Dictionary = {}
+var _prop_shape := SphereShape3D.new()
+var _prop_query := PhysicsShapeQueryParameters3D.new()
 var _swing := 0.0                            ## sideways slide of the camera while squeezed against a wall (metres, + is to the right), eased
 var _side := 1.0                             ## the shoulder the slide goes to: +1 right, -1 left, 0 none (kept while it stays free)
 var _probe := PhysicsRayQueryParameters3D.new()
@@ -620,6 +625,35 @@ func _keep_out_of_walls(cam: Vector3) -> Vector3:
 	return at + back / maxf(bl, 0.001) * minf(0.14, bl)
 
 
+## The arm ignores the pooled props, so a camera can end up inside a lamp post with the pole filling a fifth of the phone screen (director review 3, defect 3). One sphere
+## query at the camera: when it touches a prop the camera slides away from it (eased, so it never flickers) and a little up.
+func _prop_avoid(cam: Vector3, pivot: Vector3, dt: float) -> Vector3:
+	var want := Vector3.ZERO
+	if not _prop_rids.is_empty():
+		_prop_shape.radius = PROP_CLEAR
+		_prop_query.shape = _prop_shape
+		_prop_query.transform = Transform3D(Basis.IDENTITY, cam)
+		_prop_query.collision_mask = Game.L_WORLD
+		var hits := get_world_3d().direct_space_state.intersect_shape(_prop_query, 4)
+		for h in hits:
+			if not _prop_rids.has(h["rid"]):
+				continue
+			var bo := h["collider"] as Node3D
+			if bo == null:
+				continue
+			var away := cam - bo.global_position
+			away.y = 0.0
+			if away.length() < 0.05:
+				away = (cam - pivot)
+				away.y = 0.0
+				away = away.rotated(Vector3.UP, 1.5708)
+			want += away.normalized() * (PROP_CLEAR + 0.25) + Vector3(0.0, 0.2, 0.0)
+	_prop_push = want if dt <= 0.0 else _prop_push.lerp(want, 1.0 - exp(-8.0 * dt))
+	if _prop_push.length() < 0.01:
+		_prop_push = Vector3.ZERO
+	return _prop_push
+
+
 ## The pooled prop colliders (lamp poles, dumpsters, kiosks, roof clutter) are world bodies for walking, shooting and blinking but never shorten the camera arm.
 func _exclude_props() -> void:
 	if arm == null or not is_instance_valid(Game.world) or not Game.world.has_method(&"prop_colliders"):
@@ -628,8 +662,10 @@ func _exclude_props() -> void:
 	if pool == null:
 		return
 	_props_excluded = true
+	_prop_rids.clear()
 	for b: StaticBody3D in pool.bodies:
 		arm.add_excluded_object(b.get_rid())
+		_prop_rids[b.get_rid()] = true
 
 
 ## Smooth hero fade for a camera that is close to the head (a wall at the back, a corner): 0 at FADE_START metres, 1 at FADE_END.
@@ -814,6 +850,11 @@ func _update_view(dt: float) -> void:
 	_swing = swing_target if dt <= 0.0 else PlayerUtil.damp(_swing, swing_target, 9.0, dt)
 	if absf(_swing) > 0.001:
 		cam_pos += aim_basis.x * _swing + aim_basis.y * (absf(_swing) / SQUEEZE_SIDE * SQUEEZE_UP)
+
+	if not drv and not InteriorSpace.active and playing:
+		cam_pos += _prop_avoid(cam_pos, _pivot_pos, dt)
+	elif _prop_push != Vector3.ZERO:
+		_prop_push = Vector3.ZERO
 
 	# --- roll, bob, shake
 	var strafe := 0.0

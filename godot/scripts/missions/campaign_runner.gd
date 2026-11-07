@@ -1186,6 +1186,7 @@ func _begin_hack() -> bool:
 	_nag_t = 0.0
 	inside = true
 	visuals.show_marker(0, pos, float(step["radius"]), ContractTypes.CYAN, 0.0, true)
+	visuals.set_pad_style(0, true)
 	return true
 
 

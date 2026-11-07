@@ -11,6 +11,8 @@ render_mode blend_add, unshaded, cull_disabled, depth_draw_never, fog_disabled, 
 uniform vec4 tint : source_color = vec4(1.0, 0.72, 0.25, 1.0);
 uniform float progress = -1.0;   // 0..1 filled arc (clockwise from the top), negative = plain ring
 uniform float inner = 0.90;
+uniform float fill_a = 0.035;   // brightness of the disc inside the band (the hack ring is a lit pad you stand on)
+uniform float ripple = 0.0;      // 0..1 inward data ripple inside the pad
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
 	float r = length(p);
@@ -18,7 +20,7 @@ void fragment() {
 	float a = atan(p.x, -p.y);
 	float f = (a < 0.0 ? a + 6.2831853 : a) / 6.2831853;
 	float fill = progress < 0.0 ? 1.0 : (f <= progress ? 1.0 : 0.2);
-	float disc = (1.0 - smoothstep(0.0, inner, r)) * 0.035;
+	float disc = (1.0 - smoothstep(0.0, inner, r)) * fill_a * (1.0 - ripple + ripple * (0.55 + 0.45 * sin(r * 26.0 + TIME * 3.5)));
 	ALBEDO = tint.rgb * 1.5;
 	ALPHA = clamp(band * fill * (0.75 + 0.25 * sin(TIME * 3.0)) + disc, 0.0, 1.0);
 }
@@ -114,6 +116,7 @@ func _build_marker(i: int) -> Dictionary:
 ## Show marker `i` (0 = a, 1 = b) at `pos`: `radius` is the ring's size in metres, `kind` colours it, `progress` < 0 draws a plain ring.
 func show_marker(i: int, pos: Vector3, radius: float, color: Color, progress := -1.0, beam := true) -> void:
 	var m: Dictionary = markers[i]
+	set_pad_style(i, false)
 	var node: Node3D = m.node
 	node.position = Vector3(pos.x, maxf(pos.y, 0.0), pos.z)
 	node.visible = true
@@ -174,6 +177,14 @@ func move_marker(i: int, pos: Vector3) -> void:
 
 func set_progress(i: int, progress: float) -> void:
 	(markers[i].mat as ShaderMaterial).set_shader_parameter(&"progress", progress)
+
+
+## A lit pad instead of a thin ring (the hack site: the player must see where to stand): a wide band, a bright disc with a ripple that runs inwards.
+func set_pad_style(i: int, on := true) -> void:
+	var mat := markers[i].mat as ShaderMaterial
+	mat.set_shader_parameter(&"inner", 0.78 if on else 0.90)
+	mat.set_shader_parameter(&"fill_a", 0.28 if on else 0.035)
+	mat.set_shader_parameter(&"ripple", 1.0 if on else 0.0)
 
 
 func hide_marker(i: int) -> void:

@@ -73,8 +73,8 @@ void fragment() {
 		float ndv0 = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
 		// subsurface-lite skin: a warm red grazing falloff, back-scatter for lights behind (BACKLIGHT) and a little sheen
 		float sk = 1.0 - suit;
-		alb *= 1.0 + sk * pow(1.0 - ndv0, 2.2) * vec3(0.55, 0.2, 0.08);
-		BACKLIGHT = sk * alb * vec3(0.55, 0.22, 0.12);
+		alb *= 1.0 + sk * pow(1.0 - ndv0, 2.2) * vec3(0.3, 0.16, 0.1);          // (was 0.55, 0.2, 0.08: in a lamp-lit room the neck and the head glowed orange-red, director review 3 #5)
+		BACKLIGHT = sk * alb * vec3(0.32, 0.2, 0.15);
 		emis += sk * alb * 0.26 * (0.6 + 0.4 * v_nrm.y);                       // a skin fill: the face reads in a dark street instead of going black
 		if (suit > 0.001) {
 			float lum = dot(alb, vec3(0.299, 0.587, 0.114));
@@ -205,7 +205,7 @@ void fragment() {
 			// fabric: the rucksack, belt, pouches, boots and the cape (cape = darker steel-blue with folds and an accent hem)
 			float fold = 0.5 + 0.5 * sin(UV.x * 18.0 + sin(UV.y * 5.0) * 1.5);
 			vec3 cloth2 = mix(pants_color * 0.8 + vec3(0.02, 0.022, 0.025), vec3(0.14, 0.22, 0.36), cape);
-			cloth2 = mix(cloth2, vec3(0.38, 0.27, 0.15), step(4.5, kind));                       // coyote canvas: rucksack and pouches (a weave, never one flat bright face)
+			cloth2 = mix(cloth2, vec3(0.2, 0.17, 0.13), step(4.5, kind));                       // coyote canvas: rucksack and pouches (a weave, never one flat bright face)
 			cloth2 *= 1.0 + step(4.5, kind) * (0.2 * sin(UV.x * 140.0) * sin(UV.y * 140.0) - 0.08 * smoothstep(0.1, 0.5, 1.0 - abs(UV.y - 0.5) * 2.0));
 			cloth2 *= mix(0.8, 1.15, mix(0.5, fold, cape));
 			float groove2 = (1.0 - smoothstep(0.0, 0.07, edge)) * (1.0 - cape);

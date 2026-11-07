@@ -200,7 +200,7 @@ func _sub_layout(vp: Vector2, s: float, ins: Vector2) -> Dictionary:
 	var full := story.display_text()
 	var lines: PackedStringArray = fit_lines(full, width - 26.0 * s, int(SUB_FONT * s * zoom * Tr.text_scale), int(SUB_SMALL * s * zoom), SUB_MAX_LINES if UiSettings.s_chatter >= 2 else 2)
 	if UiSettings.s_chatter < 2 and lines.size() > 2:
-		lines = lines.slice(0, 2)                                       # LOW / OFF story chatter: two lines at most
+		lines = lines.slice(0, 2)                                       # LOW / OFF story chatter: two lines at most (Story.shorten() keeps the line to one sentence of at most MAX_SHORT characters, which fits two lines at the small font)
 	var fsize := _fit_size
 	var lh := float(fsize) * 1.28
 	var h: float = float(lines.size()) * lh + 32.0 * s

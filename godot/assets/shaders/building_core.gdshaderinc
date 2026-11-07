@@ -603,7 +603,7 @@ void fragment() {
 			albedo = mix(albedo, glass_s, open_shop);
 			rough = mix(rough, 0.05, open_shop);
 			metal = open_shop * 0.35;
-			emit += gl_refl * (0.30 + 1.6 * gfr) * open_shop;
+			emit += gl_refl * (0.22 + 1.1 * gfr) * open_shop;                  // (was 0.30 + 1.6 * gfr: a head-on pane read as a pale grey sheet, director review 3 #4)
 			// interior: one to three small practical lights per bay (about 30 percent of the glass at most)
 			float open_i = open_shop * (1.0 - frame_m);
 			float nfeat = floor(1.0 + hash12(bid + 37.0) * 2.99);
@@ -628,7 +628,7 @@ void fragment() {
 			}
 			// the shop is a lit room, not a black pane: a back-wall wash in the bay's own colour that brightens toward the ceiling, a row of ceiling strip lights, and shelves of coloured goods
 			vec3 wash = mix(sc, tung, 0.2) * 0.85;
-			fe += wash * (0.16 + 0.22 * smoothstep(0.9, 3.0, y)) * (0.7 + 0.6 * hash12(bid + 17.0));
+			fe += wash * (0.05 + 0.16 * smoothstep(1.3, 3.1, y)) * (0.7 + 0.6 * hash12(bid + 17.0));       // (was 0.16 + 0.22: the whole glass was one flat pale wash; now the lower half is dark glass and the warmth sits under the ceiling)
 			fe += mix(vec3(0.8, 0.9, 1.0), tung, step(0.5, hash12(bid + 23.0))) * band(y, 3.02, 3.14, abv) * (0.55 + 0.45 * step(0.4, fract(xm * 0.8 + rb0 * 4.0))) * 0.9;
 			vec2 gcell = vec2(floor(xm * 5.0), floor(y * 3.2));
 			float gitem = step(0.4, hash12(gcell + bid * 1.7)) * band(fract(y * 3.2), 0.1, 0.82, abv * 3.2) * band(fract(xm * 5.0), 0.12, 0.88, amu * 5.0);

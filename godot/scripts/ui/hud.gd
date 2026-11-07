@@ -1317,6 +1317,8 @@ func _draw_hud_body() -> void:
 	# damage vignette first so everything else sits on top of it
 	if p != null:
 		var since_hurt := now - UiUtil.num(p, &"last_hurt_time", -100.0)
+		if veh != null:
+			since_hurt = maxf(since_hurt, 100.0) if UiUtil.num(veh, &"last_impact", 0.0) < 20.0 else since_hurt      # in a car only a hard impact (72 km/h and up) flashes red, a bump never does
 		var hp_f := UiUtil.num(p, &"hp", 100.0) / maxf(UiUtil.num(p, &"max_hp", 100.0), 1.0)
 		var a := vignette_alpha(since_hurt, hp_f, playing, _t)
 		if a > 0.01:
@@ -1530,8 +1532,20 @@ func banner_busy() -> bool:
 	return is_instance_valid(Game.story) and (Game.story.banner_visible() or Game.story.cards_active())
 
 
+## True when the toast `text` only repeats the campaign step line already on the plate ("1/3 CROSS THE TRADING FLOOR" and the toast CROSS THE TRADING FLOOR): the objective is said once (director review 3, #6).
+func echoes_objective(text: String) -> bool:
+	if _camp_text == "" or text == "":
+		return false
+	var a := Tr.t(text).strip_edges().to_upper()
+	var b := _camp_text.strip_edges().to_upper()
+	var sp := b.find(" ")
+	if sp > 0 and sp <= 4 and b.substr(0, sp).contains("/"):      # the "1/3 " step counter in front
+		b = b.substr(sp + 1).strip_edges()
+	return a == b or a == Tr.t(b).to_upper() or b.begins_with(a) and a.length() >= 12
+
+
 func _draw_message(c: Control, vp: Vector2, s: float, font: Font) -> void:
-	if message_left <= 0.0 or message_text == "" or Game.state != &"play" or banner_busy():
+	if message_left <= 0.0 or message_text == "" or Game.state != &"play" or banner_busy() or echoes_objective(message_text):
 		return
 	var fade := clampf(minf(message_left / 0.4, (_msg_total - message_left) / 0.12 + 0.3), 0.0, 1.0)
 	var size := int(30.0 * s)
@@ -2551,6 +2565,8 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 	if not contract and campaign_owns_goal():
 		return y                                           # the story is running: no leftover "QUANTUM CORES 0 / 6" line next to it (director review)
 	var text := _camp_text if camp else (_contract_text if contract else _obj_text)
+	if camp and MissionGuide.hud_on and _has_waypoint():
+		text = strip_distance(text)                        # the distance lives on the beacon marker: the same sentence and number three times was a pile (director review 3, #6)
 	var col := Color(UiUtil.CYAN.lerp(Color.WHITE, 0.45), 1.0) if camp else (Color(UiUtil.AMBER.lerp(Color.WHITE, 0.35), 1.0) if contract else Color(UiUtil.MAGENTA.lerp(Color.WHITE, 0.45), 1.0))
 	var accent := Color(UiUtil.CYAN, 0.8) if camp else (Color(UiUtil.AMBER, 0.7) if contract else Color(UiUtil.MAGENTA, 0.6))
 	var size := int(UiUtil.TEXT_MIN * s)
@@ -2589,6 +2605,24 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 			var hr := _plate_text(c, font, vp.x * 0.5, end, hint, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN if not now else UiUtil.AMBER, 1.0).lerp(Color.WHITE, 0.35), s, Color(UiUtil.AMBER if now else UiUtil.CYAN, 0.7), 150.0 * s)
 			end = hr.end.y
 	return end
+
+
+## "1/3  CROSS THE FLOOR  131 M" -> "1/3  CROSS THE FLOOR": the trailing distance is dropped (a clock or a percentage in the line stays).
+static func strip_distance(line: String) -> String:
+	var re := RegEx.new()
+	re.compile("\\s+\\d+ M$")
+	return re.sub(line, "").strip_edges()
+
+
+## True while the campaign step has a goal point (the compass and the beacon marker show it).
+func _has_waypoint() -> bool:
+	var k := _campaign()
+	if k == null:
+		return false
+	var w: Dictionary = k.call(&"waypoint")
+	if w.is_empty() and k.get(&"guide") != null:
+		w = (k.get(&"guide") as MissionGuide).waypoint()
+	return not w.is_empty()
 
 
 ## True when the priority line `line` already carries the boss's name (without its "PHASE n / 3" tail): the bar then shows no second name.
@@ -2647,7 +2681,7 @@ func _draw_compass(c: Control, vp: Vector2, s: float, font: Font, y: float) -> f
 	var pulse := 0.8 + 0.2 * sin(_t * 5.0)
 	_sprite(c, &"diamond", Rect2(Vector2(gx - hs, base - hs * 2.2), Vector2(hs, hs) * 2.0), Color(col, pulse))
 	var dist := Vector2(w["pos"].x - from.x, w["pos"].z - from.z).length()
-	var label := ("<  " if pinned and gb < 0.0 else "") + "%d M" % roundi(dist) + ("  >" if pinned and gb > 0.0 else "")
+	var label := ("<  " if pinned and gb < 0.0 else "") + "%d M" % roundi(dist) + ("  >" if pinned and gb > 0.0 else "") if pinned else ""        # in the window the beacon marker has the number
 	_text(c, font, Vector2(gx - 50.0 * s, base + 15.0 * s), label, HORIZONTAL_ALIGNMENT_CENTER, 100.0 * s, int(UiUtil.BAR_LABEL * s), Color(col.lerp(Color.WHITE, 0.5), 1.0), 1.0 * s)
 	return base + 18.0 * s
 
@@ -2672,6 +2706,7 @@ func _draw_waypoint(c: Control, vp: Vector2, s: float, font: Font, ins: Vector2,
 	var sp := cam.unproject_position(head)
 	var behind := cam.is_position_behind(head)
 	var pt := sp
+	var edge_dir := 0.0
 	if behind or not box.has_point(sp):
 		var cc := box.get_center()
 		var dir := sp - cc
@@ -2681,10 +2716,16 @@ func _draw_waypoint(c: Control, vp: Vector2, s: float, font: Font, ins: Vector2,
 			dir = Vector2(0.0, -1.0)
 		var half := box.size * 0.5
 		pt = cc + dir * minf(half.x / maxf(absf(dir.x), 0.001), half.y / maxf(absf(dir.y), 0.001))
+		if behind:                                          # a goal behind the camera sits on the side edge it is turning toward, at mid height (it used to hang at the bottom, at the hero's feet, pointing nowhere)
+			var bear := MissionGuide.compass_bearing(Game.player.global_position, w["pos"], cam.global_rotation.y) if is_instance_valid(Game.player) else 1.0
+			pt = Vector2(box.position.x if bear < 0.0 else minf(box.end.x, vp.x - ins.y - 640.0 * s), cc.y)       # (the right side stops short of the button cluster)
+			edge_dir = -1.0 if bear < 0.0 else 1.0
 	var pulse := 0.8 + 0.2 * sin(_t * 5.0)
 	var hs := 13.0 * s
 	_sprite(c, &"diamond", Rect2(pt - Vector2(hs, hs), Vector2(hs, hs) * 2.0), Color(col, pulse))
 	_sprite(c, &"ring", Rect2(pt - Vector2(hs, hs) * 1.6, Vector2(hs, hs) * 3.2), Color(col, 0.6 * pulse))
+	if edge_dir != 0.0:
+		_text(c, font, Vector2(pt.x + edge_dir * 30.0 * s - 20.0 * s, pt.y + hs * 0.6), "<" if edge_dir < 0.0 else ">", HORIZONTAL_ALIGNMENT_CENTER, 40.0 * s, int(UiUtil.BAR_LABEL * 1.3 * s), Color(col.lerp(Color.WHITE, 0.4), pulse), 1.5 * s)
 	_text(c, font, Vector2(pt.x - 60.0 * s, pt.y + hs * 2.6), "%d M" % roundi(Vector2(float(w["pos"].x) - Game.player.global_position.x, float(w["pos"].z) - Game.player.global_position.z).length() if is_instance_valid(Game.player) else float(k.call(&"distance_to_goal"))), HORIZONTAL_ALIGNMENT_CENTER, 120.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.95), 1.5 * s)
 
 

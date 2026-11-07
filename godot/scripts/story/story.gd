@@ -18,9 +18,9 @@ const LINE_GAP := 0.3               ## seconds between two radio lines
 const CARD_HOLD_BASE := 0.6         ## a finished card moves on by itself after this + per character
 const CARD_HOLD_PER_CHAR := 0.01
 const PROLOGUE_CPS := 110.0          ## the prologue cards are three short lines over a LIVE street: fast typing, a short hold, a hard cap (director round 2: about 16 s of cards, then 11 s)
-const PROLOGUE_HOLD_BASE := 0.25
-const PROLOGUE_HOLD_PER_CHAR := 0.008
-const PROLOGUE_MAX := 4.0             ## seconds all prologue cards together may stay up; a tap skips earlier
+const PROLOGUE_HOLD_BASE := 0.08
+const PROLOGUE_HOLD_PER_CHAR := 0.006
+const PROLOGUE_MAX := 3.0             ## seconds all prologue cards together may stay up; a tap skips earlier
 const SAFE_RADIUS := 30.0             ## metres: an enemy this close (or a wanted level, or a hurt hero) ends the cards at once: they only run while the player is safe
 const CARD_MIN := 0.35              ## seconds before a tap may advance a card (a firing finger must not skip it)
 const BANNER_TIME := 4.4
@@ -168,6 +168,8 @@ static func shorten(t: String) -> String:
 	var cut := -1
 	for sep: String in [". ", "! ", "? ", " - ", " // "]:
 		var i := s.find(sep)
+		while i >= 0 and i < 12:                     # a short first sentence ("Kestrel.") is not the whole line: look for the next break
+			i = s.find(sep, i + 1)
 		if i >= 12 and (cut < 0 or i < cut):
 			cut = i
 	if cut >= 0:

@@ -10,7 +10,7 @@ const GRID_COLS := 4
 const TILE := Vector2(124.0, 72.0)        ## a weapon tile (icon over its tag), at least the 64 px touch minimum
 const TILE_GAP := 8.0
 const INFO_Y := 396.0                     ## the selected weapon's name (the stats line and the page buttons follow)
-const SLOT_Y := 178.0
+const SLOT_Y := 198.0                     ## (was 178: the OPTIC caption touched the NEXT line above it, director review 3 #12)
 const SLOT_STEP := 114.0
 const PART_W := 190.0
 const PART_H := 80.0
@@ -72,7 +72,7 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 			var label := "ON" if own else ("EQUIP" if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
 			hud.buttons.append({"id": StringName("part_%s" % part), "rect": Rect2(cx + (20.0 + j * (PART_W + 8.0)) * s, (SLOT_Y + k * SLOT_STEP + 24.0) * s, PART_W * s, PART_H * s), "label": label, "on": own,
 				"part": true, "name": String(Attachments.PARTS[part]["name"]), "fx": String(PART_FX.get(part, "")), "state": 2 if own else (1 if Attachments.is_owned(part) else 0)})
-	hud._add_card(&"loadout_gear", Rect2(cx + 20.0 * s, 536.0 * s, 240.0 * s, 64.0 * s), "GEAR", &"gear", "", false, UiUtil.MAGENTA)
+	hud._add_card(&"loadout_gear", Rect2(cx + 20.0 * s, 542.0 * s, 240.0 * s, 64.0 * s), "GEAR", &"gear", "", false, UiUtil.MAGENTA)
 	hud._add(&"loadout_back", Rect2(cx - 110.0 * s, 612.0 * s, 220.0 * s, 64.0 * s), "RESUME" if hud._loadout_quick else "BACK", false)
 
 
@@ -88,7 +88,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		hud._text(c, font, Vector2(cx + GRID_X * s, (INFO_Y + 104.0) * s), "PAGE %d / %d" % [page + 1, np], HORIZONTAL_ALIGNMENT_CENTER, gw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 	var nx := WeaponLadder.next_line()
 	if nx != "":
-		hud._text(c, font, Vector2(0.0, 166.0 * s), nx, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+		hud._text(c, font, Vector2(0.0, 162.0 * s), nx, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var d := Attachments.effective(sel)
 	hud._text(c, font, Vector2(cx + GRID_X * s, (INFO_Y + 34.0) * s), "DMG %d    MAG %d" % [int(roundf(float(d["damage"]))), int(d["mag"])], HORIZONTAL_ALIGNMENT_CENTER, gw, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.9), 1.0 * s)
 	for k in Attachments.SLOTS.size():

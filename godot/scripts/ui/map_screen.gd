@@ -26,6 +26,7 @@ const CELLS := 32
 const CELL := 40.0                                  ## metres per cell (CELLS * CELL = 1280 = 2 * CityLayout.HALF)
 const HALF := CELLS * CELL * 0.5
 const ZOOMS: Array[int] = [1, 2, 4]
+const OPEN_ZOOM := 2                              ## the zoom the map opens at (1 = the whole city)
 const ZOOM_MAX := 8.0
 const DRAG_PX := 14.0
 const LOD_ZOOM := 2.0                              ## below this zoom the crowded kinds show only their nearest few
@@ -381,7 +382,7 @@ func open() -> void:
 	_open_age = 0.0
 	visible = true
 	_layout()
-	set_zoom(1)
+	set_zoom(OPEN_ZOOM)                                   # opens close on the hero: a 1280 m city drawn on one phone height is a postage stamp (director review 3, #9)
 	_load_lots()
 	_rebuild_route()
 	_refresh_chips()

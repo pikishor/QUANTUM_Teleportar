@@ -99,6 +99,7 @@ func _launch(sid: StringName) -> void:
 	await _reset()
 	var status := DemoMode.launch(&"stealth", sid)
 	TestLib.check(status != "" and st.is_running() and st.id == sid, "%s starts through the DEMO menu (%s%s)" % [sid, status, "" if status != "" else " blocked: " + ig.block_reason() + " state " + str(Game.state) + " can " + str(st.can_start(sid))])
+	_blind_guards()        # before any frame runs: a guard standing within close sight range would alert at once
 	await frames(2)
 	_blind_guards()
 
@@ -347,7 +348,9 @@ func _live_offer() -> void:
 	var chapter := int(Game.story.get("chapter")) if is_instance_valid(Game.story) else 0
 	TestLib.check(StealthScripts.unlocked(&"infiltrate", 0) and not StealthScripts.unlocked(&"takedown", 0), "sector gating: the first job is open, the last is not")
 	var entered := ig.test_enter(&"teleporter_hall")
+	_blind_guards()
 	await frames(2)
+	_blind_guards()
 	st.tick(0.1)
 	var did := int(ig.door.get("id", -1))
 	TestLib.check(InteriorGameplay.active and st.is_running() and st.id == &"infiltrate", "entering the teleporter hall offers UNSEEN ENTRY (%s)" % entered)

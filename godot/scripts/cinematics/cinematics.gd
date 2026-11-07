@@ -647,7 +647,7 @@ func _idle(real: float) -> void:
 	_flash = maxf(_flash - real * 2.0, 0.0)
 	if rig != null and Game.state != STATE:
 		if st == &"menu":
-			bar_goal = 0.075
+			bar_goal = 0.0                                  # no letterbox on the title: on a 20:9 phone the bars ate 15 % of a screen that already has little height (director review 3, #1)
 			vig_goal = 0.55
 			_title_t += real
 			_set_title_props(true)

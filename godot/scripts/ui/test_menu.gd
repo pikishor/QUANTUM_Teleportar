@@ -32,6 +32,7 @@ var _content_h := 0.0
 var _layout_key := ""
 var _entry_down := &""                       ## "entry" (the TEST button) or "quick<n>" while a press that started on one is held
 var _stats_t := 0.0
+var _was_shown := false
 
 
 func _ready() -> void:
@@ -52,7 +53,11 @@ func _process(delta: float) -> void:
 	if not TestMode.available():
 		return
 	_stats_t -= delta
-	if is_open or TestMode.show_stats or _quick_visible() or _entry_visible():
+	var shown := _entry_visible() or _quick_visible()
+	if shown != _was_shown:
+		_was_shown = shown
+		_canvas.queue_redraw()                       # the TEST card goes away with the MORE page: without this redraw its last frame stayed over the OPTIONS tabs (director review 3, #2)
+	if is_open or TestMode.show_stats or shown:
 		if _stats_t <= 0.0 or is_open:
 			_stats_t = 0.2
 			_canvas.queue_redraw()

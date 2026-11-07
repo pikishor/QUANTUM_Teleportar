@@ -176,13 +176,13 @@ func _test_first_contact(host: Node) -> void:
 	var ppos := _p.global_position
 	var t := await _wait(host, Encounters.FIRST_DELAY + 8.0, func() -> bool: return _enc.waves_started >= 1)
 	TestLib.check(_enc.waves_started >= 1, "the first squad comes within %.0f s of play (%.1f s)" % [Encounters.FIRST_DELAY + 4.0, t])
-	TestLib.check(_enc.first_wave_t >= Encounters.FIRST_DELAY - 2.0 and _enc.first_wave_t <= Encounters.FIRST_DELAY + 4.0, "first contact is on the countdown (%.1f s of play)" % _enc.first_wave_t)
+	TestLib.check(_enc.first_wave_t >= Encounters.FIRST_DELAY - 2.0 and _enc.first_wave_t <= Encounters.FIRST_DELAY + Encounters.HOLD_MAX, "first contact is on the countdown (a street fight already on holds it back at most HOLD_MAX) (%.1f s of play)" % _enc.first_wave_t)
 	TestLib.check(_enc.squad.size() >= 2 and _enc.squad.size() <= _mgr.cap(), "a squad of 2 or more, inside the tier's cap of %d (%d)" % [_mgr.cap(), _enc.squad.size()])
 	var near_ok := not _enc.last_spawn_points.is_empty()
 	for pt: Vector3 in _enc.last_spawn_points:
 		var d := Vector2(pt.x - ppos.x, pt.z - ppos.z).length()
 		near_ok = near_ok and d >= Encounters.SPAWN_MIN - 3.0 and d <= Encounters.SPAWN_MAX + 4.0
-	TestLib.check(near_ok, "the squad spawns 15-27 m from the hero (%d spawn points)" % _enc.last_spawn_points.size())
+	TestLib.check(near_ok, "the squad spawns 11-21 m from the hero (%d spawn points)" % _enc.last_spawn_points.size())
 	var rushers := 0
 	var aware := 0
 	var heat_ok := true

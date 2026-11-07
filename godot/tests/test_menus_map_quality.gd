@@ -185,6 +185,7 @@ func _map_tests() -> void:
 		Game.state = &"play"
 		ms.set_waypoint(Vector3(pp.x + 250.0, 0.0, pp.z - 180.0))
 		ms.open()
+		ms.set_zoom(1)                                    # the map now opens at x2 on the hero: the whole-city checks below look at the overview
 		ms.scan_on = true
 		ms._map.queue_redraw()
 		for i in 60:

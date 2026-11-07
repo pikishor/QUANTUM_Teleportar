@@ -19,22 +19,22 @@ signal wave_cleared(wave: int)
 signal callout(text: String, dirs: PackedStringArray)     ## the radio call before a wave: where the troopers come from
 signal set_cleared(set_no: int)                          ## the third wave of a set is down: calm follows
 
-const FIRST_DELAY := 24.0                 ## the patrol is on the street about 30 s after play starts (the callout comes CALLOUT_LEAD s earlier, they close in for a few seconds)
+const FIRST_DELAY := 18.0                 ## the patrol is on the street about 30 s after play starts (the callout comes CALLOUT_LEAD s earlier, they close in for a few seconds)
 const CALLOUT_LEAD := 3.5                 ## seconds between the radio callout and the arrival
 const SET_WAVES := 3                      ## waves of one set, escalating
 const SET_CALM := 60.0                    ## calm seconds after a set before the next one is called
 const PATROL_SIZES: Array = [[5, 5, 5], [6, 7, 7], [7, 8, 8]]   ## troopers of wave 1, 2, 3 of a set by tier (LOW, MED, HIGH): 5-8 (the tier's enemy cap trims it)
-const GAP := Vector2(4.0, 6.5)            ## calm seconds after a cleared wave (shortened by wave number)
+const GAP := Vector2(2.5, 4.5)            ## calm seconds after a cleared wave (shortened by wave number)
 const QUIET_MAX := 12.0                   ## no aware enemy within ENGAGE_RADIUS this long: the next wave comes now
 const ENGAGE_RADIUS := 55.0
-const SPAWN_MIN := 15.0
-const SPAWN_MAX := 27.0
+const SPAWN_MIN := 11.0
+const SPAWN_MAX := 21.0
 const BACKUP_AFTER := 6.0                 ## seconds into a wave before backup may be called
 const BACKUP_SIZE := 2
 const WAVE_MAX := 35.0                    ## seconds into a wave after which stragglers out of view fall back (in view: 15 s more)
 const HOLD_MAX := 8.0                     ## seconds a fight outside the director's own squad (a street patrol) may hold back the next wave of a set
 const HEAT_KEEP := 0.3                    ## after a set the Watch forgets what the fight added: heat falls back to what it was before the set plus this
-const PRESSURE_AFTER := 12.0              ## seconds into a wave before the last troopers are sent in (nobody camps in cover for ever); a smaller squad is pressed sooner
+const PRESSURE_AFTER := 8.0              ## seconds into a wave before the last troopers are sent in (nobody camps in cover for ever); a smaller squad is pressed sooner
 const PRESSURE_FEW := 2
 const BEARING_MIN := 0.9                  ## radians between the spawn points of one squad when it can
 const HEAT_SHARE := 0.05                  ## a squad attacks unprovoked: its kills add this share of the usual heat

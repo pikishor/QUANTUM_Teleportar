@@ -186,11 +186,18 @@ static func build(sb: RefCounted, gb: RefCounted, p: Dictionary) -> void:
 			_cyl(sb, Vector3(_rng.randf_range(-0.15, 0.15), h, _rng.randf_range(-0.15, 0.15)), 0.05, 0.1, acc, C_STRIP, 1.1, 6)
 		"screen":
 			_bx(sb, Vector3(0, 0, 0.02), Vector3(w, h, 0.06), Color(0.04, 0.04, 0.05), C_METAL)
-			_bx(sb, Vector3(0, 0, -0.012), Vector3(w - 0.08, h - 0.08, 0.02), acc.lerp(Color(0.3, 0.9, 1.0), _rng.randf() * 0.7), C_SCREEN, 1.4, ph)
+			var scr := acc.lerp(Color(0.3, 0.9, 1.0), _rng.randf() * 0.7)
+			_bx(sb, Vector3(0, 0, -0.012), Vector3(w - 0.08, h - 0.08, 0.02), _shade(scr, 0.3), C_SCREEN, 0.7, ph)       # a dim panel with lit rows, not one flat white square (director review 3 #11)
+			_bx(sb, Vector3(0, (h - 0.08) * 0.5 - 0.07, -0.026), Vector3(w - 0.16, 0.06, 0.01), scr.lerp(Color.WHITE, 0.2), C_SCREEN, 1.5, ph)
+			for row in 4:
+				var rw := (w - 0.2) * _rng.randf_range(0.35, 0.95)
+				_bx(sb, Vector3(-(w - 0.2) * 0.5 + rw * 0.5 + 0.02, (h - 0.08) * 0.5 - 0.2 - float(row) * (h - 0.4) / 4.0, -0.026), Vector3(rw, 0.045, 0.01), scr.lerp(Color.WHITE, 0.35), C_SCREEN, 1.3, ph)
 			_halo(gb, Vector3(0, 0, -0.1), w * 1.5, h * 1.6, acc, 0.22)
 		"poster":
 			_bx(sb, Vector3(0, 0, 0.01), Vector3(w, h, 0.03), _shade(tint, 0.55), C_SOFT)
-			_bx(sb, Vector3(0, h * 0.18, -0.012), Vector3(w - 0.1, h * 0.55, 0.012), acc.lerp(tint, 0.55), C_STRIP, 0.9)
+			_bx(sb, Vector3(0, h * 0.3, -0.012), Vector3(w - 0.1, h * 0.3, 0.012), acc.lerp(tint, 0.55), C_STRIP, 0.9)         # the picture in two tones (it was one flat pink block)
+			_bx(sb, Vector3(0, h * 0.04, -0.012), Vector3(w - 0.1, h * 0.26, 0.012), _shade(acc.lerp(tint, 0.55), 0.55), C_STRIP, 0.6)
+			_bx(sb, Vector3(w * 0.15, h * 0.34, -0.02), Vector3(w * 0.22, w * 0.22, 0.01), acc.lerp(Color.WHITE, 0.5), C_STRIP, 1.2)
 			_glyphs(sb, -w * 0.5 + 0.06, -h * 0.28, -0.014, w - 0.12, h * 0.16, 6, acc.lerp(Color.WHITE, 0.4), C_SIGN, 1.6, ph)
 		"vending":
 			_bx(sb, Vector3(0, h * 0.5, 0), Vector3(w, h, d), tint, C_METAL)

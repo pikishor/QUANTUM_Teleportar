@@ -309,6 +309,12 @@ static func _ledge(b: MB, g: Dictionary, p: Pal, pf: Callable) -> void:
 		b.box(Vector3(0.0, -0.02, 0.58), Vector3(3.9, 0.025, 0.025), p.glow(0.7, p.d == Districts.MARKET), false)
 
 
+## A sign poster is lit in the district's accent, not white: a white-lit poster seen at a slant read as a pale translucent grey sheet with a crease down the middle (director review 3 #4).
+static func _poster_tint(p: Pal) -> Color:
+	var a := p.accent.lerp(Color.WHITE, 0.2)
+	return Color(a.r * 0.8, a.g * 0.8, a.b * 0.8, EM_POSTER * 0.75)
+
+
 static func _blade(b: MB, p: Pal) -> void:
 	var metal := p.t(Color(0.06, 0.065, 0.07, 0.0))
 	b.uv2 = Vector2(0.8, 0.4)
@@ -317,7 +323,7 @@ static func _blade(b: MB, p: Pal) -> void:
 	b.box(Vector3(0.0, 1.05, 0.9), Vector3(0.12, 2.0, 0.55), p.t(Color(0.04, 0.042, 0.046, 0.0)), false)
 	b.uv2 = Vector2(0.0, 0.3)
 	for sx: float in [-0.065, 0.065]:
-		b.quad(Vector3(sx, 0.25, 0.64), Vector3(sx, 0.25, 1.16), Vector3(sx, 1.85, 1.16), Vector3(sx, 1.85, 0.64), Vector3(signf(sx), 0, 0), Color(1, 1, 1, EM_POSTER), Vector2.ZERO, Vector2.ZERO, _uvq())
+		b.quad(Vector3(sx, 0.25, 0.64), Vector3(sx, 0.25, 1.16), Vector3(sx, 1.85, 1.16), Vector3(sx, 1.85, 0.64), Vector3(signf(sx), 0, 0), _poster_tint(p), Vector2.ZERO, Vector2.ZERO, _uvq())
 	b.box(Vector3(0.0, 2.08, 0.9), Vector3(0.1, 0.06, 0.5), p.glow(0.9), false)
 
 
@@ -412,7 +418,7 @@ static func _rooftop(b: MB, g: Dictionary, p: Pal, near: bool, pf: Callable) -> 
 				b.box(Vector3(1.6, 0.9, 0), Vector3(0.14, 1.8, 0.14), metal, false)
 				b.box(Vector3(0, 2.6, 0), Vector3(4.2, 1.5, 0.2), dark, false)
 				b.uv2 = Vector2(0.0, 0.3)
-				b.quad(Vector3(-1.95, 1.95, 0.105), Vector3(1.95, 1.95, 0.105), Vector3(1.95, 3.3, 0.105), Vector3(-1.95, 3.3, 0.105), Vector3.BACK, Color(1, 1, 1, EM_POSTER), Vector2.ZERO, Vector2.ZERO, _uvq())
+				b.quad(Vector3(-1.95, 1.95, 0.105), Vector3(1.95, 1.95, 0.105), Vector3(1.95, 3.3, 0.105), Vector3(-1.95, 3.3, 0.105), Vector3.BACK, _poster_tint(p), Vector2.ZERO, Vector2.ZERO, _uvq())
 				b.box(Vector3(0, 3.4, 0.12), Vector3(4.2, 0.06, 0.06), p.glow(0.9, true), false)
 		Districts.FOUNDRY:
 			if v % 2 == 0:                                       # twin smokestacks, glowing rims

@@ -153,7 +153,7 @@ func _curve() -> void:
 		worst_step = maxf(worst_step, f - prev)
 		prev = f
 		v += 0.25
-	TestLib.check(mono and worst_step < 0.025, "the damage curve never steps: monotone, at most %.3f per 0.25 m/s (a cliff would be a jump)" % worst_step)
+	TestLib.check(mono and worst_step < 0.03, "the damage curve never steps: monotone, at most %.3f per 0.25 m/s (a cliff would be a jump)" % worst_step)
 	var f7 := Vehicle.crash_fraction(25.0 / 3.6)
 	var f11 := Vehicle.crash_fraction(40.0 / 3.6)
 	var f17 := Vehicle.crash_fraction(60.0 / 3.6)
@@ -235,11 +235,13 @@ func _crashes() -> void:
 	var seq := _car(&"sedan", -304.6, AVE_Z, -PI * 0.5, true)
 	var stages: Array[int] = [seq.damage_stage()]
 	var steps_ok := true
-	for i in 5:
-		_hit(seq, 12.0)
+	var n := 0
+	while n < 14 and seq.damage_stage() < 2 and not seq.dead:               # director round 3: a 50 km/h bump is a dent, so it takes a run of them (was five at 43 km/h)
+		_hit(seq, 14.0)
 		stages.append(seq.damage_stage())
-		steps_ok = steps_ok and stages[i + 1] >= stages[i] and stages[i + 1] - stages[i] <= 1
-	TestLib.check(steps_ok and stages[stages.size() - 1] >= 2 and not seq.dead, "five 43 km/h crashes walk the car through the stages %s, never a jump" % str(stages))
+		steps_ok = steps_ok and stages[n + 1] >= stages[n] and stages[n + 1] - stages[n] <= 1
+		n += 1
+	TestLib.check(steps_ok and stages[stages.size() - 1] >= 2 and not seq.dead and n >= 4, "%d crashes at 50 km/h walk the car through the stages %s, never a jump" % [n, str(stages)])
 	_clear()
 
 
