@@ -221,9 +221,13 @@ func _shield() -> void:
 		var r0 := qv.reflect_hits
 		op.set("_tgt", chest)
 		op.set("_tgt_clone", false)
-		for i in 6:
-			if qv.shield_left > 0.0 and qv.reflect_hits == r0:
-				op.call(&"_shoot", 12.0)
+		# the shot has a random aim-error disc (and the earlier checks drain the barrier), so keep the barrier up and fire until one lands
+		for i in 60:
+			if qv.reflect_hits != r0:
+				break
+			qv.shield_left = maxf(qv.shield_left, 2.0)
+			qv.shield_hp = maxf(qv.shield_hp, QuantumVerbs.SHIELD_HP)
+			op.call(&"_shoot", 12.0)
 		TestLib.check(qv.reflect_hits > r0 and op.hp < oh0 and is_equal_approx(p.hp, hp0), "a rifleman's shot is reflected too")
 	# strikers burst on it
 	var st := _enemy(p.global_position + _forward() * 2.4, &"striker")
