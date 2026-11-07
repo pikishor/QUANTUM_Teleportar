@@ -44,7 +44,7 @@ const ZONE_POOL := 4
 static var _zone_shader: Shader
 
 const BEAM_HEIGHT := 150.0
-const BEAM_NEAR := 16.0
+const BEAM_NEAR := 22.0
 const ROUTE_Y := 0.14
 const DASH := 3.4
 const GAP := 2.2

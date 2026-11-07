@@ -25,21 +25,21 @@ const BUTTONS := [
 	{"action": &"ability", "dx": 515.0, "dy": 120.0, "r": 58.0, "fs": 22, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability"},
 	{"action": &"swap", "dx": 520.0, "dy": 262.0, "r": 58.0, "fs": 22, "label": "WEAPON", "need": &"weapon"},
 	{"action": &"more", "dx": 505.0, "dy": 395.0, "r": 40.0, "fs": 22, "label": "MORE", "need": &"foot", "fn": &"more"},
-	{"action": &"altfire", "dx": 650.0, "dy": 110.0, "r": 40.0, "fs": 22, "label": "ALT", "need": &"more"},
-	{"action": &"melee", "dx": 650.0, "dy": 205.0, "r": 46.0, "fs": 22, "label": "MELEE", "need": &"more"},
-	{"action": &"throw_item", "dx": 650.0, "dy": 300.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more"},
-	{"action": &"crouch", "dx": 650.0, "dy": 395.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"more"},
-	{"action": &"gadget", "dx": 650.0, "dy": 490.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"more_gadget"},
+	{"action": &"altfire", "dx": 650.0, "dy": 100.0, "r": 40.0, "fs": 22, "label": "ALT", "need": &"more"},
+	{"action": &"melee", "dx": 650.0, "dy": 212.0, "r": 46.0, "fs": 22, "label": "MELEE", "need": &"more"},
+	{"action": &"throw_item", "dx": 650.0, "dy": 322.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more"},
+	{"action": &"crouch", "dx": 650.0, "dy": 434.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"more"},
+	{"action": &"gadget", "dx": 650.0, "dy": 544.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"more_gadget"},
 	{"action": &"garage_call", "dx": 750.0, "dy": 110.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"more_garage", "fn": &"summon"},
 	{"action": &"charge_place", "dx": 750.0, "dy": 425.0, "r": 44.0, "fs": 22, "label": "C4", "need": &"more_c4"},
-	{"action": &"detonate", "dx": 590.0, "dy": 575.0, "r": 50.0, "fs": 20, "label": "DETONATE", "need": &"detonate"},
+	{"action": &"detonate", "dx": 590.0, "dy": 650.0, "r": 50.0, "fs": 20, "label": "DETONATE", "need": &"detonate"},
 	{"action": &"companion_hold", "dx": 750.0, "dy": 215.0, "r": 46.0, "fs": 22, "label": "HOLD", "need": &"more_companion", "fn": &"ally_hold"},
 	{"action": &"companion_attack", "dx": 750.0, "dy": 320.0, "r": 46.0, "fs": 20, "label": "ATTACK", "need": &"more_companion", "fn": &"ally_attack"},
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
 	{"action": &"grab", "dx": 320.0, "dy": 470.0, "r": 50.0, "fs": 22, "label": "GRAB", "need": &"grab"},
-	{"action": &"takedown", "dx": 175.0, "dy": 590.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
+	{"action": &"takedown", "dx": 175.0, "dy": 602.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
 	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},
-	{"action": &"skip_piece", "dx": 480.0, "dy": 560.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
+	{"action": &"skip_piece", "dx": 505.0, "dy": 575.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
 	{"action": &"veh_view", "dx": 520.0, "dy": 262.0, "r": 46.0, "fs": 22, "label": "VIEW", "need": &"driving"},     # driving camera: chase / far / hood
 	{"action": &"look_back", "dx": 505.0, "dy": 395.0, "r": 46.0, "fs": 22, "label": "BACK", "need": &"driving"},       # held: look behind the car
@@ -682,7 +682,7 @@ func _button_center(b: Dictionary) -> Vector2:
 
 func _pause_center() -> Vector2:
 	var s := _scale()
-	return Vector2(_vp_size().x - _insets().y - 262.0 * s, 52.0 * s + UiUtil.insets_v(_vp_size()).x)     # left of the heat / credits plate, clear of the weapon slot column
+	return Vector2(_vp_size().x - _insets().y - 52.0 * s, 112.0 * s + UiUtil.insets_v(_vp_size()).x)     # the right edge under the heat stars: the faction / wanted plate used to sit on the old spot (director review)
 
 
 ## The perf readout sits under the minimap and is only shown while playing or paused.

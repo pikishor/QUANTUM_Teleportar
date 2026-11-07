@@ -140,7 +140,7 @@ func _camera() -> void:
 	TestLib.check(absf(rig.camera.fov - 92.0) < 0.6, "hip FOV is 92 (horizontal) (got %.2f)" % rig.camera.fov)
 	var pivot := rig.get_pivot_position()
 	var hip_dist := rig.camera.global_position.distance_to(pivot)
-	TestLib.check(absf(hip_dist - sqrt(0.8 * 0.8 + 3.6 * 3.6)) < 0.12, "hip camera sits 3.6 m behind and 0.8 m beside the pivot (distance %.2f)" % hip_dist)
+	TestLib.check(absf(hip_dist - sqrt(CameraRig.HIP_SHOULDER * CameraRig.HIP_SHOULDER + CameraRig.HIP_DIST * CameraRig.HIP_DIST)) < 0.12, "hip camera sits %.1f m behind and %.2f m beside the pivot (distance %.2f)" % [CameraRig.HIP_DIST, CameraRig.HIP_SHOULDER, hip_dist])
 	var to_cam := rig.camera.global_position - pivot
 	TestLib.check(to_cam.dot(rig.camera.global_basis.x) > 0.6 and to_cam.dot(rig.camera.global_basis.z) > 3.0, "over the right shoulder: camera right of and behind the head")
 	TestLib.check(absf(pivot.y - 1.55) < 0.05, "pivot at 1.55 m eye height (%.2f)" % pivot.y)

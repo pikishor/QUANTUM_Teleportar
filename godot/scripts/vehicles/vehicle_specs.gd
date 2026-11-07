@@ -50,7 +50,7 @@ const PALETTES := {
 	&"van": [Color(0.84, 0.86, 0.88), Color(0.62, 0.66, 0.7), Color(0.3, 0.42, 0.56), Color(0.86, 0.87, 0.9), Color(0.4, 0.44, 0.48)],
 	&"truck": [Color(0.56, 0.62, 0.66), Color(0.3, 0.42, 0.56), Color(0.68, 0.4, 0.26), Color(0.8, 0.82, 0.84)],
 	&"bus": [Color(0.78, 0.5, 0.18), Color(0.28, 0.5, 0.62), Color(0.62, 0.66, 0.7), Color(0.3, 0.52, 0.48)],
-	&"interceptor": [Color(0.12, 0.14, 0.2), Color(0.86, 0.87, 0.9), Color(0.15, 0.18, 0.3), Color(0.2, 0.22, 0.26)],
+	&"interceptor": [Color(0.22, 0.27, 0.40), Color(0.86, 0.87, 0.9), Color(0.24, 0.30, 0.50), Color(0.36, 0.39, 0.45)],
 	&"ambulance": [Color(0.9, 0.91, 0.93), Color(0.86, 0.87, 0.9), Color(0.92, 0.93, 0.94), Color(0.88, 0.9, 0.92)],
 	&"vael_patrol": [Color(0.3, 0.36, 0.26), Color(0.26, 0.2, 0.36), Color(0.2, 0.3, 0.32), Color(0.34, 0.26, 0.3)],
 }
@@ -76,7 +76,7 @@ const STREAM_EVERY := 0.4              ## seconds between streaming passes
 const MIRROR_NEAR := 25.0              ## MirrorProxy only for cars this close (released beyond MIRROR_NEAR + 8)
 const WHEELS_NEAR := 50.0              ## wheels are hidden beyond this
 const PARKED_SHARE := 0.55             ## fraction of streamed cars that are parked
-const WRECK_COLOR := Color(0.045, 0.04, 0.04)   ## the charred paint of a husk
+const WRECK_COLOR := Color(0.15, 0.125, 0.11)   ## the charred paint of a husk (was 0.045: a pure black cut-out in the street; now soot-brown with a visible shape)
 const MAX_WRECKS := 3                  ## husks standing at once (the oldest goes first)
 const RESPAWN_TIME := 25.0             ## a destroyed car comes back as a parked car after this many seconds
 
@@ -89,7 +89,7 @@ const COLORS: Array[Color] = [
 	# desaturated lacquer palette (clear coat + flakes, see VehicleVisual.set_paint): oxblood, steel blue, brass (the starter), sage teal,
 	# dusk violet, pearl, burnt copper, midnight. Nothing is a flat saturated primary any more.
 	Color(0.56, 0.20, 0.24), Color(0.30, 0.42, 0.56), Color(0.78, 0.66, 0.44), Color(0.30, 0.52, 0.48),
-	Color(0.42, 0.38, 0.60), Color(0.86, 0.87, 0.90), Color(0.68, 0.40, 0.26), Color(0.15, 0.18, 0.30),
+	Color(0.42, 0.38, 0.60), Color(0.86, 0.87, 0.90), Color(0.68, 0.40, 0.26), Color(0.20, 0.25, 0.42),
 ]
 const PAINT_GAIN := 1.0
 const GLOWS: Array[Color] = [Color(0.22, 0.96, 1.0), Color(1.0, 0.24, 0.94), Color(0.22, 1.0, 0.69), Color(0.61, 0.42, 1.0)]
@@ -153,6 +153,11 @@ const CAR_SEPARATION := 3.6            ## circle distance of the car-to-car bump
 const CAR_HIT_SPEED := 6.5             ## relative speed above which two cars hurt each other
 const HERO_HURT_SPEED := 16.0          ## the driver is hurt only by hard impacts (m/s along the normal), (v - this) x HERO_HURT hp
 const HERO_HURT := 1.6
+const HERO_HURT_CAP := 0.3             ## one crash never takes more than this share of the driver's health (director review: 92 km/h cost the driver 67 %)
+const CRASH_SURVIVE_V := 26.5          ## closing speed (m/s, about 95 km/h): a hull above CRASH_LIMP_FROM is never wrecked by ONE hit up to this speed, it limps home with CRASH_LIMP_HP left
+const CRASH_LIMP_FROM := 0.5
+const CRASH_LIMP_HP := 0.12
+const CRASH_REPEAT_GAP := 0.35         ## s: a scrape along a wall counts as one crash, not one per frame
 const EXTERNAL_DAMAGE := 1.0           ## factor of damage() from bullets, blasts and fire (the callers' numbers did not change, the hit points did)
 const RAM_SPEED := 8.0                 ## running over enemies needs this speed
 const RAM_RADIUS := 2.4

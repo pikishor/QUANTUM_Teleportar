@@ -421,8 +421,10 @@ func _hack() -> void:
 	_tick(4.0)
 	var half := camp.progress
 	TestLib.check(camp.inside and half > 0.4 and half < 0.6, "inside the ring the bar fills (%.2f after 4 s of 8)" % half)
-	_tick(1.5)
-	TestLib.check(camp.foes.size() >= 1, "a drone pulse hits the node after 5 s (%d foes)" % camp.foes.size())
+	TestLib.check(camp.foes.size() == 0 and camp._attack_t > 2.0, "the first drone pulse waits (%.1f s left)" % camp._attack_t)
+	camp._attack_t = 0.0
+	_tick(0.5)
+	TestLib.check(camp.foes.size() >= 1, "a drone pulse hits the node when its timer runs out (%d foes)" % camp.foes.size())
 	var before_leaving := camp.progress
 	_put(Vector3(0, 0, 0))
 	_tick(2.0)

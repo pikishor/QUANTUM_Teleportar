@@ -77,7 +77,7 @@ func _wall_squeeze() -> void:
 	await e.prep(Vector3(-30.0, 0.0, 4.0), -PI * 0.5, -0.1, 0)
 	await e.secs(0.5)
 	to_cam = rig.camera.global_position - rig.get_pivot_position()
-	TestLib.check(not rig.is_obstructed() and absf(to_cam.dot(rig.camera.global_basis.x) - 0.8) < 0.05, "open ground: the usual shoulder offset, no slide (%.2f m)" % to_cam.dot(rig.camera.global_basis.x))
+	TestLib.check(not rig.is_obstructed() and absf(to_cam.dot(rig.camera.global_basis.x) - CameraRig.HIP_SHOULDER) < 0.05, "open ground: the usual shoulder offset, no slide (%.2f m)" % to_cam.dot(rig.camera.global_basis.x))
 	# the rig runs after the nodes it follows
 	TestLib.check(rig.process_priority > 0 and rig.process_physics_priority > 0, "the camera rig runs late (priority %d), after the vehicle it follows" % rig.process_priority)
 

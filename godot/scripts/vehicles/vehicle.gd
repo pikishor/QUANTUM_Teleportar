@@ -397,10 +397,13 @@ static func crash_fraction(v: float) -> float:
 ## The hull loses CRASH_REF_HP x crash_fraction(v) (a lighter car takes more from a heavy one), the panels dent at the contact, the windows crack on a hard hit and the
 ## driver (the hero) is hurt only by really hard impacts. Returns the hp lost.
 func crash(v: float, at: Vector3, n: Vector3, other_mass := INF) -> float:
-	last_impact = v
+	var repeat := impact_t < VehicleSpecs.CRASH_REPEAT_GAP and v < last_impact * 1.25
+	last_impact = maxf(v, last_impact) if repeat else v
 	impact_t = 0.0
 	if v <= VehicleSpecs.HIT_SPEED:
 		return 0.0
+	if repeat:
+		return 0.0                                                   # the same crash, still grinding along the wall
 	_heave_v -= clampf(v * 0.12, 0.0, 2.2)                       # the suspension compresses: the body drops and rebounds
 	_pitch_v += clampf(v * 0.05, 0.0, 0.9) * (1.0 if forward().dot(n) < 0.0 else -1.0)
 	var lost := 0.0
@@ -410,15 +413,20 @@ func crash(v: float, at: Vector3, n: Vector3, other_mass := INF) -> float:
 		if other_mass < INF:
 			share = clampf(2.0 * other_mass / (other_mass + VehicleSpecs.mass_of(kind)), 0.5, 1.8)
 		lost = VehicleSpecs.CRASH_REF_HP * frac * share
+		if v <= VehicleSpecs.CRASH_SURVIVE_V and hp > max_hp * VehicleSpecs.CRASH_LIMP_FROM:
+			lost = minf(lost, hp - max_hp * VehicleSpecs.CRASH_LIMP_HP)        # a healthy car survives one crash and limps away: the player keeps the car he took
 		hits += 1
 		crashes += 1
 		if driver_is_player:
 			var pl := Game.player
 			if v > VehicleSpecs.HERO_HURT_SPEED and is_instance_valid(pl) and not dead:
+				var hurt_hp := (v - VehicleSpecs.HERO_HURT_SPEED) * VehicleSpecs.HERO_HURT
+				if pl.get(&"max_hp") is float:
+					hurt_hp = minf(hurt_hp, (pl.get(&"max_hp") as float) * VehicleSpecs.HERO_HURT_CAP)
 				if pl.has_method(&"hurt_driver"):
-					pl.call(&"hurt_driver", (v - VehicleSpecs.HERO_HURT_SPEED) * VehicleSpecs.HERO_HURT, at)
+					pl.call(&"hurt_driver", hurt_hp, at)
 				elif pl.has_method(&"damage"):
-					pl.call(&"damage", (v - VehicleSpecs.HERO_HURT_SPEED) * VehicleSpecs.HERO_HURT, at)
+					pl.call(&"damage", hurt_hp, at)
 		var local_at := to_local(at)
 		local_at.y = clampf(local_at.y, 0.25, float(spec["hgt"]))
 		var local_dir := global_transform.basis.inverse() * n          # the way the panel is pushed: into the car

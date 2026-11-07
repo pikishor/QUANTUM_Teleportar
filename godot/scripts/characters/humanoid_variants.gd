@@ -54,9 +54,21 @@ static func variant(kind: StringName, seed_value: int) -> Dictionary:
 	return d
 
 
+## The outfit colours of a variant {jacket, pants} for the body shader. Troopers: dark armour, a little lighter on the torso than on the legs, so they never read as the hero's light
+## jacket; citizens: their casual colour on the torso over dark trousers.
+static func outfit(d: Dictionary) -> Dictionary:
+	var sc: Color = d["suit"]
+	if bool(d["helmeted"]):
+		return {"jacket": Color(sc.r * 1.6 + 0.02, sc.g * 1.6 + 0.02, sc.b * 1.6 + 0.03), "pants": Color(sc.r * 0.8, sc.g * 0.8, sc.b * 0.8)}
+	return {"jacket": sc, "pants": Color(0.14, 0.15, 0.18)}
+
+
 ## Applies the variant's colours to a hero material (also used by tests).
 static func tint(mat: ShaderMaterial, d: Dictionary) -> void:
 	mat.set_shader_parameter(&"suit_color", d["suit"])
+	var fit := outfit(d)
+	mat.set_shader_parameter(&"jacket_color", fit["jacket"])
+	mat.set_shader_parameter(&"pants_color", fit["pants"])
 	mat.set_shader_parameter(&"trim_color", d["trim"])
 	mat.set_shader_parameter(&"accent", d["trim"])
 	if bool(d["helmeted"]):

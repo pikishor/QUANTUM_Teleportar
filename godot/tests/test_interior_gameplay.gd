@@ -317,7 +317,10 @@ func _followers_and_street() -> void:
 	TestLib.check(ig.enter(d, true), "enter with hunters about")
 	await frames(2)
 	TestLib.check(em.alive_count() <= 3, "the street's enemies are stored: only the interior's actors are alive (%d)" % em.alive_count())
-	await frames(130)
+	var waited := 0
+	while ig.actors.followers.is_empty() and waited < 900:                       # the first hunter comes in after InteriorActors.FOLLOW_FIRST s of game time (the entry grace)
+		await frames(10)
+		waited += 10
 	TestLib.check(ig.actors.followers.size() == 1 and ig.actors.followers[0].aware, "the aware hunter followed through the door")
 	TestLib.check(ig.actors.total() <= InteriorData.ACTOR_CAP + 2, "followers keep the actor cap (%d)" % ig.actors.total())
 	var heat_lines: Array[String] = []

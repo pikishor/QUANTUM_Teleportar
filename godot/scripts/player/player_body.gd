@@ -77,6 +77,7 @@ static var _flash_mat_streak: StandardMaterial3D
 
 var muzzle: Node3D
 var _wp_mi: MeshInstance3D
+const WEAPON_LOOK_SCALE := Vector3(1.4, 1.4, 1.12)
 var _muzzle_shift := 0.0                      ## metres the muzzle sits behind the carbine's (a short gun)
 var _wp_attach := false                       ## (kept for the rebuild reset)
 var _finger_mode: StringName = &""
@@ -398,6 +399,7 @@ func set_weapon_look(id: StringName) -> void:
 	var sil := WeaponModels.mesh(id)
 	_wp_mi.mesh = sil
 	_wp_mi.position = Vector3.ZERO
+	_wp_mi.scale = WEAPON_LOOK_SCALE      # thicker and a little longer: from the shoulder camera the gun was a thin stick (director review)
 	_wp_mi.visible = hero_mat != null and sil != null
 	_muzzle_shift = WeaponModels.muzzle_shift(id) if hero_mat != null else 0.0
 	if rig != null and hero_mat != null:

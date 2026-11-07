@@ -13,6 +13,7 @@ const INFO_Y := 396.0                     ## the selected weapon's name (the sta
 const SLOT_Y := 190.0
 const SLOT_STEP := 112.0
 const PART_W := 176.0
+const PART_CAPTION := 18.0                ## base px of the part names under the BUY / EQUIP buttons (was 14: unreadable on a phone)
 
 ## The paged wheel: WeaponDefs.PAGE_SIZE weapons per page, buttons `wheelpg_prev` / `wheelpg_next` flip it. The page follows the selected weapon until a flip.
 static var page := 0
@@ -90,4 +91,5 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		hud._text(c, font, Vector2(cx + 20.0 * s, y + 14.0 * s), String(Attachments.SLOTS[k]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 		var parts := Attachments.parts_for(Attachments.SLOTS[k])
 		for j in parts.size():
-			hud._text(c, font, Vector2(cx + (20.0 + j * (PART_W + 8.0)) * s, y + 101.0 * s), String(Attachments.PARTS[parts[j]]["name"]), HORIZONTAL_ALIGNMENT_LEFT, PART_W * s, int(14.0 * s), Color(1, 1, 1, 0.9), 0.0)
+			var pname := String(Attachments.PARTS[parts[j]]["name"])
+			hud._text(c, font, Vector2(cx + (20.0 + j * (PART_W + 8.0)) * s, y + 101.0 * s), pname, HORIZONTAL_ALIGNMENT_LEFT, PART_W * s, UiUtil.fit_size(font, Tr.t(pname), PART_W * s, int(PART_CAPTION * s)), Color(1, 1, 1, 0.95), 1.0 * s)

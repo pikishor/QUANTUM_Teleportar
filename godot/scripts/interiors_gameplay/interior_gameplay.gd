@@ -24,6 +24,7 @@ const FOLLOW_RADIUS := 30.0
 const FOLLOW_MAX := 2
 const EXIT_FOLLOW_RADIUS := 14.0
 const SCAN_EVERY := 0.1
+const ENTRY_GRACE := 6.0                     ## seconds the hero cannot be hurt after a door closes behind him: the room is looked at before it fights back (director review: 100 -> 0 in 11 s)
 
 static var instance: InteriorGameplay
 static var active := false
@@ -390,6 +391,7 @@ func _apply_enter(d: Dictionary) -> void:
 	prompt = ""
 	markers.visible = false
 	p.teleport_to(interior.get("door_pos"))
+	p.invuln = maxf(p.invuln, ENTRY_GRACE)
 	var yaw := float(interior.get("door_yaw"))
 	p.yaw = yaw
 	p.camera_rig.reset_view(yaw, p.camera_rig.pitch)
@@ -400,6 +402,7 @@ func _apply_enter(d: Dictionary) -> void:
 	if kind != &"" and not done.has(int(d["id"])):
 		missions.begin(interior, kind, int(d["id"]), actors)
 	enter_count += 1
+	hud_line = missions.hud_line()                 # the room's own objective from the first frame (the street step's line must not show for one tick)
 	_radio_enter(type, seed_value, followers.size() > 0)
 	Game.say("%s  %s" % [InteriorData.title(type), str(d["name"])], 2.2)
 	if autosave:

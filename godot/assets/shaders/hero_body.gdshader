@@ -17,6 +17,8 @@ uniform sampler2D hair2_normal : hint_normal, filter_linear_mipmap, repeat_enabl
 
 uniform vec3 hair_color : source_color = vec3(0.16, 0.11, 0.085);
 uniform vec3 suit_color : source_color = vec3(0.2, 0.22, 0.27);
+uniform vec3 jacket_color : source_color = vec3(0.56, 0.66, 0.78);     // the outfit: jacket and trousers (the hero's own, NPCs and enemies set theirs in HumanoidVariants.tint)
+uniform vec3 pants_color : source_color = vec3(0.2, 0.22, 0.27);
 uniform vec3 look_tint : source_color = vec3(1.0);
 uniform float suit_metal : hint_range(0.0, 1.0) = 0.3;
 uniform float suit_rough : hint_range(0.0, 1.0) = 0.5;
@@ -86,7 +88,7 @@ void fragment() {
 			float shoulder = smoothstep(0.14, 0.2, ax) * smoothstep(1.36, 1.4, ay) * (1.0 - smoothstep(1.52, 1.56, ay));
 			float chest = (1.0 - smoothstep(0.15, 0.19, ax)) * smoothstep(1.15, 1.19, ay) * (1.0 - smoothstep(1.38, 1.42, ay)) * step(0.25, abs(v_nrm.z));
 			float belt = smoothstep(0.96, 0.98, ay) * (1.0 - smoothstep(1.04, 1.06, ay));
-			float knee = smoothstep(0.4, 0.43, ay) * (1.0 - smoothstep(0.54, 0.57, ay)) * step(0.2, -v_nrm.z);
+			float knee = smoothstep(0.4, 0.43, ay) * (1.0 - smoothstep(0.54, 0.57, ay)) * step(0.2, v_nrm.z);
 			float shin = smoothstep(0.1, 0.13, ay) * (1.0 - smoothstep(0.36, 0.39, ay));
 			float arm = smoothstep(0.44, 0.5, ax) * smoothstep(1.0, 1.04, ay) * (1.0 - smoothstep(1.36, 1.4, ay));
 			float panel = clamp(shoulder + chest + belt + knee + shin * 0.7 + arm * 0.8, 0.0, 1.0);
@@ -102,9 +104,35 @@ void fragment() {
 			// palette: a warm graphite base, panels toward the complement of the accent (cyan gives bronze, ember gives slate): never one blue
 			vec3 comp = normalize(vec3(1.0) - accent * 0.8 + 0.001);
 			vec3 panel_col = mix(suit_color * 1.6, comp * 0.2 + suit_color * 0.8, 0.5) * look_tint;
-			vec3 fabric = suit_color * look_tint * (0.6 + 1.3 * lum);
-			fabric *= 0.8 + 0.4 * cloud;
-			fabric = mix(fabric, panel_col * (0.7 + 0.8 * lum), panel * 0.85);
+			// CLOTHES (director review: the hero read as a bare black mannequin): a light steel-grey field jacket (long enough to cover the hips) with a dark yoke, a dark belt with a buckle, charcoal trousers
+			// with a lighter thigh pocket panel, black boots with a pale sole line, and a rucksack plate with an accent stripe on the back. Zones follow the model height (the suit covers head-to-ankle).
+			float shade = clamp(0.8 + 0.55 * lum, 0.7, 1.25) * (0.88 + 0.24 * cloud);
+			float jacket = smoothstep(0.8, 0.83, ay);
+			vec3 cloth = mix(pants_color, jacket_color, jacket);
+			float pocket = (1.0 - smoothstep(0.0, 0.01, abs(ax - 0.17) - 0.045)) * smoothstep(0.52, 0.55, ay) * (1.0 - smoothstep(0.7, 0.73, ay)) * (1.0 - jacket);
+			cloth = mix(cloth, pants_color * 1.5 + 0.03, pocket * 0.8);
+			float yoke = smoothstep(1.5, 1.53, ay) * jacket;
+			cloth = mix(cloth, jacket_color * 0.35, yoke * 0.8);
+			float boot = 1.0 - smoothstep(0.17, 0.2, ay);
+			cloth = mix(cloth, vec3(0.045, 0.045, 0.05), boot);
+			float sole = (1.0 - smoothstep(0.0, 0.012, abs(ay - 0.055))) * boot;
+			cloth = mix(cloth, vec3(0.55, 0.55, 0.5), sole * 0.8);
+			float beltb = smoothstep(0.93, 0.95, ay) * (1.0 - smoothstep(1.01, 1.03, ay)) * smoothstep(-0.1, 0.3, v_nrm.z);
+			float hem = (1.0 - smoothstep(0.0, 0.012, abs(ay - 0.815)));
+			cloth = mix(cloth, vec3(0.12, 0.13, 0.16), hem * 0.9);
+			cloth = mix(cloth, vec3(0.07, 0.06, 0.05), beltb);
+			float buckle = beltb * (1.0 - smoothstep(0.035, 0.05, ax)) * step(0.4, v_nrm.z);
+			cloth = mix(cloth, vec3(0.75, 0.62, 0.3), buckle);
+			float pack = (1.0 - smoothstep(0.085, 0.1, ax)) * smoothstep(1.15, 1.18, ay) * (1.0 - smoothstep(1.36, 1.39, ay)) * smoothstep(0.2, 0.45, -v_nrm.z);
+			cloth = mix(cloth, jacket_color * 0.3 + 0.04, pack);
+			float packline = pack * (1.0 - smoothstep(0.0, 0.012, abs(ax - 0.055)));
+			float front = smoothstep(0.3, 0.6, v_nrm.z);
+			float zip = (1.0 - smoothstep(0.0, 0.008, ax)) * front * jacket * (1.0 - smoothstep(1.46, 1.5, ay));
+			float flap = (1.0 - smoothstep(0.0, 0.01, abs(ax - 0.095) - 0.04)) * smoothstep(1.17, 1.19, ay) * (1.0 - smoothstep(1.27, 1.29, ay)) * front * jacket;
+			cloth = mix(cloth, cloth * 0.55, max(zip, flap * 0.7));
+			vec3 fabric = cloth * look_tint * shade;
+			fabric = mix(fabric, accent * 0.8, packline * 0.7);
+			fabric = mix(fabric, panel_col * (0.7 + 0.8 * lum), panel * 0.2);
 			float ph = (0.7 + 1.3 * film_seed) * (1.0 - 0.55 * ndv) * 12.566;
 			vec3 film = 0.5 + 0.5 * cos(vec3(0.0, 2.094, 4.188) + ph * vec3(1.0, 1.13, 1.27));
 			film = mix(film, trim_color, 0.55);
@@ -119,13 +147,13 @@ void fragment() {
 			float k = (0.35 + 0.65 * ready_k) * (1.0 + 0.9 * charge + 0.6 * excite) * glow;
 			fabric *= 1.0 - 0.6 * groove * (1.0 - 0.5 * panel);
 			alb = mix(alb, fabric, suit);
-			alb = mix(alb, film * 0.35, suit * rim * 0.35);
+			alb = mix(alb, film * 0.35, suit * rim * 0.2);
 			// hemisphere fill (no light needed): the suit never goes black from behind or below
 			float hemi = 0.55 + 0.45 * v_nrm.y;
-			emis = suit * (film * (seam * 0.6 * k + rim * 0.45 * k + flick * 0.18) + fabric * 0.16 * hemi);
-			rough = mix(rough, clamp(suit_rough + 0.15 - 0.22 * panel + 0.25 * (cloud - 0.5), 0.12, 0.95), suit);
-			metal = suit * (suit_metal * 0.3 + 0.3 * panel + 0.2 * rim);
-			nd = mix(1.0, 0.85, suit);
+			emis = suit * (film * (seam * 0.6 * k + rim * 0.3 * k + flick * 0.18) + fabric * 0.34 * hemi);
+			rough = mix(rough, clamp(0.74 - 0.25 * panel + 0.2 * (cloud - 0.5), 0.12, 0.95), suit);
+			metal = suit * (0.04 + 0.2 * panel + 0.1 * rim);
+			nd = mix(1.0, 0.45, suit);
 		}
 	} else if (v_mode < 1.5) {
 		alb = texture(eye_albedo, UV).rgb;

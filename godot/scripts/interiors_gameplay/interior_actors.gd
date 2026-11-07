@@ -9,7 +9,8 @@ const POOL := 5
 const STEALTH_DIST := 5.0
 const PATROL_EVERY := 9.0
 const SHOT_RADIUS := 26.0
-const FOLLOW_DELAY := 1.4
+const FOLLOW_DELAY := 2.2             ## seconds between two hunters coming through the door
+const FOLLOW_FIRST := 5.0             ## seconds before the first one (the entry grace of InteriorGameplay.ENTRY_GRACE runs out first)
 
 var vendor: InteriorCivilian
 var civilians: Array[InteriorCivilian] = []
@@ -129,7 +130,7 @@ func populate(room: Node3D, t: StringName, plan: Dictionary, follow_types: Array
 				if g.model != null:
 					g.model.scale = Vector3.ONE * 1.18
 	_follow_types = follow_types.duplicate()
-	_follow_t = FOLLOW_DELAY
+	_follow_t = FOLLOW_FIRST
 	_patrol_t = PATROL_EVERY
 	_hook_player()
 

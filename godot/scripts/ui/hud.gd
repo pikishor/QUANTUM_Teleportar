@@ -2044,12 +2044,18 @@ static func _split_label(label: String) -> Array[String]:
 	return [" ".join(words.slice(0, best)), " ".join(words.slice(best))]
 
 
+## What the pause screen says to do now: the campaign step, else "CONTINUE THE STORY" while the story runs (never the old core counter next to it), else the core objective.
+func pause_goal_line() -> String:
+	var line := _campaign_line()
+	if line == "":
+		line = "CONTINUE THE STORY" if campaign_owns_goal() else objective_text()
+	return line
+
+
 ## The plain pause screen: the title, then what to do now (the one objective) and the wallet, so a returning player knows the next step before pressing RESUME.
 func _draw_pause_head(c: Control, vp: Vector2, s: float, font: Font) -> void:
 	header(c, vp, s, font, "PAUSED")
-	var line := _campaign_line()
-	if line == "":
-		line = objective_text()
+	var line := pause_goal_line()
 	var shown := ("NOW  " + line.to_upper()) if line != "NO ACTIVE OBJECTIVE" else line
 	var size := maxi(UiUtil.fit_size(font, shown, vp.x - 140.0 * s, int(UiUtil.BAR_LABEL * s)), int(BODY_MIN * s))
 	var pr := _plate_text(c, font, vp.x * 0.5, 104.0 * s, shown, size, Color(UiUtil.CYAN, 1.0), s, Color(UiUtil.MAGENTA, 0.6), 320.0 * s)
@@ -2116,6 +2122,10 @@ func _campaign_line() -> String:
 			return gl                                      # the next step cannot start in here: the way out outranks the interior's own job line
 	if InteriorGameplay.hud_line != "":
 		return ""                                          # an interior mission's own line owns the plate inside
+	if InteriorGameplay.active and k != null:
+		var kk := StringName(str(k.get(&"kind")))
+		if str(k.call(&"hud_line")) != "" and kk != &"enter_interior" and kk != &"heist":
+			return "LEAVE THE BUILDING TO CONTINUE"         # a street step is running and the room has no job of its own: not "CROSS THE FLOOR  0 M"
 	var line := str(k.call(&"hud_line")) if k != null else ""
 	if line == "" and k != null and k.get(&"guide") != null:
 		line = str((k.get(&"guide") as MissionGuide).line())          # between two steps: what comes next, or the way out of the building
@@ -2419,12 +2429,25 @@ func _draw_stealth_meter(c: Control, vp: Vector2, s: float, font: Font, y: float
 	return plate.end.y + 3.0 * s
 
 
+## True while the HUD shows a scripted step line (the plate is up).
+func has_step_line() -> bool:
+	return _camp_text != ""
+
+
+## True while the scripted campaign is switched on and not finished: its step line, the compass and the beacon are then the only goal on screen (the old sector core counter stays out).
+func campaign_owns_goal() -> bool:
+	var k := _campaign()
+	return k != null and bool(k.get(&"enabled")) and StringName(str(k.get(&"state"))) != &"done"
+
+
 func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
 	var k := _contracts()
 	var camp := _camp_text != "" and _campaign() != null
 	if camp:
 		k = _campaign()                                    # a scripted step takes the plate; its progress bar and boss bar use the same calls as a contract's
 	var contract := camp or (_contract_text != "" and k != null)
+	if not contract and campaign_owns_goal():
+		return y                                           # the story is running: no leftover "QUANTUM CORES 0 / 6" line next to it (director review)
 	var text := _camp_text if camp else (_contract_text if contract else _obj_text)
 	var col := Color(UiUtil.CYAN.lerp(Color.WHITE, 0.45), 1.0) if camp else (Color(UiUtil.AMBER.lerp(Color.WHITE, 0.35), 1.0) if contract else Color(UiUtil.MAGENTA.lerp(Color.WHITE, 0.45), 1.0))
 	var accent := Color(UiUtil.CYAN, 0.8) if camp else (Color(UiUtil.AMBER, 0.7) if contract else Color(UiUtil.MAGENTA, 0.6))

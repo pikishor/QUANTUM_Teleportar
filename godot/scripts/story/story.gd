@@ -11,12 +11,12 @@ signal chapter_started(index: int)
 signal cards_finished(kind: StringName)
 
 const CPS_LINE := 46.0              ## radio typing speed, characters per second
-const CPS_CARD := 34.0
+const CPS_CARD := 90.0              ## card typing speed (was 34: the three prologue cards took about 16 s over a live street)
 const HOLD_BASE := 1.4              ## seconds a finished line stays up: base + per character
 const HOLD_PER_CHAR := 0.03
 const LINE_GAP := 0.3               ## seconds between two radio lines
-const CARD_HOLD_BASE := 2.0         ## a finished card moves on by itself after this + per character
-const CARD_HOLD_PER_CHAR := 0.03
+const CARD_HOLD_BASE := 0.6         ## a finished card moves on by itself after this + per character
+const CARD_HOLD_PER_CHAR := 0.01
 const CARD_MIN := 0.35              ## seconds before a tap may advance a card (a firing finger must not skip it)
 const BANNER_TIME := 4.4
 const QUEUE_MAX := 4
@@ -367,6 +367,9 @@ func _tick_cards(delta: float) -> void:
 	if cards.is_empty():
 		return
 	card_age += delta
+	var pl := Game.player
+	if is_instance_valid(pl) and card_kind == &"prologue" and Game.state == &"play" and pl.get(&"invuln") is float:
+		pl.set(&"invuln", maxf(pl.get(&"invuln") as float, 0.5))    # the world is live under the cards: nothing may hurt a player who is reading
 	var n := str(cards[0]["text"]).length()
 	if card_typed < n:
 		card_typed = minf(card_typed + CPS_CARD * delta, float(n))

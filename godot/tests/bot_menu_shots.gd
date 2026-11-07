@@ -37,6 +37,10 @@ func _init() -> void:
 		["map_danger", &"paused", [], &"map_danger"],
 		["dead", &"dead", []],
 	]
+	var only := OS.get_environment("MENU_ONLY")                  # comma list of step names: render just those
+	if only != "":
+		var keep := only.split(",", false)
+		_steps = _steps.filter(func(st: Array) -> bool: return keep.has(String(st[0])))
 
 
 func step(_t: float, _dt: float) -> bool:
@@ -62,6 +66,7 @@ func step(_t: float, _dt: float) -> bool:
 	if _i >= _steps.size():
 		_i = _steps.size() - 1
 		_wait = 1 << 20
+		_hud.get_tree().quit()
 		return true
 	_begin()
 	return false

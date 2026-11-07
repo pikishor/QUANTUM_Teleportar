@@ -28,6 +28,10 @@ const HALF := CELLS * CELL * 0.5
 const ZOOMS: Array[int] = [1, 2, 4]
 const ZOOM_MAX := 8.0
 const DRAG_PX := 14.0
+const LOD_ZOOM := 2.0                              ## below this zoom the crowded kinds show only their nearest few
+const LOD_KINDS: Array[StringName] = [&"interior", &"shop", &"garage", &"items", &"weapon", &"job"]
+const LOD_NEAR := 3
+const LOD_NEAR_JOB := 8
 const START_HALF := 300.0                           ## metres: the original city (|x|, |z| <= this) is charted from the first second, so the map is not a black square with a dot (it was 6 %)
 const DISCOVER_R := 150.0                           ## metres: how far around you the map charts itself (it was 70: 6 % after a walk)
 const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items"]
@@ -664,6 +668,32 @@ func collect_markers() -> Array[Dictionary]:
 	return out
 
 
+## The overview shows what a player needs, not 600 icons (director review): the objective, side jobs and homes always, and of the crowded kinds (INTERIORS,
+## SHOPS, GARAGE, ITEMS, WEAPONS, JOBS) only the LOD_NEAR (jobs: LOD_NEAR_JOB) nearest to the hero. Zoomed in (zoom_f >= LOD_ZOOM) every marker of an enabled kind is drawn.
+func lod_markers(list: Array[Dictionary]) -> Array[Dictionary]:
+	if zoom_f >= LOD_ZOOM:
+		return list
+	var from := Vector2.ZERO
+	if is_instance_valid(Game.player):
+		from = Vector2(Game.player.global_position.x, Game.player.global_position.z)
+	var out: Array[Dictionary] = []
+	var crowded := {}
+	for mk in list:
+		if LOD_KINDS.has(mk["kind"]):
+			var p: Vector3 = mk["pos"]
+			if not crowded.has(mk["kind"]):
+				crowded[mk["kind"]] = []
+			(crowded[mk["kind"]] as Array).append([Vector2(p.x, p.z).distance_squared_to(from), mk])
+		else:
+			out.append(mk)
+	for k: StringName in crowded:
+		var arr: Array = crowded[k]
+		arr.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+		for i in mini(arr.size(), LOD_NEAR_JOB if k == &"job" else LOD_NEAR):
+			out.append(arr[i][1])
+	return out
+
+
 ## Markers shown right now: filter on, and (for fogged kinds) the cell discovered.
 func visible_markers() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
@@ -690,7 +720,7 @@ func marker_counts() -> Dictionary:
 func marker_at(p: Vector2) -> Dictionary:
 	var best := {}
 	var bd := MARKER_PICK_PX * _s()
-	for mk in visible_markers():
+	for mk in lod_markers(visible_markers()):
 		var pw: Vector3 = mk["pos"]
 		var d := world_to_map(pw.x, pw.z).distance_to(p)
 		if d <= bd:
@@ -704,7 +734,7 @@ func _refresh_chips() -> void:
 	for k in KINDS:
 		var b: Button = _btns[k]
 		var n := int(_counts.get(k, 0))
-		var t := "%s  %d" % [Tr.t(String(KIND_LABEL[k])), n]
+		var t := Tr.t(String(KIND_LABEL[k])) if LOD_KINDS.has(k) else "%s  %d" % [Tr.t(String(KIND_LABEL[k])), n]
 		if b.text != t:
 			b.text = t
 	if _map != null:
@@ -920,7 +950,7 @@ func _draw_map() -> void:
 	_counts.clear()
 	var cl := {}                                                       # "kind|cx|cy" -> [sum px, n, a marker]
 	var r_badge := (10.0 if zoom_f < 2.0 else 13.0) * s
-	for mk in visible_markers():
+	for mk in lod_markers(visible_markers()):
 		var k: StringName = mk["kind"]
 		var pw: Vector3 = mk["pos"]
 		var mp := world_to_map(pw.x, pw.z)

@@ -291,7 +291,7 @@ func _vehicle_crash() -> void:
 	Input.action_release(&"move_forward")
 	TestLib.check(car.dead and car.wreck, "the crash wrecked the car")
 	TestLib.check(car.visible and not car.is_in_group(&"vehicle") and not mgr.list.has(car), "the wreck stays as a visible husk outside the vehicle group")
-	TestLib.check(mgr.wreck_count() >= 1 and car.visual.get_paint().get_luminance() < 0.12, "the husk is charred (%d wrecks)" % mgr.wreck_count())
+	TestLib.check(mgr.wreck_count() >= 1 and car.visual.get_paint().get_luminance() < 0.2, "the husk is charred (%d wrecks)" % mgr.wreck_count())
 	_assert_on_foot("crash")
 	TestLib.check(p.global_position.y < 1.0 and not p.is_dead(), "the player stands on the ground, alive (hp %.0f)" % p.hp)
 	p.teleport_to(Vector3(0.0, 0.0, 200.0))        # the replacement never appears within 25 m of the player

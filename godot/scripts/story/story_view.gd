@@ -147,7 +147,7 @@ func _draw_layer() -> void:
 			if story.cards_active():
 				_draw_cards(vp, s, font)
 			else:
-				if story.banner_visible():
+				if story.banner_visible() and not _hud_has_step_line():       # the step line, compass and beacon already say what to do: a faded chapter banner under them was a pile (director review)
 					_draw_banner(vp, s, font, ins)
 				if story.line_visible():
 					if UiSettings.s_subtitles:
@@ -160,6 +160,12 @@ func _draw_layer() -> void:
 				_draw_cards(vp, s, font)
 			elif not story.end_card.is_empty():
 				_draw_end_card(vp, s, font)
+
+
+## True while the HUD shows a campaign step line (its plate would sit right where the chapter banner is drawn).
+func _hud_has_step_line() -> bool:
+	var h := get_tree().get_first_node_in_group(&"hud") as Hud
+	return h != null and h.campaign_owns_goal() and h.has_step_line()
 
 
 ## The banner is a block of centred lines under the HUD stack on one plate, narrower than the screen by the subtitle column on each side; lines shrink to fit.

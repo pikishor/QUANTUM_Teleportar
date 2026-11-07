@@ -34,10 +34,11 @@ const FREE_LOOK_TIME := 1.5
 
 # presets (src/player.js updateCamera)
 const EYE_HEIGHT := 1.55
-const HIP_DIST := 3.6
-const HIP_SHOULDER := 0.8
+const HIP_DIST := 3.2
+const HIP_SHOULDER := 0.95
 const ADS_DIST := 2.0
-const ADS_SHOULDER := 0.55
+const ADS_LIFT := 0.14                       ## metres the camera rises while aiming: the rifle shows over the shoulder instead of hiding behind it (director review: the weapon was not visible)
+const ADS_SHOULDER := 0.72
 const FOV_HIP := 92.0          # horizontal degrees (keep_aspect = KEEP_WIDTH): the same view on 16:9 tablets and 20:9 phones
 const FOV_SPRINT := 100.0
 const FOV_ADS := 62.0
@@ -45,11 +46,11 @@ const VEH_DIST := 7.5          # legacy defaults (a bike or a car whose spec is 
 const VEH_HEIGHT := 1.6
 const VEH_FOV := 92.0
 # --- driving camera (owner round 3): the view is sized by the car, widens and pulls back with speed, follows the drift, looks behind and has a hood view
-const VEH_FOV_REST := 64.0     # horizontal degrees at a standstill, VEH_FOV_FAST at top speed (+ NITRO_FOV while boosting)
-const VEH_FOV_FAST := 82.0
+const VEH_FOV_REST := 68.0     # horizontal degrees at a standstill, VEH_FOV_FAST at top speed (+ NITRO_FOV while boosting)
+const VEH_FOV_FAST := 98.0
 const VEH_NITRO_FOV := 7.0
-const VEH_DIST_K := 1.2       # chase distance = car length x this + VEH_DIST_ADD, plus up to VEH_DIST_SPEED at top speed
-const VEH_DIST_ADD := 1.9
+const VEH_DIST_K := 1.0       # chase distance = car length x this + VEH_DIST_ADD, plus up to VEH_DIST_SPEED at top speed
+const VEH_DIST_ADD := 1.6
 const VEH_DIST_SPEED := 2.4
 const VEH_PITCH := -0.19
 const HOOD_FOV := 82.0
@@ -736,7 +737,7 @@ func _update_view(dt: float) -> void:
 	_veh_dist_now = veh_dist
 	var dist := lerpf(foot_dist, veh_dist, _mode_mix)
 	var shoulder := lerpf(foot_shoulder, 0.0, _mode_mix)
-	var height := lerpf(EYE_HEIGHT * float(hs["eye"]), float(vp["height"]), _mode_mix)
+	var height := lerpf(EYE_HEIGHT * float(hs["eye"]) + ADS_LIFT * ads_s, float(vp["height"]), _mode_mix)
 	var fov_target := lerpf(foot_fov, veh_fov, _mode_mix)
 	if InteriorSpace.active:
 		fov_target += INTERIOR_FOV_BOOST * clampf((1.0 - _ratio) / 0.5, 0.0, 1.0) * (1.0 - _mode_mix)     # _ratio: last frame's arm fraction (the wall pull-in)
