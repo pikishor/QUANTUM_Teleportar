@@ -64,16 +64,30 @@ vec3 pool(vec4 pp, vec4 pc, float i, vec3 p, vec3 n, vec3 rv, float gloss, out v
 	float dist = max(length(d), 0.001);
 	vec3 ld = d / dist;
 	float pul = 1.0 + show * 0.75 * sin(TIME * (2.0 + i * 0.9) + i * 2.1);
-	float att = clamp(1.0 - dist / pp.w, 0.0, 1.0);
+	float rad = abs(pp.w);
+	float att = clamp(1.0 - dist / rad, 0.0, 1.0);
 	att *= att;
 	float facing = 0.28 + 0.72 * pow(clamp(dot(n, ld) * 0.5 + 0.5, 0.0, 1.0), 1.5);      // half-lambert with a floor: the pools are baked bounce light, so a face turned away is dim, not black
 	vec3 diff = pc.rgb * pc.a * att * facing * pul;
 	if (gloss > 0.02) {
-		float att2 = clamp(1.0 - dist / (pp.w * 1.6), 0.0, 1.0);
+		float att2 = clamp(1.0 - dist / (rad * 1.6), 0.0, 1.0);
 		float s = pow(max(dot(rv, ld), 0.0), 18.0);
 		gl = pc.rgb * pc.a * att2 * s * gloss * pul * 0.9;
 	}
 	return diff;
+}
+
+// Adds one pool to the neutral sum or, when its radius is negative (an ACCENT pool: a neon sign, a fridge, a work lamp), to the accent sum, which keeps its colour.
+void add_pool(vec4 pp, vec4 pc, float i, vec3 p, vec3 n, vec3 rv, float gloss, inout vec3 pl, inout vec3 pa, inout vec3 gs, inout vec3 ga) {
+	vec3 g;
+	vec3 d = pool(pp, pc, i, p, n, rv, gloss, g);
+	if (pp.w < 0.0) {
+		pa += d;
+		ga += g;
+	} else {
+		pl += d;
+		gs += g;
+	}
 }
 
 void vertex() {
@@ -101,39 +115,111 @@ void fragment() {
 	float gloss = 0.0;
 
 	if (cls < 0.5) {
-		// ---- wall
+		// ---- wall (COLOR.a = style: 0 plaster, 1 tiled lower half, 2 corrugated sheet, 3 brick)
 		float ch = max(vuv.y, 2.4);
+		float sty = floor(vcol.a * 4.0 + 0.5);
 		float base = 1.0 - smoothstep(0.12, 0.15, h);
-		alb = mix(alb, alb * 0.32 + vec3(0.006), base);
 		float rail = 1.0 - smoothstep(0.0, 0.012, abs(h - 1.06));
+		float g1 = vnoise(vec2(t * 1.1, h * 0.8));
+		float streak = vnoise(vec2(t * 7.0, h * 0.28));
+		float blotch = vnoise(vec2(t * 0.45 + 3.0, h * 0.5));                // big soft patches: the paint is not one flat colour
+		float lo = 1.0 - smoothstep(1.0, 1.12, h);                            // below the dado rail
+		rough = 0.85;
+		if (sty > 2.5) {
+			// brick: running bond, mortar lines, per-brick tone
+			vec2 bq = vec2(t / 0.42, h / 0.14);
+			bq.x += floor(bq.y) * 0.5;
+			vec2 bf = fract(bq);
+			float mortar = 1.0 - smoothstep(0.0, 0.07, min(min(bf.x, 1.0 - bf.x) * 0.6, min(bf.y, 1.0 - bf.y)));
+			float bt = hash21(floor(bq));
+			alb *= (0.75 + 0.55 * bt) * (0.85 + 0.3 * blotch);
+			alb = mix(alb, vec3(0.1, 0.09, 0.085) + alb * 0.2, mortar * 0.8);
+			rough = 0.9;
+		} else if (sty > 1.5) {
+			// corrugated sheet: vertical ribs catch the light on one flank, rust runs down from the seams, a hazard band at knee height
+			float rib = sin(t * 18.85);
+			alb *= 0.82 + 0.22 * rib * sign(wnrm.x + wnrm.z + 0.001);
+			float rust = smoothstep(0.55, 0.95, vnoise(vec2(t * 2.3, h * 0.12 + 4.0))) * (1.0 - smoothstep(0.0, 3.0, h));
+			alb = mix(alb, vec3(0.22, 0.1, 0.05) * (0.5 + 0.5 * streak), rust * 0.55);
+			float band = smoothstep(0.78, 0.8, h) * (1.0 - smoothstep(1.02, 1.04, h));
+			float hz = step(0.5, fract((t + h) * 1.6));
+			alb = mix(alb, mix(vec3(0.03), vec3(0.42, 0.32, 0.03), hz), band);
+			rough = 0.55;
+			metal = 0.35;
+		} else {
+			if (sty > 0.5) {
+				// tiles from the floor to the rail: 0.25 m glazed tiles, grout, a darker course on top
+				vec2 tq = vec2(t / 0.25, h / 0.25);
+				vec2 tf = abs(fract(tq) - 0.5);
+				float grout = smoothstep(0.455, 0.49, max(tf.x, tf.y));
+				float tt = hash21(floor(tq));
+				vec3 tile = alb * (1.25 + 0.4 * tt) + vec3(0.03);
+				float course = step(0.99, h) * step(h, 1.06);
+				tile = mix(tile, alb * 0.55, course);
+				alb = mix(alb, mix(tile, alb * 0.3, grout), lo);
+				rough = mix(0.85, 0.22, lo);
+			}
+			alb *= 0.92 + 0.2 * blotch;
+		}
+		alb = mix(alb, alb * 0.32 + vec3(0.006), base * (sty > 1.5 ? 0.5 : 1.0));
 		alb *= mix(1.0, 1.0, rail);
-		alb *= mix(0.8, 1.0, smoothstep(1.03, 1.09, h));                 // painted dado below the rail
+		alb *= mix(sty > 0.5 && sty < 1.5 ? 1.0 : 0.8, 1.0, smoothstep(1.03, 1.09, h));                 // painted dado below the rail
 		alb += vec3(0.05) * rail;
 		alb *= mix(1.0, 0.55, smoothstep(ch - 0.18, ch - 0.02, h));      // crown shadow
 		float s = abs(fract(t / 1.5 + 0.5) - 0.5) * 1.5;
 		alb *= 1.0 - 0.32 * (1.0 - smoothstep(0.0, 0.016, s)) * step(0.16, h);
-		float g1 = vnoise(vec2(t * 1.1, h * 0.8));
-		float streak = vnoise(vec2(t * 7.0, h * 0.28));
 		float grime = smoothstep(0.35, 0.95, streak) * (0.45 + 0.55 * g1);
 		if (detail > 1.5) {
 			grime += 0.25 * vnoise(vec2(t * 19.0, h * 11.0));
 		}
 		alb *= 1.0 - (0.5 * grime) * mix(0.7, 1.0, 1.0 - smoothstep(0.0, 2.2, h));
 		alb *= mix(0.6, 1.0, smoothstep(0.0, 0.7, h));                   // dirt at the foot of the wall
-		rough = 0.85;
 	} else if (cls < 1.5) {
-		// ---- floor
-		vec2 q = wpos.xz / 0.6;
-		vec2 f = fract(q);
-		vec2 dd = min(f, 1.0 - f);
-		float gr = 1.0 - smoothstep(0.0, 0.03, min(dd.x, dd.y));
-		float tv = hash21(floor(q));
-		alb *= 0.86 + 0.26 * tv;
-		alb = mix(alb, alb * 0.35, gr);
+		// ---- floor (COLOR.a = style: 0 square tiles, 1 two-tone checker, 2 wood planks, 3 sealed concrete with painted lanes)
+		float fsty = floor(vcol.a * 4.0 + 0.5);
 		float dirt = vnoise(wpos.xz * 0.9);
-		alb *= 0.78 + 0.3 * dirt;
 		float wet = smoothstep(0.58, 0.74, vnoise(wpos.xz * 0.45 + vec2(7.0, 3.0)));
 		rough = mix(0.5, 0.07, wet);
+		if (fsty > 2.5) {
+			// concrete: big slabs with expansion joints, tyre-dark wear, a yellow lane line every 4.5 m and oil stains
+			vec2 q = wpos.xz / 2.4;
+			vec2 f = fract(q);
+			vec2 dd = min(f, 1.0 - f);
+			float gr = 1.0 - smoothstep(0.0, 0.02, min(dd.x, dd.y));
+			alb *= 0.8 + 0.3 * hash21(floor(q));
+			alb = mix(alb, alb * 0.3, gr);
+			float lane = 1.0 - smoothstep(0.05, 0.09, abs(fract(wpos.x / 4.5 + 0.5) - 0.5) * 4.5);
+			float dash = step(0.35, fract(wpos.z / 1.6));
+			alb = mix(alb, vec3(0.5, 0.4, 0.06), lane * dash * 0.85);
+			float oil = smoothstep(0.62, 0.8, vnoise(wpos.xz * 0.7 + vec2(11.0, 5.0)));
+			alb *= 1.0 - 0.45 * oil;
+			rough = mix(0.62, 0.12, max(wet, oil));
+		} else if (fsty > 1.5) {
+			// wood planks: 0.16 m boards running along x, butt joints, grain
+			float row = floor(wpos.z / 0.16);
+			float off = hash21(vec2(row, 3.0)) * 1.3;
+			float bx = (wpos.x + off) / 1.2;
+			vec2 bq = vec2(fract(bx), fract(wpos.z / 0.16));
+			float gap = 1.0 - smoothstep(0.0, 0.05, min(min(bq.y, 1.0 - bq.y), min(bq.x * 0.13, (1.0 - bq.x) * 0.13) * 6.0));
+			float grain = vnoise(vec2(wpos.x * 7.0 + row * 3.1, wpos.z * 40.0));
+			alb *= (0.7 + 0.5 * hash21(vec2(floor(bx), row))) * (0.88 + 0.24 * grain);
+			alb = mix(alb, alb * 0.25, gap);
+			rough = mix(0.45, 0.07, wet) ;
+		} else {
+			vec2 q = wpos.xz / 0.6;
+			vec2 f = fract(q);
+			vec2 dd = min(f, 1.0 - f);
+			float gr = 1.0 - smoothstep(0.0, 0.03, min(dd.x, dd.y));
+			float tv = hash21(floor(q));
+			if (fsty > 0.5) {
+				float chk = mod(floor(q.x) + floor(q.y), 2.0);          // two-tone checker: one colour lifted, one sunk
+				alb *= mix(0.55, 1.5, chk);
+			} else {
+				alb *= 0.86 + 0.26 * tv;
+			}
+			alb = mix(alb, alb * 0.35, gr);
+		}
+		alb *= 0.78 + 0.3 * dirt;
 		alb *= 1.0 - 0.28 * wet;
 		gloss = (1.0 - rough);
 	} else if (cls < 2.5) {
@@ -227,21 +313,23 @@ void fragment() {
 	vec3 vw = normalize((INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz);   // surface -> camera, world space
 	vec3 rv = reflect(-vw, wnrm);
 	vec3 pl = ambient_col;
+	vec3 pa = vec3(0.0);
 	vec3 gsum = vec3(0.0);
-	vec3 g;
-	pl += pool(pool_pos0, pool_col0, 0.0, wpos, wnrm, rv, gloss, g); gsum += g;
-	pl += pool(pool_pos1, pool_col1, 1.0, wpos, wnrm, rv, gloss, g); gsum += g;
-	pl += pool(pool_pos2, pool_col2, 2.0, wpos, wnrm, rv, gloss, g); gsum += g;
-	pl += pool(pool_pos3, pool_col3, 3.0, wpos, wnrm, rv, gloss, g); gsum += g;
-	pl += pool(pool_pos4, pool_col4, 4.0, wpos, wnrm, rv, gloss, g); gsum += g;
-	pl += pool(pool_pos5, pool_col5, 5.0, wpos, wnrm, rv, gloss, g); gsum += g;
-	pl += pool(pool_pos6, pool_col6, 6.0, wpos, wnrm, rv, gloss, g); gsum += g;
-	pl += pool(pool_pos7, pool_col7, 7.0, wpos, wnrm, rv, gloss, g); gsum += g;
-	// colour balance: the pools stack up (key, neon, street glow); a saturated sum turns the whole room one colour, so the baked light keeps `balance` of its saturation (the club: all of it)
+	vec3 gacc = vec3(0.0);
+	add_pool(pool_pos0, pool_col0, 0.0, wpos, wnrm, rv, gloss, pl, pa, gsum, gacc);
+	add_pool(pool_pos1, pool_col1, 1.0, wpos, wnrm, rv, gloss, pl, pa, gsum, gacc);
+	add_pool(pool_pos2, pool_col2, 2.0, wpos, wnrm, rv, gloss, pl, pa, gsum, gacc);
+	add_pool(pool_pos3, pool_col3, 3.0, wpos, wnrm, rv, gloss, pl, pa, gsum, gacc);
+	add_pool(pool_pos4, pool_col4, 4.0, wpos, wnrm, rv, gloss, pl, pa, gsum, gacc);
+	add_pool(pool_pos5, pool_col5, 5.0, wpos, wnrm, rv, gloss, pl, pa, gsum, gacc);
+	add_pool(pool_pos6, pool_col6, 6.0, wpos, wnrm, rv, gloss, pl, pa, gsum, gacc);
+	add_pool(pool_pos7, pool_col7, 7.0, wpos, wnrm, rv, gloss, pl, pa, gsum, gacc);
+	// colour balance: the pools stack up (key, neon, street glow); a saturated sum turns the whole room one colour, so the baked light keeps `balance` of its saturation (the club: all of it).
+	// ACCENT pools (negative radius) are local on purpose (two or three per room, a few metres wide) and keep their colour: that is where the room gets its hues.
 	float pl_l = dot(pl, vec3(0.2126, 0.7152, 0.0722));
-	pl = mix(vec3(pl_l), pl, balance);
+	pl = mix(vec3(pl_l), pl, balance) + pa;
 	float gs_l = dot(gsum, vec3(0.2126, 0.7152, 0.0722));
-	gsum = mix(vec3(gs_l), gsum, balance * 0.8);
+	gsum = mix(vec3(gs_l), gsum, balance * 0.8) + gacc;
 	if (lit) {
 		emit += alb * pl + gsum;
 	}

@@ -112,7 +112,7 @@ static func _floor(sb: RefCounted, plan: InteriorPlan, room: Dictionary, quality
 				if d < 0.7:
 					var k := 1.0 - d / 0.7
 					ao *= 1.0 - 0.5 * k * k
-			var col := Color(base.r * ao, base.g * ao, base.b * ao, 1.0 if is_dance else 0.0)
+			var col := Color(base.r * ao, base.g * ao, base.b * ao, 1.0 if is_dance else float(room.get("fstyle", 0)) * 0.25)         # alpha = floor style for the shader
 			sb.uv = Vector2(6.0 if is_dance else 1.0, 0.0)
 			sb.quad(Vector3(x0, 0.0, z0), Vector3(x0 + cw, 0.0, z0), Vector3(x0 + cw, 0.0, z0 + cd), Vector3(x0, 0.0, z0 + cd), Vector3.UP, col)
 
@@ -146,7 +146,8 @@ static func _door_floor(sb: RefCounted, plan: InteriorPlan, dd: Dictionary) -> v
 static func _room_wall(plan: InteriorPlan, room: int) -> Color:
 	if room < 0:
 		return EXTERIOR
-	return plan.rooms[room]["wall"]
+	var c: Color = plan.rooms[room]["wall"]
+	return Color(c.r, c.g, c.b, float(plan.rooms[room].get("style", 0)) * 0.25)         # alpha = wall style for the shader (0 plaster, 1 tiled, 2 corrugated, 3 brick)
 
 
 static func _segment(sb: RefCounted, wb: RefCounted, plan: InteriorPlan, s: Dictionary) -> void:
@@ -240,8 +241,8 @@ static func _segment(sb: RefCounted, wb: RefCounted, plan: InteriorPlan, s: Dict
 static func _wall_piece(sb: RefCounted, axis: int, line: float, a0: float, a1: float, y0: float, y1: float, col_pos: Color, col_neg: Color, trim: Color, h: float) -> void:
 	var T := InteriorPlan.T
 	var hp := T * 0.5
-	var cp := Color(col_pos.r, col_pos.g, col_pos.b, 0.0)
-	var cn := Color(col_neg.r, col_neg.g, col_neg.b, 0.0)
+	var cp := col_pos
+	var cn := col_neg
 	var ct := Color(trim.r * 0.6, trim.g * 0.6, trim.b * 0.6, 0.0)
 	# relief: a baseboard and a dado rail on both faces, a crown moulding under the ceiling (real geometry, so the room has edges the light can catch)
 	var tl := Color(trim.r * 0.8, trim.g * 0.8, trim.b * 0.8, 0.0)

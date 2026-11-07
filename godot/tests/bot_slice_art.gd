@@ -50,8 +50,15 @@ func step(_t: float, _dt: float) -> bool:
 		for n in _p.get_tree().root.find_children("*", "Stability", true, false):
 			n.set_process(false)
 		_p.max_hp = 1.0e6
+		if OS.get_environment("SLICE_HUD") == "0":
+			for n in _p.get_tree().root.find_children("*", "CanvasLayer", true, false):
+				var sc: Script = n.get_script()
+				if sc != null and sc.resource_path.contains("/scripts/ui/"):
+					(n as CanvasLayer).visible = false
 		DirAccess.make_dir_recursive_absolute(_out)
 		_begin()
+	if _i >= _spots.size():
+		return true
 	if _wait > 0:
 		_wait -= 1
 		_p.hp = _p.max_hp

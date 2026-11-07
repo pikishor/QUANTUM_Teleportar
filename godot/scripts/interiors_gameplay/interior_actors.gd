@@ -82,6 +82,7 @@ func populate(room: Node3D, t: StringName, plan: Dictionary, follow_types: Array
 		var v := _acquire()
 		v.setup(rng.randi())
 		v.activate(&"vendor", va[0]["pos"], float(va[0]["yaw"]), InteriorData.color(t))
+		v.light_with(room)
 		vendor = v
 	# civilians (the hostage is the one civilian of an apartment with that mission)
 	var n_civ := int(plan["civilians"])
@@ -89,6 +90,7 @@ func populate(room: Node3D, t: StringName, plan: Dictionary, follow_types: Array
 	for i in n_civ:
 		var c := _acquire()
 		c.setup(rng.randi())
+		c.light_with(room)
 		var a: Dictionary = ca[i % ca.size()]
 		if mission == &"hostage" and i == 0:
 			var ha: Array = InteriorGameplay.anchor_points(room, &"hostage", 1, seed_value)

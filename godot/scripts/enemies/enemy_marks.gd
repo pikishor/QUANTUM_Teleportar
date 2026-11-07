@@ -15,6 +15,8 @@ const HALO_SHADER := preload("res://assets/shaders/fx_threat.gdshader")
 const LINE_SHADER := preload("res://assets/shaders/fx_aimline.gdshader")
 const FAR := 90.0                       ## no marks beyond this distance (metres)
 const RING_RANGE := 40.0                ## beyond this the body is a few pixels: the ring returns
+const MARK_NEAR_K := 0.34               ## a ring / flare is at most this fraction of its distance to the camera (about 20 degrees of view)
+const MARK_MIN_DIST := 3.5              ## no fallback ring on an enemy closer than this (it is right there, readable by itself)
 const OCC_EVERY := 6                    ## frames between the occlusion rays of one enemy
 
 var halos: MultiMesh                     ## rings, flares, death rings, then the health bars (one draw)
@@ -97,7 +99,7 @@ func refresh(list: Array[Drone]) -> void:
 		if dist > FAR or dist < 0.5:
 			continue
 		var col := d.mark_color()
-		var size := d.mark_size()
+		var size := minf(d.mark_size(), dist * MARK_NEAR_K)     # a ring around an enemy at arm's length is a screen-wide arc: it never grows past a third of the distance to the lens
 		var toward := to_cam / dist
 		if d.dead:
 			var t := d.death_progress()
@@ -113,7 +115,7 @@ func refresh(list: Array[Drone]) -> void:
 			_ray.from = cpos
 			_ray.to = c
 			_occluded[n - 1] = 0 if space.intersect_ray(_ray).is_empty() else 1
-		var needs_ring := dist > RING_RANGE or _occluded[n - 1] == 1 or not cam.is_position_in_frustum(c)
+		var needs_ring := (dist > RING_RANGE or _occluded[n - 1] == 1 or not cam.is_position_in_frustum(c)) and dist > MARK_MIN_DIST
 		# the ring floats a little in front of the body (towards the camera) so the quad never sinks into the body or the street
 		if needs_ring:
 			var at := c + toward * minf(size * 0.28, dist * 0.5)
@@ -124,6 +126,7 @@ func refresh(list: Array[Drone]) -> void:
 		if charge > 0.02:
 			var m := d.muzzle_world()
 			var fs := (0.7 + 1.5 * charge) * (1.0 + dist * 0.025)
+			fs = minf(fs, maxf(0.12, cpos.distance_to(m) * MARK_NEAR_K))       # a muzzle flare next to the lens must not flash the whole screen
 			halos.set_instance_transform(hn, Transform3D(Basis.from_scale(Vector3.ONE * fs), m + (cpos - m).normalized() * 0.15))
 			halos.set_instance_color(hn, col)
 			halos.set_instance_custom_data(hn, Color(charge, 1.0, 0.0, 1.0))

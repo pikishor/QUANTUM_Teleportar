@@ -23,15 +23,15 @@ void fragment() {
 		float edge = 1.0 - clamp(length(p / (pad_size * 0.5)), 0.0, 1.0);
 		float frame = smoothstep(0.0, 0.12, edge) * smoothstep(0.34, 0.12, edge);
 		float sweep = 0.5 + 0.5 * sin(uv.y * 14.0 - TIME * 4.0);
-		a = frame * 1.4 + edge * 0.35 * sweep;
+		a = frame * 1.4 + edge * 0.16 * sweep;
 	} else {
 		float dx = min(uv.x, 1.0 - uv.x) * door_size.x;
 		float dy = min(uv.y, 1.0 - uv.y) * door_size.y;
 		float edge = min(dx, dy);
 		float line = smoothstep(0.1, 0.0, edge);
-		float glow = smoothstep(0.7, 0.0, edge) * 0.25;
-		float sheet = 0.12 + 0.1 * sin(uv.y * 20.0 - TIME * 3.0);
-		a = line * 2.2 + glow + sheet * step(0.1, edge);
+		float glow = smoothstep(0.45, 0.0, edge) * 0.22;
+		// the door is NOT filled: a lit translucent rectangle on the facade read as a render glitch. The door is a bright frame with a soft edge glow; the doorway stays clear.
+		a = line * 2.0 + glow;
 	}
 	float near = smoothstep(0.8, 3.5, length(VERTEX));      // standing in the doorway: the frame and pad fade instead of blowing the view out white
 	ALBEDO = min(vc.rgb * a * pulse * strength * (1.0 + vc.a), vec3(1.2)) * near;

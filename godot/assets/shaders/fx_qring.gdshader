@@ -15,11 +15,13 @@ uniform float open = 0.0;
 uniform float gain : hint_range(0.0, 2.0) = 1.0;
 uniform float seed = 0.0;
 varying vec3 v_world;
+varying vec3 v_centre;
 
 float hash(float n) { return fract(sin(n * 91.345 + seed) * 43758.5453); }
 
 void vertex() {
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_centre = MODEL_MATRIX[3].xyz;
 }
 
 float ring(float r, float centre, float w) {
@@ -32,6 +34,8 @@ void fragment() {
 	float r = length(q);
 	float a = atan(q.y, q.x);
 	float fade = 1.0 - t;
+	// A ring seen from close by (the camera behind the hero, the hero's own portal) must stay a ring: its filled inside is a translucent sheet that fills the screen.
+	float cfill = smoothstep(3.0, 9.0, distance(v_centre, CAMERA_POSITION_WORLD));
 	float col_mix = 0.0;
 	float v = 0.0;
 	if (mode == 0 || mode == 1) {
@@ -41,7 +45,7 @@ void fragment() {
 		float grain = 0.75 + 0.25 * hash(floor(a * 20.0) + floor(t * 6.0));
 		v = ring(r, rc * 0.96, w) * grain * 1.4;
 		v += ring(r, rc * 0.96 - 0.09 * (mode == 0 ? 1.0 : -1.0), 0.05) * 0.35;
-		v += (1.0 - smoothstep(0.0, 0.9 * rc + 0.001, r)) * fade * fade * 0.18;
+		v += (1.0 - smoothstep(0.0, 0.9 * rc + 0.001, r)) * fade * fade * 0.12 * cfill;
 		v *= pow(fade, 1.3);
 		col_mix = clamp(abs(r - rc) * 6.0, 0.0, 1.0);
 	} else if (mode == 2) {
@@ -57,7 +61,9 @@ void fragment() {
 		float rc = open > 0.5 ? mix(0.35, 0.9, 1.0 - pow(1.0 - t, 3.0)) : mix(0.9, 0.3, pow(t, 2.0));
 		float rim = ring(r, rc, 0.05) * 1.4;
 		float swirl = 0.5 + 0.5 * sin(a * 3.0 + r * 9.0 + t * 14.0 * (open > 0.5 ? -1.0 : 1.0));
-		float inner = (1.0 - smoothstep(rc - 0.1, rc, r)) * (0.12 + 0.28 * swirl) * fade;
+		// the swirl lives in a band just inside the rim; the disc itself stays clear (seen through it, the street is the destination)
+		float band = smoothstep(rc - 0.34, rc - 0.1, r);
+		float inner = (1.0 - smoothstep(rc - 0.1, rc, r)) * mix(band * (0.10 + 0.30 * swirl), 0.10 + 0.20 * swirl, cfill) * fade;
 		v = (rim + inner) * pow(fade, 0.8);
 		col_mix = clamp(r / max(rc, 0.01) - 0.5, 0.0, 1.0);
 	}

@@ -13,6 +13,7 @@ const DEADBAND := 0.1                   ## heroes within 10 % of the reference h
 const HIT_MOTES := 10
 const DEATH_MOTES := 36
 const MOTE_COLOR := Color(0.35, 0.95, 1.0)
+const MOTE_SIZE := 0.06            ## metres: one quantum mote (hit and death bursts)
 const HAND_NAMES := {&"r": ["handr", "hand_r", "righthand", "mixamorig_righthand", "hand.r"], &"l": ["handl", "hand_l", "lefthand", "mixamorig_lefthand", "hand.l"]}
 
 static var height := REF_HEIGHT
@@ -92,12 +93,13 @@ static func make_burst(host: Node3D) -> CPUParticles3D:
 	p.gravity = Vector3(0.0, 0.6, 0.0)
 	p.initial_velocity_min = 0.8
 	p.initial_velocity_max = 2.6
-	p.scale_amount_min = 0.02
-	p.scale_amount_max = 0.05
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.3
 	p.color = MOTE_COLOR
+	p.top_level = true                    # world-space motes: nothing inherited from the hero's body (its height scale)
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var q := QuadMesh.new()
-	q.size = Vector2.ONE
+	q.size = Vector2(MOTE_SIZE, MOTE_SIZE)  # a 6 cm soft dot. Was a 1 m quad whose size came from scale_amount, which a BILLBOARD_ENABLED material without billboard_keep_scale ignores: metre-wide untextured additive squares at the lens
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -105,6 +107,7 @@ static func make_burst(host: Node3D) -> CPUParticles3D:
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	m.vertex_color_use_as_albedo = true
 	m.albedo_color = Color(1, 1, 1, 0.9)
+	m.albedo_texture = MissionVisuals.soft_texture()
 	q.material = m
 	p.mesh = q
 	p.finished.connect(func() -> void: p.visible = false)

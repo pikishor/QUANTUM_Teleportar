@@ -75,9 +75,9 @@ const SPECS := {
 		],
 	},
 	&"bar": {
-		"name": "NOODLE BAR", "ceil": [3.0, 3.4], "windows": 0.9, "hostile": false,
-		"pal": {"wall": Color(0.20, 0.12, 0.10), "wall2": Color(0.10, 0.12, 0.14), "floor": Color(0.12, 0.10, 0.09), "ceil": Color(0.07, 0.065, 0.07), "trim": Color(0.4, 0.2, 0.12),
-			"neon": [Color(1.0, 0.22, 0.12), Color(1.0, 0.75, 0.2), Color(0.15, 0.9, 1.0)], "key": Color(1.0, 0.62, 0.38), "amb": Color(0.09, 0.065, 0.055)},
+		"name": "NOODLE BAR", "ceil": [3.0, 3.4], "windows": 0.9, "hostile": false, "style": 3, "styles": {"kitchen": 1}, "fstyle": 2, "fstyles": {"kitchen": 0},
+		"pal": {"wall": Color(0.40, 0.17, 0.12), "wall2": Color(0.12, 0.17, 0.20), "floor": Color(0.16, 0.12, 0.09), "ceil": Color(0.09, 0.08, 0.08), "trim": Color(0.5, 0.26, 0.14),
+			"neon": [Color(1.0, 0.22, 0.2), Color(1.0, 0.72, 0.18), Color(0.15, 0.85, 1.0)], "key": Color(1.0, 0.68, 0.42), "amb": Color(0.105, 0.075, 0.06)},
 		"rooms": [
 			{"role": "bar", "w": [8.0, 10.0], "d": [6.0, 8.0], "prog": [["counter", "bar"], ["sets", "table_round", "stool", 3, 4, 2], ["hang", 5], ["wm", "poster", 2, 3, "any"], ["wm", "screen", 1, 2, "left"],
 				["detail", "bin", 1, 2], ["detail", "crate_small", 1, 3], ["anchor", "civilian", 4, 5]]},
@@ -130,9 +130,9 @@ const SPECS := {
 		],
 	},
 	&"bodega": {
-		"name": "CORNER BODEGA", "ceil": [2.9, 3.2], "windows": 1.0, "hostile": false,
-		"pal": {"wall": Color(0.20, 0.19, 0.15), "wall2": Color(0.13, 0.16, 0.14), "floor": Color(0.15, 0.15, 0.13), "ceil": Color(0.14, 0.14, 0.13), "trim": Color(0.4, 0.38, 0.22),
-			"neon": [Color(0.3, 1.0, 0.4), Color(1.0, 0.85, 0.2), Color(1.0, 0.25, 0.35)], "key": Color(0.9, 1.0, 0.8), "amb": Color(0.095, 0.095, 0.085)},
+		"name": "CORNER BODEGA", "ceil": [2.9, 3.2], "windows": 1.0, "hostile": false, "style": 1, "styles": {"stock": 2}, "fstyle": 1, "fstyles": {"stock": 3},
+		"pal": {"wall": Color(0.15, 0.30, 0.25), "wall2": Color(0.34, 0.27, 0.17), "floor": Color(0.2, 0.2, 0.17), "ceil": Color(0.16, 0.16, 0.15), "trim": Color(0.55, 0.45, 0.2),
+			"neon": [Color(0.25, 0.95, 0.9), Color(1.0, 0.75, 0.15), Color(1.0, 0.2, 0.4)], "key": Color(1.0, 0.92, 0.75), "amb": Color(0.11, 0.105, 0.095)},
 		"rooms": [
 			{"role": "shop", "w": [7.0, 9.0], "d": [6.0, 8.0], "prog": [["counter", "counter"], ["aisles", "shelf", 3, 5], ["wall", "fridge", 2, 3, "right"], ["wall", "vending", 1, 1, "left"],
 				["free", "crate", 1, 2], ["wm", "poster", 2, 4, "any"], ["detail", "bin", 1, 2], ["detail", "crate_small", 2, 5], ["anchor", "civilian", 4, 5]]},
@@ -140,9 +140,9 @@ const SPECS := {
 		],
 	},
 	&"warehouse": {
-		"name": "VAEL FREIGHT WAREHOUSE", "ceil": [5.2, 6.0], "windows": 0.2, "hostile": true,
-		"pal": {"wall": Color(0.12, 0.12, 0.12), "wall2": Color(0.09, 0.10, 0.11), "floor": Color(0.09, 0.09, 0.09), "ceil": Color(0.06, 0.06, 0.07), "trim": Color(0.3, 0.26, 0.12),
-			"neon": [Color(1.0, 0.7, 0.1), Color(1.0, 0.3, 0.1), Color(0.3, 0.9, 1.0)], "key": Color(1.0, 0.85, 0.6), "amb": Color(0.07, 0.065, 0.06)},
+		"name": "VAEL FREIGHT WAREHOUSE", "ceil": [5.2, 6.0], "windows": 0.2, "hostile": true, "style": 2, "styles": {"office": 0}, "fstyle": 3, "fstyles": {"office": 0},
+		"pal": {"wall": Color(0.24, 0.23, 0.21), "wall2": Color(0.15, 0.19, 0.24), "floor": Color(0.13, 0.13, 0.12), "ceil": Color(0.10, 0.10, 0.11), "trim": Color(0.45, 0.36, 0.1),
+			"neon": [Color(1.0, 0.68, 0.12), Color(1.0, 0.3, 0.12), Color(0.25, 0.85, 1.0)], "key": Color(1.0, 0.85, 0.6), "amb": Color(0.145, 0.135, 0.125)},
 		"rooms": [
 			{"role": "floor", "w": [14.0, 18.0], "d": [12.0, 16.0], "prog": [["aisles", "rack_tall", 4, 6], ["free", "crate_stack", 4, 7], ["free", "pallet", 2, 4], ["free", "barrel", 2, 4], ["pipes", 5], ["hang", 4],
 				["wm", "poster", 1, 2, "any"], ["detail", "crate_small", 4, 8], ["detail", "bin", 1, 3], ["anchor", "civilian", 4, 5], ["anchor", "guard", 4, 6]]},

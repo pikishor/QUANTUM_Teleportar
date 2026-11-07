@@ -367,6 +367,21 @@ void fragment() {
 			lintel = 1.0 - 0.5 * (1.0 - smoothstep(0.0, 0.24, 1.0 - clamp(wf.y, 0.0, 1.0))) - 0.22 * (1.0 - smoothstep(0.0, 0.10, clamp(wf.x, 0.0, 1.0)));
 			inter *= lintel;
 			ac_unit = step(0.90, ra) * band(wf.x, 0.12, 0.62, 0.03) * band(wf.y, 0.06, 0.46, 0.03);
+		} else {
+			// LOW tier: no room parallax, but a lit window is still a room: a curtain fold, half-drawn blinds, a lamp near the ceiling or a glow from the floor, and the lintel shadow, all from a few hashes
+			float rb = hash12(cid + fseed + 33.0);
+			if (rb > 0.62) {
+				float px = 0.3 + 0.4 * hash12(cid + fseed + 44.0);
+				inter *= 1.0 - 0.7 * band(wf.x, px - 0.05, px + 0.05, 0.04);
+			} else if (rb < 0.33) {
+				float cov = 0.25 + 0.6 * hash12(cid + fseed + 55.0);
+				inter *= mix(1.0, 0.3 + 0.7 * step(0.5, fract(wf.y * 9.0)), step(1.0 - cov, wf.y));
+			}
+			float lampk = hash12(cid + fseed + 88.0);
+			inter *= mix(0.55 + 0.7 * (1.0 - wf.y), 0.5 + 0.9 * wf.y, step(0.5, lampk));
+			inter *= 0.75 + 0.25 * smoothstep(0.0, 0.3, min(wf.x, 1.0 - wf.x));
+			lintel = 1.0 - 0.45 * (1.0 - smoothstep(0.0, 0.2, 1.0 - clamp(wf.y, 0.0, 1.0)));
+			inter *= lintel;
 		}
 
 		// ---- walls: pilasters, ledges, weathering ---------------------------------------------------------------------
@@ -611,6 +626,14 @@ void fragment() {
 				float vend = band(fx, 0.10, 0.24, abu) * band(y, 0.85, 2.3, abv);
 				fe += ledc * vend * (0.9 + 0.3 * step(0.5, fract(y * 3.0)));
 			}
+			// the shop is a lit room, not a black pane: a back-wall wash in the bay's own colour that brightens toward the ceiling, a row of ceiling strip lights, and shelves of coloured goods
+			vec3 wash = mix(sc, tung, 0.2) * 0.85;
+			fe += wash * (0.16 + 0.22 * smoothstep(0.9, 3.0, y)) * (0.7 + 0.6 * hash12(bid + 17.0));
+			fe += mix(vec3(0.8, 0.9, 1.0), tung, step(0.5, hash12(bid + 23.0))) * band(y, 3.02, 3.14, abv) * (0.55 + 0.45 * step(0.4, fract(xm * 0.8 + rb0 * 4.0))) * 0.9;
+			vec2 gcell = vec2(floor(xm * 5.0), floor(y * 3.2));
+			float gitem = step(0.4, hash12(gcell + bid * 1.7)) * band(fract(y * 3.2), 0.1, 0.82, abv * 3.2) * band(fract(xm * 5.0), 0.12, 0.88, amu * 5.0);
+			float gshelf = band(fx, 0.52, 0.94, abu) * band(y, 0.75, 2.6, abv);
+			fe += lit_color(hash12(gcell + bid + 4.0), pal) * 0.75 * gitem * gshelf;
 			float dark_bay = step(0.18, hash12(bid + 91.0));                  // some shops are closed and dark inside
 			emit += (fe * 1.1 + tung * 0.018 * smoothstep(0.6, 3.3, y)) * open_i * dark_bay * (0.8 + 0.4 * hash12(bid + 3.0));
 			// roller shutters: dark ribs, a poster and grime

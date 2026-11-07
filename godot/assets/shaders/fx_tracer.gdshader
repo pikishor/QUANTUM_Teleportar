@@ -22,5 +22,6 @@ void fragment() {
 	float head = exp(-behind / 1.3);
 	float tail = 0.25 + 0.6 * exp(-behind / 16.0);
 	ALBEDO = color * (1.5 + 5.5 * head) + vec3(1.0) * head * 1.6;
-	ALPHA = clamp(tail + head, 0.0, 1.0) * fade * smoothstep(0.0, 0.35, v_from);   // no hot streak inside the barrel itself
+	// no hot streak inside the barrel itself, and none at the lens: a 13 cm box passing 0.5 m from the camera is a screen-wide flat band (an enemy's shot past the player's shoulder)
+	ALPHA = clamp(tail + head, 0.0, 1.0) * fade * smoothstep(0.0, 0.35, v_from) * smoothstep(0.7, 3.0, length(VERTEX));
 }

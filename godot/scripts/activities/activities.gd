@@ -392,38 +392,24 @@ func _place_beacon() -> void:
 
 
 func _build_visual() -> void:
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = ENTRY_RADIUS * 0.8
-	mesh.bottom_radius = ENTRY_RADIUS * 0.8
-	mesh.height = 6.0
-	mesh.radial_segments = 16
-	mesh.rings = 1
-	mesh.cap_top = false
-	mesh.cap_bottom = false
+	# A soft hollow column (fresnel edge, fades towards the top, thins out near the lens) instead of a flat 35 % cyan cylinder, which read as a glass slab in the street.
+	var beam := MissionVisuals.make_beam(Color(0.2, 0.9, 1.0), 1.5, 9.0, 0.9, 0.12)
+	var mesh: Mesh = beam.mesh
+	var beam_mat: Material = beam.material_override
+	beam.free()
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
 	mm.instance_count = IDS.size()
 	var e := entries()
 	for i in IDS.size():
-		mm.set_instance_transform(i, Transform3D(Basis.IDENTITY, e[IDS[i]] + Vector3(0.0, 3.0, 0.0)))
+		mm.set_instance_transform(i, Transform3D(Basis.IDENTITY, e[IDS[i]] + Vector3(0.0, 4.5, 0.0)))
 	_mmi = MultiMeshInstance3D.new()
 	_mmi.multimesh = mm
-	_mmi.material_override = _glow(Color(0.2, 0.9, 1.0), 0.35)
+	_mmi.material_override = beam_mat
 	_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mmi)
-	_beacon = MeshInstance3D.new()
-	var bm := CylinderMesh.new()
-	bm.top_radius = 1.2
-	bm.bottom_radius = 1.2
-	bm.height = 8.0
-	bm.radial_segments = 12
-	bm.rings = 1
-	bm.cap_top = false
-	bm.cap_bottom = false
-	_beacon.mesh = bm
-	_beacon.material_override = _glow(Color(1.0, 0.8, 0.3), 0.4)
-	_beacon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_beacon = MissionVisuals.make_beam(Color(1.0, 0.8, 0.3), 1.2, 8.0, 0.9, 0.2)
 	_beacon.visible = false
 	add_child(_beacon)
 

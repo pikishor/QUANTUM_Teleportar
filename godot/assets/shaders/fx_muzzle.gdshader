@@ -9,12 +9,14 @@ uniform float fade : hint_range(0.0, 1.0) = 1.0;
 uniform float roll = 0.0;
 uniform float gain : hint_range(0.0, 1.0) = 1.0;   // brightness cap: low for flashes near the screen centre (the player's own shots) so the target stays visible
 varying float v_cone;
+varying float v_near;
 
 void vertex() {
 	vec3 centre = MODEL_MATRIX[3].xyz;
 	vec3 axis = normalize(MODEL_MATRIX[1].xyz);
 	float sc = length(MODEL_MATRIX[0].xyz);
 	vec3 to_cam = normalize(CAMERA_POSITION_WORLD - centre);
+	v_near = smoothstep(0.8, 3.2, distance(CAMERA_POSITION_WORLD, centre));     // an enemy's flash at arm's length must not whiten the screen
 	vec3 cr = cross(axis, to_cam);
 	float k = length(cr);
 	v_cone = smoothstep(0.12, 0.5, k);
@@ -39,6 +41,6 @@ void fragment() {
 	float cone = (q.y > 0.0 ? 1.0 : 0.0) * exp(-pow(q.x / half_w, 2.0)) * pow(max(0.0, 1.0 - f / 0.6), 1.4);
 	float a = clamp(star + cone * v_cone * 1.1, 0.0, 1.0);
 	ALBEDO = (color * 1.5 + vec3(1.0) * a * 0.5) * a;
-	ALBEDO *= gain;
-	ALPHA = a * fade * mix(1.0, 0.7, 1.0 - gain);
+	ALBEDO *= gain * v_near;
+	ALPHA = a * fade * mix(1.0, 0.7, 1.0 - gain) * v_near;
 }

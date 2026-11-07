@@ -72,6 +72,7 @@ func _run(p_type: StringName, p_seed: int) -> void:
 	_decor_pass()
 	_anchors_pass()
 	_finish_anchors()
+	_dress_walls()
 	_lighting()
 	_wall_colliders()
 	_repair_walkability()
@@ -156,7 +157,8 @@ func _layout() -> void:
 		var wall_c: Color = _natural(pal["wall"] if i % 2 == 0 else pal["wall2"])
 		var fl: Color = _natural(pal["floor"])
 		var room := {"rect": rr, "h": snappedf(h, 0.05), "role": String(rs["role"]), "wall": wall_c, "floor": fl.lerp(wall_c, rng.randf() * 0.3), "ceil": pal["ceil"],
-			"dance": Rect2(), "parent": parents[i], "spec_i": kept[i]}
+			"dance": Rect2(), "parent": parents[i], "spec_i": kept[i], "style": int((spec.get("styles", {}) as Dictionary).get(String(rs["role"]), spec.get("style", 0))),
+			"fstyle": int((spec.get("fstyles", {}) as Dictionary).get(String(rs["role"]), spec.get("fstyle", 0)))}
 		rooms.append(room)
 		_wm_used.append([[], [], [], []])
 	bounds = total
@@ -562,6 +564,128 @@ func _decor_pass() -> void:
 					props.append(_new_prop(i, "vent", Vector3(x, h, z), float(rng.randi() % 2) * PI * 0.5))
 				_:
 					_op_wm(i, "poster", "any")
+
+
+## Wall dressing: every wall run of a room that is still bare for longer than DRESS_GAP gets a wall-mounted piece (a shelf of goods, a lit price board, a banner, a mural, a hazard plate),
+## so no flat wall longer than about 4 m is left. Nothing here has a collider and none of it is dropped by a lower tier.
+const DRESS_GAP := 3.4
+const DRESS := {
+	&"bodega": ["wall_shelf", "ad_panel", "banner", "wall_shelf", "poster"],
+	&"bar": ["mural", "banner", "ad_panel", "wall_shelf", "clock"],
+	&"warehouse": ["hazard_sign", "banner", "wall_shelf", "ad_panel"],
+	&"weapons": ["banner", "ad_panel", "hazard_sign", "poster"],
+	&"clinic": ["ad_panel", "banner", "clock", "poster"],
+}
+const DRESS_DEFAULT := ["poster", "ad_panel", "banner", "wall_shelf", "clock"]
+
+
+func _opening_intervals(room: int, side: int) -> Array:
+	var out: Array = []
+	var opp := {SIDE_FRONT: SIDE_BACK, SIDE_BACK: SIDE_FRONT, SIDE_LEFT: SIDE_RIGHT, SIDE_RIGHT: SIDE_LEFT}
+	for s: Dictionary in segs:
+		var mine: bool = int(s["owner"]) == room and int(s["side"]) == side
+		var theirs: bool = int(s["other"]) == room and int(s["side"]) == int(opp[side])
+		if not (mine or theirs):
+			continue
+		for d: Array in s["doors"]:
+			out.append([float(d[0]) - float(d[1]) * 0.5 - 0.25, float(d[0]) + float(d[1]) * 0.5 + 0.25])
+		for wv: Array in s["windows"]:
+			out.append([float(wv[0]) - float(wv[1]) * 0.5 - 0.1, float(wv[0]) + float(wv[1]) * 0.5 + 0.1])
+	return out
+
+
+## Intervals [a0, a1] along a room's wall (coordinates of `_side_geom`) that are already taken: doors, windows, wall-mounted props, and floor props tall enough to hide the wall.
+func _wall_blocked(room: int, side: int, g: Dictionary) -> Array:
+	var face := float(g["face"])
+	var axis := int(g["axis"])
+	var blocked: Array = _opening_intervals(room, side)
+	for iv: Array in _wm_used[room][side]:
+		blocked.append([float(iv[0]), float(iv[1])])
+	for p: Dictionary in props:
+		if int(p["room"]) != room:
+			continue
+		var fl := InteriorProps.flags_of(String(p["kind"]))
+		if fl & InteriorProps.F_CEILING != 0:
+			continue
+		var pos: Vector3 = p["pos"]
+		var sz: Vector3 = p["size"]
+		var foot := _footprint(sz, float(p["yaw"]))
+		if fl & InteriorProps.F_WALL != 0:
+			var along := pos.x if axis == 0 else pos.z
+			var perp := pos.z if axis == 0 else pos.x
+			if absf(perp - face) < 0.4:
+				var ww := maxf(sz.x, 0.3) * 0.5
+				blocked.append([along - ww, along + ww])
+		elif sz.y > 1.3:
+			var perp_c := pos.z if axis == 0 else pos.x
+			var half_perp := (foot.y if axis == 0 else foot.x) * 0.5
+			if absf(perp_c - face) < half_perp + 0.6:
+				var along_c := pos.x if axis == 0 else pos.z
+				var half_a := (foot.x if axis == 0 else foot.y) * 0.5
+				blocked.append([along_c - half_a - 0.1, along_c + half_a + 0.1])
+	blocked.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+	return blocked
+
+
+## The free runs [a0, a1] of one wall side.
+func _wall_gaps(room: int, side: int) -> Array:
+	var g := _side_geom(room, side)
+	var lo := float(g["lo"]) + 0.25
+	var hi := float(g["hi"]) - 0.25
+	var cur := lo
+	var gaps: Array = []
+	for iv: Array in _wall_blocked(room, side, g):
+		if float(iv[0]) > cur:
+			gaps.append([cur, minf(float(iv[0]), hi)])
+		cur = maxf(cur, float(iv[1]))
+	if cur < hi:
+		gaps.append([cur, hi])
+	return gaps
+
+
+## The longest bare wall run (metres) over every room and side: what the art tests hold below about 4 m.
+func bare_run_max() -> float:
+	var m := 0.0
+	for room in rooms.size():
+		for side in 4:
+			for gp: Array in _wall_gaps(room, side):
+				m = maxf(m, float(gp[1]) - float(gp[0]))
+	return m
+
+
+func _dress_walls() -> void:
+	var kinds: Array = DRESS.get(type, DRESS_DEFAULT)
+	var k_i := 0
+	for room in rooms.size():
+		var h := float(rooms[room]["h"])
+		for side in 4:
+			var g := _side_geom(room, side)
+			var face := float(g["face"])
+			var axis := int(g["axis"])
+			for gp: Array in _wall_gaps(room, side):
+				var a0 := float(gp[0])
+				var a1 := float(gp[1])
+				var len := a1 - a0
+				if len < DRESS_GAP:
+					continue
+				var n := clampi(int(len / 3.3), 1, 3)
+				for q in n:
+					var kind: String = kinds[k_i % kinds.size()]
+					k_i += 1
+					var size := InteriorProps.size_of(kind)
+					if size.x > len / float(n) - 0.4:
+						kind = "poster"
+						size = InteriorProps.size_of(kind)
+					var a := a0 + len * (float(q) + 0.5) / float(n)
+					var y := clampf({"wall_shelf": 1.5, "ad_panel": 1.7, "banner": 1.45, "hazard_sign": 1.55, "mural": 1.55, "clock": 2.1, "poster": 1.55}.get(kind, 1.6) as float, size.y * 0.5 + 0.3, h - size.y * 0.5 - 0.25)
+					var inward: Vector2 = g["inward"]
+					var c := Vector3.ZERO
+					if axis == 0:
+						c = Vector3(a, y, face + inward.y * (size.z * 0.5 + 0.02))
+					else:
+						c = Vector3(face + inward.x * (size.z * 0.5 + 0.02), y, a)
+					props.append(_new_prop(room, kind, c, float(g["yaw"])))
+					_wm_used[room][side].append([a - size.x * 0.5 - 0.15, a + size.x * 0.5 + 0.15])
 
 
 func _sign_for_room0() -> void:
@@ -1085,6 +1209,7 @@ func _lighting() -> void:
 			var street_col: Color = (neon[1] if neon.size() > 1 else neon[0]).lerp(key, 0.5)      # the street's neon, warmed toward the room's key light: never a red wash
 			_add_pool(Vector3(float(wv[0]), 1.4, float(s["line"]) - 1.5), 4.4, street_col, 0.5, 3)
 			break
+	_accent_pools()
 	pools.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["prio"]) > int(b["prio"]))
 	var r0: Rect2 = rooms[0]["rect"]
 	var h0: float = rooms[0]["h"]
@@ -1092,6 +1217,59 @@ func _lighting() -> void:
 	var r1: Rect2 = rooms[1]["rect"] if rooms.size() > 1 and type == &"apartment" else r0
 	var accent: Color = (neon[0] as Color).lerp(Color(0.85, 0.92, 1.0), 0.72)             # the second real light is an accent, balanced against the key (a pure neon red lit whole rooms red)
 	lights.append({"pos": Vector3(r1.get_center().x + (r1.size.x * 0.25 if r1 == r0 else 0.0), 2.3, r1.position.y + r1.size.y * 0.35), "col": accent, "energy": 0.9, "range": 6.5})
+
+
+## Three coloured ACCENT pools in the street room (the shader keeps their hue; the neutral pools stay desaturated): each sits in front of the prop that would really glow there
+## (a fridge, a bar, a work lamp, a sign), in a different neon colour of the palette, at least 3 m apart, so the room has a warm area, a cool area and a hot spot.
+const ACCENT_KINDS := {
+	&"bodega": ["fridge", "vending", "neon_sign", "counter"],
+	&"bar": ["bar", "neon_sign", "screen", "table_round"],
+	&"warehouse": ["lamp_hang", "gate", "crate_stack", "rack_tall"],
+}
+const ACCENT_DEFAULT := ["neon_sign", "screen", "counter", "vending", "lamp_hang"]
+
+
+func _accent_pools() -> void:
+	var r: Rect2 = rooms[0]["rect"]
+	var h: float = rooms[0]["h"]
+	var neon: Array = pal["neon"]
+	var picks: Array[Vector3] = []
+	var kinds: Array = ACCENT_KINDS.get(type, ACCENT_DEFAULT)
+	for kind: String in kinds:
+		for p: Dictionary in props:
+			if int(p["room"]) != 0 or String(p["kind"]) != kind:
+				continue
+			var pos: Vector3 = p["pos"]
+			var front := Vector3(0, 0, -1).rotated(Vector3.UP, float(p["yaw"]))
+			var at := Vector3(pos.x, 1.15, pos.z) + front * 1.1
+			if kind == "lamp_hang":
+				at = Vector3(pos.x, 1.6, pos.z)                           # the pool of a hanging lamp lands at head height under it (the ceiling is far above)
+			at.x = clampf(at.x, r.position.x + 0.8, r.end.x - 0.8)
+			at.z = clampf(at.z, r.position.y + 0.8, r.end.y - 0.8)
+			var far := true
+			for q: Vector3 in picks:
+				if Vector2(q.x - at.x, q.z - at.z).length() < 3.0:
+					far = false
+			if far:
+				picks.append(at)
+				break
+		if picks.size() >= 3:
+			break
+	var fill := [Vector2(0.2, 0.3), Vector2(0.8, 0.35), Vector2(0.5, 0.75)]
+	var fi := 0
+	while picks.size() < 3 and fi < fill.size():
+		var f: Vector2 = fill[fi]
+		fi += 1
+		var at := Vector3(r.position.x + r.size.x * f.x, 1.2, r.position.y + r.size.y * f.y)
+		var far := true
+		for q: Vector3 in picks:
+			if Vector2(q.x - at.x, q.z - at.z).length() < 3.0:
+				far = false
+		if far:
+			picks.append(at)
+	for i in picks.size():
+		var col: Color = (neon[i % neon.size()] as Color).lerp(Color(1.0, 0.97, 0.92), 0.12)
+		pools.append({"pos": picks[i], "radius": clampf(minf(r.size.x, r.size.y) * 0.55, 3.2, 4.6), "col": col, "inten": 1.05, "prio": 6, "accent": true})
 
 
 # ---------------------------------------------------------------------------------------------------------------------

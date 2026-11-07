@@ -38,6 +38,9 @@ const DEFS := {
 	"wall_light": [0.3, 0.4, 0.14, F_WALL | F_DETAIL], "vent": [0.9, 0.12, 0.6, F_CEILING | F_DETAIL], "cables": [1.4, 0.8, 0.08, F_WALL | F_DETAIL],
 	"ac_unit": [1.0, 0.34, 0.3, F_WALL | F_DETAIL], "box_stack": [0.9, 0.62, 0.7, F_DETAIL], "trash_bag": [0.5, 0.45, 0.5, F_DETAIL],
 	"rug": [2.4, 0.02, 1.7, F_DETAIL], "bin": [0.42, 0.7, 0.42, F_DETAIL], "crate_small": [0.5, 0.5, 0.5, F_DETAIL],
+	# wall dressing (InteriorPlan._dress_walls: no bare wall run longer than about 4 m): never dropped by a lower tier
+	"wall_shelf": [1.8, 0.9, 0.28, F_WALL], "ad_panel": [1.5, 1.0, 0.08, F_WALL], "banner": [0.7, 1.9, 0.05, F_WALL], "hazard_sign": [1.3, 0.9, 0.05, F_WALL],
+	"mural": [2.6, 1.5, 0.04, F_WALL], "clock": [0.5, 0.5, 0.08, F_WALL],
 	# interior kit (scripts/interiors/interior_kit.gd): Quaternius pieces appended to the surface mesh
 	"kit_teleporter": [1.21, 1.34, 1.19, F_COLLIDER], "kit_pad": [1.23, 0.9, 1.19, F_COLLIDER], "kit_pod": [1.45, 2.8, 1.45, F_COLLIDER], "kit_server": [0.8, 2.08, 0.7, F_COLLIDER],
 	"kit_console": [0.9, 1.54, 0.55, F_COLLIDER], "kit_capsule": [0.88, 1.63, 0.88, F_COLLIDER], "kit_crate": [0.9, 0.9, 0.9, F_COLLIDER], "kit_crate_long": [1.3, 0.8, 0.8, F_COLLIDER],
@@ -143,6 +146,11 @@ static func build(sb: RefCounted, gb: RefCounted, p: Dictionary) -> void:
 		"shelf":
 			var back := _shade(tint, 0.85)
 			_bx(sb, Vector3(0, h * 0.5, d * 0.5 - 0.02), Vector3(w, h, 0.04), back, C_METAL)
+			# the BACK is seen from the next aisle: a lit header board with price marks, a painted band and stencilled bay glyphs, not a bare panel
+			_bx(sb, Vector3(0, h - 0.2, d * 0.5 + 0.012), Vector3(w - 0.16, 0.3, 0.02), acc.lerp(tint, 0.35), C_STRIP, 0.9)
+			_glyphs(sb, -w * 0.5 + 0.2, h - 0.2, d * 0.5 + 0.026, w - 0.4, 0.16, 6, Color(1.0, 0.95, 0.85), C_SIGN, 1.3, ph)
+			_bx(sb, Vector3(0, h * 0.42, d * 0.5 + 0.012), Vector3(w - 0.16, 0.5, 0.02), acc.lerp(tint, 0.7) * 0.6, C_SOFT)
+			_bx(sb, Vector3(0, 0.34, d * 0.5 + 0.014), Vector3(w - 0.16, 0.05, 0.02), Color(0.5, 0.42, 0.1), C_METAL)
 			sb.strut(Vector3(-w * 0.5 + 0.06, 0.1, d * 0.5 + 0.01), Vector3(w * 0.5 - 0.06, h - 0.1, d * 0.5 + 0.01), 0.035, Color(0.5, 0.45, 0.35, 0.0), false)
 			sb.strut(Vector3(w * 0.5 - 0.06, 0.1, d * 0.5 + 0.01), Vector3(-w * 0.5 + 0.06, h - 0.1, d * 0.5 + 0.01), 0.035, Color(0.5, 0.45, 0.35, 0.0), false)
 			_bx(sb, Vector3(0, h - 0.18, d * 0.5 + 0.012), Vector3(0.5, 0.12, 0.012), acc, C_STRIP, 0.8)
@@ -376,12 +384,65 @@ static func build(sb: RefCounted, gb: RefCounted, p: Dictionary) -> void:
 			_bx(sb, Vector3(0, h * 0.5 - 0.03, -0.012), Vector3(w - 0.1, 0.03, 0.012), acc, C_NEON, 2.0, ph)
 			_bx(sb, Vector3(0, -h * 0.5 + 0.03, -0.012), Vector3(w - 0.1, 0.03, 0.012), acc, C_NEON, 2.0, ph)
 			_halo(gb, Vector3(0, 0, -0.12), w + 1.6, h + 1.4, acc, 0.75)
+		"wall_shelf":
+			# two plank shelves on brackets with bottles, tins and boxes, a lit strip under the top one
+			_bx(sb, Vector3(0, 0, 0.12), Vector3(w, h, 0.03), _shade(tint, 0.6), C_SOFT)
+			for lv in 2:
+				var y := -h * 0.5 + 0.08 + float(lv) * (h - 0.16) * 0.52
+				_bx(sb, Vector3(0, y, 0.0), Vector3(w, 0.04, d), trim.lerp(tint, 0.5), C_METAL)
+				var x := -w * 0.5 + 0.12
+				while x < w * 0.5 - 0.14:
+					var iw := _rng.randf_range(0.1, 0.24)
+					var ih := _rng.randf_range(0.16, 0.34)
+					var col: Color = GOODS[_rng.randi() % GOODS.size()]
+					if _rng.randf() < 0.4:
+						_cyl(sb, Vector3(x + iw * 0.5, y + 0.02, _rng.randf_range(-0.03, 0.03)), iw * 0.42, ih, col, C_SOFT, 0.25 if _rng.randf() < 0.25 else 0.0, 7)
+					else:
+						_bx(sb, Vector3(x + iw * 0.5, y + 0.02 + ih * 0.5, _rng.randf_range(-0.03, 0.03)), Vector3(iw, ih, d * 0.6), col, C_SOFT)
+					x += iw + 0.04
+			_bx(sb, Vector3(0, h * 0.5 - 0.1, -d * 0.5 - 0.005), Vector3(w - 0.1, 0.03, 0.015), acc.lerp(Color.WHITE, 0.3), C_STRIP, 1.2)
+			_halo(gb, Vector3(0, h * 0.2, -0.25), w + 0.6, h + 0.5, acc, 0.2)
+		"ad_panel":
+			# a lit board: a coloured header, rows of price glyphs and a big picture block
+			_bx(sb, Vector3(0, 0, 0.03), Vector3(w, h, 0.05), Color(0.03, 0.03, 0.035), C_METAL)
+			_bx(sb, Vector3(0, h * 0.36, -0.01), Vector3(w - 0.1, h * 0.2, 0.012), acc, C_STRIP, 1.7)
+			_bx(sb, Vector3(-w * 0.22, -h * 0.1, -0.01), Vector3(w * 0.42, h * 0.5, 0.012), acc.lerp(tint, 0.5), C_STRIP, 0.8)
+			for i in 3:
+				_glyphs(sb, 0.0, h * 0.1 - float(i) * h * 0.2, -0.014, w * 0.44, h * 0.1, 4, Color(1.0, 0.95, 0.85), C_SIGN, 1.3, ph + float(i))
+			_halo(gb, Vector3(0, 0, -0.12), w * 1.5, h * 1.5, acc, 0.3)
+		"banner":
+			# a hanging cloth banner: two bars, a coloured field with a bold glyph
+			_bx(sb, Vector3(0, h * 0.5 - 0.02, 0.0), Vector3(w + 0.1, 0.05, 0.06), Color(0.2, 0.18, 0.15), C_METAL)
+			_bx(sb, Vector3(0, 0, 0.0), Vector3(w, h - 0.1, 0.03), acc.lerp(tint, 0.35) * 0.7, C_SOFT)
+			_bx(sb, Vector3(0, h * 0.12, -0.02), Vector3(w * 0.55, w * 0.55, 0.012), acc.lerp(Color.WHITE, 0.45), C_STRIP, 1.1)
+			_bx(sb, Vector3(0, -h * 0.3, -0.02), Vector3(w * 0.7, 0.05, 0.012), acc.lerp(Color.WHITE, 0.3), C_STRIP, 0.9)
+			_bx(sb, Vector3(0, -h * 0.5 + 0.02, 0.0), Vector3(w, 0.04, 0.05), Color(0.2, 0.18, 0.15), C_METAL)
+		"hazard_sign":
+			# yellow and black warning plate with a stencilled bay mark
+			_bx(sb, Vector3(0, 0, 0.02), Vector3(w, h, 0.04), Color(0.55, 0.42, 0.04), C_METAL)
+			for i in int(w / 0.2):
+				_bx(sb, Vector3(-w * 0.5 + 0.12 + float(i) * 0.2, h * 0.38, -0.01), Vector3(0.1, h * 0.18, 0.012), Color(0.03, 0.03, 0.03), C_METAL)
+			_glyphs(sb, -w * 0.5 + 0.12, -h * 0.1, -0.012, w - 0.24, h * 0.32, 3, Color(0.04, 0.04, 0.04), C_SOFT, 0.0, ph)
+			_bx(sb, Vector3(0, -h * 0.4, -0.01), Vector3(w - 0.2, 0.04, 0.012), Color(0.04, 0.04, 0.04), C_METAL)
+		"mural":
+			# a painted band: overlapping colour blocks in the room's neon hues, lit softly (graffiti-like, not a sign)
+			var neons: Array = [acc, acc.lerp(Color(0.3, 0.9, 1.0), 0.6), acc.lerp(Color(1.0, 0.75, 0.2), 0.6)]
+			_bx(sb, Vector3(0, 0, 0.0), Vector3(w, h, 0.02), _shade(tint, 0.5), C_SOFT)
+			for i in 7:
+				var bw := _rng.randf_range(0.3, 0.8)
+				var bh := _rng.randf_range(0.3, h * 0.8)
+				var col: Color = neons[_rng.randi() % 3]
+				_bx(sb, Vector3(_rng.randf_range(-w * 0.45, w * 0.45), _rng.randf_range(-h * 0.25, h * 0.2), -0.012 - float(i) * 0.001), Vector3(bw, bh, 0.012), col * 0.55, C_STRIP, 0.55 + _rng.randf() * 0.5)
+			_glyphs(sb, -w * 0.4, h * 0.3, -0.03, w * 0.8, h * 0.14, 5, Color(1.0, 0.95, 0.9), C_SIGN, 1.2, ph)
+		"clock":
+			_bx(sb, Vector3(0, 0, 0.02), Vector3(w, w, 0.05), Color(0.05, 0.05, 0.06), C_METAL)
+			_bx(sb, Vector3(0, 0, -0.03), Vector3(w - 0.08, w - 0.08, 0.012), acc.lerp(Color.WHITE, 0.6), C_SCREEN, 0.9, ph)
 		"rug":
 			_bx(sb, Vector3(0, 0.01, 0), size, acc.lerp(tint, 0.6) * 0.45, C_SOFT)
 			_bx(sb, Vector3(0, 0.012, 0), Vector3(w - 0.3, 0.02, d - 0.3), tint * 0.7, C_SOFT)
 		"wall_light":
 			_bx(sb, Vector3(0, 0, 0.05), Vector3(w, h, 0.06), Color(0.06, 0.06, 0.07), C_METAL)
-			_bx(sb, Vector3(0, h * 0.18, -0.01), Vector3(w * 0.6, h * 0.5, 0.05), acc.lerp(Color(1.0, 0.85, 0.6), 0.55), C_STRIP, 1.6)
+			_bx(sb, Vector3(0, h * 0.18, -0.01), Vector3(w * 0.6, h * 0.5, 0.05), acc.lerp(Color(1.0, 0.85, 0.6), 0.55), C_STRIP, 0.95)
 			_halo(gb, Vector3(0, h * 0.2, -0.15), 1.3, 1.5, acc.lerp(Color(1.0, 0.85, 0.6), 0.5), 0.4)
 		"vent":
 			_bx(sb, Vector3(0, -0.04, 0), Vector3(w, 0.08, d), Color(0.12, 0.12, 0.13), C_METAL)

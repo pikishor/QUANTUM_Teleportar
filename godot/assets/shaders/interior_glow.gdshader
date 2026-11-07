@@ -29,10 +29,10 @@ void vertex() {
 void fragment() {
 	float a;
 	if (vuv.x > 1.5) {
-		vec2 q = abs(vec2(vuv.x - 2.0, vuv.y) - 0.5) * 2.0;
-		float fx = 1.0 - clamp(q.x, 0.0, 1.0);
-		float fy = 1.0 - clamp(q.y, 0.0, 1.0);
-		a = fx * fx * fy * fy;
+		// round falloff (an ellipse that follows the quad's aspect): a product of two edge ramps is a soft RECTANGLE, which read as a translucent sheet on the wall
+		vec2 q = (vec2(vuv.x - 2.0, vuv.y) - 0.5) * 2.0;
+		float f = 1.0 - clamp(length(q), 0.0, 1.0);
+		a = f * f * f;
 	} else {
 		float k = vuv.y;
 		float edge = pow(clamp(abs(dot(normalize(NORMAL), normalize(VIEW))), 0.0, 1.0), 1.4);   // soft sides: the cone fades where it turns away from the eye

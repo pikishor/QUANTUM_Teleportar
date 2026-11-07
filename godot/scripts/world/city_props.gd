@@ -26,6 +26,7 @@ const RADIUS_BARRIERS := 170.0
 const RADIUS_PLAZAS := 240.0
 const RADIUS_VENTS := 120.0
 const RADIUS_PLANTERS := 150.0
+const RADIUS_SHOP_SETS := 80.0
 
 const EM_LAMP := 0.15
 const EM_FLASHER := 0.45
@@ -213,6 +214,44 @@ static func planter_mesh() -> ArrayMesh:
 	b.uv2 = Vector2(0.0, 0.9)
 	for x in [-0.6, 0.45]:
 		b.sphere(Vector3(x, 1.0, 0.0), Vector3(0.55, 0.32, 0.38), 6, 3, Color(0.03, 0.09, 0.045, 0.0))
+	return _finish(b)
+
+
+## Shopfront set (art pass, market street): a cafe table with two stools and a candle, a lit sandwich board, a crate stack with a barrel and two reflective bollards, about 3.4 m wide.
+## Local +Z is the street side. One merged mesh, one family: placed in front of about 60 percent of the shopfronts so the sidewalk has things on it.
+static func shop_set_mesh() -> ArrayMesh:
+	var b := _mb(0.2, 0.6)
+	var wood := Color(0.42, 0.26, 0.13, 0.0)
+	var metal := Color(0.16, 0.17, 0.19, 0.0)
+	# cafe table + stools
+	b.cylinder(Vector3(0.1, 0.0, 0.0), 0.2, 0.04, 6, metal, -1.0, true)
+	b.cylinder(Vector3(0.1, 0.04, 0.0), 0.035, 0.7, 4, metal, -1.0, false)
+	b.cylinder(Vector3(0.1, 0.72, 0.0), 0.42, 0.04, 9, wood, -1.0, true)
+	for sx in [-0.62, 0.82]:
+		b.cylinder(Vector3(sx, 0.0, 0.05), 0.03, 0.45, 4, metal, -1.0, false)
+		b.cylinder(Vector3(sx, 0.45, 0.05), 0.19, 0.06, 6, Color(0.7, 0.14, 0.1, 0.0) if sx < 0.0 else Color(0.08, 0.5, 0.55, 0.0), -1.0, true)
+	b.uv2 = Vector2(0.0, 0.3)
+	b.cylinder(Vector3(0.12, 0.76, 0.05), 0.045, 0.07, 6, Color(1.0, 0.62, 0.25, EM_AMBER), -1.0, true)               # candle
+	b.uv2 = Vector2(0.2, 0.6)
+	# sandwich board with a lit chalk panel
+	b.box(Vector3(-1.45, 0.55, 0.0), Vector3(0.74, 1.08, 0.07), Color(0.08, 0.08, 0.09, 0.0))
+	b.strut(Vector3(-1.45, 0.9, -0.03), Vector3(-1.45, 0.0, -0.4), 0.035, metal, false)
+	b.uv2 = Vector2(0.0, 0.3)
+	b.quad(Vector3(-1.78, 0.18, 0.04), Vector3(-1.12, 0.18, 0.04), Vector3(-1.12, 0.98, 0.04), Vector3(-1.78, 0.98, 0.04), Vector3.BACK, Color(1, 1, 1, EM_POSTER),
+			Vector2.ZERO, Vector2.ZERO, PackedVector2Array([Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]))
+	b.uv2 = Vector2(0.2, 0.6)
+	# crates, a barrel and a sack
+	b.box(Vector3(1.55, 0.25, -0.1), Vector3(0.62, 0.5, 0.5), Color(0.42, 0.28, 0.15, 0.0))
+	b.box_yaw(Vector3(1.6, 0.68, -0.08), Vector3(0.5, 0.36, 0.42), 0.35, Color(0.5, 0.34, 0.18, 0.0))
+	b.cylinder(Vector3(2.15, 0.0, 0.05), 0.27, 0.8, 6, Color(0.12, 0.3, 0.45, 0.0), 0.25, true)
+	b.box(Vector3(2.15, 0.45, 0.05), Vector3(0.56, 0.05, 0.56), Color(0.5, 0.45, 0.1, 0.0), false)
+	b.sphere(Vector3(1.0, 0.16, -0.25), Vector3(0.24, 0.16, 0.2), 6, 3, Color(0.6, 0.52, 0.4, 0.0))
+	# bollards with a reflective band
+	for bx in [-2.1, 2.7]:
+		b.cylinder(Vector3(bx, 0.0, 0.5), 0.07, 0.85, 6, metal, -1.0, true)
+		b.uv2 = Vector2(0.0, 0.3)
+		b.cylinder(Vector3(bx, 0.62, 0.5), 0.075, 0.1, 6, Color(1.0, 0.7, 0.15, EM_AMBER), -1.0, false)
+		b.uv2 = Vector2(0.2, 0.6)
 	return _finish(b)
 
 
@@ -449,6 +488,25 @@ func _place_lot_props(layout: CityLayout) -> void:
 			var wz2 := lot.cz + sz * (lot.d * 0.5 + 1.6)
 			var theta := 0.0 if sz > 0.0 else PI
 			kiosks.append([Transform3D(Basis(Vector3.UP, theta), Vector3(lot.cx + rng.randf_range(-lot.w * 0.3, lot.w * 0.3), 0.0, wz2)), Color(rng.randf(), 0.0, 0.0, 1.0)])
+	# shopfront sets: their own random stream per lot (no other placement moves)
+	var sets: Array = []
+	var r2 := RandomNumberGenerator.new()
+	for li in layout.lots.size():
+		var lt: CityLayout.Lot = layout.lots[li]
+		r2.seed = 4417 + li * 7919
+		if r2.randf() > 0.85 or lt.w < 7.0:
+			continue
+		var lbx := -CityLayout.HALF + (lt.block_i + 0.5) * CityLayout.PITCH
+		var lbz := -CityLayout.HALF + (lt.block_j + 0.5) * CityLayout.PITCH
+		var lsz := 1.0 if lt.cz > lbz else -1.0
+		var sz_pos := Vector3(lt.cx + r2.randf_range(-lt.w * 0.22, lt.w * 0.22), 0.0, lt.cz + lsz * (lt.d * 0.5 + 1.9))
+		sets.append([Transform3D(Basis(Vector3.UP, 0.0 if lsz > 0.0 else PI), sz_pos), Color(r2.randf(), 0.0, 0.0, 1.0)])
+		if lt.w >= 14.0:
+			# a wide frontage gets a second set further along, so the long walls are not bare
+			var other := Vector3(lt.cx + (-1.0 if sz_pos.x > lt.cx else 1.0) * r2.randf_range(lt.w * 0.22, lt.w * 0.38), 0.0, sz_pos.z + lsz * r2.randf_range(-0.3, 0.3))
+			var bas := Basis(Vector3.UP, (0.0 if lsz > 0.0 else PI) + r2.randf_range(-0.12, 0.12))
+			sets.append([Transform3D(bas, other), Color(r2.randf(), 0.0, 0.0, 1.0)])
+	add_family("ShopSets", shop_set_mesh(), sets, false, false, 0, RADIUS_SHOP_SETS)
 	add_family("Dumpsters", dumpster_mesh(), dump, false, false, 0, RADIUS_DUMPSTERS)
 	add_family("Trash", trash_mesh(), trash, false, false, 1, RADIUS_TRASH)
 	kit.fold_family(Kit.KIOSK_LIT, kiosk_mesh(), kiosks)

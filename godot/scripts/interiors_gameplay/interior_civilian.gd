@@ -9,8 +9,11 @@ const MB := preload("res://scripts/world/mesh_builder.gd")
 const WALK := 0.95
 const RUN := 3.6
 const TURN := 6.0
+const SHIRTS: Array[Color] = [Color(0.5, 0.5, 0.52), Color(0.7, 0.3, 0.25), Color(0.25, 0.5, 0.6), Color(0.72, 0.6, 0.2), Color(0.3, 0.55, 0.35), Color(0.6, 0.55, 0.6)]
+const HAIR: Array[Color] = [Color(0.05, 0.04, 0.04), Color(0.2, 0.12, 0.07), Color(0.45, 0.4, 0.34), Color(0.5, 0.1, 0.35), Color(0.1, 0.2, 0.3)]
+const PANTS: Array[Color] = [Color(0.1, 0.11, 0.14), Color(0.17, 0.15, 0.12), Color(0.12, 0.14, 0.18), Color(0.2, 0.2, 0.22)]
 const COATS: Array[Color] = [
-	Color(0.18, 0.2, 0.26), Color(0.32, 0.18, 0.16), Color(0.15, 0.26, 0.24), Color(0.28, 0.25, 0.14), Color(0.22, 0.17, 0.3), Color(0.12, 0.13, 0.15),
+	Color(0.22, 0.26, 0.38), Color(0.5, 0.2, 0.17), Color(0.14, 0.4, 0.36), Color(0.45, 0.36, 0.14), Color(0.34, 0.2, 0.46), Color(0.16, 0.17, 0.2), Color(0.55, 0.42, 0.25), Color(0.6, 0.12, 0.2),
 ]
 
 static var _marker_mesh: ArrayMesh
@@ -48,17 +51,46 @@ func setup(seed_value: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 31 + 7
 	var coat := COATS[rng.randi() % COATS.size()]
+	var shirt := SHIRTS[rng.randi() % SHIRTS.size()]
 	var skin := Color(0.62, 0.5, 0.42).lerp(Color(0.25, 0.18, 0.14), rng.randf())
+	var hair := HAIR[rng.randi() % HAIR.size()]
+	var pants := PANTS[rng.randi() % PANTS.size()]
 	var b := MB.new()
+	b.uv = Vector2(4.0, 0.0)                                  # surface class 4 (painted / soft) of the interior shader, so the room's light pools reach the person
 	var h := rng.randf_range(0.94, 1.06)
-	b.box(Vector3(-0.1, 0.45 * h, 0.0), Vector3(0.16, 0.9 * h, 0.2), Color(0.08, 0.09, 0.11, 1.0))          # legs
-	b.box(Vector3(0.1, 0.45 * h, 0.0), Vector3(0.16, 0.9 * h, 0.2), Color(0.08, 0.09, 0.11, 1.0))
-	b.box(Vector3(0.0, 1.2 * h, 0.0), Vector3(0.46, 0.62 * h, 0.28), coat)                                    # torso / coat
-	b.box(Vector3(0.0, 0.92 * h, 0.0), Vector3(0.5, 0.34 * h, 0.3), coat.darkened(0.2))                       # coat skirt
-	b.box(Vector3(-0.29, 1.15 * h, 0.0), Vector3(0.1, 0.6 * h, 0.14), coat)                                   # arms
-	b.box(Vector3(0.29, 1.15 * h, 0.0), Vector3(0.1, 0.6 * h, 0.14), coat)
-	b.sphere(Vector3(0.0, 1.66 * h, 0.0), Vector3(0.13, 0.15, 0.14), 8, 5, skin)                               # head
-	b.box(Vector3(0.0, 1.72 * h, -0.02), Vector3(0.28, 0.1, 0.3), coat.darkened(0.35))                         # hood / cap
+	var shoe := Color(0.05, 0.05, 0.06, 1.0)
+	b.box(Vector3(-0.1, 0.05, -0.02), Vector3(0.15, 0.1, 0.27), shoe)                                          # shoes
+	b.box(Vector3(0.1, 0.05, -0.02), Vector3(0.15, 0.1, 0.27), shoe)
+	b.box(Vector3(-0.1, 0.5 * h, 0.0), Vector3(0.16, 0.8 * h, 0.2), pants)                                      # legs
+	b.box(Vector3(0.1, 0.5 * h, 0.0), Vector3(0.16, 0.8 * h, 0.2), pants)
+	b.box(Vector3(0.0, 0.97 * h, 0.0), Vector3(0.4, 0.2 * h, 0.26), pants.darkened(0.2))                        # hips and belt
+	b.box(Vector3(0.0, 1.0 * h, -0.135), Vector3(0.12, 0.05, 0.02), Color(0.5, 0.42, 0.2, 1.0))                  # belt buckle
+	b.box(Vector3(0.0, 1.27 * h, 0.0), Vector3(0.46, 0.5 * h, 0.27), coat)                                      # torso / jacket
+	b.box(Vector3(0.0, 1.3 * h, -0.136), Vector3(0.2, 0.42 * h, 0.012), shirt)                                  # open front: the shirt shows
+	b.box(Vector3(0.0, 0.95 * h, 0.0), Vector3(0.48, 0.2 * h, 0.29), coat.darkened(0.2))                        # coat skirt
+	b.box(Vector3(-0.3, 1.18 * h, 0.0), Vector3(0.11, 0.55 * h, 0.15), coat)                                    # arms
+	b.box(Vector3(0.3, 1.18 * h, 0.0), Vector3(0.11, 0.55 * h, 0.15), coat)
+	b.box(Vector3(-0.3, 0.87 * h, 0.0), Vector3(0.1, 0.1, 0.13), skin)                                          # hands
+	b.box(Vector3(0.3, 0.87 * h, 0.0), Vector3(0.1, 0.1, 0.13), skin)
+	b.box(Vector3(0.0, 1.55 * h, 0.0), Vector3(0.12, 0.1, 0.12), skin.darkened(0.1))                            # neck
+	b.sphere(Vector3(0.0, 1.68 * h, 0.0), Vector3(0.125, 0.15, 0.135), 8, 5, skin)                              # head
+	b.box(Vector3(0.0, 1.68 * h, -0.115), Vector3(0.14, 0.03, 0.02), Color(0.04, 0.04, 0.05, 1.0))              # eyes / glasses bar
+	var look := rng.randi() % 4
+	if look == 0:
+		b.box(Vector3(0.0, 1.8 * h, 0.0), Vector3(0.28, 0.1, 0.3), coat.darkened(0.35))                        # hood / cap
+		b.box(Vector3(0.0, 1.76 * h, -0.17), Vector3(0.24, 0.025, 0.12), coat.darkened(0.45))                   # brim
+	elif look == 1:
+		b.sphere(Vector3(0.0, 1.74 * h, 0.02), Vector3(0.135, 0.12, 0.14), 8, 4, hair)                          # hair
+	elif look == 2:
+		b.sphere(Vector3(0.0, 1.76 * h, 0.04), Vector3(0.14, 0.12, 0.17), 8, 4, hair)                           # long hair
+		b.box(Vector3(0.0, 1.5 * h, 0.1), Vector3(0.22, 0.28 * h, 0.07), hair)
+	else:
+		b.box(Vector3(0.0, 1.8 * h, 0.0), Vector3(0.26, 0.07, 0.27), hair)                                      # flat top
+	if rng.randf() < 0.45:
+		b.box(Vector3(0.0, 1.3 * h, 0.2), Vector3(0.3, 0.38 * h, 0.14), coat.lerp(Color(0.4, 0.3, 0.2), 0.5))   # backpack
+		b.box(Vector3(0.0, 1.3 * h, 0.275), Vector3(0.2, 0.05, 0.012), Color(0.9, 0.7, 0.2, 1.0))
+	if rng.randf() < 0.4:
+		b.box(Vector3(0.0, 1.5 * h, -0.02), Vector3(0.26, 0.07, 0.24), shirt.lerp(Color(1, 0.4, 0.3), 0.4))      # scarf
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 0.9
@@ -87,6 +119,16 @@ static func marker_mesh() -> ArrayMesh:
 	return _marker_mesh
 
 
+## Lit by the room: the interior's own surface material (its pools and ambient, read in world space, so a walking person is lit by where he stands). Without a room (tests, stubs) the plain material stays.
+func light_with(room: Node) -> void:
+	if _body == null:
+		return
+	var m: Material = null
+	if room != null and room.has_method("actor_material"):
+		m = room.call("actor_material") as Material
+	_body.material_override = m
+
+
 func activate(r: StringName, at: Vector3, yaw: float, marker_color := Color.WHITE) -> void:
 	role = r
 	active = true
@@ -110,6 +152,8 @@ func activate(r: StringName, at: Vector3, yaw: float, marker_color := Color.WHIT
 
 
 func deactivate() -> void:
+	if _body != null:
+		_body.material_override = null
 	active = false
 	visible = false
 	spots.clear()

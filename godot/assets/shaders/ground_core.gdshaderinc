@@ -144,6 +144,7 @@ void fragment() {
 	float rn = clamp(rain, 0.0, 1.0);
 	float dk = 1.0 - smoothstep(70.0, 260.0, dist);       // fine detail fades with distance
 	bool fine = detail > 0.5 && dist < 110.0;              // micro detail (cracks, oil, manholes, ripples) only near the camera
+	bool near_wear = dist < 52.0;                          // road wear that every tier shows close to the player (LOW included): manholes, a few cracks, repair patches
 
 	float ox = road_off(q.x);
 	float oz = road_off(q.y);
@@ -225,11 +226,25 @@ void fragment() {
 		// cracks: thin dark meanders, patchy; the line is anti-aliased with the pixel footprint (the noise gradient is about 1.2 per metre,
 		// so no derivative is taken inside a branch) and fades once thinner than a pixel
 		float crack = 0.0;
-		if (fine) {
+		if (fine || near_wear) {
 			float cn = abs(vnoise(q * 1.1 + 8.0) - 0.5) + 0.35 * abs(vnoise(q * 2.7 + 3.0) - 0.5);
-			crack = line_aa(cn, 0.006, 1.2 * aa) * smoothstep(0.66, 0.78, vnoise(q * 0.21 + 40.0));
+			crack = line_aa(cn, fine ? 0.006 : 0.012, 1.2 * aa) * smoothstep(0.66, 0.78, vnoise(q * 0.21 + 40.0));
 		}
-		asph *= 1.0 - 0.30 * crack * dk;
+		asph *= 1.0 - (fine ? 0.30 : 0.42) * crack * dk;
+		// repair patches: straight-edged rectangles of newer, darker asphalt with a lighter seam (a road that has been dug up and closed again); every tier, near the player
+		if (near_wear && junction < 0.5) {
+			vec2 pc = vec2(floor(al / 17.0), floor(lat / 9.0) + (in_x ? 0.0 : 40.0));
+			float ph = hash12(pc + 13.0);
+			if (ph > 0.55) {
+				vec2 pcent = vec2((pc.x + 0.25 + 0.5 * hash12(pc + 2.0)) * 17.0, (pc.y - (in_x ? 0.0 : 40.0) + 0.25 + 0.5 * hash12(pc + 7.0)) * 9.0);
+				vec2 phalf = vec2(1.6 + 2.6 * hash12(pc + 5.0), 0.7 + 1.3 * hash12(pc + 9.0));
+				vec2 pd = abs(vec2(al, lat) - pcent) - phalf;
+				float inside = 1.0 - smoothstep(-aa, aa, max(pd.x, pd.y));
+				float seam = (1.0 - smoothstep(0.0, 0.05 + aa, abs(max(pd.x, pd.y)))) ;
+				asph = mix(asph, asph * 0.40 + vec3(0.002), inside);
+				asph = mix(asph, asph * 1.9 + vec3(0.02), seam * (1.0 - inside * 0.5) * 0.75);
+			}
+		}
 		albedo = asph;
 		rough = mix(0.88, tex_rough, 0.8 * srf);
 
@@ -275,7 +290,7 @@ void fragment() {
 		float mh_l = (mh_h > 0.5 ? 1.0 : -1.0) * (4.2 + 1.6 * hash12(mc + 9.0));
 		float mh_a = (mc.x + 0.2 + 0.6 * hash12(mc + 4.0)) * 31.0;
 		float md = length(vec2(lat - mh_l, al - mh_a));
-		float mh = fine ? (1.0 - smoothstep(0.50 - aa, 0.50 + aa, md)) * (1.0 - junction) * step(18.0, other) * step(0.35, mh_h) : 0.0;
+		float mh = (fine || near_wear) ? (1.0 - smoothstep(0.50 - aa, 0.50 + aa, md)) * (1.0 - junction) * step(18.0, other) * step(0.35, mh_h) : 0.0;
 		float mh_ring = (1.0 - smoothstep(0.54, 0.58, md)) * (1.0 - mh);
 		float mh_ribs = mix(0.8, 0.6 + 0.4 * step(0.5, fract((lat - mh_l) * 4.0 + 0.5)) * step(0.5, fract((al - mh_a) * 4.0 + 0.5)), resolve(0.25, aa));
 		albedo = mix(albedo, vec3(0.045, 0.043, 0.04) * mh_ribs, mh);
@@ -607,12 +622,13 @@ void fragment() {
 	// plus phase-seam cracks that glow in the district colour, and the rare second-state flicker of a patch of ground.
 	if (qs_amount > 0.0) {
 		float film_seed = patchy * 0.8 + 0.2 * vnoise(q * 0.07);
-		emit += qs_film(ndv, film_seed) * (0.05 + 0.25 * fres) * gloss * (1.0 - puddle * 0.4) * qs_amount * (0.6 + 0.4 * rn);
+		// the film is a faint cool tint (a quarter of the rainbow, a third of the strength): at full strength it painted huge lilac and teal swirls across the road (owner round 2, crosswalk)
+		emit += mix(vec3(0.5, 0.66, 0.85), qs_film(ndv, film_seed), 0.3) * (0.025 + 0.09 * fres) * gloss * (1.0 - puddle * 0.4) * qs_amount * (0.6 + 0.4 * rn);
 		if (fine) {
 			float fl = qs_flicker(hash12(floor(q / 6.0)), TIME);
 			float sm = qs_seam(q * 0.9, 0.018 + aa * 0.9) * (1.0 - matte) * dk;
 			vec3 sc = district_seam(q);
-			emit += sc * sm * (0.35 + 1.6 * fl) * qs_amount;
+			emit += sc * sm * (0.16 + 0.9 * fl) * qs_amount;
 			emit += sc * fl * 0.06 * (1.0 - matte) * qs_amount;
 		}
 	}

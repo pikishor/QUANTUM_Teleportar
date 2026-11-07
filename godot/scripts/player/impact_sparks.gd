@@ -237,6 +237,7 @@ static func _get_puff_material() -> StandardMaterial3D:
 		_puff_mat.vertex_color_use_as_albedo = true
 		_puff_mat.albedo_texture = _get_dot()
 		_puff_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		_puff_mat.billboard_keep_scale = true          # the particle scale (size, shrink curve) is honoured; without it a billboard ignores it
 		_puff_mat.disable_receive_shadows = true
 	return _puff_mat
 

@@ -175,5 +175,84 @@ static func verdict(s: Dictionary, sep := -1.0, people := -1, flat := 0.0, extra
 	return ", ".join(why)
 
 
-static func translucent_slabs(_img: Image) -> Dictionary:
-	return {"frac": 0.0, "rect": Rect2i(), "kind": ""}
+## Large flat translucent regions (floating glow sheets, blended quads, particle cards, fog planes) at the phone resolution.
+## `base` = the same frame with the translucent layers hidden: the blocks where the two frames differ are what the layers add, and the biggest connected patch
+## that is wide, filled and smooth (a sheet, not a thin beam or a scatter of sparks) is the slab. Without `base` the frame alone is judged: a big flat pale rectangle.
+## Returns {frac (of the frame), rect, kind ("slab" / "flat" / ""), fill (patch / its bounding box), mean (mean difference in the patch)}.
+const SLAB_BLOCK := 8
+const SLAB_DIFF := 0.035          ## mean absolute colour difference per block that counts as "the layer is visible here"
+const SLAB_MIN_FRAC := 0.02       ## a patch under 2 % of the frame is a glow or a spark, not a sheet
+const SLAB_MIN_FILL := 0.55       ## and it must fill at least this part of its bounding box
+const SLAB_MIN_SIDE := 6          ## blocks (48 px): thin beams and streaks are not sheets
+
+
+static func translucent_slabs(img: Image, base: Image = null) -> Dictionary:
+	var none := {"frac": 0.0, "rect": Rect2i(), "kind": "", "fill": 0.0, "mean": 0.0}
+	if img == null or img.is_empty():
+		return none
+	if base == null or base.is_empty() or base.get_width() != img.get_width() or base.get_height() != img.get_height():
+		var fr := flat_rects(img)
+		if float(fr["frac"]) > MAX_FLAT_RECT:
+			return {"frac": fr["frac"], "rect": fr["rect"], "kind": "flat", "fill": 1.0, "mean": 0.0}
+		return none
+	var cw := img.get_width() / SLAB_BLOCK
+	var ch := img.get_height() / SLAB_BLOCK
+	var mask := PackedByteArray()
+	mask.resize(cw * ch)
+	var dsum := PackedFloat32Array()
+	dsum.resize(cw * ch)
+	for cy in ch:
+		for cx in cw:
+			var sum := 0.0
+			var n := 0
+			for y in range(cy * SLAB_BLOCK, (cy + 1) * SLAB_BLOCK, 2):
+				for x in range(cx * SLAB_BLOCK, (cx + 1) * SLAB_BLOCK, 2):
+					var a := img.get_pixel(x, y)
+					var b := base.get_pixel(x, y)
+					sum += (absf(a.r - b.r) + absf(a.g - b.g) + absf(a.b - b.b)) / 3.0
+					n += 1
+			var m := sum / float(maxi(n, 1))
+			dsum[cy * cw + cx] = m
+			mask[cy * cw + cx] = 1 if m > SLAB_DIFF else 0
+	var best := none
+	var seen := PackedByteArray()
+	seen.resize(cw * ch)
+	for start in cw * ch:
+		if mask[start] == 0 or seen[start] == 1:
+			continue
+		var stack: Array[int] = [start]
+		seen[start] = 1
+		var n := 0
+		var tot := 0.0
+		var x0 := cw
+		var y0 := ch
+		var x1 := 0
+		var y1 := 0
+		while not stack.is_empty():
+			var c: int = stack.pop_back()
+			var cx := c % cw
+			var cy := c / cw
+			n += 1
+			tot += dsum[c]
+			x0 = mini(x0, cx)
+			x1 = maxi(x1, cx)
+			y0 = mini(y0, cy)
+			y1 = maxi(y1, cy)
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var nx: int = cx + d.x
+				var ny: int = cy + d.y
+				if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
+					continue
+				var ni := ny * cw + nx
+				if mask[ni] == 1 and seen[ni] == 0:
+					seen[ni] = 1
+					stack.append(ni)
+		var bw := x1 - x0 + 1
+		var bh := y1 - y0 + 1
+		var frac := float(n) / float(cw * ch)
+		var fill := float(n) / float(bw * bh)
+		if bw >= SLAB_MIN_SIDE and bh >= SLAB_MIN_SIDE and fill >= SLAB_MIN_FILL and frac > float(best["frac"]):
+			best = {"frac": frac, "rect": Rect2i(x0 * SLAB_BLOCK, y0 * SLAB_BLOCK, bw * SLAB_BLOCK, bh * SLAB_BLOCK), "kind": "", "fill": fill, "mean": tot / float(n)}
+	if float(best["frac"]) >= SLAB_MIN_FRAC:
+		best["kind"] = "slab"
+	return best

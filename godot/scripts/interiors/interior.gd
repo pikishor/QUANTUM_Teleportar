@@ -10,7 +10,7 @@ const GLOW_SHADER := preload("res://assets/shaders/interior_glow.gdshader")
 ## Render layer of the interior's surface and of its own two lights: the surface shader adds every non-directional light that reaches it, so the street's neon, mission and
 ## muzzle lights (default layer 1) must not (a red neon lamp outside washed the whole room red). Only the room's own lights share this layer.
 const LIGHT_LAYER := 1 << 19
-const POOLS_BY_TIER := [4, 6, 8]
+const POOLS_BY_TIER := [5, 6, 8]
 const LIGHTS_BY_TIER := [1, 2, 2]
 
 var type: StringName = &"bodega"
@@ -96,7 +96,7 @@ func _make_materials() -> void:
 		if i < plan.pools.size():
 			var p: Dictionary = plan.pools[i]
 			var pp: Vector3 = origin + (p["pos"] as Vector3)
-			pos = Vector4(pp.x, pp.y, pp.z, float(p["radius"]))
+			pos = Vector4(pp.x, pp.y, pp.z, -float(p["radius"]) if bool(p.get("accent", false)) else float(p["radius"]))     # a negative radius marks an accent pool (keeps its colour)
 			var pc: Color = p["col"]
 			col = Vector4(pc.r, pc.g, pc.b, float(p["inten"]))
 		_mat_surface.set_shader_parameter(StringName("pool_pos%d" % i), pos)
@@ -111,6 +111,11 @@ func _make_materials() -> void:
 	_mat_glow.shader = GLOW_SHADER
 	_mat_glow.set_shader_parameter(&"show", 1.0 if type == &"club" else 0.5)
 	_mat_glow.set_shader_parameter(&"compat", compat)
+
+
+## The room's surface material for people standing in it (InteriorCivilian): same baked pools and ambient, so they are lit like the furniture instead of black cut-outs.
+func actor_material() -> ShaderMaterial:
+	return _mat_surface
 
 
 func _make_instance(nm: String, mesh: Mesh, mat: Material) -> MeshInstance3D:

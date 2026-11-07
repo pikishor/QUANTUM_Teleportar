@@ -67,6 +67,8 @@ func _report(spot: String) -> void:
 			for i in me.get_surface_count():
 				var sm: Material = (g as MeshInstance3D).get_active_material(i)
 				mats.append(sm)
+		if OS.get_environment("GLITCH_ALL") != "" and g is MeshInstance3D and (g as MeshInstance3D).mesh != null and ((g as MeshInstance3D).mesh is TorusMesh or (g as MeshInstance3D).mesh is CylinderMesh or (g as MeshInstance3D).mesh is QuadMesh or (g as MeshInstance3D).mesh is PlaneMesh or (g as MeshInstance3D).mesh is BoxMesh):
+			print("ANY %s | %s | d=%.1f size=%s | %s" % [str(g.get_path()).right(70), (g as MeshInstance3D).mesh.get_class(), d, aabb.size.snapped(Vector3(0.01,0.01,0.01)), _mat_info(mats[0] if not mats.is_empty() else null)])
 		for mt in mats:
 			var info := _mat_info(mt)
 			if info != "":

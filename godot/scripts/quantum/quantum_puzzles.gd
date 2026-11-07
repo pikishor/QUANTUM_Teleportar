@@ -21,6 +21,7 @@ const PLATE_R := 1.3
 const PLATE_HOLD := 0.8
 const SHIELD_REACH := 15.0
 const BONUS := 100
+const BARRIER_SHADER := preload("res://assets/shaders/fx_barrier.gdshader")
 const COL := {&"phase": Color(0.3, 0.94, 1.0), &"plate": Color(1.0, 0.72, 0.25), &"shield": Color(1.0, 0.24, 0.94)}
 
 static var _icons := {}
@@ -32,6 +33,7 @@ var origin := Vector3.ZERO
 var fwd := Vector3.FORWARD
 var right := Vector3.RIGHT
 var _prev_fx := 0.0
+var _icon_nodes: Array[Sprite3D] = []
 var _t := 0.0
 
 
@@ -105,13 +107,16 @@ func _box(p: Vector3, size: Vector3, col: Color, layer: int, glow := false) -> S
 	var bm := BoxMesh.new()
 	bm.size = size
 	mi.mesh = bm
-	var m := StandardMaterial3D.new()
-	m.albedo_color = col
-	if glow:
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mi.material_override = m
+	if glow:                                              # an energy field (frame + scan band + clear middle, faded near the lens), never a flat additive slab
+		var sm := ShaderMaterial.new()
+		sm.shader = BARRIER_SHADER
+		sm.set_shader_parameter(&"color", Vector3(col.r, col.g, col.b))
+		sm.set_shader_parameter(&"size", Vector2(size.x, size.y))
+		mi.material_override = sm
+	else:
+		var m := StandardMaterial3D.new()
+		m.albedo_color = col
+		mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mi)
 	return body
@@ -146,12 +151,11 @@ func _pad(p: Vector3, col: Color) -> void:
 	cm.radial_segments = 20
 	cm.rings = 1
 	mi.mesh = cm
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = Color(col.r, col.g, col.b, 0.7)
-	mi.material_override = m
+	var sm := ShaderMaterial.new()
+	sm.shader = BARRIER_SHADER
+	sm.set_shader_parameter(&"color", Vector3(col.r, col.g, col.b))
+	sm.set_shader_parameter(&"pad", 1.0)
+	mi.material_override = sm
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 	mi.global_position = Vector3(p.x, origin.y + 0.04, p.z)
@@ -162,39 +166,55 @@ func _icon(which: StringName, p: Vector3, col: Color) -> void:
 	s.texture = icon_texture(which)
 	s.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	s.shaded = false
-	s.pixel_size = 0.02
+	s.pixel_size = 0.011                                  # 64 px at 1.1 cm: 0.7 m, smooth (linear + mipmaps), faded out when the camera is close (see _fade_icons)
+	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	s.modulate = col
 	s.no_depth_test = false
 	add_child(s)
+	_icon_nodes.append(s)
 	s.global_position = p
 
 
-## 32 px white-on-clear verb icons drawn once: entangle (two linked dots), super (two overlapping rings), collapse (ring with spokes).
+## 64 px white-on-clear verb icons drawn once with soft (anti-aliased) edges: entangle (two linked dots), super (two overlapping rings), collapse (ring with spokes).
+## (Was 32 px with hard edges: next to the lens it showed as a blocky blob.)
 static func icon_texture(which: StringName) -> ImageTexture:
 	if _icons.has(which):
 		return _icons[which]
-	var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
-	for y in 32:
-		for x in 32:
-			var px := Vector2(x + 0.5, y + 0.5)
-			var a := 0.0
+	var n := 64
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	for y in n:
+		for x in n:
+			var px := Vector2(x + 0.5, y + 0.5) * 0.5            # 32-unit space
+			var d := 99.0                                         # signed distance to the shape in 32-unit space (negative inside)
 			match which:
 				&"entangle":
-					var d1 := px.distance_to(Vector2(9, 16))
-					var d2 := px.distance_to(Vector2(23, 16))
-					a = 1.0 if (d1 < 5.0 or d2 < 5.0 or (absf(px.y - 16.0) < 1.2 and px.x > 9 and px.x < 23)) else 0.0
+					var line := maxf(absf(px.y - 16.0) - 1.2, maxf(9.0 - px.x, px.x - 23.0))
+					d = minf(minf(px.distance_to(Vector2(9, 16)) - 5.0, px.distance_to(Vector2(23, 16)) - 5.0), line)
 				&"super":
-					var r1 := absf(px.distance_to(Vector2(12, 16)) - 8.0)
-					var r2 := absf(px.distance_to(Vector2(20, 16)) - 8.0)
-					a = 1.0 if (r1 < 1.5 or r2 < 1.5) else 0.0
+					d = minf(absf(px.distance_to(Vector2(12, 16)) - 8.0) - 1.5, absf(px.distance_to(Vector2(20, 16)) - 8.0) - 1.5)
 				_:
 					var c := px.distance_to(Vector2(16, 16))
 					var ang := atan2(px.y - 16.0, px.x - 16.0)
-					a = 1.0 if (absf(c - 7.0) < 1.5 or c < 2.5 or (c > 8.5 and c < 14.0 and absf(fposmod(ang, PI * 0.25) - PI * 0.125) > 0.1 and absf(fposmod(ang, PI * 0.5)) < 0.18)) else 0.0
-			img.set_pixel(x, y, Color(1, 1, 1, a))
+					d = minf(absf(c - 7.0) - 1.5, c - 2.5)
+					var spoke := fposmod(ang, PI * 0.5)
+					spoke = minf(spoke, PI * 0.5 - spoke) * c               # metres-ish across the spoke at this radius
+					d = minf(d, maxf(maxf(8.5 - c, c - 14.0), spoke - 1.0))
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(0.5 - d * 2.0, 0.0, 1.0)))
+	img.generate_mipmaps()
 	var t := ImageTexture.create_from_image(img)
 	_icons[which] = t
 	return t
+
+
+## The verb icons thin out when the camera is within 3 m (a 0.7 m sprite at arm's length is a blob on the screen).
+func _fade_icons() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	for s in _icon_nodes:
+		if is_instance_valid(s):
+			var a := clampf((cam.global_position.distance_to(s.global_position) - 1.2) / 2.5, 0.0, 1.0)
+			s.modulate.a = a
 
 
 # --- simulation -------------------------------------------------------------------------------------------------------
@@ -224,6 +244,7 @@ func tick_live(delta: float) -> void:
 			clone = q.clone.global_position
 		pulse = q.collapse_fx > 0.95 and _prev_fx <= 0.95
 		_prev_fx = q.collapse_fx
+	_fade_icons()
 	tick(delta, pl.global_position, clone, pulse)
 
 
