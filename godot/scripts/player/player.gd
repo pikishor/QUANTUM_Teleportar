@@ -418,7 +418,7 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 	Sfx.play(&"hurt")
 	body.flinch(clampf(amount / 25.0, 0.3, 1.5), from_pos)
 	camera_rig.bump(clampf(amount / 40.0, 0.1, 0.6))
-	if hp <= 0.0 and Companion.rescue(self):             # the ally pulls the hero back once per mission (hp and a short invulnerability are restored)
+	if hp <= 0.0 and (Companion.rescue(self) or InteriorGameplay.rescue(self)):             # the ally pulls the hero back once per mission (hp and a short invulnerability are restored)
 		return
 	if hp <= 0.0:
 		_die()

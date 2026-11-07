@@ -35,10 +35,10 @@ const FREE_LOOK_TIME := 1.5
 # presets (src/player.js updateCamera)
 const EYE_HEIGHT := 1.55
 const HIP_DIST := 3.2
-const HIP_SHOULDER := 0.95
-const ADS_DIST := 2.0
-const ADS_LIFT := 0.14                       ## metres the camera rises while aiming: the rifle shows over the shoulder instead of hiding behind it (director review: the weapon was not visible)
-const ADS_SHOULDER := 0.72
+const HIP_SHOULDER := 1.05
+const ADS_DIST := 2.2
+const ADS_LIFT := 0.3                       ## metres the camera rises while aiming: the rifle shows over the shoulder instead of hiding behind it (director review: the weapon was not visible)
+const ADS_SHOULDER := 0.92
 const FOV_HIP := 92.0          # horizontal degrees (keep_aspect = KEEP_WIDTH): the same view on 16:9 tablets and 20:9 phones
 const FOV_SPRINT := 100.0
 const FOV_ADS := 62.0
@@ -62,7 +62,7 @@ const FADE_END := 0.9                        ## ... and is fully hidden at this 
 const MIN_ARM := 0.85                        ## shortest camera arm in metres, however close the wall is (the prototype's floor was 0.5 m)
 const RIG_PRIORITY := 100                    ## process priority: after the nodes it follows (lower numbers run first)
 const INTERIOR_ARM_SCALE := 0.68             ## inside a generated interior (scripts/interiors/) the on-foot arm is this fraction of its length ...
-const INTERIOR_MIN_ARM := 0.22               ## ... and may shrink to this: the hero capsule (0.35 m) keeps the camera in front of the wall behind him, the hero fades out when the camera is that close
+const INTERIOR_MIN_ARM := 0.25               ## ... and may shrink to this: the hero capsule (0.35 m) keeps the camera in front of the wall behind him, the hero fades out when the camera is that close
 const INTERIOR_FOV_BOOST := 18.0             ## degrees added (horizontal FOV) inside an interior while the arm is pulled in by a wall: a hero 1 m from the lens would be cropped at the hips and the left edge
 const SQUEEZE_START := 2.0                   ## an arm shorter than this (metres) starts to slide the camera toward a free shoulder ...
 const SQUEEZE_SIDE := 0.5                    ## ... by this much sideways at full squeeze (arm at the MIN_ARM floor) ...
@@ -653,7 +653,7 @@ func _camera_rest_position() -> Vector3:
 	if is_instance_valid(_follow) and _follow.is_inside_tree():
 		base = _follow.global_position
 	var b := Basis.from_euler(Vector3(pitch + recoil_pitch, yaw + recoil_yaw, 0.0), EULER_ORDER_YXZ)
-	return base + Vector3(0.0, EYE_HEIGHT * float(hs["eye"]), 0.0) + b * Vector3(shoulder, 0.0, dist)
+	return base + Vector3(0.0, EYE_HEIGHT * float(hs["eye"]) + ADS_LIFT * ads_s, 0.0) + b * Vector3(shoulder, 0.0, dist)
 
 
 ## The camera must never keep chasing something that is gone: a vehicle that was freed, deactivated, hidden or exploded, or that the player no longer sits in.

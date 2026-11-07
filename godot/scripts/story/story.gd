@@ -17,6 +17,11 @@ const HOLD_PER_CHAR := 0.03
 const LINE_GAP := 0.3               ## seconds between two radio lines
 const CARD_HOLD_BASE := 0.6         ## a finished card moves on by itself after this + per character
 const CARD_HOLD_PER_CHAR := 0.01
+const PROLOGUE_CPS := 110.0          ## the prologue cards are three short lines over a LIVE street: fast typing, a short hold, a hard cap (director round 2: about 16 s of cards, then 11 s)
+const PROLOGUE_HOLD_BASE := 0.25
+const PROLOGUE_HOLD_PER_CHAR := 0.008
+const PROLOGUE_MAX := 4.0             ## seconds all prologue cards together may stay up; a tap skips earlier
+const SAFE_RADIUS := 30.0             ## metres: an enemy this close (or a wanted level, or a hurt hero) ends the cards at once: they only run while the player is safe
 const CARD_MIN := 0.35              ## seconds before a tap may advance a card (a firing finger must not skip it)
 const BANNER_TIME := 4.4
 const QUEUE_MAX := 4
@@ -41,6 +46,7 @@ var card_kind: StringName = &""     ## &"prologue" or &"epilogue" while cards ar
 var card_typed := 0.0
 var card_age := 0.0
 var card_hold := 0.0
+var card_total := 0.0               ## seconds the current card run has been up (the prologue is capped at PROLOGUE_MAX)
 var death_quote: Dictionary = {}
 var death_age := 0.0
 var end_card: Dictionary = {}
@@ -312,6 +318,7 @@ func start_cards(list: Array, kind: StringName) -> void:
 	card_kind = kind
 	card_typed = 0.0
 	card_age = 0.0
+	card_total = 0.0
 	card_hold = -1.0
 	_epi_wait = -1.0
 
@@ -337,9 +344,30 @@ func advance_card() -> bool:
 	var n := str(cards[0]["text"]).length()
 	if card_typed < n:
 		card_typed = float(n)
-		card_hold = CARD_HOLD_BASE + n * CARD_HOLD_PER_CHAR
+		card_hold = _hold_for(n)
 	else:
 		_next_card()
+	return true
+
+
+func _hold_for(n: int) -> float:
+	return PROLOGUE_HOLD_BASE + n * PROLOGUE_HOLD_PER_CHAR if card_kind == &"prologue" else CARD_HOLD_BASE + n * CARD_HOLD_PER_CHAR
+
+
+## True while nothing threatens the hero: no enemy within SAFE_RADIUS, no wanted level, health not low. The prologue cards only run then.
+func player_safe() -> bool:
+	var pl := Game.player
+	if not is_instance_valid(pl):
+		return true
+	var mx := UiUtil.num(pl, &"max_hp", 100.0)
+	if mx > 0.0 and UiUtil.num(pl, &"hp", mx) < mx * 0.7:
+		return false
+	if Game.heat >= 1.0:
+		return false
+	for e: Node in get_tree().get_nodes_in_group(&"enemy"):
+		var e3 := e as Node3D
+		if e3 != null and e3.is_visible_in_tree() and e3.global_position.distance_to((pl as Node3D).global_position) < SAFE_RADIUS:
+			return false
 	return true
 
 
@@ -370,11 +398,15 @@ func _tick_cards(delta: float) -> void:
 	var pl := Game.player
 	if is_instance_valid(pl) and card_kind == &"prologue" and Game.state == &"play" and pl.get(&"invuln") is float:
 		pl.set(&"invuln", maxf(pl.get(&"invuln") as float, 0.5))    # the world is live under the cards: nothing may hurt a player who is reading
+	card_total += delta
+	if card_kind == &"prologue" and Game.state == &"play" and (card_total >= PROLOGUE_MAX or not player_safe()):
+		skip_cards()                                              # over a live street the cards never run long, and never while something is hunting the hero
+		return
 	var n := str(cards[0]["text"]).length()
 	if card_typed < n:
-		card_typed = minf(card_typed + CPS_CARD * delta, float(n))
+		card_typed = minf(card_typed + (PROLOGUE_CPS if card_kind == &"prologue" else CPS_CARD) * delta, float(n))
 		if card_typed >= n:
-			card_hold = CARD_HOLD_BASE + n * CARD_HOLD_PER_CHAR
+			card_hold = _hold_for(n)
 	else:
 		card_hold -= delta
 		if card_hold <= 0.0:

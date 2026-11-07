@@ -482,9 +482,20 @@ func blast_ring(pos: Vector3, radius: float, color: Color, style: int) -> void:
 
 ## Enemy death: the body dissolves into quantum dust on HIGH. It is ONE pooled FX.burst emitter that REPLACES the ember burst of the blast (Drone passes
 ## embers = false), so the death spike keeps its draw budget (a separate MultiMesh drew +4 draws in the perf gate). The player's own effects use the dust MultiMesh.
+static var _dust_ms := 0
+static var _dust_n := 0
+
+
 func death_dust(center: Vector3, height: float, radius: float, color: Color) -> void:
 	if Game.quality < 2:
 		return
+	var now := Time.get_ticks_msec()
+	if now - _dust_ms > 400:
+		_dust_ms = now
+		_dust_n = 0
+	if _dust_n >= 2:
+		return                                                  # a four-body wipe dusts two bodies: every live emitter is a draw (and one more in the mirror), the death-spike budget
+	_dust_n += 1
 	dust_started += 1
 	FX.burst(center + Vector3(0.0, height * 0.15, 0.0), color.lerp(PALE, 0.4), 26, 1.0 + radius * 2.0, 1.4, -1.1, 1.5)
 

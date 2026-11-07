@@ -49,6 +49,8 @@ const ROUTE_Y := 0.14
 const DASH := 3.4
 const GAP := 2.2
 const ROUTE_WIDTH := 1.4
+const ROUTE_FADE_NEAR := 3.0           ## metres from the camera: the route line is invisible closer than this and solid beyond ROUTE_FADE_FAR
+const ROUTE_FADE_FAR := 9.0
 
 static var _ring_shader: Shader
 static var _route_mat: StandardMaterial3D
@@ -233,7 +235,11 @@ func set_route(points: PackedVector3Array) -> void:
 		_route_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 		_route_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_route_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		_route_mat.albedo_color = Color(ContractTypes.AMBER.r, ContractTypes.AMBER.g, ContractTypes.AMBER.b, 0.85)
+		_route_mat.albedo_color = Color(ContractTypes.AMBER.r, ContractTypes.AMBER.g, ContractTypes.AMBER.b, 0.6)
+		# a dash right under the lens is a metre-wide cream plane across half the frame (director review: white planes at the lens): invisible within ROUTE_FADE_NEAR, solid from ROUTE_FADE_FAR
+		_route_mat.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+		_route_mat.distance_fade_min_distance = ROUTE_FADE_NEAR
+		_route_mat.distance_fade_max_distance = ROUTE_FADE_FAR
 		_route_mat.disable_receive_shadows = true
 	mesh.surface_set_material(0, _route_mat)
 	route.mesh = mesh

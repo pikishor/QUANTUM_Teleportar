@@ -17,8 +17,8 @@ uniform sampler2D hair2_normal : hint_normal, filter_linear_mipmap, repeat_enabl
 
 uniform vec3 hair_color : source_color = vec3(0.16, 0.11, 0.085);
 uniform vec3 suit_color : source_color = vec3(0.2, 0.22, 0.27);
-uniform vec3 jacket_color : source_color = vec3(0.56, 0.66, 0.78);     // the outfit: jacket and trousers (the hero's own, NPCs and enemies set theirs in HumanoidVariants.tint)
-uniform vec3 pants_color : source_color = vec3(0.2, 0.22, 0.27);
+uniform vec3 jacket_color : source_color = vec3(0.43, 0.55, 0.69);     // the outfit: jacket and trousers (the hero's own, NPCs and enemies set theirs in HumanoidVariants.tint)
+uniform vec3 pants_color : source_color = vec3(0.25, 0.28, 0.36);
 uniform vec3 look_tint : source_color = vec3(1.0);
 uniform float suit_metal : hint_range(0.0, 1.0) = 0.3;
 uniform float suit_rough : hint_range(0.0, 1.0) = 0.5;
@@ -37,6 +37,7 @@ uniform float scalp_z = 0.0;
 uniform float brightness : hint_range(0.2, 2.0) = 1.0;
 
 varying flat float v_mode;
+varying flat float v_kindf;
 varying float v_suit;
 varying vec3 v_pos;
 varying vec3 v_nrm;
@@ -46,6 +47,7 @@ float h11(float x) { return fract(sin(x * 127.1) * 43758.5453); }
 void vertex() {
 	v_mode = floor(COLOR.r * 4.0 + 0.5);
 	v_suit = COLOR.g;
+	v_kindf = COLOR.b * 8.0;
 	v_pos = VERTEX;
 	v_nrm = NORMAL;
 }
@@ -73,6 +75,7 @@ void fragment() {
 		float sk = 1.0 - suit;
 		alb *= 1.0 + sk * pow(1.0 - ndv0, 2.2) * vec3(0.55, 0.2, 0.08);
 		BACKLIGHT = sk * alb * vec3(0.55, 0.22, 0.12);
+		emis += sk * alb * 0.26 * (0.6 + 0.4 * v_nrm.y);                       // a skin fill: the face reads in a dark street instead of going black
 		if (suit > 0.001) {
 			float lum = dot(alb, vec3(0.299, 0.587, 0.114));
 			float ndv = ndv0;
@@ -150,7 +153,7 @@ void fragment() {
 			alb = mix(alb, film * 0.35, suit * rim * 0.2);
 			// hemisphere fill (no light needed): the suit never goes black from behind or below
 			float hemi = 0.55 + 0.45 * v_nrm.y;
-			emis = suit * (film * (seam * 0.6 * k + rim * 0.3 * k + flick * 0.18) + fabric * 0.34 * hemi);
+			emis += suit * (film * (seam * 0.6 * k + rim * 0.16 * k + flick * 0.18) + fabric * 0.34 * hemi);
 			rough = mix(rough, clamp(0.74 - 0.25 * panel + 0.2 * (cloud - 0.5), 0.12, 0.95), suit);
 			metal = suit * (0.04 + 0.2 * panel + 0.1 * rim);
 			nd = mix(1.0, 0.45, suit);
@@ -177,11 +180,50 @@ void fragment() {
 		spec = 0.5;
 		BACKLIGHT = alb * 0.3;
 	} else {
-		alb = vec3(0.13, 0.14, 0.155);
-		rough = 0.42;
-		metal = 0.55;
+		float fk = v_kindf;
+		float kind = floor(fk + 0.5);
+		float cape = step(0.02, abs(fk - kind));
 		float ndv2 = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
-		emis = trim_color * (pow(1.0 - ndv2, 3.0) * 0.18 + step(0.5, v_suit) * 1.1) * (0.4 + 0.6 * ready_k) * glow;
+		float hemi2 = 0.55 + 0.45 * v_nrm.y;
+		float edge = min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y));
+		if (kind < 0.5) {
+			alb = vec3(0.13, 0.14, 0.155);
+			rough = 0.42;
+			metal = 0.55;
+			emis = trim_color * (pow(1.0 - ndv2, 3.0) * 0.18 + step(0.5, v_suit) * 1.1) * (0.4 + 0.6 * ready_k) * glow;
+		} else if (kind < 1.5) {
+			// armour plate: a warm bronze-slate (the complement of the accent), a dark groove at the edge and a bright bevel inside it
+			vec3 comp2 = normalize(vec3(1.0) - accent * 0.8 + 0.001);
+			vec3 base = mix(vec3(0.27, 0.31, 0.38), comp2 * 0.4, 0.14) * look_tint;
+			float groove = 1.0 - smoothstep(0.0, 0.1, edge);
+			float bevel = smoothstep(0.1, 0.15, edge) * (1.0 - smoothstep(0.15, 0.24, edge));
+			alb = base * (1.0 - 0.6 * groove) * (0.92 + 0.5 * bevel) + accent * bevel * 0.05;
+			rough = 0.38;
+			metal = 0.5;
+			emis = alb * (0.4 * hemi2 + 0.3 * bevel) + accent * (pow(1.0 - ndv2, 3.0) * 0.14 + bevel * 0.1) * glow;
+		} else if (kind < 2.5 || kind > 4.5) {
+			// fabric: the rucksack, belt, pouches, boots and the cape (cape = darker steel-blue with folds and an accent hem)
+			float fold = 0.5 + 0.5 * sin(UV.x * 18.0 + sin(UV.y * 5.0) * 1.5);
+			vec3 cloth2 = mix(pants_color * 0.8 + vec3(0.02, 0.022, 0.025), vec3(0.14, 0.22, 0.36), cape);
+			cloth2 = mix(cloth2, vec3(0.5, 0.36, 0.21), step(4.5, kind));                       // coyote canvas: rucksack and pouches
+			cloth2 *= mix(0.8, 1.15, mix(0.5, fold, cape));
+			float groove2 = (1.0 - smoothstep(0.0, 0.07, edge)) * (1.0 - cape);
+			cloth2 *= 1.0 - 0.45 * groove2;
+			float hem2 = cape * smoothstep(0.955, 0.97, UV.y);
+			alb = mix(cloth2 * look_tint, accent * 0.7, hem2 * 0.8);
+			rough = 0.78;
+			metal = 0.05;
+			emis = alb * 0.42 * hemi2 + accent * hem2 * 0.3 * glow;
+		} else if (kind < 3.5) {
+			alb = vec3(0.05);
+			rough = 0.3;
+			emis = trim_color * 0.9 * (0.45 + 0.55 * ready_k) * glow;
+		} else {
+			alb = vec3(0.72, 0.55, 0.25);
+			rough = 0.32;
+			metal = 0.85;
+			emis = alb * 0.18 * hemi2;
+		}
 	}
 	ALBEDO = alb * brightness;
 	ROUGHNESS = rough;

@@ -173,9 +173,9 @@ static func _debris_ramp() -> Gradient:
 	return g
 
 
-## Number of slots in use at this graphics tier: LOW 2, MED 3, HIGH 4.
+## Number of slots in use at this graphics tier: LOW 2, MED 3, HIGH 3 (HIGH had 4: a four-body wipe overran the death-spike draw budget once the camera framed more of it).
 static func slot_limit(tier: int) -> int:
-	return 2 + clampi(tier, 0, 2) if tier > 0 else (1 if LowPlus.on() else 2)
+	return (3 if tier > 0 else (1 if LowPlus.on() else 2))
 
 
 ## Smoke puffs per large explosion at this tier: LOW 1, MED 2, HIGH 3.

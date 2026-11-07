@@ -20,7 +20,7 @@ const SKINS: Array[StringName] = [&"dark", &"light"]
 const HAIRS: Array[StringName] = [&"none", &"buzzed", &"parted", &"long", &"buns"]
 const HAIR_FILES := {&"parted": "Hair_SimpleParted", &"long": "Hair_Long", &"buns": "Hair_Buns"}
 ## skin tone: the dark and the light colour maps of the kit are close, the multiplier separates them
-const SKIN_MULT := {&"dark": Color(0.8, 0.72, 0.68), &"light": Color(1.5, 1.3, 1.2)}
+const SKIN_MULT := {&"dark": Color(1.0, 0.86, 0.78), &"light": Color(1.5, 1.3, 1.2)}
 const MODE_SKIN := 0
 const MODE_EYE := 1
 const MODE_HAIR1 := 2
@@ -203,6 +203,8 @@ static func build(opts: Dictionary) -> Dictionary:
 	var armed := bool(opts.get("armed", true))               # false: no carbine mesh (citizens)
 	if armed:
 		comps.append(_rifle_piece(rifle))
+	if bool(opts.get("gear", false)):                          # the hero only: armour, rucksack, cape, boots (NPCs and troopers keep their own look)
+		comps.append(_gear_piece(name_to_idx))
 	var binds: Array[Transform3D] = []
 	for i in n_bones:
 		binds.append(sk.get_bone_global_rest(i).affine_inverse())
@@ -512,8 +514,9 @@ static func _merge(comps: Array) -> Array:
 		weights.append_array(c["weights"])
 		var mode := float(int(c["mode"])) / 4.0
 		var suit: PackedFloat32Array = c["suit"]
+		var kind: PackedFloat32Array = c.get("kind", PackedFloat32Array())
 		for i in cv.size():
-			col.append(Color(mode, suit[i] if i < suit.size() else 0.0, 0.0, 1.0))
+			col.append(Color(mode, suit[i] if i < suit.size() else 0.0, kind[i] if i < kind.size() else 0.0, 1.0))
 		for i: int in c["idx"]:
 			idx.append(base + i)
 	var arr := []
@@ -653,6 +656,122 @@ static func _rifle_boxes(rifle_bone: int) -> Dictionary:
 	var uv := PackedVector2Array()
 	uv.resize(count)
 	return {"v": vv, "n": nn, "t": tan, "uv": uv, "bones": bones, "weights": weights, "idx": idx, "mode": MODE_GEAR, "suit": PackedFloat32Array(), "lod": 0}
+
+
+# ---- the hero's armour and gear -----------------------------------------------------------------------------------------------------
+## Gear kinds (COLOR.b of the gear surface, x8): 0 dark metal (the carbine), 1 armour plate, 2 dark fabric (pack, cape, belt, boots), 3 glow seam, 4 brass.
+const KIND_ARMOUR := 1.0
+const KIND_FABRIC := 2.0
+const KIND_GLOW := 3.0
+const KIND_BRASS := 4.0
+const KIND_PACK := 5.0                         ## coyote-brown canvas (rucksack and pouches): the one warm colour against the cool suit
+const KIND_STEPS := 8.0                        ## COLOR.b = kind / KIND_STEPS
+
+
+## [bone key, kind, centre (model space), size, roll about Z (rad), pitch about X (rad)] of every box of the hero's gear: a chest and belly plate, pauldrons, a neck guard, a rucksack
+## with pouches and a glow seam on the back, a belt with a buckle and hip pouches, thigh plates, knee pads, shin guards and boots. Model space: x right, y up, -z forward (the back is +z).
+static func _gear_boxes() -> Array:
+	var out: Array = []
+	var A := KIND_ARMOUR
+	var F := KIND_FABRIC
+	var G := KIND_GLOW
+	var B := KIND_BRASS
+	var P := KIND_PACK
+	out.append(["spine_02", A, Vector3(0.0, 1.3, -0.122), Vector3(0.27, 0.16, 0.045), 0.0, 0.0])
+	out.append(["spine_02", A, Vector3(0.0, 1.13, -0.104), Vector3(0.2, 0.08, 0.035), 0.0, 0.0])
+	out.append(["spine_02", G, Vector3(0.0, 1.3, -0.147), Vector3(0.03, 0.11, 0.006), 0.0, 0.0])
+	for sx: float in [-1.0, 1.0]:
+		out.append(["spine_02", A, Vector3(0.245 * sx, 1.49, -0.02), Vector3(0.14, 0.04, 0.2), -0.32 * sx, 0.0])
+		out.append(["spine_02", A, Vector3(0.295 * sx, 1.445, -0.02), Vector3(0.07, 0.035, 0.18), -0.85 * sx, 0.0])
+		out.append(["spine_02", P, Vector3(0.165 * sx, 1.17, 0.205), Vector3(0.06, 0.15, 0.09), 0.0, 0.0])
+		out.append(["pelvis", P, Vector3(0.205 * sx, 0.92, 0.045), Vector3(0.075, 0.14, 0.13), 0.0, 0.0])
+		out.append(["pelvis", A, Vector3(0.205 * sx, 0.99, 0.045), Vector3(0.085, 0.03, 0.14), 0.0, 0.0])
+	out.append(["spine_02", P, Vector3(0.0, 1.27, 0.215), Vector3(0.27, 0.3, 0.13), 0.0, 0.0])
+	out.append(["spine_02", A, Vector3(0.0, 1.43, 0.215), Vector3(0.27, 0.05, 0.14), 0.0, 0.0])
+	out.append(["spine_02", G, Vector3(0.0, 1.265, 0.283), Vector3(0.03, 0.23, 0.006), 0.0, 0.0])
+	out.append(["spine_02", G, Vector3(0.0, 1.15, 0.283), Vector3(0.16, 0.012, 0.006), 0.0, 0.0])
+	out.append(["pelvis", F, Vector3(0.0, 0.985, 0.02), Vector3(0.36, 0.065, 0.3), 0.0, 0.0])
+	out.append(["pelvis", B, Vector3(0.0, 0.985, -0.13), Vector3(0.07, 0.05, 0.02), 0.0, 0.0])
+	for side: String in ["l", "r"]:
+		var sx2 := -1.0 if side == "l" else 1.0
+		out.append(["calf_" + side, A, Vector3(0.115 * sx2, 0.555, -0.078), Vector3(0.105, 0.11, 0.05), 0.0, 0.0])
+		out.append(["calf_" + side, A, Vector3(0.113 * sx2, 0.33, -0.025), Vector3(0.085, 0.22, 0.035), 0.0, 0.0])
+		out.append(["calf_" + side, F, Vector3(0.113 * sx2, 0.17, 0.045), Vector3(0.115, 0.1, 0.125), 0.0, 0.0])
+		out.append(["foot_" + side, F, Vector3(0.115 * sx2, 0.085, 0.03), Vector3(0.11, 0.17, 0.17), 0.0, 0.0])
+		out.append(["foot_" + side, F, Vector3(0.115 * sx2, 0.04, -0.11), Vector3(0.1, 0.08, 0.13), 0.0, 0.0])
+		out.append(["foot_" + side, B, Vector3(0.115 * sx2, 0.006, -0.03), Vector3(0.115, 0.012, 0.36), 0.0, 0.0])
+	return out
+
+
+## The gear as ONE gear-mode component (boxes with per-face UVs for the panel edges, a cape), every vertex on the bone it follows. Kit-space, like the rifle.
+static func _gear_piece(name_to_idx: Dictionary) -> Dictionary:
+	var v := PackedVector3Array()
+	var n := PackedVector3Array()
+	var uv := PackedVector2Array()
+	var idx := PackedInt32Array()
+	var bones := PackedInt32Array()
+	var kind := PackedFloat32Array()
+	for b: Array in _gear_boxes():
+		var bone := int(name_to_idx.get(String(b[0]), -1))
+		if bone < 0:
+			continue
+		var basis := Basis(Vector3.BACK, float(b[4])) * Basis(Vector3.RIGHT, float(b[5]))
+		var first := v.size()
+		_box_uv(v, n, uv, idx, b[2], b[3], basis)
+		for i in range(first, v.size()):
+			bones.append_array(PackedInt32Array([bone, 0, 0, 0]))
+			kind.append(float(b[1]) / KIND_STEPS)
+	# the cape: a mantle from the shoulders to the hips behind the rucksack, flaring and wrapping forward at the edges; 5 columns x 5 rows, rigid on the torso
+	var torso := int(name_to_idx.get("spine_02", -1))
+	if torso >= 0:
+		var rows := 5
+		var cols := 5
+		var base := v.size()
+		for r in rows:
+			var t := float(r) / float(rows - 1)
+			var y := lerpf(1.49, 0.93, t)
+			var w := lerpf(0.23, 0.26, t)
+			for c in cols:
+				var u := float(c) / float(cols - 1) * 2.0 - 1.0
+				var z := lerpf(0.165, 0.27, t * t) - 0.12 * u * u * (0.4 + t)
+				v.append(Vector3(u * w, y, z))
+				n.append(Vector3(0.0, 0.25, 1.0).normalized())
+				uv.append(Vector2(float(c) / float(cols - 1), t))
+				bones.append_array(PackedInt32Array([torso, 0, 0, 0]))
+				kind.append(KIND_FABRIC / KIND_STEPS + 0.01)           # +0.01: the cape (the shader gives it a hem line)
+		for r in rows - 1:
+			for c in cols - 1:
+				var a := base + r * cols + c
+				idx.append_array(PackedInt32Array([a, a + 1, a + cols, a + 1, a + cols + 1, a + cols]))
+	var count := v.size()
+	var vv := PackedVector3Array()
+	var nn := PackedVector3Array()
+	var weights := PackedFloat32Array()
+	var tan := PackedFloat32Array()
+	for i in count:
+		vv.append(Vector3(-v[i].x, v[i].y, -v[i].z))               # kit space (the Rig node turns it by half a turn)
+		nn.append(Vector3(-n[i].x, n[i].y, -n[i].z))
+		weights.append_array(PackedFloat32Array([1.0, 0.0, 0.0, 0.0]))
+		tan.append_array(PackedFloat32Array([1.0, 0.0, 0.0, 1.0]))
+	return {"v": vv, "n": nn, "t": tan, "uv": uv, "bones": bones, "weights": weights, "idx": idx, "mode": MODE_GEAR, "suit": PackedFloat32Array(), "kind": kind, "lod": 0}
+
+
+## A box with its own face UVs (0..1 per face: the shader draws a panel edge from them), optionally rotated about its centre.
+static func _box_uv(v: PackedVector3Array, n: PackedVector3Array, uv: PackedVector2Array, idx: PackedInt32Array, c: Vector3, s: Vector3, basis: Basis) -> void:
+	var h := s * 0.5
+	var faces := [[Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1)], [Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1)], [Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)],
+			[Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)], [Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(0, 1, 0)], [Vector3(0, 0, -1), Vector3(-1, 0, 0), Vector3(0, 1, 0)]]
+	for f: Array in faces:
+		var nr: Vector3 = f[0]
+		var a: Vector3 = f[1]
+		var b: Vector3 = f[2]
+		var base := v.size()
+		for q: Array in [[-1, -1], [1, -1], [1, 1], [-1, 1]]:
+			v.append(c + basis * ((nr + a * q[0] + b * q[1]) * h))
+			n.append(basis * nr)
+			uv.append(Vector2(float(q[0] + 1) * 0.5, float(q[1] + 1) * 0.5))
+		for t: int in [0, 2, 1, 0, 3, 2]:
+			idx.append(base + t)
 
 
 static func _box(v: PackedVector3Array, n: PackedVector3Array, idx: PackedInt32Array, c: Vector3, s: Vector3) -> void:

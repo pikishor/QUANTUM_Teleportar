@@ -91,6 +91,7 @@ var _rotors: Array[Node3D] = []
 var _fins: Node3D                      ## the `Fins` node of the living models (null for the primitive stand-in, which spins its rotors)
 var _tele := 0.0                       ## 0..1: how far the next shot is charged (EnemyMarks draws the telegraph from it)
 var _base_scale := 1.0
+var _look_scale := Vector3.ONE                  ## the body shape of the roster look (HumanoidVariants.VAEL_CLASSES): wider gunners, slim scouts
 var _flare := 0.0                      ## 0..1: the striker's thorns flare as it closes in to burst
 var _glow: Array[BaseMaterial3D] = []
 var _body_mi: MeshInstance3D           ## the `Body` mesh (shadow caster) of the model, for the distance LOD
@@ -179,7 +180,7 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	if model != null:
 		model.rotation = Vector3.ZERO
 		model.position = Vector3.ZERO
-		model.scale = Vector3.ONE * _base_scale
+		model.scale = _look_scale * _base_scale
 	_tele = 0.0
 	_drop_pending = false
 	_set_glow(2.0)
@@ -351,6 +352,10 @@ func die() -> void:
 	if dead:
 		return
 	dead = true
+	_lod_shadow = false                    # a dissolving corpse casts no shadow: four deaths at once would cost a shadow draw per body surface in the death-spike frames
+	_apply_shadow(false)
+	_lod_parts = false
+	_apply_parts(false)                     # the fins vanish with the shell
 	hp = minf(hp, 0.0)
 	_dead_t = 0.0
 	_flare = 0.0
@@ -699,7 +704,7 @@ func _tick_dead(delta: float) -> void:
 	if model != null:
 		model.rotation.z += delta * 4.0
 		model.position.y -= delta * 2.5
-		model.scale = Vector3.ONE * _base_scale * (1.0 - 0.85 * k * k)            # dissolve: it shrinks away while it burns white-hot
+		model.scale = _look_scale * _base_scale * (1.0 - 0.85 * k * k)            # dissolve: it shrinks away while it burns white-hot
 	_set_glow(2.0 + 9.0 * sin(k * PI))
 	if _dead_t > DEATH_TIME:
 		_burst(center(), cfg["color"], 14, 5.0, 0.8, -1.5, 1.6)                   # the last motes of light drift up
@@ -725,7 +730,7 @@ func _line_clear(from: Vector3, to: Vector3) -> bool:
 func _humanoid_model() -> Node3D:
 	if not cfg.has("humanoid"):
 		return null
-	var r := HumanoidVariants.build(StringName(cfg["humanoid"]), get_instance_id() + int(cfg.get("hp", 0)))
+	var r := HumanoidVariants.build(StringName(cfg["humanoid"]), get_instance_id() + int(cfg.get("hp", 0)), int(HumanoidVariants.ROLE_CLASS.get(StringName(cfg.get("role", &"")), -1)))
 	if r["root"] == null:
 		return null
 	if not bool(r["ok"]):
@@ -744,7 +749,8 @@ func _build_visual() -> void:
 	if m == null:
 		m = _make_fallback()
 	_base_scale = float(cfg.get("scale", 1.0))
-	m.scale = Vector3.ONE * _base_scale
+	_look_scale = humanoid.get("scale3", Vector3.ONE) if not humanoid.is_empty() else Vector3.ONE
+	m.scale = _look_scale * _base_scale
 	add_child(m)
 	model = m
 	muzzle = m.get_node_or_null("Muzzle") as Node3D

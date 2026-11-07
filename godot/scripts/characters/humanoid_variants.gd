@@ -20,6 +20,19 @@ const CIVIL_SUITS: Array[Color] = [Color(0.55, 0.3, 0.25), Color(0.25, 0.42, 0.5
 		Color(0.7, 0.4, 0.5), Color(0.2, 0.3, 0.45), Color(0.65, 0.45, 0.25), Color(0.3, 0.3, 0.35)]
 const HAIR_COLORS: Array[Color] = [Color(0.16, 0.11, 0.085), Color(0.05, 0.05, 0.06), Color(0.45, 0.3, 0.14), Color(0.62, 0.55, 0.4), Color(0.45, 0.12, 0.1), Color(0.3, 0.3, 0.34)]
 
+## The Vael roster: six looks that differ in silhouette (width, height), armour colour and trim, so a squad is not six copies of one trooper. `scale3` is the body scale of the model root
+## (x width, y height, z depth); the jacket / pants colours are what the body shader draws on the torso and the legs. Picked by VAEL_PICK (rifleman most often), or by the enemy's role (ROLE_CLASS).
+const VAEL_CLASSES: Array[Dictionary] = [
+	{"name": &"rifleman", "jacket": Color(0.23, 0.27, 0.35), "pants": Color(0.10, 0.11, 0.15), "helmet": Color(0.07, 0.07, 0.09), "trim": Color(1.0, 0.2, 0.25), "scale3": Vector3(1.0, 1.0, 1.0)},
+	{"name": &"gunner", "jacket": Color(0.33, 0.31, 0.17), "pants": Color(0.17, 0.16, 0.10), "helmet": Color(0.14, 0.13, 0.08), "trim": Color(1.0, 0.65, 0.15), "scale3": Vector3(1.2, 1.03, 1.2)},
+	{"name": &"scout", "jacket": Color(0.08, 0.24, 0.26), "pants": Color(0.05, 0.10, 0.12), "helmet": Color(0.06, 0.10, 0.10), "trim": Color(0.25, 1.0, 0.8), "scale3": Vector3(0.9, 0.96, 0.9)},
+	{"name": &"grenadier", "jacket": Color(0.45, 0.20, 0.10), "pants": Color(0.14, 0.10, 0.08), "helmet": Color(0.14, 0.09, 0.08), "trim": Color(1.0, 0.85, 0.2), "scale3": Vector3(1.12, 1.0, 1.12)},
+	{"name": &"marksman", "jacket": Color(0.27, 0.12, 0.37), "pants": Color(0.10, 0.07, 0.15), "helmet": Color(0.12, 0.10, 0.14), "trim": Color(1.0, 0.35, 0.8), "scale3": Vector3(0.94, 1.06, 0.94)},
+	{"name": &"commander", "jacket": Color(0.36, 0.09, 0.12), "pants": Color(0.16, 0.12, 0.13), "helmet": Color(0.85, 0.85, 0.88), "trim": Color(1.0, 0.9, 0.5), "scale3": Vector3(1.06, 1.07, 1.06)},
+]
+const VAEL_PICK: Array[int] = [0, 0, 1, 2, 0, 3, 4, 5]            ## n % 8 -> class: riflemen 3 in 8, the others about one in 8
+const ROLE_CLASS := {&"shield": 1, &"carrier": 1, &"flanker": 2, &"stalker": 2, &"pouncer": 2, &"sniper": 4, &"warden": 5, &"hivemother": 5, &"overseer": 5}
+
 static var enabled := true                       ## tests flip this off to compare with the old models
 static var _mid_cache := {}                      ## variant key -> mid ArrayMesh (shared by every instance of the variant)
 
@@ -29,11 +42,13 @@ static func available() -> bool:
 
 
 ## The deterministic variant of `kind` for `seed_value`: {kind, key, opts (HeroCharacter), budget, suit, trim, helmet, hair_color, helmeted}.
-static func variant(kind: StringName, seed_value: int) -> Dictionary:
+static func variant(kind: StringName, seed_value: int, force_class := -1) -> Dictionary:
 	var n := absi(seed_value)
 	var vael := kind == &"vael"
 	var count := VAEL_COUNT if vael else CITIZEN_COUNT
 	var v := n % count
+	if vael:
+		v = force_class if force_class >= 0 else VAEL_PICK[n % VAEL_PICK.size()]
 	var skins := HeroCharacter.SKINS
 	var opts := {"body": HeroCharacter.BODIES[(n / 2) % 2], "skin": skins[(n / 3) % skins.size()], "beard": (not vael) and n % 5 == 0,
 			"map_body": &"male", "map_skin": &"dark"}      # one shared set of skin maps (the hero's default): the skin tone is the tint, no extra texture memory
@@ -51,12 +66,24 @@ static func variant(kind: StringName, seed_value: int) -> Dictionary:
 	d["helmet"] = HELMETS[v % HELMETS.size()]
 	d["hair_color"] = HAIR_COLORS[(n / 7) % HAIR_COLORS.size()]
 	d["key"] = "%s/%s/%s/%s/%d" % [kind, opts["body"], opts["skin"], opts["hair"], v]
+	if vael:
+		var c: Dictionary = VAEL_CLASSES[v % VAEL_CLASSES.size()]
+		d["class"] = c["name"]
+		d["suit"] = c["pants"]
+		d["helmet"] = c["helmet"]
+		d["trim"] = c["trim"]
+		d["jacket"] = c["jacket"]
+		d["pants"] = c["pants"]
+		var j := 0.94 + 0.12 * float((n / 11) % 5) / 4.0              # a little personal jitter on top of the class (height 0.94 .. 1.06)
+		d["scale3"] = (c["scale3"] as Vector3) * Vector3(1.0, j, 1.0)
 	return d
 
 
 ## The outfit colours of a variant {jacket, pants} for the body shader. Troopers: dark armour, a little lighter on the torso than on the legs, so they never read as the hero's light
 ## jacket; citizens: their casual colour on the torso over dark trousers.
 static func outfit(d: Dictionary) -> Dictionary:
+	if d.has("jacket"):
+		return {"jacket": d["jacket"], "pants": d["pants"]}
 	var sc: Color = d["suit"]
 	if bool(d["helmeted"]):
 		return {"jacket": Color(sc.r * 1.6 + 0.02, sc.g * 1.6 + 0.02, sc.b * 1.6 + 0.03), "pants": Color(sc.r * 0.8, sc.g * 0.8, sc.b * 0.8)}
@@ -83,10 +110,10 @@ static func tint(mat: ShaderMaterial, d: Dictionary) -> void:
 
 
 ## {root, ok, info, body, material, variant}; root null when the files are absent or `enabled` is off. info["tris"] is the triangle count of the near mesh.
-static func build(kind: StringName, seed_value: int) -> Dictionary:
+static func build(kind: StringName, seed_value: int, force_class := -1) -> Dictionary:
 	if not available():
 		return {"root": null, "ok": false, "info": {}}
-	var d := variant(kind, seed_value)
+	var d := variant(kind, seed_value, force_class)
 	var r := HeroCharacter.build(d["opts"])
 	if r["root"] == null:
 		return r

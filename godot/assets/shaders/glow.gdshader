@@ -17,6 +17,8 @@ void vertex() {
 	v_c = COLOR;
 	v_cust = INSTANCE_CUSTOM;
 	float size = max(INSTANCE_CUSTOM.y, 0.01) * (1.0 - smoothstep(lod_range.x, lod_range.y, distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz)));
+	// a 6 m lamp halo 10 m from the camera is a third of the frame and is cut by the facade behind it into a hard-edged cyan wash (director review, LOW haze): the sprite never spans more than ~11 degrees
+	size = min(size, distance(MODEL_MATRIX[3].xyz, CAMERA_POSITION_WORLD) * 0.2);
 	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
 	MODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(size, 0.0, 0.0, 0.0), vec4(0.0, size, 0.0, 0.0), vec4(0.0, 0.0, size, 0.0), vec4(0.0, 0.0, 0.0, 1.0));
 }
@@ -48,6 +50,8 @@ void fragment() {
 	// a faint cross of streaks, like light seen through wet air
 	float cross_s = exp(-abs(v_uv.x) * 22.0) * exp(-abs(v_uv.y) * 2.5) + exp(-abs(v_uv.y) * 22.0) * exp(-abs(v_uv.x) * 2.5);
 	a += cross_s * 0.18 * fall;
+	// a light sprite right at the lens fills the frame with one coloured haze (director review: the LOW magenta / cyan wash): it fades out inside 4 m of the camera
+	float lens = smoothstep(1.0, 4.5, length(VERTEX));
 	ALBEDO = v_c.rgb * v_c.a * k;
-	ALPHA = clamp(a, 0.0, 1.0);
+	ALPHA = clamp(a, 0.0, 1.0) * lens;
 }

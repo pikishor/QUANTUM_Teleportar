@@ -33,6 +33,8 @@ void fragment() {
 	float dash = smoothstep(0.0, 0.015, p) * (1.0 - smoothstep(0.03, 0.10, p));
 	float streak = line * dash * step(0.6, hash11(col + 21.0));
 	float a = body * (0.06 + 0.7 * streak * clamp(rain, 0.0, 1.0)) * (1.0 - smoothstep(lod_range.x, lod_range.y, length(VERTEX)));
+	// the camera inside or beside a cone sees its wall as one big coloured haze with a hard ring edge on the ground (director review: LOW haze, a cyan wash over half the street): cone surface close to the lens fades out
+	float lens = smoothstep(2.5, 9.0, length(VERTEX));
 	ALBEDO = v_c.rgb * v_c.a;
-	ALPHA = clamp(a * 0.5, 0.0, 1.0);
+	ALPHA = clamp(a * 0.5, 0.0, 1.0) * lens;
 }

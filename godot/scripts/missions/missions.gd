@@ -23,8 +23,8 @@ const BEAM_HEIGHT := 420.0
 const GEM_HOVER := 1.1                 ## the gem model (origin at ground contact) floats this far above the street
 const GEM_NEAR := 110.0                ## gem model and light are shown within this camera distance (hysteresis +20 m)
 const PICKUP_POOL := 8
-const HALO_CAP := [1, 1, 2]                 ## halos drawn at once per tier (a 4-enemy wipe on HIGH drew 4 halos + 4 columns: the death-spike overrun)
-const COLUMN_CAP := [0, 0, 2]               ## light columns of pickups drawn at once per tier (LOW, MED, HIGH): a 4-enemy wipe would add 4 draws (+4 more in the mirror)
+const HALO_CAP := [1, 0, 1]                 ## halos drawn at once per tier (a 4-enemy wipe on HIGH drew 4 halos + 4 columns: the death-spike overrun)
+const COLUMN_CAP := [0, 0, 1]               ## light columns of pickups drawn at once per tier (LOW, MED, HIGH): a 4-enemy wipe would add 4 draws (+4 more in the mirror)
 const PICKUP_RADIUS := 2.2
 const PICKUP_LIFE := 40.0
 const PICKUP_HOVER := 0.5
@@ -530,7 +530,9 @@ func _build_pickup_pool() -> void:
 			models[kind] = model
 			halos[kind] = MissionVisuals.make_halo(Color(col.r, col.g, col.b, 0.6), 2.6).material_override
 			columns[kind] = MissionVisuals.make_beam(col, 0.22, 5.0, 1.1, 0.0).material_override
-			_mirror_list.append_array(MissionVisuals.meshes_of(model))
+			for mi in MissionVisuals.meshes_of(model):
+				(mi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF      # a small glowing pickup throws no shadow: one shadow draw per surface less in a four-body wipe
+			# (no reflection of the small pickups: a mirror copy is a draw per surface, and a four-body wipe drops up to four of them)
 		var halo := MissionVisuals.make_halo(Color.WHITE, 2.6)
 		halo.name = "Halo"
 		halo.position.y = 0.25

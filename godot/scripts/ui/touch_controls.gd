@@ -476,6 +476,8 @@ func button_visible(b: Dictionary) -> bool:
 ## The label a button shows: USE reads ENTER on foot and EXIT in a car.
 func _label_of(b: Dictionary) -> String:
 	if b["action"] == &"interact":
+		if not _driving() and InteriorGameplay.active and InteriorGameplay.prompt != "":
+			return str(InteriorGameplay.prompt).split(" ")[0]         # inside a building the button says what it does: LEAVE, TALK, CRACK, FREE (not ENTER)
 		return "EXIT" if _driving() else "ENTER"
 	if b["action"] == &"skip_piece":
 		var hud := get_parent()

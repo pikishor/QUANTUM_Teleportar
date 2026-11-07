@@ -148,7 +148,8 @@ func _camera() -> void:
 	await e.secs(0.6)
 	TestLib.check(absf(rig.camera.fov - 62.0) < 0.8, "ADS FOV settles at 62 (got %.2f)" % rig.camera.fov)
 	var ads_dist := rig.camera.global_position.distance_to(rig.get_pivot_position())
-	TestLib.check(absf(ads_dist - sqrt(0.55 * 0.55 + 2.0 * 2.0)) < 0.12, "ADS camera comes in to 2.0 m / 0.55 m (distance %.2f)" % ads_dist)
+	var ads_expect := sqrt(CameraRig.ADS_SHOULDER * CameraRig.ADS_SHOULDER + CameraRig.ADS_DIST * CameraRig.ADS_DIST + CameraRig.ADS_LIFT * CameraRig.ADS_LIFT)   # out, back and up (the rise keeps the rifle in view)
+	TestLib.check(absf(ads_dist - ads_expect) < 0.12, "ADS camera comes in to %.1f m / %.2f m / %.2f m up (distance %.2f, expected %.2f)" % [CameraRig.ADS_DIST, CameraRig.ADS_SHOULDER, CameraRig.ADS_LIFT, ads_dist, ads_expect])
 	Input.action_release(&"aim")
 	var fov_prev := rig.camera.fov
 	var max_step := 0.0
@@ -497,7 +498,7 @@ func _body() -> void:
 	TestLib.check(absf(angle_difference(p.rotation.y, p.yaw)) < 0.001, "the player node's rotation.y is the body yaw")
 	var m := b.muzzle.global_position - p.global_position
 	var fwd := Vector3(-sin(p.yaw), 0.0, -cos(p.yaw))
-	TestLib.check(m.dot(fwd) > 0.7 and m.y > 1.0 and m.y < 1.6, "the muzzle is ahead of the body at rifle height (%s)" % str(m))
+	TestLib.check(m.dot(fwd) > 0.5 and m.y > 1.0 and m.y < 1.6, "the muzzle is ahead of the body at rifle height, a little outward at the hip (%s)" % str(m))
 	var idle_angle := b.leg_l.basis.get_rotation_quaternion().get_angle()
 	for k in 8:                                                  # the idle sway swings the angle: the peak over four seconds counts
 		idle_angle = maxf(idle_angle, b.leg_l.basis.get_rotation_quaternion().get_angle())

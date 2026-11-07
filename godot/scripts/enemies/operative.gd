@@ -66,6 +66,7 @@ var _camp_ref := Vector3.INF
 var _camp_flank_cd := 0.0
 var _suppress_cd := 0.0
 var _suppressing := false
+static var round_stats := {"fired": 0, "hit": 0, "near": 0}     ## every round that flew at the hero (blocked ones do not count), how many hit and how many passed within NEAR_MISS; tests and bots read and reset it
 var suppress_bursts := 0                ## suppressing bursts fired this life (blind fire at the target from cover)
 var _retreating := false
 var _reinforce_called := false
@@ -774,15 +775,48 @@ func _hurt_aim() -> float:
 	return Difficulty.hurt_aim(pl.hp / maxf(pl.max_hp, 1.0))
 
 
-## One round: hitscan with a spread that grows with distance. The tracer ends at the first world hit or past the target.
+## Aim error (metres, the radius of the disc round the aim point the round lands in, uniform) of a trooper: a floor that even point blank keeps (a round is never a certain hit,
+## it shows as a near miss), the cfg's angular spread growing with distance, climbing with every round of the volley (muzzle climb) and scaled by what the hero does: running makes him
+## harder to hit, sprinting and ducking behind cover harder still, a hurt hero is missed more (Difficulty.hurt_aim). A sniper (spread 0.002) keeps a tiny disc: his shot is a laser lock.
+## Chance to hit a 0.5 m body is about (0.5 / radius)^2: stationary hero ~48 % at 4 m, ~30 % at 8 m, ~12 % at 20 m over a volley; running about 60 % of that.
+const AIM_FLOOR := 0.45
+const AIM_FLOOR_REF := 0.035
+const BURST_CLIMB := 0.22
+const MOVE_MULT := 1.3
+const SPRINT_MULT := 1.55
+const COVER_MULT := 1.5
+const NEAR_MISS := 2.2
+
+
+static func aim_radius(spread: float, spread_per_m: float, d: float, burst_idx := 0, hero_speed := 0.0, hero_sprint := false, hero_cover := false, hurt := 1.0) -> float:
+	var r := AIM_FLOOR * clampf(spread / AIM_FLOOR_REF, 0.0, 1.6) + d * (spread + spread_per_m * d)
+	r *= 1.0 + BURST_CLIMB * float(maxi(burst_idx, 0))
+	if hero_sprint:
+		r *= SPRINT_MULT
+	elif hero_speed > 2.0:
+		r *= MOVE_MULT
+	if hero_cover:
+		r *= COVER_MULT
+	return r * hurt
+
+
+## One round: hitscan with an aim error disc (aim_radius). The tracer ends at the first world hit or past the target; a miss that passes close shows a spark where it lands.
 func _shoot(d: float) -> void:
 	var origin := _muzzle_pos()
 	var aim := _tgt
-	var spread: float = (float(cfg["spread"]) + float(cfg["spread_per_m"]) * d) * Difficulty.mult("spread") * _hurt_aim()
+	var pl := Game.player as Player
+	var speed := Vector2(pl.velocity.x, pl.velocity.z).length() if pl != null and is_instance_valid(pl) else 0.0
+	var radius := aim_radius(float(cfg["spread"]), float(cfg["spread_per_m"]), d, int(cfg["burst"]) - _burst_left, speed, pl != null and pl.sprinting, pl != null and pl.cover != null and pl.cover.in_cover, _hurt_aim()) * Difficulty.mult("spread")
 	var fire_at := _aim_override if _aim_override.is_finite() else aim      # a sniper's shot goes where the laser LOCKED, the hit test below still asks where the target really is
 	var dir := (fire_at - origin).normalized()
-	var off := Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0))
-	dir = (dir + (off - dir * off.dot(dir)) * spread).normalized()
+	var side := dir.cross(Vector3.UP)
+	if side.length() < 0.01:
+		side = Vector3.RIGHT
+	side = side.normalized()
+	var up := side.cross(dir).normalized()
+	var ang := randf() * TAU
+	var mag := radius * sqrt(randf())
+	dir = ((fire_at - origin) + (side * cos(ang) + up * sin(ang)) * mag).normalized()
 	var t_close := maxf((aim - origin).dot(dir), 0.0)
 	var closest := origin + dir * t_close
 	var miss := closest.distance_to(aim)
@@ -812,6 +846,14 @@ func _shoot(d: float) -> void:
 	if not is_instance_valid(p):
 		return
 	var reach := 1.5 if p.get(&"vehicle") != null else 0.5
+	round_stats["fired"] += 1
+	if miss >= reach and miss < NEAR_MISS:                    # a near miss is seen and felt: a spark where it lands, a small shake
+		round_stats["near"] += 1
+		if not hit.is_empty():
+			_burst(end, Color(1.0, 0.82, 0.5), 4, 3.0, 0.15, 3.0)
+			Sfx.impact(&"concrete", end)
+		if pl != null:
+			pl.camera_rig.bump(0.05)
 	if miss < reach and QuantumVerbs.shield_on and QuantumVerbs.shield_hit(origin, closest):     # PHASE SHIELD: absorbed, or sent back at the shooter (snipers see through it)
 		var qv := p.get(&"qverbs") as QuantumVerbs
 		var res := qv.shield_block(type, float(cfg["dmg"])) if qv != null else 0
@@ -821,7 +863,8 @@ func _shoot(d: float) -> void:
 		if res != 0:
 			return
 	if miss < reach:
-		p.call(&"damage", float(cfg["dmg"]) * buff_dmg, origin)
+		round_stats["hit"] += 1
+		p.call(&"damage", float(cfg["dmg"]) * buff_dmg * InteriorGameplay.pressure(), origin)
 
 
 func _animate(delta: float) -> void:

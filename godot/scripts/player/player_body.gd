@@ -533,6 +533,7 @@ func _make_model(look: HeroLook = null) -> Node3D:
 	if use_superhero:
 		_hero_opts = _look_opts(look if look != null else (Game.progress.get(&"hero") as HeroLook if Game.progress != null else null))
 		var armed_opts := _hero_opts.duplicate()
+		armed_opts["gear"] = true                                  # armour, rucksack, cape and boots (HeroCharacter._gear_piece)
 		armed_opts["armed"] = false                                # the hero holds the weapon in his hand (WeaponModels, one mesh per weapon, the carbine included)
 		var r := HeroCharacter.build(armed_opts)
 		if r["root"] != null:

@@ -59,7 +59,7 @@ func _process(delta: float) -> void:
 
 
 func _process_body(delta: float) -> void:
-	if not Game.is_playing():
+	if not Game.is_playing() or InteriorGameplay.active:         # a street event (strikers, patrols) must never spawn at the clamp of the city wall next to an open room
 		return
 	tick(delta, Game.player.global_position if is_instance_valid(Game.player) else Vector3.INF)
 

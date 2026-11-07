@@ -414,7 +414,7 @@ func try_think() -> bool:
 
 ## A wounded soldier radios for help: one aware operative joins 38-75 m away (cap and cool-down apply). Returns it, or null.
 func call_reinforcement(caller: Drone) -> Drone:
-	if _call_cd > 0.0 or alive_count() >= cap():
+	if _call_cd > 0.0 or alive_count() >= cap() or InteriorGameplay.active:
 		return null
 	var w := Game.world
 	if not is_instance_valid(w) or not w.has_method(&"road_point_near"):
@@ -497,6 +497,8 @@ func _tick_heat(delta: float, ppos: Vector3) -> void:
 
 func _tick_reinforcements(delta: float, ppos: Vector3) -> void:
 	_spawn_t -= delta
+	if InteriorGameplay.active:
+		return                                                    # inside a building the hunters are the interior's own (InteriorActors): the street sends nobody through the walls
 	var enc := Encounters.current
 	if enc != null and enc.set_busy():
 		return                                                    # the director's patrol is the Watch's answer for now (Encounters.set_busy)
@@ -614,6 +616,8 @@ static func pick_reinforcement_type(heat: float, r: float) -> StringName:
 
 
 func _tick_stream(delta: float, ppos: Vector3) -> void:
+	if InteriorGameplay.active:
+		return
 	_stream_t -= delta
 	if _stream_t > 0.0:
 		return

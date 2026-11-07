@@ -38,6 +38,7 @@ const LEG_AMP := 0.62                 ## hip swing at a run (radians)
 const KNEE_WALK := 0.5
 const KNEE_RUN := 1.35
 const LOW_READY_YAW := -0.4          ## the lowered rifle swings out to the side: from the shoulder camera it is no longer hidden behind the hero's own back
+const HIP_READY_YAW := -0.45         ## the shouldered rifle at the hip (not aiming) points a little outward: from the shoulder camera it is no longer a stub straight down the line of sight
 const LOW_READY_PITCH := -0.35         ## rifle muzzle drop at low ready (radians)
 const SPRINT_PITCH := -0.78
 const SEC_NAMES: Array[StringName] = [&"Sec1", &"Sec2", &"Sec3"]    ## optional secondary chain (the hero's phase cloak on the Torso, the trooper's tail on the Hips)
@@ -505,7 +506,7 @@ func apply() -> void:
 	rp += sin(phase) * 0.03 * a * (1.0 - ready * 0.7)
 	if ik:                                                 # the carried rifle rocks with the stride and the pelvis; shouldered, it stays steadier; aiming pulls it to the cheek
 		rr += sin(phase) * 0.07 * a * carry
-		ry += sin(phase) * 0.04 * a * (0.4 + carry) + ads * 0.13 + 0.5 * pelvis_yaw * ready
+		ry += sin(phase) * 0.04 * a * (0.4 + carry) + ads * 0.13 + 0.5 * pelvis_yaw * ready + HIP_READY_YAW * ready * (1.0 - ads) * (1.0 - sprint)
 		rpos.y += 0.015 * ads - squash * 0.3
 		rpos.z += 0.03 * ads
 		rp += squash * 0.5 + air * 0.05

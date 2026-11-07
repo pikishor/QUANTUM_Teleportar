@@ -24,11 +24,17 @@ const FOLLOW_RADIUS := 30.0
 const FOLLOW_MAX := 2
 const EXIT_FOLLOW_RADIUS := 14.0
 const SCAN_EVERY := 0.1
+const MERCY_HP := 0.45                       ## once per visit a killing blow inside leaves the hero on this share of his health, for MERCY_INVULN seconds (he can always get out or fight on)
+const MERCY_INVULN := 4.0
+const PRESSURE_FROM := 0.4                   ## the room's guards hit a fresh arrival at this share of their damage and warm up to full over PRESSURE_SECS after the grace (a look round is not a death sentence)
+const PRESSURE_SECS := 45.0
 const ENTRY_GRACE := 6.0                     ## seconds the hero cannot be hurt after a door closes behind him: the room is looked at before it fights back (director review: 100 -> 0 in 11 s)
 
 static var instance: InteriorGameplay
 static var active := false
 static var vendor_open := false
+static var inside_t := 0.0                   ## seconds since the door closed
+static var mercy_left := 1                   ## rescues left in this visit (reset at every door)
 static var prompt := ""
 static var hud_line := ""
 static var _walls: Array[Rect2] = []
@@ -392,6 +398,8 @@ func _apply_enter(d: Dictionary) -> void:
 	markers.visible = false
 	p.teleport_to(interior.get("door_pos"))
 	p.invuln = maxf(p.invuln, ENTRY_GRACE)
+	mercy_left = 1
+	inside_t = 0.0
 	var yaw := float(interior.get("door_yaw"))
 	p.yaw = yaw
 	p.camera_rig.reset_view(yaw, p.camera_rig.pitch)
@@ -609,6 +617,26 @@ func _on_mission_completed(_kind: StringName, id: int, _reward: Dictionary) -> v
 		save_state()
 
 
+## Share of a guard's damage that lands on the hero right now (1.0 on the street).
+static func pressure() -> float:
+	if not active:
+		return 1.0
+	return lerpf(PRESSURE_FROM, 1.0, clampf((inside_t - ENTRY_GRACE) / PRESSURE_SECS, 0.0, 1.0))
+
+
+## The hero would die inside a building (Player.damage asks): once per visit he is pulled back to MERCY_HP with a few seconds of cover, the hunters lose a beat and the plate says so.
+## Entering a building must never be the end of a run; the second blow in the same visit is a real death.
+static func rescue(p: Node3D) -> bool:
+	if not active or mercy_left <= 0:
+		return false
+	mercy_left -= 1
+	p.set(&"hp", float(p.get(&"max_hp")) * MERCY_HP)
+	p.set(&"invuln", maxf(float(p.get(&"invuln")), MERCY_INVULN))
+	Game.say("PATCHED UP  GET OUT OR FINISH THEM", 2.5)
+	FX.burst(p.global_position + Vector3(0.0, 1.0, 0.0), Color(0.45, 0.95, 1.0), 10, 4.0, 0.5, 1.0)
+	return true
+
+
 # --- per-tick -------------------------------------------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
@@ -657,6 +685,7 @@ func _tick_outside(delta: float) -> void:
 
 func _tick_inside(delta: float) -> void:
 	Game.quiet = 0.0                        # heat does not decay inside: the observers still count the minutes
+	inside_t += delta
 	actors.tick(delta)
 	missions.tick(delta)
 	hud_line = missions.hud_line()

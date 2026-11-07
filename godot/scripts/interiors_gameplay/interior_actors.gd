@@ -7,6 +7,7 @@ extends Node3D
 
 const POOL := 5
 const STEALTH_DIST := 5.0
+const SHOP_DIST := 0.0                ## a shop's own guard (arms dealer, clinic, tech den, bar, corner store) is a bystander (`friendly`: no sight, ignores the heat): the room is not hostile until a shot is fired or he is hit
 const PATROL_EVERY := 9.0
 const SHOT_RADIUS := 26.0
 const FOLLOW_DELAY := 2.2             ## seconds between two hunters coming through the door
@@ -116,7 +117,8 @@ func populate(room: Node3D, t: StringName, plan: Dictionary, follow_types: Array
 			var g := em.spawn(&"operative", pos, false)
 			if g == null:
 				continue
-			g.aware_dist = STEALTH_DIST
+			g.aware_dist = SHOP_DIST if InteriorData.has_vendor(t) else STEALTH_DIST
+			g.friendly = InteriorData.has_vendor(t)
 			guards.append(g)
 			if mission == &"assassinate" and i == 0:
 				officer = g
@@ -215,6 +217,7 @@ func _on_player_fired() -> void:
 			c.flee_from(p)
 	for g in guards:
 		if is_instance_valid(g) and g.active and not g.dead and not g.aware and g.global_position.distance_to(p) < SHOT_RADIUS and g != officer:
+			g.friendly = false
 			g.alert()
 
 
@@ -222,4 +225,5 @@ func _on_player_fired() -> void:
 func alert_all() -> void:
 	for g in guards:
 		if is_instance_valid(g) and g.active and not g.dead:
+			g.friendly = false
 			g.alert()

@@ -147,7 +147,7 @@ func run(host: Node) -> void:
 	TestLib.check(story.card_text() != "" and story.card_text().length() < str(StoryData.PROLOGUE[0]["text"]).length(), "the card text is typed, not shown at once")
 	TestLib.check(story.advance_card(), "a tap right after the card appears is swallowed (no skip)")
 	TestLib.check(story.cards.size() == 3, "...and does not skip a card within the first moments")
-	_step(story, 0.5)
+	_step(story, 0.35)                                       # the prologue cards type fast (Story.PROLOGUE_CPS): past CARD_MIN, still typing
 	story.advance_card()
 	TestLib.check(story.card_text() == str(StoryData.PROLOGUE[0]["text"]) and story.cards.size() == 3, "first tap completes the typing")
 	story.advance_card()

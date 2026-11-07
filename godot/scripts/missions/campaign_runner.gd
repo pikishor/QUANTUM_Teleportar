@@ -48,7 +48,8 @@ const ZONE_LEASH := 1.6                ## defend: the zone's leash is this many 
 const ZONE_LEASH_TIME := 10.0
 const HACK_DECAY := 0.6
 const HACK_PULSE := 11.0
-const HOLD_HEAT_CAP := 1.9             ## hack / defend: killing the step's own waves never lifts the heat to patrol cars and roadblocks (director review: a hack ended at 3 stars)
+const HOLD_HEAT_DECAY := 0.06          ## heat lost per second while the hero holds the ring: the step's own pulses are the action, they do not pile up into a manhunt
+const HOLD_HEAT_CAP := 1.5             ## hack / defend: killing the step's own waves never lifts the heat to patrol cars and roadblocks (director review: a hack ended at 3 stars)
 const PATROL_LOSE := 60.0              ## escape with patrols: a chasing Vael patrol vehicle this close keeps the step open
 const PATROL_TOPUP := 4.0              ## seconds between the attempts to bring the chase back up to the step's patrol count while the heat is up
 const ESCAPE_COOL := 0.3               ## escape: heat lost per second once the player is `dist` metres away (found by the mission audit: the heat climbed to 5 with 8 hunters in sight and never came down)
@@ -1520,7 +1521,7 @@ func _tick_escort(delta: float, p: Vector3) -> void:
 
 
 func _tick_defend(delta: float, p: Vector3) -> void:
-	Game.heat = minf(Game.heat, HOLD_HEAT_CAP)
+	Game.heat = maxf(minf(Game.heat, HOLD_HEAT_CAP) - HOLD_HEAT_DECAY * delta, 0.0)
 	var radius := float(step["radius"])
 	var d := _hdist(p, pos) if p.is_finite() else 0.0
 	inside = d < radius * ZONE_LEASH
@@ -1550,7 +1551,7 @@ func _tick_defend(delta: float, p: Vector3) -> void:
 
 
 func _tick_hack(delta: float, p: Vector3) -> void:
-	Game.heat = minf(Game.heat, HOLD_HEAT_CAP)
+	Game.heat = maxf(minf(Game.heat, HOLD_HEAT_CAP) - HOLD_HEAT_DECAY * delta, 0.0)
 	var d := _hdist(p, pos) if p.is_finite() else INF
 	inside = d < float(step["radius"]) and absf(p.y - pos.y) < VERTICAL_REACH
 	var rate := delta / maxf(float(step["hold"]), 1.0)

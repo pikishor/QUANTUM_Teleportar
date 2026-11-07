@@ -309,7 +309,7 @@ func visible_controls() -> Array[StringName]:
 		out.append(&"ammo")
 	if Game.heat > 0.01:
 		out.append(&"wanted")
-	if message_left > 0.0 and message_text != "":
+	if message_left > 0.0 and message_text != "" and not banner_busy():
 		out.append(&"toast")
 	if is_instance_valid(Game.story) and Game.story.line_visible() and UiSettings.s_subtitles:
 		out.append(&"subtitle")
@@ -1045,9 +1045,10 @@ func _process(delta: float) -> void:
 			if PlayerUtil.now() - lh < 0.25:
 				FX.shake(0.16 if Game.player.get("last_hit_kill") == true else 0.07)
 	screen_age += real
-	message_left = maxf(message_left - delta, 0.0)
+	var toast_dt := 0.0 if banner_busy() else delta           # one banner at a time: a toast waits (its clock is held) while the chapter banner or a story card is up
+	message_left = maxf(message_left - toast_dt, 0.0)
 	toast.left = message_left
-	if toast.tick(delta):
+	if toast.tick(toast_dt):
 		_sync_toast()
 	_text_t -= delta
 	if _text_t <= 0.0:
@@ -1336,7 +1337,7 @@ func _draw_hud_body() -> void:
 		if has_hull:
 			var vh := UiUtil.num(veh, &"hp", 0.0)
 			_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
-		stack_end = _draw_priority(c, vp, s, font, plate.end.y + 3.0 * s)
+		stack_end = _draw_priority(c, vp, s, font, plate.end.y + 3.0 * s) if Game.state != &"dead" else plate.end.y      # the dead screen has its own title: no mission line under DECOHERED
 	if playing and _camp_text != "" and MissionGuide.hud_on:
 		stack_end = _draw_compass(c, vp, s, font, stack_end + 2.0 * s)
 	if playing:
@@ -1480,8 +1481,13 @@ func _draw_quantum_readout(c: Control, vp: Vector2, s: float, font: Font) -> voi
 		_text(c, font, Vector2(rg.position.x, rg.position.y + 22.0 * s), gate, HORIZONTAL_ALIGNMENT_CENTER, rg.size.x, int(UiUtil.TEXT_MIN * s), Color(1, 1, 1, (1.0 if on else 0.5) * a), 1.0 * s)
 
 
+## True while the chapter banner or a story card owns the top-centre: the toast is held back until it is gone (one banner at a time).
+func banner_busy() -> bool:
+	return is_instance_valid(Game.story) and (Game.story.banner_visible() or Game.story.cards_active())
+
+
 func _draw_message(c: Control, vp: Vector2, s: float, font: Font) -> void:
-	if message_left <= 0.0 or message_text == "" or Game.state != &"play":
+	if message_left <= 0.0 or message_text == "" or Game.state != &"play" or banner_busy():
 		return
 	var fade := clampf(minf(message_left / 0.4, (_msg_total - message_left) / 0.12 + 0.3), 0.0, 1.0)
 	var size := int(30.0 * s)
@@ -2116,15 +2122,16 @@ func _campaign() -> Object:
 ## The campaign step line ("2/3  HACK THE LEDGER NODE  62%") or "" when no scripted step runs. It outranks the contract line and the core objective.
 func _campaign_line() -> String:
 	var k := _campaign()
+	if InteriorGameplay.hud_line != "":
+		return ""                                          # an interior mission's own line owns the plate inside: the player came in for it (the exit stays the compass target, and LEAVE THE BUILDING comes back the moment the job is done)
 	if InteriorGameplay.active and k != null and k.get(&"guide") != null:
 		var gl := str((k.get(&"guide") as MissionGuide).line())
 		if gl.begins_with("LEAVE"):
-			return gl                                      # the next step cannot start in here: the way out outranks the interior's own job line
-	if InteriorGameplay.hud_line != "":
-		return ""                                          # an interior mission's own line owns the plate inside
+			return gl                                      # the next step cannot start in here and the room has no job: the way out
 	if InteriorGameplay.active and k != null:
 		var kk := StringName(str(k.get(&"kind")))
-		if str(k.call(&"hud_line")) != "" and kk != &"enter_interior" and kk != &"heist":
+		var wants_door := kk == &"enter_interior" and int(k.get(&"_phase")) == 1      # still going in: this is the wrong building, its distance is measured on the street
+		if str(k.call(&"hud_line")) != "" and (wants_door or (kk != &"enter_interior" and kk != &"heist")):
 			return "LEAVE THE BUILDING TO CONTINUE"         # a street step is running and the room has no job of its own: not "CROSS THE FLOOR  0 M"
 	var line := str(k.call(&"hud_line")) if k != null else ""
 	if line == "" and k != null and k.get(&"guide") != null:

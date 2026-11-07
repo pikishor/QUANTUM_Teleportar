@@ -27,9 +27,9 @@ const TAGLINE := "They farm your fear. Be in two places."
 
 ## The three cards typed at DEPLOY.
 const PROLOGUE: Array[Dictionary] = [
-	{"head": "NEO-MERIDIAN  //  2091", "text": "The rift closed nine years ago and something walked out of it. The Vael did not invade. They harvested, and the rain never stopped falling."},
-	{"head": "THE VAEL", "text": "A hive with no faces. Their Observer drones hang over every street and drink what makes you a person: coherence. Look back, and they take more."},
-	{"head": "KESTREL", "text": "I was an engineer on the rift project. The experiment split my blood across two states, and now something alien wears my pulse. It can fold space."},
+	{"head": "NEO-MERIDIAN  //  2091", "text": "The rift closed. Something walked out. The rain never stopped."},
+	{"head": "THE VAEL", "text": "Faceless drones drink your coherence. Do not look back."},
+	{"head": "KESTREL", "text": "My blood is split in two states. I can fold space. Move."},
 ]
 
 ## Typed over the win screen after the final sector.

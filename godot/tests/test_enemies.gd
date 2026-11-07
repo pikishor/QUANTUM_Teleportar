@@ -346,13 +346,15 @@ func _operative() -> void:
 	await _fresh()
 	p.max_hp = 1000.0
 	p.hp = 1000.0
+	Operative.round_stats = {"fired": 0, "hit": 0, "near": 0}
 	var o := _spawn(&"operative", Vector3(-18.0, 0.0, 4.0), true) as Operative
 	var leg_swing := 0.0
 	for i in 300:
 		await e.frames(1)
 		if o.leg_l != null:
 			leg_swing = maxf(leg_swing, o.leg_l.basis.get_rotation_quaternion().get_angle())
-	TestLib.check(p.hp < 1000.0, "an operative's burst hit the player (hp %.1f)" % p.hp)
+	# Round 2 aim error disc (Operative.aim_radius): at 18 m a round is a hit only about one time in eight, so the burst is judged by rounds flown at the hero (hit or near miss), not by hp.
+	TestLib.check(int(Operative.round_stats["fired"]) >= 3 and (p.hp < 1000.0 or int(Operative.round_stats["near"]) + int(Operative.round_stats["hit"]) >= 1), "an operative's burst flew at the player (%d rounds, %d near, hp %.1f)" % [int(Operative.round_stats["fired"]), int(Operative.round_stats["near"]), p.hp])
 	TestLib.check(leg_swing > 0.05, "the legs swing while it moves (%.2f rad)" % leg_swing)
 	TestLib.check(o.rig != null and o.rig.skeleton.get_bone_pose(o.rig.skeleton.find_bone("ShinL")).basis.get_euler().x != 0.0 or o.rig == null, "the knees bend (articulated shins)")
 	TestLib.check(absf(o.global_position.y) < 0.05, "an operative stays on the ground")
