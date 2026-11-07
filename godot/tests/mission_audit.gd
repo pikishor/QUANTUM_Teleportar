@@ -990,6 +990,9 @@ func audit_side(mid: StringName, max_seconds := 220.0) -> Dictionary:
 		ig.leave(true)
 	var from := PlayerUtil.nearest_street(p.global_position)
 	p.teleport_to(Vector3(from.x, 0.3, from.z))
+	var ct0: Variant = (Game.missions as Missions).contracts
+	if ct0 != null and ct0.is_active():
+		ct0.abandon()                                           # a random street contract left running by an earlier audit must not block the side job
 	if not sm.start(mid):
 		var ct: Variant = (Game.missions as Missions).contracts
 		res["reason"] = "CANNOT START (active %s, contract %s, unlocked %s at chapter %d, job_open %s)" % [str(sm.active), str(ct.state), str(SideMissions.unlocked(mid, int(story.chapter))), int(story.chapter), str(Factions.job_open(Game.progress, mid))]
@@ -1062,7 +1065,7 @@ func _do_side_stage(sm: SideMissions) -> void:
 			else:
 				hold(&"fire", false)
 				if wp.is_finite():
-					walk_to(Vector3(wp.x, p.global_position.y, wp.z), 12.0, false)
+					walk_to(Vector3(wp.x, p.global_position.y, wp.z), 4.0, false)
 				else:
 					find("NO_ENEMY", "side mission %s: a kill stage with nobody to kill" % str(sm.id))
 		"smash":
