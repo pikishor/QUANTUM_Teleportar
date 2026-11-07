@@ -433,6 +433,8 @@ func _gadgets() -> void:
 	await frames(1)
 	var before := Vector2(p.global_position.x - at.x, p.global_position.z - at.z).length()
 	var hk0 := g.hooks
+	p.camera_rig.aim_at(at)                                   # re-aim in the very frame of the shot: on a slow runner the hero drifts between frames and the ray misses the anchor
+	p._aim_frame = -1                                         # drop the per-frame aim cache
 	var fired := g.use(&"grapple")
 	TestLib.check(fired, "the hook finds an anchor in range")
 	var pulled := await _until(func() -> bool: return g.hooks > hk0, 2.0)
