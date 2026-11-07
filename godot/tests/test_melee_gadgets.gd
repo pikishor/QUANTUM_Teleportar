@@ -416,6 +416,8 @@ func _gadgets() -> void:
 	# grapple-teleport hook
 	g._cd.clear()
 	p.energy = p.max_energy
+	p.teleport_to(p.global_position + _forward() * 8.0)          # the spawn lies by the city wall: step inward so the camera behind the hero is not against pooled wall colliders
+	await frames(3)
 	var anchor := StaticBody3D.new()
 	anchor.collision_layer = Game.L_WORLD
 	var ash := CollisionShape3D.new()
