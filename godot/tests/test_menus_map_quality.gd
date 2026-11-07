@@ -280,6 +280,7 @@ func _scan_map_controls(ms: MapScreen, tag: String) -> void:
 	var bad: Array[String] = []
 	var btns := ms._root.find_children("*", "Button", true, false)
 	var rects: Array[Rect2] = []
+	btns = btns.filter(func(n: Node) -> bool: return (n as Button).visible)            # a legend row with nothing to list is hidden (MapScreen._chip_shown)
 	for b in btns:
 		var bt := b as Button
 		var r := bt.get_global_rect()

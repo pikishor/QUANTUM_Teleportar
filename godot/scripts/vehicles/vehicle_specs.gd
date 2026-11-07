@@ -9,10 +9,10 @@ extends RefCounted
 ## max = top speed m/s, acc = acceleration m/s2, brake = braking m/s2, grip = lateral grip (1/s), hp, model = Game.load_model name,
 ## len / wid / hgt = the model's size in metres (assets contract), wheel = wheel radius, axle_z = axle offset from the centre (wheels sit at +-axle_z).
 const SPECS := {
-	&"sedan": {"max": 28.0, "acc": 9.6, "brake": 40.0, "grip": 6.5, "hp": 300.0, "model": "car_sedan", "len": 4.75, "wid": 1.86, "hgt": 1.48, "wheel": 0.335},
-	&"sport": {"max": 35.0, "acc": 12.0, "brake": 48.0, "grip": 5.2, "hp": 250.0, "model": "car_sport", "len": 4.45, "wid": 1.92, "hgt": 1.20, "wheel": 0.335, "mu": 1.25, "steer": 1.1},
+	&"sedan": {"max": 28.0, "acc": 9.6, "brake": 40.0, "grip": 6.5, "hp": 300.0, "model": "car_sedan", "len": 4.95, "wid": 1.90, "hgt": 1.41, "wheel": 0.35},
+	&"sport": {"max": 35.0, "acc": 12.0, "brake": 48.0, "grip": 5.2, "hp": 250.0, "model": "car_sport", "len": 4.6, "wid": 1.96, "hgt": 1.14, "wheel": 0.35, "mu": 1.25, "steer": 1.1},
 	&"compact": {"shape": true, "max": 25.0, "acc": 8.6, "brake": 36.0, "grip": 6.2, "hp": 230.0, "mass": 1050.0, "seats": 4, "model": "car_compact", "len": 3.7, "wid": 1.68, "hgt": 1.5, "wheel": 0.3, "mu": 1.0},
-	&"suv": {"max": 26.0, "acc": 7.4, "brake": 36.0, "grip": 6.8, "hp": 375.0, "model": "car_suv", "len": 4.85, "wid": 1.98, "hgt": 1.83, "wheel": 0.385, "mu": 1.05},
+	&"suv": {"max": 26.0, "acc": 7.4, "brake": 36.0, "grip": 6.8, "hp": 375.0, "model": "car_suv", "len": 4.85, "wid": 2.0, "hgt": 1.76, "wheel": 0.39, "mu": 1.05},
 	# --- handling classes (optional keys, a spec without them is a plain car) ---
 	# cls = "car" | "bike" | "hover"; alt = further Game.load_model names tried when `model` does not exist (the primitive fallback is used when none does);
 	# bike: lean_max = body roll in rad at full lean, steer = steering rate factor; hover: hover_h = ride height of the model, bob = bob amplitude in m,
@@ -26,8 +26,8 @@ const SPECS := {
 		"len": 4.9, "wid": 2.1, "hgt": 1.3, "wheel": 0.3, "hover_h": 0.5, "bob": 0.05, "drift": 0.7, "coast": 0.14, "steer": 1.2, "far": {"tint": Color(0.75, 1.0, 0.45), "speed": 0.6}},
 	# --- the Wave 14 art set (tools/blender/model_car_taxi.py ... ): sedan platform variants, a van and a truck. mass = kg, seats = driver included,
 	# The paints of a kind are in PALETTES (taxis yellow, vans white and grey, the Vael patrol in hive tones).
-	&"taxi": {"max": 27.0, "acc": 8.4, "brake": 38.0, "grip": 6.4, "hp": 325.0, "mass": 1500.0, "seats": 5, "model": "car_taxi", "len": 4.75, "wid": 1.86, "hgt": 1.66, "wheel": 0.335},
-	&"wagon": {"max": 27.0, "acc": 8.0, "brake": 38.0, "grip": 6.4, "hp": 340.0, "mass": 1600.0, "seats": 5, "model": "car_wagon", "len": 4.92, "wid": 1.86, "hgt": 1.55, "wheel": 0.35},
+	&"taxi": {"max": 27.0, "acc": 8.4, "brake": 38.0, "grip": 6.4, "hp": 325.0, "mass": 1500.0, "seats": 5, "model": "car_taxi", "len": 4.95, "wid": 1.90, "hgt": 1.60, "wheel": 0.35},
+	&"wagon": {"max": 27.0, "acc": 8.0, "brake": 38.0, "grip": 6.4, "hp": 340.0, "mass": 1600.0, "seats": 5, "model": "car_wagon", "len": 4.92, "wid": 1.90, "hgt": 1.55, "wheel": 0.35},
 	&"van": {"max": 24.0, "acc": 6.0, "brake": 32.0, "grip": 6.0, "hp": 440.0, "mass": 2300.0, "seats": 3, "model": "car_van", "len": 5.2, "wid": 2.0, "hgt": 2.25, "wheel": 0.37, "mu": 0.98},
 	&"truck": {"max": 21.0, "acc": 5.0, "brake": 28.0, "grip": 5.4, "hp": 650.0, "mass": 7500.0, "seats": 3, "model": "car_truck", "len": 6.4, "wid": 2.1, "hgt": 3.0, "wheel": 0.42, "mu": 0.95},
 	# --- creature kit (tools/creature_kit.py, Quaternius space kit, CC0): a moon rover on four wheels and a hover skiff, both rare in the traffic mix.
@@ -145,18 +145,18 @@ const HIT_DAMAGE := 2.2                ## arcade classes: hp per m/s of impact
 const BOUNCE := 1.2                    ## arcade classes: vn restitution factor (vel -= BOUNCE * vn * n)
 const RESTITUTION := 0.22              ## cars: bounce off a wall or another car
 const WALL_FRICTION := 0.4             ## tangential speed lost per unit of normal impulse (a scrape)
-const CRASH_SAFE := 6.5                ## m/s along the contact normal: below this a bump does nothing to the hull
-const CRASH_WRECK := 27.0              ## m/s: a wall hit this hard destroys a stock car (CRASH_REF_HP): a sedan at its top speed (28) is wrecked by a head-on wall, 72 km/h is not
-const CRASH_POWER := 1.6               ## damage fraction = ((v - SAFE) / (WRECK - SAFE)) ^ POWER
+const CRASH_SAFE := 5.0                ## m/s along the contact normal (18 km/h): below this a bump does nothing to the hull
+const CRASH_WRECK := 28.5              ## m/s (103 km/h): a wall hit this hard takes the whole hull of a stock car (CRASH_REF_HP). 25 km/h costs about 2 %, 40 km/h 13 %, 60 km/h 35 %, 90 km/h 78 %
+const CRASH_POWER := 1.5               ## damage fraction = ((v - SAFE) / (WRECK - SAFE)) ^ POWER
 const CRASH_REF_HP := 300.0            ## hp that fraction is of (a sedan: the damage is absolute, a bus with 800 hp survives much more)
 const CAR_SEPARATION := 3.6            ## circle distance of the car-to-car bump (legacy, the OBB test uses the real hull sizes)
 const CAR_HIT_SPEED := 6.5             ## relative speed above which two cars hurt each other
-const HERO_HURT_SPEED := 16.0          ## the driver is hurt only by hard impacts (m/s along the normal), (v - this) x HERO_HURT hp
-const HERO_HURT := 1.6
+const HERO_HURT_SPEED := 20.0          ## the driver is hurt only by hard impacts (m/s along the normal, 72 km/h): HERO_HURT_MAX hp x ((v - this) / (CRASH_WRECK - this))^2, so 90 km/h costs about 10 hp
+const HERO_HURT_MAX := 30.0
 const HERO_HURT_CAP := 0.3             ## one crash never takes more than this share of the driver's health (director review: 92 km/h cost the driver 67 %)
 const CRASH_SURVIVE_V := 26.5          ## closing speed (m/s, about 95 km/h): a hull above CRASH_LIMP_FROM is never wrecked by ONE hit up to this speed, it limps home with CRASH_LIMP_HP left
-const CRASH_LIMP_FROM := 0.5
-const CRASH_LIMP_HP := 0.12
+const CRASH_LIMP_FROM := 0.3
+const CRASH_LIMP_HP := 0.1
 const CRASH_REPEAT_GAP := 0.35         ## s: a scrape along a wall counts as one crash, not one per frame
 const EXTERNAL_DAMAGE := 1.0           ## factor of damage() from bullets, blasts and fire (the callers' numbers did not change, the hit points did)
 const RAM_SPEED := 8.0                 ## running over enemies needs this speed
@@ -168,6 +168,7 @@ const GLASS_BREAK_AT := 0.35           ## hull damage fraction from which the wi
 const DENT_MIN := 0.04                 ## damage fraction of one impact that dents the panels at all
 
 # --- damage states, enter / exit ---
+const WISP_BELOW := 0.7                ## hp fraction: a thin grey wisp from the bonnet (stage 1 of 4: wisp, smoke, fire; dents and cracked glass come with every hit)
 const SMOKE_BELOW := 0.4               ## hp fraction: smoke
 const FIRE_BELOW := 0.15               ## hp fraction: fire, the car burns down (BURN_DPS hp per second) and blows up
 const BURN_DPS := 3.4

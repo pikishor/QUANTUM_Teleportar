@@ -43,7 +43,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		var r := cell_rect(i, cx, s)
 		var title := CampaignRunner.chapter_title(i)
 		if i >= open:
-			hud._rect(c, r, Color(0.0, 0.03, 0.05, 0.55))
+			hud._rect(c, r, MenuKit.FILL)
 			hud._frame(c, r, Color(1, 1, 1, 0.14), 1.0 * s)
 			hud._text(c, font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + 8.0 * s), "LOCKED", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(20.0 * s), Color(1, 1, 1, 0.3))
 			continue

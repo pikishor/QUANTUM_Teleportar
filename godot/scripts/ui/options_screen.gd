@@ -64,7 +64,7 @@ static func is_slider(id: StringName) -> bool:
 
 
 static func is_option(id: StringName) -> bool:
-	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_bench" or VOLUME_BUSES.has(id) or id == &"opt_mute" or id == &"opt_tier" or id == &"opt_res" or id == &"opt_page" or PAGE2.has(id)
+	return SLIDERS.has(id) or TOGGLES.has(id) or id == &"opt_fps" or id == &"opt_bench" or VOLUME_BUSES.has(id) or id == &"opt_mute" or id == &"opt_tier" or id == &"opt_res" or id == &"opt_page" or is_tab(id) or PAGE2.has(id)
 
 
 static func fraction(st: UiSettings, id: StringName) -> float:
@@ -152,6 +152,11 @@ static func is_on(st: UiSettings, id: StringName) -> bool:
 
 ## Flips a toggle or cycles FPS cap / graphics tier. Returns true when it changed something.
 static func press(st: UiSettings, id: StringName) -> bool:
+	if is_tab(id):
+		reset_armed = false
+		reset_demo_armed = false
+		UiSettings.s_opt_tab = clampi(String(id).substr(8).to_int(), 0, TABS.size() - 1)
+		return true
 	if id == &"opt_reset":
 		reset_demo_armed = false
 		var pr: Variant = Game.progress
@@ -278,26 +283,94 @@ static func col_rect(col: int, row: int, cx: float, s: float) -> Rect2:
 	return cell_rect(row * 3 + col, cx, s)
 
 
+## The settings are five TABS of at most eight rows (two columns of four), one topic each: a player finds a row by its tab instead of scanning 19 buttons.
+const TABS := [
+	[&"CONTROLS", &"controls", [&"opt_look_x", &"opt_look_y", &"opt_ads", &"opt_aim", &"opt_auto", &"opt_left", &"opt_vib", &"opt_controls"]],
+	[&"DISPLAY", &"display", [&"opt_hud", &"opt_btn", &"opt_tier", &"opt_fps", &"opt_res", &"opt_post", &"opt_text", &"opt_fpsbox"]],
+	[&"SOUND", &"sound", [&"opt_vol_music", &"opt_vol_sfx", &"opt_mute", &"opt_haptic", &"opt_cine", &"opt_subs", &"opt_subsize", &"opt_subbg"]],
+	[&"PLAY", &"gameplay", [&"opt_diff", &"opt_hints", &"opt_chatter", &"opt_civ", &"opt_flash", &"opt_motion", &"opt_cb", &"opt_lang"]],
+	[&"DATA", &"data", [&"opt_bench", &"opt_reset", &"opt_reset_demo"]],
+]
+const TAB_Y := 100.0
+const TAB_H := 64.0
+const ROW_TOP := 186.0
+const ROW_BOX := 80.0
+const ROW_PITCH := 90.0
+const OPT_BACK_Y := 560.0
+
+
+static func tab_id(i: int) -> StringName:
+	return StringName("opt_tab_%d" % i)
+
+
+static func is_tab(id: StringName) -> bool:
+	return String(id).begins_with("opt_tab_")
+
+
+## The tab that holds option `id` (0 when it is on none).
+static func tab_of(id: StringName) -> int:
+	for i in TABS.size():
+		if (TABS[i][2] as Array).has(id):
+			return i
+	return 0
+
+
+static func _col_w(s: float) -> float:
+	var vp_w := Game.get_viewport().get_visible_rect().size.x / s if Game.is_inside_tree() else 1600.0
+	return minf(470.0, (vp_w - 80.0) * 0.5 - 8.0)
+
+
+## Rect of row `row` (0 .. 7, column-major: four rows down the left column, then the right) of the open tab.
+static func row_rect(row: int, cx: float, s: float) -> Rect2:
+	var w := _col_w(s)
+	var col := row / 4
+	return Rect2(cx + (-w - 8.0 + float(col) * (w + 16.0)) * s, (ROW_TOP + float(row % 4) * ROW_PITCH) * s, w * s, ROW_BOX * s)
+
+
+## Name and value halves of an option for the row look ("AIM ASSIST", "ON").
+static func parts(st: UiSettings, id: StringName) -> Array:
+	if TOGGLES.has(id):
+		var l := label(st, id)
+		var nm := Tr.t(TOGGLE_NAMES[id])
+		return [nm, l.substr(nm.length() + 1)]
+	if id == &"opt_mute":
+		return [Tr.t("SOUND"), Tr.t("OFF" if st.muted else "ON")]
+	if id == &"opt_bench":
+		return [Tr.t("BENCHMARK"), Tr.t("RUN")]
+	if id == &"opt_hints":
+		return [Tr.t("REPLAY HINTS"), Tr.t("PLAY")]
+	if id == &"opt_controls":
+		return [Tr.t("BUTTON LAYOUT"), Tr.t("OPEN")]
+	if id == &"opt_reset":
+		return [Tr.t("RESET PROGRESS"), Tr.t("TAP AGAIN" if reset_armed else "ERASE")]
+	if id == &"opt_reset_demo":
+		return [Tr.t("RESET DEMO SLOT"), Tr.t("TAP AGAIN" if reset_demo_armed else "ERASE")]
+	var lab := label(st, id)
+	var k := lab.rfind("  ")
+	if k > 0:
+		return [lab.substr(0, k), lab.substr(k + 2)]
+	return [lab, ""]
+
+
 static func layout(hud: Hud, st: UiSettings, cx: float, s: float) -> void:
 	if UiSettings.s_opt_page == 2:
 		ControlsScreen.layout(hud, st, cx, s)
 		return
-	var cols: Array = COLS1 if UiSettings.s_opt_page == 1 else COLS0
-	for col in cols.size():
-		var ids: Array = cols[col][1]
-		for row in ids.size():
-			var id: StringName = ids[row]
-			hud._add(id, col_rect(col, row, cx, s), label(st, id), is_slider(id) or is_on(st, id))
-	hud._add(&"opt_page", cell_rect(PAGE_CELL, cx, s), label(st, &"opt_page"), false)
-	hud._add(&"options_back", Rect2(cx - 110.0 * s, BACK_Y * s, 220.0 * s, ROW_H * s), "BACK", false)
+	var w := _col_w(s)
+	var total := 2.0 * w + 16.0
+	var tw := (total - 4.0 * 8.0) / float(TABS.size())
+	for i in TABS.size():
+		hud.buttons.append({"id": tab_id(i), "rect": Rect2(cx + (-total * 0.5 + float(i) * (tw + 8.0)) * s, TAB_Y * s, tw * s, TAB_H * s), "label": String(TABS[i][0]), "on": i == UiSettings.s_opt_tab, "tab": TABS[i][1]})
+	var ids: Array = TABS[UiSettings.s_opt_tab][2]
+	for row in ids.size():
+		var id: StringName = ids[row]
+		var pr := parts(st, id)
+		hud.buttons.append({"id": id, "rect": row_rect(row, cx, s), "label": label(st, id), "on": is_slider(id) or is_on(st, id), "opt": true, "name": pr[0], "value": pr[1], "frac": fraction(st, id) if is_slider(id) else -1.0})
+	hud._add_card(&"options_back", Rect2(cx - 110.0 * s, OPT_BACK_Y * s, 220.0 * s, UiUtil.TOUCH_MIN * s), "BACK", &"back", "", false, UiUtil.AMBER)
 
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	if UiSettings.s_opt_page == 2:
 		ControlsScreen.draw(hud, c, vp, s, font)
 		return
-	var cols: Array = COLS1 if UiSettings.s_opt_page == 1 else COLS0
-	for col in cols.size():
-		var r0 := col_rect(col, 0, cx, s)
-		hud._text(c, font, Vector2(r0.position.x, r0.position.y - 8.0 * s), String(cols[col][0]), HORIZONTAL_ALIGNMENT_LEFT, r0.size.x, int(UiUtil.BAR_LABEL * s * 0.9), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	hud.header(c, vp, s, font, "OPTIONS")

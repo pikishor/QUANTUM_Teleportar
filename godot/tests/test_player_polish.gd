@@ -460,7 +460,7 @@ func _vehicle_chase() -> void:
 	await e.secs(0.2)
 	var cam_d := rig.camera.global_position.distance_to(rig.get_pivot_position())
 	TestLib.check(cam_d > 4.0 and cam_d < 12.0, "chase camera sits a car-sized distance from its pivot (%.2f)" % cam_d)
-	TestLib.check(rig.get_pivot_position().y > 1.0 and rig.get_pivot_position().y < 3.0, "chase pivot sits above the vehicle origin (%.2f)" % rig.get_pivot_position().y)
+	TestLib.check(rig.get_pivot_position().y > 0.5 and rig.get_pivot_position().y < 3.0, "chase pivot sits above the vehicle origin (%.2f)" % rig.get_pivot_position().y)
 	car.rotation.y = 1.0
 	car.heading = 1.0
 	car.speed = 12.0

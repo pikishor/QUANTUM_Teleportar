@@ -31,7 +31,14 @@ const DRAG_PX := 14.0
 const LOD_ZOOM := 2.0                              ## below this zoom the crowded kinds show only their nearest few
 const LOD_KINDS: Array[StringName] = [&"interior", &"shop", &"garage", &"items", &"weapon", &"job"]
 const LOD_NEAR := 3
-const LOD_NEAR_JOB := 8
+const LOD_NEAR_JOB := 4
+const ALWAYS_KINDS: Array[StringName] = [&"mission", &"side", &"home"]   ## never dropped by the icon cap
+const KIND_ORDER: Array[StringName] = [&"job", &"garage", &"weapon", &"shop", &"interior", &"items"]   ## round-robin order of the capped kinds (most useful first)
+const CAP_OVERVIEW := 18                          ## icons on screen at zoom < 2 (round 3 director review: 600 icons were unreadable)
+const CAP_MID := 30                               ## zoom 2 .. 4
+const CAP_NEAR := 44                              ## zoom >= 4: even a street shows at most this many icons
+const HINT_SECONDS := 6.0
+const LABEL_MAX := 6                              ## marker names printed at once (objective and selection come on top)
 const START_HALF := 300.0                           ## metres: the original city (|x|, |z| <= this) is charted from the first second, so the map is not a black square with a dot (it was 6 %)
 const DISCOVER_R := 150.0                           ## metres: how far around you the map charts itself (it was 70: 6 % after a walk)
 const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items"]
@@ -89,6 +96,9 @@ var _route := PackedVector3Array()
 var _route_goal := Vector3.INF
 var _charted := 0
 var _x0 := 12.0
+var _legend_rect := Rect2()                          ## the opaque panel behind the legend chips (control px)
+var _chip_vis := 0
+var _open_age := 0.0                                  ## seconds since the map opened: the gesture hint is only there for the first few
 var _route_m := 0
 
 
@@ -201,12 +211,17 @@ func _layout() -> void:
 	var x0 := ins.x + 12.0 * s
 	_x0 = x0
 	var y := 62.0 * s
+	var y_top := y
 	for k in KINDS:
 		var b: Button = _btns[k]
+		b.visible = _chip_shown(k)
+		if not b.visible:
+			continue
 		b.position = Vector2(x0, y)
 		b.size = Vector2(COL_W * s, BTN_H * s)
 		b.add_theme_font_size_override("font_size", int(22.0 * s))
 		y += (BTN_H + 2.0) * s
+	_legend_rect = Rect2(x0 - 6.0 * s, y_top - 6.0 * s, COL_W * s + 12.0 * s, y - y_top + 10.0 * s)
 	var rx := vp.x - ins.y - 12.0 * s - 164.0 * s
 	var ry := 8.0 * s
 	for b: Button in _side_btns:
@@ -225,6 +240,7 @@ func _process(delta: float) -> void:
 	_t += delta
 	_anim += delta
 	if _open:
+		_open_age += delta
 		if _t >= 0.2:
 			_t = 0.0
 			_refresh_chips()
@@ -362,6 +378,7 @@ func open() -> void:
 	if is_instance_valid(Game.player):
 		discover(Game.player.global_position)
 	_open = true
+	_open_age = 0.0
 	visible = true
 	_layout()
 	set_zoom(1)
@@ -668,29 +685,52 @@ func collect_markers() -> Array[Dictionary]:
 	return out
 
 
-## The overview shows what a player needs, not 600 icons (director review): the objective, side jobs and homes always, and of the crowded kinds (INTERIORS,
-## SHOPS, GARAGE, ITEMS, WEAPONS, JOBS) only the LOD_NEAR (jobs: LOD_NEAR_JOB) nearest to the hero. Zoomed in (zoom_f >= LOD_ZOOM) every marker of an enabled kind is drawn.
+## Icon cap per zoom (director review: ~600 icons at 77 % charted). Counted per frame: CAP_OVERVIEW below zoom 2, CAP_MID below 4, CAP_NEAR above.
+func badge_cap() -> int:
+	return CAP_OVERVIEW if zoom_f < LOD_ZOOM else (CAP_MID if zoom_f < 4.0 else CAP_NEAR)
+
+
+## What the map draws: the objective, side jobs and homes always; of the crowded kinds the nearest ones, taken round-robin (a job, a garage, a crate, a shop, a door, a shard) until the cap
+## of this zoom is full, so every kind that is near shows up and none floods the map. Below zoom 2 each crowded kind adds at most LOD_NEAR (jobs LOD_NEAR_JOB) around the HERO; zoomed in the
+## reference is the centre of the view and only markers inside the view count.
 func lod_markers(list: Array[Dictionary]) -> Array[Dictionary]:
-	if zoom_f >= LOD_ZOOM:
-		return list
-	var from := Vector2.ZERO
-	if is_instance_valid(Game.player):
+	var overview := zoom_f < LOD_ZOOM
+	var from := view_center
+	if overview and is_instance_valid(Game.player):
 		from = Vector2(Game.player.global_position.x, Game.player.global_position.z)
+	var view := Rect2(Vector2.ZERO, _map.size).grow(10.0) if _map != null and _map.size.x > 8.0 else Rect2()
 	var out: Array[Dictionary] = []
 	var crowded := {}
 	for mk in list:
-		if LOD_KINDS.has(mk["kind"]):
-			var p: Vector3 = mk["pos"]
-			if not crowded.has(mk["kind"]):
-				crowded[mk["kind"]] = []
-			(crowded[mk["kind"]] as Array).append([Vector2(p.x, p.z).distance_squared_to(from), mk])
-		else:
+		var p: Vector3 = mk["pos"]
+		if not overview and view.size.x > 0.0 and not view.has_point(world_to_map(p.x, p.z)):
+			continue
+		if ALWAYS_KINDS.has(mk["kind"]):
 			out.append(mk)
+			continue
+		if not crowded.has(mk["kind"]):
+			crowded[mk["kind"]] = []
+		(crowded[mk["kind"]] as Array).append([Vector2(p.x, p.z).distance_squared_to(from), mk])
+	var room := maxi(badge_cap() - out.size(), 0)
 	for k: StringName in crowded:
-		var arr: Array = crowded[k]
-		arr.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
-		for i in mini(arr.size(), LOD_NEAR_JOB if k == &"job" else LOD_NEAR):
-			out.append(arr[i][1])
+		(crowded[k] as Array).sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+	var rank := 0
+	while room > 0:
+		var took := false
+		for k: StringName in KIND_ORDER:
+			if not crowded.has(k) or room <= 0:
+				continue
+			var arr: Array = crowded[k]
+			var lim := arr.size()
+			if overview:
+				lim = mini(lim, LOD_NEAR_JOB if k == &"job" else LOD_NEAR)
+			if rank < lim:
+				out.append(arr[rank][1])
+				room -= 1
+				took = true
+		if not took:
+			break
+		rank += 1
 	return out
 
 
@@ -729,8 +769,20 @@ func marker_at(p: Vector2) -> Dictionary:
 	return best
 
 
+## The always-kinds (MISSION, SIDE, HOME) are legend rows only while there is one: "MISSION 0" is noise.
+func _chip_shown(k: StringName) -> bool:
+	return not ALWAYS_KINDS.has(k) or int(_counts.get(k, 0)) > 0
+
+
 func _refresh_chips() -> void:
 	_counts = marker_counts()
+	var vis := 0
+	for k in KINDS:
+		if _chip_shown(k):
+			vis |= 1 << KINDS.find(k)
+	if vis != _chip_vis:
+		_chip_vis = vis
+		_layout()
 	for k in KINDS:
 		var b: Button = _btns[k]
 		var n := int(_counts.get(k, 0))
@@ -904,8 +956,9 @@ func _draw_map() -> void:
 				run0 = -1
 	_charted = roundi(100.0 * seen_n / float(CELLS * CELLS))
 	# district names: their boxes are reserved first (nothing else is written over a name); they are drawn after the markers
-	var big := int((26.0 if zoom_f < 2.5 else 30.0) * s)
-	var small := int(20.0 * s)
+	var big := int((26.0 if zoom_f < 2.5 else 24.0) * s)
+	var small := int(22.0 * s)
+	var name_a := 0.95 if zoom_f < 2.5 else 0.6                       # zoomed in the names step back: the markers and the route are the subject
 	var names: Array = []
 	for d in 8:
 		var tc := _zone_label_pos(d)
@@ -917,7 +970,7 @@ func _draw_map() -> void:
 		var nsz := big if d < Districts.COUNT else small
 		var nw := font.get_string_size(dname, HORIZONTAL_ALIGNMENT_LEFT, -1, nsz).x
 		_placed.append(Rect2(p.x - nw * 0.5 - 3.0, p.y - nsz * 0.8, nw + 6.0, nsz * 1.05))
-		names.append([p, dname, nsz, Color(1, 1, 1, 0.95) if seen else Color(0.7, 0.8, 0.9, 0.6)])
+		names.append([p, dname, nsz, Color(1, 1, 1, name_a) if seen else Color(0.7, 0.8, 0.9, name_a * 0.65)])
 	# GPS route along the roads: dark casing, bright line, direction chevrons, distance at the goal
 	var you := Vector2.INF
 	var heading := Vector2(0, -1)
@@ -949,7 +1002,7 @@ func _draw_map() -> void:
 	# markers (clustered at the overview)
 	_counts.clear()
 	var cl := {}                                                       # "kind|cx|cy" -> [sum px, n, a marker]
-	var r_badge := (10.0 if zoom_f < 2.0 else 13.0) * s
+	var r_badge := (13.0 if zoom_f < 2.0 else 15.0) * s
 	for mk in lod_markers(visible_markers()):
 		var k: StringName = mk["kind"]
 		var pw: Vector3 = mk["pos"]
@@ -963,19 +1016,35 @@ func _draw_map() -> void:
 			cl[key] = [Vector2.ZERO, 0, mk]
 		cl[key][0] += mp
 		cl[key][1] += 1
-	for key: String in cl:
+	var labels_left := LABEL_MAX
+	var objective := Vector2.INF
+	for om in visible_markers():
+		if om["kind"] == &"mission":
+			var op: Vector3 = om["pos"]
+			objective = world_to_map(op.x, op.z)
+			break
+	var keys: Array = cl.keys()
+	keys.sort_custom(func(a: String, b: String) -> bool: return not ALWAYS_KINDS.has((cl[b][2] as Dictionary)["kind"]) and ALWAYS_KINDS.has((cl[a][2] as Dictionary)["kind"]))   # objective first: its label wins
+	for key: String in keys:
 		var e: Array = cl[key]
 		var n: int = e[1]
 		var mk2: Dictionary = e[2]
 		var c2: Vector2 = (e[0] as Vector2) / float(n)
 		var kind: StringName = mk2["kind"]
-		var rr := r_badge * (1.35 if kind == &"mission" else 1.0)
+		var rr := r_badge * (1.5 if kind == &"mission" else 1.0)
+		if kind == &"mission":
+			var ph := 0.5 + 0.5 * sin(_anim * 4.0)
+			_map.draw_arc(c2, rr * (1.5 + 0.35 * ph), 0.0, TAU, 32, Color(KIND_COLOR[kind], 0.9 - 0.5 * ph), 4.0 * s, true)
 		MapIcons.draw(_map, kind, c2, rr, KIND_COLOR[kind])
 		drawn["markers"] = int(drawn["markers"]) + 1
 		if n > 1:
 			_label_out(font, c2 + Vector2(rr * 0.9, -rr * 0.7), str(n), int(16.0 * s), Color(1, 1, 1, 0.95), HORIZONTAL_ALIGNMENT_LEFT, true)
-		elif kind == &"mission" or (zoom_f >= 3.0 and kind != &"interior") or zoom_f >= 5.5:
-			_label_out(font, c2 + Vector2(0.0, rr + 16.0 * s), String(mk2.get("label", "")), int(16.0 * s), Color(KIND_COLOR[kind]).lerp(Color.WHITE, 0.4), HORIZONTAL_ALIGNMENT_CENTER, true)
+		elif ALWAYS_KINDS.has(kind) or (zoom_f >= 3.0 and labels_left > 0 and kind != &"interior"):
+			if not ALWAYS_KINDS.has(kind):
+				labels_left -= 1
+			_label_out(font, c2 + Vector2(0.0, rr + 18.0 * s), String(mk2.get("label", "")), int(20.0 * s), Color(KIND_COLOR[kind]).lerp(Color.WHITE, 0.4), HORIZONTAL_ALIGNMENT_CENTER, true)
+	if objective.is_finite() and not view.grow(-30.0 * s).has_point(objective):
+		_edge_marker(objective, s, KIND_COLOR[&"mission"])                    # the objective is off screen: an arrow at the edge points to it
 	# district names on top of the markers
 	for nm: Array in names:
 		_label_out(font, nm[0], nm[1], nm[2], nm[3])
@@ -1006,6 +1075,9 @@ func _draw_map() -> void:
 		drawn["you"] = true
 		if not view.grow(-30.0 * s).has_point(you):
 			_edge_arrow(you, s)
+	# legend panel: opaque, so the chips never sit on top of busy streets (the chips are children of the screen above this layer)
+	_map.draw_rect(_legend_rect, Color(0.0, 0.015, 0.03, 0.96))
+	_map.draw_rect(_legend_rect, Color(UiUtil.CYAN, 0.35), false, 2.0 * s)
 	# north, scale bar and the gesture hint
 	var ins := UiUtil.insets(get_viewport().get_visible_rect().size)
 	var rx := sz.x - ins.y - 12.0 * s - 164.0 * s
@@ -1024,9 +1096,11 @@ func _draw_map() -> void:
 	_label_out(font, Vector2(rx + 82.0 * s, by0 - 12.0 * s), "%d M" % int(bar_m), int(16.0 * s), Color(1, 1, 1, 0.9))
 	var hint := "TAP A MARKER OR THE MAP: ROUTE.  PINCH: ZOOM" if not has_waypoint() else "TAP THE WAYPOINT TO REMOVE IT.  PINCH: ZOOM"
 	_title_row(font, s)
-	var hw := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, int(16.0 * s)).x
-	_map.draw_rect(Rect2(sz.x * 0.5 - hw * 0.5 - 12.0 * s, sz.y - 34.0 * s, hw + 24.0 * s, 26.0 * s), Color(0.0, 0.02, 0.04, 0.78))
-	_label_out(font, Vector2(sz.x * 0.5, sz.y - 15.0 * s), hint, int(16.0 * s), Color(1, 1, 1, 0.8))
+	if _open_age < HINT_SECONDS or selected.has("pos"):                  # the hint leaves after a few seconds: it sat on top of the names and the route
+		var hs := int(20.0 * s)
+		var hw := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hs).x
+		_map.draw_rect(Rect2(sz.x * 0.5 - hw * 0.5 - 12.0 * s, sz.y - 40.0 * s, hw + 24.0 * s, 32.0 * s), Color(0.0, 0.02, 0.04, 0.9))
+		_label_out(font, Vector2(sz.x * 0.5, sz.y - 16.0 * s), hint, hs, Color(1, 1, 1, 0.85))
 
 
 ## "MAP" and the charted / route line, top left above the legend.
@@ -1064,6 +1138,17 @@ func _edge_arrow(you: Vector2, s: float) -> void:
 	var p := Vector2(clampf(you.x, 40.0 * s, sz.x - 40.0 * s), clampf(you.y, 40.0 * s, sz.y - 40.0 * s))
 	var side := Vector2(-d.y, d.x)
 	_map.draw_colored_polygon(PackedVector2Array([p + d * 16.0 * s, p - d * 8.0 * s + side * 12.0 * s, p - d * 8.0 * s - side * 12.0 * s]), Color(1, 1, 1, 0.95))
+
+
+## An off-screen objective: a coloured arrow on the nearest edge of the view pointing at it.
+func _edge_marker(target: Vector2, s: float, col: Color) -> void:
+	var sz := _map.size
+	var c := sz * 0.5
+	var d := (target - c).normalized()
+	var p := Vector2(clampf(target.x, 60.0 * s, sz.x - 60.0 * s), clampf(target.y, 60.0 * s, sz.y - 60.0 * s))
+	var side := Vector2(-d.y, d.x)
+	_map.draw_colored_polygon(PackedVector2Array([p + d * 22.0 * s, p - d * 10.0 * s + side * 16.0 * s, p - d * 10.0 * s - side * 16.0 * s]), Color(0.0, 0.02, 0.04, 1.0))
+	_map.draw_colored_polygon(PackedVector2Array([p + d * 17.0 * s, p - d * 7.0 * s + side * 11.0 * s, p - d * 7.0 * s - side * 11.0 * s]), col)
 
 
 # ---------------------------------------------------------------------------------------------------------------------

@@ -64,7 +64,8 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		var open := SideMissions.unlocked(mid, _chapter())
 		var shut := open and not Factions.job_open(prog, mid)                       # the client camp is hostile (Factions)
 		open = open and not shut
-		hud._rect(c, Rect2(o.x, o.y, COL_W * s, ROW_H * s), Color(0.0, 0.03, 0.05, 0.55))
+		hud._rect(c, Rect2(o.x, o.y, COL_W * s, ROW_H * s), MenuKit.FILL)
+		hud._rect(c, Rect2(o.x, o.y, 5.0 * s, ROW_H * s), Color(UiUtil.GREEN if open else UiUtil.MAGENTA, 0.9 if open else 0.35))      # a lit bar for a job you can take
 		hud._text(c, font, Vector2(o.x + 10.0 * s, o.y + 27.0 * s), String(d["title"]), HORIZONTAL_ALIGNMENT_LEFT, (COL_W - BTN_W - 20.0) * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.97 if open else 0.45), 1.0 * s)
 		var done := int(prog.side_done.get(mid, 0)) if prog != null else 0
 		var info := ("%s HOSTILE" % Factions.title(Factions.job_client(mid))) if shut else "NEEDS SECTOR %d" % (int(d["chapter"]) + 1) if not open else "%d CR   REP +%d%s%s" % [int(d["pay"]), int(d["rep"]), ("   %d s" % int(d["limit"])) if float(d["limit"]) > 0.0 else "", ("   DONE x%d" % done) if done > 0 else ""]

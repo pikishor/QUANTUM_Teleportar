@@ -612,6 +612,9 @@ func _touch_buttons() -> void:
 		_clear()
 		var v := _car(&"sedan", -90.0)
 		p.vehicle = v
-		TestLib.check(tc.button_visible(view_b) and tc.button_visible(back_b), "while driving VIEW and BACK show")
+		TestLib.check(tc.button_visible(view_b) and not tc.button_visible(back_b), "while driving VIEW shows and BACK waits behind MORE")
+		tc.more_open = true
+		TestLib.check(tc.button_visible(back_b), "BACK shows once MORE is open")
+		tc.more_open = false
 		p.vehicle = null
 	tc.queue_free()

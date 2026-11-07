@@ -550,9 +550,10 @@ func _draw_all() -> void:
 			_text(font, Vector2(box.position.x + 8.0 * s, box.position.y + (22.0 + 20.0 * float(i)) * s), lines[i], int(15.0 * s), Color(0.6, 1.0, 0.8), box.size.x - 16.0 * s)
 	if _entry_visible():
 		var r := entry_rect()
-		_canvas.draw_rect(r, Color(0.35, 0.12, 0.05, 0.9))
-		_canvas.draw_rect(r, AMBER, false, 2.0)
-		_text(font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + 8.0 * s), "TEST", int(24.0 * s), Color.WHITE, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		_canvas.draw_rect(r, MenuKit.FILL)                                      # a card like the others, muted: it only exists in debug builds
+		_canvas.draw_rect(r, Color(AMBER, 0.5), false, 2.0)
+		_text(font, Vector2(r.position.x + 18.0 * s, r.position.y + r.size.y * 0.5 - 2.0 * s), "TEST", int(20.0 * s), Color(1, 1, 1, 0.9), r.size.x, HORIZONTAL_ALIGNMENT_LEFT)
+		_text(font, Vector2(r.position.x + 18.0 * s, r.position.y + r.size.y * 0.5 + 24.0 * s), "Debug build only", int(15.0 * s), Color(AMBER, 0.85), r.size.x, HORIZONTAL_ALIGNMENT_LEFT)
 	if _quick_visible():
 		var p := Game.player as Player
 		var cur: StringName = p.weapon.current if p != null and p.weapon != null else &""

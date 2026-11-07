@@ -412,7 +412,7 @@ func crash(v: float, at: Vector3, n: Vector3, other_mass := INF) -> float:
 		var share := 1.0
 		if other_mass < INF:
 			share = clampf(2.0 * other_mass / (other_mass + VehicleSpecs.mass_of(kind)), 0.5, 1.8)
-		lost = VehicleSpecs.CRASH_REF_HP * frac * share
+		lost = minf(VehicleSpecs.CRASH_REF_HP, max_hp) * frac * share          # a light car (sport 250 hp) loses the same SHARE of its hull as a sedan; a truck, bus or SUV loses less
 		if v <= VehicleSpecs.CRASH_SURVIVE_V and hp > max_hp * VehicleSpecs.CRASH_LIMP_FROM:
 			lost = minf(lost, hp - max_hp * VehicleSpecs.CRASH_LIMP_HP)        # a healthy car survives one crash and limps away: the player keeps the car he took
 		hits += 1
@@ -420,7 +420,7 @@ func crash(v: float, at: Vector3, n: Vector3, other_mass := INF) -> float:
 		if driver_is_player:
 			var pl := Game.player
 			if v > VehicleSpecs.HERO_HURT_SPEED and is_instance_valid(pl) and not dead:
-				var hurt_hp := (v - VehicleSpecs.HERO_HURT_SPEED) * VehicleSpecs.HERO_HURT
+				var hurt_hp := VehicleSpecs.HERO_HURT_MAX * pow(clampf((v - VehicleSpecs.HERO_HURT_SPEED) / (VehicleSpecs.CRASH_WRECK - VehicleSpecs.HERO_HURT_SPEED), 0.0, 1.5), 2.0)
 				if pl.get(&"max_hp") is float:
 					hurt_hp = minf(hurt_hp, (pl.get(&"max_hp") as float) * VehicleSpecs.HERO_HURT_CAP)
 				if pl.has_method(&"hurt_driver"):
@@ -451,6 +451,20 @@ func damage_state() -> int:
 	return dmg_state
 
 
+## The four stages a player sees: 0 sound, 1 a thin wisp from the bonnet (below 70 % hull), 2 dark smoke (below 40 %), 3 fire (below 15 %). Dents and cracked glass come with every hit.
+static func stage_for(hp_now: float, hp_max: float) -> int:
+	var f := hp_now / maxf(hp_max, 1.0)
+	if f < VehicleSpecs.FIRE_BELOW:
+		return 3
+	if f < VehicleSpecs.SMOKE_BELOW:
+		return 2
+	return 1 if f < VehicleSpecs.WISP_BELOW else 0
+
+
+func damage_stage() -> int:
+	return 3 if fuse >= 0.0 else stage_for(hp, max_hp)
+
+
 func _update_damage_state() -> void:
 	var ns := state_for(hp, max_hp)
 	if fuse >= 0.0:
@@ -468,7 +482,10 @@ func _update_damage_state() -> void:
 
 ## Smoke and fire: pooled FX bursts only while the player is near (or driving it); fire also burns hp until the car blows up.
 func _damage_fx(dt: float) -> void:
-	if dmg_state == 0 or dead or not active:
+	if dead or not active:
+		return
+	var wisp := dmg_state == 0 and hp < max_hp * VehicleSpecs.WISP_BELOW
+	if dmg_state == 0 and not wisp:
 		return
 	if dmg_state == 2:
 		damage(VehicleSpecs.BURN_DPS * dt)
@@ -486,9 +503,12 @@ func _damage_fx(dt: float) -> void:
 		FX.burst(at, Color(1.0, 0.5, 0.14, 0.9), 4, 2.4, 0.5, -5.0, 1.3)
 		if _fx_n % 2 == 0:
 			FX.burst(at + Vector3(0.0, 0.5, 0.0), Color(0.08, 0.08, 0.09, 0.8), 2, 1.6, 1.2, -2.5, 1.9)
+	elif wisp:
+		_fx_t = VehicleSpecs.SMOKE_EVERY * 2.4
+		FX.burst(at, Color(0.62, 0.63, 0.66, 0.4), 1, 0.9, 1.3, -1.3, 1.1)           # a thin grey wisp: the engine is hurt, not dying
 	else:
 		_fx_t = VehicleSpecs.SMOKE_EVERY
-		FX.burst(at, Color(0.35, 0.35, 0.37, 0.7), 2, 1.5, 1.1, -2.0, 1.7)
+		FX.burst(at, Color(0.22, 0.22, 0.24, 0.75), 3, 1.7, 1.3, -2.2, 2.0)
 
 
 ## Blow up: the driver is thrown out first, then Game.explode (radius 9: enemies 80, cars 70, player 35), heat +0.2; the manager respawns it as parked.

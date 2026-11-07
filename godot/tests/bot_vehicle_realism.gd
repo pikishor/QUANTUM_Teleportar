@@ -65,6 +65,17 @@ func _setup() -> void:
 			_vm._release(v)
 	_car = _vm.starter
 	Game.heat = 0.0
+	if OS.get_environment("BOT_CLEAN") != "":                       # an empty street: no crowd, no near traffic (the drive frames are about the car, not about who is in the road)
+		var amb = (Game.world as City).ambient
+		amb.near_traffic.count = 0
+		amb.near_traffic.mm.visible_instance_count = 0
+		amb.crowd.count = 0
+		amb.crowd.mm.visible_instance_count = 0
+		amb.crowd.mm_near.visible_instance_count = 0
+		Game.civilian_casualties = false
+	if _set == "chase":
+		_events += [[0.3, "enter"], [0.5, "go"], [1.4, "c1", true], [2.6, "c2", true], [4.0, "c3", true], [5.4, "c4", true], [6.0, "right"], [6.9, "c5", true], [7.5, "straight"],
+			[8.2, "c6", true], [8.8, "end_drive"], [9.0, "done"]]
 	if _set in ["all", "drive"]:
 		_events += [[0.8, "park", true], [1.0, "enter"], [1.4, "go"], [3.2, "accel1", true], [5.2, "accel2", true], [5.4, "right"], [6.6, "corner", true], [6.9, "drift"], [7.6, "drift1", true],
 			[8.3, "drift2", true], [8.6, "straight"], [10.0, "end_drive"]]

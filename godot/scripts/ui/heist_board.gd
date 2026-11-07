@@ -56,7 +56,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var open := HeistScripts.unlocked(sel, _chapter())
 	var x := _col(cx, s, 0)
 	var w := (COL_W * 3.0 + GAP * 2.0) * s
-	hud._rect(c, Rect2(x, ROW_INFO * s, w, 112.0 * s), Color(0.0, 0.03, 0.05, 0.55))
+	hud._rect(c, Rect2(x, ROW_INFO * s, w, 112.0 * s), MenuKit.FILL)
 	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 26.0) * s), String(d["brief"]), HORIZONTAL_ALIGNMENT_LEFT, w - 20.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.95 if open else 0.5), 1.0 * s)
 	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 54.0) * s), String(d["stages"]), HORIZONTAL_ALIGNMENT_LEFT, w - 20.0 * s, int(18.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
 	var done := int(prog.heist_done.get(sel, 0)) if prog != null else 0

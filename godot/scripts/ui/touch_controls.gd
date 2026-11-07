@@ -18,13 +18,13 @@ const USE_REACH := 4.2              ## metres: a vehicle this close enables USE
 ## Default frame (on foot): FIRE, AIM, JUMP, RELOAD, ABILITY (opens the radial wheel), WEAPON (tap cycles, hold opens the weapon wheel) and MORE (opens the secondary
 ## cluster). USE / GRAB / TAKEDOWN / SKIP / RADIO / GARAGE appear only when they apply; ALT, MELEE, THROW, CROUCH, GADGET, CALL CAR and the ally orders live in MORE.
 const BUTTONS := [
-	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 88.0, "fs": 32, "label": "FIRE", "need": &""},
-	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &""},
+	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 88.0, "fs": 32, "label": "FIRE", "need": &"fire"},
+	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &"foot"},
 	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
-	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &""},
+	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &"foot"},
 	{"action": &"ability", "dx": 515.0, "dy": 120.0, "r": 58.0, "fs": 22, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability"},
 	{"action": &"swap", "dx": 520.0, "dy": 262.0, "r": 58.0, "fs": 22, "label": "WEAPON", "need": &"weapon"},
-	{"action": &"more", "dx": 505.0, "dy": 395.0, "r": 40.0, "fs": 22, "label": "MORE", "need": &"foot", "fn": &"more"},
+	{"action": &"more", "dx": 505.0, "dy": 395.0, "r": 40.0, "fs": 22, "label": "MORE", "need": &"more_btn", "fn": &"more"},
 	{"action": &"altfire", "dx": 650.0, "dy": 100.0, "r": 40.0, "fs": 22, "label": "ALT", "need": &"more"},
 	{"action": &"melee", "dx": 650.0, "dy": 212.0, "r": 46.0, "fs": 22, "label": "MELEE", "need": &"more"},
 	{"action": &"throw_item", "dx": 650.0, "dy": 322.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more"},
@@ -38,11 +38,11 @@ const BUTTONS := [
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
 	{"action": &"grab", "dx": 320.0, "dy": 470.0, "r": 50.0, "fs": 22, "label": "GRAB", "need": &"grab"},
 	{"action": &"takedown", "dx": 175.0, "dy": 602.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
-	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},
+	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},      # driving: only while MORE is open
 	{"action": &"skip_piece", "dx": 505.0, "dy": 575.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
 	{"action": &"veh_view", "dx": 520.0, "dy": 262.0, "r": 46.0, "fs": 22, "label": "VIEW", "need": &"driving"},     # driving camera: chase / far / hood
-	{"action": &"look_back", "dx": 505.0, "dy": 395.0, "r": 46.0, "fs": 22, "label": "BACK", "need": &"driving"},       # held: look behind the car
+	{"action": &"look_back", "dx": 760.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "BACK", "need": &"drive_more"},       # held: look behind the car (MORE while driving)
 ]
 ## The ABILITY wheel: the seven quantum verbs, plain names. `ui` indexes UiUtil.ABILITIES (the four classic verbs), `verb` is a QuantumVerbs id.
 const WHEEL_ABILITIES := [
@@ -105,6 +105,7 @@ var _perf_held := 0.0
 var _hot_finger := -1               ## the finger held on the hidden readout's corner (it still drives the stick or the look, the readout only listens)
 var _hot_held := 0.0
 var _hot_from := Vector2.ZERO
+var _was_driving := false
 var _perf_long := false             ## the current press already toggled the panel (so its release does not cycle the tier)
 
 
@@ -181,6 +182,10 @@ func _process(delta: float) -> void:
 		if _pulse_t <= 0.0 and _pulse_action != &"":
 			Input.action_release(_pulse_action)
 			_pulse_action = &""
+	var drv := _driving()
+	if drv != _was_driving:                          # getting in or out starts with the secondary cluster closed
+		_was_driving = drv
+		more_open = false
 	_grab_t -= delta
 	if _grab_t <= 0.0:
 		_grab_t = 0.25
@@ -458,18 +463,24 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
 		&"driving":
 			return is_instance_valid(Game.vehicles) and _driving()
+		&"drive_more":       # the driving cluster behind MORE: BACK, RADIO, GARAGE (a car shows only DRIFT, EXIT, VIEW and MORE, plus FIRE when it carries a weapon)
+			return more_open and is_instance_valid(Game.vehicles) and _driving()
+		&"fire":
+			return not _driving() or _car_armed()
+		&"more_btn":
+			return is_instance_valid(Game.player)
 		&"foot":
 			return is_instance_valid(Game.player) and not _driving()
 		&"takedown":
 			var pc: Object = Game.player.get("cover") if is_instance_valid(Game.player) else null
 			return pc != null and pc.get("target") != null and is_instance_valid(pc.get("target"))
-		&"garage_open":      # GARAGE: while driving
-			return is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage") and _driving()
+		&"garage_open":      # GARAGE: while driving, behind MORE
+			return more_open and is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage") and _driving()
 		&"skip_piece":       # SKIP SET PIECE: only inside an optional set piece
 			var hud := get_parent()
 			return hud != null and hud.has_method(&"skip_available") and bool(hud.call(&"skip_available"))
 		&"radio":
-			return is_instance_valid(Game.vehicles) and Game.vehicles.get("radio") != null and _driving()
+			return more_open and is_instance_valid(Game.vehicles) and Game.vehicles.get("radio") != null and _driving()
 	return true
 
 
@@ -479,6 +490,8 @@ func _label_of(b: Dictionary) -> String:
 		if not _driving() and InteriorGameplay.active and InteriorGameplay.prompt != "":
 			return str(InteriorGameplay.prompt).split(" ")[0]         # inside a building the button says what it does: LEAVE, TALK, CRACK, FREE (not ENTER)
 		return "EXIT" if _driving() else "ENTER"
+	if b["action"] == &"jump" and _driving():
+		return "DRIFT"                                   # the handbrake
 	if b["action"] == &"skip_piece":
 		var hud := get_parent()
 		if hud != null and hud.has_method(&"step_skip_offered") and bool(hud.call(&"step_skip_offered")):
@@ -648,6 +661,12 @@ func _open_garage() -> void:
 
 func _driving() -> bool:
 	return is_instance_valid(Game.player) and Game.player.get("vehicle") != null
+
+
+## The driven car carries a mounted weapon (rail gun, cannon, bolt gun): only then the FIRE button stays in a car.
+func _car_armed() -> bool:
+	var v: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
+	return v != null and v.get("kind") is StringName and VehicleWeapons.has_weapon(v.get("kind") as StringName)
 
 
 func _vehicle_in_reach() -> bool:

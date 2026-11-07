@@ -99,20 +99,22 @@ func run(host: Node) -> void:
 	var ids := {}
 	for bt: Dictionary in hud.buttons:
 		ids[bt["id"]] = true
-	TestLib.check(ids.has(&"opt_page") and not ids.has(&"opt_lang"), "page 1 has the page button, not the accessibility rows")
-	TestLib.check(hud.press_button(&"opt_page"), "page flips")
-	hud._ensure_layout()
-	ids.clear()
+	TestLib.check(ids.has(&"opt_tab_3") and not ids.has(&"opt_lang"), "the first tab has the tab strip, not the accessibility rows")
 	var small := 0
-	for bt: Dictionary in hud.buttons:
-		ids[bt["id"]] = true
-		if (bt["rect"] as Rect2).size.y < 63.9 * UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size):
-			small += 1
+	ids.clear()
+	for ti in OptionsScreen.TABS.size():
+		TestLib.check(hud.press_button(OptionsScreen.tab_id(ti)), "tab %d opens" % ti)
+		hud._ensure_layout()
+		for bt: Dictionary in hud.buttons:
+			ids[bt["id"]] = true
+			if (bt["rect"] as Rect2).size.y < 63.9 * UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size):
+				small += 1
 	for id: StringName in OptionsScreen.PAGE2:
 		TestLib.check(ids.has(id), "access row " + String(id))
 	TestLib.check(small == 0, "access rows are >= 64 px")
 	TestLib.check(hud.press_button(&"opt_lang") and hud.settings.language == "es" and Tr.lang == "es", "language switches and publishes")
 	TestLib.check(hud.press_button(&"opt_text") and hud.settings.text_scale == 1.25 and Tr.text_scale == 1.25, "text size cycles")
+	hud.press_button(OptionsScreen.tab_id(3))
 	hud._ensure_layout()
 	var lab := ""
 	for bt: Dictionary in hud.buttons:
@@ -123,7 +125,7 @@ func run(host: Node) -> void:
 	hud.press_button(&"opt_subbg")
 	TestLib.check(hud.settings.reduce_flash and UiSettings.s_reduce_flash and UiSettings.s_sub_bg == 2, "flash and subtitle bg apply")
 	hud.press_button(&"options_back")
-	TestLib.check(UiSettings.s_opt_page == 0, "back resets to page 1")
+	TestLib.check(UiSettings.s_opt_page == 0 and UiSettings.s_opt_tab == 0, "back resets to the first tab")
 	await TestLib.frames(host, 2)
 
 	# restore global state

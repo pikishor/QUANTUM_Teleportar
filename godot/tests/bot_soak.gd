@@ -302,7 +302,8 @@ func _ensure_play(limit := 40.0) -> void:
 				if not await _click_button(&"resume"):
 					Game.state = &"play"
 			&"menu":
-				await _click_button(&"deploy")
+				if not await _click_button(&"deploy"):
+					await _click_button(&"continue")      # the title card reads CONTINUE when a save exists
 			&"cutscene":
 				Lib.mouse_event(Vector2(200, 200), true)
 				await _tick()

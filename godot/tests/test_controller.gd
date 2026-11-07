@@ -234,6 +234,14 @@ func _scene() -> void:
 		for d in [JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_RIGHT, JOY_BUTTON_DPAD_RIGHT, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_LEFT]:
 			_tap(d)
 			seen[pad.focus] = true
+	pad._set_focus(&"opt_tab_0")                                  # the tab strip is above the rows: walk it along, then up from the first row
+	for i in 6:
+		_tap(JOY_BUTTON_DPAD_RIGHT)
+		seen[pad.focus] = true
+	pad._set_focus(&"opt_look_x")
+	_tap(JOY_BUTTON_DPAD_UP)
+	seen[pad.focus] = true
+	TestLib.check(OptionsScreen.is_tab(pad.focus), "UP from the first row reaches the tab strip")
 	var ids := []
 	for bt: Dictionary in hud.buttons:
 		ids.append(bt["id"])
@@ -243,10 +251,6 @@ func _scene() -> void:
 	TestLib.check(reach >= ids.size() - 3, "the D-pad reaches the options buttons (%d of %d)" % [reach, ids.size()])
 
 	# --- controls screen
-	pad._set_focus(&"opt_page")
-	_tap(JOY_BUTTON_A)
-	await _frames(1)
-	_step(2)
 	pad._set_focus(&"opt_controls")
 	_tap(JOY_BUTTON_A)
 	TestLib.check(UiSettings.s_opt_page == 2, "OPTIONS has a CONTROLS screen")
@@ -282,7 +286,7 @@ func _scene() -> void:
 	hud.press_button(&"ctl_reset")
 	TestLib.check(ControlMap.pad_binds["0:a"] == &"jump", "RESET restores the controller layout")
 	hud.press_button(&"ctl_back")
-	TestLib.check(UiSettings.s_opt_page == 1, "BACK returns to the options")
+	TestLib.check(UiSettings.s_opt_page == 0, "BACK returns to the options")
 	# B goes back / resumes
 	pad.sim_buttons = {JOY_BUTTON_A: true}
 	_step()

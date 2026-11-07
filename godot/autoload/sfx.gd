@@ -338,7 +338,7 @@ func _ready() -> void:
 	var loops_root := Node.new()
 	loops_root.name = "Loops"
 	add_child(loops_root)
-	for ln: StringName in [&"engine_low", &"engine_high", &"engine_bike_low", &"engine_bike_high", &"engine_hover_low", &"engine_hover_high", &"engine_heavy_low", &"engine_heavy_high", &"tyre_squeal", &"superpos_loop", &"entangle_loop"]:
+	for ln: StringName in [&"engine_low", &"engine_high", &"engine_bike_low", &"engine_bike_high", &"engine_hover_low", &"engine_hover_high", &"engine_heavy_low", &"engine_heavy_high", &"tyre_squeal", &"drive_wind", &"superpos_loop", &"entangle_loop"]:
 		var lpl := AudioStreamPlayer.new()
 		lpl.bus = _bus_or_master(SFX_BUS)
 		lpl.volume_db = OFF_DB
@@ -1452,6 +1452,7 @@ func _step_vehicle(delta: float) -> void:
 			if String(ln).begins_with("engine_"):
 				_drive_loop(ln, OFF_DB, delta, 1.0, 60.0)
 		_drive_loop(&"tyre_squeal", OFF_DB, delta, 1.0, 80.0)
+		_drive_loop(&"drive_wind", OFF_DB, delta, 1.0, 60.0)
 		return
 	var sp: float = float(v.speed)
 	var asp := absf(sp)
@@ -1481,8 +1482,19 @@ func _step_vehicle(delta: float) -> void:
 	var loops := AudioDirector.engine_loops(variant)
 	var epitch := float(eng[1])
 	var edb := float(eng[2]) + (1.5 * thr - 2.5 * (1.0 - thr) if v.get(&"rpm") is float else 0.0)    # on the power it is louder, lifting off it drops back
-	_drive_loop(loops[0], edb - 8.0 + linear_to_db(maxf(1.0 - blend, 0.001)), delta, (0.7 + _rpm * 0.85) * epitch, 60.0)
-	_drive_loop(loops[1], edb - 9.0 + linear_to_db(maxf(blend, 0.001)), delta, (0.62 + _rpm * 0.7) * epitch, 60.0)
+	var rough := 1.0                                                  # a hurt engine runs rough: the note wobbles (smoking: a little, burning: a lot)
+	if v.get(&"hp") is float and v.get(&"max_hp") is float:
+		var hf := float(v.get(&"hp")) / maxf(float(v.get(&"max_hp")), 1.0)
+		var wob := clampf((VehicleSpecs.WISP_BELOW - hf) / VehicleSpecs.WISP_BELOW, 0.0, 1.0)
+		rough = 1.0 + wob * 0.05 * sin(float(Time.get_ticks_msec()) * 0.043) * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.0113))
+		edb -= wob * 2.0
+	_drive_loop(loops[0], edb - 8.0 + linear_to_db(maxf(1.0 - blend, 0.001)), delta, (0.7 + _rpm * 0.85) * epitch * rough, 60.0)
+	_drive_loop(loops[1], edb - 9.0 + linear_to_db(maxf(blend, 0.001)), delta, (0.62 + _rpm * 0.7) * epitch * rough, 60.0)
+	var wl: AudioStreamPlayer = _loops.get(&"drive_wind")             # the air at speed: the wind bed, rising with the car (the sense of speed is half sound)
+	if wl != null and wl.stream == null:
+		wl.stream = _loop_stream(&"wind")
+	var wk := clampf(asp / 30.0, 0.0, 1.0)
+	_drive_loop(&"drive_wind", -30.0 + 24.0 * wk * wk if wk > 0.12 else OFF_DB, delta, 0.85 + 0.55 * wk, 30.0)
 	var slip := absf(float(v.slip))
 	var squeal := clampf((slip - 3.0) / 5.0, 0.0, 1.0) * clampf((asp - 6.0) / 10.0, 0.0, 1.0)
 	if v.get(&"skid") is float:                                    # tyres: the car says how hard they slide, spin or lock

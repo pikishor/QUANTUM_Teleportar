@@ -435,11 +435,11 @@ func add_dent(at: Vector3, dir: Vector3, frac: float) -> void:
 		return
 	dir = dir.normalized()
 	var radius := lerpf(0.45, 1.15, clampf(frac * 1.6, 0.0, 1.0))
-	var depth := lerpf(0.05, 0.34, clampf(frac * 1.8, 0.0, 1.0))
+	var depth := lerpf(0.05, 0.27, clampf(frac * 1.8, 0.0, 1.0))
 	var merged := false
 	for dt in dents:
 		if (dt["at"] as Vector3).distance_to(at) < DENT_MERGE:
-			dt["d"] = minf(float(dt["d"]) + depth * 0.7, 0.42)
+			dt["d"] = minf(float(dt["d"]) + depth * 0.6, 0.34)
 			dt["r"] = maxf(float(dt["r"]), radius)
 			dt["dir"] = ((dt["dir"] as Vector3) + dir).normalized()
 			merged = true
@@ -483,7 +483,7 @@ func _rebuild_dents() -> void:
 				var sq := q / r2
 				var w := (1.0 - sq) * (1.0 - sq) * face
 				var jit := fposmod(sin(v.x * 127.1 + v.y * 311.7 + v.z * 74.7) * 43758.5453, 1.0) - 0.5
-				verts[i] = v + d * (depth * w * (1.0 + 0.35 * jit)) + Vector3(jit * 0.04, jit * 0.03, -jit * 0.04) * depth * w * 6.0
+				verts[i] = v + d * (depth * w * (1.0 + 0.12 * jit)) + Vector3(jit * 0.015, jit * 0.012, -jit * 0.015) * depth * w * 6.0      # a clean crater, not a torn sheet (the jitter is only a crumple)
 				if has_n:
 					var radial := rel - d * rel.dot(d)
 					var tilt := radial * (depth * 4.0 * (1.0 - sq) * face / maxf(r, 0.1) / maxf(r, 0.1))

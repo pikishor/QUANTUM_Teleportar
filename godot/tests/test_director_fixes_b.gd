@@ -9,8 +9,8 @@ extends RefCounted
 ## Waits on state and counters, never on frame counts; user:// state is reset first.
 ## Run: tools/test.sh tests/test_director_fixes_b.gd
 
-const FOOT := ["", "quantum", "weapon", "foot", "vehicle", "grab", "takedown", "skip_piece", "more", "more_gadget", "more_garage", "more_c4", "more_companion", "detonate"]
-const DRIVING := ["", "vehicle", "driving", "garage_open", "radio", "skip_piece"]
+const FOOT := ["", "fire", "more_btn", "quantum", "weapon", "foot", "vehicle", "grab", "takedown", "skip_piece", "more", "more_gadget", "more_garage", "more_c4", "more_companion", "detonate"]
+const DRIVING := ["", "fire", "more_btn", "vehicle", "driving", "drive_more", "garage_open", "radio", "skip_piece"]
 
 var host: Node
 var main: Node
@@ -176,7 +176,7 @@ func _map() -> void:
 	TestLib.check(crowded_ok, "the overview shows only the nearest few of each crowded kind (%s)" % str(per))
 	TestLib.check(all.size() > 60 and shown.size() <= 30 and shown.size() < all.size(), "the overview thins %d markers to %d" % [all.size(), shown.size()])
 	ms.zoom_f = 2.5
-	TestLib.check(ms.lod_markers(all).size() == all.size(), "zoomed in every marker of an enabled kind is drawn")
+	TestLib.check(ms.lod_markers(all).size() <= ms.badge_cap() and ms.lod_markers(all).size() > shown.size(), "zoomed in more is drawn, but never more than the zoom's cap (round 2 part D)")
 	ms.zoom_f = 1.0
 
 

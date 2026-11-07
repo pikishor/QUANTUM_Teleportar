@@ -10,9 +10,12 @@ const GRID_COLS := 4
 const TILE := Vector2(124.0, 72.0)        ## a weapon tile (icon over its tag), at least the 64 px touch minimum
 const TILE_GAP := 8.0
 const INFO_Y := 396.0                     ## the selected weapon's name (the stats line and the page buttons follow)
-const SLOT_Y := 190.0
-const SLOT_STEP := 112.0
-const PART_W := 176.0
+const SLOT_Y := 178.0
+const SLOT_STEP := 114.0
+const PART_W := 190.0
+const PART_H := 80.0
+const PART_FX := {&"reddot": "Steadier aim", &"scope": "Zoom, steady aim", &"halo": "Hip aim, crits", &"suppressor": "Quiet, less kick", &"longbarrel": "Longer range", &"compensator": "Less recoil",
+	&"overcharge": "More damage", &"rapid": "Faster fire", &"extended": "Bigger magazine"}
 const PART_CAPTION := 18.0                ## base px of the part names under the BUY / EQUIP buttons (was 14: unreadable on a phone)
 
 ## The paged wheel: WeaponDefs.PAGE_SIZE weapons per page, buttons `wheelpg_prev` / `wheelpg_next` flip it. The page follows the selected weapon until a flip.
@@ -56,7 +59,8 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 	var items := page_items(sel)
 	for i in items.size():                                         # the owned weapons as a grid of tiles (the page flips with < >)
 		var tp := Vector2(cx + (GRID_X + float(i % GRID_COLS) * (TILE.x + TILE_GAP)) * s, (GRID_Y + float(i / GRID_COLS) * (TILE.y + TILE_GAP)) * s)
-		hud._add(StringName("wheel_%s" % items[i]), Rect2(tp, TILE * s), String(WeaponDefs.def(items[i])["tag"]), items[i] == sel)
+		var ttl := WeaponDefs.title(items[i]).split(" ")
+		hud.buttons.append({"id": StringName("wheel_%s" % items[i]), "rect": Rect2(tp, TILE * s), "label": String(WeaponDefs.def(items[i])["tag"]), "on": items[i] == sel, "cap": String(ttl[ttl.size() - 1])})
 	if WeaponDefs.pages_for(owned_weapons().size()) > 1:
 		hud._add(&"wheelpg_prev", Rect2(cx + GRID_X * s, (INFO_Y + 62.0) * s, 64.0 * s, 64.0 * s), "<", false)
 		hud._add(&"wheelpg_next", Rect2(cx + (GRID_X + 4.0 * TILE.x + 3.0 * TILE_GAP - 64.0) * s, (INFO_Y + 62.0) * s, 64.0 * s, 64.0 * s), ">", false)
@@ -64,10 +68,11 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 		var parts := Attachments.parts_for(Attachments.SLOTS[k])
 		for j in parts.size():
 			var part := parts[j]
-			var label := "ON" if Attachments.part_in(sel, Attachments.SLOTS[k]) == part else ("EQUIP" if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
-			var on := Attachments.part_in(sel, Attachments.SLOTS[k]) == part
-			hud._add(StringName("part_%s" % part), Rect2(cx + (20.0 + j * (PART_W + 8.0)) * s, (SLOT_Y + k * SLOT_STEP + 20.0) * s, PART_W * s, 64.0 * s), label, on)
-	hud._add(&"loadout_gear", Rect2(cx + 20.0 * s, 536.0 * s, 220.0 * s, 64.0 * s), "GEAR", false)
+			var own := Attachments.part_in(sel, Attachments.SLOTS[k]) == part
+			var label := "ON" if own else ("EQUIP" if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
+			hud.buttons.append({"id": StringName("part_%s" % part), "rect": Rect2(cx + (20.0 + j * (PART_W + 8.0)) * s, (SLOT_Y + k * SLOT_STEP + 24.0) * s, PART_W * s, PART_H * s), "label": label, "on": own,
+				"part": true, "name": String(Attachments.PARTS[part]["name"]), "fx": String(PART_FX.get(part, "")), "state": 2 if own else (1 if Attachments.is_owned(part) else 0)})
+	hud._add_card(&"loadout_gear", Rect2(cx + 20.0 * s, 536.0 * s, 240.0 * s, 64.0 * s), "GEAR", &"gear", "", false, UiUtil.MAGENTA)
 	hud._add(&"loadout_back", Rect2(cx - 110.0 * s, 612.0 * s, 220.0 * s, 64.0 * s), "RESUME" if hud._loadout_quick else "BACK", false)
 
 
@@ -88,8 +93,4 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	hud._text(c, font, Vector2(cx + GRID_X * s, (INFO_Y + 34.0) * s), "DMG %d    MAG %d" % [int(roundf(float(d["damage"]))), int(d["mag"])], HORIZONTAL_ALIGNMENT_CENTER, gw, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.9), 1.0 * s)
 	for k in Attachments.SLOTS.size():
 		var y := (SLOT_Y + k * SLOT_STEP) * s
-		hud._text(c, font, Vector2(cx + 20.0 * s, y + 14.0 * s), String(Attachments.SLOTS[k]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
-		var parts := Attachments.parts_for(Attachments.SLOTS[k])
-		for j in parts.size():
-			var pname := String(Attachments.PARTS[parts[j]]["name"])
-			hud._text(c, font, Vector2(cx + (20.0 + j * (PART_W + 8.0)) * s, y + 101.0 * s), pname, HORIZONTAL_ALIGNMENT_LEFT, PART_W * s, UiUtil.fit_size(font, Tr.t(pname), PART_W * s, int(PART_CAPTION * s)), Color(1, 1, 1, 0.95), 1.0 * s)
+		hud._text(c, font, Vector2(cx + 20.0 * s, y + 16.0 * s), String(Attachments.SLOTS[k]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)

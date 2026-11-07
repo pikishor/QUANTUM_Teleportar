@@ -144,6 +144,12 @@ func _volume_and_cues() -> void:
 	_hud.press_button(&"options")
 	_hud._ensure_layout()
 	var ids := _ids()
+	for ti in [1, 2]:                                                  # the options are tabs: DISPLAY holds post FX, SOUND the volumes and mute
+		_hud.press_button(OptionsScreen.tab_id(ti))
+		_hud._ensure_layout()
+		ids.append_array(_ids())
+	_hud.press_button(OptionsScreen.tab_id(0))
+	_hud._ensure_layout()
 	TestLib.check(ids.has(&"opt_vol_music") and ids.has(&"opt_vol_sfx") and ids.has(&"opt_mute") and ids.has(&"opt_post"), "the options hold music, SFX, sound and post FX")
 	_hud.settings.volumes = {}
 	TestLib.check(_hud.press_button(&"opt_vol_music") and absf(_hud.volume_of(&"vol_music") - 0.75) < 0.01, "MUSIC cycles 100 to 75 %")
@@ -366,7 +372,7 @@ func _phone_text(host: Node) -> void:
 	TestLib.check(UiUtil.stack_bottom > 80.0 and UiUtil.stack_bottom < 200.0, "the HUD publishes the bottom of its top stack for the story layer (%.0f base px)" % UiUtil.stack_bottom)
 	for b: Dictionary in TouchControls.BUTTONS:
 		var dx := float(b["dx"]) + float(b["r"])
-		if str(b["need"]) in ["more_garage", "more_companion", "more_c4"]:
+		if str(b["need"]) in ["more_garage", "more_companion", "more_c4", "drive_more"]:
 			continue                                         # the outer MORE column: shown only while MORE is open
 		TestLib.check(dx <= StoryView.TOUCH_BUTTONS_W, "touch button %s stays inside the width the story layer reserves" % str(b["label"]))
 

@@ -87,15 +87,15 @@ func run(h: Node) -> void:
 	await TestLib.frames(host, 3)
 	TestLib.check(_has_button(&"continue") and _has_button(&"options"), "the title offers CONTINUE and OPTIONS")
 	TestLib.check(_tap(&"options") and hud._options_open, "OPTIONS opens from the title")
-	TestLib.check(_tap(&"opt_page") and UiSettings.s_opt_page == 1, "MORE flips to page 2")
-	TestLib.check(_has_button(&"opt_reset") and _has_button(&"opt_reset_demo"), "RESET PROGRESS and RESET DEMO SLOT are on page 2")
+	TestLib.check(_tap(&"opt_tab_4") and UiSettings.s_opt_tab == 4, "the DATA tab opens")
+	TestLib.check(_has_button(&"opt_reset") and _has_button(&"opt_reset_demo"), "RESET PROGRESS and RESET DEMO SLOT are on the DATA tab")
 	for id: StringName in [&"opt_reset", &"opt_reset_demo"]:
 		TestLib.check(_rect(id).size.y >= 63.9 * UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size), "%s is a 64 px target" % id)
 
 	# arming then cancelling
 	TestLib.check(_tap(&"opt_reset") and OptionsScreen.reset_armed and _exists(SAVE) and prog.credits == 777, "the first press only arms the reset")
-	TestLib.check(_tap(&"opt_page") and not OptionsScreen.reset_armed, "flipping the page disarms it")
-	TestLib.check(_tap(&"opt_page") and _tap(&"opt_reset") and OptionsScreen.reset_armed, "armed again")
+	TestLib.check(_tap(&"opt_tab_0") and not OptionsScreen.reset_armed, "flipping the tab disarms it")
+	TestLib.check(_tap(&"opt_tab_4") and _tap(&"opt_reset") and OptionsScreen.reset_armed, "armed again")
 	TestLib.check(_tap(&"opt_reset_demo") and not OptionsScreen.reset_armed and OptionsScreen.reset_demo_armed and _exists(SAVE) and prog.credits == 777, "the demo button disarms the main reset and arms its own")
 	TestLib.check(_tap(&"opt_reset") and OptionsScreen.reset_armed and not OptionsScreen.reset_demo_armed, "and the main reset disarms the demo one")
 
@@ -116,10 +116,10 @@ func run(h: Node) -> void:
 	TestLib.check(not _has_button(&"continue") and _has_button(&"deploy"), "the title offers DEPLOY only")
 
 	# the demo slot with its own separate confirm
-	TestLib.check(_tap(&"options") and _tap(&"opt_page"), "options page 2 again")
+	TestLib.check(_tap(&"options") and _tap(&"opt_tab_4"), "options page 2 again")
 	TestLib.check(_tap(&"opt_reset_demo") and Progress.demo_slot_exists(), "the first demo press only arms")
 	TestLib.check(_tap(&"options_back") and not OptionsScreen.reset_demo_armed, "leaving options disarms it")
-	TestLib.check(_tap(&"options") and _tap(&"opt_page") and _tap(&"opt_reset_demo") and _tap(&"opt_reset_demo"), "armed and confirmed")
+	TestLib.check(_tap(&"options") and _tap(&"opt_tab_4") and _tap(&"opt_reset_demo") and _tap(&"opt_reset_demo"), "armed and confirmed")
 	TestLib.check(not Progress.demo_slot_exists() and not _exists("user://demo_save.cfg.bak") and not _exists("user://demo_map.cfg"), "the demo slot files and backups are removed")
 	TestLib.check(_msgs.has("DEMO SLOT RESET"), "the demo reset is announced")
 	TestLib.check(_tap(&"options_back"), "back to the title")

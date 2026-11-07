@@ -82,6 +82,8 @@ var _has_save := false              ## a save file exists (the title offers CONT
 var _hint_text := ""
 var _text_t := 0.0
 var _ammo_key := -1
+var _radio_show := 0.0              ## seconds the car radio line stays up after a station change
+var _radio_last := ""
 var _ammo_text := ""
 const WEAPON_POP_MS := 2200
 var _star := PackedVector2Array()
@@ -606,6 +608,7 @@ func press_button(id: StringName) -> bool:
 				return false
 			_options_open = true
 			UiSettings.s_opt_page = 0
+			UiSettings.s_opt_tab = 0
 			Sfx.play(&"ui_confirm")
 		&"options_back":
 			if not _options_open:
@@ -614,6 +617,7 @@ func press_button(id: StringName) -> bool:
 			OptionsScreen.reset_armed = false
 			OptionsScreen.reset_demo_armed = false
 			UiSettings.s_opt_page = 0
+			UiSettings.s_opt_tab = 0
 			Sfx.play(&"ui_back")
 		&"chapters":
 			if (Game.state != &"menu" and Game.state != &"paused") or not _chapters_ok():
@@ -883,6 +887,21 @@ func objective_text() -> String:
 	return t
 
 
+## The driving readout (the one thing besides the objective that stays on screen in a car): the speed big, KM/H small, the gear and a thin rev bar along the bottom.
+func _draw_speedometer(c: Control, font: Font, ab: Rect2, veh: Object, s: float) -> void:
+	_plate(c, ab, s)
+	var kmh := roundi(absf(UiUtil.num(veh, &"speed", 0.0)) * 3.6)
+	_text(c, font, Vector2(ab.position.x + 8.0 * s, ab.position.y + 48.0 * s), str(kmh), HORIZONTAL_ALIGNMENT_RIGHT, ab.size.x * 0.52, int(54.0 * s), Color(1, 1, 1, 0.98), 1.5 * s)
+	_text(c, font, Vector2(ab.position.x + ab.size.x * 0.52 + 14.0 * s, ab.position.y + 28.0 * s), "KM/H", HORIZONTAL_ALIGNMENT_LEFT, ab.size.x * 0.4, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+	var gear := int(UiUtil.num(veh, &"gear", 1.0))
+	var rev := UiUtil.num(veh, &"speed", 0.0) < -0.5
+	_text(c, font, Vector2(ab.position.x + ab.size.x * 0.52 + 14.0 * s, ab.position.y + 54.0 * s), "R" if rev else ("GEAR %d" % gear), HORIZONTAL_ALIGNMENT_LEFT, ab.size.x * 0.4, int(UiUtil.BAR_LABEL * s * 0.85), Color(1, 1, 1, 0.75), 1.0 * s)
+	var rpm := clampf(UiUtil.num(veh, &"rpm", 0.0), 0.0, 1.0)
+	var rb := Rect2(ab.position.x + 8.0 * s, ab.end.y - 8.0 * s, ab.size.x - 16.0 * s, 4.0 * s)
+	_rect(c, rb, Color(0.0, 0.03, 0.05, 0.7))
+	_rect(c, Rect2(rb.position, Vector2(rb.size.x * rpm, rb.size.y)), Color(UiUtil.AMBER if rpm < 0.86 else UiUtil.RED, 0.95))
+
+
 ## "27 / 30", "RELOADING" on foot, "84 KM/H" in a vehicle (cached: rebuilt only when a number changes).
 func ammo_text() -> String:
 	var p: Object = Game.player if is_instance_valid(Game.player) else null
@@ -1059,6 +1078,12 @@ func _process(delta: float) -> void:
 		_contract_text = _contract_line()
 		_camp_text = _campaign_line()
 		_hint_text = hint_text()
+		var rt := radio_text()
+		if rt != _radio_last:
+			if _radio_last != "" and rt != "":
+				_radio_show = 2.6
+			_radio_last = rt
+	_radio_show = maxf(_radio_show - real, 0.0)
 	var want_hud := _hud_wanted()
 	if _hud.visible != want_hud:
 		_hud.visible = want_hud
@@ -1073,7 +1098,7 @@ func _process(delta: float) -> void:
 	if touch != null and touch.perf_visible():
 		col_bottom = maxf(col_bottom, (touch._perf_box() as Rect2).end.y)
 	UiUtil.left_bottom = col_bottom / s
-	var sig := "%s|%s%s%s%s%s%s%s%d%s%s%s%s%s%s%s%d" % [Game.state, _options_open, _gear_open, _hero_hub, _shop_open, _skills_open, _craft_open, _loadout_open, _loadout_page, _look_open, _side_open, _heist_open, _safe_open, _ach_open, _arena_open, _chapters_open, UiSettings.s_opt_page]
+	var sig := "%s|%s%s%s%s%s%s%s%d%s%s%s%s%s%s%s%d" % [Game.state, _options_open, _gear_open, _hero_hub, _shop_open, _skills_open, _craft_open, _loadout_open, _loadout_page, _look_open, _side_open, _heist_open, _safe_open, _ach_open, _arena_open, _chapters_open, UiSettings.s_opt_page * 8 + UiSettings.s_opt_tab]
 	if sig != _screen_sig:                                  # a screen opened or changed: it fades in over MENU_FADE (a cut between panels reads as clumsy)
 		_screen_sig = sig
 		_sub_t = 0.0
@@ -1243,6 +1268,8 @@ func _draw_wanted_tag(c: Control, s: float, font: Font, vp: Vector2, top: float)
 		return
 	var r := wanted_rect(vp, s, top)
 	var quiet := String(tag["wanted"]) == "" and Factions.status(Game.progress, Factions.at((Game.player as Node3D).global_position)) == Factions.Status.NEUTRAL
+	if quiet and Game.player.get("vehicle") != null:       # in a car the quiet faction line is clutter: the speed and the objective are what the driver needs
+		return
 	if quiet:                                           # neutral ground and no heat: a small one-line state (a shorter plate, one text draw)
 		r.size.y = 26.0 * s
 		_rect(c, r, UiUtil.PLATE)
@@ -1327,17 +1354,30 @@ func _draw_hud_body() -> void:
 		var hp_col := Color(0.4, 1.0, 0.72, 0.95) if f > 0.35 else Color(1.0, 0.3, 0.3, 0.95)
 		var has_hull := veh != null and UiUtil.num(veh, &"hp", -1.0) >= 0.0
 		var rows := 3 if has_hull else 2
-		var plate := Rect2(vp.x * 0.5 - total * 0.5 - 10.0 * s, top, total + 20.0 * s, (8.0 + 30.0 * (rows - 1) + 14.0 + 12.0) * s)
-		_plate(c, plate, s)
+		var driving_hud := veh != null and playing
+		if driving_hud:                                     # in a car: the hull, and the hero's own health only when he is hurt (no COHERENCE bar, no clutter)
+			rows = (1 if has_hull else 0) + (1 if f < 0.95 else 0)
+		var plate := Rect2(vp.x * 0.5 - total * 0.5 - 10.0 * s, top, total + 20.0 * s, (8.0 + 30.0 * (rows - 1) + 14.0 + 12.0) * s) if rows > 0 else Rect2(vp.x * 0.5, top, 0.0, 0.0)
+		if rows > 0:
+			_plate(c, plate, s)
 		var y0 := top + 8.0 * s
-		_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
-		var en := UiUtil.num(p, &"energy", 100.0)
-		var men := maxf(UiUtil.num(p, &"max_energy", 100.0), 1.0)
-		_bar(c, font, bx, y0 + 30.0 * s, bw, 14.0 * s, en / men, Color(0.35, 0.8, 1.0, 0.95), "COHERENCE", str(floori(en)), s)
-		if has_hull:
-			var vh := UiUtil.num(veh, &"hp", 0.0)
-			_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
-		stack_end = _draw_priority(c, vp, s, font, plate.end.y + 3.0 * s) if Game.state != &"dead" else plate.end.y      # the dead screen has its own title: no mission line under DECOHERED
+		if driving_hud:
+			if has_hull:
+				var vh0 := UiUtil.num(veh, &"hp", 0.0)
+				var hf := vh0 / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0)
+				_bar(c, font, bx, y0, bw, 14.0 * s, hf, Color(1.0, 0.65, 0.25, 0.95) if hf > 0.4 else Color(1.0, 0.3, 0.3, 0.95), "HULL", "%d%%" % ceili(hf * 100.0), s)
+				y0 += 30.0 * s
+			if f < 0.95:
+				_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
+		else:
+			_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
+			var en := UiUtil.num(p, &"energy", 100.0)
+			var men := maxf(UiUtil.num(p, &"max_energy", 100.0), 1.0)
+			_bar(c, font, bx, y0 + 30.0 * s, bw, 14.0 * s, en / men, Color(0.35, 0.8, 1.0, 0.95), "COHERENCE", str(floori(en)), s)
+			if has_hull:
+				var vh := UiUtil.num(veh, &"hp", 0.0)
+				_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
+		stack_end = _draw_priority(c, vp, s, font, (plate.end.y if rows > 0 else top) + 3.0 * s) if Game.state != &"dead" else plate.end.y      # the dead screen has its own title: no mission line under DECOHERED
 	if playing and _camp_text != "" and MissionGuide.hud_on:
 		stack_end = _draw_compass(c, vp, s, font, stack_end + 2.0 * s)
 	if playing:
@@ -1376,7 +1416,11 @@ func _draw_hud_body() -> void:
 		ax = minf(ax, vp.x - ins.y - 600.0 * s - 215.0 * s - 10.0 * s)     # clear of the 430 px weapon plate above the ammo
 	var ab := Rect2(ax - aw * 0.5, base_y - 82.0 * s, aw, 66.0 * s)
 	var ammo_plate := not touch_on or veh != null           # on a phone the ammo count lives on the WEAPON button; the plate stays for the speed in a car
-	if ammo_plate:
+	if veh != null:
+		if touch_on:                                        # the car fills the middle of the frame: the speed sits in the free bottom-left corner, away from the thumbs
+			ab.position.x = ins.x + 24.0 * s
+		_draw_speedometer(c, font, ab, veh, s)
+	elif ammo_plate:
 		_plate(c, ab, s)
 		_text(c, font, Vector2(ab.position.x, ab.position.y + 50.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(48.0 * s), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
 	if veh == null and not touch_on and weapon_text() != "":
@@ -1420,15 +1464,15 @@ func _draw_hud_body() -> void:
 		if UiSettings.s_chatter >= 2:
 			_draw_quantum_readout(c, vp, s, font)
 		_draw_tutorial(c, vp, s, font)
-		if UiSettings.s_chatter >= 2:
+		if UiSettings.s_chatter >= 2 and veh == null:
 			_draw_first_use(c, vp, s, font)
 	if playing and veh == null:
 		_draw_target_brackets(c, p, vp, s, font)
 		_draw_crosshair(c, p, vp, s, now)
-	if playing and veh != null and radio_text() != "":
+	if playing and veh != null and _radio_show > 0.0 and radio_text() != "":       # the station name shows for a moment after a change, then the screen is clear again
 		var rt := radio_text()
 		_plate_text(c, font, ab.get_center().x, ab.position.y - 42.0 * s, rt, int(UiUtil.BAR_LABEL * s), (UiUtil.CYAN if rt != "RADIO OFF" else Color(1, 1, 1, 0.6)), s)
-	if playing and _hint_text != "":
+	if playing and _hint_text != "" and veh == null:
 		_plate_text(c, font, ab.get_center().x, ab.position.y - (92.0 * s if (p.get("quantum") == null or touch_on) else 152.0 * s), _hint_text, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 1.0), s)
 	_draw_message(c, vp, s, font)
 
@@ -1732,7 +1776,7 @@ func _ensure_layout() -> void:
 	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100]
 	key += "|g%d%s%s%d%d" % [_loadout_page, Gear.throwable, Gear.gadget, Gear.owned.size(), Gear.active_slot]
 	key += "|G%s%s" % [_gear_open, _hero_hub]
-	key += "|%s%d%d%d%d%s" % [_options_open, int(settings.hud_scale * 100.0), UiSettings.s_opt_page, ControlsScreen.tab, ControlsScreen.page, ControlsScreen.listening]
+	key += "|%s%d%d%d%d%d%s" % [_options_open, int(settings.hud_scale * 100.0), UiSettings.s_opt_page, UiSettings.s_opt_tab, ControlsScreen.tab, ControlsScreen.page, ControlsScreen.listening]
 	if photo != null and photo.active:
 		key += "|p%s%s%s%d%d%s%d%d%d%d" % [photo.hide_ui, photo.hide_hero, photo.pan_mode, photo.filter_i, photo.pose_i, photo.hour_text(), roundi(photo.fov), roundi(photo.dof * 100.0), roundi(photo.dist * 10.0), int(photo.status_left > 0.0)]
 	if key == _layout_key:
@@ -1753,9 +1797,9 @@ func _ensure_layout() -> void:
 			elif _gear_open:
 				_layout_more(vp, cx, s)
 			else:                                                      # PLAY / CONTINUE, OPTIONS, MORE: nothing else on the title
-				_add(&"continue" if _has_save else &"deploy", Rect2(cx - 170.0 * s, (318.0 + dy) * s, 340.0 * s, 64.0 * s), "CONTINUE" if _has_save else "PLAY", false)
-				_add(&"options", Rect2(cx - 170.0 * s, (392.0 + dy) * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "OPTIONS", false)
-				_add(&"menu_gear", Rect2(cx + 4.0 * s, (392.0 + dy) * s, 166.0 * s, UiUtil.TOUCH_MIN * s), "MORE", false)
+				_add_card(&"continue" if _has_save else &"deploy", Rect2(cx - 204.0 * s, (310.0 + dy) * s, 408.0 * s, 76.0 * s), "CONTINUE" if _has_save else "PLAY", &"play", "", true)
+				_add_card(&"options", Rect2(cx - 204.0 * s, (398.0 + dy) * s, 200.0 * s, 68.0 * s), "OPTIONS", &"options")
+				_add_card(&"menu_gear", Rect2(cx + 4.0 * s, (398.0 + dy) * s, 200.0 * s, 68.0 * s), "MORE", &"more")
 		&"paused":
 			if photo_open():
 				PhotoScreen.layout(self, photo, vp, s)
@@ -1792,11 +1836,11 @@ func _ensure_layout() -> void:
 			elif _gear_open:
 				_layout_more(vp, cx, s)
 			elif Game.progress != null:                                 # RESUME, MAP, LOADOUT, OPTIONS and MORE: the whole pause menu
-				_add(&"resume", Rect2(cx - 190.0 * s, PAUSE_Y * s, 380.0 * s, 72.0 * s), "RESUME", false)
-				_add(&"pause_map", Rect2(cx - 190.0 * s, (PAUSE_Y + 88.0) * s, 186.0 * s, UiUtil.TOUCH_MIN * s), "MAP", false)
-				_add(&"loadout", Rect2(cx + 4.0 * s, (PAUSE_Y + 88.0) * s, 186.0 * s, UiUtil.TOUCH_MIN * s), "LOADOUT", false)
-				_add(&"options", Rect2(cx - 190.0 * s, (PAUSE_Y + 160.0) * s, 186.0 * s, UiUtil.TOUCH_MIN * s), "OPTIONS", false)
-				_add(&"menu_gear", Rect2(cx + 4.0 * s, (PAUSE_Y + 160.0) * s, 186.0 * s, UiUtil.TOUCH_MIN * s), "MORE", false)
+				_add_card(&"resume", Rect2(cx - 204.0 * s, PAUSE_Y * s, 408.0 * s, 80.0 * s), "RESUME", &"play", "", true)
+				_add_card(&"pause_map", Rect2(cx - 204.0 * s, (PAUSE_Y + 96.0) * s, 200.0 * s, 72.0 * s), "MAP", &"map")
+				_add_card(&"loadout", Rect2(cx + 4.0 * s, (PAUSE_Y + 96.0) * s, 200.0 * s, 72.0 * s), "LOADOUT", &"loadout")
+				_add_card(&"options", Rect2(cx - 204.0 * s, (PAUSE_Y + 176.0) * s, 200.0 * s, 72.0 * s), "OPTIONS", &"options")
+				_add_card(&"menu_gear", Rect2(cx + 4.0 * s, (PAUSE_Y + 176.0) * s, 200.0 * s, 72.0 * s), "MORE", &"more")
 			else:
 				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_add(&"menu", Rect2(cx - 154.0 * s, 314.0 * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
@@ -1825,15 +1869,23 @@ func more_items() -> Array:
 
 
 const MORE_COLS := 3
-const MORE_W := 256.0
-const MORE_GAP := 8.0
-const MORE_Y := 170.0
+const MORE_W := 276.0
+const MORE_GAP := 10.0
+const MORE_Y := 140.0
+const MORE_H := 84.0
+const MORE_PITCH := 94.0
+## icon and one-line caption of every MORE card (id -> [icon, caption])
+const MORE_META := {
+	&"deploy": [&"plus", "Start over"], &"chapters": [&"chapters", "Pick a chapter"], &"demo": [&"demo", "Everything open"], &"arena_open": [&"arena", "Waves and bosses"],
+	&"hero_open": [&"hero", "Upgrades and skills"], &"side_open": [&"missions", "Side jobs"], &"heist_open": [&"heists", "Big scores"], &"look_open": [&"suit", "Colours and looks"],
+	&"sh_open": [&"safehouse", "Save points"], &"ach": [&"achievements", "Medals"], &"photo_open": [&"photo", "Photo mode"], &"menu": [&"abort", "Leave the game"],
+}
 
 
 ## The cell `i` (row-major) of the MORE grid: three columns of 64 px buttons.
 func more_cell(i: int, cx: float, s: float) -> Rect2:
 	var w := minf(MORE_W, (get_viewport().get_visible_rect().size.x / s - 48.0) / float(MORE_COLS) - MORE_GAP)      # a narrow or square window shrinks the buttons instead of pushing the grid off screen
-	return Rect2(cx + (-1.5 * w - MORE_GAP + float(i % MORE_COLS) * (w + MORE_GAP)) * s, (MORE_Y + float(i / MORE_COLS) * 76.0) * s, w * s, UiUtil.TOUCH_MIN * s)
+	return Rect2(cx + (-1.5 * w - MORE_GAP + float(i % MORE_COLS) * (w + MORE_GAP)) * s, (MORE_Y + float(i / MORE_COLS) * MORE_PITCH) * s, w * s, MORE_H * s)
 
 
 ## The reserved cell of the TEST button (test mode only; scripts/ui/test_menu.gd draws it): right after the last entry. Empty when the MORE page is closed.
@@ -1847,9 +1899,10 @@ func more_test_rect() -> Rect2:
 func _layout_more(vp: Vector2, cx: float, s: float) -> void:
 	var items := more_items()
 	for k in items.size():
-		_add(items[k][0], more_cell(k, cx, s), items[k][1], false)
+		var meta: Array = MORE_META.get(items[k][0], [&"more", ""])
+		_add_card(items[k][0], more_cell(k, cx, s), items[k][1], meta[0], meta[1], false, UiUtil.RED if items[k][0] == &"menu" else Color(0, 0, 0, 0))
 	var n := items.size() + (1 if TestMode.available() else 0)
-	_add(&"more_back", more_cell(n, cx, s), "BACK", false)
+	_add_card(&"more_back", more_cell(n, cx, s), "BACK", &"back", "", false, UiUtil.AMBER)
 
 
 ## True on the plain title or pause screen (no sub screen open): the only place the gear shows.
@@ -1882,6 +1935,12 @@ func _options_btn(vp: Vector2, s: float) -> Rect2:
 
 func _add(id: StringName, r: Rect2, label: String, on: bool) -> void:
 	buttons.append({"id": id, "rect": r, "label": label, "on": on})
+
+
+## A menu card (scripts/ui/menu_kit.gd): an opaque plate with an icon, a title and an optional caption; `primary` is the one filled action of a screen.
+func _add_card(id: StringName, r: Rect2, label: String, icon: StringName, sub := "", primary := false, tint := Color(0, 0, 0, 0)) -> void:
+	var col := tint if tint.a > 0.0 else (UiUtil.CYAN if (id == &"resume" or id == &"next") else (UiUtil.MAGENTA if primary else UiUtil.CYAN))
+	buttons.append({"id": id, "rect": r, "label": label, "on": false, "icon": icon, "sub": sub, "primary": primary, "tint": col})
 
 
 ## A whole-row button: its plate and frame are drawn, its label is not (the screen paints the row itself; the label stays for tests and the screen reader).
@@ -1993,6 +2052,33 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		var on: bool = b["on"]
 		var hot: bool = _hover == b["id"]
 		var tint := UiUtil.MAGENTA if (big and b["id"] != &"next" and b["id"] != &"resume") else UiUtil.CYAN
+		if b.has("tab"):                                       # a tab of a tab strip (menu_kit.gd)
+			MenuKit.tab(self, c, r, Tr.t(str(b["label"])), b["tab"], on, hot, s, font)
+			if focus_ring and b["id"] == pad.focus:
+				c.draw_rect(r.grow(3.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+			continue
+		if b.has("opt"):                                       # an options row: name left, value chip right, slider track under it
+			MenuKit.row(self, c, r, str(b["name"]), str(b["value"]), on, hot or _drag == b["id"], float(b["frac"]), s, font)
+			if focus_ring and b["id"] == pad.focus:
+				c.draw_rect(r.grow(3.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+			continue
+		if b.has("part"):                                      # a weapon part card (menu_kit.gd)
+			MenuKit.part(self, c, r, Tr.t(str(b["name"])), Tr.t(str(b["fx"])), Tr.t(str(b["label"])), int(b["state"]), hot, s, font)
+			if focus_ring and b["id"] == pad.focus:
+				c.draw_rect(r.grow(3.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+			continue
+		if not b.has("icon") and not b.get("flat", false) and (str(b["id"]).ends_with("_back") and not str(b["id"]).begins_with("ctl_row")):      # every BACK is the same amber card with the arrow
+			MenuKit.card(self, c, r, Tr.t(str(b["label"])), "", &"back", UiUtil.AMBER, on, hot, false, s, font)
+			if focus_ring and b["id"] == pad.focus:
+				c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
+				c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+			continue
+		if b.has("icon"):                                      # a card: opaque plate, icon, title and caption (menu_kit.gd)
+			MenuKit.card(self, c, r, Tr.t(str(b["label"])), Tr.t(str(b["sub"])) if str(b["sub"]) != "" else "", b["icon"], b["tint"], on, hot, bool(b["primary"]), s, font)
+			if focus_ring and b["id"] == pad.focus:
+				c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
+				c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+			continue
 		if st == &"menu" or photo_open():
 			c.draw_rect(r, Color(ink, 0.72))                  # a backing plate: a sign or a lit window behind a title button never shows through its label
 		if SLIDERS.has(b["id"]) or OptionsScreen.is_slider(b["id"]) or PhotoScreen.is_slider(b["id"]):
@@ -2007,12 +2093,21 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
 			_text(c, font, Vector2(r.position.x, r.position.y + 21.0 * s), (b["label"] if (OptionsScreen.is_slider(b["id"]) or PhotoScreen.is_slider(b["id"])) else "%s  %d" % [b["label"], roundi(vol * 100.0)]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(20.0 * s), Color(1, 1, 1, 0.95))
 			continue
+		if st != &"menu" and not photo_open():                 # an opaque plate under every plain screen button: the world never shows through a label
+			c.draw_rect(r, MenuKit.FILL)
 		c.draw_rect(r, Color(tint, 0.30 if (on or hot) else 0.10))
 		c.draw_rect(r, Color(tint, 0.95 if (on or hot or big) else 0.5), false, 2.0 * s if big else 1.5 * s)
 		if focus_ring and b["id"] == pad.focus:
 			c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
 			c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
 		if b.get("flat", false):
+			continue
+		if b.has("cap") and WeaponIcons.has_icon(StringName(String(b["id"]).substr(6))):                         # a loadout tile: opaque plate, icon over the weapon's name
+			c.draw_rect(r, MenuKit.FILL_ON if (on or hot) else MenuKit.FILL)
+			c.draw_rect(r, Color(UiUtil.MAGENTA if on else UiUtil.CYAN, 1.0 if on else 0.45), false, (3.0 if on else 1.5) * s)
+			WeaponIcons.draw(c, StringName(String(b["id"]).substr(6)), Rect2(r.position.x + r.size.x * 0.12, r.position.y + 4.0 * s, r.size.x * 0.76, r.size.y * 0.5), Color(1, 1, 1, 0.97 if (on or hot) else 0.8))
+			var csz := maxi(UiUtil.fit_size(font, str(b["cap"]), r.size.x - 8.0 * s, int(BODY_MIN * s)), int(BODY_MIN * s))
+			_text(c, font, Vector2(r.position.x, r.position.y + r.size.y - 9.0 * s), str(b["cap"]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, csz, Color(1, 1, 1, 0.97 if (on or hot) else 0.78))
 			continue
 		if String(b["id"]).begins_with("wheel_") and WeaponIcons.has_icon(StringName(String(b["id"]).substr(6))):      # weapon wheel: icon over the tag
 			WeaponIcons.draw(c, StringName(String(b["id"]).substr(6)), Rect2(r.position.x + r.size.x * 0.1, r.position.y + 3.0 * s, r.size.x * 0.8, r.size.y * 0.5), Color(1, 1, 1, 0.95 if (on or hot) else 0.8))

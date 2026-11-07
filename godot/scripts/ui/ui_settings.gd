@@ -74,6 +74,7 @@ static var s_sub_size := 1.0
 static var s_sub_bg := 1
 static var s_chatter := 1
 const CHATTER_NAMES: Array[String] = ["OFF", "LOW", "FULL"]
+static var s_opt_tab := 0                  ## options tab (0 controls, 1 display, 2 sound, 3 play, 4 data); UI state only, never saved
 static var s_opt_page := 0                 ## options screen page (0 main, 1 accessibility); UI state only, never saved
 
 

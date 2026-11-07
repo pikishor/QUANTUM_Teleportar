@@ -59,7 +59,9 @@ func run(host: Node) -> void:
 	var car := Node3D.new()
 	host.add_child(car)
 	player.vehicle = car
-	TestLib.check(tc.button_visible(radio_b), "RADIO shows while driving")
+	TestLib.check(not tc.button_visible(radio_b), "RADIO stays out of the driving frame until MORE is opened (director round 2: a car shows DRIFT, EXIT, VIEW and MORE)")
+	tc.more_open = true
+	TestLib.check(tc.button_visible(radio_b), "RADIO shows while driving once MORE is open")
 	# no overlap with other visible buttons (centres farther apart than the radii)
 	var s := host.get_viewport().get_visible_rect().size.y / 720.0
 	var rc: Vector2 = tc.call("_button_center", radio_b)

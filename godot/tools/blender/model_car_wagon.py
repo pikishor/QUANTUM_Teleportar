@@ -27,7 +27,7 @@ def extras(P, c):
 
 SPEC = dict(
     name="car_wagon", seed=37,
-    L=4.92, W=1.86, WB=2.9, gc=0.15, R=0.35, tw=0.23, track=1.6, spokes=6,
+    L=4.92, W=1.90, WB=2.9, gc=0.13, R=0.35, tw=0.24, track=1.66, spokes=6,
     paint="#7a6a9c", rim="#8d959c", spoke="#c3cad1", underglow="#2cf0c8", atlas_paint=512, atlas=512,
     belt=0.92, taper=0.55, taper_amt=0.2,
     ztop=[(-2.46, 0.78), (-2.38, 0.98), (-2.2, 1.04), (-1.6, 1.05), (-1.0, 1.0), (0.8, 0.92), (1.05, 0.935), (1.5, 0.9), (2.0, 0.83),

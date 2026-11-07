@@ -60,7 +60,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	hud.header(c, vp, s, font, "SAFEHOUSES")
 	var x := _col(cx, s, 0)
 	var w := (COL_W * 4.0 + GAP * 3.0) * s
-	hud._rect(c, Rect2(x, ROW_INFO * s, w, 124.0 * s), Color(0.0, 0.03, 0.05, 0.55))
+	hud._rect(c, Rect2(x, ROW_INFO * s, w, 124.0 * s), MenuKit.FILL)
 	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 26.0) * s), "%s   %s" % [d["title"], d["brief"]], HORIZONTAL_ALIGNMENT_LEFT, w - 20.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.95), 1.0 * s)
 	hud._text(c, font, Vector2(x + 10.0 * s, (ROW_INFO + 26.0) * s), "CREDITS  %d" % (prog.credits if prog != null else 0), HORIZONTAL_ALIGNMENT_RIGHT, w - 20.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	var info := ""

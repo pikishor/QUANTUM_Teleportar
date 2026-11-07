@@ -63,7 +63,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	hud.header(c, vp, s, font, "BOSS RUSH  AND  ARENA")
 	var x := _col(cx, s, 0)
 	var w := (COL_W * 3.0 + GAP * 2.0) * s
-	hud._rect(c, Rect2(x, ROW_INFO * s, w, 230.0 * s), Color(0.0, 0.03, 0.05, 0.55))
+	hud._rect(c, Rect2(x, ROW_INFO * s, w, 230.0 * s), MenuKit.FILL)
 	var lines: Array[String] = []
 	var tint := UiUtil.CYAN
 	if mode == &"rush":

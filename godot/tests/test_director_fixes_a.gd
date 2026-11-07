@@ -58,7 +58,7 @@ func _chapter(steps: Array) -> void:
 
 func _constants() -> void:
 	TestLib.check(CameraRig.HIP_SHOULDER >= 0.9 and CameraRig.ADS_SHOULDER >= 0.65 and CameraRig.ADS_LIFT > 0.0, "the shoulder camera sits out and up so the rifle shows (hip %.2f, ads %.2f, lift %.2f)" % [CameraRig.HIP_SHOULDER, CameraRig.ADS_SHOULDER, CameraRig.ADS_LIFT])
-	TestLib.check(CameraRig.VEH_FOV_FAST - CameraRig.VEH_FOV_REST >= 25.0, "the driving view widens a lot with speed (%.0f to %.0f degrees)" % [CameraRig.VEH_FOV_REST, CameraRig.VEH_FOV_FAST])
+	TestLib.check(CameraRig.VEH_FOV_FAST - CameraRig.VEH_FOV_REST >= 10.0, "the driving view widens with speed (it starts wide so the car stays large) (%.0f to %.0f degrees)" % [CameraRig.VEH_FOV_REST, CameraRig.VEH_FOV_FAST])
 	TestLib.check(CharacterRig.LOW_READY_YAW < -0.3, "the lowered rifle swings out to the side of the hero (was -0.12; -0.4 is the most that keeps both gloves on the rifle)")
 	var worst := 1.0
 	for k: StringName in [&"interceptor"]:

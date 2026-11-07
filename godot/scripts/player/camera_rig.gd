@@ -46,13 +46,13 @@ const VEH_DIST := 7.5          # legacy defaults (a bike or a car whose spec is 
 const VEH_HEIGHT := 1.6
 const VEH_FOV := 92.0
 # --- driving camera (owner round 3): the view is sized by the car, widens and pulls back with speed, follows the drift, looks behind and has a hood view
-const VEH_FOV_REST := 68.0     # horizontal degrees at a standstill, VEH_FOV_FAST at top speed (+ NITRO_FOV while boosting)
-const VEH_FOV_FAST := 98.0
+const VEH_FOV_REST := 80.0     # horizontal degrees at a standstill, VEH_FOV_FAST at top speed (+ NITRO_FOV while boosting)
+const VEH_FOV_FAST := 92.0
 const VEH_NITRO_FOV := 7.0
-const VEH_DIST_K := 1.0       # chase distance = car length x this + VEH_DIST_ADD, plus up to VEH_DIST_SPEED at top speed
-const VEH_DIST_ADD := 1.6
-const VEH_DIST_SPEED := 2.4
-const VEH_PITCH := -0.19
+const VEH_DIST_K := 0.8       # chase distance = car length x this + VEH_DIST_ADD, plus up to VEH_DIST_SPEED at top speed
+const VEH_DIST_ADD := 1.5
+const VEH_DIST_SPEED := 1.9
+const VEH_PITCH := -0.22
 const HOOD_FOV := 82.0
 const VEH_DRIFT_FOLLOW := 0.55 # how far the view turns toward the direction of travel of a sliding car (1 = fully)
 const VEH_VIEWS := 3           # 0 chase, 1 far, 2 hood
@@ -526,7 +526,7 @@ func _vehicle_params(v: float) -> Dictionary:
 	var boost: bool = is_instance_valid(_follow) and _follow.get(&"boosting") == true
 	var fov := lerpf(VEH_FOV_REST, VEH_FOV_FAST, smoothstep(0.0, 1.0, k)) + (VEH_NITRO_FOV if boost else 0.0)
 	var dist := ln * VEH_DIST_K + VEH_DIST_ADD + VEH_DIST_SPEED * smoothstep(0.0, 1.0, k) + clampf(acc * 0.045, -0.3, 0.6)
-	var height := 0.65 + hg * 0.4 + 0.12 * k
+	var height := 0.2 + hg * 0.32 + 0.12 * k
 	var fwd := 0.0
 	match veh_view:
 		1:

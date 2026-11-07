@@ -55,13 +55,19 @@ func run(host: Node) -> void:
 	hud._ensure_layout()
 	var ids := {}
 	var small := 0
-	for b: Dictionary in hud.buttons:
-		ids[b["id"]] = true
-		if (b["rect"] as Rect2).size.y < 63.9 * UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size):
-			small += 1
+	for ti in OptionsScreen.TABS.size():                         # five tabs of at most eight rows: every option sits on exactly one of them
+		TestLib.check(hud.press_button(OptionsScreen.tab_id(ti)), "tab %d opens" % ti)
+		hud._ensure_layout()
+		TestLib.check((OptionsScreen.TABS[ti][2] as Array).size() <= 8, "tab %d has at most eight rows" % ti)
+		for b: Dictionary in hud.buttons:
+			ids[b["id"]] = true
+			if (b["rect"] as Rect2).size.y < 63.9 * UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size):
+				small += 1
 	TestLib.check(small == 0, "every options button is >= 64 px")
 	for id: StringName in OptionsScreen.ORDER:
 		TestLib.check(ids.has(id), "row " + String(id))
+	hud.press_button(OptionsScreen.tab_id(0))
+	hud._ensure_layout()
 	TestLib.check(ids.has(&"options_back"), "BACK present")
 	TestLib.check(hud.press_button(&"opt_cb") and hud.settings.cb_safe and UiSettings.s_cb_safe, "colour-safe toggles and publishes")
 	hud.press_button(&"opt_aim")

@@ -85,7 +85,7 @@ static func press(st: UiSettings, id: StringName) -> bool:
 		return true
 	if sid == "ctl_back":
 		listening = &""
-		UiSettings.s_opt_page = 1
+		UiSettings.s_opt_page = 0
 		return true
 	if sid == "ctl_reset":
 		listening = &""
