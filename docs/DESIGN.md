@@ -29,3 +29,16 @@ Easy by default (hero is strong). Hard modes optional. No sudden deaths; checkpo
 ## Art and sound policy
 Free CC0 / commercial-use-allowed assets first (credit in docs/THIRD_PARTY.md); license kept with each pack.
 Music: composed as MIDI by the agent and rendered with free SoundFonts, or CC0 tracks. Voices: free TTS if available, else subtitles only.
+
+## Nothing is wasted: how each built system serves the core loop (repurposing map)
+- Heists, stealth missions, rescue, bounty hunts, convoy intercepts, chase set pieces, arena, boss rush, set pieces -> become MISSION TYPES on one easy Mission Board (GTA + COD flavour); every mission is short, completable, rewarded.
+- Campaign chapters 1-12 -> the guided mission chain; each step uses the same easy mission mechanics; checkpoints at every step.
+- Crafting and mods -> simple 'weapon mods' found as pickups and applied in LOADOUT with one tap (no crafting screen).
+- Skill tree -> a flat UPGRADES list (damage, health, ability power, teleport range), bought with credits.
+- Factions and wanted v2 -> enemy variety and territory flavour (who attacks you where) and police pursuit intensity; screens hidden.
+- Safehouses -> mission hubs and garage/loadout points (one tap, no management).
+- Side activities, races, events -> optional open-world fun with markers; rewards feed weapons.
+- Companion ally -> optional ally on selected missions. Photo mode -> one small camera button in pause. Achievements/collectibles -> rewards shown as simple toasts.
+- Weather/time of day -> visuals and atmosphere only; no extra rules to learn.
+- Interiors -> destinations for missions (every door leads somewhere with a task).
+- Tests, bots, director reviews, CI -> kept; they are the quality gate.
