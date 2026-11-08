@@ -18,3 +18,12 @@ air traffic and flight controls | 107 animals and alien wildlife by biome | 108 
 ## Art sources
 CC0: Quaternius (Ultimate Animals, nature, vehicles, aircraft packs when available), OpenGameArt, ambientCG/Poly Haven (terrain textures, HDRIs).
 Higher-detail cars/buildings may need Sketchfab (CC0/CC-BY with attribution; needs an API token from the owner) or purchased packs.
+
+## Owner additions (2026-11-08, later)
+- ALL weapon categories: COD-type weapons, Halo-inspired energy weapons, tanks and heavy vehicles; inspired designs get ORIGINAL names with similar power and capabilities (no trademarked names).
+- Railways (trains on tracks, stations, rideable, train missions) and ships (cargo, ferries, cruise, naval vessels).
+- Mountains with valleys and roads to reach them; casual 'time-pass' play anywhere, with enemies and wildlife still finding the player.
+- Buildings: reach rooftops through stairs and lifts, snipe with zoom, fire energy weapons from roofs; blast radius and effects improved; HERO MODE unlocks everything.
+- Better animation for humans, cars and every entity; open-source assets plus our own design on top.
+Sprint script: world104.js (waves 104-114: terrain/water, bridges/harbour/rail/ships/outskirts, airport/aircraft, animals/aliens, weapons incl. tanks/enemies,
+UI overhaul, story/free roam, car/street/building detail, vertical buildings/casual play/hero mode/blast table, animation overhaul, director review).
