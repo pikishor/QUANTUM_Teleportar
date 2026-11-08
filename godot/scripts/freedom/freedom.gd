@@ -47,6 +47,8 @@ static func job_prompt() -> String:
 static func vehicle_prompt() -> String:
 	if current == null or not is_instance_valid(Game.player) or not Game.is_playing() or Game.player.get(&"vehicle") != null:
 		return ""
+	if InteriorGameplay.active:
+		return ""                                          # inside a building there is no street car to hijack (director review 4, #2: HIJACK SEDAN in the job room)
 	if is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"reach_car"):
 		var car := Game.vehicles.call(&"reach_car", Game.player.global_position) as Vehicle
 		if car != null:

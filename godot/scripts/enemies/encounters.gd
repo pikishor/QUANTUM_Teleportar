@@ -36,6 +36,7 @@ const HOLD_MAX := 8.0                     ## seconds a fight outside the directo
 const HEAT_KEEP := 0.3                    ## after a set the Watch forgets what the fight added: heat falls back to what it was before the set plus this
 const PRESSURE_AFTER := 8.0              ## seconds into a wave before the last troopers are sent in (nobody camps in cover for ever); a smaller squad is pressed sooner
 const PRESSURE_FEW := 2
+const CAR_HIDDEN := 0.7                   ## score taken off a spawn point of the squad ahead when a parked car hides it from the hero
 const BEARING_MIN := 0.9                  ## radians between the spawn points of one squad when it can
 const HEAT_SHARE := 0.05                  ## a squad attacks unprovoked: its kills add this share of the usual heat
 const TICK := 0.25
@@ -242,7 +243,7 @@ func tick(dt: float) -> void:
 	_quiet_t = 0.0 if near_aware > 0 else _quiet_t + dt
 	if phase == &"gap" and _quiet_t >= QUIET_MAX:         # between the waves of a set nobody waits long; the opening and the calm after a set run their full time
 		_calm_t = minf(_calm_t, 0.0)
-	if near_aware >= 2 and phase != &"calm" and _hold_t < HOLD_MAX:
+	if near_aware >= 2 and phase != &"calm" and phase != &"open" and _hold_t < HOLD_MAX:   # the opening countdown is never held: the first wave comes on time (a far drone pair used to push it from 18 s to 26 s)
 		_hold_t += dt
 		_calm_t = maxf(_calm_t, CALLOUT_LEAD + 1.0)            # a fight is already on (a street patrol): let it play for a few seconds, then the director calls its wave anyway (a camper must not stall the set)
 		_announced = false
@@ -395,12 +396,12 @@ static func _bearing_of(pt: Vector3, ppos: Vector3) -> float:
 
 
 ## Is the straight line from the spawn point to the hero at chest height blocked by the world (a building)?
-func _walled(q: Vector3, ppos: Vector3) -> bool:
+func _walled(q: Vector3, ppos: Vector3, mask := Game.L_WORLD) -> bool:
 	var pl := Game.player as Node3D
 	if not is_instance_valid(pl) or not pl.is_inside_tree():
 		return false
 	var space := pl.get_world_3d().direct_space_state
-	var rq := PhysicsRayQueryParameters3D.create(Vector3(q.x, q.y + 1.2, q.z), Vector3(ppos.x, ppos.y + 1.2, ppos.z), Game.L_WORLD)
+	var rq := PhysicsRayQueryParameters3D.create(Vector3(q.x, q.y + 1.2, q.z), Vector3(ppos.x, ppos.y + 1.2, ppos.z), mask)
 	return not space.intersect_ray(rq).is_empty()
 
 
@@ -428,6 +429,8 @@ func _pick_points(ppos: Vector3, n: int, k := 1) -> Array[Vector3]:
 				s -= 0.6 * maxf(0.0, 0.8 - absf(angle_difference(_bearing_of(o, ppos), _bearing_of(q, ppos))))
 			if _walled(q, ppos):
 				s -= 0.9 if g > 0 else 1.6                           # a wall between the point and the hero: the troopers have no path finding and would stand against it
+			elif g == 0 and _walled(q, ppos, Game.L_WORLD | Game.L_VEHICLE):
+				s -= CAR_HIDDEN                                      # the squad ahead starts where the hero has a line to it: a parked car in the lane hid it behind a bonnet (director review 4, defect 10)
 			s += _rng.randf() * 0.15
 			if s > best_score:
 				best_score = s

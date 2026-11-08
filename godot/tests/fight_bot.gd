@@ -17,6 +17,10 @@ var _err_t := 0.0
 var _shots_at_start := 0
 var _strafe_t := 0.0
 var _strafe_dir := 1.0
+var strafe_fire := false                ## a player does not stand planted: with a target the hero side-steps (a new direction every 0.8-1.6 s) while it fires
+var strafe_moves := 0
+var _sf_t := 0.0
+var _sf_dir := 1.0
 var strafes := 0                        ## times the hero stepped aside to get a clear line (a parked car in the way)
 
 
@@ -79,6 +83,13 @@ func step(dt: float) -> void:
 	Input.action_release(&"move_left")
 	Input.action_release(&"move_right")
 	_strafe_t = 0.0
+	if strafe_fire:
+		_sf_t -= dt
+		if _sf_t <= 0.0:
+			_sf_t = randf_range(0.8, 1.6)
+			_sf_dir = -_sf_dir
+			strafe_moves += 1
+		Input.action_press(&"move_right" if _sf_dir > 0.0 else &"move_left")
 	_err_t -= dt
 	if _err_t <= 0.0:
 		_err_t = 0.35

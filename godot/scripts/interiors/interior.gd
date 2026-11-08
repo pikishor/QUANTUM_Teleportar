@@ -10,7 +10,8 @@ const GLOW_SHADER := preload("res://assets/shaders/interior_glow.gdshader")
 ## Render layer of the interior's surface and of its own two lights: the surface shader adds every non-directional light that reaches it, so the street's neon, mission and
 ## muzzle lights (default layer 1) must not (a red neon lamp outside washed the whole room red). Only the room's own lights share this layer.
 const LIGHT_LAYER := 1 << 19
-const POOLS_BY_TIER := [5, 6, 8]
+const AMBIENT_FLOOR := 0.12
+const POOLS_BY_TIER := [6, 7, 8]
 const LIGHTS_BY_TIER := [1, 2, 2]
 
 var type: StringName = &"bodega"
@@ -84,7 +85,11 @@ func _make_materials() -> void:
 	var amb: Color = pal["amb"]
 	var amb_l := amb.get_luminance()
 	amb = amb.lerp(Color(amb_l * 0.95, amb_l, amb_l * 1.08), 0.45)             # a neutral-cool fill under the warm key: shadows are not tinted with the kind's accent
-	_mat_surface.set_shader_parameter(&"ambient_col", Vector3(amb.r, amb.g, amb.b) * 1.35)
+	var amb_v := Vector3(amb.r, amb.g, amb.b) * 1.35
+	var amb_lum := amb_v.dot(Vector3(0.2126, 0.7152, 0.0722))
+	if amb_lum < AMBIENT_FLOOR:
+		amb_v *= AMBIENT_FLOOR / maxf(amb_lum, 0.005)               # a room never goes pitch black: walls and floor read even where no pool reaches (director review 4, #2)
+	_mat_surface.set_shader_parameter(&"ambient_col", amb_v)
 	var compat := 1.0 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0
 	_mat_surface.set_shader_parameter(&"compat", compat)
 	_mat_surface.set_shader_parameter(&"floor_y", origin.y)

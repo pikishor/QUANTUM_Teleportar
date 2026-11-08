@@ -818,7 +818,9 @@ void fragment() {
 	if (qs_amount > 0.0 && far_k < 0.9) {
 		float ndv_q = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
 		float fk = 1.0 - far_k;
-		EMISSION += qs_film(ndv_q, hash11(bseed * 1.9 + 4.0)) * metal * (0.03 + 0.12 * pow(1.0 - ndv_q, 2.0)) * (1.0 + wet) * qs_amount * fk;
+		vec3 film_q = qs_film(ndv_q, hash11(bseed * 1.9 + 4.0));
+		film_q = mix(vec3(dot(film_q, vec3(0.3333))), film_q, 0.3);            // a wall seen along its face swept the whole hue wheel in vertical bands (director review 4, #3: the rainbow wall): the sheen is a tint, and it fades out at a grazing view
+		EMISSION += film_q * metal * (0.03 + 0.06 * pow(1.0 - ndv_q, 2.0)) * smoothstep(0.02, 0.3, ndv_q) * (1.0 + wet) * qs_amount * fk;
 		if (detail > 0.5 && far_k < 0.5) {
 			vec3 wq = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
 			vec2 sp = abs(nrm.x) > 0.5 ? wq.zy : wq.xy;

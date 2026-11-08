@@ -76,6 +76,7 @@ var _fx_n := 0
 var _dist := 0.0                    ## distance to the player (update_lod)
 var _stuck := 0.0
 var _wedge_t := 0.0                ## seconds the player held the throttle without the car moving
+var _crash_age := 99.0              ## seconds since the last crash (a car that just hit something and crawls at 1-4 km/h is wedged, a car pulling away from a light is not)
 var _nudge_t := 0.0                ## seconds of automatic reverse left
 var _nudge_steer := 0.0
 var wedge_count := 0               ## how many times the car backed itself out (tests, stats)
@@ -424,6 +425,7 @@ func crash(v: float, at: Vector3, n: Vector3, other_mass := INF) -> float:
 			lost = minf(lost, hp - max_hp * VehicleSpecs.CRASH_LIMP_HP)        # a healthy car survives one crash and limps away: the player keeps the car he took
 		hits += 1
 		crashes += 1
+		_crash_age = 0.0
 		if driver_is_player:
 			var pl := Game.player
 			if v > VehicleSpecs.HERO_HURT_SPEED and is_instance_valid(pl) and not dead:
@@ -602,6 +604,7 @@ func sim(dt: float) -> void:
 ## Driving: thr -1..1 (brake / reverse .. throttle), steer -1..1 (left .. right), handbrake, boost (nitro). Cars use the gearbox + tyre model, bikes and hover craft the arcade one.
 func step_drive(dt: float, thr: float, steer: float, handbrake: bool, boost := false) -> void:
 	tires_flat = maxf(tires_flat - dt, 0.0)
+	_crash_age += dt
 	if driver_is_player and cls == &"car":
 		# wedged: the throttle is held and the car does not move (a shopfront, a lamp post, another car). It backs out by itself for a second, wheel turned away.
 		if _nudge_t > 0.0:
@@ -609,11 +612,11 @@ func step_drive(dt: float, thr: float, steer: float, handbrake: bool, boost := f
 			thr = -1.0
 			steer = _nudge_steer
 			handbrake = false
-		elif thr > 0.5 and absf(vel.length()) < 0.6:
+		elif thr > 0.5 and absf(vel.length()) < (VehicleSpecs.WEDGE_SPEED_CRASH if _crash_age < VehicleSpecs.WEDGE_AFTER_CRASH else VehicleSpecs.WEDGE_SPEED):
 			_wedge_t += dt
 			if _wedge_t > VehicleSpecs.WEDGE_SECS:
 				_wedge_t = 0.0
-				_nudge_t = 1.1
+				_nudge_t = VehicleSpecs.NUDGE_SECS
 				_nudge_steer = -signf(steer) if absf(steer) > 0.1 else (1.0 if randf() < 0.5 else -1.0)
 				wedge_count += 1
 				Game.say("BACKING OUT", 1.2)

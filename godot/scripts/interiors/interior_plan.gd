@@ -1193,7 +1193,7 @@ func _lighting() -> void:
 			else:
 				var x := r.position.x + r.size.x * f
 				strips.append({"a": Vector3(x, h - 0.05, r.position.y + 0.8), "b": Vector3(x, h - 0.05, r.end.y - 0.8), "th": 0.14, "col": c, "em": 1.1, "cls": 8.0})
-		_add_pool(Vector3(r.get_center().x, h - 0.6, r.get_center().y), maxf(r.size.x, r.size.y) * 0.75 + 1.0, key, 0.42 if i == 0 else 0.38, 4)
+		_add_pool(Vector3(r.get_center().x, h - 0.6, r.get_center().y), maxf(r.size.x, r.size.y) * 0.75 + 1.0, key, 0.42 if i == 0 else 1.0, 4)       # a room behind the street room is the job room: its one lamp pool is strong (0.38 left the safe room a black void, director review 4, #2)
 		if area_big(r):
 			for q in [0.25, 0.75]:
 				_add_pool(Vector3(r.position.x + r.size.x * q, h - 0.8, r.position.y + r.size.y * (1.0 - q)), maxf(r.size.x, r.size.y) * 0.5 + 1.0, key.lerp(neon[(i + 1) % neon.size()], 0.25), 0.4, 3)
@@ -1210,6 +1210,7 @@ func _lighting() -> void:
 			_add_pool(Vector3(float(wv[0]), 1.4, float(s["line"]) - 1.5), 4.4, street_col, 0.5, 3)
 			break
 	_accent_pools()
+	_guarantee_room_pools()
 	pools.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["prio"]) > int(b["prio"]))
 	var r0: Rect2 = rooms[0]["rect"]
 	var h0: float = rooms[0]["h"]
@@ -1217,6 +1218,20 @@ func _lighting() -> void:
 	var r1: Rect2 = rooms[1]["rect"] if rooms.size() > 1 and type == &"apartment" else r0
 	var accent: Color = (neon[0] as Color).lerp(Color(0.85, 0.92, 1.0), 0.72)             # the second real light is an accent, balanced against the key (a pure neon red lit whole rooms red)
 	lights.append({"pos": Vector3(r1.get_center().x + (r1.size.x * 0.25 if r1 == r0 else 0.0), 2.3, r1.position.y + r1.size.y * 0.35), "col": accent, "energy": 0.9, "range": 6.5})
+
+
+## Every room keeps ONE pool among the first the tiers draw (LOW draws POOLS_BY_TIER[0]): the street room's accents and window glow used to take every slot, so the job room behind it
+## (the safe, the hostage, the vault) was a black void on LOW (director review 4, #2). The strongest pool inside each room is lifted above the accents' priority.
+func _guarantee_room_pools() -> void:
+	for i in rooms.size():
+		var r: Rect2 = (rooms[i]["rect"] as Rect2).grow(0.6)
+		var best := -1
+		for k in pools.size():
+			var pp: Vector3 = pools[k]["pos"]
+			if r.has_point(Vector2(pp.x, pp.z)) and int(pools[k]["prio"]) < 7 and (best < 0 or float(pools[k]["inten"]) * absf(float(pools[k]["radius"])) > float(pools[best]["inten"]) * absf(float(pools[best]["radius"]))):
+				best = k
+		if best >= 0:
+			pools[best]["prio"] = 7
 
 
 ## Three coloured ACCENT pools in the street room (the shader keeps their hue; the neutral pools stay desaturated): each sits in front of the prop that would really glow there

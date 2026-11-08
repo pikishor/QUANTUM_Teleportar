@@ -77,13 +77,24 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 	hud._add(&"loadout_back", Rect2(cx - 110.0 * s, 612.0 * s, 220.0 * s, 64.0 * s), "RESUME" if hud._loadout_quick else "BACK", false)
 
 
+## The big picture of the selected weapon: right of its name, between the tile grid and the page arrows (base 204 x 98 px, the icon is 192 x 96).
+static func picture_rect(cx: float, s: float) -> Rect2:
+	return Rect2(cx + (GRID_X + 316.0) * s, 358.0 * s, 204.0 * s, 98.0 * s)
+
+
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float, sel: StringName) -> void:
 	var prog := Game.progress as Progress
 	hud.header(c, vp, s, font, "LOADOUT")
 	if prog != null:
 		hud._text(c, font, Vector2(0.0, 134.0 * s), "CREDITS  %d" % prog.credits, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	var gw := (4.0 * TILE.x + 3.0 * TILE_GAP) * s
-	hud._text(c, font, Vector2(cx + GRID_X * s, INFO_Y * s), WeaponDefs.title(sel), HORIZONTAL_ALIGNMENT_CENTER, gw, int(26.0 * s), Color(UiUtil.CYAN, 0.97), 1.0 * s)
+	var tw := 300.0 * s                                                # the name and the numbers sit left of the big picture of the weapon (director review 4, #6)
+	var name := WeaponDefs.title(sel)
+	hud._text(c, font, Vector2(cx + GRID_X * s, INFO_Y * s), name, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, name, tw, int(26.0 * s)), Color(UiUtil.CYAN, 0.97), 1.0 * s)
+	var pic := picture_rect(cx, s)
+	c.draw_rect(pic, Color(0.07, 0.1, 0.17, 1.0))
+	c.draw_rect(pic, Color(UiUtil.CYAN, 0.3), false, 1.0 * s)
+	ItemIcons.draw_weapon(c, sel, pic.grow(-3.0 * s), Color(1, 1, 1, 1.0))
 	var np := WeaponDefs.pages_for(owned_weapons().size())
 	if np > 1:
 		hud._text(c, font, Vector2(cx + GRID_X * s, (INFO_Y + 104.0) * s), "PAGE %d / %d" % [page + 1, np], HORIZONTAL_ALIGNMENT_CENTER, gw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
@@ -91,7 +102,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	if nx != "":
 		hud._text(c, font, Vector2(0.0, 162.0 * s), nx, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var d := Attachments.effective(sel)
-	hud._text(c, font, Vector2(cx + GRID_X * s, (INFO_Y + 34.0) * s), "DMG %d    MAG %d" % [int(roundf(float(d["damage"]))), int(d["mag"])], HORIZONTAL_ALIGNMENT_CENTER, gw, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.9), 1.0 * s)
+	hud._text(c, font, Vector2(cx + GRID_X * s, (INFO_Y + 34.0) * s), "DMG %d    MAG %d" % [int(roundf(float(d["damage"]))), int(d["mag"])], HORIZONTAL_ALIGNMENT_LEFT, tw, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.9), 1.0 * s)
 	var card := WeaponStats.card(sel, d)                            # three bars under the numbers: the weapon at a glance (the INFO button opens the whole card)
 	var bw := minf(gw, 330.0 * s)
 	for i in 3:

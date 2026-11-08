@@ -55,8 +55,8 @@ static var up := false                    ## true while a map is open: Hud, Touc
 static var path_override := ""             ## DEMO MODE points the map at its own file (scripts/demo/demo_mode.gd); "" = SAVE_PATH
 const GARAGE_TYPES: Array[StringName] = [&"warehouse", &"cargo_bay"]
 const TAP_CLEAR_PX := 28.0
-const MARKER_PICK_PX := 26.0
-const CLUSTER_PX := 30.0
+const MARKER_PICK_PX := 34.0
+const CLUSTER_PX := 38.0
 const COL_W := 212.0                                 ## base px: the legend column (left) and the button column (right)
 const BTN_H := 64.0
 const GAP := 6.0
@@ -125,6 +125,8 @@ func _ready() -> void:
 	_seen.resize(CELLS * CELLS)
 	_load()
 	reveal_start()
+	if not Game.new_game.is_connected(_on_new_game):
+		Game.new_game.connect(_on_new_game)
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1183,7 +1185,7 @@ func _draw_map() -> void:
 	# markers (clustered at the overview)
 	_counts.clear()
 	var cl := {}                                                       # "kind|cx|cy" -> [sum px, n, a marker]
-	var r_badge := (13.0 if zoom_f < 2.0 else 15.0) * s
+	var r_badge := (17.0 if zoom_f < 2.0 else 19.0) * s
 	for mk in lod_markers(visible_markers()):
 		var k: StringName = mk["kind"]
 		var pw: Vector3 = mk["pos"]
@@ -1398,6 +1400,29 @@ func reveal_start() -> void:
 		var c := cell_center(i)
 		if _seen[i] == 0 and absf(c.x) <= START_HALF and absf(c.y) <= START_HALF:
 			_seen[i] = 1                                    # not _dirty: it is recomputed at every load, so it never makes a save of its own
+
+
+## A NEW game starts on a blank map (the persisted discovery file of the last run said "85 % CHARTED" at the first open, director review 4, #9); CONTINUE, a picked chapter and the demo keep theirs.
+func _on_new_game() -> void:
+	_forget_if_new.call_deferred()
+
+
+func _forget_if_new() -> void:
+	var prog: Object = Game.progress
+	if DemoMode.active or path_override != "" or prog == null or not bool(prog.get(&"fresh_game")):
+		return
+	forget()
+
+
+## Back to the city core only (the start state): the cells, the waypoint and the file.
+func forget() -> void:
+	_seen = PackedByteArray()
+	_seen.resize(CELLS * CELLS)
+	waypoint = Vector3.INF
+	reveal_start()
+	_fog_hash = 0
+	_redraw_wanted = true
+	_save()
 
 
 ## DEMO MODE: every cell charted (kept in the demo file only).

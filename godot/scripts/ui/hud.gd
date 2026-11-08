@@ -1070,6 +1070,8 @@ func hint_text() -> String:
 	var key := "" if touch_ui_on() else "[F]  "
 	if InteriorGameplay.prompt != "":                       # a door, a vendor or a mission object (scripts/interiors_gameplay/)
 		return "" if InteriorPrompts.active_shown else key + InteriorGameplay.prompt          # the floating plate over the object says it already
+	if InteriorGameplay.active:
+		return ""                                           # inside a building: no street prompts (ENTER VEHICLE, jobs of the street)
 	var jp := Freedom.job_prompt()                          # a job marker under the hero: street race, taxi fare, delivery, bounty (starts by itself)
 	if jp != "":
 		return jp
@@ -2605,13 +2607,21 @@ func campaign_owns_goal() -> bool:
 	return k != null and bool(k.get(&"enabled")) and StringName(str(k.get(&"state"))) != &"done"
 
 
+## True while the fallback "QUANTUM CORES 0 / 6  NEAREST 197 M" line must stay off: inside a building or in a car
+## (director review 4, #4: the same goal said three ways, on top of the radio box and a toast).
+func cores_line_hidden() -> bool:
+	if InteriorGameplay.active:
+		return true
+	return is_instance_valid(Game.player) and Game.player.get(&"vehicle") != null
+
+
 func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
 	var k := _contracts()
 	var camp := _camp_text != "" and _campaign() != null
 	if camp:
 		k = _campaign()                                    # a scripted step takes the plate; its progress bar and boss bar use the same calls as a contract's
 	var contract := camp or (_contract_text != "" and k != null)
-	if not contract and campaign_owns_goal():
+	if not contract and (campaign_owns_goal() or cores_line_hidden()):
 		return y                                           # the story is running: no leftover "QUANTUM CORES 0 / 6" line next to it (director review)
 	var text := _camp_text if camp else (_contract_text if contract else _obj_text)
 	if camp and MissionGuide.hud_on and _has_waypoint():
@@ -2775,6 +2785,8 @@ func _draw_waypoint(c: Control, vp: Vector2, s: float, font: Font, ins: Vector2,
 	_sprite(c, &"ring", Rect2(pt - Vector2(hs, hs) * 1.6, Vector2(hs, hs) * 3.2), Color(col, 0.6 * pulse))
 	if edge_dir != 0.0:
 		_text(c, font, Vector2(pt.x + edge_dir * 30.0 * s - 20.0 * s, pt.y + hs * 0.6), "<" if edge_dir < 0.0 else ">", HORIZONTAL_ALIGNMENT_CENTER, 40.0 * s, int(UiUtil.BAR_LABEL * 1.3 * s), Color(col.lerp(Color.WHITE, 0.4), pulse), 1.5 * s)
+	if MissionGuide.hud_on and is_instance_valid(Game.player) and absf(MissionGuide.compass_bearing(Game.player.global_position, w["pos"], cam.global_rotation.y)) > PI * 0.5:
+		return                                              # the compass strip is pinned to its end and already says "< 130 M": the same number twice was a pile (director review 4, #4)
 	_text(c, font, Vector2(pt.x - 60.0 * s, pt.y + hs * 2.6), "%d M" % roundi(Vector2(float(w["pos"].x) - Game.player.global_position.x, float(w["pos"].z) - Game.player.global_position.z).length() if is_instance_valid(Game.player) else float(k.call(&"distance_to_goal"))), HORIZONTAL_ALIGNMENT_CENTER, 120.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.95), 1.5 * s)
 
 

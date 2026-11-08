@@ -367,7 +367,7 @@ func get_aim() -> Dictionary:
 	var along := maxf(0.0, (camera_rig.get_pivot_position() - origin).dot(dir))
 	var start := origin + dir * along
 	var far := start + dir * PlayerWeapon.RANGE
-	var q := PhysicsRayQueryParameters3D.create(start, far, Game.L_WORLD)
+	var q := PhysicsRayQueryParameters3D.create(start, far, Game.L_WORLD if vehicle != null else (Game.L_WORLD | Game.L_VEHICLE))      # a parked car stops a round: the crosshair's point is where the round lands
 	var res := get_world_3d().direct_space_state.intersect_ray(q)
 	_aim_cache = {"origin": origin, "start": start, "dir": dir, "hit": res["position"] if not res.is_empty() else far}
 	return _aim_cache

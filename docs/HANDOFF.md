@@ -964,3 +964,9 @@ See godot/ARCHITECTURE.md "Cars that are not toys, and a map that takes minutes"
 - tools/full_bot.sh: PASS (soak verdict PASS, 6.9 min, errors 0).
 - visual_qa: 27/27 pass. Defects seen in docs/shots/latest.png (follow-ups): sky_night frame is filled by a large tan blob (camera inside or against a car body); car shots still look low-poly flat shaded; street frames show wide empty roads with few pedestrians; hero back view still plain; interior shop is flat lit.
 - Gaps from slices: gait between 2.4 and 4.2 m/s and strafing still procedural; hit/death clips not captured; trucks/vans/garbage/fire engines use old art; no Spanish/Hindi strings for new vehicle names; jobs/crates not multiplied for outer ring; nothing measured on a phone.
+
+## Wave 98 integration note (director round 4 fixes)
+- tools/test_all.sh: 214 pass, 2 flaky (passed on retry): test_shooting_accuracy, test_traffic_police_feel; 0 fail. No thresholds changed. (test_map_no_freeze failed once under load for the builder, passed alone, passed here.)
+- Perf gate (all OK): LOW 109 draws / 120k death prims / 135 MB; MED 142 / 248k / 166 MB; HIGH 165 / 337k / 221 MB (death-spike draws are the draws figures).
+- tools/full_bot.sh: PASS (soak verdict PASS, 6.8 min, errors 0). visual_qa: 27/27.
+- Defects seen in docs/shots/latest.png (follow-ups): sky_dawn frame still filled by a car body/sun blob (camera against a car); cars still flat-shaded low poly in car/chase frames; street frames show wide empty roads and few pedestrians; interior shop is dim and flat; HUD bottom ability row and bars still cluttered; job room still dark with a white slab; bow-tie at lobby door not reproduced; car/NPC look (defect 5) untouched; strafe stance opens wide for one frame on direction flip; nothing measured on a phone, no audio judged.

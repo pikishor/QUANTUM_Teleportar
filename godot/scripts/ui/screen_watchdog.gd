@@ -8,6 +8,7 @@ extends CanvasLayer
 ## Tests: `force_idle(secs)` fakes the idle time, `shown()` reads the button, `trapped()` names the screen, `press()` is the button.
 
 const IDLE_SECONDS := 5.0
+const OWN_BACK_IDLE_SECONDS := 30.0      ## a screen that already shows its own BACK / RESUME button gets the global one only after this long (it then sits ON that button: never two BACKs)
 
 var idle := 0.0
 var _sig := ""
@@ -55,6 +56,18 @@ func trapped() -> StringName:
 	return &""
 
 
+## The rectangle of the BACK / RESUME button the screen up already shows (an empty rect when it has none): a second BACK beside it only confuses (director review 4, #7: two BACK
+## buttons on the weapon screens). The map, the photo camera, the vendor and the TEST menu have their own close handling and keep the global button where it is.
+func own_back_rect(which: StringName) -> Rect2:
+	if which != &"screen" or _hud == null:
+		return Rect2()
+	for b in _hud.buttons:
+		var id := str(b.get("id", ""))
+		if id.ends_with("_back") or id == "resume" or id == "loadout_back":
+			return b["rect"] as Rect2
+	return Rect2()
+
+
 func shown() -> bool:
 	return _btn != null and _btn.visible
 
@@ -90,7 +103,7 @@ func _process(delta: float) -> void:
 		_btn.visible = false
 		return
 	idle += real
-	var on := idle >= IDLE_SECONDS
+	var on := idle >= (OWN_BACK_IDLE_SECONDS if own_back_rect(which).size.x > 0.0 else IDLE_SECONDS)
 	if on != _btn.visible or on:
 		_place()
 	_btn.visible = on
@@ -104,6 +117,10 @@ func _place() -> void:
 	var h := maxf(72.0 * s, 64.0)
 	_btn.size = Vector2(w, h)
 	_btn.position = Vector2(vp.x * 0.5 - w * 0.5, vp.y - h - 12.0 * s - UiUtil.insets_v(vp).y)
+	var own := own_back_rect(trapped())
+	if own.size.x > 0.0:
+		_btn.size = Vector2(maxf(own.size.x, w), maxf(own.size.y, h))
+		_btn.position = own.get_center() - _btn.size * 0.5          # on top of the screen's own BACK, not beside it
 	_btn.add_theme_font_size_override("font_size", int(26.0 * s))
 	_btn.move_to_front()
 

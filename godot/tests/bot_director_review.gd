@@ -268,6 +268,7 @@ func _act_fight(delta: float) -> void:
 		_fight = FightBot.new()
 		_fight.setup(_p)
 		_fight.aim_error = 0.02
+		_fight.strafe_fire = OS.get_environment("DR_PLANTED") == ""            # a player moves; DR_PLANTED=1 is the old standing bot
 		_data["near_min"] = 999.0
 		_data["aware_max"] = 0
 		_data["first_seen"] = -1.0
@@ -581,3 +582,287 @@ func _act_menus(_dt: float) -> void:
 			_hud._screen.visible = false
 	_data["shown"] = true
 	_data["wait"] = 8
+
+
+# --- the weapon wheel (a hold on WEAPON) and the weapon catalogue, as a player reaches them ----------------------------------------
+
+func _act_weapons(_dt: float) -> void:
+	var tc := _hud.touch
+	var sw := {}
+	for b: Dictionary in TouchControls.BUTTONS:
+		if b["action"] == &"swap":
+			sw = b
+	match _stage:
+		0:
+			if InteriorGameplay.active:
+				InteriorGameplay.instance.leave(true)
+			Game.heat = 0.0
+			(Game.enemies as EnemyManager).clear()
+			Encounters.current.enabled = false
+			_audit.camp.abort()
+			_audit.camp.enabled = false
+			_p.teleport_to(Vector3(-30.0, 0.0, 4.0))
+			_p.camera_rig.reset_view(0.0, -0.1)
+			print("DR weapons owned at the start: ", str(WeaponDefs.unlocked), " current ", _p.weapon.current)
+			_stage = 1
+			_t = 0.0
+		1:
+			if _t > 1.0:
+				_snap("hud")
+				tc.touch_down(31, tc.call("_button_center", sw))
+				_stage = 2
+				_t = 0.0
+		2:
+			if _t > 0.9:
+				print("DR weapons wheel open=%s items=%d" % [str(tc.wheel.is_open), tc.wheel.items.size()])
+				_snap("wheel")
+				_stage = 3
+				_t = 0.0
+		3:
+			if tc.wheel.is_open and tc.wheel.items.size() > 1:
+				var to: Vector2 = tc.wheel.item_centre(1)
+				tc.touch_move(31, to, Vector2(0.0, -10.0))
+			if _t > 0.6:
+				_snap("wheel_pick")
+				var before: StringName = _p.weapon.current
+				tc.touch_up(31)
+				_data["before"] = before
+				_stage = 4
+				_t = 0.0
+		4:
+			if _t > 1.0:
+				print("DR weapons pick changed %s -> %s" % [str(_data["before"]), str(_p.weapon.current)])
+				_snap("after_pick")
+				_data["i"] = 0
+				_data["plan"] = [&"carbine", &"rocket", &"sawn", &"bolt", &"knife", &"singularity"]
+				Game.state = &"paused"
+				_hud._on_state(&"paused")
+				_hud.screen_age = 5.0
+				_hud._ensure_layout()
+				_hud.press_button(&"shop")
+				_hud.press_button(&"hero_tab_weapons")
+				_stage = 5
+				_t = 0.0
+		5:
+			if _t > 1.2:
+				var plan: Array = _data["plan"]
+				var i: int = _data["i"]
+				if i >= plan.size():
+					_stage = 6
+					_t = 0.0
+				else:
+					WeaponsScreen.select(plan[i])
+					_hud._layout_key = ""
+					_data["i"] = i + 1
+					_t = 0.0
+					_data["shown"] = true
+				if i > 0:
+					_snap("cat_%s" % str(plan[i - 1]))
+		6:
+			if _t > 0.4:
+				_hud.press_button(&"shop_back")
+				_hud._shop_open = false
+				_hud.press_button(&"loadout")
+				_stage = 7
+				_t = 0.0
+		7:
+			if _t > 1.0:
+				_snap("loadout")
+				_stage = 8
+				_t = 0.0
+		8:
+			if _t > 0.6:
+				Game.state = &"play"
+				_hud._on_state(&"play")
+				_finish()
+
+
+# --- the map: open and close five times, by pause > MAP, the minimap and the M key; count the slowest frame, check the game comes back ----------------
+
+func _act_mapx5(_dt: float) -> void:
+	var ms := _hud.touch.get_node_or_null("MapScreen") as MapScreen
+	if ms == null:
+		print("DR mapx5 no map screen")
+		_finish()
+		return
+	var now := Time.get_ticks_usec()
+	if _data.has("last_us"):
+		_data["worst_us"] = maxi(int(_data.get("worst_us", 0)), now - int(_data["last_us"]))
+	_data["last_us"] = now
+	var ways := ["pause", "minimap", "key_m", "pause", "minimap"]
+	var c: int = int(_data.get("c", 0))
+	match _stage:
+		0:
+			if InteriorGameplay.active:
+				InteriorGameplay.instance.leave(true)
+			Game.state = &"play"
+			_hud._on_state(&"play")
+			(Game.enemies as EnemyManager).clear()
+			_p.teleport_to(Vector3(-30.0, 0.0, 4.0))
+			_stage = 1
+			_t = 0.0
+			_data["c"] = 0
+		1:
+			if _t > 0.8:
+				_data["worst_us"] = 0
+				match String(ways[c]):
+					"pause":
+						_hud.pause_game()
+						_hud._ensure_layout()
+						_hud.press_button(&"pause_map")
+					"minimap":
+						var r: Rect2 = _hud.touch.call("_minimap_rect")
+						_hud.touch.touch_down(32, r.get_center())
+						_hud.touch.touch_up(32)
+					"key_m":
+						for pr in [true, false]:
+							var e := InputEventKey.new()
+							e.keycode = KEY_M
+							e.physical_keycode = KEY_M
+							e.pressed = pr
+							Input.parse_input_event(e)
+				_stage = 2
+				_t = 0.0
+		2:
+			if _t > 1.0:
+				print("DR mapx5 cycle %d via %s: open=%s state=%s worst_frame_ms=%.0f" % [c, ways[c], str(ms.is_open()), str(Game.state), float(_data["worst_us"]) / 1000.0])
+				_snap("open_%d_%s" % [c, ways[c]])
+				ms.zoom_by(1.6, ms._map.size * 0.5)
+				ms.pan(Vector2(120, -60))
+				_stage = 3
+				_t = 0.0
+		3:
+			if _t > 0.8:
+				if c == 1 or c == 3:
+					_snap("panned_%d" % c)
+				ms.set_zoom(1)
+				_stage = 4
+				_t = 0.0
+		4:
+			if _t > 0.6:
+				if c == 4:
+					_snap("whole_city")
+				if c == 2:
+					for pr in [true, false]:
+						var e := InputEventKey.new()
+						e.keycode = KEY_ESCAPE
+						e.physical_keycode = KEY_ESCAPE
+						e.pressed = pr
+						Input.parse_input_event(e)
+				else:
+					ms.close_screen()
+				_stage = 5
+				_t = 0.0
+		5:
+			if (c == 0 or c == 3) and _t > 0.15 and not _data.has("early%d" % c):
+				_data["early%d" % c] = true
+				print("DR mapx5 early frame after close: state=%s screen_visible=%s hud_visible=%s" % [str(Game.state), str(_hud._screen.visible), str(_hud._hud.visible)])
+				_snap("after_close_%d" % c)
+			if _t > 1.6:
+				if ms.is_open() or Game.state == &"paused":
+					print("DR mapx5 cycle %d: after the map closed the state is %s (the pause menu is back for a map opened from pause; the bot taps RESUME) open=%s" % [c, str(Game.state), str(ms.is_open())])
+					if ms.is_open():
+						ms.close_screen()
+					if Game.state == &"paused":
+						_hud.toggle_pause()
+				_data["x0"] = _p.global_position
+				_hold(&"move_forward", true)
+				_stage = 6
+				_t = 0.0
+		6:
+			if _t > 1.0:
+				_hold(&"move_forward", false)
+				var moved: float = _p.global_position.distance_to(_data["x0"])
+				print("DR mapx5 cycle %d closed: state=%s moved %.1f m with move_forward held, worst_frame_ms=%.0f" % [c, str(Game.state), moved, float(_data["worst_us"]) / 1000.0])
+				if c == 4:
+					_snap("after_5")
+				c += 1
+				_data["c"] = c
+				_stage = 1 if c < 5 else 7
+				_t = 0.0
+		7:
+			_finish()
+
+
+# --- go in a building and finish its job the way a phone player does (the interior bot: stick, look, USE) --------------------------------------
+
+const InteriorBot := preload("res://tests/interior_bot.gd")
+var _ibot
+var _task_done := false
+
+
+func _task_log(s: String) -> void:
+	print("DR task t=%.0f %s | prompt '%s' status '%s' line '%s'" % [_t, s, InteriorGameplay.prompt, InteriorGameplay.status_line, InteriorGameplay.hud_line])
+
+
+func _act_task(_dt: float) -> void:
+	if _stage == 0:
+		_stage = 1
+		_t = 0.0
+		_next_snap = 0.5
+		_audit.camp.abort()
+		_audit.camp.enabled = false
+		Encounters.current.enabled = false
+		var tree := Engine.get_main_loop() as SceneTree
+		_ibot = InteriorBot.new()
+		_ibot.host = tree.root
+		_ibot.p = _p
+		_ibot.ig = InteriorGameplay.instance
+		_ibot.tc = _hud.touch
+		_ibot.prog = Game.progress
+		_task_done = false
+		_task_run()
+		return
+	Game.state = &"play"
+	_tick_snap("task", 2.5)
+	if _task_done or _t > 200.0:
+		if not _task_done:
+			print("DR task TIMEOUT after %.0f s, still inside=%s" % [_t, str(InteriorGameplay.active)])
+		_ibot.release()
+		_finish()
+
+
+func _task_run() -> void:
+	var b = _ibot
+	var ig: InteriorGameplay = InteriorGameplay.instance
+	var types: Array[StringName] = [&"lobby"]
+	for type in types:
+		var ok: bool = await b.enter_door(type)
+		_task_log("entered %s ok=%s" % [str(type), str(ok)])
+		if not ok:
+			continue
+		var m: InteriorMissions = ig.missions
+		await _snap("inside_%s" % str(type))
+		_task_log("job kind %s state %s" % [str(m.kind), str(m.state)])
+		var n := 0
+		while is_instance_valid(m.puzzles) and not m.puzzles.next_gate().is_empty() and n < 4:
+			var g: Dictionary = m.puzzles.next_gate()
+			var at: Vector3 = m.puzzles.at(float(g["depth"]) + 2.2)
+			var arrived: bool = await b.walk_to(at, 1.4, 30.0)
+			_task_log("gate walk arrived=%s %s" % [str(arrived), b.last_fail])
+			await b.use()
+			await b.frames(4)
+			n += 1
+		var reach := 2.0
+		if m.kind == &"safe":
+			reach = InteriorMissions.SAFE_REACH - 0.4
+		var arrived2: bool = await b.walk_to(m.target_pos, reach)
+		_task_log("walk to the job arrived=%s %s" % [str(arrived2), b.last_fail])
+		await _snap("job_prompt")
+		var lbl: String = await b.use_label()
+		_task_log("USE button says '%s'" % lbl)
+		var used: bool = await b.use()
+		_task_log("used=%s state %s" % [str(used), str(m.state)])
+		var t := 0.0
+		while t < 25.0 and m.state != &"complete":
+			await b.frames(6)
+			t += 6.0 * ig.get_physics_process_delta_time()
+		_task_log("job state %s after %.0f s progress %.2f" % [str(m.state), t, m.progress])
+		await b.frames(12)
+		await _snap("job_done")
+		Game.heat = 0.0
+		var out: bool = await b.leave_by_door()
+		_task_log("left by the door ok=%s %s" % [str(out), b.last_fail])
+		await b.frames(10)
+		await _snap("outside")
+	_task_done = true

@@ -9,6 +9,7 @@ const SLOW_MIN := 0.45              ## look speed multiplier right on a target
 const PULL := 1.6                   ## magnetism, fraction of the angular error closed per second
 const PULL_MAX := 0.9               ## rad/s cap
 const RANGE := 60.0
+const LOS_CHECKS := 4                ## rays a frame spent on candidates (nearest to the crosshair first)
 ## Right-stick aiming (a controller) gets a stronger assist than touch: a wider cone, a deeper slowdown and a harder pull.
 const PAD_CONE := 1.6
 const PAD_SLOW_MIN := 0.3
@@ -66,10 +67,10 @@ func _ready() -> void:
 	load_settings()
 
 
-## Nearest live enemy in the cone: {node, ang, rad_ang, yaw_err, pitch_err}, empty when none.
-func find(origin: Vector3, dir: Vector3) -> Dictionary:
-	var best := {}
-	var best_ang := 99.0
+## Nearest live enemy in the cone: {node, ang, rad_ang, yaw_err, pitch_err}, empty when none. With `los_from` (the muzzle line's start) a candidate the world or a car hides
+## is passed over (the look must not be pulled toward a trooper behind a parked car: the round would hit the car): the nearest one with a clear line wins, at most LOS_CHECKS rays a frame.
+func find(origin: Vector3, dir: Vector3, los_from := Vector3.INF) -> Dictionary:
+	var cands: Array[Dictionary] = []
 	for e in get_tree().get_nodes_in_group(&"enemy"):
 		var n := e as Node3D
 		if n == null or not n.has_method(&"center") or n.get(&"dead") == true:
@@ -82,14 +83,33 @@ func find(origin: Vector3, dir: Vector3) -> Dictionary:
 		var r := maxf(float(n.get(&"radius")) if n.get(&"radius") != null else 0.5, 0.3)
 		var rad_ang := atan(r / d)
 		var ang := dir.angle_to(to / d)
-		if ang < best_ang and ang < CONE * cone_scale() * (PAD_CONE if ControllerInput.stick_aim else 1.0) + rad_ang:
-			best_ang = ang
+		if ang < CONE * cone_scale() * (PAD_CONE if ControllerInput.stick_aim else 1.0) + rad_ang:
 			var flat_dir := Vector2(dir.x, dir.z)
 			var flat_to := Vector2(to.x, to.z)
 			var yaw_err := flat_dir.angle_to(flat_to) if flat_dir.length() > 0.001 and flat_to.length() > 0.001 else 0.0
 			var pitch_err := asin(clampf(to.y / d, -1.0, 1.0)) - asin(clampf(dir.y, -1.0, 1.0))
-			best = {"node": n, "ang": ang, "rad_ang": rad_ang, "yaw_err": yaw_err, "pitch_err": pitch_err}
-	return best
+			cands.append({"node": n, "ang": ang, "rad_ang": rad_ang, "yaw_err": yaw_err, "pitch_err": pitch_err, "center": c})
+	cands.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["ang"]) < float(b["ang"]))
+	var checks := 0
+	for cd in cands:
+		if los_from.is_finite() and _p != null and _p.is_inside_tree():
+			if checks >= LOS_CHECKS:
+				break
+			checks += 1
+			if not clear_line(los_from, cd["center"], cd["node"]):
+				continue
+		cd.erase("center")
+		return cd
+	return {}
+
+
+## Nothing of the world or of a vehicle (the hero's own car excepted) between `from` and `to`: the way a round flies. `who` (the target) is ignored.
+func clear_line(from: Vector3, to: Vector3, _who: Node3D = null) -> bool:
+	var mask := Game.L_WORLD
+	if _p == null or _p.get(&"vehicle") == null:
+		mask |= Game.L_VEHICLE
+	var q := PhysicsRayQueryParameters3D.create(from, to, mask)
+	return _p.get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 
 func _process(dt: float) -> void:
@@ -103,7 +123,7 @@ func _process(dt: float) -> void:
 	if not Game.is_playing() or _p.weapon == null or not applies_to(_p.weapon.current):
 		return
 	var aim := _p.get_aim()
-	var f := find(aim["origin"], aim["dir"])
+	var f := find(aim["origin"], aim["dir"], aim["start"])
 	if f.is_empty():
 		return
 	target = f["node"]

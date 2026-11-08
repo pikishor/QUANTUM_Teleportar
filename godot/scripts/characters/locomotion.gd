@@ -19,6 +19,7 @@ const LATERAL_CLAMP := 1.1
 const SHIN_FORWARD := 0.12            ## where the soles of the idle stance sit (metres, forward of the model origin) comes from the rig's rest pose instead
 const SIGMA_WALK := 0.62
 const STEP_MAX := 0.66               ## longest ground contact travel of a foot (metres)
+const STRAFE_CONTACT := 0.55         ## share of the longest contact a purely sideways run keeps
 const TOE_OFF := -0.5
 const HEEL_STRIKE := 0.24
 const RESTEP_DIST := 0.09
@@ -238,7 +239,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 	var gspd := maxf(speed, raw_sp * 0.8)                # the first frames of a start: the smoothed speed still lags the real motion
 	var cyc := minf((g_cyc0 + g_cyck * gspd) * dscale, g_cyc_max) * scale_amp   # metres per full cycle (two steps)
 	cyc = maxf(cyc, 0.8)
-	var contact := minf(SIGMA_WALK * cyc, g_step_max * scale_amp)
+	var contact := minf(SIGMA_WALK * cyc, g_step_max * scale_amp * lerpf(1.0, STRAFE_CONTACT, lat * lat))      # a side-step at a run is short: the long contact of a forward stride put the feet 1.3 m apart (the skier, director review 4 defect 8)
 	var moving := gspd > 0.45 and grounded
 	var turning := absf(yaw_rate) > 0.7 and speed < 1.6 and grounded
 	var sigma_t := contact / cyc if moving else SIGMA_WALK

@@ -165,7 +165,14 @@ func _label_size(b: Dictionary, font: Font, r: float, s: float) -> int:
 	return fs
 
 
+var _story_hidden := false
+
+
 func _process(delta: float) -> void:
+	if wheel.is_open != _story_hidden:                                  # the chapter banner and the radio subtitles step aside while the wheel is up (director review 4, #4: the wheel opened under the CHAPTER 1 title)
+		_story_hidden = wheel.is_open
+		if is_instance_valid(Game.story) and Game.story.get(&"view") != null:
+			(Game.story.get(&"view") as Control).visible = not _story_hidden
 	if _swap_pulse > 0.0:
 		_swap_pulse -= delta
 		if _swap_pulse <= 0.0:
@@ -495,6 +502,8 @@ func _label_of(b: Dictionary) -> String:
 	if b["action"] == &"interact":
 		if not _driving() and InteriorGameplay.active and InteriorGameplay.prompt != "":
 			return str(InteriorGameplay.prompt).split(" ")[0]         # inside a building the button says what it does: LEAVE, TALK, CRACK, FREE (not ENTER)
+		if not _driving() and InteriorGameplay.active:
+			return "USE"                                      # nothing to do at this spot: never ENTER (a street word) inside a room
 		return "EXIT" if _driving() else "ENTER"
 	if b["action"] == &"jump" and _driving():
 		return "DRIFT"                                   # the handbrake
@@ -528,7 +537,7 @@ func _grab_in_front() -> bool:
 ## Opens the radial wheel for `kind` while `finger` holds its button at `pos`.
 func _open_wheel(kind: StringName, finger: int, pos: Vector2) -> void:
 	var vp := _vp_size()
-	var at := Vector2(vp.x * (0.38 if UiSettings.s_left_hand else 0.62), vp.y * 0.56)
+	var at := Vector2(vp.x * (0.42 if UiSettings.s_left_hand else 0.58), vp.y * 0.5)       # up and left of the thumb cluster: the discs no longer sit on RELOAD / ABILITY (director review 4, #6)
 	wheel.open_at(kind, wheel_items(kind), at, _scale(), false)
 	_wheel_finger = finger if wheel.is_open else -1
 	_wheel_held = 0.0
@@ -595,7 +604,8 @@ func _weapon_face(c: Control, font: Font, centre: Vector2, r: float, s: float, l
 ## The radial wheel: a faint disc behind, one button sprite per item (name or weapon silhouette), the picked wedge bright.
 func _draw_wheel(c: Control, font: Font, s: float) -> void:
 	var n := wheel.items.size()
-	c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(wheel.centre - Vector2.ONE * (RadialWheel.RADIUS + RadialWheel.ITEM_R + 14.0) * s, Vector2.ONE * (RadialWheel.RADIUS + RadialWheel.ITEM_R + 14.0) * s * 2.0), false, Color(0, 0.02, 0.04, 0.45))
+	c.draw_rect(Rect2(Vector2.ZERO, _vp_size()), Color(0.0, 0.02, 0.04, 0.5))             # a scrim: the buttons and plates under the wheel step back instead of showing through the discs
+	c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(wheel.centre - Vector2.ONE * (RadialWheel.RADIUS + RadialWheel.ITEM_R + 14.0) * s, Vector2.ONE * (RadialWheel.RADIUS + RadialWheel.ITEM_R + 14.0) * s * 2.0), false, Color(0, 0.02, 0.04, 0.6))
 	var r := RadialWheel.ITEM_R * s
 	var texts: Array = []
 	for i in n:
@@ -609,6 +619,7 @@ func _draw_wheel(c: Control, font: Font, s: float) -> void:
 			dim = 0.45
 		if i == wheel.sel:
 			c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(ic - Vector2.ONE * r * 1.12, Vector2.ONE * r * 2.24), false, Color(tint, 0.35))
+		c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(ic - Vector2.ONE * r * 0.98, Vector2.ONE * r * 1.96), false, Color(0.02, 0.05, 0.08, 0.97))      # opaque: RELOAD / ABILITY never show through a disc
 		c.draw_texture_rect(UiUtil.sprite(&"button"), Rect2(ic - Vector2.ONE * r, Vector2.ONE * r * 2.0), false, Color(tint, 0.95 * dim))
 		if float(it["cd"]) > 0.0:
 			c.draw_arc(ic, r + 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * float(it["cd"]), 28, Color(tint, 0.9), 3.0 * s, false)

@@ -61,9 +61,11 @@ const FADE_START := 1.2                      ## the hero fades out smoothly when
 const FADE_END := 0.9                        ## ... and is fully hidden at this distance
 const MIN_ARM := 0.85                        ## shortest camera arm in metres, however close the wall is (the prototype's floor was 0.5 m)
 const RIG_PRIORITY := 100                    ## process priority: after the nodes it follows (lower numbers run first)
-const INTERIOR_ARM_SCALE := 0.68             ## inside a generated interior (scripts/interiors/) the on-foot arm is this fraction of its length ...
+const INTERIOR_ARM_SCALE := 0.78             ## inside a generated interior (scripts/interiors/) the on-foot arm is this fraction of its length ...
 const INTERIOR_MIN_ARM := 0.25               ## ... and may shrink to this: the hero capsule (0.35 m) keeps the camera in front of the wall behind him, the hero fades out when the camera is that close
-const INTERIOR_FOV_BOOST := 18.0             ## degrees added (horizontal FOV) inside an interior while the arm is pulled in by a wall: a hero 1 m from the lens would be cropped at the hips and the left edge
+const INTERIOR_FOV_BOOST := 24.0             ## degrees added (horizontal FOV) inside an interior while the arm is pulled in by a wall: a hero 1 m from the lens would be cropped at the hips and the left edge
+const INTERIOR_LIFT := 0.08                  ## metres the camera is raised in every interior ...
+const INTERIOR_LIFT_SQUEEZE := 0.1           ## ... and up to this much more while a wall pulls the arm in: the lens looks over the hero's head and shoulder instead of sitting in his back (director review 4, defect 8)
 const SQUEEZE_START := 2.0                   ## an arm shorter than this (metres) starts to slide the camera toward a free shoulder ...
 const SQUEEZE_SIDE := 0.5                    ## ... by this much sideways at full squeeze (arm at the MIN_ARM floor) ...
 const SQUEEZE_UP := 0.1                      ## ... and this much up
@@ -776,6 +778,7 @@ func _update_view(dt: float) -> void:
 	var height := lerpf(EYE_HEIGHT * float(hs["eye"]) + ADS_LIFT * ads_s, float(vp["height"]), _mode_mix)
 	var fov_target := lerpf(foot_fov, veh_fov, _mode_mix)
 	if InteriorSpace.active:
+		height += (INTERIOR_LIFT + INTERIOR_LIFT_SQUEEZE * clampf((1.0 - _ratio) / 0.6, 0.0, 1.0)) * (1.0 - _mode_mix)
 		fov_target += INTERIOR_FOV_BOOST * clampf((1.0 - _ratio) / 0.5, 0.0, 1.0) * (1.0 - _mode_mix)     # _ratio: last frame's arm fraction (the wall pull-in)
 	if _orbit_w > 0.001:
 		dist = lerpf(dist, ORBIT_DIST, _orbit_w)

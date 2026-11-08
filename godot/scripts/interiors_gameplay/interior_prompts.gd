@@ -78,6 +78,9 @@ func _draw() -> void:
 		var w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size).x + 36.0 * s
 		var h := float(size) * 1.5 + 6.0 * s
 		var r := Rect2(sp.x - w * 0.5, sp.y - h - 10.0 * s, w, h)
+		var radio := Rect2(0.0, 132.0 * s, 420.0 * s, 96.0 * s)         # the radio box (top left): a plate never sits on a subtitle (director review 4: "ENTANGLE THE CRATE" under KESTREL)
+		if r.intersects(radio):
+			r.position.y = radio.end.y + 6.0 * s
 		var guard := 0
 		while guard < 6 and _hits(placed, r):
 			r.position.y -= h + 4.0 * s                                  # a plate that would sit on another climbs above it

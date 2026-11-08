@@ -17,6 +17,9 @@ const WANDER_EVERY := 40.0
 const CLOSER := 6.0                    ## metres closer to the goal that count as progress
 const PROGRESS_STEP := 0.01
 const ARMED_STUCK := 45.0              ## armed (waiting) this long inside a building: the way out is forced open
+const MOVE_HINT_AFTER := 5.0           ## seconds of standing still in the open with a goal on the map before the one-line "how to move" hint (director review 4, defect 11: a new player stood 16 s)
+const MOVE_HINT_MAX := 2               ## hints per life of the guide (it never nags)
+const MOVE_HINT_SPEED := 0.6           ## m/s: slower than this counts as standing
 const FIGHT_RANGE := 45.0              ## aware enemies this close excuse a standstill (a firefight is play, not wandering)
 
 static var hud_on := true              ## false: line() / waypoint() / the compass / the SKIP STEP offer stay off the HUD (the "before" frames of the look-fix loops, tests/bot_mission_guide.gd)
@@ -38,6 +41,8 @@ var _wander_t := 0.0
 var _remind_cd := 0.0
 var _armed_t := 0.0
 var _announced := false
+var move_hints := 0                    ## the "how to move" hint was shown this many times
+var _still_t := 0.0
 
 
 func _init(runner: CampaignRunner) -> void:
@@ -103,6 +108,7 @@ func tick(delta: float) -> void:
 	if camp == null or not Game.is_playing():
 		return
 	_remind_cd = maxf(_remind_cd - delta, 0.0)
+	_tick_move_hint(delta)
 	match camp.state:
 		&"armed":
 			_tick_armed(delta)
@@ -112,6 +118,30 @@ func tick(delta: float) -> void:
 		_:
 			_reset_step()
 			_armed_t = 0.0
+
+
+## The first seconds: nothing says "move" but a compass and a pillar. A hero who stands still in the open with a goal on the map gets one plain line; it goes away by itself when he moves.
+func _tick_move_hint(delta: float) -> void:
+	var p := Game.player as Player
+	var idle_ok := p != null and camp.state in [&"armed", &"active"] and not InteriorGameplay.active and p.vehicle == null and Game.state == &"play" \
+			and move_hints < MOVE_HINT_MAX and goal().is_finite() and not _fighting(p.global_position)
+	if not idle_ok or Vector2(p.velocity.x, p.velocity.z).length() > MOVE_HINT_SPEED or p.input_move.length() > 0.1:
+		_still_t = 0.0
+		return
+	_still_t += delta
+	if _still_t >= MOVE_HINT_AFTER:
+		_still_t = -12.0                                     # the next one, if the hero still stands there, comes 17 s later
+		move_hints += 1
+		_say(move_hint_text(), 4.0)
+
+
+## The line itself: the stick on a phone, the keys elsewhere.
+static func move_hint_text() -> String:
+	var touch := Game.force_touch or DisplayServer.is_touchscreen_available()
+	var hud: Node = Engine.get_main_loop().get_first_node_in_group(&"hud") if Engine.get_main_loop() is SceneTree else null
+	if hud != null and hud.get(&"touch") != null:
+		touch = touch or bool(hud.touch.get(&"controls_on"))
+	return "HOLD THE LEFT STICK TO MOVE  FOLLOW THE BEACON" if touch else "WASD TO MOVE  FOLLOW THE BEACON"
 
 
 func _reset_step() -> void:

@@ -22,7 +22,7 @@ void fragment() {
 	vec3 n = normalize(NORMAL);
 	float nv = abs(dot(n, normalize(VIEW)));
 	float along = v_uv.y;
-	float body = pow(nv, 1.4) * (0.2 + 0.8 * (1.0 - along)) * (1.0 - smoothstep(0.7, 1.0, along));
+	float body = pow(nv, 2.2) * (0.2 + 0.8 * (1.0 - along)) * (1.0 - smoothstep(0.7, 1.0, along));
 	// thin rain streaks falling through the cone: narrow columns, short dashes
 	float cx = v_uv.x * 110.0 + v_seed * 7.0;
 	float col = floor(cx);
@@ -32,7 +32,7 @@ void fragment() {
 	float p = fract(along * 1.7 - TIME * speed + hash11(col + 3.0));
 	float dash = smoothstep(0.0, 0.015, p) * (1.0 - smoothstep(0.03, 0.10, p));
 	float streak = line * dash * step(0.6, hash11(col + 21.0));
-	float a = body * (0.06 + 0.7 * streak * clamp(rain, 0.0, 1.0)) * (1.0 - smoothstep(lod_range.x, lod_range.y, length(VERTEX)));
+	float a = body * (0.035 + 0.7 * streak * clamp(rain, 0.0, 1.0)) * (1.0 - smoothstep(lod_range.x, lod_range.y, length(VERTEX)));
 	// the camera inside or beside a cone sees its wall as one big coloured haze with a hard ring edge on the ground (director review: LOW haze, a cyan wash over half the street): cone surface close to the lens fades out
 	float lens = smoothstep(2.5, 9.0, length(VERTEX));
 	ALBEDO = v_c.rgb * v_c.a;

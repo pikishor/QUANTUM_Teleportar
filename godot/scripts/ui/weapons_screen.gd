@@ -157,10 +157,10 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		var r := cell_rect(hud, cx, s, i)
 		var id: StringName = items[i]["id"]
 		var tw := r.size.x - 12.0 * s
-		var nm := _fit_name(font, _name_of(id), tw, int(16.0 * s))
+		var nm := _fit_name(font, _name_of(id), tw, int(18.0 * s))
 		var own := WeaponDefs.is_unlocked(id) or Gear.is_owned(id)
-		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 71.0 * s), nm, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, nm, tw, int(17.0 * s)), Color(1, 1, 1, 0.97 if id == sel else 0.85))
-		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 91.0 * s), tile_status(id), HORIZONTAL_ALIGNMENT_LEFT, tw, int(15.0 * s), Color(UiUtil.GREEN if own else UiUtil.AMBER, 0.95))
+		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 71.0 * s), nm, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, nm, tw, int(19.0 * s)), Color(1, 1, 1, 0.97 if id == sel else 0.85))
+		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 91.0 * s), tile_status(id), HORIZONTAL_ALIGNMENT_LEFT, tw, int(16.0 * s), Color(UiUtil.GREEN if own else UiUtil.AMBER, 0.95))
 	var np := PAGES
 	hud._text(c, font, Vector2(cx + (GRID_X + 80.0) * s * k, (GRID_Y + float(ROWS) * (CELL.y + GAP) + 42.0) * s), "PAGE %d / %d" % [page + 1, np], HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 	_draw_card(hud, c, s, font, cx, k)

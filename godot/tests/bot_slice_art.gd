@@ -32,6 +32,10 @@ const SPOTS := {
 	&"in_cli_a": [&"interior", &"clinic", 0.0, 0.0],
 	&"in_cli_b": [&"interior", &"clinic", 2.4, 1.0],
 	&"in_cli_c": [&"interior", &"clinic", 4.0, 2.0],
+	&"in_lob_a": [&"interior", &"lobby", 0.0, 0.0],
+	&"in_off_a": [&"office", &"lobby", 0.0, 0.0],
+	&"in_off_b": [&"office", &"lobby", 2.5, 1.0],
+	&"in_off_c": [&"office", &"lobby", -2.4, 2.0],
 	&"in_wpn_a": [&"interior", &"weapons", 0.0, 0.0],
 	&"in_wpn_b": [&"interior", &"weapons", 2.4, 1.0],
 	&"in_wpn_c": [&"interior", &"weapons", 4.0, 2.0],
@@ -113,5 +117,18 @@ func _begin() -> void:
 		var d := ig.doors_of(sp[1], Game.SPAWN)[0]
 		_p.teleport_to(d["pos"])
 		ig.enter(d, true)
+		if sp[0] == &"office":
+			# the smallest room of the plan (the job room behind a lobby): the hero stands in its corner looking across it (a) / at its door side (b, c)
+			var best := Rect2()
+			for r in ig.interior.floor_rects:
+				if r.get_area() > 8.0 and (best.get_area() <= 0.0 or r.get_area() < best.get_area()):
+					best = r
+			var c := best.get_center()
+			var corner := best.position + Vector2(0.9, 0.9) if float(sp[2]) >= 0.0 else best.end - Vector2(0.9, 0.9)
+			_p.teleport_to(Vector3(corner.x, d["pos"].y, corner.y))
+			var look := c - corner
+			print("SLICE office rect ", best, " hero ", corner)
+			_p.camera_rig.reset_view(atan2(-look.x, -look.y) + (0.0 if float(sp[3]) < 1.5 else 1.2), -0.12)
+			return
 		# the hero keeps the entry spot; the camera looks around from there (a: the way in, b/c: turned)
 		_p.camera_rig.reset_view(float(sp[2]), -0.12)

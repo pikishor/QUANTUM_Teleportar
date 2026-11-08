@@ -16,6 +16,8 @@ const SUB_PLATE := [0.55, 0.84, 1.0]      ## plate opacity by the SUBTITLE BG se
 const TOUCH_BUTTONS_W := 700.0      ## base px from the right edge covered by the touch buttons (touch_controls.gd BUTTONS); the CALL CAR / ally column (need more_garage, more_companion) sits further out, only while MORE is open
 const CARD_TOP := 0.40              ## the card band spans 40 % .. 70 % of the screen height: clear of the HUD bars (top) and the continue button (bottom)
 const CARD_H := 0.30
+const CARD_TOP_LIVE := 0.14         ## the prologue cards run over a live street: the band sits high (under the bars, over the sky and the roofs), so it never crosses the hero (director review 4, #2)
+const CARD_H_LIVE := 0.24
 
 var story: Story
 
@@ -245,10 +247,11 @@ func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 
 
 func _draw_cards(vp: Vector2, s: float, font: Font) -> void:
-	var y0 := vp.y * CARD_TOP
-	var h := vp.y * CARD_H
+	var live := story.card_kind == &"prologue"
+	var y0 := vp.y * (CARD_TOP_LIVE if live else CARD_TOP)
+	var h := vp.y * (CARD_H_LIVE if live else CARD_H)
 	var band := Rect2(0.0, y0, vp.x, h)
-	draw_rect(band, Color(0.0, 0.02, 0.04, 0.68))
+	draw_rect(band, Color(0.0, 0.02, 0.04, 0.5 if live else 0.68))
 	draw_line(band.position, band.position + Vector2(vp.x, 0.0), Color(UiUtil.CYAN, 0.45), 1.0 * s)
 	draw_line(band.end - Vector2(vp.x, 0.0), band.end, Color(UiUtil.CYAN, 0.45), 1.0 * s)
 	var card: Dictionary = story.cards[0]
@@ -271,7 +274,7 @@ func _draw_cards(vp: Vector2, s: float, font: Font) -> void:
 			break
 	var pulse := 0.55 + 0.45 * sin(Time.get_ticks_msec() * 0.005)
 	var typing := story.card_typed < str(card["text"]).length()
-	_shadow_text(font, Vector2(x0, band.end.y - 12.0 * s), Tr.t("TAP TO SKIP" if typing else "TAP TO CONTINUE"), HORIZONTAL_ALIGNMENT_RIGHT, width, int(12.0 * s), Color(1, 1, 1, pulse * 0.8), s)
+	_shadow_text(font, Vector2(x0, band.end.y - 10.0 * s), Tr.t("TAP TO SKIP" if typing else "TAP TO CONTINUE"), HORIZONTAL_ALIGNMENT_CENTER, width, int(14.0 * s), Color(1, 1, 1, pulse * 0.85), s)      # centred: the right end sat over the RELOAD button
 
 
 ## Death quote on the DECOHERED screen: a thin band between the score lines and the RESPAWN button, the world stays visible around it.

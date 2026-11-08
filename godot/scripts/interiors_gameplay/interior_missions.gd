@@ -162,7 +162,7 @@ func _marker_at(p: Vector3, col: Color) -> void:
 
 func _make_safe(p: Vector3) -> void:
 	var b := InteriorCivilian.MB.new()
-	b.box(Vector3(0.0, 0.5, 0.0), Vector3(0.9, 1.0, 0.7), Color(0.12, 0.13, 0.15, 1.0))
+	b.box(Vector3(0.0, 0.5, 0.0), Vector3(0.9, 1.0, 0.7), Color(0.3, 0.33, 0.38, 1.0))
 	b.box(Vector3(0.0, 0.58, 0.37), Vector3(0.55, 0.55, 0.05), Color(0.2, 0.22, 0.25, 1.0))
 	b.box(Vector3(0.22, 0.55, 0.41), Vector3(0.1, 0.16, 0.03), Color(1.0, 0.7, 0.2, 1.0))
 	_make_prop(b, p)
@@ -179,7 +179,10 @@ func _make_prop(b, p: Vector3) -> void:
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 0.6
-	mat.metallic = 0.4
+	mat.metallic = 0.0
+	mat.emission_enabled = true                              # a standard material gets no light from the room's baked pools: the safe was a black block (director review 4, #2)
+	mat.emission = Color(0.26, 0.28, 0.32)
+	mat.emission_energy_multiplier = 1.0
 	_prop = MeshInstance3D.new()
 	_prop.mesh = b.build(mat, false, true)
 	add_child(_prop)

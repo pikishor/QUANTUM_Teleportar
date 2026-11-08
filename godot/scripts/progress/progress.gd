@@ -67,6 +67,7 @@ var _frac := 0.0
 var _in_score := false
 var _continue_pending := false
 var _select_pending := false            ## start_chapter() is starting a run that keeps the wallet (no continued flag: the saved interior is not resumed)
+var fresh_game := false                 ## the last new_game was a NEW game (progress reset; the map forgets its discovery too)
 var continued := false                  ## the last new_game was a CONTINUE (scripts/interiors_gameplay/ resumes the saved interior)
 
 
@@ -479,6 +480,7 @@ func _on_new_game() -> void:
 	_last_score = 0
 	_frac = 0.0
 	continued = _continue_pending
+	fresh_game = not _continue_pending and not _select_pending
 	if _continue_pending:
 		_continue_pending = false
 	elif _select_pending:
