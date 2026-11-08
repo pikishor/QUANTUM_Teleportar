@@ -10,7 +10,7 @@ extends RefCounted
 ## revolver (slow heavy rounds, FAN HAMMER alt), whip (long reach, PULL alt), blade (short reach, LUNGE alt). "snd" = the sound name of a shot (default "shot"). reserve < 0 = unlimited spare ammo. look = the emissive tint of the strip on the rifle.
 
 ## Order = keys 1..8 and the order every list shows: the seven starters first (pistol, SMG, assault rifle, shotgun, sniper rail, launcher, melee), then the unlock ladder.
-const IDS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade", &"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade"]
+const IDS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade", &"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife"]
 ## Owned from the first minute (and in every save): one weapon of each class so the hero is never short of a gun. Everything else is on the ladder (scripts/progress/weapon_ladder.gd).
 const STARTERS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade"]
 ## The weapon wheel groups the weapons by class (one wedge per class, tap again = the next weapon of that class).
@@ -20,6 +20,7 @@ const CLASS_OF := {
 	&"pistol": &"pistol", &"burst": &"pistol", &"akimbo": &"pistol", &"revolver": &"pistol", &"flux": &"smg", &"carbine": &"rifle", &"marksman": &"rifle", &"arc": &"rifle",
 	&"scatter": &"shotgun", &"breacher": &"shotgun", &"rail": &"sniper", &"lance": &"sniper", &"gravity": &"heavy", &"rocket": &"heavy", &"grenade": &"heavy", &"minigun": &"heavy",
 	&"blade": &"melee", &"whip": &"melee",
+	&"swarm": &"smg", &"vector": &"smg", &"battle": &"rifle", &"sawn": &"shotgun", &"auto": &"shotgun", &"bolt": &"sniper", &"dmr": &"sniper", &"knife": &"melee",
 }
 const PAGE_SIZE := 8                       ## weapons per page of the touch weapon wheel
 
@@ -160,6 +161,64 @@ const DEFS := {
 		"reach": 3.6, "cone": 0.15, "combo": [1.0, 1.15, 2.3], "combo_window": 0.8,
 		"tracer": Color(0.7, 0.55, 1.0), "look": Color(0.65, 0.5, 1.0), "look_size": Vector3(0.04, 0.04, 0.8), "zoom": 62.0, "price": 900, "pierce_shield": true,
 	},
+	# --- round 4: eight more weapons, so every class has three or four (models: CC0 Quaternius Ultimate Gun Pack, tools/open_models/convert_weapons.py)
+	&"swarm": {
+		"name": "SWARM PDW", "tag": "SWM", "kind": "hit", "mag": 36, "reserve": 216, "interval": 0.07, "damage": 8.5, "crit": 17.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 0.7), Vector2(0.5, 0.7), Vector2(-0.6, 0.6), Vector2(0.4, 0.6), Vector2(-0.3, 0.6)], "shake": 0.02, "vol": -4.5, "pitch_lo": 1.2, "pitch_hi": 1.34, "eject": 1, "flash": 0.7, "ads_kick": 0.7, "ads_spread": 0.55,
+		"spread_hip": 0.022, "spread_ads": 0.01, "spread_move": 0.012, "bloom": 0.005, "bloom_max": 0.036, "snd": &"shot_flux",
+		"kick": 0.0045, "kick_end": 0.003, "kick_yaw": 0.0045, "reload": 1.2, "range": 55.0, "falloff_from": 14.0,
+		"tracer": Color(1.0, 0.8, 0.45), "look": Color(1.0, 0.75, 0.3), "look_size": Vector3(0.04, 0.04, 0.3), "zoom": 62.0, "price": 450, "pierce_shield": false,
+	},
+	&"vector": {
+		"name": "VECTOR HEAVY SMG", "tag": "VEC", "kind": "hit", "mag": 24, "reserve": 144, "interval": 0.15, "damage": 16.0, "crit": 34.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 1.0), Vector2(-0.3, 0.9), Vector2(0.4, 0.9)], "shake": 0.035, "vol": -2.5, "pitch_lo": 0.85, "pitch_hi": 0.95, "eject": 1, "flash": 1.1, "ads_kick": 0.6, "ads_spread": 0.35,
+		"spread_hip": 0.016, "spread_ads": 0.005, "spread_move": 0.012, "bloom": 0.004, "bloom_max": 0.024, "snd": &"shot_burst",
+		"kick": 0.011, "kick_end": 0.007, "kick_yaw": 0.004, "reload": 1.5, "range": 85.0, "falloff_from": 30.0,
+		"tracer": Color(1.0, 0.5, 0.6), "look": Color(1.0, 0.4, 0.55), "look_size": Vector3(0.04, 0.04, 0.38), "zoom": 58.0, "price": 750, "pierce_shield": false,
+	},
+	&"battle": {
+		"name": "ION BATTLE RIFLE", "tag": "BTL", "kind": "hit", "mag": 20, "reserve": 100, "interval": 0.24, "damage": 32.0, "crit": 72.0, "pellets": 1,
+		"pattern": [Vector2(0.1, 1.2), Vector2(-0.2, 1.1), Vector2(0.3, 1.0)], "shake": 0.06, "vol": -1.5, "pitch_lo": 0.82, "pitch_hi": 0.9, "eject": 1, "flash": 1.3, "ads_kick": 0.55, "ads_spread": 0.2,
+		"spread_hip": 0.016, "spread_ads": 0.002, "spread_move": 0.014, "bloom": 0.002, "bloom_max": 0.012, "snd": &"shot",
+		"kick": 0.02, "kick_end": 0.016, "kick_yaw": 0.004, "reload": 1.9, "range": 260.0, "falloff_from": 90.0,
+		"tracer": Color(0.5, 0.9, 1.0), "look": Color(0.4, 0.85, 1.0), "look_size": Vector3(0.035, 0.035, 0.5), "zoom": 46.0, "price": 900, "pierce_shield": false,
+	},
+	&"sawn": {
+		"name": "SAWN SPLITTER", "tag": "SWN", "kind": "hit", "mag": 2, "reserve": 24, "interval": 0.45, "damage": 8.0, "crit": 16.0, "pellets": 12,
+		"pattern": [Vector2(0.0, 1.0), Vector2(-0.5, 1.3)], "shake": 0.16, "vol": -0.5, "pitch_lo": 0.8, "pitch_hi": 0.9, "snd": &"shot_scatter", "eject": 1, "flash": 1.8, "ads_kick": 0.8, "ads_spread": 0.7,
+		"spread_hip": 0.095, "spread_ads": 0.07, "spread_move": 0.015, "bloom": 0.0, "bloom_max": 0.0,
+		"kick": 0.05, "kick_end": 0.045, "kick_yaw": 0.012, "reload": 1.7, "range": 24.0, "falloff_from": 7.0,
+		"tracer": Color(1.0, 0.6, 0.3), "look": Color(1.0, 0.5, 0.2), "look_size": Vector3(0.09, 0.06, 0.3), "zoom": 58.0, "price": 600, "pierce_shield": false,
+	},
+	&"auto": {
+		"name": "STORM AUTOSHOT", "tag": "STM", "kind": "hit", "mag": 10, "reserve": 60, "interval": 0.26, "damage": 7.0, "crit": 14.0, "pellets": 6,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.3, 1.1), Vector2(-0.3, 1.1)], "shake": 0.1, "vol": -1.5, "pitch_lo": 1.0, "pitch_hi": 1.1, "snd": &"shot_scatter", "eject": 1, "flash": 1.4, "ads_kick": 0.8, "ads_spread": 0.65,
+		"spread_hip": 0.06, "spread_ads": 0.04, "spread_move": 0.015, "bloom": 0.002, "bloom_max": 0.02,
+		"kick": 0.026, "kick_end": 0.022, "kick_yaw": 0.007, "reload": 2.2, "range": 40.0, "falloff_from": 14.0,
+		"tracer": Color(0.5, 1.0, 0.7), "look": Color(0.35, 1.0, 0.65), "look_size": Vector3(0.09, 0.06, 0.4), "zoom": 56.0, "price": 800, "pierce_shield": false,
+	},
+	&"bolt": {
+		"name": "VOID BOLT RIFLE", "tag": "BLT", "kind": "hit", "mag": 5, "reserve": 30, "interval": 1.35, "damage": 105.0, "crit": 210.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0)], "shake": 0.2, "vol": -0.5, "pitch_lo": 0.74, "pitch_hi": 0.8, "eject": 1, "flash": 2.0, "ads_kick": 0.4, "ads_spread": 0.1,
+		"spread_hip": 0.024, "spread_ads": 0.0006, "spread_move": 0.024, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_rail",
+		"kick": 0.05, "kick_end": 0.05, "kick_yaw": 0.005, "reload": 2.4, "range": 450.0, "falloff_from": 9999.0,
+		"tracer": Color(0.8, 0.5, 1.0), "look": Color(0.7, 0.4, 1.0), "look_size": Vector3(0.025, 0.025, 0.7), "zoom": 22.0, "price": 1100, "pierce_shield": true,
+	},
+	&"dmr": {
+		"name": "HALO MARKSMAN DMR", "tag": "DMR", "kind": "hit", "mag": 10, "reserve": 60, "interval": 0.48, "damage": 48.0, "crit": 96.0, "pellets": 1,
+		"pattern": [Vector2(0.1, 1.1), Vector2(-0.15, 1.0)], "shake": 0.08, "vol": -1.5, "pitch_lo": 0.95, "pitch_hi": 1.02, "eject": 1, "flash": 1.4, "ads_kick": 0.5, "ads_spread": 0.12,
+		"spread_hip": 0.018, "spread_ads": 0.001, "spread_move": 0.018, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_rev",
+		"kick": 0.026, "kick_end": 0.024, "kick_yaw": 0.004, "reload": 1.9, "range": 340.0, "falloff_from": 9999.0,
+		"tracer": Color(0.9, 1.0, 0.55), "look": Color(0.8, 1.0, 0.45), "look_size": Vector3(0.03, 0.03, 0.62), "zoom": 34.0, "price": 950, "pierce_shield": false,
+	},
+	&"knife": {
+		"name": "PHASE KNIFE", "tag": "KNF", "kind": "melee", "mag": 1, "reserve": -1, "interval": 0.22, "damage": 20.0, "crit": 20.0, "pellets": 1,
+		"pattern": [Vector2(-0.6, 0.15), Vector2(0.6, 0.15), Vector2(0.0, 0.3)], "shake": 0.04, "vol": -4.0, "pitch_lo": 1.15, "pitch_hi": 1.3, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"melee_blade",
+		"kick": 0.008, "kick_end": 0.008, "kick_yaw": 0.004, "reload": 1.0, "range": 2.4, "falloff_from": 9999.0,
+		"reach": 2.4, "cone": 0.3, "combo": [1.0, 1.0, 1.8], "combo_window": 0.7,
+		"tracer": Color(0.7, 0.9, 1.0), "look": Color(0.6, 0.85, 1.0), "look_size": Vector3(0.03, 0.03, 0.4), "zoom": 62.0, "price": 400, "pierce_shield": false,
+	},
 }
 
 ## Alt-fire per class (key B / the ALT touch button). kind: "heavy" = one aimed shot x mult for `cost` rounds (slug / overcharge), "volley" = `count` rounds in a rapid burst,
@@ -183,6 +242,14 @@ const ALTS := {
 	&"revolver": {"name": "FAN HAMMER", "kind": "volley", "cost": 6, "count": 6, "cd": 1.2},
 	&"whip": {"name": "PULL", "kind": "pull", "cost": 0, "range": 12.0, "cd": 1.6},
 	&"blade": {"name": "LUNGE", "kind": "lunge", "cost": 0, "dist": 4.5, "mult": 2.5, "cd": 1.4},
+	&"swarm": {"name": "VOLLEY", "kind": "volley", "cost": 10, "count": 10, "cd": 0.7},
+	&"vector": {"name": "VOLLEY", "kind": "volley", "cost": 8, "count": 8, "cd": 0.8},
+	&"battle": {"name": "OVERCHARGE", "kind": "heavy", "cost": 3, "mult": 2.8, "cd": 1.0},
+	&"sawn": {"name": "SLUG", "kind": "heavy", "cost": 2, "mult": 6.0, "cd": 1.0},
+	&"auto": {"name": "SLUG", "kind": "heavy", "cost": 2, "mult": 5.0, "cd": 1.0},
+	&"bolt": {"name": "OVERCHARGE", "kind": "heavy", "cost": 2, "mult": 2.0, "cd": 1.5},
+	&"dmr": {"name": "OVERCHARGE", "kind": "heavy", "cost": 3, "mult": 2.4, "cd": 1.1},
+	&"knife": {"name": "LUNGE", "kind": "lunge", "cost": 0, "dist": 3.4, "mult": 2.2, "cd": 1.1},
 }
 ## Ammo types for the hitscan weapons (key T): damage multiplier, fire-interval multiplier, shield piercing.
 const AMMO_TYPES := [
@@ -196,8 +263,11 @@ const HIT_SND := {
 	&"carbine": [1.0, 0.0, &""], &"scatter": [0.7, 2.0, &"impact_concrete"], &"lance": [0.55, 3.0, &"impact_metal"], &"grenade": [0.8, 0.0, &""],
 	&"burst": [1.35, -2.0, &""], &"rail": [0.5, 4.0, &"impact_metal"], &"flux": [1.6, -5.0, &""], &"gravity": [0.65, 1.0, &""],
 	&"minigun": [1.5, -6.0, &""], &"akimbo": [1.2, -2.0, &""], &"arc": [1.1, 0.0, &"impact_metal"], &"revolver": [0.6, 3.0, &"impact_concrete"], &"whip": [0.9, 0.0, &""], &"blade": [0.75, 2.0, &"impact_metal"],
+	&"swarm": [1.5, -5.0, &""], &"vector": [1.1, -1.0, &""], &"battle": [0.9, 0.5, &"impact_metal"], &"sawn": [0.7, 2.0, &"impact_concrete"], &"auto": [0.8, 1.0, &"impact_concrete"],
+	&"bolt": [0.5, 4.0, &"impact_metal"], &"dmr": [0.8, 1.0, &"impact_metal"], &"knife": [1.0, 0.0, &""],
 }
-const TILT := {&"pistol": 1.3, &"marksman": 0.9, &"breacher": 1.5, &"rocket": 1.1, &"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3, &"minigun": 2.0, &"akimbo": 1.5, &"arc": 1.0, &"revolver": 1.1, &"whip": 0.5, &"blade": 0.5}
+const TILT := {&"pistol": 1.3, &"marksman": 0.9, &"breacher": 1.5, &"rocket": 1.1, &"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3, &"minigun": 2.0, &"akimbo": 1.5, &"arc": 1.0, &"revolver": 1.1, &"whip": 0.5, &"blade": 0.5,
+	&"swarm": 1.7, &"vector": 1.4, &"battle": 1.0, &"sawn": 1.5, &"auto": 1.5, &"bolt": 0.7, &"dmr": 0.9, &"knife": 0.5}
 
 
 static func alt_of(id: StringName) -> Dictionary:

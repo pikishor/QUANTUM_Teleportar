@@ -62,22 +62,30 @@ func _shop(size: Vector2i) -> void:
 	var bought_rows := 0
 	for pg in ShopScreen.pages():
 		ShopScreen.weapon_page = pg
-		hud._layout_key = ""
-		hud._ensure_layout()
-		var rects: Array[Rect2] = []
-		for b: Dictionary in hud.buttons:
-			var r: Rect2 = b["rect"]
-			var id := String(b["id"])
-			TestLib.check(minf(r.size.x, r.size.y) / s >= 63.9, "%s shop page %d: %s is %.0fx%.0f base px (needs 64)" % [tag, pg, id, r.size.x / s, r.size.y / s])
-			TestLib.check(Rect2(Vector2.ZERO, vp).grow(1.0).encloses(r), "%s shop page %d: %s is on screen" % [tag, pg, id])
-			if id.begins_with("buy_"):
-				if WeaponDefs.DEFS.has(StringName(id.substr(4))):
-					seen[StringName(id.substr(4))] = true
-				else:
-					bought_rows += 1
-			for o in rects:
-				TestLib.check(not o.grow(-1.0).intersects(r.grow(-1.0)), "%s shop page %d: %s overlaps another button" % [tag, pg, id])
-			rects.append(r)
+		var sels: Array[StringName] = [&""]
+		if pg > 0:                                                     # the catalogue shows the BUY button of the selected weapon: select each tile in turn
+			sels.clear()
+			for it in WeaponsScreen.page_items(pg - 1):
+				sels.append(it["id"])
+		for sel_id in sels:
+			if sel_id != &"":
+				WeaponsScreen.sel = sel_id
+			hud._layout_key = ""
+			hud._ensure_layout()
+			var rects: Array[Rect2] = []
+			for b: Dictionary in hud.buttons:
+				var r: Rect2 = b["rect"]
+				var id := String(b["id"])
+				TestLib.check(minf(r.size.x, r.size.y) / s >= 63.9, "%s shop page %d: %s is %.0fx%.0f base px (needs 64)" % [tag, pg, id, r.size.x / s, r.size.y / s])
+				TestLib.check(Rect2(Vector2.ZERO, vp).grow(1.0).encloses(r), "%s shop page %d: %s is on screen" % [tag, pg, id])
+				if id.begins_with("buy_"):
+					if WeaponDefs.DEFS.has(StringName(id.substr(4))):
+						seen[StringName(id.substr(4))] = true
+					else:
+						bought_rows += 1
+				for o in rects:
+					TestLib.check(not o.grow(-1.0).intersects(r.grow(-1.0)), "%s shop page %d: %s overlaps another button" % [tag, pg, id])
+				rects.append(r)
 	TestLib.check(bought_rows == Upgrades.IDS.size(), "%s: page 0 has a BUY row per upgrade (%d)" % [tag, bought_rows])
 	for id: StringName in ShopScreen.SHOP_WEAPONS:
 		TestLib.check(seen.has(id), "%s: the shop offers %s on some page" % [tag, id])
@@ -98,6 +106,9 @@ func _shop_buy_live() -> void:
 	await frames(3)                                # the real draw of the weapon page
 	hud._ensure_layout()
 	var id: StringName = &"minigun"
+	WeaponsScreen.select(id)                                           # the catalogue: select the tile, its card carries the BUY button
+	hud._layout_key = ""
+	hud._ensure_layout()
 	var price := prog.weapon_price(id)
 	var before := prog.credits
 	var rect := Rect2()

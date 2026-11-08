@@ -10,4 +10,7 @@ const S := {
 	"SHOW": "VER", "OBJECTIVE": "OBJETIVO", "ZOOM IN": "ACERCAR", "TAP A MARKER OR THE MAP: ROUTE.  PINCH: ZOOM": "TOCA UN ICONO O EL MAPA: RUTA.  PELLIZCA: ZOOM",
 	"Steadier aim": "Puntería firme", "Zoom, steady aim": "Zoom y firmeza", "Hip aim, crits": "Cadera y críticos", "Quiet, less kick": "Silencio, menos retroceso", "Longer range": "Más alcance", "Less recoil": "Menos retroceso",
 	"More damage": "Más daño", "Faster fire": "Fuego rápido", "Bigger magazine": "Cargador mayor",
+	"VOLT PISTOL": "PISTOLA VOLT", "PHASE MARKSMAN": "FUSIL DE FASE", "SHARD BREACHER": "ROMPEDOR DE ESQUIRLAS", "NOVA LAUNCHER": "LANZADOR NOVA",
+	"SWARM PDW": "PDW ENJAMBRE", "VECTOR HEAVY SMG": "SUBFUSIL VECTOR", "ION BATTLE RIFLE": "FUSIL DE BATALLA ION", "SAWN SPLITTER": "ESCOPETA RECORTADA",
+	"STORM AUTOSHOT": "AUTOTIRO TORMENTA", "VOID BOLT RIFLE": "FUSIL DE CERROJO VACÍO", "HALO MARKSMAN DMR": "DMR HALO", "PHASE KNIFE": "CUCHILLO DE FASE",
 }

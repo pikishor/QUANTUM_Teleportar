@@ -36,6 +36,14 @@ const SPEC := {
 	&"grenade": {"reach": 0.5, "gr": Vector3(0.0, -0.02, 0.14), "gl": Vector3(-0.07, -0.12, 0.34)},
 	&"blade": {"reach": 1.1, "gr": Vector3(0.0, 0.0, 0.88), "gl": Vector3(0.0, 0.0, 1.02)},
 	&"whip": {"reach": 0.8, "gr": Vector3(0.0, -0.01, 0.28), "gl": Vector3(0.0, -0.01, 0.42)},
+	&"swarm": {"reach": 0.62, "gr": Vector3(0.0, -0.075, 0.27), "gl": Vector3(-0.01, -0.08, 0.1)},
+	&"vector": {"reach": 0.68, "gr": Vector3(0.0, -0.085, 0.38), "gl": Vector3(0.0, -0.08, 0.16)},
+	&"battle": {"reach": 0.88, "gr": Vector3(0.0, -0.09, 0.7), "gl": Vector3(0.0, -0.08, 0.4)},
+	&"sawn": {"reach": 0.66, "gr": Vector3(0.0, -0.09, 0.46), "gl": Vector3(0.0, -0.08, 0.22)},
+	&"auto": {"reach": 0.84, "gr": Vector3(0.0, -0.09, 0.66), "gl": Vector3(0.0, -0.09, 0.36)},
+	&"bolt": {"reach": 0.98, "gr": Vector3(0.0, -0.09, 0.8), "gl": Vector3(0.0, -0.08, 0.48)},
+	&"dmr": {"reach": 0.94, "gr": Vector3(0.0, -0.09, 0.76), "gl": Vector3(0.0, -0.08, 0.46)},
+	&"knife": {"reach": 1.0, "gr": Vector3(0.0, 0.0, 0.34), "gl": Vector3(0.0, 0.0, 0.42)},
 }
 
 static var _cache := {}
@@ -140,6 +148,18 @@ static func _procedural(b: _Builder, id: StringName, glow: Color) -> void:
 			_blade(b, glow)
 		&"whip":
 			_whip(b, glow)
+		&"swarm", &"vector":
+			_smg(b, glow)
+		&"battle":
+			_marksman(b, glow)
+		&"sawn", &"auto":
+			_shotgun(b, glow, id == &"sawn")
+		&"bolt":
+			_rail(b, glow)
+		&"dmr":
+			_marksman(b, glow)
+		&"knife":
+			_blade(b, glow)
 
 
 # --- the models ---------------------------------------------------------------------------------------------------------

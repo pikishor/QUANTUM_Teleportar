@@ -35,6 +35,15 @@ WEAPONS = {
     "breacher": (UG, "Shotgun_ShortStock", 0.78),
     "rail": (UG, "SniperRifle_2", 1.12),
     "rocket": ("rpg7", "rpg7_1", 0.98, "z+"),
+    # round 4 part 2: eight more weapons from the same CC0 pack (a class each: SMG x2, rifle, shotgun x2, sniper x2, melee)
+    "swarm": (UG, "SubmachineGun_4", 0.36),
+    "vector": (UG, "SubmachineGun_3", 0.52),
+    "battle": (UG, "AssaultRifle_4", 0.95),
+    "sawn": (UG, "Shotgun_SawedOff", 0.62),
+    "auto": (UG, "Shotgun_3", 0.90),
+    "bolt": (UG, "SniperRifle_4", 1.12),
+    "dmr": (UG, "SniperRifle_3", 1.05),
+    "knife": (UG, "Bayonet_2", 0.42),
 }
 RPG_COLOURS = {"Material.001": (0.07, 0.075, 0.07), "Material.002": (0.17, 0.18, 0.12), "Material.003": (0.11, 0.075, 0.05), "Material.004": (0.09, 0.09, 0.1)}
 

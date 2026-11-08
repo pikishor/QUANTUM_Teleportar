@@ -38,6 +38,7 @@ func _init() -> void:
 		["map_waypoint", &"paused", [], &"map_wp"],
 		["map_zoom", &"paused", [], &"map_zoom"],
 		["map_danger", &"paused", [], &"map_danger"],
+		["map_all", &"paused", [], &"map_all"],
 		["dead", &"dead", []],
 	]
 	var only := OS.get_environment("MENU_ONLY")                  # comma list of step names: render just those
@@ -99,6 +100,8 @@ func _begin() -> void:
 		if ms != null:
 			ms.discover(Game.player.global_position)
 			ms.open()
+			if st[3] == &"map_all":
+				ms.set_zoom(1)
 			if st[3] == &"map_wp":
 				ms.set_waypoint(Vector3(-280.0, 0.0, 330.0))
 			if st[3] == &"map_danger":

@@ -20,21 +20,29 @@ const LADDER: Array[Dictionary] = [
 	{"id": &"akimbo", "route": SHOP, "arg": 0},
 	{"id": &"arc", "route": MISSION, "arg": 1},
 	{"id": &"whip", "route": DROP, "arg": &"striker"},
+	{"id": &"vector", "route": SHOP, "arg": 0},
+	{"id": &"swarm", "route": DROP, "arg": &"flanker"},
+	{"id": &"battle", "route": CRATE, "arg": 3},
+	{"id": &"sawn", "route": CRATE, "arg": 4},
+	{"id": &"auto", "route": MISSION, "arg": 2},
+	{"id": &"dmr", "route": CRATE, "arg": 5},
+	{"id": &"bolt", "route": MISSION, "arg": 4},
+	{"id": &"knife", "route": DROP, "arg": &"sentinel"},
 	{"id": &"lance", "route": BOSS, "arg": 3},
 	{"id": &"minigun", "route": DROP, "arg": &"heavy"},
 	{"id": &"rocket", "route": CRATE, "arg": 2},
 	{"id": &"grenade", "route": BOSS, "arg": 6},
 ]
 
-## Weapon crates (the first three carry a weapon) and ammo crates: junction (gi, gj) of the road grid, corner sign (+1 / -1 each axis: the sidewalk corner of the junction), a name.
+## Weapon crates (the first six carry a weapon) and ammo crates: junction (gi, gj) of the road grid, corner sign (+1 / -1 each axis: the sidewalk corner of the junction), a name.
 const CRATE_CORNER := 11.5
 const CRATES: Array[Dictionary] = [
 	{"g": Vector2i(7, 9), "sx": 1.0, "sz": 1.0, "weapon": &"marksman", "name": "MARKET CRATE"},
 	{"g": Vector2i(10, 7), "sx": -1.0, "sz": 1.0, "weapon": &"breacher", "name": "TOWERS CRATE"},
 	{"g": Vector2i(13, 4), "sx": 1.0, "sz": -1.0, "weapon": &"rocket", "name": "FOUNDRY CRATE"},
-	{"g": Vector2i(6, 6), "sx": -1.0, "sz": -1.0, "weapon": &"", "name": "AMMO CRATE"},
-	{"g": Vector2i(10, 10), "sx": 1.0, "sz": -1.0, "weapon": &"", "name": "AMMO CRATE"},
-	{"g": Vector2i(5, 11), "sx": -1.0, "sz": 1.0, "weapon": &"", "name": "AMMO CRATE"},
+	{"g": Vector2i(6, 6), "sx": -1.0, "sz": -1.0, "weapon": &"battle", "name": "PLAZA CRATE"},
+	{"g": Vector2i(10, 10), "sx": 1.0, "sz": -1.0, "weapon": &"sawn", "name": "DOCKS CRATE"},
+	{"g": Vector2i(5, 11), "sx": -1.0, "sz": 1.0, "weapon": &"dmr", "name": "ARCH CRATE"},
 	{"g": Vector2i(11, 5), "sx": 1.0, "sz": 1.0, "weapon": &"", "name": "AMMO CRATE"},
 	{"g": Vector2i(8, 13), "sx": -1.0, "sz": -1.0, "weapon": &"", "name": "AMMO CRATE"},
 	{"g": Vector2i(8, 3), "sx": 1.0, "sz": 1.0, "weapon": &"", "name": "AMMO CRATE"},

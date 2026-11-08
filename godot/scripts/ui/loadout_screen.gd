@@ -72,6 +72,7 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 			var label := "ON" if own else ("EQUIP" if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
 			hud.buttons.append({"id": StringName("part_%s" % part), "rect": Rect2(cx + (20.0 + j * (PART_W + 8.0)) * s, (SLOT_Y + k * SLOT_STEP + 24.0) * s, PART_W * s, PART_H * s), "label": label, "on": own,
 				"part": true, "name": String(Attachments.PARTS[part]["name"]), "fx": String(PART_FX.get(part, "")), "state": 2 if own else (1 if Attachments.is_owned(part) else 0)})
+	hud._add_card(&"loadout_info", Rect2(cx + 272.0 * s, 542.0 * s, 240.0 * s, 64.0 * s), "INFO", &"weapon", "", false, UiUtil.CYAN)
 	hud._add_card(&"loadout_gear", Rect2(cx + 20.0 * s, 542.0 * s, 240.0 * s, 64.0 * s), "GEAR", &"gear", "", false, UiUtil.MAGENTA)
 	hud._add(&"loadout_back", Rect2(cx - 110.0 * s, 612.0 * s, 220.0 * s, 64.0 * s), "RESUME" if hud._loadout_quick else "BACK", false)
 
@@ -91,6 +92,15 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		hud._text(c, font, Vector2(0.0, 162.0 * s), nx, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var d := Attachments.effective(sel)
 	hud._text(c, font, Vector2(cx + GRID_X * s, (INFO_Y + 34.0) * s), "DMG %d    MAG %d" % [int(roundf(float(d["damage"]))), int(d["mag"])], HORIZONTAL_ALIGNMENT_CENTER, gw, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.9), 1.0 * s)
+	var card := WeaponStats.card(sel, d)                            # three bars under the numbers: the weapon at a glance (the INFO button opens the whole card)
+	var bw := minf(gw, 330.0 * s)
+	for i in 3:
+		var key: StringName = [&"damage", &"rate", &"range"][i]
+		var by := (INFO_Y + 140.0 + 26.0 * float(i)) * s
+		hud._text(c, font, Vector2(cx + GRID_X * s, by + 16.0 * s), String(WeaponStats.BAR_NAMES[key]) if not (card["melee"] and key == &"range") else "REACH", HORIZONTAL_ALIGNMENT_LEFT, 120.0 * s, int(15.0 * s), Color(1, 1, 1, 0.85))
+		var tr := Rect2(cx + GRID_X * s + 122.0 * s, by + 3.0 * s, bw - 122.0 * s, 14.0 * s)
+		c.draw_rect(tr, Color(1, 1, 1, 0.1))
+		c.draw_rect(Rect2(tr.position, Vector2(tr.size.x * float(card["bars"][key]), tr.size.y)), Color(UiUtil.CYAN, 0.92))
 	for k in Attachments.SLOTS.size():
 		var y := (SLOT_Y + k * SLOT_STEP) * s
 		hud._text(c, font, Vector2(cx + 20.0 * s, y + 16.0 * s), String(Attachments.SLOTS[k]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)

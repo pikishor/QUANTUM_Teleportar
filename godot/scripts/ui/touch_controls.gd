@@ -263,6 +263,8 @@ func release_all() -> void:
 func _input(event: InputEvent) -> void:
 	if not controls_on and not perf_on:
 		return
+	if MapScreen.up and not (event is InputEventScreenTouch and not (event as InputEventScreenTouch).pressed):
+		return                                                      # the open map owns the fingers (a lift still reaches touch_up so no finger stays held)
 	if event is InputEventScreenTouch:
 		var t := event as InputEventScreenTouch
 		if t.pressed:

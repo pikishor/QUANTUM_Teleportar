@@ -16,7 +16,7 @@ const PAD_PULL := 2.2
 const PAD_PULL_MAX := 1.3
 
 ## Hit reaction strength per weapon (flinch / stagger on the enemy): the scatter and lance rock a target, the carbine only flinches it.
-const STAGGER := {&"carbine": 0.4, &"scatter": 0.9, &"lance": 1.5, &"grenade": 1.2, &"minigun": 0.15, &"akimbo": 0.3, &"arc": 0.7, &"revolver": 1.1, &"whip": 0.9, &"blade": 1.0, &"pistol": 0.35, &"marksman": 0.8, &"breacher": 0.8, &"rocket": 1.3}
+const STAGGER := {&"carbine": 0.4, &"scatter": 0.9, &"lance": 1.5, &"grenade": 1.2, &"minigun": 0.15, &"akimbo": 0.3, &"arc": 0.7, &"revolver": 1.1, &"whip": 0.9, &"blade": 1.0, &"pistol": 0.35, &"marksman": 0.8, &"breacher": 0.8, &"rocket": 1.3, &"swarm": 0.15, &"vector": 0.3, &"battle": 0.6, &"sawn": 1.0, &"auto": 0.6, &"bolt": 1.4, &"dmr": 0.9, &"knife": 0.5}
 
 static var enabled := true
 static var auto_fire := false

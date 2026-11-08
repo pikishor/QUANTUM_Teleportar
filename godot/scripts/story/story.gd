@@ -416,7 +416,7 @@ func _tick_cards(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if cards.is_empty():
+	if cards.is_empty() or MapScreen.up:
 		return
 	var hit := false
 	if event is InputEventScreenTouch:

@@ -23,12 +23,12 @@ const SLIDERS := {
 const TOGGLES := {
 	&"opt_aim": &"aim_assist", &"opt_auto": &"auto_fire", &"opt_left": &"left_hand",
 	&"opt_vib": &"vibration", &"opt_subs": &"subtitles", &"opt_cb": &"cb_safe",
-	&"opt_flash": &"reduce_flash", &"opt_motion": &"reduce_motion", &"opt_post": &"post", &"opt_cine": &"cutscenes", &"opt_civ": &"civilians",
+	&"opt_flash": &"reduce_flash", &"opt_motion": &"reduce_motion", &"opt_post": &"post", &"opt_cine": &"cutscenes", &"opt_civ": &"civilians", &"opt_dmg": &"dmg_numbers",
 }
 const TOGGLE_NAMES := {
 	&"opt_aim": "AIM ASSIST", &"opt_auto": "AUTO FIRE", &"opt_left": "LEFT HAND",
 	&"opt_vib": "VIBRATION", &"opt_subs": "SUBTITLES", &"opt_cb": "COLOUR SAFE",
-	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION", &"opt_post": "POST FX", &"opt_cine": "CUTSCENES", &"opt_civ": "CIVILIANS",
+	&"opt_flash": "REDUCE FLASH", &"opt_motion": "REDUCE MOTION", &"opt_post": "POST FX", &"opt_cine": "CUTSCENES", &"opt_civ": "CIVILIANS", &"opt_dmg": "DAMAGE NUMBERS",
 }
 ## Page 1 (accessibility) ids; opt_page flips between the pages and sits in the last cell of both.
 const PAGE2: Array[StringName] = [&"opt_lang", &"opt_text", &"opt_flash", &"opt_motion", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_diff", &"opt_res", &"opt_haptic", &"opt_controls", &"opt_reset", &"opt_reset_demo", &"opt_chatter", &"opt_fpsbox", &"opt_civ"]
@@ -37,7 +37,7 @@ const PAGE_CELL := 20                ## three columns of seven rows: the MORE ce
 const COLS0 := [
 	["CONTROLS", [&"opt_look_x", &"opt_look_y", &"opt_ads", &"opt_aim", &"opt_auto", &"opt_left", &"opt_vib"]],
 	["DISPLAY", [&"opt_hud", &"opt_btn", &"opt_tier", &"opt_fps", &"opt_post", &"opt_subs", &"opt_cb"]],
-	["SOUND AND MORE", [&"opt_vol_music", &"opt_vol_sfx", &"opt_mute", &"opt_cine", &"opt_bench"]],
+	["SOUND AND MORE", [&"opt_vol_music", &"opt_vol_sfx", &"opt_mute", &"opt_cine", &"opt_bench", &"opt_dmg"]],
 ]
 const COLS1 := [
 	["LANGUAGE AND TEXT", [&"opt_lang", &"opt_text", &"opt_subsize", &"opt_subbg", &"opt_hints", &"opt_haptic", &"opt_controls"]],
@@ -289,7 +289,7 @@ const TABS := [
 	[&"DISPLAY", &"display", [&"opt_hud", &"opt_btn", &"opt_tier", &"opt_fps", &"opt_res", &"opt_post", &"opt_text", &"opt_fpsbox"]],
 	[&"SOUND", &"sound", [&"opt_vol_music", &"opt_vol_sfx", &"opt_mute", &"opt_haptic", &"opt_cine", &"opt_subs", &"opt_subsize", &"opt_subbg"]],
 	[&"PLAY", &"gameplay", [&"opt_diff", &"opt_hints", &"opt_chatter", &"opt_civ", &"opt_flash", &"opt_motion", &"opt_cb", &"opt_lang"]],
-	[&"DATA", &"data", [&"opt_bench", &"opt_reset", &"opt_reset_demo"]],
+	[&"DATA", &"data", [&"opt_dmg", &"opt_bench", &"opt_reset", &"opt_reset_demo"]],
 ]
 const TAB_Y := 100.0
 const TAB_H := 64.0

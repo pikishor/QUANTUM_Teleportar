@@ -228,7 +228,7 @@ func _finish(was_skipped: bool) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not active or not Game.is_playing():
+	if not active or not Game.is_playing() or MapScreen.up:
 		return
 	if event is InputEventKey:
 		var k := event as InputEventKey

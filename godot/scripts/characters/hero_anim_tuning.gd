@@ -39,7 +39,8 @@ const T := {
 	"slope_pitch_max": 0.6, "slope_pitch_mul": 0.9,
 }
 
-const WEAPON_CLASS := {&"carbine": "rifle", &"burst": "rifle", &"rail": "rifle", &"lance": "rifle", &"scatter": "shotgun", &"grenade": "heavy", &"flux": "heavy", &"gravity": "heavy", &"minigun": "heavy", &"akimbo": "rifle", &"arc": "rifle", &"revolver": "rifle", &"whip": "rifle", &"blade": "rifle", &"pistol": "rifle", &"marksman": "rifle", &"breacher": "shotgun", &"rocket": "heavy"}
+const WEAPON_CLASS := {&"carbine": "rifle", &"burst": "rifle", &"rail": "rifle", &"lance": "rifle", &"scatter": "shotgun", &"grenade": "heavy", &"flux": "heavy", &"gravity": "heavy", &"minigun": "heavy", &"akimbo": "rifle", &"arc": "rifle", &"revolver": "rifle", &"whip": "rifle", &"blade": "rifle", &"pistol": "rifle", &"marksman": "rifle", &"breacher": "shotgun", &"rocket": "heavy",
+	&"swarm": "rifle", &"vector": "rifle", &"battle": "rifle", &"sawn": "shotgun", &"auto": "shotgun", &"bolt": "rifle", &"dmr": "rifle", &"knife": "rifle"}
 
 
 static func f(key: String) -> float:

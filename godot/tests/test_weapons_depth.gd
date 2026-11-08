@@ -273,11 +273,21 @@ func run(hst: Node) -> void:
 	var seen := {}
 	for _pg in ShopScreen.pages():
 		hud._ensure_layout()
-		for b: Dictionary in hud.buttons:
-			var sid := String(b["id"])
-			if sid.begins_with("buy_") and WeaponDefs.DEFS.has(StringName(sid.substr(4))):
-				seen[StringName(sid.substr(4))] = true
-				TestLib.check((b["rect"] as Rect2).size.y >= 40.0 * UiUtil.ui_scale(host.get_viewport().get_visible_rect().size) - 0.5, "shop button %s is tall enough" % sid)
+		var sels: Array[StringName] = [&""]
+		if ShopScreen.weapon_page > 0:                                  # the catalogue shows the BUY button of the selected weapon: select each tile in turn
+			sels.clear()
+			for it in WeaponsScreen.page_items(ShopScreen.weapon_page - 1):
+				sels.append(it["id"])
+		for sel_id in sels:
+			if sel_id != &"":
+				WeaponsScreen.sel = sel_id
+				hud._layout_key = ""
+				hud._ensure_layout()
+			for b: Dictionary in hud.buttons:
+				var sid := String(b["id"])
+				if sid.begins_with("buy_") and WeaponDefs.DEFS.has(StringName(sid.substr(4))):
+					seen[StringName(sid.substr(4))] = true
+					TestLib.check((b["rect"] as Rect2).size.y >= 40.0 * UiUtil.ui_scale(host.get_viewport().get_visible_rect().size) - 0.5, "shop button %s is tall enough" % sid)
 		TestLib.check(hud.press_button(&"shop_wpage"), "the shop page flips")
 	for id: StringName in ShopScreen.SHOP_WEAPONS:
 		TestLib.check(seen.has(id), "the shop offers %s on some page" % id)

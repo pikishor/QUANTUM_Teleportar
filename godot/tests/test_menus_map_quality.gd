@@ -215,6 +215,7 @@ func _map_tests() -> void:
 		TestLib.check(bad.is_empty(), "%s: map labels clean: %s" % [tag, "; ".join(bad.slice(0, 5))])
 		# pinch zoom with two fingers, then pan
 		ms.set_zoom(1)
+		ms._open_age = 1.0                                # past the quiet window that swallows the opening tap
 		var c := ms._map.size * 0.5
 		var t0 := InputEventScreenTouch.new()
 		t0.index = 0

@@ -610,7 +610,7 @@ func _screens() -> void:
 	for bp: StringName in Crafting.bp_ids():
 		Crafting.learn(bp)
 	TestLib.check(hud.press_button(&"cr_tab_0"), "back to CRAFT")
-	TestLib.check(CraftScreen.pages() == 2 and hud.press_button(&"cr_next") and CraftScreen.grid_page == 1 and hud.press_button(&"cr_prev") and CraftScreen.grid_page == 0, "18 blueprints page over two grids")
+	TestLib.check(CraftScreen.pages() == ceili(float(Crafting.bp_ids().size()) / float(CraftScreen.PAGE_CELLS)) and CraftScreen.pages() >= 2 and hud.press_button(&"cr_next") and CraftScreen.grid_page == 1 and hud.press_button(&"cr_prev") and CraftScreen.grid_page == 0, "the blueprints page over several grids (26 weapons now)")
 	hud.press_button(&"cr_next")
 	await TestLib.frames(host, 3)
 	_scan("page 2")

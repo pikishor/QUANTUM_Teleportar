@@ -51,7 +51,7 @@ const GRENADE_GRAVITY := 22.0
 const WELL_TICK := 0.2
 const INSPECT_TIME := 1.6
 const INSPECT_IDLE := 9.0                    ## seconds of doing nothing before the rifle is inspected
-const AMMO_PACK := {&"pistol": 30, &"marksman": 12, &"breacher": 8, &"rocket": 2, &"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12}
+const AMMO_PACK := {&"pistol": 30, &"marksman": 12, &"breacher": 8, &"rocket": 2, &"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12, &"swarm": 72, &"vector": 36, &"battle": 20, &"sawn": 6, &"auto": 12, &"bolt": 6, &"dmr": 20}
 
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
@@ -96,6 +96,12 @@ var _burst := 0
 var _move_spread := 0.0
 var _ray := PhysicsRayQueryParameters3D.new()
 var _ray_b := PhysicsRayQueryParameters3D.new()
+var _launch: LaunchAim                       ## the aim indicator of the launchers and grenades; its `target` is the locked enemy or car
+
+
+## The kind of the weapon in hand ("hit", "charge", "throw", "melee").
+func current_kind() -> String:
+	return String(def["kind"])
 var _exclude_base: Array[RID] = []
 var _exclude: Array[RID] = []
 var _decals: ImpactDecals
@@ -371,6 +377,10 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 	fire_t -= dt
 	_since_shot += dt
 	_tick_numbers(dt)
+	if String(def["kind"]) == "throw" or (_launch != null and _launch.active):
+		if _launch == null:
+			_launch = LaunchAim.new(self)
+		_launch.update(dt, def)                                     # the landing ring, the arc and the lock bracket (scripts/player/launch_aim.gd)
 	swap_t = maxf(0.0, swap_t - dt)
 	if reload_t > 0.0:
 		reload_t -= dt
@@ -723,7 +733,7 @@ func _eject_shell() -> void:
 
 ## Floating damage number at a hit: a pooled Label3D (8 of them), crits larger and gold, a kill red, it rises and fades in 0.7 s.
 func _damage_number(pos: Vector3, amount: float, crit: bool, kill: bool) -> void:
-	if _player == null:
+	if _player == null or not Game.damage_numbers:
 		return
 	if _numbers.is_empty():
 		for i in NUMBER_POOL:
@@ -882,6 +892,8 @@ func _throw(yaw_off := 0.0) -> void:
 	_ray_b.to = origin + dir * float(def["range"])
 	var res := space.intersect_ray(_ray_b)
 	var aim_pt: Vector3 = res["position"] if not res.is_empty() else origin + dir * 40.0
+	if _launch != null and is_instance_valid(_launch.target) and not _is_dead(_launch.target) and yaw_off == 0.0:      # a launcher locked on: the round is thrown at the target
+		aim_pt = _launch.landing
 	var from := p.body.muzzle.global_position
 	var delta := aim_pt - from
 	if yaw_off != 0.0:

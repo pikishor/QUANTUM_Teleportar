@@ -10,4 +10,7 @@ const S := {
 	"SHOW": "दिखाएँ", "OBJECTIVE": "लक्ष्य", "ZOOM IN": "ज़ूम",
 	"Steadier aim": "स्थिर निशाना", "Zoom, steady aim": "ज़ूम, स्थिर", "Hip aim, crits": "हिप एम, क्रिट", "Quiet, less kick": "शांत, कम झटका", "Longer range": "ज़्यादा रेंज", "Less recoil": "कम झटका",
 	"More damage": "ज़्यादा नुकसान", "Faster fire": "तेज़ फायर", "Bigger magazine": "बड़ी मैगज़ीन",
+	"VOLT PISTOL": "वोल्ट पिस्तौल", "PHASE MARKSMAN": "फेज़ निशानची", "SHARD BREACHER": "शार्ड ब्रीचर", "NOVA LAUNCHER": "नोवा लॉन्चर",
+	"SWARM PDW": "स्वार्म पीडीडब्ल्यू", "VECTOR HEAVY SMG": "वेक्टर एसएमजी", "ION BATTLE RIFLE": "आयन बैटल राइफ़ल", "SAWN SPLITTER": "सॉन स्प्लिटर",
+	"STORM AUTOSHOT": "स्टॉर्म ऑटोशॉट", "VOID BOLT RIFLE": "वॉइड बोल्ट राइफ़ल", "HALO MARKSMAN DMR": "हेलो डीएमआर", "PHASE KNIFE": "फेज़ चाकू",
 }

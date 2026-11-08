@@ -39,6 +39,8 @@ const CAP_OVERVIEW := 18                          ## icons on screen at zoom < 2
 const CAP_MID := 30                               ## zoom 2 .. 4
 const CAP_NEAR := 44                              ## zoom >= 4: even a street shows at most this many icons
 const HINT_SECONDS := 6.0
+const MAX_CHEVRONS := 260
+const INPUT_QUIET := 0.25                         ## seconds after opening that pointer input is ignored: the tap that opened the map (a minimap tap, the MAP card) must not place a waypoint under the finger
 const LABEL_MAX := 6                              ## marker names printed at once (objective and selection come on top)
 const START_HALF := 300.0                           ## metres: the original city (|x|, |z| <= this) is charted from the first second, so the map is not a black square with a dot (it was 6 %)
 const DISCOVER_R := 150.0                           ## metres: how far around you the map charts itself (it was 70: 6 % after a walk)
@@ -48,6 +50,7 @@ const KIND_COLOR := {&"mission": Color(1.0, 0.75, 0.15), &"side": Color(0.2, 0.9
 	&"weapon": Color(1.0, 0.82, 0.3), &"home": Color(0.85, 0.9, 1.0), &"items": Color(0.75, 0.45, 1.0)}
 const DANGER_COLOR := Color(1.0, 0.25, 0.25)
 const SAVE_PATH := "user://map.cfg"
+static var up := false                    ## true while a map is open: Hud, TouchControls, the story cards, photo mode ... ignore pointer input then (the map owns it; a tap used to fall through to the pause menu underneath)
 static var path_override := ""             ## DEMO MODE points the map at its own file (scripts/demo/demo_mode.gd); "" = SAVE_PATH
 const GARAGE_TYPES: Array[StringName] = [&"warehouse", &"cargo_bay"]
 const TAP_CLEAR_PX := 28.0
@@ -97,10 +100,21 @@ var _route := PackedVector3Array()
 var _route_goal := Vector3.INF
 var _charted := 0
 var _x0 := 12.0
+var _right_rect := Rect2()                           ## the opaque panel behind the button column (control px)
 var _legend_rect := Rect2()                          ## the opaque panel behind the legend chips (control px)
 var _chip_vis := 0
 var _open_age := 0.0                                  ## seconds since the map opened: the gesture hint is only there for the first few
 var _route_m := 0
+var _tint_mesh: ArrayMesh                            ## static layers as ONE mesh each (district tint per block, building footprints): one draw call, no per-lot script work in the draw
+var _lots_mesh: ArrayMesh
+var _lots_mesh_n := 0
+var _lots_mesh_owner := 0
+var _fog_mesh: ArrayMesh
+var _fog_hash := 0
+var _redraw_wanted := true
+var _redraw_t := 0.0
+var _goal_btn: Button
+var activity := 0                                    ## counts every pan, zoom, tap, waypoint, open and close: the screen watchdog reads it as progress
 
 
 func _ready() -> void:
@@ -135,11 +149,13 @@ func _ready() -> void:
 	_zoom_btn.pressed.connect(cycle_zoom)
 	var loc := _button("YOU", &"Locate")
 	loc.pressed.connect(locate)
+	_goal_btn = _button("GOAL", &"Goal")
+	_goal_btn.pressed.connect(fit_route)
 	var clr := _button("CLEAR", &"Clear")
 	clr.pressed.connect(clear_waypoint)
 	var cls := _button("CLOSE", &"Close")
 	cls.pressed.connect(close_screen)
-	_side_btns = [cls, _zoom_btn, loc, clr]
+	_side_btns = [cls, _zoom_btn, loc, _goal_btn, clr]
 	_layout()
 
 
@@ -225,6 +241,7 @@ func _layout() -> void:
 	_legend_rect = Rect2(x0 - 6.0 * s, y_top - 6.0 * s, COL_W * s + 12.0 * s, y - y_top + 10.0 * s)
 	var rx := vp.x - ins.y - 12.0 * s - 164.0 * s
 	var ry := 8.0 * s
+	_right_rect = Rect2(rx - 6.0 * s, 0.0, 164.0 * s + 12.0 * s + ins.y + 6.0 * s, (BTN_H + GAP + 2.0) * s * float(_side_btns.size()) + 14.0 * s)
 	for b: Button in _side_btns:
 		b.position = Vector2(rx, ry)
 		b.size = Vector2(164.0 * s, BTN_H * s)
@@ -242,6 +259,9 @@ func _process(delta: float) -> void:
 	_anim += delta
 	if _open:
 		_open_age += delta
+		if Game.state != &"paused":                       # the game moved on under the map (death, a cutscene, a resume by another path): never leave a map over a running game
+			close_screen()
+			return
 		if _t >= 0.2:
 			_t = 0.0
 			_refresh_chips()
@@ -254,6 +274,26 @@ func _process(delta: float) -> void:
 		discover(Game.player.global_position)
 	if _dirty:
 		_save()
+
+
+## Esc, the pad's B and the phone's back button close the map first (they used to reach the pause menu under it and resume the game).
+func _input(event: InputEvent) -> void:
+	if not _open:
+		return
+	if (event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo and (event.is_action_pressed(&"pause") or event.is_action_pressed(&"ui_cancel"))) \
+			or (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B):
+		close_screen()
+		get_viewport().set_input_as_handled()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and _open:
+		close_screen()
+
+
+func _exit_tree() -> void:
+	if _open:
+		up = false
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -337,6 +377,9 @@ func _zone_label_pos(zone: int) -> Vector2:
 
 
 func set_waypoint(w: Vector3) -> void:
+	if not w.is_finite():
+		return
+	activity += 1
 	waypoint = Vector3(clampf(w.x, -HALF, HALF), 0.0, clampf(w.z, -HALF, HALF))
 	selected = {}
 	_dirty = true
@@ -346,6 +389,7 @@ func set_waypoint(w: Vector3) -> void:
 
 
 func clear_waypoint() -> void:
+	activity += 1
 	waypoint = Vector3.INF
 	selected = {}
 	_dirty = true
@@ -375,16 +419,26 @@ func open() -> void:
 	if _open or not (Game.state == &"play" or Game.state == &"paused"):
 		return
 	_resume = &"paused" if Game.state == &"paused" else &"play"
+	up = true                                             # before the state change: the HUD hides its pause screen for the map instead of drawing it underneath
 	Game.state = &"paused"
 	if is_instance_valid(Game.player):
 		discover(Game.player.global_position)
 	_open = true
+	up = true
+	activity += 1
 	_open_age = 0.0
+	_touches.clear()
+	_press = Vector2.INF
+	_dragging = false
+	_gesture = false
 	visible = true
+	get_tree().call_group(&"hud", &"map_toggled", true)
 	_layout()
 	set_zoom(OPEN_ZOOM)                                   # opens close on the hero: a 1280 m city drawn on one phone height is a postage stamp (director review 3, #9)
 	_load_lots()
 	_rebuild_route()
+	if _route.size() >= 2:
+		fit_route()                                       # hero and objective both in the frame
 	_refresh_chips()
 	_map.queue_redraw()
 
@@ -393,11 +447,18 @@ func close_screen() -> void:
 	if not _open:
 		return
 	_open = false
+	up = false
+	activity += 1
 	visible = false
 	_touches.clear()
+	_press = Vector2.INF
+	_dragging = false
+	_gesture = false
 	_save()
 	if Game.state == &"paused":
 		Game.state = _resume
+	if is_inside_tree():
+		get_tree().call_group(&"hud", &"map_toggled", false)
 	closed.emit()
 
 
@@ -417,28 +478,35 @@ func _load_lots() -> void:
 func _update_rect() -> void:
 	if _map == null:
 		return
-	var sz := _map.size
-	var side := maxf(minf(sz.x, sz.y), 1.0)
-	_rect = Rect2((sz.x - side) * 0.5, (sz.y - side) * 0.5, side, side)
+	_rect = Rect2(Vector2.ZERO, Vector2(maxf(_map.size.x, 1.0), maxf(_map.size.y, 1.0)))     # the map fills the whole screen (it was the square of the screen height, with dark bars on a phone)
 
 
-## Metres across the square frame at the current zoom.
+## Metres from the top to the bottom edge of the screen at the current zoom (zoom 1 = the whole city fits the height; the width shows more as the phone is wider).
 func span() -> float:
 	return 2.0 * HALF / zoom_f
 
 
-## World (x, z) of the square frame's upper left corner.
+## Screen px per metre.
+func ppm() -> float:
+	return _rect.size.y / span()
+
+
+## Metres across the whole screen (width, height).
+func extent() -> Vector2:
+	return _rect.size / ppm()
+
+
+## World (x, z) of the screen's upper left corner.
 func _view_origin() -> Vector2:
-	return view_center - Vector2(span(), span()) * 0.5
+	return view_center - extent() * 0.5
 
 
 func world_to_map(x: float, z: float) -> Vector2:
-	return _rect.position + ((Vector2(x, z) - _view_origin()) / span()) * _rect.size
+	return _rect.position + (Vector2(x, z) - _view_origin()) * ppm()
 
 
 func map_to_world(p: Vector2) -> Vector3:
-	var u := (p - _rect.position) / _rect.size
-	var w := _view_origin() + u * span()
+	var w := _view_origin() + (p - _rect.position) / ppm()
 	return Vector3(clampf(w.x, -HALF, HALF), 0.0, clampf(w.y, -HALF, HALF))
 
 
@@ -466,6 +534,7 @@ func locate() -> void:
 
 
 func _after_zoom() -> void:
+	activity += 1
 	_clamp_view()
 	if _zoom_btn != null:
 		_zoom_btn.text = "ZOOM %dX" % zoom
@@ -475,30 +544,68 @@ func _after_zoom() -> void:
 
 ## Multiply the zoom by `f`, keeping the world point under the screen position `focus` where it is (a pinch zooms into the fingers).
 func zoom_by(f: float, focus := Vector2.INF) -> void:
+	if not is_finite(f) or f <= 0.0:
+		return
 	var before := Vector2.ZERO
 	var use_focus := focus.is_finite() and _rect.size.x > 1.0
 	if use_focus:
-		before = _view_origin() + ((focus - _rect.position) / _rect.size) * span()
+		before = _view_origin() + (focus - _rect.position) / ppm()
 	zoom_f = clampf(zoom_f * f, 1.0, ZOOM_MAX)
 	if use_focus:
-		var after_o := before - ((focus - _rect.position) / _rect.size) * span()
-		view_center = after_o + Vector2(span(), span()) * 0.5
+		var after_o := before - (focus - _rect.position) / ppm()
+		view_center = after_o + extent() * 0.5
 	_after_zoom()
 
 
 func pan(by_world: Vector2) -> void:
+	if not by_world.is_finite():
+		return
 	view_center += by_world
+	activity += 1
 	_clamp_view()
 	if _map != null:
 		_map.queue_redraw()
 
 
+## The view never leaves the city: where the screen is wider than the city (zoom 1 on a phone) that axis stays centred.
 func _clamp_view() -> void:
-	var lim := HALF - span() * 0.5
-	view_center = Vector2(clampf(view_center.x, -lim, lim), clampf(view_center.y, -lim, lim))
+	if not view_center.is_finite():
+		view_center = Vector2.ZERO
+	var half := extent() * 0.5
+	var lx := maxf(HALF - half.x, 0.0)
+	var lz := maxf(HALF - half.y, 0.0)
+	view_center = Vector2(clampf(view_center.x, -lx, lx), clampf(view_center.y, -lz, lz))
+
+
+## True when the view is pinned by the city edge (a test helper: zooming about a point near the edge cannot keep it fixed there).
+func _clamp_limited() -> bool:
+	var half := extent() * 0.5
+	return absf(view_center.x) >= HALF - half.x - 0.5 or absf(view_center.y) >= HALF - half.y - 0.5
+
+
+## Frames the hero and the objective (the route's goal) together; zoom 1..4. Without a route it centres on the hero.
+func fit_route() -> void:
+	activity += 1
+	var goal := route_goal()
+	if not is_instance_valid(Game.player) or not goal.is_finite():
+		locate()
+		return
+	var pp: Vector3 = Game.player.global_position
+	var a := Vector2(pp.x, pp.z)
+	var b := Vector2(goal.x, goal.z)
+	var d := (a - b).abs() + Vector2(220.0, 220.0)                    # metres of margin: the streets around the route stay in the frame
+	var size := maxf(_rect.size.y, 1.0)
+	var ppm_need := minf(_rect.size.x * 0.62 / d.x, _rect.size.y * 0.7 / d.y)
+	zoom_f = clampf(2.0 * HALF * ppm_need / size, 1.0, 2.6)
+	view_center = (a + b) * 0.5
+	_after_zoom()
 
 
 func _on_map_input(event: InputEvent) -> void:
+	if _open_age < INPUT_QUIET:
+		return
+	if event is InputEventScreenTouch or event is InputEventMouseButton or event is InputEventScreenDrag:
+		activity += 1
 	# pinch: two fingers
 	if event is InputEventScreenTouch:
 		var te := event as InputEventScreenTouch
@@ -565,7 +672,7 @@ func _on_map_input(event: InputEvent) -> void:
 		if not _dragging and p.distance_to(_press) > DRAG_PX * _s():
 			_dragging = true
 		if _dragging:
-			pan(-drag / _rect.size.x * span())
+			pan(-drag / ppm())
 	elif up and _press.is_finite():
 		if not _dragging:
 			_tap_at(p)
@@ -611,7 +718,7 @@ func _tap_at(p: Vector2) -> void:
 func _tap(p: Vector2) -> void:
 	if _map.size.x <= 0.0 or p.x < 0.0 or p.y < 0.0 or p.x > _map.size.x or p.y > _map.size.y:
 		return
-	var w := _view_origin() + ((p - _rect.position) / _rect.size) * span()
+	var w := _view_origin() + (p - _rect.position) / ppm()
 	if absf(w.x) > HALF or absf(w.y) > HALF:
 		return                                            # the dark margin outside the city
 	if has_waypoint() and world_to_map(waypoint.x, waypoint.z).distance_to(p) <= _tap_clear_px():
@@ -679,7 +786,8 @@ func collect_markers() -> Array[Dictionary]:
 				out.append({"kind": &"job", "pos": mk["pos"], "fog": true, "label": String(mk.get("kind", &"job")).to_upper().replace("_", " ")})
 		if fr.crates != null:
 			for i in int(fr.crates.call(&"count")):
-				out.append({"kind": &"weapon", "pos": WeaponLadder.crate_pos(i), "fog": true, "label": "WEAPON CRATE"})
+				var cw := StringName(WeaponLadder.CRATES[i]["weapon"])
+				out.append({"kind": &"weapon", "pos": WeaponLadder.crate_pos(i), "fog": true, "label": ("%s  %s" % [WeaponLadder.CRATES[i]["name"], WeaponDefs.title(cw)]) if cw != &"" else "AMMO CRATE"})
 		if fr.repairs != null:
 			for i in int(fr.repairs.call(&"count")):
 				out.append({"kind": &"garage", "pos": fr.repairs.call(&"pos", i), "fog": true, "label": "REPAIR BAY"})
@@ -832,7 +940,7 @@ func route_goal() -> Vector3:
 func _rebuild_route() -> void:
 	_route_goal = route_goal()
 	_route = PackedVector3Array()
-	if _route_goal.is_finite() and is_instance_valid(Game.player):
+	if _route_goal.is_finite() and is_instance_valid(Game.player) and Game.player.global_position.is_finite():
 		_route = MapRoute.route(Game.player.global_position, _route_goal)
 		_route_m = roundi(MapRoute.length(_route))
 
@@ -849,6 +957,7 @@ func route_points() -> PackedVector3Array:
 func _label_out(font: Font, pos: Vector2, text: String, size: int, col: Color, align := HORIZONTAL_ALIGNMENT_CENTER, avoid := false) -> bool:
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	var x := pos.x - w * 0.5 if align == HORIZONTAL_ALIGNMENT_CENTER else pos.x
+	x = clampf(x, 6.0, maxf(_map.size.x - w - 6.0, 6.0))                # a name never runs off the screen edge
 	var box := Rect2(x - 3.0, pos.y - size * 0.8, w + 6.0, size * 1.05)
 	if avoid:
 		for r in _placed:
@@ -862,6 +971,100 @@ func _label_out(font: Font, pos: Vector2, text: String, size: int, col: Color, a
 	return true
 
 
+## Rectangles (metres) with a colour each as ONE mesh (4 vertices and 6 indices per rectangle, vertex colours). Drawn with a Transform2D from metres to pixels.
+static func rect_mesh(rects: Array[Rect2], cols: PackedColorArray) -> ArrayMesh:
+	var mesh := ArrayMesh.new()
+	if rects.is_empty():
+		return mesh
+	var vs := PackedVector2Array()
+	var cs := PackedColorArray()
+	var ix := PackedInt32Array()
+	vs.resize(rects.size() * 4)
+	cs.resize(rects.size() * 4)
+	ix.resize(rects.size() * 6)
+	for i in rects.size():
+		var r := rects[i]
+		var b := i * 4
+		vs[b] = r.position
+		vs[b + 1] = Vector2(r.end.x, r.position.y)
+		vs[b + 2] = r.end
+		vs[b + 3] = Vector2(r.position.x, r.end.y)
+		for k in 4:
+			cs[b + k] = cols[i]
+		var q := i * 6
+		ix[q] = b
+		ix[q + 1] = b + 1
+		ix[q + 2] = b + 2
+		ix[q + 3] = b
+		ix[q + 4] = b + 2
+		ix[q + 5] = b + 3
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = vs
+	arr[Mesh.ARRAY_COLOR] = cs
+	arr[Mesh.ARRAY_INDEX] = ix
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return mesh
+
+
+## The district tint of every block (the zone accent), built once.
+func _tint_layer() -> ArrayMesh:
+	if _tint_mesh == null:
+		var rects: Array[Rect2] = []
+		var cols := PackedColorArray()
+		var pitch := CityLayout.PITCH
+		for bi in CityLayout.N:
+			for bj in CityLayout.N:
+				var bx := CityLayout.road_center(bi) + pitch * 0.5
+				var bz := CityLayout.road_center(bj) + pitch * 0.5
+				var acc: Color = Districts.palette(Districts.look_at(bx, bz))["accent"]
+				var k := 0.15 if Districts.zone_at(bx, bz) < Districts.COUNT else 0.09
+				rects.append(Rect2(bx - CityLayout.BLOCK * 0.5, bz - CityLayout.BLOCK * 0.5, CityLayout.BLOCK, CityLayout.BLOCK))
+				cols.append(Color(acc.r * k, acc.g * k, acc.b * k, 1.0))
+		_tint_mesh = rect_mesh(rects, cols)
+	return _tint_mesh
+
+
+## Every building footprint, coloured by height; rebuilt when the city changes.
+func _lots_layer() -> ArrayMesh:
+	var n := _lots.size()
+	if n == 0:
+		return null
+	if _lots_mesh == null or _lots_mesh_n != n or _lots_mesh_owner != _lots_owner:
+		var rects: Array[Rect2] = []
+		var cols := PackedColorArray()
+		for lot: Variant in _lots:
+			var l := lot as CityLayout.Lot
+			var hk := clampf((l.h - 16.0) / 72.0, 0.0, 1.0)
+			rects.append(l.rect)
+			cols.append(Color(0.09 + 0.12 * hk, 0.14 + 0.2 * hk, 0.19 + 0.24 * hk, 1.0))
+		_lots_mesh = rect_mesh(rects, cols)
+		_lots_mesh_n = n
+		_lots_mesh_owner = _lots_owner
+	return _lots_mesh
+
+
+## One dark rectangle per run of unvisited cells in a row.
+func _fog_layer() -> ArrayMesh:
+	var h: int = hash(_seen)
+	if _fog_mesh == null or h != _fog_hash:
+		var rects: Array[Rect2] = []
+		var cols := PackedColorArray()
+		for cz in CELLS:
+			var run0 := -1
+			for cx in CELLS + 1:
+				var fogged := cx < CELLS and _seen[cz * CELLS + cx] == 0
+				if fogged and run0 < 0:
+					run0 = cx
+				elif not fogged and run0 >= 0:
+					rects.append(Rect2(-HALF + run0 * CELL, -HALF + cz * CELL, float(cx - run0) * CELL, CELL))
+					cols.append(Color(0.0, 0.015, 0.03, 0.66))
+					run0 = -1
+		_fog_mesh = rect_mesh(rects, cols)
+		_fog_hash = h
+	return _fog_mesh
+
+
 func _draw_map() -> void:
 	if _rect.size.x < 8.0:
 		return
@@ -869,30 +1072,34 @@ func _draw_map() -> void:
 	var s := _s()
 	var sz := _map.size
 	var view := Rect2(Vector2.ZERO, sz)
-	var ppm := _rect.size.x / span()                       # screen px per metre
+	var pm := ppm()                                        # screen px per metre
 	var origin := _view_origin()
 	_placed.clear()
 	if scan_on:
 		scan_log.clear()
 	drawn = {"roads": 0, "lots": 0, "markers": 0, "labels": 0, "route": false, "you": false, "danger": 0}
 	_map.draw_rect(Rect2(Vector2.ZERO, sz), Color(0.0, 0.015, 0.03, 1.0))
-	var city := Rect2(world_to_map(-HALF, -HALF), Vector2(2.0 * HALF, 2.0 * HALF) * ppm)
+	var city := Rect2(world_to_map(-HALF, -HALF), Vector2(2.0 * HALF, 2.0 * HALF) * pm)
+	# outskirts: the road grid carries on, faint, past the city edge, so a wide phone screen is a map and not black bars
+	var o_col := Color(0.07, 0.1, 0.13, 1.0)
+	var o_w := maxf(CityLayout.ROAD * pm, 2.0)
+	for oi in range(-12, CityLayout.N + 13):
+		var oc := -CityLayout.HALF + float(oi) * CityLayout.PITCH
+		var op := world_to_map(oc, 0.0)
+		if (oi < 0 or oi > CityLayout.N) and op.x + o_w > 0.0 and op.x - o_w < sz.x:
+			_map.draw_rect(Rect2(op.x - o_w * 0.5, 0.0, o_w, sz.y), o_col)
+		var oq := world_to_map(0.0, oc)
+		if oi >= 0 and oi <= CityLayout.N and oq.y + o_w > 0.0 and oq.y - o_w < sz.y:
+			if city.position.x > 0.0:
+				_map.draw_rect(Rect2(0.0, oq.y - o_w * 0.5, city.position.x, o_w), o_col)
+			if city.end.x < sz.x:
+				_map.draw_rect(Rect2(city.end.x, oq.y - o_w * 0.5, sz.x - city.end.x, o_w), o_col)
 	_map.draw_rect(city.grow(4.0 * s), Color(UiUtil.CYAN, 0.18), false, 2.0 * s)
 	_map.draw_rect(city, Color(0.02, 0.04, 0.06, 1.0))
-	# district tint per block (the zone accent), under everything
-	var pitch := CityLayout.PITCH
-	for bi in CityLayout.N:
-		for bj in CityLayout.N:
-			var bx := CityLayout.road_center(bi) + pitch * 0.5
-			var bz := CityLayout.road_center(bj) + pitch * 0.5
-			var br := Rect2(world_to_map(bx - CityLayout.BLOCK * 0.5, bz - CityLayout.BLOCK * 0.5), Vector2(CityLayout.BLOCK, CityLayout.BLOCK) * ppm)
-			if not br.intersects(view):
-				continue
-			var acc: Color = Districts.palette(Districts.look_at(bx, bz))["accent"]
-			var k := 0.15 if Districts.zone_at(bx, bz) < Districts.COUNT else 0.09
-			_map.draw_rect(br, Color(acc.r * k, acc.g * k, acc.b * k, 1.0))
+	var xf := Transform2D(Vector2(pm, 0.0), Vector2(0.0, pm), world_to_map(0.0, 0.0))        # metres (x, z) -> screen px
+	_map.draw_mesh(_tint_layer(), null, xf)                                                    # district tint per block, under everything (one draw call)
 	# roads: the whole grid, avenues every fourth line brighter
-	var rw := CityLayout.ROAD * ppm
+	var rw := CityLayout.ROAD * pm
 	for i in CityLayout.N + 1:
 		var c := CityLayout.road_center(i)
 		var main := i % 4 == 0
@@ -913,53 +1120,36 @@ func _draw_map() -> void:
 	var lay: Variant = w3.get("layout") if w3 != null else null
 	if lay is CityLayout:
 		for pz: Vector2 in (lay as CityLayout).plazas:
-			var pr := Rect2(world_to_map(pz.x - 13.0, pz.y - 13.0), Vector2(26.0, 26.0) * ppm)
+			var pr := Rect2(world_to_map(pz.x - 13.0, pz.y - 13.0), Vector2(26.0, 26.0) * pm)
 			if pr.intersects(view):
 				_map.draw_rect(pr, Color(0.08, 0.24, 0.17, 1.0))
-	# building footprints
-	for lot: Variant in _lots:
-		var lr: Rect2 = (lot as CityLayout.Lot).rect
-		var sr := Rect2(world_to_map(lr.position.x, lr.position.y), lr.size * ppm)
-		if not sr.intersects(view):
-			continue
-		var hk := clampf(((lot as CityLayout.Lot).h - 16.0) / 72.0, 0.0, 1.0)
-		_map.draw_rect(sr, Color(0.09 + 0.12 * hk, 0.14 + 0.2 * hk, 0.19 + 0.24 * hk, 1.0))
-		drawn["lots"] = int(drawn["lots"]) + 1
+	# building footprints: one mesh (colour by height), one draw call
+	var lm := _lots_layer()
+	if lm != null:
+		_map.draw_mesh(lm, null, xf)
+		drawn["lots"] = _lots_mesh_n
 	# danger tint under the fog
 	var dz := danger_zones()
 	for z: Dictionary in dz:
 		var zc := world_to_map((z["pos"] as Vector2).x, (z["pos"] as Vector2).y)
-		var zr := float(z["radius"]) * ppm
+		var zr := float(z["radius"]) * pm
 		if z.has("rect"):                                              # a hostile district: its whole quadrant, red
 			var rr0: Rect2 = z["rect"]
-			var zrect := Rect2(world_to_map(rr0.position.x, rr0.position.y), rr0.size * ppm)
+			var zrect := Rect2(world_to_map(rr0.position.x, rr0.position.y), rr0.size * pm)
 			_map.draw_rect(zrect, Color(DANGER_COLOR, 0.14))
 			_map.draw_rect(zrect, Color(DANGER_COLOR, 0.85), false, 3.0 * s)
 		else:
 			_map.draw_circle(zc, zr, Color(DANGER_COLOR, 0.12))
 			_map.draw_arc(zc, zr, 0.0, TAU, 48, Color(DANGER_COLOR, 0.85), 2.5 * s, true)
 		drawn["danger"] = int(drawn["danger"]) + 1
-	# fog: one dark rectangle per run of unvisited cells in a row (the roads and the district tint show through, the buildings are dimmed away)
-	var cs := CELL * ppm
-	var seen_n := 0
-	for cz in CELLS:
-		var run0 := -1
-		for cx in CELLS + 1:
-			var fogged := cx < CELLS and _seen[cz * CELLS + cx] == 0
-			if cx < CELLS and not fogged:
-				seen_n += 1
-			if fogged and run0 < 0:
-				run0 = cx
-			elif not fogged and run0 >= 0:
-				var fr := Rect2(world_to_map(-HALF + run0 * CELL, -HALF + cz * CELL), Vector2((cx - run0) * cs, cs))
-				if fr.intersects(view):
-					_map.draw_rect(fr, Color(0.0, 0.015, 0.03, 0.66))
-				run0 = -1
+	# fog: the cells you have not walked near (the roads and the district tint show through, the buildings are dimmed away); one mesh, rebuilt only when the charted cells change
+	_map.draw_mesh(_fog_layer(), null, xf)
+	var seen_n := discovered_count()
 	_charted = roundi(100.0 * seen_n / float(CELLS * CELLS))
 	# district names: their boxes are reserved first (nothing else is written over a name); they are drawn after the markers
 	var big := int((26.0 if zoom_f < 2.5 else 24.0) * s)
 	var small := int(22.0 * s)
-	var name_a := 0.95 if zoom_f < 2.5 else 0.6                       # zoomed in the names step back: the markers and the route are the subject
+	var name_a := 0.82 if zoom_f < 2.5 else 0.6                       # zoomed in the names step back: the markers and the route are the subject
 	var names: Array = []
 	for d in 8:
 		var tc := _zone_label_pos(d)
@@ -987,15 +1177,18 @@ func _draw_map() -> void:
 	if _route.size() >= 2:
 		var pl := PackedVector2Array()
 		for rp: Vector3 in _route:
-			pl.append(world_to_map(rp.x, rp.z))
-		var rcol := Color(UiUtil.CYAN, 1.0) if has_waypoint() else Color(1.0, 0.78, 0.2, 1.0)
-		_map.draw_polyline(pl, Color(0.0, 0.02, 0.04, 0.95), 9.0 * s, true)
-		_map.draw_polyline(pl, rcol, 5.0 * s, true)
-		_chevrons(pl, rcol, s)
-		drawn["route"] = true
-		var gp := pl[pl.size() - 1]
-		var pulse := 0.5 + 0.5 * sin(_anim * 5.0)
-		_map.draw_arc(gp, (13.0 + 4.0 * pulse) * s, 0.0, TAU, 28, Color(rcol, 0.9 - 0.4 * pulse), 3.0 * s, true)
+			if rp.is_finite():
+				pl.append(world_to_map(rp.x, rp.z))
+		pl = clean_polyline(pl)
+		if pl.size() >= 2:
+			var rcol := Color(UiUtil.CYAN, 1.0) if has_waypoint() else Color(1.0, 0.78, 0.2, 1.0)
+			_map.draw_polyline(pl, Color(0.0, 0.02, 0.04, 0.95), 9.0 * s, true)
+			_map.draw_polyline(pl, rcol, 5.0 * s, true)
+			_chevrons(pl, rcol, s)
+			drawn["route"] = true
+			var gp := pl[pl.size() - 1]
+			var pulse := 0.5 + 0.5 * sin(_anim * 5.0)
+			_map.draw_arc(gp, (13.0 + 4.0 * pulse) * s, 0.0, TAU, 28, Color(rcol, 0.9 - 0.4 * pulse), 3.0 * s, true)
 		_route_m = roundi(MapRoute.length(_route))
 	elif has_waypoint():
 		var wpm := world_to_map(waypoint.x, waypoint.z)
@@ -1026,6 +1219,11 @@ func _draw_map() -> void:
 			break
 	var keys: Array = cl.keys()
 	keys.sort_custom(func(a: String, b: String) -> bool: return not ALWAYS_KINDS.has((cl[b][2] as Dictionary)["kind"]) and ALWAYS_KINDS.has((cl[a][2] as Dictionary)["kind"]))   # objective first: its label wins
+	for key0: String in keys:                                           # every badge reserves its box first: no name is written over an icon
+		var e0: Array = cl[key0]
+		var rr0 := r_badge * (1.5 if (e0[2] as Dictionary)["kind"] == &"mission" else 1.0)
+		var c0: Vector2 = (e0[0] as Vector2) / float(e0[1])
+		_placed.append(Rect2(c0 - Vector2(rr0, rr0), Vector2(rr0, rr0) * 2.0))
 	for key: String in keys:
 		var e: Array = cl[key]
 		var n: int = e[1]
@@ -1039,7 +1237,7 @@ func _draw_map() -> void:
 		MapIcons.draw(_map, kind, c2, rr, KIND_COLOR[kind])
 		drawn["markers"] = int(drawn["markers"]) + 1
 		if n > 1:
-			_label_out(font, c2 + Vector2(rr * 0.9, -rr * 0.7), str(n), int(16.0 * s), Color(1, 1, 1, 0.95), HORIZONTAL_ALIGNMENT_LEFT, true)
+			_label_out(font, c2 + Vector2(rr * 0.9, -rr * 0.7), str(n), int(16.0 * s), Color(1, 1, 1, 0.95), HORIZONTAL_ALIGNMENT_LEFT, false)
 		elif ALWAYS_KINDS.has(kind) or (zoom_f >= 3.0 and labels_left > 0 and kind != &"interior"):
 			if not ALWAYS_KINDS.has(kind):
 				labels_left -= 1
@@ -1077,6 +1275,8 @@ func _draw_map() -> void:
 		if not view.grow(-30.0 * s).has_point(you):
 			_edge_arrow(you, s)
 	# legend panel: opaque, so the chips never sit on top of busy streets (the chips are children of the screen above this layer)
+	_map.draw_rect(_right_rect, Color(0.0, 0.015, 0.03, 0.96))
+	_map.draw_rect(Rect2(_right_rect.position, Vector2(2.0 * s, _right_rect.size.y)), Color(UiUtil.CYAN, 0.35))
 	_map.draw_rect(_legend_rect, Color(0.0, 0.015, 0.03, 0.96))
 	_map.draw_rect(_legend_rect, Color(UiUtil.CYAN, 0.35), false, 2.0 * s)
 	# north, scale bar and the gesture hint
@@ -1088,7 +1288,7 @@ func _draw_map() -> void:
 	_map.draw_colored_polygon(PackedVector2Array([nc + Vector2(0, -17.0 * s), nc + Vector2(6.0 * s, -4.0 * s), nc + Vector2(-6.0 * s, -4.0 * s)]), UiUtil.CYAN)
 	_label_out(font, nc + Vector2(0.0, 18.0 * s), "N", int(18.0 * s), Color(1, 1, 1, 0.95))
 	var bar_m := 200.0 if zoom_f < 2.0 else (100.0 if zoom_f < 5.0 else 50.0)
-	var bar_px := bar_m * ppm
+	var bar_px := bar_m * pm
 	var bx0 := rx + 82.0 * s - bar_px * 0.5
 	var by0 := sz.y - 22.0 * s
 	_map.draw_line(Vector2(bx0, by0), Vector2(bx0 + bar_px, by0), Color(1, 1, 1, 0.85), 3.0 * s)
@@ -1110,20 +1310,35 @@ func _title_row(font: Font, s: float) -> void:
 	_label_out(font, Vector2(_x0 + 92.0 * s, 40.0 * s), _sub_text, int(18.0 * s), Color(1, 1, 1, 0.85), HORIZONTAL_ALIGNMENT_LEFT)
 
 
+## A polyline without points that are not finite (an infinite or NaN point would make the chevron walk run forever).
+static func clean_polyline(pl: PackedVector2Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p in pl:
+		if is_finite(p.x) and is_finite(p.y):
+			out.append(p)
+	return out
+
+
 ## Small arrowheads along a polyline every ~80 px, pointing along its direction.
 func _chevrons(pl: PackedVector2Array, col: Color, s: float) -> void:
-	var step := 80.0 * s
+	var step := maxf(80.0 * s, 16.0)
 	var acc := step * 0.5
+	var left := MAX_CHEVRONS                                            # a bound on the walk: no polyline, however long, can make this loop run for long
+	var view := Rect2(Vector2.ZERO, _map.size).grow(step)
 	for i in range(1, pl.size()):
 		var a := pl[i - 1]
 		var b := pl[i]
 		var l := a.distance_to(b)
-		if l < 1.0:
+		if l < 1.0 or not is_finite(l):
+			continue
+		if not view.intersects(Rect2(a, Vector2.ZERO).expand(b)):
+			acc = fposmod(acc - l, step)                                # off screen: keep the rhythm, draw nothing
 			continue
 		var dir := (b - a) / l
 		var side := Vector2(-dir.y, dir.x)
 		var t := acc
-		while t < l:
+		while t < l and left > 0:
+			left -= 1
 			var p := a + dir * t
 			_map.draw_colored_polygon(PackedVector2Array([p + dir * 7.0 * s, p - dir * 5.0 * s + side * 6.0 * s, p - dir * 5.0 * s - side * 6.0 * s]), Color(0.0, 0.02, 0.04, 0.95))
 			_map.draw_colored_polygon(PackedVector2Array([p + dir * 5.0 * s, p - dir * 3.0 * s + side * 4.0 * s, p - dir * 3.0 * s - side * 4.0 * s]), col.lerp(Color.WHITE, 0.5))

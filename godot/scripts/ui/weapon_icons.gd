@@ -75,8 +75,17 @@ static func texture(id: StringName) -> Texture2D:
 	return t
 
 
-## Draw the icon of a weapon fitted into `r` (a uniform scale, centred) on a CanvasItem.
+## Draw the picture of a weapon fitted into `r` (a uniform scale, centred) on a CanvasItem: its rendered picture (ItemIcons, opacity from `col`), else the flat silhouette of its mesh in `col`.
 static func draw(c: CanvasItem, id: StringName, r: Rect2, col: Color) -> void:
+	var pic := ItemIcons.weapon(id)
+	if pic != null:
+		ItemIcons.draw_tex(c, pic, r, Color(1, 1, 1, col.a))
+		return
+	draw_flat(c, id, r, col)
+
+
+## The flat white-on-clear silhouette in `col` (the fallback of `draw`, and what the first versions drew).
+static func draw_flat(c: CanvasItem, id: StringName, r: Rect2, col: Color) -> void:
 	var sz := minf(r.size.x, r.size.y * 2.0)
 	var box := Rect2(r.get_center() - Vector2(sz, sz * 0.5) * 0.5, Vector2(sz, sz * 0.5))
 	var tex := texture(id)

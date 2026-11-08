@@ -124,6 +124,8 @@ func _ready() -> void:
 	pad = ControllerInput.new()
 	pad.name = "Pad"
 	add_child(pad)
+	var wd := ScreenWatchdog.new()
+	add_child(wd)                                   # a BACK button after 5 s without progress on any closable screen (no screen can trap the player)
 	for i in 10:
 		var a := -PI * 0.5 + i * PI / 5.0
 		_star.append(Vector2(cos(a), sin(a)) * (1.0 if i % 2 == 0 else 0.45))
@@ -206,7 +208,7 @@ func _on_state(s: StringName) -> void:
 	if s == &"dead" or s == &"win":
 		record_best()
 	_hud.visible = _hud_wanted()        # a cutscene (scripts/cinematics) owns the whole picture
-	_screen.visible = s != &"play" and s != &"cutscene" and not InteriorGameplay.vendor_open      # the vendor window is its own layer
+	_screen.visible = s != &"play" and s != &"cutscene" and not InteriorGameplay.vendor_open and not MapScreen.up      # the vendor window and the open map are their own layers (no pause menu drawn under the map)
 	minimap.visible = _hud.visible
 	_layout_key = ""
 	_apply_mouse()
@@ -219,7 +221,7 @@ func panel_cover() -> bool:
 
 ## What the gameplay HUD layer (and the minimap on it) should show: not in the title, a cutscene, photo mode or behind a full-screen pause panel.
 func _hud_wanted() -> bool:
-	return Game.state != &"menu" and Game.state != &"cutscene" and not photo_open() and not panel_cover()
+	return Game.state != &"menu" and Game.state != &"cutscene" and not photo_open() and not panel_cover() and not MapScreen.up
 
 
 ## True while photo mode runs (the gameplay HUD is hidden, the photo controls are the screen).
@@ -237,6 +239,16 @@ func photo_layers() -> void:
 
 
 ## SHOT: the controls vanish for the grab (true), then come back (false).
+## The map opened / closed: the pause screen under it is not drawn (the map is the screen), and comes back when the map closes over a pause menu.
+func map_toggled(on: bool) -> void:
+	_screen.visible = not on and Game.state != &"play" and Game.state != &"cutscene" and not InteriorGameplay.vendor_open and not _grabbing
+	_hud.visible = _hud_wanted()
+	minimap.visible = _hud.visible
+	if not on:
+		_layout_key = ""
+		_screen.queue_redraw()
+
+
 func photo_grab(on: bool) -> void:
 	_grabbing = on                                                  # layers_consistent() lets the hidden controls be: the stability audit repairing them mid-grab ended photo mode (soak under a real renderer)
 	_screen.visible = not on and Game.state != &"play" and Game.state != &"cutscene"
@@ -247,9 +259,9 @@ func layers_consistent() -> bool:
 	if _grabbing:
 		return true
 	var cine := Game.state == &"cutscene"
-	var base := Game.state != &"menu" and not cine and not photo_open()
+	var base := Game.state != &"menu" and not cine and not photo_open() and not MapScreen.up
 	var hud_ok := (_hud.visible == base) if not panel_cover() else (_hud.visible == base or not _hud.visible)      # a panel opening hides the HUD in the next _process: either state is fine until then
-	return hud_ok and _screen.visible == (Game.state != &"play" and not cine and not InteriorGameplay.vendor_open) and minimap.visible == _hud.visible
+	return hud_ok and _screen.visible == (Game.state != &"play" and not cine and not InteriorGameplay.vendor_open and not MapScreen.up) and minimap.visible == _hud.visible
 
 
 ## Puts the layers back in line with the state (the stability audit calls it when they drifted).
@@ -346,6 +358,8 @@ func _notification(what: int) -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _input(event: InputEvent) -> void:
+	if MapScreen.up:
+		return                                                      # the open map owns every key and tap (Esc / back close it there); the pause menu under it must not react
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		if k.pressed and not k.echo:
@@ -466,6 +480,20 @@ func press_button(id: StringName) -> bool:
 		return _press_photo(sid)
 	if sid.begins_with("look_") and sid != "look_open":
 		return _press_look(sid)
+	if sid == "loadout_info":                                           # the weapon of the loadout, opened as a card in the WEAPONS catalogue
+		if Game.state != &"paused" or not _loadout_open or Game.progress == null:
+			return false
+		_loadout_open = false
+		_loadout_page = 0
+		_shop_open = true
+		_hero_hub = true
+		_skills_open = false
+		_craft_open = false
+		WeaponsScreen.select(_loadout_w)
+		Sfx.play(&"ui_confirm")
+		_layout_key = ""
+		_screen.queue_redraw()
+		return true
 	if sid == "loadout_gear" or sid == "gear_weapons":
 		if Game.state != &"paused" or not _loadout_open or Game.progress == null:
 			return false
@@ -534,6 +562,13 @@ func press_button(id: StringName) -> bool:
 		sm.start(StringName(sid.substr(5)))
 		Sfx.play(&"ui_contract_accept")
 		return true
+	if sid.begins_with("wsel_") or sid.begins_with("wpg_") or sid.begins_with("wequip_") or sid.begins_with("wgear_"):      # the WEAPONS catalogue (scripts/ui/weapons_screen.gd)
+		if Game.state != &"paused" or not _shop_open or Game.progress == null or ShopScreen.weapon_page == 0:
+			return false
+		var wdone := WeaponsScreen.press(sid)
+		_layout_key = ""
+		_screen.queue_redraw()
+		return wdone
 	if sid.begins_with("buy_") and WeaponDefs.DEFS.has(StringName(sid.substr(4))):
 		if Game.state != &"paused" or not _shop_open or Game.progress == null:
 			return false
@@ -1787,7 +1822,7 @@ func _ensure_layout() -> void:
 	key += "|k%s%d%d%d" % [_skills_open, SkillTree.xp, SkillTree.spent(), _wallet()]
 	key += "|a%s%d" % [_ach_open, _ach_page]
 	key += "|c%s%d%d%d%d%s%d" % [_craft_open, CraftScreen.page, CraftScreen.grid_page, Crafting.rev, CraftScreen.sel_item, CraftScreen.sel_bp, WeaponDefs.last_used.hash()]
-	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100]
+	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100 + str(WeaponsScreen.sel).hash() % 997 * 1000]
 	key += "|g%d%s%s%d%d" % [_loadout_page, Gear.throwable, Gear.gadget, Gear.owned.size(), Gear.active_slot]
 	key += "|G%s%s" % [_gear_open, _hero_hub]
 	key += "|%s%d%d%d%d%d%s" % [_options_open, int(settings.hud_scale * 100.0), UiSettings.s_opt_page, UiSettings.s_opt_tab, ControlsScreen.tab, ControlsScreen.page, ControlsScreen.listening]
@@ -2114,6 +2149,13 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		if focus_ring and b["id"] == pad.focus:
 			c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
 			c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+		if b.has("pic"):                                       # a picture over the plate (ItemIcons: weapons, gear, vehicles, enemies)
+			var pc: Dictionary = b["pic"]
+			var ptex: Texture2D = ItemIcons.texture(str(pc["p"]), StringName(pc["id"]))
+			if ptex != null:
+				ItemIcons.draw_tex(c, ptex, pc["r"], Color(1, 1, 1, float(pc.get("a", 1.0))))
+			elif str(pc["p"]) == "w":
+				WeaponIcons.draw_flat(c, StringName(pc["id"]), pc["r"], Color(1, 1, 1, float(pc.get("a", 1.0))))
 		if b.get("flat", false):
 			continue
 		if b.has("cap") and WeaponIcons.has_icon(StringName(String(b["id"]).substr(6))):                         # a loadout tile: opaque plate, icon over the weapon's name

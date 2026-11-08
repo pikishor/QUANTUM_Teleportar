@@ -12,7 +12,7 @@ func run(host: Node) -> void:
 
 
 func _data() -> void:
-	TestLib.check(WeaponDefs.IDS.size() >= 18, "eighteen or more weapons (%d)" % WeaponDefs.IDS.size())
+	TestLib.check(WeaponDefs.IDS.size() >= 26, "twenty-six or more weapons (%d)" % WeaponDefs.IDS.size())
 	TestLib.check(WeaponDefs.STARTERS.size() == 7, "seven starters")
 	var classes := {}
 	for id: StringName in WeaponDefs.STARTERS:
@@ -77,7 +77,7 @@ func _data() -> void:
 		TestLib.check(absf(cp.x) < CityLayout.HALF and absf(cp.z) < CityLayout.HALF, "crate %d is inside the map" % i)
 		if WeaponLadder.CRATES[i]["weapon"] != &"":
 			weapon_crates += 1
-	TestLib.check(weapon_crates == 3, "three weapon crates")
+	TestLib.check(weapon_crates == 6, "six weapon crates")
 
 
 func _live(host: Node) -> void:
@@ -173,7 +173,7 @@ func _live(host: Node) -> void:
 		TestLib.check(cr.opened_count == before + 1 and WeaponDefs.is_unlocked(&"marksman") and w.current == &"marksman", "walking up to the crate unlocks and equips the marksman")
 		TestLib.check(not cr.is_ready(0) and cr.content(0) == &"", "the opened crate is closed (and now only ammo)")
 		TestLib.check(cr.markers().size() < WeaponLadder.CRATES.size() or Game.player == null, "an opened crate leaves the minimap")
-		var ammo_crate := 3
+		var ammo_crate := 6
 		w.switch_to(&"scatter", true)
 		w.reserve = 1
 		p.global_position = WeaponLadder.crate_pos(ammo_crate) + Vector3(0.0, 0.1, 1.0)

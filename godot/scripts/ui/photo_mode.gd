@@ -468,7 +468,7 @@ func _on_ui(pos: Vector2) -> bool:
 
 
 func _input(event: InputEvent) -> void:
-	if not active or camera == null:
+	if not active or camera == null or MapScreen.up:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton

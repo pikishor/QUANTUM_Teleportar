@@ -8,7 +8,7 @@ const ROW_Y := 120.0                 ## base px of the first upgrade row (the HE
 const ROW_STEP := 66.0               ## a 64 px BUY button per row
 const ROW_W := 700.0
 const BUY_W := 150.0
-const SHOP_WEAPONS: Array[StringName] = [&"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade"]
+const SHOP_WEAPONS: Array[StringName] = [&"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife"]
 const PER_ROW := 3
 const PER_PAGE := 12                 ## four rows of three 64 px cells; page 0 is the upgrades, the weapons follow on pages 1..
 const CELL_STEP := 92.0              ## a caption line over a 64 px BUY cell
@@ -36,7 +36,7 @@ static func page_weapons() -> Array[StringName]:
 
 
 static func pages() -> int:
-	return 1 + maxi(1, (SHOP_WEAPONS.size() + PER_PAGE - 1) / PER_PAGE)
+	return 1 + WeaponsScreen.PAGES                          # the upgrades, then the three pages of the weapons catalogue (scripts/ui/weapons_screen.gd)
 
 
 static func flip() -> void:
@@ -81,6 +81,9 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 				label = "BUY  %d" % price
 				affordable = prog != null and prog.credits >= price
 			hud._add_row(StringName("buy_%s" % id), Rect2(cx - ROW_W * 0.5 * s, row_y(i) * s, ROW_W * s, 64.0 * s), label, affordable)     # the whole row is the button: one tap buys
+	if weapon_page > 0:
+		WeaponsScreen.layout(hud, cx, s)
+		return
 	var colw := ROW_W / PER_ROW
 	var pw := page_weapons()
 	for k in pw.size():
@@ -94,7 +97,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
 	var prog := Game.progress as Progress
-	if prog != null:
+	if prog != null and weapon_page == 0:
 		var line := "CREDITS  %d" % prog.credits
 		hud._text(c, font, Vector2(0.0, (ROW_Y - 14.0) * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	var x0 := cx - ROW_W * 0.5 * s
@@ -120,6 +123,8 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 				col = Color(UiUtil.GREEN, 1.0) if ok else Color(1, 1, 1, 0.5)
 			hud._text(c, font, Vector2(x0 + (ROW_W - BUY_W) * s, y + 40.0 * s), txt, HORIZONTAL_ALIGNMENT_CENTER, (BUY_W - 8.0) * s, int(24.0 * s), col, 1.0 * s)
 		return
+	WeaponsScreen.draw(hud, c, vp, s, font, cx)
+	return
 	var colw := ROW_W / PER_ROW
 	var pw := page_weapons()
 	for k in pw.size():

@@ -61,6 +61,7 @@ var quiet := 0.0             # seconds since any drone last had the player in si
 ## True when launched by tests/bots/shot tools (or --autostart): skip the menu and start playing at once.
 var autostart := false
 ## Blood and gore-style effects. Off until the store rating is decided; a settings toggle and regional builds can flip it.
+var damage_numbers := true     ## floating damage numbers at every hit (UiSettings.dmg_numbers, Options > SOUND AND MORE)
 var civilian_casualties := true   ## the people in the street can be hurt and killed (a quantum dissolve, no gore); false = they only run, shots pass through them (UiSettings.civilians)
 var graphic_violence := false
 ## Force the touch overlay on (desktop testing). The HUD also shows it automatically on touchscreens.
@@ -258,12 +259,26 @@ func explode(pos: Vector3, radius: float, opts := {}) -> void:
 			var reach := radius + 0.8
 			var d := e.global_position.distance_to(pos)
 			if d < reach:
-				e.damage(TestMode.damage(enemy_dmg * (1.0 - 0.6 * d / reach)))
+				e.damage(TestMode.damage(enemy_dmg * (1.0 - 0.6 * d / reach) * blast_cover(pos, e.global_position + Vector3(0.0, 1.0, 0.0))))
 	for v: Node3D in get_tree().get_nodes_in_group(&"vehicle"):
 		var d := v.global_position.distance_to(pos)
 		if d < radius + 2.0:
-			v.damage(car_dmg * (1.0 - 0.6 * d / (radius + 2.0)))
+			v.damage(car_dmg * (1.0 - 0.6 * d / (radius + 2.0)) * blast_cover(pos, v.global_position + Vector3(0.0, 0.8, 0.0)))
 	if player_dmg > 0.0 and is_instance_valid(player):
 		var d := player.global_position.distance_to(pos)
 		if d < radius:
-			player.damage(player_dmg * (1.0 - 0.6 * d / radius), pos)
+			player.damage(player_dmg * (1.0 - 0.6 * d / radius) * blast_cover(pos, player.global_position + Vector3(0.0, 1.0, 0.0)), pos)
+
+
+const BLAST_COVER := 0.35           ## share of a blast's damage that reaches a target standing behind a wall (line of sight from the centre is blocked)
+
+
+## 1.0 when nothing solid stands between a blast at `from` and a target at `to`, BLAST_COVER when the world does (walls, buildings, cover): shelter works, the blast does not go round corners at full strength.
+func blast_cover(from: Vector3, to: Vector3) -> float:
+	var vp := get_tree().root
+	if vp == null or vp.world_3d == null:
+		return 1.0
+	var q := PhysicsRayQueryParameters3D.create(from + Vector3(0.0, 0.3, 0.0), to)
+	q.collision_mask = L_WORLD
+	q.collide_with_areas = false
+	return BLAST_COVER if not vp.world_3d.direct_space_state.intersect_ray(q).is_empty() else 1.0
