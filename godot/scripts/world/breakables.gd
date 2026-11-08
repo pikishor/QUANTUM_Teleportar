@@ -130,7 +130,7 @@ func _build_props() -> void:
 	_inst.name = "Props"
 	_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # small props: one less shadow-pass draw (perf budget)
 	_inst.multimesh = _mm
-	_inst.custom_aabb = AABB(Vector3(-1200.0, -50.0, -1200.0), Vector3(2400.0, 400.0, 2400.0))
+	_inst.custom_aabb = AABB(Vector3(-1500.0, -50.0, -1500.0), Vector3(3000.0, 400.0, 3000.0))
 	add_child(_inst)
 	for i in COUNT:
 		var k := kind_of[i]
@@ -185,7 +185,7 @@ func _build_debris() -> void:
 	_dinst.name = "Debris"
 	_dinst.multimesh = _dmm
 	_dinst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_dinst.custom_aabb = AABB(Vector3(-1200.0, -50.0, -1200.0), Vector3(2400.0, 400.0, 2400.0))
+	_dinst.custom_aabb = AABB(Vector3(-1500.0, -50.0, -1500.0), Vector3(3000.0, 400.0, 3000.0))
 	_dinst.visible = false                  # no draw call while nothing flies
 	add_child(_dinst)
 

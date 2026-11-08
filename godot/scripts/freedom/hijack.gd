@@ -18,12 +18,14 @@ const RUN_SPEED := 5.0
 const NAMES := {
 	&"sedan": "SEDAN", &"sport": "SPORT CAR", &"suv": "SUV", &"bike": "BIKE", &"hover": "HOVER CAR", &"hoverbike": "HOVER-BIKE", &"taxi": "TAXI", &"wagon": "WAGON", &"van": "VAN",
 	&"truck": "TRUCK", &"rover": "ROVER", &"skiff": "SKIFF", &"bus": "BUS", &"interceptor": "PATROL CAR", &"ambulance": "AMBULANCE", &"qbike": "QUANTUM BIKE", &"vael_patrol": "VAEL PATROL",
+	&"compact": "COMPACT", &"luxury": "LIMOUSINE", &"racer": "ROADSTER", &"delivery": "DELIVERY VAN", &"garbage": "GARBAGE TRUCK", &"firetruck": "FIRE TRUCK", &"muscle": "MUSCLE CAR", &"pickup": "PICKUP",
 }
 
 static var current: Hijack
 
 var hijacks := 0                     ## drivers thrown out so far (tests wait on this)
 var passengers_ejected := 0          ## riders thrown out with a driver (tests)
+var exits := 0                       ## exit animations played (tests)
 var entries := 0                     ## entry animations played (hijacks and plain entries)
 var last_kind: StringName = &""
 var _drivers: Array[Dictionary] = [] ## {node: Node3D, state: fly|down|run, t, vel, dir}
@@ -110,6 +112,20 @@ func on_enter(car: Vehicle, from: Vector3, driver: bool) -> void:
 			_tint(n2, BODY_COLORS[_rng.randi() % BODY_COLORS.size()])
 			_drivers.append({"node": n2, "state": &"fly", "t": 0.0, "vel": -car.right() * side * THROW_SIDE * 0.8 + Vector3(0.0, THROW_UP * 0.8, 0.0), "dir": -car.right() * side - car.forward() * 0.3})
 		car.passengers = 0
+
+
+## The hero leaves `car` through the door on `side`: the entry ghost slides from the door to where he lands (his body is at `to` at once).
+func on_exit(car: Vehicle, to: Vector3, side: float) -> void:
+	if car == null or not is_instance_valid(car):
+		return
+	exits += 1
+	var door := car.global_position + car.right() * side * (float(car.spec["wid"]) * 0.5 + 0.2)
+	_ghost_from = door + Vector3(0.0, 0.9, 0.0)
+	_ghost_to = to + Vector3(0.0, 0.9, 0.0)
+	_ghost_t = 0.0
+	_ensure_ghost()
+	_ghost.visible = true
+	_ghost.global_position = _ghost_from
 
 
 func _physics_process(dt: float) -> void:

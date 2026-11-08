@@ -59,7 +59,7 @@ const CRATE_RADIUS := 2.6
 static func crate_pos(i: int) -> Vector3:
 	var c: Dictionary = CRATES[i]
 	var g: Vector2i = c["g"]
-	return Vector3(CityLayout.road_center(g.x) + float(c["sx"]) * CRATE_CORNER, 0.0, CityLayout.road_center(g.y) + float(c["sz"]) * CRATE_CORNER)
+	return Vector3(CityLayout.road_center(g.x + CityLayout.SHIFT) + float(c["sx"]) * CRATE_CORNER, 0.0, CityLayout.road_center(g.y + CityLayout.SHIFT) + float(c["sz"]) * CRATE_CORNER)
 
 
 static func entry(id: StringName) -> Dictionary:

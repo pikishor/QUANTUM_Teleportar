@@ -60,7 +60,7 @@ func _meshes() -> void:
 	var car := NearTraffic.car_mesh()
 	var t := _tris(car)
 	TestLib.check(car.get_surface_count() == 1, "a near car is ONE surface (one draw call for all of them)")
-	TestLib.check(t >= 120 and t <= 400, "a near car is a few hundred triangles (%d)" % t)
+	TestLib.check(t >= 120 and t <= 520, "a near car is a few hundred triangles (%d): the decimated Rgsdev sedan, 445" % t)
 	var stall := Props.stall_mesh()
 	TestLib.check(stall.get_surface_count() == 1 and _tris(stall) <= 700, "a stall is one surface, under 700 triangles (%d)" % _tris(stall))
 	TestLib.check(NearTraffic.COUNTS[0] <= NearTraffic.COUNTS[1] and NearTraffic.COUNTS[1] <= NearTraffic.COUNTS[2] and NearTraffic.COUNTS[2] <= NearTraffic.BUILT, "near cars per tier fit the MultiMesh")
@@ -81,8 +81,8 @@ func _unit_cars() -> void:
 	var nt := NearTraffic.new()
 	nt.build(null)
 	nt.desync = false
-	var c0 := CityLayout.road_center(8)                      # the avenue z = 0
-	var jx := CityLayout.road_center(9)                      # the junction at x = 80
+	var c0 := CityLayout.road_center(8 + CityLayout.SHIFT)                      # the avenue z = 0
+	var jx := CityLayout.road_center(9 + CityLayout.SHIFT)                      # the junction at x = 80
 	# a red light: the car stops short of the junction, a green lets it through
 	nt.count = 1
 	nt.signal_clock_override = 10.0                          # axis 0 is red from 9 s
@@ -287,7 +287,7 @@ func _real_scene() -> void:
 	var ms := p.get_tree().root.find_child("MapScreen", true, false) as MapScreen
 	if ms != null:
 		var share := 100.0 * float(ms.discovered_count()) / float(MapScreen.CELLS * MapScreen.CELLS)
-		TestLib.check(share >= 20.0 and ms.is_discovered(Game.SPAWN.x, Game.SPAWN.z) and ms.is_discovered(250.0, -250.0), "the map charts the city core at the start (%.0f %%)" % share)
+		TestLib.check(ms.discovered_count() >= 200 and ms.is_discovered(Game.SPAWN.x, Game.SPAWN.z) and ms.is_discovered(250.0, -250.0), "the map charts the city core at the start (%.0f %%)" % share)
 		TestLib.check(not ms.is_discovered(600.0, 600.0), "the outer ring stays fogged until you go there")
 	else:
 		TestLib.check(false, "the map screen exists in the live game")
@@ -410,7 +410,7 @@ func _real_scene() -> void:
 	for i in nt.count:
 		nt._alive[i] = 0
 		nt._age[i] = 1.0                                       # no refill while the test places its own
-	var lane_z := CityLayout.road_center(8) + CityLayout.LANE
+	var lane_z := CityLayout.road_center(8 + CityLayout.SHIFT) + CityLayout.LANE
 	var hero_x := 40.0                                         # mid-block between the junctions at x = 0 and 80
 	for v in vm.list.duplicate():                              # the real cars of the earlier steps (a promoted one, the crash) must not stand in this lane
 		if is_instance_valid(v) and v != vm.driven and absf(v.global_position.x - hero_x) < 60.0 and absf(v.global_position.z - lane_z) < 12.0:
@@ -436,7 +436,7 @@ func _real_scene() -> void:
 	TestLib.check(nt.car_panic(1) > 0.0, "VehicleManager.hear reaches the near cars (panic %.1f s)" % nt.car_panic(1))
 
 	# nothing grows
-	TestLib.check(absi(p.get_tree().get_node_count() - tree_nodes) < 220, "no node per near car or per person (only the promoted real cars and the effects add some) (%d -> %d)" % [tree_nodes, p.get_tree().get_node_count()])
+	TestLib.check(absi(p.get_tree().get_node_count() - tree_nodes) < 320, "no node per near car or per person (only the promoted real cars, 3 plate / beam nodes each, and the effects add some) (%d -> %d)" % [tree_nodes, p.get_tree().get_node_count()])
 	main.queue_free()
 	await TestLib.frames(host, 2)
 	DirAccess.remove_absolute(MapScreen.path_override)

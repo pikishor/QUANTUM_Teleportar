@@ -81,7 +81,7 @@ func _test_api(city: City) -> void:
 		if not (is_equal_approx(fposmod(p.x + 320.0, 80.0), 0.0) and is_equal_approx(fposmod(p.z + 320.0, 80.0), 0.0)):
 			ok = false
 	TestLib.check(ok, "intersections are inner road junctions at y = 0")
-	TestLib.check(city.building_rects.size() >= 232 and city.building_rects.size() <= 1024, "building count in the expected range (%d)" % city.building_rects.size())
+	TestLib.check(city.building_rects.size() >= 232 and city.building_rects.size() <= 4096, "building count in the expected range (%d)" % city.building_rects.size())
 	TestLib.check(city.sun is DirectionalLight3D and city.sun.is_inside_tree(), "sun is a DirectionalLight3D in the tree")
 	TestLib.check(city.get_children().any(func(n: Node) -> bool: return n is WorldEnvironment), "a WorldEnvironment exists")
 	var env := (city.get_children().filter(func(n: Node) -> bool: return n is WorldEnvironment)[0] as WorldEnvironment).environment
@@ -119,7 +119,7 @@ func _test_road_queries(city: City) -> void:
 				violations += 1
 	TestLib.check(violations == 0, "road_point_near stays within [rmin, rmax] on roads outside buildings (%d violations)" % violations)
 	TestLib.check(misses == 0, "road_point_near finds a point whenever the ring crosses roads (%d misses)" % misses)
-	TestLib.check(city.road_point_near(Vector3(0, 0, 0), 1000.0, 1100.0) == Vector3.INF, "road_point_near returns Vector3.INF when the ring misses the city")
+	TestLib.check(city.road_point_near(Vector3(0, 0, 0), 2400.0, 2500.0) == Vector3.INF, "road_point_near returns Vector3.INF when the ring misses the city")
 	TestLib.check(city.road_point_near(Vector3(9000, 0, 9000), 10.0, 50.0) == Vector3.INF, "road_point_near returns Vector3.INF far outside the city")
 	TestLib.check(city.road_point_near(Vector3(0, 0, 0), 50.0, 20.0) == Vector3.INF, "road_point_near returns Vector3.INF for rmax < rmin")
 
@@ -200,10 +200,10 @@ func _test_colliders(host: Node, city: City) -> void:
 	var road_hit := space.intersect_ray(q2)
 	TestLib.check(not road_hit.is_empty() and absf(road_hit.position.y) < 0.01, "a ray onto a road hits the ground at y = 0")
 	# the border walls stand at HALF + 30
-	var qe := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(900.0, 20.0, 5.0), Game.L_WORLD)
+	var qe := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(1300.0, 20.0, 5.0), Game.L_WORLD)
 	var wall := space.intersect_ray(qe)
 	TestLib.check(not wall.is_empty() and absf(wall.position.x - CityLayout.WALK) < 0.05, "invisible wall at x = HALF + 30 (hit at %s)" % str(wall.get("position", "none")))
-	var qw := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(0.0, 20.0, -900.0), Game.L_WORLD)
+	var qw := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(0.0, 20.0, -1300.0), Game.L_WORLD)
 	var wall2 := space.intersect_ray(qw)
 	TestLib.check(not wall2.is_empty() and absf(wall2.position.z + CityLayout.WALK) < 0.05, "invisible wall at z = -(HALF + 30)")
 	# a ray along the avenue between two buildings is not blocked by buildings (roads are open)

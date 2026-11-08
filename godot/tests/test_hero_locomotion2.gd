@@ -23,6 +23,8 @@ func run(host: Node) -> void:
 	Engine.max_fps = 60                      # the headless loop otherwise renders as fast as it can (sub-millisecond frames): the gait needs frames like a device's
 	await e.setup(host)
 	p = e.p
+	if p.body.clips != null:
+		p.body.clips.enabled = false             # this test tunes the procedural planted-foot gait (Locomotion), which still carries 2.4-4.2 m/s, strafing and turning; the captured gait is tests/test_hero_motion_hold.gd
 	TestLib.check(p.body.loco != null and p.body.rig != null and p.body.polish != null, "the superhero has a Locomotion and a polish layer")
 	TestLib.check(HeroAnimTuning.f("gait_cyc_max") > 0.0 and p.body.loco.g_comp == HeroAnimTuning.f("stance_comp"), "the hero's gait numbers come from hero_anim_tuning.gd")
 	var res := {}

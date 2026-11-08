@@ -7,17 +7,19 @@ extends RefCounted
 ## are the same ones the play-tested Three.js prototype had: 8x8 blocks, 4 lots per block, footprints 18/26 m,
 ## heights 16/28/44/62/88 m (taller toward the centre) and 10 % plazas.
 ##
-## Big city (wave 84): the world is 16 x 16 blocks (1280 m, 4x the area). The original 8x8 city is the CORE in the middle of it (blocks CORE0 .. CORE0 + CORE_N - 1,
+## Big city (wave 84, widened in round 4): the world is 26 x 26 blocks (2080 m, 2.64x the area of the 16 x 16 block city of wave 84, which was 4x the original). The original 8x8 city is the CORE in the middle of it (blocks CORE0 .. CORE0 + CORE_N - 1,
 ## world coordinates |x|, |z| <= CORE_HALF) and is generated first with the original stream, so every lot index, every position and every table that
-## refers to the core is unchanged. The 192 outer blocks come from a second stream (OUTER_SEED): lower, wider buildings, more open lots, four outer zones
+## refers to the core is unchanged. The 612 outer blocks come from a second stream (OUTER_SEED): lower, wider buildings, more open lots, four outer zones
 ## (see city_districts.gd). The lot list is pure data and cheap; what is drawn, collided with and populated is windowed around the player.
 
 const PITCH := 80.0            ## distance between road centre lines
 const ROAD := 20.0             ## road width
-const N := 16                  ## blocks per side (core 8 + a ring of 4 outer blocks on every side)
-const HALF := 640.0            ## N * PITCH / 2
+const N := 26                  ## blocks per side (core 8 + a ring of 9 outer blocks on every side; round 4: 2080 m, 2.64x the area of the 1280 m city)
+const HALF := 1040.0           ## N * PITCH / 2
+const SHIFT := CORE0 - 4        ## the road-index tables written for the 16 x 16 city (freedom spots, crates, repair bays) add this many roads to land in the same place relative to the core
+const OLD_N := 16              ## blocks per side of that city: those tables clamp to 1 .. OLD_N - 1
 const CORE_N := 8              ## blocks per side of the original city
-const CORE0 := 4               ## index of the first core block ((N - CORE_N) / 2)
+const CORE0 := 9               ## index of the first core block ((N - CORE_N) / 2)
 const CORE_HALF := 320.0       ## CORE_N * PITCH / 2: the original city is |x|, |z| <= CORE_HALF
 const BLOCK := 60.0            ## PITCH - ROAD: the block (sidewalk) square between roads
 const LANE := 5.0              ## lane centre offset from a road's centre line
@@ -26,7 +28,7 @@ const WALL_T := 8.0            ## thickness of the invisible border walls (they 
 const WALK := HALF + BORDER    ## the walkable square is |x|, |z| <= WALK: the inner faces of the border walls
 const LOT_OFFSET := 15.0       ## lot centre offset from the block centre
 const SEED := 2025
-const OUTER_SEED := 7919       ## second stream: the 192 outer blocks
+const OUTER_SEED := 7919       ## second stream: the 612 outer blocks
 const PLAZA_OUTER := 0.24      ## share of outer lots left open (parks, yards, car parks)
 
 const HEIGHTS: Array[float] = [16.0, 28.0, 44.0, 62.0, 88.0]

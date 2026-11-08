@@ -76,6 +76,21 @@ static func station_name(i: int) -> String:
 
 
 ## OFF -> station 0 -> 1 -> 2 -> 3 -> OFF. Returns true when the radio is on afterwards.
+static var auto_headless := false              ## tests: tune in on entering a car even without a display
+static var last_station := 0                   ## the station the hero last had on (the radio comes back to it)
+
+
+## Getting into a car switches the radio on at the last station (GTA style; V / RADIO changes it or switches it off) unless it is already on or the player turned it off on purpose
+## during this ride. A headless run (the test suite) skips it unless `auto_headless` is set, so the tests keep their OFF start.
+func auto_tune() -> void:
+	if on or muted_by_player or (DisplayServer.get_name() == "headless" and not auto_headless):
+		return
+	set_station(last_station)
+
+
+var muted_by_player := false                   ## the hero cycled the radio to OFF himself: no automatic tune-in afterwards
+
+
 func cycle() -> bool:
 	if not on:
 		set_station(0)
@@ -83,11 +98,14 @@ func cycle() -> bool:
 		set_station(station + 1)
 	else:
 		turn_off()
+		muted_by_player = true
 	return on
 
 
 func set_station(i: int) -> void:
 	station = clampi(i, 0, STATIONS.size() - 1)
+	last_station = station
+	muted_by_player = false
 	on = true
 	_request(station)
 	_begin_show()

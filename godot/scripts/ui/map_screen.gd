@@ -22,10 +22,11 @@ signal closed
 const Districts := preload("res://scripts/world/city_districts.gd")
 const CityEventsScript := preload("res://scripts/world/city_events.gd")
 
-const CELLS := 32
-const CELL := 40.0                                  ## metres per cell (CELLS * CELL = 1280 = 2 * CityLayout.HALF)
+const CELLS := 52
+const CELL := 40.0                                  ## metres per cell (CELLS * CELL = 2080 = 2 * CityLayout.HALF)
 const HALF := CELLS * CELL * 0.5
 const ZOOMS: Array[int] = [1, 2, 4]
+const OPEN_ZOOM_F := 3.0                          ## the 2080 m map opens at 3x (a 693 m frame, about what 2x gave on the 1280 m map: the district labels stay apart)
 const OPEN_ZOOM := 2                              ## the zoom the map opens at (1 = the whole city)
 const ZOOM_MAX := 8.0
 const DRAG_PX := 14.0
@@ -434,7 +435,9 @@ func open() -> void:
 	visible = true
 	get_tree().call_group(&"hud", &"map_toggled", true)
 	_layout()
-	set_zoom(OPEN_ZOOM)                                   # opens close on the hero: a 1280 m city drawn on one phone height is a postage stamp (director review 3, #9)
+	set_zoom(OPEN_ZOOM)
+	zoom_f = maxf(zoom_f, OPEN_ZOOM_F)
+	_after_zoom()                                         # opens close on the hero: a 1280 m city drawn on one phone height is a postage stamp (director review 3, #9)
 	_load_lots()
 	_rebuild_route()
 	if _route.size() >= 2:
@@ -1146,22 +1149,6 @@ func _draw_map() -> void:
 	_map.draw_mesh(_fog_layer(), null, xf)
 	var seen_n := discovered_count()
 	_charted = roundi(100.0 * seen_n / float(CELLS * CELLS))
-	# district names: their boxes are reserved first (nothing else is written over a name); they are drawn after the markers
-	var big := int((26.0 if zoom_f < 2.5 else 24.0) * s)
-	var small := int(22.0 * s)
-	var name_a := 0.82 if zoom_f < 2.5 else 0.6                       # zoomed in the names step back: the markers and the route are the subject
-	var names: Array = []
-	for d in 8:
-		var tc := _zone_label_pos(d)
-		var p := world_to_map(tc.x, tc.y)
-		if not view.grow(-20.0 * s).has_point(p):
-			continue
-		var seen := zone_discovered(d)
-		var dname := Districts.zone_title(d) if seen else "UNCHARTED"
-		var nsz := big if d < Districts.COUNT else small
-		var nw := font.get_string_size(dname, HORIZONTAL_ALIGNMENT_LEFT, -1, nsz).x
-		_placed.append(Rect2(p.x - nw * 0.5 - 3.0, p.y - nsz * 0.8, nw + 6.0, nsz * 1.05))
-		names.append([p, dname, nsz, Color(1, 1, 1, name_a) if seen else Color(0.7, 0.8, 0.9, name_a * 0.65)])
 	# GPS route along the roads: dark casing, bright line, direction chevrons, distance at the goal
 	var you := Vector2.INF
 	var heading := Vector2(0, -1)
@@ -1223,7 +1210,35 @@ func _draw_map() -> void:
 		var e0: Array = cl[key0]
 		var rr0 := r_badge * (1.5 if (e0[2] as Dictionary)["kind"] == &"mission" else 1.0)
 		var c0: Vector2 = (e0[0] as Vector2) / float(e0[1])
-		_placed.append(Rect2(c0 - Vector2(rr0, rr0), Vector2(rr0, rr0) * 2.0))
+		var bbox := Rect2(c0 - Vector2(rr0, rr0), Vector2(rr0, rr0) * 2.0)
+		if int(e0[1]) > 1:
+			bbox = bbox.merge(Rect2(c0 + Vector2(rr0 * 0.6, -rr0 * 1.6), Vector2(26.0 * s, 20.0 * s)))     # the count written beside the badge
+		_placed.append(bbox)
+	# district names: their boxes are reserved first (nothing else is written over a name); they are drawn after the markers
+	var big := int((26.0 if zoom_f < 2.5 else 24.0) * s)
+	var small := int(22.0 * s)
+	var name_a := 0.82 if zoom_f < 2.5 else 0.6                       # zoomed in the names step back: the markers and the route are the subject
+	var names: Array = []
+	var name_boxes: Array[Rect2] = []
+	for d in 8:
+		var tc := _zone_label_pos(d)
+		var p := world_to_map(tc.x, tc.y)
+		if not view.grow(-20.0 * s).has_point(p):
+			continue
+		var seen := zone_discovered(d)
+		var dname := Districts.zone_title(d) if seen else "UNCHARTED"
+		var nsz := big if d < Districts.COUNT else small
+		var nw := font.get_string_size(dname, HORIZONTAL_ALIGNMENT_LEFT, -1, nsz).x
+		var nbox := Rect2(p.x - nw * 0.5 - 3.0, p.y - nsz * 0.8, nw + 6.0, nsz * 1.05)
+		var clash := false
+		for other: Rect2 in name_boxes + _placed:                                    # the overview of the 2080 m map puts the four core names almost on top of each other: the later one steps aside
+			if nbox.intersection(other).get_area() > 0.15 * minf(nbox.get_area(), other.get_area()):
+				clash = true
+		if clash:
+			continue
+		name_boxes.append(nbox)
+		_placed.append(nbox)
+		names.append([p, dname, nsz, Color(1, 1, 1, name_a) if seen else Color(0.7, 0.8, 0.9, name_a * 0.65)])
 	for key: String in keys:
 		var e: Array = cl[key]
 		var n: int = e[1]
@@ -1419,6 +1434,15 @@ func _load() -> void:
 	var v: Variant = cf.get_value("map", "seen", null)
 	if v is PackedByteArray and (v as PackedByteArray).size() == CELLS * CELLS:
 		_seen = v
+	elif v is PackedByteArray and (v as PackedByteArray).size() == 1024:
+		# a save from the 16 x 16 block city (32 x 32 cells): it sits in the middle of the 26 x 26 block map
+		var old32: PackedByteArray = v
+		_seen = PackedByteArray()
+		_seen.resize(CELLS * CELLS)
+		var off32 := (CELLS - 32) / 2
+		for k in 1024:
+			if old32[k] == 1:
+				_seen[(k / 32 + off32) * CELLS + (k % 32 + off32)] = 1
 	elif v is PackedByteArray and (v as PackedByteArray).size() == 256:
 		# a save from the 8 x 8 city (16 x 16 cells of 40 m): it is the core of the big map, cells 8 .. 23 on each axis
 		var old: PackedByteArray = v

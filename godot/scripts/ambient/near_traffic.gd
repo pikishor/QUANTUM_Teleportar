@@ -13,7 +13,7 @@ const BUILT := 100
 const COUNTS: Array[int] = [72, 88, 100]
 const RADII: Array[float] = [60.0, 68.0, 78.0]
 const MIN_SPAWN := 16.0                  ## first fill: anywhere in the ring but not on top of the hero
-const AVENUE := 8                        ## road index of the market avenue (z = 0)
+const AVENUE := 8 + CityLayout.SHIFT      ## road index of the market avenue (z = 0)
 const AVENUE_GREEN := 12.0
 const CORE_SHARE := 0.7
 const CORE_R := 44.0
@@ -144,7 +144,27 @@ func build(light_map: Texture2D) -> void:
 
 
 ## The car body: lower hull, glass cabin, roof, four wheels, lamps (about 150 triangles). Nose is -Z, length 4.5 m, wheels at y 0.34. UV.x = surface tag, UV.y = wheel centre z.
+static var _near_mesh: ArrayMesh
+
+## The car every near car draws: the decimated Rgsdev sedan (assets/models/rv_near.glb, 445 triangles, one surface, tags in UV.x as below) when it exists, else the procedural box car
+## (`procedural_car_mesh`, about 300 triangles). QT_RV_MODELS=0 puts the box car back (before captures).
 static func car_mesh() -> ArrayMesh:
+	if OS.get_environment("QT_RV_MODELS") != "0":
+		if _near_mesh == null:
+			var root := Game.load_model("rv_near")
+			if root != null:
+				for n in root.find_children("*", "MeshInstance3D", true, false):
+					var m := (n as MeshInstance3D).mesh as ArrayMesh
+					if m != null and m.get_surface_count() == 1:
+						_near_mesh = m
+						break
+				root.free()
+		if _near_mesh != null:
+			return _near_mesh
+	return procedural_car_mesh()
+
+
+static func procedural_car_mesh() -> ArrayMesh:
 	var b := MB.new()
 	var turn := Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3.ZERO)       # profile x (nose +) -> model -Z
 	b.uv = Vector2(0.0, 0.0)

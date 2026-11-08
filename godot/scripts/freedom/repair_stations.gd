@@ -31,7 +31,7 @@ static func count() -> int:
 ## World position (ground) of bay i.
 static func pos(i: int) -> Vector3:
 	var s: Vector3i = STATIONS[i]
-	return Vector3(CityLayout.road_center(s.x) + CityLayout.PITCH * 0.5, 0.0, CityLayout.road_center(s.y) + float(s.z) * VehicleSpecs.BAY)
+	return Vector3(CityLayout.road_center(s.x + CityLayout.SHIFT) + CityLayout.PITCH * 0.5, 0.0, CityLayout.road_center(s.y + CityLayout.SHIFT) + float(s.z) * VehicleSpecs.BAY)
 
 
 func _ready() -> void:
@@ -149,7 +149,7 @@ func _build() -> void:
 	mi.name = "Bays"
 	mi.multimesh = _mm
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.custom_aabb = AABB(Vector3(-900, -2, -900), Vector3(1800, 40, 1800))
+	mi.custom_aabb = AABB(Vector3(-1300, -2, -1300), Vector3(2600, 40, 2600))
 	mi.top_level = true
 	add_child(mi)
 	_refresh()

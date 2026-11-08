@@ -14,6 +14,7 @@ var rig: CharacterRig
 var loco: Locomotion
 
 var slide_total := 0.0                 ## metres, both feet, over all samples
+var worst_info := ""
 var slide_worst := 0.0                 ## worst single ground contact (metres)
 var contacts := 0                      ## finished ground contacts
 var footfalls := 0                     ## touchdowns during the measurement
@@ -27,6 +28,11 @@ var knee_max := 0.0
 var sole_lift_max := 0.0               ## highest sole above the floor while swinging
 var pelvis_lead_max := 0.0             ## largest horizontal distance of the hip bone from the midpoint of the two soles (the body hanging over its feet)
 
+var clips: HeroClips                   ## the captured gait (optional): while its weight is above CLIP_MIN the contacts and footfalls are read from the soles' HEIGHT (the IK gait's stance flags no longer describe the legs)
+const CLIP_MIN := 0.6
+var height_mode := false               ## force the height-based contacts (tests of the captured gait)
+var own_footfalls := 0                 ## touchdowns counted from the soles' height (sole above CONTACT_Y one frame, below it the next)
+var own_frames := 0
 var ground := Callable()               ## optional: func(world_pos: Vector3) -> float, the floor height under a point (ramps, stairs); without it the `ground_y` of sample() is the floor
 var pelvis_pop_max := 0.0              ## largest change of the hip height from one frame to the next (metres): a pop is a visible snap in the gait blend
 var pelvis_pop_at := 0.0               ## time (s into the measurement) of the largest pelvis pop
@@ -38,6 +44,12 @@ var _ff0 := 0
 var _ff1 := -1
 var _origin_prev := Vector3.ZERO
 var _have_origin := false
+var _air_prev: Array[bool] = [true, true]
+var _trk: Array = [[[], [], []], [[], [], []]]
+var _dt := 1.0 / 60.0
+var _air_time: Array[float] = [1.0, 1.0]
+var _foot_i: Array[int] = [-1, -1]
+var _ball_i: Array[int] = [-1, -1]
 var _hips_i := -1
 var _torso_i := -1
 var _shin_i: Array[int] = [-1, -1]
@@ -49,6 +61,8 @@ func _init(r: CharacterRig, l: Locomotion) -> void:
 	_hips_i = rig.skeleton.find_bone("Hips")
 	_torso_i = rig.skeleton.find_bone("Torso")
 	_shin_i = [rig.skeleton.find_bone("ShinL"), rig.skeleton.find_bone("ShinR")]
+	_foot_i = [rig.skeleton.find_bone("FootL"), rig.skeleton.find_bone("FootR")]
+	_ball_i = [rig.skeleton.find_bone("ball_l"), rig.skeleton.find_bone("ball_r")]
 
 
 ## Forget the measurement (the gait keeps running): call when the speed has settled.
@@ -72,6 +86,11 @@ func begin() -> void:
 	_have_origin = false
 	_ff0 = loco.footfalls
 	_ff1 = -1
+	own_footfalls = 0
+	own_frames = 0
+	_air_prev = [true, true]
+	_air_time = [1.0, 1.0]
+	_trk = [[[], [], []], [[], [], []]]
 
 
 ## World position of the sole contact point of foot k (0 left, 1 right).
@@ -93,9 +112,17 @@ func sample(dt: float, moving: bool, ground_y := 0.0) -> void:
 	_origin_prev = origin
 	_have_origin = true
 	var soles: Array[Vector3] = [sole_world(0), sole_world(1)]
+	var by_h := height_mode or (clips != null and clips.weight > CLIP_MIN)
+	if by_h:
+		own_frames += 1
+		_sample_points(ground_y, dt)
 	for k in 2:
 		var s := soles[k]
 		var gy: float = ground.call(s) if ground.is_valid() else ground_y
+		if by_h:
+			if not (s.y - gy < CONTACT_Y):
+				sole_lift_max = maxf(sole_lift_max, s.y - gy)
+			continue
 		var on_floor := loco.stance_progress(k) >= 0.0 and s.y - gy < CONTACT_Y
 		if on_floor and moving:
 			if _in[k]:
@@ -115,6 +142,11 @@ func sample(dt: float, moving: bool, ground_y := 0.0) -> void:
 			var ki := _shin_i[k]
 			if ki >= 0:
 				knee_max = maxf(knee_max, absf(rig.skeleton.get_bone_pose(ki).basis.get_euler().x))
+	if by_h:
+		for k in 2:
+			var ki2 := _shin_i[k]
+			if ki2 >= 0:
+				knee_max = maxf(knee_max, absf(rig.skeleton.get_bone_pose(ki2).basis.get_euler().x))
 	var h := hips_world()
 	var hg: float = ground.call(h) if ground.is_valid() else ground_y
 	hip_lo = minf(hip_lo, h.y - hg)
@@ -133,17 +165,78 @@ func sample(dt: float, moving: bool, ground_y := 0.0) -> void:
 		torso_hi = maxf(torso_hi, tp)
 
 
+## World positions of the three contact points of foot k (heel, ball, toe tip) read from the posed skeleton.
+func foot_points(k: int) -> Array[Vector3]:
+	var sk := rig.skeleton
+	var xf := sk.global_transform
+	var fb := sk.get_bone_global_pose(_foot_i[k])
+	var bb := sk.get_bone_global_pose(_ball_i[k])
+	return [xf * (fb * Vector3(0.0, -0.071, 0.03)), xf * bb.origin, xf * (bb * Vector3(0.0, 0.0, -0.079))]
+
+
+## The captured gait's slide: each of the three points of a foot is a contact while it is within CLIP_CONTACT_Y of its resting height; the travel of one point over the ground
+## while it stays in contact is the slide (a roll from heel to toe changes the point, not the travel).
+const CLIP_CONTACT_Y := 0.03
+
+
+func _sample_points(ground_y: float, dt: float) -> void:
+	_dt = dt
+	for k in 2:
+		var pts := foot_points(k)
+		var any := false
+		for j in 3:
+			var s: Vector3 = pts[j]
+			var gy: float = ground.call(s) if ground.is_valid() else ground_y
+			if s.y - gy < CLIP_CONTACT_Y:
+				any = true
+				(_trk[k][j] as Array).append(s)
+			elif (_trk[k][j] as Array).size() > 0:
+				_flush(k, j)
+		if any:
+			if _air_prev[k] and _air_time[k] > 0.1:                  # a touchdown after a real swing (the heel-toe roll of one contact is not a step)
+				own_footfalls += 1
+			_air_prev[k] = false
+			_air_time[k] = 0.0
+		else:
+			_air_prev[k] = true
+			_air_time[k] += dt
+
+
+## A finished contact of one point: the ground travel of its planted middle (the heel strike and the toe-off, the first and last fifth of the contact, are left out).
+func _flush(k: int, j: int) -> void:
+	var t: Array = _trk[k][j]
+	var n := t.size()
+	if n >= 4:
+		var i0 := int(ceil(float(n) * 0.2))
+		var i1 := int(floor(float(n) * 0.8))
+		var d := 0.0
+		for i in range(i0 + 1, i1):
+			d += Vector2((t[i] as Vector3).x - (t[i - 1] as Vector3).x, (t[i] as Vector3).z - (t[i - 1] as Vector3).z).length()
+		slide_total += d / 3.0                                      # the three points of one foot are one contact: their travel is averaged
+		if d > slide_worst:
+			slide_worst = d
+			worst_info = "foot %d point %s %d samples at t %.2f" % [k, "HBT"[j], n, time]
+		contacts += 1
+	_trk[k][j] = []
+
+
 ## Freeze the footfall count (the gait keeps running after the measurement; the derived numbers must not change).
 func end() -> void:
 	_ff1 = loco.footfalls
+	if own_frames > 0:
+		for k in 2:
+			for j in 3:
+				_flush(k, j)
 
 
 func _ff_now() -> int:
+	if own_frames > 0:
+		return own_footfalls
 	return _ff1 if _ff1 >= 0 else loco.footfalls
 
 
 func cycles() -> float:
-	return float(_ff_now() - _ff0) * 0.5
+	return float(_ff_now() - (0 if own_frames > 0 else _ff0)) * 0.5
 
 
 ## Metres of ground travel of the soles in contact per full gait cycle (two steps).
@@ -152,15 +245,15 @@ func slide_per_cycle() -> float:
 
 
 func footfalls_seen() -> int:
-	return _ff_now() - _ff0
+	return _ff_now() - (0 if own_frames > 0 else _ff0)
 
 
 func cadence() -> float:
-	return float(_ff_now() - _ff0) / maxf(time, 0.001)
+	return float(_ff_now() - (0 if own_frames > 0 else _ff0)) / maxf(time, 0.001)
 
 
 func step_length() -> float:
-	return distance / maxf(float(_ff_now() - _ff0), 1.0)
+	return distance / maxf(float(_ff_now() - (0 if own_frames > 0 else _ff0)), 1.0)
 
 
 func bob() -> float:

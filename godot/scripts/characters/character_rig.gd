@@ -76,6 +76,16 @@ var stance_shift := 0.0                        ## metres the idle soles sit furt
 var dead_leg_l := Vector3(0.45, 0.35, -0.17)   ## the slack legs of a fallen body: thigh swing forward, knee bend, sideways swing (radians); the owner may tune them for its leg length
 var dead_leg_r := Vector3(-0.3, 0.15, 0.09)
 var knee_buckle := 0.0
+var aim_trim := Vector2.ZERO             ## (pitch, yaw) radians added to the rifle's pose by the owner's aim solver: the barrel points at what the crosshair sees
+var clip_w := 0.0                        ## HeroClips: how far the captured clip pose replaces the IK gait (legs, pelvis, lower spine); 0 = the procedural pose exactly as before
+var clip_hips := Vector3.ZERO            ## the clip's pelvis offset from the standing pelvis (model axes, metres)
+var clip_q: Array = []                   ## 11 local rotations (Quaternion) in HeroClips.bones() order: pelvis spine_01 spine_02 thigh_l calf_l foot_l ball_l thigh_r calf_r foot_r ball_r
+var clip_yaw := 0.0                      ## the lower body turns toward the direction of travel (radians)
+var clip_steady := 0.0                   ## 0..1: how much of the clip's spine motion is held back (aiming keeps the shoulders still)
+var clip_counter := 0.6                  ## 0..1: how much of the clip's pelvis pitch the torso takes back
+var _i_s1 := -2
+var _clip_on := false
+var _i_ball := [-2, -2]
 var head_yaw := 0.0
 var hip_l := Vector2.ZERO               ## outputs: the thigh angles of the last apply() (x forward swing, y sideways), for the owner's leg proxies and tests
 var hip_r := Vector2.ZERO
@@ -451,9 +461,47 @@ func apply() -> void:
 	var d := clampf(dead, 0.0, 1.0)
 	var hips_pos := Vector3.ZERO
 	var hips_basis := Basis.IDENTITY
+	var py := pelvis_yaw
+	var pr := pelvis_roll
+	var cw := clip_w * (1.0 - maxf(d, knee_buckle)) if (ik and clip_q.size() >= 11) else 0.0
+	var spine_q := Quaternion.IDENTITY
+	var s1_q := Quaternion.IDENTITY
 	if ik:
 		hips_basis = Basis.from_euler(Vector3(0.0, pelvis_yaw, pelvis_roll))
 		hips_pos = _legs_ik(d, hips_basis)
+		if cw > 0.001:
+			var hq := Quaternion(hips_basis).slerp(Quaternion(Vector3.UP, clip_yaw) * (clip_q[0] as Quaternion), cw)
+			hips_basis = Basis(hq)
+			var he := hips_basis.get_euler()
+			py = he.y
+			pr = he.z
+			hips_pos = hips_pos.lerp(clip_hips + Vector3(0.0, 0.0, 0.0), cw)
+			var order := [THIGH_L, SHIN_L, FOOT_L, THIGH_R, SHIN_R, FOOT_R]
+			var qi := [3, 4, 5, 7, 8, 9]
+			for j in 6:
+				var cur := skeleton.get_bone_pose(_idx[order[j]]).basis.get_rotation_quaternion()
+				var tq := (clip_q[qi[j]] as Quaternion)
+				if j == 0 or j == 3:                         # the thighs hang from the pelvis: the clip's thigh is relative to the clip's own pelvis, the IK's to the IK's
+					pass
+				_pose(order[j], Basis(cur.slerp(tq, cw)))
+			if _i_s1 == -2:
+				_i_s1 = skeleton.find_bone("spine_01")
+				_i_ball = [skeleton.find_bone("ball_l"), skeleton.find_bone("ball_r")]
+			var keep := 1.0 - clip_steady * 0.8
+			s1_q = Quaternion.IDENTITY.slerp(clip_q[1] as Quaternion, cw * keep)
+			spine_q = Quaternion.IDENTITY.slerp(clip_q[2] as Quaternion, cw * keep)
+			if _i_s1 >= 0:
+				skeleton.set_bone_pose(_i_s1, Transform3D(Basis(s1_q), skeleton.get_bone_rest(_i_s1).origin))
+			for kb in 2:
+				var bi: int = _i_ball[kb]
+				if bi >= 0:
+					skeleton.set_bone_pose(bi, Transform3D(Basis(Quaternion.IDENTITY.slerp(clip_q[6 + kb * 4] as Quaternion, cw)), skeleton.get_bone_rest(bi).origin))
+			_clip_on = true
+		elif _clip_on:                                         # the clip let go: the bones only it poses go back to rest
+			_clip_on = false
+			for bi: int in [_i_s1, _i_ball[0], _i_ball[1]]:
+				if bi >= 0:
+					skeleton.set_bone_pose(bi, skeleton.get_bone_rest(bi))
 	else:
 		hips_pos = _legs_legacy(d)
 		hips_basis = Basis.from_euler(Vector3(0.0, -twist * 0.7, -roll * 0.5))
@@ -475,19 +523,26 @@ func apply() -> void:
 	hips_pos += pose_hips
 	hips_pos.z += recoil * 0.012
 	_pose(HIPS, hips_basis, hips_pos)
-	var tp := aim_pitch * 0.55 + lean + breathe + recoil * 0.05 + fl_pitch + extra_torso.x + 0.05 * tw
+	var lean_eff := lean * (1.0 - cw)
+	var tp := aim_pitch * 0.55 + lean_eff + breathe + recoil * 0.05 + fl_pitch + extra_torso.x + 0.05 * tw
 	var net_yaw := twist * 1.7 + extra_torso.y + fl_yaw
 	var net_roll := roll + extra_torso.z + fl_roll
 	if ik:
-		_pose(TORSO, Basis.from_euler(Vector3(tp + 0.2 * d + _death_pitch(d), net_yaw - pelvis_yaw, net_roll - pelvis_roll)))
+		var counter := 0.0
+		if cw > 0.001:                                         # the pelvis pitch of the captured gait is carried back by the torso (the shoulders stay square to the aim)
+			counter = -hips_basis.get_euler().x * clip_counter * cw
+		_pose(TORSO, Basis(spine_q) * Basis.from_euler(Vector3(tp + 0.2 * d + _death_pitch(d) + counter, net_yaw - py, net_roll - pr)))
 	else:
 		_pose(TORSO, Basis.from_euler(Vector3(tp + 0.2 * d, twist * 1.7 + extra_torso.y, roll + extra_torso.z)))
 	# the head keeps looking level while the torso leans, twists and bobs (stabilisation), takes the part of the aim pitch the torso does not, and looks where the aim goes
 	var hp := aim_pitch * 0.55 - lean * 0.8 - breathe * 0.5 - 0.25 * d
 	hp += (flinch * 0.34 * flinch_dir.y) if fdir.length_squared() > 0.01 else flinch * 0.3
 	if ik:
-		hp += head_look.y - 0.35 * tw - 0.35 * extra_torso.x - sin(phase * 2.0) * 0.015 * amp * (1.0 - air)
-		_pose(HEAD, Basis.from_euler(Vector3(hp, head_yaw + head_look.x - net_yaw * 0.9, -net_roll * 0.8)))
+		hp += head_look.y - 0.35 * tw - 0.35 * extra_torso.x - sin(phase * 2.0) * 0.015 * amp * (1.0 - air) * (1.0 - cw)
+		var hq_c := Basis.IDENTITY
+		if cw > 0.001:                                         # the head keeps level against what the captured spine does
+			hq_c = Basis(Quaternion.IDENTITY.slerp((s1_q * spine_q).inverse(), 0.75))
+		_pose(HEAD, hq_c * Basis.from_euler(Vector3(hp, head_yaw + head_look.x - net_yaw * 0.9, -net_roll * 0.8)))
 	else:
 		hp -= sin(phase * 2.0) * 0.02 * amp * (1.0 - air)
 		_pose(HEAD, Basis.from_euler(Vector3(hp, head_yaw - twist * 1.0, -roll * 0.6)))
@@ -515,7 +570,8 @@ func apply() -> void:
 	rp += recoil * 0.07 + aim_pitch * 0.45 * ready
 	rpos.z += recoil * 0.055
 	rpos.y += recoil * 0.008
-	rp += 0.5 * d
+	rp += 0.5 * d + aim_trim.x
+	ry += aim_trim.y
 	var rb := Basis.from_euler(Vector3(rp, ry, rr))
 	var dead_rb := Basis.from_euler(Vector3(-0.95, 0.15, 0.4))
 	if d > 0.0:

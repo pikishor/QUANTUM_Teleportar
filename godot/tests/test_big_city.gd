@@ -8,7 +8,7 @@ const Stream := preload("res://scripts/world/city_stream.gd")
 const Districts := preload("res://scripts/world/city_districts.gd")
 
 const K := 4
-const CRUISE_LIMIT := 120.0          ## game seconds the drive may take before the test gives up
+const CRUISE_LIMIT := 170.0          ## game seconds the drive may take before the test gives up
 
 var city: City
 var p: Player
@@ -54,9 +54,9 @@ func _restore() -> void:
 
 ## The layout: 4x the area, the original city untouched in the middle, every table sized to the map.
 func _layout() -> void:
-	TestLib.check(CityLayout.N == 16 and Game.N == 16 and is_equal_approx(Game.HALF, 640.0), "the map is 16 x 16 blocks, 1280 m across (HALF %.0f)" % Game.HALF)
+	TestLib.check(CityLayout.N == 26 and Game.N == 26 and is_equal_approx(Game.HALF, 1040.0), "the map is 26 x 26 blocks, 2080 m across (HALF %.0f)" % Game.HALF)
 	var area := (2.0 * Game.HALF) * (2.0 * Game.HALF)
-	TestLib.check(area >= 3.0 * (640.0 * 640.0) and area <= 4.5 * (640.0 * 640.0), "3 to 4.5 times the area of the old 8 x 8 city (%.1fx)" % (area / (640.0 * 640.0)))
+	TestLib.check(area >= 2.5 * (1280.0 * 1280.0) and area <= 3.2 * (1280.0 * 1280.0), "2.5 to 3.2 times the area of the 16 x 16 block city (%.2fx)" % (area / (1280.0 * 1280.0)))
 	var lots: Array[CityLayout.Lot] = city.layout.lots
 	var core := 0
 	var first_core := true
@@ -67,7 +67,7 @@ func _layout() -> void:
 			first_core = false
 	TestLib.check(core == 232 and first_core and lots.size() > 700, "232 core lots first, unchanged (%d lots in all)" % lots.size())
 	TestLib.check(is_equal_approx(lots[0].cx, -295.0) and is_equal_approx(lots[0].cz, -295.0), "the first lot is still the JS prototype's")
-	TestLib.check(city.intersections.size() == 49 and city.all_intersections.size() == 225, "49 core junctions for the missions, 225 for the whole map")
+	TestLib.check(city.intersections.size() == 49 and city.all_intersections.size() == 625, "49 core junctions for the missions, 625 for the whole map")
 	TestLib.check(city.doors.size() == lots.size(), "every building of the big map has a door (%d)" % city.doors.size())
 	var em0 := Game.enemies as EnemyManager
 	var outer0 := 0
@@ -83,7 +83,7 @@ func _layout() -> void:
 		for corner: Vector2 in [l.rect.position, l.rect.end]:
 			if CityLayout.on_road(corner.x, corner.y):
 				clean = false
-	TestLib.check(clean and CityLayout.on_road(-630.0, 100.0) and CityLayout.on_road(100.0, 640.0), "no footprint touches a road; the border roads of the map exist")
+	TestLib.check(clean and CityLayout.on_road(-1030.0, 100.0) and CityLayout.on_road(100.0, 1040.0), "no footprint touches a road; the border roads of the map exist")
 	# queries work everywhere
 	var bad := 0
 	for i in 300:
@@ -98,8 +98,8 @@ func _layout() -> void:
 
 ## Stand at ten places spread over the whole map (corners, edges, the centre): the ground, the colliders, the windows and the streams are there each time.
 func _walk_the_map(host: Node) -> void:
-	var stops: Array[Vector3] = [Vector3(-600, 0.5, -600), Vector3(0, 0.5, -600), Vector3(600, 0.5, -600), Vector3(600, 0.5, 5), Vector3(600, 0.5, 600), Vector3(0, 0.5, 600),
-			Vector3(-600, 0.5, 600), Vector3(-600, 0.5, 5), Vector3(5, 0.5, 5), Vector3(-30, 0.5, 4)]
+	var stops: Array[Vector3] = [Vector3(-1000, 0.5, -1000), Vector3(0, 0.5, -1000), Vector3(1000, 0.5, -1000), Vector3(1000, 0.5, 5), Vector3(1000, 0.5, 1000), Vector3(0, 0.5, 1000),
+			Vector3(-1000, 0.5, 1000), Vector3(-1000, 0.5, 5), Vector3(5, 0.5, 5), Vector3(-30, 0.5, 4)]
 	var chunks := city.collision_chunks()
 	var holes := 0
 	var fell := 0
@@ -129,16 +129,16 @@ func _walk_the_map(host: Node) -> void:
 	TestLib.check(fell == 0 and holes == 0, "at ten places over the whole map there is ground under the player (%d fell, %d holes)" % [fell, holes])
 	TestLib.check(window_gaps == 0, "every building and lamp within the fade distance of the camera is drawn at all ten places (%d gaps)" % window_gaps)
 	TestLib.check(all_outer_active, "the outer block under the player always has its colliders")
-	TestLib.check(chunks.block_total() == 192 and peak_live < 600, "192 outer blocks, never more than %d box shapes alive at once (an unstreamed map keeps ~1300)" % peak_live)
+	TestLib.check(chunks.block_total() >= 560 and chunks.block_total() <= 612 and peak_live < 600, "about 600 outer blocks (%d with buildings), never more than %d box shapes alive at once (an unstreamed map keeps ~4000)" % [chunks.block_total(), peak_live])
 	# every outer building near the player is solid: a ray through its roof hits it, at the far corner of the map
-	p.teleport_to(Vector3(-600, 0.5, 600))
+	p.teleport_to(Vector3(-1000, 0.5, 1000))
 	await _settle(host, 20)
 	var space2 := (host as Node).get_viewport().world_3d.direct_space_state
 	var solid := 0
 	var total := 0
 	for b in city.building_data:
 		var lot: CityLayout.Lot = b.lot
-		if Vector2(lot.cx + 600.0, lot.cz - 600.0).length() < 200.0:
+		if Vector2(lot.cx + 1000.0, lot.cz - 1000.0).length() < 200.0:
 			total += 1
 			var rq := PhysicsRayQueryParameters3D.create(Vector3(lot.cx, 200.0, lot.cz), Vector3(lot.cx, -5.0, lot.cz), Game.L_WORLD)
 			var hit := space2.intersect_ray(rq)
@@ -150,7 +150,7 @@ func _walk_the_map(host: Node) -> void:
 	await _settle(host, 6)
 	TestLib.check(absf(p.global_position.x) <= CityLayout.WALK + 1.0, "a teleport beyond the walls is pulled back inside (x %.0f)" % p.global_position.x)
 	# walking: real input over open ground in the outer ring moves the hero
-	p.teleport_to(Vector3(-600, 0.5, -5))
+	p.teleport_to(Vector3(-1000, 0.5, -5))
 	await _settle(host, 30)
 	var x0 := p.global_position.x
 	Input.action_press(&"move_forward")
@@ -259,7 +259,7 @@ func _ambient_life(host: Node) -> void:
 			break
 	TestLib.check(crowd_ok, "a crowd walks the sidewalks around the player in the far west (%d people)" % amb.crowd.alive_count())
 	TestLib.check(cars_ok, "traffic and parked cars are streamed around the player in the far west")
-	TestLib.check(amb.traffic.count > 0 and Traffic_LANES() == 68, "the far traffic runs on all 68 lanes of the 17 x 17 road grid")
+	TestLib.check(amb.traffic.count > 0 and Traffic_LANES() == 108, "the far traffic runs on all 108 lanes of the 27 x 27 road grid")
 	# an event is spawned near the player, on a road, anywhere on the map
 	var ev: Node = preload("res://scripts/world/city_events.gd").current
 	if is_instance_valid(ev):
@@ -285,7 +285,7 @@ func _minimap_and_map(host: Node) -> void:
 	var ppm := float(Minimap.TEX_PX) / (2.0 * Minimap.EXTENT)
 	var bg := Color(0.025, 0.07, 0.09)
 	var road := img.get_pixel(int((480.0 + Minimap.EXTENT) * ppm), int((-480.0 + 3.0 + Minimap.EXTENT) * ppm))
-	var verge := img.get_pixel(int((-600.0 + Minimap.EXTENT) * ppm), int((-600.0 + 38.0 + Minimap.EXTENT) * ppm))
+	var verge := img.get_pixel(int((-1000.0 + Minimap.EXTENT) * ppm), int((-1000.0 + 38.0 + Minimap.EXTENT) * ppm))
 	TestLib.check(absf(road.r - 0.07) < 0.01 and absf(road.g - 0.19) < 0.01 and absf(road.b - 0.24) < 0.01 and absf(road.g - bg.g) > 0.05 and verge.a > 0.0, "the minimap draws the outer roads (%s)" % str(road))
 	mini.queue_free()
 	var ms := MapScreen.new()
@@ -333,15 +333,15 @@ func _drive_across(host: Node) -> void:
 	for v in mgr.list.duplicate():
 		if v != mgr.starter:
 			mgr._release(v)
-	p.teleport_to(Vector3(-620.0, 0.5, 5.0))
+	p.teleport_to(Vector3(-1020.0, 0.5, 5.0))
 	await _settle(host, 20)
-	var car := mgr.spawn_parked(&"sport", Vector3(-620.0, 0.0, 5.0), -PI * 0.5)
-	car.global_position = Vector3(-620.0, 0.0, 5.0)
+	var car := mgr.spawn_parked(&"sport", Vector3(-1020.0, 0.0, 5.0), -PI * 0.5)
+	car.global_position = Vector3(-1020.0, 0.0, 5.0)
 	mgr.enter(car)
 	await _settle(host, 4)
 	TestLib.check(mgr.driven == car, "the player drives the sport car")
 	var top := float(VehicleSpecs.SPECS[&"sport"]["max"])
-	TestLib.check(top >= 30.0 and top <= 40.0, "the sport car's top speed fits the city scale (%.0f m/s)" % top)
+	TestLib.check(top >= 24.0 and top <= 30.0, "the sport car's top speed fits the city scale (%.0f m/s)" % top)
 	var t0 := Engine.get_physics_frames()
 	var tick := 60.0                                    # physics ticks per GAME second (the step is 1/60 s of game time at any time scale)
 	var peak := 0.0
@@ -359,7 +359,7 @@ func _drive_across(host: Node) -> void:
 		frame += 1
 		peak = maxf(peak, absf(car.speed))
 		worst_y = minf(worst_y, car.global_position.y)
-		if car.global_position.x > 600.0:
+		if car.global_position.x > 1020.0:
 			crossed = true
 			break
 		if frame % 30 == 0:
@@ -372,7 +372,7 @@ func _drive_across(host: Node) -> void:
 	Input.action_release(&"move_forward")
 	var secs := float(Engine.get_physics_frames() - t0) / tick
 	TestLib.check(crossed, "the car crossed the whole map along the avenue (x %.0f after %.0f s)" % [car.global_position.x, secs])
-	TestLib.check(secs >= 36.0, "the crossing takes the better part of a minute, not 15 s (%.0f s)" % secs)
+	TestLib.check(secs >= 70.0, "the crossing takes more than a minute at the fastest speed, not 15 s (%.0f s)" % secs)
 	TestLib.check(peak >= 18.0 and peak <= top + 0.5, "top speed on the straight is arcade, 18 to 28 m/s (%.1f)" % peak)
 	TestLib.check(worst_y > -0.5 and holes == 0, "no hole in the road all the way across (lowest y %.2f, %d holes)" % [worst_y, holes])
 	TestLib.check(min_speed_after_start > 10.0, "the car never stopped on the way (slowest %.1f m/s)" % min_speed_after_start)
@@ -389,7 +389,7 @@ func _streaming_is_flat(host: Node) -> void:
 	TestLib.check(chunks.pooled_shapes() < 900 and chunks.created_shapes == chunks.pooled_shapes(), "the shape pool stayed small after crossing the map (%d shapes ever created, an unstreamed map has ~1300)" % chunks.created_shapes)
 	# triangles and instances drawn: the same at the core and in the far corner
 	var tris: Array[int] = []
-	for at in [Vector2(-30.0, 4.0), Vector2(-600.0, 600.0), Vector2(600.0, -600.0)]:
+	for at in [Vector2(-30.0, 4.0), Vector2(-1000.0, 1000.0), Vector2(1000.0, -1000.0)]:
 		city.update_streaming(at, true)
 		var st := city.stats()
 		tris.append(int(st["triangles_drawn"]) + int(st["triangles_drawn_mirror"]))

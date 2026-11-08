@@ -586,7 +586,7 @@ func _build_markers() -> void:
 	_mmi.name = "JobMarkers"
 	_mmi.multimesh = mm
 	_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_mmi.custom_aabb = AABB(Vector3(-900, -2, -900), Vector3(1800, 20, 1800))
+	_mmi.custom_aabb = AABB(Vector3(-1300, -2, -1300), Vector3(2600, 20, 2600))
 	_mmi.top_level = true
 	add_child(_mmi)
 	_goal_node = MeshInstance3D.new()
@@ -620,7 +620,7 @@ func _build_ramps() -> void:
 	_ramps_mmi.name = "StuntRamps"
 	_ramps_mmi.multimesh = mm
 	_ramps_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_ramps_mmi.custom_aabb = AABB(Vector3(-900, -2, -900), Vector3(1800, 20, 1800))
+	_ramps_mmi.custom_aabb = AABB(Vector3(-1300, -2, -1300), Vector3(2600, 20, 2600))
 	_ramps_mmi.top_level = true
 	add_child(_ramps_mmi)
 

@@ -479,13 +479,16 @@ func _build_buildings() -> void:
 
 func _build_misc() -> void:
 	_misc.build(layout, building_data, _props.vents, _props.rng)
-	if _misc.cable_mesh != null:
+	var cable_mat := Misc.make_material(Misc.CABLE_SHADER) if not _misc.cable_chunks.is_empty() else null
+	for ch: Dictionary in _misc.cable_chunks:                     # the wires: one mesh per 320 m square, drawn only in the frustum and within 400 m
 		var mi := MeshInstance3D.new()
 		mi.name = "Cables"
-		mi.mesh = _misc.cable_mesh
-		mi.material_override = Misc.make_material(Misc.CABLE_SHADER)
+		mi.mesh = ch["mesh"]
+		mi.material_override = cable_mat
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mi.custom_aabb = AABB(Vector3(-AABB_R, -2.0, -AABB_R), Vector3(2.0 * AABB_R, 24.0, 2.0 * AABB_R))
+		mi.custom_aabb = ch["aabb"]
+		mi.visibility_range_end = 400.0
+		mi.visibility_range_end_margin = 20.0
 		_real_root.add_child(mi)
 	if _misc.steam_mm != null:
 		var steam_mat := Misc.make_material(Misc.STEAM_SHADER)

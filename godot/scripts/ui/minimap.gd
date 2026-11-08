@@ -9,8 +9,8 @@ const RANGE_M := 130.0              ## metres from the centre to the rim on foot
 const RANGE_DRIVE := 280.0          ## ... at full driving speed (the big city: the map zooms out with the speed of the driven vehicle, smoothly)
 const DRIVE_FULL := 24.0            ## speed (m/s) at which the map has zoomed out completely
 const REFRESH := 1.0 / 15.0
-const EXTENT := CityLayout.HALF + 40.0   ## the texture covers |x|, |z| <= EXTENT (the whole 16 x 16 map)
-const TEX_PX := 640                 ## 2.1 m per pixel (the whole 1360 m of the big city)
+const EXTENT := CityLayout.HALF + 40.0   ## the texture covers |x|, |z| <= EXTENT (the whole 26 x 26 block map)
+const TEX_PX := 900                 ## 2.4 m per pixel (the whole 2160 m of the 26 x 26 block city)
 const SEGMENTS := 44
 const DIAMOND := [Vector2(0, -1), Vector2(0.8, 0), Vector2(0, 1), Vector2(-0.8, 0)]
 const ARROW := [Vector2(0, -1.3), Vector2(0.85, 0.9), Vector2(0, 0.4), Vector2(-0.85, 0.9)]

@@ -26,6 +26,8 @@ static func drawn_meshes(root: Node) -> Array[MeshInstance3D]:
 func run(host: Node) -> void:
 	await e.setup(host)
 	p = e.p
+	if p.body.clips != null:
+		p.body.clips.enabled = false              # this test measures the procedural planted-foot gait (Locomotion); the captured gait is tests/test_hero_motion_hold.gd
 	await _hero_meshes()
 	await _hero_gait()
 	await _hero_reload()

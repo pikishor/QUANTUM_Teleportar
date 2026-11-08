@@ -16,7 +16,7 @@
 
 global uniform float wetness;
 uniform sampler2D light_map : filter_linear, repeat_disable, hint_default_black;
-uniform vec4 light_rect = vec4(-704.0, -704.0, 1408.0, 1408.0);
+uniform vec4 light_rect = vec4(-1104.0, -1104.0, 2208.0, 2208.0);
 uniform float lod_range_far = 100000.0;                // a person shrinks to nothing at this camera distance (the crowd ring is the real limit)
 
 varying flat vec3 v_pool;

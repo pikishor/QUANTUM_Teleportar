@@ -94,7 +94,7 @@ func _streaming_on_the_city(host: Node) -> void:
 	await e.secs(4.0)
 	var bounds_ok := true
 	for v in mgr.list:
-		if absf(v.global_position.x) > 345.0 or absf(v.global_position.z) > 345.0:
+		if absf(v.global_position.x) > CityLayout.HALF + 30.0 or absf(v.global_position.z) > CityLayout.HALF + 30.0:
 			bounds_ok = false
 	TestLib.check(bounds_ok and mgr.list.size() <= 8, "traffic stays inside the city after 15 s more")
 	Game.set_quality(1)

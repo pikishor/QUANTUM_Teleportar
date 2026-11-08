@@ -153,9 +153,13 @@ func enter(car: Vehicle) -> void:
 		Hijack.current.on_enter(car, p.global_position, had_driver)
 	car.driver_is_player = true
 	driven = car
+	var side_in := 1.0 if (p.global_position - car.global_position).dot(car.right()) >= 0.0 else -1.0
 	p.set(&"vehicle", car)
 	car.on_enter()
+	car.visual.door_cycle(side_in)                       # the door the hero comes through swings open and shuts
 	Sfx.play(&"pickup")
+	if radio != null:
+		radio.auto_tune()
 
 
 ## The player gets out beside the car (right side first, then left, behind, ahead; never inside a building) and the car rolls to a stop.
@@ -174,6 +178,10 @@ func exit_vehicle() -> void:
 	car.on_exit()
 	if is_instance_valid(p):
 		var pos := _exit_point(car)
+		var side_out := 1.0 if (pos - car.global_position).dot(car.right()) >= 0.0 else -1.0
+		car.visual.door_cycle(side_out, 0.6)             # the door opens, the hero steps out through it (a ghost slides from the seat to the kerb) and it shuts
+		if Hijack.current != null:
+			Hijack.current.on_exit(car, pos, side_out)
 		p.call(&"teleport_to", pos)
 		p.set(&"vehicle", null)
 		if exit_speed > 4.0 and p is CharacterBody3D:                  # bailing out on the move: the hero keeps part of the car's speed (a roll off the car)

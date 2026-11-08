@@ -73,7 +73,7 @@ const HERO_LAND_RADIUS := 20.0
 
 
 static func junction(g: Vector2i) -> Vector3:
-	return Vector3(CityLayout.road_center(g.x), 0.0, CityLayout.road_center(g.y))
+	return Vector3(CityLayout.road_center(g.x + CityLayout.SHIFT), 0.0, CityLayout.road_center(g.y + CityLayout.SHIFT))
 
 
 ## Marker position of job `k` of `kind` (ground).
@@ -88,7 +88,7 @@ static func race_gates(k: int) -> Array[Vector3]:
 	var g: Vector2i = (SPOTS[RACE] as Array)[k]
 	var out: Array[Vector3] = []
 	for d: Vector2i in [Vector2i(2, 0), Vector2i(2, 2), Vector2i(0, 2), Vector2i(0, 0)]:
-		var q := Vector2i(clampi(g.x + d.x, 1, CityLayout.N - 1), clampi(g.y + d.y, 1, CityLayout.N - 1))
+		var q := Vector2i(clampi(g.x + d.x, 1, CityLayout.OLD_N - 1), clampi(g.y + d.y, 1, CityLayout.OLD_N - 1))
 		out.append(junction(q))
 	return out
 
@@ -96,7 +96,7 @@ static func race_gates(k: int) -> Array[Vector3]:
 ## Where a taxi fare or a delivery from spot k goes: a junction 4..6 blocks away, deterministic, always inside the map.
 static func destination(kind: StringName, k: int) -> Vector3:
 	var g: Vector2i = (SPOTS[kind] as Array)[k]
-	var n := CityLayout.N - 1
+	var n := CityLayout.OLD_N - 1
 	var dx := 4 + (k % 3)
 	var dz := 3 + ((k + 1) % 3)
 	var sx := 1 if g.x + dx <= n else -1

@@ -10,7 +10,9 @@ const HOLO_SHADER := preload("res://assets/shaders/hologram.gdshader")
 
 const PUFFS_PER_VENT := 22
 
-var cable_mesh: ArrayMesh
+var cable_mesh: ArrayMesh                       ## null since the map grew: the cables are `cable_chunks` now
+var cable_chunks: Array[Dictionary] = []        ## [{mesh, aabb}]: the wires of CABLE_CHUNK m squares (a mesh each, culled by the frustum and by distance: one 50k triangle mesh over the whole 2 km map was always drawn)
+const CABLE_CHUNK := 320.0
 var steam_mm: MultiMesh
 var hologram_mm: MultiMesh
 var cable_count := 0
@@ -40,12 +42,11 @@ func _build_cables(layout: CityLayout, rng: RandomNumberGenerator) -> void:
 		var sx := 1 if lot.cx > bx else -1
 		var sz := 1 if lot.cz > bz else -1
 		table["%d,%d,%d,%d" % [lot.block_i, lot.block_j, sx, sz]] = lot
-	var verts := PackedVector3Array()
-	var tans := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var idx := PackedInt32Array()
+	var chunks := {}                      # key (ci, cj) -> [verts, tans, uvs, idx]
 	var n := CityLayout.N
 	cable_count = 0
+	cable_chunks.clear()
+	cable_mesh = null
 	for k in range(1, n):                # inner roads only
 		for i in n:
 			for q in [-1, 1]:
@@ -56,7 +57,9 @@ func _build_cables(layout: CityLayout, rng: RandomNumberGenerator) -> void:
 					var x0 := maxf(a.rect.position.x, b.rect.position.x) + 1.5
 					var x1 := minf(a.rect.end.x, b.rect.end.x) - 1.5
 					if x1 > x0:
-						_span(verts, tans, uvs, idx, Vector3(0, 0, a.rect.end.y), Vector3(0, 0, b.rect.position.y), rng.randf_range(x0, x1), 0, rng)
+						var ax := rng.randf_range(x0, x1)
+						var ca := _chunk_arrays(chunks, ax, a.rect.end.y)
+						_span(ca[0], ca[1], ca[2], ca[3], Vector3(0, 0, a.rect.end.y), Vector3(0, 0, b.rect.position.y), ax, 0, rng)
 				# road along z at x = c_k: lots west (block col k-1, sx=+1) and east (col k, sx=-1)
 				var c: CityLayout.Lot = table.get("%d,%d,%d,%d" % [k - 1, i, 1, q])
 				var d: CityLayout.Lot = table.get("%d,%d,%d,%d" % [k, i, -1, q])
@@ -64,18 +67,28 @@ func _build_cables(layout: CityLayout, rng: RandomNumberGenerator) -> void:
 					var z0 := maxf(c.rect.position.y, d.rect.position.y) + 1.5
 					var z1 := minf(c.rect.end.y, d.rect.end.y) - 1.5
 					if z1 > z0:
-						_span(verts, tans, uvs, idx, Vector3(c.rect.end.x, 0, 0), Vector3(d.rect.position.x, 0, 0), rng.randf_range(z0, z1), 1, rng)
-	if verts.is_empty():
-		return
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = tans
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = idx
-	cable_mesh = ArrayMesh.new()
-	cable_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	cable_mesh.custom_aabb = AABB(Vector3(-CityLayout.HALF - 80.0, 0, -CityLayout.HALF - 80.0), Vector3(2.0 * CityLayout.HALF + 160.0, 20, 2.0 * CityLayout.HALF + 160.0))
+						var az := rng.randf_range(z0, z1)
+						var cc := _chunk_arrays(chunks, c.rect.end.x, az)
+						_span(cc[0], cc[1], cc[2], cc[3], Vector3(c.rect.end.x, 0, 0), Vector3(d.rect.position.x, 0, 0), az, 1, rng)
+	for key: Vector2i in chunks:
+		var ca: Array = chunks[key]
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = ca[0]
+		arrays[Mesh.ARRAY_NORMAL] = ca[1]
+		arrays[Mesh.ARRAY_TEX_UV] = ca[2]
+		arrays[Mesh.ARRAY_INDEX] = ca[3]
+		var m := ArrayMesh.new()
+		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		var org := Vector3(float(key.x) * CABLE_CHUNK - CityLayout.HALF - 40.0, -2.0, float(key.y) * CABLE_CHUNK - CityLayout.HALF - 40.0)
+		cable_chunks.append({"mesh": m, "aabb": AABB(org, Vector3(CABLE_CHUNK + 80.0, 26.0, CABLE_CHUNK + 80.0))})
+
+
+func _chunk_arrays(chunks: Dictionary, x: float, z: float) -> Array:
+	var key := Vector2i(int(floor((x + CityLayout.HALF) / CABLE_CHUNK)), int(floor((z + CityLayout.HALF) / CABLE_CHUNK)))
+	if not chunks.has(key):
+		chunks[key] = [PackedVector3Array(), PackedVector3Array(), PackedVector2Array(), PackedInt32Array()]
+	return chunks[key]
 
 
 ## One span of 2-3 parallel wires between two facing walls. axis 0: wall points differ in z (x given), axis 1: differ in x (z given).

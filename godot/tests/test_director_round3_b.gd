@@ -251,7 +251,7 @@ func _map_zoom(main: Node) -> void:
 	Game.state = &"play"
 	ms.open()
 	TestLib.check(ms.is_open(), "the map opens")
-	TestLib.check(is_equal_approx(ms.zoom_f, float(MapScreen.OPEN_ZOOM)) and MapScreen.OPEN_ZOOM >= 2, "the map opens zoomed in (x%.0f)" % ms.zoom_f)
+	TestLib.check(is_equal_approx(ms.zoom_f, maxf(float(MapScreen.OPEN_ZOOM), MapScreen.OPEN_ZOOM_F)) and MapScreen.OPEN_ZOOM >= 2, "the map opens zoomed in (x%.0f)" % ms.zoom_f)
 	var pp := p.global_position
 	TestLib.check(ms.view_center.distance_to(Vector2(pp.x, pp.z)) < 80.0 or ms.view_center.length() > 1.0, "the opening view is centred near the hero")
 	ms.set_zoom(1)

@@ -21,7 +21,7 @@ global uniform vec4 window_mood;                         // rgb tint of lit wind
 global uniform float night;                             // 0 day .. 1 night (DayNight)
 
 uniform sampler2D light_map : filter_linear, repeat_disable, hint_default_black;     // lamp + neon pools baked on the ground
-uniform vec4 light_rect = vec4(-704.0, -704.0, 1408.0, 1408.0);
+uniform vec4 light_rect = vec4(-1104.0, -1104.0, 2208.0, 2208.0);
 
 #if defined(MIRROR) || defined(FAR)
 const float detail = 0.0;

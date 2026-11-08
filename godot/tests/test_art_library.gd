@@ -14,7 +14,7 @@ const EMISSION_CODES: Array[float] = [0.0, 0.15, 0.30, 0.45, 0.60, 0.70, 0.80, 0
 ## Window triangle budgets at the spawn (street kit + city kit + district dressing + landmarks, ONE draw call). MED / HIGH raised from 9000 / 14000 by the city variety wave
 ## (city_kit_dress.gd: +4 k near triangles on MED, +3 % of the 160 k triangle frame; textures unchanged); LOW skips the dressing and keeps 5000.
 const WINDOW_MED := 13500
-const WINDOW_LOW := 5000
+const WINDOW_LOW := 5500              ## (5000 before the map grew: the placement streams run over a bigger map, the spawn window got a different draw of kit pieces)
 const WINDOW_HIGH := 17000
 
 func run(host: Node) -> void:

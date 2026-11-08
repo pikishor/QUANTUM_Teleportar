@@ -400,6 +400,9 @@ func enter_door(type: StringName) -> bool:
 		em.clear()                            # nobody hunts the hero from the street: no follower comes through the door behind him
 	Game.heat = 0.0
 	var list := ig.doors_of(type, p.global_position)
+	var core_list := list.filter(func(d: Dictionary) -> bool: return absf((d["pos"] as Vector3).x) <= CityLayout.CORE_HALF and absf((d["pos"] as Vector3).z) <= CityLayout.CORE_HALF)
+	if not core_list.is_empty():
+		list = core_list                      # the rooms of the core are the audited ones (the 2080 m map has outer doors whose rooms differ with every map size)
 	var entered := false
 	if not list.is_empty():
 		var d := list[0]

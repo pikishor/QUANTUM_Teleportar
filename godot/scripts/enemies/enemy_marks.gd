@@ -69,7 +69,7 @@ func _make(mesh: Mesh, shader: Shader, count: int, node_name: String) -> MultiMe
 	node.name = node_name
 	node.multimesh = mm
 	node.material_override = mat
-	node.custom_aabb = AABB(Vector3(-900.0, -10.0, -900.0), Vector3(1800.0, 200.0, 1800.0))
+	node.custom_aabb = AABB(Vector3(-1300.0, -10.0, -1300.0), Vector3(2600.0, 200.0, 2600.0))
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(node)
 	return mm

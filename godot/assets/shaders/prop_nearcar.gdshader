@@ -8,7 +8,7 @@ render_mode cull_back;
 global uniform float night;
 global uniform float wetness;
 uniform sampler2D light_map : filter_linear, repeat_disable, hint_default_black;
-uniform vec4 light_rect = vec4(-704.0, -704.0, 1408.0, 1408.0);
+uniform vec4 light_rect = vec4(-1104.0, -1104.0, 2208.0, 2208.0);
 
 varying flat vec3 v_paint;
 varying flat vec3 v_pool;

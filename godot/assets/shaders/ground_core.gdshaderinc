@@ -8,8 +8,8 @@ global uniform float night;                             // 0 day .. 1 night (Day
 global uniform float rain;
 
 uniform sampler2D light_map : filter_linear, repeat_disable, hint_default_black;   // baked lamp + neon pools (HDR)
-uniform vec4 light_rect = vec4(-704.0, -704.0, 1408.0, 1408.0);                         // x0, z0, width, depth of the light map
-uniform sampler2D lot_map : filter_nearest, repeat_disable, hint_default_white;     // 32x32 (2 per block and axis), r = 1 where a lot has a building
+uniform vec4 light_rect = vec4(-1104.0, -1104.0, 2208.0, 2208.0);                         // x0, z0, width, depth of the light map
+uniform sampler2D lot_map : filter_nearest, repeat_disable, hint_default_white;     // 52x52 (2 per block and axis), r = 1 where a lot has a building
 uniform float mirror_amount : hint_range(0.0, 1.0) = 1.0;                             // 0 = opaque ground (no mirror pass)
 uniform float detail : hint_range(0.0, 1.0) = 1.0;
 #ifdef LITE
@@ -114,7 +114,7 @@ vec3 lot_info(vec2 q) {
 	float cx = (fx - bi) > 0.5 ? 1.0 : 0.0;
 	float cz = (fy - bj) > 0.5 ? 1.0 : 0.0;
 	float ni = mod(bi + bj, 4.0);
-	if (bi < 0.0 || bj < 0.0 || bi > 15.5 || bj > 15.5) {
+	if (bi < 0.0 || bj < 0.0 || bi > 25.5 || bj > 25.5) {
 		return vec3(hash12(vec2(bi * 2.0 + cx, bj * 2.0 + cz) + 7.0) < 0.1 ? 1.0 : 0.0, 0.0, ni);
 	}
 	vec4 t = texelFetch(lot_map, ivec2(int(bi * 2.0 + cx), int(bj * 2.0 + cz)), 0);

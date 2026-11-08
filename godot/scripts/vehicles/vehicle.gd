@@ -110,6 +110,7 @@ var _roll := 0.0
 var _roll_v := 0.0
 var _heave := 0.0
 var _heave_v := 0.0
+var _road_t := 0.0                  ## s until the next road seam / patch the suspension rides over (a small kick of the body, bigger with speed)
 var _spin_fx := 0.0
 
 
@@ -1304,6 +1305,12 @@ func _sync_body(dt: float, yaw_est: float) -> void:
 		lat = lat_acc
 	var tp := clampf(acc * VehicleSpecs.BODY_PITCH, -VehicleSpecs.BODY_PITCH_MAX, VehicleSpecs.BODY_PITCH_MAX)
 	var tr := clampf(-lat * VehicleSpecs.BODY_ROLL, -VehicleSpecs.BODY_ROLL_MAX, VehicleSpecs.BODY_ROLL_MAX)
+	if absf(speed) > 4.0 and cls == &"car":              # suspension bounce: the road is not a billiard table (seams, patches, manhole covers every few metres)
+		_road_t -= dt
+		if _road_t <= 0.0:
+			_road_t = randf_range(2.0, 6.0) / maxf(absf(speed), 4.0)
+			_heave_v += randf_range(-1.0, 1.0) * VehicleSpecs.ROAD_KICK * clampf(absf(speed) / 20.0, 0.2, 1.4)
+			_pitch_v += randf_range(-1.0, 1.0) * VehicleSpecs.ROAD_KICK * 0.25
 	var left := minf(dt, 0.05)
 	while left > 0.0:
 		var h := minf(left, 0.012)

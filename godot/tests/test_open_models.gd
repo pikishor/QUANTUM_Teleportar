@@ -19,6 +19,7 @@ const WEAPON_LEN := {&"pistol": 0.215, &"burst": 0.30, &"revolver": 0.27, &"akim
 
 func run(host: Node) -> void:
 	OS.set_environment("QT_OPEN_MODELS", "1")
+	OS.set_environment("QT_RV_MODELS", "0")              # this test is about the Kenney set; the Rgsdev models that now lead are covered by test_cars_world_scale
 	var q: int = Game.quality
 	Game.quality = 0                                     # LOW: the open model comes first for every kind (above LOW six kinds keep their older, smoother art, see _registry)
 	_registry()
@@ -29,6 +30,7 @@ func run(host: Node) -> void:
 	_weapons()
 	_fallbacks()
 	_credits()
+	OS.set_environment("QT_RV_MODELS", "1")
 
 
 func _registry() -> void:

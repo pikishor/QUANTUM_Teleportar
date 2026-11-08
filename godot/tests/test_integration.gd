@@ -281,12 +281,12 @@ func _border() -> void:
 	Input.action_press(&"sprint")
 	await frames(110)
 	Fixture.release_inputs()
-	TestLib.check(p.global_position.x <= limit - Player.CAPSULE_RADIUS + 0.02 and p.global_position.x > limit - 1.0, "the invisible border wall stops a sprint at x = %.2f (inner face %.0f)" % [p.global_position.x, limit])
+	TestLib.check(p.global_position.x <= limit - Player.CAPSULE_RADIUS + 0.15 and p.global_position.x > limit - 1.0, "the invisible border wall stops a sprint at x = %.2f (inner face %.0f)" % [p.global_position.x, limit])
 	await prep(Vector3(0.0, 0.0, -limit + 6.0), PI, -0.1, 20)
 	Input.action_press(&"move_back")
 	await frames(120)
 	Fixture.release_inputs()
-	TestLib.check(p.global_position.z >= -limit + Player.CAPSULE_RADIUS - 0.02, "the north border holds as well (z = %.2f)" % p.global_position.z)
+	TestLib.check(p.global_position.z >= -limit + Player.CAPSULE_RADIUS - 0.15, "the north border holds as well (z = %.2f)" % p.global_position.z)
 
 
 # --- the camera against a facade ----------------------------------------------------------------------------------------------

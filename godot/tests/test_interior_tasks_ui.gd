@@ -362,6 +362,12 @@ func _leave_anywhere() -> void:
 	if not await _enter(&"checkpoint", "leave anywhere"):
 		return
 	await bot.frames(8)
+	var at_door := InteriorGameplay.prompt.begins_with("LEAVE")          # the entry point can be within the door's reach (it differs with every room): step into the room, there LEAVE is a button of its own
+	if at_door:
+		Input.action_press(&"move_forward")
+		await bot.frames(45)
+		bot.release()
+		await bot.frames(6)
 	TestLib.check(await bot.leave_button(1), "leave anywhere: one tap on LEAVE leaves a room whose job has not started")
 	await bot.frames(6)
 	if not await _enter(&"checkpoint", "leave anywhere 2"):

@@ -43,7 +43,7 @@ func build(parent: Node3D) -> void:
 	node.mesh = _beam_mesh()
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	node.custom_aabb = AABB(Vector3(-900, -400, -900), Vector3(1800, 800, 1800))
+	node.custom_aabb = AABB(Vector3(-1300, -400, -1300), Vector3(2600, 800, 2600))
 	material = ShaderMaterial.new()
 	material.shader = SHADER
 	node.material_override = material

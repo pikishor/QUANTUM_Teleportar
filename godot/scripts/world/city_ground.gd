@@ -7,7 +7,7 @@ const GROUND_LITE_SHADER := preload("res://assets/shaders/ground_lite.gdshader")
 const Districts := preload("res://scripts/world/city_districts.gd")
 
 const LIGHT_SIZE := 2.0 * CityLayout.HALF + 128.0   ## metres covered by the light map (centred on the city; the shaders default to the same rect)
-const LIGHT_TEXELS := 560            ## 2.5 m per texel (the whole 1408 m of the big city in 2.5 MB; the original 8 x 8 city had 2 m per texel in 1 MB)
+const LIGHT_TEXELS := 736            ## 3 m per texel (the whole 2208 m of the 26 x 26 city in 4.3 MB RGBAH; the 1408 m city had 2.5 m per texel)
 
 var material: ShaderMaterial
 var material_lite: ShaderMaterial

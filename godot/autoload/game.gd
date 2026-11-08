@@ -19,7 +19,7 @@ signal next_sector          # after a win: new (larger) core set, patrols rebuil
 # --- city layout: metres, Y up, forward is -Z ---------------------------------------------------
 const PITCH := 80.0          # distance between road centre lines
 const ROAD := 20.0           # road width
-const N := 16                # blocks per side (wave 84: 16 x 16, the original 8 x 8 city is the core in the middle)
+const N := 26                # blocks per side (wave 84: 16 x 16, the original 8 x 8 city is the core in the middle)
 const HALF := N * PITCH / 2.0
 const CORE_HALF := 320.0     # the original city, |x|, |z| <= CORE_HALF: missions, shards and the first hours happen here
 const LANE := 5.0            # lane centre offset from a road's centre line

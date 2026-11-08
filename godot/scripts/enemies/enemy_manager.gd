@@ -24,7 +24,7 @@ const NEAR_RADIUS := 110.0
 const CALLOUT_RADIUS := 45.0
 const DESPAWN_DIST := 170.0
 const PATROL_GROUPS := 7                     ## in the core of the map (the original 8 x 8 city), awake from the start as far as the tier allows
-const PATROL_OUTER_GROUPS := 14              ## in the outer districts of the big city: dormant until the player comes within PATROL_STREAM_DIST
+const PATROL_OUTER_GROUPS := 36              ## in the outer districts of the big city: dormant until the player comes within PATROL_STREAM_DIST
 const PATROL_MIN_SPAWN_DIST := 110.0
 const PATROL_STREAM_DIST := 150.0
 const PATROL_SLEEP_DIST := 260.0             ## an unaware patrol this far from the player goes back to sleep (pooled, its group waits for the player again): the cap is for the fights around the hero
@@ -701,7 +701,7 @@ func _build_bolts() -> void:
 	_mmi = MultiMeshInstance3D.new()
 	_mmi.name = "Bolts"
 	_mmi.multimesh = _mm
-	_mmi.custom_aabb = AABB(Vector3(-900.0, -10.0, -900.0), Vector3(1800.0, 200.0, 1800.0))
+	_mmi.custom_aabb = AABB(Vector3(-1300.0, -10.0, -1300.0), Vector3(2600.0, 200.0, 2600.0))
 	_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mmi)
 

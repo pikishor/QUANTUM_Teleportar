@@ -116,7 +116,7 @@ func _build() -> void:
 	mi.multimesh = _mm_crate
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.custom_aabb = AABB(Vector3(-900, -2, -900), Vector3(1800, 20, 1800))
+	mi.custom_aabb = AABB(Vector3(-1300, -2, -1300), Vector3(2600, 20, 2600))
 	mi.top_level = true
 	add_child(mi)
 	var beam := Jobs.beam_mesh()
@@ -137,7 +137,7 @@ func _build() -> void:
 	bi.name = "CrateBeams"
 	bi.multimesh = _mm_beam
 	bi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	bi.custom_aabb = AABB(Vector3(-900, -2, -900), Vector3(1800, 40, 1800))
+	bi.custom_aabb = AABB(Vector3(-1300, -2, -1300), Vector3(2600, 40, 2600))
 	bi.top_level = true
 	add_child(bi)
 	_refresh()

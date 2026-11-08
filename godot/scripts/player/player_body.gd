@@ -98,6 +98,9 @@ var _amp := 0.0
 var _air := 0.0
 var _sprint := 0.0
 var _aim_pitch := 0.0
+var _trim := Vector2.ZERO                 ## aim solver: (pitch, yaw) the rifle is turned so its barrel points at the crosshair's target
+var aim_error := Vector2.ZERO             ## last measured (pitch, yaw) error of the barrel against the aim point, radians (tests, look-dev)
+var aim_solve := true
 var _dir := Vector2(0.0, -1.0)        ## smoothed local movement direction (x right, y back)
 var _recoil_push := 0.0
 var _recoil_pitch := 0.0
@@ -140,6 +143,7 @@ var _back := 0.0                              ## 0..1 how far the camera sits be
 var _burst: CPUParticles3D                    ## quantum motes on a hit and on death (HeroPresentation)
 var _quality := 2
 var polish: HeroAnimPolish                ## the animation polish layer (hero_anim_tuning.gd holds its numbers)
+var clips: HeroClips                      ## the captured locomotion (Quaternius Universal Animation Library, retargeted): legs, pelvis and lower spine of the superhero (hero_clips.gd)
 var loco: Locomotion                      ## foot planting, pelvis, weight shifts, cloak springs (the model's gait; see locomotion.gd)
 var _last_pos := Vector3.ZERO
 var _have_last := false
@@ -265,6 +269,18 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 				var swap_k: bool = p.weapon != null and not p.reloading and (p.weapon.swap_t > 0.0)
 				var aim_t = p.cover.target if p.cover != null else null
 				polish.update(adt, p, self, loco, not air_flag, p.weapon.current if p.weapon != null else &"carbine", reload_k, swap_k, aim_t)
+		if clips != null:
+			if dying:
+				rig.clip_w = 0.0
+			elif adt > 0.0:
+				var air_f := p.air_time > 0.14 or (p.air_time > 0.0 and p.velocity.y > 2.0)
+				var flat := 1.0
+				if polish != null:
+					flat = 1.0 - HeroClips.smooth(0.04, 0.1, maxf(absf(polish.foot_off_l), absf(polish.foot_off_r)))
+					flat = minf(flat, 1.0 - HeroClips.smooth(0.07, 0.14, absf(polish.slope)))
+					if polish.state in [&"cover", &"peek", &"takedown", &"slam", &"glide", &"wall", &"vault", &"mantle"]:
+						flat = 0.0
+				clips.update(adt, loco, disp.length(), not air_f, p.velocity.y, flat, p.cover != null and p.cover.crouching)
 		rig.aim_pitch = _aim_pitch
 		rig.recoil = _kick
 		rig.flinch = _flinch
@@ -316,6 +332,7 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 
 	# --- character lights follow the ACTIVE camera (the orbit yaw alone lies when a cinematic / QA / viewer camera looks from elsewhere)
 	update_character_lights(lerpf(1.0, DEAD_LIGHT, e), rig_view.yaw if rig_view != null else NAN)
+	_solve_aim(p, adt, dying, reload_k)
 
 	# --- the weapon silhouette's trim kicks light on a shot and settles (the material is shared: one weapon is in hand at a time)
 	if _wp_glow > 1.0:
@@ -334,6 +351,41 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 			else:
 				var f := _light_t[i] / LIGHT_TIME
 				_lights[i].light_energy = LIGHT_ENERGY * f * f
+
+
+## The aim solver: the barrel of every weapon points at what the crosshair sees. The shot itself is the camera's ray, so a barrel that points elsewhere draws a tracer that does not
+## leave the muzzle along the gun. After the pose and the placement the real muzzle direction is measured against the direction from the muzzle to the aim point, and the rifle is
+## turned by the residual (a damped trim the rig adds to the rifle: pitch and yaw), so a different weapon, a different aim pitch, a strafe or a stride bounce all end on the target.
+## Only when the weapon is raised (aiming, just fired); a lowered rifle (relaxed, sprint, reload) keeps its carry pose.
+func _solve_aim(p: Player, dt: float, dying: bool, reload_k: float) -> void:
+	if rig == null or muzzle == null or p.camera_rig == null:
+		return
+	var raised := clampf((_ready_w - 0.75) / 0.25, 0.0, 1.0) * (1.0 - _sprint)
+	if dying or reload_k >= 0.0 or not aim_solve or Game.state == &"paused":
+		raised = 0.0
+	if raised <= 0.001 and _trim.length_squared() < 1e-8:
+		rig.aim_trim = Vector2.ZERO
+		aim_error = Vector2.ZERO
+		return
+	var aim := p.get_aim()
+	var mz := muzzle.global_position
+	var hit: Vector3 = aim["hit"]
+	var want := hit - mz
+	if want.length() < 5.0:                                    # a wall at the muzzle: the direction to it is meaningless, follow the camera's line
+		want = want.normalized().lerp(aim["dir"], 1.0 - want.length() / 5.0)
+	want = want.normalized()
+	var fwd := -muzzle.global_basis.z
+	if fwd.length() < 0.5:
+		return
+	fwd = fwd.normalized()
+	var err := Vector2(asin(clampf(want.y, -1.0, 1.0)) - asin(clampf(fwd.y, -1.0, 1.0)), angle_difference(atan2(-fwd.x, -fwd.z), atan2(-want.x, -want.z)))
+	aim_error = err
+	if raised > 0.001:
+		var k := 1.0 - exp(-14.0 * dt)
+		_trim = (_trim + err * k * raised).clampf(-0.7, 0.7)
+	else:
+		_trim = _trim.lerp(Vector2.ZERO, 1.0 - exp(-8.0 * dt))
+	rig.aim_trim = _trim
 
 
 ## How far the fall has come, 0..1, for a normalised time k: it starts slowly and the weight of the body takes it down faster and faster.
@@ -602,6 +654,7 @@ func _adopt_model(model: Node3D) -> void:
 	if rig != null:
 		loco = Locomotion.new(rig)
 		polish = HeroAnimPolish.new(rig) if hero_mat != null else null
+		clips = HeroClips.new(rig) if (hero_mat != null and HeroClips.available()) else null
 		if hero_mat != null:
 			loco.turn_scale = SUPERHERO_TURN
 			loco.apply_tuning()

@@ -51,7 +51,7 @@ func _ready() -> void:
 	_node.name = "Holes"
 	_node.multimesh = _mm
 	_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_node.custom_aabb = AABB(Vector3(-1200.0, -50.0, -1200.0), Vector3(2400.0, 400.0, 2400.0))
+	_node.custom_aabb = AABB(Vector3(-1500.0, -50.0, -1500.0), Vector3(3000.0, 400.0, 3000.0))
 	_node.visible = false                # nothing to draw until the first hole: no draw call while the ring is empty
 	add_child(_node)
 	set_process(false)

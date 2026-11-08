@@ -121,6 +121,7 @@ func _case(c: Array) -> void:
 		_wedge = _ramp()
 	var lc := p.body.loco
 	var q := LocoQA.new(p.body.rig, lc)
+	q.clips = p.body.clips
 	if extra == "slope":
 		q.ground = func(w: Vector3) -> float: return clampf(tan(deg_to_rad(10.0)) * (w.x - 3.0), 0.0, 5.0)
 	var frames: Array[Image] = []

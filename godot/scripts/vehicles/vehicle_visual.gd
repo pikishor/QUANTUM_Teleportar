@@ -155,8 +155,13 @@ func build(kind: StringName, glow: Color) -> Node3D:
 			w.visible = false
 		wheels.clear()
 		_front.clear()
-	var lamp_src := _merge_lamps(body)
 	body_lod1 = model.get_node_or_null(NodePath(LOD1_NAME)) as MeshInstance3D
+	if cls == &"car" and body != null and bool(spec.get("parts", true)):         # windows split off the dark "Details" surface: tinted glass that reflects the sky and glows from inside at night
+		var hgt := float(spec["hgt"])
+		CarParts.split_glass(body, hgt)
+		if body_lod1 != null:
+			CarParts.split_glass(body_lod1, hgt)
+	var lamp_src := _merge_lamps(body)
 	if body_lod1 != null:
 		var idx0 := _lamp_idx
 		_lamp_idx = -1
@@ -209,6 +214,8 @@ func build(kind: StringName, glow: Color) -> Node3D:
 				if int(info[0]) == k:
 					_cols[k].append(glow if k == 2 else info[1])
 					_base[k].append(info[2])
+	if cls == &"car" and body != null and bool(spec.get("parts", true)):
+		_finish_car(spec)
 	if body_lod1 != null and body != null:
 		_link_lod1()
 	if body != null:
@@ -216,6 +223,104 @@ func build(kind: StringName, glow: Color) -> Node3D:
 		mirror_meshes.append(_make_mirror_source(body))
 	set_lights(0.1, 0.35, 0.35)
 	return model
+
+
+const INTERIOR_GLOW := {&"taxi": 1.0, &"bus": 1.5, &"ambulance": 1.2, &"interceptor": 0.7, &"van": 0.2, &"truck": 0.2, &"garbage": 0.2}
+const INTERIOR_BASE := 0.14                           ## cabin light behind the glass at night (a dashboard and a courtesy lamp), scaled per kind above
+static var _plate_n := 0
+
+var _glass_mat: StandardMaterial3D                    ## per-car copy of the shared glass (the interior glow follows this car's lights)
+var _beams: MeshInstance3D
+var plates: Array[MeshInstance3D] = []
+
+
+## Real wheels, glass material, licence plates and the headlight beams of a four-wheeled car (see CarParts). Called once from build().
+func _finish_car(spec: Dictionary) -> void:
+	var r: float = spec["wheel"]
+	var w := clampf(r * 0.62, 0.2, 0.3)
+	CarParts.upgrade_wheels(model, r, w)
+	var gi := -1
+	for t in body.mesh.get_surface_count():
+		var m := body.mesh.surface_get_material(t)
+		if m != null and m.resource_name == "Glass":
+			gi = t
+	if gi >= 0:
+		_glass_mat = CarParts.glass_material().duplicate() as StandardMaterial3D
+		body.set_surface_override_material(gi, _glass_mat)
+	var ln: float = spec["len"]
+	var wid: float = spec["wid"]
+	var hgt: float = spec["hgt"]
+	_dims = Vector3(wid, hgt, ln)
+	_plate_n += 1
+	plates = CarParts.add_plates(model, AABB(Vector3(-wid * 0.5, 0.0, -ln * 0.5), Vector3(wid, hgt, ln)), _plate_n, clampf(hgt * 0.36, 0.42, 0.62))
+	for p in plates:
+		p.layers = p.layers | KEY_BIT
+	_beams = MeshInstance3D.new()
+	_beams.name = "Beams"
+	_beams.mesh = CarParts.beam_mesh(wid * 0.3, clampf(hgt * 0.4, 0.5, 0.95))
+	_beams.material_override = CarParts.beam_material()
+	_beams.position = Vector3(0.0, 0.0, -ln * 0.5 + 0.25)
+	_beams.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_beams.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	_beams.visibility_range_end = 80.0
+	_beams.visibility_range_end_margin = 6.0
+	model.add_child(_beams)
+	_write_beam(0.1)
+
+
+var _dims := Vector3(1.9, 1.4, 4.6)                   ## width, height, length of the car (for the door)
+var _door: Node3D
+var _door_tw: Tween
+var door_cycles := 0                                  ## doors swung so far (tests wait on this)
+
+
+## The door on `side` (+1 right, -1 left) swings open, stays open for `hold` s and shuts: played when the hero gets in or out (and when a driver is pulled out). One pooled panel + window
+## strip per car, built on first use, hidden while shut. Only four-wheeled cars have one.
+func door_cycle(side: float, hold := 0.75) -> void:
+	if cls != &"car" or model == null or not model.is_inside_tree():
+		return
+	if _door == null:
+		_door = Node3D.new()
+		_door.name = "DoorSwing"
+		var panel := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.05, _dims.y * 0.4, _dims.z * 0.27)
+		panel.mesh = bm
+		panel.position = Vector3(0.0, 0.0, _dims.z * 0.135)
+		panel.material_override = _body_mat
+		var strip := MeshInstance3D.new()
+		var sm := BoxMesh.new()
+		sm.size = Vector3(0.045, _dims.y * 0.22, _dims.z * 0.24)
+		strip.mesh = sm
+		strip.position = Vector3(0.0, _dims.y * 0.31, _dims.z * 0.12)
+		strip.material_override = CarParts.glass_material()
+		for m: MeshInstance3D in [panel, strip]:
+			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+			m.layers = m.layers | KEY_BIT
+			_door.add_child(m)
+		_door.visible = false
+		model.add_child(_door)
+	if _door_tw != null and _door_tw.is_valid():
+		_door_tw.kill()
+	var sd := 1.0 if side >= 0.0 else -1.0
+	_door.position = Vector3(sd * (_dims.x * 0.5 + 0.02), _dims.y * 0.42, -_dims.z * 0.12)
+	_door.rotation = Vector3.ZERO
+	_door.visible = true
+	door_cycles += 1
+	_door_tw = model.create_tween()
+	_door_tw.tween_property(_door, "rotation:y", sd * 1.15, 0.17).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_door_tw.tween_interval(hold)
+	_door_tw.tween_property(_door, "rotation:y", 0.0, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	_door_tw.tween_callback(func() -> void: _door.visible = false)
+
+
+func _write_beam(f: float) -> void:
+	if _beams != null:
+		_beams.set_instance_shader_parameter(&"k", clampf(f, 0.0, 2.0))
+	if _glass_mat != null:
+		var g: float = INTERIOR_GLOW.get(_kind, 0.35)
+		_glass_mat.emission_energy_multiplier = clampf(f - 0.3, 0.0, 1.0) * INTERIOR_BASE * g
 
 
 ## Body_LOD1 shares the per-instance materials of Body (matched by the source material's name; its merged lamp surface gets the lamp shader material) and takes over beyond LOD1_DIST.
@@ -711,6 +816,8 @@ func _set_light(k: int, f: float) -> void:
 
 
 func _write_light(k: int, f: float) -> void:
+	if k == 0:
+		_write_beam(f)
 	if _lamp_mat != null:                                # merged lamps: one colour uniform per lamp kind
 		var cols: Array = _cols[k]
 		if not cols.is_empty():

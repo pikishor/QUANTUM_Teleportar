@@ -41,7 +41,7 @@ static func sites() -> Array:
 				for s in [-1, 1]:
 					var forced := false
 					for f: Array in FORCED:
-						if f[0] == a and f[1] == k and f[2] == j and f[3] == s:
+						if f[0] == a and f[1] + CityLayout.SHIFT == k and f[2] + CityLayout.SHIFT == j and f[3] == s:
 							forced = true
 					if not forced and _hash(a, k, j, s) % 1000 >= SITE_CHANCE:
 						continue
