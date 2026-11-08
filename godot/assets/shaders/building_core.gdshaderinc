@@ -36,6 +36,7 @@ uniform sampler2D srf_brick_a : filter_linear_mipmap_anisotropic, repeat_enable,
 uniform sampler2D srf_brick_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
 uniform sampler2D srf_wall_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;      // wall concrete, 2 m tile
 uniform sampler2D srf_wall_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform float srf_lo : hint_range(0.0, 1.0) = 0.0;       // LOW tier scanned facades (wave 99): the brick / wall ALBEDO tap only (512 px, no normal tap), fades with distance
 uniform sampler2D srf_roof_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;      // roof gravel and tar, 2 m tile
 uniform sampler2D srf_roof_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
 #endif
@@ -155,6 +156,7 @@ void fragment() {
 	vec3 gdy3 = dFdy(v_loc);
 	vec3 srf_n = vec3(0.0);                                  // surface-tap normal offset in the instance's local axes
 	float srf_wk = srf_k * (1.0 - smoothstep(45.0, 130.0, dist));
+	float wk_all = srf_wk + srf_lo * (1.0 - smoothstep(30.0, 90.0, dist));        // LOW: the albedo-only scanned tap
 #endif
 	vec3 albedo = vec3(0.05);
 	float rough = 0.8;
@@ -447,7 +449,7 @@ void fragment() {
 			float mort = (1.0 - band(fract(row), 0.06, 1.0, 0.04)) + (1.0 - band(fract((u + 0.0) / 0.46 + stag), 0.04, 1.0, 0.03));
 			float bv = hash12(vec2(floor((u) / 0.46 + stag), floor(row)) + fseed);
 #ifdef SRF
-			float mk = 1.0 - 0.85 * srf_wk;                   // the texture carries the real mortar joints near the camera
+			float mk = 1.0 - 0.85 * wk_all;                   // the texture carries the real mortar joints near the camera
 #else
 			float mk = 1.0;
 #endif
@@ -476,7 +478,7 @@ void fragment() {
 		wall *= mix(1.0, 0.68, wet);
 		float wallmask = 1.0 - win;
 #ifdef SRF
-		if (srf_wk > 0.002) {
+		if (wk_all > 0.002) {
 			vec3 ad = xf ? vec3(0.0, 0.0, nrm.x > 0.0 ? -1.0 : 1.0) : vec3(nrm.z > 0.0 ? 1.0 : -1.0, 0.0, 0.0);
 			vec2 dx = vec2(dot(gdx3, ad), gdx3.y);
 			vec2 dy = vec2(dot(gdy3, ad), gdy3.y);
@@ -485,13 +487,13 @@ void fragment() {
 			if (style > 3.5) {                                // the brick tile matches the shader's own 0.46 x 0.22 m layout (half-brick offset on odd rows)
 				vec2 bs = vec2(3.68, 1.76);
 				ta = srf_tap(srf_brick_a, vec2(u, gy) / bs, dx / bs, dy / bs);
-				tn = srf_tap(srf_brick_n, vec2(u, gy) / bs, dx / bs, dy / bs);
+				tn = srf_lo > 0.5 ? vec4(0.5, 0.5, 1.0, 0.5) : srf_tap(srf_brick_n, vec2(u, gy) / bs, dx / bs, dy / bs);
 			} else {
 				vec2 cu2 = vec2(u, gy) / 2.0 + vec2(bseed * 0.173, 0.0);
 				ta = srf_tap(srf_wall_a, cu2, dx / 2.0, dy / 2.0);
-				tn = srf_tap(srf_wall_n, cu2, dx / 2.0, dy / 2.0);
+				tn = srf_lo > 0.5 ? vec4(0.5, 0.5, 1.0, 0.5) : srf_tap(srf_wall_n, cu2, dx / 2.0, dy / 2.0);
 			}
-			float wk = srf_wk * wallmask;
+			float wk = wk_all * wallmask;
 			wall *= mix(vec3(1.0), 2.0 * ta.rgb, wk) * mix(1.0, tn.b, 0.6 * wk);
 			vec2 sl = srf_slope(tn);
 			srf_n += (ad * sl.x + vec3(0.0, 1.0, 0.0) * sl.y) * 0.9 * wk;

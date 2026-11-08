@@ -70,7 +70,7 @@ func run(h: Node) -> void:
 	var baseline := _mem()
 	var live := baseline > 0.0
 	TestLib.check(TextureBudget.low_active and not TextureBudget.high_active, "LOW: half-size models, no HIGH twins")
-	TestLib.check(SurfaceTextures._cache.keys().filter(func(k: String) -> bool: return k != "sign_atlas").is_empty(), "LOW holds no surface texture cache")
+	TestLib.check(SurfaceTextures._cache.keys().filter(func(k: String) -> bool: return k != "sign_atlas" and not k.ends_with("|0")).is_empty(), "LOW holds no full-size surface texture cache (only the 512 px scanned albedo layers, keys ending |0)")
 	var ring := po.samples.size()
 	for cycle in 3:
 		# HIGH visit

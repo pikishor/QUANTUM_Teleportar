@@ -17,6 +17,12 @@ uniform float ambient_boost = 0.11;
 #else
 uniform float ambient_boost = 0.32;
 #endif                                                   // fake city bounce on the ground (lifts the near field out of black)
+#ifdef LITE
+// LOW tier scanned ground (wave 99): ONE albedo-modulator tap per ground pixel from the district road / sidewalk arrays at 512 px (no normal tap), fading out with distance; srf_lo 0 = the procedural look.
+uniform float srf_lo : hint_range(0.0, 1.0) = 0.0;
+uniform sampler2DArray srf_roadv_a : filter_linear_mipmap, repeat_enable, hint_default_white;
+uniform sampler2DArray srf_walkv_a : filter_linear_mipmap, repeat_enable, hint_default_white;
+#endif
 #ifndef LITE
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;   // holds the mirrored city (opaque pass)
 #endif
@@ -31,6 +37,10 @@ uniform sampler2D srf_decal : filter_linear_mipmap_anisotropic, repeat_enable, h
 uniform sampler2DArray srf_walkv_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
 uniform sampler2DArray srf_walkv_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
 uniform float srf_walkv = 0.0;
+// District roads (wave 99, scanned asphalt): one layer per district (market clean, foundry pit lane, slums cracked, towers worn), 1 = bound (SurfaceTextures.road_array), 0 = use srf_road_*
+uniform sampler2DArray srf_roadv_a : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2DArray srf_roadv_n : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform float srf_roadv = 0.0;
 #endif
 // Sidewalk slab tint per district (x < 0 / z < 0 = market, x >= 0 / z < 0 = foundry, x < 0 / z >= 0 = slums, x >= 0 / z >= 0 = towers): the one district tint that also reaches LOW.
 uniform vec3 dist_walk0 = vec3(1.0);
@@ -196,16 +206,31 @@ void fragment() {
 #ifndef LITE
 		if (srf > 0.002) {
 			vec2 ru = q / 3.2;
-			vec4 ta = srf_tap(srf_road_a, ru, gdx / 3.2, gdy / 3.2);
-			vec4 tn = srf_tap(srf_road_n, ru, gdx / 3.2, gdy / 3.2);
+			vec4 ta;
+			vec4 tn;
+			int rlay = dist_idx(q);
+			if (srf_roadv > 0.5) {
+				ta = srf_tap_a(srf_roadv_a, vec3(ru, float(rlay)), gdx / 3.2, gdy / 3.2);
+				tn = srf_tap_a(srf_roadv_n, vec3(ru, float(rlay)), gdx / 3.2, gdy / 3.2);
+			} else {
+				ta = srf_tap(srf_road_a, ru, gdx / 3.2, gdy / 3.2);
+				tn = srf_tap(srf_road_n, ru, gdx / 3.2, gdy / 3.2);
+			}
 			vec3 modc = 2.0 * ta.rgb;
 			vec2 sl = srf_slope(tn);
 			if (srf_hi > 0.5) {                                                             // HIGH: a second, rotated and larger scale breaks the repeat and adds near detail
 				vec2 r2 = vec2(q.x * 0.82 - q.y * 0.57, q.x * 0.57 + q.y * 0.82) / 1.13 + 0.37;
 				vec2 d2x = vec2(gdx.x * 0.82 - gdx.y * 0.57, gdx.x * 0.57 + gdx.y * 0.82) / 1.13;
 				vec2 d2y = vec2(gdy.x * 0.82 - gdy.y * 0.57, gdy.x * 0.57 + gdy.y * 0.82) / 1.13;
-				vec4 ta2 = srf_tap(srf_road_a, r2, d2x, d2y);
-				vec4 tn2 = srf_tap(srf_road_n, r2, d2x, d2y);
+				vec4 ta2;
+				vec4 tn2;
+				if (srf_roadv > 0.5) {
+					ta2 = srf_tap_a(srf_roadv_a, vec3(r2, float(rlay)), d2x, d2y);
+					tn2 = srf_tap_a(srf_roadv_n, vec3(r2, float(rlay)), d2x, d2y);
+				} else {
+					ta2 = srf_tap(srf_road_a, r2, d2x, d2y);
+					tn2 = srf_tap(srf_road_n, r2, d2x, d2y);
+				}
 				modc = mix(modc, modc * 2.0 * ta2.rgb, 0.55);
 				sl += srf_slope(tn2) * 0.5;
 				ta.a = mix(ta.a, ta2.a, 0.4);
@@ -214,6 +239,13 @@ void fragment() {
 			slab_n += vec3(sl.x, 0.0, sl.y) * 0.8 * srf * (1.0 - 0.65 * wet);        // a water film hides most of the micro relief
 			wet_r = mix(wet_r, 0.05 + 0.33 * tn.a, srf);
 			tex_rough = ta.a;
+		}
+#endif
+#ifdef LITE
+		if (srf_lo > 0.5) {
+			float lk = 1.0 - smoothstep(22.0, 75.0, dist);
+			vec4 la = textureGrad(srf_roadv_a, vec3(q / 3.2, float(dist_idx(q))), gdx / 3.2, gdy / 3.2);
+			asph *= mix(vec3(1.0), 2.0 * la.rgb, lk);
 		}
 #endif
 		asph *= 1.0 - 0.38 * lane_w * (0.5 + 0.5 * lane_noise);                    // tyre tracks wear dark
@@ -358,6 +390,16 @@ void fragment() {
 			tex_rough = ta.a;
 			wet_r = mix(wet_r, 0.05 + 0.33 * tn.a, srf);
 			tex_n = vec3(sl.x, 0.0, sl.y) * 0.7 * srf * (1.0 - 0.65 * wet);
+		}
+#endif
+#ifdef LITE
+		if (srf_lo > 0.5) {
+			int wl = dist_idx(q);
+			float wt = wl == 0 ? 2.4 : (wl == 1 ? 1.2 : (wl == 2 ? 2.4 : 2.8));
+			float lk = 1.0 - smoothstep(22.0, 75.0, dist);
+			vec4 la = textureGrad(srf_walkv_a, vec3(q / wt, float(wl)), gdx / wt, gdy / wt);
+			conc *= mix(vec3(1.0), 2.0 * la.rgb, lk);
+			stone_mod = mix(vec3(1.0), 2.0 * la.rgb, lk);
 		}
 #endif
 		// stains and, in about one slab in eight, a hairline crack straight through the slab (it ends at the joints, like a real slab crack)

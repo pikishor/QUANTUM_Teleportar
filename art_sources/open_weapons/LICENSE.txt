@@ -1,0 +1,7 @@
+Creative Commons CC0 1.0 Universal (public domain dedication)
+
+Both source models are released by their authors under CC0 1.0 on OpenGameArt.org:
+  - Ultimate Gun Pack (Quaternius):  https://opengameart.org/content/low-poly-guns-pack   (licence field: CC0)
+  - Low Poly Weapon Pack (byzmod3d): https://opengameart.org/content/low-poly-weapon-pack (licence field: CC0)
+Legal code: https://creativecommons.org/publicdomain/zero/1.0/  (the host is not reachable from the build sandbox, so the text is not copied here)
+The pack zip itself carries no licence file; the CC0 declaration is the one on the OpenGameArt pages above (fetched 2026-11-08).

@@ -29,6 +29,20 @@ uniform float skyline_amount : hint_range(0.0, 1.0) = 0.0;
 uniform float lod : hint_range(0.0, 1.0) = 1.0;
 uniform vec3 aurora_a : source_color = vec3(0.20, 0.90, 0.85);
 uniform vec3 aurora_b : source_color = vec3(0.65, 0.30, 0.95);
+// Real urban light probes (Poly Haven CC0 HDRIs, tools/materials/pack_sky_probes.py): 256 x 128 equirect, Reinhard-encoded (c = s / (1 - s)). They tint the horizon, the street glow and the ground bounce
+// of BOTH the visible sky and the radiance cubemap (ambient + reflections); the procedural sky (clouds, stars, moon, aurora) stays on top. Weights per probe come from DayNight.sky_look.
+uniform sampler2D probe_dusk : filter_linear, repeat_enable, hint_default_black;
+uniform sampler2D probe_night : filter_linear, repeat_enable, hint_default_black;
+uniform sampler2D probe_over : filter_linear, repeat_enable, hint_default_black;
+uniform vec3 probe_w = vec3(0.0);                          // dusk, night, overcast weights (0 = off: no tap is made)
+uniform vec3 probe_gain = vec3(0.9, 0.5, 0.8);
+uniform float probe_amount : hint_range(0.0, 1.0) = 0.0;
+
+vec3 probe_tap(sampler2D s, vec3 d) {
+	vec2 uv = vec2(atan(d.x, -d.z) * 0.15915494 + 0.5, acos(clamp(d.y, -1.0, 1.0)) * 0.31830989);
+	vec3 e = texture(s, uv).rgb;
+	return e / (1.0 - min(e, vec3(0.985)));
+}
 
 vec3 star_layer(vec3 d, float scale, float prob, float size, float t) {
 	vec3 p = d * scale;
@@ -61,6 +75,27 @@ void sky() {
 	col += band_color * 0.085 * pband + glow_color * 0.060 * exp(-ay * 9.0) + band_color * 0.020 * exp(-ay * 2.2);
 	vec3 below = ground_color + glow_color * 0.012;
 	col = mix(col, below, smoothstep(0.0, -0.05, y));
+	if (probe_amount > 0.001) {
+		// real street / skyline light: strongest at the horizon and below it (the lit ground bounces into the wet road's reflection), a hint overhead
+		float pm = probe_amount * (0.30 + 0.70 * (1.0 - smoothstep(0.10, 0.75, y)));
+		vec3 pc = vec3(0.0);
+		float pw = 0.0;
+		if (probe_w.x > 0.01) {
+			pc += probe_tap(probe_dusk, d) * probe_gain.x * probe_w.x;
+			pw += probe_w.x;
+		}
+		if (probe_w.y > 0.01) {
+			pc += probe_tap(probe_night, d) * probe_gain.y * probe_w.y;
+			pw += probe_w.y;
+		}
+		if (probe_w.z > 0.01) {
+			pc += probe_tap(probe_over, d) * probe_gain.z * probe_w.z;
+			pw += probe_w.z;
+		}
+		if (pw > 0.01) {
+			col = mix(col, pc / pw, clamp(pm * min(pw, 1.0), 0.0, 1.0));
+		}
+	}
 
 	if (!AT_CUBEMAP_PASS) {
 		vec3 M = normalize(moon_dir);

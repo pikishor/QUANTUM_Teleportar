@@ -74,7 +74,21 @@ static func sky_look(h: float, weather: StringName, level: int) -> Dictionary:
 		"planet_amount": smoothstep(0.7, 1.0, n) * (1.0 - oc * 0.8),
 		"skyline_amount": 1.0, "lod": 0.0 if level == 0 else 1.0,
 		"cloud_cover": clampf(lerpf(0.5, 0.78, n) + oc * 0.3, 0.0, 0.95),
-		"star_amount": 0.55 * smoothstep(0.55, 1.0, n) * (1.0 - oc * 0.85)}
+		"star_amount": 0.55 * smoothstep(0.55, 1.0, n) * (1.0 - oc * 0.85),
+		"probe_w": probe_weights(h, oc), "probe_amount": PROBE_AMOUNT[clampi(level, 0, 2)]}
+
+
+## Real-HDRI light probes of the sky (assets/textures/sky_probe_{dusk,night,overcast}.png): which of them is in play at an hour under an overcast amount: x dusk, y night, z overcast.
+## Dusk around sunrise / sunset, night after dark (faded out under cloud), overcast by weather; the weights are not normalised (the shader averages what is on).
+static func probe_weights(h: float, oc: float) -> Vector3:
+	var n := night_amount(h)
+	var tw := twilight(h)
+	var day_clear := (1.0 - n) * (1.0 - tw)
+	return Vector3(tw, n * (1.0 - oc * 0.5), maxf(oc * 0.9, 0.0) * (0.35 + 0.65 * day_clear))
+
+
+## Overall strength of the probes per tier: the procedural look stays in charge (the probes colour the horizon, the street glow and the radiance).
+const PROBE_AMOUNT := [0.45, 0.5, 0.55]
 
 
 ## Tone-mapper exposure for an hour and weather: nearly constant (0.94 by day .. 1.0 at night, a touch more under heavy overcast), so day, dusk,

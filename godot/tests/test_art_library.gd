@@ -501,6 +501,14 @@ func _test_folded(city: City) -> void:
 # --- surfaces ----------------------------------------------------------------------------------------------------------------
 
 func _test_surfaces(city: City) -> void:
+	OS.set_environment("QT_SCANNED", "0")                     # these checks are about the procedural district paving (the fallback); the scanned sets have tests/test_scanned_world.gd
+	city.set_quality(city.quality)
+	_test_surfaces_procedural(city)
+	OS.unset_environment("QT_SCANNED")
+	city.set_quality(city.quality)
+
+
+func _test_surfaces_procedural(city: City) -> void:
 	var all_there := true
 	var packed := true
 	for st in ["walk_market", "walk_foundry", "walk_towers"]:

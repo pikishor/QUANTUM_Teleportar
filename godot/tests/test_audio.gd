@@ -5,18 +5,19 @@ extends RefCounted
 
 const SR := 44100
 ## group -> [minimum variants, shortest seconds, longest seconds] (WAV one-shots; every variant must satisfy the duration and the level window)
+## Round 4: shots, impacts, steps, vehicle and UI sounds are real CC0 recordings (docs/AUDIO_SOURCES.md): short by nature, so the lower duration bounds of a few families are lower than the synthesised ones were.
 const GROUPS := {
-	&"step_asphalt": [4, 0.15, 0.7], &"step_metal": [4, 0.15, 0.8], &"step_stairs": [4, 0.2, 0.9], &"land_asphalt": [2, 0.15, 0.7], &"land_metal": [2, 0.2, 0.8],
+	&"step_asphalt": [4, 0.15, 0.7], &"step_metal": [4, 0.09, 0.8], &"step_stairs": [4, 0.12, 0.9], &"land_asphalt": [2, 0.15, 0.7], &"land_metal": [2, 0.2, 0.8],
 	&"shot": [4, 0.3, 1.5], &"enemy_shot": [3, 0.2, 1.2], &"shot_far": [2, 1.0, 2.5], &"enemy_shot_far": [2, 1.0, 2.5], &"dry_fire": [2, 0.1, 0.4], &"reload": [3, 0.8, 2.0],
-	&"impact_concrete": [4, 0.2, 1.2], &"impact_metal": [4, 0.3, 1.5], &"impact_glass": [4, 0.3, 1.5], &"impact_flesh": [4, 0.2, 1.2], &"impact_asphalt": [4, 0.2, 1.0],
-	&"ricochet": [4, 0.3, 0.9], &"whizz": [4, 0.15, 0.5], &"boom": [4, 1.5, 5.0], &"explosion_small": [2, 1.0, 3.0], &"distant_boom": [2, 1.0, 4.0], &"distant_gunfire": [2, 1.5, 3.5],
+	&"impact_concrete": [4, 0.2, 1.2], &"impact_metal": [4, 0.3, 1.5], &"impact_glass": [4, 0.2, 1.5], &"impact_flesh": [4, 0.2, 1.2], &"impact_asphalt": [4, 0.2, 1.0],
+	&"ricochet": [4, 0.18, 0.9], &"whizz": [4, 0.05, 0.5], &"boom": [4, 1.5, 5.0], &"explosion_small": [2, 1.0, 3.0], &"distant_boom": [2, 1.0, 4.0], &"distant_gunfire": [2, 1.5, 3.5],
 	&"trooper_alert": [3, 0.4, 1.5], &"trooper_attack": [3, 0.3, 1.2], &"trooper_pain": [3, 0.2, 1.0], &"trooper_death": [3, 0.8, 2.5],
 	&"hero_pain": [3, 0.2, 0.8], &"hero_effort": [3, 0.15, 0.7], &"hero_death": [1, 0.8, 2.0], &"drone_charge": [1, 0.5, 1.5], &"drone_alert": [1, 0.3, 1.0], &"drone_death": [1, 0.8, 2.0],
 	&"blink": [3, 0.5, 2.5], &"link": [3, 0.5, 2.5], &"superpos": [1, 0.8, 3.0], &"superpos_enter": [1, 0.8, 2.5], &"quantum_ready": [1, 0.3, 1.0], &"quantum_fail": [1, 0.3, 1.0],
 	&"engine_start": [1, 1.0, 2.0], &"car_crash": [3, 1.0, 3.0], &"car_bump": [3, 0.3, 1.0], &"horn": [2, 0.4, 1.2], &"car_door": [1, 0.2, 0.8],
-	&"ui_click": [1, 0.05, 0.3], &"ui_tick": [1, 0.03, 0.2], &"ui_confirm": [1, 0.2, 1.0], &"ui_back": [1, 0.2, 1.0], &"ui_error": [1, 0.2, 0.8], &"ui_pause": [1, 0.2, 1.0], &"ui_resume": [1, 0.2, 1.0],
-	&"ui_tap": [1, 0.04, 0.2], &"ui_deny": [1, 0.15, 0.6], &"ui_purchase": [1, 0.3, 1.2], &"ui_upgrade": [1, 0.5, 1.5], &"ui_contract_accept": [1, 0.4, 1.2],
-	&"ui_contract_complete": [1, 0.6, 2.0], &"ui_contract_fail": [1, 0.5, 1.5],
+	&"ui_click": [1, 0.03, 0.3], &"ui_tick": [1, 0.03, 0.2], &"ui_confirm": [1, 0.2, 1.0], &"ui_back": [1, 0.08, 1.0], &"ui_error": [1, 0.1, 0.8], &"ui_pause": [1, 0.2, 1.0], &"ui_resume": [1, 0.2, 1.0],
+	&"ui_tap": [1, 0.04, 0.2], &"ui_deny": [1, 0.15, 0.6], &"ui_purchase": [1, 0.3, 1.2], &"ui_upgrade": [1, 0.25, 1.5], &"ui_contract_accept": [1, 0.4, 1.2],
+	&"ui_contract_complete": [1, 0.45, 2.0], &"ui_contract_fail": [1, 0.3, 1.5],
 	&"heartbeat": [1, 0.4, 1.2], &"breath_in": [2, 0.3, 1.0], &"breath_out": [2, 0.3, 1.0], &"gasp": [1, 0.2, 0.8], &"radio_open": [1, 0.2, 0.6], &"radio_close": [1, 0.1, 0.5],
 	&"radio_glitch": [3, 0.1, 0.6], &"babble": [8, 0.05, 0.2], &"pickup_health": [1, 0.3, 1.5], &"pickup_energy": [1, 0.3, 1.5], &"pickup_ammo": [1, 0.2, 1.0], &"credit": [1, 0.3, 1.5],
 	&"mission_start": [1, 0.8, 3.0], &"mission_complete": [1, 1.0, 4.0], &"objective_ping": [1, 0.3, 1.5], &"heat_up": [1, 0.5, 2.0], &"heat_down": [1, 0.5, 2.0],

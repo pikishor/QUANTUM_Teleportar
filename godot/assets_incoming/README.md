@@ -1,5 +1,7 @@
 # assets_incoming
 
+Scanned city materials (wave 99): `python3 tools/materials/fetch_polyhaven.py` downloads the Poly Haven (CC0) sets listed in `tools/materials/world_materials.json` into `polyhaven_raw/` (git-ignored); `python3 tools/materials/pack_world_materials.py` packs them into `assets/textures/world_*.webp` (see docs/HANDOFF.md Wave 99). The older per-kind `import_scanned.py` flow below still works for raw sets dropped by hand.
+
 Drop CC0 PBR sets here, one folder per set, name containing the kind: `asphalt`, `concrete`, `metal`, `brick` or `tile`
 (e.g. `Asphalt012/`, `Bricks075A` is not matched: rename to `brick_075`). Each folder needs ambientCG / Poly Haven files:
 `*_Color`, `*_NormalGL`, `*_Roughness`, `*_AmbientOcclusion`, optional `*_Displacement`.

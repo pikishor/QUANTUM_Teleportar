@@ -24,6 +24,10 @@ func build(parent: Node3D) -> void:
 	sky_mat = ShaderMaterial.new()
 	sky_mat.shader = SKY_SHADER
 	sky_mat.set_shader_parameter(&"moon_dir", moon_dir)
+	for pair in [["probe_dusk", "dusk"], ["probe_night", "night"], ["probe_over", "overcast"]]:
+		var pp := "res://assets/textures/sky_probe_%s.png" % pair[1]
+		if OS.get_environment("QT_SCANNED") != "0" and ResourceLoader.exists(pp):
+			sky_mat.set_shader_parameter(StringName(pair[0]), load(pp))
 	sky = Sky.new()
 	sky.sky_material = sky_mat
 	sky.process_mode = Sky.PROCESS_MODE_QUALITY          # the radiance map is generated once; clouds animate in the visible pass only

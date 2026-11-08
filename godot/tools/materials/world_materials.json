@@ -1,0 +1,131 @@
+{
+  "_doc": "Real scanned CC0 sets (Poly Haven) packed into the city shaders' slot format by pack_world_materials.py. kind 'slot': albedo modulator + dry roughness (_a) and packed normal (_n); kind 'flat': one albedo texture with the cavity baked in (interiors, one tap).",
+  "sets": {
+    "road_market": {
+      "slug": "clean_asphalt",
+      "kind": "slot",
+      "hue": 0.3,
+      "gain": 1.0,
+      "contrast": 1.6
+    },
+    "road_foundry": {
+      "slug": "asphalt_pit_lane",
+      "kind": "slot",
+      "hue": 0.3,
+      "gain": 1.05,
+      "contrast": 1.5
+    },
+    "road_slums": {
+      "slug": "asphalt_02",
+      "kind": "slot",
+      "hue": 0.3,
+      "gain": 1.0,
+      "contrast": 1.3
+    },
+    "road_towers": {
+      "slug": "worn_asphalt",
+      "kind": "slot",
+      "hue": 0.2,
+      "gain": 1.05,
+      "contrast": 1.4
+    },
+    "walk_market": {
+      "slug": "pavement_04",
+      "kind": "slot",
+      "hue": 0.45,
+      "gain": 1.0,
+      "contrast": 1.3
+    },
+    "walk_foundry": {
+      "slug": "metal_plate",
+      "kind": "slot",
+      "hue": 0.35,
+      "gain": 1.0,
+      "contrast": 1.2
+    },
+    "walk_slums": {
+      "slug": "concrete_pavement_02",
+      "kind": "slot",
+      "hue": 0.45,
+      "gain": 1.0,
+      "contrast": 1.4
+    },
+    "walk_towers": {
+      "slug": "pavement_01",
+      "kind": "slot",
+      "hue": 0.45,
+      "gain": 1.0,
+      "contrast": 1.3
+    },
+    "brick": {
+      "slug": "brick_wall_005",
+      "kind": "slot",
+      "hue": 0.55,
+      "gain": 1.0,
+      "contrast": 1.2
+    },
+    "wall": {
+      "slug": "dirty_concrete",
+      "kind": "slot",
+      "hue": 0.4,
+      "gain": 1.0,
+      "contrast": 1.8
+    },
+    "metal": {
+      "slug": "metal_plate_02",
+      "kind": "slot",
+      "hue": 0.4,
+      "gain": 1.0,
+      "contrast": 1.2
+    },
+    "corr": {
+      "slug": "corrugated_iron",
+      "kind": "slot",
+      "hue": 0.4,
+      "gain": 1.0,
+      "contrast": 1.2
+    },
+    "i_plaster": {
+      "slug": "white_plaster_02",
+      "kind": "flat",
+      "hue": 0.5,
+      "gain": 1.0,
+      "contrast": 1.8
+    },
+    "i_brick": {
+      "slug": "brick_wall_02",
+      "kind": "flat",
+      "hue": 0.55,
+      "gain": 1.0,
+      "contrast": 1.1
+    },
+    "i_tile": {
+      "slug": "floor_tiles_02",
+      "kind": "flat",
+      "hue": 0.5,
+      "gain": 1.0,
+      "contrast": 1.3
+    },
+    "i_check": {
+      "slug": "floor_tiles_06",
+      "kind": "flat",
+      "hue": 0.5,
+      "gain": 1.0,
+      "contrast": 1.1
+    },
+    "i_concrete": {
+      "slug": "concrete_floor_worn_001",
+      "kind": "flat",
+      "hue": 0.5,
+      "gain": 1.0,
+      "contrast": 1.6
+    },
+    "i_wood": {
+      "slug": "wood_floor_worn",
+      "kind": "flat",
+      "hue": 0.6,
+      "gain": 1.0,
+      "contrast": 1.3
+    }
+  }
+}

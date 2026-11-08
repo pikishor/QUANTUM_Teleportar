@@ -56,6 +56,7 @@ echo "== audio"
 "$PY" tools/audio/make_combat.py      # combat-feel shots (carbine x4, scatter), kill tick, civilian dissolve: AFTER the generators that write shot*.wav
 "$PY" tools/audio/make_redesign.py        # audio redesign: layered weapons (close/far/suppressed/overcharged), impacts, explosions with sub-bass: AFTER make_combat.py
 "$PY" tools/audio/make_redesign_music.py  # audio redesign: 128 BPM stems + district/boss/chase/night layers on one 30 s grid: AFTER make_depth.py and make_pass2.py
+"$PY" tools/audio/make_real.py            # round 4: real CC0 recordings (art_sources/audio_*/clips) replace the synthesised shots, impacts, explosions, steps, engines, UI and beds: AFTER every synthesising generator (docs/AUDIO_SOURCES.md)
 "$PY" -I tools/audio/shrink_audio.py
 if [ "$MODELS" = 1 ]; then
   echo "== models + atlases"

@@ -1,6 +1,6 @@
 # Third-party assets
 
-All scanned materials are CC0 (no attribution required, listed for provenance).
+All scanned materials are CC0 (no attribution required, listed for provenance). The real sets in use (Poly Haven, wave 99) are in the section 'Scanned world materials and sky probes' at the end; the rows below are the older, unused per-kind placeholder slots.
 
 | Surface kind | Set name | Source | URL | License |
 |---|---|---|---|---|
@@ -21,3 +21,63 @@ All scanned materials are CC0 (no attribution required, listed for provenance).
 | Ultimate Space Kit (flora, rocks, rovers, spaceship, bullets pickup) | Quaternius, quaternius.com (owner-supplied zip, art_sources/quaternius_ultimate_space_kit) | CC0 1.0 (no attribution required, credited anyway) | godot/tools/creature_kit.py bakes Tree_Swirl_1, Tree_Spiral_2, Tree_Light_1, Plant_1, Plant_3, Bush_2, Rock_2, Rock_4, Rock_Large_1 into assets/models/kit_flora.glb (plaza dressing inside the merged street-kit mesh), Rover_1 into car_rover.glb, Spaceship_FinnTheFrog into car_skiff.glb (two extra vehicle kinds), Pickup_Bullets into pickup_weapon.glb; decimated by vertex clustering, atlas colour desaturated into vertex colours |
 
 Humanoid variants (wave 58): no new art. Vael troopers and near-LOD citizens reuse the Quaternius Universal Base Characters (Superhero Male/Female, CC0, art_sources/quaternius_universal_base_characters, godot/assets_incoming/characters/hero/) through HeroCharacter with skin, hair, suit and helmet/visor colour variants; the textures are shared with the hero (no extra texture memory).
+
+## Scanned world materials and sky probes (wave 99)
+
+All CC0 1.0 (Poly Haven, https://polyhaven.com; licence text and per-asset author and URL in art_sources/polyhaven_pbr/). Packed by godot/tools/materials/pack_world_materials.py (1024 px WebP, slot format of the city shaders) and pack_sky_probes.py (256 x 128 probes).
+
+| Surface (use) | Poly Haven set | Author |
+|---|---|---|
+| road market (city) | clean_asphalt (Clean Asphalt) | Dimitrios Savva |
+| road foundry (city) | asphalt_pit_lane (Asphalt Pit Lane) | Dimitrios Savva |
+| road slums (city) | asphalt_02 (Asphalt 02) | Rob Tuytel |
+| road towers (city) | worn_asphalt (Worn Asphalt) | Amal Kumar |
+| walk market (city) | pavement_04 (Pavement 04) | Jan Burghardt |
+| walk foundry (city) | metal_plate (Metal Plate) | Rob Tuytel |
+| walk slums (city) | concrete_pavement_02 (Concrete Pavement 02) | Charlotte Baglioni |
+| walk towers (city) | pavement_01 (Pavement 01) | Rob Tuytel |
+| brick (city) | brick_wall_005 (Brick Wall 005) | Dario Barresi, Dimitrios Savva |
+| wall (city) | dirty_concrete (Dirty Concrete) | Rob Tuytel |
+| metal (city) | metal_plate_02 (Metal Plate 02) | Rob Tuytel |
+| corr (city) | corrugated_iron (Corrugated Iron) | Jenelle van Heerden, Dimitrios Savva |
+| i plaster (interior) | white_plaster_02 (White Plaster 02) | Rob Tuytel |
+| i brick (interior) | brick_wall_02 (Brick Wall 02) | Dimitrios Savva |
+| i tile (interior) | floor_tiles_02 (Floor Tiles 02) | Rob Tuytel |
+| i check (interior) | floor_tiles_06 (Floor Tiles 06) | Rob Tuytel |
+| i concrete (interior) | concrete_floor_worn_001 (Concrete Floor Worn 001) | Dimitrios Savva, Rico Cilliers |
+| i wood (interior) | wood_floor_worn (Wood Floor Worn) | Dimitrios Savva |
+| sky probe dusk | sunset_jhbcentral (Joburg Central Sunset) | Greg Zaal, Dimitrios Savva |
+| sky probe night | cobblestone_street_night (Cobblestone Street Night) | Greg Zaal, Jenelle van Heerden |
+| sky probe overcast | potsdamer_platz (Potsdamer Platz) | Greg Zaal |
+
+## Audio (round 4: real recordings, all CC0)
+
+The weapon shots, impacts, explosions, footsteps, vehicle sounds, UI cues and ambience beds are built from CC0 recordings fetched from OpenGameArt.org (pages checked for the licence CC0). The full table
+(every sample: file, source URL, author, licence, and the game sounds it feeds) is docs/AUDIO_SOURCES.md; each pack keeps its licence text and SOURCE.md in art_sources/audio_<group>/.
+Credit is not required by CC0 and is given anyway:
+
+| Pack | Author | Used for |
+|---|---|---|
+| The Free Firearm Sound Library (Prepared SFX Library) | The Free Firearm Sound Library team, uploaded by Ylmir | all gun shots (AR-15, AK-47, SKS, Savage, 1911, Walther PPQ, Bersa, S&W 642, Ruger Single Six, Marlin 336, Mossberg, Nova, Model 12, PPSh-41, Carl Gustav M45, Mosin, Springfield) and the distant fire |
+| Sci-Fi Sounds, Interface Sounds | Kenney (kenney.nl) | pulse-weapon lasers, force fields, crunch explosions, UI cues |
+| 50 / 60 CC0 Sci-Fi SFX, Explosion, Laser weapon burst fire | number99 | pulse-weapon layers, explosions, terminal beeps |
+| 100 CC0 SFX, 100 CC0 SFX #2 | aijikl, geekygnome | glass, metal, stone hits, footsteps, highway |
+| 75 CC0 breaking / falling / hit sfx | frances | crashes, impacts, glass |
+| Impact, Punch, Swishes, Different steps, racing car engine loops, Sci-Fi Vehicle Sound | qubodup | flesh / stone / metal impacts, swishes, steps, engine loops |
+| Fantozzi's Footsteps, Metal footsteps on concrete, Footsteps (subway) | Fantozzi, anonymous | footsteps per surface |
+| Gunshots, Gunshot Sounds, Hollywood-style pistol silencer | LarkPay, Raassh, bart | black-powder boom, suppressed shot |
+| Gun reload sounds, Gun Reload Sound Effects, 2 Gun Reloads, Equipment Clicks II | Joaken, Brian MacIntosh, starninjas, anonymous | reloads, dry fire |
+| Chunky Explosion, Muffled Distant Explosion, Explosion somewhere far, 25 CC0 bang / firework SFX | looneybits, NenadSimic, ripple182, Snabisch | explosions and distant booms |
+| Metal Impact Sounds, Crash Collision, Glass Break, Car engine start, Car Sound Effects Pack, Car_door_SFX | Brian MacIntosh, Luca Pixel, MedicineStorm, anonymous | metal hits, crashes, engine start, horn, door |
+| 51 UI sound effects | gopherapps | UI cues |
+| Rain (loopable), High traffic road sounds, Scifi City Ambient Loop, windy ambient noise | Snabisch, 2DPIXX, anonymous | ambience beds |
+
+## Open-source vehicles and guns (round 4)
+
+All CC0 1.0. Fetched from OpenGameArt.org (the authors' own sites are not reachable from the build sandbox). Licence text and URLs are kept with the packs in art_sources/.
+
+| Asset | Author | Source | Use |
+|---|---|---|---|
+| Kenney Car Kit 3.1 (14 vehicles: sedan, sedan-sports, hatchback-sports, suv, suv-luxury, taxi, police, ambulance, van, delivery, truck, firetruck, garbage-truck, race) | Kenney, www.kenney.nl | https://opengameart.org/content/car-kit, art_sources/kenney_car_kit | godot/tools/open_models/convert_vehicles.py -> assets/models/ov_*.glb: stretched to realistic proportions, colour-map baked into vertex colours (no texture), paint / details / lamp surfaces, wheels as separate nodes, LOD1; VehicleSpecs key `ov` |
+| Ultimate Gun Pack (11 guns used) | Quaternius | https://opengameart.org/content/low-poly-guns-pack, art_sources/open_weapons | godot/tools/open_models/convert_weapons.py -> assets/models/ow_*.glb (pistol, burst, revolver, akimbo, flux, carbine, marksman, arc, scatter, breacher, rail), WeaponModels |
+| RPG-7 (Low Poly Weapon Pack) | byzmod3d | https://opengameart.org/content/low-poly-weapon-pack | the `rocket` launcher model (ow_rocket.glb) |

@@ -309,7 +309,13 @@ func _apply_low_plus(on: bool) -> void:
 
 ## Tier-scaled PBR surface taps (SurfaceTextures): LOW none, MED one albedo+normal pair per surface at half size, HIGH two pairs, full size and the decal mask.
 func _apply_surfaces() -> void:
-	SurfaceTextures.apply(_ground.material, ["road", "walkv", "decal"], quality)
+	SurfaceTextures.apply(_ground.material, ["roadv", "walkv", "decal"], quality)
+	if quality == 0:
+		SurfaceTextures.apply(_ground.material_lite, ["roadv", "walkv"], 0)              # LOW: the lite ground gets the scanned albedo layers (512 px, one tap)
+	else:
+		_ground.material_lite.set_shader_parameter(&"srf_lo", 0.0)
+		_ground.material_lite.set_shader_parameter(&"srf_roadv_a", null)                 # MED / HIGH never show the lite ground: nothing stays resident
+		_ground.material_lite.set_shader_parameter(&"srf_walkv_a", null)
 	SurfaceTextures.apply(_building_mat, ["brick", "wall", "roof", "sign"], quality)
 	MaterialLib.apply_to(_ground.material, ["road", "walk"], quality)           # scanned sets win when imported; no-op otherwise
 	MaterialLib.apply_to(_building_mat, ["brick", "wall"], quality)

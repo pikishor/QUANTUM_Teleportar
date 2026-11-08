@@ -189,6 +189,7 @@ func _make_lights() -> void:
 
 func _apply_tier() -> void:
 	_mat_surface.set_shader_parameter(&"detail", float(quality))
+	SurfaceTextures.apply_interior(_mat_surface, quality)
 	_mat_surface.set_shader_parameter(&"pool_n", float(mini(POOLS_BY_TIER[quality], plan.pools.size())))
 	_mat_window.set_shader_parameter(&"detail", float(quality))
 	var n: int = LIGHTS_BY_TIER[quality]

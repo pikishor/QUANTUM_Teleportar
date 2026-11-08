@@ -50,6 +50,57 @@ static func mesh(id: StringName) -> ArrayMesh:
 		return _cache[id]
 	var glow: Color = WeaponDefs.def(id)["look"]
 	var b := _Builder.new()
+	var opened := false
+	if id == &"akimbo":
+		opened = _open(b, id, 0.075) and _open(b, id, -0.075)
+	else:
+		opened = _open(b, id)
+	if opened:
+		pass
+	else:
+		b = _Builder.new()
+		_procedural(b, id, glow)
+	var m := b.build()
+	_cache[id] = m
+	return m
+
+
+## The open-source model of weapon `id` (assets/models/ow_<id>.glb, CC0 Quaternius / OpenGameArt guns converted by tools/open_models/convert_weapons.py: muzzle at the origin, barrel -Z, y = bore axis)
+## appended to the builder, `dx` metres to the right. False when the model does not exist (the procedural mesh below is the fallback; QT_OPEN_MODELS=0 forces it).
+static func _open(b: _Builder, id: StringName, dx := 0.0) -> bool:
+	if OS.get_environment("QT_OPEN_MODELS") == "0":
+		return false
+	var path := "res://assets/models/ow_%s.glb" % String(id)
+	if not ResourceLoader.exists(path):
+		return false
+	var scene := load(path) as PackedScene
+	if scene == null:
+		return false
+	var root := scene.instantiate()
+	var mi: MeshInstance3D = root as MeshInstance3D if root is MeshInstance3D else root.find_child("*", true, false) as MeshInstance3D
+	if mi == null or mi.mesh == null:
+		root.free()
+		return false
+	var arr := mi.mesh.surface_get_arrays(0)
+	root.free()
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var n: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+	var cols: PackedColorArray = arr[Mesh.ARRAY_COLOR] if arr[Mesh.ARRAY_COLOR] != null else PackedColorArray()
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	if v.is_empty() or idx.is_empty():
+		return false
+	var base := b.verts.size()
+	for i in v.size():
+		b.verts.append(v[i] + Vector3(dx, 0.0, 0.0))
+		b.norms.append(n[i])
+		var c := cols[i].srgb_to_linear() if i < cols.size() else GUN      # the glTF importer hands vertex colours over as sRGB, this shader reads them as linear
+		b.cols.append(Color(c.r, c.g, c.b, 0.0))
+	for i in idx:
+		b.idx.append(base + i)
+	return true
+
+
+static func _procedural(b: _Builder, id: StringName, glow: Color) -> void:
 	match id:
 		&"carbine":
 			if not _carbine(b, glow):
@@ -89,9 +140,6 @@ static func mesh(id: StringName) -> ArrayMesh:
 			_blade(b, glow)
 		&"whip":
 			_whip(b, glow)
-	var m := b.build()
-	_cache[id] = m
-	return m
 
 
 # --- the models ---------------------------------------------------------------------------------------------------------

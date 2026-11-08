@@ -569,6 +569,8 @@ func _test_surfaces(host: Node, city: City) -> void:
 		ok = ok and is_equal_approx(float(bmat.get_shader_parameter(&"srf_k")), want[level][0])
 		TestLib.check(ok, "quality %d: surface taps k=%s hi=%s on ground and buildings" % [level, want[level][0], want[level][1]])
 		var road = ground.get_shader_parameter(&"srf_road_a")
+		if road == null:
+			road = ground.get_shader_parameter(&"srf_roadv_n")            # the scanned district road array (tests/test_scanned_world.gd) replaces the single set
 		var brick = bmat.get_shader_parameter(&"srf_brick_n")
 		TestLib.check((road == null) == (level == 0) and (brick == null) == (level == 0), "quality %d: surface textures %s" % [level, "not loaded" if level == 0 else "bound"])
 		var decal = ground.get_shader_parameter(&"srf_decal")

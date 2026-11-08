@@ -1,0 +1,12 @@
+CC0 1.0 Universal (Public Domain Dedication)
+
+The person(s) who associated a work with this deed have dedicated the work to the public domain by waiving all of their rights to the work worldwide under copyright law,
+including all related and neighbouring rights, to the extent allowed by law. You can copy, modify, distribute and perform the work, even for commercial purposes, all without
+asking permission. Credit is not required (it is given anyway in docs/AUDIO_SOURCES.md and docs/THIRD_PARTY.md).
+
+Full legal code: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+Deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+How the licence of each pack was established: the OpenGameArt.org page of the pack shows the licence 'CC0' (checked while fetching, round 4); the pack-specific statements are quoted below.
+
+Statement on the OpenGameArt page, quoting the project: 'Our team holds CC0 NO RIGHTS RESERVED for this library. It may be used without royalty or credit (though we would love to hear how you've used our sounds) for any application, personal or professional.'

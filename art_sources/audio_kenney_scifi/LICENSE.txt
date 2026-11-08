@@ -1,0 +1,37 @@
+CC0 1.0 Universal (Public Domain Dedication)
+
+The person(s) who associated a work with this deed have dedicated the work to the public domain by waiving all of their rights to the work worldwide under copyright law,
+including all related and neighbouring rights, to the extent allowed by law. You can copy, modify, distribute and perform the work, even for commercial purposes, all without
+asking permission. Credit is not required (it is given anyway in docs/AUDIO_SOURCES.md and docs/THIRD_PARTY.md).
+
+Full legal code: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+Deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+How the licence of each pack was established: the OpenGameArt.org page of the pack shows the licence 'CC0' (checked while fetching, round 4); the pack-specific statements are quoted below.
+
+License.txt of the pack (Kenney, https://kenney.nl): 'Creative Commons CC0 1.0 Universal ... you can use these assets in personal and commercial projects. Credit is not required but appreciated.'
+
+---- x_scifi_sounds/License.txt (shipped with the pack) ----
+	
+
+	Sci-Fi Sounds (1.0)
+
+	Created/distributed by Kenney (www.kenney.nl)
+	Creation date: 11-10-2020
+
+			------------------------------
+
+	License: (Creative Commons Zero, CC0)
+	http://creativecommons.org/publicdomain/zero/1.0/
+
+	This content is free to use in personal, educational and commercial projects.
+
+	Support us by crediting Kenney or www.kenney.nl (this is not mandatory)
+
+			------------------------------
+
+	Donate:   http://support.kenney.nl
+	Patreon:  http://patreon.com/kenney/
+
+	Follow on Twitter for updates:
+	http://twitter.com/KenneyNL

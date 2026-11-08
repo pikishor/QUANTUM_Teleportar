@@ -9,6 +9,15 @@ shader_type spatial;
 render_mode fog_disabled, ambient_light_disabled, depth_draw_opaque;
 
 uniform vec3 ambient_col = vec3(0.07, 0.07, 0.09);
+// Scanned (Poly Haven CC0) surfaces, one tap each (tools/materials/pack_world_materials.py: RGB = albedo modulator with the cavity baked in, A = dry roughness). scan_k 0 = the procedural look.
+uniform float scan_k : hint_range(0.0, 1.0) = 0.0;
+uniform float scan_bias = 0.0;
+uniform sampler2D scan_plaster : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;     // walls, 2.4 m tile
+uniform sampler2D scan_brick : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;       // brick walls, 1.3 m tile
+uniform sampler2D scan_tile : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;        // square-tile floors, 2.4 m tile
+uniform sampler2D scan_check : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;       // checker floors, 2.4 m tile
+uniform sampler2D scan_concrete : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;    // sealed concrete floors, 2.4 m tile
+uniform sampler2D scan_wood : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;        // plank floors, 1.4 m tile
 uniform float floor_y = 0.0;
 uniform float detail = 1.0;            // 0 LOW, 1 MED, 2 HIGH: grime octaves
 uniform float balance = 0.55;          // colour balance: how much of the pools' saturation survives (1 = the club keeps all of it)
@@ -36,6 +45,11 @@ varying vec3 wpos;
 varying vec3 wnrm;
 varying vec4 vcol;
 varying vec2 vuv;
+
+vec4 scan_tap(sampler2D s, vec2 uv, vec2 dx, vec2 dy) {
+	float m = exp2(scan_bias);
+	return textureGrad(s, uv, dx * m, dy * m);
+}
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -113,6 +127,10 @@ void fragment() {
 	vec3 tang = vec3(abs(wnrm.z), 0.0, abs(wnrm.x));
 	float t = wpos.x * tang.x + wpos.z * tang.z;     // coordinate along a wall
 	float gloss = 0.0;
+	vec3 dpx = dFdx(wpos);                           // surface footprint of a pixel, taken outside every branch (the scanned taps use explicit gradients)
+	vec3 dpy = dFdy(wpos);
+	vec2 wdx = vec2(dot(dpx, tang), dpx.y);         // wall space (along the wall, up)
+	vec2 wdy = vec2(dot(dpy, tang), dpy.y);
 
 	if (cls < 0.5) {
 		// ---- wall (COLOR.a = style: 0 plaster, 1 tiled lower half, 2 corrugated sheet, 3 brick)
@@ -135,6 +153,15 @@ void fragment() {
 			alb *= (0.75 + 0.55 * bt) * (0.85 + 0.3 * blotch);
 			alb = mix(alb, vec3(0.1, 0.09, 0.085) + alb * 0.2, mortar * 0.8);
 			rough = 0.9;
+			if (scan_k > 0.5) {                                              // real brick: its own courses and joints replace the drawn ones
+				vec4 sb = scan_tap(scan_brick, vec2(t, h) / 1.3, wdx / 1.3, wdy / 1.3);
+				alb = vcol.rgb;
+				if (compat > 0.5) {
+					alb = pow(max(alb, vec3(0.0)), vec3(0.4545));
+				}
+				alb *= 2.0 * sb.rgb * (0.9 + 0.2 * blotch);
+				rough = mix(0.9, sb.a, 0.5);
+			}
 		} else if (sty > 1.5) {
 			// corrugated sheet: vertical ribs catch the light on one flank, rust runs down from the seams, a hazard band at knee height
 			float rib = sin(t * 18.85);
@@ -160,6 +187,11 @@ void fragment() {
 				rough = mix(0.85, 0.22, lo);
 			}
 			alb *= 0.92 + 0.2 * blotch;
+			if (scan_k > 0.5 && sty < 1.5) {                                  // plastered wall (above the tiles when there are some): real plaster mottling, hairline cracks and trowel marks
+				vec4 sp = scan_tap(scan_plaster, vec2(t, h) / 1.4, wdx / 1.4, wdy / 1.4);
+				alb *= mix(vec3(1.0), 2.0 * sp.rgb, 0.95 * (1.0 - lo * step(0.5, sty)));
+				rough = mix(rough, sp.a, 0.4);
+			}
 		}
 		alb = mix(alb, alb * 0.32 + vec3(0.006), base * (sty > 1.5 ? 0.5 : 1.0));
 		alb *= mix(1.0, 1.0, rail);
@@ -218,6 +250,33 @@ void fragment() {
 				alb *= 0.86 + 0.26 * tv;
 			}
 			alb = mix(alb, alb * 0.35, gr);
+		}
+		if (scan_k > 0.5 && fsty < 4.5) {                                      // scanned floors replace the drawn joints (tiles, planks, slabs); lanes and stains above stay
+			vec2 fq = wpos.xz;
+			vec2 fdx = dpx.xz;
+			vec2 fdy = dpy.xz;
+			vec4 sf;
+			if (fsty > 2.5) {
+				sf = scan_tap(scan_concrete, fq / 2.4, fdx / 2.4, fdy / 2.4);
+			} else if (fsty > 1.5) {
+				sf = scan_tap(scan_wood, fq / 1.4, fdx / 1.4, fdy / 1.4);
+			} else if (fsty > 0.5) {
+				sf = scan_tap(scan_check, fq / 2.4, fdx / 2.4, fdy / 2.4);
+			} else {
+				sf = scan_tap(scan_tile, fq / 2.4, fdx / 2.4, fdy / 2.4);
+			}
+			vec3 base = vcol.rgb;
+			if (compat > 0.5) {
+				base = pow(max(base, vec3(0.0)), vec3(0.4545));
+			}
+			vec3 sc = base * 2.0 * sf.rgb;
+			if (fsty > 2.5) {
+				float lane2 = 1.0 - smoothstep(0.05, 0.09, abs(fract(wpos.x / 4.5 + 0.5) - 0.5) * 4.5);
+				sc = mix(sc, vec3(0.5, 0.4, 0.06), lane2 * step(0.35, fract(wpos.z / 1.6)) * 0.85);
+				sc *= 1.0 - 0.45 * smoothstep(0.62, 0.8, vnoise(wpos.xz * 0.7 + vec2(11.0, 5.0)));
+			}
+			alb = sc;
+			rough = mix(sf.a * 0.75, 0.07, wet);
 		}
 		alb *= 0.78 + 0.3 * dirt;
 		alb *= 1.0 - 0.28 * wet;

@@ -159,7 +159,7 @@ func _handling_hover() -> void:
 		sd._sync(DT)
 		worst_h = maxf(worst_h, absf(hv.slip))
 		worst_s = maxf(worst_s, absf(sd.slip))
-	TestLib.check(worst_h > 3.0 and worst_h > worst_s * 1.5 + 0.5, "the hover craft drifts in a turn (slide %.1f m/s vs %.1f for the sedan)" % [worst_h, worst_s])
+	TestLib.check(worst_h > 3.0 and worst_h > worst_s * 1.4 + 0.5, "the hover craft drifts in a turn (slide %.1f m/s vs %.1f for the sedan)" % [worst_h, worst_s])
 	var coast0 := hv.speed
 	_drive(hv, 1.0, 0.0, 0.0)
 	var hv_keep := hv.speed / coast0

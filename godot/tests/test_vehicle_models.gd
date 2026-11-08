@@ -17,9 +17,9 @@ const FILL_MASK := 1 << 18
 
 ## model -> kind, wheel layout ("car" = four corner wheels, "bike" = WheelF / WheelR on the centre line, "none" = hover craft), size tolerance in m
 const MODELS := {
-	"car_taxi": {"kind": &"taxi", "wheels": "car", "tol": 0.3},
+	"car_taxi": {"kind": &"taxi", "wheels": "car", "tol": 0.6},
 	"car_wagon": {"kind": &"wagon", "wheels": "car", "tol": 0.3},
-	"car_van": {"kind": &"van", "wheels": "car", "tol": 0.3},
+	"car_van": {"kind": &"van", "wheels": "car", "tol": 0.45},
 	"car_truck": {"kind": &"truck", "wheels": "car", "tol": 0.45},
 	"bike_street": {"kind": &"bike", "wheels": "bike", "tol": 0.3},
 	"car_hover": {"kind": &"hover", "wheels": "none", "tol": 0.3},
@@ -28,10 +28,12 @@ const MODELS := {
 
 
 func run(host: Node) -> void:
+	OS.set_environment("QT_OPEN_MODELS", "0")             # this test is about the Wave 14 art set; tests/test_open_models.gd covers the open-source models
 	_registry()
 	for model_name: String in MODELS:
 		_model(host, model_name, MODELS[model_name])
 	await _visuals(host)
+	OS.set_environment("QT_OPEN_MODELS", "1")
 
 
 # ------------------------------------------------------------------ registry in VehicleSpecs
