@@ -5,8 +5,9 @@ extends RefCounted
 ## credit rewards and how much health a checkpoint retry restores. Chapter curves (index 0-7, then the endless sectors) scale enemy damage and boss health.
 ## tools/balance_sim.gd prints the resulting time-to-kill and survivability table.
 
-const NAMES: Array[String] = ["STORY", "NORMAL", "HARD", "QUANTUM"]
+const NAMES: Array[String] = ["EASY", "NORMAL", "HARD", "QUANTUM"]       ## mode 0 was called STORY; the player-facing name is EASY (docs/DESIGN.md: easy by default, a clear Normal / Hard switch)
 const NORMAL := 1
+const EASY := 0
 ## Per mode: hp, dmg (damage the player takes), spread (aim error), aggr (fire-rate factor, > 1 shoots more often), heat, credits, cp (health restored by a checkpoint retry, 0..1).
 const MODES: Array[Dictionary] = [
 	{"hp": 0.70, "dmg": 0.65, "spread": 1.50, "aggr": 0.80, "heat": 0.60, "credits": 0.80, "cp": 1.0},
@@ -23,6 +24,13 @@ const MERCY_BELOW: Array[float] = [0.45, 0.3, 0.2, 0.0]
 const MERCY_EVERY: Array[float] = [15.0, 25.0, 45.0, 0.0]
 
 static var current := NORMAL
+
+
+## What a player who never chose gets (a missing settings key, the reset button): EASY in the live game. Under tools, tests and bots (Game.autostart) it stays NORMAL, so their numbers do not move.
+static func default_mode() -> int:
+	var loop := Engine.get_main_loop() as SceneTree            # by node, so the class also compiles in -s scripts where autoloads are not visible
+	var g: Node = loop.root.get_node_or_null("Game") if loop != null else null
+	return NORMAL if g != null and bool(g.get("autostart")) else EASY
 
 
 static func clamp_mode(m: int) -> int:

@@ -48,6 +48,7 @@ const BLAST_RADIUS := 9.0
 const WAVE_COST := 50.0
 const WAVE_CD := 8.0
 const WAVE_RADIUS := 16.0
+const BLINK_SHOCK := 12.0           ## arrival shock damage per ABILITY POWER level (radius 4 m), before the power multiplier
 const WAVE_DMG := 35.0              ## at the centre, 50 % at the rim
 const WAVE_OFF := 2.5               ## seconds the drones stay switched off
 const WAVE_LINK_DMG := 40.0         ## extra damage to each entangled pair (the link mirrors it to the partner)
@@ -416,11 +417,13 @@ func teleport() -> bool:
 ## Skill tree: BLINK STRIKE hurts what stands at the arrival point, AFTERIMAGE what stood at the departure point.
 func _skill_blink_damage(from: Vector3, to: Vector3) -> void:
 	var strike := SkillTree.strike_damage()
+	if Upgrades.level(&"power") > 0:                            # ABILITY POWER also gives the teleport an arrival shock without the skill tree
+		strike += BLINK_SHOCK * float(Upgrades.level(&"power"))
 	if strike > 0.0:
-		Game.explode(to, 4.0, {"enemy_dmg": TestMode.damage(strike), "car_dmg": 0.0, "player_dmg": 0.0, "color": MAGENTA})
+		Game.explode(to, 4.0, {"enemy_dmg": TestMode.damage(strike * Upgrades.power_mult()), "car_dmg": 0.0, "player_dmg": 0.0, "color": MAGENTA})
 	var after := SkillTree.afterimage_damage()
 	if after > 0.0:
-		Game.explode(from, 3.5, {"enemy_dmg": TestMode.damage(after), "car_dmg": 0.0, "player_dmg": 0.0, "color": CYAN})
+		Game.explode(from, 3.5, {"enemy_dmg": TestMode.damage(after * Upgrades.power_mult()), "car_dmg": 0.0, "player_dmg": 0.0, "color": CYAN})
 
 
 ## Bob's correction for Alice's classical bits (teleportation protocol): m1 = 1 means X, m0 = 1 means Z, X first.
@@ -766,7 +769,7 @@ func collapse_all() -> bool:
 	while i >= 0:
 		_drop_link(i)
 		i -= 1
-	var rad := WAVE_RADIUS * SkillTree.wave_radius_mult()
+	var rad := WAVE_RADIUS * SkillTree.wave_radius_mult() * Upgrades.power_mult()      # ABILITY POWER upgrade: bigger and harder
 	var pull := SkillTree.wave_pull()
 	var chain := SkillTree.wave_chain()
 	var chained := 0
@@ -780,7 +783,7 @@ func collapse_all() -> bool:
 			if flat.length() > 0.1:
 				e.global_position += flat.normalized() * minf(pull, maxf(flat.length() - 1.5, 0.0))
 		if e.has_method(&"damage"):
-			e.call(&"damage", TestMode.damage(WAVE_DMG * f * SkillTree.wave_damage_mult()))
+			e.call(&"damage", TestMode.damage(WAVE_DMG * f * SkillTree.wave_damage_mult() * Upgrades.power_mult()))
 			if chain > 0.0 and chained < 6 and is_instance_valid(e) and bool(e.get(&"dead")):      # skill tree CHAIN: a kill detonates
 				chained += 1
 				Game.explode(e.global_position + Vector3(0.0, 1.0, 0.0), 5.0, {"enemy_dmg": TestMode.damage(chain), "car_dmg": 0.0, "player_dmg": 0.0, "color": MAGENTA})

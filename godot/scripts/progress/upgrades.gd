@@ -6,8 +6,11 @@ extends RefCounted
 ## nothing here touches the scene tree. Other modules read the multipliers (damage_mult, reload_mult, ...), which are neutral (1.0 / 0) at level 0.
 ## Prices: cost(id, level) = base * (1 + 0.8 * level), rounded to 5; price() applies the reputation discount (Progress.rep_discount) and rounds to 5.
 
-const IDS: Array[StringName] = [&"damage", &"mag", &"reload", &"blink", &"regen", &"armour", &"decoy"]
+const IDS: Array[StringName] = [&"damage", &"mag", &"reload", &"blink", &"regen", &"armour", &"decoy", &"health", &"power"]
 const MAX_LEVEL := 5
+## The flat UPGRADES list the player sees (DESIGN.md: damage, health, ability power, teleport range, armour). The other four stay in the data (saves, contract grants, vendors, tests) and
+## only show in the shop while `show_all` is on (TEST / DEMO menus), like the skill tree and the workbench.
+const SIMPLE: Array[StringName] = [&"damage", &"health", &"power", &"blink", &"armour"]
 
 const DATA := {
 	&"damage": {"name": "WEAPON DAMAGE", "base": 240, "per": 0.12},      ## +12 % rifle damage per level
@@ -17,9 +20,15 @@ const DATA := {
 	&"regen": {"name": "COHERENCE REGEN", "base": 200, "per": 0.20},     ## +20 % coherence regeneration per level
 	&"armour": {"name": "ARMOUR", "base": 260, "per": 0.08},             ## -8 % damage taken per level (-40 % at the top)
 	&"decoy": {"name": "DECOY TIME", "base": 180, "per": 0.5},          ## +0.5 s SUPERPOSITION clone lifetime per level
+	&"health": {"name": "HEALTH", "base": 200, "per": 0.15},             ## +15 % maximum health per level (100 -> 175)
+	&"power": {"name": "ABILITY POWER", "base": 220, "per": 0.15},       ## +15 % damage and radius of the quantum abilities per level
 }
 
 const MAG_BASE := 30
+const HP_BASE := 100.0
+
+## Show the four advanced upgrades (magazine, reload, regeneration, decoy time) in the shop: false in the normal game (TestMode / DemoMode turn it on).
+static var show_all := false
 const BLINK_BASE := 48.0
 const RELOAD_FLOOR := 0.4
 
@@ -75,6 +84,25 @@ static func blink_bonus() -> float:
 	return float(DATA[&"blink"]["per"]) * level(&"blink")
 
 
+## Maximum health factor (1.0 at level 0, 1.75 at level 5) and the resulting maximum.
+static func health_mult() -> float:
+	return 1.0 + float(DATA[&"health"]["per"]) * level(&"health")
+
+
+static func max_hp() -> float:
+	return HP_BASE * health_mult()
+
+
+## Factor on the damage and the radius of every quantum ability (teleport strike, collapse wave): 1.0 at level 0, 1.75 at level 5.
+static func power_mult() -> float:
+	return 1.0 + float(DATA[&"power"]["per"]) * level(&"power")
+
+
+## The upgrade ids the shop lists, in display order.
+static func shop_order() -> Array[StringName]:
+	return IDS.duplicate() if show_all else SIMPLE.duplicate()
+
+
 static func regen_mult() -> float:
 	return 1.0 + float(DATA[&"regen"]["per"]) * level(&"regen")
 
@@ -121,4 +149,6 @@ static func _value_text(id: StringName, lvl: int) -> String:
 		&"regen": return "%d%% REGEN" % roundi(100.0 + per * 100.0 * lvl)
 		&"armour": return "%d%% DAMAGE TAKEN" % roundi((1.0 - per * lvl) * 100.0)
 		&"decoy": return "+%.1f S DECOY" % (per * lvl)
+		&"health": return "%d HEALTH" % roundi(HP_BASE * (1.0 + per * lvl))
+		&"power": return "%d%% ABILITY POWER" % roundi(100.0 + per * 100.0 * lvl)
 	return ""

@@ -269,6 +269,7 @@ func reset() -> void:
 	verbs.cancel()
 	_set_vehicle(null)
 	_dead = false
+	max_hp = Upgrades.max_hp()                                  # the HEALTH upgrade (scripts/progress/upgrades.gd)
 	hp = max_hp
 	energy = max_energy
 	weapon.reset()

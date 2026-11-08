@@ -44,6 +44,7 @@ var em: EnemyManager
 
 
 func run(host: Node) -> void:
+	Upgrades.show_all = true                 # the advanced upgrade rows and the SKILLS / CRAFT tabs are behind this flag (scripts/progress/upgrades.gd)
 	seed(21)
 	var was_muted := Sfx.muted
 	Sfx.muted = true
@@ -160,7 +161,7 @@ func _shop(host: Node) -> void:
 	prog.new_campaign()
 	hud.pause_game()
 	hud._ensure_layout()
-	TestLib.check(_ids().has(&"resume") and _ids().has(&"pause_map") and _ids().has(&"loadout") and _ids().has(&"options") and _ids().has(&"menu_gear") and _ids().size() == 5, "the pause screen has RESUME, MAP, LOADOUT, OPTIONS and MORE")
+	TestLib.check(_ids().has(&"resume") and _ids().has(&"pause_map") and _ids().has(&"loadout") and _ids().has(&"options") and _ids().has(&"menu_gear") and _ids().has(&"board_open") and _ids().size() == 6, "the pause screen has RESUME, MISSIONS, MAP, LOADOUT, OPTIONS and MORE")
 	TestLib.check(not hud.press_button(&"buy_damage"), "buy buttons do nothing outside the shop")
 	TestLib.check(hud.press_button(&"shop") and hud._shop_open, "UPGRADES opens the shop")
 	hud._ensure_layout()

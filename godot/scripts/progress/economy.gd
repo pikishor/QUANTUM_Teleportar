@@ -12,7 +12,7 @@ const FULL_TREE_HOURS := 10.0
 const PRICE_SCALE := 2.8
 
 ## Shop upgrade base price (Upgrades.cost multiplies by 1 + 0.8 * level).
-const UPGRADE_BASE := {&"damage": 240, &"mag": 160, &"reload": 160, &"blink": 200, &"regen": 200, &"armour": 260, &"decoy": 180}
+const UPGRADE_BASE := {&"damage": 240, &"mag": 160, &"reload": 160, &"blink": 200, &"regen": 200, &"armour": 260, &"decoy": 180, &"health": 200, &"power": 220}
 ## The seven starters (pistol, SMG, carbine, shotgun, rail, launcher, blade) cost nothing; the rest is the unlock ladder (scripts/progress/weapon_ladder.gd), every one of them can also be bought here.
 const WEAPON_PRICE := {&"carbine": 0, &"pistol": 0, &"flux": 0, &"scatter": 0, &"rail": 0, &"gravity": 0, &"blade": 0, &"marksman": 650, &"burst": 400, &"revolver": 750, &"akimbo": 700, &"breacher": 800, &"arc": 850, &"lance": 800, &"whip": 600, &"rocket": 1500, &"minigun": 1400, &"grenade": 650, &"swarm": 450, &"vector": 750, &"battle": 900, &"sawn": 600, &"auto": 800, &"bolt": 1100, &"dmr": 950, &"knife": 400}
 const ATTACHMENT_PRICE := {&"reddot": 250, &"scope": 450, &"halo": 350, &"suppressor": 300, &"longbarrel": 400, &"compensator": 350, &"overcharge": 500, &"rapid": 450, &"extended": 400}
@@ -62,6 +62,12 @@ const EVENT_REWARD := {&"ambush": 120, &"race": 150, &"rescue": 90, &"drop": 200
 const ACTIVITY_REWARD := {&"range": 3, &"parkour": 150, &"drift": 200, &"arena": 40}   ## per hit / on finish / on finish / per wave
 const ARENA_CLEAR_BONUS := 100
 const SHARD_REWARD := 40
+## Mission bonus (MissionRewards.complete): a flat credit bonus on top of what the mission itself pays, by mission kind, +10 % per sector. Missions per hour is the pacing model's count
+## (7 contracts + 2.5 side jobs + 1.5 interior jobs). The first ten missions each unlock something (MissionRewards.FIRST_TEN), so a new player meets a new thing every ~5 minutes.
+const MISSION_BONUS := {&"contract": 60, &"side": 80, &"interior": 60, &"chapter": 150, &"heist": 200, &"stealth": 120, &"chase": 100, &"arena": 100}
+const MISSION_BONUS_DEFAULT := 60
+const MISSION_SECTOR_STEP := 0.1
+const MISSIONS_PER_HOUR := 11.0
 
 
 # --- price lookups ------------------------------------------------------------------------------------------------------
@@ -125,6 +131,43 @@ static func ammo_price(id: StringName) -> int:
 
 static func service_price(id: StringName) -> int:
 	return int(SERVICE.get(id, 0))
+
+
+static func mission_bonus(kind: StringName, sector: int) -> int:
+	var base := float(MISSION_BONUS.get(kind, MISSION_BONUS_DEFAULT))
+	return maxi(5, int(roundf(base * (1.0 + MISSION_SECTOR_STEP * float(maxi(0, sector))) / 5.0)) * 5)
+
+
+static func _avg_mission_bonus(sector: int) -> float:
+	var s := 0.0
+	for k: StringName in [&"contract", &"side", &"interior"]:
+		s += float(mission_bonus(k, sector))
+	return s / 3.0
+
+
+## Minutes of play until the first ten missions (and so the first ten unlocks) are done.
+static func first_ten_minutes() -> float:
+	return float(MissionRewards.FIRST_TEN.size()) / MISSIONS_PER_HOUR * 60.0
+
+
+## One free item per mission: the credit value of what the first `n` missions hand out (weapons at the ladder's own prices, mods, upgrade levels at their base cost).
+static func unlock_value(n: int) -> int:
+	var total := 0
+	var w := 0
+	for i in n:
+		var e := MissionRewards.entry_for(i + 1)
+		match StringName(e["kind"]):
+			&"weapon", &"crate":
+				if w < WeaponLadder.LADDER.size():
+					total += weapon_price(WeaponLadder.LADDER[w]["id"])
+					w += 1
+				if StringName(e["kind"]) == &"crate" and i < MissionRewards.MOD_ORDER.size():
+					total += attachment_price(MissionRewards.MOD_ORDER[i])
+			&"mod":
+				total += attachment_price(StringName(e.get("id", MissionRewards.MOD_ORDER[mini(i, MissionRewards.MOD_ORDER.size() - 1)])))
+			&"upgrade":
+				total += upgrade_base(StringName(e.get("id", &"damage")))
+	return total
 
 
 # --- shop item list and curves ------------------------------------------------------------------------------------------
@@ -214,11 +257,12 @@ static func hourly_income(hour: float) -> Dictionary:
 		"activities": float(ACTIVITY_REWARD[&"parkour"] + ACTIVITY_REWARD[&"drift"]) + float(ACTIVITY_REWARD[&"arena"]) * 3.0 + float(ARENA_CLEAR_BONUS) * 0.3 + 15.0 * float(ACTIVITY_REWARD[&"range"]),
 		"shards": 6.0 * float(SHARD_REWARD),
 		"campaign": 0.0,
+		"missions": MISSIONS_PER_HOUR * _avg_mission_bonus(sec),
 	}
 	# Consumables a typical hour burns: three ammo packs, two repairs, two coherence doses.
 	r["sink"] = 3.0 * _avg_ammo() + 2.0 * float(SERVICE[&"heal"]) + 2.0 * float(SERVICE[&"energy"])
 	var gross := 0.0
-	for k: String in ["contracts", "side", "interior", "events", "activities", "shards", "campaign"]:
+	for k: String in ["contracts", "side", "interior", "events", "activities", "shards", "campaign", "missions"]:
 		gross += float(r[k])
 	r["gross"] = gross
 	r["net"] = gross - float(r["sink"])
@@ -258,5 +302,6 @@ static func simulate(hours: int) -> Dictionary:
 		rows.append({"hour": h + 1, "income_per_hour": float(hourly_income(float(h) + 0.5)["net"]), "cum_income": bank, "cum_cost": spent, "items": idx})
 	var total := total_gear_cost()
 	var first := minutes_to_earn(float(Upgrades.price(&"damage", 0)))
-	var full := minutes_to_earn(float(total)) / 60.0
-	return {"rows": rows, "total_cost": total, "first_upgrade_minutes": first, "full_tree_hours": full, "item_count": items.size()}
+	var free := unlock_value(MissionRewards.FIRST_TEN.size())          # the first ten missions hand out free gear (MissionRewards): that much of the tree needs no credits
+	var full := minutes_to_earn(float(total - free)) / 60.0
+	return {"rows": rows, "total_cost": total, "first_upgrade_minutes": first, "full_tree_hours": full, "item_count": items.size(), "free_value": free, "first_ten_minutes": first_ten_minutes()}

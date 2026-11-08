@@ -69,7 +69,7 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 		for j in parts.size():
 			var part := parts[j]
 			var own := Attachments.part_in(sel, Attachments.SLOTS[k]) == part
-			var label := "ON" if own else ("EQUIP" if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
+			var label := "ON" if own else (("NEW  EQUIP" if MissionRewards.is_new(part) else "EQUIP") if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
 			hud.buttons.append({"id": StringName("part_%s" % part), "rect": Rect2(cx + (20.0 + j * (PART_W + 8.0)) * s, (SLOT_Y + k * SLOT_STEP + 24.0) * s, PART_W * s, PART_H * s), "label": label, "on": own,
 				"part": true, "name": String(Attachments.PARTS[part]["name"]), "fx": String(PART_FX.get(part, "")), "state": 2 if own else (1 if Attachments.is_owned(part) else 0)})
 	hud._add_card(&"loadout_info", Rect2(cx + 272.0 * s, 542.0 * s, 240.0 * s, 64.0 * s), "INFO", &"weapon", "", false, UiUtil.CYAN)

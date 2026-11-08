@@ -44,6 +44,9 @@ var sides: SideMissions                 ## the twenty side missions of the shop'
 var progress: Progress
 var campaign: CampaignRunner
 var arena: ArenaRunner               ## boss rush and endless arena (scripts/missions/arena_runner.gd)
+var board: MissionBoard                ## the Mission Board: three easy missions on offer, the story as one highlighted card (scripts/missions/mission_board.gd)
+## True in the live game (not under tools / tests / bots): the Mission Board replaces the core hunt (no QUANTUM CORES beams, no sector win by cores) and the random contract offers.
+var board_mode := false
 var heists: HeistRunner                ## the three heist missions (scripts/missions/heist_runner.gd)
 var stealth: StealthRunner             ## the four stealth missions (scripts/missions/stealth_runner.gd)
 var chases: ChaseRunner                 ## the six vehicle chase set pieces (scripts/missions/chase_runner.gd)
@@ -104,10 +107,17 @@ func _ready() -> void:
 	arena = ArenaRunner.new()
 	arena.name = "Arena"
 	add_child(arena)
+	board = MissionBoard.new()
+	board.name = "Board"
+	add_child(board)
+	var reward_hook := MissionRewardHook.new()           # every finished mission pays its bonus and unlock (scripts/progress/mission_rewards.gd)
+	add_child(reward_hook)
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
 	Game.next_sector.connect(_on_next_sector)
 	Game.quality_changed.connect(_on_quality)
+	if not Game.autostart:
+		board.set_take_over(true)                           # the live game: the board, not the core hunt (tests and tools keep the old flow; a test calls set_take_over itself)
 	_try_auto_start()
 
 
@@ -216,6 +226,9 @@ func _on_new_game() -> void:
 	clear_pickups()
 	rounds = 0
 	_auto_started = true
+	if board_mode:
+		_clear_cores()                                       # no core hunt: the board's missions are the goals
+		return
 	new_round(6)
 
 
@@ -226,12 +239,28 @@ func _on_respawn() -> void:
 func _on_next_sector() -> void:
 	clear_pickups()
 	_auto_started = true
+	if board_mode:
+		_clear_cores()
+		return
 	new_round(mini(CORE_MAX, 6 + rounds))
+
+
+## Board mode: the cores of the old hunt go away (their beams and the QUANTUM CORES line were the "what do I do?" noise); the sector is cleared by the story only.
+func _clear_cores() -> void:
+	for c: Dictionary in cores:
+		_hide_core(c)
+	cores.clear()
+	got = 0
+	total = 0
+	win_on_cores = false
 
 
 func _try_auto_start() -> void:
 	# Tools, tests and bots skip the menu (no new_game signal): the first round is built as soon as a world exists.
 	if _auto_started or not cores.is_empty() or rounds > 0:
+		return
+	if board_mode:
+		_auto_started = true
 		return
 	if is_instance_valid(Game.world) and "intersections" in Game.world and not Game.world.intersections.is_empty():
 		_auto_started = true
@@ -352,7 +381,13 @@ func _tick_mercy(delta: float, player: Node, ref: Vector3) -> void:
 
 
 func _collect_pickup(s: Dictionary, idx: int, player: Node3D) -> void:
-	if s.kind == &"weapon":
+	if s.kind == &"weapon" and MissionRewards.mod_of_pickup(s.weapon) != &"":
+		var part := MissionRewards.mod_of_pickup(s.weapon)           # a weapon mod pickup ("mod_scope"): owned at once, flagged NEW in the LOADOUT
+		if MissionRewards.grant_mod(part):
+			Game.say("NEW MOD  %s  (LOADOUT TO EQUIP)" % String(Attachments.PARTS[part]["name"]), 2.4)
+		else:
+			Game.say("%s  OWNED" % String(Attachments.PARTS[part]["name"]), 1.4)
+	elif s.kind == &"weapon":
 		var w: Variant = player.get(&"weapon")
 		if w is PlayerWeapon:
 			Game.say((w as PlayerWeapon).grant(s.weapon), 2.0)

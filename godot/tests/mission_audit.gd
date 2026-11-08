@@ -17,7 +17,7 @@ const WAYPOINT_TOL := 3.0
 const SHOOT_RANGE := 48.0
 const KIND_BUDGET := {                  ## game seconds a kind may take before the audit calls it TIMEOUT (generous: the step's own hold + the walk + the fight)
 	&"reach": 120.0, &"enter_interior": 150.0, &"escort": 260.0, &"defend": 170.0, &"hack": 150.0, &"kill_target": 240.0, &"chase": 220.0,
-	&"escape": 240.0, &"survive": 170.0, &"rift_hold": 170.0, &"heist": 300.0, &"convoy_intercept": 220.0,
+	&"escape": 240.0, &"survive": 170.0, &"rift_hold": 170.0, &"heist": 300.0, &"convoy_intercept": 220.0, &"smash": 160.0, &"sneak": 140.0,
 }
 
 var host: Node
@@ -526,7 +526,14 @@ func _tick_campaign() -> void:
 		return
 	_guide_watch()
 	match camp.kind:
-		&"reach": _do_reach()
+		&"reach":
+			if bool(camp.step.get("car", false)):
+				_do_hijack()
+			else:
+				_do_reach()
+		&"smash": _do_smash()
+		&"sneak": _do_sneak()
+		&"chase" when bool(camp.step.get("on_foot", false)): _do_destroy()
 		&"enter_interior": _do_interior()
 		&"heist": _do_heist()
 		&"escort": _do_escort()
@@ -587,6 +594,68 @@ func _do_reach() -> void:
 		_leave_interior()
 		return
 	walk_to(Vector3(goal.x, pp.y, goal.z), 2.0)
+
+
+## Mission Board kinds (tests/test_mission_board.gd) ---------------------------------------------------------------------
+
+## hijack and deliver: take the car the game left beside the hero, drive it into the ring.
+func _do_hijack() -> void:
+	var goal := _step_pos()
+	if p.vehicle == null:
+		_take_a_car(null)
+		return
+	drive_toward(Vector3(goal.x, 0.0, goal.z))
+
+
+## demolition: walk to the nearest prop still standing and shoot it.
+func _do_smash() -> void:
+	var wp := camp.waypoint()
+	if p.vehicle != null:
+		_leave_car()
+		return
+	if not wp.has("pos"):
+		return
+	var g: Vector3 = wp["pos"]
+	if _flat(p.global_position, g) > 12.0:
+		hold(&"fire", false)
+		walk_to(Vector3(g.x, p.global_position.y, g.z), 9.0, false)
+	else:
+		stop_walking()
+		p.camera_rig.aim_at(g + Vector3(0.0, 0.6, 0.0))
+		hold(&"fire", p.weapon.ammo > 0)
+		if p.weapon.ammo <= 0 and not p.weapon.is_reloading():
+			tap(&"reload")
+
+
+## stealth: walk the quiet way in, never shoot.
+func _do_sneak() -> void:
+	if p.vehicle != null:
+		_leave_car()
+		return
+	hold(&"fire", false)
+	var goal := _step_pos()
+	walk_to(Vector3(goal.x, p.global_position.y, goal.z), 2.0)
+	hold(&"sprint", false)
+
+
+## destroy vehicle: walk up to the crawling target and shoot it.
+func _do_destroy() -> void:
+	var car := camp.car
+	if car == null or not is_instance_valid(car):
+		return
+	if p.vehicle != null:
+		_leave_car()
+		return
+	var dd := _flat(car.global_position, p.global_position)
+	if dd > 20.0:
+		hold(&"fire", false)
+		walk_to(Vector3(car.global_position.x, p.global_position.y, car.global_position.z), 16.0, dd > 100.0)
+	else:
+		stop_walking()
+		p.camera_rig.aim_at(car.global_position + Vector3(0.0, 0.8, 0.0))
+		hold(&"fire", p.weapon.ammo > 0)
+		if p.weapon.ammo <= 0 and not p.weapon.is_reloading():
+			tap(&"reload")
 
 
 func _leave_car() -> void:

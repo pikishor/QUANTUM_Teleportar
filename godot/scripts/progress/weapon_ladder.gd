@@ -118,6 +118,10 @@ static func enemy_drop(type: StringName, r1: float, r2: float, cur: StringName, 
 		var e := entry(nx)
 		if not e.is_empty() and StringName(e["route"]) == DROP and StringName(e["arg"]) == type and r1 < DROP_CHANCE:
 			return nx
+	if r1 > 1.0 - MissionRewards.MOD_DROP_CHANCE and cur_reserve != 0:          # a few drops are a weapon mod the hero does not own yet (picked up like a weapon, scripts/progress/mission_rewards.gd)
+		var mod := MissionRewards.next_unowned_mod()
+		if mod != &"":
+			return StringName(MissionRewards.MOD_PREFIX + String(mod))
 	if cur_reserve == 0:
 		return cur
 	var pool: Array[StringName] = []

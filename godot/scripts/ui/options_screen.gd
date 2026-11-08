@@ -462,11 +462,11 @@ static func reset_tab(st: UiSettings, tab: int) -> void:
 			st.reduce_flash = false
 			st.reduce_motion = false
 		4:
-			st.difficulty = 1
+			st.difficulty = Difficulty.default_mode()
 			st.chatter = 1
 			st.civilians = true
 			st.dmg_numbers = true
-			Difficulty.set_mode(1)
+			Difficulty.set_mode(Difficulty.default_mode())
 	Sfx.apply_volumes(st.volumes)
 
 

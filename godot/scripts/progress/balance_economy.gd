@@ -85,6 +85,52 @@ static func craft_rows() -> Array[Dictionary]:
 	return out
 
 
+## The first ten missions and what each one unlocks, at the pacing model's missions per hour: minute reached, credits banked (net income), whether the first upgrade is affordable by then.
+## Needs the game classes (MissionRewards reads WeaponLadder / Attachments), so it runs in the test runner like the rest of this file.
+static func mission_rows() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var per_mission_min := 60.0 / Economy.MISSIONS_PER_HOUR
+	var first_price := float(Upgrades.price(&"damage", 0))
+	var w := 0
+	var mods := 0
+	for i in MissionRewards.FIRST_TEN.size():
+		var e := MissionRewards.entry_for(i + 1)
+		var kind := StringName(e["kind"])
+		var item := ""
+		match kind:
+			&"weapon", &"crate":
+				item = WeaponDefs.title(WeaponLadder.LADDER[w]["id"])
+				w += 1
+				if kind == &"crate":
+					item += " + MOD"
+					mods += 1
+			&"mod":
+				item = String(Attachments.PARTS[StringName(e["id"])]["name"])
+				mods += 1
+			&"upgrade":
+				item = "%s 1" % Upgrades.title(StringName(e["id"]))
+		var minute := per_mission_min * float(i + 1)
+		var banked := 0.0
+		for m in int(minute):
+			banked += float(Economy.hourly_income(float(m) / 60.0)["net"]) / 60.0
+		out.append({"n": i + 1, "kind": kind, "item": item, "minute": minute, "banked": banked, "bonus": Economy.mission_bonus(&"contract", 0), "can_buy_first": banked >= first_price})
+	return out
+
+
+static func mission_lines() -> Array[String]:
+	var out: Array[String] = []
+	out.append("## MISSION REWARDS  the first ten missions each unlock something (%.0f missions per hour, first ten done after %.0f min); bonus per mission %d cr (contract, sector 1)" % [Economy.MISSIONS_PER_HOUR, Economy.first_ten_minutes(), Economy.mission_bonus(&"contract", 0)])
+	out.append("  n  unlock                         minute  banked cr  first upgrade (%d cr)" % Upgrades.price(&"damage", 0))
+	for r: Dictionary in mission_rows():
+		out.append("%3d  %-28s %6.0f  %9.0f  %s" % [r["n"], "%s  %s" % [String(r["kind"]).to_upper(), r["item"]], r["minute"], r["banked"], "yes" if r["can_buy_first"] else "no"])
+	var weapons_per_cycle := 0
+	for e: Dictionary in MissionRewards.CYCLE:
+		if e["kind"] == &"weapon" or e["kind"] == &"crate":
+			weapons_per_cycle += 1
+	out.append("after 10: weapon, upgrade, mod, weapon, upgrade, crate (repeating); a weapon every %.1f missions on average; free gear value of the first ten: %d cr" % [float(MissionRewards.CYCLE.size()) / float(weapons_per_cycle), Economy.unlock_value(MissionRewards.FIRST_TEN.size())])
+	return out
+
+
 static func lines() -> Array[String]:
 	var out: Array[String] = []
 	var s := Economy.simulate(14)
@@ -92,6 +138,8 @@ static func lines() -> Array[String]:
 	out.append("hour  sector  credits/h  cum_income  cum_cost_bought  items")
 	for r: Dictionary in s["rows"]:
 		out.append("%4d  %6d  %9d  %10d  %15d  %5d" % [r["hour"], Economy.sector_at(float(r["hour"]) - 0.5) + 1, r["income_per_hour"], r["cum_income"], r["cum_cost"], r["items"]])
+	out.append("")
+	out.append_array(mission_lines())
 	out.append("")
 	out.append("## SIDE MISSIONS  pay at the unlock chapter, estimated minutes, credits per minute, rate = per minute over the sector average (band %.2f-%.2f)" % [SIDE_RATE_BAND.x, SIDE_RATE_BAND.y])
 	for r: Dictionary in side_rows():

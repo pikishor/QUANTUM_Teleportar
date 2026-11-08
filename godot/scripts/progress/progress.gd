@@ -17,6 +17,7 @@ signal purchased(id: StringName, level: int)
 signal saved
 signal save_failed
 signal reputation_changed(rep: int)
+signal mission_result(result: Dictionary)      ## a mission was finished and MissionRewards paid it out (the result card shows it; scripts/progress/mission_rewards.gd)
 
 ## SAVE_VERSION 2 (save hardening wave): files of version 1 migrate on load (migrate_cf); a file written by a newer build is left alone. A good save is copied to path + ".bak"
 ## before each write and the backup is read when the main file is missing its header or damaged.
@@ -36,6 +37,7 @@ var _save_pending := false
 var _last_save_ms := -1000000
 var _fail_streak := 0
 var credits := 0
+var earned_total := 0                   ## every credit paid in this session (add_credits > 0); MissionRewards measures what one mission earned with it
 var levels := {}                        ## id -> level (mirrors Upgrades.levels)
 var reputation := 0
 var sector := 0                         ## chapter index "Continue" resumes at
@@ -110,6 +112,7 @@ func _exit_tree() -> void:
 		Gear.reset()
 		SkillTree.reset()
 		Crafting.reset()
+		MissionRewards.reset()
 
 
 # --- pure rules (static, tested) ------------------------------------------------------------------------------------
@@ -208,6 +211,8 @@ func add_credits(n: int) -> void:
 	if n > 0 and not _in_score:
 		SkillTree.add_xp(int(float(n) / SkillTree.CREDITS_PER_XP))      # mission, contract and activity payouts
 	credits = maxi(0, credits + n)
+	if n > 0:
+		earned_total += n
 	changed.emit()
 
 
@@ -285,6 +290,13 @@ func _apply_to_player(top_up := false) -> void:
 	var p := Game.player
 	if not is_instance_valid(p) or p.get(&"mag") == null:
 		return
+	if p.get(&"max_hp") != null:                                   # the HEALTH upgrade: a purchase raises the maximum and gives the extra health at once
+		var old_max := float(p.get(&"max_hp"))
+		var new_max := Upgrades.max_hp()
+		if not is_equal_approx(old_max, new_max):
+			p.set(&"max_hp", new_max)
+			if top_up and new_max > old_max:
+				p.set(&"hp", float(p.get(&"hp")) + new_max - old_max)
 	var w: Variant = p.get(&"weapon")
 	if w is PlayerWeapon:
 		(w as PlayerWeapon).apply_upgrades(top_up)                 # every weapon's magazine follows its own base
@@ -382,6 +394,7 @@ func buy_part(part: StringName) -> bool:
 func equip_part(weapon: StringName, part: StringName) -> bool:
 	if not Attachments.toggle(weapon, part):
 		return false
+	MissionRewards.clear_new(part)                              # touched in the loadout: no longer NEW
 	var p := Game.player
 	if is_instance_valid(p) and p.get(&"weapon") is PlayerWeapon:
 		(p.get(&"weapon") as PlayerWeapon).apply_upgrades(false)
@@ -471,6 +484,7 @@ func new_campaign() -> void:
 	Gear.reset()
 	SkillTree.reset()
 	Crafting.reset()
+	MissionRewards.reset()
 	_frac = 0.0
 	_apply_to_player()
 	changed.emit()
@@ -610,21 +624,24 @@ func start_chapter(index: int) -> bool:
 	_select_pending = false
 	sector = index
 	checkpoint.clear()
-	_begin_chapter_run(index)
+	_begin_chapter_run(index, {}, true)
 	soft_save()
 	return true
 
 
 ## Shared by CONTINUE and the chapter select after the run has started: the story, the cores and the scripted steps go to chapter `chapter`.
-func _begin_chapter_run(chapter: int, cp := {}) -> void:
+func _begin_chapter_run(chapter: int, cp := {}, explicit := false) -> void:
 	if is_instance_valid(Game.story) and Game.story.has_method(&"set_chapter"):
 		Game.story.call(&"set_chapter", chapter)
 	var m := Game.missions as Missions
 	if m != null:
 		m.rounds = chapter
-		m.new_round(mini(Missions.CORE_MAX, 6 + chapter))
+		if not m.board_mode:
+			m.new_round(mini(Missions.CORE_MAX, 6 + chapter))          # the Mission Board has no core hunt (board_mode, the live game)
 		if m.campaign != null and m.campaign.enabled:                 # off under tools / tests / bots (Game.autostart): they keep the plain core hunt
-			if cp.is_empty() or not m.campaign.resume(cp):
+			if m.board_mode and cp.is_empty() and not explicit:
+				pass                                                  # CONTINUE after board missions: free roam, the board offers the story chapter as its highlighted card
+			elif cp.is_empty() or not m.campaign.resume(cp):
 				m.campaign.start_chapter(chapter)
 	_apply_to_player()
 
@@ -818,6 +835,9 @@ func save_file() -> bool:
 	var crd := Crafting.to_save()
 	for crk: String in crd:
 		cf.set_value("crafting", crk, crd[crk])
+	var mrd := MissionRewards.to_save()
+	for mrk: String in mrd:
+		cf.set_value("rewards", mrk, mrd[mrk])
 	cf.set_value("campaign", "bosses", PackedInt32Array(bosses_cleared))
 	cf.set_value("campaign", "unlocked", unlocked)
 	cf.set_value("collectibles", "got", collectibles.to_save())
@@ -936,6 +956,11 @@ func load_file() -> bool:
 		for crk in cf.get_section_keys("crafting"):
 			craft_d[crk] = cf.get_value("crafting", crk)
 	Crafting.from_save(craft_d)                             # older saves have no [crafting] section: the starter blueprints, no parts
+	var rew_d := {}
+	if cf.has_section("rewards"):
+		for rwk in cf.get_section_keys("rewards"):
+			rew_d[rwk] = cf.get_value("rewards", rwk)
+	MissionRewards.from_save(rew_d)                         # older saves have no [rewards] section: no missions done yet
 	bosses_cleared.clear()
 	for b: Variant in _arr(cf.get_value("campaign", "bosses", PackedInt32Array())):
 		if b is int and int(b) >= 0 and int(b) < 99 and not bosses_cleared.has(int(b)):

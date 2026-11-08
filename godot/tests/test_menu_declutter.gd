@@ -55,6 +55,7 @@ func _sane(tag: String) -> void:
 
 
 func run(h: Node) -> void:
+	Upgrades.show_all = true                 # the advanced upgrade rows and the SKILLS / CRAFT tabs are behind this flag (scripts/progress/upgrades.gd)
 	host = h
 	Sfx.muted = true
 	TestMode.reset_toggles()
@@ -116,7 +117,7 @@ func _pause(tag: String) -> void:
 	TestLib.check(prog != null, "the campaign exists")
 	_state(&"paused")
 	var ids := _ids()
-	TestLib.check(ids.size() == 5 and ids.has(&"resume") and ids.has(&"pause_map") and ids.has(&"loadout") and ids.has(&"options") and ids.has(&"menu_gear"), "%s: the pause menu shows RESUME, MAP, LOADOUT, OPTIONS and MORE (%s)" % [tag, str(ids)])
+	TestLib.check(ids.size() == 6 and ids.has(&"board_open") and ids.has(&"resume") and ids.has(&"pause_map") and ids.has(&"loadout") and ids.has(&"options") and ids.has(&"menu_gear"), "%s: the pause menu shows RESUME, MAP, LOADOUT, OPTIONS and MORE (%s)" % [tag, str(ids)])
 	_sane(tag + " pause")
 	var tm := main.find_children("*", "TestMenu", true, false)
 	TestLib.check(tm.is_empty() or (tm[0] as TestMenu).entry_rect().size.x == 0.0, "%s: no TEST badge on the pause menu" % tag)

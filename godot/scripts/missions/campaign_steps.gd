@@ -32,6 +32,10 @@ extends RefCounted
 ##   heist           quantum heist: door / interior as enter_interior (default interior lobby): phase 1 go inside, phase 2 steal (the interior's mission completes, or after `grace` 3 s in a room without
 ##                   one), phase 3 getaway: heat jumps to `heat` (3), `patrol` (2) Vael patrol vehicles chase, done when `dist` (110) m from the door, heat below `clear` (0.5) and no patrol within
 ##                   60 m; `escape_time` (100 s) of getaway fails with NOT LOST. Leaving without the loot sends you back in
+##   smash           (Mission Board, demolition) break `n` (6) breakable props anywhere near `pos`: the waypoint is the nearest prop still standing, any prop counts
+##   sneak           (Mission Board, stealth) reach the ring at `pos` while `guards` (3) unaware Vael watch it; a guard that notices you fails the step (SPOTTED) and the retry is instant
+##   reach           also takes `car` true (hijack and deliver: done only in a vehicle, a car is left beside you); chase also takes `on_foot` true (a parked target, no car for you)
+##   every kind      also takes `range` [min, max] (metres of a generated goal from the step's origin, replaces the kind's default) and `quiet` true (no "start" toast: the HUD line says it)
 ##   convoy_intercept `cars` (3, 1..3) traffic cars (hp 90, cruise 13) driving in a line from pos along a road: ENTANGLE (within 8 m of the swap), COLLAPSE (within 16 m, also 30 % damage) or damage
 ##                   below 35 % hp STOP a car (ai_stun held), a wreck counts too; done when every car is stopped; one car 150 m away for 6 s: CONVOY GOT AWAY. time 120
 ## CHAPTER DICTIONARY: {id, title?, steps: [step...], clears_sector: bool (default true: the last step calls Game.win())}. Scope A's CampaignData chapters work as they are.
@@ -52,6 +56,8 @@ const KIND_DATA := {
 	&"rift_hold": {"title": "HOLD THE RIFT", "color": &"cyan", "dist": [70.0, 130.0], "time": 0.0},
 	&"heist": {"title": "STEAL THE DATA", "color": &"amber", "dist": [90.0, 170.0], "time": 0.0},
 	&"convoy_intercept": {"title": "STOP THE CONVOY", "color": &"red", "dist": [90.0, 150.0], "time": 120.0},
+	&"smash": {"title": "SMASH THE PROPS", "color": &"amber", "dist": [60.0, 110.0], "time": 0.0},
+	&"sneak": {"title": "SLIP PAST THE GUARDS", "color": &"cyan", "dist": [70.0, 120.0], "time": 0.0},
 }
 
 const MAX_TEXT := 56
@@ -126,6 +132,9 @@ static func normalize_step(step: Dictionary, index: int, _chapter_index := 0) ->
 	out["checkpoint"] = bool(step.get("checkpoint", true))
 	out["heat"] = float(step.get("heat", 0.0))
 	out["radius"] = float(step.get("radius", _default_radius(k)))
+	out["quiet"] = bool(step.get("quiet", false))
+	var rg: Variant = step.get("range", null)
+	out["range"] = [float((rg as Array)[0]), float((rg as Array)[1])] if rg is Array and (rg as Array).size() == 2 else []
 	match k:
 		&"hack": out["hold"] = float(step.get("hold", 24.0))
 		&"defend": out["hold"] = float(step.get("hold", 60.0))
@@ -148,7 +157,14 @@ static func normalize_step(step: Dictionary, index: int, _chapter_index := 0) ->
 		out["abandon"] = float(step.get("abandon", 60.0))
 		if not step.has("ambush"):
 			out["ambush"] = [{"at": 0.5, "n": -1, "types": []}]
+	if k == &"reach":
+		out["car"] = bool(step.get("car", false))
+	if k == &"smash":
+		out["n"] = clampi(int(step.get("n", 6)), 1, 20)
+	if k == &"sneak":
+		out["guards"] = clampi(int(step.get("guards", 3)), 1, 6)
 	if k == &"chase":
+		out["on_foot"] = bool(step.get("on_foot", false))
 		out["hp"] = float(step.get("hp", 140.0))
 		out["cruise"] = float(step.get("cruise", 0.0))             # 0: from the sector
 	if k == &"escape":

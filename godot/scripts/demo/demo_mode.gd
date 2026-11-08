@@ -68,6 +68,7 @@ static func _on_state(s: StringName) -> void:
 static func _finish() -> void:
 	var prog := Game.progress as Progress
 	active = false
+	Upgrades.show_all = false
 	TestMode.reset_toggles()
 	Difficulty.set_mode(int(_stash.get("difficulty", Difficulty.NORMAL)))
 	if prog != null:
@@ -151,6 +152,7 @@ static func _maps() -> Array[MapScreen]:
 ## Everything unlocked, owned and maxed (the profile in memory; the caller saves it to the demo file).
 static func _grant_all(prog: Progress) -> void:
 	prog.credits = CREDITS
+	Upgrades.show_all = true                            # the demo shows every upgrade row and the skill / workbench tabs
 	prog.reputation = Progress.REP_MAX
 	prog.unlock(CampaignRunner.chapter_count() - 1)
 	prog.unlock(11)

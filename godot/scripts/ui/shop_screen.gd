@@ -16,9 +16,9 @@ const BACK_Y := 640.0                ## the BACK button (64 px) under either pag
 const GROUP_GAP := 10.0              ## extra space between the WEAPON, ABILITY and BODY groups
 const TAB_W := 170.0
 const TAB_GAP := 6.0
-## The upgrades in display order with their group: what the weapon does, what the hero can do, what the hero survives.
-const ORDER: Array[StringName] = [&"damage", &"mag", &"reload", &"blink", &"regen", &"decoy", &"armour"]
-const GROUP := {&"damage": 0, &"mag": 0, &"reload": 0, &"blink": 1, &"regen": 1, &"decoy": 1, &"armour": 2}
+## The upgrades with their group colour: what the weapon does, what the hero can do, what the hero survives. The list itself is flat (`order()`: Upgrades.SIMPLE, the four advanced rows
+## only while Upgrades.show_all is on); there is no gap between groups.
+const GROUP := {&"damage": 0, &"mag": 0, &"reload": 0, &"blink": 1, &"regen": 1, &"decoy": 1, &"power": 1, &"armour": 2, &"health": 2}
 const GROUP_NAMES: Array[String] = ["WEAPON", "ABILITY", "BODY"]
 
 static var weapon_page := 0          ## 0 = the seven upgrades, 1.. = the weapon pages
@@ -43,15 +43,22 @@ static func flip() -> void:
 	weapon_page = (weapon_page + 1) % pages()
 
 
-## Base y of upgrade row `i` of ORDER (a small gap opens between groups).
+## The upgrade rows in display order (a flat list).
+static func order() -> Array[StringName]:
+	return Upgrades.shop_order()
+
+
+## Base y of upgrade row `i` of order().
 static func row_y(i: int) -> float:
-	return ROW_Y + float(i) * ROW_STEP + float(GROUP[ORDER[i]]) * GROUP_GAP
+	return ROW_Y + float(i) * ROW_STEP
 
 
 ## The HERO tab bar (8..72 base px): UPGRADES, WEAPONS, SKILLS, CRAFT. `active` is the id of the lit tab. Shared by the shop, skills and workbench screens.
 static func tabs(hud: Hud, cx: float, s: float, active: StringName) -> void:
-	var specs: Array = [[&"hero_tab_up", "UPGRADES"], [&"hero_tab_weapons", "WEAPONS"], [&"hero_tab_skills", "SKILLS"], [&"hero_tab_craft", "CRAFT"]]
-	var total := 4.0 * TAB_W + 3.0 * TAB_GAP
+	var specs: Array = [[&"hero_tab_up", "UPGRADES"], [&"hero_tab_weapons", "WEAPONS"]]
+	if Upgrades.show_all:                                               # skill tree and workbench stay behind the flag (DESIGN.md cut list)
+		specs.append_array([[&"hero_tab_skills", "SKILLS"], [&"hero_tab_craft", "CRAFT"]])
+	var total := float(specs.size()) * TAB_W + float(specs.size() - 1) * TAB_GAP
 	var k := minf(1.0, hud.get_viewport().get_visible_rect().size.x * 0.97 / (total * s))
 	for i in specs.size():
 		var tid: StringName = specs[i][0]
@@ -71,8 +78,9 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 	if hud._hero_hub:
 		tabs(hud, cx, s, active_tab())
 	if weapon_page == 0:
-		for i in ORDER.size():
-			var id: StringName = ORDER[i]
+		var ord := order()
+		for i in ord.size():
+			var id: StringName = ord[i]
 			var lvl := prog.level(id) if prog != null else 0
 			var label := "MAX"
 			var affordable := false
@@ -92,7 +100,10 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		var wl := "OWNED" if owned else "BUY  %d" % (prog.weapon_price(wid) if prog != null else 0)
 		var ry := (ROW_Y + 36.0 + (k / PER_ROW) * CELL_STEP) * s
 		hud._add(StringName("buy_%s" % wid), Rect2(cx + (-ROW_W * 0.5 + (k % PER_ROW) * colw + 4.0) * s, ry, (colw - 8.0) * s, 64.0 * s), wl, prog != null and prog.can_buy_weapon(wid))
-	hud._add(&"shop_back", Rect2(cx - 110.0 * s, BACK_Y * s, 220.0 * s, 64.0 * s), "BACK", false)
+	if weapon_page == 0 and order().size() > 7:                  # all nine rows (the flag): BACK moves beside the list, there is no room under it
+		hud._add(&"shop_back", Rect2(cx + (ROW_W * 0.5 + 20.0) * s, row_y(0) * s, 220.0 * s, 64.0 * s), "BACK", false)
+	else:
+		hud._add(&"shop_back", Rect2(cx - 110.0 * s, BACK_Y * s, 220.0 * s, 64.0 * s), "BACK", false)
 
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
@@ -103,8 +114,9 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var x0 := cx - ROW_W * 0.5 * s
 	if weapon_page == 0:
 		var gcol: Array[Color] = [Color(UiUtil.AMBER, 0.95), Color(UiUtil.CYAN, 0.95), Color(UiUtil.MAGENTA, 0.95)]
-		for i in ORDER.size():
-			var id: StringName = ORDER[i]
+		var ord := order()
+		for i in ord.size():
+			var id: StringName = ord[i]
 			var y := row_y(i) * s
 			var lvl := prog.level(id) if prog != null else 0
 			hud._rect(c, Rect2(x0, y, 6.0 * s, 64.0 * s), gcol[int(GROUP[id])])               # the group colour: weapon, ability, body

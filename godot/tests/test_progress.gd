@@ -81,7 +81,7 @@ func _fresh() -> void:
 
 func _upgrade_maths() -> void:
 	Upgrades.reset()
-	TestLib.check(Upgrades.IDS.size() == 7 and Upgrades.MAX_LEVEL == 5 and Upgrades.decoy_bonus() == 0.0, "seven upgrades (incl. decoy), five levels each, decoy neutral at 0")
+	TestLib.check(Upgrades.IDS.size() == 9 and Upgrades.MAX_LEVEL == 5 and Upgrades.decoy_bonus() == 0.0, "nine upgrades (incl. decoy, health, ability power), five levels each, decoy neutral at 0")
 	TestLib.check(is_equal_approx(Upgrades.damage_mult(), 1.0) and Upgrades.mag_size() == 30 and is_equal_approx(Upgrades.reload_mult(), 1.0) and Upgrades.blink_bonus() == 0.0 \
 			and is_equal_approx(Upgrades.regen_mult(), 1.0) and is_equal_approx(Upgrades.damage_taken(), 1.0), "level 0 is neutral everywhere")
 	Upgrades.set_levels({&"damage": 5, &"mag": 5, &"reload": 5, &"blink": 5, &"regen": 5, &"armour": 5})

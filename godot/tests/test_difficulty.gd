@@ -38,7 +38,7 @@ func run(host: Node) -> void:
 	var old := ConfigFile.new()
 	old.set_value("gameplay", "aim_assist", true)
 	old.save(TMP)
-	TestLib.check(UiSettings.new(TMP).difficulty == 1, "older settings load as NORMAL")
+	TestLib.check(UiSettings.new(TMP).difficulty == Difficulty.default_mode(), "older settings load as the default mode")
 	var st := UiSettings.new(TMP)
 	st.difficulty = 3
 	TestLib.check(st.save() and UiSettings.new(TMP).difficulty == 3, "difficulty round-trips")
@@ -48,7 +48,7 @@ func run(host: Node) -> void:
 	TestLib.check(UiSettings.new(TMP).difficulty == 3, "out-of-range value is clamped")
 	bad.set_value("gameplay", "difficulty", "x")
 	bad.save(TMP)
-	TestLib.check(UiSettings.new(TMP).difficulty == 1, "non-numeric value falls back to NORMAL")
+	TestLib.check(UiSettings.new(TMP).difficulty == Difficulty.default_mode(), "non-numeric value falls back to the default mode")
 	_clean_tmp()
 
 	# --- options row cycles and publishes

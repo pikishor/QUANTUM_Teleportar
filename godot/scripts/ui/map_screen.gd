@@ -158,7 +158,9 @@ func _ready() -> void:
 	clr.pressed.connect(clear_waypoint)
 	var cls := _button("CLOSE", &"Close")
 	cls.pressed.connect(close_screen)
-	_side_btns = [cls, _zoom_btn, loc, _goal_btn, clr]
+	var mis := _button("MISSIONS", &"Missions")                  # the Mission Board is one tap away from the map (docs/DESIGN.md core loop)
+	mis.pressed.connect(open_board)
+	_side_btns = [cls, mis, _zoom_btn, loc, _goal_btn, clr]
 	_layout()
 
 
@@ -446,6 +448,15 @@ func open() -> void:
 		fit_route()                                       # hero and objective both in the frame
 	_refresh_chips()
 	_map.queue_redraw()
+
+
+## MISSIONS: the map closes and the Mission Board opens (from the game it pauses and returns there).
+func open_board() -> void:
+	if not _open:
+		return
+	close_screen()
+	if is_inside_tree():
+		get_tree().call_group(&"hud", &"open_board")
 
 
 func close_screen() -> void:
@@ -757,6 +768,12 @@ func collect_markers() -> Array[Dictionary]:
 					var gw: Dictionary = (g as MissionGuide).waypoint()
 					if gw.has("pos"):
 						out.append({"kind": &"mission", "pos": gw["pos"], "fog": false, "label": "NEXT STEP"})
+		var bd: Variant = m.get("board")
+		if bd is MissionBoard and not (bd as MissionBoard).is_running():
+			for o: Dictionary in (bd as MissionBoard).offers:           # the three offers of the Mission Board: pins on the map ("MISSIONS" lists them)
+				var op: Vector3 = o.get("pos", Vector3.INF)
+				if op.is_finite():
+					out.append({"kind": &"side", "pos": op, "fog": false, "label": str(o["title"])})
 		var con: Object = m.get("contracts")
 		if con != null and StringName(con.get("state")) in [&"offered", &"active"]:
 			var cp: Vector3 = con.get("pos")

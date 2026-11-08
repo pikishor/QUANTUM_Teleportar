@@ -37,12 +37,14 @@ signal chapter_completed(chapter: int)
 signal checkpoint_reached(cp: Dictionary)
 
 ## The step kinds the runner understands. Add a kind here, to CampaignSteps.KIND_DATA and to the match blocks (_begin_step, _tick_active, _markers) together.
-const StepKinds: Array[StringName] = [&"reach", &"enter_interior", &"escort", &"defend", &"hack", &"kill_target", &"chase", &"escape", &"survive", &"rift_hold", &"heist", &"convoy_intercept"]
+const StepKinds: Array[StringName] = [&"reach", &"enter_interior", &"escort", &"defend", &"hack", &"kill_target", &"chase", &"escape", &"survive", &"rift_hold", &"heist", &"convoy_intercept", &"smash", &"sneak"]
 
 const CAMPAIGN_DATA_PATH := "res://scripts/story/campaign_data.gd"
 const START_DELAY := 1.5               ## seconds after a chapter is armed (no card, no tutorial) before its first step begins
 const STEP_GAP := 1.6                  ## the breath between two steps
 const RETRY_PAUSE := 4.0
+const SMASH_AREA := 90.0               ## smash: props this close to the step's goal count (any broken prop counts, the waypoint is the nearest one still standing)
+const SNEAK_R := 24.0                  ## sneak: the guards stand on a circle this far from the goal ring
 const BEGIN_TRIES := 6                 ## spawn failures (an area crowded, a pool at its cap) before the step counts as failed
 const ZONE_LEASH := 1.6                ## defend: the zone's leash is this many radii
 const ZONE_LEASH_TIME := 10.0
@@ -85,6 +87,10 @@ const WAIT_OUTSIDE := 1.0              ## a step that is armed while the player 
 ## Whether the runner starts chapters by itself (the story's chapter has steps) and whether Progress's CONTINUE / chapter select start it. Like autosave it is off under tools, tests and bots
 ## (Game.autostart) so they keep their exact old behaviour; a test turns it on (or calls start_chapter() directly, which always works).
 var enabled := true
+## False in the live game once the Mission Board owns the flow: the story chapter then starts from the board's STORY card (start_chapter / CONTINUE), never by itself when idle.
+var auto_story := true
+## True while the board runs a mission: the first-launch tutorial plate does not hold the first step back.
+var ignore_tutorial := false
 var state: StringName = &"idle"        ## idle | armed | active | retry | held (player dead) | done
 var chapter_index := -1
 var chapters: Array[Dictionary] = []   ## registry set by set_chapters(): index = chapter (an empty dictionary = fall back to the story data)
@@ -170,6 +176,12 @@ var _verbs_from: Object
 var _qverbs_from: Object
 var _missions_from: Object
 var _marker_n := 0
+## Seconds a failed step waits before it restarts itself (the Mission Board sets 1.2: "instant retry"; the story keeps RETRY_PAUSE).
+var retry_pause := RETRY_PAUSE
+var _smash_base := 0                   ## smash: Breakables.break_total when the step began
+var _smash_pos := Vector3.INF          ## smash: the nearest prop still standing
+var _smash_t := 0.0
+var _sneak_foes: Array[Drone] = []     ## sneak: the guards
 
 
 func _ready() -> void:
@@ -463,6 +475,10 @@ func hud_line() -> String:
 	var clock := "  " + _clock_text(time_left) if time_total > 0.0 else ""
 	match kind:
 		&"reach", &"kill_target":
+			if kind == &"reach" and _take_the_car():
+				return "%d/%d  TAKE A CAR  %d M" % [step_index + 1, steps.size(), roundi(_hdist(_ref_pos(), _chase_car.global_position))]
+			if kind == &"reach" and bool(step.get("car", false)):
+				return "%s%s  %d M%s" % [head, clock, roundi(distance_to_goal()), "" if _driving() else "  IN A CAR"]
 			return "%s%s  %d M" % [head, clock, roundi(distance_to_goal())]
 		&"chase":
 			if _take_the_car():
@@ -494,6 +510,10 @@ func hud_line() -> String:
 			if _take_the_car():
 				return "%d/%d  TAKE THE CAR  %d M" % [step_index + 1, steps.size(), roundi(_hdist(_ref_pos(), _chase_car.global_position))]
 			return "%s  STOPPED %d/%d%s" % [head, _stopped_count(), convoy.size(), clock]
+		&"smash":
+			return "%s  %d/%d%s" % [head, roundi(maxf(progress, 0.0) * float(step["n"])), int(step["n"]), clock]
+		&"sneak":
+			return "%s%s  %d M" % [head, clock, roundi(distance_to_goal())]
 	return head
 
 
@@ -532,6 +552,9 @@ func waypoint() -> Dictionary:
 	if _take_the_car():
 		return {"pos": _chase_car.global_position, "color": ContractTypes.AMBER}
 	match kind:
+		&"smash":
+			if _smash_pos.is_finite():
+				return {"pos": _smash_pos, "color": c}
 		&"kill_target", &"chase":
 			var t: Node3D = target if kind == &"kill_target" else car
 			if is_instance_valid(t):
@@ -592,6 +615,10 @@ func markers() -> Array[Dictionary]:
 				_escape_markers()
 			else:
 				_add_marker(pos, ContractTypes.AMBER, &"dest", 0.0)
+		&"smash":
+			_add_marker(_smash_pos if _smash_pos.is_finite() else pos, ContractTypes.AMBER, &"dest", 0.0)
+		&"sneak":
+			_add_marker(pos, ContractTypes.CYAN, &"dest", 0.0)
 		&"convoy_intercept":
 			for c: Vehicle in convoy:
 				if is_instance_valid(c) and not stopped.has(c) and not c.dead:
@@ -631,7 +658,7 @@ func _add_marker(p: Vector3, c: Color, k: StringName, r: float) -> void:
 
 ## The street route of an escort or a reach step (the minimap draws it as one line); empty otherwise.
 func route_points() -> PackedVector3Array:
-	if state == &"active" and (kind == &"escort" or kind == &"reach") and not InteriorGameplay.active:
+	if state == &"active" and (kind == &"escort" or kind == &"reach" or kind == &"sneak") and not InteriorGameplay.active:
 		return _route
 	return PackedVector3Array()
 
@@ -665,7 +692,7 @@ func _on_respawn() -> void:
 
 ## Idle: arm the story chapter when it has steps and nothing covers the screen.
 func _poll_start() -> void:
-	if not Game.is_playing() or not is_instance_valid(Game.player) or not _gate_open():
+	if not auto_story or not Game.is_playing() or not is_instance_valid(Game.player) or not _gate_open():
 		return
 	var ch := chapter()
 	if ch == _last_started or not has_steps(ch):
@@ -682,7 +709,7 @@ func _gate_open() -> bool:
 		if st.has_method(&"cards_active") and bool(st.call(&"cards_active")):
 			return false
 		var tut: Variant = st.get("tutorial")
-		if tut != null and (tut as Object).get("active") == true:
+		if tut != null and not ignore_tutorial and (tut as Object).get("active") == true:
 			return false
 	return true
 
@@ -729,6 +756,8 @@ func _begin_step() -> void:
 		&"rift_hold": ok = _begin_rift()
 		&"heist": ok = _begin_heist()
 		&"convoy_intercept": ok = _begin_convoy()
+		&"smash": ok = _begin_smash()
+		&"sneak": ok = _begin_sneak()
 	if not ok:
 		_cleanup(true)
 		_begin_tries += 1
@@ -751,7 +780,8 @@ func _begin_step() -> void:
 	_begin_set_piece_phase()
 	step_started.emit(chapter_index, step_index, kind)
 	Sfx.play(&"ui_contract_accept")
-	Game.say(str(step["text"]).to_upper(), 2.5)
+	if not bool(step.get("quiet", false)):
+		Game.say(str(step["text"]).to_upper(), 2.5)
 	_radio("start")
 
 
@@ -840,7 +870,7 @@ func _fail(reason: String) -> void:
 	Sfx.play(&"ui_contract_fail")
 	_radio("fail")
 	state = &"retry"
-	retry_left = RETRY_PAUSE
+	retry_left = retry_pause
 	step_failed.emit(chapter_index, idx, k, reason)
 
 
@@ -948,6 +978,9 @@ func _resolve_goal(st: Dictionary, origin: Vector3, idx: int) -> Vector3:
 		if not d.is_empty():
 			return d["pos"]
 	var dd: Array = CampaignSteps.KIND_DATA[k]["dist"]
+	var own: Variant = st.get("range", [])
+	if own is Array and (own as Array).size() == 2:
+		dd = own as Array
 	var ch_id := str(chapter_data(chapter_index).get("id", chapter_index))
 	rng.seed = hash("%s|%d|goal" % [ch_id, idx])
 	return road_point(origin, float(dd[0]), float(dd[1]), true)
@@ -1126,7 +1159,17 @@ func _begin_reach() -> bool:
 	visuals.show_marker(0, pos, float(step["radius"]), _step_color(), -1.0, true)
 	_route = CampaignSteps.street_route(p, pos)
 	visuals.set_route(_route)
+	if bool(step.get("car", false)):                       # hijack and deliver: a car is left beside you unless you already drive one
+		var vm := Game.vehicles
+		if is_instance_valid(vm) and vm.has_method(&"spawn_parked") and not _driving():
+			_chase_t = 0.0
+			_ensure_chase_car(vm)
 	return true
+
+
+func _driving() -> bool:
+	var pl := Game.player as Player
+	return is_instance_valid(pl) and pl.vehicle != null
 
 
 func _begin_interior() -> bool:
@@ -1245,7 +1288,8 @@ func _begin_chase() -> bool:
 	pos = c.global_position
 	_escape_t = 0.0
 	_chase_t = 0.0
-	_ensure_chase_car(vm)
+	if not bool(step.get("on_foot", false)):
+		_ensure_chase_car(vm)
 	visuals.show_marker(0, pos, 3.0, ContractTypes.AMBER, -1.0, true)
 	Game.add_heat(0.1)
 	return true
@@ -1294,7 +1338,7 @@ func _chase_car_spot(p: Vector3) -> Dictionary:
 
 func _take_the_car() -> bool:
 	var pl := Game.player as Player
-	return state == &"active" and (kind == &"chase" or kind == &"convoy_intercept") and _chase_t < TAKE_CAR_HINT and stopped.is_empty() and _chase_car != null and is_instance_valid(_chase_car) and not _chase_car.dead and is_instance_valid(pl) and pl.vehicle == null
+	return state == &"active" and (kind == &"chase" or kind == &"convoy_intercept" or (kind == &"reach" and bool(step.get("car", false)))) and _chase_t < TAKE_CAR_HINT and stopped.is_empty() and _chase_car != null and is_instance_valid(_chase_car) and not _chase_car.dead and is_instance_valid(pl) and pl.vehicle == null
 
 
 func _free_a_car(vm: Node) -> void:
@@ -1383,6 +1427,92 @@ func _begin_survive() -> bool:
 	return true
 
 
+## demolition (Mission Board): break `n` props; any prop in the street counts, the waypoint is the nearest one still standing.
+func _begin_smash() -> bool:
+	var b := Breakables.current
+	_smash_base = b.break_total if b != null else 0
+	_smash_pos = _nearest_prop(pos)
+	_smash_t = 0.0
+	visuals.show_marker(0, pos, SMASH_AREA * 0.5, ContractTypes.AMBER, -1.0, false)
+	progress = 0.0
+	return true
+
+
+func _nearest_prop(from: Vector3) -> Vector3:
+	var b := Breakables.current
+	if b == null:
+		return Vector3.INF
+	var best := Vector3.INF
+	var bd := INF
+	for i in b.positions.size():
+		if b.broken[i] == 1:
+			continue
+		var d := Vector2(b.positions[i].x - from.x, b.positions[i].z - from.z).length_squared()
+		if d < bd:
+			bd = d
+			best = b.positions[i]
+	return best
+
+
+func _tick_smash(delta: float, p: Vector3) -> void:
+	var b := Breakables.current
+	var got := (b.break_total - _smash_base) if b != null else 0
+	progress = clampf(float(got) / float(step["n"]), 0.0, 1.0)
+	if got >= int(step["n"]) or b == null:                  # a city without breakables (a stub world) degrades to "be there"
+		_complete_step(Vector3(p.x, 0.0, p.z) if p.is_finite() else pos)
+		return
+	_smash_t -= delta
+	if _smash_t <= 0.0:
+		_smash_t = 0.6
+		_smash_pos = _nearest_prop(p if p.is_finite() else pos)
+		if _smash_pos.is_finite():
+			visuals.move_marker(0, _smash_pos)
+
+
+## stealth (Mission Board): `guards` unaware Vael watch the goal ring; one that becomes aware fails the step (SPOTTED) and the retry follows at once.
+func _begin_sneak() -> bool:
+	_sneak_foes.clear()
+	Game.heat = 0.0                                          # a quiet street: any heat left from an earlier fight makes every guard aware at 80 m and the step unwinnable
+	Game.quiet = 0.0
+	var p := _ref_pos_or_spawn()
+	_route = CampaignSteps.street_route(p, pos)
+	var n := int(step["guards"])
+	var back := Vector3.ZERO                                  # the arm of the junction the hero comes in by: the guards keep to the other arms, so the quiet way in is open
+	var i := _route.size() - 1
+	while i > 0 and back == Vector3.ZERO:
+		var seg := Vector3(_route[i - 1].x - _route[i].x, 0.0, _route[i - 1].z - _route[i].z)
+		if seg.length() > 2.0:
+			back = seg.normalized()
+		i -= 1
+	var dirs: Array[Vector3] = [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]
+	dirs.sort_custom(func(x: Vector3, y: Vector3) -> bool: return x.dot(back) < y.dot(back))      # the arm of the approach is last
+	for k in n:
+		var dir := dirs[k % 3]
+		var at := pos + dir * (SNEAK_R + rng.randf_range(-3.0, 3.0))
+		var q := PlayerUtil.nearest_street(at)
+		var d := _spawn(&"operative", Vector3(q.x, 0.0, q.z), false)
+		if d == null:
+			return false
+		d.aware_dist = maxf(10.0 - 2.0 * float(mini(fails, 3)), 4.0)     # they see a short way (less after every SPOTTED): a hero who keeps to the approach slips in
+		_sneak_foes.append(d)
+	visuals.show_marker(0, pos, float(step["radius"]), _step_color(), -1.0, true)
+	visuals.set_route(_route)
+	return true
+
+
+func _tick_sneak(_delta: float, p: Vector3) -> void:
+	var start_d := maxf(_hdist(_origin, pos), 1.0)
+	progress = clampf(1.0 - _hdist(p, pos) / start_d, 0.0, 1.0) if p.is_finite() else progress
+	if Game.heat < 0.5:
+		Game.heat = 0.0                                      # a small ambient bump (a bumped car, a stray shot far away) must not make every guard aware at 80 m: the guards' own eyes decide
+	for d: Drone in _sneak_foes:
+		if is_instance_valid(d) and d.active and not d.dead and d.aware:
+			_fail("SPOTTED")
+			return
+	if _in_ring(p, pos, float(step["radius"])):
+		_complete_step(pos)
+
+
 # --- ticking an active step --------------------------------------------------------------------------------------------------
 
 func _tick_active(delta: float) -> void:
@@ -1407,6 +1537,8 @@ func _tick_active(delta: float) -> void:
 		&"rift_hold": _tick_rift(delta, p)
 		&"heist": _tick_heist(delta, p)
 		&"convoy_intercept": _tick_convoy(delta, p)
+		&"smash": _tick_smash(delta, p)
+		&"sneak": _tick_sneak(delta, p)
 	if state != &"active":
 		return
 	if time_total > 0.0 and time_left <= 0.0 and _beat_t <= 0.0:
@@ -1420,7 +1552,9 @@ func _in_ring(p: Vector3, center: Vector3, radius: float) -> bool:
 func _tick_reach(p: Vector3) -> void:
 	var start_d := maxf(_hdist(_origin, pos), 1.0)
 	progress = clampf(1.0 - _hdist(p, pos) / start_d, 0.0, 1.0) if p.is_finite() else progress
-	if _in_ring(p, pos, float(step["radius"])):
+	if bool(step.get("car", false)):
+		_chase_t += get_physics_process_delta_time()
+	if _in_ring(p, pos, float(step["radius"])) and (not bool(step.get("car", false)) or _driving()):
 		_complete_step(pos)
 
 
@@ -1718,6 +1852,9 @@ func _clean_runtime() -> void:
 	_loot_said = false
 	_grace_t = 0.0
 	_far_t = 0.0
+	_smash_pos = Vector3.INF
+	_smash_t = 0.0
+	_sneak_foes.clear()
 
 
 ## Hide the visuals, release the car's hold and the escortee, and (when `release_foes`) send what the step spawned back to the pool.

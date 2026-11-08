@@ -295,7 +295,7 @@ func _title_and_pause() -> void:
 	hud._ensure_layout()
 	var ids: Array = hud.buttons.map(func(b: Dictionary) -> StringName: return b["id"])
 	TestLib.check(ids.has(&"resume") and ids.has(&"menu_gear") and ids.has(&"options") and not ids.has(&"arena_open") and not ids.has(&"photo_open"), "the pause menu shows RESUME, MAP, LOADOUT, OPTIONS and MORE (%s)" % str(ids))
-	TestLib.check(ids.size() <= 5, "the pause menu has at most 5 buttons (%d)" % ids.size())
+	TestLib.check(ids.size() <= 6, "the pause menu has at most 6 buttons: the five plus the Mission Board's MISSIONS card (%d)" % ids.size())
 	TestLib.check(hud.press_button(&"menu_gear"), "the gear opens")
 	hud._ensure_layout()
 	ids = hud.buttons.map(func(b: Dictionary) -> StringName: return b["id"])

@@ -40,7 +40,7 @@ var sub_size := 1.0          ## subtitle text multiplier (Tr.SCALES)
 var sub_bg := 1              ## subtitle plate opacity step 0 soft, 1 normal, 2 solid
 var chatter := 1             ## story chatter: 0 off (urgent lines only), 1 low (story beats, short), 2 full
 var res_mode := -1          ## render resolution RenderRes 0 balanced .. 2 native, -1 = follow the graphics tier
-var difficulty := 1         ## Difficulty.NAMES index (default NORMAL)
+var difficulty := Difficulty.default_mode()         ## Difficulty.NAMES index (default EASY)
 var cb_safe := false         ## colour-blind safe markers (blue / orange / white instead of red / green / magenta)
 
 const SENS_MIN := 0.3
@@ -111,7 +111,7 @@ func load_file() -> void:
 	civilians = _b(cf.get_value("gameplay", "civilians", true))
 	dmg_numbers = _b(cf.get_value("gameplay", "dmg_numbers", true))
 	res_mode = clampi(Progress._num(cf.get_value("graphics", "res_mode", -1), -1), -1, 2)
-	difficulty = Difficulty.clamp_mode(Progress._num(cf.get_value("gameplay", "difficulty", 1), 1))
+	difficulty = Difficulty.clamp_mode(Progress._num(cf.get_value("gameplay", "difficulty", Difficulty.default_mode()), Difficulty.default_mode()))
 	look_x = clampf(_f(cf.get_value("controls", "look_x", 1.0)), SENS_MIN, SENS_MAX)
 	look_y = clampf(_f(cf.get_value("controls", "look_y", 1.0)), SENS_MIN, SENS_MAX)
 	ads_sens = clampf(_f(cf.get_value("controls", "ads_sens", 1.0)), SENS_MIN, SENS_MAX)

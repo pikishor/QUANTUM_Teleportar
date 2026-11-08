@@ -14,6 +14,7 @@ func frames(n: int) -> void:
 
 
 func run(h: Node) -> void:
+	Upgrades.show_all = true                 # the advanced upgrade rows and the SKILLS / CRAFT tabs are behind this flag (scripts/progress/upgrades.gd)
 	host = h
 	Sfx.muted = true
 	TestMode.reset_toggles()

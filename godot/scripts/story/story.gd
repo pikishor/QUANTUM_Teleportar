@@ -388,7 +388,8 @@ func _next_card() -> void:
 		card_kind = &""
 		cards_finished.emit(kind)
 		if kind == &"prologue":
-			_begin_chapter()
+			if not (Game.missions is Missions and (Game.missions as Missions).board_mode):
+				_begin_chapter()                      # Mission Board mode: no chapter banner or ORACLE intro over the first job (one objective line, nothing else)
 		elif kind == &"epilogue" and chapter == StoryData.FINAL:
 			epilogue_seen = true
 

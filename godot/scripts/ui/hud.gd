@@ -76,6 +76,7 @@ var _craft_open := false            ## the pause screen shows the workbench (scr
 var _safe_open := false             ## the pause menu shows the safehouse screen (scripts/ui/safehouse_screen.gd)
 var _heist_open := false            ## the pause shop shows the heist planning screen (scripts/ui/heist_board.gd)
 var _side_open := false             ## the pause shop shows the side-mission board (scripts/ui/side_board.gd)
+var _board_open := false            ## the Mission Board screen is open (scripts/ui/mission_board_screen.gd; opened from the pause menu, the map, the result card's NEXT)
 var _chapters_open := false         ## the title / pause screen shows the chapter select (scripts/ui/chapter_select.gd)
 var _camp_text := ""                ## the scripted campaign step's HUD line (CampaignRunner.hud_line), "" when none runs
 var _has_save := false              ## a save file exists (the title offers CONTINUE)
@@ -97,6 +98,7 @@ var _seen_hit := -100.0              ## last_hit_time already answered with a hi
 var _q: Array = []                  ## queued draws (see _text): text, rectangles, sprites, outlines
 var _fills: Array = []
 var scan_text := false                ## tests/test_menus_map_quality.gd: record every queued text (text, rect, size) into scan_log while a screen draws
+var scan_hud := false                  ## tests/test_mission_board.gd: scan_text also records the play HUD layer (the objective line, the toast), not only the menu layer
 var scan_log: Array[Dictionary] = []
 var _frames: Array = []
 var _sprites: Array = []
@@ -191,6 +193,7 @@ func _on_state(s: StringName) -> void:
 	_ach_open = false
 	_skills_open = false
 	_side_open = false
+	_board_open = false
 	_heist_open = false
 	_safe_open = false
 	_craft_open = false
@@ -549,6 +552,8 @@ func press_button(id: StringName) -> bool:
 		return _press_safehouse(sid)
 	if sid.begins_with("cr_"):
 		return _press_craft(sid)
+	if sid.begins_with("board_"):
+		return _press_board(sid)
 	if sid.begins_with("heist_"):
 		return _press_heist(sid)
 	if sid.begins_with("arena_"):
@@ -1220,7 +1225,7 @@ func _flush_text() -> void:
 				(q[0] as Control).draw_string(q[1], q[2], q[3], q[4], q[5], q[6], q[7])
 	if scan_text:
 		for q2: Array in _q:
-			if q2[0] == _screen:                         # the menu layer only (the HUD behind a death screen has its own tests)
+			if q2[0] == _screen or (scan_hud and q2[0] == _hud):                         # the menu layer only (the HUD behind a death screen has its own tests), or the HUD layer too when asked
 				scan_log.append(_scan_entry(q2))
 	_q.clear()
 
@@ -1417,7 +1422,7 @@ func _draw_hud_body() -> void:
 				var vh := UiUtil.num(veh, &"hp", 0.0)
 				_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
 		stack_end = _draw_priority(c, vp, s, font, (plate.end.y if rows > 0 else top) + 3.0 * s) if Game.state != &"dead" else plate.end.y      # the dead screen has its own title: no mission line under DECOHERED
-	if playing and _camp_text != "" and MissionGuide.hud_on:
+	if playing and _camp_text != "" and MissionGuide.hud_on and not (Game.missions is Missions and (Game.missions as Missions).board_mode):      # the board's objective is the line and the beacon marker; the compass strip said it a third time
 		stack_end = _draw_compass(c, vp, s, font, stack_end + 2.0 * s)
 	if playing:
 		stack_end = _draw_stealth_meter(c, vp, s, font, stack_end + 3.0 * s)
@@ -1817,6 +1822,7 @@ func _ensure_layout() -> void:
 	var key := "%s|%d|%d|%d|%d|%s%s%s|%s%s%d|%s%s" % [Game.state, int(vp.x), int(vp.y), Game.tier_index(), int(settings.quality), settings.post, settings.muted, settings.cutscenes, _shop_open, _has_save, _wallet(), _chapters_open, _chapters_ok()]
 	key += "|%s%d" % [_side_open, SideBoard.page]
 	key += "|h%s%s%s%s" % [_heist_open, HeistBoard.sel, HeistBoard.approach, HeistBoard.crew]
+	key += "|B%s%s" % [_board_open, MissionBoardScreen.key() if _board_open else ""]
 	var shp := Game.progress as Progress
 	var shlv := str(shp.safehouse_lv).hash() if shp != null else 0
 	key += "|s%s%s%d%d%s" % [_safe_open, Safehouses.sel, Safehouses.rest_to, Safehouses.owned_count(shp), shlv]
@@ -1854,6 +1860,8 @@ func _ensure_layout() -> void:
 		&"paused":
 			if photo_open():
 				PhotoScreen.layout(self, photo, vp, s)
+			elif _board_open:
+				MissionBoardScreen.layout(self, cx, s)
 			elif _options_open:
 				OptionsScreen.layout(self, settings, cx, s)
 			elif _arena_open:
@@ -1887,11 +1895,15 @@ func _ensure_layout() -> void:
 			elif _gear_open:
 				_layout_more(vp, cx, s)
 			elif Game.progress != null:                                 # RESUME, MAP, LOADOUT, OPTIONS and MORE: the whole pause menu
+				var by := 0.0                                           # the MISSIONS card (the Mission Board) sits under RESUME when the board exists: one tap to the next job
 				_add_card(&"resume", Rect2(cx - 204.0 * s, PAUSE_Y * s, 408.0 * s, 80.0 * s), "RESUME", &"play", "", true)
-				_add_card(&"pause_map", Rect2(cx - 204.0 * s, (PAUSE_Y + 96.0) * s, 200.0 * s, 72.0 * s), "MAP", &"map")
-				_add_card(&"loadout", Rect2(cx + 4.0 * s, (PAUSE_Y + 96.0) * s, 200.0 * s, 72.0 * s), "LOADOUT", &"loadout")
-				_add_card(&"options", Rect2(cx - 204.0 * s, (PAUSE_Y + 176.0) * s, 200.0 * s, 72.0 * s), "OPTIONS", &"options")
-				_add_card(&"menu_gear", Rect2(cx + 4.0 * s, (PAUSE_Y + 176.0) * s, 200.0 * s, 72.0 * s), "MORE", &"more")
+				if MissionBoardScreen.board() != null:
+					_add_card(&"board_open", Rect2(cx - 204.0 * s, (PAUSE_Y + 96.0) * s, 408.0 * s, 72.0 * s), "MISSIONS", &"missions", "", false, UiUtil.AMBER)
+					by = 80.0
+				_add_card(&"pause_map", Rect2(cx - 204.0 * s, (PAUSE_Y + 96.0 + by) * s, 200.0 * s, 72.0 * s), "MAP", &"map")
+				_add_card(&"loadout", Rect2(cx + 4.0 * s, (PAUSE_Y + 96.0 + by) * s, 200.0 * s, 72.0 * s), "LOADOUT", &"loadout")
+				_add_card(&"options", Rect2(cx - 204.0 * s, (PAUSE_Y + 176.0 + by) * s, 200.0 * s, 72.0 * s), "OPTIONS", &"options")
+				_add_card(&"menu_gear", Rect2(cx + 4.0 * s, (PAUSE_Y + 176.0 + by) * s, 200.0 * s, 72.0 * s), "MORE", &"more")
 			else:
 				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_add(&"menu", Rect2(cx - 154.0 * s, 314.0 * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
@@ -1961,7 +1973,7 @@ func _main_screen() -> bool:
 	if _options_open or _arena_open or _chapters_open or photo_open():
 		return false
 	if Game.state == &"paused":
-		return not (_craft_open or _skills_open or _heist_open or _side_open or _look_open or _loadout_open or _shop_open or _ach_open or _safe_open)
+		return not (_board_open or _craft_open or _skills_open or _heist_open or _side_open or _look_open or _loadout_open or _shop_open or _ach_open or _safe_open)
 	return Game.state == &"menu"
 
 
@@ -2024,7 +2036,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		&"paused" when photo_open():
 			PhotoScreen.draw(self, photo, c, vp, s, font)      # no dim: the live world is the picture
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open or _gear_open) else 0.7))
+			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_board_open or _shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open or _gear_open) else 0.7))
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
@@ -2066,6 +2078,8 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				ArenaBoard.draw(self, c, vp, s, font, cx)
 			elif _skills_open:
 				SkillScreen.draw(self, c, vp, s, font, cx)
+			elif _board_open:
+				MissionBoardScreen.draw(self, c, vp, s, font, cx)
 			elif _heist_open:
 				HeistBoard.draw(self, c, vp, s, font, cx)
 			elif _side_open:
@@ -2212,7 +2226,10 @@ static func _split_label(label: String) -> Array[String]:
 func pause_goal_line() -> String:
 	var line := _campaign_line()
 	if line == "":
-		line = "CONTINUE THE STORY" if campaign_owns_goal() else objective_text()
+		if Game.missions is Missions and (Game.missions as Missions).board_mode:
+			line = "FREE ROAM   PICK A MISSION"                 # the Mission Board has no core counter ("NO ACTIVE OBJECTIVE" read as a dead game)
+		else:
+			line = "CONTINUE THE STORY" if campaign_owns_goal() else objective_text()
 	return line
 
 
@@ -2422,6 +2439,73 @@ func _press_craft(sid: String) -> bool:
 
 
 ## The heist planning screen's buttons (scripts/ui/heist_board.gd): open from the shop, pick, approach, crew, LAUNCH, BACK.
+## Opens the Mission Board: from the game (the map's MISSIONS button, the result card's NEXT) the game pauses; FREE ROAM, a started mission and RESUME all return to play.
+func open_board() -> bool:
+	var board := MissionBoardScreen.board()
+	if board == null or photo_open():
+		return false
+	if Game.state == &"play":
+		Game.state = &"paused"                                          # _on_state clears every screen flag first, then the board opens below
+	elif Game.state == &"paused":
+		if not _board_open and not _main_screen():
+			return false
+	else:
+		return false
+	board.refresh_if_stale()
+	_board_open = true
+	Sfx.play(&"ui_confirm")
+	_layout_key = ""
+	_screen.queue_redraw()
+	return true
+
+
+## The Mission Board's buttons (scripts/ui/mission_board_screen.gd).
+func _press_board(sid: String) -> bool:
+	var board := MissionBoardScreen.board()
+	if board == null:
+		return false
+	if sid == "board_open":
+		return Game.state == &"paused" and not _board_open and open_board()
+	if Game.state != &"paused" or not _board_open:
+		return false
+	if sid == "board_back":                                             # FREE ROAM: the game runs again, wherever the board was opened from
+		Sfx.play(&"ui_back")
+		Game.state = &"play"                                            # _on_state closes the board
+		return true
+	if sid.begins_with("board_diff_"):
+		var m := clampi(int(sid.substr(11)), 0, 2)
+		Difficulty.set_mode(m)
+		settings.difficulty = m
+		settings.save()
+		Sfx.play(&"ui_tap")
+	elif sid == "board_new":
+		board.generate()
+		Sfx.play(&"ui_tap")
+	elif sid == "board_story" or sid.begins_with("board_pick_"):
+		var idx := -1 if sid == "board_story" else int(sid.substr(11))
+		if not board.can_start() or (idx >= 0 and idx >= board.offers.size()) or (idx < 0 and board.story_offer().is_empty()):
+			Sfx.play(&"ui_deny")
+			return false
+		Game.state = &"play"                                            # _on_state closes the board; the mission starts in the live city
+		if not board.accept(idx):
+			return false
+		Sfx.play(&"ui_contract_accept")
+		return true
+	elif sid == "board_retry":
+		Game.state = &"play"
+		if not board.retry_step():
+			return false
+		return true
+	elif sid == "board_abandon":
+		board.abandon("ABANDONED")
+		Sfx.play(&"ui_back")
+	else:
+		return false
+	_layout_key = ""
+	_screen.queue_redraw()
+	return true
+
+
 func _press_heist(sid: String) -> bool:
 	if Game.state != &"paused" or Game.progress == null:
 		return false
@@ -2615,6 +2699,20 @@ func cores_line_hidden() -> bool:
 	return is_instance_valid(Game.player) and Game.player.get(&"vehicle") != null
 
 
+## Free roam under the Mission Board: one quiet line that says where the next mission is (the map's MISSIONS button). Returns the new bottom of the stack.
+func _draw_free_roam(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+	var b := (Game.missions as Missions).board
+	if b == null or b.is_running() or b.first_pending or Game.state != &"play" or InteriorGameplay.active:
+		return y
+	var text := FREE_ROAM_LINE
+	var size := int(UiUtil.BAR_LABEL * s)
+	var r := _plate_text(c, font, vp.x * 0.5, y, text, size, Color(UiUtil.CYAN.lerp(Color.WHITE, 0.45), 0.95), s, Color(UiUtil.CYAN, 0.5), 220.0 * s)
+	return r.end.y
+
+
+const FREE_ROAM_LINE := "FREE ROAM   MAP > MISSIONS"
+
+
 func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
 	var k := _contracts()
 	var camp := _camp_text != "" and _campaign() != null
@@ -2623,6 +2721,9 @@ func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> 
 	var contract := camp or (_contract_text != "" and k != null)
 	if not contract and (campaign_owns_goal() or cores_line_hidden()):
 		return y                                           # the story is running: no leftover "QUANTUM CORES 0 / 6" line next to it (director review)
+	var board_mode := Game.missions is Missions and (Game.missions as Missions).board_mode
+	if not contract and board_mode:                        # the Mission Board owns the goals: no core counter, ever; a free-roaming hero gets one short pointer to the board
+		return _draw_free_roam(c, vp, s, font, y)
 	var text := _camp_text if camp else (_contract_text if contract else _obj_text)
 	if camp and MissionGuide.hud_on and _has_waypoint():
 		text = strip_distance(text)                        # the distance lives on the beacon marker: the same sentence and number three times was a pile (director review 3, #6)
