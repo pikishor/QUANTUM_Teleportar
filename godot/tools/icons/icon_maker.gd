@@ -84,7 +84,8 @@ func _collect_jobs() -> void:
 		all.append({"key": "g_%s" % id, "kind": "g", "id": id})
 	for id: StringName in Gear.GADGET_IDS:
 		all.append({"key": "g_%s" % id, "kind": "g", "id": id})
-	for id: StringName in VehicleSpecs.STREAM_KINDS:
+	all.append({"key": "g_c4", "kind": "g", "id": &"c4"})                                   # the QUANTUM CHARGE (C4) and its detonator: not a Gear item, always carried
+	for id: StringName in VehicleSpecs.ROSTER:
 		all.append({"key": "v_%s" % id, "kind": "v", "id": id})
 	for id: StringName in EnemyTypes.TYPES:
 		all.append({"key": "e_%s" % id, "kind": "e", "id": id})
@@ -249,7 +250,7 @@ func _enemy_node(type: StringName) -> Node3D:
 ## Small solid stand-ins for the throwables and gadgets (they have no model of their own: the effect is the thing).
 func _gear_node(id: StringName) -> Node3D:
 	var d := Gear.def(id)
-	var col: Color = d["color"]
+	var col: Color = d["color"] if d.has("color") else Charges.COLOR
 	var root := Node3D.new()
 	var glow := StandardMaterial3D.new()
 	glow.albedo_color = col.darkened(0.45)
@@ -310,6 +311,36 @@ func _gear_node(id: StringName) -> Node3D:
 				t2.inner_radius = 0.12
 				t2.outer_radius = 0.145
 				_add(root, t2, glow, Vector3(0, -0.07 + 0.14 * float(k), 0), Vector3.ONE)
+		&"flash":
+			var cy6 := CylinderMesh.new()
+			cy6.top_radius = 0.085
+			cy6.bottom_radius = 0.085
+			cy6.height = 0.3
+			_add(root, cy6, body, Vector3.ZERO, Vector3.ONE)
+			var cap2 := CylinderMesh.new()
+			cap2.top_radius = 0.09
+			cap2.bottom_radius = 0.09
+			cap2.height = 0.05
+			_add(root, cap2, glow, Vector3(0, 0.17, 0), Vector3.ONE)
+			var t5 := TorusMesh.new()
+			t5.inner_radius = 0.1
+			t5.outer_radius = 0.12
+			_add(root, t5, glow, Vector3(0, -0.12, 0), Vector3.ONE)
+			var lever := BoxMesh.new()
+			lever.size = Vector3(0.02, 0.2, 0.05)
+			_add(root, lever, body, Vector3(0.1, 0.02, 0.0), Vector3.ONE)
+		&"c4":
+			var brick := BoxMesh.new()                                                       # a brick of charge with a glowing strip, a detonator beside it
+			brick.size = Vector3(0.34, 0.12, 0.2)
+			_add(root, brick, body, Vector3(-0.08, 0.0, 0.0), Vector3.ONE)
+			var strip := BoxMesh.new()
+			strip.size = Vector3(0.3, 0.02, 0.06)
+			_add(root, strip, glow, Vector3(-0.08, 0.07, 0.0), Vector3.ONE)
+			var det := BoxMesh.new()
+			det.size = Vector3(0.12, 0.2, 0.07)
+			_add(root, det, body, Vector3(0.22, 0.04, 0.0), Vector3.ONE)
+			var btn := SphereMesh.new()
+			_add(root, btn, glow, Vector3(0.22, 0.15, 0.0), Vector3(0.07, 0.07, 0.07))
 		&"scanner":
 			var t3 := TorusMesh.new()
 			t3.inner_radius = 0.2

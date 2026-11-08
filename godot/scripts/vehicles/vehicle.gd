@@ -56,6 +56,8 @@ var passengers := 0                 ## people riding along in a traffic car (thr
 var ram_hits := 0                   ## patrol rams that landed (tests)
 var tactic: StringName = &"ram"      ## patrol pursuit tactic (VehicleSpecs.TACTICS)
 var weapons: VehicleWeapons         ## mounted weapon (sport / suv / hover), null on other kinds
+var craft: VehicleCraft.State       ## roster craft (helicopter, plane, boat, tank): their own physics state, null on cars, bikes and hover craft
+var base_y := 0.0                   ## height of the node when it rests (0, a boat floats at the flood level minus its draft)
 var fuse := -1.0                    ## chain reaction (open world freedom): seconds until a burning car next to a wreck blows up (< 0 = none)
 var nitro := 1.0                    ## boost tank 0..1
 var boosting := false
@@ -127,6 +129,10 @@ func setup(k: StringName, mgr: Node) -> void:
 	hp = max_hp
 	cls = VehicleSpecs.cls_of(k)
 	patrol = bool(spec.get("patrol", false))
+	if VehicleCraft.is_craft(cls):
+		craft = VehicleCraft.State.new()
+	if cls == &"boat":
+		base_y = FloodZone.LEVEL - float(spec.get("draft", 0.35))
 	name = "Car_%s" % k
 	collision_layer = 0
 	collision_mask = Game.L_WORLD
@@ -138,7 +144,8 @@ func setup(k: StringName, mgr: Node) -> void:
 	var h: float = float(spec["hgt"]) - 0.2
 	box.size = Vector3(float(spec["wid"]) - 0.1, h, float(spec["len"]) - 0.3)
 	cs.shape = box
-	cs.position = Vector3(0.0, 0.2 + h * 0.5 + float(spec.get("hover_h", 0.0)), 0.0)      # a hover craft's hull floats: so does its hit box
+	var foot := 0.0 if (cls == &"heli" or cls == &"plane") else 0.2         # an aircraft rests on its skids / wheels: its hit box starts at the node
+	cs.position = Vector3(0.0, foot + h * 0.5 + float(spec.get("hover_h", 0.0)), 0.0)      # a hover craft's hull floats: so does its hit box
 	add_child(cs)
 	if VehicleWeapons.has_weapon(k):
 		weapons = VehicleWeapons.new()
@@ -197,9 +204,11 @@ func activate(pos: Vector3, h: float) -> void:
 	_lean_r = 0.0
 	_last_vf = 0.0
 	heading = h
-	global_position = Vector3(pos.x, 0.0, pos.z)
+	global_position = Vector3(pos.x, base_y, pos.z)
 	rotation = Vector3(0.0, h, 0.0)
 	_heading_set = h
+	if craft != null:
+		craft.reset(h)
 	visual.model.rotation = Vector3.ZERO
 	visual.model.position = Vector3(0.0, 0.0, 0.0)
 	var ci := randi() % VehicleSpecs.COLORS.size()
@@ -253,6 +262,10 @@ func become_wreck() -> void:
 		remove_from_group(&"vehicle")
 	visual.set_paint(VehicleSpecs.WRECK_COLOR)
 	visual.set_lights(0.0, 0.0, 0.0)
+	if craft != null:                                        # a craft that blows up in the air lands where it was, as a husk
+		global_position.y = base_y
+		craft.airborne = false
+		craft.spool = 0.0
 	visual.model.rotation = Vector3(0.02, 0.0, 0.07)
 	if _mirror_on:                                           # a husk casts no reflection
 		_mirror_on = false
@@ -338,6 +351,20 @@ func on_exit() -> void:
 	speed *= VehicleSpecs.EXIT_BRAKE
 	Sfx.play(&"car_door", -6.0)
 	_apply_lights()
+
+
+## The direction a mounted weapon fires in (the nose, or the crosshair for the roster craft) and where the round starts.
+func aim_dir() -> Vector3:
+	return VehicleCraft.aim_dir(self) if craft != null else forward()
+
+
+func muzzle_pos() -> Vector3:
+	return VehicleCraft.muzzle(self) if craft != null else global_position + forward() * float(spec["len"]) * 0.5 + Vector3(0.0, 0.7 + float(spec.get("hover_h", 0.0)), 0.0)
+
+
+## True while a helicopter or plane is in the air: it passes over cars and people, and nothing on the ground rams or collides with it.
+func is_aloft() -> bool:
+	return craft != null and craft.airborne
 
 
 func forward() -> Vector3:
@@ -655,6 +682,8 @@ func sim(dt: float) -> void:
 		_chase_step(dt)
 	elif ai:
 		_ai_step(dt)
+	elif craft != null:
+		VehicleCraft.idle(self, dt)
 	else:
 		_coast(dt)
 	_sync(dt)
@@ -665,6 +694,9 @@ func sim(dt: float) -> void:
 func step_drive(dt: float, thr: float, steer: float, handbrake: bool, boost := false) -> void:
 	tires_flat = maxf(tires_flat - dt, 0.0)
 	_crash_age += dt
+	if craft != null:                                    # helicopter, plane, boat, tank: VehicleCraft
+		VehicleCraft.step(self, dt, thr, steer, handbrake, boost)
+		return
 	if driver_is_player and cls == &"car":
 		# wedged: the throttle is held and the car does not move (a shopfront, a lamp post, another car). It backs out by itself for a second, wheel turned away.
 		if _nudge_t > 0.0:
@@ -970,8 +1002,8 @@ func _move(dt: float) -> void:
 	var col := move_and_collide(motion)
 	if col != null:
 		_bounce(col)
-	if global_position.y != 0.0:
-		global_position.y = 0.0
+	if global_position.y != base_y:
+		global_position.y = base_y
 
 
 func _bounce(col: KinematicCollision3D) -> void:
@@ -1334,6 +1366,13 @@ func _sync(dt: float) -> void:
 		rotation.y = heading
 		_heading_set = heading
 	impact_t += dt
+	if craft != null:
+		VehicleCraft.sync(self, dt)
+		_last_vf = speed
+		_prev_h = heading
+		_apply_lights()
+		_finish_fx(dt)
+		return
 	var moving := absf(speed) > 0.05
 	var yaw_est := wrapf(heading - _prev_h, -PI, PI) / maxf(dt, 0.0001)
 	if cls == &"car":

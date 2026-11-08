@@ -18,13 +18,19 @@ const MELEE := {
 }
 const KINDS: Array[StringName] = [&"light", &"heavy", &"finisher"]
 
-const THROW_IDS: Array[StringName] = [&"singularity", &"mine", &"decoy", &"shroud", &"emp"]
+const THROW_IDS: Array[StringName] = [&"singularity", &"mine", &"decoy", &"shroud", &"emp", &"flash"]
 const THROWABLES := {
-	&"singularity": {"name": "SINGULARITY FRAG", "tag": "FRAG", "color": Color(0.7, 0.35, 1.0), "max": 3, "fuse": 1.3, "radius": 5.5, "damage": 90.0, "pull": 7.0, "desc": "Pulls enemies in, then collapses."},
-	&"mine": {"name": "FLUX MINE", "tag": "MINE", "color": Color(1.0, 0.6, 0.2), "max": 3, "arm": 0.7, "radius": 5.0, "trigger": 2.6, "damage": 80.0, "life": 40.0, "desc": "Sticks where it lands, blows when enemies step near."},
-	&"decoy": {"name": "DECOY GRENADE", "tag": "DECOY", "color": Color(0.4, 0.95, 1.0), "max": 2, "life": 7.0, "lure": 28.0, "desc": "A hologram that draws enemy attention."},
-	&"shroud": {"name": "PHASE SHROUD", "tag": "SHROUD", "color": Color(0.5, 0.6, 0.95), "max": 2, "life": 8.0, "radius": 5.5, "desc": "A cloud enemies cannot see through."},
-	&"emp": {"name": "EMP", "tag": "EMP", "color": Color(0.3, 0.8, 1.0), "max": 2, "fuse": 0.9, "radius": 9.0, "disable": 3.2, "damage": 12.0, "desc": "Shuts down every enemy in range."},
+	&"singularity": {"name": "SINGULARITY FRAG", "tag": "FRAG", "color": Color(0.7, 0.35, 1.0), "max": 3, "fuse": 1.3, "radius": 5.5, "damage": 90.0, "pull": 7.0, "snd": &"explosion_small", "desc": "Pulls enemies in, then collapses."},
+	&"mine": {"name": "FLUX MINE", "tag": "MINE", "color": Color(1.0, 0.6, 0.2), "max": 3, "arm": 0.7, "radius": 5.0, "trigger": 2.6, "damage": 80.0, "life": 40.0, "snd": &"explosion_small", "desc": "Proximity mine: sticks where it lands, blows when enemies step near."},
+	&"decoy": {"name": "DECOY GRENADE", "tag": "DECOY", "color": Color(0.4, 0.95, 1.0), "max": 2, "life": 7.0, "lure": 28.0, "snd": &"blink", "desc": "A hologram that draws enemy attention."},
+	&"shroud": {"name": "PHASE SHROUD", "tag": "SHROUD", "color": Color(0.5, 0.6, 0.95), "max": 2, "life": 8.0, "radius": 5.5, "snd": &"superpos", "desc": "SMOKE: a cloud enemies cannot see through."},
+	&"emp": {"name": "EMP", "tag": "EMP", "color": Color(0.3, 0.8, 1.0), "max": 2, "fuse": 0.9, "radius": 9.0, "disable": 3.2, "damage": 12.0, "snd": &"explosion_small", "desc": "Shuts down every enemy in range."},
+	&"flash": {"name": "FLASH GRENADE", "tag": "FLASH", "color": Color(1.0, 1.0, 0.85), "max": 3, "fuse": 0.8, "radius": 12.0, "disable": 2.6, "snd": &"explosion_small", "desc": "A blinding flash: enemies in range freeze and lose you."},
+}
+## QUANTUM CHARGE (C4 with a detonator, scripts/freedom/charges.gd): free and always carried, so it is not a loadout item; the numbers below mirror the Charges constants (a test keeps them equal).
+const CHARGE_IDS: Array[StringName] = [&"c4"]
+const CHARGES := {
+	&"c4": {"name": "QUANTUM CHARGE C4", "tag": "C4", "color": Color(1.0, 0.68, 0.2), "max": 3, "radius": 6.5, "damage": 170.0, "range": 20.0, "snd": &"boom", "desc": "Stick it anywhere, then DETONATE. Chains with other blasts."},
 }
 const GADGET_IDS: Array[StringName] = [&"scanner", &"drone", &"grapple"]
 const GADGETS := {
@@ -65,7 +71,11 @@ static func is_gadget(id: StringName) -> bool:
 
 
 static func def(id: StringName) -> Dictionary:
-	return THROWABLES[id] if THROWABLES.has(id) else (GADGETS[id] if GADGETS.has(id) else {})
+	return THROWABLES[id] if THROWABLES.has(id) else (GADGETS[id] if GADGETS.has(id) else (CHARGES[id] if CHARGES.has(id) else {}))
+
+
+static func is_charge(id: StringName) -> bool:
+	return CHARGES.has(id)
 
 
 static func title(id: StringName) -> String:

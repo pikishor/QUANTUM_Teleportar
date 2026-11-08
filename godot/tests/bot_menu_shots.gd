@@ -42,7 +42,16 @@ func _init() -> void:
 		["map_danger", &"paused", [], &"map_danger"],
 		["map_all", &"paused", [], &"map_all"],
 		["dead", &"dead", []],
+		# the weapon roster (MENU_UNLOCK=1 gives every weapon): the loadout tabs by class and the catalogue pages
+		["roster_loadout_rifle", &"paused", [&"loadout", &"wheel_ranger"]],
+		["roster_loadout_quantum", &"paused", [&"loadout", &"wheel_qsuper", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheel_qcollapse"]],
+		["roster_cat_sniper", &"paused", [&"hero_open", &"hero_tab_weapons", &"wpg_next", &"wpg_next", &"wsel_amr"]],
+		["roster_cat_quantum", &"paused", [&"hero_open", &"hero_tab_weapons", &"wpg_next", &"wpg_next", &"wpg_next", &"wsel_qphase"]],
+		["roster_cat_explosives", &"paused", [&"hero_open", &"hero_tab_weapons", &"wpg_next", &"wpg_next", &"wpg_next", &"wpg_next", &"wsel_c4"]],
 	]
+	if OS.get_environment("MENU_UNLOCK") == "1":
+		for id: StringName in WeaponDefs.IDS:
+			WeaponDefs.unlock(id)
 	var only := OS.get_environment("MENU_ONLY")                  # comma list of step names: render just those
 	if only != "":
 		var keep := only.split(",", false)

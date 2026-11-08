@@ -17,6 +17,8 @@ const ACC := {
 	&"carbine": 0.45, &"scatter": 0.55, &"lance": 0.70, &"grenade": 0.80, &"burst": 0.50, &"rail": 0.70, &"flux": 0.35, &"gravity": 0.80, &"minigun": 0.35,
 	&"akimbo": 0.42, &"arc": 0.50, &"revolver": 0.55, &"whip": 0.85, &"blade": 0.85, &"pistol": 0.5, &"marksman": 0.65, &"breacher": 0.55, &"rocket": 0.8,
 	&"swarm": 0.35, &"vector": 0.4, &"battle": 0.55, &"sawn": 0.55, &"auto": 0.5, &"bolt": 0.75, &"dmr": 0.6, &"knife": 0.85,
+	&"magnum": 0.5, &"mpistol": 0.38, &"stun": 0.6, &"ranger": 0.45, &"bullpup": 0.5, &"lmg": 0.4, &"amr": 0.7, &"xbow": 0.8, &"flame": 0.5, &"katana": 0.85, &"bat": 0.85,
+	&"qsuper": 0.5, &"qlink": 0.5, &"qcollapse": 0.8, &"qblink": 0.5, &"qphase": 0.45, &"qstasis": 0.5,
 }
 const WEAPON_BAND := Vector2(0.62, 1.7)  ## sustained DPS of every weapon relative to the carbine must stay inside this band
 const MELEE_UPTIME := 0.4               ## share of the time a melee weapon is in reach (closing in, enemies at range)

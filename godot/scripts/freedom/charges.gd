@@ -53,6 +53,13 @@ func _exit_tree() -> void:
 		current = null
 
 
+## The world model of a charge (a brick; also what the weapon roster shows).
+static func mesh_of() -> BoxMesh:
+	var m := BoxMesh.new()
+	m.size = Vector3(0.34, 0.12, 0.24)
+	return m
+
+
 func reset() -> void:
 	for e in _live:
 		_free_node(e)
@@ -205,8 +212,7 @@ func _take_node() -> MeshInstance3D:
 			c.visible = true
 			return c
 	if _mesh == null:
-		_mesh = BoxMesh.new()
-		_mesh.size = Vector3(0.34, 0.12, 0.24)
+		_mesh = mesh_of()
 		_mat = Gear.fx_material(Color(COLOR, 0.9), true)
 		_mat.cull_mode = BaseMaterial3D.CULL_BACK
 	var n := MeshInstance3D.new()

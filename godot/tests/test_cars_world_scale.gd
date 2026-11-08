@@ -37,6 +37,8 @@ func _scale_and_speeds() -> void:
 	var worst := &""
 	var cars_ok := true
 	for kind: StringName in VehicleSpecs.SPECS:
+		if VehicleSpecs.cls_of(kind) in [&"heli", &"plane"]:         # aircraft (round 5 roster) fly over the streets: the road-time rule is for ground vehicles
+			continue
 		var top := float(VehicleSpecs.SPECS[kind]["max"])
 		var avenue := side / top
 		var route := 2.0 * side / top                    # corner to corner on the road grid (the Manhattan distance)

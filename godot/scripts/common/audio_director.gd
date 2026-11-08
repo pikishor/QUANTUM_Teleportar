@@ -44,6 +44,8 @@ const ENGINES := {
 	&"bike": [&"bike", 1.0, 0.0], &"qbike": [&"hover", 1.25, -2.0],
 	&"hover": [&"hover", 1.0, 0.0], &"skiff": [&"hover", 0.9, -1.0], &"rover": [&"hover", 0.7, 0.0],
 	&"truck": [&"heavy", 1.0, 1.0], &"bus": [&"heavy", 1.15, 0.0], &"van": [&"heavy", 1.3, -1.0], &"ambulance": [&"heavy", 1.25, -1.0],
+	&"heli": [&"heavy", 0.62, 2.0], &"plane": [&"bike", 0.75, 1.0], &"boat": [&"heavy", 0.95, 0.0], &"tank": [&"heavy", 0.5, 3.0], &"armoured": [&"heavy", 1.05, 0.0],
+	&"quad": [&"bike", 1.1, 0.0], &"scooter": [&"bike", 1.45, -2.0], &"hoverbike": [&"hover", 1.2, -1.0],
 	&"sport": [&"", 1.14, 0.0], &"interceptor": [&"", 1.1, 0.0], &"suv": [&"", 0.9, 0.0], &"taxi": [&"", 1.0, 0.0], &"wagon": [&"", 0.95, 0.0], &"sedan": [&"", 1.0, 0.0],
 }
 const ENGINE_VARIANTS: Array[StringName] = [&"bike", &"hover", &"heavy"]

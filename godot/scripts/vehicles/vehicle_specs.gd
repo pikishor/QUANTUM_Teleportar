@@ -52,6 +52,16 @@ const SPECS := {
 	# --- open world freedom: the hero's HOVER-BIKE (CALL CAR with an empty garage, also a rare traffic kind): a bike chassis floating on a quantum cushion, fast and slidey, one seat.
 	&"hoverbike": {"cls": "hover", "max": 28.0, "acc": 18.0, "brake": 34.0, "grip": 2.6, "hp": 150.0, "mass": 260.0, "seats": 1, "model": "bike_street", "alt": ["car_skiff"], "len": 2.1, "wid": 0.8, "hgt": 1.3,
 		"wheel": 0.3, "hover_h": 0.75, "bob": 0.1, "drift": 1.0, "coast": 0.14, "steer": 1.35, "far": {"tint": Color(0.4, 1.0, 0.95), "speed": 1.3}},
+	# --- round 5 roster (docs/DESIGN.md: any vehicle, GTA types): armoured truck, quad, scooter, helicopter, small plane, boat, tank. "craft" = a class with its own drive code (VehicleCraft: air / boat / tank);
+	# "ceil" = flight ceiling m, "stall" = plane speed below which it sinks, "rotor_r" = rotor radius m, "span" = wing span m, "draft" = how deep a hull sits in the water m, "turret" = the model's rotating turret node.
+	&"armoured": {"rv": "van", "armour": true, "max": 17.0, "acc": 6.2, "brake": 30.0, "grip": 5.6, "hp": 1250.0, "mass": 7200.0, "seats": 2, "model": "car_van", "len": 5.4, "wid": 2.2, "hgt": 2.5, "wheel": 0.4, "mu": 1.0},
+	&"quad": {"cls": "quad", "procedural": "quad", "max": 22.0, "acc": 13.0, "brake": 30.0, "grip": 6.5, "hp": 190.0, "mass": 380.0, "seats": 2, "model": "car_quad", "len": 2.1, "wid": 1.25, "hgt": 1.25, "wheel": 0.34, "steer": 1.2},
+	&"scooter": {"cls": "bike", "procedural": "scooter", "max": 19.0, "acc": 12.0, "brake": 28.0, "grip": 8.0, "hp": 90.0, "mass": 130.0, "seats": 2, "model": "bike_scooter", "len": 1.75, "wid": 0.65, "hgt": 1.15,
+		"wheel": 0.22, "lean_max": 0.55, "steer": 1.5, "far": {"tint": Color(1.0, 0.9, 0.7), "speed": 0.85}},
+	&"heli": {"cls": "heli", "craft": true, "max": 46.0, "acc": 15.0, "brake": 24.0, "grip": 2.0, "hp": 520.0, "mass": 2400.0, "seats": 3, "model": "xv_heli", "len": 11.0, "wid": 3.0, "hgt": 4.0, "wheel": 0.2, "rotor_r": 3.6, "ceil": 280.0, "cam_d": 19.0, "cam_h": 5.5, "exit_side": 4.2, "aim_cone": 0.5},
+	&"plane": {"cls": "plane", "craft": true, "max": 64.0, "acc": 11.0, "brake": 18.0, "grip": 2.0, "hp": 420.0, "mass": 1500.0, "seats": 2, "model": "xv_plane", "len": 9.6, "wid": 3.0, "hgt": 3.4, "wheel": 0.45, "stall": 24.0, "span": 10.4, "ceil": 420.0, "cam_d": 20.0, "cam_h": 5.0, "exit_side": 5.8, "aim_cone": 0.3},
+	&"boat": {"cls": "boat", "craft": true, "max": 27.0, "acc": 12.0, "brake": 16.0, "grip": 1.6, "hp": 330.0, "mass": 900.0, "seats": 4, "model": "xv_boat", "len": 5.2, "wid": 2.2, "hgt": 1.7, "wheel": 0.2, "draft": 0.35, "steer": 1.0, "cam_d": 10.5, "cam_h": 3.6, "exit_side": 2.6, "aim_cone": 0.6},
+	&"tank": {"cls": "tank", "craft": true, "max": 12.5, "acc": 5.5, "brake": 20.0, "grip": 8.0, "hp": 2000.0, "mass": 42000.0, "seats": 1, "model": "xv_tank", "len": 7.0, "wid": 3.3, "hgt": 2.7, "wheel": 0.5, "turret": "Turret", "steer": 0.8, "cam_d": 15.0, "cam_h": 5.6, "exit_side": 3.4},
 }
 ## Paints of the kinds that do not wear the random street palette (VehicleVisual.set_paint maps the random COLORS pick to an entry; a husk keeps WRECK_COLOR).
 const PALETTES := {
@@ -61,6 +71,11 @@ const PALETTES := {
 	&"bus": [Color(0.78, 0.5, 0.18), Color(0.28, 0.5, 0.62), Color(0.62, 0.66, 0.7), Color(0.3, 0.52, 0.48)],
 	&"interceptor": [Color(0.22, 0.27, 0.40), Color(0.86, 0.87, 0.9), Color(0.24, 0.30, 0.50), Color(0.36, 0.39, 0.45)],
 	&"ambulance": [Color(0.9, 0.91, 0.93), Color(0.86, 0.87, 0.9), Color(0.92, 0.93, 0.94), Color(0.88, 0.9, 0.92)],
+	&"armoured": [Color(0.13, 0.16, 0.2), Color(0.1, 0.13, 0.11), Color(0.2, 0.19, 0.17), Color(0.14, 0.14, 0.16)],
+	&"tank": [Color(0.24, 0.3, 0.2), Color(0.42, 0.36, 0.24), Color(0.2, 0.22, 0.24)],
+	&"heli": [Color(0.86, 0.87, 0.9), Color(0.14, 0.2, 0.34), Color(0.7, 0.12, 0.1), Color(0.18, 0.2, 0.22)],
+	&"plane": [Color(0.86, 0.87, 0.9), Color(0.7, 0.12, 0.1), Color(0.12, 0.3, 0.6), Color(0.9, 0.7, 0.12)],
+	&"boat": [Color(0.86, 0.87, 0.9), Color(0.12, 0.3, 0.6), Color(0.7, 0.12, 0.1), Color(0.1, 0.1, 0.12)],
 	&"muscle": [Color(0.78, 0.12, 0.1), Color(0.1, 0.1, 0.12), Color(0.9, 0.62, 0.1), Color(0.14, 0.3, 0.6)],
 	&"pickup": [Color(0.2, 0.36, 0.26), Color(0.62, 0.64, 0.68), Color(0.7, 0.3, 0.16), Color(0.12, 0.14, 0.2)],
 	&"luxury": [Color(0.1, 0.1, 0.12), Color(0.2, 0.22, 0.26), Color(0.55, 0.56, 0.6), Color(0.14, 0.16, 0.28)],
@@ -80,9 +95,20 @@ const KINDS: Array[StringName] = [&"sedan", &"sport", &"suv"]
 const KIND_WEIGHTS: Array[float] = [0.5, 0.25, 0.25]
 ## Spawn weights of a streamed vehicle (sedan, sport, suv, bike, hover, taxi, wagon, van, truck, rover, skiff, bus, interceptor, ambulance, qbike). Patrols (vael_patrol) are never streamed, the manager adds them from heat 3.
 const STREAM_KINDS: Array[StringName] = [&"sedan", &"sport", &"suv", &"compact", &"bike", &"hover", &"taxi", &"wagon", &"van", &"truck", &"rover", &"skiff", &"bus", &"interceptor", &"ambulance", &"qbike", &"hoverbike",
-	&"luxury", &"racer", &"delivery", &"garbage", &"firetruck", &"muscle", &"pickup"]
-const STREAM_WEIGHTS: Array[float] = [0.07, 0.08, 0.08, 0.10, 0.06, 0.06, 0.08, 0.04, 0.06, 0.05, 0.01, 0.01, 0.04, 0.03, 0.02, 0.03, 0.02,
-	0.03, 0.02, 0.03, 0.02, 0.02, 0.02, 0.02]
+	&"luxury", &"racer", &"delivery", &"garbage", &"firetruck", &"muscle", &"pickup", &"armoured", &"quad", &"scooter"]
+const STREAM_WEIGHTS: Array[float] = [0.05, 0.06, 0.06, 0.093, 0.06, 0.06, 0.08, 0.04, 0.06, 0.05, 0.01, 0.01, 0.04, 0.03, 0.02, 0.03, 0.02,
+	0.03, 0.02, 0.03, 0.02, 0.02, 0.02, 0.02, 0.012, 0.025, 0.03]
+
+## The whole roster, in the order of the vehicle picture sheet: every drivable kind (streamed traffic first, then the ones with fixed spawn points, see VehicleSpawns). Tests and the picture maker read it.
+const ROSTER: Array[StringName] = [&"compact", &"sedan", &"sport", &"muscle", &"suv", &"van", &"pickup", &"bus", &"taxi", &"interceptor", &"ambulance", &"firetruck", &"armoured", &"bike", &"quad", &"scooter",
+	&"hoverbike", &"heli", &"plane", &"boat", &"tank", &"luxury", &"racer", &"wagon", &"truck", &"delivery", &"garbage", &"hover", &"qbike", &"skiff", &"rover"]
+## The roster kinds that fly, float or crawl on tracks (spawned at fixed points, never as random traffic).
+const CRAFT_KINDS: Array[StringName] = [&"heli", &"plane", &"boat", &"tank"]
+## Display names (the HUD toast on entering, the picture sheet).
+const NAMES := {&"compact": "COMPACT", &"sedan": "SEDAN", &"sport": "SPORTS CAR", &"muscle": "MUSCLE CAR", &"suv": "SUV", &"van": "VAN", &"pickup": "PICKUP TRUCK", &"bus": "BUS", &"taxi": "TAXI",
+	&"interceptor": "POLICE CAR", &"ambulance": "AMBULANCE", &"firetruck": "FIRE TRUCK", &"armoured": "ARMOURED TRUCK", &"bike": "MOTORBIKE", &"quad": "QUAD", &"scooter": "SCOOTER", &"hoverbike": "HOVER BIKE",
+	&"heli": "HELICOPTER", &"plane": "SMALL PLANE", &"boat": "SPEEDBOAT", &"tank": "TANK", &"luxury": "LIMO", &"racer": "RACER", &"wagon": "WAGON", &"truck": "TRUCK", &"delivery": "DELIVERY VAN",
+	&"garbage": "GARBAGE TRUCK", &"hover": "HOVER CAR", &"qbike": "QUANTUM SCOOTER", &"skiff": "HOVER SKIFF", &"rover": "MOON ROVER", &"vael_patrol": "VAEL PATROL"}
 
 ## Live cars at once (starter car and a driven car included): LOW 3 / MED 5 / HIGH 8. Each legacy car costs about 10 draw calls.
 const CAPS: Array[int] = [3, 5, 8]
@@ -213,6 +239,10 @@ const EXIT_BRAKE := 0.6                ## a car the player leaves keeps this sha
 const WEAPONS := {
 	&"sport": {"name": "RAIL GUN", "rate": 9.0, "dmg": 9.0, "heat": 0.07, "cool": 0.35, "ammo": 240, "range": 90.0, "spread": 0.025, "color": Color(0.3, 0.95, 1.0)},
 	&"suv": {"name": "CANNON", "rate": 1.4, "dmg": 55.0, "heat": 0.4, "cool": 0.3, "ammo": 30, "range": 110.0, "spread": 0.0, "blast": 3.5, "color": Color(1.0, 0.6, 0.2)},
+	&"heli": {"name": "MINIGUN", "rate": 16.0, "dmg": 8.0, "heat": 0.035, "cool": 0.3, "ammo": 700, "range": 170.0, "spread": 0.03, "color": Color(1.0, 0.82, 0.3)},
+	&"plane": {"name": "WING GUNS", "rate": 12.0, "dmg": 10.0, "heat": 0.05, "cool": 0.3, "ammo": 500, "range": 190.0, "spread": 0.02, "color": Color(1.0, 0.9, 0.5)},
+	&"boat": {"name": "DECK GUN", "rate": 6.0, "dmg": 13.0, "heat": 0.1, "cool": 0.3, "ammo": 240, "range": 100.0, "spread": 0.02, "color": Color(0.6, 0.9, 1.0)},
+	&"tank": {"name": "TANK CANNON", "rate": 0.8, "dmg": 95.0, "heat": 0.42, "cool": 0.28, "ammo": 40, "range": 220.0, "spread": 0.0, "blast": 7.0, "color": Color(1.0, 0.55, 0.18)},
 	&"hover": {"name": "BOLT GUN", "rate": 5.0, "dmg": 16.0, "heat": 0.14, "cool": 0.3, "ammo": 120, "range": 100.0, "spread": 0.01, "color": Color(0.8, 0.4, 1.0)},
 }
 const WEAPON_LOCK_RESUME := 0.4        ## an overheated weapon fires again below this heat
@@ -297,6 +327,10 @@ static func signal_state(axis: int, clock: float) -> int:
 	if t < SIGNAL_GREEN:
 		return 0
 	return 1 if t < SIGNAL_GREEN + SIGNAL_AMBER else 2
+
+
+static func name_of(kind: StringName) -> String:
+	return String(NAMES.get(kind, String(kind).to_upper()))
 
 
 static func is_siren(kind: StringName) -> bool:

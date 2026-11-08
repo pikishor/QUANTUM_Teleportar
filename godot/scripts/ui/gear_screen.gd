@@ -66,7 +66,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 ## Every caption above a row as {t, x, y (baseline), w}: the tag over each throwable / gadget button and LOADOUTS over the saved sets (a test checks none reaches a button).
 static func captions(hud: Hud, cx: float, s: float) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for spec: Array in [[Gear.THROW_IDS, 5, ROW_THROW_Y, 150.0], [Gear.GADGET_IDS, 4, ROW_GADGET_Y, 190.0]]:
+	for spec: Array in [[Gear.THROW_IDS, Gear.THROW_IDS.size(), ROW_THROW_Y, 150.0], [Gear.GADGET_IDS, 4, ROW_GADGET_Y, 190.0]]:
 		var ids: Array = spec[0]
 		var w: float = spec[3]
 		var total := float(spec[1]) * w + float(int(spec[1]) - 1) * GAP

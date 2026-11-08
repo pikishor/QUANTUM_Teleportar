@@ -113,6 +113,7 @@ var lights: Array[Light3D] = []             ## the model lights that were kept (
 var lights_on := true
 var shadow_on := true                       ## the body currently casts a shadow (Vehicle.update_lod: only within PerfTiers.SHADOW_RANGE of the camera)
 var wheel_radius := 0.335
+var parts: Dictionary = {}                  ## roster craft: animated nodes by name (Rotor, TailRotor, Prop, Turret) and their blur discs (RotorDisc ...)
 
 var _body_mat: BaseMaterial3D
 var _lamp_mat: ShaderMaterial                ## per-car instance of the merged lamp shader (null for the primitive fallback and models without the lamp surfaces)
@@ -144,6 +145,8 @@ func build(kind: StringName, glow: Color) -> Node3D:
 	uses_model = model != null
 	if model == null:
 		model = _fallback(spec)
+	if bool(spec.get("armour", false)):                  # the armoured truck: plates, bull bar and a turret ring on the van body (before the surfaces are processed)
+		VehicleCraftModels.dress_armoured(model, spec)
 	body = model.get_node_or_null("Body") as MeshInstance3D
 	for n: StringName in WHEEL_NAMES + BIKE_WHEEL_NAMES:
 		var w := model.get_node_or_null(NodePath(n)) as Node3D
@@ -184,7 +187,7 @@ func build(kind: StringName, glow: Color) -> Node3D:
 			if src == null or ov == null:
 				continue
 			var nm := StringName(src.resource_name)
-			if nm == &"Body":
+			if nm == &"Body" and (body == null or mi == body):       # a rotor, a turret: their "Body" surface takes the hull's paint material later (_bind_craft)
 				_body_mat = ov
 				ov.metallic = BODY_METALLIC
 				ov.roughness = BODY_ROUGHNESS
@@ -216,6 +219,8 @@ func build(kind: StringName, glow: Color) -> Node3D:
 					_base[k].append(info[2])
 	if cls == &"car" and body != null and bool(spec.get("parts", true)):
 		_finish_car(spec)
+	if bool(spec.get("craft", false)):
+		_bind_craft(spec)
 	if body_lod1 != null and body != null:
 		_link_lod1()
 	if body != null:
@@ -223,6 +228,41 @@ func build(kind: StringName, glow: Color) -> Node3D:
 		mirror_meshes.append(_make_mirror_source(body))
 	set_lights(0.1, 0.35, 0.35)
 	return model
+
+
+## The roster craft (helicopter, plane, boat, tank): the animated nodes are found by name, their paint surface shares the hull's paint material, the glass gets the car glass, and the rotors
+## get a blur disc each (VehicleCraft shows it above a spin speed).
+func _bind_craft(spec: Dictionary) -> void:
+	for nm: String in ["Rotor", "TailRotor", "Prop", "Turret"]:
+		var n := model.get_node_or_null(NodePath(nm)) as Node3D
+		if n != null:
+			parts[nm] = n
+	if body != null:
+		for s in body.mesh.get_surface_count():
+			var m := body.mesh.surface_get_material(s)
+			var nm := m.resource_name if m != null else ""
+			if nm == "Glass":
+				body.set_surface_override_material(s, CarParts.glass_material())
+	for nm: String in parts:
+		var mi := parts[nm] as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		mi.layers = mi.layers | KEY_BIT
+		for s in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(s)
+			if m != null and m.resource_name == "Body" and _body_mat != null:
+				mi.set_surface_override_material(s, _body_mat)             # the turret wears the hull paint
+	var disc_for := {"Rotor": "rotor_r", "Prop": "prop_r"}
+	for nm: String in disc_for:
+		if parts.has(nm):
+			var r := float(spec.get(disc_for[nm], 1.3 if nm == "Prop" else 3.6))
+			var d := VehicleCraftModels.disc(r, 0.2)
+			d.name = nm + "Disc"
+			model.add_child(d)
+			d.position = (parts[nm] as Node3D).position
+			if nm == "Prop":
+				d.rotation = Vector3(PI * 0.5, 0.0, 0.0)               # the prop turns about the nose axis (Z)
+			parts[nm + "Disc"] = d
 
 
 const INTERIOR_GLOW := {&"taxi": 1.0, &"bus": 1.5, &"ambulance": 1.2, &"interceptor": 0.7, &"van": 0.2, &"truck": 0.2, &"garbage": 0.2}
@@ -923,6 +963,8 @@ func set_shadow(on: bool) -> void:
 
 ## Primitive car: a hull, a cabin, four wheels and emissive light strips, with the same node and material names as the real models.
 func _fallback(spec: Dictionary) -> Node3D:
+	if spec.has("procedural"):                           # quad, scooter: VehicleCraftModels
+		return VehicleCraftModels.build(String(spec["procedural"]), spec)
 	if bool(spec.get("shape", false)):
 		return _fallback_shaped(spec)
 	var ln: float = spec["len"]

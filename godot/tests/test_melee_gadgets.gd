@@ -96,7 +96,7 @@ func run(h: Node) -> void:
 # --- tables, prices, save rules -------------------------------------------------------------------------------------------
 
 func _tables() -> void:
-	TestLib.check(Gear.THROW_IDS.size() == 5 and Gear.GADGET_IDS.size() == 3 and Gear.SLOTS == 4, "5 throwables, 3 gadgets, 4 loadout slots")
+	TestLib.check(Gear.THROW_IDS.size() == 6 and Gear.GADGET_IDS.size() == 3 and Gear.SLOTS == 4, "6 throwables (frag, mine, decoy, smoke, EMP, flash), 3 gadgets, 4 loadout slots")
 	var named := true
 	for id: StringName in Gear.THROW_IDS + Gear.GADGET_IDS:
 		var d := Gear.def(id)
@@ -111,7 +111,7 @@ func _tables() -> void:
 	for it: Dictionary in Economy.gear_items():
 		if String(it["name"]).begins_with("gear "):
 			found += 1
-	TestLib.check(found == 7, "the economy's gear list contains the 7 priced throwables and gadgets (%d)" % found)
+	TestLib.check(found == 8, "the economy's gear list contains the 8 priced throwables and gadgets (%d)" % found)
 	var m := Gear.MELEE
 	TestLib.check(float(m["light"]) < float(m["heavy"]) and float(m["heavy"]) < float(m["finisher"]) and float((m["launch"] as Array)[2]) > float((m["launch"] as Array)[1]), "melee: light < heavy < finisher, the finisher launches farthest")
 

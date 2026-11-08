@@ -19,6 +19,7 @@ const NAMES := {
 	&"sedan": "SEDAN", &"sport": "SPORT CAR", &"suv": "SUV", &"bike": "BIKE", &"hover": "HOVER CAR", &"hoverbike": "HOVER-BIKE", &"taxi": "TAXI", &"wagon": "WAGON", &"van": "VAN",
 	&"truck": "TRUCK", &"rover": "ROVER", &"skiff": "SKIFF", &"bus": "BUS", &"interceptor": "PATROL CAR", &"ambulance": "AMBULANCE", &"qbike": "QUANTUM BIKE", &"vael_patrol": "VAEL PATROL",
 	&"compact": "COMPACT", &"luxury": "LIMOUSINE", &"racer": "ROADSTER", &"delivery": "DELIVERY VAN", &"garbage": "GARBAGE TRUCK", &"firetruck": "FIRE TRUCK", &"muscle": "MUSCLE CAR", &"pickup": "PICKUP",
+	&"armoured": "ARMOURED TRUCK", &"quad": "QUAD", &"scooter": "SCOOTER", &"heli": "HELICOPTER", &"plane": "PLANE", &"boat": "SPEEDBOAT", &"tank": "TANK",
 }
 
 static var current: Hijack

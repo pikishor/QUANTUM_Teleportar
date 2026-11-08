@@ -833,6 +833,8 @@ func collect_markers() -> Array[Dictionary]:
 		if fr.repairs != null:
 			for i in int(fr.repairs.call(&"count")):
 				out.append({"kind": &"garage", "pos": fr.repairs.call(&"pos", i), "fog": true, "label": "REPAIR BAY"})
+	for pt: Dictionary in VehicleSpawns.POINTS:                  # where the helicopter, plane, tank and boats wait (round 5 roster): the car glyph, the vehicle's name
+		out.append({"kind": &"garage", "pos": pt["pos"], "fog": true, "label": VehicleSpecs.name_of(pt["kind"])})
 	return out
 
 

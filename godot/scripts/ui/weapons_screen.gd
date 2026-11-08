@@ -3,7 +3,7 @@ extends RefCounted
 ## The WEAPONS tab of the HERO hub (the weapon pages of the shop; Hud draws it through ShopScreen when `ShopScreen.weapon_page` >= 1). Every weapon, melee weapon, throwable and gadget of the
 ## game as a tile with its PICTURE, name and where to get it; tap a tile to select it and read its card on the right: picture, bars (damage, fire rate, range, accuracy, control, penetration),
 ## the numbers, a diagram (the spread circle on a person 20 m away, or the blast circle around a person), the range ruler (full damage, then falling off) and the BUY / EQUIP button.
-## Three pages of 12 tiles: PISTOLS SMGS RIFLES / SHOTGUNS SNIPERS HEAVY / MELEE THROWABLES GADGETS. Buttons: `wsel_<id>` (select), `wpg_prev` / `wpg_next`, `wequip_<id>`, `wgear_<id>`,
+## Five pages of at most 12 tiles, one tab per weapon class pair (WeaponRoster.tabs): PISTOLS SMGS / RIFLES SHOTGUNS / SNIPERS HEAVY / MELEE QUANTUM / EXPLOSIVES GADGETS. Buttons: `wsel_<id>` (select), `wpg_prev` / `wpg_next`, `wequip_<id>`, `wgear_<id>`,
 ## `buy_<id>` (the shop's own id for a weapon), `shop_back`. Numbers come from WeaponStats / Gear, the pictures from ItemIcons; no state beyond the selection.
 
 const COLS := 3
@@ -15,9 +15,9 @@ const GRID_Y := 118.0
 const PANEL_X := -14.0                   ## the card
 const PANEL_W := 624.0
 const WIDTH := 1220.0                    ## the whole layout in base px (squeezed horizontally on a narrower screen)
-const PAGE_TITLES: Array[String] = ["PISTOLS  SMGS  RIFLES", "SHOTGUNS  SNIPERS  HEAVY", "MELEE  THROWABLES  GADGETS"]
-const PAGES := 3
-const PAGE_CLASSES: Array = [[&"pistol", &"smg", &"rifle"], [&"shotgun", &"sniper", &"heavy"], [&"melee"]]
+const PAGE_TITLES: Array[String] = ["PISTOLS  SMGS", "RIFLES  SHOTGUNS", "SNIPERS  HEAVY", "MELEE  QUANTUM", "EXPLOSIVES  GADGETS"]
+const PAGES := 5
+const PAGE_CLASSES: Array = [[&"pistol", &"smg"], [&"rifle", &"shotgun"], [&"sniper", &"heavy"], [&"melee", &"quantum"], []]
 
 static var sel: StringName = &""             ## the selected item: a weapon id, a throwable id or a gadget id
 
@@ -30,6 +30,8 @@ static func page_items(page: int) -> Array[Dictionary]:
 			out.append({"id": id, "gear": false})
 	if page == PAGES - 1:
 		for id: StringName in Gear.THROW_IDS:
+			out.append({"id": id, "gear": true})
+		for id: StringName in Gear.CHARGE_IDS:
 			out.append({"id": id, "gear": true})
 		for id: StringName in Gear.GADGET_IDS:
 			out.append({"id": id, "gear": true})
@@ -46,7 +48,7 @@ static func page_of(id: StringName) -> int:
 
 
 static func is_gear(id: StringName) -> bool:
-	return Gear.THROWABLES.has(id) or Gear.GADGETS.has(id)
+	return Gear.THROWABLES.has(id) or Gear.GADGETS.has(id) or Gear.CHARGES.has(id)
 
 
 ## Select an item and show its page (a weapon of the loadout, the crate list or a test opens the screen on it).
@@ -118,7 +120,9 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 	hud._add(&"shop_back", Rect2(cx + GRID_X * s * k, 640.0 * s, 220.0 * s, 64.0 * s), "BACK", false)
 	# the action button of the card
 	var ar := Rect2(cx + (PANEL_X + PANEL_W - 300.0) * s * k, 572.0 * s, 300.0 * s * k, 64.0 * s)
-	if is_gear(sel):
+	if Gear.is_charge(sel):
+		hud._add(StringName("wgear_%s" % sel), ar, "ALWAYS CARRIED", true)
+	elif is_gear(sel):
 		var gl := "IN USE" if (Gear.throwable == sel or Gear.gadget == sel) else ("EQUIP" if Gear.is_owned(sel) else "BUY  %d" % (prog.gear_price(sel) if prog != null else Economy.gear_price(sel)))
 		hud._add(StringName("wgear_%s" % sel), ar, gl, Gear.throwable == sel or Gear.gadget == sel)
 	elif WeaponDefs.is_unlocked(sel):
@@ -157,7 +161,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		var r := cell_rect(hud, cx, s, i)
 		var id: StringName = items[i]["id"]
 		var tw := r.size.x - 12.0 * s
-		var nm := _fit_name(font, _name_of(id), tw, int(18.0 * s))
+		var nm := _fit_name(font, _name_of(id), tw, int(14.0 * s))             # words are dropped only when the name does not fit even at the smallest size
 		var own := WeaponDefs.is_unlocked(id) or Gear.is_owned(id)
 		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 71.0 * s), nm, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, nm, tw, int(19.0 * s)), Color(1, 1, 1, 0.97 if id == sel else 0.85))
 		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 91.0 * s), tile_status(id), HORIZONTAL_ALIGNMENT_LEFT, tw, int(16.0 * s), Color(UiUtil.GREEN if own else UiUtil.AMBER, 0.95))
@@ -216,6 +220,9 @@ static func _draw_card(hud: Hud, c: Control, s: float, font: Font, cx: float, k:
 	var ls := WeaponStats.lines(card)
 	for i in ls.size():
 		hud._text(c, font, Vector2(bx, ly + float(i) * 20.0 * s), ls[i], HORIZONTAL_ALIGNMENT_LEFT, pw - 8.0 * s, UiUtil.fit_size(font, ls[i], pw - 8.0 * s, int(16.0 * s)), Color(1, 1, 1, 0.9))
+	var trait_line := WeaponRoster.trait_text(sel)
+	if trait_line != "":
+		hud._text(c, font, Vector2(bx, ly + float(ls.size()) * 20.0 * s + (20.0 * s if bool(card["lock"]) else 0.0)), trait_line, HORIZONTAL_ALIGNMENT_LEFT, pw - 8.0 * s, UiUtil.fit_size(font, trait_line, pw - 8.0 * s, int(15.0 * s)), Color(UiUtil.MAGENTA, 0.95))
 	if bool(card["lock"]):
 		hud._text(c, font, Vector2(bx, ly + float(ls.size()) * 20.0 * s), "LOCKS ON TO THE TARGET UNDER THE CROSSHAIR", HORIZONTAL_ALIGNMENT_LEFT, pw - 8.0 * s, int(15.0 * s), Color(UiUtil.MAGENTA, 0.95))
 	# the range ruler
@@ -297,12 +304,12 @@ static func _draw_gear_card(hud: Hud, c: Control, s: float, font: Font, px: floa
 	var tw := pw - (284.0 * k) * s - 6.0 * s
 	var nm := String(d["name"])
 	hud._text(c, font, Vector2(tx, py + 30.0 * s), nm, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, nm, tw, int(26.0 * s)), Color(1, 1, 1, 0.98), 1.0 * s)
-	var kind := "GADGET" if Gear.is_gadget(sel) else "THROWABLE"
+	var kind := "GADGET" if Gear.is_gadget(sel) else ("CHARGE" if Gear.is_charge(sel) else "THROWABLE")
 	var own := Gear.is_owned(sel)
 	hud._text(c, font, Vector2(tx, py + 54.0 * s), "%s  %s" % [kind, "OWNED" if own else "NOT OWNED"], HORIZONTAL_ALIGNMENT_LEFT, tw, int(17.0 * s), Color(UiUtil.GREEN if own else UiUtil.AMBER, 0.97))
 	var desc := String(d.get("desc", ""))
 	hud._text(c, font, Vector2(tx, py + 80.0 * s), desc, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, desc, tw, int(16.0 * s)), Color(1, 1, 1, 0.9))
-	hud._text(c, font, Vector2(tx, py + 104.0 * s), "WHERE  SHOP  %d" % Economy.gear_price(sel) if not own else "WHERE  YOU HAVE IT", HORIZONTAL_ALIGNMENT_LEFT, tw, int(16.0 * s), Color(UiUtil.CYAN, 0.95))
+	hud._text(c, font, Vector2(tx, py + 104.0 * s), "WHERE  SHOP  %d" % Economy.gear_price(sel) if (not own and not Gear.is_charge(sel)) else "WHERE  YOU HAVE IT", HORIZONTAL_ALIGNMENT_LEFT, tw, int(16.0 * s), Color(UiUtil.CYAN, 0.95))
 	var lines := gear_lines(sel)
 	for i in lines.size():
 		hud._text(c, font, Vector2(px + 8.0 * s, py + (190.0 + 26.0 * float(i)) * s), lines[i], HORIZONTAL_ALIGNMENT_LEFT, pw - 12.0 * s, int(18.0 * s), Color(1, 1, 1, 0.92))

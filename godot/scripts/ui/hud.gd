@@ -938,11 +938,66 @@ func _draw_speedometer(c: Control, font: Font, ab: Rect2, veh: Object, s: float)
 	_text(c, font, Vector2(ab.position.x + ab.size.x * 0.52 + 14.0 * s, ab.position.y + 28.0 * s), "KM/H", HORIZONTAL_ALIGNMENT_LEFT, ab.size.x * 0.4, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var gear := int(UiUtil.num(veh, &"gear", 1.0))
 	var rev := UiUtil.num(veh, &"speed", 0.0) < -0.5
-	_text(c, font, Vector2(ab.position.x + ab.size.x * 0.52 + 14.0 * s, ab.position.y + 54.0 * s), "R" if rev else ("GEAR %d" % gear), HORIZONTAL_ALIGNMENT_LEFT, ab.size.x * 0.4, int(UiUtil.BAR_LABEL * s * 0.85), Color(1, 1, 1, 0.75), 1.0 * s)
+	var geared := veh.get("craft") == null                                # a helicopter, plane, boat or tank has no gearbox
+	_text(c, font, Vector2(ab.position.x + ab.size.x * 0.52 + 14.0 * s, ab.position.y + 54.0 * s), ("R" if rev else ("GEAR %d" % gear)) if geared else ("REV" if rev else ""), HORIZONTAL_ALIGNMENT_LEFT, ab.size.x * 0.4, int(UiUtil.BAR_LABEL * s * 0.85), Color(1, 1, 1, 0.75), 1.0 * s)
 	var rpm := clampf(UiUtil.num(veh, &"rpm", 0.0), 0.0, 1.0)
 	var rb := Rect2(ab.position.x + 8.0 * s, ab.end.y - 8.0 * s, ab.size.x - 16.0 * s, 4.0 * s)
 	_rect(c, rb, Color(0.0, 0.03, 0.05, 0.7))
 	_rect(c, Rect2(rb.position, Vector2(rb.size.x * rpm, rb.size.y)), Color(UiUtil.AMBER if rpm < 0.86 else UiUtil.RED, 0.95))
+
+
+## The little plate above the speedometer for the roster craft and armed vehicles (helicopter, plane, boat, tank, anything with a mounted gun): altitude and throttle of an aircraft, a plain hint
+## for the next thing to do (take off, stall, land), and the gun with its rounds. Rows are built by `vehicle_rows`.
+func _draw_vehicle_readout(c: Control, font: Font, ab: Rect2, veh: Object, s: float) -> void:
+	var rows := vehicle_rows(veh)
+	if rows.is_empty():
+		return
+	var rh := 30.0 * s
+	var r := Rect2(ab.end.x + 10.0 * s, ab.end.y - rh * rows.size() - 6.0 * s, ab.size.x * 1.45, rh * rows.size() + 6.0 * s)       # beside the speedometer, on its baseline
+	_plate(c, r, s)
+	for i in rows.size():
+		var row: Dictionary = rows[i]
+		_text(c, font, Vector2(r.position.x + 10.0 * s, r.position.y + (i + 1) * rh - 4.0 * s), String(row["text"]), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 20.0 * s,
+			UiUtil.fit_size(font, String(row["text"]), r.size.x - 20.0 * s, int(UiUtil.BAR_LABEL * s * 1.05)), row["col"] as Color, 1.0 * s)
+
+
+## What the readout says for a driven vehicle: [{text, col}]. Empty for a plain car. Public so the tests can read the words.
+func vehicle_rows(veh: Object) -> Array:
+	var rows: Array = []
+	var cls: Variant = veh.get("cls")
+	var craft: Object = veh.get("craft")
+	if craft != null and (cls == &"heli" or cls == &"plane"):
+		var alt := roundi(VehicleCraft.altitude(veh as Vehicle))
+		var line := "ALT %d M" % alt
+		if cls == &"plane":
+			line += "    THROTTLE %d %%" % roundi(UiUtil.num(craft, &"lever", 0.0) * 100.0)
+		rows.append({"text": line, "col": Color(UiUtil.CYAN, 0.97)})
+		var air: bool = craft.get("airborne") == true
+		var spd := absf(UiUtil.num(veh, &"speed", 0.0))
+		var spec: Dictionary = veh.get("spec")
+		var hint := ""
+		if cls == &"plane":
+			var stall := float(spec.get("stall", 24.0))
+			if air and spd < stall * 0.8:
+				hint = "STALLING  MORE THROTTLE"
+			elif not air and UiUtil.num(craft, &"lever", 0.0) < 0.3:
+				hint = "STICK UP FOR THROTTLE"
+			elif not air and spd >= stall * 0.9:
+				hint = "PULL UP TO TAKE OFF"
+			elif not air:
+				hint = "SPEED UP"
+			elif alt < 25 and UiUtil.num(craft, &"vy", 0.0) < -2.0:
+				hint = "LANDING  EASY"
+		elif not air:
+			hint = "HOLD UP TO LIFT OFF" if UiUtil.num(craft, &"spool", 0.0) >= VehicleCraft.SPOOL_READY else "ROTOR SPINNING UP"
+		if hint != "":
+			rows.append({"text": hint, "col": Color(UiUtil.AMBER, 0.97)})
+	var w: Object = veh.get("weapons")
+	if w != null and w.has_method(&"mounted") and w.call(&"mounted"):
+		var d: Dictionary = w.get("def")
+		var hot: bool = w.get("locked") == true
+		rows.append({"text": "%s  %d%s" % [String(d.get("name", "GUN")), int(UiUtil.num(w, &"ammo", 0.0)), "  HOT" if hot else ""], "col": Color(UiUtil.RED if hot else Color(1, 1, 1), 0.97)})
+	return rows
 
 
 ## "27 / 30", "RELOADING" on foot, "84 KM/H" in a vehicle (cached: rebuilt only when a number changes).
@@ -1034,10 +1089,22 @@ func _draw_weapon_pop(c: Control, s: float, font: Font, vp: Vector2, p: Object) 
 	var r := Rect2(cx - 200.0 * s, vp.y * 0.58, 400.0 * s, (112.0 if nxt == &"" else 148.0) * s)
 	_plate(c, r, s)
 	WeaponIcons.draw(c, w.current, Rect2(r.position.x + 8.0 * s, r.position.y + 8.0 * s, 130.0 * s, 70.0 * s), Color(UiUtil.CYAN, 0.95 * a))
-	_text(c, font, Vector2(r.position.x + 146.0 * s, r.position.y + 36.0 * s), String(w.def["name"]), HORIZONTAL_ALIGNMENT_LEFT, 250.0 * s, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.97 * a), 1.0 * s)
+	var pop_name := String(w.def["name"])                                # long roster names ("TITAN ANTI-MATERIAL RIFLE") go on two lines instead of being cut
+	var nsize := int(UiUtil.BAR_LABEL * s)
+	var lines: Array[String] = [pop_name]
+	if font.get_string_size(pop_name, HORIZONTAL_ALIGNMENT_LEFT, -1.0, nsize).x > 250.0 * s:
+		var words := pop_name.split(" ", false)
+		var best := 1
+		for k in range(1, words.size()):
+			if font.get_string_size(" ".join(words.slice(0, k)), HORIZONTAL_ALIGNMENT_LEFT, -1.0, nsize).x <= 250.0 * s:
+				best = k
+		lines = [" ".join(words.slice(0, best)), " ".join(words.slice(best))]
+	var ny := r.position.y + (36.0 if lines.size() == 1 else 28.0) * s
+	for li in lines.size():
+		_text(c, font, Vector2(r.position.x + 146.0 * s, ny + float(li) * 26.0 * s), lines[li], HORIZONTAL_ALIGNMENT_LEFT, 250.0 * s, UiUtil.fit_size(font, lines[li], 250.0 * s, nsize), Color(1, 1, 1, 0.97 * a), 1.0 * s)
 	var cls := String(WeaponDefs.CLASS_NAMES.get(WeaponDefs.class_of(w.current), ""))
 	var rounds := "MELEE" if String(w.def["kind"]) == "melee" else "%d / %d  %s" % [w.ammo, w.mag, "INF" if w.reserve < 0 else str(w.reserve)]
-	_text(c, font, Vector2(r.position.x + 146.0 * s, r.position.y + 68.0 * s), "%s  %s" % [cls, rounds], HORIZONTAL_ALIGNMENT_LEFT, 250.0 * s, int(UiUtil.BAR_LABEL * s * 0.85), Color(UiUtil.AMBER, 0.95 * a), 1.0 * s)
+	_text(c, font, Vector2(r.position.x + 146.0 * s, r.position.y + (68.0 if lines.size() == 1 else 84.0) * s), "%s  %s" % [cls, rounds], HORIZONTAL_ALIGNMENT_LEFT, 250.0 * s, int(UiUtil.BAR_LABEL * s * 0.85), Color(UiUtil.AMBER, 0.95 * a), 1.0 * s)
 	if nxt != &"":
 		_text(c, font, Vector2(r.position.x + 10.0 * s, r.position.y + 104.0 * s), "NEXT  %s" % WeaponDefs.title(nxt), HORIZONTAL_ALIGNMENT_LEFT, 380.0 * s, int(18.0 * s), Color(UiUtil.CYAN, 0.95 * a), 0.5 * s)
 		_text(c, font, Vector2(r.position.x + 10.0 * s, r.position.y + 132.0 * s), WeaponLadder.route_text(nxt), HORIZONTAL_ALIGNMENT_LEFT, 380.0 * s, int(18.0 * s), Color(1, 1, 1, 0.85 * a), 0.5 * s)
@@ -1494,9 +1561,10 @@ func _draw_hud_body() -> void:
 		if touch_on:                                        # the car fills the middle of the frame: the speed sits in the free bottom-left corner, away from the thumbs
 			ab.position.x = ins.x + 24.0 * s
 		_draw_speedometer(c, font, ab, veh, s)
+		_draw_vehicle_readout(c, font, ab, veh, s)
 	elif ammo_plate:
 		_plate(c, ab, s)
-		_text(c, font, Vector2(ab.position.x, ab.position.y + 50.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, int(48.0 * s), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
+		_text(c, font, Vector2(ab.position.x, ab.position.y + 50.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, UiUtil.fit_size(font, ammo_text(), ab.size.x - 8.0 * s, int(48.0 * s)), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)
 	if veh == null and not touch_on and weapon_text() != "":
 		var wr := Rect2(ab.get_center().x - 215.0 * s, ab.position.y - 42.0 * s, 430.0 * s, 36.0 * s)
 		_plate(c, wr, s)

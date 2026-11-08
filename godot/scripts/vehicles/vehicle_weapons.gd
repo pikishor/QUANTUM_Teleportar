@@ -43,7 +43,7 @@ func can_fire() -> bool:
 
 
 func muzzle() -> Vector3:
-	return car.global_position + car.forward() * float(car.spec["len"]) * 0.5 + Vector3(0.0, 0.7 + float(car.spec.get("hover_h", 0.0)), 0.0)
+	return car.muzzle_pos()
 
 
 ## One physics tick: cool down, then fire when asked and allowed. Returns true when a shot left the muzzle.
@@ -71,10 +71,10 @@ func _shoot() -> void:
 		locked = true
 		Game.say("WEAPON OVERHEATED", 1.0)
 	var origin := muzzle()
-	var dir := car.forward()
+	var dir := car.aim_dir()
 	var spread := float(def.get("spread", 0.0))
 	if spread > 0.0:
-		dir = dir.rotated(Vector3.UP, randf_range(-spread, spread))
+		dir = dir.rotated(Vector3.UP, randf_range(-spread, spread)).rotated(dir.cross(Vector3.UP).normalized() if absf(dir.y) < 0.99 else Vector3.RIGHT, randf_range(-spread, spread) * 0.5)
 	var to := origin + dir * float(def["range"])
 	var space := car.get_world_3d().direct_space_state
 	var q := PhysicsRayQueryParameters3D.create(origin, to, Game.L_WORLD | Game.L_ENEMY | Game.L_VEHICLE)

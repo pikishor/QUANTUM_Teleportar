@@ -457,7 +457,140 @@ def build_beds():
     emit("city_hum", bed("amb_city", "city_hum", lp=2400.0), ogg=True)
 
 
-STEPS = [build_shots, build_weapon_foley, build_impacts, build_hits, build_explosions, build_footsteps, build_vehicle, build_ui, build_beds]
+# ------------------------------------------------------------------ round 5: the weapon roster (docs/DESIGN.md)
+ROSTER_ALIAS = {   # new sound -> an existing sound whose level row (real_levels.py) it follows
+    "shot_magnum": "shot_rev", "shot_mp": "shot_burst", "shot_ar2": "shot", "shot_bpup": "shot_burst", "shot_lmg": "shot", "shot_amr": "shot_rail", "shot_xbow": "melee_whip",
+    "shot_flame": "shot_mini", "shot_stun": "shot_arc", "melee_katana": "melee_blade", "melee_bat": "melee_blade", "shot_qsuper": "shot_arc", "shot_qlink": "shot_arc",
+    "shot_qcollapse": "shot_gravity", "shot_qblink": "shot_arc", "shot_qphase": "shot_lance", "shot_qstasis": "shot_arc",
+}
+
+
+def _rs(seed):
+    return np.random.RandomState(seed)
+
+
+def twang(seed, f0=560.0, f1=170.0, dur=0.4, decay=13.0):
+    """A plucked string (crossbow release): a falling fundamental with two harmonics and a short noise click."""
+    n = _n(dur)
+    t = np.arange(n) / SR
+    f = f1 + (f0 - f1) * np.exp(-t * 20.0)
+    ph = 2.0 * np.pi * np.cumsum(f) / SR
+    x = (np.sin(ph) + 0.5 * np.sin(2 * ph) + 0.25 * np.sin(3 * ph)) * np.exp(-t * decay)
+    click = _rs(seed).randn(n) * np.exp(-t * 400.0)
+    return (x + 0.6 * click) / 1.8
+
+
+def crackle(seed, dur=0.35, density=0.03, hp_hz=1800.0):
+    """Electric crackle: random sparse impulses through a high-pass with a decaying envelope (stun gun, stasis)."""
+    n = _n(dur)
+    r = _rs(seed)
+    x = r.randn(n) * (r.rand(n) < density)
+    x = mr.hp(x, hp_hz, 2)
+    return x * np.exp(-np.arange(n) / SR * 9.0)
+
+
+def whoosh(seed, dur=0.26, lo=250.0, hi=3200.0, attack=0.025, decay=9.0):
+    """A flame / air roar: band-limited noise with a short attack."""
+    n = _n(dur)
+    t = np.arange(n) / SR
+    x = mr.band(_rs(seed).randn(n), lo, hi)
+    return x * np.minimum(1.0, t / attack) * np.exp(-t * decay)
+
+
+def part(x, db=0.0, delay=0.0):
+    x = np.asarray(x, dtype=np.float64)
+    return (x / (np.max(np.abs(x)) + 1e-12) * 10 ** (db / 20.0), delay)
+
+
+def emit_o(name, x):
+    """The roster sounds ship as OGG (q4): a third of the size of the WAV, the audio folder is inside its budget."""
+    emit(name, x, ogg=True)
+
+
+def build_roster():
+    for k, v in ROSTER_ALIAS.items():
+        for sfx in ("", "_1", "_2"):
+            LEVELS[k + sfx] = LEVELS[v]
+    # heavy pistol: the 1911 and the 1917 with a revolver-class thump and a long tail
+    for i, (cid, sm) in enumerate((("fl_1911_near", -4.0), ("fl_1917_near", -2.0))):
+        nm = "shot_magnum" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(cid, semis=sm, lp=7000), C("fl_sw642_near", db=-7.0, semis=-8.0, lp=900, delay=0.002)], "revolver", 9800 + i, body=0.7, presence=1.2, length=0.9, body_f=(250, 80)))
+    # machine pistol: three quick pistol cracks pitched up, no tail (it repeats 14 times a second)
+    for i, (cid, sm) in enumerate((("fl_ppq_near", 1.5), ("fl_bersa_near", 2.5), ("fl_1911_near", 3.5))):
+        nm = "shot_mp" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(cid, semis=sm, lp=7500)], "burst", 9810 + i, body=0.5, presence=1.0, length=0.22))
+    # RANGER assault rifle: the AR-15 and AK a little lower than the carbine's, so the two are not the same gun
+    for i, (cid, sm) in enumerate((("fl_ar15_near", -2.5), ("fl_ak_near2", -3.0), ("fl_sks_near", -2.0))):
+        nm = "shot_ar2" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(cid, semis=sm, lp=6500)], "rifle", 9820 + i, body=0.5, presence=0.9, length=0.7, body_f=(220, 65)))
+    # BULLPUP burst rifle: a bright, light crack (the savage .300 and the AR-15 pitched up)
+    for i, (cid, sm) in enumerate((("fl_savage_near", 2.0), ("fl_ar15_near", 2.5), ("fl_ak_near", 1.5))):
+        nm = "shot_bpup" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(cid, semis=sm, lp=8000)], "burst", 9830 + i, body=0.4, presence=1.4, length=0.3))
+    # LMG: heavy and dull, the AK pitched well down over a low thump
+    for i, (cid, sm) in enumerate((("fl_ak_near", -4.5), ("fl_ak_near2", -5.5), ("fl_ar15_near", -5.0))):
+        nm = "shot_lmg" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(cid, semis=sm, lp=5200)], "rifle", 9840 + i, body=0.85, presence=0.6, length=0.45, body_f=(190, 55)))
+    # anti-material rifle: a Mosin crack, a black-powder boom and a cannon tail
+    for i, (cid, sm, bang) in enumerate((("fl_mosin_near", -5.0, "bang_cannon2"), ("fl_savage_near", -6.0, "bang_cannon4"))):
+        nm = "shot_amr" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(cid, semis=sm, lp=6000), C("lark_blackpowder", db=-3.0, semis=-5.0, lp=2500), C(bang, db=-8.0, semis=-3.0, lp=1500, delay=0.01)], "revolver", 9850 + i, body=1.1, presence=1.0,
+                      length=1.4, tail=(1.1, 0.3), body_f=(170, 45)))
+    # crossbow: a string twang, the latch click and a short swish of the bolt
+    for i in range(2):
+        nm = "shot_xbow" + ("" if i == 0 else "_%d" % i)
+        x = mix([part(twang(9860 + i, 560.0 + 80.0 * i, 170.0 + 20.0 * i), 0.0), C("equip_click_a", db=-6.0, hp=900), C("sw_2", db=-10.0, semis=3.0 + i, delay=0.01, hp=1800)], 0.5)
+        emit_o(nm, match(x, nm, boost=3.0))
+    # flamethrower: a fuel whoosh, a low rumble and a hiss (three takes, it repeats 16 times a second)
+    for i in range(3):
+        nm = "shot_flame" + ("" if i == 0 else "_%d" % i)
+        x = mix([part(whoosh(9870 + i, 0.24, 250.0, 3200.0), 0.0), part(whoosh(9880 + i, 0.2, 60.0, 400.0, 0.02, 10.0), -2.0), C("sw_%d" % (1 + i * 2), db=-8.0, semis=-4.0 + i, lp=3500)], 0.3)
+        emit_o(nm, match(x, nm, window=200.0))
+    # stun gun: an electric zap over a crackle
+    for i in range(2):
+        nm = "shot_stun" + ("" if i == 0 else "_%d" % i)
+        x = mix([C(["kn_laser_s0", "kn_laser_s2"][i], semis=-3.0 + 2.0 * i, lp=9000), part(crackle(9890 + i, 0.4, 0.03 + 0.01 * i), -2.0), C("sf60_21a", db=-9.0, semis=2.0, lp=8000)], 0.5)
+        emit_o(nm, match(x, nm, boost=2.0))
+    # katana: a fast high swish, then a steel ring
+    for i in range(2):
+        nm = "melee_katana" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sw_3", semis=3.0 + i, hp=600, lp=10000), C("kn_impact_metal4", db=-9.0, delay=0.06, semis=9.0 + 2.0 * i, hp=2500)], 0.55)
+        emit_o(nm, match(x, nm))
+    # bat: a heavy low swish and a wooden thwack
+    for i in range(2):
+        nm = "melee_bat" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sw_4", semis=-4.0 - i, lp=7000), C(["st_c2_wood1", "st_c2_wood3"][i], db=-1.0, delay=0.07, semis=-5.0, lp=3000), C("qp_punch1", db=-8.0, delay=0.075, semis=-3.0, lp=2000)], 0.6)
+        emit_o(nm, match(x, nm, boost=2.0))
+    # quantum weapons
+    for i in range(2):                                                                     # SUPERPOSITION: a laser and its fading echo a split second later
+        nm = "shot_qsuper" + ("" if i == 0 else "_%d" % i)
+        base = C(["kn_laser_s1", "kn_laser_r0"][i], lp=9000)
+        echo1 = C(["kn_laser_s1", "kn_laser_r0"][i], db=-6.0, semis=4.0, delay=0.09, lp=7000)
+        echo2 = C(["kn_laser_s1", "kn_laser_r0"][i], db=-12.0, semis=8.0, delay=0.18, lp=5000)
+        emit_o(nm, shot(nm, [base, echo1, echo2], "flux", 9900 + i, body=0.4, length=0.6, tail=(0.5, 0.25)))
+    for i in range(2):                                                                     # ENTANGLE: two tones a fifth apart, one laser each, joined by a shimmer
+        nm = "shot_qlink" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(["kn_laser_r4", "kn_laser_r0"][i], lp=9000), C(["kn_laser_r4", "kn_laser_r0"][i], db=-3.0, semis=7.0, delay=0.012, lp=8000), C("sf60_21a", db=-8.0, hp=2000)], "flux", 9910 + i, body=0.35,
+                      length=0.5, tail=(0.4, 0.2)))
+    for i in range(2):                                                                     # COLLAPSE CANNON: a huge low boom with a falling force-field whine
+        nm = "shot_qcollapse" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(["kn_lowexpl0", "kn_lowexpl1"][i], semis=-5.0, lp=1200), C(["kn_forcefield2", "kn_forcefield0"][i], db=-3.0, semis=-6.0, lp=4000, gl=(1.2, 0.6)), C("bang_cannon2", db=-6.0, semis=-6.0, lp=900, delay=0.01)],
+                      "revolver", 9920 + i, body=1.5, length=1.3, tail=(0.9, 0.3), body_f=(130, 32)))
+    for i in range(2):                                                                     # BLINK PISTOL: a retro laser that rises, a swish pulled upward
+        nm = "shot_qblink" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sf50_retro_laser1", gl=(0.8, 1.5 + 0.2 * i), lp=9000), C("sw_2", db=-7.0, semis=6.0, gl=(0.9, 1.6), hp=1500)], 0.5)
+        emit_o(nm, shot(nm, [(x, 0.0)], "flux", 9930 + i, body=0.3, length=0.45))
+    for i in range(2):                                                                     # PHASE RIFLE: a muffled laser behind a force field, as heard through a wall
+        nm = "shot_qphase" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(["kn_laser_l2", "kn_laser_l0"][i], lp=4500), C("kn_forcefield0", db=-4.0, semis=2.0 + i, lp=3500), C("sf50_shoot1", db=-9.0, hp=1200, lp=7000)], "flux", 9940 + i, body=0.45,
+                      length=0.6, tail=(0.7, 0.3)))
+    for i in range(2):                                                                     # STASIS RAY: a cold, steady hum with a crystalline crackle
+        nm = "shot_qstasis" + ("" if i == 0 else "_%d" % i)
+        x = mix([C(["kn_forcefield0", "kn_forcefield2"][i], semis=3.0, hp=300, lp=9000), part(crackle(9950 + i, 0.5, 0.012, 3500), -6.0), C("kn_laser_s2", db=-9.0, semis=5.0, lp=9000)], 0.6)
+        emit_o(nm, match(x, nm, boost=1.0))
+
+
+STEPS = [build_shots, build_weapon_foley, build_impacts, build_hits, build_explosions, build_footsteps, build_vehicle, build_ui, build_beds, build_roster]
 
 
 def main():

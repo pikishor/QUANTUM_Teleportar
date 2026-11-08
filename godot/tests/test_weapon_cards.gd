@@ -15,10 +15,10 @@ func run(h: Node) -> void:
 
 
 func _data() -> void:
-	TestLib.check(WeaponDefs.IDS.size() >= 26, "twenty-six or more weapons (%d)" % WeaponDefs.IDS.size())
+	TestLib.check(WeaponDefs.IDS.size() >= 43, "forty-three or more weapons (%d)" % WeaponDefs.IDS.size())
 	for cls: StringName in WeaponDefs.CLASS_ORDER:
 		var n := WeaponDefs.in_class(cls).size()
-		TestLib.check(n >= 3 and n <= 4, "class %s has three or four variants (%d)" % [cls, n])
+		TestLib.check(n >= 3 and n <= 7, "class %s has three to seven variants (%d)" % [cls, n])
 	TestLib.check(Gear.THROW_IDS.size() >= 3, "three or more throwables")
 	for id: StringName in WeaponDefs.IDS:
 		TestLib.check(ResourceLoader.exists("res://assets/models/ow_%s.glb" % id) or WeaponModels.mesh(id) != null, "%s has a model" % id)
@@ -77,7 +77,7 @@ func _numbers() -> void:
 	for i in WeaponLadder.CRATES.size():
 		if StringName(WeaponLadder.CRATES[i]["weapon"]) != &"":
 			held += 1
-	TestLib.check(held == 6, "six weapon crates on the map")
+	TestLib.check(held >= 6, "six or more weapon crates on the map (%d)" % held)
 	for id: StringName in [&"marksman", &"breacher", &"rocket", &"battle", &"sawn", &"dmr"]:
 		TestLib.check(WeaponStats.crates_of(id).size() == 1 and WeaponStats.where(id)[0].begins_with("CRATE"), "%s sits in a crate and the card says so" % id)
 
@@ -183,10 +183,10 @@ func _live() -> void:
 		TestLib.check(tiles == items.size(), "page %d: a tile per item" % [pg + 1])
 	for id: StringName in WeaponDefs.IDS:
 		TestLib.check(all_ids.has(id), "the catalogue lists %s" % id)
-	for id: StringName in Gear.THROW_IDS + Gear.GADGET_IDS:
+	for id: StringName in Gear.THROW_IDS + Gear.CHARGE_IDS + Gear.GADGET_IDS:
 		TestLib.check(all_ids.has(id), "the catalogue lists the %s" % id)
-	# select, buy, equip
-	ShopScreen.weapon_page = 1
+	# select, buy, equip (the marksman is a RIFLE: its tab, not the first page)
+	ShopScreen.weapon_page = 1 + WeaponsScreen.page_of(&"marksman")
 	WeaponsScreen.sel = &""
 	hud._layout_key = ""
 	hud._ensure_layout()
@@ -209,9 +209,10 @@ func _live() -> void:
 		has_equip = has_equip or b["id"] == StringName("wequip_%s" % target)
 	TestLib.check(has_equip, "an owned weapon shows EQUIP")
 	TestLib.check(hud.press_button(StringName("wequip_%s" % target)) and p.weapon.current == target and WeaponDefs.last_used == target, "EQUIP puts it in the hero's hand")
+	ShopScreen.weapon_page = 1
 	TestLib.check(hud.press_button(&"wpg_next") and ShopScreen.weapon_page == 2 and hud.press_button(&"wpg_prev") and ShopScreen.weapon_page == 1, "the page buttons flip")
 	hud.press_button(&"wpg_prev")
-	TestLib.check(ShopScreen.weapon_page == 3, "the pages wrap")
+	TestLib.check(ShopScreen.weapon_page == WeaponsScreen.PAGES, "the pages wrap")
 	# a gear item: select the mine, buy it from its card
 	WeaponsScreen.select(&"mine")
 	hud._layout_key = ""

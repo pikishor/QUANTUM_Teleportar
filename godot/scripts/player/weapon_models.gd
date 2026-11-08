@@ -44,6 +44,24 @@ const SPEC := {
 	&"bolt": {"reach": 0.98, "gr": Vector3(0.0, -0.09, 0.8), "gl": Vector3(0.0, -0.08, 0.48)},
 	&"dmr": {"reach": 0.94, "gr": Vector3(0.0, -0.09, 0.76), "gl": Vector3(0.0, -0.08, 0.46)},
 	&"knife": {"reach": 1.0, "gr": Vector3(0.0, 0.0, 0.34), "gl": Vector3(0.0, 0.0, 0.42)},
+	# round 5 roster
+	&"magnum": {"reach": 0.62, "gr": Vector3(0.0, -0.095, 0.2), "gl": Vector3(-0.025, -0.115, 0.16)},
+	&"mpistol": {"reach": 0.64, "gr": Vector3(0.0, -0.085, 0.22), "gl": Vector3(-0.015, -0.1, 0.12)},
+	&"stun": {"reach": 0.6, "gr": Vector3(0.0, -0.085, 0.17), "gl": Vector3(-0.025, -0.1, 0.12)},
+	&"ranger": {"reach": 0.86, "gr": Vector3(0.0, -0.095, 0.68), "gl": Vector3(-0.012, -0.08, 0.4)},
+	&"bullpup": {"reach": 0.78, "gr": Vector3(0.0, -0.1, 0.5), "gl": Vector3(0.0, -0.09, 0.26)},
+	&"lmg": {"reach": 0.88, "gr": Vector3(0.0, -0.1, 0.5), "gl": Vector3(0.0, -0.09, 0.26)},
+	&"amr": {"reach": 0.98, "gr": Vector3(0.0, -0.09, 0.8), "gl": Vector3(0.0, -0.08, 0.5)},
+	&"xbow": {"reach": 0.8, "gr": Vector3(0.0, -0.09, 0.52), "gl": Vector3(0.0, -0.06, 0.28)},
+	&"flame": {"reach": 0.84, "gr": Vector3(0.0, -0.1, 0.62), "gl": Vector3(0.0, -0.06, 0.34)},
+	&"katana": {"reach": 1.1, "gr": Vector3(0.0, 0.0, 0.98), "gl": Vector3(0.0, 0.0, 1.12)},
+	&"bat": {"reach": 1.0, "gr": Vector3(0.0, 0.0, 0.8), "gl": Vector3(0.0, 0.0, 0.9)},
+	&"qsuper": {"reach": 0.8, "gr": Vector3(0.0, -0.1, 0.56), "gl": Vector3(0.0, -0.08, 0.3)},
+	&"qlink": {"reach": 0.78, "gr": Vector3(0.0, -0.1, 0.5), "gl": Vector3(0.0, -0.08, 0.26)},
+	&"qcollapse": {"reach": 0.82, "gr": Vector3(0.0, -0.12, 0.62), "gl": Vector3(0.0, -0.12, 0.3)},
+	&"qblink": {"reach": 0.6, "gr": Vector3(0.0, -0.085, 0.2), "gl": Vector3(-0.025, -0.1, 0.14)},
+	&"qphase": {"reach": 0.88, "gr": Vector3(0.0, -0.09, 0.7), "gl": Vector3(0.0, -0.08, 0.4)},
+	&"qstasis": {"reach": 0.8, "gr": Vector3(0.0, -0.1, 0.56), "gl": Vector3(0.0, -0.08, 0.3)},
 }
 
 static var _cache := {}
@@ -64,7 +82,7 @@ static func mesh(id: StringName) -> ArrayMesh:
 	else:
 		opened = _open(b, id)
 	if opened:
-		pass
+		_extras(b, id)
 	else:
 		b = _Builder.new()
 		_procedural(b, id, glow)
@@ -160,6 +178,53 @@ static func _procedural(b: _Builder, id: StringName, glow: Color) -> void:
 			_marksman(b, glow)
 		&"knife":
 			_blade(b, glow)
+		&"magnum":
+			_pistol(b, glow, 1.15)
+		&"mpistol":
+			_smg(b, glow)
+		&"ranger", &"bullpup":
+			_marksman(b, glow)
+		&"lmg":
+			_lmg(b, glow)
+		&"amr":
+			_amr(b, glow)
+		&"xbow":
+			_xbow(b, glow)
+		&"flame":
+			_flame(b, glow)
+		&"stun":
+			_stun(b, glow)
+		&"katana":
+			_katana(b, glow)
+		&"bat":
+			_bat(b, glow)
+		&"qsuper":
+			_qsuper(b, glow)
+		&"qlink":
+			_qlink(b, glow)
+		&"qcollapse":
+			_qcollapse(b, glow)
+		&"qblink":
+			_qblink(b, glow)
+		&"qphase":
+			_qphase(b, glow)
+		&"qstasis":
+			_qstasis(b, glow)
+
+
+## What the open-source model of a gun lacks: a bipod on the LMG and the anti-material rifle, a glowing muzzle ring on the quantum look of the rest (the real shapes are plain steel).
+static func _extras(b: _Builder, id: StringName) -> void:
+	match id:
+		&"lmg":                                                                                         # a bipod folded under the handguard and a big box magazine
+			b.box(Vector3(0.0, -0.045, 0.16), Vector3(0.05, 0.03, 0.05), DARK)
+			b.box(Vector3(0.03, -0.12, 0.13), Vector3(0.008, 0.15, 0.008), DARK, 0.0, -0.4)
+			b.box(Vector3(-0.03, -0.12, 0.13), Vector3(0.008, 0.15, 0.008), DARK, 0.0, -0.4)
+			b.box(Vector3(0.0, -0.22, 0.52), Vector3(0.07, 0.1, 0.12), POLY)
+		&"amr":
+			b.box(Vector3(0.0, -0.035, 0.34), Vector3(0.05, 0.03, 0.05), DARK)
+			b.box(Vector3(0.035, -0.12, 0.3), Vector3(0.008, 0.16, 0.008), DARK, 0.0, -0.35)
+			b.box(Vector3(-0.035, -0.12, 0.3), Vector3(0.008, 0.16, 0.008), DARK, 0.0, -0.35)
+			b.box(Vector3(0.0, 0.0, 0.05), Vector3(0.045, 0.045, 0.1), DARK)                               # muzzle brake
 
 
 # --- the models ---------------------------------------------------------------------------------------------------------
@@ -441,6 +506,180 @@ static func _whip(b: _Builder, glow: Color) -> void:
 	b.box(Vector3(0.012, 0.0, -0.24), Vector3(0.006, 0.006, 0.1), glow, 1.0)
 
 
+## ROUND 5: weapons without an open model (generic shapes, the glow of the quantum look on the parts that matter).
+static func _lmg(b: _Builder, glow: Color) -> void:                                                     # fallback shape when the open model is missing
+	_marksman(b, glow)
+	b.box(Vector3(0, -0.14, 0.5), Vector3(0.1, 0.14, 0.14), DARK)                                       # the box magazine under the receiver
+
+
+static func _amr(b: _Builder, glow: Color) -> void:
+	_rail(b, glow)
+
+
+static func _xbow(b: _Builder, glow: Color) -> void:
+	b.box(Vector3(0, 0.0, 0.34), Vector3(0.05, 0.06, 0.62), GUN)                                        # stock and rail
+	b.box(Vector3(0, 0.035, 0.28), Vector3(0.026, 0.016, 0.52), STEEL)                                  # flight rail on top
+	b.cyl(Vector3(0, 0.05, 0.2), 0.007, 0.36, BRASS, 0.0, 6)                                            # the bolt
+	b.box(Vector3(0, 0.05, 0.02), Vector3(0.016, 0.016, 0.04), glow, 1.0)                               # the bolt's glowing head
+	for sx in [-1.0, 1.0]:                                                                              # the prod: thick limbs sweeping back to glowing tips
+		b.box(Vector3(0.075 * sx, 0.0, 0.125), Vector3(0.15, 0.026, 0.05), POLY)
+		b.box(Vector3(0.17 * sx, 0.0, 0.145), Vector3(0.07, 0.024, 0.04), GUN)
+		b.box(Vector3(0.225 * sx, 0.0, 0.175), Vector3(0.05, 0.022, 0.036), GUN)
+		b.box(Vector3(0.255 * sx, 0.0, 0.2), Vector3(0.02, 0.024, 0.03), glow, 1.0)                      # glowing tip
+	b.box(Vector3(0, 0.0, 0.2), Vector3(0.5, 0.006, 0.006), glow, 0.7)                                  # the string
+	b.box(Vector3(0, 0.0, 0.2), Vector3(0.04, 0.05, 0.03), STEEL)                                       # latch
+	b.box(Vector3(0, 0.0, 0.0), Vector3(0.05, 0.05, 0.05), STEEL)                                       # the foot stirrup
+	b.cyl(Vector3(0, 0.075, 0.42), 0.02, 0.16, DARK, 0.0, 8)                                            # small scope
+	b.box(Vector3(0, 0.075, 0.33), Vector3(0.036, 0.036, 0.004), glow, 1.0)
+	b.box(Vector3(0, -0.085, 0.44), Vector3(0.034, 0.1, 0.046), DARK, 0.0, -0.3)                         # grip
+	b.box(Vector3(0, -0.01, 0.64), Vector3(0.05, 0.08, 0.2), POLY)                                      # stock
+	b.box(Vector3(0, -0.015, 0.75), Vector3(0.044, 0.11, 0.03), DARK)
+
+
+static func _flame(b: _Builder, glow: Color) -> void:
+	b.cyl(Vector3(0, 0.0, 0.3), 0.026, 0.6, STEEL, 0.0, 8)                                              # the lance
+	b.cyl(Vector3(0, 0.0, 0.03), 0.044, 0.07, DARK, 0.0, 10)                                            # nozzle
+	b.cyl(Vector3(0, 0.0, 0.0), 0.034, 0.012, glow, 1.0, 10)                                            # the pilot light
+	b.box(Vector3(0, 0.03, 0.01), Vector3(0.016, 0.03, 0.016), glow, 1.0)
+	for k in 3:
+		b.cyl(Vector3(0, 0.0, 0.2 + 0.12 * float(k)), 0.034, 0.02, POLY, 0.0, 8)                        # heat rings
+	b.box(Vector3(0, 0.0, 0.62), Vector3(0.08, 0.1, 0.22), GUN)                                         # valve body
+	b.cyl(Vector3(0, -0.14, 0.62), 0.07, 0.46, GUN, 0.0, 12)                                            # the fuel tank under the gun
+	b.cyl(Vector3(0, -0.14, 0.62), 0.074, 0.05, glow, 0.7, 12)                                          # glowing fuel band
+	b.cyl(Vector3(0, -0.14, 0.44), 0.074, 0.03, STEEL, 0.0, 12)
+	b.cyl(Vector3(0, -0.14, 0.8), 0.074, 0.03, STEEL, 0.0, 12)
+	b.box(Vector3(0, -0.07, 0.62), Vector3(0.016, 0.06, 0.016), DARK)                                   # feed hose
+	b.box(Vector3(0, -0.1, 0.3), Vector3(0.034, 0.09, 0.05), POLY)                                      # foregrip
+	b.box(Vector3(0, -0.07, 0.76), Vector3(0.036, 0.1, 0.045), DARK, 0.0, -0.3)                          # grip
+	b.box(Vector3(0, 0.0, 0.8), Vector3(0.05, 0.08, 0.14), POLY)                                        # stock
+
+
+static func _stun(b: _Builder, glow: Color) -> void:
+	b.box(Vector3(0, 0.0, 0.12), Vector3(0.05, 0.07, 0.24), GUN)                                        # body
+	b.box(Vector3(0, 0.0, 0.12), Vector3(0.056, 0.03, 0.16), POLY)
+	b.box(Vector3(0.026, 0.0, 0.1), Vector3(0.004, 0.026, 0.12), glow, 1.0)
+	b.box(Vector3(-0.026, 0.0, 0.1), Vector3(0.004, 0.026, 0.12), glow, 1.0)
+	for sx in [-1.0, 1.0]:                                                                              # two electrode prongs with a spark gap
+		b.box(Vector3(0.022 * sx, 0.0, -0.025), Vector3(0.008, 0.012, 0.07), STEEL)
+		b.box(Vector3(0.022 * sx, 0.0, -0.062), Vector3(0.012, 0.016, 0.014), glow, 1.0)
+	b.box(Vector3(0, 0.0, -0.062), Vector3(0.03, 0.004, 0.004), glow, 1.0)
+	b.box(Vector3(0, -0.085, 0.16), Vector3(0.036, 0.105, 0.046), DARK, 0.0, -0.28)                      # grip
+	b.box(Vector3(0, -0.04, 0.12), Vector3(0.012, 0.03, 0.05), POLY)                                    # trigger guard
+
+
+static func _katana(b: _Builder, glow: Color) -> void:
+	for k in 3:                                                                                         # a blade with the slight curve of a katana: three tilted segments
+		b.box(Vector3(0, 0.0, 0.15 + 0.3 * float(k)), Vector3(0.006, 0.05, 0.3), STEEL, 0.0, -0.03 + 0.015 * float(k))
+		b.box(Vector3(0, 0.0, 0.15 + 0.3 * float(k)), Vector3(0.008, 0.008, 0.3), glow, 0.6, -0.03 + 0.015 * float(k))   # the glowing edge line
+	b.box(Vector3(0, 0.0, 0.0), Vector3(0.004, 0.02, 0.012), glow, 1.0)                                 # tip
+	b.cyl(Vector3(0, 0.0, 0.91), 0.034, 0.008, GUN, 0.0, 12)                                            # tsuba: a round guard
+	b.cyl(Vector3(0, 0.0, 0.905), 0.036, 0.004, glow, 0.8, 12)
+	b.cyl(Vector3(0, 0.0, 1.07), 0.015, 0.3, DARK, 0.0, 8)                                              # wrapped handle
+	for k in 6:
+		b.cyl(Vector3(0, 0.0, 0.95 + 0.047 * float(k)), 0.0175, 0.012, POLY, 0.0, 8)
+	b.cyl(Vector3(0, 0.0, 1.225), 0.02, 0.016, STEEL, 0.0, 8)                                           # pommel
+
+
+static func _bat(b: _Builder, glow: Color) -> void:
+	var wood := Color(0.5, 0.34, 0.18)
+	b.cyl(Vector3(0, 0.0, 0.22), 0.044, 0.44, wood, 0.0, 10)                                            # the barrel of the bat
+	b.cyl(Vector3(0, 0.0, 0.0), 0.042, 0.012, wood.darkened(0.3), 0.0, 10)                              # capped end
+	b.cyl(Vector3(0, 0.0, 0.5), 0.034, 0.14, wood, 0.0, 10)                                             # taper
+	b.cyl(Vector3(0, 0.0, 0.62), 0.021, 0.12, wood, 0.0, 10)
+	b.cyl(Vector3(0, 0.0, 0.8), 0.015, 0.26, DARK, 0.0, 8)                                              # taped grip
+	for k in 4:
+		b.cyl(Vector3(0, 0.0, 0.72 + 0.06 * float(k)), 0.0165, 0.008, POLY, 0.0, 8)
+	b.cyl(Vector3(0, 0.0, 0.945), 0.024, 0.03, wood.darkened(0.15), 0.0, 8)                             # knob
+	b.cyl(Vector3(0, 0.0, 0.3), 0.0455, 0.03, glow, 0.9, 10)                                            # a glowing sweet-spot band
+	b.cyl(Vector3(0, 0.0, 0.14), 0.0455, 0.012, glow, 0.9, 10)
+
+
+static func _qsuper(b: _Builder, glow: Color) -> void:                                                  # SUPERPOSITION: two barrels, one real and one echo
+	for sx in [-1.0, 1.0]:
+		b.cyl(Vector3(0.032 * sx, 0.0, 0.2), 0.016, 0.4, STEEL if sx > 0.0 else POLY, 0.0, 8)
+		b.tube(Vector3(0.032 * sx, 0.0, 0.012), 0.03, 0.017, 0.024, glow, 1.0 if sx > 0.0 else 0.45, 10)   # muzzle ring: bright for the real shot, dim for the echo
+	b.tube(Vector3(0, 0.0, 0.2), 0.062, 0.05, 0.016, glow, 0.8, 12)                                     # a split ring around both
+	b.box(Vector3(0, 0.0, 0.5), Vector3(0.09, 0.09, 0.3), GUN)                                          # receiver
+	b.box(Vector3(0, 0.0, 0.5), Vector3(0.094, 0.02, 0.22), glow, 0.9)
+	b.box(Vector3(0, 0.06, 0.5), Vector3(0.024, 0.02, 0.2), STEEL)
+	b.box(Vector3(0, -0.09, 0.62), Vector3(0.038, 0.11, 0.046), DARK, 0.0, -0.3)                         # grip
+	b.box(Vector3(0, -0.07, 0.34), Vector3(0.034, 0.08, 0.05), POLY)                                    # foregrip
+	b.box(Vector3(0, -0.01, 0.76), Vector3(0.05, 0.09, 0.2), POLY)                                      # stock
+	b.box(Vector3(0, -0.02, 0.86), Vector3(0.044, 0.12, 0.03), DARK)
+
+
+static func _qlink(b: _Builder, glow: Color) -> void:                                                   # ENTANGLE: two emitter prongs with a glowing link between them
+	for sx in [-1.0, 1.0]:
+		b.box(Vector3(0.06 * sx, 0.0, 0.14), Vector3(0.022, 0.05, 0.28), STEEL)
+		b.box(Vector3(0.06 * sx, 0.0, 0.01), Vector3(0.036, 0.06, 0.03), glow, 1.0)
+	b.box(Vector3(0, 0.0, 0.01), Vector3(0.1, 0.008, 0.008), glow, 1.0)                                 # the link across the gap
+	b.box(Vector3(0, 0.0, 0.14), Vector3(0.1, 0.008, 0.008), glow, 0.7)
+	b.box(Vector3(0, 0.0, 0.34), Vector3(0.1, 0.07, 0.12), POLY)                                        # yoke
+	b.cyl(Vector3(0, 0.0, 0.5), 0.05, 0.22, GUN, 0.0, 12)                                               # coil housing
+	b.cyl(Vector3(0, 0.0, 0.5), 0.054, 0.03, glow, 1.0, 12)
+	b.cyl(Vector3(0, 0.0, 0.58), 0.054, 0.03, glow, 1.0, 12)
+	b.box(Vector3(0, -0.09, 0.56), Vector3(0.036, 0.11, 0.046), DARK, 0.0, -0.3)                         # grip
+	b.box(Vector3(0, -0.07, 0.34), Vector3(0.034, 0.08, 0.05), POLY)
+	b.box(Vector3(0, -0.01, 0.74), Vector3(0.05, 0.09, 0.18), POLY)
+	b.box(Vector3(0, -0.02, 0.84), Vector3(0.044, 0.12, 0.03), DARK)
+
+
+static func _qcollapse(b: _Builder, glow: Color) -> void:                                               # COLLAPSE CANNON: a funnel muzzle around a glowing core
+	b.tube(Vector3(0, 0.0, 0.03), 0.11, 0.085, 0.06, STEEL, 0.0, 14)                                    # the funnel: two hollow rings, wide at the mouth
+	b.tube(Vector3(0, 0.0, 0.1), 0.095, 0.07, 0.08, GUN, 0.0, 14)
+	b.tube(Vector3(0, 0.0, 0.0), 0.108, 0.088, 0.014, glow, 1.0, 14)                                    # glowing mouth rim
+	b.cyl(Vector3(0, 0.0, 0.14), 0.07, 0.01, glow, 0.35, 12)                                            # the dim core deep inside
+	b.cyl(Vector3(0, 0.0, 0.3), 0.075, 0.36, GUN, 0.0, 12)                                              # tube
+	b.cyl(Vector3(0, 0.0, 0.3), 0.08, 0.03, glow, 0.9, 12)
+	b.cyl(Vector3(0, 0.0, 0.42), 0.08, 0.03, glow, 0.9, 12)
+	b.cyl(Vector3(0, 0.0, 0.56), 0.1, 0.2, POLY, 0.0, 12)                                               # the energy cell
+	b.cyl(Vector3(0, 0.0, 0.56), 0.104, 0.05, glow, 1.0, 12)
+	b.box(Vector3(0, 0.12, 0.42), Vector3(0.03, 0.05, 0.16), DARK)                                      # optic
+	b.box(Vector3(0, 0.15, 0.42), Vector3(0.05, 0.012, 0.12), POLY)
+	b.box(Vector3(0, -0.13, 0.64), Vector3(0.04, 0.1, 0.05), DARK, 0.0, -0.3)                            # grip
+	b.box(Vector3(0, -0.12, 0.32), Vector3(0.036, 0.09, 0.05), POLY)                                    # foregrip
+	b.box(Vector3(0, -0.01, 0.8), Vector3(0.06, 0.1, 0.2), POLY)                                        # shoulder rest
+	b.box(Vector3(0, -0.02, 0.9), Vector3(0.05, 0.13, 0.03), DARK)
+
+
+static func _qblink(b: _Builder, glow: Color) -> void:                                                  # BLINK PISTOL: a ring emitter on the muzzle
+	_pistol(b, glow, 1.0)
+	b.tube(Vector3(0, 0.0, -0.01), 0.052, 0.038, 0.012, glow, 1.0, 14)                                  # the blink ring
+	b.tube(Vector3(0, 0.0, 0.004), 0.034, 0.02, 0.016, STEEL, 0.0, 10)
+	b.box(Vector3(0, 0.0, -0.034), Vector3(0.012, 0.012, 0.03), glow, 1.0)
+
+
+static func _qphase(b: _Builder, glow: Color) -> void:                                                  # PHASE RIFLE: an open frame of ribs, half in, half out of this world
+	b.box(Vector3(0, 0.0, 0.34), Vector3(0.026, 0.026, 0.68), STEEL)                                    # the spine
+	for k in 7:
+		var z := 0.06 + 0.1 * float(k)
+		b.box(Vector3(0, 0.0, z), Vector3(0.09 - 0.006 * float(k), 0.012, 0.014), glow, 0.9)            # horizontal ribs
+		b.box(Vector3(0, 0.0, z), Vector3(0.012, 0.09 - 0.006 * float(k), 0.014), glow, 0.6)            # vertical ribs
+	b.box(Vector3(0, 0.0, 0.0), Vector3(0.05, 0.05, 0.012), glow, 1.0)
+	b.box(Vector3(0, 0.0, 0.78), Vector3(0.07, 0.09, 0.22), GUN)                                        # receiver
+	b.box(Vector3(0, 0.06, 0.76), Vector3(0.024, 0.016, 0.3), STEEL)
+	b.box(Vector3(0, -0.09, 0.8), Vector3(0.036, 0.11, 0.046), DARK, 0.0, -0.3)                          # grip
+	b.box(Vector3(0, -0.07, 0.58), Vector3(0.034, 0.08, 0.05), POLY)
+	b.box(Vector3(0, 0.0, 1.0), Vector3(0.05, 0.09, 0.2), POLY)                                         # stock
+	b.box(Vector3(0, -0.01, 1.11), Vector3(0.044, 0.12, 0.03), DARK)
+
+
+static func _qstasis(b: _Builder, glow: Color) -> void:                                                 # STASIS RAY: an emitter dish on a body, a tank on top
+	b.tube(Vector3(0, 0.0, 0.02), 0.078, 0.052, 0.02, glow, 1.0, 14)                                    # the dish rim
+	b.cyl(Vector3(0, 0.0, 0.035), 0.05, 0.01, glow, 0.3, 12)
+	b.cyl(Vector3(0, 0.0, 0.07), 0.05, 0.08, STEEL, 0.0, 12)
+	b.cyl(Vector3(0, 0.0, 0.2), 0.034, 0.2, GUN, 0.0, 10)                                               # barrel with ice-blue rings
+	for k in 3:
+		b.cyl(Vector3(0, 0.0, 0.14 + 0.07 * float(k)), 0.04, 0.016, glow, 0.8, 10)
+	b.box(Vector3(0, 0.0, 0.46), Vector3(0.08, 0.09, 0.3), POLY)                                        # body
+	b.cyl(Vector3(0, 0.07, 0.46), 0.036, 0.26, DARK, 0.0, 10)                                           # coolant tank on top
+	b.cyl(Vector3(0, 0.07, 0.46), 0.039, 0.04, glow, 0.7, 10)
+	b.box(Vector3(0, -0.09, 0.56), Vector3(0.036, 0.11, 0.046), DARK, 0.0, -0.3)                         # grip
+	b.box(Vector3(0, -0.07, 0.32), Vector3(0.034, 0.08, 0.05), POLY)
+	b.box(Vector3(0, -0.01, 0.7), Vector3(0.05, 0.09, 0.18), POLY)
+	b.box(Vector3(0, -0.02, 0.8), Vector3(0.044, 0.12, 0.03), DARK)
+
+
 # --- material, icon, geometry helpers --------------------------------------------------------------------------------------
 
 ## A weapon crate for the world (about 1.1 x 0.7 x 0.7 m, origin at its base): dark body, a glowing band and a glowing lid plate; tint it per instance (the glow follows the tint).
@@ -555,6 +794,36 @@ class _Builder extends RefCounted:
 					idx.append_array(PackedInt32Array([cb, a1, a0]))
 				else:
 					idx.append_array(PackedInt32Array([cb, a0, a1]))
+
+	## A quad from four corners in any order of winding; `n` is its outward normal (the winding is fixed to Godot's clockwise front face).
+	func quad(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, n: Vector3, color: Color, glow := 0.0) -> void:
+		var c := Color(color.r, color.g, color.b, glow)
+		var base := verts.size()
+		for p: Vector3 in [p0, p1, p2, p3]:
+			verts.append(p)
+			norms.append(n)
+			cols.append(c)
+		if (p1 - p0).cross(p2 - p0).dot(n) > 0.0:                    # counter-clockwise from outside: Godot's front face is clockwise
+			idx.append_array(PackedInt32Array([base, base + 2, base + 1, base, base + 3, base + 2]))
+		else:
+			idx.append_array(PackedInt32Array([base, base + 1, base + 2, base, base + 2, base + 3]))
+
+	## A hollow tube along Z (an emitter ring, a funnel): outer radius, inner radius, length, flat annular caps, inner wall facing the axis.
+	func tube(center: Vector3, r_out: float, r_in: float, len: float, color: Color, glow := 0.0, sides := 12) -> void:
+		var hz := len * 0.5
+		for k in sides:
+			var a0 := TAU * float(k) / float(sides)
+			var a1 := TAU * float(k + 1) / float(sides)
+			var am := (a0 + a1) * 0.5
+			var rad := Vector3(cos(am), sin(am), 0.0)
+			var d0 := Vector3(cos(a0), sin(a0), 0.0)
+			var d1 := Vector3(cos(a1), sin(a1), 0.0)
+			var zf := Vector3(0.0, 0.0, hz)
+			var zb := Vector3(0.0, 0.0, -hz)
+			quad(center + d0 * r_out + zb, center + d1 * r_out + zb, center + d1 * r_out + zf, center + d0 * r_out + zf, rad, color, glow)
+			quad(center + d0 * r_in + zb, center + d1 * r_in + zb, center + d1 * r_in + zf, center + d0 * r_in + zf, -rad, color, glow)
+			quad(center + d0 * r_in + zf, center + d0 * r_out + zf, center + d1 * r_out + zf, center + d1 * r_in + zf, Vector3(0, 0, 1), color, glow)
+			quad(center + d0 * r_in + zb, center + d0 * r_out + zb, center + d1 * r_out + zb, center + d1 * r_in + zb, Vector3(0, 0, -1), color, glow)
 
 	func build() -> ArrayMesh:
 		var arrays := []

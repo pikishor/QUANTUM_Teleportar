@@ -31,6 +31,9 @@ var signal_frozen := false
 var lights_on := true                ## false: traffic ignores the junction lights (tests of plain lane driving)
 
 var _patrol_t := 0.0
+var _spawned := {}                   ## VehicleSpawns point id -> the Vehicle standing there (or the one that was driven away)
+var _spawn_ready := {}               ## point id -> clock from which it may spawn again (after its vehicle was destroyed)
+var _spawn_t := 0.0
 var _key_yaw := 0.0                  ## the cars' key light follows the camera yaw, smoothed
 var _pool := {}                      ## kind -> Array[Vehicle] (inactive)
 var _stream_t := 0.0
@@ -108,6 +111,8 @@ func reach_car(pos: Vector3) -> Vehicle:
 	for c in list:
 		if c.dead or not c.active or c.wreck:
 			continue
+		if absf(c.global_position.y - pos.y) > 6.0:               # another storey or an aircraft up in the air
+			continue
 		var flat := Vector2(c.global_position.x - pos.x, c.global_position.z - pos.z).length()
 		var edge := c.edge_distance(pos)
 		var reach := VehicleSpecs.ENTER_REACH + minf(absf(c.speed) * VehicleSpecs.ENTER_MOVING, VehicleSpecs.ENTER_MOVING_MAX)
@@ -125,14 +130,17 @@ func toggle_enter_exit() -> bool:
 	if not is_instance_valid(p) or not Game.is_playing():
 		return false
 	if driven != null or p.get(&"vehicle") != null:
+		if driven != null and not VehicleCraft.can_exit(driven):
+			Game.say("LAND TO GET OUT", 1.4)
+			return true
 		exit_vehicle()
 		return true
 	if p.has_method(&"is_dead") and p.call(&"is_dead"):
 		return false
-	if p.global_position.y >= 2.0:
-		return false
 	var car := reach_car(p.global_position)
 	if car == null:
+		return false
+	if p.global_position.y >= 2.0 and car.craft == null:
 		return false
 	enter(car)
 	return true
@@ -160,6 +168,11 @@ func enter(car: Vehicle) -> void:
 	Sfx.play(&"pickup")
 	if radio != null:
 		radio.auto_tune()
+	if car.craft != null:                                    # the roster craft say how to drive them (plain words, the HUD readout then keeps the next step)
+		Game.say(VehicleSpecs.name_of(car.kind) + "  " + String(CRAFT_HINTS.get(car.kind, "")), 2.6)
+
+
+const CRAFT_HINTS := {&"heli": "HOLD UP TO LIFT OFF", &"plane": "STICK UP FOR THROTTLE, THEN UP", &"boat": "STICK TO STEER, FIRE TO SHOOT", &"tank": "STICK TO DRIVE, FIRE TO SHOOT"}
 
 
 ## The player gets out beside the car (right side first, then left, behind, ahead; never inside a building) and the car rolls to a stop.
@@ -306,6 +319,9 @@ func _reset_all() -> void:
 	_cop_t = 0.0
 	_spike_t = 6.0
 	_respawns.clear()
+	_spawned.clear()
+	_spawn_ready.clear()
+	_spawn_t = 0.0
 	_ram_cd.clear()
 	_clock = 0.0
 	_summon_ready = 0.0
@@ -343,6 +359,8 @@ func on_destroyed(v: Vehicle) -> void:
 		starter = null
 	list.erase(v)
 	v.is_starter = false
+	if v.has_meta(&"spawn_id"):                              # a roster vehicle of a fixed point: that point is empty for a while
+		_spawn_ready[v.get_meta(&"spawn_id")] = _clock + VehicleSpawns.RESPAWN_AFTER
 	v.become_wreck()
 	hear(where, &"crash")
 	_wrecks.append({"car": v, "t": _clock + respawn_time})
@@ -382,8 +400,9 @@ func _sanity() -> void:
 		var p := v.global_position
 		if not p.is_finite():
 			p = VehicleSpecs.starter_pos()
-		if absf(p.x) > lim or absf(p.z) > lim or absf(p.y) > 5.0:
-			p = Vector3(clampf(p.x, -lim + 5.0, lim - 5.0), 0.0, clampf(p.z, -lim + 5.0, lim - 5.0))
+		var ylim := 5.0 if v.craft == null else float(v.spec.get("ceil", 60.0)) + 30.0
+		if absf(p.x) > lim or absf(p.z) > lim or absf(p.y) > ylim:
+			p = Vector3(clampf(p.x, -lim + 5.0, lim - 5.0), v.base_y if absf(p.y) > ylim or not p.is_finite() else p.y, clampf(p.z, -lim + 5.0, lim - 5.0))
 		else:
 			continue
 		v.global_position = p
@@ -392,6 +411,8 @@ func _sanity() -> void:
 
 
 func _release(v: Vehicle) -> void:
+	if v.has_meta(&"spawn_id"):
+		v.remove_meta(&"spawn_id")
 	list.erase(v)
 	v.deactivate()
 	v.is_starter = false
@@ -612,7 +633,7 @@ func _physics_process_body(delta: float) -> void:
 		driven = null
 	if driven == null:
 		_clear_lens(delta)
-	if driven != null and NearTraffic.instance != null:
+	if driven != null and NearTraffic.instance != null and not driven.is_aloft():
 		_near_t -= delta
 		if _near_t <= 0.0:
 			_near_t = 0.1
@@ -634,6 +655,7 @@ func _physics_process_body(delta: float) -> void:
 	_tick_respawns()
 	_tick_patrols(delta)
 	_tick_cops(delta)
+	_tick_spawn_points(delta)
 
 
 ## The player's own state is the truth: a car he sits in (set from outside too) is the driven one, and one he left is not.
@@ -668,6 +690,8 @@ func _collide_all() -> void:
 		for j in range(i + 1, cars.size()):
 			var b: Vehicle = cars[j]
 			if not is_instance_valid(b) or b.dead or not b.active or b.dead or a.dead or not a.active:
+				continue
+			if a.is_aloft() or b.is_aloft():                    # an aircraft overhead touches nothing on the street
 				continue
 			if a.ai and b.ai and a.ai_panic <= 1.0 and b.ai_panic <= 1.0:        # lane traffic brakes for each other; cars in flight after gunfire really hit
 				continue
@@ -748,7 +772,7 @@ static func _clamp_to_hull(c: Vehicle, pt: Vector3) -> Vector3:
 
 ## Running over drones and operatives: above 8 m/s everything within 2.4 m takes speed x 3.5 (a crit), once per 0.6 s per enemy.
 func _ram(car: Vehicle) -> void:
-	if absf(car.speed) <= VehicleSpecs.RAM_SPEED or car.dead:
+	if absf(car.speed) <= VehicleSpecs.RAM_SPEED or car.dead or car.is_aloft():
 		return
 	var em := Game.enemies
 	var cp := car.global_position
@@ -826,6 +850,36 @@ func _stream() -> void:
 		var parked_now := parked_count()
 		var total := parked_now + traffic_count()
 		_spawn_streamed(float(parked_now) < VehicleSpecs.PARKED_SHARE * float(total + 1))
+
+
+## The fixed spawn points of the roster (VehicleSpawns): once a second, a point with nobody on it and the player within SPAWN_AT metres gets its vehicle.
+func _tick_spawn_points(delta: float) -> void:
+	_spawn_t -= delta
+	if _spawn_t > 0.0:
+		return
+	_spawn_t = 1.0
+	var ppos := _player_pos()
+	if not ppos.is_finite():
+		return
+	for pt in VehicleSpawns.POINTS:
+		var id: StringName = pt["id"]
+		var live: Variant = _spawned.get(id)
+		if is_instance_valid(live) and (live as Vehicle).active and not (live as Vehicle).dead and not (live as Vehicle).wreck:
+			continue
+		if _clock < float(_spawn_ready.get(id, 0.0)):
+			continue
+		var pos: Vector3 = pt["pos"]
+		if Vector2(pos.x - ppos.x, pos.z - ppos.z).length() > VehicleSpawns.SPAWN_AT:
+			continue
+		if not _spot_free(pos, 7.0):
+			continue
+		if list.size() >= cap() and not _free_slot():
+			continue
+		var v := spawn_parked(pt["kind"], pos, float(pt["h"]))
+		if v != null:
+			v.set_meta(&"spawn_id", id)
+			_spawned[id] = v
+			v.update_lod(_dist(v, ppos))
 
 
 # --- Vael patrols ----------------------------------------------------------------------------------------------------------
@@ -1069,6 +1123,8 @@ func _find_spot(center: Vector3, parked: bool, rmin := VehicleSpecs.SPAWN_MIN, r
 		var pos := Vector3(u, 0.0, across) if axis == 0 else Vector3(across, 0.0, u)
 		if Vector2(pos.x - center.x, pos.z - center.z).length() < 30.0:
 			continue
+		if FloodZone.contains(pos.x, pos.z):                    # the flooded quarter is for boats
+			continue
 		if not _spot_free(pos, 7.0 if parked else 10.0):
 			continue
 		return [pos, axis, dir, across, VehicleSpecs.heading_for(axis, dir)]
@@ -1089,6 +1145,7 @@ func _exit_point(car: Vehicle) -> Vector3:
 	var f := car.forward()
 	var w := Game.world
 	var side := 1.5 if car.cls == &"bike" else (2.6 if car.cls == &"hover" else 2.8)      # a bike has no doors: step off right beside it
+	side = float(car.spec.get("exit_side", side))
 	var best := base + r * side
 	for off: Vector3 in [r * side, -r * side, -f * 3.6, f * 3.6]:
 		var p := base + off
@@ -1098,7 +1155,7 @@ func _exit_point(car: Vehicle) -> Vector3:
 			continue
 		best = p
 		break
-	return Vector3(best.x, 0.1, best.z)
+	return Vector3(best.x, 0.1 if car.craft == null or car.cls == &"boat" or car.cls == &"tank" else car.global_position.y + 0.1, best.z)
 
 
 func stats() -> Dictionary:

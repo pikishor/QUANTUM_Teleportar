@@ -53,7 +53,7 @@ static func enemy(type: StringName) -> Texture2D:
 static func prefix_of(id: StringName) -> String:
 	if WeaponDefs.DEFS.has(id):
 		return "w"
-	if Gear.THROWABLES.has(id) or Gear.GADGETS.has(id):
+	if Gear.THROWABLES.has(id) or Gear.GADGETS.has(id) or id == &"c4":
 		return "g"
 	if EnemyTypes.TYPES.has(id):
 		return "e"

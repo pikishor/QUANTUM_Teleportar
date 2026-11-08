@@ -1,0 +1,32 @@
+extends RefCounted
+## Hindi: the weapon roster (docs/DESIGN.md) names and card lines. English text (the key) -> translation. Merged by Tr.table().
+
+const S := {
+	"TITAN ANTI-MATERIAL RIFLE": "टाइटन एंटी-मटीरियल राइफल",
+	"VOLT STUN GUN": "वोल्ट स्टन गन",
+	"A blinding flash: enemies in range freeze and lose you.": "चौंधिया देने वाली रोशनी: पास के दुश्मन जम जाते हैं और तुम्हें खो देते हैं।",
+	"BLINK": "छलांग",
+	"BLINK PISTOL": "ब्लिंक पिस्तौल",
+	"BULLPUP BURST RIFLE": "बुलपप बर्स्ट राइफल",
+	"CARBON KATANA": "कार्बन कटाना",
+	"COLLAPSE CANNON": "कोलैप्स तोप",
+	"ENTANGLE LINKER": "एंटैंगल लिंकर",
+	"FLASH": "फ्लैश",
+	"FLASH GRENADE": "फ्लैश ग्रेनेड",
+	"HAMMER HEAVY PISTOL": "हैमर भारी पिस्तौल",
+	"HAVOC LMG": "हैवोक एलएमजी",
+	"INFERNO FLAMETHROWER": "इन्फर्नो फ्लेमथ्रोअर",
+	"PHASE RIFLE": "फेज़ राइफल",
+	"Proximity mine: sticks where it lands, blows when enemies step near.": "निकटता बारूदी सुरंग: जहाँ गिरे वहीं चिपक जाती है और दुश्मन पास आते ही फटती है।",
+	"QUANTUM CHARGE C4": "क्वांटम चार्ज C4",
+	"RANGER ASSAULT RIFLE": "रेंजर असॉल्ट राइफल",
+	"SILENT CROSSBOW": "मूक क्रॉसबो",
+	"SLUGGER BAT": "स्लगर बल्ला",
+	"SMOKE: a cloud enemies cannot see through.": "धुआँ: एक बादल जिसके आर-पार दुश्मन देख नहीं सकते।",
+	"SNIPE": "निशाना",
+	"STASIS RAY": "स्टेसिस किरण",
+	"STING MACHINE PISTOL": "स्टिंग मशीन पिस्तौल",
+	"SUPERPOSITION GUN": "सुपरपोज़िशन गन",
+	"SUPPRESS": "दबाव",
+	"Stick it anywhere, then DETONATE. Chains with other blasts.": "इसे कहीं भी चिपकाओ, फिर विस्फोट करो। दूसरे धमाकों के साथ जुड़ जाता है।",
+}

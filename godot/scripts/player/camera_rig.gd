@@ -556,6 +556,9 @@ func _vehicle_params(v: float) -> Dictionary:
 			fwd = ln * 0.02
 	if spec is Dictionary and (spec as Dictionary).get("cls", &"car") == &"bike" and veh_view == 0:
 		dist = maxf(dist, 4.8)
+	if spec is Dictionary and (spec as Dictionary).has("cam_d") and veh_view == 0:         # the roster craft (helicopter, plane, boat, tank) carry their own chase numbers
+		dist = float((spec as Dictionary)["cam_d"]) + 1.5 * smoothstep(0.0, 1.0, k)
+		height = float((spec as Dictionary)["cam_h"])
 	return {"dist": dist, "height": height, "fov": fov, "fwd": fwd}
 
 

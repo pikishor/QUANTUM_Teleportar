@@ -40,7 +40,9 @@ const T := {
 }
 
 const WEAPON_CLASS := {&"carbine": "rifle", &"burst": "rifle", &"rail": "rifle", &"lance": "rifle", &"scatter": "shotgun", &"grenade": "heavy", &"flux": "heavy", &"gravity": "heavy", &"minigun": "heavy", &"akimbo": "rifle", &"arc": "rifle", &"revolver": "rifle", &"whip": "rifle", &"blade": "rifle", &"pistol": "rifle", &"marksman": "rifle", &"breacher": "shotgun", &"rocket": "heavy",
-	&"swarm": "rifle", &"vector": "rifle", &"battle": "rifle", &"sawn": "shotgun", &"auto": "shotgun", &"bolt": "rifle", &"dmr": "rifle", &"knife": "rifle"}
+	&"swarm": "rifle", &"vector": "rifle", &"battle": "rifle", &"sawn": "shotgun", &"auto": "shotgun", &"bolt": "rifle", &"dmr": "rifle", &"knife": "rifle",
+	&"magnum": "rifle", &"mpistol": "rifle", &"stun": "rifle", &"ranger": "rifle", &"bullpup": "rifle", &"lmg": "heavy", &"amr": "heavy", &"xbow": "rifle", &"flame": "heavy", &"katana": "rifle", &"bat": "rifle",
+	&"qsuper": "rifle", &"qlink": "rifle", &"qcollapse": "heavy", &"qblink": "rifle", &"qphase": "rifle", &"qstasis": "rifle"}
 
 
 static func f(key: String) -> float:

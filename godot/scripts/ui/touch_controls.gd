@@ -42,6 +42,7 @@ const BUTTONS := [
 	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},      # driving: only while MORE is open
 	{"action": &"skip_piece", "dx": 505.0, "dy": 575.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
 	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
+	{"action": &"crouch", "dx": 360.0, "dy": 295.0, "r": 56.0, "fs": 24, "label": "DOWN", "need": &"craft"},       # aircraft: descend / nose down (the JUMP button reads UP)
 	{"action": &"veh_view", "dx": 520.0, "dy": 262.0, "r": 46.0, "fs": 22, "label": "VIEW", "need": &"driving"},     # driving camera: chase / far / hood
 	{"action": &"look_back", "dx": 760.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "BACK", "need": &"drive_more"},       # held: look behind the car (MORE while driving)
 ]
@@ -478,6 +479,8 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
 		&"driving":
 			return is_instance_valid(Game.vehicles) and _driving()
+		&"craft":            # helicopter, plane: the second vertical button
+			return is_instance_valid(Game.vehicles) and _driving() and _craft_class() in [&"heli", &"plane"]
 		&"drive_more":       # the driving cluster behind MORE: BACK, RADIO, GARAGE (a car shows only DRIFT, EXIT, VIEW and MORE, plus FIRE when it carries a weapon)
 			return more_open and is_instance_valid(Game.vehicles) and _driving()
 		&"fire":
@@ -508,7 +511,10 @@ func _label_of(b: Dictionary) -> String:
 			return "USE"                                      # nothing to do at this spot: never ENTER (a street word) inside a room
 		return "EXIT" if _driving() else "ENTER"
 	if b["action"] == &"jump" and _driving():
-		return "DRIFT"                                   # the handbrake
+		var cc := _craft_class()
+		if cc == &"heli" or cc == &"plane":
+			return "UP"                                  # climb / nose up
+		return "BRAKE" if cc == &"boat" or cc == &"tank" else "DRIFT"       # the handbrake
 	if b["action"] == &"skip_piece":
 		var hud := get_parent()
 		if hud != null and hud.has_method(&"step_skip_offered") and bool(hud.call(&"step_skip_offered")):
@@ -703,6 +709,12 @@ func _driving() -> bool:
 func _car_armed() -> bool:
 	var v: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
 	return v != null and v.get("kind") is StringName and VehicleWeapons.has_weapon(v.get("kind") as StringName)
+
+
+## The handling class of the vehicle being driven (&"car" when on foot).
+func _craft_class() -> StringName:
+	var v: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
+	return StringName(v.get("cls")) if v != null and v.get("cls") is StringName else &"car"
 
 
 func _vehicle_in_reach() -> bool:

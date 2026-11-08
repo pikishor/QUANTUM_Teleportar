@@ -42,23 +42,42 @@ static func owned_weapons() -> Array[StringName]:
 	return WeaponDefs.owned_ordered()
 
 
-## Weapons of the visible page (at most WeaponDefs.PAGE_SIZE).
-static func page_items(sel: StringName) -> Array[StringName]:
-	var ow := owned_weapons()
-	if sel != _page_sel:
-		_page_sel = sel
-		if ow.has(sel):
-			page = ow.find(sel) / WeaponDefs.PAGE_SIZE
-	page = clampi(page, 0, WeaponDefs.pages_for(ow.size()) - 1)
+## The class tabs of the loadout: every weapon class the hero owns something in, in WeaponDefs.CLASS_ORDER. One page = one class (PISTOL, SMG, RIFLE, ... QUANTUM), at most 8 tiles.
+static func owned_classes() -> Array[StringName]:
 	var out: Array[StringName] = []
-	for i in range(page * WeaponDefs.PAGE_SIZE, mini(ow.size(), (page + 1) * WeaponDefs.PAGE_SIZE)):
-		out.append(ow[i])
+	for cls: StringName in WeaponDefs.CLASS_ORDER:
+		if not WeaponDefs.owned_in_class(cls).is_empty():
+			out.append(cls)
 	return out
 
 
-## Flip the page by dir (wraps). Returns true when there is more than one page.
+static func page_count() -> int:
+	return maxi(1, owned_classes().size())
+
+
+## Weapons of the visible page: the owned weapons of its class. The page follows the selected weapon until a flip.
+static func page_items(sel: StringName) -> Array[StringName]:
+	var cls := owned_classes()
+	if sel != _page_sel:
+		_page_sel = sel
+		var at := cls.find(WeaponDefs.class_of(sel))
+		if at >= 0:
+			page = at
+	page = clampi(page, 0, page_count() - 1)
+	if cls.is_empty():
+		return []
+	return WeaponDefs.owned_in_class(cls[page])
+
+
+## The name of the visible class tab ("RIFLE").
+static func page_name() -> String:
+	var cls := owned_classes()
+	return String(WeaponDefs.CLASS_NAMES.get(cls[clampi(page, 0, cls.size() - 1)], "")) if not cls.is_empty() else ""
+
+
+## Flip the class tab by dir (wraps). Returns true when there is more than one class.
 static func flip(dir: int) -> bool:
-	var n := WeaponDefs.pages_for(owned_weapons().size())
+	var n := page_count()
 	if n < 2:
 		return false
 	page = posmod(page + dir, n)
@@ -73,11 +92,15 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 	var prog := Game.progress as Progress
 	var k := k_of(hud.get_viewport().get_visible_rect().size.x, s)
 	var items := page_items(sel)
+	var lasts := {}                                                # the caption under a tile is the last word of the name ("CANNON"), the first word when that is ambiguous on this tab
+	for id in items:
+		var lw := String(WeaponDefs.title(id).split(" ")[-1])
+		lasts[lw] = int(lasts.get(lw, 0)) + 1
 	for i in items.size():                                         # the owned weapons as a column pair of tiles, each with its picture (the page flips with < >)
 		var tp := Vector2(cx + (GRID_X + float(i % GRID_COLS) * (TILE.x + TILE_GAP)) * s * k, (GRID_Y + float(i / GRID_COLS) * (TILE.y + TILE_GAP)) * s)
 		var ttl := WeaponDefs.title(items[i]).split(" ")
-		hud.buttons.append({"id": StringName("wheel_%s" % items[i]), "rect": Rect2(tp, Vector2(TILE.x * k, TILE.y) * s), "label": String(WeaponDefs.def(items[i])["tag"]), "on": items[i] == sel, "cap": String(ttl[ttl.size() - 1])})
-	if WeaponDefs.pages_for(owned_weapons().size()) > 1:
+		hud.buttons.append({"id": StringName("wheel_%s" % items[i]), "rect": Rect2(tp, Vector2(TILE.x * k, TILE.y) * s), "label": String(WeaponDefs.def(items[i])["tag"]), "on": items[i] == sel, "cap": _caption(ttl, lasts, String(WeaponDefs.def(items[i])["tag"]))})
+	if page_count() > 1:
 		var ar := arrow_rects(cx, s, k)
 		hud._add(&"wheelpg_prev", ar[0], "<", false)
 		hud._add(&"wheelpg_next", ar[1], ">", false)
@@ -93,6 +116,15 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 	hud._add_card(&"loadout_gear", Rect2(cx + SLOT_X * s * k, ACTION_Y * s, aw * s * k, 64.0 * s), "GEAR", &"gear", "", false, UiUtil.MAGENTA)
 	hud._add_card(&"loadout_info", Rect2(cx + (SLOT_X + aw + 8.0) * s * k, ACTION_Y * s, aw * s * k, 64.0 * s), "WEAPON INFO", &"weapon", "", false, UiUtil.CYAN)
 	hud._add(&"loadout_back", Rect2(cx - 110.0 * s, 628.0 * s, 220.0 * s, 64.0 * s), "RESUME" if hud._loadout_quick else "BACK", false)
+
+
+## The caption of a weapon tile: the last word of its name, unless another weapon on the tab ends the same way or it is a bare "GUN" (then the first word, or the tag when that is long).
+static func _caption(words: PackedStringArray, lasts: Dictionary, tag: String) -> String:
+	var last := String(words[words.size() - 1])
+	if words.size() == 1 or (int(lasts.get(last, 0)) < 2 and last != "GUN"):
+		return last
+	var first := String(words[0])
+	return first if first.length() <= 9 else tag
 
 
 ## The page arrows under the tile column: [previous, next].
@@ -154,10 +186,15 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	for i in mini(wl.size(), 2):
 		var line := ("WHERE  " if i == 0 else "OR  ") + wl[i]
 		hud._text(c, font, Vector2(pic.position.x, (INFO_Y + 30.0 * float(i)) * s), line, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x, UiUtil.fit_size(font, line, pic.size.x, int(20.0 * s)), Color(UiUtil.CYAN, 0.95), 1.0 * s)
-	var np := WeaponDefs.pages_for(owned_weapons().size())
+	var trait_line := WeaponRoster.trait_text(sel)
+	if trait_line != "":
+		hud._text(c, font, Vector2(pic.position.x + 14.0 * s, pic.position.y + pic.size.y - 10.0 * s), trait_line, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x - 28.0 * s, UiUtil.fit_size(font, trait_line, pic.size.x - 28.0 * s, int(18.0 * s)), Color(UiUtil.MAGENTA, 0.97), 1.0 * s)
+	var np := page_count()
 	if np > 1:
 		var gw := (float(GRID_COLS) * TILE.x + float(GRID_COLS - 1) * TILE_GAP) * s * k
-		hud._text(c, font, Vector2(cx + GRID_X * s * k, (GRID_Y + 4.0 * (TILE.y + TILE_GAP) + 4.0 + 40.0) * s), "PAGE %d / %d" % [page + 1, np], HORIZONTAL_ALIGNMENT_CENTER, gw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+		var cap := "%s  %d / %d" % [page_name(), page + 1, np]                  # between the two arrows
+		var cw := gw - 136.0 * s
+		hud._text(c, font, Vector2(cx + GRID_X * s * k + 68.0 * s, (GRID_Y + 4.0 * (TILE.y + TILE_GAP) + 4.0 + 40.0) * s), cap, HORIZONTAL_ALIGNMENT_CENTER, cw, UiUtil.fit_size(font, cap, cw, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 	for si in Attachments.SLOTS.size():
 		var y := (SLOT_Y + si * SLOT_STEP) * s
 		hud._text(c, font, Vector2(cx + SLOT_X * s * k, y + 16.0 * s), String(Attachments.SLOTS[si]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)

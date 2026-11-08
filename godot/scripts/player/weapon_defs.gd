@@ -10,17 +10,19 @@ extends RefCounted
 ## revolver (slow heavy rounds, FAN HAMMER alt), whip (long reach, PULL alt), blade (short reach, LUNGE alt). "snd" = the sound name of a shot (default "shot"). reserve < 0 = unlimited spare ammo. look = the emissive tint of the strip on the rifle.
 
 ## Order = keys 1..8 and the order every list shows: the seven starters first (pistol, SMG, assault rifle, shotgun, sniper rail, launcher, melee), then the unlock ladder.
-const IDS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade", &"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife"]
+const IDS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade", &"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife", &"magnum", &"mpistol", &"ranger", &"bullpup", &"lmg", &"amr", &"xbow", &"flame", &"stun", &"katana", &"bat", &"qsuper", &"qlink", &"qcollapse", &"qblink", &"qphase", &"qstasis"]
 ## Owned from the first minute (and in every save): one weapon of each class so the hero is never short of a gun. Everything else is on the ladder (scripts/progress/weapon_ladder.gd).
 const STARTERS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade"]
 ## The weapon wheel groups the weapons by class (one wedge per class, tap again = the next weapon of that class).
-const CLASS_ORDER: Array[StringName] = [&"pistol", &"smg", &"rifle", &"shotgun", &"sniper", &"heavy", &"melee"]
-const CLASS_NAMES := {&"pistol": "PISTOL", &"smg": "SMG", &"rifle": "RIFLE", &"shotgun": "SHOTGUN", &"sniper": "SNIPER", &"heavy": "HEAVY", &"melee": "MELEE"}
+const CLASS_ORDER: Array[StringName] = [&"pistol", &"smg", &"rifle", &"shotgun", &"sniper", &"heavy", &"melee", &"quantum"]
+const CLASS_NAMES := {&"pistol": "PISTOL", &"smg": "SMG", &"rifle": "RIFLE", &"shotgun": "SHOTGUN", &"sniper": "SNIPER", &"heavy": "HEAVY", &"melee": "MELEE", &"quantum": "QUANTUM"}
 const CLASS_OF := {
 	&"pistol": &"pistol", &"burst": &"pistol", &"akimbo": &"pistol", &"revolver": &"pistol", &"flux": &"smg", &"carbine": &"rifle", &"marksman": &"rifle", &"arc": &"rifle",
 	&"scatter": &"shotgun", &"breacher": &"shotgun", &"rail": &"sniper", &"lance": &"sniper", &"gravity": &"heavy", &"rocket": &"heavy", &"grenade": &"heavy", &"minigun": &"heavy",
 	&"blade": &"melee", &"whip": &"melee",
 	&"swarm": &"smg", &"vector": &"smg", &"battle": &"rifle", &"sawn": &"shotgun", &"auto": &"shotgun", &"bolt": &"sniper", &"dmr": &"sniper", &"knife": &"melee",
+	&"magnum": &"pistol", &"mpistol": &"pistol", &"stun": &"pistol", &"ranger": &"rifle", &"bullpup": &"rifle", &"lmg": &"heavy", &"flame": &"heavy", &"amr": &"sniper", &"xbow": &"sniper",
+	&"katana": &"melee", &"bat": &"melee", &"qsuper": &"quantum", &"qlink": &"quantum", &"qcollapse": &"quantum", &"qblink": &"quantum", &"qphase": &"quantum", &"qstasis": &"quantum",
 }
 const PAGE_SIZE := 8                       ## weapons per page of the touch weapon wheel
 
@@ -219,6 +221,135 @@ const DEFS := {
 		"reach": 2.4, "cone": 0.3, "combo": [1.0, 1.0, 1.8], "combo_window": 0.7,
 		"tracer": Color(0.7, 0.9, 1.0), "look": Color(0.6, 0.85, 1.0), "look_size": Vector3(0.03, 0.03, 0.4), "zoom": 62.0, "price": 400, "pierce_shield": false,
 	},
+	# --- round 5 roster (docs/DESIGN.md: all the top COD / GTA weapon types with generic names): heavy and machine pistols, two more assault rifles, an LMG, an anti-material rifle, a crossbow,
+	# a flamethrower, a stun gun, a katana and a bat, then the six QUANTUM weapons. Models: CC0 Quaternius pack where it has the shape (tools/open_models/convert_weapons.py), else procedural (weapon_models.gd).
+	# New keys: silent (no noise for the AI), wall + wall_k (rounds pass that many world surfaces, each at wall_k of the damage), stun (seconds an enemy is frozen), burn + burn_time (damage per second over time),
+	# flame (a spray of fire instead of a tracer line).
+	&"magnum": {
+		"name": "HAMMER HEAVY PISTOL", "tag": "HMR", "kind": "hit", "mag": 8, "reserve": 56, "interval": 0.31, "damage": 40.0, "crit": 88.0, "pellets": 1,
+		"pattern": [Vector2(0.15, 1.5), Vector2(-0.2, 1.4), Vector2(0.1, 1.3)], "shake": 0.1, "vol": -0.5, "pitch_lo": 0.8, "pitch_hi": 0.9, "eject": 1, "flash": 1.7, "ads_kick": 0.55, "ads_spread": 0.3,
+		"spread_hip": 0.013, "spread_ads": 0.0025, "spread_move": 0.014, "bloom": 0.003, "bloom_max": 0.014, "snd": &"shot_magnum",
+		"kick": 0.03, "kick_end": 0.026, "kick_yaw": 0.006, "reload": 1.7, "range": 160.0, "falloff_from": 65.0,
+		"tracer": Color(1.0, 0.7, 0.3), "look": Color(1.0, 0.6, 0.25), "look_size": Vector3(0.04, 0.04, 0.26), "zoom": 56.0, "price": 900, "pierce_shield": false,
+	},
+	&"mpistol": {
+		"name": "STING MACHINE PISTOL", "tag": "STG", "kind": "hit", "mag": 30, "reserve": 150, "interval": 0.065, "damage": 9.0, "crit": 18.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 0.8), Vector2(0.5, 0.8), Vector2(-0.6, 0.7), Vector2(0.3, 0.7), Vector2(-0.4, 0.7)], "shake": 0.02, "vol": -4.0, "pitch_lo": 1.05, "pitch_hi": 1.2, "eject": 1, "flash": 0.8, "ads_kick": 0.7, "ads_spread": 0.55,
+		"spread_hip": 0.024, "spread_ads": 0.011, "spread_move": 0.012, "bloom": 0.005, "bloom_max": 0.034, "snd": &"shot_mp",
+		"kick": 0.0045, "kick_end": 0.003, "kick_yaw": 0.005, "reload": 1.2, "range": 50.0, "falloff_from": 16.0,
+		"tracer": Color(1.0, 0.85, 0.4), "look": Color(1.0, 0.8, 0.35), "look_size": Vector3(0.04, 0.04, 0.2), "zoom": 62.0, "price": 500, "pierce_shield": false,
+	},
+	&"stun": {
+		"name": "VOLT STUN GUN", "tag": "STN", "kind": "hit", "mag": 8, "reserve": 40, "interval": 0.56, "damage": 34.0, "crit": 51.0, "pellets": 1, "stun": 2.2,
+		"pattern": [Vector2(0.0, 0.8), Vector2(0.2, 0.8)], "shake": 0.05, "vol": -3.0, "pitch_lo": 0.95, "pitch_hi": 1.05, "eject": 0, "flash": 1.2, "ads_kick": 0.5, "ads_spread": 0.3,
+		"spread_hip": 0.014, "spread_ads": 0.004, "spread_move": 0.012, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_stun",
+		"kick": 0.01, "kick_end": 0.01, "kick_yaw": 0.003, "reload": 1.6, "range": 26.0, "falloff_from": 14.0,
+		"tracer": Color(0.45, 0.8, 1.0), "look": Color(0.4, 0.75, 1.0), "look_size": Vector3(0.04, 0.04, 0.22), "zoom": 58.0, "price": 600, "pierce_shield": true,
+	},
+	&"ranger": {
+		"name": "RANGER ASSAULT RIFLE", "tag": "RNG", "kind": "hit", "mag": 30, "reserve": 150, "interval": 0.12, "damage": 17.0, "crit": 36.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.1), Vector2(0.3, 1.1), Vector2(-0.5, 1.0), Vector2(0.6, 0.9), Vector2(-0.3, 0.9), Vector2(-0.7, 0.8)], "shake": 0.04, "vol": -1.5, "pitch_lo": 0.86, "pitch_hi": 0.95, "eject": 1, "flash": 1.2, "ads_kick": 0.6, "ads_spread": 0.28,
+		"spread_hip": 0.015, "spread_ads": 0.0045, "spread_move": 0.011, "bloom": 0.0035, "bloom_max": 0.028, "snd": &"shot_ar2",
+		"kick": 0.011, "kick_end": 0.0065, "kick_yaw": 0.004, "reload": 1.5, "range": 230.0, "falloff_from": 100.0,
+		"tracer": Color(1.0, 0.8, 0.4), "look": Color(1.0, 0.65, 0.3), "look_size": Vector3(0.035, 0.035, 0.5), "zoom": 60.0, "price": 800, "pierce_shield": false,
+	},
+	&"bullpup": {
+		"name": "BULLPUP BURST RIFLE", "tag": "BPR", "kind": "hit", "mag": 30, "reserve": 150, "interval": 0.33, "damage": 16.0, "crit": 34.0, "pellets": 1, "burst": 3, "burst_gap": 0.06,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 1.1), Vector2(-0.2, 1.2)], "shake": 0.04, "vol": -2.0, "pitch_lo": 1.0, "pitch_hi": 1.08, "eject": 1, "flash": 1.1, "ads_kick": 0.55, "ads_spread": 0.25,
+		"spread_hip": 0.014, "spread_ads": 0.0035, "spread_move": 0.012, "bloom": 0.003, "bloom_max": 0.02, "snd": &"shot_bpup",
+		"kick": 0.009, "kick_end": 0.009, "kick_yaw": 0.003, "reload": 1.5, "range": 240.0, "falloff_from": 110.0,
+		"tracer": Color(0.9, 1.0, 0.6), "look": Color(0.8, 1.0, 0.5), "look_size": Vector3(0.035, 0.035, 0.46), "zoom": 56.0, "price": 950, "pierce_shield": false,
+	},
+	&"lmg": {
+		"name": "HAVOC LMG", "tag": "LMG", "kind": "hit", "mag": 100, "reserve": 300, "interval": 0.085, "damage": 12.0, "crit": 24.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 0.9), Vector2(0.3, 0.8), Vector2(-0.4, 0.8), Vector2(0.5, 0.7), Vector2(-0.2, 0.7)], "shake": 0.03, "vol": -2.5, "pitch_lo": 0.8, "pitch_hi": 0.88, "eject": 1, "flash": 1.3, "ads_kick": 0.65, "ads_spread": 0.4,
+		"spread_hip": 0.02, "spread_ads": 0.007, "spread_move": 0.022, "bloom": 0.003, "bloom_max": 0.03, "snd": &"shot_lmg",
+		"kick": 0.0055, "kick_end": 0.0038, "kick_yaw": 0.0035, "reload": 4.0, "range": 170.0, "falloff_from": 60.0,
+		"tracer": Color(1.0, 0.75, 0.35), "look": Color(1.0, 0.6, 0.25), "look_size": Vector3(0.06, 0.06, 0.55), "zoom": 62.0, "price": 1600, "pierce_shield": false,
+	},
+	&"amr": {
+		"name": "TITAN ANTI-MATERIAL RIFLE", "tag": "AMR", "kind": "hit", "mag": 5, "reserve": 25, "interval": 1.5, "damage": 160.0, "crit": 320.0, "pellets": 1, "wall": 1, "wall_k": 0.6,
+		"pattern": [Vector2(0.0, 1.0)], "shake": 0.24, "vol": 1.0, "pitch_lo": 0.7, "pitch_hi": 0.76, "eject": 1, "flash": 2.4, "ads_kick": 0.4, "ads_spread": 0.1,
+		"spread_hip": 0.026, "spread_ads": 0.0005, "spread_move": 0.026, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_amr",
+		"kick": 0.06, "kick_end": 0.06, "kick_yaw": 0.005, "reload": 3.0, "range": 500.0, "falloff_from": 9999.0,
+		"tracer": Color(1.0, 0.9, 0.55), "look": Color(1.0, 0.8, 0.4), "look_size": Vector3(0.05, 0.05, 0.9), "zoom": 18.0, "price": 1700, "pierce_shield": true,
+	},
+	&"xbow": {
+		"name": "SILENT CROSSBOW", "tag": "XBW", "kind": "hit", "mag": 3, "reserve": 30, "interval": 0.92, "damage": 70.0, "crit": 160.0, "pellets": 1, "silent": true,
+		"pattern": [Vector2(0.0, 0.8)], "shake": 0.04, "vol": -5.0, "pitch_lo": 0.95, "pitch_hi": 1.05, "eject": 0, "flash": 0.0, "ads_kick": 0.5, "ads_spread": 0.1,
+		"spread_hip": 0.012, "spread_ads": 0.0008, "spread_move": 0.014, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_xbow",
+		"kick": 0.012, "kick_end": 0.012, "kick_yaw": 0.002, "reload": 1.8, "range": 150.0, "falloff_from": 9999.0,
+		"tracer": Color(0.85, 0.8, 0.6), "look": Color(0.8, 0.75, 0.5), "look_size": Vector3(0.04, 0.03, 0.5), "zoom": 40.0, "price": 750, "pierce_shield": false,
+	},
+	&"flame": {
+		"name": "INFERNO FLAMETHROWER", "tag": "FLM", "kind": "hit", "mag": 100, "reserve": 300, "interval": 0.06, "damage": 3.5, "crit": 5.0, "pellets": 3, "flame": true, "burn": 5.0, "burn_time": 3.0,
+		"pattern": [Vector2(0.0, 0.3), Vector2(0.2, 0.3)], "shake": 0.02, "vol": -3.0, "pitch_lo": 0.92, "pitch_hi": 1.08, "eject": 0, "flash": 1.6, "ads_kick": 0.8, "ads_spread": 0.8,
+		"spread_hip": 0.07, "spread_ads": 0.05, "spread_move": 0.012, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_flame",
+		"kick": 0.002, "kick_end": 0.002, "kick_yaw": 0.002, "reload": 2.5, "range": 15.0, "falloff_from": 7.0,
+		"tracer": Color(1.0, 0.55, 0.15), "look": Color(1.0, 0.5, 0.1), "look_size": Vector3(0.08, 0.08, 0.5), "zoom": 64.0, "price": 1500, "pierce_shield": false,
+	},
+	&"katana": {
+		"name": "CARBON KATANA", "tag": "KTN", "kind": "melee", "mag": 1, "reserve": -1, "interval": 0.25, "damage": 34.0, "crit": 34.0, "pellets": 1,
+		"pattern": [Vector2(-0.9, 0.2), Vector2(0.9, 0.2), Vector2(0.0, 0.5)], "shake": 0.06, "vol": -4.0, "pitch_lo": 0.98, "pitch_hi": 1.1, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"melee_katana",
+		"kick": 0.01, "kick_end": 0.01, "kick_yaw": 0.005, "reload": 1.0, "range": 3.2, "falloff_from": 9999.0,
+		"reach": 3.2, "cone": 0.2, "combo": [1.0, 1.0, 2.0], "combo_window": 0.75,
+		"tracer": Color(0.85, 0.95, 1.0), "look": Color(0.8, 0.9, 1.0), "look_size": Vector3(0.03, 0.03, 0.9), "zoom": 62.0, "price": 900, "pierce_shield": true,
+	},
+	&"bat": {
+		"name": "SLUGGER BAT", "tag": "BAT", "kind": "melee", "mag": 1, "reserve": -1, "interval": 0.52, "damage": 30.0, "crit": 30.0, "pellets": 1,
+		"pattern": [Vector2(-1.0, 0.1), Vector2(1.0, 0.1), Vector2(0.0, 0.7)], "shake": 0.1, "vol": -3.0, "pitch_lo": 0.85, "pitch_hi": 0.95, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"melee_bat",
+		"kick": 0.02, "kick_end": 0.02, "kick_yaw": 0.008, "reload": 1.0, "range": 2.8, "falloff_from": 9999.0,
+		"reach": 2.8, "cone": 0.3, "combo": [1.0, 1.0, 2.4], "combo_window": 0.9,
+		"tracer": Color(0.9, 0.75, 0.5), "look": Color(0.8, 0.6, 0.35), "look_size": Vector3(0.06, 0.06, 0.8), "zoom": 62.0, "price": 350, "pierce_shield": false,
+	},
+	# --- QUANTUM weapons: the verbs of the hero as guns
+	&"qsuper": {
+		"name": "SUPERPOSITION GUN", "tag": "SUP", "kind": "hit", "mag": 20, "reserve": 100, "interval": 0.46, "damage": 20.0, "crit": 40.0, "pellets": 1, "burst": 2, "burst_gap": 0.11, "echo": true,
+		"pattern": [Vector2(0.0, 0.9), Vector2(0.3, 0.9)], "shake": 0.04, "vol": -2.0, "pitch_lo": 0.98, "pitch_hi": 1.04, "eject": 0, "flash": 1.3, "ads_kick": 0.55, "ads_spread": 0.3,
+		"spread_hip": 0.014, "spread_ads": 0.004, "spread_move": 0.012, "bloom": 0.002, "bloom_max": 0.012, "snd": &"shot_qsuper",
+		"kick": 0.01, "kick_end": 0.01, "kick_yaw": 0.004, "reload": 1.6, "range": 160.0, "falloff_from": 70.0,
+		"tracer": Color(0.4, 1.0, 0.93), "look": Color(0.35, 1.0, 0.9), "look_size": Vector3(0.04, 0.04, 0.42), "zoom": 58.0, "price": 1100, "pierce_shield": false,
+	},
+	&"qlink": {
+		"name": "ENTANGLE LINKER", "tag": "ENT", "kind": "hit", "mag": 18, "reserve": 90, "interval": 0.19, "damage": 20.0, "crit": 40.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 0.9), Vector2(0.3, 0.8), Vector2(-0.3, 0.8)], "shake": 0.03, "vol": -3.0, "pitch_lo": 0.95, "pitch_hi": 1.05, "eject": 0, "flash": 1.1, "ads_kick": 0.6, "ads_spread": 0.35,
+		"spread_hip": 0.014, "spread_ads": 0.004, "spread_move": 0.012, "bloom": 0.003, "bloom_max": 0.02, "snd": &"shot_qlink",
+		"chain": 1, "chain_range": 40.0, "chain_k": 1.0,
+		"kick": 0.008, "kick_end": 0.008, "kick_yaw": 0.003, "reload": 1.6, "range": 140.0, "falloff_from": 60.0,
+		"tracer": Color(1.0, 0.35, 0.92), "look": Color(1.0, 0.3, 0.9), "look_size": Vector3(0.04, 0.04, 0.4), "zoom": 58.0, "price": 1200, "pierce_shield": true,
+	},
+	&"qcollapse": {
+		"name": "COLLAPSE CANNON", "tag": "CLP", "kind": "throw", "mag": 1, "reserve": 4, "interval": 1.4, "damage": 260.0, "crit": 260.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0)], "shake": 0.2, "vol": -0.5, "pitch_lo": 0.6, "pitch_hi": 0.66, "flash": 0.0, "eject": 0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_qcollapse",
+		"kick": 0.05, "kick_end": 0.05, "kick_yaw": 0.0, "reload": 3.2, "range": 150.0, "falloff_from": 9999.0,
+		"tracer": Color(0.75, 0.35, 1.0), "look": Color(0.7, 0.3, 1.0), "look_size": Vector3(0.16, 0.16, 0.5), "zoom": 52.0, "price": 2200, "pierce_shield": true,
+		"speed": 42.0, "fuse": 2.8, "grav": 4.0, "well_time": 0.1, "well_radius": 14.0, "well_pull": 0.0, "well_dps": 0.0, "blast_radius": 10.5,
+		"impact": true, "blast_damage": 260.0, "car_dmg": 240.0, "blast_color": Color(0.7, 0.35, 1.0), "blast_element": &"quantum", "impact_pull": 9.0,
+	},
+	&"qblink": {
+		"name": "BLINK PISTOL", "tag": "BLK", "kind": "hit", "mag": 12, "reserve": 84, "interval": 0.29, "damage": 26.0, "crit": 52.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 0.9), Vector2(0.2, 1.0), Vector2(-0.2, 1.0)], "shake": 0.04, "vol": -3.0, "pitch_lo": 1.0, "pitch_hi": 1.1, "eject": 0, "flash": 1.1, "ads_kick": 0.5, "ads_spread": 0.3,
+		"spread_hip": 0.012, "spread_ads": 0.003, "spread_move": 0.012, "bloom": 0.003, "bloom_max": 0.014, "snd": &"shot_qblink",
+		"kick": 0.01, "kick_end": 0.01, "kick_yaw": 0.003, "reload": 1.4, "range": 120.0, "falloff_from": 50.0,
+		"tracer": Color(0.35, 0.9, 1.0), "look": Color(0.3, 0.85, 1.0), "look_size": Vector3(0.04, 0.04, 0.26), "zoom": 58.0, "price": 1000, "pierce_shield": false,
+	},
+	&"qphase": {
+		"name": "PHASE RIFLE", "tag": "PHS", "kind": "hit", "mag": 24, "reserve": 120, "interval": 0.16, "damage": 22.0, "crit": 44.0, "pellets": 1, "wall": 3, "wall_k": 0.85,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.3, 0.9), Vector2(-0.4, 0.9), Vector2(0.4, 0.8)], "shake": 0.035, "vol": -2.5, "pitch_lo": 0.96, "pitch_hi": 1.04, "eject": 0, "flash": 1.2, "ads_kick": 0.6, "ads_spread": 0.3,
+		"spread_hip": 0.015, "spread_ads": 0.004, "spread_move": 0.012, "bloom": 0.003, "bloom_max": 0.022, "snd": &"shot_qphase",
+		"kick": 0.008, "kick_end": 0.0055, "kick_yaw": 0.003, "reload": 1.6, "range": 90.0, "falloff_from": 40.0,
+		"tracer": Color(0.7, 0.55, 1.0), "look": Color(0.65, 0.5, 1.0), "look_size": Vector3(0.04, 0.04, 0.5), "zoom": 56.0, "price": 1500, "pierce_shield": true,
+	},
+	&"qstasis": {
+		"name": "STASIS RAY", "tag": "STS", "kind": "hit", "mag": 20, "reserve": 100, "interval": 0.21, "damage": 17.0, "crit": 34.0, "pellets": 1, "stun": 2.5,
+		"pattern": [Vector2(0.0, 0.8), Vector2(0.2, 0.7)], "shake": 0.03, "vol": -3.0, "pitch_lo": 0.92, "pitch_hi": 1.0, "eject": 0, "flash": 1.2, "ads_kick": 0.6, "ads_spread": 0.3,
+		"spread_hip": 0.013, "spread_ads": 0.004, "spread_move": 0.012, "bloom": 0.002, "bloom_max": 0.012, "snd": &"shot_qstasis",
+		"kick": 0.007, "kick_end": 0.007, "kick_yaw": 0.002, "reload": 1.5, "range": 100.0, "falloff_from": 45.0,
+		"tracer": Color(0.6, 0.95, 1.0), "look": Color(0.55, 0.9, 1.0), "look_size": Vector3(0.05, 0.05, 0.4), "zoom": 56.0, "price": 1300, "pierce_shield": true,
+	},
 }
 
 ## Alt-fire per class (key B / the ALT touch button). kind: "heavy" = one aimed shot x mult for `cost` rounds (slug / overcharge), "volley" = `count` rounds in a rapid burst,
@@ -250,6 +381,23 @@ const ALTS := {
 	&"bolt": {"name": "OVERCHARGE", "kind": "heavy", "cost": 2, "mult": 2.0, "cd": 1.5},
 	&"dmr": {"name": "OVERCHARGE", "kind": "heavy", "cost": 3, "mult": 2.4, "cd": 1.1},
 	&"knife": {"name": "LUNGE", "kind": "lunge", "cost": 0, "dist": 3.4, "mult": 2.2, "cd": 1.1},
+	&"magnum": {"name": "OVERCHARGE", "kind": "heavy", "cost": 2, "mult": 2.6, "cd": 0.9},
+	&"mpistol": {"name": "VOLLEY", "kind": "volley", "cost": 10, "count": 10, "cd": 0.7},
+	&"stun": {"name": "OVERCHARGE", "kind": "heavy", "cost": 2, "mult": 2.0, "cd": 1.0},
+	&"ranger": {"name": "OVERCHARGE", "kind": "heavy", "cost": 4, "mult": 3.0, "cd": 0.9},
+	&"bullpup": {"name": "VOLLEY", "kind": "volley", "cost": 9, "count": 9, "cd": 0.8},
+	&"lmg": {"name": "SUPPRESS", "kind": "volley", "cost": 20, "count": 20, "cd": 1.4},
+	&"amr": {"name": "OVERCHARGE", "kind": "heavy", "cost": 2, "mult": 1.8, "cd": 1.6},
+	&"xbow": {"name": "SNIPE", "kind": "heavy", "cost": 1, "mult": 2.2, "cd": 1.0},
+	&"flame": {"name": "VENT", "kind": "vent", "cost": 0, "cd": 0.8},
+	&"katana": {"name": "LUNGE", "kind": "lunge", "cost": 0, "dist": 5.0, "mult": 2.6, "cd": 1.3},
+	&"bat": {"name": "LUNGE", "kind": "lunge", "cost": 0, "dist": 3.6, "mult": 2.4, "cd": 1.4},
+	&"qsuper": {"name": "VOLLEY", "kind": "volley", "cost": 6, "count": 6, "cd": 0.9},
+	&"qlink": {"name": "OVERLOAD", "kind": "heavy", "cost": 3, "mult": 2.4, "cd": 1.2},
+	&"qcollapse": {"name": "CLUSTER", "kind": "cluster", "cost": 1, "mult": 1.0, "cd": 2.0},
+	&"qblink": {"name": "BLINK", "kind": "blink", "cost": 0, "range": 45.0, "cd": 1.6},
+	&"qphase": {"name": "OVERCHARGE", "kind": "heavy", "cost": 3, "mult": 2.4, "cd": 1.1},
+	&"qstasis": {"name": "OVERCHARGE", "kind": "heavy", "cost": 3, "mult": 2.2, "cd": 1.2},
 }
 ## Ammo types for the hitscan weapons (key T): damage multiplier, fire-interval multiplier, shield piercing.
 const AMMO_TYPES := [
@@ -265,9 +413,13 @@ const HIT_SND := {
 	&"minigun": [1.5, -6.0, &""], &"akimbo": [1.2, -2.0, &""], &"arc": [1.1, 0.0, &"impact_metal"], &"revolver": [0.6, 3.0, &"impact_concrete"], &"whip": [0.9, 0.0, &""], &"blade": [0.75, 2.0, &"impact_metal"],
 	&"swarm": [1.5, -5.0, &""], &"vector": [1.1, -1.0, &""], &"battle": [0.9, 0.5, &"impact_metal"], &"sawn": [0.7, 2.0, &"impact_concrete"], &"auto": [0.8, 1.0, &"impact_concrete"],
 	&"bolt": [0.5, 4.0, &"impact_metal"], &"dmr": [0.8, 1.0, &"impact_metal"], &"knife": [1.0, 0.0, &""],
+	&"magnum": [0.7, 1.5, &"impact_metal"], &"mpistol": [1.4, -4.0, &""], &"stun": [1.3, -1.0, &""], &"ranger": [0.9, 0.5, &"impact_concrete"], &"bullpup": [1.0, 0.0, &""],
+	&"lmg": [0.8, 0.5, &"impact_concrete"], &"amr": [0.45, 5.0, &"impact_metal"], &"xbow": [1.2, -2.0, &""], &"flame": [1.6, -6.0, &""], &"katana": [1.1, 1.0, &"impact_metal"], &"bat": [0.6, 2.0, &""],
+	&"qsuper": [1.2, 0.0, &""], &"qlink": [1.4, 0.0, &""], &"qcollapse": [0.5, 3.0, &""], &"qblink": [1.5, -1.0, &""], &"qphase": [1.0, 0.0, &"impact_metal"], &"qstasis": [0.9, 0.0, &""],
 }
 const TILT := {&"pistol": 1.3, &"marksman": 0.9, &"breacher": 1.5, &"rocket": 1.1, &"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3, &"minigun": 2.0, &"akimbo": 1.5, &"arc": 1.0, &"revolver": 1.1, &"whip": 0.5, &"blade": 0.5,
-	&"swarm": 1.7, &"vector": 1.4, &"battle": 1.0, &"sawn": 1.5, &"auto": 1.5, &"bolt": 0.7, &"dmr": 0.9, &"knife": 0.5}
+	&"swarm": 1.7, &"vector": 1.4, &"battle": 1.0, &"sawn": 1.5, &"auto": 1.5, &"bolt": 0.7, &"dmr": 0.9, &"knife": 0.5, &"magnum": 1.4, &"mpistol": 1.8, &"stun": 1.3, &"ranger": 1.0, &"bullpup": 1.1, &"lmg": 1.9, &"amr": 0.7, &"xbow": 1.2, &"flame": 1.8, &"katana": 0.5, &"bat": 0.5,
+	&"qsuper": 1.0, &"qlink": 1.3, &"qcollapse": 1.1, &"qblink": 1.4, &"qphase": 1.0, &"qstasis": 1.1}
 
 
 static func alt_of(id: StringName) -> Dictionary:

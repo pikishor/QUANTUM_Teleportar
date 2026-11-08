@@ -1,0 +1,32 @@
+extends RefCounted
+## Spanish: the weapon roster (docs/DESIGN.md) names and card lines. English text (the key) -> translation. Merged by Tr.table().
+
+const S := {
+	"TITAN ANTI-MATERIAL RIFLE": "FUSIL ANTIMATERIAL TITAN",
+	"VOLT STUN GUN": "PISTOLA ATURDIDORA VOLT",
+	"A blinding flash: enemies in range freeze and lose you.": "Un destello cegador: los enemigos cercanos se congelan y te pierden.",
+	"BLINK": "SALTO",
+	"BLINK PISTOL": "PISTOLA DE SALTO",
+	"BULLPUP BURST RIFLE": "FUSIL BULLPUP DE RÁFAGAS",
+	"CARBON KATANA": "KATANA DE CARBONO",
+	"COLLAPSE CANNON": "CAÑÓN DE COLAPSO",
+	"ENTANGLE LINKER": "ENLAZADOR ENTRELAZADO",
+	"FLASH": "FLASH",
+	"FLASH GRENADE": "GRANADA DE LUZ",
+	"HAMMER HEAVY PISTOL": "PISTOLA PESADA MARTILLO",
+	"HAVOC LMG": "AMETRALLADORA HAVOC",
+	"INFERNO FLAMETHROWER": "LANZALLAMAS INFERNO",
+	"PHASE RIFLE": "FUSIL DE FASE",
+	"Proximity mine: sticks where it lands, blows when enemies step near.": "Mina de proximidad: se pega donde cae y explota cuando se acercan enemigos.",
+	"QUANTUM CHARGE C4": "CARGA CUÁNTICA C4",
+	"RANGER ASSAULT RIFLE": "FUSIL DE ASALTO RANGER",
+	"SILENT CROSSBOW": "BALLESTA SILENCIOSA",
+	"SLUGGER BAT": "BATE SLUGGER",
+	"SMOKE: a cloud enemies cannot see through.": "HUMO: una nube que los enemigos no pueden atravesar con la vista.",
+	"SNIPE": "PUNTERÍA",
+	"STASIS RAY": "RAYO DE ESTASIS",
+	"STING MACHINE PISTOL": "PISTOLA AMETRALLADORA STING",
+	"SUPERPOSITION GUN": "ARMA DE SUPERPOSICIÓN",
+	"SUPPRESS": "SUPRESIÓN",
+	"Stick it anywhere, then DETONATE. Chains with other blasts.": "Pégala donde quieras y DETONA. Se encadena con otras explosiones.",
+}

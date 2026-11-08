@@ -44,6 +44,13 @@ WEAPONS = {
     "bolt": (UG, "SniperRifle_4", 1.12),
     "dmr": (UG, "SniperRifle_3", 1.05),
     "knife": (UG, "Bayonet_2", 0.42),
+    # round 5 roster (same CC0 pack): heavy pistol, machine pistol, two more assault rifles' worth of shapes, an LMG and an anti-material rifle
+    "magnum": (UG, "Pistol_5", 0.27),
+    "mpistol": (UG, "SubmachineGun_2", 0.34),
+    "ranger": (UG, "AssaultRifle2_2", 0.88),
+    "bullpup": (UG, "Bullpup_2", 0.74),
+    "lmg": (UG, "Bullpup_3", 0.98),
+    "amr": (UG, "SniperRifle_5", 1.28),
 }
 RPG_COLOURS = {"Material.001": (0.07, 0.075, 0.07), "Material.002": (0.17, 0.18, 0.12), "Material.003": (0.11, 0.075, 0.05), "Material.004": (0.09, 0.09, 0.1)}
 

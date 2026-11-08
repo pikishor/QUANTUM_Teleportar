@@ -6,6 +6,7 @@ extends Node
 ##   decoy        a hologram that lures unaware enemies (Drone.hear) for a few seconds.
 ##   shroud       PHASE SHROUD: a cloud; enemies in it or seeing the hero through it lose awareness.
 ##   emp          shuts every enemy in range down (Drone.disable).
+##   flash        FLASH GRENADE: a white burst; enemies in range freeze for a few seconds and lose awareness of the hero.
 ## Stock per id refills on a new run / respawn and one charge every RECHARGE seconds. At most MAX_LIVE projectiles / effects exist at once, their nodes are pooled and created on first use
 ## (a hidden node draws nothing). Only ticks in the play state; counters (thrown, detonations, ...) are what tests wait on.
 
@@ -149,6 +150,8 @@ func _step(e: Dictionary, dt: float) -> bool:
 			e["state"] = &"live"
 			e["t"] = 0.0
 			e["vel"] = Vector3.ZERO
+			if id == &"shroud" or id == &"decoy":                       # the canister opens: a hiss / a chirp where it lands (the rest sound off with their blast)
+				Sfx.play_at(StringName(d.get("snd", &"blink")), next, -6.0, 0.8 if id == &"shroud" else 1.2)
 		else:
 			e["vel"] = vel
 		e["pos"] = next
@@ -207,6 +210,12 @@ func _step(e: Dictionary, dt: float) -> bool:
 		&"emp":
 			if t >= float(d["fuse"]):
 				_emp(pos, float(d["radius"]), float(d["disable"]), float(d["damage"]))
+				detonations += 1
+				detonated.emit(id, pos)
+				return true
+		&"flash":
+			if t >= float(d["fuse"]):
+				_flash(pos, float(d["radius"]), float(d["disable"]))
 				detonations += 1
 				detonated.emit(id, pos)
 				return true
@@ -272,42 +281,64 @@ func _emp(pos: Vector3, radius: float, secs: float, dmg: float) -> void:
 				en.call(&"damage", dmg)
 
 
+## FLASH GRENADE: a white burst; every enemy in range (with the hero not behind a wall: no line check, the grenade is thrown in the open) freezes and forgets the hero.
+func _flash(pos: Vector3, radius: float, secs: float) -> void:
+	FX.burst(pos + Vector3(0.0, 0.6, 0.0), Color(1.0, 1.0, 0.9), 16, 10.0, 0.45, 0.0, 1.6)
+	FX.shake(0.15)
+	Sfx.play_at(&"explosion_small", pos, -3.0, 1.6)
+	for en in Gear.living_enemies(get_tree()):
+		if en.global_position.distance_to(pos) < radius:
+			if en.has_method(&"disable"):
+				en.call(&"disable", secs)
+				disabled_n += 1
+			if bool(en.get(&"aware")):
+				en.set(&"aware", false)
+				blinded += 1
+			if en.get(&"suspicion") != null:
+				en.set(&"suspicion", 0.0)
+
+
 # --- pooled visuals -------------------------------------------------------------------------------------------------------
 
 func _mesh_for(id: StringName) -> Mesh:
 	if not _meshes.has(id):
-		var m: Mesh
-		match id:
-			&"decoy":
-				var c := CapsuleMesh.new()
-				c.radius = 0.35
-				c.height = 1.8
-				c.radial_segments = 10
-				c.rings = 3
-				m = c
-			&"shroud", &"emp":
-				var s := SphereMesh.new()
-				s.radius = 1.0
-				s.height = 2.0
-				s.radial_segments = 14
-				s.rings = 7
-				m = s
-			&"mine":
-				var cy := CylinderMesh.new()
-				cy.top_radius = 0.32
-				cy.bottom_radius = 0.32
-				cy.height = 0.12
-				cy.radial_segments = 12
-				m = cy
-			_:
-				var b := SphereMesh.new()
-				b.radius = 0.15
-				b.height = 0.3
-				b.radial_segments = 8
-				b.rings = 4
-				m = b
-		_meshes[id] = m
+		_meshes[id] = mesh_of(id)
 	return _meshes[id]
+
+
+## The world model of a throwable (also what the weapon roster shows): small solids, nothing imported.
+static func mesh_of(id: StringName) -> Mesh:
+	var m: Mesh
+	match id:
+		&"decoy":
+			var c := CapsuleMesh.new()
+			c.radius = 0.35
+			c.height = 1.8
+			c.radial_segments = 10
+			c.rings = 3
+			m = c
+		&"shroud", &"emp", &"flash":
+			var s := SphereMesh.new()
+			s.radius = 1.0
+			s.height = 2.0
+			s.radial_segments = 14
+			s.rings = 7
+			m = s
+		&"mine":
+			var cy := CylinderMesh.new()
+			cy.top_radius = 0.32
+			cy.bottom_radius = 0.32
+			cy.height = 0.12
+			cy.radial_segments = 12
+			m = cy
+		_:
+			var b := SphereMesh.new()
+			b.radius = 0.15
+			b.height = 0.3
+			b.radial_segments = 8
+			b.rings = 4
+			m = b
+	return m
 
 
 func _mat_for(id: StringName) -> StandardMaterial3D:
@@ -331,7 +362,7 @@ func _take_node(id: StringName) -> MeshInstance3D:
 		_pool.append(n)
 	n.mesh = _mesh_for(id)
 	n.material_override = _mat_for(id)
-	n.scale = Vector3.ONE * (0.4 if id == &"emp" or id == &"shroud" else 1.0)
+	n.scale = Vector3.ONE * (0.4 if id == &"emp" or id == &"shroud" or id == &"flash" else 1.0)
 	n.visible = true
 	return n
 

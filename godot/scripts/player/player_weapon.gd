@@ -51,7 +51,7 @@ const GRENADE_GRAVITY := 22.0
 const WELL_TICK := 0.2
 const INSPECT_TIME := 1.6
 const INSPECT_IDLE := 9.0                    ## seconds of doing nothing before the rifle is inspected
-const AMMO_PACK := {&"pistol": 30, &"marksman": 12, &"breacher": 8, &"rocket": 2, &"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12, &"swarm": 72, &"vector": 36, &"battle": 20, &"sawn": 6, &"auto": 12, &"bolt": 6, &"dmr": 20}
+const AMMO_PACK := {&"pistol": 30, &"marksman": 12, &"breacher": 8, &"rocket": 2, &"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12, &"swarm": 72, &"vector": 36, &"battle": 20, &"sawn": 6, &"auto": 12, &"bolt": 6, &"dmr": 20, &"magnum": 16, &"mpistol": 60, &"stun": 8, &"ranger": 30, &"bullpup": 30, &"lmg": 100, &"amr": 5, &"xbow": 6, &"flame": 100, &"qsuper": 20, &"qlink": 24, &"qcollapse": 1, &"qblink": 24, &"qphase": 24, &"qstasis": 20}
 
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
@@ -70,6 +70,11 @@ var combo := 0                               ## melee: index (0..2) of the next 
 var combo_hits := 0                          ## lifetime melee swings, for tests
 var finishers := 0                           ## lifetime combo finishers
 var chain_hits := 0                          ## lifetime arc-caster chain jumps
+var wall_hits := 0                           ## lifetime rounds that passed a wall (AMR, PHASE RIFLE)
+var stuns := 0                               ## lifetime enemies frozen by a hit (STUN GUN, STASIS RAY)
+var burn_ticks := 0                          ## lifetime burn damage ticks (FLAMETHROWER)
+var blinks := 0                              ## lifetime BLINK PISTOL teleports
+var _burning: Dictionary = {}                ## enemy instance id -> {node, left, acc}: damage over time of the flamethrower
 var singularities := 0                       ## lifetime SINGULARITY ON CRIT pulses (crafted perk, scripts/progress/crafting.gd)
 var _sing_t := 0.0
 var overheats := 0
@@ -165,6 +170,7 @@ func reset() -> void:
 	_burst = 0
 	_move_spread = 0.0
 	spread = float(def["spread_hip"])
+	_burning.clear()
 	_clear_grenades()
 
 
@@ -377,6 +383,7 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 	fire_t -= dt
 	_since_shot += dt
 	_tick_numbers(dt)
+	_tick_burn(dt)
 	if String(def["kind"]) == "throw" or (_launch != null and _launch.active):
 		if _launch == null:
 			_launch = LaunchAim.new(self)
@@ -495,9 +502,9 @@ func _shoot(dt: float, aiming: bool) -> void:
 		if heat >= 1.0 and not overheated:
 			_overheat()
 	var gm := Game.enemies as EnemyManager
-	if gm != null and is_instance_valid(p) and float(def["vol"]) > -20.0:
+	if gm != null and is_instance_valid(p) and float(def["vol"]) > -20.0 and not bool(def.get("silent", false)):
 		Stealth.noise(gm.list, p.global_position, &"gun")
-	if pellets > 1:
+	if pellets > 1 and not bool(def.get("flame", false)):
 		Sfx.play(&"explosion_small", -8.0, randf_range(1.4, 1.6))
 	if int(def["eject"]) > 0:
 		_eject_shell()
@@ -524,7 +531,9 @@ func _trace_pellet() -> void:
 	_exclude.assign(_exclude_base)
 	_ray.from = origin
 	_ray.to = origin + dir * range_m
-	for _attempt in 6:
+	var walls_left := int(def.get("wall", 0))                       # AMR / PHASE RIFLE: the round goes through that many walls (not the ground), each one costs wall_k of the damage
+	var wall_k := 1.0
+	for _attempt in 6 + walls_left:
 		_ray.exclude = _exclude
 		var res := space.intersect_ray(_ray)
 		if res.is_empty():
@@ -533,6 +542,12 @@ func _trace_pellet() -> void:
 		var hit_target := _damageable_of(res["collider"] as Node)
 		if hit_target != null and (_is_dead(hit_target) or hit_target.has_method(&"hit_ray")):
 			_exclude.append(res["rid"])          # a corpse does not stop bullets; people are tested on their real shape below (HitZones), not on the physics blob
+			continue
+		if walls_left > 0 and (hit_target == null or hit_target.is_in_group(&"vehicle")) and absf((res["normal"] as Vector3).y) < 0.7:
+			walls_left -= 1
+			wall_k *= float(def.get("wall_k", 0.7))
+			wall_hits += 1
+			_exclude.append(res["rid"])
 			continue
 		best = origin.distance_to(hit_pos)
 		normal = res["normal"]
@@ -566,8 +581,8 @@ func _trace_pellet() -> void:
 	# --- the barrel: poking into a wall, or cover right in front of the muzzle
 	var mz := p.body.muzzle.global_position
 	var anchor := p.camera_rig.get_pivot_position()
-	var blocked := _blocked_between(space, anchor, mz)
-	if blocked.is_empty():                                          # cover right in front of the muzzle; nothing farther out: the crosshair is the truth, a lamp post or a corner beside the line never eats a shot the player sees land
+	var blocked := _blocked_between(space, anchor, mz) if not def.has("wall") else {}
+	if blocked.is_empty() and not def.has("wall"):                                          # cover right in front of the muzzle; nothing farther out: the crosshair is the truth, a lamp post or a corner beside the line never eats a shot the player sees land
 		var to_hit := hit - mz
 		var reach := minf(to_hit.length(), MUZZLE_CLEAR)
 		if reach > 0.05:
@@ -582,11 +597,14 @@ func _trace_pellet() -> void:
 	if def.has("twin"):                                             # akimbo: the shot leaves the hand whose turn it is
 		mz += p.camera_rig.camera.global_basis.x * (_side * 0.16)
 	last_shot = {"origin": origin, "dir": dir, "muzzle": mz, "hit": hit, "dist": best, "target": target, "zone": zone, "civ": not civ.is_empty(), "blocked": not blocked.is_empty(), "spread": cone() * _alt_spread, "frame": Engine.get_physics_frames()}
-	FX.tracer(mz, hit, def["tracer"])
-	FX.qvfx.weapon_shot(current, mz, hit)
+	if bool(def.get("flame", false)):                               # a spray of fire along the line, not a laser
+		_flame_puffs(mz, hit)
+	else:
+		FX.tracer(mz, hit, def["tracer"])
+		FX.qvfx.weapon_shot(current, mz, hit)
 
 	var from_d := float(def["falloff_from"])
-	var k := 1.0
+	var k := wall_k
 	if mz.distance_to(hit) > from_d:
 		k = lerpf(1.0, 0.25, clampf((mz.distance_to(hit) - from_d) / maxf(range_m - from_d, 1.0), 0.0, 1.0))
 	if target != null and not _is_dead(target):
@@ -597,6 +615,15 @@ func _trace_pellet() -> void:
 		_hit_civilian(civ, hit, dir, k)
 	elif hit_something:
 		_hit_world(hit, normal)
+
+
+## FLAMETHROWER: fire puffs along the line muzzle -> hit (the fire colour of BlastElements), pooled FX bursts.
+func _flame_puffs(mz: Vector3, hit: Vector3) -> void:
+	var d := hit - mz
+	var n := 2 if Game.quality == 0 else 3
+	for i in n:
+		var t := (float(i) + randf()) / float(n)
+		FX.burst(mz + d * t, Color(1.0, 0.45 + 0.3 * (1.0 - t), 0.1), 3, 2.5 + 2.0 * t, 0.35 + 0.2 * t, -2.0, 1.0 + 1.6 * t)
 
 
 ## The first person of the street a ray meets before `max_t` (AmbientCity.civilian_ray), {} for none.
@@ -671,6 +698,10 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 		target.call(&"damage", amount, crit)
 		if target.has_method(&"stagger"):
 			target.call(&"stagger", AimAssist.stagger_for(current))
+		if def.has("stun") and not _is_dead(target):
+			_stun(target)
+		if def.has("burn") and not _is_dead(target):
+			_ignite(target)
 	else:
 		target.call(&"damage", DAMAGE_VEHICLE * float(def["damage"]) / DAMAGE * k)
 	var kill := (not is_vehicle) and _is_dead(target)
@@ -1123,6 +1154,90 @@ static func _is_dead(target: Object) -> bool:
 	return false
 
 
+## STUN GUN / STASIS RAY: the enemy is frozen (Drone.disable) for the weapon's `stun` seconds; big targets (bosses) only for a short while.
+func _stun(target: Node) -> void:
+	if not target.has_method(&"disable"):
+		return
+	var secs := float(def["stun"])
+	var hpmax: Variant = target.get(&"max_hp")
+	if hpmax != null and float(hpmax) > 400.0:
+		secs *= 0.3
+	target.call(&"disable", secs)
+	stuns += 1
+	if target is Node3D:
+		FX.burst((target as Node3D).global_position + Vector3(0.0, 1.2, 0.0), def["tracer"], 4, 2.5, 0.35, 0.0, 0.9)
+
+
+## FLAMETHROWER: the target burns for `burn_time` seconds, `burn` damage per second (a tick twice a second); a new hit renews the time.
+func _ignite(target: Node) -> void:
+	var key := target.get_instance_id()
+	var e: Dictionary = _burning.get(key, {})
+	e["node"] = target
+	e["left"] = float(def["burn_time"])
+	e["acc"] = float(e.get("acc", 0.0))
+	e["dps"] = float(def["burn"]) * Upgrades.damage_mult()
+	_burning[key] = e
+
+
+func _tick_burn(dt: float) -> void:
+	if _burning.is_empty():
+		return
+	for key: int in _burning.keys():
+		var e: Dictionary = _burning[key]
+		var n: Node = e["node"] if is_instance_valid(e["node"]) else null
+		if n == null or _is_dead(n) or float(e["left"]) <= 0.0:
+			_burning.erase(key)
+			continue
+		e["left"] = float(e["left"]) - dt
+		e["acc"] = float(e["acc"]) + dt
+		if float(e["acc"]) >= 0.5:
+			e["acc"] = float(e["acc"]) - 0.5
+			n.call(&"damage", TestMode.damage(float(e["dps"]) * 0.5), false)
+			burn_ticks += 1
+			if n is Node3D:
+				FX.burst((n as Node3D).global_position + Vector3(0.0, 1.0, 0.0), Color(1.0, 0.5, 0.12), 3, 1.5, 0.4, -2.0, 1.1)
+
+
+## BLINK PISTOL alt-fire: teleport to the point the crosshair sees (at most `range` metres; a wall, a car or an enemy stops the jump short of it), a flash at both ends.
+func _blink_to_aim(range_m: float) -> bool:
+	var p := _player
+	var ar := _aim_ray(0.0)
+	var origin: Vector3 = ar[0]
+	var dir: Vector3 = ar[1]
+	var space := p.get_world_3d().direct_space_state
+	_ray_b.from = origin
+	_ray_b.to = origin + dir * range_m
+	_ray_b.collision_mask = Game.L_WORLD | Game.L_VEHICLE | Game.L_ENEMY
+	_ray_b.exclude = _exclude_base
+	var res := space.intersect_ray(_ray_b)
+	var dest: Vector3
+	if not res.is_empty():
+		dest = (res["position"] as Vector3) - dir * 1.4                    # land in front of what stopped the jump
+		var col := res["collider"] as Node
+		if col != null and col.is_in_group(&"enemy"):
+			dest = (res["position"] as Vector3) - dir * 2.4
+	else:
+		dest = origin + dir * range_m
+	_ray_b.from = dest + Vector3(0.0, 2.0, 0.0)                              # then down to the ground below the landing point
+	_ray_b.to = dest + Vector3(0.0, -40.0, 0.0)
+	_ray_b.collision_mask = Game.L_WORLD
+	var ground := space.intersect_ray(_ray_b)
+	_ray_b.exclude = []
+	_ray_b.collision_mask = 1
+	if not ground.is_empty():
+		dest = (ground["position"] as Vector3) + Vector3(0.0, 0.05, 0.0)
+	if dest.distance_to(p.global_position) < 2.0:
+		return false
+	var from := p.global_position + Vector3(0.0, 1.0, 0.0)
+	FX.burst(from, def["tracer"], 10, 5.0, 0.45, 0.0, 1.2)
+	FX.tracer(from, dest + Vector3(0.0, 1.0, 0.0), def["tracer"])
+	p.teleport_to(dest)
+	FX.burst(p.global_position + Vector3(0.0, 1.0, 0.0), def["tracer"], 10, 5.0, 0.45, 0.0, 1.2)
+	Sfx.play(&"blink", -2.0, 1.2)
+	blinks += 1
+	return true
+
+
 # --- Wave 61: minigun spin / heat, arc chain, melee ------------------------------------------------------------------
 
 func _spin_mult() -> float:
@@ -1345,12 +1460,15 @@ func alt_fire(aiming := false) -> bool:
 				return false
 		"lunge":                                                # the blade dashes forward (the wall stops it) and strikes for a multiple
 			_blade_lunge(float(a["dist"]), float(a["mult"]), aiming)
+		"blink":                                                # the BLINK PISTOL: QUANTUM TELEPORT to the crosshair
+			if not _blink_to_aim(float(a["range"])):
+				return false
 		_:
 			return false
 	fire_t = maxf(fire_t, float(a["cd"]))
 	alt_fired += 1
 	Sfx.play(&"link", -8.0, 1.6)
-	return shots_fired > before or kind in ["vent", "pull", "lunge"]
+	return shots_fired > before or kind in ["vent", "pull", "lunge", "blink"]
 
 
 func _whip_pull(range_m: float) -> bool:

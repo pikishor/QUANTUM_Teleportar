@@ -128,6 +128,7 @@ func _ready() -> void:
 	_build_skyline()
 	_build_misc()
 	_build_ambient()
+	FloodZone.attach(self)                               # the flooded quarter: water over a block of streets south of the core (boats, see VehicleSpawns)
 	day_night = DayNight.new()
 	day_night.name = "DayNight"
 	add_child(day_night)
