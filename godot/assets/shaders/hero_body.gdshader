@@ -35,6 +35,11 @@ uniform float scalp : hint_range(0.0, 1.0) = 0.0;     // 1 with a hair style: th
 uniform float scalp_y = 1.7;
 uniform float scalp_z = 0.0;
 uniform float brightness : hint_range(0.2, 2.0) = 1.0;
+// Enemy readability at 20-40 m (real-fight wave): Drone.update_lod sets this per instance from the camera distance (0 up to 10 m, 1 from 30 m). A body-wide glow in the trim colour, strongest on
+// the edges, so a thin dark figure keeps its colour and outline against a dark street. Instance uniform: the mid-LOD mesh and its material are shared by every trooper of a look.
+instance uniform float far_k : hint_range(0.0, 1.0) = 0.0;
+// Hit flash of an enemy (Operative._hit_effect): the whole body flashes white-hot for ~0.12 s when a round lands, so a hit reads at 20 m (0 = off).
+instance uniform float hit_k : hint_range(0.0, 1.0) = 0.0;
 
 varying flat float v_mode;
 varying flat float v_kindf;
@@ -232,5 +237,6 @@ void fragment() {
 	SPECULAR = spec;
 	NORMAL_MAP = nm;
 	NORMAL_MAP_DEPTH = nd;
-	EMISSION = emis;
+	float far_rim = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 1.4);
+	EMISSION = emis + far_k * (trim_color * (0.3 + 1.4 * far_rim) + alb * 0.35) + hit_k * vec3(1.6, 1.4, 1.2);
 }

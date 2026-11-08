@@ -175,8 +175,8 @@ func _test_music_files() -> void:
 	var mb := float(total) / 1048576.0
 	print("  audio folder: %.2f MB (budget %.0f MB)" % [mb, BUDGET_MB])
 	TestLib.check(mb <= BUDGET_MB, "the audio folder is %.1f MB, inside the %.0f MB budget" % [mb, BUDGET_MB])
-	var gen := FileAccess.get_file_as_string("res://tools/audio/make_redesign_music.py")
-	TestLib.check(gen.contains("BPM = 128.0") and gen.contains("BARS = 16") and gen.contains("Dm9") and gen.contains("A7b9"), "the generator documents its grid: 128 BPM, 16 bars = 30 s, a two-bar chord progression")
+	var gen := FileAccess.get_file_as_string("res://tools/music/compose.py")
+	TestLib.check(gen.contains("explore   96   12   D minor") and gen.contains("sample-exact 30.000 s") and gen.contains("A7b9"), "the MIDI composer documents its grid: four tracks on one 30 s sample grid (explore 96 BPM, 12 bars)")
 
 
 # ------------------------------------------------------------------ the live game

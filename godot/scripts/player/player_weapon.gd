@@ -1087,7 +1087,7 @@ func _collapse(g: Dictionary) -> void:
 	g["state"] = -1
 	(g["node"] as Node3D).visible = false
 	Game.explode(pos + Vector3(0.0, 0.5, 0.0), float(d["blast_radius"]), {"enemy_dmg": float(d.get("blast_damage", d["damage"])) * Upgrades.damage_mult(), "car_dmg": float(d.get("car_dmg", 40.0)),
-			"player_dmg": 0.0, "color": d.get("blast_color", WeaponDefs.COLLAPSE_COLOR)})
+			"player_dmg": 0.0, "color": d.get("blast_color", WeaponDefs.COLLAPSE_COLOR), "element": d.get("blast_element", &"")})
 	grenade_collapsed.emit(pos)
 
 

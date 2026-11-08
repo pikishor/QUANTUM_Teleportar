@@ -72,6 +72,10 @@ Credit is not required by CC0 and is given anyway:
 | 51 UI sound effects | gopherapps | UI cues |
 | Rain (loopable), High traffic road sounds, Scifi City Ambient Loop, windy ambient noise | Snabisch, 2DPIXX, anonymous | ambience beds |
 
+## Music (MIDI + SoundFont)
+
+The music is composed in code (godot/tools/music/compose.py, original) and rendered with the **FluidR3 GM SoundFont by Frank Wen (MIT licence)** through FluidSynth (a build tool only). Licence text and SOURCE.md: art_sources/soundfont_fluidr3_gm/. Details and numbers: docs/AUDIO_SOURCES.md ("Music"). The 148 MB SoundFont is not in the repository.
+
 ## Open-source vehicles and guns (round 4)
 
 All CC0 1.0. Fetched from OpenGameArt.org (the authors' own sites are not reachable from the build sandbox). Licence text and URLs are kept with the packs in art_sources/.

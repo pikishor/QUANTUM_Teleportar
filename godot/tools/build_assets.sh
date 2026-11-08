@@ -49,15 +49,23 @@ if [ "$HIRES" = 1 ]; then
   "$PY" tools/blender/make_textures.py --size 1024 --out assets/generated/textures
 fi
 echo "== audio"
+MUS_KEEP="$(mktemp -d)"            # the shipped music is composed as MIDI (tools/music/compose.py); the old numpy generators below must not leave their music behind
+cp assets/audio/music_*.ogg assets/audio/mus_*.ogg "$MUS_KEEP"/ 2>/dev/null || true
 "$PY" tools/audio/make_audio.py
 "$PY" tools/audio/make_depth.py
 "$PY" tools/audio/make_weapons.py
 "$PY" tools/audio/make_v3.py
 "$PY" tools/audio/make_combat.py      # combat-feel shots (carbine x4, scatter), kill tick, civilian dissolve: AFTER the generators that write shot*.wav
 "$PY" tools/audio/make_redesign.py        # audio redesign: layered weapons (close/far/suppressed/overcharged), impacts, explosions with sub-bass: AFTER make_combat.py
-"$PY" tools/audio/make_redesign_music.py  # audio redesign: 128 BPM stems + district/boss/chase/night layers on one 30 s grid: AFTER make_depth.py and make_pass2.py
 "$PY" tools/audio/make_real.py            # round 4: real CC0 recordings (art_sources/audio_*/clips) replace the synthesised shots, impacts, explosions, steps, engines, UI and beds: AFTER every synthesising generator (docs/AUDIO_SOURCES.md)
 "$PY" -I tools/audio/shrink_audio.py
+echo "== music (tools/music/compose.py: MIDI + FluidR3 GM SoundFont -> 4 tracks x 5 stems + 7 layers)"
+if "$PY" -c "import mido, fluidsynth, scipy" 2>/dev/null && command -v ffmpeg >/dev/null && [ -f "${SOUNDFONT:-/usr/share/sounds/sf2/FluidR3_GM.sf2}" ]; then
+  "$PY" tools/music/compose.py --soundfont "${SOUNDFONT:-/usr/share/sounds/sf2/FluidR3_GM.sf2}" --quality 1
+else
+  echo "   mido / pyfluidsynth / scipy / ffmpeg or the SoundFont is missing: the committed music OGGs are kept (pip install mido pyfluidsynth scipy; apt install fluid-soundfont-gm)"
+  cp "$MUS_KEEP"/*.ogg assets/audio/ 2>/dev/null || true
+fi
 if [ "$MODELS" = 1 ]; then
   echo "== models + atlases"
   tools/blender/build_all.sh

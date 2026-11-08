@@ -82,6 +82,19 @@ var _last_xz := Vector2.INF
 var _blk_t := 0.0
 var _unstick_t := 0.0
 var _unstick_dir := 1.0
+var kit: StringName = &"rifleman"       ## squad kit of the roster look (TacticsTable.KITS): set by set_kit() when the director spawns the trooper
+var kit_set := false                    ## the director gave this trooper a squad kit (spawn with a look)
+var kit_speed := 1.0
+var kit_range := 1.0
+var kit_hp := 1.0
+var kit_aim := 1.0
+var kit_cover := 1.0
+var _hit_k := 0.0                       ## 1 on a hit, fades in ~0.12 s: the body flashes white-hot (hero_body.gdshader hit_k)
+var _crouch := 0.0                      ## 0..1: crouched behind low cover (the model's height squashes; the head and shoulders stay above the cover)
+var throws := false                     ## a grenadier / commander lobs grenades at the hero
+var grenades_thrown := 0                ## this life
+var _grenade_cd := 0.0
+var _grenade_wind := 0.0
 const UNSTICK_AFTER := 1.0
 const UNSTICK_FOR := 2.2
 const CALL_HP := 0.5
@@ -99,13 +112,13 @@ func _make_shape() -> Shape3D:
 
 
 func body_box() -> Array:
-	var k := float(cfg.get("scale", 1.0))
+	var k := float(cfg.get("scale", 1.0)) * _dist_scale
 	return [global_position, global_position + Vector3(0.0, 1.8 * k, 0.0), 0.42 * k]
 
 
 ## A person: a head sphere on a standing capsule from the feet (HitZones), sized by the type's `scale`. Feet, legs, torso and head all count, nothing beside the body does.
 func hit_ray(o: Vector3, d: Vector3) -> Dictionary:
-	var k := float(cfg.get("scale", 1.0))
+	var k := float(cfg.get("scale", 1.0)) * _dist_scale
 	return HitZones.ray(o, d, global_position, 1.8 * k, 0.36 * k, 0.2 * k)
 
 
@@ -208,6 +221,24 @@ func _on_activate() -> void:
 	_regroup_immune = 0.0
 	var gm := Game.enemies as EnemyManager
 	faction = TacticsTable.faction_for(type, gm.chapter_now() if gm != null else 0, randf())
+	kit = &"rifleman"
+	kit_set = false
+	kit_speed = 1.0
+	kit_range = 1.0
+	kit_hp = 1.0
+	kit_aim = 1.0
+	kit_cover = 1.0
+	throws = false
+	_crouch = 0.0
+	_hit_k = 0.0
+	if humanoid_body != null:
+		humanoid_body.set_instance_shader_parameter(&"hit_k", 0.0)
+		humanoid_body.set_instance_shader_parameter(&"far_k", 0.0)
+	_far_k = 0.0
+	_dist_scale = 1.0
+	grenades_thrown = 0
+	_grenade_cd = 0.0
+	_grenade_wind = 0.0
 	_aim_t = 0.0
 	_burst_left = 0
 	_shot_t = 0.0
@@ -240,6 +271,23 @@ func _on_activate() -> void:
 		rig.flinch_dir = Vector2.ZERO
 
 
+## The squad kit of this body's roster look (the encounter director calls it after activate): speed, health, range, cover habit, grenades. Returns the kit's health multiplier.
+func set_kit() -> float:
+	if humanoid.is_empty() or type != &"operative":
+		return 1.0
+	var k := TacticsTable.kit(StringName(humanoid.get("class", &"rifleman")))
+	kit = StringName(humanoid.get("class", &"rifleman"))
+	kit_set = true
+	kit_speed = float(k["speed"])
+	kit_range = float(k["range"]) * TacticsTable.SQUAD_RANGE
+	kit_hp = float(k["hp"])
+	kit_aim = float(k["aim"])
+	kit_cover = float(k["cover"])
+	throws = bool(k["throws"])
+	_grenade_cd = randf_range(TacticsTable.GRENADE_FIRST.x, TacticsTable.GRENADE_FIRST.y)
+	return kit_hp * TacticsTable.SQUAD_HP
+
+
 func _idle_speed() -> float:
 	return float(cfg["walk"])
 
@@ -255,6 +303,10 @@ func _ground_y(x: float, z: float) -> float:
 
 func _hit_effect(crit: bool) -> void:
 	_flinch = 1.0 if crit else 0.7
+	if hp > 0.0:                                            # the killing blow has its own death effect
+		_hit_k = 1.0
+		if humanoid_body != null:
+			humanoid_body.set_instance_shader_parameter(&"hit_k", 1.0)
 	_fdir = _dir_to_player()
 	if hanim != null:
 		hanim.hit(_fdir, _flinch)
@@ -324,8 +376,8 @@ func _turn_rate() -> float:
 
 
 func _think_aware(delta: float, dx: float, dz: float, d: float) -> void:
-	var speed: float = cfg["speed"]
-	var rng: float = cfg["range"]
+	var speed: float = float(cfg["speed"]) * kit_speed
+	var rng: float = float(cfg["range"]) * kit_range
 	yaw = lerp_angle(yaw, atan2(-dx, -dz), 1.0 - exp(-_turn_rate() * delta))
 	var ux := dx / d
 	var uz := dz / d
@@ -451,7 +503,7 @@ func _tactics(delta: float, ux: float, uz: float, d: float, speed: float, rng: f
 		var mgr := Game.enemies as EnemyManager
 		if mgr != null:
 			mgr.call_reinforcement(self)
-	var retreat_hp := float(_row("retreat_hp"))
+	var retreat_hp := float(_row("retreat_hp")) if not kit_set else 0.0         # the director's squad fights to the end (a wounded straggler walking away held a wave open for 35 s)
 	if frac < retreat_hp and retreat_hp > 0.0 and _regroup_immune <= 0.0 and not _retreating:
 		_retreating = true
 		_retreat_t = 0.0
@@ -470,6 +522,23 @@ func _tactics(delta: float, ux: float, uz: float, d: float, speed: float, rng: f
 		_camp_t = 0.0
 		assign_flank(-_flank if _cover_state != 0 else _flank, 7.0)
 		return false
+	# the grenadier: stands for GRENADE_WIND (the windup tell: arm back, the muzzle flare swells), then the ball leaves his hand and flies at the hero (EnemyGrenades)
+	if throws:
+		_grenade_cd = maxf(0.0, _grenade_cd - delta)
+		if _grenade_wind > 0.0:
+			_grenade_wind -= delta
+			_mx = 0.0
+			_mz = 0.0
+			_speed = 0.0
+			if _grenade_wind <= 0.0:
+				if gm != null and gm.try_grenade(self):
+					grenades_thrown += 1
+				_grenade_cd = randf_range(TacticsTable.GRENADE_EVERY.x, TacticsTable.GRENADE_EVERY.y)
+			return true
+		if _grenade_cd <= 0.0 and los and _burst_left == 0 and _aim_t <= 0.0 and _cover_state != 1 and d > TacticsTable.GRENADE_RANGE.x and d < TacticsTable.GRENADE_RANGE.y \
+				and gm != null and gm.grenade_ready():
+			_grenade_wind = TacticsTable.GRENADE_WIND
+			return true
 	# flush: the hero holds cover, so a grenade is lobbed at him (one at a time, squad cooldown)
 	if bool(_row("flush")) and gm != null and _cover_state != 1 and _burst_left == 0 and gm.hero_holding(float(_row("flush_hold"))):
 		var spot := Vector3(_tgt.x, Game.player.global_position.y if is_instance_valid(Game.player) else 0.0, _tgt.z)
@@ -623,10 +692,15 @@ func _fire_cycle(delta: float, d: float, rng: float) -> void:
 	else:
 		_fire_t -= delta
 		if los and d < rng * 1.15 and _fire_t <= 0.0:
-			_aim_t = float(cfg["aim_time"])
+			_aim_t = float(cfg["aim_time"]) * kit_aim
 
 
 # --- cover: pooled prop colliders (EnemyCover.find) ------------------------------------------------------------------
+
+## The director's squad takes only LOW cover (EnemyCover.LOW_MAX): it crouches behind it, stays shootable and stands up to fire.
+func low_cover_only() -> bool:
+	return kit_set and (rush or tactic_role != &"")
+
 
 func cover_state() -> int:
 	return _cover_state
@@ -643,7 +717,7 @@ func _try_leap(d: float, rng: float, to_t: Vector2) -> bool:
 	var gm := Game.enemies as EnemyManager
 	if gm == null or gm.leaping_near(self) >= TacticsTable.tier_cap(TacticsTable.LEAPERS, Game.quality) or not gm.try_think():
 		return false
-	var c := EnemyCover.find(self, _tgt, float(cfg.get("cover_radius", 22.0)), faction, float(_row("leap_step")))
+	var c := EnemyCover.find(self, _tgt, float(cfg.get("cover_radius", 22.0)), faction, float(_row("leap_step")), low_cover_only())
 	if not c.is_finite():
 		return false
 	_cover = c
@@ -677,13 +751,13 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 		if _cover_search_t > 0.0:
 			return false
 		_cover_search_t = 0.5
-		if randf() > float(_row("cover_use")) * (RUSH_COVER_USE if rush else 1.0):
+		if randf() > float(_row("cover_use")) * kit_cover * (RUSH_COVER_USE if rush else 1.0):
 			_cover_cd = 2.0                                   # the hive mostly just charges
 			return false
 		var gm := Game.enemies as EnemyManager
 		if gm != null and not gm.try_think():
 			return false                                      # too many thinkers this frame: try again at the next search
-		var c := EnemyCover.find(self, _tgt, float(cfg.get("cover_radius", 22.0)), faction)
+		var c := EnemyCover.find(self, _tgt, float(cfg.get("cover_radius", 22.0)), faction, 0.0, low_cover_only())
 		if not c.is_finite():
 			_cover_cd = 1.5
 			return false
@@ -738,8 +812,10 @@ func _cover_move(delta: float, ux: float, uz: float, d: float, speed: float, rng
 func threat_charge() -> float:
 	if dead:
 		return 0.0
+	if _grenade_wind > 0.0:
+		return clampf(1.0 - _grenade_wind / TacticsTable.GRENADE_WIND, 0.0, 1.0)
 	if _aim_t > 0.0:
-		return clampf(1.0 - _aim_t / float(cfg["aim_time"]), 0.0, 1.0)
+		return clampf(1.0 - _aim_t / (float(cfg["aim_time"]) * kit_aim), 0.0, 1.0)
 	return 1.0 if _burst_left > 0 else 0.0
 
 
@@ -890,6 +966,10 @@ func _animate(delta: float) -> void:
 		look_off = angle_difference(yaw, atan2(-(_tgt.x - o.x), -(_tgt.z - o.z)))
 	_kick = maxf(0.0, _kick - delta * 7.0)
 	_flinch = maxf(0.0, _flinch - delta * 5.0)
+	if _hit_k > 0.0:
+		_hit_k = maxf(0.0, _hit_k - delta * 8.0)
+		if humanoid_body != null:
+			humanoid_body.set_instance_shader_parameter(&"hit_k", _hit_k)
 	_clock += delta
 	loco.update(delta, disp, yaw, true, 0.0, 1.0 if _moved > 0.1 else 0.0, false, firing, look_off)
 	if hanim != null:
@@ -911,6 +991,9 @@ func _animate(delta: float) -> void:
 	if _stagger > 0.0:
 		rig.lean += -0.1 * minf(1.0, _stagger * 8.0)
 	rig.apply()
+	if model != null and not dead:                          # behind low cover he crouches: the body squashes to ~70 %, so the head and shoulders stay in view above the cover
+		_crouch = lerpf(_crouch, 1.0 if (_cover_state == 2 and not _retreating) else 0.0, 1.0 - exp(-12.0 * delta))
+		model.scale = _look_scale * _base_scale * _dist_scale * Vector3(1.0, 1.0 - 0.3 * _crouch, 1.0)
 	if muzzle != null:
 		muzzle.transform = hanim.muzzle_transform(rig) if hanim != null else rig.muzzle_transform()
 	if leg_l != null:

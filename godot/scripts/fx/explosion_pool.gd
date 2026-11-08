@@ -53,6 +53,7 @@ class Slot:
 	var n_puffs := 0
 	var fire_size := 6.0
 	var glow := 1.0
+	var elem: StringName = &"fire"                          ## the BlastElements id of this blast (palette of fire, smoke, sparks, debris, light)
 
 var slots: Array[Slot] = []
 var light: OmniLight3D
@@ -190,8 +191,12 @@ static func tier_scale(tier: int) -> float:
 
 
 ## Start an explosion. style STYLE_FIRE / STYLE_QUANTUM / STYLE_WRECK (a burning car: `burn` seconds of flame and smoke).
-func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn := 0.0) -> void:
+func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn := 0.0, element := &"") -> void:
 	var tier := Game.quality
+	var explicit := BlastElements.valid(element)
+	var el: StringName = element if explicit else BlastElements.of_color(color)
+	var pal := BlastElements.data(el)
+	var rf := UiSettings.s_reduce_flash                      # reduce flash: a dimmer core, no light pulse peak, no haze
 	var limit := slot_limit(tier)
 	var s: Slot = null
 	for i in limit:
@@ -220,8 +225,21 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	s.n_puffs = 0 if quantum or (tier == 0 and s.small and burn <= 0.0) else (1 if s.small else mini(PUFFS, puff_count(tier)))
 	s.fire_size = r * (2.1 if quantum else 1.5)
 	s.glow = 1.0
-	var mid := color if quantum else color.lerp(ORANGE, 0.4)
-	var lo := Color(mid.r * 0.3, mid.g * 0.12, mid.b * 0.1) if not quantum else Color(0.5, 0.05, 0.7)      # the collapse: a cyan core burning out into magenta
+	var mid: Color
+	if explicit:
+		mid = pal["mid"]
+	elif quantum:
+		mid = color
+	elif el == BlastElements.FIRE:
+		mid = color.lerp(ORANGE, 0.4)
+	else:
+		mid = (pal["mid"] as Color).lerp(color, 0.35)         # green, cyan and blue fire keep their own hue instead of turning orange
+	var lo: Color = pal["lo"]
+	if el == BlastElements.FIRE and not explicit:
+		lo = Color(mid.r * 0.3, mid.g * 0.12, mid.b * 0.1)
+	if quantum and (el == BlastElements.PLASMA or el == BlastElements.ELECTRIC):
+		lo = Color(0.5, 0.05, 0.7)                            # the collapse: a cyan core burning out into magenta
+	s.elem = el
 	var hot := mid.lerp(Color(1.0, 0.95, 0.85), 0.8)
 	s.total = maxf(s.fire_t, maxf(s.ring_t, s.smoke_t + 0.4))
 	s.total = maxf(s.total, 0.65 + 0.045 * r if quantum else 1.4 + 0.02 * r)       # the particles of the slot outlive the layers
@@ -233,7 +251,7 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	s.fire_mat.set_shader_parameter(&"c_mid", mid)
 	s.fire_mat.set_shader_parameter(&"c_hot", hot)
 	s.fire_mat.set_shader_parameter(&"roll", randf() * TAU)
-	s.fire_mat.set_shader_parameter(&"gain", 2.4 if quantum else 2.0)
+	s.fire_mat.set_shader_parameter(&"gain", (2.4 if quantum else 2.0) * (0.55 if rf else 1.0))
 	var floor_y := 0.05 if pos.y < 4.0 else -1000.0
 	s.fire_mat.set_shader_parameter(&"floor_y", floor_y)
 	s.fire_mat.set_shader_parameter(&"fade_h", s.fire_size * 0.25)
@@ -248,7 +266,7 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 			s.puff_drift[k] = Vector3(cos(ang), 0.0, sin(ang)) * r * randf_range(0.04, 0.16)
 			s.puff_delay[k] = 0.1 * k + randf() * 0.05
 			s.puff_mats[k].set_shader_parameter(&"roll", randf() * TAU)
-			s.puff_mats[k].set_shader_parameter(&"tint", SMOKE_TINT)
+			s.puff_mats[k].set_shader_parameter(&"tint", pal["smoke"])
 			s.puff_mats[k].set_shader_parameter(&"floor_y", floor_y)
 			s.puff_mats[k].set_shader_parameter(&"fade_h", r * 0.4)
 			s.puff_mats[k].set_shader_parameter(&"glow_color", mid)
@@ -260,32 +278,58 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	s.ground.global_position = Vector3(pos.x, GROUND_Y if pos.y < 4.0 else pos.y, pos.z)
 	s.ground_mat.set_shader_parameter(&"tint", mid)
 	s.ground_mat.set_shader_parameter(&"ring2", 1.0 if quantum else 0.0)
+	s.ground_mat.set_shader_parameter(&"flash_gain", 0.7 if rf else 1.4)
+	s.ground_mat.set_shader_parameter(&"tint2", Color(1.0, 0.15, 0.85) if el != BlastElements.QUANTUM else Color(1.0, 0.6, 1.0))
 	s.ground_mat.set_shader_parameter(&"t", 0.0)
 	s.ground.visible = true
 	# sparks and debris (a few discrete counts per emitter)
 	var ts := tier_scale(tier)
 	var big := clampf(0.3 + r / 9.0 * 0.7, 0.3, 1.0)
-	_shoot(s.sparks, pos + Vector3(0.0, 0.4, 0.0), r * 0.9, r * 2.4 if not quantum else r * 1.6, 0.5 + 0.045 * r, 14.0 if not quantum else 2.0,
-			big * ts, hot if quantum else Color.WHITE, 0.7 if quantum else 1.0)       # the quad is 0.05 x 0.5 m: scale 1 = a half metre streak
+	s.sparks.color_ramp = BlastElements.spark_ramp(el)
+	_shoot(s.sparks, pos + Vector3(0.0, 0.4, 0.0), r * 0.9, (r * 1.6 if quantum else r * 2.4 * (1.25 if el == BlastElements.ELECTRIC else 1.0)), 0.5 + 0.045 * r, 14.0 if not quantum else 2.0,
+			big * ts, Color.WHITE, 0.7 if quantum else 1.0)       # the quad is 0.05 x 0.5 m: scale 1 = a half metre streak
 	if quantum or tier == 0:                                # LOW drops the debris emitter (one draw per slot: the death-spike draw budget)
 		s.debris.visible = false
 		s.debris.emitting = false
 	else:
+		s.debris.color_ramp = BlastElements.chunk_ramp(el)
 		_shoot(s.debris, pos + Vector3(0.0, 0.5, 0.0), r * 0.5, r * 1.1 + 2.0, 1.0 + 0.02 * r, 16.0, (0.45 if s.small else big) * ts, Color.WHITE, 1.0)
 	# the light pulse (one shared light, none on LOW)
 	if tier > 0 and (not s.small or r >= 2.0):
 		_light_owner = slots.find(s)
 		light.global_position = pos + Vector3(0.0, 0.9, 0.0)
-		light.light_color = mid.lerp(Color.WHITE, 0.25)
+		light.light_color = (pal["light"] as Color).lerp(Color.WHITE, 0.25)
 		light.omni_range = clampf(r * 3.0 + 5.0, 8.0, 36.0)
-		_light_peak = clampf(r * 0.9, 2.0, 8.0)
+		_light_peak = clampf(r * 0.9, 2.0, 8.0) * (0.35 if rf else 1.0)
 		_light_dur = maxf(0.2, s.fire_t * 0.8)
 		_light_t = _light_dur
 		light.light_energy = _light_peak
 		light.visible = true
+	_extras(s, pos, r, el, tier, mid)
 	_step(s, 0.0)                                           # first frame: progress and alpha are set before anything is drawn
 	set_process(true)
 
+
+## What makes the elements differ beyond colour: forked arcs (electric), flying drops (toxic), violet motes (quantum), cyan embers (plasma). All pooled, none on LOW but the drops.
+func _extras(s: Slot, pos: Vector3, r: float, el: StringName, tier: int, mid: Color) -> void:
+	if r < 2.0 or FX.qvfx == null:
+		return
+	var ts := tier_scale(tier)
+	match el:
+		BlastElements.ELECTRIC:
+			if tier > 0 and not UiSettings.s_reduce_flash:
+				var n := (2 if tier == 1 else 4)
+				for k in n:
+					var ang := randf() * TAU
+					var tip := pos + Vector3(cos(ang), randf_range(0.2, 1.4), sin(ang)) * r * randf_range(0.8, 1.4)
+					FX.qvfx.bolt(pos + Vector3(0.0, 0.8, 0.0), tip, Color(0.7, 0.88, 1.0))
+		BlastElements.TOXIC:
+			FX.burst(pos + Vector3(0.0, 0.6, 0.0), Color(0.5, 1.0, 0.15), maxi(4, int(14.0 * ts)), r * 1.1, 1.1, 13.0, 1.9)
+		BlastElements.QUANTUM:
+			if tier > 0 and not s.small:
+				FX.qvfx.dust(pos + Vector3(0.0, 0.5, 0.0), 12, mid, Color(1.0, 0.85, 1.0), r * 0.5, 2.0, 0.7, 1.0)
+		BlastElements.PLASMA:
+			FX.burst(pos + Vector3(0.0, 0.8, 0.0), Color(0.45, 0.95, 1.0), maxi(4, int(12.0 * ts)), r * 0.8, 1.2, -1.2, 0.9)
 
 ## 0..1: how much of a layer of this world size may show for a camera at this position. A billboard that would cover most of the screen fades out
 ## (nothing below 0.45 x its size, full at 1.1 x its size), so a blast next to the player never whites the screen out; sparks, ring, light and shake remain.
@@ -448,7 +492,7 @@ func active_count() -> int:
 func _update_heat() -> void:
 	var cam := get_viewport().get_camera_3d()
 	var best := Vector4.ZERO
-	if cam != null and Game.quality > 0:
+	if cam != null and Game.quality > 0 and not UiSettings.s_reduce_flash:
 		var tan_half := tan(deg_to_rad(cam.fov) * 0.5)
 		var size := get_viewport().get_visible_rect().size
 		var best_k := 0.0

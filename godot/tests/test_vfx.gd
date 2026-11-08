@@ -123,6 +123,7 @@ func run(host: Node) -> void:
 	TestLib.check(_count_nodes(FX) == before, "no node growth after 200 explosions (%d -> %d nodes)" % [before, _count_nodes(FX)])
 	TestLib.check(FX.shake_amount <= 1.0, "shake stays within 0..1")
 	_advance(3.0)
+	FX.marks.clear()                                        # the liquid and scorch of the blasts stay 30-90 s by design (BlastMarks, tests/test_blasts_liquid_damage.gd); every other effect must end by itself
 	all.clear()
 	_visible_nodes(FX, all)
 	TestLib.check(all.is_empty(), "after the spam everything is hidden again (%d visible)" % all.size())

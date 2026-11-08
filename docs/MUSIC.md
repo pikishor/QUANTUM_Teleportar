@@ -1,0 +1,22 @@
+# Music (MIDI + SoundFont)
+
+Credit and licence summary: docs/AUDIO_SOURCES.md and docs/THIRD_PARTY.md. Test: `godot/tests/test_music_midi.gd`; numeric gate: `godot/tools/audio/check_audio.py`.
+
+The old synthesised music (numpy stems) is gone. `godot/tools/music/compose.py` composes the music in code (mido), writes one MIDI file per stem (`godot/tools/music/midi/`, 27 files, 208 KB) and renders them with FluidSynth and the **FluidR3 GM SoundFont (Frank Wen, MIT licence**, `art_sources/soundfont_fluidr3_gm/` keeps the licence and SOURCE.md; the 148 MB `.sf2` is not committed, it comes from the Ubuntu package `fluid-soundfont-gm`). The composition (chords, bass lines, drum patterns, melodies) is original; nothing is sampled from other music.
+
+| Track (state) | BPM / bars / key | Stems (one MIDI file each) |
+|---|---|---|
+| explore (calm, alert, driving, stealth) `music_pad, _pulse, _bass, _perc, _lead` | 96 / 12 / D minor | warm pad + strings + celesta; electric-piano tresillo arpeggio with a soft kick / rim / shaker skeleton; finger bass; full groove kit with fills; flute melody |
+| menu (title) `mus_menu_*` | 64 / 8 / D minor | slow strings, choir, warm pad; harp arpeggios and piano; contrabass; timpani, taiko, reverse-cymbal swells; horn melody |
+| combat (heat 3+, boss) `mus_combat_*` | 144 / 18 / E minor | polysynth strings; double-tracked power-chord chugs; pumping synth bass; power-kit drums with fills; saw lead and brass stabs |
+| chase `mus_chase_*` | 160 / 20 / A minor | tremolo strings; pizzicato 16th ostinato; 16th synth bass; electronic kit with tom runs; saw hook and brass stabs |
+| layers `music_district_0..3`, `music_night` (explore grid), `music_boss` (combat grid), `music_chase` (chase grid) | same as their track | marimba / kalimba market, tubular-bell foundry with taiko, electric-piano swing slums, celesta glass towers, atmosphere + voice-oohs night, choir + low brass + timpani boss, orchestra hits chase |
+
+Every file is the same sample-exact 30.000 s loop (1,323,000 samples at 44.1 kHz: BPM x bars x 4 / 60 = 30 s for all four tracks), so five stems and a layer can be stacked at any time. Each stem has three to four sections (A restrained, B fuller, C lift, turnaround or fill) so a 30 s loop does not repeat a bar-for-bar riff. Adaptive layering: `Sfx` picks the track from the music state (`Sfx.track_for_state`, a 0.9 s equal-power crossfade between two players) and the state's stem levels (`Sfx.MUSIC_STATES`) pick how many of the five stems play, the same intensity ladder as before (explore: pad, pulse, bass; alert: + perc; combat: all five).
+
+Loops: the composer plays the MIDI three times through FluidSynth, one event per 64-sample block, with a pass stretched to an exact number of blocks (6 ppm), so every pass is identical and the third pass carries the tails of the second across the seam; the loop window starts 5.8 ms before the downbeat so no attack sits on the seam. Measured on the encoded OGG files: the jump across the seam is at most 0.5 x the steepest step inside the file. Mastering: 30 Hz high-pass (filtered as a loop), per-stem trims, the five stems summed to -22 `lufs_like` (the K-weighted measure of `tools/audio/audio_metrics.py`; combat and chase -23 so shots dominate by at least 6 LU; about -19 .. -15 LUFS integrated by ITU BS.1770 / ffmpeg `ebur128`), one shared look-ahead limiter (every stem gets the same gain curve) capping the five-stem sum at -8 dBFS, layers at -25. OGG Vorbis q1 (bass mono): 20 stems + 7 layers + the legacy `music_ambient.ogg` = 7.1 MB. `tools/music/manifest.json` records what was measured (loudness, peak, seam, bytes of every file); `tests/test_music_midi.gd` and `tools/audio/check_audio.py` check it.
+
+Run: `pip install mido numpy scipy pyfluidsynth; apt-get install fluidsynth fluid-soundfont-gm ffmpeg; python3 godot/tools/music/compose.py` (about 75 s; `--only explore menu combat chase layers`, `--midi-only`, `--soundfont path.sf2`), then `godot/tools/import.sh`. `tools/build_assets.sh` runs it when the tools exist and otherwise keeps the committed files.
+
+Not done / blocked: the stings (`sting_*`, death, win, boss, chapter) are still the old synthesised ones (short, kept). No CC0 SoundFont was needed: FluidR3 GM is MIT and was reachable through the package mirror; opengameart.org was not searched for a second SoundFont. Nobody has listened to this on a phone: the checks are numeric (tempo, key, loudness, seams) and a spectrogram of every track was inspected for structure.
+

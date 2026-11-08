@@ -73,6 +73,9 @@ var _prev_h := 0.0
 var _bob_t := 0.0
 var _fx_t := 0.0
 var _fx_n := 0
+const PANELS_PER_CAR := 3
+var _panels_torn := 0
+var _leak_t := 0.0
 var _dist := 0.0                    ## distance to the player (update_lod)
 var _stuck := 0.0
 var _wedge_t := 0.0                ## seconds the player held the throttle without the car moving
@@ -148,6 +151,10 @@ func setup(k: StringName, mgr: Node) -> void:
 
 ## Put the car into play at `pos` (ground position), parked and repaired. Call set_traffic() afterwards for a moving one.
 func activate(pos: Vector3, h: float) -> void:
+	if visual != null:
+		visual.restore_wheels()
+	_panels_torn = 0
+	_leak_t = 0.0
 	hp = max_hp
 	dead = false
 	wreck = false
@@ -286,6 +293,8 @@ func _reset_garage() -> void:
 
 func deactivate() -> void:
 	_reset_garage()
+	if visual != null:
+		visual.restore_wheels()
 	wreck = false
 	active = false
 	driver_is_player = false
@@ -349,6 +358,43 @@ func damage(amount: float) -> void:
 	if amount >= 45.0 and not dead and _dist < 60.0:             # a big blast leaves its dents on the panels facing it
 		var lp := Vector3(randf_range(-0.7, 0.7), float(spec["hgt"]) * 0.5, randf_range(-1.0, 1.0) * float(spec["len"]) * 0.4)
 		visual.add_dent(lp, Vector3(-signf(lp.x), 0.0, 0.0), clampf(amount / max_hp, 0.05, 0.4))
+		tear_panel_now(lp, Vector3(signf(lp.x), 0.3, 0.0))              # ...and a panel is torn off it
+
+
+## A wheel flies off (CarDebris: it bounces and rolls away). `i` = which wheel, -1 = a random one that is still on. Returns false when there is none or the car is far away.
+func shed_wheel_now(i := -1) -> bool:
+	if visual == null or visual.wheels.is_empty() or FX.car_debris == null or (_dist > 60.0 and not driver_is_player):
+		return false
+	var idx := i
+	if idx < 0:
+		var open: Array[int] = []
+		for k in visual.wheels.size():
+			if not visual.wheel_shed(k):
+				open.append(k)
+		if open.is_empty():
+			return false
+		idx = open[randi() % open.size()]
+	var w: Node3D = visual.wheels[idx]
+	var out := global_transform.basis * Vector3(signf(w.position.x) if absf(w.position.x) > 0.05 else 1.0, 0.0, 0.0)
+	FX.car_debris.shed_wheel(w.global_transform, vel * 0.6 + out * randf_range(2.5, 5.0) + Vector3.UP * randf_range(3.0, 6.0), visual.wheel_radius)
+	visual.shed_wheel(idx)
+	FX.burst(w.global_position, Color(1.0, 0.8, 0.45), 8, 5.0, 0.35, 9.0, 0.8)
+	Sfx.impact(&"metal", w.global_position, Vector3.UP)
+	return true
+
+
+## A body panel is torn off at the local point `local_at`, flying the way `local_dir` points (out of the car); at most PANELS_PER_CAR per car.
+func tear_panel_now(local_at: Vector3, local_dir: Vector3) -> bool:
+	if visual == null or FX.car_debris == null or _panels_torn >= PANELS_PER_CAR or (_dist > 60.0 and not driver_is_player):
+		return false
+	_panels_torn += 1
+	var sz := Vector3(float(spec["wid"]) * 0.45, 0.05, float(spec["len"]) * 0.22)
+	var out := (global_transform.basis * Vector3(local_dir.x, 0.0, local_dir.z).normalized())
+	if out.length() < 0.1:
+		out = Vector3.UP
+	FX.car_debris.tear_panel(to_global(local_at), vel * 0.5 + out * randf_range(3.0, 6.5) + Vector3.UP * randf_range(4.0, 8.0), visual.get_paint(), sz, global_transform.basis)
+	FX.burst(to_global(local_at), Color(1.0, 0.75, 0.4), 6, 4.5, 0.3, 9.0, 0.7)
+	return true
 
 
 ## Takes `amount` hit points off the hull and updates what shows: wear, the windows, smoke and fire (an explosion only when the hull is gone).
@@ -358,6 +404,8 @@ func _hurt(amount: float) -> void:
 		explode()
 		return
 	var f := 1.0 - hp / maxf(max_hp, 1.0)
+	if f > 0.62 and visual.wheels_lost() < 1:
+		shed_wheel_now()                                            # a badly hurt car loses a wheel
 	visual.set_damage_look(f)
 	visual.set_deform(f)
 	visual.set_condition(f)
@@ -444,6 +492,10 @@ func crash(v: float, at: Vector3, n: Vector3, other_mass := INF) -> float:
 			visual.add_dent(local_at, local_dir, frac)
 		if frac > 0.28 and not dead:
 			visual.crack_glass(clampf(frac * 1.6, 0.0, 1.0), local_at)
+		if frac > 0.38 and not dead:
+			tear_panel_now(local_at, local_dir)
+		if frac > 0.75 and not dead and visual.wheels_lost() < 2:
+			shed_wheel_now()
 		_hurt(lost)
 	return lost
 
@@ -502,6 +554,12 @@ func _damage_fx(dt: float) -> void:
 			return
 	if _dist > VehicleSpecs.FX_RANGE and not driver_is_player:
 		return
+	_leak_t -= dt
+	if _leak_t <= 0.0 and FX.marks != null and _dist < 45.0:                # a hurt car leaves a trail of oil on the street
+		_leak_t = 1.6 if absf(speed) > 2.0 else 4.0
+		if FX.marks.live_of(BlastMarks.K_OIL) >= 10:
+			return
+		FX.marks.oil(Vector3(global_position.x, 0.0, global_position.z) - forward() * float(spec["len"]) * 0.2, clampf(0.7 + 0.5 * (1.0 - hp / maxf(max_hp, 1.0)), 0.7, 1.5), 40.0)
 	_fx_t -= dt
 	if _fx_t > 0.0:
 		return
@@ -536,6 +594,8 @@ func explode() -> void:
 		driver_is_player = false
 	dmg_state = 3
 	damage_state_changed.emit(self, 3)
+	if FX.car_debris != null and (_dist < 80.0 or driver_is_player):
+		FX.car_debris.wreck(self)                                   # wheels and body panels fly off
 	Game.explode(pos + Vector3(0.0, 1.0, 0.0), 9.0, {"enemy_dmg": 80.0, "car_dmg": 70.0, "player_dmg": 35.0, "color": Color(1.0, 0.54, 0.19)})
 	Game.add_heat(VehicleSpecs.CARJACK_HEAT)
 	_chain_ignite(pos)

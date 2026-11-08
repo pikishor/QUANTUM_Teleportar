@@ -9,8 +9,9 @@
     before the Master limiter (peak must stay below -1 dBFS) and RMS must be in a sane range.
   * the audio redesign (quality table, printed): LUFS-like loudness (K-weighted, first 250 ms for shots), crest factor, spectral centroid and low-band shares of every weapon class and
     of the close / far / suppressed / overcharged variants, impacts and explosions (sub-bass share); the five stems and the seven layers (loudness, crest, centroid per role), the
-    tempo estimated from the percussion stem (128 BPM, inside 90-140), the bass stem's note per chord against the progression, the tonal centre (D minor) of the melodic stems,
-    and the shots against the combat music (shots must dominate by at least 6 LU).
+    tempo estimated from the percussion stem of every MIDI track (tools/music/compose.py: explore 96, menu 64, combat 144, chase 160 BPM), the bass stem's note per bar against the
+    explore progression, the tonal centre (D minor) of the explore stems, the loudness and loop seam of all 20 track stems, and the shots against the COMBAT track (shots must
+    dominate by at least 6 LU).
 Usage: python3 check_audio.py [--dir assets/audio] [--verbose]
 """
 import argparse
@@ -85,9 +86,9 @@ def place(buf, x, t, gain=1.0):
 
 
 # ------------------------------------------------------------------ the audio redesign: quality table and checks
-PROGRESSION_ROOTS = [38, 34, 41, 36, 38, 43, 34, 33]          # Dm9 Bbmaj7 Fadd9 Cadd9 | Dm Gm9 Bbmaj7 A7b9 (two bars each)
+PROGRESSION_ROOTS = [38, 38, 34, 34, 43, 43, 38, 38, 34, 43, 33, 33]   # explore, one chord per bar: Dm9 Dm9 Bbmaj7 Bbmaj7 Gm9 Gm9 Dm9 Dm9 | Bbmaj7 Gm9 A7 A7b9
+TRACKS = {"explore": ("music_", 96.0, (0.50, 0.75)), "menu": ("mus_menu_", 64.0, (0.80, 1.10)), "combat": ("mus_combat_", 144.0, (0.35, 0.50)), "chase": ("mus_chase_", 160.0, (0.33, 0.45))}
 D_MINOR = {0, 2, 4, 5, 7, 9, 10, 1}                           # natural minor plus C# (the leading tone of the A7)
-GRID_BPM = 128.0
 
 
 def estimate_bpm(x, lo=0.35, hi=0.60):
@@ -113,11 +114,11 @@ def chroma_in_key(x, lo=80.0, hi=1400.0):
     return float(sum(e[k] for k in D_MINOR) / (np.sum(e) + 1e-12))
 
 
-def bass_notes_per_chord(x):
+def bass_notes_per_chord(x, bars=12):
     m = x.mean(axis=0)
-    seg = len(m) // 8
+    seg = len(m) // bars
     out = []
-    for i in range(8):
+    for i in range(bars):
         y = m[i * seg:(i + 1) * seg]
         S = np.abs(np.fft.rfft(y * np.hanning(len(y)))) ** 2
         f = np.fft.rfftfreq(len(y), 1.0 / SR)
@@ -169,11 +170,11 @@ def quality(d, pcm, dec, stems, combat, music_db):
         sub = am.band_share(x, 20, 100, 1200.0)
         check(sub >= 0.12 and am.short_term(x, 600.0) >= -20.0, "%s has sub-bass (%.0f %% of its first 1.2 s under 100 Hz) and %.1f LU" % (n, 100 * sub, am.short_term(x, 600.0)))
     # shots against the combat music: the game plays shots at -2 dB and the music at MUSIC_DB plus the combat stem levels
-    n = min(dec["music_" + s].shape[1] for s in stems)
-    mus = sum(dec["music_" + s][:, :n] * 10 ** (lvl / 20) for s, lvl in zip(stems, combat)) * 10 ** (music_db / 20)
+    n = min(dec["mus_combat_" + s].shape[1] for s in stems)
+    mus = sum(dec["mus_combat_" + s][:, :n] * 10 ** (lvl / 20) for s, lvl in zip(stems, combat)) * 10 ** (music_db / 20)
     mus_lu = am.lufs_like(mus)
     shot_lu = am.short_term(base) - 2.0
-    check(shot_lu - mus_lu >= 6.0, "shots dominate the combat music: shot %.1f LU vs music %.1f LU (+%.1f, at least +6)" % (shot_lu, mus_lu, shot_lu - mus_lu))
+    check(shot_lu - mus_lu >= 6.0, "shots dominate the combat track: shot %.1f LU vs music %.1f LU (+%.1f, at least +6)" % (shot_lu, mus_lu, shot_lu - mus_lu))
     # music
     print("\n%-18s %6s %6s %6s %7s %7s" % ("music", "peak", "LU", "crest", "centroid", "<250Hz"))
     for s in stems:
@@ -188,11 +189,19 @@ def quality(d, pcm, dec, stems, combat, music_db):
     check(cen["bass"] < 450.0 and cen["pad"] < 2000.0 and cen["perc"] > 1500.0 and 500.0 < cen["lead"] < 3500.0 and 500.0 < cen["pulse"] < 3500.0, "each stem sits in its role: centroids %s" % {k: int(v) for k, v in cen.items()})
     tot = sum(dec["music_" + s][:, :n] for s in stems)
     check(-26.0 <= am.lufs_like(tot) <= -17.0 and am.crest_db(tot) <= 15.0, "all five stems: %.1f LU, crest %.1f dB (mastered: limited, not squashed)" % (am.lufs_like(tot), am.crest_db(tot)))
-    bpm = estimate_bpm(dec["music_perc"])
-    check(90.0 <= bpm <= 140.0 and abs(bpm - GRID_BPM) <= 4.0, "the percussion stem's tempo is %.1f BPM (the 128 BPM grid, inside the 90-140 set)" % bpm)
+    for tr, (prefix, grid, (lo, hi)) in TRACKS.items():
+        bpm = estimate_bpm(dec[prefix + "perc"], lo, hi)
+        check(abs(bpm - grid) <= 4.0 or abs(bpm - grid / 2) <= 2.0 or abs(bpm - grid * 2) <= 8.0, "the %s track's percussion tempo is %.1f BPM (the %d BPM grid)" % (tr, bpm, grid))
+        trs = [dec[prefix + s_] for s_ in stems]
+        nn = min(t.shape[1] for t in trs)
+        sm = sum(t[:, :nn] for t in trs)
+        check(abs(nn / SR - 30.0) < 0.1 and max(t.shape[1] for t in trs) - nn <= 64 and -26.0 <= am.lufs_like(sm) <= -17.0 and am.peak_db(sm) < -5.0,
+              "%s: five stems of one 30 s grid, sum %.1f LU, peak %.1f dBFS" % (tr, am.lufs_like(sm), am.peak_db(sm)))
+        check(max(seam_ratio(t) for t in trs) <= 1.5, "%s: every stem loops seamlessly (worst seam %.2f)" % (tr, max(seam_ratio(t) for t in trs)))
+        check(all(am.lufs_like(t) > -45.0 for t in trs), "%s: no silent stem (quietest %.1f LU)" % (tr, min(am.lufs_like(t) for t in trs)))
     notes = bass_notes_per_chord(dec["music_bass"])
     ok = sum(1 for a, r in zip(notes, PROGRESSION_ROOTS) if a == r % 12)
-    check(ok >= 7, "the bass plays the chord roots of the progression in %d of 8 chords (%s)" % (ok, notes))
+    check(ok >= 9, "the bass plays the chord roots of the explore progression in %d of 12 bars (%s)" % (ok, notes))
     for s in ("pad", "pulse", "lead"):
         c = chroma_in_key(dec["music_" + s])
         check(c >= 0.72, "music_%s stays in D minor: %.0f %% of its pitch-class energy is in the scale" % (s, 100 * c))
@@ -295,7 +304,7 @@ def main():
     # music (combat stems, Music bus ducked by the explosion for the first seconds) and ambience beds (rain on asphalt, traffic, wind, hum) and the radio babble
     mus = np.zeros(len(buf))
     for s, lvl in zip(stems, combat):
-        x = dec["music_" + s]
+        x = dec["mus_combat_" + s]
         mono = np.tile(x.mean(axis=0), 2)[:len(buf)]
         mus += mono * 10 ** (lvl / 20)
     duck = np.ones(len(buf))

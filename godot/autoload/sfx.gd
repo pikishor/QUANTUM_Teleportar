@@ -9,8 +9,10 @@ extends Node
 ## Buses (assets/audio/default_bus_layout.tres): Master (limiter) <- SFX (gentle compressor), Music (low-pass), Ambient (low-pass), Voice (the radio). Per-bus volume:
 ## set_bus_volume(bus, linear 0..1) / apply_volumes(dict) (the settings screen); `muted` mutes everything, music included.
 ## Ducking, sidechain style: explosions pull Music and Ambient down for about a second and release slowly, the radio holds them down while ORACLE babbles.
-## Music: five looping stems (pad, pulse, bass, perc, lead) played sample-locked by one AudioStreamSynchronized and faded by game state (explore, alert, combat,
-## driving, menu, death, win; stings on death and win). With auto_music the state follows Game (heat 1-3 alert, 3+ combat, a driven car, dead, win).
+## Music (MIDI + SoundFont, tools/music/compose.py, docs/AUDIO_SOURCES.md): four TRACKS (explore 96 BPM, menu 64, combat 144, chase 160), each five looping 30 s stems (pad, pulse,
+## bass, perc, lead) played sample-locked by one AudioStreamSynchronized per track. The state picks the track (track_for_state: menu, combat and boss, chase, otherwise explore;
+## a track change crossfades two players in TRACK_XFADE seconds) and the state's stem levels pick the intensity inside it (explore, alert, combat, driving, menu, death, win;
+## stings on death and win). With auto_music the state follows Game (heat 1-3 alert, 3+ combat, a driven car, dead, win).
 ## Living sound, all simulated only while Game.is_playing(): footsteps from the hero's foot plants (Locomotion.footfalls), the player's car (RPM loop pair, tyre
 ## squeal, crashes), traffic hum on the three nearest moving cars, quantum loops, heartbeat and breath at low health, rain/wind/traffic/hum beds with thunder.
 ## Wave 17 depth: a theme layer (own player, started at the stems' playback position so it stays in time) with one colour per district (district_at), the boss theme and the
@@ -51,6 +53,11 @@ const FAMILIES: Array = [
 const DEFAULT_RULE: Array = ["", 1, 6, 0.0, 0.0]
 
 const STEMS: Array[StringName] = [&"pad", &"pulse", &"bass", &"perc", &"lead"]
+## music tracks: file prefix of the five stems (explore keeps the original music_<stem> names), tempo, key (all exactly 30.000 s on one sample grid with the theme layers)
+const TRACKS: Array[StringName] = [&"explore", &"menu", &"combat", &"chase"]
+const TRACK_PREFIX := {&"explore": "music_", &"menu": "mus_menu_", &"combat": "mus_combat_", &"chase": "mus_chase_"}
+const TRACK_BPM := {&"explore": 96, &"menu": 64, &"combat": 144, &"chase": 160}
+const TRACK_XFADE := 0.9          ## seconds of the equal-power crossfade between two tracks
 ## stem levels (dB) per music state: pad, pulse, bass, perc, lead
 const MUSIC_STATES := {
 	&"menu": [0.0, -14.0, -60.0, -60.0, -8.0],
@@ -119,7 +126,12 @@ var _fam_flat: Array[String] = []
 var _fam_3d: Array[String] = []
 var _music: AudioStreamPlayer
 var _sting: AudioStreamPlayer
-var _stems: AudioStreamSynchronized
+var _stems: AudioStreamSynchronized         ## the stems of the CURRENT track
+var _music_alt: AudioStreamPlayer           ## the player of the track that is fading out
+var _track_streams := {}                    ## track -> AudioStreamSynchronized (built on first use)
+var music_track: StringName = &"explore"
+var _xfade := 1.0                           ## 0..1 progress of a running track crossfade (1 = none)
+var _layer_stale := false                   ## a track switch restarted the grid: the running theme layer must restart in step with it
 var _stem_db := PackedFloat32Array([OFF_DB, OFF_DB, OFF_DB, OFF_DB, OFF_DB])
 var _stem_target := PackedFloat32Array([OFF_DB, OFF_DB, OFF_DB, OFF_DB, OFF_DB])
 var _stem_tau := STATE_TAU
@@ -162,6 +174,8 @@ var muted := false:
 			AudioServer.set_bus_mute(i, v)
 		if _music != null:
 			_music.stream_paused = v
+		if _music_alt != null:
+			_music_alt.stream_paused = v
 		if v:
 			_silence_loops()
 
@@ -266,9 +280,15 @@ func _ready() -> void:
 	_music.volume_db = MUSIC_DB
 	_music.stream_paused = muted
 	add_child(_music)
+	_music_alt = AudioStreamPlayer.new()
+	_music_alt.name = "MusicOut"
+	_music_alt.bus = _bus_or_master(MUSIC_BUS)
+	_music_alt.volume_db = OFF_DB
+	_music_alt.stream_paused = muted
 	var layers_root := Node.new()
 	layers_root.name = "Layers"
 	add_child(layers_root)
+	layers_root.add_child(_music_alt)       # with the theme layers: the music voices, not an effect voice
 	for i in 2:
 		var lyr := AudioStreamPlayer.new()
 		lyr.name = "Layer%d" % i
@@ -798,9 +818,13 @@ func _step_indoors(delta: float) -> void:
 ## Starts the adaptive music and the ambience (a no-op when already playing). `music_name` is kept for old callers: &"music_ambient" plays the single legacy loop.
 func play_music(music_name: StringName = &"", volume_db := MUSIC_DB) -> void:
 	_vol_music = volume_db
-	_music.volume_db = volume_db
 	if _music.playing:
+		_music.volume_db = volume_db if _xfade >= 1.0 else _music.volume_db
 		return
+	_music.volume_db = volume_db
+	_xfade = 1.0
+	_music_alt.stop()
+	music_track = track_for_state(&"menu" if Game.state == &"menu" else music_state, music_track)
 	if music_name == MUSIC_NAME or not _build_stems():
 		var s := _get(MUSIC_NAME)
 		if s == null:
@@ -818,6 +842,8 @@ func play_music(music_name: StringName = &"", volume_db := MUSIC_DB) -> void:
 
 func stop_music() -> void:
 	_music.stop()
+	_music_alt.stop()
+	_xfade = 1.0
 	_sting.stop()
 
 
@@ -825,20 +851,69 @@ func is_music_playing() -> bool:
 	return _music != null and _music.playing
 
 
+## Builds (once) the synchronized stream of the current track and makes it the live one.
 func _build_stems() -> bool:
-	if _stems != null:
-		return true
+	var st := _build_track(music_track)
+	if st == null:
+		return false
+	_stems = st
+	return true
+
+
+func _build_track(track: StringName) -> AudioStreamSynchronized:
+	if _track_streams.has(track):
+		return _track_streams[track]
+	var prefix: String = TRACK_PREFIX.get(track, "")
+	if prefix == "":
+		return null
 	var streams: Array[AudioStream] = []
 	for s in STEMS:
-		var st := _loop_stream(StringName("music_" + String(s)))
+		var st := _loop_stream(StringName(prefix + String(s)))
 		if st == null:
-			return false
+			return null
 		streams.append(st)
-	_stems = AudioStreamSynchronized.new()
-	_stems.stream_count = streams.size()
+	var sync := AudioStreamSynchronized.new()
+	sync.stream_count = streams.size()
 	for i in streams.size():
-		_stems.set_sync_stream(i, streams[i])
-		_stems.set_sync_stream_volume(i, OFF_DB)
+		sync.set_sync_stream(i, streams[i])
+		sync.set_sync_stream_volume(i, OFF_DB)
+	_track_streams[track] = sync
+	return sync
+
+
+## Which track plays a music state: the menu theme in the menu, the combat track for combat and the boss, the chase track for chases, otherwise explore. Death keeps the
+## track that is playing (its stems drop to the pad), everything else (alert, driving, stealth, win) rides on explore.
+static func track_for_state(state: StringName, current: StringName = &"explore") -> StringName:
+	match state:
+		&"menu":
+			return &"menu"
+		&"combat", &"boss":
+			return &"combat"
+		&"chase":
+			return &"chase"
+		&"death":
+			return current
+	return &"explore"
+
+
+## Starts `track` on the free player and fades the running one out (equal power over TRACK_XFADE). The new track starts at its first bar; the theme layer restarts in step.
+func _switch_track(track: StringName) -> bool:
+	var nxt := _build_track(track)
+	if nxt == null or _music == null:
+		return false
+	var out := _music
+	_music = _music_alt
+	_music_alt = out
+	_music.stream = nxt
+	_music.volume_db = OFF_DB
+	_music.stream_paused = muted
+	_music.play()
+	_stems = nxt
+	for i in STEMS.size():
+		nxt.set_sync_stream_volume(i, OFF_DB)
+	music_track = track
+	_xfade = 0.0
+	_layer_stale = true
 	return true
 
 
@@ -850,10 +925,18 @@ func set_music_state(state: StringName, snap := false) -> void:
 	var old := music_state
 	music_state = state
 	_state_since = _state_clock
+	var switched := false
+	var track := track_for_state(state, music_track)
+	if track != music_track:
+		if is_music_playing() and not _legacy_music:
+			switched = _switch_track(track)
+		else:
+			music_track = track
+			_stems = _track_streams.get(track, null)
 	var tgt := director_targets(state)
 	for i in STEMS.size():
 		_stem_target[i] = tgt[i]
-		if snap:
+		if snap or switched:
 			_stem_db[i] = tgt[i]
 	_stem_tau = 0.25 if state == &"death" else (0.45 if state in [&"combat", &"boss", &"chase"] else (1.1 if state in [&"sneak", &"suspect"] else STATE_TAU))
 	_push_stem_volumes()
@@ -904,6 +987,14 @@ func _push_stem_volumes() -> void:
 
 
 func _step_music(delta: float) -> void:
+	if _xfade < 1.0:
+		_xfade = minf(1.0, _xfade + delta / TRACK_XFADE)
+		_music.volume_db = _vol_music + linear_to_db(maxf(sqrt(_xfade), 0.0001))
+		_music_alt.volume_db = _vol_music + linear_to_db(maxf(sqrt(1.0 - _xfade), 0.0001))
+		if _xfade >= 1.0:
+			_music.volume_db = _vol_music
+			_music_alt.stop()
+			_music_alt.volume_db = OFF_DB
 	var k := 1.0 - exp(-delta / maxf(_stem_tau, 0.01))
 	var moved := false
 	for i in STEMS.size():
@@ -1046,6 +1137,8 @@ func wanted_layer() -> StringName:
 		return &"music_boss"
 	if music_state == &"chase":
 		return &"music_chase"
+	if music_track != &"explore":
+		return &""                  # the district and night colours are written in the explore track's key and tempo
 	if night_weight() > 0.5:
 		return &"music_night"
 	if is_instance_valid(Game.player):
@@ -1067,7 +1160,7 @@ func _step_layers(delta: float) -> void:
 	if is_music_playing() and not _legacy_music and auto_music:
 		want = wanted_layer()
 	layer_wanted = want
-	if want != &"" and (_layer_cur < 0 or _layer_name[_layer_cur] != want):
+	if want != &"" and (_layer_cur < 0 or _layer_name[_layer_cur] != want or _layer_stale):
 		var s := _loop_stream(want)
 		if s != null:
 			var nxt := 1 - maxi(_layer_cur, 0) if _layer_cur >= 0 else 0
@@ -1080,6 +1173,7 @@ func _step_layers(delta: float) -> void:
 			pl.play(fposmod(pos, 30.0))
 			_layer_name[nxt] = want
 			_layer_cur = nxt
+			_layer_stale = false
 	var k := 1.0 - exp(-delta / LAYER_TAU)
 	for i in 2:
 		var goal := OFF_DB

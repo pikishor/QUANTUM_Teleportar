@@ -244,10 +244,18 @@ func explode(pos: Vector3, radius: float, opts := {}) -> void:
 	var enemy_dmg: float = opts.get("enemy_dmg", 60.0)
 	var car_dmg: float = opts.get("car_dmg", 60.0)
 	var player_dmg: float = opts.get("player_dmg", 30.0)
-	var color: Color = opts.get("color", Color(1.0, 0.54, 0.19))
-	FX.blast(pos, radius, color, 0.5, int(opts.get("style", -1)), float(opts.get("burn", 0.0)))
+	var element: StringName = opts.get("element", &"")
+	var color: Color = opts.get("color", BlastElements.color(element, "ring") if BlastElements.valid(element) else Color(1.0, 0.54, 0.19))
+	if not BlastElements.valid(element):
+		element = BlastElements.of_color(color)               # every caller keeps its colour: green = toxic, cyan = plasma, blue = electric, violet = quantum, orange = fire
+		FX.blast(pos, radius, color, 0.5, int(opts.get("style", -1)), float(opts.get("burn", 0.0)))
+	else:
+		FX.blast(pos, radius, color, 0.5, int(opts.get("style", -1)), float(opts.get("burn", 0.0)), true, element)
+	FX.blast_marks(pos, radius, element)                      # fluid, scorch, cracks and falling glass on the street and the facades (one pooled draw)
 	var cam_pos: Vector3 = camera.global_position if is_instance_valid(camera) else pos
-	FX.shake(clampf(radius * 1.6 / (cam_pos.distance_to(pos) + 6.0), 0.0, 1.0))
+	var cam_d := cam_pos.distance_to(pos)
+	FX.shake(clampf(radius * 1.6 / (cam_d + 6.0) * float(BlastElements.data(element)["shake"]), 0.0, 1.0))
+	blast_feel(radius, cam_d)
 	Sfx.play_at(&"boom" if radius >= 5.0 else &"explosion_small", pos, -3.0)                 # positional: an explosion across the street is quieter and comes from where it is
 	if Breakables.current != null:
 		Breakables.current.blast(pos, radius)
@@ -268,6 +276,30 @@ func explode(pos: Vector3, radius: float, opts := {}) -> void:
 		var d := player.global_position.distance_to(pos)
 		if d < radius:
 			player.damage(player_dmg * (1.0 - 0.6 * d / radius) * blast_cover(pos, player.global_position + Vector3(0.0, 1.0, 0.0)), pos)
+
+
+const BLAST_SLOWMO_RADIUS := 7.0            ## a blast this big (and close to the camera) plays a short slow motion
+const BLAST_SLOWMO_RANGE := 26.0
+const BLAST_SLOWMO_GAP := 4.0               ## real seconds between two blast slow motions
+var _slowmo_last := -100.0
+
+
+## Slow motion on a big blast close to the camera: 0.3 s at 40 % speed, eased back (Stability owns Engine.time_scale; never during tools and tests, off with Reduce motion,
+## never over another slow motion, never in a menu). Returns true when it started.
+func blast_feel(radius: float, cam_dist: float, force := false) -> bool:
+	if radius < BLAST_SLOWMO_RADIUS or cam_dist > BLAST_SLOWMO_RANGE or UiSettings.s_reduce_motion or state != &"play":
+		return false
+	if autostart and not force:
+		return false
+	var now := Time.get_ticks_msec() * 0.001
+	if now - _slowmo_last < BLAST_SLOWMO_GAP:
+		return false
+	var stab := Stability.current
+	if not is_instance_valid(stab) or stab.slowmo_active or Engine.time_scale < 0.95:
+		return false
+	_slowmo_last = now
+	stab.begin_slowmo(0.4, 0.2, 0.35)
+	return true
 
 
 const BLAST_COVER := 0.35           ## share of a blast's damage that reaches a target standing behind a wall (line of sight from the centre is blocked)

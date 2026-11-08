@@ -1,6 +1,6 @@
 extends RefCounted
 ## THE FIGHT of the slice (owner round 3: "enemies do not come, shooting is not on target, nowhere close to COD"). In the REAL game scene the encounter director plays its script:
-## a quiet opening, a radio callout, a patrol of 5-8 Vael troopers (by tier) that arrives from clear directions (a pusher squad ahead, a flank squad on the side, an anchor behind cover),
+## a quiet opening, a radio callout, a patrol of 3-6 Vael troopers (by tier) that arrives from clear directions (a pusher squad ahead, a flank squad on the side, an anchor behind cover),
 ## three escalating waves, then calm. A fight bot (tests/fight_bot.gd, the real input actions and camera) shoots whoever comes. Checked: timing (the patrol is on the street about
 ## 30 s after play starts), size by tier, bearings, roles, the callout text, escalation, the calm after the third wave, kills, the threat markers' input data and the director's silence in
 ## menus, vehicles and interiors. The pure rules run first (no scene). Time runs 4x (time_scale and tick rate together, like test_combat_feel); every wait is in game seconds.
@@ -73,12 +73,12 @@ func _test_rules() -> void:
 		var prev := 0
 		for k in range(1, Encounters.SET_WAVES + 1):
 			var n := Encounters.patrol_size(k, tier)
-			ok = ok and n >= 5 and n <= 8 and n >= prev
+			ok = ok and n >= 3 and n <= 6 and n >= prev
 			prev = n
-	TestLib.check(ok, "a patrol is 5-8 troopers on every tier and never shrinks inside a set")
-	TestLib.check(Encounters.patrol_size(1, 0) == 5 and Encounters.patrol_size(3, 2) == 8, "LOW starts at 5, HIGH ends at 8")
+	TestLib.check(ok, "a patrol is 3-6 troopers on every tier and never shrinks inside a set")
+	TestLib.check(Encounters.patrol_size(1, 0) == 3 and Encounters.patrol_size(3, 2) == 6, "LOW starts at 3, HIGH ends at 6")
 	TestLib.check(Encounters.SET_WAVES == 3, "three waves in a set")
-	TestLib.check(Encounters.FIRST_DELAY >= 18.0 and Encounters.FIRST_DELAY + Encounters.CALLOUT_LEAD <= 32.0 and Encounters.CALLOUT_LEAD >= 2.0, "the patrol arrives about 30 s in, the callout comes a few seconds before it")
+	TestLib.check(Encounters.FIRST_DELAY >= 6.0 and Encounters.FIRST_DELAY <= 10.0 and Encounters.CALLOUT_LEAD >= 2.0 and Encounters.CALLOUT_LEAD < Encounters.FIRST_DELAY, "contact in about 10 s: the patrol arrives 6-10 s in, the callout comes a few seconds before it")
 	TestLib.check(Encounters.patrol_type(1, 3, 2) == &"operative" and Encounters.patrol_type(2, 1, 1) == &"flanker" and Encounters.patrol_type(2, 2, 0) == &"striker", "wave 2 adds a rusher and a kamikaze")
 	TestLib.check(Encounters.patrol_type(3, 1, 1) == &"shield" and Encounters.patrol_type(3, 2, 0) == &"striker" and Encounters.patrol_type(3, 0, 0) == &"operative", "wave 3 adds a shield and a kamikaze")
 	TestLib.check(Encounters.group_role(0) == &"pusher" and Encounters.group_role(1) == &"flanker" and Encounters.group_role(2) == &"anchor", "ahead pushes, the side flanks, the rear anchors")
@@ -168,15 +168,15 @@ func _test_script(host: Node) -> void:
 	bot.finish()
 	print("SLICE FIGHT: set cleared at %.0f s (game), waves %s, kills %d, shots %d, hits %d, first wave at %.1f s, callouts %s" % [guard, str(sizes), bot.kills, bot.shots, bot.hits, first, str(calls)])
 	var tier_cap := _mgr.cap()
-	TestLib.check(first >= Encounters.FIRST_DELAY - 3.0 and first <= Encounters.FIRST_DELAY + 6.0, "the patrol arrives about 30 s in: %.1f s of play" % first)
+	TestLib.check(first >= Encounters.FIRST_DELAY - 3.0 and first <= Encounters.FIRST_DELAY + 6.0, "the patrol arrives about 10 s in: %.1f s of play" % first)
 	TestLib.check(calls.size() >= 1 and call_t[0] < first and first - call_t[0] <= Encounters.CALLOUT_LEAD + 2.0, "the radio callout comes %.1f s before the patrol" % (first - (call_t[0] if not call_t.is_empty() else 0.0)))
 	TestLib.check(calls.size() >= 1 and calls[0].begins_with("VAEL PATROL: ") and (calls[0].contains("AHEAD") or calls[0].contains("LEFT") or calls[0].contains("RIGHT") or calls[0].contains("BEHIND")), "the callout names a direction: %s" % (calls[0] if not calls.is_empty() else "-"))
-	TestLib.check(sizes.size() >= 1 and sizes[0] >= mini(5, tier_cap) and sizes[0] <= 8, "the first patrol is %d troopers (tier cap %d)" % [sizes[0] if not sizes.is_empty() else 0, tier_cap])
+	TestLib.check(sizes.size() >= 1 and sizes[0] >= mini(3, tier_cap) and sizes[0] <= 6, "the first patrol is %d troopers (tier cap %d)" % [sizes[0] if not sizes.is_empty() else 0, tier_cap])
 	TestLib.check(aware_all, "the whole patrol is aware of the hero at once")
 	TestLib.check(sizes.size() == Encounters.SET_WAVES, "exactly three waves in the set (%d)" % sizes.size())
 	var escalates := sizes.size() >= 2
 	for i in range(1, sizes.size()):
-		escalates = escalates and sizes[i] >= mini(sizes[i - 1], 5)
+		escalates = escalates and sizes[i] >= mini(sizes[i - 1], 3)
 	TestLib.check(escalates, "the waves do not shrink: %s" % str(sizes))
 	TestLib.check(sets_done[0] >= 1 and _enc.phase == &"calm" and _enc.sets_cleared >= 1, "the third wave closes the set: calm follows")
 	# bearings: wave 1 comes from at least two clearly different directions when the grid allows it

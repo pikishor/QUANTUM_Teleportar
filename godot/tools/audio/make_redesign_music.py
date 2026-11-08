@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Audio redesign, part 2: the adaptive music of Quantum Teleportar (numpy + ffmpeg/libvorbis; run AFTER make_pass2.py, it replaces those files).
+"""SUPERSEDED (music): the shipped music is composed as MIDI and rendered with a SoundFont by tools/music/compose.py (docs/AUDIO_SOURCES.md). This numpy generator would overwrite those
+files with the old synthesised music, so do not run its music part any more (make_library.py --no-music); it stays for the beds, thunder and stings.
+
+Audio redesign, part 2: the adaptive music of Quantum Teleportar (numpy + ffmpeg/libvorbis; run AFTER make_pass2.py, it replaces those files).
 
 One shared grid so that Sfx can stack any theme layer over the five stems and everything stays in time: 128 BPM, 16 bars of 4/4 = exactly 30.000 s (the loop length every
 audio test and Sfx.play(fposmod(pos, 30)) rely on). D minor, two bars per chord:

@@ -760,6 +760,7 @@ func repair() -> void:
 	dents.clear()
 	_src_arrays.clear()
 	_orig_mesh = null
+	restore_wheels()
 	cracks = 0.0
 	if _crack_mi != null:
 		_crack_mi.visible = false
@@ -869,8 +870,40 @@ func set_wheels_visible(v: bool) -> void:
 	if v == _wheels_shown:
 		return
 	_wheels_shown = v
+	for i in wheels.size():
+		wheels[i].visible = v and not wheel_shed(i)
+
+
+## A wheel has flown off (CarDebris): its node stays hidden until restore_wheels() (repair, respawn).
+var _shed := PackedByteArray()
+
+
+func shed_wheel(i: int) -> void:
+	if i < 0 or i >= wheels.size():
+		return
+	if _shed.size() != wheels.size():
+		_shed.resize(wheels.size())
+	_shed[i] = 1
+	wheels[i].visible = false
+
+
+func wheel_shed(i: int) -> bool:
+	return i < _shed.size() and _shed[i] == 1
+
+
+func wheels_lost() -> int:
+	var n := 0
+	for b in _shed:
+		n += int(b)
+	return n
+
+
+func restore_wheels() -> void:
+	if wheels_lost() == 0:
+		return
+	_shed.fill(0)
 	for w in wheels:
-		w.visible = v
+		w.visible = _wheels_shown
 
 
 func wheels_visible() -> bool:

@@ -19,18 +19,22 @@ signal wave_cleared(wave: int)
 signal callout(text: String, dirs: PackedStringArray)     ## the radio call before a wave: where the troopers come from
 signal set_cleared(set_no: int)                          ## the third wave of a set is down: calm follows
 
-const FIRST_DELAY := 18.0                 ## the patrol is on the street about 30 s after play starts (the callout comes CALLOUT_LEAD s earlier, they close in for a few seconds)
+const FIRST_DELAY := 7.5                  ## CONTACT IN 10 S (real-fight wave): the first squad spawns 7.5 s after play starts (the callout comes CALLOUT_LEAD s earlier) and is aware and on the hero 11-21 m away
 const CALLOUT_LEAD := 3.5                 ## seconds between the radio callout and the arrival
 const SET_WAVES := 3                      ## waves of one set, escalating
 const SET_CALM := 60.0                    ## calm seconds after a set before the next one is called
-const PATROL_SIZES: Array = [[5, 5, 5], [6, 7, 7], [7, 8, 8]]   ## troopers of wave 1, 2, 3 of a set by tier (LOW, MED, HIGH): 5-8 (the tier's enemy cap trims it)
+const PATROL_SIZES: Array = [[3, 4, 4], [4, 5, 6], [5, 6, 6]]   ## troopers of wave 1, 2, 3 of a set by tier (LOW, MED, HIGH): 3-6 (readable at phone size; the tier's enemy cap trims it)
+## Roster look (HumanoidVariants.VAEL_CLASSES index: 0 rifleman, 1 gunner, 2 scout, 3 grenadier, 4 marksman, 5 commander) of slot `s` in wave `k` of a set: the look IS the role (TacticsTable.KITS).
+const LOOKS: Array = [[0, 2, 0, 4, 0, 2], [0, 2, 0, 3, 4, 1], [1, 2, 0, 3, 4, 5]]   ## slot 1 flanks / slot 2 may be swapped for a specialist (patrol_type): the grenadier sits in slot 3
 const GAP := Vector2(2.5, 4.5)            ## calm seconds after a cleared wave (shortened by wave number)
 const QUIET_MAX := 12.0                   ## no aware enemy within ENGAGE_RADIUS this long: the next wave comes now
 const ENGAGE_RADIUS := 55.0
-const SPAWN_MIN := 11.0
-const SPAWN_MAX := 21.0
+const SPAWN_MIN := 10.0
+const SPAWN_MAX := 19.0
 const BACKUP_AFTER := 6.0                 ## seconds into a wave before backup may be called
 const BACKUP_SIZE := 2
+const HIDE_MAX := 3.0                     ## seconds a squad member with no line to the hero (a wall, a parked car and no path finding) may stay put outside the camera's view before he is put back on a road point with a line
+const HIDE_MAX_SEEN := 6.0               ## ... and in the camera's view (a visible jump is the last resort)
 const WAVE_MAX := 35.0                    ## seconds into a wave after which stragglers out of view fall back (in view: 15 s more)
 const HOLD_MAX := 8.0                     ## seconds a fight outside the director's own squad (a street patrol) may hold back the next wave of a set
 const HEAT_KEEP := 0.3                    ## after a set the Watch forgets what the fight added: heat falls back to what it was before the set plus this
@@ -78,6 +82,8 @@ var _backup_done := false
 var _pressed := false
 var _hold_t := 0.0                        ## seconds the next wave has been held back by somebody else's fight
 var _heat0 := 0.0                         ## heat when the current set began
+var relocate_fails := 0
+var relocations := 0                      ## squad members put back on a road point with a line to the hero (see _free_hidden)
 var falls_back := 0                       ## troopers withdrawn by the WAVE_MAX rule
 var pressures := 0                        ## waves in which the director sent the remaining troopers in
 var _wave_size := 0
@@ -138,10 +144,29 @@ func _physics_process(delta: float) -> void:
 
 # --- rules (pure, tested) ---------------------------------------------------------------------------------------------
 
-## Troopers of wave `k` (1..SET_WAVES) of a set on a graphics tier (0 LOW, 1 MED, 2 HIGH): 5-8, growing with the wave.
+## Troopers of wave `k` (1..SET_WAVES) of a set on a graphics tier (0 LOW, 1 MED, 2 HIGH): 3-6, growing with the wave.
 static func patrol_size(k: int, tier: int) -> int:
 	var row: Array = PATROL_SIZES[clampi(k - 1, 0, PATROL_SIZES.size() - 1)]
 	return int(row[clampi(tier, 0, 2)])
+
+
+## The roster look of slot `slot` in wave `k` of a set (see LOOKS).
+static func look_of(k: int, slot: int) -> int:
+	var row: Array = LOOKS[clampi(k - 1, 0, LOOKS.size() - 1)]
+	return int(row[slot % row.size()])
+
+
+## The squad role of a trooper of look `look` in spawn group `g`: the look decides when it has a job of its own (a scout flanks, a heavy pushes, a marksman and a grenadier hold back and shoot / throw
+## from low cover), a plain rifleman takes the role of his group (pusher ahead, flanker on the side, anchor behind).
+static func role_of(look: int, g: int) -> StringName:
+	match look:
+		2:
+			return &"flanker"
+		1, 5:
+			return &"pusher"
+		3, 4:
+			return &"anchor"
+	return group_role(g)
 
 
 ## Type of slot `slot` in wave `k` of a set: wave 1 troopers only, wave 2 adds a rusher and a kamikaze, wave 3 a shield and a kamikaze (chapter and tier limits trim it later; a hovering drone is never part of a patrol: it would sit out of reach and stall the wave).
@@ -238,6 +263,7 @@ func tick(dt: float) -> void:
 		else:
 			_maybe_backup(mgr, ppos)
 			_maybe_press()
+			_free_hidden(dt, ppos)
 		return
 	_calm_t -= dt
 	_quiet_t = 0.0 if near_aware > 0 else _quiet_t + dt
@@ -337,10 +363,11 @@ func start_wave(mgr: EnemyManager, ppos: Vector3) -> int:
 	for slot in want:
 		var g := slot % pts.size()
 		var pt: Vector3 = pts[g] + Vector3(_rng.randf_range(-2.0, 2.0), 0.0, _rng.randf_range(-2.0, 2.0))
-		var d := _spawn_one(mgr, patrol_type(wave_in_set, slot, chapter), pt, chapter, g)
+		var look := look_of(wave_in_set, slot)
+		var d := _spawn_one(mgr, patrol_type(wave_in_set, slot, chapter), pt, chapter, g, look)
 		if d != null:
 			squad.append(d)
-			last_roles.append(group_role(g))
+			last_roles.append(role_of(look, g) if d.type == &"operative" else group_role(g))
 	if squad.is_empty():
 		wave -= 1
 		waves_started -= 1
@@ -365,17 +392,17 @@ func start_wave(mgr: EnemyManager, ppos: Vector3) -> int:
 	return squad.size()
 
 
-func _spawn_one(mgr: EnemyManager, type: StringName, pt: Vector3, chapter: int, group := 0) -> Drone:
+func _spawn_one(mgr: EnemyManager, type: StringName, pt: Vector3, chapter: int, group := 0, look := -1) -> Drone:
 	var camp := &"drones" if type == &"striker" else &"vael"      # the patrol is Vael troopers; the kamikaze is the swarm's
 	var t := Factions.fit_type(type, camp, chapter)
 	if mgr.count_type(t) >= EnemyTypes.tier_limit(t, Game.quality) or (EnemyTypes.is_elite(t) and mgr.elite_count() >= EnemyTypes.ELITE_CAPS[clampi(Game.quality, 0, 2)]):
 		t = &"operative"
-	var d := mgr.spawn(t, pt, true, true, camp)
+	var d := mgr.spawn(t, pt, true, true, camp, look if t == &"operative" else -1)
 	if d == null:
 		return null
 	d.heat_scale = HEAT_SHARE
 	if d is Operative:
-		(d as Operative).set_squad_role(group_role(group), -1.0 if group % 2 == 1 else 1.0)
+		(d as Operative).set_squad_role(role_of(look, group) if t == &"operative" else group_role(group), -1.0 if group % 2 == 1 else 1.0)
 	return d
 
 
@@ -429,8 +456,8 @@ func _pick_points(ppos: Vector3, n: int, k := 1) -> Array[Vector3]:
 				s -= 0.6 * maxf(0.0, 0.8 - absf(angle_difference(_bearing_of(o, ppos), _bearing_of(q, ppos))))
 			if _walled(q, ppos):
 				s -= 0.9 if g > 0 else 1.6                           # a wall between the point and the hero: the troopers have no path finding and would stand against it
-			elif g == 0 and _walled(q, ppos, Game.L_WORLD | Game.L_VEHICLE):
-				s -= CAR_HIDDEN                                      # the squad ahead starts where the hero has a line to it: a parked car in the lane hid it behind a bonnet (director review 4, defect 10)
+			elif _walled(q, ppos, Game.L_WORLD | Game.L_VEHICLE):
+				s -= CAR_HIDDEN if g == 0 else CAR_HIDDEN * 0.6                                      # the squad ahead starts where the hero has a line to it: a parked car in the lane hid it behind a bonnet (director review 4, defect 10)
 			s += _rng.randf() * 0.15
 			if s > best_score:
 				best_score = s
@@ -509,6 +536,63 @@ func _maybe_press() -> void:
 			FX.burst(d.global_position + Vector3(0.0, 1.0, 0.0), Color(1.0, 0.25, 0.2), 14, 5.0, 0.5, 0.0)
 			falls_back += 1
 			mgr.release(d)
+
+
+## "Fix cover / line of sight": a trooper who is aware, within 30 m, not in cover and has had no line to the hero for HIDE_MAX s (stuck behind a building corner or a parked car: the AI has no path
+## finding) is put back on a road point 9-19 m from the hero WITH a clear line, out of the camera's view when one can be found. Counted in `relocations`.
+func _free_hidden(dt: float, ppos: Vector3) -> void:
+	var cam := Game.camera
+	for d in squad:
+		if not is_instance_valid(d) or not d.active or d.dead or not d.aware or not (d is Operative):
+			continue
+		var o := d as Operative
+		if o.cover_state() != 0 or o.is_retreating() or d.global_position.distance_to(ppos) > 30.0 or not _hero_blocked(d.center(), ppos):
+			d.set_meta(&"hid_t", 0.0)
+			continue
+		var t: float = float(d.get_meta(&"hid_t", 0.0)) + dt
+		d.set_meta(&"hid_t", t)
+		var seen := is_instance_valid(cam) and cam.is_position_in_frustum(d.center())
+		if t >= (HIDE_MAX_SEEN if seen else HIDE_MAX):
+			if _relocate(o, ppos):
+				d.set_meta(&"hid_t", 0.0)
+				relocations += 1
+			else:
+				d.set_meta(&"hid_t", t - 2.0)
+
+
+## The hero's eye -> `to` is blocked by the world or a vehicle (ray from the hero: a trooper who stands inside a parked car's shape, they have no collision, is behind it for the hero's rounds).
+func _hero_blocked(to: Vector3, ppos: Vector3) -> bool:
+	var pl := Game.player as Node3D
+	if not is_instance_valid(pl) or not pl.is_inside_tree():
+		return false
+	var rq := PhysicsRayQueryParameters3D.create(Vector3(ppos.x, ppos.y + 1.5, ppos.z), to, Game.L_WORLD | Game.L_VEHICLE)
+	return not pl.get_world_3d().direct_space_state.intersect_ray(rq).is_empty()
+
+
+func _relocate(o: Operative, ppos: Vector3) -> bool:
+	var w := Game.world
+	if not is_instance_valid(w) or not w.has_method(&"road_point_near"):
+		return false
+	var cam := Game.camera
+	var best := Vector3.INF
+	var best_s := -1.0e9
+	for attempt in 30:
+		var q: Vector3 = w.call(&"road_point_near", ppos, 9.0 if attempt < 18 else 5.0, 19.0 if attempt < 18 else 13.0)
+		if not q.is_finite() or _walled(q, ppos, Game.L_WORLD | Game.L_VEHICLE):
+			continue
+		var s := _rng.randf()
+		if is_instance_valid(cam) and not cam.is_position_in_frustum(q + Vector3(0.0, 1.0, 0.0)):
+			s += 1.0                                               # out of view: no visible jump
+		if s > best_s:
+			best_s = s
+			best = q
+	if not best.is_finite():
+		relocate_fails += 1
+		return false
+	o.global_position = Vector3(best.x, o.global_position.y if absf(best.y - o.global_position.y) > 3.0 else best.y, best.z)
+	FX.burst(best + Vector3(0.0, 1.0, 0.0), Color(1.0, 0.25, 0.2), 10, 4.0, 0.4, 0.0)
+	o._leave_cover(0.0)
+	return true
 
 
 func _end_wave() -> void:

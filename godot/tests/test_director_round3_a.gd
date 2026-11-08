@@ -74,7 +74,7 @@ func _numbers() -> void:
 	TestLib.check(f39 < 0.05 and f51 < 0.15, "a 39 km/h bump is %.1f %% and a 51 km/h bump %.1f %% of the reference hull" % [f39 * 100.0, f51 * 100.0])
 	TestLib.check(Vehicle.crash_fraction(90.0 / 3.6) > 0.55, "90 km/h still hurts a lot (%.0f %%)" % (Vehicle.crash_fraction(90.0 / 3.6) * 100.0))
 	TestLib.check(VehicleSpecs.CRASH_BUMP_MAX <= 0.13 and VehicleSpecs.WEDGE_SECS <= 2.0, "a street bump takes at most %.0f %% of the hull, a wedged car backs out after %.1f s" % [VehicleSpecs.CRASH_BUMP_MAX * 100.0, VehicleSpecs.WEDGE_SECS])
-	TestLib.check(Encounters.FIRST_DELAY <= 20.0 and Encounters.FIRST_DELAY >= 15.0 and Encounters.SPAWN_MAX <= 22.0 and Encounters.SPAWN_MIN <= 12.0, "the first squad comes about %.0f s in, %.0f-%.0f m away" % [Encounters.FIRST_DELAY, Encounters.SPAWN_MIN, Encounters.SPAWN_MAX])
+	TestLib.check(Encounters.FIRST_DELAY <= 20.0 and Encounters.FIRST_DELAY >= 6.0 and Encounters.SPAWN_MAX <= 22.0 and Encounters.SPAWN_MIN <= 12.0, "the first squad comes about %.0f s in, %.0f-%.0f m away" % [Encounters.FIRST_DELAY, Encounters.SPAWN_MIN, Encounters.SPAWN_MAX])
 
 
 # --- helpers --------------------------------------------------------------------------------------------------------------------------------------------

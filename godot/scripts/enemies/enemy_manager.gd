@@ -12,6 +12,7 @@ extends Node
 ## Bolts: one MultiMesh (a single draw call) with 48 pooled energy bolts (26-30 m/s, dodgeable) that hurt the player, a driven vehicle or the clone.
 
 const BOLT_POOL := 48
+const GRENADE_GAP := 4.0                  ## seconds between two grenade throws of the whole squad
 const BOLT_LIFE := 3.0
 const BOLT_COLOR_BOOST := 1.6
 const BOLT_SHADER := preload("res://assets/shaders/fx_bolt.gdshader")
@@ -56,6 +57,9 @@ var _clone: Node3D
 var _clone_frame := -1
 var _noise_t := 0.0
 var marks: EnemyMarks                ## threat rings, attack telegraph, health bars (3 draws for everybody)
+var grenades: EnemyGrenades          ## the thrown grenades (a ball, a landing ring): only visible while one is live
+var grenades_thrown := 0             ## lifetime count of enemy grenades thrown (tests and bots)
+var _gren_cd := 0.0
 var _mm: MultiMesh
 var _mmi: MultiMeshInstance3D
 var _b_pos := PackedVector3Array()
@@ -81,6 +85,9 @@ func _ready() -> void:
 	marks = EnemyMarks.new()
 	marks.name = "Marks"
 	add_child(marks)
+	grenades = EnemyGrenades.new()
+	grenades.name = "Grenades"
+	add_child(grenades)
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
 	Game.next_sector.connect(_on_next_sector)
@@ -115,12 +122,15 @@ func alive_count() -> int:
 
 
 ## Activate an enemy of `type` (sentinel, striker, heavy, operative) at the ground position `pos`. Returns null at the cap.
-func spawn(type: StringName, pos: Vector3, aware := false, reinforce := false, want: StringName = &"") -> Drone:
+## `look` >= 0 asks for a trooper of that roster look (HumanoidVariants.VAEL_CLASSES index): a pooled one is reused, else one is built (the encounter director's squads).
+func spawn(type: StringName, pos: Vector3, aware := false, reinforce := false, want: StringName = &"", look := -1) -> Drone:
 	if alive_count() >= cap():
 		return null
-	var d := _acquire(type)
+	var d := _acquire(type, look)
 	d.activate(pos, aware, reinforce)
 	d.max_hp = float(d.cfg["hp"]) * (Progress.boss_hp_mult() if bool(d.cfg.get("boss", false)) else Progress.enemy_hp_mult())       # sector difficulty (1.0 in sector 1)
+	if look >= 0 and d is Operative:
+		d.max_hp *= (d as Operative).set_kit()                                               # the look decides the role: heavy, rusher, grenadier, marksman, commander
 	d.hp = d.max_hp
 	if not bool(d.cfg.get("boss", false)) and not InteriorGameplay.active:
 		Factions.apply(d, Game.progress, Factions.assign(type, pos, want))             # camp, sight, speed and rim colour (scripts/enemies/factions.gd)
@@ -154,6 +164,8 @@ func clear(reinforcements_only := false) -> void:
 			release(e)
 	for i in BOLT_POOL:
 		_kill_bolt(i)
+	if not reinforcements_only and grenades != null:
+		grenades.clear()
 
 
 ## Back to the pool: the drone is hidden, out of the group and out of the simulation.
@@ -653,10 +665,17 @@ func _stream_patrols(initial: bool, ppos := Vector3.INF) -> void:
 				g["live"] = int(g.get("live", 0)) + 1
 
 
-func _acquire(type: StringName) -> Drone:
+func _acquire(type: StringName, look := -1) -> Drone:
+	if look >= 0 and not HumanoidVariants.available():
+		look = -1                                            # no hero character files: the old model has no looks
 	var arr: Array = _pool.get(type, [])
 	if not arr.is_empty():
-		return arr.pop_back() as Drone
+		if look >= 0:
+			for i in range(arr.size() - 1, -1, -1):
+				if (arr[i] as Drone).look_index() == look:
+					return arr.pop_at(i) as Drone
+		else:
+			return arr.pop_back() as Drone
 	var d: Drone
 	if type == &"overseer":
 		d = Overseer.new()
@@ -668,6 +687,8 @@ func _acquire(type: StringName) -> Drone:
 		d = Operative.new()
 	else:
 		d = Drone.new()
+	if look >= 0 and EnemyTypes.TYPES.has(type) and EnemyTypes.TYPES[type].has("humanoid"):
+		d.force_look = look
 	add_child(d)
 	d.setup(type)
 	return d
@@ -831,6 +852,7 @@ func _hero_in_cover() -> bool:
 
 func _tick_tactics(delta: float) -> void:
 	_flush_cd = maxf(0.0, _flush_cd - delta)
+	_gren_cd = maxf(0.0, _gren_cd - delta)
 	if force_hold or _hero_in_cover():
 		hero_hold_t += delta
 	else:
@@ -932,6 +954,23 @@ func try_flush(who: Operative, at: Vector3) -> bool:
 	FX.burst(at + Vector3(0.0, 0.2, 0.0), Color(1.0, 0.6, 0.2), 4, 2.0, 0.3, 0.0)
 	Sfx.play_at(&"enemy_shot", at, -6.0)
 	get_tree().create_timer(TacticsTable.FLUSH_FUSE, false).timeout.connect(_flush_blast.bind(at))
+	return true
+
+
+func grenade_ready() -> bool:
+	return grenades != null and _gren_cd <= 0.0 and grenades.live_count() < EnemyGrenades.max_live(Game.quality)
+
+
+## A trooper throws a grenade at the hero: `who` must be allowed (squad cooldown GRENADE_GAP, the tier's limit in flight). The ball arcs from his hand to where the hero is walking.
+func try_grenade(who: Operative) -> bool:
+	if grenades == null or _gren_cd > 0.0 or not is_instance_valid(Game.player):
+		return false
+	var p := Game.player as Player
+	var to := EnemyGrenades.lead_point(p.global_position, p.velocity, EnemyGrenades.flight_time(who.global_position.distance_to(p.global_position)))
+	if not grenades.throw(who.muzzle_world(), to):
+		return false
+	_gren_cd = GRENADE_GAP
+	grenades_thrown += 1
 	return true
 
 

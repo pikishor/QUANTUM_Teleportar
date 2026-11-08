@@ -64,6 +64,29 @@ const BUFF_DMG := 1.25
 const BUFF_SPEED := 1.15
 const BUFF_EVERY := 0.4
 
+## Squad kits of the encounter director's troopers (real-fight wave): the roster LOOK says what the trooper does, so a player reads the role at a glance (shape and colour).
+## speed / hp / range are multipliers of the operative's cfg; `throws` = lobs grenades (EnemyGrenades), `cover` = how readily it takes low cover (x the faction's cover_use), `aim` = aim time
+## multiplier (a marksman takes his time and the aim line shows it). Looks: HumanoidVariants.VAEL_CLASSES.
+const KITS := {
+	&"rifleman": {"speed": 1.0, "hp": 1.0, "range": 1.0, "throws": false, "cover": 1.0, "aim": 1.0, "what": "RIFLEMAN"},
+	&"gunner": {"speed": 0.8, "hp": 1.7, "range": 1.0, "throws": false, "cover": 0.3, "aim": 1.0, "what": "HEAVY"},
+	&"scout": {"speed": 1.32, "hp": 0.7, "range": 0.8, "throws": false, "cover": 0.2, "aim": 0.8, "what": "RUSHER"},
+	&"grenadier": {"speed": 0.95, "hp": 1.0, "range": 1.0, "throws": true, "cover": 0.8, "aim": 1.0, "what": "GRENADIER"},
+	&"marksman": {"speed": 0.85, "hp": 0.85, "range": 1.35, "throws": false, "cover": 1.2, "aim": 1.5, "what": "MARKSMAN"},
+	&"commander": {"speed": 1.0, "hp": 1.4, "range": 1.0, "throws": true, "cover": 0.5, "aim": 1.0, "what": "COMMANDER"},
+}
+const SQUAD_RANGE := 0.7                            ## the director's troopers fight at 70 % of the cfg range (24 m -> 17 m): they close to 7-17 m, so the figures are big enough to read on a phone
+const SQUAD_HP := 1.5                               ## ... and take 50 % more rounds: a wave lasts 10-15 s instead of 5 (the hero is strong, the fight must still be seen)
+const GRENADE_RANGE := Vector2(9.0, 26.0)           ## a grenadier lobs only from this far
+const GRENADE_FIRST := Vector2(1.0, 2.2)            ## seconds after he engages before the first throw
+const GRENADE_EVERY := Vector2(6.0, 9.0)            ## seconds between his throws
+const GRENADE_WIND := 0.55                          ## seconds he stands (arm back) before the ball leaves
+
+
+static func kit(look_name: StringName) -> Dictionary:
+	return KITS[look_name] if KITS.has(look_name) else KITS[&"rifleman"]
+
+
 ## Operatives of later chapters join the hive: share by chapter index (the last row covers every later sector).
 const VAEL_SHARE: Array[float] = [0.0, 0.0, 0.2, 0.3, 0.35, 0.4, 0.45]
 ## Types that take the raider faction (flankers).

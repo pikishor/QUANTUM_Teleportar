@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Ambience beds, thunder, sirens, the two stings and the adaptive music stems of Quantum Teleportar (numpy only).
+"""SUPERSEDED (music): the shipped music is composed as MIDI and rendered with a SoundFont by tools/music/compose.py (docs/AUDIO_SOURCES.md). This numpy generator would overwrite those
+files with the old synthesised music, so do not run its music part any more (make_library.py --no-music); it stays for the beds, thunder and stings.
+
+Ambience beds, thunder, sirens, the two stings and the adaptive music stems of Quantum Teleportar (numpy only).
 
 Everything that loops is built from periodic signals (whole cycles per loop, random-phase spectra, circular reverbs/delays), so the seam is
 inaudible; make_library.py's check_audio.py verifies the seam numerically on the committed OGG/WAV files.

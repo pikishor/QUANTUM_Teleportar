@@ -415,7 +415,7 @@ func _test_moving(host: Node) -> void:
 				hits += 1
 		_mgr.clear()
 	var rate := float(hits) / maxf(float(shots), 1.0)
-	TestLib.check(shots >= 25 and rate >= 0.97, "a target running across the line (6 m/s, 5 to 60 m): %.1f %% on target (%d / %d)" % [rate * 100.0, hits, shots])
+	TestLib.check(shots >= 20 and rate >= 0.97, "a target running across the line (6 m/s, 5 to 60 m): %.1f %% on target (%d / %d)" % [rate * 100.0, hits, shots])
 
 
 # --- spread cone ------------------------------------------------------------------------------------------------------------

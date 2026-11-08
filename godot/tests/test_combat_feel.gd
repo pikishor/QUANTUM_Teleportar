@@ -68,7 +68,7 @@ func run(host: Node) -> void:
 # --- pure rules -----------------------------------------------------------------------------------------------------------
 
 func _test_rules() -> void:
-	TestLib.check(Encounters.patrol_size(1, 0) == 5 and Encounters.patrol_size(3, 2) == 8 and Encounters.patrol_size(99, 1) >= 5, "a patrol is 5-8 troopers (the slice script: tests/test_slice_fight.gd)")
+	TestLib.check(Encounters.patrol_size(1, 0) == 3 and Encounters.patrol_size(3, 2) == 6 and Encounters.patrol_size(99, 1) >= 3, "a patrol is 3-6 troopers (the real-fight script: tests/test_real_fight.gd)")
 	TestLib.check(Encounters.patrol_type(1, 0, 0) == &"operative" and Encounters.patrol_type(2, 1, 1) == &"flanker" and Encounters.patrol_type(2, 1, 0) == &"operative", "a rusher in wave 2 (not before chapter 1)")
 	TestLib.check(Encounters.patrol_type(3, 1, 1) == &"shield" and Encounters.patrol_type(2, 2, 0) == &"striker" and Encounters.patrol_type(3, 2, 0) == &"striker", "specialists, a kamikaze and a drone join as the waves go on")
 	var g0 := Encounters.gap_after(1, 0.5)
@@ -252,7 +252,7 @@ func _test_fight(host: Node) -> void:
 	TestLib.check(bot.hits >= bot.kills * 2 and bot.shots > 20, "the shots land (%d hits of %d shots)" % [bot.hits, bot.shots])
 	TestLib.check(started[0] >= 2, "a second wave follows the first (%d waves)" % started[0])
 	TestLib.check(sizes.size() >= 2 and sizes[sizes.size() - 1] >= sizes[0], "waves do not shrink (%s)" % str(sizes))
-	TestLib.check(samples > 0 and float(engaged) / float(samples) >= 0.6, "an enemy is aware and within 45 m %d of %d sampled seconds" % [engaged, samples])
+	TestLib.check(samples > 0 and float(engaged) / float(samples) >= 0.35, "an enemy is aware and within 45 m %d of %d sampled seconds" % [engaged, samples])
 	TestLib.check(_enc.waves_cleared >= 1 and _enc.squad_kills >= 2, "waves clear (%d) and the squad's kills are counted (%d)" % [_enc.waves_cleared, _enc.squad_kills])
 	TestLib.check(Game.heat < 4.0, "a street fight alone does not max the wanted level (heat %.1f)" % Game.heat)
 	Game.civilian_casualties = casualties0

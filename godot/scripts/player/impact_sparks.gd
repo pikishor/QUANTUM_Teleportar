@@ -101,6 +101,8 @@ func impact_world(pos: Vector3, normal: Vector3, surface := &"") -> void:
 		&"asphalt":
 			spark(o, n, Color(0.75, 0.88, 1.0), 0.55)                              # droplets
 			puff(pos + n * 0.05, n, Color(0.55, 0.62, 0.72, 0.3), 0.9)             # splash mist
+			if FX.marks != null and n.y > 0.6:
+				FX.marks.ripple(pos, 0.8)                                          # the puddle rings out
 		&"glass":
 			spark(o, n, Color(0.85, 0.97, 1.0), 1.1)                               # shards glinting in the light
 			spark(o, n, Color(1.0, 1.0, 1.0), 0.7)

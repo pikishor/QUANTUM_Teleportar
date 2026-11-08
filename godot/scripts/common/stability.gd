@@ -12,6 +12,8 @@ extends Node
 
 signal repaired(what: String)
 
+static var current: Stability                ## the watchdog of the running game (Game.blast_feel asks it for a slow motion)
+
 const SLOWMO_SCALE := 0.3                   ## Engine.time_scale during the death slow motion
 const SLOWMO_HOLD := 1.1                    ## real seconds at that speed ...
 const SLOWMO_RAMP := 0.5                    ## ... then eased back to normal over this many
@@ -37,6 +39,7 @@ var _hud: Object
 
 
 func _ready() -> void:
+	current = self
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	process_priority = 200
 	Game.state_changed.connect(_on_state)

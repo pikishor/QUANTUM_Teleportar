@@ -453,22 +453,45 @@ func _music_states() -> void:
 	TestLib.check(all_ok and Sfx.music_state == &"win", "all seven music states (menu, explore, alert, combat, driving, death, win) set the stem levels they define")
 	TestLib.check(_targets_audible(&"combat") == 5 and _targets_audible(&"alert") > _targets_audible(&"explore") and _targets_audible(&"combat") > _targets_audible(&"alert") and _targets_audible(&"death") == 1,
 			"intensity grows: explore %d, alert %d, combat %d stems; death keeps only the pad" % [_targets_audible(&"explore"), _targets_audible(&"alert"), _targets_audible(&"combat")])
+	# inside one track the stems crossfade (explore -> alert wakes the percussion)
 	Sfx.set_music_state(&"explore", true)
-	Sfx.set_music_state(&"combat")
+	Sfx.set_music_state(&"alert")
 	var before := Sfx.stem_db(3)
 	Sfx._step_music(0.1)
 	var after_one := Sfx.stem_db(3)
 	for i in 40:
 		Sfx._step_music(0.1)
-	TestLib.check(before < -50.0 and after_one > before and after_one < -10.0 and absf(Sfx.stem_db(3) - 0.0) < 0.2, "explore to combat crossfades (perc %.0f -> %.1f -> %.1f dB) instead of cutting" % [before, after_one, Sfx.stem_db(3)])
+	var alert_perc := float(Sfx.MUSIC_STATES[&"alert"][3])
+	TestLib.check(before < -50.0 and after_one > before and after_one < alert_perc and absf(Sfx.stem_db(3) - alert_perc) < 0.2, "explore to alert crossfades (perc %.0f -> %.1f -> %.1f dB) instead of cutting" % [before, after_one, Sfx.stem_db(3)])
 	var jump := 0.0
 	Sfx.set_music_state(&"explore", true)
-	Sfx.set_music_state(&"combat")
+	Sfx.set_music_state(&"alert")
 	for i in 30:
 		var prev := Sfx.stem_db(1)
 		Sfx._step_music(1.0 / 60.0)
 		jump = maxf(jump, absf(Sfx.stem_db(1) - prev))
 	TestLib.check(jump < 1.0, "stem levels move smoothly frame to frame (largest step %.2f dB)" % jump)
+	# between tracks two players crossfade (equal power): explore -> combat
+	for i in 40:
+		Sfx._step_music(0.1)
+	Sfx.set_music_state(&"explore", true)
+	for i in 40:
+		Sfx._step_music(0.1)
+	var old_player: AudioStreamPlayer = Sfx._music
+	Sfx.set_music_state(&"combat")
+	var out_player: AudioStreamPlayer = Sfx._music_alt
+	TestLib.check(Sfx.music_track == &"combat" and Sfx._music != old_player and out_player == old_player and out_player.playing and Sfx._music.playing, "explore to combat starts the combat track on the other player while the explore track plays on")
+	Sfx._step_music(0.2)
+	var mid_new := Sfx._music.volume_db
+	var mid_old := out_player.volume_db
+	for i in 12:
+		Sfx._step_music(0.1)
+	TestLib.check(mid_new < Sfx._vol_music - 0.5 and mid_old < Sfx._vol_music - 0.5 and absf(Sfx._music.volume_db - Sfx._vol_music) < 0.01 and not out_player.playing,
+			"the two tracks cross (%.1f / %.1f dB after 0.2 s), the old one stops and the new one sits at its level (%.1f)" % [mid_new, mid_old, Sfx._music.volume_db])
+	TestLib.check(_targets_audible(&"combat") == 5 and Sfx.stem_db(3) > -1.0, "the combat track starts with all five stems up")
+	Sfx.set_music_state(&"win", true)
+	Sfx.set_music_state(&"explore", true)
+	Sfx._step_music(2.0)
 	Sfx.set_music_state(&"explore", true)
 	Sfx._sting.stop()
 	Sfx.set_music_state(&"death")

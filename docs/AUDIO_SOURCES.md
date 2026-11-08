@@ -28,7 +28,11 @@ Pipeline: `tools/audio/real_clips.py` cuts the clips (kept in `art_sources/audio
 | UI cues `ui_*` | Kenney Interface Sounds, gopherapps UI SFX, number99 terminal beeps |
 | Beds `rain_*`, `traffic_far`, `wind`, `city_hum` | Snabisch rain and traffic, a windy ambience, the 2DPIXX sci-fi city loop, crossfaded to 24 s seamless loops |
 
-Still synthesised (no suitable CC0 source found or fetched): tyre squeal (`tyre_squeal`), `engine_hover_*`, the quantum ability sounds (blink, link, superposition, collapse: these are the game's own identity), voices (troopers, aliens, hero, radio babble), music and stings, heartbeat and breath, sirens, pickups.
+Still synthesised (no suitable CC0 source found or fetched): tyre squeal (`tyre_squeal`), `engine_hover_*`, the quantum ability sounds (blink, link, superposition, collapse: these are the game's own identity), voices (troopers, aliens, hero, radio babble), stings, heartbeat and breath, sirens, pickups.
+
+## Music (composed as MIDI, rendered with a SoundFont)
+
+The music is no longer synthesised: `godot/tools/music/compose.py` composes four original tracks (explore 96 BPM, menu 64, combat 144, chase 160) plus seven theme layers as MIDI (`godot/tools/music/midi/`) and renders them with FluidSynth and the **FluidR3 GM SoundFont by Frank Wen, MIT licence** (https://musescore.org/download/fluid-soundfont.tar.gz, installed from the Ubuntu package `fluid-soundfont-gm`; licence text and SOURCE.md in `art_sources/soundfont_fluidr3_gm/`; the 148 MB `.sf2` is not committed). Tracks, stems, loop method, mastering numbers, how to run it and what was blocked or not done: **docs/MUSIC.md**.
 
 Blocked or unusable: kenney.nl returns 403 to scripts, so Kenney's packs came through their CC0 re-uploads on OpenGameArt (their License.txt is kept); the 'SuperTuxKart sound effects' pack (OpenGameArt) is one 82 s unlabelled mp3 with no way to tell skids from crashes, so it was not used; 'Footsteps Leather, Cloth, Armor' is dual-licensed OGA-BY / CC0 and was skipped to keep the list strictly CC0.
 

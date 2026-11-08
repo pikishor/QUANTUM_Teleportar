@@ -30,6 +30,7 @@ const VAEL_CLASSES: Array[Dictionary] = [
 	{"name": &"marksman", "jacket": Color(0.27, 0.12, 0.37), "pants": Color(0.10, 0.07, 0.15), "helmet": Color(0.12, 0.10, 0.14), "trim": Color(1.0, 0.35, 0.8), "scale3": Vector3(0.94, 1.06, 0.94)},
 	{"name": &"commander", "jacket": Color(0.36, 0.09, 0.12), "pants": Color(0.16, 0.12, 0.13), "helmet": Color(0.85, 0.85, 0.88), "trim": Color(1.0, 0.9, 0.5), "scale3": Vector3(1.06, 1.07, 1.06)},
 ]
+const VAEL_BIG := 1.12                          ## the Vael are a little taller and broader than a person (readable at phone size, a hostile silhouette)
 const VAEL_PICK: Array[int] = [0, 0, 1, 2, 0, 3, 4, 5]            ## n % 8 -> class: riflemen 3 in 8, the others about one in 8
 const ROLE_CLASS := {&"shield": 1, &"carrier": 1, &"flanker": 2, &"stalker": 2, &"pouncer": 2, &"sniper": 4, &"warden": 5, &"hivemother": 5, &"overseer": 5}
 
@@ -75,7 +76,7 @@ static func variant(kind: StringName, seed_value: int, force_class := -1) -> Dic
 		d["jacket"] = c["jacket"]
 		d["pants"] = c["pants"]
 		var j := 0.94 + 0.12 * float((n / 11) % 5) / 4.0              # a little personal jitter on top of the class (height 0.94 .. 1.06)
-		d["scale3"] = (c["scale3"] as Vector3) * Vector3(1.0, j, 1.0)
+		d["scale3"] = (c["scale3"] as Vector3) * Vector3(1.0, j, 1.0) * VAEL_BIG
 	return d
 
 

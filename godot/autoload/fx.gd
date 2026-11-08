@@ -43,6 +43,8 @@ var _muzzles: Array[MeshInstance3D] = []
 var _muzzle_left := PackedFloat32Array()
 var explosions: Node3D       ## the ExplosionPool (scripts/fx/explosion_pool.gd)
 var casings: Node3D          ## spent shell casings (scripts/fx/casings.gd): one MultiMesh, one draw while any is in flight
+var marks: BlastMarks            ## what blasts leave on streets and walls (scripts/fx/blast_marks.gd): coloured fluid, scorch, cracks, puddle ripples; ONE draw call for the whole ring
+var car_debris: CarDebris       ## wheels and body panels that fly off hurt cars (scripts/vehicles/car_debris.gd)
 var qvfx: Node3D             ## the quantum VFX layer (scripts/fx/quantum_vfx.gd): rings, trails, dust, hero aura
 var _pi := 0
 var _ti := 0
@@ -119,6 +121,12 @@ func _ready() -> void:
 	add_child(qvfx)
 	casings = Casings.new()
 	add_child(casings)
+	car_debris = CarDebris.new()
+	car_debris.name = &"CarDebris"
+	add_child(car_debris)
+	marks = BlastMarks.new()
+	marks.name = &"Marks"
+	add_child(marks)
 	Game.new_game.connect(reset)
 	Game.respawn.connect(reset)
 	Game.next_sector.connect(reset)
@@ -169,6 +177,10 @@ func reset() -> void:
 		casings.clear()
 	if qvfx != null:
 		qvfx.reset()
+	if marks != null:
+		marks.clear()
+	if car_debris != null:
+		car_debris.clear()
 
 
 ## Radial burst at a world position: `count` soft sprites flying out at up to `speed` m/s for `life` seconds. `size` scales the sprites (1 = small sparks of
@@ -245,11 +257,15 @@ func muzzle_flash(pos: Vector3, dir: Vector3, color := Color(1.0, 0.85, 0.5), si
 ## `radius` and by Game.quality. `style` (optional): -1 picks by colour and size (cyan or magenta = quantum collapse with a ripple ring, radius 8 and
 ## up = a car wreck that burns for `burn` seconds), or pass ExplosionPool.STYLE_FIRE / STYLE_QUANTUM / STYLE_WRECK. `duration` is kept for API
 ## compatibility: the length follows the radius.
-func blast(pos: Vector3, radius: float, color := Color(1.0, 0.54, 0.19), duration := 0.5, style := -1, burn := 0.0, embers := true) -> void:
+func blast(pos: Vector3, radius: float, color := Color(1.0, 0.54, 0.19), duration := 0.5, style := -1, burn := 0.0, embers := true, element := &"") -> void:
 	var st := style
 	var burn_s := burn
+	var explicit := BlastElements.valid(element)
+	var el: StringName = element if explicit else BlastElements.of_color(color)
 	if st < 0:
-		if color.b >= 0.8:
+		if explicit:
+			st = ExplosionPool.STYLE_QUANTUM if el == BlastElements.QUANTUM else (ExplosionPool.STYLE_WRECK if radius >= 8.0 else ExplosionPool.STYLE_FIRE)
+		elif color.b >= 0.8:
 			st = ExplosionPool.STYLE_QUANTUM
 		elif radius >= 8.0:
 			st = ExplosionPool.STYLE_WRECK
@@ -257,10 +273,17 @@ func blast(pos: Vector3, radius: float, color := Color(1.0, 0.54, 0.19), duratio
 			st = ExplosionPool.STYLE_FIRE
 	if st == ExplosionPool.STYLE_WRECK and burn_s <= 0.0:
 		burn_s = 6.0
-	explosions.play(pos, radius, color, st, burn_s)
-	qvfx.blast_ring(pos, radius, color, st)
+	var ring_color := BlastElements.color(el, "ring") if explicit and color == Color(1.0, 0.54, 0.19) else color
+	explosions.play(pos, radius, color if not explicit else BlastElements.color(el, "mid"), st, burn_s, element if explicit else &"")
+	qvfx.blast_ring(pos, radius, ring_color, st)
 	if embers and st != ExplosionPool.STYLE_QUANTUM and radius >= 2.5:      # embers drift up out of the fire
-		burst(pos + Vector3(0.0, 0.8, 0.0), Color(1.0, 0.62, 0.22), 14, radius * 0.7, 1.1, -1.6, 0.8)
+		burst(pos + Vector3(0.0, 0.8, 0.0), BlastElements.color(el, "mid").lerp(Color(1.0, 0.95, 0.8), 0.3), 14, radius * 0.7, 1.1, -1.6, 0.8)
+
+
+## What a real blast leaves on the street and the walls around it (coloured fluid, scorch, cracks, falling glass and chunks): see scripts/fx/blast_marks.gd.
+func blast_marks(pos: Vector3, radius: float, element: StringName) -> void:
+	if marks != null:
+		marks.blast(pos, radius, element)
 
 
 ## 0..1: how much of a blast effect may show for a camera this far from it. The hot core billboard and the fireball puffs fade out close to the camera

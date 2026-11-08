@@ -8,14 +8,23 @@ extends RefCounted
 const MIN_HEIGHT := 0.9
 const STAND_OFF := 0.75
 const MIN_THREAT_DIST := 6.0
+## The encounter squad's cover (real-fight wave: "foes were 30 px figures behind parked cars, my rounds hit the car"): only LOW cover, a body about waist to chest high (a planter, a bin, a barrier,
+## a crate): the trooper crouches behind it (his head and shoulders show, the hero can shoot him) and stands up to fire. Parked cars, vans and walls hide the whole man and stop the rounds: not cover.
+const LOW_MIN := 0.8
+const LOW_MAX := 1.3
+const LOW_MIN_RADIUS := 0.4
+## Poles and lamp posts (a 0.2 m wide body) never hid anybody: in the live city a body thinner than this is not cover for anyone.
+const MIN_RADIUS := 0.3
 ## Tests only: when not empty these StaticBody3Ds replace the city's pooled colliders (and the building check is skipped), so a fight in the live scene has known cover.
 static var override_bodies: Array = []
+## Tests only: the squad's low-cover rule also applies to override_bodies (the older tactics tests build their own tall cover and expect it to be used).
+static var low_in_tests := false
 
 
 ## The nearest cover spot for `who` (an Operative) against the point `threat`, within `radius` metres of who, or Vector3.INF.
 ## v2: the candidates are SCORED (TacticsTable.score: walking distance, cover height and the arc the body fills as seen from the threat, plus for `advance` > 0 how much closer to the threat
 ## the spot is: a leapfrog move needs a spot at least `advance` metres closer than `who`), so a tall wide crate beats a nearer bin and the hive (faction) takes the closer, rougher cover.
-static func find(who: Node3D, threat: Vector3, radius := 22.0, faction: StringName = &"observer", advance := 0.0) -> Vector3:
+static func find(who: Node3D, threat: Vector3, radius := 22.0, faction: StringName = &"observer", advance := 0.0, low_only := false) -> Vector3:
 	if InteriorSpace.contains_xz(who.global_position.x, who.global_position.z):      # a generated interior: its own props are the cover
 		return InteriorSpace.cover_spot(who.global_position, threat, radius)
 	var city := Game.world
@@ -38,6 +47,10 @@ static func find(who: Node3D, threat: Vector3, radius := 22.0, faction: StringNa
 			continue
 		var info := body_info(body)
 		if info.is_empty():
+			continue
+		if not testing and float(info["radius"]) < MIN_RADIUS:
+			continue
+		if low_only and (not testing or low_in_tests) and not is_low_cover(info):
 			continue
 		var c: Vector3 = info["center"]
 		if Vector2(c.x - from.x, c.z - from.z).length() > radius + float(info["radius"]):
@@ -62,6 +75,11 @@ static func find(who: Node3D, threat: Vector3, radius := 22.0, faction: StringNa
 			best_s = sc
 			best = spot
 	return best
+
+
+## Is this body ({center, radius, height} from body_info) low cover: waist to chest high and wide enough to crouch behind?
+static func is_low_cover(info: Dictionary) -> bool:
+	return not info.is_empty() and float(info["height"]) >= LOW_MIN and float(info["height"]) <= LOW_MAX and float(info["radius"]) >= LOW_MIN_RADIUS
 
 
 ## {center, radius, height} of the body's active collision shape, {} when it is parked / disabled / too low to hide behind.

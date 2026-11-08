@@ -10,6 +10,9 @@ extends StaticBody3D
 
 signal died(drone: Drone)
 
+const FAR_GLOW := Vector2(9.0, 30.0)         ## metres: the body glow in the role colour grows from 0 to full (hero_body.gdshader far_k)
+const FAR_SCALE := Vector2(12.0, 38.0)       ## metres: the drawn size grows from 1.0 to DIST_SCALE_MAX
+const DIST_SCALE_MAX := 1.35
 const AWARE_DIST := 32.0
 const AWARE_HEAT_DIST := 80.0
 const ALERT_RADIUS := 35.0
@@ -92,6 +95,9 @@ var _fins: Node3D                      ## the `Fins` node of the living models (
 var _tele := 0.0                       ## 0..1: how far the next shot is charged (EnemyMarks draws the telegraph from it)
 var _base_scale := 1.0
 var _look_scale := Vector3.ONE                  ## the body shape of the roster look (HumanoidVariants.VAEL_CLASSES): wider gunners, slim scouts
+var _far_k := 0.0
+var _dist_scale := 1.0                 ## readability: a trooper far from the camera is drawn a little bigger (1.0 up to NEAR_FULL m, DIST_SCALE_MAX at FAR_FULL m); hit shapes follow
+var force_look := -1                   ## the encounter director builds a trooper of this roster look (index into HumanoidVariants.VAEL_CLASSES) before setup(); -1 = by role / seed
 var _flare := 0.0                      ## 0..1: the striker's thorns flare as it closes in to burst
 var _glow: Array[BaseMaterial3D] = []
 var _body_mi: MeshInstance3D           ## the `Body` mesh (shadow caster) of the model, for the distance LOD
@@ -180,7 +186,7 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	if model != null:
 		model.rotation = Vector3.ZERO
 		model.position = Vector3.ZERO
-		model.scale = _look_scale * _base_scale
+		model.scale = _look_scale * _base_scale * _dist_scale
 	_tele = 0.0
 	_drop_pending = false
 	_set_glow(2.0)
@@ -396,6 +402,10 @@ func _death_effect() -> void:
 	FX.qvfx.death_dust(pos, 1.7 * maxf(0.85, radius), 0.45 * maxf(0.85, radius), c)           # the shell dissolves into quantum dust (MED / HIGH)
 	if Game.graphic_violence:
 		ichor(pos, 1.0)
+	if FX.marks != null:                                                    # the alien fluid of the shell pools on the street under it, then dries and fades
+		var g: Vector3 = FX.marks.ground_under(pos, 5.0)
+		if g != Vector3.INF:
+			FX.marks.splat(g, Vector3.UP, 1.5 * maxf(0.85, radius) + randf() * 0.6, Color(c.r, c.g, c.b).lerp(BlastElements.color(BlastElements.of_color(c), "fluid"), 0.5))
 	Sfx.play_at(&"boom", pos, -3.0)
 
 
@@ -704,7 +714,7 @@ func _tick_dead(delta: float) -> void:
 	if model != null:
 		model.rotation.z += delta * 4.0
 		model.position.y -= delta * 2.5
-		model.scale = _look_scale * _base_scale * (1.0 - 0.85 * k * k)            # dissolve: it shrinks away while it burns white-hot
+		model.scale = _look_scale * _base_scale * _dist_scale * (1.0 - 0.85 * k * k)            # dissolve: it shrinks away while it burns white-hot
 	_set_glow(2.0 + 9.0 * sin(k * PI))
 	if _dead_t > DEATH_TIME:
 		_burst(center(), cfg["color"], 14, 5.0, 0.8, -1.5, 1.6)                   # the last motes of light drift up
@@ -727,10 +737,20 @@ func _line_clear(from: Vector3, to: Vector3) -> bool:
 # --- visuals --------------------------------------------------------------------------------------------------------
 
 ## "humanoid": a HumanoidVariants kind (Vael trooper on the Superhero base meshes); null when the files are absent (the old model stays).
+## Index of this body's roster look in HumanoidVariants.VAEL_CLASSES (-1 for anything that is not a Vael humanoid).
+func look_index() -> int:
+	if humanoid.is_empty() or not humanoid.has("class"):
+		return -1
+	for i in HumanoidVariants.VAEL_CLASSES.size():
+		if HumanoidVariants.VAEL_CLASSES[i]["name"] == humanoid["class"]:
+			return i
+	return -1
+
+
 func _humanoid_model() -> Node3D:
 	if not cfg.has("humanoid"):
 		return null
-	var r := HumanoidVariants.build(StringName(cfg["humanoid"]), get_instance_id() + int(cfg.get("hp", 0)), int(HumanoidVariants.ROLE_CLASS.get(StringName(cfg.get("role", &"")), -1)))
+	var r := HumanoidVariants.build(StringName(cfg["humanoid"]), get_instance_id() + int(cfg.get("hp", 0)), force_look if force_look >= 0 else int(HumanoidVariants.ROLE_CLASS.get(StringName(cfg.get("role", &"")), -1)))
 	if r["root"] == null:
 		return null
 	if not bool(r["ok"]):
@@ -777,6 +797,11 @@ func _build_visual() -> void:
 func update_lod(dist: float) -> void:
 	if humanoid_body != null:
 		HumanoidVariants.set_lod(humanoid_body, humanoid, dist)
+		var fk := smoothstep(FAR_GLOW.x, FAR_GLOW.y, dist) * (1.0 if aware and not dead else 0.0)
+		if absf(fk - _far_k) > 0.02:                             # only changes are written (an instance parameter is a renderer call)
+			_far_k = fk
+			humanoid_body.set_instance_shader_parameter(&"far_k", fk)
+		_dist_scale = lerpf(1.0, DIST_SCALE_MAX, smoothstep(FAR_SCALE.x, FAR_SCALE.y, dist))
 	var sh := Game.quality >= 1 and dist < PerfTiers.shadow_range() + (4.0 if _lod_shadow else 0.0)
 	if sh != _lod_shadow:
 		_lod_shadow = sh
