@@ -42,3 +42,12 @@ Music: composed as MIDI by the agent and rendered with free SoundFonts, or CC0 t
 - Weather/time of day -> visuals and atmosphere only; no extra rules to learn.
 - Interiors -> destinations for missions (every door leads somewhere with a task).
 - Tests, bots, director reviews, CI -> kept; they are the quality gate.
+
+## Owner answers (2026-11-08)
+- Sessions 5-15 min, missions 2-5 min, but free roaming must always work and sessions can stretch later in the game.
+- Hero name/look/voice: owner will provide later (keep the hero replaceable: one config for name, model, voice, colours).
+- Violence: stylised but stronger feedback: colourful, bigger blasts (colour variety per weapon/element), liquid splatter on streets and walls (alien/colourful fluids, puddles that persist then fade), more visible damage on cars/buildings/props. Keep enemies non-human or dissolve effects so the age rating stays reasonable (target 12+/Teen); no realistic human gore.
+- Money model: FREE to play, with optional ads (rewarded ads for credits/continues; no forced ads during missions). Needs an ad SDK integration plan (AdMob via a Godot plugin) behind a flag, ads off in debug builds, consent screen (GDPR/US), age-appropriate ad settings.
+- Single player only for now.
+- Weapons: all the top weapon types from Call of Duty and GTA (assault rifles, SMGs, LMGs, shotguns, snipers, pistols, revolvers, launchers/RPG, grenades, C4, mines, flamethrower, minigun, crossbow, katana/knife/bat, stun gun, etc.) with GENERIC or fictional names (no real brand names: trademarks). Vehicles: all top GTA-style types: cars, sports, muscle, SUV, vans, trucks, buses, taxis, police, ambulance, motorbikes, quad, helicopter, plane (small), boat, tank, armoured truck, hover bike (sci-fi).
+- Setting: a mix: a believable modern city (streets, shops, apartments, traffic, police) with neon sci-fi districts and quantum tech.
