@@ -511,7 +511,11 @@ func _human_step() -> void:
 			if not await _click_button(&"next"):
 				await _click(Vector2(100, 100))
 		&"paused":
-			if not await _click_button(&"resume"):
+			if MapScreen.up:                                             # an open map owns every tap (the pause menu under it is hidden from input): a person taps its back or presses Esc
+				Lib.key_event(KEY_ESCAPE, true)
+				await _tick()
+				Lib.key_event(KEY_ESCAPE, false)
+			elif not await _click_button(&"resume"):
 				Lib.key_event(KEY_ESCAPE, true)
 				await _tick()
 				Lib.key_event(KEY_ESCAPE, false)
