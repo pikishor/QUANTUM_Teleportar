@@ -21,6 +21,7 @@ const PLATE_R := 1.3
 const PLATE_HOLD := 0.8
 const SHIELD_REACH := 15.0
 const BONUS := 100
+const MAX_CLUTTER := 0.45               ## share of the lane's sample points that may stand in furniture (interiors)
 const BARRIER_SHADER := preload("res://assets/shaders/fx_barrier.gdshader")
 const COL := {&"phase": Color(0.3, 0.94, 1.0), &"plate": Color(1.0, 0.72, 0.25), &"shield": Color(1.0, 0.24, 0.94)}
 
@@ -49,6 +50,95 @@ static func build(parent: Node, r: int, at: Vector3, toward: Vector3) -> Quantum
 	parent.add_child(q)
 	q._setup(clampi(r, 0, ROOMS.size() - 1), at, toward)
 	return q
+
+
+## Interiors: the same corridor, but only where it fits. The four axis directions are tried (the one facing `toward` first); a direction is taken when the corridor lane, the pads and the
+## plate stand on free floor and, with the corridor's walls stamped in, the hero can still walk from the door to the guarded object, the exit and every point in `must_reach`.
+## Returns null (no puzzle in this room) when none fits: a gate nobody can reach must never stand between the hero and the job.
+static func build_fitted(parent: Node, r: int, at_pos: Vector3, toward: Vector3, room: Node3D, must_reach: Array[Vector3] = []) -> QuantumPuzzles:
+	var dir := fit_direction(r, at_pos, toward, room, must_reach)
+	if dir == Vector3.ZERO:
+		return null
+	return build(parent, r, at_pos, dir)
+
+
+static func fit_direction(r: int, at_pos: Vector3, toward: Vector3, room: Node3D, must_reach: Array[Vector3] = []) -> Vector3:
+	var base := InteriorGrid.of(room)
+	var dirs: Array[Vector3] = [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]
+	var want := Vector3(toward.x, 0.0, toward.z).normalized()
+	dirs.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.dot(want) > b.dot(want))
+	var exit: Vector3 = room.get("exit_pos")
+	var door: Vector3 = room.get("door_pos")
+	var best := Vector3.ZERO
+	var best_bad := 2.0
+	for d: Vector3 in dirs:
+		var lay := layout(r, at_pos, d)
+		var ctrl_ok := true
+		for p: Vector3 in lay["pads"]:                         # the crate's landing pad, the plate and the crate itself must stand on free floor
+			if not base.free_at(p):
+				ctrl_ok = false
+				break
+		if not ctrl_ok:
+			continue
+		var g := base.copy()
+		for w: Rect2 in lay["walls"]:
+			g.stamp(w)
+		g.flood(door)
+		var targets: Array[Vector3] = [at_pos, exit]
+		targets.append_array(must_reach)
+		var reach_ok := true
+		for pl: Vector3 in lay["pads"]:                            # the hero stands on the pad, the decoy on the plate, the crate sits behind the glass: all reachable once the gates are open
+			if g.gap(pl, 1.0) > 0.45:
+				reach_ok = false
+		for t: Vector3 in targets:
+			if g.gap(t) > 1.6:
+				reach_ok = false
+				break
+		if not reach_ok:
+			continue
+		var bad := 0
+		for p: Vector3 in lay["free"]:                         # furniture inside the lane is allowed but a corridor through a shelf row looks wrong: the cleanest direction wins
+			if not base.free_at(p):
+				bad += 1
+		var ratio := float(bad) / float(maxi(lay["free"].size(), 1))
+		if ratio < best_bad - 0.0001:
+			best_bad = ratio
+			best = d
+	return best if best_bad <= MAX_CLUTTER else Vector3.ZERO
+
+
+## The footprint of room `r` around `o` facing `fwd` (an axis direction): {walls: Array[Rect2] of the solid walls (world x / z), free: lane sample points (furniture there only costs score), pads: points that must stand on free floor}.
+static func layout(r: int, o: Vector3, fwd: Vector3) -> Dictionary:
+	var rt := fwd.cross(Vector3.UP).normalized()
+	var n: int = ROOMS[clampi(r, 0, ROOMS.size() - 1)].size()
+	var length := 2.2 + CELL * (n - 1) + 0.3
+	var walls: Array[Rect2] = []
+	var free: Array[Vector3] = []
+	var pads: Array[Vector3] = []
+	var plates: Array[Vector3] = []
+	var strip := func(d0: float, d1: float, l0: float, l1: float) -> Rect2:
+		var a: Vector3 = o + fwd * d0 + rt * l0
+		var b: Vector3 = o + fwd * d1 + rt * l1
+		return Rect2(Vector2(minf(a.x, b.x), minf(a.z, b.z)), Vector2(absf(a.x - b.x), absf(a.z - b.z)))
+	for sgn in [-1.0, 1.0]:
+		walls.append(strip.call(-1.2, length, sgn * (HALF + 0.0), sgn * (HALF + 0.3)))
+	walls.append(strip.call(-1.15, -0.85, -(HALF + 0.3), HALF + 0.3))
+	var d := 1.0
+	while d <= length + 1.6:
+		for l in [-1.2, 0.0, 1.2]:
+			free.append(o + fwd * d + rt * l)
+		d += 0.5
+	for k in n:
+		var kind: StringName = ROOMS[clampi(r, 0, ROOMS.size() - 1)][k]
+		var gd := 2.2 + CELL * (n - 1 - k)
+		match kind:
+			&"phase":
+				pads.append(o + fwd * (gd + 1.4))
+				pads.append(o + fwd * (gd - 1.5))
+			&"plate":
+				pads.append(o + fwd * (gd + 1.5) + rt * (HALF + 1.6))
+				plates.append(o + fwd * (gd + 1.5) + rt * (HALF + 1.6))
+	return {"walls": walls, "free": free, "pads": pads, "plates": plates}
 
 
 func at(depth: float, lateral := 0.0) -> Vector3:
@@ -218,6 +308,38 @@ func _fade_icons() -> void:
 
 
 # --- simulation -------------------------------------------------------------------------------------------------------
+
+## The first closed gate (the outermost: that is the one in the way), {} when all are open.
+func next_gate() -> Dictionary:
+	for g in gates:
+		if not g["open"]:
+			return g
+	return {}
+
+
+## The plain text over a gate: what opens it.
+static func gate_hint(kind: StringName) -> String:
+	match kind:
+		&"phase": return "ENTANGLE THE CRATE"
+		&"plate": return "DECOY ON THE PLATE"
+		_: return "COLLAPSE THE BARRIER"
+
+
+## USE at a gate: the quantum bridge opens the outermost closed gate for the hero without the verb (the crate lands on its pad, the plate counts as held, the barrier drops), so a job is never
+## out of reach of a player who has not found the verb. The verbs still open the gates the old way. Returns true when a gate opened.
+func assist() -> bool:
+	var g := next_gate()
+	if g.is_empty():
+		return false
+	if g["kind"] == &"phase":
+		var c := g["crate"] as Node3D
+		if is_instance_valid(c):
+			var ctrl: Vector3 = g["ctrl"]
+			c.global_position = Vector3(ctrl.x, c.global_position.y, ctrl.z)
+	_open(g)
+	FX.burst(at(float(g["depth"])) + Vector3(0.0, 1.2, 0.0), COL[g["kind"]], 14, 4.0, 0.6, 1.0)
+	return true
+
 
 func is_solved() -> bool:
 	return done

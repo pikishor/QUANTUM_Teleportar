@@ -44,24 +44,24 @@ const GUARANTEED := {
 
 const SPECS := {
 	&"weapons": {
-		"name": "PAWN AND ARMS", "ceil": [3.0, 3.4], "windows": 0.9, "hostile": false,
-		"pal": {"wall": Color(0.19, 0.15, 0.13), "wall2": Color(0.11, 0.11, 0.13), "floor": Color(0.14, 0.13, 0.12), "ceil": Color(0.09, 0.09, 0.10), "trim": Color(0.36, 0.28, 0.2),
-			"neon": [Color(1.0, 0.45, 0.1), Color(1.0, 0.1, 0.3), Color(0.2, 0.9, 1.0)], "key": Color(1.0, 0.72, 0.45), "amb": Color(0.085, 0.07, 0.065)},
+		"name": "PAWN AND ARMS", "ceil": [3.0, 3.4], "windows": 0.9, "hostile": false, "style": 4, "styles": {"office": 0}, "fstyle": 2, "fstyles": {"office": 3},
+		"pal": {"wall": Color(0.30, 0.20, 0.15), "wall2": Color(0.17, 0.16, 0.18), "floor": Color(0.19, 0.15, 0.11), "ceil": Color(0.14, 0.13, 0.13), "trim": Color(0.42, 0.32, 0.22),
+			"neon": [Color(1.0, 0.45, 0.1), Color(1.0, 0.1, 0.3), Color(0.2, 0.9, 1.0)], "key": Color(1.0, 0.74, 0.48), "amb": Color(0.14, 0.11, 0.095)},
 		"rooms": [
 			{"role": "shop", "w": [7.0, 9.0], "d": [6.0, 8.0], "prog": [["counter", "counter"], ["wm", "rack", 3, 4, "back"], ["wall", "shelf", 1, 2, "left"], ["wall", "locker", 1, 2, "right"],
-				["free", "crate", 1, 3], ["wm", "screen", 1, 2, "right"], ["wm", "poster", 1, 3, "any"], ["detail", "crate_small", 2, 5], ["detail", "bin", 1, 2], ["pipes", 2], ["anchor", "civilian", 3, 4]]},
-			{"role": "office", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["safe"], ["wall", "cabinet", 1, 2, "any"], ["free", "desk", 1, 1], ["free", "crate", 1, 2], ["detail", "crate_small", 1, 3], ["anchor", "civilian", 1, 2]]},
+				["free", "crate", 1, 3], ["free", "box_pile", 1, 2], ["detail", "tv_old", 1, 1], ["wm", "screen", 1, 2, "right"], ["wm", "poster", 1, 3, "any"], ["detail", "crate_small", 2, 5], ["detail", "bin", 1, 2], ["pipes", 2], ["anchor", "civilian", 3, 4]]},
+			{"role": "office", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["safe"], ["wall", "cabinet", 1, 2, "any"], ["free", "desk", 1, 1], ["wall", "bookcase", 1, 1, "any"], ["detail", "coat_rack", 1, 1], ["free", "crate", 1, 2], ["detail", "crate_small", 1, 3], ["anchor", "civilian", 1, 2]]},
 		],
 	},
 	&"clinic": {
-		"name": "STREET CLINIC", "ceil": [3.0, 3.3], "windows": 0.8, "hostile": false,
+		"name": "STREET CLINIC", "ceil": [3.0, 3.3], "windows": 0.8, "hostile": false, "style": 1, "styles": {"waiting": 0}, "fstyle": 0, "fstyles": {"waiting": 1},
 		"pal": {"wall": Color(0.26, 0.30, 0.31), "wall2": Color(0.15, 0.24, 0.24), "floor": Color(0.20, 0.23, 0.23), "ceil": Color(0.20, 0.21, 0.22), "trim": Color(0.5, 0.6, 0.6),
 			"neon": [Color(0.25, 1.0, 0.75), Color(0.2, 0.7, 1.0), Color(1.0, 0.25, 0.4)], "key": Color(0.8, 1.0, 0.95), "amb": Color(0.10, 0.12, 0.12)},
 		"rooms": [
 			{"role": "waiting", "w": [7.0, 9.0], "d": [6.0, 7.0], "prog": [["counter", "counter"], ["wall", "couch", 2, 3, "left"], ["wall", "vending", 1, 1, "right"], ["free", "plant", 1, 2],
-				["wm", "screen", 1, 2, "right"], ["wm", "poster", 1, 2, "any"], ["detail", "bin", 1, 2], ["anchor", "civilian", 3, 4]]},
-			{"role": "exam", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["free", "medbed", 1, 2], ["wall", "cabinet", 1, 2, "back"], ["wm", "screen", 1, 2, "any"], ["detail", "crate_small", 1, 2], ["anchor", "civilian", 1, 2]]},
-			{"role": "ward", "w": [5.0, 6.0], "d": [4.0, 5.0], "prog": [["wall", "cot", 2, 3, "back"], ["wall", "locker", 1, 2, "left"], ["wm", "screen", 1, 1, "any"], ["anchor", "civilian", 1, 2]]},
+				["wall", "side_table", 1, 2, "any"], ["detail", "coat_rack", 1, 1], ["wm", "screen", 1, 2, "right"], ["wm", "poster", 1, 2, "any"], ["detail", "bin", 1, 2], ["anchor", "civilian", 3, 4]]},
+			{"role": "exam", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["free", "medbed", 1, 2], ["wall", "wash_station", 1, 1, "left"], ["wall", "cabinet", 1, 2, "back"], ["wm", "screen", 1, 2, "any"], ["detail", "bin", 1, 1], ["detail", "crate_small", 1, 2], ["anchor", "civilian", 1, 2]]},
+			{"role": "ward", "w": [5.0, 6.0], "d": [4.0, 5.0], "prog": [["wall", "cot", 2, 3, "back"], ["wall", "locker", 1, 2, "left"], ["wall", "side_table", 1, 2, "any"], ["wm", "screen", 1, 1, "any"], ["anchor", "civilian", 1, 2]]},
 		],
 	},
 	&"tech": {
@@ -79,9 +79,9 @@ const SPECS := {
 		"pal": {"wall": Color(0.40, 0.17, 0.12), "wall2": Color(0.12, 0.17, 0.20), "floor": Color(0.16, 0.12, 0.09), "ceil": Color(0.09, 0.08, 0.08), "trim": Color(0.5, 0.26, 0.14),
 			"neon": [Color(1.0, 0.22, 0.2), Color(1.0, 0.72, 0.18), Color(0.15, 0.85, 1.0)], "key": Color(1.0, 0.68, 0.42), "amb": Color(0.105, 0.075, 0.06)},
 		"rooms": [
-			{"role": "bar", "w": [8.0, 10.0], "d": [6.0, 8.0], "prog": [["counter", "bar"], ["sets", "table_round", "stool", 3, 4, 2], ["hang", 5], ["wm", "poster", 2, 3, "any"], ["wm", "screen", 1, 2, "left"],
-				["detail", "bin", 1, 2], ["detail", "crate_small", 1, 3], ["anchor", "civilian", 4, 5]]},
-			{"role": "kitchen", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["wall", "counter", 1, 2, "back"], ["wall", "fridge", 1, 1, "left"], ["free", "barrel", 1, 3], ["free", "crate", 1, 2], ["pipes", 3], ["detail", "crate_small", 2, 4], ["anchor", "civilian", 1, 2]]},
+			{"role": "bar", "w": [8.0, 10.0], "d": [6.0, 8.0], "prog": [["counter", "bar"], ["sets", "table_round", "stool", 3, 4, 2], ["hang", 5], ["wall", "couch", 1, 2, "right"], ["wm", "poster", 2, 3, "any"], ["wm", "screen", 1, 2, "left"],
+				["free", "plant", 1, 1], ["detail", "coat_rack", 1, 1], ["detail", "bin", 1, 2], ["detail", "crate_small", 1, 3], ["anchor", "civilian", 4, 5]]},
+			{"role": "kitchen", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["wall", "kitchen_run", 1, 1, "back"], ["wall", "fridge_home", 1, 1, "left"], ["free", "barrel", 1, 2], ["free", "box_pile", 1, 1], ["pipes", 3], ["detail", "bin", 1, 1], ["detail", "crate_small", 2, 4], ["anchor", "civilian", 1, 2]]},
 		],
 	},
 	&"club": {
@@ -107,14 +107,14 @@ const SPECS := {
 		],
 	},
 	&"apartment": {
-		"name": "APARTMENT", "ceil": [2.8, 3.1], "windows": 0.9, "hostile": false,
-		"pal": {"wall": Color(0.16, 0.14, 0.15), "wall2": Color(0.11, 0.14, 0.16), "floor": Color(0.12, 0.10, 0.09), "ceil": Color(0.10, 0.10, 0.11), "trim": Color(0.3, 0.26, 0.28),
-			"neon": [Color(1.0, 0.25, 0.6), Color(0.2, 0.75, 1.0), Color(1.0, 0.65, 0.25)], "key": Color(1.0, 0.7, 0.5), "amb": Color(0.08, 0.07, 0.075)},
+		"name": "APARTMENT", "ceil": [2.8, 3.1], "windows": 0.9, "hostile": false, "style": 4, "styles": {"kitchen": 1, "stash": 0}, "fstyle": 2, "fstyles": {"kitchen": 0, "stash": 3},
+		"pal": {"wall": Color(0.30, 0.22, 0.22), "wall2": Color(0.18, 0.20, 0.23), "floor": Color(0.17, 0.13, 0.10), "ceil": Color(0.16, 0.15, 0.15), "trim": Color(0.42, 0.34, 0.30),
+			"neon": [Color(1.0, 0.25, 0.6), Color(0.2, 0.75, 1.0), Color(1.0, 0.65, 0.25)], "key": Color(1.0, 0.76, 0.55), "amb": Color(0.15, 0.12, 0.115)},
 		"rooms": [
-			{"role": "living", "w": [6.0, 8.0], "d": [5.0, 6.0], "prog": [["wall", "couch", 1, 1, "back"], ["wm", "screen", 1, 1, "back"], ["free", "table", 1, 1], ["free", "plant", 1, 2], ["free", "lamp_floor", 1, 2],
-				["wm", "poster", 1, 2, "any"], ["detail", "rug", 1, 1], ["detail", "bin", 1, 1], ["anchor", "civilian", 2, 3], ["anchor", "guard", 2, 3]]},
-			{"role": "kitchen", "w": [4.0, 5.0], "d": [3.5, 4.5], "prog": [["wall", "counter", 1, 2, "back"], ["wall", "fridge", 1, 1, "left"], ["free", "table_round", 1, 1], ["pipes", 1], ["anchor", "civilian", 1, 1], ["anchor", "guard", 1, 1]]},
-			{"role": "bedroom", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["wall", "bed", 1, 1, "back"], ["wall", "locker", 1, 2, "right"], ["free", "desk", 1, 1], ["hostage"], ["anchor", "guard", 1, 1]]},
+			{"role": "living", "w": [6.0, 8.0], "d": [5.0, 6.0], "prog": [["wall", "couch", 1, 1, "back"], ["wall", "tv_unit", 1, 1, "left"], ["wall", "bookcase", 1, 2, "right"], ["free", "armchair", 1, 1], ["free", "plant", 1, 2], ["free", "lamp_floor", 1, 2],
+				["wm", "poster", 1, 2, "any"], ["detail", "rug", 1, 1], ["detail", "coffee_table", 1, 1], ["detail", "coat_rack", 1, 1], ["detail", "bin", 1, 1], ["anchor", "civilian", 2, 3], ["anchor", "guard", 2, 3]]},
+			{"role": "kitchen", "w": [4.0, 5.0], "d": [3.5, 4.5], "prog": [["wall", "kitchen_run", 1, 1, "back"], ["wall", "fridge_home", 1, 1, "left"], ["free", "table", 1, 1], ["detail", "chair", 2, 3], ["detail", "bin", 1, 1], ["pipes", 1], ["anchor", "civilian", 1, 1], ["anchor", "guard", 1, 1]]},
+			{"role": "bedroom", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["wall", "bed", 1, 1, "back"], ["wall", "side_table", 1, 2, "any"], ["wall", "locker", 1, 2, "right"], ["free", "desk", 1, 1], ["wall", "bookcase", 1, 1, "any"], ["hostage"], ["anchor", "guard", 1, 1]]},
 			{"role": "stash", "w": [3.2, 3.8], "d": [3.2, 3.8], "prog": [["safe"], ["free", "crate", 1, 2], ["anchor", "guard", 1, 1], ["anchor", "civilian", 1, 1]]},
 		],
 	},
@@ -135,8 +135,8 @@ const SPECS := {
 			"neon": [Color(0.25, 0.95, 0.9), Color(1.0, 0.75, 0.15), Color(1.0, 0.2, 0.4)], "key": Color(1.0, 0.92, 0.75), "amb": Color(0.11, 0.105, 0.095)},
 		"rooms": [
 			{"role": "shop", "w": [7.0, 9.0], "d": [6.0, 8.0], "prog": [["counter", "counter"], ["aisles", "shelf", 3, 5], ["wall", "fridge", 2, 3, "right"], ["wall", "vending", 1, 1, "left"],
-				["free", "crate", 1, 2], ["wm", "poster", 2, 4, "any"], ["detail", "bin", 1, 2], ["detail", "crate_small", 2, 5], ["anchor", "civilian", 4, 5]]},
-			{"role": "stock", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["free", "crate", 3, 5], ["wall", "rack_tall", 1, 1, "back"], ["pipes", 2], ["detail", "crate_small", 2, 4], ["anchor", "civilian", 1, 2]]},
+				["free", "crate", 1, 2], ["free", "box_pile", 1, 2], ["free", "plant", 1, 1], ["wm", "poster", 2, 4, "any"], ["detail", "bin", 1, 2], ["detail", "crate_small", 2, 5], ["anchor", "civilian", 4, 5]]},
+			{"role": "stock", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["free", "box_pile", 2, 3], ["free", "crate", 1, 2], ["wall", "rack_tall", 1, 1, "back"], ["pipes", 2], ["detail", "crate_small", 2, 4], ["anchor", "civilian", 1, 2]]},
 		],
 	},
 	&"warehouse": {
@@ -144,9 +144,9 @@ const SPECS := {
 		"pal": {"wall": Color(0.24, 0.23, 0.21), "wall2": Color(0.15, 0.19, 0.24), "floor": Color(0.13, 0.13, 0.12), "ceil": Color(0.10, 0.10, 0.11), "trim": Color(0.45, 0.36, 0.1),
 			"neon": [Color(1.0, 0.68, 0.12), Color(1.0, 0.3, 0.12), Color(0.25, 0.85, 1.0)], "key": Color(1.0, 0.85, 0.6), "amb": Color(0.145, 0.135, 0.125)},
 		"rooms": [
-			{"role": "floor", "w": [14.0, 18.0], "d": [12.0, 16.0], "prog": [["aisles", "rack_tall", 4, 6], ["free", "crate_stack", 4, 7], ["free", "pallet", 2, 4], ["free", "barrel", 2, 4], ["pipes", 5], ["hang", 4],
+			{"role": "floor", "w": [14.0, 18.0], "d": [12.0, 16.0], "prog": [["aisles", "rack_tall", 4, 6], ["free", "crate_stack", 3, 5], ["free", "box_pile", 3, 5], ["free", "pallet", 2, 4], ["free", "barrel", 2, 4], ["pipes", 5], ["hang", 4],
 				["wm", "poster", 1, 2, "any"], ["detail", "crate_small", 4, 8], ["detail", "bin", 1, 3], ["anchor", "civilian", 4, 5], ["anchor", "guard", 4, 6]]},
-			{"role": "office", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["terminal"], ["free", "desk", 1, 1], ["wall", "cabinet", 1, 2, "any"], ["wm", "screen", 1, 2, "any"], ["anchor", "guard", 1, 2], ["anchor", "civilian", 1, 1]]},
+			{"role": "office", "w": [4.0, 5.0], "d": [4.0, 5.0], "prog": [["terminal"], ["free", "desk", 1, 1], ["wall", "cabinet", 1, 2, "any"], ["wall", "bookcase", 1, 1, "any"], ["detail", "coat_rack", 1, 1], ["detail", "bin", 1, 1], ["wm", "screen", 1, 2, "any"], ["anchor", "guard", 1, 2], ["anchor", "civilian", 1, 1]]},
 		],
 	},
 	# --- interior kit layouts (Quaternius pieces, quantum-realism film in assets/shaders/interior_surface.gdshader) ---

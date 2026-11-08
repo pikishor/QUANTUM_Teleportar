@@ -668,10 +668,10 @@ void fragment() {
 		emit += mix(vec3(0.5, 0.66, 0.85), qs_film(ndv, film_seed), 0.3) * (0.025 + 0.09 * fres) * gloss * (1.0 - puddle * 0.4) * qs_amount * (0.6 + 0.4 * rn);
 		if (fine) {
 			float fl = qs_flicker(hash12(floor(q / 6.0)), TIME);
-			float sm = qs_seam(q * 0.9, 0.018 + aa * 0.9) * (1.0 - matte) * dk;
+			float sm = qs_seam(q * 0.9, 0.010 + min(aa * 0.45, 0.012)) * (1.0 - matte) * dk;        // hairline cracks: the wide pink and cyan worms read as graffiti scribbles on the street (owner round 4 street shots)
 			vec3 sc = district_seam(q);
-			emit += sc * sm * (0.16 + 0.9 * fl) * qs_amount;
-			emit += sc * fl * 0.06 * (1.0 - matte) * qs_amount;
+			emit += sc * sm * (0.07 + 0.55 * fl) * qs_amount;
+			// (the old 6 m "second-state flicker" squares of ground are gone: they read as translucent glowing rectangles, owner rounds 2 and 4)
 		}
 	}
 

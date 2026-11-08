@@ -143,7 +143,23 @@ void fragment() {
 		float blotch = vnoise(vec2(t * 0.45 + 3.0, h * 0.5));                // big soft patches: the paint is not one flat colour
 		float lo = 1.0 - smoothstep(1.0, 1.12, h);                            // below the dado rail
 		rough = 0.85;
-		if (sty > 2.5) {
+		if (sty > 3.5) {
+			// wainscot: wood panelling with recessed panels up to the rail, striped wallpaper with a small repeated motif above it
+			if (h < 1.06) {
+				vec2 pq = vec2(t / 0.62, h / 0.98);
+				vec2 pf = fract(pq);
+				float edge = min(min(pf.x, 1.0 - pf.x) * 0.62, min(pf.y - 0.06, 0.9 - pf.y));
+				float panel = smoothstep(0.0, 0.05, edge);
+				float grain = vnoise(vec2(t * 3.0, h * 38.0));
+				alb = alb * vec3(1.35, 1.05, 0.8) * (0.7 + 0.45 * panel) * (0.85 + 0.3 * grain);
+				rough = 0.45;
+			} else {
+				float stripe = step(0.5, fract(t / 0.18));
+				float motif = step(0.8, vnoise(vec2(t * 4.0, h * 4.0 + floor(t * 4.0) * 0.5)));
+				alb *= (0.9 + 0.17 * stripe) * (1.0 + 0.3 * motif * (1.0 - stripe));
+				rough = 0.9;
+			}
+		} else if (sty > 2.5) {
 			// brick: running bond, mortar lines, per-brick tone
 			vec2 bq = vec2(t / 0.42, h / 0.14);
 			bq.x += floor(bq.y) * 0.5;

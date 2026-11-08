@@ -1069,7 +1069,7 @@ func hint_text() -> String:
 		return ""
 	var key := "" if touch_ui_on() else "[F]  "
 	if InteriorGameplay.prompt != "":                       # a door, a vendor or a mission object (scripts/interiors_gameplay/)
-		return key + InteriorGameplay.prompt
+		return "" if InteriorPrompts.active_shown else key + InteriorGameplay.prompt          # the floating plate over the object says it already
 	var jp := Freedom.job_prompt()                          # a job marker under the hero: street race, taxi fare, delivery, bounty (starts by itself)
 	if jp != "":
 		return jp
@@ -2106,6 +2106,11 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			if focus_ring and b["id"] == pad.focus:
 				c.draw_rect(r.grow(3.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
 			continue
+		if b.has("prev"):                                      # the graphics tier card of the options screen (options_screen.gd)
+			OptionsScreen.draw_card(self, c, r, hot, s, font)
+			if focus_ring and b["id"] == pad.focus:
+				c.draw_rect(r.grow(3.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+			continue
 		if b.has("opt"):                                       # an options row: name left, value chip right, slider track under it
 			MenuKit.row(self, c, r, str(b["name"]), str(b["value"]), on, hot or _drag == b["id"], float(b["frac"]), s, font)
 			if focus_ring and b["id"] == pad.focus:
@@ -2542,6 +2547,8 @@ func _chapters_ok() -> bool:
 func _contract_line() -> String:
 	if InteriorGameplay.hud_line != "":                     # an interior mission replaces the contract line while you are inside
 		return InteriorGameplay.hud_line
+	if InteriorGameplay.active and InteriorGameplay.status_line != "":
+		return InteriorGameplay.status_line                 # the task status: the room has no job line, so the plate still says what there is to do (or that nothing is)
 	var k := _contracts()
 	return str(k.call(&"hud_line")) if k != null else ""
 

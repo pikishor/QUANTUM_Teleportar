@@ -30,7 +30,7 @@ const DEFS := {
 	"vending": [0.95, 1.9, 0.8, F_COLLIDER], "fridge": [1.0, 1.9, 0.7, F_COLLIDER], "bed": [2.0, 0.6, 1.1, F_COLLIDER], "bunk": [2.0, 1.9, 1.0, F_COLLIDER],
 	"cot": [1.9, 0.5, 0.8, F_COLLIDER], "medbed": [0.9, 0.85, 2.0, F_COLLIDER], "crate": [1.0, 1.0, 1.0, F_COLLIDER], "crate_stack": [1.5, 1.9, 1.0, F_COLLIDER],
 	"pallet": [1.2, 1.6, 1.2, F_COLLIDER], "barrel": [0.62, 0.95, 0.62, F_COLLIDER], "couch": [2.1, 0.85, 0.95, F_COLLIDER], "plant": [0.6, 1.4, 0.6, F_COLLIDER],
-	"speaker": [0.75, 1.6, 0.65, F_COLLIDER], "dj": [3.2, 1.1, 1.2, F_COLLIDER], "desk": [1.6, 0.78, 0.8, F_COLLIDER], "locker": [0.9, 1.9, 0.5, F_COLLIDER],
+	"speaker": [0.75, 1.6, 0.65, F_COLLIDER], "dj": [3.2, 1.1, 1.2, F_COLLIDER], "desk": [1.6, 1.2, 1.2, F_COLLIDER], "locker": [0.9, 1.9, 0.5, F_COLLIDER],
 	"cabinet": [1.1, 1.4, 0.5, F_COLLIDER], "rack_tall": [2.6, 2.9, 0.9, F_COLLIDER], "workbench": [2.2, 1.0, 0.85, F_COLLIDER], "gate": [3.0, 2.6, 1.0, F_COLLIDER],
 	"terminal": [1.3, 1.35, 0.8, F_COLLIDER], "safe": [0.7, 0.8, 0.55, F_COLLIDER], "elevator": [2.2, 2.7, 0.3, F_WALL], "screen": [1.4, 0.8, 0.1, F_WALL | F_DETAIL],
 	"poster": [0.8, 1.1, 0.04, F_WALL | F_DETAIL], "rack": [2.2, 1.5, 0.2, F_WALL], "neon_sign": [1.8, 0.5, 0.08, F_WALL],
@@ -41,6 +41,11 @@ const DEFS := {
 	# wall dressing (InteriorPlan._dress_walls: no bare wall run longer than about 4 m): never dropped by a lower tier
 	"wall_shelf": [1.8, 0.9, 0.28, F_WALL], "ad_panel": [1.5, 1.0, 0.08, F_WALL], "banner": [0.7, 1.9, 0.05, F_WALL], "hazard_sign": [1.3, 0.9, 0.05, F_WALL],
 	"mural": [2.6, 1.5, 0.04, F_WALL], "clock": [0.5, 0.5, 0.08, F_WALL],
+	# furniture (scripts/interiors/interior_furniture.gd: Kenney Furniture Kit models): footprints are the colliders
+	"chair": [0.45, 0.94, 0.45, F_DETAIL], "bookcase": [0.8, 1.7, 0.5, F_COLLIDER], "bookcase_wide": [1.6, 1.58, 0.5, F_COLLIDER], "tv_unit": [1.6, 1.2, 0.5, F_COLLIDER],
+	"side_table": [1.0, 0.77, 0.44, F_COLLIDER], "coffee_table": [1.2, 0.46, 0.72, F_DETAIL], "kitchen_run": [2.6, 0.92, 0.62, F_COLLIDER], "fridge_home": [0.86, 1.84, 0.6, F_COLLIDER],
+	"coat_rack": [0.55, 1.54, 0.55, F_DETAIL], "wash_station": [0.9, 1.9, 0.6, F_COLLIDER], "box_pile": [1.1, 1.0, 0.9, F_COLLIDER], "tv_old": [0.82, 1.15, 0.55, F_DETAIL],
+	"armchair": [0.98, 0.92, 0.82, F_COLLIDER],
 	# interior kit (scripts/interiors/interior_kit.gd): Quaternius pieces appended to the surface mesh
 	"kit_teleporter": [1.21, 1.34, 1.19, F_COLLIDER], "kit_pad": [1.23, 0.9, 1.19, F_COLLIDER], "kit_pod": [1.45, 2.8, 1.45, F_COLLIDER], "kit_server": [0.8, 2.08, 0.7, F_COLLIDER],
 	"kit_console": [0.9, 1.54, 0.55, F_COLLIDER], "kit_capsule": [0.88, 1.63, 0.88, F_COLLIDER], "kit_crate": [0.9, 0.9, 0.9, F_COLLIDER], "kit_crate_long": [1.3, 0.8, 0.8, F_COLLIDER],
@@ -110,7 +115,25 @@ static func _glyphs(mb: RefCounted, x0: float, y: float, z: float, w: float, h: 
 			_bx(mb, Vector3(cx, y + h * 0.5 * _rng.randf_range(-0.8, 0.8), z), Vector3(step * 0.9, h * 0.12, 0.012), col, cls, em, phase)
 
 
+## Draws a prop: the furniture model when the kind has one (InteriorFurniture, real CC0 meshes), else the procedural boxes below. Glow halos of lamps stay procedural.
 static func build(sb: RefCounted, gb: RefCounted, p: Dictionary) -> void:
+	if InteriorFurniture.has(p["kind"]) and InteriorFurniture.build(sb, p):
+		var kd: String = p["kind"]
+		if kd == "lamp_floor":
+			var xf := Transform3D(Basis(Vector3.UP, float(p["yaw"])), p["pos"])
+			var g0: int = gb.verts.size()
+			_halo(gb, Vector3(0, (p["size"] as Vector3).y - 0.3, 0), 1.4, 1.4, (p["acc"] as Color).lerp(Color(1.0, 0.8, 0.5), 0.5), 0.5)
+			gb.xform_from(g0, xf)
+		elif kd == "tv_unit":
+			var xf2 := Transform3D(Basis(Vector3.UP, float(p["yaw"])), p["pos"])
+			var g1: int = gb.verts.size()
+			_halo(gb, Vector3(0, 0.9, -0.2), 1.6, 1.0, p["acc"], 0.2)
+			gb.xform_from(g1, xf2)
+		return
+	_build_procedural(sb, gb, p)
+
+
+static func _build_procedural(sb: RefCounted, gb: RefCounted, p: Dictionary) -> void:
 	var kind: String = p["kind"]
 	var size: Vector3 = p["size"]
 	var tint: Color = p["tint"]

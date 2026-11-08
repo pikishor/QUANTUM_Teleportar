@@ -26,8 +26,9 @@ const RADIUS_BARRIERS := 170.0
 const RADIUS_PLAZAS := 240.0
 const RADIUS_VENTS := 120.0
 const RADIUS_PLANTERS := 150.0
-const RADIUS_SHOP_SETS := 80.0
+const RADIUS_SHOP_SETS := 58.0         ## was 80: the sidewalk dressing (street_dress_mesh) took its triangles in the spawn budget; a cafe table beyond 64 m is a few pixels
 const RADIUS_STALLS := 60.0
+const RADIUS_STREET_DRESS := 46.0
 
 const EM_LAMP := 0.15
 const EM_FLASHER := 0.45
@@ -293,6 +294,35 @@ static func shop_set_mesh() -> ArrayMesh:
 	return _finish(b)
 
 
+## Sidewalk dressing (round 4 street pass): a street tree in a pit, a slatted bench with its back to the shopfront, a litter bin, a post box and a parking meter, about 5 m wide.
+## Local +Z is the street side. One merged mesh, one family (one draw), placed in front of about a third of the frontages from its own random stream.
+static func street_dress_mesh() -> ArrayMesh:
+	var b := _mb(0.1, 0.7)
+	var steel := Color(0.12, 0.13, 0.15, 0.0)
+	var wood := Color(0.34, 0.2, 0.1, 0.0)
+	var leaf_a := Color(0.12, 0.3, 0.15, 0.0)
+	var leaf_b := Color(0.16, 0.38, 0.18, 0.0)
+	# tree: a grating, a trunk and two crowns (about 100 triangles: the family is drawn all along the sidewalks); the crown stays low and small so it never hides a shop sign
+	b.box(Vector3(-1.9, 0.02, 1.1), Vector3(1.0, 0.04, 1.0), Color(0.07, 0.07, 0.08, 0.0), false)
+	b.cylinder(Vector3(-1.9, 0.03, 1.1), 0.11, 2.3, 5, Color(0.2, 0.13, 0.08, 0.0), 0.08, false)
+	b.sphere(Vector3(-1.9, 2.9, 1.1), Vector3(1.0, 0.8, 1.0), 6, 3, leaf_a)
+	b.sphere(Vector3(-1.4, 2.55, 1.3), Vector3(0.65, 0.5, 0.65), 5, 2, leaf_b)
+	# bench: a seat and a back rest on two cast ends
+	b.box(Vector3(0.4, 0.46, 0.4), Vector3(1.7, 0.05, 0.42), wood, false)
+	b.box(Vector3(0.4, 0.78, 0.12), Vector3(1.7, 0.32, 0.04), wood, false)
+	for sx in [-0.4, 1.2]:
+		b.box(Vector3(sx, 0.36, 0.26), Vector3(0.06, 0.72, 0.4), steel, false)
+	# litter bin
+	b.cylinder(Vector3(1.85, 0.0, 0.35), 0.21, 0.85, 6, Color(0.1, 0.16, 0.14, 0.0), 0.2, true)
+	# post box
+	b.box(Vector3(2.45, 0.6, 0.15), Vector3(0.5, 1.0, 0.42), Color(0.04, 0.12, 0.34, 0.0))
+	# parking meter
+	b.cylinder(Vector3(3.1, 0.0, 0.8), 0.035, 1.15, 4, steel, -1.0, false)
+	b.uv2 = Vector2(0.0, 0.3)
+	b.box(Vector3(3.1, 1.3, 0.8), Vector3(0.16, 0.26, 0.12), Color(0.35, 0.9, 0.55, EM_GREEN), false)
+	return _finish(b)
+
+
 static func vent_mesh() -> ArrayMesh:
 	var b := _mb(0.7, 0.5)
 	b.box(Vector3(0, 0.03, 0), Vector3(1.5, 0.06, 1.0), Color(0.04, 0.04, 0.045, 0.0))
@@ -545,6 +575,19 @@ func _place_lot_props(layout: CityLayout) -> void:
 			var bas := Basis(Vector3.UP, (0.0 if lsz > 0.0 else PI) + r2.randf_range(-0.12, 0.12))
 			sets.append([Transform3D(bas, other), Color(r2.randf(), 0.0, 0.0, 1.0)])
 	add_family("ShopSets", shop_set_mesh(), sets, false, false, 0, RADIUS_SHOP_SETS)
+	# sidewalk dressing: its own random stream per lot, nothing else moves
+	var dress: Array = []
+	var r3 := RandomNumberGenerator.new()
+	for li in layout.lots.size():
+		var ld: CityLayout.Lot = layout.lots[li]
+		r3.seed = 9113 + li * 6151
+		if r3.randf() > 0.3 or ld.w < 9.0:
+			continue
+		var dbz := -CityLayout.HALF + (ld.block_j + 0.5) * CityLayout.PITCH
+		var dsz := 1.0 if ld.cz > dbz else -1.0
+		var dpos := Vector3(ld.cx + r3.randf_range(-ld.w * 0.25, ld.w * 0.25), 0.0, ld.cz + dsz * (ld.d * 0.5 + 1.25))
+		dress.append([Transform3D(Basis(Vector3.UP, 0.0 if dsz > 0.0 else PI), dpos), Color(r3.randf(), 0.0, 0.0, 1.0)])
+	add_family("StreetDress", street_dress_mesh(), dress, false, false, 0, RADIUS_STREET_DRESS)
 	var stalls: Array = []
 	for site: Dictionary in StreetVendors.sites():                      # no rng here: the other placements keep their stream
 		stalls.append([Transform3D(Basis(Vector3.UP, float(site["yaw"])), site["pos"]), Color(fposmod(float(stalls.size()) * 0.6180339, 1.0), 0.0, 0.0, 1.0)])

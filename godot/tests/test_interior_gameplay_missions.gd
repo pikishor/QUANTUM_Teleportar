@@ -35,6 +35,16 @@ func stand_near(target: Vector3, offset: Vector3) -> void:
 	await frames(3)
 
 
+## Open the quantum gates round the job object by USE, the way a player without the verbs does (the assist opens the outermost closed gate; a room without a puzzle needs nothing).
+func open_gates() -> void:
+	var n := 0
+	while is_instance_valid(m.puzzles) and not m.puzzles.next_gate().is_empty() and n < 4:
+		var g: Dictionary = m.puzzles.next_gate()
+		await stand_near(m.puzzles.at(float(g["depth"])), Vector3(1.0, 0.0, 1.0))
+		await use()
+		n += 1
+
+
 func use() -> void:
 	Input.action_press(&"interact")
 	await frames(2)
@@ -82,6 +92,7 @@ func _safe() -> void:
 	TestLib.check(InteriorGameplay.hud_line.begins_with("SAFE"), "the HUD line names the mission ('%s')" % InteriorGameplay.hud_line)
 	var mk := m.markers()
 	TestLib.check(mk.size() == 1 and mk[0]["kind"] == &"target", "the safe is on the minimap")
+	await open_gates()
 	await stand_near(m.target_pos, Vector3(1.5, 0.0, 1.5))
 	TestLib.check(InteriorGameplay.prompt == "CRACK THE SAFE", "beside the safe the prompt offers to crack it ('%s')" % InteriorGameplay.prompt)
 	# far from the safe nothing happens
@@ -115,7 +126,7 @@ func _hostage() -> void:
 	TestLib.check(m.kind == &"hostage" and ig.actors.hostage != null and ig.actors.hostage.role == &"hostage", "the apartment holds a hostage")
 	TestLib.check(ig.actors.guards_alive() == 3, "three Vael guards hold the flat")
 	await stand_near(ig.actors.hostage.global_position, Vector3(-1.0, 0.0, 1.3))
-	TestLib.check(InteriorGameplay.prompt == "", "the hostage cannot be freed while the guards live")
+	TestLib.check(not InteriorGameplay.prompt.begins_with("FREE"), "the hostage cannot be freed while the guards live")
 	TestLib.check(InteriorGameplay.hud_line.find("3 LEFT") >= 0, "the HUD counts the guards ('%s')" % InteriorGameplay.hud_line)
 	for g in ig.actors.guards:
 		g.damage(9999.0)
@@ -123,6 +134,8 @@ func _hostage() -> void:
 	m.tick(0.1)
 	TestLib.check(ig.actors.guards_alive() == 0, "guards down")
 	await frames(2)
+	await open_gates()
+	await stand_near(ig.actors.hostage.global_position, Vector3(-1.0, 0.0, 1.3))
 	TestLib.check(InteriorGameplay.prompt == "FREE THE HOSTAGE", "with the room clear the prompt offers to free her ('%s')" % InteriorGameplay.prompt)
 	var credits := prog.credits
 	var rep := prog.reputation

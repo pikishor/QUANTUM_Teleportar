@@ -13,6 +13,10 @@ const SPOTS := {
 	&"st_w2": [&"street", 1.5708, -0.10, -40.0, 0.0],
 	&"st_s2": [&"street", 0.0, -0.10, 0.0, 30.0],
 	&"st_n2": [&"street", 3.1416, -0.10, 0.0, -30.0],
+	&"sw_a": [&"street", -2.2, -0.05, 9.0, -3.0],
+	&"sw_b": [&"street", -0.9, -0.05, 9.0, 3.0],
+	&"sw_c": [&"street", 0.6, -0.05, -9.0, 3.0],
+	&"sw_d": [&"street", 2.4, -0.05, -9.0, -3.0],
 	&"in_store_a": [&"interior", &"bodega", 0.0, 0.0],
 	&"in_store_b": [&"interior", &"bodega", 2.4, 1.0],
 	&"in_store_c": [&"interior", &"bodega", 4.0, 2.0],
@@ -22,6 +26,15 @@ const SPOTS := {
 	&"in_wh_a": [&"interior", &"warehouse", 0.0, 0.0],
 	&"in_wh_b": [&"interior", &"warehouse", 2.4, 1.0],
 	&"in_wh_c": [&"interior", &"warehouse", 4.0, 2.0],
+	&"in_apt_a": [&"interior", &"apartment", 0.0, 0.0],
+	&"in_apt_b": [&"interior", &"apartment", 2.4, 1.0],
+	&"in_apt_c": [&"interior", &"apartment", 4.0, 2.0],
+	&"in_cli_a": [&"interior", &"clinic", 0.0, 0.0],
+	&"in_cli_b": [&"interior", &"clinic", 2.4, 1.0],
+	&"in_cli_c": [&"interior", &"clinic", 4.0, 2.0],
+	&"in_wpn_a": [&"interior", &"weapons", 0.0, 0.0],
+	&"in_wpn_b": [&"interior", &"weapons", 2.4, 1.0],
+	&"in_wpn_c": [&"interior", &"weapons", 4.0, 2.0],
 }
 var _spots: Array[StringName] = []
 var _i := 0

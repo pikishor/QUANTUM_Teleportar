@@ -37,6 +37,7 @@ static var inside_t := 0.0                   ## seconds since the door closed
 static var mercy_left := 1                   ## rescues left in this visit (reset at every door)
 static var prompt := ""
 static var hud_line := ""
+static var status_line := ""                 ## the task status when the room has no job line to show (HUD plate fallback): NOTHING TO DO HERE / JOB DONE / SHOP ...
 static var _walls: Array[Rect2] = []
 static var _bounds := Rect2()
 
@@ -46,6 +47,7 @@ var actors: InteriorActors
 var missions: InteriorMissions
 var markers: DoorMarkers
 var vendor_screen: VendorScreen
+var tasks: InteriorTasks                     ## prompts, task status and the LEAVE button logic (interior_tasks.gd)
 var done := {}                               ## door id -> true (interior missions finished this campaign)
 var hinted := {}                             ## door id -> true (a rumour pointed at it)
 var rumour_index := 0
@@ -69,6 +71,7 @@ var _near_door: Dictionary = {}
 var _stash: Array[Dictionary] = []
 var _groups_saved: Array[bool] = []
 var _hidden_cars: Array[Node3D] = []
+var _car_layers := {}                         ## car -> collision layer it had before the room hid it
 var _weather := Vector2(-1.0, -1.0)
 var _doors_key := -1
 var _exit_line_t := -1.0
@@ -95,6 +98,9 @@ func _ready() -> void:
 	missions.completed.connect(_on_mission_completed)
 	vendor_screen = VendorScreen.new()
 	add_child(vendor_screen)
+	tasks = InteriorTasks.new()
+	add_child(tasks)
+	tasks.setup(self)
 	_fade_layer = CanvasLayer.new()
 	_fade_layer.layer = 60
 	add_child(_fade_layer)
@@ -122,6 +128,7 @@ func _exit_tree() -> void:
 	vendor_open = false
 	prompt = ""
 	hud_line = ""
+	status_line = ""
 	_walls = []
 	_bounds = Rect2()
 	if instance == self:
@@ -410,7 +417,9 @@ func _apply_enter(d: Dictionary) -> void:
 	if kind != &"" and not done.has(int(d["id"])):
 		missions.begin(interior, kind, int(d["id"]), actors)
 	enter_count += 1
+	tasks.begin_visit()
 	hud_line = missions.hud_line()                 # the room's own objective from the first frame (the street step's line must not show for one tick)
+	status_line = "NOTHING TO DO HERE  LEAVE ANY TIME" if hud_line == "" else ""
 	_radio_enter(type, seed_value, followers.size() > 0)
 	Game.say("%s  %s" % [InteriorData.title(type), str(d["name"])], 2.2)
 	if autosave:
@@ -456,6 +465,8 @@ func _restore_outside(with_stash: bool) -> void:
 		actors.clear()
 	if is_instance_valid(missions):
 		missions.reset()
+	if is_instance_valid(tasks):
+		tasks.end_visit()
 	if is_instance_valid(interior):
 		remove_child(interior)
 		interior.queue_free()
@@ -463,6 +474,7 @@ func _restore_outside(with_stash: bool) -> void:
 	active = false
 	prompt = ""
 	hud_line = ""
+	status_line = ""
 	_walls = []
 	_bounds = Rect2()
 	markers.visible = true
@@ -471,7 +483,10 @@ func _restore_outside(with_stash: bool) -> void:
 	for v in _hidden_cars:
 		if is_instance_valid(v):
 			v.visible = true
+			if v is CollisionObject3D and _car_layers.has(v):
+				(v as CollisionObject3D).collision_layer = int(_car_layers[v])
 	_hidden_cars.clear()
+	_car_layers.clear()
 	if is_instance_valid(Game.vehicles):
 		Game.vehicles.set_physics_process(true)
 	if is_instance_valid(Game.atmosphere) and _weather.x >= 0.0:
@@ -538,6 +553,9 @@ func _hide_street() -> void:
 			for v in lst as Array:
 				if v is Node3D and (v as Node3D).visible:
 					(v as Node3D).visible = false
+					if v is CollisionObject3D:                  # a hidden car must not stay solid: a car parked in the strip the rooms are built in was an invisible wall the hero could not pass
+						_car_layers[v] = (v as CollisionObject3D).collision_layer
+						(v as CollisionObject3D).collision_layer = 0
 					_hidden_cars.append(v)
 	var atm: Object = Game.atmosphere if is_instance_valid(Game.atmosphere) else null
 	if atm != null:
@@ -696,27 +714,24 @@ func _tick_inside(delta: float) -> void:
 	if pp.distance_to(ORIGIN) > 60.0:      # the player left by other means (test menu teleport, rescue): close the interior quietly
 		force_exit(false, true)
 		return
-	var nv := _vendor_near(pp)
-	var mp := missions.prompt_for(pp)
-	var ex := Vector2(pp.x - exit_point(interior).x, pp.z - exit_point(interior).z).length() < REACH_EXIT
-	prompt = ""
-	var action := ""
-	if mp != "":
-		prompt = mp
-		action = "mission"
-	elif nv != null:
-		prompt = "TALK  %s" % InteriorData.title(actors.type)
-		action = "vendor"
-	elif ex:
-		prompt = "LEAVE  %s" % str(door.get("name", ""))
-		action = "exit"
+	tasks.tick(delta, pp)
+	var b := tasks.best(pp)
+	status_line = tasks.status_line()
+	prompt = str(b.get("prompt", ""))
 	if busy or vendor_open:
 		return
-	if Input.is_action_just_pressed(&"interact"):
-		match action:
-			"mission": missions.interact(pp)
-			"vendor": vendor_screen.open(actors.type)
-			"exit": leave()
+	if Input.is_action_just_pressed(&"leave_building"):
+		tasks.request_leave(pp)                 # the LEAVE button / key: out from anywhere in the room
+		return
+	if Input.is_action_just_pressed(&"interact") and not b.is_empty():
+		tasks.activate(StringName(str(b["action"])), pp)
+
+
+## The LEAVE button for code that has no input action (tests, the screen watchdog): the same as pressing it.
+func request_leave() -> bool:
+	if not active or not is_instance_valid(Game.player):
+		return false
+	return tasks.request_leave((Game.player as Node3D).global_position)
 
 
 func _vendor_near(pp: Vector3) -> InteriorCivilian:

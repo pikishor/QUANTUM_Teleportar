@@ -7,6 +7,8 @@ extends Node
 ## The HUD shows the line (hud_line) and an alert meter (meter), the interior minimap the objective (markers), the room a disc + pillar on it. Simulates only while Game.is_playing();
 ## tick() is callable by tests. API: can_start(id) · start(id) · abort(reason) · tick(dt) · hud_line() · meter() · markers() · state (&"idle" &"running") · result (last run)
 
+const AUTO_START := 2.0                 ## seconds in the ring before the work starts by itself (the waiting time is credited)
+
 signal started(id: StringName)
 signal phase_changed(id: StringName, phase: StringName)
 signal finished(id: StringName, ok: bool, reason: String)
@@ -25,7 +27,11 @@ var result: Dictionary = {}             ## {id, ok, reason, reward, bonus, time,
 var done := {}                          ## door id -> true (finished this session; DEMO MODE ignores it)
 var auto_offer := true                  ## false: only start() runs a mission (tests that walk interiors)
 
+var spot_note := ""                    ## why the last run was SPOTTED (numbers for the test that has to explain a failure)
+var working := false                    ## the plant / the copy is running (USE at the spot, or AUTO_START s standing in the ring)
+
 var _ig: InteriorGameplay
+var _ring_t := 0.0
 var _door_id := -1
 var _alerts0 := 0
 var _guards: Array[Drone] = []
@@ -122,6 +128,9 @@ func start(sid: StringName) -> bool:
 func _offer(ig: InteriorGameplay) -> void:
 	if not auto_offer or is_running() or ig.door.is_empty():
 		return
+	var m := Game.missions as Missions
+	if m != null and m.campaign != null and m.campaign.is_running() and m.campaign.kind == &"heist":
+		return                                   # a heist in this room is the job: the stealth offer would be a second, competing objective
 	var sid := StealthScripts.for_interior(StringName(ig.door.get("type", &"")))
 	if sid == &"" or not StealthScripts.unlocked(sid, _chapter()):
 		return
@@ -148,6 +157,8 @@ func _begin(sid: StringName, ig: InteriorGameplay) -> bool:
 	takedowns_total = _guards.size() if StealthScripts.mode_of(sid) == &"route" else 0
 	clock = 0.0
 	progress = 0.0
+	working = false
+	_ring_t = 0.0
 	alert_frac = 0.0
 	result = {}
 	state = &"running"
@@ -233,11 +244,7 @@ func tick(delta: float) -> void:
 		&"plant":
 			_tick_plant(delta, pp, ig)
 		&"data":
-			if _flat(pp, target_pos) < StealthScripts.REACH + 0.3:
-				progress = minf(1.0, progress + delta / StealthScripts.FILL_S)
-			else:
-				progress = maxf(0.0, progress - delta * StealthScripts.FILL_DECAY / StealthScripts.FILL_S)
-			if progress >= 1.0:
+			if _work_tick(delta, pp, StealthScripts.FILL_S, StealthScripts.FILL_DECAY):
 				_end(true, "")
 		&"route":
 			target_pos = _objective(ig)
@@ -251,19 +258,75 @@ func _tick_plant(delta: float, pp: Vector3, ig: InteriorGameplay) -> void:
 		if _flat(pp, target_pos) < StealthScripts.REACH:
 			_set_phase(&"work", ig)
 	elif phase == &"work":
-		if _flat(pp, target_pos) < StealthScripts.REACH + 0.3:
-			progress = minf(1.0, progress + delta / StealthScripts.PLANT_S)
-		else:
-			progress = maxf(0.0, progress - delta * 0.25)
-		if progress >= 1.0:
+		if _work_tick(delta, pp, StealthScripts.PLANT_S, 0.25 * StealthScripts.PLANT_S):
 			_set_phase(&"exit", ig)
 	elif phase == &"exit":
 		if _flat(pp, target_pos) < InteriorGameplay.REACH_EXIT:
 			_end(true, "")
 
 
+## One step of a hold job (plant, copy): the ring is REACH + 0.3 round the objective, the work counts once started (USE, or AUTO_START s in the ring with the waiting time credited)
+## and decays out of the ring at `decay` (share of the whole job per second times its length). Returns true when it is done.
+func _work_tick(delta: float, pp: Vector3, total_s: float, decay: float) -> bool:
+	if _flat(pp, target_pos) < StealthScripts.REACH + 0.3:
+		_ring_t += delta
+		if not working and _ring_t >= AUTO_START:
+			working = true
+			progress = minf(1.0, progress + (_ring_t - delta) / total_s)
+		if working:
+			progress = minf(1.0, progress + delta / total_s)
+	else:
+		_ring_t = 0.0
+		progress = maxf(0.0, progress - delta * decay / total_s)
+	return progress >= 1.0
+
+
+## The USE side of the run: "PLANT THE DEVICE" / "COPY THE DATA" while standing at the spot and the work has not started ("" otherwise).
+func prompt_for(pp: Vector3) -> String:
+	if not is_running() or working or _flat(pp, target_pos) >= StealthScripts.REACH + 0.3:
+		return ""
+	match StealthScripts.mode_of(id):
+		&"plant":
+			return "PLANT THE DEVICE" if phase == &"work" else ""
+		&"data":
+			return "COPY THE DATA"
+	return ""
+
+
+func interact(pp: Vector3) -> bool:
+	if prompt_for(pp) == "":
+		return false
+	working = true
+	Sfx.play(&"ui_tap")
+	return true
+
+
+## What the run shows in the room: [{id, pos, label, height, objective}] (the floating text over the objective).
+func interactables() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if not is_running():
+		return out
+	match StealthScripts.mode_of(id):
+		&"reach":
+			out.append({"id": &"terminal", "pos": target_pos, "label": "REACH THE TERMINAL UNSEEN", "height": 1.7, "objective": true})
+		&"plant":
+			match phase:
+				&"approach": out.append({"id": &"crates", "pos": target_pos, "label": "PLANT THE DEVICE HERE", "height": 1.5, "objective": true})
+				&"work": out.append({"id": &"crates", "pos": target_pos, "label": ("PLANTING  %d%%" % int(progress * 100.0)) if working else "PLANT THE DEVICE", "height": 1.5, "objective": true})
+				_: out.append({"id": &"exit", "pos": target_pos, "label": "GET OUT UNSEEN", "height": 1.5, "objective": true})
+		&"data":
+			out.append({"id": &"terminal", "pos": target_pos, "label": ("COPYING  %d%%" % int(progress * 100.0)) if working else "COPY THE DATA", "height": 1.7, "objective": true})
+		&"route":
+			var g := _nearest_guard(Game.player.global_position) if is_instance_valid(Game.player) else null
+			if g != null:
+				out.append({"id": &"guard", "pos": g.global_position, "label": "TAKE HIM DOWN FROM BEHIND", "height": 2.3, "objective": true})
+	return out
+
+
 func _set_phase(p: StringName, ig: InteriorGameplay) -> void:
 	phase = p
+	working = false
+	_ring_t = 0.0
 	target_pos = _objective(ig) if p != &"work" else target_pos
 	Sfx.play(&"ui_tap")
 	phase_changed.emit(id, p)
@@ -291,6 +354,7 @@ func _watch_guards() -> void:
 	takedowns_done = dead_now if StealthScripts.mode_of(id) == &"route" else 0
 	alert_frac = worst
 	if worst >= 1.0 or Stealth.alerts > _alerts0:
+		spot_note = "worst %.2f heat %.2f alerts %d (at start %d) aware guards %s of %d" % [worst, Game.heat, Stealth.alerts, _alerts0, str(_guards.filter(func(g: Drone) -> bool: return is_instance_valid(g) and g.aware).size()), _guards.size()]
 		alert_frac = 1.0
 		_end(false, "SPOTTED")
 

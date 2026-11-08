@@ -36,6 +36,7 @@ const BUTTONS := [
 	{"action": &"companion_hold", "dx": 750.0, "dy": 215.0, "r": 46.0, "fs": 22, "label": "HOLD", "need": &"more_companion", "fn": &"ally_hold"},
 	{"action": &"companion_attack", "dx": 750.0, "dy": 320.0, "r": 46.0, "fs": 20, "label": "ATTACK", "need": &"more_companion", "fn": &"ally_attack"},
 	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
+	{"action": &"leave_building", "dx": 56.0, "dy": 405.0, "r": 46.0, "fs": 22, "label": "LEAVE", "need": &"interior"},       # inside a building: out from anywhere (a job in progress asks to tap twice)
 	{"action": &"grab", "dx": 320.0, "dy": 470.0, "r": 50.0, "fs": 22, "label": "GRAB", "need": &"grab"},
 	{"action": &"takedown", "dx": 175.0, "dy": 602.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
 	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},      # driving: only while MORE is open
@@ -461,6 +462,9 @@ func button_visible(b: Dictionary) -> bool:
 			return more_open and not _driving() and Companion.controllable()
 		&"grab":
 			return is_instance_valid(Game.player) and not _driving() and (_grab_near or _grab_held())
+		&"interior":
+			return InteriorGameplay.active and not InteriorGameplay.vendor_open and is_instance_valid(InteriorGameplay.instance) and not InteriorGameplay.instance.busy \
+					and not InteriorGameplay.prompt.begins_with("LEAVE")       # at the door the USE button already says LEAVE: one button, not two
 		&"vehicle":
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
 		&"driving":

@@ -152,14 +152,21 @@ func _volume_and_cues() -> void:
 	_hud._ensure_layout()
 	TestLib.check(ids.has(&"opt_vol_music") and ids.has(&"opt_vol_sfx") and ids.has(&"opt_mute") and ids.has(&"opt_post"), "the options hold music, SFX, sound and post FX")
 	_hud.settings.volumes = {}
-	TestLib.check(_hud.press_button(&"opt_vol_music") and absf(_hud.volume_of(&"vol_music") - 0.75) < 0.01, "MUSIC cycles 100 to 75 %")
-	TestLib.check(absf(Sfx.bus_volume(&"Music") - 0.75) < 0.02, "the Music bus follows the row at once (%.2f)" % Sfx.bus_volume(&"Music"))
-	for i in 4:
-		_hud.press_button(&"opt_vol_music")
-	TestLib.check(_hud.volume_of(&"vol_music") == 1.0, "after 0 % the row wraps to 100 %")
-	for i in 4:
-		_hud.press_button(&"opt_vol_music")
-	TestLib.check(_hud.volume_of(&"vol_music") == 0.0 and Sfx.bus_volume(&"Music") < 0.01, "the fifth stop mutes the music bus")
+	TestLib.check(OptionsScreen.is_slider(&"opt_vol_music") and OptionsScreen.is_slider(&"opt_vol_sfx"), "the two volumes are sliders now (a drag, not a 100 / 75 / 50 cycle)")
+	OptionsScreen.set_fraction(_hud.settings, &"opt_vol_music", 0.75)
+	TestLib.check(absf(_hud.volume_of(&"vol_music") - 0.75) < 0.01, "MUSIC slides to 75 %")
+	TestLib.check(absf(Sfx.bus_volume(&"Music") - 0.75) < 0.02, "the Music bus follows the slider at once (%.2f)" % Sfx.bus_volume(&"Music"))
+	_hud.press_button(OptionsScreen.tab_id(2))                      # a finger on the track of the SOUND tab: the middle is half
+	_hud._ensure_layout()
+	var mrect := Rect2()
+	for mb: Dictionary in _hud.buttons:
+		if mb["id"] == &"opt_vol_music":
+			mrect = mb["rect"]
+	TestLib.check(mrect.size.x > 0.0 and _hud.tap(mrect.get_center()), "a tap on the MUSIC track is a slider drag")
+	_hud.end_drag()
+	TestLib.check(absf(_hud.volume_of(&"vol_music") - 0.5) < 0.06, "the middle of the track is about half (%.2f)" % _hud.volume_of(&"vol_music"))
+	OptionsScreen.set_fraction(_hud.settings, &"opt_vol_music", 0.0)
+	TestLib.check(_hud.volume_of(&"vol_music") == 0.0 and Sfx.bus_volume(&"Music") < 0.01, "the left end mutes the music bus")
 	_hud.set_volume(&"vol_sfx", 0.3)
 	TestLib.check(absf(Sfx.bus_volume(&"SFX") - 0.3) < 0.02 and absf(Sfx.bus_volume(&"Ambient") - 0.3) < 0.02 and absf(Sfx.bus_volume(&"Voice") - 0.3) < 0.02, "the SFX volume drives SFX, ambience and radio voice")
 	var fresh := UiSettings.new(TMP)

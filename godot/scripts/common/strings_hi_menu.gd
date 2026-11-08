@@ -13,4 +13,8 @@ const S := {
 	"VOLT PISTOL": "वोल्ट पिस्तौल", "PHASE MARKSMAN": "फेज़ निशानची", "SHARD BREACHER": "शार्ड ब्रीचर", "NOVA LAUNCHER": "नोवा लॉन्चर",
 	"SWARM PDW": "स्वार्म पीडीडब्ल्यू", "VECTOR HEAVY SMG": "वेक्टर एसएमजी", "ION BATTLE RIFLE": "आयन बैटल राइफ़ल", "SAWN SPLITTER": "सॉन स्प्लिटर",
 	"STORM AUTOSHOT": "स्टॉर्म ऑटोशॉट", "VOID BOLT RIFLE": "वॉइड बोल्ट राइफ़ल", "HALO MARKSMAN DMR": "हेलो डीएमआर", "PHASE KNIFE": "फेज़ चाकू",
+	"ACCESS": "सुलभता", "GAME": "खेल", "RESET PAGE": "रीसेट", "TEST SOUND": "ध्वनि जाँच", "PAGE RESET": "पेज रीसेट हुआ",
+	"BEST BATTERY": "सबसे कम बैटरी", "LONG BATTERY": "लंबी बैटरी", "BALANCED": "संतुलित", "SHADOWS": "छायाएँ", "SURFACES": "सतहें", "CROWD": "भीड़",
+	"FLAT": "सपाट", "LIGHT SCANS": "हल्के स्कैन", "NEAR": "पास", "FAR": "दूर", "SCANNED": "स्कैन की हुई", "SHARP SCANS": "तेज़ स्कैन",
+	"FRIEND": "साथी", "GOAL": "लक्ष्य", "SUBTITLES OFF": "उपशीर्षक बंद", "Cross the floor to the beacon.": "हॉल पार करके बीकन तक पहुँचो।", "LOW+": "लो+",
 }

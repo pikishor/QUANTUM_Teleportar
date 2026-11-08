@@ -18,6 +18,9 @@ const HACK_DECAY := 0.5
 const HOSTAGE_REACH := 2.6
 const OFFICER_FOUND := 7.0
 const OFFICER_AREA := 18.0
+const HACK_AUTO := 2.0                      ## seconds in the ring before the hack starts by itself (USE starts it at once; the waiting time is credited, so nobody loses progress for not pressing)
+
+static var puzzles_on := true                ## false: no quantum gate corridor around the job object (audits, A/B)
 
 var kind: StringName = &""
 var state: StringName = &"idle"            ## idle | active | cracking (safe) | complete
@@ -26,18 +29,21 @@ var door_id := -1
 var last_reward: Dictionary = {}
 var target_pos := Vector3.ZERO             ## the safe / terminal / hostage / officer position (world)
 var found := false                         ## the officer was spotted
+var hacking := false                       ## the hack is running (USE at the terminal, or HACK_AUTO s standing in the ring)
 
 var puzzles: QuantumPuzzles                ## the verb-gated corridor around the mission object (B8)
 var _actors: InteriorActors
 var _interior: Node3D
 var _marker: MeshInstance3D
 var _marker_mat: StandardMaterial3D
+var _pillar: MeshInstance3D
 var _prop: MeshInstance3D
 var _t := 0.0
 var _waves := 0
 var _hint := Vector3.ZERO
 var _said_clear := false
 var _alarm := false
+var _ring_t := 0.0
 
 
 func _ready() -> void:
@@ -63,6 +69,8 @@ func begin(room: Node3D, k: StringName, id: int, actors: InteriorActors) -> void
 	found = false
 	_said_clear = false
 	_alarm = false
+	hacking = false
+	_ring_t = 0.0
 	var seed_value := int(room.get("seed"))
 	match k:
 		&"safe":
@@ -82,7 +90,11 @@ func begin(room: Node3D, k: StringName, id: int, actors: InteriorActors) -> void
 			_make_console(target_pos)
 			_marker_at(target_pos, Color(0.45, 0.95, 1.0))
 	var toward: Vector3 = (room.get("door_pos") as Vector3) - target_pos
-	puzzles = QuantumPuzzles.build(self, QuantumPuzzles.room_for(k, seed_value), target_pos, toward)
+	puzzles = null
+	if puzzles_on and k != &"assassinate":                 # the officer walks: a cage built round where he starts would be empty or trap him (the other three jobs hold still)
+		# the gate corridor only where it fits and leaves the job reachable (a null result = no puzzle in this room)
+		var must: Array[Vector3] = []
+		puzzles = QuantumPuzzles.build_fitted(self, QuantumPuzzles.room_for(k, seed_value), target_pos, toward, room, must)
 	_say(&"start")
 	Sfx.play(&"mission_start")
 
@@ -95,12 +107,17 @@ func reset() -> void:
 	_actors = null
 	_interior = null
 	found = false
+	hacking = false
+	_ring_t = 0.0
 	if is_instance_valid(puzzles):
 		puzzles.queue_free()
 	puzzles = null
 	if _marker != null:
 		_marker.queue_free()
 		_marker = null
+	if _pillar != null:
+		_pillar.queue_free()
+		_pillar = null
 	if _prop != null:
 		_prop.queue_free()
 		_prop = null
@@ -125,9 +142,22 @@ func _marker_at(p: Vector3, col: Color) -> void:
 		_marker.material_override = _marker_mat
 		_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(_marker)
+		_pillar = MeshInstance3D.new()                       # a thin light column: the objective can be seen across a dark room
+		var pm := CylinderMesh.new()
+		pm.top_radius = 0.05
+		pm.bottom_radius = 0.05
+		pm.height = 3.2
+		pm.radial_segments = 6
+		pm.rings = 1
+		_pillar.mesh = pm
+		_pillar.material_override = _marker_mat
+		_pillar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_pillar)
 	_marker_mat.albedo_color = Color(col.r * 1.4, col.g * 1.4, col.b * 1.4, 0.8)
 	_marker.global_position = Vector3(p.x, p.y + 0.04, p.z)
 	_marker.visible = true
+	_pillar.global_position = Vector3(p.x, p.y + 1.6, p.z)
+	_pillar.visible = true
 
 
 func _make_safe(p: Vector3) -> void:
@@ -174,6 +204,9 @@ func prompt_for(pos: Vector3) -> String:
 		&"hostage":
 			if _actors != null and _actors.guards_alive() == 0 and _actors.hostage != null and not _actors.hostage.freed and _dist(pos, _actors.hostage.global_position) < HOSTAGE_REACH:
 				return "FREE THE HOSTAGE"
+		&"hack":
+			if state == &"active" and not hacking and _dist(pos, target_pos) < HACK_REACH:
+				return "HACK THE TERMINAL"
 	return ""
 
 
@@ -189,6 +222,10 @@ func interact(pos: Vector3) -> bool:
 		&"hostage":
 			_actors.hostage.free_up(InteriorGameplay.exit_point(_interior))
 			_finish()
+			return true
+		&"hack":
+			hacking = true
+			Sfx.play(&"ui_tap")
 			return true
 	return false
 
@@ -239,10 +276,16 @@ func tick(delta: float) -> void:
 		&"hack":
 			var inside := _dist(pp, target_pos) < HACK_REACH
 			if inside:
-				progress = minf(1.0, progress + delta / HACK_TIME)
+				_ring_t += delta
+				if not hacking and _ring_t >= HACK_AUTO:
+					hacking = true
+					progress = minf(1.0, progress + (_ring_t - delta) / HACK_TIME)     # the waiting time counts
+				if hacking:
+					progress = minf(1.0, progress + delta / HACK_TIME)
 			else:
+				_ring_t = 0.0
 				progress = maxf(0.0, progress - delta * HACK_DECAY / HACK_TIME)
-			if _waves < 3 and progress >= [0.2, 0.5, 0.8][_waves]:
+			while _waves < 3 and progress >= [0.2, 0.5, 0.8][_waves]:
 				_waves += 1
 				_close_in()
 			if progress >= 1.0:
@@ -296,6 +339,8 @@ func _finish() -> void:
 		Game.add_score(int(r["score"]))
 	if _marker != null:
 		_marker.visible = false
+	if _pillar != null:
+		_pillar.visible = false
 	if not _alarm:
 		_say(&"done")
 	Game.say("%s COMPLETE  +%d CREDITS" % [str(kind).to_upper(), int(r["credits"])], 3.0)
@@ -326,8 +371,31 @@ func hud_line() -> String:
 		&"assassinate":
 			return "OFFICER  TARGET SPOTTED" if found else "OFFICER  FIND THE TARGET"
 		&"hack":
-			return "TERMINAL  HACKING  %d%%" % int(progress * 100.0)
+			return "TERMINAL  HACKING  %d%%" % int(progress * 100.0) if hacking or progress > 0.0 else "TERMINAL  GO TO THE CONSOLE AND HACK IT"
 	return ""
+
+
+## What the job shows in the room right now: [{id, pos, label, height, objective}], the floating text over the safe, the hostage, the terminal, the officer (or the area he hides in).
+## `prompt_for` / `interact` are the USE side of the same objects.
+func interactables() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if not is_active():
+		return out
+	match kind:
+		&"safe":
+			out.append({"id": &"safe", "pos": target_pos, "label": "CRACK THE SAFE" if state == &"active" else "CRACKING  %d%%" % int(progress * 100.0), "height": 1.5, "objective": true})
+		&"hostage":
+			if _actors != null and _actors.hostage != null and not _actors.hostage.freed:
+				var n := _actors.guards_alive()
+				out.append({"id": &"hostage", "pos": _actors.hostage.global_position, "label": "FREE THE HOSTAGE" if n == 0 else "CLEAR THE ROOM FIRST  %d LEFT" % n, "height": 2.0, "objective": n == 0})
+		&"assassinate":
+			if found:
+				out.append({"id": &"officer", "pos": target_pos, "label": "TARGET", "height": 2.5, "objective": true})
+			else:
+				out.append({"id": &"officer_area", "pos": target_pos + _hint, "label": "FIND THE OFFICER", "height": 1.8, "objective": true})
+		&"hack":
+			out.append({"id": &"terminal", "pos": target_pos, "label": ("HACKING  %d%%" % int(progress * 100.0)) if hacking else "HACK THE TERMINAL", "height": 1.7, "objective": true})
+	return out
 
 
 ## Minimap markers: {pos: Vector3, color: Color, kind: StringName ("target" / "area" / "zone"), radius: float}.

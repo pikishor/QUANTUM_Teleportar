@@ -1989,6 +1989,19 @@ func _begin_heist() -> bool:
 	return true
 
 
+## True while the heist is inside the building and the data is still there to take by hand (no interior job of its own is running).
+func heist_take_open() -> bool:
+	return state == &"active" and kind == &"heist" and _phase == 2 and not loot
+
+
+## USE at the loot point: the data is taken now. Returns true when it was.
+func take_data() -> bool:
+	if not heist_take_open():
+		return false
+	loot = true
+	return true
+
+
 func _on_heist_mission(_k: StringName, _id: int, _reward: Dictionary) -> void:
 	if state == &"active" and kind == &"heist" and _phase == 2 and not loot:
 		loot = true
