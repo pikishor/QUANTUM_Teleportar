@@ -25,6 +25,9 @@ const TAB_GAP := 14.0               ## base px between the tabs
 const TITLE_PLATE_PAD := 16.0       ## base px the title block's backing plate extends past the text
 const SUB_LANE := 320.0 + 34.0      ## base px of the radio subtitle column (StoryView.SUB_W) plus its margin
 const MINIMAP := 148.0              ## base px: the round minimap, top left
+const SLIM_W := 190.0               ## base px of a slim status bar (phone HUD: no captions, no numbers; the colour and the length say it)
+const SLIM_H := 11.0
+const SLIM_PITCH := 17.0
 const BAR_W := 190.0                ## base px of an integrity / coherence / hull bar
 const LABEL_W := 92.0               ## base px: the least width of the caption column left of the bars (it grows to fit the widest caption in the font in use)
 const VALUE_W := 54.0
@@ -628,7 +631,7 @@ func press_button(id: StringName) -> bool:
 		_screen.queue_redraw()
 		return true
 	match id:
-		&"menu_gear":                                                 # MORE: opens the page of everything that is not on the main screen; a screen opened from it returns to it
+		&"menu_gear":                                                 # EXTRAS: opens the page of everything that is not on the main screen; a screen opened from it returns to it
 			if (Game.state != &"menu" and Game.state != &"paused") or not _main_screen():
 				return false
 			_gear_open = not _gear_open
@@ -1265,6 +1268,13 @@ func _plate_text(c: Control, font: Font, cx: float, y: float, text: String, size
 	return r
 
 
+## A slim status bar of the phone HUD: a dark track and the fill, nothing else.
+func _bar_slim(c: Control, x: float, y: float, w: float, h: float, frac: float, col: Color, s: float) -> void:
+	_rect(c, Rect2(x - 1.5 * s, y - 1.5 * s, w + 3.0 * s, h + 3.0 * s), Color(0.0, 0.03, 0.05, 0.7))
+	_rect(c, Rect2(x, y, w * clampf(frac, 0.0, 1.0), h), col)
+	_frame(c, Rect2(x, y, w, h), Color(col, 0.6), 1.0 * s)
+
+
 func _bar(c: Control, font: Font, x: float, y: float, w: float, h: float, frac: float, col: Color, label: String, value: String, s: float) -> void:
 	var r := Rect2(x, y, w, h)
 	_rect(c, r.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.6))
@@ -1388,10 +1398,11 @@ func _draw_hud_body() -> void:
 	var top := insv.x + 6.0 * s
 	var stack_end := top
 	if p != null:
-		var bw := BAR_W * s
+		var slim := touch_ui_on()                           # phone: two slim bars, no captions, no numbers (docs/DESIGN.md: health and energy small)
+		var bw := (SLIM_W if slim else BAR_W) * s
 		_caption_width(font, s)
-		var total := (_lw + 8.0 + VALUE_W + 8.0) * s + bw
-		var bx := vp.x * 0.5 - total * 0.5 + (_lw + 8.0) * s
+		var total := bw if slim else (_lw + 8.0 + VALUE_W + 8.0) * s + bw
+		var bx := vp.x * 0.5 - total * 0.5 + (0.0 if slim else (_lw + 8.0) * s)
 		var hp := UiUtil.num(p, &"hp", 100.0)
 		var mhp := maxf(UiUtil.num(p, &"max_hp", 100.0), 1.0)
 		var f := clampf(hp / mhp, 0.0, 1.0)
@@ -1402,10 +1413,28 @@ func _draw_hud_body() -> void:
 		if driving_hud:                                     # in a car: the hull, and the hero's own health only when he is hurt (no COHERENCE bar, no clutter)
 			rows = (1 if has_hull else 0) + (1 if f < 0.95 else 0)
 		var plate := Rect2(vp.x * 0.5 - total * 0.5 - 10.0 * s, top, total + 20.0 * s, (8.0 + 30.0 * (rows - 1) + 14.0 + 12.0) * s) if rows > 0 else Rect2(vp.x * 0.5, top, 0.0, 0.0)
+		if slim and rows > 0:
+			plate = Rect2(vp.x * 0.5 - total * 0.5 - 8.0 * s, top, total + 16.0 * s, (6.0 + SLIM_PITCH * (rows - 1) + SLIM_H + 7.0) * s)
 		if rows > 0:
 			_plate(c, plate, s)
 		var y0 := top + 8.0 * s
-		if driving_hud:
+		if slim:
+			y0 = top + 6.0 * s
+			var yy := y0
+			if driving_hud:
+				if has_hull:
+					var hf2 := UiUtil.num(veh, &"hp", 0.0) / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0)
+					_bar_slim(c, bx, yy, bw, SLIM_H * s, hf2, Color(1.0, 0.65, 0.25, 0.95) if hf2 > 0.4 else Color(1.0, 0.3, 0.3, 0.95), s)
+					yy += SLIM_PITCH * s
+				if f < 0.95:
+					_bar_slim(c, bx, yy, bw, SLIM_H * s, f, hp_col, s)
+			else:
+				_bar_slim(c, bx, yy, bw, SLIM_H * s, f, hp_col, s)
+				_bar_slim(c, bx, yy + SLIM_PITCH * s, bw, SLIM_H * s, UiUtil.num(p, &"energy", 100.0) / maxf(UiUtil.num(p, &"max_energy", 100.0), 1.0), Color(0.35, 0.8, 1.0, 0.95), s)
+				if has_hull:
+					var vh2 := UiUtil.num(veh, &"hp", 0.0)
+					_bar_slim(c, bx, yy + 2.0 * SLIM_PITCH * s, bw, SLIM_H * s, vh2 / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), s)
+		elif driving_hud:
 			if has_hull:
 				var vh0 := UiUtil.num(veh, &"hp", 0.0)
 				var hf := vh0 / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0)
@@ -1443,7 +1472,8 @@ func _draw_hud_body() -> void:
 				var col := UiUtil.AMBER if heat < 3.0 else UiUtil.RED
 				var pulse := 1.0 if heat < 3.0 else 0.8 + 0.2 * sin(_t * 8.0)
 				_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
-		_draw_wanted_tag(c, s, font, vp, top)
+		if not touch_ui_on():                                # the phone shows the stars only: the faction plate was a second block of words in the corner
+			_draw_wanted_tag(c, s, font, vp, top)
 	_draw_ally(c, s, font, right, top)
 	if p == null:
 		_draw_message(c, vp, s, font)
@@ -1856,7 +1886,7 @@ func _ensure_layout() -> void:
 			else:                                                      # PLAY / CONTINUE, OPTIONS, MORE: nothing else on the title
 				_add_card(&"continue" if _has_save else &"deploy", Rect2(cx - 204.0 * s, (310.0 + dy) * s, 408.0 * s, 76.0 * s), "CONTINUE" if _has_save else "PLAY", &"play", "", true)
 				_add_card(&"options", Rect2(cx - 204.0 * s, (398.0 + dy) * s, 200.0 * s, 68.0 * s), "OPTIONS", &"options")
-				_add_card(&"menu_gear", Rect2(cx + 4.0 * s, (398.0 + dy) * s, 200.0 * s, 68.0 * s), "MORE", &"more")
+				_add_card(&"menu_gear", Rect2(cx + 4.0 * s, (398.0 + dy) * s, 200.0 * s, 68.0 * s), "EXTRAS", &"more")
 		&"paused":
 			if photo_open():
 				PhotoScreen.layout(self, photo, vp, s)
@@ -1894,16 +1924,18 @@ func _ensure_layout() -> void:
 				SafehouseScreen.layout(self, cx, s)
 			elif _gear_open:
 				_layout_more(vp, cx, s)
-			elif Game.progress != null:                                 # RESUME, MAP, LOADOUT, OPTIONS and MORE: the whole pause menu
+			elif Game.progress != null:                                 # RESUME, MISSIONS, MAP, LOADOUT, UPGRADES, OPTIONS and EXTRAS: the whole pause menu
 				var by := 0.0                                           # the MISSIONS card (the Mission Board) sits under RESUME when the board exists: one tap to the next job
-				_add_card(&"resume", Rect2(cx - 204.0 * s, PAUSE_Y * s, 408.0 * s, 80.0 * s), "RESUME", &"play", "", true)
+				_add_card(&"resume", Rect2(cx - 232.0 * s, PAUSE_Y * s, 464.0 * s, 80.0 * s), "RESUME", &"play", "", true)
 				if MissionBoardScreen.board() != null:
-					_add_card(&"board_open", Rect2(cx - 204.0 * s, (PAUSE_Y + 96.0) * s, 408.0 * s, 72.0 * s), "MISSIONS", &"missions", "", false, UiUtil.AMBER)
+					_add_card(&"board_open", Rect2(cx - 232.0 * s, (PAUSE_Y + 96.0) * s, 464.0 * s, 72.0 * s), "MISSIONS", &"missions", "", false, UiUtil.AMBER)
 					by = 80.0
-				_add_card(&"pause_map", Rect2(cx - 204.0 * s, (PAUSE_Y + 96.0 + by) * s, 200.0 * s, 72.0 * s), "MAP", &"map")
-				_add_card(&"loadout", Rect2(cx + 4.0 * s, (PAUSE_Y + 96.0 + by) * s, 200.0 * s, 72.0 * s), "LOADOUT", &"loadout")
-				_add_card(&"options", Rect2(cx - 204.0 * s, (PAUSE_Y + 176.0 + by) * s, 200.0 * s, 72.0 * s), "OPTIONS", &"options")
-				_add_card(&"menu_gear", Rect2(cx + 4.0 * s, (PAUSE_Y + 176.0 + by) * s, 200.0 * s, 72.0 * s), "MORE", &"more")
+				var py := PAUSE_Y + 96.0 + by                           # MAP LOADOUT / UPGRADES OPTIONS / EXTRAS (docs/DESIGN.md: the five screens of the default menu, the rest under EXTRAS)
+				_add_card(&"pause_map", Rect2(cx - 232.0 * s, py * s, 228.0 * s, 72.0 * s), "MAP", &"map")
+				_add_card(&"loadout", Rect2(cx + 4.0 * s, py * s, 228.0 * s, 72.0 * s), "LOADOUT", &"loadout")
+				_add_card(&"hero_open", Rect2(cx - 232.0 * s, (py + 80.0) * s, 228.0 * s, 72.0 * s), "UPGRADES", &"hero")
+				_add_card(&"options", Rect2(cx + 4.0 * s, (py + 80.0) * s, 228.0 * s, 72.0 * s), "OPTIONS", &"options")
+				_add_card(&"menu_gear", Rect2(cx - 232.0 * s, (py + 160.0) * s, 464.0 * s, 64.0 * s), "EXTRAS", &"more")
 			else:
 				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_add(&"menu", Rect2(cx - 154.0 * s, 314.0 * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
@@ -1913,7 +1945,8 @@ func _ensure_layout() -> void:
 			_add(&"next", Rect2(cx - 170.0 * s, 560.0 * s, 340.0 * s, 64.0 * s), "NEXT SECTOR", false)
 
 
-## The entries of the MORE page (button id, label) for the current screen: the title lists what is not PLAY / OPTIONS, the pause menu everything else.
+## The entries of the EXTRAS page (button id, label) for the current screen. Default: the title lists NEW GAME, CHAPTERS and DEMO; the pause menu SUIT, PHOTO, CHAPTERS and ABORT TO
+## MENU. The screens that the cut list hides (side jobs, heists, safehouse, achievements, boss rush) join them only while MenuFlags.show_cut() is on (Options > GAME > ALL EXTRAS, the DEMO).
 func more_items() -> Array:
 	var items: Array = []
 	if Game.state == &"menu":
@@ -1922,11 +1955,16 @@ func more_items() -> Array:
 		if _chapters_ok():
 			items.append([&"chapters", "CHAPTERS"])
 		if Game.progress != null:
-			items.append_array([[&"demo", "DEMO"], [&"arena_open", "ARENA"]])
+			items.append([&"demo", "DEMO"])
+			if MenuFlags.offered(&"arena_open"):
+				items.append([&"arena_open", "ARENA"])
 	else:
-		items = [[&"hero_open", "HERO"], [&"side_open", "MISSIONS"], [&"heist_open", "HEISTS"], [&"look_open", "SUIT"], [&"sh_open", "SAFEHOUSE"], [&"ach", "ACHIEVEMENTS"], [&"photo_open", "PHOTO"], [&"arena_open", "ARENA"]]
+		items = [[&"look_open", "SUIT"], [&"photo_open", "PHOTO"]]
 		if _chapters_ok():
 			items.append([&"chapters", "CHAPTERS"])
+		for cut: Array in [[&"side_open", "SIDE JOBS"], [&"heist_open", "HEISTS"], [&"sh_open", "SAFEHOUSE"], [&"ach", "ACHIEVEMENTS"], [&"arena_open", "ARENA"]]:
+			if MenuFlags.offered(cut[0]):
+				items.append(cut)
 		items.append([&"menu", "ABORT TO MENU"])
 	return items
 
@@ -2050,7 +2088,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		&"menu" when _chapters_open:
 			ChapterSelect.draw(self, c, vp, s, font, cx)
 		&"menu" when _gear_open:
-			header(c, vp, s, font, "MORE")
+			header(c, vp, s, font, "EXTRAS")
 		&"menu":
 			var dy := _title_shift()
 			var tp := title_plate(vp, s)
@@ -2095,7 +2133,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			elif _shop_open:
 				ShopScreen.draw(self, c, vp, s, font, cx)
 			elif _gear_open:
-				header(c, vp, s, font, "MORE")
+				header(c, vp, s, font, "EXTRAS")
 			else:
 				_draw_pause_head(c, vp, s, font)
 				if not touch_ui_on():
@@ -2179,10 +2217,11 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				WeaponIcons.draw_flat(c, StringName(pc["id"]), pc["r"], Color(1, 1, 1, float(pc.get("a", 1.0))))
 		if b.get("flat", false):
 			continue
-		if b.has("cap") and WeaponIcons.has_icon(StringName(String(b["id"]).substr(6))):                         # a loadout tile: opaque plate, icon over the weapon's name
+		if b.has("cap"):                                                                                         # a loadout tile: opaque plate, the weapon's own picture over its name
+			var wid := StringName(String(b["id"]).substr(6))
 			c.draw_rect(r, MenuKit.FILL_ON if (on or hot) else MenuKit.FILL)
 			c.draw_rect(r, Color(UiUtil.MAGENTA if on else UiUtil.CYAN, 1.0 if on else 0.45), false, (3.0 if on else 1.5) * s)
-			WeaponIcons.draw(c, StringName(String(b["id"]).substr(6)), Rect2(r.position.x + r.size.x * 0.12, r.position.y + 4.0 * s, r.size.x * 0.76, r.size.y * 0.5), Color(1, 1, 1, 0.97 if (on or hot) else 0.8))
+			ItemIcons.draw_weapon(c, wid, Rect2(r.position.x + r.size.x * 0.06, r.position.y + 3.0 * s, r.size.x * 0.88, r.size.y * 0.56), Color(1, 1, 1, 1.0 if (on or hot) else 0.85))
 			var csz := maxi(UiUtil.fit_size(font, str(b["cap"]), r.size.x - 8.0 * s, int(BODY_MIN * s)), int(BODY_MIN * s))
 			_text(c, font, Vector2(r.position.x, r.position.y + r.size.y - 9.0 * s), str(b["cap"]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, csz, Color(1, 1, 1, 0.97 if (on or hot) else 0.78))
 			continue

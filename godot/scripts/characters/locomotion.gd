@@ -371,7 +371,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 	var gate := clampf(speed / 1.5, 0.0, 1.0) if grounded else 0.0
 	var wd := _w[0] - _w[1]                               # + left foot carries the weight
 	var idle := 1.0 - gate
-	var shift := sin(_clock * 0.9) * 0.012 * idle
+	var shift := sin(_clock * 1.3) * 0.019 * idle                  # the idle weight shift: a hero on a phone screen is never a still statue (hud/camera final)
 	_sway = PlayerUtil.spring(_sway, -wd * 0.03 * gate + shift, 14.0, dt)
 	_roll = PlayerUtil.spring(_roll, -wd * 0.045 * gate - shift * 1.2, 14.0, dt)
 	var py := wd * g_pelvis_yaw * gate * (1.0 + 0.8 * run_amount)
@@ -401,7 +401,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 	rig.support = maxf(rig.support_l, rig.support_r)
 	# turn lag of the torso, the head leads the turn and the aim
 	_lag = PlayerUtil.spring(_lag, clampf(-yaw_rate * 0.06, -0.4, 0.4), 9.0, dt)
-	var glance := 0.28 * sin(_clock * 0.43) * maxf(0.0, sin(_clock * 0.17 + 1.0)) * idle
+	var glance := 0.4 * sin(_clock * 0.6) * maxf(0.0, sin(_clock * 0.25 + 1.0)) * idle
 	_look = PlayerUtil.spring(_look, clampf(yaw_rate * 0.07 + look_off * 0.8, -0.8, 0.8) + glance, 11.0, dt)
 	_look_p = PlayerUtil.spring(_look_p, -0.06 * _ads, 9.0, dt)
 	var ads_twist := -0.13 * _ads
@@ -416,7 +416,7 @@ func update(dt: float, disp: Vector3, yaw: float, grounded: bool, vy: float, wan
 	rig.phase = _phase * TAU
 	rig.fw = clampf(vel.y / sp, -1.0, 1.0) if speed > 0.2 else 1.0
 	rig.lw = clampf(vel.x / sp, -1.0, 1.0) if speed > 0.2 else 0.0
-	rig.breathe = sin(_clock * 2.1) * 0.018 * idle + sin(_clock * 5.2) * 0.004 * gate
+	rig.breathe = sin(_clock * 2.1) * 0.03 * idle + sin(_clock * 5.2) * 0.004 * gate
 	rig.clock = _clock
 	rig.ik = true
 

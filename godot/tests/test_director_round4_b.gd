@@ -90,12 +90,13 @@ func _loadout_picture() -> void:
 	for vp: Vector2 in [Vector2(844, 390), Vector2(2400, 1080)]:
 		var s := UiUtil.ui_scale(vp)
 		var cx := vp.x * 0.5
-		var pic := LoadoutScreen.picture_rect(cx, s)
-		var grid_bottom := (LoadoutScreen.GRID_Y + 2.0 * (LoadoutScreen.TILE.y + LoadoutScreen.TILE_GAP)) * s
-		var arrow := Rect2(cx + (LoadoutScreen.GRID_X + 4.0 * LoadoutScreen.TILE.x + 3.0 * LoadoutScreen.TILE_GAP - 64.0) * s, (LoadoutScreen.INFO_Y + 62.0) * s, 64.0 * s, 64.0 * s)
-		var slots := Rect2(cx + 20.0 * s, 0.0, 900.0 * s, vp.y)
-		TestLib.check(pic.size.x >= 190.0 * s and pic.position.y >= grid_bottom - 1.0, "%dx%d: the loadout picture (%s) is big and sits under the tile grid" % [int(vp.x), int(vp.y), pic.size])
-		TestLib.check(not pic.intersects(arrow) and not pic.intersects(slots), "%dx%d: the loadout picture clears the page arrows and the attachment slots" % [int(vp.x), int(vp.y)])
+		var k := LoadoutScreen.k_of(vp.x, s)
+		var pic := LoadoutScreen.picture_rect(cx, s, k)
+		var tiles := Rect2(cx + LoadoutScreen.GRID_X * s * k, LoadoutScreen.GRID_Y * s, (LoadoutScreen.GRID_COLS * LoadoutScreen.TILE.x + LoadoutScreen.TILE_GAP) * s * k, 4.0 * (LoadoutScreen.TILE.y + LoadoutScreen.TILE_GAP) * s)
+		var arrows := LoadoutScreen.arrow_rects(cx, s, k)
+		var slots := Rect2(cx + LoadoutScreen.SLOT_X * s * k, 0.0, 900.0 * s, vp.y)
+		TestLib.check(pic.size.x >= 480.0 * s and pic.size.y >= 240.0 * s, "%dx%d: the loadout picture (%s) is big (was 204 x 98 base px)" % [int(vp.x), int(vp.y), pic.size / s])
+		TestLib.check(not pic.intersects(tiles) and not pic.intersects(arrows[0]) and not pic.intersects(arrows[1]) and not pic.intersects(slots), "%dx%d: the loadout picture clears the tiles, the page arrows and the attachment slots" % [int(vp.x), int(vp.y)])
 
 
 # --- 11 ------------------------------------------------------------------------------------------------------------------------

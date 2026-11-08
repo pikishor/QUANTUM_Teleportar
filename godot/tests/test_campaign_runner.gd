@@ -42,6 +42,9 @@ class FakeStory extends Node:
 	func cards_active() -> bool:
 		return cards
 
+	func banner_visible() -> bool:
+		return false
+
 
 var e := Env.new()
 var host: Node
@@ -947,10 +950,10 @@ func _chapter_select_ui() -> void:
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var ids2 := _ids()
-	TestLib.check(ids2.has(&"chapters") and ids2.has(&"hero_open") and ids2.has(&"menu"), "the pause MORE page has CHAPTERS next to HERO")
+	TestLib.check(ids2.has(&"chapters") and ids2.has(&"look_open") and ids2.has(&"menu"), "the pause EXTRAS page has CHAPTERS next to SUIT (wave 100 menu cut: UPGRADES moved to the main pause menu)")
 	var pr: Rect2 = _button(&"chapters")["rect"]
-	var sr: Rect2 = _button(&"hero_open")["rect"]
-	TestLib.check(not pr.intersects(sr) and pr.size.y >= 44.0 * s - 0.5, "CHAPTERS and HERO share the grid without overlap")
+	var sr: Rect2 = _button(&"look_open")["rect"]
+	TestLib.check(not pr.intersects(sr) and pr.size.y >= 44.0 * s - 0.5, "CHAPTERS and SUIT share the grid without overlap")
 	TestLib.check(hud.press_button(&"chapters") and hud._chapters_open and _ids().has(&"chapter_2"), "CHAPTERS opens from the pause screen")
 	TestLib.check(_button(&"chapter_1")["on"] == true and _button(&"chapter_0")["on"] == false, "the running chapter is highlighted")
 	TestLib.check(hud.press_button(&"chapter_2") and Game.state == &"play" and story.set_to == 2, "chapter 3 starts from the pause screen")

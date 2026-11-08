@@ -307,11 +307,11 @@ func _camera_against_a_facade() -> void:
 	var cam := sampler.pos
 	sampler.queue_free()
 	var back := cam.z - p.global_position.z
-	TestLib.check(back > 0.3 and back < 1.2, "squeezed against the wall the camera sits %.2f m behind the player (floor 0.85 m)" % back)
+	TestLib.check(back > 0.3 and back < CameraRig.THROUGH_ARM + 0.3, "squeezed against the wall the camera sits %.2f m behind the player (wave 100: THROUGH_ARM, 1.9 m from the head behind a facade)" % back)
 	var inside := city.is_inside_building(cam)
 	var depth := cam.z - face
 	print("camera squeezed against a facade: z = %.2f, face at %.2f -> %.2f m %s the wall volume" % [cam.z, face, absf(depth), "inside" if depth > 0.0 else "outside"])
-	TestLib.check(depth < 0.8, "the camera never sinks more than 0.8 m into the wall behind the player (%.2f m)" % depth)
+	TestLib.check(depth < CameraRig.THROUGH_ARM - 0.3, "the camera never sinks further into the wall behind the player than the through-the-facade arm allows (%.2f m)" % depth)
 	TestLib.check(is_equal_approx(p.camera_rig.camera.near, 0.08) or p.camera_rig.camera.near < 0.15, "the near plane (%.2f m) is small enough to keep the character from clipping" % p.camera_rig.camera.near)
 	if inside:
 		print("  note: the camera is inside the facade volume; back faces are culled so the street stays visible")

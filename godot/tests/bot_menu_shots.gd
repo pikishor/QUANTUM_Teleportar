@@ -13,24 +13,26 @@ func _init() -> void:
 	_out = OS.get_environment("MENU_OUT")
 	_steps = [
 		["title", &"menu", []],
-		["title_more", &"menu", [&"menu_gear"]],
+		["title_extras", &"menu", [&"menu_gear"]],
 		["title_options", &"menu", [&"options"]],
 		["pause", &"paused", []],
-		["pause_more", &"paused", [&"menu_gear"]],
-		["hero_upgrades", &"paused", [&"menu_gear", &"hero_open"]],
-		["hero_weapons", &"paused", [&"menu_gear", &"hero_open", &"hero_tab_weapons"]],
-		["hero_skills", &"paused", [&"menu_gear", &"hero_open", &"hero_tab_skills"]],
-		["hero_craft", &"paused", [&"menu_gear", &"hero_open", &"hero_tab_craft"]],
+		["pause_extras", &"paused", [&"menu_gear"]],
+		["pause_extras_all", &"paused", [&"menu_gear"]],
+		["board", &"paused", [&"board_open"]],
+		["hero_upgrades", &"paused", [&"hero_open"]],
+		["hero_weapons", &"paused", [&"hero_open", &"hero_tab_weapons"]],
+		["hero_skills", &"paused", [&"hero_open", &"hero_tab_skills"]],
+		["hero_craft", &"paused", [&"hero_open", &"hero_tab_craft"]],
 		["loadout", &"paused", [&"loadout"]],
+		["loadout_launcher", &"paused", [&"loadout", &"wheel_launcher"]],
 		["gear", &"paused", [&"loadout", &"loadout_gear"]],
 		["options", &"paused", [&"options"]],
 		["options_display", &"paused", [&"options", &"opt_tab_1"]],
 		["options_sound", &"paused", [&"options", &"opt_tab_2"]],
-		["options_play", &"paused", [&"options", &"opt_tab_3"]],
-		["options_data", &"menu", [&"options", &"opt_tab_4"]],
+		["options_game", &"paused", [&"options", &"opt_tab_4"]],
 		["look", &"paused", [&"menu_gear", &"look_open"]],
 		["safehouse", &"paused", [&"menu_gear", &"sh_open"]],
-		["missions", &"paused", [&"menu_gear", &"side_open"]],
+		["side_jobs", &"paused", [&"menu_gear", &"side_open"]],
 		["heists", &"paused", [&"menu_gear", &"heist_open"]],
 		["achievements", &"paused", [&"menu_gear", &"ach"]],
 		["arena", &"paused", [&"menu_gear", &"arena_open"]],
@@ -80,8 +82,12 @@ func _ids() -> Array:
 	return _hud.buttons.map(func(b: Dictionary) -> StringName: return b["id"])
 
 
+const FLAG_STEPS := ["pause_extras_all", "hero_skills", "hero_craft", "safehouse", "side_jobs", "heists", "achievements", "arena"]
+
+
 func _begin() -> void:
 	var st: Array = _steps[_i]
+	MenuFlags.all_extras = FLAG_STEPS.has(String(st[0]))              # the cut screens only show with the flag (scripts/ui/menu_flags.gd)
 	var mo := _hud.touch.get_node_or_null("MapScreen") as MapScreen if _hud.touch != null else null
 	if mo != null and mo.is_open():
 		mo.close_screen()

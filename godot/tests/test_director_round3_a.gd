@@ -243,7 +243,7 @@ func _map_fresh() -> void:
 	var ms := MapScreen.new()
 	host.add_child(ms)
 	var share := 100.0 * float(ms.discovered_count()) / float(MapScreen.CELLS * MapScreen.CELLS)
-	TestLib.check(share >= 5.0 and share <= 40.0, "a fresh map is charted around the start only (%.0f %%, never 100 %%)" % share)
+	TestLib.check(share >= 1.0 and share <= 12.0, "a fresh map is mostly uncharted: the spawn block only (%.1f %%, never 100 %%)" % share)
 	ms.queue_free()
 	MapScreen.path_override = ""
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_round3_a_map_%d.cfg" % OS.get_process_id()))

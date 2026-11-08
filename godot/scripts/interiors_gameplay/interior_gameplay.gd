@@ -18,6 +18,7 @@ const ORIGIN := Vector3(CityLayout.HALF + 7.5, 0.0, 0.0)
 const REACH_DOOR := 2.8
 const REACH_VENDOR := 3.2
 const REACH_EXIT := 2.2
+const EXIT_PUSH := 0.45                       ## metres the hero is set out from the door spot when he leaves a building: the camera behind him gets that much more room before the facade (the sidewalk is 2 m wide)
 const FADE := 0.26
 const SAVE_PATH := "user://interiors.cfg"
 const FOLLOW_RADIUS := 30.0
@@ -442,7 +443,7 @@ func _apply_exit() -> void:
 	_restore_outside(true)
 	var p := Game.player as Player
 	if p != null:
-		p.teleport_to(d["pos"])
+		p.teleport_to(Vector3(d["pos"]) + Vector3(d.get("normal", Vector3.ZERO)) * EXIT_PUSH)
 		var fy := float(d["face_yaw"])
 		p.yaw = fy
 		p.camera_rig.reset_view(fy, p.camera_rig.pitch)

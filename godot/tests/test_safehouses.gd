@@ -15,6 +15,7 @@ var hud: Hud
 
 
 func run(h: Node) -> void:
+	MenuFlags.all_extras = true                      # the cut screens are listed under EXTRAS only with the flag (scripts/ui/menu_flags.gd); the screens themselves are unchanged
 	host = h
 	Sfx.muted = true
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP))

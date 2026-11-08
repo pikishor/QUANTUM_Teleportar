@@ -441,6 +441,6 @@ func _caps_and_budget() -> void:
 	# the scale and tint variants
 	var br := em.spawn(&"brute", Vector3(60.0, 0.0, 60.0), false)
 	var op := em.spawn(&"operative", Vector3(63.0, 0.0, 60.0), false)
-	TestLib.check(br.model.scale.x > op.model.scale.x * 1.3, "the brute is the operative model scaled up")
+	TestLib.check((br.model.scale.x / br._look_scale.x) > (op.model.scale.x / op._look_scale.x) * 1.3, "the brute (body scale with the roster look divided out, so a wide gunner look cannot mask it) is the operative model scaled up")
 	TestLib.check(br.mark_size() > op.mark_size() * 1.3, "its threat ring is scaled with it")
 	em.clear()

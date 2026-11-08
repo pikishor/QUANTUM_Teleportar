@@ -24,7 +24,7 @@ const BUTTONS := [
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &"foot"},
 	{"action": &"ability", "dx": 515.0, "dy": 120.0, "r": 58.0, "fs": 22, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability"},
 	{"action": &"swap", "dx": 520.0, "dy": 262.0, "r": 58.0, "fs": 22, "label": "WEAPON", "need": &"weapon"},
-	{"action": &"more", "dx": 56.0, "dy": 520.0, "r": 40.0, "fs": 22, "label": "MORE", "need": &"more_btn", "fn": &"more"},
+	{"action": &"more", "dx": 56.0, "dy": 492.0, "r": 36.0, "fs": 22, "label": "MORE", "need": &"more_btn", "fn": &"more"},
 	{"action": &"altfire", "dx": 650.0, "dy": 100.0, "r": 40.0, "fs": 22, "label": "ALT", "need": &"more"},
 	{"action": &"melee", "dx": 650.0, "dy": 212.0, "r": 46.0, "fs": 22, "label": "MELEE", "need": &"more"},
 	{"action": &"throw_item", "dx": 650.0, "dy": 322.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more"},
@@ -58,7 +58,7 @@ const WHEEL_ABILITIES := [
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
 const LONG_PRESS := 0.6             ## seconds: holding the FPS box this long toggles the error panel (a short tap cycles the graphics tier)
-const GRAB_SHOW := 9.0              ## metres: an enemy or a car this close in front shows GRAB
+const GRAB_SHOW := 6.0              ## metres: an enemy or a car this close in front shows GRAB
 const GRAB_SHOW_PROP := 3.5
 const PULSE := 0.14                ## seconds a wheel pick holds its action
 const WHEEL_HOLD := 0.4             ## seconds SWAP is held before the wheel opens (a short tap cycles the weapon)
@@ -169,6 +169,8 @@ var _story_hidden := false
 
 
 func _process(delta: float) -> void:
+	if (layer > 9) != wheel.is_open:                                       # an open wheel (and its scrim) is drawn above every plate and prompt of the HUD layer (10): nothing shows over a disc
+		layer = 11 if wheel.is_open else 9
 	if wheel.is_open != _story_hidden:                                  # the chapter banner and the radio subtitles step aside while the wheel is up (director review 4, #4: the wheel opened under the CHAPTER 1 title)
 		_story_hidden = wheel.is_open
 		if is_instance_valid(Game.story) and Game.story.get(&"view") != null:
@@ -317,7 +319,7 @@ func touch_down(id: int, pos: Vector2) -> void:
 		open_map()
 		return
 	for b: Dictionary in BUTTONS:
-		if button_visible(b) and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]) * UiSettings.s_button_size, UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
+		if button_visible(b) and not wheel.is_open and pos.distance_to(_button_center(b)) <= maxf(float(b["r"]) * UiSettings.s_button_size, UiUtil.TOUCH_MIN * 0.5) * _scale() * 1.15:
 			if b.get("fn", &"") == &"wheel_ability":                   # ABILITY: press opens the wheel, drag and release picks, a quick tap leaves it open
 				_open_wheel(&"ability", id, pos)
 				return
@@ -468,7 +470,7 @@ func button_visible(b: Dictionary) -> bool:
 		&"more_companion":
 			return more_open and not _driving() and Companion.controllable()
 		&"grab":
-			return is_instance_valid(Game.player) and not _driving() and (_grab_near or _grab_held())
+			return is_instance_valid(Game.player) and not _driving() and ((_grab_near and not _use_near) or _grab_held())       # a car in ENTER reach shows ENTER alone: one contextual button, not two
 		&"interior":
 			return InteriorGameplay.active and not InteriorGameplay.vendor_open and is_instance_valid(InteriorGameplay.instance) and not InteriorGameplay.instance.busy \
 					and not InteriorGameplay.prompt.begins_with("LEAVE")       # at the door the USE button already says LEAVE: one button, not two
@@ -534,17 +536,32 @@ func _grab_in_front() -> bool:
 	return d <= (GRAB_SHOW if t["kind"] != &"prop" else GRAB_SHOW_PROP)           # a prop has to be close: the button must not sit on screen all the time
 
 
-## Opens the radial wheel for `kind` while `finger` holds its button at `pos`.
+## Opens the radial wheel for `kind` while `finger` holds its button at `pos`. The wheel is laid out AROUND THE THUMB (the centre of the button that opened it) in the free
+## arc that stays on the screen; every other button is hidden while it is open (scripts/ui/radial_wheel.gd, tests/test_menu_cut.gd).
 func _open_wheel(kind: StringName, finger: int, pos: Vector2) -> void:
-	var vp := _vp_size()
-	var at := Vector2(vp.x * (0.42 if UiSettings.s_left_hand else 0.58), vp.y * 0.5)       # up and left of the thumb cluster: the discs no longer sit on RELOAD / ABILITY (director review 4, #6)
-	wheel.open_at(kind, wheel_items(kind), at, _scale(), false)
+	var at := pos
+	var want: StringName = &"swap" if kind == &"weapon" else &"ability"
+	for b: Dictionary in BUTTONS:
+		if b["action"] == want:
+			at = _button_center(b)                                   # the thumb sits on its button: the wheel opens around it
+	wheel.open_at(kind, wheel_items(kind), at, _scale(), false, wheel_bounds())
 	_wheel_finger = finger if wheel.is_open else -1
 	_wheel_held = 0.0
 	_wheel_moved = false
 	_wheel_from_pos = pos
 	Sfx.play(&"ui_tap")
 	_canvas.queue_redraw()
+
+
+## Where the centre of a wheel disc may sit (canvas px): the screen less the notch insets and an 8 px margin, less one disc radius.
+func wheel_bounds() -> Rect2:
+	var vp := _vp_size()
+	var s := _scale()
+	var m := (RadialWheel.ITEM_R + RadialWheel.EDGE) * s
+	var ins := _insets()
+	var top := UiUtil.insets_v(vp).x
+	var bot := UiUtil.insets_v(vp).y
+	return Rect2(Vector2(ins.x + m, top + m), Vector2(maxf(vp.x - ins.x - ins.y - 2.0 * m, 1.0), maxf(vp.y - top - bot - 2.0 * m, 1.0)))
 
 
 ## The discs of a wheel: {id, label, ready, active, cd, current}.
@@ -604,8 +621,10 @@ func _weapon_face(c: Control, font: Font, centre: Vector2, r: float, s: float, l
 ## The radial wheel: a faint disc behind, one button sprite per item (name or weapon silhouette), the picked wedge bright.
 func _draw_wheel(c: Control, font: Font, s: float) -> void:
 	var n := wheel.items.size()
-	c.draw_rect(Rect2(Vector2.ZERO, _vp_size()), Color(0.0, 0.02, 0.04, 0.5))             # a scrim: the buttons and plates under the wheel step back instead of showing through the discs
-	c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(wheel.centre - Vector2.ONE * (RadialWheel.RADIUS + RadialWheel.ITEM_R + 14.0) * s, Vector2.ONE * (RadialWheel.RADIUS + RadialWheel.ITEM_R + 14.0) * s * 2.0), false, Color(0, 0.02, 0.04, 0.6))
+	c.draw_rect(Rect2(Vector2.ZERO, _vp_size()), Color(0.0, 0.02, 0.04, 0.62))             # a scrim: the buttons and plates under the wheel step back instead of showing through the discs
+	var ring := RadialWheel.RADIUS * s
+	c.draw_arc(wheel.centre, ring, 0.0, TAU, 64, Color(UiUtil.CYAN, 0.16), 3.0 * s, false)  # the track the discs sit on, and the thumb's own dot in the middle
+	c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(wheel.centre - Vector2.ONE * 30.0 * s, Vector2.ONE * 60.0 * s), false, Color(UiUtil.CYAN, 0.22))
 	var r := RadialWheel.ITEM_R * s
 	var texts: Array = []
 	for i in n:
@@ -793,7 +812,7 @@ func _draw_ui_body() -> void:
 	for b: Dictionary in _held.values():
 		down.append(b["action"])
 	for b: Dictionary in BUTTONS:
-		if not button_visible(b):
+		if not button_visible(b) or wheel.is_open:                 # an open wheel is the only thing on the thumb side: no button shows under or beside it
 			continue
 		var centre := _button_center(b)
 		var r := float(b["r"]) * s * UiSettings.s_button_size

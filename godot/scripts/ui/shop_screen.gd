@@ -56,7 +56,7 @@ static func row_y(i: int) -> float:
 ## The HERO tab bar (8..72 base px): UPGRADES, WEAPONS, SKILLS, CRAFT. `active` is the id of the lit tab. Shared by the shop, skills and workbench screens.
 static func tabs(hud: Hud, cx: float, s: float, active: StringName) -> void:
 	var specs: Array = [[&"hero_tab_up", "UPGRADES"], [&"hero_tab_weapons", "WEAPONS"]]
-	if Upgrades.show_all:                                               # skill tree and workbench stay behind the flag (DESIGN.md cut list)
+	if MenuFlags.show_cut():                                            # skill tree and workbench stay behind the flag (DESIGN.md cut list; MenuFlags)
 		specs.append_array([[&"hero_tab_skills", "SKILLS"], [&"hero_tab_craft", "CRAFT"]])
 	var total := float(specs.size()) * TAB_W + float(specs.size() - 1) * TAB_GAP
 	var k := minf(1.0, hud.get_viewport().get_visible_rect().size.x * 0.97 / (total * s))

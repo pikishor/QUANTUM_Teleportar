@@ -95,11 +95,15 @@ func run(host: Node) -> void:
 		_check_screen(tag + " title MORE", vp, s, [&"deploy", &"chapters", &"more_back"], vp.y - 90.0 * s - 18.0 * s)
 		# pause with progress: RESUME, MAP, LOADOUT, OPTIONS, MORE
 		_layout(&"paused", true, true)
-		_check_screen(tag + " pause", vp, s, [&"resume", &"pause_map", &"loadout", &"options", &"menu_gear"], vp.y - 40.0 * s - 18.0 * s)
-		TestLib.check(hud.buttons.size() == 5, "%s: the pause menu shows five buttons" % tag)
+		_check_screen(tag + " pause", vp, s, [&"resume", &"pause_map", &"loadout", &"hero_open", &"options", &"menu_gear"], vp.y - 40.0 * s - 18.0 * s)
+		TestLib.check(hud.buttons.size() == 6, "%s: the pause menu shows six buttons (RESUME, MAP, LOADOUT, UPGRADES, OPTIONS, EXTRAS)" % tag)
 		# the pause MORE page: HERO, MISSIONS, HEISTS, SUIT, SAFEHOUSE, ACHIEVEMENTS, PHOTO, ARENA, CHAPTERS, ABORT, BACK
+		MenuFlags.all_extras = true                                      # the cut screens are listed only with the flag
 		_layout(&"paused", true, true, true)
-		_check_screen(tag + " pause MORE", vp, s, [&"hero_open", &"side_open", &"heist_open", &"look_open", &"sh_open", &"ach", &"photo_open", &"arena_open", &"chapters", &"menu", &"more_back"], vp.y - 40.0 * s - 18.0 * s)
+		_check_screen(tag + " pause EXTRAS (all)", vp, s, [&"side_open", &"heist_open", &"look_open", &"sh_open", &"ach", &"photo_open", &"arena_open", &"chapters", &"menu", &"more_back"], vp.y - 40.0 * s - 18.0 * s)
+		MenuFlags.all_extras = false
+		_layout(&"paused", true, true, true)
+		_check_screen(tag + " pause EXTRAS", vp, s, [&"look_open", &"photo_open", &"chapters", &"menu", &"more_back"], vp.y - 40.0 * s - 18.0 * s)
 	win.size = old
 	await e.frames(3)
 	Game.state = &"play"

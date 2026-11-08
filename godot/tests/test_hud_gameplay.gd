@@ -161,7 +161,7 @@ func _shop(host: Node) -> void:
 	prog.new_campaign()
 	hud.pause_game()
 	hud._ensure_layout()
-	TestLib.check(_ids().has(&"resume") and _ids().has(&"pause_map") and _ids().has(&"loadout") and _ids().has(&"options") and _ids().has(&"menu_gear") and _ids().has(&"board_open") and _ids().size() == 6, "the pause screen has RESUME, MISSIONS, MAP, LOADOUT, OPTIONS and MORE")
+	TestLib.check(_ids().has(&"resume") and _ids().has(&"pause_map") and _ids().has(&"loadout") and _ids().has(&"options") and _ids().has(&"hero_open") and _ids().has(&"menu_gear") and _ids().has(&"board_open") and _ids().size() == 7, "the pause screen has RESUME, MISSIONS, MAP, LOADOUT, UPGRADES, OPTIONS and EXTRAS")
 	TestLib.check(not hud.press_button(&"buy_damage"), "buy buttons do nothing outside the shop")
 	TestLib.check(hud.press_button(&"shop") and hud._shop_open, "UPGRADES opens the shop")
 	hud._ensure_layout()

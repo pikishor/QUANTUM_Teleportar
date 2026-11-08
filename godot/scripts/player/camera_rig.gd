@@ -57,8 +57,8 @@ const HOOD_FOV := 82.0
 const VEH_DRIFT_FOLLOW := 0.55 # how far the view turns toward the direction of travel of a sliding car (1 = fully)
 const VEH_VIEWS := 3           # 0 chase, 1 far, 2 hood
 const ARM_RADIUS := 0.22
-const FADE_START := 1.2                      ## the hero fades out smoothly when the camera is closer than this (metres from the head) ...
-const FADE_END := 0.9                        ## ... and is fully hidden at this distance
+const FADE_START := 1.0                      ## the hero fades out smoothly when the camera is closer than this (metres from the head) ...
+const FADE_END := 0.55                       ## ... and is fully hidden at this distance
 const MIN_ARM := 0.85                        ## shortest camera arm in metres, however close the wall is (the prototype's floor was 0.5 m)
 const RIG_PRIORITY := 100                    ## process priority: after the nodes it follows (lower numbers run first)
 const INTERIOR_ARM_SCALE := 0.78             ## inside a generated interior (scripts/interiors/) the on-foot arm is this fraction of its length ...
@@ -67,8 +67,15 @@ const INTERIOR_FOV_BOOST := 24.0             ## degrees added (horizontal FOV) i
 const INTERIOR_LIFT := 0.08                  ## metres the camera is raised in every interior ...
 const INTERIOR_LIFT_SQUEEZE := 0.1           ## ... and up to this much more while a wall pulls the arm in: the lens looks over the hero's head and shoulder instead of sitting in his back (director review 4, defect 8)
 const SQUEEZE_START := 2.0                   ## an arm shorter than this (metres) starts to slide the camera toward a free shoulder ...
-const SQUEEZE_SIDE := 0.5                    ## ... by this much sideways at full squeeze (arm at the MIN_ARM floor) ...
+const SQUEEZE_SIDE := 0.42                   ## ... by this much sideways at full squeeze (arm at the MIN_ARM floor) ...
 const SQUEEZE_UP := 0.1                      ## ... and this much up
+const THROUGH_ARM := 1.9                    ## THROUGH THE FACADE: a wall right behind the hero (a shop front at his back, a door he just left) does not push the lens into his shoulder: the street side of a facade is
+##                                          ## seen from behind through the culled back faces, so the lens keeps this distance (metres) from the head, even when that puts it inside the building volume
+const DOOR_ARM := 2.7                        ## DOOR FRAMING (a door, a doorway, a wall at the hero's back, indoors or out): a camera arm shorter than this (metres) widens the picture ...
+const DOOR_LIFT := 0.62                      ## ... lifts the lens up to this much over the hero's head (never more than DOOR_LIFT_K x the arm: a lens 0.85 m from the head that rose 0.6 m would lose his head under the bottom edge) ...
+const DOOR_LIFT_K := 0.45
+const DOOR_FOV := 14.0                       ## ... and adds this many degrees of horizontal field of view, so the hero stays a figure in the room, not a wall of back
+const DOOR_PITCH := 0.0                      ## (kept at 0: the view direction is the player's aim; a tilt would move the crosshair off what he aimed at)
 const SIDE_PROBE := 0.95                     ## a wall closer than this beside the head means that side is not free
 const ADS_OMEGA := 17.0                      ## spring frequency of the aim transition: settles in about a quarter second
 
@@ -164,6 +171,9 @@ var _prop_push := Vector3.ZERO              ## eased slide of the camera out of 
 var _prop_rids: Dictionary = {}
 var _prop_shape := SphereShape3D.new()
 var _prop_query := PhysicsShapeQueryParameters3D.new()
+var through_wall := false                    ## the lens is behind a wall that faces the hero (THROUGH_ARM): tests read it
+var _arm_raw := 99.0                         ## the arm length the world allowed last frame, before THROUGH_ARM lifted it (drives the door framing)
+var door_tight := 0.0                        ## 0..1: how far the DOOR FRAMING has widened the view (0 = free arm, 1 = the arm is at its floor); tests and the HUD read it
 var _swing := 0.0                            ## sideways slide of the camera while squeezed against a wall (metres, + is to the right), eased
 var _side := 1.0                             ## the shoulder the slide goes to: +1 right, -1 left, 0 none (kept while it stays free)
 var _probe := PhysicsRayQueryParameters3D.new()
@@ -780,6 +790,15 @@ func _update_view(dt: float) -> void:
 	if InteriorSpace.active:
 		height += (INTERIOR_LIFT + INTERIOR_LIFT_SQUEEZE * clampf((1.0 - _ratio) / 0.6, 0.0, 1.0)) * (1.0 - _mode_mix)
 		fov_target += INTERIOR_FOV_BOOST * clampf((1.0 - _ratio) / 0.5, 0.0, 1.0) * (1.0 - _mode_mix)     # _ratio: last frame's arm fraction (the wall pull-in)
+	var tight_t := 0.0
+	if not drv and playing and not InteriorSpace.active:    # DOOR FRAMING: the arm length of last frame (the wall pull-in) drives it, eased so a doorway never snaps the view
+		var arm_now := minf(sqrt(shoulder * shoulder + dist * dist) * _ratio, _arm_raw)
+		var nominal := sqrt(shoulder * shoulder + dist * dist)
+		tight_t = clampf((DOOR_ARM - arm_now) / (DOOR_ARM - MIN_ARM), 0.0, 1.0) * clampf((nominal - arm_now) / 0.6, 0.0, 1.0)     # only a wall's shortfall counts: the short aimed arm is not a door
+		tight_t = tight_t * tight_t * (3.0 - 2.0 * tight_t)
+	door_tight = tight_t if dt <= 0.0 else PlayerUtil.damp(door_tight, tight_t, 4.0 if tight_t > door_tight else 2.2, dt)
+	height += minf(DOOR_LIFT, DOOR_LIFT_K * sqrt(shoulder * shoulder + dist * dist) * _ratio) * door_tight
+	fov_target += DOOR_FOV * door_tight
 	if _orbit_w > 0.001:
 		dist = lerpf(dist, ORBIT_DIST, _orbit_w)
 		shoulder = lerpf(shoulder, 0.0, _orbit_w)
@@ -823,7 +842,7 @@ func _update_view(dt: float) -> void:
 	_last_base = base
 	_pivot_pos = base + Vector3(0.0, height, 0.0)
 	var yaw_t := yaw + recoil_yaw
-	var pitch_t := clampf(pitch + recoil_pitch, -1.3, 1.25)
+	var pitch_t := clampf(pitch + recoil_pitch - DOOR_PITCH * door_tight, -1.3, 1.25)
 	var aim_basis := Basis.from_euler(Vector3(pitch_t, yaw_t, 0.0), EULER_ORDER_YXZ)
 	global_transform = Transform3D(aim_basis, _pivot_pos)
 
@@ -834,6 +853,17 @@ func _update_view(dt: float) -> void:
 	arm.notification(Node.NOTIFICATION_INTERNAL_PHYSICS_PROCESS)
 	var arm_len := maxf(arm.spring_length, 0.001)
 	var arm_free := arm.get_hit_length()
+	_arm_raw = arm_free
+	through_wall = false
+	if not drv and arm_free < THROUGH_ARM - 0.02 and not InteriorSpace.active and not _cine_active_now():
+		var ad := aim_basis * Vector3(sin(a), 0.0, cos(a))
+		_probe.collision_mask = Game.L_WORLD
+		_probe.from = _pivot_pos
+		_probe.to = _pivot_pos + ad * (arm_len + 0.3)
+		var wh := get_world_3d().direct_space_state.intersect_ray(_probe)
+		if not wh.is_empty() and (wh["normal"] as Vector3).dot(ad) < -0.55 and _is_facade(wh):   # a building wall that faces the hero and the lens (not a pole, a kerb, a car or a test box)
+			through_wall = true
+			arm_free = minf(THROUGH_ARM, arm_len)
 	var free_ratio := clampf(arm_free / arm_len, minf(1.0, (INTERIOR_MIN_ARM if InteriorSpace.active else MIN_ARM * clampf(float(hs["eye"]), 1.0, 1.3)) / arm_len), 1.0)     # never closer than MIN_ARM, even inside a wall
 	if free_ratio < _ratio or dt <= 0.0:
 		_ratio = free_ratio                  # walls pull the camera in at once
@@ -841,7 +871,6 @@ func _update_view(dt: float) -> void:
 		_ratio = PlayerUtil.damp(_ratio, free_ratio, 5.0, dt)    # and let it out gently
 	var cam_pos := _pivot_pos + (aim_basis * Vector3(sin(a), 0.0, cos(a))) * (arm.spring_length * _ratio)
 
-	_update_fade(arm.spring_length * _ratio, drv)
 	if not _props_excluded:
 		_exclude_props()
 
@@ -889,15 +918,37 @@ func _update_view(dt: float) -> void:
 	var cam_basis := Basis.from_euler(Vector3(pitch_t + s_rot.x, yaw_t + s_rot.y, _roll + s_rot.z), EULER_ORDER_YXZ)
 	cam_pos += cam_basis * Vector3(s_off.x, s_off.y + bob_y + _bump, s_off.z + _punch)
 	if InteriorSpace.active:
-		cam_pos = _keep_out_of_walls(cam_pos)           # a squeeze slide or a shake must never put the camera in a wall of a tight room
+		cam_pos = _keep_out_of_walls(cam_pos)           # a squeeze slide or a shake must never put the camera in a wall or a door frame of a tight room
 	cam_pos.y = maxf(cam_pos.y, base.y + 0.25)          # never below the feet, even with a pitched-up low camera
 	if not cam_pos.is_finite():                         # a broken position must never freeze the picture: fall back to the pivot
 		cam_pos = _pivot_pos + Vector3(0.0, 1.0, 3.0)
 		if not cam_pos.is_finite():
 			cam_pos = Vector3(0.0, 3.0, 5.0)
+	_update_fade((cam_pos - (base + Vector3(0.0, EYE_HEIGHT, 0.0))).length() if not drv else arm.spring_length * _ratio, drv)     # the real lens-to-head distance: a lens that slid to the shoulder or rose over the head sees the whole hero
 	camera.global_transform = Transform3D(cam_basis, cam_pos)
 	if _cine_ttl > 0.0:
 		_cine_ttl = maxf(_cine_ttl - dt / maxf(Engine.time_scale, 0.05), 0.0) if dt > 0.0 else _cine_ttl
 		if _cine_xf.origin.is_finite() and _cine_xf.basis.is_finite():
 			camera.global_transform = _cine_xf
 			camera.fov = clampf(_cine_fov, 20.0, 120.0)
+
+
+func _cine_active_now() -> bool:
+	return _cine_ttl > 0.0
+
+
+## True when a ray hit is a part of a building: a core block's box (a shape named Building*) or a streamed chunk body (Chunk*). Only those are see-through from behind (THROUGH_ARM).
+func _is_facade(hit: Dictionary) -> bool:
+	var body := hit.get("collider") as Node
+	if body == null:
+		return false
+	if String(body.name).begins_with("Chunk"):
+		return true
+	var sb := body as CollisionObject3D
+	if sb == null or not hit.has("shape"):
+		return false
+	var owner_id := sb.shape_find_owner(int(hit["shape"]))
+	if owner_id < 0:
+		return false
+	var cs := sb.shape_owner_get_owner(owner_id) as Node
+	return cs != null and String(cs.name).begins_with("Building")

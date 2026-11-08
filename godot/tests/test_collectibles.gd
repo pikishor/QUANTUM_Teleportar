@@ -12,6 +12,7 @@ var prog: Progress
 
 
 func run(host: Node) -> void:
+	MenuFlags.all_extras = true                      # the cut screens are listed under EXTRAS only with the flag (scripts/ui/menu_flags.gd); the screens themselves are unchanged
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP))
 	await e.setup(host)
 	m = (load("res://scenes/missions.tscn") as PackedScene).instantiate() as Missions

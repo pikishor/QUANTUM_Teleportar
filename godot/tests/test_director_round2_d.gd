@@ -109,6 +109,7 @@ func _cards(tag: String) -> void:
 		TestLib.check(_btn(id).has("icon"), "%s: %s is a card with an icon" % [tag, id])
 	_scan(tag + " pause")
 	hud._gear_open = true
+	MenuFlags.all_extras = true                       # the cut screens are listed only with the flag (scripts/ui/menu_flags.gd)
 	_layout()
 	var caps := 0
 	var cards := 0
@@ -116,6 +117,7 @@ func _cards(tag: String) -> void:
 		if b.has("icon"):
 			cards += 1
 			caps += int(String(b.get("sub", "")) != "")
+	MenuFlags.all_extras = false
 	TestLib.check(cards >= 9 and caps >= 8, "%s: MORE is a grid of icon cards with a caption each (%d cards, %d captions)" % [tag, cards, caps])
 	TestLib.check(not _btn(&"more_back").is_empty() and _btn(&"more_back").has("icon"), "%s: MORE has the BACK card" % tag)
 	_scan(tag + " more")

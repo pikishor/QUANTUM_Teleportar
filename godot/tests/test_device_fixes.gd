@@ -142,10 +142,10 @@ func _hero_fade() -> void:
 	var body := p.body
 	rig._update_fade(2.5, false)
 	TestLib.check(rig.hero_fade == 0.0 and body.fade == 0.0, "no fade at normal camera distance")
-	rig._update_fade(1.05, false)
+	rig._update_fade((CameraRig.FADE_START + CameraRig.FADE_END) * 0.5, false)
 	var mid := rig.hero_fade
-	TestLib.check(mid > 0.05 and mid < 0.95, "the hero fades smoothly between 1.2 m and 0.9 m (%.2f at 1.05 m)" % mid)
-	rig._update_fade(0.85, false)
+	TestLib.check(mid > 0.05 and mid < 0.95, "the hero fades smoothly between FADE_START and FADE_END (%.2f half way)" % mid)
+	rig._update_fade(CameraRig.FADE_END - 0.05, false)
 	TestLib.check(rig.hero_fade == 1.0 and not body._parts[0].visible, "the hero is hidden when the camera is inside his head")
 	rig._update_fade(2.5, false)
 	TestLib.check(rig.hero_fade == 0.0 and body._parts[0].visible, "the hero comes back when the camera backs off")

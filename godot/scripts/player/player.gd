@@ -139,6 +139,7 @@ var _step_offset := 0.0                      ## visual drop smoothing after a st
 var _kc := KinematicCollision3D.new()
 var _kc2 := KinematicCollision3D.new()
 var verbs := HeroVerbs.new()                 ## wall-run, slam, warp grab (hero_verbs.gd)
+var combat_step := CombatStep.new()          ## the side-step while FIRE is held with no stick input (combat_step.gd)
 var traversal := Traversal.new()             ## vault / mantle / ledge grab / ladders (traversal.gd)
 var _aim_frame := -1
 var _aim_cache := {}
@@ -611,6 +612,8 @@ func _foot_tick(dt: float) -> void:
 	var fwd := Vector3(-sin(look_yaw), 0.0, -cos(look_yaw))
 	var right := Vector3(cos(look_yaw), 0.0, -sin(look_yaw))
 	var wish := fwd * forward_in + right * iv.x
+	var assist_fire := get_node_or_null("AimAssist") as AimAssist
+	wish += combat_step.wish(self, dt, iv.length(), Input.is_action_pressed(&"fire") or (assist_fire != null and assist_fire.wants_auto_fire()), aiming, on_floor)     # a hero who shoots with the stick untouched side-steps (scripts/player/combat_step.gd)
 	if traversal.tick(self, dt, forward_in, wish, _jump_buffer > 0.0):
 		if traversal.consumed_jump:
 			_jump_buffer = 0.0
@@ -672,7 +675,7 @@ func _foot_tick(dt: float) -> void:
 	weapon.poll_switch()
 	var assist := get_node_or_null("AimAssist") as AimAssist
 	var auto := assist != null and assist.wants_auto_fire()
-	weapon.tick(dt, (Input.is_action_pressed(&"fire") or auto) and not cover.sliding, reload_pressed, aiming, horizontal > 1.0)
+	weapon.tick(dt, (Input.is_action_pressed(&"fire") or auto) and not cover.sliding, reload_pressed, aiming, horizontal > 1.0 and not combat_step.active)     # the combat step is the hero's own sway: it never costs accuracy
 
 
 ## Hero verbs from HeroPower: holding jump in the air glides (fall speed capped), a sprint along a wall runs it (gravity almost off). Returns the gravity factor.

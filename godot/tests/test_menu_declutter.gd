@@ -102,7 +102,7 @@ func _title(tag: String) -> void:
 	TestLib.check(hud.press_button(&"menu_gear") and hud._gear_open, "%s: MORE opens" % tag)
 	_layout()
 	ids = _ids()
-	TestLib.check(ids.has(&"demo") and ids.has(&"arena_open") and ids.has(&"more_back") and not ids.has(&"options"), "%s: the title MORE page lists DEMO and ARENA and a BACK (%s)" % [tag, str(ids)])
+	TestLib.check(ids.has(&"demo") and ids.has(&"more_back") and not ids.has(&"options"), "%s: the title EXTRAS page lists DEMO and a BACK (%s)" % [tag, str(ids)])
 	_sane(tag + " title MORE")
 	if not tm.is_empty() and TestMode.available():
 		var te: Rect2 = (tm[0] as TestMenu).entry_rect()
@@ -117,22 +117,26 @@ func _pause(tag: String) -> void:
 	TestLib.check(prog != null, "the campaign exists")
 	_state(&"paused")
 	var ids := _ids()
-	TestLib.check(ids.size() == 6 and ids.has(&"board_open") and ids.has(&"resume") and ids.has(&"pause_map") and ids.has(&"loadout") and ids.has(&"options") and ids.has(&"menu_gear"), "%s: the pause menu shows RESUME, MAP, LOADOUT, OPTIONS and MORE (%s)" % [tag, str(ids)])
+	TestLib.check(ids.size() == 7 and ids.has(&"board_open") and ids.has(&"resume") and ids.has(&"pause_map") and ids.has(&"loadout") and ids.has(&"hero_open") and ids.has(&"options") and ids.has(&"menu_gear"), "%s: the pause menu shows RESUME, MISSIONS, MAP, LOADOUT, UPGRADES, OPTIONS and EXTRAS (%s)" % [tag, str(ids)])
 	_sane(tag + " pause")
 	var tm := main.find_children("*", "TestMenu", true, false)
 	TestLib.check(tm.is_empty() or (tm[0] as TestMenu).entry_rect().size.x == 0.0, "%s: no TEST badge on the pause menu" % tag)
 
 
 func _more(tag: String) -> void:
+	Upgrades.show_all = false                 # the cut screens are offered only with the flag (MenuFlags.show_cut: the saved option or Upgrades.show_all, the DEMO)
 	_state(&"paused")
 	hud.press_button(&"menu_gear")
 	_layout()
 	var ids := _ids()
-	for want: StringName in [&"hero_open", &"side_open", &"heist_open", &"look_open", &"sh_open", &"ach", &"photo_open", &"arena_open", &"menu", &"more_back"]:
-		TestLib.check(ids.has(want), "%s: the pause MORE page has %s" % [tag, want])
+	for want: StringName in [&"look_open", &"photo_open", &"menu", &"more_back"]:
+		TestLib.check(ids.has(want), "%s: the pause EXTRAS page has %s" % [tag, want])
+	for cut: StringName in [&"side_open", &"heist_open", &"sh_open", &"ach", &"arena_open"]:
+		TestLib.check(not ids.has(cut), "%s: the cut screen %s is not offered by default" % [tag, cut])
 	TestLib.check(ids.size() <= 12, "%s: the MORE page is one grid (%d cells)" % [tag, ids.size()])
 	_sane(tag + " pause MORE")
 	hud.press_button(&"more_back")
+	Upgrades.show_all = true
 
 
 ## The HERO hub: UPGRADES / WEAPONS / SKILLS / CRAFT are tabs of one screen; an upgrade is one tap on its row; BACK leaves the hub.
@@ -141,8 +145,7 @@ func _hero() -> void:
 	WeaponDefs.reset_unlocked()
 	prog.credits = 0
 	_state(&"paused")
-	hud.press_button(&"menu_gear")
-	TestLib.check(hud.press_button(&"hero_open") and hud._hero_hub and hud._shop_open, "HERO opens the hub on UPGRADES")
+	TestLib.check(hud.press_button(&"hero_open") and hud._hero_hub and hud._shop_open, "UPGRADES opens the hub on the upgrades page")
 	_layout()
 	var ids := _ids()
 	for t: StringName in [&"hero_tab_up", &"hero_tab_weapons", &"hero_tab_skills", &"hero_tab_craft"]:
@@ -185,8 +188,8 @@ func _map() -> void:
 func _back_navigation() -> void:
 	_state(&"paused")
 	hud.press_button(&"menu_gear")
-	TestLib.check(hud.press_button(&"side_open") and hud._side_open, "MISSIONS opens from MORE")
-	TestLib.check(hud.press_button(&"side_back") and not hud._side_open and hud._gear_open, "BACK from MISSIONS returns to the MORE page")
+	TestLib.check(hud.press_button(&"look_open") and hud._look_open, "SUIT opens from EXTRAS")
+	TestLib.check(hud.press_button(&"look_back") and not hud._look_open and hud._gear_open, "BACK from SUIT returns to the EXTRAS page")
 	TestLib.check(hud.press_button(&"more_back") and not hud._gear_open, "BACK from MORE returns to the pause menu")
 	TestLib.check(hud.press_button(&"loadout") and hud._loadout_open, "LOADOUT opens from the pause menu")
 	TestLib.check(hud.press_button(&"loadout_back") and not hud._loadout_open and not hud._gear_open and Game.state == &"paused", "BACK from LOADOUT returns to the pause menu")

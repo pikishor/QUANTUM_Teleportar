@@ -15,6 +15,7 @@ var cutscenes := true        ## cutscenes (intro, chapter, boss beats) on / off
 var test_mode := false        ## test (hack) menu available in a release build too (debug builds always have it)
 var aim_assist := true       ## soft aim assist (look slowdown + magnetism near enemies; off for the Pulse Lance)
 var dmg_numbers := true       ## floating damage numbers over every hit (the number shrinks with range falloff, crits are gold)
+var all_extras := false      ## the cut screens (crafting, heists, safehouse, achievements, boss rush, skills) are offered under EXTRAS (MenuFlags)
 var civilians := true        ## the people in the street can be hurt and killed (a quantum dissolve, no gore); off = they only run and shots pass through them (Game.civilian_casualties)
 var auto_fire := false       ## hold the trigger automatically while the crosshair is on an enemy
 var intro_seen := false      ## the intro plays once, at the first DEPLOY
@@ -109,6 +110,7 @@ func load_file() -> void:
 	aim_assist = _b(cf.get_value("gameplay", "aim_assist", true))
 	auto_fire = _b(cf.get_value("gameplay", "auto_fire", false))
 	civilians = _b(cf.get_value("gameplay", "civilians", true))
+	all_extras = _b(cf.get_value("gameplay", "all_extras", false))
 	dmg_numbers = _b(cf.get_value("gameplay", "dmg_numbers", true))
 	res_mode = clampi(Progress._num(cf.get_value("graphics", "res_mode", -1), -1), -1, 2)
 	difficulty = Difficulty.clamp_mode(Progress._num(cf.get_value("gameplay", "difficulty", Difficulty.default_mode()), Difficulty.default_mode()))
@@ -170,6 +172,7 @@ func publish(engine := true) -> void:
 	Tr.set_lang(language)
 	Tr.text_scale = text_scale
 	Game.civilian_casualties = civilians
+	MenuFlags.all_extras = all_extras
 	Game.damage_numbers = dmg_numbers
 	if engine:
 		AimAssist.enabled = aim_assist
@@ -219,6 +222,7 @@ func save() -> bool:
 	cf.set_value("gameplay", "aim_assist", aim_assist)
 	cf.set_value("gameplay", "auto_fire", auto_fire)
 	cf.set_value("gameplay", "civilians", civilians)
+	cf.set_value("gameplay", "all_extras", all_extras)
 	cf.set_value("gameplay", "dmg_numbers", dmg_numbers)
 	cf.set_value("gameplay", "difficulty", difficulty)
 	cf.set_value("controls", "look_x", look_x)

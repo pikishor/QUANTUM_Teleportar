@@ -31,6 +31,12 @@ static func weapon(id: StringName) -> Texture2D:
 	return texture("w", id)
 
 
+## The big picture of a weapon (384 x 192, `wl_<id>.png`, rendered by tools/icons/build_icons.sh with --large) for the LOADOUT card; the small one when there is none.
+static func weapon_large(id: StringName) -> Texture2D:
+	var t := texture("wl", id)
+	return t if t != null else texture("w", id)
+
+
 static func gear(id: StringName) -> Texture2D:
 	return texture("g", id)
 
@@ -78,6 +84,15 @@ static func draw_weapon(c: CanvasItem, id: StringName, r: Rect2, col := Color.WH
 	var tex := weapon(id)
 	if tex != null:
 		draw_tex(c, tex, r, col if tint else Color(1, 1, 1, col.a))
+		return
+	WeaponIcons.draw_flat(c, id, r, col)
+
+
+## The big picture of a weapon fitted into `r` (the flat silhouette when it has none).
+static func draw_weapon_large(c: CanvasItem, id: StringName, r: Rect2, col := Color.WHITE) -> void:
+	var tex := weapon_large(id)
+	if tex != null:
+		draw_tex(c, tex, r, Color(1, 1, 1, col.a))
 		return
 	WeaponIcons.draw_flat(c, id, r, col)
 

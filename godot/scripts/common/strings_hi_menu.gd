@@ -17,4 +17,5 @@ const S := {
 	"BEST BATTERY": "सबसे कम बैटरी", "LONG BATTERY": "लंबी बैटरी", "BALANCED": "संतुलित", "SHADOWS": "छायाएँ", "SURFACES": "सतहें", "CROWD": "भीड़",
 	"FLAT": "सपाट", "LIGHT SCANS": "हल्के स्कैन", "NEAR": "पास", "FAR": "दूर", "SCANNED": "स्कैन की हुई", "SHARP SCANS": "तेज़ स्कैन",
 	"FRIEND": "साथी", "GOAL": "लक्ष्य", "SUBTITLES OFF": "उपशीर्षक बंद", "Cross the floor to the beacon.": "हॉल पार करके बीकन तक पहुँचो।", "LOW+": "लो+",
+	"EXTRAS": "अतिरिक्त", "ALL EXTRAS": "सभी अतिरिक्त", "SIDE JOBS": "छोटे काम", "WEAPON INFO": "हथियार जानकारी", "ABILITY POWER": "शक्ति", "HEALTH": "सेहत",
 }

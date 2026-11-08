@@ -287,7 +287,7 @@ func _real_scene() -> void:
 	var ms := p.get_tree().root.find_child("MapScreen", true, false) as MapScreen
 	if ms != null:
 		var share := 100.0 * float(ms.discovered_count()) / float(MapScreen.CELLS * MapScreen.CELLS)
-		TestLib.check(ms.discovered_count() >= 200 and ms.is_discovered(Game.SPAWN.x, Game.SPAWN.z) and ms.is_discovered(250.0, -250.0), "the map charts the city core at the start (%.0f %%)" % share)
+		TestLib.check(ms.discovered_count() >= 25 and ms.discovered_count() < 0.25 * MapScreen.CELLS * MapScreen.CELLS and ms.is_discovered(Game.SPAWN.x, Game.SPAWN.z), "the map charts the area around the spawn at the start (wave 100 menu cut: about 95 % starts uncharted, so only the first reveal; the fog is the point) (%.0f %%)" % share)
 		TestLib.check(not ms.is_discovered(600.0, 600.0), "the outer ring stays fogged until you go there")
 	else:
 		TestLib.check(false, "the map screen exists in the live game")

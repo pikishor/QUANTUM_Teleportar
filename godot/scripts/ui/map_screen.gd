@@ -43,20 +43,25 @@ const HINT_SECONDS := 6.0
 const MAX_CHEVRONS := 260
 const INPUT_QUIET := 0.25                         ## seconds after opening that pointer input is ignored: the tap that opened the map (a minimap tap, the MAP card) must not place a waypoint under the finger
 const LABEL_MAX := 6                              ## marker names printed at once (objective and selection come on top)
-const START_HALF := 300.0                           ## metres: the original city (|x|, |z| <= this) is charted from the first second, so the map is not a black square with a dot (it was 6 %)
-const DISCOVER_R := 150.0                           ## metres: how far around you the map charts itself (it was 70: 6 % after a walk)
+const START_HALF := 160.0                           ## metres: only the spawn block (|x|, |z| <= this) is charted from the first second: the map STARTS mostly uncharted (menu cut round: it was 300 m = 22 %)
+const DISCOVER_R := 240.0                           ## metres: how far around you the map charts itself on foot (it was 150: a walk to the next block did not show)
+const DISCOVER_SPEED_K := 5.0                       ## metres of extra reveal radius per m/s of speed: a drive charts a wide road (the cap keeps a plane or a nitro from charting the city in a minute)
+const DISCOVER_R_MAX := 420.0
+const BADGE_R := 25.0                               ## base px: marker badge radius at the overview (was 17: tiny icons, director review 4 #9)
+const BADGE_R_NEAR := 28.0
 const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items"]
 const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"interior": "INTERIORS", &"job": "JOBS", &"shop": "SHOPS", &"garage": "GARAGE", &"weapon": "WEAPONS", &"home": "HOME", &"items": "ITEMS"}
 const KIND_COLOR := {&"mission": Color(1.0, 0.75, 0.15), &"side": Color(0.2, 0.9, 1.0), &"interior": Color(0.62, 0.76, 1.0), &"job": Color(1.0, 0.45, 0.85), &"shop": Color(0.3, 1.0, 0.55), &"garage": Color(1.0, 0.5, 0.2),
 	&"weapon": Color(1.0, 0.82, 0.3), &"home": Color(0.85, 0.9, 1.0), &"items": Color(0.75, 0.45, 1.0)}
 const DANGER_COLOR := Color(1.0, 0.25, 0.25)
+const FOG_ALPHA := 0.30                              ## the veil over the uncharted cells (it was 0.66 black: a dirty dark field at the start)
 const SAVE_PATH := "user://map.cfg"
 static var up := false                    ## true while a map is open: Hud, TouchControls, the story cards, photo mode ... ignore pointer input then (the map owns it; a tap used to fall through to the pause menu underneath)
 static var path_override := ""             ## DEMO MODE points the map at its own file (scripts/demo/demo_mode.gd); "" = SAVE_PATH
 const GARAGE_TYPES: Array[StringName] = [&"warehouse", &"cargo_bay"]
 const TAP_CLEAR_PX := 28.0
-const MARKER_PICK_PX := 34.0
-const CLUSTER_PX := 38.0
+const MARKER_PICK_PX := 44.0
+const CLUSTER_PX := 50.0
 const COL_W := 212.0                                 ## base px: the legend column (left) and the button column (right)
 const BTN_H := 64.0
 const GAP := 6.0
@@ -219,7 +224,9 @@ func _chip(k: StringName) -> Button:
 	for st in ["pressed", "hover_pressed"]:
 		b.add_theme_stylebox_override(st, _style(Color(col.r * 0.22, col.g * 0.22, col.b * 0.22, 0.95), col, 2))
 	b.pressed.connect(_on_filter.bind(k))
-	b.draw.connect(func() -> void: MapIcons.draw(b, k, Vector2(28.0, b.size.y * 0.5), 15.0, col if b.button_pressed else Color(col, 0.4)))
+	b.draw.connect(func() -> void:
+		var ir := b.size.y * 0.30                                           # the icon sits left of the text (content margin 54 px): its edge is 2 r + 8 = 46 px at 64 px tall
+		MapIcons.draw(b, k, Vector2(ir + 8.0, b.size.y * 0.5), ir, col if b.button_pressed else Color(col, 0.4)))
 	return b
 
 
@@ -276,7 +283,7 @@ func _process(delta: float) -> void:
 		return
 	_t = 0.0
 	if Game.state == &"play" and is_instance_valid(Game.player):
-		discover(Game.player.global_position)
+		discover(Game.player.global_position, reveal_radius())
 	if _dirty:
 		_save()
 
@@ -333,6 +340,19 @@ func discover(pos: Vector3, radius := DISCOVER_R) -> void:
 			if _seen[i] == 0 and cell_center(i).distance_to(Vector2(pos.x, pos.z)) <= radius + CELL * 0.5:
 				_seen[i] = 1
 				_dirty = true
+
+
+## How far around the hero the map charts itself right now: DISCOVER_R on foot, wider the faster the hero (or the car) moves.
+func reveal_radius() -> float:
+	var v := 0.0
+	var p: Object = Game.player if is_instance_valid(Game.player) else null
+	if p != null:
+		var veh: Object = p.get(&"vehicle")
+		var src: Object = veh if veh != null else p
+		var vel: Variant = src.get(&"velocity") if src.get(&"velocity") != null else src.get(&"vel")
+		if vel is Vector3:
+			v = Vector2((vel as Vector3).x, (vel as Vector3).z).length()
+	return minf(DISCOVER_R + v * DISCOVER_SPEED_K, DISCOVER_R_MAX)
 
 
 func is_discovered(x: float, z: float) -> bool:
@@ -427,7 +447,7 @@ func open() -> void:
 	up = true                                             # before the state change: the HUD hides its pause screen for the map instead of drawing it underneath
 	Game.state = &"paused"
 	if is_instance_valid(Game.player):
-		discover(Game.player.global_position)
+		discover(Game.player.global_position, reveal_radius())
 	_open = true
 	up = true
 	activity += 1
@@ -1040,9 +1060,9 @@ func _tint_layer() -> ArrayMesh:
 				var bx := CityLayout.road_center(bi) + pitch * 0.5
 				var bz := CityLayout.road_center(bj) + pitch * 0.5
 				var acc: Color = Districts.palette(Districts.look_at(bx, bz))["accent"]
-				var k := 0.15 if Districts.zone_at(bx, bz) < Districts.COUNT else 0.09
+				var k := 0.22 if Districts.zone_at(bx, bz) < Districts.COUNT else 0.12
 				rects.append(Rect2(bx - CityLayout.BLOCK * 0.5, bz - CityLayout.BLOCK * 0.5, CityLayout.BLOCK, CityLayout.BLOCK))
-				cols.append(Color(acc.r * k, acc.g * k, acc.b * k, 1.0))
+				cols.append(Color(0.06 + acc.r * k, 0.08 + acc.g * k, 0.11 + acc.b * k, 1.0))
 		_tint_mesh = rect_mesh(rects, cols)
 	return _tint_mesh
 
@@ -1059,14 +1079,38 @@ func _lots_layer() -> ArrayMesh:
 			var l := lot as CityLayout.Lot
 			var hk := clampf((l.h - 16.0) / 72.0, 0.0, 1.0)
 			rects.append(l.rect)
-			cols.append(Color(0.09 + 0.12 * hk, 0.14 + 0.2 * hk, 0.19 + 0.24 * hk, 1.0))
+			cols.append(Color(0.15 + 0.14 * hk, 0.22 + 0.22 * hk, 0.30 + 0.26 * hk, 1.0))
 		_lots_mesh = rect_mesh(rects, cols)
 		_lots_mesh_n = n
 		_lots_mesh_owner = _lots_owner
 	return _lots_mesh
 
 
-## One dark rectangle per run of unvisited cells in a row.
+## The city's ground as a texture: the district colours blended smoothly over the whole 2080 m (96 x 96 px, built once, 27 KB): the map is a coloured chart at 0 % charted, never a black field.
+static var _ground: ImageTexture
+const GROUND_N := 96
+
+
+static func ground_texture() -> ImageTexture:
+	if _ground == null:
+		var img := Image.create(GROUND_N, GROUND_N, false, Image.FORMAT_RGB8)
+		for j in GROUND_N:
+			for i in GROUND_N:
+				var x := -HALF + (float(i) + 0.5) / float(GROUND_N) * 2.0 * HALF
+				var z := -HALF + (float(j) + 0.5) / float(GROUND_N) * 2.0 * HALF
+				var acc := Color(0, 0, 0)
+				for o: Vector2 in [Vector2.ZERO, Vector2(70, 0), Vector2(-70, 0), Vector2(0, 70), Vector2(0, -70)]:      # a soft blend: the accent of the block under the pixel and the four around it
+					acc += Districts.palette(Districts.look_at(x + o.x, z + o.y))["accent"] as Color
+				acc /= 5.0
+				var core := Districts.zone_at(x, z) < Districts.COUNT
+				var k := 0.42 if core else 0.26
+				img.set_pixel(i, j, Color(0.07 + acc.r * k, 0.10 + acc.g * k, 0.15 + acc.b * k))
+		_ground = ImageTexture.create_from_image(img)
+	return _ground
+
+
+## Fog and the chart's edge in one pass: a light veil over every cell not walked near (one rectangle per run), and a thin bright line wherever a charted cell meets an uncharted one.
+## One mesh each, rebuilt only when the charted cells change.
 func _fog_layer() -> ArrayMesh:
 	var h: int = hash(_seen)
 	if _fog_mesh == null or h != _fog_hash:
@@ -1080,8 +1124,28 @@ func _fog_layer() -> ArrayMesh:
 					run0 = cx
 				elif not fogged and run0 >= 0:
 					rects.append(Rect2(-HALF + run0 * CELL, -HALF + cz * CELL, float(cx - run0) * CELL, CELL))
-					cols.append(Color(0.0, 0.015, 0.03, 0.66))
+					cols.append(Color(0.01, 0.03, 0.07, FOG_ALPHA))
 					run0 = -1
+		var edge := Color(UiUtil.CYAN, 0.7)
+		var ew := 3.0
+		for cz in CELLS:
+			for cx in CELLS:
+				if _seen[cz * CELLS + cx] == 0:
+					continue
+				var x0 := -HALF + cx * CELL
+				var z0 := -HALF + cz * CELL
+				if cx + 1 < CELLS and _seen[cz * CELLS + cx + 1] == 0:
+					rects.append(Rect2(x0 + CELL - ew * 0.5, z0, ew, CELL))
+					cols.append(edge)
+				if cx > 0 and _seen[cz * CELLS + cx - 1] == 0:
+					rects.append(Rect2(x0 - ew * 0.5, z0, ew, CELL))
+					cols.append(edge)
+				if cz + 1 < CELLS and _seen[(cz + 1) * CELLS + cx] == 0:
+					rects.append(Rect2(x0, z0 + CELL - ew * 0.5, CELL, ew))
+					cols.append(edge)
+				if cz > 0 and _seen[(cz - 1) * CELLS + cx] == 0:
+					rects.append(Rect2(x0, z0 - ew * 0.5, CELL, ew))
+					cols.append(edge)
 		_fog_mesh = rect_mesh(rects, cols)
 		_fog_hash = h
 	return _fog_mesh
@@ -1100,7 +1164,8 @@ func _draw_map() -> void:
 	if scan_on:
 		scan_log.clear()
 	drawn = {"roads": 0, "lots": 0, "markers": 0, "labels": 0, "route": false, "you": false, "danger": 0}
-	_map.draw_rect(Rect2(Vector2.ZERO, sz), Color(0.0, 0.015, 0.03, 1.0))
+	_map.draw_rect(Rect2(Vector2.ZERO, sz), Color(0.02, 0.04, 0.065, 1.0))
+	_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var city := Rect2(world_to_map(-HALF, -HALF), Vector2(2.0 * HALF, 2.0 * HALF) * pm)
 	# outskirts: the road grid carries on, faint, past the city edge, so a wide phone screen is a map and not black bars
 	var o_col := Color(0.07, 0.1, 0.13, 1.0)
@@ -1117,7 +1182,7 @@ func _draw_map() -> void:
 			if city.end.x < sz.x:
 				_map.draw_rect(Rect2(city.end.x, oq.y - o_w * 0.5, sz.x - city.end.x, o_w), o_col)
 	_map.draw_rect(city.grow(4.0 * s), Color(UiUtil.CYAN, 0.18), false, 2.0 * s)
-	_map.draw_rect(city, Color(0.02, 0.04, 0.06, 1.0))
+	_map.draw_texture_rect(ground_texture(), city, false)                                      # the ground: district colours, smooth, never black
 	var xf := Transform2D(Vector2(pm, 0.0), Vector2(0.0, pm), world_to_map(0.0, 0.0))        # metres (x, z) -> screen px
 	_map.draw_mesh(_tint_layer(), null, xf)                                                    # district tint per block, under everything (one draw call)
 	# roads: the whole grid, avenues every fourth line brighter
@@ -1202,7 +1267,7 @@ func _draw_map() -> void:
 	# markers (clustered at the overview)
 	_counts.clear()
 	var cl := {}                                                       # "kind|cx|cy" -> [sum px, n, a marker]
-	var r_badge := (17.0 if zoom_f < 2.0 else 19.0) * s
+	var r_badge := (BADGE_R if zoom_f < 2.0 else BADGE_R_NEAR) * s
 	for mk in lod_markers(visible_markers()):
 		var k: StringName = mk["kind"]
 		var pw: Vector3 = mk["pos"]
@@ -1271,7 +1336,7 @@ func _draw_map() -> void:
 		MapIcons.draw(_map, kind, c2, rr, KIND_COLOR[kind])
 		drawn["markers"] = int(drawn["markers"]) + 1
 		if n > 1:
-			_label_out(font, c2 + Vector2(rr * 0.9, -rr * 0.7), str(n), int(16.0 * s), Color(1, 1, 1, 0.95), HORIZONTAL_ALIGNMENT_LEFT, false)
+			_label_out(font, c2 + Vector2(rr * 0.9, -rr * 0.7), str(n), int(18.0 * s), Color(1, 1, 1, 0.95), HORIZONTAL_ALIGNMENT_LEFT, true)
 		elif ALWAYS_KINDS.has(kind) or (zoom_f >= 3.0 and labels_left > 0 and kind != &"interior"):
 			if not ALWAYS_KINDS.has(kind):
 				labels_left -= 1
@@ -1341,7 +1406,7 @@ func _draw_map() -> void:
 ## "MAP" and the charted / route line, top left above the legend.
 func _title_row(font: Font, s: float) -> void:
 	_label_out(font, Vector2(_x0, 42.0 * s), "MAP", int(32.0 * s), UiUtil.CYAN, HORIZONTAL_ALIGNMENT_LEFT)
-	_label_out(font, Vector2(_x0 + 92.0 * s, 40.0 * s), _sub_text, int(18.0 * s), Color(1, 1, 1, 0.85), HORIZONTAL_ALIGNMENT_LEFT)
+	_label_out(font, Vector2(_x0 + 100.0 * s, 40.0 * s), _sub_text, int(22.0 * s), Color(1, 1, 1, 0.92), HORIZONTAL_ALIGNMENT_LEFT)
 
 
 ## A polyline without points that are not finite (an infinite or NaN point would make the chevron walk run forever).
