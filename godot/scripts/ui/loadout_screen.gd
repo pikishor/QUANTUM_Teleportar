@@ -130,6 +130,10 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	ItemIcons.draw_weapon_large(c, sel, area, Color(1, 1, 1, 1.0))
 	var ls := WeaponStats.lines(card)
 	var nums := "   ".join(ls.slice(0, mini(3, ls.size())))
+	var nmax := mini(3, ls.size())
+	while nmax > 1 and font.get_string_size(nums, HORIZONTAL_ALIGNMENT_LEFT, -1, int(UiUtil.BAR_LABEL * s)).x > pic.size.x:
+		nmax -= 1                                              # a narrow screen shows fewer numbers instead of running into the part cards
+		nums = "   ".join(ls.slice(0, nmax))
 	hud._text(c, font, Vector2(pic.position.x, pic.end.y + 28.0 * s), nums, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x, UiUtil.fit_size(font, nums, pic.size.x, int(UiUtil.BAR_LABEL * s)), Color(1, 1, 1, 0.92))
 	# four stat bars, two by two
 	var keys: Array[StringName] = [&"damage", &"rate", &"range", &"accuracy"]
