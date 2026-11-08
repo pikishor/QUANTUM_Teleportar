@@ -87,6 +87,8 @@ static func part(hud: Hud, c: Control, r: Rect2, name: String, fx: String, statu
 	c.draw_rect(r, Color(tint, 0.95 if state == 2 else 0.55), false, (3.0 if state == 2 else 1.5) * s)
 	var strip := Rect2(r.position.x, r.end.y - 30.0 * s, r.size.x, 30.0 * s)
 	c.draw_rect(strip, Color(tint, 0.34 if state == 2 else 0.22))
+	if font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(BODY * s)).x > r.size.x - 16.0 * s and name.ends_with(" CORE"):
+		name = name.trim_suffix(" CORE")                       # a narrow card drops the generic word instead of overflowing into its neighbour
 	var nsz := maxi(UiUtil.fit_size(font, name, r.size.x - 16.0 * s, int(17.0 * s)), int(BODY * s))
 	hud._text(c, font, Vector2(r.position.x + 10.0 * s, r.position.y + 24.0 * s), name, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 16.0 * s, nsz, Color(1, 1, 1, 0.98))
 	var fsz := maxi(UiUtil.fit_size(font, fx, r.size.x - 16.0 * s, int(BODY * s)), int(BODY * s))
