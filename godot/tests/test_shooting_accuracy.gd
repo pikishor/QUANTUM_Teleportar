@@ -617,9 +617,9 @@ func _test_feedback(host: Node) -> void:
 	TestLib.check(assist != null, "the hero has an AimAssist")
 	if assist == null:
 		return
-	_p.camera_rig.aim_at(d.global_position + Vector3(0.0, 1.62, 0.0))
+	_p.camera_rig.aim_at(_head_point(d))
 	await host.get_tree().process_frame
-	_p.camera_rig.aim_at(d.global_position + Vector3(0.0, 1.62, 0.0))
+	_p.camera_rig.aim_at(_head_point(d))
 	await host.get_tree().process_frame
 	TestLib.check(assist.on_target and assist.target == d and assist.aim_zone == HitZones.HEAD, "the crosshair on the head highlights the target (zone %s)" % str(assist.aim_zone))
 	_p.camera_rig.aim_at(d.global_position + Vector3(0.0, 0.6, 0.0))
@@ -635,11 +635,18 @@ func _test_feedback(host: Node) -> void:
 	var box: Array = d.body_box()
 	TestLib.check(box.size() == 3 and (box[1] as Vector3).y - (box[0] as Vector3).y > 1.5, "the target has a feet-to-head box for the brackets (%.2f m tall)" % ((box[1] as Vector3).y - (box[0] as Vector3).y))
 	# the hit marker data: a head shot is flagged as a crit, a kill as a kill
-	_p.camera_rig.aim_at(d.global_position + Vector3(0.0, 1.62, 0.0))
+	_p.camera_rig.aim_at(_head_point(d))
 	_w.last_shot = {}
 	_fire_once()
 	TestLib.check(_p.last_hit_crit and PlayerUtil.now() - _p.last_hit_time < 0.2, "a head shot sets the gold hit marker (crit)")
 	_mgr.clear()
+
+
+## The centre of the target's head: its drawn height follows the distance scale (EnemyManager LOD), so take it from the target's own feet-to-head box.
+func _head_point(d: Drone) -> Vector3:
+	var box: Array = d.body_box()
+	var top := box[1] as Vector3
+	return top - Vector3(0.0, (top.y - (box[0] as Vector3).y) * 0.1167, 0.0)
 
 
 # --- parallax ---------------------------------------------------------------------------------------------------------------
