@@ -9,15 +9,19 @@ extends RefCounted
 const MOOD_PARAM := &"window_mood"
 const CONE_HEIGHT := 7.0
 const CONE_RADIUS := 3.2
-const CONE_SIDES := 6
+const CONE_SIDES := 10                ## ten faces with smooth normals: six flat faces read as a paper tent at MED (director review 5, defect 11)
 const CONE_SHADER := """shader_type spatial;
 render_mode unshaded, blend_add, cull_disabled, depth_draw_never, fog_disabled;
 global uniform float night;
 global uniform float rain;
-uniform float strength = 0.10;
+uniform float strength = 0.06;
 void fragment() {
 	float flick = 0.94 + 0.06 * sin(TIME * 2.1 + float(VERTEX.x) * 0.37);
-	ALBEDO = COLOR.rgb * COLOR.a * strength * night * (1.0 + 0.8 * rain) * flick;
+	// a soft haze, not a solid wedge: the brightness falls to nothing at the silhouette (view along the surface), squares away along the height and fades near the lens
+	float nv = abs(dot(normalize(NORMAL), normalize(VIEW)));
+	float haze = pow(nv, 2.6) * COLOR.a * COLOR.a * (0.75 + 0.25 * COLOR.a);      // a steeper falloff than 1.7: the wall of a cone seen from the side no longer ends in a hard straight edge (paper tents at MED, director review 5 #11a)
+	float lens = smoothstep(3.0, 12.0, length(VERTEX));
+	ALBEDO = COLOR.rgb * haze * strength * night * (1.0 + 0.5 * rain) * flick * lens;
 }
 """
 
@@ -51,29 +55,38 @@ static func glow_for(night: float, tier: int) -> float:
 ## heads: Array of Vector3 lamp head positions. One merged mesh (6 tris per lamp), vertex colour = warm light, alpha 1 at the head, 0 on the ground.
 static func build_cones(heads: Array) -> ArrayMesh:
 	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
 	var cols := PackedColorArray()
 	var idx := PackedInt32Array()
 	var top_c := Color(1.0, 0.72, 0.40, 1.0)
 	var bot_c := Color(1.0, 0.72, 0.40, 0.0)
+	var up_k := CONE_RADIUS / CONE_HEIGHT                    # the side normal of a cone leans up by this much
 	for h in heads:
 		var p: Vector3 = h
-		var base := verts.size()
-		verts.append(p)
-		cols.append(top_c)
 		for i in CONE_SIDES:
-			var a := TAU * float(i) / float(CONE_SIDES)
-			verts.append(Vector3(p.x + cos(a) * CONE_RADIUS, 0.05, p.z + sin(a) * CONE_RADIUS))
+			var a0 := TAU * float(i) / float(CONE_SIDES)
+			var a1 := TAU * float(i + 1) / float(CONE_SIDES)
+			var am := (a0 + a1) * 0.5
+			var base := verts.size()
+			verts.append(p)                                  # an apex vertex per face, its normal points out of the face middle: smooth across the face, no hard tent edges
+			norms.append(Vector3(cos(am), up_k, sin(am)).normalized())
+			cols.append(top_c)
+			verts.append(Vector3(p.x + cos(a0) * CONE_RADIUS, 0.05, p.z + sin(a0) * CONE_RADIUS))
+			norms.append(Vector3(cos(a0), up_k, sin(a0)).normalized())
 			cols.append(bot_c)
-		for i in CONE_SIDES:
+			verts.append(Vector3(p.x + cos(a1) * CONE_RADIUS, 0.05, p.z + sin(a1) * CONE_RADIUS))
+			norms.append(Vector3(cos(a1), up_k, sin(a1)).normalized())
+			cols.append(bot_c)
 			idx.append(base)
-			idx.append(base + 1 + i)
-			idx.append(base + 1 + (i + 1) % CONE_SIDES)
+			idx.append(base + 1)
+			idx.append(base + 2)
 	var mesh := ArrayMesh.new()
 	if verts.is_empty():
 		return mesh
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = norms
 	arrays[Mesh.ARRAY_COLOR] = cols
 	arrays[Mesh.ARRAY_INDEX] = idx
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)

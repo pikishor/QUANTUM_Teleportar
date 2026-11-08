@@ -6,6 +6,7 @@ extends RefCounted
 ## reduce-motion and a half-second after the trigger is first pulled (a tap is a tap). Player._foot_tick adds `wish()` to the stick's own wish vector.
 
 const SPEED := 2.1                   ## m/s of the sideways step
+const EASE := 4.5                    ## share of full speed gained per second (a full reversal takes 0.45 s)
 const START_DELAY := 0.35            ## seconds of held trigger before the first step
 const HOLD_MIN := 0.9
 const HOLD_MAX := 1.7
@@ -22,6 +23,7 @@ var travelled := 0.0                 ## metres stepped so far (tests)
 var _fire_t := 0.0
 var _hold := 1.0
 var _blocked_t := 0.0
+var _v := 0.0                        ## the step's current share of full speed, -1..1: it eases toward `dir`, so a reversal passes through a stop instead of snapping 4 m/s the other way (director review 5, #1: a planted foot and a snapped reversal made a wide scissor)
 
 
 ## The extra wish vector (world, unit-ish: 0.34 of a full push) for this tick, or ZERO. `stick` is the stick length, `firing` the trigger.
@@ -29,9 +31,11 @@ func wish(p: Player, dt: float, stick: float, firing: bool, aiming: bool, on_flo
 	active = false
 	if not firing or stick > 0.1:
 		_fire_t = 0.0
+		_v = 0.0
 		return Vector3.ZERO
 	_fire_t += dt
 	if not enabled or aiming or not on_floor or UiSettings.s_reduce_motion or _fire_t < START_DELAY or not is_instance_valid(p) or p.cover == null or p.cover.crouching:
+		_v = 0.0
 		return Vector3.ZERO
 	var w: PlayerWeapon = p.weapon
 	if w != null and SKIP_CLASSES.has(WeaponDefs.class_of(w.current)):
@@ -50,11 +54,12 @@ func wish(p: Player, dt: float, stick: float, firing: bool, aiming: bool, on_flo
 		if not _clear(p, right * dir):
 			return Vector3.ZERO                            # boxed in on both sides: stand and shoot
 	active = true
-	var step := SPEED * dir
+	_v = move_toward(_v, dir, EASE * dt)
+	var step := SPEED * _v
 	travelled += absf(step) * dt
 	var aim_d := _aim_distance(p, yaw)
 	p.camera_rig.yaw += step * dt / aim_d              # the muzzle moves `step * dt` to the side: turn left (+yaw) by that angle over the distance to the aim point
-	return right * dir * (SPEED / Player.WALK_SPEED)
+	return right * _v * (SPEED / Player.WALK_SPEED)
 
 
 ## True when `d` (a unit-ish horizontal direction) has PROBE metres of free body room and ground under it.

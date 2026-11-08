@@ -402,6 +402,11 @@ func is_alive(i: int) -> bool:
 	return _alive[i] != 0 and _dying[i] <= 0.0
 
 
+## A stall vendor (pinned behind his counter). A shot at him passes over the counter: the stall is a waist-high table, not a wall (director review 5, defect 5).
+func is_vendor(i: int) -> bool:
+	return i >= 0 and i < count and _pin[i] != 0
+
+
 func is_dying(i: int) -> bool:
 	return _alive[i] != 0 and _dying[i] > 0.0
 

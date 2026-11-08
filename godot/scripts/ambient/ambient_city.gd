@@ -165,13 +165,20 @@ func _on_player_fired() -> void:
 
 ## --- the people can be shot (crowd.gd has the bodies, npc_life.gd the consequences) ---------------------------------------------------------
 
+const VENDOR_SLACK := 2.2                ## metres past the first obstacle a stall vendor can still be hit (the counter in front of him)
+
+
 ## A ray against the people of the street: {i, t, head} or an empty dictionary (also when civilian casualties are off: shots pass through them).
 func civilian_ray(origin: Vector3, dir: Vector3, max_t: float) -> Dictionary:
 	if not Game.civilian_casualties or crowd.count == 0:
 		return {}
 	var r := crowd.ray(origin, dir, max_t)
 	if r.x < 0.0:
-		return {}
+		# a vendor stands 1.2 m behind the counter of his stall: the counter's collider stops the physics ray first, so a shot straight at him must still find him
+		var r2: Vector3 = crowd.ray(origin, dir, max_t + VENDOR_SLACK)
+		if r2.x < 0.0 or not crowd.is_vendor(int(r2.x)):
+			return {}
+		r = r2
 	return {"i": int(r.x), "t": r.y, "head": r.z > 0.5}
 
 

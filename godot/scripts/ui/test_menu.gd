@@ -363,7 +363,7 @@ func quick_rect(i: int) -> Rect2:
 
 
 func _entry_visible() -> bool:
-	return TestMode.available() and not is_open and (Game.state == &"menu" or Game.state == &"paused") and entry_rect().size.x > 0.0
+	return TestMode.entry_shown() and not is_open and (Game.state == &"menu" or Game.state == &"paused") and entry_rect().size.x > 0.0
 
 
 func _quick_visible() -> bool:

@@ -1040,3 +1040,14 @@ See godot/ARCHITECTURE.md "Vehicle roster". Done: armoured truck, quad, scooter 
 - Perf gate: LOW OK (72 draws, 143 MB, death 107), MED OK (96, 166 MB, death 142), HIGH OK (114, 221 MB, death 165).
 - tools/full_bot.sh: PASS (7.4 min, 0 errors). visual_qa: 27/27 pass.
 - latest.png follow-ups: top HUD still stacks QUANTUM CORES / objective / ENEMIES DOWN lines and they overlap; boss spot shows CONTRACT FAILED ABANDONED banner; hero small in street shots; skill/gear screens dense; ability + weapon rows crowd the ammo counter; cars still boxy.
+
+## Review 5 presentation half (builder note; tests/test_director_round5_b.gd in the real scene at 2400x1080 and 844x390; sheet docs/shots/slice/director_round5_b_before_after.jpg)
+See docs/SLICE_REVIEW.md "Fix pass, review 5, presentation half" and godot/ARCHITECTURE.md "Review 5 presentation fixes". Done: camera kept out of vehicles, a wide Mission Board with pay chips, EXTRAS without TEST and with large cards, a weapon wheel with big pictures and class words, a de-cluttered map, soft lamp cones. Run `tools/import.sh` first only for the new test/bot files (no new class_name).
+- Edited test (meaning kept): test_device_fixes (the arm still ignores the car; the lens moves in front of it, at least 1 m from the head).
+- Gaps: weapon catalogue / loadout text sizes, the 1x map when 8 % is charted, car models (#4), the camera against a guard indoors, a helicopter in flight against the camera, perf gate not run (no draw changes), full suite not run by this builder.
+
+## Wave 103 integration note (director round 5 fixes)
+- Full suite (tools/test_all.sh): 223 pass, 2 FLAKY (test_mission_audit_kinds, test_shooting_accuracy), 2 FAIL at first run. test_director_round3_b: stale after the TEST entry became hidden unless test mode is forced; the test now forces TestMode for that check only (same meaning, where the card shows). test_integration: timed out at 60 s under 3-way parallel load (it passes alone, all checks ok); treat as load-flaky.
+- Perf gate: LOW 72 draws/143 MB, MED 96/166 MB, HIGH 114/221 MB, death spike 107/143/164 draws; all three verdicts OK.
+- full_bot: SOAK verdict=PASS, 0 errors. visual_qa: 27/27 pass.
+- latest.png follow-ups: street shots are dark with the hero small in the middle of empty asphalt and no foes/civilians in view; the HUD stacks 4+ banners (cores, nearest, enemies down) top centre; cars still boxy/low-poly (car and hero close-ups); interior (job room) props crowd the camera; sky_* shots look at facades only; skill/gear/suit pages have small text; title still shows a debug key-hint strip.

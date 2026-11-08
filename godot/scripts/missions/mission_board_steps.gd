@@ -71,7 +71,7 @@ static func steps(t: StringName, tier: int, r: RandomNumberGenerator) -> Array[D
 		"arena":
 			out = [
 				_s("reach", "ENTER THE ARENA", {"range": RANGE_NEAR, "radius": 10.0}),
-				_s("survive", "SURVIVE THE THREE WAVES", {"hold": 36.0, "gap": 11.0, "count": 2 + g}),
+				_s("survive", "BEAT THE WAVES", {"hold": 44.0, "gap": 9.0, "count": 3 + g, "near": 18.0, "far": 34.0, "clear": true}),
 			]
 		"boss":
 			out = [
@@ -114,5 +114,5 @@ static func steps(t: StringName, tier: int, r: RandomNumberGenerator) -> Array[D
 static func first_steps(_r: RandomNumberGenerator) -> Array[Dictionary]:
 	return [
 		_s("reach", "FOLLOW THE BEACON", {"range": [55.0, 85.0], "radius": 9.0}),
-		_s("kill_target", "CLEAR THE LOOKOUT", {"enemy": "operative", "guards": 1, "hp_mult": 1.0, "name": "LOOKOUT", "range": [40.0, 70.0]}),
+		_s("kill_target", "CLEAR THE LOOKOUT", {"enemy": "operative", "guards": 2, "hp_mult": 1.0, "name": "LOOKOUT", "range": [32.0, 55.0]}),
 	]

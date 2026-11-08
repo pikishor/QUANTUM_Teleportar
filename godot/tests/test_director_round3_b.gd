@@ -215,6 +215,8 @@ func _test_card_gone() -> void:
 	if tm == null or not TestMode.available():
 		TestLib.check(true, "no TEST menu in this build: nothing to leave behind")
 		return
+	var forced0: bool = TestMode.forced
+	TestMode.forced = true   # the entry is hidden from players unless test mode is forced (review 5, defect 8): this test is about WHERE it shows
 	Game.state = &"menu"
 	hud._options_open = false
 	hud._gear_open = true
@@ -223,7 +225,9 @@ func _test_card_gone() -> void:
 	hud._gear_open = false
 	hud._options_open = true
 	tm.call("_process", 0.3)
-	TestLib.check(shown_on_more and not bool(tm.call("_entry_visible")), "the TEST card shows on the MORE page and not over the OPTIONS tabs")
+	var hidden_on_options: bool = not bool(tm.call("_entry_visible"))
+	TestMode.forced = forced0
+	TestLib.check(shown_on_more and hidden_on_options, "the TEST card shows on the MORE page and not over the OPTIONS tabs")
 	TestLib.check(not bool(tm.get("_was_shown")), "the TEST menu redraws when its card goes away (no stale frame over the OPTIONS tabs)")
 	hud._options_open = false
 

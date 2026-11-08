@@ -5,9 +5,11 @@ extends RefCounted
 ## Buttons: `board_story`, `board_pick_0..2`, `board_diff_0..2`, `board_new`, `board_back`, `board_retry`, `board_abandon`, all 64 px or taller; the cards are MenuKit cards (the Hud draws
 ## them); this file lays them out and paints the header and the result line. Rules live in MissionBoard.
 
-const CARD_W := 760.0
-const CARD_H := 78.0
+const CARD_W := 760.0               ## the narrowest board (a 4:3 tablet); wider screens get up to CARD_W_MAX (director review 5, defect 8: a column that filled 47 % of the phone)
+const CARD_W_MAX := 1120.0
+const CARD_H := 92.0
 const GAP := 12.0
+const CHIP_W := 190.0                ## base px of the pay chip at the right end of a card
 const TOP := 128.0
 const BAR_H := 64.0
 
@@ -52,34 +54,42 @@ static func sub_of(b: MissionBoard, o: Dictionary) -> String:
 	return "%s   %s" % [str(o["brief"]), ("%d M AWAY" % roundi(d)) if d > 0.0 else ""]
 
 
+## The card width in base px for this screen: as wide as the phone allows (notch insets and a 40 px margin kept), never below CARD_W.
+static func card_w(hud: Hud, s: float) -> float:
+	var vp := hud._screen.size if hud != null and hud._screen != null else Vector2(1600.0 * s, 720.0 * s)
+	var ins := UiUtil.insets(vp)
+	return clampf((vp.x - 2.0 * (maxf(ins.x, ins.y) + 40.0 * s)) / s, CARD_W, CARD_W_MAX)
+
+
 static func layout(hud: Hud, cx: float, s: float) -> void:
 	var b := board()
-	var x := cx - CARD_W * 0.5 * s
+	var cw := card_w(hud, s)
+	var x := cx - cw * 0.5 * s
 	var y := TOP
 	if b == null:
 		hud._add(&"board_back", Rect2(cx - 150.0 * s, 300.0 * s, 300.0 * s, BAR_H * s), "BACK", false)
 		return
 	if b.is_running() or b.state == &"story":
 		var running := b.state == &"running"
-		hud._add_card(&"board_active", Rect2(x, y * s, CARD_W * s, CARD_H * s), str(b.active.get("title", "MISSION")), ICON_OF.get(b.active.get("type", &""), &"missions"),
+		hud._add_card(&"board_active", Rect2(x, y * s, cw * s, CARD_H * s), str(b.active.get("title", "MISSION")), ICON_OF.get(b.active.get("type", &""), &"missions"),
 				_step_line(b), true, tint_of(StringName(b.active.get("type", &""))))
 		y += CARD_H + GAP
 		if running:
-			hud._add_card(&"board_retry", Rect2(x, y * s, (CARD_W * 0.5 - GAP * 0.5) * s, BAR_H * s), "RETRY STEP", &"plus", "", false, UiUtil.CYAN)
-			hud._add_card(&"board_abandon", Rect2(x + (CARD_W * 0.5 + GAP * 0.5) * s, y * s, (CARD_W * 0.5 - GAP * 0.5) * s, BAR_H * s), "ABANDON", &"abort", "", false, UiUtil.RED)
+			hud._add_card(&"board_retry", Rect2(x, y * s, (cw * 0.5 - GAP * 0.5) * s, BAR_H * s), "RETRY STEP", &"plus", "", false, UiUtil.CYAN)
+			hud._add_card(&"board_abandon", Rect2(x + (cw * 0.5 + GAP * 0.5) * s, y * s, (cw * 0.5 - GAP * 0.5) * s, BAR_H * s), "ABANDON", &"abort", "", false, UiUtil.RED)
 			y += BAR_H + GAP
-		_bottom(hud, cx, s, y + 8.0, false)
+		_bottom(hud, cx, s, y + 8.0, false, cw)
 		return
 	var story := b.story_offer()
 	if not story.is_empty():
-		hud._add_card(&"board_story", Rect2(x, y * s, CARD_W * s, CARD_H * s), "STORY  " + str(story["title"]), &"chapters", "The next chapter. Longer, with a boss.", false, UiUtil.MAGENTA)
+		hud._add_card(&"board_story", Rect2(x, y * s, cw * s, CARD_H * s), "STORY  " + str(story["title"]), &"chapters", "The next chapter. Longer, with a boss.", false, UiUtil.MAGENTA)
 		y += CARD_H + GAP
 	for i in b.offers.size():
 		var o: Dictionary = b.offers[i]
 		var t := StringName(o["type"])
-		hud._add_card(StringName("board_pick_%d" % i), Rect2(x, y * s, CARD_W * s, CARD_H * s), "%s    %d CR" % [str(o["title"]), int(o["reward"])], ICON_OF.get(t, &"missions"), sub_of(b, o), i == 0 and story.is_empty(), tint_of(t))
+		hud._add_card(StringName("board_pick_%d" % i), Rect2(x, y * s, cw * s, CARD_H * s), str(o["title"]), ICON_OF.get(t, &"missions"), sub_of(b, o), i == 0 and story.is_empty(), tint_of(t))
 		y += CARD_H + GAP
-	_bottom(hud, cx, s, y + 8.0, true)
+	_bottom(hud, cx, s, y + 8.0, true, cw)
 
 
 static func _step_line(b: MissionBoard) -> String:
@@ -89,13 +99,13 @@ static func _step_line(b: MissionBoard) -> String:
 
 
 ## The bottom row: EASY NORMAL HARD, NEW OFFERS, BACK (FREE ROAM). Three difficulty buttons of 120 px, the rest share the width.
-static func _bottom(hud: Hud, cx: float, s: float, y: float, with_new: bool) -> void:
-	var x := cx - CARD_W * 0.5 * s
-	var bw := 112.0
+static func _bottom(hud: Hud, cx: float, s: float, y: float, with_new: bool, cw: float) -> void:
+	var x := cx - cw * 0.5 * s
+	var bw := 150.0
 	for i in 3:
 		hud._add(StringName("board_diff_%d" % i), Rect2(x + (float(i) * (bw + 8.0)) * s, y * s, bw * s, BAR_H * s), ["EASY", "NORMAL", "HARD"][i], Difficulty.current == i)
 	var rest_x := x + (3.0 * (bw + 8.0)) * s
-	var rest_w := CARD_W * s - 3.0 * (bw + 8.0) * s
+	var rest_w := cw * s - 3.0 * (bw + 8.0) * s
 	if with_new:
 		hud._add(&"board_new", Rect2(rest_x, y * s, (rest_w * 0.5 - 4.0 * s), BAR_H * s), "NEW OFFERS", false)
 		hud._add(&"board_back", Rect2(rest_x + rest_w * 0.5 + 4.0 * s, y * s, rest_w * 0.5 - 4.0 * s, BAR_H * s), "FREE ROAM", false)
@@ -125,7 +135,27 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, _cx: f
 		line = "PICK ONE   THE NEXT ARE ALWAYS HERE"
 	if prog != null:
 		line += "      CREDITS  %d" % prog.credits
-	hud._text(c, font, Vector2(0.0, (HEAD_LINE_Y) * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), col, 1.0 * s)
+	hud._text(c, font, Vector2(0.0, (HEAD_LINE_Y) * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * 1.15 * s), col, 1.0 * s)
+	_draw_pay(hud, c, s, font, b)
+
+
+## The pay chip at the right end of every offer card: a big amber number and the word CR, the answer to "what do I get" at a thumb's glance.
+static func _draw_pay(hud: Hud, c: Control, s: float, font: Font, b: MissionBoard) -> void:
+	for btn: Dictionary in hud.buttons:
+		var id := String(btn["id"])
+		if not id.begins_with("board_pick_"):
+			continue
+		var i := int(id.substr(11))
+		if i < 0 or i >= b.offers.size():
+			continue
+		var r: Rect2 = btn["rect"]
+		var chip := Rect2(r.end.x - (CHIP_W + 14.0) * s, r.position.y + 10.0 * s, CHIP_W * s, r.size.y - 20.0 * s)
+		c.draw_rect(chip, Color(UiUtil.AMBER.r * 0.25, UiUtil.AMBER.g * 0.2, 0.02, 0.95))
+		c.draw_rect(chip, Color(UiUtil.AMBER, 0.85), false, 2.0 * s)
+		var txt := "%d" % int(b.offers[i]["reward"])
+		var sz := UiUtil.fit_size(font, txt, chip.size.x - 16.0 * s, int(34.0 * s))
+		hud._text(c, font, Vector2(chip.position.x, chip.position.y + chip.size.y * 0.5 + 2.0 * s), txt, HORIZONTAL_ALIGNMENT_CENTER, chip.size.x, sz, Color(1.0, 0.92, 0.55, 1.0), 1.5 * s)
+		hud._text(c, font, Vector2(chip.position.x, chip.end.y - 10.0 * s), "CREDITS", HORIZONTAL_ALIGNMENT_CENTER, chip.size.x, int(UiUtil.BAR_LABEL * 0.8 * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 
 
 const HEAD_LINE_Y := 112.0

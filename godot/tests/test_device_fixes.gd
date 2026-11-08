@@ -125,7 +125,17 @@ func _camera_ignores_cars() -> void:
 	wall.collision_layer = 0
 	await frames(30)
 	TestLib.check(car != null, "a parked car stands right behind the hero")
-	TestLib.check(_cam_dist() > open_d - 0.3, "the camera arm ignores the car behind the hero (%.2f m, open street %.2f m)" % [_cam_dist(), open_d])
+	# The spring arm itself still ignores cars (a hero walking behind a car keeps his view); since director review 5 (#6) a SEPARATE vehicle ray moves the lens in front of the car body
+	# instead of leaving it inside the roof, so the lens distance may shrink, but never under 1 m, and the lens is not inside the car.
+	TestLib.check(p.camera_rig._arm_raw > open_d - 0.3, "the camera arm ignores the car behind the hero (arm %.2f m, open street %.2f m)" % [p.camera_rig._arm_raw, open_d])
+	TestLib.check(_cam_dist() >= 0.95, "the lens stays at least 1 m from the head with a car behind the hero (%.2f m)" % _cam_dist())
+	var q := PhysicsShapeQueryParameters3D.new()
+	var qs := SphereShape3D.new()
+	qs.radius = 0.12
+	q.shape = qs
+	q.transform = Transform3D(Basis.IDENTITY, p.camera_rig.camera.global_position)
+	q.collision_mask = Game.L_VEHICLE
+	TestLib.check(p.get_world_3d().direct_space_state.intersect_shape(q, 2).is_empty(), "the lens is not inside the car behind the hero")
 	TestLib.check(p.camera_rig.hero_fade < 0.01, "the hero stays solid with a car behind him")
 	wall.collision_layer = Game.L_WORLD
 	await frames(40)

@@ -95,11 +95,18 @@ func begin() -> void:
 func maybe_start() -> bool:
 	if Game.autostart and not force:
 		return false
+	if board_owns_goals():                       # the live game: the Mission Board's first job (walk to the beacon, clear the lookout) IS the training
+		return false
 	var prog := Game.progress as Progress
 	if prog != null and prog.tutorial_done:
 		return false
 	begin()
 	return true
+
+
+## True in the live game, where the Mission Board owns every goal on screen: a training pill under the objective line told the player two things at once (review 5 #3).
+static func board_owns_goals() -> bool:
+	return Game.missions is Missions and (Game.missions as Missions).board_mode
 
 
 func skip() -> void:
@@ -156,6 +163,11 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if not active or not Game.is_playing():
 		return
+	if board_owns_goals() and not force:         # a pill that was already up (an old save, the DEMO) steps aside the moment the board has a job
+		var m := Game.missions as Missions
+		if m.board != null and m.board.is_running():
+			_finish(true)
+			return
 	tick(delta)
 
 

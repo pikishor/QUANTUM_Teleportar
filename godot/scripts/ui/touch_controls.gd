@@ -633,6 +633,7 @@ func _draw_wheel(c: Control, font: Font, s: float) -> void:
 	c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(wheel.centre - Vector2.ONE * 30.0 * s, Vector2.ONE * 60.0 * s), false, Color(UiUtil.CYAN, 0.22))
 	var r := RadialWheel.ITEM_R * s
 	var texts: Array = []
+	var cap := ""
 	for i in n:
 		var it: Dictionary = wheel.items[i]
 		var ic := wheel.item_centre(i)
@@ -649,8 +650,15 @@ func _draw_wheel(c: Control, font: Font, s: float) -> void:
 		if float(it["cd"]) > 0.0:
 			c.draw_arc(ic, r + 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * float(it["cd"]), 28, Color(tint, 0.9), 3.0 * s, false)
 		if wheel.kind == &"weapon":
-			WeaponIcons.draw(c, StringName(it.get("icon", it["id"])), Rect2(ic.x - r * 0.8, ic.y - r * 0.62, r * 1.6, r * 0.8), Color(tint, 0.95))
-			texts.append([ic + Vector2(-r, r * 0.62), str(it["label"]), r * 2.0, 20.0, dim])
+			# director review 5, defect 9: the picture fills the disc, the label is the class in full words (PISTOL, SHOTGUN), a badge counts the weapons owned in the class
+			WeaponIcons.draw(c, StringName(it.get("icon", it["id"])), Rect2(ic.x - r * 0.92, ic.y - r * 0.86, r * 1.84, r * 1.1), Color(1, 1, 1, 0.97 * dim))
+			texts.append([ic + Vector2(-r, r * 0.66), str(it.get("cname", it["label"])), r * 2.0, 17.0 if str(it.get("cname", "")).length() < 7 else 14.5, dim])
+			if int(it.get("owned", 1)) > 1:
+				var bc := ic + Vector2(r * 0.72, -r * 0.72)
+				c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(bc - Vector2.ONE * 15.0 * s, Vector2.ONE * 30.0 * s), false, Color(UiUtil.MAGENTA, 0.95))
+				texts.append([bc + Vector2(-15.0 * s, 7.0 * s), str(int(it["owned"])), 30.0 * s, 17.0, 1.0])
+			if i == wheel.sel or (wheel.sel < 0 and bool(it.get("current", false))):
+				cap = str(it.get("wname", "")) + (("    TAP AGAIN: NEXT OF %d" % int(it["owned"])) if int(it.get("owned", 1)) > 1 and bool(it.get("current", false)) else "")
 		else:
 			var words := str(it["label"]).split(" ")
 			var fsz := 18.0
@@ -659,6 +667,13 @@ func _draw_wheel(c: Control, font: Font, s: float) -> void:
 			var y0 := ic.y + fsz * s * 0.34 - (float(words.size() - 1) * fsz * s * 0.55)
 			for k in words.size():
 				texts.append([Vector2(ic.x - r, y0 + float(k) * fsz * s * 1.1), words[k], r * 2.0, fsz, dim])
+	if cap != "":                                                           # the name of the weapon under the finger (or in the hand), large, at the top of the screen
+		var csz := int(30.0 * s)
+		var cw := minf(float(font.get_string_size(cap, HORIZONTAL_ALIGNMENT_LEFT, -1, csz).x) + 56.0 * s, _vp_size().x - 40.0 * s)
+		var cr := Rect2((_vp_size().x - cw) * 0.5, UiUtil.insets_v(_vp_size()).x + 16.0 * s, cw, 56.0 * s)
+		c.draw_rect(cr, Color(0.02, 0.05, 0.09, 0.96))
+		c.draw_rect(cr, Color(UiUtil.AMBER, 0.95), false, 2.5 * s)
+		c.draw_string(font, Vector2(cr.position.x, cr.position.y + 39.0 * s), cap, HORIZONTAL_ALIGNMENT_CENTER, cw, csz, Color(1, 1, 1, 0.98))
 	for t: Array in texts:
 		c.draw_string(font, (t[0] as Vector2) + Vector2(1.2, 1.2) * s, t[1], HORIZONTAL_ALIGNMENT_CENTER, t[2], int(float(t[3]) * s), Color(0, 0, 0, 0.8 * float(t[4])))
 		c.draw_string(font, t[0], t[1], HORIZONTAL_ALIGNMENT_CENTER, t[2], int(float(t[3]) * s), Color(1, 1, 1, 0.97 * float(t[4])))

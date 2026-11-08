@@ -26,6 +26,14 @@ static func available() -> bool:
 	return forced or OS.is_debug_build()
 
 
+## Whether the TEST entry (the EXTRAS card, the title badge) is SHOWN. A debug APK on a phone is "available" for the hooks but a player must not see a TEST button in EXTRAS (director review 5,
+## defect 8): it shows only when the setting forces test mode, when OPTIONS > GAME > ALL EXTRAS is on, or in the editor / tool runs without the phone HUD (tests, the tools/ scripts).
+static func entry_shown() -> bool:
+	if not available():
+		return false
+	return forced or MenuFlags.show_cut() or (OS.has_feature("editor") and not Game.force_touch)
+
+
 ## Test mode with the on-screen weapon buttons.
 static func quick_buttons_on() -> bool:
 	return available() and quick_weapons

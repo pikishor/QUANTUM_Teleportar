@@ -15,17 +15,17 @@ uniform float strength = 1.5;
 uniform float height = 400.0;
 uniform float top_fade = 0.35;
 uniform float pulse = 0.0;
-uniform float near_fade = 18.0;   // closer than this (metres) the column thins out, so what stands inside it (the gem) stays visible
+uniform float near_fade = 28.0;   // closer than this (metres) the column thins out, so what stands inside it (the gem) stays visible
 varying float h01;
 void vertex() {
 	h01 = clamp(VERTEX.y / height + 0.5, 0.0, 1.0);
 }
 void fragment() {
 	float f = abs(dot(normalize(NORMAL), normalize(VIEW)));
-	float edge = pow(f, 1.6);
+	float edge = pow(f, 2.3);        // a 10-sided column seen from the side showed one flat cyan wedge (director review 5, #11b): the brightness now dies toward every silhouette
 	float along = mix(1.0, top_fade, h01) * (1.0 + 0.12 * sin(TIME * 2.0 + h01 * 18.0 + pulse));
 	ALBEDO = tint.rgb * strength;
-	float nearness = mix(0.18, 1.0, smoothstep(near_fade * 0.25, near_fade, length(VERTEX)));
+	float nearness = mix(0.06, 1.0, smoothstep(near_fade * 0.25, near_fade, length(VERTEX)));
 	ALPHA = clamp(edge * along * nearness, 0.0, 1.0);
 }
 """
@@ -59,7 +59,7 @@ static func make_beam(color: Color, radius: float, height: float, strength := 1.
 	cyl.top_radius = radius
 	cyl.bottom_radius = radius
 	cyl.height = height
-	cyl.radial_segments = 10
+	cyl.radial_segments = 14
 	cyl.rings = 1
 	cyl.cap_top = false
 	cyl.cap_bottom = false

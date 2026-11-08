@@ -1168,6 +1168,11 @@ func _finish_anchors() -> void:
 # lighting
 # ---------------------------------------------------------------------------------------------------------------------
 
+const JOB_LAMP_Y := 2.3             ## metres: where the lamp pool of a room behind the street room hangs
+const JOB_LAMP_REACH := 2.2         ## metres added to its radius
+const JOB_LAMP_INTEN := 1.35
+
+
 func area_big(r: Rect2) -> bool:
 	return r.size.x * r.size.y > 90.0
 
@@ -1193,7 +1198,12 @@ func _lighting() -> void:
 			else:
 				var x := r.position.x + r.size.x * f
 				strips.append({"a": Vector3(x, h - 0.05, r.position.y + 0.8), "b": Vector3(x, h - 0.05, r.end.y - 0.8), "th": 0.14, "col": c, "em": 1.1, "cls": 8.0})
-		_add_pool(Vector3(r.get_center().x, h - 0.6, r.get_center().y), maxf(r.size.x, r.size.y) * 0.75 + 1.0, key, 0.42 if i == 0 else 1.0, 4)       # a room behind the street room is the job room: its one lamp pool is strong (0.38 left the safe room a black void, director review 4, #2)
+		if i == 0:
+			_add_pool(Vector3(r.get_center().x, h - 0.6, r.get_center().y), maxf(r.size.x, r.size.y) * 0.75 + 1.0, key, 0.42, 4)
+		else:
+			# a room behind the street room is the job room. Its lamp pool hung 3.6 m up with a 4.4 m radius, so the floor under it got 3 % of the light and the safe stood in a black void
+			# (director reviews 4 and 5, #2 / #7): the lamp hangs low (2.4 m), the radius reaches the corners with room to spare, and the pool is strong
+			_add_pool(Vector3(r.get_center().x, minf(h - 0.6, JOB_LAMP_Y), r.get_center().y), maxf(r.size.x, r.size.y) * 0.75 + 1.0 + JOB_LAMP_REACH, key, JOB_LAMP_INTEN, 4)
 		if area_big(r):
 			for q in [0.25, 0.75]:
 				_add_pool(Vector3(r.position.x + r.size.x * q, h - 0.8, r.position.y + r.size.y * (1.0 - q)), maxf(r.size.x, r.size.y) * 0.5 + 1.0, key.lerp(neon[(i + 1) % neon.size()], 0.25), 0.4, 3)

@@ -6,7 +6,7 @@ extends RefCounted
 ## Icons are plain vector glyphs (no textures: no memory), named in ICONS.
 
 const BODY := 15.0                    ## base px: smallest card text (22 px at 1080p)
-const TITLE := 20.0                   ## base px: card title
+const TITLE := 23.0                   ## base px: card title
 const FILL := Color(0.045, 0.06, 0.11, 0.97)
 const FILL_ON := Color(0.10, 0.16, 0.24, 0.98)
 const ICONS: Array[StringName] = [&"play", &"map", &"loadout", &"options", &"more", &"hero", &"missions", &"heists", &"suit", &"safehouse", &"achievements", &"photo", &"arena",

@@ -349,6 +349,7 @@ void fragment() {
 		// ---- static emissive strip / glow trim (peak capped below the bloom threshold: a ceiling strip or door trim stays a lit line, not a white burn)
 		emit = alb * vcol.a;
 		emit *= min(1.0, STRIP_CAP / max(max(emit.r, max(emit.g, emit.b)), 0.001));
+		emit *= mix(0.2, 1.0, smoothstep(0.9, 3.4, length(VIEW)));              // a ceiling strip a metre from the lens was a flat white slab across the top of the frame (director review 5, #11d)
 		alb *= 0.15;
 		lit = false;
 	} else if (cls < 9.5) {
@@ -405,6 +406,11 @@ void fragment() {
 	pl = mix(vec3(pl_l), pl, balance) + pa;
 	float gs_l = dot(gsum, vec3(0.2126, 0.7152, 0.0722));
 	gsum = mix(vec3(gs_l), gsum, balance * 0.8) + gacc;
+	if (cls > 1.5 && cls < 2.5) {
+		// the ceiling is the surface nearest to the lamp pools (a job room's lamp hangs at 2.3 m): lit at full strength it was a white slab across the top of the frame
+		pl *= 0.4;
+		gsum *= 0.4;
+	}
 	if (lit) {
 		emit += alb * pl + gsum;
 	}

@@ -144,27 +144,41 @@ func _marker_at(p: Vector3, col: Color) -> void:
 		add_child(_marker)
 		_pillar = MeshInstance3D.new()                       # a thin light column: the objective can be seen across a dark room
 		var pm := CylinderMesh.new()
-		pm.top_radius = 0.05
-		pm.bottom_radius = 0.05
-		pm.height = 3.2
+		pm.top_radius = 0.035
+		pm.bottom_radius = 0.035
+		pm.height = 2.2
 		pm.radial_segments = 6
 		pm.rings = 1
 		_pillar.mesh = pm
 		_pillar.material_override = _marker_mat
 		_pillar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(_pillar)
-	_marker_mat.albedo_color = Color(col.r * 1.4, col.g * 1.4, col.b * 1.4, 0.8)
+	_marker_mat.albedo_color = Color(col.r * 1.4, col.g * 1.4, col.b * 1.4, 0.55)
 	_marker.global_position = Vector3(p.x, p.y + 0.04, p.z)
 	_marker.visible = true
-	_pillar.global_position = Vector3(p.x, p.y + 1.6, p.z)
+	_pillar.global_position = Vector3(p.x, p.y + 1.1, p.z)
 	_pillar.visible = true
 
 
 func _make_safe(p: Vector3) -> void:
+	# A vault safe you can read from across a room (director review 5, #7: a grey cube): a bright steel body, a darker door set into it with a hinge side, a brass wheel, an amber
+	# keypad with a green status lamp, feet, and a stripe of hazard yellow along the top.
 	var b := InteriorCivilian.MB.new()
-	b.box(Vector3(0.0, 0.5, 0.0), Vector3(0.9, 1.0, 0.7), Color(0.3, 0.33, 0.38, 1.0))
-	b.box(Vector3(0.0, 0.58, 0.37), Vector3(0.55, 0.55, 0.05), Color(0.2, 0.22, 0.25, 1.0))
-	b.box(Vector3(0.22, 0.55, 0.41), Vector3(0.1, 0.16, 0.03), Color(1.0, 0.7, 0.2, 1.0))
+	var steel := Color(0.52, 0.56, 0.62, 1.0)
+	var door := Color(0.34, 0.37, 0.42, 1.0)
+	var brass := Color(0.95, 0.72, 0.28, 1.0)
+	b.box(Vector3(0.0, 0.64, 0.0), Vector3(1.05, 1.18, 0.8), steel)                           # body
+	b.box(Vector3(0.0, 0.62, 0.41), Vector3(0.88, 1.0, 0.06), door)                           # door
+	b.box(Vector3(0.0, 1.27, 0.0), Vector3(1.1, 0.07, 0.84), Color(0.95, 0.8, 0.18, 1.0))     # hazard-yellow cap
+	b.box(Vector3(-0.47, 0.62, 0.45), Vector3(0.05, 0.86, 0.05), Color(0.2, 0.22, 0.26, 1.0))  # hinge
+	b.box(Vector3(-0.1, 0.66, 0.46), Vector3(0.3, 0.05, 0.04), brass)                         # wheel spokes
+	b.box(Vector3(-0.1, 0.66, 0.46), Vector3(0.05, 0.3, 0.04), brass)
+	b.box(Vector3(-0.1, 0.66, 0.49), Vector3(0.1, 0.1, 0.04), Color(0.7, 0.5, 0.2, 1.0))      # hub
+	b.box(Vector3(0.27, 0.74, 0.46), Vector3(0.16, 0.22, 0.03), Color(1.0, 0.72, 0.2, 1.0))   # keypad (glows)
+	b.box(Vector3(0.27, 0.54, 0.46), Vector3(0.05, 0.05, 0.03), Color(0.3, 1.0, 0.5, 1.0))    # status lamp
+	for fx in [-0.4, 0.4]:
+		for fz in [-0.28, 0.28]:
+			b.box(Vector3(fx, 0.03, fz), Vector3(0.12, 0.06, 0.12), Color(0.12, 0.13, 0.15, 1.0))
 	_make_prop(b, p)
 
 
@@ -181,7 +195,7 @@ func _make_prop(b, p: Vector3) -> void:
 	mat.roughness = 0.6
 	mat.metallic = 0.0
 	mat.emission_enabled = true                              # a standard material gets no light from the room's baked pools: the safe was a black block (director review 4, #2)
-	mat.emission = Color(0.26, 0.28, 0.32)
+	mat.emission = Color(0.36, 0.39, 0.45)
 	mat.emission_energy_multiplier = 1.0
 	_prop = MeshInstance3D.new()
 	_prop.mesh = b.build(mat, false, true)

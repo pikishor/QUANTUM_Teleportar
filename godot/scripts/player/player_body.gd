@@ -78,6 +78,10 @@ static var _flash_mat_streak: StandardMaterial3D
 var muzzle: Node3D
 var _wp_mi: MeshInstance3D
 const WEAPON_LOOK_SCALE := Vector3(1.4, 1.4, 1.12)
+## Heavy weapons are drawn bigger still (director review 5, #2: the rocket launcher read as a 20 cm stub from behind the hero): a launcher, minigun, LMG, anti-materiel rifle, flamethrower
+## and the big quantum emitters get this extra factor on thickness and length, so a heavy gun reads as a heavy gun at the 20 % of the frame the hero fills.
+const HEAVY_LOOK_SCALE := Vector3(1.3, 1.3, 1.2)
+const HEAVY_IDS: Array[StringName] = [&"rocket", &"minigun", &"lmg", &"amr", &"flame", &"qcollapse", &"gravity", &"lance", &"rail", &"xbow"]
 var _muzzle_shift := 0.0                      ## metres the muzzle sits behind the carbine's (a short gun)
 var _wp_attach := false                       ## (kept for the rebuild reset)
 var _finger_mode: StringName = &""
@@ -451,7 +455,7 @@ func set_weapon_look(id: StringName) -> void:
 	var sil := WeaponModels.mesh(id)
 	_wp_mi.mesh = sil
 	_wp_mi.position = Vector3.ZERO
-	_wp_mi.scale = WEAPON_LOOK_SCALE      # thicker and a little longer: from the shoulder camera the gun was a thin stick (director review)
+	_wp_mi.scale = WEAPON_LOOK_SCALE * (HEAVY_LOOK_SCALE if HEAVY_IDS.has(id) else Vector3.ONE)      # thicker and a little longer: from the shoulder camera the gun was a thin stick (director review)
 	_wp_mi.visible = hero_mat != null and sil != null
 	_muzzle_shift = WeaponModels.muzzle_shift(id) if hero_mat != null else 0.0
 	if rig != null and hero_mat != null:

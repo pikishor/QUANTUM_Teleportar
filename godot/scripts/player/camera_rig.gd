@@ -95,6 +95,8 @@ const DEAD_ARC_TIME := 3.2                   ## ... over this many seconds of ga
 const DEAD_KILLER_AGE := 4.0                 ## a hit older than this (seconds) is not "the killer"
 
 # shake caps: the camera never moves more than this, however many hits and blasts pile up
+const VEHICLE_CLEAR := 0.35                   ## metres the lens keeps in front of a vehicle body (see _vehicle_avoid)
+const VEHICLE_LIFT := 0.9                     ## metres of lift at a full squeeze against a vehicle (scaled by how much of the arm was cut)
 const PROP_CLEAR := 0.55                      ## metres: a prop closer than this to the camera pushes the camera aside
 const CINE_TTL := 0.25                       ## a scripted camera pose lapses by itself this many real seconds after the last cine_set(): nothing can leave the view stuck
 
@@ -167,6 +169,7 @@ var _shake_t := 0.0
 var _ratio := 1.0                            ## fraction of the arm that is free of walls (smoothed: instant in, eased out)
 var _pivot_pos := Vector3.ZERO
 var _last_base := Vector3.ZERO               ## the followed position the last view update was built on (vehicle mode: for the in-tick shift)
+var _veh_ratio := 1.0
 var _prop_push := Vector3.ZERO              ## eased slide of the camera out of a lamp post, kiosk or bin it would sit in or against (props never shorten the arm)
 var _prop_rids: Dictionary = {}
 var _prop_shape := SphereShape3D.new()
@@ -669,6 +672,31 @@ func _prop_avoid(cam: Vector3, pivot: Vector3, dt: float) -> Vector3:
 	return _prop_push
 
 
+## A parked car, a helicopter or a bus behind the hero must never swallow the lens (director review 5, defect 6: half the frame was the inside of a red car, a dark glass dome filled the
+## left of the picture at the ENTER prompt). Cars do not shorten the main arm (a hero walking behind a car keeps his view), so this is a second, vehicle-only ray from the head to the
+## lens: when it hits a vehicle the lens moves in front of that vehicle (never nearer than 1.0 m of the head) and rises up to 0.5 m, and it eases back out after the vehicle is cleared.
+func _vehicle_avoid(cam: Vector3, pivot: Vector3, dt: float) -> Vector3:
+	var dir := cam - pivot
+	var len := dir.length()
+	var want := 1.0
+	if len > 0.2:
+		_probe.collision_mask = Game.L_VEHICLE
+		_probe.from = pivot
+		_probe.to = cam + dir / len * VEHICLE_CLEAR
+		var hit := get_world_3d().direct_space_state.intersect_ray(_probe)
+		if not hit.is_empty():
+			var at := (hit["position"] as Vector3).distance_to(pivot)
+			want = clampf((at - VEHICLE_CLEAR) / len, minf(1.0, 1.0 / len), 1.0)
+	if want < _veh_ratio or dt <= 0.0:
+		_veh_ratio = want
+	else:
+		_veh_ratio = PlayerUtil.damp(_veh_ratio, want, 4.0, dt)
+	if _veh_ratio > 0.995:
+		_veh_ratio = 1.0
+		return cam
+	return pivot + dir * _veh_ratio + Vector3(0.0, VEHICLE_LIFT * (1.0 - _veh_ratio), 0.0)
+
+
 ## The pooled prop colliders (lamp poles, dumpsters, kiosks, roof clutter) are world bodies for walking, shooting and blinking but never shorten the camera arm.
 func _exclude_props() -> void:
 	if arm == null or not is_instance_valid(Game.world) or not Game.world.has_method(&"prop_colliders"):
@@ -888,8 +916,10 @@ func _update_view(dt: float) -> void:
 
 	if not drv and not InteriorSpace.active and playing:
 		cam_pos += _prop_avoid(cam_pos, _pivot_pos, dt)
+		cam_pos = _vehicle_avoid(cam_pos, _pivot_pos, dt)
 	elif _prop_push != Vector3.ZERO:
 		_prop_push = Vector3.ZERO
+		_veh_ratio = 1.0
 
 	# --- roll, bob, shake
 	var strafe := 0.0

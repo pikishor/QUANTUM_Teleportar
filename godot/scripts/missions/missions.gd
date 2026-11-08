@@ -28,6 +28,7 @@ const COLUMN_CAP := [0, 0, 1]               ## light columns of pickups drawn at
 const PICKUP_RADIUS := 2.2
 const PICKUP_LIFE := 40.0
 const PICKUP_HOVER := 0.5
+const PICKUP_MODEL_SCALE := 0.5          ## health and energy pickups: 0.57 m wide
 const HEALTH_AMOUNT := 30.0
 const ENERGY_AMOUNT := 35.0
 const VERTICAL_REACH := 6.0            ## a player on a roof above a junction does not collect it
@@ -465,6 +466,9 @@ func _process_body(delta: float) -> void:
 		var ph: float = s.phase
 		node.position.y = pp.y + PICKUP_HOVER + sin(_t * 3.0 + ph) * 0.12
 		node.rotation.y += delta * 2.0
+		if have_cam:                                 # a pickup beside the lens shrinks away instead of filling the picture (director review 5 #7: a black block with green crosses at the camera)
+			var near_k := clampf((cam_pos.distance_to(node.global_position) - 1.0) / 2.6, 0.0, 1.0)
+			node.scale = Vector3.ONE * lerpf(0.04, 1.0, near_k * near_k)
 		# the last 5 s of its life it blinks, like a timed pickup should
 		var blink: bool = s.t < 5.0 and int(s.t * 6.0) % 2 == 0
 		(s.halo as MeshInstance3D).visible = not blink and s.get("halo_ok", true)
@@ -561,6 +565,8 @@ func _build_pickup_pool() -> void:
 				MissionVisuals.tint_glow(model, "pickup_%s" % kind, {&"Glow": [col, 2.0 if kind == &"health" else 2.3]})
 				_pickup_lights.append_array(DynamicFill.trim_lights(model))
 			model.name = String(kind)
+			if kind != &"weapon":
+				model.scale = Vector3.ONE * PICKUP_MODEL_SCALE      # the health / energy models are 1.15 m wide: at the hero's side that was a giant black block with green crosses (director review 5, #11c)
 			root.add_child(model)
 			models[kind] = model
 			halos[kind] = MissionVisuals.make_halo(Color(col.r, col.g, col.b, 0.6), 2.6).material_override

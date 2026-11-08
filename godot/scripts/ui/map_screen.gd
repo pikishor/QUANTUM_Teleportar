@@ -36,9 +36,9 @@ const LOD_NEAR := 3
 const LOD_NEAR_JOB := 4
 const ALWAYS_KINDS: Array[StringName] = [&"mission", &"side", &"home"]   ## never dropped by the icon cap
 const KIND_ORDER: Array[StringName] = [&"job", &"garage", &"weapon", &"shop", &"interior", &"items"]   ## round-robin order of the capped kinds (most useful first)
-const CAP_OVERVIEW := 18                          ## icons on screen at zoom < 2 (round 3 director review: 600 icons were unreadable)
-const CAP_MID := 30                               ## zoom 2 .. 4
-const CAP_NEAR := 44                              ## zoom >= 4: even a street shows at most this many icons
+const CAP_OVERVIEW := 14                          ## icons on screen at zoom < 2 (round 3 director review: 600 icons were unreadable)
+const CAP_MID := 20                               ## zoom 2 .. 4
+const CAP_NEAR := 24                              ## zoom >= 4: even a street shows at most this many icons
 const HINT_SECONDS := 6.0
 const MAX_CHEVRONS := 260
 const INPUT_QUIET := 0.25                         ## seconds after opening that pointer input is ignored: the tap that opened the map (a minimap tap, the MAP card) must not place a waypoint under the finger
@@ -1165,7 +1165,7 @@ func _draw_map() -> void:
 	_placed.clear()
 	if scan_on:
 		scan_log.clear()
-	drawn = {"roads": 0, "lots": 0, "markers": 0, "labels": 0, "route": false, "you": false, "danger": 0}
+	drawn = {"badges": [], "roads": 0, "lots": 0, "markers": 0, "labels": 0, "route": false, "you": false, "danger": 0}
 	_map.draw_rect(Rect2(Vector2.ZERO, sz), Color(0.02, 0.04, 0.065, 1.0))
 	_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var city := Rect2(world_to_map(-HALF, -HALF), Vector2(2.0 * HALF, 2.0 * HALF) * pm)
@@ -1278,7 +1278,7 @@ func _draw_map() -> void:
 			continue
 		_counts[k] = int(_counts.get(k, 0)) + 1
 		var cpx := CLUSTER_PX * s * (1.7 if zoom_f < 1.6 else 1.2)
-		var key := "%s|%d|%d" % [k, int(mp.x / cpx), int(mp.y / cpx)] if (zoom_f < 3.0 and k != &"mission" and k != &"home") else "%s|%s" % [k, pw]
+		var key := "%s|%d|%d" % [k, int(mp.x / cpx), int(mp.y / cpx)] if (zoom_f < 5.0 and k != &"mission" and k != &"home") else "%s|%s" % [k, pw]
 		if not cl.has(key):
 			cl[key] = [Vector2.ZERO, 0, mk]
 		cl[key][0] += mp
@@ -1292,6 +1292,42 @@ func _draw_map() -> void:
 			break
 	var keys: Array = cl.keys()
 	keys.sort_custom(func(a: String, b: String) -> bool: return not ALWAYS_KINDS.has((cl[b][2] as Dictionary)["kind"]) and ALWAYS_KINDS.has((cl[a][2] as Dictionary)["kind"]))   # objective first: its label wins
+	# director review 5, defect 10: 40 icons stacked at 3-4x and one lump at 1x. After the per-kind clusters, a second pass in priority order (objective, side job, home, then job, garage,
+	# weapon, shop, door, item) drops every badge that would sit on a higher one and adds its count to that one's number: a pile becomes one icon with "7" beside it.
+	var order: Array = keys.duplicate()
+	order.sort_custom(func(a: String, b: String) -> bool:
+		var ka: StringName = (cl[a][2] as Dictionary)["kind"]
+		var kb: StringName = (cl[b][2] as Dictionary)["kind"]
+		var pa := -1 if ALWAYS_KINDS.has(ka) else KIND_ORDER.find(ka)
+		var pb := -1 if ALWAYS_KINDS.has(kb) else KIND_ORDER.find(kb)
+		if pa != pb:
+			return pa < pb
+		return int(cl[a][1]) > int(cl[b][1]))
+	var merged := {}
+	var host_c := {}
+	var host_r := {}
+	for k0: String in order:
+		var e1: Array = cl[k0]
+		var kind1: StringName = (e1[2] as Dictionary)["kind"]
+		var rr1 := r_badge * (1.5 if kind1 == &"mission" else 1.0)
+		var c1: Vector2 = (e1[0] as Vector2) / float(e1[1])
+		var host := ""
+		for hk: String in merged:
+			if ALWAYS_KINDS.has(kind1):
+				break                                                # the objective, a side job and a home are never merged away
+			if c1.distance_to(host_c[hk]) < (rr1 + float(host_r[hk])) * 1.55:
+				host = hk
+				break
+		if host == "":
+			merged[k0] = [c1 * float(e1[1]), int(e1[1]), e1[2]]
+			host_c[k0] = c1
+			host_r[k0] = rr1
+		else:
+			merged[host][1] = int(merged[host][1]) + int(e1[1])
+			merged[host][0] = (host_c[host] as Vector2) * float(merged[host][1])
+	cl = merged
+	keys = merged.keys()
+	keys.sort_custom(func(a: String, b: String) -> bool: return not ALWAYS_KINDS.has((cl[b][2] as Dictionary)["kind"]) and ALWAYS_KINDS.has((cl[a][2] as Dictionary)["kind"]))
 	for key0: String in keys:                                           # every badge reserves its box first: no name is written over an icon
 		var e0: Array = cl[key0]
 		var rr0 := r_badge * (1.5 if (e0[2] as Dictionary)["kind"] == &"mission" else 1.0)
@@ -1337,6 +1373,7 @@ func _draw_map() -> void:
 			_map.draw_arc(c2, rr * (1.5 + 0.35 * ph), 0.0, TAU, 32, Color(KIND_COLOR[kind], 0.9 - 0.5 * ph), 4.0 * s, true)
 		MapIcons.draw(_map, kind, c2, rr, KIND_COLOR[kind])
 		drawn["markers"] = int(drawn["markers"]) + 1
+		(drawn["badges"] as Array).append([c2, rr, kind, n])
 		if n > 1:
 			_label_out(font, c2 + Vector2(rr * 0.9, -rr * 0.7), str(n), int(18.0 * s), Color(1, 1, 1, 0.95), HORIZONTAL_ALIGNMENT_LEFT, true)
 		elif ALWAYS_KINDS.has(kind) or (zoom_f >= 3.0 and labels_left > 0 and kind != &"interior"):

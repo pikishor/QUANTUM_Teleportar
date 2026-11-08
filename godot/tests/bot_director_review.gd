@@ -43,6 +43,10 @@ func _snap(name: String) -> void:
 	await RenderingServer.frame_post_draw
 	var img := _hud.get_viewport().get_texture().get_image()
 	img.save_png("%s/%s.png" % [_out, tag])
+	if InteriorGameplay.active and Game.camera != null:
+		var ig := InteriorGameplay.instance
+		var rm: Object = ig.interior if ig != null else null
+		print("DR cam ", Game.camera.global_position, " hero ", _p.global_position, " room bounds ", (rm.get("bounds") if rm != null else "?"), " fov ", Game.camera.fov)
 	print("DR frame ", tag, " | state=", Game.state, " line='", _line(), "' hp=%.0f heat=%.1f" % [_p.hp if _p != null else -1.0, Game.heat])
 	_saving = false
 
@@ -83,6 +87,10 @@ func _setup() -> bool:
 	for n in tree.root.find_children("*", "Stability", true, false):
 		n.set_process(false)
 	if _hud.settings.path == UiSettings.DEFAULT_PATH:
+		if OS.get_environment("DR_LIVE") != "":
+			Game.autostart = false                                             # a stranger's settings: EASY, a fresh map, the live-game cards
+			for f in ["bot_director.cfg", "bot_director_save.cfg", "map.cfg"]:
+				DirAccess.remove_absolute(ProjectSettings.globalize_path("user://" + f))
 		_hud.settings = UiSettings.new("user://bot_director.cfg")
 	_hud.touch.controls_on = true
 	DirAccess.make_dir_recursive_absolute(_out)
@@ -102,6 +110,9 @@ func _setup() -> bool:
 	_audit.ig = InteriorGameplay.instance
 	_audit._fight = FightBot.new()
 	_audit._fight.p = _p
+	if OS.get_environment("DR_LIVE") != "":                                   # review 5: the board and the first job, as the live game plays (no legacy campaign flow)
+		m.board.set_take_over(true)
+		m.board.auto_open = true
 	if not _acts.has("title"):
 		Game.start_new_game()
 		if Game.story != null:
@@ -221,6 +232,7 @@ func _act_title(_dt: float) -> void:
 # --- the first objective -------------------------------------------------------------------------------------------------------
 
 func _act_first(dt: float) -> void:
+	var delta := dt
 	_p.invuln = 0.0
 	if _stage == 0:
 		_stage = 1
@@ -228,6 +240,13 @@ func _act_first(dt: float) -> void:
 		_next_snap = 0.2
 		Game.state = &"play"
 	var camp: CampaignRunner = (Game.missions as Missions).campaign
+	if OS.get_environment("DR_LIVE") != "" and Game.state == &"paused" and _hud._board_open:
+		_data["bw"] = float(_data.get("bw", 0.0)) + delta
+		if float(_data["bw"]) > 1.0:
+			_snap("board_after_first")
+			print("DR first job done at t=%.0f, the board is open (live flow)" % _t)
+			_finish()
+		return
 	if _audit._globals():
 		_tick_snap("gate", 2.0)
 		return
@@ -866,3 +885,189 @@ func _task_run() -> void:
 		await b.frames(10)
 		await _snap("outside")
 	_task_done = true
+
+
+# --- review 5 acts: a blast with liquid, a helicopter, the mission board and the next mission --------------------------------------------------------
+
+func _act_blast(delta: float) -> void:
+	var mgr := Game.enemies as EnemyManager
+	match _stage:
+		0:
+			_audit.camp.abort()
+			_audit.camp.enabled = false
+			(Game.missions as Missions).contracts.enabled = false
+			mgr.patrol_groups().clear()
+			mgr.clear()
+			for id: StringName in WeaponRoster.ids():
+				WeaponDefs.unlock(id)
+			_p.teleport_to(Vector3(-30.0, 0.0, 4.0))
+			_p.camera_rig.reset_view(0.0, -0.1)
+			Game.heat = 0.0
+			var enc := Encounters.current
+			enc.enabled = true
+			enc.reset()
+			_fight = FightBot.new()
+			_fight.setup(_p)
+			_fight.aim_error = 0.02
+			_p.weapon.switch_to(&"rocket", true)
+			print("DR blast weapon now ", str(_p.weapon.current))
+			_stage = 1
+			_t = 0.0
+			_next_snap = 0.5
+		1:
+			Game.state = &"play"
+			if is_instance_valid(Game.story):
+				(Game.story as Story).skip_cards()
+			_fight.step(delta)
+			_p.invuln = 5.0
+			if _fight.target != null and is_instance_valid(_fight.target):
+				_p.camera_rig.aim_at(_fight.target.center())
+			_tick_snap("rocket", 0.7)
+			if int(_t * 10.0) % 20 == 0 and int(_t * 10.0) != int(_data.get("lg", -1)):
+				_data["lg"] = int(_t * 10.0)
+				print("DR blast t=%.0f weapon=%s alive=%d shots=%d hits=%d kills=%d" % [_t, str(_p.weapon.current), mgr.alive_count(), _fight.shots, _fight.hits, _fight.kills])
+			if _t > float(OS.get_environment("DR_FIGHT_SECONDS") if OS.get_environment("DR_FIGHT_SECONDS") != "" else "30"):
+				_fight.finish()
+				Encounters.current.enabled = false
+				mgr.clear()
+				_stage = 2
+				_t = 0.0
+				_next_snap = 0.0
+		2:
+			_p.invuln = 5.0
+			var fwd := -_p.camera_rig.camera.global_basis.z
+			fwd.y = 0.0
+			fwd = fwd.normalized()
+			var els: Array = [&"fire", &"toxic", &"plasma", &"quantum"]
+			var k: int = int(_data.get("k", 0))
+			if _t > 1.2 * float(k) and k < els.size():
+				_data["k"] = k + 1
+				var side := _p.camera_rig.camera.global_basis.x
+				side.y = 0.0
+				Game.explode(_p.global_position + fwd * 9.0 + side.normalized() * (float(k) - 1.5) * 3.0 + Vector3(0.0, 0.6, 0.0), 6.0, {"element": els[k], "player_dmg": 0.0, "enemy_dmg": 0.0, "car_dmg": 0.0})
+				_next_snap = _t + 0.5
+			if k > 0:
+				_tick_snap("blast", 1.0)
+			if _t > 9.0:
+				_finish()
+
+
+func _act_heli(_delta: float) -> void:
+	var vm := Game.vehicles as VehicleManager
+	match _stage:
+		0:
+			(Game.enemies as EnemyManager).clear()
+			Encounters.current.enabled = false
+			if InteriorGameplay.active:
+				InteriorGameplay.instance.leave(true)
+			vm.stream_every = 1.0e9
+			vm._stream_t = 1.0e9
+			var pad := VehicleSpawns.point(&"heli_pad")
+			var pos: Vector3 = pad.get("pos", Vector3(105.0, 0.0, 25.0))
+			_p.teleport_to(pos + Vector3(8.0, 0.1, 6.0))
+			_p.camera_rig.reset_view(PI * 0.5 + 0.4, -0.1)
+			var h := vm.spawn_parked(&"heli", pos, 0.0)
+			if h == null:
+				vm._release_farthest(pos)
+				h = vm.spawn_parked(&"heli", pos, 0.0)
+			_data["h"] = h
+			print("DR heli spawned ", str(h != null))
+			_stage = 1
+			_t = 0.0
+			_next_snap = 1.0
+		1:
+			_tick_snap("pad", 1.5)
+			var h: Vehicle = _data["h"] if is_instance_valid(_data["h"]) else null
+			if h == null:
+				_finish()
+				return
+			var to_h := Vector3(_p.global_position.x - h.global_position.x, 0.0, _p.global_position.z - h.global_position.z)
+			var stand := h.global_position + to_h.normalized() * 3.6
+			if _t > 2.5:
+				_audit.walk_to(Vector3(stand.x, _p.global_position.y, stand.z), 1.2, false)
+			if vm.nearest(_p.global_position, 4.2) == h:
+				_audit.stop_walking()
+				_audit.face(h.global_position)
+				if not _data.has("shot"):
+					_data["shot"] = true
+					_snap("enter_prompt")
+				_audit.tap(&"interact")
+				if vm.driven == h:
+					print("DR heli entered like a player in %.1f s" % _t)
+					_stage = 2
+					_t = 0.0
+					_next_snap = 0.5
+			if _t > 25.0:
+				print("DR heli could not be entered on foot in 25 s (forcing), nearest=%s dist=%.1f" % [str(vm.nearest(_p.global_position, 4.2)), h.edge_distance(_p.global_position)])
+				if vm.driven != null:
+					vm.exit_vehicle()
+				vm.enter(h)
+				_stage = 2
+				_t = 0.0
+				_next_snap = 0.5
+		2:
+			_p.invuln = 5.0
+			var h: Vehicle = _data["h"]
+			_hold(&"jump", _t < 7.0)
+			_hold(&"move_forward", _t > 4.0)
+			_hold(&"move_right", _t > 9.0 and _t < 11.0)
+			if _tick_snap("fly", 1.4):
+				print("DR heli t=%.1f alt=%.1f speed=%.1f" % [_t, h.global_position.y, h.speed])
+			if _t > 14.0:
+				_hold(&"jump", false)
+				_hold(&"move_forward", false)
+				_hold(&"move_right", false)
+				vm.exit_vehicle()
+				_finish()
+
+
+func _act_board(_delta: float) -> void:
+	var m := Game.missions as Missions
+	var board: MissionBoard = m.board
+	match _stage:
+		0:
+			if InteriorGameplay.active:
+				InteriorGameplay.instance.leave(true)
+			(Game.enemies as EnemyManager).clear()
+			Encounters.current.enabled = false
+			Game.heat = 0.0
+			if board.is_running():
+				board.abandon()
+			_audit.camp.enabled = true
+			board.set_take_over(true)
+			Game.state = &"play"
+			board.generate()
+			Game.state = &"paused"
+			_hud._on_state(&"paused")
+			_hud.screen_age = 5.0
+			_hud.open_board()
+			_hud._ensure_layout()
+			_stage = 1
+			_t = 0.0
+		1:
+			if _t > 0.8:
+				_snap("board")
+				print("DR board offers: ", str(board.offers.map(func(o): return "%s %d CR %.0f m" % [o["title"], o["reward"], o["route_m"]])))
+				_hud.press_button(&"board_pick_0")
+				_stage = 2
+				_t = 0.0
+				_next_snap = 1.0
+		2:
+			Game.state = &"play"
+			_audit.heal_up()
+			_audit._tick_campaign()
+			var camp := _audit.camp
+			if _tick_snap("job", 5.0):
+				print("DR board t=%.0f state=%s line='%s' pos=(%.0f,%.0f) foes=%d" % [_t, str(board.state), camp.hud_line(), _p.global_position.x, _p.global_position.z, camp.foes_alive()])
+			if board.state != &"running" and _t > 3.0:
+				print("DR board job over after %.0f s: state %s result %s" % [_t, str(board.state), str(board.last_result)])
+				_stage = 3
+				_t = 0.0
+				_next_snap = 0.4
+			if _t > float(OS.get_environment("DR_BOARD_SECONDS") if OS.get_environment("DR_BOARD_SECONDS") != "" else "150"):
+				print("DR board TIMEOUT: mission still running after %.0f s, line '%s'" % [_t, camp.hud_line()])
+				_finish()
+		3:
+			_tick_snap("after", 1.2)
+			if _t > 5.0:
+				_finish()

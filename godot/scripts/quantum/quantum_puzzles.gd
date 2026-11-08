@@ -23,7 +23,8 @@ const SHIELD_REACH := 15.0
 const BONUS := 100
 const MAX_CLUTTER := 0.45               ## share of the lane's sample points that may stand in furniture (interiors)
 const BARRIER_SHADER := preload("res://assets/shaders/fx_barrier.gdshader")
-const WALL_COL := Color(0.16, 0.2, 0.26)
+const WALL_SHADER := preload("res://assets/shaders/quantum_wall.gdshader")
+const WALL_COL := Color(0.26, 0.31, 0.38)
 const COL := {&"phase": Color(0.3, 0.94, 1.0), &"plate": Color(1.0, 0.72, 0.25), &"shield": Color(1.0, 0.24, 0.94)}
 
 static var _icons := {}
@@ -205,13 +206,10 @@ func _box(p: Vector3, size: Vector3, col: Color, layer: int, glow := false) -> S
 		sm.set_shader_parameter(&"size", Vector2(size.x, size.y))
 		mi.material_override = sm
 	else:
-		var m := StandardMaterial3D.new()
-		m.albedo_color = col
-		m.emission_enabled = true                            # the room's pools never reach a standard material: a dark slab read as a black void (director review 4, #2); a self-lit panel reads as a wall
-		m.emission = Color(0.10, 0.15, 0.21)
-		m.emission_energy_multiplier = 1.0
-		m.roughness = 0.9
-		mi.material_override = m
+		var wm := ShaderMaterial.new()                       # the room's pools never reach a standard material: a flat dark slab read as a black void (director reviews 4 and 5, #7); a panelled, trimmed wall reads as a wall
+		wm.shader = WALL_SHADER
+		wm.set_shader_parameter(&"floor_y", origin.y)
+		mi.material_override = wm
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mi)
 	return body

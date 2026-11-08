@@ -2038,11 +2038,11 @@ func more_items() -> Array:
 
 
 const MORE_COLS := 3
-const MORE_W := 276.0
+const MORE_W := 420.0
 const MORE_GAP := 10.0
-const MORE_Y := 140.0
-const MORE_H := 84.0
-const MORE_PITCH := 94.0
+const MORE_Y := 150.0
+const MORE_H := 112.0
+const MORE_PITCH := 126.0
 ## icon and one-line caption of every MORE card (id -> [icon, caption])
 const MORE_META := {
 	&"deploy": [&"plus", "Start over"], &"chapters": [&"chapters", "Pick a chapter"], &"demo": [&"demo", "Everything open"], &"arena_open": [&"arena", "Waves and bosses"],
@@ -2059,7 +2059,7 @@ func more_cell(i: int, cx: float, s: float) -> Rect2:
 
 ## The reserved cell of the TEST button (test mode only; scripts/ui/test_menu.gd draws it): right after the last entry. Empty when the MORE page is closed.
 func more_test_rect() -> Rect2:
-	if not _gear_open or not (Game.state == &"menu" or Game.state == &"paused") or not _main_screen() or not TestMode.available():
+	if not _gear_open or not (Game.state == &"menu" or Game.state == &"paused") or not _main_screen() or not TestMode.entry_shown():
 		return Rect2()
 	var vp := get_viewport().get_visible_rect().size
 	return more_cell(more_items().size(), vp.x * 0.5, UiUtil.ui_scale(vp))
@@ -2070,7 +2070,7 @@ func _layout_more(vp: Vector2, cx: float, s: float) -> void:
 	for k in items.size():
 		var meta: Array = MORE_META.get(items[k][0], [&"more", ""])
 		_add_card(items[k][0], more_cell(k, cx, s), items[k][1], meta[0], meta[1], false, UiUtil.RED if items[k][0] == &"menu" else Color(0, 0, 0, 0))
-	var n := items.size() + (1 if TestMode.available() else 0)
+	var n := items.size() + (1 if TestMode.entry_shown() else 0)
 	_add_card(&"more_back", more_cell(n, cx, s), "BACK", &"back", "", false, UiUtil.AMBER)
 
 

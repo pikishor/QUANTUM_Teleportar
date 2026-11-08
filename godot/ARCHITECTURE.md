@@ -865,3 +865,19 @@ CC0 models, converted and wired with the older art as fallback (credits: docs/TH
 - **Spawn rules**: `VehicleSpawns.POINTS` (helipad on a core plaza, airstrip on the east avenue, a tank on the west ring road, three boat slips in the flooded streets, map markers with the vehicle name): a point with nobody on it and the player within 100 m gets a fresh vehicle (`VehicleManager._tick_spawn_points`, once a second, uses a free slot or the farthest car's), a destroyed one returns after 40 s, one the player drove away is replaced when he comes back. The armoured truck (1.2 %), quad (2.5 %) and scooter (3 %) are rare street traffic (`STREAM_KINDS`). Random cars never spawn in the flooded quarter.
 - Tests edited (meaning kept): test_cars_world_scale (the one-minute-per-avenue rule is for ground vehicles, aircraft excluded).
 - Gaps: nothing measured on a phone; the aircraft have no cockpit view or landing gear animation; the boat has no deck hero and no splash on the hero wading; the hero cannot yet bail out of a flying craft (no parachute); only one boat model; engines reuse the existing loops (no rotor or propeller sound); traffic cars still drive through the flooded streets; helicopter and plane paints are random from a small palette; es / hi strings for the new names.
+
+
+## Gameplay fixes after director review 5 (tests/test_director_round5_a.gd in the real scene; docs/SLICE_REVIEW.md "Fix pass, review 5, gameplay half")
+- **Training vs the board**: `Tutorial.board_owns_goals()` (Missions.board_mode, the live game): `maybe_start` returns false, a pill already up ends itself when a board job runs. The first job is the training.
+- **Arena**: board `survive` steps carry `near` / `far` (spawn ring, default 36-58) and `clear` (the clock alone does not end the step: `CampaignRunner._tick_survive` waits for the foes, `SURVIVE_CLEAR_GRACE` 40 s). `MissionBoardSteps` arena: 3 + tier foes every 9 s from 18-34 m, hold 44 s. Offers carry `gift` (`MissionRewards.gift_text()`), appended to the brief.
+- **Vendors**: `AmbientCity.civilian_ray` finds a pinned stall vendor up to `VENDOR_SLACK` 2.2 m past the first obstacle (his counter); `AmbientCrowd.is_vendor(i)`.
+- **Job room**: `InteriorPlan` lamp pool of every room behind the street room hangs at `JOB_LAMP_Y` 2.3 m with `JOB_LAMP_REACH` 2.2 m more radius; `interior_surface.gdshader` dims ceiling strips near the lens and takes 40 % of the pool light on the ceiling; `QuantumPuzzles` corridor walls use `quantum_wall.gdshader` (panels, seams, hazard stripe, cyan trim); `InteriorMissions._make_safe` builds a vault safe.
+- **Render glitches**: `Missions.PICKUP_MODEL_SCALE` (health / energy pickups), `MissionVisuals.BEAM_SHADER_CODE` silhouette falloff and near fade, `LightingPolish.CONE_SHADER` falloff.
+- **Feel**: `CombatStep.EASE` (the side-step speed eases through a reversal), `PlayerBody.HEAVY_LOOK_SCALE` / `HEAVY_IDS` (heavy guns drawn bigger).
+
+## Review 5 presentation fixes (builder note; tests/test_director_round5_b.gd)
+- Camera: `CameraRig._vehicle_avoid` (second ray head to lens on `L_VEHICLE`, `VEHICLE_CLEAR` / `VEHICLE_LIFT`); the spring arm itself still ignores cars, so a hero walking behind a car keeps his view.
+- Menus: `MissionBoardScreen.card_w` (cards up to 1120 base px) and the pay chip; `Hud.MORE_W` 420; `TestMode.entry_shown()` decides whether TEST is visible (the hooks stay on `available()`).
+- Weapon wheel: wedge items carry `cname` / `wname`; `TouchControls._draw_wheel` draws the picture large, the class in words, a count badge and a name plate.
+- Map: `MapScreen` merges overlapping badges after the per-kind clusters (always-kinds never merged); `drawn["badges"]` lists what was drawn; caps 14 / 20 / 24.
+- Lamp cones: ten faces with normals (`LightingPolish.build_cones`), silhouette fade in `CONE_SHADER`.

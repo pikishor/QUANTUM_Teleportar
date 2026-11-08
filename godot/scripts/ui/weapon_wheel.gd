@@ -21,7 +21,8 @@ static func items() -> Array:
 		var label := str(WeaponDefs.DEFS[show].get("tag", show))
 		if owned.size() > 1:
 			label += " %d/%d" % [owned.find(show) + 1, owned.size()]
-		out.append({"id": cls, "icon": show, "label": label, "ready": true, "active": cls == cur_cls, "cd": 0.0, "current": cls == cur_cls, "cls": cls, "owned": owned.size(), "total": WeaponDefs.in_class(cls).size()})
+		out.append({"id": cls, "icon": show, "label": label, "ready": true, "active": cls == cur_cls, "cd": 0.0, "current": cls == cur_cls, "cls": cls, "owned": owned.size(), "total": WeaponDefs.in_class(cls).size(),
+				"cname": String(WeaponDefs.CLASS_NAMES.get(cls, str(cls).to_upper())), "wname": String(WeaponDefs.DEFS[show].get("name", show)).to_upper()})
 	return out
 
 

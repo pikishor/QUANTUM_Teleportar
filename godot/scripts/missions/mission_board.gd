@@ -39,7 +39,7 @@ const DEFS := {
 	&"stealth": {"title": "STEALTH", "brief": "Slip past the guards without being seen.", "base": 170, "weight": 3, "glyph": &"eye"},
 	&"chase": {"title": "CHASE", "brief": "Run down the fleeing car.", "base": 200, "weight": 3, "glyph": &"car", "needs": [&"cars"]},
 	&"convoy": {"title": "CONVOY INTERCEPT", "brief": "Stop the convoy: wreck, collapse or entangle every car.", "base": 260, "weight": 2, "glyph": &"car", "needs": [&"cars"]},
-	&"arena": {"title": "ARENA WAVE", "brief": "Hold the ring through three waves.", "base": 210, "weight": 3, "glyph": &"target"},
+	&"arena": {"title": "ARENA WAVE", "brief": "Beat the waves that rush you. Finish them all.", "base": 250, "weight": 3, "glyph": &"target"},
 	&"boss": {"title": "BOSS-LITE", "brief": "Track down the elite and his two guards.", "base": 280, "weight": 2, "glyph": &"skull"},
 	&"bounty": {"title": "BOUNTY", "brief": "Find the marked target, then collect the bounty.", "base": 220, "weight": 3, "glyph": &"skull"},
 	&"demolition": {"title": "DEMOLITION", "brief": "Smash the props at two sites.", "base": 140, "weight": 3, "glyph": &"blast"},
@@ -240,8 +240,10 @@ func build(t: StringName, origin: Vector3, first := false) -> Dictionary:
 		route += 40.0
 	var def: Dictionary = DEFS[t] if not first else {"title": "FIRST JOB", "brief": "Follow the beacon and clear the lookout.", "base": 120, "glyph": &"dest"}
 	var reward := pay_for(float(def["base"]), route, tr)
+	var gift := MissionRewards.gift_text()
+	var brief := str(def["brief"]) + ("  PAYS CREDITS + %s" % gift if gift != "" else "")
 	var offer := {
-		"id": _serial, "type": t if not first else &"first", "title": str(def["title"]), "brief": str(def["brief"]), "glyph": def["glyph"],
+		"id": _serial, "type": t if not first else &"first", "title": str(def["title"]), "brief": brief, "gift": gift, "glyph": def["glyph"],
 		"steps": steps, "route_m": route, "reward": reward, "pos": first_pos if first_pos.is_finite() else origin, "tier": tr, "story": false,
 		"chapter": {"id": "board_%d" % _serial, "title": str(def["title"]), "clears_sector": false, "steps": steps},
 	}

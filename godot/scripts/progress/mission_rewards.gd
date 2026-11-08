@@ -6,6 +6,22 @@ extends RefCounted
 ##   missions 1..10 (FIRST_TEN): something new EVERY mission (a weapon mod, the next weapon, an upgrade level, a weapon crate = weapon + ammo + mod),
 ##   later (CYCLE, six long): weapon, upgrade, mod, weapon, upgrade, crate, then again. When nothing is left to grant the reward is cash (CASH_FALLBACK).
 ## The weapon is always the first unowned entry of WeaponLadder.LADDER, so crates on the map and enemy drops only make the next one come sooner. `missions_to_weapon()` feeds the
+## What the NEXT finished mission hands out besides credits, in two or three words for a mission card ("NEW WEAPON", "WEAPON MOD", "UPGRADE", "WEAPON CRATE"; "" when nothing is left of it).
+## Director review 5, #12: nothing on a card promised a gun.
+static func gift_text() -> String:
+	var e := entry_for(missions_done + 1)
+	match StringName(e["kind"]):
+		&"weapon":
+			return "NEW WEAPON" if WeaponLadder.next_target() != &"" else ""
+		&"crate":
+			return "WEAPON CRATE" if WeaponLadder.next_target() != &"" else ""
+		&"mod":
+			return "WEAPON MOD" if next_unowned_mod() != &"" else ""
+		&"upgrade":
+			return "UPGRADE"
+	return ""
+
+
 ## "NEXT WEAPON IN 2 MISSIONS" line of the result card (scripts/ui/result_card.gd). Static state (like Gear / SkillTree): saved in the `[rewards]` section by Progress.
 ## Pure rules plus `complete`; the scene tree is only touched through Game.progress / Game.player.
 

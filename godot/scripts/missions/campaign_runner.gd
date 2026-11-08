@@ -67,6 +67,7 @@ const ESCORT_LEFT_TIME := 15.0
 const ESCORT_PATIENCE := 14.0          ## seconds the escortee waits for hostiles near it before it walks on
 const ESCORT_PUSH := 6.0
 const MAX_ALIVE_WAVE := 12
+const SURVIVE_CLEAR_GRACE := 40.0      ## survive with `clear`: seconds past the clock the last foes may take before the step ends anyway (a foe that cannot be reached never traps the hero)
 const TARGET_HINT_FAR := 70.0
 const TARGET_HINT_R := 34.0
 const VERTICAL_REACH := 6.0
@@ -109,6 +110,7 @@ var steps_done := 0
 var retry_left := 0.0
 var wave := 0
 var foes: Array = []
+var _clear_t := 0.0                    ## survive: seconds to the next "FINISH THE LAST n" line
 var target: Node3D                     ## kill_target
 var car: Vehicle                       ## chase
 var escortee: InteriorCivilian         ## escort (pooled: built at the first escort)
@@ -1811,12 +1813,19 @@ func _tick_survive(delta: float, p: Vector3) -> void:
 	_gap_t -= delta
 	if _gap_t <= 0.0 and p.is_finite():
 		_gap_t = float(step["gap"])
-		_spawn_wave(p, 36.0, 58.0, _wave_size(wave), wave, step.get("types", []) as Array)
+		_spawn_wave(p, float(step.get("near", 36.0)), float(step.get("far", 58.0)), _wave_size(wave), wave, step.get("types", []) as Array)
 		wave += 1
 	_prune_foes()
 	var hold := maxf(float(step["hold"]), 0.1)
 	progress = clampf(_hold_t / hold, 0.0, 1.0)
 	if _hold_t >= hold:
+		# Mission Board arena (review 5 #12): the clock alone never ends it, the waves have to be beaten (a hero standing still for 41 s was paid 300 credits)
+		if bool(step.get("clear", false)) and foes_alive() > 0 and _hold_t < hold + SURVIVE_CLEAR_GRACE:
+			_clear_t -= delta
+			if _clear_t <= 0.0:
+				_clear_t = 4.0
+				Game.say("FINISH THE LAST %d" % foes_alive(), 1.6)
+			return
 		_complete_step(p if p.is_finite() else _origin)
 
 
