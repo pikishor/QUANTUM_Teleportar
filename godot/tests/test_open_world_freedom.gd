@@ -192,11 +192,15 @@ func _vehicles() -> void:
 	# a bus is long: its flank 4.8 m from the middle is still in reach, its middle 4.2 m rule alone would have missed
 	_clear_cars()
 	var bus := vm.spawn_parked(&"bus", Vector3(40.0, 0.0, -9.0), -PI * 0.5)
+	_stand_beside(bus, 1.0)
 	await frames(1)
 	p.teleport_to(bus.global_position + bus.forward() * 3.8 + bus.right() * (1.25 + 1.5))
 	TestLib.check(Vector2(p.global_position.x - bus.global_position.x, p.global_position.z - bus.global_position.z).length() > 4.2 and vm.reach_car(p.global_position) == bus,
 			"a bus is taken at its flank, far from its middle")
 	p.teleport_to(bus.global_position + bus.right() * 12.0)
+	for ambient in vm.list.duplicate():            # ambient traffic may have spawned beside the hero meanwhile (slow runners)
+		if ambient != vm.starter and ambient != bus:
+			vm._release(ambient)
 	TestLib.check(vm.reach_car(p.global_position) == null, "12 m away nothing is in reach")
 	# a moving car is caught on the run: its reach grows with its speed
 	bus.speed = 0.0
@@ -238,10 +242,12 @@ func _hijack() -> void:
 	# a parked car has nobody to throw out: plain entry, no hijack count
 	_clear_cars()
 	var parked := vm.spawn_parked(&"sedan", Vector3(40.0, 0.0, -9.0), -PI * 0.5)
+	_stand_beside(parked, 1.0)                  # stand beside it before any frame runs: a car far from the hero is culled by the manager on a slow frame
 	await frames(1)
 	_stand_beside(parked, 1.0)
 	var hb := hj.hijacks
 	var eb := hj.entries
+	await _until(func() -> bool: return Freedom.vehicle_prompt().begins_with("ENTER"), 3.0)      # the prompt refreshes per frame: wait for it, not one frame
 	TestLib.check(Freedom.vehicle_prompt().begins_with("ENTER"), "a parked car shows ENTER (%s)" % Freedom.vehicle_prompt())
 	vm.toggle_enter_exit()
 	TestLib.check(vm.driven == parked and hj.hijacks == hb and hj.entries == eb + 1, "a parked car is entered without a driver being thrown out")
