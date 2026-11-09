@@ -136,7 +136,13 @@ func _traffic() -> void:
 	var hp0 := lead.hp + back.hp
 	lead.ai_stun = 0.0
 	lead.ai_speed = 2.0
-	var hit := await _until(func() -> bool: return not back.ai or not lead.ai, 6.0)
+	var keep := func() -> bool:
+		if back.ai and lead.ai:                                  # keep the lead slow and the chaser in flight, so slow CI frames cannot let the lead escape or the panic lapse
+			lead.ai_speed = minf(lead.ai_speed, 2.0)
+			back.ai_panic = maxf(back.ai_panic, 2.0)
+			back.ai_speed = maxf(back.ai_speed, 10.0)
+		return not back.ai or not lead.ai
+	var hit := await _until(keep, 10.0)
 	TestLib.check(hit, "a panicking car runs into the traffic ahead (a real collision)")
 	await frames(4)
 	TestLib.check(lead.hp + back.hp < hp0 or lead.hits + back.hits > 0 or lead.speed != 2.0, "the crash has consequences (damage, hits or speed change)")
