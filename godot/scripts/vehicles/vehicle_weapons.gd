@@ -13,6 +13,12 @@ var locked := false
 var shots := 0
 var hits := 0
 var _cd := 0.0
+var alt_def: Dictionary = {}          ## the secondary weapon (VehicleSpecs.ALT_WEAPONS: rockets, missiles): fired by tick_alt on the AIM button
+var alt_ammo := 0
+var alt_shots := 0
+var _alt_cd := 0.0
+var _alt_rl := 0.0
+var _alt_side := 1.0
 
 
 static func has_weapon(kind: StringName) -> bool:
@@ -22,6 +28,7 @@ static func has_weapon(kind: StringName) -> bool:
 func setup(c: Vehicle) -> void:
 	car = c
 	def = VehicleSpecs.WEAPONS.get(c.kind, {})
+	alt_def = VehicleSpecs.ALT_WEAPONS.get(c.kind, {})
 	reload_full()
 
 
@@ -36,6 +43,10 @@ func reload_full() -> void:
 	_cd = 0.0
 	shots = 0
 	hits = 0
+	alt_ammo = int(alt_def.get("ammo", 0))
+	alt_shots = 0
+	_alt_cd = 0.0
+	_alt_rl = 0.0
 
 
 func can_fire() -> bool:
@@ -94,3 +105,74 @@ func _shoot() -> void:
 			FX.burst(end, def["color"], 4, 4.0, 0.25, 6.0, 0.4)
 	FX.tracer(origin, end, def["color"])
 	Sfx.play_at(&"shot", origin, -8.0)
+
+
+# --- the secondary weapon: rockets (gunship) and homing missiles (jet) ---------------------------------------------------------------------
+
+func has_alt() -> bool:
+	return not alt_def.is_empty()
+
+
+func can_fire_alt() -> bool:
+	return has_alt() and alt_ammo > 0 and _alt_cd <= 0.0
+
+
+## One physics tick of the secondary weapon: the cooldown, one round back every `reload` seconds, and a salvo when `fire` is held and the weapon is ready. True when a salvo left the rails.
+func tick_alt(dt: float, fire: bool) -> bool:
+	if not has_alt():
+		return false
+	_alt_cd -= dt
+	if alt_ammo < int(alt_def["ammo"]):
+		_alt_rl += dt
+		if _alt_rl >= float(alt_def["reload"]):
+			_alt_rl = 0.0
+			alt_ammo += 1
+	else:
+		_alt_rl = 0.0
+	if fire and can_fire_alt():
+		return fire_alt()
+	return false
+
+
+## Fire a salvo now (a test can call it directly): `salvo` rockets from the pylons, left and right in turn.
+func fire_alt() -> bool:
+	if not can_fire_alt():
+		return false
+	_alt_cd = 1.0 / float(alt_def["rate"])
+	var fired := false
+	var origin := car.muzzle_pos()
+	var dir := car.aim_dir()
+	var right := dir.cross(Vector3.UP)
+	right = right.normalized() if right.length() > 0.01 else car.right()
+	var tgt := _lock(dir) if float(alt_def.get("homing", 0.0)) > 0.0 else null
+	for i in int(alt_def.get("salvo", 1)):
+		if alt_ammo <= 0:
+			break
+		_alt_side = -_alt_side
+		var o := origin + right * _alt_side * (float(car.spec["wid"]) * 0.3) + Vector3(0.0, -0.5, 0.0)
+		if AirRockets.launch(car, alt_def, o, dir.rotated(Vector3.UP, _alt_side * 0.012), tgt):
+			alt_ammo -= 1
+			alt_shots += 1
+			fired = true
+	return fired
+
+
+## The nearest enemy or vehicle in a narrow cone in front of the nose (within the weapon's range): the missile steers to it.
+func _lock(dir: Vector3) -> Node3D:
+	var best: Node3D = null
+	var bd := float(alt_def.get("range", 600.0))
+	var o := car.global_position
+	for grp in [&"enemy", &"vehicle"]:
+		for n: Node in car.get_tree().get_nodes_in_group(grp):
+			var t := n as Node3D
+			if t == null or t == car or not t.is_inside_tree():
+				continue
+			var d := t.global_position - o
+			var dist := d.length()
+			if dist < 12.0 or dist > bd:
+				continue
+			if d.normalized().angle_to(dir) > 0.4:
+				continue
+			bd = dist
+			best = t
+	return best

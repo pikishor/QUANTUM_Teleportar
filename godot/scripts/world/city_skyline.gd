@@ -62,6 +62,8 @@ func build() -> void:
 					var custom := Color(rng.randf(), float(rng.randi() % 4), float(style), float(flags))
 					if absf(cx) - w * 0.5 < KEEP_OUT and absf(cz) - d * 0.5 < KEEP_OUT:
 						continue
+					if Airport.world_rect(30.0).intersects(Rect2(cx - w * 0.5, cz - d * 0.5, w, d)):       # EASTFIELD AIRPORT lies on the plain south of the city: no tower on its pad (wave 106)
+						continue
 					rects.append(Rect2(cx - w * 0.5, cz - d * 0.5, w, d))
 					(lists[cls] as Array).append([Transform3D(Basis.from_scale(Vector3(w, h, d)), Vector3(cx, 0.0, cz)),
 							Color(tint.r, tint.g, tint.b, lit_p), custom])

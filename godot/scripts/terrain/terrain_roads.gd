@@ -24,8 +24,13 @@ const DEFS := [
 	{"name": "COAST ROAD", "kind": "highway", "from_city": true, "via": [Vector2(0, 1090), Vector2(0, 1230), Vector2(-700, 1400), Vector2(-1300, 1000), Vector2(-1550, 300)]},
 	{"name": "FOREST ROAD", "kind": "highway", "from_city": true, "via": [Vector2(-1090, 0), Vector2(-1230, 0), Vector2(-1450, -800), Vector2(-1100, -1450)]},
 	{"name": "MOUNTAIN TRACK", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 700.0], "via": [Vector2(1500, -1700), Vector2(1900, -1300)]},
-	{"name": "QUARRY TRACK", "kind": "track", "from_city": false, "branch": ["DESERT ROAD", 600.0], "via": [Vector2(1950, -650)]},
+	{"name": "QUARRY TRACK", "kind": "track", "from_city": false, "branch": ["DESERT ROAD", 600.0], "via": [Vector2(1860, -540)]},
+	{"name": "HARBOUR ROAD", "kind": "highway", "from_city": false, "branch": ["COAST ROAD", 480.0], "via": [Vector2(-300, 1338)]},          # to the harbour apron (wave 105); the rest of it is HarbourKit's road on the quay
+	{"name": "SUMMIT ROAD", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 1190.0], "wide": true, "via": [Vector2(-300, -2090), Vector2(-420, -2180), Vector2(-540, -2220)]},         # the switchbacks up to the MOUNTAIN OBSERVATORY (OutskirtsSites, wave 105: the site stands where this road ends)
+	{"name": "RIDGE TRACK", "kind": "track", "from_city": false, "branch": ["MOUNTAIN TRACK", 2300.0], "wide": true, "via": [Vector2(1700, -1560), Vector2(1860, -1500)]},      # the climb to the RADIO TOWER
 ]
+const BRIDGE_CLEAR := 3.6                 ## metres of clearance between the water and the underside of the deck where a road crosses a river or lake (wave 105: bridges)
+const SPAN_MARGIN := 2                    ## samples either side of the wet ones that the bridge deck covers, so its ends stand on the banks
 const GRID := 40.0                        ## router cell (metres)
 const CORRIDOR := 900.0                   ## the router looks this far either side of the straight line between two via points
 
@@ -35,6 +40,7 @@ static var _sp := PackedVector2Array()            ## every sample of every road
 static var _sh := PackedFloat32Array()            ## its profile height
 static var _sr := PackedInt32Array()              ## its road index
 static var _sn := PackedInt32Array()              ## index of the next sample of the same road, -1 at the end
+static var _sb := PackedByteArray()               ## 1 on a sample under a bridge deck: the road bench is not cut there (the river runs through), Bridges builds the deck
 static var _grid := {}                            ## cell key -> sample indices whose influence circle touches the cell
 
 
@@ -47,6 +53,11 @@ static func roads() -> Array:
 	return _roads
 
 
+## How many roads are built so far (OutskirtsSites waits for all of them).
+static func roads_built() -> int:
+	return _roads.size()
+
+
 static func ensure() -> void:
 	if built:
 		return
@@ -57,6 +68,7 @@ static func ensure() -> void:
 	_sh = PackedFloat32Array()
 	_sr = PackedInt32Array()
 	_sn = PackedInt32Array()
+	_sb = PackedByteArray()
 	_grid.clear()
 	for ri in DEFS.size():
 		_build_road(ri)
@@ -71,6 +83,8 @@ static func ensure() -> void:
 				var arr: PackedInt32Array = _grid[key]
 				arr.append(i)
 				_grid[key] = arr
+	RailNet.ensure()                                  # the railway (wave 106) crosses these roads: it is routed and profiled once they are complete
+	OutskirtsSites.ensure()                       # the sites stand where some of the roads end (wave 105)
 
 
 static func _catmull(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> Vector2:
@@ -104,8 +118,9 @@ static func _build_road(ri: int) -> void:
 		via.push_front(pp[k])
 		anchor_h = float((_roads[par]["prof"] as PackedFloat32Array)[k])
 	var nodes := PackedVector2Array()
+	var wide := bool(def.get("wide", false))              # 16 directions instead of 8: a road that has to gain height across a steep hillside (hairpins) needs the finer headings
 	for k in via.size() - 1:
-		var seg := _route(via[k], via[k + 1], float(kind["grade"]))
+		var seg := _route(via[k], via[k + 1], float(kind["grade"]), wide)
 		if not nodes.is_empty() and not seg.is_empty():
 			seg = seg.slice(1)
 		nodes.append_array(seg)
@@ -136,7 +151,7 @@ static func _build_road(ri: int) -> void:
 		var w := TerrainHeight.NO_WATER
 		for off in [-26.0, -13.0, 0.0, 13.0, 26.0]:
 			w = maxf(w, WaterLayout.surface_at(pts[i].x + nrm.x * off, pts[i].y + nrm.y * off))
-		need[i] = w + 1.3 if w != TerrainHeight.NO_WATER else -1.0e9
+		need[i] = w + BRIDGE_CLEAR if w != TerrainHeight.NO_WATER else -1.0e9
 	var start_h := 0.0 if bool(def["from_city"]) else (anchor_h if def.has("branch") else nat[0])
 	var prof := _smooth(_smooth(nat, 3), 2)
 	var gk: float = float(kind["grade"])
@@ -161,14 +176,49 @@ static func _build_road(ri: int) -> void:
 	var total := 0.0
 	for i in range(1, n):
 		total += pts[i].distance_to(pts[i - 1])
+	var wet := PackedByteArray()                          # samples with open river or lake water within the carriageway: the BRIDGE spans (runs of wet samples, a margin each side)
+	wet.resize(n)
+	var half_w: float = float(kind["w"]) * 0.5
+	for i in range(1, n - 1):
+		var tg2 := (pts[i + 1] - pts[i - 1]).normalized()
+		var nr2 := Vector2(-tg2.y, tg2.x)
+		for off in [-half_w, 0.0, half_w]:
+			if WaterLayout.surface_at(pts[i].x + nr2.x * off, pts[i].y + nr2.y * off) != TerrainHeight.NO_WATER:
+				wet[i] = 1
+	var spans: Array[Vector2i] = []
+	var i2 := 0
+	while i2 < n:
+		if wet[i2] == 0:
+			i2 += 1
+			continue
+		var j2 := i2
+		while j2 + 1 < n:                                 # the run goes on while another wet sample is within four steps
+			var more := false
+			for k in range(1, 5):
+				if j2 + k < n and wet[j2 + k] == 1:
+					more = true
+			if not more:
+				break
+			j2 += 1
+		var a := maxi(i2 - SPAN_MARGIN, 1)
+		var b := mini(j2 + SPAN_MARGIN, n - 2)
+		if not spans.is_empty() and a <= spans[spans.size() - 1].y + 1:
+			spans[spans.size() - 1].y = b
+		else:
+			spans.append(Vector2i(a, b))
+		i2 = j2 + 1
 	var base := _sp.size()
 	for i in n:
 		_sp.append(pts[i])
 		_sh.append(prof[i])
 		_sr.append(ri)
 		_sn.append(base + i + 1 if i < n - 1 else -1)
+		_sb.append(0)
+	for sp in spans:
+		for i in range(sp.x, sp.y + 1):
+			_sb[base + i] = 1
 	_roads.append({"name": def["name"], "kind": def["kind"], "pos": pts, "prof": prof, "len": total, "w": float(kind["w"]), "bench": float(kind["bench"]),
-		"shoulder": float(kind["shoulder"]), "from_city": bool(def["from_city"])})
+		"shoulder": float(kind["shoulder"]), "from_city": bool(def["from_city"]), "spans": spans, "base": base})
 
 
 static func _find_road(road_name: String) -> int:
@@ -180,7 +230,7 @@ static func _find_road(road_name: String) -> int:
 
 ## Grade-limited route between two points: A* over a GRID m lattice in a corridor around the straight line. A step costs its length, plus a steep penalty above 60 % of the road's grade,
 ## is forbidden above 1.6 x the grade, and the sea and open water cost a lot (a crossing happens only when it saves a detour: the profile then becomes a causeway).
-static func _route(a: Vector2, b: Vector2, grade: float) -> PackedVector2Array:
+static func _route(a: Vector2, b: Vector2, grade: float, wide := false) -> PackedVector2Array:
 	var lo := Vector2(minf(a.x, b.x), minf(a.y, b.y)) - Vector2(CORRIDOR, CORRIDOR)
 	var hi := Vector2(maxf(a.x, b.x), maxf(a.y, b.y)) + Vector2(CORRIDOR, CORRIDOR)
 	var lim := TerrainHeight.WORLD_HALF - 120.0
@@ -223,6 +273,8 @@ static func _route(a: Vector2, b: Vector2, grade: float) -> PackedVector2Array:
 	gscore[start] = 0.0
 	_heap_push(open, [float(ia.distance_to(ib)) * GRID, start])
 	var dirs := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
+	if wide:
+		dirs.append_array([Vector2i(1, 2), Vector2i(2, 1), Vector2i(-1, 2), Vector2i(-2, 1), Vector2i(1, -2), Vector2i(2, -1), Vector2i(-1, -2), Vector2i(-2, -1)])
 	var found := false
 	var best_node := start
 	var best_d := 1.0e12
@@ -248,7 +300,7 @@ static func _route(a: Vector2, b: Vector2, grade: float) -> PackedVector2Array:
 			var nb := ny * w + nx
 			if closed[nb] == 1 or penal[nb] >= 1.0e5:
 				continue
-			var dist := GRID * (1.4142 if (d.x != 0 and d.y != 0) else 1.0)
+			var dist := GRID * Vector2(d).length()
 			var slope := absf(heights[nb] - heights[cur]) / dist
 			if slope > grade * 1.12:
 				continue
@@ -310,14 +362,15 @@ static func _heap_pop(hp: Array) -> Array:
 	return top
 
 
-## [distance to the nearest road centre line, road index, profile height there] or [1e9, -1, 0] when no road reaches (x, z).
+## [distance to the nearest road centre line, road index, profile height there, 1 when that part of the road is a bridge span] or [1e9, -1, 0, 0] when no road reaches (x, z).
 static func nearest(x: float, z: float) -> Array:
 	var cand = _grid.get(_key(int(floor(x / CELL)), int(floor(z / CELL))))
 	if cand == null:
-		return [1.0e9, -1, 0.0]
+		return [1.0e9, -1, 0.0, 0]
 	var best := 1.0e9
 	var bi := -1
 	var bh := 0.0
+	var bs := 0
 	var p := Vector2(x, z)
 	for i: int in (cand as PackedInt32Array):
 		var a := _sp[i]
@@ -337,7 +390,8 @@ static func nearest(x: float, z: float) -> Array:
 			best = d
 			bi = _sr[i]
 			bh = h
-	return [best, bi, bh]
+			bs = 1 if (_sb[i] == 1 and (nx < 0 or _sb[nx] == 1)) else 0
+	return [best, bi, bh, bs]
 
 
 ## `h` (the land with rivers) with the road bench cut in. Fast out when no road is near.
@@ -350,6 +404,8 @@ static func carve(x: float, z: float, h: float) -> float:
 	var r := nearest(x, z)
 	var ri: int = r[1]
 	if ri < 0:
+		return h
+	if int(r[3]) == 1:                                    # under a bridge deck: the river bed and the banks stay as they are
 		return h
 	var road: Dictionary = _roads[ri]
 	var bench: float = road["bench"]
@@ -370,6 +426,12 @@ static func shoulder_weight(x: float, z: float) -> float:
 		return 0.0
 	var road: Dictionary = _roads[ri]
 	return 1.0 - smoothstep(float(road["w"]) * 0.5, float(road["w"]) * 0.5 + 7.0, float(r[0]))
+
+
+## True when (x, z) lies under a bridge deck of a road (the road bench is not cut there).
+static func in_span(x: float, z: float) -> bool:
+	var r := nearest(x, z)
+	return int(r[1]) >= 0 and int(r[3]) == 1 and float(r[0]) <= float(_roads[int(r[1])]["bench"]) + float(_roads[int(r[1])]["shoulder"])
 
 
 static func name_at(x: float, z: float, within := 12.0) -> String:
@@ -421,7 +483,7 @@ static func build_ribbon(ri: int) -> ArrayMesh:
 		cols.append(Color(2.0 * hw / 32.0, 0.0, 0.0, 1.0))
 		uvs.append(Vector2(0.0, run))
 		uvs.append(Vector2(1.0, run))
-		if i < n - 1:
+		if i < n - 1 and _sb[int(road["base"]) + i] == 0 and _sb[int(road["base"]) + i + 1] == 0:          # a bridge span has its own deck (Bridges: one sample more at each end), the ribbon would lie in the river bed
 			var b := i * 2
 			idx.append_array(PackedInt32Array([b, b + 2, b + 1, b + 1, b + 2, b + 3]))
 	var arr := []

@@ -34,7 +34,9 @@ static func warm() -> void:
 	_ensure()
 	TerrainBase.warm()
 	WaterLayout.ensure()
-	TerrainRoads.ensure()
+	TerrainRoads.ensure()                 # ends with RailNet.ensure() (the railway is routed over the finished roads)
+	OutskirtsSites.ensure()
+	Airport.ensure()
 
 
 static func _ensure() -> void:
@@ -86,7 +88,7 @@ static func base_height(x: float, z: float) -> float:
 
 ## The ground height with rivers and lakes carved in.
 static func height_at(x: float, z: float) -> float:
-	return TerrainRoads.carve(x, z, WaterLayout.carve(x, z, base_height(x, z)))       # land, then the rivers, then the road benches (scripts/terrain/terrain_roads.gd)
+	return Airport.carve(x, z, OutskirtsSites.carve(x, z, Harbour.carve(x, z, RailNet.carve(x, z, TerrainRoads.carve(x, z, WaterLayout.carve(x, z, base_height(x, z)))))))       # land, then the rivers, then the road benches (scripts/terrain/terrain_roads.gd), then the railway benches (scripts/rail/rail_net.gd), then the harbour quay (scripts/world/harbour.gd), then the pads of the mountain and outskirt sites (scripts/terrain/outskirts_sites.gd)
 
 
 ## y of the water surface over (x, z), NO_WATER where the ground is dry.
@@ -111,6 +113,12 @@ static func depth_at(x: float, z: float) -> float:
 	var h := height_at(x, z)
 	var w := water_level_for(x, z, h)
 	return maxf(0.0, w - h) if w != NO_WATER else 0.0
+
+
+## The height a vehicle rides at (x, z): the finished ground, or the deck of a bridge when `y_hint` (the vehicle's own height) is within reach of it (Bridges.deck_y).
+static func drive_height_at(x: float, z: float, y_hint: float) -> float:
+	var d := Bridges.deck_y(x, z, y_hint)
+	return d if d != NO_WATER else height_at(x, z)
 
 
 static func is_water(x: float, z: float) -> bool:

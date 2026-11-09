@@ -172,7 +172,7 @@ func enter(car: Vehicle) -> void:
 		Game.say(VehicleSpecs.name_of(car.kind) + "  " + String(CRAFT_HINTS.get(car.kind, "")), 2.6)
 
 
-const CRAFT_HINTS := {&"heli": "HOLD UP TO LIFT OFF", &"plane": "STICK UP FOR THROTTLE, THEN UP", &"boat": "STICK TO STEER, FIRE TO SHOOT", &"tank": "STICK TO DRIVE, FIRE TO SHOOT"}
+const CRAFT_HINTS := {&"heli": "HOLD UP TO LIFT OFF", &"plane": "STICK UP FOR THROTTLE, THEN UP", &"boat": "STICK TO STEER, FIRE TO SHOOT", &"jetski": "STICK TO STEER, HOLD FORWARD FOR SPEED", &"patrol": "STICK TO STEER, FIRE THE CANNON", &"tank": "STICK TO DRIVE, FIRE TO SHOOT"}
 
 
 ## The player gets out beside the car (right side first, then left, behind, ahead; never inside a building) and the car rolls to a stop.
@@ -400,7 +400,11 @@ func _sanity() -> void:
 		var p := v.global_position
 		if not p.is_finite():
 			p = VehicleSpecs.starter_pos()
-		var gy := TerrainHeight.height_at(p.x, p.z) if (absf(p.x) <= lim and absf(p.z) <= lim and (absf(p.x) > TerrainHeight.CITY_HALF or absf(p.z) > TerrainHeight.CITY_HALF)) else 0.0
+		var gy := TerrainHeight.drive_height_at(p.x, p.z, p.y) if (absf(p.x) <= lim and absf(p.z) <= lim and (absf(p.x) > TerrainHeight.CITY_HALF or absf(p.z) > TerrainHeight.CITY_HALF)) else 0.0
+		if v.cls == &"boat" and gy != 0.0:                       # a boat rides the water surface, not the sea floor under it (and not on a bridge deck)
+			var wy := WaterWorld.surface_y(p.x, p.z)
+			if wy != TerrainHeight.NO_WATER:
+				gy = wy
 		var ylim := 5.0 if v.craft == null else float(v.spec.get("ceil", 60.0)) + 30.0
 		if absf(p.x) > lim or absf(p.z) > lim or absf(p.y - gy) > ylim:
 			var qx := clampf(p.x, -lim + 5.0, lim - 5.0)
@@ -865,7 +869,7 @@ func _tick_spawn_points(delta: float) -> void:
 	var ppos := _player_pos()
 	if not ppos.is_finite():
 		return
-	for pt in VehicleSpawns.POINTS:
+	for pt in VehicleSpawns.all_points():
 		var id: StringName = pt["id"]
 		var live: Variant = _spawned.get(id)
 		if is_instance_valid(live) and (live as Vehicle).active and not (live as Vehicle).dead and not (live as Vehicle).wreck:
@@ -881,6 +885,8 @@ func _tick_spawn_points(delta: float) -> void:
 			continue
 		var v := spawn_parked(pt["kind"], pos, float(pt["h"]))
 		if v != null:
+			if v.craft != null and pos.y > v.global_position.y + 0.5:      # a pad in the air (the roof of a tower): the aircraft stands on it, not on the street below
+				v.global_position.y = pos.y + 0.05
 			v.set_meta(&"spawn_id", id)
 			_spawned[id] = v
 			v.update_lod(_dist(v, ppos))
@@ -1159,7 +1165,14 @@ func _exit_point(car: Vehicle) -> Vector3:
 			continue
 		best = p
 		break
-	var gy := TerrainHeight.height_at(best.x, best.z) if (absf(best.x) > TerrainHeight.CITY_HALF or absf(best.z) > TerrainHeight.CITY_HALF) else 0.0
+	if car.cls == &"boat" and not FloodZone.contains(base.x, base.z):                  # a boat on the real water: the hero steps onto a dock when one is in reach, else into the water
+		var dock := Harbour.exit_point(base)
+		if dock.is_finite():
+			return dock
+		var wy := WaterWorld.surface_y(best.x, best.z)
+		if wy != TerrainHeight.NO_WATER:
+			return Vector3(best.x, wy + 0.25, best.z)
+	var gy := TerrainHeight.drive_height_at(best.x, best.z, car.global_position.y) if (absf(best.x) > TerrainHeight.CITY_HALF or absf(best.z) > TerrainHeight.CITY_HALF) else 0.0
 	return Vector3(best.x, (gy + 0.1) if car.craft == null or car.cls == &"boat" or car.cls == &"tank" else car.global_position.y + 0.1, best.z)
 
 

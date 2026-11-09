@@ -565,6 +565,28 @@ func _vehicle_params(v: float) -> Dictionary:
 	return {"dist": dist, "height": height, "fov": fov, "fwd": fwd}
 
 
+## The pitch of the chase view: a car's fixed VEH_PITCH, and for a flying aircraft a flatter one that follows the climb and the dive (the view tips up with the nose, so a climb shows the sky ahead and a dive the
+## ground it is heading for) and rolls a little with the bank (see `_air_roll`).
+func _chase_pitch() -> float:
+	if not is_instance_valid(_follow) or not (_follow.get(&"cls") == &"plane" or _follow.get(&"cls") == &"heli"):
+		return VEH_PITCH
+	var cr: Variant = _follow.get(&"craft")
+	if cr == null:
+		return VEH_PITCH
+	var ap: Variant = (cr as Object).get(&"air")
+	var tilt := float((ap as Object).get(&"pitch")) if ap != null else 0.0
+	return clampf(-0.09 + 0.62 * tilt, -0.42, 0.3)
+
+
+## The bank of the followed aircraft as a share of camera roll (radians; 0 for everything else).
+func _air_roll() -> float:
+	if not is_instance_valid(_follow) or _follow.get(&"cls") != &"plane":
+		return 0.0
+	var cr: Variant = _follow.get(&"craft")
+	var ap: Variant = (cr as Object).get(&"air") if cr != null else null
+	return float((ap as Object).get(&"roll")) * 0.32 if ap != null else 0.0
+
+
 ## The sliding car's travel direction pulls the view round (yaw offset, radians): in a drift you look where the car is going, not where its nose points.
 func _drift_offset(v: float) -> float:
 	if not is_instance_valid(_follow) or veh_view == 2:
@@ -781,7 +803,7 @@ func _update_view(dt: float) -> void:
 			var hood := veh_view == 2
 			var want_yaw := _vehicle_heading() + _drift_offset(veh_speed) + PI * _back_w
 			yaw = PlayerUtil.damp_angle(yaw, want_yaw, 14.0 if hood else (3.4 if absf(veh_speed) > 2.0 else 0.8) + 5.0 * _back_w, dt)
-			pitch = PlayerUtil.damp(pitch, -0.06 if hood else VEH_PITCH, 4.0, dt)
+			pitch = PlayerUtil.damp(pitch, -0.06 if hood else _chase_pitch(), 4.0, dt)
 
 	# --- cinematic drift (title screen, victory, death)
 	if _orbit_w > 0.001 or _dead_w > 0.001:
@@ -932,7 +954,7 @@ func _update_view(dt: float) -> void:
 	var gait_bob := body_loco != null and body_loco.rig != null and speed_h > 0.5 and _player.is_on_floor()
 	if gait_bob:                                    # the bob follows the hero's own steps (two bumps per gait cycle, a continuous phase), so the camera never beats against the feet
 		_bob_t = body_loco.rig.phase * 2.0
-	var roll_target := -strafe * 0.014 * (1.0 - ads_s) + sin(_bob_t * 0.5) * 0.0035 * _sprint
+	var roll_target := -strafe * 0.014 * (1.0 - ads_s) + sin(_bob_t * 0.5) * 0.0035 * _sprint + (_air_roll() if drv else 0.0)
 	_roll = PlayerUtil.damp(_roll, roll_target, 8.0, dt)
 	var shake := clampf(FX.shake_amount, 0.0, 1.0)
 	var s_off := Vector3.ZERO

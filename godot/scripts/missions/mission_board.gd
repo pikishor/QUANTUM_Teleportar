@@ -53,6 +53,9 @@ const TYPES: Array[StringName] = [&"patrol", &"vehicle", &"rescue", &"escort", &
 var take_over := false
 ## The board opens by itself after a mission (a modal screen: off under tools, tests and bots).
 var auto_open := false
+## The big world's missions (WorldMissions: airport heist, helicopter extraction, mountain pursuit, river chase, air race, plane delivery) join the offers by location. On in the live game
+## (Missions turns it on with the take-over), off for the tests of the sixteen city types.
+var world_offers := false
 var offers: Array[Dictionary] = []
 var active: Dictionary = {}            ## the running offer ({} when none)
 var state: StringName = &"idle"        ## idle | running | story
@@ -180,6 +183,8 @@ func generate(origin := Vector3.INF, types: Array = []) -> Array[Dictionary]:
 		picks.append(StringName(str(t)))
 	if picks.is_empty():
 		picks = pick_types(OFFERS)
+		if world_offers:
+			picks = WorldMissions.inject(picks, origin, rng)
 	for t: StringName in picks:
 		var o := build(t, origin)
 		if not o.is_empty():
@@ -202,6 +207,8 @@ func _hero_pos() -> Vector3:
 
 ## One offer of type `t` near `origin`: {id, type, title, brief, glyph, steps, chapter, route_m, reward, pos, tier}.
 func build(t: StringName, origin: Vector3, first := false) -> Dictionary:
+	if WorldMissions.DEFS.has(t):
+		return _build_world(t, origin)
 	if not DEFS.has(t):
 		return {}
 	var tr := tier()
@@ -248,6 +255,26 @@ func build(t: StringName, origin: Vector3, first := false) -> Dictionary:
 		"chapter": {"id": "board_%d" % _serial, "title": str(def["title"]), "clears_sector": false, "steps": steps},
 	}
 	return offer
+
+
+## An offer of the big world: the same shape as a city offer (id, type, title, brief, glyph, steps, chapter, route_m, reward, pos, tier); the places come from WorldSites.
+func _build_world(t: StringName, origin: Vector3) -> Dictionary:
+	var tr := tier()
+	_serial += 1
+	var r := RandomNumberGenerator.new()
+	r.seed = hash("%s|%d|%d" % [t, _serial, rng.randi()])
+	var rec := WorldMissions.build(t, tr, origin, r)
+	if rec.is_empty():
+		return {}
+	var reward := WorldMissions.pay_for(float(rec["base"]), float(rec["route_m"]), tr)
+	var gift := MissionRewards.gift_text()
+	var brief := str(rec["brief"]) + ("  PAYS CREDITS + %s" % gift if gift != "" else "")
+	var steps: Array[Dictionary] = rec["steps"]
+	return {
+		"id": _serial, "type": t, "title": str(rec["title"]), "brief": brief, "gift": gift, "glyph": rec["glyph"], "steps": steps, "route_m": float(rec["route_m"]), "reward": reward,
+		"pos": rec["pos"], "tier": tr, "story": false, "world": true,
+		"chapter": {"id": "board_%d" % _serial, "title": str(rec["title"]), "clears_sector": false, "steps": steps},
+	}
 
 
 func _street_point(k: CampaignRunner, center: Vector3, rmin: float, rmax: float) -> Vector3:

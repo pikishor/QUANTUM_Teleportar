@@ -9,6 +9,7 @@ extends RefCounted
 ## API: step(v, dt, thr, steer, up, boost) · sync(v, dt) · aim_dir(v) · muzzle(v) · can_exit(v) · altitude(v) · is_craft(cls) · State
 
 const CLASSES: Array[StringName] = [&"heli", &"plane", &"boat", &"tank"]
+const MIN_DEPTH := 0.6               ## boats: water must be this much deeper than the draft under the hull and the bow, else they run aground
 
 # --- helicopter ---
 const SPOOL_TIME := 1.6               ## s for the rotor to come up to speed (lift needs SPOOL_READY of it)
@@ -66,6 +67,17 @@ class State extends RefCounted:
 	var max_alt := 0.0                ## highest point since entering (tests, stats)
 	var hard := 0.0                   ## last landing sink speed (tests)
 	var agl := 0.0                    ## height above whatever is below it (street or roof), from a ray each tick
+	var air: RefCounted               ## the flight state of an aircraft (AircraftFlight.Air: pitch, roll, thrust, stall), created on first use
+	var sea := false                  ## a boat on the real water of the world (WaterWorld), not in the flooded quarter
+	var wy := 0.0                     ## surface height under the hull (sea mode)
+	var wpitch := 0.0                 ## the waves' pitch / roll under the hull (WaterWorld.buoyancy)
+	var wroll := 0.0
+	var depth := 0.0
+	var last_wet := Vector3.INF       ## the last position that was deep enough (an aground boat is put back here)
+	var groundings := 0               ## times it ran aground (tests)
+	var planing := 0.0                ## 0..1 how far the hull has lifted onto the plane
+	var ring_t := 0.0
+	var trail: BoatWake               ## the foam ribbon behind the hull (created when the boat is near the player)
 
 	func reset(heading: float) -> void:
 		vy = 0.0
@@ -79,6 +91,8 @@ class State extends RefCounted:
 		down_in = 0.0
 		max_alt = 0.0
 		hard = 0.0
+		if trail != null:
+			trail.clear()
 
 
 static func is_craft(cls: StringName) -> bool:
@@ -95,13 +109,14 @@ static func altitude(v: Vehicle) -> float:
 static func _measure_agl(v: Vehicle) -> void:
 	var c := v.craft
 	var p := v.global_position
-	if p.y <= v.base_y + 0.05 or not v.is_inside_tree():
-		c.agl = maxf(0.0, p.y - v.base_y)
+	var gy := AircraftFlight.ground_y_at(p.x, p.z, v.base_y)                     # the terrain outside the city plateau (the airport, the mountains), the rest height inside
+	if p.y <= gy + 0.05 or not v.is_inside_tree():
+		c.agl = maxf(0.0, p.y - gy)
 		return
 	var q := PhysicsRayQueryParameters3D.create(p + Vector3(0.0, 0.5, 0.0), p - Vector3(0.0, 400.0, 0.0), Game.L_WORLD)
 	q.exclude = [v.get_rid()]
 	var r := v.get_world_3d().direct_space_state.intersect_ray(q)
-	c.agl = maxf(0.0, p.y - (float(r["position"].y) if not r.is_empty() else 0.0))
+	c.agl = maxf(0.0, p.y - maxf(float(r["position"].y) if not r.is_empty() else gy, gy))
 
 
 ## One physics tick of a driven (or test-driven) craft. `up` = the UP input (`jump`), DOWN is read from the crouch action while the player drives, or from State.down_in.
@@ -134,6 +149,10 @@ static func idle(v: Vehicle, dt: float) -> void:
 		_measure_agl(v)
 	match v.cls:
 		&"heli", &"plane":
+			var Ai := AircraftFlight.air(c)                                       # an unmanned craft levels out and cuts the engines
+			Ai.pitch = lerpf(Ai.pitch, 0.0, 1.0 - exp(-2.0 * dt))
+			Ai.roll = lerpf(Ai.roll, 0.0, 1.0 - exp(-2.0 * dt))
+			Ai.thrust = 0.0
 			v.vel *= exp(-(0.4 if c.airborne else 3.0) * dt)
 			if c.airborne:
 				c.vy = move_toward(c.vy, -6.0, 6.0 * dt)
@@ -144,7 +163,7 @@ static func idle(v: Vehicle, dt: float) -> void:
 			v._move(dt)
 			v.speed = v.vel.dot(v.forward())
 			if v.cls == &"boat":
-				_keep_afloat(v)
+				_keep_afloat(v, dt)
 
 
 ## Can the hero get out here? A flying craft must be down (a helicopter or plane standing still-ish on the ground or a roof).
@@ -162,98 +181,13 @@ static func _flare(agl: float, decel: float) -> float:
 # --- helicopter -------------------------------------------------------------------------------------------------------------------------
 
 static func _heli(v: Vehicle, dt: float, thr: float, steer: float, lift: float) -> void:
-	var c := v.craft
-	var T := v.spec
-	c.spool = move_toward(c.spool, 1.0, dt / SPOOL_TIME)
-	var ready := c.spool >= SPOOL_READY
-	var vmax := float(T["max"])
-	var want := 0.0
-	if ready:
-		want = lift * HELI_CLIMB if lift > 0.0 else -minf(HELI_DESCENT, _flare(altitude(v), 3.0)) * (-lift)      # the last metres are a soft flare: a landing never hurts
-	elif c.airborne:
-		want = -HELI_DESCENT * 1.6
-	c.vy = move_toward(c.vy, want, (HELI_VERT_ACC if ready else 4.0) * dt)
-	if not c.airborne:
-		c.vy = maxf(c.vy, 0.0)
-		if lift > 0.1 and ready:
-			c.airborne = true
-			c.takeoffs += 1
-	var fwd := v.forward()
-	var rgt := v.right()
-	var vf := v.vel.dot(fwd)
-	var vl := v.vel.dot(rgt)
-	var cap := vmax if c.airborne else HELI_GROUND_SPEED
-	if ready and thr > 0.05:
-		vf += float(T["acc"]) * thr * (1.0 - maxf(vf, 0.0) / cap) * dt
-	elif ready and thr < -0.05:
-		vf += float(T["acc"]) * 0.8 * thr * dt
-	else:
-		vf *= exp(-(0.55 if c.airborne else 3.0) * dt)
-	vf = clampf(vf, -cap * 0.3, cap)
-	vl *= exp(-float(T["grip"]) * dt)
-	if ready:
-		v.heading -= steer * HELI_YAW * (1.0 if c.airborne else 0.5) / (1.0 + absf(vf) / 70.0) * dt
-	fwd = v.forward()
-	rgt = v.right()
-	v.vel = fwd * vf + rgt * vl
-	v.speed = vf
-	v.slip = vl
-	v.steer_in = steer
-	v.braking = false
-	v.yaw_rate = -steer * HELI_YAW
-	_move_air(v, dt)
+	AircraftFlight.heli(v, dt, thr, steer, lift)                    # scripts/vehicles/aircraft_flight.gd
 
 
 # --- plane ---------------------------------------------------------------------------------------------------------------------------
 
 static func _plane(v: Vehicle, dt: float, thr: float, steer: float, lift: float) -> void:
-	var c := v.craft
-	var T := v.spec
-	var vmax := float(T["max"])
-	var stall := float(T["stall"])
-	if thr > 0.05:
-		c.lever = minf(1.0, c.lever + LEVER_UP * thr * dt)
-	elif thr < -0.05:
-		c.lever = maxf(0.0, c.lever + LEVER_DOWN * thr * dt)
-	c.spool = lerpf(c.spool, 0.25 + 0.75 * c.lever, 1.0 - exp(-2.0 * dt))
-	var fwd := v.forward()
-	var vf := v.vel.dot(fwd)
-	var drag := 0.4 + vf * vf * 0.0005
-	vf += (float(T["acc"]) * c.lever * (1.0 - clampf(vf / vmax, 0.0, 1.3)) - drag) * dt
-	if not c.airborne and thr < -0.05 and c.lever < 0.05:
-		vf -= PLANE_BRAKE * dt
-	vf = maxf(vf, 0.0)
-	var L := clampf((vf - stall * 0.75) / (stall * 0.25), 0.0, 1.0)
-	var yaw := 0.0
-	if not c.airborne:
-		c.vy = 0.0
-		yaw = steer * 0.85 * clampf(vf / 6.0, 0.0, 1.0)
-		if vf > stall * TAKEOFF_AT and lift > 0.3:
-			c.airborne = true
-			c.vy = 3.0
-			c.takeoffs += 1
-	else:
-		var target := 0.0
-		if lift > 0.0:
-			target = lift * PLANE_CLIMB * L
-		elif lift < 0.0:
-			target = -minf(PLANE_DIVE, _flare(altitude(v), 5.0)) * (-lift)
-		if L < 1.0 and lift >= 0.0:
-			target = minf(target, -minf((1.0 - L) * PLANE_SINK, _flare(altitude(v), 5.0)))
-		c.vy = move_toward(c.vy, target, PLANE_VERT_ACC * dt)
-		vf += -c.vy * 0.16 * dt                              # climbing costs speed, a dive gains it
-		yaw = steer * PLANE_YAW * (0.5 + 0.5 * L)
-		if v.global_position.y > float(T["ceil"]) and c.vy > 0.0:
-			c.vy = 0.0
-	v.heading -= yaw * dt
-	fwd = v.forward()
-	v.vel = fwd * vf
-	v.speed = vf
-	v.slip = 0.0
-	v.steer_in = steer
-	v.braking = not c.airborne and thr < -0.05
-	v.yaw_rate = -yaw
-	_move_air(v, dt)
+	AircraftFlight.plane(v, dt, thr, steer, lift)
 
 
 # --- the shared 3D move of the two aircraft ---------------------------------------------------------------------------------------------
@@ -305,8 +239,14 @@ static func _move_air(v: Vehicle, dt: float) -> void:
 			v.move_and_collide(rem)
 	elif grounded and v.global_position.y > v.base_y + 0.08:          # the ground fell away under it (a roof edge): flying again
 		c.airborne = true
-	if v.global_position.y < v.base_y - 0.01:
-		v.global_position.y = v.base_y
+	var gy := AircraftFlight.ground_y(v)                              # the finished terrain is a floor too, where its collider has not streamed in yet (the far mountains, a fast jet)
+	if v.global_position.y < gy - 0.01:
+		if c.airborne:
+			c.hard = maxf(-c.vy, 0.0)
+			c.landings += 1
+			if c.hard > LAND_SAFE:
+				v.damage((c.hard - LAND_SAFE) * LAND_DAMAGE)
+		v.global_position.y = gy
 		if c.vy < 0.0:
 			c.vy = 0.0
 		c.airborne = false
@@ -359,17 +299,69 @@ static func _boat(v: Vehicle, dt: float, thr: float, steer: float, brake: bool, 
 	v.yaw_rate = -steer * BOAT_YAW * auth
 	v._move(dt)
 	v.speed = v.vel.dot(fwd)
-	_keep_afloat(v)
+	_keep_afloat(v, dt)
 
 
-## A boat stays inside the water: past the edge of the flooded quarter it is put back and loses its speed.
-static func _keep_afloat(v: Vehicle) -> void:
+## Where a boat floats. In the FLOODED QUARTER (city canals) the water is the flat plane over the streets and the boat stays inside its rect. Anywhere else it rides the world's real water
+## (ocean, rivers, lakes: WaterWorld): the hull must find MIN_DEPTH metres under its centre and its bow, else it runs aground, is put back on its last good spot and loses its speed.
+## The height, pitch and roll come from the waves under the hull (WaterWorld.buoyancy), a current carries it, and at speed the hull rises onto the plane.
+static func _keep_afloat(v: Vehicle, dt := 0.016) -> void:
+	var c := v.craft
 	var p := v.global_position
-	if not FloodZone.contains(p.x, p.z, 1.0):
-		var q := FloodZone.clamp_inside(p, 1.2)
-		v.global_position = Vector3(q.x, v.global_position.y, q.z)
-		v.vel *= -0.25
-		v.speed = v.vel.dot(v.forward())
+	if FloodZone.contains(p.x, p.z, 1.0):
+		c.sea = false
+		c.last_wet = p
+		return
+	var draft := float(v.spec.get("draft", 0.35))
+	var half := float(v.spec["len"]) * 0.5
+	var fwd := v.forward()
+	var d0 := TerrainHeight.depth_at(p.x, p.z)
+	var d1 := TerrainHeight.depth_at(p.x + fwd.x * half, p.z + fwd.z * half)
+	var ok := d0 >= draft + MIN_DEPTH and d1 >= draft + MIN_DEPTH * 0.5
+	if not ok:
+		if c.last_wet.is_finite():
+			if c.last_wet.distance_to(p) > 0.05:
+				c.groundings += 1
+			v.global_position = Vector3(c.last_wet.x, p.y, c.last_wet.z)
+			v.vel *= -0.2
+			v.speed = v.vel.dot(v.forward())
+		return
+	c.last_wet = p
+	c.sea = true
+	c.depth = d0
+	var bu := WaterWorld.buoyancy(p, v.heading, half, float(v.spec["wid"]) * 0.5)
+	if not bu["water"]:
+		return
+	var flow: Vector2 = bu["flow"]
+	if flow.length_squared() > 0.0001:
+		v.vel += Vector3(flow.x, 0.0, flow.y) * 0.5 * dt                       # a river carries the hull downstream
+	c.wy = float(bu["y"])
+	c.wpitch = lerpf(c.wpitch, float(bu["pitch"]), 1.0 - exp(-6.0 * dt))
+	c.wroll = lerpf(c.wroll, float(bu["roll"]), 1.0 - exp(-6.0 * dt))
+	var top := float(v.spec["max"])
+	var sp := clampf(absf(v.speed) / top, 0.0, 1.0)
+	c.planing = lerpf(c.planing, smoothstep(0.35, 0.8, sp), 1.0 - exp(-2.5 * dt))
+	var target := c.wy - draft + c.planing * 0.22
+	v.global_position.y = lerpf(p.y, target, 1.0 - exp(-12.0 * dt)) if absf(p.y - target) < 2.5 else target
+
+
+## Sets the height of a boat that was just put at `v.global_position` (VehicleManager spawns and the tests): on the real water it floats at the surface, in the flooded quarter at the flood level.
+static func place_boat(v: Vehicle) -> void:
+	var c := v.craft
+	var p := v.global_position
+	c.last_wet = p
+	c.wpitch = 0.0
+	c.wroll = 0.0
+	c.planing = 0.0
+	if FloodZone.contains(p.x, p.z):
+		c.sea = false
+		v.global_position.y = v.base_y
+		return
+	var w := WaterWorld.surface_y(p.x, p.z)
+	if w != TerrainHeight.NO_WATER:
+		c.sea = true
+		c.wy = w
+		v.global_position.y = w - float(v.spec.get("draft", 0.35))
 
 
 # --- tank ------------------------------------------------------------------------------------------------------------------------------
@@ -484,28 +476,39 @@ static func sync(v: Vehicle, dt: float) -> void:
 			if near:
 				_blades(vis, "Rotor", c.spool * 38.0, c.ang, Vector3.UP)
 				_blades(vis, "TailRotor", c.spool * 60.0, c.tail_ang, Vector3.RIGHT)
-			var vf := v.speed
-			c.pitch = lerpf(c.pitch, -clampf(vf / float(v.spec["max"]), -0.3, 1.0) * 0.2 + clampf(c.vy * 0.004, -0.04, 0.04), 1.0 - exp(-4.0 * dt))
-			c.roll = lerpf(c.roll, clampf(v.yaw_rate * 0.2 - v.slip * 0.012, -0.35, 0.35) * (1.0 if c.airborne else 0.0), 1.0 - exp(-4.0 * dt))
+			var Ah := AircraftFlight.air(c)
+			c.pitch = Ah.pitch
+			c.roll = Ah.roll
 			c.bob_t += dt
 			var bob := sin(c.bob_t * 2.1) * 0.06 * (1.0 if c.airborne else 0.0)
 			vis.model.rotation = Vector3(c.pitch, 0.0, c.roll)
 			vis.model.position = Vector3(0.0, bob, 0.0)
+			if v.driver_is_player:
+				AircraftFlight.tick_guide(v, dt)
 		&"plane":
 			if near:
 				_blades(vis, "Prop", c.spool * 70.0, c.ang, Vector3(0.0, 0.0, 1.0))
 			c.ang = fposmod(c.ang + c.spool * 70.0 * dt, TAU)
-			var tp := clampf(c.vy / maxf(v.speed, 14.0), -0.6, 0.6) if c.airborne else (0.06 if v.speed > float(v.spec["stall"]) * 0.8 else 0.0)
-			c.pitch = lerpf(c.pitch, tp, 1.0 - exp(-3.0 * dt))
-			c.roll = lerpf(c.roll, clampf(v.yaw_rate * 0.6, -0.7, 0.7) * (1.0 if c.airborne else 0.0), 1.0 - exp(-3.0 * dt))
+			var Ap := AircraftFlight.air(c)
+			c.pitch = Ap.pitch
+			c.roll = Ap.roll
 			vis.model.rotation = Vector3(c.pitch, 0.0, c.roll)
 			vis.model.position = Vector3.ZERO
+			var burner := vis.parts.get("Burner") as Node3D
+			if burner != null:                                                         # the afterburner cone grows with the thrust and shows above 55 % of it
+				var th := clampf((Ap.thrust - 0.55) / 0.45, 0.0, 1.0)
+				burner.visible = near and th > 0.02 and not v.wreck
+				burner.scale = Vector3(1.0, 1.0 + 3.0 * th, 1.0) * (0.7 + 0.5 * th)
+				burner.position.z = float(v.spec["len"]) * 0.5 + 0.35 + 1.0 * (1.0 + 3.0 * th) * 0.5
+			if v.driver_is_player:
+				AircraftFlight.tick_guide(v, dt)
 		&"boat":
 			c.bob_t += dt
 			var sp := clampf(absf(v.speed) / float(v.spec["max"]), 0.0, 1.0)
-			c.bob = sin(c.bob_t * 2.4 + float(v.get_instance_id() % 9)) * 0.05 + sin(c.bob_t * 5.3) * 0.02
-			c.pitch = lerpf(c.pitch, 0.1 * sp + sin(c.bob_t * 1.7) * 0.02, 1.0 - exp(-3.0 * dt))
-			c.roll = lerpf(c.roll, clampf(-v.slip * 0.03 + v.yaw_rate * sp * 0.08, -0.25, 0.25) + sin(c.bob_t * 1.3) * 0.015, 1.0 - exp(-3.0 * dt))
+			var calm := 0.35 if c.sea else 1.0                                         # on the real waves the water does the bobbing (pitch / roll come from them)
+			c.bob = (sin(c.bob_t * 2.4 + float(v.get_instance_id() % 9)) * 0.05 + sin(c.bob_t * 5.3) * 0.02) * calm
+			c.pitch = lerpf(c.pitch, 0.1 * sp * (0.6 + 0.8 * c.planing) + sin(c.bob_t * 1.7) * 0.02 * calm + c.wpitch, 1.0 - exp(-3.0 * dt))
+			c.roll = lerpf(c.roll, clampf(-v.slip * 0.03 + v.yaw_rate * sp * 0.08 * (1.0 + float(v.cls == &"jetski") * 1.4), -0.4, 0.4) + sin(c.bob_t * 1.3) * 0.015 * calm + c.wroll, 1.0 - exp(-3.0 * dt))
 			vis.model.rotation = Vector3(c.pitch, 0.0, c.roll)
 			vis.model.position = Vector3(0.0, c.bob, 0.0)
 			_wake(v, dt, sp)
@@ -532,18 +535,38 @@ static func _blades(vis: VehicleVisual, nm: String, spin: float, ang: float, axi
 	blades.rotation = axis * ang
 
 
-## The wake of a boat: a pale spray behind the stern and a short white foam along the sides, only near the player and only when moving.
+## The wake of a boat: a pale spray behind the stern and a short white foam along the sides, a bow wave at speed and a ring of ripples on the surface every few tenths of a second, only near the player.
 static func _wake(v: Vehicle, dt: float, sp: float) -> void:
 	var c := v.craft
 	c.wake_t -= dt
-	if c.wake_t > 0.0 or sp < 0.12 or not (v.driver_is_player or v._dist < 60.0):
+	c.ring_t -= dt
+	var near := v.driver_is_player or v._dist < 60.0
+	var y := (c.wy if c.sea else FloodZone.LEVEL) + 0.1
+	var rel := Vector3(0.0, y - v.global_position.y, 0.0)
+	var wid := float(v.spec["wid"])
+	var ln := float(v.spec["len"])
+	if near:                                                                   # the foam ribbon (one draw call) follows the stern
+		if c.trail == null:
+			c.trail = BoatWake.new()
+			v.add_child(c.trail)
+		c.trail.update(dt, v.global_position - v.forward() * ln * 0.45 + Vector3(0.0, y - v.global_position.y - 0.04, 0.0), wid * 0.4, sp)
+	elif c.trail != null and c.trail.visible:
+		c.trail.clear()
+	if sp < 0.1 or not near:
 		return
-	c.wake_t = WAKE_EVERY
-	var back := -v.forward() * float(v.spec["len"]) * 0.42
-	var side := v.right() * float(v.spec["wid"]) * 0.3
-	var y := FloodZone.LEVEL + 0.1
-	var col := Color(0.88, 0.95, 1.0, 0.7)
-	FX.burst(v.global_position + back + side + Vector3(0.0, y - v.global_position.y, 0.0), col, 2, 1.0 + 2.0 * sp, 0.9, 1.5, 1.4)
-	FX.burst(v.global_position + back - side + Vector3(0.0, y - v.global_position.y, 0.0), col, 2, 1.0 + 2.0 * sp, 0.9, 1.5, 1.4)
-	if sp > 0.5:
-		FX.burst(v.global_position + v.forward() * float(v.spec["len"]) * 0.4 + Vector3(0.0, y - v.global_position.y, 0.0), col, 2, 2.0, 0.6, 3.0, 1.2)
+	if c.wake_t <= 0.0:
+		c.wake_t = WAKE_EVERY
+		var back := -v.forward() * ln * 0.42
+		var side := v.right() * wid * 0.3
+		var col := Color(0.88, 0.95, 1.0, 0.7)
+		FX.burst(v.global_position + back + side + rel, col, 2, 1.0 + 2.0 * sp, 0.9, 1.5, 1.4)
+		FX.burst(v.global_position + back - side + rel, col, 2, 1.0 + 2.0 * sp, 0.9, 1.5, 1.4)
+		if sp > 0.4:                                                           # the bow wave: two fans of spray thrown out and back from the stem
+			var bow := v.global_position + v.forward() * ln * 0.4 + rel
+			FX.burst(bow + v.right() * wid * 0.25, col, 2, 2.4 + 2.0 * sp, 0.55, 2.6, 1.0)
+			FX.burst(bow - v.right() * wid * 0.25, col, 2, 2.4 + 2.0 * sp, 0.55, 2.6, 1.0)
+		if sp > 0.7:                                                           # a rooster tail behind a fast hull
+			FX.burst(v.global_position + back * 1.1 + rel + Vector3(0.0, 0.3, 0.0), Color(0.95, 0.98, 1.0, 0.8), 3, 3.0 + 3.0 * sp, 0.8, 4.0, 1.6)
+	if c.ring_t <= 0.0 and FX.marks != null:
+		c.ring_t = 0.32
+		FX.marks.ripple(v.global_position - v.forward() * ln * 0.45 + rel, 1.2 + wid)

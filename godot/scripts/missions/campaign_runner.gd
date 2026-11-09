@@ -37,7 +37,7 @@ signal chapter_completed(chapter: int)
 signal checkpoint_reached(cp: Dictionary)
 
 ## The step kinds the runner understands. Add a kind here, to CampaignSteps.KIND_DATA and to the match blocks (_begin_step, _tick_active, _markers) together.
-const StepKinds: Array[StringName] = [&"reach", &"enter_interior", &"escort", &"defend", &"hack", &"kill_target", &"chase", &"escape", &"survive", &"rift_hold", &"heist", &"convoy_intercept", &"smash", &"sneak"]
+const StepKinds: Array[StringName] = [&"reach", &"enter_interior", &"escort", &"defend", &"hack", &"kill_target", &"chase", &"escape", &"survive", &"rift_hold", &"heist", &"convoy_intercept", &"smash", &"sneak", &"gates", &"pursuit"]
 
 const CAMPAIGN_DATA_PATH := "res://scripts/story/campaign_data.gd"
 const START_DELAY := 1.5               ## seconds after a chapter is armed (no card, no tutorial) before its first step begins
@@ -184,11 +184,13 @@ var _smash_base := 0                   ## smash: Breakables.break_total when the
 var _smash_pos := Vector3.INF          ## smash: the nearest prop still standing
 var _smash_t := 0.0
 var _sneak_foes: Array[Drone] = []     ## sneak: the guards
+var ws: WorldSteps                     ## the step kinds of the big world: reach with a vehicle, gates, pursuit (scripts/missions/world_steps.gd)
 
 
 func _ready() -> void:
 	add_to_group(&"campaign")
 	guide = MissionGuide.new(self)
+	ws = WorldSteps.new(self)
 	enabled = not Game.autostart
 	for i in 5:
 		_markers.append({pos = Vector3.ZERO, color = Color.WHITE, kind = &"", radius = 0.0})
@@ -386,7 +388,7 @@ func skip_step() -> bool:
 func recover_step() -> bool:
 	if state != &"active":
 		return false
-	if not _reanchored and kind in [&"reach", &"hack", &"defend", &"rift_hold", &"kill_target"]:
+	if not _reanchored and kind in [&"reach", &"hack", &"defend", &"rift_hold", &"kill_target"] and str(step.get("veh", "")) == "":
 		_reanchored = true
 		var p := _ref_pos_or_spawn()
 		var np := road_point(p, 14.0, 30.0)
@@ -479,6 +481,9 @@ func hud_line() -> String:
 		&"reach", &"kill_target":
 			if kind == &"reach" and _take_the_car():
 				return "%d/%d  TAKE A CAR  %d M" % [step_index + 1, steps.size(), roundi(_hdist(_ref_pos(), _chase_car.global_position))]
+			if kind == &"reach" and str(step.get("veh", "")) != "":
+				var hint := ws.reach_hint()
+				return "%s%s  %d M%s" % [head, clock, roundi(distance_to_goal()), "" if hint == "" else "  " + hint]
 			if kind == &"reach" and bool(step.get("car", false)):
 				return "%s%s  %d M%s" % [head, clock, roundi(distance_to_goal()), "" if _driving() else "  IN A CAR"]
 			return "%s%s  %d M" % [head, clock, roundi(distance_to_goal())]
@@ -516,6 +521,8 @@ func hud_line() -> String:
 			return "%s  %d/%d%s" % [head, roundi(maxf(progress, 0.0) * float(step["n"])), int(step["n"]), clock]
 		&"sneak":
 			return "%s%s  %d M" % [head, clock, roundi(distance_to_goal())]
+		&"gates", &"pursuit":
+			return "%s%s%s" % [head, clock, ws.hud_tail()]
 	return head
 
 
@@ -621,6 +628,11 @@ func markers() -> Array[Dictionary]:
 			_add_marker(_smash_pos if _smash_pos.is_finite() else pos, ContractTypes.AMBER, &"dest", 0.0)
 		&"sneak":
 			_add_marker(pos, ContractTypes.CYAN, &"dest", 0.0)
+		&"gates":
+			_add_marker(pos, ContractTypes.AMBER, &"dest", 0.0)
+		&"pursuit":
+			if is_instance_valid(ws.target):
+				_add_marker(ws.target.global_position, ContractTypes.RED, &"target", 0.0)
 		&"convoy_intercept":
 			for c: Vehicle in convoy:
 				if is_instance_valid(c) and not stopped.has(c) and not c.dead:
@@ -760,6 +772,8 @@ func _begin_step() -> void:
 		&"convoy_intercept": ok = _begin_convoy()
 		&"smash": ok = _begin_smash()
 		&"sneak": ok = _begin_sneak()
+		&"gates": ok = ws.begin_gates()
+		&"pursuit": ok = ws.begin_pursuit()
 	if not ok:
 		_cleanup(true)
 		_begin_tries += 1
@@ -1159,13 +1173,16 @@ func _wave_size(w: int) -> int:
 func _begin_reach() -> bool:
 	var p := _ref_pos_or_spawn()
 	visuals.show_marker(0, pos, float(step["radius"]), _step_color(), -1.0, true)
-	_route = CampaignSteps.street_route(p, pos)
-	visuals.set_route(_route)
+	if str(step.get("veh", "")) == "":                      # a reach with a vehicle (the big world) leads over open land, air or water: the beacon only, no street route
+		_route = CampaignSteps.street_route(p, pos)
+		visuals.set_route(_route)
 	if bool(step.get("car", false)):                       # hijack and deliver: a car is left beside you unless you already drive one
 		var vm := Game.vehicles
 		if is_instance_valid(vm) and vm.has_method(&"spawn_parked") and not _driving():
 			_chase_t = 0.0
 			_ensure_chase_car(vm)
+	if step.has("veh") or step.has("provide"):             # the big world: a vehicle of the right kind waits for the hero (WorldSteps)
+		ws.begin_reach()
 	return true
 
 
@@ -1541,6 +1558,8 @@ func _tick_active(delta: float) -> void:
 		&"convoy_intercept": _tick_convoy(delta, p)
 		&"smash": _tick_smash(delta, p)
 		&"sneak": _tick_sneak(delta, p)
+		&"gates": ws.tick_gates(delta, p)
+		&"pursuit": ws.tick_pursuit(delta, p)
 	if state != &"active":
 		return
 	if time_total > 0.0 and time_left <= 0.0 and _beat_t <= 0.0:
@@ -1556,6 +1575,10 @@ func _tick_reach(p: Vector3) -> void:
 	progress = clampf(1.0 - _hdist(p, pos) / start_d, 0.0, 1.0) if p.is_finite() else progress
 	if bool(step.get("car", false)):
 		_chase_t += get_physics_process_delta_time()
+	if str(step.get("veh", "")) != "":
+		if ws.reach_ok(p):
+			_complete_step(pos)
+		return
 	if _in_ring(p, pos, float(step["radius"])) and (not bool(step.get("car", false)) or _driving()):
 		_complete_step(pos)
 
@@ -1870,6 +1893,8 @@ func _clean_runtime() -> void:
 func _cleanup(release_foes: bool) -> void:
 	if visuals != null:
 		visuals.hide_all()
+	if ws != null:
+		ws.clean()
 	if car != null and is_instance_valid(car):
 		car.remove_meta(&"hold")
 		if car.exploded.is_connected(_on_car_exploded):

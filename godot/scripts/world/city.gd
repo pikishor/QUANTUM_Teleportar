@@ -96,6 +96,8 @@ var lamp_cones: MeshInstance3D          ## one merged additive mesh of street-la
 var _tiered: Array = []            ## [GeometryInstance3D, min quality] pairs: families that only exist from a given tier up
 var _kit_window := KitWindow.new() ## the street kit: one merged mesh of the props around the camera (city_kit_window.gd)
 var _landmarks := Landmarks.new()  ## the four district landmarks (city_landmarks.gd)
+var vegetation: VegetationWorld    ## forests, shrubs, grass and rocks of the outskirts (scripts/terrain/vegetation_world.gd, wave 105)
+var sites: Node                    ## the mountain and outskirt sites (OutskirtsWorld, scripts/terrain/outskirts_world.gd, wave 105)
 var terrain: TerrainWorld           ## the land outside the city (scripts/terrain/terrain_world.gd): 6 km of streamed heightmap terrain, roads, mountains, coast
 
 
@@ -141,6 +143,21 @@ func _ready() -> void:
 	if OS.get_environment("QT_TERRAIN") != "0":                   # QT_TERRAIN=0 leaves the outskirts out (before / after captures, perf comparisons)
 		terrain = TerrainWorld.new()
 		add_child(terrain)
+		if OS.get_environment("QT_NO_BRIDGES") != "1":                # the bridges over the rivers and the harbour gate (wave 105)
+			BridgeWorld.attach(self)
+		if OS.get_environment("QT_NO_HARBOUR") != "1":                # the harbour: docks, cranes, containers, the ferry (wave 105)
+			HarbourWorld.attach(self)
+		if OS.get_environment("QT_NO_RAIL") != "1":                   # the railway: tracks, stations, trains, level crossings (wave 106)
+			RailWorld.attach(self)
+		if OS.get_environment("QT_NO_AIRPORT") != "1":                # EASTFIELD AIRPORT on the east plain: runway, terminal, tower, hangars, pads, air traffic (wave 106)
+			AirportWorld.attach(self)
+		if OS.get_environment("QT_NO_SHIPS") != "1":                  # the big ships: destroyer, container ship, submarine, liners at sea (wave 106)
+			ShipWorld.attach(self)
+		if OS.get_environment("QT_NO_VEGETATION") != "1":             # forests, bushes, grass and rocks around the hero (wave 105, mountain sites and vegetation)
+			vegetation = VegetationWorld.attach(self)
+		if OS.get_environment("QT_NO_SITES") != "1":                  # the mountain and outskirt sites: observatory, radio tower, mine, crash site, cave, cabins, villages, farms (wave 105)
+			sites = OutskirtsWorld.attach(self)
+			MountainWeather.attach(self)
 	set_quality(quality)
 
 
@@ -279,6 +296,10 @@ func set_quality(level: int) -> void:
 	_env.apply_quality(quality, get_viewport())
 	if terrain != null:
 		terrain.set_quality(quality)
+	if vegetation != null:
+		vegetation.set_quality(quality)
+	if sites != null:
+		(sites as OutskirtsWorld).set_quality(quality)
 	if lamp_cones != null:
 		lamp_cones.visible = quality >= 1
 		if lamp_cones.visible:

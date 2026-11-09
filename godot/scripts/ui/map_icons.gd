@@ -2,9 +2,9 @@ class_name MapIcons
 extends RefCounted
 ## The marker badges of the map and its legend: one dark disc with a coloured ring and a vector glyph per kind, so a marker reads by SHAPE as well as colour (colour-blind safe):
 ## mission = diamond, side = exclamation mark, interior = door, job = flag, shop = dollar, garage = car, weapon = crosshair, home = house, items = gem, danger = warning triangle,
-## you = arrow (drawn by the map itself). `draw(item, kind, centre, radius, colour)` draws on any CanvasItem inside its _draw.
+## site = peak with a snow cap (the outskirts' sites), you = arrow (drawn by the map itself). `draw(item, kind, centre, radius, colour)` draws on any CanvasItem inside its _draw.
 
-const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items", &"danger"]
+const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items", &"danger", &"site"]
 
 
 static func draw(ci: CanvasItem, kind: StringName, c: Vector2, r: float, col: Color, backing := true) -> void:
@@ -44,6 +44,9 @@ static func draw(ci: CanvasItem, kind: StringName, c: Vector2, r: float, col: Co
 			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -g * 1.2), c + Vector2(g * 1.2, -g * 0.1), c + Vector2(g * 0.85, -g * 0.1), c + Vector2(g * 0.85, g * 0.95), c + Vector2(-g * 0.85, g * 0.95), c + Vector2(-g * 0.85, -g * 0.1), c + Vector2(-g * 1.2, -g * 0.1)]), col)
 		&"items":
 			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -g), c + Vector2(g * 0.9, -g * 0.2), c + Vector2(0, g), c + Vector2(-g * 0.9, -g * 0.2)]), col)
+		&"site":                                          # a peak with a snow cap: the sites of the outskirts
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-g * 1.25, g * 0.85), c + Vector2(-g * 0.25, -g * 0.95), c + Vector2(g * 0.35, -g * 0.1), c + Vector2(g * 0.75, -g * 0.55), c + Vector2(g * 1.25, g * 0.85)]), col)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-g * 0.25, -g * 0.95), c + Vector2(-g * 0.62, -g * 0.3), c + Vector2(-g * 0.25, -g * 0.45), c + Vector2(g * 0.05, -g * 0.3)]), Color(0.01, 0.03, 0.05))
 		&"danger":
 			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -g * 1.15), c + Vector2(g * 1.15, g * 0.9), c + Vector2(-g * 1.15, g * 0.9)]), col)
 			ci.draw_rect(Rect2(c + Vector2(-g * 0.12, -g * 0.4), Vector2(g * 0.24, g * 0.7)), Color(0.01, 0.03, 0.05))

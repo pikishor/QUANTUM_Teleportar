@@ -97,8 +97,9 @@ func _vignette_and_hurt() -> void:
 		p.hp = 100.0
 		p.damage(2.0, from)
 	TestLib.check(FX.shake_amount <= 1.0, "hurt spam: the shake amount stays within 0..1 (%.2f)" % FX.shake_amount)
-	await e.frames(2)
+	# read at once: the kick decays in real time (about 0.35 s), and a slow frame (a heavy world, a loaded runner) would otherwise let it run out before a frame count passes
 	TestLib.check(atmo.hurt_level <= 1.0 and atmo.hurt_level > 0.0, "hurt spam: the chromatic kick is capped at 1 (%.2f)" % atmo.hurt_level)
+	await e.frames(2)
 	TestLib.check(atmo.post.feedback().x <= atmo.post.FB_CA_MAX + 1e-6, "hurt spam: the post chromatic aberration add-on stays under its cap (%.4f)" % atmo.post.feedback().x)
 	var cam := p.camera_rig.camera
 	TestLib.check(cam.global_position.is_finite() and cam.global_position.distance_to(p.global_position) < 6.0, "hurt spam: the camera stays with the player (%.1f m)" % cam.global_position.distance_to(p.global_position))

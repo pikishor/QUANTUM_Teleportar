@@ -35,6 +35,10 @@ extends RefCounted
 ##   smash           (Mission Board, demolition) break `n` (6) breakable props anywhere near `pos`: the waypoint is the nearest prop still standing, any prop counts
 ##   sneak           (Mission Board, stealth) reach the ring at `pos` while `guards` (3) unaware Vael watch it; a guard that notices you fails the step (SPOTTED) and the retry is instant
 ##   reach           also takes `car` true (hijack and deliver: done only in a vehicle, a car is left beside you); chase also takes `on_foot` true (a parked target, no car for you)
+##   reach (world)   `veh` (air / heli / plane / boat / ground: the ring only counts in that kind of vehicle), `provide` (a vehicle kind left waiting at `provide_at`, heading `provide_h`), `land` (an aircraft must stand
+##                   down and slow in the ring): scripts/missions/world_steps.gd
+##   gates           (world) fly or drive through the 3D gates `pts` (Array of Vector3) in order, `radius` m each, `veh` as above
+##   pursuit         (world) a scripted `target` vehicle (pickup, boat, ...) runs along `route` (PackedVector3Array) at `cruise` m/s, slows when the hero falls behind; done when wrecked, boxed in (within `catch` m for 2.2 s) or taken over
 ##   every kind      also takes `range` [min, max] (metres of a generated goal from the step's origin, replaces the kind's default) and `quiet` true (no "start" toast: the HUD line says it)
 ##   convoy_intercept `cars` (3, 1..3) traffic cars (hp 90, cruise 13) driving in a line from pos along a road: ENTANGLE (within 8 m of the swap), COLLAPSE (within 16 m, also 30 % damage) or damage
 ##                   below 35 % hp STOP a car (ai_stun held), a wreck counts too; done when every car is stopped; one car 150 m away for 6 s: CONVOY GOT AWAY. time 120
@@ -58,6 +62,8 @@ const KIND_DATA := {
 	&"convoy_intercept": {"title": "STOP THE CONVOY", "color": &"red", "dist": [90.0, 150.0], "time": 120.0},
 	&"smash": {"title": "SMASH THE PROPS", "color": &"amber", "dist": [60.0, 110.0], "time": 0.0},
 	&"sneak": {"title": "SLIP PAST THE GUARDS", "color": &"cyan", "dist": [70.0, 120.0], "time": 0.0},
+	&"gates": {"title": "FLY THE GATES", "color": &"amber", "dist": [110.0, 190.0], "time": 0.0},
+	&"pursuit": {"title": "RUN DOWN THE TARGET", "color": &"red", "dist": [55.0, 100.0], "time": 0.0},
 }
 
 const MAX_TEXT := 56
@@ -159,6 +165,15 @@ static func normalize_step(step: Dictionary, index: int, _chapter_index := 0) ->
 			out["ambush"] = [{"at": 0.5, "n": -1, "types": []}]
 	if k == &"reach":
 		out["car"] = bool(step.get("car", false))
+		out["veh"] = str(step.get("veh", ""))
+		out["land"] = bool(step.get("land", false))
+	if k == &"gates":
+		out["veh"] = str(step.get("veh", "air"))
+		out["radius"] = float(step.get("radius", 20.0))
+	if k == &"pursuit":
+		out["catch"] = float(step.get("catch", 15.0))
+		out["cruise"] = float(step.get("cruise", 15.0))
+		out["hp"] = float(step.get("hp", 220.0))
 	if k == &"smash":
 		out["n"] = clampi(int(step.get("n", 6)), 1, 20)
 	if k == &"sneak":

@@ -25,6 +25,9 @@ var is_starter := false
 var garage_car := false             ## the player's garage car (tuned spec, see apply_garage); reset when it goes back to the pool
 var paint_i := -1                   ## index into VehicleSpecs.COLORS of the current paint (-1 unknown)
 var ai := false                     ## traffic: follows its lane
+var scripted := false                ## driven by a mission script (script_thr / script_steer, -1..1) instead of lane AI or the idle drift (WorldSteps pursuit)
+var script_thr := 0.0
+var script_steer := 0.0
 var ai_axis := 0                    ## 0 = along X, 1 = along Z
 var ai_dir := 1
 var ai_line := 0.0                  ## lane centre coordinate across the road
@@ -177,6 +180,7 @@ func activate(pos: Vector3, h: float) -> void:
 	speed = 0.0
 	vel = Vector3.ZERO
 	ai = false
+	scripted = false
 	ai_speed = 0.0
 	ai_panic = 0.0
 	ai_stun = 0.0
@@ -215,6 +219,8 @@ func activate(pos: Vector3, h: float) -> void:
 	heading = h
 	global_position = Vector3(pos.x, base_y + _terrain_y(pos.x, pos.z), pos.z)
 	rotation = Vector3(0.0, h, 0.0)
+	if craft != null and cls == &"boat":                                 # a boat is put on the water: the flood level in the city canals, the waves of the real water elsewhere
+		VehicleCraft.place_boat(self)
 	_heading_set = h
 	surface = &"city"
 	ground_pitch = 0.0
@@ -265,6 +271,7 @@ func become_wreck() -> void:
 	active = false
 	driver_is_player = false
 	ai = false
+	scripted = false
 	chasing = false
 	speed = 0.0
 	vel = Vector3.ZERO
@@ -275,7 +282,7 @@ func become_wreck() -> void:
 	visual.set_paint(VehicleSpecs.WRECK_COLOR)
 	visual.set_lights(0.0, 0.0, 0.0)
 	if craft != null:                                        # a craft that blows up in the air lands where it was, as a husk
-		global_position.y = base_y
+		global_position.y = AircraftFlight.ground_y(self) if (cls == &"heli" or cls == &"plane") else base_y
 		craft.airborne = false
 		craft.spool = 0.0
 	visual.model.rotation = Vector3(0.02, 0.0, 0.07)
@@ -324,6 +331,7 @@ func deactivate() -> void:
 	active = false
 	driver_is_player = false
 	ai = false
+	scripted = false
 	chasing = false
 	collision_layer = 0
 	visible = false
@@ -690,9 +698,13 @@ func sim(dt: float) -> void:
 		step_drive(dt, Input.get_axis(&"move_back", &"move_forward"), Input.get_axis(&"move_left", &"move_right"), Input.is_action_pressed(&"jump"), Input.is_action_pressed(&"sprint"))
 		if weapons != null:
 			weapons.tick(dt, Input.is_action_pressed(&"fire"))
+			if weapons.has_alt():                                       # rockets / missiles of the gunship and the jet: the AIM button
+				weapons.tick_alt(dt, Input.is_action_pressed(&"aim"))
+	elif scripted:                                       # a mission's target vehicle (WorldSteps pursuit): the mission writes the stick, the vehicle drives itself with its own physics
+		step_drive(dt, script_thr, script_steer, false)
 	elif chasing:
 		_chase_step(dt)
-	elif ai:
+	elif ai and craft == null:
 		_ai_step(dt)
 	elif craft != null:
 		VehicleCraft.idle(self, dt)
@@ -1028,6 +1040,9 @@ static func _terrain_y(x: float, z: float) -> float:
 ## surface under the wheels (asphalt, dirt, grass, sand, rock, snow, shallow water) is refreshed a few times a second for the grip and top speed (VehicleSpecs.surface_grip).
 func _terrain_step(dt: float) -> void:
 	var p := global_position
+	if cls == &"boat" and (absf(p.x) > TerrainHeight.CITY_HALF or absf(p.z) > TerrainHeight.CITY_HALF):
+		surface = &"water"                                                 # a boat outside the plateau floats on the world's water (VehicleCraft._keep_afloat sets its height)
+		return
 	if absf(p.x) <= TerrainHeight.CITY_HALF and absf(p.z) <= TerrainHeight.CITY_HALF:
 		if surface != &"city":
 			surface = &"city"
@@ -1044,12 +1059,12 @@ func _terrain_step(dt: float) -> void:
 	var r := right()
 	var hl := float(spec["len"]) * 0.42
 	var hw := float(spec["wid"]) * 0.45
-	var hf := TerrainHeight.height_at(p.x + f.x * hl, p.z + f.z * hl)
-	var hb := TerrainHeight.height_at(p.x - f.x * hl, p.z - f.z * hl)
-	var hr := TerrainHeight.height_at(p.x + r.x * hw, p.z + r.z * hw)
-	var hlft := TerrainHeight.height_at(p.x - r.x * hw, p.z - r.z * hw)
+	var hf := TerrainHeight.drive_height_at(p.x + f.x * hl, p.z + f.z * hl, p.y)
+	var hb := TerrainHeight.drive_height_at(p.x - f.x * hl, p.z - f.z * hl, p.y)
+	var hr := TerrainHeight.drive_height_at(p.x + r.x * hw, p.z + r.z * hw, p.y)
+	var hlft := TerrainHeight.drive_height_at(p.x - r.x * hw, p.z - r.z * hw, p.y)
 	var target := (hf + hb + hr + hlft) * 0.25
-	if cls != &"boat" and cls != &"heli" and cls != &"plane" and craft == null and TerrainHeight.depth_at(p.x, p.z) > 1.2:
+	if cls != &"boat" and cls != &"heli" and cls != &"plane" and craft == null and TerrainHeight.depth_at(p.x, p.z) > 1.2 and not Bridges.on_deck(p.x, p.z, p.y):
 		if _dry_pos.is_finite():                              # deep water ahead: back to the shore, nearly stopped (a hard stop at the waterline, no damage)
 			global_position = Vector3(_dry_pos.x, p.y, _dry_pos.z)
 			vel *= -0.2

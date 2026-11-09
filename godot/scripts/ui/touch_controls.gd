@@ -20,6 +20,7 @@ const USE_REACH := 4.2              ## metres: a vehicle this close enables USE
 const BUTTONS := [
 	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 88.0, "fs": 32, "label": "FIRE", "need": &"fire"},
 	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &"foot"},
+	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "fs": 22, "label": "ROCKET", "need": &"arms2"},       # a gunship or a jet: rockets / missiles (VehicleWeapons.tick_alt)
 	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &"foot"},
 	{"action": &"ability", "dx": 515.0, "dy": 120.0, "r": 58.0, "fs": 22, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability"},
@@ -236,7 +237,7 @@ func _process(delta: float) -> void:
 	_use_t -= delta
 	if _use_t <= 0.0:
 		_use_t = 0.15
-		_use_near = _vehicle_in_reach() or InteriorGameplay.prompt != ""
+		_use_near = _vehicle_in_reach() or InteriorGameplay.prompt != "" or RideUse.prompt() != ""
 	_redraw_t -= delta
 	if Game.state == &"play" or Game.state == &"paused" or _last_state == &"play" or _last_state == &"paused":
 		if _redraw_t <= 0.0 or Game.state != _last_state:         # LOW redraws the touch layer 20 times a second, LOW+ 12; a state change always redraws
@@ -479,6 +480,9 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
 		&"driving":
 			return is_instance_valid(Game.vehicles) and _driving()
+		&"arms2":            # the driven aircraft carries rockets or missiles
+			var dv: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
+			return dv != null and dv.get("weapons") != null and bool(dv.get("weapons").call(&"has_alt"))
 		&"craft":            # helicopter, plane: the second vertical button
 			return is_instance_valid(Game.vehicles) and _driving() and _craft_class() in [&"heli", &"plane"]
 		&"drive_more":       # the driving cluster behind MORE: BACK, RADIO, GARAGE (a car shows only DRIFT, EXIT, VIEW and MORE, plus FIRE when it carries a weapon)
@@ -509,6 +513,9 @@ func _label_of(b: Dictionary) -> String:
 			return str(InteriorGameplay.prompt).split(" ")[0]         # inside a building the button says what it does: LEAVE, TALK, CRACK, FREE (not ENTER)
 		if not _driving() and InteriorGameplay.active:
 			return "USE"                                      # nothing to do at this spot: never ENTER (a street word) inside a room
+		var ride := RideUse.prompt()
+		if not _driving() and ride != "":
+			return ride.split(" ")[0]                         # CLIMB, SIT, STAND, TAKE, MAN, LEAVE
 		return "EXIT" if _driving() else "ENTER"
 	if b["action"] == &"jump" and _driving():
 		var cc := _craft_class()

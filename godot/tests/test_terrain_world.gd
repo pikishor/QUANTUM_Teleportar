@@ -128,7 +128,7 @@ func _roads() -> void:
 			worst_grade = maxf(worst_grade, absf(prof[i] - prof[i - 1]) / maxf(pts[i].distance_to(pts[i - 1]), 1.0))
 		for i in range(0, pts.size(), 7):                                   # the finished land under the centre line is the road profile (the bench is flat across)
 			var h := TerrainHeight.height_at(pts[i].x, pts[i].y)
-			if TerrainHeight.depth_at(pts[i].x, pts[i].y) < 0.05:
+			if TerrainHeight.depth_at(pts[i].x, pts[i].y) < 0.05 and not TerrainRoads.in_span(pts[i].x, pts[i].y):          # (a bridge span keeps the river banks: the deck rides the profile)
 				worst_off = maxf(worst_off, absf(h - prof[i]))
 	TestLib.check(gates >= 4, "four highways start at the city gates on the plateau (%d)" % gates)
 	TestLib.check(long_enough >= 5, "the roads are long (%d of %d at least 900 m)" % [long_enough, roads.size()])
@@ -346,7 +346,10 @@ func _shore_and_traffic(host: Node) -> void:
 		if v.ai and not v.has_meta(&"spawn_id") and not v.driver_is_player and (absf(vp.x) > TerrainHeight.CITY_HALF + 5.0 or absf(vp.z) > TerrainHeight.CITY_HALF + 5.0):
 			strays += 1
 	TestLib.check(strays == 0, "no traffic car roams the terrain outside the city (%d strays among %d cars)" % [strays, mgr.list.size()])
-	# find the shore west of the city and drive an SUV at it
+	# find the shore west of the city and drive an SUV at it (a terrain test: the trunks and boulders of the vegetation, solid since wave 105, are taken out of the straight run)
+	if city.vegetation != null:
+		city.vegetation.enabled = false
+		city.vegetation.call(&"_place_blockers", [])
 	var z := 300.0
 	var shore := -1100.0
 	while shore > -2900.0 and TerrainHeight.depth_at(shore, z) < 0.3:

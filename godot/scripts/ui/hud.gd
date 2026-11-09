@@ -997,6 +997,9 @@ func vehicle_rows(veh: Object) -> Array:
 		var d: Dictionary = w.get("def")
 		var hot: bool = w.get("locked") == true
 		rows.append({"text": "%s  %d%s" % [String(d.get("name", "GUN")), int(UiUtil.num(w, &"ammo", 0.0)), "  HOT" if hot else ""], "col": Color(UiUtil.RED if hot else Color(1, 1, 1), 0.97)})
+		if w.has_method(&"has_alt") and w.call(&"has_alt"):                  # the gunship's rockets and the jet's missiles (AIM)
+			var ad: Dictionary = w.get("alt_def")
+			rows.append({"text": "%s  %d" % [String(ad.get("name", "ROCKETS")), int(UiUtil.num(w, &"alt_ammo", 0.0))], "col": Color(UiUtil.AMBER, 0.97)})
 	return rows
 
 
@@ -1150,6 +1153,9 @@ func hint_text() -> String:
 	var jp := Freedom.job_prompt()                          # a job marker under the hero: street race, taxi fare, delivery, bounty (starts by itself)
 	if jp != "":
 		return jp
+	var rp := RideUse.prompt()                              # CLIMB TO ROOF / SIT / TAKE HELM / MAN GUN (trains and ships, wave 106)
+	if rp != "":
+		return key + rp
 	if Game.player.get("vehicle") != null:
 		return key + "EXIT VEHICLE"
 	var vp := Freedom.vehicle_prompt()                      # HIJACK TAXI / ENTER BUS
@@ -1562,6 +1568,7 @@ func _draw_hud_body() -> void:
 			ab.position.x = ins.x + 24.0 * s
 		_draw_speedometer(c, font, ab, veh, s)
 		_draw_vehicle_readout(c, font, ab, veh, s)
+		FlightHud.draw(c, font, vp, s, ins, veh)                          # horizon, altitude, vertical speed, stall and landing guide while flying (wave 106)
 	elif ammo_plate:
 		_plate(c, ab, s)
 		_text(c, font, Vector2(ab.position.x, ab.position.y + 50.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, UiUtil.fit_size(font, ammo_text(), ab.size.x - 8.0 * s, int(48.0 * s)), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)

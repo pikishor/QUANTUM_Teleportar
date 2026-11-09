@@ -116,3 +116,28 @@ All CC0 1.0 (Poly Haven, https://polyhaven.com; licence text and per-asset URL i
 | rock (cliffs, high ground; tri-planar) | rock_boulder_dry (Rock Boulder Dry) | Dimitrios Savva, Rico Cilliers |
 | snow (peaks, ledges) | snow_02 (Snow 02) | Rob Tuytel |
 | dirt (road verge, track surface) | gravel_road (Gravel Road) | Amal Kumar |
+
+## Vegetation of the outskirts (wave 105, mountain sites and vegetation)
+
+CC0 1.0, fetched from OpenGameArt.org with plain curl and a descriptive user agent. The licence text, the URL and the author are kept in art_sources/quaternius_stylized_nature_megakit/ (License.txt + SOURCE.md); the 104 MB archive is not committed.
+
+| Asset | Author | Source | Use |
+|---|---|---|---|
+| Stylized Nature MegaKit (Standard, free version): pines, broadleaf and dead trees, bush, fern, grass, rocks, pebble and the leaf sprite sheets | Quaternius, quaternius.com | https://opengameart.org/content/stylized-nature-megakit (CC0), art_sources/quaternius_stylized_nature_megakit | godot/tools/open_models/convert_nature.py (bpy) -> godot/assets/models/nature_kit.glb (16 pieces, 6 500 triangles in all, 1.1 MB, flat vertex colours) and godot/assets/textures/nature_atlas.webp (1024 x 512 alpha atlas, 28 KB); drawn as MultiMesh instances by godot/scripts/terrain/vegetation_world.gd with assets/shaders/vegetation.gdshader (wind, snow, dissolve between LODs); the mid and far tree LODs are generated in code (veg_kit.gd) |
+
+Everything else of that wave (the sites, the cave, the guard rails, the clouds) is procedural.
+
+## Railways and ships (wave 106)
+No third-party assets: every mesh is generated in code (`scripts/rail`, `scripts/ships`) and the eight sounds (train horn, maglev chime, wheel clatter, maglev hum, crossing bell, ship horn, ship engine, brake squeal) are synthesised by `godot/tools/audio/make_rail.py` (numpy, ffmpeg); nothing to credit.
+
+## Airport and aircraft (wave 106)
+Four CC0 1.0 aircraft from OpenGameArt.org (plain curl, descriptive user agent). The CC0 statement of each page, the URL and the author are kept in art_sources/open_aircraft/<pack>/ (LICENSE.txt + SOURCE.md); the raw .blend files are not committed. godot/tools/open_models/convert_aircraft.py (bpy) turns them into godot/assets/models/xv_<id>.glb (nose to -Z, the paint surface named Body, no texture: colours sampled from the materials, 0.55 MB in all; the airliner and the business jet keep the landing gear of the source's gear-down variant, the cargo plane and the fighter get a simple gear added by the converter).
+
+| Asset | Author | Source | Use |
+|---|---|---|---|
+| Jet airplane | weirdybeardyman (uploaded by MedicineStorm) | https://opengameart.org/content/jet-airplane, art_sources/open_aircraft/jet_airplane | AIRLINER, scenery at the gates and in the AI air traffic (xv_airliner.glb) |
+| Private Jet | weirdybeardyman | https://opengameart.org/content/private-jet, art_sources/open_aircraft/private_jet | BUSINESS JET, scenery and AI air traffic (xv_bizjet.glb) |
+| Jumbo Jet, Wide Body | NuclearOsmosis | https://opengameart.org/content/jumbo-jetwide-body, art_sources/open_aircraft/jumbo_jet | CARGO PLANE, flyable (xv_cargo.glb) |
+| Mig | Sketlux | https://opengameart.org/content/mig, art_sources/open_aircraft/mig | JET FIGHTER, flyable (xv_jet.glb) |
+
+The attack helicopter (GUNSHIP), the transport helicopter (HAULER), the airport (runway, terminal, tower, hangars, tanks, pads) and all the airport markings are procedural (godot/scripts/world/airport_kit.gd, godot/scripts/vehicles/aircraft_models.gd). Candidates judged and rejected: the other OpenGameArt helicopters (box and toy models), "Black Bird / Warthog" (a 10k-triangle hand model with 42 loose parts).

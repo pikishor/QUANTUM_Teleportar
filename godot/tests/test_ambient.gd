@@ -310,6 +310,15 @@ func _test_patrol(host: Node, amb: Node3D) -> void:
 
 
 func _test_no_growth(host: Node, city: City, amb: Node3D) -> void:
+	var calm := 0                                   # the streamed world (rail chunks, terrain tiles, outskirts) is still building around the spawn: wait until the node count holds still
+	var last := host.get_tree().get_node_count()
+	for k in 600:
+		await TestLib.frames(host, 5)
+		var now := host.get_tree().get_node_count()
+		calm = calm + 1 if now == last else 0
+		last = now
+		if calm >= 12:
+			break
 	var nodes_before := host.get_tree().get_node_count()
 	var mm_nodes := city.multimesh_nodes.size()
 	var inst_t: int = amb.traffic.mm.instance_count

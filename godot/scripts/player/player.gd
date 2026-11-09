@@ -89,6 +89,7 @@ var speed_boost := 1.0
 var input_strafe := 0.0
 ## The move stick / keys this tick (x right, y back, 0..1 long): the body uses its length to start the step off.
 var input_move := Vector2.ZERO
+var control_hold := false                   ## the hero's own movement is held (seated in a train, at a ship's helm or gun): the stick does not walk him (scripts/rail, scripts/ships)
 var invuln := 0.0
 ## Seconds since the last damage; health regenerates once it passes REGEN_DELAY.
 var since_hurt := 99.0
@@ -595,6 +596,8 @@ func _settle_tick(dt: float) -> void:
 func _foot_tick(dt: float) -> void:
 	# --- input
 	var iv := Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back", 0.05)     # x right+, y back+
+	if control_hold:
+		iv = Vector2.ZERO
 	var forward_in := -iv.y
 	input_strafe = iv.x
 	input_move = iv
@@ -602,7 +605,7 @@ func _foot_tick(dt: float) -> void:
 	var on_floor := is_on_floor() and _ground_known
 	cover.update(dt, on_floor, Vector2(velocity.x, velocity.z).length())
 	var want_sprint := Input.is_action_pressed(&"sprint") and not aiming and forward_in > 0.3 and not cover.crouching
-	var jump_down := Input.is_action_pressed(&"jump")
+	var jump_down := Input.is_action_pressed(&"jump") and not control_hold
 	if jump_down and not _jump_was_down:
 		_jump_buffer = JUMP_BUFFER
 	_jump_was_down = jump_down

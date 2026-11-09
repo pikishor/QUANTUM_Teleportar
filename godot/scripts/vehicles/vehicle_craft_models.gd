@@ -31,6 +31,17 @@ static func build(kind: String, spec: Dictionary) -> Node3D:
 			_wheel_pair(root, spec, -0.62, 0.55, 0.0)
 			_lamp(root, "Headlights", Vector3(0.26, 0.12, 0.05), Vector3(0.0, 0.98, -0.74), Color(1.0, 0.94, 0.8), 7.0)
 			_lamp(root, "Taillights", Vector3(0.24, 0.07, 0.05), Vector3(0.0, 0.62, 0.89), Color(1.0, 0.06, 0.12), 5.0)
+		"gunship", "hauler":
+			root.free()                                                          # (the aircraft build makes its own root: this one would stay behind as a stray node)
+			return AircraftModels.build_air(kind, spec)
+		"jetski":
+			m._jetski()
+			root.add_child(_mesh_instance(m))
+			return root                                                          # (a boat wears no car lamps: their additive halos blow out at night)
+		"patrol":
+			m._patrol()
+			root.add_child(_mesh_instance(m))
+			return root
 		_:
 			m._quad()
 			root.add_child(_mesh_instance(m))
@@ -120,6 +131,50 @@ func _scooter() -> void:
 		_box(S_CHROME, Vector3(sx * 0.3, 1.24, -0.54), Vector3(0.03, 0.14, 0.03))                    # mirror stems
 	_box(S_CHROME, Vector3(0.2, 0.3, 0.55), Vector3(0.08, 0.08, 0.5))                               # exhaust
 	_box(S_TRIM, Vector3(0.0, 0.2, 0.24), Vector3(0.3, 0.2, 0.36))                                  # engine
+
+
+## A jet ski: a pointed low hull, a seat, a console with handlebars and a small screen, side rails and the jet nozzle. Waterline at y 0.2 (VehicleSpecs draft).
+func _jetski() -> void:
+	_prism(S_BODY, [Vector2(-1.5, 0.42), Vector2(-1.15, 0.05), Vector2(1.2, 0.0), Vector2(1.5, 0.22), Vector2(1.5, 0.6), Vector2(0.5, 0.66), Vector2(-0.9, 0.66)], -0.36, 0.36)
+	_prism(S_BODY, [Vector2(-1.5, 0.42), Vector2(-0.9, 0.66), Vector2(-1.15, 0.05)], -0.5, 0.5)                                       # the flared bow
+	_box(S_TRIM, Vector3(0.0, 0.12, 0.1), Vector3(0.7, 0.18, 2.2))                                                                    # the keel
+	for sx in [-1.0, 1.0]:
+		_box(S_TRIM, Vector3(sx * 0.52, 0.5, 0.35), Vector3(0.14, 0.09, 1.7))                                                          # footrests
+		_box(S_BODY, Vector3(sx * 0.46, 0.58, -0.7), Vector3(0.18, 0.2, 0.6))                                                           # side fairings
+	_prism(S_TRIM, [Vector2(0.0, 0.66), Vector2(0.12, 0.86), Vector2(1.15, 0.88), Vector2(1.4, 0.64)], -0.22, 0.22)                    # the seat
+	_prism(S_BODY, [Vector2(-0.8, 0.66), Vector2(-0.62, 1.0), Vector2(-0.3, 1.02), Vector2(-0.12, 0.68)], -0.3, 0.3)                    # the console
+	_box(S_TRIM, Vector3(0.0, 1.06, -0.45), Vector3(0.74, 0.05, 0.05))                                                                 # handlebar
+	for sx in [-1.0, 1.0]:
+		_box(S_TRIM, Vector3(sx * 0.36, 1.06, -0.45), Vector3(0.12, 0.07, 0.07))
+		_box(S_CHROME, Vector3(sx * 0.2, 1.18, -0.6), Vector3(0.03, 0.14, 0.03))
+	_prism(S_GLASS, [Vector2(-0.95, 0.7), Vector2(-0.78, 1.08), Vector2(-0.7, 1.08), Vector2(-0.84, 0.7)], -0.2, 0.2)                    # the screen
+	_cyl(S_CHROME, Vector3(0.0, 0.3, 1.55), 0.15, 0.2, 2, 10)                                                                           # the jet nozzle
+
+
+## The patrol boat: a 9 m cruiser with a pointed bow, a white deckhouse with a glass band, a roof with a light bar and a radar mast, a bow cannon and twin outboards.
+func _patrol() -> void:
+	_box(S_BODY, Vector3(0.0, 0.58, 1.55), Vector3(3.2, 1.15, 6.1))                                                                    # the main hull
+	_tri(S_BODY, Vector3(-1.6, 1.15, -1.5), Vector3(-1.2, 0.0, -1.5), Vector3(0.0, 0.3, -4.6), Vector3(0.0, 0.5, -1.0))                  # bow: two sides, deck and keel
+	_tri(S_BODY, Vector3(-1.6, 1.15, -1.5), Vector3(0.0, 0.3, -4.6), Vector3(0.0, 1.45, -4.6), Vector3(0.0, 0.5, -1.0))
+	_tri(S_BODY, Vector3(1.6, 1.15, -1.5), Vector3(1.2, 0.0, -1.5), Vector3(0.0, 0.3, -4.6), Vector3(0.0, 0.5, -1.0))
+	_tri(S_BODY, Vector3(1.6, 1.15, -1.5), Vector3(0.0, 0.3, -4.6), Vector3(0.0, 1.45, -4.6), Vector3(0.0, 0.5, -1.0))
+	_tri(S_BODY, Vector3(-1.6, 1.15, -1.5), Vector3(1.6, 1.15, -1.5), Vector3(0.0, 1.45, -4.6), Vector3(0.0, 0.5, -1.0))
+	_tri(S_TRIM, Vector3(-1.2, 0.0, -1.5), Vector3(1.2, 0.0, -1.5), Vector3(0.0, 0.3, -4.6), Vector3(0.0, 0.5, -1.0))
+	_box(S_TRIM, Vector3(0.0, 0.5, 1.55), Vector3(3.24, 0.14, 6.1))                                                                     # the boot stripe
+	_box(S_TRIM, Vector3(0.0, 1.17, -2.6), Vector3(0.5, 0.05, 2.0))                                                                     # the non-slip bow
+	_box(S_BODY, Vector3(0.0, 1.75, 1.2), Vector3(2.3, 1.2, 2.9))                                                                       # the deckhouse
+	_box(S_GLASS, Vector3(0.0, 1.95, 1.2), Vector3(2.34, 0.55, 2.94))                                                                  # its window band
+	_prism(S_BODY, [Vector2(-0.35, 2.35), Vector2(0.0, 2.35), Vector2(0.1, 2.5), Vector2(-0.2, 2.5)], -1.15, 1.15)                       # the raked front edge of the roof
+	_box(S_TRIM, Vector3(0.0, 2.42, 1.4), Vector3(2.4, 0.1, 3.3))                                                                       # the roof
+	_box(S_TRIM, Vector3(0.0, 3.0, 2.0), Vector3(0.07, 1.2, 0.07))                                                                      # the radar mast
+	_box(S_CHROME, Vector3(0.0, 3.5, 2.0), Vector3(1.0, 0.07, 0.15))
+	_cyl(S_TRIM, Vector3(0.0, 1.35, -2.4), 0.45, 0.3, 1, 12)                                                                            # the cannon mount
+	_box(S_TRIM, Vector3(0.0, 1.6, -3.0), Vector3(0.14, 0.14, 1.4))                                                                     # the barrel
+	_box(S_BODY, Vector3(0.0, 1.55, -2.4), Vector3(0.9, 0.5, 0.9))
+	for sx in [-1.0, 1.0]:
+		_box(S_CHROME, Vector3(sx * 1.55, 1.7, 3.0), Vector3(0.05, 0.05, 2.6))                                                          # stern railing
+		_box(S_TRIM, Vector3(sx * 0.7, 0.9, 4.75), Vector3(0.45, 1.1, 0.6))                                                              # twin outboards
+		_box(S_TRIM, Vector3(sx * 1.62, 0.9, 0.2), Vector3(0.14, 0.4, 0.9))                                                              # fenders
 
 
 func _armour(ln: float, wid: float, hgt: float) -> void:

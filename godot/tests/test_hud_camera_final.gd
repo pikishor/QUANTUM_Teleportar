@@ -17,7 +17,7 @@ const SIZES: Array[Vector2i] = [Vector2i(844, 390), Vector2i(2400, 1080)]
 ## What the combat frame may hold (visible_controls ids); `interact`, `grab`, `takedown`, `toast`, `subtitle` and `wanted` appear only when they apply.
 const ALLOWED: Array[StringName] = [&"stick", &"fire", &"aim", &"jump", &"reload", &"ability", &"swap", &"more", &"pause", &"minimap", &"status", &"objective"]
 ## Buttons that share a spot or a state on purpose (never on screen together).
-const EXCLUSIVE: Array = [[&"swap", &"veh_view"], [&"grab", &"radio_next"], [&"takedown", &"radio_next"], [&"reload", &"crouch"]]       # DOWN (the aircraft's second vertical button) takes RELOAD's place while flying
+const EXCLUSIVE: Array = [[&"swap", &"veh_view"], [&"grab", &"radio_next"], [&"takedown", &"radio_next"], [&"reload", &"crouch"], [&"aim", &"aim"]]       # DOWN (the aircraft's second vertical button) takes RELOAD's place while flying   # AIM on foot and ROCKET in an armed aircraft share a spot (wave 106)
 
 var host: Node
 var main: Node

@@ -237,6 +237,9 @@ func _bind_craft(spec: Dictionary) -> void:
 		var n := model.get_node_or_null(NodePath(nm)) as Node3D
 		if n != null:
 			parts[nm] = n
+	if bool(spec.get("burner", false)):                                 # a jet's afterburner cone (VehicleCraft.sync lights it with the throttle)
+		AircraftModels.add_burner(model, spec)
+		parts["Burner"] = model.get_node_or_null("Burner")
 	if body != null:
 		for s in body.mesh.get_surface_count():
 			var m := body.mesh.surface_get_material(s)
@@ -256,7 +259,7 @@ func _bind_craft(spec: Dictionary) -> void:
 	for nm: String in disc_for:
 		if parts.has(nm):
 			var r := float(spec.get(disc_for[nm], 1.3 if nm == "Prop" else 3.6))
-			var d := VehicleCraftModels.disc(r, 0.2)
+			var d := VehicleCraftModels.disc(r, 0.08)
 			d.name = nm + "Disc"
 			model.add_child(d)
 			d.position = (parts[nm] as Node3D).position

@@ -14,6 +14,7 @@ var charges: Charges
 var jobs: Jobs
 var crates: WeaponCrates
 var repairs: RepairStations
+var roam: WorldRoam                    ## free-roam activities of the big world: flight school, off-road trial, jet-ski laps, scanner treasure hunt (scripts/missions/world_roam.gd)
 
 
 func _ready() -> void:
@@ -29,6 +30,8 @@ func _ready() -> void:
 	add_child(crates)
 	repairs = RepairStations.new()
 	add_child(repairs)
+	roam = WorldRoam.new()
+	add_child(roam)
 
 
 func _exit_tree() -> void:
@@ -65,4 +68,8 @@ static func markers() -> Array[Dictionary]:
 		out.append_array(current.crates.markers())
 	if current.repairs != null:
 		out.append_array(current.repairs.markers())
+	if RailWorld.instance != null:
+		out.append_array(RailWorld.instance.jobs.markers())
+	if current.roam != null:
+		out.append_array(current.roam.markers())
 	return out

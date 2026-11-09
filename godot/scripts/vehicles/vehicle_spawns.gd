@@ -7,6 +7,7 @@ extends RefCounted
 ##   airstrip   small plane on the main avenue just east of the core, nose east (a 730 m straight to the border)
 ##   depot      tank on the west ring road of the core (a straight, clear of the plaza props)
 ##   harbour_*  speedboats in the flooded quarter (FloodZone), on its streets
+##   dock_*     the boat berths of the harbour on the south coast (Harbour.BERTHS): speedboats, jet skis and the patrol boat on the real water, beside the piers and quays
 ## Armoured trucks, quads and scooters are rare traffic (VehicleSpecs.STREAM_KINDS).
 
 const SPAWN_AT := 100.0               ## the player comes this close and the vehicle stands there (inside the streaming radius, so it is not released at once)
@@ -26,8 +27,19 @@ const POINTS: Array[Dictionary] = [
 ]
 
 
+## Every spawn point: the fixed POINTS above and the boat berths of the harbour (Harbour.BERTHS: speedboats, jet skis and the patrol boat beside the piers).
+static func all_points() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	out.append_array(POINTS)
+	out.append_array(Harbour.BERTHS)
+	out.append_array(OutskirtsSites.vehicle_points())
+	out.append_array(Airport.spawn_points())                      # EASTFIELD AIRPORT: planes, jets, helicopters on the apron, the helipads and the mountain pads (wave 106)
+	out.append_array(WorldRoam.vehicle_points())             # the rover and the quad at the foot of QUARRY TRACK (off-road trial)
+	return out
+
+
 static func point(id: StringName) -> Dictionary:
-	for p in POINTS:
+	for p in all_points():
 		if p["id"] == id:
 			return p
 	return {}
@@ -37,7 +49,7 @@ static func point(id: StringName) -> Dictionary:
 static func nearest_of(kind: StringName, from: Vector3) -> Vector3:
 	var best := Vector3.INF
 	var bd := INF
-	for p in POINTS:
+	for p in all_points():
 		if p["kind"] != kind:
 			continue
 		var pos: Vector3 = p["pos"]

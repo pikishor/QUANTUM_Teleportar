@@ -50,10 +50,10 @@ const DISCOVER_SPEED_K := 5.0                       ## metres of extra reveal ra
 const DISCOVER_R_MAX := 420.0
 const BADGE_R := 25.0                               ## base px: marker badge radius at the overview (was 17: tiny icons, director review 4 #9)
 const BADGE_R_NEAR := 28.0
-const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items"]
-const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"interior": "INTERIORS", &"job": "JOBS", &"shop": "SHOPS", &"garage": "GARAGE", &"weapon": "WEAPONS", &"home": "HOME", &"items": "ITEMS"}
+const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items", &"site"]
+const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"interior": "INTERIORS", &"job": "JOBS", &"shop": "SHOPS", &"garage": "GARAGE", &"weapon": "WEAPONS", &"home": "HOME", &"items": "ITEMS", &"site": "SITES"}
 const KIND_COLOR := {&"mission": Color(1.0, 0.75, 0.15), &"side": Color(0.2, 0.9, 1.0), &"interior": Color(0.62, 0.76, 1.0), &"job": Color(1.0, 0.45, 0.85), &"shop": Color(0.3, 1.0, 0.55), &"garage": Color(1.0, 0.5, 0.2),
-	&"weapon": Color(1.0, 0.82, 0.3), &"home": Color(0.85, 0.9, 1.0), &"items": Color(0.75, 0.45, 1.0)}
+	&"weapon": Color(1.0, 0.82, 0.3), &"home": Color(0.85, 0.9, 1.0), &"items": Color(0.75, 0.45, 1.0), &"site": Color(0.45, 0.85, 1.0)}
 const DANGER_COLOR := Color(1.0, 0.25, 0.25)
 const FOG_ALPHA := 0.30                              ## the veil over the uncharted cells (it was 0.66 black: a dirty dark field at the start)
 const SAVE_PATH := "user://map.cfg"
@@ -866,6 +866,10 @@ func collect_markers() -> Array[Dictionary]:
 				out.append({"kind": &"garage", "pos": fr.repairs.call(&"pos", i), "fog": true, "label": "REPAIR BAY"})
 	for pt: Dictionary in VehicleSpawns.POINTS:                  # where the helicopter, plane, tank and boats wait (round 5 roster): the car glyph, the vehicle's name
 		out.append({"kind": &"garage", "pos": pt["pos"], "fog": true, "label": VehicleSpecs.name_of(pt["kind"])})
+	out.append({"kind": &"garage", "pos": Harbour.center(), "fog": true, "label": "HARBOUR: BOATS AND JET SKIS"})       # the port on the south coast (one marker for its six berths)
+	out.append_array(WorldRoam.map_markers())                       # the free-roam courses and the treasure hunt (flight school, off-road trial, jet-ski laps)
+	out.append_array(Airport.map_markers())                         # EASTFIELD AIRPORT and the helipads
+	out.append_array(OutskirtsSites.map_markers())                  # the mountain and outskirt sites: observatory, radio tower, mine, crash site, cabins, villages, farms (the cave once found)
 	return out
 
 

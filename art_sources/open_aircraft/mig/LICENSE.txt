@@ -1,0 +1,9 @@
+Mig
+Author: Sketlux
+Source page: https://opengameart.org/content/mig
+Licence: CC0 1.0 Universal (Public Domain Dedication), as stated in the licence field of the OpenGameArt.org page above (fetched 2026-11-09).
+Deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+The person who associated a work with this deed has dedicated the work to the public domain by waiving all of his or her rights to the work worldwide under copyright law,
+including all related and neighbouring rights, to the extent allowed by law. You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission.
+The pack ships no separate licence file: the CC0 statement is the licence field of the OpenGameArt page. This file keeps that statement and the URL with the asset.

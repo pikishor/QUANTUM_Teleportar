@@ -60,7 +60,26 @@ const SPECS := {
 		"wheel": 0.22, "lean_max": 0.55, "steer": 1.5, "far": {"tint": Color(1.0, 0.9, 0.7), "speed": 0.85}},
 	&"heli": {"cls": "heli", "craft": true, "max": 46.0, "acc": 15.0, "brake": 24.0, "grip": 2.0, "hp": 520.0, "mass": 2400.0, "seats": 3, "model": "xv_heli", "len": 11.0, "wid": 3.0, "hgt": 4.0, "wheel": 0.2, "rotor_r": 3.6, "ceil": 280.0, "cam_d": 19.0, "cam_h": 5.5, "exit_side": 4.2, "aim_cone": 0.5},
 	&"plane": {"cls": "plane", "craft": true, "max": 64.0, "acc": 11.0, "brake": 18.0, "grip": 2.0, "hp": 420.0, "mass": 1500.0, "seats": 2, "model": "xv_plane", "len": 9.6, "wid": 3.0, "hgt": 3.4, "wheel": 0.45, "stall": 24.0, "span": 10.4, "ceil": 420.0, "cam_d": 20.0, "cam_h": 5.0, "exit_side": 5.8, "aim_cone": 0.3},
+	# wave 106 (airport and aircraft): more flying kinds on the same craft physics (VehicleCraft -> AircraftFlight). "climb" = best climb m/s, "agile" = how fast the stick turns and rolls it (1 = the small plane),
+	# "prop" = the model has a propeller (none: a jet, an afterburner node "Burner" glows with the throttle), "arms2" = the secondary weapon in ALT_WEAPONS (rockets / missiles on the AIM button).
+	&"gunship": {"cls": "heli", "craft": true, "procedural": "gunship", "max": 62.0, "acc": 19.0, "brake": 26.0, "grip": 2.2, "hp": 950.0, "mass": 5200.0, "seats": 2, "model": "air_gunship", "len": 14.5, "wid": 5.2, "hgt": 4.0, "wheel": 0.2,
+		"rotor_r": 6.6, "ceil": 420.0, "climb": 14.0, "agile": 1.25, "cam_d": 25.0, "cam_h": 6.8, "exit_side": 3.6, "aim_cone": 0.7, "arms2": true},
+	&"hauler": {"cls": "heli", "craft": true, "procedural": "hauler", "max": 52.0, "acc": 14.0, "brake": 22.0, "grip": 2.0, "hp": 1250.0, "mass": 9000.0, "seats": 8, "model": "air_hauler", "len": 17.5, "wid": 3.9, "hgt": 5.2, "wheel": 0.3,
+		"rotor_r": 8.4, "ceil": 380.0, "climb": 9.5, "agile": 0.8, "cam_d": 30.0, "cam_h": 8.0, "exit_side": 3.2, "aim_cone": 0.5},
+	&"jet": {"cls": "plane", "craft": true, "max": 150.0, "acc": 30.0, "brake": 26.0, "grip": 2.0, "hp": 800.0, "mass": 6500.0, "seats": 1, "model": "xv_jet", "len": 14.0, "wid": 12.0, "hgt": 4.2, "wheel": 0.5, "stall": 42.0, "span": 12.0, "ceil": 1400.0,
+		"climb": 34.0, "agile": 1.7, "jet": true, "burner": true, "cam_d": 27.0, "cam_h": 6.5, "exit_side": 4.4, "aim_cone": 0.35, "arms2": true},
+	&"cargo": {"cls": "plane", "craft": true, "model": "xv_cargo", "max": 92.0, "acc": 10.0, "brake": 20.0, "grip": 2.0, "hp": 2200.0, "mass": 60000.0, "seats": 3, "len": 44.0, "wid": 37.0, "hgt": 11.5, "wheel": 0.9, "stall": 36.0, "span": 37.0, "ceil": 1100.0,
+		"climb": 12.0, "agile": 0.55, "jet": true, "cam_d": 62.0, "cam_h": 15.0, "exit_side": 8.0, "aim_cone": 0.2},
+	&"airliner": {"cls": "plane", "craft": true, "model": "xv_airliner", "max": 108.0, "acc": 12.0, "brake": 22.0, "grip": 2.0, "hp": 2000.0, "mass": 45000.0, "seats": 3, "len": 34.0, "wid": 30.0, "hgt": 10.0, "wheel": 0.9, "stall": 40.0, "span": 30.0, "ceil": 1200.0,
+		"climb": 15.0, "agile": 0.6, "jet": true, "cam_d": 52.0, "cam_h": 13.0, "exit_side": 7.0, "aim_cone": 0.2},
+	&"bizjet": {"cls": "plane", "craft": true, "model": "xv_bizjet", "max": 120.0, "acc": 18.0, "brake": 22.0, "grip": 2.0, "hp": 900.0, "mass": 12000.0, "seats": 3, "len": 19.0, "wid": 16.0, "hgt": 5.4, "wheel": 0.6, "stall": 36.0, "span": 16.0, "ceil": 1300.0,
+		"climb": 22.0, "agile": 1.0, "jet": true, "cam_d": 34.0, "cam_h": 8.0, "exit_side": 5.2, "aim_cone": 0.25},
 	&"boat": {"cls": "boat", "craft": true, "max": 27.0, "acc": 12.0, "brake": 16.0, "grip": 1.6, "hp": 330.0, "mass": 900.0, "seats": 4, "model": "xv_boat", "len": 5.2, "wid": 2.2, "hgt": 1.7, "wheel": 0.2, "draft": 0.35, "steer": 1.0, "cam_d": 10.5, "cam_h": 3.6, "exit_side": 2.6, "aim_cone": 0.6},
+	# wave 105 (harbour): a JET SKI (fast, light, twitchy, one rider and a passenger) and the PATROL BOAT (a 9 m armed cruiser with a bow cannon); the SPEEDBOAT above is the middle one. Procedural bodies (VehicleCraftModels).
+	&"jetski": {"cls": "boat", "craft": true, "procedural": "jetski", "max": 33.0, "acc": 17.0, "brake": 14.0, "grip": 2.4, "hp": 150.0, "mass": 320.0, "seats": 2, "model": "boat_jetski", "len": 3.0, "wid": 1.1, "hgt": 1.2, "wheel": 0.2,
+		"draft": 0.2, "steer": 1.5, "cam_d": 7.5, "cam_h": 2.7, "exit_side": 1.7, "aim_cone": 0.5},
+	&"patrol": {"cls": "boat", "craft": true, "procedural": "patrol", "max": 24.0, "acc": 9.0, "brake": 14.0, "grip": 1.3, "hp": 760.0, "mass": 4200.0, "seats": 4, "model": "boat_patrol", "len": 9.2, "wid": 3.2, "hgt": 3.0, "wheel": 0.2,
+		"draft": 0.4, "steer": 0.8, "cam_d": 15.0, "cam_h": 5.2, "exit_side": 3.4, "aim_cone": 0.7},
 	&"tank": {"cls": "tank", "craft": true, "max": 12.5, "acc": 5.5, "brake": 20.0, "grip": 8.0, "hp": 2000.0, "mass": 42000.0, "seats": 1, "model": "xv_tank", "len": 7.0, "wid": 3.3, "hgt": 2.7, "wheel": 0.5, "turret": "Turret", "steer": 0.8, "cam_d": 15.0, "cam_h": 5.6, "exit_side": 3.4},
 }
 ## Paints of the kinds that do not wear the random street palette (VehicleVisual.set_paint maps the random COLORS pick to an entry; a husk keeps WRECK_COLOR).
@@ -75,7 +94,15 @@ const PALETTES := {
 	&"tank": [Color(0.24, 0.3, 0.2), Color(0.42, 0.36, 0.24), Color(0.2, 0.22, 0.24)],
 	&"heli": [Color(0.86, 0.87, 0.9), Color(0.14, 0.2, 0.34), Color(0.7, 0.12, 0.1), Color(0.18, 0.2, 0.22)],
 	&"plane": [Color(0.86, 0.87, 0.9), Color(0.7, 0.12, 0.1), Color(0.12, 0.3, 0.6), Color(0.9, 0.7, 0.12)],
+	&"gunship": [Color(0.2, 0.24, 0.2), Color(0.16, 0.18, 0.22), Color(0.3, 0.28, 0.2), Color(0.12, 0.13, 0.15)],
+	&"hauler": [Color(0.3, 0.34, 0.26), Color(0.4, 0.38, 0.3), Color(0.24, 0.27, 0.3), Color(0.5, 0.52, 0.5)],
+	&"jet": [Color(0.46, 0.5, 0.54), Color(0.3, 0.34, 0.4), Color(0.62, 0.64, 0.66), Color(0.26, 0.3, 0.26)],
+	&"cargo": [Color(0.34, 0.38, 0.32), Color(0.78, 0.8, 0.82), Color(0.5, 0.52, 0.54), Color(0.7, 0.42, 0.14)],
+	&"airliner": [Color(0.9, 0.91, 0.93), Color(0.88, 0.89, 0.92), Color(0.86, 0.9, 0.95), Color(0.92, 0.88, 0.86)],
+	&"bizjet": [Color(0.9, 0.91, 0.93), Color(0.12, 0.13, 0.16), Color(0.7, 0.72, 0.76), Color(0.86, 0.82, 0.7)],
 	&"boat": [Color(0.86, 0.87, 0.9), Color(0.12, 0.3, 0.6), Color(0.7, 0.12, 0.1), Color(0.1, 0.1, 0.12)],
+	&"jetski": [Color(0.9, 0.38, 0.1), Color(0.12, 0.5, 0.7), Color(0.86, 0.87, 0.9), Color(0.7, 0.12, 0.3)],
+	&"patrol": [Color(0.7, 0.74, 0.78), Color(0.22, 0.28, 0.4), Color(0.76, 0.78, 0.8)],
 	&"muscle": [Color(0.78, 0.12, 0.1), Color(0.1, 0.1, 0.12), Color(0.9, 0.62, 0.1), Color(0.14, 0.3, 0.6)],
 	&"pickup": [Color(0.2, 0.36, 0.26), Color(0.62, 0.64, 0.68), Color(0.7, 0.3, 0.16), Color(0.12, 0.14, 0.2)],
 	&"luxury": [Color(0.1, 0.1, 0.12), Color(0.2, 0.22, 0.26), Color(0.55, 0.56, 0.6), Color(0.14, 0.16, 0.28)],
@@ -101,13 +128,17 @@ const STREAM_WEIGHTS: Array[float] = [0.05, 0.06, 0.06, 0.093, 0.06, 0.06, 0.08,
 
 ## The whole roster, in the order of the vehicle picture sheet: every drivable kind (streamed traffic first, then the ones with fixed spawn points, see VehicleSpawns). Tests and the picture maker read it.
 const ROSTER: Array[StringName] = [&"compact", &"sedan", &"sport", &"muscle", &"suv", &"van", &"pickup", &"bus", &"taxi", &"interceptor", &"ambulance", &"firetruck", &"armoured", &"bike", &"quad", &"scooter",
-	&"hoverbike", &"heli", &"plane", &"boat", &"tank", &"luxury", &"racer", &"wagon", &"truck", &"delivery", &"garbage", &"hover", &"qbike", &"skiff", &"rover"]
+	&"hoverbike", &"heli", &"plane", &"gunship", &"hauler", &"jet", &"cargo", &"airliner", &"bizjet", &"boat", &"tank", &"luxury", &"racer", &"wagon", &"truck", &"delivery", &"garbage", &"hover", &"qbike", &"skiff", &"rover"]
 ## The roster kinds that fly, float or crawl on tracks (spawned at fixed points, never as random traffic).
 const CRAFT_KINDS: Array[StringName] = [&"heli", &"plane", &"boat", &"tank"]
+## Every kind that flies (VehicleCraft classes heli / plane): the airport spawns, the AI air traffic and the flight HUD read this.
+const AIRCRAFT_KINDS: Array[StringName] = [&"heli", &"plane", &"gunship", &"hauler", &"jet", &"cargo", &"airliner", &"bizjet"]
+## The kinds that float (VehicleCraft._boat): they ride the real water of the world (WaterWorld) and the flooded quarter.
+const BOAT_KINDS: Array[StringName] = [&"boat", &"jetski", &"patrol"]
 ## Display names (the HUD toast on entering, the picture sheet).
 const NAMES := {&"compact": "COMPACT", &"sedan": "SEDAN", &"sport": "SPORTS CAR", &"muscle": "MUSCLE CAR", &"suv": "SUV", &"van": "VAN", &"pickup": "PICKUP TRUCK", &"bus": "BUS", &"taxi": "TAXI",
 	&"interceptor": "POLICE CAR", &"ambulance": "AMBULANCE", &"firetruck": "FIRE TRUCK", &"armoured": "ARMOURED TRUCK", &"bike": "MOTORBIKE", &"quad": "QUAD", &"scooter": "SCOOTER", &"hoverbike": "HOVER BIKE",
-	&"heli": "HELICOPTER", &"plane": "SMALL PLANE", &"boat": "SPEEDBOAT", &"tank": "TANK", &"luxury": "LIMO", &"racer": "RACER", &"wagon": "WAGON", &"truck": "TRUCK", &"delivery": "DELIVERY VAN",
+	&"heli": "HELICOPTER", &"plane": "SMALL PLANE", &"gunship": "GUNSHIP", &"hauler": "TRANSPORT HELICOPTER", &"jet": "JET FIGHTER", &"cargo": "CARGO PLANE", &"airliner": "AIRLINER", &"bizjet": "BUSINESS JET", &"boat": "SPEEDBOAT", &"jetski": "JET SKI", &"patrol": "PATROL BOAT", &"tank": "TANK", &"luxury": "LIMO", &"racer": "RACER", &"wagon": "WAGON", &"truck": "TRUCK", &"delivery": "DELIVERY VAN",
 	&"garbage": "GARBAGE TRUCK", &"hover": "HOVER CAR", &"qbike": "QUANTUM SCOOTER", &"skiff": "HOVER SKIFF", &"rover": "MOON ROVER", &"vael_patrol": "VAEL PATROL"}
 
 ## Live cars at once (starter car and a driven car included): LOW 3 / MED 5 / HIGH 8. Each legacy car costs about 10 draw calls.
@@ -241,9 +272,19 @@ const WEAPONS := {
 	&"suv": {"name": "CANNON", "rate": 1.4, "dmg": 55.0, "heat": 0.4, "cool": 0.3, "ammo": 30, "range": 110.0, "spread": 0.0, "blast": 3.5, "color": Color(1.0, 0.6, 0.2)},
 	&"heli": {"name": "MINIGUN", "rate": 16.0, "dmg": 8.0, "heat": 0.035, "cool": 0.3, "ammo": 700, "range": 170.0, "spread": 0.03, "color": Color(1.0, 0.82, 0.3)},
 	&"plane": {"name": "WING GUNS", "rate": 12.0, "dmg": 10.0, "heat": 0.05, "cool": 0.3, "ammo": 500, "range": 190.0, "spread": 0.02, "color": Color(1.0, 0.9, 0.5)},
+	&"gunship": {"name": "CHAIN GUN", "rate": 20.0, "dmg": 9.0, "heat": 0.03, "cool": 0.32, "ammo": 900, "range": 230.0, "spread": 0.022, "color": Color(1.0, 0.78, 0.3)},
+	&"hauler": {"name": "DOOR GUN", "rate": 14.0, "dmg": 7.0, "heat": 0.035, "cool": 0.3, "ammo": 600, "range": 170.0, "spread": 0.035, "color": Color(1.0, 0.82, 0.3)},
+	&"jet": {"name": "CANNON", "rate": 22.0, "dmg": 12.0, "heat": 0.03, "cool": 0.3, "ammo": 700, "range": 320.0, "spread": 0.012, "color": Color(1.0, 0.9, 0.55)},
+	&"patrol": {"name": "BOW CANNON", "rate": 2.2, "dmg": 34.0, "heat": 0.16, "cool": 0.3, "ammo": 120, "range": 150.0, "spread": 0.012, "blast": 3.0, "color": Color(1.0, 0.7, 0.3)},
 	&"boat": {"name": "DECK GUN", "rate": 6.0, "dmg": 13.0, "heat": 0.1, "cool": 0.3, "ammo": 240, "range": 100.0, "spread": 0.02, "color": Color(0.6, 0.9, 1.0)},
 	&"tank": {"name": "TANK CANNON", "rate": 0.8, "dmg": 95.0, "heat": 0.42, "cool": 0.28, "ammo": 40, "range": 220.0, "spread": 0.0, "blast": 7.0, "color": Color(1.0, 0.55, 0.18)},
 	&"hover": {"name": "BOLT GUN", "rate": 5.0, "dmg": 16.0, "heat": 0.14, "cool": 0.3, "ammo": 120, "range": 100.0, "spread": 0.01, "color": Color(0.8, 0.4, 1.0)},
+}
+## The secondary weapon of the aircraft with "arms2" (the AIM button while flying): unguided ROCKETS and homing-lite MISSILES that fly a real distance (AircraftArms): rate = shots/s (a salvo fires `salvo` rockets),
+## dmg = direct hit, blast = radius m, speed = m/s, life = s in flight, reload = s for one round back.
+const ALT_WEAPONS := {
+	&"gunship": {"name": "ROCKET POD", "rate": 3.2, "salvo": 2, "dmg": 80.0, "blast": 7.5, "speed": 150.0, "life": 3.2, "ammo": 28, "reload": 2.2, "color": Color(1.0, 0.62, 0.2), "range": 420.0},
+	&"jet": {"name": "MISSILES", "rate": 2.0, "salvo": 1, "dmg": 130.0, "blast": 10.0, "speed": 230.0, "life": 3.8, "ammo": 14, "reload": 3.0, "color": Color(1.0, 0.8, 0.4), "range": 800.0, "homing": 1.6},
 }
 const WEAPON_LOCK_RESUME := 0.4        ## an overheated weapon fires again below this heat
 

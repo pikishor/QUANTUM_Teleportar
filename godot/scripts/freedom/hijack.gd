@@ -19,7 +19,7 @@ const NAMES := {
 	&"sedan": "SEDAN", &"sport": "SPORT CAR", &"suv": "SUV", &"bike": "BIKE", &"hover": "HOVER CAR", &"hoverbike": "HOVER-BIKE", &"taxi": "TAXI", &"wagon": "WAGON", &"van": "VAN",
 	&"truck": "TRUCK", &"rover": "ROVER", &"skiff": "SKIFF", &"bus": "BUS", &"interceptor": "PATROL CAR", &"ambulance": "AMBULANCE", &"qbike": "QUANTUM BIKE", &"vael_patrol": "VAEL PATROL",
 	&"compact": "COMPACT", &"luxury": "LIMOUSINE", &"racer": "ROADSTER", &"delivery": "DELIVERY VAN", &"garbage": "GARBAGE TRUCK", &"firetruck": "FIRE TRUCK", &"muscle": "MUSCLE CAR", &"pickup": "PICKUP",
-	&"armoured": "ARMOURED TRUCK", &"quad": "QUAD", &"scooter": "SCOOTER", &"heli": "HELICOPTER", &"plane": "PLANE", &"boat": "SPEEDBOAT", &"tank": "TANK",
+	&"armoured": "ARMOURED TRUCK", &"quad": "QUAD", &"scooter": "SCOOTER", &"heli": "HELICOPTER", &"plane": "PLANE", &"boat": "SPEEDBOAT", &"jetski": "JET SKI", &"patrol": "PATROL BOAT", &"tank": "TANK",
 }
 
 static var current: Hijack
@@ -39,7 +39,7 @@ var _rng := RandomNumberGenerator.new()
 
 
 static func vehicle_name(kind: StringName) -> String:
-	return str(NAMES.get(kind, "VEHICLE"))
+	return str(NAMES.get(kind, VehicleSpecs.name_of(kind) if VehicleSpecs.SPECS.has(kind) else "VEHICLE"))
 
 
 func _ready() -> void:
@@ -76,7 +76,7 @@ func on_enter(car: Vehicle, from: Vector3, driver: bool) -> void:
 	last_kind = car.kind
 	entries += 1
 	var side := 1.0 if (from - car.global_position).dot(car.right()) >= 0.0 else -1.0
-	var door := car.global_position + car.right() * side * (float(car.spec["wid"]) * 0.5 + 0.25) + Vector3(0.0, 0.0, 0.0)
+	var door := car.global_position + car.right() * side * (minf(float(car.spec["wid"]) * 0.5, 3.2) + 0.25) + Vector3(0.0, 0.0, 0.0)       # (an airliner's door is at its fuselage, not at its wing tips)
 	_ghost_from = from + Vector3(0.0, 0.9, 0.0)
 	_ghost_to = door + Vector3(0.0, 0.9, 0.0)
 	_ghost_t = 0.0
