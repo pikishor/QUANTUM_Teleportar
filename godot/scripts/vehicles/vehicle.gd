@@ -58,6 +58,13 @@ var tactic: StringName = &"ram"      ## patrol pursuit tactic (VehicleSpecs.TACT
 var weapons: VehicleWeapons         ## mounted weapon (sport / suv / hover), null on other kinds
 var craft: VehicleCraft.State       ## roster craft (helicopter, plane, boat, tank): their own physics state, null on cars, bikes and hover craft
 var base_y := 0.0                   ## height of the node when it rests (0, a boat floats at the flood level minus its draft)
+var surface: StringName = &"city"    ## what the wheels are on outside the city (TerrainWorld.surface_at, refreshed a few times a second): the grip and the top speed follow it
+var ground_pitch := 0.0             ## the hull follows the terrain slope: nose up / down and roll (radians, applied to the model only)
+var ground_roll := 0.0
+var _surf_t := 0.0
+var _hull_cs: CollisionShape3D       ## the hit box: lifted 0.45 m outside the city so the terrain (it collides on the world layer) does not hold the car like a wall
+var _hull_y := 0.0
+var _dry_pos := Vector3.INF         ## the last position outside deep water (a car never drives into the sea or a deep river: it stops at the shore)
 var fuse := -1.0                    ## chain reaction (open world freedom): seconds until a burning car next to a wreck blows up (< 0 = none)
 var nitro := 1.0                    ## boost tank 0..1
 var boosting := false
@@ -147,6 +154,8 @@ func setup(k: StringName, mgr: Node) -> void:
 	var foot := 0.0 if (cls == &"heli" or cls == &"plane") else 0.2         # an aircraft rests on its skids / wheels: its hit box starts at the node
 	cs.position = Vector3(0.0, foot + h * 0.5 + float(spec.get("hover_h", 0.0)), 0.0)      # a hover craft's hull floats: so does its hit box
 	add_child(cs)
+	_hull_cs = cs
+	_hull_y = cs.position.y
 	if VehicleWeapons.has_weapon(k):
 		weapons = VehicleWeapons.new()
 		weapons.setup(self)
@@ -204,9 +213,12 @@ func activate(pos: Vector3, h: float) -> void:
 	_lean_r = 0.0
 	_last_vf = 0.0
 	heading = h
-	global_position = Vector3(pos.x, base_y, pos.z)
+	global_position = Vector3(pos.x, base_y + _terrain_y(pos.x, pos.z), pos.z)
 	rotation = Vector3(0.0, h, 0.0)
 	_heading_set = h
+	surface = &"city"
+	ground_pitch = 0.0
+	ground_roll = 0.0
 	if craft != null:
 		craft.reset(h)
 	visual.model.rotation = Vector3.ZERO
@@ -738,7 +750,7 @@ static func steer_limit(v: float) -> float:
 func _drive_car(dt: float, thr: float, steer: float, handbrake: bool, boost: bool) -> void:
 	var T := spec
 	var base_max: float = T["max"]
-	var vmax := base_max * (VehicleSpecs.TIRES_SPEED if tires_flat > 0.0 else 1.0)
+	var vmax := base_max * (VehicleSpecs.TIRES_SPEED if tires_flat > 0.0 else 1.0) * VehicleSpecs.surface_speed(kind, surface)
 	var acc_k := 1.0
 	boosting = boost and thr > 0.05 and nitro > (0.0 if boosting else VehicleSpecs.NITRO_MIN)
 	if boosting:
@@ -759,7 +771,7 @@ func _drive_car(dt: float, thr: float, steer: float, handbrake: bool, boost: boo
 	var hcg: float = float(T["hgt"]) * VehicleSpecs.CG_HEIGHT
 	var iz := m * (float(T["len"]) * float(T["len"]) + float(T["wid"]) * float(T["wid"])) / 12.0 * 1.15
 	var atm := Game.atmosphere as Atmosphere
-	var mu := VehicleSpecs.mu_of(kind) * (1.0 - VehicleSpecs.WET_GRIP_LOSS * (atm.wetness_now if atm != null else 0.0)) * (VehicleSpecs.TIRES_GRIP if tires_flat > 0.0 else 1.0)
+	var mu := VehicleSpecs.mu_of(kind) * (1.0 - VehicleSpecs.WET_GRIP_LOSS * (atm.wetness_now if atm != null else 0.0)) * (VehicleSpecs.TIRES_GRIP if tires_flat > 0.0 else 1.0) * VehicleSpecs.surface_grip(kind, surface)
 	var steer_k := float(T.get("steer", 1.0))
 	var n_sub := maxi(1, ceili(dt / (1.0 / 120.0) - 0.001))
 	var h := dt / float(n_sub)
@@ -1002,8 +1014,56 @@ func _move(dt: float) -> void:
 	var col := move_and_collide(motion)
 	if col != null:
 		_bounce(col)
-	if global_position.y != base_y:
-		global_position.y = base_y
+	_terrain_step(dt)
+
+
+## Terrain height at (x, z) outside the city plateau, 0 inside it.
+static func _terrain_y(x: float, z: float) -> float:
+	if absf(x) <= TerrainHeight.CITY_HALF and absf(z) <= TerrainHeight.CITY_HALF:
+		return 0.0
+	return TerrainHeight.height_at(x, z)
+
+
+## Outside the city plateau the car rides the terrain: the node follows the ground under the hull (four corner samples, eased), the model pitches and rolls with the slope, and the
+## surface under the wheels (asphalt, dirt, grass, sand, rock, snow, shallow water) is refreshed a few times a second for the grip and top speed (VehicleSpecs.surface_grip).
+func _terrain_step(dt: float) -> void:
+	var p := global_position
+	if absf(p.x) <= TerrainHeight.CITY_HALF and absf(p.z) <= TerrainHeight.CITY_HALF:
+		if surface != &"city":
+			surface = &"city"
+			ground_pitch = 0.0
+			ground_roll = 0.0
+			_hull_cs.position.y = _hull_y
+		if p.y != base_y:
+			global_position.y = base_y
+		return
+	if surface == &"city":
+		_hull_cs.position.y = _hull_y + 0.45
+		surface = &"grass"
+	var f := forward()
+	var r := right()
+	var hl := float(spec["len"]) * 0.42
+	var hw := float(spec["wid"]) * 0.45
+	var hf := TerrainHeight.height_at(p.x + f.x * hl, p.z + f.z * hl)
+	var hb := TerrainHeight.height_at(p.x - f.x * hl, p.z - f.z * hl)
+	var hr := TerrainHeight.height_at(p.x + r.x * hw, p.z + r.z * hw)
+	var hlft := TerrainHeight.height_at(p.x - r.x * hw, p.z - r.z * hw)
+	var target := (hf + hb + hr + hlft) * 0.25
+	if cls != &"boat" and cls != &"heli" and cls != &"plane" and craft == null and TerrainHeight.depth_at(p.x, p.z) > 1.2:
+		if _dry_pos.is_finite():                              # deep water ahead: back to the shore, nearly stopped (a hard stop at the waterline, no damage)
+			global_position = Vector3(_dry_pos.x, p.y, _dry_pos.z)
+			vel *= -0.2
+			speed *= -0.2
+		return
+	_dry_pos = p
+	var k := 1.0 - exp(-14.0 * dt)
+	global_position.y = lerpf(p.y, base_y + target, k) if absf(p.y - base_y - target) < 2.0 else base_y + target
+	ground_pitch = lerpf(ground_pitch, clampf(atan2(hf - hb, 2.0 * hl), -0.6, 0.6), k)
+	ground_roll = lerpf(ground_roll, clampf(atan2(hr - hlft, 2.0 * hw), -0.5, 0.5), k)
+	_surf_t -= dt
+	if _surf_t <= 0.0:
+		_surf_t = 0.25 if driver_is_player else 1.0
+		surface = TerrainWorld.surface_at(p.x, p.z)
 
 
 func _bounce(col: KinematicCollision3D) -> void:
@@ -1426,7 +1486,7 @@ func _sync_body(dt: float, yaw_est: float) -> void:
 	_pitch = clampf(_pitch, -0.14, 0.14)
 	_roll = clampf(_roll, -0.16, 0.16)
 	_heave = clampf(_heave, -0.14, 0.1)
-	visual.model.rotation = Vector3(_pitch, 0.0, _roll - 0.02 * visual.deform)
+	visual.model.rotation = Vector3(_pitch + ground_pitch, 0.0, _roll - 0.02 * visual.deform + ground_roll)
 	visual.model.position = Vector3(0.0, _heave - 0.05 * visual.deform, 0.0)
 
 
@@ -1437,7 +1497,7 @@ func _sync_bike(dt: float) -> void:
 	lean = _damp(lean, want, 8.0, dt)
 	var acc := (speed - _last_vf) / maxf(dt, 0.0001)
 	_lean_p = _damp(_lean_p, clampf(-acc * 0.002, -0.07, 0.07), 6.0, dt)       # nose lifts when accelerating
-	visual.model.rotation = Vector3(_lean_p, 0.0, -lean)
+	visual.model.rotation = Vector3(_lean_p + ground_pitch, 0.0, -lean + ground_roll)
 
 
 ## Hover craft: rides at hover_h (the model has its underside at hover_h baked in, so only the bob moves it) and bobs on two slow sine waves (stronger when moving), pitching with throttle and rolling into a slide.

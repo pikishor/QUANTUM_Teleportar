@@ -96,6 +96,7 @@ var lamp_cones: MeshInstance3D          ## one merged additive mesh of street-la
 var _tiered: Array = []            ## [GeometryInstance3D, min quality] pairs: families that only exist from a given tier up
 var _kit_window := KitWindow.new() ## the street kit: one merged mesh of the props around the camera (city_kit_window.gd)
 var _landmarks := Landmarks.new()  ## the four district landmarks (city_landmarks.gd)
+var terrain: TerrainWorld           ## the land outside the city (scripts/terrain/terrain_world.gd): 6 km of streamed heightmap terrain, roads, mountains, coast
 
 
 func _ready() -> void:
@@ -129,12 +130,17 @@ func _ready() -> void:
 	_build_misc()
 	_build_ambient()
 	FloodZone.attach(self)                               # the flooded quarter: water over a block of streets south of the core (boats, see VehicleSpawns)
+	if OS.get_environment("QT_NO_WATER") != "1":        # (the switch is for perf A/B runs: QT_NO_WATER=1 tools/perf_report.sh 0)
+		WaterWorld.attach(self)                          # the ocean, rivers and lakes of the big world (TerrainHeight says where; wave 104)
 	day_night = DayNight.new()
 	day_night.name = "DayNight"
 	add_child(day_night)
 	day_night.ambient = ambient
 	day_night.setup(_env, quality)
 	_build_collision()
+	if OS.get_environment("QT_TERRAIN") != "0":                   # QT_TERRAIN=0 leaves the outskirts out (before / after captures, perf comparisons)
+		terrain = TerrainWorld.new()
+		add_child(terrain)
 	set_quality(quality)
 
 
@@ -166,6 +172,8 @@ func _follow_point() -> Vector3:
 func update_colliders(p: Vector3) -> void:
 	_colliders.refill(p)
 	_chunks.refill(p)
+	if terrain != null:
+		terrain.ensure_ground(p)
 
 
 ## The streamed building colliders of the outer districts (city_chunks.gd): blocks within 300 m of the player, pooled bodies.
@@ -248,6 +256,8 @@ func is_inside_building(p: Vector3) -> bool:
 
 ## Height of the walkable surface under (x, z) (0 on streets): the topmost building part below `from_y`.
 func ground_height(x: float, z: float, from_y := 1.0e9) -> float:
+	if absf(x) > TerrainHeight.CITY_HALF or absf(z) > TerrainHeight.CITY_HALF:
+		return TerrainHeight.height_at(x, z)              # outside the city plateau: the terrain
 	var lot := layout.lot_at(x, z)
 	if lot == null:
 		return 0.0
@@ -267,6 +277,8 @@ func set_quality(level: int) -> void:
 	if not is_inside_tree():
 		return
 	_env.apply_quality(quality, get_viewport())
+	if terrain != null:
+		terrain.set_quality(quality)
 	if lamp_cones != null:
 		lamp_cones.visible = quality >= 1
 		if lamp_cones.visible:
@@ -460,7 +472,7 @@ func _build_ground() -> void:
 		_ground.add_strip(Vector2(lot.cx - lot.w * 0.5, zf + szs * 0.8), Vector2(lot.cx + lot.w * 0.5, zf + szs * 0.8), 2.6, neon, 0.22)
 	_ground.finish_light_map()
 	_ground.make_material()
-	_ground_node = _ground.make_node()
+	_ground_node = _ground.make_node(2.0 * TerrainHeight.CITY_HALF)      # the plane stops at the plateau edge: the terrain takes over beyond it
 	add_child(_ground_node)
 
 
@@ -596,7 +608,8 @@ func _build_collision() -> void:
 	collision_body.collision_mask = 0
 	add_child(collision_body)
 	# ground
-	_add_box(Vector3(0.0, -2.0, 0.0), Vector3(2.0 * AABB_R + 800.0, 4.0, 2.0 * AABB_R + 800.0), "Ground")
+	var gh := TerrainHeight.CITY_HALF + 6.0                          # the city ground ends at the plateau edge, the terrain colliders carry on from there
+	_add_box(Vector3(0.0, -2.0, 0.0), Vector3(2.0 * gh, 4.0, 2.0 * gh), "Ground")
 	# every part of every building (stepped crowns are separate boxes, so roofs and ledges are where you see them)
 	for b in building_data:
 		var lot: CityLayout.Lot = b.lot
@@ -611,8 +624,8 @@ func _build_collision() -> void:
 	# the district landmarks: a solid core column each (the crowns are overhead)
 	for box: Array in _landmarks.collision_boxes():
 		_add_box(box[0], box[1], box[2])
-	# invisible walls just outside the border roads (HALF + 30)
-	var e := CityLayout.WALK
+	# invisible walls at the edge of the 6 km world (the city's border walls are gone: the highways lead out of the city)
+	var e := CityLayout.PLAY_HALF
 	var t := CityLayout.WALL_T
 	var len := 2.0 * (e + t)
 	_add_box(Vector3(e + t * 0.5, 200.0, 0.0), Vector3(t, 400.0, len), "WallE")

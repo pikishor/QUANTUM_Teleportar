@@ -140,6 +140,7 @@ var _kc := KinematicCollision3D.new()
 var _kc2 := KinematicCollision3D.new()
 var verbs := HeroVerbs.new()                 ## wall-run, slam, warp grab (hero_verbs.gd)
 var combat_step := CombatStep.new()          ## the side-step while FIRE is held with no stick input (combat_step.gd)
+var swim := PlayerSwim.new()                 ## wading and swimming (player_swim.gd; water from WaterWorld / TerrainHeight)
 var traversal := Traversal.new()             ## vault / mantle / ledge grab / ladders (traversal.gd)
 var _aim_frame := -1
 var _aim_cache := {}
@@ -266,6 +267,7 @@ func _on_next_sector() -> void:
 
 ## Fresh state at the spawn point: full hp / energy / ammo, 1.5 s of invulnerability, foot mode, camera behind the player.
 func reset() -> void:
+	swim.reset()
 	traversal.cancel()
 	verbs.cancel()
 	_set_vehicle(null)
@@ -542,6 +544,7 @@ func _tick(dt: float) -> void:
 	if _dead:
 		return
 	if _in_vehicle:
+		swim.reset()
 		if is_instance_valid(_vehicle):
 			global_position = _vehicle.global_position
 		else:
@@ -629,8 +632,19 @@ func _foot_tick(dt: float) -> void:
 	if traversal.consumed_jump:
 		_jump_buffer = 0.0
 		_coyote = 0.0
+	if swim.tick(self, dt, wish, jump_down, want_sprint):       # in water over his chest: swim (floats, strokes, drifts with the river); shallows only slow him (wade_mult)
+		_jump_buffer = 0.0
+		sprinting = false
+		_ground_known = false
+		_was_on_floor = false
+		_fall_speed = 0.0
+		_coyote = 0.0
+		air_time = 0.0
+		weapon.poll_switch()
+		weapon.tick(dt, Input.is_action_pressed(&"fire"), reload_pressed, aiming, false)
+		return
 	var boost := speed_boost if speed_boost >= 1.0 else 1.0 + speed_boost
-	var top_speed := (AIM_SPEED if aiming else WALK_SPEED) * (SPRINT_MULT * HeroPower.f("sprint") if want_sprint else 1.0) * boost * cover.speed_mult()
+	var top_speed := (AIM_SPEED if aiming else WALK_SPEED) * (SPRINT_MULT * HeroPower.f("sprint") if want_sprint else 1.0) * boost * cover.speed_mult() * swim.wade_mult
 	var k := GROUND_ACCEL if on_floor else AIR_ACCEL
 	velocity.x = PlayerUtil.damp(velocity.x, wish.x * top_speed, k, dt)
 	velocity.z = PlayerUtil.damp(velocity.z, wish.z * top_speed, k, dt)

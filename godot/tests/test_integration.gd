@@ -8,6 +8,7 @@ extends RefCounted
 ## time). One `frames(n)` below is n ticks = n / 60 s of game time, as in a normal run.
 
 const Fixture := preload("res://tests/player_fixture.gd")
+const TIMEOUT_SECONDS := 120.0                      ## the whole composed game incl. the 6 km terrain world takes about 60 s on a loaded machine
 
 ## Records the camera where the renderer sees it: after the frame's _process of every other node (the rig runs at priority 100).
 class CameraSampler extends Node:
@@ -275,18 +276,19 @@ func _sweeps() -> void:
 # --- the border ---------------------------------------------------------------------------------------------------------------
 
 func _border() -> void:
+	# the city's border walls are gone (the highways lead out of the city, the 6 km terrain world surrounds it): a sprint over the old border line runs on, onto the terrain
 	var limit := CityLayout.WALK
 	await prep(Vector3(limit - 6.0, 0.0, 0.0), -PI * 0.5, -0.1, 20)
 	Input.action_press(&"move_forward")
 	Input.action_press(&"sprint")
 	await frames(110)
 	Fixture.release_inputs()
-	TestLib.check(p.global_position.x <= limit - Player.CAPSULE_RADIUS + 0.15 and p.global_position.x > limit - 1.0, "the invisible border wall stops a sprint at x = %.2f (inner face %.0f)" % [p.global_position.x, limit])
-	await prep(Vector3(0.0, 0.0, -limit + 6.0), PI, -0.1, 20)
-	Input.action_press(&"move_back")
-	await frames(120)
-	Fixture.release_inputs()
-	TestLib.check(p.global_position.z >= -limit + Player.CAPSULE_RADIUS - 0.15, "the north border holds as well (z = %.2f)" % p.global_position.z)
+	TestLib.check(p.global_position.x > limit + 8.0, "the old border wall is gone: a sprint runs out of the city (x = %.1f, old wall at %.0f)" % [p.global_position.x, limit])
+	var ground := TerrainHeight.height_at(p.global_position.x, p.global_position.z)
+	TestLib.check(p.global_position.y > ground - 1.0 and p.global_position.y < ground + 3.0, "and the hero runs on the terrain (y %.2f, ground %.2f)" % [p.global_position.y, ground])
+	var space := p.get_world_3d().direct_space_state
+	var qe := PhysicsRayQueryParameters3D.create(Vector3(limit - 20.0, 20.0, 5.0), Vector3(limit + 20.0, 20.0, 5.0), Game.L_WORLD)
+	TestLib.check(space.intersect_ray(qe).is_empty(), "nothing blocks the old border line at head height")
 
 
 # --- the camera against a facade ----------------------------------------------------------------------------------------------

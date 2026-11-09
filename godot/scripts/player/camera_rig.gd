@@ -223,7 +223,7 @@ func _ensure_nodes() -> void:
 		camera.name = "Camera"
 		camera.fov = FOV_HIP
 		camera.near = 0.08
-		camera.far = 2500.0
+		camera.far = 12000.0                     # the 6 km terrain world, its mountains and the far ridge ring (8.2 km) reach the horizon
 		arm.add_child(camera)
 	camera.keep_aspect = Camera3D.KEEP_WIDTH
 	# The rig solves the arm once per rendered frame (see _process); the arm's own per-physics-tick solve would move the camera to the raw arm end

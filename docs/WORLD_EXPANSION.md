@@ -27,3 +27,7 @@ Higher-detail cars/buildings may need Sketchfab (CC0/CC-BY with attribution; nee
 - Better animation for humans, cars and every entity; open-source assets plus our own design on top.
 Sprint script: world104.js (waves 104-114: terrain/water, bridges/harbour/rail/ships/outskirts, airport/aircraft, animals/aliens, weapons incl. tanks/enemies,
 UI overhaul, story/free roam, car/street/building detail, vertical buildings/casual play/hero mode/blast table, animation overhaul, director review).
+
+## Status (wave 104, terrain foundation done; details in godot/ARCHITECTURE.md "Terrain world")
+6 km island world, mountains (N, NE, snow), forest hills (NW, W), desert and dry plains (E, S), coast and sea (SW), city plateau in the middle, four highways and two dirt tracks, chunk streaming with 3 LODs, fog culling, far ridge ring, world map picture and WORLD zoom. Rivers, lakes and the ocean are the water layer (water_layout.gd, water_world.gd). Next in the sprint order: 105 bridges, harbour, mountain sites, vegetation (scatter by `TerrainBase.biome_at`).
+

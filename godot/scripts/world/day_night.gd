@@ -72,7 +72,7 @@ static func sky_look(h: float, weather: StringName, level: int) -> Dictionary:
 	return {"day": 1.0 - n, "overcast": oc, "twilight_amount": twilight(h),
 		"aurora_amount": n * (1.0 - oc) * (0.0 if level == 0 else 1.0) if n > 0.6 else 0.0,
 		"planet_amount": smoothstep(0.7, 1.0, n) * (1.0 - oc * 0.8),
-		"skyline_amount": 1.0, "lod": 0.0 if level == 0 else 1.0,
+		"skyline_amount": 0.0, "lod": 0.0 if level == 0 else 1.0,
 		"cloud_cover": clampf(lerpf(0.5, 0.78, n) + oc * 0.3, 0.0, 0.95),
 		"star_amount": 0.55 * smoothstep(0.55, 1.0, n) * (1.0 - oc * 0.85),
 		"probe_w": probe_weights(h, oc), "probe_amount": PROBE_AMOUNT[clampi(level, 0, 2)]}

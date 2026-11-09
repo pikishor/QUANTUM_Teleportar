@@ -29,6 +29,7 @@ const ZOOMS: Array[int] = [1, 2, 4]
 const OPEN_ZOOM_F := 3.0                          ## the 2080 m map opens at 3x (a 693 m frame, about what 2x gave on the 1280 m map: the district labels stay apart)
 const OPEN_ZOOM := 2                              ## the zoom the map opens at (1 = the whole city)
 const ZOOM_MAX := 8.0
+const WORLD_ZOOM := 0.36                           ## WORLD view (the zoom button's fourth level): the whole 6 km terrain world fits the screen height
 const DRAG_PX := 14.0
 const LOD_ZOOM := 2.0                              ## below this zoom the crowded kinds show only their nearest few
 const LOD_KINDS: Array[StringName] = [&"interior", &"shop", &"garage", &"items", &"weapon", &"job"]
@@ -69,6 +70,7 @@ const GAP := 6.0
 var waypoint := Vector3.INF
 var filters := {&"mission": true, &"side": true, &"interior": true, &"job": true, &"shop": true, &"garage": true, &"weapon": true, &"home": true, &"items": true}
 
+var world_mode := false                              ## WORLD view: the map shows the whole terrain world (TerrainMap picture), panning reaches all of it
 var zoom_f := 1.0                                    ## continuous zoom: the square frame shows 2 * HALF / zoom_f metres across
 var zoom: int:                                       ## the nearest whole level (1, 2, 4, ...), for the button text and tests
 	get:
@@ -154,7 +156,7 @@ func _ready() -> void:
 		var b := _chip(k)
 		_btns[k] = b
 	_zoom_btn = _button("ZOOM 1X", &"Zoom")
-	_zoom_btn.pressed.connect(cycle_zoom)
+	_zoom_btn.pressed.connect(_on_zoom_button)
 	var loc := _button("YOU", &"Locate")
 	loc.pressed.connect(locate)
 	_goal_btn = _button("GOAL", &"Goal")
@@ -452,6 +454,7 @@ func open() -> void:
 	up = true
 	activity += 1
 	_open_age = 0.0
+	world_mode = false
 	_touches.clear()
 	_press = Vector2.INF
 	_dragging = false
@@ -543,7 +546,13 @@ func world_to_map(x: float, z: float) -> Vector2:
 
 func map_to_world(p: Vector2) -> Vector3:
 	var w := _view_origin() + (p - _rect.position) / ppm()
-	return Vector3(clampf(w.x, -HALF, HALF), 0.0, clampf(w.y, -HALF, HALF))
+	var lim := _view_half()
+	return Vector3(clampf(w.x, -lim, lim), 0.0, clampf(w.y, -lim, lim))
+
+
+## Half side of the area the view may show: the city, or the whole terrain world in WORLD view.
+func _view_half() -> float:
+	return TerrainHeight.WORLD_HALF if world_mode else HALF
 
 
 ## Next zoom level: whole map, then 2x and 4x around you (the hero, or the map centre when no hero exists).
@@ -551,7 +560,28 @@ func cycle_zoom() -> void:
 	set_zoom(ZOOMS[(ZOOMS.find(zoom) + 1) % ZOOMS.size()] if ZOOMS.has(zoom) else 1)
 
 
+## The zoom button: 1x, 2x, 4x, then (once the world picture exists) WORLD, then back to 1x. `cycle_zoom` keeps its three levels.
+func _on_zoom_button() -> void:
+	if world_mode:
+		set_world_mode(false)
+	elif zoom == 4 and TerrainMap.ready:
+		set_world_mode(true)
+	else:
+		cycle_zoom()
+
+
+func set_world_mode(on: bool) -> void:
+	world_mode = on and TerrainMap.ready
+	if world_mode:
+		zoom_f = WORLD_ZOOM
+		view_center = Vector2.ZERO
+		_after_zoom()
+	else:
+		set_zoom(1)
+
+
 func set_zoom(z: int) -> void:
+	world_mode = false
 	zoom_f = float(z) if ZOOMS.has(z) else 1.0
 	if zoom_f <= 1.0:
 		view_center = Vector2.ZERO
@@ -573,7 +603,7 @@ func _after_zoom() -> void:
 	activity += 1
 	_clamp_view()
 	if _zoom_btn != null:
-		_zoom_btn.text = "ZOOM %dX" % zoom
+		_zoom_btn.text = "WORLD" if world_mode else "ZOOM %dX" % zoom
 	if _map != null:
 		_map.queue_redraw()
 
@@ -586,7 +616,7 @@ func zoom_by(f: float, focus := Vector2.INF) -> void:
 	var use_focus := focus.is_finite() and _rect.size.x > 1.0
 	if use_focus:
 		before = _view_origin() + (focus - _rect.position) / ppm()
-	zoom_f = clampf(zoom_f * f, 1.0, ZOOM_MAX)
+	zoom_f = clampf(zoom_f * f, WORLD_ZOOM if world_mode else 1.0, ZOOM_MAX)
 	if use_focus:
 		var after_o := before - (focus - _rect.position) / ppm()
 		view_center = after_o + extent() * 0.5
@@ -608,8 +638,9 @@ func _clamp_view() -> void:
 	if not view_center.is_finite():
 		view_center = Vector2.ZERO
 	var half := extent() * 0.5
-	var lx := maxf(HALF - half.x, 0.0)
-	var lz := maxf(HALF - half.y, 0.0)
+	var lim := _view_half()
+	var lx := maxf(lim - half.x, 0.0)
+	var lz := maxf(lim - half.y, 0.0)
 	view_center = Vector2(clampf(view_center.x, -lx, lx), clampf(view_center.y, -lz, lz))
 
 
@@ -1153,6 +1184,19 @@ func _fog_layer() -> ArrayMesh:
 	return _fog_mesh
 
 
+## WORLD view: the names of the regions, on top of the picture (the map draws the city and the markers over it).
+func _draw_world_labels(font: Font, s: float) -> void:
+	var fs := int(24.0 * s)
+	for e in TerrainMap.LABELS:
+		var p := world_to_map((e[1] as Vector2).x, (e[1] as Vector2).y)
+		if not _map.get_rect().grow(-20.0).has_point(p):
+			continue
+		var w := font.get_string_size(e[0], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var pos := p - Vector2(w * 0.5, 0.0)
+		_map.draw_string_outline(font, pos, e[0], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(fs / 5, 3), Color(0.0, 0.02, 0.04, 0.95))
+		_map.draw_string(font, pos, e[0], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.85, 0.95, 1.0, 0.92))
+
+
 func _draw_map() -> void:
 	if _rect.size.x < 8.0:
 		return
@@ -1169,10 +1213,16 @@ func _draw_map() -> void:
 	_map.draw_rect(Rect2(Vector2.ZERO, sz), Color(0.02, 0.04, 0.065, 1.0))
 	_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var city := Rect2(world_to_map(-HALF, -HALF), Vector2(2.0 * HALF, 2.0 * HALF) * pm)
+	if world_mode:
+		_draw_world_labels(font, s)
 	# outskirts: the road grid carries on, faint, past the city edge, so a wide phone screen is a map and not black bars
 	var o_col := Color(0.07, 0.1, 0.13, 1.0)
 	var o_w := maxf(CityLayout.ROAD * pm, 2.0)
-	for oi in range(-12, CityLayout.N + 13):
+	var terr := TerrainMap.ready and TerrainMap.texture != null
+	if terr:                                                           # the land outside the city: coast, mountains, rivers, highways (TerrainMap, drawn once on a worker thread)
+		var tw := TerrainHeight.WORLD_HALF
+		_map.draw_texture_rect(TerrainMap.texture, Rect2(world_to_map(-tw, -tw), Vector2(2.0 * tw, 2.0 * tw) * pm), false, Color(1.0, 1.0, 1.0, 0.92))
+	for oi in (range(-12, CityLayout.N + 13) if not terr else range(0)):
 		var oc := -CityLayout.HALF + float(oi) * CityLayout.PITCH
 		var op := world_to_map(oc, 0.0)
 		if (oi < 0 or oi > CityLayout.N) and op.x + o_w > 0.0 and op.x - o_w < sz.x:

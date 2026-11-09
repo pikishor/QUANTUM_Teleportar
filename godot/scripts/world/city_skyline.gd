@@ -11,8 +11,8 @@ const FAR_MIRROR_SHADER := preload("res://assets/shaders/building_far_mirror.gds
 const CLASSES: Array[StringName] = [&"block", &"stepped", &"tiered"]
 const HEIGHTS: Array[float] = [16.0, 28.0, 44.0, 62.0, 88.0, 118.0, 150.0]
 ## Blocks beyond the playable N x N: indices from RANGE_MIN to RANGE_MAX inclusive (N + 10 blocks per side, 5 blocks of towers beyond the walls).
-const RANGE_MIN := -5
-const RANGE_MAX := CityLayout.N + 4
+const RANGE_MIN := -2
+const RANGE_MAX := CityLayout.N + 1
 ## Cell grid of the camera window (city_stream.gd): covers the whole skyline.
 const GRID_CELLS := CityLayout.N + 10                 ## 80 m cells: one per block of the skyline range
 const GRID_ORIGIN := -CityLayout.HALF - 5.0 * CityLayout.PITCH

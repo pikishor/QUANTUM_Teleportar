@@ -67,7 +67,7 @@ static func now() -> float:
 
 
 ## --- valid ground for teleports --------------------------------------------------------------------------------------------------------
-## The walkable square is |x|, |z| <= CityLayout.WALK (the inner faces of the invisible border walls). A blink or any other teleport must land on valid ground inside it:
+## The playable world is |x|, |z| <= CityLayout.PLAY_HALF (the invisible walls at the edge of the 6 km terrain world; the city square inside it is |x|, |z| <= CityLayout.WALK). A blink or any other teleport must land on valid ground inside it:
 ## `safe_spot` clamps the XZ, drops the point onto the floor or roof below it (physics ray on the world layer, else the city's ground_height) and moves a point that is
 ## inside a building volume out to the nearest street. `outside_city` is the rescue test (outside the walls, below the floor, not a number).
 const SAFE_MARGIN := 3.0
@@ -77,7 +77,11 @@ const MAX_AIR := 60.0
 static func outside_city(p: Vector3) -> bool:
 	if InteriorSpace.contains(p):            # inside a generated interior (scripts/interiors/), far from the street map by design
 		return false
-	return not (is_finite(p.x) and is_finite(p.y) and is_finite(p.z)) or absf(p.x) > CityLayout.WALK + 1.0 or absf(p.z) > CityLayout.WALK + 1.0 or p.y < -6.0
+	if not (is_finite(p.x) and is_finite(p.y) and is_finite(p.z)) or absf(p.x) > CityLayout.PLAY_HALF + 1.0 or absf(p.z) > CityLayout.PLAY_HALF + 1.0:
+		return true
+	if absf(p.x) <= CityLayout.WALK and absf(p.z) <= CityLayout.WALK:
+		return p.y < -6.0                          # under the city floor
+	return p.y < TerrainHeight.height_at(p.x, p.z) - 60.0      # outside the city: far below the terrain (the sea floor is up to 50 m down)
 
 
 ## The street point nearest to p (y = 0): p's x or z snapped onto the nearest road centre line, whichever is closer.
@@ -97,7 +101,7 @@ static func safe_spot(p: Vector3, world: Node = null, space: PhysicsDirectSpaceS
 		return Game.SPAWN
 	if InteriorSpace.contains(q):            # a point inside the interior is valid as it is (the city clamp would throw it to the street map)
 		return q
-	var lim := CityLayout.WALK - SAFE_MARGIN
+	var lim := CityLayout.PLAY_HALF - SAFE_MARGIN
 	var clamped := absf(q.x) > lim or absf(q.z) > lim
 	q.x = clampf(q.x, -lim, lim)
 	q.z = clampf(q.z, -lim, lim)
@@ -105,14 +109,18 @@ static func safe_spot(p: Vector3, world: Node = null, space: PhysicsDirectSpaceS
 		q = nearest_street(q)
 		clamped = true
 	var floor_y := 0.0
+	var outside := absf(q.x) > CityLayout.WALK or absf(q.z) > CityLayout.WALK
+	var terrain_y := TerrainHeight.height_at(q.x, q.z) if outside else 0.0
 	if space != null:
-		var rq := PhysicsRayQueryParameters3D.create(Vector3(q.x, maxf(q.y, 0.0) + 2.0, q.z), Vector3(q.x, -20.0, q.z), Game.L_WORLD)
+		var rq := PhysicsRayQueryParameters3D.create(Vector3(q.x, maxf(q.y, terrain_y) + 2.0, q.z), Vector3(q.x, minf(-20.0, terrain_y - 20.0), q.z), Game.L_WORLD)
 		var hit := space.intersect_ray(rq)
 		if not hit.is_empty():
 			floor_y = (hit["position"] as Vector3).y
-	if world != null and world.has_method(&"ground_height") and (space == null or floor_y == 0.0):
+	if outside:
+		floor_y = terrain_y                                      # the terrain is the floor there (its colliders may not be built yet)
+	elif world != null and world.has_method(&"ground_height") and (space == null or floor_y == 0.0):
 		floor_y = maxf(floor_y, float(world.call(&"ground_height", q.x, q.z, maxf(q.y, 0.0) + 0.5)))
-	if clamped or q.y < floor_y - 0.5 or q.y < -1.0:
+	if clamped or q.y < floor_y - 0.5 or q.y < (-1.0 if not outside else terrain_y - 0.5):
 		q.y = floor_y
 	q.y = minf(q.y, floor_y + MAX_AIR)                        # a blink into the sky ends a few metres up at most, never 900 m in the air
 	return q

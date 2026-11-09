@@ -71,6 +71,7 @@ Credit is not required by CC0 and is given anyway:
 | Metal Impact Sounds, Crash Collision, Glass Break, Car engine start, Car Sound Effects Pack, Car_door_SFX | Brian MacIntosh, Luca Pixel, MedicineStorm, anonymous | metal hits, crashes, engine start, horn, door |
 | 51 UI sound effects | gopherapps | UI cues |
 | Rain (loopable), High traffic road sounds, Scifi City Ambient Loop, windy ambient noise | Snabisch, 2DPIXX, anonymous | ambience beds |
+| 40 CC0 water / splash / slime SFX; Beach Ocean Waves | OpenGameArt uploaders (the first pack as listed on its page); qubodup (upload) of the 'alkaibeach' recording by jasinski | water splashes, wading, swim strokes, bubble, river loop, surf loop (art_sources/audio_water, CC0 1.0) |
 
 ## Music (MIDI + SoundFont)
 
@@ -101,3 +102,17 @@ All CC0 1.0, fetched from OpenGameArt.org with plain curl and a descriptive user
 | Watercraft Kit (boat-speed-a) | Kenney, www.kenney.nl | https://opengameart.org/content/watercraft-kit, art_sources/open_craft/kenney_watercraft | `boat` (xv_boat.glb) |
 
 The quad, the scooter and the armour plates of the armoured truck are procedural (godot/scripts/vehicles/vehicle_craft_models.gd); the armoured truck's body is the Rgsdev van already credited above. Candidates judged on renders and rejected: the other OpenGameArt helicopters (blobs and toy RC models), the Abrams tank (44k triangles), the patrol boat (5k triangles at a toy scale).
+
+## Terrain world textures (round 5, terrain foundation)
+
+All CC0 1.0 (Poly Haven, https://polyhaven.com; licence text and per-asset URL in art_sources/polyhaven_terrain/). Diffuse maps only (1K JPG) packed by godot/tools/materials/pack_terrain_textures.py into godot/assets/textures/terrain_<layer>.webp (1024 px, lossy WebP, VRAM compressed with mipmaps) and read as ONE Texture2DArray by godot/assets/shaders/terrain.gdshader (scripts/terrain/terrain_textures.gd). ambientCG was tried first: its API answers but the download host is refused by the session network policy, so Poly Haven is used instead.
+
+| Terrain layer (use) | Poly Haven set | Author |
+|---|---|---|
+| grass (meadows, plains) | forrest_ground_01 (Forest Ground 01) | Rob Tuytel |
+| forest (forest floor, hills) | rocky_terrain_02 (Rocky Terrain 02) | Amal Kumar |
+| desert (dry plains, dunes) | dry_ground_rocks (Dry Ground Rocks) | Rob Tuytel |
+| beach (shore sand) | aerial_sand (Aerial Sand) | Rob Tuytel |
+| rock (cliffs, high ground; tri-planar) | rock_boulder_dry (Rock Boulder Dry) | Dimitrios Savva, Rico Cilliers |
+| snow (peaks, ledges) | snow_02 (Snow 02) | Rob Tuytel |
+| dirt (road verge, track surface) | gravel_road (Gravel Road) | Amal Kumar |

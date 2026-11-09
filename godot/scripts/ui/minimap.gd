@@ -98,6 +98,46 @@ func ensure_static() -> bool:
 	return true
 
 
+## Clip the polygon `pts` (with texture coordinates `uvs`) to u, v in [0, 1] (Sutherland-Hodgman, four passes). Returns [points, uvs].
+static func _clip_unit(pts: PackedVector2Array, uvs: PackedVector2Array) -> Array:
+	var p := pts
+	var t := uvs
+	for edge in 4:
+		var np := PackedVector2Array()
+		var nt := PackedVector2Array()
+		var n := p.size()
+		for i in n:
+			var a := p[i]
+			var b := p[(i + 1) % n]
+			var ta := t[i]
+			var tb := t[(i + 1) % n]
+			var da := _edge_dist(ta, edge)
+			var db := _edge_dist(tb, edge)
+			if da >= 0.0:
+				np.append(a)
+				nt.append(ta)
+			if (da >= 0.0) != (db >= 0.0):
+				var k := da / (da - db)
+				np.append(a.lerp(b, k))
+				nt.append(ta.lerp(tb, k))
+		p = np
+		t = nt
+		if p.size() < 3:
+			break
+	return [p, t]
+
+
+static func _edge_dist(t: Vector2, edge: int) -> float:
+	match edge:
+		0:
+			return t.x
+		1:
+			return 1.0 - t.x
+		2:
+			return t.y
+	return 1.0 - t.y
+
+
 func _fill(img: Image, r: Rect2, ppm: float, col: Color) -> void:
 	var x0 := clampi(floori((r.position.x + EXTENT) * ppm), 0, TEX_PX)
 	var y0 := clampi(floori((r.position.y + EXTENT) * ppm), 0, TEX_PX)
@@ -150,6 +190,15 @@ func _draw_body() -> void:
 	if InteriorGameplay.active:                  # inside an interior: its floor plan, vendors, guards and mission markers instead of the city
 		InteriorMinimap.draw(self, c, radius, s)
 		return
+	if TerrainMap.ready and TerrainMap.texture != null and maxf(absf(_pos.x), absf(_pos.y)) + _range * 1.1 > TerrainHeight.CITY_HALF:      # the land outside the city (coast, mountains, roads), under the city layer: only when the circle reaches past the plateau
+		var wuv := PackedVector2Array()
+		var wpts := PackedVector2Array()
+		for i in SEGMENTS:
+			var a2 := TAU * float(i) / SEGMENTS
+			var l2 := Vector2(cos(a2), sin(a2)) * radius
+			wpts.append(c + l2)
+			wuv.append(TerrainMap.world_to_uv(_pos.x + (_right * (l2.x / _k) - _fwd * (l2.y / _k)).x, _pos.y + (_right * (l2.x / _k) - _fwd * (l2.y / _k)).y))
+		draw_colored_polygon(wpts, Color(0.8, 0.85, 0.9, 0.85), wuv, TerrainMap.texture)
 	if ensure_static():
 		var inv := 1.0 / (2.0 * EXTENT)
 		for i in SEGMENTS:
@@ -158,7 +207,9 @@ func _draw_body() -> void:
 			_pts[i] = c + l
 			var w := _pos + _right * (l.x / _k) - _fwd * (l.y / _k)
 			_uvs[i] = Vector2((w.x + EXTENT) * inv, (w.y + EXTENT) * inv)
-		draw_colored_polygon(_pts, Color(1, 1, 1, 0.9), _uvs, tex)
+		var clipped := _clip_unit(_pts, _uvs)           # the city picture only where the city is (outside it the terrain picture shows)
+		if clipped[0].size() >= 3:
+			draw_colored_polygon(clipped[0], Color(1, 1, 1, 0.9), clipped[1], tex)
 	var inner := radius - 3.0 * s
 	_draw_gps(c, inner, s)
 	var cars: Array = []        # markers are collected and drawn per kind at the end: sprites of one texture batch, circles / polygons / arcs cost a draw call each

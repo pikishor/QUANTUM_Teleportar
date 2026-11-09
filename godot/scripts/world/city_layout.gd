@@ -25,7 +25,8 @@ const BLOCK := 60.0            ## PITCH - ROAD: the block (sidewalk) square betw
 const LANE := 5.0              ## lane centre offset from a road's centre line
 const BORDER := 30.0           ## invisible walls stand at HALF + BORDER
 const WALL_T := 8.0            ## thickness of the invisible border walls (they occupy WALK .. WALK + WALL_T)
-const WALK := HALF + BORDER    ## the walkable square is |x|, |z| <= WALK: the inner faces of the border walls
+const WALK := HALF + BORDER    ## the CITY square is |x|, |z| <= WALK (the former border walls: now only the limit of the city's own gameplay: patrols, mission tables, interiors)
+const PLAY_HALF := 2960.0      ## the playable world is |x|, |z| <= PLAY_HALF (TerrainHeight.WORLD_HALF - 40): invisible walls stand there
 const LOT_OFFSET := 15.0       ## lot centre offset from the block centre
 const SEED := 2025
 const OUTER_SEED := 7919       ## second stream: the 612 outer blocks

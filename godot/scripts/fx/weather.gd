@@ -116,6 +116,6 @@ func _apply_env() -> void:
 			return
 		_base_fog = _env.fog_density
 		_base_exposure = _env.tonemap_exposure
-	_env.fog_density = _base_fog * fog_mult
+	_env.fog_density = _base_fog * fog_mult * lerpf(1.0, 0.3, TerrainWorld.fog_zone)      # thinner haze in the outskirts so the mountains read
 	var base: float = _env.get_meta(&"base_exposure", _base_exposure)
 	_env.tonemap_exposure = base * (1.0 + (0.0 if UiSettings.s_reduce_flash else 0.7) * flash)

@@ -320,6 +320,10 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		_apply_cover_pose(p.cover, yaw)
 		rotation.z += _verb_roll
 		rotation.x += _verb_pitch
+		if p.swim.active:                                    # swimming: the crawl pitches the body forward, the strokes roll it, the waves bob it
+			rotation.x -= p.swim.lean * 0.55 + 0.05
+			rotation.z += sin(p.swim.stroke_phase) * 0.1 * p.swim.lean
+			global_position.y += sin(_clock * 2.3) * 0.025
 
 	# --- rim and glow: subtle at rest, brighter on a hit, while aiming and while a quantum power is active (no allocation: a few property writes on shared materials)
 	var q = p.quantum

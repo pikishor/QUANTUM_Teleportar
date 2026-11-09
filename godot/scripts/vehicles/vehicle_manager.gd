@@ -395,14 +395,18 @@ func _tick_wrecks(ppos: Vector3, far_only: bool) -> void:
 
 ## A car that left the map, or whose position broke (NaN), is put back inside the borders; the driven one keeps its camera and the player is never stranded.
 func _sanity() -> void:
-	var lim := Game.HALF + 30.0
+	var lim := CityLayout.PLAY_HALF                              # the playable world is the whole terrain square, not only the city
 	for v in list:
 		var p := v.global_position
 		if not p.is_finite():
 			p = VehicleSpecs.starter_pos()
+		var gy := TerrainHeight.height_at(p.x, p.z) if (absf(p.x) <= lim and absf(p.z) <= lim and (absf(p.x) > TerrainHeight.CITY_HALF or absf(p.z) > TerrainHeight.CITY_HALF)) else 0.0
 		var ylim := 5.0 if v.craft == null else float(v.spec.get("ceil", 60.0)) + 30.0
-		if absf(p.x) > lim or absf(p.z) > lim or absf(p.y) > ylim:
-			p = Vector3(clampf(p.x, -lim + 5.0, lim - 5.0), v.base_y if absf(p.y) > ylim or not p.is_finite() else p.y, clampf(p.z, -lim + 5.0, lim - 5.0))
+		if absf(p.x) > lim or absf(p.z) > lim or absf(p.y - gy) > ylim:
+			var qx := clampf(p.x, -lim + 5.0, lim - 5.0)
+			var qz := clampf(p.z, -lim + 5.0, lim - 5.0)
+			var out := absf(qx) > TerrainHeight.CITY_HALF or absf(qz) > TerrainHeight.CITY_HALF
+			p = Vector3(qx, (v.base_y + (TerrainHeight.height_at(qx, qz) if out else 0.0)) if absf(p.y - gy) > ylim or not p.is_finite() else p.y, qz)
 		else:
 			continue
 		v.global_position = p
@@ -1149,13 +1153,14 @@ func _exit_point(car: Vehicle) -> Vector3:
 	var best := base + r * side
 	for off: Vector3 in [r * side, -r * side, -f * 3.6, f * 3.6]:
 		var p := base + off
-		if absf(p.x) > Game.HALF + 25.0 or absf(p.z) > Game.HALF + 25.0:
+		if absf(p.x) > CityLayout.PLAY_HALF - 5.0 or absf(p.z) > CityLayout.PLAY_HALF - 5.0:
 			continue
 		if is_instance_valid(w) and w.has_method(&"is_inside_building") and w.call(&"is_inside_building", Vector3(p.x, 1.0, p.z)):
 			continue
 		best = p
 		break
-	return Vector3(best.x, 0.1 if car.craft == null or car.cls == &"boat" or car.cls == &"tank" else car.global_position.y + 0.1, best.z)
+	var gy := TerrainHeight.height_at(best.x, best.z) if (absf(best.x) > TerrainHeight.CITY_HALF or absf(best.z) > TerrainHeight.CITY_HALF) else 0.0
+	return Vector3(best.x, (gy + 0.1) if car.craft == null or car.cls == &"boat" or car.cls == &"tank" else car.global_position.y + 0.1, best.z)
 
 
 func stats() -> Dictionary:

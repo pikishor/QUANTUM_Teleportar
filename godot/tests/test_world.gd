@@ -199,13 +199,13 @@ func _test_colliders(host: Node, city: City) -> void:
 	var q2 := PhysicsRayQueryParameters3D.create(Vector3(10.0, 300.0, 4.0), Vector3(10.0, -5.0, 4.0), Game.L_WORLD)
 	var road_hit := space.intersect_ray(q2)
 	TestLib.check(not road_hit.is_empty() and absf(road_hit.position.y) < 0.01, "a ray onto a road hits the ground at y = 0")
-	# the border walls stand at HALF + 30
-	var qe := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(1300.0, 20.0, 5.0), Game.L_WORLD)
+	# the city's border walls are gone (the highways lead out of the city); the invisible walls stand at the edge of the 6 km world
+	var qe := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(3100.0, 20.0, 5.0), Game.L_WORLD)
 	var wall := space.intersect_ray(qe)
-	TestLib.check(not wall.is_empty() and absf(wall.position.x - CityLayout.WALK) < 0.05, "invisible wall at x = HALF + 30 (hit at %s)" % str(wall.get("position", "none")))
-	var qw := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(0.0, 20.0, -1300.0), Game.L_WORLD)
+	TestLib.check(not wall.is_empty() and absf(wall.position.x - CityLayout.PLAY_HALF) < 0.05, "invisible wall at the world edge x = PLAY_HALF (hit at %s)" % str(wall.get("position", "none")))
+	var qw := PhysicsRayQueryParameters3D.create(Vector3(0.0, 20.0, 5.0), Vector3(0.0, 20.0, -3100.0), Game.L_WORLD)
 	var wall2 := space.intersect_ray(qw)
-	TestLib.check(not wall2.is_empty() and absf(wall2.position.z + CityLayout.WALK) < 0.05, "invisible wall at z = -(HALF + 30)")
+	TestLib.check(not wall2.is_empty() and absf(wall2.position.z + CityLayout.PLAY_HALF) < 0.05, "invisible wall at the world edge z = -PLAY_HALF")
 	# a ray along the avenue between two buildings is not blocked by buildings (roads are open)
 	var qa := PhysicsRayQueryParameters3D.create(Vector3(-300.0, 1.5, 0.0), Vector3(300.0, 1.5, 0.0), Game.L_WORLD)
 	TestLib.check(space.intersect_ray(qa).is_empty(), "the avenue along z = 0 is clear of colliders")
@@ -392,7 +392,7 @@ func _test_skyline(city: City) -> void:
 	for r in city.skyline_rects:
 		if r.end.x > -keep and r.position.x < keep and r.end.y > -keep and r.position.y < keep:
 			inside += 1
-	TestLib.check(city.skyline_rects.size() > 800, "the far skyline still has its towers (%d)" % city.skyline_rects.size())
+	TestLib.check(city.skyline_rects.size() > 500, "the city fringe still has its towers (two blocks beyond the border, then the terrain: %d)" % city.skyline_rects.size())
 	TestLib.check(inside == 0, "no far-skyline tower reaches into the walkable square or the border walls (%d do)" % inside)
 	var counted := 0
 	for n in city.multimesh_nodes:

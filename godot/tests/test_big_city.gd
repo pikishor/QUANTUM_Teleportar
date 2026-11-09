@@ -93,7 +93,7 @@ func _layout() -> void:
 	var far := city.road_point_near(Vector3(560.0, 0.0, -560.0), 60.0, 140.0)
 	TestLib.check(bad == 0 and far != Vector3.INF and Vector2(far.x - 560.0, far.z + 560.0).length() >= 59.9, "random_road_point and road_point_near work out in the outer districts (%d bad)" % bad)
 	# one more property of the world the player sees: the walls stand at HALF + 30
-	TestLib.check(is_equal_approx(CityLayout.WALK, Game.HALF + 30.0), "the invisible walls stand 30 m beyond the border roads")
+	TestLib.check(is_equal_approx(CityLayout.WALK, Game.HALF + 30.0) and CityLayout.PLAY_HALF > CityLayout.WALK + 1500.0, "the city square ends 30 m beyond the border roads, the playable world reaches far beyond it")
 
 
 ## Stand at ten places spread over the whole map (corners, edges, the centre): the ground, the colliders, the windows and the streams are there each time.
@@ -145,10 +145,13 @@ func _walk_the_map(host: Node) -> void:
 			if not hit.is_empty() and absf(float(hit.position.y) - lot.h) < 0.05:
 				solid += 1
 	TestLib.check(total > 8 and solid == total, "the buildings around the far corner are solid, roofs at their height (%d of %d)" % [solid, total])
-	# a wall of the map: nothing leaves it
+	# the city border is open now (terrain world around it); a teleport past the edge of the 6 km world is pulled back inside it
 	p.teleport_to(Vector3(CityLayout.WALK + 400.0, 5.0, 0.0))
 	await _settle(host, 6)
-	TestLib.check(absf(p.global_position.x) <= CityLayout.WALK + 1.0, "a teleport beyond the walls is pulled back inside (x %.0f)" % p.global_position.x)
+	TestLib.check(absf(p.global_position.x) > CityLayout.WALK and absf(p.global_position.x) <= CityLayout.PLAY_HALF, "a teleport past the old city border lands on the terrain outside it (x %.0f)" % p.global_position.x)
+	p.teleport_to(Vector3(CityLayout.PLAY_HALF + 400.0, 5.0, 0.0))
+	await _settle(host, 6)
+	TestLib.check(absf(p.global_position.x) <= CityLayout.PLAY_HALF + 1.0, "a teleport beyond the edge of the world is pulled back inside (x %.0f)" % p.global_position.x)
 	# walking: real input over open ground in the outer ring moves the hero
 	p.teleport_to(Vector3(-1000, 0.5, -5))
 	await _settle(host, 30)

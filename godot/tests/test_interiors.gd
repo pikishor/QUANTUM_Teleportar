@@ -458,7 +458,7 @@ func _space(host: Node) -> void:
 	TestLib.check(InteriorSpace.active and InteriorSpace.contains(it.door_pos + Vector3(0, 1.0, 0)), "an interior in the tree registers itself in InteriorSpace")
 	TestLib.check(not InteriorSpace.contains(Vector3(0, 1.0, 0)) and not InteriorSpace.contains(it.door_pos + Vector3(0, 400.0, 0)), "the street map and the sky are not the interior")
 	TestLib.check(not PlayerUtil.outside_city(it.door_pos + Vector3(0, 0.1, 0)), "the city rescue leaves a hero inside the interior alone")
-	TestLib.check(PlayerUtil.outside_city(Vector3(1300.0, 0.1, 1300.0)), "...and still rescues one outside both")
+	TestLib.check(PlayerUtil.outside_city(Vector3(CityLayout.PLAY_HALF + 300.0, 0.1, 1300.0)), "...and still rescues one outside both (past the walls of the 6 km world)")
 	var sp := PlayerUtil.safe_spot(it.door_pos, null, null)
 	TestLib.check(sp.distance_to(it.door_pos) < 0.01, "a teleport inside the interior is not clamped to the street map")
 	# resolve: walking into a wall slides or stops, never passes
@@ -495,7 +495,7 @@ func _space(host: Node) -> void:
 	it.queue_free()
 	await TestLib.frames(host, 2)
 	TestLib.check(not InteriorSpace.active, "freeing the interior unregisters it")
-	TestLib.check(PlayerUtil.outside_city(Vector3(ORIGIN.x, ORIGIN.y, ORIGIN.z)), "after it is gone the city rescue works again")
+	TestLib.check(PlayerUtil.outside_city(Vector3(ORIGIN.x + CityLayout.PLAY_HALF, ORIGIN.y, ORIGIN.z)), "after it is gone the city rescue works again")
 
 
 func _quality_scaling(_host: Node) -> void:

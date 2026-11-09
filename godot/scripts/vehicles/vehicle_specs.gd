@@ -392,6 +392,27 @@ static func wheelbase(kind: StringName) -> float:
 
 
 ## Tyre grip factor of a kind on dry asphalt (MU x the spec's "mu").
+## Cars that are built for rough ground: the rover, SUV, trucks and the quad keep most of their grip off the road; the rest slide on dirt, sand and snow.
+const OFFROAD: Dictionary = {&"rover": 1.0, &"suv": 0.88, &"luxury": 0.7, &"truck": 0.85, &"van": 0.6, &"delivery": 0.6, &"quad": 1.0, &"tank": 1.0}
+## Grip multiplier by surface for a full off-road build (k = 1) and for a street car (k = 0): lerp of the two columns by the kind's off-road rating.
+const SURFACE_GRIP: Dictionary = {&"city": [1.0, 1.0], &"asphalt": [1.0, 1.0], &"dirt": [0.9, 0.6], &"grass": [0.82, 0.48], &"sand": [0.74, 0.42], &"rock": [0.86, 0.6], &"snow": [0.6, 0.36], &"water": [0.5, 0.3]}
+const SURFACE_SPEED: Dictionary = {&"city": [1.0, 1.0], &"asphalt": [1.0, 1.0], &"dirt": [0.95, 0.78], &"grass": [0.9, 0.62], &"sand": [0.85, 0.55], &"rock": [0.85, 0.6], &"snow": [0.75, 0.5], &"water": [0.6, 0.35]}
+
+
+static func offroad_rating(kind: StringName) -> float:
+	return float(OFFROAD.get(kind, 0.35))
+
+
+static func surface_grip(kind: StringName, surface: StringName) -> float:
+	var row: Array = SURFACE_GRIP.get(surface, [1.0, 1.0])
+	return lerpf(float(row[1]), float(row[0]), offroad_rating(kind))
+
+
+static func surface_speed(kind: StringName, surface: StringName) -> float:
+	var row: Array = SURFACE_SPEED.get(surface, [1.0, 1.0])
+	return lerpf(float(row[1]), float(row[0]), offroad_rating(kind))
+
+
 static func mu_of(kind: StringName) -> float:
 	return MU * (float(SPECS[kind].get("mu", 1.0)) if SPECS.has(kind) else 1.0)
 

@@ -40,14 +40,14 @@ func run(h: Node) -> void:
 
 
 func _in_bounds(q: Vector3) -> bool:
-	return absf(q.x) <= CityLayout.WALK and absf(q.z) <= CityLayout.WALK and q.y > -1.0 and q.y < 400.0
+	return absf(q.x) <= CityLayout.PLAY_HALF and absf(q.z) <= CityLayout.PLAY_HALF and q.y > -60.0 and q.y < 600.0       # the playable world: the whole 6 km terrain square (the sea floor is up to 52 m down)
 
 
 func _teleport_clamp() -> void:
 	for target: Vector3 in [Vector3(900, 5, 900), Vector3(-500, 0, 40), Vector3(10, -500, 10), Vector3(0, 900, 0), Vector3(1.0e6, 0, -1.0e6)]:
 		p.teleport_to(target)
 		await frames(4)
-		TestLib.check(_in_bounds(p.global_position) and p.global_position.y < 100.0, "teleport to %s lands inside the city walls (%s)" % [str(target), str(p.global_position)])
+		TestLib.check(_in_bounds(p.global_position) and p.global_position.y < 100.0, "teleport to %s lands inside the world walls (%s)" % [str(target), str(p.global_position)])
 	p.teleport_to(Vector3(NAN, 0, 0))
 	TestLib.check(_in_bounds(p.global_position), "a NaN teleport target falls back to a valid point")
 	# a point inside a building volume moves out to a street
@@ -58,7 +58,7 @@ func _teleport_clamp() -> void:
 	# the street / roof helpers
 	var st := PlayerUtil.nearest_street(Vector3(35.0, 0.0, 35.0))
 	TestLib.check(CityLayout.on_road(st.x, st.z), "nearest_street returns a road point")
-	TestLib.check(PlayerUtil.outside_city(Vector3(CityLayout.WALK + 5.0, 0, 0)) and PlayerUtil.outside_city(Vector3(0, -20, 0)) and not PlayerUtil.outside_city(Game.SPAWN), "outside_city tests the walls and the floor")
+	TestLib.check(PlayerUtil.outside_city(Vector3(CityLayout.PLAY_HALF + 5.0, 0, 0)) and PlayerUtil.outside_city(Vector3(0, -20, 0)) and not PlayerUtil.outside_city(Game.SPAWN) and not PlayerUtil.outside_city(Vector3(CityLayout.WALK + 80.0, TerrainHeight.height_at(CityLayout.WALK + 80.0, 0.0) + 1.0, 0.0)), "outside_city tests the world walls and the floor (the old city border is open)")
 	# the windowed city follows the jump at once
 	p.teleport_to(Vector3(250.0, 0.0, -250.0))
 	var near := false
@@ -72,7 +72,7 @@ func _teleport_clamp() -> void:
 func _blink_aimed_off_map() -> void:
 	var q := p.quantum
 	for pitch: float in [0.6, -0.05, 1.2]:
-		p.teleport_to(Vector3(CityLayout.WALK - 6.0, 0.0, 0.0))
+		p.teleport_to(Vector3(CityLayout.PLAY_HALF - 6.0, 0.0, 0.0))
 		await frames(5)
 		p.energy = p.max_energy
 		var yaw := -PI * 0.5
@@ -92,9 +92,9 @@ func _blink_aimed_off_map() -> void:
 
 
 func _rescue() -> void:
-	p.global_position = Vector3(CityLayout.WALK + 80.0, 0.0, 10.0)
+	p.global_position = Vector3(CityLayout.PLAY_HALF + 80.0, 0.0, 10.0)
 	await frames(4)
-	TestLib.check(_in_bounds(p.global_position) and absf(p.global_position.x) <= CityLayout.WALK, "a hero outside the walls is rescued to the street")
+	TestLib.check(_in_bounds(p.global_position) and absf(p.global_position.x) <= CityLayout.WALK, "a hero outside the world walls is rescued to the street")
 	p.global_position = Vector3(20.0, -30.0, 20.0)
 	await frames(4)
 	TestLib.check(p.global_position.y > -1.0, "a hero below the floor is rescued")

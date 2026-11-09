@@ -19,6 +19,10 @@ const POINTS: Array[Dictionary] = [
 	{"id": &"harbour_a", "kind": &"boat", "pos": Vector3(-30.0, 0.0, 480.0), "h": -PI * 0.5, "label": "BOAT"},
 	{"id": &"harbour_b", "kind": &"boat", "pos": Vector3(40.0, 0.0, 560.0), "h": PI * 0.5, "label": "BOAT"},
 	{"id": &"harbour_c", "kind": &"boat", "pos": Vector3(-120.0, 0.0, 400.0), "h": -PI * 0.5, "label": "BOAT"},
+	# the outskirts (terrain world): off-road vehicles wait at the gates of the highways, so the way out of the city has a ride (4x4 grip on dirt, sand and rock)
+	{"id": &"outpost_rover", "kind": &"rover", "pos": Vector3(1180.0, 0.0, 22.0), "h": -PI * 0.5, "label": "OFF-ROADER"},
+	{"id": &"outpost_suv", "kind": &"suv", "pos": Vector3(20.0, 0.0, -1170.0), "h": 0.0, "label": "4X4"},
+	{"id": &"outpost_quad", "kind": &"quad", "pos": Vector3(-1170.0, 0.0, -24.0), "h": PI * 0.5, "label": "QUAD"},
 ]
 
 
