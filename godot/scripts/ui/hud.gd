@@ -1197,7 +1197,7 @@ func hint_text() -> String:
 		return key + vp
 	if Game.vehicles.has_method(&"nearest") and Game.vehicles.call(&"nearest", Game.player.global_position, REACH) != null:
 		return key + "ENTER VEHICLE"
-	return ""
+	return Freedom.roam_hint()                              # a photo spot, the running world event (scripts/roam/): the quietest line
 
 
 var _redraw_t := 0.0
@@ -2229,6 +2229,8 @@ func _draw_screen(_ignored: Control = null) -> void:
 	preview_rect = Rect2()
 	_draw_screen_body(c, vp, s, font, cx)
 	_flush_text()
+	if _board_open and Game.state == &"paused":
+		MissionBoardScreen.draw_after(self, c, s)                              # the story card's portrait, over the queued plates
 	c.draw_set_transform(Vector2.ZERO)                                   # the enter slide (UiKit.enter_offset) ends with the draw
 	PerfTimers.stop(PerfTimers.SCREEN, t0)
 

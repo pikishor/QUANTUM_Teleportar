@@ -18,7 +18,7 @@ const MARK_MAX := 3                      ## landmarks drawn at once
 const FAR_MARK_M := 3200.0
 const SHORT := {"MOUNTAIN OBSERVATORY": "OBSERVATORY", "RADIO TOWER": "RADIO", "OLD MINE": "MINE", "ALIEN CRASH SITE": "CRASH", "HIDDEN CAVE": "CAVE", "LAKESIDE LODGE": "LODGE",
 	"HUNTERS CABINS": "CABINS", "PINE HOLLOW": "HOLLOW", "DUST WELLS": "WELLS", "SOUTH FARM": "FARM S", "NORTH FARM": "FARM N", "EASTFIELD AIRPORT": "AIRPORT", "HARBOUR": "HARBOUR", "CITY": "CITY"}
-const KIND_COL := {&"airport": Color(0.55, 0.85, 1.0), &"harbour": Color(0.4, 0.8, 1.0), &"city": Color(1.0, 0.9, 0.5), &"site": Color(0.95, 0.75, 0.45)}
+const KIND_COL := {&"airport": Color(0.55, 0.85, 1.0), &"harbour": Color(0.4, 0.8, 1.0), &"city": Color(1.0, 0.9, 0.5), &"site": Color(0.95, 0.75, 0.45), &"pad": Color(0.3, 0.94, 1.0)}
 
 static var _place_name := ""
 static var _place_since := -100.0

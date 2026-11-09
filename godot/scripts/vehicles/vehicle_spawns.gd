@@ -39,6 +39,7 @@ static func all_points() -> Array[Dictionary]:
 	out.append_array(OutskirtsSites.vehicle_points())
 	out.append_array(Airport.spawn_points())                      # EASTFIELD AIRPORT: planes, jets, helicopters on the apron, the helipads and the mountain pads (wave 106)
 	out.append_array(WorldRoam.vehicle_points())             # the rover and the quad at the foot of QUARRY TRACK (off-road trial)
+	out.append_array(RoamData.ride_points(RoamWorld.rides_unlocked))   # the rides the discovery counter handed out wait on their quantum pads (scripts/roam/)
 	return out
 
 

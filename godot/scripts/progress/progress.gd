@@ -53,6 +53,9 @@ var side_done := {}                      ## side mission id -> completions (save
 var side_best := {}                      ## side mission id -> best time in seconds (saved in [side])
 var heist_done := {}                      ## heist id -> completions (optional [heist] section)
 var arena := {}                           ## boss rush / arena tallies (optional [arena] section): rush_<diff> best times, clear_<diff>, wave_best, score_best, runs
+var story_done := {}                      ## THE LONG TOMORROW (docs/STORY.md, scripts/story/story_runner.gd): story mission id -> completions (optional [story] section; older files load as {} = mission 1)
+var story_cp := {}                        ## the story mission under way {id, step}: a quit mid-mission resumes at that step ({} when none)
+var story_seen: Array[StringName] = []    ## story cutscenes already played (brief_<id>, beat_<id>_<n>, end), so CONTINUE does not replay them
 var safehouses_owned: Array[StringName] = []   ## owned safehouse ids (optional [safehouse] section, scripts/progress/safehouses.gd)
 var safehouse_lv := {}                    ## "<house>:<upgrade>" -> level 1..2
 var safehouse_save: StringName = &""       ## the house of the last fast save ("" none)
@@ -473,6 +476,9 @@ func new_campaign() -> void:
 	safehouse_lv.clear()
 	safehouse_save = &""
 	heist_done.clear()
+	story_done.clear()
+	story_cp.clear()
+	story_seen.clear()
 	arena.clear()
 	checkpoint.clear()
 	collectibles.reset()
@@ -874,6 +880,16 @@ func save_file() -> bool:
 		cf.set_value("safehouse", "save_at", String(safehouse_save))
 	for hid: StringName in heist_done:
 		cf.set_value("heist", "done_%s" % hid, int(heist_done[hid]))
+	for sid: String in story_done:
+		cf.set_value("story", "done_%s" % sid, int(story_done[sid]))
+	if not story_cp.is_empty():
+		cf.set_value("story", "cp_id", str(story_cp.get("id", "")))
+		cf.set_value("story", "cp_step", int(story_cp.get("step", 0)))
+	if not story_seen.is_empty():
+		var sn := PackedStringArray()
+		for sv: StringName in story_seen:
+			sn.append(String(sv))
+		cf.set_value("story", "seen", sn)
 	for adf: StringName in ArenaScripts.DIFFS:
 		if arena.has("rush_%s" % adf):
 			cf.set_value("arena", "rush_%s" % adf, PackedFloat32Array(arena["rush_%s" % adf]))
@@ -1008,6 +1024,19 @@ func load_file() -> bool:
 					safehouse_lv["%s:%s" % [shid, up]] = shl
 	var sat := StringName(str(cf.get_value("safehouse", "save_at", "")))
 	safehouse_save = sat if safehouses_owned.has(sat) else &""
+	story_done.clear()
+	story_cp.clear()
+	story_seen.clear()
+	for sm: Dictionary in StoryActs.MISSIONS:
+		var sdn: Variant = cf.get_value("story", "done_%s" % str(sm["id"]), 0)
+		if sdn is int and int(sdn) > 0:
+			story_done[str(sm["id"])] = mini(int(sdn), 9999)
+	var cpid := str(cf.get_value("story", "cp_id", ""))
+	if cpid != "" and StoryActs.index_of(cpid) >= 0 and int(story_done.get(cpid, 0)) <= 0:
+		story_cp = {"id": cpid, "step": clampi(_num(cf.get_value("story", "cp_step", 0)), 0, 9)}
+	for sv2 in _arr(cf.get_value("story", "seen", PackedStringArray())):
+		if str(sv2).length() < 40 and not story_seen.has(StringName(str(sv2))):
+			story_seen.append(StringName(str(sv2)))
 	heist_done.clear()
 	for hid: StringName in HeistScripts.IDS:
 		var hn: Variant = cf.get_value("heist", "done_%s" % hid, 0)
@@ -1068,6 +1097,32 @@ func set_ammo_type(i: int) -> void:
 
 
 ## True once for each one-time cinematic id (and records it); false when it was already shown.
+## THE LONG TOMORROW (scripts/story/story_runner.gd): a story mission is finished (its saved step is dropped), a cutscene was seen, the running mission reached `step`.
+func story_finish(id: String) -> void:
+	story_done[id] = mini(int(story_done.get(id, 0)) + 1, 9999)
+	if str(story_cp.get("id", "")) == id:
+		story_cp = {}
+	_autosave()
+
+
+func story_mark_seen(key: StringName) -> bool:
+	if story_seen.has(key):
+		return false
+	story_seen.append(key)
+	return true
+
+
+func story_checkpoint(id: String, step: int) -> void:
+	story_cp = {"id": id, "step": maxi(step, 0)}
+	_autosave()
+
+
+func story_clear_checkpoint() -> void:
+	if not story_cp.is_empty():
+		story_cp = {}
+		_autosave()
+
+
 func mark_cine(id: StringName) -> bool:
 	if cine_seen.has(id):
 		return false

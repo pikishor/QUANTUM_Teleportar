@@ -15,6 +15,7 @@ var jobs: Jobs
 var crates: WeaponCrates
 var repairs: RepairStations
 var roam: WorldRoam                    ## free-roam activities of the big world: flight school, off-road trial, jet-ski laps, scanner treasure hunt (scripts/missions/world_roam.gd)
+var roam_world: RoamWorld              ## the discovery layer of the big world: quantum pads, relics, photo spots, fishing, hunt log, stunts, landmark races, world events (scripts/roam/)
 
 
 func _ready() -> void:
@@ -32,6 +33,8 @@ func _ready() -> void:
 	add_child(repairs)
 	roam = WorldRoam.new()
 	add_child(roam)
+	roam_world = RoamWorld.new()
+	add_child(roam_world)
 
 
 func _exit_tree() -> void:
@@ -43,7 +46,16 @@ func _exit_tree() -> void:
 static func job_prompt() -> String:
 	if current == null or current.jobs == null or not Game.is_playing():
 		return ""
+	if current.jobs.prompt == "" and current.roam_world != null:
+		return current.roam_world.prompt                     # fishing, a race ring, a quantum pad (scripts/roam/)
 	return current.jobs.prompt
+
+
+## The quiet line of the free-roam world (a photo spot, the running world event): the HUD shows it only when no other prompt (a job, a ride, ENTER VEHICLE) wants the slot.
+static func roam_hint() -> String:
+	if current == null or current.roam_world == null or not Game.is_playing() or InteriorGameplay.active:
+		return ""
+	return current.roam_world.hint
 
 
 ## The vehicle the hero could take from here ("HIJACK TAXI", "ENTER BUS"), "" when none or already driving.
@@ -72,4 +84,6 @@ static func markers() -> Array[Dictionary]:
 		out.append_array(RailWorld.instance.jobs.markers())
 	if current.roam != null:
 		out.append_array(current.roam.markers())
+	if current.roam_world != null:
+		out.append_array(current.roam_world.markers())
 	return out

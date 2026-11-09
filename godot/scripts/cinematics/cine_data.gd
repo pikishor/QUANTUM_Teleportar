@@ -6,10 +6,10 @@ extends RefCounted
 const INTRO_TITLE := "QUANTUM TELEPORTAR"
 
 const INTRO_SUBS: Array[Dictionary] = [
-	{"t0": 1.0, "t1": 5.6, "s": StoryData.O, "t": "Neo-Meridian, 2091. The Vael own the sky, and the rain has not stopped in nine years."},
+	{"t0": 1.0, "t1": 5.6, "s": StoryData.O, "t": "Neo-Meridian, 2091. Forty-nine years before the dark. The hive is already scouting this city."},
 	{"t0": 6.2, "t1": 10.4, "s": StoryData.O, "t": "Observers. They hang over every street and drink coherence from anyone who looks up."},
 	{"t0": 10.9, "t1": 13.4, "s": StoryData.O, "t": "Do not stare back, Kestrel. Looking is what they feed on."},
-	{"t0": 14.2, "t1": 17.6, "s": StoryData.O, "t": "There. The rooftop. Half of you is not from here. Let it fold space."},
+	{"t0": 14.2, "t1": 17.6, "s": StoryData.O, "t": "Your fold dropped you here. Tuning Day is tomorrow. We stop the Array."},
 	{"t0": 17.8, "t1": 19.5, "s": StoryData.K, "t": "Two places at once."},
 ]
 

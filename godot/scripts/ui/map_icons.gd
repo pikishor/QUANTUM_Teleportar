@@ -6,7 +6,7 @@ extends RefCounted
 
 const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items", &"danger", &"site"]
 ## Glyph-only shapes of the big world (a marker's `glyph` field picks one of these over its kind's shape): the airport (a plane), the harbour (an anchor), the city (three towers), the helipad (an H).
-const GLYPHS: Array[StringName] = [&"airport", &"harbour", &"city", &"helipad"]
+const GLYPHS: Array[StringName] = [&"airport", &"harbour", &"city", &"helipad", &"pad"]
 
 
 static func draw(ci: CanvasItem, kind: StringName, c: Vector2, r: float, col: Color, backing := true) -> void:
@@ -67,6 +67,10 @@ static func draw(ci: CanvasItem, kind: StringName, c: Vector2, r: float, col: Co
 			ci.draw_line(c + Vector2(-g * 0.4, -g * 0.55), c + Vector2(-g * 0.4, g * 0.55), col, maxf(g * 0.22, 1.5))
 			ci.draw_line(c + Vector2(g * 0.4, -g * 0.55), c + Vector2(g * 0.4, g * 0.55), col, maxf(g * 0.22, 1.5))
 			ci.draw_line(c + Vector2(-g * 0.4, 0), c + Vector2(g * 0.4, 0), col, maxf(g * 0.22, 1.5))
+		&"pad":                                           # a quantum pad: a ring with a chevron pointing up
+			ci.draw_arc(c, g * 1.05, 0.0, TAU, 20, col, maxf(g * 0.2, 1.5))
+			ci.draw_polyline(PackedVector2Array([c + Vector2(-g * 0.55, g * 0.25), c + Vector2(0, -g * 0.4), c + Vector2(g * 0.55, g * 0.25)]), col, maxf(g * 0.24, 1.5))
+			ci.draw_line(c + Vector2(-g * 0.4, g * 0.7), c + Vector2(g * 0.4, g * 0.7), col, maxf(g * 0.2, 1.5))
 		&"danger":
 			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -g * 1.15), c + Vector2(g * 1.15, g * 0.9), c + Vector2(-g * 1.15, g * 0.9)]), col)
 			ci.draw_rect(Rect2(c + Vector2(-g * 0.12, -g * 0.4), Vector2(g * 0.24, g * 0.7)), Color(0.01, 0.03, 0.05))

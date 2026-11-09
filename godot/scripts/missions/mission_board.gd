@@ -56,6 +56,10 @@ var auto_open := false
 ## The big world's missions (WorldMissions: airport heist, helicopter extraction, mountain pursuit, river chase, air race, plane delivery) join the offers by location. On in the live game
 ## (Missions turns it on with the take-over), off for the tests of the sixteen city types.
 var world_offers := false
+## THE LONG TOMORROW (docs/STORY.md, scripts/story/story_runner.gd): the STORY card is the next of twelve story missions and starts it with a briefing cutscene. On in the live game
+## (Missions turns it on with the take-over), off for the tests of the old chapter card (the campaign chapters then stay the STORY card).
+var story_acts := false
+var story: StoryRunner
 var offers: Array[Dictionary] = []
 var active: Dictionary = {}            ## the running offer ({} when none)
 var state: StringName = &"idle"        ## idle | running | story
@@ -89,6 +93,19 @@ func _ready() -> void:
 	rng.randomize()
 	Game.new_game.connect(_on_new_game)
 	Game.respawn.connect(_on_respawn)
+	story = StoryRunner.new()
+	story.name = "Story"
+	story.board = self
+	add_child(story)
+	started.connect(func(o: Dictionary) -> void: story.on_started(o))
+	finished.connect(func(o: Dictionary, ok: bool, _pay: int) -> void: story.on_finished(o, ok))
+
+
+## Switches THE LONG TOMORROW on (the live game) or off (the older chapter card).
+func set_story_acts(on: bool) -> void:
+	story_acts = on
+	if story != null:
+		story.enabled = on
 
 
 func _campaign() -> CampaignRunner:
@@ -292,6 +309,8 @@ static func pay_for(base: float, route_m: float, tier_n: int) -> int:
 
 ## The highlighted story card: {id: "story", title, brief, chapter (index), story: true}; {} when the campaign has no chapter left to play.
 func story_offer() -> Dictionary:
+	if story_acts and story != null:
+		return story.card()                                    # the next story mission ({} once the twelve are done: the card goes away)
 	var k := _campaign()
 	if k == null:
 		return {}
@@ -355,6 +374,10 @@ func accept_offer(o: Dictionary) -> bool:
 	var k := _campaign()
 	if k == null or not can_start():
 		return false
+	if bool(o.get("story_card", false)):
+		o = story.prepare()                                    # the story mission built on the world (with the step a quit left it at)
+		if o.is_empty():
+			return false
 	if bool(o.get("story", false)):
 		return _start_story(int(o["chapter_index"]))
 	_saved_cp = {}
@@ -365,7 +388,7 @@ func accept_offer(o: Dictionary) -> bool:
 	_ended = false
 	k.retry_pause = RETRY_PAUSE
 	k.ignore_tutorial = true
-	if not k.start_custom(o["chapter"] as Dictionary):
+	if not k.start_custom(o["chapter"] as Dictionary, int(o.get("from_step", 0))):
 		k.retry_pause = CampaignRunner.RETRY_PAUSE
 		return false
 	active = o
@@ -421,6 +444,8 @@ func _on_new_game() -> void:
 	done_count = 0
 	failed_count = 0
 	types_done.clear()
+	if story != null:
+		story.reset_session()
 	var prog := Game.progress as Progress
 	_first_run = take_over and not (prog != null and bool(prog.get(&"_continue_pending")))
 	first_pending = _first_run
@@ -540,7 +565,7 @@ func _physics_process(delta: float) -> void:
 	var h := _hero_pos()
 	if first_pending:
 		_tick_first(delta)
-	elif _first_run and state == &"running" and String(active.get("type", &"")) == &"first":
+	elif _first_run and state == &"running" and (String(active.get("type", &"")) == &"first" or int(active.get("story_index", -1)) == 0):
 		_tick_move_hint(delta, h)
 	if h.is_finite():
 		_last_pos = h
@@ -559,6 +584,10 @@ func _tick_first(delta: float) -> void:
 	_hint_t = 0.0
 	_walked = 0.0
 	_last_pos = _hero_pos()
+	if story_acts and story != null and story.enabled and story.index() == 0:
+		var card := story.card()                                # THE LONG TOMORROW: the first job is LANDFALL (told as radio, no cutscene: the player moves at once)
+		if not card.is_empty() and accept_offer(card):
+			return
 	var o := build(&"patrol", _hero_pos(), true)
 	if o.is_empty() or not accept_offer(o):
 		generate()                                              # could not start (a card, a cutscene): the board is there anyway

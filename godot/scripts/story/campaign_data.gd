@@ -218,10 +218,14 @@ static func ending_cards_for(sector: int) -> Array:
 
 ## The credits blocks and subtitles of an ending scene id ("credits" or "credits2").
 static func credits_for(id: StringName) -> Array[Dictionary]:
+	if id == &"story_end":
+		return StoryActs.CREDITS                       # THE LONG TOMORROW's finale (docs/STORY.md)
 	return CREDITS_2 if id == &"credits2" else CREDITS
 
 
 static func credits_subs_for(id: StringName) -> Array[Dictionary]:
+	if id == &"story_end":
+		return StoryActs.END_SUBS
 	return CREDITS_2_SUBS if id == &"credits2" else CREDITS_SUBS
 
 

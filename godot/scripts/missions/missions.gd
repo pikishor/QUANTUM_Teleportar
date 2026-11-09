@@ -120,6 +120,7 @@ func _ready() -> void:
 	if not Game.autostart:
 		board.set_take_over(true)                           # the live game: the board, not the core hunt (tests and tools keep the old flow; a test calls set_take_over itself)
 		board.world_offers = true                          # the big world's missions (airport, mountain, river, air race) join the offers by location
+		board.set_story_acts(true)                         # THE LONG TOMORROW: the STORY card is the next of twelve story missions (docs/STORY.md)
 	_try_auto_start()
 
 

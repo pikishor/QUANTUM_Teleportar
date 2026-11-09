@@ -920,6 +920,7 @@ func collect_markers() -> Array[Dictionary]:
 		out.append({"kind": &"garage", "pos": pt["pos"], "fog": true, "label": VehicleSpecs.name_of(pt["kind"])})
 	out.append({"kind": &"garage", "pos": Harbour.center(), "fog": false, "label": "HARBOUR: BOATS AND JET SKIS", "glyph": &"harbour"})       # the port on the south coast (one marker for its six berths)
 	out.append_array(WorldRoam.map_markers())                       # the free-roam courses and the treasure hunt (flight school, off-road trial, jet-ski laps)
+	out.append_array(RoamWorld.map_markers())                       # quantum pads, photo spots, fishing places, stunt ramps, landmark races, world events (scripts/roam/)
 	out.append_array(Airport.map_markers())                         # EASTFIELD AIRPORT and the helipads
 	out.append_array(AlienSites.map_markers())                      # the alien camps, hive nests, crash sites and boss lairs (red glyph, SITES legend)
 	out.append_array(OutskirtsSites.map_markers())                  # the mountain and outskirt sites: observatory, radio tower, mine, crash site, cabins, villages, farms (the cave once found)
@@ -946,7 +947,7 @@ func lod_markers(list: Array[Dictionary]) -> Array[Dictionary]:
 		var p: Vector3 = mk["pos"]
 		if not overview and view.size.x > 0.0 and not view.has_point(world_to_map(p.x, p.z)):
 			continue
-		if ALWAYS_KINDS.has(mk["kind"]) or mk.has("glyph"):          # the objective, side jobs, homes, the outskirt sites, the airport, the harbour and the helipads
+		if ALWAYS_KINDS.has(mk["kind"]) or (mk.has("glyph") and mk["glyph"] != &"pad"):          # the objective, side jobs, homes, the outskirt sites, the airport, the harbour and the helipads
 			out.append(mk)
 			continue
 		if world_mode and zoom_f < 1.0:
@@ -1035,6 +1036,8 @@ func _refresh_chips() -> void:
 	if _map != null:
 		_charted = roundi(100.0 * float(discovered_count()) / float(CELLS * CELLS))
 		var t2 := "%d%% CHARTED" % _charted
+		if RoamWorld.instance != null:
+			t2 += "    " + RoamWorld.instance.counter_text()
 		if _route.size() >= 2:
 			t2 += "    ROUTE %s  ETA %s  %s" % [WorldRoute.dist_text(float(_route_m)), WorldRoute.clock(_route_eta), String(WorldRoute.MODE_WORD.get(_route_style, "CAR"))]
 		if is_finite(view_center.x) and (world_mode or absf(view_center.x) > HALF or absf(view_center.y) > HALF):
@@ -1554,7 +1557,7 @@ func _draw_map() -> void:
 		(drawn["badges"] as Array).append([c2, rr, kind, n])
 		if n > 1:
 			_label_out(font, c2 + Vector2(rr * 0.9, -rr * 0.7), str(n), int(18.0 * s), Color(1, 1, 1, 0.95), HORIZONTAL_ALIGNMENT_LEFT, true)
-		elif mk2.has("glyph"):                                         # the airport, the harbour, the helipads: always named (the part before the colon)
+		elif mk2.has("glyph") and not bool(mk2.get("no_label", false)):   # the airport, the harbour, the helipads: always named (the part before the colon); quantum pads are not (they stand beside the sites and the airport, which are named)
 			_label_out(font, c2 + Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 20.0 * s), String(mk2.get("label", "")).split(":")[0], int(20.0 * s), Color(WorldHud.KIND_COL.get(glyph, Color.WHITE)).lerp(Color.WHITE, 0.4), HORIZONTAL_ALIGNMENT_CENTER, glyph == &"helipad")
 		elif ALWAYS_KINDS.has(kind) or (zoom_f >= 3.0 and labels_left > 0 and kind != &"interior"):
 			if not ALWAYS_KINDS.has(kind):

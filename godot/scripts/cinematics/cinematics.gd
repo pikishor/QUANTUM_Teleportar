@@ -288,6 +288,13 @@ func play(id: StringName, ctx := {}) -> bool:
 		&"credits", &"credits2":
 			c = {"hero": _hero_pos(), "face": face}
 			plan = CinePlan.credits_scene(c, id)
+		&"story_brief", &"story_beat":
+			c["hero"] = _hero_pos()
+			c["face"] = face
+			plan = StoryScenes.brief(c) if id == &"story_brief" else StoryScenes.beat(c)
+		&"story_end":
+			c = {"hero": _hero_pos(), "face": face}
+			plan = CinePlan.credits_scene(c, id)
 		&"garage_reveal", &"teleporter_first":
 			c = {"hero": _hero_pos(), "face": face}
 			plan = CinePlan.garage_reveal(c) if id == &"garage_reveal" else CinePlan.teleporter_first(c)
@@ -804,13 +811,20 @@ func _draw_subtitle(c: Control, vp: Vector2, s: float, font: Font, bh: float) ->
 	if key != _sub_key:
 		_sub_key = key
 		_sub_lines = StoryView.wrap_text(font, str(sub["t"]), width, size)
-	var h := size * 1.3 * _sub_lines.size() + size * 1.5
+	var h := size * 1.3 * _sub_lines.size() + size * 1.65
 	var y0 := vp.y - bh - 18.0 * s - h
 	var x0 := (vp.x - width) * 0.5
 	c.draw_rect(Rect2(x0 - 14.0 * s, y0 - 4.0 * s, width + 28.0 * s, h + 8.0 * s), Color(0.0, 0.03, 0.05, 0.55 * a))
 	var sp := str(sub["s"])
-	_shadow(c, font, x0, y0 + size * 0.95, width, sp, int(size * 0.8), Color(StoryView.speaker_color(sp), a), 1.0 * s)
-	var yy := y0 + size * 0.95 + size * 1.45
+	if StoryCast.has(sp):                                    # the speaker's portrait beside the plate (the named cast of docs/STORY.md)
+		var ps := clampf(h + 8.0 * s, 112.0 * s, 136.0 * s)
+		var px := x0 - 14.0 * s - ps - 12.0 * s
+		if px < 8.0 * s:
+			px = 8.0 * s
+		StoryCast.draw_portrait(c, Rect2(px, y0 - 4.0 * s + (h + 8.0 * s) - ps, ps, ps), sp, t, a)
+		sp = StoryCast.name_of(sp)
+	_shadow(c, font, x0, y0 + size * 0.95, width, sp, int(size * 0.8), Color(StoryView.speaker_color(str(sub["s"])), a), 1.0 * s)
+	var yy := y0 + size * 0.95 + size * 1.58
 	for ln in _sub_lines:
 		_shadow(c, font, x0, yy - size * 0.5, width, ln, size, Color(1, 1, 1, a), 1.0 * s)
 		yy += size * 1.3

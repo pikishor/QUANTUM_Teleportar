@@ -83,7 +83,12 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		return
 	var story := b.story_offer()
 	if not story.is_empty():
-		hud._add_card(&"board_story", Rect2(x, y * s, cw * s, CARD_H * s), "STORY  " + str(story["title"]), &"chapters", "The next chapter. Longer, with a boss.", false, UiUtil.MAGENTA)
+		var story_sub := "The next chapter. Longer, with a boss."
+		if story.has("meta"):                                                              # THE LONG TOMORROW: "ACT 2  MISSION 5 OF 12" over the one-line brief
+			story_sub = "%s   %s" % [str(story["meta"]), str(story["brief"])]
+		hud._add_card(&"board_story", Rect2(x, y * s, cw * s, CARD_H * s), "STORY  " + str(story["title"]), &"chapters", story_sub, false, UiUtil.MAGENTA)
+		if story.has("meta"):
+			hud.buttons[hud.buttons.size() - 1]["rpad"] = (CHIP_W + 26.0) * s
 		y += CARD_H + GAP
 	for i in b.offers.size():
 		var o: Dictionary = b.offers[i]
@@ -145,22 +150,44 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, _cx: f
 static func _draw_pay(hud: Hud, c: Control, s: float, font: Font, b: MissionBoard) -> void:
 	for btn: Dictionary in hud.buttons:
 		var id := String(btn["id"])
-		if not id.begins_with("board_pick_"):
-			continue
-		var i := int(id.substr(11))
-		if i < 0 or i >= b.offers.size():
+		var pay := -1
+		if id == "board_story":
+			var so := b.story_offer()
+			if so.has("meta"):
+				pay = int(so["reward"])                                  # THE LONG TOMORROW's card pays too
+		elif id.begins_with("board_pick_"):
+			var i0 := int(id.substr(11))
+			if i0 >= 0 and i0 < b.offers.size():
+				pay = int(b.offers[i0]["reward"])
+		if pay < 0:
 			continue
 		var r: Rect2 = btn["rect"]
+
 		var chip := Rect2(r.end.x - (CHIP_W + 14.0) * s, r.position.y + 10.0 * s, CHIP_W * s, r.size.y - 20.0 * s)
 		hud._rect(c, chip, Color(0.16, 0.11, 0.02, 0.96))                                              # queued, so it lands over the card's own plate
 		hud._frame(c, chip, Color(UiUtil.AMBER, 0.9), 2.0 * s)
 		var coin := Rect2(chip.position.x + 10.0 * s, chip.position.y + chip.size.y * 0.42 - 14.0 * s, 28.0 * s, 28.0 * s)
 		hud._sprite(c, &"disc", coin, Color(UiUtil.AMBER, 0.95))
 		hud._sprite(c, &"ring", coin.grow(-6.0 * s), Color(0.16, 0.11, 0.02, 1.0))
-		var txt := "%d" % int(b.offers[i]["reward"])
+		var txt := "%d" % pay
 		var sz := UiUtil.fit_size(font, txt, chip.size.x - 60.0 * s, int(34.0 * s))
 		hud._text(c, font, Vector2(chip.position.x + 40.0 * s, chip.position.y + chip.size.y * 0.5 + 2.0 * s), txt, HORIZONTAL_ALIGNMENT_LEFT, chip.size.x - 50.0 * s, sz, Color(1.0, 0.92, 0.55, 1.0), 1.5 * s)
 		hud._text(c, font, Vector2(chip.position.x, chip.end.y - 10.0 * s), "CREDITS", HORIZONTAL_ALIGNMENT_CENTER, chip.size.x, int(Hud.BODY_MIN * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+
+
+## Drawn by the Hud AFTER its queued plates and text (the portrait must land over the card's icon): the mission's lead voice looks out of the STORY card (docs/STORY.md).
+static func draw_after(hud: Hud, c: Control, s: float) -> void:
+	var b := board()
+	if b == null:
+		return
+	var so := b.story_offer()
+	if not so.has("meta"):
+		return
+	for btn: Dictionary in hud.buttons:
+		if String(btn["id"]) == "board_story":
+			var r: Rect2 = btn["rect"]
+			var ps := r.size.y - 28.0 * s
+			StoryCast.draw_portrait(c, Rect2(r.position.x + 14.0 * s, r.position.y + 14.0 * s, ps, ps), StoryActs.lead_speaker(int(so.get("story_index", 0))), Time.get_ticks_msec() * 0.001)
 
 
 const HEAD_LINE_Y := 112.0

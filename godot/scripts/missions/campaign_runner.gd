@@ -316,7 +316,7 @@ func start_demo(id: StringName) -> bool:
 
 
 ## Runs a chapter dictionary that is not in the story data (sandbox chapters, the heists) as the current story chapter's steps; the registry entry goes away again with the run.
-func start_custom(ch: Dictionary) -> bool:
+func start_custom(ch: Dictionary, from_step := 0) -> bool:
 	if ch.is_empty():
 		return false
 	_drop_demo()
@@ -326,7 +326,7 @@ func start_custom(ch: Dictionary) -> bool:
 	_demo_prev = chapters[idx]
 	_demo_idx = idx
 	chapters[idx] = ch
-	if start_chapter(idx, 0, true):
+	if start_chapter(idx, from_step, true):
 		return true
 	_drop_demo()
 	return false
