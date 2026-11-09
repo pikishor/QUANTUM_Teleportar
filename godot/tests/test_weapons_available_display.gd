@@ -49,7 +49,7 @@ func _data() -> void:
 	TestLib.check(lens.size() >= 15, "the weapons have different silhouettes (%d sizes among %d)" % [lens.size(), WeaponDefs.IDS.size()])
 	# the weapon wheel is by class: seven wedges, owned weapons grouped
 	for cls: StringName in WeaponDefs.CLASS_ORDER:
-		TestLib.check(not WeaponDefs.in_class(cls).is_empty() and (cls == &"quantum" or not WeaponDefs.owned_in_class(cls).is_empty()), "class %s has an owned starter (the QUANTUM tab opens with the first quantum weapon)" % cls)
+		TestLib.check(not WeaponDefs.in_class(cls).is_empty() and (cls in [&"quantum", &"energy", &"blast"] or not WeaponDefs.owned_in_class(cls).is_empty()), "class %s has an owned starter (the QUANTUM, ENERGY and BLAST tabs open once the first of them is found)" % cls)
 	# the ladder: a next weapon with a route, in a fresh profile and until everything is owned
 	TestLib.check(WeaponLadder.next_target() == &"marksman" and WeaponLadder.next_line().begins_with("NEXT  PHASE MARKSMAN  CRATE"), "the next weapon is shown with how to get it (%s)" % WeaponLadder.next_line())
 	var seen := {}

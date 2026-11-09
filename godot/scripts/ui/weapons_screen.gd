@@ -3,7 +3,7 @@ extends RefCounted
 ## The WEAPONS tab of the HERO hub (the weapon pages of the shop; Hud draws it through ShopScreen when `ShopScreen.weapon_page` >= 1). Every weapon, melee weapon, throwable and gadget of the
 ## game as a tile with its PICTURE, name and where to get it; tap a tile to select it and read its card on the right: picture, bars (damage, fire rate, range, accuracy, control, penetration),
 ## the numbers, a diagram (the spread circle on a person 20 m away, or the blast circle around a person), the range ruler (full damage, then falling off) and the BUY / EQUIP button.
-## Five pages of at most 12 tiles, one tab per weapon class pair (WeaponRoster.tabs): PISTOLS SMGS / RIFLES SHOTGUNS / SNIPERS HEAVY / MELEE QUANTUM / EXPLOSIVES GADGETS. Buttons: `wsel_<id>` (select), `wpg_prev` / `wpg_next`, `wequip_<id>`, `wgear_<id>`,
+## Eight pages of at most 12 tiles (wave 108): PISTOLS SMGS / RIFLES SHOTGUNS / SNIPERS HEAVY / MELEE QUANTUM / ENERGY WEAPONS / BLAST WEAPONS / EXPLOSIVES / GADGETS. Buttons: `wsel_<id>` (select), `wpg_prev` / `wpg_next`, `wequip_<id>`, `wgear_<id>`,
 ## `buy_<id>` (the shop's own id for a weapon), `shop_back`. Numbers come from WeaponStats / Gear, the pictures from ItemIcons; no state beyond the selection.
 
 const COLS := 3
@@ -15,9 +15,11 @@ const GRID_Y := 118.0
 const PANEL_X := -14.0                   ## the card
 const PANEL_W := 624.0
 const WIDTH := 1220.0                    ## the whole layout in base px (squeezed horizontally on a narrower screen)
-const PAGE_TITLES: Array[String] = ["PISTOLS  SMGS", "RIFLES  SHOTGUNS", "SNIPERS  HEAVY", "MELEE  QUANTUM", "EXPLOSIVES  GADGETS"]
-const PAGES := 5
-const PAGE_CLASSES: Array = [[&"pistol", &"smg"], [&"rifle", &"shotgun"], [&"sniper", &"heavy"], [&"melee", &"quantum"], []]
+const PAGE_TITLES: Array[String] = ["PISTOLS  SMGS", "RIFLES  SHOTGUNS", "SNIPERS  HEAVY", "MELEE  QUANTUM", "ENERGY WEAPONS", "BLAST WEAPONS", "EXPLOSIVES", "GADGETS"]
+const PAGES := 8
+const PAGE_CLASSES: Array = [[&"pistol", &"smg"], [&"rifle", &"shotgun"], [&"sniper", &"heavy"], [&"melee", &"quantum"], [&"energy"], [&"blast"], [], []]
+const PAGE_EXPLOSIVES := 6               ## throwables and the charge
+const PAGE_GADGETS := 7
 
 static var sel: StringName = &""             ## the selected item: a weapon id, a throwable id or a gadget id
 
@@ -28,11 +30,12 @@ static func page_items(page: int) -> Array[Dictionary]:
 	for cls: StringName in PAGE_CLASSES[clampi(page, 0, PAGES - 1)]:
 		for id in WeaponDefs.in_class(cls):
 			out.append({"id": id, "gear": false})
-	if page == PAGES - 1:
+	if page == PAGE_EXPLOSIVES:
 		for id: StringName in Gear.THROW_IDS:
 			out.append({"id": id, "gear": true})
 		for id: StringName in Gear.CHARGE_IDS:
 			out.append({"id": id, "gear": true})
+	elif page == PAGE_GADGETS:
 		for id: StringName in Gear.GADGET_IDS:
 			out.append({"id": id, "gear": true})
 	return out
@@ -228,6 +231,19 @@ static func _draw_card(hud: Hud, c: Control, s: float, font: Font, cx: float, k:
 	# the range ruler
 	if not bool(card["melee"]):
 		_draw_ruler(hud, c, s, font, Rect2(bx, py + 424.0 * s, pw - 330.0 * s * k, 24.0 * s), card)
+	_draw_role(hud, c, s, font, Rect2(bx, py + 470.0 * s, pw - 330.0 * s * k, 60.0 * s), sel)
+
+
+## What the item is FOR in the missions (WeaponRoster.role: two or three short clauses), one clause a line under a "USE FOR" tag; nothing for the older guns.
+static func _draw_role(hud: Hud, c: Control, s: float, font: Font, r: Rect2, id: StringName) -> void:
+	var role := WeaponRoster.role(id)
+	if role == "":
+		return
+	var clauses := role.split("  ", false)
+	hud._text(c, font, Vector2(r.position.x, r.position.y + 14.0 * s), "USE FOR", HORIZONTAL_ALIGNMENT_LEFT, r.size.x, int(14.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
+	for i in mini(clauses.size(), 3):
+		var t := String(clauses[i])
+		hud._text(c, font, Vector2(r.position.x + 74.0 * s, r.position.y + (14.0 + 19.0 * float(i)) * s), t, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 120.0 * s, UiUtil.fit_size(font, t, r.size.x - 120.0 * s, int(15.0 * s)), Color(1, 1, 1, 0.93))
 
 
 ## Left: how far a shot flies at full damage and how it fades: a ruler from 0 to the maximum range, the full-damage stretch lit, the falling-off stretch dimmer.
@@ -313,6 +329,7 @@ static func _draw_gear_card(hud: Hud, c: Control, s: float, font: Font, px: floa
 	var lines := gear_lines(sel)
 	for i in lines.size():
 		hud._text(c, font, Vector2(px + 8.0 * s, py + (190.0 + 26.0 * float(i)) * s), lines[i], HORIZONTAL_ALIGNMENT_LEFT, pw - 12.0 * s, int(18.0 * s), Color(1, 1, 1, 0.92))
+	_draw_role(hud, c, s, font, Rect2(px + 8.0 * s, py + (190.0 + 26.0 * float(lines.size()) + 8.0) * s, pw * 0.5, 60.0 * s), sel)
 	# the blast / effect circle around a person
 	var radius := float(d.get("radius", d.get("lure", 0.0)))
 	if radius > 0.0:
@@ -337,6 +354,12 @@ static func gear_lines(id: StringName) -> Array[String]:
 		out.append("RANGE %.0f M" % float(d["range"]))
 	if d.has("lure"):
 		out.append("DRAWS FIRE WITHIN %.0f M" % float(d["lure"]))
+	if d.has("spikes"):
+		out.append("%d SPIKES  %d DAMAGE EACH" % [int(d["spikes"]), int(roundf(float(d["damage"])))])
+	if d.has("absorb"):
+		out.append("TAKES %d DAMAGE" % int(d["absorb"]))
+	if d.has("lift"):
+		out.append("CLIMBS ABOUT %d M" % int(roundf(float(d["lift"]) * float(d["life"]) * 0.5)))
 	if d.has("max"):
 		out.append("CARRY %d" % int(d["max"]))
 	return out

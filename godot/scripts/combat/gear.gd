@@ -18,7 +18,7 @@ const MELEE := {
 }
 const KINDS: Array[StringName] = [&"light", &"heavy", &"finisher"]
 
-const THROW_IDS: Array[StringName] = [&"singularity", &"mine", &"decoy", &"shroud", &"emp", &"flash"]
+const THROW_IDS: Array[StringName] = [&"singularity", &"mine", &"decoy", &"shroud", &"emp", &"flash", &"plasma", &"spike"]
 const THROWABLES := {
 	&"singularity": {"name": "SINGULARITY FRAG", "tag": "FRAG", "color": Color(0.7, 0.35, 1.0), "max": 3, "fuse": 1.3, "radius": 5.5, "damage": 90.0, "pull": 7.0, "snd": &"explosion_small", "desc": "Pulls enemies in, then collapses."},
 	&"mine": {"name": "FLUX MINE", "tag": "MINE", "color": Color(1.0, 0.6, 0.2), "max": 3, "arm": 0.7, "radius": 5.0, "trigger": 2.6, "damage": 80.0, "life": 40.0, "snd": &"explosion_small", "desc": "Proximity mine: sticks where it lands, blows when enemies step near."},
@@ -26,17 +26,29 @@ const THROWABLES := {
 	&"shroud": {"name": "PHASE SHROUD", "tag": "SHROUD", "color": Color(0.5, 0.6, 0.95), "max": 2, "life": 8.0, "radius": 5.5, "snd": &"superpos", "desc": "SMOKE: a cloud enemies cannot see through."},
 	&"emp": {"name": "EMP", "tag": "EMP", "color": Color(0.3, 0.8, 1.0), "max": 2, "fuse": 0.9, "radius": 9.0, "disable": 3.2, "damage": 12.0, "snd": &"explosion_small", "desc": "Shuts down every enemy in range."},
 	&"flash": {"name": "FLASH GRENADE", "tag": "FLASH", "color": Color(1.0, 1.0, 0.85), "max": 3, "fuse": 0.8, "radius": 12.0, "disable": 2.6, "snd": &"explosion_small", "desc": "A blinding flash: enemies in range freeze and lose you."},
+	# wave 108: the sticky plasma grenade (sticks to the first person, car or wall it hits, then blows in a cyan plasma blast) and the spike grenade (a ring of spikes through everyone in range, nothing hides from them but a wall)
+	&"plasma": {"name": "STICKY NOVA", "tag": "NOVA", "color": Color(0.3, 0.9, 1.0), "max": 2, "fuse": 1.6, "radius": 5.2, "damage": 110.0, "car": 220.0, "stick": true, "snd": &"plasma_blast",
+		"desc": "Sticks to the first person, car or wall it hits, then blows.", "role": "STICK IT ON A TANK OR A GUARD  BLASTS A DOORWAY"},
+	&"spike": {"name": "SPIKE GRENADE", "tag": "SPIKE", "color": Color(1.0, 0.6, 0.2), "max": 3, "fuse": 1.2, "radius": 8.0, "damage": 22.0, "spikes": 18, "reach": 11.0, "snd": &"spike_blast",
+		"desc": "A ring of spikes through everyone in range.", "role": "HITS A WHOLE ROOM AT ONCE  NOTHING TO HIDE BEHIND BUT A WALL"},
 }
 ## QUANTUM CHARGE (C4 with a detonator, scripts/freedom/charges.gd): free and always carried, so it is not a loadout item; the numbers below mirror the Charges constants (a test keeps them equal).
 const CHARGE_IDS: Array[StringName] = [&"c4"]
 const CHARGES := {
 	&"c4": {"name": "QUANTUM CHARGE C4", "tag": "C4", "color": Color(1.0, 0.68, 0.2), "max": 3, "radius": 6.5, "damage": 170.0, "range": 20.0, "snd": &"boom", "desc": "Stick it anywhere, then DETONATE. Chains with other blasts."},
 }
-const GADGET_IDS: Array[StringName] = [&"scanner", &"drone", &"grapple"]
+const GADGET_IDS: Array[StringName] = [&"scanner", &"drone", &"grapple", &"turret", &"shield", &"jetpack"]
 const GADGETS := {
 	&"scanner": {"name": "SCANNER PULSE", "tag": "SCAN", "color": Color(0.3, 1.0, 0.8), "cooldown": 14.0, "radius": 40.0, "show": 6.0, "energy": 8.0, "desc": "Shows enemies through walls."},
 	&"drone": {"name": "DRONE BUDDY", "tag": "DRONE", "color": Color(1.0, 0.85, 0.3), "cooldown": 40.0, "life": 20.0, "range": 22.0, "damage": 9.0, "interval": 0.45, "energy": 15.0, "desc": "A turret drone that follows and shoots."},
 	&"grapple": {"name": "GRAPPLE HOOK", "tag": "HOOK", "color": Color(0.6, 1.0, 0.5), "cooldown": 3.0, "range": 32.0, "speed": 48.0, "energy": 12.0, "desc": "Teleport-pull to the point you aim at."},
+	# wave 108: deployables and the jetpack
+	&"turret": {"name": "SENTRY TURRET", "tag": "TURRET", "color": Color(1.0, 0.85, 0.3), "cooldown": 30.0, "life": 25.0, "range": 34.0, "damage": 16.0, "interval": 0.14, "energy": 18.0, "snd": &"turret_deploy",
+		"desc": "Drops a gun that holds a spot for 25 seconds.", "role": "HOLDS A DOOR OR A ROOFTOP WHILE YOU WORK"},
+	&"shield": {"name": "SHIELD EMITTER", "tag": "SHIELD", "color": Color(0.4, 0.8, 1.0), "cooldown": 40.0, "life": 12.0, "radius": 4.0, "energy": 20.0, "absorb": 400.0, "snd": &"shield_up",
+		"desc": "A dome that takes the hits for 12 seconds.", "role": "COVER IN THE OPEN  PROTECTS A HACK OR A HOSTAGE"},
+	&"jetpack": {"name": "BOOST MODULE", "tag": "JET", "color": Color(1.0, 0.6, 0.25), "cooldown": 10.0, "life": 1.6, "energy": 15.0, "lift": 9.0, "push": 7.0, "snd": &"jet_boost",
+		"desc": "A jet burst: climb to a rooftop or clear a gap.", "role": "REACHES ROOFTOPS AND SNIPER NESTS"},
 }
 const SLOTS := 4
 

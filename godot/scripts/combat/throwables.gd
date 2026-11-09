@@ -26,6 +26,9 @@ var lured := 0                             ## hear() calls of decoys on unaware 
 var blinded := 0                           ## awareness drops caused by shrouds
 var disabled_n := 0                        ## enemies shut down by EMP pulses
 var pulled := 0                            ## enemies dragged by singularity collapses
+var stuck_n := 0                           ## STICKY NOVA grenades that stuck to a person, a car or a wall
+var stuck_on_targets := 0                  ## ... of those, the ones that stuck to something that moves (enemy or vehicle)
+var spike_hits := 0                        ## spikes of SPIKE GRENADES that hit somebody
 var last_id: StringName = &""
 
 var _p: Player
@@ -150,6 +153,14 @@ func _step(e: Dictionary, dt: float) -> bool:
 			e["state"] = &"live"
 			e["t"] = 0.0
 			e["vel"] = Vector3.ZERO
+			if id == &"plasma":                                         # STICKY NOVA: it stays on whatever it hit and rides along with it
+				stuck_n += 1
+				var tgt := PlayerWeapon._damageable_of(hit["collider"] as Node)
+				if tgt is Node3D:
+					e["stuck"] = tgt
+					e["off"] = next - (tgt as Node3D).global_position
+					stuck_on_targets += 1
+				Sfx.play_at(&"plasma_stick", next, -3.0)
 			if id == &"shroud" or id == &"decoy":                       # the canister opens: a hiss / a chirp where it lands (the rest sound off with their blast)
 				Sfx.play_at(StringName(d.get("snd", &"blink")), next, -6.0, 0.8 if id == &"shroud" else 1.2)
 		else:
@@ -164,6 +175,21 @@ func _step(e: Dictionary, dt: float) -> bool:
 	e["t"] = float(e["t"]) + dt
 	var t: float = e["t"]
 	match id:
+		&"plasma":
+			var host: Variant = e.get("stuck")
+			if host != null and is_instance_valid(host) and not PlayerWeapon._is_dead(host):
+				pos = (host as Node3D).global_position + (e["off"] as Vector3)
+				e["pos"] = pos
+				_place(e)
+			if t >= float(d["fuse"]):
+				if host != null and is_instance_valid(host) and host.has_method(&"damage"):          # what it is stuck to takes the charge on top of the blast
+					host.call(&"damage", float(d["car"]) if (host as Node).is_in_group(&"vehicle") else float(d["damage"]) * 0.5 * HeroPower.f("dmg"))
+				_blast(id, pos, float(d["radius"]), float(d["damage"]), Color(0.3, 0.9, 1.0))
+				return true
+		&"spike":
+			if t >= float(d["fuse"]):
+				_spikes(pos, d)
+				return true
 		&"singularity":
 			var fuse := float(d["fuse"])
 			if t > fuse * 0.45:
@@ -224,11 +250,42 @@ func _step(e: Dictionary, dt: float) -> bool:
 
 func _blast(id: StringName, pos: Vector3, radius: float, dmg: float, color: Color) -> void:
 	detonations += 1
-	Game.explode(pos, radius, {"enemy_dmg": TestMode.damage(dmg * HeroPower.f("dmg")), "car_dmg": 40.0, "player_dmg": 0.0, "color": color})
+	Game.explode(pos, radius, {"enemy_dmg": TestMode.damage(dmg * HeroPower.f("dmg")), "car_dmg": float(Gear.THROWABLES[id].get("car", 40.0)), "player_dmg": 0.0, "color": color})
 	for en in Gear.living_enemies(get_tree()):
 		if en.global_position.distance_to(pos) < radius + 0.8 and en.has_method(&"stagger"):
 			en.call(&"stagger", 1.6)
 	detonated.emit(id, pos)
+
+
+## SPIKE GRENADE: `spikes` spikes fly out in a ring; a person takes as many as fit in the angle he fills from the blast (a body 1.2 m wide at 3 m is hit by three, at 8 m by one), a wall in the way
+## stops them all. A small flash and a few spike lines show the ring.
+func _spikes(pos: Vector3, d: Dictionary) -> void:
+	detonations += 1
+	var n := int(d["spikes"])
+	var reach := float(d["reach"])
+	var per := float(d["damage"])
+	Game.explode(pos + Vector3(0.0, 0.3, 0.0), 2.4, {"enemy_dmg": 0.0, "car_dmg": 25.0, "player_dmg": 0.0, "color": Color(1.0, 0.6, 0.2), "element": &"fire", "quiet": true})
+	Sfx.play_at(StringName(d.get("snd", &"explosion_small")), pos, -2.0)
+	var lines := 8 if Game.quality == 0 else 12
+	for k in lines:
+		var a := TAU * float(k) / float(lines)
+		FX.tracer(pos + Vector3(0.0, 0.5, 0.0), pos + Vector3(cos(a) * reach, 0.5 + randf_range(-0.3, 0.9), sin(a) * reach), Color(1.0, 0.7, 0.3))
+	for en in Gear.living_enemies(get_tree()):
+		var c: Vector3 = en.call(&"center") if en.has_method(&"center") else en.global_position + Vector3(0.0, 1.0, 0.0)
+		var dist := pos.distance_to(c)
+		if dist > reach:
+			continue
+		var q := PhysicsRayQueryParameters3D.create(pos + Vector3(0.0, 0.5, 0.0), c, Game.L_WORLD)
+		if not _p.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			continue
+		var width := 2.0 * atan(0.6 / maxf(dist, 0.6))
+		var hits := clampi(roundi(float(n) * width / TAU * 1.6), 1, n)
+		spike_hits += hits
+		if en.has_method(&"damage"):
+			en.call(&"damage", TestMode.damage(per * float(hits) * HeroPower.f("dmg")), false)
+		if en.has_method(&"stagger"):
+			en.call(&"stagger", 0.6 + 0.2 * float(hits))
+	detonated.emit(&"spike", pos)
 
 
 func _pull(pos: Vector3, radius: float, amount: float, hold: float) -> void:
@@ -324,6 +381,16 @@ static func mesh_of(id: StringName) -> Mesh:
 			s.radial_segments = 14
 			s.rings = 7
 			m = s
+		&"spike":                                                        # a ball with spikes all round
+			var sb := WeaponModels._Builder.new()
+			sb.box(Vector3.ZERO, Vector3(0.22, 0.22, 0.22), Color(0.4, 0.42, 0.48))
+			for k in 14:
+				var a := float(k) * 2.399963
+				var yy := 1.0 - 2.0 * (float(k) + 0.5) / 14.0
+				var rr := sqrt(1.0 - yy * yy)
+				var dir := Vector3(cos(a) * rr, yy, sin(a) * rr)
+				sb.box(dir * 0.17, Vector3(0.05, 0.05, 0.05) + Vector3(absf(dir.x), absf(dir.y), absf(dir.z)) * 0.14, Color(1.0, 0.6, 0.2), 1.0)
+			m = sb.build()
 		&"mine":
 			var cy := CylinderMesh.new()
 			cy.top_radius = 0.32

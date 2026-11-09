@@ -254,9 +254,10 @@ func explode(pos: Vector3, radius: float, opts := {}) -> void:
 	FX.blast_marks(pos, radius, element)                      # fluid, scorch, cracks and falling glass on the street and the facades (one pooled draw)
 	var cam_pos: Vector3 = camera.global_position if is_instance_valid(camera) else pos
 	var cam_d := cam_pos.distance_to(pos)
-	FX.shake(clampf(radius * 1.6 / (cam_d + 6.0) * float(BlastElements.data(element)["shake"]), 0.0, 1.0))
-	blast_feel(radius, cam_d)
-	Sfx.play_at(&"boom" if radius >= 5.0 else &"explosion_small", pos, -3.0)                 # positional: an explosion across the street is quieter and comes from where it is
+	if not bool(opts.get("quiet", false)):                    # quiet = a small pop of a fast weapon (the plasma pistol, the chaingun): the blast and its marks, no shake, slow motion or boom per shot
+		FX.shake(clampf(radius * 1.6 / (cam_d + 6.0) * float(BlastElements.data(element)["shake"]), 0.0, 1.0))
+		blast_feel(radius, cam_d)
+		Sfx.play_at(&"boom" if radius >= 5.0 else &"explosion_small", pos, -3.0)                 # positional: an explosion across the street is quieter and comes from where it is
 	if Breakables.current != null:
 		Breakables.current.blast(pos, radius)
 	exploded.emit(pos, radius)

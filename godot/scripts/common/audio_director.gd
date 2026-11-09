@@ -45,7 +45,7 @@ const ENGINES := {
 	&"hover": [&"hover", 1.0, 0.0], &"skiff": [&"hover", 0.9, -1.0], &"rover": [&"hover", 0.7, 0.0],
 	&"truck": [&"heavy", 1.0, 1.0], &"bus": [&"heavy", 1.15, 0.0], &"van": [&"heavy", 1.3, -1.0], &"ambulance": [&"heavy", 1.25, -1.0],
 	&"heli": [&"rotor", 1.0, 2.0], &"plane": [&"prop", 1.0, 1.0],
-	&"gunship": [&"rotor", 1.15, 3.0], &"hauler": [&"rotor", 0.8, 3.0], &"jet": [&"jet", 1.0, 3.0], &"cargo": [&"jet", 0.7, 3.0], &"airliner": [&"jet", 0.8, 3.0], &"bizjet": [&"jet", 0.95, 2.0], &"boat": [&"heavy", 0.95, 0.0], &"jetski": [&"bike", 1.35, 0.0], &"patrol": [&"heavy", 0.8, 1.0], &"tank": [&"heavy", 0.5, 3.0], &"armoured": [&"heavy", 1.05, 0.0],
+	&"gunship": [&"rotor", 1.15, 3.0], &"hauler": [&"rotor", 0.8, 3.0], &"jet": [&"jet", 1.0, 3.0], &"cargo": [&"jet", 0.7, 3.0], &"airliner": [&"jet", 0.8, 3.0], &"bizjet": [&"jet", 0.95, 2.0], &"boat": [&"heavy", 0.95, 0.0], &"jetski": [&"bike", 1.35, 0.0], &"patrol": [&"heavy", 0.8, 1.0], &"tank": [&"heavy", 0.5, 3.0], &"ltank": [&"heavy", 0.62, 3.0], &"apc": [&"heavy", 0.7, 2.0], &"artillery": [&"heavy", 0.45, 3.0], &"aatank": [&"heavy", 0.58, 3.0], &"armoured": [&"heavy", 1.05, 0.0],
 	&"quad": [&"bike", 1.1, 0.0], &"scooter": [&"bike", 1.45, -2.0], &"hoverbike": [&"hover", 1.2, -1.0],
 	&"sport": [&"", 1.14, 0.0], &"interceptor": [&"", 1.1, 0.0], &"suv": [&"", 0.9, 0.0], &"taxi": [&"", 1.0, 0.0], &"wagon": [&"", 0.95, 0.0], &"sedan": [&"", 1.0, 0.0],
 }

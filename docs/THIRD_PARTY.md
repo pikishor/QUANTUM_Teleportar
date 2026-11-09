@@ -156,3 +156,6 @@ The attack helicopter (GUNSHIP), the transport helicopter (HAULER), the airport 
 | qubodup sci-fi cow alien soundpack | qubodup | https://opengameart.org/content/sci-fi-aliens-and-cows-pack (CC0) | animal_cow, animal_horse (pitched) |
 
 Eagle cry, dolphin chirps and snorts are synthesized (godot/tools/audio/make_animals.py). Licence texts and URLs: art_sources/open_animals/, art_sources/audio_animals/.
+
+## Energy and destructive weapons, grenades, gadgets, tanks (wave 108)
+No new third-party asset. The 15 weapon models, the 5 gear models and the 4 tank bodies are procedural (`WeaponModelsEnergy`, `Gadgets.mesh_of`, `Throwables.mesh_of`, `VehicleCraftModels.build_tank`); the 42 new sounds are rebuilt from clips already credited in docs/AUDIO_SOURCES.md (`tools/audio/make_real.py build_energy`: Kenney sci-fi and interface sounds, field-recorded firearms, explosion and impact singles, swishes, all CC0); the battle tank keeps its CC0 open model (art_sources/open_craft). Weapon names are original (no trademarked names).

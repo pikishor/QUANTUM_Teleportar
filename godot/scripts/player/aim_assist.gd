@@ -18,7 +18,8 @@ const PAD_PULL_MAX := 1.3
 
 ## Hit reaction strength per weapon (flinch / stagger on the enemy): the scatter and lance rock a target, the carbine only flinches it.
 const STAGGER := {&"carbine": 0.4, &"scatter": 0.9, &"lance": 1.5, &"grenade": 1.2, &"minigun": 0.15, &"akimbo": 0.3, &"arc": 0.7, &"revolver": 1.1, &"whip": 0.9, &"blade": 1.0, &"pistol": 0.35, &"marksman": 0.8, &"breacher": 0.8, &"rocket": 1.3, &"swarm": 0.15, &"vector": 0.3, &"battle": 0.6, &"sawn": 1.0, &"auto": 0.6, &"bolt": 1.4, &"dmr": 0.9, &"knife": 0.5, &"magnum": 1.0, &"mpistol": 0.15, &"stun": 0.6, &"ranger": 0.4, &"bullpup": 0.4, &"lmg": 0.25, &"amr": 1.6, &"xbow": 0.8, &"flame": 0.1, &"katana": 0.8, &"bat": 2.0,
-	&"qsuper": 0.4, &"qlink": 0.4, &"qcollapse": 1.5, &"qblink": 0.5, &"qphase": 0.4, &"qstasis": 0.2}
+	&"qsuper": 0.4, &"qlink": 0.4, &"qcollapse": 1.5, &"qblink": 0.5, &"qphase": 0.4, &"qstasis": 0.2,
+	&"eplasma": 0.5, &"erepeat": 0.15, &"espike": 0.3, &"ebeam": 1.4, &"eblade": 1.0, &"emaul": 2.0, &"epod": 1.2, &"railgun": 1.8, &"chaingun": 0.15, &"cmissile": 1.3, &"napalm": 0.3, &"sing": 1.0, &"orbital": 1.0, &"seeker": 1.4, &"tknife": 0.6}
 
 static var enabled := true
 static var auto_fire := false

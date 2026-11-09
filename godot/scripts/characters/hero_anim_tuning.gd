@@ -42,7 +42,8 @@ const T := {
 const WEAPON_CLASS := {&"carbine": "rifle", &"burst": "rifle", &"rail": "rifle", &"lance": "rifle", &"scatter": "shotgun", &"grenade": "heavy", &"flux": "heavy", &"gravity": "heavy", &"minigun": "heavy", &"akimbo": "rifle", &"arc": "rifle", &"revolver": "rifle", &"whip": "rifle", &"blade": "rifle", &"pistol": "rifle", &"marksman": "rifle", &"breacher": "shotgun", &"rocket": "heavy",
 	&"swarm": "rifle", &"vector": "rifle", &"battle": "rifle", &"sawn": "shotgun", &"auto": "shotgun", &"bolt": "rifle", &"dmr": "rifle", &"knife": "rifle",
 	&"magnum": "rifle", &"mpistol": "rifle", &"stun": "rifle", &"ranger": "rifle", &"bullpup": "rifle", &"lmg": "heavy", &"amr": "heavy", &"xbow": "rifle", &"flame": "heavy", &"katana": "rifle", &"bat": "rifle",
-	&"qsuper": "rifle", &"qlink": "rifle", &"qcollapse": "heavy", &"qblink": "rifle", &"qphase": "rifle", &"qstasis": "rifle"}
+	&"qsuper": "rifle", &"qlink": "rifle", &"qcollapse": "heavy", &"qblink": "rifle", &"qphase": "rifle", &"qstasis": "rifle",
+	&"eplasma": "rifle", &"erepeat": "rifle", &"espike": "rifle", &"ebeam": "rifle", &"eblade": "rifle", &"emaul": "rifle", &"epod": "heavy", &"railgun": "heavy", &"chaingun": "heavy", &"cmissile": "heavy", &"napalm": "heavy", &"sing": "heavy", &"orbital": "heavy", &"seeker": "heavy", &"tknife": "rifle"}
 
 
 static func f(key: String) -> float:

@@ -81,7 +81,7 @@ const WEAPON_LOOK_SCALE := Vector3(1.4, 1.4, 1.12)
 ## Heavy weapons are drawn bigger still (director review 5, #2: the rocket launcher read as a 20 cm stub from behind the hero): a launcher, minigun, LMG, anti-materiel rifle, flamethrower
 ## and the big quantum emitters get this extra factor on thickness and length, so a heavy gun reads as a heavy gun at the 20 % of the frame the hero fills.
 const HEAVY_LOOK_SCALE := Vector3(1.3, 1.3, 1.2)
-const HEAVY_IDS: Array[StringName] = [&"rocket", &"minigun", &"lmg", &"amr", &"flame", &"qcollapse", &"gravity", &"lance", &"rail", &"xbow"]
+const HEAVY_IDS: Array[StringName] = [&"rocket", &"minigun", &"lmg", &"amr", &"flame", &"qcollapse", &"gravity", &"lance", &"rail", &"xbow", &"ebeam", &"epod", &"railgun", &"chaingun", &"cmissile", &"napalm", &"sing", &"orbital", &"seeker"]
 var _muzzle_shift := 0.0                      ## metres the muzzle sits behind the carbine's (a short gun)
 var _wp_attach := false                       ## (kept for the rebuild reset)
 var _finger_mode: StringName = &""

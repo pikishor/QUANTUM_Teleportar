@@ -414,6 +414,9 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 		last_hurt_from = from_pos
 		hurt.emit(share)
 		return
+	if gadgets != null and gadgets.shield_absorb(amount):                  # the SHIELD EMITTER's dome took it
+		last_hurt_from = from_pos
+		return
 	hp -= amount * Difficulty.damage_taken(Difficulty.story_chapter()) * Upgrades.damage_taken() * HeroPower.f("taken") * (cover.damage_mult() if cover != null else 1.0)
 	since_hurt = 0.0
 	last_hurt_time = PlayerUtil.now()

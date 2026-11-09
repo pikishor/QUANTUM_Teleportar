@@ -86,6 +86,8 @@ func _ready() -> void:
 func _place(c: AlienCreature) -> void:
 	c.rise = 1.0
 	c.set_exposed(true)
+	if c is RosterFoe:
+		(c as RosterFoe).cloak_k = 0.0                       # look-dev: the veil stalker is shown uncloaked
 	c.heading = float(_args.get("yaw", "0")) * PI / 180.0
 	c.alt = 4.0
 	if c.cls == AlienSpecies.AIR:

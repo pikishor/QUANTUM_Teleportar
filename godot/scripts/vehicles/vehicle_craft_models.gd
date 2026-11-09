@@ -34,6 +34,8 @@ static func build(kind: String, spec: Dictionary) -> Node3D:
 		"gunship", "hauler":
 			root.free()                                                          # (the aircraft build makes its own root: this one would stay behind as a stray node)
 			return AircraftModels.build_air(kind, spec)
+		"ltank", "apc", "artillery", "aatank":
+			return build_tank(kind, spec)
 		"jetski":
 			m._jetski()
 			root.add_child(_mesh_instance(m))
@@ -49,6 +51,62 @@ static func build(kind: String, spec: Dictionary) -> Node3D:
 			_lamp(root, "Headlights", Vector3(0.34, 0.14, 0.05), Vector3(0.0, 0.95, -1.0), Color(1.0, 0.94, 0.8), 7.0)
 			_lamp(root, "Taillights", Vector3(0.3, 0.08, 0.05), Vector3(0.0, 0.8, 1.04), Color(1.0, 0.06, 0.12), 5.0)
 	_lamp(root, "Underglow", Vector3(float(spec["wid"]) * 0.8, 0.04, float(spec["len"]) * 0.7), Vector3(0.0, 0.1, 0.0), Color(1.0, 0.18, 0.84), 4.0)
+	return root
+
+
+## The armoured family (wave 108): a hull Body with tracks (or wheels), a "Turret" mesh on the turret axis that VehicleCraft rotates, and a "Gun" mesh on the trunnion inside the turret that it elevates.
+## The turret node's origin is the turret axis (y = turret_y above the ground); its "Body" surface wears the hull paint (VehicleVisual._bind_craft), the gun is dark steel only.
+static func build_tank(kind: String, spec: Dictionary) -> Node3D:
+	var root := Node3D.new()
+	root.name = String(spec["model"])
+	var hull := VehicleCraftModels.new()
+	var tur := VehicleCraftModels.new()
+	var gun := VehicleCraftModels.new()
+	var ty := 1.6                                                          # turret axis height
+	var tz := 0.0                                                          # and its distance behind the middle of the hull
+	var trunnion := Vector3(0.0, 0.3, -0.9)                                # the gun pivot in the turret frame
+	var ln := float(spec["len"])
+	var wid := float(spec["wid"])
+	match kind:
+		"ltank":
+			hull._tank_hull(ln, wid, 1.45, 0.7, true)
+			tur._turret_round(1.0, 0.62, 0.6)
+			gun._barrel(2.0, 0.075, 0.09, false)
+			ty = 1.46
+			tz = 0.1
+			tur._box(S_TRIM, Vector3(0.45, 0.58, 0.3), Vector3(0.05, 0.05, 0.9))                           # the coax MG
+			tur._cyl(S_BODY, Vector3(-0.4, 0.78, 0.35), 0.24, 0.12, 1, 10)                                # commander's hatch
+		"apc":
+			hull._apc_hull(ln, wid, 1.9)
+			tur._turret_round(0.72, 0.5, 0.4)
+			gun._barrel(1.15, 0.045, 0.055, false)
+			ty = 1.9
+			tz = -0.4
+			trunnion = Vector3(0.0, 0.2, -0.5)
+		"artillery":
+			hull._tank_hull(ln, wid, 1.45, 0.8, true)
+			tur._casemate(3.0, 1.5, 1.55)
+			gun._barrel(5.2, 0.1, 0.14, true)
+			ty = 1.46
+			tz = 1.35
+			trunnion = Vector3(0.0, 0.62, -1.3)
+		_:                                                                  # aatank: two autocannons, a radar dish, two missile pods
+			hull._tank_hull(ln, wid, 1.45, 0.75, true)
+			tur._turret_flak()
+			gun._twin_barrel(2.1, 0.06, 0.085)
+			ty = 1.46
+			tz = 0.15
+			trunnion = Vector3(0.0, 0.55, -0.6)
+	var body := _mesh_instance(hull)
+	root.add_child(body)
+	var turret := _mesh_instance(tur)
+	turret.name = "Turret"
+	turret.position = Vector3(0.0, ty, tz)
+	root.add_child(turret)
+	var gm := _mesh_instance(gun)
+	gm.name = "Gun"
+	gm.position = trunnion
+	turret.add_child(gm)
 	return root
 
 
@@ -175,6 +233,111 @@ func _patrol() -> void:
 		_box(S_CHROME, Vector3(sx * 1.55, 1.7, 3.0), Vector3(0.05, 0.05, 2.6))                                                          # stern railing
 		_box(S_TRIM, Vector3(sx * 0.7, 0.9, 4.75), Vector3(0.45, 1.1, 0.6))                                                              # twin outboards
 		_box(S_TRIM, Vector3(sx * 1.62, 0.9, 0.2), Vector3(0.14, 0.4, 0.9))                                                              # fenders
+
+
+## A tracked hull: two track runs with road wheels, a sloped hull between them (a glacis at the front, an engine deck behind), side skirts. `top` = the roof height, `slope` = how far the glacis reaches back (m).
+func _tank_hull(ln: float, wid: float, top: float, slope: float, skirts: bool) -> void:
+	var h := ln * 0.5
+	var hw := wid * 0.5
+	var tw := 0.62                                                                                        # a track run's width
+	for sx in [-1.0, 1.0]:
+		var cx: float = sx * (hw - tw * 0.5)
+		_box(S_TRIM, Vector3(cx, 0.46, 0.0), Vector3(tw, 0.82, ln * 0.96))                                  # the track run
+		_prism(S_TRIM, [Vector2(-h, 0.38), Vector2(-h + 0.4, 0.9), Vector2(h - 0.4, 0.9), Vector2(h, 0.38), Vector2(h - 0.3, 0.05), Vector2(-h + 0.3, 0.05)], cx - tw * 0.5, cx + tw * 0.5)       # the rounded ends
+		for k in 7:
+			var z := lerpf(-h + 0.55, h - 0.55, float(k) / 6.0)
+			_cyl(S_CHROME, Vector3(cx + sx * (tw * 0.5 + 0.02), 0.44, z), 0.34, 0.06, 0, 12)                  # road wheels on the outer face
+		if skirts:
+			_box(S_BODY, Vector3(sx * (hw + 0.04), 0.78, 0.0), Vector3(0.08, 0.5, ln * 0.84))               # side skirt plates
+			_box(S_BODY, Vector3(sx * (hw - 0.02), 0.98, -h * 0.82), Vector3(0.52, 0.06, 1.0))               # front mudguards
+	var inner := hw - tw
+	_prism(S_BODY, [Vector2(-h + 0.1, 0.55), Vector2(-h + 0.1 + slope, top), Vector2(h - 0.6, top), Vector2(h - 0.1, top - 0.3), Vector2(h - 0.1, 0.55)], -inner, inner)       # the hull
+	_box(S_TRIM, Vector3(0.0, top - 0.02, h * 0.55), Vector3(inner * 1.6, 0.05, h * 0.55))                    # engine grille
+	_box(S_TRIM, Vector3(0.0, top - 0.1, h - 0.08), Vector3(inner * 1.7, 0.18, 0.14))                          # exhaust bar
+	_cyl(S_CHROME, Vector3(inner * 0.5, top - 0.18, h + 0.04), 0.07, 0.2, 2, 8)
+	_box(S_GLASS, Vector3(-0.55, top - 0.02, -h + 0.9), Vector3(0.3, 0.07, 0.2))                               # the driver's vision block
+	_box(S_TRIM, Vector3(0.0, 0.62, -h + 0.03), Vector3(inner * 1.9, 0.14, 0.12))                              # the tow bar
+
+
+## The wheeled personnel carrier: a boxy hull with a sloped nose, high flanks, four wheel pairs, a rear ramp line and slit windows.
+func _apc_hull(ln: float, wid: float, top: float) -> void:
+	var h := ln * 0.5
+	var hw := wid * 0.5
+	_prism(S_BODY, [Vector2(-h, 0.7), Vector2(-h + 0.9, top), Vector2(h - 0.1, top), Vector2(h, top - 0.2), Vector2(h, 0.7)], -hw + 0.15, hw - 0.15)
+	_box(S_BODY, Vector3(0.0, 0.9, 0.0), Vector3(wid, 0.5, ln * 0.92))                                          # the lower hull and sponsons
+	for sx in [-1.0, 1.0]:
+		for z in [-2.35, -0.8, 0.8, 2.35]:
+			_cyl(S_TRIM, Vector3(sx * (hw - 0.12), 0.5, z), 0.52, 0.42, 0, 14)                                  # wheels (static: the roster tyre nodes are for cars)
+			_cyl(S_CHROME, Vector3(sx * (hw + 0.02), 0.5, z), 0.26, 0.1, 0, 10)
+			_box(S_BODY, Vector3(sx * (hw - 0.1), 0.98, z), Vector3(0.5, 0.1, 1.0))                              # mudguard
+		_box(S_GLASS, Vector3(sx * (hw - 0.14), top - 0.5, -0.4), Vector3(0.05, 0.16, 0.5))                       # slit windows
+		_box(S_GLASS, Vector3(sx * (hw - 0.14), top - 0.5, 1.2), Vector3(0.05, 0.16, 0.5))
+		_box(S_TRIM, Vector3(sx * 0.5, top - 0.02, h * 0.6), Vector3(0.5, 0.05, 0.5))                              # roof hatches
+	_box(S_GLASS, Vector3(0.0, top - 0.28, -h + 0.55), Vector3(1.3, 0.2, 0.06))                                  # the windscreen slit
+	_box(S_TRIM, Vector3(0.0, 1.35, h + 0.02), Vector3(1.8, 1.1, 0.05))                                          # the rear ramp
+	_box(S_TRIM, Vector3(0.0, 0.7, -h + 0.05), Vector3(wid * 0.9, 0.16, 0.1))
+
+
+## A round turret of radius `r`: a low cylinder with a sloped front, a gun mantlet and a cupola. Origin on the axis.
+func _turret_round(r: float, hgt: float, cupola: float) -> void:
+	_cyl(S_BODY, Vector3(0.0, hgt * 0.5, 0.0), r, hgt, 1, 18)
+	_prism(S_BODY, [Vector2(-r, 0.0), Vector2(-r - 0.5, hgt * 0.45), Vector2(-r, hgt)], -r * 0.78, r * 0.78)           # the sloped nose
+	_box(S_TRIM, Vector3(0.0, hgt * 0.5 + 0.12, -r - 0.12), Vector3(r * 0.7, hgt * 0.7, 0.2))                    # the mantlet
+	_cyl(S_BODY, Vector3(r * 0.35, hgt + 0.1, r * 0.3), cupola * 0.45, 0.2, 1, 10)                              # the commander's cupola
+	_cyl(S_GLASS, Vector3(r * 0.35, hgt + 0.2, r * 0.3), cupola * 0.35, 0.05, 1, 10)
+	_box(S_TRIM, Vector3(-r * 0.4, hgt + 0.06, r * 0.4), Vector3(0.3, 0.06, 0.3))
+	_box(S_CHROME, Vector3(r * 0.9, hgt * 0.5, 0.0), Vector3(0.04, 0.06, r * 1.0))                              # the stowage rail
+
+
+## The self-propelled gun's casemate: a tall armoured box with a sloped front plate, two rear hatches and an open back.
+func _casemate(wid: float, hgt: float, ln: float) -> void:
+	var hl := ln * 0.5
+	_prism(S_BODY, [Vector2(-hl - 0.6, 0.0), Vector2(-hl, hgt), Vector2(hl, hgt), Vector2(hl, 0.0)], -wid * 0.5, wid * 0.5)
+	_box(S_TRIM, Vector3(0.0, hgt * 0.5, -hl - 0.02), Vector3(0.8, 0.6, 0.12))                                   # the mantlet
+	_box(S_TRIM, Vector3(0.0, hgt + 0.03, 0.2), Vector3(wid * 0.7, 0.06, ln * 0.4))                              # the roof plate
+	_cyl(S_BODY, Vector3(0.9, hgt + 0.1, 0.5), 0.3, 0.2, 1, 10)
+	_cyl(S_GLASS, Vector3(0.9, hgt + 0.21, 0.5), 0.24, 0.04, 1, 10)
+	_box(S_TRIM, Vector3(-0.95, hgt + 0.06, 0.6), Vector3(0.5, 0.06, 0.5))
+	for sx in [-1.0, 1.0]:
+		_box(S_TRIM, Vector3(sx * (wid * 0.5 + 0.03), hgt * 0.55, 0.3), Vector3(0.06, 0.5, 0.9))                 # stowage boxes
+		_box(S_CHROME, Vector3(sx * (wid * 0.5 + 0.06), hgt * 0.8, 0.3), Vector3(0.03, 0.04, 0.9))
+	_box(S_TRIM, Vector3(0.0, 0.1, hl + 0.2), Vector3(wid * 0.9, 0.3, 0.5))                                      # the recoil spade stowed on the rear
+
+
+## The anti-air turret: a boxy housing, two missile pods on the sides, a rotating radar dish and a rear antenna.
+func _turret_flak() -> void:
+	_prism(S_BODY, [Vector2(-1.0, 0.0), Vector2(-0.8, 0.55), Vector2(0.8, 0.6), Vector2(1.1, 0.0)], -0.85, 0.85)
+	_box(S_TRIM, Vector3(0.0, 0.34, -1.0), Vector3(1.1, 0.5, 0.18))                                              # the gun cradle front
+	for sx in [-1.0, 1.0]:
+		_box(S_TRIM, Vector3(sx * 1.0, 0.46, 0.1), Vector3(0.34, 0.34, 1.3))                                      # missile pods
+		for ix in 2:
+			for iy in 2:
+				_cyl(S_CHROME, Vector3(sx * 1.0 + (float(ix) - 0.5) * 0.14, 0.46 + (float(iy) - 0.5) * 0.14, -0.57), 0.05, 0.03, 2, 8)
+	_cyl(S_TRIM, Vector3(0.0, 0.8, 0.5), 0.06, 0.55, 1, 8)                                                       # the radar mast
+	_cyl(S_CHROME, Vector3(0.0, 1.1, 0.5), 0.5, 0.05, 2, 16)                                                     # the dish
+	_box(S_TRIM, Vector3(0.0, 1.1, 0.4), Vector3(0.05, 0.05, 0.3))
+	_box(S_TRIM, Vector3(0.0, 0.62, 0.95), Vector3(1.1, 0.06, 0.5))
+
+
+## A gun barrel along -Z from the trunnion: a breech block, the tube (`r` at the breech, `r_tip` at the muzzle), an optional muzzle brake and bore evacuator.
+func _barrel(length: float, r_tip: float, r: float, brake: bool) -> void:
+	_box(S_TRIM, Vector3(0.0, 0.0, 0.25), Vector3(r * 2.6, r * 2.6, 0.55))
+	_cyl(S_TRIM, Vector3(0.0, 0.0, -length * 0.5 + 0.2), r_tip * 1.1, length - 0.2, 2, 10)
+	_cyl(S_TRIM, Vector3(0.0, 0.0, -length * 0.3), r * 1.25, length * 0.3, 2, 10)
+	if brake:
+		_cyl(S_CHROME, Vector3(0.0, 0.0, -length + 0.25), r_tip * 2.0, 0.34, 2, 10)
+		_cyl(S_TRIM, Vector3(0.0, 0.0, -length * 0.62), r * 1.5, 0.3, 2, 10)
+	else:
+		_cyl(S_TRIM, Vector3(0.0, 0.0, -length + 0.12), r_tip * 1.5, 0.2, 2, 10)
+
+
+## Two barrels side by side (the flak cannon) with a shared cradle.
+func _twin_barrel(length: float, r_tip: float, r: float) -> void:
+	_box(S_TRIM, Vector3(0.0, 0.0, 0.2), Vector3(0.86, 0.32, 0.5))
+	for sx in [-1.0, 1.0]:
+		_cyl(S_TRIM, Vector3(sx * 0.3, 0.0, -length * 0.5 + 0.2), r, length, 2, 10)
+		_cyl(S_CHROME, Vector3(sx * 0.3, 0.0, -length + 0.18), r_tip * 1.7, 0.24, 2, 10)
+		_cyl(S_TRIM, Vector3(sx * 0.3, 0.0, -length * 0.55), r * 1.5, 0.4, 2, 10)
 
 
 func _armour(ln: float, wid: float, hgt: float) -> void:

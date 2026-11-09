@@ -10,7 +10,7 @@ const MISSING_PCT := 2.0                  ## untranslated keys allowed per langu
 const MISSING_MIN := 4
 const LABEL_MISSING_PCT := 4.0            ## screen button labels that stay English (names shared by the languages are whitelisted below)
 const DATA_KEYS: Array[String] = ["name", "title", "brief", "note", "desc", "tag", "earn_text", "label", "stages"]
-const KEEP_ENGLISH: Array[String] = ["ARENA", "DEMO", "POST", "SFX", "CINE", "ON", "OFF", "NORMAL", "FRAG", "TEST", "TRITAN", "DEUTAN", "QUANTUM TELEPORT", "SUPERPOSITION", "ENTANGLE", "COLLAPSE", "SWAP", "GRN", "EMP", "OK", "NEON FM", "SFX", "POST", "FPS", "HP", "CR", "RB", "LB", "RT", "LT", "A", "B", "X", "Y", "LS", "RS", "UP"]
+const KEEP_ENGLISH: Array[String] = ["ARENA", "DEMO", "POST", "SFX", "CINE", "ON", "OFF", "NORMAL", "FRAG", "TEST", "TRITAN", "DEUTAN", "QUANTUM TELEPORT", "SUPERPOSITION", "ENTANGLE", "COLLAPSE", "SWAP", "GRN", "EMP", "OK", "NOVA", "NEON FM", "SFX", "POST", "FPS", "HP", "CR", "RB", "LB", "RT", "LT", "A", "B", "X", "Y", "LS", "RS", "UP"]
 ## Sprite-sheet style short tags (3 letters, weapon wheel) are not words.
 const SCREENS := {
 	"title": [&"menu", ""], "title_options": [&"menu", "_options_open"], "title_arena": [&"menu", "_arena_open"], "title_chapters": [&"menu", "_chapters_open"],

@@ -19,6 +19,20 @@ var hooks := 0
 var drone_left := 0.0                    ## seconds the drone buddy still lives (0 = none)
 var scan_left := 0.0                     ## seconds the scan marks still show
 var last_denied: StringName = &""
+var shield_left := 0.0                   ## SHIELD EMITTER: seconds the dome still stands
+var shield_hp := 0.0                     ## damage the dome can still take
+var shield_absorbed := 0.0               ## lifetime damage the dome ate
+var turret_left := 0.0                   ## SENTRY TURRET: seconds it still stands
+var turret_shots := 0
+var turret_hits := 0
+var boosts := 0                          ## BOOST MODULE bursts
+var boost_left := 0.0
+var turret_pos := Vector3.ZERO
+var shield_pos := Vector3.ZERO
+var _turret: Node3D
+var _turret_fire := 0.0
+var _shield: MeshInstance3D
+var _jet_fx := 0.0
 
 var _p: Player
 var _cd: Dictionary = {}                 ## id -> seconds left
@@ -46,6 +60,13 @@ func reset() -> void:
 	drone_left = 0.0
 	scan_left = 0.0
 	_hook_t = 0.0
+	shield_left = 0.0
+	turret_left = 0.0
+	boost_left = 0.0
+	if _turret != null:
+		_turret.visible = false
+	if _shield != null:
+		_shield.visible = false
 	if _drone != null:
 		_drone.visible = false
 	if _marks != null:
@@ -85,6 +106,9 @@ func _physics_process(dt: float) -> void:
 	_tick_marks(dt)
 	_tick_drone(dt)
 	_tick_hook(dt)
+	_tick_turret(dt)
+	_tick_shield(dt)
+	_tick_boost(dt)
 
 
 ## Uses `id` (the equipped gadget by default). False when empty, cooling down, short of energy or (grapple) without an anchor.
@@ -108,11 +132,19 @@ func use(id: StringName = &"") -> bool:
 			ok = _deploy_drone(d)
 		&"grapple":
 			ok = _fire_hook(d)
+		&"turret":
+			ok = _deploy_turret(d)
+		&"shield":
+			ok = _raise_shield(d)
+		&"jetpack":
+			ok = _start_boost(d)
 	if not ok:
 		last_denied = id
 		return false
 	_p.energy = maxf(0.0, _p.energy - cost)
 	_cd[id] = float(d["cooldown"])
+	if d.has("snd"):
+		Sfx.play(StringName(d["snd"]), -3.0)
 	used.emit(id)
 	Game.say(Gear.title(id), 0.8)
 	return true
@@ -306,3 +338,172 @@ func _tick_hook(dt: float) -> void:
 		_p.teleport_to(_hook_to)
 		if _beam != null:
 			_beam.visible = false
+
+
+# --- wave 108: SENTRY TURRET, SHIELD EMITTER, BOOST MODULE --------------------------------------------------------------------
+
+## The world model of the three new gadgets (the weapon roster shows it; the turret and the dome nodes use it): the turret is a tripod with a gun, the emitter a puck, the module a pack.
+static func mesh_of(id: StringName) -> Mesh:
+	var b := WeaponModels._Builder.new()
+	var steel := Color(0.36, 0.38, 0.42)
+	var dark := Color(0.08, 0.09, 0.11)
+	match id:
+		&"turret":
+			for k in 3:
+				var a := TAU * float(k) / 3.0
+				b.box(Vector3(cos(a) * 0.32, 0.3, sin(a) * 0.32), Vector3(0.05, 0.62, 0.05), steel, 0.0, 0.0)
+			b.box(Vector3(0.0, 0.66, 0.0), Vector3(0.5, 0.26, 0.6), dark)
+			b.box(Vector3(0.0, 0.66, 0.0), Vector3(0.52, 0.04, 0.62), Color(1.0, 0.85, 0.3), 1.0)
+			b.cyl(Vector3(0.0, 0.7, -0.62), 0.05, 0.9, steel, 0.0, 8)
+			b.box(Vector3(0.0, 0.7, -1.08), Vector3(0.1, 0.1, 0.08), Color(1.0, 0.85, 0.3), 1.0)
+			b.box(Vector3(0.0, 0.88, 0.08), Vector3(0.18, 0.12, 0.3), steel)
+		&"shield":
+			b.cyl(Vector3(0.0, 0.0, 0.0), 0.34, 0.12, dark, 0.0, 12, Basis(Vector3.RIGHT, PI * 0.5))
+			b.tube(Vector3(0.0, 0.07, 0.0), 0.33, 0.27, 0.03, Color(0.4, 0.8, 1.0), 1.0, 14)
+			b.box(Vector3(0.0, 0.2, 0.0), Vector3(0.06, 0.28, 0.06), steel)
+			b.box(Vector3(0.0, 0.36, 0.0), Vector3(0.14, 0.08, 0.14), Color(0.4, 0.8, 1.0), 1.0)
+		_:                                                                    # the jetpack module
+			b.box(Vector3(0.0, 0.0, 0.0), Vector3(0.46, 0.56, 0.2), dark)
+			for sx in [-1.0, 1.0]:
+				b.cyl(Vector3(0.14 * sx, 0.04, 0.16), 0.08, 0.5, steel, 0.0, 10, Basis(Vector3.RIGHT, PI * 0.5))
+				b.cyl(Vector3(0.14 * sx, -0.32, 0.16), 0.1, 0.12, Color(1.0, 0.6, 0.25), 1.0, 10, Basis(Vector3.RIGHT, PI * 0.5))
+	return b.build()
+
+
+func _deploy_turret(d: Dictionary) -> bool:
+	if _turret == null:
+		var n := MeshInstance3D.new()
+		n.mesh = mesh_of(&"turret")
+		n.material_override = WeaponModels.material()
+		n.top_level = true
+		n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(n)
+		_turret = n
+	var fwd := Vector3(-sin(_p.yaw), 0.0, -cos(_p.yaw))
+	turret_pos = _p.global_position + fwd * 1.8
+	_turret.global_position = turret_pos
+	_turret.rotation = Vector3(0.0, _p.yaw, 0.0)
+	_turret.visible = true
+	turret_left = float(d["life"])
+	_turret_fire = 0.4
+	FX.burst(turret_pos + Vector3(0.0, 0.3, 0.0), Color(1.0, 0.85, 0.3), 8, 3.0, 0.4, 0.0, 1.0)
+	return true
+
+
+func turret_alive() -> bool:
+	return _turret != null and _turret.visible and turret_left > 0.0
+
+
+func _tick_turret(dt: float) -> void:
+	if _turret == null or not _turret.visible:
+		return
+	turret_left -= dt
+	if turret_left <= 0.0:
+		_turret.visible = false
+		turret_left = 0.0
+		FX.burst(turret_pos + Vector3(0.0, 0.7, 0.0), Color(1.0, 0.85, 0.3), 10, 4.0, 0.5, 1.0)
+		return
+	_turret_fire -= dt
+	if _turret_fire > 0.0:
+		return
+	var d: Dictionary = Gear.GADGETS[&"turret"]
+	var muzzle := turret_pos + Vector3(0.0, 0.7, 0.0)
+	var best: Node3D
+	var best_d := float(d["range"])
+	for e in Gear.living_enemies(get_tree()):
+		var dist := e.global_position.distance_to(muzzle)
+		if dist < best_d and _clear(muzzle, e.global_position + Vector3(0.0, 1.0, 0.0)):
+			best = e
+			best_d = dist
+	if best == null:
+		_turret_fire = 0.15
+		return
+	_turret_fire = float(d["interval"])
+	turret_shots += 1
+	var tgt := best.global_position + Vector3(0.0, 1.0, 0.0)
+	_turret.look_at(Vector3(tgt.x, _turret.global_position.y, tgt.z), Vector3.UP)
+	_turret.rotate_y(PI)
+	FX.tracer(muzzle + (tgt - muzzle).normalized() * 1.0, tgt, Color(1.0, 0.85, 0.3))
+	if best.has_method(&"damage"):
+		best.call(&"damage", TestMode.damage(float(d["damage"]) * HeroPower.f("dmg")), false)
+		turret_hits += 1
+	Sfx.play_at(&"shot_twin", muzzle, -10.0, 1.3)
+
+
+func _raise_shield(d: Dictionary) -> bool:
+	if _shield == null:
+		var n := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 1.0
+		sm.height = 2.0
+		sm.radial_segments = 20
+		sm.rings = 10
+		n.mesh = sm
+		n.material_override = Gear.fx_material(Color(0.35, 0.75, 1.0, 0.16), true)
+		n.top_level = true
+		n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(n)
+		_shield = n
+	shield_pos = _p.global_position
+	_shield.global_position = shield_pos
+	_shield.scale = Vector3.ONE * float(d["radius"])
+	_shield.visible = true
+	shield_left = float(d["life"])
+	shield_hp = float(d["absorb"])
+	return true
+
+
+func shield_up() -> bool:
+	return shield_left > 0.0 and shield_hp > 0.0
+
+
+## The dome takes a hit meant for the hero when he stands inside it. True = the hit is gone.
+func shield_absorb(amount: float) -> bool:
+	if not shield_up() or _p == null:
+		return false
+	if _p.global_position.distance_to(shield_pos) > float(Gear.GADGETS[&"shield"]["radius"]) + 0.3:
+		return false
+	var eaten := minf(amount, shield_hp)
+	shield_hp -= eaten
+	shield_absorbed += eaten
+	FX.burst(_p.global_position + Vector3(0.0, 1.2, 0.0), Color(0.4, 0.85, 1.0), 4, 3.0, 0.3, 0.0, 0.9)
+	Sfx.play(&"hit", -9.0, 1.6)
+	if shield_hp <= 0.0:
+		shield_left = 0.0
+	return true
+
+
+func _tick_shield(dt: float) -> void:
+	if _shield == null or not _shield.visible:
+		return
+	shield_left -= dt
+	if shield_left <= 0.0 or shield_hp <= 0.0:
+		_shield.visible = false
+		shield_left = 0.0
+		FX.burst(shield_pos + Vector3(0.0, 1.5, 0.0), Color(0.4, 0.85, 1.0), 10, 5.0, 0.5, 0.0, 1.0)
+		return
+	var k := 1.0 + 0.03 * sin(shield_left * 6.0)
+	_shield.scale = Vector3.ONE * float(Gear.GADGETS[&"shield"]["radius"]) * k
+
+
+func _start_boost(d: Dictionary) -> bool:
+	boosts += 1
+	boost_left = float(d["life"])
+	_jet_fx = 0.0
+	return true
+
+
+## The jet burst: the hero climbs (vertical speed held at `lift` while it burns) and is nudged along his facing.
+func _tick_boost(dt: float) -> void:
+	if boost_left <= 0.0:
+		return
+	boost_left = maxf(0.0, boost_left - dt)
+	var d: Dictionary = Gear.GADGETS[&"jetpack"]
+	_p.velocity.y = maxf(_p.velocity.y, float(d["lift"]))
+	var fwd := Vector3(-sin(_p.yaw), 0.0, -cos(_p.yaw))
+	_p.velocity.x += fwd.x * float(d["push"]) * dt
+	_p.velocity.z += fwd.z * float(d["push"]) * dt
+	_jet_fx -= dt
+	if _jet_fx <= 0.0:
+		_jet_fx = 0.05
+		FX.burst(_p.global_position + Vector3(0.0, 0.7, 0.0), Color(1.0, 0.55, 0.15), 3, 3.0, 0.35, -4.0, 1.2)

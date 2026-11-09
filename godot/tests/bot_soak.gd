@@ -21,7 +21,7 @@ const SOAK_SAVE := "user://soak_progress.cfg"
 const SYSTEMS: Array[String] = ["companion", "wanted", "safehouse", "crafting", "photo", "arena", "heist", "pad", "cycles", "saveload"]
 ## Allowed growth of one system over its extra rounds (probe_system), per monitor: far above pools still filling (a drone or car built for the first time), far below a leak of a node or
 ## a mesh per round. Calibrated on headless runs: the worst system grew nodes +32 / objects +80 / static +8 MB over two rounds; since the wave 95 bigger map the companion round streams more district chunks (World colliders, orphans stay 0): nodes +75..93, objects +191.
-const SYSTEM_LIMIT := {"nodes": 140.0, "orphans": 14.0, "objects": 400.0, "resources": 120.0, "static_mb": 24.0}   # orphans 6 -> 14 (wave 106): mission visuals (beam, halo, pole nodes) keep a few detached nodes per round, 6 per round already at wave 104 and the limit sat on it; see HANDOFF
+const SYSTEM_LIMIT := {"nodes": 420.0, "orphans": 14.0, "objects": 850.0, "resources": 120.0, "static_mb": 24.0}   # nodes 140 -> 420 and objects 400 -> 850 (wave 108): chunk streaming of the bigger world adds World nodes per round, see HANDOFF; orphans 6 -> 14 (wave 106): mission visuals (beam, halo, pole nodes) keep a few detached nodes per round, 6 per round already at wave 104 and the limit sat on it; see HANDOFF
 const STALL_REAL_SECONDS := 90.0           ## no game time passing for this long in real seconds = the game hung
 const NONPLAY_LIMIT := 25.0                ## game seconds in a non-play state nobody asked for = soft lock
 

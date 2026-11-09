@@ -600,6 +600,7 @@ func _loot() -> void:
 
 func _ambient() -> void:
 	w.ambient_enabled = true
+	w.roster.enabled = false                                      # the roster-2 director (test_enemy_roster2) has its own checks; this one counts alien fauna only
 	# never in the city
 	_clear()
 	_put_hero(Vector3(100.0, 0.0, 100.0))

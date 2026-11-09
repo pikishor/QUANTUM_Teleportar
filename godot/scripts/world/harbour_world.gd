@@ -44,7 +44,7 @@ func _ready() -> void:
 	instance = self
 	var L := Harbour.layout()
 	_mesh("Ground", HarbourKit.ground(), null, SHOW_RANGE)
-	_mesh("Kit", HarbourKit.kit(), null, SHOW_RANGE, GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
+	_mesh("Kit", HarbourKit.kit(), null, SHOW_RANGE, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 	_mesh("Detail", HarbourKit.detail(), null, SHOW_DETAIL)
 	var road := _mesh("Road", HarbourKit.road_mesh(), BridgeKit.road_material(&"road"), SHOW_RANGE)
 	road.position.y = 0.0

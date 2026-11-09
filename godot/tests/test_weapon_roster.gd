@@ -14,11 +14,13 @@ const DT := 1.0 / 60.0
 ## what the owner asked for, slot by slot
 const WANTED: Array[StringName] = [&"pistol", &"heavy_pistol", &"revolver", &"machine_pistol", &"smg_1", &"smg_2", &"ar_1", &"ar_2", &"ar_3", &"battle_rifle", &"lmg", &"minigun", &"pump_shotgun",
 		&"auto_shotgun", &"sniper", &"amr", &"crossbow", &"rpg", &"grenade_launcher", &"frag", &"smoke", &"flash", &"c4", &"mine", &"flamethrower", &"stun_gun", &"katana", &"knife", &"bat",
-		&"quantum_1", &"quantum_2", &"quantum_3", &"quantum_4", &"quantum_5", &"quantum_6"]
+		&"quantum_1", &"quantum_2", &"quantum_3", &"quantum_4", &"quantum_5", &"quantum_6",
+		&"plasma_pistol", &"plasma_repeater", &"crystal_rifle", &"beam_rifle", &"energy_blade", &"gravity_hammer", &"rocket_pod", &"railgun", &"chaingun", &"cluster_missile", &"napalm", &"singularity_cannon",
+		&"orbital_beacon", &"guided_launcher", &"throwing_knives", &"plasma_grenade", &"spike_grenade", &"turret", &"shield_emitter", &"jetpack"]
 const NEW_WEAPONS: Array[StringName] = [&"magnum", &"mpistol", &"ranger", &"bullpup", &"lmg", &"amr", &"xbow", &"flame", &"stun", &"katana", &"bat", &"qsuper", &"qlink", &"qcollapse", &"qblink", &"qphase", &"qstasis"]
 ## trademark names that must not appear in a weapon's name (generic names only)
 const BRANDS: Array[String] = ["GLOCK", "BERETTA", "COLT", "DESERT", "EAGLE", "UZI", "MP5", "MP7", "AK-47", "AK47", "KALASHNIKOV", "M4A1", "M16", "AR-15", "AR15", "SCAR", "BARRETT", "REMINGTON",
-		"MOSSBERG", "WINCHESTER", "RUGER", "SMITH", "WESSON", "TASER", "MINIGUN M134", "RPG-7", "RPG7", "C-4", "CLAYMORE"]
+		"MOSSBERG", "WINCHESTER", "RUGER", "SMITH", "WESSON", "TASER", "MINIGUN M134", "RPG-7", "RPG7", "C-4", "CLAYMORE", "HALO", "SPARTAN", "NEEDLER", "COVENANT", "BATTLE RIFLE BR55", "MJOLNIR", "WARTHOG"]
 
 var e := Env.new()
 var p: Player
@@ -249,7 +251,7 @@ func _classes_and_pages() -> void:
 	var total := 0
 	for t: Dictionary in tabs:
 		total += (t["ids"] as Array).size()
-	TestLib.check(tabs.size() == WeaponDefs.CLASS_ORDER.size() + 1 and total == WeaponRoster.ENTRIES.size(), "the roster is sorted into %d tabs with %d entries" % [tabs.size(), total])
+	TestLib.check(tabs.size() == WeaponDefs.CLASS_ORDER.size() + 2 and total == WeaponRoster.ENTRIES.size(), "the roster is sorted into %d tabs with %d entries" % [tabs.size(), total])
 	# the catalogue: every weapon, throwable, charge and gadget is on exactly one page, a page holds at most 12 tiles
 	var on_page := {}
 	var over := false

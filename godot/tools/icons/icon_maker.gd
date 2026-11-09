@@ -373,6 +373,68 @@ func _gear_node(id: StringName) -> Node3D:
 				var h := BoxMesh.new()
 				h.size = Vector3(0.14, 0.03, 0.03)
 				_add(root, h, glow, Vector3(0.3, 0.1 * s, 0.0), Vector3.ONE, Vector3(0, 0, 25 * s))
+		&"plasma":                                                                          # STICKY NOVA: a glowing core in a cage of four fins, a sticky blob on one side
+			_add(root, SphereMesh.new(), glow, Vector3.ZERO, Vector3(0.2, 0.2, 0.2))
+			for k in 2:
+				var t6 := TorusMesh.new()
+				t6.inner_radius = 0.16
+				t6.outer_radius = 0.2
+				_add(root, t6, body, Vector3.ZERO, Vector3.ONE, Vector3(90.0 * float(k), 0, 60.0 * float(k)))
+			_add(root, SphereMesh.new(), glow, Vector3(0.13, -0.1, 0.09), Vector3(0.1, 0.07, 0.1))
+		&"spike":                                                                           # SPIKE GRENADE: a ball with spikes all round
+			_add(root, SphereMesh.new(), body, Vector3.ZERO, Vector3(0.2, 0.2, 0.2))
+			for k in 10:
+				var a2 := float(k) * 2.399963
+				var y2 := 1.0 - 2.0 * (float(k) + 0.5) / 10.0
+				var r2 := sqrt(1.0 - y2 * y2)
+				var dir2 := Vector3(cos(a2) * r2, y2, sin(a2) * r2)
+				var sp := CylinderMesh.new()
+				sp.top_radius = 0.0
+				sp.bottom_radius = 0.035
+				sp.height = 0.17
+				_add(root, sp, glow, dir2 * 0.17, Vector3.ONE, Vector3(rad_to_deg(atan2(dir2.z, dir2.y)) * -1.0, 0.0, rad_to_deg(atan2(dir2.x, dir2.y)) * -1.0))
+		&"turret":                                                                          # SENTRY TURRET: a tripod, a body and a long barrel
+			var bd := BoxMesh.new()
+			bd.size = Vector3(0.2, 0.14, 0.26)
+			_add(root, bd, body, Vector3(0, 0.1, 0.0), Vector3.ONE)
+			var bl := CylinderMesh.new()
+			bl.top_radius = 0.025
+			bl.bottom_radius = 0.025
+			bl.height = 0.34
+			_add(root, bl, glow, Vector3(0, 0.12, -0.28), Vector3.ONE, Vector3(90, 0, 0))
+			for k in 3:
+				var lg := CylinderMesh.new()
+				lg.top_radius = 0.012
+				lg.bottom_radius = 0.012
+				lg.height = 0.26
+				var a3 := float(k) * TAU / 3.0
+				_add(root, lg, body, Vector3(cos(a3) * 0.1, -0.06, sin(a3) * 0.1), Vector3.ONE, Vector3(sin(a3) * 22.0, 0, -cos(a3) * 22.0))
+		&"shield":                                                                          # SHIELD EMITTER: a puck with a glowing dome of rings over it
+			var pk := CylinderMesh.new()
+			pk.top_radius = 0.14
+			pk.bottom_radius = 0.16
+			pk.height = 0.06
+			_add(root, pk, body, Vector3(0, -0.1, 0.0), Vector3.ONE)
+			for k in 3:
+				var t7 := TorusMesh.new()
+				t7.inner_radius = 0.1 + 0.04 * float(k)
+				t7.outer_radius = 0.115 + 0.04 * float(k)
+				_add(root, t7, glow, Vector3(0, -0.07 + 0.07 * float(k), 0.0), Vector3.ONE)
+		&"jetpack":                                                                         # BOOST MODULE: a pack with two thrusters
+			var pack := BoxMesh.new()
+			pack.size = Vector3(0.26, 0.3, 0.12)
+			_add(root, pack, body, Vector3.ZERO, Vector3.ONE)
+			for sx in [-1.0, 1.0]:
+				var nz := CylinderMesh.new()
+				nz.top_radius = 0.045
+				nz.bottom_radius = 0.07
+				nz.height = 0.14
+				_add(root, nz, glow, Vector3(0.08 * sx, -0.2, 0.0), Vector3.ONE)
+				var tk := CylinderMesh.new()
+				tk.top_radius = 0.05
+				tk.bottom_radius = 0.05
+				tk.height = 0.26
+				_add(root, tk, body, Vector3(0.09 * sx, 0.04, 0.09), Vector3.ONE)
 	return root
 
 

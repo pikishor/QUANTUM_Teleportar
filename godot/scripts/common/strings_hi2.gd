@@ -406,7 +406,7 @@ const S := {
 	"SWARMING": "झुंड",
 	"RED DOT": "रेड डॉट",
 	"FOCUS SCOPE": "फ़ोकस स्कोप",
-	"HALO SIGHT": "हेलो साइट",
+	"HOLO SIGHT": "हेलो साइट",
 	"DAMPER": "डैम्पर",
 	"LONG BARREL": "लंबी नली",
 	"COMPENSATOR": "कम्पेनसेटर",

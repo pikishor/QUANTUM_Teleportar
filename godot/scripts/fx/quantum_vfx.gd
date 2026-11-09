@@ -37,7 +37,8 @@ const WEAPON_CLASS := {&"carbine": &"rifle", &"burst": &"rifle", &"akimbo": &"ri
 	&"lance": &"beam", &"rail": &"beam", &"flux": &"flux", &"gravity": &"gravity", &"arc": &"arc", &"grenade": &"gravity", &"whip": &"melee", &"blade": &"melee", &"pistol": &"rifle", &"marksman": &"beam", &"breacher": &"shotgun", &"rocket": &"gravity",
 	&"swarm": &"flux", &"vector": &"rifle", &"battle": &"rifle", &"sawn": &"shotgun", &"auto": &"shotgun", &"bolt": &"beam", &"dmr": &"beam", &"knife": &"melee",
 	&"magnum": &"rifle", &"mpistol": &"spray", &"stun": &"arc", &"ranger": &"rifle", &"bullpup": &"rifle", &"lmg": &"spray", &"amr": &"beam", &"xbow": &"rifle", &"flame": &"spray", &"katana": &"melee", &"bat": &"melee",
-	&"qsuper": &"arc", &"qlink": &"flux", &"qcollapse": &"gravity", &"qblink": &"arc", &"qphase": &"beam", &"qstasis": &"arc"}
+	&"qsuper": &"arc", &"qlink": &"flux", &"qcollapse": &"gravity", &"qblink": &"arc", &"qphase": &"beam", &"qstasis": &"arc",
+	&"eplasma": &"flux", &"erepeat": &"spray", &"espike": &"flux", &"ebeam": &"beam", &"eblade": &"melee", &"emaul": &"melee", &"epod": &"gravity", &"railgun": &"beam", &"chaingun": &"spray", &"cmissile": &"gravity", &"napalm": &"gravity", &"sing": &"gravity", &"orbital": &"gravity", &"seeker": &"gravity", &"tknife": &"melee"}
 const CLASSES := {
 	&"rifle": {"muzzle": Color(1.0, 0.82, 0.5), "size": 1.0, "ring": 0.0, "hit_ring": 0.28, "spark": Color(1.0, 0.8, 0.45), "sparks": 4},
 	&"spray": {"muzzle": Color(1.0, 0.7, 0.35), "size": 0.8, "ring": 0.0, "hit_ring": 0.2, "spark": Color(1.0, 0.7, 0.35), "sparks": 2},

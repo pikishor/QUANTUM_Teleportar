@@ -9,6 +9,7 @@ extends RefCounted
 ## Run: tools/test.sh tests/test_shooting_accuracy.gd (about 40 s)
 
 const DISTANCES := [5.0, 15.0, 30.0, 60.0]
+const TIMEOUT_SECONDS := 120.0              ## the sweep fires every hitscan weapon (wave 108 added nine, beam and railgun blasts included)
 const LATERAL_MAX := 0.06                     ## metres: a zero-spread hitscan hit must lie this close to the aimed ray (the ray itself is exact, this is physics slack)
 
 var _p: Player

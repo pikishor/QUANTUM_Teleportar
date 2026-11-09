@@ -94,15 +94,17 @@ const LOOT := {
 
 
 static func data(id: StringName) -> Dictionary:
-	return TABLE[id] if TABLE.has(id) else {}
+	if TABLE.has(id):
+		return TABLE[id]
+	return RosterSpecies.data(id)                       # the roster-2 enemies (mercenaries, machines, hive infantry, four bosses) share every code path of the alien world
 
 
 static func ids() -> Array:
-	return TABLE.keys()
+	return TABLE.keys()                                 # the alien table only: RosterSpecies.IDS lists the roster-2 enemies
 
 
 static func family_of(id: StringName) -> StringName:
-	return TABLE[id]["family"] if TABLE.has(id) else &""
+	return TABLE[id]["family"] if TABLE.has(id) else (StringName(RosterSpecies.data(id).get("family", &"")))
 
 
 static func model_path(id: StringName) -> String:
@@ -113,7 +115,9 @@ static func model_path(id: StringName) -> String:
 
 
 static func title(id: StringName) -> String:
-	return String((TABLE[id] as Dictionary)["name"]) if TABLE.has(id) else String(id).to_upper()
+	if TABLE.has(id):
+		return String((TABLE[id] as Dictionary)["name"])
+	return RosterSpecies.title(id) if RosterSpecies.has(id) else String(id).to_upper()
 
 
 ## What a place spawns by itself: [[species, weight], ...] for the biome `biome` (TerrainBase.biome_at), ground height `h`, `slope` (rise over run), `night` 0..1 (DayNight.night_now) and `cls`
@@ -167,7 +171,7 @@ static func pick(list: Array, r: float) -> StringName:
 ## The loot of one kill: [[part id, count], ...] (random `rng` draws so tests can seed it).
 static func roll_loot(id: StringName, rng: RandomNumberGenerator) -> Array:
 	var out: Array = []
-	var tab: Dictionary = LOOT.get(id, {})
+	var tab: Dictionary = LOOT.get(id, RosterSpecies.LOOT.get(id, {}))
 	for pid: StringName in tab:
 		var row: Array = tab[pid]
 		if rng.randf() <= float(row[0]):

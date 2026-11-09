@@ -49,6 +49,22 @@ const LADDER: Array[Dictionary] = [
 	{"id": &"qphase", "route": MISSION, "arg": 9},
 	{"id": &"grenade", "route": BOSS, "arg": 6},
 	{"id": &"qcollapse", "route": MISSION, "arg": 11},
+	# wave 108: the energy family and the destructive heavies, from light to heavy (crates 17..24 are new, chapter 11 and the shop carry one each, enemy drops the rest)
+	{"id": &"tknife", "route": DROP, "arg": &"sentinel"},
+	{"id": &"eplasma", "route": CRATE, "arg": 17},
+	{"id": &"erepeat", "route": DROP, "arg": &"flanker"},
+	{"id": &"espike", "route": CRATE, "arg": 18},
+	{"id": &"eblade", "route": MISSION, "arg": 10},
+	{"id": &"napalm", "route": CRATE, "arg": 19},
+	{"id": &"epod", "route": SHOP, "arg": 0},
+	{"id": &"seeker", "route": CRATE, "arg": 20},
+	{"id": &"chaingun", "route": DROP, "arg": &"heavy"},
+	{"id": &"cmissile", "route": CRATE, "arg": 21},
+	{"id": &"ebeam", "route": CRATE, "arg": 22},
+	{"id": &"emaul", "route": DROP, "arg": &"brute"},
+	{"id": &"railgun", "route": CRATE, "arg": 23},
+	{"id": &"sing", "route": SHOP, "arg": 0},
+	{"id": &"orbital", "route": CRATE, "arg": 24},
 ]
 
 ## Weapon crates (the first six carry a weapon) and ammo crates: junction (gi, gj) of the road grid, corner sign (+1 / -1 each axis: the sidewalk corner of the junction), a name.
@@ -71,6 +87,14 @@ const CRATES: Array[Dictionary] = [
 	{"g": Vector2i(12, 6), "sx": -1.0, "sz": 1.0, "weapon": &"xbow", "name": "ROOFTOP CRATE"},
 	{"g": Vector2i(4, 10), "sx": 1.0, "sz": -1.0, "weapon": &"qblink", "name": "RIFT CRATE"},
 	{"g": Vector2i(12, 11), "sx": 1.0, "sz": 1.0, "weapon": &"qsuper", "name": "ECHO CRATE"},
+	{"g": Vector2i(5, 6), "sx": 1.0, "sz": 1.0, "weapon": &"eplasma", "name": "PLASMA CRATE"},
+	{"g": Vector2i(7, 4), "sx": -1.0, "sz": 1.0, "weapon": &"espike", "name": "CRYSTAL CRATE"},
+	{"g": Vector2i(8, 7), "sx": 1.0, "sz": -1.0, "weapon": &"napalm", "name": "BURN CRATE"},
+	{"g": Vector2i(11, 8), "sx": -1.0, "sz": -1.0, "weapon": &"seeker", "name": "HANGAR CRATE"},
+	{"g": Vector2i(9, 5), "sx": 1.0, "sz": 1.0, "weapon": &"cmissile", "name": "CONVOY CRATE"},
+	{"g": Vector2i(6, 12), "sx": 1.0, "sz": 1.0, "weapon": &"ebeam", "name": "RIDGE CRATE"},
+	{"g": Vector2i(12, 9), "sx": -1.0, "sz": -1.0, "weapon": &"railgun", "name": "VAULT CRATE"},
+	{"g": Vector2i(10, 12), "sx": 1.0, "sz": 1.0, "weapon": &"orbital", "name": "ORBITAL CRATE"},
 ]
 const AMMO_RESTOCK := 0.6                ## share of every limited weapon's base reserve an ammo crate returns
 const CRATE_RESPAWN := 300.0             ## seconds until an opened crate gives ammo again

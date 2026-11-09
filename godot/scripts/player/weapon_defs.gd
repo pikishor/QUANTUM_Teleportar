@@ -10,12 +10,13 @@ extends RefCounted
 ## revolver (slow heavy rounds, FAN HAMMER alt), whip (long reach, PULL alt), blade (short reach, LUNGE alt). "snd" = the sound name of a shot (default "shot"). reserve < 0 = unlimited spare ammo. look = the emissive tint of the strip on the rifle.
 
 ## Order = keys 1..8 and the order every list shows: the seven starters first (pistol, SMG, assault rifle, shotgun, sniper rail, launcher, melee), then the unlock ladder.
-const IDS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade", &"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife", &"magnum", &"mpistol", &"ranger", &"bullpup", &"lmg", &"amr", &"xbow", &"flame", &"stun", &"katana", &"bat", &"qsuper", &"qlink", &"qcollapse", &"qblink", &"qphase", &"qstasis"]
+const IDS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade", &"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife", &"magnum", &"mpistol", &"ranger", &"bullpup", &"lmg", &"amr", &"xbow", &"flame", &"stun", &"katana", &"bat", &"qsuper", &"qlink", &"qcollapse", &"qblink", &"qphase", &"qstasis",
+	&"eplasma", &"erepeat", &"espike", &"ebeam", &"eblade", &"emaul", &"epod", &"railgun", &"chaingun", &"cmissile", &"napalm", &"sing", &"orbital", &"seeker", &"tknife"]
 ## Owned from the first minute (and in every save): one weapon of each class so the hero is never short of a gun. Everything else is on the ladder (scripts/progress/weapon_ladder.gd).
 const STARTERS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade"]
 ## The weapon wheel groups the weapons by class (one wedge per class, tap again = the next weapon of that class).
-const CLASS_ORDER: Array[StringName] = [&"pistol", &"smg", &"rifle", &"shotgun", &"sniper", &"heavy", &"melee", &"quantum"]
-const CLASS_NAMES := {&"pistol": "PISTOL", &"smg": "SMG", &"rifle": "RIFLE", &"shotgun": "SHOTGUN", &"sniper": "SNIPER", &"heavy": "HEAVY", &"melee": "MELEE", &"quantum": "QUANTUM"}
+const CLASS_ORDER: Array[StringName] = [&"pistol", &"smg", &"rifle", &"shotgun", &"sniper", &"heavy", &"melee", &"quantum", &"energy", &"blast"]
+const CLASS_NAMES := {&"pistol": "PISTOL", &"smg": "SMG", &"rifle": "RIFLE", &"shotgun": "SHOTGUN", &"sniper": "SNIPER", &"heavy": "HEAVY", &"melee": "MELEE", &"quantum": "QUANTUM", &"energy": "ENERGY", &"blast": "BLAST"}
 const CLASS_OF := {
 	&"pistol": &"pistol", &"burst": &"pistol", &"akimbo": &"pistol", &"revolver": &"pistol", &"flux": &"smg", &"carbine": &"rifle", &"marksman": &"rifle", &"arc": &"rifle",
 	&"scatter": &"shotgun", &"breacher": &"shotgun", &"rail": &"sniper", &"lance": &"sniper", &"gravity": &"heavy", &"rocket": &"heavy", &"grenade": &"heavy", &"minigun": &"heavy",
@@ -23,6 +24,8 @@ const CLASS_OF := {
 	&"swarm": &"smg", &"vector": &"smg", &"battle": &"rifle", &"sawn": &"shotgun", &"auto": &"shotgun", &"bolt": &"sniper", &"dmr": &"sniper", &"knife": &"melee",
 	&"magnum": &"pistol", &"mpistol": &"pistol", &"stun": &"pistol", &"ranger": &"rifle", &"bullpup": &"rifle", &"lmg": &"heavy", &"flame": &"heavy", &"amr": &"sniper", &"xbow": &"sniper",
 	&"katana": &"melee", &"bat": &"melee", &"qsuper": &"quantum", &"qlink": &"quantum", &"qcollapse": &"quantum", &"qblink": &"quantum", &"qphase": &"quantum", &"qstasis": &"quantum",
+	&"eplasma": &"energy", &"erepeat": &"energy", &"espike": &"energy", &"ebeam": &"energy", &"eblade": &"energy", &"emaul": &"energy", &"epod": &"energy",
+	&"railgun": &"blast", &"chaingun": &"blast", &"cmissile": &"blast", &"napalm": &"blast", &"sing": &"blast", &"orbital": &"blast", &"seeker": &"blast", &"tknife": &"melee",
 }
 const PAGE_SIZE := 8                       ## weapons per page of the touch weapon wheel
 
@@ -207,7 +210,7 @@ const DEFS := {
 		"tracer": Color(0.8, 0.5, 1.0), "look": Color(0.7, 0.4, 1.0), "look_size": Vector3(0.025, 0.025, 0.7), "zoom": 22.0, "price": 1100, "pierce_shield": true,
 	},
 	&"dmr": {
-		"name": "HALO MARKSMAN DMR", "tag": "DMR", "kind": "hit", "mag": 10, "reserve": 60, "interval": 0.48, "damage": 48.0, "crit": 96.0, "pellets": 1,
+		"name": "RANGE MARKSMAN DMR", "tag": "DMR", "kind": "hit", "mag": 10, "reserve": 60, "interval": 0.48, "damage": 48.0, "crit": 96.0, "pellets": 1,
 		"pattern": [Vector2(0.1, 1.1), Vector2(-0.15, 1.0)], "shake": 0.08, "vol": -1.5, "pitch_lo": 0.95, "pitch_hi": 1.02, "eject": 1, "flash": 1.4, "ads_kick": 0.5, "ads_spread": 0.12,
 		"spread_hip": 0.018, "spread_ads": 0.001, "spread_move": 0.018, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_rev",
 		"kick": 0.026, "kick_end": 0.024, "kick_yaw": 0.004, "reload": 1.9, "range": 340.0, "falloff_from": 9999.0,
@@ -350,6 +353,173 @@ const DEFS := {
 		"kick": 0.007, "kick_end": 0.007, "kick_yaw": 0.002, "reload": 1.5, "range": 100.0, "falloff_from": 45.0,
 		"tracer": Color(0.6, 0.95, 1.0), "look": Color(0.55, 0.9, 1.0), "look_size": Vector3(0.05, 0.05, 0.4), "zoom": 56.0, "price": 1300, "pierce_shield": true,
 	},
+	# --- wave 108: ENERGY family (original designs, plain names) and the BLAST class of destructive heavies. New def keys (PlayerWeapon + EnergyArms): splash (+ splash_dmg / splash_car / splash_element / splash_every: a blast at
+	# the impact), stick (crystals that supercombine), shock (melee shockwave), salvo (rockets per pull), cluster_n (bomblets), fire_* (a burning field), beacon (orbital strike), guided (steered by the crosshair), role (what it is for).
+	&"eplasma": {
+		"name": "EMBER PLASMA PISTOL", "tag": "EPP", "kind": "hit", "mag": 16, "reserve": 96, "interval": 0.245, "damage": 19.0, "crit": 38.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.04, "vol": -2.5, "pitch_lo": 0.98, "pitch_hi": 1.05, "eject": 0, "flash": 1.4, "ads_kick": 0.6, "ads_spread": 0.4,
+		"spread_hip": 0.014, "spread_ads": 0.004, "spread_move": 0.012, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_eplasma",
+		"kick": 0.01, "kick_end": 0.01, "kick_yaw": 0.003, "reload": 1.4, "range": 90.0, "falloff_from": 40.0,
+		"tracer": Color(0.3, 0.9, 1.0), "look": Color(0.25, 0.9, 1.0), "look_size": Vector3(0.04, 0.04, 0.24), "zoom": 58.0, "price": 180, "pierce_shield": true,
+		"splash": 1.7, "splash_dmg": 7.0, "splash_car": 14.0, "splash_element": &"plasma",
+		"splash_every": 1, "role": "BREAKS SHIELDS AND ARMOUR  OVERCHARGE STUNS A SQUAD",
+	},
+	&"erepeat": {
+		"name": "PULSE REPEATER", "tag": "PRP", "kind": "hit", "mag": 60, "reserve": 300, "interval": 0.072, "damage": 7.5, "crit": 12.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 0.8), Vector2(0.4, 0.7), Vector2(-0.5, 0.7), Vector2(0.3, 0.6), Vector2(-0.3, 0.6)], "shake": 0.02, "vol": -4.0, "pitch_lo": 1.0, "pitch_hi": 1.12, "eject": 0, "flash": 0.9, "ads_kick": 0.6, "ads_spread": 0.4,
+		"spread_hip": 0.02, "spread_ads": 0.007, "spread_move": 0.012, "bloom": 0.004, "bloom_max": 0.03, "snd": &"shot_erepeat",
+		"kick": 0.004, "kick_end": 0.003, "kick_yaw": 0.004, "reload": 1.8, "range": 70.0, "falloff_from": 25.0,
+		"tracer": Color(0.55, 1.0, 0.4), "look": Color(0.5, 1.0, 0.35), "look_size": Vector3(0.05, 0.05, 0.4), "zoom": 58.0, "price": 230, "pierce_shield": false,
+		"spin_up": 0.25, "spin_ready": 0.08, "heat_per": 0.011, "heat_cool": 0.4,
+		"heat_lock": 1.5, "role": "WINS CLOSE FIGHTS  HOLDS A DOORWAY",
+	},
+	&"espike": {
+		"name": "CRYSTAL SPIKER", "tag": "CSP", "kind": "hit", "mag": 24, "reserve": 144, "interval": 0.145, "damage": 12.0, "crit": 20.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.03, "vol": -3.0, "pitch_lo": 1.0, "pitch_hi": 1.1, "eject": 0, "flash": 1.2, "ads_kick": 0.6, "ads_spread": 0.4,
+		"spread_hip": 0.016, "spread_ads": 0.004, "spread_move": 0.012, "bloom": 0.003, "bloom_max": 0.02, "snd": &"shot_espike",
+		"kick": 0.01, "kick_end": 0.01, "kick_yaw": 0.003, "reload": 1.6, "range": 120.0, "falloff_from": 60.0,
+		"tracer": Color(1.0, 0.3, 0.85), "look": Color(1.0, 0.3, 0.85), "look_size": Vector3(0.04, 0.04, 0.4), "zoom": 58.0, "price": 270, "pierce_shield": false,
+		"stick": 6, "stick_time": 4.0, "stick_dmg": 75.0, "stick_car": 120.0,
+		"stick_radius": 4.2, "stick_element": &"quantum", "role": "TAGS A TARGET  SIX CRYSTALS SUPERCOMBINE INTO A BLAST",
+	},
+	&"ebeam": {
+		"name": "PRISM BEAM RIFLE", "tag": "PBR", "kind": "charge", "mag": 4, "reserve": 16, "interval": 1.05, "damage": 150.0, "crit": 260.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.2, "vol": 0.0, "pitch_lo": 0.96, "pitch_hi": 1.04, "eject": 0, "flash": 2.4, "ads_kick": 0.6, "ads_spread": 0.4,
+		"spread_hip": 0.02, "spread_ads": 0.0004, "spread_move": 0.012, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_ebeam",
+		"kick": 0.05, "kick_end": 0.05, "kick_yaw": 0.003, "reload": 2.5, "range": 500.0, "falloff_from": 9999.0,
+		"tracer": Color(1.0, 0.3, 0.15), "look": Color(1.0, 0.35, 0.15), "look_size": Vector3(0.05, 0.05, 0.8), "zoom": 14.0, "price": 420, "pierce_shield": true,
+		"charge_time": 1.4, "min_charge": 0.5, "wall": 2, "wall_k": 0.8,
+		"splash": 3.2, "splash_dmg": 45.0, "splash_car": 120.0, "splash_element": &"fire",
+		"role": "SNIPES THROUGH TWO WALLS  BURNS OUT COVER AND TURRETS",
+	},
+	&"eblade": {
+		"name": "ION BLADE", "tag": "IBL", "kind": "melee", "mag": 1, "reserve": -1, "interval": 0.305, "damage": 40.0, "crit": 40.0, "pellets": 1,
+		"pattern": [Vector2(-0.8, 0.2), Vector2(0.8, 0.2), Vector2(0.0, 0.5)], "shake": 0.07, "vol": -2.0, "pitch_lo": 0.96, "pitch_hi": 1.04, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"melee_eblade",
+		"kick": 0.012, "kick_end": 0.012, "kick_yaw": 0.005, "reload": 1.0, "range": 3.4, "falloff_from": 9999.0,
+		"tracer": Color(0.35, 0.9, 1.0), "look": Color(0.3, 0.85, 1.0), "look_size": Vector3(0.04, 0.04, 0.9), "zoom": 58.0, "price": 300, "pierce_shield": true,
+		"reach": 3.4, "cone": 0.15, "combo": [1.0, 1.1, 2.2], "combo_window": 0.8,
+		"burn": 7.0, "burn_time": 2.0, "role": "CUTS THROUGH SHIELDS  LUNGE CROSSES A ROOM",
+	},
+	&"emaul": {
+		"name": "TREMOR MAUL", "tag": "TMR", "kind": "melee", "mag": 1, "reserve": -1, "interval": 0.84, "damage": 70.0, "crit": 70.0, "pellets": 1,
+		"pattern": [Vector2(-1.0, 0.3), Vector2(1.0, 0.3), Vector2(0.0, 0.9)], "shake": 0.2, "vol": -1.0, "pitch_lo": 0.8, "pitch_hi": 0.9, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"melee_emaul",
+		"kick": 0.03, "kick_end": 0.03, "kick_yaw": 0.008, "reload": 1.0, "range": 3.2, "falloff_from": 9999.0,
+		"tracer": Color(0.7, 0.55, 1.0), "look": Color(0.65, 0.5, 1.0), "look_size": Vector3(0.1, 0.1, 0.9), "zoom": 58.0, "price": 360, "pierce_shield": true,
+		"reach": 3.2, "cone": 0.25, "combo": [1.0, 1.0, 1.8], "combo_window": 1.0,
+		"shock": 6.5, "shock_dmg": 60.0, "shock_car": 110.0, "shock_push": 9.0,
+		"shock_element": &"quantum", "role": "SHOCKWAVE SHOVES AND SPINS CARS  SCATTERS A SQUAD  BREAKS COVER",
+	},
+	&"epod": {
+		"name": "HORNET ROCKET POD", "tag": "HRN", "kind": "throw", "mag": 12, "reserve": 60, "interval": 1.62, "damage": 45.0, "crit": 45.0, "pellets": 3,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.1, "vol": -1.5, "pitch_lo": 1.1, "pitch_hi": 1.2, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_epod",
+		"kick": 0.03, "kick_end": 0.03, "kick_yaw": 0.0, "reload": 3.0, "range": 160.0, "falloff_from": 9999.0,
+		"tracer": Color(1.0, 0.55, 0.2), "look": Color(1.0, 0.5, 0.2), "look_size": Vector3(0.14, 0.14, 0.5), "zoom": 52.0, "price": 480, "pierce_shield": true,
+		"speed": 52.0, "fuse": 2.2, "grav": 2.5, "well_time": 0.1,
+		"well_radius": 6.0, "well_pull": 0.0, "well_dps": 0.0, "blast_radius": 3.4,
+		"impact": true, "blast_damage": 45.0, "car_dmg": 70.0, "blast_color": Color(1.0, 0.5, 0.15),
+		"blast_element": &"fire", "impact_pull": 0.0, "salvo": 3, "salvo_gap": 0.0,
+		"role": "THREE ROCKETS AT ONCE  CLEARS VEHICLES AND CAMPS", "launch": true,
+		"slots": 8,
+	},
+	&"railgun": {
+		"name": "COIL RAILGUN", "tag": "RLG", "kind": "charge", "mag": 3, "reserve": 12, "interval": 1.7, "damage": 300.0, "crit": 450.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.3, "vol": 1.0, "pitch_lo": 0.9, "pitch_hi": 0.95, "eject": 0, "flash": 2.6, "ads_kick": 0.6, "ads_spread": 0.4,
+		"spread_hip": 0.02, "spread_ads": 0.0003, "spread_move": 0.012, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_railgun",
+		"kick": 0.07, "kick_end": 0.07, "kick_yaw": 0.003, "reload": 3.2, "range": 600.0, "falloff_from": 9999.0,
+		"tracer": Color(0.7, 0.85, 1.0), "look": Color(0.6, 0.8, 1.0), "look_size": Vector3(0.08, 0.08, 1.0), "zoom": 20.0, "price": 540, "pierce_shield": true,
+		"charge_time": 1.2, "min_charge": 0.6, "wall": 4, "wall_k": 0.8,
+		"splash": 5.0, "splash_dmg": 90.0, "splash_car": 260.0, "splash_element": &"electric",
+		"role": "PUNCHES THROUGH FOUR WALLS AND A TANK  BREAKS BUNKERS",
+	},
+	&"chaingun": {
+		"name": "STORM CHAINGUN", "tag": "CHN", "kind": "hit", "mag": 150, "reserve": 600, "interval": 0.045, "damage": 5.5, "crit": 8.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 0.8), Vector2(0.4, 0.7), Vector2(-0.4, 0.7), Vector2(0.2, 0.6), Vector2(-0.2, 0.6)], "shake": 0.02, "vol": -4.5, "pitch_lo": 0.9, "pitch_hi": 1.0, "eject": 0, "flash": 1.1, "ads_kick": 0.6, "ads_spread": 0.4,
+		"spread_hip": 0.026, "spread_ads": 0.012, "spread_move": 0.012, "bloom": 0.003, "bloom_max": 0.034, "snd": &"shot_chaingun",
+		"kick": 0.003, "kick_end": 0.002, "kick_yaw": 0.003, "reload": 3.5, "range": 90.0, "falloff_from": 30.0,
+		"tracer": Color(1.0, 0.6, 0.2), "look": Color(1.0, 0.5, 0.15), "look_size": Vector3(0.1, 0.1, 0.6), "zoom": 58.0, "price": 480, "pierce_shield": false,
+		"spin_up": 0.9, "spin_ready": 0.4, "heat_per": 0.007, "heat_cool": 0.3,
+		"heat_lock": 2.0, "splash": 2.2, "splash_dmg": 7.0, "splash_car": 14.0,
+		"splash_element": &"fire", "splash_every": 3, "role": "EXPLOSIVE ROUNDS CHEW CARS AND CRATES  SUPPRESSES A WHOLE STREET",
+	},
+	&"cmissile": {
+		"name": "HIVE CLUSTER MISSILE", "tag": "HCM", "kind": "throw", "mag": 2, "reserve": 8, "interval": 1.8, "damage": 70.0, "crit": 70.0, "pellets": 4,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.18, "vol": -0.5, "pitch_lo": 0.8, "pitch_hi": 0.86, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_cmissile",
+		"kick": 0.05, "kick_end": 0.05, "kick_yaw": 0.0, "reload": 3.2, "range": 200.0, "falloff_from": 9999.0,
+		"tracer": Color(1.0, 0.7, 0.25), "look": Color(1.0, 0.65, 0.2), "look_size": Vector3(0.15, 0.15, 0.6), "zoom": 50.0, "price": 540, "pierce_shield": true,
+		"speed": 48.0, "fuse": 3.0, "grav": 4.0, "well_time": 0.1,
+		"well_radius": 8.0, "well_pull": 0.0, "well_dps": 0.0, "blast_radius": 3.6,
+		"impact": true, "blast_damage": 60.0, "car_dmg": 80.0, "blast_color": Color(1.0, 0.6, 0.15),
+		"blast_element": &"fire", "impact_pull": 0.0, "cluster_n": 6, "cluster_spread": 7.0,
+		"role": "SIX BOMBLETS COVER A CAR PARK  BREAKS CONVOYS",
+		"slots": 3,
+		"launch": true,
+	},
+	&"napalm": {
+		"name": "CINDER NAPALM LAUNCHER", "tag": "NPL", "kind": "throw", "mag": 3, "reserve": 12, "interval": 1.45, "damage": 40.0, "crit": 40.0, "pellets": 3,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.12, "vol": -1.0, "pitch_lo": 0.85, "pitch_hi": 0.92, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_napalm",
+		"kick": 0.04, "kick_end": 0.04, "kick_yaw": 0.0, "reload": 2.8, "range": 120.0, "falloff_from": 9999.0,
+		"tracer": Color(1.0, 0.4, 0.1), "look": Color(1.0, 0.4, 0.1), "look_size": Vector3(0.14, 0.14, 0.5), "zoom": 52.0, "price": 450, "pierce_shield": false,
+		"speed": 34.0, "fuse": 2.4, "grav": 9.0, "well_time": 0.1,
+		"well_radius": 6.0, "well_pull": 0.0, "well_dps": 0.0, "blast_radius": 4.5,
+		"impact": true, "blast_damage": 40.0, "car_dmg": 60.0, "blast_color": Color(1.0, 0.45, 0.1),
+		"blast_element": &"fire", "impact_pull": 0.0, "fire_radius": 5.5, "fire_time": 7.0,
+		"fire_dps": 16.0, "fire_car": 9.0, "role": "LEAVES A BURNING FIELD  FLUSHES ENEMIES OUT OF CAMPS",
+		"slots": 3,
+		"launch": true,
+	},
+	&"sing": {
+		"name": "VOID SINGULARITY CANNON", "tag": "VSC", "kind": "throw", "mag": 1, "reserve": 3, "interval": 2.0, "damage": 380.0, "crit": 380.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.25, "vol": 0.0, "pitch_lo": 0.55, "pitch_hi": 0.6, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_sing",
+		"kick": 0.06, "kick_end": 0.06, "kick_yaw": 0.0, "reload": 4.0, "range": 160.0, "falloff_from": 9999.0,
+		"tracer": Color(0.75, 0.3, 1.0), "look": Color(0.7, 0.3, 1.0), "look_size": Vector3(0.18, 0.18, 0.7), "zoom": 50.0, "price": 660, "pierce_shield": true,
+		"speed": 36.0, "fuse": 2.5, "grav": 6.0, "well_time": 3.2,
+		"well_radius": 15.0, "well_pull": 22.0, "well_dps": 70.0, "blast_radius": 11.0,
+		"blast_damage": 380.0, "car_dmg": 340.0, "blast_color": Color(0.7, 0.3, 1.0), "blast_element": &"quantum",
+		"role": "DRAGS A WHOLE SQUAD INTO ONE POINT  THEN COLLAPSES",
+		"launch": true,
+	},
+	&"orbital": {
+		"name": "ORBITAL STRIKE BEACON", "tag": "ORB", "kind": "throw", "mag": 1, "reserve": 3, "interval": 3.0, "damage": 520.0, "crit": 520.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.3, "vol": -2.0, "pitch_lo": 1.0, "pitch_hi": 1.05, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_orbital",
+		"kick": 0.03, "kick_end": 0.03, "kick_yaw": 0.0, "reload": 3.5, "range": 150.0, "falloff_from": 9999.0,
+		"tracer": Color(0.5, 0.9, 1.0), "look": Color(0.4, 0.85, 1.0), "look_size": Vector3(0.1, 0.1, 0.3), "zoom": 50.0, "price": 900, "pierce_shield": true,
+		"speed": 26.0, "fuse": 3.0, "grav": 14.0, "well_time": 0.1,
+		"well_radius": 6.0, "well_pull": 0.0, "well_dps": 0.0, "blast_radius": 13.0,
+		"impact": true, "blast_damage": 300.0, "car_dmg": 400.0, "blast_color": Color(0.35, 0.9, 1.0),
+		"blast_element": &"plasma", "impact_pull": 0.0, "beacon": true, "beacon_delay": 2.2,
+		"beacon_pulses": 3, "beacon_gap": 0.35, "role": "CALLS A LIGHT FROM ORBIT  LEVELS BUNKERS AND CONVOYS",
+		"slots": 4,
+		"launch": true,
+	},
+	&"seeker": {
+		"name": "SEEKER GUIDED LAUNCHER", "tag": "SKR", "kind": "throw", "mag": 1, "reserve": 6, "interval": 1.42, "damage": 180.0, "crit": 180.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 0.9), Vector2(-0.2, 0.9)], "shake": 0.16, "vol": -1.0, "pitch_lo": 0.9, "pitch_hi": 0.95, "eject": 0, "flash": 0.0, "ads_kick": 1.0, "ads_spread": 1.0,
+		"spread_hip": 0.0, "spread_ads": 0.0, "spread_move": 0.0, "bloom": 0.0, "bloom_max": 0.0, "snd": &"shot_seeker",
+		"kick": 0.04, "kick_end": 0.04, "kick_yaw": 0.0, "reload": 2.6, "range": 200.0, "falloff_from": 9999.0,
+		"tracer": Color(1.0, 0.8, 0.3), "look": Color(1.0, 0.75, 0.3), "look_size": Vector3(0.12, 0.12, 0.6), "zoom": 44.0, "price": 420, "pierce_shield": true,
+		"speed": 38.0, "fuse": 5.0, "grav": 0.0, "well_time": 0.1,
+		"well_radius": 8.0, "well_pull": 0.0, "well_dps": 0.0, "blast_radius": 6.0,
+		"impact": true, "blast_damage": 180.0, "car_dmg": 260.0, "blast_color": Color(1.0, 0.6, 0.15),
+		"blast_element": &"fire", "impact_pull": 0.0, "guided": true, "turn": 2.6,
+		"role": "STEER IT WITH THE CROSSHAIR  KILLS TANKS AND HELICOPTERS",
+		"slots": 3,
+		"launch": true,
+	},
+	&"tknife": {
+		"name": "THROWING KNIVES", "tag": "TKN", "kind": "hit", "mag": 8, "reserve": 40, "interval": 0.28, "damage": 34.0, "crit": 80.0, "pellets": 1,
+		"pattern": [Vector2(0.0, 0.5), Vector2(0.2, 0.5)], "shake": 0.03, "vol": -8.0, "pitch_lo": 1.1, "pitch_hi": 1.25, "eject": 0, "flash": 0.0, "ads_kick": 0.6, "ads_spread": 0.4,
+		"spread_hip": 0.01, "spread_ads": 0.002, "spread_move": 0.012, "bloom": 0.0, "bloom_max": 0.0, "snd": &"melee_tknife",
+		"kick": 0.006, "kick_end": 0.006, "kick_yaw": 0.002, "reload": 1.2, "range": 45.0, "falloff_from": 25.0,
+		"tracer": Color(0.85, 0.92, 1.0), "look": Color(0.8, 0.9, 1.0), "look_size": Vector3(0.03, 0.03, 0.3), "zoom": 60.0, "price": 90, "pierce_shield": false,
+		"silent": true, "role": "SILENT KILLS ON GUARDS  PICKS OFF A SENTRY",
+	},
 }
 
 ## Alt-fire per class (key B / the ALT touch button). kind: "heavy" = one aimed shot x mult for `cost` rounds (slug / overcharge), "volley" = `count` rounds in a rapid burst,
@@ -398,6 +568,22 @@ const ALTS := {
 	&"qblink": {"name": "BLINK", "kind": "blink", "cost": 0, "range": 45.0, "cd": 1.6},
 	&"qphase": {"name": "OVERCHARGE", "kind": "heavy", "cost": 3, "mult": 2.4, "cd": 1.1},
 	&"qstasis": {"name": "OVERCHARGE", "kind": "heavy", "cost": 3, "mult": 2.2, "cd": 1.2},
+	# wave 108 (second fire mode of every new weapon): oc_bolt = a slow charged ball, pop = detonate the crystals now, slam / repulse = a shockwave around the hero, fan = several projectiles at once, airburst = bursts in the air at the crosshair, dive = top-attack
+	&"eplasma": {"name": "OVERCHARGE", "kind": "oc_bolt", "cost": 6, "cd": 1.6, "proj": &"eplasma_oc"},
+	&"erepeat": {"name": "SURGE", "kind": "volley", "cost": 24, "count": 24, "cd": 1.5},
+	&"espike": {"name": "SHATTER", "kind": "pop", "cost": 0, "cd": 1.0},
+	&"ebeam": {"name": "SNAP BEAM", "kind": "quick", "cost": 2, "mult": 1.0, "cd": 1.4},
+	&"eblade": {"name": "LUNGE", "kind": "lunge", "cost": 0, "dist": 6.5, "mult": 3.0, "cd": 1.5},
+	&"emaul": {"name": "GROUND SLAM", "kind": "slam", "cost": 0, "cd": 2.6, "radius": 9.0, "dmg": 110.0, "car": 160.0, "push": 12.0},
+	&"epod": {"name": "ALL PODS", "kind": "fan", "cost": 6, "count": 6, "step": 0.05, "cd": 2.2},
+	&"railgun": {"name": "OVERLOAD", "kind": "quick", "cost": 2, "mult": 1.0, "cd": 1.6},
+	&"chaingun": {"name": "SUPPRESS", "kind": "volley", "cost": 30, "count": 30, "cd": 1.4},
+	&"cmissile": {"name": "AIRBURST", "kind": "airburst", "cost": 1, "cd": 1.8},
+	&"napalm": {"name": "WALL OF FIRE", "kind": "fire_line", "cost": 2, "count": 5, "cd": 2.4},
+	&"sing": {"name": "REPULSE", "kind": "repulse", "cost": 0, "cd": 3.0, "radius": 14.0, "dmg": 40.0, "car": 30.0, "push": 16.0},
+	&"orbital": {"name": "BARRAGE", "kind": "fan", "cost": 1, "count": 3, "step": 0.14, "cd": 3.0},
+	&"seeker": {"name": "TOP ATTACK", "kind": "dive", "cost": 1, "cd": 1.8},
+	&"tknife": {"name": "FAN OF KNIVES", "kind": "volley", "cost": 5, "count": 5, "cd": 1.0},
 }
 ## Ammo types for the hitscan weapons (key T): damage multiplier, fire-interval multiplier, shield piercing.
 const AMMO_TYPES := [
@@ -416,10 +602,20 @@ const HIT_SND := {
 	&"magnum": [0.7, 1.5, &"impact_metal"], &"mpistol": [1.4, -4.0, &""], &"stun": [1.3, -1.0, &""], &"ranger": [0.9, 0.5, &"impact_concrete"], &"bullpup": [1.0, 0.0, &""],
 	&"lmg": [0.8, 0.5, &"impact_concrete"], &"amr": [0.45, 5.0, &"impact_metal"], &"xbow": [1.2, -2.0, &""], &"flame": [1.6, -6.0, &""], &"katana": [1.1, 1.0, &"impact_metal"], &"bat": [0.6, 2.0, &""],
 	&"qsuper": [1.2, 0.0, &""], &"qlink": [1.4, 0.0, &""], &"qcollapse": [0.5, 3.0, &""], &"qblink": [1.5, -1.0, &""], &"qphase": [1.0, 0.0, &"impact_metal"], &"qstasis": [0.9, 0.0, &""],
+	&"eplasma": [1.3, -1.0, &""], &"erepeat": [1.5, -4.0, &""], &"espike": [1.4, -1.0, &""], &"ebeam": [0.5, 3.0, &"impact_metal"], &"eblade": [1.0, 1.0, &"impact_metal"], &"emaul": [0.5, 4.0, &"impact_concrete"], &"epod": [0.7, 2.0, &""],
+	&"railgun": [0.4, 5.0, &"impact_metal"], &"chaingun": [1.3, -3.0, &"impact_concrete"], &"cmissile": [0.6, 2.0, &""], &"napalm": [0.8, 0.0, &""], &"sing": [0.5, 3.0, &""], &"orbital": [0.5, 3.0, &""], &"seeker": [0.7, 2.0, &""], &"tknife": [1.3, -1.0, &""],
 }
 const TILT := {&"pistol": 1.3, &"marksman": 0.9, &"breacher": 1.5, &"rocket": 1.1, &"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3, &"minigun": 2.0, &"akimbo": 1.5, &"arc": 1.0, &"revolver": 1.1, &"whip": 0.5, &"blade": 0.5,
 	&"swarm": 1.7, &"vector": 1.4, &"battle": 1.0, &"sawn": 1.5, &"auto": 1.5, &"bolt": 0.7, &"dmr": 0.9, &"knife": 0.5, &"magnum": 1.4, &"mpistol": 1.8, &"stun": 1.3, &"ranger": 1.0, &"bullpup": 1.1, &"lmg": 1.9, &"amr": 0.7, &"xbow": 1.2, &"flame": 1.8, &"katana": 0.5, &"bat": 0.5,
-	&"qsuper": 1.0, &"qlink": 1.3, &"qcollapse": 1.1, &"qblink": 1.4, &"qphase": 1.0, &"qstasis": 1.1}
+	&"qsuper": 1.0, &"qlink": 1.3, &"qcollapse": 1.1, &"qblink": 1.4, &"qphase": 1.0, &"qstasis": 1.1,
+	&"eplasma": 1.3, &"erepeat": 1.6, &"espike": 1.2, &"ebeam": 0.7, &"eblade": 0.5, &"emaul": 0.4, &"epod": 1.6, &"railgun": 0.8, &"chaingun": 2.0, &"cmissile": 1.5, &"napalm": 1.5, &"sing": 1.3, &"orbital": 1.2, &"seeker": 1.3, &"tknife": 0.5}
+
+
+## Projectiles of alt-fires that are not a weapon of their own (PlayerWeapon._gdef reads them through the `wid` of a thrown round): the OVERCHARGE ball of the plasma pistol.
+const PROJ := {
+	&"eplasma_oc": {"name": "OVERCHARGE", "kind": "throw", "damage": 90.0, "speed": 34.0, "fuse": 2.4, "grav": 0.6, "well_time": 0.1, "well_radius": 6.0, "well_pull": 0.0, "well_dps": 0.0, "blast_radius": 4.5, "impact": true,
+		"blast_damage": 90.0, "car_dmg": 170.0, "blast_color": Color(0.3, 0.9, 1.0), "blast_element": &"plasma", "impact_pull": 0.0, "blast_stun": 2.6, "tracer": Color(0.3, 0.9, 1.0)},
+}
 
 
 static func alt_of(id: StringName) -> Dictionary:

@@ -80,7 +80,17 @@ const SPECS := {
 		"draft": 0.2, "steer": 1.5, "cam_d": 7.5, "cam_h": 2.7, "exit_side": 1.7, "aim_cone": 0.5},
 	&"patrol": {"cls": "boat", "craft": true, "procedural": "patrol", "max": 24.0, "acc": 9.0, "brake": 14.0, "grip": 1.3, "hp": 760.0, "mass": 4200.0, "seats": 4, "model": "boat_patrol", "len": 9.2, "wid": 3.2, "hgt": 3.0, "wheel": 0.2,
 		"draft": 0.4, "steer": 0.8, "cam_d": 15.0, "cam_h": 5.2, "exit_side": 3.4, "aim_cone": 0.7},
-	&"tank": {"cls": "tank", "craft": true, "max": 12.5, "acc": 5.5, "brake": 20.0, "grip": 8.0, "hp": 2000.0, "mass": 42000.0, "seats": 1, "model": "xv_tank", "len": 7.0, "wid": 3.3, "hgt": 2.7, "wheel": 0.5, "turret": "Turret", "steer": 0.8, "cam_d": 15.0, "cam_h": 5.6, "exit_side": 3.4},
+	&"tank": {"cls": "tank", "craft": true, "max": 12.5, "acc": 5.5, "brake": 20.0, "grip": 8.0, "hp": 2000.0, "mass": 42000.0, "seats": 1, "model": "xv_tank", "len": 7.0, "wid": 3.3, "hgt": 2.7, "wheel": 0.5, "turret": "Turret", "steer": 0.8, "cam_d": 15.0, "cam_h": 5.6, "exit_side": 3.4, "arms2": true},
+	# wave 108 (all weapon categories, tanks): the armoured family on the same tracked physics (VehicleCraft._tank). "gun_len" / "gun_h" = where the gun tip sits (m in front of the turret axis, share of the hull height),
+	# "gun_max" = the highest the gun elevates (rad: 0.55 for a tank, artillery and anti-air go much higher), procedural bodies with a "Turret" node (VehicleCraftModels).
+	&"ltank": {"cls": "tank", "craft": true, "procedural": "ltank", "max": 17.0, "acc": 8.0, "brake": 26.0, "grip": 8.0, "hp": 1100.0, "mass": 17000.0, "seats": 1, "model": "tank_light", "len": 5.8, "wid": 2.8, "hgt": 2.3,
+		"wheel": 0.45, "turret": "Turret", "steer": 1.0, "cam_d": 13.0, "cam_h": 4.8, "exit_side": 3.0, "gun_len": 2.9, "gun_h": 0.86, "arms2": true},
+	&"apc": {"cls": "tank", "craft": true, "procedural": "apc", "max": 22.0, "acc": 9.5, "brake": 26.0, "grip": 8.0, "hp": 1500.0, "mass": 14500.0, "seats": 6, "model": "tank_apc", "len": 6.8, "wid": 2.9, "hgt": 2.5,
+		"wheel": 0.5, "turret": "Turret", "steer": 1.15, "cam_d": 14.5, "cam_h": 5.2, "exit_side": 3.2, "gun_len": 1.6, "gun_h": 0.95},
+	&"artillery": {"cls": "tank", "craft": true, "procedural": "artillery", "max": 11.0, "acc": 4.5, "brake": 20.0, "grip": 8.0, "hp": 1000.0, "mass": 28000.0, "seats": 2, "model": "tank_artillery", "len": 7.6, "wid": 3.1, "hgt": 2.9,
+		"wheel": 0.5, "turret": "Turret", "steer": 0.7, "cam_d": 17.0, "cam_h": 6.5, "exit_side": 3.4, "gun_len": 5.6, "gun_h": 0.8, "gun_max": 1.1},
+	&"aatank": {"cls": "tank", "craft": true, "procedural": "aatank", "max": 17.0, "acc": 8.0, "brake": 24.0, "grip": 8.0, "hp": 900.0, "mass": 21000.0, "seats": 2, "model": "tank_aa", "len": 6.6, "wid": 3.1, "hgt": 3.1,
+		"wheel": 0.5, "turret": "Turret", "steer": 0.95, "cam_d": 14.0, "cam_h": 5.8, "exit_side": 3.4, "gun_len": 2.6, "gun_h": 0.9, "gun_max": 1.35, "arms2": true},
 }
 ## Paints of the kinds that do not wear the random street palette (VehicleVisual.set_paint maps the random COLORS pick to an entry; a husk keeps WRECK_COLOR).
 const PALETTES := {
@@ -92,6 +102,10 @@ const PALETTES := {
 	&"ambulance": [Color(0.9, 0.91, 0.93), Color(0.86, 0.87, 0.9), Color(0.92, 0.93, 0.94), Color(0.88, 0.9, 0.92)],
 	&"armoured": [Color(0.13, 0.16, 0.2), Color(0.1, 0.13, 0.11), Color(0.2, 0.19, 0.17), Color(0.14, 0.14, 0.16)],
 	&"tank": [Color(0.24, 0.3, 0.2), Color(0.42, 0.36, 0.24), Color(0.2, 0.22, 0.24)],
+	&"ltank": [Color(0.3, 0.34, 0.24), Color(0.46, 0.4, 0.28), Color(0.22, 0.26, 0.3)],
+	&"apc": [Color(0.28, 0.32, 0.26), Color(0.5, 0.46, 0.34), Color(0.2, 0.24, 0.28)],
+	&"artillery": [Color(0.32, 0.34, 0.26), Color(0.44, 0.38, 0.26), Color(0.22, 0.24, 0.26)],
+	&"aatank": [Color(0.26, 0.3, 0.24), Color(0.38, 0.4, 0.3), Color(0.2, 0.22, 0.26)],
 	&"heli": [Color(0.86, 0.87, 0.9), Color(0.14, 0.2, 0.34), Color(0.7, 0.12, 0.1), Color(0.18, 0.2, 0.22)],
 	&"plane": [Color(0.86, 0.87, 0.9), Color(0.7, 0.12, 0.1), Color(0.12, 0.3, 0.6), Color(0.9, 0.7, 0.12)],
 	&"gunship": [Color(0.2, 0.24, 0.2), Color(0.16, 0.18, 0.22), Color(0.3, 0.28, 0.2), Color(0.12, 0.13, 0.15)],
@@ -128,9 +142,11 @@ const STREAM_WEIGHTS: Array[float] = [0.05, 0.06, 0.06, 0.093, 0.06, 0.06, 0.08,
 
 ## The whole roster, in the order of the vehicle picture sheet: every drivable kind (streamed traffic first, then the ones with fixed spawn points, see VehicleSpawns). Tests and the picture maker read it.
 const ROSTER: Array[StringName] = [&"compact", &"sedan", &"sport", &"muscle", &"suv", &"van", &"pickup", &"bus", &"taxi", &"interceptor", &"ambulance", &"firetruck", &"armoured", &"bike", &"quad", &"scooter",
-	&"hoverbike", &"heli", &"plane", &"gunship", &"hauler", &"jet", &"cargo", &"airliner", &"bizjet", &"boat", &"tank", &"luxury", &"racer", &"wagon", &"truck", &"delivery", &"garbage", &"hover", &"qbike", &"skiff", &"rover"]
+	&"hoverbike", &"heli", &"plane", &"gunship", &"hauler", &"jet", &"cargo", &"airliner", &"bizjet", &"boat", &"tank", &"ltank", &"apc", &"artillery", &"aatank", &"luxury", &"racer", &"wagon", &"truck", &"delivery", &"garbage", &"hover", &"qbike", &"skiff", &"rover"]
+## The armoured family (tracked physics, a turret that slews to the crosshair, VehicleCraft._tank): main battle tank, light tank, personnel carrier, mobile artillery, anti-air.
+const TANK_KINDS: Array[StringName] = [&"tank", &"ltank", &"apc", &"artillery", &"aatank"]
 ## The roster kinds that fly, float or crawl on tracks (spawned at fixed points, never as random traffic).
-const CRAFT_KINDS: Array[StringName] = [&"heli", &"plane", &"boat", &"tank"]
+const CRAFT_KINDS: Array[StringName] = [&"heli", &"plane", &"boat", &"tank", &"ltank", &"apc", &"artillery", &"aatank"]
 ## Every kind that flies (VehicleCraft classes heli / plane): the airport spawns, the AI air traffic and the flight HUD read this.
 const AIRCRAFT_KINDS: Array[StringName] = [&"heli", &"plane", &"gunship", &"hauler", &"jet", &"cargo", &"airliner", &"bizjet"]
 ## The kinds that float (VehicleCraft._boat): they ride the real water of the world (WaterWorld) and the flooded quarter.
@@ -138,7 +154,7 @@ const BOAT_KINDS: Array[StringName] = [&"boat", &"jetski", &"patrol"]
 ## Display names (the HUD toast on entering, the picture sheet).
 const NAMES := {&"compact": "COMPACT", &"sedan": "SEDAN", &"sport": "SPORTS CAR", &"muscle": "MUSCLE CAR", &"suv": "SUV", &"van": "VAN", &"pickup": "PICKUP TRUCK", &"bus": "BUS", &"taxi": "TAXI",
 	&"interceptor": "POLICE CAR", &"ambulance": "AMBULANCE", &"firetruck": "FIRE TRUCK", &"armoured": "ARMOURED TRUCK", &"bike": "MOTORBIKE", &"quad": "QUAD", &"scooter": "SCOOTER", &"hoverbike": "HOVER BIKE",
-	&"heli": "HELICOPTER", &"plane": "SMALL PLANE", &"gunship": "GUNSHIP", &"hauler": "TRANSPORT HELICOPTER", &"jet": "JET FIGHTER", &"cargo": "CARGO PLANE", &"airliner": "AIRLINER", &"bizjet": "BUSINESS JET", &"boat": "SPEEDBOAT", &"jetski": "JET SKI", &"patrol": "PATROL BOAT", &"tank": "TANK", &"luxury": "LIMO", &"racer": "RACER", &"wagon": "WAGON", &"truck": "TRUCK", &"delivery": "DELIVERY VAN",
+	&"heli": "HELICOPTER", &"plane": "SMALL PLANE", &"gunship": "GUNSHIP", &"hauler": "TRANSPORT HELICOPTER", &"jet": "JET FIGHTER", &"cargo": "CARGO PLANE", &"airliner": "AIRLINER", &"bizjet": "BUSINESS JET", &"boat": "SPEEDBOAT", &"jetski": "JET SKI", &"patrol": "PATROL BOAT", &"tank": "BATTLE TANK", &"ltank": "LIGHT TANK", &"apc": "ARMOURED CARRIER", &"artillery": "MOBILE ARTILLERY", &"aatank": "ANTI-AIR TANK", &"luxury": "LIMO", &"racer": "RACER", &"wagon": "WAGON", &"truck": "TRUCK", &"delivery": "DELIVERY VAN",
 	&"garbage": "GARBAGE TRUCK", &"hover": "HOVER CAR", &"qbike": "QUANTUM SCOOTER", &"skiff": "HOVER SKIFF", &"rover": "MOON ROVER", &"vael_patrol": "VAEL PATROL"}
 
 ## Live cars at once (starter car and a driven car included): LOW 3 / MED 5 / HIGH 8. Each legacy car costs about 10 draw calls.
@@ -278,13 +294,20 @@ const WEAPONS := {
 	&"patrol": {"name": "BOW CANNON", "rate": 2.2, "dmg": 34.0, "heat": 0.16, "cool": 0.3, "ammo": 120, "range": 150.0, "spread": 0.012, "blast": 3.0, "color": Color(1.0, 0.7, 0.3)},
 	&"boat": {"name": "DECK GUN", "rate": 6.0, "dmg": 13.0, "heat": 0.1, "cool": 0.3, "ammo": 240, "range": 100.0, "spread": 0.02, "color": Color(0.6, 0.9, 1.0)},
 	&"tank": {"name": "TANK CANNON", "rate": 0.8, "dmg": 95.0, "heat": 0.42, "cool": 0.28, "ammo": 40, "range": 220.0, "spread": 0.0, "blast": 7.0, "color": Color(1.0, 0.55, 0.18)},
+	&"ltank": {"name": "LIGHT CANNON", "rate": 1.5, "dmg": 60.0, "heat": 0.3, "cool": 0.3, "ammo": 60, "range": 200.0, "spread": 0.0, "blast": 4.5, "color": Color(1.0, 0.6, 0.2)},
+	&"apc": {"name": "AUTOCANNON", "rate": 8.0, "dmg": 16.0, "heat": 0.07, "cool": 0.3, "ammo": 400, "range": 170.0, "spread": 0.015, "color": Color(1.0, 0.82, 0.35)},
+	&"artillery": {"name": "HOWITZER", "rate": 0.28, "dmg": 190.0, "heat": 0.9, "cool": 0.3, "ammo": 24, "range": 520.0, "spread": 0.0, "blast": 11.0, "indirect": true, "delay": 1.4, "color": Color(1.0, 0.5, 0.15)},
+	&"aatank": {"name": "FLAK CANNON", "rate": 10.0, "dmg": 11.0, "heat": 0.05, "cool": 0.3, "ammo": 600, "range": 320.0, "spread": 0.02, "blast": 3.5, "flak": true, "color": Color(1.0, 0.9, 0.5)},
 	&"hover": {"name": "BOLT GUN", "rate": 5.0, "dmg": 16.0, "heat": 0.14, "cool": 0.3, "ammo": 120, "range": 100.0, "spread": 0.01, "color": Color(0.8, 0.4, 1.0)},
 }
 ## The secondary weapon of the aircraft with "arms2" (the AIM button while flying): unguided ROCKETS and homing-lite MISSILES that fly a real distance (AircraftArms): rate = shots/s (a salvo fires `salvo` rockets),
 ## dmg = direct hit, blast = radius m, speed = m/s, life = s in flight, reload = s for one round back.
 const ALT_WEAPONS := {
-	&"gunship": {"name": "ROCKET POD", "rate": 3.2, "salvo": 2, "dmg": 80.0, "blast": 7.5, "speed": 150.0, "life": 3.2, "ammo": 28, "reload": 2.2, "color": Color(1.0, 0.62, 0.2), "range": 420.0},
-	&"jet": {"name": "MISSILES", "rate": 2.0, "salvo": 1, "dmg": 130.0, "blast": 10.0, "speed": 230.0, "life": 3.8, "ammo": 14, "reload": 3.0, "color": Color(1.0, 0.8, 0.4), "range": 800.0, "homing": 1.6},
+	&"gunship": {"name": "ROCKET POD", "short": "ROCKET", "rate": 3.2, "salvo": 2, "dmg": 80.0, "blast": 7.5, "speed": 150.0, "life": 3.2, "ammo": 28, "reload": 2.2, "color": Color(1.0, 0.62, 0.2), "range": 420.0},
+	&"tank": {"name": "COAX MACHINE GUN", "short": "COAX", "kind": "gun", "rate": 14.0, "dmg": 11.0, "ammo": 300, "reload": 0.12, "range": 160.0, "spread": 0.02, "color": Color(1.0, 0.85, 0.4)},
+	&"ltank": {"name": "COAX MACHINE GUN", "short": "COAX", "kind": "gun", "rate": 12.0, "dmg": 9.0, "ammo": 240, "reload": 0.12, "range": 150.0, "spread": 0.022, "color": Color(1.0, 0.85, 0.4)},
+	&"aatank": {"name": "SEEKER MISSILES", "short": "MISSILE", "rate": 1.6, "salvo": 1, "dmg": 130.0, "blast": 8.0, "speed": 200.0, "life": 3.5, "ammo": 8, "reload": 3.0, "color": Color(1.0, 0.8, 0.4), "range": 600.0, "homing": 1.8},
+	&"jet": {"name": "MISSILES", "short": "MISSILE", "rate": 2.0, "salvo": 1, "dmg": 130.0, "blast": 10.0, "speed": 230.0, "life": 3.8, "ammo": 14, "reload": 3.0, "color": Color(1.0, 0.8, 0.4), "range": 800.0, "homing": 1.6},
 }
 const WEAPON_LOCK_RESUME := 0.4        ## an overheated weapon fires again below this heat
 
@@ -434,7 +457,7 @@ static func wheelbase(kind: StringName) -> float:
 
 ## Tyre grip factor of a kind on dry asphalt (MU x the spec's "mu").
 ## Cars that are built for rough ground: the rover, SUV, trucks and the quad keep most of their grip off the road; the rest slide on dirt, sand and snow.
-const OFFROAD: Dictionary = {&"rover": 1.0, &"suv": 0.88, &"luxury": 0.7, &"truck": 0.85, &"van": 0.6, &"delivery": 0.6, &"quad": 1.0, &"tank": 1.0}
+const OFFROAD: Dictionary = {&"rover": 1.0, &"suv": 0.88, &"luxury": 0.7, &"truck": 0.85, &"van": 0.6, &"delivery": 0.6, &"quad": 1.0, &"tank": 1.0, &"ltank": 1.0, &"apc": 1.0, &"artillery": 0.9, &"aatank": 1.0}
 ## Grip multiplier by surface for a full off-road build (k = 1) and for a street car (k = 0): lerp of the two columns by the kind's off-road rating.
 const SURFACE_GRIP: Dictionary = {&"city": [1.0, 1.0], &"asphalt": [1.0, 1.0], &"dirt": [0.9, 0.6], &"grass": [0.82, 0.48], &"sand": [0.74, 0.42], &"rock": [0.86, 0.6], &"snow": [0.6, 0.36], &"water": [0.5, 0.3]}
 const SURFACE_SPEED: Dictionary = {&"city": [1.0, 1.0], &"asphalt": [1.0, 1.0], &"dirt": [0.95, 0.78], &"grass": [0.9, 0.62], &"sand": [0.85, 0.55], &"rock": [0.85, 0.6], &"snow": [0.75, 0.5], &"water": [0.6, 0.35]}

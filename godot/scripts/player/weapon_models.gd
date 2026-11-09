@@ -62,6 +62,22 @@ const SPEC := {
 	&"qblink": {"reach": 0.6, "gr": Vector3(0.0, -0.085, 0.2), "gl": Vector3(-0.025, -0.1, 0.14)},
 	&"qphase": {"reach": 0.88, "gr": Vector3(0.0, -0.09, 0.7), "gl": Vector3(0.0, -0.08, 0.4)},
 	&"qstasis": {"reach": 0.8, "gr": Vector3(0.0, -0.1, 0.56), "gl": Vector3(0.0, -0.08, 0.3)},
+	# wave 108: the ENERGY family and the BLAST heavies (scripts/player/weapon_models_energy.gd)
+	&"eplasma": {"reach": 0.6, "gr": Vector3(0.0, -0.085, 0.22), "gl": Vector3(-0.025, -0.1, 0.15)},
+	&"erepeat": {"reach": 0.8, "gr": Vector3(0.0, -0.095, 0.58), "gl": Vector3(0.0, -0.08, 0.3)},
+	&"espike": {"reach": 0.8, "gr": Vector3(0.0, -0.1, 0.56), "gl": Vector3(0.0, -0.08, 0.3)},
+	&"ebeam": {"reach": 1.0, "gr": Vector3(0.0, -0.07, 0.9), "gl": Vector3(0.0, -0.06, 0.5)},
+	&"eblade": {"reach": 1.1, "gr": Vector3(0.0, 0.0, 0.94), "gl": Vector3(0.0, 0.0, 1.08)},
+	&"emaul": {"reach": 1.0, "gr": Vector3(0.0, 0.0, 0.7), "gl": Vector3(0.0, 0.0, 0.92)},
+	&"epod": {"reach": 0.82, "gr": Vector3(0.0, -0.11, 0.6), "gl": Vector3(0.0, -0.12, 0.3)},
+	&"railgun": {"reach": 0.98, "gr": Vector3(0.0, -0.1, 0.84), "gl": Vector3(0.0, -0.09, 0.5)},
+	&"chaingun": {"reach": 0.84, "gr": Vector3(0.0, -0.12, 0.62), "gl": Vector3(0.0, -0.14, 0.32)},
+	&"cmissile": {"reach": 0.8, "gr": Vector3(0.0, -0.11, 0.62), "gl": Vector3(0.0, -0.12, 0.3)},
+	&"napalm": {"reach": 0.78, "gr": Vector3(0.0, -0.11, 0.56), "gl": Vector3(0.0, -0.13, 0.26)},
+	&"sing": {"reach": 0.82, "gr": Vector3(0.0, -0.13, 0.64), "gl": Vector3(0.0, -0.12, 0.32)},
+	&"orbital": {"reach": 0.66, "gr": Vector3(0.0, -0.1, 0.4), "gl": Vector3(0.0, -0.1, 0.2)},
+	&"seeker": {"reach": 0.84, "gr": Vector3(0.0, -0.11, 0.62), "gl": Vector3(0.0, -0.12, 0.32)},
+	&"tknife": {"reach": 0.9, "gr": Vector3(0.0, 0.0, 0.26), "gl": Vector3(0.0, 0.0, 0.32)},
 }
 
 static var _cache := {}
@@ -210,6 +226,8 @@ static func _procedural(b: _Builder, id: StringName, glow: Color) -> void:
 			_qphase(b, glow)
 		&"qstasis":
 			_qstasis(b, glow)
+		_:
+			WeaponModelsEnergy.build(b, id, glow)                                                       # wave 108: the ENERGY and BLAST weapons (weapon_models_energy.gd)
 
 
 ## What the open-source model of a gun lacks: a bipod on the LMG and the anti-material rifle, a glowing muzzle ring on the quantum look of the rest (the real shapes are plain steel).

@@ -215,6 +215,16 @@ func _tick_extra(dt: float, d: float) -> void:
 		&"boss_leviathan": _tick_leviathan(dt, d)
 		&"boss_kraken": _tick_kraken(dt, d)
 		&"boss_warden": _tick_warden(dt, d)
+		_: _tick_roster(dt, d)
+
+
+## The roster-2 bosses (RosterBoss) put their own mechanics here (wave 108).
+func _tick_roster(_dt: float, _d: float) -> void:
+	pass
+
+
+func _idle_roster(_dt: float) -> void:
+	_play(&"idle", 1.0)
 
 
 func _idle_boss(dt: float) -> void:
@@ -236,7 +246,7 @@ func _idle_boss(dt: float) -> void:
 		&"boss_kraken":
 			_play(&"idle", 1.0)
 		_:
-			_play(&"idle", 1.0)
+			_idle_roster(dt)
 
 
 # --- BROODMOTHER ----------------------------------------------------------------------------------------------------------------------------------

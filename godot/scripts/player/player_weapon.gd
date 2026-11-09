@@ -51,7 +51,7 @@ const GRENADE_GRAVITY := 22.0
 const WELL_TICK := 0.2
 const INSPECT_TIME := 1.6
 const INSPECT_IDLE := 9.0                    ## seconds of doing nothing before the rifle is inspected
-const AMMO_PACK := {&"pistol": 30, &"marksman": 12, &"breacher": 8, &"rocket": 2, &"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12, &"swarm": 72, &"vector": 36, &"battle": 20, &"sawn": 6, &"auto": 12, &"bolt": 6, &"dmr": 20, &"magnum": 16, &"mpistol": 60, &"stun": 8, &"ranger": 30, &"bullpup": 30, &"lmg": 100, &"amr": 5, &"xbow": 6, &"flame": 100, &"qsuper": 20, &"qlink": 24, &"qcollapse": 1, &"qblink": 24, &"qphase": 24, &"qstasis": 20}
+const AMMO_PACK := {&"pistol": 30, &"marksman": 12, &"breacher": 8, &"rocket": 2, &"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12, &"swarm": 72, &"vector": 36, &"battle": 20, &"sawn": 6, &"auto": 12, &"bolt": 6, &"dmr": 20, &"magnum": 16, &"mpistol": 60, &"stun": 8, &"ranger": 30, &"bullpup": 30, &"lmg": 100, &"amr": 5, &"xbow": 6, &"flame": 100, &"qsuper": 20, &"qlink": 24, &"qcollapse": 1, &"qblink": 24, &"qphase": 24, &"qstasis": 20, &"eplasma": 16, &"erepeat": 60, &"espike": 24, &"ebeam": 4, &"epod": 12, &"railgun": 3, &"chaingun": 150, &"cmissile": 2, &"napalm": 3, &"sing": 1, &"orbital": 1, &"seeker": 1, &"tknife": 8}
 
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
@@ -75,6 +75,7 @@ var stuns := 0                               ## lifetime enemies frozen by a hit
 var burn_ticks := 0                          ## lifetime burn damage ticks (FLAMETHROWER)
 var blinks := 0                              ## lifetime BLINK PISTOL teleports
 var _burning: Dictionary = {}                ## enemy instance id -> {node, left, acc}: damage over time of the flamethrower
+var arms: EnergyArms                         ## the mechanics of the ENERGY and BLAST weapons (scripts/player/energy_arms.gd)
 var singularities := 0                       ## lifetime SINGULARITY ON CRIT pulses (crafted perk, scripts/progress/crafting.gd)
 var _sing_t := 0.0
 var overheats := 0
@@ -130,6 +131,7 @@ var _number_i := 0
 
 func _ready() -> void:
 	_player = get_parent() as Player
+	arms = EnergyArms.new(self)
 	if Game.progress != null and Game.progress.get(&"ammo_type") != null:
 		ammo_type = clampi(int(Game.progress.get(&"ammo_type")), 0, WeaponDefs.AMMO_TYPES.size() - 1)     # the saved choice
 	_ray.collide_with_areas = true
@@ -172,6 +174,7 @@ func reset() -> void:
 	_move_spread = 0.0
 	spread = float(def["spread_hip"])
 	_burning.clear()
+	arms.reset()
 	_clear_grenades()
 
 
@@ -421,7 +424,10 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 					_burst_t = float(def.get("burst_gap", 0.07))
 					match String(def["kind"]):
 						"throw":
-							_throw()
+							if int(def.get("salvo", 1)) > 1:
+								arms.salvo()
+							else:
+								_throw()
 						"melee":
 							_melee_swing(aiming)
 						_:
@@ -627,6 +633,8 @@ func _trace_pellet() -> void:
 		_hit_animal(animal, hit, dir, k)
 	elif hit_something:
 		_hit_world(hit, normal)
+	if def.has("splash") and (hit_something or target != null):          # plasma pop, explosive round, beam impact: a blast where the round landed (EnergyArms)
+		arms.splash(hit, shots_fired)
 
 
 ## FLAMETHROWER: fire puffs along the line muzzle -> hit (the fire colour of BlastElements), pooled FX bursts.
@@ -743,6 +751,8 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 			_stun(target)
 		if def.has("burn") and not _is_dead(target):
 			_ignite(target)
+		if def.has("stick") and not _is_dead(target):
+			arms.stick(target, hit)
 	else:
 		target.call(&"damage", DAMAGE_VEHICLE * float(def["damage"]) / DAMAGE * k)
 	var kill := (not is_vehicle) and _is_dead(target)
@@ -900,7 +910,23 @@ func _fire_lance(c: float, aiming: bool) -> void:
 	var space := p.get_world_3d().direct_space_state
 	_ray_b.from = origin
 	_ray_b.to = origin + dir * range_m
-	var wall := space.intersect_ray(_ray_b)
+	var walls_left := int(def.get("wall", 0))                      # PRISM BEAM RIFLE / COIL RAILGUN: the beam goes through that many walls (not the ground, not a car), each costs wall_k of the damage behind it
+	var skip: Array[RID] = _exclude_base.duplicate()
+	var passed: Array[float] = []
+	var wall := {}
+	for _w in 1 + walls_left:
+		_ray_b.exclude = skip
+		wall = space.intersect_ray(_ray_b)
+		if wall.is_empty():
+			break
+		if walls_left > 0 and _damageable_of(wall["collider"] as Node) == null and absf((wall["normal"] as Vector3).y) < 0.7:
+			walls_left -= 1
+			wall_hits += 1
+			passed.append(origin.distance_to(wall["position"]))
+			skip.append(wall["rid"])
+			continue
+		break
+	_ray_b.exclude = _exclude_base
 	var wall_t := range_m
 	var wall_normal := Vector3.UP
 	var wall_collider: Node = null
@@ -940,20 +966,30 @@ func _fire_lance(c: float, aiming: bool) -> void:
 	for v: Array in victims:
 		var e: Node = v[1]
 		if is_instance_valid(e) and not _is_dead(e):
-			_hit_target(e, origin + dir * float(v[0]), -dir, scale, v[2])
+			var k := scale
+			for pw in passed:
+				if pw < float(v[0]):
+					k *= float(def.get("wall_k", 0.7))
+			_hit_target(e, origin + dir * float(v[0]), -dir, k, v[2])
 	if wall_collider != null:
 		var veh := _damageable_of(wall_collider)
 		if veh != null and veh.is_in_group(&"vehicle") and not veh.is_in_group(&"enemy"):
 			_hit_target(veh, end, wall_normal, scale * 3.0)
 		else:
 			_hit_world(end, wall_normal)
+	if def.has("splash"):                                    # the beam burns out whatever it ends on: a blast at the end point (EnergyArms)
+		if wall_collider != null:
+			arms.splash(end, 0)
+		elif not victims.is_empty():
+			arms.splash(origin + dir * float((victims[victims.size() - 1] as Array)[0]), 0)
 	_recoil(aiming)
 	p.fired.emit()
 
 
 # --- Singularity Grenade ----------------------------------------------------------------------------------------------
 
-func _throw(yaw_off := 0.0) -> void:
+## `quiet` = the caller plays the launch sound once for a salvo; `opts`: wid (a PROJ sub-def thrown instead of the weapon), airburst (burst in the air over the aim point), dive (top attack).
+func _throw(yaw_off := 0.0, quiet := false, opts := {}) -> void:
 	var p := _player
 	ammo -= 1
 	shots_fired += 1
@@ -961,6 +997,8 @@ func _throw(yaw_off := 0.0) -> void:
 	_since_shot = 0.0
 	_burst = 1
 	Sfx.play(&"blink", -6.0, 1.6)
+	if bool(def.get("launch", false)) and not quiet:
+		Sfx.play(StringName(def.get("snd", &"shot")), float(def.get("vol", -2.0)), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
 	var ar := _aim_ray(0.0)
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]
@@ -976,14 +1014,26 @@ func _throw(yaw_off := 0.0) -> void:
 	if yaw_off != 0.0:
 		delta = delta.rotated(Vector3.UP, yaw_off)
 	var flat := Vector2(delta.x, delta.z).length()
-	var t := clampf(flat / float(def["speed"]), 0.3, 2.0)
+	var wid := StringName(opts.get("wid", current))
+	var td: Dictionary = WeaponDefs.PROJ[wid] if WeaponDefs.PROJ.has(wid) else def                # the projectile's own numbers (the plasma pistol's overcharge ball) or the weapon's
+	var t := clampf(flat / float(td["speed"]), 0.3, 2.0)
 	var g := _free_grenade()
 	g["state"] = 0
-	g["wid"] = current
+	g["wid"] = wid
+	g["guided"] = bool(def.get("guided", false))
+	g["dive"] = bool(opts.get("dive", false))
+	g.erase("fuse")
 	g["pos"] = from
-	var grav := float(def.get("grav", GRENADE_GRAVITY))
+	var grav := float(td.get("grav", GRENADE_GRAVITY))
 	g["grav"] = grav
 	g["vel"] = Vector3(delta.x / t, delta.y / t + 0.5 * grav * t, delta.z / t)
+	if bool(opts.get("airburst", false)):                   # AIRBURST: the missile opens in the air, 3.5 m above the aim point, and the bomblets rain down on it
+		delta.y += 3.5
+		g["vel"] = Vector3(delta.x / t, delta.y / t + 0.5 * grav * t, delta.z / t)
+		g["fuse"] = t * 0.985
+	if bool(opts.get("dive", false)):                       # TOP ATTACK: the guidance climbs first (EnergyArms.steer), so give it a head start straight up
+		g["vel"] = Vector3(0.0, float(def["speed"]) * 0.9, 0.0) + Vector3(delta.x, 0.0, delta.z).normalized() * float(def["speed"]) * 0.35
+		g["guided"] = true
 	g["t"] = 0.0
 	var node: MeshInstance3D = g["node"]
 	node.global_position = from
@@ -998,7 +1048,7 @@ func _free_grenade() -> Dictionary:
 	for g in _grenades:
 		if int(g["state"]) < 0:
 			return g
-	if _grenades.size() >= 2:                               # both busy: the oldest collapses early and gives its slot
+	if _grenades.size() >= int(def.get("slots", 2)):          # all busy: the oldest collapses early and gives its slot (the multi-round weapons keep more slots, WeaponDefs `slots`)
 		var oldest := _grenades[0]
 		for g in _grenades:
 			if float(g["t"]) > float(oldest["t"]):
@@ -1059,7 +1109,10 @@ func _physics_process(delta: float) -> void:
 
 
 func _physics_process_body(delta: float) -> void:
-	if _grenades.is_empty() or not Game.is_playing():
+	if not Game.is_playing():
+		return
+	arms.tick(delta)
+	if _grenades.is_empty():
 		return
 	for g in _grenades:
 		match int(g["state"]):
@@ -1070,6 +1123,8 @@ func _physics_process_body(delta: float) -> void:
 
 
 func _fly(g: Dictionary, dt: float) -> void:
+	if bool(g.get("guided", false)):
+		arms.steer(g, dt)
 	var vel: Vector3 = g["vel"]
 	vel.y -= float(g.get("grav", GRENADE_GRAVITY)) * dt
 	g["vel"] = vel
@@ -1090,13 +1145,16 @@ func _fly(g: Dictionary, dt: float) -> void:
 				break
 	g["pos"] = nxt
 	(g["node"] as Node3D).global_position = nxt
-	if land or float(g["t"]) >= float(_gdef(g)["fuse"]):
+	if land or float(g["t"]) >= float(g.get("fuse", _gdef(g)["fuse"])):
 		_start_well(g)
 
 
 ## The definition a thrown projectile uses (the grenade or the gravity launcher that threw it).
 func _gdef(g: Dictionary) -> Dictionary:
-	return WeaponDefs.def(g.get("wid", &"grenade"))
+	var wid: StringName = g.get("wid", &"grenade")
+	if WeaponDefs.PROJ.has(wid):
+		return WeaponDefs.PROJ[wid]
+	return WeaponDefs.def(wid)
 
 
 static func def_of_grenade() -> Dictionary:
@@ -1163,8 +1221,12 @@ func _collapse(g: Dictionary) -> void:
 	var pos: Vector3 = g["pos"]
 	g["state"] = -1
 	(g["node"] as Node3D).visible = false
+	if arms.on_collapse(d, pos):                            # the orbital beacon plants itself, the strike comes later
+		grenade_collapsed.emit(pos)
+		return
 	Game.explode(pos + Vector3(0.0, 0.5, 0.0), float(d["blast_radius"]), {"enemy_dmg": float(d.get("blast_damage", d["damage"])) * Upgrades.damage_mult(), "car_dmg": float(d.get("car_dmg", 40.0)),
 			"player_dmg": 0.0, "color": d.get("blast_color", WeaponDefs.COLLAPSE_COLOR), "element": d.get("blast_element", &"")})
+	arms.after_blast(d, pos)                                # bomblets, a burning field, the overcharge stun
 	grenade_collapsed.emit(pos)
 
 
@@ -1216,12 +1278,17 @@ func _stun(target: Node) -> void:
 
 ## FLAMETHROWER: the target burns for `burn_time` seconds, `burn` damage per second (a tick twice a second); a new hit renews the time.
 func _ignite(target: Node) -> void:
+	_ignite_ex(target, float(def["burn"]) * Upgrades.damage_mult(), float(def["burn_time"]))
+
+
+## Burning with its own numbers (the fields of the NAPALM LAUNCHER call it); a new hit renews the time.
+func _ignite_ex(target: Node, dps: float, secs: float) -> void:
 	var key := target.get_instance_id()
 	var e: Dictionary = _burning.get(key, {})
 	e["node"] = target
-	e["left"] = float(def["burn_time"])
+	e["left"] = maxf(secs, float(e.get("left", 0.0)))
 	e["acc"] = float(e.get("acc", 0.0))
-	e["dps"] = float(def["burn"]) * Upgrades.damage_mult()
+	e["dps"] = dps
 	_burning[key] = e
 
 
@@ -1393,6 +1460,8 @@ func _melee_swing(aiming: bool, mult := 1.0, reach_add := 0.0) -> int:
 		var spot := origin + fwd * minf(reach, 3.0) * 0.6
 		if city.ambient.blast_civilians(spot, maxf(1.2, minf(reach, 3.0) * 0.6), true, float(def["damage"]) * k * 0.9, &"melee") > 0:
 			n += 1
+	if def.has("shock"):                                     # the TREMOR MAUL: every swing sends a shockwave (works on the ground, breaks cover)
+		arms.melee_shock(origin, fwd, reach)
 	var mz := p.body.muzzle.global_position
 	var tip := origin + Vector3(0.0, 1.2, 0.0) + fwd * minf(reach, 3.0)
 	var swing := p.camera_rig.camera.global_basis.x * (0.8 if step % 2 == 0 else -0.8)
@@ -1415,6 +1484,10 @@ func _melee_hit(e: Node, c: Vector3, k: float, finisher: bool) -> void:
 	e.call(&"damage", amount, finisher)
 	if e.has_method(&"stagger"):
 		e.call(&"stagger", AimAssist.stagger_for(current) * (1.8 if finisher else 1.0))
+	if def.has("burn") and not _is_dead(e):                  # the ION BLADE sears what it cuts
+		_ignite(e)
+	if def.has("stun") and not _is_dead(e):
+		_stun(e)
 	var kill := _is_dead(e)
 	_hit_sound(kill, finisher)
 	p.last_hit_time = PlayerUtil.now()
@@ -1509,12 +1582,17 @@ func alt_fire(aiming := false) -> bool:
 		"blink":                                                # the BLINK PISTOL: QUANTUM TELEPORT to the crosshair
 			if not _blink_to_aim(float(a["range"])):
 				return false
+		"oc_bolt", "pop", "slam", "repulse", "fan", "airburst", "dive", "fire_line":      # the ENERGY and BLAST weapons (scripts/player/energy_arms.gd)
+			if not arms.alt(kind, a, aiming):
+				return false
+			if kind in ["oc_bolt", "fan", "airburst", "dive"]:
+				ammo = maxi(0, start - cost)
 		_:
 			return false
 	fire_t = maxf(fire_t, float(a["cd"]))
 	alt_fired += 1
 	Sfx.play(&"link", -8.0, 1.6)
-	return shots_fired > before or kind in ["vent", "pull", "lunge", "blink"]
+	return shots_fired > before or kind in ["vent", "pull", "lunge", "blink", "pop"]
 
 
 func _whip_pull(range_m: float) -> bool:

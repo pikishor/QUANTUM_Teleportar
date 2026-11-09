@@ -9,7 +9,9 @@ extends RefCounted
 const WEAPON := &"weapon"
 const THROWABLE := &"throwable"
 const CHARGE := &"charge"
+const GADGET := &"gadget"
 const EXPLOSIVE_TAB := &"explosive"
+const GADGET_TAB := &"gadget"
 
 ## slot id, label (what the owner asked for), the object id, its kind.
 const ENTRIES: Array[Dictionary] = [
@@ -48,6 +50,27 @@ const ENTRIES: Array[Dictionary] = [
 	{"slot": &"quantum_4", "label": "QUANTUM", "id": &"qblink", "kind": WEAPON},
 	{"slot": &"quantum_5", "label": "QUANTUM", "id": &"qphase", "kind": WEAPON},
 	{"slot": &"quantum_6", "label": "QUANTUM", "id": &"qstasis", "kind": WEAPON},
+	# wave 108: the ENERGY family (original designs, plain names) and the BLAST class of destructive heavies, throwables and deployables
+	{"slot": &"plasma_pistol", "label": "PLASMA PISTOL WITH OVERCHARGE", "id": &"eplasma", "kind": WEAPON},
+	{"slot": &"plasma_repeater", "label": "PLASMA REPEATER", "id": &"erepeat", "kind": WEAPON},
+	{"slot": &"crystal_rifle", "label": "STICKY CRYSTAL RIFLE", "id": &"espike", "kind": WEAPON},
+	{"slot": &"beam_rifle", "label": "BEAM RIFLE", "id": &"ebeam", "kind": WEAPON},
+	{"slot": &"energy_blade", "label": "ENERGY BLADE WITH LUNGE", "id": &"eblade", "kind": WEAPON},
+	{"slot": &"gravity_hammer", "label": "GRAVITY HAMMER WITH SHOCKWAVE", "id": &"emaul", "kind": WEAPON},
+	{"slot": &"rocket_pod", "label": "ROCKET-POD LAUNCHER", "id": &"epod", "kind": WEAPON},
+	{"slot": &"railgun", "label": "RAILGUN", "id": &"railgun", "kind": WEAPON},
+	{"slot": &"chaingun", "label": "CHAIN-GUN", "id": &"chaingun", "kind": WEAPON},
+	{"slot": &"cluster_missile", "label": "CLUSTER MISSILE", "id": &"cmissile", "kind": WEAPON},
+	{"slot": &"napalm", "label": "NAPALM LAUNCHER", "id": &"napalm", "kind": WEAPON},
+	{"slot": &"singularity_cannon", "label": "SINGULARITY CANNON", "id": &"sing", "kind": WEAPON},
+	{"slot": &"orbital_beacon", "label": "ORBITAL STRIKE BEACON", "id": &"orbital", "kind": WEAPON},
+	{"slot": &"guided_launcher", "label": "GUIDED MISSILE LAUNCHER", "id": &"seeker", "kind": WEAPON},
+	{"slot": &"throwing_knives", "label": "THROWING KNIVES", "id": &"tknife", "kind": WEAPON},
+	{"slot": &"plasma_grenade", "label": "STICKY PLASMA GRENADE", "id": &"plasma", "kind": THROWABLE},
+	{"slot": &"spike_grenade", "label": "SPIKE GRENADE", "id": &"spike", "kind": THROWABLE},
+	{"slot": &"turret", "label": "DEPLOYABLE TURRET", "id": &"turret", "kind": GADGET},
+	{"slot": &"shield_emitter", "label": "SHIELD EMITTER", "id": &"shield", "kind": GADGET},
+	{"slot": &"jetpack", "label": "JETPACK BOOST MODULE", "id": &"jetpack", "kind": GADGET},
 ]
 
 
@@ -70,7 +93,12 @@ static func tab_of(id: StringName) -> StringName:
 	var e := entry(id)
 	if e.is_empty():
 		return &""
-	return WeaponDefs.class_of(id) if StringName(e["kind"]) == WEAPON else EXPLOSIVE_TAB
+	match StringName(e["kind"]):
+		WEAPON:
+			return WeaponDefs.class_of(id)
+		GADGET:
+			return GADGET_TAB
+	return EXPLOSIVE_TAB
 
 
 ## The tabs in display order with the entries of each: [{tab, name, ids}].
@@ -87,6 +115,11 @@ static func tabs() -> Array[Dictionary]:
 		if tab_of(id) == EXPLOSIVE_TAB:
 			ex.append(id)
 	out.append({"tab": EXPLOSIVE_TAB, "name": "EXPLOSIVES", "ids": ex})
+	var gd: Array[StringName] = []
+	for id in ids():
+		if tab_of(id) == GADGET_TAB:
+			gd.append(id)
+	out.append({"tab": GADGET_TAB, "name": "GADGETS", "ids": gd})
 	return out
 
 
@@ -99,6 +132,8 @@ static func model(id: StringName) -> Mesh:
 			return Throwables.mesh_of(id)
 		CHARGE:
 			return Charges.mesh_of()
+		GADGET:
+			return Gadgets.mesh_of(id)
 	return null
 
 
@@ -107,7 +142,7 @@ static func icon(id: StringName) -> Texture2D:
 	match StringName(entry(id).get("kind", &"")):
 		WEAPON:
 			return ItemIcons.weapon(id)
-		THROWABLE, CHARGE:
+		THROWABLE, CHARGE, GADGET:
 			return ItemIcons.gear(id)
 	return null
 
@@ -117,7 +152,7 @@ static func sound(id: StringName) -> StringName:
 	match StringName(entry(id).get("kind", &"")):
 		WEAPON:
 			return StringName(WeaponDefs.def(id).get("snd", &"shot"))
-		THROWABLE, CHARGE:
+		THROWABLE, CHARGE, GADGET:
 			return StringName(Gear.def(id).get("snd", &""))
 	return &""
 
@@ -127,9 +162,17 @@ static func stat_lines(id: StringName) -> Array[String]:
 	match StringName(entry(id).get("kind", &"")):
 		WEAPON:
 			return WeaponStats.lines(WeaponStats.card(id))
-		THROWABLE, CHARGE:
+		THROWABLE, CHARGE, GADGET:
 			return WeaponsScreen.gear_lines(id)
 	return []
+
+
+## What the weapon is FOR in the missions, a few plain words in two clauses separated by two spaces ("BREAKS SHIELDS AND ARMOUR  OVERCHARGE STUNS A SQUAD"); "" for the older guns.
+## Weapons carry it as the `role` key of their def, throwables and gadgets as `role` in Gear.
+static func role(id: StringName) -> String:
+	if WeaponDefs.DEFS.has(id):
+		return String(WeaponDefs.def(id).get("role", ""))
+	return String(Gear.def(id).get("role", ""))
 
 
 ## A few plain words on what makes the weapon different to use (the new mechanics of the roster); "" for the ordinary guns.
@@ -150,6 +193,22 @@ static func trait_text(id: StringName) -> String:
 		bits.append("LINKS %d MORE" % int(d["chain"]))
 	if bool(d.get("echo", false)):
 		bits.append("ECHO SHOT")
+	if d.has("splash"):
+		bits.append("BLAST ON IMPACT")
+	if d.has("stick"):
+		bits.append("%d CRYSTALS SUPERCOMBINE" % int(d["stick"]))
+	if d.has("shock"):
+		bits.append("SHOCKWAVE %.0f M" % float(d["shock"]))
+	if int(d.get("salvo", 1)) > 1:
+		bits.append("%d ROCKETS PER PULL" % int(d["salvo"]))
+	if int(d.get("cluster_n", 0)) > 0:
+		bits.append("%d BOMBLETS" % int(d["cluster_n"]))
+	if d.has("fire_radius"):
+		bits.append("FIRE FIELD  BURNS EVERYONE IN IT")
+	if bool(d.get("beacon", false)):
+		bits.append("ORBITAL STRIKE")
+	if bool(d.get("guided", false)):
+		bits.append("STEERED BY THE CROSSHAIR")
 	if String(WeaponDefs.alt_of(id).get("kind", "")) == "blink":
 		bits.append("ALT = TELEPORT")
 	return "  ".join(bits)
@@ -165,6 +224,8 @@ static func unlock(id: StringName) -> String:
 			return "STARTER" if price <= 0 else "BUY  %d" % Economy.gear_price(id)
 		CHARGE:
 			return "ALWAYS CARRIED"
+		GADGET:
+			return "BUY  %d" % Economy.gear_price(id)
 	return ""
 
 
@@ -177,4 +238,6 @@ static func obtainable(id: StringName) -> bool:
 			return Gear.THROWABLES.has(id)
 		CHARGE:
 			return Gear.CHARGES.has(id)
+		GADGET:
+			return Gear.GADGETS.has(id) and Economy.gear_price(id) > 0
 	return false

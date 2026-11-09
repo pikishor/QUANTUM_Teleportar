@@ -12,6 +12,9 @@ var heat := 0.0
 var locked := false
 var shots := 0
 var hits := 0
+var indirect_shells := 0             ## HOWITZER shells that landed (tests)
+var flak_bursts := 0                  ## FLAK CANNON bursts (tests)
+var alt_hits := 0
 var _cd := 0.0
 var alt_def: Dictionary = {}          ## the secondary weapon (VehicleSpecs.ALT_WEAPONS: rockets, missiles): fired by tick_alt on the AIM button
 var alt_ammo := 0
@@ -81,12 +84,18 @@ func _shoot() -> void:
 	if heat >= 1.0:
 		locked = true
 		Game.say("WEAPON OVERHEATED", 1.0)
+	if bool(def.get("indirect", false)):                         # the howitzer: the shell lands on the crosshair point after a flight (a shriek, then the blast), range permitting
+		_shell()
+		return
 	var origin := muzzle()
 	var dir := car.aim_dir()
 	var spread := float(def.get("spread", 0.0))
 	if spread > 0.0:
 		dir = dir.rotated(Vector3.UP, randf_range(-spread, spread)).rotated(dir.cross(Vector3.UP).normalized() if absf(dir.y) < 0.99 else Vector3.RIGHT, randf_range(-spread, spread) * 0.5)
-	var to := origin + dir * float(def["range"])
+	var reach := float(def["range"])
+	if bool(def.get("flak", false)):                           # flak is fused: it bursts at the aim point, not at the end of its range
+		reach = clampf(origin.distance_to(VehicleCraft.aim_point(car)), 20.0, reach)
+	var to := origin + dir * reach
 	var space := car.get_world_3d().direct_space_state
 	var q := PhysicsRayQueryParameters3D.create(origin, to, Game.L_WORLD | Game.L_ENEMY | Game.L_VEHICLE)
 	q.exclude = [car.get_rid()]
@@ -100,11 +109,42 @@ func _shoot() -> void:
 			hits += 1
 		var blast := float(def.get("blast", 0.0))
 		if blast > 0.0:
-			Game.explode(end, blast, {"enemy_dmg": float(def["dmg"]) * 0.5, "car_dmg": float(def["dmg"]) * 0.5, "player_dmg": 0.0, "color": def["color"]})
+			Game.explode(end, blast, {"enemy_dmg": float(def["dmg"]) * 0.5, "car_dmg": float(def["dmg"]) * 0.5, "player_dmg": 0.0, "color": def["color"], "quiet": bool(def.get("flak", false))})
 		else:
 			FX.burst(end, def["color"], 4, 4.0, 0.25, 6.0, 0.4)
+	elif bool(def.get("flak", false)):                           # flak bursts in the air at the end of its range, so a plane that is up there still feels it
+		flak_bursts += 1
+		Game.explode(end, float(def["blast"]), {"enemy_dmg": float(def["dmg"]) * 0.5, "car_dmg": float(def["dmg"]) * 0.8, "player_dmg": 0.0, "color": def["color"], "quiet": true})
 	FX.tracer(origin, end, def["color"])
 	Sfx.play_at(&"shot", origin, -8.0)
+
+
+## HOWITZER: the shell lands where the crosshair is (inside the range), `delay` seconds later; the blast is big (blast radius, dmg at the centre) and breaks cover, cars and props like any other.
+func _shell() -> void:
+	var origin := muzzle()
+	var aim: Vector3 = VehicleCraft.aim_point(car)
+	var off := aim - car.global_position
+	var rng := float(def["range"])
+	if Vector2(off.x, off.z).length() > rng:
+		off = off.normalized() * rng
+		aim = car.global_position + off
+	var q := PhysicsRayQueryParameters3D.create(aim + Vector3(0.0, 60.0, 0.0), aim - Vector3(0.0, 80.0, 0.0), Game.L_WORLD | Game.L_VEHICLE)
+	var hit := car.get_world_3d().direct_space_state.intersect_ray(q)
+	var land: Vector3 = hit["position"] if not hit.is_empty() else Vector3(aim.x, car.global_position.y, aim.z)
+	FX.burst(origin, def["color"], 10, 5.0, 0.5, 0.0, 1.6)
+	FX.tracer(origin, origin + car.aim_dir() * 40.0, def["color"])
+	Sfx.play_at(&"boom", origin, -2.0, 1.2)
+	var blast := float(def["blast"])
+	var dmg := float(def["dmg"])
+	var col: Color = def["color"]
+	var c := car
+	var tree := car.get_tree()
+	var timer := tree.create_timer(float(def.get("delay", 1.2)))
+	timer.timeout.connect(func() -> void:
+		indirect_shells += 1
+		Game.explode(land, blast, {"enemy_dmg": dmg, "car_dmg": dmg, "player_dmg": 0.0, "color": col})
+		if is_instance_valid(c):
+			hits += 1)
 
 
 # --- the secondary weapon: rockets (gunship) and homing missiles (jet) ---------------------------------------------------------------------
@@ -134,11 +174,16 @@ func tick_alt(dt: float, fire: bool) -> bool:
 	return false
 
 
-## Fire a salvo now (a test can call it directly): `salvo` rockets from the pylons, left and right in turn.
+## Fire a salvo now (a test can call it directly): `salvo` rockets from the pylons, left and right in turn. A "gun" alt (the coaxial machine gun of the tanks) is one hitscan round instead.
 func fire_alt() -> bool:
 	if not can_fire_alt():
 		return false
 	_alt_cd = 1.0 / float(alt_def["rate"])
+	if String(alt_def.get("kind", "")) == "gun":
+		alt_ammo -= 1
+		alt_shots += 1
+		_coax()
+		return true
 	var fired := false
 	var origin := car.muzzle_pos()
 	var dir := car.aim_dir()
@@ -155,6 +200,29 @@ func fire_alt() -> bool:
 			alt_shots += 1
 			fired = true
 	return fired
+
+
+## One round of the coaxial machine gun: a tracer along the turret, the hit target takes `dmg` (a person, a car), a spark where it lands.
+func _coax() -> void:
+	var origin := car.muzzle_pos()
+	var dir := car.aim_dir()
+	var spread := float(alt_def.get("spread", 0.0))
+	if spread > 0.0:
+		dir = dir.rotated(Vector3.UP, randf_range(-spread, spread)).rotated(dir.cross(Vector3.UP).normalized() if absf(dir.y) < 0.99 else Vector3.RIGHT, randf_range(-spread, spread) * 0.5)
+	var to := origin + dir * float(alt_def["range"])
+	var q := PhysicsRayQueryParameters3D.create(origin, to, Game.L_WORLD | Game.L_ENEMY | Game.L_VEHICLE)
+	q.exclude = [car.get_rid()]
+	var r := car.get_world_3d().direct_space_state.intersect_ray(q)
+	var end := to
+	if not r.is_empty():
+		end = r["position"]
+		var col: Object = r["collider"]
+		if col != null and col.has_method(&"damage"):
+			col.call(&"damage", float(alt_def["dmg"]))
+			alt_hits += 1
+		FX.burst(end, alt_def["color"], 3, 3.0, 0.2, 5.0, 0.35)
+	FX.tracer(origin, end, alt_def["color"])
+	Sfx.play_at(&"shot_flux", origin, -10.0, 1.1)
 
 
 ## The nearest enemy or vehicle in a narrow cone in front of the nose (within the weapon's range): the missile steers to it.

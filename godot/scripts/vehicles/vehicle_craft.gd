@@ -405,7 +405,7 @@ static func _slew_turret(v: Vehicle, dt: float) -> void:
 		return
 	var want_yaw := atan2(-d.x, -d.z)
 	var flat := Vector2(d.x, d.z).length()
-	var want_pitch := clampf(atan2(d.y, maxf(flat, 1.0)), GUN_PITCH_MIN, GUN_PITCH_MAX)
+	var want_pitch := clampf(atan2(d.y, maxf(flat, 1.0)), GUN_PITCH_MIN, float(v.spec.get("gun_max", GUN_PITCH_MAX)))      # artillery and anti-air guns elevate far above a tank's
 	var dy := wrapf(want_yaw - c.turret_yaw, -PI, PI)
 	c.turret_yaw += clampf(dy, -TURRET_RATE * dt, TURRET_RATE * dt)
 	c.gun_pitch = move_toward(c.gun_pitch, want_pitch, 1.1 * dt)
@@ -426,7 +426,7 @@ static func aim_point(v: Vehicle) -> Vector3:
 
 static func muzzle_origin(v: Vehicle) -> Vector3:
 	var T := v.spec
-	var up := float(T["hgt"]) * (0.8 if v.cls == &"tank" else 0.45)
+	var up := float(T["hgt"]) * (float(T.get("gun_h", 0.8)) if v.cls == &"tank" else 0.45)
 	return v.global_position + Vector3(0.0, up, 0.0)
 
 
@@ -456,7 +456,7 @@ static func muzzle(v: Vehicle) -> Vector3:
 		var c := v.craft
 		var cp := cos(c.gun_pitch)
 		var d := Vector3(-sin(c.turret_yaw) * cp, sin(c.gun_pitch), -cos(c.turret_yaw) * cp)
-		return v.global_position + Vector3(0.0, float(T["hgt"]) * 0.82, 0.0) + d * 3.4
+		return v.global_position + Vector3(0.0, float(T["hgt"]) * (float(T.get("gun_h", 0.8)) + 0.02), 0.0) + d * float(T.get("gun_len", 3.4))
 	return v.global_position + v.forward() * float(T["len"]) * 0.5 + Vector3(0.0, float(T["hgt"]) * 0.4, 0.0)
 
 
@@ -516,6 +516,9 @@ static func sync(v: Vehicle, dt: float) -> void:
 			var turret := vis.parts.get("Turret") as Node3D
 			if turret != null:
 				turret.rotation = Vector3(0.0, c.turret_yaw - v.heading, 0.0)
+				var gun := turret.get_node_or_null("Gun") as Node3D                               # the procedural tanks elevate their gun on its trunnion (the art tank has one piece)
+				if gun != null:
+					gun.rotation = Vector3(c.gun_pitch, 0.0, 0.0)
 			var acc := (v.speed - v._last_vf) / maxf(dt, 0.0001)
 			c.pitch = lerpf(c.pitch, clampf(acc * 0.004, -0.05, 0.05), 1.0 - exp(-5.0 * dt))
 			vis.model.rotation = Vector3(c.pitch, 0.0, 0.0)

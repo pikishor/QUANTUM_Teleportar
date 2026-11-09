@@ -8,18 +8,19 @@ extends RefCounted
 ## Gear prices go through PRICE_SCALE, the one knob for "how long is the grind"; rewards are listed at their final values.
 
 const FIRST_UPGRADE_MINUTES := 10.0
-const FULL_TREE_HOURS := 10.0
+const FULL_TREE_HOURS := 11.0                 ## 10 h before wave 108 added the energy / blast weapons, the grenades and the three gadgets (most of them are free on the ladder: crates, drops, missions)
 const PRICE_SCALE := 2.8
 
 ## Shop upgrade base price (Upgrades.cost multiplies by 1 + 0.8 * level).
 const UPGRADE_BASE := {&"damage": 240, &"mag": 160, &"reload": 160, &"blink": 200, &"regen": 200, &"armour": 260, &"decoy": 180, &"health": 200, &"power": 220}
 ## The seven starters (pistol, SMG, carbine, shotgun, rail, launcher, blade) cost nothing; the rest is the unlock ladder (scripts/progress/weapon_ladder.gd), every one of them can also be bought here.
 const WEAPON_PRICE := {&"carbine": 0, &"pistol": 0, &"flux": 0, &"scatter": 0, &"rail": 0, &"gravity": 0, &"blade": 0, &"marksman": 650, &"burst": 400, &"revolver": 750, &"akimbo": 700, &"breacher": 800, &"arc": 850, &"lance": 800, &"whip": 600, &"rocket": 1500, &"minigun": 1400, &"grenade": 650, &"swarm": 450, &"vector": 750, &"battle": 900, &"sawn": 600, &"auto": 800, &"bolt": 1100, &"dmr": 950, &"knife": 400, &"magnum": 200, &"mpistol": 120, &"stun": 120, &"ranger": 200, &"bullpup": 250, &"lmg": 400, &"amr": 400, &"xbow": 200, &"flame": 350, &"katana": 200, &"bat": 100,
-	&"qsuper": 280, &"qlink": 320, &"qcollapse": 520, &"qblink": 240, &"qphase": 360, &"qstasis": 320}
+	&"qsuper": 280, &"qlink": 320, &"qcollapse": 520, &"qblink": 240, &"qphase": 360, &"qstasis": 320,
+	&"eplasma": 180, &"erepeat": 230, &"espike": 270, &"ebeam": 420, &"eblade": 300, &"emaul": 360, &"epod": 480, &"railgun": 540, &"chaingun": 480, &"cmissile": 540, &"napalm": 450, &"sing": 660, &"orbital": 900, &"seeker": 420, &"tknife": 90}
 const ATTACHMENT_PRICE := {&"reddot": 250, &"scope": 450, &"halo": 350, &"suppressor": 300, &"longbarrel": 400, &"compensator": 350, &"overcharge": 500, &"rapid": 450, &"extended": 400}
 ## Throwables and gadgets (Gear, scripts/combat/gear.gd): base price, scaled like the rest of the gear. The singularity frag is the free starter.
-const THROW_PRICE := {&"singularity": 0, &"mine": 300, &"decoy": 220, &"shroud": 260, &"emp": 380, &"flash": 180}
-const GADGET_PRICE := {&"scanner": 300, &"grapple": 520, &"drone": 700}
+const THROW_PRICE := {&"singularity": 0, &"mine": 300, &"decoy": 220, &"shroud": 260, &"emp": 380, &"flash": 180, &"plasma": 200, &"spike": 180}
+const GADGET_PRICE := {&"scanner": 300, &"grapple": 520, &"drone": 700, &"turret": 390, &"shield": 360, &"jetpack": 330}
 const GARAGE_BASE := {&"speed": 300, &"armour": 250, &"grip": 200, &"weapon": 400}   ## x (level + 1)
 const GARAGE_LEVELS := 3
 const SUIT_PRICE := {&"standard": 0, &"stealth": 300, &"phase": 0, &"gilded": 0}

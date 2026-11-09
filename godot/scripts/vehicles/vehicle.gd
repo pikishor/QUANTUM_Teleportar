@@ -172,6 +172,9 @@ func setup(k: StringName, mgr: Node) -> void:
 func activate(pos: Vector3, h: float) -> void:
 	if visual != null:
 		visual.restore_wheels()
+		var tur := visual.parts.get("Turret") as Node3D
+		if tur != null:
+			tur.visible = true                                      # a tank that lost its turret in a blast gets it back when it is recycled
 	_panels_torn = 0
 	_leak_t = 0.0
 	hp = max_hp
@@ -643,6 +646,8 @@ func explode() -> void:
 	damage_state_changed.emit(self, 3)
 	if FX.car_debris != null and (_dist < 80.0 or driver_is_player):
 		FX.car_debris.wreck(self)                                   # wheels and body panels fly off
+	if cls == &"tank" and (_dist < 120.0 or driver_is_player):
+		TankWreck.pop_turret(self)                                  # an armoured vehicle loses its turret in the blast (scripts/vehicles/tank_wreck.gd)
 	Game.explode(pos + Vector3(0.0, 1.0, 0.0), 9.0, {"enemy_dmg": 80.0, "car_dmg": 70.0, "player_dmg": 35.0, "color": Color(1.0, 0.54, 0.19)})
 	Game.add_heat(VehicleSpecs.CARJACK_HEAT)
 	_chain_ignite(pos)

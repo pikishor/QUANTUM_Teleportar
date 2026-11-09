@@ -6,7 +6,7 @@ extends Node3D
 
 const RINGS := 10
 const LINES := 6
-const SPRITES := 22
+const SPRITES := 30                          ## 22 projectile slots of AlienWorld plus 8 of RosterFire (roster-2 rockets, grenades, shells)
 
 var _rings: Array[MeshInstance3D] = []
 var _ring_t := PackedFloat32Array()

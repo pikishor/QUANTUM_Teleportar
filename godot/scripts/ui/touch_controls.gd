@@ -522,6 +522,11 @@ func _label_of(b: Dictionary) -> String:
 		if cc == &"heli" or cc == &"plane":
 			return "UP"                                  # climb / nose up
 		return "BRAKE" if cc == &"boat" or cc == &"tank" else "DRIFT"       # the handbrake
+	if b["action"] == &"aim" and b.get("need", &"") == &"arms2" and is_instance_valid(Game.vehicles):           # the secondary weapon says what it is: ROCKET, MISSILE, COAX
+		var dv: Object = Game.vehicles.get("driven")
+		var wp: Object = dv.get("weapons") if dv != null else null
+		if wp != null and wp.get("alt_def") is Dictionary:
+			return String((wp.get("alt_def") as Dictionary).get("short", "ROCKET"))
 	if b["action"] == &"skip_piece":
 		var hud := get_parent()
 		if hud != null and hud.has_method(&"step_skip_offered") and bool(hud.call(&"step_skip_offered")):

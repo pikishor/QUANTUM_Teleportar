@@ -590,7 +590,110 @@ def build_roster():
         emit_o(nm, match(x, nm, boost=1.0))
 
 
-STEPS = [build_shots, build_weapon_foley, build_impacts, build_hits, build_explosions, build_footsteps, build_vehicle, build_ui, build_beds, build_roster]
+# ------------------------------------------------------------------ wave 108: ENERGY and BLAST weapons, sticky / spike grenades, turret / shield / jetpack (tests/test_energy_destructive_weapons.gd)
+ENERGY_ALIAS = {   # new sound -> an existing sound whose level row (real_levels.py) it follows
+    "shot_eplasma": "shot_arc", "shot_erepeat": "shot_burst", "shot_espike": "shot_arc", "shot_ebeam": "shot_lance", "melee_eblade": "melee_blade", "melee_emaul": "melee_blade",
+    "shot_epod": "shot_gravity", "shot_railgun": "shot_rail", "shot_chaingun": "shot_mini", "shot_cmissile": "shot_gravity", "shot_napalm": "shot_gravity", "shot_sing": "shot_gravity",
+    "shot_orbital": "shot_gravity", "shot_seeker": "shot_gravity", "melee_tknife": "melee_whip", "plasma_blast": "shot_gravity", "plasma_stick": "link", "spike_blast": "shot_gravity",
+    "turret_deploy": "link", "shield_up": "superpos", "jet_boost": "shot_gravity",
+}
+
+
+def build_energy():
+    for k, v in ENERGY_ALIAS.items():
+        for sfx in ("", "_1", "_2"):
+            LEVELS[k + sfx] = LEVELS[v]
+    # EMBER PLASMA PISTOL: a wet plasma bolt, a laser dropped a fourth with a crackle of discharge
+    for i in range(2):
+        nm = "shot_eplasma" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(["kn_laser_l2", "kn_laser_l3"][i], semis=-4.0, lp=7000), C("sf50_retro_laser1", db=-6.0, gl=(1.5, 0.8), lp=6000), part(crackle(9960 + i, 0.3, 0.02, 2500), -8.0)], "flux", 9960 + i,
+                      body=0.5, length=0.45, tail=(0.4, 0.2)))
+    # PULSE REPEATER: short bright zaps, three takes (it fires 14 times a second)
+    for i in range(3):
+        nm = "shot_erepeat" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(["kn_laser_s3", "kn_laser_s1", "kn_laser_s2"][i], semis=2.0 + i, lp=9000, length=0.14), C("sf50_shoot2", db=-10.0, hp=2500, length=0.1)], "burst", 9970 + i, body=0.3, length=0.18))
+    # CRYSTAL SPIKER: a glassy tink over a dull needle shot
+    for i in range(2):
+        nm = "shot_espike" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C("kn_impact_metal4", semis=14.0 + 2.0 * i, hp=2500, lp=10000, length=0.25), C(["kn_laser_r4", "kn_laser_r0"][i], db=-3.0, semis=5.0, lp=9000, length=0.3), C("sf60_21a", db=-8.0, semis=4.0, hp=2500)], "flux", 9980 + i,
+                      body=0.25, length=0.4, tail=(0.5, 0.2)))
+    # PRISM BEAM RIFLE: a sustained beam that tears out of the muzzle, a force-field whine and a long tail
+    for i in range(2):
+        nm = "shot_ebeam" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(["kn_laser_l0", "kn_laser_l3"][i], semis=-3.0, lp=8000), C("kn_forcefield0", db=-3.0, semis=-5.0, lp=5000, gl=(1.3, 0.7)), C("sf50_expl1", db=-9.0, semis=-6.0, lp=2500, delay=0.02)], "revolver", 9990 + i,
+                      body=0.9, length=1.1, tail=(0.9, 0.3), body_f=(150, 40)))
+    # ION BLADE: a whirring energy swing with a bright hum
+    for i in range(2):
+        nm = "melee_eblade" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sw_3", semis=-1.0 + i, hp=500, lp=9000), C("kn_forcefield2", db=-4.0, gl=(0.8, 1.5), lp=8000, hp=300), C("kn_laser_s2", db=-9.0, semis=3.0 + i, delay=0.03, lp=9000)], 0.6)
+        emit_o(nm, match(x, nm, boost=1.0))
+    # TREMOR MAUL: a heavy swing and a ground-shaking thud
+    for i in range(2):
+        nm = "melee_emaul" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sw_4", semis=-7.0 - i, lp=4000), C(["qp_punch5", "qp_punch4"][i], db=-1.0, delay=0.09, semis=-9.0, lp=1400), C(["kn_lowexpl1", "kn_lowexpl0"][i], db=-4.0, delay=0.1, semis=-3.0, lp=900)], 0.9)
+        emit_o(nm, match(x, nm, boost=3.0))
+    # HORNET ROCKET POD: a fast rocket whoosh over a short crack, three takes
+    for i in range(3):
+        nm = "shot_epod" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sf50_rocket", semis=3.0 + i, lp=8000), part(whoosh(10000 + i, 0.4, 400.0, 5000.0, 0.01, 7.0), -4.0), C("bang_06", db=-8.0, semis=2.0, lp=3000, delay=0.005)], 0.7)
+        emit_o(nm, match(x, nm, boost=1.0))
+    # COIL RAILGUN: a capacitor whine, a supersonic crack and a cannon boom
+    for i in range(2):
+        nm = "shot_railgun" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C("kn_laser_l3", semis=-8.0, gl=(1.6, 0.6), lp=6000), C(["bang_cannon4", "bang_cannon2"][i], db=-2.0, semis=-3.0, lp=3500, delay=0.07), C("kn_lowexpl0", db=-5.0, semis=-6.0, lp=1200, delay=0.07)], "revolver", 10010 + i,
+                      body=1.3, length=1.4, tail=(1.1, 0.3), body_f=(120, 30)))
+    # STORM CHAINGUN: the chain-gun recordings, a little lower, four takes
+    for i in range(4):
+        nm = "shot_chaingun" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C("fl_cg_r%d" % i, semis=-3.0, lp=6500, length=0.16)], "minigun", 10020 + i, body=0.6, length=0.16))
+    # HIVE CLUSTER MISSILE: a deep rocket launch with a hollow thump
+    for i in range(2):
+        nm = "shot_cmissile" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sf50_rocket", semis=-4.0 - i, lp=5000), part(whoosh(10030 + i, 0.6, 120.0, 2500.0, 0.02, 4.5), -3.0), C(["kn_lowexpl1", "kn_lowexpl0"][i], db=-4.0, semis=-2.0, lp=1200, delay=0.01)], 0.9)
+        emit_o(nm, match(x, nm, boost=1.0))
+    # CINDER NAPALM LAUNCHER: a muffled pop and a rush of fuel
+    for i in range(2):
+        nm = "shot_napalm" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("bang_01", semis=-8.0, lp=1800), part(whoosh(10040 + i, 0.7, 70.0, 1600.0, 0.04, 3.5), -2.0), C("sw_1", db=-9.0, semis=-5.0, lp=3000, delay=0.04)], 0.9)
+        emit_o(nm, match(x, nm, boost=1.0))
+    # VOID SINGULARITY CANNON: a force field collapsing downward over a sub boom
+    for i in range(2):
+        nm = "shot_sing" + ("" if i == 0 else "_%d" % i)
+        emit_o(nm, shot(nm, [C(["kn_forcefield0", "kn_forcefield2"][i], gl=(1.5, 0.35), lp=5000), C("kn_lowexpl0", db=-2.0, semis=-9.0, lp=700, delay=0.05), C("sf60_21a", db=-8.0, semis=-6.0, lp=3000)], "revolver", 10050 + i,
+                      body=1.4, length=1.5, tail=(1.0, 0.3), body_f=(100, 26)))
+    # ORBITAL STRIKE BEACON: a rising targeting whine and three beeps
+    for i in range(2):
+        nm = "shot_orbital" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sf50_retro_laser1", gl=(0.7 + 0.1 * i, 1.7 + 0.2 * i), lp=9000), C("kn_forcefield2", db=-5.0, gl=(0.6, 1.6 - 0.2 * i), lp=7000), C("kn_laser_s1", db=-6.0, semis=9.0 + 3.0 * i, delay=0.4, lp=9000), C("kn_laser_s1", db=-6.0, semis=9.0 + 3.0 * i, delay=0.7, lp=9000)], 1.2)
+        emit_o(nm, match(x, nm, boost=1.0))
+    # SEEKER GUIDED LAUNCHER: a rocket launch with a locking chirp
+    for i in range(2):
+        nm = "shot_seeker" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sf50_rocket", semis=1.0 - i, lp=7000), C(["kn_laser_r4", "kn_laser_r0"][i], db=-8.0, semis=10.0, delay=0.03, lp=9000), part(whoosh(10060 + i, 0.5, 300.0, 4000.0, 0.02, 6.0), -5.0)], 0.7)
+        emit_o(nm, match(x, nm, boost=1.0))
+    # THROWING KNIVES: a fast swish and a thunk
+    for i in range(2):
+        nm = "melee_tknife" + ("" if i == 0 else "_%d" % i)
+        x = mix([C("sw_5", semis=4.0 + 2.0 * i, hp=1200, lp=10000), C("kn_impact_metal4", db=-9.0, delay=0.05, semis=7.0 + i, hp=2000)], 0.4)
+        emit_o(nm, match(x, nm, boost=1.0))
+    # STICKY NOVA: a hiss as it sticks, then a wet plasma blast
+    emit_o("plasma_stick", match(mix([C("kn_forcefield0", semis=6.0, hp=800, lp=9000), part(crackle(10070, 0.3, 0.03, 3000), -4.0)], 0.4), "plasma_stick", boost=1.0))
+    for i in range(2):
+        nm = "plasma_blast" + ("" if i == 0 else "_%d" % i)
+        x = mix([C(["kn_expl_crunch0", "kn_expl_crunch2"][i], semis=-2.0, lp=6000), C("kn_forcefield2", db=-4.0, gl=(1.5, 0.6), lp=6000), C("kn_lowexpl1", db=-4.0, semis=-3.0, lp=1200)], 0.9)
+        emit_o(nm, match(x, nm, boost=1.0))
+    # SPIKE GRENADE: a burst of metal spikes
+    for i in range(2):
+        nm = "spike_blast" + ("" if i == 0 else "_%d" % i)
+        x = mix([C(["kn_expl_crunch3", "kn_expl_crunch4"][i], semis=1.0, lp=7000), C("kn_impact_metal4", db=-3.0, semis=8.0, delay=0.02, hp=1500), C("kn_impact_metal4", db=-5.0, semis=12.0, delay=0.05, hp=1500), C("kn_impact_metal4", db=-7.0, semis=6.0, delay=0.08, hp=1500)], 0.7)
+        emit_o(nm, match(x, nm, boost=1.0))
+    # gadgets: SENTRY TURRET clunks down and spins up, SHIELD EMITTER hums up, BOOST MODULE roars
+    emit_o("turret_deploy", match(mix([C("qp_punch1", semis=-4.0, lp=3000), C("sw_2", db=-6.0, semis=-3.0, delay=0.1, lp=5000), C("kn_laser_s0", db=-9.0, gl=(0.6, 1.4), delay=0.15, lp=8000)], 0.8), "turret_deploy", boost=1.0))
+    emit_o("shield_up", match(mix([C("kn_forcefield0", gl=(0.6, 1.3), lp=9000), C("kn_laser_r4", db=-8.0, semis=4.0, delay=0.1, lp=9000)], 0.9), "shield_up", boost=1.0))
+    emit_o("jet_boost", match(mix([part(whoosh(10080, 0.9, 200.0, 6000.0, 0.05, 2.6), 0.0), C("sf50_rocket", db=-5.0, semis=4.0, lp=8000)], 1.0), "jet_boost", boost=1.0))
+
+
+STEPS = [build_shots, build_weapon_foley, build_impacts, build_hits, build_explosions, build_footsteps, build_vehicle, build_ui, build_beds, build_roster, build_energy]
 
 
 def main():

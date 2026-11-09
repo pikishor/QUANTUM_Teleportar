@@ -45,6 +45,8 @@ var quality := 1
 var force_active := false                         ## tests and captures: simulate whatever the game state
 var ambient_enabled := true
 var fx: AlienFx
+var fire: RosterFire                              ## roster-2 rockets, grenades and shells (wave 108)
+var roster: RosterDirector                        ## roster-2 encounter director (wave 108)
 var creatures: Array[AlienCreature] = []
 var hero: Node3D = null
 var hero_pos := Vector3.INF                       ## the hero's chest
@@ -85,6 +87,8 @@ func _ready() -> void:
 	fx = AlienFx.new()
 	fx.name = "Fx"
 	add_child(fx)
+	fire = RosterFire.new(self)
+	roster = RosterDirector.new(self)
 	for i in PROJECTILES:
 		_proj.append({"on": false})
 	if not Game.new_game.is_connected(_on_new_game):
@@ -111,6 +115,7 @@ func cap_of(cls: StringName) -> int:
 func _on_new_game() -> void:
 	AlienSites.reset_all()
 	clear_all()
+	roster.reset()
 
 
 func _physics_process(delta: float) -> void:
@@ -128,6 +133,7 @@ func step(dt: float) -> void:
 	_time += dt
 	_focus_hero(dt)
 	fx.tick(dt)
+	fire.tick(dt)
 	_tick_projectiles(dt)
 	_tick_hazards(dt)
 	_tick_loot(dt)
@@ -140,6 +146,7 @@ func step(dt: float) -> void:
 		_tick_sites()
 	if ambient_enabled:
 		_spawn_t -= dt
+		roster.tick(dt)
 		if _spawn_t <= 0.0:
 			_spawn_t = float(AMBIENT_GAP[quality]) * (1.5 if Difficulty.current == Difficulty.EASY else 1.0) * rng.randf_range(0.8, 1.3)
 			_try_spawn_ambient()
@@ -187,6 +194,8 @@ func clear_all() -> void:
 		sd["told"] = false
 	for p in _proj:
 		p["on"] = false
+	if fire != null:
+		fire.clear()
 	_hazards.clear()
 	for l in _loot:
 		(l["node"] as Node3D).visible = false
@@ -329,6 +338,12 @@ func make(id: StringName) -> AlienCreature:
 	var spec := AlienSpecies.data(id)
 	if spec.is_empty():
 		return null
+	if RosterSpecies.has(id):                                                   # roster 2: RosterFoe or RosterBoss
+		var rc: AlienCreature = RosterBoss.new() if RosterSpecies.is_boss(id) else RosterFoe.new()
+		if not rc.setup(id, self):
+			rc.free()
+			return null
+		return rc
 	var c: AlienCreature
 	var mech := StringName(spec["mech"])
 	if mech == &"arm":
@@ -570,6 +585,7 @@ func note_hit(_c: AlienCreature) -> void:
 
 
 func on_died(c: AlienCreature, hero_kill: bool) -> void:
+	roster.on_died(c, hero_kill)
 	if hero_kill:
 		kills[c.id] = int(kills.get(c.id, 0)) + 1
 		total_kills += 1

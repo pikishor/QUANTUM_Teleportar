@@ -130,6 +130,7 @@ func _physics_process(dt: float) -> void:
 		_tick_idle(step)
 	else:
 		_tick_active(step)
+	_cull_visuals()
 	_pulse_goal()
 
 
@@ -596,6 +597,34 @@ func _build_markers() -> void:
 	_goal_node.top_level = true
 	_goal_node.visible = false
 	add_child(_goal_node)
+
+
+const VISUAL_RANGE := 140.0                                              ## the marker / ramp multimeshes are drawn only while the hero is this close to one of them
+
+
+## A multimesh with a world-sized bound is one draw call even when nothing of it is near (wave 108, LOW draw budget): hide it while the hero is far from every instance.
+func _cull_visuals() -> void:
+	if not is_instance_valid(Game.player) or _mmi == null:
+		return
+	var pp := Game.player.global_position
+	var lim := VISUAL_RANGE * VISUAL_RANGE
+	var near_m := false
+	for m in _marker_pos:
+		var mp: Vector3 = m["pos"]
+		if Vector2(mp.x - pp.x, mp.z - pp.z).length_squared() <= lim:
+			near_m = true
+			break
+	var near_r := false
+	for r in FreedomData.RAMPS.size():
+		var rd := FreedomData.ramp(r)
+		var rp: Vector3 = rd["pos"]
+		var rl: Vector3 = rd["land"]
+		if Vector2(rp.x - pp.x, rp.z - pp.z).length_squared() <= lim or Vector2(rl.x - pp.x, rl.z - pp.z).length_squared() <= lim:
+			near_r = true
+			break
+	_mmi.visible = near_m or near_r
+	if _ramps_mmi != null:
+		_ramps_mmi.visible = near_r
 
 
 func _build_ramps() -> void:

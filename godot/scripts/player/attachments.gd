@@ -7,7 +7,7 @@ const SLOTS: Array[StringName] = [&"optic", &"barrel", &"core"]
 const PARTS := {
 	&"reddot": {"name": "RED DOT", "slot": &"optic", "price": 250, "mods": {"spread_ads": 0.6, "spread_hip": 0.9}},
 	&"scope": {"name": "FOCUS SCOPE", "slot": &"optic", "price": 450, "mods": {"spread_ads": 0.5, "zoom_set": 36.0}},
-	&"halo": {"name": "HALO SIGHT", "slot": &"optic", "price": 350, "mods": {"spread_hip": 0.75, "crit": 1.15}},
+	&"halo": {"name": "HOLO SIGHT", "slot": &"optic", "price": 350, "mods": {"spread_hip": 0.75, "crit": 1.15}},
 	&"suppressor": {"name": "DAMPER", "slot": &"barrel", "price": 300, "mods": {"vol": 0.0, "damage": 0.92, "kick": 0.8, "kick_end": 0.8}},
 	&"longbarrel": {"name": "LONG BARREL", "slot": &"barrel", "price": 400, "mods": {"range": 1.35, "spread_hip": 0.85, "interval": 1.05}},
 	&"compensator": {"name": "COMPENSATOR", "slot": &"barrel", "price": 350, "mods": {"kick": 0.6, "kick_end": 0.6, "kick_yaw": 0.6, "bloom": 0.7}},

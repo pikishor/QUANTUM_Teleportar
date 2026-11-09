@@ -28,6 +28,10 @@ uniform float wiggle = 0.0;                     // procedural worms and tentacle
 uniform float wiggle_rate = 5.0;
 uniform vec3 wiggle_axis = vec3(0.0, 1.0, 0.0);   // the body axis the wave runs along (worms and tentacles are built upright)
 uniform vec3 night_grade = vec3(0.50, 0.58, 0.82);
+uniform float far_k : hint_range(0.0, 1.0) = 0.0;   // readability at phone distance (roster enemies): a body-wide glow in the role colour, strongest at grazing angles
+uniform float stride = 0.0;                      // 0..1 walking amount (the roster enemies, scripts/roster/): the legs below `hip_y` swing about the hips, left against right
+uniform float stride_t = 0.0;                    // the walk phase in radians
+uniform float hip_y = 0.9;                       // metres: the height of the hips
 
 varying vec3 v_local;
 
@@ -42,6 +46,18 @@ float hash13(vec3 p) {
 }
 
 void vertex() {
+	if (stride > 0.001 && VERTEX.y < hip_y) {
+		float legk = 1.0 - smoothstep(hip_y - 0.2 * hip_y, hip_y, VERTEX.y);
+		float side = VERTEX.x > 0.0 ? 1.0 : -1.0;
+		float ang = sin(stride_t + (side > 0.0 ? 0.0 : 3.14159)) * 0.55 * stride * legk;
+		float dy = VERTEX.y - hip_y;
+		float cs = cos(ang);
+		float sn = sin(ang);
+		float ny = hip_y + dy * cs - VERTEX.z * sn;
+		float nz = VERTEX.z * cs + dy * sn;
+		VERTEX.y = ny;
+		VERTEX.z = nz;
+	}
 	v_local = VERTEX;
 	if (wiggle > 0.0) {
 		float a = dot(VERTEX, wiggle_axis);
@@ -81,6 +97,7 @@ void fragment() {
 	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
 	vec3 em = c * 0.14 + gc * g * glow_k * beat + vec3(1.0, 0.35, 0.25) * pulse * 0.55;
 	em += gc * rim * (0.10 + 0.55 * rage) * shell;
+	em += gc * far_k * (0.16 + 0.9 * rim);
 	em += gc * drop * 0.9;
 	if (shield > 0.001) {
 		float hx = hash13(floor(v_local * 6.0));
