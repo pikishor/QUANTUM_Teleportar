@@ -46,6 +46,8 @@ var touch: TouchControls
 ## Active screen buttons: {id: StringName, rect: Rect2, label: String, on: bool}. Rebuilt whenever the state or the viewport changes.
 var buttons: Array[Dictionary] = []
 var screen_age := 0.0               ## seconds since the current state began
+var feed := HudFeed.new()           ## kills and pickups, two small lines of the corner stack (scripts/ui/hud_feed.gd); pickup toasts go there
+var damage := DamageFeedback.new()  ## ghost segments and flashes of the health and hull bars (scripts/ui/damage_feedback.gd)
 var toast := Toast.new()            ## the one toast channel (scripts/ui/toast.gd): message_text / message_left mirror it
 var message_text := ""
 var message_left := 0.0
@@ -90,12 +92,18 @@ var _radio_show := 0.0              ## seconds the car radio line stays up after
 var _radio_last := ""
 var _ammo_text := ""
 const WEAPON_POP_MS := 2200
+var _wanted_level := 0
+var _wanted_flash := -100.0
 var _star := PackedVector2Array()
 var _vignette: GradientTexture2D
 var _mouse_captured := false
 var _lw := LABEL_W                  ## base px of the caption column, measured per scale (see _caption_width)
 var _lw_key := -1
 var _drag := &""                    ## the volume slider a finger / the mouse is dragging
+var preview_rect := Rect2()        ## where the screen drew the 3D weapon preview this frame (scripts/ui/weapon_preview.gd); a drag inside it turns the weapon
+var _pv_drag := false
+var _pv_moved := false
+var _pv_x := 0.0
 var _t := 0.0
 var _seen_hit := -100.0              ## last_hit_time already answered with a hit-confirm camera tick
 var _q: Array = []                  ## queued draws (see _text): text, rectangles, sprites, outlines
@@ -396,9 +404,14 @@ func _input(event: InputEvent) -> void:
 			end_drag()
 	elif event is InputEventScreenDrag and _drag != &"":
 		slide(_drag, (event as InputEventScreenDrag).position.x)
+	elif event is InputEventScreenDrag and _pv_drag:
+		_pv_turn((event as InputEventScreenDrag).position.x)
 	elif event is InputEventMouseMotion:
 		if _drag != &"":
 			slide(_drag, (event as InputEventMouseMotion).position.x)
+			return
+		if _pv_drag and ((event as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+			_pv_turn((event as InputEventMouseMotion).position.x)
 			return
 		var h := _button_at((event as InputEventMouseMotion).position)
 		if h != _hover:
@@ -427,6 +440,11 @@ func tap(pos: Vector2) -> bool:
 		return true
 	if id != &"":
 		return press_button(id)
+	if preview_rect.has_area() and preview_rect.has_point(pos) and (_loadout_open or ShopScreen.weapon_page > 0):
+		_pv_drag = true                                             # a finger on the 3D weapon: drag turns it, a plain tap swings it back to the side view
+		_pv_moved = false
+		_pv_x = pos.x
+		return true
 	if Game.state == &"dead":
 		return press_button(&"respawn")
 	if Game.state == &"win":
@@ -886,8 +904,21 @@ func slide(slider: StringName, x: float) -> void:
 			return
 
 
+## A finger moved across the 3D weapon preview: turn the weapon by the distance moved.
+func _pv_turn(x: float) -> void:
+	if absf(x - _pv_x) > 0.5:
+		_pv_moved = true
+	WeaponPreview.of(self).rotate_by(x - _pv_x)
+	_pv_x = x
+
+
 ## Ends a slider drag: the value is saved and a tap confirms it (a quiet sound, so the new SFX level is audible).
 func end_drag() -> void:
+	if _pv_drag:
+		_pv_drag = false
+		if not _pv_moved:
+			WeaponPreview.of(self).reset_view()
+		return
 	if _drag == &"":
 		return
 	_drag = &""
@@ -903,6 +934,8 @@ func end_drag() -> void:
 # ---------------------------------------------------------------------------------------------------------------------
 
 func _on_message(text: String, seconds: float) -> void:
+	if feed.take_message(text, PlayerUtil.now()):            # "+30 INTEGRITY", "+6 CARBINE": a line of the pickup feed, not the toast
+		return
 	toast.left = message_left                                # the visible clock is the truth (screens and tests may clear it)
 	if toast.offer(text, seconds):
 		_sync_toast()
@@ -992,6 +1025,7 @@ func vehicle_rows(veh: Object) -> Array:
 			hint = "HOLD UP TO LIFT OFF" if UiUtil.num(craft, &"spool", 0.0) >= VehicleCraft.SPOOL_READY else "ROTOR SPINNING UP"
 		if hint != "":
 			rows.append({"text": hint, "col": Color(UiUtil.AMBER, 0.97)})
+	rows.append_array(VehicleHud.extra_rows(veh))                       # boat: heading, depth, shallow warning; heli: rotor; plane: stall margin; tank: main gun
 	var w: Object = veh.get("weapons")
 	if w != null and w.has_method(&"mounted") and w.call(&"mounted"):
 		var d: Dictionary = w.get("def")
@@ -1187,6 +1221,8 @@ func _process(delta: float) -> void:
 	toast.left = message_left
 	if toast.tick(toast_dt):
 		_sync_toast()
+	if Game.state == &"play" and is_instance_valid(Game.player):
+		feed.poll(get_tree(), (Game.player as Node3D).global_position, PlayerUtil.now(), delta)
 	_text_t -= delta
 	if _text_t <= 0.0:
 		_text_t = 0.2
@@ -1342,15 +1378,32 @@ func _plate_text(c: Control, font: Font, cx: float, y: float, text: String, size
 
 
 ## A slim status bar of the phone HUD: a dark track and the fill, nothing else.
-func _bar_slim(c: Control, x: float, y: float, w: float, h: float, frac: float, col: Color, s: float) -> void:
+func _bar_slim(c: Control, x: float, y: float, w: float, h: float, frac: float, col: Color, s: float, key := &"") -> void:
 	_rect(c, Rect2(x - 1.5 * s, y - 1.5 * s, w + 3.0 * s, h + 3.0 * s), Color(0.0, 0.03, 0.05, 0.7))
+	if key != &"":
+		col = _damage_fx(c, key, x, y, w, h, frac, col)
 	_rect(c, Rect2(x, y, w * clampf(frac, 0.0, 1.0), h), col)
 	_frame(c, Rect2(x, y, w, h), Color(col, 0.6), 1.0 * s)
 
 
-func _bar(c: Control, font: Font, x: float, y: float, w: float, h: float, frac: float, col: Color, label: String, value: String, s: float) -> void:
+## The health feedback of a bar (DamageFeedback): the lost part stays as a pale ghost segment for a moment, the bar flashes white on a hit and a low bar pulses. Returns the fill colour.
+func _damage_fx(c: Control, key: StringName, x: float, y: float, w: float, h: float, frac: float, col: Color) -> Color:
+	var now := PlayerUtil.now()
+	var fb := damage.track(key, frac, now)
+	if float(fb["ghost"]) > frac + 0.004:
+		_rect(c, Rect2(x + w * frac, y, w * (float(fb["ghost"]) - frac), h), Color(1.0, 0.93, 0.8, 0.85))
+	if float(fb["flash"]) > 0.0 and not UiSettings.s_reduce_flash:
+		col = col.lerp(Color.WHITE, float(fb["flash"]) * 0.85)
+	elif bool(fb["low"]) and not UiSettings.s_reduce_flash and int(now * 3.0) % 2 == 0:
+		col = col.lerp(Color.WHITE, 0.35)
+	return col
+
+
+func _bar(c: Control, font: Font, x: float, y: float, w: float, h: float, frac: float, col: Color, label: String, value: String, s: float, key := &"") -> void:
 	var r := Rect2(x, y, w, h)
 	_rect(c, r.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.6))
+	if key != &"":
+		col = _damage_fx(c, key, x, y, w, h, frac, col)
 	_rect(c, Rect2(x, y, w * clampf(frac, 0.0, 1.0), h), col)
 	_frame(c, r, Color(col, 0.7), 1.0 * s)
 	_text(c, font, Vector2(x - 8.0 * s - _lw * s, y + h + 2.0 * s), label, HORIZONTAL_ALIGNMENT_RIGHT, _lw * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
@@ -1385,6 +1438,31 @@ func wanted_tag() -> Dictionary:
 func wanted_rect(vp: Vector2, s: float, top: float) -> Rect2:
 	var right := vp.x - UiUtil.insets(vp).y - 16.0 * s
 	return Rect2(right - 196.0 * s - 8.0 * s - 176.0 * s, top, 176.0 * s, 44.0 * s)
+
+
+## The pursuit line under the stars: SPOTTED / SEARCHING / HIDDEN and what the police send at this level ("PATROL CARS"). A star gained flashes the plate for half a second. Returns the y the feed starts at.
+func _draw_wanted_line(c: Control, font: Font, right: float, y: float, s: float, now: float) -> float:
+	var info := WorldHud.wanted_info()
+	if info.is_empty():
+		_wanted_level = 0
+		return y - 38.0 * s
+	var lvl := int(info["level"])
+	if lvl > _wanted_level:
+		_wanted_flash = now
+	_wanted_level = lvl
+	var hidden := bool(info["hidden"])
+	var col := UiUtil.CYAN if hidden else (UiUtil.RED if String(info["state"]) == "SPOTTED" else UiUtil.AMBER)
+	var line := "%s  %s" % [info["state"], info["response"]] if String(info["response"]) != "" else String(info["state"])
+	var size := int(UiUtil.BAR_LABEL * s * 0.8)
+	var w := minf(_text_width(font, Tr.t(line), size) + 22.0 * s, 330.0 * s)
+	var r := Rect2(right - w + 8.0 * s, y - 2.0 * s, w, 28.0 * s)
+	_rect(c, r, Color(UiUtil.PLATE, 0.78))
+	var fl := clampf(1.0 - (now - _wanted_flash) / 0.6, 0.0, 1.0) if not UiSettings.s_reduce_flash else 0.0
+	_rect(c, Rect2(r.position.x, r.position.y, 3.0 * s, r.size.y), Color(col, 1.0))
+	if fl > 0.0:
+		_rect(c, r, Color(col, fl * 0.3))
+	_text(c, font, Vector2(r.position.x + 10.0 * s, r.end.y - 7.0 * s), line, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 14.0 * s, UiUtil.fit_size(font, Tr.t(line), r.size.x - 16.0 * s, size), Color(col.lerp(Color.WHITE, 0.3), 1.0), 1.0 * s)
+	return r.end.y + 6.0 * s
 
 
 func _draw_wanted_tag(c: Control, s: float, font: Font, vp: Vector2, top: float) -> void:
@@ -1497,12 +1575,12 @@ func _draw_hud_body() -> void:
 			if driving_hud:
 				if has_hull:
 					var hf2 := UiUtil.num(veh, &"hp", 0.0) / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0)
-					_bar_slim(c, bx, yy, bw, SLIM_H * s, hf2, Color(1.0, 0.65, 0.25, 0.95) if hf2 > 0.4 else Color(1.0, 0.3, 0.3, 0.95), s)
+					_bar_slim(c, bx, yy, bw, SLIM_H * s, hf2, Color(1.0, 0.65, 0.25, 0.95) if hf2 > 0.4 else Color(1.0, 0.3, 0.3, 0.95), s, &"hull")
 					yy += SLIM_PITCH * s
 				if f < 0.95:
-					_bar_slim(c, bx, yy, bw, SLIM_H * s, f, hp_col, s)
+					_bar_slim(c, bx, yy, bw, SLIM_H * s, f, hp_col, s, &"hero")
 			else:
-				_bar_slim(c, bx, yy, bw, SLIM_H * s, f, hp_col, s)
+				_bar_slim(c, bx, yy, bw, SLIM_H * s, f, hp_col, s, &"hero")
 				_bar_slim(c, bx, yy + SLIM_PITCH * s, bw, SLIM_H * s, UiUtil.num(p, &"energy", 100.0) / maxf(UiUtil.num(p, &"max_energy", 100.0), 1.0), Color(0.35, 0.8, 1.0, 0.95), s)
 				if has_hull:
 					var vh2 := UiUtil.num(veh, &"hp", 0.0)
@@ -1511,12 +1589,12 @@ func _draw_hud_body() -> void:
 			if has_hull:
 				var vh0 := UiUtil.num(veh, &"hp", 0.0)
 				var hf := vh0 / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0)
-				_bar(c, font, bx, y0, bw, 14.0 * s, hf, Color(1.0, 0.65, 0.25, 0.95) if hf > 0.4 else Color(1.0, 0.3, 0.3, 0.95), "HULL", "%d%%" % ceili(hf * 100.0), s)
+				_bar(c, font, bx, y0, bw, 14.0 * s, hf, Color(1.0, 0.65, 0.25, 0.95) if hf > 0.4 else Color(1.0, 0.3, 0.3, 0.95), "HULL", "%d%%" % ceili(hf * 100.0), s, &"hull")
 				y0 += 30.0 * s
 			if f < 0.95:
-				_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
+				_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s, &"hero")
 		else:
-			_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s)
+			_bar(c, font, bx, y0, bw, 14.0 * s, f, hp_col, "INTEGRITY", str(ceili(hp)), s, &"hero")
 			var en := UiUtil.num(p, &"energy", 100.0)
 			var men := maxf(UiUtil.num(p, &"max_energy", 100.0), 1.0)
 			_bar(c, font, bx, y0 + 30.0 * s, bw, 14.0 * s, en / men, Color(0.35, 0.8, 1.0, 0.95), "COHERENCE", str(floori(en)), s)
@@ -1524,14 +1602,21 @@ func _draw_hud_body() -> void:
 				var vh := UiUtil.num(veh, &"hp", 0.0)
 				_bar(c, font, bx, y0 + 60.0 * s, bw, 14.0 * s, vh / maxf(UiUtil.num(veh, &"max_hp", 100.0), 1.0), Color(1.0, 0.65, 0.25, 0.95), "HULL", str(ceili(vh)), s)
 		stack_end = _draw_priority(c, vp, s, font, (plate.end.y if rows > 0 else top) + 3.0 * s) if Game.state != &"dead" else plate.end.y      # the dead screen has its own title: no mission line under DECOHERED
-	if playing and _camp_text != "" and MissionGuide.hud_on and not (Game.missions is Missions and (Game.missions as Missions).board_mode):      # the board's objective is the line and the beacon marker; the compass strip said it a third time
+	var world_compass := playing and p != null and WorldHud.compass_wanted(p.global_position, veh)
+	if world_compass:                                       # outside the city, in the air or on the water: the landmark compass with the place name (it replaces the campaign compass)
+		var wgoal := WorldHud.goal()
+		stack_end = WorldHud.draw_compass(self, c, vp, s, font, stack_end + 2.0 * s, wgoal, now)
+		stack_end = _draw_tracker(c, vp, s, font, stack_end, p.global_position, wgoal, veh)
+	elif playing and _camp_text != "" and MissionGuide.hud_on and not (Game.missions is Missions and (Game.missions as Missions).board_mode):      # the board's objective is the line and the beacon marker; the compass strip said it a third time
 		stack_end = _draw_compass(c, vp, s, font, stack_end + 2.0 * s)
+		stack_end = _draw_tracker(c, vp, s, font, stack_end, p.global_position if p != null else Vector3.ZERO, WorldHud.goal(), veh, 600.0)
 	if playing:
 		stack_end = _draw_stealth_meter(c, vp, s, font, stack_end + 3.0 * s)
 		stack_end = _draw_activity(c, vp, s, font, stack_end + 3.0 * s)
 	UiUtil.stack_bottom = stack_end / s
 	if playing and _camp_text != "":
 		_draw_waypoint(c, vp, s, font, ins, insv)
+	var feed_y := top + 8.0 * s
 	# top right: the wanted stars, only while there is heat (credits are a toast on pickup and live in the pause screen; no shard counter, no faction plate on quiet ground)
 	if Game.heat > 0.01 and Game.state != &"menu":
 		var heat := Game.heat
@@ -1547,7 +1632,13 @@ func _draw_hud_body() -> void:
 				_sprite(c, &"star", sr, Color(col, (0.35 + 0.65 * fill) * pulse))
 		if not touch_ui_on():                                # the phone shows the stars only: the faction plate was a second block of words in the corner
 			_draw_wanted_tag(c, s, font, vp, top)
+		feed_y = _draw_wanted_line(c, font, right, top + 46.0 * s, s, now)
 	_draw_ally(c, s, font, right, top)
+	if playing and p != null:                               # kills and pickups: two small lines under the stars, left of the pause button
+		var fr := right
+		if touch_ui_on() and touch != null:
+			fr = minf(right, (touch._pause_center() as Vector2).x - 246.0 * s)        # left of the EXIT / MORE column too: a vehicle's EXIT button sits under the pause button
+		feed.draw(self, c, font, fr, feed_y, s, now)
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return
@@ -1568,6 +1659,7 @@ func _draw_hud_body() -> void:
 			ab.position.x = ins.x + 24.0 * s
 		_draw_speedometer(c, font, ab, veh, s)
 		_draw_vehicle_readout(c, font, ab, veh, s)
+		VehicleHud.draw(self, c, font, ab, veh, s, now)                  # hull row, nitro, the tank's turret dial (wave 109b)
 		FlightHud.draw(c, font, vp, s, ins, veh)                          # horizon, altitude, vertical speed, stall and landing guide while flying (wave 106)
 	elif ammo_plate:
 		_plate(c, ab, s)
@@ -1999,18 +2091,20 @@ func _ensure_layout() -> void:
 				SafehouseScreen.layout(self, cx, s)
 			elif _gear_open:
 				_layout_more(vp, cx, s)
-			elif Game.progress != null:                                 # RESUME, MISSIONS, MAP, LOADOUT, UPGRADES, OPTIONS and EXTRAS: the whole pause menu
-				var by := 0.0                                           # the MISSIONS card (the Mission Board) sits under RESUME when the board exists: one tap to the next job
-				_add_card(&"resume", Rect2(cx - 232.0 * s, PAUSE_Y * s, 464.0 * s, 80.0 * s), "RESUME", &"play", "", true)
-				if MissionBoardScreen.board() != null:
-					_add_card(&"board_open", Rect2(cx - 232.0 * s, (PAUSE_Y + 96.0) * s, 464.0 * s, 72.0 * s), "MISSIONS", &"missions", "", false, UiUtil.AMBER)
-					by = 80.0
-				var py := PAUSE_Y + 96.0 + by                           # MAP LOADOUT / UPGRADES OPTIONS / EXTRAS (docs/DESIGN.md: the five screens of the default menu, the rest under EXTRAS)
-				_add_card(&"pause_map", Rect2(cx - 232.0 * s, py * s, 228.0 * s, 72.0 * s), "MAP", &"map")
-				_add_card(&"loadout", Rect2(cx + 4.0 * s, py * s, 228.0 * s, 72.0 * s), "LOADOUT", &"loadout")
-				_add_card(&"hero_open", Rect2(cx - 232.0 * s, (py + 80.0) * s, 228.0 * s, 72.0 * s), "UPGRADES", &"hero")
-				_add_card(&"options", Rect2(cx + 4.0 * s, (py + 80.0) * s, 228.0 * s, 72.0 * s), "OPTIONS", &"options")
-				_add_card(&"menu_gear", Rect2(cx - 232.0 * s, (py + 160.0) * s, 464.0 * s, 64.0 * s), "EXTRAS", &"more")
+			elif Game.progress != null:                                 # RESUME, MISSIONS, MAP, LOADOUT, UPGRADES, OPTIONS and EXTRAS: the whole pause menu (two columns: what is going on, and the buttons)
+				var gx := pause_grid_x(vp, cx, s)
+				var gw := pause_col_w(vp, s)
+				var py := PAUSE_TOP
+				_add_card(&"resume", Rect2(gx, py * s, (gw * 2.0 + PAUSE_GAP * s), 92.0 * s), "RESUME", &"play", "", true)
+				py += 104.0
+				if MissionBoardScreen.board() != null:                  # the MISSIONS card (the Mission Board) sits under RESUME when the board exists: one tap to the next job
+					_add_card(&"board_open", Rect2(gx, py * s, (gw * 2.0 + PAUSE_GAP * s), 76.0 * s), "MISSIONS", &"missions", "", false, UiUtil.AMBER)
+					py += 88.0
+				_add_card(&"pause_map", Rect2(gx, py * s, gw, 76.0 * s), "MAP", &"map")                       # MAP LOADOUT / UPGRADES OPTIONS / EXTRAS (docs/DESIGN.md: the five screens of the default menu, the rest under EXTRAS)
+				_add_card(&"loadout", Rect2(gx + gw + PAUSE_GAP * s, py * s, gw, 76.0 * s), "LOADOUT", &"loadout")
+				_add_card(&"hero_open", Rect2(gx, (py + 88.0) * s, gw, 76.0 * s), "UPGRADES", &"hero")
+				_add_card(&"options", Rect2(gx + gw + PAUSE_GAP * s, (py + 88.0) * s, gw, 76.0 * s), "OPTIONS", &"options")
+				_add_card(&"menu_gear", Rect2(gx, (py + 176.0) * s, (gw * 2.0 + PAUSE_GAP * s), 68.0 * s), "EXTRAS", &"more")
 			else:
 				_add(&"resume", Rect2(cx - 170.0 * s, 238.0 * s, 340.0 * s, 64.0 * s), "RESUME", false)
 				_add(&"menu", Rect2(cx - 154.0 * s, 314.0 * s, 308.0 * s, UiUtil.TOUCH_MIN * s), "ABORT TO MENU", false)
@@ -2093,13 +2187,13 @@ func _main_screen() -> bool:
 ## Vertical shift (base px) of the title block (name, rule, subtitle, tagline and the buttons under them) on the title screen: -20 when a second row of 64 px buttons (NEW GAME /
 ## CHAPTERS) needs the room, so the settings rows still end above the BEST line. 0 with the single DEPLOY button.
 func _title_shift() -> float:
-	return -20.0                                                   # the OPTIONS / MORE row always joins PLAY
+	return 44.0                                                    # the block sits at the optical centre of the phone (the emblem above it, BEST and the keys under it); was -20 when the title crowded the top
 
 
 ## The plate behind the title block (name, rule, subtitle, tagline) on the title screen.
 func title_plate(vp: Vector2, s: float) -> Rect2:
 	var dy := _title_shift()
-	var w := minf(vp.x - 2.0 * (UiUtil.insets(vp).x + 8.0 * s), 820.0 * s)
+	var w := minf(vp.x - 2.0 * (UiUtil.insets(vp).x + 8.0 * s), 900.0 * s)
 	var top := (196.0 + dy - TITLE_SIZE * 0.82 - TITLE_PLATE_PAD) * s
 	return Rect2(vp.x * 0.5 - w * 0.5, top, w, (304.0 + dy) * s - top)
 
@@ -2132,8 +2226,10 @@ func _draw_screen(_ignored: Control = null) -> void:
 	var cx := vp.x * 0.5
 	var t0 := PerfTimers.start()
 	_ensure_layout()
+	preview_rect = Rect2()
 	_draw_screen_body(c, vp, s, font, cx)
 	_flush_text()
+	c.draw_set_transform(Vector2.ZERO)                                   # the enter slide (UiKit.enter_offset) ends with the draw
 	PerfTimers.stop(PerfTimers.SCREEN, t0)
 
 
@@ -2149,12 +2245,14 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		&"paused" when photo_open():
 			PhotoScreen.draw(self, photo, c, vp, s, font)      # no dim: the live world is the picture
 		&"paused":
-			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(ink, SUBSCREEN_DIM if (_board_open or _shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open or _gear_open) else 0.7))
+			UiKit.backdrop(c, vp, s, SUBSCREEN_DIM if (_board_open or _shop_open or _ach_open or _skills_open or _side_open or _heist_open or _safe_open or _craft_open or _arena_open or _loadout_open or _look_open or _chapters_open or _options_open or _gear_open) else 0.7)
 		&"dead":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.0, 0.02, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))      # a light dim fading in: the world stays visible
 		&"win":
 			c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.0, 0.06, 0.08, DEAD_DIM * clampf(screen_age / 0.6, 0.0, 1.0)))
 	# no frame lines across the screen: they cut through the rows of every panel
+	if _sub_t < UiKit.ENTER_TIME and not photo_open() and st != &"dead" and st != &"win":
+		c.draw_set_transform(Vector2(0.0, UiKit.enter_offset(_sub_t, s)))     # the content (not the dim behind it) rises into place while the screen fades in
 	match st:
 		&"menu" when _options_open:
 			OptionsScreen.draw(self, c, vp, s, font, cx)
@@ -2167,8 +2265,15 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		&"menu":
 			var dy := _title_shift()
 			var tp := title_plate(vp, s)
-			c.draw_rect(tp, Color(ink, 0.7))                           # a backing plate: the city's NEON / CLUB signs never show through the name, subtitle or tagline
-			c.draw_rect(Rect2(tp.position, Vector2(tp.size.x, 2.0 * s)), Color(UiUtil.CYAN, 0.4))
+			UiKit.panel(c, tp, s, UiUtil.CYAN, false, 16.0)             # a backing plate: the city's NEON / CLUB signs never show through the name, subtitle or tagline
+			var em := Vector2(cx, tp.position.y - 52.0 * s)             # the emblem: two rings that are in two places at once (SUPERPOSITION), drifting about each other
+			var ph := _t * 0.9
+			var eoff := Vector2(cos(ph), sin(ph * 0.7)) * 9.0 * s
+			c.draw_arc(em - eoff, 30.0 * s, 0.0, TAU, 40, Color(UiUtil.CYAN, 0.9), 3.0 * s)
+			c.draw_arc(em + eoff, 30.0 * s, 0.0, TAU, 40, Color(UiUtil.MAGENTA, 0.9), 3.0 * s)
+			c.draw_circle(em, 6.0 * s, Color(1, 1, 1, 0.95))
+			c.draw_line(em + Vector2(-70.0, 0.0) * s, em + Vector2(-42.0, 0.0) * s, Color(UiUtil.CYAN, 0.45), 2.0 * s)
+			c.draw_line(em + Vector2(42.0, 0.0) * s, em + Vector2(70.0, 0.0) * s, Color(UiUtil.MAGENTA, 0.45), 2.0 * s)
 			_text(c, font, Vector2(0.0, (196.0 + dy) * s), "QUANTUM TELEPORTAR", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(TITLE_SIZE * s), Color(1, 1, 1, 0.97), 3.0 * s)
 			c.draw_line(Vector2(cx - 240.0 * s, (222.0 + dy) * s), Vector2(cx + 240.0 * s, (222.0 + dy) * s), Color(UiUtil.MAGENTA, 0.8), 2.0 * s)
 			_text(c, font, Vector2(0.0, (258.0 + dy) * s), "OBSERVER CORP INCURSION  //  SECTOR 01", HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
@@ -2241,7 +2346,10 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				c.draw_rect(r.grow(3.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
 			continue
 		if b.has("opt"):                                       # an options row: name left, value chip right, slider track under it
-			MenuKit.row(self, c, r, str(b["name"]), str(b["value"]), on, hot or _drag == b["id"], float(b["frac"]), s, font)
+			if b.get("toggle", false) and float(b["frac"]) < 0.0:         # a yes / no option is a switch (green, knob right = on), not a word in a chip
+				UiKit.toggle_row(self, c, r, str(b["name"]), on, hot, s, font, str(b["value"]), Tr.t(str(b.get("hint", ""))))
+			else:
+				UiKit.row(self, c, r, str(b["name"]), str(b["value"]), on, hot or _drag == b["id"], float(b["frac"]), s, font, Tr.t(str(b.get("hint", ""))))
 			if focus_ring and b["id"] == pad.focus:
 				c.draw_rect(r.grow(3.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
 			continue
@@ -2257,7 +2365,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 				c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
 			continue
 		if b.has("icon"):                                      # a card: opaque plate, icon, title and caption (menu_kit.gd)
-			MenuKit.card(self, c, r, Tr.t(str(b["label"])), Tr.t(str(b["sub"])) if str(b["sub"]) != "" else "", b["icon"], b["tint"], on, hot, bool(b["primary"]), s, font)
+			UiKit.card(self, c, r, Tr.t(str(b["label"])), Tr.t(str(b["sub"])) if str(b["sub"]) != "" else "", b["icon"], b["tint"], on, hot, bool(b["primary"]), s, font, bool(b.get("chev", false)), float(b.get("rpad", 0.0)))
 			if focus_ring and b["id"] == pad.focus:
 				c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
 				c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
@@ -2267,19 +2375,43 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 		if SLIDERS.has(b["id"]) or OptionsScreen.is_slider(b["id"]) or PhotoScreen.is_slider(b["id"]):
 			var vol := volume_of(b["id"]) if SLIDERS.has(b["id"]) else (photo.fraction(b["id"]) if PhotoScreen.is_slider(b["id"]) else OptionsScreen.fraction(settings, b["id"]))
 			var inset := minf(8.0, r.size.x * 0.05)
-			c.draw_rect(r, Color(tint, 0.10))
-			c.draw_rect(Rect2(r.position.x + inset, r.position.y + r.size.y - 12.0 * s, (r.size.x - 2.0 * inset) * vol, 6.0 * s), Color(tint, 0.85))
-			c.draw_rect(Rect2(r.position.x + inset + (r.size.x - 2.0 * inset) * vol - 2.0 * s, r.position.y + r.size.y - 19.0 * s, 4.0 * s, 14.0 * s), Color(1, 1, 1, 0.95))
-			c.draw_rect(r, Color(tint, 0.95 if (hot or _drag == b["id"]) else 0.5), false, 1.5 * s)
+			UiKit.panel(c, r, s, tint, hot or _drag == b["id"], 7.0)
+			UiKit.slider_track(c, Rect2(r.position.x + inset, r.end.y - 18.0 * s, r.size.x - 2.0 * inset, 8.0 * s), vol, s, hot or _drag == b["id"])
 			if focus_ring and b["id"] == pad.focus:
 				c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
 				c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
 			_text(c, font, Vector2(r.position.x, r.position.y + 21.0 * s), (b["label"] if (OptionsScreen.is_slider(b["id"]) or PhotoScreen.is_slider(b["id"])) else "%s  %d" % [b["label"], roundi(vol * 100.0)]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(20.0 * s), Color(1, 1, 1, 0.95))
 			continue
-		if st != &"menu" and not photo_open():                 # an opaque plate under every plain screen button: the world never shows through a label
-			c.draw_rect(r, MenuKit.FILL)
-		c.draw_rect(r, Color(tint, 0.30 if (on or hot) else 0.10))
-		c.draw_rect(r, Color(tint, 0.95 if (on or hot or big) else 0.5), false, 2.0 * s if big else 1.5 * s)
+		var bid := String(b["id"])
+		if b.get("own", false):                                # a card the screen plates and paints itself (the upgrade cards): only the controller focus ring is added here
+			if focus_ring and b["id"] == pad.focus:
+				c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
+				c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+			continue
+		if bid.begins_with("wsel_") and WeaponDefs.DEFS.has(StringName(bid.substr(5))):
+			tint = UiKit.class_tint(WeaponDefs.class_of(StringName(bid.substr(5))))        # a catalogue tile wears its weapon class colour
+		var plain: bool = not (b.has("pic") or b.get("flat", false) or b.has("cap") or bid.begins_with("wheel_"))
+		if plain and st != &"menu" and not photo_open():       # every plain screen button is one kit button (cut-corner panel, centred label); the action buttons are filled
+			var action := bid.begins_with("wequip_") or bid.begins_with("wgear_") or bid.begins_with("buy_")
+			var bstate := 0
+			var btint := tint
+			if action:
+				btint = UiUtil.GREEN if on else UiUtil.AMBER
+				bstate = 2 if on else 0
+			elif bid == "next" or bid == "respawn" or bid == "resume":
+				bstate = 2
+			elif on or hot:
+				bstate = 1
+			UiKit.button(self, c, r, Tr.t(str(b["label"])), btint, bstate, s, font, 30.0 if big else 22.0)
+			if focus_ring and b["id"] == pad.focus:
+				c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
+				c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
+			continue
+		if st != &"menu" and not photo_open():                 # a tile / row plate: the kit panel, lit when selected
+			UiKit.panel(c, r, s, tint, on or hot, 8.0, on)
+		else:
+			c.draw_rect(r, Color(tint, 0.30 if (on or hot) else 0.10))
+			c.draw_rect(r, Color(tint, 0.95 if (on or hot or big) else 0.5), false, 2.0 * s if big else 1.5 * s)
 		if focus_ring and b["id"] == pad.focus:
 			c.draw_rect(r.grow(5.0 * s), Color(1, 1, 1, 0.5 + 0.4 * sin(_t * 6.0)), false, 3.0 * s)
 			c.draw_rect(r.grow(2.0 * s), Color(UiUtil.AMBER, 0.95), false, 2.0 * s)
@@ -2294,8 +2426,7 @@ func _draw_screen_body(c: Control, vp: Vector2, s: float, font: Font, cx: float)
 			continue
 		if b.has("cap"):                                                                                         # a loadout tile: opaque plate, the weapon's own picture over its name
 			var wid := StringName(String(b["id"]).substr(6))
-			c.draw_rect(r, MenuKit.FILL_ON if (on or hot) else MenuKit.FILL)
-			c.draw_rect(r, Color(UiUtil.MAGENTA if on else UiUtil.CYAN, 1.0 if on else 0.45), false, (3.0 if on else 1.5) * s)
+			UiKit.panel(c, r, s, UiKit.class_tint(WeaponDefs.class_of(wid)) if not on else UiUtil.MAGENTA, on or hot, 8.0, on)
 			ItemIcons.draw_weapon(c, wid, Rect2(r.position.x + r.size.x * 0.06, r.position.y + 3.0 * s, r.size.x * 0.88, r.size.y * 0.56), Color(1, 1, 1, 1.0 if (on or hot) else 0.85))
 			var csz := maxi(UiUtil.fit_size(font, str(b["cap"]), r.size.x - 8.0 * s, int(BODY_MIN * s)), int(BODY_MIN * s))
 			_text(c, font, Vector2(r.position.x, r.position.y + r.size.y - 9.0 * s), str(b["cap"]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, csz, Color(1, 1, 1, 0.97 if (on or hot) else 0.78))
@@ -2350,22 +2481,86 @@ func pause_goal_line() -> String:
 ## The plain pause screen: the title, then what to do now (the one objective) and the wallet, so a returning player knows the next step before pressing RESUME.
 func _draw_pause_head(c: Control, vp: Vector2, s: float, font: Font) -> void:
 	header(c, vp, s, font, "PAUSED")
+	if Game.progress == null:
+		return
+	var r := pause_status_rect(vp, vp.x * 0.5, s)
+	UiKit.panel(c, r, s, UiUtil.CYAN, false, 14.0)
+	var pad := 18.0 * s
+	var inner := r.size.x - 2.0 * pad
+	UiKit.section(self, c, Rect2(r.position.x + pad, r.position.y + 10.0 * s, inner, 34.0 * s), "NOW", UiUtil.MAGENTA, s, font)
 	var line := pause_goal_line()
-	var shown := ("NOW  " + line.to_upper()) if line != "NO ACTIVE OBJECTIVE" else line
-	var size := maxi(UiUtil.fit_size(font, shown, vp.x - 140.0 * s, int(UiUtil.BAR_LABEL * s)), int(BODY_MIN * s))
-	var pr := _plate_text(c, font, vp.x * 0.5, 104.0 * s, shown, size, Color(UiUtil.CYAN, 1.0), s, Color(UiUtil.MAGENTA, 0.6), 320.0 * s)
-	if Game.progress != null:
-		_text(c, font, Vector2(0.0, pr.end.y + 32.0 * s), "CREDITS  %d" % _wallet(), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+	var shown := line if line != "NO ACTIVE OBJECTIVE" else line
+	var osz := int(UiKit.T_TITLE * s)
+	var lines := UiKit.wrap_text(self, font, Tr.t(shown.to_upper()), inner, osz, 3)
+	for i in lines.size():
+		_text(c, font, Vector2(r.position.x + pad, r.position.y + 78.0 * s + float(i) * osz * 1.2), lines[i], HORIZONTAL_ALIGNMENT_LEFT, inner, osz, Color(1, 1, 1, 0.98), 1.0 * s)
+	var yc := r.position.y + 168.0 * s                                                    # the wallet
+	c.draw_line(Vector2(r.position.x + pad, yc - 24.0 * s), Vector2(r.end.x - pad, yc - 24.0 * s), UiKit.LINE, 1.5 * s)
+	UiKit.glyph(c, &"coin", Vector2(r.position.x + pad + 14.0 * s, yc + 4.0 * s), 14.0 * s, Color(UiUtil.AMBER, 0.97), s)
+	_text(c, font, Vector2(r.position.x + pad + 40.0 * s, yc + 12.0 * s), "%d" % _wallet(), HORIZONTAL_ALIGNMENT_LEFT, inner * 0.5, int(34.0 * s), Color(UiUtil.AMBER, 1.0), 1.0 * s)
+	_text(c, font, Vector2(r.end.x - pad - inner * 0.4, yc + 10.0 * s), "CREDITS", HORIZONTAL_ALIGNMENT_RIGHT, inner * 0.4, int(Hud.BODY_MIN * s), Color(1, 1, 1, 0.6))
+	var by := r.position.y + 214.0 * s                                                    # the rules of play right now: difficulty (and the heat when the police are after you)
+	var db := UiKit.badge(self, c, Vector2(r.position.x + pad, by), "DIFFICULTY  %s" % Difficulty.mode_name(), UiUtil.CYAN, s, font)
+	if Game.heat > 0.15:
+		UiKit.badge(self, c, Vector2(db.end.x + 10.0 * s, by), "WANTED", UiUtil.RED, s, font, true)
+	# the weapon in hand: its picture, its name and class
+	var wid := WeaponDefs.last_used
+	var wr := Rect2(r.position.x + pad, r.end.y - 128.0 * s, inner, 112.0 * s)
+	c.draw_rect(wr, Color(0, 0, 0, 0.28))
+	c.draw_rect(wr, Color(UiKit.class_tint(WeaponDefs.class_of(wid)), 0.45), false, 1.5 * s)
+	if WeaponDefs.DEFS.has(wid):
+		ItemIcons.draw_weapon(c, wid, Rect2(wr.position.x + 8.0 * s, wr.position.y + 8.0 * s, 190.0 * s, wr.size.y - 16.0 * s), Color(1, 1, 1, 1.0))
+		var nx := wr.position.x + 210.0 * s
+		var nw := wr.end.x - nx - 8.0 * s
+		var wn := WeaponDefs.title(wid)
+		_text(c, font, Vector2(nx, wr.position.y + 32.0 * s), "IN HAND", HORIZONTAL_ALIGNMENT_LEFT, nw, int(Hud.BODY_MIN * s), Color(1, 1, 1, 0.6))
+		_text(c, font, Vector2(nx, wr.position.y + 62.0 * s), wn, HORIZONTAL_ALIGNMENT_LEFT, nw, UiUtil.fit_size(font, wn, nw, int(UiKit.T_LABEL * s)), Color(1, 1, 1, 0.98))
+		var cls := String(WeaponDefs.CLASS_NAMES.get(WeaponDefs.class_of(wid), ""))
+		if cls != "":
+			UiKit.badge(self, c, Vector2(nx, wr.position.y + 88.0 * s), cls, UiKit.class_tint(WeaponDefs.class_of(wid)), s, font)
 
 
 func _score_lines(c: Control, vp: Vector2, s: float, font: Font, y: float) -> void:
-	var line1 := "CREDITS  %d" % Game.score if Game.progress == null else "SCORE  %d      CREDITS  %d" % [Game.score, _wallet()]
-	_text(c, font, Vector2(0.0, y * s), line1, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(30.0 * s), Color(1, 1, 1, 0.95), 1.5 * s)
-	var line := "NEW BEST" if new_best else "BEST  %d" % settings.best
-	_text(c, font, Vector2(0.0, (y + 36.0) * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(20.0 * s), Color(UiUtil.AMBER, 0.95))
+	var items: Array = []                                                         # the result figures of the death / win screen: big numbers on kit plates
+	if Game.progress != null:
+		items.append(["SCORE", str(Game.score), UiUtil.CYAN])
+	items.append(["CREDITS", str(_wallet()) if Game.progress != null else str(Game.score), UiUtil.AMBER])
+	items.append(["NEW BEST" if new_best else "BEST", str(settings.best), UiUtil.GREEN if new_best else UiUtil.MAGENTA])
+	var w := 200.0 * s
+	var gap := 14.0 * s
+	var total := float(items.size()) * w + float(items.size() - 1) * gap
+	for i in items.size():
+		var r := Rect2(vp.x * 0.5 - total * 0.5 + float(i) * (w + gap), (y - 26.0) * s, w, 96.0 * s)
+		UiKit.figure(self, c, r, String(items[i][0]), String(items[i][1]), items[i][2], s, font)
 
 
-const PAUSE_Y := 214.0              ## base px: the RESUME button of the pause screen (the objective plate sits above it)
+const PAUSE_Y := 214.0              ## base px: the old single-column pause screen's RESUME row (kept: a few tests read it)
+const PAUSE_TOP := 148.0            ## base px: top of both pause columns
+const PAUSE_GAP := 8.0
+const PAUSE_COL := 232.0            ## base px: one button column of the pause grid (two columns = 472)
+const PAUSE_STATUS_W := 470.0       ## base px: the status panel left of the buttons
+
+
+## The width of one of the two button columns of the pause grid (the whole composition stays centred and shrinks on a narrow window).
+func pause_col_w(vp: Vector2, s: float) -> float:
+	var total := PAUSE_STATUS_W + 28.0 + PAUSE_COL * 2.0 + PAUSE_GAP
+	return PAUSE_COL * s * minf(1.0, (vp.x - 2.0 * UiUtil.insets(vp).x - 24.0 * s) / (total * s))
+
+
+## The left edge of the pause button grid.
+func pause_grid_x(vp: Vector2, cx: float, s: float) -> float:
+	var gw := pause_col_w(vp, s)
+	var status_w := PAUSE_STATUS_W * s * (gw / (PAUSE_COL * s))
+	var total := status_w + 28.0 * s + gw * 2.0 + PAUSE_GAP * s
+	return cx - total * 0.5 + status_w + 28.0 * s
+
+
+## The status panel of the pause screen, left of the buttons and as tall as they are: what to do now, the credits, the weapon in hand.
+func pause_status_rect(vp: Vector2, cx: float, s: float) -> Rect2:
+	var gw := pause_col_w(vp, s)
+	var status_w := PAUSE_STATUS_W * s * (gw / (PAUSE_COL * s))
+	var extra := 88.0 if MissionBoardScreen.board() != null else 0.0
+	return Rect2(pause_grid_x(vp, cx, s) - 28.0 * s - status_w, PAUSE_TOP * s, status_w, (348.0 + extra) * s)
 const HEAD_Y := 70.0                ## base px: baseline of the one title every pause / title sub screen shows (HEAD_SIZE tall)
 const HEAD_SIZE := 44.0
 const BODY_MIN := 15.0              ## base px: the smallest menu text (22 px at 1080p); anything smaller wraps or is cut from the design
@@ -2375,6 +2570,23 @@ const BODY_MIN := 15.0              ## base px: the smallest menu text (22 px at
 func header(c: Control, vp: Vector2, s: float, font: Font, title: String, sub := "", sub_col := Color(UiUtil.AMBER, 0.97)) -> void:
 	_text(c, font, Vector2(0.0, HEAD_Y * s), title, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(HEAD_SIZE * s), Color(1, 1, 1, 0.97), 3.0 * s)
 	_rect(c, Rect2(vp.x * 0.5 - 56.0 * s, (HEAD_Y + 12.0) * s, 112.0 * s, 3.0 * s), Color(UiUtil.MAGENTA, 0.9))
+	var tw := _text_width(font, Tr.t(title), int(HEAD_SIZE * s))                    # the kit's screen title: a round icon before it, hairlines running out to both sides
+	var mid_y := (HEAD_Y - 15.0) * s
+	var ins := UiUtil.insets(vp)
+	var ic: StringName = UiKit.TITLE_ICON.get(title, &"")
+	var lx := vp.x * 0.5 - tw * 0.5 - 22.0 * s
+	if ic != &"":
+		c.draw_circle(Vector2(lx - 22.0 * s, mid_y), 20.0 * s, Color(UiUtil.MAGENTA, 0.25))
+		c.draw_arc(Vector2(lx - 22.0 * s, mid_y), 20.0 * s, 0.0, TAU, 24, Color(UiUtil.MAGENTA, 0.8), 1.5 * s)
+		UiKit.glyph(c, ic, Vector2(lx - 22.0 * s, mid_y), 11.0 * s, Color(1, 1, 1, 0.95), s)
+		lx -= 52.0 * s
+	var edge := maxf(ins.x + 24.0 * s, vp.x * 0.5 - 520.0 * s)
+	if lx - edge > 24.0 * s:
+		c.draw_line(Vector2(edge, mid_y), Vector2(lx, mid_y), Color(UiUtil.CYAN, 0.28), 1.5 * s)
+	var rx := vp.x * 0.5 + tw * 0.5 + 22.0 * s
+	var redge := minf(vp.x - ins.y - 24.0 * s, vp.x * 0.5 + 520.0 * s)
+	if redge - rx > 24.0 * s:
+		c.draw_line(Vector2(rx, mid_y), Vector2(redge, mid_y), Color(UiUtil.CYAN, 0.28), 1.5 * s)
 	if sub != "":
 		_text(c, font, Vector2(0.0, (HEAD_Y + 44.0) * s), sub, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), sub_col, 1.0 * s)
 
@@ -2937,6 +3149,17 @@ func boss_plate(vp: Vector2, s: float, font: Font, end: float, bname: String, na
 	var name_rect := Rect2(vp.x * 0.5 - (bw + 120.0 * s) * 0.5, baseline - font.get_ascent(bsz), bw + 120.0 * s, font.get_ascent(bsz) + font.get_descent(bsz))
 	var bar := Rect2(vp.x * 0.5 - bw * 0.5, by + (34.0 if named else 4.0) * s, bw, 10.0 * s)       # 14 px under the name baseline: clear of the descenders
 	return {"name_rect": name_rect, "text_w": text_w, "baseline": baseline, "size": bsz, "bar": bar}
+
+
+## The route chip under the objective / compass: "1.2 KM  ETA 0:55  CAR" (the way to the goal by the hero's own mode: on foot, car, air or boat). Only for a goal further than `min_m` metres.
+func _draw_tracker(c: Control, vp: Vector2, s: float, font: Font, y: float, from: Vector3, goal: Vector3, veh: Object, min_m := 150.0) -> float:
+	if not goal.is_finite() or Vector2(goal.x - from.x, goal.z - from.z).length() < min_m or InteriorGameplay.active:
+		return y
+	var t := WorldHud.tracker(from, goal, WorldHud.speed_mode(veh))
+	if t.is_empty():
+		return y
+	var r := _plate_text(c, font, vp.x * 0.5, y, String(t["text"]), int(UiUtil.BAR_LABEL * s * 0.95), Color(UiUtil.AMBER.lerp(Color.WHITE, 0.3), 1.0), s, Color(UiUtil.AMBER, 0.6), 200.0 * s)
+	return r.end.y + 2.0 * s
 
 
 ## The compass strip under the objective: a thin line with ticks every 15 degrees, N / E / S / W, and a diamond where the goal lies (pinned to an end with an arrow when it is more than 90

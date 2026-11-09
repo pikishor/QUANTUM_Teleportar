@@ -168,6 +168,8 @@ func _map() -> void:
 	var shown := ms.lod_markers(all)
 	var per := {}
 	for mk in shown:
+		if mk.has("glyph"):
+			continue          # the airport, the harbour and the helipads are always shown on purpose (wave 109 world HUD)
 		per[mk["kind"]] = int(per.get(mk["kind"], 0)) + 1
 	var crowded_ok := true
 	for k: StringName in MapScreen.LOD_KINDS:

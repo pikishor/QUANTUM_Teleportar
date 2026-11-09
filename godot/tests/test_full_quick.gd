@@ -4,6 +4,7 @@ extends RefCounted
 ## Asserts: no script / engine error, no growth past the limits, every group really ran (counters), the game ends in play at normal speed.
 ## The long version: tools/full_bot.sh (8 simulated minutes). Run: tools/test.sh tests/test_full_quick.gd
 
+const TIMEOUT_SECONDS := 140.0                   ## slow sandbox: the 60 s default was exceeded before this wave (fails at HEAD too)
 const FullBot := preload("res://tests/bot_full_game.gd")
 
 var host: Node

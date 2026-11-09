@@ -5,6 +5,8 @@ extends RefCounted
 ## site = peak with a snow cap (the outskirts' sites), you = arrow (drawn by the map itself). `draw(item, kind, centre, radius, colour)` draws on any CanvasItem inside its _draw.
 
 const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items", &"danger", &"site"]
+## Glyph-only shapes of the big world (a marker's `glyph` field picks one of these over its kind's shape): the airport (a plane), the harbour (an anchor), the city (three towers), the helipad (an H).
+const GLYPHS: Array[StringName] = [&"airport", &"harbour", &"city", &"helipad"]
 
 
 static func draw(ci: CanvasItem, kind: StringName, c: Vector2, r: float, col: Color, backing := true) -> void:
@@ -47,6 +49,24 @@ static func draw(ci: CanvasItem, kind: StringName, c: Vector2, r: float, col: Co
 		&"site":                                          # a peak with a snow cap: the sites of the outskirts
 			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-g * 1.25, g * 0.85), c + Vector2(-g * 0.25, -g * 0.95), c + Vector2(g * 0.35, -g * 0.1), c + Vector2(g * 0.75, -g * 0.55), c + Vector2(g * 1.25, g * 0.85)]), col)
 			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-g * 0.25, -g * 0.95), c + Vector2(-g * 0.62, -g * 0.3), c + Vector2(-g * 0.25, -g * 0.45), c + Vector2(g * 0.05, -g * 0.3)]), Color(0.01, 0.03, 0.05))
+		&"airport":                                       # a plane seen from above: fuselage, swept wings, tail
+			ci.draw_line(c + Vector2(0, -g * 1.25), c + Vector2(0, g * 1.15), col, maxf(g * 0.34, 1.5))
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -g * 0.15), c + Vector2(g * 1.3, g * 0.55), c + Vector2(g * 1.3, g * 0.8), c + Vector2(0, g * 0.35), c + Vector2(-g * 1.3, g * 0.8), c + Vector2(-g * 1.3, g * 0.55)]), col)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, g * 0.85), c + Vector2(g * 0.6, g * 1.2), c + Vector2(-g * 0.6, g * 1.2)]), col)
+		&"harbour":                                       # an anchor: ring, shank, stock, the two flukes
+			ci.draw_arc(c + Vector2(0, -g * 0.85), g * 0.28, 0.0, TAU, 12, col, maxf(g * 0.2, 1.5))
+			ci.draw_line(c + Vector2(0, -g * 0.55), c + Vector2(0, g * 0.95), col, maxf(g * 0.24, 1.5))
+			ci.draw_line(c + Vector2(-g * 0.5, -g * 0.2), c + Vector2(g * 0.5, -g * 0.2), col, maxf(g * 0.22, 1.5))
+			ci.draw_arc(c + Vector2(0, g * 0.15), g * 0.95, 0.15, PI - 0.15, 14, col, maxf(g * 0.24, 1.5))
+		&"city":                                          # three towers of different heights
+			ci.draw_rect(Rect2(c + Vector2(-g * 1.1, -g * 0.1), Vector2(g * 0.6, g * 1.1)), col)
+			ci.draw_rect(Rect2(c + Vector2(-g * 0.3, -g * 1.15), Vector2(g * 0.65, g * 2.15)), col)
+			ci.draw_rect(Rect2(c + Vector2(g * 0.5, -g * 0.5), Vector2(g * 0.6, g * 1.5)), col)
+		&"helipad":                                       # an H in a ring
+			ci.draw_arc(c, g * 1.05, 0.0, TAU, 20, col, maxf(g * 0.2, 1.5))
+			ci.draw_line(c + Vector2(-g * 0.4, -g * 0.55), c + Vector2(-g * 0.4, g * 0.55), col, maxf(g * 0.22, 1.5))
+			ci.draw_line(c + Vector2(g * 0.4, -g * 0.55), c + Vector2(g * 0.4, g * 0.55), col, maxf(g * 0.22, 1.5))
+			ci.draw_line(c + Vector2(-g * 0.4, 0), c + Vector2(g * 0.4, 0), col, maxf(g * 0.22, 1.5))
 		&"danger":
 			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -g * 1.15), c + Vector2(g * 1.15, g * 0.9), c + Vector2(-g * 1.15, g * 0.9)]), col)
 			ci.draw_rect(Rect2(c + Vector2(-g * 0.12, -g * 0.4), Vector2(g * 0.24, g * 0.7)), Color(0.01, 0.03, 0.05))

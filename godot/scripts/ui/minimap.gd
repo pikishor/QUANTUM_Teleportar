@@ -8,6 +8,10 @@ const CityEventsScript := preload("res://scripts/world/city_events.gd")
 const RANGE_M := 130.0              ## metres from the centre to the rim on foot
 const RANGE_DRIVE := 280.0          ## ... at full driving speed (the big city: the map zooms out with the speed of the driven vehicle, smoothly)
 const DRIVE_FULL := 24.0            ## speed (m/s) at which the map has zoomed out completely
+const RANGE_OUTSKIRTS := 260.0      ## on foot outside the city the circle shows a little more: the terrain picture is 11.7 m per pixel (a 130 m radius was 22 blocks across)
+const RANGE_BOAT := 380.0
+const RANGE_HELI := 520.0
+const RANGE_PLANE := 900.0          ## the circle at full speed in an aircraft: the airport, the coast and the ridge lines ahead
 const REFRESH := 1.0 / 15.0
 const EXTENT := CityLayout.HALF + 40.0   ## the texture covers |x|, |z| <= EXTENT (the whole 26 x 26 block map)
 const TEX_PX := 900                 ## 2.4 m per pixel (the whole 2160 m of the 26 x 26 block city)
@@ -29,6 +33,7 @@ var _gps := PackedVector3Array()    ## the cached road route to the objective (M
 var _gps_goal := Vector3.INF
 var _gps_from := Vector3.INF
 var _gps_custom := false
+var _gps_mode: StringName = &"car"
 var _map_screen: MapScreen
 var _key := 0
 var _t := 0.0
@@ -55,12 +60,27 @@ static func range_for_speed(speed: float) -> float:
 	return lerpf(RANGE_M, RANGE_DRIVE, clampf(absf(speed) / DRIVE_FULL, 0.0, 1.0))
 
 
+## The rim distance for a vehicle: cars open up with the speed, a boat shows 380 m, a helicopter 520 m, a plane up to 900 m.
+static func range_for_vehicle(veh: Object) -> float:
+	if veh == null:
+		return RANGE_M
+	var sp := float(veh.get("speed")) if veh.get("speed") != null else 0.0
+	match WorldRoute.mode_for(veh):
+		&"air":
+			return RANGE_PLANE if veh.get("cls") == &"plane" else RANGE_HELI
+		&"boat":
+			return RANGE_BOAT
+	return range_for_speed(sp)
+
+
 func _process(delta: float) -> void:
 	var want := RANGE_M
+	if is_instance_valid(Game.player) and not WorldRoute.in_city(Game.player.global_position):
+		want = RANGE_OUTSKIRTS
 	if is_instance_valid(Game.vehicles):
 		var dv: Variant = Game.vehicles.get("driven")
 		if dv != null and is_instance_valid(dv):
-			want = range_for_speed(float((dv as Object).get("speed")))
+			want = maxf(range_for_vehicle(dv as Object), want if WorldRoute.mode_for(dv as Object) == &"car" else 0.0)
 	_range = lerpf(_range, want, 1.0 - exp(-2.5 * delta))
 	_t_clock += delta
 	_t -= delta
@@ -326,6 +346,7 @@ func _draw_body() -> void:
 		for d: Array in kind[1]:
 			var hs := float(d[1])
 			draw_texture_rect(UiUtil.sprite(kind[0]), Rect2((d[0] as Vector2) - Vector2(hs, hs), Vector2(hs, hs) * 2.0), false, d[2])
+	_draw_pins(c, inner, s)
 	# the player: fixed arrow in the middle
 	draw_set_transform(c, 0.0, Vector2(5.0, 5.0) * s)
 	draw_colored_polygon(_arrow, Color(1, 1, 1, 0.95))
@@ -334,6 +355,38 @@ func _draw_body() -> void:
 	var nl := Vector2(Vector2(0, -1).dot(_right), -Vector2(0, -1).dot(_fwd))
 	draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-5.0, 6.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(UiUtil.CYAN, 0.9))
 	draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s, false)
+
+
+## The big places on the circle: the airport, the harbour, the city and the outskirt sites as small glyphs where they lie (inside the rim), and the nearest one beyond it (the airport and the harbour
+## first) pinned to the rim as a dimmer glyph. `pins_drawn` counts them (tests).
+var pins_drawn := 0
+
+func _draw_pins(c: Vector2, inner: float, s: float) -> void:
+	pins_drawn = 0
+	if not is_instance_valid(Game.player) or WorldRoute.in_city(Game.player.global_position):
+		return                                                     # inside the city the circle is the street picture only (perf: every glyph is canvas draws)
+	var far_best: Dictionary = {}
+	var far_d := INF
+	for m: Dictionary in WorldHud.landmarks():
+		var pos: Vector3 = m["pos"]
+		var mp := to_map(pos.x, pos.z)
+		var col: Color = WorldHud.KIND_COL.get(m["kind"], Color(1, 1, 1))
+		if m["kind"] == &"city":
+			continue                                               # the city is the picture itself
+		if mp.length() < inner - 8.0 * s:
+			MapIcons.draw(self, m["glyph"], c + mp, 8.5 * s, col)
+			pins_drawn += 1
+		else:
+			var d := Vector2(pos.x - _pos.x, pos.z - _pos.y).length()
+			var w := d * (0.5 if m["kind"] in [&"airport", &"harbour"] else 1.0)
+			if w < far_d:
+				far_d = w
+				far_best = m
+	if not far_best.is_empty():
+		var fp: Vector3 = far_best["pos"]
+		var fm := to_map(fp.x, fp.z)
+		MapIcons.draw(self, far_best["glyph"], c + fm.normalized() * (inner - 7.0 * s), 7.0 * s, Color(WorldHud.KIND_COL.get(far_best["kind"], Color.WHITE), 0.7))
+		pins_drawn += 1
 
 
 ## The objective as a line along the ROADS (MapRoute: your map waypoint, else the scripted step, else the side contract), cut at the rim. Cached; rebuilt every REFRESH_M metres.
@@ -350,18 +403,28 @@ func _draw_gps(c: Vector2, inner: float, s: float) -> void:
 		_gps_goal = Vector3.INF
 		return
 	var from := Game.player.global_position
-	if goal != _gps_goal or _gps.is_empty() or Vector2(from.x - _gps_from.x, from.z - _gps_from.z).length() > MapRoute.REFRESH_M:
-		_gps = MapRoute.route(from, goal)
+	var mode := _map_screen.route_mode_now() if _map_screen != null else WorldRoute.mode_for(Game.player.get("vehicle"))
+	if goal != _gps_goal or mode != _gps_mode or _gps.is_empty() or Vector2(from.x - _gps_from.x, from.z - _gps_from.z).length() > MapRoute.REFRESH_M:
+		_gps = WorldRoute.route(from, goal, mode)
 		_gps_goal = goal
 		_gps_from = from
+		_gps_mode = mode
 		_gps_custom = custom.is_finite()
 	var pl := PackedVector2Array()
 	for rp: Vector3 in _gps:
 		pl.append(c + to_map(rp.x, rp.z))
 	var col := Color(UiUtil.CYAN, 0.95) if _gps_custom else Color(1.0, 0.78, 0.2, 0.95)
+	if mode == &"air":
+		col = Color(0.82, 0.94, 1.0, 0.95)
+	elif mode == &"boat":
+		col = Color(0.3, 0.92, 0.88, 0.95)
 	for seg: PackedVector2Array in MapRoute.clip_to_circle(pl, c, inner):
-		draw_polyline(seg, Color(0.0, 0.02, 0.04, 0.9), 5.2 * s)
-		draw_polyline(seg, col, 3.0 * s)
+		if mode == &"car":
+			draw_polyline(seg, Color(0.0, 0.02, 0.04, 0.9), 5.2 * s)
+			draw_polyline(seg, col, 3.0 * s)
+		else:                                                    # a flight line / sea lane: dashed
+			WorldHud.dashed(self, seg, Color(0.0, 0.02, 0.04, 0.9), 5.2 * s, 14.0 * s, 9.0 * s)
+			WorldHud.dashed(self, seg, col, 3.0 * s, 14.0 * s, 9.0 * s)
 		gps_drawn += 1
 
 

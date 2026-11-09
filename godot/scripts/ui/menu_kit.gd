@@ -13,80 +13,28 @@ const ICONS: Array[StringName] = [&"play", &"map", &"loadout", &"options", &"mor
 	&"chapters", &"demo", &"plus", &"back", &"abort", &"test", &"sound", &"display", &"controls", &"gameplay", &"data", &"weapon", &"gear", &"buy", &"lock", &"check"]
 
 
-## A card: plate, accent bar, icon disc, title and caption (the caption may be "").
+## A card: the kit's cut-corner panel with an accent bar, an icon disc, a title and a caption (the caption may be ""). Drawn by scripts/ui/ui_kit.gd.
 static func card(hud: Hud, c: Control, r: Rect2, label: String, sub: String, icon: StringName, tint: Color, on: bool, hot: bool, primary: bool, s: float, font: Font) -> void:
-	var fill := FILL_ON if (on or hot) else FILL
-	if primary:
-		fill = Color(tint.r * 0.42, tint.g * 0.42, tint.b * 0.42, 0.98)
-	c.draw_rect(r, fill)
-	c.draw_rect(r, Color(tint, 1.0 if (primary or on or hot) else 0.62), false, (3.0 if primary else 2.0) * s)
-	c.draw_rect(Rect2(r.position.x, r.position.y, 6.0 * s, r.size.y), tint)
-	var ir := minf(r.size.y * 0.3, 24.0 * s)
-	var ic := Vector2(r.position.x + 18.0 * s + ir + 4.0 * s, r.position.y + r.size.y * 0.5)
-	if icon != &"":
-		c.draw_circle(ic, ir + 4.0 * s, Color(tint, 0.20 if not primary else 0.35))
-		glyph(c, icon, ic, ir * 0.78, tint.lerp(Color.WHITE, 0.55 if primary else 0.25), s)
-	var tx := ic.x + ir + 16.0 * s if icon != &"" else r.position.x + 16.0 * s
-	var tw := r.end.x - tx - 10.0 * s
-	var tsz := UiUtil.fit_size(font, label, tw, int(TITLE * s))
-	tsz = maxi(tsz, int(BODY * s))
-	var col := Color(1, 1, 1, 0.98 if (primary or on or hot) else 0.9)
-	if sub == "":
-		hud._text(c, font, Vector2(tx, r.position.y + r.size.y * 0.5 + tsz * 0.34), label, HORIZONTAL_ALIGNMENT_LEFT, tw, tsz, col)
-	else:
-		hud._text(c, font, Vector2(tx, r.position.y + r.size.y * 0.5 - 2.0 * s), label, HORIZONTAL_ALIGNMENT_LEFT, tw, tsz, col)
-		var ssz := maxi(UiUtil.fit_size(font, sub, tw, int(BODY * s)), int(BODY * s))
-		hud._text(c, font, Vector2(tx, r.position.y + r.size.y * 0.5 + ssz * 1.15), sub, HORIZONTAL_ALIGNMENT_LEFT, tw, ssz, Color(tint.lerp(Color.WHITE, 0.45), 0.9))
+	UiKit.card(hud, c, r, label, sub, icon, tint, on, hot, primary, s, font)
 
 
-## A tab of a tab strip: a short opaque plate, the open one lit with a bar under it.
+## A tab of a tab strip (UiKit.tab).
 static func tab(hud: Hud, c: Control, r: Rect2, label: String, icon: StringName, on: bool, hot: bool, s: float, font: Font) -> void:
-	var tint := UiUtil.CYAN
-	c.draw_rect(r, FILL_ON if on else FILL)
-	c.draw_rect(r, Color(tint, 0.95 if on else 0.4), false, (2.5 if on else 1.5) * s)
-	if on:
-		c.draw_rect(Rect2(r.position.x, r.end.y - 6.0 * s, r.size.x, 6.0 * s), UiUtil.MAGENTA)
-	var tsz := maxi(UiUtil.fit_size(font, label, r.size.x - 46.0 * s, int(TITLE * s)), int(BODY * s))
-	var tw := hud._text_width(font, label, tsz)
-	var x0 := r.position.x + (r.size.x - tw - 30.0 * s) * 0.5
-	if icon != &"":
-		glyph(c, icon, Vector2(x0 + 11.0 * s, r.position.y + r.size.y * 0.5 - 2.0 * s), 10.0 * s, Color(1, 1, 1, 0.95 if on else 0.6), s)
-	hud._text(c, font, Vector2(x0 + 30.0 * s, r.position.y + r.size.y * 0.5 + tsz * 0.3 - 2.0 * s), label, HORIZONTAL_ALIGNMENT_LEFT, tw + 4.0, tsz, Color(1, 1, 1, 0.98 if (on or hot) else 0.72))
+	UiKit.tab(hud, c, r, label, icon, on, hot, s, font)
 
 
-## A settings row: the name on the left, the value on the right in a lit chip. A slider row (frac >= 0) gets its track along the bottom edge.
+## A settings row (UiKit.row): the name on the left, the value on the right in a lit chip; a slider row (frac >= 0) gets its track along the bottom edge.
 static func row(hud: Hud, c: Control, r: Rect2, name: String, value: String, on: bool, hot: bool, frac: float, s: float, font: Font) -> void:
-	if frac >= 0.0:
-		on = false                                          # a slider is not "on": its track says how much
-	var tint := UiUtil.CYAN if not on else UiUtil.GREEN
-	c.draw_rect(r, FILL_ON if hot else FILL)
-	c.draw_rect(r, Color(tint, 0.9 if hot else 0.35), false, 1.5 * s)
-	c.draw_rect(Rect2(r.position.x, r.position.y, 5.0 * s, r.size.y), tint if on else Color(tint, 0.35))
-	var body := r if frac < 0.0 else Rect2(r.position, Vector2(r.size.x, r.size.y - 18.0 * s))
-	var vsz := maxi(UiUtil.fit_size(font, value, r.size.x * 0.38, int(TITLE * s)), int(BODY * s))
-	var vw := hud._text_width(font, value, vsz) + 28.0 * s if value != "" else 0.0
-	var chip := Rect2(r.end.x - vw - 10.0 * s, body.position.y + body.size.y * 0.5 - 20.0 * s, vw, 40.0 * s)
-	if value != "":
-		c.draw_rect(chip, Color(tint, 0.30 if on else 0.14))
-		c.draw_rect(chip, Color(tint, 0.8 if on else 0.4), false, 1.5 * s)
-		hud._text(c, font, Vector2(chip.position.x, chip.position.y + chip.size.y * 0.5 + vsz * 0.34), value, HORIZONTAL_ALIGNMENT_CENTER, chip.size.x, vsz, Color(1, 1, 1, 0.98))
-	var nw := (chip.position.x if value != "" else r.end.x) - r.position.x - 26.0 * s
-	var nsz := maxi(UiUtil.fit_size(font, name, nw, int(TITLE * s)), int(BODY * s))
-	hud._text(c, font, Vector2(r.position.x + 18.0 * s, body.position.y + body.size.y * 0.5 + nsz * 0.34), name, HORIZONTAL_ALIGNMENT_LEFT, nw, nsz, Color(1, 1, 1, 0.95))
-	if frac >= 0.0:
-		var tr := Rect2(r.position.x + 8.0, r.end.y - 16.0 * s, r.size.x - 16.0, 6.0 * s)       # the same 8 px inset the drag maths of Hud uses
-		c.draw_rect(tr, Color(1, 1, 1, 0.14))
-		c.draw_rect(Rect2(tr.position, Vector2(tr.size.x * frac, tr.size.y)), Color(UiUtil.MAGENTA, 0.95))
-		c.draw_circle(Vector2(tr.position.x + tr.size.x * frac, tr.position.y + tr.size.y * 0.5), 9.0 * s, Color(1, 1, 1, 0.97))
+	UiKit.row(hud, c, r, name, value, on, hot, frac, s, font)
 
 
 ## An upgrade part card: its name, what it does and a status strip (ON / EQUIP / BUY price) along the bottom.
 static func part(hud: Hud, c: Control, r: Rect2, name: String, fx: String, status: String, state: int, hot: bool, s: float, font: Font) -> void:
 	var tint := UiUtil.GREEN if state == 2 else (UiUtil.CYAN if state == 1 else UiUtil.AMBER)
-	c.draw_rect(r, FILL_ON if (hot or state == 2) else FILL)
-	c.draw_rect(r, Color(tint, 0.95 if state == 2 else 0.55), false, (3.0 if state == 2 else 1.5) * s)
-	var strip := Rect2(r.position.x, r.end.y - 30.0 * s, r.size.x, 30.0 * s)
-	c.draw_rect(strip, Color(tint, 0.34 if state == 2 else 0.22))
+	UiKit.panel(c, r, s, tint, hot or state == 2, 8.0, state == 2)
+	var strip := Rect2(r.position.x + 1.5 * s, r.end.y - 30.0 * s, r.size.x - 3.0 * s, 28.5 * s)
+	var kk := 8.0 * s - 1.5 * s                                    # follows the chamfer of the panel's bottom-right corner
+	c.draw_colored_polygon(PackedVector2Array([strip.position, Vector2(strip.end.x, strip.position.y), Vector2(strip.end.x, strip.end.y - kk), Vector2(strip.end.x - kk, strip.end.y), Vector2(strip.position.x, strip.end.y)]), Color(tint, 0.34 if state == 2 else 0.22))
 	if font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(BODY * s)).x > r.size.x - 16.0 * s and name.ends_with(" CORE"):
 		name = name.trim_suffix(" CORE")                       # a narrow card drops the generic word instead of overflowing into its neighbour
 	var nsz := maxi(UiUtil.fit_size(font, name, r.size.x - 16.0 * s, int(17.0 * s)), int(BODY * s))

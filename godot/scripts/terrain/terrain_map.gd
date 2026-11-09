@@ -12,6 +12,11 @@ const MARGIN := 1                                       ## heights are sampled o
 const LABELS := [["HIGH RANGE", Vector2(1650, -1700)], ["FOREST HILLS", Vector2(-1600, -1300)], ["DRY PLAINS", Vector2(1650, 900)], ["COAST", Vector2(-1750, 700)], ["OPEN SEA", Vector2(-2300, 2300)],
 	["MIRROR LAKE", Vector2(-250, -2150)], ["PASS ROAD", Vector2(150, -1500)], ["CITY", Vector2(0, 0)]]
 
+const WATER_N := 128                                     ## the coarse water mask (47 m cells) the boat GPS (WorldRoute) searches
+static var water_mask := PackedByteArray()              ## 1 = sea / river / lake, set by `_build` (read it once `ready`)
+## The colour key printed beside the world map: [name, the colour the picture paints it in (before the hill shading)].
+const BIOME_KEY := [["SEA AND LAKES", Color(0.07, 0.3, 0.46)], ["COAST", Color(0.72, 0.68, 0.5)], ["PLAINS", Color(0.32, 0.45, 0.24)], ["FOREST", Color(0.15, 0.36, 0.2)],
+	["DESERT", Color(0.66, 0.48, 0.28)], ["MOUNTAIN", Color(0.46, 0.45, 0.44)], ["SNOW", Color(0.92, 0.96, 1.0)]]
 static var texture: ImageTexture = null
 static var ready := false
 static var _task := -1
@@ -112,6 +117,9 @@ static func _build() -> Image:
 	var data := PackedByteArray()
 	data.resize(n * n * 4)
 	var sun := Vector3(-0.55, 0.75, -0.35).normalized()
+	var mask := PackedByteArray()
+	mask.resize(WATER_N * WATER_N)
+	var mstep := n / WATER_N
 	for j in n:
 		var z := -e + (float(j) + 0.5) * mpp
 		for i in n:
@@ -122,6 +130,8 @@ static func _build() -> Image:
 			var dz := (hs[k + n2] - hs[k - n2]) / (2.0 * mpp)
 			var shade := clampf(Vector3(-dx * 2.2, 1.0, -dz * 2.2).normalized().dot(sun) * 0.85 + 0.25, 0.3, 1.25)
 			var col := _colour(x, z, h)
+			if i % mstep == mstep / 2 and j % mstep == mstep / 2:
+				mask[(j / mstep) * WATER_N + i / mstep] = 1 if TerrainHeight.water_level_for(x, z, h) != TerrainHeight.NO_WATER else 0
 			var o := (j * n + i) * 4
 			col = col * shade
 			data[o] = int(clampf(col.r, 0.0, 1.0) * 255.0)
@@ -130,6 +140,7 @@ static func _build() -> Image:
 			data[o + 3] = 255
 	var img := Image.create_from_data(n, n, false, Image.FORMAT_RGBA8, data)
 	_draw_roads(img, mpp)
+	water_mask = mask
 	return img
 
 

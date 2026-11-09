@@ -6,11 +6,12 @@ extends RefCounted
 ## Numbers live in Gear and Economy, the wallet in Progress; Hud.press_button routes the ids here.
 
 const BTN_H := 64.0
-const ROW_THROW_Y := 176.0
-const ROW_GADGET_Y := 272.0
-const ROW_LOAD_Y := 368.0
-const ROW_SAVE_Y := 440.0
-const BACK_Y := 592.0
+const TILE_H := 108.0                     ## a throwable / gadget tile: its picture, its name and what a tap does
+const ROW_THROW_Y := 160.0
+const ROW_GADGET_Y := 304.0
+const ROW_LOAD_Y := 452.0
+const ROW_SAVE_Y := 520.0
+const BACK_Y := 630.0
 const GAP := 8.0
 
 
@@ -25,7 +26,8 @@ static func _row(hud: Hud, cx: float, s: float, ids: Array, y: float, prefix: St
 	var k := fit(hud, s, total)
 	for i in ids.size():
 		var id := StringName(ids[i])
-		hud._add(StringName("%s%s" % [prefix, id]), Rect2(cx + (-total * 0.5 + float(i) * (w + GAP)) * s * k, y * s, w * s * k, BTN_H * s), _label(id), _is_on(id))
+		hud._add(StringName("%s%s" % [prefix, id]), Rect2(cx + (-total * 0.5 + float(i) * (w + GAP)) * s * k, y * s, w * s * k, TILE_H * s), _label(id), _is_on(id))
+		hud.buttons[hud.buttons.size() - 1]["own"] = true                       # the tile (plate, picture, name, state) is painted by draw() below
 
 
 static func _is_on(id: StringName) -> bool:
@@ -49,7 +51,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 	_row(hud, cx, s, Gear.THROW_IDS, ROW_THROW_Y, "gt_", 150.0)
 	var g: Array = Gear.GADGET_IDS.duplicate()
 	g.append(&"none")
-	_row(hud, cx, s, g, ROW_GADGET_Y, "gg_", 190.0)
+	_row(hud, cx, s, g, ROW_GADGET_Y, "gg_", 170.0)
 	var ls := 4
 	var w := 200.0
 	var total := float(ls) * w + float(ls - 1) * GAP
@@ -66,14 +68,14 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 ## Every caption above a row as {t, x, y (baseline), w}: the tag over each throwable / gadget button and LOADOUTS over the saved sets (a test checks none reaches a button).
 static func captions(hud: Hud, cx: float, s: float) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for spec: Array in [[Gear.THROW_IDS, Gear.THROW_IDS.size(), ROW_THROW_Y, 150.0], [Gear.GADGET_IDS, Gear.GADGET_IDS.size() + 1, ROW_GADGET_Y, 190.0]]:
-		var ids: Array = spec[0]
+	for spec: Array in [["THROWABLES", Gear.THROW_IDS.size(), ROW_THROW_Y, 150.0], ["GADGETS", Gear.GADGET_IDS.size() + 1, ROW_GADGET_Y, 170.0]]:
 		var w: float = spec[3]
 		var total := float(spec[1]) * w + float(int(spec[1]) - 1) * GAP
 		var k := fit(hud, s, total)
-		for i in ids.size():
-			out.append({"t": String(Gear.def(StringName(ids[i]))["tag"]), "x": cx + (-total * 0.5 + float(i) * (w + GAP)) * s * k, "y": (float(spec[2]) - 8.0) * s, "w": w * s * k, "center": true})
-	out.append({"t": "LOADOUTS", "x": cx - 400.0 * s, "y": (ROW_LOAD_Y - 8.0) * s, "w": 300.0 * s, "center": false})
+		out.append({"t": String(spec[0]), "x": cx + (-total * 0.5) * s * k, "y": (float(spec[2]) - 10.0) * s, "w": 300.0 * s, "center": false})
+	var lw := 4.0 * 200.0 + 3.0 * GAP
+	var lk := fit(hud, s, lw)
+	out.append({"t": "LOADOUTS", "x": cx - lw * 0.5 * s * lk, "y": (ROW_LOAD_Y - 10.0) * s, "w": 300.0 * s, "center": false})
 	return out
 
 
@@ -82,12 +84,40 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	hud.header(c, vp, s, font, "GEAR")
 	if prog != null:
 		hud._text(c, font, Vector2(0.0, 134.0 * s), "CREDITS  %d" % prog.credits, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
+		var cw := hud._text_width(font, "CREDITS  %d" % prog.credits, int(UiUtil.TEXT_MIN * s))
+		UiKit.glyph(c, &"coin", Vector2(vp.x * 0.5 - cw * 0.5 - 22.0 * s, 124.0 * s), 11.0 * s, Color(UiUtil.AMBER, 0.95), s)
 	for cp: Dictionary in captions(hud, cx, s):
-		hud._text(c, font, Vector2(cp["x"], cp["y"]), String(cp["t"]), HORIZONTAL_ALIGNMENT_CENTER if cp["center"] else HORIZONTAL_ALIGNMENT_LEFT, cp["w"], int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+		var r := Rect2(float(cp["x"]), float(cp["y"]) - 24.0 * s, float(cp["w"]), 32.0 * s)
+		UiKit.section(hud, c, r, String(cp["t"]), UiUtil.AMBER, s, font)
+	# the tiles: plate, picture, name, state
+	for b: Dictionary in hud.buttons:
+		var bid := String(b["id"])
+		if not (bid.begins_with("gt_") or bid.begins_with("gg_")) or not b.get("own", false):
+			continue
+		var r: Rect2 = b["rect"]
+		var raw := bid.substr(3)
+		var id := &"" if raw == "none" else StringName(raw)
+		var on: bool = b["on"]
+		var own := id == &"" or Gear.is_owned(id)
+		var tint := UiUtil.GREEN if on else (UiUtil.CYAN if own else UiUtil.AMBER)
+		UiKit.panel(c, r, s, tint, on or hud._hover == b["id"], 10.0, on)
+		var pic := Rect2(r.position.x + 8.0 * s, r.position.y + 6.0 * s, r.size.x - 16.0 * s, 56.0 * s)
+		if id == &"":
+			UiKit.glyph(c, &"abort", pic.get_center(), 16.0 * s, Color(1, 1, 1, 0.5), s)
+		else:
+			var tex := ItemIcons.gear(id)
+			if tex != null:
+				ItemIcons.draw_tex(c, tex, pic, Color(1, 1, 1, 1.0 if own else 0.6))
+			else:
+				UiKit.glyph(c, &"bomb", pic.get_center(), 16.0 * s, Color(tint, 0.9), s)
+		var nm := "NONE" if id == &"" else String(Gear.def(id)["tag"])
+		hud._text(c, font, Vector2(r.position.x, r.position.y + 82.0 * s), nm, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, UiUtil.fit_size(font, nm, r.size.x - 10.0 * s, int(UiKit.T_BODY * s)), Color(1, 1, 1, 0.97 if own else 0.8), 1.0 * s)
+		var st := String(b["label"]) if id != &"" else ("ON" if on else "EQUIP")
+		hud._text(c, font, Vector2(r.position.x, r.position.y + r.size.y - 8.0 * s), st, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, UiUtil.fit_size(font, st, r.size.x - 10.0 * s, int(Hud.BODY_MIN * s)), Color(tint.lerp(Color.WHITE, 0.4), 1.0))
 	var cur := Gear.title(Gear.throwable) + ("  +  " + Gear.title(Gear.gadget) if Gear.gadget != &"" else "")
-	hud._text(c, font, Vector2(0.0, 534.0 * s), cur, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var d := Gear.def(Gear.gadget if Gear.gadget != &"" else Gear.throwable)
-	hud._text(c, font, Vector2(0.0, 566.0 * s), String(d.get("desc", "")), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.8), 0.0)
+	var line := "%s   %s" % [cur, String(d.get("desc", ""))]
+	hud._text(c, font, Vector2(0.0, 612.0 * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x - 40.0 * s, UiUtil.fit_size(font, line, vp.x - 60.0 * s, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.CYAN, 0.95), 0.0)
 
 
 ## Button effect for the ids of this page. Returns true when it handled the id (the caller redraws).

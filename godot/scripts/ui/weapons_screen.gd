@@ -177,19 +177,25 @@ static func _draw_card(hud: Hud, c: Control, s: float, font: Font, cx: float, k:
 	var px := cx + PANEL_X * s * k
 	var pw := PANEL_W * s * k
 	var py := GRID_Y * s
-	c.draw_rect(Rect2(px - 6.0 * s, py - 4.0 * s, pw + 12.0 * s, (640.0 - GRID_Y) * s), Color(0.03, 0.045, 0.09, 0.9))
-	c.draw_rect(Rect2(px - 6.0 * s, py - 4.0 * s, pw + 12.0 * s, (640.0 - GRID_Y) * s), Color(UiUtil.CYAN, 0.35), false, 1.5 * s)
+	var tint0 := UiKit.class_tint(WeaponDefs.class_of(sel)) if not is_gear(sel) else UiUtil.CYAN
+	UiKit.panel(c, Rect2(px - 6.0 * s, py - 4.0 * s, pw + 12.0 * s, (640.0 - GRID_Y) * s), s, tint0, false, 14.0, true)
 	if is_gear(sel):
 		_draw_gear_card(hud, c, s, font, px, pw, py, k)
 		return
 	var card := WeaponStats.card(sel, Attachments.effective(sel) if WeaponDefs.is_unlocked(sel) else {})
 	# picture and heading
-	var pic := Rect2(px + 4.0 * s, py + 2.0 * s, 270.0 * s * k, 112.0 * s)
-	c.draw_rect(pic, Color(0.07, 0.1, 0.17, 1.0))
-	c.draw_rect(pic, Color(UiUtil.CYAN, 0.3), false, 1.0 * s)
-	ItemIcons.draw_weapon(c, sel, pic.grow(-4.0 * s), Color(1, 1, 1, 1.0))
-	var tx := px + (284.0 * k) * s
-	var tw := pw - (284.0 * k) * s - 6.0 * s
+	var pic := Rect2(px + 4.0 * s, py + 6.0 * s, 290.0 * s * k, 138.0 * s)
+	c.draw_rect(pic, Color(tint0, 0.08))
+	c.draw_rect(pic, Color(tint0, 0.35), false, 1.0 * s)
+	var pv := WeaponPreview.of(hud)
+	if pv.show_weapon(sel):                                    # the real 3D model on a turntable (drag to turn, tap for the side view)
+		pv.draw(c, pic.grow(-2.0 * s))
+		hud.preview_rect = pic
+		UiKit.glyph(c, &"rotate", pic.end - Vector2(16.0, 16.0) * s, 8.0 * s, Color(1, 1, 1, 0.55), s)
+	else:
+		ItemIcons.draw_weapon(c, sel, pic.grow(-4.0 * s), Color(1, 1, 1, 1.0))
+	var tx := px + (304.0 * k) * s
+	var tw := pw - (304.0 * k) * s - 6.0 * s
 	var nm := String(card["name"])
 	hud._text(c, font, Vector2(tx, py + 30.0 * s), nm, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, nm, tw, int(26.0 * s)), Color(1, 1, 1, 0.98), 1.0 * s)
 	var own := WeaponDefs.is_unlocked(sel)
@@ -197,29 +203,29 @@ static func _draw_card(hud: Hud, c: Control, s: float, font: Font, cx: float, k:
 	var wl := WeaponStats.where(sel)
 	for i in wl.size():
 		hud._text(c, font, Vector2(tx, py + (78.0 + 20.0 * float(i)) * s), ("WHERE  " if i == 0 else "OR  ") + wl[i], HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, wl[i], tw - 60.0 * s, int(16.0 * s)), Color(UiUtil.CYAN, 0.95))
-	# bars
+	# bars (against the weapon in hand when it is another one: a white marker and a +/- number)
 	var bx := px + 4.0 * s
-	var by := py + 128.0 * s
-	var labw := 138.0 * s * k
-	var trk := 150.0 * s * k
+	var by := py + 150.0 * s
+	var labw := 128.0 * s * k
+	var trk := 196.0 * s * k
 	var bars: Dictionary = card["bars"]
+	var cmp := LoadoutScreen.compare_id(sel)
+	var cbars := {}
+	if cmp != &"":
+		cbars = WeaponStats.card(cmp, Attachments.effective(cmp))["bars"]
+		var vs := "VS IN HAND  %s" % WeaponDefs.title(cmp)
+		hud._text(c, font, Vector2(tx, py + 134.0 * s), vs, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, vs, tw, int(Hud.BODY_MIN * s)), Color(1, 1, 1, 0.72))
 	for i in WeaponStats.BARS.size():
 		var key: StringName = WeaponStats.BARS[i]
-		var y := by + float(i) * 29.0 * s
-		var v := float(bars[key])
 		var label: String = WeaponStats.BAR_NAMES[key]
 		if bool(card["melee"]) and key == &"range":
 			label = "REACH"
-		hud._text(c, font, Vector2(bx, y + 17.0 * s), label, HORIZONTAL_ALIGNMENT_LEFT, labw, int(15.0 * s), Color(1, 1, 1, 0.85))
-		var tr := Rect2(bx + labw, y + 4.0 * s, trk, 16.0 * s)
-		c.draw_rect(tr, Color(1, 1, 1, 0.1))
-		c.draw_rect(Rect2(tr.position, Vector2(tr.size.x * v, tr.size.y)), Color(UiUtil.CYAN, 0.92).lerp(Color(UiUtil.AMBER, 0.95), clampf((v - 0.55) * 2.0, 0.0, 1.0)))
-		c.draw_rect(tr, Color(1, 1, 1, 0.25), false, 1.0 * s)
+		UiKit.stat_bar(hud, c, Rect2(bx, by + 4.0 * s + float(i) * 26.0 * s, labw + trk + 54.0 * s, 24.0 * s), label, float(bars[key]), s, font, labw, float(cbars[key]) if cmp != &"" else -1.0)
 	# diagram: the spread (or the blast) around a person
-	var dr := Rect2(bx + labw + trk + 14.0 * s * k, by - 2.0 * s, px + pw - (bx + labw + trk + 14.0 * s * k) - 2.0 * s, 178.0 * s)
+	var dr := Rect2(bx + labw + trk + 64.0 * s, by - 2.0 * s, px + pw - (bx + labw + trk + 64.0 * s) - 2.0 * s, 166.0 * s)
 	_draw_diagram(hud, c, s, font, dr, card)
 	# numbers
-	var ly := by + 6.0 * 29.0 * s + 22.0 * s
+	var ly := by + 6.0 * 26.0 * s + 18.0 * s
 	var ls := WeaponStats.lines(card)
 	for i in ls.size():
 		hud._text(c, font, Vector2(bx, ly + float(i) * 20.0 * s), ls[i], HORIZONTAL_ALIGNMENT_LEFT, pw - 8.0 * s, UiUtil.fit_size(font, ls[i], pw - 8.0 * s, int(16.0 * s)), Color(1, 1, 1, 0.9))

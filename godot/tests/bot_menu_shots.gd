@@ -30,6 +30,8 @@ func _init() -> void:
 		["options_display", &"paused", [&"options", &"opt_tab_1"]],
 		["options_sound", &"paused", [&"options", &"opt_tab_2"]],
 		["options_game", &"paused", [&"options", &"opt_tab_4"]],
+		["options_access", &"paused", [&"options", &"opt_tab_3"]],
+		["controls", &"paused", [&"options", &"opt_controls"]],
 		["look", &"paused", [&"menu_gear", &"look_open"]],
 		["safehouse", &"paused", [&"menu_gear", &"sh_open"]],
 		["side_jobs", &"paused", [&"menu_gear", &"side_open"]],
@@ -42,6 +44,7 @@ func _init() -> void:
 		["map_danger", &"paused", [], &"map_danger"],
 		["map_all", &"paused", [], &"map_all"],
 		["dead", &"dead", []],
+		["garage", &"play", [], &"garage"],
 		# the weapon roster (MENU_UNLOCK=1 gives every weapon): the loadout tabs by class and the catalogue pages
 		["roster_loadout_rifle", &"paused", [&"loadout", &"wheel_ranger"]],
 		["roster_loadout_quantum", &"paused", [&"loadout", &"wheel_qsuper", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheelpg_next", &"wheel_qcollapse"]],
@@ -67,6 +70,9 @@ func step(_t: float, _dt: float) -> bool:
 		for a in n.root.find_children("*", "AutoQuality", true, false):
 			(a as AutoQuality).enabled = false
 		DirAccess.make_dir_recursive_absolute(_out)
+		WeaponPreview.freeze = true                                 # a still 3D weapon in the shots
+		if OS.get_environment("MENU_NO3D") == "1":                 # UI look-dev: skip the 3D world (a menu dims it anyway), shots take a second instead of twelve
+			_hud.get_viewport().disable_3d = true
 		if _hud.touch != null:
 			_hud.touch.controls_on = true             # the phone: no desktop key footer
 		_begin()
@@ -110,6 +116,17 @@ func _begin() -> void:
 	for id: StringName in st[2]:
 		_hud.press_button(id)
 		_hud._ensure_layout()
+	if st.size() > 3 and st[3] == &"garage":                      # the garage screen (a CanvasLayer of the touch controls): a kept car, then open it
+		if is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"get_garage"):
+			var gar := Game.vehicles.call(&"get_garage") as Garage
+			if gar != null:
+				gar.kind = &"sports" if VehicleSpecs.SPECS.has(&"sports") else VehicleSpecs.ROSTER[0]
+				gar.levels = {&"speed": 2, &"armour": 1}
+		if Game.progress != null:
+			Game.progress.credits = 900
+		_hud.touch.call(&"_open_garage")
+		_wait = 8
+		return
 	if st.size() > 3 and String(st[3]).begins_with("map"):
 		var ms := _hud.touch.get_node_or_null("MapScreen") as MapScreen
 		if ms != null:

@@ -255,10 +255,10 @@ static func spawn_points() -> Array[Dictionary]:
 
 ## The map's pins: the airport (one pin), the roof pad and the mountain pads.
 static func map_markers() -> Array[Dictionary]:
-	var out: Array[Dictionary] = [{"kind": &"garage", "pos": to_world(Vector3(1170.0, 0.0, -560.0)), "fog": true, "label": NAME + ": PLANES AND HELICOPTERS"}]
+	var out: Array[Dictionary] = [{"kind": &"garage", "pos": to_world(Vector3(1170.0, 0.0, -560.0)), "fog": false, "label": NAME + ": PLANES AND HELICOPTERS", "glyph": &"airport"}]
 	for p in pads():
 		if p["kind"] in [&"roof", &"mountain"]:
-			out.append({"kind": &"garage", "pos": p["pos"], "fog": true, "label": String(p["name"]) + ": HELICOPTER"})
+			out.append({"kind": &"garage", "pos": p["pos"], "fog": true, "label": String(p["name"]) + ": HELICOPTER", "glyph": &"helipad"})
 	return out
 
 

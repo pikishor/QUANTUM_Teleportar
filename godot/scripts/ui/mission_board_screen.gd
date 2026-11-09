@@ -89,6 +89,7 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		var o: Dictionary = b.offers[i]
 		var t := StringName(o["type"])
 		hud._add_card(StringName("board_pick_%d" % i), Rect2(x, y * s, cw * s, CARD_H * s), str(o["title"]), ICON_OF.get(t, &"missions"), sub_of(b, o), i == 0 and story.is_empty(), tint_of(t))
+		hud.buttons[hud.buttons.size() - 1]["rpad"] = (CHIP_W + 26.0) * s                      # the text keeps clear of the pay chip
 		y += CARD_H + GAP
 	_bottom(hud, cx, s, y + 8.0, true, cw)
 
@@ -151,12 +152,15 @@ static func _draw_pay(hud: Hud, c: Control, s: float, font: Font, b: MissionBoar
 			continue
 		var r: Rect2 = btn["rect"]
 		var chip := Rect2(r.end.x - (CHIP_W + 14.0) * s, r.position.y + 10.0 * s, CHIP_W * s, r.size.y - 20.0 * s)
-		c.draw_rect(chip, Color(UiUtil.AMBER.r * 0.25, UiUtil.AMBER.g * 0.2, 0.02, 0.95))
-		c.draw_rect(chip, Color(UiUtil.AMBER, 0.85), false, 2.0 * s)
+		hud._rect(c, chip, Color(0.16, 0.11, 0.02, 0.96))                                              # queued, so it lands over the card's own plate
+		hud._frame(c, chip, Color(UiUtil.AMBER, 0.9), 2.0 * s)
+		var coin := Rect2(chip.position.x + 10.0 * s, chip.position.y + chip.size.y * 0.42 - 14.0 * s, 28.0 * s, 28.0 * s)
+		hud._sprite(c, &"disc", coin, Color(UiUtil.AMBER, 0.95))
+		hud._sprite(c, &"ring", coin.grow(-6.0 * s), Color(0.16, 0.11, 0.02, 1.0))
 		var txt := "%d" % int(b.offers[i]["reward"])
-		var sz := UiUtil.fit_size(font, txt, chip.size.x - 16.0 * s, int(34.0 * s))
-		hud._text(c, font, Vector2(chip.position.x, chip.position.y + chip.size.y * 0.5 + 2.0 * s), txt, HORIZONTAL_ALIGNMENT_CENTER, chip.size.x, sz, Color(1.0, 0.92, 0.55, 1.0), 1.5 * s)
-		hud._text(c, font, Vector2(chip.position.x, chip.end.y - 10.0 * s), "CREDITS", HORIZONTAL_ALIGNMENT_CENTER, chip.size.x, int(UiUtil.BAR_LABEL * 0.8 * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+		var sz := UiUtil.fit_size(font, txt, chip.size.x - 60.0 * s, int(34.0 * s))
+		hud._text(c, font, Vector2(chip.position.x + 40.0 * s, chip.position.y + chip.size.y * 0.5 + 2.0 * s), txt, HORIZONTAL_ALIGNMENT_LEFT, chip.size.x - 50.0 * s, sz, Color(1.0, 0.92, 0.55, 1.0), 1.5 * s)
+		hud._text(c, font, Vector2(chip.position.x, chip.end.y - 10.0 * s), "CREDITS", HORIZONTAL_ALIGNMENT_CENTER, chip.size.x, int(Hud.BODY_MIN * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
 
 
 const HEAD_LINE_Y := 112.0

@@ -12,8 +12,8 @@ const TILE_GAP := 8.0
 const PIC_X := -438.0                     ## the big card of the selected weapon: picture, name, class, numbers (x from the centre, y, size in base px)
 const PIC_Y := 176.0
 const PIC_W := 580.0
-const PIC_H := 264.0
-const BAR_Y := 480.0                      ## the four stat bars under the picture, two by two
+const PIC_H := 248.0
+const BAR_Y := 492.0                      ## the four stat bars under the picture, two by two (a compare caption sits between the numbers and the bars)
 const INFO_Y := 580.0                     ## baseline of the first "where to get it" line
 const SLOT_X := 160.0                     ## the three attachment slots (right column)
 const SLOT_Y := 198.0                     ## (was 178: the OPTIC caption touched the NEXT line above it, director review 3 #12)
@@ -139,27 +139,43 @@ static func picture_rect(cx: float, s: float, k := 1.0) -> Rect2:
 	return Rect2(cx + PIC_X * s * k, PIC_Y * s, PIC_W * s * k, PIC_H * s)
 
 
+## The weapon the player holds now, when it is not the selected one: the stat bars compare the selection against it (white marker and a +/- number).
+static func compare_id(sel: StringName) -> StringName:
+	var cur := WeaponDefs.last_used
+	return cur if (cur != sel and WeaponDefs.DEFS.has(cur) and WeaponDefs.is_unlocked(cur)) else &""
+
+
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float, sel: StringName) -> void:
 	var prog := Game.progress as Progress
 	hud.header(c, vp, s, font, "LOADOUT")
 	if prog != null:
 		hud._text(c, font, Vector2(0.0, 134.0 * s), "CREDITS  %d" % prog.credits, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
+		var cw := hud._text_width(font, "CREDITS  %d" % prog.credits, int(UiUtil.TEXT_MIN * s))
+		UiKit.glyph(c, &"coin", Vector2(vp.x * 0.5 - cw * 0.5 - 22.0 * s, 124.0 * s), 11.0 * s, Color(UiUtil.AMBER, 0.95), s)
 	var nx := WeaponLadder.next_line()
 	if nx != "":
 		hud._text(c, font, Vector2(0.0, 162.0 * s), nx, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var d := Attachments.effective(sel)
 	var card := WeaponStats.card(sel, d)
 	var k := k_of(vp.x, s)
-	# the big card: plate, name and class on top, the picture filling the rest, the numbers along the bottom
+	var tint := UiKit.class_tint(WeaponDefs.class_of(sel))
+	# the big card: the 3D weapon on a turntable (drag to turn, tap for the side view), name and class on top, the numbers along the bottom
 	var pic := picture_rect(cx, s, k)
-	c.draw_rect(pic, Color(0.06, 0.085, 0.15, 1.0))
-	c.draw_rect(pic, Color(UiUtil.CYAN, 0.45), false, 1.5 * s)
+	UiKit.panel(c, pic, s, tint, false, 12.0, true)
+	var area := Rect2(pic.position.x + 8.0 * s, pic.position.y + 40.0 * s, pic.size.x - 16.0 * s, pic.size.y - 40.0 * s - 8.0 * s)
+	var pv := WeaponPreview.of(hud)
+	if pv.show_weapon(sel):
+		c.draw_rect(area, Color(tint, 0.07))
+		c.draw_line(Vector2(area.position.x + 20.0 * s, area.end.y - 22.0 * s), Vector2(area.end.x - 20.0 * s, area.end.y - 22.0 * s), Color(tint, 0.25), 2.0 * s)
+		pv.draw(c, area)
+		hud.preview_rect = area
+		UiKit.glyph(c, &"rotate", Vector2(area.end.x - 18.0 * s, area.end.y - 18.0 * s), 9.0 * s, Color(1, 1, 1, 0.6), s)
+	else:
+		ItemIcons.draw_weapon_large(c, sel, area, Color(1, 1, 1, 1.0))
 	var name := WeaponDefs.title(sel)
 	var half := pic.size.x * 0.5
-	hud._text(c, font, Vector2(pic.position.x + 14.0 * s, pic.position.y + 34.0 * s), name, HORIZONTAL_ALIGNMENT_LEFT, half + 40.0 * s, UiUtil.fit_size(font, name, half + 40.0 * s, int(30.0 * s)), Color(1, 1, 1, 0.98), 1.0 * s)
-	hud._text(c, font, Vector2(pic.position.x + pic.size.x * 0.55, pic.position.y + 32.0 * s), String(card["class"]), HORIZONTAL_ALIGNMENT_RIGHT, pic.size.x * 0.45 - 14.0 * s, int(20.0 * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
-	var area := Rect2(pic.position.x + 6.0 * s, pic.position.y + 22.0 * s, pic.size.x - 12.0 * s, pic.size.y - 22.0 * s - 4.0 * s)
-	ItemIcons.draw_weapon_large(c, sel, area, Color(1, 1, 1, 1.0))
+	hud._text(c, font, Vector2(pic.position.x + 18.0 * s, pic.position.y + 32.0 * s), name, HORIZONTAL_ALIGNMENT_LEFT, half + 40.0 * s, UiUtil.fit_size(font, name, half + 40.0 * s, int(30.0 * s)), Color(1, 1, 1, 0.98), 1.0 * s)
+	UiKit.badge(hud, c, Vector2(pic.end.x - 12.0 * s, pic.position.y + 24.0 * s), String(card["class"]), tint, s, font, true, true)
 	var ls := WeaponStats.lines(card)
 	var nums := "   ".join(ls.slice(0, mini(3, ls.size())))
 	var nmax := mini(3, ls.size())
@@ -167,34 +183,42 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		nmax -= 1                                              # a narrow screen shows fewer numbers instead of running into the part cards
 		nums = "   ".join(ls.slice(0, nmax))
 	hud._text(c, font, Vector2(pic.position.x, pic.end.y + 28.0 * s), nums, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x, UiUtil.fit_size(font, nums, pic.size.x, int(UiUtil.BAR_LABEL * s)), Color(1, 1, 1, 0.92))
-	# four stat bars, two by two
+	# four stat bars, two by two; against the weapon in hand when it is another one
+	var cmp := compare_id(sel)
+	var cbars := {}
+	if cmp != &"":
+		cbars = WeaponStats.card(cmp, Attachments.effective(cmp))["bars"]
+		var cap := "VS IN HAND  %s" % WeaponDefs.title(cmp)
+		hud._text(c, font, Vector2(pic.position.x, pic.end.y + 54.0 * s), cap, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x, UiUtil.fit_size(font, cap, pic.size.x, int(Hud.BODY_MIN * s)), Color(1, 1, 1, 0.72))
+	else:
+		hud._text(c, font, Vector2(pic.position.x, pic.end.y + 54.0 * s), "IN YOUR HAND", HORIZONTAL_ALIGNMENT_LEFT, pic.size.x, int(Hud.BODY_MIN * s), Color(UiUtil.GREEN, 0.85))
 	var keys: Array[StringName] = [&"damage", &"rate", &"range", &"accuracy"]
 	var colw := (pic.size.x - 12.0 * s) * 0.5
 	for i in keys.size():
 		var key: StringName = keys[i]
 		var bx := pic.position.x + float(i % 2) * (colw + 12.0 * s)
-		var by := (BAR_Y + float(i / 2) * 34.0) * s
+		var by := (BAR_Y + float(i / 2) * 36.0) * s
 		var lab: String = String(WeaponStats.BAR_NAMES[key]) if not (bool(card["melee"]) and key == &"range") else "REACH"
-		hud._text(c, font, Vector2(bx, by + 20.0 * s), lab, HORIZONTAL_ALIGNMENT_LEFT, 120.0 * s, int(16.0 * s), Color(1, 1, 1, 0.9))
-		var tr := Rect2(bx + 118.0 * s, by + 4.0 * s, colw - 118.0 * s, 18.0 * s)
-		var v := float(card["bars"][key])
-		c.draw_rect(tr, Color(1, 1, 1, 0.1))
-		c.draw_rect(Rect2(tr.position, Vector2(tr.size.x * v, tr.size.y)), Color(UiUtil.CYAN, 0.92).lerp(Color(UiUtil.AMBER, 0.95), clampf((v - 0.55) * 2.0, 0.0, 1.0)))
-		c.draw_rect(tr, Color(1, 1, 1, 0.25), false, 1.0 * s)
+		UiKit.stat_bar(hud, c, Rect2(bx, by, colw, 28.0 * s), lab, float(card["bars"][key]), s, font, 102.0 * s, float(cbars[key]) if cmp != &"" else -1.0)
 	# where to get it
 	var wl := WeaponStats.where(sel)
 	for i in mini(wl.size(), 2):
-		var line := ("WHERE  " if i == 0 else "OR  ") + wl[i]
-		hud._text(c, font, Vector2(pic.position.x, (INFO_Y + 30.0 * float(i)) * s), line, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x, UiUtil.fit_size(font, line, pic.size.x, int(20.0 * s)), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+		var wy := (INFO_Y + 34.0 * float(i)) * s
+		var tag := UiKit.badge(hud, c, Vector2(pic.position.x, wy - 7.0 * s), "WHERE" if i == 0 else "OR", UiUtil.MAGENTA, s, font)
+		var line: String = wl[i]
+		var lw := pic.size.x - tag.size.x - 10.0 * s
+		hud._text(c, font, Vector2(tag.end.x + 10.0 * s, wy), line, HORIZONTAL_ALIGNMENT_LEFT, lw, UiUtil.fit_size(font, line, lw, int(20.0 * s)), Color(UiUtil.CYAN, 0.97), 1.0 * s)
 	var trait_line := WeaponRoster.trait_text(sel)
 	if trait_line != "":
-		hud._text(c, font, Vector2(pic.position.x + 14.0 * s, pic.position.y + pic.size.y - 10.0 * s), trait_line, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x - 28.0 * s, UiUtil.fit_size(font, trait_line, pic.size.x - 28.0 * s, int(18.0 * s)), Color(UiUtil.MAGENTA, 0.97), 1.0 * s)
+		hud._text(c, font, Vector2(pic.position.x + 18.0 * s, pic.position.y + pic.size.y - 14.0 * s), trait_line, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x - 70.0 * s, UiUtil.fit_size(font, trait_line, pic.size.x - 70.0 * s, int(18.0 * s)), Color(UiUtil.MAGENTA, 0.97), 1.0 * s)
 	var np := page_count()
 	if np > 1:
 		var gw := (float(GRID_COLS) * TILE.x + float(GRID_COLS - 1) * TILE_GAP) * s * k
-		var cap := "%s  %d / %d" % [page_name(), page + 1, np]                  # between the two arrows
-		var cw := gw - 136.0 * s
-		hud._text(c, font, Vector2(cx + GRID_X * s * k + 68.0 * s, (GRID_Y + 4.0 * (TILE.y + TILE_GAP) + 4.0 + 40.0) * s), cap, HORIZONTAL_ALIGNMENT_CENTER, cw, UiUtil.fit_size(font, cap, cw, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+		var cap2 := "%s  %d / %d" % [page_name(), page + 1, np]                  # between the two arrows
+		var cw2 := gw - 136.0 * s
+		if hud._text_width(font, Tr.t(cap2), int(Hud.BODY_MIN * s)) > cw2 - 6.0 * s:        # a narrow screen (16:9) shows the class alone: the arrows say there are more
+			cap2 = page_name()
+		hud._text(c, font, Vector2(cx + GRID_X * s * k + 68.0 * s, (GRID_Y + 4.0 * (TILE.y + TILE_GAP) + 4.0 + 40.0) * s), cap2, HORIZONTAL_ALIGNMENT_CENTER, cw2, UiUtil.fit_size(font, cap2, cw2, int(UiUtil.BAR_LABEL * s)), Color(UiKit.class_tint(WeaponDefs.class_of(sel)).lerp(Color.WHITE, 0.3), 0.97), 1.0 * s)
 	for si in Attachments.SLOTS.size():
 		var y := (SLOT_Y + si * SLOT_STEP) * s
 		hud._text(c, font, Vector2(cx + SLOT_X * s * k, y + 16.0 * s), String(Attachments.SLOTS[si]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)

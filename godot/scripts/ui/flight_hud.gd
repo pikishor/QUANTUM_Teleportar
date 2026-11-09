@@ -49,7 +49,7 @@ static func draw(c: Control, font: Font, vp: Vector2, s: float, ins: Vector2, ve
 	var v := veh as Vehicle
 	var d := AircraftFlight.info(v)
 	var r := 74.0 * s
-	var centre := Vector2(ins.x + 26.0 * s + r + 4.0 * s, vp.y * 0.40)
+	var centre := Vector2(ins.x + 26.0 * s + r + 4.0 * s, vp.y * 0.47)
 	_horizon(c, centre, r, float(d["pitch"]), float(d["roll"]), s)
 	# heading under the horizon, altitude and vertical speed beside it
 	_label(c, font, Vector2(centre.x - 50.0 * s, centre.y + r + 8.0 * s), Vector2(100.0 * s, 28.0 * s), "HDG %03d" % compass(float(d["heading"])), CYAN, s)
@@ -175,7 +175,7 @@ static func _throttle(c: Control, bottom_left: Vector2, h: float, v: float, s: f
 ## The landing guide: a 200 px box with a cross at its centre; the diamond is the aircraft relative to the glide path and the runway axis (±40 m vertical, ±60 m lateral at the full box).
 static func _guide(c: Control, font: Font, vp: Vector2, ins: Vector2, s: float, g: Dictionary, airborne: bool) -> void:
 	var size := Vector2(190.0, 150.0) * s
-	var pos := Vector2(ins.x + 26.0 * s + 2.0 * (74.0 * s + 4.0 * s) + 200.0 * s, vp.y * 0.40 - 74.0 * s)       # right of the altitude boxes, level with the horizon: clear of the sticks and the readout plate
+	var pos := Vector2(ins.x + 26.0 * s + 2.0 * (74.0 * s + 4.0 * s) + 200.0 * s, vp.y * 0.47 - 74.0 * s)       # right of the altitude boxes, level with the horizon: clear of the sticks and the readout plate
 	c.draw_rect(Rect2(pos, size), PLATE)
 	c.draw_rect(Rect2(pos, size), Color(CYAN, 0.5), false, 2.0 * s)
 	var cen := pos + size * 0.5

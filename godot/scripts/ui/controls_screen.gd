@@ -65,10 +65,14 @@ static func layout(hud: Hud, _st: UiSettings, cx: float, s: float) -> void:
 
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font) -> void:
-	var title := "CONTROLS"
-	if listening != &"":
-		title = "PRESS A KEY  (ESC CANCELS)" if tab == 0 else "PRESS A BUTTON  (LB FIRST FOR LB+)"
-	hud._text(c, font, Vector2(0.0, 84.0 * s), title, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(36.0 * s), Color(1, 1, 1, 0.97), 3.0 * s)
+	if listening == &"":
+		hud.header(c, vp, s, font, "CONTROLS")                       # the one screen title of every kit screen
+		return
+	var title := "PRESS A KEY  (ESC CANCELS)" if tab == 0 else "PRESS A BUTTON  (LB FIRST FOR LB+)"
+	var tw := hud._text_width(font, Tr.t(title), int(32.0 * s)) + 60.0 * s
+	var r := Rect2(vp.x * 0.5 - tw * 0.5, 38.0 * s, tw, 58.0 * s)
+	UiKit.panel(c, r, s, UiUtil.AMBER, true, 12.0, true)             # the prompt waits in a lit plate until a key arrives
+	hud._text(c, font, Vector2(0.0, 78.0 * s), title, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(32.0 * s), Color(UiUtil.AMBER, 1.0), 1.5 * s)
 
 
 ## Presses one of the screen's buttons. Returns true when it changed something.

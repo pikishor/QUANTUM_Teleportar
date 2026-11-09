@@ -29,13 +29,15 @@ const ZOOMS: Array[int] = [1, 2, 4]
 const OPEN_ZOOM_F := 3.0                          ## the 2080 m map opens at 3x (a 693 m frame, about what 2x gave on the 1280 m map: the district labels stay apart)
 const OPEN_ZOOM := 2                              ## the zoom the map opens at (1 = the whole city)
 const ZOOM_MAX := 8.0
+const REGION_ZOOM := 0.7                           ## REGION view (the zoom button's fourth level): about 3 km across, the city and its first outskirts
+const ROUTE_MODES: Array[StringName] = [&"auto", &"car", &"air", &"boat"]   ## the GPS button: auto follows the vehicle you drive
 const WORLD_ZOOM := 0.36                           ## WORLD view (the zoom button's fourth level): the whole 6 km terrain world fits the screen height
 const DRAG_PX := 14.0
 const LOD_ZOOM := 2.0                              ## below this zoom the crowded kinds show only their nearest few
 const LOD_KINDS: Array[StringName] = [&"interior", &"shop", &"garage", &"items", &"weapon", &"job"]
 const LOD_NEAR := 3
 const LOD_NEAR_JOB := 4
-const ALWAYS_KINDS: Array[StringName] = [&"mission", &"side", &"home"]   ## never dropped by the icon cap
+const ALWAYS_KINDS: Array[StringName] = [&"mission", &"side", &"home", &"site"]   ## never dropped by the icon cap
 const KIND_ORDER: Array[StringName] = [&"job", &"garage", &"weapon", &"shop", &"interior", &"items"]   ## round-robin order of the capped kinds (most useful first)
 const CAP_OVERVIEW := 14                          ## icons on screen at zoom < 2 (round 3 director review: 600 icons were unreadable)
 const CAP_MID := 20                               ## zoom 2 .. 4
@@ -113,6 +115,10 @@ var _legend_rect := Rect2()                          ## the opaque panel behind 
 var _chip_vis := 0
 var _open_age := 0.0                                  ## seconds since the map opened: the gesture hint is only there for the first few
 var _route_m := 0
+var route_mode: StringName = &"auto"                 ## GPS mode: auto (the vehicle you drive: foot and cars follow the roads, aircraft fly straight, boats follow the water), car, air or boat
+var _route_btn: Button
+var _route_eta := 0.0                                ## seconds of the route at the mode's plain speed
+var _route_style: StringName = &"car"
 var _tint_mesh: ArrayMesh                            ## static layers as ONE mesh each (district tint per block, building footprints): one draw call, no per-lot script work in the draw
 var _lots_mesh: ArrayMesh
 var _lots_mesh_n := 0
@@ -157,6 +163,8 @@ func _ready() -> void:
 		_btns[k] = b
 	_zoom_btn = _button("ZOOM 1X", &"Zoom")
 	_zoom_btn.pressed.connect(_on_zoom_button)
+	_route_btn = _button("GPS AUTO", &"RouteMode")
+	_route_btn.pressed.connect(cycle_route_mode)
 	var loc := _button("YOU", &"Locate")
 	loc.pressed.connect(locate)
 	_goal_btn = _button("GOAL", &"Goal")
@@ -167,7 +175,7 @@ func _ready() -> void:
 	cls.pressed.connect(close_screen)
 	var mis := _button("MISSIONS", &"Missions")                  # the Mission Board is one tap away from the map (docs/DESIGN.md core loop)
 	mis.pressed.connect(open_board)
-	_side_btns = [cls, mis, _zoom_btn, loc, _goal_btn, clr]
+	_side_btns = [cls, mis, _zoom_btn, _route_btn, loc, _goal_btn, clr]
 	_layout()
 
 
@@ -407,7 +415,8 @@ func set_waypoint(w: Vector3) -> void:
 	if not w.is_finite():
 		return
 	activity += 1
-	waypoint = Vector3(clampf(w.x, -HALF, HALF), 0.0, clampf(w.z, -HALF, HALF))
+	var lim := (TerrainHeight.WORLD_HALF - 60.0) if TerrainMap.ready else HALF         # the outskirts take a waypoint too (the world picture exists): GPS to a mountain, a farm, a pier
+	waypoint = Vector3(clampf(w.x, -lim, lim), 0.0, clampf(w.z, -lim, lim))
 	selected = {}
 	_dirty = true
 	_rebuild_route()
@@ -560,14 +569,50 @@ func cycle_zoom() -> void:
 	set_zoom(ZOOMS[(ZOOMS.find(zoom) + 1) % ZOOMS.size()] if ZOOMS.has(zoom) else 1)
 
 
-## The zoom button: 1x, 2x, 4x, then (once the world picture exists) WORLD, then back to 1x. `cycle_zoom` keeps its three levels.
+## The zoom button: 1x, 2x, 4x, then (once the world picture exists) REGION and WORLD, then back to 1x. `cycle_zoom` keeps its three levels.
 func _on_zoom_button() -> void:
-	if world_mode:
+	if world_mode and region_view():
+		set_world_mode(true)
+	elif world_mode:
 		set_world_mode(false)
 	elif zoom == 4 and TerrainMap.ready:
-		set_world_mode(true)
+		set_region_mode()
 	else:
 		cycle_zoom()
+
+
+## True in the REGION level (the world picture at about 3 km across), false in the full WORLD view and on the city levels.
+func region_view() -> bool:
+	return world_mode and zoom_f > WORLD_ZOOM * 1.5
+
+
+## REGION: the terrain picture at zoom REGION_ZOOM around the hero.
+func set_region_mode() -> void:
+	world_mode = TerrainMap.ready
+	if not world_mode:
+		set_zoom(1)
+		return
+	zoom_f = REGION_ZOOM
+	locate()
+
+
+## The GPS button: AUTO, CAR, AIR, BOAT.
+func cycle_route_mode() -> void:
+	route_mode = ROUTE_MODES[(ROUTE_MODES.find(route_mode) + 1) % ROUTE_MODES.size()]
+	if _route_btn != null:
+		_route_btn.text = "GPS " + String(route_mode).to_upper()
+	activity += 1
+	_rebuild_route()
+	if _map != null:
+		_map.queue_redraw()
+
+
+## The route mode in force: the button's choice, else the vehicle the hero drives.
+func route_mode_now() -> StringName:
+	if route_mode != &"auto":
+		return route_mode
+	var veh: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
+	return WorldRoute.mode_for(veh)
 
 
 func set_world_mode(on: bool) -> void:
@@ -603,7 +648,7 @@ func _after_zoom() -> void:
 	activity += 1
 	_clamp_view()
 	if _zoom_btn != null:
-		_zoom_btn.text = "WORLD" if world_mode else "ZOOM %dX" % zoom
+		_zoom_btn.text = ("REGION" if region_view() else "WORLD") if world_mode else "ZOOM %dX" % zoom
 	if _map != null:
 		_map.queue_redraw()
 
@@ -663,7 +708,13 @@ func fit_route() -> void:
 	var d := (a - b).abs() + Vector2(220.0, 220.0)                    # metres of margin: the streets around the route stay in the frame
 	var size := maxf(_rect.size.y, 1.0)
 	var ppm_need := minf(_rect.size.x * 0.62 / d.x, _rect.size.y * 0.7 / d.y)
-	zoom_f = clampf(2.0 * HALF * ppm_need / size, 1.0, 2.6)
+	var far := maxf(absf(a.x - b.x), absf(a.y - b.y)) > 1500.0 or maxf(absf(b.x), absf(b.y)) > HALF
+	if far and TerrainMap.ready:                                       # a goal in the outskirts: the world picture, framed on both ends
+		world_mode = true
+		zoom_f = clampf(2.0 * HALF * ppm_need / size, WORLD_ZOOM, 2.6)
+	else:
+		world_mode = false
+		zoom_f = clampf(2.0 * HALF * ppm_need / size, 1.0, 2.6)
 	view_center = (a + b) * 0.5
 	_after_zoom()
 
@@ -786,8 +837,9 @@ func _tap(p: Vector2) -> void:
 	if _map.size.x <= 0.0 or p.x < 0.0 or p.y < 0.0 or p.x > _map.size.x or p.y > _map.size.y:
 		return
 	var w := _view_origin() + (p - _rect.position) / ppm()
-	if absf(w.x) > HALF or absf(w.y) > HALF:
-		return                                            # the dark margin outside the city
+	var tlim := TerrainHeight.WORLD_HALF if TerrainMap.ready else HALF
+	if absf(w.x) > tlim or absf(w.y) > tlim:
+		return                                            # the dark margin outside the world picture
 	if has_waypoint() and world_to_map(waypoint.x, waypoint.z).distance_to(p) <= _tap_clear_px():
 		clear_waypoint()
 	else:
@@ -866,7 +918,7 @@ func collect_markers() -> Array[Dictionary]:
 				out.append({"kind": &"garage", "pos": fr.repairs.call(&"pos", i), "fog": true, "label": "REPAIR BAY"})
 	for pt: Dictionary in VehicleSpawns.POINTS:                  # where the helicopter, plane, tank and boats wait (round 5 roster): the car glyph, the vehicle's name
 		out.append({"kind": &"garage", "pos": pt["pos"], "fog": true, "label": VehicleSpecs.name_of(pt["kind"])})
-	out.append({"kind": &"garage", "pos": Harbour.center(), "fog": true, "label": "HARBOUR: BOATS AND JET SKIS"})       # the port on the south coast (one marker for its six berths)
+	out.append({"kind": &"garage", "pos": Harbour.center(), "fog": false, "label": "HARBOUR: BOATS AND JET SKIS", "glyph": &"harbour"})       # the port on the south coast (one marker for its six berths)
 	out.append_array(WorldRoam.map_markers())                       # the free-roam courses and the treasure hunt (flight school, off-road trial, jet-ski laps)
 	out.append_array(Airport.map_markers())                         # EASTFIELD AIRPORT and the helipads
 	out.append_array(AlienSites.map_markers())                      # the alien camps, hive nests, crash sites and boss lairs (red glyph, SITES legend)
@@ -894,9 +946,11 @@ func lod_markers(list: Array[Dictionary]) -> Array[Dictionary]:
 		var p: Vector3 = mk["pos"]
 		if not overview and view.size.x > 0.0 and not view.has_point(world_to_map(p.x, p.z)):
 			continue
-		if ALWAYS_KINDS.has(mk["kind"]):
+		if ALWAYS_KINDS.has(mk["kind"]) or mk.has("glyph"):          # the objective, side jobs, homes, the outskirt sites, the airport, the harbour and the helipads
 			out.append(mk)
 			continue
+		if world_mode and zoom_f < 1.0:
+			continue                                                  # the world views show the places of the world, not the city's doors, shops and crates
 		if not crowded.has(mk["kind"]):
 			crowded[mk["kind"]] = []
 		(crowded[mk["kind"]] as Array).append([Vector2(p.x, p.z).distance_squared_to(from), mk])
@@ -980,7 +1034,13 @@ func _refresh_chips() -> void:
 			b.text = t
 	if _map != null:
 		_charted = roundi(100.0 * float(discovered_count()) / float(CELLS * CELLS))
-		var t2 := "%d%% CHARTED" % _charted + (("    ROUTE %d M" % _route_m) if _route.size() >= 2 else "")
+		var t2 := "%d%% CHARTED" % _charted
+		if _route.size() >= 2:
+			t2 += "    ROUTE %s  ETA %s  %s" % [WorldRoute.dist_text(float(_route_m)), WorldRoute.clock(_route_eta), String(WorldRoute.MODE_WORD.get(_route_style, "CAR"))]
+		if is_finite(view_center.x) and (world_mode or absf(view_center.x) > HALF or absf(view_center.y) > HALF):
+			var rn := String(WorldHud.place(Vector3(view_center.x, 0.0, view_center.y))["name"])
+			if rn != "CITY":
+				t2 += "    " + rn
 		_sub_text = t2
 
 
@@ -1021,8 +1081,10 @@ func _rebuild_route() -> void:
 	_route_goal = route_goal()
 	_route = PackedVector3Array()
 	if _route_goal.is_finite() and is_instance_valid(Game.player) and Game.player.global_position.is_finite():
-		_route = MapRoute.route(Game.player.global_position, _route_goal)
-		_route_m = roundi(MapRoute.length(_route))
+		_route_style = route_mode_now()
+		_route = WorldRoute.route(Game.player.global_position, _route_goal, _route_style)
+		_route_m = roundi(WorldRoute.length(_route))
+		_route_eta = WorldRoute.eta(float(_route_m), _route_style)
 
 
 ## The GPS polyline (empty when there is no goal).
@@ -1191,15 +1253,64 @@ func _fog_layer() -> ArrayMesh:
 
 ## WORLD view: the names of the regions, on top of the picture (the map draws the city and the markers over it).
 func _draw_world_labels(font: Font, s: float) -> void:
-	var fs := int(24.0 * s)
-	for e in TerrainMap.LABELS:
-		var p := world_to_map((e[1] as Vector2).x, (e[1] as Vector2).y)
+	var fs := int(22.0 * s)
+	for e: Dictionary in WorldHud.region_labels():
+		var tier := int(e["tier"])
+		if tier == 2 or String(e["name"]) == "CITY":
+			continue                                                    # the airport and the harbour are marker badges with their own names, the city has its district names
+		if tier == 1 and zoom_f < 0.5:
+			continue
+		var pw: Vector2 = e["pos"]
+		var p := world_to_map(pw.x, pw.y)
 		if not _map.get_rect().grow(-20.0).has_point(p):
 			continue
-		var w := font.get_string_size(e[0], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var pos := p - Vector2(w * 0.5, 0.0)
-		_map.draw_string_outline(font, pos, e[0], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(fs / 5, 3), Color(0.0, 0.02, 0.04, 0.95))
-		_map.draw_string(font, pos, e[0], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.85, 0.95, 1.0, 0.92))
+		var big := tier == 0
+		var col := Color(0.85, 0.95, 1.0, 0.9) if big else Color(0.55, 0.85, 1.0, 0.88)
+		_label_out(font, p, String(e["name"]), fs if big else int(18.0 * s), col, HORIZONTAL_ALIGNMENT_CENTER, not big)
+		if scan_on:
+			pass
+
+
+## The colour key of the terrain picture, under the legend chips while a world view is open: sea, coast, plains, forest, desert, mountain, snow.
+func _draw_biome_key(font: Font, s: float) -> void:
+	var y := _legend_rect.end.y + 14.0 * s
+	var row := 24.0 * s
+	if y + row * TerrainMap.BIOME_KEY.size() > _map.size.y - 8.0 * s:
+		return
+	var x := _legend_rect.position.x
+	_map.draw_rect(Rect2(x, y - 6.0 * s, _legend_rect.size.x, row * TerrainMap.BIOME_KEY.size() + 10.0 * s), Color(0.0, 0.015, 0.03, 0.9))
+	for e: Array in TerrainMap.BIOME_KEY:
+		_map.draw_rect(Rect2(x + 10.0 * s, y + 3.0 * s, 26.0 * s, 14.0 * s), e[1])
+		_map.draw_string(font, Vector2(x + 46.0 * s, y + 17.0 * s), String(e[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(16.0 * s), Color(1, 1, 1, 0.9))
+		y += row
+
+
+## A dashed polyline (flight lines and sea lanes): dashes of 26 px with 16 px gaps, at most 300 of them.
+func _dashed(pl: PackedVector2Array, col: Color, w: float, s: float) -> void:
+	var dash := 26.0 * s
+	var gap := 16.0 * s
+	var left := 300
+	var phase := 0.0
+	var drawing := true
+	for i in range(1, pl.size()):
+		var a := pl[i - 1]
+		var seg := pl[i] - a
+		var l := seg.length()
+		if l < 1.0 or not is_finite(l):
+			continue
+		var dir := seg / l
+		var t := 0.0
+		while t < l and left > 0:
+			var run := (dash if drawing else gap) - phase
+			var e := minf(t + run, l)
+			if drawing:
+				_map.draw_line(a + dir * t, a + dir * e, col, w, true)
+				left -= 1
+			phase += e - t
+			if phase >= (dash if drawing else gap) - 0.01:
+				drawing = not drawing
+				phase = 0.0
+			t = e
 
 
 func _draw_map() -> void:
@@ -1218,8 +1329,6 @@ func _draw_map() -> void:
 	_map.draw_rect(Rect2(Vector2.ZERO, sz), Color(0.02, 0.04, 0.065, 1.0))
 	_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var city := Rect2(world_to_map(-HALF, -HALF), Vector2(2.0 * HALF, 2.0 * HALF) * pm)
-	if world_mode:
-		_draw_world_labels(font, s)
 	# outskirts: the road grid carries on, faint, past the city edge, so a wide phone screen is a map and not black bars
 	var o_col := Color(0.07, 0.1, 0.13, 1.0)
 	var o_w := maxf(CityLayout.ROAD * pm, 2.0)
@@ -1310,21 +1419,34 @@ func _draw_map() -> void:
 		pl = clean_polyline(pl)
 		if pl.size() >= 2:
 			var rcol := Color(UiUtil.CYAN, 1.0) if has_waypoint() else Color(1.0, 0.78, 0.2, 1.0)
-			_map.draw_polyline(pl, Color(0.0, 0.02, 0.04, 0.95), 9.0 * s, true)
-			_map.draw_polyline(pl, rcol, 5.0 * s, true)
+			if _route_style == &"air":
+				rcol = Color(0.82, 0.94, 1.0, 1.0)
+			elif _route_style == &"boat":
+				rcol = Color(0.3, 0.92, 0.88, 1.0)
+			if _route_style == &"car":
+				_map.draw_polyline(pl, Color(0.0, 0.02, 0.04, 0.95), 9.0 * s, true)
+				_map.draw_polyline(pl, rcol, 5.0 * s, true)
+			else:                                                      # a flight line and a sea lane are dashed: they are not roads
+				_dashed(pl, Color(0.0, 0.02, 0.04, 0.95), 9.0 * s, s)
+				_dashed(pl, rcol, 5.0 * s, s)
+				var mid := pl[pl.size() / 2]
+				MapIcons.draw(_map, &"airport" if _route_style == &"air" else &"harbour", mid, 15.0 * s, rcol)
 			_chevrons(pl, rcol, s)
 			drawn["route"] = true
 			var gp := pl[pl.size() - 1]
 			var pulse := 0.5 + 0.5 * sin(_anim * 5.0)
 			_map.draw_arc(gp, (13.0 + 4.0 * pulse) * s, 0.0, TAU, 28, Color(rcol, 0.9 - 0.4 * pulse), 3.0 * s, true)
-		_route_m = roundi(MapRoute.length(_route))
+		_route_m = roundi(WorldRoute.length(_route))
+		_route_eta = WorldRoute.eta(float(_route_m), _route_style)
 	elif has_waypoint():
 		var wpm := world_to_map(waypoint.x, waypoint.z)
 		_map.draw_arc(wpm, 13.0 * s, 0.0, TAU, 24, Color(1, 1, 1, 0.95), 3.0 * s)
+	if world_mode:                                                     # the region names sit on the finished picture (they were under the terrain layer and came out faint)
+		_draw_world_labels(font, s)
 	# markers (clustered at the overview)
 	_counts.clear()
 	var cl := {}                                                       # "kind|cx|cy" -> [sum px, n, a marker]
-	var r_badge := (BADGE_R if zoom_f < 2.0 else BADGE_R_NEAR) * s
+	var r_badge := (BADGE_R if zoom_f < 2.0 else BADGE_R_NEAR) * s * (0.55 if world_mode and zoom_f < 0.6 else (0.8 if world_mode and zoom_f < 1.0 else 1.0))      # the world views carry 30 places: smaller badges
 	for mk in lod_markers(visible_markers()):
 		var k: StringName = mk["kind"]
 		var pw: Vector3 = mk["pos"]
@@ -1368,8 +1490,8 @@ func _draw_map() -> void:
 		var c1: Vector2 = (e1[0] as Vector2) / float(e1[1])
 		var host := ""
 		for hk: String in merged:
-			if ALWAYS_KINDS.has(kind1):
-				break                                                # the objective, a side job and a home are never merged away
+			if ALWAYS_KINDS.has(kind1) or (e1[2] as Dictionary).has("glyph"):
+				break                                                # the objective, a side job, a home, the airport and the harbour are never merged away
 			if c1.distance_to(host_c[hk]) < (rr1 + float(host_r[hk])) * 1.55:
 				host = hk
 				break
@@ -1426,11 +1548,14 @@ func _draw_map() -> void:
 		if kind == &"mission":
 			var ph := 0.5 + 0.5 * sin(_anim * 4.0)
 			_map.draw_arc(c2, rr * (1.5 + 0.35 * ph), 0.0, TAU, 32, Color(KIND_COLOR[kind], 0.9 - 0.5 * ph), 4.0 * s, true)
-		MapIcons.draw(_map, kind, c2, rr, KIND_COLOR[kind])
+		var glyph: StringName = mk2.get("glyph", kind)
+		MapIcons.draw(_map, glyph, c2, maxf(rr * 0.9, 19.0 * s) if mk2.has("glyph") and glyph != &"helipad" else rr, KIND_COLOR[kind] if not mk2.has("glyph") else Color(WorldHud.KIND_COL.get(glyph, KIND_COLOR[kind])))
 		drawn["markers"] = int(drawn["markers"]) + 1
 		(drawn["badges"] as Array).append([c2, rr, kind, n])
 		if n > 1:
 			_label_out(font, c2 + Vector2(rr * 0.9, -rr * 0.7), str(n), int(18.0 * s), Color(1, 1, 1, 0.95), HORIZONTAL_ALIGNMENT_LEFT, true)
+		elif mk2.has("glyph"):                                         # the airport, the harbour, the helipads: always named (the part before the colon)
+			_label_out(font, c2 + Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 20.0 * s), String(mk2.get("label", "")).split(":")[0], int(20.0 * s), Color(WorldHud.KIND_COL.get(glyph, Color.WHITE)).lerp(Color.WHITE, 0.4), HORIZONTAL_ALIGNMENT_CENTER, glyph == &"helipad")
 		elif ALWAYS_KINDS.has(kind) or (zoom_f >= 3.0 and labels_left > 0 and kind != &"interior"):
 			if not ALWAYS_KINDS.has(kind):
 				labels_left -= 1
@@ -1472,6 +1597,8 @@ func _draw_map() -> void:
 	_map.draw_rect(Rect2(_right_rect.position, Vector2(2.0 * s, _right_rect.size.y)), Color(UiUtil.CYAN, 0.35))
 	_map.draw_rect(_legend_rect, Color(0.0, 0.015, 0.03, 0.96))
 	_map.draw_rect(_legend_rect, Color(UiUtil.CYAN, 0.35), false, 2.0 * s)
+	if world_mode:
+		_draw_biome_key(font, s)
 	# north, scale bar and the gesture hint
 	var ins := UiUtil.insets(get_viewport().get_visible_rect().size)
 	var rx := sz.x - ins.y - 12.0 * s - 164.0 * s

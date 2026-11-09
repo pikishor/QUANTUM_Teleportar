@@ -339,7 +339,8 @@ func _draw_all() -> void:
 	var s := _s()
 	var font := UiUtil.font()
 	var c := _canvas
-	c.draw_rect(Rect2(Vector2.ZERO, vp), BG)
+	UiKit.backdrop(c, vp, s, 1.0)
+	c.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.01, 0.025, 0.045, 0.78))
 	var l := _left()
 	# header
 	c.draw_rect(Rect2(0.0, 0.0, vp.x, 6.0 * s), UiUtil.CYAN)
@@ -366,13 +367,14 @@ func _draw_all() -> void:
 	if not sa.is_empty():
 		var sr := second_rect()
 		var done := second_used
-		c.draw_rect(sr, Color(0.05, 0.16, 0.1, 1.0) if done else Color(0.06, 0.1, 0.17, 1.0))
-		c.draw_rect(sr, Color(UiUtil.GREEN if done else UiUtil.CYAN, 0.95), false, 3.0 * s)
+		UiKit.panel(c, sr, s, UiUtil.GREEN if done else UiUtil.CYAN, done, 12.0, true)
 		var st := String(sa["label"])
 		_text(font, Vector2(sr.position.x, sr.position.y + sr.size.y * 0.5 + 9.0 * s), st, int(UiUtil.fit_size(font, st, sr.size.x - 16.0 * s, int(26.0 * s))), Color.WHITE, sr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 	var nr := next_rect()
-	c.draw_rect(nr, Color(0.07, 0.4, 0.45, 1.0))
-	c.draw_rect(nr, UiUtil.CYAN, false, 4.0 * s)
+	var npoly := UiKit.cut_poly(nr, 14.0 * s)                                   # the one big action: a filled cut-corner plate
+	c.draw_polygon(npoly, PackedColorArray([Color(0.1, 0.55, 0.62), Color(0.1, 0.55, 0.62), Color(0.04, 0.28, 0.34), Color(0.04, 0.28, 0.34), Color(0.04, 0.28, 0.34), Color(0.1, 0.55, 0.62)]))
+	npoly.append(npoly[0])
+	c.draw_polyline(npoly, UiUtil.CYAN, 3.5 * s)
 	_text(font, Vector2(nr.position.x, nr.position.y + nr.size.y * 0.5 + 13.0 * s), "NEXT", int(40.0 * s), Color.WHITE, nr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 	MenuKit.glyph(c, &"play", Vector2(nr.end.x - 40.0 * s, nr.position.y + nr.size.y * 0.5), 14.0 * s, Color.WHITE, s)
 
@@ -381,8 +383,7 @@ func _draw_credits(c: Control, font: Font, s: float) -> void:
 	var r := _col1()
 	var credits := int(current.get("credits", 0))
 	var shown_n := int(round(float(credits) * clampf(_t / COUNT_TIME, 0.0, 1.0)))
-	c.draw_rect(r, PLATE)
-	c.draw_rect(Rect2(r.position.x, r.position.y, 6.0 * s, r.size.y), UiUtil.AMBER)
+	UiKit.panel(c, r, s, UiUtil.AMBER, false, 16.0, true)
 	var num := "+%d" % shown_n
 	_text(font, Vector2(r.position.x + 24.0 * s, r.position.y + 112.0 * s), num, int(UiUtil.fit_size(font, num, r.size.x - 40.0 * s, int(110.0 * s))), UiUtil.AMBER, r.size.x - 40.0 * s)
 	_text(font, Vector2(r.position.x + 26.0 * s, r.position.y + 152.0 * s), "CREDITS", int(30.0 * s), Color(1, 1, 1, 0.9), r.size.x)
@@ -407,9 +408,7 @@ func _draw_reward(c: Control, font: Font, s: float) -> void:
 	var rw := reward()
 	var kind := StringName(rw.get("kind", &"cash"))
 	var tint: Color = KIND_COLOR.get(kind, UiUtil.CYAN)
-	c.draw_rect(r, PLATE)
-	c.draw_rect(r, Color(tint, 0.9), false, 3.0 * s)
-	c.draw_rect(Rect2(r.position.x, r.position.y, 8.0 * s, r.size.y), tint)
+	UiKit.panel(c, r, s, tint, true, 16.0, true)
 	var cap := String(KIND_NAME.get(kind, "UNLOCKED"))
 	_text(font, Vector2(r.position.x + 28.0 * s, r.position.y + 42.0 * s), cap, int(UiUtil.fit_size(font, cap, r.size.x - 60.0 * s, int(32.0 * s))), tint, r.size.x - 60.0 * s)
 	var pic := Rect2(r.position.x + 24.0 * s, r.position.y + 62.0 * s, r.size.x * 0.46, r.size.y - 82.0 * s)
@@ -459,8 +458,9 @@ func _draw_strip(c: Control, font: Font, s: float, vp: Vector2) -> void:
 		var tint: Color = KIND_COLOR.get(kind, UiUtil.CYAN)
 		var done := bool(row["done"])
 		var now := bool(row["now"])
-		c.draw_rect(rr, Color(tint, 0.30) if done else Color(1, 1, 1, 0.06))
-		c.draw_rect(rr, Color(tint, 1.0 if now else (0.7 if done else 0.3)), false, (4.0 if now else 2.0) * s)
+		UiKit.panel(c, rr, s, tint, now, 6.0, now)
+		if done:
+			c.draw_rect(rr.grow(-4.0 * s), Color(tint, 0.22))
 		MenuKit.glyph(c, KIND_GLYPH.get(kind, &"check"), rr.get_center(), rr.size.x * 0.28, Color(tint.lerp(Color.WHITE, 0.4), 1.0 if done else 0.45), s)
 		if done and not now:
 			MenuKit.glyph(c, &"check", rr.position + Vector2(rr.size.x - 12.0 * s, 12.0 * s), 7.0 * s, UiUtil.GREEN, s)

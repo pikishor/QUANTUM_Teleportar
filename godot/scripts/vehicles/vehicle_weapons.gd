@@ -60,6 +60,13 @@ func muzzle() -> Vector3:
 	return car.muzzle_pos()
 
 
+## 0..1: how far the main gun is through its cooldown (1 = ready to fire); the tank HUD's reload ring.
+func ready_fraction() -> float:
+	if not mounted() or ammo <= 0:
+		return 0.0
+	return 1.0 - clampf(_cd * float(def.get("rate", 1.0)), 0.0, 1.0)
+
+
 ## One physics tick: cool down, then fire when asked and allowed. Returns true when a shot left the muzzle.
 func tick(dt: float, fire: bool) -> bool:
 	if not mounted():

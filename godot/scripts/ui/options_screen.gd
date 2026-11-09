@@ -47,6 +47,15 @@ const COLS1 := [
 	["SAVE DATA", [&"opt_reset", &"opt_reset_demo"]],
 ]
 ## RESET PROGRESS needs two presses: the first arms it (the label asks), the second wipes. Any other press, the page flip and BACK disarm it; only on the title screen.
+## One line under the name of a toggle or cycle row: what it does (the player should never have to guess).
+const HINTS := {
+	&"opt_aim": "Gentle pull to targets", &"opt_auto": "Fires on the crosshair target", &"opt_left": "Mirror the touch buttons", &"opt_vib": "Rumble on hits and blasts",
+	&"opt_subs": "Words for every voice line", &"opt_cb": "Colour-blind marker colours", &"opt_flash": "Softer blasts and flashes", &"opt_motion": "Less camera shake and sway",
+	&"opt_post": "Glow, bloom and colour grade", &"opt_cine": "Story scenes between missions", &"opt_civ": "People and traffic in the streets", &"opt_dmg": "Numbers when you hit",
+	&"opt_extras": "Show every hidden screen", &"opt_mute": "All game sound", &"opt_fps": "Lower saves battery", &"opt_fpsbox": "A frame counter on screen",
+	&"opt_res": "How sharp the picture is", &"opt_haptic": "Strength of the rumble", &"opt_diff": "How tough the enemies are", &"opt_bench": "Measure this phone's speed",
+	&"opt_controls": "Move, resize and remap buttons", &"opt_lang": "Language of the menus", &"opt_text": "Size of all menu text", &"opt_chatter": "How much the crew talks",
+}
 static var reset_armed := false
 ## The demo slot has its own confirm (`opt_reset_demo`): press, then press again.
 static var reset_demo_armed := false
@@ -489,7 +498,7 @@ static func layout(hud: Hud, st: UiSettings, cx: float, s: float) -> void:
 		if id == &"opt_tier":                                  # the tier card of the graphics band: a sample and what the tier costs; a tap cycles the tier
 			hud.buttons.append({"id": id, "rect": card_rect(cx, s), "label": label(st, id), "on": true, "opt": true, "prev": true, "name": pr[0], "value": pr[1], "frac": -1.0})
 			continue
-		hud.buttons.append({"id": id, "rect": row_rect(slot, cx, s, band), "label": label(st, id), "on": is_slider(id) or is_on(st, id), "opt": true, "name": pr[0], "value": pr[1], "frac": fraction(st, id) if is_slider(id) else -1.0})
+		hud.buttons.append({"id": id, "rect": row_rect(slot, cx, s, band), "label": label(st, id), "on": is_slider(id) or is_on(st, id), "opt": true, "name": pr[0], "value": pr[1], "frac": fraction(st, id) if is_slider(id) else -1.0, "hint": String(HINTS.get(id, "")), "toggle": TOGGLES.has(id) or id == &"opt_mute" or id == &"opt_fpsbox" or id == &"opt_post"})
 		slot += 1
 	if tab == 1:
 		for i in 4:
@@ -510,8 +519,7 @@ static func _tier_texture(tier: int) -> Texture2D:
 ## The tier card (Hud draws the `prev` button through this): a frame of the real game at the current tier on the left, three facts and a battery note on the right.
 static func draw_card(hud: Hud, c: Control, r: Rect2, hot: bool, s: float, font: Font) -> void:
 	var tier := Game.tier_index()
-	c.draw_rect(r, MenuKit.FILL_ON if hot else MenuKit.FILL)
-	c.draw_rect(r, Color(UiUtil.CYAN, 0.9 if hot else 0.4), false, 1.5 * s)
+	UiKit.panel(c, r, s, UiUtil.CYAN, hot, 12.0)
 	var pic := Rect2(r.position + Vector2(8.0, 8.0) * s, Vector2(r.size.x * 0.44, r.size.y - 16.0 * s))
 	var tex := _tier_texture(tier)
 	if tex != null:
@@ -545,8 +553,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var tab := UiSettings.s_opt_tab
 	if tab == 3:                                            # the access band: the subtitle plate and the marker colours as they are now
 		var b2 := band_rect(cx, s)
-		c.draw_rect(b2, MenuKit.FILL)
-		c.draw_rect(b2, Color(UiUtil.CYAN, 0.4), false, 1.5 * s)
+		UiKit.panel(c, b2, s, UiUtil.CYAN, false, 12.0)
 		var st2: UiSettings = hud.settings
 		var plate := Rect2(b2.position + Vector2(14.0, 14.0) * s, Vector2(b2.size.x * 0.62, b2.size.y - 28.0 * s))
 		var pa: float = [0.45, 0.72, 0.95][clampi(st2.sub_bg, 0, 2)]

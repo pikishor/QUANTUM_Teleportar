@@ -212,7 +212,7 @@ func _captions(size: Vector2i) -> void:
 	for screen in ["pause_gear", "pause_look"]:
 		_open(screen)
 		var caps: Array[Dictionary] = GearScreen.captions(hud, vp.x * 0.5, s) if screen == "pause_gear" else LookScreen.captions(vp.x * 0.5, s)
-		TestLib.check(caps.size() >= 5, "%s %s has captions" % [tag, screen])
+		TestLib.check(caps.size() >= 3, "%s %s has captions (GEAR: THROWABLES, GADGETS, LOADOUTS)" % [tag, screen])
 		var rects: Array[Rect2] = []
 		for cp: Dictionary in caps:
 			var w := minf(font.get_string_size(String(cp["t"]), HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x, float(cp["w"]))
