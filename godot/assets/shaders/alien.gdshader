@@ -1,0 +1,90 @@
+shader_type spatial;
+render_mode diffuse_lambert, specular_schlick_ggx, cull_back;
+// The alien creatures of the outskirts (scripts/aliens/): ONE shader, one material per creature (Compatibility has no instance uniforms, so each body owns its copy).
+//  - COLOR.rgb is the baked species colour (tools/open_models/convert_monsters.gd bakes the atlas into vertex colours, so no texture memory is spent);
+//  - COLOR.a is the GLOW MASK (eyes, teeth, seams, veins): it shines in `glow` and breathes with `beat`; procedural bodies paint it too (spines, maws, tentacle tips);
+//  - `mul` is the individual's colour variation, `night` follows the global uniform like the terrain, the animals and the trees;
+//  - `shell` 0..1: a glossy chitin sheen (specular and a rim light) that gives the dull atlas colours a hard-shell look;
+//  - `dissolve` 0..1 is the quantum-dust death (no gore): the body breaks into a noisy field of pixels that fall away from the feet up, an edge glows in `dust`;
+//  - `cloak` 0..1 (stalkers): the body drops out in a dither pattern and glows at the edge, `shield` 0..1 (the wardens): a hex shimmer rim;
+//  - `pulse` 0..1 a short flash on a hit; `rage` 0..1 turns the glow red-hot (a boss in its last phase).
+
+global uniform float night;
+global uniform float wetness;
+
+uniform vec3 mul = vec3(1.0);
+uniform vec3 glow = vec3(0.3, 1.0, 0.6);
+uniform float glow_k = 1.6;
+uniform float beat = 1.0;
+uniform float shell : hint_range(0.0, 1.0) = 0.5;
+uniform float dissolve : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 dust = vec3(0.35, 0.95, 1.0);
+uniform float body_h = 2.0;                      // metres: the dissolve runs from the feet to this height
+uniform float cloak : hint_range(0.0, 1.0) = 0.0;
+uniform float shield : hint_range(0.0, 1.0) = 0.0;
+uniform float pulse : hint_range(0.0, 1.0) = 0.0;
+uniform float rage : hint_range(0.0, 1.0) = 0.0;
+uniform float wiggle = 0.0;                     // procedural worms and tentacles: a travelling wave along local -Z
+uniform float wiggle_rate = 5.0;
+uniform vec3 wiggle_axis = vec3(0.0, 1.0, 0.0);   // the body axis the wave runs along (worms and tentacles are built upright)
+uniform vec3 night_grade = vec3(0.50, 0.58, 0.82);
+
+varying vec3 v_local;
+
+vec3 srgb_to_linear(vec3 c) {
+	return mix(pow((c + vec3(0.055)) * (1.0 / 1.055), vec3(2.4)), c * (1.0 / 12.92), lessThan(c, vec3(0.04045)));
+}
+
+float hash13(vec3 p) {
+	p = fract(p * 0.1031);
+	p += dot(p, p.zyx + 31.32);
+	return fract((p.x + p.y) * p.z);
+}
+
+void vertex() {
+	v_local = VERTEX;
+	if (wiggle > 0.0) {
+		float a = dot(VERTEX, wiggle_axis);
+		VERTEX.x += sin(TIME * wiggle_rate + a * 0.9) * wiggle * clamp(a * 0.16, 0.0, 1.0);
+		VERTEX.z += cos(TIME * wiggle_rate * 0.8 + a * 0.7) * wiggle * 0.6 * clamp(a * 0.16, 0.0, 1.0);
+	}
+}
+
+void fragment() {
+	if (dissolve > 0.001) {
+		float h = clamp(v_local.y / body_h, 0.0, 1.0);
+		float n = hash13(floor(v_local * (28.0 / body_h * 2.0))) * 0.7 + 0.3 * hash13(floor(v_local * (8.0 / body_h * 2.0)) + 7.0);
+		float edge_t = dissolve * 1.3 - (1.0 - h) * 0.25 + 0.02;
+		if (n < edge_t) {
+			discard;
+		}
+		EMISSION = dust * smoothstep(edge_t + 0.2, edge_t, n) * 2.4;
+	}
+	float drop = 0.0;
+	if (cloak > 0.001) {
+		vec2 sp = floor(FRAGCOORD.xy * 0.5);
+		float d = fract(sin(dot(sp, vec2(12.9898, 78.233))) * 43758.5453);
+		drop = cloak;
+		if (d < cloak * 0.86) {
+			discard;
+		}
+	}
+	vec3 c = srgb_to_linear(COLOR.rgb) * mul;
+	c *= mix(vec3(1.0), night_grade, night * 0.55);
+	c *= 1.0 - 0.2 * wetness;
+	float g = COLOR.a;
+	vec3 gc = mix(glow, vec3(1.0, 0.18, 0.08), rage);
+	ALBEDO = mix(c, vec3(0.02), g * 0.7);
+	ROUGHNESS = mix(0.85, 0.35, shell);
+	SPECULAR = mix(0.12, 0.55, shell);
+	METALLIC = 0.0;
+	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+	vec3 em = c * 0.14 + gc * g * glow_k * beat + vec3(1.0, 0.35, 0.25) * pulse * 0.55;
+	em += gc * rim * (0.10 + 0.55 * rage) * shell;
+	em += gc * drop * 0.9;
+	if (shield > 0.001) {
+		float hx = hash13(floor(v_local * 6.0));
+		em += vec3(0.3, 0.9, 1.0) * shield * (rim * 1.6 + 0.12 + 0.18 * hx * (0.5 + 0.5 * sin(TIME * 3.0 + hx * 6.28)));
+	}
+	EMISSION += em;
+}

@@ -230,6 +230,7 @@ func _reflection() -> void:
 	TestLib.check(bone >= 0, "the skeleton has a Head bone")
 	r.range = -10.0
 	await frames(4)
+	r._process(0.0)                                         # one explicit tick: the headless frame loop of this sandbox does not always tick the node in 4 frames
 	TestLib.check(not cp.visible, "beyond its range the reflection is hidden (no draw call)")
 	r.range = SkinnedMirror.RANGE
 	await frames(4)

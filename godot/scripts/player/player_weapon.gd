@@ -118,6 +118,7 @@ var _grenades: Array[Dictionary] = []
 var _grenade_mat: StandardMaterial3D
 var _charge_fx := 0.0
 var civilian_hits := 0                       ## lifetime shots that hit a citizen (tests)
+var animal_hits := 0                         ## lifetime shots that hit an animal of the wild (WildlifeWorld, tests)
 var spread_override := -1.0                  ## >= 0 forces the dispersion half angle (tests measuring pure aim; the crosshair follows it too)
 var last_shot: Dictionary = {}               ## the last pellet: origin, dir (the aimed ray), muzzle, hit, dist, target (Node or null), zone, civ, blocked, spread (tests and the HUD read it)
 var shells_ejected := 0                      ## lifetime counters for tests
@@ -575,6 +576,14 @@ func _trace_pellet() -> void:
 		target = null
 		zone = &""
 		normal = -dir
+	# the animals of the wild: deer, wolves, birds, sharks ... (WildlifeWorld.ray), the nearest of all the things in the line wins
+	var animal := _animal_ray(origin, dir, best)
+	if not animal.is_empty():
+		best = float(animal["t"])
+		target = null
+		zone = &""
+		normal = -dir
+		civ = {}
 	var hit := origin + dir * best
 	var hit_something := best < range_m - 0.001
 
@@ -593,6 +602,7 @@ func _trace_pellet() -> void:
 		target = _damageable_of(blocked["collider"] as Node)
 		hit_something = true
 		civ = {}
+		animal = {}
 
 	if def.has("twin"):                                             # akimbo: the shot leaves the hand whose turn it is
 		mz += p.camera_rig.camera.global_basis.x * (_side * 0.16)
@@ -613,6 +623,8 @@ func _trace_pellet() -> void:
 			_chain(target, hit, k)
 	elif not civ.is_empty():
 		_hit_civilian(civ, hit, dir, k)
+	elif not animal.is_empty():
+		_hit_animal(animal, hit, dir, k)
 	elif hit_something:
 		_hit_world(hit, normal)
 
@@ -632,6 +644,35 @@ func _civilian_ray(origin: Vector3, dir: Vector3, max_t: float) -> Dictionary:
 	if city == null or city.ambient == null:
 		return {}
 	return city.ambient.civilian_ray(origin, dir, max_t)
+
+
+## The nearest animal of the wild a ray meets before `max_t` (WildlifeWorld.ray): {c, t, head} or {}.
+func _animal_ray(origin: Vector3, dir: Vector3, max_t: float) -> Dictionary:
+	var w := WildlifeWorld.instance
+	if w == null or not w.enabled or w.critters.is_empty():
+		return {}
+	return w.ray(origin, dir, max_t)
+
+
+## A shot hit an animal: damage, the usual hit sound / marker, a spark; the wildlife handles flight, the dust death and the bounty.
+func _hit_animal(an: Dictionary, hit: Vector3, dir: Vector3, k: float) -> void:
+	var w := WildlifeWorld.instance
+	var c := an["c"] as Critter
+	if w == null or not is_instance_valid(c):
+		return
+	var p := _player
+	k *= _alt_k * float(ammo_info()["dmg"])
+	var amount := TestMode.damage(float(def["damage"]) * k * Upgrades.damage_mult() * HeroPower.f("dmg"))
+	var kill := w.hurt(c, amount, true, p.global_position)
+	_hit_sound(kill, false)
+	p.last_hit_time = PlayerUtil.now()
+	p.last_hit_kill = false
+	p.last_hit_crit = false
+	p.hit_confirmed.emit(kill, false)
+	animal_hits += 1
+	_damage_number(hit, amount, false, kill)
+	if _sparks != null:
+		_sparks.impact_person(hit, -dir)
 
 
 ## A shot hit a citizen: damage (a head shot doubles), the usual hit sound / marker, a spark, and the consequences from the city (scream, heat, drops).
@@ -886,6 +927,11 @@ func _fire_lance(c: float, aiming: bool) -> void:
 		if civ.is_empty():
 			break
 		_hit_civilian(civ, origin + dir * float(civ["t"]), dir, scale * 4.0)
+	for _pierced_a in 3:                                     # ... and through the animals
+		var an := _animal_ray(origin, dir, wall_t)
+		if an.is_empty():
+			break
+		_hit_animal(an, origin + dir * float(an["t"]), dir, scale * 4.0)
 	var mz := p.body.muzzle.global_position
 	var end := origin + dir * wall_t
 	FX.tracer(mz, end, def["tracer"])

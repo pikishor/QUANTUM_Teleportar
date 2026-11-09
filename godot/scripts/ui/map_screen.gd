@@ -869,6 +869,7 @@ func collect_markers() -> Array[Dictionary]:
 	out.append({"kind": &"garage", "pos": Harbour.center(), "fog": true, "label": "HARBOUR: BOATS AND JET SKIS"})       # the port on the south coast (one marker for its six berths)
 	out.append_array(WorldRoam.map_markers())                       # the free-roam courses and the treasure hunt (flight school, off-road trial, jet-ski laps)
 	out.append_array(Airport.map_markers())                         # EASTFIELD AIRPORT and the helipads
+	out.append_array(AlienSites.map_markers())                      # the alien camps, hive nests, crash sites and boss lairs (red glyph, SITES legend)
 	out.append_array(OutskirtsSites.map_markers())                  # the mountain and outskirt sites: observatory, radio tower, mine, crash site, cabins, villages, farms (the cave once found)
 	return out
 

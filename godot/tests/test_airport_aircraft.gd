@@ -177,6 +177,8 @@ func _scene(host: Node) -> void:
 	_p.set_physics_process(true)
 	_p.max_hp = 1.0e6
 	_p.hp = _p.max_hp
+	if _city.aliens != null:
+		(_city.aliens as AlienWorld).enabled = false          # the field lies outside the city: the flight checks measure the aircraft, not alien fire
 	(Game.enemies as EnemyManager).clear()
 	if Encounters.current != null:
 		Encounters.current.enabled = false

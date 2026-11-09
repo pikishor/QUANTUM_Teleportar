@@ -1,0 +1,5 @@
+CC0 1.0 Universal (Public Domain Dedication), https://creativecommons.org/publicdomain/zero/1.0/
+
+The three animal packs below are dedicated to the public domain by their author (Quaternius): you can copy, modify, distribute and use them, also commercially, without asking
+permission. Credit is not required (it is given anyway in docs/THIRD_PARTY.md). The OpenGameArt.org page of every pack shows the licence "CC0"; the Farm Animals pack also
+carries its own License.txt (kept here as License_FarmAnimals.txt). The Animals Pack and Animal Pack Vol.2 zips contain no licence file; their pages state CC0.

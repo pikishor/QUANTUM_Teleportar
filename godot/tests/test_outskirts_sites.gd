@@ -489,7 +489,7 @@ func _map() -> void:
 		return
 	var sites := 0
 	for mk in ms.collect_markers():
-		if mk["kind"] == &"site":
+		if mk["kind"] == &"site" and not mk.has("alien"):                     # (the alien camps, nests and wrecks of wave 107b add their own pins)
 			sites += 1
 	TestLib.check(sites == 11, "the map shows the sites as pins (%d)" % sites)
 	TestLib.check(MapScreen.KINDS.has(&"site") and MapScreen.KIND_COLOR.has(&"site") and MapScreen.KIND_LABEL.has(&"site"), "the SITES legend row exists")

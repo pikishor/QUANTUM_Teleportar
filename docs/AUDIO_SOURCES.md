@@ -245,3 +245,5 @@ Size: art_sources clips 3.6 MB (kept in the repo so the build is reproducible); 
 | art_sources/audio_water/clips/wbubble.ogg | bubble_01.ogg | https://opengameart.org/content/40-cc0-water-splash-slime-sfx | OpenGameArt uploader (see the page) | CC0 | water_bubble |
 | art_sources/audio_water/clips/wriver_loop.ogg | loop_water_02.ogg | https://opengameart.org/content/40-cc0-water-splash-slime-sfx | OpenGameArt uploader (see the page) | CC0 | water_river |
 | art_sources/audio_water/clips/wsurf_loop.ogg | wave_01_cc0-18363__jasinski__alkaibeach.flac | https://opengameart.org/content/beach-ocean-waves | qubodup (upload), jasinski (recording) | CC0 | water_surf |
+
+| art_sources/audio_animals/clips/*.ogg | see art_sources/audio_animals/SOURCE.md | https://opengameart.org/content/wolf-monster-sound (also bird-chirping-sounds, forest-bird-sounds, ambient-bird-sounds, sheep-baa, solo-seagull-sound-effects, sci-fi-aliens-and-cows-pack) | various OpenGameArt uploaders (see the pages) | CC0 | animal_wolf, animal_coyote, animal_gull, animal_bird, animal_sheep, animal_goat, animal_cow, animal_horse (eagle, dolphin, snort are synthesized) |

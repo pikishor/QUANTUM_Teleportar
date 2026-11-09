@@ -2827,7 +2827,28 @@ func _draw_free_roam(c: Control, vp: Vector2, s: float, font: Font, y: float) ->
 const FREE_ROAM_LINE := "FREE ROAM   MAP > MISSIONS"
 
 
+## The boss bar of an alien boss fight (AlienWorld.boss_bar(): name, health, and the one thing to do right now): free roam and missions alike. Returns the new bottom of the stack.
+func _draw_alien_boss(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+	var boss := AlienWorld.boss_bar()
+	if boss.is_empty():
+		return y
+	var bp := boss_plate(vp, s, font, y, str(boss["name"]), true)
+	_text(c, font, Vector2((bp["name_rect"] as Rect2).position.x, bp["baseline"]), str(boss["name"]), HORIZONTAL_ALIGNMENT_CENTER, (bp["name_rect"] as Rect2).size.x, bp["size"], Color(UiUtil.RED, 0.97), 1.0 * s)
+	var br: Rect2 = bp["bar"]
+	_rect(c, br.grow(2.0 * s), Color(0.0, 0.03, 0.05, 0.7))
+	_rect(c, Rect2(br.position, Vector2(br.size.x * clampf(float(boss["frac"]), 0.0, 1.0), br.size.y)), Color(UiUtil.RED, 0.95))
+	_frame(c, br, Color(UiUtil.RED, 0.8), 1.0 * s)
+	var end := br.end.y + 4.0 * s
+	var hint := str(boss.get("hint", ""))
+	if hint != "":
+		var now := hint.begins_with("SHOOT")
+		var hr := _plate_text(c, font, vp.x * 0.5, end, hint, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN if not now else UiUtil.AMBER, 1.0).lerp(Color.WHITE, 0.35), s, Color(UiUtil.AMBER if now else UiUtil.CYAN, 0.7), 150.0 * s)
+		end = hr.end.y
+	return end + 4.0 * s
+
+
 func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+	y = _draw_alien_boss(c, vp, s, font, y)
 	var k := _contracts()
 	var camp := _camp_text != "" and _campaign() != null
 	if camp:

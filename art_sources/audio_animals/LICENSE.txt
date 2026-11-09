@@ -1,0 +1,1 @@
+CC0 1.0 Universal (Public Domain Dedication), https://creativecommons.org/publicdomain/zero/1.0/ : every clip listed in SOURCE.md is marked CC0 on its OpenGameArt.org page. Credit is not required; it is given in docs/THIRD_PARTY.md.
