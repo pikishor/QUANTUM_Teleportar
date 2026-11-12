@@ -55,8 +55,8 @@ void fragment() {
 	}
 	ALBEDO = mix(col, vec3(0.85, 0.9, 0.95), cr);
 	ALPHA = clamp(a + cr * 0.7, 0.0, 1.0);
-	ROUGHNESS = 0.04 + cr * 0.4;
+	ROUGHNESS = 0.12 + cr * 0.4;                                     // not a perfect mirror: a key light on a big windscreen is a soft glow, not a white blob
 	METALLIC = 0.0;
-	SPECULAR = 1.0;
+	SPECULAR = 0.8;
 	EMISSION = env * fres * reflect_k * (1.0 + 0.6 * wet) + interior_color.rgb * interior * 0.08 * (1.0 - fres) + vec3(0.9, 0.95, 1.0) * cr * 0.25;
 }

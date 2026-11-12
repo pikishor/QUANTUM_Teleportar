@@ -91,11 +91,12 @@ def car_details(det):
         det.lamp(fitr([(x0, zr(g0)), (x1, zr(g0)), (x1, zr(g1)), (x0, zr(g1))]), "rear", "rev", bezel=True, detail=False)
     if "plate_r" in f:
         z = zr(f["plate_r"])
-        det.patch([(-0.29, z - 0.085), (0.29, z - 0.085), (0.29, z + 0.085), (-0.29, z + 0.085)], "rear", D_PLASTIC, (0.02, 0.02, 0.02), offset=0.003, rings=1)
+        det.plate("rear", z)
         h = det.surf.rear(0.0, z)
         det.anchor("PlateR", (0.0, (h[0][1] if h else -d["L"] * 0.5) - 0.012, z))
     if "plate_f" in f:
         z = zf(f["plate_f"])
+        det.plate("front", z)
         h = det.surf.front(0.0, z)
         det.anchor("PlateF", (0.0, (h[0][1] if h else d["L"] * 0.5) + 0.012, z))
     if "exhaust" in f:

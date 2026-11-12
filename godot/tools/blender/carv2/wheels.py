@@ -39,7 +39,7 @@ DESIGNS = {
 
 def wheel_mesh(R, W, design="five", lod=0, rim_ratio=0.62, rim_col=(0.62, 0.64, 0.68), seg=None, caliper_col=(0.55, 0.05, 0.04), bolts=5):
     """The wheel as a Mesh with material 'Wheel'. R tyre radius, W tyre width."""
-    seg = seg or {0: 22, 1: 10, 2: 6}[lod]
+    seg = seg or {0: 22, 1: 12, 2: 8}[lod]               # LOD2 was a hexagon: the far car's wheels were hexagonal drums
     r_rim = R * rim_ratio
     h = R - r_rim
     hw = W * 0.5

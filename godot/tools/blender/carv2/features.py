@@ -45,14 +45,14 @@ class Detailer:
             return s.top(u, v)
         raise ValueError(plane)
 
-    def patch(self, outline, plane, code, color, offset=0.004, rings=2, flat=False):
+    def patch(self, outline, plane, code, color, offset=0.004, rings=2, flat=False, plate_uv=None):
         """A conforming patch inside the 2D outline (a convex loop in the plane's (u, v) frame): a fan with `rings` concentric rings, every vertex on the shell + offset."""
         pts = np.asarray(outline, dtype=np.float64)
         c = pts.mean(axis=0)
         n = len(pts)
         rings = 1 if self.lod >= 1 else rings
         levels = [c[None, :]] + [c + (pts - c) * (k / rings) for k in range(1, rings + 1)]
-        P, N = [], []
+        P, N, UVS = [], [], []
         ok = True
         for lv in levels:
             for u, v in lv:
@@ -62,6 +62,7 @@ class Detailer:
                     break
                 P.append(h[0] + h[1] * offset)
                 N.append(h[1])
+                UVS.append((float(u), float(v)))
             if not ok:
                 break
         if not ok:
@@ -86,9 +87,21 @@ class Detailer:
         nm = N[Fm[:, 0]]
         flip = (fn * nm).sum(axis=1) < 0
         Fm[flip] = Fm[flip][:, ::-1]
-        out = Mesh().add(Pm, Fm, "Details", col=m.C, uv=m.U)
+        u2 = None
+        if plate_uv is not None:                                 # (u0, u1, v0, v1, flip_u): the patch spans 0 .. 1 in uv2 (u along the plate as the viewer reads it, 1 - v: the importer does not un-flip V)
+            u0, u1, v0, v1, flip_u = plate_uv
+            uvs = np.array(UVS)
+            un = (uvs[:, 0] - u0) / (u1 - u0)
+            vn = (uvs[:, 1] - v0) / (v1 - v0)
+            u2 = np.column_stack([1.0 - un if flip_u else un, 1.0 - vn])
+        out = Mesh().add(Pm, Fm, "Details", col=m.C, uv=m.U, uv2=u2)
         self.mesh.add_mesh(out)
         return out
+
+    def plate(self, plane, z, w=0.28, h=0.07):
+        """A number plate: a dark recess and the plate on top of it (class D_PLATE; uv2 = the position on the plate, the Details shader prints the number from the car's plate seed)."""
+        self.patch([(-w - 0.02, z - h - 0.018), (w + 0.02, z - h - 0.018), (w + 0.02, z + h + 0.018), (-w - 0.02, z + h + 0.018)], plane, D_PLASTIC, DARK, offset=0.003, rings=1)
+        return self.patch([(-w, z - h), (w, z - h), (w, z + h), (-w, z + h)], plane, D_PLATE, (0.84, 0.84, 0.8), offset=0.0052, rings=1, plate_uv=(-w, w, z - h, z + h, plane == "front"))
 
     def ribbon(self, pts2d, plane, width, code, color, offset=0.003, closed=False):
         """A thin strip along a polyline given in the plane's (u, v) frame, projected onto the shell."""

@@ -674,7 +674,7 @@ def finalize(m, thr_deg=38.0, smooth=True):
                     Cs.append(C[v])
                     Us.append(U[v])
                     u2 = np.array(U2[v], dtype=np.float64)
-                    if has_parts:
+                    if has_parts and part != 0:                        # part 0 (the shell) keeps its own uv2.x: the tread u of a wheel, the plate u of a number plate
                         u2[0] = part / 32.0
                     U2s.append(u2)
                 ids.append(j)

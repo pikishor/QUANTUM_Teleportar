@@ -631,6 +631,69 @@ func promote_around(pos: Vector3, r: float, max_n := 2) -> int:
 	return n
 
 
+## The kerb cars whose hull touches (or comes within `margin` metres of) the oriented box (centre `pos`, forward `fwd` on the ground, half length `hl`, half width `hw`) of a real vehicle become real
+## ones, at ANY speed: a car that creeps or stands against a kerb car (a stuck bot, a police car on a turn) used to sit inside the decor hull for as long as it stayed, because the speed gates of
+## `promote_around` skip it. Once real, the manager's own collision response pushes the two apart. Returns how many were swapped (at most `max_n`).
+func promote_touching(pos: Vector3, fwd: Vector2, hl: float, hw: float, margin := 0.12, max_n := 2) -> int:
+	var n := 0
+	for i in _n:
+		if n >= max_n:
+			break
+		if _alive[i] != 1:
+			continue
+		var dx := _x[i] - pos.x
+		var dz := _z[i] - pos.z
+		if dx * dx + dz * dz > 49.0:
+			continue
+		var f := Vector2(-sin(_yaw[i]), -cos(_yaw[i]))
+		var depth := TrafficField.obb_depth(pos.x, pos.z, fwd.x, fwd.y, hl, hw, _x[i], _z[i], f.x, f.y, NearTraffic.KIND_HALF[_kind[i]], NearTraffic.KIND_HW[_kind[i]])
+		if depth > -margin:
+			if promote(i) != null:
+				n += 1
+			else:
+				break
+	return n
+
+
+## A real car that is inside a kerb car's hull and could not be swapped for a real one (no slot, no room) is shoved out of it: the decor car is a wall. The depth goes back along the line of the two
+## centres, the velocity into the wall is taken off (a real impulse against an immovable body, a crash when it was fast). Returns the number of kerb cars it touched.
+func push_out_vehicle(v: Vehicle) -> int:
+	var hits := 0
+	var vp := Vector2(v.global_position.x, v.global_position.z)
+	var vf3 := v.forward()
+	var vf := Vector2(vf3.x, vf3.z)
+	var vhl := float(v.spec["len"]) * 0.5
+	var vhw := float(v.spec["wid"]) * 0.5 - 0.1
+	for i in _n:
+		if _alive[i] != 1:
+			continue
+		var dx := _x[i] - vp.x
+		var dz := _z[i] - vp.y
+		if dx * dx + dz * dz > 49.0:
+			continue
+		var f := Vector2(-sin(_yaw[i]), -cos(_yaw[i]))
+		var depth := TrafficField.obb_depth(vp.x, vp.y, vf.x, vf.y, vhl, vhw, _x[i], _z[i], f.x, f.y, NearTraffic.KIND_HALF[_kind[i]], NearTraffic.KIND_HW[_kind[i]])
+		if depth <= 0.02:
+			continue
+		hits += 1
+		var n2 := vp - Vector2(_x[i], _z[i])
+		if n2.length_squared() < 1e-6:
+			n2 = -vf
+		n2 = n2.normalized()                                              # from the kerb car towards the vehicle
+		var n := Vector3(n2.x, 0.0, n2.y)
+		var at := Vector3((vp.x + _x[i]) * 0.5, 0.0, (vp.y + _z[i]) * 0.5)
+		v.global_position += n * (depth + 0.03)
+		vp += n2 * (depth + 0.03)
+		var vrel := v.point_velocity(at).dot(n)
+		if vrel < 0.0:
+			var inv := v.inverse_mass_at(n, at)
+			if inv > 0.0:
+				v.apply_impulse(n * (-(1.0 + VehicleSpecs.RESTITUTION * 0.5) * vrel / inv), at)
+			if -vrel > VehicleSpecs.CAR_HIT_SPEED:
+				v.crash(-vrel, at, n, INF)
+	return hits
+
+
 ## A blast (Game.exploded): the parked cars within reach are swapped for real ones that take the blast and burn. Cars the manager has no slot for are removed as burnt-out (the blast already shook the street).
 func on_blast(pos: Vector3, blast_r: float) -> void:
 	var mgr := Game.vehicles as VehicleManager

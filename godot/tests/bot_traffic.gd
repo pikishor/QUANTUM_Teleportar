@@ -5,7 +5,8 @@ extends RefCounted
 ##        "street:x,z,yaw[,dist]"            the hero on the city street at (x, z), the game camera looking along yaw (radians, 0 = -Z north), optional camera distance
 ##        "road:i,s,yaw_off[,dist]"          the hero beside road i (TerrainRoads index: 0 PASS ROAD, 1 DESERT ROAD, 2 COAST ROAD, 3 FOREST ROAD ...) at `s` metres from its start, looking along the road + yaw_off
 ##        "site:id[,yaw_off[,dist]]"         the hero at an outskirts site (village, farm ...)
-##      OUT_HOUR (default 12), OUT_WARM (seconds of traffic simulated before the first shot of each view, default 14), OUT_HUD=0 hides the HUD layer.
+##      OUT_HOUR (default 12), OUT_WARM (seconds of traffic simulated before the first shot of each view, default 14), OUT_HUD=0 hides the HUD layer,
+##      OUT_WEATHER (CLEAR, OVERCAST, DRIZZLE, RAIN, STORM, FOG: TestMode.WEATHER, set at once; round 6 second pass: the wet paint of the cars in the real camera).
 var _views: Array[String] = []
 var _i := 0
 var _f := 0
@@ -36,6 +37,8 @@ func step(_t: float, _d: float) -> bool:
 		if city != null and city.day_night != null:
 			city.day_night.frozen = true
 			city.day_night.set_hour(hour)
+		if OS.get_environment("OUT_WEATHER") != "":
+			TestMode.set_weather(OS.get_environment("OUT_WEATHER").to_upper())
 		if OS.get_environment("OUT_HUD") == "0":
 			_hud = Game.get_tree().root.find_child("Hud", true, false) as CanvasItem
 			if _hud != null:

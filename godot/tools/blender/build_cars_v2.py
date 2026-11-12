@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import numpy as np  # noqa: E402
 
-from carv2 import archetypes, body, export, features, interior, kit, wheels  # noqa: E402
+from carv2 import archetypes, body, export, features, interior, kit, near, wheels  # noqa: E402
 from carv2.kit import D_FABRIC, D_HEAD, D_PLASTIC, D_TAIL, D_UNDER, Mesh  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -105,6 +105,31 @@ def door_meshes(mesh):
     return out
 
 
+WHEEL_ORDER = ("WheelFL", "WheelFR", "WheelRL", "WheelRR")
+
+
+def merged_wheels(d, wp, wheel_lod_groups, wm_rear, lod):
+    """The four wheels of LOD `lod` as ONE group in the format of the Details surface (finalize() arrays): the left wheels turned round, every vertex in model space.
+    uv0 = (20 + wheel part class, tread v), uv2 = (tread u, 1 - wheel id 1 .. 4: the importer does not un-flip V), vertex colour = the albedo of the wheel part. The Details shader
+    (car_details.gdshader) rolls and steers the vertices about the wheel centres, so the four tyres cost no draw call of their own."""
+    out = []
+    for wid, nm in enumerate(WHEEL_ORDER, start=1):
+        if nm not in wp:
+            continue
+        x, y, z = wp[nm]
+        rear = nm[5] == "R"
+        g = (wm_rear[lod][1] if (rear and wm_rear) else wheel_lod_groups[lod][1])["Wheel"]
+        left = x < 0
+        R = kit.rot_z(math.pi) if left else np.eye(4)
+        V = kit.apply(kit.trans(x, y, z) @ R, g["V"])
+        N = g["N"] @ R[:3, :3].T
+        cls = g["U2"][:, 0].round().astype(int)
+        U = np.column_stack([20.0 + cls, g["U"][:, 1]])
+        U2 = np.column_stack([g["U"][:, 0], np.full(len(V), 1.0 - wid)])
+        out.append(dict(V=V, N=N, C=g["C"].copy(), U=U, U2=U2, I=g["I"].copy()))
+    return kit.merge_groups([{"Details": o} for o in out]) if out else {}
+
+
 def build(name, out_dir=OUT_DIR, preview=None, ao=True, lods=(0, 1, 2)):
     t0 = time.time()
     d = archetypes.get(name)
@@ -125,19 +150,9 @@ def build(name, out_dir=OUT_DIR, preview=None, ao=True, lods=(0, 1, 2)):
         W2 = d.get("tyre_w_r", d["tyre_w"])
         wm_rear = {lod: (wheels.wheel_mesh(R2, W2, lod=lod, **wr),) for lod in (0, 1, 2)}
         wm_rear = {lod: (m[0], kit.finalize(m[0], 50.0)) for lod, m in wm_rear.items()}
-    # wheel nodes
-    wheel_datas = {}
-    for lod in (0, 1):
-        wheel_datas[("front", lod)] = export.mesh_data("wheel%d_f" % lod, wheel_lod_groups[lod][1], ["Wheel"])[0]
-        wheel_datas[("rear", lod)] = wheel_datas[("front", lod)] if wm_rear is None else export.mesh_data("wheel%d_r" % lod, wm_rear[lod][1], ["Wheel"])[0]
+    # wheel nodes: empty transform nodes at the axles (the wheels themselves are part of the Details surface of Body and Body_LOD1, one draw call fewer per tyre; see merged_wheels)
     for nm, (x, y, z) in wp.items():
-        node = export.empty(nm, (x, y, z), parent=root)
-        objs.append(node)
-        end = "front" if nm[5] == "F" else "rear"
-        rot = (0.0, 0.0, math.pi if x < 0 else 0.0)
-        for lod in (0, 1):
-            ob = export.mesh_object(nm + ("_Tyre" if lod == 0 else "_TyreLOD1"), parent=node, rot=rot, data=wheel_datas[(end, lod)])
-            objs.append(ob)
+        objs.append(export.empty(nm, (x, y, z), parent=root))
     # wheel meshes in model space for the occlusion bake and the far LOD
     def placed_wheels(lod):
         out = []
@@ -178,6 +193,10 @@ def build(name, out_dir=OUT_DIR, preview=None, ao=True, lods=(0, 1, 2)):
             lin = interior.liner(d, info, lod)
             if len(lin.F):
                 parts.append(surfaces_of(lin, 60.0))
+        if lod == 1 and not d.get("no_cabin"):                # the middle LOD has no cabin, but its glass needs something dark behind it (it showed the street through the windows, a flat grey pane)
+            lin = interior.liner(d, info, lod)
+            if len(lin.F):
+                parts.append(surfaces_of(lin, 60.0))
         if lod == 2:
             parts.append(surfaces_of(dm, 38.0))
         if os.environ.get("QT_CAR_STATS"):
@@ -191,6 +210,10 @@ def build(name, out_dir=OUT_DIR, preview=None, ao=True, lods=(0, 1, 2)):
                 kit.bake_vertex_ao(gp, occ, rays=18 if lod == 0 else 10, dist=0.9, strength=0.9)
             else:
                 groups["Paint"]["C"][:, 0] = 1.0
+        if lod < 2:
+            wgrp = merged_wheels(d, wp, wheel_lod_groups, wm_rear, lod)
+            if wgrp:
+                groups = kit.merge_groups([groups, wgrp])
         if lod == 2:
             groups = lod2_single(groups, [kit.finalize(w, 50.0) for w in placed_wheels(2)])
         order = ["Paint", "Details", "Glass"] if lod < 2 else ["Lod"]
@@ -211,7 +234,7 @@ def build(name, out_dir=OUT_DIR, preview=None, ao=True, lods=(0, 1, 2)):
     js = export.export_glb(path, objs)
     tris, size, lo, hi, js = export.report(path)
     print("CAR %-9s tris LOD0 %5d LOD1 %5d LOD2 %5d | glb tris(all) %6d size %6.1f KB | bounds x[%.2f,%.2f] y[%.2f,%.2f] z[%.2f,%.2f] (glTF, nose -Z) | %.1fs" % (
-        name, stats.get(0, 0) + 4 * kit.group_tris(wheel_lod_groups[0][1]), stats.get(1, 0) + 4 * kit.group_tris(wheel_lod_groups[1][1]), stats.get(2, 0), tris, size / 1024.0,
+        name, stats.get(0, 0), stats.get(1, 0), stats.get(2, 0), tris, size / 1024.0,
         lo[0], hi[0], lo[1], hi[1], lo[2], hi[2], time.time() - t0))
     return path
 
@@ -260,6 +283,27 @@ def build_near(name="sedan", out_dir=OUT_DIR):
     return path
 
 
+def build_near_v2(out_dir=OUT_DIR):
+    """Second pass: assets/models/cv2_near_hi.glb (the near car of the first 22 m, two bodies + wheels + extras, about 1.3k triangles) and assets/models/cv2_near.glb (the far near car, about 400),
+    plus assets/shaders/prop_nearcar_tables.gdshaderinc (the anchors the shaders re-proportion them with). See carv2/near.py."""
+    paths = []
+    for name, fn in (("cv2_near_hi", near.build_hi), ("cv2_near", near.build_lo)):
+        g = fn()
+        g["C"] = np.ones((len(g["V"]), 4))
+        export.reset()
+        ob = export.mesh_object("NearCar", {"Near": g}, ["Near"])
+        path = os.path.join(out_dir, name + ".glb")
+        export.export_glb(path, [ob])
+        tris, size, lo, hi, _js = export.report(path)
+        print("NEAR %-12s tris %d size %.1f KB bounds x[%.2f,%.2f] y[%.2f,%.2f] z[%.2f,%.2f]" % (name, tris, size / 1024.0, lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]))
+        paths.append(path)
+    inc = os.path.join(ROOT, "assets", "shaders", "prop_nearcar_tables.gdshaderinc")
+    with open(inc, "w") as f:
+        f.write(near.glsl_tables())
+    print("tables ->", inc)
+    return paths
+
+
 def main(argv):
     names = []
     preview = None
@@ -277,6 +321,9 @@ def main(argv):
         elif a == "--no-ao":
             ao = False
         elif a == "--near":
+            build_near_v2(out)
+            return
+        elif a == "--near-old":
             build_near("sedan", out)
             return
         else:

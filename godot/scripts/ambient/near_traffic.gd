@@ -1,12 +1,16 @@
 class_name NearTraffic
 extends RefCounted
-## Near traffic of the living city (owner round 3: "the street is empty, no cars"): ONE MultiMesh of small lit cars (assets/shaders/prop_nearcar.gdshader, about 150 triangles each) that drive
-## the lanes of the road grid in a ring around the hero, between the real VehicleManager cars (a few, expensive) and the far traffic lights (zero CPU, 46 m and beyond).
+## Near traffic of the living city (owner round 3: "the street is empty, no cars"): small lit cars in MultiMeshes that drive the lanes of the road grid in a ring around the hero, between the real
+## VehicleManager cars (a few, expensive) and the far traffic lights (zero CPU, 46 m and beyond). Round 6 pass 2 (cars v2 look for the cars at the kerb): the ring is drawn with the 358 triangle car
+## (assets/models/cv2_near.glb, assets/shaders/prop_nearcar.gdshader) and the few cars nearest to the camera (HI_R, at most HI_CAP) with the 1.2k triangle car of a second MultiMesh
+## (cv2_near_hi.glb, prop_nearcar_hi.gdshader: smooth shell, door seams, spoked wheels, pillars, cabin, plates), both reshaped per kind in the vertex shader (prop_nearcar_common.gdshaderinc).
 ## They follow the same rules as the real AI cars (right-hand lanes on LANE, junction lights, cruise 9-14 m/s, stop for what is ahead: the hero, a real car, another car, a person on a
 ## zebra) and turn at junctions on a curve. The hero can still take any of them: `promote_near` swaps the car for a real Vehicle at the same place and speed (VehicleManager.reach_car,
-## and any of them within a few metres of the car the hero drives, so the crash is a real one). One draw call, no node per car, nothing allocated while playing.
+## and any of them within a few metres of the car the hero drives, so the crash is a real one). Two draw calls at most (the second only while a car is close), no node per car, nothing allocated
+## while playing.
 
 const SHADER := preload("res://assets/shaders/prop_nearcar.gdshader")
+const SHADER_HI := preload("res://assets/shaders/prop_nearcar_hi.gdshader")
 const MB := preload("res://scripts/world/mesh_builder.gd")
 const Districts := preload("res://scripts/world/city_districts.gd")
 
@@ -87,11 +91,19 @@ const JAM_AFTER := 40.0                  ## seconds stuck behind cars with no li
 const JAM_FORCE := 70.0                  ## ... and a seen one too
 const CAR_PAD := 0.3                     ## m of margin on each side of the corridor a car looks along
 const GHOST_TIME := 3.5
+const HI_MAX := 16                       ## instances of the second MultiMesh (the HI car: about 1.2k triangles, two bodies and four wheels, assets/models/cv2_near_hi.glb)
+const HI_R: Array[float] = [20.0, 15.0, 26.0]      ## a car closer than this to the camera is drawn with the HI mesh (the rest with the 360 triangle far mesh); box kinds get HI_BOX_EXTRA more
+const HI_BOX_EXTRA := 8.0
+const HI_CAP: Array[int] = [6, 4, 10]              ## at most this many HI cars a frame (the triangle budget: MED has 3k triangles to spare)
+const BOX_KINDS: Array[int] = [3, 7, 8, 10, 11]    ## van, truck, bus, ambulance, delivery: built on the box truck body of the HI mesh
 
 static var instance: NearTraffic
 
 var mm: MultiMesh
 var material: ShaderMaterial
+var mm_hi: MultiMesh                     ## the nearest cars (HI mesh); its MultiMeshInstance3D is hidden while it holds none (an empty MultiMesh still costs a draw call)
+var material_hi: ShaderMaterial
+var hi_node: Node3D
 var count := 0
 var enabled := true                      ## false (tests that want a bare street): no cars, whatever the tier and the hour ask for
 var radius := 105.0
@@ -134,6 +146,10 @@ var _tE := PackedVector2Array()
 var _tI := PackedVector2Array()
 var _tX := PackedVector2Array()
 var _buf := PackedFloat32Array()
+var _buf_hi := PackedFloat32Array()
+var _nw_hi := 0                          ## HI cars written this step
+var _hi_cand := PackedFloat32Array()      ## squared distances to the camera of the cars that were inside the HI range this step (near cars, road cars, kerb cars)
+var _hi_thr2 := INF                      ## the HI cars are the HI_CAP nearest of the last step: a car nearer than this goes to the HI MultiMesh (the first ones written were taking the slots, not the nearest)
 var _peds := PackedVector2Array()
 var _n_peds := 0
 var _obs := PackedFloat32Array()         ## sideways offsets of the obstacles one car is looking at (the drift solver)
@@ -168,6 +184,8 @@ func build(light_map: Texture2D) -> void:
 	rng.seed = 90211
 	mm = MB.new_multimesh(car_mesh(), SHARED, false, true)
 	_buf = MB.new_buffer(SHARED, false, true)
+	mm_hi = MB.new_multimesh(car_mesh_hi(), HI_MAX, false, true)
+	_buf_hi = MB.new_buffer(HI_MAX, false, true)
 	for a: PackedFloat32Array in [_dir, _line, _u, _spd, _cruise, _allow, _brake, _panic, _stun, _hurt_cd, _shift, _shift_t, _jam, _ghost, _wait, _age, _yaw, _tdir, _tcross, _tp, _look_t, _twait, _ovl, _ovl_t]:
 		a.resize(BUILT)
 	for a: PackedByteArray in [_alive, _axis, _kind, _paint, _tmode, _light_seen]:
@@ -185,7 +203,12 @@ func build(light_map: Texture2D) -> void:
 	material = ShaderMaterial.new()
 	material.shader = SHADER
 	material.set_shader_parameter(&"light_map", light_map)
+	material_hi = ShaderMaterial.new()
+	material_hi.shader = SHADER_HI
+	material_hi.set_shader_parameter(&"light_map", light_map)
 	mm.buffer = _buf
+	mm_hi.buffer = _buf_hi
+	mm_hi.visible_instance_count = 0
 	set_tier(quality)
 
 
@@ -210,6 +233,23 @@ static func car_mesh() -> ArrayMesh:
 		if _near_mesh != null:
 			return _near_mesh
 	return procedural_car_mesh()
+
+
+## The HI car (the nearest cars): assets/models/cv2_near_hi.glb, one surface, two bodies (sedan shell, box truck shell), four wheels and a few extras; prop_nearcar_hi.gdshader keeps what the kind
+## needs. Null-safe: the far mesh stands in when the file is missing (QT_RV_MODELS=0, an older checkout).
+static var _near_mesh_hi: ArrayMesh
+
+static func car_mesh_hi() -> ArrayMesh:
+	if _near_mesh_hi == null and OS.get_environment("QT_RV_MODELS") != "0" and CarV2.enabled():
+		var root := Game.load_model("cv2_near_hi")
+		if root != null:
+			for n in root.find_children("*", "MeshInstance3D", true, false):
+				var m := (n as MeshInstance3D).mesh as ArrayMesh
+				if m != null and m.get_surface_count() == 1:
+					_near_mesh_hi = _without_vertex_colours(m)
+					break
+			root.free()
+	return _near_mesh_hi if _near_mesh_hi != null else car_mesh()
 
 
 ## The near car's shader never reads COLOR and its MultiMesh has no instance colours, so a COLOR array from the glTF would only be an unused stream (and the GL renderer
@@ -289,6 +329,11 @@ func set_tier(level: int, density := 1.0) -> void:
 	count = n
 	radius = RADII[quality] * (0.85 if quality == 0 and LowPlus.on() else 1.0)
 	mm.visible_instance_count = 0                                      # the step writes the cars the camera sees (a tier switch must not draw 100 cars at the origin)
+	mm_hi.visible_instance_count = 0
+	_hi_cand.clear()
+	_hi_thr2 = INF
+	if hi_node != null:
+		hi_node.visible = false
 
 
 func reset() -> void:
@@ -522,6 +567,8 @@ func step(delta: float, center: Vector3) -> void:
 	var lights := mgr == null or mgr.lights_on
 	_hero = center
 	_nw = 0
+	_nw_hi = 0
+	_update_hi_threshold()
 	_cam_ok = false
 	if is_instance_valid(Game.camera):
 		var cf := -Game.camera.global_transform.basis.z
@@ -563,21 +610,69 @@ func step(delta: float, center: Vector3) -> void:
 	_total = _nw
 	mm.visible_instance_count = _nw
 	mm.buffer = _buf
+	_publish_hi()
 
 
 ## Adds `n` more instances (16 floats each, the layout of `_buf`) behind the ones of this frame: the road cars and the parked cars share the near cars' MultiMesh, so a street full of kerb cars is
 ## still ONE draw call. Called after step() in the same frame (AmbientCity order); returns how many fitted.
 func append_cars(src: PackedFloat32Array, n: int) -> int:
-	n = mini(n, SHARED - _total)
-	if n <= 0:
-		return 0
-	var o := _total * 16
-	for k in n * 16:
-		_buf[o + k] = src[k]
-	_total += n
+	var done := 0
+	for k in n:
+		var b := k * 16
+		var hi := _wants_hi(src[b + 3], src[b + 11], int(src[b + 13]))
+		if hi and _nw_hi < HI_MAX and _nw_hi < HI_CAP[quality]:
+			var oh := _nw_hi * 16
+			for j in 16:
+				_buf_hi[oh + j] = src[b + j]
+			_nw_hi += 1
+			done += 1
+		elif _total < SHARED:
+			var o := _total * 16
+			for j in 16:
+				_buf[o + j] = src[b + j]
+			_total += 1
+			done += 1
+		else:
+			break
 	mm.visible_instance_count = _total
 	mm.buffer = _buf
-	return n
+	_publish_hi()
+	return done
+
+
+## True when a car at (x, z) of kind `kind` is close enough to the camera for the HI mesh and one of the HI_CAP nearest cars (the distances of the last step decide: `_update_hi_threshold`),
+## and the HI budget of this frame is not spent yet. Every car inside the range is noted as a candidate for the next step.
+func _wants_hi(x: float, z: float, kind: int) -> bool:
+	if not _cam_ok:
+		return false
+	var r := HI_R[quality] + (HI_BOX_EXTRA if kind in BOX_KINDS else 0.0)
+	var dx := x - _cam_pos.x
+	var dz := z - _cam_pos.y
+	var d2 := dx * dx + dz * dz
+	if d2 >= r * r:
+		return false
+	_hi_cand.append(d2)
+	return d2 <= _hi_thr2 and _nw_hi < HI_CAP[quality]
+
+
+## The nearest HI_CAP cars of the last step get the HI mesh in this one (a van six metres from the camera was drawn with the flat far mesh while a car at 18 m had the HI slot: whichever was written first
+## took it). A car a hair farther than the threshold stays with the far mesh; with fewer candidates than slots every car in range is HI.
+func _update_hi_threshold() -> void:
+	var cap: int = HI_CAP[quality]
+	if _hi_cand.size() <= cap:
+		_hi_thr2 = INF
+	else:
+		var c := _hi_cand.duplicate()
+		c.sort()
+		_hi_thr2 = c[cap - 1] + 0.05
+	_hi_cand.clear()
+
+
+func _publish_hi() -> void:
+	mm_hi.visible_instance_count = _nw_hi
+	mm_hi.buffer = _buf_hi
+	if hi_node != null:
+		hi_node.visible = _nw_hi > 0
 
 
 ## One car for `dt` seconds: timers, the look-around (every LOOK_EVERY seconds of game time, whatever the frame rate), speed, move, and the ways a car leaves the ring.
@@ -1180,27 +1275,33 @@ func _write(i: int) -> void:
 			return
 		if d2 > VIEW_NEAR * VIEW_NEAR and (dx * _cam_fwd.x + dz * _cam_fwd.y) < VIEW_COS * sqrt(d2):
 			return
+	var buf := _buf
 	var o := _nw * 16
-	_nw += 1
+	if _wants_hi(_pos[i].x, _pos[i].y, _kind[i]):
+		buf = _buf_hi
+		o = _nw_hi * 16
+		_nw_hi += 1
+	else:
+		_nw += 1
 	var fade := minf(1.0, _age[i] * 1.2 + 0.05)
 	var y := _yaw[i]
 	var c := cos(y)
 	var s := sin(y)
 	var sc := fade
 	# Basis(UP, yaw): x axis (c, 0, -s), y axis (0, 1, 0), z axis (s, 0, c); row-major 3x4
-	_buf[o] = c * sc
-	_buf[o + 1] = 0.0
-	_buf[o + 2] = s * sc
-	_buf[o + 3] = _pos[i].x
-	_buf[o + 4] = 0.0
-	_buf[o + 5] = sc
-	_buf[o + 6] = 0.0
-	_buf[o + 7] = 0.0
-	_buf[o + 8] = -s * sc
-	_buf[o + 9] = 0.0
-	_buf[o + 10] = c * sc
-	_buf[o + 11] = _pos[i].y
-	_buf[o + 12] = float(_paint[i])
-	_buf[o + 13] = float(_kind[i])
-	_buf[o + 14] = _brake[i]
-	_buf[o + 15] = 1.0
+	buf[o] = c * sc
+	buf[o + 1] = 0.0
+	buf[o + 2] = s * sc
+	buf[o + 3] = _pos[i].x
+	buf[o + 4] = 0.0
+	buf[o + 5] = sc
+	buf[o + 6] = 0.0
+	buf[o + 7] = 0.0
+	buf[o + 8] = -s * sc
+	buf[o + 9] = 0.0
+	buf[o + 10] = c * sc
+	buf[o + 11] = _pos[i].y
+	buf[o + 12] = float(_paint[i])
+	buf[o + 13] = float(_kind[i])
+	buf[o + 14] = _brake[i]
+	buf[o + 15] = 1.0

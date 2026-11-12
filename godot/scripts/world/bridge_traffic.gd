@@ -23,6 +23,7 @@ var active := false
 var moved := 0.0                                 ## metres driven since built (tests)
 var v := 0.0                                     ## the speed it drives right now (it waits for what is in its lane)
 var waiting := false                             ## true: the car has no room to come onto the deck (the start is occupied): hidden, no hull, tries again every frame
+var _overlap_t := 0.0                            ## seconds this car has been inside another hull (a deadlock breaker: two cars rolling back into each other)
 var _visual: VehicleVisual
 var _model: Node3D
 var _len := 100.0
@@ -96,6 +97,15 @@ func _physics_process(delta: float) -> void:
 	if _slot >= 0 and TrafficField.first_overlap(global_position.x, global_position.z, _fwd.x, _fwd.y, _hl, _hw, -0.1, TrafficField.BRIDGE, _slot) >= 0:
 		u = clampf(u - float(dir) * BACK_OFF, 2.0, _len - 2.0)       # a car that stopped dead in its lane (a crash, a wall) was reached faster than it could brake: this scenery car has no body, it rolls back out of it
 		v = 0.0
+		_overlap_t += delta
+		if _overlap_t > 0.8:                                          # it cannot roll back out of it (the start of the deck, or the car behind rolls back into it as well: two cars stuck in each other for a minute in the highway audit):
+			_overlap_t = 0.0                                          # off the deck, back to the start, and it comes in again when the place is free
+			u = 2.0 if dir > 0 else _len - 2.0
+			waiting = true
+			_try_enter()
+			return
+	else:
+		_overlap_t = 0.0
 	if u > _len - 2.0 or u < 2.0:                 # past the end it comes in again at the other end (right-hand traffic: every car keeps its lane and direction), once that end is free
 		u = 2.0 if dir > 0 else _len - 2.0
 		waiting = true

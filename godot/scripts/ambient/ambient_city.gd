@@ -52,7 +52,12 @@ func setup(city: Node3D, light_map: Texture2D) -> void:
 	add_child(citizens)
 	fauna.build()
 	city.add_multimesh("AmbientFauna", fauna.mm, fauna.material, null, false, 0, 1)
-	city.add_multimesh("NearTraffic", near_traffic.mm, near_traffic.material, null, false, 0, 1)
+	var near_node: MultiMeshInstance3D = city.add_multimesh("NearTraffic", near_traffic.mm, near_traffic.material, null, false, 0, 1)
+	var hi_node: MultiMeshInstance3D = city.add_multimesh("NearTrafficHi", near_traffic.mm_hi, near_traffic.material_hi, null, false, 0, 1)          # the nearest cars (HI mesh, a handful of instances): hidden while it holds none
+	near_traffic.hi_node = hi_node
+	hi_node.visible = false
+	near_node.layers |= VehicleVisual.KEY_BIT | DynamicFill.FILL_BIT       # the real cars' own lights (VehicleVisual key light, DynamicFill fill) light the near cars too: a lit and a shaded side as on a real car, not a black door on the side away from the moon
+	hi_node.layers |= VehicleVisual.KEY_BIT | DynamicFill.FILL_BIT
 	# the parked cars and the road cars are drawn by the NearTraffic MultiMesh above (NearTraffic.append_cars: one draw call for every car on the ground); only the far lamp pairs have a node of their own
 	road_traffic.lamp_node = city.add_multimesh("RoadLamps", road_traffic.lamp_mm, road_traffic.lamp_material, road_traffic.lamp_mirror, false, 0, 1)
 	road_traffic.lamp_mirror_node = city.mirror_nodes[city.mirror_nodes.size() - 1]
