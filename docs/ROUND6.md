@@ -24,17 +24,20 @@ Consequences: (1) an AIRCRAFT ROSTER wave (many more helicopters and aeroplanes,
 into traversal (swing, zip, climb walls, fly) and combat (pull, grab, nets, shield, snake bombs); (4) every agent of the sprint runs at MAX effort,
 including integrators and CI watchers, and four waves get an independent critic plus fixers before integration.
 
-## Sprint (waves 111-122; wave 111 ran from script round6_111.js, waves 112-122 from round6b_112.js), MAX effort, every wave: 2-3 builders, integrator (full suite, perf gate, visual QA), CI watcher
-111 Cars v2 (Blender-generated high-detail car set, glass/lights/interiors/paint/damage) + vehicle-vs-vehicle collision, traffic spacing, many cars outside the city.
-112 Landscape (trees, forests, waterfalls, rivers, shores, rocks, grass) + outskirts settlements (houses, villages, farms, stations) and a bigger map, plus an independent second pass on the cars of wave 111; critic and fixers.
-113 Weapon ROSTER (200+ weapons in all classes, distinct mechanics, attachments, ammo types) + BLAST-RADIUS ARSENAL (60+ explosive weapons and gadgets, blast table, radius rings, craters, chain reactions) + damage everywhere (enemies, cars, buildings, props, ground); critic and fixers.
-114 Weapon ART and PRESENTATION (a parametric Blender weapon kit: a distinct in-hand model for every weapon, class animations, effects; rendered pictures, stat screens, sounds) + enemy roster look (16+ types); critic and fixers. Android build.
-115 Hero QUANTUM SNAKES traversal (swing, zip, climb walls, fly) + snake combat (pull, grab, nets, shield, 12+ snake bombs) + hero look and suits; critic and fixers. Android build.
-116 AIRCRAFT ROSTER (16+ helicopters, 24+ aeroplanes and other flyers, flight models per class, cockpits, hangars and helipads across the world, ambient air traffic, air missions, aircraft weapons from the new blast table); critic and fixers. Android build.
-117 Vertical buildings (stairs, lifts, rooftops, sniper) + interiors much better (outside matches inside).
-118 Casual play + hero mode (unlock everything) plus world life density (people, cars, animals, enemies find you).
-119 Human + creature animation overhaul (including snake, flight and pilot poses).
-120 Machine animation and vehicle/aircraft FX + street and building detail + menus polish. Android build.
-121 Director review 7 (three independent harsh reviewers: art, play feel, systems and performance; merged into one list of the 24 worst defects).
-122 Fixes from the review (three fix builders), final Android build.
+## Sprint (waves 111-121; wave 111 ran from script round6_111.js, waves 112-121 run from round6c_112.js), MAX effort for every agent
+This machine has 4 CPUs, so a workflow runs at most 2 agents at the same time. Waves therefore have 2 or 4 builders (never 3, which would leave a slot idle),
+the per-wave critics run as a pair of critic-fixers (one LOOK, one PLAY lens; each reviews, then fixes what it found), and every wave ends with an integrator
+(full suite, perf gate on LOW, MED and HIGH, visual QA, commit and push) and a CI watcher. Honest time estimate at max effort: about 7 to 11 hours per wave
+with four builders or critic-fixers, 5 to 8 hours with two, in all roughly 3 days for waves 112 to 121.
+111 DONE (146c20d). Cars v2 (Blender-generated high-detail car set, glass/lights/interiors/paint/damage) + vehicle-vs-vehicle collision, traffic spacing, many cars outside the city. Android build.
+112 Cars second pass (independent; the near-traffic cars still look faceted) + landscape (trees, forests, waterfalls, rivers, shores, rocks, grass) + outskirts settlements and a bigger map + hero look and suits. Critic-fixers.
+113 Weapon ROSTER (200+ weapons in all classes, distinct mechanics, attachments, ammo types) + BLAST-RADIUS ARSENAL (60+ explosives, launchers, mines, strikes; BlastTable, radius rings, craters, chain reactions) + damage everywhere + enemy roster look (16+ types). Critic-fixers. Android build.
+114 Weapon ART and PRESENTATION (a parametric Blender weapon kit: a distinct in-hand model for every weapon, class animations, effects; rendered pictures, stat screens, sounds). Critic-fixers.
+115 Hero QUANTUM SNAKES: traversal (swing, zip, climb walls, fly) + combat (pull, grab, nets, shield, 12+ snake bombs). Critic-fixers. Android build.
+116 AIRCRAFT ROSTER (22+ helicopters, 30+ aeroplanes and other flyers, flight models per class, cockpits, hangars and helipads across the world, ambient air traffic, air missions, aircraft weapons from the new blast table) + interiors much better (outside matches inside). Critic-fixers. Android build.
+117 Vertical buildings (stairs, lifts, rooftops, sniper) + casual play, HERO MODE (unlock everything) and a real TEST AREA (shooting range, explosive range, vehicle track, air course, snake course).
+118 Human and creature animation (incl. snake, flight and pilot poses) + machine and aircraft animation and FX + world life density (people, cars, animals, enemies find you).
+119 Street and building detail + menu polish + PERFORMANCE BUDGET RECOVERY (win back draw, triangle and texture headroom). Android build.
+120 Director review 7 (three independent harsh reviewers: art, play feel, systems and performance; merged into one list of the 24 worst defects).
+121 Fixes from the review (three fix builders), final Android build.
 Honest limit stays: phone GPU budget and CC0/own-made art mean "PS5 level" is a direction, not a result; each wave is judged by frames against docs/owner_shots.
