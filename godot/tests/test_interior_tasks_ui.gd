@@ -224,12 +224,12 @@ func _stealth_job(type: StringName, sid: StringName, tag: String) -> bool:
 		return false
 	Game.heat = 0.0
 	await bot.frames(10)
-	bot.calm_guards()
+	bot.calm_guards(true)
 	for attempt in 5:                                            # a guard standing at the door can be aware for a moment: the offer waits for a quiet room, as the live game does
 		if st.start(sid):
 			break
 		await bot.frames(20)
-		bot.calm_guards()
+		bot.calm_guards(true)
 	var why := ""
 	if not st.is_running():
 		var aware := 0

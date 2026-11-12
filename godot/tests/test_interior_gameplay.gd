@@ -156,8 +156,15 @@ func _prompt_and_enter() -> void:
 	p.teleport_to(front + Vector3(0.0, 0.1, 0.0))
 	await frames(20)
 	var fades := ig.enter_count
+	var vmgr := Game.vehicles as VehicleManager
+	var kerb: Vehicle = vmgr.spawn_parked(&"sedan", front + Vector3(2.6, 0.0, 0.0), 0.0) if vmgr != null else null      # a car parked beside the door, inside the 4.2 m the car check looks at
+	if kerb != null:
+		await frames(20)
+		TestLib.check(kerb.global_position.distance_to(p.global_position) < 4.2 and InteriorGameplay.prompt.begins_with("ENTER"), "a parked car beside the door does not take the ENTER prompt away (%.1f m, '%s')" % [kerb.global_position.distance_to(p.global_position), InteriorGameplay.prompt])
 	await press_use()
-	TestLib.check(ig.is_fading(), "USE starts the fade")
+	TestLib.check(ig.is_fading() and p.vehicle == null, "USE starts the fade (the door, not the parked car beside it)")
+	if kerb != null:
+		vmgr._release(kerb)
 	var guard := 0
 	while ig.busy and guard < 200:
 		await frames(2)

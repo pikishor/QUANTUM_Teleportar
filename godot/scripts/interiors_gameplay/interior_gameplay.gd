@@ -690,7 +690,8 @@ func _tick_outside(delta: float) -> void:
 		prompt = ""
 		if is_instance_valid(p) and not busy and p.global_position.y < 3.0 and p.get(&"vehicle") == null:
 			var d := nearest_door(p.global_position)
-			var cars_near := is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"nearest") and Game.vehicles.call(&"nearest", p.global_position, 4.2) != null
+			var near_car: Vehicle = Game.vehicles.call(&"nearest", p.global_position, 4.2) if is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"nearest") else null
+			var cars_near := near_car != null and absf(near_car.speed) > 1.5       # a car rolling by wins (a carjack); a parked one or a queue at the light never stands between the hero and a door (wave 111 parks cars at every kerb: the door must stay enterable)
 			if not d.is_empty() and not cars_near:
 				_near_door = d
 				var why := block_reason()
