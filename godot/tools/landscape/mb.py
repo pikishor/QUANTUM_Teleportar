@@ -168,6 +168,86 @@ class MeshBuilder:
         for j in range(segs):
             self.I.append((bot, rows[-1][j], rows[-1][(j + 1) % segs]))
 
+    # --- hard-surface pieces for the anchor kit (turbines, pylons, masts, cranes, hangars): COLOR.rgb = paint, COLOR.a = material code (see assets/shaders/land_prop.gdshader) -------------
+    def _flat_quad(self, a, b, c, d, nrm, col, code, uv2=(0.0, 0.0)):
+        c4 = (col[0], col[1], col[2], code)
+        i0 = self._v(a, nrm, (0.0, 0.0), uv2, c4)
+        i1 = self._v(b, nrm, (1.0, 0.0), uv2, c4)
+        i2 = self._v(c, nrm, (1.0, 1.0), uv2, c4)
+        i3 = self._v(d, nrm, (0.0, 1.0), uv2, c4)
+        self.I.append((i0, i1, i2))
+        self.I.append((i0, i2, i3))
+
+    def beam(self, p0, p1, w, col=(0.6, 0.62, 0.64), code=0.0, w1=None, ends=False):
+        """A square-section beam from p0 to p1 (w = side at p0, w1 at p1): four flat faces."""
+        p0 = np.asarray(p0, dtype=np.float64)
+        p1 = np.asarray(p1, dtype=np.float64)
+        t = _norm(p1 - p0)
+        n1 = perp(t)
+        n2 = np.cross(t, n1)
+        h0 = w * 0.5
+        h1 = (w if w1 is None else w1) * 0.5
+        corners0 = [p0 + (n1 * sx + n2 * sy) * h0 for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        corners1 = [p1 + (n1 * sx + n2 * sy) * h1 for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        for k in range(4):
+            a, b = k, (k + 1) % 4
+            nrm = _norm((corners0[a] + corners0[b]) * 0.5 - p0)
+            shade = 0.82 + 0.18 * max(0.0, nrm[1])
+            c2 = (col[0] * shade, col[1] * shade, col[2] * shade)
+            self._flat_quad(corners0[a], corners0[b], corners1[b], corners1[a], nrm, c2, code)
+        if ends:
+            self._flat_quad(corners1[0], corners1[1], corners1[2], corners1[3], t, col, code)
+
+    def box(self, center, size, col=(0.6, 0.62, 0.64), code=0.0, yaw=0.0):
+        c = np.asarray(center, dtype=np.float64)
+        sx, sy, sz = [s * 0.5 for s in size]
+        cy, sn = math.cos(yaw), math.sin(yaw)
+
+        def rot(v):
+            return np.array([v[0] * cy + v[2] * sn, v[1], -v[0] * sn + v[2] * cy])
+        faces = [((1, 0, 0), [(1, -1, -1), (1, -1, 1), (1, 1, 1), (1, 1, -1)]), ((-1, 0, 0), [(-1, -1, 1), (-1, -1, -1), (-1, 1, -1), (-1, 1, 1)]),
+                 ((0, 1, 0), [(-1, 1, -1), (1, 1, -1), (1, 1, 1), (-1, 1, 1)]), ((0, -1, 0), [(-1, -1, 1), (1, -1, 1), (1, -1, -1), (-1, -1, -1)]),
+                 ((0, 0, 1), [(1, -1, 1), (-1, -1, 1), (-1, 1, 1), (1, 1, 1)]), ((0, 0, -1), [(-1, -1, -1), (1, -1, -1), (1, 1, -1), (-1, 1, -1)])]
+        for nrm, pts in faces:
+            shade = 0.80 + 0.20 * max(0.0, nrm[1]) + 0.05 * abs(nrm[0])
+            c2 = (min(1.0, col[0] * shade), min(1.0, col[1] * shade), min(1.0, col[2] * shade))
+            ps = [c + rot((p[0] * sx, p[1] * sy, p[2] * sz)) for p in pts]
+            self._flat_quad(ps[0], ps[1], ps[2], ps[3], rot(nrm), c2, code)
+
+    def cone(self, base, apex, radius, sides=8, col=(0.9, 0.9, 0.9), code=0.0, uv2=None):
+        b = np.asarray(base, dtype=np.float64)
+        a = np.asarray(apex, dtype=np.float64)
+        t = _norm(a - b)
+        n1 = perp(t)
+        n2 = np.cross(t, n1)
+        ring = []
+        for j in range(sides):
+            ang = math.tau * j / sides
+            d = n1 * math.cos(ang) + n2 * math.sin(ang)
+            ring.append(self._v(b + d * radius, d, (j / sides, 0.0), (0.0, 0.0) if uv2 is None else uv2(0.0), (col[0], col[1], col[2], code)))
+        tip = self._v(a, t, (0.5, 1.0), (0.0, 0.0) if uv2 is None else uv2(1.0), (col[0], col[1], col[2], code))
+        for j in range(sides):
+            self.I.append((ring[j], tip, ring[(j + 1) % sides]))
+
+    def sock(self, length, r0, r1, sides=8, rings=4, stripes=3):
+        """A windsock cone along +x from the origin (the pole top): UV2.x = distance along 0..1 (the shader swings and droops it), UV2.y = stripe coordinate."""
+        grid = []
+        for i in range(rings + 1):
+            s = i / rings
+            r = r0 + (r1 - r0) * s
+            row = []
+            for j in range(sides + 1):
+                ang = math.tau * j / sides
+                p = np.array([length * s, math.cos(ang) * r, math.sin(ang) * r])
+                n = np.array([0.0, math.cos(ang), math.sin(ang)])
+                row.append(self._v(p, n, (j / sides, s), (s, s * stripes), (1.0, 0.5, 0.1, 4.0)))
+            grid.append(row)
+        for i in range(rings):
+            for j in range(sides):
+                a, b, c, d = grid[i][j], grid[i][j + 1], grid[i + 1][j], grid[i + 1][j + 1]
+                self.I.append((a, c, b))
+                self.I.append((b, c, d))
+
     # --- output ----------------------------------------------------------------------------------------------------------------------------
     def arrays(self):
         return (np.array(self.V, dtype=np.float32), np.array(self.N, dtype=np.float32), np.array(self.U, dtype=np.float32), np.array(self.U2, dtype=np.float32),

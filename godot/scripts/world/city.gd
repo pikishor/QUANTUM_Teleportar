@@ -100,6 +100,7 @@ var vegetation: VegetationWorld    ## forests, shrubs, grass and rocks of the ou
 var wildlife: Node                 ## deer, wolves, goats, birds, fish, dolphins ... (WildlifeWorld, scripts/wildlife/wildlife_world.gd, wave 107)
 var aliens: Node                   ## the alien world: fauna, camps, nests, crash sites, boss lairs (AlienWorld, scripts/aliens/alien_world.gd, wave 107b)
 var sites: Node                    ## the mountain and outskirt sites (OutskirtsWorld, scripts/terrain/outskirts_world.gd, wave 105)
+var landscape: Node                ## waterfalls, grass airstrips, turbines, pylons, masts (Landscape, scripts/landscape/landscape.gd, wave 112)
 var terrain: TerrainWorld           ## the land outside the city (scripts/terrain/terrain_world.gd): 6 km of streamed heightmap terrain, roads, mountains, coast
 
 
@@ -157,6 +158,8 @@ func _ready() -> void:
 			ShipWorld.attach(self)
 		if OS.get_environment("QT_NO_VEGETATION") != "1":             # forests, bushes, grass and rocks around the hero (wave 105, mountain sites and vegetation)
 			vegetation = VegetationWorld.attach(self)
+		if OS.get_environment("QT_NO_LANDSCAPE") != "1":              # waterfalls, grass airstrips, wind turbines, pylons and masts (wave 112, landscape)
+			landscape = Landscape.attach(self)
 		if OS.get_environment("QT_NO_SITES") != "1":                  # the mountain and outskirt sites: observatory, radio tower, mine, crash site, cave, cabins, villages, farms (wave 105)
 			sites = OutskirtsWorld.attach(self)
 			MountainWeather.attach(self)
@@ -304,6 +307,8 @@ func set_quality(level: int) -> void:
 		terrain.set_quality(quality)
 	if vegetation != null:
 		vegetation.set_quality(quality)
+	if landscape != null:
+		(landscape as Landscape).set_quality(quality)
 	if sites != null:
 		(sites as OutskirtsWorld).set_quality(quality)
 	if wildlife != null:

@@ -6,6 +6,8 @@ extends RefCounted
 ##        "road:NAME,s[,yaw_off[,dist]]"       the real hero at s metres along the named road, the real game camera looking along the road (yaw_off added)
 ##        "cam:px,ph,pz,tx,th,tz"              a free camera at (px, ground+ph, pz) looking at (tx, ground+th, tz)
 ##        "abs:px,py,pz,tx,ty,tz"              a free camera at absolute coordinates
+##        "fall:i[,lx,ph,lz[,th]]"             a free camera in front of waterfall i (LandscapeSites.falls()): lx across, ph above the pool, lz out from the pool, aimed th above the pool
+##        any view may end with "@hour[,clear|rain|storm|fog|overcast|drizzle]": the time of day (and weather) of that view only
 ##      LS_HOUR (default 12), LS_WEATHER clear|rain|snow (default clear), LS_HUD=1 keeps the HUD
 var _views: Array[String] = []
 var _i := 0
@@ -112,6 +114,24 @@ func _apply(p: Player, v: String, k: int) -> void:
 		var tgt := Vector3(float(a2[3]), 0.0, float(a2[5]))
 		tgt.y = TerrainHeight.height_at(tgt.x, tgt.z) + float(a2[4])
 		_free_cam(p, pos, tgt, k)
+		return
+	if v.begins_with("fall:"):                            # "fall:i[,lx,ph,lz[,th]]": a free camera in front of waterfall i: lx across, ph above the pool surface, lz metres out from the pool centre (downstream), aimed th above the pool
+		var a3 := v.substr(5).split(",")
+		var lst := LandscapeSites.falls()
+		var idx := int(a3[0])
+		if idx >= lst.size():
+			return
+		var w: Dictionary = lst[idx]
+		var fdir: Vector2 = w["dir"]
+		var fside := Vector2(-fdir.y, fdir.x)
+		var pc: Vector2 = w["pool"]
+		var lx := float(a3[1]) if a3.size() > 1 else 0.0
+		var ph := float(a3[2]) if a3.size() > 2 else 4.0
+		var lz := float(a3[3]) if a3.size() > 3 else 50.0
+		var th := float(a3[4]) if a3.size() > 4 else float(w["drop"]) * 0.45
+		var cp := pc + fside * lx + fdir * lz
+		var mid: Vector2 = (w["lip"] as Vector2).lerp(w["base"], 0.5)
+		_free_cam(p, Vector3(cp.x, float(w["pool_y"]) + ph, cp.y), Vector3(mid.x, float(w["pool_y"]) + th, mid.y), k)
 		return
 	var x := 0.0
 	var z := 0.0
