@@ -209,10 +209,15 @@ func _map() -> void:
 		ms._clamp_view()
 		var cap := ms.badge_cap()
 		var shown := ms.lod_markers(ms.visible_markers())
-		TestLib.check(shown.size() <= cap + 3, "zoom %.0f: at most %d icons (cap %d), the list has %d of %d" % [z, cap + 3, cap, shown.size(), all.size()])
+		var exempt := 0                                       # the objective, side jobs, homes, outskirt sites and the glyph places (airport, harbour, helipads) are never dropped by the cap, and how many
+		for mk: Dictionary in shown:                          # of them the world has is not the test's to decide (the outskirt sites came to 10 in most runs and 25 in about one in seven)
+			if MapScreen.ALWAYS_KINDS.has(mk["kind"]) or (mk.has("glyph") and mk["glyph"] != &"pad"):
+				exempt += 1
+		var allowed := maxi(cap, exempt) + 3                  # the crowded kinds only ever fill the room the never-dropped ones leave, so the whole list stays within the cap or within them
+		TestLib.check(shown.size() <= allowed, "zoom %.0f: at most %d icons (cap %d, %d never dropped), the list has %d of %d" % [z, allowed, cap, exempt, shown.size(), all.size()])
 		ms._map.queue_redraw()
 		await frames(2)
-		TestLib.check(int(ms.drawn["markers"]) <= cap + 3, "zoom %.0f: %d icons drawn (cap %d)" % [z, int(ms.drawn["markers"]), cap])
+		TestLib.check(int(ms.drawn["markers"]) <= allowed, "zoom %.0f: %d icons drawn (cap %d, %d never dropped)" % [z, int(ms.drawn["markers"]), cap, exempt])
 		TestLib.check(cap >= prev_cap and cap <= 44, "zoom %.0f: the cap never shrinks when you zoom in and stays below 45" % z)
 		prev_cap = cap
 		var marker_names := 0
