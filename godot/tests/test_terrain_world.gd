@@ -251,7 +251,9 @@ func _tiers(host: Node) -> void:
 		TestLib.check(int(st["chunks"]) <= (2 * city.terrain.r1() + 1) * (2 * city.terrain.r1() + 1), "tier %d keeps at most the radius square of chunks (%d)" % [tier, int(st["chunks"])])
 		TestLib.check(city.terrain.chunk_lod(city.terrain.chunk_of(pos.x, pos.z).x, city.terrain.chunk_of(pos.x, pos.z).y) == 0, "tier %d: the focus chunk is full detail" % tier)
 	TestLib.check(radii[0] < radii[1] and radii[1] < radii[2], "the LOD1 radius grows with the tier (%s)" % str(radii))
-	TestLib.check(tex[0] <= tex[1] and tex[1] < tex[2] and tex[2] <= 12 * 1024 * 1024, "terrain texture memory is tier scaled and small (%.1f / %.1f / %.1f MB)" % [tex[0] / 1048576.0, tex[1] / 1048576.0, tex[2] / 1048576.0])
+	# wave 112 added four layers (wet sand, strata, scree, dark rock): the terrain array is 11 layers, 3.7 MB on LOW and MED and 14.7 MB on HIGH, so the cap of this check went from 12 to 16 MB
+	# (the per-tier texture limits of the whole game, 200 / 260 / 360 MB, are unchanged and gated by tools/perf_report.sh)
+	TestLib.check(tex[0] <= tex[1] and tex[1] < tex[2] and tex[2] <= 16 * 1024 * 1024, "terrain texture memory is tier scaled and small (%.1f / %.1f / %.1f MB)" % [tex[0] / 1048576.0, tex[1] / 1048576.0, tex[2] / 1048576.0])
 	Game.set_quality(1)
 	await TestLib.frames(host, 2)
 	p.teleport_to(Vector3(0.0, 0.5, 4.0))

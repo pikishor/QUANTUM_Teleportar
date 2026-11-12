@@ -1,17 +1,14 @@
 # w111-ci-apk (running)
 
-agent id af0a48b9b2334ae7d, 775 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T22:42:15.055Z
+agent id af0a48b9b2334ae7d, 788 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T22:55:47.768Z
 
 ## Last notes of the agent
 
 - 19:01:31 Now let me apply the test changes to the clone's pristine test file.
+- 22:55:47 You've hit your weekly limit · resets 4am (UTC)
 
 ## Recent steps (last 40)
 
-- 21:20:32 Find which soak file defines the weapons phase
-- 21:20:38 Find the weapon rotation in the soak bot
-- 21:20:43 Locate the weapons phase of the full game bot
-- 21:20:47 Read the full bot weapons activity
 - 21:20:55 Find the alt-fire quick weapon code
 - 21:20:59 Read the alt-fire code including the quick beam
 - 21:21:08 Read how test_full_quick starts the full game bot
@@ -48,6 +45,10 @@ agent id af0a48b9b2334ae7d, 775 events, first activity 2026-11-12T17:49:28.108Z,
 - 22:25:51 Wait for the CI run of the map icon fix to finish
 - 22:34:07 Keep waiting for the CI run of the map icon fix
 - 22:42:15 Keep waiting for the CI run to complete
+- 22:44:27 
+- 22:44:42 Find the Android workflow run that was just queued
+- 22:44:59 Wait for the Android build to finish
+- 22:53:18 Keep waiting for the Android build
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
