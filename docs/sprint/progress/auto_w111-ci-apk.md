@@ -1,6 +1,6 @@
 # w111-ci-apk (running)
 
-agent id af0a48b9b2334ae7d, 528 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T20:41:43.054Z
+agent id af0a48b9b2334ae7d, 547 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T20:45:31.549Z
 
 ## Last notes of the agent
 
@@ -8,13 +8,6 @@ agent id af0a48b9b2334ae7d, 528 events, first activity 2026-11-12T17:49:28.108Z,
 
 ## Recent steps (last 40)
 
-- 19:42:00 Rebase on origin main and push the fix
-- 19:42:15 Inspect branch and remote configuration of the clone
-- 19:42:21 Point main at the fix commit and push it to GitHub
-- 19:42:45 
-- 19:42:46 Check the new CI run and whether the shared tree has overlapping edits
-- 19:42:56 Fast-forward the shared tree to the pushed fix
-- 19:43:06 Run the fixed real fight test twelve more times and check CI progress
 - 19:49:45 Wait for the CI run of the fix commit and check origin head
 - 19:57:18 Wait for the CI run of the fix commit to finish
 - 20:05:32 List flaky and failed tests of every shard in the fix run
@@ -48,6 +41,13 @@ agent id af0a48b9b2334ae7d, 528 events, first activity 2026-11-12T17:49:28.108Z,
 - 20:37:17 Run the vehicle and interior tests against the door-priority change
 - 20:39:44 Repeat the two failing interior gameplay tests three times each
 - 20:41:43 Run the two interior tests without the door-priority change for comparison
+- 20:43:50 Look at the structure of test_interior_gameplay for a place to add a regression check
+- 20:43:54 Read the prompt-and-enter part of the interior gameplay test
+- 20:44:08 Find existing toggle_enter_exit usage in vehicle tests
+- 20:44:11 Read the enter/exit part of test_vehicles
+- 20:44:22 Add a deterministic door-priority check to test_vehicles and run it
+- 20:45:08 Confirm the new check fails without the fix
+- 20:45:31 Run more tests that use car entry to check for regressions
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
