@@ -266,7 +266,9 @@ func _ribbon(f: Dictionary, key: String) -> ArrayMesh:
 		var nr := Vector2(-tg.y, tg.x)
 		var w := width * (0.8 + 0.4 * smoothstep(0.0, 1.0, float(i - start) / float(maxi(n - start, 1))))
 		var fast := 0.35 + 0.65 * (1.0 if key == "up" and i >= n - 3 else 0.0)
-		var y := beds[i] + 0.32
+		var gpre := TerrainHeight.height_pre(pts[i].x, pts[i].y)
+		var steep := clampf((TerrainHeight.slope_at(pts[i].x, pts[i].y) - 0.15) * 3.0, 0.0, 1.0)         # the terrain mesh is too coarse to show a trench on a slope: there the water rides on the ground
+		var y := lerpf(beds[i] + 0.32, gpre + 0.2, steep)
 		for k in 3:
 			var off := (float(k) - 1.0) * w * 0.5
 			var q := pts[i] + nr * off

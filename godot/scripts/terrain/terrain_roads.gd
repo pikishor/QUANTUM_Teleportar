@@ -85,6 +85,7 @@ static func ensure() -> void:
 				_grid[key] = arr
 	RailNet.ensure()                                  # the railway (wave 106) crosses these roads: it is routed and profiled once they are complete
 	OutskirtsSites.ensure()                       # the sites stand where some of the roads end (wave 105)
+	LandscapeSites.ensure()                       # wave 112: waterfalls and airstrips are found once the roads and the site pads exist
 
 
 static func _catmull(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> Vector2:

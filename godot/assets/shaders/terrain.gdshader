@@ -105,7 +105,7 @@ void fragment() {
 	float wet_k = 0.0;
 	float bump_k = 0.30;
 	if (wb > 0.02) {
-		ground = mix(ground, lay2(3, uv * 0.8, gx * 0.8, gy * 0.8), smoothstep(0.1, 0.6, wb));
+		ground = mix(ground, lay2(3, uv * 0.8, gx * 0.8, gy * 0.8) * vec3(1.12, 1.03, 0.88), smoothstep(0.1, 0.6, wb));
 		bump_k = 0.22;
 	}
 	// the swash zone: wet sand up to about 1.6 m above the sea, a damp band over it, a line of pebbles at the top of the beach
@@ -172,6 +172,6 @@ void fragment() {
 	SPECULAR = mix(0.25, 0.5, wet_k);
 	EMISSION = col * (0.075 + 0.085 * (1.0 - night)) * vec3(0.92, 1.0, 1.14);       // sky fill: the shaded side of a hill is lit by the sky, not black
 	if (detail > 0.5) {
-		NORMAL = bump_normal(NORMAL, VERTEX, lumg, bump_k * 0.09);       // the height is in metres: a few centimetres of relief per unit of luminance
+		NORMAL = bump_normal(NORMAL, VERTEX, lumg, bump_k * 0.09 * (1.0 - smoothstep(30.0, 130.0, length(VERTEX))));       // the height is in metres: a few centimetres of relief per unit of luminance
 	}
 }

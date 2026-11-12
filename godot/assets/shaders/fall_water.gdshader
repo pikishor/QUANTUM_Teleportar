@@ -58,6 +58,9 @@ void fragment() {
 		float body = 0.56 + 0.40 * streak;
 		col = mix(vec3(0.70, 0.88, 0.94), foam_col.rgb, clamp(streak * 0.85 + churn + 0.15, 0.0, 1.0));
 		a = clamp(body + churn * 0.5, 0.0, 0.97) * COLOR.a;
+		float ragged_l = vnoise(vec2(down * 0.35 - t * 0.6, 3.0));
+		float ragged_r = vnoise(vec2(down * 0.31 - t * 0.5, 9.0));
+		a *= smoothstep(0.0, 0.3, across + (ragged_l - 0.5) * 0.24) * smoothstep(1.0, 0.7, across + (ragged_r - 0.5) * 0.24);        // ragged soft edges: it is water, not a ribbon
 		a = mix(a, min(a + 0.12, 0.96), wetness);
 		rough = 0.35;
 		spec = 0.3;

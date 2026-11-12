@@ -7,6 +7,8 @@ extends RefCounted
 ##        "cam:px,ph,pz,tx,th,tz"              a free camera at (px, ground+ph, pz) looking at (tx, ground+th, tz)
 ##        "abs:px,py,pz,tx,ty,tz"              a free camera at absolute coordinates
 ##        "fall:i[,lx,ph,lz[,th]]"             a free camera in front of waterfall i (LandscapeSites.falls()): lx across, ph above the pool, lz out from the pool, aimed th above the pool
+##        "river:i,at[,ph]"                    a camera on the bank of river i (WaterLayout.paths) at path point `at`, ph above the bank, looking down the river
+##        "shore:z[,az,ph]"                    a low camera (ph above the sand, default 1.5 m) at the first dry beach sand of the west coast at z, looking along az degrees (0 east, 90 south, 180 the sea)
 ##        "fallv:i[,az,r,ph,th]"               like fall: but placed r m from the pool at az degrees off the downstream direction, ph above the ground, raised until the fall is in clear sight
 ##        "anchor:kind,i[,dist,ph,az]"         a free camera dist m from anchor i of kind turbine / pylon / mast / crane (AnchorSites), seen from azimuth az
 ##        "strip:i[,dist,ph,az]"               a free camera dist m from airstrip i
@@ -83,6 +85,17 @@ func _free_cam(p: Player, pos: Vector3, tgt: Vector3, k: int, fov := 70.0) -> vo
 	p.camera_rig.cine_set(Transform3D(Basis.IDENTITY, pos).looking_at(tgt, Vector3.UP), fov)
 
 
+## True when no scattered tree stands within r metres of (x, z).
+func _clear_of_trees(x: float, z: float, r: float) -> bool:
+	for ci in range(int(floor((x - r) / VegScatter.CELL)), int(floor((x + r) / VegScatter.CELL)) + 1):
+		for cj in range(int(floor((z - r) / VegScatter.CELL)), int(floor((z + r) / VegScatter.CELL)) + 1):
+			var arr := VegScatter.cell(VegScatter.T_TREES, ci, cj)
+			for k in arr.size() / VegScatter.STRIDE:
+				if Vector2(arr[k * VegScatter.STRIDE] - x, arr[k * VegScatter.STRIDE + 2] - z).length() < r:
+					return false
+	return true
+
+
 func _road_point(name: String, s: float) -> Array:
 	for r: Dictionary in TerrainRoads.roads():
 		if String(r["name"]) == name:
@@ -118,6 +131,31 @@ func _apply(p: Player, v: String, k: int) -> void:
 		tgt.y = TerrainHeight.height_at(tgt.x, tgt.z) + float(a2[4])
 		_free_cam(p, pos, tgt, k)
 		return
+	if v.begins_with("river:"):                            # "river:i,at[,ph]": a camera on the bank of river i at path point `at`, ph above the bank, looking down the river
+		var ar := v.substr(6).split(",")
+		var rpath: Dictionary = WaterLayout.paths[int(ar[0])]
+		var rat := clampi(int(ar[1]), 1, (rpath["pos"] as PackedVector2Array).size() - 2)
+		var rpos: Vector2 = (rpath["pos"] as PackedVector2Array)[rat]
+		var rdir: Vector2 = (rpath["dir"] as PackedVector2Array)[rat]
+		var rhw: float = (rpath["hw"] as PackedFloat32Array)[rat]
+		var rph := float(ar[2]) if ar.size() > 2 else 2.0
+		var rside := Vector2(-rdir.y, rdir.x)
+		var rcam := rpos + rside * (rhw + 7.0)
+		var rtar := rpos + rdir * 45.0
+		_free_cam(p, Vector3(rcam.x, TerrainHeight.height_at(rcam.x, rcam.y) + rph, rcam.y), Vector3(rtar.x, TerrainHeight.height_at(rtar.x, rtar.y) + 1.0, rtar.y), k, 75.0)
+		return
+	if v.begins_with("shore:"):                            # "shore:z[,az,ph]": a low camera on the west beach at z, 6 m above the waterline's first dry sand, looking along az degrees (0 = east inland, 90 = south, 180 = the sea)
+		var as_ := v.substr(6).split(",")
+		var sz := float(as_[0])
+		var saz := deg_to_rad(float(as_[1])) if as_.size() > 1 else deg_to_rad(90.0)
+		var sph := float(as_[2]) if as_.size() > 2 else 1.5
+		var sx := -1800.0
+		while sx < -1300.0 and TerrainHeight.height_at(sx, sz) < TerrainHeight.SEA_LEVEL + 1.9:
+			sx += 4.0
+		var sg := TerrainHeight.height_at(sx, sz)
+		var spos := Vector3(sx + 4.0, sg + sph, sz)
+		_free_cam(p, spos, spos + Vector3(cos(saz) * 40.0, -sph * 0.9, sin(saz) * 40.0), k, 75.0)
+		return
 	if v.begins_with("fallv:"):                           # "fallv:i[,az,r,ph,th]": a camera r m from the pool centre at az degrees off the downstream direction, at least ph above the ground, raised until the line of sight to the fall is clear
 		var af := v.substr(6).split(",")
 		var fl := LandscapeSites.falls()
@@ -131,6 +169,11 @@ func _apply(p: Player, v: String, k: int) -> void:
 		var fth := float(af[4]) if af.size() > 4 else float(fw["drop"]) * 0.45
 		var fpc: Vector2 = fw["pool"]
 		var fcp: Vector2 = fpc + (fw["dir"] as Vector2).rotated(faz) * fr
+		for da: float in [0.0, 7.0, -7.0, 14.0, -14.0, 21.0, -21.0, 28.0, -28.0]:                # the first azimuth near the asked one with no tree within 9 m of the camera
+			var trial: Vector2 = fpc + (fw["dir"] as Vector2).rotated(faz + deg_to_rad(da)) * fr
+			if _clear_of_trees(trial.x, trial.y, 9.0):
+				fcp = trial
+				break
 		var fmid: Vector2 = (fw["lip"] as Vector2).lerp(fw["base"], 0.5)
 		var faim := Vector3(fmid.x, float(fw["pool_y"]) + fth, fmid.y)
 		var fcy := TerrainHeight.height_at(fcp.x, fcp.y) + fph
@@ -179,6 +222,11 @@ func _apply(p: Player, v: String, k: int) -> void:
 		var aph := float(a6[3]) if a6.size() > 3 else 6.0
 		var az := float(a6[4]) if a6.size() > 4 else 0.9
 		var cp2 := Vector3(ab.x + cos(az) * ad, 0.0, ab.z + sin(az) * ad)
+		for da2: float in [0.0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9, 1.3, -1.3, 1.8, -1.8, 2.4, -2.4, 3.1]:               # the first azimuth near the asked one with no tree within 10 m of the camera
+			var tp2 := Vector2(ab.x + cos(az + da2) * ad, ab.z + sin(az + da2) * ad)
+			if _clear_of_trees(tp2.x, tp2.y, 10.0):
+				cp2 = Vector3(tp2.x, 0.0, tp2.y)
+				break
 		cp2.y = TerrainHeight.height_at(cp2.x, cp2.z) + aph
 		_free_cam(p, cp2, ab + Vector3(0.0, float(an2["height"]) * 0.55, 0.0), k)
 		return
@@ -194,6 +242,11 @@ func _apply(p: Player, v: String, k: int) -> void:
 		var sph := float(a7[2]) if a7.size() > 2 else 14.0
 		var saz := float(a7[3]) if a7.size() > 3 else 0.7
 		var cp3 := Vector3(sc.x + cos(saz) * sdist, 0.0, sc.y + sin(saz) * sdist)
+		for da3: float in [0.0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9, 1.3, -1.3, 1.8, -1.8, 2.4, -2.4, 3.1]:
+			var tp3 := Vector2(sc.x + cos(saz + da3) * sdist, sc.y + sin(saz + da3) * sdist)
+			if _clear_of_trees(tp3.x, tp3.y, 10.0):
+				cp3 = Vector3(tp3.x, 0.0, tp3.y)
+				break
 		cp3.y = TerrainHeight.height_at(cp3.x, cp3.z) + sph
 		_free_cam(p, cp3, Vector3(sc.x, float(st["y"]) + 3.0, sc.y), k)
 		return

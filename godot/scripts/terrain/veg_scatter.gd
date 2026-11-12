@@ -338,7 +338,7 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 					var kx := x + cos(ka) * kd
 					var kz := z + sin(ka) * kd
 					var kh := TerrainHeight.height_at(kx, kz)
-					if kh < TerrainHeight.SEA_LEVEL + 3.6 or TerrainHeight.water_level_for(kx, kz, kh) != TerrainHeight.NO_WATER or LandscapeSites.inside_strip(kx, kz, 6.0) or float(TerrainRoads.nearest(kx, kz)[0]) < 12.0:
+					if kh < TerrainHeight.SEA_LEVEL + 3.6 or TerrainHeight.water_level_for(kx, kz, kh) != TerrainHeight.NO_WATER or LandscapeSites.inside_strip(kx, kz, 6.0) or LandscapeSites.near_feature(kx, kz, 2.5) or float(TerrainRoads.nearest(kx, kz)[0]) < 12.0:
 						continue
 					var ks := scale * (0.28 + 0.5 * _rs(hh, 50 + kk))
 					out.append_array(PackedFloat32Array([kx, kh - ks * 0.35, kz, _rs(hh, 60 + kk) * TAU, ks, float(ROCK), _rs(hh, 70 + kk), float(int(_rs(hh, 80 + kk) * 3.0) % 3)]))
@@ -350,7 +350,7 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 static func _shore_spot(x: float, z: float, h: float, roll: float, hh: int) -> PackedFloat32Array:
 	var none := PackedFloat32Array()
 	var hy := h - TerrainHeight.SEA_LEVEL
-	var beach := hy >= 0.45 and hy <= 3.3 and TerrainHeight.coast_distance(x, z) < 120.0
+	var beach := hy >= 0.45 and hy <= 3.3 and TerrainHeight.coast_distance(x, z) - TerrainHeight.city_distance(x, z) < 180.0           # coast_distance is the radius of the coastline: the difference is the distance inland of it
 	if not beach:
 		if h < 1.0 or WaterLayout.inland_distance(x, z, 14.0) > 4.5:
 			return none
@@ -369,5 +369,5 @@ static func _shore_spot(x: float, z: float, h: float, roll: float, hh: int) -> P
 	var rnd := _rs(hh, 4)
 	var yaw := _rs(hh, 5) * TAU
 	if beach and hy > 1.4 and _rs(hh, 13) < 0.045:
-		return PackedFloat32Array([x, h - 0.12, z, yaw, 0.85 + rnd * 0.5, float(DRIFT), rnd, float(int(rnd * 2.0) % 2)])
-	return PackedFloat32Array([x, h - 0.03, z, yaw, 0.55 + rnd * 1.1, float(PEBBLE), rnd, float(int(_rs(hh, 9) * 2.0) % 2)])
+		return PackedFloat32Array([x, h - 0.12, z, yaw, 0.7 + rnd * 0.4, float(DRIFT), rnd, float(int(rnd * 2.0) % 2)])
+	return PackedFloat32Array([x, h - 0.03, z, yaw, 0.10 + rnd * 0.22, float(PEBBLE), rnd, float(int(_rs(hh, 9) * 2.0) % 2)])

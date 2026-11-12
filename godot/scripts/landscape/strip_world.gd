@@ -4,11 +4,11 @@ extends Node3D
 ## windsock that swings with the wind (the shader turns it), edge markers with lights that glow at night. The ground itself is the graded terrain (flat, drivable); the aircraft wave
 ## places its planes using `StripWorld.hooks()`.  Nodes sit at the strip centre with a visibility range; none is drawn beyond SHOW m.
 ##   StripWorld.instance.strip_count()   stats()   settle(pos)
-## Names of the strips: DUNE STRIP, HIGHLAND STRIP, SOUTH STRIP (found by LandscapeSites on the flattest corridors).
+## Names of the strips: DUNE STRIP, HIGHLAND STRIP, SOUTH STRIP, FOOTHILL STRIP (found by LandscapeSites on the flattest corridors clear of roads and site pads).
 
 const SHADER := "res://assets/shaders/airstrip.gdshader"
 const SHOW := 1000.0
-const TONES := {&"dune_strip": 1.0, &"highland_strip": 0.0, &"south_strip": 0.45}      ## fresh grass .. dry straw per strip (the shader's `tone`)
+const TONES := {&"dune_strip": 1.0, &"highland_strip": 0.0, &"south_strip": 0.45, &"foothill_strip": 0.15}      ## fresh grass .. dry straw per strip (the shader's `tone`)
 
 static var instance: StripWorld = null
 
@@ -130,7 +130,7 @@ func _build(s: Dictionary) -> Node3D:
 	bs.position = Vector3(0.0, 3.0, 0.0)
 	body.add_child(bs)
 	body.top_level = true
-	body.global_position = Vector3(hp.x, TerrainHeight.height_at(hp.x, hp.y), hp.y)
+	body.position = Vector3(hp.x, TerrainHeight.height_at(hp.x, hp.y), hp.y)                  # top_level: the position is global (global_position needs the tree)
 	root.add_child(body)
 	# the windsock at the other side of the strip
 	var wp := c2 - side * (wid * 0.5 + 14.0) - u * (len_m * 0.12)

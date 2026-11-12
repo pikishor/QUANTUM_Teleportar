@@ -234,8 +234,8 @@ def pine(rng, q):
     h = h0
     wh = 0
     names = ["pine_a", "pine_b"]
-    tuft = 2.9 * q.size_mul
-    step = 1.05 if q is FULL else (1.5 if q is LITE else 1.9)
+    tuft = 2.5 * q.size_mul
+    step = 0.95 if q is FULL else (1.4 if q is LITE else 1.9)
     while h < H - 0.4:
         frac = (h - h0) / (H - h0)
         n_in = 4 if frac < 0.45 else 3
@@ -252,15 +252,19 @@ def pine(rng, q):
             tip = pts[-1]
             dd = _norm(pts[-1] - pts[-2])
             out = _norm(tip - np.array([0, tip[1], 0]))
-            for ci in range(2 if q is FULL else 1):
-                dirc = _norm(dd + UP * 0.9 + (out * 0.2 if ci else 0))
-                right, up = card_frame(np.cross(dirc, out if ci == 0 else np.cross(out, UP)))
-                # the needle fan radiates from the card's bottom edge along `up`; its plane contains the radiating direction
-                up = dirc
-                right = _norm(np.cross(dirc, out)) if ci == 0 else _norm(np.cross(dirc, np.cross(out, UP)))
+            for ci in range(3 if q is FULL else (2 if q is LITE else 1)):
+                # a tuft of three needle fans on a branch tip: one pointing up, two spread to the sides and a little down, so the tuft has volume from every side
+                if ci == 0:
+                    dirc = _norm(dd + UP * 0.9)
+                    right = _norm(np.cross(dirc, out))
+                else:
+                    sgn = 1.0 if ci == 1 else -1.0
+                    side = _norm(np.cross(UP, out))
+                    dirc = _norm(dd * 0.8 + side * sgn * 0.6 + UP * 0.25)
+                    right = _norm(np.cross(dirc, UP))
                 if np.linalg.norm(right) < 0.1:
                     right = perp(dirc)
-                s = tuft * rng.uniform(0.9, 1.15) * (1.0 - 0.18 * frac)
+                s = tuft * rng.uniform(0.9, 1.15) * (1.0 - 0.18 * frac) * (1.0 if ci == 0 else 0.82)
                 base = tip - dirc * 0.12
                 name = names[int(rng.randint(0, 2))]
                 tintv = crown_tint(base + dirc * s * 0.4, cc, R, 0.62)

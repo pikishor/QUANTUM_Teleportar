@@ -1,6 +1,6 @@
 # w111-ci-apk (running)
 
-agent id af0a48b9b2334ae7d, 755 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T22:22:19.624Z
+agent id af0a48b9b2334ae7d, 775 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T22:42:15.055Z
 
 ## Last notes of the agent
 
@@ -8,13 +8,6 @@ agent id af0a48b9b2334ae7d, 755 events, first activity 2026-11-12T17:49:28.108Z,
 
 ## Recent steps (last 40)
 
-- 21:19:45 Read the beam VFX code in quantum_vfx
-- 21:19:51 Read the beam muzzle and trail code in quantum_vfx
-- 21:19:58 Find callers of weapon_shot and read trail
-- 21:20:05 Read the weapon_shot callers in player_weapon
-- 21:20:13 Read the ebeam definition and the beam firing code
-- 21:20:24 Find the soak weapons cycle code
-- 21:20:28 Read how the full bot cycles weapons
 - 21:20:32 Find which soak file defines the weapons phase
 - 21:20:38 Find the weapon rotation in the soak bot
 - 21:20:43 Locate the weapons phase of the full game bot
@@ -48,6 +41,13 @@ agent id af0a48b9b2334ae7d, 755 events, first activity 2026-11-12T17:49:28.108Z,
 - 22:19:27 Read the map section of the director round 2 d test in full
 - 22:19:41 Apply the always-kinds-aware cap check and rerun it twelve times
 - 22:22:16 Check the state of CI round 3 and origin
+- 22:22:37 List the flaky tests of every shard in CI round 3
+- 22:22:52 Commit and push the map icon check fix
+- 22:23:05 Find the CI run for the map icon fix commit
+- 22:23:24 Run the other interior and stealth tests against the final code
+- 22:25:51 Wait for the CI run of the map icon fix to finish
+- 22:34:07 Keep waiting for the CI run of the map icon fix
+- 22:42:15 Keep waiting for the CI run to complete
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

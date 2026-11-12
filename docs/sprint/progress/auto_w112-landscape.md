@@ -1,6 +1,6 @@
 # w112-landscape (running)
 
-agent id a863b7337bfb727f3, 1114 events, first activity 2026-11-12T20:41:36.994Z, last activity 2026-11-12T22:22:19.784Z
+agent id a863b7337bfb727f3, 1341 events, first activity 2026-11-12T20:41:36.994Z, last activity 2026-11-12T22:42:24.573Z
 
 ## Last notes of the agent
 
@@ -9,46 +9,46 @@ agent id a863b7337bfb727f3, 1114 events, first activity 2026-11-12T20:41:36.994Z
 
 ## Recent steps (last 40)
 
-- 22:16:21 Read ground cover look table
-- 22:16:34 Tune road cracks, verge tint and ground cover glow
-- 22:16:41 /home/user/QUANTUM_Teleportar/godot/assets/shaders/terrain_road.gdshader
-- 22:16:42 /home/user/QUANTUM_Teleportar/godot/assets/shaders/terrain_road.gdshader
-- 22:16:43 /home/user/QUANTUM_Teleportar/godot/assets/shaders/terrain.gdshader
-- 22:16:44 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/land_kit.gd
-- 22:16:48 /home/user/QUANTUM_Teleportar/godot/assets/shaders/terrain_road.gdshader
-- 22:16:51 /home/user/QUANTUM_Teleportar/godot/assets/shaders/terrain_road.gdshader
-- 22:16:52 /home/user/QUANTUM_Teleportar/godot/assets/shaders/terrain_road.gdshader
-- 22:16:58 Convert finished it6 frames
-- 22:17:02 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it6/a_001.jpg
-- 22:17:07 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it6/a_002.jpg
-- 22:17:16 Read build_land_trees.py
-- 22:17:21 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/land_kit.gd
-- 22:17:21 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/land_kit.gd
-- 22:17:29 /home/user/QUANTUM_Teleportar/godot/assets/shaders/land_tree.gdshader
-- 22:17:35 Convert newly finished it6 frames
-- 22:17:41 Look at species.py helpers and dead tree generator
-- 22:17:49 Read species.py helper section and build()
-- 22:17:53 See SEEDS/SPECIES tables and rocks.py head
-- 22:18:39 Add the driftwood generator to species.py
-- 22:18:48 Dry-run the tree build with the new drift and pebble pieces
-- 22:19:10 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/anchor_world.gd
-- 22:19:13 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/anchor_world.gd
-- 22:19:22 /home/user/QUANTUM_Teleportar/godot/tools/landscape/rocks.py
-- 22:19:36 /home/user/QUANTUM_Teleportar/godot/assets/shaders/land_rock.gdshader
-- 22:19:41 Open every frame, write 8+ defects per iteration, fix, re-render. it5 found winding bug (roads/strips/falls back faces), 8-bit vertex colour code saturation (props red...
-- 22:19:42 T_SHORE scatter layer, drift_a/b + pebble_a/c meshes in land_trees.glb, rock clusters in T_ROCKS, arch mesh + colliders + anchors kind arch/cliff.
-- 22:19:43 tools/test.sh for test_landscape_dressing, test_outskirts_sites, test_terrain_world, test_water_world, test_bridges_harbour_boats, test_railways_ships, test_airport_ai...
-- 22:19:44 ARCHITECTURE.md section, HANDOFF.md, THIRD_PARTY.md + art_sources/polyhaven_land, progress file, docs/shots/round6/landscape_before_after.jpg (max 12 jpg q80), delete ...
-- 22:19:57 Add the arch generator and factor out the rock finishing pass
-- 22:20:12 Fix arch winding and print arch bounds
-- 22:20:47 Add rock arches and cliff anchors to AnchorSites
-- 22:21:05 Wire arches into AnchorWorld and LandKit
-- 22:21:15 Retry wiring arches into AnchorWorld and LandKit
-- 22:21:22 Rebuild land_trees.glb with drift, pebbles and arches
-- 22:21:56 Add shore layer and rock clusters to VegScatter
-- 22:22:01 Show exact whitespace in cell()
-- 22:22:06 Show exact whitespace at end of cell()
-- 22:22:19 Apply the shore layer and rock cluster edits with correct tabs
+- 22:30:06 Probe the west beach heights
+- 22:30:20 Read coast_distance semantics
+- 22:30:32 Fix coast distance semantics and cluster feature exclusion
+- 22:30:37 Re-run the landscape test
+- 22:31:29 Check which arches were found and why one is missing
+- 22:31:49 Probe candidate arch regions
+- 22:32:02 Move MESA GATE to flat highland
+- 22:32:12 Add a shore camera view to the bot
+- 22:32:31 Render it7 look-dev batch (mountain pass, night rain, sea, beach, falls, arch, strip)
+- 22:32:33 
+- 22:32:33 
+- 22:32:39 Run the outskirts sites test with a longer timeout
+- 22:33:14 Read the pad flatness check
+- 22:33:27 Keep airstrip grading clear of site pads
+- 22:33:35 Re-run outskirts and landscape tests after the strip exclusion change
+- 22:34:52 /home/user/QUANTUM_Teleportar/godot/tests/test_outskirts_sites.gd
+- 22:34:59 Find which site pad is not flat
+- 22:35:24 Probe strips against the two affected sites
+- 22:35:42 Read OutskirtsSites.ensure and TerrainHeight.warm
+- 22:35:59 Check Airport and TerrainRoads readiness flags
+- 22:36:02 Read TerrainRoads.ensure to understand the reentrancy
+- 22:36:33 Make LandscapeSites wait for roads and site pads and keep strips off pads
+- 22:36:41 Probe the sites after the ordering fix
+- 22:37:02 Scan candidate airstrip regions with the corrected exclusions
+- 22:37:28 Scan candidate waterfall regions with road and pad awareness
+- 22:37:57 Move fall and strip regions to places that clear roads and pads
+- 22:38:05 Re-run the outskirts and landscape tests
+- 22:39:29 Convert finished it7 frames
+- 22:39:34 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it7/a_000.jpg
+- 22:39:56 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it7/a_001.jpg
+- 22:40:05 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it7/a_002.jpg
+- 22:40:24 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it7/a_003.jpg
+- 22:40:35 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it7/a_004.jpg
+- 22:40:49 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it7/a_005.jpg
+- 22:40:55 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it7/a_006.jpg
+- 22:41:03 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/it7/a_007.jpg
+- 22:41:20 Find mountain roads and peaks for look-dev views
+- 22:41:50 Rework the pebbles: flatter, lighter, no moss
+- 22:42:10 Road grain fade, warm beach, stream lift and ragged fall edges
+- 22:42:24 Extend the bot with river and tree-free cameras; rebuild trees and import
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

@@ -3,7 +3,7 @@ render_mode diffuse_lambert, specular_schlick_ggx, depth_draw_opaque, cull_back;
 // Rocks and boulders of the landscape (scripts/landscape/land_kit.gd, MultiMesh instances of tools/landscape/rocks.py meshes). No UVs: the terrain's own texture array (limestone,
 // orange strata, dark rock, scree: the same GPU memory as the ground) is mapped tri-planar from the object position, a screen-space bump from its luminance gives every face relief,
 // moss grows on the sunny tops of the low rocks, snow dusts the high ones, rain darkens and glosses them, a sky fill keeps the shade readable.
-// INSTANCE_CUSTOM: r = random, g = dissolve (see land_tree.gdshader), b = the texture layer of the terrain array (4 limestone, 8 strata, 10 dark, 9 scree).
+// INSTANCE_CUSTOM: r = random, g = dissolve (see land_tree.gdshader), b = the texture layer of the terrain array (4 limestone, 8 strata, 10 dark, 9 scree, 3 beach), a = 1 for a pebble.
 #include "res://assets/shaders/land_common.gdshaderinc"
 
 uniform sampler2DArray layers : source_color, repeat_enable, filter_linear_mipmap_anisotropic;
@@ -24,6 +24,7 @@ varying float v_layer;
 varying float v_rnd;
 varying float v_fade;
 varying float v_ao;
+varying float v_pebble;
 
 float vn(vec2 p) {
 	vec2 i = floor(p);
@@ -61,6 +62,7 @@ void vertex() {
 	v_rnd = INSTANCE_CUSTOM.r;
 	v_fade = INSTANCE_CUSTOM.g;
 	v_ao = COLOR.r;
+	v_pebble = INSTANCE_CUSTOM.a;
 }
 
 void fragment() {
@@ -76,13 +78,13 @@ void fragment() {
 	vec3 col = tap(p.zy, l) * bw.x + tap(p.xz, l) * bw.y + tap(p.xy, l) * bw.z;
 	float up = clamp(v_wn.y, 0.0, 1.0);
 	float mn = smoothstep(0.42, 0.78, vn(v_wp.xz * 0.55 + v_rnd * 9.0) * 0.7 + vn(v_pos.xz * 3.1) * 0.3);
-	float moss = up * up * mn * (1.0 - smoothstep(90.0, 170.0, v_wp.y)) * moss_k;
+	float moss = up * up * mn * (1.0 - smoothstep(90.0, 170.0, v_wp.y)) * moss_k * (1.0 - v_pebble);
 	vec3 moss_col = vec3(0.10, 0.18, 0.05) * (0.75 + 0.6 * vn(v_pos.xz * 5.0 + 3.0));
 	col = mix(col, moss_col, moss * 0.85);
 	float snow = smoothstep(snow_start, snow_full, v_wp.y) * smoothstep(0.35, 0.8, up);
 	col = mix(col, vec3(0.86, 0.9, 0.95), snow);
 	float lum = dot(col, vec3(0.3, 0.59, 0.11));
-	col *= v_ao;
+	col *= v_ao * mix(1.0, 1.3, v_pebble);                       // pebbles (INSTANCE_CUSTOM.a = 1) are bleached by the sea: no moss, lighter
 	col *= mix(vec3(1.0), night_grade, night * 0.6);
 	col *= 1.0 - 0.28 * wetness;
 	ALBEDO = col;

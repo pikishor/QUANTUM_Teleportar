@@ -52,6 +52,7 @@ void fragment() {
 	if (kind == 0) {
 		float coarse = fbm(q * vec2(0.9, 0.35));
 		float grain = vnoise(q * 38.0) * 0.55 + vnoise(q * 91.0) * 0.45;           // aggregate
+		grain = mix(0.5, grain, 1.0 - smoothstep(0.012, 0.07, length(fwidth(q))));      // fades out where a pixel covers more than a few grains: at a grazing angle it smeared into streaks
 		float mid = vnoise(q * vec2(3.1, 2.2));
 		col = asphalt * (0.62 + 0.55 * coarse) * (0.82 + 0.36 * grain);
 		// tar patches (repairs): darker, sharp edged

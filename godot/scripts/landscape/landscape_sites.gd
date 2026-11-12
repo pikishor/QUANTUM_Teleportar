@@ -17,15 +17,16 @@ const NO_WATER := -1.0e9
 const POOL_DEPTH := 3.2
 const FALL_REGIONS := [
 	{"name": "HIGHLINE FALLS", "src": &"river", "idx": 0, "at": 96, "r": 190.0},
-	{"name": "NORTH CREEK FALLS", "src": &"river", "idx": 2, "at": 14, "r": 190.0},
+	{"name": "NORTH CREEK FALLS", "src": &"point", "c": Vector2(1000.0, -2200.0), "r": 230.0},
 	{"name": "EASTWATER FALLS", "src": &"river", "idx": 1, "at": 58, "r": 200.0},
-	{"name": "RIDGE VEIL", "src": &"point", "c": Vector2(1700.0, -1560.0), "r": 210.0},
-	{"name": "MIRROR CASCADE", "src": &"point", "c": Vector2(-300.0, -2060.0), "r": 210.0},
+	{"name": "RIDGE VEIL", "src": &"point", "c": Vector2(1800.0, -2200.0), "r": 230.0},
+	{"name": "MIRROR CASCADE", "src": &"point", "c": Vector2(-1000.0, -2200.0), "r": 230.0},
 ]
 const STRIP_REGIONS := [
-	{"name": "DUNE STRIP", "c": Vector2(1560.0, 280.0), "r": 420.0},
-	{"name": "HIGHLAND STRIP", "c": Vector2(1600.0, -1100.0), "r": 420.0},
-	{"name": "SOUTH STRIP", "c": Vector2(1150.0, 1560.0), "r": 340.0},
+	{"name": "DUNE STRIP", "c": Vector2(1600.0, -600.0), "r": 330.0},
+	{"name": "HIGHLAND STRIP", "c": Vector2(1400.0, -1150.0), "r": 330.0},
+	{"name": "SOUTH STRIP", "c": Vector2(2050.0, 1700.0), "r": 330.0},
+	{"name": "FOOTHILL STRIP", "c": Vector2(700.0, -1400.0), "r": 330.0},
 ]
 const STRIP_LEN := 360.0
 const STRIP_WID := 34.0
@@ -53,6 +54,11 @@ static func strips() -> Array:
 static func ensure() -> void:
 	if built:
 		return
+	# TerrainRoads.ensure() calls TerrainHeight.warm() before it has built a single road, and OutskirtsSites.ensure() waits for the roads: searching now would not see the roads or the site
+	# pads. So wait until both exist (warm() and the end of TerrainRoads.ensure() call us again), then the search keeps clear of them.
+	if TerrainRoads.roads_built() < TerrainRoads.DEFS.size() or not OutskirtsSites.built:
+		return
+	Airport.ensure()
 	built = true
 	_falls.clear()
 	_strips.clear()
@@ -109,6 +115,15 @@ static func _region_centre(reg: Dictionary) -> Vector2:
 			var pos: PackedVector2Array = paths[pi]["pos"]
 			return pos[clampi(int(reg["at"]), 0, pos.size() - 1)]
 	return reg.get("c", Vector2.ZERO)
+
+
+## True within `margin` metres beyond the whole pad (flat disc and blend) of any outskirts site.
+static func _near_site(x: float, z: float, margin: float) -> bool:
+	for s: Dictionary in OutskirtsSites.list:
+		var c: Vector3 = s["pos"]
+		if Vector2(x - c.x, z - c.z).length() < float(s["reach"]) + margin:
+			return true
+	return false
 
 
 static func _h(x: float, z: float) -> float:
@@ -183,7 +198,7 @@ static func _find_fall(c: Vector2, rad: float, label: String) -> Dictionary:
 			var rd := TerrainRoads.nearest(pool_c.x, pool_c.y)
 			var rdl := TerrainRoads.nearest(lip.x, lip.y)
 			var road_d := minf(float(rd[0]), float(rdl[0]))
-			if road_d < 40.0 or OutskirtsSites.inside(pool_c.x, pool_c.y, 30.0) >= 0 or OutskirtsSites.inside(lip.x, lip.y, 20.0) >= 0:
+			if road_d < 40.0 or _near_site(pool_c.x, pool_c.y, 34.0) or _near_site(lip.x, lip.y, 24.0):
 				continue
 			if _h(pool_c.x, pool_c.y) < TerrainHeight.SEA_LEVEL + 6.0 or TerrainHeight.water_level_for(pool_c.x, pool_c.y, _h(pool_c.x, pool_c.y)) != TerrainHeight.NO_WATER:
 				continue
@@ -307,7 +322,7 @@ static func _find_strip(c: Vector2, rad: float, label: String) -> Dictionary:
 					for ib: float in [-1.0, 0.0, 1.0]:
 						var q := p + u * a + v * (ib * (STRIP_WID * 0.5 + 8.0))
 						var hq := _h(q.x, q.y)
-						if TerrainHeight.water_level_for(q.x, q.y, hq) != TerrainHeight.NO_WATER or OutskirtsSites.inside(q.x, q.y, 24.0) >= 0 or Airport.inside(q.x, q.y, 80.0):
+						if TerrainHeight.water_level_for(q.x, q.y, hq) != TerrainHeight.NO_WATER or _near_site(q.x, q.y, STRIP_BLEND + 8.0) or Airport.inside(q.x, q.y, 80.0 + STRIP_BLEND):
 							ok = false
 							break
 						lo = minf(lo, hq)
@@ -409,7 +424,7 @@ static func _trench(pts: PackedVector2Array, bed: PackedFloat32Array, p: Vector2
 	return minf(h, lerpf(h, best_bed, w))
 
 
-## True within `margin` metres of a plunge pool or of one of the stream trenches of a waterfall (plants, rocks and props keep clear).
+## True within `margin` metres of a plunge pool, of the falling sheet or of one of the stream trenches of a waterfall (plants, rocks and props keep clear).
 static func near_feature(x: float, z: float, margin := 2.0) -> bool:
 	var nf := _fbound.size() / 3
 	for i in nf:
@@ -420,6 +435,11 @@ static func near_feature(x: float, z: float, margin := 2.0) -> bool:
 		var f: Dictionary = _falls[i]
 		var p := Vector2(x, z)
 		if p.distance_to(f["pool"]) < float(f["pool_r"]) + margin + 1.5:
+			return true
+		var lip: Vector2 = f["lip"]
+		var sheet := (f["base"] as Vector2) - lip                  # the falling sheet: lip to foot, its width and a margin
+		var ts := clampf((p - lip).dot(sheet) / maxf(sheet.length_squared(), 1.0e-6), 0.0, 1.0)
+		if p.distance_to(lip + sheet * ts) < float(f["width"]) * 0.5 + 3.5 + margin:
 			return true
 		for key in ["up", "out"]:
 			var pts: PackedVector2Array = f[key]

@@ -102,6 +102,13 @@ def build(shape, n, seed_off=0, tint_lo=0.62):
     return _finish(P, T, tint_lo)
 
 
+def pebble(shape, n, flat, seed_off=0):
+    """A stone of the shore: the rock squashed to `flat` of its height, rounded (more cuts would make a pyramid of 48 triangles), little ambient-occlusion darkening."""
+    P, T = rock(shape, n, seed_off)
+    P = P * np.array([1.0, flat, 1.0])
+    return _finish(P, T, 0.93)
+
+
 def arch(variant=0):
     """A natural rock arch in metres (wave 112): a thick slab swept along a half ellipse (span 22 m / height 14 m for variant 0, 15 m / 17 m for variant 1), thicker at the feet than at
     the crown, noise-displaced, the feet sunk 1.5 m below y = 0. Local x = the span, y up, z = the depth of the slab. Returns the MeshBuilder; AA = (half span, crown height)."""

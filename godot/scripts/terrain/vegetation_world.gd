@@ -236,7 +236,7 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 	var imp_keep: float = tier["imp_keep"]
 	var imp_grow: float = tier["imp_grow"]
 	var land := _land
-	var radii := [r2 + 20.0, float(tier["shrub"]) + 10.0, float(tier["grass"]) + 10.0, maxf(float(tier["rock"]), 420.0), r2 + 20.0, float(tier["grass"]) * 1.4 + 10.0]
+	var radii := [r2 + 20.0, float(tier["shrub"]) + 10.0, float(tier["grass"]) + 10.0, maxf(float(tier["rock"]), 420.0), r2 + 20.0, float(tier["grass"]) * 1.4 + 10.0, float(tier["grass"]) * 4.6 + 10.0]
 	for layer in VegScatter.LAYERS:
 		for arr: PackedFloat32Array in _cell_list(layer, c, float(radii[layer])):
 			var n := arr.size() / VegScatter.STRIDE
@@ -253,6 +253,17 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 				var g := 0.0                                                # dissolve: + fading out, - fading in
 				var g2 := 0.0                                               # the second LOD present in a crossfade band
 				var lod2 := -1
+				if land and (sp == VegScatter.DRIFT or sp == VegScatter.PEBBLE):                  # the shore: pebbles near, logs of driftwood a bit farther
+					var lims: float = float(tier["grass"]) * (4.6 if sp == VegScatter.DRIFT else 2.0)
+					if d > lims:
+						continue
+					var gsh := maxf(0.0, (d - lims * 0.8) / (lims * 0.2))
+					if sp == VegScatter.DRIFT:
+						_put(out, "drift_%s_%s" % ["a" if variant == 0 else "b", "1" if d > 30.0 else "0"], x, arr[o + 1], z, arr[o + 3], sc, rnd, gsh)
+					else:
+						var pl := 9 if rnd < 0.5 else (4 if rnd < 0.82 else 3)
+						_put(out, "pebble_%s_0" % ["a" if variant == 0 else "c"], x, arr[o + 1], z, arr[o + 3], sc, rnd, gsh, -1.0, -1.0, float(pl), 1.0)
+					continue
 				var is_tree := land and TREE_NAMES.has(sp)
 				if is_tree or sp == VegScatter.PINE or sp == VegScatter.BROAD:
 					if d <= r0 * (1.0 - FADE):
@@ -364,14 +375,14 @@ static func _put_tree(out: Dictionary, nm: String, lod: int, lite: bool, x: floa
 		_put(out, nm + ("_0l" if lite else "_0"), x, y, z, yaw, sc, rnd, g)
 
 
-static func _put(out: Dictionary, slot: String, x: float, y: float, z: float, yaw: float, sc: float, rnd: float, g: float, width := -1.0, hgt := -1.0, cell := 0.0) -> void:
+static func _put(out: Dictionary, slot: String, x: float, y: float, z: float, yaw: float, sc: float, rnd: float, g: float, width := -1.0, hgt := -1.0, cell := 0.0, flag := 0.0) -> void:
 	var buf: PackedFloat32Array = out.get(slot, PackedFloat32Array())
 	var j := 0.92 + 0.16 * rnd
 	var sw := (width if width > 0.0 else 1.0) * sc * j
 	var sh := (hgt if hgt > 0.0 else 1.0) * sc * j
 	var cy := cos(yaw)
 	var sy := sin(yaw)
-	buf.append_array(PackedFloat32Array([cy * sw, 0.0, sy * sw, x, 0.0, sh, 0.0, y, -sy * sw, 0.0, cy * sw, z, rnd, g, cell, 0.0]))
+	buf.append_array(PackedFloat32Array([cy * sw, 0.0, sy * sw, x, 0.0, sh, 0.0, y, -sy * sw, 0.0, cy * sw, z, rnd, g, cell, flag]))
 	out[slot] = buf
 
 

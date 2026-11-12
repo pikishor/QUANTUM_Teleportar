@@ -159,6 +159,50 @@ func _scatter() -> void:
 			var cc2 := pos2[i]
 			reeds += VegScatter.cell(VegScatter.T_REEDS, int(floor(cc2.x / VegScatter.CELL)), int(floor(cc2.y / VegScatter.CELL))).size() / VegScatter.STRIDE
 	TestLib.check(reeds > 5, "reeds grow on the river banks (%d)" % reeds)
+	# the shore: pebbles in clusters and now and then a log of driftwood on the beaches, a few pebbles on river banks
+	var pebbles := 0
+	var logs := 0
+	var off_zone := 0
+	var shore_cells := 0
+	for ci in range(-56, -46):
+		for cj in range(-8, 12):
+			var sa := VegScatter.cell(VegScatter.T_SHORE, ci, cj)
+			if sa.size() > 0:
+				shore_cells += 1
+			for k in sa.size() / VegScatter.STRIDE:
+				var spc := int(sa[k * VegScatter.STRIDE + 5])
+				pebbles += 1 if spc == VegScatter.PEBBLE else 0
+				logs += 1 if spc == VegScatter.DRIFT else 0
+				var sy := sa[k * VegScatter.STRIDE + 1] - TerrainHeight.SEA_LEVEL
+				if sy < 0.2 or sy > 3.6:
+					off_zone += 1
+	TestLib.check(pebbles > 30 and shore_cells >= 3, "pebbles lie on the beach (%d pebbles, %d logs of driftwood in %d cells)" % [pebbles, logs, shore_cells])
+	TestLib.check(off_zone <= (pebbles + logs) / 5, "the shore plants lie in the swash zone of the beach (%d of %d elsewhere: river banks)" % [off_zone, pebbles + logs])
+	var logs_all := 0
+	for ci in range(-56, -44):
+		for cj in range(-50, 50):
+			var sb := VegScatter.cell(VegScatter.T_SHORE, ci, cj)
+			for k in sb.size() / VegScatter.STRIDE:
+				logs_all += 1 if int(sb[k * VegScatter.STRIDE + 5]) == VegScatter.DRIFT else 0
+	TestLib.check(logs_all >= 1, "driftwood lies at the high-water line (%d logs along the west beach)" % logs_all)
+	# boulders come in clusters: small stones within a few metres of a big one
+	var clustered := 0
+	var bigs := 0
+	for ci in range(-60, -40):
+		for cj in range(-90, -60):
+			var ra := VegScatter.cell(VegScatter.T_ROCKS, ci, cj)
+			var n := ra.size() / VegScatter.STRIDE
+			for k in n:
+				var o := k * VegScatter.STRIDE
+				if ra[o + 4] <= 1.5:
+					continue
+				bigs += 1
+				for k2 in n:
+					var o2 := k2 * VegScatter.STRIDE
+					if k2 != k and ra[o2 + 4] < ra[o + 4] * 0.85 and Vector2(ra[o] - ra[o2], ra[o + 2] - ra[o2 + 2]).length() < ra[o + 4] * 3.0:
+						clustered += 1
+						break
+	TestLib.check(bigs > 5 and clustered > bigs / 3, "boulders lie in clusters (%d of %d big rocks have smaller stones round them)" % [clustered, bigs])
 	var grass := _species_in(VegScatter.T_GRASS, [Vector2(-1320.0, -520.0), Vector2(-1250.0, -900.0), Vector2(-700.0, -1300.0), Vector2(300.0, -1300.0)], 4)
 	TestLib.check(int(grass.get(VegScatter.FLOWER, 0)) > 0 and int(grass.get(VegScatter.GRASS, 0)) > 100, "meadows carry grass and wild flowers (%s)" % str(grass))
 
@@ -175,8 +219,22 @@ func _sites_data() -> void:
 		TestLib.check(float(f["drop"]) >= 15.0 and h < pre - 1.0, "%s: a %.0f m drop and a plunge pool carved %.1f m into the ground" % [String(f["name"]), float(f["drop"]), pre - h])
 		TestLib.check(absf(TerrainHeight.water_level_at(pc.x, pc.y) - float(f["pool_y"])) < 0.02 and TerrainHeight.depth_at(pc.x, pc.y) > 2.0, "%s: the pool holds water %.1f m deep (you can swim in it)" % [String(f["name"]), TerrainHeight.depth_at(pc.x, pc.y)])
 		TestLib.check(WaterWorld.surface_y(pc.x, pc.y) > h, "%s: the swim code sees the pool's surface" % String(f["name"]))
+		var lipc: Vector2 = f["lip"]
+		var basec: Vector2 = f["base"]
+		var in_sheet := 0
+		for ci in range(int(floor((minf(lipc.x, basec.x) - 20.0) / VegScatter.CELL)), int(floor((maxf(lipc.x, basec.x) + 20.0) / VegScatter.CELL)) + 1):
+			for cj in range(int(floor((minf(lipc.y, basec.y) - 20.0) / VegScatter.CELL)), int(floor((maxf(lipc.y, basec.y) + 20.0) / VegScatter.CELL)) + 1):
+				for layer in [VegScatter.T_TREES, VegScatter.T_SHRUBS, VegScatter.T_ROCKS, VegScatter.T_SHORE]:
+					var arr := VegScatter.cell(layer, ci, cj)
+					for k in arr.size() / VegScatter.STRIDE:
+						var pp := Vector2(arr[k * VegScatter.STRIDE], arr[k * VegScatter.STRIDE + 2])
+						var sheet := basec - lipc
+						var ts := clampf((pp - lipc).dot(sheet) / maxf(sheet.length_squared(), 1.0e-6), 0.0, 1.0)
+						if pp.distance_to(lipc + sheet * ts) < float(f["width"]) * 0.5 + 1.0:
+							in_sheet += 1
+		TestLib.check(in_sheet == 0, "%s: no tree, bush or rock stands in the falling water (%d)" % [String(f["name"]), in_sheet])
 		var up: PackedVector2Array = f["up"]
-		TestLib.check(up.size() >= 8 and (f["out"] as PackedVector2Array).size() >= 2, "%s has a stream above its lip and an outflow" % String(f["name"]))
+		TestLib.check(up.size() >= 8 and (f["out"] as PackedVector2Array).size() >= 1, "%s has a stream above its lip and an outflow that starts at the pool" % String(f["name"]))
 	var strips := LandscapeSites.strips()
 	TestLib.check(strips.size() >= 3, "three grass airstrips were found (%d)" % strips.size())
 	for s: Dictionary in strips:
@@ -210,13 +268,34 @@ func _sites_data() -> void:
 			if not q.has("gap"):
 				pyl += 1
 	TestLib.check(pyl >= 12 and AnchorSites.masts().size() >= 2 and AnchorSites.cranes().size() >= 1, "pylon lines (%d), radio masts (%d), quarry cranes (%d)" % [pyl, AnchorSites.masts().size(), AnchorSites.cranes().size()])
+	var towers := 0
 	var tall := 0
+	var arches := 0
+	var cliffs := 0
 	for an: Dictionary in AnchorSites.all_anchors():
-		if float(an["height"]) >= 38.0:
-			tall += 1
-		var b: Vector3 = an["base"]
-		TestLib.check(TerrainHeight.water_level_for(b.x, b.z, b.y) == TerrainHeight.NO_WATER or b.y > 0.0, "anchor %s stands on dry land" % String(an["name"])) if false else null
-	TestLib.check(tall == AnchorSites.all_anchors().size() and tall >= 20, "every anchor is tall (%d of %d at least 38 m)" % [tall, AnchorSites.all_anchors().size()])
+		var kind := StringName(an["kind"])
+		var hh := float(an["height"])
+		if kind == &"arch":
+			arches += 1
+			tall += 1 if hh >= 14.0 else 0
+		elif kind == &"cliff":
+			cliffs += 1
+			tall += 1 if hh >= 15.0 else 0
+		else:
+			towers += 1
+			tall += 1 if hh >= 38.0 else 0
+	TestLib.check(tall == AnchorSites.all_anchors().size() and towers >= 20, "every anchor is tall: %d towers of 38 m and more, %d rock arches of 14 m and more, %d waterfall cliffs of 15 m and more" % [towers, arches, cliffs])
+	TestLib.check(arches >= 2 and cliffs >= 3, "rock arches (%d) and cliffs (%d) are anchors too" % [arches, cliffs])
+	for ar: Dictionary in AnchorSites.arches():
+		var ap: Vector3 = ar["pos"]
+		var lo := 1.0e9
+		var hi := -1.0e9
+		for da: float in [-14.0, 0.0, 14.0]:
+			for db: float in [-8.0, 0.0, 8.0]:
+				var hq := TerrainHeight.height_at(ap.x + da, ap.z + db)
+				lo = minf(lo, hq)
+				hi = maxf(hi, hq)
+		TestLib.check(TerrainHeight.water_level_for(ap.x, ap.z, ap.y) == TerrainHeight.NO_WATER and hi - lo < 6.0, "%s stands on dry, gentle ground (%.1f m of relief)" % [String(ar["name"]), hi - lo])
 
 
 func _shaders() -> void:
@@ -350,9 +429,28 @@ func _anchors_live(host: Node) -> void:
 	await TestLib.frames(host, 4)
 	var solid := 0
 	for ch in aw.get_children():
-		if ch is StaticBody3D and (ch as StaticBody3D).global_position.y > -1000.0 and (ch as StaticBody3D).global_position.distance_to(tp) < 12.0:
+		if ch is StaticBody3D and (ch as StaticBody3D).global_position.y > -1000.0 and Vector2((ch as StaticBody3D).global_position.x - tp.x, (ch as StaticBody3D).global_position.z - tp.z).length() < 6.0:
 			solid += 1
 	TestLib.check(solid >= 1, "the tower next to the hero is solid (%d collider)" % solid)
+	var space := city.get_world_3d().direct_space_state
+	var arch_nodes := 0
+	for ar: Dictionary in AnchorSites.arches():
+		var site := aw.get_node_or_null(NodePath(String(ar["id"]))) as Node3D
+		if site == null:
+			continue
+		arch_nodes += 1
+		var body := site.get_node_or_null("ArchBody") as StaticBody3D
+		var shape := (body.get_child(0) as CollisionShape3D).shape if body != null else null
+		TestLib.check(shape is ConcavePolygonShape3D and (shape as ConcavePolygonShape3D).get_faces().size() / 3 >= 700, "%s is solid (an exact mesh collider)" % String(ar["name"]))
+		var ap: Vector3 = ar["pos"]
+		var u := Vector3(cos(float(ar["yaw"])), 0.0, sin(float(ar["yaw"])))
+		var h1 := space.intersect_ray(PhysicsRayQueryParameters3D.create(ap + u * -45.0 + Vector3(0.0, 4.0, 0.0), ap + u * 45.0 + Vector3(0.0, 4.0, 0.0), Game.L_WORLD))
+		var h2 := space.intersect_ray(PhysicsRayQueryParameters3D.create(ap + Vector3(0.0, 2.5, 0.0), ap + Vector3(0.0, 45.0, 0.0), Game.L_WORLD))
+		var side_d := (h1["position"] as Vector3).distance_to(ap + Vector3(0.0, 4.0, 0.0)) if not h1.is_empty() else -1.0
+		var roof := (h2["position"] as Vector3).y - ap.y if not h2.is_empty() else -1.0
+		TestLib.check(side_d > 3.0 and side_d < 24.0, "%s: a ray along the span meets its pillar %.1f m from the middle" % [String(ar["name"]), side_d])
+		TestLib.check(roof > 6.5 and roof < 20.0, "%s: you can pass under it, the crown is %.1f m above the ground" % [String(ar["name"]), roof])
+	TestLib.check(arch_nodes >= 2, "the rock arches are built (%d)" % arch_nodes)
 	var heads := aw.get_child(0).get_node_or_null("turbine_head") as MultiMeshInstance3D
 	TestLib.check(heads != null and heads.multimesh.instance_count >= 2 and heads.visibility_range_end > 500.0, "the turbine heads are one multimesh with a visibility range")
 	var sites := 0
@@ -371,12 +469,12 @@ func _wind_follows_weather(host: Node) -> void:
 	if weather == null:
 		return
 	weather.set_state(&"clear", true)
-	var calm := await _wait_counter(host, func() -> bool: return LandClimate.strength() < 0.48, 40.0)
+	var calm := await _wait_counter(host, func() -> bool: return LandClimate.strength() < 0.56, 40.0)
 	var s_clear := LandClimate.strength()
 	weather.set_state(&"storm", true)
-	var wild := await _wait_counter(host, func() -> bool: return LandClimate.strength() > 0.95, 40.0)
+	var wild := await _wait_counter(host, func() -> bool: return LandClimate.strength() > 1.2, 40.0)
 	var s_storm := LandClimate.strength()
-	TestLib.check(calm and wild and s_storm > s_clear + 0.5, "the wind follows the weather: %.2f in clear air, %.2f in a storm" % [s_clear, s_storm])
+	TestLib.check(calm and wild and s_storm > s_clear + 0.6, "the wind follows the weather: %.2f in clear air, %.2f in a storm" % [s_clear, s_storm])
 	var v := LandClimate.vec()
 	TestLib.check(absf(Vector2(v.x, v.z).length() - 1.0) < 0.02, "the wind direction is a unit vector")
 	weather.set_state(&"clear", true)

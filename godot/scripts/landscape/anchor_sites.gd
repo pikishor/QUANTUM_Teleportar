@@ -27,7 +27,7 @@ const MAST_REGIONS := [
 const ARCH_REGIONS := [
 	{"name": "SUNGATE ARCH", "c": Vector2(1750.0, 650.0), "r": 340.0, "variant": 0, "layer": 8},
 	{"name": "TIDEMARK ARCH", "c": Vector2(-1500.0, 480.0), "r": 420.0, "variant": 1, "layer": 4, "coast": true},
-	{"name": "MESA GATE", "c": Vector2(2050.0, -1250.0), "r": 320.0, "variant": 0, "layer": 8},
+	{"name": "MESA GATE", "c": Vector2(1100.0, -1100.0), "r": 330.0, "variant": 0, "layer": 8},
 ]
 const ARCH_H := [16.0, 18.0]                          ## crown height of the two arch meshes (tools/landscape/rocks.py arch())
 const ARCH_HALF := [11.0, 7.6]                        ## half span of the centre line of the two meshes
@@ -243,7 +243,7 @@ static func _build_arches() -> void:
 						continue
 					var score := (hi - lo) * 3.0
 					if bool(rd.get("coast", false)):
-						score += TerrainHeight.coast_distance(p.x, p.y) * 0.02
+						score += maxf(0.0, TerrainHeight.coast_distance(p.x, p.y) - TerrainHeight.city_distance(p.x, p.y)) * 0.02       # the distance inland of the coastline
 					if score < best_score:
 						best_score = score
 						best = {"p": p, "yaw": yaw, "y": lo + 0.3}
