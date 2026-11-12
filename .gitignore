@@ -44,3 +44,4 @@ godot/android/.build_version
 # raw downloads of tools/materials/fetch_polyhaven.py (the packed result is committed)
 godot/assets_incoming/polyhaven_raw/
 godot/assets_incoming/terrain_raw/
+godot/assets_incoming/land_raw/

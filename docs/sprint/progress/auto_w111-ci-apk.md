@@ -1,6 +1,6 @@
 # w111-ci-apk (running)
 
-agent id af0a48b9b2334ae7d, 581 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T21:05:12.273Z
+agent id af0a48b9b2334ae7d, 687 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T21:30:55.491Z
 
 ## Last notes of the agent
 
@@ -8,46 +8,46 @@ agent id af0a48b9b2334ae7d, 581 events, first activity 2026-11-12T17:49:28.108Z,
 
 ## Recent steps (last 40)
 
-- 20:15:03 Read how interact is shared between cars and doors
-- 20:15:27 Read the interior door prompt and USE handling
-- 20:15:40 Find query APIs for kerb cars near a position
-- 20:15:57 Look at the tails of the other failing local interior test logs
-- 20:16:07 Check the clone's class cache health
-- 20:18:16 
-- 20:18:18 Stop the hanging test and check for leftover Godot processes
-- 20:18:27 Check disk space, scratchpad contents and the clone state
-- 20:18:36 Re-copy the import cache into the clone
-- 20:18:44 Re-import the project in the clone and smoke test it
-- 20:19:20 Instrument the interior bot and rerun to see why door entry fails
-- 20:24:46 Show the CI log context before the infiltrate failure
-- 20:24:52 Read the infiltrate part of the interior tasks test
-- 20:25:11 Rerun the interior test with an isolated user data directory
-- 20:29:01 See which source files the other agents have modified in the shared tree
-- 20:29:23 Check which hunks of vehicle_manager.gd the other agents changed
-- 20:29:35 Find tests that press interact or toggle car entry
-- 20:29:43 Apply the door-priority fix and rerun the interior test six times
-- 20:37:11 Restore the interior bot and add failure reasons to the walk checks
-- 20:37:17 Run the vehicle and interior tests against the door-priority change
-- 20:39:44 Repeat the two failing interior gameplay tests three times each
-- 20:41:43 Run the two interior tests without the door-priority change for comparison
-- 20:43:50 Look at the structure of test_interior_gameplay for a place to add a regression check
-- 20:43:54 Read the prompt-and-enter part of the interior gameplay test
-- 20:44:08 Find existing toggle_enter_exit usage in vehicle tests
-- 20:44:11 Read the enter/exit part of test_vehicles
-- 20:44:22 Add a deterministic door-priority check to test_vehicles and run it
-- 20:45:08 Confirm the new check fails without the fix
-- 20:45:31 Run more tests that use car entry to check for regressions
-- 20:49:12 Commit and push the door priority fix
-- 20:49:28 
-- 20:49:40 Show the first-attempt failures of the three other flaky tests in the last round
-- 20:49:51 Read the shooting accuracy failure context in CI
-- 20:49:58 Read the projectile accuracy part of test_shooting_accuracy
-- 20:50:08 Read the map icon cap check in director round 2 d
-- 20:50:14 Read the soak error log of the flaky full quick test
-- 20:50:27 Prepare the vehicle freeze for the shooting accuracy test and run it locally
 - 20:54:40 Compare shooting accuracy flake rate with and without the vehicle freeze
 - 21:04:55 Check CI progress and the background shooting accuracy runs
 - 21:05:12 Wait for the CI run of the door priority fix to finish
+- 21:10:18 List flaky and failed tests of every shard in the second fix run
+- 21:10:31 Show the interior test failures in the latest CI round
+- 21:10:36 Read the shooting accuracy comparison results
+- 21:10:44 Read the stealth job helper of the interior tasks test
+- 21:10:50 Read calm_guards and the stealth start conditions
+- 21:10:53 Locate the stealth script class and read can_start
+- 21:10:57 Find the stealth run start logic
+- 21:11:01 Read the stealth runner can_start and start
+- 21:11:10 Check whether the interior bot disables the encounter director
+- 21:11:19 Find users of the interior bot and how other tests disable the director
+- 21:11:38 Show the CI log lines before the infiltrate stealth failure
+- 21:11:56 Read the guard awareness logic
+- 21:12:05 Check the guard lose-sight timing constants
+- 21:12:52 Show why test_full_quick failed its first attempt in the second round
+- 21:12:58 Read the soak error log of the full quick test in round 2
+- 21:13:08 Run test_full_quick locally and look for the non-finite transform error
+- 21:14:13 Repeat test_full_quick locally to catch the non-finite error
+- 21:19:34 Find the first non-finite error in the CI log with its backtrace
+- 21:19:40 Find the energy beam weapon code
+- 21:19:45 Read the beam VFX code in quantum_vfx
+- 21:19:51 Read the beam muzzle and trail code in quantum_vfx
+- 21:19:58 Find callers of weapon_shot and read trail
+- 21:20:05 Read the weapon_shot callers in player_weapon
+- 21:20:13 Read the ebeam definition and the beam firing code
+- 21:20:24 Find the soak weapons cycle code
+- 21:20:28 Read how the full bot cycles weapons
+- 21:20:32 Find which soak file defines the weapons phase
+- 21:20:38 Find the weapon rotation in the soak bot
+- 21:20:43 Locate the weapons phase of the full game bot
+- 21:20:47 Read the full bot weapons activity
+- 21:20:55 Find the alt-fire quick weapon code
+- 21:20:59 Read the alt-fire code including the quick beam
+- 21:21:08 Read how test_full_quick starts the full game bot
+- 21:21:21 Run the weapons-only soak with several seeds to find the non-finite transform
+- 21:26:26 Disable the director in the interior bot and let stealth jobs forget alerted guards
+- 21:26:32 Run the interior tasks test with the new bot changes
+- 21:30:55 Instrument the door entry again to catch the remaining failure
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

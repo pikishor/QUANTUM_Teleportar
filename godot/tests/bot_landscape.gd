@@ -33,6 +33,9 @@ func step(_t: float, _d: float) -> bool:
 		if Encounters.current != null:
 			Encounters.current.enabled = false
 		var city := Game.world as City
+		if city != null and city.terrain != null and OS.get_environment("LS_DEBUG") == "1":
+			var tm: ShaderMaterial = city.terrain._mat
+			print("LS_DEBUG tex_k=", tm.get_shader_parameter(&"tex_k"), " layers=", tm.get_shader_parameter(&"layers"), " detail=", tm.get_shader_parameter(&"detail"), " quality=", Game.quality)
 		var hour := float(OS.get_environment("LS_HOUR")) if OS.get_environment("LS_HOUR") != "" else 12.0
 		if city != null and city.day_night != null:
 			city.day_night.frozen = true
