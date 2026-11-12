@@ -84,6 +84,7 @@ var _unstick_t := 0.0
 var _unstick_dir := 1.0
 var kit: StringName = &"rifleman"       ## squad kit of the roster look (TacticsTable.KITS): set by set_kit() when the director spawns the trooper
 var kit_set := false                    ## the director gave this trooper a squad kit (spawn with a look)
+var squad_job := false                  ## the director gave this trooper a squad role (set_squad_role), with a kit or without (a backup): the director's squad fights to the end, it never retreats
 var kit_speed := 1.0
 var kit_range := 1.0
 var kit_hp := 1.0
@@ -223,6 +224,7 @@ func _on_activate() -> void:
 	faction = TacticsTable.faction_for(type, gm.chapter_now() if gm != null else 0, randf())
 	kit = &"rifleman"
 	kit_set = false
+	squad_job = false
 	kit_speed = 1.0
 	kit_range = 1.0
 	kit_hp = 1.0
@@ -435,6 +437,7 @@ func assign_flank(side: float, seconds := 8.0) -> void:
 ## final: the squad call that normally hands the roles out is skipped (`_called`), and the other specialists simply rush.
 func set_squad_role(role: StringName, side: float) -> void:
 	_called = true
+	squad_job = true
 	if not uses_tactics():
 		rush = true
 		return
@@ -503,7 +506,7 @@ func _tactics(delta: float, ux: float, uz: float, d: float, speed: float, rng: f
 		var mgr := Game.enemies as EnemyManager
 		if mgr != null:
 			mgr.call_reinforcement(self)
-	var retreat_hp := float(_row("retreat_hp")) if not kit_set else 0.0         # the director's squad fights to the end (a wounded straggler walking away held a wave open for 35 s)
+	var retreat_hp := float(_row("retreat_hp")) if not (kit_set or squad_job) else 0.0         # the director's squad fights to the end, backups included (a wounded straggler walking away held a wave open for 35 s: the last one of a wave hid behind his cover for good, the director's pressure kept clearing his cover state and he stood there until WAVE_MAX)
 	if frac < retreat_hp and retreat_hp > 0.0 and _regroup_immune <= 0.0 and not _retreating:
 		_retreating = true
 		_retreat_t = 0.0

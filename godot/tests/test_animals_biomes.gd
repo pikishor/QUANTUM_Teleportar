@@ -251,7 +251,7 @@ func _biomes(_host: Node) -> void:
 		"forest": [FOREST, [&"deer", &"boar", &"fox", &"wolf", &"goat", &"songbird", &"eagle"]],
 		"mountain": [MOUNTAIN, [&"goat", &"wolf", &"fox", &"deer", &"eagle", &"songbird"]],
 		"desert": [DESERT, [&"coyote", &"zebra", &"fox", &"lizard", &"eagle", &"songbird", &"dolphin", &"shark", &"whale", &"seagull"]],
-		"plains": [PLAINS, [&"deer", &"fox", &"coyote", &"sheep", &"cow", &"horse", &"songbird", &"eagle", &"lizard", &"fish"]],
+		"plains": [PLAINS, [&"deer", &"fox", &"coyote", &"sheep", &"cow", &"horse", &"zebra", &"songbird", &"eagle", &"lizard", &"fish"]],       # zebra: about 4 in 10 points of the plains' spawn ring lie in the desert, where the zebras live (an animal's species follows the biome under ITS spawn point)
 		"beach": [BEACH, [&"seagull", &"fox", &"dolphin", &"shark", &"whale", &"deer", &"boar", &"wolf", &"songbird", &"eagle", &"goat"]],
 	}
 	for k in spots:
@@ -630,7 +630,8 @@ func _hunting(host: Node, prog: Progress) -> void:
 	TestLib.check(WildlifeWorld.total_kills == kills0 + 1, "exactly one kill counted")
 	if prog != null:
 		TestLib.check(prog.credits >= credits0 + int(AnimalSpecies.data(&"deer")["bounty"]), "the bounty is paid (%d -> %d CR)" % [credits0, prog.credits])
-	TestLib.check(deer.dissolve > 0.0 or not w.critters.has(deer), "the body dissolves into quantum dust")
+	var dissolving := await _wait(host, func(): return deer.dissolve > 0.0 or not w.critters.has(deer), 1.0)       # the first dissolve step runs in the world's next _process: the frame of the kill may end before it
+	TestLib.check(dissolving, "the body dissolves into quantum dust")
 	var released := await _wait(host, func(): return not w.critters.has(deer), 4.0)
 	TestLib.check(released, "the dust settles and the body returns to the pool")
 	TestLib.check(int(w.stats()["pooled"]) >= 1, "pooled bodies wait for the next animal")

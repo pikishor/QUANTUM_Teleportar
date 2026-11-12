@@ -7,7 +7,11 @@ extends RefCounted
 ##  * a hero (tests/real_fight_bot.gd, the real input actions and camera) strafes while he fires, backs off, drops targets that duck behind cars, and wins;
 ##  * a grenadier lobs a grenade you can see (ball, landing ring as wide as the blast, fuse) that explodes where the ring said;
 ##  * readability: a trooper far from the camera glows in his role colour and is drawn bigger (hit shapes follow); a hit flashes the body; a kill ends in the DEAD pose.
+##  * the director's squad fights to the end, backups included: a wounded trooper of the squad never turns into the retreating straggler that held a wave open until the wave timeout.
 ## Frames of the same script: tests/bot_real_fight.gd (docs/shots/slice/real_fight_*.jpg). Time runs 4x (time_scale and tick rate together); every wait is in game seconds.
+## The street's moving life (road traffic and the crowd) stands still while this runs: the test is about the troopers. A road car that crept into the standing hero pushed him 10 m towards
+## the grenadier, out of its 9-26 m throw range, and a walker or a car crossing the line of fire is a random blocker. The parked cars, the starter car and the props stay: they are the
+## real cover and the real line-of-sight blockers.
 ## Run: tools/test.sh tests/test_real_fight.gd
 
 const RealFightBot := preload("res://tests/real_fight_bot.gd")
@@ -47,10 +51,16 @@ func run(host: Node) -> void:
 	if Game.story != null and Game.story.get("tutorial") != null:
 		Game.story.tutorial.set("active", false)
 	_p.weapon.switch_to(&"carbine", true)
+	if Game.vehicles != null:
+		Game.vehicles.set_physics_process(false)         # the road traffic stands still (see the header); the manager is not needed by anything below
+	var city := Game.world as City
+	if city != null and city.ambient != null:
+		city.ambient.set_process(false)                  # the crowd and the near traffic stand still (the same freeze as tests/test_shooting_accuracy.gd)
 	Engine.time_scale = K
 	Engine.physics_ticks_per_second = 60 * K
 
 	await _test_readability(host)
+	await _test_squad_fights_on(host)
 	await _test_grenade(host)
 	await _test_director_fight(host)
 
@@ -184,6 +194,35 @@ func _test_readability(host: Node) -> void:
 	d.damage(1.0e6, true)
 	await _wait(host, 0.6)
 	TestLib.check(d.dead and d.hanim != null and d.hanim.state == HumanoidAnim.State.DEAD, "a kill ends in the DEAD pose")
+	_mgr.clear()
+
+
+## The director's squad fights to the end, a backup (no roster look, so no kit) included. Found by CI: the last trooper of a wave was a wounded backup who retreated to cover for good (the
+## director's pressure cleared his cover state every frame, he found the same cover again and stood still) and held the wave open until the wave timeout, 30+ s behind a wall.
+func _test_squad_fights_on(host: Node) -> void:
+	_mgr.clear()
+	_enc.enabled = false
+	_p.invuln = 5.0
+	var pp := _p.global_position
+	var fwd := -_p.camera_rig.camera.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var backup := _mgr.spawn(&"operative", pp + fwd * 14.0, true, true, &"", -1) as Operative     # what the director's backup is: a look-less trooper with a squad role
+	var plain := _mgr.spawn(&"operative", pp - fwd * 14.0, true, true, &"", -1) as Operative      # the street's own patrol member: no squad role
+	if backup == null or plain == null:
+		TestLib.check(false, "two troopers can be spawned")
+		_mgr.clear()
+		return
+	backup.set_squad_role(&"pusher", 1.0)
+	TestLib.check(backup.squad_job and not backup.kit_set and not plain.squad_job, "a backup has a squad role but no kit; a patrol member has neither")
+	for o: Operative in [backup, plain]:
+		o.faction = TacticsTable.OBSERVER                # the disciplined corps retreats at 25 % health (a faction the director's squads and the patrols can both be)
+		o.hp = o.max_hp * 0.1
+	await _wait(host, 1.5, func() -> bool:
+		backup.hp = backup.max_hp * 0.1
+		return plain.is_retreating())
+	TestLib.check(plain.is_retreating(), "a wounded patrol member still retreats (the street keeps its tactics)")
+	TestLib.check(not backup.is_retreating(), "a wounded trooper of the director's squad fights on instead of retreating")
 	_mgr.clear()
 
 
