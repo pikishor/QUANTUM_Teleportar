@@ -1,6 +1,6 @@
 # w111-ci-apk (running)
 
-agent id af0a48b9b2334ae7d, 714 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T21:57:14.221Z
+agent id af0a48b9b2334ae7d, 755 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T22:22:19.624Z
 
 ## Last notes of the agent
 
@@ -8,19 +8,6 @@ agent id af0a48b9b2334ae7d, 714 events, first activity 2026-11-12T17:49:28.108Z,
 
 ## Recent steps (last 40)
 
-- 21:10:57 Find the stealth run start logic
-- 21:11:01 Read the stealth runner can_start and start
-- 21:11:10 Check whether the interior bot disables the encounter director
-- 21:11:19 Find users of the interior bot and how other tests disable the director
-- 21:11:38 Show the CI log lines before the infiltrate stealth failure
-- 21:11:56 Read the guard awareness logic
-- 21:12:05 Check the guard lose-sight timing constants
-- 21:12:52 Show why test_full_quick failed its first attempt in the second round
-- 21:12:58 Read the soak error log of the full quick test in round 2
-- 21:13:08 Run test_full_quick locally and look for the non-finite transform error
-- 21:14:13 Repeat test_full_quick locally to catch the non-finite error
-- 21:19:34 Find the first non-finite error in the CI log with its backtrace
-- 21:19:40 Find the energy beam weapon code
 - 21:19:45 Read the beam VFX code in quantum_vfx
 - 21:19:51 Read the beam muzzle and trail code in quantum_vfx
 - 21:19:58 Find callers of weapon_shot and read trail
@@ -48,6 +35,19 @@ agent id af0a48b9b2334ae7d, 714 events, first activity 2026-11-12T17:49:28.108Z,
 - 21:56:45 Inspect the remaining infiltrate failure and the leave by door helper
 - 21:57:00 Commit and push the third round of CI fixes
 - 21:57:14 Run test_full_quick eight more times locally to catch the non-finite error
+- 22:05:26 Find the CI run for the third fix commit
+- 22:05:33 Wait for the CI run of the third fix to finish
+- 22:13:51 Show the shard 0 failure of the third CI round
+- 22:13:58 Check the shard 0 job state and log size
+- 22:14:06 
+- 22:14:14 Download the shard 0 log through the API and list the failure
+- 22:14:29 Run the director round 2 d test locally to see the map icon failure rate
+- 22:15:52 Read the map marker LOD selection and the cap function
+- 22:16:04 Print the marker kinds shown at zoom 1 in passing and failing runs
+- 22:17:05 Print the marker kinds at zoom 1 (fixed debug print)
+- 22:19:27 Read the map section of the director round 2 d test in full
+- 22:19:41 Apply the always-kinds-aware cap check and rerun it twelve times
+- 22:22:16 Check the state of CI round 3 and origin
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

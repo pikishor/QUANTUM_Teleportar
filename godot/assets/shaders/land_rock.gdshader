@@ -90,6 +90,6 @@ void fragment() {
 	SPECULAR = 0.2 + 0.2 * wetness;
 	EMISSION = col * (0.07 + 0.08 * (1.0 - night)) * vec3(0.92, 1.0, 1.14);
 	if (detail > 0.5) {
-		NORMAL = bump_normal(NORMAL, VERTEX, lum, 26.0 * (1.0 - 0.7 * moss));
+		NORMAL = bump_normal(NORMAL, VERTEX, lum, 0.11 * (1.0 - 0.7 * moss));
 	}
 }

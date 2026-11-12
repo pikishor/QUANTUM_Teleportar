@@ -87,6 +87,17 @@ def main():
             meshes["rock_%s_0" % shape] = rocks.build(shape, 8)
             meshes["rock_%s_1" % shape] = rocks.build(shape, 4)
             print("rock_%s  tris %d / %d" % (shape, meshes["rock_%s_0" % shape].tri_count(), meshes["rock_%s_1" % shape].tri_count()))
+    if not only or "rocks" in only or a.only == "":
+        for var, tag in ((0, "a"), (1, "b")):                              # washed-up logs for the beaches (two shapes, near and far) and the pebbles of the shore (48 triangles)
+            meshes["drift_%s_0" % tag] = sp.build("drift", "0", var)
+            meshes["drift_%s_1" % tag] = sp.build("drift", "1", var)
+            print("drift_%s  tris %d / %d" % (tag, meshes["drift_%s_0" % tag].tri_count(), meshes["drift_%s_1" % tag].tri_count()))
+        for shape in ("a", "c"):
+            meshes["pebble_%s_0" % shape] = rocks.build(shape, 2)
+            print("pebble_%s  tris %d" % (shape, meshes["pebble_%s_0" % shape].tri_count()))
+        for var, tag in ((0, "a"), (1, "b")):                              # the rock arches of the anchors (22 m and 15 m span)
+            meshes["arch_%s" % tag] = rocks.arch(var)
+            print("arch_%s  tris %d" % (tag, meshes["arch_%s" % tag].tri_count()))
     if not a.no_write:
         os.makedirs(a.out_models, exist_ok=True)
         os.makedirs(a.out_tex, exist_ok=True)

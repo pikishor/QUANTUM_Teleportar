@@ -55,9 +55,9 @@ void fragment() {
 		float lip = smoothstep(0.10, 0.0, r);
 		float foot = smoothstep(0.80, 1.0, r);
 		float churn = (lip * 0.8 + foot) * (0.55 + 0.45 * vnoise(vec2(across * 14.0, t * 3.0 + down * 0.4)));
-		float body = 0.30 + 0.42 * streak;
-		col = mix(vec3(0.62, 0.84, 0.92), foam_col.rgb, clamp(streak * 0.7 + churn, 0.0, 1.0));
-		a = clamp(body + churn * 0.5, 0.0, 0.94) * COLOR.a;
+		float body = 0.56 + 0.40 * streak;
+		col = mix(vec3(0.70, 0.88, 0.94), foam_col.rgb, clamp(streak * 0.85 + churn + 0.15, 0.0, 1.0));
+		a = clamp(body + churn * 0.5, 0.0, 0.97) * COLOR.a;
 		a = mix(a, min(a + 0.12, 0.96), wetness);
 		rough = 0.35;
 		spec = 0.3;
@@ -114,5 +114,5 @@ void fragment() {
 	if (mode != 0) {
 		NORMAL = normalize((VIEW_MATRIX * vec4(nrm, 0.0)).xyz);
 	}
-	EMISSION = col * (0.13 + 0.07 * night);
+	EMISSION = col * ((mode == 0 ? 0.30 : 0.13) + 0.07 * night);
 }

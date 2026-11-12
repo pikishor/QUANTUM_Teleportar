@@ -9,7 +9,7 @@ import math
 
 import numpy as np
 
-from mb import MeshBuilder, _norm
+from mb import CODE_SCALE, MeshBuilder, _norm
 
 STEEL = (0.62, 0.66, 0.70)
 WHITE = (0.92, 0.93, 0.95)
@@ -192,7 +192,7 @@ def windsock():
     mb.sock(3.6, 0.46, 0.22)
     # the sock hangs from the pole top: shift its origin up to y = 7.7 by building the pole instead of moving the sock: the shader pivots round x = z = 0
     for i, v in enumerate(mb.V):
-        if mb.C[i][3] == 4.0:
+        if abs(float(mb.C[i][3]) - 4.0 / CODE_SCALE) < 1e-6:
             mb.V[i] = v + np.array([0.0, 7.7, 0.0], dtype=np.float32)
     return mb
 
@@ -202,6 +202,7 @@ def marker():
     mb = MeshBuilder()
     mb.cone((0.0, 0.0, 0.0), (0.0, 0.8, 0.0), 0.34, 4, (0.95, 0.95, 0.95))
     mb.cone((0.0, 0.0, 0.0), (0.0, 0.35, 0.0), 0.37, 4, (0.95, 0.45, 0.10))
+    mb.box((0.0, 0.86, 0.0), (0.16, 0.14, 0.16), (1.0, 0.92, 0.7), code=6.0)             # the edge light
     return mb
 
 

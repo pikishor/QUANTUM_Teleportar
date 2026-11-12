@@ -490,8 +490,34 @@ def alien(rng, q):
     return mb
 
 
-SPECIES = {"oak": oak, "birch": birch, "poplar": poplar, "pine": pine, "fir": fir, "palm": palm, "acacia": acacia, "dead": dead, "alien": alien}
-SEEDS = {"oak": 101, "birch": 202, "poplar": 303, "pine": 404, "fir": 505, "palm": 606, "acacia": 707, "dead": 808, "alien": 909}
+def drift(rng, q):
+    """A bleached log washed up on a beach (wave 112): lying along +x half sunk in the sand, a root ball with a few stubs at the thick end, a branch stub or two. No foliage."""
+    mb = MeshBuilder()
+    L = rng.uniform(3.4, 5.2)
+    r0 = rng.uniform(0.2, 0.3)
+    n = q.steps + 2
+    pts = []
+    for i in range(n + 1):
+        t = i / n
+        pts.append(np.array([lerp(-L * 0.5, L * 0.5, t), r0 * 0.62 + 0.05 * math.sin(t * 4.0 + 1.0), 0.16 * math.sin(t * 3.1 + 0.6)]))
+    rad = np.array([r0 * (1.0 - 0.5 * (i / n)) * (1.45 if i == 0 else (1.15 if i == 1 else 1.0)) for i in range(n + 1)])
+    mb.tube(pts, rad, q.sides, uv_len=1.4, rng=rng, noise=0.07, tint=(1.12, 1.10, 1.04))
+    stubs = 5 if q.subs else 2
+    for k in range(stubs):
+        az = (k + rng.uniform(0, 0.8)) * math.tau / stubs
+        d = np.array([-0.45, 0.55 * math.sin(az) + 0.35, 0.8 * math.cos(az)])
+        limb(mb, rng, pts[0] + np.array([0.0, 0.05, 0.0]), d, rng.uniform(0.7, 1.5), 0.07, 0.02, q, bend_to=np.array([0.0, -0.4, 0.0]), bend=0.25, wobble=0.12, steps=2)
+    for k in range(2 if q.subs else 1):
+        f = rng.uniform(0.35, 0.85)
+        st, _ = at(np.array(pts), f)
+        az = rng.uniform(0.3, math.pi - 0.3) * (1.0 if rng.rand() < 0.5 else -1.0)
+        d = np.array([0.35, 0.7, math.sin(az)])
+        limb(mb, rng, st, d, rng.uniform(0.5, 1.1), 0.05, 0.015, q, bend=0.2, wobble=0.1, steps=2)
+    return mb
+
+
+SPECIES = {"oak": oak, "birch": birch, "poplar": poplar, "pine": pine, "fir": fir, "palm": palm, "acacia": acacia, "dead": dead, "alien": alien, "drift": drift}
+SEEDS = {"oak": 101, "birch": 202, "poplar": 303, "pine": 404, "fir": 505, "palm": 606, "acacia": 707, "dead": 808, "alien": 909, "drift": 1010}
 
 
 def build(species, lod_key, variant=0):

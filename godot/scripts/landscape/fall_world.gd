@@ -200,7 +200,7 @@ func _sheet_mesh(f: Dictionary) -> ArrayMesh:
 			var b := a + 1
 			var c := a + cols + 1
 			var d := c + 1
-			idx.append_array(PackedInt32Array([a, b, c, b, d, c]))
+			idx.append_array(PackedInt32Array([a, c, b, b, c, d]))
 	return _mesh(pos, nrm, uv, col, idx)
 
 
@@ -283,7 +283,7 @@ func _ribbon(f: Dictionary, key: String) -> ArrayMesh:
 	for i in m - 1:
 		for k in 2:
 			var a := i * 3 + k
-			idx.append_array(PackedInt32Array([a, a + 1, a + 3, a + 1, a + 4, a + 3]))
+			idx.append_array(PackedInt32Array([a, a + 3, a + 1, a + 1, a + 3, a + 4]))
 	return _mesh(pos, nrm, uv, col, idx)
 
 

@@ -56,11 +56,11 @@ void fragment() {
 		col = asphalt * (0.62 + 0.55 * coarse) * (0.82 + 0.36 * grain);
 		// tar patches (repairs): darker, sharp edged
 		float patch_v = smoothstep(0.60, 0.605, fbm(q * vec2(0.28, 0.07) + 3.0));
-		col *= mix(1.0, 0.62, patch_v);
+		col *= mix(1.0, 0.84, patch_v);
 		// cracks: thin dark isolines of a noise field, only where the surface is old
 		float cr = fbm(q * vec2(1.6, 0.9) + 40.0);
-		float crack = (1.0 - smoothstep(0.0, 0.012, abs(cr - 0.5))) * smoothstep(0.35, 0.75, vnoise(q * 0.22 + 7.0));
-		col *= 1.0 - 0.55 * crack;
+		float crack = (1.0 - smoothstep(0.0, 0.006, abs(cr - 0.5))) * smoothstep(0.55, 0.85, vnoise(q * 0.22 + 7.0));
+		col *= 1.0 - 0.32 * crack;
 		// tyre polish in each lane (darker, glossy), pale dusty middle of the lane
 		float lane_c = abs(abs(across) - asph_half * 0.5);
 		float polish = 1.0 - smoothstep(0.35, 1.25, lane_c);
@@ -80,7 +80,7 @@ void fragment() {
 		float out_d = -edge;                                                         // metres beyond the asphalt edge (negative on the asphalt)
 		float vg = smoothstep(-0.2, 0.45, out_d);                                    // 0 on the asphalt, 1 on the verge
 		vec3 g = tex_k > 0.5 ? texture(layers, vec3(q * 0.22, 6.0)).rgb : vec3(0.30, 0.25, 0.19);
-		g *= 0.85 + 0.3 * grain;
+		g *= (0.85 + 0.3 * grain) * vec3(0.80, 0.77, 0.72);
 		col = mix(col, g, vg * 0.9);
 		col += vec3(0.05, 0.043, 0.032) * smoothstep(0.9, 0.0, abs(out_d + 0.1)) * grain;       // grit swept onto the asphalt edge
 		float vw = half_w - asph_half;

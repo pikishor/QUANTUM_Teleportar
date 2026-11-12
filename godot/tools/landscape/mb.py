@@ -13,6 +13,9 @@ import struct
 
 import numpy as np
 
+# Godot stores vertex colours as 8-bit unorm, so a material code above 1 would saturate: the props write code / CODE_SCALE into COLOR.a and the shader reads it back (assets/shaders/land_prop.gdshader).
+CODE_SCALE = 8.0
+
 
 def _norm(v):
     v = np.asarray(v, dtype=np.float64)
@@ -170,7 +173,7 @@ class MeshBuilder:
 
     # --- hard-surface pieces for the anchor kit (turbines, pylons, masts, cranes, hangars): COLOR.rgb = paint, COLOR.a = material code (see assets/shaders/land_prop.gdshader) -------------
     def _flat_quad(self, a, b, c, d, nrm, col, code, uv2=(0.0, 0.0)):
-        c4 = (col[0], col[1], col[2], code)
+        c4 = (col[0], col[1], col[2], code / CODE_SCALE)
         i0 = self._v(a, nrm, (0.0, 0.0), uv2, c4)
         i1 = self._v(b, nrm, (1.0, 0.0), uv2, c4)
         i2 = self._v(c, nrm, (1.0, 1.0), uv2, c4)
@@ -224,8 +227,8 @@ class MeshBuilder:
         for j in range(sides):
             ang = math.tau * j / sides
             d = n1 * math.cos(ang) + n2 * math.sin(ang)
-            ring.append(self._v(b + d * radius, d, (j / sides, 0.0), (0.0, 0.0) if uv2 is None else uv2(0.0), (col[0], col[1], col[2], code)))
-        tip = self._v(a, t, (0.5, 1.0), (0.0, 0.0) if uv2 is None else uv2(1.0), (col[0], col[1], col[2], code))
+            ring.append(self._v(b + d * radius, d, (j / sides, 0.0), (0.0, 0.0) if uv2 is None else uv2(0.0), (col[0], col[1], col[2], code / CODE_SCALE)))
+        tip = self._v(a, t, (0.5, 1.0), (0.0, 0.0) if uv2 is None else uv2(1.0), (col[0], col[1], col[2], code / CODE_SCALE))
         for j in range(sides):
             self.I.append((ring[j], tip, ring[(j + 1) % sides]))
 
@@ -240,7 +243,7 @@ class MeshBuilder:
                 ang = math.tau * j / sides
                 p = np.array([length * s, math.cos(ang) * r, math.sin(ang) * r])
                 n = np.array([0.0, math.cos(ang), math.sin(ang)])
-                row.append(self._v(p, n, (j / sides, s), (s, s * stripes), (1.0, 0.5, 0.1, 4.0)))
+                row.append(self._v(p, n, (j / sides, s), (s, s * stripes), (1.0, 0.5, 0.1, 4.0 / CODE_SCALE)))
             grid.append(row)
         for i in range(rings):
             for j in range(sides):

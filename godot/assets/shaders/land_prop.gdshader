@@ -17,7 +17,7 @@ varying vec2 v_uv2;
 varying float v_rnd;
 
 void vertex() {
-	v_code = COLOR.a;
+	v_code = floor(COLOR.a * 8.0 + 0.5);                      // vertex colours are 8-bit: the code is stored as code / 8
 	v_uv2 = UV2;
 	v_rnd = INSTANCE_CUSTOM.r;
 	if (abs(v_code - 2.0) < 0.5) {
@@ -58,6 +58,9 @@ void fragment() {
 		float b = 0.5 + 0.5 * sin(TIME * 4.2 + v_wp.x * 0.01);
 		emit = vec3(1.0, 0.12, 0.06) * (0.35 + 1.4 * smoothstep(0.55, 0.95, b)) * (0.5 + 1.2 * night);
 		col = vec3(0.6, 0.05, 0.03);
+	} else if (abs(code - 6.0) < 0.5) {
+		emit = vec3(1.0, 0.86, 0.55) * (0.15 + 2.4 * night);
+		col = vec3(1.0, 0.9, 0.7);
 	} else if (abs(code - 3.0) < 0.5) {
 		col = vec3(0.10, 0.10, 0.11);
 		rough = 0.6;

@@ -30,12 +30,15 @@ const POPLAR := 12
 const ACACIA := 13
 const FLOWER := 14                                   ## variants: 0 daisies, 1 poppies, 2 lavender, 3 clover
 const REED := 15
+const DRIFT := 16                                    ## a washed-up log on the beach (variants a / b by the random number)
+const PEBBLE := 17                                   ## small stones of the shore (beaches, river banks): drawn with the 48 triangle pebble pieces
 const OAK := 1
 const T_LINES := 4                                   ## roadside avenues (poplars, palms) on the approaches of the city, laid out along the road samples
 const T_REEDS := 5                                   ## reeds on the banks of rivers and lakes
-const LAYERS := 6
+const T_SHORE := 6                                   ## pebbles and driftwood on the beaches (the swash zone up to the high-water line) and the pebbles of river banks
+const LAYERS := 7
 const TREE_LINE := 215.0
-const SPACING := [6.0, 4.6, 1.15, 11.0, 6.0, 2.4]     ## jitter grid spacing per layer (metres)
+const SPACING := [6.0, 4.6, 1.15, 11.0, 6.0, 2.4, 2.6]     ## jitter grid spacing per layer (metres)
 const LINE_OFFSET := 16.2                            ## distance of an avenue from the road centre line: just outside the 15 m bench
 const LINE_RANGE := 900.0                            ## avenues only within this distance of the city plateau
 
@@ -252,6 +255,11 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 			if TerrainHeight.city_distance(x, z) < 8.0:
 				continue
 			var h := TerrainHeight.height_at(x, z)
+			if layer == T_SHORE:
+				var sp7 := _shore_spot(x, z, h, roll, hh)
+				if not sp7.is_empty():
+					out.append_array(sp7)
+				continue
 			if h < TerrainHeight.SEA_LEVEL + 3.6:
 				continue                                                  # beach and sea
 			var mw := TerrainHeight.mountain_weight(x, z)
@@ -321,4 +329,45 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 				if float(rd[0]) < need:
 					continue
 			out.append_array(PackedFloat32Array([x, h - sink, z, yaw, scale, float(species), rnd, float(variant)]))
+			if layer == T_ROCKS and scale > 1.0 and _rs(hh, 14) < 0.72:
+				# boulders come in clusters: two to five smaller stones round a big one, sunk like it
+				var kids := 2 + int(_rs(hh, 15) * 3.99)
+				for kk in kids:
+					var ka := _rs(hh, 30 + kk) * TAU
+					var kd := scale * (1.1 + 1.5 * _rs(hh, 40 + kk))
+					var kx := x + cos(ka) * kd
+					var kz := z + sin(ka) * kd
+					var kh := TerrainHeight.height_at(kx, kz)
+					if kh < TerrainHeight.SEA_LEVEL + 3.6 or TerrainHeight.water_level_for(kx, kz, kh) != TerrainHeight.NO_WATER or LandscapeSites.inside_strip(kx, kz, 6.0) or float(TerrainRoads.nearest(kx, kz)[0]) < 12.0:
+						continue
+					var ks := scale * (0.28 + 0.5 * _rs(hh, 50 + kk))
+					out.append_array(PackedFloat32Array([kx, kh - ks * 0.35, kz, _rs(hh, 60 + kk) * TAU, ks, float(ROCK), _rs(hh, 70 + kk), float(int(_rs(hh, 80 + kk) * 3.0) % 3)]))
 	return out
+
+
+## One plant of the shore layer or nothing: the swash zone of a beach (0.45 .. 3.3 m above the sea) carries clusters of pebbles with a log of driftwood now and then at the high-water
+## line; river and lake banks carry a few pebbles. `roll` is the cell's random number for the spot, `hh` its hash.
+static func _shore_spot(x: float, z: float, h: float, roll: float, hh: int) -> PackedFloat32Array:
+	var none := PackedFloat32Array()
+	var hy := h - TerrainHeight.SEA_LEVEL
+	var beach := hy >= 0.45 and hy <= 3.3 and TerrainHeight.coast_distance(x, z) < 120.0
+	if not beach:
+		if h < 1.0 or WaterLayout.inland_distance(x, z, 14.0) > 4.5:
+			return none
+	var dens := 0.16
+	if beach:
+		var swash := smoothstep(0.5, 1.1, hy) * (1.0 - smoothstep(2.3, 3.4, hy))
+		dens = 0.07 + 0.62 * swash * (0.35 + 0.65 * smoothstep(-0.25, 0.45, _patch.get_noise_2d(x * 2.3 + 5.0, z * 2.3)))
+	if roll >= dens:
+		return none
+	if TerrainHeight.water_level_for(x, z, h) != TerrainHeight.NO_WATER or TerrainHeight.slope_at(x, z) > 0.4:
+		return none
+	if OutskirtsSites.inside(x, z, 7.0) >= 0 or Airport.inside(x, z, 10.0) or LandscapeSites.near_feature(x, z, 2.5):
+		return none
+	if float(TerrainRoads.nearest(x, z)[0]) < 11.0:
+		return none
+	var rnd := _rs(hh, 4)
+	var yaw := _rs(hh, 5) * TAU
+	if beach and hy > 1.4 and _rs(hh, 13) < 0.045:
+		return PackedFloat32Array([x, h - 0.12, z, yaw, 0.85 + rnd * 0.5, float(DRIFT), rnd, float(int(rnd * 2.0) % 2)])
+	return PackedFloat32Array([x, h - 0.03, z, yaw, 0.55 + rnd * 1.1, float(PEBBLE), rnd, float(int(_rs(hh, 9) * 2.0) % 2)])

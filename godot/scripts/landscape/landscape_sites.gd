@@ -205,7 +205,7 @@ static func _make_fall(b: Dictionary, label: String) -> Dictionary:
 	var base: Vector2 = b["base"]
 	var drop: float = b["drop"]
 	var f := {"name": label, "dir": dir, "lip": lip, "lip_y": float(b["lip_y"]), "base": base, "base_y": float(b["base_y"]), "drop": drop}
-	f["width"] = clampf(7.0 + 0.11 * drop, 8.0, 15.0)
+	f["width"] = clampf(11.0 + 0.2 * drop, 14.0, 24.0)
 	var pr := clampf(9.0 + 0.07 * drop, 10.0, 15.0)
 	f["pool_r"] = pr
 	var pc := base + dir * (pr * 0.62)

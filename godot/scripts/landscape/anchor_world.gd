@@ -9,7 +9,7 @@ extends Node3D
 
 const MODEL_PATH := "res://assets/models/land_props.glb"
 const SHADER_PATH := "res://assets/shaders/land_prop.gdshader"
-const SHOW := 1300.0
+const SHOW := 1000.0
 const COLLIDERS := 10
 const ARMS := [[30.0, 7.2], [33.6, 6.4], [37.0, 5.4]]
 const INSULATOR := 2.3
@@ -43,6 +43,7 @@ func _ready() -> void:
 	_build_lines()
 	_build_masts()
 	_build_cranes()
+	_build_arches()
 	_make_pool()
 	set_process(true)
 
@@ -130,7 +131,7 @@ func _mm(parent: Node3D, mesh_name: String, xfs: Array, centre: Vector3, custom 
 	mi.visibility_range_end_margin = 80.0
 	mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 	parent.add_child(mi)
-	_tris += (mesh(mesh_name) as ArrayMesh).get_surface_count() * 0 + _mesh_tris(mesh_name) * xfs.size()
+	_tris += _mesh_tris(mesh_name) * xfs.size()
 	return mi
 
 
@@ -217,12 +218,17 @@ func _wire_mesh(py: Array, centre: Vector3) -> ArrayMesh:
 	var col := PackedColorArray()
 	var uv2 := PackedVector2Array()
 	var idx := PackedInt32Array()
-	var wcol := Color(0.1, 0.1, 0.11, 3.0)
+	var wcol := Color(0.1, 0.1, 0.11, 3.0 / 8.0)                 # COLOR is 8-bit unorm: the shader reads the material code back as COLOR.a * 8
 	for i in py.size() - 1:
-		if (py[i] as Dictionary).has("gap") or (py[i + 1] as Dictionary).has("gap"):
+		if (py[i] as Dictionary).has("gap"):
 			continue
+		var j := i + 1
+		if (py[j] as Dictionary).has("gap"):                      # a span over one missing pylon (about 270 m)
+			j += 1
+			if j >= py.size() or (py[j] as Dictionary).has("gap"):
+				continue
 		var a: Dictionary = py[i]
-		var b: Dictionary = py[i + 1]
+		var b: Dictionary = py[j]
 		for arm: Array in ARMS:
 			for sx in [-1.0, 1.0]:
 				var pa := _attach(a, float(sx) * float(arm[1]), float(arm[0]) - INSULATOR)
@@ -275,6 +281,45 @@ func _build_masts() -> void:
 		_mm(site, "mast", [Transform3D(Basis.from_euler(Vector3(0.0, hash(String(md["id"])) % 628 / 100.0, 0.0)), p)], p)
 
 
+## The rock arches: one mesh each (tools/landscape/rocks.py arch(), assets/models/land_trees.glb) in the rock shader (one-instance MultiMesh: the terrain layer rides in the custom
+## data), with an exact trimesh collider: you can drive under it, walk over it and climb it.
+func _build_arches() -> void:
+	for ad: Dictionary in AnchorSites.arches():
+		var nm := "arch_a" if int(ad["variant"]) == 0 else "arch_b"
+		var m := LandKit.mesh(nm)
+		if m == null:
+			continue
+		var p: Vector3 = ad["pos"]
+		var site := _site("arch", String(ad["id"]), p)
+		var t := Transform3D(Basis.from_euler(Vector3(0.0, -float(ad["yaw"]), 0.0)), Vector3.ZERO)
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_custom_data = true
+		mm.mesh = m
+		mm.instance_count = 1
+		mm.set_instance_transform(0, t)
+		mm.set_instance_custom_data(0, Color(0.37, 0.0, float(ad["layer"]), 0.0))
+		var mi := MultiMeshInstance3D.new()
+		mi.name = nm
+		mi.multimesh = mm
+		mi.material_override = LandKit.rock_material()
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visibility_range_end = SHOW
+		mi.visibility_range_end_margin = 80.0
+		site.add_child(mi)
+		_tris += LandKit.tris(nm)
+		var body := StaticBody3D.new()
+		body.name = "ArchBody"
+		body.collision_layer = Game.L_WORLD
+		body.collision_mask = 0
+		var cs := CollisionShape3D.new()
+		cs.shape = m.create_trimesh_shape()
+		body.add_child(cs)
+		body.top_level = true
+		site.add_child(body)
+		body.global_transform = Transform3D(t.basis, p)
+
+
 func _build_cranes() -> void:
 	for cd: Dictionary in AnchorSites.cranes():
 		var p: Vector3 = cd["pos"]
@@ -300,7 +345,7 @@ func _make_pool() -> void:
 
 
 func _refresh_pool(at: Vector3) -> void:
-	var near := anchors_near(at, 110.0)
+	var near := anchors_near(at, 110.0).filter(func(a: Dictionary) -> bool: return StringName(a["kind"]) != &"arch" and StringName(a["kind"]) != &"cliff")     # arches have a mesh collider, cliffs are the terrain
 	for i in _pool.size():
 		var b := _pool[i]
 		if i < near.size():

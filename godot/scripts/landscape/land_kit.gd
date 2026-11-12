@@ -182,9 +182,11 @@ static func material_for(nm: String) -> ShaderMaterial:
 		return _impostor_material()
 	if COVER.has(nm):
 		return _cover_piece(nm)["mat"]
-	if nm.begins_with("rock_"):
+	if nm.begins_with("rock_") or nm.begins_with("pebble_") or nm.begins_with("arch_"):
 		return _rock_material()
 	var sp := species_of(nm)
+	if sp == "drift":
+		sp = "dead"                                                          # washed-up logs wear the grey bark of the dead trees
 	if _mats.has(sp):
 		return _mats[sp]
 	var mat := ShaderMaterial.new()
@@ -204,6 +206,12 @@ static func material_for(nm: String) -> ShaderMaterial:
 		mat.set_shader_parameter(&"emit_amount", float(look["emit"]))
 	_mats[sp] = mat
 	return mat
+
+
+## The rock shader's material (rocks, pebbles, arches): shared, refreshed by set_quality().
+static func rock_material() -> ShaderMaterial:
+	_load()
+	return _rock_material()
 
 
 ## The rocks' material: the terrain's own texture array, tri-planar (assets/shaders/land_rock.gdshader). Refreshed by set_quality().
@@ -358,7 +366,7 @@ static func _cover_piece(nm: String) -> Dictionary:
 	mat.set_shader_parameter(&"sway", float(look["sway"]))
 	mat.set_shader_parameter(&"height", maxf(h, 0.3))
 	mat.set_shader_parameter(&"flutter", 0.05)
-	mat.set_shader_parameter(&"translucency", 0.6)
+	mat.set_shader_parameter(&"translucency", 0.4)
 	mat.set_shader_parameter(&"cutoff", 0.38)
 	var piece := {"mesh": m, "mat": mat, "tris": idx.size() / 3}
 	_cover[nm] = piece

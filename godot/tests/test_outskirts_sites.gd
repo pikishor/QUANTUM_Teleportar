@@ -237,10 +237,11 @@ func _scatter() -> void:
 	TestLib.check(rocks > 100 and big > 1, "rocks and boulders lie on the hills (%d, %d big)" % [rocks, big])
 	TestLib.check(VegKit.available(), "the vegetation kit loads")
 	var worst_tris := 0
-	for nm in ["pine_a", "pine_b", "broad_a", "broad_b", "dead_a", "bush", "rock_c"]:
+	# wave 112: the trees are the LandKit species (<species>_0 near, _1 mid, one shared impostor "imp"), so the near cap rose from 900 to 1400 triangles and the mid / far pieces are named anew
+	for nm in ["pine_0", "oak_0", "birch_0", "fir_0", "palm_0", "acacia_0", "dead_0", "g_bush1", "rock_c"]:
 		worst_tris = maxi(worst_tris, VegKit.tris(nm))
-	TestLib.check(worst_tris <= 900, "every near piece is light (%d triangles at most)" % worst_tris)
-	TestLib.check(VegKit.tris("pine_l1") < 100 and VegKit.tris("pine_l2") < 30 and VegKit.tris("broad_l2") < 60, "the far LODs are tiny (%d / %d / %d)" % [VegKit.tris("pine_l1"), VegKit.tris("pine_l2"), VegKit.tris("broad_l2")])
+	TestLib.check(worst_tris <= 1400, "every near piece is light (%d triangles at most)" % worst_tris)
+	TestLib.check(VegKit.tris("pine_1") < 260 and VegKit.tris("oak_1") < 260 and VegKit.tris("imp") <= 4, "the mid LODs are small and the far one is a four triangle cross (%d / %d / %d)" % [VegKit.tris("pine_1"), VegKit.tris("oak_1"), VegKit.tris("imp")])
 
 
 # --- the real scene ---------------------------------------------------------------------------------------------------------------------------
@@ -265,11 +266,23 @@ func _forest(host: Node) -> void:
 	var ok := await _wait_counter(host, func() -> bool: return int(city.vegetation.stats()["instances"]) > 300 and int(city.vegetation.stats()["jobs"]) >= 1, TIMEOUT_SECONDS)
 	var st := city.vegetation.stats()
 	TestLib.check(ok, "walking into the forest fills the multimeshes from the worker thread (%d plants, %d jobs)" % [int(st["instances"]), int(st["jobs"])])
-	TestLib.check(int(st["slots"]) <= 17 and int(st["slots"]) >= 4, "the whole forest is a handful of draw calls (%d multimeshes)" % int(st["slots"]))
+	# wave 112: one multimesh per tree species and LOD (<species>_0 / _0l near, _1 mid, one shared "imp" for every impostor), 13 ground-cover pieces and the rocks, so the cap of 17 became 36
+	# (the designed worst case is 40, a forest shows about 25); it is still a handful of draw calls however many trees stand there
+	TestLib.check(int(st["slots"]) <= 36 and int(st["slots"]) >= 4, "the whole forest is a handful of draw calls (%d multimeshes)" % int(st["slots"]))
 	var sc: Dictionary = city.vegetation.slot_counts()
-	var near_trees := int(sc.get("pine_a", 0)) + int(sc.get("broad_a", 0)) + int(sc.get("pine_b", 0)) + int(sc.get("broad_b", 0))
-	var mid_trees := int(sc.get("pine_l1", 0)) + int(sc.get("broad_l1", 0))
-	var far_trees := int(sc.get("pine_l2", 0)) + int(sc.get("broad_l2", 0))
+	var near_trees := 0
+	var mid_trees := 0
+	var far_trees := 0
+	for k in sc.keys():
+		var nm := String(k)
+		if nm == "imp":
+			far_trees += int(sc[k])
+		elif nm.begins_with("rock_") or nm.begins_with("g_"):
+			continue
+		elif nm.ends_with("_1"):
+			mid_trees += int(sc[k])
+		elif nm.ends_with("_0") or nm.ends_with("_0l"):
+			near_trees += int(sc[k])
 	TestLib.check(mid_trees > 0 and far_trees > 0, "the forest has its mid and far LODs (%d near, %d mid, %d far)" % [near_trees, mid_trees, far_trees])
 	TestLib.check(int(st["tris"]) < 120000, "the forest stays under the triangle budget at MED (%d)" % int(st["tris"]))
 	TestLib.check(int(st["colliders"]) > 3, "trunks and boulders around the hero are solid (%d colliders)" % int(st["colliders"]))
@@ -288,8 +301,8 @@ func _forest(host: Node) -> void:
 	var moved := await _wait_counter(host, func() -> bool: return int(city.vegetation.stats()["jobs"]) > jobs0, TIMEOUT_SECONDS)
 	TestLib.check(moved, "the plants are re-arranged around the hero when he moves (%d jobs)" % int(city.vegetation.stats()["jobs"]))
 	# the shader: wind and snow parameters exist on the material
-	var mat := VegKit.material("pine_a")
-	TestLib.check(mat.shader != null and mat.get_shader_parameter(&"atlas") != null, "the vegetation shader has its atlas")
+	var mat := VegKit.material("pine_0")
+	TestLib.check(mat.shader != null and mat.get_shader_parameter(&"foliage") != null, "the vegetation shader has its foliage atlas")
 
 
 func _tiers(host: Node) -> void:
@@ -462,7 +475,7 @@ func _weather(host: Node) -> void:
 	TestLib.check(mw.cloud_alpha > 0.05 and MountainWeather.fog_boost > 0.05, "near the cloud deck on the ridge: clouds (%.2f) and thicker fog (%.2f)" % [mw.cloud_alpha, MountainWeather.fog_boost])
 	TestLib.check(MountainWeather.snow_for(op.x, 290.0, op.z) > 0.9 and MountainWeather.snow_for(0.0, 290.0, 0.0) == 0.0 and MountainWeather.snow_for(op.x, 20.0, op.z) == 0.0, "snow falls high in the mountains only")
 	# the vegetation shader dusts snow by height
-	TestLib.check(VegKit.material("pine_a").shader.code.contains("snow_start"), "trees get their snow dusting from the shader")
+	TestLib.check(VegKit.material("pine_0").shader.code.contains("snow_start"), "trees get their snow dusting from the shader")
 	var mat := OutskirtsKit.material()
 	TestLib.check(mat.shader.code.contains("snow_start"), "the site roofs get their snow too")
 

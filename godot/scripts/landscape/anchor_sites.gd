@@ -5,7 +5,9 @@ extends RefCounted
 ## collision are AnchorWorld.
 ##   AnchorSites.turbines()  [{id, name, pos (base, y = ground), yaw}]  per field: fields() = [{id, name, centre, turbines: [indices]}]
 ##   AnchorSites.pylon_lines()  [{id, name, pylons: [{pos, yaw}]}]      masts()  [{id, name, pos}]      cranes()  [{id, name, pos, yaw}]
-##   AnchorSites.all_anchors()  every anchor as {id, kind, name, pos (the top, where a rope can be fixed), base, height, radius}
+##   AnchorSites.arches()  [{id, name, pos (centre of the span at the ground), yaw, variant (0 wide, 1 tall), layer (terrain texture layer of the rock)}]: natural rock arches you can drive through
+##   AnchorSites.all_anchors()  every anchor as {id, kind (turbine, pylon, mast, crane, arch, cliff), name, pos (the top, where a rope can be fixed), base, height, radius}; the cliffs are the
+##   lips of the waterfalls (LandscapeSites), the arches stand on dry flat ground; towers have a collider pool in AnchorWorld, arches have their own mesh collider, cliffs are the terrain
 
 const FIELDS := [
 	{"name": "EASTWIND FARM", "road": "DESERT ROAD", "from": 560.0, "to": 1500.0, "step": 190.0, "offs": [170.0, 300.0]},
@@ -22,6 +24,13 @@ const MAST_REGIONS := [
 	{"name": "NORTH RELAY", "c": Vector2(450.0, -1750.0), "r": 340.0},
 	{"name": "MESA RELAY", "c": Vector2(1950.0, -250.0), "r": 340.0},
 ]
+const ARCH_REGIONS := [
+	{"name": "SUNGATE ARCH", "c": Vector2(1750.0, 650.0), "r": 340.0, "variant": 0, "layer": 8},
+	{"name": "TIDEMARK ARCH", "c": Vector2(-1500.0, 480.0), "r": 420.0, "variant": 1, "layer": 4, "coast": true},
+	{"name": "MESA GATE", "c": Vector2(2050.0, -1250.0), "r": 320.0, "variant": 0, "layer": 8},
+]
+const ARCH_H := [16.0, 18.0]                          ## crown height of the two arch meshes (tools/landscape/rocks.py arch())
+const ARCH_HALF := [11.0, 7.6]                        ## half span of the centre line of the two meshes
 const PYLON_SPACING := 135.0
 const TURBINE_H := 64.0
 const PYLON_H := 41.0
@@ -34,6 +43,7 @@ static var _fields: Array = []
 static var _lines: Array = []
 static var _masts: Array = []
 static var _cranes: Array = []
+static var _arches: Array = []
 
 
 static func turbines() -> Array:
@@ -61,6 +71,11 @@ static func cranes() -> Array:
 	return _cranes
 
 
+static func arches() -> Array:
+	ensure()
+	return _arches
+
+
 static func ensure() -> void:
 	if built:
 		return
@@ -70,6 +85,7 @@ static func ensure() -> void:
 	_build_lines()
 	_build_masts()
 	_build_cranes()
+	_build_arches()
 
 
 ## Dry, gentle, clear land: no water, no road corridor, no site pad, no airstrip, not on the beach.
@@ -110,7 +126,7 @@ static func _build_fields() -> void:
 			for oi in (fd["offs"] as Array).size():
 				var side := 1.0 if (k + oi) % 2 == 0 else -1.0
 				var p: Vector2 = pos[i] + nr * float((fd["offs"] as Array)[oi]) * side + tg * float(oi) * 70.0
-				if _valid(p.x, p.y, 36.0, 0.28):
+				if _valid(p.x, p.y, 30.0, 0.36):
 					var wind_yaw := 0.0
 					_turbines.append({"id": StringName("t%d_%d" % [fi, _turbines.size()]), "name": String(fd["name"]), "pos": Vector3(p.x, TerrainHeight.height_at(p.x, p.y), p.y), "yaw": wind_yaw})
 					idx.append(_turbines.size() - 1)
@@ -141,7 +157,7 @@ static func _build_lines() -> void:
 				var placed := false
 				for shift in [0.0, 18.0, -18.0, 36.0, -36.0]:
 					var q: Vector2 = p + Vector2(-dir.y, dir.x) * float(shift) + dir * float(shift) * 0.4
-					if _valid(q.x, q.y, 14.0, 0.5):
+					if _valid(q.x, q.y, 10.0, 0.7):
 						pylons.append({"pos": Vector3(q.x, TerrainHeight.height_at(q.x, q.y), q.y), "yaw": atan2(dir.x, dir.y)})
 						placed = true
 						break
@@ -180,9 +196,9 @@ static func _build_cranes() -> void:
 		if found >= 2:
 			break
 		var ang := TAU * float(k) / 24.0 + 0.3
-		for rad in [150.0, 175.0, 205.0]:
+		for rad in [120.0, 150.0, 185.0, 225.0]:
 			var p: Vector2 = c + Vector2(cos(ang), sin(ang)) * float(rad)
-			if not _valid(p.x, p.y, 34.0, 0.18):
+			if not _valid(p.x, p.y, 22.0, 0.32):
 				continue
 			if found == 1 and absf(angle_difference(first_ang, ang)) < 1.7:
 				continue
@@ -191,6 +207,50 @@ static func _build_cranes() -> void:
 				first_ang = ang
 			found += 1
 			break
+
+
+## One arch per region: the flattest 40 x 20 m footprint on dry, gentle, clear ground (4 orientations tried), for the coastal one the nearest to the sea.
+static func _build_arches() -> void:
+	for ai in ARCH_REGIONS.size():
+		var rd: Dictionary = ARCH_REGIONS[ai]
+		var c: Vector2 = rd["c"]
+		var rad := float(rd["r"])
+		var step := 26.0
+		var n := int(rad / step)
+		var best_score := 1.0e9
+		var best := {}
+		for j in range(-n, n + 1):
+			for i in range(-n, n + 1):
+				var p := c + Vector2(float(i), float(j)) * step
+				if p.distance_to(c) > rad or not _valid(p.x, p.y, 44.0, 0.14):
+					continue
+				var h0 := TerrainHeight.height_at(p.x, p.y)
+				if h0 > 140.0:
+					continue
+				for k in 4:
+					var yaw := PI * float(k) / 4.0
+					var u := Vector2(cos(yaw), sin(yaw))
+					var v := Vector2(-u.y, u.x)
+					var lo := 1.0e9
+					var hi := -1.0e9
+					for a: float in [-17.0, -8.0, 0.0, 8.0, 17.0]:
+						for b: float in [-9.0, 0.0, 9.0]:
+							var q := p + u * a + v * b
+							var hq := TerrainHeight.height_at(q.x, q.y)
+							lo = minf(lo, hq)
+							hi = maxf(hi, hq)
+					if hi - lo > 3.2:
+						continue
+					var score := (hi - lo) * 3.0
+					if bool(rd.get("coast", false)):
+						score += TerrainHeight.coast_distance(p.x, p.y) * 0.02
+					if score < best_score:
+						best_score = score
+						best = {"p": p, "yaw": yaw, "y": lo + 0.3}
+		if best.is_empty():
+			continue
+		var bp: Vector2 = best["p"]
+		_arches.append({"id": StringName("arch%d" % ai), "name": String(rd["name"]), "pos": Vector3(bp.x, float(best["y"]), bp.y), "yaw": float(best["yaw"]) , "variant": int(rd["variant"]), "layer": int(rd["layer"])})
 
 
 static func all_anchors() -> Array:
@@ -211,4 +271,12 @@ static func all_anchors() -> Array:
 	for cr: Dictionary in _cranes:
 		var b4: Vector3 = cr["pos"]
 		out.append({"id": cr["id"], "kind": &"crane", "name": cr["name"], "pos": b4 + Vector3(0, CRANE_H, 0), "base": b4, "height": CRANE_H, "radius": 2.8})
+	for ar: Dictionary in _arches:
+		var b5: Vector3 = ar["pos"]
+		var hh: float = ARCH_H[int(ar["variant"])]
+		out.append({"id": ar["id"], "kind": &"arch", "name": ar["name"], "pos": b5 + Vector3(0, hh, 0), "base": b5, "height": hh, "radius": 4.0})
+	for f: Dictionary in LandscapeSites.falls():
+		var lp: Vector2 = f["lip"]
+		var bp2: Vector2 = f["base"]
+		out.append({"id": f["id"], "kind": &"cliff", "name": String(f["name"]), "pos": Vector3(lp.x, float(f["lip_y"]), lp.y), "base": Vector3(bp2.x, float(f["base_y"]), bp2.y), "height": float(f["drop"]), "radius": 6.0})
 	return out

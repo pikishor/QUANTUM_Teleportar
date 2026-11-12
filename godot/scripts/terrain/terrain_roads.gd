@@ -486,7 +486,7 @@ static func build_ribbon(ri: int) -> ArrayMesh:
 		uvs.append(Vector2(1.0, run))
 		if i < n - 1 and _sb[int(road["base"]) + i] == 0 and _sb[int(road["base"]) + i + 1] == 0:          # a bridge span has its own deck (Bridges: one sample more at each end), the ribbon would lie in the river bed
 			var b := i * 2
-			idx.append_array(PackedInt32Array([b, b + 2, b + 1, b + 1, b + 2, b + 3]))
+			idx.append_array(PackedInt32Array([b, b + 1, b + 2, b + 1, b + 3, b + 2]))                     # clockwise seen from above = front face (the old order made the road a back face: its normal was flipped, the sun never lit it)
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = verts

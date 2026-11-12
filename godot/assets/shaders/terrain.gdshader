@@ -160,7 +160,7 @@ void fragment() {
 	}
 	// gravel verge of the roads
 	if (wcol.a > 0.02) {
-		ground = mix(ground, lay(6, uv * 1.5, gx * 1.5, gy * 1.5), clamp(wcol.a, 0.0, 1.0) * 0.9);
+		ground = mix(ground, lay(6, uv * 1.5, gx * 1.5, gy * 1.5) * vec3(0.80, 0.77, 0.72) * (0.9 + 0.2 * macro2), clamp(wcol.a, 0.0, 1.0) * 0.85);
 	}
 	float lumg = dot(ground, vec3(0.3, 0.59, 0.11));
 	vec3 col = ground * tint * (1.0 + night * 0.9);      // the moonlit outskirts stay readable (the city is lit by its own lamps, the land is not)
@@ -172,6 +172,6 @@ void fragment() {
 	SPECULAR = mix(0.25, 0.5, wet_k);
 	EMISSION = col * (0.075 + 0.085 * (1.0 - night)) * vec3(0.92, 1.0, 1.14);       // sky fill: the shaded side of a hill is lit by the sky, not black
 	if (detail > 0.5) {
-		NORMAL = bump_normal(NORMAL, VERTEX, lumg, bump_k * 28.0);
+		NORMAL = bump_normal(NORMAL, VERTEX, lumg, bump_k * 0.09);       // the height is in metres: a few centimetres of relief per unit of luminance
 	}
 }

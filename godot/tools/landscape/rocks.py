@@ -99,6 +99,60 @@ def _face_normals(P, T):
 def build(shape, n, seed_off=0, tint_lo=0.62):
     """A MeshBuilder holding the rock with crease-aware normals (triangle soup: positions shared only inside a smooth group)."""
     P, T = rock(shape, n, seed_off)
+    return _finish(P, T, tint_lo)
+
+
+def arch(variant=0):
+    """A natural rock arch in metres (wave 112): a thick slab swept along a half ellipse (span 22 m / height 14 m for variant 0, 15 m / 17 m for variant 1), thicker at the feet than at
+    the crown, noise-displaced, the feet sunk 1.5 m below y = 0. Local x = the span, y up, z = the depth of the slab. Returns the MeshBuilder; AA = (half span, crown height)."""
+    half, top, depth, tin_foot, tin_crown, seed = ((11.0, 12.5, 5.2, 4.4, 2.6, 71), (7.6, 15.5, 4.6, 3.6, 2.2, 83))[variant]
+    rng = np.random.RandomState(seed)
+    rings, sides = 30, 14
+    verts = []
+    for i in range(rings + 1):
+        th = -0.14 + (math.pi + 0.28) * i / rings
+        cx, cy = half * math.cos(th), top * math.sin(th)
+        # tangent and in-plane normal of the centre line
+        tx, ty = -half * math.sin(th), top * math.cos(th)
+        tl = math.hypot(tx, ty)
+        tx, ty = tx / tl, ty / tl
+        nx, ny = -ty, tx
+        crown = math.sin(max(0.0, min(math.pi, th)))
+        r_in = (tin_foot + (tin_crown - tin_foot) * crown ** 1.4) * (1.0 + 0.16 * math.sin(th * 3.7 + seed) + 0.1 * math.sin(th * 7.9))
+        r_out = depth * (0.92 + 0.14 * math.sin(th * 2.3 + 1.0)) * (1.0 + 0.25 * (1.0 - crown))
+        for j in range(sides):
+            a = math.tau * j / sides
+            ca, sa = math.cos(a), math.sin(a)
+            e = 2.0 / 2.6                                                                         # a boxy section
+            u = math.copysign(abs(ca) ** e, ca) * r_in
+            v = math.copysign(abs(sa) ** e, sa) * r_out
+            verts.append([cx + nx * u, cy + ny * u, v])
+    P = np.array(verts)
+    # rock: lumps at two scales, the feet flattened into the ground
+    P = P + 0.55 * _noise3(P, 0.31, seed)[:, None] * np.array([1.0, 1.0, 1.0]) + 0.22 * _noise3(P, 0.9, seed + 5)[:, None] * np.array([1.0, 1.0, 1.0])
+    P[:, 1] = np.maximum(P[:, 1], -1.5)
+    tris = []
+    for i in range(rings):
+        for j in range(sides):
+            a0 = i * sides + j
+            a1 = i * sides + (j + 1) % sides
+            b0 = (i + 1) * sides + j
+            b1 = (i + 1) * sides + (j + 1) % sides
+            tris.append((a0, a1, b0))                                                              # counter-clockwise seen from outside (glTF); the importer flips it for Godot
+            tris.append((a1, b1, b0))
+    # caps at both feet (fans round the ring centre)
+    for ring, flip in ((0, False), (rings, True)):
+        c = len(P)
+        P = np.vstack([P, P[ring * sides:(ring + 1) * sides].mean(axis=0)])
+        for j in range(sides):
+            a = ring * sides + j
+            b = ring * sides + (j + 1) % sides
+            tris.append((c, a, b) if flip else (c, b, a))
+    T = np.array(tris)
+    return _finish(P, T, 0.58)
+
+
+def _finish(P, T, tint_lo):
     # weld coincident cube edge vertices so the angle test sees real neighbours
     key = np.round(P * 1e4).astype(np.int64)
     uniq = {}

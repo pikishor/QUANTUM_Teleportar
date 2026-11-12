@@ -7,12 +7,15 @@ extends RefCounted
 ##        "cam:px,ph,pz,tx,th,tz"              a free camera at (px, ground+ph, pz) looking at (tx, ground+th, tz)
 ##        "abs:px,py,pz,tx,ty,tz"              a free camera at absolute coordinates
 ##        "fall:i[,lx,ph,lz[,th]]"             a free camera in front of waterfall i (LandscapeSites.falls()): lx across, ph above the pool, lz out from the pool, aimed th above the pool
+##        "fallv:i[,az,r,ph,th]"               like fall: but placed r m from the pool at az degrees off the downstream direction, ph above the ground, raised until the fall is in clear sight
+##        "anchor:kind,i[,dist,ph,az]"         a free camera dist m from anchor i of kind turbine / pylon / mast / crane (AnchorSites), seen from azimuth az
+##        "strip:i[,dist,ph,az]"               a free camera dist m from airstrip i
 ##        any view may end with "@hour[,clear|rain|storm|fog|overcast|drizzle]": the time of day (and weather) of that view only
 ##      LS_HOUR (default 12), LS_WEATHER clear|rain|snow (default clear), LS_HUD=1 keeps the HUD
 var _views: Array[String] = []
 var _i := 0
 var _f := 0
-var _hud: CanvasItem = null
+var _hud: CanvasLayer = null
 var _wait := 20
 
 
@@ -46,9 +49,9 @@ func step(_t: float, _d: float) -> bool:
 			var wx := OS.get_environment("LS_WEATHER")
 			(n as Weather).set_state(StringName(wx) if wx in ["rain", "snow"] else &"clear", true)
 		if OS.get_environment("LS_HUD") != "1":
-			_hud = Game.get_tree().root.find_child("Hud", true, false) as CanvasItem
-			if _hud != null:
-				_hud.visible = false
+			_hud = Game.get_tree().root.find_child("Hud", true, false) as CanvasLayer
+	if _hud != null and OS.get_environment("LS_HUD") != "1":
+		_hud.visible = false                                   # the HUD is a CanvasLayer; it shows itself again on state changes, so hide it every frame
 	if _f >= 3 and _i < _views.size():
 		_apply(p, _views[_i], (_f - 3) % maxi(_wait, 1))
 	_f += 1
@@ -115,6 +118,34 @@ func _apply(p: Player, v: String, k: int) -> void:
 		tgt.y = TerrainHeight.height_at(tgt.x, tgt.z) + float(a2[4])
 		_free_cam(p, pos, tgt, k)
 		return
+	if v.begins_with("fallv:"):                           # "fallv:i[,az,r,ph,th]": a camera r m from the pool centre at az degrees off the downstream direction, at least ph above the ground, raised until the line of sight to the fall is clear
+		var af := v.substr(6).split(",")
+		var fl := LandscapeSites.falls()
+		var fi := int(af[0])
+		if fi >= fl.size():
+			return
+		var fw: Dictionary = fl[fi]
+		var faz := deg_to_rad(float(af[1])) if af.size() > 1 else 0.0
+		var fr := float(af[2]) if af.size() > 2 else 120.0
+		var fph := float(af[3]) if af.size() > 3 else 6.0
+		var fth := float(af[4]) if af.size() > 4 else float(fw["drop"]) * 0.45
+		var fpc: Vector2 = fw["pool"]
+		var fcp: Vector2 = fpc + (fw["dir"] as Vector2).rotated(faz) * fr
+		var fmid: Vector2 = (fw["lip"] as Vector2).lerp(fw["base"], 0.5)
+		var faim := Vector3(fmid.x, float(fw["pool_y"]) + fth, fmid.y)
+		var fcy := TerrainHeight.height_at(fcp.x, fcp.y) + fph
+		for _k in 40:
+			var clear := true
+			for s in 24:
+				var sp := Vector3(fcp.x, fcy, fcp.y).lerp(faim, float(s + 1) / 26.0)
+				if TerrainHeight.height_at(sp.x, sp.z) > sp.y - 1.0:
+					clear = false
+					break
+			if clear:
+				break
+			fcy += 4.0
+		_free_cam(p, Vector3(fcp.x, fcy, fcp.y), faim, k)
+		return
 	if v.begins_with("fall:"):                            # "fall:i[,lx,ph,lz[,th]]": a free camera in front of waterfall i: lx across, ph above the pool surface, lz metres out from the pool centre (downstream), aimed th above the pool
 		var a3 := v.substr(5).split(",")
 		var lst := LandscapeSites.falls()
@@ -132,6 +163,39 @@ func _apply(p: Player, v: String, k: int) -> void:
 		var cp := pc + fside * lx + fdir * lz
 		var mid: Vector2 = (w["lip"] as Vector2).lerp(w["base"], 0.5)
 		_free_cam(p, Vector3(cp.x, float(w["pool_y"]) + ph, cp.y), Vector3(mid.x, float(w["pool_y"]) + th, mid.y), k)
+		return
+	if v.begins_with("anchor:"):                          # "anchor:kind,i[,dist,ph,az]": a free camera dist m from anchor i of that kind (turbine, pylon, mast, crane), ph above its base, seen from azimuth az (rad)
+		var a6 := v.substr(7).split(",")
+		var list: Array = []
+		for an: Dictionary in AnchorSites.all_anchors():
+			if String(an["kind"]) == a6[0]:
+				list.append(an)
+		var ai := int(a6[1])
+		if ai >= list.size():
+			return
+		var an2: Dictionary = list[ai]
+		var ab: Vector3 = an2["base"]
+		var ad := float(a6[2]) if a6.size() > 2 else 110.0
+		var aph := float(a6[3]) if a6.size() > 3 else 6.0
+		var az := float(a6[4]) if a6.size() > 4 else 0.9
+		var cp2 := Vector3(ab.x + cos(az) * ad, 0.0, ab.z + sin(az) * ad)
+		cp2.y = TerrainHeight.height_at(cp2.x, cp2.z) + aph
+		_free_cam(p, cp2, ab + Vector3(0.0, float(an2["height"]) * 0.55, 0.0), k)
+		return
+	if v.begins_with("strip:"):                           # "strip:i[,dist,ph,az]": a free camera dist m from the centre of airstrip i
+		var a7 := v.substr(6).split(",")
+		var sl := LandscapeSites.strips()
+		var si := int(a7[0])
+		if si >= sl.size():
+			return
+		var st: Dictionary = sl[si]
+		var sc: Vector2 = st["c"]
+		var sdist := float(a7[1]) if a7.size() > 1 else 150.0
+		var sph := float(a7[2]) if a7.size() > 2 else 14.0
+		var saz := float(a7[3]) if a7.size() > 3 else 0.7
+		var cp3 := Vector3(sc.x + cos(saz) * sdist, 0.0, sc.y + sin(saz) * sdist)
+		cp3.y = TerrainHeight.height_at(cp3.x, cp3.z) + sph
+		_free_cam(p, cp3, Vector3(sc.x, float(st["y"]) + 3.0, sc.y), k)
 		return
 	var x := 0.0
 	var z := 0.0

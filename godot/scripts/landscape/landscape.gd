@@ -28,14 +28,12 @@ func _ready() -> void:
 	falls.name = "Falls"
 	falls.quality = quality
 	add_child(falls)
-	if ResourceLoader.exists("res://scripts/landscape/strip_world.gd"):
-		strips = (load("res://scripts/landscape/strip_world.gd") as GDScript).new() as Node3D
-		strips.name = "Strips"
-		add_child(strips)
-	if ResourceLoader.exists("res://scripts/landscape/anchor_world.gd"):
-		anchors = (load("res://scripts/landscape/anchor_world.gd") as GDScript).new() as Node3D
-		anchors.name = "Anchors"
-		add_child(anchors)
+	strips = StripWorld.new()
+	strips.name = "Strips"
+	add_child(strips)
+	anchors = AnchorWorld.new()
+	anchors.name = "Anchors"
+	add_child(anchors)
 	set_quality(quality)
 
 
