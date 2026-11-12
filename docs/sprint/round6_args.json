@@ -1,0 +1,5 @@
+{
+  "sha111": "146c20d977ac4ad089079fb4fe668cfb392f0a83",
+  "sum111": "Wave 111 pushed as 146c20d (cars v2, vehicle collisions, traffic density). Full suite: 236 pass, 5 flaky, 8 first-run fails all fixed or explained in HANDOFF. Perf all OK but with almost no headroom: LOW 97 draws of 100, MED death spike 148 of 150, HIGH death spike 170 of 170. Defects left: empty plazas, a taxi filling the left third of the hero frame, banner overlap.",
+  "gaps111": "(cars builder) car interiors are a driver and boxes for seats, not a GTA cabin; near traffic at MED reads paler than the older cars because of the shared fog and rim light in assets/shaders/prop_nearcar.gdshader; in the look-dev viewer the hero shows white rectangles on the legs (check whether it is real). (traffic builder) the near-traffic mesh looks faceted at 4 m; AlienCreature._separate prints freed-instance errors; test_vehicle_roster has an old process_mode error. (integrator) empty plazas; a taxi fills the left third of the hero frame; banner overlap."
+}

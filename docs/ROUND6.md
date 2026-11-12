@@ -41,3 +41,9 @@ with four builders or critic-fixers, 5 to 8 hours with two, in all roughly 3 day
 120 Director review 7 (three independent harsh reviewers: art, play feel, systems and performance; merged into one list of the 24 worst defects).
 121 Fixes from the review (three fix builders), final Android build.
 Honest limit stays: phone GPU budget and CC0/own-made art mean "PS5 level" is a direction, not a result; each wave is judged by frames against docs/owner_shots.
+
+## Rules for every agent of the sprint: keep a progress log so the work can be resumed in the middle of a wave
+The owner asked that nothing is lost or wasted if the session or the tokens end in the middle of a wave.
+1. Right after you start, create `docs/sprint/progress/<your label>.md` (the label is wNNN-tag, for example w113-weapons-roster) and keep it current after every major step and at least every 30 minutes: GOAL (one line), DONE (bullets with file paths), NEXT (ordered bullets), DECISIONS (names, APIs and numbers other agents depend on), TESTS AND PERF (what ran, the verdict lines), OPEN PROBLEMS. Under 80 lines, plain text, no secrets.
+2. Work in small, working steps and leave the files in a state that loads at the end of every step (no half-written files): another agent must be able to continue from the files plus your log.
+3. Commits stay with the integrators. The whole working tree, your log included, is copied to the branch `claude/determined-bardeen-mvwr5u` every 25 minutes (`godot/tools/wip_snapshot.sh`). How a new session continues: `docs/sprint/RESUME.md`.
