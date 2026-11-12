@@ -1,6 +1,6 @@
 # w112-landscape (running)
 
-agent id a863b7337bfb727f3, 648 events, first activity 2026-11-12T20:41:36.994Z, last activity 2026-11-12T21:56:44.999Z
+agent id a863b7337bfb727f3, 651 events, first activity 2026-11-12T20:41:36.994Z, last activity 2026-11-12T21:57:20.661Z
 
 ## Last notes of the agent
 
@@ -9,7 +9,6 @@ agent id a863b7337bfb727f3, 648 events, first activity 2026-11-12T20:41:36.994Z,
 
 ## Recent steps (last 40)
 
-- 21:41:22 Generate and preview the procedural rocks
 - 21:41:39 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/landscape/gen/rocks_v1.png
 - 21:41:47 Wait for the iteration 3 render
 - 21:42:18 Add the rock shader, rock build step and LandKit constants
@@ -49,6 +48,7 @@ agent id a863b7337bfb727f3, 648 events, first activity 2026-11-12T20:41:36.994Z,
 - 21:55:51 Fix the prop shader include and windsock transform
 - 21:55:57 Wait for the waterfall render
 - 21:56:44 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/anchor_sites.gd
+- 21:57:20 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/anchor_world.gd
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -73,3 +73,4 @@ agent id a863b7337bfb727f3, 648 events, first activity 2026-11-12T20:41:36.994Z,
 - godot/tools/landscape/build_land_props.py
 - godot/assets/shaders/land_prop.gdshader
 - godot/scripts/landscape/anchor_sites.gd
+- godot/scripts/landscape/anchor_world.gd
