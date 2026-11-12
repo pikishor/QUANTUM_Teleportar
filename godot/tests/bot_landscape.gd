@@ -5,7 +5,6 @@ extends RefCounted
 ##        "hero:x,z,yaw[,dist]"                the real hero on the ground at (x, z), the real game camera looking along yaw (radians, 0 = -Z north), optional camera distance
 ##        "road:NAME,s[,yaw_off[,dist]]"       the real hero at s metres along the named road, the real game camera looking along the road (yaw_off added)
 ##        "cam:px,ph,pz,tx,th,tz"              a free camera at (px, ground+ph, pz) looking at (tx, ground+th, tz)
-##        "fall:i[,lx,ph,lz[,th]]"             a free camera near waterfall i (Waterfalls.list()), (lx, lz) metres from its pool centre across / along the flow, ph above the pool surface
 ##        "abs:px,py,pz,tx,ty,tz"              a free camera at absolute coordinates
 ##      LS_HOUR (default 12), LS_WEATHER clear|rain|snow (default clear), LS_HUD=1 keeps the HUD
 var _views: Array[String] = []
@@ -101,26 +100,6 @@ func _apply(p: Player, v: String, k: int) -> void:
 		tgt.y = TerrainHeight.height_at(tgt.x, tgt.z) + float(a2[4])
 		_free_cam(p, pos, tgt, k)
 		return
-	if v.begins_with("fall:"):
-		var wf = Game.world.get_tree().root.find_child("Waterfalls", true, false)
-		var a3 := v.substr(5).split(",")
-		var idx := int(a3[0])
-		var lst: Array = Waterfalls.list() if ClassDB.class_exists(&"Object") and Engine.has_singleton(&"__none__") == false and _has_waterfalls() else []
-		if idx >= lst.size():
-			return
-		var w: Dictionary = lst[idx]
-		var f2: Vector2 = w["dir"]
-		var side := Vector2(-f2.y, f2.x)
-		var pc: Vector2 = w["pool"]
-		var lx := float(a3[1]) if a3.size() > 1 else 0.0
-		var lz := float(a3[3]) if a3.size() > 3 else 38.0
-		var up := float(a3[2]) if a3.size() > 2 else 3.0
-		var cp := pc + side * lx - f2 * lz
-		var pos2 := Vector3(cp.x, float(w["pool_y"]) + up, cp.y)
-		var th := float(a3[4]) if a3.size() > 4 else 14.0
-		var tg := Vector3(float(w["lip"].x), float(w["pool_y"]) + th, float(w["lip"].y))
-		_free_cam(p, pos2, tg, k)
-		return
 	var x := 0.0
 	var z := 0.0
 	var yaw := 0.0
@@ -155,11 +134,3 @@ func _apply(p: Player, v: String, k: int) -> void:
 		p.camera_rig.yaw = yaw
 		if dist > 0.0 and "distance" in p.camera_rig:
 			p.camera_rig.set("distance", dist)
-
-
-func _has_waterfalls() -> bool:
-	return ClassDB.class_exists(&"Node") and ProjectSettings.has_setting("application/config/name") and _script_exists("res://scripts/landscape/waterfalls.gd")
-
-
-func _script_exists(path: String) -> bool:
-	return ResourceLoader.exists(path)
