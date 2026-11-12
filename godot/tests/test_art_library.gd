@@ -493,7 +493,7 @@ func _test_folded(city: City) -> void:
 	TestLib.check(kit.kind_count[Kit.HYDRANT] > 20 and kit.kind_count[Kit.KIOSK_LIT] > 5 and kit.kind_count[Kit.VENT_GRATE] > 20, "all of them are still there (%d hydrants, %d kiosks, %d grates)" % [kit.kind_count[Kit.HYDRANT], kit.kind_count[Kit.KIOSK_LIT], kit.kind_count[Kit.VENT_GRATE]])
 	var pc := city.prop_colliders()
 	TestLib.check(pc.instances_of("Hydrants").size() == kit.kind_count[Kit.HYDRANT] and pc.instances_of("Kiosks").size() == kit.kind_count[Kit.KIOSK_LIT], "hydrants and kiosks keep their colliders under the old family names")
-	TestLib.check(city.multimesh_nodes.size() <= 66 and city.multimesh_nodes.size() <= 43, "the MultiMesh families number %d (was 40 before the fold, +2 for NearTraffic and the street vendors, +1 for the sidewalk dressing)" % city.multimesh_nodes.size())
+	TestLib.check(city.multimesh_nodes.size() <= 66 and city.multimesh_nodes.size() <= 44, "the MultiMesh families number %d (was 40 before the fold, +2 for NearTraffic and the street vendors, +1 for the sidewalk dressing, +1 for the RoadLamps of the far road traffic)" % city.multimesh_nodes.size())
 	# the steam still finds its vents
 	TestLib.check(city._props.vents.size() >= 30, "steam vents are unchanged (%d)" % city._props.vents.size())
 

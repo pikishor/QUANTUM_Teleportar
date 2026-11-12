@@ -151,6 +151,7 @@ func _traffic() -> void:
 
 
 func _police() -> void:
+	TrafficField.bare_street()                            # round 6: the parked decor cars and near traffic would stand in the lane of the chase: this is the police ladder on a bare avenue
 	_clear_cars()
 	var car := vm.spawn_parked(&"sport", Vector3(80.0, 0.0, 8.3), 0.0)
 	p.teleport_to(car.global_position + car.right() * 2.4)

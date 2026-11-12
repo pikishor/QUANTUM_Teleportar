@@ -9,52 +9,52 @@ extends RefCounted
 ## max = top speed m/s, acc = acceleration m/s2, brake = braking m/s2, grip = lateral grip (1/s), hp, model = Game.load_model name,
 ## len / wid / hgt = the model's size in metres (assets contract), wheel = wheel radius, axle_z = axle offset from the centre (wheels sit at +-axle_z).
 const SPECS := {
-	&"sedan": {"rv": "sedan", "max": 22.0, "acc": 9.6, "brake": 40.0, "grip": 6.5, "hp": 300.0, "model": "car_sedan", "ov": "sedan", "len": 4.7, "wid": 1.86, "hgt": 1.42, "wheel": 0.37},
-	&"sport": {"rv": "sport", "max": 28.0, "acc": 12.0, "brake": 48.0, "grip": 5.2, "hp": 250.0, "model": "car_sport", "ov": "sport", "len": 4.5, "wid": 1.92, "hgt": 1.22, "wheel": 0.35, "mu": 1.25, "steer": 1.1},
-	&"compact": {"rv": "compact", "shape": true, "max": 20.0, "acc": 8.6, "brake": 36.0, "grip": 6.2, "hp": 230.0, "mass": 1050.0, "seats": 4, "model": "car_compact", "ov": "hatch", "len": 3.9, "wid": 1.76, "hgt": 1.36, "wheel": 0.31, "mu": 1.0},
-	&"suv": {"rv": "suv", "max": 20.0, "acc": 7.4, "brake": 36.0, "grip": 6.8, "hp": 375.0, "model": "car_suv", "ov": "suv", "len": 4.7, "wid": 1.98, "hgt": 1.72, "wheel": 0.38, "mu": 1.05},
+	&"sedan": {"cv2": "sedan", "rv": "sedan", "max": 22.0, "acc": 9.6, "brake": 40.0, "grip": 6.5, "hp": 300.0, "model": "car_sedan", "ov": "sedan", "len": 4.7, "wid": 1.85, "hgt": 1.42, "wheel": 0.35},
+	&"sport": {"cv2": "sports", "rv": "sport", "max": 28.0, "acc": 12.0, "brake": 48.0, "grip": 5.2, "hp": 250.0, "model": "car_sport", "ov": "sport", "len": 4.5, "wid": 1.92, "hgt": 1.23, "wheel": 0.345, "mu": 1.25, "steer": 1.1},
+	&"compact": {"cv2": "hatch", "rv": "compact", "shape": true, "max": 20.0, "acc": 8.6, "brake": 36.0, "grip": 6.2, "hp": 230.0, "mass": 1050.0, "seats": 4, "model": "car_compact", "ov": "hatch", "len": 3.9, "wid": 1.76, "hgt": 1.36, "wheel": 0.31, "mu": 1.0},
+	&"suv": {"cv2": "suv", "rv": "suv", "max": 20.0, "acc": 7.4, "brake": 36.0, "grip": 6.8, "hp": 375.0, "model": "car_suv", "ov": "suv", "len": 4.7, "wid": 1.98, "hgt": 1.72, "wheel": 0.38, "mu": 1.05},
 	# --- handling classes (optional keys, a spec without them is a plain car) ---
 	# cls = "car" | "bike" | "hover"; alt = further Game.load_model names tried when `model` does not exist (the primitive fallback is used when none does);
 	# bike: lean_max = body roll in rad at full lean, steer = steering rate factor; hover: hover_h = ride height of the model, bob = bob amplitude in m,
 	# drift = extra sideways slide (grip stays low), coast = coast drag; far = look of the kind in the far traffic (tint, speed factor, see ambient_traffic.gd).
 	&"bike": {"cls": "bike", "max": 26.0, "acc": 18.0, "brake": 38.0, "grip": 7.8, "hp": 140.0, "model": "bike_street", "alt": ["bike", "bike_sport"], "len": 2.1, "wid": 0.8, "hgt": 1.3,
 		"wheel": 0.34, "lean_max": 0.62, "steer": 1.3, "far": {"tint": Color(1.0, 0.95, 0.82), "speed": 1.25}},
-	&"hover": {"cls": "hover", "max": 25.0, "acc": 14.0, "brake": 30.0, "grip": 2.2, "hp": 225.0, "model": "car_hover", "alt": ["hover_car", "hovercar"], "len": 4.6, "wid": 2.0, "hgt": 1.15,
+	&"hover": {"cv2": "hover", "cls": "hover", "max": 25.0, "acc": 14.0, "brake": 30.0, "grip": 2.2, "hp": 225.0, "model": "car_hover", "alt": ["hover_car", "hovercar"], "len": 4.6, "wid": 2.0, "hgt": 1.16,
 		"wheel": 0.3, "hover_h": 0.55, "bob": 0.07, "drift": 1.0, "coast": 0.12, "steer": 1.15, "far": {"tint": Color(0.45, 0.95, 1.0), "speed": 1.1}},
 	# Vael patrol vehicle: a hover chassis in the hive colours, chases the player from heat 3 (VehicleManager patrols), hp 400.
 	&"vael_patrol": {"cls": "hover", "patrol": true, "max": 26.0, "acc": 16.0, "brake": 34.0, "grip": 3.0, "hp": 400.0, "model": "car_vael_patrol", "alt": ["vael_patrol", "hover_vael"],
 		"len": 4.9, "wid": 2.1, "hgt": 1.3, "wheel": 0.3, "hover_h": 0.5, "bob": 0.05, "drift": 0.7, "coast": 0.14, "steer": 1.2, "far": {"tint": Color(0.75, 1.0, 0.45), "speed": 0.6}},
 	# --- the Wave 14 art set (tools/blender/model_car_taxi.py ... ): sedan platform variants, a van and a truck. mass = kg, seats = driver included,
 	# The paints of a kind are in PALETTES (taxis yellow, vans white and grey, the Vael patrol in hive tones).
-	&"taxi": {"rv": "taxi", "max": 21.0, "acc": 8.4, "brake": 38.0, "grip": 6.4, "hp": 325.0, "mass": 1500.0, "seats": 5, "model": "car_taxi", "ov": "taxi", "len": 4.7, "wid": 1.86, "hgt": 1.55, "wheel": 0.37},
-	&"wagon": {"max": 21.0, "acc": 8.0, "brake": 38.0, "grip": 6.4, "hp": 340.0, "mass": 1600.0, "seats": 5, "model": "car_wagon", "len": 4.92, "wid": 1.90, "hgt": 1.55, "wheel": 0.35},
-	&"van": {"rv": "van", "max": 19.0, "acc": 6.0, "brake": 32.0, "grip": 6.0, "hp": 440.0, "mass": 2300.0, "seats": 3, "model": "car_van", "ov": "van", "len": 5.2, "wid": 2.0, "hgt": 2.1, "wheel": 0.36, "mu": 0.98},
-	&"truck": {"max": 17.0, "acc": 5.0, "brake": 28.0, "grip": 5.4, "hp": 650.0, "mass": 7500.0, "seats": 3, "model": "car_truck", "ov": "truck", "ov_low": true, "len": 6.4, "wid": 2.2, "hgt": 2.9, "wheel": 0.44, "mu": 0.95},
+	&"taxi": {"cv2": "taxi", "livery": 3, "rv": "taxi", "max": 21.0, "acc": 8.4, "brake": 38.0, "grip": 6.4, "hp": 325.0, "mass": 1500.0, "seats": 5, "model": "car_taxi", "ov": "taxi", "len": 4.7, "wid": 1.85, "hgt": 1.6, "wheel": 0.35},
+	&"wagon": {"cv2": "wagon", "max": 21.0, "acc": 8.0, "brake": 38.0, "grip": 6.4, "hp": 340.0, "mass": 1600.0, "seats": 5, "model": "car_wagon", "len": 4.92, "wid": 1.9, "hgt": 1.55, "wheel": 0.35},
+	&"van": {"cv2": "van", "rv": "van", "max": 19.0, "acc": 6.0, "brake": 32.0, "grip": 6.0, "hp": 440.0, "mass": 2300.0, "seats": 3, "model": "car_van", "ov": "van", "len": 5.2, "wid": 2.0, "hgt": 2.1, "wheel": 0.36, "mu": 0.98},
+	&"truck": {"cv2": "boxtruck", "max": 17.0, "acc": 5.0, "brake": 28.0, "grip": 5.4, "hp": 650.0, "mass": 7500.0, "seats": 3, "model": "car_truck", "ov": "truck", "ov_low": true, "len": 6.4, "wid": 2.2, "hgt": 2.96, "wheel": 0.44, "mu": 0.95},
 	# --- creature kit (tools/creature_kit.py, Quaternius space kit, CC0): a moon rover on four wheels and a hover skiff, both rare in the traffic mix.
 	&"rover": {"parts": false, "max": 18.0, "acc": 7.0, "brake": 34.0, "grip": 6.2, "hp": 425.0, "mass": 1900.0, "seats": 2, "model": "car_rover", "len": 2.3, "wid": 1.9, "hgt": 2.03, "wheel": 0.3},
 	&"skiff": {"cls": "hover", "max": 25.0, "acc": 14.0, "brake": 32.0, "grip": 2.0, "hp": 200.0, "mass": 900.0, "seats": 2, "model": "car_skiff", "len": 5.2, "wid": 1.85, "hgt": 1.4, "wheel": 0.3,
 		"hover_h": 0.6, "bob": 0.09, "drift": 1.1, "coast": 0.12, "steer": 1.2, "far": {"tint": Color(0.7, 0.85, 1.0), "speed": 1.2}},
 	# --- traffic and emergency set (primitive fallback until the art exists): a city bus, an interceptor and an ambulance (sirens: other traffic yields), a scooter-style quantum bike.
-	&"bus": {"rv": "bus", "shape": true, "max": 15.0, "acc": 4.2, "brake": 24.0, "grip": 5.0, "hp": 800.0, "mass": 11000.0, "seats": 4, "model": "car_bus", "alt": ["bus"], "len": 9.5, "wid": 2.5, "hgt": 3.2, "wheel": 0.46, "mu": 0.9},
-	&"interceptor": {"rv": "police", "shape": true, "siren": true, "max": 28.0, "acc": 12.0, "brake": 46.0, "grip": 6.0, "hp": 350.0, "mass": 1500.0, "seats": 2, "model": "car_interceptor", "ov": "police", "alt": ["interceptor"], "len": 4.7, "wid": 1.95, "hgt": 1.38, "wheel": 0.37, "mu": 1.2},
-	&"ambulance": {"rv": "ambulance", "shape": true, "siren": true, "max": 21.0, "acc": 6.8, "brake": 34.0, "grip": 6.0, "hp": 475.0, "mass": 2800.0, "seats": 3, "model": "car_ambulance", "ov": "ambulance", "len": 5.4, "wid": 2.05, "hgt": 2.4, "wheel": 0.375, "mu": 1.0},
+	&"bus": {"cv2": "bus", "rv": "bus", "shape": true, "max": 15.0, "acc": 4.2, "brake": 24.0, "grip": 5.0, "hp": 800.0, "mass": 11000.0, "seats": 4, "model": "car_bus", "alt": ["bus"], "len": 9.5, "wid": 2.5, "hgt": 3.2, "wheel": 0.46, "mu": 0.9},
+	&"interceptor": {"cv2": "patrol", "livery": 4, "livery_color": Color(0.9, 0.91, 0.94), "rv": "police", "shape": true, "siren": true, "max": 28.0, "acc": 12.0, "brake": 46.0, "grip": 6.0, "hp": 350.0, "mass": 1500.0, "seats": 2, "model": "car_interceptor", "ov": "police", "alt": ["interceptor"], "len": 4.7, "wid": 1.95, "hgt": 1.52, "wheel": 0.35, "mu": 1.2},
+	&"ambulance": {"cv2": "ambulance", "rv": "ambulance", "shape": true, "siren": true, "max": 21.0, "acc": 6.8, "brake": 34.0, "grip": 6.0, "hp": 475.0, "mass": 2800.0, "seats": 3, "model": "car_ambulance", "ov": "ambulance", "len": 5.4, "wid": 2.05, "hgt": 2.45, "wheel": 0.375, "mu": 1.0},
 	&"qbike": {"shape": true, "cls": "bike", "max": 28.0, "acc": 19.0, "brake": 36.0, "grip": 8.0, "hp": 110.0, "mass": 140.0, "seats": 1, "model": "bike_quantum", "alt": ["scooter", "bike_street"], "len": 1.8, "wid": 0.6, "hgt": 1.15,
 		"wheel": 0.26, "lean_max": 0.7, "steer": 1.4, "far": {"tint": Color(0.4, 0.95, 1.0), "speed": 1.3}},
 	# --- open-source set (round 4, Kenney Car Kit CC0 via tools/open_models/convert_vehicles.py): five more street vehicles. "ov" = the converted model assets/models/ov_<ov>.glb, tried before `model` / `alt`.
-	&"luxury": {"rv": "luxury", "max": 21.0, "acc": 8.0, "brake": 38.0, "grip": 6.6, "hp": 420.0, "mass": 2300.0, "seats": 5, "model": "car_suv", "ov": "luxury", "len": 5.2, "wid": 1.95, "hgt": 1.72, "wheel": 0.37, "mu": 1.05},
-	&"racer": {"rv": "racer", "max": 29.0, "acc": 13.5, "brake": 50.0, "grip": 5.0, "hp": 220.0, "mass": 1100.0, "seats": 1, "model": "car_sport", "ov": "race", "len": 4.2, "wid": 1.9, "hgt": 1.12, "wheel": 0.32, "mu": 1.3, "steer": 1.15},
-	&"delivery": {"max": 17.0, "acc": 5.4, "brake": 30.0, "grip": 5.6, "hp": 560.0, "mass": 4200.0, "seats": 3, "model": "car_van", "ov": "delivery", "len": 5.8, "wid": 2.1, "hgt": 2.7, "wheel": 0.40, "mu": 0.96},
-	&"garbage": {"max": 14.0, "acc": 4.2, "brake": 26.0, "grip": 5.0, "hp": 720.0, "mass": 9500.0, "seats": 3, "model": "car_truck", "ov": "garbage", "len": 6.5, "wid": 2.3, "hgt": 3.1, "wheel": 0.45, "mu": 0.9},
-	&"firetruck": {"siren": true, "max": 19.0, "acc": 5.0, "brake": 28.0, "grip": 5.2, "hp": 780.0, "mass": 11500.0, "seats": 3, "model": "car_truck", "ov": "firetruck", "len": 7.0, "wid": 2.3, "hgt": 3.2, "wheel": 0.46, "mu": 0.92},
+	&"luxury": {"cv2": "limo", "rv": "luxury", "max": 21.0, "acc": 8.0, "brake": 38.0, "grip": 6.6, "hp": 420.0, "mass": 2300.0, "seats": 5, "model": "car_suv", "ov": "luxury", "len": 5.2, "wid": 1.95, "hgt": 1.55, "wheel": 0.37, "mu": 1.05},
+	&"racer": {"cv2": "coupe", "rv": "racer", "max": 29.0, "acc": 13.5, "brake": 50.0, "grip": 5.0, "hp": 220.0, "mass": 1100.0, "seats": 1, "model": "car_sport", "ov": "race", "len": 4.3, "wid": 1.88, "hgt": 1.21, "wheel": 0.32, "mu": 1.3, "steer": 1.15},
+	&"delivery": {"cv2": "delivery", "max": 17.0, "acc": 5.4, "brake": 30.0, "grip": 5.6, "hp": 560.0, "mass": 4200.0, "seats": 3, "model": "car_van", "ov": "delivery", "len": 5.8, "wid": 2.1, "hgt": 2.72, "wheel": 0.4, "mu": 0.96},
+	&"garbage": {"cv2": "garbage", "max": 14.0, "acc": 4.2, "brake": 26.0, "grip": 5.0, "hp": 720.0, "mass": 9500.0, "seats": 3, "model": "car_truck", "ov": "garbage", "len": 6.7, "wid": 2.3, "hgt": 3.1, "wheel": 0.45, "mu": 0.9},
+	&"firetruck": {"cv2": "firetruck", "siren": true, "max": 19.0, "acc": 5.0, "brake": 28.0, "grip": 5.2, "hp": 780.0, "mass": 11500.0, "seats": 3, "model": "car_truck", "ov": "firetruck", "len": 7.0, "wid": 2.3, "hgt": 2.9, "wheel": 0.46, "mu": 0.92},
 	# --- round 4 (Rgsdev CC0 pack via tools/open_models/convert_rgs_vehicles.py): a muscle car and a pickup, more variety on the street.
-	&"muscle": {"rv": "muscle", "max": 26.0, "acc": 11.0, "brake": 42.0, "grip": 5.6, "hp": 320.0, "mass": 1650.0, "seats": 2, "model": "car_sport", "len": 5.0, "wid": 1.9, "hgt": 1.32, "wheel": 0.34, "mu": 1.1},
-	&"pickup": {"rv": "pickup", "max": 21.0, "acc": 7.4, "brake": 36.0, "grip": 6.0, "hp": 420.0, "mass": 2000.0, "seats": 3, "model": "car_suv", "len": 5.0, "wid": 1.95, "hgt": 1.8, "wheel": 0.41, "mu": 1.0},
+	&"muscle": {"cv2": "muscle", "rv": "muscle", "max": 26.0, "acc": 11.0, "brake": 42.0, "grip": 5.6, "hp": 320.0, "mass": 1650.0, "seats": 2, "model": "car_sport", "len": 5.0, "wid": 1.9, "hgt": 1.33, "wheel": 0.345, "mu": 1.1},
+	&"pickup": {"cv2": "pickup", "rv": "pickup", "max": 21.0, "acc": 7.4, "brake": 36.0, "grip": 6.0, "hp": 420.0, "mass": 2000.0, "seats": 3, "model": "car_suv", "len": 5.0, "wid": 1.95, "hgt": 1.8, "wheel": 0.41, "mu": 1.0},
 	# --- open world freedom: the hero's HOVER-BIKE (CALL CAR with an empty garage, also a rare traffic kind): a bike chassis floating on a quantum cushion, fast and slidey, one seat.
 	&"hoverbike": {"cls": "hover", "max": 28.0, "acc": 18.0, "brake": 34.0, "grip": 2.6, "hp": 150.0, "mass": 260.0, "seats": 1, "model": "bike_street", "alt": ["car_skiff"], "len": 2.1, "wid": 0.8, "hgt": 1.3,
 		"wheel": 0.3, "hover_h": 0.75, "bob": 0.1, "drift": 1.0, "coast": 0.14, "steer": 1.35, "far": {"tint": Color(0.4, 1.0, 0.95), "speed": 1.3}},
 	# --- round 5 roster (docs/DESIGN.md: any vehicle, GTA types): armoured truck, quad, scooter, helicopter, small plane, boat, tank. "craft" = a class with its own drive code (VehicleCraft: air / boat / tank);
 	# "ceil" = flight ceiling m, "stall" = plane speed below which it sinks, "rotor_r" = rotor radius m, "span" = wing span m, "draft" = how deep a hull sits in the water m, "turret" = the model's rotating turret node.
-	&"armoured": {"rv": "van", "armour": true, "max": 17.0, "acc": 6.2, "brake": 30.0, "grip": 5.6, "hp": 1250.0, "mass": 7200.0, "seats": 2, "model": "car_van", "len": 5.4, "wid": 2.2, "hgt": 2.5, "wheel": 0.4, "mu": 1.0},
+	&"armoured": {"cv2": "armoured", "rv": "van", "armour": true, "max": 17.0, "acc": 6.2, "brake": 30.0, "grip": 5.6, "hp": 1250.0, "mass": 7200.0, "seats": 2, "model": "car_van", "len": 5.4, "wid": 2.2, "hgt": 2.65, "wheel": 0.4, "mu": 1.0},
 	&"quad": {"cls": "quad", "procedural": "quad", "max": 22.0, "acc": 13.0, "brake": 30.0, "grip": 6.5, "hp": 190.0, "mass": 380.0, "seats": 2, "model": "car_quad", "len": 2.1, "wid": 1.25, "hgt": 1.25, "wheel": 0.34, "steer": 1.2},
 	&"scooter": {"cls": "bike", "procedural": "scooter", "max": 19.0, "acc": 12.0, "brake": 28.0, "grip": 8.0, "hp": 90.0, "mass": 130.0, "seats": 2, "model": "bike_scooter", "len": 1.75, "wid": 0.65, "hgt": 1.15,
 		"wheel": 0.22, "lean_max": 0.55, "steer": 1.5, "far": {"tint": Color(1.0, 0.9, 0.7), "speed": 0.85}},
@@ -181,6 +181,8 @@ const COLORS: Array[Color] = [
 	# dusk violet, pearl, burnt copper, midnight. Nothing is a flat saturated primary any more.
 	Color(0.56, 0.20, 0.24), Color(0.30, 0.42, 0.56), Color(0.78, 0.66, 0.44), Color(0.30, 0.52, 0.48),
 	Color(0.42, 0.38, 0.60), Color(0.86, 0.87, 0.90), Color(0.68, 0.40, 0.26), Color(0.20, 0.25, 0.42),
+	# round 6 (Cars v2): four more paints, each with its own finish in CarV2.FINISH: cobalt, racing red (gloss), gunmetal, sunset orange (pearl)
+	Color(0.12, 0.24, 0.62), Color(0.66, 0.08, 0.09), Color(0.24, 0.27, 0.31), Color(0.86, 0.40, 0.10),
 ]
 const PAINT_GAIN := 1.0
 const GLOWS: Array[Color] = [Color(0.22, 0.96, 1.0), Color(1.0, 0.24, 0.94), Color(0.22, 1.0, 0.69), Color(0.61, 0.42, 1.0)]
@@ -374,7 +376,8 @@ const LIGHT_COMMIT := 4.5              ## closer than this it is committed and d
 const AMBER_STOP := 11.0               ## on amber it stops only when farther than this
 const SIREN_SPEED := 1.35              ## emergency cars cruise this much faster
 const YIELD_RANGE := 45.0              ## a siren this close behind makes traffic pull over
-const YIELD_SHIFT := 1.6               ## m towards the kerb while yielding
+const YIELD_SHIFT := 2.2               ## m towards the kerb while yielding (the siren car passes beside it without touching: 1.9 m is the two half widths)
+const SIREN_PASS := 2.0                ## m a siren car moves towards the middle of the road to pass a slower car (with the yielding car's own shift to the kerb the two clear each other)
 const YIELD_SPEED := 4.0               ## m/s while yielding
 const PANIC_TIME := 4.0                ## s of flight after gunfire
 const PANIC_SPEED := 1.5
@@ -424,6 +427,9 @@ static func model_names(kind: StringName) -> Array[String]:
 	var out: Array[String] = []
 	if not SPECS.has(kind):
 		return out
+	var v2 := CarV2.model_of(kind)                        # round 6: the Blender-built high-detail set leads when it exists (QT_CARS_V2=0 brings the older art back)
+	if v2 != "":
+		out.append(v2)
 	if SPECS[kind].has("rv") and OS.get_environment("QT_OPEN_MODELS") != "0" and OS.get_environment("QT_RV_MODELS") != "0":       # QT_RV_MODELS=0: the Kenney / older art (before captures, test_open_models). Round 4: the Rgsdev pack (real proportions, small wheels, window glass) leads on every tier
 		out.append("rv_" + String(SPECS[kind]["rv"]))
 	if SPECS[kind].has("ov") and OS.get_environment("QT_OPEN_MODELS") != "0":     # QT_OPEN_MODELS=0: the older art only (before / after captures, the legacy model tests)

@@ -18,6 +18,8 @@ var traffic := Traffic.new()
 var beats := StreetBeats.new()          ## street vignettes around the hero: an argument, a street show, a runner, a horn (street_beats.gd)
 var vendors := StreetVendors.new()      ## the people behind the market stalls near the hero (street_vendors.gd)
 var near_traffic := NearTraffic.new()    ## cars of the street around the hero: ONE MultiMesh, CPU lanes, stop for lights and people (near_traffic.gd)
+var parked := ParkedCars.new()           ## parked cars along every kerb and on the driveways of the outskirts (parked_cars.gd)
+var road_traffic := RoadTraffic.new()    ## cars of the highways and tracks outside the city: CPU lanes on the real road polylines, drawn as meshes near the hero and light pairs far away (road_traffic.gd)
 var crowd := Crowd.new()
 var sky := Patrol.new()
 var fauna := Fauna.new()                 ## flocks above the roofs and street crawlers: one MultiMesh, one draw (ambient_fauna.gd)
@@ -39,6 +41,8 @@ func setup(city: Node3D, light_map: Texture2D) -> void:
 	_city = city
 	traffic.build()
 	near_traffic.build(light_map)
+	road_traffic.build(light_map)
+	parked.build(light_map, self)
 	crowd.build(light_map)
 	sky.build(self)
 	npc.setup(crowd)
@@ -49,6 +53,11 @@ func setup(city: Node3D, light_map: Texture2D) -> void:
 	fauna.build()
 	city.add_multimesh("AmbientFauna", fauna.mm, fauna.material, null, false, 0, 1)
 	city.add_multimesh("NearTraffic", near_traffic.mm, near_traffic.material, null, false, 0, 1)
+	# the parked cars and the road cars are drawn by the NearTraffic MultiMesh above (NearTraffic.append_cars: one draw call for every car on the ground); only the far lamp pairs have a node of their own
+	road_traffic.lamp_node = city.add_multimesh("RoadLamps", road_traffic.lamp_mm, road_traffic.lamp_material, road_traffic.lamp_mirror, false, 0, 1)
+	road_traffic.lamp_mirror_node = city.mirror_nodes[city.mirror_nodes.size() - 1]
+	road_traffic.lamp_node.visible = false                              # shown by the road layer while a lamp pair is drawn
+	road_traffic.lamp_mirror_node.visible = false
 	city.add_multimesh("AmbientTraffic", traffic.mm, traffic.material, traffic.mirror_material, false, 0, 1)
 	city.add_multimesh("AmbientCrowd", crowd.mm, crowd.material, crowd.mirror_material, false, 0, 2)
 	city.add_multimesh("AmbientCrowdNear", crowd.mm_near, crowd.material, null, false, 0, 2)          # no mirrored copy: the street core is full of near people now (+draws on HIGH)
@@ -69,6 +78,8 @@ func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
 	traffic.set_count(_traffic_n(density))
 	near_traffic.set_tier(quality, density)
+	road_traffic.set_tier(quality, density)
+	parked.set_tier(quality, density)
 	crowd.set_tier(quality, density)
 	sky.set_enabled(quality >= 1)
 	fauna.set_tier(quality)
@@ -86,6 +97,8 @@ func set_density(f: float) -> void:
 	density = f
 	traffic.set_count(_traffic_n(f))
 	near_traffic.set_tier(quality, f)
+	road_traffic.set_tier(quality, f)
+	parked.density = f                                         # the hour (DayNight.density_for): cells generated from now on are fuller at night
 	crowd.set_tier(quality, f)
 
 
@@ -93,6 +106,8 @@ func reset() -> void:
 	clock = 0.0
 	traffic.set_time(0.0)
 	near_traffic.reset()
+	road_traffic.reset()
+	parked.reset()
 	crowd.reset()
 	vendors.reset()
 	beats.reset()
@@ -113,6 +128,9 @@ func _process(delta: float) -> void:
 	if p != Vector3.INF:
 		var t0 := PerfTimers.start()
 		near_traffic.step(delta, p)
+		road_traffic.set_time(clock)
+		road_traffic.step(delta, p)
+		parked.step(delta, p)
 		PerfTimers.stop(PerfTimers.VEHICLES, t0)
 		t0 = PerfTimers.start()
 		crowd.step(delta, p)
@@ -213,6 +231,8 @@ func stats() -> Dictionary:
 	return {
 		"traffic": traffic.count,
 		"near_cars": near_traffic.alive_count(),
+		"road_cars": road_traffic.alive_count(),
+		"parked_cars": parked.alive_count(),
 		"vendors": vendors.active_count(),
 		"beats": beats.started,
 		"traffic_cap": Traffic.CAP,

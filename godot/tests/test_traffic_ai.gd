@@ -96,6 +96,9 @@ func _clear() -> void:
 	if NearTraffic.instance != null:                      # the near (MultiMesh) cars are traffic the real cars wait for: this test is about the real ones on an empty road
 		NearTraffic.instance.count = 0
 		NearTraffic.instance.reset()
+	if ParkedCars.instance != null:                       # and the parked decor cars of the kerbs (round 6) line the road the same way
+		ParkedCars.instance.enabled = false
+		ParkedCars.instance.reset()
 
 
 ## Wait on a state with a timeout (game seconds at the test's time scale).
@@ -136,7 +139,7 @@ func _lights() -> void:
 	TestLib.check(c - v.global_position.x > VehicleSpecs.LIGHT_COMMIT, "it keeps waiting while the light stays red")
 	TestLib.check(v.braking, "the brake lights are on")
 	mgr.signal_clock = 2.0                         # green
-	var went := await _until(func() -> bool: return v.global_position.x > c + 4.0, 12.0)
+	var went := await _until(func() -> bool: return v.global_position.x > c + 4.0, 24.0)           # a car pulls away at 4 m/s2 (it used to leap at 18): 22 m to the far side take about 3.5 s
 	TestLib.check(went and not v.at_light, "the car drives through when the light turns green")
 	# a siren car does not stop for the light
 	_clear()

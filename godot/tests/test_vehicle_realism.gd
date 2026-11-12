@@ -435,21 +435,37 @@ func _damage_looks() -> void:
 	var vis := v.visual
 	var orig_mesh := vis.body.mesh
 	TestLib.check(vis.dents.is_empty() and vis.cracks == 0.0 and v.dmg_state == 0, "a new car is sound: no dents, no cracks, no smoke")
-	# a hard crash leaves a dent in the actual panel mesh around the contact
+	# a hard crash leaves a dent in the panels around the contact: the older art rebuilds its body mesh, Cars v2 pushes the vertices on the GPU (dent_a / dent_b of every body material)
 	var before: PackedVector3Array = orig_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	v.crash(20.0, v.global_position + v.forward() * 2.3 + Vector3(0.0, 0.7, 0.0), -v.forward(), INF)
-	var after_mesh := vis.body.mesh
-	var after: PackedVector3Array = after_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var moved := 0
-	var deepest := 0.0
-	if after.size() == before.size():
-		for i in before.size():
-			var d := before[i].distance_to(after[i])
-			if d > 0.01:
-				moved += 1
-				deepest = maxf(deepest, d)
-	TestLib.check(vis.dents.size() >= 1 and after_mesh != orig_mesh and moved > 20 and deepest > 0.05 and deepest < 0.6, "a crash dents the body mesh (%d vertices pushed in, deepest %.2f m)" % [moved, deepest])
-	TestLib.check(orig_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] == before, "the shared model mesh itself is never touched")
+	if vis.v2 != null:
+		var mats: Array[ShaderMaterial] = [vis.v2.paint_mat, vis.v2.details_mat, vis.v2.glass_mat]
+		var shared_ok := true
+		var depth := 0.0
+		var radius := 0.0
+		for m in mats:
+			var nn := int(m.get_shader_parameter(&"dent_n"))
+			var da: PackedVector4Array = m.get_shader_parameter(&"dent_a")
+			var db: PackedVector4Array = m.get_shader_parameter(&"dent_b")
+			shared_ok = shared_ok and nn >= 1 and da.size() >= 1 and db.size() >= 1
+			if shared_ok:
+				depth = db[0].w
+				radius = da[0].w
+		TestLib.check(vis.dents.size() >= 1 and shared_ok and depth > 0.05 and depth < 0.6 and radius > 0.3, "a crash dents the panels on the GPU (%d dents, depth %.2f m, radius %.2f m, the same on paint, trim and glass)" % [vis.dents.size(), depth, radius])
+		TestLib.check(vis.body.mesh == orig_mesh and orig_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] == before, "the shared model mesh itself is never touched")
+	else:
+		var after_mesh := vis.body.mesh
+		var after: PackedVector3Array = after_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		var moved := 0
+		var deepest := 0.0
+		if after.size() == before.size():
+			for i in before.size():
+				var d := before[i].distance_to(after[i])
+				if d > 0.01:
+					moved += 1
+					deepest = maxf(deepest, d)
+		TestLib.check(vis.dents.size() >= 1 and after_mesh != orig_mesh and moved > 20 and deepest > 0.05 and deepest < 0.6, "a crash dents the body mesh (%d vertices pushed in, deepest %.2f m)" % [moved, deepest])
+		TestLib.check(orig_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] == before, "the shared model mesh itself is never touched")
 	TestLib.check(vis.damage_look > 0.1 and vis.cracks > 0.0, "the paint scuffs and the glass cracks after a hard crash (look %.2f, glass %.2f)" % [vis.damage_look, vis.cracks])
 	# smoke below 40 %, fire below 15 %, an explosion only when the hull is gone
 	v.hp = v.max_hp * 0.3

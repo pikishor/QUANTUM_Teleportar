@@ -40,12 +40,24 @@ var yielding := false               ## pulled over for a siren behind it
 var at_light := false               ## braking for a red or amber light (tests)
 var reactions := 0                  ## horn / gunfire / crash reactions so far (tests)
 var _yield_t := 0.0                 ## re-check timer of the siren search
+var _pass_shift := 0.0              ## m a siren car has moved towards the middle of the road to pass a slower car (0 .. SIREN_PASS)
+var _yield_room := true             ## the kerb side is free: the car may pull over for a siren
+var resume_t := -1.0                ## s until a bumped traffic car (it lost its lane in a minor crash) tries to rejoin the traffic; < 0 = it stays where it is
+var resume_tries := 0
+var lane_ovl := 0.0                 ## s this lane car has overlapped another one (the manager separates them and removes the car when it never clears)
+var horns := 0                      ## times this car hooted at a crash (tests)
 var vel := Vector3.ZERO             ## world velocity (y = 0)
 var braking := false                ## brake / handbrake lights
 var steer_in := 0.0                 ## last steering input -1..1 (wheel visual)
 var slip := 0.0                     ## lateral speed, m/s (body roll)
 var visual: VehicleVisual
+var _look_rng := RandomNumberGenerator.new()
 var manager: Node
+var path_road := -1                 ## >= 0: a road traffic car (RoadTraffic.promote) driving road `path_road` by itself (PathDriver)
+var path_s := 0.0
+var path_dir := 1
+var path_cruise := 18.0
+var field_slot := -1                ## permanent slot of this car's hull in the TrafficField (every system that places or steers a car reads the same hulls)
 var hits := 0                       ## wall and car impacts that hurt (tests, stats)
 var cls: StringName = &"car"        ## handling class from the spec: car / bike / hover
 var lean := 0.0                     ## bike: body roll in rad (+ = leaning right), also the roll of an AI bike in a turn
@@ -166,6 +178,27 @@ func setup(k: StringName, mgr: Node) -> void:
 	add_child(_mirror)
 	set_physics_process(false)
 	visible = false
+	field_slot = TrafficField.alloc(TrafficField.REAL)
+
+
+func _exit_tree() -> void:
+	if field_slot >= 0:
+		TrafficField.release(TrafficField.REAL, field_slot)
+		field_slot = -1
+
+
+## Writes this car's hull (the real size, the heading, the signed speed) into the TrafficField. Aircraft and ships do not drive on the street grid and are not tracked.
+func publish_hull(standing := false) -> void:
+	if field_slot < 0:
+		return
+	if craft != null and (cls == &"heli" or cls == &"plane" or cls == &"boat"):
+		return
+	if not active and not wreck:
+		return
+	var f := forward()
+	var still := standing or wreck or (not ai and not driver_is_player and not chasing and not scripted and path_road < 0 and absf(speed) < 0.2 and craft == null)       # a parked car is a fixture of the street
+	TrafficField.put(TrafficField.REAL, field_slot, global_position.x, global_position.z, f.x, f.z, float(spec["len"]) * 0.5, float(spec["wid"]) * 0.5, speed,
+			(TrafficField.F_STATIC if still else 0) | (TrafficField.F_AI if (ai or path_road >= 0) else 0))
 
 
 ## Put the car into play at `pos` (ground position), parked and repaired. Call set_traffic() afterwards for a moving one.
@@ -184,6 +217,7 @@ func activate(pos: Vector3, h: float) -> void:
 	vel = Vector3.ZERO
 	ai = false
 	scripted = false
+	path_road = -1
 	ai_speed = 0.0
 	ai_panic = 0.0
 	ai_stun = 0.0
@@ -235,6 +269,7 @@ func activate(pos: Vector3, h: float) -> void:
 	var ci := randi() % VehicleSpecs.COLORS.size()
 	visual.set_paint(VehicleSpecs.COLORS[ci])
 	paint_i = ci
+	visual.randomize_look(_look_rng)                                   # Cars v2: road dirt and now and then racing stripes
 	_drift_t = 9.0
 	drifting = false
 	gear = 1
@@ -293,6 +328,7 @@ func become_wreck() -> void:
 		_mirror_on = false
 		_mirror.track(_none)
 	visible = true
+	publish_hull(true)                                       # a husk is a solid thing on the street: nothing is spawned on it, nothing drives through it
 
 
 ## Makes this car the player's garage car: tuned spec, hit points, mounted weapon and paint from `g` (call after activate()).
@@ -328,6 +364,8 @@ func _reset_garage() -> void:
 
 func deactivate() -> void:
 	_reset_garage()
+	if field_slot >= 0:
+		TrafficField.remove(TrafficField.REAL, field_slot)
 	if visual != null:
 		visual.restore_wheels()
 	wreck = false
@@ -335,6 +373,7 @@ func deactivate() -> void:
 	driver_is_player = false
 	ai = false
 	scripted = false
+	path_road = -1
 	chasing = false
 	collision_layer = 0
 	visible = false
@@ -439,6 +478,13 @@ func tear_panel_now(local_at: Vector3, local_dir: Vector3) -> bool:
 		return false
 	_panels_torn += 1
 	var sz := Vector3(float(spec["wid"]) * 0.45, 0.05, float(spec["len"]) * 0.22)
+	var gone := visual.tear_part_at(local_at)                      # Cars v2: the real part (bumper, hood, trunk lid, door) leaves the car; the flying panel is that part
+	if gone == &"hood" or gone == &"trunk":
+		sz = Vector3(float(spec["wid"]) * 0.7, 0.05, float(spec["len"]) * 0.3)
+	elif gone == &"bumper_f" or gone == &"bumper_r":
+		sz = Vector3(float(spec["wid"]) * 0.8, 0.12, 0.35)
+	elif gone != &"":
+		sz = Vector3(0.05, float(spec["hgt"]) * 0.32, float(spec["len"]) * 0.26)
 	var out := (global_transform.basis * Vector3(local_dir.x, 0.0, local_dir.z).normalized())
 	if out.length() < 0.1:
 		out = Vector3.UP
@@ -583,6 +629,7 @@ func _update_damage_state() -> void:
 	if ns == dmg_state:
 		return
 	dmg_state = ns
+	visual.set_burning(ns == 2)                                 # Cars v2: the engine bay glows while the hull burns
 	if ns == 2:
 		visual.set_glow(Color(1.0, 0.42, 0.08))                 # the underglow turns into the colour of the fire
 	if driver_is_player and ns > _warned:
@@ -705,6 +752,9 @@ func sim(dt: float) -> void:
 			weapons.tick(dt, Input.is_action_pressed(&"fire"))
 			if weapons.has_alt():                                       # rockets / missiles of the gunship and the jet: the AIM button
 				weapons.tick_alt(dt, Input.is_action_pressed(&"aim"))
+	elif path_road >= 0 and craft == null:                # a highway car of the outskirts that became a real vehicle: it keeps driving its road
+		PathDriver.drive(self, dt)
+		step_drive(dt, script_thr, script_steer, false)
 	elif scripted:                                       # a mission's target vehicle (WorldSteps pursuit): the mission writes the stick, the vehicle drives itself with its own physics
 		step_drive(dt, script_thr, script_steer, false)
 	elif chasing:
@@ -715,8 +765,11 @@ func sim(dt: float) -> void:
 		VehicleCraft.idle(self, dt)
 	else:
 		_coast(dt)
+		if resume_t >= 0.0:
+			_try_resume(dt)
 	_sync(dt)
 	_damage_fx(dt)
+	publish_hull()
 
 
 ## Driving: thr -1..1 (brake / reverse .. throttle), steer -1..1 (left .. right), handbrake, boost (nitro). Cars use the gearbox + tyre model, bikes and hover craft the arcade one.
@@ -1173,7 +1226,7 @@ func _ai_step(dt: float) -> void:
 	var fx := float(ai_dir) if ai_axis == 0 else 0.0
 	var fz := float(ai_dir) if ai_axis == 1 else 0.0
 	var siren := is_emergency()
-	var blocked := _blocked(fx, fz, siren)
+	var blocked := _blocked(fx, fz, siren)                            # the hero on foot ahead
 	ai_panic = maxf(ai_panic - dt, 0.0)
 	ai_stun = maxf(ai_stun - dt, 0.0)
 	var u0 := global_position.x if ai_axis == 0 else global_position.z
@@ -1191,15 +1244,37 @@ func _ai_step(dt: float) -> void:
 		want *= VehicleSpecs.PANIC_SPEED
 	if yielding:
 		want = minf(want, VehicleSpecs.YIELD_SPEED)
-	var halt := blocked or at_light or ai_stun > 0.0
-	ai_speed = _damp(ai_speed, 0.0 if halt else want, 5.0 if halt else 1.5, dt)
-	blocked = blocked or at_light or ai_stun > 0.0
+	# the other vehicles (every layer of the traffic): the safe speed behind the nearest hull in the swept corridor, then the junction box
+	var hl := float(spec["len"]) * 0.5
+	var hw := float(spec["wid"]) * 0.5
+	var lead_gap := INF
+	if not (ai_panic > 1.0 and not siren):                           # a car in flight after gunfire does not brake for the traffic ahead: that is how AI cars crash into each other
+		var ld := TrafficField.lead(global_position.x, global_position.z, fx, fz, hl, hw, TrafficBrain.look_for(ai_speed) + 4.0, TrafficField.REAL, field_slot, 0.3 if not siren else -0.35)
+		if ld.x < INF:
+			lead_gap = ld.x
+			want = minf(want, TrafficBrain.safe_speed(ld.x, ld.y, 5.0 * (1.3 if siren else 1.0), 0.45, 2.4, TrafficBrain.HARD))
+	if siren:                                                         # a siren car passes a slower car on the middle side of the road when the way there is free
+		var wants_pass := lead_gap < 24.0 and lead_gap > 0.0 and ai_speed > 1.0
+		if wants_pass:
+			var left := Vector2(fz, -fx) * VehicleSpecs.SIREN_PASS                       # towards the middle of the road: the left of the direction of travel
+			var lp := Vector2(global_position.x, global_position.z) + left
+			wants_pass = TrafficField.clear(lp.x, lp.y, fx, fz, hl + 4.0, hw, 0.25, TrafficField.REAL, field_slot)
+		_pass_shift = move_toward(_pass_shift, VehicleSpecs.SIREN_PASS if wants_pass else 0.0, 2.4 * dt)
+	else:
+		_pass_shift = 0.0
+	var box := _box_hold(fx, fz, u0, hl, hw, lead_gap)
+	var halt := blocked or at_light or box or ai_stun > 0.0
+	if halt:
+		ai_speed = TrafficBrain.approach(ai_speed, 0.0, dt)
+	else:
+		ai_speed = TrafficBrain.approach(ai_speed, want, dt, TrafficBrain.ACCEL_REAL if not siren else TrafficBrain.ACCEL_SIREN)
+	blocked = blocked or at_light or box or ai_stun > 0.0
 	var p := global_position
 	var ox := p.x
 	var oz := p.z
 	var prev_u := ox if ai_axis == 0 else oz
 	var step := float(ai_dir) * ai_speed * dt
-	var line := ai_line + (VehicleSpecs.lane_offset(ai_axis, ai_dir, VehicleSpecs.YIELD_SHIFT) if yielding else 0.0)
+	var line := ai_line + (VehicleSpecs.lane_offset(ai_axis, ai_dir, VehicleSpecs.YIELD_SHIFT) if (yielding and _yield_room) else 0.0) - VehicleSpecs.lane_offset(ai_axis, ai_dir, _pass_shift)
 	if ai_axis == 0:
 		p.x += step
 		p.z = _damp(p.z, line, 2.5, dt)
@@ -1215,15 +1290,43 @@ func _ai_step(dt: float) -> void:
 	global_position = p
 	var dx := p.x - ox
 	var dz := p.z - oz
-	if dx * dx + dz * dz > 1e-6:
-		heading = _damp_angle(heading, atan2(-dx, -dz), 7.0, dt)
+	if dx * dx + dz * dz > 1e-6:                                                  # the car points along its motion, but a sideways slide of a (nearly) standing car never turns it across the road
+		var along := absf(dx) if ai_axis == 0 else absf(dz)
+		var across := absf(dz) if ai_axis == 0 else absf(dx)
+		var k := along / maxf(along + across, 1.0e-5)
+		heading = _damp_angle(heading, lerp_angle(VehicleSpecs.heading_for(ai_axis, ai_dir), atan2(-dx, -dz), k), 7.0, dt)
+	elif ai_speed < 0.2:
+		heading = _damp_angle(heading, VehicleSpecs.heading_for(ai_axis, ai_dir), 4.0, dt)
 	vel = Vector3(dx / dt, 0.0, dz / dt)
 	speed = ai_speed
 	braking = blocked or ai_speed < 1.0
 	steer_in = 0.0
 
 
-## Something (the player on foot, another car) within AI_LOOK metres ahead and AI_SIDE to the side.
+## The junction box ahead (the near traffic's rule, shared): true while crossing traffic stands in it, or a queue beyond it would leave this car in the middle of the crossing. A car already past
+## the stop line is committed and drives on.
+func _box_hold(fx: float, fz: float, u: float, hl: float, hw: float, lead_gap: float) -> bool:
+	if ai_panic > 0.0 or is_emergency() or craft != null:
+		return false
+	var ci := ceili((u + Game.HALF) / Game.PITCH) if ai_dir > 0 else floori((u + Game.HALF) / Game.PITCH)
+	if ci < 0 or ci > Game.N:
+		return false
+	var c := VehicleSpecs.road_center(ci)
+	var d := (c - u) * float(ai_dir)
+	if d <= NearTraffic.BOX_COMMIT or d > VehicleSpecs.LIGHT_LOOK:
+		return false
+	var rc := VehicleSpecs.road_center(VehicleSpecs.road_index(ai_line))
+	var jc := Vector2(c, rc) if ai_axis == 0 else Vector2(rc, c)
+	if TrafficField.box_busy(jc.x, jc.y, NearTraffic.BOX_HALF, fx, fz, TrafficField.REAL, field_slot):
+		return true
+	if lead_gap < INF and lead_gap < d + NearTraffic.BOX_HALF + 2.0 * hl + 1.0:
+		var ld := TrafficField.lead(global_position.x, global_position.z, fx, fz, hl, hw, d + NearTraffic.BOX_HALF + 2.0 * hl + 2.0, TrafficField.REAL, field_slot, 0.3)
+		if ld.x < INF and ld.y < 2.5:
+			return true
+	return false
+
+
+## The hero on foot within AI_LOOK metres ahead and AI_SIDE to the side (the other vehicles are the TrafficField's business: `_ai_step`).
 func _blocked(fx: float, fz: float, siren := false) -> bool:
 	var me := global_position
 	var side := VehicleSpecs.AI_SIDE * (0.6 if siren else 1.0)       # a siren car squeezes past a yielding car
@@ -1231,13 +1334,6 @@ func _blocked(fx: float, fz: float, siren := false) -> bool:
 	if is_instance_valid(pl) and pl.get(&"vehicle") == null and absf(pl.global_position.y - me.y) < 3.0:
 		if _ahead(pl.global_position - me, fx, fz, side):
 			return true
-	if NearTraffic.instance != null and NearTraffic.instance.blocks(me, fx, fz, side, VehicleSpecs.AI_LOOK):       # the near (MultiMesh) cars are traffic too
-		return true
-	var mgr := manager as VehicleManager
-	if mgr != null and not (ai_panic > 1.0 and not siren):            # a car in flight does not brake for the traffic ahead: that is how AI cars crash into each other
-		for o in mgr.list:
-			if o != self and o.active and not o.dead and _ahead(o.global_position - me, fx, fz, side):
-				return true
 	return false
 
 
@@ -1266,7 +1362,8 @@ func _light_blocks(u: float) -> bool:
 	var d := (VehicleSpecs.road_center(ci) - u) * float(ai_dir)
 	if d <= VehicleSpecs.LIGHT_COMMIT or d > VehicleSpecs.LIGHT_LOOK:
 		return false
-	var st := VehicleSpecs.signal_state(ai_axis, mgr.signal_clock)
+	var desync := (NearTraffic.instance.desync if NearTraffic.instance != null else true) and not mgr.signal_frozen        # a frozen clock (tests) is one plain phase for every junction
+	var st := NearTraffic.signal_for(ai_axis, VehicleSpecs.road_index(ai_line), ci, mgr.signal_clock, desync)      # the same light the near cars of this junction obey (never two lights for one crossing)
 	return st == 2 or (st == 1 and d > VehicleSpecs.AMBER_STOP)
 
 
@@ -1288,13 +1385,16 @@ func _siren_behind() -> bool:
 		var along := r.x * fx + r.z * fz
 		var across := absf(r.x * fz - r.z * fx)
 		if along < 6.0 and along > -VehicleSpecs.YIELD_RANGE and across < 8.0:
+			# pull over only where the kerb side is free (a parked car on the bay, a car beside it): otherwise it holds its lane and the siren car waits behind it
+			var sp := Vector2(me.x, me.z) + Vector2(-fz, fx) * VehicleSpecs.YIELD_SHIFT           # the kerb side is the car's right
+			_yield_room = TrafficField.clear(sp.x, sp.y, fx, fz, float(spec["len"]) * 0.5 + 1.5, float(spec["wid"]) * 0.5, 0.15, TrafficField.REAL, field_slot)
 			return true
 	return false
 
 
 ## Horn, gunfire or a crash at `pos` (VehicleManager.hear): traffic reacts. Gunfire sends cars fleeing, a horn makes the car ahead of it hurry on, a crash stops cars nearby for a moment.
 func hear(pos: Vector3, what: StringName) -> void:
-	if not ai or not active or dead or driver_is_player or is_emergency():
+	if (not ai and path_road < 0) or not active or dead or driver_is_player or is_emergency():
 		return
 	var r := pos - global_position
 	r.y = 0.0
@@ -1331,6 +1431,61 @@ func _turn(c: float, idx: int, p: Vector3) -> void:
 	ai_line = c + VehicleSpecs.lane_offset(ai_axis, d2, Game.LANE)
 	ai_speed *= 0.7
 	ai_cool = VehicleSpecs.AI_TURN_COOLDOWN
+
+
+## A traffic car that was hit (VehicleManager.collide_cars) stops being a lane car. A minor bump (closing speed under 15 m/s) lets the driver sound the horn and rejoin the traffic a few seconds later;
+## a hard crash leaves the car where it is (a wreck or a parked obstacle). Returns true when the car lost its lane.
+func lane_lost(closing: float) -> bool:
+	if path_road >= 0:                                   # a road car keeps its driver: it stops for a moment and drives on (PathDriver reads the stun)
+		ai_stun = maxf(ai_stun, 1.2 + closing * 0.05)
+		return false
+	if not ai:
+		return false
+	ai = false
+	resume_t = (1.6 + randf() * 1.6) if closing < 15.0 else -1.0
+	resume_tries = 0
+	return true
+
+
+## The bumped driver pulls away again: the heading must be near a road axis, the car close to a lane line and the lane ahead free. Retries once a second, six times.
+func _try_resume(dt: float) -> void:
+	if dead or wreck or driver_is_player or craft != null or cls != &"car":
+		resume_t = -1.0
+		return
+	resume_t -= dt
+	if resume_t > 0.0:
+		return
+	var retry := false
+	if hp < max_hp * 0.3 or absf(speed) > 1.5 or absf(yaw_rate) > 0.3:
+		retry = true
+	var h := wrapf(heading, -PI, PI)
+	var dirs := [[0.0, 1, -1], [PI, 1, 1], [-PI * 0.5, 0, 1], [PI * 0.5, 0, -1]]               # heading, axis, dir
+	var best: Array = dirs[0]
+	var err := INF
+	for d: Array in dirs:
+		var e := absf(wrapf(h - float(d[0]), -PI, PI))
+		if e < err:
+			err = e
+			best = d
+	var ax: int = best[1]
+	var dr: int = best[2]
+	var across := global_position.z if ax == 0 else global_position.x
+	var line := VehicleSpecs.road_center(VehicleSpecs.road_index(across)) + VehicleSpecs.lane_offset(ax, dr, Game.LANE)
+	if err > 0.45 or absf(across - line) > 3.4:
+		retry = true
+	if not retry:
+		var f := Vector2(float(dr) if ax == 0 else 0.0, float(dr) if ax == 1 else 0.0)
+		var ld := TrafficField.lead(global_position.x, global_position.z, f.x, f.y, float(spec["len"]) * 0.5, float(spec["wid"]) * 0.5, 14.0, TrafficField.REAL, field_slot, 0.3)
+		if ld.x < 5.0:
+			retry = true
+	if retry:
+		resume_tries += 1
+		resume_t = -1.0 if resume_tries >= 6 else 1.0
+		return
+	resume_t = -1.0
+	set_traffic(ax, dr, line, ai_cruise if ai_cruise > 1.0 else randf_range(VehicleSpecs.AI_CRUISE_MIN, VehicleSpecs.AI_CRUISE_MAX))
+	ai_speed = maxf(speed, 0.0)
+	heading = VehicleSpecs.heading_for(ax, dr)
 
 
 # --- Vael patrol chase ---------------------------------------------------------------------------------------------------

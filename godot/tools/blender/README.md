@@ -105,3 +105,19 @@ noise, decals), `alienlib.py` (character rig finalizer and loft helpers; `humano
 post-processing and triangle counting), `post_import.gd` (import script), `patch_imports.py`, `make_textures.py`.
 Scratch / experiments: `QT_MODELS_DIR` and `QT_TEX_DIR` redirect the output, `QT_ATLAS_SCALE=2` doubles the atlas sizes, `QT_NOCULL=1`
 skips hidden-face culling, `QT_DEBUG_CULL=1` lists what was culled.
+
+
+## Cars v2 (round 6: the procedural car set)
+`tools/blender/build_cars_v2.py` builds 20 car archetypes and the near traffic car into `assets/models/cv2_*.glb` (nose -Z, origin on the ground, 1 unit = 1 m). It is pure numpy (`tools/blender/carv2/`) with bpy only
+as the mesh container, the glTF exporter and the previewer, so it runs in the same interpreter as the rest (`godot/.venv-tools`). Nothing in it is third-party art.
+```
+.venv-tools/bin/python tools/blender/build_cars_v2.py                # all 20 (about 17 s)
+.venv-tools/bin/python tools/blender/build_cars_v2.py sedan bus      # some
+.venv-tools/bin/python tools/blender/build_cars_v2.py --near         # assets/models/cv2_near.glb (418 triangles, the near traffic MultiMesh car)
+.venv-tools/bin/python tools/blender/build_cars_v2.py sedan --preview /tmp/%s_   # Blender renders of one model (front3q, side, rear3q, top, front, rear)
+QT_CAR_STATS=1 ... build_cars_v2.py sedan                            # triangles per LOD and per part
+tools/import.sh                                                      # then Godot imports them; tools/test.sh tests/test_cars_v2.gd
+python3 tools/materials/make_carv2_textures.py                       # carv2_tread_normal.png and carv2_flake_normal.png (numpy only)
+```
+Modules (`tools/blender/carv2/`): `kit.py` (meshes, primitives, ring-loft helpers, `pchip`, triangulation, angle x area weighted smooth normals with vertex splitting, vertex ambient occlusion, `Surface` ray casts onto the finished shell), `body.py` (the shell as a loft of rings along the car: `Profiles` hold the top line, the beltline, the plan taper and the wheel arches; end caps are scaled copies closed with flat fans; face materials Paint / Glass / Under / Trim and body part ids), `wheels.py` (tyre with tread uvs, rim designs, brake disc, caliper, hub), `features.py` (`Detailer`: lamps, grille, intakes, mirrors, handles, shut lines, exhausts, ribbons and patches projected onto the shell), `interior.py` (dash, seats, wheel, driver, liner), `archetypes.py` (the 20 definitions and `car_details`), `export.py` (bpy objects and the glTF export), the triangle budgets are LOD0 6-9k with the wheels, LOD1 about 1.5-2.2k, LOD2 about 300-500 (`LODS` in `body.py`).
+Mind the three rules this set was bitten by: keys given to `pchip` must ascend in y; surface ray origins must lie outside the car (`Surface.ext`); a conditional `NORMAL_MAP` needs real tangents (the wheel shader derives its own frame).

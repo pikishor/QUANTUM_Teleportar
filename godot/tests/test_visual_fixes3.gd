@@ -95,21 +95,22 @@ func _paint() -> void:
 	var worst := ""
 	for i in VehicleSpecs.COLORS.size():
 		vis.set_paint(VehicleSpecs.COLORS[i])
-		var m := vis._body_mat
-		if m == null:
+		var m := vis.paint_state()                          # the same numbers for the older art and for Cars v2
+		if m.is_empty():
 			ok = false
-			worst = "no body material"
+			worst = "no paint finish"
 			break
-		var good := m.metallic <= 0.45 and m.metallic_specular >= 0.85 and m.clearcoat_enabled and m.clearcoat >= 0.85 and m.roughness <= VehicleVisual.PAINT_ROUGH_MAX + 0.01 and m.rim_enabled and m.rim >= 0.4
+		var good: bool = float(m["metallic"]) <= 0.45 and float(m["specular"]) >= 0.85 and float(m["clearcoat"]) >= 0.85 and float(m["roughness"]) <= VehicleVisual.PAINT_ROUGH_MAX + 0.01 and float(m["rim"]) >= 0.4
 		if not good:
 			ok = false
-			worst = "paint %d metal %.2f spec %.2f coat %.2f rough %.2f rim %.2f" % [i, m.metallic, m.metallic_specular, m.clearcoat, m.roughness, m.rim]
+			worst = "paint %d metal %.2f spec %.2f coat %.2f rough %.2f rim %.2f" % [i, m["metallic"], m["specular"], m["clearcoat"], m["roughness"], m["rim"]]
 	TestLib.check(ok, "every paint is a glossy low-metal lacquer %s" % worst)
 	vis.set_paint(VehicleSpecs.COLORS[4])
 	var c := vis.get_paint()
 	TestLib.check(c.b > c.r and c.b > c.g and c.get_luminance() > 0.2, "dusk violet keeps its colour and brightness (%s)" % [c])
 	vis.set_wet(1.0)
-	TestLib.check(vis._body_mat.roughness <= 0.5 and vis._body_mat.metallic <= 0.45, "a wet / damaged re-apply keeps the finish")
+	var wet_state := vis.paint_state()
+	TestLib.check(float(wet_state["roughness"]) <= 0.5 and float(wet_state["metallic"]) <= 0.45, "a wet / damaged re-apply keeps the finish")
 
 
 ## 3. Toasts: the mission-complete banner sits under the top stack in its own region: not over the hero, the minimap, the radio subtitle or the chapter banner.

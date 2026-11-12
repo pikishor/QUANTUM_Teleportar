@@ -192,6 +192,14 @@ func _crack_inside_glass() -> void:
 	for k: StringName in [&"sedan", &"sport", &"taxi", &"suv", &"wagon"]:
 		var v := _car(k, -560.0 + float(randi() % 20), 300.0, 0.0)
 		v.visual.crack_glass(1.0, Vector3(0.9, 0.7, 0.0))
+		if v.visual.v2 != null:                              # Cars v2: the glass shader draws the crack star at `crack_at` (model space), there is no decal mesh to measure
+			var at := v.visual.v2.glass_mat.get_shader_parameter(&"crack_at") as Vector4
+			var hgt := float(VehicleSpecs.SPECS[k]["hgt"])
+			if v.visual.v2.cracks < 0.9 or at.y > hgt * 0.9 or at.y < hgt * 0.4:
+				ok = false
+				worst = "%s crack at %.2f of %.2f" % [k, at.y, hgt]
+			v.visual.repair()
+			continue
 		var mi := v.visual._crack_mi as MeshInstance3D
 		var top := 0.0
 		if mi != null and mi.mesh != null:

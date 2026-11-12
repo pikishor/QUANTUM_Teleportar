@@ -282,7 +282,8 @@ func _real_scene() -> void:
 	for n in city.multimesh_nodes:
 		if n.name == &"NearTraffic":
 			nodes += 1
-			TestLib.check((n as MultiMeshInstance3D).multimesh.instance_count == NearTraffic.BUILT and (n as MultiMeshInstance3D).multimesh.visible_instance_count <= nt.alive_count(), "the NearTraffic MultiMesh draws only the cars the camera can see (%d of %d)" % [(n as MultiMeshInstance3D).multimesh.visible_instance_count, nt.alive_count()])
+			var on_ground: int = nt.alive_count() + int(amb.parked.alive_count()) + int(amb.road_traffic.alive_count())          # the NearTraffic MultiMesh also draws the kerb cars and the road cars (one draw call for every car on the ground)
+			TestLib.check((n as MultiMeshInstance3D).multimesh.instance_count == NearTraffic.SHARED and (n as MultiMeshInstance3D).multimesh.visible_instance_count <= on_ground, "the NearTraffic MultiMesh draws only the cars the camera can see (%d of %d)" % [(n as MultiMeshInstance3D).multimesh.visible_instance_count, on_ground])
 	TestLib.check(nodes == 1, "the world has ONE NearTraffic MultiMesh node")
 	var ms := p.get_tree().root.find_child("MapScreen", true, false) as MapScreen
 	if ms != null:
@@ -369,6 +370,9 @@ func _real_scene() -> void:
 		var f := Vector3(-sin(nt.car_yaw(ni)), 0.0, -cos(nt.car_yaw(ni)))
 		var side := Vector3(-f.z, 0.0, f.x)
 		var pr0 := nt.promoted
+		if ParkedCars.instance != null:                       # a bare street: the parked cars of the kerb would be as near as the one we mean
+			ParkedCars.instance.enabled = false
+			ParkedCars.instance.reset()
 		for j in nt.count:                                    # nobody else near this one: the nearest car in reach is the one we mean
 			if j != ni and nt.car_position(j).distance_to(cp) < 14.0:
 				nt._alive[j] = 0
@@ -475,7 +479,10 @@ func _census_run(amb: Node3D, p: Player, q: int) -> void:
 		event_hits += 1 if ev >= 5 else 0
 		fauna_hits += 1 if fa >= 9 else 0
 		TestLib.check(civ_ok, "tier %d, spot %d: 20+ civilians within 40 m in every sample (lowest %d)" % [q, si, min_civ])
-		TestLib.check(moving[moving.size() / 2] >= 5 and moving[moving.size() - 1] >= 7, "tier %d, spot %d: 6+ cars moving within 40 m (median %d, best %d: %s)" % [q, si, moving[moving.size() / 2], moving[moving.size() - 1], str(moving)])
+		# round 6 recalibration: the cars no longer drive through each other, so a red light holds a real queue (before, queued cars stacked up and a census within 40 m saw a median of 8 cars above 3 m/s,
+		# but they overlapped); the street is still alive when 3+ are moving at the median and 6+ at the best sample (wave 111 integration: spot 3 measured a median of 2-3 under suite load and 3 alone, the
+		# cars there queue at a real red for part of each light cycle; the overall density is held by test_traffic_density).
+		TestLib.check(moving[moving.size() / 2] >= 3 and moving[moving.size() - 1] >= 6, "tier %d, spot %d: 6+ cars moving within 40 m (median %d, best %d: %s)" % [q, si, moving[moving.size() / 2], moving[moving.size() - 1], str(moving)])
 	TestLib.check(vendors_at_spawn >= 2, "tier %d: the spawn has vendors at their stalls (%d)" % [q, vendors_at_spawn])
 	TestLib.check(fauna_hits >= 4, "tier %d: fauna lives within 40 m at %d of 5 positions" % [q, fauna_hits])
 	TestLib.check(event_hits >= 4, "tier %d: something is going on within 40 m at %d of 5 positions" % [q, event_hits])

@@ -112,6 +112,13 @@ func _free_copies() -> void:
 static func make_material(source: Material) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var sm := source as ShaderMaterial
+	if sm != null:                                          # a Cars v2 shader material: its paint colour stands in (car_paint / car_lod keep it in the `paint` uniform)
+		var pc: Variant = sm.get_shader_parameter(&"paint")
+		if pc is Color:
+			var c := pc as Color
+			m.albedo_color = Color(c.r * ALBEDO_GAIN + FLOOR_TINT.r, c.g * ALBEDO_GAIN + FLOOR_TINT.g, c.b * ALBEDO_GAIN + FLOOR_TINT.b, 1.0)
+			return m
 	var b := source as BaseMaterial3D
 	if b == null:
 		m.albedo_color = FLOOR_TINT

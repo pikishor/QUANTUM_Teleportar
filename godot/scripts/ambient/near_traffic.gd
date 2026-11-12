@@ -8,31 +8,53 @@ extends RefCounted
 
 const SHADER := preload("res://assets/shaders/prop_nearcar.gdshader")
 const MB := preload("res://scripts/world/mesh_builder.gd")
+const Districts := preload("res://scripts/world/city_districts.gd")
 
-const BUILT := 100
+const BUILT := 124
+const SHARED_EXTRA := 120                ## more instances in the same MultiMesh after the near cars: the road cars (RoadTraffic.DRAWN) and the parked cars (ParkedCars.DRAWN) ride in this draw call (the phone's draw budget)
+const SHARED := BUILT + SHARED_EXTRA
 const COUNTS: Array[int] = [72, 88, 100]
-const RADII: Array[float] = [60.0, 68.0, 78.0]
+const RADII: Array[float] = [72.0, 84.0, 96.0]
 const MIN_SPAWN := 16.0                  ## first fill: anywhere in the ring but not on top of the hero
 const AVENUE := 8 + CityLayout.SHIFT      ## road index of the market avenue (z = 0)
 const AVENUE_GREEN := 12.0
-const CORE_SHARE := 0.7
-const CORE_R := 44.0
+const CORE_SHARE := 0.8
+const CORE_R := 42.0
 const RESPAWN_MIN := 0.55                ## later: this share of the radius away, so nobody appears in front of the hero
-const KINDS: Array[StringName] = [&"sedan", &"compact", &"suv", &"van", &"taxi", &"sport"]
-const KIND_SPEED: Array[float] = [1.0, 1.0, 0.95, 0.86, 1.04, 1.28]
-const KIND_HALF: Array[float] = [2.25, 1.9, 2.4, 2.7, 2.25, 2.15]    ## half the car length, for gaps
-const KIND_MIX: Array[float] = [0.28, 0.2, 0.16, 0.08, 0.14, 0.14]
+## The archetypes of the traffic (round 6: variety). Index = the body variant of the shader (assets/shaders/prop_nearcar.gdshader SHAPE): commuters (sedan, compact, SUV), taxis, delivery vans and box trucks,
+## pickups, city buses, police patrols and ambulances (their roofs flash), speeders (the sport car). The names are VehicleSpecs kinds, so a promoted car is the real vehicle of that kind.
+const KINDS: Array[StringName] = [&"sedan", &"compact", &"suv", &"van", &"taxi", &"sport", &"pickup", &"truck", &"bus", &"interceptor", &"ambulance", &"delivery"]
+const KIND_SPEED: Array[float] = [1.0, 1.0, 0.95, 0.86, 1.04, 1.28, 0.95, 0.88, 0.9, 1.12, 1.18, 0.92]
+const KIND_HALF: Array[float] = [2.25, 1.9, 2.4, 2.7, 2.25, 2.15, 2.55, 3.2, 4.75, 2.35, 2.7, 2.9]    ## half the car length, for gaps
+const KIND_HW: Array[float] = [0.93, 0.88, 0.99, 1.02, 0.93, 0.98, 0.98, 1.1, 1.25, 0.97, 1.02, 1.05]    ## half the car width (the mesh is 1.84 wide, scaled by the variant): the hull the TrafficField holds
+const KIND_VARIANT: Array[int] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+const KIND_LAMP: Array[float] = [0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 0.5]       ## the far lamp flag (RoadTraffic): 0.5 = tall (truck, bus, van), 1 = emergency strobes
+## The share of every archetype by place: the city grid by district zone (CityDistricts.zone_at, 8 zones), the highways and the dirt tracks. Each row sums to 1.
+##                                      sedan compact suv   van   taxi  sport pickup truck bus   police ambul. deliv.
+const KIND_MIX: Array[float] =        [0.25, 0.17, 0.13, 0.06, 0.13, 0.08, 0.05, 0.02, 0.025, 0.03, 0.015, 0.04]
+const KIND_MIX_HIGHWAY: Array[float] = [0.30, 0.08, 0.15, 0.06, 0.02, 0.08, 0.10, 0.08, 0.03, 0.02, 0.005, 0.075]
+const KIND_MIX_TRACK: Array[float] =   [0.14, 0.04, 0.26, 0.08, 0.00, 0.02, 0.30, 0.10, 0.00, 0.02, 0.00, 0.04]
+const ZONE_BIAS := {                                                                    ## multipliers by zone for the kinds that change with the district: [taxi, truck, delivery, bus, sport, pickup, compact]
+	0: [1.5, 0.4, 1.2, 1.4, 1.2, 0.4, 1.0],      # NEON MARKET: taxis, buses, delivery vans
+	1: [0.5, 2.2, 1.4, 0.6, 0.6, 1.6, 0.8],      # FOUNDRY ROW: trucks and vans
+	2: [0.5, 0.8, 0.8, 0.8, 0.5, 1.2, 1.7],      # RAIN SLUMS: small old cars
+	3: [1.6, 0.2, 0.7, 1.0, 2.0, 0.2, 0.6],      # GLASS TOWERS: taxis and fast cars
+	4: [0.4, 3.0, 1.6, 0.4, 0.5, 1.8, 0.6],      # DOCKYARDS: lorries
+	5: [1.0, 0.8, 1.5, 1.6, 0.8, 0.8, 1.0],      # AMBER TERRACES
+	6: [0.4, 1.2, 0.8, 0.6, 0.4, 2.2, 1.3],      # GROW FIELDS: pickups
+	7: [1.4, 0.3, 0.8, 1.2, 1.8, 0.3, 0.7],      # OUTER SPIRES
+}
 const EDGE := CityLayout.HALF - 14.0
-const ACCEL := 3.4
+const ACCEL := 4.0
 const BRAKE := 7.0
 const LOOK := 17.0                       ## obstacle look-ahead (m)
 const SIDE_CAR := 2.3
 const FAR_LOOK := 22.0                   ## other cars farther than this on either axis cannot be in the way
 const SIDE_FOOT := 1.35                  ## a person within this of the car's centre line is in its way (the car is 0.95 each side, a person 0.4)
-const STOP_GAP := 2.6
+const STOP_GAP := 2.3
 const STOP_LINE := 11.5                  ## m before the junction centre where a car waits for a red
 const LIGHT_LOOK := 24.0
-const TURN_CHANCE := 0.4
+const TURN_CHANCE := 0.22
 const TURN_R := 6.0                      ## the curve starts and ends this far from the crossing point of the two lanes
 const TURN_LEN := 1.62 * TURN_R
 const DECIDE_AT := 34.0
@@ -40,7 +62,17 @@ const HURT_CD := 1.4
 const PANIC_TIME := 4.0
 const PANIC_SPEED := 1.45
 const GUN_HEAR := 45.0
-const FRAME_STAGGER := 4                 ## every car looks around once in this many frames
+const FRAME_STAGGER := 4                 ## the pedestrian list is refreshed once in this many frames
+const SUBSTEP := 0.05                   ## a frame longer than this is run as several short steps (a slow phone, the audit at 4x): no car ever moves more than a third of a metre per look
+const SPAWN_EVERY := 0.1                ## s between two spawn passes (at most 3 cars each)
+const LOOK_FAR := 0.2                  ## ... and the cars beyond LOOK_NEAR metres of the hero
+const LOOK_NEAR := 42.0
+const LOOK_EVERY := 0.1                 ## seconds of game time between two looks of one car
+const HARD_BRAKE := 11.0                 ## m/s2 when something is much closer than the planned stop (the car brakes as hard as a real one)
+const OVERLAP_KILL := 0.55                ## seconds a near car may sit inside another hull before it is taken out of the ring
+const TURN_PATIENCE := 1.2               ## s a car waits for a gap to turn before it drives straight on instead
+const BOX_COMMIT := 10.0                 ## m from the junction centre: a car this close (it stopped at the line, 11.7 m, or is past it) is committed
+const BOX_HALF := 8.5                    ## half size of the junction box a car does not enter while crossing traffic stands in it
 const PEDS_MAX := 48
 const SWERVE_CLEAR := 1.55               ## a car passes a person standing in its lane at least this far off (half the car 0.95 + a person 0.4 + a little)
 const CAM_CLEAR := 2.7                   ## a car passes the game camera at least this far off when it can (it is 2 m above the road: a roof at the lens fills half the screen)
@@ -51,7 +83,9 @@ const DRAW_R: Array[float] = [42.0, 42.0, 58.0]    ## cars beyond this are not d
 const VIEW_NEAR := 16.0                  ## cars this close are always drawn (the camera swings, shadows fall into the view)
 const VIEW_COS := 0.2                    ## a car more than about 78 degrees off the camera's heading is not drawn
 const SWERVE_RATE := 2.0                 ## m/s of sideways drift
-const JAM_AFTER := 6.0
+const JAM_AFTER := 40.0                  ## seconds stuck behind cars with no light or person to explain it: an unseen car is removed
+const JAM_FORCE := 70.0                  ## ... and a seen one too
+const CAR_PAD := 0.3                     ## m of margin on each side of the corridor a car looks along
 const GHOST_TIME := 3.5
 
 static var instance: NearTraffic
@@ -59,6 +93,7 @@ static var instance: NearTraffic
 var mm: MultiMesh
 var material: ShaderMaterial
 var count := 0
+var enabled := true                      ## false (tests that want a bare street): no cars, whatever the tier and the hour ask for
 var radius := 105.0
 var quality := 1
 var rng := RandomNumberGenerator.new()
@@ -105,6 +140,7 @@ var _obs := PackedFloat32Array()         ## sideways offsets of the obstacles on
 var _obs_cam := PackedByteArray()
 var _n_obs := 0
 var _nw := 0                             ## cars written into the MultiMesh this step
+var _total := 0                          ## instances of the MultiMesh drawn this frame: the near cars + what append_cars added (the road and the parked cars)
 var _cam_ok := false
 var _cam_fwd := Vector2.ZERO
 var _cam_pos := Vector2.ZERO
@@ -116,18 +152,28 @@ var _hero := Vector3.INF
 var _hero_foot := true
 var _cam := Vector2(INF, INF)           ## the game camera behind the hero on foot: a car must not drive through the lens either
 var _light_seen := PackedByteArray()
+var _look_t := PackedFloat32Array()
+var _twait := PackedFloat32Array()
+var _why := PackedFloat32Array()          ## the last look: 4 numbers per car (light, box, car, person allowances), for the audit
+var _ovl := PackedFloat32Array()
+var _ovl_t := PackedFloat32Array()
+var rej := PackedInt32Array([0, 0, 0, 0, 0, 0, 0, 0])   ## why a spawn attempt failed: no lane, junction, ring edge, spot taken, hull, queue ahead, car behind, ok (tests)
+var _spawn_t := 0.0
+var jam_breaks := 0                      ## cars removed from a jam that never cleared (tests, the audit)
+var overlap_kills := 0                   ## near cars taken out of the ring because their hull stayed inside another vehicle (tests, the audit)
 
 
 func build(light_map: Texture2D) -> void:
 	instance = self
 	rng.seed = 90211
-	mm = MB.new_multimesh(car_mesh(), BUILT, false, true)
-	_buf = MB.new_buffer(BUILT, false, true)
-	for a: PackedFloat32Array in [_dir, _line, _u, _spd, _cruise, _allow, _brake, _panic, _stun, _hurt_cd, _shift, _shift_t, _jam, _ghost, _wait, _age, _yaw, _tdir, _tcross, _tp]:
+	mm = MB.new_multimesh(car_mesh(), SHARED, false, true)
+	_buf = MB.new_buffer(SHARED, false, true)
+	for a: PackedFloat32Array in [_dir, _line, _u, _spd, _cruise, _allow, _brake, _panic, _stun, _hurt_cd, _shift, _shift_t, _jam, _ghost, _wait, _age, _yaw, _tdir, _tcross, _tp, _look_t, _twait, _ovl, _ovl_t]:
 		a.resize(BUILT)
 	for a: PackedByteArray in [_alive, _axis, _kind, _paint, _tmode, _light_seen]:
 		a.resize(BUILT)
 	_pos.resize(BUILT)
+	_why.resize(BUILT * 4)
 	_tE.resize(BUILT)
 	_tI.resize(BUILT)
 	_tX.resize(BUILT)
@@ -151,17 +197,32 @@ static var _near_mesh: ArrayMesh
 static func car_mesh() -> ArrayMesh:
 	if OS.get_environment("QT_RV_MODELS") != "0":
 		if _near_mesh == null:
-			var root := Game.load_model("rv_near")
+			var root := Game.load_model("cv2_near") if CarV2.enabled() else null         # round 6 (Cars v2): the sedan of the new set, 426 triangles, same tags (tools/blender/build_cars_v2.py --near)
+			if root == null:
+				root = Game.load_model("rv_near")
 			if root != null:
 				for n in root.find_children("*", "MeshInstance3D", true, false):
 					var m := (n as MeshInstance3D).mesh as ArrayMesh
 					if m != null and m.get_surface_count() == 1:
-						_near_mesh = m
+						_near_mesh = _without_vertex_colours(m)
 						break
 				root.free()
 		if _near_mesh != null:
 			return _near_mesh
 	return procedural_car_mesh()
+
+
+## The near car's shader never reads COLOR and its MultiMesh has no instance colours, so a COLOR array from the glTF would only be an unused stream (and the GL renderer
+## then multiplies it by an instance colour nobody writes). The copy has the same surface without it.
+static func _without_vertex_colours(m: ArrayMesh) -> ArrayMesh:
+	var arrays := m.surface_get_arrays(0)
+	if arrays[Mesh.ARRAY_COLOR] == null:
+		return m
+	arrays[Mesh.ARRAY_COLOR] = null
+	var out := ArrayMesh.new()
+	out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	out.surface_set_material(0, m.surface_get_material(0))
+	return out
 
 
 static func procedural_car_mesh() -> ArrayMesh:
@@ -217,8 +278,11 @@ func set_tier(level: int, density := 1.0) -> void:
 	if quality == 0:
 		n = LowPlus.scaled(n, LowPlus.TRAFFIC_SHARE + 0.15, 6)
 	n = mini(n, BUILT)
+	if not enabled:
+		n = 0
 	for i in range(n, count):
 		_alive[i] = 0
+		TrafficField.remove(TrafficField.NEAR, i)
 	for i in range(count, n):
 		_alive[i] = 0
 		_age[i] = -1.0
@@ -234,6 +298,7 @@ func reset() -> void:
 		_tmode[i] = 0
 		_tdone[i] = -1
 	_clock = 0.0
+	TrafficField.clear_source(TrafficField.NEAR)
 
 
 func alive_count() -> int:
@@ -281,7 +346,7 @@ func moving_near(pos: Vector3, r: float, min_speed := 3.0) -> int:
 # --- the ring: spawning ------------------------------------------------------------------------------------------------------
 
 func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
-	for attempt in 8:
+	for attempt in 12:
 		var rr := radius if rng.randf() >= CORE_SHARE else minf(radius, CORE_R)         # half of the spawns land in the core: the street around the hero keeps its traffic on every tier
 		var ax := rng.randi() & 1
 		var perp := c.z if ax == 0 else c.x
@@ -299,26 +364,72 @@ func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
 		var half := sqrt(rr * rr - dl * dl)
 		var u := along_c + rng.randf_range(-half, half)
 		if absf(u) > EDGE:
+			rej[0] += 1
 			continue
 		var ci := roundi((u + CityLayout.HALF) / CityLayout.PITCH)
 		if absf(u - CityLayout.road_center(ci)) < 13.0:                         # not inside a junction
+			rej[1] += 1
 			continue
 		var p := Vector2(u, line) if ax == 0 else Vector2(line, u)
 		if (p - Vector2(c.x, c.z)).length() < minf(min_dist, rr * 0.8):
 			continue
-		if not _spot_free(i, p, 9.5):
-			continue
-		var r := rng.randf()
-		var acc := 0.0
-		var kind := 0
-		for kk in KIND_MIX.size():
-			acc += KIND_MIX[kk]
-			if r < acc:
-				kind = kk
-				break
-		place(i, ax, dir, line, u, kind, rng.randf_range(VehicleSpecs.AI_CRUISE_MIN, VehicleSpecs.AI_CRUISE_MAX) * KIND_SPEED[kind], rng.randi() % 8, rng.randf_range(0.7, 1.0))
+		var kind := pick_kind(Districts.zone_at(p.x, p.y), DayNight.night_now, rng.randf())
+		var cruise := rng.randf_range(VehicleSpecs.AI_CRUISE_MIN, VehicleSpecs.AI_CRUISE_MAX) * KIND_SPEED[kind]
+		var share := rng.randf_range(0.7, 1.0)
+		var f := Vector2(float(dir), 0.0) if ax == 0 else Vector2(0.0, float(dir))
+		var khl := KIND_HALF[kind]
+		var khw := KIND_HW[kind]
+		if not TrafficField.clear(p.x, p.y, f.x, f.y, khl, khw, 1.0, TrafficField.NEAR, i):
+			rej[4] += 1
+			continue                                                                  # the spot is taken by a real car, a bridge car, a parked car or a wreck: never a car on top of another
+		var ahead := TrafficField.lead(p.x, p.y, f.x, f.y, khl, khw, 45.0, TrafficField.NEAR, i, CAR_PAD)
+		var v0 := cruise * share
+		if ahead.x < INF:
+			var vs := TrafficBrain.safe_speed(ahead.x, ahead.y, BRAKE * 0.7, 0.5, STOP_GAP + 1.0)
+			if vs < 2.0 and ahead.x < 9.0:
+				rej[5] += 1
+				continue                                                              # a standing queue right ahead: the car would be born into it
+			v0 = minf(v0, vs * 0.85)
+		var behind := TrafficField.lead(p.x, p.y, -f.x, -f.y, khl, khw, 45.0, TrafficField.NEAR, i, CAR_PAD)
+		if behind.x < INF:
+			var vb := maxf(-behind.y, 0.0)                                            # the speed of the car coming up behind
+			if behind.x < 7.0 + vb * 0.7:
+				rej[6] += 1
+				continue                                                              # too close for it to react
+			v0 = clampf(maxf(v0, vb * 0.9), 0.0, cruise * 1.15)                      # the newborn travels with the flow: the car behind needs no hard brake
+		place(i, ax, dir, line, u, kind, cruise, rng.randi() % 8, clampf(v0 / maxf(cruise, 0.1), 0.0, 1.0))
+		rej[7] += 1
 		return true
 	return false
+
+
+## The archetype of a new car by district zone and time of night (0 day .. 1 night): the shares of KIND_MIX scaled by the zone's bias (taxis and buses in the market, lorries on the docks, pickups on the
+## fields ...) and by the hour (the buses and delivery vans sleep at night, the taxis, patrols and ambulances stay out). `r` is a random 0..1. Pure: the density test reads it.
+static func pick_kind(zone: int, night: float, r: float) -> int:
+	var bias: Array = ZONE_BIAS.get(zone, [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+	var total := 0.0
+	var w: Array[float] = []
+	for k in KINDS.size():
+		var x := KIND_MIX[k]
+		match k:
+			4: x *= float(bias[0]) * (1.0 + 0.4 * night)
+			7: x *= float(bias[1]) * (1.0 - 0.3 * night)
+			11: x *= float(bias[2]) * (1.0 - 0.6 * night)
+			8: x *= float(bias[3]) * (1.0 - 0.7 * night)
+			5: x *= float(bias[4])
+			6: x *= float(bias[5])
+			1: x *= float(bias[6])
+			9: x *= 1.0 + 1.2 * night
+			10: x *= 1.0 + 0.6 * night
+		w.append(x)
+		total += x
+	var roll := r * total
+	var acc := 0.0
+	for k in w.size():
+		acc += w[k]
+		if roll < acc:
+			return k
+	return 0
 
 
 ## Put car `i` into play in lane `line` of a road along `axis` travelling `dir` at coordinate `u` (the spawner and the tests).
@@ -347,6 +458,11 @@ func place(i: int, ax: int, dir: int, line: float, u: float, kind: int, cruise: 
 	_alive[i] = 1
 	_pos[i] = Vector2(u, line) if ax == 0 else Vector2(line, u)
 	_yaw[i] = VehicleSpecs.heading_for(ax, dir)
+	_look_t[i] = float(i % 4) * 0.015
+	_twait[i] = 0.0
+	_ovl[i] = 0.0
+	_ovl_t[i] = 0.4 + float(i % 5) * 0.04
+	TrafficField.put_yaw(TrafficField.NEAR, i, _pos[i].x, _pos[i].y, _yaw[i], KIND_HALF[kind], KIND_HW[kind], _spd[i], TrafficField.F_AI)
 
 
 func car_panic(i: int) -> float:
@@ -374,6 +490,13 @@ func car_line(i: int) -> float:
 	return _line[i]
 
 
+## Everything a look-around decides about car `i` (the traffic audit prints it for the cars of an overlap).
+func debug_state(i: int) -> Dictionary:
+	return {"age": _age[i], "axis": _axis[i], "dir": _dir[i], "u": _u[i], "line": _line[i], "spd": _spd[i], "cruise": _cruise[i], "allow": _allow[i], "tmode": _tmode[i], "ghost": _ghost[i], "jam": _jam[i],
+			"panic": _panic[i], "stun": _stun[i], "shift": _shift[i], "kind": KINDS[_kind[i]], "wait": _wait[i],
+			"why": [snappedf(_why[i * 4], 0.1), snappedf(_why[i * 4 + 1], 0.1), snappedf(_why[i * 4 + 2], 0.1), snappedf(_why[i * 4 + 3], 0.1)], "alive": _alive[i]}
+
+
 func _spot_free(skip: int, p: Vector2, d: float) -> bool:
 	for j in count:
 		if j != skip and _alive[j] != 0 and (_pos[j] - p).length_squared() < d * d:
@@ -391,7 +514,7 @@ func _spot_free(skip: int, p: Vector2, d: float) -> bool:
 func step(delta: float, center: Vector3) -> void:
 	_frame += 1
 	_clock += delta
-	_ldt = delta * float(FRAME_STAGGER)
+	_ldt = LOOK_EVERY
 	var spawned := 0
 	var r2 := radius * radius * 1.06
 	var mgr := Game.vehicles as VehicleManager
@@ -417,46 +540,110 @@ func step(delta: float, center: Vector3) -> void:
 			_cam = Vector2(cpos.x, cpos.z)
 	if _frame % FRAME_STAGGER == 0:
 		_collect_peds()
+	# a slow frame (a phone at 15 fps, the audit at 4x speed) is run as several short steps: every look-around, braking and move sees at most SUBSTEP seconds
+	var n_sub := clampi(ceili(delta / SUBSTEP), 1, 6)
+	var dt := delta / float(n_sub)
+	for k in n_sub:
+		for i in count:
+			if _alive[i] != 0:
+				_sim_car(i, dt, sig_clock, lights, r2, center, pl)
+	_spawn_t -= delta
+	var may_spawn := _spawn_t <= 0.0
+	if may_spawn:
+		_spawn_t = SPAWN_EVERY
 	for i in count:
 		if _alive[i] == 0:
-			if spawned < 2 and _age[i] <= 0.0:
+			if may_spawn and spawned < 3 and _age[i] <= 0.0:
 				spawned += 1
 				if _spawn(i, center, MIN_SPAWN if _age[i] < 0.0 else radius * RESPAWN_MIN):
 					pass
 				else:
 					_age[i] = -0.5 if _age[i] < 0.0 else 0.0
-			_write(i)
-			continue
-		_age[i] += delta
-		_panic[i] = maxf(_panic[i] - delta, 0.0)
-		_stun[i] = maxf(_stun[i] - delta, 0.0)
-		_hurt_cd[i] = maxf(_hurt_cd[i] - delta, 0.0)
-		_ghost[i] = maxf(_ghost[i] - delta, 0.0)
-		if (i + _frame) % FRAME_STAGGER == 0:
-			_look(i, sig_clock, lights)
-		var want := minf(_cruise[i] * (PANIC_SPEED if _panic[i] > 0.0 else 1.0), _allow[i])
-		if _stun[i] > 0.0:
-			want = 0.0
-		var v := _spd[i]
-		v = move_toward(v, want, (ACCEL if want > v else BRAKE) * delta)
-		_spd[i] = v
-		_brake[i] = move_toward(_brake[i], 1.0 if (want < v - 0.2 or v < 0.4) else 0.0, delta * 8.0)
-		_move(i, delta)
-		if _alive[i] == 0:
-			_write(i)
-			continue
-		var d := _pos[i] - Vector2(center.x, center.z)
-		if d.length_squared() > r2:
-			_alive[i] = 0
-			_age[i] = 0.0
-		elif _cam.is_finite() and (_pos[i] - _cam).length_squared() < CAM_KILL * CAM_KILL:
-			_alive[i] = 0
-			_age[i] = 0.0
-		elif _hero_foot and v > 3.0 and _hurt_cd[i] <= 0.0:
-			_run_over(i, pl)
 		_write(i)
+	_total = _nw
 	mm.visible_instance_count = _nw
 	mm.buffer = _buf
+
+
+## Adds `n` more instances (16 floats each, the layout of `_buf`) behind the ones of this frame: the road cars and the parked cars share the near cars' MultiMesh, so a street full of kerb cars is
+## still ONE draw call. Called after step() in the same frame (AmbientCity order); returns how many fitted.
+func append_cars(src: PackedFloat32Array, n: int) -> int:
+	n = mini(n, SHARED - _total)
+	if n <= 0:
+		return 0
+	var o := _total * 16
+	for k in n * 16:
+		_buf[o + k] = src[k]
+	_total += n
+	mm.visible_instance_count = _total
+	mm.buffer = _buf
+	return n
+
+
+## One car for `dt` seconds: timers, the look-around (every LOOK_EVERY seconds of game time, whatever the frame rate), speed, move, and the ways a car leaves the ring.
+func _sim_car(i: int, dt: float, sig_clock: float, lights: bool, r2: float, center: Vector3, pl: Node) -> void:
+	_age[i] += dt
+	_panic[i] = maxf(_panic[i] - dt, 0.0)
+	_stun[i] = maxf(_stun[i] - dt, 0.0)
+	_hurt_cd[i] = maxf(_hurt_cd[i] - dt, 0.0)
+	_look_t[i] -= dt
+	if _look_t[i] <= 0.0:
+		var dh := (_pos[i] - Vector2(center.x, center.z)).length_squared()
+		_look_t[i] = LOOK_EVERY if dh < LOOK_NEAR * LOOK_NEAR else LOOK_FAR                 # a car far from the hero looks around less often (the safe-distance rule keeps a margin for it)
+		_look(i, sig_clock, lights)
+	var want := minf(_cruise[i] * (PANIC_SPEED if _panic[i] > 0.0 else 1.0), _allow[i])
+	if _stun[i] > 0.0:
+		want = 0.0
+	var v := _spd[i]
+	v = move_toward(v, want, (ACCEL if want > v else (HARD_BRAKE if want < v - 5.0 else BRAKE)) * dt)
+	_spd[i] = v
+	_brake[i] = move_toward(_brake[i], 1.0 if (want < v - 0.2 or v < 0.4) else 0.0, dt * 8.0)
+	_move(i, dt)
+	if _alive[i] == 0:
+		return
+	var d := _pos[i] - Vector2(center.x, center.z)
+	if d.length_squared() > r2:
+		_alive[i] = 0
+		_age[i] = 0.0
+	elif _cam.is_finite() and (_pos[i] - _cam).length_squared() < CAM_KILL * CAM_KILL:
+		_alive[i] = 0
+		_age[i] = 0.0
+	elif _hero_foot and v > 3.0 and _hurt_cd[i] <= 0.0:
+		_run_over(i, pl)
+	if _alive[i] != 0:
+		TrafficField.put_yaw(TrafficField.NEAR, i, _pos[i].x, _pos[i].y, _yaw[i], KIND_HALF[_kind[i]], KIND_HW[_kind[i]], v, TrafficField.F_AI | (TrafficField.F_CROSSING_OK if _tmode[i] == 2 else 0))
+		_overlap_check(i, dt)
+
+
+## The safety net under every rule above: a car whose hull sits inside another vehicle for more than OVERLAP_KILL seconds is taken out of the ring (the one the hero cannot reach, the farther from him).
+## Real cars, parked cars and bridge cars are never removed by this, only the near car is.
+func _overlap_check(i: int, dt: float) -> void:
+	_ovl_t[i] -= dt
+	if _ovl_t[i] > 0.0:
+		return
+	if _spd[i] > 6.0:                                                             # two cars that overlap while moving fast part again within a second: only slow or standing ones can be stuck inside each other
+		_ovl_t[i] = 0.6
+		_ovl[i] = 0.0
+		return
+	_ovl_t[i] = 0.3
+	var f := Vector2(-sin(_yaw[i]), -cos(_yaw[i]))
+	var k := TrafficField.first_overlap(_pos[i].x, _pos[i].y, f.x, f.y, KIND_HALF[_kind[i]], KIND_HW[_kind[i]], -0.12, TrafficField.NEAR, i)
+	if k < 0:
+		_ovl[i] = 0.0
+		return
+	_ovl[i] += 0.3
+	if _ovl[i] < OVERLAP_KILL:
+		return
+	if k / 1000 == TrafficField.NEAR:
+		var j := k % 1000
+		if (_pos[j] - Vector2(_hero.x, _hero.z)).length_squared() < (_pos[i] - Vector2(_hero.x, _hero.z)).length_squared() and _age[j] > 0.0:
+			_ovl[i] = 0.0
+			return                                                  # the other one is farther from the hero: it is the one that goes (its own check does it)
+	_alive[i] = 0
+	_age[i] = 0.0
+	_ovl[i] = 0.0
+	overlap_kills += 1
+	TrafficField.remove(TrafficField.NEAR, i)
 
 
 func _move(i: int, dt: float) -> void:
@@ -561,6 +748,7 @@ func _look(i: int, sig_clock: float, lights: bool) -> void:
 	var allow_ped := 99.0
 	var allow_car := 99.0
 	var half := KIND_HALF[_kind[i]]
+	var hw := KIND_HW[_kind[i]]
 	var blocked_by_person := false
 	var u := _u[i]
 	var in_junction := _tmode[i] == 2
@@ -608,36 +796,45 @@ func _look(i: int, sig_clock: float, lights: bool) -> void:
 		if a < 0.5:
 			blocked_by_person = true
 	var target := _pick_shift()
+	if target != 0.0 and _tmode[i] != 2:                                          # never drift into a car beside the lane (a parked car on the bay, a car in the next lane): try the other side, else wait for the person
+		var sp := pl + rv * target
+		if not TrafficField.clear(sp.x, sp.y, f.x, f.y, half + 0.6, hw, 0.15, TrafficField.NEAR, i):
+			var alt := _solve_shift(SWERVE_CLEAR, -1.0 if target > 0.0 else 1.0)
+			target = 0.0
+			if alt != INF and alt != 0.0:
+				var sp2 := pl + rv * alt
+				if TrafficField.clear(sp2.x, sp2.y, f.x, f.y, half + 0.6, hw, 0.15, TrafficField.NEAR, i):
+					target = alt
 	_shift_t[i] = target if _tmode[i] != 2 else 0.0
-	# the other cars: a car already inside the junction does not wait for the crossing traffic that is inside it too (nobody would ever clear it)
-	if _ghost[i] <= 0.0:
-		for j in count:
-			if j == i or _alive[j] == 0:
-				continue
-			var qj := _pos[j]
-			if absf(qj.x - p.x) > FAR_LOOK or absf(qj.y - p.y) > FAR_LOOK:                  # cheap rejection before any maths
-				continue
-			if in_junction:
-				var fo := Vector2(-sin(_yaw[j]), -cos(_yaw[j]))
-				if absf(f.dot(fo)) < 0.5:
-					continue
-			var a2 := gap_allow(p, f, qj, half, KIND_HALF[_kind[j]], SIDE_CAR)
-			if a2 < allow_car:
-				allow_car = a2
-		var mgr := Game.vehicles as VehicleManager
-		if mgr != null:
-			for v in mgr.list:
-				if v.active and not v.dead and not v.wreck:
-					var a3 := gap_allow(p, f, Vector2(v.global_position.x, v.global_position.z), half, float(v.spec["len"]) * 0.5, SIDE_CAR)
-					if a3 < allow_car:
-						allow_car = a3
-	_allow[i] = minf(allow_light, minf(allow_ped, allow_car))
-	# a jam inside a junction that nothing explains (no light, nobody on foot) for a while: drive through for a few seconds, so the crossing never locks up for good
-	if in_junction and _spd[i] < 0.3 and allow_car < 0.5 and allow_light >= 0.5 and allow_ped >= 0.5:
+	# the other cars (real, near, road, bridge, parked, wrecks): the nearest hull in this car's swept corridor and the speed from which it can still stop short of it
+	var ld := TrafficField.lead(p.x, p.y, f.x, f.y, half, hw, TrafficBrain.look_for(_spd[i]) + 4.0, TrafficField.NEAR, i, CAR_PAD)
+	if ld.x < INF:
+		allow_car = TrafficBrain.safe_speed(ld.x, ld.y, BRAKE * 0.7, 0.3, STOP_GAP, HARD_BRAKE)
+	var allow_box := _box_allow(i, p, f, half, hw, ld)
+	if _tmode[i] == 1:                                                            # a car that waits too long to turn (oncoming traffic, a taken lane) gives the turn up and drives straight on: no queue stands behind one left-turner
+		if allow_box < 0.5:
+			_twait[i] += _ldt
+			if _twait[i] > TURN_PATIENCE:
+				_tmode[i] = 0
+				_twait[i] = 0.0
+				allow_box = _box_allow(i, p, f, half, hw, ld)
+		else:
+			_twait[i] = 0.0
+	_allow[i] = minf(minf(allow_light, allow_box), minf(allow_ped, allow_car))
+	_why[i * 4] = allow_light
+	_why[i * 4 + 1] = allow_box
+	_why[i * 4 + 2] = allow_car
+	_why[i * 4 + 3] = allow_ped
+	# a jam that nothing explains (no light, nobody on foot) for a long time: a car that nobody sees is taken out of the ring, a seen one after JAM_FORCE (a queue at a red light is never a jam: it lasts one cycle)
+	if _spd[i] < 0.3 and (allow_car < TrafficBrain.CREEP or allow_box < TrafficBrain.CREEP) and allow_light >= 0.5 and allow_ped >= 0.5:
 		_jam[i] += _ldt
-		if _jam[i] > JAM_AFTER:
+		if (_jam[i] > JAM_AFTER and not _seen(i)) or _jam[i] > JAM_FORCE:
 			_jam[i] = 0.0
-			_ghost[i] = GHOST_TIME
+			_alive[i] = 0
+			_age[i] = 0.0
+			TrafficField.remove(TrafficField.NEAR, i)
+			jam_breaks += 1
+			return
 	else:
 		_jam[i] = 0.0
 	if blocked_by_person and _spd[i] < 0.5:
@@ -648,6 +845,65 @@ func _look(i: int, sig_clock: float, lights: bool) -> void:
 	elif not blocked_by_person:
 		_wait[i] = minf(_wait[i], 0.0)
 		_wait[i] = minf(_wait[i] + 0.05, 0.0)
+
+
+## True when the camera can see car `i` (the same window as the draw: in front of it within DRAW_R, or very close).
+func _seen(i: int) -> bool:
+	if not _cam_ok:
+		return true
+	var dx := _pos[i].x - _cam_pos.x
+	var dz := _pos[i].y - _cam_pos.y
+	var d2 := dx * dx + dz * dz
+	if d2 > DRAW_R[quality] * DRAW_R[quality]:
+		return false
+	return d2 <= VIEW_NEAR * VIEW_NEAR or (dx * _cam_fwd.x + dz * _cam_fwd.y) >= VIEW_COS * sqrt(d2)
+
+
+## The junction box ahead (rules a driver keeps): do not enter it while crossing traffic stands in it, do not enter it when a queue beyond it would leave the car standing in the box, do not turn
+## into a lane whose first metres are taken (or that a car is about to arrive in), and give way to oncoming traffic when turning across it. Returns the speed that still stops at the stop line, 99 when free.
+func _box_allow(i: int, p: Vector2, f: Vector2, half: float, hw: float, ld: Vector3) -> float:
+	if _tmode[i] == 2 or _panic[i] > 0.0:
+		return 99.0
+	var dir := _dir[i]
+	var u := _u[i]
+	var ci := ceili((u + CityLayout.HALF) / CityLayout.PITCH) if dir > 0.0 else floori((u + CityLayout.HALF) / CityLayout.PITCH)
+	if ci < 0 or ci > CityLayout.N:
+		return 99.0
+	var c := CityLayout.road_center(ci)
+	var d := (c - u) * dir
+	if d <= BOX_COMMIT or d > LIGHT_LOOK:
+		return 99.0                                                                 # past the stop line a car is in the junction: it drives on (it would block the crossing by stopping there)
+	var rc := CityLayout.road_center(roundi((_line[i] + CityLayout.HALF) / CityLayout.PITCH))
+	var jc := Vector2(c, rc) if _axis[i] == 0 else Vector2(rc, c)
+	var blocked := TrafficField.box_busy(jc.x, jc.y, BOX_HALF, f.x, f.y, TrafficField.NEAR, i)
+	if not blocked and ld.x < INF and ld.y < 2.5 and ld.x < d + BOX_HALF + 2.0 * half + 1.0:
+		blocked = true                                                              # a standing queue reaches into or just past the box: the car would stop in the middle of the crossing
+	if not blocked and _tmode[i] == 1:
+		var db := _tdir[i]
+		var ln := _line[i]
+		var iv := Vector2(_tcross[i], ln) if _axis[i] == 0 else Vector2(ln, _tcross[i])
+		var fb := Vector2(0.0, db) if _axis[i] == 0 else Vector2(db, 0.0)
+		var tx := iv + fb * TURN_R
+		var l2 := TrafficField.lead(tx.x - fb.x * (half + 0.5), tx.y - fb.y * (half + 0.5), fb.x, fb.y, half, hw, 6.0 + 2.0 * half, TrafficField.NEAR, i, 0.1)
+		if l2.x < half + 2.0 and l2.y < 3.5:
+			blocked = true                                                          # the first metres of the lane it turns into are taken
+		if not blocked:
+			var l3 := TrafficField.lead(tx.x, tx.y, -fb.x, -fb.y, 0.4, hw, 16.0, TrafficField.NEAR, i, 0.1)
+			if l3.x < INF and l3.x < 6.0 + 2.5 * maxf(-l3.y, 0.0):
+				blocked = true                                                      # a car is coming down that lane towards the spot
+		if not blocked and fb.dot(Vector2(-f.y, f.x)) < 0.0:                        # a turn to the left crosses the oncoming lane
+			var left := Vector2(f.y, -f.x)
+			var far := jc + left * CityLayout.LANE + f * 36.0
+			var l4 := TrafficField.lead(far.x, far.y, -f.x, -f.y, 0.4, 1.0, 36.0, TrafficField.NEAR, i, 0.2)
+			if l4.x < INF:
+				var their := l4.y                                                   # its speed towards the junction (it travels along -f, the direction of this query)
+				var dist_j := 36.0 - l4.x
+				if dist_j < 7.0 + 1.7 * maxf(their, 0.0):
+					blocked = true
+	if not blocked:
+		return 99.0
+	var room := d - STOP_LINE - half + 2.0
+	return 0.0 if room <= 0.4 else sqrt(2.0 * BRAKE * 0.7 * room)
 
 
 ## The light a near car sees: the city's two-phase light (`VehicleSpecs.signal_state`), staggered per junction when `staggered`. The market avenue (road AVENUE, the street next to the spawn) is the main road:
@@ -699,7 +955,7 @@ func _pick_shift() -> float:
 
 
 ## The smallest drift that leaves SWERVE_CLEAR round every obstacle and `cam_clear` round the camera; 0 when nothing is near; INF when no drift fits.
-func _solve_shift(cam_clear: float) -> float:
+func _solve_shift(cam_clear: float, only_sign := 0.0) -> float:
 	var ok0 := true
 	for k in _n_obs:
 		if absf(_obs[k]) < (cam_clear if _obs_cam[k] != 0 else SWERVE_CLEAR):
@@ -711,6 +967,8 @@ func _solve_shift(cam_clear: float) -> float:
 	for k in _n_obs:
 		var ck: float = cam_clear if _obs_cam[k] != 0 else SWERVE_CLEAR
 		for sg in [-1.0, 1.0]:
+			if only_sign != 0.0 and sg != only_sign:
+				continue
 			var sh: float = clampf(_obs[k] + sg * (ck + 0.1), -SWERVE_LEFT, SWERVE_MAX)
 			var fits := true
 			for m in _n_obs:
@@ -796,6 +1054,63 @@ func hear(pos: Vector3, what: StringName) -> int:
 	return n
 
 
+# --- a real vehicle against the near cars -------------------------------------------------------------------------------------------
+
+const NEAR_MASS := 1450.0
+
+## The near cars that were not promoted (the manager had no free slot) are still solid: a real vehicle whose hull overlaps one gets a real crash (impulse, damage, the horn) and the near car is shoved
+## clear, stunned for a moment and loses its lane speed. Returns how many cars were hit. Called by VehicleManager for the driven car and every real car that moves.
+func collide_vehicle(v: Vehicle) -> int:
+	var hits := 0
+	var vp := Vector2(v.global_position.x, v.global_position.z)
+	var vf3 := v.forward()
+	var vf := Vector2(vf3.x, vf3.z)
+	var vhl := float(v.spec["len"]) * 0.5
+	var vhw := float(v.spec["wid"]) * 0.5
+	for i in count:
+		if _alive[i] == 0:
+			continue
+		var dp := _pos[i] - vp
+		if absf(dp.x) > 9.0 or absf(dp.y) > 9.0:
+			continue
+		var f := Vector2(-sin(_yaw[i]), -cos(_yaw[i]))
+		var depth := TrafficField.obb_depth(vp.x, vp.y, vf.x, vf.y, vhl, vhw, _pos[i].x, _pos[i].y, f.x, f.y, KIND_HALF[_kind[i]], KIND_HW[_kind[i]])
+		if depth <= 0.03:
+			continue
+		hits += 1
+		var n2 := vp - _pos[i]
+		if n2.length_squared() < 1e-6:
+			n2 = vf
+		n2 = n2.normalized()                                                      # from the near car towards the vehicle
+		var n := Vector3(n2.x, 0.0, n2.y)
+		var at := Vector3((vp.x + _pos[i].x) * 0.5, 0.0, (vp.y + _pos[i].y) * 0.5)
+		var near_v := f * _spd[i]
+		var vrel := (v.point_velocity(at) - Vector3(near_v.x, 0.0, near_v.y)).dot(n)
+		_pos[i] -= n2 * (depth + 0.08)                                           # the near car is shoved clear
+		_u[i] = _pos[i].x if _axis[i] == 0 else _pos[i].y
+		_stun[i] = maxf(_stun[i], 1.6)
+		_spd[i] *= 0.25
+		_hurt_cd[i] = HURT_CD
+		v.global_position += Vector3(n2.x, 0.0, n2.y) * depth * 0.25            # the vehicle gives a little too (the shove above is most of the separation)
+		if vrel < 0.0:
+			var inv := v.inverse_mass_at(n, at) + 1.0 / NEAR_MASS
+			var j := -(1.0 + VehicleSpecs.RESTITUTION) * vrel / inv
+			v.apply_impulse(n * j, at)
+			var closing := -vrel
+			if closing > VehicleSpecs.CAR_HIT_SPEED:
+				var mgr := Game.vehicles as VehicleManager
+				if mgr != null:
+					mgr.hear(Vector3(_pos[i].x, 0.0, _pos[i].y), &"crash")
+				if v.driver_is_player:
+					FX.shake(clampf(closing / 22.0, 0.15, 0.9))
+				FX.burst(Vector3(at.x, 0.7, at.z), Color(1.0, 0.75, 0.38), 6, 4.0, 0.3, 7.0, 0.3)
+				Sfx.play_at(&"hit", at, -3.0)
+				honk(i)
+				v.crash(closing, at, n, NEAR_MASS)
+			v.lane_lost(closing)
+	return hits
+
+
 # --- the hero takes a car ---------------------------------------------------------------------------------------------------
 
 ## The nearest near car whose hull is within `reach` m of `pos` (flat), or -1.
@@ -827,6 +1142,7 @@ func promote(i: int) -> Vehicle:
 		return null
 	_alive[i] = 0
 	_age[i] = 0.0
+	TrafficField.remove(TrafficField.NEAR, i)
 	promoted += 1
 	return v
 
@@ -854,6 +1170,7 @@ func promote_around(pos: Vector3, r: float) -> int:
 ## Writes car `i` into the next free MultiMesh slot when the camera can see it (the cars behind the hero cost nothing: one draw, the triangles of the cars in front only).
 func _write(i: int) -> void:
 	if _alive[i] == 0:
+		TrafficField.remove(TrafficField.NEAR, i)
 		return
 	if _cam_ok:
 		var dx := _pos[i].x - _cam_pos.x

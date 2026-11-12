@@ -229,10 +229,12 @@ func _camera() -> void:
 	await frames(6)
 	# a bus lying across the lens line, two and a half metres behind the hero (the camera arm is about 3.3 m)
 	var back := Vector3(0.0, 0.0, 1.0).rotated(Vector3.UP, rig.yaw)
-	var bus := vm.spawn_parked(&"bus", Vector3(ground.x, 0.0, ground.z) + back * 3.0, rig.yaw + PI * 0.5)
+	var want := Vector3(ground.x, 0.0, ground.z) + back * 3.0
+	var bus := vm.spawn_parked(&"bus", want, rig.yaw + PI * 0.5)
 	TestLib.check(bus != null, "a parked bus spawns behind the hero")
 	if bus == null:
 		return
+	bus.global_position = Vector3(want.x, bus.global_position.y, want.z)       # round 6: spawn_parked slides a hull off any vehicle that already stands there (the TrafficField); this test needs the bus exactly across the lens line
 	await frames(20)
 	var rest := rig._camera_rest_position()
 	TestLib.check(_lens_in_vehicle(rest), "set-up: the lens WITHOUT avoidance would sit inside the bus")

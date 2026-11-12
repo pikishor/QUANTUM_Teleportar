@@ -99,6 +99,7 @@ void fragment() {
 static var _lamp_shader: Shader
 static var _merged := {}                               ## source mesh key (resource_path, see _merge_lamps) -> ArrayMesh with the lamps merged (shared by every car of the model)
 
+var v2: CarV2                               ## the Cars v2 runtime (cv2_* models: shader materials, GPU dents, cracks, torn-off parts); null for the older art and the primitive fallback
 var model: Node3D
 var body: MeshInstance3D
 var wheels: Array[Node3D] = []              ## FL FR RL RR; steer = rotation.y of the front two, roll = rotation.x
@@ -143,6 +144,20 @@ func build(kind: StringName, glow: Color) -> Node3D:
 			model_name = mn
 			break
 	uses_model = model != null
+	if model != null and model_name.begins_with("cv2_"):
+		var v2_root := _build_v2(spec, glow)
+		if v2_root != null:
+			return v2_root
+		model.free()                                          # not a usable v2 model: the older art or the primitives take over
+		model = null
+		uses_model = false
+		for mn in VehicleSpecs.model_names(kind):
+			if not mn.begins_with("cv2_"):
+				model = Game.load_model(mn)
+				if model != null:
+					model_name = mn
+					uses_model = true
+					break
 	if model == null:
 		model = _fallback(spec)
 	if bool(spec.get("armour", false)):                  # the armoured truck: plates, bull bar and a turret ring on the van body (before the surfaces are processed)
@@ -230,6 +245,75 @@ func build(kind: StringName, glow: Color) -> Node3D:
 	return model
 
 
+## The Cars v2 path of build(): the model is a cv2_* glb (CarV2 dresses it). Fills the same members the older art does (body, body_lod1, wheels, meshes, mirror_meshes, plates, beams, shadow proxy).
+func _build_v2(spec: Dictionary, glow: Color) -> Node3D:
+	var c2 := CarV2.new()
+	if not c2.setup(self, model, _kind, glow):
+		return null
+	v2 = c2
+	body = c2.body
+	body_lod1 = c2.lod1
+	for n: StringName in WHEEL_NAMES:
+		var w := model.get_node_or_null(NodePath(n)) as Node3D
+		if w != null:
+			wheels.append(w)
+			_front.append(String(n).begins_with("WheelF"))
+	meshes = [body]
+	for extra: MeshInstance3D in [c2.lod1, c2.lod2]:
+		if extra != null:
+			meshes.append(extra)
+	meshes.append_array(c2.wheel_meshes)
+	var ln: float = spec["len"]
+	var wid: float = spec["wid"]
+	var hgt: float = spec["hgt"]
+	_dims = Vector3(wid, hgt, ln)
+	if cls == &"car":
+		_plate_n += 1
+		plates = CarParts.add_plates(model, AABB(Vector3(-wid * 0.5, 0.0, -ln * 0.5), Vector3(wid, hgt, ln)), _plate_n, clampf(hgt * 0.36, 0.42, 0.62))
+		if c2.anchors.has("PlateF") and plates.size() == 2:
+			plates[0].position = (c2.anchors["PlateF"] as Vector3) + Vector3(0.0, 0.0, -0.014)
+			plates[1].position = (c2.anchors["PlateR"] as Vector3) + Vector3(0.0, 0.0, 0.014) if c2.anchors.has("PlateR") else plates[1].position
+		for p in plates:
+			p.layers = p.layers | KEY_BIT
+	_add_beams(wid, hgt, ln)
+	if c2.lod2 != null:
+		_shadow = MeshInstance3D.new()                          # the 400 triangle car is the shadow caster, drawn only into the shadow maps
+		_shadow.name = ShadowProxy.PROXY_NAME
+		_shadow.mesh = c2.lod2.mesh
+		_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		_shadow.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		_shadow.layers = body.layers
+		body.add_child(_shadow)
+		var twin := MeshInstance3D.new()                        # what the wet street reflects: the same small mesh, on no render layer
+		twin.name = "MirrorSource"
+		twin.mesh = c2.lod2.mesh
+		twin.layers = 0
+		twin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		twin.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		twin.set_surface_override_material(0, c2.lod_mat)
+		body.add_child(twin)
+		mirror_meshes.append(twin)
+	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if spec.get("driver", true) == false:
+		c2.set_driver(false)
+	set_lights(0.1, 0.35, 0.35)
+	return model
+
+
+func _add_beams(wid: float, hgt: float, ln: float) -> void:
+	_beams = MeshInstance3D.new()
+	_beams.name = "Beams"
+	_beams.mesh = CarParts.beam_mesh(wid * 0.3, clampf(hgt * 0.4, 0.5, 0.95))
+	_beams.material_override = CarParts.beam_material()
+	_beams.position = Vector3(0.0, 0.0, -ln * 0.5 + 0.25)
+	_beams.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_beams.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	_beams.visibility_range_end = 80.0
+	_beams.visibility_range_end_margin = 6.0
+	model.add_child(_beams)
+	_write_beam(0.1)
+
+
 ## The roster craft (helicopter, plane, boat, tank): the animated nodes are found by name, their paint surface shares the hull's paint material, the glass gets the car glass, and the rotors
 ## get a blur disc each (VehicleCraft shows it above a spin speed).
 func _bind_craft(spec: Dictionary) -> void:
@@ -298,17 +382,7 @@ func _finish_car(spec: Dictionary) -> void:
 	plates = CarParts.add_plates(model, AABB(Vector3(-wid * 0.5, 0.0, -ln * 0.5), Vector3(wid, hgt, ln)), _plate_n, clampf(hgt * 0.36, 0.42, 0.62))
 	for p in plates:
 		p.layers = p.layers | KEY_BIT
-	_beams = MeshInstance3D.new()
-	_beams.name = "Beams"
-	_beams.mesh = CarParts.beam_mesh(wid * 0.3, clampf(hgt * 0.4, 0.5, 0.95))
-	_beams.material_override = CarParts.beam_material()
-	_beams.position = Vector3(0.0, 0.0, -ln * 0.5 + 0.25)
-	_beams.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_beams.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	_beams.visibility_range_end = 80.0
-	_beams.visibility_range_end_margin = 6.0
-	model.add_child(_beams)
-	_write_beam(0.1)
+	_add_beams(wid, hgt, ln)
 
 
 var _dims := Vector3(1.9, 1.4, 4.6)                   ## width, height, length of the car (for the door)
@@ -321,6 +395,26 @@ var door_cycles := 0                                  ## doors swung so far (tes
 ## strip per car, built on first use, hidden while shut. Only four-wheeled cars have one.
 func door_cycle(side: float, hold := 0.75) -> void:
 	if cls != &"car" or model == null or not model.is_inside_tree():
+		return
+	if v2 != null:
+		var dn := v2.set_door_open(side, true)                         # the shell's door hides, the same panel on its hinge swings
+		door_cycles += 1
+		if dn == null:
+			return
+		if _door_tw != null and _door_tw.is_valid():
+			_door_tw.kill()
+			_close_v2_doors()
+		_door = dn
+		var sd2 := 1.0 if side >= 0.0 else -1.0
+		dn.rotation = Vector3.ZERO
+		dn.visible = true
+		_door_tw = model.create_tween()
+		_door_tw.tween_property(dn, "rotation:y", sd2 * 1.15, 0.17).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_door_tw.tween_interval(hold)
+		_door_tw.tween_property(dn, "rotation:y", 0.0, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		_door_tw.tween_callback(func() -> void:
+			dn.visible = false
+			v2.set_door_open(side, false))
 		return
 	if _door == null:
 		_door = Node3D.new()
@@ -358,10 +452,43 @@ func door_cycle(side: float, hold := 0.75) -> void:
 	_door_tw.tween_callback(func() -> void: _door.visible = false)
 
 
+func _close_v2_doors() -> void:
+	for key: String in v2.doors:
+		var dn := v2.doors[key] as Node3D
+		dn.visible = false
+		v2.set_door_open(1.0 if key == "R" else -1.0, false)
+
+
+## Cars v2: a fresh random look for a pooled car going into play (road dirt, racing stripes on sporty kinds). The older art has none.
+func randomize_look(rng: RandomNumberGenerator) -> void:
+	if v2 != null:
+		v2.randomize_look(rng)
+
+
+## A hit tears a body part off (Cars v2: bumper, hood, trunk lid, door): returns the part's name, or &"" for the older art and when nothing was left to tear.
+func tear_part_at(at: Vector3) -> StringName:
+	if v2 == null:
+		return &""
+	return v2.tear_part_at(at, _dims)
+
+
+func part_gone(part: StringName) -> bool:
+	return v2 != null and v2.part_gone(part)
+
+
+## The car is on fire (hull below the fire threshold): the engine bay glows.
+func set_burning(on: bool) -> void:
+	if v2 != null:
+		v2.set_burning(on)
+
+
 func _write_beam(f: float) -> void:
 	if _beams != null:
 		_beams.set_instance_shader_parameter(&"k", clampf(f, 0.0, 2.0))
-	if _glass_mat != null:
+		_beams.visible = f > 0.2                       # lamps off (day): the cone adds about 0.003 of light, so it is not drawn at all (one draw call per car in view, wave 111 perf)
+	if v2 != null:
+		v2.set_interior_glow(clampf(f - 0.3, 0.0, 1.0) * float(INTERIOR_GLOW.get(_kind, 0.08)) * 1.2)
+	elif _glass_mat != null:
 		var g: float = INTERIOR_GLOW.get(_kind, 0.35)
 		_glass_mat.emission_energy_multiplier = clampf(f - 0.3, 0.0, 1.0) * INTERIOR_BASE * g
 
@@ -472,6 +599,14 @@ func _make_mirror_source(src: MeshInstance3D) -> MeshInstance3D:
 
 ## The paint: `color` times the lift DynamicFill gave the surface (so a dark vertex-coloured model still reads), only on the Body surface.
 func set_paint(color: Color) -> void:
+	if v2 != null:
+		color = VehicleSpecs.paint_for(_kind, color)
+		v2.set_paint(color)
+		_base_col = color * VehicleSpecs.PAINT_GAIN
+		damage_look = 0.0
+		_flick = 0.0
+		_setup_finish()
+		return
 	if _body_mat == null:
 		return
 	color = VehicleSpecs.paint_for(_kind, color)            # taxis, vans, trucks and Vael patrols wear their own palettes (a husk's colour passes through)
@@ -512,6 +647,9 @@ func _setup_finish() -> void:
 	_rng.seed = hash(str(get_instance_id()))
 	_phase = float(_rng.randi() % 1000) * 0.01
 	flicker_car = (not iridescent) and _rng.randf() < FLICKER_CHANCE
+	if v2 != null:
+		v2.set_iridescent(iridescent)
+		return
 	if _body_mat != null:
 		_body_mat.rim_enabled = true
 		_body_mat.rim = 0.7 if iridescent else PAINT_RIM
@@ -520,6 +658,10 @@ func _setup_finish() -> void:
 
 ## Thin-film shimmer: the hue of the film drifts with time and with how fast the car moves; a flicker car swaps to its second state for a blink.
 func shimmer(t: float, speed: float) -> void:
+	if v2 != null:
+		if iridescent:
+			v2.shimmer(t, speed, _phase)
+		return
 	if _body_mat == null or not (iridescent or flicker_car):
 		return
 	var c := _base_col
@@ -542,6 +684,11 @@ func shimmer(t: float, speed: float) -> void:
 ## Wear and damage as material state: scuffed clear coat, duller flake, soot (the paint darkens as the hull goes). `frac` = 0 sound .. 1 wrecked. No glow: a hurt car is dirty, not neon.
 func set_damage_look(frac: float) -> void:
 	frac = clampf(frac, 0.0, 1.0)
+	if v2 != null:
+		if absf(frac - damage_look) >= 0.02:
+			damage_look = frac
+			v2.set_scuff(frac)
+		return
 	if _body_mat == null or absf(frac - damage_look) < 0.02:
 		return
 	damage_look = frac
@@ -576,6 +723,11 @@ var _crack_seed := 0
 ## with a crumpled rim on the surfaces that face the impact, with the normals tilted so the light shows it. Rebuilds the body mesh once (a car has its own copy while dented);
 ## nothing runs per frame. Up to MAX_DENTS dents, close ones deepen each other.
 func add_dent(at: Vector3, dir: Vector3, frac: float) -> void:
+	if v2 != null:
+		if frac >= VehicleSpecs.DENT_MIN:
+			v2.add_dent(at, dir, frac)
+			dents = v2.dents
+		return
 	if body == null or body.mesh == null or frac < VehicleSpecs.DENT_MIN:
 		return
 	dir.y = 0.0
@@ -652,6 +804,10 @@ func _rebuild_dents() -> void:
 ## window and the side windows. `at` (model space) says which side took the hit, so that side's window goes first.
 func crack_glass(level: float, at := Vector3.ZERO) -> void:
 	level = clampf(level, 0.0, 1.0)
+	if v2 != null:
+		v2.crack_glass(level, at, _dims)
+		cracks = v2.cracks
+		return
 	if body == null or level <= cracks + 0.02:
 		return
 	cracks = level
@@ -795,6 +951,14 @@ func set_condition(frac: float) -> void:
 
 ## Back to a sound, clean car (a pooled car being put into play again, the garage, a repair station): original body mesh, no dents, no cracks, no wear.
 func repair() -> void:
+	if v2 != null:
+		v2.repair()
+		dents = v2.dents
+		cracks = 0.0
+		damage_look = 0.0
+		deform = 0.0
+		restore_wheels()
+		return
 	if _orig_mesh != null and body != null:
 		body.mesh = _orig_mesh
 		if body_lod1 != null:
@@ -818,6 +982,11 @@ func repair() -> void:
 ## Wet streets: a wet car is glossier (lower roughness, full clear coat). Follows the global `wetness`.
 func set_wet(w: float) -> void:
 	w = clampf(w, 0.0, 1.0)
+	if v2 != null:
+		if absf(w - wet_look) >= 0.03:
+			wet_look = w
+			v2.set_wet(w)
+		return
 	if _body_mat == null or absf(w - wet_look) < 0.03:
 		return
 	wet_look = w
@@ -835,11 +1004,32 @@ func _apply_surface() -> void:
 	_body_mat.albedo_color = Color(_base_col.r * _lift * soot, _base_col.g * _lift * soot, _base_col.b * _lift * soot, 1.0)
 
 
+## The finish of the paint as numbers, whatever the material is: roughness, metallic, clearcoat, specular, glow (emission floor), albedo, rim, emission colour. The older art reads its Body
+## StandardMaterial3D, Cars v2 asks the shader parameters (CarV2.paint_state); tests and tools use this instead of reaching into the material.
+func paint_state() -> Dictionary:
+	if v2 != null:
+		return v2.paint_state()
+	if _body_mat == null:
+		return {}
+	return {"roughness": _body_mat.roughness, "metallic": _body_mat.metallic, "clearcoat": _body_mat.clearcoat if _body_mat.clearcoat_enabled else 0.0, "specular": _body_mat.metallic_specular,
+			"glow": _body_mat.emission_energy_multiplier, "albedo": _body_mat.albedo_color, "rim": _body_mat.rim if _body_mat.rim_enabled else 0.0, "emission": _body_mat.emission}
+
+
 func get_paint() -> Color:
+	if v2 != null:
+		return v2.get_paint()
 	return _body_mat.albedo_color if _body_mat != null else Color.BLACK
 
 
 func set_glow(color: Color) -> void:
+	if v2 != null:
+		v2.set_glow(color)
+		var sir: Array = VehicleSpecs.PATROL_SIREN
+		if color.is_equal_approx(sir[0] as Color) or color.is_equal_approx(sir[1] as Color):        # the siren colours of Vehicle._chase_siren: the light bar flashes red and blue
+			v2.set_siren(1.0 if color.is_equal_approx(sir[0] as Color) else 0.0, true)
+		else:
+			v2.set_siren(0.5, false)
+		return
 	for i in _cols[2].size():
 		_cols[2][i] = color
 	_write_light(2, _last[2])
@@ -847,6 +1037,12 @@ func set_glow(color: Color) -> void:
 
 ## Light factors (multipliers of the model's own emission): headlights, taillights, underglow. Only changes are written.
 func set_lights(head: float, tail: float, under: float) -> void:
+	if v2 != null:
+		if absf(head - float(_last[0])) > 0.01 or absf(tail - float(_last[1])) > 0.01 or absf(under - float(_last[2])) > 0.01:
+			_last = [head, tail, under]
+			v2.set_lights(head, tail, under)
+			_write_beam(head)
+		return
 	_set_light(0, head)
 	_set_light(1, tail)
 	_set_light(2, under)

@@ -33,6 +33,7 @@ func _until(cond: Callable, max_secs: float) -> bool:
 
 
 func _clear_cars() -> void:
+	TrafficField.bare_street()                            # round 6: the parked decor cars and the road traffic line the avenue too: these tests are about one vehicle on a bare street
 	if vm.driven != null:
 		vm.exit_vehicle()
 	for v in vm.list.duplicate():

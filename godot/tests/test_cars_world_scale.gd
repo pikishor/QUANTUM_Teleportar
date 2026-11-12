@@ -20,8 +20,10 @@ func run(host: Node) -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	Sfx.muted = true
 	_scale_and_speeds()
+	OS.set_environment("QT_CARS_V2", "0")                  # these two parts test the Rgsdev pack and CarParts, which the older art (the fallback of Cars v2) keeps using; tests/test_cars_v2.gd covers the new set
 	_models()
 	await _built_cars(host)
+	OS.set_environment("QT_CARS_V2", "")
 	await _real_scene(host)
 	_credits()
 

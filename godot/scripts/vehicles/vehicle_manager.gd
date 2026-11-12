@@ -23,6 +23,7 @@ var _cop_t := 0.0
 const LENS_CLEAR := 3.4              ## metres: a STANDING traffic car this close to the camera (XZ) goes
 var _lens_t := 0.0
 var _near_t := 0.0                   ## re-check timer of the near cars around the driven car
+var _parked_t := 0.0                 ## re-check timer of the kerb cars around the other moving cars
 var _spike_t := 6.0
 var patrols_spawned := 0             ## Vael patrol vehicles sent after the player so far (tests, stats)
 
@@ -108,6 +109,10 @@ func reach_car(pos: Vector3) -> Vehicle:
 	var best_d := INF
 	if NearTraffic.instance != null and not is_instance_valid(driven):          # a near (MultiMesh) car in reach becomes a real one: any car can be taken
 		NearTraffic.instance.promote_near(pos, VehicleSpecs.ENTER_REACH + 0.6)
+	if RoadTraffic.instance != null and not is_instance_valid(driven):          # the same for the cars of the highways
+		RoadTraffic.instance.promote_near(pos, VehicleSpecs.ENTER_REACH + 0.6)
+	if ParkedCars.instance != null and not is_instance_valid(driven):           # and for the parked decor cars
+		ParkedCars.instance.promote_near(pos, VehicleSpecs.ENTER_REACH + 0.6)
 	for c in list:
 		if c.dead or not c.active or c.wreck:
 			continue
@@ -151,10 +156,11 @@ func enter(car: Vehicle) -> void:
 	var p := Game.player
 	if not is_instance_valid(p) or car == null or car.dead or not car.active:
 		return
-	var had_driver := car.ai or car.chasing
+	var had_driver := car.ai or car.chasing or car.path_road >= 0
 	if had_driver:
 		car.ai = false
 		car.chasing = false
+		car.path_road = -1
 		Game.add_heat(VehicleSpecs.CARJACK_HEAT)
 		Game.say("HIJACKED  " + Hijack.vehicle_name(car.kind), 1.4)
 	if Hijack.current != null:                             # open world freedom: the entry ghost and the driver thrown out on the kerb side
@@ -208,6 +214,8 @@ func hear(pos: Vector3, what: StringName) -> int:
 	var n := 0
 	if NearTraffic.instance != null:
 		NearTraffic.instance.hear(pos, what)                  # the near cars flee too; the count stays that of the real cars
+	if RoadTraffic.instance != null:
+		RoadTraffic.instance.hear(pos, what)
 	for v in list:
 		var before := v.reactions
 		v.hear(pos, what)
@@ -219,10 +227,33 @@ func hear(pos: Vector3, what: StringName) -> int:
 func spawn_parked(kind: StringName, pos: Vector3, heading: float) -> Vehicle:
 	if list.size() >= cap():
 		return null
+	pos = free_pos(kind, pos, heading)
 	var v := _acquire(kind)
 	v.activate(pos, heading)
 	list.append(v)
+	v.publish_hull(true)
 	return v
+
+
+## The nearest free place for a hull of `kind` at `pos` facing `heading`: where it is asked for when nothing stands there, else the closest spot along its own length (3 m steps, up to 24 m each way).
+## A mission car, a roster vehicle or a respawn is never placed inside another vehicle (the TrafficField holds every car, near, road, bridge and parked car, and the wrecks). Ships and aircraft are not checked.
+func free_pos(kind: StringName, pos: Vector3, heading: float, margin := 0.5) -> Vector3:
+	if not VehicleSpecs.SPECS.has(kind) or VehicleSpecs.cls_of(kind) in [&"heli", &"plane", &"boat"]:
+		return pos
+	var spec: Dictionary = VehicleSpecs.SPECS[kind]
+	var hl := float(spec["len"]) * 0.5
+	var hw := float(spec["wid"]) * 0.5
+	if hl > TrafficField.MAX_R:
+		return pos
+	var f := Vector2(-sin(heading), -cos(heading))
+	if TrafficField.clear(pos.x, pos.z, f.x, f.y, hl, hw, margin):
+		return pos
+	for k in range(1, 9):
+		for sgn: float in [1.0, -1.0]:
+			var q := Vector2(pos.x, pos.z) + f * sgn * 3.0 * float(k)
+			if TrafficField.clear(q.x, q.y, f.x, f.y, hl, hw, margin):
+				return Vector3(q.x, pos.y, q.y)
+	return pos
 
 
 ## A traffic car whose body is at the camera lens (the hero on foot, a car queued behind him or a hop onto the road) is taken out: its roof would fill a third of the screen (life bot frames).
@@ -255,6 +286,27 @@ func spawn_promoted(kind: StringName, pos: Vector3, heading: float, axis: int, d
 		v.visual.set_paint(VehicleSpecs.COLORS[paint])
 		v.paint_i = paint
 	list.append(v)
+	v.publish_hull()
+	return v
+
+
+## A road traffic car (RoadTraffic.promote) handed over: a real vehicle at the same place, heading and speed that keeps driving road `road` by itself (PathDriver). Null when no slot can be freed.
+func spawn_promoted_path(kind: StringName, pos: Vector3, heading: float, road: int, s: float, dir: int, speed: float, cruise: float, paint: int) -> Vehicle:
+	if list.size() >= cap() and not _free_slot():
+		return null
+	var v := _acquire(kind)
+	v.activate(pos, heading)
+	v.path_road = road
+	v.path_s = s
+	v.path_dir = dir
+	v.path_cruise = cruise
+	v.speed = speed
+	v.vel = v.forward() * speed
+	if paint >= 0 and paint < VehicleSpecs.COLORS.size() and v.visual != null:
+		v.visual.set_paint(VehicleSpecs.COLORS[paint])
+		v.paint_i = paint
+	list.append(v)
+	v.publish_hull()
 	return v
 
 
@@ -264,10 +316,14 @@ func spawn_traffic(kind: StringName, axis: int, road_i: int, dir: int, along: fl
 		return null
 	var line := VehicleSpecs.road_center(road_i) + VehicleSpecs.lane_offset(axis, dir, Game.LANE)
 	var pos := Vector3(along, 0.0, line) if axis == 0 else Vector3(line, 0.0, along)
+	var h := VehicleSpecs.heading_for(axis, dir)
+	var fp := free_pos(kind, pos, h, 2.0)
+	pos = Vector3(fp.x if axis == 0 else line, 0.0, line if axis == 0 else fp.z)           # a traffic car slides along its own lane only
 	var v := _acquire(kind)
-	v.activate(pos, VehicleSpecs.heading_for(axis, dir))
+	v.activate(pos, h)
 	v.set_traffic(axis, dir, line, randf_range(VehicleSpecs.AI_CRUISE_MIN, VehicleSpecs.AI_CRUISE_MAX))
 	list.append(v)
+	v.publish_hull()
 	return v
 
 
@@ -370,10 +426,10 @@ func on_destroyed(v: Vehicle) -> void:
 
 
 func _release_wreck(i: int) -> void:
-	var v := _wrecks[i]["car"] as Vehicle
+	var raw: Variant = _wrecks[i]["car"]                      # a freed wreck must not be cast (`as` on a freed object is a script error that aborts this function and the entry would stay)
 	_wrecks.remove_at(i)
-	if is_instance_valid(v):
-		_release(v)
+	if is_instance_valid(raw):
+		_release(raw as Vehicle)
 
 
 func _clear_wrecks() -> void:
@@ -384,9 +440,9 @@ func _clear_wrecks() -> void:
 func _tick_wrecks(ppos: Vector3, far_only: bool) -> void:
 	var i := _wrecks.size() - 1
 	while i >= 0:
-		var v := _wrecks[i]["car"] as Vehicle
-		var gone := not is_instance_valid(v) or (not far_only and _clock >= float(_wrecks[i]["t"]))
-		if not gone and far_only and ppos.is_finite() and _dist(v, ppos) > VehicleSpecs.DESPAWN_RADIUS:
+		var raw: Variant = _wrecks[i]["car"]
+		var gone := not is_instance_valid(raw) or (not far_only and _clock >= float(_wrecks[i]["t"]))
+		if not gone and far_only and ppos.is_finite() and _dist(raw as Vehicle, ppos) > VehicleSpecs.DESPAWN_RADIUS:
 			gone = true
 		if gone:
 			_release_wreck(i)
@@ -646,6 +702,22 @@ func _physics_process_body(delta: float) -> void:
 		if _near_t <= 0.0:
 			_near_t = 0.1
 			NearTraffic.instance.promote_around(driven.global_position, 7.0 + minf(absf(driven.speed) * 0.45, 9.0))       # a crash with a near car is a real crash
+		if RoadTraffic.instance != null:
+			RoadTraffic.instance.promote_around(driven.global_position, 8.0 + minf(absf(driven.speed) * 0.5, 14.0))
+		if ParkedCars.instance != null and absf(driven.speed) > 2.5:
+			ParkedCars.instance.promote_around(driven.global_position, 5.0 + minf(absf(driven.speed) * 0.45, 9.0))
+	_parked_t -= delta
+	var parked_pass := _parked_t <= 0.0
+	if parked_pass:
+		_parked_t = 0.1
+	if NearTraffic.instance != null:                         # the near cars that could not be promoted are solid too
+		for c in list.duplicate():
+			if is_instance_valid(c) and c.active and not c.dead and not c.is_aloft() and c.craft == null and (c.driver_is_player or absf(c.speed) > (1.0 if (c.chasing or c.ai or c.path_road >= 0) else 3.0)):
+				NearTraffic.instance.collide_vehicle(c)
+				if RoadTraffic.instance != null:
+					RoadTraffic.instance.collide_vehicle(c)
+				if parked_pass and c != driven and absf(c.speed) > 2.0 and (c.chasing or c.ai or c.path_road >= 0) and ParkedCars.instance != null:        # a police car in a chase, a car that swerved or slid onto the kerb: the kerb car it reaches becomes a real one (and a real crash)
+					ParkedCars.instance.promote_around(c.global_position, 3.5 + minf(absf(c.speed) * 0.4, 8.0), 1)
 	_collide_all()                                          # a hard bump can wreck the driven car, and the wreck ejects the driver: `driven` is null again after this call
 	if driven != null:
 		_ram_t -= delta
@@ -689,6 +761,9 @@ func _sync_driver() -> void:
 func _collide_all() -> void:
 	var ppos := _player_pos()
 	var cars := list.duplicate()
+	for c: Vehicle in cars:
+		if is_instance_valid(c):
+			c.lane_ovl = maxf(c.lane_ovl - get_physics_process_delta_time() * 2.0, 0.0)               # decays while the car is clear
 	for i in cars.size():
 		var a: Vehicle = cars[i]
 		if not is_instance_valid(a) or a.dead or not a.active:
@@ -701,14 +776,50 @@ func _collide_all() -> void:
 				continue
 			if a.is_aloft() or b.is_aloft():                    # an aircraft overhead touches nothing on the street
 				continue
-			if a.ai and b.ai and a.ai_panic <= 1.0 and b.ai_panic <= 1.0:        # lane traffic brakes for each other; cars in flight after gunfire really hit
-				continue
 			var reach := (float(a.spec["len"]) + float(b.spec["len"])) * 0.5 + 0.4
 			var dx := a.global_position.x - b.global_position.x
 			var dz := a.global_position.z - b.global_position.z
 			if dx * dx + dz * dz > reach * reach:
 				continue
+			if a.ai and b.ai and a.ai_panic <= 1.0 and b.ai_panic <= 1.0:        # lane traffic brakes for each other (they never meet); if two ever do, they are pulled apart; cars in flight after gunfire really hit
+				_separate_lane_cars(a, b)
+				continue
 			collide_cars(a, b)
+
+
+## Two lane cars whose hulls overlap (they never should: the safe-distance rule keeps them apart): the one behind stops, both are pushed out of each other, and a pair that does not clear within
+## LANE_OVERLAP_KILL seconds loses the car farther from the player (a car that is not the hero's, a mission's or the starter).
+const LANE_OVERLAP_KILL := 0.7
+var lane_overlaps := 0                   ## overlaps of two lane cars resolved so far (tests)
+
+func _separate_lane_cars(a: Vehicle, b: Vehicle) -> void:
+	var fa := a.forward()
+	var fb := b.forward()
+	var depth := TrafficField.obb_depth(a.global_position.x, a.global_position.z, fa.x, fa.z, float(a.spec["len"]) * 0.5, float(a.spec["wid"]) * 0.5,
+			b.global_position.x, b.global_position.z, fb.x, fb.z, float(b.spec["len"]) * 0.5, float(b.spec["wid"]) * 0.5)
+	if depth <= 0.04:
+		return
+	lane_overlaps += 1
+	var d := Vector3(a.global_position.x - b.global_position.x, 0.0, a.global_position.z - b.global_position.z)
+	var rear := a if d.dot(fa) < 0.0 else b                              # the one whose centre is behind along the lane
+	rear.ai_speed = 0.0
+	rear.ai_stun = maxf(rear.ai_stun, 0.35)
+	if d.length_squared() < 1e-6:
+		d = fa
+	var n := d.normalized()
+	a.global_position += n * (depth * 0.55)
+	b.global_position -= n * (depth * 0.55)
+	a.lane_ovl += get_physics_process_delta_time()
+	b.lane_ovl += get_physics_process_delta_time()
+	if a.lane_ovl > LANE_OVERLAP_KILL or b.lane_ovl > LANE_OVERLAP_KILL:
+		var ppos := _player_pos()
+		var out := a if (not ppos.is_finite() or _dist(a, ppos) >= _dist(b, ppos)) else b
+		if out == starter or out.driver_is_player or out.has_meta(&"hold") or out.garage_car:
+			out = b if out == a else a
+		if out != starter and not out.driver_is_player and not out.has_meta(&"hold"):
+			_release(out)
+		a.lane_ovl = 0.0
+		b.lane_ovl = 0.0
 
 
 ## One pair: SAT on the four hull axes. Returns the closing speed (m/s) when the cars hit, 0 when they only touch or are apart.
@@ -747,13 +858,15 @@ func collide_cars(a: Vehicle, b: Vehicle) -> float:
 	var j := -(1.0 + VehicleSpecs.RESTITUTION) * vrel / inv
 	a.apply_impulse(n * j, p)
 	b.apply_impulse(-n * j, p)
-	if a.ai:
-		a.ai = false
-	if b.ai:
-		b.ai = false
 	var closing := -vrel
+	a.lane_lost(closing)                                                  # a bumped traffic car stops following its lane; a minor bump lets the driver hoot and rejoin (Vehicle._try_resume)
+	b.lane_lost(closing)
 	if closing > VehicleSpecs.CAR_HIT_SPEED:
 		hear(pb, &"crash")
+		for c: Vehicle in [a, b]:
+			if not c.driver_is_player and c.horns < 3 and c.cls == &"car":              # the driver of a hit car sounds the horn
+				c.horns += 1
+				Sfx.play_at(&"horn", c.global_position, -5.0)
 		if a.driver_is_player or b.driver_is_player:
 			FX.shake(clampf(closing / 22.0, 0.15, 0.9))
 		FX.burst(Vector3(p.x, 0.7, p.z), Color(1.0, 0.75, 0.38), 6, 4.0, 0.3, 7.0, 0.3)
@@ -881,6 +994,8 @@ func _tick_spawn_points(delta: float) -> void:
 			continue
 		if not _spot_free(pos, 7.0):
 			continue
+		if not _hull_ok(pt["kind"], pos, float(pt["h"]), true):
+			continue
 		if list.size() >= cap() and not _free_slot():
 			continue
 		var v := spawn_parked(pt["kind"], pos, float(pt["h"]))
@@ -1000,7 +1115,7 @@ func spawn_cop() -> Vehicle:
 	var ppos := _player_pos()
 	if not ppos.is_finite():
 		return null
-	var spot := _find_spot(ppos, false, VehicleSpecs.COP_MIN, VehicleSpecs.COP_MAX)
+	var spot := _find_spot(ppos, false, VehicleSpecs.COP_MIN, VehicleSpecs.COP_MAX, &"interceptor", false)
 	if spot.is_empty():
 		return null
 	if list.size() >= cap() and not _free_slot():
@@ -1022,7 +1137,7 @@ func spawn_patrol() -> Vehicle:
 	var ppos := _player_pos()
 	if not ppos.is_finite():
 		return null
-	var spot := _find_spot(ppos, false, VehicleSpecs.PATROL_MIN, VehicleSpecs.PATROL_MAX)
+	var spot := _find_spot(ppos, false, VehicleSpecs.PATROL_MIN, VehicleSpecs.PATROL_MAX, &"vael_patrol", false)
 	if spot.is_empty():
 		return null
 	if list.size() >= cap() and not _free_slot():
@@ -1092,20 +1207,22 @@ func _spawn_streamed(parked: bool) -> Vehicle:
 	var ppos := _player_pos()
 	if not ppos.is_finite():
 		return null
-	var spot := _find_spot(ppos, parked)
+	var kind := VehicleSpecs.pick_kind(randf())
+	var spot := _find_spot(ppos, parked, VehicleSpecs.SPAWN_MIN, VehicleSpecs.SPAWN_MAX, kind)
 	if spot.is_empty():
 		return null
-	var v := _acquire(VehicleSpecs.pick_kind(randf()))
+	var v := _acquire(kind)
 	v.activate(spot[0], spot[4])
 	if not parked:
 		v.set_traffic(spot[1], spot[2], spot[3], randf_range(VehicleSpecs.AI_CRUISE_MIN, VehicleSpecs.AI_CRUISE_MAX))
 	list.append(v)
+	v.publish_hull(parked)
 	v.update_lod(_dist(v, ppos))
 	return v
 
 
 ## [position, axis, dir, lane line, heading] of a free spot, or [].
-func _find_spot(center: Vector3, parked: bool, rmin := VehicleSpecs.SPAWN_MIN, rmax := VehicleSpecs.SPAWN_MAX) -> Array:
+func _find_spot(center: Vector3, parked: bool, rmin := VehicleSpecs.SPAWN_MIN, rmax := VehicleSpecs.SPAWN_MAX, kind := &"sedan", strict := true) -> Array:
 	var w := Game.world
 	if not is_instance_valid(w) or not w.has_method(&"road_point_near"):
 		return []
@@ -1137,8 +1254,33 @@ func _find_spot(center: Vector3, parked: bool, rmin := VehicleSpecs.SPAWN_MIN, r
 			continue
 		if not _spot_free(pos, 7.0 if parked else 10.0):
 			continue
+		if not _hull_ok(kind, pos, VehicleSpecs.heading_for(axis, dir), parked, strict):
+			continue
 		return [pos, axis, dir, across, VehicleSpecs.heading_for(axis, dir)]
 	return []
+
+
+## The hull of `kind` at `pos` fits among every other vehicle (a real hull test, not a centre distance); a car that is about to drive away also needs a free lane ahead and nobody coming up fast behind it.
+func _hull_ok(kind: StringName, pos: Vector3, heading: float, parked: bool, strict := true) -> bool:
+	if not VehicleSpecs.SPECS.has(kind):
+		return true
+	var spec: Dictionary = VehicleSpecs.SPECS[kind]
+	var hl := float(spec["len"]) * 0.5
+	var hw := float(spec["wid"]) * 0.5
+	var f := Vector2(-sin(heading), -cos(heading))
+	if not TrafficField.clear(pos.x, pos.z, f.x, f.y, hl, hw, 1.0 if (parked or not strict) else 3.0):
+		return false
+	if parked or not strict:
+		return true
+	var ahead := TrafficField.lead(pos.x, pos.z, f.x, f.y, hl, hw, 40.0, -1, -1, 0.3)
+	if ahead.x < INF and ahead.x < 16.0 and ahead.y < 3.0:
+		return false                                                            # born into a standing queue
+	var behind := TrafficField.lead(pos.x, pos.z, -f.x, -f.y, hl, hw, 45.0, -1, -1, 0.3)
+	if behind.x < INF:
+		var vb := maxf(-behind.y, 0.0)
+		if behind.x < vb * vb / 9.0 + vb * 0.6 + 6.0:
+			return false                                                        # a car coming up behind could not stop for it
+	return true
 
 
 func _spot_free(pos: Vector3, d: float) -> bool:

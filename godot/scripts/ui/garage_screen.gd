@@ -100,12 +100,12 @@ func _ready() -> void:
 	_box.add_child(_face)
 	var save := _button("Save", Vector2(24.0, 330.0), Vector2(372.0, 72.0), "SAVE THIS CAR", &"plus", UiUtil.CYAN)
 	save.pressed.connect(_on_save)
-	for i in VehicleSpecs.COLORS.size():                          # eight swatches: four a row, two rows
+	for i in VehicleSpecs.COLORS.size():                          # twelve swatches (round 6): four a row, three rows
 		var b := Button.new()
 		b.name = "Paint%d" % i
-		b.position = Vector2(24.0 + float(i % 4) * 94.0, 416.0 + float(i / 4) * 80.0)
-		b.size = Vector2(88.0, 72.0)
-		b.custom_minimum_size = Vector2(88.0, 72.0)
+		b.position = Vector2(24.0 + float(i % 4) * 94.0, 406.0 + float(i / 4) * 66.0)
+		b.size = Vector2(88.0, 64.0)
+		b.custom_minimum_size = Vector2(88.0, 64.0)
 		b.flat = true
 		b.focus_mode = Control.FOCUS_NONE
 		_box.add_child(b)

@@ -8,25 +8,26 @@ func run(host: Node) -> void:
 	host.add_child(root)
 	sedan.set_paint(VehicleSpecs.COLORS[0])
 	TestLib.check(not sedan.iridescent, "a sedan is not thin-film")
-	var r0 := sedan._body_mat.roughness
-	var c0 := sedan._body_mat.clearcoat
+	var fresh := sedan.paint_state()                       # works for the older art (StandardMaterial3D) and for Cars v2 (shader parameters)
+	TestLib.check(not fresh.is_empty(), "the sedan has a paint finish")
 	sedan.set_damage_look(0.8)
-	TestLib.check(sedan._body_mat.roughness > r0 and sedan._body_mat.clearcoat < c0, "damage scuffs the clear coat and dulls the paint")
-	TestLib.check(sedan._body_mat.emission_energy_multiplier < VehicleVisual.paint_glow() and sedan._body_mat.albedo_color.v < sedan._lift * VehicleSpecs.COLORS[0].v, "a badly hurt car is sooty and dull, it does not glow")
+	var hurt := sedan.paint_state()
+	TestLib.check(float(hurt["roughness"]) > float(fresh["roughness"]) and float(hurt["clearcoat"]) < float(fresh["clearcoat"]), "damage scuffs the clear coat and dulls the paint")
+	TestLib.check(float(hurt["glow"]) < float(fresh["glow"]) and (hurt["albedo"] as Color).v < (fresh["albedo"] as Color).v, "a badly hurt car is sooty and dull, it does not glow")
 	sedan.set_damage_look(0.0)
-	var r1 := sedan._body_mat.roughness
+	var r1 := float(sedan.paint_state()["roughness"])
 	sedan.set_wet(1.0)
-	TestLib.check(sedan._body_mat.roughness < r1, "wet paint is glossier")
+	TestLib.check(float(sedan.paint_state()["roughness"]) < r1, "wet paint is glossier")
 
 	var hover := VehicleVisual.new()
 	var hroot := hover.build(&"hover", Color(0.2, 0.9, 1.0))
 	host.add_child(hroot)
 	hover.set_paint(VehicleSpecs.COLORS[1])
-	TestLib.check(hover.iridescent and hover._body_mat.rim_enabled, "a hover car wears the iridescent film")
+	TestLib.check(hover.iridescent and float(hover.paint_state()["rim"]) > 0.0, "a hover car wears the iridescent film")
 	hover.shimmer(0.0, 0.0)
-	var e0 := hover._body_mat.emission
+	var e0: Color = hover.paint_state()["emission"]
 	hover.shimmer(2.0, 30.0)
-	TestLib.check(hover._body_mat.emission != e0, "the film hue drifts with time and speed")
+	TestLib.check((hover.paint_state()["emission"] as Color) != e0, "the film hue drifts with time and speed")
 	var patrol := VehicleVisual.new()
 	host.add_child(patrol.build(&"vael_patrol", Color(0.2, 0.9, 1.0)))
 	patrol.set_paint(VehicleSpecs.COLORS[2])

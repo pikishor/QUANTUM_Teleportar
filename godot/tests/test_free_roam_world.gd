@@ -400,6 +400,7 @@ func _part_hunt() -> void:
 # --- stunt jumps ----------------------------------------------------------------------------------------------------------------------
 
 func _part_stunts() -> void:
+	TrafficField.bare_street()                            # round 6: parked decor cars and road traffic would stand on the ramp and the landing ring
 	_rw.reset()
 	var st := RoamData.stunts()
 	var s0 := st[0]

@@ -5,6 +5,7 @@ extends RefCounted
 ## The long versions: tools/soak.sh (10 simulated minutes) and tools/soak.sh --monkey.
 ## Run: tools/test.sh tests/test_soak_quick.gd
 
+const TIMEOUT_SECONDS := 150.0                   ## the soak and the monkey run in real frames: under the 4-way parallel suite they need more than the 60 s default (wave 111 integration; nothing else loosened)
 const Lib := preload("res://tests/soak_lib.gd")
 const Soak := preload("res://tests/bot_soak.gd")
 const Monkey := preload("res://tests/bot_monkey.gd")
@@ -105,10 +106,10 @@ func _car_caches() -> void:
 	var v1 := VehicleVisual.new()
 	var n1 := v1.build(&"sedan", Color(0.2, 0.9, 1.0))
 	var merged := int(path_keys.call())
-	var cache_n := VehicleVisual._merged.size()          # the sedan is the Rgsdev model now (its glass-split mesh has no resource path: keyed by instance id), so count the whole cache
+	var cache_n := VehicleVisual._merged.size() + CarV2._shaders.size()          # (Cars v2: the sedan keeps no merged lamp mesh, its shaders are cached in CarV2, so both caches are counted)  # the sedan is the Rgsdev model now (its glass-split mesh has no resource path: keyed by instance id), so count the whole cache
 	var v2 := VehicleVisual.new()
 	var n2 := v2.build(&"sedan", Color(1.0, 0.3, 0.9))
-	TestLib.check(VehicleVisual._merged.size() >= 1 and VehicleVisual._merged.size() == cache_n, "a second sedan visual adds no lamp mesh to the cache (%d entries, %d by path)" % [cache_n, merged])
+	TestLib.check(VehicleVisual._merged.size() + CarV2._shaders.size() >= 1 and VehicleVisual._merged.size() + CarV2._shaders.size() == cache_n, "a second sedan visual adds no lamp mesh to the cache (%d entries, %d by path)" % [cache_n, merged])
 	n1.free()
 	n2.free()
 

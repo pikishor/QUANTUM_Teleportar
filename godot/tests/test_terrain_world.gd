@@ -261,9 +261,7 @@ func _tiers(host: Node) -> void:
 ## Drive an SUV out of the city on the desert road: it follows the ground, tilts with the slope, rides on asphalt and gets the surface under its wheels.
 func _drive_out(host: Node) -> void:
 	mgr.stream_every = 100000.0
-	if NearTraffic.instance != null:
-		NearTraffic.instance.count = 0
-		NearTraffic.instance.reset()
+	TrafficField.bare_street()                            # round 6: the near, road and parked cars are switched off: the SUV drives a bare road
 	for v in mgr.list.duplicate():
 		if v != mgr.starter:
 			mgr._release(v)

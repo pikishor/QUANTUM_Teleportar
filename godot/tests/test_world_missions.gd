@@ -149,6 +149,7 @@ func _offers() -> void:
 
 func _pursuit() -> void:
 	_clear_vehicles()
+	TrafficField.bare_street()                # the pursuit tests the mission, not the road traffic and the driveway cars of DUST WELLS the 4x4 would meet at the foot of the track
 	var route := WorldSites.road_route("QUARRY TRACK")
 	var dust := Vector3(1520.0, 0.0, 330.0)
 	var prog := Game.progress as Progress
