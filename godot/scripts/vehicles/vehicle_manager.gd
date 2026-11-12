@@ -142,6 +142,8 @@ func toggle_enter_exit() -> bool:
 		return true
 	if p.has_method(&"is_dead") and p.call(&"is_dead"):
 		return false
+	if not InteriorGameplay.active and InteriorGameplay.prompt.begins_with("ENTER"):
+		return false                         # a door's ENTER prompt is up (no real car is near it, or the prompt would be empty): USE takes the door, not the kerb car beside it (the interior test bot boarded the parked van next to a shop door and every door after it said LEAVE THE VEHICLE)
 	var car := reach_car(p.global_position)
 	if car == null:
 		return false
