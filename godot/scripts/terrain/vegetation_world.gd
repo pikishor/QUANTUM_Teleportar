@@ -81,6 +81,7 @@ func _exit_tree() -> void:
 
 func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
+	LandKit.set_quality(quality)
 	_tier = TIERS[quality]
 	_ensure_pool(int(_tier["blockers"]))
 	_pending_force = true
@@ -307,6 +308,21 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 					if d < BLOCK_RADIUS:
 						var rad := LandKit.trunk_radius(nm) * sc * 0.9 + 0.12
 						near.append([d, x, arr[o + 1], z, clampf(rad, 0.3, 1.6), 7.0])
+					continue
+				if land and sp == VegScatter.ROCK:
+					var shape: String = ["a", "b", "c", "d"][int(rnd * 4.0) % 4]
+					var lod_d := 34.0 * sqrt(maxf(sc, 1.0))
+					var rlayer := 4
+					var dwq := TerrainBase.desert_weight(x, z)
+					if dwq > 0.4 or rnd > 0.84:
+						rlayer = 8 if rnd < 0.9 else 9
+					elif arr[o + 1] > 120.0 or rnd < 0.2:
+						rlayer = 10
+					elif rnd > 0.7:
+						rlayer = 4
+					_put(out, "rock_%s%s" % [shape, "_1" if d > lod_d else ""], x, arr[o + 1], z, arr[o + 3], sc, rnd, g, -1.0, -1.0, float(rlayer))
+					if d < BLOCK_RADIUS and sc > 0.9:
+						near.append([d, x, arr[o + 1], z, clampf(1.15 * sc, 0.3, 4.5), 1.6 * sc])
 					continue
 				if lod == 2:                                                    # old pieces (without the landscape kit): the far LOD draws about half of the trees, a third bigger
 					if rnd > FAR_KEEP:

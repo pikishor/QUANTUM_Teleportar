@@ -12,6 +12,7 @@ const FOLIAGE_PATH := "res://assets/textures/land_foliage.webp"
 const IMPOSTOR_PATH := "res://assets/textures/land_impostor.webp"
 const BARK_PATH := "res://assets/textures/land_bark_%s.webp"
 const TREE_SHADER := "res://assets/shaders/land_tree.gdshader"
+const ROCK_SHADER := "res://assets/shaders/land_rock.gdshader"
 const IMP_SHADER := "res://assets/shaders/land_impostor.gdshader"
 const SPECIES: Array[String] = ["oak", "birch", "poplar", "pine", "fir", "palm", "acacia", "dead", "alien"]
 
@@ -41,20 +42,22 @@ static var _imp_mat: ShaderMaterial
 static var _cells := {}                    ## sprite name -> Rect2i in pixels of the foliage atlas (from the GLB: tools/landscape/foliage.py LAYOUT)
 static var _atlas_size := Vector2(2048.0, 1024.0)
 static var _cover := {}                    ## ground cover piece name -> {mesh, mat}
+static var _rock_mat: ShaderMaterial
+const ROCK_LAYERS := [4, 8, 10, 9]         ## layers of the terrain texture array a rock can wear: limestone, strata, dark rock, scree
 
 ## ground cover pieces (name -> [sprite cell, kind, width, height, extra]); kinds: "star" = vertical quads crossed round the y axis, "bush" = cards on a hemisphere
 const COVER := {
-	"g_grass1": ["grass_a", "star", 0.9, 1.25, 3],
-	"g_grass2": ["grass_b", "star", 0.95, 1.2, 3],
-	"g_dry": ["grass_dry", "star", 0.9, 1.2, 3],
-	"g_tall": ["grass_tall", "star", 0.9, 1.7, 3],
-	"g_daisy": ["daisy", "star", 1.1, 1.0, 3],
-	"g_poppy": ["poppy", "star", 0.7, 1.1, 3],
-	"g_lav": ["lavender", "star", 0.7, 1.2, 3],
-	"g_clover": ["clover", "star", 1.1, 1.0, 3],
-	"g_fern1": ["fern_a", "star", 1.5, 1.2, 3],
-	"g_fern2": ["fern_b", "star", 1.6, 1.3, 3],
-	"g_reed": ["reed_a", "star", 1.5, 2.2, 3],
+	"g_grass1": ["grass_a", "star", 0.62, 0.85, 3],
+	"g_grass2": ["grass_b", "star", 0.66, 0.82, 3],
+	"g_dry": ["grass_dry", "star", 0.64, 0.8, 3],
+	"g_tall": ["grass_tall", "star", 0.6, 1.15, 3],
+	"g_daisy": ["daisy", "star", 0.8, 0.7, 3],
+	"g_poppy": ["poppy", "star", 0.5, 0.78, 3],
+	"g_lav": ["lavender", "star", 0.5, 0.85, 3],
+	"g_clover": ["clover", "star", 0.8, 0.7, 3],
+	"g_fern1": ["fern_a", "star", 1.2, 0.95, 3],
+	"g_fern2": ["fern_b", "star", 1.3, 1.0, 3],
+	"g_reed": ["reed_a", "star", 1.2, 1.7, 3],
 	"g_bush1": ["shrub_a", "bush", 1.2, 1.5, 7],
 	"g_bush2": ["shrub_b", "bush", 1.3, 1.4, 7],
 }
@@ -126,13 +129,15 @@ static func species() -> Array[String]:
 
 static func has_name(nm: String) -> bool:
 	_load()
-	return _meshes.has(nm) or (_ok and COVER.has(nm))
+	return _meshes.has(nm) or (_ok and COVER.has(nm)) or (_ok and nm.length() == 6 and nm.begins_with("rock_") and _meshes.has(nm + "_0"))
 
 
 static func mesh(nm: String) -> Mesh:
 	_load()
 	if COVER.has(nm):
 		return _cover_piece(nm)["mesh"] if _ok else null
+	if nm.length() == 6 and nm.begins_with("rock_") and _meshes.has(nm + "_0"):
+		return _meshes[nm + "_0"]
 	return _meshes.get(nm)
 
 
@@ -177,6 +182,8 @@ static func material_for(nm: String) -> ShaderMaterial:
 		return _impostor_material()
 	if COVER.has(nm):
 		return _cover_piece(nm)["mat"]
+	if nm.begins_with("rock_"):
+		return _rock_material()
 	var sp := species_of(nm)
 	if _mats.has(sp):
 		return _mats[sp]
@@ -197,6 +204,25 @@ static func material_for(nm: String) -> ShaderMaterial:
 		mat.set_shader_parameter(&"emit_amount", float(look["emit"]))
 	_mats[sp] = mat
 	return mat
+
+
+## The rocks' material: the terrain's own texture array, tri-planar (assets/shaders/land_rock.gdshader). Refreshed by set_quality().
+static func _rock_material() -> ShaderMaterial:
+	if _rock_mat == null:
+		_rock_mat = ShaderMaterial.new()
+		_rock_mat.shader = load(ROCK_SHADER) as Shader
+		_rock_mat.set_shader_parameter(&"flat_col", TerrainTextures.flat_colors())
+		set_quality(Game.quality)
+	return _rock_mat
+
+
+static func set_quality(level: int) -> void:
+	if _rock_mat == null:
+		return
+	var arr := TerrainTextures.array(level)
+	_rock_mat.set_shader_parameter(&"layers", arr)
+	_rock_mat.set_shader_parameter(&"tex_k", 1.0 if arr != null else 0.0)
+	_rock_mat.set_shader_parameter(&"detail", 1.0 if level >= 1 else 0.0)
 
 
 static func _impostor_material() -> ShaderMaterial:
@@ -245,6 +271,9 @@ static func merge_into(meshes: Dictionary) -> void:
 		meshes[k] = _meshes[k]
 	for k in COVER.keys():
 		meshes[k] = mesh(k)
+	for shape in ["a", "b", "c", "d"]:                                        # the rocks replace the old low-poly kit pieces of the same name (rock_a ... rock_d: LOD0, rock_x_1: LOD1)
+		if _meshes.has("rock_%s_0" % shape):
+			meshes["rock_%s" % shape] = _meshes["rock_%s_0" % shape]
 
 
 # --- ground cover (grass, flowers, ferns, reeds, bushes): small card pieces built here from the foliage atlas ---------------------------------------------------------

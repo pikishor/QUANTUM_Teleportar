@@ -20,6 +20,7 @@ from PIL import Image  # noqa: E402
 
 import foliage  # noqa: E402
 import impostor  # noqa: E402
+import rocks  # noqa: E402
 import species as sp  # noqa: E402
 from mb import write_glb  # noqa: E402
 
@@ -81,6 +82,11 @@ def main():
                 row.append(impostor.render(built[key], atlas, 0.5, scale, (CELL_W, CELL_H), BARK_RGB[name]))
             row += views
             previews.append(row)
+    if not only or "rocks" in only or a.only == "":
+        for shape in ("a", "b", "c", "d"):
+            meshes["rock_%s_0" % shape] = rocks.build(shape, 8)
+            meshes["rock_%s_1" % shape] = rocks.build(shape, 4)
+            print("rock_%s  tris %d / %d" % (shape, meshes["rock_%s_0" % shape].tri_count(), meshes["rock_%s_1" % shape].tri_count()))
     if not a.no_write:
         os.makedirs(a.out_models, exist_ok=True)
         os.makedirs(a.out_tex, exist_ok=True)

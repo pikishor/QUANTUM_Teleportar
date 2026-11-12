@@ -17,10 +17,14 @@ LAYERS = [
     ("grass", "forrest_ground_01"),
     ("forest", "rocky_terrain_02"),
     ("desert", "dry_ground_rocks"),
-    ("beach", "aerial_sand"),
+    ("beach", "coast_sand_01"),            # wave 112: was aerial_sand (pinkish, with vehicle tracks)
     ("rock", "rock_boulder_dry"),
     ("snow", "snow_02"),
     ("dirt", "gravel_road"),
+    ("wetsand", "damp_beach_sand"),        # wave 112: the swash zone, the darker damp band
+    ("strata", "cliff_side"),              # orange layered rock for the cliffs of the dry country
+    ("scree", "rocks_ground_01"),          # loose stones on the middle slopes, the pebble line of the beaches
+    ("darkrock", "rock_face_04"),          # dark ridges
 ]
 
 

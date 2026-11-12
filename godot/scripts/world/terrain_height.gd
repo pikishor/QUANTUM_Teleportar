@@ -37,6 +37,7 @@ static func warm() -> void:
 	TerrainRoads.ensure()                 # ends with RailNet.ensure() (the railway is routed over the finished roads)
 	OutskirtsSites.ensure()
 	Airport.ensure()
+	LandscapeSites.ensure()               # wave 112: waterfalls and airstrips are found on the finished ground (everything above, without their own carve)
 
 
 static func _ensure() -> void:
@@ -88,6 +89,11 @@ static func base_height(x: float, z: float) -> float:
 
 ## The ground height with rivers and lakes carved in.
 static func height_at(x: float, z: float) -> float:
+	return LandscapeSites.carve(x, z, height_pre(x, z))       # wave 112: then the waterfalls (cliff streams, plunge pools) and the grass airstrips (scripts/landscape/landscape_sites.gd)
+
+
+## The ground before the landscape features (waterfall pools, airstrips) are carved: LandscapeSites searches its sites on this one.
+static func height_pre(x: float, z: float) -> float:
 	return Airport.carve(x, z, OutskirtsSites.carve(x, z, Harbour.carve(x, z, RailNet.carve(x, z, TerrainRoads.carve(x, z, WaterLayout.carve(x, z, base_height(x, z)))))))       # land, then the rivers, then the road benches (scripts/terrain/terrain_roads.gd), then the railway benches (scripts/rail/rail_net.gd), then the harbour quay (scripts/world/harbour.gd), then the pads of the mountain and outskirt sites (scripts/terrain/outskirts_sites.gd)
 
 
@@ -104,6 +110,9 @@ static func water_level_for(x: float, z: float, ground: float) -> float:
 	var inland := WaterLayout.surface_at(x, z)
 	if inland > best:
 		best = inland
+	var pool: float = LandscapeSites.pool_level(x, z)               # the plunge pools of the waterfalls
+	if pool > best:
+		best = pool
 	if best > ground + 0.001:
 		return best
 	return NO_WATER

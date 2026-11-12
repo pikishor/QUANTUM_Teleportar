@@ -1,6 +1,6 @@
 # Sprint agents (automatic digest)
 
-Written by godot/tools/sprint_digest.py at 2026-11-12 21:32Z. Status 'running' means no final report had been written when the digest was made.
+Written by godot/tools/sprint_digest.py at 2026-11-12 21:50Z. Status 'running' means no final report had been written when the digest was made.
 
 ## workflow run wf_143decfa-17e
 
@@ -17,7 +17,7 @@ Written by godot/tools/sprint_digest.py at 2026-11-12 21:32Z. Status 'running' m
 
 ## workflow run wf_961e30a4-f27
 
-- w111-ci-apk [Wave 111] running: 687 events, 17:49:28 -> 21:30:55
+- w111-ci-apk [Wave 111] running: 705 events, 17:49:28 -> 21:50:04
 - w112-cars-pass2 [Wave 112] done: 1536 events, 17:49:28 -> 20:41:36
-- w112-landscape [Wave 112] running: 450 events, 20:41:36 -> 21:32:00
+- w112-landscape [Wave 112] running: 596 events, 20:41:36 -> 21:50:20
 

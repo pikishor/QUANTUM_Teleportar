@@ -91,6 +91,16 @@ func _road_point(name: String, s: float) -> Array:
 
 
 func _apply(p: Player, v: String, k: int) -> void:
+	var at := v.rfind("@")                                  # "view@hour[,weather]": the time of day (and weather clear / rain / snow) of this view only
+	if at > 0:
+		var tail := v.substr(at + 1).split(",")
+		v = v.substr(0, at)
+		var city := Game.world as City
+		if k == 0 and city != null and city.day_night != null:
+			city.day_night.set_hour(float(tail[0]))
+			if tail.size() > 1:
+				for n in Game.world.get_tree().root.find_children("*", "Weather", true, false):
+					(n as Weather).set_state(StringName(tail[1]) if tail[1] in ["rain", "snow", "storm", "fog", "overcast", "drizzle"] else &"clear", true)
 	if v.begins_with("abs:"):
 		var a := v.substr(4).split(",")
 		_free_cam(p, Vector3(float(a[0]), float(a[1]), float(a[2])), Vector3(float(a[3]), float(a[4]), float(a[5])), k)

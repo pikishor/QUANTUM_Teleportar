@@ -1,6 +1,6 @@
 # w111-ci-apk (running)
 
-agent id af0a48b9b2334ae7d, 687 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T21:30:55.491Z
+agent id af0a48b9b2334ae7d, 705 events, first activity 2026-11-12T17:49:28.108Z, last activity 2026-11-12T21:50:04.076Z
 
 ## Last notes of the agent
 
@@ -8,12 +8,6 @@ agent id af0a48b9b2334ae7d, 687 events, first activity 2026-11-12T17:49:28.108Z,
 
 ## Recent steps (last 40)
 
-- 20:54:40 Compare shooting accuracy flake rate with and without the vehicle freeze
-- 21:04:55 Check CI progress and the background shooting accuracy runs
-- 21:05:12 Wait for the CI run of the door priority fix to finish
-- 21:10:18 List flaky and failed tests of every shard in the second fix run
-- 21:10:31 Show the interior test failures in the latest CI round
-- 21:10:36 Read the shooting accuracy comparison results
 - 21:10:44 Read the stealth job helper of the interior tasks test
 - 21:10:50 Read calm_guards and the stealth start conditions
 - 21:10:53 Locate the stealth script class and read can_start
@@ -48,6 +42,12 @@ agent id af0a48b9b2334ae7d, 687 events, first activity 2026-11-12T17:49:28.108Z,
 - 21:26:26 Disable the director in the interior bot and let stealth jobs forget alerted guards
 - 21:26:32 Run the interior tasks test with the new bot changes
 - 21:30:55 Instrument the door entry again to catch the remaining failure
+- 21:39:24 Restore the bot and search tests that rely on cars suppressing the door prompt
+- 21:39:48 Apply the parked-car refinement and add a regression check to the interior gameplay test
+- 21:41:01 Confirm the new regression check fails without the game change
+- 21:41:29 Run the interior tasks test eight times with the parked car refinement
+- 21:49:56 Read the use_label helper of the interior bot
+- 21:50:04 Make the USE label reads wait for a render frame and rerun the interior test
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

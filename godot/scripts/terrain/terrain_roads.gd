@@ -425,7 +425,7 @@ static func shoulder_weight(x: float, z: float) -> float:
 	if ri < 0:
 		return 0.0
 	var road: Dictionary = _roads[ri]
-	return 1.0 - smoothstep(float(road["w"]) * 0.5, float(road["w"]) * 0.5 + 7.0, float(r[0]))
+	return 1.0 - smoothstep(float(road["w"]) * 0.5 + 1.0, float(road["w"]) * 0.5 + 4.0, float(r[0]))
 
 
 ## True when (x, z) lies under a bridge deck of a road (the road bench is not cut there).
@@ -463,6 +463,7 @@ static func build_ribbon(ri: int) -> ArrayMesh:
 	var idx := PackedInt32Array()
 	var run := 0.0
 	var half: float = float(road["w"]) * 0.5
+	var verge := 2.6 if String(road["kind"]) == "highway" else 1.3                  # wave 112: a gravel verge on each side of the asphalt that the shader fades out (COLOR.g = the asphalt half width / 16)
 	for i in n:
 		if i > 0:
 			run += pts[i].distance_to(pts[i - 1])
@@ -471,16 +472,16 @@ static func build_ribbon(ri: int) -> ArrayMesh:
 		var hw := half
 		if bool(road["from_city"]):
 			hw = lerpf(ROAD_W * 0.5, half, smoothstep(0.0, FLARE, run))
-		var l := pts[i] + nrm * hw
-		var r := pts[i] - nrm * hw
+		var l := pts[i] + nrm * (hw + verge)
+		var r := pts[i] - nrm * (hw + verge)
 		var c := pts[i]
 		var yc := TerrainHeight.height_at(c.x, c.y) + LIFT
 		verts.append(Vector3(l.x, minf(TerrainHeight.height_at(l.x, l.y) + LIFT, yc + 0.4), l.y))
 		verts.append(Vector3(r.x, minf(TerrainHeight.height_at(r.x, r.y) + LIFT, yc + 0.4), r.y))
 		norms.append(Vector3.UP)
 		norms.append(Vector3.UP)
-		cols.append(Color(2.0 * hw / 32.0, 0.0, 0.0, 1.0))
-		cols.append(Color(2.0 * hw / 32.0, 0.0, 0.0, 1.0))
+		cols.append(Color(2.0 * (hw + verge) / 32.0, hw / 16.0, 0.0, 1.0))
+		cols.append(Color(2.0 * (hw + verge) / 32.0, hw / 16.0, 0.0, 1.0))
 		uvs.append(Vector2(0.0, run))
 		uvs.append(Vector2(1.0, run))
 		if i < n - 1 and _sb[int(road["base"]) + i] == 0 and _sb[int(road["base"]) + i + 1] == 0:          # a bridge span has its own deck (Bridges: one sample more at each end), the ribbon would lie in the river bed

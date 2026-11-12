@@ -35,7 +35,7 @@ const T_LINES := 4                                   ## roadside avenues (poplar
 const T_REEDS := 5                                   ## reeds on the banks of rivers and lakes
 const LAYERS := 6
 const TREE_LINE := 215.0
-const SPACING := [6.0, 4.6, 1.6, 11.0, 6.0, 2.4]     ## jitter grid spacing per layer (metres)
+const SPACING := [6.0, 4.6, 1.15, 11.0, 6.0, 2.4]     ## jitter grid spacing per layer (metres)
 const LINE_OFFSET := 16.2                            ## distance of an avenue from the road centre line: just outside the 15 m bench
 const LINE_RANGE := 900.0                            ## avenues only within this distance of the city plateau
 
@@ -306,7 +306,7 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 					var big := smoothstep(0.45, 1.1, sl) + 0.35 * smoothstep(110.0, 260.0, h) * mw
 					scale = minf((0.55 + rnd * 0.9) * (1.0 + big * (1.0 + 1.6 * _rs(hh, 9))), 4.6)
 					sink = scale * (0.26 + 0.9 * clampf(sl, 0.0, 1.2))                # dig into a slope: the coarse terrain mesh is a few metres off the true height under a big rock
-			if OutskirtsSites.inside(x, z, 7.0) >= 0 or Airport.inside(x, z, 10.0):
+			if OutskirtsSites.inside(x, z, 7.0) >= 0 or Airport.inside(x, z, 10.0) or LandscapeSites.inside_strip(x, z, 6.0) or LandscapeSites.near_feature(x, z, 2.5):
 				continue
 			var rd := TerrainRoads.nearest(x, z)
 			if int(rd[1]) >= 0:
