@@ -14,7 +14,7 @@ var _vm: VehicleManager
 var _car: Vehicle
 var _pilot: RefCounted
 var _log_t := 0.0
-var _worst := 0.0                     ## the longest script frame (TIME_PROCESS + TIME_PHYSICS_PROCESS, ms) since the last log line: streaming and wake spikes, not GPU time
+var _worst := 0.0                     ## the longest frame (TIME_PROCESS + TIME_PHYSICS_PROCESS, ms) since the last log line. Under software Vulkan it includes the render of the frame (hundreds of ms): read it RELATIVELY (the same drive before and after a change), never against a phone budget
 var _spikes := 0
 
 

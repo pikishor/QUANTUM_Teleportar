@@ -1,6 +1,10 @@
-# w112-critic-play (running)
+# w112-critic-play (done)
 
-agent id aff758c60e86066ec, 479 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T20:59:49.086Z
+agent id aff758c60e86066ec, 678 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T22:12:06.408Z
+
+## Final report
+
+Wave 112 critic, PLAY lens. 8 defects found with bots and audits and FIXED (working tree, nothing committed): 1. HARBOUR QUAY pad stood inside the harbour shed: a teleport dropped the hero through the world (roam_data.gd). 2. Every fast travel froze 0.8-1.25 s (phone 3-5 s); now 23-150 ms (terrain_world.gd settle_ground). 3. PASS ROAD had a 3.8-5 m wall where the RING ROAD crosses (8 crashes, wreck): crossings levelled (terrain_roads.gd). 4. DESERT ROAD 1-2.6 m bank in the lane at the OUTPOST junction: branch takes the parent's profile. 5. SUMMIT ROAD began on the PASS bridge with a second deck, car stuck at 7 m: shared widened deck (bridges.gd). 6. Viaduct piers in road lanes (rail_kit.gd). 7. Poplar trunk in the DESERT ROAD lane (veg_scatter.gd). 8. Map overview showed 26 pins, test_director_fixes_b red (map_screen.gd). NOT fixed: outskirts LOW 61-171 draws vs 100 (city-only gate; wave 119); airport has no road; test_vehicle_roster has been cut off by a script error since wave 111 (tail fails 4 checks); PASS ROAD end lies under the SUMMIT embankment; test_terrain_world far-tile count is load-sensitive. Tests: new test_play_critic_w112 (15), test_interior_reach_country (57 rooms clean); audits tools/drive_audit.sh, road_audit.sh, tests/bot_play_sweep.gd. Perf: LOW OK 96 draws/139.8k/110 MB; MED OK 129/272.6k/141 MB; HIGH OK 149/378.8k/207 MB.
 
 ## Last notes of the agent
 
@@ -8,46 +12,46 @@ agent id aff758c60e86066ec, 479 events, first activity 2026-11-13T19:24:15.390Z,
 
 ## Recent steps (last 40)
 
-- 20:30:13 Read the viaduct pier placement in rail_kit.gd
-- 20:30:44 Look at how pads get their positions and tests that mention the harbour pad
-- 20:30:49 Move the harbour pad to the open apron and re-run the landing probe
-- 20:31:37 Find tests that depend on ensure_ground or settle behaviour
-- 20:31:39 Read the terrain world teleport test
-- 20:31:49 Implement the one-chunk ground settle and re-measure the teleport cost
-- 20:32:22 Run the terrain world test and the all-pads teleport probe after the ground settle change
-- 20:34:46 Make settle block on in-flight chunk jobs and re-run the terrain world test
-- 20:36:14 Read the far tile checks of the terrain world test
-- 20:36:23 Re-run the terrain world test to see whether the far tile failure is stable
-- 20:37:57 Find the consumers of road spans and the bridge flag array
-- 20:38:37 Snap a branch road onto its parent's profile and drop the duplicate deck, then re-probe the junction
-- 20:39:15 Re-run the road clearance and drive audits on PASS ROAD and SUMMIT ROAD after the junction fix
-- 20:41:23 Find code and tests that depend on SUMMIT ROAD geometry
-- 20:41:25 Read the SUMMIT ROAD assumptions in test_outskirts_sites
-- 20:41:33 Branch SUMMIT ROAD at the end of the PASS ROAD deck and re-probe
-- 20:42:43 Skip viaduct bents whose columns would stand in a road and re-run the road audit on PASS and RING ROAD
-- 20:44:25 Reject avenue trees closer than 11 m to any road and re-probe the old spot
-- 20:44:55 Apply the view filter to the outskirt pins in the map overview and re-run the failing map test
-- 20:45:36 Fix the two test hygiene problems and re-run both tests
-- 20:47:35 Drop the process_mode line only and re-run the vehicle roster test; read the race length check
-- 20:48:58 Test whether building the full 3x3 LOD0 ring restores the vehicle roster test
-- 20:50:06 Look at where the vehicle roster test spawns its tank and plane
-- 20:50:14 Bisect: temporarily restore the old ensure_ground behaviour and re-run the vehicle roster test
-- 20:51:28 Check machine load and restore my ensure_ground change with a 150 m margin
-- 20:51:43 Adjust the race length threshold that the shortened SUMMIT ROAD falls under
-- 20:51:45 Verify the threshold edit landed
-- 20:52:04 Update the progress log with the fixes landed so far
-- 20:52:12 Expose a static blockers() helper in the road clearance audit for the regression test
-- 20:52:20 Read how a pad is found and the helper patterns of test_free_roam_world
-- 20:52:23 Check the pad find radius
-- 20:53:08 /home/user/QUANTUM_Teleportar/godot/tests/test_play_critic_w112.gd
-- 20:53:10 Write the regression test, import, and run it
-- 20:54:36 Show the script errors with their stack context
-- 20:54:40 Inspect the bridge ribbon code where the script error arises
-- 20:54:47 Re-run the new test and the bridges test for script errors
-- 20:56:43 List rail collision boxes near the remaining RING ROAD blocker
-- 20:57:18 List only the pier column boxes near the RING ROAD blocker
-- 20:57:58 Raise the pier slide limit to 150 m and re-run the new test and the railways test
-- 20:59:49 Run the neighbouring tests of my edits (batch 1)
+- 21:35:24 Finer ablation of the city Geometry draws seen from outside the north gate
+- 21:36:37 Read the world route planner API
+- 21:36:42 Check the GPS route from the hub to every pad
+- 21:37:02 Drive the remaining highways end to end to confirm the fixes
+- 21:40:50 Probe trunks and scattered instances near the second DESERT ROAD crash site
+- 21:41:34 Probe the ground across DESERT ROAD near the OUTPOST ROAD junction
+- 21:41:51 Read how the road benches are carved and blended where roads meet
+- 21:42:28 Look at how the terrain tests check the road bench against the profile
+- 21:42:38 Count the consumers of TerrainRoads.nearest
+- 21:42:59 Let the road whose carriageway holds a point own its ground in carve()
+- 21:43:04 Remove the leftover stub and re-run the cross-section probe at the OUTPOST ROAD junction
+- 21:43:25 Check for rail embankments near the DESERT ROAD junction bank
+- 21:43:39 Compare OUTPOST ROAD against DESERT ROAD at their junction
+- 21:44:17 Snap a branch's first samples to its parent's profile when feasible, and re-probe
+- 21:44:43 Drop the experimental carve change, keep the profile snap, and run the road-related tests
+- 21:48:40 List where the ground in a lane deviates from the road profile across the whole world
+- 21:49:09 Read level_profile and the ensure() sequence
+- 21:49:30 Level road crossings with the older road's height and re-run the lane probe
+- 21:49:56 Add the lane-ground checks to my test and run it with the road, rail, bridge and landscape tests
+- 21:53:52 Find files modified in the last 25 minutes by other agents
+- 21:53:58 Read the cloud deck checks of test_outskirts_sites
+- 21:54:05 Read the remaining weather checks and the wait helper
+- 21:54:14 Make the mountain weather checks wait on the easing and re-run the sites test
+- 21:55:01 Run the teleport-heavy neighbours (batch 3)
+- 21:58:52 Bisect the vehicle roster failures by restoring the original test file
+- 21:59:31 Restore my edited vehicle roster test and read its tank section
+- 21:59:41 Find where the old airstrip and depot spawn points are
+- 21:59:51 Read the plane landing test and how it counts hits
+- 22:00:04 Revert the vehicle roster edit and record the finding and the road fixes in the log
+- 22:00:35 Write the ARCHITECTURE and HANDOFF sections for the critic work
+- 22:00:39 Final verification batch A of the road and teleport related tests
+- 22:04:36 Final verification batch B (terrain, vehicles, water, towns, landscape, rails, bridges)
+- 22:10:30 Render the fixed junctions (SUMMIT/PASS deck, harbour pad, RING/PASS crossing, DESERT/OUTPOST)
+- 22:11:33 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/sw/final_001.png
+- 22:11:33 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/sw/final_002.png
+- 22:11:38 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/sw/final_003.png
+- 22:11:39 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/sw/final_004.png
+- 22:11:45 Delete my scratch frames and list the new untracked files of mine
+- 22:11:57 Finalize the progress log
+- 22:12:06 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

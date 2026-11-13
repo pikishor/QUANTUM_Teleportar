@@ -180,6 +180,34 @@ func _bridges() -> void:
 						if dy > 0.2 and dy < 4.5:
 							stepped.append("%s x %s at (%.0f, %.0f): %.2f m" % [a["id"], b["id"], pa[i].x, pa[i].z, dy])
 	TestLib.check(stepped.is_empty(), "no two road bridges overlap at different heights (%s)" % str(stepped.slice(0, 4)))
+	# the ground in a lane is the road surface at the junctions that had a bank or a wall in it (OUTPOST ROAD / DESERT ROAD: 1.1 - 2.6 m, RING ROAD / PASS ROAD: 3.8 - 5 m), and nowhere in the world are
+	# more than a handful of lane samples off their profile by more than 0.45 m
+	var spots: Array[Vector2] = [Vector2(1677.0, 770.0), Vector2(251.0, -1321.0), Vector2(1670.0, 779.0)]
+	var worst_spot := 0.0
+	for sp: Vector2 in spots:
+		for off: float in [-3.0, 0.0, 3.0]:
+			var near := TerrainRoads.nearest(sp.x, sp.y)
+			if int(near[1]) < 0:
+				continue
+			worst_spot = maxf(worst_spot, absf(TerrainHeight.height_at(sp.x + off, sp.y) - float(near[2])))
+	TestLib.check(worst_spot < 0.6, "the ground at the junctions that had a bank in the lane is the road surface (worst %.2f m)" % worst_spot)
+	var bad_lane := 0
+	for road: Dictionary in TerrainRoads.roads():
+		var rp: PackedVector2Array = road["pos"]
+		var rf: PackedFloat32Array = road["prof"]
+		var hw := String(road["kind"]) == "highway"
+		for i in range(1, rp.size() - 1):
+			var dr := (rp[i + 1] - rp[i - 1]).normalized()
+			var sd := Vector2(-dr.y, dr.x)
+			var dev := 0.0
+			for off: float in ([-3.0, 0.0, 3.0] if hw else [0.0]):
+				var qp := rp[i] + sd * off
+				if not TerrainRoads.in_span(qp.x, qp.y):
+					dev = maxf(dev, absf(TerrainHeight.height_at(qp.x, qp.y) - rf[i]))
+			if dev > 0.45:
+				bad_lane += 1
+	TestLib.check(bad_lane <= 12, "at most a handful of lane samples of the whole world are off the road profile by more than 0.45 m (%d of about 2900)" % bad_lane)
+	TestLib.check(TerrainRoads.crossings_levelled >= 1, "road crossings at different heights are levelled (%d)" % TerrainRoads.crossings_levelled)
 	var summit_first := ""
 	for b: Dictionary in Bridges.list:
 		if String(b["road"]) == "SUMMIT ROAD":
@@ -235,7 +263,9 @@ func _stretches() -> void:
 				if absf(lane) > half_w - 0.8:
 					continue
 				samples += 1
-				for fam in RCA.blockers(space, a.lerp(b, f), dir, py, grade, lane):
+				var deck := Bridges.deck_y(a.lerp(b, f).x, a.lerp(b, f).y, py)                       # a car rides the deck where there is one (the SUMMIT ROAD's first samples lie on the PASS ROAD deck)
+				var surf := maxf(py, deck) if deck != Bridges.NONE else py
+				for fam in RCA.blockers(space, a.lerp(b, f), dir, surf, grade, lane):
 					if not fam.begins_with("Terrain/"):                  # the terrain mesh against the profile on a crest is a separate, small item (the audit lists it)
 						blocked.append("%s s=%d lane %.1f: %s" % [job[0], int(t), lane, fam])
 			t += 6.0

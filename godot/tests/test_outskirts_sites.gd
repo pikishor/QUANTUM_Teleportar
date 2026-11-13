@@ -471,13 +471,13 @@ func _weather(host: Node) -> void:
 		return
 	# over the city: no cloud deck, no snow, no extra fog
 	p.teleport_to(Vector3(0.0, 0.5, 4.0))
-	await TestLib.frames(host, 6)
+	await _wait_counter(host, func() -> bool: return mw.cloud_alpha < 0.01 and mw.snow_rate < 0.01 and MountainWeather.fog_boost < 0.01, 8.0)           # (wave 112 critic: waits on the easing, not on six frames: a fast teleport left six frames of easing)
 	TestLib.check(mw.cloud_alpha < 0.01 and mw.snow_rate < 0.01 and MountainWeather.fog_boost < 0.01, "no cloud deck, snow or extra fog over the city")
 	# in the high mountains: on the observatory pad (about 150 m up) the deck is close, higher up it snows
 	var o := OutskirtsSites.by_id(&"observatory")
 	var op: Vector3 = o["pos"]
 	p.teleport_to(Vector3(op.x, op.y + 40.0, op.z))
-	await _wait_counter(host, func() -> bool: return mw.cloud_alpha > 0.05, 8.0)
+	await _wait_counter(host, func() -> bool: return mw.cloud_alpha > 0.05 and MountainWeather.fog_boost > 0.05, 8.0)
 	TestLib.check(mw.cloud_alpha > 0.05 and MountainWeather.fog_boost > 0.05, "near the cloud deck on the ridge: clouds (%.2f) and thicker fog (%.2f)" % [mw.cloud_alpha, MountainWeather.fog_boost])
 	TestLib.check(MountainWeather.snow_for(op.x, 290.0, op.z) > 0.9 and MountainWeather.snow_for(0.0, 290.0, 0.0) == 0.0 and MountainWeather.snow_for(op.x, 20.0, op.z) == 0.0, "snow falls high in the mountains only")
 	# the vegetation shader dusts snow by height

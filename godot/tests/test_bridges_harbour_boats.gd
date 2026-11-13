@@ -33,12 +33,22 @@ func _data() -> void:
 	Bridges.ensure()
 	var roads := 0
 	var span_roads := 0
+	var shared_ok := true
+	var shared := 0
 	for r: Dictionary in TerrainRoads.roads():
-		span_roads += (r["spans"] as Array).size()
+		var own: Array = r.get("bridge_spans", r["spans"])
+		span_roads += own.size()
+		for sp: Vector2i in r["spans"]:                                  # wave 112 critic: a span of a branch that runs on its parent's bridge (SUMMIT ROAD on the PASS ROAD bridge) has no deck of its own,
+			if not own.has(sp):                                          # it must lie on the parent's: the deck under its middle sample
+				var mid: int = (sp.x + sp.y) / 2
+				var q: Vector2 = (r["pos"] as PackedVector2Array)[mid]
+				shared += 1
+				shared_ok = shared_ok and Bridges.on_deck(q.x, q.y, (r["prof"] as PackedFloat32Array)[mid])
 	for b in Bridges.list:
 		if b["kind"] in [&"road", &"track"]:
 			roads += 1
-	TestLib.check(span_roads >= 4 and roads == span_roads, "every place where a road crosses water is a road bridge (%d spans, %d bridges)" % [span_roads, roads])
+	TestLib.check(span_roads + shared >= 4 and roads == span_roads, "every place where a road crosses water is a road bridge (%d spans with their own deck, %d bridges, %d shared with the road they run on)" % [span_roads, roads, shared])
+	TestLib.check(shared_ok, "and a span without a deck of its own lies on the deck of the road it runs on")
 	for k in [&"suspension", &"foot", &"rail"]:
 		TestLib.check(Bridges.of_kind(k).size() >= 1, "there is a %s bridge" % k)
 	TestLib.check(Bridges.of_kind(&"foot").size() >= 2, "two footbridges")

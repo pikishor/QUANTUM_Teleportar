@@ -91,7 +91,8 @@ func _scene(host: Node) -> void:
 		if v != _vm.starter:
 			_vm._release(v)
 	if NearTraffic.instance != null:                      # no street traffic: the strip and the avenue are clear for the plane and the ground tests
-		for i in NearTraffic.instance.count:                # (wave 112 critic: NearTraffic is a RefCounted since wave 111, `process_mode` on it was a script error on every run: removed)
+		NearTraffic.instance.process_mode = Node.PROCESS_MODE_DISABLED
+		for i in NearTraffic.instance.count:
 			NearTraffic.instance._alive[i] = 0
 	Engine.time_scale = 2.0
 	# 1. the ground vehicles

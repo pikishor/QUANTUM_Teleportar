@@ -26,7 +26,7 @@ const CORE_DEFS := [
 	{"name": "MOUNTAIN TRACK", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 700.0], "via": [Vector2(1500, -1700), Vector2(1900, -1300)]},
 	{"name": "QUARRY TRACK", "kind": "track", "from_city": false, "branch": ["DESERT ROAD", 600.0], "via": [Vector2(1860, -540)]},
 	{"name": "HARBOUR ROAD", "kind": "highway", "from_city": false, "branch": ["COAST ROAD", 480.0], "via": [Vector2(-300, 1338)]},          # to the harbour apron (wave 105); the rest of it is HarbourKit's road on the quay
-	{"name": "SUMMIT ROAD", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 1270.0], "wide": true, "via": [Vector2(-300, -2090), Vector2(-420, -2180), Vector2(-540, -2220)]},         # the switchbacks up to the MOUNTAIN OBSERVATORY (OutskirtsSites, wave 105: the site stands where this road ends); wave 112 critic: it branches at the END of the PASS ROAD bridge (sample 127, was 119: its first 80 m ran on the parent's deck with a second deck and a stepped profile)
+	{"name": "SUMMIT ROAD", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 1190.0], "wide": true, "via": [Vector2(-300, -2090), Vector2(-420, -2180), Vector2(-540, -2220)]},         # the switchbacks up to the MOUNTAIN OBSERVATORY (OutskirtsSites, wave 105: the site stands where this road ends)
 	{"name": "RIDGE TRACK", "kind": "track", "from_city": false, "branch": ["MOUNTAIN TRACK", 2300.0], "wide": true, "via": [Vector2(1700, -1560), Vector2(1860, -1500)]},      # the climb to the RADIO TOWER
 ]
 const DEFS: Array = CORE_DEFS + SettlementRoads.DEFS             ## wave 112: the ring road, the west highway, the coast link, the west coast road, the lark road, the outpost road, the shore track (scripts/settlements/settlement_roads.gd), after the nine original roads
@@ -84,9 +84,42 @@ static func ensure() -> void:
 				var arr: PackedInt32Array = _grid[key]
 				arr.append(i)
 				_grid[key] = arr
+	_level_crossings()                                # wave 112 critic: two roads that cross at different heights meet at one (the older road's)
 	RailNet.ensure()                                  # the railway (wave 106) crosses these roads: it is routed and profiled once they are complete
 	OutskirtsSites.ensure()                       # the sites stand where some of the roads end (wave 105)
 	LandscapeSites.ensure()                       # wave 112: waterfalls and airstrips are found once the roads and the site pads exist
+
+
+## Wave 112 critic: where two roads cross (a sample of one within 7 m of a sample of the other) and their profiles differ by more than 0.4 m, the ground under each carriageway is the NEARER road's profile and a
+## wall stood in the other's lane: the RING ROAD crossed the PASS ROAD 3.6 m higher (a 3.8 - 5 m step across the main north road at 251, -1321: eight crashes and a wreck in the drive audit). The crossing is
+## levelled like a town pad is (`level_profile`: flat in a 12 m circle at the height of the road that was built first, easing out under the grade limit over 45 m). Bridge spans are left alone.
+static func _level_crossings() -> void:
+	var centres: Array[Vector2] = []
+	for i in _sp.size():
+		if _sb[i] == 1:
+			continue
+		var cand = _grid.get(_key(int(floor(_sp[i].x / CELL)), int(floor(_sp[i].y / CELL))))
+		if cand == null:
+			continue
+		for j: int in (cand as PackedInt32Array):
+			if _sr[j] <= _sr[i] or _sb[j] == 1:
+				continue
+			if _sp[i].distance_squared_to(_sp[j]) > 49.0 or absf(_sh[i] - _sh[j]) <= 0.4:
+				continue
+			var c := (_sp[i] + _sp[j]) * 0.5
+			var seen := false
+			for q in centres:
+				if q.distance_squared_to(c) < 6400.0:
+					seen = true
+					break
+			if seen:
+				continue
+			centres.append(c)
+			level_profile(c, 0.0, 12.0, 12.0, 45.0, _sh[i])                # the older road's height (_sr[i] < _sr[j])
+	crossings_levelled = centres.size()
+
+
+static var crossings_levelled := 0                    ## tests: how many road crossings were levelled
 
 
 static func _catmull(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> Vector2:
@@ -175,25 +208,6 @@ static func _build_road(ri: int) -> void:
 			prof[i] = clampf(prof[i], prof[i - 1] - gk * seg[i], prof[i - 1] + gk * seg[i])
 		for i in range(n - 2, 0, -1):
 			prof[i] = clampf(prof[i], prof[i + 1] - gk * seg[i + 1], prof[i + 1] + gk * seg[i + 1])
-	var overlap_n := 0                                    # wave 112 critic: where a BRANCH runs on its parent (its first samples within 8 m of the parent's centre line) it takes the parent's profile, else two profiles stepped
-	if def.has("branch"):                                 # the one carriageway by up to 0.75 m (a kerb across SUMMIT ROAD's first 100 m: a car was stuck there) and each road built its own deck over the same stream
-		var par3 := _find_road(String(def["branch"][0]))
-		var pp3: PackedVector2Array = _roads[par3]["pos"]
-		var pf3: PackedFloat32Array = _roads[par3]["prof"]
-		for i in n:
-			var bd2 := 64.0
-			var bj := -1
-			for j in pp3.size():
-				var d2 := pp3[j].distance_squared_to(pts[i])
-				if d2 < bd2:
-					bd2 = d2
-					bj = j
-			if bj < 0:
-				break
-			prof[i] = pf3[bj]
-			overlap_n = i + 1
-		for i in range(overlap_n, n):                     # then it leaves the parent's height under its own grade limit
-			prof[i] = clampf(prof[i], prof[i - 1] - gk * seg[i], prof[i - 1] + gk * seg[i])
 	if end_h > -1.0e8:                                    # wave 112: ends on another road: the last sample meets it at its height, the road eases into it under the grade limit
 		prof[n - 1] = end_h
 		for i in range(n - 2, 0, -1):
@@ -205,6 +219,34 @@ static func _build_road(ri: int) -> void:
 			prof[i] = maxf(prof[i], prof[i - 1] - gk * seg[i])
 		for i in range(n - 2, 0, -1):
 			prof[i] = maxf(prof[i], prof[i + 1] - gk * seg[i + 1])
+	if def.has("branch"):                                 # wave 112 critic: a branch whose first samples run on its parent (within 10 m of its centre line: the OUTPOST ROAD begins by retracing the DESERT ROAD for 30 m) takes the
+		var par4 := _find_road(String(def["branch"][0]))   # parent's profile there. Two profiles on one carriageway (0.9 - 2.7 m apart) cut a bank into the parent's right lane (`carve` picks the nearer road's
+		var pp4: PackedVector2Array = _roads[par4]["pos"]  # profile): a car crashed at it. Only when the branch can still reach every bridge clearance from the lower start under its grade limit.
+		var pf4: PackedFloat32Array = _roads[par4]["prof"]
+		var snap_n := 0
+		var trial := prof.duplicate()
+		for i in n:
+			var bd4 := 100.0
+			var bj4 := -1
+			for j in pp4.size():
+				var d4 := pp4[j].distance_squared_to(pts[i])
+				if d4 < bd4:
+					bd4 = d4
+					bj4 = j
+			if bj4 < 0:
+				break
+			trial[i] = pf4[bj4]
+			snap_n = i + 1
+		if snap_n >= 2:
+			for i in range(snap_n, n):
+				trial[i] = clampf(trial[i], trial[i - 1] - gk * seg[i], trial[i - 1] + gk * seg[i])
+			var snap_ok := true
+			for i in n:
+				if need[i] > -1.0e8 and trial[i] < need[i] - 0.05:
+					snap_ok = false
+					break
+			if snap_ok:
+				prof = trial
 	var total := 0.0
 	for i in range(1, n):
 		total += pts[i].distance_to(pts[i - 1])
@@ -249,13 +291,27 @@ static func _build_road(ri: int) -> void:
 	for sp in spans:
 		for i in range(sp.x, sp.y + 1):
 			_sb[base + i] = 1
-	var bridge_spans: Array[Vector2i] = []                # the spans that get a deck of their own (Bridges): a span inside the stretch where a branch runs on its parent is the parent's deck
+	var overlap_n := 0                                    # wave 112 critic: where a BRANCH runs on its parent (its first samples within 8 m of the parent's centre line: SUMMIT ROAD on the PASS ROAD bridge) the parent's
+	var overlap_lat := 0.0                                # deck carries both roads (Bridges widens it by `overlap_lat`); the branch's own deck over the same stream stood 0.3 - 0.75 m off it and its line
+	if def.has("branch"):                                 # wandered 3 - 7 m about the parent's across the parapet walls: a kerb across the carriageway, a car was stuck at 7 m
+		var par3 := _find_road(String(def["branch"][0]))
+		var pp3: PackedVector2Array = _roads[par3]["pos"]
+		for i in n:
+			var bd2 := 64.0
+			for j in pp3.size():
+				bd2 = minf(bd2, pp3[j].distance_squared_to(pts[i]))
+			if bd2 >= 64.0:
+				break
+			overlap_lat = maxf(overlap_lat, sqrt(bd2))
+			overlap_n = i + 1
+	var bridge_spans: Array[Vector2i] = []                # the spans that get a deck of their own (Bridges): a span inside that stretch is the parent's deck
 	for sp in spans:
 		if sp.y < overlap_n:
 			continue
 		bridge_spans.append(Vector2i(maxi(sp.x, overlap_n), sp.y))
 	_roads.append({"name": def["name"], "kind": def["kind"], "pos": pts, "prof": prof, "len": total, "w": float(kind["w"]), "bench": float(kind["bench"]),
-		"shoulder": float(kind["shoulder"]), "from_city": bool(def["from_city"]), "spans": spans, "bridge_spans": bridge_spans, "base": base})
+		"shoulder": float(kind["shoulder"]), "from_city": bool(def["from_city"]), "spans": spans, "bridge_spans": bridge_spans, "base": base,
+		"overlap": {"road": String(def["branch"][0]) if def.has("branch") else "", "n": overlap_n, "lat": overlap_lat + half_w}})
 
 
 static func _find_road(road_name: String) -> int:

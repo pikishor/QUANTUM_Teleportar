@@ -4,7 +4,7 @@ GOAL: review wave 112 (landscape, waterfalls, shores, towns, 9 km map, cars v2 p
 LOW and MED, OPEN each, write the worst defects, FIX them in render-look-fix loops, test, perf gate. A second critic (PLAY lens) works in the same tree (it also edited terrain_roads.gd / bridges.gd).
 MACHINE RULE LEARNED: ONE Godot render job at a time (each ~4.7 GB; three at once got OOM-killed). Scratch lives in the scratchpad crit folder (deleted at the end).
 
-STATUS (21:10Z): about 60 frames rendered and opened (landscape LOW + MED, 7 towns, highway + village, bridges, 6 falls, river, lake, coast at 3 times of day, airport, map screen, hero in the city,
+STATUS (21:25Z, FINISHED, report handed back; nothing committed, the integrator commits): about 60 frames rendered and opened (landscape LOW + MED, 7 towns, highway + village, bridges, 6 falls, river, lake, coast at 3 times of day, airport, map screen, hero in the city,
 SUIT screen, 5 suit turntables, first minute of a drive out of the city). Fixes below are in the tree, verified by frames or numbers. Perf gate: see TESTS AND PERF.
 
 DEFECTS (what / evidence / file / status)
@@ -43,8 +43,10 @@ plate_col (suit palette); BridgeKit.road_ribbon lifts a highway deck 10 cm and a
 
 TESTS AND PERF
 - tests/test_critic_look_fixes.gd PASS (13 checks). Also PASS: test_sky, test_day_night, test_hero_look_v3, test_bridges_harbour_boats, test_landscape_dressing, test_water_world.
-- test_terrain_world FAILS 2 checks, both NOT from this work: "no road is steeper than a mountain track (0.215)" = SUMMIT ROAD's first sample (0.215) before the PLAY critic moved the branch (re-run), and "all 96 far tiles are
-  built by the worker threads (60)" (slow under load, known from the outskirts builder).
-- Perf gate (PERF_CHECK=1 tools/perf_report.sh, one tier per call, shared tree): LOW OK 74 / total 96 draws, 139.6 k prims, tex 110 MB, death 108; MED OK 97 / 129, 272.5 k, 141 MB, death 145; HIGH: see below.
+- test_terrain_world: the grade / bench checks failed while the PLAY critic was editing the SUMMIT ROAD junction (0.215, then 0.845), they pass on the final tree; the far tile check (80 of 96) is load dependent.
+- Perf gate (PERF_CHECK=1 tools/perf_report.sh, one tier per call, shared tree): LOW OK 74 / total 96 draws, 139.6 k prims, tex 110 MB, death 108; MED OK 97 / 129, 272.5 k, 141 MB, death 145; HIGH OK 113 / 149, 379.0 k, 207 MB, death 166.
+- Also PASS on the final tree: test_outskirts_settlements, test_outskirts_sites, test_hero_look, test_hero_look2, test_hero_customisation, test_hero_polish, test_hero_backlight. test_terrain_world: only the load-dependent far tile check fails (80 of 96).
 
 OPEN PROBLEMS: see 7.
+
+FINAL: scratch frames deleted; sheets docs/shots/round6/critic_look_{bridges,cape,sky_falls_terrain,overview}.jpg (4 files, 1.0 MB). Remaining visible junction flaw: the dirt start of SUMMIT ROAD still shows a brown wedge on the deck end of the PASS ROAD bridge (the dirt ribbon lies above the deck at the abutment): needs the PLAY critic's overlap logic / the roads owner.
