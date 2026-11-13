@@ -1,6 +1,6 @@
 # Sprint state (kept current by the main session; the automatic digest is in docs/sprint/progress/)
 
-Updated 2026-11-13 11:20Z.
+Updated 2026-11-13 15:55Z.
 
 ## What happened
 - 2026-11-12 22:55Z: the usage limit was reached ("resets 4am UTC"). All sprint agents stopped (59 of 60 failed with the limit message, only the cars second pass had finished). Nothing was lost.
@@ -11,9 +11,11 @@ Updated 2026-11-13 11:20Z.
 - Wave 111 (cars v2, vehicle collisions, traffic density) plus CI fixes. Android build: https://github.com/pikishor/QUANTUM_Teleportar/actions/runs/43322670833
 - Cars second pass (43 defects fixed; near, kerb and road cars with the v2 look; real cars cost 3 draws instead of 10) plus the alien separation fix (freed pack members). Android build: https://github.com/pikishor/QUANTUM_Teleportar/actions/runs/43402151717 (artifact android-debug-apk, 289,853,261 bytes). The owner has not tested it yet.
 
-## Only in the working tree and on the backup branch claude/determined-bardeen-mvwr5u (about 236 files, untested)
-- Landscape (w112-landscape) and outskirts-map (w112-outskirts-map): in progress, logs in docs/sprint/progress/ (w112-*.md and auto_w112-*.md).
-- Not started: hero-look, waves 113 to 121 (the full plan is docs/ROUND6.md).
+## Only in the working tree and on the backup branch claude/determined-bardeen-mvwr5u (about 300 files; tested by the builders, not yet by an integrator)
+- Landscape (w112-landscape) DONE 14:59Z: 9 tree species x 3 LODs, 11 terrain layers, 6 waterfalls, 7 airstrips, anchors, lazy staged wake. Perf gate OK on LOW, MED, HIGH.
+- Outskirts-map (w112-outskirts-map) DONE 15:46Z: 9 km world, 7 towns, 19 country interiors, new roads, test_outskirts_settlements (390 checks). Perf gate OK on LOW, MED, HIGH.
+- Known test issues for the integrator (full builder reports are in the workflow journal wf_7e2eb443-14b): test_terrain_world "all 80 far tiles are built by the worker threads" (slow under load), test_outskirts_settlements SALT QUAY (1 of 388 checks), test_free_roam_world raid (flaky), test_ambient, test_vehicle_roster process_mode message. The hero builder's files intermittently break compile (re-run tools/import.sh).
+- Hero look (w112-hero-look): running since 14:59Z. Not started: wave 112 critic-fixers, integrator and CI watcher, and waves 113 to 121 (the full plan is docs/ROUND6.md).
 
 ## Next
 - If the limit hits again: wait for the reset, then follow docs/sprint/RESUME.md (startWave 112, skipTags ["cars-pass2"], plus whatever the progress files say is already done).

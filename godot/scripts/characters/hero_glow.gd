@@ -42,7 +42,7 @@ const M_ALARM := 8
 const MODE_NAMES: Array[StringName] = [&"base", &"steady", &"pulse", &"charge", &"flow", &"wings", &"burst", &"flicker", &"alarm"]
 ## Per mode, how much of its intensity each zone shows (core, arms, hands, legs, wings, head).
 const WEIGHTS := [
-	[1.0, 0.6, 0.55, 0.5, 0.7, 0.35],      # base
+	[1.0, 0.6, 0.55, 0.5, 0.7, 0.12],      # base
 	[1.0, 1.0, 1.0, 1.0, 1.0, 0.8],        # steady
 	[1.0, 1.0, 1.0, 1.0, 1.0, 0.8],        # pulse
 	[1.3, 0.8, 0.8, 0.55, 0.6, 1.1],       # charge

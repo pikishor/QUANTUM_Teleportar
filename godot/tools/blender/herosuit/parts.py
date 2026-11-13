@@ -165,14 +165,14 @@ def collar(kit, body, M):
     """A standing gorget that frames the head from behind (open at the front): an analytic ring around the neck, taller at the back, flaring up."""
     def zt(s, t):
         back = bump(lerp(R(40), R(320), s), R(180), R(120))
-        return lerp(1.500, 1.555 + 0.060 * back, t)
-    surf = ellipse_surf(0.0, -0.038, 0.088, 0.094, zt, 0, R(40), R(320), flare=lambda t: 0.020 * sm(0.3, 1.0, t))
+        return lerp(1.495, 1.585 + 0.075 * back, t)
+    surf = ellipse_surf(0.0, -0.038, 0.090, 0.097, zt, 0, R(36), R(324), flare=lambda t: 0.024 * sm(0.25, 1.0, t))
     p = kit.new("collar")
     _raw(p, shf(4, 16, surf, 0.012, 0.0), M["plate"], bevel=0.003, bsegs=1, mirror=False)
     kit.done(p, "spine_02", K_ACCENT, Z_HEAD, ALL)
     g = kit.new("collar_glow")
-    surf2 = ellipse_surf(0.0, -0.038, 0.088, 0.094, 1.522, 1.532, R(58), R(302), flare=lambda t: 0.0)
-    _raw(g, shf(1, 18, surf2, 0.0135, 0.0105), M["glow"], bevel=0.0, mirror=False)
+    surf2 = ellipse_surf(0.0, -0.038, 0.090, 0.097, 1.545, 1.553, R(56), R(304), flare=lambda t: 0.006)
+    _raw(g, shf(1, 18, surf2, 0.0155, 0.0125), M["glow"], bevel=0.0, mirror=False)
     kit.done(g, "spine_02", K_GLOW, Z_HEAD, ALL)
 
 
@@ -181,18 +181,18 @@ def collar(kit, body, M):
 # ------------------------------------------------------------------------------------------------------------------------------------------------
 
 def shoulders(kit, body, M):
-    """A shoulder cap (the deltoid dome, riding with the upper arm) and a second lame below it toward the elbow, plus a glowing rim; a yoke on the torso over the trapezius."""
+    """A compact shoulder cap (the deltoid dome, riding with the upper arm) and a second lame below it toward the elbow, plus a glowing rim; a yoke on the torso over the trapezius."""
     arm = Limb(body, body.bone["upperarm_r"], body.bone["lowerarm_r"], 10, up=(0, 0, 1), fwd=(0, 1, 0), radius=0.1)
     p = kit.new("pauld_cap")
-    sh1 = sh(body, 7, 12, arm.span(-0.34, 0.46, R(-104), R(84)), lambda s, t: 0.030 + 0.010 * bump(s, 0.5, 0.5) * bump(t, 0.4, 0.5) - 0.006 * sm(0.8, 1.0, t), 0.009)
-    _raw(p, sh1, M["plate"], bevel=0.0035, bsegs=1)
+    sh1 = sh(body, 6, 10, arm.span(-0.16, 0.40, R(-82), R(70)), lambda s, t: 0.021 + 0.009 * bump(s, 0.5, 0.5) * bump(t, 0.35, 0.6) - 0.004 * sm(0.85, 1.0, t), 0.008)
+    _raw(p, sh1, M["plate"], bevel=0.003, bsegs=1)
     kit.done(p, "upperarm_r", K_ACCENT, Z_ARMS, HEAVY + ",flight,stealth", lr=True)
     p = kit.new("pauld_lame")
-    sh2 = sh(body, 5, 10, arm.span(0.34, 0.80, R(-92), R(66)), lambda s, t: 0.024 + 0.004 * bump(s, 0.5, 0.5) + 0.005 * sm(0.7, 1.0, t), 0.009)
-    _raw(p, sh2, M["plate"], bevel=0.0035, bsegs=1)
+    sh2 = sh(body, 4, 8, arm.span(0.31, 0.68, R(-74), R(56)), lambda s, t: 0.0165 + 0.004 * bump(s, 0.5, 0.5) + 0.004 * sm(0.75, 1.0, t), 0.008)
+    _raw(p, sh2, M["plate"], bevel=0.003, bsegs=1)
     kit.done(p, "upperarm_r", K_PLATE, Z_ARMS, HEAVY, lr=True)
     p = kit.new("pauld_glow")
-    _raw(p, sh(body, 1, 10, arm.span(0.455, 0.47, R(-100), R(80)), 0.0415, 0.0345), M["glow"], bevel=0.0, mirror=True)
+    _raw(p, sh(body, 1, 10, arm.span(0.395, 0.405, R(-80), R(68)), 0.0295, 0.0235), M["glow"], bevel=0.0, mirror=True)
     kit.done(p, "upperarm_r", K_GLOW, Z_ARMS, HEAVY + ",flight,stealth", lr=True)
     # the yoke: a plate over the trapezius slope (rays from above, outside the neck / head column)
     p = kit.new("yoke")
@@ -200,7 +200,7 @@ def shoulders(kit, body, M):
         x = 0.105 + s * 0.095
         y = lerp(-0.125, 0.045 - (x - 0.105) * 0.95, t)
         return Vector((x, y, 1.9)), Vector((0, 0, -1))
-    _raw(p, sh(body, 5, 4, fn, lambda s, t: 0.016 + 0.004 * bump(t, 0.5, 0.5), 0.006, miss_r=None), M["plate"], bevel=0.0025, bsegs=1)
+    _raw(p, sh(body, 5, 4, fn, lambda s, t: 0.016 + 0.004 * bump(t, 0.5, 0.5), 0.006), M["plate"], bevel=0.0025, bsegs=1)
     kit.done(p, "spine_02", K_PLATE, Z_ARMS, HEAVY, lr=True)
 
 

@@ -216,7 +216,7 @@ void fragment() {
 		if (hero_style > 0.5) {                            // the iris carries the quantum glow (centre of the eye map), strongest while a power is charged
 			float de = length(UV - vec2(0.495, 0.505));
 			float iris = 1.0 - smoothstep(0.07, 0.10, de);
-			emis += glow_rgb * iris * smoothstep(0.03, 0.07, de) * gz_b.y * 1.1;
+			emis += glow_rgb * iris * smoothstep(0.03, 0.07, de) * gz_b.y * 0.8;
 		}
 	} else if (v_mode < 2.5) {
 		alb = texture(hair1_albedo, UV).rgb * hair_color * 2.6;
