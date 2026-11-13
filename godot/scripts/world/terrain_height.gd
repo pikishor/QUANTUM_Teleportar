@@ -18,7 +18,7 @@ extends RefCounted
 ## sea goes on beyond it.
 
 const SEA_LEVEL := -2.0                  ## y of the ocean surface (the city plateau is 2 m above it)
-const WORLD_HALF := 3000.0               ## the world is a 6 km square
+const WORLD_HALF := 4500.0               ## the world is a 9 km square (wave 112: 2.25 times the old 6 km, see WorldExtent)
 const CITY_HALF := 1100.0                ## flat plateau half-size around the origin
 const NO_WATER := -1.0e9
 const BEACH := 260.0                     ## metres of beach slope between the open land and the waterline
@@ -79,7 +79,7 @@ static func city_distance(x: float, z: float) -> float:
 ## Distance of the coastline from the plateau in the direction of (x, z).
 static func coast_distance(x: float, z: float) -> float:
 	_ensure()
-	return lerpf(520.0, 1950.0, mountain_weight(x, z)) + _coast.get_noise_2d(x, z) * 170.0
+	return lerpf(520.0, 1950.0, mountain_weight(x, z)) + _coast.get_noise_2d(x, z) * 170.0 + WorldExtent.coast_push(x, z)         # wave 112: the land reaches further west, north and east (scripts/world/world_extent.gd)
 
 
 ## The land before any river or lake is cut into it. (Terrain builder: this is the function to replace.)

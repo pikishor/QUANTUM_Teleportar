@@ -1,4 +1,6 @@
-# w112-landscape (builder notes; started 2026-11-12 ~21:00Z, updated ~22:50Z)
+# w112-landscape (builder notes; started 2026-11-12 ~21:00Z; first session stopped 22:55Z by the usage limit; RESTARTED 2026-11-13 09:11Z)
+
+RESTART 09:11Z: read these notes, git status (landscape files untracked/modified, nothing committed), continuing from the files. Order now: import + load check, look at frames, fix, tests, perf gate, contact sheet, docs.
 
 GOAL: landscape pass for round 6: 6+ tree species by biome with 3 LODs + impostors in MultiMesh chunks (zero per-tree nodes), undergrowth, waterfalls,
 shorelines (wet sand, foam, shallow-to-deep ramp), mountain detail, tall anchors (turbines, masts, pylons, cranes), 3+ grass airstrips, wind + rain-wet.

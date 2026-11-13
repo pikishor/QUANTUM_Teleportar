@@ -149,8 +149,8 @@ func _apply(p: Player, v: String, k: int) -> void:
 		var sz := float(as_[0])
 		var saz := deg_to_rad(float(as_[1])) if as_.size() > 1 else deg_to_rad(90.0)
 		var sph := float(as_[2]) if as_.size() > 2 else 1.5
-		var sx := -1800.0
-		while sx < -1300.0 and TerrainHeight.height_at(sx, sz) < TerrainHeight.SEA_LEVEL + 1.9:
+		var sx := -(TerrainHeight.WORLD_HALF - 120.0)                       # from the world's edge inland: the first dry sand (the coast moved out with the 9 km world)
+		while sx < -1000.0 and TerrainHeight.height_at(sx, sz) < TerrainHeight.SEA_LEVEL + 1.9:
 			sx += 4.0
 		var sg := TerrainHeight.height_at(sx, sz)
 		var spos := Vector3(sx + 4.0, sg + sph, sz)
@@ -254,7 +254,16 @@ func _apply(p: Player, v: String, k: int) -> void:
 	var z := 0.0
 	var yaw := 0.0
 	var dist := -1.0
-	if v.begins_with("road:"):
+	if v.begins_with("beach:"):                              # "beach:z[,yaw_off_deg,dist[,inland]]": the real hero on the west beach at z, `inland` m above the first dry sand (default 14), facing the sea (west) turned by yaw_off degrees
+		var ab := v.substr(6).split(",")
+		z = float(ab[0])
+		var bx := -(TerrainHeight.WORLD_HALF - 120.0)
+		while bx < -1000.0 and TerrainHeight.height_at(bx, z) < TerrainHeight.SEA_LEVEL + 1.2:
+			bx += 3.0
+		x = bx + (float(ab[3]) if ab.size() > 3 else 14.0)
+		yaw = PI * 0.5 + deg_to_rad(float(ab[1]) if ab.size() > 1 else 0.0)
+		dist = float(ab[2]) if ab.size() > 2 else -1.0
+	elif v.begins_with("road:"):
 		var a4 := v.substr(5).split(",")
 		var rp := _road_point(a4[0], float(a4[1]))
 		if rp.is_empty():
