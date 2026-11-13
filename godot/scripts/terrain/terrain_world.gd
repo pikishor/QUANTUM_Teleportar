@@ -111,7 +111,7 @@ func _build_roads() -> void:
 			var m := ShaderMaterial.new()
 			m.shader = sh
 			m.set_shader_parameter(&"kind", 0 if kind == "highway" else 1)
-			m.render_priority = 2
+			m.render_priority = 2 if kind == "highway" else 1                    # wave 112 critic (LOOK): a dirt track that starts on a highway is drawn UNDER the asphalt, not over it
 			mats[kind] = m
 			_road_mats.append(m)
 		var mi := MeshInstance3D.new()
@@ -423,11 +423,11 @@ func _far_total() -> int:
 
 
 ## Finish jobs: at most `budget` chunk meshes per call (the upload is the main-thread cost), far tiles one per call.
-func _collect(budget: int) -> void:
+func _collect(budget: int, block := false) -> void:
 	var done := 0
 	for key in _jobs.keys():
 		var j: Dictionary = _jobs[key]
-		if j["id"] >= 0 and not WorkerThreadPool.is_task_completed(j["id"]):
+		if not block and j["id"] >= 0 and not WorkerThreadPool.is_task_completed(j["id"]):
 			continue
 		if done >= budget:
 			break
@@ -438,7 +438,7 @@ func _collect(budget: int) -> void:
 		done += 1
 	for key in _far_jobs.keys():
 		var j: Dictionary = _far_jobs[key]
-		if j["id"] >= 0 and not WorkerThreadPool.is_task_completed(j["id"]):
+		if not block and j["id"] >= 0 and not WorkerThreadPool.is_task_completed(j["id"]):
 			continue
 		if j["id"] >= 0:
 			WorkerThreadPool.wait_for_task_completion(j["id"])
@@ -589,7 +589,7 @@ func settle(p: Vector3, near_only := false) -> int:
 		if not near_only:
 			_queue_far(p)
 		_queue_near(fc)
-		_collect(64)
+		_collect(64, true)                                          # wave 112 critic: block on the jobs a walk or a teleport left on the threads (a spin of 400 iterations ended before they were done and the focus chunk was missing)
 		_update_colliders(fc)
 		for _k in 8:
 			_update_colliders(fc)
@@ -605,11 +605,55 @@ func settle(p: Vector3, near_only := false) -> int:
 	return n
 
 
-## The hero is about to stand at `p`: make sure the ground there exists (builds the LOD0 ring synchronously when it does not; a no-op inside the city).
+## The hero is about to stand at `p`: make sure the ground there exists; a no-op inside the city. Wave 112 critic: this used to be `settle(p, true)`, which builds the whole LOD0 ring AND the LOD1 ring
+## synchronously (9 + 16 / 40 / 72 chunks: 0.8 - 1.2 s of frozen picture on a desktop for every fast travel and every teleport, several seconds on a phone). The hero needs the collider of the chunk
+## he stands in and of the chunks within GROUND_MARGIN of him (`settle_ground`); the rest of the ring streams in on the worker threads like it does when he walks there.
+const GROUND_MARGIN := 40.0
+
 func ensure_ground(p: Vector3) -> void:
 	if is_ground_ready(p.x, p.z):
 		return
-	settle(p, true)
+	settle_ground(p)
+
+
+## Builds the LOD0 chunk under `p` and the neighbour chunks that lie within GROUND_MARGIN metres of it, with their colliders, right now (no threads). Returns the number of chunks built.
+func settle_ground(p: Vector3) -> int:
+	var fc := chunk_of(p.x, p.z)
+	var built := 0
+	var keys: Array[int] = []
+	for dj in range(-1, 2):
+		for di in range(-1, 2):
+			var ci := fc.x + di
+			var cj := fc.y + dj
+			if ci < 0 or cj < 0 or ci >= _grid or cj >= _grid:
+				continue
+			var box := _chunk_box(ci, cj)
+			if _inside_plateau(box):
+				continue
+			if di != 0 or dj != 0:
+				var dx := maxf(maxf(box.position.x - p.x, p.x - box.end.x), 0.0)
+				var dz := maxf(maxf(box.position.y - p.z, p.z - box.end.y), 0.0)
+				if dx * dx + dz * dz > GROUND_MARGIN * GROUND_MARGIN:
+					continue
+			var key := _key(ci, cj)
+			keys.append(key)
+			if _chunks.has(key) and int((_chunks[key] as Dictionary)["lod"]) == 0:
+				continue
+			if _jobs.has(key):                                      # a thread is already building it: take its result when it is LOD0, else build it here
+				var j: Dictionary = _jobs[key]
+				if j["id"] >= 0:
+					WorkerThreadPool.wait_for_task_completion(j["id"])
+				_jobs.erase(key)
+				if int(j["lod"]) == 0:
+					_install(key, 0, (j["res"] as Dictionary)["d"])
+					built += 1
+					continue
+			var d := TerrainMesher.build(box.position.x, box.position.y, CHUNK, LOD0_CELLS, SKIRT0, 0.0, true)
+			_install(key, 0, d)
+			built += 1
+	for _k in keys.size() + 1:                                       # one collider per call: the hero's chunk and its near neighbours
+		_update_colliders(fc)
+	return built
 
 
 func stats() -> Dictionary:

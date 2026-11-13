@@ -1,6 +1,6 @@
 # w112-critic-play (running)
 
-agent id aff758c60e86066ec, 368 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T20:31:38.116Z
+agent id aff758c60e86066ec, 404 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T20:41:33.327Z
 
 ## Last notes of the agent
 
@@ -8,18 +8,6 @@ agent id aff758c60e86066ec, 368 events, first activity 2026-11-13T19:24:15.390Z,
 
 ## Recent steps (last 40)
 
-- 19:59:57 List harbour collision boxes near the harbour pad
-- 20:00:42 Flood-fill reachability audit of the harbour quay between its collision boxes
-- 20:01:22 Probe the observatory pad teleport frame by frame
-- 20:01:58 Probe the teleport landing for the four remaining town pads and find tests pinning the harbour pad
-- 20:02:46 Measure each component of a far teleport
-- 20:03:26 Read the queue, job and far tile logic of the terrain world
-- 20:03:49 Measure the cost of one LOD0 and LOD1 terrain chunk
-- 20:04:21 Update my progress log with the findings so far
-- 20:04:58 /home/user/QUANTUM_Teleportar/godot/tests/drive_audit.gd
-- 20:05:03 Write the drive audit and its launcher, then try it on the first 700 m of PASS ROAD
-- 20:05:49 Drive roads 0 to 7 end to end at 3x speed
-- 20:11:58 Re-run the drive audit with a curvature-aware pilot on four hard roads
 - 20:14:39 Probe the first 140 m of SUMMIT ROAD against ground and waterfall carve
 - 20:15:04 Re-run the track roads with the spawn height on the road surface
 - 20:19:18 /home/user/QUANTUM_Teleportar/godot/tests/road_clearance_audit.gd
@@ -48,6 +36,18 @@ agent id aff758c60e86066ec, 368 events, first activity 2026-11-13T19:24:15.390Z,
 - 20:30:44 Look at how pads get their positions and tests that mention the harbour pad
 - 20:30:49 Move the harbour pad to the open apron and re-run the landing probe
 - 20:31:37 Find tests that depend on ensure_ground or settle behaviour
+- 20:31:39 Read the terrain world teleport test
+- 20:31:49 Implement the one-chunk ground settle and re-measure the teleport cost
+- 20:32:22 Run the terrain world test and the all-pads teleport probe after the ground settle change
+- 20:34:46 Make settle block on in-flight chunk jobs and re-run the terrain world test
+- 20:36:14 Read the far tile checks of the terrain world test
+- 20:36:23 Re-run the terrain world test to see whether the far tile failure is stable
+- 20:37:57 Find the consumers of road spans and the bridge flag array
+- 20:38:37 Snap a branch road onto its parent's profile and drop the duplicate deck, then re-probe the junction
+- 20:39:15 Re-run the road clearance and drive audits on PASS ROAD and SUMMIT ROAD after the junction fix
+- 20:41:23 Find code and tests that depend on SUMMIT ROAD geometry
+- 20:41:25 Read the SUMMIT ROAD assumptions in test_outskirts_sites
+- 20:41:33 Branch SUMMIT ROAD at the end of the PASS ROAD deck and re-probe
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

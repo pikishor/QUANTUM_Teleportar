@@ -17,6 +17,7 @@ global uniform float rain;
 varying float lw;
 varying float ah;
 varying float wy;
+varying float jb;           // COLOR.b: 0 at the start of a branch road's first drawn piece .. 1 once it has grown out of the road it leaves
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -39,6 +40,7 @@ void vertex() {
 	lw = COLOR.r * 32.0;
 	ah = COLOR.g * 16.0;
 	wy = (MODEL_MATRIX * vec4(VERTEX, 1.0)).y;
+	jb = COLOR.b;
 }
 
 void fragment() {
@@ -76,7 +78,7 @@ void fragment() {
 		float ln = smoothstep(0.24, 0.13, abs(edge - 0.55));
 		float yel = smoothstep(0.13, 0.065, abs(abs(across) - 0.17));
 		float dash = step(mod(along, 9.0), 3.5) * smoothstep(0.17, 0.085, abs(abs(across) - asph_half * 0.5));
-		float jn = mix(1.0, smoothstep(5.0, 22.0, along), junction_fade);                          // wave 112 critic (LOOK): the first metres of a branch drew its centre line straight across the road it leaves
+		float jn = mix(1.0, smoothstep(0.2, 0.9, jb), junction_fade);                              // wave 112 critic (LOOK): the first metres of a branch drew its centre line straight across the road it leaves
 		yel *= jn;
 		dash *= jn;
 		float wear = 0.50 + 0.50 * smoothstep(0.18, 0.7, fbm(q * vec2(3.3, 0.9) + 60.0));
@@ -110,7 +112,7 @@ void fragment() {
 		col = g * rut * (0.82 + 0.36 * grain) * 1.18;
 		float tufts = smoothstep(0.58, 0.8, vnoise(vec2(across * 1.4, along * 0.7) + 5.0)) * (1.0 - smoothstep(0.0, 0.7, abs(across) - 0.55)) * (1.0 - smoothstep(120.0, 200.0, wy));
 		col = mix(col, vec3(0.040, 0.075, 0.018) * (0.8 + 0.5 * grain), tufts * 0.6 * smoothstep(0.1, 0.5, abs(across)));            // grass grows up the middle of an old track (dark, lowlands only)
-		alpha = smoothstep(0.0, 0.9, half_w - abs(across)) * mix(1.0, smoothstep(0.0, 20.0, along), junction_fade);          // the dirt track grows out of the highway it branches from (it started as a hard-edged brown patch on the asphalt)
+		alpha = smoothstep(0.0, 0.9, half_w - abs(across)) * mix(1.0, smoothstep(0.0, 0.8, jb), junction_fade);          // the dirt track grows out of the highway it branches from (it started as a hard-edged brown patch on the asphalt)
 		rough = mix(0.95, 0.6, wetness);
 	}
 	ALBEDO = col * (1.0 + night * 0.9);

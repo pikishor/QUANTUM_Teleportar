@@ -32,7 +32,7 @@ static func ensure() -> void:
 	for road: Dictionary in TerrainRoads.roads():
 		var pos: PackedVector2Array = road["pos"]
 		var prof: PackedFloat32Array = road["prof"]
-		var spans: Array = road["spans"]
+		var spans: Array = road.get("bridge_spans", road["spans"])             # wave 112 critic: not the span a branch shares with its parent (TerrainRoads: one deck, not two at different heights)
 		for sp: Vector2i in spans:
 			var pts := PackedVector3Array()
 			for i in range(maxi(sp.x - 1, 0), mini(sp.y + 1, pos.size() - 1) + 1):

@@ -26,7 +26,7 @@ const CORE_DEFS := [
 	{"name": "MOUNTAIN TRACK", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 700.0], "via": [Vector2(1500, -1700), Vector2(1900, -1300)]},
 	{"name": "QUARRY TRACK", "kind": "track", "from_city": false, "branch": ["DESERT ROAD", 600.0], "via": [Vector2(1860, -540)]},
 	{"name": "HARBOUR ROAD", "kind": "highway", "from_city": false, "branch": ["COAST ROAD", 480.0], "via": [Vector2(-300, 1338)]},          # to the harbour apron (wave 105); the rest of it is HarbourKit's road on the quay
-	{"name": "SUMMIT ROAD", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 1190.0], "wide": true, "via": [Vector2(-300, -2090), Vector2(-420, -2180), Vector2(-540, -2220)]},         # the switchbacks up to the MOUNTAIN OBSERVATORY (OutskirtsSites, wave 105: the site stands where this road ends)
+	{"name": "SUMMIT ROAD", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 1270.0], "wide": true, "via": [Vector2(-300, -2090), Vector2(-420, -2180), Vector2(-540, -2220)]},         # the switchbacks up to the MOUNTAIN OBSERVATORY (OutskirtsSites, wave 105: the site stands where this road ends); wave 112 critic: it branches at the END of the PASS ROAD bridge (sample 127, was 119: its first 80 m ran on the parent's deck with a second deck and a stepped profile)
 	{"name": "RIDGE TRACK", "kind": "track", "from_city": false, "branch": ["MOUNTAIN TRACK", 2300.0], "wide": true, "via": [Vector2(1700, -1560), Vector2(1860, -1500)]},      # the climb to the RADIO TOWER
 ]
 const DEFS: Array = CORE_DEFS + SettlementRoads.DEFS             ## wave 112: the ring road, the west highway, the coast link, the west coast road, the lark road, the outpost road, the shore track (scripts/settlements/settlement_roads.gd), after the nine original roads
@@ -175,6 +175,25 @@ static func _build_road(ri: int) -> void:
 			prof[i] = clampf(prof[i], prof[i - 1] - gk * seg[i], prof[i - 1] + gk * seg[i])
 		for i in range(n - 2, 0, -1):
 			prof[i] = clampf(prof[i], prof[i + 1] - gk * seg[i + 1], prof[i + 1] + gk * seg[i + 1])
+	var overlap_n := 0                                    # wave 112 critic: where a BRANCH runs on its parent (its first samples within 8 m of the parent's centre line) it takes the parent's profile, else two profiles stepped
+	if def.has("branch"):                                 # the one carriageway by up to 0.75 m (a kerb across SUMMIT ROAD's first 100 m: a car was stuck there) and each road built its own deck over the same stream
+		var par3 := _find_road(String(def["branch"][0]))
+		var pp3: PackedVector2Array = _roads[par3]["pos"]
+		var pf3: PackedFloat32Array = _roads[par3]["prof"]
+		for i in n:
+			var bd2 := 64.0
+			var bj := -1
+			for j in pp3.size():
+				var d2 := pp3[j].distance_squared_to(pts[i])
+				if d2 < bd2:
+					bd2 = d2
+					bj = j
+			if bj < 0:
+				break
+			prof[i] = pf3[bj]
+			overlap_n = i + 1
+		for i in range(overlap_n, n):                     # then it leaves the parent's height under its own grade limit
+			prof[i] = clampf(prof[i], prof[i - 1] - gk * seg[i], prof[i - 1] + gk * seg[i])
 	if end_h > -1.0e8:                                    # wave 112: ends on another road: the last sample meets it at its height, the road eases into it under the grade limit
 		prof[n - 1] = end_h
 		for i in range(n - 2, 0, -1):
@@ -230,8 +249,13 @@ static func _build_road(ri: int) -> void:
 	for sp in spans:
 		for i in range(sp.x, sp.y + 1):
 			_sb[base + i] = 1
+	var bridge_spans: Array[Vector2i] = []                # the spans that get a deck of their own (Bridges): a span inside the stretch where a branch runs on its parent is the parent's deck
+	for sp in spans:
+		if sp.y < overlap_n:
+			continue
+		bridge_spans.append(Vector2i(maxi(sp.x, overlap_n), sp.y))
 	_roads.append({"name": def["name"], "kind": def["kind"], "pos": pts, "prof": prof, "len": total, "w": float(kind["w"]), "bench": float(kind["bench"]),
-		"shoulder": float(kind["shoulder"]), "from_city": bool(def["from_city"]), "spans": spans, "base": base})
+		"shoulder": float(kind["shoulder"]), "from_city": bool(def["from_city"]), "spans": spans, "bridge_spans": bridge_spans, "base": base})
 
 
 static func _find_road(road_name: String) -> int:
@@ -525,9 +549,18 @@ static func build_ribbon(ri: int) -> ArrayMesh:
 	var run := 0.0
 	var half: float = float(road["w"]) * 0.5
 	var verge := 2.6 if String(road["kind"]) == "highway" else 1.3                  # wave 112: a gravel verge on each side of the asphalt that the shader fades out (COLOR.g = the asphalt half width / 16)
+	# wave 112 critic (LOOK): COLOR.b = how far (metres / 24, 1 = grown) a sample lies from the START OF THE FIRST DRAWN PIECE of a road that branches off another one (the piece after a bridge span at
+	# the branch, like SUMMIT ROAD at PASS ROAD): the shader grows the dirt and the lane marks in over it, so the branch emerges from the parent instead of starting as a hard-edged patch
+	var branched: bool = ri < DEFS.size() and DEFS[ri].has("branch")
+	var piece0 := -1.0
 	for i in n:
 		if i > 0:
 			run += pts[i].distance_to(pts[i - 1])
+		var jb := 1.0
+		if branched and _sb[int(road["base"]) + i] == 0:
+			if piece0 < 0.0:
+				piece0 = run
+			jb = clampf((run - piece0) / 24.0, 0.0, 1.0)
 		var tg := (pts[mini(i + 1, n - 1)] - pts[maxi(i - 1, 0)]).normalized()
 		var nrm := Vector2(-tg.y, tg.x)
 		var hw := half
@@ -541,8 +574,8 @@ static func build_ribbon(ri: int) -> ArrayMesh:
 		verts.append(Vector3(r.x, minf(TerrainHeight.height_at(r.x, r.y) + LIFT, yc + 0.4), r.y))
 		norms.append(Vector3.UP)
 		norms.append(Vector3.UP)
-		cols.append(Color(2.0 * (hw + verge) / 32.0, hw / 16.0, 0.0, 1.0))
-		cols.append(Color(2.0 * (hw + verge) / 32.0, hw / 16.0, 0.0, 1.0))
+		cols.append(Color(2.0 * (hw + verge) / 32.0, hw / 16.0, jb, 1.0))
+		cols.append(Color(2.0 * (hw + verge) / 32.0, hw / 16.0, jb, 1.0))
 		uvs.append(Vector2(0.0, run))
 		uvs.append(Vector2(1.0, run))
 		if i < n - 1 and _sb[int(road["base"]) + i] == 0 and _sb[int(road["base"]) + i + 1] == 0:          # a bridge span has its own deck (Bridges: one sample more at each end), the ribbon would lie in the river bed
