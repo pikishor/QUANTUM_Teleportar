@@ -1,6 +1,6 @@
 # w112-outskirts-map (running)
 
-agent id ab9a223c65307f5bd, 315 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T09:42:08.360Z
+agent id ab9a223c65307f5bd, 319 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T09:43:15.289Z
 
 ## Last notes of the agent
 
@@ -9,8 +9,6 @@ agent id ab9a223c65307f5bd, 315 events, first activity 2026-11-13T09:11:14.655Z,
 
 ## Recent steps (last 40)
 
-- 09:25:54 Read dev_terrain_map.gd and list docs
-- 09:26:00 Render current world map with roads
 - 09:26:22 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/world_old.png
 - 09:27:22 Check west-coast dependent coordinates
 - 09:28:08 See landscape builder's current edits to shared terrain files
@@ -49,6 +47,8 @@ agent id ab9a223c65307f5bd, 315 events, first activity 2026-11-13T09:11:14.655Z,
 - 09:40:25 Height grid of the west region
 - 09:41:28 Height grid of the east and south-east
 - 09:41:58 Airport location and east plains height grid
+- 09:43:14 /home/user/QUANTUM_Teleportar/godot/tests/dev_roads_dump.gd
+- 09:43:15 Dump road polylines and sites
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -58,3 +58,4 @@ agent id ab9a223c65307f5bd, 315 events, first activity 2026-11-13T09:11:14.655Z,
 - godot/scripts/world/city_layout.gd
 - godot/tests/dev_world_scan.gd
 - godot/tests/dev_height_grid.gd
+- godot/tests/dev_roads_dump.gd
