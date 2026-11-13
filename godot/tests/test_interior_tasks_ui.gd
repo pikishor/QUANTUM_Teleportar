@@ -224,12 +224,12 @@ func _stealth_job(type: StringName, sid: StringName, tag: String) -> bool:
 		return false
 	Game.heat = 0.0
 	await bot.frames(10)
-	bot.calm_guards()
+	bot.calm_guards(true)
 	for attempt in 5:                                            # a guard standing at the door can be aware for a moment: the offer waits for a quiet room, as the live game does
 		if st.start(sid):
 			break
 		await bot.frames(20)
-		bot.calm_guards()
+		bot.calm_guards(true)
 	var why := ""
 	if not st.is_running():
 		var aware := 0
@@ -248,7 +248,7 @@ func _stealth_plant() -> void:
 	var labels := _floating_labels()
 	TestLib.check(labels.any(func(l: String) -> bool: return l.begins_with("PLANT")), "plant: a plate marks the crates (%s)" % str(labels))
 	var arrived := await bot.walk_to(st.target_pos, StealthScripts.REACH - 0.5)
-	TestLib.check(arrived, "plant: the bot walks to the crates")
+	TestLib.check(arrived, "plant: the bot walks to the crates (%s)" % bot.last_fail)
 	await bot.frames(4)
 	TestLib.check(InteriorGameplay.prompt == "PLANT THE DEVICE" and (await bot.use_label()) == "PLANT", "plant: the prompt and the USE button say PLANT ('%s')" % InteriorGameplay.prompt)
 	await bot.use()
@@ -265,7 +265,7 @@ func _stealth_copy() -> void:
 		return
 	TestLib.check(_floating_labels().has("COPY THE DATA"), "copy: a plate over the terminal says COPY THE DATA")
 	var arrived := await bot.walk_to(st.target_pos, StealthScripts.REACH - 0.5)
-	TestLib.check(arrived, "copy: the bot walks to the terminal")
+	TestLib.check(arrived, "copy: the bot walks to the terminal (%s)" % bot.last_fail)
 	await bot.frames(4)
 	TestLib.check(InteriorGameplay.prompt == "COPY THE DATA" and (await bot.use_label()) == "COPY", "copy: the prompt and the USE button say COPY ('%s')" % InteriorGameplay.prompt)
 	await bot.use()
@@ -279,7 +279,7 @@ func _stealth_reach() -> void:
 		return
 	TestLib.check(_floating_labels().has("REACH THE TERMINAL UNSEEN"), "infiltrate: a plate over the terminal says what to do")
 	var arrived := await bot.walk_to(st.target_pos, StealthScripts.REACH - 0.5)
-	TestLib.check(arrived, "infiltrate: the bot walks to the terminal")
+	TestLib.check(arrived, "infiltrate: the bot walks to the terminal (%s)" % bot.last_fail)
 	TestLib.check(await _until(func() -> bool: return not st.is_running(), 3.0) and st.result.get("ok", false) == true, "infiltrate: reaching it completes the run (%s)" % str(st.result))
 	await _leave_and_check("infiltrate")
 

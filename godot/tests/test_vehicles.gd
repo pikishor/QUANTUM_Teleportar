@@ -165,6 +165,9 @@ func _enter_wall_exit() -> void:
 	TestLib.check(p.vehicle == null and mgr.driven == null and not s.driver_is_player, "interact again leaves the car (player.vehicle restored to null)")
 	var gap := p.global_position.distance_to(s.global_position)
 	TestLib.check(p.body.visible and p.camera_rig.mode == &"foot" and gap > 2.0 and gap < 4.0 and p.global_position.y < 0.6, "the player stands beside the car (%.1f m)" % gap)
+	InteriorGameplay.prompt = "ENTER  A DOOR"          # a door's ENTER prompt is up while a car is in reach (a kerb car beside a shop door): USE belongs to the door
+	TestLib.check(mgr.toggle_enter_exit() == false and p.vehicle == null, "with a door's ENTER prompt up, toggle_enter_exit() leaves the press to the door (the car stays)")
+	InteriorGameplay.prompt = ""
 	TestLib.check(mgr.toggle_enter_exit() == true and p.vehicle == s, "toggle_enter_exit() enters when on foot next to a car")
 	mgr.toggle_enter_exit()
 	TestLib.check(p.vehicle == null, "and leaves again")

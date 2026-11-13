@@ -482,8 +482,12 @@ func _wander(dt: float) -> void:
 func _separate(dt: float) -> void:
 	if group.is_empty():
 		return
-	for m: AlienCreature in (group.get("members", []) as Array):
-		if m == self or not is_instance_valid(m) or m.dead:
+	for member in (group.get("members", []) as Array):
+		# the loop variable is NOT typed: assigning a freed pack member to a typed variable is itself a script error (1198 of them in an 8 minute soak)
+		if member == self or not is_instance_valid(member):
+			continue
+		var m := member as AlienCreature
+		if m == null or m.dead:
 			continue
 		var d := Vector2(position.x - m.position.x, position.z - m.position.z)
 		var l := d.length()

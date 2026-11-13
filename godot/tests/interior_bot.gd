@@ -56,6 +56,8 @@ func setup(h: Node) -> bool:
 	prog.path = "user://bot_interior_save.cfg"
 	prog.new_campaign()
 	ig.autosave = false
+	if Encounters.current != null:
+		Encounters.current.enabled = false      # the street's waves are not what an interior audit measures: an aware trooper near a door follows the hero in, and the room is no longer quiet for a stealth job (CI: queued followers)
 	var hud := host.get_tree().root.find_child("Hud", true, false) as Hud
 	if hud != null and hud.settings.path == UiSettings.DEFAULT_PATH:
 		hud.settings = UiSettings.new("user://bot_interior_settings.cfg")
@@ -135,7 +137,7 @@ func exit_control_visible() -> bool:
 	if visible_button(&"leave_building"):
 		return true
 	tc._use_t = 0.0
-	await frames(2)
+	await frames(10)
 	return visible_button(&"interact") and tc._label_of(button(&"interact")) == "LEAVE"
 
 
@@ -145,8 +147,8 @@ func prompt() -> String:
 
 ## The label on the USE button right now (the first word of the prompt), "" when the button is hidden.
 func use_label() -> String:
-	tc._use_t = 0.0                           # the touch layer re-reads the prompt now
-	await frames(2)
+	tc._use_t = 0.0                           # the touch layer re-reads the prompt now, in its next _process: ten physics ticks always hold a render frame (at most 8 ticks run per frame), two did not
+	await frames(10)
 	if not visible_button(&"interact"):
 		return ""
 	return tc._label_of(button(&"interact"))
@@ -427,8 +429,11 @@ func _wait_inside(max_s := 4.0) -> bool:
 	return InteriorGameplay.active
 
 
-## Make the room's guards harmless to the audit (the fight is tested elsewhere): they do not see the hero.
-func calm_guards() -> void:
+## Make the room's guards harmless to the audit (the fight is tested elsewhere): they do not see the hero. `forget`: also the ones that already noticed him at the door stop being aware
+## (an alerted guard with a line to the hero stays aware for good, and a stealth job only starts in a quiet room).
+func calm_guards(forget := false) -> void:
 	for g in ig.actors.guards:
 		if is_instance_valid(g):
 			g.suspicion = 0.0
+			if forget:
+				g.aware = false

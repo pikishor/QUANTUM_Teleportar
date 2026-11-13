@@ -47,6 +47,8 @@ func run(host: Node) -> void:
 	var city := Game.world as City
 	if city != null and city.ambient != null:
 		city.ambient.set_process(false)                     # a pedestrian walking through the line is a real blocker, but it would make a measurement flaky
+	if Game.vehicles != null:
+		Game.vehicles.set_physics_process(false)            # so is a road car driving through a grenade's arc (CI: a gravity round thrown 25 m landed 27.7 m off): the parked cars stay where they are
 	WeaponDefs.reset_unlocked()
 	for id: StringName in WeaponDefs.IDS:
 		WeaponDefs.unlock(id)                              # every weapon in hand in turn (the starters alone would leave the burst pistol locked: the switch just fails)
