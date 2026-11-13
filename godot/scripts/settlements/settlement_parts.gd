@@ -313,6 +313,36 @@ static func bale(m: SettlementMesh, col_bale := Color(0.78, 0.66, 0.32)) -> void
 	m.cylinder(Vector3(0.0, 0.0, 0.0), 0.7, 1.1, 10, col_bale, LAWN, -1.0, true, 1.0, 0.8, 1.0)
 
 
+# --- pets -------------------------------------------------------------------------------------------------------------------------------------------
+
+## A dog (0.9 m long, 0.6 m at the head), nose to -Z. `seed_v` (0..3) picks the coat. Fur is the rough ADOBE shader class (noise, no pattern).
+static func pet_dog(m: SettlementMesh, seed_v: int) -> void:
+	var coats: Array[Color] = [Color(0.55, 0.36, 0.2), Color(0.14, 0.13, 0.12), Color(0.82, 0.74, 0.58), Color(0.86, 0.84, 0.8)]
+	var c: Color = coats[seed_v & 3]
+	var dk := c.darkened(0.35)
+	m.box(Vector3(0.0, 0.46, 0.04), Vector3(0.28, 0.3, 0.62), c, ADOBE, 32, 1.0, 0.9)
+	m.box(Vector3(0.0, 0.7, -0.36), Vector3(0.2, 0.24, 0.25), c, ADOBE, 32, 1.0, 1.0)
+	m.box(Vector3(0.0, 0.64, -0.53), Vector3(0.11, 0.1, 0.14), dk.lightened(0.08), ADOBE, 32, 1.0, 1.0)
+	for sx in [-1.0, 1.0]:
+		m.box(Vector3(float(sx) * 0.09, 0.85, -0.33), Vector3(0.06, 0.1, 0.07), dk, ADOBE, 32, 1.0, 1.0)
+		for sz in [-1.0, 1.0]:
+			m.box(Vector3(float(sx) * 0.09, 0.15, float(sz) * 0.2 + 0.04), Vector3(0.07, 0.3, 0.08), c.darkened(0.12), ADOBE, 32, 1.0, 0.8)
+	m.tube(Vector3(0.0, 0.56, 0.34), Vector3(0.0, 0.8, 0.5), 0.045, 0.025, 4, c, ADOBE, 1.0, 1.0)
+
+
+## A cat (0.45 m long), nose to -Z.
+static func pet_cat(m: SettlementMesh, seed_v: int) -> void:
+	var coats: Array[Color] = [Color(0.85, 0.5, 0.2), Color(0.16, 0.15, 0.15), Color(0.8, 0.8, 0.78), Color(0.5, 0.46, 0.42)]
+	var c: Color = coats[seed_v & 3]
+	m.box(Vector3(0.0, 0.2, 0.03), Vector3(0.15, 0.16, 0.34), c, ADOBE, 32, 1.0, 0.9)
+	m.box(Vector3(0.0, 0.32, -0.2), Vector3(0.13, 0.13, 0.12), c, ADOBE, 32, 1.0, 1.0)
+	for sx in [-1.0, 1.0]:
+		m.box(Vector3(float(sx) * 0.045, 0.42, -0.19), Vector3(0.04, 0.06, 0.03), c.darkened(0.25), ADOBE, 32, 1.0, 1.0)
+		for sz in [-1.0, 1.0]:
+			m.box(Vector3(float(sx) * 0.05, 0.07, float(sz) * 0.12 + 0.03), Vector3(0.045, 0.14, 0.05), c.darkened(0.1), ADOBE, 32, 1.0, 0.8)
+	m.tube(Vector3(0.0, 0.22, 0.2), Vector3(0.0, 0.5, 0.3), 0.03, 0.02, 4, c, ADOBE, 1.0, 1.0)
+
+
 # --- trees ------------------------------------------------------------------------------------------------------------------------------------
 
 ## A broadleaf tree: trunk, three overlapping crowns. `s` scales it (1 = 7 m).

@@ -36,14 +36,16 @@ const WEIGHTS: Array[float] = [0.115, 0.09, 0.09, 0.115, 0.075, 0.075, 0.08, 0.0
 
 
 static func title(type: StringName) -> String:
-	return str(TITLES.get(type, "INTERIOR"))
+	return str(TITLES.get(type, InteriorCountry.TITLES.get(type, "INTERIOR")))
 
 
 static func color(type: StringName) -> Color:
-	return COLORS.get(type, Color(0.45, 0.95, 1.0))
+	return COLORS.get(type, InteriorCountry.COLORS.get(type, Color(0.45, 0.95, 1.0)))
 
 
 static func door_name(type: StringName, id: int) -> String:
+	if InteriorCountry.has_type(type):                                                  # the outskirts have their own names (wave 112)
+		return InteriorCountry.door_name(type, id)
 	var b: Array = NAME_B.get(type, ["PLACE"])
 	var h := fposmod(sin(float(id) * 12.9898 + 4.1) * 43758.5453, 1.0)
 	var h2 := fposmod(sin(float(id) * 78.233 + 1.7) * 43758.5453, 1.0)
@@ -51,7 +53,12 @@ static func door_name(type: StringName, id: int) -> String:
 
 
 static func has_vendor(type: StringName) -> bool:
-	return VENDOR_TYPES.has(type)
+	return VENDOR_TYPES.has(type) or InteriorCountry.has_vendor(type)
+
+
+## What a vendor of `type` sells: its own STOCK, or the stock of the city type an outskirts shop is an alias of (InteriorCountry.STOCK_ALIAS).
+static func stock(type: StringName) -> Array:
+	return STOCK.get(type, STOCK.get(InteriorCountry.STOCK_ALIAS.get(type, &""), []))
 
 
 static func mission_for(type: StringName) -> StringName:
@@ -89,7 +96,7 @@ const PLAN := {
 
 ## The plan for `type` with `followers` hunters that came in from the street: guards first, then civilians give way so the total stays within ACTOR_CAP.
 static func plan(type: StringName, followers := 0) -> Dictionary:
-	var p: Dictionary = (PLAN.get(type, PLAN[&"bar"]) as Dictionary).duplicate()
+	var p: Dictionary = (PLAN.get(type, InteriorCountry.PLAN.get(type, PLAN[&"bar"])) as Dictionary).duplicate()
 	var over: int = int(p["vendor"]) + int(p["civilians"]) + int(p["guards"]) + followers - ACTOR_CAP
 	while over > 0 and int(p["guards"]) > 0 and int(p["guards"]) + followers > 1:
 		p["guards"] = int(p["guards"]) - 1

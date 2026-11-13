@@ -35,6 +35,8 @@ var _markers: MultiMeshInstance3D
 var _marker_doors: Array[Dictionary] = []
 var _marker_t := 0.0
 var _hero := Vector3.INF
+var folk := SettlementFolk.new()                 ## the people standing at their posts (pinned slots of the city crowd)
+var _folk_crowd: RefCounted = null
 
 
 static func attach(parent: Node) -> SettlementWorld:
@@ -62,6 +64,7 @@ func _exit_tree() -> void:
 
 func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
+	folk.set_tier(quality)
 	for id in towns.keys():
 		var t: Dictionary = towns[id]
 		for key in (t["chunks"] as Dictionary).keys():
@@ -140,6 +143,7 @@ func _process(delta: float) -> void:
 	if not _hero.is_finite():
 		return
 	_stream(_hero, 1)
+	_step_folk(TICK)
 	_marker_t -= TICK
 	if _marker_t <= 0.0:
 		_marker_t = 0.4
@@ -330,6 +334,22 @@ func _spin_rotors(delta: float) -> void:
 		var n := rr["node"] as Node3D
 		if is_instance_valid(n) and n.global_position.distance_squared_to(_hero) < 360000.0:
 			n.rotate_object_local(rr["axis"], float(rr["speed"]) * delta)
+
+
+# --- the folk ---------------------------------------------------------------------------------------------------------------------------------------
+
+func _step_folk(delta: float) -> void:
+	var city := get_parent() as City
+	if city == null or city.ambient == null:
+		return
+	var crowd: Variant = city.ambient.get("crowd")
+	if crowd == null:
+		return
+	if crowd != _folk_crowd:
+		_folk_crowd = crowd
+		folk.setup(crowd)
+		folk.set_tier(quality)
+	folk.step(delta, _hero)
 
 
 # --- door glows --------------------------------------------------------------------------------------------------------------------------------

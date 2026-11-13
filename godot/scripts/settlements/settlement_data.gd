@@ -125,7 +125,7 @@ static func doors() -> Array[Dictionary]:
 				var id := DOOR_BASE + ti * DOOR_STEP + k
 				k += 1
 				var yaw_w := atan2(nrm.x, nrm.z)                                      # (Basis(UP, yaw) * BACK = the outward normal, the CityDoors convention)
-				_doors.append({"id": id, "type": interior, "name": InteriorData.door_name(interior, id), "wall": wall, "pos": pos, "normal": nrm, "yaw": yaw_w,
+				_doors.append({"id": id, "type": interior, "name": InteriorCountry.door_name(interior, id), "wall": wall, "pos": pos, "normal": nrm, "yaw": yaw_w,
 					"face_yaw": atan2(-nrm.x, -nrm.z), "width": 2.0, "town": s["id"], "kind": it["kind"]})
 		ti += 1
 	return _doors

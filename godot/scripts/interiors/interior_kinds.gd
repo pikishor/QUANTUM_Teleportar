@@ -241,6 +241,8 @@ static var _dressed := {}
 
 
 static func spec(type: StringName) -> Dictionary:
+	if not SPECS.has(type) and InteriorCountry.has_type(type):                       # the outskirts layouts (wave 112, scripts/interiors/interior_country.gd)
+		return InteriorCountry.spec(type)
 	var k: StringName = type if SPECS.has(type) else &"bodega"
 	if not _dressed.has(k):
 		_dressed[k] = _dress(SPECS[k])
@@ -276,8 +278,13 @@ static func _dress(src: Dictionary) -> Dictionary:
 
 
 static func has_type(type: StringName) -> bool:
-	return SPECS.has(type)
+	return SPECS.has(type) or InteriorCountry.has_type(type)
+
+
+## The anchors a type guarantees: the city table, or the outskirts' (InteriorCountry).
+static func guaranteed(type: StringName) -> Dictionary:
+	return GUARANTEED.get(type, InteriorCountry.guaranteed(type) if InteriorCountry.has_type(type) else {})
 
 
 static func ambience(type: StringName) -> Dictionary:
-	return AMBIENCE.get(type, AMBIENCE[&"bodega"])
+	return AMBIENCE.get(type, InteriorCountry.AMBIENCE.get(type, AMBIENCE[&"bodega"]))

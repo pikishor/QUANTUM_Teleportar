@@ -36,10 +36,13 @@ TESTS AND PERF
 - 09:35Z test_landscape_dressing.gd PASS (58 s) on the restored tree. 09:50Z perf gate (all 3 tiers) OK: LOW 76/98 draws, death 105, tex 157 MB; MED 101/133, death 143, tex 180; HIGH 112/147, death 164, tex 266.
 - NOTE: the parallel builder w112-outskirts-map made the world 9 km (TerrainHeight.WORLD_HALF 4500, scripts/world/world_extent.gd pushes the coast out W/N/E) and adds towns as OutskirtsSites entries: all my sites are FOUND by search so they follow; re-run the probe + test after their changes.
 
-ITERATION LOG (frames in scratchpad ls/, 1600x720 MED, bot tests/bot_landscape.gd views road:/beach:/pool:/airstrip:/fall:/fallv:/anchor:)
-- it1 (09:30-10:40Z): defects seen: orange-clay verge + lime blobs on dirt tracks, big sparse neon tufts, olive 'beach' with white popcorn pebbles, waterfalls at snow altitude (washed out, saw-tooth sheet foot, outflow ribbon floating like a plank), river water with dark dimples, white tray rim on pools.
-  fixed so far: terrain layer 6 = forest_ground_04 (dark earth) + layer 3 = coast_sand_02 (tan), wider dry-sand band (TerrainBase.shade_weights), road shader dirt track (earth below, scree above 95-185 m, dark grass strip), tufts smaller/denser/darker (veg_scatter SPACING + COVER_LOOK), pebbles 48 tris, rounder, scree/dark colours.
-  NEXT: waterfalls redesign (pool altitude < 190 m, smooth sheet corridor in the carve, sheet/pool/stream shaders, mist), river water shader, tree dither, rocks, strips, night/rain, LOW, tests.
+ITERATION LOG (frames in scratchpad ls/, 1600x720, bot tests/bot_landscape.gd views road:/beach:/pool:/airstrip:/fall:/fallv:/foot:/anchor:/river:/hero:)
+- it1 (09:30-10:40Z): defects: orange-clay verge + lime blobs on dirt tracks, big sparse neon tufts, olive 'beach' with white popcorn pebbles, falls at snow altitude, sheet saw-tooth foot, outflow ribbon like a plank, river dimples, white tray rim on pools, uniform dots of rocks.
+  fixed: terrain layer 6 = forest_ground_04, layer 3 = coast_sand_02 (Poly Haven CC0, pack_terrain_textures.py), wider dry-sand band (TerrainBase.shade_weights), dirt track shader (earth/scree by altitude), tufts smaller/denser/darker, pebbles 48 tris (scree/dark layers), rocks in fields (veg_scatter), snow squiggle paled.
+- it2 (10:40-12:10Z): falls: FALL_REGIONS with HINTS (quick local search, 6 falls found, warm 5.6 -> 3.4 s), altitude cap 178 m, smooth S-profile face carve (_face), wider trenches, outflow stops on slopes; fall_water.gdshader rewritten (view-ray depth bias 0.9 m + 1.2 %/m, cooler water, 3 streak layers that accelerate, wet-rock band mode 3, soft pool rim, white-water stream); fall_world.gd (wet band mesh, ribbon on the real surface, slope fade); water_inland.gdshader finer ripples.
+  airstrips: 7 strips (FOOTHILL, WESTWOOD, SOUTH, LAGOON, EAST SHORE, FAR NORTH, FAR WEST) with hints; darker mown grass. Ancient groves: pines/firs x2.2-2.7 (VegScatter.GIANT, ancient_grove()); AnchorWorld.anchors_near also returns kind &"tree" giants + harbour cranes in all_anchors.
+  frames after: forest road, beach (tan sand, foam), dirt tracks, falls (foot pool turquoise, sheet streaky blue-white, reeds), rivers with reeds, strips, grove meadow with flowers: all clearly better than r5_21..23.
+- tests: test_landscape_dressing PASS (167 checks, 85 s) after updating it for the 9 km world (beach found by scan, harbour cranes 33 m).
 
 OPEN PROBLEMS
 - ambientCG downloads are BLOCKED; Poly Haven api + dl.polyhaven.org work (cdn.polyhaven.com thumbnails are blocked): all bark / ground textures come from there.

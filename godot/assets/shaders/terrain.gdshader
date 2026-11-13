@@ -101,6 +101,7 @@ void fragment() {
 	if (wd > 0.03) {
 		ground = mix(ground, lay2(2, uv * 0.9, gx * 0.9, gy * 0.9), smoothstep(0.2, 0.7, wd + (macro - 0.5) * 0.4));
 	}
+	ground *= mix(vec3(1.0), vec3(0.92, 1.07, 0.84), clamp(wf * (1.0 - wd), 0.0, 1.0) * 0.8);       // the forest hills lean greener (the scanned ground reads brown-olive under the warm sun)
 	float hy = wpos.y - sea_y;                                   // metres above the sea
 	float wet_k = 0.0;
 	float bump_k = 0.30;
@@ -136,7 +137,9 @@ void fragment() {
 			vec2 uzy = wpos.zy * uv_scale * 0.7;
 			vec2 uxy = wpos.xy * uv_scale * 0.7;
 			vec3 r_lime = lay(4, uzy, px.zy * 0.7, py.zy * 0.7) * bw.x + lay(4, wpos.xz * uv_scale * 0.7, gx * 0.7, gy * 0.7) * bw.y + lay(4, uxy, px.xy * 0.7, py.xy * 0.7) * bw.z;
-			vec3 r_str = lay(8, uzy * 0.8, px.zy * 0.56, py.zy * 0.56) * bw.x + lay(8, wpos.xz * uv_scale * 0.56, gx * 0.56, gy * 0.56) * bw.y + lay(8, uxy * 0.8, px.xy * 0.56, py.xy * 0.56) * bw.z;
+			float sw = (vnoise(wpos.xz * 0.045) - 0.5) * 2.4 + (vnoise(wpos.xz * 0.19 + 5.0) - 0.5) * 0.8;     // the strata bend and thin out across the mountain: a regular stripe pattern read as terraced fields
+			float sk = 0.8 + 0.35 * (vnoise(wpos.xz * 0.021 + 9.0) - 0.5);
+			vec3 r_str = lay(8, vec2(uzy.x, uzy.y * sk + sw) * 0.8, px.zy * 0.56, py.zy * 0.56) * bw.x + lay(8, wpos.xz * uv_scale * 0.56, gx * 0.56, gy * 0.56) * bw.y + lay(8, vec2(uxy.x, uxy.y * sk + sw) * 0.8, px.xy * 0.56, py.xy * 0.56) * bw.z;
 			rock = mix(r_lime, r_str, strata_k);
 			if (dark_k > 0.02) {
 				vec3 r_dark = lay(10, uzy * 0.9, px.zy * 0.63, py.zy * 0.63) * bw.x + lay(10, uxy * 0.9, px.xy * 0.63, py.xy * 0.63) * (1.0 - bw.x);

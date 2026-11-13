@@ -649,8 +649,8 @@ static func resort(p: SettlementPlan, target: int) -> void:
 # --- LODGE: HIGH LARK ----------------------------------------------------------------------------------------------------------------------------------
 
 static func _chalet(p: SettlementPlan, side: float) -> Dictionary:
-	var spec := {"w": p.rf(7.5, 9.5), "d": p.rf(7.5, 9.0), "floors": 2, "wall": Color(0.45, 0.28, 0.16).lightened(p.rng.randf() * 0.15), "wall_code": SM.LOG, "trim": Color(0.86, 0.8, 0.68),
-		"roof": [Color(0.27, 0.2, 0.17), Color(0.22, 0.26, 0.24), Color(0.38, 0.24, 0.18)][p.rng.randi() % 3], "roof_code": SM.SHINGLE, "roof_type": &"gable", "slope": 0.85, "ridge": &"z", "ov": 1.0, "ovg": 0.8,
+	var spec := {"w": p.rf(7.5, 9.5), "d": p.rf(7.5, 9.0), "floors": 2, "wall": Color(0.58, 0.38, 0.22).lightened(p.rng.randf() * 0.12), "wall_code": SM.LOG, "trim": Color(0.86, 0.8, 0.68),
+		"roof": [Color(0.4, 0.3, 0.25), Color(0.3, 0.4, 0.32), Color(0.52, 0.3, 0.22)][p.rng.randi() % 3], "roof_code": SM.SHINGLE, "roof_type": &"gable", "slope": 0.85, "ridge": &"z", "ov": 1.0, "ovg": 0.8,
 		"chimney": true, "chim_side": 1 if p.rng.randf() < 0.5 else -1, "chim_code": SM.STONE, "chim_col": Color(0.5, 0.48, 0.44), "balcony": p.rng.randf() < 0.7, "porch": p.rng.randf() < 0.5, "porch_w": 3.0,
 		"door_x": p.rf(-1.0, 1.0), "door_col": Color(0.3, 0.17, 0.1), "seed": p.rng.randi() & 0xffff, "glow": 0.9, "win_w": 1.1, "win_h": 1.2, "shutter": Color(0.55, 0.2, 0.15, 1.0) if p.rng.randf() < 0.35 else Color(0, 0, 0, 0)}
 	var lot := {"fence": &"rail", "fence_h": 1.0, "trees": 2, "tree": &"pine", "path": true, "mailbox": true, "pitch": 0.0, "back": 10.0, "lawn": true, "lawn_margin": 8.0, "lawn_back": 6.0, "lawn_col": Color(0.26, 0.4, 0.2),

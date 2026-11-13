@@ -268,12 +268,19 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 				if not sp7.is_empty():
 					out.append_array(sp7)
 				continue
+			var hy_c := h - TerrainHeight.SEA_LEVEL
 			if h < TerrainHeight.SEA_LEVEL + 3.6:
-				continue                                                  # beach and sea
+				# beach and sea: nothing grows here, except dune grass on the dry upper beach (2.2 m and up) and a few stones of the shore (0.9 m and up)
+				if not ((layer == T_GRASS and hy_c > 2.2) or (layer == T_ROCKS and hy_c > 0.9)):
+					continue
 			var mw := TerrainHeight.mountain_weight(x, z)
 			var fw := TerrainBase.forest_weight(x, z)
 			var dw := TerrainBase.desert_weight(x, z)
 			var d := density(layer, x, z, h, mw, fw, dw)
+			if hy_c < 3.6 and layer == T_GRASS:
+				d *= 0.55 * smoothstep(2.2, 3.6, hy_c)                       # dune grass: thin tufts on the dry upper beach
+			elif hy_c < 3.6 and layer == T_ROCKS:
+				d = 0.012 * smoothstep(0.9, 1.6, hy_c)                       # a stone now and then on the beach
 			if layer == T_REEDS:
 				if roll >= 0.62 or WaterLayout.inland_distance(x, z, 16.0) > 6.0:
 					continue
@@ -312,7 +319,7 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 				T_GRASS:
 					if sl > 0.9:
 						continue
-					species = TUFT if (dw * (1.0 - fw) > 0.4 or h > 150.0) else GRASS
+					species = TUFT if (dw * (1.0 - fw) > 0.4 or h > 150.0 or hy_c < 4.6) else GRASS
 					scale = 0.40 + rnd * 0.48
 					if dw * (1.0 - fw) < 0.5 and h < 130.0:
 						var fl := _patch.get_noise_2d(x * 3.1 + 17.0, z * 3.1 - 5.0)

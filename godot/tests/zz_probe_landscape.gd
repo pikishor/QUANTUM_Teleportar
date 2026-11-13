@@ -1,11 +1,28 @@
 extends RefCounted
 ## TEMPORARY probe (landscape builder). Delete before finishing.
 func run(host: Node) -> void:
-	var t0 := Time.get_ticks_msec()
 	TerrainHeight.warm()
-	print("WARM total ", Time.get_ticks_msec() - t0, " ms")
-	for f in LandscapeSites.falls():
-		print("FALL ", f["name"], " pool ", f["pool"], " drop ", snappedf(float(f["drop"]), 0.1), " base_y ", snappedf(float(f["base_y"]), 0.1))
-	for s in LandscapeSites.strips():
-		print("STRIP ", s["name"], " c ", s["c"], " u ", s["u"], " y ", snappedf(float(s["y"]), 0.1))
+	var peaks: Array = []
+	var step := 90.0
+	for j in range(-48, 49):
+		for i in range(-48, 49):
+			var x := float(i) * step
+			var z := float(j) * step
+			var h := TerrainHeight.height_at(x, z)
+			if h > 250.0:
+				peaks.append({"x": x, "z": z, "h": h})
+	peaks.sort_custom(func(a, b): return float(a["h"]) > float(b["h"]))
+	print("HIGH points ", peaks.size())
+	var shown: Array = []
+	for p in peaks:
+		var ok := true
+		for q in shown:
+			if Vector2(float(p["x"]) - float(q["x"]), float(p["z"]) - float(q["z"])).length() < 700.0:
+				ok = false
+		if ok:
+			shown.append(p)
+		if shown.size() >= 10:
+			break
+	for p in shown:
+		print("PEAK x=%d z=%d h=%.0f" % [int(p["x"]), int(p["z"]), float(p["h"])])
 	print("PROBE done")

@@ -230,6 +230,8 @@ func doors() -> Array[Dictionary]:
 	if d is Array:
 		for e in d as Array:
 			out.append(e)
+		if w.get("towns") != null:                                                  # the doors of the outskirts towns (wave 112, ids from SettlementData.DOOR_BASE)
+			out.append_array(SettlementData.doors())
 	return out
 
 
@@ -263,7 +265,10 @@ func nearest_door(pos: Vector3, max_dist := REACH_DOOR) -> Dictionary:
 
 
 func _sync_doors() -> void:
-	var list := doors()
+	var list: Array[Dictionary] = []
+	for e in doors():
+		if int(e["id"]) < SettlementData.DOOR_BASE:                                  # (the towns' doors glow through SettlementWorld.DoorGlow)
+			list.append(e)
 	var key := hash([list.size(), is_instance_valid(Game.world)])
 	if key != _doors_key or markers.mmi == null and not list.is_empty():
 		_doors_key = key
@@ -772,7 +777,7 @@ func tell_rumour() -> String:
 
 
 func _radio_enter(type: StringName, id: int, hunted: bool) -> void:
-	var lines: Array = InteriorData.RADIO.get(type, [])
+	var lines: Array = InteriorData.RADIO.get(type, InteriorCountry.RADIO.get(type, []))
 	if hunted:
 		lines = InteriorData.RADIO[&"heat"]
 	if lines.is_empty():

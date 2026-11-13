@@ -81,6 +81,8 @@ static func prop_part(kind: StringName, seed_v: int) -> SettlementMesh:
 		&"tree_pine": P.tree_pine(m, seed_v & 3)
 		&"tree_palm": P.tree_palm(m, seed_v & 3)
 		&"bush": P.bush(m, seed_v & 3)
+		&"pet_dog": P.pet_dog(m, seed_v)
+		&"pet_cat": P.pet_cat(m, seed_v)
 		_: P.bush(m, seed_v & 3)
 	_props[key] = m
 	return m
@@ -146,6 +148,13 @@ static func build(plan: SettlementPlan, rect := Rect2(), far := false) -> Dictio
 			out["cyls"].append({"pos": Vector3(pc.x, 0.0, pc.y), "r": 0.35 * s, "h": 3.0 * s})
 		elif kind == &"tree_palm":
 			out["cyls"].append({"pos": Vector3(pc.x, 0.0, pc.y), "r": 0.3 * s, "h": 4.0 * s})
+	for pt in plan.pets:                                                       # a dog or a cat by the door (static, merged: no draw call of its own)
+		var ptc := Vector2(pt["x"], pt["z"])
+		if not all and not rect.has_point(ptc):
+			continue
+		var sd := int(absf(ptc.x * 7.0 + ptc.y * 13.0))
+		var pm := prop_part(StringName("pet_" + String(pt["kind"])), sd)
+		m.append(pm, Transform3D(Basis(Vector3.UP, float(sd % 628) * 0.01), Vector3(ptc.x, 0.06, ptc.y)))
 	for an in plan.anchors:
 		var ac := Vector2(an["x"], an["z"])
 		if all or rect.has_point(ac):

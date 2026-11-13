@@ -185,10 +185,11 @@ static func material_for(nm: String) -> ShaderMaterial:
 	if nm.begins_with("rock_") or nm.begins_with("pebble_") or nm.begins_with("arch_"):
 		return _rock_material()
 	var sp := species_of(nm)
+	var mkey := sp
 	if sp == "drift":
-		sp = "dead"                                                          # washed-up logs wear the grey bark of the dead trees
-	if _mats.has(sp):
-		return _mats[sp]
+		sp = "dead"                                                          # washed-up logs wear the grey bark of the dead trees (their own material: sun-bleached, lighter)
+	if _mats.has(mkey):
+		return _mats[mkey]
 	var mat := ShaderMaterial.new()
 	mat.shader = load(TREE_SHADER) as Shader
 	mat.set_shader_parameter(&"foliage", _foliage)
@@ -198,13 +199,13 @@ static func material_for(nm: String) -> ShaderMaterial:
 	var look: Dictionary = LOOK.get(sp, LOOK["oak"])
 	mat.set_shader_parameter(&"tint_a", look["a"])
 	mat.set_shader_parameter(&"tint_b", look["b"])
-	mat.set_shader_parameter(&"bark_tint", look["bark"])
+	mat.set_shader_parameter(&"bark_tint", (look["bark"] as Vector3) * (1.75 if mkey == "drift" else 1.0))
 	mat.set_shader_parameter(&"sway", float(look["sway"]))
 	mat.set_shader_parameter(&"translucency", float(look["tr"]))
 	mat.set_shader_parameter(&"height", maxf(height(sp), 2.0))
 	if look.has("emit"):
 		mat.set_shader_parameter(&"emit_amount", float(look["emit"]))
-	_mats[sp] = mat
+	_mats[mkey] = mat
 	return mat
 
 

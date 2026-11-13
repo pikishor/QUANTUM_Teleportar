@@ -93,6 +93,7 @@ var _goal := PackedFloat32Array()        ## the next stop (position along the li
 var _gkind := PackedByteArray()          ## 0 none, STOP_SHOP, STOP_BUS
 var _stopk := PackedByteArray()          ## the kind of the last stop person i made (shop / bus), for the right bark
 var _pin := PackedByteArray()            ## 1: a stall vendor, stands where it is (StreetVendors) until scared, shot or the hero leaves
+var _gy := PackedFloat32Array()          ## ground height under a pinned person (0 in the city; the folk of the outskirts towns stand on their pads: SettlementFolk, wave 112)
 var _seed0 := PackedFloat32Array()       ## the slot's own seed (a vendor borrows the vendor look)
 var _cam_fwd := Vector2.ZERO             ## flat camera forward (spawn bias), set every step
 var _hide := PackedByteArray()           ## 1: this person is drawn by a real 3D actor (CitizenActors), the MultiMesh skips them
@@ -124,6 +125,7 @@ func build(light_map: Texture2D) -> void:
 	_stopk.resize(BUILT)
 	_hide.resize(BUILT)
 	_pin.resize(BUILT)
+	_gy.resize(BUILT)
 	_seed0.resize(BUILT)
 	for a: PackedFloat32Array in [_cower, _goal, _hp, _dying, _fall]:
 		a.resize(BUILT)
@@ -213,6 +215,7 @@ func reset() -> void:
 		_alive[i] = 0
 		_first[i] = 1
 	_hide.fill(0)
+	_gy.fill(0.0)
 	for i in BUILT:
 		_unpin(i)
 	_dying.fill(0.0)
@@ -417,7 +420,7 @@ func is_fleeing(i: int) -> bool:
 
 func _position(i: int) -> Vector3:
 	var l := _lat[i] + _off[i]
-	return Vector3(_u[i], 0.0, l) if _axis[i] == 0 else Vector3(l, 0.0, _u[i])
+	return Vector3(_u[i], _gy[i], l) if _axis[i] == 0 else Vector3(l, _gy[i], _u[i])
 
 
 ## World position of pedestrian `i` (tests, hooks).
@@ -461,7 +464,8 @@ func claim_slot(center: Vector3) -> int:
 
 
 ## Person `i` becomes the vendor of a stall: stands on sidewalk line `lat` of axis `axis` at `u`, offset `off` from the line, facing sideways towards the road (`face` +1 / -1).
-func pin_vendor(i: int, axis: int, lat: float, u: float, off: float, face: int) -> void:
+func pin_vendor(i: int, axis: int, lat: float, u: float, off: float, face: int, seed_v := VENDOR_SEED, gy := 0.0) -> void:
+	_gy[i] = gy
 	_axis[i] = axis
 	_lat[i] = lat
 	_u[i] = u
@@ -481,7 +485,7 @@ func pin_vendor(i: int, axis: int, lat: float, u: float, off: float, face: int) 
 	_gkind[i] = 0
 	_first[i] = 0
 	_pin[i] = 1
-	_seed[i] = VENDOR_SEED
+	_seed[i] = seed_v
 
 
 func _unpin(i: int) -> void:
@@ -646,6 +650,7 @@ static func _region(u: float) -> int:
 
 
 func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
+	_gy[i] = 0.0
 	for attempt in 12:
 		var rr := radius if rng.randf() >= CORE_SHARE else minf(radius, CORE_R)          # half of the spawns land in the core: the street around the hero is as full on MED / HIGH as on LOW
 		var ax := rng.randi() & 1
@@ -706,6 +711,7 @@ func _spawn_group(i: int) -> void:
 		if _alive[j] != 0:
 			continue
 		made += 1
+		_gy[j] = _gy[i]
 		_axis[j] = _axis[i]
 		_lat[j] = _lat[i]
 		_off[j] = clampf(_off[i] + rng.randf_range(-0.6, 0.6), OFF_MIN, OFF_MAX)
@@ -874,7 +880,7 @@ func _fill(buf: PackedFloat32Array, o: int, i: int, fade: float) -> void:
 	buf[o + 4] = 0.0
 	buf[o + 5] = ca * k
 	buf[o + 6] = -sa * k
-	buf[o + 7] = lift
+	buf[o + 7] = lift + _gy[i]
 	buf[o + 8] = -s * k
 	buf[o + 9] = c * sa * k
 	buf[o + 10] = c * ca * k
