@@ -240,8 +240,8 @@ static func _build_relics() -> Array[Dictionary]:
 	var tries := 0
 	while left > 0 and tries < 9000:
 		tries += 1
-		var x := rng.randf_range(-2750.0, 2750.0)
-		var z := rng.randf_range(-2750.0, 2750.0)
+		var x := rng.randf_range(-TerrainHeight.WORLD_HALF + 250.0, TerrainHeight.WORLD_HALF - 250.0)          # wave 112: the whole 9 km world
+		var z := rng.randf_range(-TerrainHeight.WORLD_HALF + 250.0, TerrainHeight.WORLD_HALF - 250.0)
 		var h := TerrainHeight.height_at(x, z)
 		var biome := TerrainBase.biome_at(x, z, h)
 		if int(need.get(biome, 0)) <= 0:

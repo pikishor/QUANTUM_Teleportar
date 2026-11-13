@@ -17,8 +17,8 @@ const SHADER_INLAND := preload("res://assets/shaders/water_inland.gdshader")
 const NO_WATER := TerrainHeight.NO_WATER
 const AMP := 0.32                                  ## metres of wave height (the shader's `amp`)
 const WAVE_FADE_NEAR := 60.0
-const MAP_CELLS := 128                             ## shore map: coarse samples across the world ...
-const MAP_FINE := 4                                ## ... refined x4 along the coast: 512 x 512 texels of 12.5 m
+const MAP_CELLS := 192                             ## shore map: coarse samples across the world (wave 112: 9 km, 192 x 4 = 768 texels of 12.2 m) ...
+const MAP_FINE := 4                                ## ... refined x4 along the coast: 768 x 768 texels
 const MAP_HALF := TerrainHeight.WORLD_HALF + 200.0
 const DEPTH_OFFSET := 6.0                          ## shore map encoding: R = (sea level - ground + 6) / 32
 const DEPTH_RANGE := 32.0

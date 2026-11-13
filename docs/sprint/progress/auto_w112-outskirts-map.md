@@ -1,54 +1,56 @@
 # w112-outskirts-map (running)
 
-agent id ab9a223c65307f5bd, 319 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T09:43:15.289Z
+agent id ab9a223c65307f5bd, 479 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T10:01:27.719Z
 
 ## Last notes of the agent
 
 - 09:11:16 I'll start with the restart procedure: check for existing progress logs, then git status.
 - 09:29:56 Now the two minimal edits to terrain_height.gd (world size constant and the coast hook).
+- 09:47:58 Now the `end_on` support and the end-profile fix in `_build_road`.
+- 09:48:03 Now the end-profile fix right after the cut-and-fill loop.
 
 ## Recent steps (last 40)
 
-- 09:26:22 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/world_old.png
-- 09:27:22 Check west-coast dependent coordinates
-- 09:28:08 See landscape builder's current edits to shared terrain files
-- 09:28:39 Read landscape AnchorWorld API
-- 09:28:42 Read anchors_near and all_anchors
-- 09:28:49 Read ambient_crowd.gd header and function list
-- 09:29:07 Find shore map constants in water_world.gd
-- 09:29:23 /home/user/QUANTUM_Teleportar/docs/sprint/progress/w112-outskirts-map.md
-- 09:29:49 /home/user/QUANTUM_Teleportar/godot/scripts/world/world_extent.gd
-- 09:29:53 /home/user/QUANTUM_Teleportar/godot/scripts/world/terrain_height.gd
-- 09:29:57 /home/user/QUANTUM_Teleportar/godot/scripts/world/terrain_height.gd
-- 09:29:58 /home/user/QUANTUM_Teleportar/godot/scripts/world/terrain_height.gd
-- 09:30:03 Look at PLAY_HALF line
-- 09:30:06 /home/user/QUANTUM_Teleportar/godot/scripts/world/city_layout.gd
-- 09:30:09 /home/user/QUANTUM_Teleportar/godot/scripts/world/city_layout.gd
-- 09:30:11 Import new class, render the extended world map
-- 09:30:49 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/world_new1.png
-- 09:31:07 Estimate land area of old and new world
-- 09:31:37 /home/user/QUANTUM_Teleportar/godot/tests/dev_world_scan.gd
-- 09:31:43 Scan for flat sites on the extended world
-- 09:32:20 Scan with relaxed flatness
-- 09:32:20 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/world_scan.png
-- 09:33:29 Scan flat candidates r=80 relaxed
-- 09:34:06 Print candidate list compactly
-- 09:34:33 How the rail tunnel is implemented
-- 09:35:20 Check roam pad data and tests
-- 09:35:37 Add crop box to the scan tool
-- 09:35:56 /home/user/QUANTUM_Teleportar/godot/tests/dev_world_scan.gd
-- 09:36:03 Render zoomed map of the west region
-- 09:36:30 Check output of the crop render
-- 09:36:57 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/crop_w.png
-- 09:37:12 Render zoomed map of the east and north-east
-- 09:37:13 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/crop_e.png
-- 09:38:28 Scan candidate boxes for each settlement
-- 09:40:21 /home/user/QUANTUM_Teleportar/godot/tests/dev_height_grid.gd
-- 09:40:25 Height grid of the west region
-- 09:41:28 Height grid of the east and south-east
-- 09:41:58 Airport location and east plains height grid
-- 09:43:14 /home/user/QUANTUM_Teleportar/godot/tests/dev_roads_dump.gd
-- 09:43:15 Dump road polylines and sites
+- 09:47:55 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/terrain_roads.gd
+- 09:48:00 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/terrain_roads.gd
+- 09:48:01 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/terrain_roads.gd
+- 09:48:06 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/terrain_roads.gd
+- 09:48:15 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/terrain_roads.gd
+- 09:48:19 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/outskirts_sites.gd
+- 09:48:42 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/outskirts_sites.gd
+- 09:48:43 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/outskirts_sites.gd
+- 09:48:48 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/outskirts_sites.gd
+- 09:48:51 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/outskirts_sites.gd
+- 09:48:57 Import and dump the new road network
+- 09:49:47 Find the router call
+- 09:49:52 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/terrain_roads.gd
+- 09:49:58 Add slack factors and re-dump the new roads
+- 09:50:35 Check ground plane size and camera far plane
+- 09:50:43 Apply map and shore-map resolution changes
+- 09:50:47 Read terrain_map build and labels
+- 09:50:56 Add world map labels, locate lake data
+- 09:51:01 Add SILVER MERE and inspect the lake region heights
+- 09:51:18 Update relic range and cloud AABB for 9 km
+- 09:51:27 Run terrain world test on the 9 km world
+- 09:52:49 Filter terrain world test results
+- 09:54:17 Locate failing assertions in the terrain test
+- 09:54:21 Read the failing test sections
+- 09:54:36 Find the vertical step along z=-300
+- 09:55:02 Find which roads break grade or bench rules
+- 09:55:57 Reroute roads away from existing pads and re-probe
+- 09:56:52 Fix profile levelling, add router keep-clear, reroute
+- 09:57:18 Widen blends and re-probe tracks
+- 09:57:57 Probe the steepest profile step of the shore track
+- 09:58:32 Rework profile levelling with a grade pass and carve rule
+- 09:58:56 Read the shore drive part of the terrain test
+- 09:59:00 
+- 09:59:01 
+- 09:59:12 Update terrain test limits for the 9 km world
+- 09:59:20 Set world zoom and re-run the terrain test
+- 10:00:51 Find count assertions in the outskirts test
+- 10:00:55 View outskirts test sections to update
+- 10:01:11 Find how the map handles the site marker kind
+- 10:01:27 Read map_icons.gd glyph code
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -59,3 +61,5 @@ agent id ab9a223c65307f5bd, 319 events, first activity 2026-11-13T09:11:14.655Z,
 - godot/tests/dev_world_scan.gd
 - godot/tests/dev_height_grid.gd
 - godot/tests/dev_roads_dump.gd
+- godot/scripts/terrain/terrain_roads.gd
+- godot/scripts/terrain/outskirts_sites.gd

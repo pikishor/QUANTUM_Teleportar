@@ -38,7 +38,7 @@ const T_REEDS := 5                                   ## reeds on the banks of ri
 const T_SHORE := 6                                   ## pebbles and driftwood on the beaches (the swash zone up to the high-water line) and the pebbles of river banks
 const LAYERS := 7
 const TREE_LINE := 215.0
-const SPACING := [6.0, 4.6, 1.15, 11.0, 6.0, 2.4, 2.6]     ## jitter grid spacing per layer (metres)
+const SPACING := [6.0, 4.6, 0.95, 11.0, 6.0, 2.4, 1.7]      ## jitter grid spacing per layer (metres; wave 112: grass 1.15 -> 0.95 and the shore 2.6 -> 1.7: denser, smaller tufts and stones)
 const LINE_OFFSET := 16.2                            ## distance of an avenue from the road centre line: just outside the 15 m bench
 const LINE_RANGE := 900.0                            ## avenues only within this distance of the city plateau
 
@@ -302,7 +302,7 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 					if sl > 0.9:
 						continue
 					species = TUFT if (dw * (1.0 - fw) > 0.4 or h > 150.0) else GRASS
-					scale = 0.62 + rnd * 0.55
+					scale = 0.40 + rnd * 0.48
 					if dw * (1.0 - fw) < 0.5 and h < 130.0:
 						var fl := _patch.get_noise_2d(x * 3.1 + 17.0, z * 3.1 - 5.0)
 						if fl > 0.38 and _rs(hh, 11) < 0.7:
@@ -354,10 +354,10 @@ static func _shore_spot(x: float, z: float, h: float, roll: float, hh: int) -> P
 	if not beach:
 		if h < 1.0 or WaterLayout.inland_distance(x, z, 14.0) > 4.5:
 			return none
-	var dens := 0.16
+	var dens := 0.10
 	if beach:
 		var swash := smoothstep(0.5, 1.1, hy) * (1.0 - smoothstep(2.3, 3.4, hy))
-		dens = 0.07 + 0.62 * swash * (0.35 + 0.65 * smoothstep(-0.25, 0.45, _patch.get_noise_2d(x * 2.3 + 5.0, z * 2.3)))
+		dens = 0.04 + 0.40 * swash * (0.25 + 0.75 * smoothstep(-0.25, 0.45, _patch.get_noise_2d(x * 2.3 + 5.0, z * 2.3)))
 	if roll >= dens:
 		return none
 	if TerrainHeight.water_level_for(x, z, h) != TerrainHeight.NO_WATER or TerrainHeight.slope_at(x, z) > 0.4:
@@ -370,4 +370,4 @@ static func _shore_spot(x: float, z: float, h: float, roll: float, hh: int) -> P
 	var yaw := _rs(hh, 5) * TAU
 	if beach and hy > 1.4 and _rs(hh, 13) < 0.045:
 		return PackedFloat32Array([x, h - 0.12, z, yaw, 0.7 + rnd * 0.4, float(DRIFT), rnd, float(int(rnd * 2.0) % 2)])
-	return PackedFloat32Array([x, h - 0.03, z, yaw, 0.10 + rnd * 0.22, float(PEBBLE), rnd, float(int(_rs(hh, 9) * 2.0) % 2)])
+	return PackedFloat32Array([x, h - 0.03, z, yaw, 0.055 + rnd * 0.13, float(PEBBLE), rnd, float(int(_rs(hh, 9) * 2.0) % 2)])

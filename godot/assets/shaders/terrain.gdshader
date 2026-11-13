@@ -105,7 +105,8 @@ void fragment() {
 	float wet_k = 0.0;
 	float bump_k = 0.30;
 	if (wb > 0.02) {
-		ground = mix(ground, lay2(3, uv * 0.8, gx * 0.8, gy * 0.8) * vec3(1.12, 1.03, 0.88), smoothstep(0.1, 0.6, wb));
+		float sand_w = smoothstep(0.12, 0.62, wb + (macro2 - 0.5) * 0.5 + (vnoise(wpos.xz * 0.37) - 0.5) * 0.18);       // ragged edge: tongues of sand into the dune grass
+		ground = mix(ground, lay2(3, uv * 0.8, gx * 0.8, gy * 0.8) * vec3(1.06, 1.0, 0.9), sand_w);
 		bump_k = 0.22;
 	}
 	// the swash zone: wet sand up to about 1.6 m above the sea, a damp band over it, a line of pebbles at the top of the beach
@@ -156,7 +157,9 @@ void fragment() {
 	float sl = snow_line + (macro - 0.5) * 70.0 + (macro2 - 0.5) * 30.0;
 	float snow_w = smoothstep(sl - 25.0, sl + 40.0, wpos.y) * (1.0 - smoothstep(0.3, 0.6, slope));
 	if (snow_w > 0.01) {
-		ground = mix(ground, lay(5, uv * 0.8, gx * 0.8, gy * 0.8) * 1.15, snow_w);
+		vec3 sn = lay(5, uv * 0.8, gx * 0.8, gy * 0.8);
+		sn = mix(sn, vec3(0.80, 0.84, 0.92), 0.55) * 1.12;                          // the scanned snow has dark squiggles that tile: pale them down so the repeat is not read
+		ground = mix(ground, sn, snow_w);
 	}
 	// gravel verge of the roads
 	if (wcol.a > 0.02) {

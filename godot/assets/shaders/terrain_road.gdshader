@@ -15,6 +15,7 @@ global uniform float rain;
 
 varying float lw;
 varying float ah;
+varying float wy;
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -36,6 +37,7 @@ float fbm(vec2 p) {
 void vertex() {
 	lw = COLOR.r * 32.0;
 	ah = COLOR.g * 16.0;
+	wy = (MODEL_MATRIX * vec4(VERTEX, 1.0)).y;
 }
 
 void fragment() {
@@ -94,12 +96,16 @@ void fragment() {
 		spec = mix(0.30, 0.55, wetness);
 		col = mix(col, col * 0.55, pud);
 	} else {
-		vec3 g = tex_k > 0.5 ? texture(layers, vec3(vec2(across, along) * 0.22, 6.0)).rgb : vec3(0.28, 0.22, 0.16);
+		// dirt track: the forest-trail earth (layer 6) in the lowlands, the grey scree (layer 9) above the tree line, two wheel ruts, a dark grass strip up the middle of an old track
+		vec2 uvg = vec2(across, along) * 0.22;
+		vec3 g = tex_k > 0.5 ? texture(layers, vec3(uvg, 6.0)).rgb : vec3(0.19, 0.145, 0.10);
+		vec3 g2 = tex_k > 0.5 ? texture(layers, vec3(uvg * 1.3, 9.0)).rgb * 0.84 : vec3(0.28, 0.26, 0.24);
+		g = mix(g, g2, smoothstep(95.0, 185.0, wy) * 0.85);
 		float grain = vnoise(vec2(across, along) * 6.0) * 0.6 + vnoise(vec2(across, along) * 23.0) * 0.4;
-		float rut = 1.0 - 0.28 * (1.0 - smoothstep(0.1, 0.45, abs(abs(across) - 0.95)));
-		col = g * rut * (0.8 + 0.4 * grain);
-		float tufts = smoothstep(0.58, 0.8, vnoise(vec2(across * 1.4, along * 0.7) + 5.0)) * (1.0 - smoothstep(0.0, 0.7, abs(across) - 0.55));
-		col = mix(col, vec3(0.20, 0.30, 0.10) * (0.8 + 0.4 * grain), tufts * 0.7 * smoothstep(0.1, 0.5, abs(across)));            // grass grows up the middle of an old track
+		float rut = 1.0 - 0.30 * (1.0 - smoothstep(0.1, 0.5, abs(abs(across) - 0.95)));
+		col = g * rut * (0.82 + 0.36 * grain) * 1.18;
+		float tufts = smoothstep(0.58, 0.8, vnoise(vec2(across * 1.4, along * 0.7) + 5.0)) * (1.0 - smoothstep(0.0, 0.7, abs(across) - 0.55)) * (1.0 - smoothstep(120.0, 200.0, wy));
+		col = mix(col, vec3(0.040, 0.075, 0.018) * (0.8 + 0.5 * grain), tufts * 0.6 * smoothstep(0.1, 0.5, abs(across)));            // grass grows up the middle of an old track (dark, lowlands only)
 		alpha = smoothstep(0.0, 0.9, half_w - abs(across));
 		rough = mix(0.95, 0.6, wetness);
 	}

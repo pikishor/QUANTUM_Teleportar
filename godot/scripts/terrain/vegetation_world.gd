@@ -261,7 +261,7 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 					if sp == VegScatter.DRIFT:
 						_put(out, "drift_%s_%s" % ["a" if variant == 0 else "b", "1" if d > 30.0 else "0"], x, arr[o + 1], z, arr[o + 3], sc, rnd, gsh)
 					else:
-						var pl := 9 if rnd < 0.5 else (4 if rnd < 0.82 else 3)
+						var pl := 9 if rnd < 0.5 else (10 if rnd < 0.8 else 4)                      # scree grey, dark sea-worn stones, a few pale ones (never the beach layer: they melted into the sand)
 						_put(out, "pebble_%s_0" % ["a" if variant == 0 else "c"], x, arr[o + 1], z, arr[o + 3], sc, rnd, gsh, -1.0, -1.0, float(pl), 1.0)
 					continue
 				var is_tree := land and TREE_NAMES.has(sp)

@@ -48,7 +48,7 @@ func _ready() -> void:
 	_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	_mi.top_level = true
-	_mi.custom_aabb = AABB(Vector3(-2700.0, -10.0, -2700.0), Vector3(5400.0, 20.0, 5400.0))
+	_mi.custom_aabb = AABB(Vector3(-4400.0, -10.0, -4400.0), Vector3(8800.0, 20.0, 8800.0))
 	_mi.visible = false
 	add_child(_mi)
 	set_process(true)

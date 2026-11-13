@@ -18,7 +18,7 @@ const KINDS := {
 }
 ## name, kind, via points (x, z): the router (`_route`, A* on a 40 m grid with a grade limit) finds the way between consecutive via points through the valleys. A road with `branch`
 ## [parent name, metres from its start] begins on that road. from_city: starts on the plateau edge (profile starts at y = 0).
-const DEFS := [
+const CORE_DEFS := [
 	{"name": "PASS ROAD", "kind": "highway", "from_city": true, "via": [Vector2(0, -1090), Vector2(0, -1230), Vector2(-150, -1950)]},
 	{"name": "DESERT ROAD", "kind": "highway", "from_city": true, "via": [Vector2(1090, 0), Vector2(1230, 0), Vector2(1750, 500), Vector2(1850, 1100), Vector2(1500, 1450)]},
 	{"name": "COAST ROAD", "kind": "highway", "from_city": true, "via": [Vector2(0, 1090), Vector2(0, 1230), Vector2(-700, 1400), Vector2(-1300, 1000), Vector2(-1550, 300)]},
@@ -29,7 +29,8 @@ const DEFS := [
 	{"name": "SUMMIT ROAD", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 1190.0], "wide": true, "via": [Vector2(-300, -2090), Vector2(-420, -2180), Vector2(-540, -2220)]},         # the switchbacks up to the MOUNTAIN OBSERVATORY (OutskirtsSites, wave 105: the site stands where this road ends)
 	{"name": "RIDGE TRACK", "kind": "track", "from_city": false, "branch": ["MOUNTAIN TRACK", 2300.0], "wide": true, "via": [Vector2(1700, -1560), Vector2(1860, -1500)]},      # the climb to the RADIO TOWER
 ]
-const BRIDGE_CLEAR := 3.6                 ## metres of clearance between the water and the underside of the deck where a road crosses a river or lake (wave 105: bridges)
+const DEFS: Array = CORE_DEFS + SettlementRoads.DEFS             ## wave 112: the ring road, the west highway, the coast link, the west coast road, the lark road, the outpost road, the shore track (scripts/settlements/settlement_roads.gd), after the nine original roads
+const BRIDGE_CLEAR := 3.6                ## metres of clearance between the water and the underside of the deck where a road crosses a river or lake (wave 105: bridges)
 const SPAN_MARGIN := 2                    ## samples either side of the wet ones that the bridge deck covers, so its ends stand on the banks
 const GRID := 40.0                        ## router cell (metres)
 const CORRIDOR := 900.0                   ## the router looks this far either side of the straight line between two via points
@@ -118,10 +119,17 @@ static func _build_road(ri: int) -> void:
 		var k := clampi(int(float(def["branch"][1]) / STEP), 0, pp.size() - 1)
 		via.push_front(pp[k])
 		anchor_h = float((_roads[par]["prof"] as PackedFloat32Array)[k])
+	var end_h := -1.0e9                                  ## wave 112: a road that ENDS on another road (`end_on`: [parent name, metres from its start]) meets it at the parent's height
+	if def.has("end_on"):
+		var par2 := _find_road(String(def["end_on"][0]))
+		var pp2: PackedVector2Array = _roads[par2]["pos"]
+		var k2 := clampi(int(float(def["end_on"][1]) / STEP), 0, pp2.size() - 1)
+		via.append(pp2[k2])
+		end_h = float((_roads[par2]["prof"] as PackedFloat32Array)[k2])
 	var nodes := PackedVector2Array()
 	var wide := bool(def.get("wide", false))              # 16 directions instead of 8: a road that has to gain height across a steep hillside (hairpins) needs the finer headings
 	for k in via.size() - 1:
-		var seg := _route(via[k], via[k + 1], float(kind["grade"]), wide)
+		var seg := _route(via[k], via[k + 1], float(kind["grade"]) * float(def.get("slack", 1.0)), wide)          # `slack` (wave 112): the router may use steeper natural ground, the profile is cut and filled to the real grade afterwards (hilly west)
 		if not nodes.is_empty() and not seg.is_empty():
 			seg = seg.slice(1)
 		nodes.append_array(seg)
@@ -165,6 +173,10 @@ static func _build_road(ri: int) -> void:
 		prof[0] = start_h
 		for i in range(1, n):
 			prof[i] = clampf(prof[i], prof[i - 1] - gk * seg[i], prof[i - 1] + gk * seg[i])
+		for i in range(n - 2, 0, -1):
+			prof[i] = clampf(prof[i], prof[i + 1] - gk * seg[i + 1], prof[i + 1] + gk * seg[i + 1])
+	if end_h > -1.0e8:                                    # wave 112: ends on another road: the last sample meets it at its height, the road eases into it under the grade limit
+		prof[n - 1] = end_h
 		for i in range(n - 2, 0, -1):
 			prof[i] = clampf(prof[i], prof[i + 1] - gk * seg[i + 1], prof[i + 1] + gk * seg[i + 1])
 	for i in range(1, n):                                 # clear of the rivers (causeway), ramps up to it
@@ -256,6 +268,7 @@ static func _route(a: Vector2, b: Vector2, grade: float, wide := false) -> Packe
 				pen = 160.0
 			elif TerrainHeight.city_distance(x, z) <= 0.0:
 				pen = 0.0
+			pen += OutskirtsSites.keep_clear(x, z)            # wave 112: a road never runs through the pad of a site it does not serve
 			penal[j * w + i] = pen
 	var ia := Vector2i(clampi(int(round((a.x - lo.x) / GRID)), 0, w - 1), clampi(int(round((a.y - lo.y) / GRID)), 0, h - 1))
 	var ib := Vector2i(clampi(int(round((b.x - lo.x) / GRID)), 0, w - 1), clampi(int(round((b.y - lo.y) / GRID)), 0, h - 1))
@@ -393,6 +406,53 @@ static func nearest(x: float, z: float) -> Array:
 			bh = h
 			bs = 1 if (_sb[i] == 1 and (nx < 0 or _sb[nx] == 1)) else 0
 	return [best, bi, bh, bs]
+
+
+## Wave 112: a town stands on a road. Inside the town's elliptical pad (centre `c`, `yaw` of its street, `r` across, `ln` along, `blend` more) the profile of every road that crosses it is levelled to the pad
+## height `y` with the same weight as the pad's carve (OutskirtsSites.carve): flat (and fixed) where the pad is flat, easing out under the road's own grade limit beyond it (a second grade pass over the
+## road that keeps the levelled samples), so the street, the lanes of the cars and the flat ground agree. The bench of the road is cut to the new profile (`_sh`) and the pad leaves the land beside
+## the road alone near its centre line in the blend zone (OutskirtsSites.carve), so the ground on the centre line is exactly the profile. Called by OutskirtsSites.ensure for each town, before RoadLanes copies the profiles.
+static var _fixed := PackedByteArray()
+static func level_profile(c: Vector2, yaw: float, r: float, ln: float, blend: float, y: float) -> void:
+	if _fixed.size() != _sp.size():
+		_fixed = PackedByteArray()
+		_fixed.resize(_sp.size())
+	var sn := sin(yaw)
+	var cs := cos(yaw)
+	var k := r / maxf(ln, r)
+	var touched := {}
+	for i in _sp.size():
+		var dx := _sp[i].x - c.x
+		var dz := _sp[i].y - c.y
+		var u := (dx * sn + dz * cs) * k
+		var v := dx * cs - dz * sn
+		var d := sqrt(u * u + v * v)
+		if d >= r + blend:
+			continue
+		var w := 1.0 - smoothstep(r, r + blend, d)
+		_sh[i] = lerpf(_sh[i], y, w)
+		if w >= 0.999:
+			_fixed[i] = 1
+		touched[_sr[i]] = true
+	for ri: int in touched.keys():                       # the grade limit holds again outside the flat part (a pad on a slope would otherwise add its blend to the road's own climb)
+		var road: Dictionary = _roads[ri]
+		var base: int = road["base"]
+		var pts: PackedVector2Array = road["pos"]
+		var n := pts.size()
+		var gk: float = float((KINDS[String(road["kind"])] as Dictionary)["grade"])
+		for _pass in 3:
+			for i in range(1, n):
+				if _fixed[base + i] == 0 and not (i == n - 1 and road.has("end_h")):
+					var sg := maxf(pts[i].distance_to(pts[i - 1]), 1.0)
+					_sh[base + i] = clampf(_sh[base + i], _sh[base + i - 1] - gk * sg, _sh[base + i - 1] + gk * sg)
+			for i in range(n - 2, 0, -1):
+				if _fixed[base + i] == 0:
+					var sg2 := maxf(pts[i + 1].distance_to(pts[i]), 1.0)
+					_sh[base + i] = clampf(_sh[base + i], _sh[base + i + 1] - gk * sg2, _sh[base + i + 1] + gk * sg2)
+		var prof: PackedFloat32Array = road["prof"]
+		for i in n:
+			prof[i] = _sh[base + i]
+		road["prof"] = prof
 
 
 ## `h` (the land with rivers) with the road bench cut in. Fast out when no road is near.

@@ -92,8 +92,8 @@ def main():
             meshes["drift_%s_0" % tag] = sp.build("drift", "0", var)
             meshes["drift_%s_1" % tag] = sp.build("drift", "1", var)
             print("drift_%s  tris %d / %d" % (tag, meshes["drift_%s_0" % tag].tri_count(), meshes["drift_%s_1" % tag].tri_count()))
-        for shape, flat in (("a", 0.55), ("c", 0.85)):
-            meshes["pebble_%s_0" % shape] = rocks.pebble(shape, 3, flat)
+        for shape, flat in (("a", 0.80), ("c", 1.0)):
+            meshes["pebble_%s_0" % shape] = rocks.pebble(shape, 2, flat)
             print("pebble_%s  tris %d" % (shape, meshes["pebble_%s_0" % shape].tri_count()))
         for var, tag in ((0, "a"), (1, "b")):                              # the rock arches of the anchors (22 m and 15 m span)
             meshes["arch_%s" % tag] = rocks.arch(var)

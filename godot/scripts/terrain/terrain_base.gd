@@ -142,7 +142,7 @@ static func biome_at(x: float, z: float, h: float) -> StringName:
 static func shade_weights(x: float, z: float, h: float) -> Color:
 	var fw := forest_weight(x, z)
 	var dw := desert_weight(x, z) * (1.0 - fw)
-	var shore := 1.0 - smoothstep(TerrainHeight.SEA_LEVEL + 0.3, TerrainHeight.SEA_LEVEL + 3.5, h)
+	var shore := 1.0 - smoothstep(TerrainHeight.SEA_LEVEL + 2.4, TerrainHeight.SEA_LEVEL + 7.0, h)             # wave 112: dry sand up to about 6 m above the sea (was 3.5 m: the beach read as a grass plain with a thin sand edge); the shader ragged-edges it with noise
 	var p := _patch.get_noise_2d(x, z)                                   # patchy meadows inside the forest zone, dry scrub inside the plains
 	fw = clampf(fw + p * 0.25, 0.0, 1.0)
 	return Color(fw, clampf(dw + p * 0.15, 0.0, 1.0), shore, 0.0)

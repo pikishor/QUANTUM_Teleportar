@@ -84,7 +84,7 @@ void fragment() {
 	float snow = smoothstep(snow_start, snow_full, v_wp.y) * smoothstep(0.35, 0.8, up);
 	col = mix(col, vec3(0.86, 0.9, 0.95), snow);
 	float lum = dot(col, vec3(0.3, 0.59, 0.11));
-	col *= v_ao * mix(1.0, 1.3, v_pebble);                       // pebbles (INSTANCE_CUSTOM.a = 1) are bleached by the sea: no moss, lighter
+	col *= v_ao * mix(1.0, 1.12, v_pebble);                      // pebbles (INSTANCE_CUSTOM.a = 1): no moss, a touch lighter (they were bleached to white popcorn at 1.3)
 	col *= mix(vec3(1.0), night_grade, night * 0.6);
 	col *= 1.0 - 0.28 * wetness;
 	ALBEDO = col;

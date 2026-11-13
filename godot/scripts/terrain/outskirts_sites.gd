@@ -47,7 +47,7 @@ static func ensure() -> void:
 	TerrainBase.warm()
 	list.clear()
 	_grid.clear()
-	for d in DEFS:
+	for d in DEFS + SettlementDefs.DEFS:                           # wave 112: and the seven towns (scripts/settlements/settlement_defs.gd, kind &"town")
 		var s: Dictionary = d.duplicate()
 		var c := Vector2.ZERO
 		var y := 0.0
@@ -59,15 +59,26 @@ static func ensure() -> void:
 			var dir: Vector2 = rd["dir"]
 			yaw = atan2(dir.x, dir.y)
 			c += dir * float(d["r"]) * 0.45                    # the centre lies a little beyond the end of the road, the road arrives at the pad
+		elif d.has("on_road"):                                 # a town stands ON a road: centred on it, yaw along it, the pad height from the land round it
+			var rs := SettlementDefs.resolve(d)
+			c = rs["c"]
+			y = float(rs["y"])
+			yaw = float(rs["yaw"])
 		else:
 			c = d["pos"]
 			y = _ring_mean(c, float(d["r"]))
 		s["pos"] = Vector3(c.x, y, c.y)
 		s["pad_y"] = y
 		s["yaw"] = yaw
-		s["reach"] = float(d["r"]) + float(d["blend"])
+		s["sn"] = sin(yaw)
+		s["cs"] = cos(yaw)
+		s["len"] = float(d.get("len", d["r"]))                 # half length of the pad along local +Z: a town is an ellipse (r across, len along its street), every other site a disc
+		s["reach_e"] = float(d["r"]) + float(d["blend"])       # the reach in the across metric of the pad (carve)
+		s["reach"] = maxf(float(s["len"]), float(d["r"])) + float(d["blend"]) * maxf(1.0, float(s["len"]) / float(d["r"]))      # the bounding radius in metres (the cell grid)
 		s["found"] = false
 		list.append(s)
+		if d.has("on_road"):                                   # the roads through the pad are levelled to its height (before RoadLanes copies the profiles)
+			TerrainRoads.level_profile(c, yaw, float(d["r"]), float(s["len"]), float(d["blend"]), y)
 	for i in list.size():
 		var p: Vector3 = list[i]["pos"]
 		var rr: float = list[i]["reach"] + 2.0
@@ -119,15 +130,14 @@ static func carve(x: float, z: float, h: float) -> float:
 		return h
 	for i: int in (cand as PackedInt32Array):
 		var s: Dictionary = list[i]
-		var p: Vector3 = s["pos"]
-		var d := Vector2(x - p.x, z - p.z).length()
-		var reach: float = s["reach"]
+		var d := _pad_d(s, x, z)
+		var reach: float = s["reach_e"]
 		if d >= reach:
 			continue
 		var r: float = s["r"]
 		var target: float = s["pad_y"]
 		var w := 1.0 - smoothstep(r, reach, d)
-		if s.has("road") and d > r:                            # a site at the end of a road leaves the road's own bench alone (the pad only shapes the land beside it)
+		if (s.has("road") or s.has("on_road")) and d > r:      # a site at the end of a road (or a town on one) leaves the road's own bench alone (the pad only shapes the land beside it)
 			var rn := TerrainRoads.nearest(x, z)
 			if int(rn[1]) >= 0:
 				w *= smoothstep(6.0, 14.0, float(rn[0]))
@@ -147,10 +157,42 @@ static func inside(x: float, z: float, margin := 0.0) -> int:
 	if cand == null:
 		return -1
 	for i: int in (cand as PackedInt32Array):
-		var p: Vector3 = list[i]["pos"]
-		if Vector2(x - p.x, z - p.z).length() < float(list[i]["r"]) + margin:
+		if _pad_d(list[i], x, z) < float(list[i]["r"]) + margin:
 			return i
 	return -1
+
+
+## Distance of (x, z) from the centre of a site's pad in the across metric: a plain distance for the discs, for a town (an ellipse, `len` along its street) the length along the street is scaled by r / len.
+static func _pad_d(s: Dictionary, x: float, z: float) -> float:
+	var p: Vector3 = s["pos"]
+	var dx := x - p.x
+	var dz := z - p.z
+	var r: float = s["r"]
+	var ln: float = s["len"]
+	if ln <= r + 0.01:
+		return sqrt(dx * dx + dz * dz)
+	var u := (dx * float(s["sn"]) + dz * float(s["cs"])) * r / ln
+	var v := dx * float(s["cs"]) - dz * float(s["sn"])
+	return sqrt(u * u + v * v)
+
+
+## Router penalty (TerrainRoads._route, wave 112): the pad of a free-standing site and its blend are no place for a road (a site at the end of a road and the towns, which stand on their own roads, are excluded).
+## Reads the constant data only, so it works while the roads are still being built.
+static func keep_clear(x: float, z: float) -> float:
+	var pen := 0.0
+	for d in DEFS:
+		if d.has("road"):
+			continue
+		var p: Vector2 = d["pos"]
+		var reach := float(d["r"]) + float(d["blend"]) + 30.0
+		if absf(p.x - x) < reach and absf(p.y - z) < reach and Vector2(p.x - x, p.y - z).length() < reach:
+			pen += 500.0
+	return pen
+
+
+## The mean ground height round (c, r): what a pad is set to when the data gives no height.
+static func ring_mean(c: Vector2, r: float) -> float:
+	return _ring_mean(c, r)
 
 
 static func by_id(id: StringName) -> Dictionary:

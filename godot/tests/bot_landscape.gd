@@ -254,7 +254,35 @@ func _apply(p: Player, v: String, k: int) -> void:
 	var z := 0.0
 	var yaw := 0.0
 	var dist := -1.0
-	if v.begins_with("beach:"):                              # "beach:z[,yaw_off_deg,dist[,inland]]": the real hero on the west beach at z, `inland` m above the first dry sand (default 14), facing the sea (west) turned by yaw_off degrees
+	if v.begins_with("pool:"):                               # "pool:i[,r,az_deg,cam_dist]": the real hero r m from the plunge pool of waterfall i, az degrees off the downstream direction, facing the fall
+		var apl := v.substr(5).split(",")
+		var fl2 := LandscapeSites.falls()
+		var fi2 := int(apl[0])
+		if fi2 >= fl2.size():
+			return
+		var fw2: Dictionary = fl2[fi2]
+		var pr := float(apl[1]) if apl.size() > 1 else 26.0
+		var paz := deg_to_rad(float(apl[2])) if apl.size() > 2 else 0.0
+		var ppos: Vector2 = (fw2["pool"] as Vector2) + (fw2["dir"] as Vector2).rotated(paz) * pr
+		var toward: Vector2 = ((fw2["base"] as Vector2) - ppos).normalized()
+		x = ppos.x
+		z = ppos.y
+		yaw = atan2(-toward.x, -toward.y)
+		dist = float(apl[3]) if apl.size() > 3 else -1.0
+	elif v.begins_with("airstrip:"):                         # "airstrip:i[,along_m,yaw_off_deg,cam_dist]": the real hero on airstrip i, along_m from its centre along the strip, facing along it (turned by yaw_off)
+		var ast := v.substr(9).split(",")
+		var sl2 := LandscapeSites.strips()
+		var si2 := int(ast[0])
+		if si2 >= sl2.size():
+			return
+		var st2: Dictionary = sl2[si2]
+		var su: Vector2 = st2["u"]
+		var sp2: Vector2 = (st2["c"] as Vector2) + su * (float(ast[1]) if ast.size() > 1 else -120.0)
+		x = sp2.x
+		z = sp2.y
+		yaw = atan2(-su.x, -su.y) + PI + deg_to_rad(float(ast[2]) if ast.size() > 2 else 0.0)
+		dist = float(ast[3]) if ast.size() > 3 else -1.0
+	elif v.begins_with("beach:"):                            # "beach:z[,yaw_off_deg,dist[,inland]]": the real hero on the west beach at z, `inland` m above the first dry sand (default 14), facing the sea (west) turned by yaw_off degrees
 		var ab := v.substr(6).split(",")
 		z = float(ab[0])
 		var bx := -(TerrainHeight.WORLD_HALF - 120.0)

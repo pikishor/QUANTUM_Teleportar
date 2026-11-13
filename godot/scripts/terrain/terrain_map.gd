@@ -5,14 +5,15 @@ extends RefCounted
 ## `poll()` (TerrainWorld calls it every frame). Until then `texture` is null and the map keeps its dark ground.
 ## world_to_uv(x, z) maps world metres to 0..1 on it; region_name(x, z) is the name the map prints.
 
-const RES := 512
+const RES := 768                                        ## wave 112: 9 km world: 11.7 m per pixel (it was 512 px over 6 km)
 const MARGIN := 1                                       ## heights are sampled one pixel beyond the image for the hill shading
 
 ## Region names printed on the WORLD map (x, z in metres).
 const LABELS := [["HIGH RANGE", Vector2(1650, -1700)], ["FOREST HILLS", Vector2(-1600, -1300)], ["DRY PLAINS", Vector2(1650, 900)], ["COAST", Vector2(-1750, 700)], ["OPEN SEA", Vector2(-2300, 2300)],
-	["MIRROR LAKE", Vector2(-250, -2150)], ["PASS ROAD", Vector2(150, -1500)], ["CITY", Vector2(0, 0)]]
+	["MIRROR LAKE", Vector2(-250, -2150)], ["PASS ROAD", Vector2(150, -1500)], ["CITY", Vector2(0, 0)],
+	["EAST RANGE", Vector2(2900, -400)], ["WEST FOREST", Vector2(-2400, -1100)], ["SILVER MERE", Vector2(-2450, -90)], ["SOUTH SEA", Vector2(300, 3300)]]
 
-const WATER_N := 128                                     ## the coarse water mask (47 m cells) the boat GPS (WorldRoute) searches
+const WATER_N := 192                                     ## the coarse water mask (47 m cells over the 9 km world) the boat GPS (WorldRoute) searches
 static var water_mask := PackedByteArray()              ## 1 = sea / river / lake, set by `_build` (read it once `ready`)
 ## The colour key printed beside the world map: [name, the colour the picture paints it in (before the hill shading)].
 const BIOME_KEY := [["SEA AND LAKES", Color(0.07, 0.3, 0.46)], ["COAST", Color(0.72, 0.68, 0.5)], ["PLAINS", Color(0.32, 0.45, 0.24)], ["FOREST", Color(0.15, 0.36, 0.2)],

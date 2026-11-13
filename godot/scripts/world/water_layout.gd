@@ -26,6 +26,7 @@ const LAKES := [
 	{"name": "MIRROR LAKE", "c": Vector2(-250, -2150), "r": 150.0, "depth": 9.0},
 	{"name": "QUARRY LAKE", "c": Vector2(2000, -700), "r": 95.0, "depth": 7.0},
 	{"name": "HIGH TARN", "c": Vector2(900, -2500), "r": 70.0, "depth": 5.0},
+	{"name": "SILVER MERE", "c": Vector2(-2450, -90), "r": 150.0, "depth": 8.0},                 # wave 112: where the HIGHLINE RIVER ends in the new western land (it used to stop in the forest)
 ]
 static var EMPTY := PackedFloat32Array()
 
