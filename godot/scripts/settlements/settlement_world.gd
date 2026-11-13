@@ -46,6 +46,7 @@ var _rest_ready := {}
 var _clock := 0.0
 var _use_tick := 0.0
 var _shadow_t := 0.0
+var _ab := 0                                      ## perf A/B (QT_TOWNS_AB=n): 1 no near chunks, 2 no far meshes, 4 no folk, 8 no door glow, 16 no parked-car hook (read once)
 var folk := SettlementFolk.new()                 ## the people standing at their posts (pinned slots of the city crowd)
 var _folk_crowd: RefCounted = null
 
@@ -58,6 +59,7 @@ static func attach(parent: Node) -> SettlementWorld:
 
 
 func _ready() -> void:
+	_ab = int(OS.get_environment("QT_TOWNS_AB")) if OS.get_environment("QT_TOWNS_AB") != "" else 0
 	instance = self
 	TerrainHeight.warm()
 	OutskirtsSites.ensure()
@@ -154,7 +156,8 @@ func _process(delta: float) -> void:
 	if not _hero.is_finite():
 		return
 	_stream(_hero, 1)
-	_step_folk(TICK)
+	if _ab & 4 == 0:
+		_step_folk(TICK)
 	_shadow_t -= TICK
 	if _shadow_t <= 0.0:
 		_shadow_t = 0.5
@@ -162,7 +165,8 @@ func _process(delta: float) -> void:
 	_marker_t -= TICK
 	if _marker_t <= 0.0:
 		_marker_t = 0.4
-		_refresh_markers()
+		if _ab & 8 == 0:
+			_refresh_markers()
 
 
 ## One round of streaming around `p`: builds at most `budget` chunks (and one far mesh), frees what is out of range.
@@ -175,7 +179,7 @@ func _stream(p: Vector3, budget: int) -> void:
 		var d := Vector2(sp.x - p.x, sp.z - p.z).length()
 		var plan: SettlementPlan = t["plan"]
 		var reach := maxf(plan.r, plan.ln) + br
-		if d < FAR_BUILD_R and t["far"] == null:
+		if d < FAR_BUILD_R and t["far"] == null and _ab & 2 == 0:
 			_build_far(t)
 		elif d > FAR_BUILD_R + 600.0 and t["far"] != null:
 			(t["far"] as Node).queue_free()
@@ -189,7 +193,7 @@ func _stream(p: Vector3, budget: int) -> void:
 		var want: Array = []
 		var dims: Vector2i = t["dims"]
 		var org: Vector2 = t["origin"]
-		for cj in dims.y:
+		for cj in (0 if _ab & 1 != 0 else dims.y):
 			for ci in dims.x:
 				var key := cj * 100 + ci
 				var centre := Vector2(org.x + (float(ci) + 0.5) * CH, org.y + (float(cj) + 0.5) * CH)

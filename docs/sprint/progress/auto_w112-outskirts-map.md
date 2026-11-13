@@ -1,6 +1,6 @@
 # w112-outskirts-map (running)
 
-agent id ab9a223c65307f5bd, 1340 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T13:10:13.334Z
+agent id ab9a223c65307f5bd, 1342 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T13:10:28.691Z
 
 ## Last notes of the agent
 
@@ -13,7 +13,6 @@ agent id ab9a223c65307f5bd, 1340 events, first activity 2026-11-13T09:11:14.655Z
 
 ## Recent steps (last 40)
 
-- 12:28:06 See how pads are consumed by AirportWorld and spawns
 - 12:28:21 Read VehicleSpawns.all_points
 - 12:28:27 Read OutskirtsSites.vehicle_points
 - 12:28:37 Spawn helis on town helipads, add map pins, let the hotel roof be landable
@@ -53,6 +52,7 @@ agent id ab9a223c65307f5bd, 1340 events, first activity 2026-11-13T09:11:14.655Z
 - 13:06:43 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_c_002.png
 - 13:06:57 Render four towns at LOW at phone resolution
 - 13:09:14 Measure LOW draw counts without towns at the same views
+- 13:10:28 A/B the draw cost of towns subsystems at LOW
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

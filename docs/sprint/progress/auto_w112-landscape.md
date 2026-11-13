@@ -1,6 +1,6 @@
 # w112-landscape (running)
 
-agent id af6ad2b71b0e9dc0c, 897 events, first activity 2026-11-13T09:11:12.410Z, last activity 2026-11-13T13:10:16.490Z
+agent id af6ad2b71b0e9dc0c, 924 events, first activity 2026-11-13T09:11:12.410Z, last activity 2026-11-13T13:10:49.830Z
 
 ## Last notes of the agent
 
@@ -8,15 +8,6 @@ agent id af6ad2b71b0e9dc0c, 897 events, first activity 2026-11-13T09:11:12.410Z,
 
 ## Recent steps (last 40)
 
-- 12:06:37 Census the landscape and vegetation geometry drawn at the perf spawn in a real render run
-- 12:07:32 Show the unfiltered output of the census run
-- 12:08:22 Rerun the census with the correct rendering info call
-- 12:09:24 Rerun the census with a longer shot interval so the bot reaches its measuring frame
-- 12:10:54 Find every user of the two environment flags
-- 12:11:27 List landscape geometry that has no visibility range at the perf spawn
-- 12:13:53 Print the landscape geometry whose AABB centre is within its visibility range
-- 12:15:48 Bisect which landscape part changes the draw count at the perf spawn
-- 12:26:22 Find users of the landscape classes outside their own folder
 - 12:26:37 Compare the perf census lines of the frozen tree with and without my systems
 - 12:30:25 Check how the perf bot prints its census
 - 12:30:37 Look for global random number use in my code
@@ -48,6 +39,15 @@ agent id af6ad2b71b0e9dc0c, 897 events, first activity 2026-11-13T09:11:12.410Z,
 - 13:06:09 Stage the landscape wake over frames and rerun the test
 - 13:07:31 Measure the frame times while the landscape wakes after crossing the edge
 - 13:08:32 Update the architecture notes for the lazy wake, falls on demand and hints
+- 13:10:21 
+- 13:10:21 Show working tree status and free disk
+- 13:10:25 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/anchor_world.gd
+- 13:10:28 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/landscape.gd
+- 13:10:32 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/anchor_world.gd
+- 13:10:32 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/anchor_world.gd
+- 13:10:38 
+- 13:10:47 
+- 13:10:49 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/vegetation_world.gd
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
