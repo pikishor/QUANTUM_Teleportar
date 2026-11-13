@@ -1,6 +1,6 @@
 # w112-integrator (running)
 
-agent id a4a927fff584397e1, 76 events, first activity 2026-11-13T22:13:26.271Z, last activity 2026-11-13T22:15:21.476Z
+agent id a4a927fff584397e1, 103 events, first activity 2026-11-13T22:13:26.271Z, last activity 2026-11-13T22:16:30.403Z
 
 ## Last notes of the agent
 
@@ -30,6 +30,14 @@ agent id a4a927fff584397e1, 76 events, first activity 2026-11-13T22:13:26.271Z, 
 - 22:15:05 Run the asset import and class cache rebuild
 - 22:15:20 Check import log for errors and status count
 - 22:15:20 Read test.sh and perf_report.sh
+- 22:15:39 Inspect sprint progress digest files
+- 22:15:40 Size of undocumented dev probes
+- 22:15:47 Check status of the sprint progress directory
+- 22:15:48 Count tracked-modified and untracked entries, list branches
+- 22:15:52 Check the new notes commit and remote state
+- 22:16:01 Check whether the root scratch PNGs are referenced
+- 22:16:23 Move unreferenced dev probes out of the repo and remove stray root PNGs
+- 22:16:30 Find the Godot user data directory and stale roam profile
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
