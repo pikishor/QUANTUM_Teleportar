@@ -215,7 +215,7 @@ static func _build_pads() -> Array[Dictionary]:
 			&"airport":
 				p = Airport.to_world(Vector3(1188.0, 0.0, -560.0))            # the open apron south of the last gate, clear of the parked airliners and the terminal's canopy
 			&"harbour":
-				p = Vector3(-282.0, 0.0, 1360.0)
+				p = Vector3(-282.0, 0.0, 1334.0)                                 # wave 112 critic: the first spot (-282, 1360) stood INSIDE the 70 x 30 m harbour shed (x -335..-265, z 1347..1377): never found on foot, a teleport to it dropped the hero through the world; this is the open apron at the end of the harbour road, 13 m north of the shed
 			&"site":
 				var s := OutskirtsSites.by_id(StringName(d["site"]))
 				if not s.is_empty():

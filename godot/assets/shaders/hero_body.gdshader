@@ -266,7 +266,7 @@ void fragment() {
 			} else {
 				vec3 t = vec3(1.0 / 2.2);                         // no atlas loaded: flat colours per kind
 				vec3 o = vec3(1.0, 0.45, 0.45);
-				vec3 tint = kind < 6.5 ? plate_col : (kind < 7.5 ? trim_paint : (kind < 8.5 ? vec3(0.07, 0.075, 0.085) : (kind < 9.5 ? cloth_col2 : (kind < 11.5 ? vec3(0.2, 0.17, 0.13) : (kind < 12.5 ? gold_col : cloth_col2 * 1.4)))));
+				vec3 tint = kind < 6.5 ? plate_col : (kind < 7.5 ? trim_paint : (kind < 8.5 ? vec3(0.07, 0.075, 0.085) : (kind < 9.5 ? cloth_col2 : (kind < 11.5 ? vec3(0.2, 0.17, 0.13) : (kind < 12.5 ? gold_col : plate_col * 0.42 + trim_paint * 0.22 + cloth_col2 * 0.5)))));
 				if (gear_tex > 0.5) {
 					vec2 kx = gdx * 0.6;                           // a sharper mip level (the kit atlas has many narrow islands: the full mip chain blends neighbours)
 					vec2 ky = gdy * 0.6;

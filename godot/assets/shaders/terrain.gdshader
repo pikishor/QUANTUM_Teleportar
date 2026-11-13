@@ -146,7 +146,10 @@ void fragment() {
 				rock = mix(rock, r_dark, dark_k);
 			}
 		} else {
-			rock = mix(lay(4, wpos.xz * uv_scale * 0.7, gx * 0.7, gy * 0.7), lay(8, wpos.xz * uv_scale * 0.56, gx * 0.56, gy * 0.56), strata_k * 0.7);
+			// LOW: one top-down projection (no tri-planar). On a slope the strata layer stretched into regular horizontal ripples over the whole mountain (corduroy): bend it with a slow noise warp
+			// (ALU only, no texture sample) and give it a smaller share
+			vec2 sw_low = (vec2(vnoise(wpos.xz * 0.05), vnoise(wpos.xz * 0.05 + 7.0)) - 0.5) * 3.2;
+			rock = mix(lay(4, wpos.xz * uv_scale * 0.7, gx * 0.7, gy * 0.7), lay(8, wpos.xz * uv_scale * 0.56 + sw_low, gx * 0.56, gy * 0.56), strata_k * 0.45);
 		}
 		ground = mix(ground, rock, rock_w);
 		bump_k = mix(bump_k, 1.0, rock_w);

@@ -1,6 +1,10 @@
-# w112-hero-look (running)
+# w112-hero-look (done)
 
-agent id a69d96b40de14c54e, 1509 events, first activity 2026-11-13T14:59:05.954Z, last activity 2026-11-13T19:16:16.317Z
+agent id a69d96b40de14c54e, 1530 events, first activity 2026-11-13T14:59:05.954Z, last activity 2026-11-13T19:24:15.367Z
+
+## Final report
+
+REPORT w112-hero-look (hero look v3, Round 6 wave 112). Working tree only, NOTHING committed or pushed. Progress log: /home/user/QUANTUM_Teleportar/docs/sprint/progress/w112-hero-look.md VERDICT: done and verified (software renderer only, nothing run on a phone). Perf gate is OK on all three tiers. PERF GATE (PERF_CHECK=1 tools/perf_report.sh 0 1 2, run by me last on the shared working tree that includes every builder's uncommitted changes): PERF RESULT tier=0 label=LOW renderer=mobile touch=0 draws=74 prims=138801 total_draws=96 total_prims=139667 nodes=2892 tex_mb=110 lights=3 hud_draws=21 death_draws=108 death_prims=134393 enemies=4 verdict=OK PERF RESULT tier=1 label=MED renderer=mobile touch=0 draws=97 prims=240518 total_draws=129 total_prims=272186 nodes=3030 tex_mb=141 lights=9 hud_draws=24 death_draws=144 death_prims=268140 enemies=4 verdict=OK PERF RESULT tier=2 label=HIGH renderer=mobile touch=0 draws=113 prims=326420 total_draws=149 total_prims=377842 nodes=3148 tex_mb=207 lights=12 hud_draws=25 death_draws=166 death_prims=371530 enemies=4 verdict=OK Attribution (A/B in a clean checkout of HEAD 2b4c37b plus ONLY my files, scratch worktree removed afterwards): HEAD alone MED = 130 total draws / 276,878 prims / tex 175 MB; HEAD + hero = MED 130 / 274,440 / 146 MB, LOW 96 / 139,473 / 115 MB, HIGH 149 / 368,888 / 207 MB, all OK. Hero LOD0 is 16,143 triangles against 16,023 before (one surface, one draw). Hero texture memory fell about 34 MB (tex limits untouched). My FIRST MED run was OVER (296,720 prims) although the triangle count was the same: the merged hero's LOD edge lengths (flat plates) made the engine keep fine LODs far too long (hero + shadow proxy + mirror). Fixed in HeroCharacter.LOD_SCHEDULE: the generated LODs get the old hero's switch sizes by triangle share (LODs: 16143, 8071, 3929, 959, 452, 192 triangles). Later runs differ only by other builders' concurrent changes (HIGH prims 369.5k -> 377.8k between my two last runs, limit 430k). APK effect (estimate from the import cache, no Android export here): repo +2.4 MB (hero_suit.glb 0.35, atlas albedo/normal/orm 0.83, 7 webp portraits 0.06, RGBA suit masks in the two rough maps ~+1) plus 3.9 MB of contact sheets (not in the APK). In an APK about +7.5 MB: hero textures re-imported VRAM compressed with mipmaps (skin colour ETC2/DXT1, 2K body normals limited to 1K, rest ASTC/BPTC) = 25 MB for the whole hero set vs ~18 MB lossless before (ASTC 4x4 everywhere would have been +26 MB; a 4x zoom of the face shows no visible loss, mean difference 0.09/255). WHITE RECTANGLES ON THE LEGS: a REAL defect. They were the procedural box gear (HeroCharacter._gear_boxes: pale bevelled boxes bound to calf/thigh bones that floated off the legs when running, visible in owner round 5 and in my BEFORE renders). Replaced by the suit kit; _gear_piece stays only as fallback when hero_suit.glb is absent. Test checks the atlas under every kit vertex for black/white texels (none). WHAT WAS BUILT - Kit ...
 
 ## Last notes of the agent
 
@@ -13,12 +17,6 @@ agent id a69d96b40de14c54e, 1509 events, first activity 2026-11-13T14:59:05.954Z
 
 ## Recent steps (last 40)
 
-- 18:36:43 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/compat/c_three.png
-- 18:36:45 Run the final perf gate on the shared working tree for all three tiers
-- 18:43:10 Measure imported hero texture sizes (APK effect estimate)
-- 18:43:30 Compare the hero texture import settings before and after
-- 18:43:49 Find the current APK size and any APK budget in the docs
-- 18:44:18 See how other project textures set the VRAM quality
 - 18:44:25 Sum the mobile-format imported sizes of all hero textures
 - 18:44:43 Check how the LOW tier halving handles VRAM compressed textures
 - 18:44:45 Read halve_texture and _low_tex
@@ -53,6 +51,12 @@ agent id a69d96b40de14c54e, 1509 events, first activity 2026-11-13T14:59:05.954Z
 - 19:12:24 /home/user/QUANTUM_Teleportar/docs/shots/round6/hero_customisation.jpg
 - 19:12:30 Re-run the hero, UI and demo tests after the final kit changes
 - 19:16:16 Final perf gate for all three tiers on the shared tree after the last kit change
+- 19:22:56 Append the wave 112 hero look v3 section to HANDOFF.md
+- 19:23:07 Add the later iterations to the iteration notes
+- 19:23:13 Delete my scratch render directories and files
+- 19:23:26 /home/user/QUANTUM_Teleportar/docs/sprint/progress/w112-hero-look.md
+- 19:23:31 Final sanity: debug leftovers, parse errors and my untracked files
+- 19:24:15 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

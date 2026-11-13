@@ -31,16 +31,20 @@ uniform vec3 aurora_a : source_color = vec3(0.20, 0.90, 0.85);
 uniform vec3 aurora_b : source_color = vec3(0.65, 0.30, 0.95);
 // Real urban light probes (Poly Haven CC0 HDRIs, tools/materials/pack_sky_probes.py): 256 x 128 equirect, Reinhard-encoded (c = s / (1 - s)). They tint the horizon, the street glow and the ground bounce
 // of BOTH the visible sky and the radiance cubemap (ambient + reflections); the procedural sky (clouds, stars, moon, aurora) stays on top. Weights per probe come from DayNight.sky_look.
-uniform sampler2D probe_dusk : filter_linear, repeat_enable, hint_default_black;
-uniform sampler2D probe_night : filter_linear, repeat_enable, hint_default_black;
-uniform sampler2D probe_over : filter_linear, repeat_enable, hint_default_black;
+uniform sampler2D probe_dusk : filter_linear_mipmap, repeat_enable, hint_default_black;
+uniform sampler2D probe_night : filter_linear_mipmap, repeat_enable, hint_default_black;
+uniform sampler2D probe_over : filter_linear_mipmap, repeat_enable, hint_default_black;
 uniform vec3 probe_w = vec3(0.0);                          // dusk, night, overcast weights (0 = off: no tap is made)
 uniform vec3 probe_gain = vec3(0.9, 0.5, 0.8);
 uniform float probe_amount : hint_range(0.0, 1.0) = 0.0;
 
+// Wave 112 critic (LOOK): the probe is a 256 x 128 photograph with real buildings in it. Read at full detail its towers and roof edges were pasted into the sky as dark rectangles with hard edges
+// (over the sea at dawn: a pink-brown block with a vertical edge; "blocky clouds" at dusk). The probe only tints the haze, the street glow and the radiance, so it is read from a blurred mip level.
+const float PROBE_BLUR = 3.4;
+
 vec3 probe_tap(sampler2D s, vec3 d) {
 	vec2 uv = vec2(atan(d.x, -d.z) * 0.15915494 + 0.5, acos(clamp(d.y, -1.0, 1.0)) * 0.31830989);
-	vec3 e = texture(s, uv).rgb;
+	vec3 e = textureLod(s, uv, PROBE_BLUR).rgb;
 	return e / (1.0 - min(e, vec3(0.985)));
 }
 

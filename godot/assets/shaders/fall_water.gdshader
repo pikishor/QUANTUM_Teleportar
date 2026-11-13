@@ -73,10 +73,10 @@ void fragment() {
 		float churn = (lip * 0.7 + foot) * (0.55 + 0.45 * vnoise(vec2(across * 13.0, t * 3.0 + down * 0.4)));
 		float mid = smoothstep(0.0, 0.42, across) * smoothstep(1.0, 0.58, across);           // thick in the middle, thin at the sides
 		float thick = clamp(mid * 0.75 + dens * 0.5, 0.0, 1.0);
-		float foam_k = clamp(streak * (0.35 + 0.65 * thick) + churn + mid * 0.12, 0.0, 1.0);
-		vec3 thin_col = vec3(0.30, 0.52, 0.62);
+		float foam_k = clamp(streak * (0.45 + 0.75 * thick) + churn + mid * 0.30, 0.0, 1.0);          // wave 112 critic (LOOK): the sheet read as a grey-blue streaked banner, not as white water
+		vec3 thin_col = vec3(0.34, 0.60, 0.70);
 		vec3 white = vec3(0.86, 0.94, 1.0);
-		col = mix(thin_col, white, foam_k * foam_k * (3.0 - 2.0 * foam_k));
+		col = mix(thin_col, white, smoothstep(0.12, 0.85, foam_k));
 		a = clamp(0.22 + 0.70 * thick + churn * 0.5, 0.0, 0.97) * COLOR.a;
 		float ragged_l = vnoise(vec2(down * 0.33 - t * 0.6, 3.0)) * 0.6 + vnoise(vec2(down * 1.1 - t * 1.5, 5.0)) * 0.4;
 		float ragged_r = vnoise(vec2(down * 0.29 - t * 0.5, 9.0)) * 0.6 + vnoise(vec2(down * 1.3 - t * 1.4, 11.0)) * 0.4;
@@ -87,7 +87,7 @@ void fragment() {
 		nrm = vec3(gr.x * 0.07, gr.y * 0.04, 0.0);                      // a small push of the view space normal: glints along the streaks
 		rough = 0.3;
 		spec = 0.4;
-		glow = 0.09;
+		glow = 0.17;
 	} else if (mode == 3) {
 		float across = UV.x;
 		float down = UV.y;
@@ -126,9 +126,9 @@ void fragment() {
 		a = clamp(0.66 + 0.28 * depth_k, 0.0, 0.94);
 		a = mix(a, 1.0, foam * 0.85);
 		a *= 1.0 - smoothstep(0.88, 1.0, d);                                    // the water thins out to nothing at the bank
-		rough = mix(0.06, 0.55, foam);
-		spec = 0.7;
-		glow = 0.10;
+		rough = mix(0.16, 0.55, foam);                                          // a pool that mirrors the bright sky was a grey glary sheet with a hard polygon edge
+		spec = 0.5;
+		glow = 0.14;
 	} else {
 		float across = UV.x - 0.5;
 		float along = UV.y;
@@ -140,8 +140,8 @@ void fragment() {
 		g += vec2(vnoise(p * vec2(1.0, 0.6) + vec2(e, 0.0)) - n0, vnoise(p * vec2(1.0, 0.6) + vec2(0.0, e)) - n0) / e * 0.07;
 		nrm = normalize(vec3(-g.x, 1.0, -g.y));
 		float streak = smoothstep(0.58, 0.86, vnoise(vec2(across * 11.0, along * 0.7 - t * speed * 0.3 * (0.5 + spd))));
-		float foam = clamp(streak * spd * 0.9 + smoothstep(0.2, 0.0, 0.5 - abs(across)) * 0.30, 0.0, 1.0);
-		col = mix(mix(shallow_col.rgb, deep_col.rgb, 0.45), foam_col.rgb, foam);
+		float foam = clamp(streak * spd * 0.6 + smoothstep(0.2, 0.0, 0.5 - abs(across)) * 0.30, 0.0, 1.0);
+		col = mix(mix(shallow_col.rgb, deep_col.rgb, 0.6), foam_col.rgb, foam);
 		a = (0.74 + 0.2 * foam) * COLOR.a;
 		rough = mix(0.22, 0.55, foam);                                          // never a mirror: on a slope the stream is white water, not a polished strip
 		spec = 0.35;

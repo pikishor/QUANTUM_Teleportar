@@ -406,18 +406,27 @@ def cape(kit, body, M):
     top = 1.505
     bot_in, bot_out = 0.940, 0.690                      # a slanted hem (the outer edge hangs lower): the cloak is no rectangle, and neither is its shadow on the street
 
+    def hem_z(s):
+        # wave 112 critic (LOOK): the cape was a flat 7 x 5 sheet that read as a black board stuck to the pack in every frame from behind (owner round 2: "a black rectangle patch on the hero").
+        # Now 14 x 12 quads with vertical folds that deepen toward the hem and a scalloped, slanted hem: the light breaks on the folds and the silhouette is cloth.
+        return lerp(bot_in, bot_out, s) + 0.024 * math.sin(s * math.pi * 5.0 + 0.4) * (0.35 + 0.65 * s)
+
+    def fold(s, t):
+        k = t ** 1.15
+        return k * (0.022 * math.sin(s * math.pi * 3.0 + 0.5) + 0.010 * math.sin(s * math.pi * 6.5 + 1.7))
+
     def pt(s, t):
-        z = lerp(top, lerp(bot_in, bot_out, s), t)
+        z = lerp(top, hem_z(s), t)
         x0 = lerp(-0.125, -0.085, t) - 0.0
         x1 = lerp(-0.330, -0.395, t * t * 0.6 + t * 0.4)
         x = lerp(x0, x1, s)
         r = body.ray(Vector((x, -1.0, z)), Vector((0, 1, 0)), 1.5)
         yb = r[0].y if r else -0.13
-        y = yb - (0.030 + 0.075 * t + 0.045 * math.sin(s * math.pi) * t)
+        y = yb - (0.030 + 0.075 * t + 0.045 * math.sin(s * math.pi) * t) - fold(s, t)
         return Vector((x, y, z))
 
     p = kit.new("cape")
-    v, f = sheet(7, 5, pt, (0, -1, 0))
+    v, f = sheet(14, 12, pt, (0, -1, 0))
     p.raw(v, f, M["cloak"], closed=False, bevel=0.0, mirror=False)
     kit.done(p, "chain:Sec1,Sec2,Sec3", K_CLOTH, Z_ARMS, HEAVY)
     kit.parts[-1].props["chain_pos"] = ";".join("%.4f,%.4f,%.4f" % (x, z, -y) for (x, y, z) in chain)      # model space
@@ -426,7 +435,7 @@ def cape(kit, body, M):
     def hem(s, t):
         q = pt(s, 1.0)
         return Vector((q.x, q.y - 0.001 * (1 - t), q.z + 0.012 * (1 - t)))
-    v, f = sheet(1, 5, hem, (0, -1, 0))
+    v, f = sheet(1, 12, hem, (0, -1, 0))
     g.raw(v, f, M["glow"], closed=False, bevel=0.0, mirror=False)
     kit.done(g, "chain:Sec1,Sec2,Sec3", K_GLOW, Z_ARMS, HEAVY)
     kit.parts[-1].props["chain_pos"] = kit.parts[-2].props["chain_pos"]

@@ -18,6 +18,8 @@ Updated 2026-11-13 15:55Z.
 - Hero look (w112-hero-look): running since 14:59Z (17:30Z: armour kit, glow API, 6 suit presets and the rebuilt SUIT screen are in; portraits, test_hero_look_v3, perf gate, contact sheet and docs still to do; notes in docs/sprint/progress/w112-hero-look.md). Not started: wave 112 critic-fixers, integrator and CI watcher, and waves 113 to 121 (the full plan is docs/ROUND6.md).
 
 ## Next
+- 20:30Z: all three wave 112 builders are done (hero look v3 finished 19:24Z: 220-check test, perf gate OK on all tiers, white leg rectangles fixed). The critic-fixers (look, play) have run since 19:24Z, then the wave 112 integrator and CI watcher. Rough plan from the measured pace: wave 112 on main about 23:30Z to 01:00Z, wave 113 done about 13:00Z to 17:00Z on 11-14, wave 114 starts after that and ends about 11-15 early morning (all UTC, only if the usage limit does not interrupt).
+- EXTRA APK (not in the script): when the wave 112 integrator has pushed to main, start scratchpad/ci_then_apk.sh <ci run id> in the background (waits for green CI, builds the APK, prints the link) and send the owner the link.
 - If the limit hits again: wait for the reset, then follow docs/sprint/RESUME.md (startWave 112, skipTags ["cars-pass2"], plus whatever the progress files say is already done).
 - When wave 112 finishes: the integrator commits to main after the full suite, the perf gate (LOW, MED, HIGH) and visual QA. APK points: waves 113, 115, 116, 119, 121.
 - Backup: godot/tools/wip_snapshot.sh. The 2-hour background loop ended at its time limit and is not restarted; snapshots now happen at every check-in (about every 100 minutes) and every time the Stop hook asks.
