@@ -45,21 +45,26 @@ void fragment() {
 	vec2 T = normalize(vtan + vec2(0.0001, 0.0));
 	vec2 B = vec2(-T.y, T.x);
 	float rip_fade = 1.0 - smoothstep(30.0, 200.0, length(VERTEX));
-	// along-river ripples are long (low frequency along s), across-river ones short; they slide downstream at the current speed
+	// wave 112: three layers (a slow swell, a mid ripple, a fine ripple near the camera) at much higher frequencies than before: the old 5 m x 2 m ripples were read as dark dimples
 	float adv = still ? 0.12 : spd;
-	vec2 fq1 = vec2(still ? 0.5 : 0.2, 0.5);
-	vec2 q1 = p * fq1 - vec2(t * adv * 0.8 * fq1.x, 0.0);
 	float e = 0.15;
+	vec2 fq1 = vec2(still ? 0.22 : 0.16, 0.34);
+	vec2 q1 = p * fq1 - vec2(t * adv * 0.6 * fq1.x, 0.0);
 	float n1 = vnoise(q1);
 	vec2 g1 = vec2(vnoise(q1 + vec2(e, 0.0)) - n1, vnoise(q1 + vec2(0.0, e)) - n1) / e * fq1;
-	vec2 g = g1 * 0.4 * rip_fade;
+	vec2 g = g1 * 0.16 * rip_fade;
 	float n2 = 0.5;
 	if (detail >= 1) {
-		vec2 fq2 = vec2(still ? 1.3 : 0.5, 1.3);
+		vec2 fq2 = vec2(still ? 1.1 : 0.55, 1.5);
 		vec2 q2 = p * fq2 - vec2(t * adv * 1.6 * fq2.x, 0.0) + 9.0;
 		n2 = vnoise(q2);
 		vec2 g2 = vec2(vnoise(q2 + vec2(e, 0.0)) - n2, vnoise(q2 + vec2(0.0, e)) - n2) / e * fq2;
-		g += g2 * 0.28 * rip_fade;
+		g += g2 * 0.15 * rip_fade;
+		vec2 fq3 = vec2(still ? 3.4 : 1.8, 4.6);
+		vec2 q3 = p * fq3 - vec2(t * adv * 2.4 * fq3.x, t * 0.15) + 31.0;
+		float n3 = vnoise(q3);
+		vec2 g3 = vec2(vnoise(q3 + vec2(e, 0.0)) - n3, vnoise(q3 + vec2(0.0, e)) - n3) / e * fq3;
+		g += g3 * 0.07 * (1.0 - smoothstep(8.0, 45.0, length(VERTEX)));
 	}
 	vec2 gw = T * g.x + B * g.y;
 	vec3 n = normalize(vec3(-gw.x, 1.0, -gw.y));

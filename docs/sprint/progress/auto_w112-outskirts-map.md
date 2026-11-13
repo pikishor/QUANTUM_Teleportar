@@ -1,56 +1,58 @@
 # w112-outskirts-map (running)
 
-agent id ab9a223c65307f5bd, 569 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T10:23:39.140Z
+agent id ab9a223c65307f5bd, 791 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T10:51:21.335Z
 
 ## Last notes of the agent
 
-- 09:11:16 I'll start with the restart procedure: check for existing progress logs, then git status.
 - 09:29:56 Now the two minimal edits to terrain_height.gd (world size constant and the coast hook).
 - 09:47:58 Now the `end_on` support and the end-profile fix in `_build_road`.
 - 09:48:03 Now the end-profile fix right after the cut-and-fill loop.
+- 10:37:05 Now apply the three one-line hooks in city.gd.
+- 10:37:23 Let me write a dev probe test that boots the real scene, settles each town and prints stats and timings.
+- 10:47:53 Now implement the sea direction, budgeted rows, harbour re-layout, lawn colour tone-down, and the bot's street-relative positions.
 
 ## Recent steps (last 40)
 
-- 09:57:57 Probe the steepest profile step of the shore track
-- 09:58:32 Rework profile levelling with a grade pass and carve rule
-- 09:58:56 Read the shore drive part of the terrain test
-- 09:59:00 
-- 09:59:01 
-- 09:59:12 Update terrain test limits for the 9 km world
-- 09:59:20 Set world zoom and re-run the terrain test
-- 10:00:51 Find count assertions in the outskirts test
-- 10:00:55 View outskirts test sections to update
-- 10:01:11 Find how the map handles the site marker kind
-- 10:01:27 Read map_icons.gd glyph code
-- 10:01:41 Update outskirts test numbers and add a town map glyph
-- 10:01:48 Run the outskirts sites test with the towns
-- 10:02:58 View the weather part of the outskirts test
-- 10:03:03 Look at the mountain weather test and code
-- 10:03:12 Read mountain weather process code
-- 10:03:30 Re-run outskirts test to check whether the weather checks are flaky
-- 10:04:34 Probe the mountain weather around the observatory
-- 10:05:23 Instrumented copy of the outskirts test to see camera state
-- 10:06:26 Remove debug probe files
-- 10:06:44 /home/user/QUANTUM_Teleportar/docs/sprint/progress/w112-outskirts-map.md
-- 10:08:26 Find InteriorData table users
-- 10:09:11 Look at an existing viewer scene and its tool script
-- 10:10:15 /home/user/QUANTUM_Teleportar/godot/scripts/settlements/settlement_mesh.gd
-- 10:10:23 Tidy the mesh builder
-- 10:11:22 /home/user/QUANTUM_Teleportar/godot/assets/shaders/settlement.gdshader
-- 10:12:48 Add unit UV option to the quad builder
-- 10:14:22 /home/user/QUANTUM_Teleportar/godot/scripts/settlements/settlement_parts.gd
-- 10:14:54 Fix cone and blob winding, add tube, tidy porch
-- 10:15:54 /home/user/QUANTUM_Teleportar/godot/scripts/settlements/settlement_houses.gd
-- 10:18:23 /home/user/QUANTUM_Teleportar/godot/scripts/settlements/settlement_specials.gd
-- 10:19:27 /home/user/QUANTUM_Teleportar/godot/scripts/settlements/settlement_plan.gd
-- 10:20:50 /home/user/QUANTUM_Teleportar/godot/scripts/settlements/settlement_styles.gd
-- 10:21:16 Advance lots by their pitch
-- 10:22:12 Write the settlement kit (chunk builder)
-- 10:22:39 
-- 10:22:47 Read vehicle viewer for the screenshot mechanism
-- 10:22:52 Find how the viewer saves images
-- 10:23:19 Write the settlement viewer and import
-- 10:23:39 First render of the farm town in the viewer
+- 10:38:24 /home/user/QUANTUM_Teleportar/godot/scripts/settlements/settlement_kit.gd
+- 10:38:31 Inspect town defs and special placements in styles
+- 10:38:37 Find non-special place calls
+- 10:38:39 Find other place invocations
+- 10:38:41 Read the generic lot placer
+- 10:38:49 Probe plans for malformed items
+- 10:39:11 Read industrial style code
+- 10:39:29 Read suburb and harbour style code
+- 10:39:38 Read resort, lodge and outpost style code
+- 10:40:13 Patch plan nudging, part cache keys, clamp ground, positions and re-probe
+- 10:40:34 Read rest of bot_outskirts and patch landmark flag
+- 10:40:53 Write bot_towns look-dev bot; show viewer script and machine load
+- 10:40:56 Run live towns probe
+- 10:41:33 Read door markers and specials anchor entries
+- 10:41:35 Locate DoorMarkers class
+- 10:41:38 Read door markers implementation
+- 10:41:43 Read InteriorGameplay doors() and MeshBuilder multimesh helpers
+- 10:41:53 Find all consumers of the door list
+- 10:42:02 Fix marker multimesh flags and inspect anchor data
+- 10:42:14 List specials and read chapel
+- 10:42:23 Read hotel special
+- 10:42:34 Read styles helpers
+- 10:42:53 Add anchor collection and render first live town frames
+- 10:43:59 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/f1_000.png
+- 10:43:59 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/f1_001.png
+- 10:44:17 Render harbour and resort towns in the live game
+- 10:46:33 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s1_000.png
+- 10:46:34 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s1_001.png
+- 10:47:06 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s1_002.png
+- 10:47:07 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s1_003.png
+- 10:47:22 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s1_004.png
+- 10:47:22 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s1_005.png
+- 10:47:44 Check water query API and to_world
+- 10:48:10 Apply sea direction, budget rows, harbour layout, lawn tone, bot street offset
+- 10:48:33 Render suburb and industrial towns in the live game
+- 10:51:07 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s2_000.png
+- 10:51:08 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s2_001.png
+- 10:51:13 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s2_003.png
+- 10:51:13 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s2_004.png
+- 10:51:21 Render lodge and outpost towns in the live game
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -70,3 +72,4 @@ agent id ab9a223c65307f5bd, 569 events, first activity 2026-11-13T09:11:14.655Z,
 - godot/scripts/settlements/settlement_specials.gd
 - godot/scripts/settlements/settlement_plan.gd
 - godot/scripts/settlements/settlement_styles.gd
+- godot/scripts/settlements/settlement_data.gd

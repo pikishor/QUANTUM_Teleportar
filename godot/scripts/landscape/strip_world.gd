@@ -4,11 +4,11 @@ extends Node3D
 ## windsock that swings with the wind (the shader turns it), edge markers with lights that glow at night. The ground itself is the graded terrain (flat, drivable); the aircraft wave
 ## places its planes using `StripWorld.hooks()`.  Nodes sit at the strip centre with a visibility range; none is drawn beyond SHOW m.
 ##   StripWorld.instance.strip_count()   stats()   settle(pos)
-## Names of the strips: DUNE STRIP, HIGHLAND STRIP, SOUTH STRIP, FOOTHILL STRIP (found by LandscapeSites on the flattest corridors clear of roads and site pads).
+## Names of the strips: FOOTHILL, WESTWOOD, SOUTH, LAGOON, EAST SHORE, FAR NORTH and FAR WEST STRIP (found by LandscapeSites on the flattest corridors clear of roads and site pads; the first four are near the city).
 
 const SHADER := "res://assets/shaders/airstrip.gdshader"
 const SHOW := 1000.0
-const TONES := {&"dune_strip": 1.0, &"highland_strip": 0.0, &"south_strip": 0.45, &"foothill_strip": 0.15}      ## fresh grass .. dry straw per strip (the shader's `tone`)
+const TONES := {&"foothill_strip": 0.15, &"westwood_strip": 0.05, &"south_strip": 0.45, &"lagoon_strip": 0.2, &"east_shore_strip": 0.5, &"far_north_strip": 0.1, &"far_west_strip": 0.2}      ## fresh grass .. dry straw per strip (the shader's `tone`)
 
 static var instance: StripWorld = null
 

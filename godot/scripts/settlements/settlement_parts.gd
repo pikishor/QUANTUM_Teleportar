@@ -24,6 +24,7 @@ const ASPHALT := SettlementMesh.ASPHALT
 const PICKET := SettlementMesh.PICKET
 const LEAF := SettlementMesh.LEAF
 const WATER := SettlementMesh.WATER
+const AWNING := SettlementMesh.AWNING
 
 
 static func hash01(seed_v: int, k: int) -> float:
@@ -53,14 +54,17 @@ static func tri_h(m: SettlementMesh, p0: Vector3, p1: Vector3, p2: Vector3, hint
 
 ## A convex polygon (a barn gable) as a fan from its first point; `hint` is the outward direction. UV = metres along `u_axis` and up.
 static func poly_h(m: SettlementMesh, pts: Array, hint: Vector3, base: Color, code: int, ao := 1.0, ao_b := 1.0) -> void:
-	var nn := (pts[1] - pts[0]).cross(pts[2] - pts[0]).normalized()
-	var flip := nn.dot(hint) < 0.0
+	var p0: Vector3 = pts[0]
+	var p1: Vector3 = pts[1]
+	var p2: Vector3 = pts[2]
+	var nn: Vector3 = (p1 - p0).cross(p2 - p0).normalized()
+	var flip: bool = nn.dot(hint) < 0.0
 	nn = -nn if flip else nn
 	var cc := SettlementMesh.col(base, code)
 	var i0 := m.v.size()
-	var u_axis := (pts[1] - pts[0]).normalized()
+	var u_axis: Vector3 = (p1 - p0).normalized()
 	if absf(u_axis.y) > 0.9:
-		u_axis = (pts[2] - pts[1]).normalized()
+		u_axis = (p2 - p1).normalized()
 	u_axis.y = 0.0
 	u_axis = u_axis.normalized()
 	var y0 := 1.0e9
@@ -70,7 +74,7 @@ static func poly_h(m: SettlementMesh, pts: Array, hint: Vector3, base: Color, co
 		m.v.append(p)
 		m.n.append(nn)
 		m.c.append(cc)
-		m.uv.append(Vector2((p - pts[0]).dot(u_axis), p.y - y0))
+		m.uv.append(Vector2((p - p0).dot(u_axis), p.y - y0))
 		m.uv2.append(Vector2(ao * (ao_b if p.y - y0 < 0.3 else 1.0), 0.0))
 	for k in range(1, pts.size() - 1):
 		if flip:
@@ -241,8 +245,8 @@ static func balcony(m: SettlementMesh, x: float, wall_z: float, width: float, de
 
 ## A shop awning over the front wall (z = wall_z): a sloped striped sheet.
 static func awning(m: SettlementMesh, x: float, wall_z: float, width: float, depth: float, y: float, col: Color) -> void:
-	quad_h(m, Vector3(x - width * 0.5, y, wall_z), Vector3(x + width * 0.5, y, wall_z), Vector3(x + width * 0.5, y - 0.55, wall_z - depth), Vector3(x - width * 0.5, y - 0.55, wall_z - depth), Vector3(0, 1, -1), col, SHEET, 1.0, 1.0)
-	quad_h(m, Vector3(x - width * 0.5, y - 0.55, wall_z - depth), Vector3(x + width * 0.5, y - 0.55, wall_z - depth), Vector3(x + width * 0.5, y - 0.8, wall_z - depth), Vector3(x - width * 0.5, y - 0.8, wall_z - depth), Vector3(0, 0, -1), col.darkened(0.15), SHEET, 1.0, 1.0)
+	quad_h(m, Vector3(x - width * 0.5, y, wall_z), Vector3(x + width * 0.5, y, wall_z), Vector3(x + width * 0.5, y - 0.55, wall_z - depth), Vector3(x - width * 0.5, y - 0.55, wall_z - depth), Vector3(0, 1, -1), col, AWNING, 1.0, 1.0)
+	quad_h(m, Vector3(x - width * 0.5, y - 0.55, wall_z - depth), Vector3(x + width * 0.5, y - 0.55, wall_z - depth), Vector3(x + width * 0.5, y - 0.8, wall_z - depth), Vector3(x - width * 0.5, y - 0.8, wall_z - depth), Vector3(0, 0, -1), col.darkened(0.15), AWNING, 1.0, 1.0)
 
 
 # --- small things of a street -------------------------------------------------------------------------------------------------------------------

@@ -156,6 +156,44 @@ func _apply(p: Player, v: String, k: int) -> void:
 		var spos := Vector3(sx + 4.0, sg + sph, sz)
 		_free_cam(p, spos, spos + Vector3(cos(saz) * 40.0, -sph * 0.9, sin(saz) * 40.0), k, 75.0)
 		return
+	if v.begins_with("foot:"):                            # "foot:i[,ph,th]": a free camera ph m above the ground, at the first clear spot (no tree within 7 m, dry, in sight of the fall's foot) 24-60 m downstream of the pool of fall i, aimed th m above the foot
+		var aft := v.substr(5).split(",")
+		var flf := LandscapeSites.falls()
+		var fif := int(aft[0])
+		if fif >= flf.size():
+			return
+		var ff: Dictionary = flf[fif]
+		var phf := float(aft[1]) if aft.size() > 1 else 2.2
+		var thf := float(aft[2]) if aft.size() > 2 else 9.0
+		var fpc2: Vector2 = ff["pool"]
+		var fdir2: Vector2 = ff["dir"]
+		var fbase2: Vector2 = ff["base"]
+		var aim := Vector3(fbase2.x, float(ff["pool_y"]) + thf, fbase2.y)
+		var found := false
+		var cpos := Vector3.ZERO
+		for rr: float in [32.0, 42.0, 26.0, 55.0, 62.0]:
+			for azd: float in [0.0, 22.0, -22.0, 44.0, -44.0, 66.0, -66.0]:
+				var cp4: Vector2 = fpc2 + fdir2.rotated(deg_to_rad(azd)) * rr
+				var gy4 := TerrainHeight.height_at(cp4.x, cp4.y)
+				if gy4 < float(ff["pool_y"]) - 0.2 or TerrainHeight.water_level_for(cp4.x, cp4.y, gy4) != TerrainHeight.NO_WATER or not _clear_of_trees(cp4.x, cp4.y, 7.0):
+					continue
+				var from4 := Vector3(cp4.x, gy4 + phf, cp4.y)
+				var los := true
+				for sk in 20:
+					var sp4 := from4.lerp(aim, float(sk + 1) / 22.0)
+					if TerrainHeight.height_at(sp4.x, sp4.z) > sp4.y - 0.4:
+						los = false
+						break
+				if los:
+					cpos = from4
+					found = true
+					break
+			if found:
+				break
+		if not found:
+			cpos = Vector3(fpc2.x + fdir2.x * 40.0, TerrainHeight.height_at(fpc2.x + fdir2.x * 40.0, fpc2.y + fdir2.y * 40.0) + 6.0, fpc2.y + fdir2.y * 40.0)
+		_free_cam(p, cpos, aim, k)
+		return
 	if v.begins_with("fallv:"):                           # "fallv:i[,az,r,ph,th]": a camera r m from the pool centre at az degrees off the downstream direction, at least ph above the ground, raised until the line of sight to the fall is clear
 		var af := v.substr(6).split(",")
 		var fl := LandscapeSites.falls()

@@ -16,23 +16,23 @@ extends RefCounted
 const NO_WATER := -1.0e9
 const POOL_DEPTH := 3.2
 const FALL_REGIONS := [
-	{"name": "HIGHLINE FALLS", "src": &"river", "idx": 0, "at": 96, "r": 190.0},
-	{"name": "EASTWATER FALLS", "src": &"river", "idx": 1, "at": 58, "r": 200.0},
-	{"name": "CAVE FALLS", "src": &"point", "c": Vector2(-200.0, -2270.0), "r": 250.0},
-	{"name": "MIRROR CASCADE", "src": &"point", "c": Vector2(-1280.0, -2150.0), "r": 230.0},
-	{"name": "TRACK FALLS", "src": &"point", "c": Vector2(1720.0, -1500.0), "r": 340.0},
-	{"name": "DUSTWATER FALLS", "src": &"point", "c": Vector2(1860.0, 860.0), "r": 240.0},
-	{"name": "NORTH FALLS", "src": &"point", "c": Vector2(900.0, -3560.0), "r": 270.0},
-	{"name": "FAR EAST FALLS", "src": &"point", "c": Vector2(3700.0, 80.0), "r": 230.0},
-	{"name": "GREY WEST FALLS", "src": &"point", "c": Vector2(-1650.0, -3270.0), "r": 270.0},
+	{"name": "HIGHLINE FALLS", "src": &"river", "idx": 0, "at": 96, "r": 190.0, "hint": Vector2(150.5, -1874.4)},
+	{"name": "EASTWATER FALLS", "src": &"river", "idx": 1, "at": 58, "r": 200.0, "hint": Vector2(1999.0, 86.1)},
+	{"name": "MIRROR CASCADE", "src": &"point", "c": Vector2(-1280.0, -2150.0), "r": 230.0, "hint": Vector2(-1322.0, -2192.0)},
+	{"name": "NORTH FALLS", "src": &"point", "c": Vector2(900.0, -3560.0), "r": 270.0, "hint": Vector2(634.0, -3546.0)},
+	{"name": "FAR EAST FALLS", "src": &"point", "c": Vector2(3700.0, 80.0), "r": 230.0, "hint": Vector2(3742.0, 108.0)},
+	{"name": "GREY WEST FALLS", "src": &"point", "c": Vector2(-1650.0, -3270.0), "r": 270.0, "hint": Vector2(-1650.0, -3284.0)},
 ]
 const FALL_MAX_BASE := 178.0                         ## a fall's foot lies below this altitude (above it the slopes are snow and the white water vanishes into them)
 const FALL_MAX_LIP := 292.0
 const STRIP_REGIONS := [
-	{"name": "DUNE STRIP", "c": Vector2(1600.0, -600.0), "r": 330.0},
-	{"name": "HIGHLAND STRIP", "c": Vector2(1400.0, -1150.0), "r": 330.0},
-	{"name": "SOUTH STRIP", "c": Vector2(2050.0, 1700.0), "r": 330.0},
-	{"name": "FOOTHILL STRIP", "c": Vector2(700.0, -1400.0), "r": 330.0},
+	{"name": "FOOTHILL STRIP", "c": Vector2(-270.0, -1510.0), "r": 330.0, "hint": Vector2(-270.0, -1510.0)},
+	{"name": "WESTWOOD STRIP", "c": Vector2(-1870.0, 40.0), "r": 330.0, "hint": Vector2(-1870.0, 40.0)},
+	{"name": "SOUTH STRIP", "c": Vector2(2100.0, 1700.0), "r": 330.0, "hint": Vector2(2200.0, 1700.0)},
+	{"name": "LAGOON STRIP", "c": Vector2(-1370.0, 1240.0), "r": 330.0, "hint": Vector2(-1370.0, 1240.0)},
+	{"name": "EAST SHORE STRIP", "c": Vector2(2780.0, 1690.0), "r": 330.0, "hint": Vector2(2780.0, 1690.0)},
+	{"name": "FAR NORTH STRIP", "c": Vector2(2280.0, -3710.0), "r": 330.0, "hint": Vector2(2280.0, -3710.0)},
+	{"name": "FAR WEST STRIP", "c": Vector2(-3070.0, -2310.0), "r": 330.0, "hint": Vector2(-3070.0, -2310.0)},
 ]
 const STRIP_LEN := 360.0
 const STRIP_WID := 34.0
@@ -40,6 +40,7 @@ const STRIP_BLEND := 38.0
 const STRIP_FLAT := 8.5                              ## the largest height range (m) under a strip that the grading will still take
 
 static var built := false
+static var ignore_hints := false                      ## tools: search the whole regions and ignore the stored hints (to refresh them, see dump_hints())
 static var debug_flat := {}                          ## strip region name -> flattest corridor found (tests and look-dev)
 static var _falls: Array = []
 static var _strips: Array = []
@@ -72,7 +73,7 @@ static func ensure() -> void:
 	_sbound = PackedFloat32Array()
 	for reg: Dictionary in FALL_REGIONS:
 		var c := _region_centre(reg)
-		var f := _find_fall(c, float(reg["r"]), String(reg["name"]))
+		var f := _find_fall(c, float(reg["r"]), String(reg["name"]), reg.get("hint", Vector2.INF))
 		if not f.is_empty():
 			var dup := false
 			for g: Dictionary in _falls:
@@ -103,7 +104,7 @@ static func ensure() -> void:
 		r += float(f["pool_r"]) + 24.0
 		_fbound.append_array(PackedFloat32Array([cx, cz, r * r]))
 	for reg: Dictionary in STRIP_REGIONS:
-		var s := _find_strip(reg["c"], float(reg["r"]), String(reg["name"]))
+		var s := _find_strip(reg["c"], float(reg["r"]), String(reg["name"]), reg.get("hint", Vector2.INF))
 		if not s.is_empty():
 			s["id"] = StringName(String(reg["name"]).to_lower().replace(" ", "_"))
 			_strips.append(s)
@@ -159,10 +160,20 @@ static func _run(prof: PackedFloat32Array) -> Array:
 	return [top, bot]
 
 
-static func _find_fall(c: Vector2, rad: float, label: String) -> Dictionary:
+## The search of a region is slow (about 0.3 s per region on a desktop, and it must finish before the first terrain chunk), so every region carries a HINT, the cliff point of the last full
+## search: a small local search round it (the same code, 36 m at 6 m steps) finds the same cliff in a few ms; only when the terrain changed under the hint (another builder moved a road or
+## a pad) the whole region is searched again.
+static func _find_fall(c: Vector2, rad: float, label: String, hint := Vector2.INF) -> Dictionary:
+	if hint.is_finite() and not ignore_hints:
+		var quick := _search_fall(hint, 36.0, 6.0, label)
+		if not quick.is_empty():
+			return quick
+	return _search_fall(c, rad, 14.0, label)
+
+
+static func _search_fall(c: Vector2, rad: float, step: float, label: String) -> Dictionary:
 	var best := {}
 	var best_score := 0.0
-	var step := 14.0
 	var n := int(rad / step)
 	for j in range(-n, n + 1):
 		for i in range(-n, n + 1):
@@ -225,7 +236,7 @@ static func _make_fall(b: Dictionary, label: String) -> Dictionary:
 	var lip: Vector2 = b["lip"]
 	var base: Vector2 = b["base"]
 	var drop: float = b["drop"]
-	var f := {"name": label, "dir": dir, "lip": lip, "lip_y": float(b["lip_y"]), "base": base, "base_y": float(b["base_y"]), "drop": drop}
+	var f := {"name": label, "dir": dir, "lip": lip, "lip_y": float(b["lip_y"]), "base": base, "base_y": float(b["base_y"]), "drop": drop, "hint": b["p"]}
 	f["width"] = clampf(11.0 + 0.2 * drop, 14.0, 24.0)
 	var pr := clampf(9.0 + 0.07 * drop, 10.0, 15.0)
 	f["pool_r"] = pr
@@ -304,10 +315,17 @@ static func _make_fall(b: Dictionary, label: String) -> Dictionary:
 
 # --- airstrips ------------------------------------------------------------------------------------------------------------------------------
 
-static func _find_strip(c: Vector2, rad: float, label: String) -> Dictionary:
+static func _find_strip(c: Vector2, rad: float, label: String, hint := Vector2.INF) -> Dictionary:
+	if hint.is_finite() and not ignore_hints:
+		var quick := _search_strip(hint, 45.0, 15.0, label)
+		if not quick.is_empty():
+			return quick
+	return _search_strip(c, rad, 50.0, label)
+
+
+static func _search_strip(c: Vector2, rad: float, step: float, label: String) -> Dictionary:
 	var best := {}
 	var best_score := 1.0e9
-	var step := 50.0
 	var n := int(rad / step)
 	for j in range(-n, n + 1):
 		for i in range(-n, n + 1):

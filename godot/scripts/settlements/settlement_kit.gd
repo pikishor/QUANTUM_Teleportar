@@ -30,7 +30,8 @@ static func part_of(it: Dictionary) -> Dictionary:
 	if it["kind"] == &"house":
 		key = hash(it["spec"])
 	else:
-		key = StringName(it["type"])
+		var sp0: Dictionary = it.get("spec", {})
+		key = StringName("%s:%d" % [it["type"], hash(sp0) if not sp0.is_empty() else 0])
 	if _parts.has(key):
 		return _parts[key]
 	var res: Dictionary
@@ -109,7 +110,7 @@ static func build(plan: SettlementPlan, rect := Rect2(), far := false) -> Dictio
 		for eb: Dictionary in part.get("extra_boxes", []):
 			out["boxes"].append({"pos": xf * (eb["pos"] as Vector3), "size": eb["size"], "yaw": yaw})
 		for rt: Dictionary in part.get("rotors", []):
-			out["rotors"].append({"mesh": rt["mesh"], "pos": xf * (rt["pos"] as Vector3), "axis": xf.basis * (rt["axis"] as Vector3), "speed": rt["speed"], "yaw": yaw})
+			out["rotors"].append({"mesh": rt["mesh"], "pos": xf * (rt["pos"] as Vector3), "axis": rt["axis"], "speed": rt["speed"], "yaw": yaw})
 		if part.has("helipad"):
 			var hp: Vector3 = xf * (part["helipad"] as Vector3)
 			out["helipads"].append({"pos": hp, "r": 8.5})
@@ -163,6 +164,7 @@ static func _ground_patch(m: SettlementMesh, pg: Dictionary) -> void:
 	match kind:
 		&"lawn":
 			code = SettlementMesh.LAWN
+			col = col.lerp(Color(0.34, 0.4, 0.22), 0.5)                        # (nearer to the colour of the land round the town)
 		&"asphalt":
 			code = SettlementMesh.ASPHALT
 			col = Color(0.2, 0.2, 0.22)

@@ -1,6 +1,6 @@
 # w112-landscape (running)
 
-agent id af6ad2b71b0e9dc0c, 441 events, first activity 2026-11-13T09:11:12.410Z, last activity 2026-11-13T10:22:44.461Z
+agent id af6ad2b71b0e9dc0c, 559 events, first activity 2026-11-13T09:11:12.410Z, last activity 2026-11-13T10:50:31.833Z
 
 ## Last notes of the agent
 
@@ -8,46 +8,46 @@ agent id af6ad2b71b0e9dc0c, 441 events, first activity 2026-11-13T09:11:12.410Z,
 
 ## Recent steps (last 40)
 
-- 09:49:13 Rework the dirt track branch of the road shader
-- 09:49:23 Rework the dirt track branch of the road shader (correct indentation)
-- 09:49:28 Check the structure of the road fragment function
-- 09:49:50 Apply grass tints, density, shore stone and pebble colour changes
-- 09:49:57 Rebuild the landscape tree GLB with rounder pebbles
-- 09:50:27 Use 48 triangle pebbles, rebuild and re-import
-- 09:51:03 Render iteration 1 test set at MED
-- 09:54:24 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i1/sheet.jpg
-- 09:54:37 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i1/t_002.jpg
-- 09:54:38 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i1/t_004.jpg
-- 09:54:45 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i1/t_001.jpg
-- 09:54:54 Check what the shadow proxy does
-- 09:55:11 /home/user/QUANTUM_Teleportar/godot/tests/bot_landscape.gd
-- 09:55:20 /home/user/QUANTUM_Teleportar/godot/tests/bot_landscape.gd
-- 09:55:27 Render waterfall pools and airstrips with the hero camera
-- 09:58:44 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i1/sheet_w.jpg
-- 09:58:57 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i1/w_000.jpg
-- 09:59:04 Read the inland water shader
-- 09:59:23 Render close views of the five waterfalls
-- 10:04:48 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i1/sheet_f.jpg
-- 10:05:05 /home/user/QUANTUM_Teleportar/godot/assets/shaders/fall_water.gdshader
-- 10:05:54 Update the progress log with state, test and perf results
-- 10:06:19 
-- 10:06:24 Run the waterfall candidate screening probe
-- 10:08:21 New fall regions, altitude cap, steep-outflow stop, smooth face carve
-- 10:08:29 Inspect exact whitespace of the drop check
-- 10:08:47 Apply the waterfall site patches with explicit tab handling
-- 10:08:55 Inspect indentation for the remaining patch spots
-- 10:09:05 Fix the indentation in the patch script and apply it
-- 10:09:51 /home/user/QUANTUM_Teleportar/godot/assets/shaders/fall_water.gdshader
-- 10:10:03 Simplify the sheet normal handling in the fall shader
-- 10:10:37 Patch the waterfall mesh builders
-- 10:10:44 List the waterfalls found with the new regions
-- 10:11:20 Render the reworked waterfalls close up
-- 10:20:58 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i2/sheet_f.jpg
-- 10:21:15 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i2/f_004.jpg
-- 10:21:16 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i2/f_000.jpg
-- 10:21:45 Add the wet rock band, cooler sheet colours and slope based stream foam
-- 10:22:35 Roughen the stream ribbons
-- 10:22:44 Render the waterfall feet and streams after the shader changes
+- 10:27:06 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i2/sheet_g.jpg
+- 10:27:31 Fade ribbons on slopes and tune mist and spray
+- 10:27:35 Keep the last stream vertices at the lip fully visible
+- 10:27:46 Retune the river and lake ripples to finer, calmer layers
+- 10:27:48 /home/user/QUANTUM_Teleportar/godot/assets/shaders/airstrip.gdshader
+- 10:27:49 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/strip_world.gd
+- 10:27:58 Darken the airstrip grass to natural colours
+- 10:28:10 Cluster rocks into boulder fields
+- 10:28:16 Render iteration 3: forest road, strips, river, fall feet, pass road
+- 10:31:48 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i3/sheet_h.jpg
+- 10:32:03 /home/user/QUANTUM_Teleportar/godot/tests/bot_landscape.gd
+- 10:32:07 Render fall feet and river banks
+- 10:36:12 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i3/sheet_k.jpg
+- 10:36:20 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i3/k_000.jpg
+- 10:36:30 Render the landscape test set on the LOW tier
+- 10:38:38 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i3/sheet_lo.jpg
+- 10:38:48 Render night, dusk, rain and storm views
+- 10:41:51 Show the script errors with their backtrace
+- 10:41:57 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i3/sheet_n.jpg
+- 10:42:23 /home/user/QUANTUM_Teleportar/godot/scripts/landscape/anchor_sites.gd
+- 10:42:31 Find the harbour cranes data and AnchorWorld.anchors_near
+- 10:42:36 Read harbour crane geometry and the start of AnchorWorld
+- 10:42:59 Find the harbour layout accessor
+- 10:43:07 Add ancient groves with giant pines and firs to the scatter
+- 10:43:13 Inspect the tree block indentation in veg_scatter
+- 10:43:22 Add ancient groves with giant trees to the scatter
+- 10:43:39 Collect ancient trees in the vegetation worker and add them and the harbour cranes to the anchors
+- 10:43:46 Run the landscape test and show failures
+- 10:45:34 Probe the strips found and the sites and roads now present
+- 10:45:59 Scan the whole world for flat airstrip corridors
+- 10:46:49 Time the landscape and anchor site searches
+- 10:47:34 Add hint based quick searches for falls and strips
+- 10:47:39 Check exact whitespace around the region search calls
+- 10:48:07 Add hint based quick searches for falls and strips (correct indentation)
+- 10:48:20 Scan the world for flat airstrip corridors on a finer lattice
+- 10:49:15 Run the full fall searches and print the hints to store
+- 10:49:46 Store hints and the new strip regions, then check what is found and how long warm takes
+- 10:50:13 Update the landscape test for the 9 km world and the harbour cranes
+- 10:50:19 Check exact whitespace of the towers counting block
+- 10:50:31 Patch the test for the bigger world and rerun it
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

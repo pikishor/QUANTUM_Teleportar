@@ -10,8 +10,8 @@ render_mode diffuse_lambert, specular_schlick_ggx;
 global uniform float wetness;
 global uniform float night;
 
-uniform float detail_near = 55.0;           // patterns are full strength inside this distance (metres) and gone at detail_far
-uniform float detail_far = 230.0;
+uniform float detail_near = 26.0;           // patterns are full strength inside this distance (metres) and gone at detail_far
+uniform float detail_far = 120.0;
 
 varying vec3 wpos;
 
@@ -33,8 +33,8 @@ void vertex() {
 }
 
 void fragment() {
-	int kind = int(floor(COLOR.a * 20.0 + 0.5));
-	vec3 base = COLOR.rgb;
+	int kind = int(floor(COLOR.a * 21.0 + 0.5));
+	vec3 base = pow(COLOR.rgb, vec3(2.2));                                 // the palette is authored in sRGB-looking values
 	vec2 q = UV;
 	float ao = UV2.x;
 	float prm = UV2.y;
@@ -181,6 +181,10 @@ void fragment() {
 		float g = vn(q * 2.4) * 0.55 + vn(q * 8.0) * 0.45;
 		col = base * (0.7 + 0.55 * g);
 		rough = 0.9;
+	} else if (kind == 20) {                                               // awning: stripes
+		float st = step(fract(q.x / 0.5), 0.5);
+		col = mix(base, vec3(0.92, 0.9, 0.84), st);
+		rough = 0.7;
 	} else if (kind == 19) {                                               // pool water
 		float rip = vn(q * 4.0 + vec2(TIME * 0.3, 0.0)) * 0.5 + vn(q * 9.0 - vec2(0.0, TIME * 0.4)) * 0.5;
 		col = mix(base, vec3(0.5, 0.85, 0.95), rip * 0.35);

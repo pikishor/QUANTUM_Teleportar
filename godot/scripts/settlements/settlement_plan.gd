@@ -29,7 +29,11 @@ var anchors: Array[Dictionary] = []            ## {kind, name, x, z, height, rad
 var helipads: Array[Dictionary] = []           ## {x, z, y, r}
 var pets: Array[Dictionary] = []               ## {kind, x, z}
 var livestock: Array[Dictionary] = []          ## {kind, x, z, r, n}
-var houses := 0                                ## enterable homes placed
+var houses := 0                                ## enterable homes placed (a front door each: a terrace counts its units)
+var cap := 999                                 ## the rows stop when this many homes stand
+var failed: Array[String] = []                 ## specials and landmarks that did not fit (look-dev and the test read it)
+var sea := Vector2.ZERO                        ## unit vector (town frame) towards the nearest large water, ZERO when there is none within 330 m
+var sea_d := 1.0e9                             ## distance to that water from the pad centre
 var _occ: Array[Array] = []                    ## occupied footprints [cx, cz, hx, hz, yaw]
 
 
@@ -43,7 +47,9 @@ static func build(site: Dictionary, street_pts: PackedVector2Array) -> Settlemen
 	p.street = street_pts
 	if p.street.size() < 2:
 		p.street = PackedVector2Array([Vector2(0.0, -p.ln), Vector2(0.0, p.ln)])
+	p._find_sea(site)
 	var target := int(site.get("houses", 30))
+	p.cap = int(float(target) * 1.12) + 2
 	match p.style:
 		&"farm":
 			SettlementStyles.farm(p, target)
@@ -60,6 +66,27 @@ static func build(site: Dictionary, street_pts: PackedVector2Array) -> Settlemen
 		&"outpost":
 			SettlementStyles.outpost(p, target)
 	return p
+
+
+## Where the water is (rings of samples round the pad centre; the pad itself is dry): the mean direction of the wet samples, weighted towards the near ones.
+func _find_sea(site: Dictionary) -> void:
+	var acc := Vector2.ZERO
+	for rr in [70.0, 110.0, 160.0, 220.0, 290.0, 330.0]:
+		for k in 24:
+			var a := TAU * float(k) / 24.0
+			var lp := Vector2(cos(a), sin(a)) * float(rr)
+			var w := OutskirtsSites.to_world(site, Vector3(lp.x, 0.0, lp.y))
+			if TerrainHeight.is_water(w.x, w.z):
+				acc += lp.normalized() * (330.0 / float(rr))
+				sea_d = minf(sea_d, float(rr))
+	if acc.length() > 0.5:
+		sea = acc.normalized()
+
+
+## The point on the pad's ellipse in direction `dir` (unit, town frame), scaled by `f` (1 = the edge).
+func edge_point(dir: Vector2, f: float) -> Vector2:
+	var k := sqrt((dir.x / r) * (dir.x / r) + (dir.y / ln) * (dir.y / ln))
+	return dir * (f / maxf(k, 0.0001))
 
 
 # --- the main street ----------------------------------------------------------------------------------------------------------------------------
@@ -181,10 +208,18 @@ func occupy(cx: float, cz: float, hx: float, hz: float, yaw: float) -> void:
 
 
 ## Register a building on a lot. Returns the item (or {} when it does not fit).
-func place(kind: StringName, type_or_spec: Variant, cx: float, cz: float, yaw: float, w: float, d: float, interior := &"", gap := 2.0, street_clear := 0.0) -> Dictionary:
+func place(kind: StringName, type_or_spec: Variant, cx: float, cz: float, yaw: float, w: float, d: float, interior := &"", gap := 2.0, street_clear := 0.0, landmark := true) -> Dictionary:
 	if not fits(cx, cz, w * 0.5, d * 0.5, yaw, gap, street_clear):
-		return {}
+		var moved := _nudge(cx, cz, w, d, yaw, gap, street_clear) if (kind == &"special" and landmark) else Vector2.INF
+		if not moved.is_finite():
+			if kind == &"special" and landmark:
+				failed.append("%s at (%.0f, %.0f)" % [type_or_spec if type_or_spec is StringName else "special", cx, cz])
+			return {}
+		cx = moved.x
+		cz = moved.y
 	var it := {"kind": kind, "x": cx, "z": cz, "yaw": yaw, "w": w, "d": d, "interior": interior}
+	if houses >= cap and kind == &"house" and type_or_spec is Dictionary and not (type_or_spec as Dictionary).has("shopfront"):
+		return {}
 	if type_or_spec is Dictionary:
 		it["spec"] = type_or_spec
 	else:
@@ -192,8 +227,24 @@ func place(kind: StringName, type_or_spec: Variant, cx: float, cz: float, yaw: f
 	items.append(it)
 	occupy(cx, cz, w * 0.5, d * 0.5, yaw)
 	if kind == &"house":
-		houses += 1
+		houses += int((type_or_spec as Dictionary).get("units", 1))
 	return it
+
+
+## A landmark that does not fit where the style wants it slides towards the middle of the pad (then along the street) until it does. Vector2.INF when it never does.
+func _nudge(cx: float, cz: float, w: float, d: float, yaw: float, gap: float, street_clear: float) -> Vector2:
+	var to_mid := Vector2(-cx, -cz)
+	var dir := to_mid.normalized() if to_mid.length() > 1.0 else Vector2.ZERO
+	for k in range(1, 15):
+		var q := Vector2(cx, cz) + dir * 2.5 * float(k)
+		if fits(q.x, q.y, w * 0.5, d * 0.5, yaw, gap, street_clear):
+			return q
+	var sz := -signf(cz) if absf(cz) > 1.0 else 0.0
+	for k in range(1, 15):
+		var q2 := Vector2(cx, cz + sz * 3.0 * float(k))
+		if fits(q2.x, q2.y, w * 0.5, d * 0.5, yaw, gap, street_clear):
+			return q2
+	return Vector2.INF
 
 
 ## The yaw (part rotation about Y in the town frame) of a part whose front (-Z of the part) looks along `front` (a town-frame direction (x, z)).
@@ -206,7 +257,11 @@ func add_prop(kind: StringName, x: float, z: float, yaw := 0.0, s := 1.0) -> voi
 
 
 func add_ground(kind: StringName, pts: Array, y := 0.06, p := 0.0, col := Color(1, 1, 1)) -> void:
-	ground.append({"kind": kind, "pts": PackedVector2Array(pts), "y": y, "p": p, "col": col})
+	var cl := PackedVector2Array()
+	for q: Vector2 in pts:
+		var e := (q.x / r) * (q.x / r) + (q.y / ln) * (q.y / ln)
+		cl.append(q * sqrt(0.88 / e) if e > 0.88 else q)                    # the flat patches stay on the flat pad (the land beyond slopes away)
+	ground.append({"kind": kind, "pts": cl, "y": y, "p": p, "col": col})
 
 
 ## An axis-aligned (in the frame of `yaw`) rectangle as a ground patch: centre, size (across x, along z of the rectangle's own frame), yaw.

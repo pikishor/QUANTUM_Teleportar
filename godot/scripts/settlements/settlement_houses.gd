@@ -6,7 +6,7 @@ extends RefCounted
 ##   w d floors fh | wall wall_code trim | roof roof_code roof_type (gable hip flat shed) slope ov ovg ridge (&"z" gables face the street, &"x") parapet | units unit_cols (a terrace)
 ##   door_x door_col | porch porch_w | chimney chim_side chim_code | shutter (Color, a > 0) | win_w win_h bay | garage (-1 / 1 side) | balcony | awning (Color, a > 0) | shopfront | plinth | glow | seed
 
-const P := SettlementParts
+const P := preload("res://scripts/settlements/settlement_parts.gd")
 
 
 static func house(s: Dictionary) -> Dictionary:

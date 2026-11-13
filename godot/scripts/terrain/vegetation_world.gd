@@ -29,6 +29,7 @@ const FAR_KEEP := 0.55
 const FAR_GROW := 1.3
 
 static var instance: VegetationWorld = null
+static var giants_list: Array = []                 ## the ancient trees round the hero from the last job: [{pos (the top), base, height, radius, name}] (AnchorWorld.anchors_near adds them as kind &"tree")
 
 var quality := 1
 var focus := Vector3.INF                          ## the point the plants are arranged around (the hero, the camera without one)
@@ -228,6 +229,7 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 	var c := Vector2(cx, cz)
 	var out := {}                                                           # slot -> PackedFloat32Array (16 floats per instance)
 	var near: Array = []
+	var giants: Array = []
 	var r0: float = tier["r0"]
 	var r1: float = tier["r1"]
 	var r2: float = tier["r2"]
@@ -314,11 +316,14 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 							continue
 						sc *= imp_grow
 					_put_tree(out, nm, lod, lite, x, arr[o + 1], z, arr[o + 3], sc, rnd, g)
+					if variant == VegScatter.GIANT and d < 260.0:
+						var gh := LandKit.height(nm) * sc
+						giants.append({"pos": Vector3(x, arr[o + 1] + gh * 0.92, z), "base": Vector3(x, arr[o + 1], z), "height": gh, "radius": LandKit.trunk_radius(nm) * sc, "name": "ANCIENT " + nm.to_upper()})
 					if lod2 == 1 or (lod2 == 2 and rnd <= imp_keep):
 						_put_tree(out, nm, lod2, lite, x, arr[o + 1], z, arr[o + 3], sc * (imp_grow if lod2 == 2 else 1.0), rnd, g2)
 					if d < BLOCK_RADIUS:
 						var rad := LandKit.trunk_radius(nm) * sc * 0.9 + 0.12
-						near.append([d, x, arr[o + 1], z, clampf(rad, 0.3, 1.6), 7.0])
+						near.append([d, x, arr[o + 1], z, clampf(rad, 0.3, 1.8), 7.0 if variant != VegScatter.GIANT else 16.0])
 					continue
 				if land and sp == VegScatter.ROCK:
 					var shape: String = ["a", "b", "c", "d"][int(rnd * 4.0) % 4]
@@ -361,7 +366,7 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 		for key in drop:
 			_cells.erase(key)
 	_mutex.lock()
-	_result = {"slots": out, "near": near, "cells": _cells.size()}
+	_result = {"slots": out, "near": near, "cells": _cells.size(), "giants": giants}
 	_mutex.unlock()
 
 
@@ -410,6 +415,7 @@ func _apply(res: Dictionary) -> void:
 	_stats["cells"] = int(res["cells"])
 	_stats["jobs"] = jobs_done
 	_place_blockers(res["near"])
+	giants_list = res.get("giants", [])
 
 
 func _slot(nm: String) -> Dictionary:

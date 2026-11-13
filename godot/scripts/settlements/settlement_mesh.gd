@@ -28,7 +28,8 @@ const ASPHALT := 16           ## side streets
 const PICKET := 17            ## fence boards with gaps (the shader cuts them)
 const LEAF := 18              ## hedges, tree crowns (colour noise)
 const WATER := 19             ## a pool
-const CODE_SCALE := 20.0
+const AWNING := 20            ## a shop awning (stripes)
+const CODE_SCALE := 21.0
 
 var v := PackedVector3Array()
 var n := PackedVector3Array()

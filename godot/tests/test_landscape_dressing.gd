@@ -100,6 +100,14 @@ func _assets() -> void:
 
 # --- the scatter (biomes) -----------------------------------------------------------------------------------------------------------------
 
+## x of the first dry sand (0.9 m above the sea) walking inland from the west edge of the world along the row z.
+func _beach_x(z: float) -> float:
+	var x := -(TerrainHeight.WORLD_HALF - 120.0)
+	while x < -1000.0 and TerrainHeight.height_at(x, z) < TerrainHeight.SEA_LEVEL + 0.9:
+		x += 4.0
+	return x
+
+
 func _species_in(layer: int, spots: Array, radius_cells := 3) -> Dictionary:
 	var out := {}
 	for s: Vector2 in spots:
@@ -164,8 +172,9 @@ func _scatter() -> void:
 	var logs := 0
 	var off_zone := 0
 	var shore_cells := 0
-	for ci in range(-56, -46):
-		for cj in range(-8, 12):
+	var beach_x := _beach_x(300.0)                                               # the west beach moved out with the 9 km world: find the waterline instead of knowing it
+	for ci in range(int(floor(beach_x / VegScatter.CELL)) - 3, int(floor(beach_x / VegScatter.CELL)) + 6):
+		for cj in range(int(floor(300.0 / VegScatter.CELL)) - 4, int(floor(300.0 / VegScatter.CELL)) + 6):
 			var sa := VegScatter.cell(VegScatter.T_SHORE, ci, cj)
 			if sa.size() > 0:
 				shore_cells += 1
@@ -179,11 +188,13 @@ func _scatter() -> void:
 	TestLib.check(pebbles > 30 and shore_cells >= 3, "pebbles lie on the beach (%d pebbles, %d logs of driftwood in %d cells)" % [pebbles, logs, shore_cells])
 	TestLib.check(off_zone <= (pebbles + logs) / 5, "the shore plants lie in the swash zone of the beach (%d of %d elsewhere: river banks)" % [off_zone, pebbles + logs])
 	var logs_all := 0
-	for ci in range(-56, -44):
-		for cj in range(-50, 50):
-			var sb := VegScatter.cell(VegScatter.T_SHORE, ci, cj)
-			for k in sb.size() / VegScatter.STRIDE:
-				logs_all += 1 if int(sb[k * VegScatter.STRIDE + 5]) == VegScatter.DRIFT else 0
+	for zrow in [-900.0, -300.0, 300.0, 700.0]:                                  # driftwood lies at the high-water line: look along four stretches of the west beach
+		var bx2 := _beach_x(zrow)
+		for ci in range(int(floor(bx2 / VegScatter.CELL)) - 1, int(floor(bx2 / VegScatter.CELL)) + 5):
+			for cj in range(int(floor(zrow / VegScatter.CELL)) - 6, int(floor(zrow / VegScatter.CELL)) + 7):
+				var sb := VegScatter.cell(VegScatter.T_SHORE, ci, cj)
+				for k in sb.size() / VegScatter.STRIDE:
+					logs_all += 1 if int(sb[k * VegScatter.STRIDE + 5]) == VegScatter.DRIFT else 0
 	TestLib.check(logs_all >= 1, "driftwood lies at the high-water line (%d logs along the west beach)" % logs_all)
 	# boulders come in clusters: small stones within a few metres of a big one
 	var clustered := 0
@@ -283,8 +294,8 @@ func _sites_data() -> void:
 			tall += 1 if hh >= 15.0 else 0
 		else:
 			towers += 1
-			tall += 1 if hh >= 38.0 else 0
-	TestLib.check(tall == AnchorSites.all_anchors().size() and towers >= 20, "every anchor is tall: %d towers of 38 m and more, %d rock arches of 14 m and more, %d waterfall cliffs of 15 m and more" % [towers, arches, cliffs])
+			tall += 1 if hh >= (30.0 if kind == &"crane" else 38.0) else 0           # the harbour's gantry cranes are 33 m, every other tower 41 m and more
+	TestLib.check(tall == AnchorSites.all_anchors().size() and towers >= 20, "every anchor is tall: %d towers of 30 m and more, %d rock arches of 14 m and more, %d waterfall cliffs of 15 m and more" % [towers, arches, cliffs])
 	TestLib.check(arches >= 2 and cliffs >= 3, "rock arches (%d) and cliffs (%d) are anchors too" % [arches, cliffs])
 	for ar: Dictionary in AnchorSites.arches():
 		var ap: Vector3 = ar["pos"]

@@ -36,6 +36,7 @@ const TURBINE_H := 64.0
 const PYLON_H := 41.0
 const MAST_H := 79.0
 const CRANE_H := 58.0
+const HARBOUR_CRANE_H := 33.0                          ## the harbour's gantry cranes (HarbourKit): top of the boom girders above the quay
 
 static var built := false
 static var _turbines: Array = []
@@ -275,6 +276,12 @@ static func all_anchors() -> Array:
 		var b5: Vector3 = ar["pos"]
 		var hh: float = ARCH_H[int(ar["variant"])]
 		out.append({"id": ar["id"], "kind": &"arch", "name": ar["name"], "pos": b5 + Vector3(0, hh, 0), "base": b5, "height": hh, "radius": 4.0})
+	var hl: Dictionary = Harbour.layout()
+	var hci := 0
+	for hc: Dictionary in hl.get("cranes", []):                                          # the gantry cranes of the harbour (HarbourKit builds them, HarbourWorld has their colliders)
+		hci += 1
+		var hb: Vector3 = hc["pos"]
+		out.append({"id": StringName("harbour_crane%d" % hci), "kind": &"crane", "name": "HARBOUR CRANE %d" % hci, "pos": hb + Vector3(0, HARBOUR_CRANE_H, 0), "base": hb, "height": HARBOUR_CRANE_H, "radius": 2.6})
 	for f: Dictionary in LandscapeSites.falls():
 		var lp: Vector2 = f["lip"]
 		var bp2: Vector2 = f["base"]

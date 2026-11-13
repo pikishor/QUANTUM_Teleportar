@@ -33,6 +33,7 @@ const REED := 15
 const DRIFT := 16                                    ## a washed-up log on the beach (variants a / b by the random number)
 const PEBBLE := 17                                   ## small stones of the shore (beaches, river banks): drawn with the 48 triangle pebble pieces
 const OAK := 1
+const GIANT := 7                                       ## the `variant` slot of an ancient tree (pines and firs in the old groves: 2.2 to 2.7 times the size)
 const T_LINES := 4                                   ## roadside avenues (poplars, palms) on the approaches of the city, laid out along the road samples
 const T_REEDS := 5                                   ## reeds on the banks of rivers and lakes
 const T_SHORE := 6                                   ## pebbles and driftwood on the beaches (the swash zone up to the high-water line) and the pebbles of river banks
@@ -126,7 +127,9 @@ static func density(layer: int, x: float, z: float, h: float, mw: float, fw: flo
 				return 0.0
 			d = lerpf(lerpf(0.5, 0.3, dw * (1.0 - fw)), 0.55, fw) * (1.0 - 0.6 * smoothstep(100.0, tl, h)) * (0.4 + 0.6 * clump)
 		T_ROCKS:
-			d = 0.09 + 0.3 * smoothstep(60.0, 220.0, h) * mw + 0.1 * dw
+			# wave 112: boulder FIELDS instead of an even sprinkle of dots (the slopes looked polka-dotted): the density follows a patch noise, with a thin scatter everywhere
+			var fieldn := smoothstep(0.02, 0.5, _patch.get_noise_2d(x * 2.2 + 55.0, z * 2.2 - 19.0))
+			d = 0.022 + (0.15 + 0.30 * smoothstep(60.0, 220.0, h) * mw + 0.10 * dw) * fieldn
 	return d
 
 
@@ -136,6 +139,11 @@ static func alien_weight(x: float, z: float, fw: float, desert: float, mw: float
 	if n <= 0.0:
 		return 0.0
 	return n * (1.0 - fw) * (0.35 + 0.65 * clampf(desert + mw * 0.3, 0.0, 1.0))
+
+
+## 0..1: the ancient groves, patches (about 200 m across) in the forest hills and the foothills where pines and firs grow to twice their size.
+static func ancient_grove(x: float, z: float) -> float:
+	return smoothstep(0.50, 0.72, _alien.get_noise_2d(x * 2.0 + 13.0, z * 2.0 - 41.0))
 
 
 ## Which tree grows at (x, z): Vector2(species, scale). `r` = four independent random numbers of the spot (0..1).
@@ -293,6 +301,9 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 					species = int(ts.x)
 					scale = ts.y
 					sink = 0.12 + 0.7 * clampf(sl, 0.0, 1.0)
+					if (species == PINE or species == FIR) and _rs(hh, 16) < 0.38 and ancient_grove(x, z) > 0.0 and sl < 0.5:
+						scale *= 2.15 + 0.5 * _rs(hh, 17)                                  # an ANCIENT tree: 35 to 42 m (a landmark standing out of the canopy, and a high anchor for a rope)
+						variant = GIANT
 				T_SHRUBS:
 					if sl > 1.0:
 						continue

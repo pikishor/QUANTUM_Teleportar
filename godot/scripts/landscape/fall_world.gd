@@ -9,8 +9,8 @@ extends Node3D
 const SHADER := "res://assets/shaders/fall_water.gdshader"
 const SHOW_RANGE := 900.0
 const NEAR_RANGE := 440.0
-const MIST_AMOUNT := [6, 14, 26]
-const SPRAY_AMOUNT := [0, 10, 22]
+const MIST_AMOUNT := [8, 18, 30]
+const SPRAY_AMOUNT := [0, 12, 26]
 const SHEET_COLS := [5, 7, 9]
 
 static var instance: FallWorld = null
@@ -274,9 +274,12 @@ func _ribbon(f: Dictionary, key: String) -> ArrayMesh:
 		var tg := (pts[mini(i + 1, n - 1)] - pts[maxi(i - 1, start)]).normalized()
 		var nr := Vector2(-tg.y, tg.x)
 		var w := width * (0.8 + 0.4 * smoothstep(0.0, 1.0, float(i - start) / float(maxi(n - start, 1))))
-		var fast := clampf(0.35 + 2.6 * TerrainHeight.slope_at(pts[i].x, pts[i].y), 0.35, 1.0)
+		var slope_i := TerrainHeight.slope_at(pts[i].x, pts[i].y)
+		var fast := clampf(0.35 + 2.6 * slope_i, 0.35, 1.0)
+		var steep_fade := 1.0 - smoothstep(0.13, 0.28, slope_i)                                    # a ribbon on a slope looked like a plank: it fades out where the ground is steep
 		if key == "up" and i >= n - 3:
 			fast = 1.0
+			steep_fade = 1.0
 		for k in 3:
 			var off := (float(k) - 1.0) * w * 0.5
 			var q := pts[i] + nr * off
@@ -284,7 +287,7 @@ func _ribbon(f: Dictionary, key: String) -> ArrayMesh:
 			pos.append(Vector3(q.x, yq, q.y))
 			nrm.append(Vector3.UP)
 			uv.append(Vector2(float(k) * 0.5, run))
-			var fade := 1.0
+			var fade := steep_fade
 			if key == "up" and i == start:
 				fade = 0.0
 			if key == "out" and i >= n - 2:
@@ -376,8 +379,8 @@ func _mist(f: Dictionary, foot: Vector3, q: int) -> CPUParticles3D:
 	var g := Gradient.new()
 	g.set_color(0, Color(1, 1, 1, 0.0))
 	g.set_color(1, Color(1, 1, 1, 0.0))
-	g.add_point(0.18, Color(0.95, 0.98, 1.0, 0.30))
-	g.add_point(0.6, Color(0.92, 0.96, 1.0, 0.16))
+	g.add_point(0.18, Color(0.95, 0.98, 1.0, 0.40))
+	g.add_point(0.6, Color(0.92, 0.96, 1.0, 0.20))
 	p.color_ramp = g
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return p
@@ -400,10 +403,10 @@ func _spray(f: Dictionary, foot: Vector3, q: int) -> CPUParticles3D:
 	p.initial_velocity_min = 3.0
 	p.initial_velocity_max = 6.0
 	p.gravity = Vector3(0.0, -7.0, 0.0)
-	p.scale_amount_min = 1.6
-	p.scale_amount_max = 3.2
+	p.scale_amount_min = 0.7
+	p.scale_amount_max = 1.7
 	var g := Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 0.55))
+	g.set_color(0, Color(1, 1, 1, 0.30))
 	g.set_color(1, Color(1, 1, 1, 0.0))
 	p.color_ramp = g
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

@@ -5,8 +5,8 @@ extends RefCounted
 ##   {mesh, far, size (collider box), door (local door base, optional), anchor ({kind, name, height, radius}, optional), rotors ([{mesh, pos, axis, speed}], optional), cyl (collider cylinder radius, optional)}
 ## in the part's own frame (origin on the ground at the middle of the footprint, front -Z). They use the same material codes and the same parametric parts as the houses.
 
-const P := SettlementParts
-const SM := SettlementMesh
+const P := preload("res://scripts/settlements/settlement_parts.gd")
+const SM := preload("res://scripts/settlements/settlement_mesh.gd")
 
 
 static func _res(m: SettlementMesh, far: SettlementMesh, size: Vector3) -> Dictionary:
@@ -405,6 +405,7 @@ static func hotel(s: Dictionary) -> Dictionary:
 	var res := _res(m, far, Vector3(w, h + 2.5, d))
 	res["door"] = Vector3(0.0, 0.0, -d * 0.5)
 	res["helipad"] = Vector3(hx, h + 0.45, 0.0)
+	res["anchor"] = {"kind": &"tower", "name": "HOTEL ROOF", "height": h + 2.6, "radius": 4.0, "at": Vector3(w * 0.5 - 7.0, 0.0, 0.0)}
 	return res
 
 

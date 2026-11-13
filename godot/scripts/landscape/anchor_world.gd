@@ -4,7 +4,8 @@ extends Node3D
 ## heads turn into it), pylon lines with sagging wires, guyed radio masts with blinking beacons, tower cranes at the quarry. Kit: assets/models/land_props.glb (tools/landscape/props.py),
 ## shader assets/shaders/land_prop.gdshader, places AnchorSites. One node per site at its centre with a visibility range, so every site costs a handful of draws within SHOW m of the
 ## camera and none beyond it (the city views never see one). A pool of cylinder colliders follows the hero: you cannot walk or drive through a tower.
-##   AnchorWorld.instance.anchors_near(pos, radius) -> [{id, kind, name, pos (top), base, height, radius}]: where a rope (quantum snake) can be fixed
+##   AnchorWorld.instance.anchors_near(pos, radius) -> [{id, kind (turbine, pylon, mast, crane, arch, cliff, tree), name, pos (top), base, height, radius, dist}]: where a rope (quantum snake) can be fixed;
+##   the `tree` ones are the ancient pines and firs (35-42 m) that stand out of the canopy in the old groves (VegetationWorld.giants_list, refreshed with the plants round the hero)
 ##   stats() {sites, drawn_tris, anchors}      settle(pos) (look-dev)
 
 const MODEL_PATH := "res://assets/models/land_props.glb"
@@ -89,6 +90,11 @@ func anchors_near(pos: Vector3, radius: float) -> Array:
 			var e: Dictionary = a.duplicate()
 			e["dist"] = d
 			out.append(e)
+	for gt: Dictionary in VegetationWorld.giants_list:                                  # the ancient pines and firs of the old groves (the vegetation worker's list round the hero)
+		var gb: Vector3 = gt["base"]
+		var gd := Vector2(gb.x - pos.x, gb.z - pos.z).length()
+		if gd <= radius:
+			out.append({"id": StringName("tree_%d_%d" % [int(gb.x), int(gb.z)]), "kind": &"tree", "name": gt["name"], "pos": gt["pos"], "base": gb, "height": gt["height"], "radius": gt["radius"], "dist": gd})
 	out.sort_custom(func(p: Dictionary, q: Dictionary) -> bool: return float(p["dist"]) < float(q["dist"]))
 	return out
 

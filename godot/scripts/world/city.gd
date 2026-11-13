@@ -101,6 +101,7 @@ var wildlife: Node                 ## deer, wolves, goats, birds, fish, dolphins
 var aliens: Node                   ## the alien world: fauna, camps, nests, crash sites, boss lairs (AlienWorld, scripts/aliens/alien_world.gd, wave 107b)
 var sites: Node                    ## the mountain and outskirt sites (OutskirtsWorld, scripts/terrain/outskirts_world.gd, wave 105)
 var landscape: Node                ## waterfalls, grass airstrips, turbines, pylons, masts (Landscape, scripts/landscape/landscape.gd, wave 112)
+var towns: Node                    ## the seven towns of the outskirts: houses, gardens, doors, folk (SettlementWorld, scripts/settlements/settlement_world.gd, wave 112)
 var terrain: TerrainWorld           ## the land outside the city (scripts/terrain/terrain_world.gd): 6 km of streamed heightmap terrain, roads, mountains, coast
 
 
@@ -163,6 +164,8 @@ func _ready() -> void:
 		if OS.get_environment("QT_NO_SITES") != "1":                  # the mountain and outskirt sites: observatory, radio tower, mine, crash site, cave, cabins, villages, farms (wave 105)
 			sites = OutskirtsWorld.attach(self)
 			MountainWeather.attach(self)
+		if OS.get_environment("QT_NO_TOWNS") != "1":                  # the seven towns of the outskirts (wave 112): farm village, harbour town, lodge hamlet, mine, outpost, estates, resort
+			towns = SettlementWorld.attach(self)
 		if OS.get_environment("QT_NO_WILDLIFE") != "1":               # the animals of the outskirts, the coast and the sea (wave 107)
 			wildlife = WildlifeWorld.attach(self)
 		if OS.get_environment("QT_NO_ALIENS") != "1":                 # alien fauna, camps, hive nests, crash sites and the five bosses of the outskirts (wave 107b)
@@ -311,6 +314,8 @@ func set_quality(level: int) -> void:
 		(landscape as Landscape).set_quality(quality)
 	if sites != null:
 		(sites as OutskirtsWorld).set_quality(quality)
+	if towns != null:
+		(towns as SettlementWorld).set_quality(quality)
 	if wildlife != null:
 		(wildlife as WildlifeWorld).set_quality(quality)
 	if aliens != null:

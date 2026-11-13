@@ -4,11 +4,11 @@ render_mode diffuse_lambert, specular_schlick_ggx, depth_draw_opaque, cull_disab
 // soft edges that grow into the meadow. UV.x = metres across from the centre line, UV.y = metres along from the first end; COLOR.r = the strip's length (m) / 1000, COLOR.g = its width / 100.
 #include "res://assets/shaders/land_common.gdshaderinc"
 
-uniform vec3 grass_a = vec3(0.24, 0.40, 0.10);
-uniform vec3 grass_b = vec3(0.33, 0.50, 0.14);
-uniform vec3 straw_a = vec3(0.46, 0.38, 0.19);
-uniform vec3 straw_b = vec3(0.56, 0.47, 0.25);
-uniform vec3 dry = vec3(0.44, 0.35, 0.22);
+uniform vec3 grass_a = vec3(0.105, 0.19, 0.040);              // linear: wave 112 darker (the first values were a washed-out pale yellow-green under the sun)
+uniform vec3 grass_b = vec3(0.165, 0.27, 0.068);
+uniform vec3 straw_a = vec3(0.29, 0.235, 0.11);
+uniform vec3 straw_b = vec3(0.37, 0.30, 0.145);
+uniform vec3 dry = vec3(0.30, 0.23, 0.13);
 uniform float tone = 0.0;                                          // 0 fresh grass .. 1 dry straw (the strips in the dry country)
 
 varying float v_len;
@@ -39,7 +39,7 @@ void fragment() {
 	float n = vn(q * 0.35) * 0.5 + vn(q * 1.7) * 0.3 + vn(q * 7.0) * 0.2;
 	vec3 ca = mix(grass_a, straw_a, tone);
 	vec3 cb = mix(grass_b, straw_b, tone);
-	vec3 col = mix(ca, cb, stripe * 0.65 + n * 0.5) * (0.82 + 0.3 * n);
+	vec3 col = mix(ca, cb, stripe * 0.45 + n * 0.55) * (0.80 + 0.34 * n + 0.10 * vn(q * 23.0));
 	float track = 1.0 - smoothstep(0.5, 2.2, abs(abs(across) - 1.9));
 	col = mix(col, dry * (0.8 + 0.4 * n), track * 0.55 * smoothstep(8.0, 40.0, along) * smoothstep(8.0, 40.0, v_len - along));
 	float bars = step(0.5, fract(along / 2.0)) * step(abs(across), half_w * 0.62) * step(8.0, along) * (1.0 - step(24.0, along));
@@ -54,6 +54,6 @@ void fragment() {
 	ALBEDO = col;
 	ROUGHNESS = mix(0.95, 0.5, wetness);
 	SPECULAR = 0.2;
-	EMISSION = col * 0.08;
+	EMISSION = col * 0.05;
 	ALPHA = edge * end_fade;
 }

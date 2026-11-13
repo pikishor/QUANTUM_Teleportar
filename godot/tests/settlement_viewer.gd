@@ -37,11 +37,11 @@ func _ready() -> void:
 	sky.sky_material = sm
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_energy = 0.9 if night < 0.5 else 0.3
+	e.ambient_light_energy = 0.6 if night < 0.5 else 0.3
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.fog_enabled = true
 	e.fog_light_color = Color(0.72, 0.8, 0.88) if night < 0.5 else Color(0.05, 0.06, 0.1)
-	e.fog_density = 0.0016
+	e.fog_density = 0.0007
 	env.environment = e
 	add_child(env)
 	var sun := DirectionalLight3D.new()
