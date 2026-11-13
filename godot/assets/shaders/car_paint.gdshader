@@ -90,6 +90,7 @@ void fragment() {
 	float sc = clamp(scuff + v_dent * 0.9, 0.0, 1.0);
 	base = mix(base, base * 0.35 + vec3(0.03), sc * 0.65);
 	float spark = pow(max(fn.z * 2.0 - 1.0, 0.0), 8.0) * (1.0 - smoothstep(2.0, 9.0, dist));                    // rare bright flakes, only close up
+	base *= mix(0.80, 1.0, smoothstep(0.22, 0.95, v_obj.y));                           // a lighter shoulder and a darker sill: the body has a form, not a flat colour
 	ALBEDO = base * ao;
 	METALLIC = clamp(metal * (1.0 - dmask) + flake * 0.1 * spark, 0.0, 1.0);
 	ROUGHNESS = clamp(mix(rough, 0.8, dmask) + sc * 0.4 - wet * 0.14 + v_dent * 0.25, 0.08, 1.0);
@@ -102,6 +103,7 @@ void fragment() {
 	float fres = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
 	float shine = coat * (1.0 - sc * 0.8) * (1.0 - dmask * 0.8) * mix(1.0, 1.35, wet);
 	vec3 env = street_env(rw, mix(rough, 0.05, wet) * 0.8);
-	vec3 refl = env * (fres * 1.6 * shine + metal * 0.22 * (1.0 - rough)) * mix(vec3(1.0), flake_tint.rgb * base * 2.0, metal);
+	float lum = dot(base, vec3(0.33));
+	vec3 refl = env * (fres * 1.6 * shine + metal * 0.40 * (1.0 - rough * 0.6)) * mix(vec3(1.0), flake_tint.rgb * base * 2.0, metal) * mix(1.0, 0.62, clamp(lum * 1.3, 0.0, 1.0));      // a bright paint reflects less in relation to itself: no white wash by day
 	EMISSION = (base * glow + refl) * ao;
 }

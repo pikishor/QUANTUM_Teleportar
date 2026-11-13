@@ -101,14 +101,7 @@ func _force_lod(car: Vehicle, lod: int) -> void:
 		v.v2.lod1.visible = lod == 1
 	if v.v2.lod2 != null:
 		v.v2.lod2.visible = lod == 2
-	var show_full := lod == 0
-	for wm in v.v2.wheel_meshes:
-		wm.visibility_range_begin = 0.0
-		wm.visibility_range_end = 0.0
-	for k in v.v2.wheel_meshes.size():
-		v.v2.wheel_meshes[k].visible = (k % 2 == 0) if lod == 0 else ((k % 2 == 1) if lod == 1 else false)
-	if lod == 2:
-		pass
+	# the wheels are vertices of the Details surface of Body and Body_LOD1 (and baked into Body_LOD2): nothing else to switch
 
 
 func _place_camera(rows: int, cols: int, gap: float, rgap: float) -> void:

@@ -3,14 +3,15 @@ extends RefCounted
 ## Cars v2 (round 6): the runtime of the Blender-built car models `assets/models/cv2_<archetype>.glb` (tools/blender/build_cars_v2.py, generator tools/blender/carv2/).
 ##
 ## A model has Body (LOD0, about 6-9k triangles with the wheels, surfaces Paint / Details / Glass), Body_LOD1 (about 1.5k, the same three surfaces, so one set of per-car materials),
-## Body_LOD2 (about 400, one surface "Lod", drawn beyond LOD2_DIST), the wheel nodes WheelFL / FR / RL / RR (a tyre mesh and a coarse one each) and anchors (PlateF, PlateR, Driver, FxEngine ...).
-## Per car this class makes five ShaderMaterials (paint with metallic flake, clear coat reflection and dents; trim; glass with a reflection of the street and cracks; wheel with the
-## tread normal map; the far LOD) and drives them: paint finish, lamps, wear, dirt and wet, dents (vertex displacement on the GPU), cracked glass, torn-off parts. VehicleVisual calls it.
+## Body_LOD2 (about 400, one surface "Lod", drawn beyond LOD2_DIST), the wheel nodes WheelFL / FR / RL / RR (empty nodes at the axles: the wheels themselves are part of the Details surface of
+## Body and Body_LOD1, so a car costs no draw call per tyre and none per number plate) and anchors (PlateF, PlateR, Driver, FxEngine ...).
+## Per car this class makes four ShaderMaterials (paint with metallic flake, clear coat reflection and dents; trim with the wheels, the lamps and the number plates; glass with a reflection
+## of the street and cracks; the far LOD) and drives them: paint finish, lamps, wear, dirt and wet, dents (vertex displacement on the GPU), cracked glass, torn-off parts, the rolling,
+## steering and loss of the wheels. VehicleVisual calls it.
 
 const LOD1_DIST := 26.0                       ## Body (LOD0) up to here, Body_LOD1 beyond
 const LOD2_DIST := 64.0                       ## the 400 triangle car beyond here
 const LOD_MARGIN := 3.0
-const WHEEL_LOD1 := 22.0                      ## the full tyre mesh only this close
 const COAT := 1.0                             ## clear coat strength of the paint (the shader's `coat`)
 const PAINT_SPECULAR := 0.9                   ## the shader's `spec` default: a lacquer lets street lamps and neon leave a highlight
 const PAINT_RIM := 0.6                        ## the shader's `rim` default
@@ -46,12 +47,12 @@ var model: Node3D
 var body: MeshInstance3D
 var lod1: MeshInstance3D
 var lod2: MeshInstance3D
-var wheel_meshes: Array[MeshInstance3D] = []      ## every tyre mesh (both LODs of the four wheels)
+var wheel_centres: Array[Vector3] = []            ## the four wheel centres (model space; the wheel nodes' positions), the pivots of the wheel vertices in the Details shader
+var wheels_lost := 0                              ## bit k = wheel k has flown off
 var anchors := {}                                 ## name -> Vector3 (model space)
 var paint_mat: ShaderMaterial
 var details_mat: ShaderMaterial
 var glass_mat: ShaderMaterial
-var wheel_mat: ShaderMaterial
 var lod_mat: ShaderMaterial
 var dents: Array[Dictionary] = []
 var doors := {}                                   ## "L" / "R" -> the door node (hinge pivot, hidden until a door swings): DoorL / DoorR of the model
@@ -141,26 +142,9 @@ func setup(visual: VehicleVisual, m: Node3D, kind: StringName, glow: Color) -> b
 			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 	for wn: StringName in VehicleVisual.WHEEL_NAMES:
 		var w := m.get_node_or_null(NodePath(wn)) as Node3D
-		if w == null:
-			continue
-		var idx := 0
-		for c in w.get_children():
-			var wm := c as MeshInstance3D
-			if wm == null:
-				continue
-			wm.set_surface_override_material(0, wheel_mat)
-			wm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			wm.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-			wm.layers = wm.layers | VehicleVisual.KEY_BIT | DynamicFill.FILL_BIT
-			if idx == 0:
-				wm.visibility_range_end = WHEEL_LOD1
-				wm.visibility_range_end_margin = 2.0
-			else:
-				wm.visibility_range_begin = WHEEL_LOD1
-				wm.visibility_range_begin_margin = 2.0
-			wm.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
-			wheel_meshes.append(wm)
-			idx += 1
+		wheel_centres.append(w.position if w != null else Vector3.ZERO)
+	if wheel_centres.size() == 4:
+		details_mat.set_shader_parameter(&"wheel_c", PackedVector3Array(wheel_centres))
 	for side in ["L", "R"]:
 		var dn := m.get_node_or_null("Door" + side) as Node3D
 		if dn != null:
@@ -191,10 +175,7 @@ func _make_materials(spec: Dictionary) -> void:
 		glass_mat.set_shader_parameter(&"tint", gl["tint"])
 	if gl.has("opacity"):
 		glass_mat.set_shader_parameter(&"opacity", gl["opacity"])
-	wheel_mat = ShaderMaterial.new()
-	wheel_mat.resource_name = "Wheel"
-	wheel_mat.shader = shader("car_wheel")
-	wheel_mat.set_shader_parameter(&"tread", tread_texture())
+	details_mat.set_shader_parameter(&"tread", tread_texture())
 	lod_mat = ShaderMaterial.new()
 	lod_mat.resource_name = "Lod"
 	lod_mat.shader = shader("car_lod")
@@ -292,7 +273,7 @@ func paint_value(nm: StringName) -> Variant:
 func set_dirt(d: float) -> void:
 	dirt = clampf(d, 0.0, 1.0)
 	paint_mat.set_shader_parameter(&"dirt", dirt)
-	wheel_mat.set_shader_parameter(&"dirt", dirt)
+	details_mat.set_shader_parameter(&"wheel_dirt", dirt)
 
 
 ## A decal pattern on the paint (CarV2 shader `livery`: 1 dual stripes, 2 side stripe, 3 checker band, 4 two-tone doors, 5 hood and roof stripe, 6 emergency band), 0 = none.
@@ -357,6 +338,30 @@ func shimmer(t: float, speed: float, phase: float) -> void:
 	_pearl_col = Color.from_hsv(h, clampf(base_color.s + 0.35, 0.0, 1.0), clampf(base_color.v + 0.35, 0.0, 1.0))
 	paint_mat.set_shader_parameter(&"pearl_tint", _pearl_col)
 	paint_mat.set_shader_parameter(&"pearl", 0.55 + 0.25 * sin(t * 1.7 + phase))
+
+
+# --- wheels and plates ------------------------------------------------------------------------------------------------------------------------------------
+
+## Roll (radians) and steering (radians, the front pair) of the four wheels: shader uniforms of the Details surface.
+func set_wheel_pose(roll: float, steer: float) -> void:
+	details_mat.set_shader_parameter(&"wheel_roll", roll)
+	details_mat.set_shader_parameter(&"wheel_steer", steer)
+
+
+## A wheel (0 .. 3 in the order FL, FR, RL, RR) flies off, or comes back (repair): its vertices collapse into the hub.
+func set_wheel_lost(k: int, lost: bool) -> void:
+	if k < 0 or k > 3:
+		return
+	if lost:
+		wheels_lost |= 1 << k
+	else:
+		wheels_lost &= ~(1 << k)
+	details_mat.set_shader_parameter(&"wheel_lost", float(wheels_lost))
+
+
+## The number on the plates (QT and five digits are made from this seed by the Details shader).
+func set_plate_seed(seed_value: float) -> void:
+	details_mat.set_shader_parameter(&"plate_seed", seed_value)
 
 
 # --- lamps and glass ----------------------------------------------------------------------------------------------------------------------------------------

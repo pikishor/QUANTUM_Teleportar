@@ -188,11 +188,23 @@ func _models() -> void:
 		TestLib.check(track >= wd * 0.62 and track <= wd * 0.95, "%s: the wheels stand out at the corners (the spec width includes the mirrors; track %.2f of width %.2f)" % [k, track, wd])
 		TestLib.check(base >= ln * 0.57 and base <= ln * 0.68, "%s: wheelbase %.2f of length %.2f" % [k, base, ln])
 		var hmax := 0.0
-		var tyres: Array = vis.wheels[0].find_children("*", "MeshInstance3D", true, false)
+		var tyres: Array = vis.wheels[0].find_children("*", "MeshInstance3D", true, false)          # the older art: a tyre mesh under the wheel node
 		if vis.wheels[0] is MeshInstance3D:
 			tyres.append(vis.wheels[0])
 		for mi in tyres:
 			hmax = maxf(hmax, ((mi as MeshInstance3D).get_aabb()).size.y)
+		if vis.v2 != null:                                                  # Cars v2: the wheels are vertices of the Details surface (uv0.x >= 20, wheel id 1 in uv2.y): the height of wheel 1
+			var arr := vis.v2.body.mesh.surface_get_arrays(1)
+			var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+			var uv2: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV2]
+			var pos: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var lo := 1.0e9
+			var hi := -1.0e9
+			for i in uv.size():
+				if uv[i].x > 19.5 and int(roundf(uv2[i].y)) == 1:
+					lo = minf(lo, pos[i].y)
+					hi = maxf(hi, pos[i].y)
+			hmax = maxf(hmax, hi - lo)
 		TestLib.check(hmax >= wr * 1.9 and hmax <= wr * 2.2, "%s: the tyre mesh is %.2f m tall for a %.2f m wheel" % [k, hmax, wr])
 	var lum_ok := true
 	var worst := 1.0

@@ -1,10 +1,11 @@
 extends RefCounted
 ## Cars v2 (round 6, ART): the 20 glTF archetypes of tools/blender/build_cars_v2.py (procedural bodies built with bpy, shipped as glTF) and the CarV2 runtime that dresses them.
-##  * every archetype loads with the node contract (Body, Body_LOD1, Body_LOD2, four wheels with two tyre meshes, plate / driver / engine anchors, doors), the nose at -Z, the size of its spec;
+##  * every archetype loads with the node contract (Body, Body_LOD1, Body_LOD2, four empty wheel nodes at the axles: the wheels are vertices of the Details surface, so are the number plates;
+##    plate / driver / engine anchors, doors), the nose at -Z, the size of its spec;
 ##  * triangle budgets per LOD (full detail with the four wheels, the middle LOD, the far LOD), three surfaces per body (Paint, Details, Glass) and a cabin that is really modelled;
 ##  * the glass is its own tinted, reflecting, see-through surface (never a flat black hole), the 12 paints with their finishes, decals (livery), dirt and wet;
 ##  * the damage states hooked into the vehicle scripts: GPU dents, cracked glass, torn-off bumpers / hood / trunk / doors, a swinging door, the burning stage, repair;
-##  * wheels (tread normal map, rim, caliper), the near traffic mesh, the weight of the set on disk and in texture memory, the switch back to the older art.
+##  * wheels (tread normal map, rim, caliper, rolled and steered by the Details shader, shed), number plates, the near traffic meshes (HI and LO), the weight of the set on disk and in texture memory, the switch back to the older art.
 ## Run: tools/test.sh tests/test_cars_v2.gd   (after tools/import.sh; headless, nothing here waits on frames or timers)
 
 const SET: Array[String] = ["sedan", "taxi", "patrol", "hatch", "coupe", "sports", "muscle", "suv", "pickup", "van", "boxtruck", "bus", "hover", "wagon", "limo", "ambulance", "armoured", "delivery",
@@ -16,7 +17,7 @@ const LOD0_TRIS := Vector2i(5500, 9500)         ## full detail with four wheels,
 const LOD1_TRIS := Vector2i(900, 2500)          ## about 1.5k - 2.2k with wheels
 const LOD2_TRIS := Vector2i(180, 560)           ## the far car, about 400
 const MAX_SET_BYTES := 30 * 1024 * 1024         ## the whole set of models on disk
-const DETAIL_CLASS := {"fabric": 2, "leather": 3, "head": 4, "tail": 5, "indicator": 6, "reverse": 7, "plate": 12, "screen": 13, "skin": 18}
+const DETAIL_CLASS := {"fabric": 2, "leather": 3, "head": 4, "tail": 5, "indicator": 6, "reverse": 7, "plate": 12, "screen": 13, "skin": 18, "tyre": 20, "rim": 21, "brake": 22, "caliper": 23, "hub": 24}
 
 
 func run(host: Node) -> void:
@@ -31,6 +32,7 @@ func run(host: Node) -> void:
 	_glass(host)
 	_paints_and_decals(host)
 	_damage_states(host)
+	_crash_drives_the_states(host)
 	_wheels_and_lods(host)
 	_near_mesh()
 	_switch_back()
@@ -55,25 +57,55 @@ static func _kind_of(archetype: String) -> StringName:
 	return &""
 
 
-## The wheel tyre meshes of a model: {"lod0": [MeshInstance3D x4], "lod1": [...]}.
-static func _tyres(model: Node3D) -> Dictionary:
-	var out := {"lod0": [], "lod1": []}
-	for wn: StringName in VehicleVisual.WHEEL_NAMES:
-		var w := model.get_node_or_null(NodePath(wn)) as Node3D
-		if w == null:
+## The wheel ids (1 .. 4) found in uv2.y of the wheel vertices (uv0.x >= 20) of the Details surface of a mesh, with the vertex count of each.
+## Triangles of the surface called `surf_name` whose centre is on the left (x < -0.15) and on the right (x > 0.15): the shell is mirror symmetric, so are its windows.
+static func _side_tris(mi: MeshInstance3D, surf_name: String) -> Vector2i:
+	var l := 0
+	var r := 0
+	for sidx in mi.mesh.get_surface_count():
+		if mi.mesh.surface_get_material(sidx).resource_name != surf_name:
 			continue
-		for c in w.get_children():
-			var mi := c as MeshInstance3D
-			if mi == null:
-				continue
-			(out["lod1"] if String(mi.name).contains("LOD1") else out["lod0"]).append(mi)
+		var arrs := mi.mesh.surface_get_arrays(sidx)
+		var vv: PackedVector3Array = arrs[Mesh.ARRAY_VERTEX]
+		var ii: PackedInt32Array = arrs[Mesh.ARRAY_INDEX]
+		for t in range(0, ii.size(), 3):
+			var cx := (vv[ii[t]].x + vv[ii[t + 1]].x + vv[ii[t + 2]].x) / 3.0
+			if cx < -0.15:
+				l += 1
+			elif cx > 0.15:
+				r += 1
+	return Vector2i(l, r)
+
+
+static func _wheel_ids(mi: MeshInstance3D) -> Dictionary:
+	var out := {}
+	for s in mi.mesh.get_surface_count():
+		var m := mi.mesh.surface_get_material(s)
+		if m == null or m.resource_name != "Details":
+			continue
+		var arr := mi.mesh.surface_get_arrays(s)
+		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+		var uv2: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV2]
+		for i in uv.size():
+			if uv[i].x > 19.5:
+				var k := int(roundf(uv2[i].y))
+				out[k] = int(out.get(k, 0)) + 1
 	return out
 
 
-static func _wheel_tris(list: Array) -> int:
+## The triangles of the Details surface whose vertices are wheel vertices (uv0.x >= 20).
+static func _wheel_tris(mi: MeshInstance3D) -> int:
 	var n := 0
-	for mi: MeshInstance3D in list:
-		n += _tris(mi)
+	for s in mi.mesh.get_surface_count():
+		var m := mi.mesh.surface_get_material(s)
+		if m == null or m.resource_name != "Details":
+			continue
+		var arr := mi.mesh.surface_get_arrays(s)
+		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		for t in idx.size() / 3:
+			if uv[idx[t * 3]].x > 19.5:
+				n += 1
 	return n
 
 
@@ -117,9 +149,17 @@ func _archetypes() -> void:
 		if body == null or l1 == null or l2 == null:
 			model.free()
 			continue
-		var tyres := _tyres(model)
 		var wheels_expected := 0 if nm == "hover" else 4                      # the quantum car floats on four thruster pods instead of wheels
-		TestLib.check(tyres["lod0"].size() == wheels_expected and tyres["lod1"].size() == wheels_expected, "%s: %d wheels with a full and a coarse tyre mesh (%d / %d)" % [nm, wheels_expected, tyres["lod0"].size(), tyres["lod1"].size()])
+		var ids := _wheel_ids(body)
+		var ids1 := _wheel_ids(l1)
+		TestLib.check(ids.size() == wheels_expected and ids1.size() == wheels_expected, "%s: %d wheels in the Details surface of Body and of Body_LOD1 (%s / %s)" % [nm, wheels_expected, ids.keys(), ids1.keys()])
+		var kids := 0
+		for wn: StringName in VehicleVisual.WHEEL_NAMES:
+			var w := model.get_node_or_null(NodePath(wn)) as Node3D
+			if w != null:
+				kids += w.get_child_count()
+		TestLib.check(kids == 0, "%s: the wheel nodes are empty (no tyre mesh of their own: no draw call per tyre)" % nm)
+		TestLib.check(wheels_expected == 0 or (_wheel_tris(body) >= 3 * _wheel_tris(l1) / 2 and _wheel_tris(body) >= 4 * 250), "%s: the near wheels have real detail (%d triangles against %d at LOD1)" % [nm, _wheel_tris(body), _wheel_tris(l1)])
 		# surfaces: the paint, the trim / lamps / interior, the glass; the far car is one surface
 		var names := _surface_names(body)
 		TestLib.check(",".join(names) == "Paint,Details,Glass", "%s: surfaces Paint, Details, Glass (%s)" % [nm, ",".join(names)])
@@ -131,8 +171,8 @@ func _archetypes() -> void:
 				textured = textured or (bm != null and bm.albedo_texture != null)
 		TestLib.check(not textured, "%s: no textures in the model (colours in the vertices, the shaders add the rest): no texture memory" % nm)
 		# triangle budgets
-		var t0 := _tris(body) + _wheel_tris(tyres["lod0"])
-		var t1 := _tris(l1) + _wheel_tris(tyres["lod1"])
+		var t0 := _tris(body)
+		var t1 := _tris(l1)
 		var t2 := _tris(l2)
 		print("   %-9s tris %5d / %5d / %4d" % [nm, t0, t1, t2])
 		TestLib.check(t0 >= LOD0_TRIS.x and t0 <= LOD0_TRIS.y, "%s: LOD0 %d triangles with the wheels (%d - %d)" % [nm, t0, LOD0_TRIS.x, LOD0_TRIS.y])
@@ -170,6 +210,11 @@ func _archetypes() -> void:
 			if body.mesh.surface_get_material(s).resource_name == "Glass":
 				glass_tris = body.mesh.surface_get_array_index_len(s) / 3
 		TestLib.check(glass_tris >= 20, "%s: the glass is its own surface with %d triangles" % [nm, glass_tris])
+		for lod_mi: MeshInstance3D in [body, l1]:                               # wave 112: the left half of the shell loft was one ring slot off, so the doors of the left side were glass at the coarse LODs
+			var gs := _side_tris(lod_mi, "Glass")
+			var ps := _side_tris(lod_mi, "Paint")
+			TestLib.check(gs.x == gs.y and gs.x > 0, "%s %s: the windows are the same on both sides (%d left, %d right glass triangles)" % [nm, lod_mi.name, gs.x, gs.y])
+			TestLib.check(absi(ps.x - ps.y) <= maxi(2, (ps.x + ps.y) / 40), "%s %s: the paint panels are the same on both sides (%d left, %d right triangles)" % [nm, lod_mi.name, ps.x, ps.y])
 		model.free()
 
 
@@ -183,7 +228,7 @@ func _budget_and_weight() -> void:
 				total += int(fa.get_length())
 				count += 1
 	print("   cv2 models: %d files, %.1f MB" % [count, total / 1048576.0])
-	TestLib.check(count == SET.size() + 1, "the set is %d car models plus the near traffic car (found %d)" % [SET.size(), count])
+	TestLib.check(count == SET.size() + 2, "the set is %d car models plus the two near traffic cars, HI and far (found %d)" % [SET.size(), count])
 	TestLib.check(total < MAX_SET_BYTES, "the whole set weighs %.1f MB (limit %.0f MB)" % [total / 1048576.0, MAX_SET_BYTES / 1048576.0])
 	var tex_bytes := 0
 	for path in [CarV2.FLAKE_TEX, CarV2.TREAD_TEX]:
@@ -210,7 +255,7 @@ func _kinds_use_the_set(host: Node) -> void:
 		holder.add_child(root)
 		TestLib.check(vis.v2 != null and vis.model_name.begins_with("cv2_"), "%s: built with the Cars v2 runtime (%s)" % [kind, vis.model_name])
 		if vis.v2 != null:
-			var mats := [vis.v2.paint_mat, vis.v2.details_mat, vis.v2.glass_mat, vis.v2.wheel_mat, vis.v2.lod_mat]
+			var mats := [vis.v2.paint_mat, vis.v2.details_mat, vis.v2.glass_mat, vis.v2.lod_mat]
 			var shaders_ok := true
 			for m: ShaderMaterial in mats:
 				shaders_ok = shaders_ok and m != null and m.shader != null
@@ -303,7 +348,7 @@ func _paints_and_decals(host: Node) -> void:
 	# dirt and wet: dirt dulls, rain glosses (the numbers the paint shader reads)
 	var dull := float(vis.paint_state()["roughness"])
 	vis.v2.set_dirt(0.9)
-	TestLib.check(is_equal_approx(float(vis.v2.paint_mat.get_shader_parameter(&"dirt")), 0.9) and is_equal_approx(float(vis.v2.wheel_mat.get_shader_parameter(&"dirt")), 0.9), "dirt reaches the paint and the tyres")
+	TestLib.check(is_equal_approx(float(vis.v2.paint_mat.get_shader_parameter(&"dirt")), 0.9) and is_equal_approx(float(vis.v2.details_mat.get_shader_parameter(&"wheel_dirt")), 0.9), "dirt reaches the paint and the tyres")
 	vis.v2.set_dirt(0.0)
 	vis.set_wet(1.0)
 	TestLib.check(float(vis.paint_state()["roughness"]) < dull, "a wet car is glossier (%.2f < %.2f)" % [float(vis.paint_state()["roughness"]), dull])
@@ -398,6 +443,78 @@ func _damage_states(host: Node) -> void:
 	car.queue_free()
 
 
+## The closing speed (m/s) whose Vehicle.crash_fraction is at least `frac`.
+static func _speed_for(frac: float) -> float:
+	var v := 5.0
+	while v < 60.0 and Vehicle.crash_fraction(v) < frac:
+		v += 0.5
+	return v
+
+
+## Vehicle.crash() is where VehicleManager.collide_cars, the near traffic and the road traffic all end: a crash must reach every damage state of the new art (dents, cracks, torn parts, a lost
+## wheel, the burning engine bay) without anything calling the visual by hand.
+func _crash_drives_the_states(host: Node) -> void:
+	var car := Vehicle.new()
+	host.add_child(car)
+	car.setup(&"sedan", null)
+	car.activate(Vector3(0, 0, 0), 0.0)
+	var v2 := car.visual.v2
+	if v2 == null:
+		TestLib.check(false, "crash states: the sedan is a Cars v2 car")
+		car.queue_free()
+		return
+	var nose := Vector3(0.0, 0.7, -2.3)
+	var v_dent := _speed_for(maxf(VehicleSpecs.DENT_MIN, 0.05) + 0.02)                  # the closing speed that makes a dent, cracks the glass (frac > 0.28), tears a panel (frac > 0.38)
+	var v_glass := _speed_for(0.34)
+	var v_part := _speed_for(0.46)
+	car._dist = 4.0                                                        # a car near the camera shows its damage (far ones skip the dents)
+	var lost0 := car.crash(car.max_hp * 0.0 + 3.0, car.to_global(nose), Vector3(0.0, 0.0, 1.0), INF)
+	TestLib.check(lost0 == 0.0 and v2.dents.is_empty() and v2.cracks == 0.0, "a bump at walking pace leaves the car whole")
+	car.impact_t = 9.0
+	car.last_impact = 0.0
+	var hp0 := car.hp
+	var lost1 := car.crash(v_dent, car.to_global(nose), Vector3(0.0, 0.0, 1.0), INF)
+	TestLib.check(lost1 > 0.0 and car.hp < hp0 and v2.dents.size() >= 1 and int(v2.paint_mat.get_shader_parameter(&"dent_n")) >= 1, "a hard hit dents the panel the shader draws (%.0f hp lost, %d dents)" % [lost1, v2.dents.size()])
+	car.impact_t = 9.0
+	car.last_impact = 0.0
+	car.crash(v_glass, car.to_global(nose), Vector3(0.0, 0.0, 1.0), INF)
+	TestLib.check(v2.cracks > 0.0 and float(v2.glass_mat.get_shader_parameter(&"crack")) > 0.0, "a harder one cracks the glass (%.2f)" % v2.cracks)
+	car.impact_t = 9.0
+	car.last_impact = 0.0
+	var parts_before := v2.parts_lost
+	car.crash(v_part, car.to_global(nose), Vector3(0.0, 0.0, 1.0), INF)
+	TestLib.check(v2.parts_lost != parts_before or car.dead, "a violent one tears a part off (mask %d), the Details / Paint / Glass shaders collapse it" % v2.parts_lost)
+	TestLib.check(car.hp <= car.max_hp * 0.8 and car.dmg_state >= 0, "the hull took the damage (%.0f of %.0f hp, state %d)" % [car.hp, car.max_hp, car.dmg_state])
+	# the engine bay burns once the hull is nearly gone
+	car.repair()
+	TestLib.check(v2.dents.is_empty() and v2.cracks == 0.0 and v2.parts_lost == 0 and v2.wheels_lost == 0, "a repair puts the car back together (dents, glass, parts, wheels)")
+	car.hp = car.max_hp * 0.12
+	car._hurt(1.0)
+	TestLib.check(car.dmg_state == 2 and v2.burning and float(v2.details_mat.get_shader_parameter(&"fire")) > 0.5, "a hull below 15 percent burns: the engine bay glows (state %d)" % car.dmg_state)
+	car.queue_free()
+	# two cars in a head-on crash through the manager's own collision response: both are dented
+	var a := Vehicle.new()
+	var b := Vehicle.new()
+	host.add_child(a)
+	host.add_child(b)
+	a.setup(&"sedan", null)
+	b.setup(&"suv", null)
+	a.activate(Vector3(300.0, 0.0, 300.0), 0.0)
+	b.activate(Vector3(300.0, 0.0, 296.0), PI)
+	var mgr := VehicleManager.new()
+	host.add_child(mgr)
+	a._dist = 4.0
+	b._dist = 4.0
+	a.impact_t = 9.0
+	b.impact_t = 9.0
+	a.crash(v_glass, Vector3(300.0, 0.7, 298.0), Vector3(0.0, 0.0, 1.0), VehicleSpecs.mass_of(&"suv"))
+	b.crash(v_glass, Vector3(300.0, 0.7, 298.0), Vector3(0.0, 0.0, -1.0), VehicleSpecs.mass_of(&"sedan"))
+	TestLib.check(a.visual.v2.dents.size() >= 1 and b.visual.v2.dents.size() >= 1, "a car-to-car crash dents both (%d / %d dents)" % [a.visual.v2.dents.size(), b.visual.v2.dents.size()])
+	mgr.queue_free()
+	a.queue_free()
+	b.queue_free()
+
+
 # --- wheels and the LOD ranges --------------------------------------------------------------------------------------------------------------------------
 
 func _wheels_and_lods(host: Node) -> void:
@@ -405,29 +522,32 @@ func _wheels_and_lods(host: Node) -> void:
 	var root := vis.build(&"muscle", Color(0.2, 0.9, 1.0))
 	host.add_child(root)
 	var v2 := vis.v2
-	TestLib.check(v2.wheel_meshes.size() == 8, "four wheels with a full and a coarse tyre mesh each (%d meshes)" % v2.wheel_meshes.size())
-	var wm := v2.wheel_mat
-	var tread := wm.get_shader_parameter(&"tread") as Texture2D
+	var dm := v2.details_mat
+	var tread := dm.get_shader_parameter(&"tread") as Texture2D
 	TestLib.check(tread != null and tread.get_width() >= 64, "the tyres share the tread normal map (%s)" % ("%dx%d" % [tread.get_width(), tread.get_height()] if tread != null else "missing"))
-	TestLib.check(wm.shader.code.contains("tread") and wm.shader.code.contains("caliper_color") and wm.shader.code.contains("rim_tint"), "the wheel shader has tread, rim, caliper and hub classes")
-	var full := v2.wheel_meshes[0]
-	var arrays := full.mesh.surface_get_arrays(0)
-	var uv: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
-	var uv2: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV2]
-	var classes := {}
-	for p in uv2:
-		classes[int(roundf(p.x))] = true
-	TestLib.check(uv.size() > 100 and classes.has(0) and classes.has(1) and classes.has(2) and classes.has(3) and classes.has(4), "a full wheel is a tyre with tread uvs, a rim, a brake disc, a caliper and a hub (classes %s)" % [classes.keys()])
-	TestLib.check(_tris(full) > 3 * _tris(v2.wheel_meshes[1]) / 2 and _tris(full) >= 250, "the near wheel has real detail (%d triangles against %d for the coarse one)" % [_tris(full), _tris(v2.wheel_meshes[1])])
-	# the tyres turn with the car
+	TestLib.check(dm.shader.code.contains("tread") and dm.shader.code.contains("caliper_color") and dm.shader.code.contains("rim_tint") and dm.shader.code.contains("wheel_roll"), "the Details shader has the tread, rim, caliper and hub classes and rolls the wheels")
+	var cls := _detail_classes(v2.body)
+	TestLib.check(cls.has(DETAIL_CLASS["tyre"]) and cls.has(DETAIL_CLASS["rim"]) and cls.has(DETAIL_CLASS["brake"]) and cls.has(DETAIL_CLASS["caliper"]) and cls.has(DETAIL_CLASS["hub"]),
+			"a full wheel is a tyre with tread uvs, a rim, a brake disc, a caliper and a hub (classes %s)" % [cls.keys()])
+	var pivots: PackedVector3Array = dm.get_shader_parameter(&"wheel_c")
+	TestLib.check(pivots.size() == 4 and pivots[0].x < 0.0 and pivots[1].x > 0.0 and pivots[0].z < pivots[2].z, "the four wheel pivots are the wheel nodes: left and right, front before rear (%s)" % [pivots])
+	# the tyres turn with the car: the wheel nodes (their rotation is what the effects and the tests read) and the shader uniforms
 	var before := vis.wheels[0].rotation.x
 	vis.spin(2.0, 0.3)
 	TestLib.check(vis.wheels.size() == 4 and not is_equal_approx(vis.wheels[0].rotation.x, before), "the wheels spin")
+	TestLib.check(not is_equal_approx(float(dm.get_shader_parameter(&"wheel_roll")), 0.0) and is_equal_approx(float(dm.get_shader_parameter(&"wheel_steer")), 0.3), "...and the Details shader rolls and steers the tyre vertices")
+	# a wheel that flies off collapses into its hub, a repair puts it back
+	vis.shed_wheel(2)
+	TestLib.check(vis.wheel_shed(2) and (int(float(dm.get_shader_parameter(&"wheel_lost"))) & 4) != 0 and v2.wheels_lost == 4, "a wheel that flew off is hidden in the shader")
+	vis.restore_wheels()
+	TestLib.check(vis.wheels_lost() == 0 and int(float(dm.get_shader_parameter(&"wheel_lost"))) == 0, "...and a repair puts it back")
+	var plate_cls := cls.get(DETAIL_CLASS["plate"], 0) as int
+	TestLib.check(plate_cls >= 8 and dm.get_shader_parameter(&"plate_seed") != null and dm.shader.code.contains("GLYPH"), "the number plates are patches of the Details surface that print QT and five digits (%d plate vertices)" % plate_cls)
 	# LOD ranges: Body to 26 m, Body_LOD1 to 64 m, Body_LOD2 beyond, the tyres swap at 22 m
 	TestLib.check(is_equal_approx(v2.body.visibility_range_end, CarV2.LOD1_DIST) and is_equal_approx(v2.lod1.visibility_range_begin, CarV2.LOD1_DIST), "the near body hands over to the middle LOD at %.0f m with no gap" % CarV2.LOD1_DIST)
 	TestLib.check(is_equal_approx(v2.lod1.visibility_range_end, CarV2.LOD2_DIST) and is_equal_approx(v2.lod2.visibility_range_begin, CarV2.LOD2_DIST), "the middle LOD hands over to the far car at %.0f m" % CarV2.LOD2_DIST)
 	TestLib.check(CarV2.LOD1_DIST >= 24.0 and CarV2.LOD1_DIST <= 30.0, "the full detail car shows up to about 25 m")
-	TestLib.check(is_equal_approx(v2.wheel_meshes[0].visibility_range_end, CarV2.WHEEL_LOD1) and is_equal_approx(v2.wheel_meshes[1].visibility_range_begin, CarV2.WHEEL_LOD1), "the tyre mesh swaps to the coarse one at %.0f m" % CarV2.WHEEL_LOD1)
+	TestLib.check(_wheel_ids(v2.lod1).size() == 4 and _wheel_ids(v2.lod2).is_empty(), "the middle LOD has coarse wheels of its own, the far car has them baked into its one surface")
 	# the far car casts the shadow (the near mesh does not: one cheap proxy), and a twin without a render layer is what the wet street reflects
 	var shadow := v2.body.get_node_or_null(NodePath(ShadowProxy.PROXY_NAME)) as MeshInstance3D
 	TestLib.check(shadow != null and shadow.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY and v2.body.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "the 400 triangle mesh is the shadow caster")
@@ -453,42 +573,138 @@ func _wheels_and_lods(host: Node) -> void:
 	croot.queue_free()
 
 
-# --- the near traffic car ----------------------------------------------------------------------------------------------------------------------------------
+# --- the near traffic cars -----------------------------------------------------------------------------------------------------------------------------------
 
-func _near_mesh() -> void:
-	var root := Game.load_model("cv2_near")
-	TestLib.check(root != null, "assets/models/cv2_near.glb loads (the car of the near traffic MultiMesh)")
+## Both near meshes are ONE surface each (one draw call per MultiMesh): the far car (LO, the sedan shell and four octagonal wheels, about 360 triangles) and the HI car (the sedan shell, the box
+## truck shell, four wheels and a few extras, about 1.2k triangles, drawn by a handful of instances within about 20 m). Tags in uv0.x, region / wheel id in uv0.y, ao and part in uv2.
+const NEAR_TAGS := [0.0, 0.25, 0.3, 0.45, 0.52, 0.55, 0.65, 0.72, 0.78, 0.84, 0.9, 0.95, 1.0]
+
+
+func _near_mesh_of(model_name: String) -> MeshInstance3D:
+	var root := Game.load_model(model_name)
+	TestLib.check(root != null, "assets/models/%s.glb loads" % model_name)
 	if root == null:
-		return
+		return null
 	var mi: MeshInstance3D = null
 	for n in root.find_children("*", "MeshInstance3D", true, false):
 		mi = n as MeshInstance3D
 		break
-	TestLib.check(mi != null and mi.mesh.get_surface_count() == 1, "one surface: the whole near traffic fleet is one draw call")
 	if mi != null:
+		root.remove_child(mi)
+		mi.owner = null
+		root.free()
+	return mi
+
+
+func _near_mesh() -> void:
+	for name_hi: Array in [["cv2_near", false], ["cv2_near_hi", true]]:
+		var model_name: String = name_hi[0]
+		var hi: bool = name_hi[1]
+		var mi := _near_mesh_of(model_name)
+		TestLib.check(mi != null and mi.mesh.get_surface_count() == 1, "%s: one surface, so the whole fleet of this mesh is one draw call" % model_name)
+		if mi == null:
+			continue
 		var tris := _tris(mi)
-		TestLib.check(tris >= 300 and tris <= 700, "%d triangles (about 430)" % tris)
+		if hi:
+			TestLib.check(tris >= 900 and tris <= 1500, "%s: %d triangles (about 1.2k: two bodies, four wheels, extras)" % [model_name, tris])
+		else:
+			TestLib.check(tris >= 250 and tris <= 520, "%s: %d triangles (about 360: it carries the many far cars)" % [model_name, tris])
 		var arr := mi.mesh.surface_get_arrays(0)
 		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+		var uv2: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV2]
+		TestLib.check(uv.size() == uv2.size() and uv2.size() > 100, "%s: both uv sets (tag / wheel id, occlusion / part)" % model_name)
 		var tags := {}
-		var wheel_ok := true
-		for p in uv:
-			tags[snappedf(p.x, 0.05)] = tags.get(snappedf(p.x, 0.05), 0) + 1
-			if p.x > 0.4 and p.x < 0.5 and absf(p.y) < 0.05:
-				wheel_ok = false
-		var allowed := [0.0, 0.25, 0.45, 0.5, 0.55, 0.65, 0.8, 1.0]
-		var tags_ok := true
-		for t: float in tags.keys():
+		var parts := {}
+		var wheel_ids := {}
+		var bad_tag := 0
+		for i in uv.size():
+			var t := snappedf(uv[i].x, 0.01)
+			tags[t] = int(tags.get(t, 0)) + 1
 			var known := false
-			for a: float in allowed:
+			for a: float in NEAR_TAGS:
 				known = known or is_equal_approx(t, a)
-			tags_ok = tags_ok and known
-		TestLib.check(tags.has(0.0) and tags.has(0.25) and tags.has(1.0) and tags_ok, "the surface tags of prop_nearcar.gdshader (paint, glass, tail lamps; tags %s)" % [tags.keys()])
-		TestLib.check(wheel_ok, "every tyre vertex carries the wheel centre height in uv.y (the wheels keep their size when the body is stretched)")
-		var shared := NearTraffic.car_mesh()
-		TestLib.check(shared != null and shared.get_surface_count() == 1, "NearTraffic.car_mesh() gives the MultiMesh a one surface car")
-		TestLib.check(_tris_of_mesh(shared) == tris, "...and it is this one (%d triangles)" % _tris_of_mesh(shared))
-	root.free()
+			if not known:
+				bad_tag += 1
+			var part := int(roundf(uv2[i].y))
+			parts[part] = int(parts.get(part, 0)) + 1
+			if part == 6:
+				wheel_ids[int(roundf(uv[i].y))] = true
+		TestLib.check(bad_tag == 0 and tags.has(0.0) and tags.has(0.25) and tags.has(1.0) and tags.has(0.45) and tags.has(0.65), "%s: the surface tags of the near shaders (paint, glass, tyre, wheel face, tail lamp; tags %s)" % [model_name, tags.keys()])
+		TestLib.check(wheel_ids.size() == 4 and wheel_ids.has(1) and wheel_ids.has(4), "%s: every wheel vertex carries its wheel id 1 .. 4 in uv0.y (the shader places the wheels by the table of the kind: %s)" % [model_name, wheel_ids.keys()])
+		var vtx: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		var gl := Vector2i.ZERO
+		var pa := Vector2i.ZERO
+		for t in range(0, idx.size(), 3):
+			if int(roundf(uv2[idx[t]].y)) != 0:
+				continue
+			var cx := (vtx[idx[t]].x + vtx[idx[t + 1]].x + vtx[idx[t + 2]].x) / 3.0
+			if absf(cx) < 0.3:
+				continue
+			var tg := snappedf(uv[idx[t]].x, 0.01)
+			if is_equal_approx(tg, 0.25):
+				gl += Vector2i(1, 0) if cx < 0.0 else Vector2i(0, 1)
+			elif is_equal_approx(tg, 0.0):
+				pa += Vector2i(1, 0) if cx < 0.0 else Vector2i(0, 1)
+		TestLib.check(gl.x == gl.y and gl.x > 0 and pa.x == pa.y, "%s: the sedan shell is the same on both sides (glass %d / %d, paint %d / %d triangles: the left doors were glass once)" % [model_name, gl.x, gl.y, pa.x, pa.y])
+		if hi:
+			TestLib.check(parts.has(0) and parts.has(1) and parts.has(2) and parts.has(3) and parts.has(4) and parts.has(5) and parts.has(6), "%s: sedan shell, box truck shell, taxi sign, patrol light bar, spoiler, ambulance bar and wheels (parts %s)" % [model_name, parts.keys()])
+		else:
+			TestLib.check(parts.has(0) and parts.has(6) and not parts.has(1), "%s: the sedan shell and the wheels only (parts %s)" % [model_name, parts.keys()])
+		mi.free()
+	var shared := NearTraffic.car_mesh()
+	var shared_hi := NearTraffic.car_mesh_hi()
+	TestLib.check(shared != null and shared.get_surface_count() == 1 and shared_hi != null and shared_hi.get_surface_count() == 1, "NearTraffic gives each MultiMesh a one surface car")
+	TestLib.check(_tris_of_mesh(shared_hi) > 2 * _tris_of_mesh(shared), "the HI car (%d triangles) has the detail the far car (%d) has not" % [_tris_of_mesh(shared_hi), _tris_of_mesh(shared)])
+	# the anchors of the kinds (written by tools/blender/carv2/near.py into the shader include): twelve kinds, the box kinds on the box truck body
+	var inc := FileAccess.get_file_as_string("res://assets/shaders/prop_nearcar_tables.gdshaderinc")
+	TestLib.check(inc.contains("C_TAB[108]") and inc.contains("B_TAB[132]") and inc.contains("WHEEL_BASE"), "the near shaders have an anchor table row for each of the twelve kinds")
+	var mask_ok := inc.contains("FAMILY_B_MASK = %d" % _box_mask())
+	TestLib.check(mask_ok, "the box kinds of the shader (van, truck, bus, ambulance, delivery) are the box kinds of NearTraffic (mask %d)" % _box_mask())
+	var hi_sh := FileAccess.get_file_as_string("res://assets/shaders/prop_nearcar_hi.gdshader")
+	var lo_sh := FileAccess.get_file_as_string("res://assets/shaders/prop_nearcar.gdshader")
+	TestLib.check(hi_sh.contains("near_wheel") and hi_sh.contains("near_b(") and lo_sh.contains("near_wheel") and not lo_sh.contains("near_b("), "the HI shader places two bodies, the far shader one; both place the wheels")
+	TestLib.check(HiRoute.new().ok(), "NearTraffic routes the cars within the HI range to the HI MultiMesh and the rest to the far one")
+
+
+func _box_mask() -> int:
+	var m := 0
+	for k: int in NearTraffic.BOX_KINDS:
+		m |= 1 << k
+	return m
+
+
+## The routing of NearTraffic (the HI MultiMesh holds the nearest cars, the far one the rest; an empty HI node is hidden): checked on a bare NearTraffic, no scene.
+class HiRoute:
+	func ok() -> bool:
+		var nt := NearTraffic.new()
+		nt.build(null)
+		nt._cam_ok = true
+		nt._cam_pos = Vector2(0.0, 0.0)
+		nt.quality = 1
+		nt._nw_hi = 0
+		var near_ok := nt._wants_hi(3.0, 4.0, 0) and not nt._wants_hi(40.0, 0.0, 0)
+		var box_far := nt._wants_hi(NearTraffic.HI_R[1] + 4.0, 0.0, 7) and not nt._wants_hi(NearTraffic.HI_R[1] + 4.0, 0.0, 0)      # a box kind keeps the HI mesh a little farther
+		nt._nw_hi = NearTraffic.HI_CAP[1]
+		var capped := not nt._wants_hi(3.0, 4.0, 0)
+		# nearest first: with more cars in range than slots, the next step gives the HI mesh to the nearest ones whatever the order they are written in
+		nt._hi_cand.clear()
+		nt._hi_thr2 = INF
+		nt._nw_hi = 0
+		var dists: Array[float] = [14.0, 3.0, 11.0, 6.0, 9.0, 4.0]                 # metres, 6 cars in range of MED (15 m), 4 slots
+		for d in dists:
+			nt._wants_hi(d, 0.0, 0)
+		nt._update_hi_threshold()                                                  # (the step does this when it starts)
+		var picks := 0
+		var nearest_ok := true
+		nt._nw_hi = 0
+		for d in dists:
+			var hi := nt._wants_hi(d, 0.0, 0)
+			picks += 1 if hi else 0
+			nearest_ok = nearest_ok and (hi == (d <= 9.0))                          # 3, 4, 6 and 9 m are the four nearest
+		nt._nw_hi = 0
+		var order_free := nt._wants_hi(3.0, 0.0, 0) and not nt._wants_hi(14.0, 0.0, 0) and not nt._wants_hi(11.0, 0.0, 0)
+		return near_ok and box_far and capped and nt.mm_hi.instance_count == NearTraffic.HI_MAX and picks == NearTraffic.HI_CAP[1] and nearest_ok and order_free
 
 
 static func _tris_of_mesh(m: Mesh) -> int:

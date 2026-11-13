@@ -20,8 +20,8 @@ const PAINT_SPECULAR := 0.9                   ## dielectric specular of the lacq
 const PAINT_METAL_MIN := 0.12
 const PAINT_METAL_MAX := 0.4
 const PAINT_RIM := 0.6                       ## grazing-angle sheen of every paint (material parameter, no extra draw)
-const PAINT_GLOW := 0.2                    ## emission in the paint colour, so a car keeps its colour and its shape in the dark (was 0.2: the night car shot read as a flat dark blob)
-const PAINT_GLOW_LOW := 0.26               ## LOW has no fill light: the paint carries more of its own light
+const PAINT_GLOW := 0.12                   ## emission in the paint colour, so a car keeps its colour and its shape in the dark (0.2 made the cars read as emissive clay next to the key light: round 6, second pass)
+const PAINT_GLOW_LOW := 0.18               ## LOW has no fill light: the paint carries more of its own light
 const PAINT_GLOW_COMPAT := 0.34            ## the compatibility renderer lights the paint less, so it needs less of the lift
 
 
@@ -35,7 +35,7 @@ static func paint_glow() -> float:
 ## has a lit and a shaded side instead of the flat look the camera-facing fill gives (no shadows, one light for every car, any tier).
 const KEY_LAYER := 18
 const KEY_BIT := 1 << (KEY_LAYER - 1)
-const KEY_ENERGY := 2.6
+const KEY_ENERGY := 2.2
 const KEY_YAW := 0.95                         ## rad from the camera heading
 const KEY_PITCH := -40.0
 static var _key: DirectionalLight3D
@@ -262,19 +262,13 @@ func _build_v2(spec: Dictionary, glow: Color) -> Node3D:
 	for extra: MeshInstance3D in [c2.lod1, c2.lod2]:
 		if extra != null:
 			meshes.append(extra)
-	meshes.append_array(c2.wheel_meshes)
 	var ln: float = spec["len"]
 	var wid: float = spec["wid"]
 	var hgt: float = spec["hgt"]
 	_dims = Vector3(wid, hgt, ln)
 	if cls == &"car":
 		_plate_n += 1
-		plates = CarParts.add_plates(model, AABB(Vector3(-wid * 0.5, 0.0, -ln * 0.5), Vector3(wid, hgt, ln)), _plate_n, clampf(hgt * 0.36, 0.42, 0.62))
-		if c2.anchors.has("PlateF") and plates.size() == 2:
-			plates[0].position = (c2.anchors["PlateF"] as Vector3) + Vector3(0.0, 0.0, -0.014)
-			plates[1].position = (c2.anchors["PlateR"] as Vector3) + Vector3(0.0, 0.0, 0.014) if c2.anchors.has("PlateR") else plates[1].position
-		for p in plates:
-			p.layers = p.layers | KEY_BIT
+		c2.set_plate_seed(float(_plate_n) * 7.31 + 3.0)                  # the plates are part of the Details surface now (no quad, no texture, two draws fewer): the seed makes the number
 	_add_beams(wid, hgt, ln)
 	if c2.lod2 != null:
 		_shadow = MeshInstance3D.new()                          # the 400 triangle car is the shadow caster, drawn only into the shadow maps
@@ -1103,6 +1097,8 @@ func spin(dist: float, steer: float) -> void:
 	_roll = fposmod(_roll - dist / wheel_radius, TAU)
 	for i in wheels.size():
 		wheels[i].rotation = Vector3(_roll, steer if _front[i] else 0.0, 0.0)
+	if v2 != null:
+		v2.set_wheel_pose(_roll, steer)                                # the wheels are vertices of the Details surface: the shader turns them
 
 
 func set_wheels_visible(v: bool) -> void:
@@ -1111,6 +1107,8 @@ func set_wheels_visible(v: bool) -> void:
 	_wheels_shown = v
 	for i in wheels.size():
 		wheels[i].visible = v and not wheel_shed(i)
+		if v2 != null:
+			v2.set_wheel_lost(i, not v or wheel_shed(i))
 
 
 ## A wheel has flown off (CarDebris): its node stays hidden until restore_wheels() (repair, respawn).
@@ -1124,6 +1122,8 @@ func shed_wheel(i: int) -> void:
 		_shed.resize(wheels.size())
 	_shed[i] = 1
 	wheels[i].visible = false
+	if v2 != null:
+		v2.set_wheel_lost(i, true)
 
 
 func wheel_shed(i: int) -> bool:
@@ -1143,6 +1143,9 @@ func restore_wheels() -> void:
 	_shed.fill(0)
 	for w in wheels:
 		w.visible = _wheels_shown
+	if v2 != null:
+		for k in wheels.size():
+			v2.set_wheel_lost(k, not _wheels_shown)
 
 
 func wheels_visible() -> bool:

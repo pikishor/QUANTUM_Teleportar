@@ -8,42 +8,65 @@ from . import kit
 from .kit import D_CHROME, D_FABRIC, D_LEATHER, D_PLASTIC, D_SCREEN, Mesh
 
 D_SKIN, D_CLOTH = 18, 19
-SEAT = (0.028, 0.028, 0.032)
-SEAT_TAN = (0.12, 0.08, 0.05)
-DASH = (0.018, 0.018, 0.021)
-LINER = (0.02, 0.02, 0.024)
+SEAT = (0.075, 0.078, 0.09)
+SEAT_TAN = (0.17, 0.115, 0.07)
+DASH = (0.022, 0.022, 0.026)
+DASH_TOP = (0.035, 0.036, 0.042)
+LINER = (0.045, 0.047, 0.055)
+TRIM_LIGHT = (0.13, 0.135, 0.15)
 SKIN = (0.5, 0.32, 0.24)
 CLOTH = (0.08, 0.10, 0.16)
 
 
 def _seat(x, y, z, tilt=0.0, w=0.46, col=SEAT, head=True, h=0.55):
-    """A seat facing the nose (+Y): cushion, back, headrest."""
+    """A seat facing the nose (+Y): cushion, back with side bolsters, headrest (plain boxes: 12 triangles each)."""
     m = Mesh()
+    back_col = tuple(min(c * 0.72, 1.0) for c in col)
     cush = kit.box((0, 0, 0), (w, 0.50, 0.13))
     cush.style(D_FABRIC, col)
     m.add_mesh(cush, kit.trans(x, y, z))
-    back = kit.box((0, 0, 0), (w, 0.12, h))
-    back.style(D_FABRIC, col)
+    back = kit.box((0, 0, 0), (w * 0.86, 0.11, h))
+    back.style(D_FABRIC, back_col)
     back = back.xformed(kit.rot_x(-tilt))
     m.add_mesh(back, kit.trans(x, y - 0.25, z + 0.28))
+    for sx in (-1.0, 1.0):                                         # bolsters: a thin raised cheek on each side of the cushion and of the back
+        bc = kit.box((0, 0, 0), (0.07, 0.42, 0.075))
+        bc.style(D_FABRIC, col)
+        m.add_mesh(bc, kit.trans(x + sx * (w * 0.5 - 0.03), y + 0.02, z + 0.085))
+        bb = kit.box((0, 0, 0), (0.075, 0.15, h * 0.82))
+        bb.style(D_FABRIC, col)
+        bb = bb.xformed(kit.rot_x(-tilt))
+        m.add_mesh(bb, kit.trans(x + sx * (w * 0.5 - 0.02), y - 0.23, z + 0.26))
     if head:
-        hr = kit.box((0, 0, 0), (0.22, 0.09, 0.17))
+        hr = kit.box((0, 0, 0), (0.21, 0.09, 0.16))
         hr.style(D_FABRIC, col)
         m.add_mesh(hr, kit.trans(x, y - 0.25 - math.sin(tilt) * 0.36, z + 0.28 + math.cos(tilt) * 0.40))
     return m
 
 
 def driver(x, y, z, scale=1.0):
-    """A seated driver: head, torso, shoulders, arms to the wheel."""
+    """A seated driver: head with hair, neck, torso with shoulders, a seat belt, arms to the wheel."""
     m = Mesh()
-    head = kit.sphere((0, 0, 0), 0.105, seg=8, rings=4, squash=(0.95, 1.0, 1.15))
+    head = kit.sphere((0, 0, 0), 0.105, seg=8, rings=4, squash=(0.92, 1.0, 1.12))
     head.style(D_SKIN, SKIN)
-    m.add_mesh(head, kit.trans(x, y - 0.05, z + 0.68))
-    torso = kit.box((0, 0, 0), (0.40, 0.24, 0.48))
+    m.add_mesh(head, kit.trans(x, y - 0.05, z + 0.70))
+    hair = kit.sphere((0, 0, 0), 0.112, seg=8, rings=3, squash=(0.95, 1.02, 0.62))
+    hair.style(D_CLOTH, (0.035, 0.03, 0.03))
+    m.add_mesh(hair, kit.trans(x, y - 0.065, z + 0.745))
+    neck = kit.cylinder((x, y - 0.07, z + 0.55), (x, y - 0.07, z + 0.62), 0.045, 0.045, seg=6)
+    neck.style(D_SKIN, SKIN)
+    m.add_mesh(neck)
+    torso = kit.box((0, 0, 0), (0.36, 0.22, 0.40))
     torso.style(D_CLOTH, CLOTH)
-    m.add_mesh(torso, kit.trans(x, y - 0.10, z + 0.34))
-    for s in (-1.0, 1.0):
-        arm = kit.tube([(x + s * 0.21, y - 0.10, z + 0.50), (x + s * 0.24, y + 0.18, z + 0.38), (x + s * 0.16, y + 0.42, z + 0.46)], 0.04, sides=5, caps=False)
+    m.add_mesh(torso, kit.trans(x, y - 0.11, z + 0.30))
+    shoulders = kit.box((0, 0, 0), (0.46, 0.16, 0.10))
+    shoulders.style(D_CLOTH, CLOTH)
+    m.add_mesh(shoulders, kit.trans(x, y - 0.10, z + 0.52))
+    belt = kit.quad((-0.05, 0.0, 0.0), (0.05, 0.0, 0.0), (0.22, 0.0, -0.46), (0.12, 0.0, -0.46), "Details")
+    belt.style(D_FABRIC, (0.015, 0.015, 0.018))
+    m.add_mesh(belt, kit.trans(x - 0.05, y + 0.0, z + 0.56))
+    for sgn in (-1.0, 1.0):
+        arm = kit.tube([(x + sgn * 0.23, y - 0.10, z + 0.50), (x + sgn * 0.25, y + 0.18, z + 0.38), (x + sgn * 0.16, y + 0.42, z + 0.46)], 0.04, sides=5, caps=False)
         arm.style(D_CLOTH, CLOTH)
         m.add_mesh(arm)
     return m
@@ -75,6 +98,21 @@ def cabin(d, lod, driver_on=True):
         cons = kit.box((0, 0, 0), (0.22, 0.65, 0.20))
         cons.style(D_PLASTIC, DASH)
         m.add_mesh(cons, kit.trans(0.0, c["seat_y"] + 0.12, c["seat_z"] - 0.04))
+        # the instrument cluster under a binnacle hood, three vents and door armrests
+        hood = kit.box((0, 0, 0), (0.50, 0.20, 0.07))
+        hood.style(D_PLASTIC, DASH_TOP)
+        m.add_mesh(hood, kit.trans(-xs, c["dash_y"] - 0.30, c["dash_z"] + 0.22))
+        clu = kit.quad((-0.17, 0.0, -0.045), (0.17, 0.0, -0.045), (0.17, 0.0, 0.045), (-0.17, 0.0, 0.045), "Details").flipped()
+        clu.style(D_SCREEN, (0.9, 0.55, 0.15))
+        m.add_mesh(clu, kit.trans(-xs, c["dash_y"] - 0.405, c["dash_z"] + 0.155))
+        for vx in (-0.30, 0.30, 0.62):
+            vent = kit.box((0, 0, 0), (0.13, 0.012, 0.035))
+            vent.style(D_PLASTIC, (0.008, 0.008, 0.01))
+            m.add_mesh(vent, kit.trans(vx, c["dash_y"] - 0.385, c["dash_z"] + 0.09))
+        for sx in (-1.0, 1.0):
+            arm = kit.box((0, 0, 0), (0.07, 0.55, 0.06))
+            arm.style(D_LEATHER, TRIM_LIGHT)
+            m.add_mesh(arm, kit.trans(sx * 0.80, c["seat_y"] + 0.05, c["seat_z"] + 0.20))
         # steering wheel (tilted ring) and column
         sw = kit.torus((0, 0, 0), 0.17, 0.018, seg=12, sides=4, axis="y")
         sw.style(D_PLASTIC, (0.03, 0.03, 0.035))
@@ -83,6 +121,11 @@ def cabin(d, lod, driver_on=True):
         hub = kit.box((0, 0, 0), (0.07, 0.04, 0.07))
         hub.style(D_PLASTIC, (0.03, 0.03, 0.035))
         m.add_mesh(hub, kit.trans(-xs, c["wheel_y"], c["dash_z"] + 0.02))
+        for ang in (math.radians(90), math.radians(210), math.radians(330)):                       # three spokes from the hub to the rim
+            sp = kit.box((0, 0, 0), (0.17, 0.02, 0.02))
+            sp.style(D_PLASTIC, (0.03, 0.03, 0.035))
+            sp = sp.xformed(kit.rot_y(ang)).xformed(kit.rot_x(0.45))
+            m.add_mesh(sp, kit.trans(-xs, c["wheel_y"], c["dash_z"] + 0.02))
     # seats
     for sx in (-xs, xs):
         m.add_mesh(_seat(sx, c["seat_y"], c["seat_z"], tilt=0.18, col=col))

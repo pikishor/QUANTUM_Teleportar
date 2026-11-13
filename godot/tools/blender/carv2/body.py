@@ -245,6 +245,8 @@ def build_body(d, lod=0, with_glass=True):
     wins = d["windows"]
     n_cap_r = len(cap_rings_r)
     trim_slot = d.get("trim_slot", 0)          # lower wall slots from this one on (counted from the belt) are black plastic cladding: a clean line that follows the wheel arches
+    if lod >= 1:                               # the coarse LODs have one or two lower wall slots: the SUV's cladding band (3 slots at LOD0) would have turned the whole flank black at 26 m and beyond
+        trim_slot = min(trim_slot, 1) if lod == 1 else 0
     fm = np.empty((len(all_rings) - 1, n_r), dtype=object)
 
     def interval_in(ya, yb, lo_, hi_):
@@ -259,8 +261,10 @@ def build_body(d, lod=0, with_glass=True):
         for j in range(n_r):
             jj = j if j < K else (2 * K - 2 - j)          # slot on the right half this quad mirrors
             # the quad between ring point j and j+1 (the loop wraps); on the left half slot jj-1
-            if j >= K - 1 and j < 2 * K - 2:
-                s0 = 2 * K - 2 - j - 1
+            if j == K - 1:                                   # the floor between the two wall bottoms keeps the last wall slot
+                s0 = K - 2
+            elif j >= K and j < 2 * K - 2:                   # the left half: the quad between the points j and j + 1 (the mirror of h[2K-1-j] and h[2K-2-j]) is the right half's slot 2K-2-j (wave 112: it was 2K-3-j, one slot off, so the doors of every car were glass on the left)
+                s0 = 2 * K - 2 - j
             elif j >= 2 * K - 2:
                 s0 = 0
             else:
@@ -292,16 +296,17 @@ def build_body(d, lod=0, with_glass=True):
     for i in range(len(all_rings) - 1):
         ym = 0.5 * (y_all[i] + y_all[i + 1])
         for j in range(n_r):
-            if j >= K - 1 and j < 2 * K - 2:
-                s0 = 2 * K - 3 - j
+            if j == K - 1:
+                s0 = K - 2
+                right = True
+            elif j >= K and j < 2 * K - 2:
+                s0 = 2 * K - 2 - j
                 right = False
             elif j >= 2 * K - 2:
                 s0 = 0
                 right = False
             else:
                 s0 = j
-                right = True
-            if j == K - 1:
                 right = True
             part = 0
             if s0 < low_slot:

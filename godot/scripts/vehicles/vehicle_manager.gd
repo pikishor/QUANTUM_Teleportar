@@ -20,7 +20,7 @@ var radio: CarRadio                  ## the car radio (3 synthesised stations), 
 var cops_spawned := 0                ## police interceptors sent after the hero so far (tests, stats)
 var spikes: SpikeStrips              ## the spike strips the police lay at heat 3+
 var _cop_t := 0.0
-const LENS_CLEAR := 3.4              ## metres: a STANDING traffic car this close to the camera (XZ) goes
+const LENS_CLEAR := 4.6              ## metres: a STANDING or crawling (under 2.5 m/s) traffic car this close to the camera (XZ) goes (3.4 left a taxi filling the left third of the frame beside the hero)
 var _lens_t := 0.0
 var _near_t := 0.0                   ## re-check timer of the near cars around the driven car
 var _parked_t := 0.0                 ## re-check timer of the kerb cars around the other moving cars
@@ -268,7 +268,7 @@ func _clear_lens(delta: float) -> void:
 	var i := list.size() - 1
 	while i >= 0:
 		var v := list[i]
-		if v.ai and not v.patrol and not v.is_starter and not v.driver_is_player and not v.has_meta(&"hold") and not v.garage_car and not v.wreck and absf(v.speed) < 1.0 and v.ai_speed < 1.0:
+		if v.ai and not v.patrol and not v.is_starter and not v.driver_is_player and not v.has_meta(&"hold") and not v.garage_car and not v.wreck and absf(v.speed) < 2.5 and v.ai_speed < 2.5:
 			var d := v.global_position - cam
 			if d.x * d.x + d.z * d.z < LENS_CLEAR * LENS_CLEAR:
 				_release(v)
@@ -720,6 +720,13 @@ func _physics_process_body(delta: float) -> void:
 					RoadTraffic.instance.collide_vehicle(c)
 				if parked_pass and c != driven and absf(c.speed) > 2.0 and (c.chasing or c.ai or c.path_road >= 0) and ParkedCars.instance != null:        # a police car in a chase, a car that swerved or slid onto the kerb: the kerb car it reaches becomes a real one (and a real crash)
 					ParkedCars.instance.promote_around(c.global_position, 3.5 + minf(absf(c.speed) * 0.4, 8.0), 1)
+	if parked_pass and ParkedCars.instance != null:           # a real car whose hull touches a kerb car, at any speed (it creeps, it stands, it turns on the spot): the kerb car becomes a real one at once
+		for c in list.duplicate():
+			if is_instance_valid(c) and c.active and not c.dead and not c.is_aloft() and c.craft == null and c.cls == &"car" and (c.driver_is_player or c.ai or c.chasing or c.patrol or c.cop or c.path_road >= 0 or absf(c.speed) > 0.2):
+				var half := float(c.spec["len"]) * 0.5
+				var hw := float(c.spec["wid"]) * 0.5 - 0.1
+				if ParkedCars.instance.promote_touching(c.global_position, Vector2(c.forward().x, c.forward().z), half, hw) == 0:
+					ParkedCars.instance.push_out_vehicle(c)                  # the swap failed (no slot, no room) or there was nothing to swap: a kerb car is a wall
 	_collide_all()                                          # a hard bump can wreck the driven car, and the wreck ejects the driver: `driven` is null again after this call
 	if driven != null:
 		_ram_t -= delta
