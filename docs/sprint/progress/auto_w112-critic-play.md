@@ -1,6 +1,6 @@
 # w112-critic-play (running)
 
-agent id aff758c60e86066ec, 404 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T20:41:33.327Z
+agent id aff758c60e86066ec, 416 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T20:45:36.543Z
 
 ## Last notes of the agent
 
@@ -8,10 +8,6 @@ agent id aff758c60e86066ec, 404 events, first activity 2026-11-13T19:24:15.390Z,
 
 ## Recent steps (last 40)
 
-- 20:14:39 Probe the first 140 m of SUMMIT ROAD against ground and waterfall carve
-- 20:15:04 Re-run the track roads with the spawn height on the road surface
-- 20:19:18 /home/user/QUANTUM_Teleportar/godot/tests/road_clearance_audit.gd
-- 20:19:19 Try the road clearance audit on the harbour and summit roads
 - 20:19:57 Road clearance audit on the original highways and tracks
 - 20:22:34 Road clearance audit on the seven wave 112 roads
 - 20:25:12 Find the rail collision and crossing code
@@ -48,6 +44,10 @@ agent id aff758c60e86066ec, 404 events, first activity 2026-11-13T19:24:15.390Z,
 - 20:41:23 Find code and tests that depend on SUMMIT ROAD geometry
 - 20:41:25 Read the SUMMIT ROAD assumptions in test_outskirts_sites
 - 20:41:33 Branch SUMMIT ROAD at the end of the PASS ROAD deck and re-probe
+- 20:42:43 Skip viaduct bents whose columns would stand in a road and re-run the road audit on PASS and RING ROAD
+- 20:44:25 Reject avenue trees closer than 11 m to any road and re-probe the old spot
+- 20:44:55 Apply the view filter to the outskirt pins in the map overview and re-run the failing map test
+- 20:45:36 Fix the two test hygiene problems and re-run both tests
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

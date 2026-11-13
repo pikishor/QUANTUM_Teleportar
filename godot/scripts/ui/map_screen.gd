@@ -946,7 +946,8 @@ func lod_markers(list: Array[Dictionary]) -> Array[Dictionary]:
 	var crowded := {}
 	for mk in list:
 		var p: Vector3 = mk["pos"]
-		if not overview and view.size.x > 0.0 and not view.has_point(world_to_map(p.x, p.z)):
+		var far_pin: bool = mk["kind"] == &"site" or mk.has("glyph")             # wave 112 critic: the places of the outskirts (11 sites, 7 towns, the airport, the harbour, 6 helipads = 26 pins) count only while they are in the view, in the
+		if view.size.x > 0.0 and (not overview or far_pin) and not view.has_point(world_to_map(p.x, p.z)):    # overview too: 26 off-screen pins made the overview "bigger" than a zoomed-in view and the crowded kinds got no room
 			continue
 		if ALWAYS_KINDS.has(mk["kind"]) or (mk.has("glyph") and mk["glyph"] != &"pad"):          # the objective, side jobs, homes, the outskirt sites, the airport, the harbour and the helipads
 			out.append(mk)

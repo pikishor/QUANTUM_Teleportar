@@ -577,7 +577,7 @@ func _part_events() -> void:
 			aggro = aggro and (c as AlienCreature).aggro
 		TestLib.check(foes.size() >= 1 and aggro, "the raiders come at the hero (%d aggro creatures)" % foes.size())
 		await _hold(0.5)
-		TestLib.check(ev.active.size() == 1, "the raid runs while they live")
+		TestLib.check(ev.active.has(raid), "the raid runs while they live")                 # (wave 112 critic: was `active.size() == 1`; an automatic event can join it, which failed one run in three)
 		for c in foes:
 			if is_instance_valid(c):
 				(c as AlienCreature).die(true)

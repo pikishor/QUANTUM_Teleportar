@@ -245,6 +245,9 @@ static func _line_cell(key: int) -> PackedFloat32Array:
 			continue
 		if TerrainRoads.in_span(q.x, q.y) or OutskirtsSites.inside(q.x, q.y, 6.0) >= 0 or Airport.inside(q.x, q.y, 10.0):
 			continue
+		var nrd := TerrainRoads.nearest(q.x, q.y)
+		if int(nrd[1]) >= 0 and float(nrd[0]) < LINE_OFFSET - 5.0:             # wave 112 critic: an avenue tree stands 15 - 17 m from its own road; one closer than 11 m to ANY road is on another road (a poplar trunk stood in the DESERT ROAD at 1748, 563)
+			continue
 		var fwq := TerrainBase.forest_weight(q.x, q.y)
 		if TerrainHeight.slope_at(q.x, q.y) > 0.45 or fwq > 0.7:
 			continue
