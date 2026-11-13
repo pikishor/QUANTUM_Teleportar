@@ -72,11 +72,12 @@ func _data() -> void:
 	TerrainHeight.warm()
 	OutskirtsSites.ensure()
 	var list := OutskirtsSites.list
-	TestLib.check(list.size() == 11, "eleven sites (%d)" % list.size())
+	var towns := SettlementDefs.DEFS.size()                                  # (wave 112: the seven towns of scripts/settlements are sites of kind &"town" on top of the eleven classic ones)
+	TestLib.check(list.size() == 11 + towns, "eleven classic sites and the %d towns (%d)" % [towns, list.size()])
 	var kinds := {}
 	for s in list:
 		kinds[s["kind"]] = true
-	for k in [&"observatory", &"tower", &"mine", &"crash", &"cave", &"cabins", &"village", &"farm"]:
+	for k in [&"observatory", &"tower", &"mine", &"crash", &"cave", &"cabins", &"village", &"farm", &"town"]:
 		TestLib.check(kinds.has(k), "a site of kind %s exists" % k)
 	var flat_bad := 0
 	var wet_bad := 0
@@ -100,7 +101,7 @@ func _data() -> void:
 			if TerrainHeight.is_water(q.x, q.y) or WaterLayout.surface_at(q.x, q.y) != TerrainHeight.NO_WATER:
 				wet_bad += 1
 				wet_ids += " %s" % String(s["id"])
-		if not s.has("road"):
+		if not s.has("road") and s["kind"] != &"town":                  # (a town stands ON a road: that road is its main street and the pad levels it)
 			var reach: float = s["reach"]                             # no road runs through the pad or its blend (a road bench and a pad would fight)
 			for road in TerrainRoads.roads():
 				var rp: PackedVector2Array = road["pos"]
@@ -125,9 +126,9 @@ func _data() -> void:
 	TestLib.check(OutskirtsSites.inside(c_of(&"mine").x, c_of(&"mine").z, 0.0) >= 0 and OutskirtsSites.inside(0.0, 0.0, 0.0) == -1, "inside() knows the pads")
 	TestLib.check(OutskirtsSites.carve(0.0, 0.0, 0.0) == 0.0, "the city plateau is untouched by the pads")
 	var hooks := OutskirtsSites.hooks()
-	TestLib.check(hooks.size() == 11 and int(hooks[0]["reward"]) > 0 and String(hooks[0]["tag"]) != "", "every site is a mission hook with a reward and a line of text (%d)" % hooks.size())
+	TestLib.check(hooks.size() == 11 + towns and int(hooks[0]["reward"]) > 0 and String(hooks[0]["tag"]) != "", "every site is a mission hook with a reward and a line of text (%d)" % hooks.size())
 	var markers := OutskirtsSites.map_markers()
-	TestLib.check(markers.size() == 10, "ten pins on the map at the start: the hidden cave is not one of them (%d)" % markers.size())
+	TestLib.check(markers.size() == 10 + towns, "ten classic pins and the towns on the map at the start: the hidden cave is not one of them (%d)" % markers.size())
 	var vp := OutskirtsSites.vehicle_points()
 	TestLib.check(vp.size() >= 12, "rides wait at the sites (%d)" % vp.size())
 	var ids := {}
@@ -237,10 +238,11 @@ func _scatter() -> void:
 	TestLib.check(rocks > 100 and big > 1, "rocks and boulders lie on the hills (%d, %d big)" % [rocks, big])
 	TestLib.check(VegKit.available(), "the vegetation kit loads")
 	var worst_tris := 0
-	for nm in ["pine_a", "pine_b", "broad_a", "broad_b", "dead_a", "bush", "rock_c"]:
+	# wave 112: the trees are the LandKit species (<species>_0 near, _1 mid, one shared impostor "imp"), so the near cap rose from 900 to 1400 triangles and the mid / far pieces are named anew
+	for nm in ["pine_0", "oak_0", "birch_0", "fir_0", "palm_0", "acacia_0", "dead_0", "g_bush1", "rock_c"]:
 		worst_tris = maxi(worst_tris, VegKit.tris(nm))
-	TestLib.check(worst_tris <= 900, "every near piece is light (%d triangles at most)" % worst_tris)
-	TestLib.check(VegKit.tris("pine_l1") < 100 and VegKit.tris("pine_l2") < 30 and VegKit.tris("broad_l2") < 60, "the far LODs are tiny (%d / %d / %d)" % [VegKit.tris("pine_l1"), VegKit.tris("pine_l2"), VegKit.tris("broad_l2")])
+	TestLib.check(worst_tris <= 1400, "every near piece is light (%d triangles at most)" % worst_tris)
+	TestLib.check(VegKit.tris("pine_1") < 260 and VegKit.tris("oak_1") < 260 and VegKit.tris("imp") <= 4, "the mid LODs are small and the far one is a four triangle cross (%d / %d / %d)" % [VegKit.tris("pine_1"), VegKit.tris("oak_1"), VegKit.tris("imp")])
 
 
 # --- the real scene ---------------------------------------------------------------------------------------------------------------------------
@@ -265,11 +267,23 @@ func _forest(host: Node) -> void:
 	var ok := await _wait_counter(host, func() -> bool: return int(city.vegetation.stats()["instances"]) > 300 and int(city.vegetation.stats()["jobs"]) >= 1, TIMEOUT_SECONDS)
 	var st := city.vegetation.stats()
 	TestLib.check(ok, "walking into the forest fills the multimeshes from the worker thread (%d plants, %d jobs)" % [int(st["instances"]), int(st["jobs"])])
-	TestLib.check(int(st["slots"]) <= 17 and int(st["slots"]) >= 4, "the whole forest is a handful of draw calls (%d multimeshes)" % int(st["slots"]))
+	# wave 112: one multimesh per tree species and LOD (<species>_0 / _0l near, _1 mid, one shared "imp" for every impostor), 13 ground-cover pieces and the rocks, so the cap of 17 became 36
+	# (the designed worst case is 40, a forest shows about 25); it is still a handful of draw calls however many trees stand there
+	TestLib.check(int(st["slots"]) <= 36 and int(st["slots"]) >= 4, "the whole forest is a handful of draw calls (%d multimeshes)" % int(st["slots"]))
 	var sc: Dictionary = city.vegetation.slot_counts()
-	var near_trees := int(sc.get("pine_a", 0)) + int(sc.get("broad_a", 0)) + int(sc.get("pine_b", 0)) + int(sc.get("broad_b", 0))
-	var mid_trees := int(sc.get("pine_l1", 0)) + int(sc.get("broad_l1", 0))
-	var far_trees := int(sc.get("pine_l2", 0)) + int(sc.get("broad_l2", 0))
+	var near_trees := 0
+	var mid_trees := 0
+	var far_trees := 0
+	for k in sc.keys():
+		var nm := String(k)
+		if nm == "imp":
+			far_trees += int(sc[k])
+		elif nm.begins_with("rock_") or nm.begins_with("g_"):
+			continue
+		elif nm.ends_with("_1"):
+			mid_trees += int(sc[k])
+		elif nm.ends_with("_0") or nm.ends_with("_0l"):
+			near_trees += int(sc[k])
 	TestLib.check(mid_trees > 0 and far_trees > 0, "the forest has its mid and far LODs (%d near, %d mid, %d far)" % [near_trees, mid_trees, far_trees])
 	TestLib.check(int(st["tris"]) < 120000, "the forest stays under the triangle budget at MED (%d)" % int(st["tris"]))
 	TestLib.check(int(st["colliders"]) > 3, "trunks and boulders around the hero are solid (%d colliders)" % int(st["colliders"]))
@@ -288,8 +302,8 @@ func _forest(host: Node) -> void:
 	var moved := await _wait_counter(host, func() -> bool: return int(city.vegetation.stats()["jobs"]) > jobs0, TIMEOUT_SECONDS)
 	TestLib.check(moved, "the plants are re-arranged around the hero when he moves (%d jobs)" % int(city.vegetation.stats()["jobs"]))
 	# the shader: wind and snow parameters exist on the material
-	var mat := VegKit.material("pine_a")
-	TestLib.check(mat.shader != null and mat.get_shader_parameter(&"atlas") != null, "the vegetation shader has its atlas")
+	var mat := VegKit.material("pine_0")
+	TestLib.check(mat.shader != null and mat.get_shader_parameter(&"foliage") != null, "the vegetation shader has its foliage atlas")
 
 
 func _tiers(host: Node) -> void:
@@ -313,6 +327,11 @@ func _sites_built(host: Node) -> void:
 		var id: StringName = s["id"]
 		var sp: Vector3 = s["pos"]
 		_teleport_near(sp, s)
+		if s["kind"] == &"town":                                                 # (wave 112: the towns are built by SettlementWorld; their own checks are in test_outskirts_settlements.gd)
+			var tw := city.towns as SettlementWorld
+			tw.settle(p.global_position)
+			TestLib.check(tw.is_built(id) and tw.has_far(id), "%s is built on approach by the towns' world" % String(s["name"]))
+			continue
 		city.sites.call(&"settle", p.global_position)
 		await TestLib.frames(host, 2)
 		var ok: bool = city.sites.is_built(id)
@@ -357,14 +376,14 @@ func _discovery_and_activities(host: Node) -> void:
 	await TestLib.frames(host, 90)
 	TestLib.check(pg.credits == c2 and int(city.sites.stats()["activities"]) >= 1, "an activity pays only once")
 	# the observatory marks every site, the cave pin appears
-	TestLib.check(OutskirtsSites.map_markers().size() == 10, "the cave pin is still hidden before the sky scan")
+	TestLib.check(OutskirtsSites.map_markers().size() == 10 + SettlementDefs.DEFS.size(), "the cave pin is still hidden before the sky scan")
 	var o := OutskirtsSites.by_id(&"observatory")
 	_teleport_near(o["pos"], o)
 	await _wait_counter(host, func() -> bool: return OutskirtsSites.is_found(&"observatory"), TIMEOUT_SECONDS)
 	var ou: Vector3 = city.sites.use_point(&"observatory")
 	p.teleport_to(Vector3(ou.x, TerrainHeight.height_at(ou.x, ou.z) + 1.0, ou.z))
 	var scanned := await _wait_counter(host, func() -> bool: return city.sites.used.has(&"observatory"), TIMEOUT_SECONDS)
-	TestLib.check(scanned and OutskirtsSites.is_found(&"cave") and OutskirtsSites.map_markers().size() == 11, "the sky scan puts every site, the hidden cave included, on the map")
+	TestLib.check(scanned and OutskirtsSites.is_found(&"cave") and OutskirtsSites.map_markers().size() == 11 + SettlementDefs.DEFS.size(), "the sky scan puts every site, the hidden cave included, on the map")
 	# a cabin rests the hero: hurt, then restored
 	var lodge := OutskirtsSites.by_id(&"lodge")
 	_teleport_near(lodge["pos"], lodge)
@@ -452,17 +471,17 @@ func _weather(host: Node) -> void:
 		return
 	# over the city: no cloud deck, no snow, no extra fog
 	p.teleport_to(Vector3(0.0, 0.5, 4.0))
-	await TestLib.frames(host, 6)
+	await _wait_counter(host, func() -> bool: return mw.cloud_alpha < 0.01 and mw.snow_rate < 0.01 and MountainWeather.fog_boost < 0.01, 8.0)           # (wave 112 critic: waits on the easing, not on six frames: a fast teleport left six frames of easing)
 	TestLib.check(mw.cloud_alpha < 0.01 and mw.snow_rate < 0.01 and MountainWeather.fog_boost < 0.01, "no cloud deck, snow or extra fog over the city")
 	# in the high mountains: on the observatory pad (about 150 m up) the deck is close, higher up it snows
 	var o := OutskirtsSites.by_id(&"observatory")
 	var op: Vector3 = o["pos"]
 	p.teleport_to(Vector3(op.x, op.y + 40.0, op.z))
-	await _wait_counter(host, func() -> bool: return mw.cloud_alpha > 0.05, 8.0)
+	await _wait_counter(host, func() -> bool: return mw.cloud_alpha > 0.05 and MountainWeather.fog_boost > 0.05, 8.0)
 	TestLib.check(mw.cloud_alpha > 0.05 and MountainWeather.fog_boost > 0.05, "near the cloud deck on the ridge: clouds (%.2f) and thicker fog (%.2f)" % [mw.cloud_alpha, MountainWeather.fog_boost])
 	TestLib.check(MountainWeather.snow_for(op.x, 290.0, op.z) > 0.9 and MountainWeather.snow_for(0.0, 290.0, 0.0) == 0.0 and MountainWeather.snow_for(op.x, 20.0, op.z) == 0.0, "snow falls high in the mountains only")
 	# the vegetation shader dusts snow by height
-	TestLib.check(VegKit.material("pine_a").shader.code.contains("snow_start"), "trees get their snow dusting from the shader")
+	TestLib.check(VegKit.material("pine_0").shader.code.contains("snow_start"), "trees get their snow dusting from the shader")
 	var mat := OutskirtsKit.material()
 	TestLib.check(mat.shader.code.contains("snow_start"), "the site roofs get their snow too")
 
@@ -491,5 +510,5 @@ func _map() -> void:
 	for mk in ms.collect_markers():
 		if mk["kind"] == &"site" and not mk.has("alien"):                     # (the alien camps, nests and wrecks of wave 107b add their own pins)
 			sites += 1
-	TestLib.check(sites == 11, "the map shows the sites as pins (%d)" % sites)
+	TestLib.check(sites == 11 + SettlementDefs.DEFS.size(), "the map shows the sites and the towns as pins (%d)" % sites)
 	TestLib.check(MapScreen.KINDS.has(&"site") and MapScreen.KIND_COLOR.has(&"site") and MapScreen.KIND_LABEL.has(&"site"), "the SITES legend row exists")

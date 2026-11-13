@@ -310,9 +310,9 @@ func _gen_site(si: int) -> void:
 	_site_cells[si] = true
 	var site: Dictionary = OutskirtsSites.list[si]
 	var kind_name: StringName = StringName(site["kind"])
-	if not SITE_SLOTS.has(kind_name):
+	var slots: Array = SettlementData.parked_slots(site) if kind_name == &"town" else SITE_SLOTS.get(kind_name, [])     # (the towns of wave 112 park along their own driveways)
+	if slots.is_empty():
 		return
-	var slots: Array = SITE_SLOTS[kind_name]
 	var key := 900000 + si
 	var rides: Array[Vector3] = []                          # the roster rides of the site (VehicleSpawns) wait on their own driveway spot: no decor car stands on one
 	for pt in OutskirtsSites.vehicle_points():

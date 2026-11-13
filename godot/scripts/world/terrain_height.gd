@@ -18,7 +18,7 @@ extends RefCounted
 ## sea goes on beyond it.
 
 const SEA_LEVEL := -2.0                  ## y of the ocean surface (the city plateau is 2 m above it)
-const WORLD_HALF := 3000.0               ## the world is a 6 km square
+const WORLD_HALF := 4500.0               ## the world is a 9 km square (wave 112: 2.25 times the old 6 km, see WorldExtent)
 const CITY_HALF := 1100.0                ## flat plateau half-size around the origin
 const NO_WATER := -1.0e9
 const BEACH := 260.0                     ## metres of beach slope between the open land and the waterline
@@ -37,6 +37,7 @@ static func warm() -> void:
 	TerrainRoads.ensure()                 # ends with RailNet.ensure() (the railway is routed over the finished roads)
 	OutskirtsSites.ensure()
 	Airport.ensure()
+	LandscapeSites.ensure()               # wave 112: waterfalls and airstrips are found on the finished ground (everything above, without their own carve)
 
 
 static func _ensure() -> void:
@@ -78,7 +79,7 @@ static func city_distance(x: float, z: float) -> float:
 ## Distance of the coastline from the plateau in the direction of (x, z).
 static func coast_distance(x: float, z: float) -> float:
 	_ensure()
-	return lerpf(520.0, 1950.0, mountain_weight(x, z)) + _coast.get_noise_2d(x, z) * 170.0
+	return lerpf(520.0, 1950.0, mountain_weight(x, z)) + _coast.get_noise_2d(x, z) * 170.0 + WorldExtent.coast_push(x, z)         # wave 112: the land reaches further west, north and east (scripts/world/world_extent.gd)
 
 
 ## The land before any river or lake is cut into it. (Terrain builder: this is the function to replace.)
@@ -88,6 +89,11 @@ static func base_height(x: float, z: float) -> float:
 
 ## The ground height with rivers and lakes carved in.
 static func height_at(x: float, z: float) -> float:
+	return LandscapeSites.carve(x, z, height_pre(x, z))       # wave 112: then the waterfalls (cliff streams, plunge pools) and the grass airstrips (scripts/landscape/landscape_sites.gd)
+
+
+## The ground before the landscape features (waterfall pools, airstrips) are carved: LandscapeSites searches its sites on this one.
+static func height_pre(x: float, z: float) -> float:
 	return Airport.carve(x, z, OutskirtsSites.carve(x, z, Harbour.carve(x, z, RailNet.carve(x, z, TerrainRoads.carve(x, z, WaterLayout.carve(x, z, base_height(x, z)))))))       # land, then the rivers, then the road benches (scripts/terrain/terrain_roads.gd), then the railway benches (scripts/rail/rail_net.gd), then the harbour quay (scripts/world/harbour.gd), then the pads of the mountain and outskirt sites (scripts/terrain/outskirts_sites.gd)
 
 
@@ -104,6 +110,9 @@ static func water_level_for(x: float, z: float, ground: float) -> float:
 	var inland := WaterLayout.surface_at(x, z)
 	if inland > best:
 		best = inland
+	var pool: float = LandscapeSites.pool_level(x, z)               # the plunge pools of the waterfalls
+	if pool > best:
+		best = pool
 	if best > ground + 0.001:
 		return best
 	return NO_WATER

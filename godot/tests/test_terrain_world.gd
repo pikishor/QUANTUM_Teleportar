@@ -56,7 +56,7 @@ func _restore() -> void:
 
 func _height_function() -> void:
 	TerrainHeight.warm()
-	TestLib.check(TerrainHeight.WORLD_HALF >= 2000.0 and TerrainHeight.WORLD_HALF <= 3000.0, "the world is a 4 to 6 km square (%.0f m)" % (2.0 * TerrainHeight.WORLD_HALF))
+	TestLib.check(TerrainHeight.WORLD_HALF >= 2000.0 and TerrainHeight.WORLD_HALF <= 4500.0, "the world is a 4 to 9 km square (%.0f m; wave 112 doubled the area: the owner asked for a much bigger map)" % (2.0 * TerrainHeight.WORLD_HALF))
 	var flat := true
 	for q in [Vector2(0, 0), Vector2(900, -700), Vector2(-1050, 1050), Vector2(700, 1000), Vector2(-1000, -300)]:
 		if absf(TerrainHeight.height_at(q.x, q.y)) > 0.01:
@@ -104,7 +104,7 @@ func _height_function() -> void:
 		var x2 := -2500.0 + float(k) * 25.0
 		var h0 := TerrainHeight.height_at(x2, -300.0)
 		var h1 := TerrainHeight.height_at(x2 + 4.0, -300.0)
-		if absf(h1 - h0) > 6.0:
+		if absf(h1 - h0) > 9.0:                                                 # (wave 112: the east range now reaches the line's end: its crags are steep faces, up to 9 m in 4 m; a pad, a bench or a bridge ramp that did not blend would be far more)
 			slope_ok = false
 	TestLib.check(slope_ok, "no vertical step in the land along a line through the world")
 
@@ -164,13 +164,34 @@ func _city_is_untouched(host: Node) -> void:
 	TestLib.check(PlayerUtil.outside_city(Vector3(CityLayout.PLAY_HALF + 20.0, 0.0, 0.0)) and not PlayerUtil.outside_city(Vector3(1500.0, TerrainHeight.height_at(1500.0, 20.0) + 1.0, 20.0)), "the playable world reaches past the old city walls")
 
 
+## Waits until `counter` reaches `goal`. Gives up when it has not moved for `stall_secs` (a stuck worker) or after `cap_secs` (real time: worker threads do not care about the frame rate).
+func _wait_progress(host: Node, counter: Callable, goal: int, stall_secs: float, cap_secs: float) -> bool:
+	var t0 := Time.get_ticks_msec()
+	var last := int(counter.call())
+	var t_last := t0
+	while int(counter.call()) < goal:
+		var now := Time.get_ticks_msec()
+		var v := int(counter.call())
+		if v != last:
+			last = v
+			t_last = now
+		if float(now - t_last) / 1000.0 > stall_secs or float(now - t0) / 1000.0 > cap_secs:
+			return false
+		await host.get_tree().process_frame
+	return true
+
+
 ## The far tiles (the third LOD) are built once for the whole world: a handful of meshes, none inside the plateau.
+## A phone builds two tiles at a time (about 1.3 s each: the 96 tiles of the 9 km world take about a minute), so a fixed 45 s wait could not hold any more (wave 112); the test lets four run
+## and waits on the counter: it ends when every tile is built and fails only when no tile was finished for 20 s.
 func _far_tiles(host: Node) -> void:
 	var total := city.terrain._far_total()
-	var done := await _wait_counter(host, func() -> bool: return int(city.terrain.stats()["far_tiles"]) >= total, 45.0)
+	city.terrain.far_jobs_max = 4
+	var t0 := Time.get_ticks_msec()
+	var done := await _wait_progress(host, func() -> int: return int(city.terrain.stats()["far_tiles"]), total, 20.0, 110.0)
 	var st := city.terrain.stats()
-	TestLib.check(done, "all %d far tiles are built by the worker threads (%d)" % [total, int(st["far_tiles"])])
-	TestLib.check(total >= 20 and total <= 40, "the world is covered by a few dozen far tiles, not hundreds of chunks (%d)" % total)
+	TestLib.check(done, "all %d far tiles are built by the worker threads (%d in %.0f s)" % [total, int(st["far_tiles"]), float(Time.get_ticks_msec() - t0) / 1000.0])
+	TestLib.check(total >= 20 and total < 100, "the world is covered by under a hundred far tiles, not hundreds of chunks (%d of the 10 x 10 grid whose edges are multiples of 1 km)" % total)
 	TestLib.check(int(st["tris"]) > 20000, "the far tiles carry the horizon (%d triangles)" % int(st["tris"]))
 
 
@@ -251,7 +272,9 @@ func _tiers(host: Node) -> void:
 		TestLib.check(int(st["chunks"]) <= (2 * city.terrain.r1() + 1) * (2 * city.terrain.r1() + 1), "tier %d keeps at most the radius square of chunks (%d)" % [tier, int(st["chunks"])])
 		TestLib.check(city.terrain.chunk_lod(city.terrain.chunk_of(pos.x, pos.z).x, city.terrain.chunk_of(pos.x, pos.z).y) == 0, "tier %d: the focus chunk is full detail" % tier)
 	TestLib.check(radii[0] < radii[1] and radii[1] < radii[2], "the LOD1 radius grows with the tier (%s)" % str(radii))
-	TestLib.check(tex[0] <= tex[1] and tex[1] < tex[2] and tex[2] <= 12 * 1024 * 1024, "terrain texture memory is tier scaled and small (%.1f / %.1f / %.1f MB)" % [tex[0] / 1048576.0, tex[1] / 1048576.0, tex[2] / 1048576.0])
+	# wave 112 added four layers (wet sand, strata, scree, dark rock): the terrain array is 11 layers, 3.7 MB on LOW and MED and 14.7 MB on HIGH, so the cap of this check went from 12 to 16 MB
+	# (the per-tier texture limits of the whole game, 200 / 260 / 360 MB, are unchanged and gated by tools/perf_report.sh)
+	TestLib.check(tex[0] <= tex[1] and tex[1] < tex[2] and tex[2] <= 16 * 1024 * 1024, "terrain texture memory is tier scaled and small (%.1f / %.1f / %.1f MB)" % [tex[0] / 1048576.0, tex[1] / 1048576.0, tex[2] / 1048576.0])
 	Game.set_quality(1)
 	await TestLib.frames(host, 2)
 	p.teleport_to(Vector3(0.0, 0.5, 4.0))
@@ -350,9 +373,9 @@ func _shore_and_traffic(host: Node) -> void:
 		city.vegetation.call(&"_place_blockers", [])
 	var z := 300.0
 	var shore := -1100.0
-	while shore > -2900.0 and TerrainHeight.depth_at(shore, z) < 0.3:
+	while shore > -4300.0 and TerrainHeight.depth_at(shore, z) < 0.3:
 		shore -= 10.0
-	TestLib.check(shore > -2900.0, "there is a shore west of the city (x %.0f)" % shore)
+	TestLib.check(shore > -4300.0, "there is a shore west of the city (x %.0f)" % shore)
 	for v in mgr.list.duplicate():
 		if v != mgr.starter:
 			mgr._release(v)
@@ -426,7 +449,7 @@ func _map(host: Node) -> void:
 	TestLib.check(ms.world_mode and ms.zoom_f < 0.5, "WORLD zoom opens the whole world (zoom %.2f)" % ms.zoom_f)
 	ms._update_rect()
 	var span := ms.span()
-	TestLib.check(span > 2.0 * TerrainHeight.WORLD_HALF * 0.9 and span < 2.0 * TerrainHeight.WORLD_HALF * 1.2, "the WORLD view is about 6 km tall (%.0f m)" % span)
+	TestLib.check(span > 2.0 * TerrainHeight.WORLD_HALF * 0.9 and span < 2.0 * TerrainHeight.WORLD_HALF * 1.2, "the WORLD view is as tall as the world (%.0f m of %.0f)" % [span, 2.0 * TerrainHeight.WORLD_HALF])
 	ms.pan(Vector2(100000.0, 100000.0))
 	TestLib.check(ms.view_center.is_finite() and absf(ms.view_center.x) <= TerrainHeight.WORLD_HALF, "panning stays inside the world")
 	ms.set_world_mode(false)

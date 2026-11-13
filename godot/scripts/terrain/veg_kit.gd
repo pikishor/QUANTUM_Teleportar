@@ -62,6 +62,7 @@ static func _load_kit() -> void:
 	_meshes["pine_l2"] = _conifer(true)
 	_meshes["broad_l1"] = _crown(false)
 	_meshes["broad_l2"] = _crown(true)
+	LandKit.merge_into(_meshes)                                       # wave 112: the nine landscape tree species with their LODs and the impostor cross (scripts/landscape/land_kit.gd)
 	for k in _meshes.keys():
 		var m: Mesh = _meshes[k]
 		_heights[k] = m.get_aabb().size.y
@@ -109,6 +110,8 @@ static func _count(m: Mesh) -> int:
 
 static func material(nm: String) -> ShaderMaterial:
 	_load_kit()
+	if LandKit.has_name(nm):
+		return LandKit.material_for(nm)
 	if _mats.has(nm):
 		return _mats[nm]
 	var sh := load(SHADER_PATH) as Shader

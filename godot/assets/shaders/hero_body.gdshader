@@ -15,6 +15,26 @@ uniform sampler2D hair1_normal : hint_normal, filter_linear_mipmap, repeat_enabl
 uniform sampler2D hair2_albedo : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D hair2_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 
+// HERO STYLE (wave 112, hero look v3): 1 for the player's hero (suit kit, graphite bodysuit, glow circuits), 0 for NPCs and enemies (the jacket / trousers zones below, unchanged).
+uniform float hero_style : hint_range(0.0, 1.0) = 0.0;
+uniform sampler2D gear_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;     // the armour kit atlas (tools/blender/model_hero_suit.py): neutral baked albedo with wear
+uniform sampler2D gear_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D gear_orm : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;  // R ambient occlusion, G roughness, B metallic
+uniform float gear_tex : hint_range(0.0, 1.0) = 0.0;                      // 1 when the atlas textures are loaded (0: flat colours per kind)
+uniform vec3 plate_col : source_color = vec3(0.5, 0.54, 0.62);           // multiplier of the neutral armour plates (the suit preset and scheme)
+uniform vec3 trim_paint : source_color = vec3(0.1, 0.5, 0.58);           // painted accent plates
+uniform vec3 cloth_col : source_color = vec3(0.045, 0.05, 0.065);        // the bodysuit
+uniform vec3 cloth_col2 : source_color = vec3(0.1, 0.11, 0.14);          // belt and straps
+uniform vec3 gold_col : source_color = vec3(0.78, 0.6, 0.28);
+uniform float plate_metal : hint_range(0.0, 1.5) = 1.0;                   // scales the baked metallic of the plates
+uniform float plate_rough : hint_range(-0.5, 0.5) = 0.0;                  // added to the baked roughness
+// The glow of the circuits (HeroGlow): colour, intensity per zone (core, arms, hands, legs | wings, head), the travelling wave (x front 0..1.5, y strength)
+uniform vec3 glow_rgb : source_color = vec3(0.2, 0.95, 1.0);
+uniform vec4 gz_a = vec4(1.0, 0.6, 0.55, 0.5);
+uniform vec2 gz_b = vec2(0.7, 0.35);
+uniform vec2 gflow = vec2(-1.0, 0.0);
+uniform float glow_gain : hint_range(0.0, 4.0) = 1.0;
+uniform float dbg_view = 0.0;                                           // look-dev: 1 albedo only, 2 roughness, 3 metallic, 4 gear ao (unlit)                     // overall brightness of the circuits (LOW / Compatibility tame it)
 uniform vec3 hair_color : source_color = vec3(0.16, 0.11, 0.085);
 uniform vec3 suit_color : source_color = vec3(0.2, 0.22, 0.27);
 uniform vec3 jacket_color : source_color = vec3(0.43, 0.55, 0.69);     // the outfit: jacket and trousers (the hero's own, NPCs and enemies set theirs in HumanoidVariants.tint)
@@ -43,6 +63,8 @@ instance uniform float hit_k : hint_range(0.0, 1.0) = 0.0;
 
 varying flat float v_mode;
 varying flat float v_kindf;
+varying flat float v_zone;
+varying float v_path;
 varying float v_suit;
 varying vec3 v_pos;
 varying vec3 v_nrm;
@@ -52,12 +74,18 @@ float h11(float x) { return fract(sin(x * 127.1) * 43758.5453); }
 void vertex() {
 	v_mode = floor(COLOR.r * 4.0 + 0.5);
 	v_suit = COLOR.g;
-	v_kindf = COLOR.b * 8.0;
+	v_kindf = COLOR.b * 16.0;
+	v_zone = COLOR.a;
+	v_path = UV2.x;
 	v_pos = VERTEX;
 	v_nrm = NORMAL;
 }
 
 void fragment() {
+	// Texture derivatives of the HERO style are taken once, here, outside every branch, and clamped: a 2x2 pixel quad that straddles two UV islands (the body and a kit part use different
+	// atlases) has derivatives of the whole atlas, which picked the blurriest mip level (a pale average colour) for lookups inside the branches and made kit parts pale and blotchy.
+	vec2 gdx = clamp(dFdx(UV), vec2(-0.006), vec2(0.006));
+	vec2 gdy = clamp(dFdy(UV), vec2(-0.006), vec2(0.006));
 	vec3 nm = vec3(0.5, 0.5, 1.0);
 	float nd = 1.0;
 	float suit = 0.0;
@@ -81,7 +109,7 @@ void fragment() {
 		alb *= 1.0 + sk * pow(1.0 - ndv0, 2.2) * vec3(0.3, 0.16, 0.1);          // (was 0.55, 0.2, 0.08: in a lamp-lit room the neck and the head glowed orange-red, director review 3 #5)
 		BACKLIGHT = sk * alb * vec3(0.32, 0.2, 0.15);
 		emis += sk * alb * 0.26 * (0.6 + 0.4 * v_nrm.y);                       // a skin fill: the face reads in a dark street instead of going black
-		if (suit > 0.001) {
+		if (hero_style < 0.5 && suit > 0.001) {
 			float lum = dot(alb, vec3(0.299, 0.587, 0.114));
 			float ndv = ndv0;
 			float rim = pow(1.0 - ndv, 2.6);
@@ -162,12 +190,47 @@ void fragment() {
 			rough = mix(rough, clamp(0.74 - 0.25 * panel + 0.2 * (cloud - 0.5), 0.12, 0.95), suit);
 			metal = suit * (0.04 + 0.2 * panel + 0.1 * rim);
 			nd = mix(1.0, 0.45, suit);
+		} else if (suit > 0.001) {
+			// HERO STYLE: a graphite bodysuit with a painted layout (tools/hero/bake_suit_mask.py: skin_rough.g = lighter quilted side panels, .b = accent paint piping, .a = seams). The baked
+			// muscle shading of the skin map gives the form, a quilting micro-normal the panels, a cool sheen the rim; the gloves (the end of the arm circuit) are darker and a little glossier.
+			vec4 mk = textureGrad(skin_rough, UV, gdx, gdy);
+			float pA = smoothstep(0.3, 0.7, mk.g);
+			float pB = smoothstep(0.3, 0.7, mk.b);
+			float lum = dot(alb, vec3(0.299, 0.587, 0.114));
+			float rim = pow(1.0 - ndv0, 2.4);
+			vec3 weave = texture(skin_normal, UV * 7.0).rgb;
+			float fade = 1.0 - smoothstep(0.0012, 0.0035, abs(gdx.x) + abs(gdy.y));
+			vec2 qa = UV * 300.0;
+			vec2 quilt = vec2(-sin(qa.x) * cos(qa.y), -cos(qa.x) * sin(qa.y)) * 0.16 * pA * fade;
+			nm = mix(nm, vec3((nm.xy - 0.5) * 0.7 + (weave.xy - 0.5) * 0.3 + quilt + 0.5, nm.z), suit);
+			float glove = smoothstep(0.62, 0.70, v_path);
+			float shade = clamp(0.55 + 1.0 * lum, 0.6, 1.35) * (0.92 + 0.16 * mk.r);
+			vec3 cloth = mix(cloth_col, cloth_col2 * 1.7, pA);
+			cloth = mix(cloth, trim_paint * 0.85, pB);
+			cloth = mix(cloth, cloth_col * 0.6 + vec3(0.012), glove) * shade;
+			cloth *= 1.0 - 0.72 * mk.a;
+			float ph = (0.7 + 1.3 * film_seed) * (1.0 - 0.55 * ndv0) * 12.566;
+			vec3 film = 0.5 + 0.5 * cos(vec3(0.0, 2.094, 4.188) + ph * vec3(1.0, 1.13, 1.27));
+			film = mix(film, trim_color, 0.6);
+			film = mix(film, accent, accent_mix);
+			float k2 = (0.35 + 0.65 * ready_k) * (1.0 + 0.9 * charge + 0.6 * excite) * glow;
+			alb = mix(alb, cloth, suit);
+			emis += suit * (film * rim * 0.16 * k2 + cloth * (0.22 + 0.14 * v_nrm.y) + pB * trim_paint * 0.35);
+			rough = mix(rough, clamp(0.80 - 0.18 * glove - 0.12 * pB + 0.1 * (mk.r - 0.5), 0.3, 0.92), suit);
+			metal = suit * 0.02;
+			spec = mix(spec, 0.4, suit);
+			nd = mix(1.0, 0.55, suit);
 		}
 	} else if (v_mode < 1.5) {
 		alb = texture(eye_albedo, UV).rgb;
 		nm = texture(eye_normal, UV).rgb;
 		rough = 0.12;
 		spec = 0.9;
+		if (hero_style > 0.5) {                            // the iris carries the quantum glow (centre of the eye map), strongest while a power is charged
+			float de = length(UV - vec2(0.495, 0.505));
+			float iris = 1.0 - smoothstep(0.07, 0.10, de);
+			emis += glow_rgb * iris * smoothstep(0.03, 0.07, de) * gz_b.y * 0.8;
+		}
 	} else if (v_mode < 2.5) {
 		alb = texture(hair1_albedo, UV).rgb * hair_color * 2.6;
 		nm = texture(hair1_normal, UV).rgb;
@@ -191,7 +254,67 @@ void fragment() {
 		float ndv2 = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
 		float hemi2 = 0.55 + 0.45 * v_nrm.y;
 		float edge = min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y));
-		if (kind < 0.5) {
+		if (hero_style > 0.5 && kind > 5.5) {
+			// THE SUIT KIT (HeroSuit): kinds 6 plate, 7 accent paint, 8 dark metal, 9 fabric, 10 glow, 11 canvas, 12 gold, 13 cloth. The atlas carries the wear (neutral colours), the kind picks the palette.
+			float zid = floor(v_zone * 8.0);
+			float zv = zid < 0.5 ? gz_a.x : (zid < 1.5 ? gz_a.y : (zid < 2.5 ? gz_a.z : (zid < 3.5 ? gz_a.w : (zid < 4.5 ? gz_b.x : gz_b.y))));
+			float wave = gflow.y * (exp(-pow((v_path - gflow.x) / 0.11, 2.0)) + 0.4 * (1.0 - smoothstep(0.0, 0.5, gflow.x - v_path)) * step(v_path, gflow.x));
+			if (kind > 9.5 && kind < 10.5) {
+				alb = vec3(0.012);
+				rough = 0.35;
+				emis = glow_rgb * (zv + wave) * glow * glow_gain * 1.1;
+			} else {
+				vec3 t = vec3(1.0 / 2.2);                         // no atlas loaded: flat colours per kind
+				vec3 o = vec3(1.0, 0.45, 0.45);
+				vec3 tint = kind < 6.5 ? plate_col : (kind < 7.5 ? trim_paint : (kind < 8.5 ? vec3(0.07, 0.075, 0.085) : (kind < 9.5 ? cloth_col2 : (kind < 11.5 ? vec3(0.2, 0.17, 0.13) : (kind < 12.5 ? gold_col : plate_col * 0.42 + trim_paint * 0.22 + cloth_col2 * 0.5)))));
+				if (gear_tex > 0.5) {
+					vec2 kx = gdx * 0.6;                           // a sharper mip level (the kit atlas has many narrow islands: the full mip chain blends neighbours)
+					vec2 ky = gdy * 0.6;
+					t = textureGrad(gear_albedo, UV, kx, ky).rgb;
+					o = textureGrad(gear_orm, UV, kx, ky).rgb;
+					nm = textureGrad(gear_normal, UV, kx, ky).rgb;
+					if (kind > 7.5 && kind < 8.5) {
+						tint = vec3(0.11);                        // dark metal and carbon: the colours they were baked with, darker (the hero's own key light is strong and the pack is the biggest flat face)
+					} else if (kind > 10.5 && kind < 11.5) {
+						tint = vec3(0.45);                        // canvas keeps its baked colour
+					}
+				}
+				float mt = kind < 8.5 ? plate_metal : 1.0;
+				if (kind < 6.5) {
+					t = mix(vec3(0.5), t, 0.62);                     // plates: the baked wear stays but its blotches are calmer (they read as dirt on a phone screen)
+				}
+				alb = t * tint * 2.2;
+				rough = clamp(o.g + (kind < 8.5 ? plate_rough : 0.0), 0.08, 1.0);
+				metal = clamp(o.b * mt, 0.0, kind < 8.5 ? 0.65 : 1.0);                 // bare-metal chips shine, but a plate never goes full chrome (it reflected the whole sky as a white rectangle)
+				if (kind > 11.5 && kind < 12.5) {
+					metal = 0.95;
+					rough = clamp(rough * 0.7, 0.15, 0.6);
+				}
+				if (kind > 8.5 && kind < 9.5 || kind > 12.5) {
+					metal = 0.0;
+					rough = clamp(rough + 0.25, 0.5, 0.95);
+				}
+				if (kind > 10.5 && kind < 11.5) {
+					metal = 0.0;
+					rough = 0.85;
+				}
+				if (kind > 7.5 && kind < 8.5) {                    // dark metal and carbon (the core pack is the biggest flat face of the suit): satin, never a mirror of the sun disc
+					metal = min(metal, 0.3);
+					rough = max(rough, 0.5);
+				} else if (kind < 6.5) {                           // plates keep their bare-metal chips but the flat faces scatter
+					metal = min(metal, 0.5);
+					rough = max(rough, 0.3);
+				}
+				if (kind > 6.5 && kind < 7.5) {                    // painted accent plates are lacquer, not mirrors: a low sheen that keeps the paint colour
+					metal = 0.12;
+					rough = clamp(rough + 0.12, 0.34, 0.6);
+				}
+				AO = o.r;
+				AO_LIGHT_AFFECT = 0.65;
+				emis = alb * 0.2 * (0.55 + 0.45 * v_nrm.y);
+				nd = 1.0;
+			}
+		} else if (kind < 0.5) {
 			alb = vec3(0.13, 0.14, 0.155);
 			rough = 0.42;
 			metal = 0.55;
@@ -232,6 +355,10 @@ void fragment() {
 		}
 	}
 	ALBEDO = alb * brightness;
+	if (dbg_view > 0.5) {
+		ALBEDO = vec3(0.0);
+		emis = dbg_view < 1.5 ? alb : (dbg_view < 2.5 ? vec3(rough) : vec3(metal));
+	}
 	ROUGHNESS = rough;
 	METALLIC = metal;
 	SPECULAR = spec;

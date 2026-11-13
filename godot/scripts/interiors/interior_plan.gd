@@ -1151,7 +1151,7 @@ func _try_add_anchor(room: int, kind: StringName) -> bool:
 
 
 func _finish_anchors() -> void:
-	var need: Dictionary = InteriorKinds.GUARANTEED.get(type, {})
+	var need: Dictionary = InteriorKinds.guaranteed(type)
 	for kind: StringName in need:
 		var have := (anchors.get(kind, []) as Array).size()
 		var guard := 0

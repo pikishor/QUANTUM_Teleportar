@@ -42,6 +42,7 @@ const _ES_MENU := preload("res://scripts/common/strings_es_menu.gd")
 const _HI_MENU := preload("res://scripts/common/strings_hi_menu.gd")
 const _ES_ROSTER := preload("res://scripts/common/strings_es_roster.gd")
 const _HI_ROSTER := preload("res://scripts/common/strings_hi_roster.gd")
+const _HERO := preload("res://scripts/common/strings_hero.gd")      ## the SUIT screen (wave 112)
 const _NPC := preload("res://scripts/npc/npc_dialogue_data.gd")
 
 static var _tables := {}
@@ -64,6 +65,7 @@ static func table(l: String) -> Dictionary:
 			d.merge(_ES_ROSTER.S)
 			d.merge(_ES_MENU.S)
 			d.merge(_ES_TASKS.S)
+			d.merge(_HERO.es())
 			d.merge(_NPC.table("es"))
 		elif l == "hi":
 			d.merge(_HI.S)
@@ -74,6 +76,7 @@ static func table(l: String) -> Dictionary:
 			d.merge(_HI_ROSTER.S)
 			d.merge(_HI_MENU.S)
 			d.merge(_HI_TASKS.S)
+			d.merge(_HERO.hi())
 			d.merge(_NPC.table("hi"))
 		_tables[l] = d
 	return _tables[l]

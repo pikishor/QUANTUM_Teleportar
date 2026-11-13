@@ -470,6 +470,15 @@ func _stub_room() -> void:
 
 
 func _teardown() -> void:
+	# The count measures the doors, not the world around them: the car streamer (one car is 23 nodes) and the outskirts sites (26 colliders unloaded and rebuilt as the hero is taken away and
+	# brought back) change the node count by tens at a time on the clock, which made this check pass or fail by chance (wave 112: 0 or +42 on identical runs). Both rest while it counts.
+	var vm := Game.vehicles as VehicleManager
+	var stream_every := vm.stream_every
+	vm.stream_every = 1.0e9
+	vm._stream_t = 1.0e9
+	if city.sites != null:
+		city.sites.set_process(false)
+	await frames(6)
 	var nodes_before := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
 	var d := ig.doors_of(&"bar", p.global_position)[0]
 	for i in 6:
@@ -479,6 +488,10 @@ func _teardown() -> void:
 		await frames(4)
 	await frames(10)
 	var after := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	vm.stream_every = stream_every
+	vm._stream_t = 0.0
+	if city.sites != null:
+		city.sites.set_process(true)
 	TestLib.check(after - nodes_before <= 12, "repeated enter / exit does not leak nodes (%d -> %d)" % [nodes_before, after])
 	main.queue_free()
 	await frames(5)

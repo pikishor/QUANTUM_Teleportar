@@ -13,11 +13,15 @@ extends Node3D
 ##   settle(pos)                   build everything around a point NOW on this thread (tests, teleports, captures)
 ## `QT_NO_VEGETATION=1` leaves it out (perf A/B runs).
 
+## Wave 112: the trees are the nine species of LandKit (LOD0 full or lite, LOD1, one shared cross-billboard impostor mesh): `lite` = LOW uses the lite LOD0, `imp_keep` = the share of
+## the far trees the impostors draw (the kept ones grow `imp_grow` times so the forest keeps its mass). Radii: LOD0 to r0, LOD1 to r1, impostors to r2.
 const TIERS := [
-	{"r0": 24.0, "r1": 80.0, "r2": 140.0, "shrub": 30.0, "grass": 15.0, "rock": 80.0, "variants": 1, "blockers": 26},
-	{"r0": 31.0, "r1": 98.0, "r2": 220.0, "shrub": 44.0, "grass": 22.0, "rock": 120.0, "variants": 2, "blockers": 38},
-	{"r0": 42.0, "r1": 132.0, "r2": 320.0, "shrub": 64.0, "grass": 32.0, "rock": 170.0, "variants": 2, "blockers": 52},
+	{"r0": 17.0, "r1": 58.0, "r2": 150.0, "shrub": 30.0, "grass": 15.0, "rock": 80.0, "variants": 1, "blockers": 26, "lite": true, "imp_keep": 0.5, "imp_grow": 1.25},
+	{"r0": 27.0, "r1": 86.0, "r2": 240.0, "shrub": 44.0, "grass": 22.0, "rock": 120.0, "variants": 2, "blockers": 38, "lite": false, "imp_keep": 0.62, "imp_grow": 1.18},
+	{"r0": 40.0, "r1": 124.0, "r2": 350.0, "shrub": 64.0, "grass": 32.0, "rock": 170.0, "variants": 2, "blockers": 52, "lite": false, "imp_keep": 0.8, "imp_grow": 1.1},
 ]
+const TREE_NAMES := {0: "pine", 1: "oak", 2: "dead", 8: "fir", 9: "birch", 10: "palm", 11: "alien", 12: "poplar", 13: "acacia"}
+const WAKE_EDGE := 470.0                           ## the vegetation sleeps until the hero is this far from the middle of the city (max of |x| and |z|): the start and the centre of the city pay for none of it (no kit, no textures, no collider pool)
 const MOVE_TRIGGER := 5.0
 const MIN_INTERVAL := 0.12
 const BLOCK_RADIUS := 30.0
@@ -26,10 +30,12 @@ const FAR_KEEP := 0.55
 const FAR_GROW := 1.3
 
 static var instance: VegetationWorld = null
+static var giants_list: Array = []                 ## the ancient trees round the hero from the last job: [{pos (the top), base, height, radius, name}] (AnchorWorld.anchors_near adds them as kind &"tree")
 
 var quality := 1
 var focus := Vector3.INF                          ## the point the plants are arranged around (the hero, the camera without one)
 var enabled := true
+var awake := false
 var jobs_done := 0
 var _slots := {}                                  ## slot name -> {mi: MultiMeshInstance3D, mm: MultiMesh, cap: int, n: int, tris: int}
 var _cells := {}                                  ## worker-side cache: (layer, ci, cj) key -> PackedFloat32Array (only the running job touches it)
@@ -39,6 +45,7 @@ var _mutex := Mutex.new()
 var _center := Vector2(1.0e9, 1.0e9)
 var _t := 0.0
 var _threaded := true
+var _land := false                                ## the landscape trees (LandKit) are available; without them the old Quaternius pieces are drawn
 var _pool: Array[StaticBody3D] = []
 var _pool_used := 0
 var _pending_force := true
@@ -55,12 +62,22 @@ static func attach(parent: Node) -> VegetationWorld:
 
 func _ready() -> void:
 	instance = self
+	_tier = TIERS[quality]
+	set_process(true)
+
+
+## Loads the kit (meshes, the foliage and bark textures), builds the collider pool and starts the wind: called when the hero leaves the middle of the city, by `settle` and by tests.
+func wake() -> void:
+	if awake:
+		return
+	awake = true
 	if not VegKit.available():
 		enabled = false
 		return
 	VegScatter.warm()
+	_land = LandKit.available()
+	LandClimate.attach(self)
 	set_quality(quality)
-	set_process(true)
 
 
 func _exit_tree() -> void:
@@ -74,6 +91,9 @@ func _exit_tree() -> void:
 func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
 	_tier = TIERS[quality]
+	if not awake:
+		return                                                                 # asleep: only the tier is remembered
+	LandKit.set_quality(quality)
 	_ensure_pool(int(_tier["blockers"]))
 	_pending_force = true
 
@@ -88,6 +108,11 @@ func _focus_point() -> Vector3:
 
 func _process(delta: float) -> void:
 	if not enabled:
+		return
+	if not awake:
+		var f0 := _focus_point()
+		if f0.is_finite() and maxf(absf(f0.x), absf(f0.z)) > WAKE_EDGE:
+			wake()
 		return
 	_t += delta
 	_poll()
@@ -132,6 +157,7 @@ func _poll() -> void:
 
 ## Build everything around `p` right now (tests, teleports): same code as the worker, on this thread, waiting for a running job first.
 func settle(p: Vector3) -> void:
+	wake()
 	if not enabled:
 		return
 	if _task >= 0:
@@ -179,6 +205,20 @@ func _cell_list(layer: int, c: Vector2, radius: float) -> Array:
 
 
 func _slot_name(species: int, variant: int, lod: int, variants: int) -> String:
+	if _land:
+		match species:
+			VegScatter.GRASS:
+				return "g_grass1" if variant != 1 else "g_grass2"
+			VegScatter.TUFT:
+				return "g_dry" if variant != 2 else "g_tall"
+			VegScatter.FLOWER:
+				return ["g_daisy", "g_poppy", "g_lav", "g_clover"][variant % 4]
+			VegScatter.FERN:
+				return "g_fern1" if variant != 1 else "g_fern2"
+			VegScatter.BUSH:
+				return "g_bush1" if variant != 1 else "g_bush2"
+			VegScatter.REED:
+				return "g_reed"
 	match species:
 		VegScatter.PINE:
 			return "pine_l%d" % lod if lod > 0 else ("pine_b" if (variant > 0 and variants > 1) else "pine_a")
@@ -190,10 +230,14 @@ func _slot_name(species: int, variant: int, lod: int, variants: int) -> String:
 			return "bush"
 		VegScatter.FERN:
 			return "fern"
-		VegScatter.GRASS:
+		VegScatter.GRASS, VegScatter.REED:
 			return "grass"
-		VegScatter.TUFT:
+		VegScatter.TUFT, VegScatter.FLOWER:
 			return "tuft"
+		VegScatter.FIR, VegScatter.POPLAR:
+			return "pine_l%d" % lod if lod > 0 else "pine_a"
+		VegScatter.BIRCH, VegScatter.PALM, VegScatter.ALIEN, VegScatter.ACACIA:
+			return "broad_l%d" % lod if lod > 0 else "broad_a"
 	return ["rock_a", "rock_b", "rock_c"][variant % 3]
 
 
@@ -201,12 +245,17 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 	var c := Vector2(cx, cz)
 	var out := {}                                                           # slot -> PackedFloat32Array (16 floats per instance)
 	var near: Array = []
+	var giants: Array = []
 	var r0: float = tier["r0"]
 	var r1: float = tier["r1"]
 	var r2: float = tier["r2"]
 	var variants: int = tier["variants"]
-	var radii := [r2 + 20.0, float(tier["shrub"]) + 10.0, float(tier["grass"]) + 10.0, maxf(float(tier["rock"]), 420.0)]
-	for layer in 4:
+	var lite: bool = tier["lite"]
+	var imp_keep: float = tier["imp_keep"]
+	var imp_grow: float = tier["imp_grow"]
+	var land := _land
+	var radii := [r2 + 20.0, float(tier["shrub"]) + 10.0, float(tier["grass"]) + 10.0, maxf(float(tier["rock"]), 420.0), r2 + 20.0, float(tier["grass"]) * 1.4 + 10.0, float(tier["grass"]) * 4.6 + 10.0]
+	for layer in VegScatter.LAYERS:
 		for arr: PackedFloat32Array in _cell_list(layer, c, float(radii[layer])):
 			var n := arr.size() / VegScatter.STRIDE
 			for k in n:
@@ -222,50 +271,98 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 				var g := 0.0                                                # dissolve: + fading out, - fading in
 				var g2 := 0.0                                               # the second LOD present in a crossfade band
 				var lod2 := -1
-				match sp:
-					VegScatter.PINE, VegScatter.BROAD:
-						if d <= r0 * (1.0 - FADE):
-							lod = 0
-						elif d <= r0:
-							lod = 0
-							g = (d - r0 * (1.0 - FADE)) / (r0 * FADE)
-							lod2 = 1
-							g2 = -g
-						elif d <= r1 * (1.0 - FADE):
-							lod = 1
-						elif d <= r1:
-							lod = 1
-							g = (d - r1 * (1.0 - FADE)) / (r1 * FADE)
-							lod2 = 2
-							g2 = -g
-						elif d <= r2 * (1.0 - FADE):
-							lod = 2
-						elif d <= r2:
-							lod = 2
-							g = (d - r2 * (1.0 - FADE)) / (r2 * FADE)
-						else:
+				if land and (sp == VegScatter.DRIFT or sp == VegScatter.PEBBLE):                  # the shore: pebbles near, logs of driftwood a bit farther
+					var lims: float = float(tier["grass"]) * (4.6 if sp == VegScatter.DRIFT else 2.0)
+					if d > lims:
+						continue
+					var gsh := maxf(0.0, (d - lims * 0.8) / (lims * 0.2))
+					if sp == VegScatter.DRIFT:
+						_put(out, "drift_%s_%s" % ["a" if variant == 0 else "b", "1" if d > 30.0 else "0"], x, arr[o + 1], z, arr[o + 3], sc, rnd, gsh)
+					else:
+						var pl := 9 if rnd < 0.5 else (10 if rnd < 0.8 else 4)                      # scree grey, dark sea-worn stones, a few pale ones (never the beach layer: they melted into the sand)
+						_put(out, "pebble_%s_0" % ["a" if variant == 0 else "c"], x, arr[o + 1], z, arr[o + 3], sc, rnd, gsh, -1.0, -1.0, float(pl), 1.0)
+					continue
+				if land and sp == VegScatter.LOG:                                                 # a fallen trunk of the forest floor
+					var lim_l: float = float(tier["shrub"])
+					if d > lim_l:
+						continue
+					_put(out, "log_%s_%s" % ["a" if variant == 0 else "b", "1" if d > 36.0 else "0"], x, arr[o + 1], z, arr[o + 3], sc, rnd, maxf(0.0, (d - lim_l * 0.8) / (lim_l * 0.2)))
+					continue
+				var is_tree := land and TREE_NAMES.has(sp)
+				if is_tree or sp == VegScatter.PINE or sp == VegScatter.BROAD:
+					if d <= r0 * (1.0 - FADE):
+						lod = 0
+					elif d <= r0:
+						lod = 0
+						g = (d - r0 * (1.0 - FADE)) / (r0 * FADE)
+						lod2 = 1
+						g2 = -g
+					elif d <= r1 * (1.0 - FADE):
+						lod = 1
+					elif d <= r1:
+						lod = 1
+						g = (d - r1 * (1.0 - FADE)) / (r1 * FADE)
+						lod2 = 2
+						g2 = -g
+					elif d <= r2 * (1.0 - FADE):
+						lod = 2
+					elif d <= r2:
+						lod = 2
+						g = (d - r2 * (1.0 - FADE)) / (r2 * FADE)
+					else:
+						continue
+				elif sp == VegScatter.DEAD or sp == VegScatter.FIR or sp == VegScatter.BIRCH or sp == VegScatter.PALM or sp == VegScatter.ALIEN or sp == VegScatter.POPLAR or sp == VegScatter.ACACIA:
+					var limd := r1 * 0.9
+					if d > limd:
+						continue
+					g = maxf(0.0, (d - limd * 0.85) / (limd * 0.15))
+				elif sp == VegScatter.BUSH or sp == VegScatter.FERN:
+					var lim2: float = tier["shrub"]
+					if d > lim2:
+						continue
+					g = maxf(0.0, (d - lim2 * 0.8) / (lim2 * 0.2))
+				elif sp == VegScatter.GRASS or sp == VegScatter.TUFT or sp == VegScatter.FLOWER or sp == VegScatter.REED:
+					var lim3: float = tier["grass"] * (1.4 if sp == VegScatter.REED else 1.0)
+					if d > lim3:
+						continue
+					g = maxf(0.0, (d - lim3 * 0.7) / (lim3 * 0.3))
+				else:
+					var lim4: float = tier["rock"] if sc < 2.4 else float(tier["rock"]) * 2.4
+					if d > lim4:
+						continue
+					g = maxf(0.0, (d - lim4 * 0.85) / (lim4 * 0.15))
+				if is_tree:
+					var nm: String = TREE_NAMES[sp]
+					if lod == 2:
+						if rnd > imp_keep:
 							continue
-					VegScatter.DEAD:
-						var lim := r1 * 0.9
-						if d > lim:
-							continue
-						g = maxf(0.0, (d - lim * 0.85) / (lim * 0.15))
-					VegScatter.BUSH, VegScatter.FERN:
-						var lim2: float = tier["shrub"]
-						if d > lim2:
-							continue
-						g = maxf(0.0, (d - lim2 * 0.8) / (lim2 * 0.2))
-					VegScatter.GRASS, VegScatter.TUFT:
-						var lim3: float = tier["grass"]
-						if d > lim3:
-							continue
-						g = maxf(0.0, (d - lim3 * 0.7) / (lim3 * 0.3))
-					_:
-						var lim4: float = tier["rock"] if sc < 2.4 else float(tier["rock"]) * 2.4
-						if d > lim4:
-							continue
-						g = maxf(0.0, (d - lim4 * 0.85) / (lim4 * 0.15))
-				if lod == 2:                                                    # the far LOD draws about half of the trees, a third bigger (the crowns close the gaps): half the instances for the same forest
+						sc *= imp_grow
+					_put_tree(out, nm, lod, lite, x, arr[o + 1], z, arr[o + 3], sc, rnd, g)
+					if variant == VegScatter.GIANT and d < 260.0:
+						var gh := LandKit.height(nm) * sc
+						giants.append({"pos": Vector3(x, arr[o + 1] + gh * 0.92, z), "base": Vector3(x, arr[o + 1], z), "height": gh, "radius": LandKit.trunk_radius(nm) * sc, "name": "ANCIENT " + nm.to_upper()})
+					if lod2 == 1 or (lod2 == 2 and rnd <= imp_keep):
+						_put_tree(out, nm, lod2, lite, x, arr[o + 1], z, arr[o + 3], sc * (imp_grow if lod2 == 2 else 1.0), rnd, g2)
+					if d < BLOCK_RADIUS:
+						var rad := LandKit.trunk_radius(nm) * sc * 0.9 + 0.12
+						near.append([d, x, arr[o + 1], z, clampf(rad, 0.3, 1.8), 7.0 if variant != VegScatter.GIANT else 16.0])
+					continue
+				if land and sp == VegScatter.ROCK:
+					var shape: String = ["a", "b", "c", "d"][int(rnd * 4.0) % 4]
+					var lod_d := 34.0 * sqrt(maxf(sc, 1.0))
+					var rlayer := 4
+					var dwq := TerrainBase.desert_weight(x, z)
+					if dwq > 0.4 or rnd > 0.84:
+						rlayer = 8 if rnd < 0.9 else 9
+					elif arr[o + 1] > 120.0 or rnd < 0.2:
+						rlayer = 10
+					elif rnd > 0.7:
+						rlayer = 4
+					_put(out, "rock_%s%s" % [shape, "_1" if d > lod_d else ""], x, arr[o + 1], z, arr[o + 3], sc, rnd, g, -1.0, -1.0, float(rlayer))
+					if d < BLOCK_RADIUS and sc > 0.9:
+						near.append([d, x, arr[o + 1], z, clampf(1.15 * sc, 0.3, 4.5), 1.6 * sc])
+					continue
+				if lod == 2:                                                    # old pieces (without the landscape kit): the far LOD draws about half of the trees, a third bigger
 					if rnd > FAR_KEEP:
 						continue
 					sc *= FAR_GROW
@@ -273,13 +370,13 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 				if lod2 == 1 or (lod2 == 2 and rnd <= FAR_KEEP):
 					_put(out, _slot_name(sp, variant, lod2, variants), x, arr[o + 1], z, arr[o + 3], sc * (FAR_GROW if lod2 == 2 else 1.0), rnd, g2)
 				if d < BLOCK_RADIUS and (sp == VegScatter.PINE or sp == VegScatter.BROAD or sp == VegScatter.DEAD or (sp == VegScatter.ROCK and sc > 0.9)):
-					var rad := 0.3 * sc if sp != VegScatter.ROCK else 1.15 * sc
-					near.append([d, x, arr[o + 1], z, clampf(rad, 0.3, 4.5), 7.0 if sp != VegScatter.ROCK else 1.6 * sc])
+					var rad2 := 0.3 * sc if sp != VegScatter.ROCK else 1.15 * sc
+					near.append([d, x, arr[o + 1], z, clampf(rad2, 0.3, 4.5), 7.0 if sp != VegScatter.ROCK else 1.6 * sc])
 	near.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
 	if near.size() > int(tier["blockers"]):
 		near.resize(int(tier["blockers"]))
 	# forget the cells that are far away now
-	if _cells.size() > 3000:
+	if _cells.size() > 4200:
 		var drop: Array = []
 		for key in _cells.keys():
 			var layer2 := int(key) >> 40
@@ -291,16 +388,28 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 		for key in drop:
 			_cells.erase(key)
 	_mutex.lock()
-	_result = {"slots": out, "near": near, "cells": _cells.size()}
+	_result = {"slots": out, "near": near, "cells": _cells.size(), "giants": giants}
 	_mutex.unlock()
 
 
-static func _put(out: Dictionary, slot: String, x: float, y: float, z: float, yaw: float, sc: float, rnd: float, g: float) -> void:
+static func _put_tree(out: Dictionary, nm: String, lod: int, lite: bool, x: float, y: float, z: float, yaw: float, sc: float, rnd: float, g: float) -> void:
+	if lod >= 2:
+		var sz := LandKit.impostor_size(nm)
+		_put(out, "imp", x, y, z, yaw, sc, rnd, g, sz.x, sz.y, float(LandKit.impostor_cell(nm)))
+	elif lod == 1:
+		_put(out, nm + "_1", x, y, z, yaw, sc, rnd, g)
+	else:
+		_put(out, nm + ("_0l" if lite else "_0"), x, y, z, yaw, sc, rnd, g)
+
+
+static func _put(out: Dictionary, slot: String, x: float, y: float, z: float, yaw: float, sc: float, rnd: float, g: float, width := -1.0, hgt := -1.0, cell := 0.0, flag := 0.0) -> void:
 	var buf: PackedFloat32Array = out.get(slot, PackedFloat32Array())
-	var s := sc * (0.92 + 0.16 * rnd)
-	var cy := cos(yaw) * s
-	var sy := sin(yaw) * s
-	buf.append_array(PackedFloat32Array([cy, 0.0, sy, x, 0.0, s, 0.0, y, -sy, 0.0, cy, z, rnd, g, 0.0, 0.0]))
+	var j := 0.92 + 0.16 * rnd
+	var sw := (width if width > 0.0 else 1.0) * sc * j
+	var sh := (hgt if hgt > 0.0 else 1.0) * sc * j
+	var cy := cos(yaw)
+	var sy := sin(yaw)
+	buf.append_array(PackedFloat32Array([cy * sw, 0.0, sy * sw, x, 0.0, sh, 0.0, y, -sy * sw, 0.0, cy * sw, z, rnd, g, cell, flag]))
 	out[slot] = buf
 
 
@@ -328,6 +437,7 @@ func _apply(res: Dictionary) -> void:
 	_stats["cells"] = int(res["cells"])
 	_stats["jobs"] = jobs_done
 	_place_blockers(res["near"])
+	giants_list = res.get("giants", [])
 
 
 func _slot(nm: String) -> Dictionary:

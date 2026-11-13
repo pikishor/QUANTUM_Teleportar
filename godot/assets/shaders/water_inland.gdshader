@@ -45,22 +45,26 @@ void fragment() {
 	vec2 T = normalize(vtan + vec2(0.0001, 0.0));
 	vec2 B = vec2(-T.y, T.x);
 	float rip_fade = 1.0 - smoothstep(30.0, 200.0, length(VERTEX));
-	// along-river ripples are long (low frequency along s), across-river ones short; they slide downstream at the current speed
-	float adv = still ? 0.12 : spd;
-	vec2 fq1 = vec2(still ? 0.5 : 0.2, 0.5);
-	vec2 q1 = p * fq1 - vec2(t * adv * 0.8 * fq1.x, 0.0);
-	float e = 0.15;
-	float n1 = vnoise(q1);
-	vec2 g1 = vec2(vnoise(q1 + vec2(e, 0.0)) - n1, vnoise(q1 + vec2(0.0, e)) - n1) / e * fq1;
-	vec2 g = g1 * 0.4 * rip_fade;
-	float n2 = 0.5;
-	if (detail >= 1) {
-		vec2 fq2 = vec2(still ? 1.3 : 0.5, 1.3);
-		vec2 q2 = p * fq2 - vec2(t * adv * 1.6 * fq2.x, 0.0) + 9.0;
-		n2 = vnoise(q2);
-		vec2 g2 = vec2(vnoise(q2 + vec2(e, 0.0)) - n2, vnoise(q2 + vec2(0.0, e)) - n2) / e * fq2;
-		g += g2 * 0.28 * rip_fade;
+	// wave 112: the surface is a sum of five travelling sine waves (a Gerstner-lite normal): directions, wavelengths 0.7 .. 6 m, slopes 2 .. 6 %. The first version (value-noise gradients) read as
+	// dark round dimples with bright rims, the second as a quilt; waves have no blobs. On a river the wave vectors lie in river space (x along, y across) and ride the current downstream.
+	float adv = still ? 0.0 : spd;
+	vec2 g = vec2(0.0);
+	vec2 pw = p + vec2(vnoise(p * 0.045) - 0.5, vnoise(p * 0.045 + 7.3) - 0.5) * 11.0;           // warped, so the waves never line up into a grid
+	for (int i = 0; i < 5; i++) {
+		float fi = float(i);
+		float ang = (still ? 0.35 : 0.0) + fi * 1.27 + (still ? 0.0 : (mod(fi, 2.0) < 0.5 ? 0.45 : -0.55));
+		vec2 dv = vec2(cos(ang), sin(ang));
+		float wl = (still ? 6.0 : 4.2) / (1.0 + fi * (still ? 1.2 : 1.05));
+		float kk = 6.2831853 / wl;
+		float sl = (still ? 0.060 : 0.050) / (1.0 + fi * 0.32);
+		float sp_i = (still ? 0.9 : 0.6) + fi * 0.32;
+		float ph = dot(pw, dv * kk) - t * (sp_i + adv * kk * dv.x);                 // advected by the current: K.U + omega
+		float fade_i = (i >= 3) ? (1.0 - smoothstep(10.0, 55.0, length(VERTEX))) : (1.0 - smoothstep(20.0, 150.0, length(VERTEX)));
+		float am = 0.55 + 0.9 * vnoise(p * 0.11 + fi * 3.7);                          // patches of calm and of chop
+		g += dv * (sl * 0.8 * am * cos(ph + fi * 2.3)) * fade_i;
 	}
+	float n1 = vnoise(p * vec2(still ? 0.22 : 0.16, 0.34) - vec2(t * (still ? 0.12 : spd) * 0.1, 0.0));
+	float n2 = vnoise(p * vec2(still ? 1.1 : 0.55, 1.5) - vec2(t * (still ? 0.12 : spd) * 0.9, 0.0) + 9.0);
 	vec2 gw = T * g.x + B * g.y;
 	vec3 n = normalize(vec3(-gw.x, 1.0, -gw.y));
 	float inner = 1.0 - bank;

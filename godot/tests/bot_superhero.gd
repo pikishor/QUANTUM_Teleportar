@@ -3,9 +3,10 @@ extends RefCounted
 ## and LOW, sprinting, firing, and the female / light / long-hair and buns variants. LOOK at the pictures: T-pose, floating feet, hair clipping, inverted normals, too dark.
 ##   tools/bot.sh res://tests/bot_superhero.gd /tmp/sh 45 11      (writes /tmp/sh_000.png ...; BOT_PHASES=0,4 selects phases)
 ## Phases: 0 front  1 side  2 back  3 head close-up  4 game camera MED  5 game camera LOW  6 sprint side  7 fire (3/4)  8 female light long (front)  9 female buns (back)  10 male light beard (3/4)  11 the look screen (SUIT in the pause shop, person buttons)
+##         12 / 13 / 14 the hero seen from behind at 15 / 40 / 80 m (silhouette and LOD)  15 the flight suit (wing mounts) from the back, glow wings
 
 const Fixture := preload("res://tests/player_fixture.gd")
-const NAMES: Array[String] = ["front", "side", "back", "head", "game_med", "game_low", "sprint", "fire", "female_long", "female_buns", "male_beard", "look_screen"]
+const NAMES: Array[String] = ["front", "side", "back", "head", "game_med", "game_low", "sprint", "fire", "female_long", "female_buns", "male_beard", "look_screen", "far15", "far40", "far80", "flight_suit"]
 
 var _every := 45
 var _count := 12
@@ -56,6 +57,11 @@ func _person(body: StringName, skin: StringName, hair: StringName, beard: bool) 
 
 func _reset() -> void:
 	Fixture.release_inputs()
+	HeroLook.set_glow(Color.WHITE, 0.0, &"wings")
+	var hl := (Game.progress as Progress).hero
+	if hl.suit != &"standard":
+		hl.suit = &"standard"
+		(_p.body as PlayerBody).apply_look(hl)
 	Game.state = &"play"
 	_p.invuln = 0.0
 	_p.hp = _p.max_hp
@@ -82,6 +88,15 @@ func _enter(phase: int) -> void:
 		8: _person(&"female", &"light", &"long", false); _off = Vector3(0.0, 0.3, 3.2)
 		9: _person(&"female", &"dark", &"buns", false); _off = Vector3(0.0, 0.3, -3.2)
 		10: _person(&"male", &"light", &"buzzed", true); _off = Vector3(1.8, 0.4, 2.8)
+		12: _off = Vector3(0.0, 1.0, -15.0)
+		13: _off = Vector3(0.0, 2.0, -40.0)
+		14: _off = Vector3(0.0, 3.5, -80.0)
+		15:
+			var look := (Game.progress as Progress).hero
+			look.suit = &"flight"
+			(_p.body as PlayerBody).apply_look(look)
+			_off = Vector3(1.4, 0.5, -3.0)
+			HeroLook.set_glow(Color(0.5, 0.95, 1.0), 1.35, &"wings")
 		11:
 			_p.camera_rig.camera.make_current()
 			var hud: Hud = null

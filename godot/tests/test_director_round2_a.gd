@@ -68,7 +68,9 @@ func _hero_build() -> void:
 	var pi: Dictionary = plain["info"]
 	var gi: Dictionary = geared["info"]
 	TestLib.check(bool(gi["ok"]) and int(gi["surfaces"]) == 1 and int(gi["tris"]) <= HeroCharacter.BUDGET, "the armoured hero is still ONE surface within the %d triangle budget (%d)" % [HeroCharacter.BUDGET, int(gi["tris"])])
-	TestLib.check(int(gi["pieces"]) == int(pi["pieces"]) + 1, "the gear is one more piece of the merged mesh (%d vs %d)" % [int(gi["pieces"]), int(pi["pieces"])])
+	var kit := int(gi.get("kit_parts", 0))                           # wave 112: the gear is the suit kit (one merged piece per armour part); without the kit file it is the one box piece
+	var extra := kit if kit > 0 else 1
+	TestLib.check(int(gi["pieces"]) == int(pi["pieces"]) + extra, "the gear adds exactly its pieces to the merged mesh (%d vs %d plus %d)" % [int(gi["pieces"]), int(pi["pieces"]), extra])
 	var bp := (plain["body"] as MeshInstance3D).mesh.get_aabb()
 	var bg := (geared["body"] as MeshInstance3D).mesh.get_aabb()
 	# kit space faces +Z (the rig turns it): the rucksack and the cape add depth BEHIND the hero, which is the kit's -Z

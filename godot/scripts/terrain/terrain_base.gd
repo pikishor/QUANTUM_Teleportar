@@ -25,6 +25,7 @@ static var _crag: FastNoiseLite
 static var _dune: FastNoiseLite
 static var _mesa: FastNoiseLite
 static var _patch: FastNoiseLite
+static var _bdune: FastNoiseLite
 static var _built := false
 
 
@@ -38,6 +39,7 @@ static func warm() -> void:
 	_dune = _make(5519, FastNoiseLite.TYPE_SIMPLEX_SMOOTH, 0.0046, FastNoiseLite.FRACTAL_FBM, 2)
 	_mesa = _make(6007, FastNoiseLite.TYPE_SIMPLEX_SMOOTH, 0.0011, FastNoiseLite.FRACTAL_NONE, 1)
 	_patch = _make(3301, FastNoiseLite.TYPE_SIMPLEX_SMOOTH, 0.0021, FastNoiseLite.FRACTAL_FBM, 3)
+	_bdune = _make(1717, FastNoiseLite.TYPE_SIMPLEX_SMOOTH, 0.024, FastNoiseLite.FRACTAL_FBM, 2)
 	_built = true
 
 
@@ -96,7 +98,14 @@ static func height(x: float, z: float) -> float:
 	if u >= 1.0:
 		return elev
 	if u > 0.0:
-		return lerpf(TerrainHeight.SEA_LEVEL + TerrainHeight.BEACH_TOP, elev, smoothstep(0.0, 1.0, u))
+		# wave 112: a real beach. A steep swash slope (about 2.5 m in the first 30 m: the wet sand band reads as a band, not as a plain), a berm, then the land rises through
+		# low dunes over the old 260 m blend (it was one smoothstep from the waterline: a flat pink plain 100 m wide)
+		var wl := TerrainHeight.SEA_LEVEL + TerrainHeight.BEACH_TOP
+		var sd := u * TerrainHeight.BEACH
+		var swash := minf(wl + 2.5 * (1.0 - exp(-sd / 15.0)), elev)
+		var base := lerpf(swash, elev, smoothstep(0.0, 1.0, u * u))
+		var dunes := _bdune.get_noise_2d(x, z) * 1.5 * smoothstep(0.10, 0.34, u) * (1.0 - smoothstep(0.68, 1.0, u))
+		return base + dunes
 	var sea_d := -u * TerrainHeight.BEACH
 	return TerrainHeight.SEA_LEVEL + TerrainHeight.BEACH_TOP - 42.0 * (1.0 - exp(-sea_d / 420.0)) - sea_d * 0.004
 
@@ -133,7 +142,7 @@ static func biome_at(x: float, z: float, h: float) -> StringName:
 static func shade_weights(x: float, z: float, h: float) -> Color:
 	var fw := forest_weight(x, z)
 	var dw := desert_weight(x, z) * (1.0 - fw)
-	var shore := 1.0 - smoothstep(TerrainHeight.SEA_LEVEL + 0.3, TerrainHeight.SEA_LEVEL + 3.5, h)
+	var shore := 1.0 - smoothstep(TerrainHeight.SEA_LEVEL + 2.4, TerrainHeight.SEA_LEVEL + 7.0, h)             # wave 112: dry sand up to about 6 m above the sea (was 3.5 m: the beach read as a grass plain with a thin sand edge); the shader ragged-edges it with noise
 	var p := _patch.get_noise_2d(x, z)                                   # patchy meadows inside the forest zone, dry scrub inside the plains
 	fw = clampf(fw + p * 0.25, 0.0, 1.0)
 	return Color(fw, clampf(dw + p * 0.15, 0.0, 1.0), shore, 0.0)

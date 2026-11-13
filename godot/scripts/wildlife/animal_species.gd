@@ -42,7 +42,7 @@ const MODELS := {
 	&"deer": "deer", &"goat": "goat", &"boar": "boar", &"sheep": "sheep", &"cow": "cow", &"horse": "horse", &"zebra": "zebra", &"wolf": "wolf", &"coyote": "coyote", &"fox": "fox",
 	&"songbird": "songbird", &"seagull": "seagull", &"eagle": "eagle", &"fish": "fish", &"dolphin": "dolphin", &"shark": "shark", &"whale": "whale",
 }
-const FARMS := [&"south_farm", &"north_farm"]
+const FARMS := [&"south_farm", &"north_farm", &"harrow_field"]            # (HARROW FIELD: the farming village of wave 112)
 const FARM_RADIUS := 260.0
 ## the plateau of the city is flat grass beyond the street grid: animals live there only from this distance (max-norm) from the centre
 const CITY_SKIRT := 760.0

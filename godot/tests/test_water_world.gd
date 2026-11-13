@@ -35,12 +35,12 @@ func _test_layout() -> void:
 	for p: Vector2 in [Vector2(0, 0), Vector2(-300, 200), Vector2(700, -600), Vector2(-1000, 1000)]:
 		TestLib.check(absf(TerrainHeight.height_at(p.x, p.y)) < 0.01 and not TerrainHeight.is_water(p.x, p.y), "the city plateau at %s is flat and dry" % p)
 	# the sea: west and south of the city (the coast is 500-900 m from the plateau edge), a deep floor
-	var west := _first_wet(Vector2(-1100.0, 0.0), Vector2(-2800.0, 0.0), 400)
+	var west := _first_wet(Vector2(-3000.0, 0.0), Vector2(-4200.0, 0.0), 400)                       # (wave 112: the land grew 1.2 km out to the west, the coast is at about x -3300; SILVER MERE and the new forest lie in between)
 	var south := _first_wet(Vector2(0.0, 1100.0), Vector2(0.0, 2800.0), 400)
-	TestLib.check(west != Vector2.INF and west.x < -1300.0, "walking west from the city there is a shore (first water at x %.0f)" % west.x)
+	TestLib.check(west != Vector2.INF and west.x < -3000.0, "walking west from the city there is a shore (first water at x %.0f)" % west.x)
 	TestLib.check(south != Vector2.INF and south.y > 1300.0, "walking south from the city there is a shore (first water at z %.0f)" % south.y)
-	TestLib.check(TerrainHeight.height_at(-2600.0, 0.0) < -15.0, "the sea floor is deep out west (%.1f m)" % TerrainHeight.height_at(-2600.0, 0.0))
-	TestLib.check(TerrainHeight.water_level_at(-2600.0, 0.0) == TerrainHeight.SEA_LEVEL, "the ocean surface is the sea level")
+	TestLib.check(TerrainHeight.height_at(-3650.0, 0.0) < -15.0, "the sea floor is deep out west (%.1f m)" % TerrainHeight.height_at(-3650.0, 0.0))
+	TestLib.check(TerrainHeight.water_level_at(-3650.0, 0.0) == TerrainHeight.SEA_LEVEL, "the ocean surface is the sea level")
 	var wet := 0
 	var high := -1.0e9
 	for ix in 60:
@@ -54,7 +54,7 @@ func _test_layout() -> void:
 	TestLib.check(high > 150.0, "there are mountains to match (highest sample %.0f m)" % high)
 	# rivers
 	WaterLayout.ensure()
-	TestLib.check(WaterLayout.paths.size() == 3 and WaterLayout.LAKES.size() == 3, "three rivers and three lakes")
+	TestLib.check(WaterLayout.paths.size() == 3 and WaterLayout.LAKES.size() == 4, "three rivers and four lakes (wave 112: SILVER MERE is where the HIGHLINE RIVER now ends)")
 	for ri in WaterLayout.paths.size():
 		var path: Dictionary = WaterLayout.paths[ri]
 		var pos: PackedVector2Array = path["pos"]
@@ -77,7 +77,10 @@ func _test_layout() -> void:
 		TestLib.check(TerrainHeight.flow_at(side.x, side.y) == Vector2.ZERO, "%s: no current on the land beside it" % path["name"])
 	var mouth_a: Vector2 = (WaterLayout.paths[0]["pos"] as PackedVector2Array)[(WaterLayout.paths[0]["pos"] as PackedVector2Array).size() - 1]
 	var surf_a: PackedFloat32Array = WaterLayout.paths[0]["surface"]
-	TestLib.check(surf_a[surf_a.size() - 1] < TerrainHeight.SEA_LEVEL + 0.3 and TerrainHeight.base_height(mouth_a.x, mouth_a.y) < TerrainHeight.SEA_LEVEL + 0.5, "the first river ends in the sea")
+	var in_lake := false
+	for lk: Dictionary in WaterLayout.LAKES:
+		in_lake = in_lake or mouth_a.distance_to(lk["c"] as Vector2) < float(lk["r"]) + 40.0
+	TestLib.check((surf_a[surf_a.size() - 1] < TerrainHeight.SEA_LEVEL + 0.3 and TerrainHeight.base_height(mouth_a.x, mouth_a.y) < TerrainHeight.SEA_LEVEL + 0.5) or in_lake, "the first river ends in the sea or in a lake (the western land grew: it ends in SILVER MERE)")
 	# lakes
 	for i in WaterLayout.LAKES.size():
 		var c: Vector2 = WaterLayout.LAKES[i]["c"]
@@ -91,7 +94,7 @@ func _test_layout() -> void:
 
 
 func _test_api() -> void:
-	var sea := Vector2(-2400.0, 300.0)
+	var sea := Vector2(-3500.0, 300.0)
 	var lo := 1.0e9
 	var hi := -1.0e9
 	for i in 40:
@@ -108,7 +111,7 @@ func _test_api() -> void:
 	# the waves die on the beach: find a point with 0.4 m of water
 	var shallow := Vector2.INF
 	for i in 400:
-		var p := Vector2(-1500.0 - i * 0.5, 0.0)
+		var p := Vector2(-3150.0 - i * 0.5, 0.0)
 		var d := TerrainHeight.depth_at(p.x, p.y)
 		if d > 0.3 and d < 0.5:
 			shallow = p
@@ -156,13 +159,13 @@ func _test_meshes_and_map() -> void:
 	# the shore depth map
 	var tex := WaterWorld.shore_map()
 	var img := tex.get_image()
-	TestLib.check(img.get_width() == 512 and img.get_height() == 512 and img.get_format() == Image.FORMAT_R8, "shore map is 512 x 512 R8 (about 260 KB)")
+	TestLib.check(img.get_width() == WaterWorld.MAP_CELLS * WaterWorld.MAP_FINE and img.get_height() == img.get_width() and img.get_format() == Image.FORMAT_R8, "shore map is %d x %d R8 (wave 112: 768 texels cover the 9 km world)" % [img.get_width(), img.get_height()])
 	var half := WaterWorld.MAP_HALF
 	var at := func(x: float, z: float) -> float:
-		return img.get_pixel(int((x + half) / (half * 2.0) * 512.0), int((z + half) / (half * 2.0) * 512.0)).r * WaterWorld.DEPTH_RANGE - WaterWorld.DEPTH_OFFSET
+		return img.get_pixel(int((x + half) / (half * 2.0) * float(img.get_width())), int((z + half) / (half * 2.0) * float(img.get_height()))).r * WaterWorld.DEPTH_RANGE - WaterWorld.DEPTH_OFFSET
 	TestLib.check(float(at.call(0.0, 0.0)) < -1.0, "shore map: the city is dry land (%.1f)" % float(at.call(0.0, 0.0)))
-	TestLib.check(float(at.call(-2600.0, 0.0)) > 8.0, "shore map: the open sea is deep (%.1f)" % float(at.call(-2600.0, 0.0)))
-	var w := _first_wet(Vector2(-1100.0, 0.0), Vector2(-2800.0, 0.0), 800)
+	TestLib.check(float(at.call(-3650.0, 0.0)) > 8.0, "shore map: the open sea is deep (%.1f)" % float(at.call(-3650.0, 0.0)))
+	var w := _first_wet(Vector2(-3000.0, 0.0), Vector2(-4200.0, 0.0), 800)
 	TestLib.check(absf(float(at.call(w.x, w.y))) < 1.5, "shore map: depth is about zero at the waterline (%.2f at x %.0f)" % [float(at.call(w.x, w.y)), w.x])
 	TestLib.check(int(WaterWorld.shore_stats().get("refined_cells", 0)) < 9000, "the map is refined only along the coast")
 
@@ -194,7 +197,7 @@ func _test_swim_isolated(host: Node) -> void:
 	# wading: a point with 0.5 m of water
 	var shallow := Vector2.INF
 	for i in 600:
-		var p := Vector2(-1500.0 - i * 0.5, 0.0)
+		var p := Vector2(-3150.0 - i * 0.5, 0.0)
 		var d := TerrainHeight.depth_at(p.x, p.y)
 		if d > 0.5 and d < 0.8:
 			shallow = p
@@ -211,7 +214,7 @@ func _test_swim_isolated(host: Node) -> void:
 		TestLib.check(not sw.wading and sw.wade_mult == 1.0 and sw.surface == TerrainHeight.NO_WATER, "on the street he does not")
 		dummy.queue_free()
 	# deep sea: plunge, float, stroke
-	var sea := Vector3(-2300.0, 0.0, 400.0)
+	var sea := Vector3(-3500.0, 0.0, 400.0)
 	var y0 := TerrainHeight.SEA_LEVEL + 3.0
 	var body := _swim_body(host, Vector3(sea.x, y0, sea.z))
 	var dt := 1.0 / 60.0
@@ -305,13 +308,13 @@ func _test_live(host: Node) -> void:
 	Game.set_quality(1)
 	await TestLib.frames(host, 2)
 	# underwater tint (the hero's own camera rig keeps the current camera, so the live node is asked directly)
-	ww._update_underwater(Vector3(-2300.0, TerrainHeight.SEA_LEVEL - 4.0, 300.0), 0.1)
+	ww._update_underwater(Vector3(-3500.0, TerrainHeight.SEA_LEVEL - 4.0, 300.0), 0.1)
 	TestLib.check(WaterWorld.underwater and ww.overlay.visible, "a camera below the surface shows the underwater tint")
-	ww._update_underwater(Vector3(-2300.0, TerrainHeight.SEA_LEVEL + 6.0, 300.0), 0.1)
+	ww._update_underwater(Vector3(-3500.0, TerrainHeight.SEA_LEVEL + 6.0, 300.0), 0.1)
 	TestLib.check(not WaterWorld.underwater and not ww.overlay.visible, "above the surface the tint is off")
 	# the real hero in the sea
 	var before := p.swim.splashes
-	p.global_position = Vector3(-2300.0, TerrainHeight.SEA_LEVEL + 2.5, 300.0)
+	p.global_position = Vector3(-3500.0, TerrainHeight.SEA_LEVEL + 2.5, 300.0)
 	p.velocity = Vector3.ZERO
 	var t := 0.0
 	while t < 6.0 and not p.swim.active:
@@ -323,7 +326,7 @@ func _test_live(host: Node) -> void:
 	var surface := WaterWorld.surface_y(p.global_position.x, p.global_position.z)
 	TestLib.check(p.swim.active and absf(p.global_position.y - (surface - PlayerSwim.FLOAT_DEPTH)) < 0.7, "he floats at the surface (feet %.2f, water %.2f)" % [p.global_position.y, surface])
 	TestLib.check(not WaterWorld.underwater, "the hero's camera stays above the water while he floats")
-	TestLib.check(absf(p.global_position.x + 2300.0) < 60.0 and not PlayerUtil.outside_city(p.global_position), "he is not rescued back to the street: the sea is part of the world")
+	TestLib.check(absf(p.global_position.x + 3500.0) < 60.0 and not PlayerUtil.outside_city(p.global_position), "he is not rescued back to the street: the sea is part of the world")
 	var s0 := p.global_position
 	Input.action_press(&"move_forward")
 	await TestLib.frames(host, 150)

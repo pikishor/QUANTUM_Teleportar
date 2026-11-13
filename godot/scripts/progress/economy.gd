@@ -23,7 +23,7 @@ const THROW_PRICE := {&"singularity": 0, &"mine": 300, &"decoy": 220, &"shroud":
 const GADGET_PRICE := {&"scanner": 300, &"grapple": 520, &"drone": 700, &"turret": 390, &"shield": 360, &"jetpack": 330}
 const GARAGE_BASE := {&"speed": 300, &"armour": 250, &"grip": 200, &"weapon": 400}   ## x (level + 1)
 const GARAGE_LEVELS := 3
-const SUIT_PRICE := {&"standard": 0, &"stealth": 300, &"phase": 0, &"gilded": 0}
+const SUIT_PRICE := {&"standard": 0, &"stealth": 300, &"phase": 0, &"gilded": 0, &"assault": 450, &"flight": 0}
 const SCHEME_PRICE := [0, 150, 0, 150, 0, 0, 200, 250]
 const ACCENT_PRICE := 250
 

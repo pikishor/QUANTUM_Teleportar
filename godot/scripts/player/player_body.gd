@@ -92,6 +92,8 @@ var upper: Node3D
 var rig: CharacterRig
 var uses_model := false
 var hero_mat: ShaderMaterial                    ## the superhero's material (hero_body.gdshader); null with the old hero
+var glow: HeroGlow                              ## the circuit glow of the suit (scripts/characters/hero_glow.gd): the abilities drive it, HeroLook.set_glow is its public API
+var glow_primary := true                        ## false for previews (portrait, look screen): they keep their own glow and never take the HeroLook.set_glow calls
 var hero_info := {}                             ## HeroCharacter.build info of the current model (tris, lods, ...)
 var _hero_opts := {}                            ## body / skin / hair / beard the current superhero was built with
 var _weapon_id: StringName = &""
@@ -133,6 +135,7 @@ var _look_emis0: Array[Color] = []
 var _look_metal0: Array[float] = []
 var _look_rough0: Array[float] = []
 var _look_accent := Color.WHITE
+var _last_look: HeroLook                       ## the look the hero material wears (the graphics tier re-applies it: the glow gain depends on the tier)
 var _look_mix := 0.0                           ## how far the trim sheen is pulled toward the look's accent
 var _clock_look := 0.0
 var _charge := 0.0                    ## 0..1 QUANTUM TELEPORT charge (aiming a destination), smoothed
@@ -183,6 +186,16 @@ var character_light := true:
 func _ready() -> void:
 	top_level = true
 	_build()
+
+
+func _enter_tree() -> void:
+	if glow != null and glow_primary:
+		HeroGlow.primary = glow
+
+
+func _exit_tree() -> void:
+	if glow != null and HeroGlow.primary == glow:
+		HeroGlow.primary = null
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -337,6 +350,9 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 			gm.emission_energy_multiplier = _glow_mult()
 
 	_update_quantum_look(q, dt)
+	if glow != null and hero_mat != null:
+		glow.sense(p, _look_accent)
+	update_glow(dt)
 
 	# --- character lights follow the ACTIVE camera (the orbit yaw alone lies when a cinematic / QA / viewer camera looks from elsewhere)
 	update_character_lights(lerpf(1.0, DEAD_LIGHT, e), rig_view.yaw if rig_view != null else NAN)
@@ -482,6 +498,8 @@ func warm_burst_end() -> void:
 
 ## One shot: flash card, light pulse and the body's recoil. intensity scales the flash.
 func fire_flash(intensity := 1.0) -> void:
+	if glow != null:
+		glow.fired(_look_accent.lerp(Color.WHITE, 0.3), intensity)
 	_wp_glow = 3.4
 	WeaponModels.material().set_shader_parameter(&"glow", _wp_glow)
 	if _flash_root != null:
@@ -504,6 +522,8 @@ func fire_flash(intensity := 1.0) -> void:
 
 ## A hit reaction: the torso snaps back for a moment.
 func flinch(strength := 1.0, from_pos := Vector3.ZERO) -> void:
+	if glow != null:
+		glow.hurt(strength)
 	if from_pos != Vector3.ZERO:
 		var h := Vector3(from_pos.x - global_position.x, 0.0, from_pos.z - global_position.z)
 		if h.length() > 0.2:
@@ -608,7 +628,7 @@ func _make_model(look: HeroLook = null) -> Node3D:
 static func _look_opts(look: HeroLook) -> Dictionary:
 	if look == null:
 		return HeroCharacter.sanitize({})
-	return HeroCharacter.sanitize({"body": look.body, "skin": look.skin_tone, "hair": look.hair, "beard": look.beard})
+	return HeroCharacter.sanitize({"body": look.body, "skin": look.skin_tone, "hair": look.hair, "beard": look.beard, "suit": look.kit_set()})
 
 
 ## A changed body, skin, hair or beard replaces the model in place (the same sequence as _build, without the lights and the reflection).
@@ -698,6 +718,10 @@ func _adopt_model(model: Node3D) -> void:
 			leg_r = pivot
 	_prepare_materials(model, true)
 	if hero_mat != null:
+		if glow == null:
+			glow = HeroGlow.new()
+		if glow_primary:
+			HeroGlow.primary = glow
 		_apply_hero_look(_pending_look if _pending_look != null else (Game.progress.get(&"hero") as HeroLook if Game.progress != null else null))
 	HeroPresentation.set_height(HeroPresentation.measure_height(model))
 	if rig != null:
@@ -823,17 +847,18 @@ func apply_look(look: HeroLook) -> void:
 func _apply_hero_look(look: HeroLook) -> void:
 	if hero_mat == null or look == null:
 		return
-	var sd := look.suit_def()
-	var mult := (sd["albedo"] as Color) * look.tint()
+	_last_look = look
 	var neutral := look.suit == &"standard" and look.scheme == 0 and look.accent_hue < 0
-	_look_accent = look.accent()
+	_look_accent = look.apply_material(hero_mat, glow, _quality, _is_compat())
 	_look_mix = 0.0 if neutral else HeroLook.ACCENT_MIX
-	hero_mat.set_shader_parameter(&"look_tint", Color(mult.r, mult.g, mult.b))
-	hero_mat.set_shader_parameter(&"suit_metal", clampf(0.3 + float(sd["metal"]), 0.0, 1.0))
-	hero_mat.set_shader_parameter(&"suit_rough", clampf(0.5 + float(sd["rough"]), 0.05, 1.0))
-	hero_mat.set_shader_parameter(&"glow", float(sd["glow"]) * (LOW_GLOW if _quality == 0 else 1.0))
-	hero_mat.set_shader_parameter(&"accent", _look_accent)
-	hero_mat.set_shader_parameter(&"accent_mix", _look_mix)
+
+
+## One tick of the circuit glow: the layers advance and the outputs go into the hero material. update_view calls it every frame; previews (portrait, look screen, the look-dev stage) call it themselves.
+func update_glow(dt: float) -> void:
+	if glow == null or hero_mat == null:
+		return
+	glow.update(dt)
+	glow.apply_to(hero_mat)
 
 
 ## Thin-film sheen of the trim: the hue drifts with time and view-independent phase; `charge` (QUANTUM TELEPORT aim) pushes it toward violet-magenta and brighter,
@@ -1105,6 +1130,8 @@ func set_quality(level: int) -> void:
 	_apply_lights()
 	if hero_mat != null:
 		hero_mat.set_shader_parameter(&"brightness", 0.9 if level == 0 else 1.0)
+		if _last_look != null:
+			_apply_hero_look(_last_look)                      # the glow gain follows the tier (LOW tames it)
 	# LOW (phones with bright panels, no rim light, no post grade): darker armour and a calmer emission, so the hero reads as dark plates with cyan accents, never a pale glow
 	for i in _gear_mats.size():
 		_gear_mats[i].albedo_color = _gear_base[i] * (LOW_ALBEDO if level == 0 else Color.WHITE)

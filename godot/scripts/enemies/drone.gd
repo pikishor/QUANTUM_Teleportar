@@ -94,6 +94,7 @@ var _rotors: Array[Node3D] = []
 var _fins: Node3D                      ## the `Fins` node of the living models (null for the primitive stand-in, which spins its rotors)
 var _tele := 0.0                       ## 0..1: how far the next shot is charged (EnemyMarks draws the telegraph from it)
 var _base_scale := 1.0
+var scale_mult := 1.0                          ## a mission actor drawn bigger (the interior officer: set_size); multiplies the look and distance scale, back to 1 when the pooled drone is released
 var _look_scale := Vector3.ONE                  ## the body shape of the roster look (HumanoidVariants.VAEL_CLASSES): wider gunners, slim scouts
 var _far_k := 0.0
 var _dist_scale := 1.0                 ## readability: a trooper far from the camera is drawn a little bigger (1.0 up to NEAR_FULL m, DIST_SCALE_MAX at FAR_FULL m); hit shapes follow
@@ -186,7 +187,7 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	if model != null:
 		model.rotation = Vector3.ZERO
 		model.position = Vector3.ZERO
-		model.scale = _look_scale * _base_scale * _dist_scale
+		model.scale = _look_scale * _base_scale * scale_mult * _dist_scale
 	_tele = 0.0
 	_drop_pending = false
 	_set_glow(2.0)
@@ -200,7 +201,15 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	set_physics_process(true)
 
 
+## Draw this drone `target` times a standard model wide whatever its roster look is (the interior officer): the scale of the look is divided out and the result survives the animation's per-frame scale.
+func set_size(target: float) -> void:
+	scale_mult = target / maxf(_look_scale.x * _base_scale, 0.05)
+	if model != null:
+		model.scale = _look_scale * _base_scale * scale_mult * _dist_scale
+
+
 func deactivate() -> void:
+	scale_mult = 1.0
 	active = false
 	dead = false
 	visible = false
@@ -714,7 +723,7 @@ func _tick_dead(delta: float) -> void:
 	if model != null:
 		model.rotation.z += delta * 4.0
 		model.position.y -= delta * 2.5
-		model.scale = _look_scale * _base_scale * _dist_scale * (1.0 - 0.85 * k * k)            # dissolve: it shrinks away while it burns white-hot
+		model.scale = _look_scale * _base_scale * scale_mult * _dist_scale * (1.0 - 0.85 * k * k)            # dissolve: it shrinks away while it burns white-hot
 	_set_glow(2.0 + 9.0 * sin(k * PI))
 	if _dead_t > DEATH_TIME:
 		_burst(center(), cfg["color"], 14, 5.0, 0.8, -1.5, 1.6)                   # the last motes of light drift up

@@ -18,7 +18,7 @@ const KINDS := {
 }
 ## name, kind, via points (x, z): the router (`_route`, A* on a 40 m grid with a grade limit) finds the way between consecutive via points through the valleys. A road with `branch`
 ## [parent name, metres from its start] begins on that road. from_city: starts on the plateau edge (profile starts at y = 0).
-const DEFS := [
+const CORE_DEFS := [
 	{"name": "PASS ROAD", "kind": "highway", "from_city": true, "via": [Vector2(0, -1090), Vector2(0, -1230), Vector2(-150, -1950)]},
 	{"name": "DESERT ROAD", "kind": "highway", "from_city": true, "via": [Vector2(1090, 0), Vector2(1230, 0), Vector2(1750, 500), Vector2(1850, 1100), Vector2(1500, 1450)]},
 	{"name": "COAST ROAD", "kind": "highway", "from_city": true, "via": [Vector2(0, 1090), Vector2(0, 1230), Vector2(-700, 1400), Vector2(-1300, 1000), Vector2(-1550, 300)]},
@@ -29,7 +29,8 @@ const DEFS := [
 	{"name": "SUMMIT ROAD", "kind": "track", "from_city": false, "branch": ["PASS ROAD", 1190.0], "wide": true, "via": [Vector2(-300, -2090), Vector2(-420, -2180), Vector2(-540, -2220)]},         # the switchbacks up to the MOUNTAIN OBSERVATORY (OutskirtsSites, wave 105: the site stands where this road ends)
 	{"name": "RIDGE TRACK", "kind": "track", "from_city": false, "branch": ["MOUNTAIN TRACK", 2300.0], "wide": true, "via": [Vector2(1700, -1560), Vector2(1860, -1500)]},      # the climb to the RADIO TOWER
 ]
-const BRIDGE_CLEAR := 3.6                 ## metres of clearance between the water and the underside of the deck where a road crosses a river or lake (wave 105: bridges)
+const DEFS: Array = CORE_DEFS + SettlementRoads.DEFS             ## wave 112: the ring road, the west highway, the coast link, the west coast road, the lark road, the outpost road, the shore track (scripts/settlements/settlement_roads.gd), after the nine original roads
+const BRIDGE_CLEAR := 3.6                ## metres of clearance between the water and the underside of the deck where a road crosses a river or lake (wave 105: bridges)
 const SPAN_MARGIN := 2                    ## samples either side of the wet ones that the bridge deck covers, so its ends stand on the banks
 const GRID := 40.0                        ## router cell (metres)
 const CORRIDOR := 900.0                   ## the router looks this far either side of the straight line between two via points
@@ -83,8 +84,42 @@ static func ensure() -> void:
 				var arr: PackedInt32Array = _grid[key]
 				arr.append(i)
 				_grid[key] = arr
+	_level_crossings()                                # wave 112 critic: two roads that cross at different heights meet at one (the older road's)
 	RailNet.ensure()                                  # the railway (wave 106) crosses these roads: it is routed and profiled once they are complete
 	OutskirtsSites.ensure()                       # the sites stand where some of the roads end (wave 105)
+	LandscapeSites.ensure()                       # wave 112: waterfalls and airstrips are found once the roads and the site pads exist
+
+
+## Wave 112 critic: where two roads cross (a sample of one within 7 m of a sample of the other) and their profiles differ by more than 0.4 m, the ground under each carriageway is the NEARER road's profile and a
+## wall stood in the other's lane: the RING ROAD crossed the PASS ROAD 3.6 m higher (a 3.8 - 5 m step across the main north road at 251, -1321: eight crashes and a wreck in the drive audit). The crossing is
+## levelled like a town pad is (`level_profile`: flat in a 12 m circle at the height of the road that was built first, easing out under the grade limit over 45 m). Bridge spans are left alone.
+static func _level_crossings() -> void:
+	var centres: Array[Vector2] = []
+	for i in _sp.size():
+		if _sb[i] == 1:
+			continue
+		var cand = _grid.get(_key(int(floor(_sp[i].x / CELL)), int(floor(_sp[i].y / CELL))))
+		if cand == null:
+			continue
+		for j: int in (cand as PackedInt32Array):
+			if _sr[j] <= _sr[i] or _sb[j] == 1:
+				continue
+			if _sp[i].distance_squared_to(_sp[j]) > 49.0 or absf(_sh[i] - _sh[j]) <= 0.4:
+				continue
+			var c := (_sp[i] + _sp[j]) * 0.5
+			var seen := false
+			for q in centres:
+				if q.distance_squared_to(c) < 6400.0:
+					seen = true
+					break
+			if seen:
+				continue
+			centres.append(c)
+			level_profile(c, 0.0, 12.0, 12.0, 45.0, _sh[i])                # the older road's height (_sr[i] < _sr[j])
+	crossings_levelled = centres.size()
+
+
+static var crossings_levelled := 0                    ## tests: how many road crossings were levelled
 
 
 static func _catmull(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> Vector2:
@@ -117,10 +152,17 @@ static func _build_road(ri: int) -> void:
 		var k := clampi(int(float(def["branch"][1]) / STEP), 0, pp.size() - 1)
 		via.push_front(pp[k])
 		anchor_h = float((_roads[par]["prof"] as PackedFloat32Array)[k])
+	var end_h := -1.0e9                                  ## wave 112: a road that ENDS on another road (`end_on`: [parent name, metres from its start]) meets it at the parent's height
+	if def.has("end_on"):
+		var par2 := _find_road(String(def["end_on"][0]))
+		var pp2: PackedVector2Array = _roads[par2]["pos"]
+		var k2 := clampi(int(float(def["end_on"][1]) / STEP), 0, pp2.size() - 1)
+		via.append(pp2[k2])
+		end_h = float((_roads[par2]["prof"] as PackedFloat32Array)[k2])
 	var nodes := PackedVector2Array()
 	var wide := bool(def.get("wide", false))              # 16 directions instead of 8: a road that has to gain height across a steep hillside (hairpins) needs the finer headings
 	for k in via.size() - 1:
-		var seg := _route(via[k], via[k + 1], float(kind["grade"]), wide)
+		var seg := _route(via[k], via[k + 1], float(kind["grade"]) * float(def.get("slack", 1.0)), wide)          # `slack` (wave 112): the router may use steeper natural ground, the profile is cut and filled to the real grade afterwards (hilly west)
 		if not nodes.is_empty() and not seg.is_empty():
 			seg = seg.slice(1)
 		nodes.append_array(seg)
@@ -166,6 +208,10 @@ static func _build_road(ri: int) -> void:
 			prof[i] = clampf(prof[i], prof[i - 1] - gk * seg[i], prof[i - 1] + gk * seg[i])
 		for i in range(n - 2, 0, -1):
 			prof[i] = clampf(prof[i], prof[i + 1] - gk * seg[i + 1], prof[i + 1] + gk * seg[i + 1])
+	if end_h > -1.0e8:                                    # wave 112: ends on another road: the last sample meets it at its height, the road eases into it under the grade limit
+		prof[n - 1] = end_h
+		for i in range(n - 2, 0, -1):
+			prof[i] = clampf(prof[i], prof[i + 1] - gk * seg[i + 1], prof[i + 1] + gk * seg[i + 1])
 	for i in range(1, n):                                 # clear of the rivers (causeway), ramps up to it
 		prof[i] = maxf(prof[i], need[i])
 	for _pass in 2:
@@ -173,6 +219,34 @@ static func _build_road(ri: int) -> void:
 			prof[i] = maxf(prof[i], prof[i - 1] - gk * seg[i])
 		for i in range(n - 2, 0, -1):
 			prof[i] = maxf(prof[i], prof[i + 1] - gk * seg[i + 1])
+	if def.has("branch"):                                 # wave 112 critic: a branch whose first samples run on its parent (within 10 m of its centre line: the OUTPOST ROAD begins by retracing the DESERT ROAD for 30 m) takes the
+		var par4 := _find_road(String(def["branch"][0]))   # parent's profile there. Two profiles on one carriageway (0.9 - 2.7 m apart) cut a bank into the parent's right lane (`carve` picks the nearer road's
+		var pp4: PackedVector2Array = _roads[par4]["pos"]  # profile): a car crashed at it. Only when the branch can still reach every bridge clearance from the lower start under its grade limit.
+		var pf4: PackedFloat32Array = _roads[par4]["prof"]
+		var snap_n := 0
+		var trial := prof.duplicate()
+		for i in n:
+			var bd4 := 100.0
+			var bj4 := -1
+			for j in pp4.size():
+				var d4 := pp4[j].distance_squared_to(pts[i])
+				if d4 < bd4:
+					bd4 = d4
+					bj4 = j
+			if bj4 < 0:
+				break
+			trial[i] = pf4[bj4]
+			snap_n = i + 1
+		if snap_n >= 2:
+			for i in range(snap_n, n):
+				trial[i] = clampf(trial[i], trial[i - 1] - gk * seg[i], trial[i - 1] + gk * seg[i])
+			var snap_ok := true
+			for i in n:
+				if need[i] > -1.0e8 and trial[i] < need[i] - 0.05:
+					snap_ok = false
+					break
+			if snap_ok:
+				prof = trial
 	var total := 0.0
 	for i in range(1, n):
 		total += pts[i].distance_to(pts[i - 1])
@@ -217,8 +291,27 @@ static func _build_road(ri: int) -> void:
 	for sp in spans:
 		for i in range(sp.x, sp.y + 1):
 			_sb[base + i] = 1
+	var overlap_n := 0                                    # wave 112 critic: where a BRANCH runs on its parent (its first samples within 8 m of the parent's centre line: SUMMIT ROAD on the PASS ROAD bridge) the parent's
+	var overlap_lat := 0.0                                # deck carries both roads (Bridges widens it by `overlap_lat`); the branch's own deck over the same stream stood 0.3 - 0.75 m off it and its line
+	if def.has("branch"):                                 # wandered 3 - 7 m about the parent's across the parapet walls: a kerb across the carriageway, a car was stuck at 7 m
+		var par3 := _find_road(String(def["branch"][0]))
+		var pp3: PackedVector2Array = _roads[par3]["pos"]
+		for i in n:
+			var bd2 := 64.0
+			for j in pp3.size():
+				bd2 = minf(bd2, pp3[j].distance_squared_to(pts[i]))
+			if bd2 >= 64.0:
+				break
+			overlap_lat = maxf(overlap_lat, sqrt(bd2))
+			overlap_n = i + 1
+	var bridge_spans: Array[Vector2i] = []                # the spans that get a deck of their own (Bridges): a span inside that stretch is the parent's deck
+	for sp in spans:
+		if sp.y < overlap_n:
+			continue
+		bridge_spans.append(Vector2i(maxi(sp.x, overlap_n), sp.y))
 	_roads.append({"name": def["name"], "kind": def["kind"], "pos": pts, "prof": prof, "len": total, "w": float(kind["w"]), "bench": float(kind["bench"]),
-		"shoulder": float(kind["shoulder"]), "from_city": bool(def["from_city"]), "spans": spans, "base": base})
+		"shoulder": float(kind["shoulder"]), "from_city": bool(def["from_city"]), "spans": spans, "bridge_spans": bridge_spans, "base": base,
+		"overlap": {"road": String(def["branch"][0]) if def.has("branch") else "", "n": overlap_n, "lat": overlap_lat + half_w}})
 
 
 static func _find_road(road_name: String) -> int:
@@ -255,6 +348,7 @@ static func _route(a: Vector2, b: Vector2, grade: float, wide := false) -> Packe
 				pen = 160.0
 			elif TerrainHeight.city_distance(x, z) <= 0.0:
 				pen = 0.0
+			pen += OutskirtsSites.keep_clear(x, z)            # wave 112: a road never runs through the pad of a site it does not serve
 			penal[j * w + i] = pen
 	var ia := Vector2i(clampi(int(round((a.x - lo.x) / GRID)), 0, w - 1), clampi(int(round((a.y - lo.y) / GRID)), 0, h - 1))
 	var ib := Vector2i(clampi(int(round((b.x - lo.x) / GRID)), 0, w - 1), clampi(int(round((b.y - lo.y) / GRID)), 0, h - 1))
@@ -394,6 +488,53 @@ static func nearest(x: float, z: float) -> Array:
 	return [best, bi, bh, bs]
 
 
+## Wave 112: a town stands on a road. Inside the town's elliptical pad (centre `c`, `yaw` of its street, `r` across, `ln` along, `blend` more) the profile of every road that crosses it is levelled to the pad
+## height `y` with the same weight as the pad's carve (OutskirtsSites.carve): flat (and fixed) where the pad is flat, easing out under the road's own grade limit beyond it (a second grade pass over the
+## road that keeps the levelled samples), so the street, the lanes of the cars and the flat ground agree. The bench of the road is cut to the new profile (`_sh`) and the pad leaves the land beside
+## the road alone near its centre line in the blend zone (OutskirtsSites.carve), so the ground on the centre line is exactly the profile. Called by OutskirtsSites.ensure for each town, before RoadLanes copies the profiles.
+static var _fixed := PackedByteArray()
+static func level_profile(c: Vector2, yaw: float, r: float, ln: float, blend: float, y: float) -> void:
+	if _fixed.size() != _sp.size():
+		_fixed = PackedByteArray()
+		_fixed.resize(_sp.size())
+	var sn := sin(yaw)
+	var cs := cos(yaw)
+	var k := r / maxf(ln, r)
+	var touched := {}
+	for i in _sp.size():
+		var dx := _sp[i].x - c.x
+		var dz := _sp[i].y - c.y
+		var u := (dx * sn + dz * cs) * k
+		var v := dx * cs - dz * sn
+		var d := sqrt(u * u + v * v)
+		if d >= r + blend:
+			continue
+		var w := 1.0 - smoothstep(r, r + blend, d)
+		_sh[i] = lerpf(_sh[i], y, w)
+		if w >= 0.999:
+			_fixed[i] = 1
+		touched[_sr[i]] = true
+	for ri: int in touched.keys():                       # the grade limit holds again outside the flat part (a pad on a slope would otherwise add its blend to the road's own climb)
+		var road: Dictionary = _roads[ri]
+		var base: int = road["base"]
+		var pts: PackedVector2Array = road["pos"]
+		var n := pts.size()
+		var gk: float = float((KINDS[String(road["kind"])] as Dictionary)["grade"])
+		for _pass in 3:
+			for i in range(1, n):
+				if _fixed[base + i] == 0 and not (i == n - 1 and road.has("end_h")):
+					var sg := maxf(pts[i].distance_to(pts[i - 1]), 1.0)
+					_sh[base + i] = clampf(_sh[base + i], _sh[base + i - 1] - gk * sg, _sh[base + i - 1] + gk * sg)
+			for i in range(n - 2, 0, -1):
+				if _fixed[base + i] == 0:
+					var sg2 := maxf(pts[i + 1].distance_to(pts[i]), 1.0)
+					_sh[base + i] = clampf(_sh[base + i], _sh[base + i + 1] - gk * sg2, _sh[base + i + 1] + gk * sg2)
+		var prof: PackedFloat32Array = road["prof"]
+		for i in n:
+			prof[i] = _sh[base + i]
+		road["prof"] = prof
+
+
 ## `h` (the land with rivers) with the road bench cut in. Fast out when no road is near.
 static func carve(x: float, z: float, h: float) -> float:
 	if not built:
@@ -425,7 +566,7 @@ static func shoulder_weight(x: float, z: float) -> float:
 	if ri < 0:
 		return 0.0
 	var road: Dictionary = _roads[ri]
-	return 1.0 - smoothstep(float(road["w"]) * 0.5, float(road["w"]) * 0.5 + 7.0, float(r[0]))
+	return 1.0 - smoothstep(float(road["w"]) * 0.5 + 1.0, float(road["w"]) * 0.5 + 4.0, float(r[0]))
 
 
 ## True when (x, z) lies under a bridge deck of a road (the road bench is not cut there).
@@ -463,29 +604,40 @@ static func build_ribbon(ri: int) -> ArrayMesh:
 	var idx := PackedInt32Array()
 	var run := 0.0
 	var half: float = float(road["w"]) * 0.5
+	var verge := 2.6 if String(road["kind"]) == "highway" else 1.3                  # wave 112: a gravel verge on each side of the asphalt that the shader fades out (COLOR.g = the asphalt half width / 16)
+	# wave 112 critic (LOOK): COLOR.b = how far (metres / 24, 1 = grown) a sample lies from the START OF THE FIRST DRAWN PIECE of a road that branches off another one (the piece after a bridge span at
+	# the branch, like SUMMIT ROAD at PASS ROAD): the shader grows the dirt and the lane marks in over it, so the branch emerges from the parent instead of starting as a hard-edged patch
+	var branched: bool = ri < DEFS.size() and DEFS[ri].has("branch")
+	var piece0 := -1.0
 	for i in n:
 		if i > 0:
 			run += pts[i].distance_to(pts[i - 1])
+		var jb := 1.0
+		if branched and _sb[int(road["base"]) + i] == 0:
+			if piece0 < 0.0:
+				piece0 = run
+			jb = clampf((run - piece0) / 24.0, 0.0, 1.0)
 		var tg := (pts[mini(i + 1, n - 1)] - pts[maxi(i - 1, 0)]).normalized()
 		var nrm := Vector2(-tg.y, tg.x)
 		var hw := half
 		if bool(road["from_city"]):
 			hw = lerpf(ROAD_W * 0.5, half, smoothstep(0.0, FLARE, run))
-		var l := pts[i] + nrm * hw
-		var r := pts[i] - nrm * hw
+		var l := pts[i] + nrm * (hw + verge)
+		var r := pts[i] - nrm * (hw + verge)
 		var c := pts[i]
-		var yc := TerrainHeight.height_at(c.x, c.y) + LIFT
-		verts.append(Vector3(l.x, minf(TerrainHeight.height_at(l.x, l.y) + LIFT, yc + 0.4), l.y))
-		verts.append(Vector3(r.x, minf(TerrainHeight.height_at(r.x, r.y) + LIFT, yc + 0.4), r.y))
+		var lf := LIFT + (0.03 if String(road["kind"]) == "highway" else 0.0)          # wave 112 critic (LOOK): a highway lies 3 cm over a track where they overlap at a junction (coplanar ribbons z-fought)
+		var yc := TerrainHeight.height_at(c.x, c.y) + lf
+		verts.append(Vector3(l.x, minf(TerrainHeight.height_at(l.x, l.y) + lf, yc + 0.4), l.y))
+		verts.append(Vector3(r.x, minf(TerrainHeight.height_at(r.x, r.y) + lf, yc + 0.4), r.y))
 		norms.append(Vector3.UP)
 		norms.append(Vector3.UP)
-		cols.append(Color(2.0 * hw / 32.0, 0.0, 0.0, 1.0))
-		cols.append(Color(2.0 * hw / 32.0, 0.0, 0.0, 1.0))
+		cols.append(Color(2.0 * (hw + verge) / 32.0, hw / 16.0, jb, 1.0))
+		cols.append(Color(2.0 * (hw + verge) / 32.0, hw / 16.0, jb, 1.0))
 		uvs.append(Vector2(0.0, run))
 		uvs.append(Vector2(1.0, run))
 		if i < n - 1 and _sb[int(road["base"]) + i] == 0 and _sb[int(road["base"]) + i + 1] == 0:          # a bridge span has its own deck (Bridges: one sample more at each end), the ribbon would lie in the river bed
 			var b := i * 2
-			idx.append_array(PackedInt32Array([b, b + 2, b + 1, b + 1, b + 2, b + 3]))
+			idx.append_array(PackedInt32Array([b, b + 1, b + 2, b + 1, b + 3, b + 2]))                     # clockwise seen from above = front face (the old order made the road a back face: its normal was flipped, the sun never lit it)
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = verts

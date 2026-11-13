@@ -1,6 +1,6 @@
 extends RefCounted
 ## Hero look 2 in the REAL game scene: the suit material carries the new layers (fabric micro-normal, panel lines, armour panels with their own gloss and colour, subsurface-lite
-## skin, hair sheen) with NO new textures (still the 9 samplers of the hero kit, so no texture memory change) and no new draws (one surface), the character lights are a warm key and a
+## skin, hair sheen) with NO new textures of their own (the 9 samplers of the hero kit; wave 112 added the 3 samplers of the suit kit atlas) and no new draws (one surface), the character lights are a warm key and a
 ## cool rim (not a monochrome blue), and the suit presets keep distinct palettes on the live material. Waits are on state, never on frame counts alone.
 ## Run: tools/test.sh tests/test_hero_look2.gd
 
@@ -22,7 +22,9 @@ func run(host: Node) -> void:
 	for line in src.split("\n"):
 		if line.begins_with("uniform sampler2D"):
 			samplers += 1
-	TestLib.check(samplers == 9, "no new textures: the same 9 samplers (%d)" % samplers)
+	# wave 112 (hero look v3): the suit kit atlas adds three samplers (albedo, normal, ORM) to the nine of the hero kit; the suit LAYERS of this test (fabric micro-normal, panels, grooves) still
+	# add none. The ceiling keeps the shader inside the 16 texture units of the Compatibility renderer.
+	TestLib.check(samplers == 12, "the hero kit's 9 samplers plus the 3 of the suit kit atlas, nothing else (%d)" % samplers)
 
 	if not HeroCharacter.available(&"male"):
 		TestLib.check(true, "hero kit absent: the material checks are skipped")

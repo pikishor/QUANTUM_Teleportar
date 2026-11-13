@@ -78,13 +78,26 @@ static func draw_portrait(ci: CanvasItem, r: Rect2, id: String, t := 0.0, alpha 
 	var wash := Color(col.r, col.g, col.b, 0.22 * alpha)
 	ci.draw_rect(Rect2(r.position + Vector2(0.0, s * 0.45), Vector2(r.size.x, s * 0.55)), wash)
 	var extra := str(look.get("extra", ""))
-	if extra == "ring":
+	if id == HERO and _draw_hero_render(ci, r, alpha):
+		pass                                                 # the real hero, rendered from his kit (scripts/characters/hero_portrait.gd)
+	elif extra == "ring":
 		_draw_oracle(ci, c, s, col, t, alpha)
 	elif extra == "eyes3":
 		_draw_vael(ci, c, s, look, col, t, alpha)
 	else:
 		_draw_human(ci, r, c, s, look, extra, alpha)
 	ci.draw_rect(r, Color(col.r, col.g, col.b, 0.9 * alpha), false, maxf(1.0, s * 0.03))
+
+
+## The hero's portrait is a render of the hero in hand (wave 112): the committed picture for the default look, a live render of the player's own look in the menus. False when there is none
+## yet (the drawn bust below is the fallback).
+static func _draw_hero_render(ci: CanvasItem, r: Rect2, alpha: float) -> bool:
+	var pr: Variant = Game.progress
+	var tex := HeroPortrait.for_look(pr.get(&"hero") as HeroLook if pr != null else null, ci)
+	if tex == null:
+		return false
+	HeroPortrait.draw_into(ci, tex, r, Color(1, 1, 1, alpha))
+	return true
 
 
 ## The cheap form for the in-game radio subtitle (one draw call, the phone's draw budget): a disc in the speaker's colour. Cutscenes and the board card draw the full portrait.

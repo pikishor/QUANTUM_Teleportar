@@ -10,7 +10,7 @@ PY="${BLENDER_PY:-}"
 if [ -z "$PY" ] && [ -x "$HERE/../../.venv-tools/bin/python" ]; then PY="$HERE/../../.venv-tools/bin/python"; fi
 if [ -z "$PY" ]; then echo "No bpy interpreter found. Run tools/setup_python.sh (creates godot/.venv-tools) or set BLENDER_PY=/path/to/python" >&2; exit 1; fi
 "$PY" -c 'import bpy, numpy' 2>/dev/null || { echo "error: $PY cannot import bpy and numpy (see tools/requirements.txt)" >&2; exit 1; }
-ALL=(player operative citizen drone_sentinel drone_striker drone_heavy car_sedan car_sport car_suv car_taxi car_wagon car_van car_truck bike_street car_hover car_vael_patrol pickups kit kit_city)
+ALL=(player operative citizen drone_sentinel drone_striker drone_heavy car_sedan car_sport car_suv car_taxi car_wagon car_van car_truck bike_street car_hover car_vael_patrol pickups kit kit_city hero_suit)
 LIST=("$@")
 if [ ${#LIST[@]} -eq 0 ]; then LIST=("${ALL[@]}"); fi
 for n in "${LIST[@]}"; do

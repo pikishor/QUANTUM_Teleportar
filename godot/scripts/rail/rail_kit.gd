@@ -262,6 +262,7 @@ static func _viaduct_piers(mb: MB, r: Dictionary, F: Array, i0: int, i1: int, or
 	var mode: PackedByteArray = r["mode"]
 	var s: PackedFloat32Array = r["s"]
 	var last_s := -1.0e9
+	var slid_from := -1.0e9
 	for i in range(i0, i1):
 		if mode[i] != RailNet.MODE_VIADUCT:
 			continue
@@ -277,6 +278,19 @@ static func _viaduct_piers(mb: MB, r: Dictionary, F: Array, i0: int, i1: int, or
 			want = s[i] - last_s >= 26.0
 		if not want:
 			continue
+		if not city and (slid_from < -1.0e8 or s[i] - slid_from < 150.0):       # wave 112 critic: a bent whose columns would stand in a carriageway (a viaduct crossing over a road) slides on to the next sample:
+			var rt0: Vector3 = f["rt"]                                          # piers in the PASS ROAD and the RING ROAD lanes stopped cars dead (road audit: Collision_mountain at 242, -1341 and 229..305, -1313..-1347)
+			var on_road := false
+			for sx0 in [-1.0, 0.0, 1.0]:
+				var cp0: Vector3 = p + rt0 * float(sx0) * 2.9
+				var nr0 := TerrainRoads.nearest(cp0.x, cp0.z)
+				if int(nr0[1]) >= 0 and float(nr0[0]) < float((TerrainRoads.roads()[int(nr0[1])] as Dictionary)["w"]) * 0.5 + 1.8:
+					on_road = true
+			if on_road:
+				if slid_from < -1.0e8:
+					slid_from = s[i]                                           # (150 m of sliding at most: then the pier stands where it must)
+				continue
+		slid_from = -1.0e9
 		last_s = s[i]
 		var g := TerrainHeight.height_at(p.x, p.z) if not city else 0.0
 		var top := p.y - 2.7

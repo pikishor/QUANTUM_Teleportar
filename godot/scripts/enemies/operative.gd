@@ -996,7 +996,7 @@ func _animate(delta: float) -> void:
 	rig.apply()
 	if model != null and not dead:                          # behind low cover he crouches: the body squashes to ~70 %, so the head and shoulders stay in view above the cover
 		_crouch = lerpf(_crouch, 1.0 if (_cover_state == 2 and not _retreating) else 0.0, 1.0 - exp(-12.0 * delta))
-		model.scale = _look_scale * _base_scale * _dist_scale * Vector3(1.0, 1.0 - 0.3 * _crouch, 1.0)
+		model.scale = _look_scale * _base_scale * scale_mult * _dist_scale * Vector3(1.0, 1.0 - 0.3 * _crouch, 1.0)
 	if muzzle != null:
 		muzzle.transform = hanim.muzzle_transform(rig) if hanim != null else rig.muzzle_transform()
 	if leg_l != null:

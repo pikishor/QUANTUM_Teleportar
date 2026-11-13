@@ -30,6 +30,10 @@ const MODE_GEAR := 4
 const RENAMES := {"pelvis": "Hips", "spine_02": "Torso", "Head": "Head", "upperarm_l": "UpperArmL", "lowerarm_l": "ForeArmL", "upperarm_r": "UpperArmR", "lowerarm_r": "ForeArmR",
 		"thigh_l": "ThighL", "calf_l": "ShinL", "foot_l": "FootL", "thigh_r": "ThighR", "calf_r": "ShinR", "foot_r": "FootR"}
 const EXPOSED := ["head", "neck", "hand", "index", "middle", "ring", "pinky", "thumb"]     ## bone name prefixes the suit does not cover
+const EXPOSED_GLOVED := ["head", "neck"]                  ## the hero (gear on) wears gloves: only the head and the neck show skin
+const FOOT_CUT_Y := 0.19                                  ## kit space: the base mesh below this height is hidden inside the boots and the shaft ring of the suit kit and is cut away (about 1.4k triangles)
+const HAND_TARGET := 0.5                                  ## the gloves keep this share of their triangles (hands are 27 % of the base body)
+const HAND_PREFIX := ["hand", "index", "middle", "ring", "pinky", "thumb"]
 ## The carbine (model space, relative to the rifle pivot at the butt; the muzzle looks down -Z) and where the hands and the empties of the old model contract sit relative to it.
 const RIFLE_PIVOT := Vector3(0.085, 1.38, 0.02)
 const MUZZLE_AT := Vector3(0.0, 0.01, -0.86)
@@ -42,6 +46,37 @@ const ELBOW_BACK := 0.35
 const HAND_ROLL_R := 1.5708                         ## extra twist of each hand about its forearm (radians)
 const HAND_ROLL_L := 3.1416
 const RIFLE_MODEL := "res://assets/models/hero_rifle.glb"   ## tools/blender/model_hero_rifle.py: 2.3k triangles, glow seams in vertex colour G
+
+## The engine shows an LOD once the projected length of ITS triangle edges is below a pixel threshold. The merged hero (flat armour plates among a smooth body) has long edges at the same triangle
+## count, so the sizes ImporterMesh measures switch the levels in far later than the old hero's did: at MED that cost ~20k triangles of the staged view (hero, shadow caster and mirror).
+## The levels are kept and get the switch sizes the hero has always had, chosen by the share of triangles left (share, size), interpolated on a log scale.
+const LOD_SCHEDULE := [[0.5, 0.0074], [0.25, 0.016], [0.125, 0.0346], [0.0624, 0.0803], [0.0311, 0.1749], [0.0107, 0.4549], [0.0041, 1.0231], [0.0016, 1.5346]]
+
+
+static func _lod_size(share: float) -> float:
+	var k := clampf(share, 0.0016, 0.5)
+	for i in range(1, LOD_SCHEDULE.size()):
+		var hi: Array = LOD_SCHEDULE[i - 1]
+		var lo: Array = LOD_SCHEDULE[i]
+		if k >= float(lo[0]):
+			var t := (log(k) - log(float(lo[0]))) / (log(float(hi[0])) - log(float(lo[0])))
+			return lerpf(float(lo[1]), float(hi[1]), t)
+	return float((LOD_SCHEDULE[LOD_SCHEDULE.size() - 1] as Array)[1])
+
+
+## The generated levels of `im` (surface 0) as an LOD dictionary {size: indices} with the scheduled sizes (strictly increasing: a level never shares its size with the one before).
+static func _scheduled_lods(im: ImporterMesh, total: int) -> Dictionary:
+	var out := {}
+	var last := 0.0
+	for l in im.get_surface_lod_count(0):
+		var idx := im.get_surface_lod_indices(0, l)
+		if idx.size() == 0:
+			continue
+		var size := maxf(_lod_size(float(idx.size() / 3) / float(maxi(total, 1))), last + 0.001)
+		out[size] = idx
+		last = size
+	return out
+
 
 static func path_for(body: StringName) -> String:
 	return "%s/Superhero_%s_FullBody.gltf" % [DIR, String(body).capitalize()]
@@ -57,7 +92,9 @@ static func sanitize(opts: Dictionary) -> Dictionary:
 	var body := StringName(str(opts.get("body", "male")))
 	var skin := StringName(str(opts.get("skin", "dark")))
 	var hair := StringName(str(opts.get("hair", "parted")))
-	return {"body": body if body in BODIES else &"male", "skin": skin if skin in SKINS else &"dark", "hair": hair if hair in HAIRS else &"parted", "beard": bool(opts.get("beard", false))}
+	var suit := StringName(str(opts.get("suit", HeroSuit.DEFAULT_SET)))
+	return {"body": body if body in BODIES else &"male", "skin": skin if skin in SKINS else &"dark", "hair": hair if hair in HAIRS else &"parted", "beard": bool(opts.get("beard", false)),
+			"suit": suit if HeroSuit.is_set(suit) else HeroSuit.DEFAULT_SET}
 
 
 static func tex(path: String) -> Texture2D:
@@ -84,6 +121,15 @@ static func make_material(opts: Dictionary) -> ShaderMaterial:
 		var t := tex("%s/%s" % [DIR, pairs[k]])
 		if t != null:
 			m.set_shader_parameter(StringName(k), t)
+	if bool(opts.get("gear", false)):                               # the player's hero: the suit style and the armour atlas
+		m.set_shader_parameter(&"hero_style", 1.0)
+		var loaded := 0
+		for kv: Array in [["gear_albedo", "hero_suit_albedo.jpg"], ["gear_normal", "hero_suit_normal.png"], ["gear_orm", "hero_suit_orm.jpg"]]:
+			var gt := tex("res://assets/textures/%s" % kv[1])
+			if gt != null:
+				m.set_shader_parameter(StringName(kv[0]), gt)
+				loaded += 1
+		m.set_shader_parameter(&"gear_tex", 1.0 if loaded == 3 else 0.0)
 	return m
 
 
@@ -120,9 +166,10 @@ static func build(opts: Dictionary) -> Dictionary:
 	var comps: Array = []
 	var exposed := PackedByteArray()
 	exposed.resize(sk.get_bone_count())
+	var gloved := bool(opts.get("gear", false))
 	for i in sk.get_bone_count():
 		var ln := sk.get_bone_name(i).to_lower()
-		for pre: String in EXPOSED:
+		for pre: String in (EXPOSED_GLOVED if gloved else EXPOSED):
 			if ln.begins_with(pre):
 				exposed[i] = 1
 	for mi in sk.get_children():
@@ -193,6 +240,18 @@ static func build(opts: Dictionary) -> Dictionary:
 	sk.add_bone("Rifle")
 	parents.append(torso)
 	model_pos.append(RIFLE_PIVOT)
+	if bool(opts.get("gear", false)):                         # the cloak chain of the suit set (Sec1-3, the names CharacterRig sways): three bones hanging from the parent bone
+		var ch := HeroSuit.chain(o["suit"])
+		if not ch.is_empty():
+			var prev := int(name_to_idx.get(String(ch["parent"]), torso))
+			var cpos: PackedVector3Array = ch["pos"]
+			for k in 3:
+				var nb := sk.get_bone_count()
+				sk.add_bone("Sec%d" % (k + 1))
+				parents.append(prev)
+				model_pos.append(cpos[k])
+				name_to_idx["Sec%d" % (k + 1)] = nb
+				prev = nb
 	var n_bones := sk.get_bone_count()
 	for i in n_bones:
 		sk.set_bone_parent(i, parents[i])
@@ -200,11 +259,24 @@ static func build(opts: Dictionary) -> Dictionary:
 
 	# ---- the shouldered carbine pose is baked into the REST pose (the rig's IK expects a rest pose that already holds the rifle): arms solved onto the grips, fingers curled,
 	# the mesh skinned once on the CPU, and the bones re-framed at their posed positions (identity frames again), so rig.apply() with neutral inputs changes nothing
+	if gloved and HeroSuit.available():                        # the suit kit hides the feet and the ankles (boots) and the gloves need fewer triangles than bare hands
+		for c: Dictionary in comps:
+			if int(c["mode"]) == MODE_SKIN:
+				_cut_below(c, FOOT_CUT_Y)
+				_decimate_bones(c, sk, HAND_PREFIX, HAND_TARGET)
+			elif int(c["mode"]) == MODE_EYE or (int(c["mode"]) == MODE_HAIR1 and (c["idx"] as PackedInt32Array).size() / 3 >= 900):
+				_reduce(c)
 	var armed := bool(opts.get("armed", true))               # false: no carbine mesh (citizens)
 	if armed:
 		comps.append(_rifle_piece(rifle))
-	if bool(opts.get("gear", false)):                          # the hero only: armour, rucksack, cape, boots (NPCs and troopers keep their own look)
-		comps.append(_gear_piece(name_to_idx))
+	if bool(opts.get("gear", false)):                          # the hero only: the armour kit of the suit set (HeroSuit); the old procedural boxes when the kit file is absent
+		var kit_pieces := HeroSuit.pieces(o["suit"], name_to_idx)
+		if kit_pieces.is_empty():
+			comps.append(_gear_piece(name_to_idx))
+		else:
+			comps.append_array(kit_pieces)
+			info["suit"] = o["suit"]
+			info["kit_parts"] = kit_pieces.size()
 	var binds: Array[Transform3D] = []
 	for i in n_bones:
 		binds.append(sk.get_bone_global_rest(i).affine_inverse())
@@ -230,12 +302,21 @@ static func build(opts: Dictionary) -> Dictionary:
 	mat.set_shader_parameter(&"scalp_y", hp.y + 0.11)
 	mat.set_shader_parameter(&"scalp_z", hp.z)
 	mat.set_shader_parameter(&"scalp", 0.0 if hair_id == &"none" else 1.0)
-	var im := ImporterMesh.new()
-	im.add_surface(Mesh.PRIMITIVE_TRIANGLES, merged, [], {}, mat, "Hero")
-	im.generate_lods(25.0, 60.0, [])
+	var im0 := ImporterMesh.new()
+	im0.add_surface(Mesh.PRIMITIVE_TRIANGLES, merged, [], {}, mat, "Hero")
+	im0.generate_lods(25.0, 60.0, [])
+	var im := ImporterMesh.new()                                   # the same levels with the hero's own switch distances (see LOD_SCHEDULE)
+	im.add_surface(Mesh.PRIMITIVE_TRIANGLES, merged, [], _scheduled_lods(im0, total), mat, "Hero")
 	var mesh := im.get_mesh()
 	info["tris"] = total
 	info["lods"] = im.get_surface_lod_count(0)
+	var lod_tris: Array[int] = [total]                          # triangles per level: the full mesh, then every engine LOD (the camera picks by screen size)
+	var lod_sizes: Array[float] = []
+	for l in im.get_surface_lod_count(0):
+		lod_tris.append(im.get_surface_lod_indices(0, l).size() / 3)
+		lod_sizes.append(snappedf(im.get_surface_lod_size(0, l), 0.0001))
+	info["lod_tris"] = lod_tris
+	info["lod_sizes"] = lod_sizes
 	info["pieces"] = comps.size()
 	var skin := Skin.new()
 	for i in n_bones:
@@ -365,6 +446,79 @@ static func _bake(c: Dictionary, mats: Array[Transform3D]) -> void:
 	c["v"] = v
 	c["n"] = nrm
 	c["t"] = tan
+
+
+## Removes the triangles whose centre lies below `y` (kit space).
+static func _cut_below(c: Dictionary, y: float) -> void:
+	var v: PackedVector3Array = c["v"]
+	var idx: PackedInt32Array = c["idx"]
+	var out := PackedInt32Array()
+	for t in idx.size() / 3:
+		var a := idx[t * 3]
+		var b := idx[t * 3 + 1]
+		var d := idx[t * 3 + 2]
+		if (v[a].y + v[b].y + v[d].y) / 3.0 >= y:
+			out.append(a)
+			out.append(b)
+			out.append(d)
+	c["idx"] = out
+
+
+## Simplifies only the triangles whose vertices are weighted mostly to bones whose names start with one of `prefixes` (the hands): the engine's mesh simplifier keeps `keep` of them.
+static func _decimate_bones(c: Dictionary, sk: Skeleton3D, prefixes: Array, keep: float) -> void:
+	var is_sel := PackedByteArray()
+	is_sel.resize(sk.get_bone_count())
+	for i in sk.get_bone_count():
+		var ln := sk.get_bone_name(i).to_lower()
+		for pre: String in prefixes:
+			if ln.begins_with(pre):
+				is_sel[i] = 1
+	var bones: PackedInt32Array = c["bones"]
+	var weights: PackedFloat32Array = c["weights"]
+	var idx: PackedInt32Array = c["idx"]
+	var n := (c["v"] as PackedVector3Array).size()
+	var sel_v := PackedByteArray()
+	sel_v.resize(n)
+	for i in n:
+		var s := 0.0
+		for k in 4:
+			var bi := bones[i * 4 + k]
+			if bi < is_sel.size() and is_sel[bi] == 1:
+				s += weights[i * 4 + k]
+		sel_v[i] = 1 if s > 0.5 else 0
+	var picked := PackedInt32Array()
+	var rest := PackedInt32Array()
+	for t in idx.size() / 3:
+		var a := idx[t * 3]
+		var b := idx[t * 3 + 1]
+		var d := idx[t * 3 + 2]
+		if sel_v[a] == 1 and sel_v[b] == 1 and sel_v[d] == 1:
+			picked.append_array(PackedInt32Array([a, b, d]))
+		else:
+			rest.append_array(PackedInt32Array([a, b, d]))
+	if picked.size() < 300:
+		return
+	var im := ImporterMesh.new()
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = c["v"]
+	arr[Mesh.ARRAY_NORMAL] = c["n"]
+	arr[Mesh.ARRAY_TEX_UV] = c["uv"]
+	arr[Mesh.ARRAY_BONES] = c["bones"]
+	arr[Mesh.ARRAY_WEIGHTS] = c["weights"]
+	arr[Mesh.ARRAY_INDEX] = picked
+	im.add_surface(Mesh.PRIMITIVE_TRIANGLES, arr)
+	im.generate_lods(25.0, 60.0, [])
+	var best := picked
+	for l in im.get_surface_lod_count(0):
+		var li := im.get_surface_lod_indices(0, l)
+		if li.size() == 0:
+			continue
+		best = li
+		if float(li.size()) <= float(picked.size()) * keep:
+			break
+	rest.append_array(best)
+	c["idx"] = rest
 
 
 static func _hair_mode(mi: MeshInstance3D) -> int:
@@ -503,6 +657,7 @@ static func _merge(comps: Array) -> Array:
 	var bones := PackedInt32Array()
 	var weights := PackedFloat32Array()
 	var idx := PackedInt32Array()
+	var uv2 := PackedVector2Array()
 	for c: Dictionary in comps:
 		var base := v.size()
 		var cv: PackedVector3Array = c["v"]
@@ -515,8 +670,11 @@ static func _merge(comps: Array) -> Array:
 		var mode := float(int(c["mode"])) / 4.0
 		var suit: PackedFloat32Array = c["suit"]
 		var kind: PackedFloat32Array = c.get("kind", PackedFloat32Array())
+		var zone_code := (float(int(c.get("zone", 0))) + 0.5) / 8.0
+		var pc: PackedFloat32Array = c.get("pc", PackedFloat32Array())
 		for i in cv.size():
-			col.append(Color(mode, suit[i] if i < suit.size() else 0.0, kind[i] if i < kind.size() else 0.0, 1.0))
+			col.append(Color(mode, suit[i] if i < suit.size() else 0.0, kind[i] if i < kind.size() else 0.0, zone_code))
+			uv2.append(Vector2(pc[i] if i < pc.size() else 0.0, 0.0))
 		for i: int in c["idx"]:
 			idx.append(base + i)
 	var arr := []
@@ -526,6 +684,7 @@ static func _merge(comps: Array) -> Array:
 	arr[Mesh.ARRAY_TANGENT] = tan
 	arr[Mesh.ARRAY_COLOR] = col
 	arr[Mesh.ARRAY_TEX_UV] = uv
+	arr[Mesh.ARRAY_TEX_UV2] = uv2
 	arr[Mesh.ARRAY_BONES] = bones
 	arr[Mesh.ARRAY_WEIGHTS] = weights
 	arr[Mesh.ARRAY_INDEX] = idx
@@ -665,7 +824,7 @@ const KIND_FABRIC := 2.0
 const KIND_GLOW := 3.0
 const KIND_BRASS := 4.0
 const KIND_PACK := 5.0                         ## coyote-brown canvas (rucksack and pouches): the one warm colour against the cool suit
-const KIND_STEPS := 8.0                        ## COLOR.b = kind / KIND_STEPS
+const KIND_STEPS := 16.0                       ## COLOR.b = kind / KIND_STEPS (the suit kit uses kinds 6..13, see HeroSuit)
 
 
 ## [bone key, kind, centre (model space), size, roll about Z (rad), pitch about X (rad)] of every box of the hero's gear: a chest and belly plate, pauldrons, a neck guard, a rucksack

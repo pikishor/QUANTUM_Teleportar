@@ -35,7 +35,8 @@ static func road_material(kind: StringName) -> ShaderMaterial:
 		var m := ShaderMaterial.new()
 		m.shader = ROAD_SHADER
 		m.set_shader_parameter(&"kind", k)
-		m.render_priority = 2
+		m.set_shader_parameter(&"junction_fade", 0.0)                       # a bridge deck keeps its lane marks to the very end
+		m.render_priority = 1 if k == 1 else 2                         # dirt under asphalt
 		_road_mats[k] = m
 	return _road_mats[k]
 
@@ -118,11 +119,12 @@ static func road_ribbon(b: Dictionary) -> ArrayMesh:
 	var cols := PackedColorArray()
 	var idx := PackedInt32Array()
 	var run := 0.0
+	var lift := 0.06 if b.get("kind", &"road") == &"track" else 0.10                  # wave 112 critic (LOOK): where two decks cross the same river side by side (PASS ROAD and its SUMMIT ROAD branch) the dirt of one showed through the asphalt of the other (coplanar ribbons): the highway ribbon lies 4 cm higher
 	for i in fr.size():
 		if i > 0:
 			run += Vector2(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z).length()
-		verts.append(_at(fr, i, hw, 0.06))
-		verts.append(_at(fr, i, -hw, 0.06))
+		verts.append(_at(fr, i, hw, lift))
+		verts.append(_at(fr, i, -hw, lift))
 		norms.append(Vector3.UP)
 		norms.append(Vector3.UP)
 		cols.append(Color(2.0 * hw / 32.0, 0.0, 0.0, 1.0))
@@ -131,7 +133,9 @@ static func road_ribbon(b: Dictionary) -> ArrayMesh:
 		uvs.append(Vector2(1.0, run))
 		if i < fr.size() - 1:
 			var k := i * 2
-			idx.append_array(PackedInt32Array([k, k + 2, k + 1, k + 1, k + 2, k + 3]))
+			# clockwise seen from above = the front face, like TerrainRoads.build_ribbon: the old order made the carriageway a back face, so the engine flipped its normal and the sun never lit it (every
+			# bridge deck was pitch black once the road shader got its lighter asphalt in wave 112; the HARBOUR GATE and the SUMMIT ROAD viaduct showed a black road between cream parapets)
+			idx.append_array(PackedInt32Array([k, k + 1, k + 2, k + 1, k + 3, k + 2]))
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = verts

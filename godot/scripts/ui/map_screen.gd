@@ -31,7 +31,7 @@ const OPEN_ZOOM := 2                              ## the zoom the map opens at (
 const ZOOM_MAX := 8.0
 const REGION_ZOOM := 0.7                           ## REGION view (the zoom button's fourth level): about 3 km across, the city and its first outskirts
 const ROUTE_MODES: Array[StringName] = [&"auto", &"car", &"air", &"boat"]   ## the GPS button: auto follows the vehicle you drive
-const WORLD_ZOOM := 0.36                           ## WORLD view (the zoom button's fourth level): the whole 6 km terrain world fits the screen height
+const WORLD_ZOOM := 0.24                           ## WORLD view (the zoom button's fourth level): the whole 9 km terrain world fits the screen height (wave 112: was 0.36 for 6 km)
 const DRAG_PX := 14.0
 const LOD_ZOOM := 2.0                              ## below this zoom the crowded kinds show only their nearest few
 const LOD_KINDS: Array[StringName] = [&"interior", &"shop", &"garage", &"items", &"weapon", &"job"]
@@ -82,6 +82,7 @@ var selected := {}                                   ## the marker last tapped: 
 var scan_log: Array[Dictionary] = []                 ## tests: {text, rect} of every label the map drew
 var scan_on := false
 var _placed: Array[Rect2] = []                      ## label boxes already drawn this frame (a new label that would overlap one is skipped)
+var _town_boxes := {}                               ## WORLD view: town name -> the box reserved for it before the region names (the town takes it back when it draws its own name)
 var drawn := {}                                      ## tests: what the last draw produced {roads, lots, markers, labels, route, you, danger}
 
 var _press := Vector2.INF
@@ -945,7 +946,8 @@ func lod_markers(list: Array[Dictionary]) -> Array[Dictionary]:
 	var crowded := {}
 	for mk in list:
 		var p: Vector3 = mk["pos"]
-		if not overview and view.size.x > 0.0 and not view.has_point(world_to_map(p.x, p.z)):
+		var far_pin: bool = mk["kind"] == &"site" or mk.has("glyph")             # wave 112 critic: the places of the outskirts (11 sites, 7 towns, the airport, the harbour, 6 helipads = 26 pins) count only while they are in the view, in the
+		if view.size.x > 0.0 and (not overview or far_pin) and not view.has_point(world_to_map(p.x, p.z)):    # overview too: 26 off-screen pins made the overview "bigger" than a zoomed-in view and the crowded kinds got no room
 			continue
 		if ALWAYS_KINDS.has(mk["kind"]) or (mk.has("glyph") and mk["glyph"] != &"pad"):          # the objective, side jobs, homes, the outskirt sites, the airport, the harbour and the helipads
 			out.append(mk)
@@ -1257,6 +1259,14 @@ func _fog_layer() -> ArrayMesh:
 ## WORLD view: the names of the regions, on top of the picture (the map draws the city and the markers over it).
 func _draw_world_labels(font: Font, s: float) -> void:
 	var fs := int(22.0 * s)
+	for mk: Dictionary in OutskirtsSites.map_markers():                 # the names of the towns win over the names of the regions (wave 112): their boxes are reserved first
+		if mk.get("glyph", &"") == &"town":
+			var tpw: Vector3 = mk["pos"]
+			var tpm := world_to_map(tpw.x, tpw.z)
+			var tww := font.get_string_size(String(mk["label"]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(20.0 * s)).x
+			var tbox := Rect2(tpm.x - tww * 0.5 - 3.0, tpm.y + 42.0 * s - 20.0 * s * 0.8, tww + 6.0, 20.0 * s * 1.05)
+			_town_boxes[String(mk["label"])] = tbox
+			_placed.append(tbox)
 	for e: Dictionary in WorldHud.region_labels():
 		var tier := int(e["tier"])
 		if tier == 2 or String(e["name"]) == "CITY":
@@ -1269,7 +1279,7 @@ func _draw_world_labels(font: Font, s: float) -> void:
 			continue
 		var big := tier == 0
 		var col := Color(0.85, 0.95, 1.0, 0.9) if big else Color(0.55, 0.85, 1.0, 0.88)
-		_label_out(font, p, String(e["name"]), fs if big else int(18.0 * s), col, HORIZONTAL_ALIGNMENT_CENTER, not big)
+		_label_out(font, p, String(e["name"]), fs if big else int(18.0 * s), col, HORIZONTAL_ALIGNMENT_CENTER, true)
 		if scan_on:
 			pass
 
@@ -1558,7 +1568,15 @@ func _draw_map() -> void:
 		if n > 1:
 			_label_out(font, c2 + Vector2(rr * 0.9, -rr * 0.7), str(n), int(18.0 * s), Color(1, 1, 1, 0.95), HORIZONTAL_ALIGNMENT_LEFT, true)
 		elif mk2.has("glyph") and not bool(mk2.get("no_label", false)):   # the airport, the harbour, the helipads: always named (the part before the colon); quantum pads are not (they stand beside the sites and the airport, which are named)
-			_label_out(font, c2 + Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 20.0 * s), String(mk2.get("label", "")).split(":")[0], int(20.0 * s), Color(WorldHud.KIND_COL.get(glyph, Color.WHITE)).lerp(Color.WHITE, 0.4), HORIZONTAL_ALIGNMENT_CENTER, glyph == &"helipad")
+			var gname := String(mk2.get("label", "")).split(":")[0]
+			var gcol := Color(WorldHud.KIND_COL.get(glyph, Color.WHITE)).lerp(Color.WHITE, 0.4)
+			if glyph == &"town":                                                                 # a town: its name below the pin, else above it, else none (wave 112)
+				if _town_boxes.has(gname):
+					_placed.erase(_town_boxes[gname])                                         # (its own reserved box must not block it)
+				if not _label_out(font, c2 + Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 20.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_CENTER, true):
+					_label_out(font, c2 - Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 8.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_CENTER, true)
+			else:
+				_label_out(font, c2 + Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 20.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_CENTER, glyph == &"helipad")
 		elif ALWAYS_KINDS.has(kind) or (zoom_f >= 3.0 and labels_left > 0 and kind != &"interior"):
 			if not ALWAYS_KINDS.has(kind):
 				labels_left -= 1

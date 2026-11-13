@@ -32,6 +32,13 @@ const PAD_DEFS: Array[Dictionary] = [
 	{"id": &"hunters", "name": "HUNTERS CAMP", "kind": &"site", "site": &"hunters", "off": Vector3(16.0, 0.0, 14.0)},
 	{"id": &"dust_wells", "name": "DUST WELLS CAMP", "kind": &"site", "site": &"dust_wells", "off": Vector3(26.0, 0.0, 20.0)},
 	{"id": &"pine_hollow", "name": "PINE HOLLOW CAMP", "kind": &"site", "site": &"pine_hollow", "off": Vector3(-24.0, 0.0, 22.0)},
+	{"id": &"harrow_field", "name": "HARROW FIELD", "kind": &"town", "site": &"harrow_field"},               # the seven towns of the outskirts (wave 112): the pad stands on the lawn by the entrance
+	{"id": &"iron_hollow", "name": "IRON HOLLOW", "kind": &"town", "site": &"iron_hollow"},
+	{"id": &"bayview", "name": "BAYVIEW ESTATES", "kind": &"town", "site": &"bayview"},
+	{"id": &"salt_quay", "name": "SALT QUAY", "kind": &"town", "site": &"salt_quay"},
+	{"id": &"sunset_cove", "name": "SUNSET COVE", "kind": &"town", "site": &"sunset_cove"},
+	{"id": &"high_lark", "name": "HIGH LARK", "kind": &"town", "site": &"high_lark"},
+	{"id": &"mirage_point", "name": "MIRAGE POINT", "kind": &"town", "site": &"mirage_point"},
 ]
 
 ## Photo spots: id, name, site (or special), local offset, when (any / day / dusk / night), radius
@@ -208,11 +215,15 @@ static func _build_pads() -> Array[Dictionary]:
 			&"airport":
 				p = Airport.to_world(Vector3(1188.0, 0.0, -560.0))            # the open apron south of the last gate, clear of the parked airliners and the terminal's canopy
 			&"harbour":
-				p = Vector3(-282.0, 0.0, 1360.0)
+				p = Vector3(-282.0, 0.0, 1334.0)                                 # wave 112 critic: the first spot (-282, 1360) stood INSIDE the 70 x 30 m harbour shed (x -335..-265, z 1347..1377): never found on foot, a teleport to it dropped the hero through the world; this is the open apron at the end of the harbour road, 13 m north of the shed
 			&"site":
 				var s := OutskirtsSites.by_id(StringName(d["site"]))
 				if not s.is_empty():
 					p = OutskirtsSites.to_world(s, d["off"] as Vector3)
+			&"town":
+				var st := OutskirtsSites.by_id(StringName(d["site"]))
+				if not st.is_empty():
+					p = SettlementData.pad_world(st)
 		if not p.is_finite():
 			continue
 		var e: Dictionary = d.duplicate()
@@ -240,8 +251,8 @@ static func _build_relics() -> Array[Dictionary]:
 	var tries := 0
 	while left > 0 and tries < 9000:
 		tries += 1
-		var x := rng.randf_range(-2750.0, 2750.0)
-		var z := rng.randf_range(-2750.0, 2750.0)
+		var x := rng.randf_range(-TerrainHeight.WORLD_HALF + 250.0, TerrainHeight.WORLD_HALF - 250.0)          # wave 112: the whole 9 km world
+		var z := rng.randf_range(-TerrainHeight.WORLD_HALF + 250.0, TerrainHeight.WORLD_HALF - 250.0)
 		var h := TerrainHeight.height_at(x, z)
 		var biome := TerrainBase.biome_at(x, z, h)
 		if int(need.get(biome, 0)) <= 0:

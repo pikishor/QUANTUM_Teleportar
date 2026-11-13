@@ -32,7 +32,7 @@ static func ensure() -> void:
 	for road: Dictionary in TerrainRoads.roads():
 		var pos: PackedVector2Array = road["pos"]
 		var prof: PackedFloat32Array = road["prof"]
-		var spans: Array = road["spans"]
+		var spans: Array = road.get("bridge_spans", road["spans"])             # wave 112 critic: not the span a branch shares with its parent (TerrainRoads: one deck, not two at different heights)
 		for sp: Vector2i in spans:
 			var pts := PackedVector3Array()
 			for i in range(maxi(sp.x - 1, 0), mini(sp.y + 1, pos.size() - 1) + 1):
@@ -50,6 +50,22 @@ static func ensure() -> void:
 				"road": String(road["name"])})
 	_add_suspension()
 	_add_foot_and_rail()
+	for road: Dictionary in TerrainRoads.roads():                                  # wave 112 critic: a branch that runs on its parent's bridge (SUMMIT ROAD on the PASS ROAD bridge) shares the parent's deck, which is widened to
+		var ov: Dictionary = road.get("overlap", {})                                  # carry the branch's line (its own deck, 0.3 - 0.75 m off, is not built: TerrainRoads `bridge_spans`)
+		if int(ov.get("n", 0)) < 2:
+			continue
+		var pos_c: PackedVector2Array = road["pos"]
+		for b: Dictionary in list:
+			if String(b["road"]) != String(ov["road"]):
+				continue
+			var near := false
+			for k in int(ov["n"]):
+				for pt: Vector3 in (b["pts"] as PackedVector3Array):
+					if Vector2(pt.x, pt.z).distance_to(pos_c[k]) < 14.0:
+						near = true
+			if near and float(ov["lat"]) * 2.0 > float(b["road_w"]):
+				b["road_w"] = float(ov["lat"]) * 2.0
+				b["w"] = float(b["road_w"]) + PARAPET * 2.0
 	for bi in list.size():
 		var pts: PackedVector3Array = list[bi]["pts"]
 		var w: float = list[bi]["w"]

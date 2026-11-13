@@ -25,7 +25,7 @@ static func rows(type: StringName) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var p := _prog()
 	var credits := p.credits if p != null else 0
-	for it: Dictionary in InteriorData.STOCK.get(type, []):
+	for it: Dictionary in InteriorData.stock(type):
 		var row := {"id": it["id"], "name": it["name"], "kind": it["kind"], "price": 0, "state": "buy", "label": "", "sub": ""}
 		match str(it["kind"]):
 			"upgrade":
@@ -169,7 +169,7 @@ static func buy(type: StringName, id: StringName) -> Dictionary:
 			if not p.buy_weapon(id):
 				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}
 		"ammo":
-			var wid: StringName = (InteriorData.STOCK[type] as Array)[_index_of(type, id)]["weapon"]
+			var wid: StringName = InteriorData.stock(type)[_index_of(type, id)]["weapon"]
 			if not p.spend(price):
 				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}
 			var w := _weapon_node()
@@ -199,7 +199,7 @@ static func buy(type: StringName, id: StringName) -> Dictionary:
 
 
 static func _index_of(type: StringName, id: StringName) -> int:
-	var arr: Array = InteriorData.STOCK[type]
+	var arr: Array = InteriorData.stock(type)
 	for i in arr.size():
 		if arr[i]["id"] == id:
 			return i

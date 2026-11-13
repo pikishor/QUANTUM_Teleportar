@@ -175,7 +175,9 @@ static func _grant_all(prog: Progress) -> void:
 	for k in keys:
 		prog.hero.grant(k)
 		var need := HeroLook.item_need(k)
-		if need != "" and not prog.achievements.cosmetics.has(StringName(need)):
+		if need.begins_with("ach:"):
+			prog.achievements.done[StringName(need.substr(4))] = true                 # an achievement reward itself (the flight suit): the demo grants the achievement
+		elif need != "" and not prog.achievements.cosmetics.has(StringName(need)):
 			prog.achievements.cosmetics.append(StringName(need))
 	Safehouses.grant_all(prog)
 	Crafting.grant_all(prog)
