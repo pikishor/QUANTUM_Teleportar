@@ -313,6 +313,18 @@ static func bale(m: SettlementMesh, col_bale := Color(0.78, 0.66, 0.32)) -> void
 	m.cylinder(Vector3(0.0, 0.0, 0.0), 0.7, 1.1, 10, col_bale, LAWN, -1.0, true, 1.0, 0.8, 1.0)
 
 
+## The notice board of a town (front towards -Z): two posts, a green board with notes, a little roof and a glowing header strip.
+static func board(m: SettlementMesh) -> void:
+	var wood := Color(0.35, 0.24, 0.15)
+	for sx in [-1.0, 1.0]:
+		m.box(Vector3(float(sx) * 1.1, 1.2, 0.0), Vector3(0.14, 2.4, 0.14), wood, WOOD, 32, 1.0, 0.8)
+	m.box(Vector3(0.0, 1.5, 0.0), Vector3(2.2, 1.2, 0.08), Color(0.18, 0.32, 0.26), PAINT, 32, 1.0, 1.0)
+	m.box(Vector3(0.0, 2.45, 0.0), Vector3(2.5, 0.1, 0.55), wood.darkened(0.2), WOOD, 32, 1.0, 1.0)
+	for i in 4:
+		m.box(Vector3(-0.75 + float(i) * 0.5, 1.5 + float(i % 2) * 0.22, -0.05), Vector3(0.34, 0.42, 0.02), Color(0.95, 0.93, 0.85), PAINT, 32, 1.0, 1.0)
+	m.box(Vector3(0.0, 2.25, -0.06), Vector3(1.8, 0.12, 0.04), Color(0.4, 1.0, 1.0), GLOW, 4, 1.0, 1.0)
+
+
 # --- pets -------------------------------------------------------------------------------------------------------------------------------------------
 
 ## A dog (0.9 m long, 0.6 m at the head), nose to -Z. `seed_v` (0..3) picks the coat. Fur is the rough ADOBE shader class (noise, no pattern).
@@ -323,6 +335,10 @@ static func pet_dog(m: SettlementMesh, seed_v: int) -> void:
 	m.box(Vector3(0.0, 0.46, 0.04), Vector3(0.28, 0.3, 0.62), c, ADOBE, 32, 1.0, 0.9)
 	m.box(Vector3(0.0, 0.7, -0.36), Vector3(0.2, 0.24, 0.25), c, ADOBE, 32, 1.0, 1.0)
 	m.box(Vector3(0.0, 0.64, -0.53), Vector3(0.11, 0.1, 0.14), dk.lightened(0.08), ADOBE, 32, 1.0, 1.0)
+	m.box(Vector3(0.0, 0.66, -0.61), Vector3(0.05, 0.04, 0.03), Color(0.05, 0.05, 0.05), ADOBE, 32, 1.0, 1.0)                     # nose
+	for ex in [-1.0, 1.0]:
+		m.box(Vector3(float(ex) * 0.065, 0.74, -0.475), Vector3(0.03, 0.03, 0.02), Color(0.05, 0.05, 0.05), ADOBE, 32, 1.0, 1.0)  # eyes
+	m.box(Vector3(0.0, 0.62, 0.0), Vector3(0.2, 0.05, 0.42), dk, ADOBE, 32, 1.0, 1.0)                                              # the saddle patch
 	for sx in [-1.0, 1.0]:
 		m.box(Vector3(float(sx) * 0.09, 0.85, -0.33), Vector3(0.06, 0.1, 0.07), dk, ADOBE, 32, 1.0, 1.0)
 		for sz in [-1.0, 1.0]:

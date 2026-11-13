@@ -25,9 +25,9 @@ const MAST_REGIONS := [
 	{"name": "MESA RELAY", "c": Vector2(1950.0, -250.0), "r": 340.0},
 ]
 const ARCH_REGIONS := [
-	{"name": "SUNGATE ARCH", "c": Vector2(1750.0, 650.0), "r": 340.0, "variant": 0, "layer": 8},
-	{"name": "TIDEMARK ARCH", "c": Vector2(-1500.0, 480.0), "r": 420.0, "variant": 1, "layer": 4, "coast": true},
-	{"name": "MESA GATE", "c": Vector2(1100.0, -1100.0), "r": 330.0, "variant": 0, "layer": 8},
+	{"name": "SUNGATE ARCH", "c": Vector2(1750.0, 650.0), "r": 340.0, "variant": 0, "layer": 8, "hint": Vector2(1568.0, 520.0)},
+	{"name": "TIDEMARK ARCH", "c": Vector2(-1500.0, 480.0), "r": 420.0, "variant": 1, "layer": 4, "coast": true, "hint": Vector2(-1448.0, 870.0)},
+	{"name": "MESA GATE", "c": Vector2(1100.0, -1100.0), "r": 330.0, "variant": 0, "layer": 8, "hint": Vector2(1308.0, -918.0)},
 ]
 const ARCH_H := [16.0, 18.0]                          ## crown height of the two arch meshes (tools/landscape/rocks.py arch())
 const ARCH_HALF := [11.0, 7.6]                        ## half span of the centre line of the two meshes
@@ -210,48 +210,75 @@ static func _build_cranes() -> void:
 			break
 
 
-## One arch per region: the flattest 40 x 20 m footprint on dry, gentle, clear ground (4 orientations tried), for the coastal one the nearest to the sea.
+## One arch per region: the flattest 40 x 20 m footprint on dry, gentle, clear ground (4 orientations tried), for the coastal one the nearest to the sea. The full search is 0.75 s on a
+## desktop, so every region carries a HINT (the position of the last search): the same test at that one spot takes a millisecond; the whole region is searched only when the hint is no longer valid.
+static func _arch_spot(p: Vector2, rd: Dictionary) -> Dictionary:
+	if not _valid(p.x, p.y, 44.0, 0.14):
+		return {}
+	var h0 := TerrainHeight.height_at(p.x, p.y)
+	if h0 > 140.0:
+		return {}
+	var best := {}
+	var best_score := 1.0e9
+	for k in 4:
+		var yaw := PI * float(k) / 4.0
+		var u := Vector2(cos(yaw), sin(yaw))
+		var v := Vector2(-u.y, u.x)
+		var lo := 1.0e9
+		var hi := -1.0e9
+		for a: float in [-17.0, -8.0, 0.0, 8.0, 17.0]:
+			for b: float in [-9.0, 0.0, 9.0]:
+				var q := p + u * a + v * b
+				var hq := TerrainHeight.height_at(q.x, q.y)
+				lo = minf(lo, hq)
+				hi = maxf(hi, hq)
+		if hi - lo > 3.2:
+			continue
+		var score := (hi - lo) * 3.0
+		if bool(rd.get("coast", false)):
+			score += maxf(0.0, TerrainHeight.coast_distance(p.x, p.y) - TerrainHeight.city_distance(p.x, p.y)) * 0.02       # the distance inland of the coastline
+		if score < best_score:
+			best_score = score
+			best = {"p": p, "yaw": yaw, "y": lo + 0.3, "score": score}
+	return best
+
+
 static func _build_arches() -> void:
 	for ai in ARCH_REGIONS.size():
 		var rd: Dictionary = ARCH_REGIONS[ai]
-		var c: Vector2 = rd["c"]
-		var rad := float(rd["r"])
-		var step := 26.0
-		var n := int(rad / step)
-		var best_score := 1.0e9
 		var best := {}
-		for j in range(-n, n + 1):
-			for i in range(-n, n + 1):
-				var p := c + Vector2(float(i), float(j)) * step
-				if p.distance_to(c) > rad or not _valid(p.x, p.y, 44.0, 0.14):
-					continue
-				var h0 := TerrainHeight.height_at(p.x, p.y)
-				if h0 > 140.0:
-					continue
-				for k in 4:
-					var yaw := PI * float(k) / 4.0
-					var u := Vector2(cos(yaw), sin(yaw))
-					var v := Vector2(-u.y, u.x)
-					var lo := 1.0e9
-					var hi := -1.0e9
-					for a: float in [-17.0, -8.0, 0.0, 8.0, 17.0]:
-						for b: float in [-9.0, 0.0, 9.0]:
-							var q := p + u * a + v * b
-							var hq := TerrainHeight.height_at(q.x, q.y)
-							lo = minf(lo, hq)
-							hi = maxf(hi, hq)
-					if hi - lo > 3.2:
+		var hint = rd.get("hint", Vector2.INF)
+		if hint is Vector2 and (hint as Vector2).is_finite() and not LandscapeSites.ignore_hints:
+			best = _arch_spot(hint, rd)
+		if best.is_empty():
+			var c: Vector2 = rd["c"]
+			var rad := float(rd["r"])
+			var step := 26.0
+			var n := int(rad / step)
+			var best_score := 1.0e9
+			for j in range(-n, n + 1):
+				for i in range(-n, n + 1):
+					var p := c + Vector2(float(i), float(j)) * step
+					if p.distance_to(c) > rad:
 						continue
-					var score := (hi - lo) * 3.0
-					if bool(rd.get("coast", false)):
-						score += maxf(0.0, TerrainHeight.coast_distance(p.x, p.y) - TerrainHeight.city_distance(p.x, p.y)) * 0.02       # the distance inland of the coastline
-					if score < best_score:
-						best_score = score
-						best = {"p": p, "yaw": yaw, "y": lo + 0.3}
+					var cand := _arch_spot(p, rd)
+					if not cand.is_empty() and float(cand["score"]) < best_score:
+						best_score = float(cand["score"])
+						best = cand
 		if best.is_empty():
 			continue
 		var bp: Vector2 = best["p"]
-		_arches.append({"id": StringName("arch%d" % ai), "name": String(rd["name"]), "pos": Vector3(bp.x, float(best["y"]), bp.y), "yaw": float(best["yaw"]) , "variant": int(rd["variant"]), "layer": int(rd["layer"])})
+		_arches.append({"id": StringName("arch%d" % ai), "name": String(rd["name"]), "pos": Vector3(bp.x, float(best["y"]), bp.y), "yaw": float(best["yaw"]) , "variant": int(rd["variant"]), "layer": int(rd["layer"]), "hint": bp})
+
+
+static var _all_cache: Array = []
+
+
+## `all_anchors()` built once (the data does not change after ensure(); the towns' anchors are appended by SettlementData): the cheap list a per-frame query walks.
+static func anchors_cached() -> Array:
+	if _all_cache.is_empty():
+		_all_cache = all_anchors()
+	return _all_cache
 
 
 static func all_anchors() -> Array:
@@ -286,4 +313,5 @@ static func all_anchors() -> Array:
 		var lp: Vector2 = f["lip"]
 		var bp2: Vector2 = f["base"]
 		out.append({"id": f["id"], "kind": &"cliff", "name": String(f["name"]), "pos": Vector3(lp.x, float(f["lip_y"]), lp.y), "base": Vector3(bp2.x, float(f["base_y"]), bp2.y), "height": float(f["drop"]), "radius": 6.0})
+	out.append_array(SettlementData.anchors())                                             # the water towers, silos, church towers, cranes, windmills and masts of the outskirts towns (wave 112, scripts/settlements)
 	return out

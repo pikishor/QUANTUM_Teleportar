@@ -180,6 +180,21 @@ static func helipads() -> Array[Dictionary]:
 	return out
 
 
+## World position of the town's QUANTUM PAD (fast travel).
+static func pad_world(site: Dictionary) -> Vector3:
+	var pl := plan_of(site)
+	return to_world(site, pl.pad.x, pl.pad.y)
+
+
+## World position of the notice board's ring: the town's USE spot (its activity).
+static func use_world(site: Dictionary) -> Vector3:
+	var pl := plan_of(site)
+	var rc := pl.board + pl.board_front * 2.4
+	var w := to_world(site, rc.x, rc.y)
+	w.y = TerrainHeight.height_at(w.x, w.z)
+	return w
+
+
 ## Ground height at the foot of a town-frame point.
 static func ground_at(site: Dictionary, x: float, z: float) -> float:
 	var w := OutskirtsSites.to_world(site, Vector3(x, 0.0, z))

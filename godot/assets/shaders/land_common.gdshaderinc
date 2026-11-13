@@ -12,6 +12,11 @@ float lc_hash12(vec2 p) {
 	return fract((p3.x + p3.y) * p3.z);
 }
 
+// Interleaved gradient noise (Jimenez): a fine, regular screen-door pattern for the LOD cross-fade, much less grainy than a white-noise hash
+float lc_ign(vec2 fragcoord) {
+	return fract(52.9829189 * fract(dot(floor(fragcoord), vec2(0.06711056, 0.00583715))));
+}
+
 // A slow gust field that travels with the wind over the world: 0.. about 1.4
 float lc_gust(vec3 root, float rnd, float t) {
 	float w = wind.z;

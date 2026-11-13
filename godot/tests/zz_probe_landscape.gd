@@ -1,28 +1,19 @@
 extends RefCounted
 ## TEMPORARY probe (landscape builder). Delete before finishing.
 func run(host: Node) -> void:
-	TerrainHeight.warm()
-	var peaks: Array = []
-	var step := 90.0
-	for j in range(-48, 49):
-		for i in range(-48, 49):
-			var x := float(i) * step
-			var z := float(j) * step
-			var h := TerrainHeight.height_at(x, z)
-			if h > 250.0:
-				peaks.append({"x": x, "z": z, "h": h})
-	peaks.sort_custom(func(a, b): return float(a["h"]) > float(b["h"]))
-	print("HIGH points ", peaks.size())
-	var shown: Array = []
-	for p in peaks:
-		var ok := true
-		for q in shown:
-			if Vector2(float(p["x"]) - float(q["x"]), float(p["z"]) - float(q["z"])).length() < 700.0:
-				ok = false
-		if ok:
-			shown.append(p)
-		if shown.size() >= 10:
-			break
-	for p in shown:
-		print("PEAK x=%d z=%d h=%.0f" % [int(p["x"]), int(p["z"]), float(p["h"])])
+	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	host.add_child(main)
+	await TestLib.frames(host, 8)
+	Game.state = &"play"
+	var city := Game.world as City
+	var p := Game.player as Player
+	print("AWAKE at start: veg ", city.vegetation.awake, " landscape ", (city.landscape as Landscape).awake)
+	p.teleport_to(Vector3(520.0, 1.0, 40.0))
+	var times: Array = []
+	for i in 14:
+		var t0 := Time.get_ticks_msec()
+		await TestLib.frames(host, 1)
+		times.append(Time.get_ticks_msec() - t0)
+	print("FRAME ms after crossing the edge: ", times)
+	print("AWAKE after: veg ", city.vegetation.awake, " landscape ", (city.landscape as Landscape).awake, " stats ", (city.landscape as Landscape).stats())
 	print("PROBE done")

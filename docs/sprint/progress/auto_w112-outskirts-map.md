@@ -1,6 +1,6 @@
 # w112-outskirts-map (running)
 
-agent id ab9a223c65307f5bd, 936 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T11:04:01.057Z
+agent id ab9a223c65307f5bd, 1340 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T13:10:13.334Z
 
 ## Last notes of the agent
 
@@ -13,46 +13,46 @@ agent id ab9a223c65307f5bd, 936 events, first activity 2026-11-13T09:11:14.655Z,
 
 ## Recent steps (last 40)
 
-- 10:54:02 Find external uses of InteriorData tables
-- 10:54:07 Find InteriorData usage in interior gameplay
-- 10:54:21 Look for interior style meaning
-- 10:54:25 Check interior shader style codes, bodega spec and prop list
-- 10:54:29 Read interior prop kinds table
-- 10:54:42 List audio names, LINE_MAX and read vendor logic head
-- 10:54:57 Read interior test entry and bot
-- 10:55:30 Check LINE_MAX, radio code, vendor_logic stock sites and guaranteed use
-- 10:57:21 
-- 10:57:34 Add InteriorCountry hooks in the shared interior files
-- 10:57:39 Check remaining STOCK uses and re-read doors()
-- 10:57:48 Hook town doors into InteriorGameplay and import
-- 10:58:14 Render three country interiors in the live game
-- 10:59:18 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/int/i1_000.png
-- 10:59:19 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/int/i1_001.png
-- 10:59:19 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/int/i1_002.png
-- 10:59:26 Outline ParkedCars
-- 10:59:30 Read ParkedCars site slots and generation
-- 10:59:44 Hook town driveway cars into ParkedCars
-- 10:59:48 Outline AmbientCrowd
-- 10:59:54 List AmbientCrowd functions
-- 10:59:57 Read crowd build and write functions and shader head
-- 11:00:10 Survey wildlife scripts and models for animals
-- 11:00:22 See how farm weight drives livestock
-- 11:00:26 Read WildlifeWorld farm list setup
-- 11:00:32 List animal models and the FARMS const
-- 11:00:39 Outline AmbientCity civilian functions
-- 11:00:43 Read civilian shooting hooks and their callers
-- 11:00:55 Read crowd pin/claim and StreetVendors
-- 11:01:03 Study crowd shader archetype selection
-- 11:01:06 Read archetype group tables
-- 11:01:45 Read crowd position, ray, damage and pin usage
-- 11:02:06 Read crowd spawn, step and reset
-- 11:02:20 Add ground height and seed params to the crowd pin
-- 11:02:28 Fix group spawn height, add farm id, check ambient accessors
-- 11:02:40 Read crowd forward and scare
-- 11:02:52 Read SettlementMesh API and a simple prop builder
-- 11:03:15 Write SettlementFolk and hook it into SettlementWorld
-- 11:03:50 Add static dog and cat pets to the kit
-- 11:04:01 Render towns with folk, pets and parked cars
+- 12:28:06 See how pads are consumed by AirportWorld and spawns
+- 12:28:21 Read VehicleSpawns.all_points
+- 12:28:27 Read OutskirtsSites.vehicle_points
+- 12:28:37 Spawn helis on town helipads, add map pins, let the hotel roof be landable
+- 12:28:47 Test helipad helicopters and pins
+- 12:29:45 Re-run airport, vehicle and map tests after the heli hooks
+- 12:34:02 See the backtrace of the process_mode script error
+- 12:34:55 Check the windmill rotors exist
+- 12:35:40 
+- 12:35:40 
+- 12:35:40 
+- 12:36:04 Measure cold start cost of sites, plans and kit builds
+- 12:36:25 Render far views of towns and the quay
+- 12:39:59 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s8_000.png
+- 12:40:00 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/live/s8_002.png
+- 12:40:50 Draw top-down plans of all towns
+- 12:41:05 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/plans.png
+- 12:41:47 Densify the harbour and re-plot
+- 12:42:16 Render the harbour at phone resolution MED with the touch HUD
+- 12:44:33 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_salt_quay_000.png
+- 12:44:34 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_salt_quay_001.png
+- 12:44:53 Prune side streets that carry no houses
+- 12:45:14 Render farm, industrial and suburb at phone resolution MED
+- 12:54:59 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_a_000.png
+- 12:55:00 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_a_001.png
+- 12:55:07 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_a_002.png
+- 12:55:08 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_a_003.png
+- 12:55:14 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_a_004.png
+- 12:55:16 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_a_005.png
+- 12:55:23 Render resort and lodge at phone resolution MED
+- 13:02:08 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_b_000.png
+- 13:02:09 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_b_001.png
+- 13:02:16 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_b_002.png
+- 13:02:17 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_b_003.png
+- 13:02:35 Keep bales off the road and render outpost and the harbour again
+- 13:06:41 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_c_000.png
+- 13:06:43 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_c_001.png
+- 13:06:43 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/final/med_c_002.png
+- 13:06:57 Render four towns at LOW at phone resolution
+- 13:09:14 Measure LOW draw counts without towns at the same views
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

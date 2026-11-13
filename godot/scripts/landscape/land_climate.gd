@@ -10,11 +10,23 @@ const PARAM := &"wind"
 const BASE := {&"clear": 0.30, &"overcast": 0.42, &"drizzle": 0.55, &"rain": 0.80, &"storm": 1.45, &"fog": 0.12}
 
 static var _declared := false
+static var _node: LandClimate = null
 static var _now := Vector4(0.8, 0.6, 0.3, 0.0)         ## direction x, z (unit), strength, clock
 static var _pin := -1.0
 static var _pin_dir := 0.0
 var _t := 0.0
 var _smooth := 0.3
+
+
+## One wind node per game: whoever wakes first (the vegetation or the landscape) attaches it.
+static func attach(parent: Node) -> LandClimate:
+	if is_instance_valid(_node) and _node.is_inside_tree():
+		return _node
+	var c := LandClimate.new()
+	c.name = "Climate"
+	parent.add_child(c)
+	_node = c
+	return c
 
 
 ## Declare the global (once per process). Shaders that read `wind` must not compile before this has run: LandKit calls it first.

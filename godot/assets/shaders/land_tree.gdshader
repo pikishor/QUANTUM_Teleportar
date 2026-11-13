@@ -25,6 +25,7 @@ uniform float snow_start = 230.0;            // world y where the dusting begins
 uniform float snow_full = 330.0;
 uniform vec3 night_grade = vec3(0.55, 0.62, 0.85);
 uniform float translucency = 0.5;
+uniform float desat = 0.0;                   // ground cover: how far the (saturated, painted) sprite colour is pulled towards its grey
 
 varying float v_leaf;
 varying float v_rnd;
@@ -59,12 +60,13 @@ void fragment() {
 	vec4 tl = texture(foliage, UV);
 	vec3 bk = texture(bark, UV * bark_scale).rgb;
 	float a = mix(1.0, tl.a, leaf);
-	float dither = lc_hash12(floor(FRAGCOORD.xy));
+	float dither = lc_ign(FRAGCOORD.xy);
 	bool gone = v_fade > 0.0 ? dither < v_fade : (v_fade < 0.0 ? dither >= -v_fade : false);
 	if (a < cutoff || gone) {
 		discard;
 	}
 	vec3 fol = tl.rgb * mix(tint_a, tint_b, v_rnd) * COLOR.rgb;
+	fol = mix(fol, vec3(dot(fol, vec3(0.3, 0.55, 0.15))), desat);
 	vec3 bar = bk * bark_tint * COLOR.rgb;
 	vec3 col = mix(bar, fol, leaf);
 	vec3 bn = normalize(v_bent);

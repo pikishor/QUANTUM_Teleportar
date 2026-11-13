@@ -113,10 +113,15 @@ All CC0 1.0 (Poly Haven, https://polyhaven.com; licence text and per-asset URL i
 | grass (meadows, plains) | forrest_ground_01 (Forest Ground 01) | Rob Tuytel |
 | forest (forest floor, hills) | rocky_terrain_02 (Rocky Terrain 02) | Amal Kumar |
 | desert (dry plains, dunes) | dry_ground_rocks (Dry Ground Rocks) | Rob Tuytel |
-| beach (shore sand) | aerial_sand (Aerial Sand) | Rob Tuytel |
+| beach (dry shore sand; wave 112) | coast_sand_02 (Coast Sand 02) | Rob Tuytel |
 | rock (cliffs, high ground; tri-planar) | rock_boulder_dry (Rock Boulder Dry) | Dimitrios Savva, Rico Cilliers |
 | snow (peaks, ledges) | snow_02 (Snow 02) | Rob Tuytel |
-| dirt (road verge, track surface) | gravel_road (Gravel Road) | Amal Kumar |
+| dirt (road verge, track surface; wave 112) | forest_ground_04 (Forest Ground 04) | Rob Tuytel |
+| wetsand, strata, scree, darkrock (wave 112: the swash zone, orange cliffs, loose stones, dark ridges) | damp_beach_sand, cliff_side, rocks_ground_01, rock_face_04 | Poly Haven artists (see art_sources/polyhaven_terrain/SOURCE.md) |
+
+## Landscape dressing (round 6, wave 112: trees, rocks, ground cover, waterfalls, airstrips, tall anchors)
+
+All geometry is our own (procedural, fixed seeds: `godot/tools/landscape/*.py`): nine tree species with three levels of detail and impostors (`assets/models/land_trees.glb`, foliage atlas `land_foliage.webp`, impostors `land_impostor.webp`), rocks, pebbles, driftwood, rock arches, wind turbines, pylons, radio masts, cranes, hangar, windsock (`assets/models/land_props.glb`). The bark of the seven real species is CC0 1.0 from Poly Haven (https://polyhaven.com; licence text and per-asset URL in art_sources/polyhaven_land/): oak bark_brown_01, pine pine_bark, fir chinese_cedar_bark, birch tree_bark_03 (painted over), poplar / dead / driftwood bark_brown_02, palm palm_tree_bark, acacia bark_willow; packed by `godot/tools/landscape/pack_bark.py` into `assets/textures/land_bark_<species>.webp` (512 px). Raw downloads stay in the git-ignored `godot/assets_incoming/land_raw/`.
 
 ## Vegetation of the outskirts (wave 105, mountain sites and vegetation)
 

@@ -104,6 +104,10 @@ static func _load() -> void:
 			_meshes[nm] = m
 			_tris[nm] = _count(m)
 	root.free()
+	for lv in ["a_0", "a_1", "b_0", "b_1"]:                                    # fallen trunks of the forest floor: the driftwood meshes with a dark bark of their own
+		if _meshes.has("drift_" + lv):
+			_meshes["log_" + lv] = _meshes["drift_" + lv]
+			_tris["log_" + lv] = _tris["drift_" + lv]
 	_foliage = load(FOLIAGE_PATH) as Texture2D
 	_imp_tex = load(IMPOSTOR_PATH) as Texture2D
 	_imp_mesh = _make_cross()
@@ -186,6 +190,8 @@ static func material_for(nm: String) -> ShaderMaterial:
 		return _rock_material()
 	var sp := species_of(nm)
 	var mkey := sp
+	if sp == "log":
+		sp = "oak"
 	if sp == "drift":
 		sp = "dead"                                                          # washed-up logs wear the grey bark of the dead trees (their own material: sun-bleached, lighter)
 	if _mats.has(mkey):
@@ -199,7 +205,7 @@ static func material_for(nm: String) -> ShaderMaterial:
 	var look: Dictionary = LOOK.get(sp, LOOK["oak"])
 	mat.set_shader_parameter(&"tint_a", look["a"])
 	mat.set_shader_parameter(&"tint_b", look["b"])
-	mat.set_shader_parameter(&"bark_tint", (look["bark"] as Vector3) * (1.75 if mkey == "drift" else 1.0))
+	mat.set_shader_parameter(&"bark_tint", (look["bark"] as Vector3) * (1.75 if mkey == "drift" else (0.7 if mkey == "log" else 1.0)))
 	mat.set_shader_parameter(&"sway", float(look["sway"]))
 	mat.set_shader_parameter(&"translucency", float(look["tr"]))
 	mat.set_shader_parameter(&"height", maxf(height(sp), 2.0))
@@ -369,6 +375,7 @@ static func _cover_piece(nm: String) -> Dictionary:
 	mat.set_shader_parameter(&"flutter", 0.05)
 	mat.set_shader_parameter(&"translucency", 0.4)
 	mat.set_shader_parameter(&"cutoff", 0.38)
+	mat.set_shader_parameter(&"desat", 0.14 if nm.begins_with("g_grass") or nm in ["g_dry", "g_tall", "g_reed", "g_bush1", "g_bush2"] else 0.0)         # the painted grass sprites are more saturated than the ground they stand on
 	var piece := {"mesh": m, "mat": mat, "tris": idx.size() / 3}
 	_cover[nm] = piece
 	return piece

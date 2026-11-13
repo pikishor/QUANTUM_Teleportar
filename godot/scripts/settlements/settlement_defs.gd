@@ -17,19 +17,19 @@ extends RefCounted
 
 const DEFS: Array[Dictionary] = [
 	{"id": &"harrow_field", "name": "HARROW FIELD", "kind": &"town", "style": &"farm", "pos": Vector2(1460, -1120), "on_road": "RING ROAD", "r": 100.0, "len": 160.0, "blend": 48.0, "reward": 300,
-		"tag": "FARMING VILLAGE", "houses": 26},
+		"tag": "FARMING VILLAGE", "houses": 34},
 	{"id": &"iron_hollow", "name": "IRON HOLLOW", "kind": &"town", "style": &"industrial", "pos": Vector2(1470, -470), "on_road": "RING ROAD", "r": 105.0, "len": 170.0, "blend": 48.0, "reward": 350,
-		"tag": "MINING AND WORKS TOWN", "houses": 30},
+		"tag": "MINING AND WORKS TOWN", "houses": 40},
 	{"id": &"bayview", "name": "BAYVIEW ESTATES", "kind": &"town", "style": &"suburb", "pos": Vector2(-700, 1373), "on_road": "COAST ROAD", "r": 105.0, "len": 175.0, "blend": 44.0, "reward": 300,
 		"tag": "SUBURBAN ESTATES", "houses": 64},
 	{"id": &"salt_quay", "name": "SALT QUAY", "kind": &"town", "style": &"harbour", "pos": Vector2(-2930, -470), "on_road": "WEST HIGHWAY", "r": 95.0, "len": 150.0, "blend": 46.0, "reward": 350,
-		"tag": "FISHING TOWN", "houses": 44},
+		"tag": "FISHING TOWN", "houses": 60},
 	{"id": &"sunset_cove", "name": "SUNSET COVE", "kind": &"town", "style": &"resort", "pos": Vector2(-2660, 295), "on_road": "WEST COAST ROAD", "r": 100.0, "len": 150.0, "blend": 62.0, "reward": 400,
-		"tag": "BEACH RESORT", "houses": 34},
+		"tag": "BEACH RESORT", "houses": 40},
 	{"id": &"high_lark", "name": "HIGH LARK", "kind": &"town", "style": &"lodge", "pos": Vector2(-2560, -1780), "on_road": "LARK ROAD", "r": 80.0, "len": 120.0, "blend": 110.0, "reward": 300,
-		"tag": "MOUNTAIN LODGE HAMLET", "houses": 22},
+		"tag": "MOUNTAIN LODGE HAMLET", "houses": 30},
 	{"id": &"mirage_point", "name": "MIRAGE POINT", "kind": &"town", "style": &"outpost", "pos": Vector2(1555, 1262), "on_road": "OUTPOST ROAD", "r": 85.0, "len": 130.0, "blend": 40.0, "reward": 300,
-		"tag": "DESERT OUTPOST", "houses": 24},
+		"tag": "DESERT OUTPOST", "houses": 34},
 ]
 
 

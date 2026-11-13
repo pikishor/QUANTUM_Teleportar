@@ -402,7 +402,8 @@ static func hotel(s: Dictionary) -> Dictionary:
 	var far := SettlementMesh.new()
 	far.box(Vector3(0.0, h * 0.5, 0.0), Vector3(w, h, d), wall, SM.PAINT, 32, 1.0, 0.8)
 	far.cylinder(Vector3(hx, h + 0.1, 0.0), 8.5, 0.15, 12, Color(0.2, 0.22, 0.25), SM.PAINT, -1.0, true, 1.0, 1.0)
-	var res := _res(m, far, Vector3(w, h + 2.5, d))
+	var res := _res(m, far, Vector3(w, h + 0.2, d))                         # (the collider stops at the roof: a helicopter can land on the pad)
+	res["extra_boxes"] = [{"pos": Vector3(w * 0.5 - 7.0, h + 1.4, 0.0), "size": Vector3(6.0, 2.0, 5.0)}, {"pos": Vector3(w * 0.5 - 14.0, h + 1.0, 2.0), "size": Vector3(3.0, 1.2, 2.5)}]
 	res["door"] = Vector3(0.0, 0.0, -d * 0.5)
 	res["helipad"] = Vector3(hx, h + 0.45, 0.0)
 	res["anchor"] = {"kind": &"tower", "name": "HOTEL ROOF", "height": h + 2.6, "radius": 4.0, "at": Vector3(w * 0.5 - 7.0, 0.0, 0.0)}

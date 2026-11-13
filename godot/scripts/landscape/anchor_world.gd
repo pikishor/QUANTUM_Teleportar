@@ -40,12 +40,19 @@ func _ready() -> void:
 	_mat.shader = load(SHADER_PATH) as Shader
 	AnchorSites.ensure()
 	_anchors = AnchorSites.all_anchors()
+	var _t0 := Time.get_ticks_msec()
 	_build_turbines()
+	print("ANCH turbines ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
 	_build_lines()
+	print("ANCH lines ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
 	_build_masts()
+	print("ANCH masts ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
 	_build_cranes()
+	print("ANCH cranes ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
 	_build_arches()
+	print("ANCH arches ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
 	_make_pool()
+	print("ANCH pool ", Time.get_ticks_msec() - _t0)
 	set_process(true)
 
 
@@ -82,8 +89,14 @@ func stats() -> Dictionary:
 
 ## The anchors within `radius` metres of `pos` (horizontally), nearest first.
 func anchors_near(pos: Vector3, radius: float) -> Array:
+	return AnchorWorld.anchors_at(pos, radius)
+
+
+## The same as a STATIC function that only needs the data (AnchorSites, the ancient trees of the vegetation worker): it works while the landscape is still asleep and when
+## `AnchorWorld.instance` is null. The quantum snakes should call this one.
+static func anchors_at(pos: Vector3, radius: float) -> Array:
 	var out: Array = []
-	for a: Dictionary in _anchors:
+	for a: Dictionary in AnchorSites.anchors_cached():
 		var b: Vector3 = a["base"]
 		var d := Vector2(b.x - pos.x, b.z - pos.z).length()
 		if d <= radius:

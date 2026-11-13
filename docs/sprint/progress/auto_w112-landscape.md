@@ -1,6 +1,6 @@
 # w112-landscape (running)
 
-agent id af6ad2b71b0e9dc0c, 625 events, first activity 2026-11-13T09:11:12.410Z, last activity 2026-11-13T11:10:22.670Z
+agent id af6ad2b71b0e9dc0c, 897 events, first activity 2026-11-13T09:11:12.410Z, last activity 2026-11-13T13:10:16.490Z
 
 ## Last notes of the agent
 
@@ -8,46 +8,46 @@ agent id af6ad2b71b0e9dc0c, 625 events, first activity 2026-11-13T09:11:12.410Z,
 
 ## Recent steps (last 40)
 
-- 10:43:07 Add ancient groves with giant pines and firs to the scatter
-- 10:43:13 Inspect the tree block indentation in veg_scatter
-- 10:43:22 Add ancient groves with giant trees to the scatter
-- 10:43:39 Collect ancient trees in the vegetation worker and add them and the harbour cranes to the anchors
-- 10:43:46 Run the landscape test and show failures
-- 10:45:34 Probe the strips found and the sites and roads now present
-- 10:45:59 Scan the whole world for flat airstrip corridors
-- 10:46:49 Time the landscape and anchor site searches
-- 10:47:34 Add hint based quick searches for falls and strips
-- 10:47:39 Check exact whitespace around the region search calls
-- 10:48:07 Add hint based quick searches for falls and strips (correct indentation)
-- 10:48:20 Scan the world for flat airstrip corridors on a finer lattice
-- 10:49:15 Run the full fall searches and print the hints to store
-- 10:49:46 Store hints and the new strip regions, then check what is found and how long warm takes
-- 10:50:13 Update the landscape test for the 9 km world and the harbour cranes
-- 10:50:19 Check exact whitespace of the towers counting block
-- 10:50:31 Patch the test for the bigger world and rerun it
-- 10:52:07 Find ancient grove spots with giant trees
-- 10:54:44 Render ancient groves, new airstrips and a fall
-- 10:58:43 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i4/sheet_a.jpg
-- 10:58:50 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i4/a_006.jpg
-- 10:59:05 Update the progress log with the iterations so far
-- 10:59:23 Measure LOW texture memory without vegetation and landscape
-- 11:00:35 Find the highest peaks of the world
-- 11:00:55 Render mountain views: peaks, snow, summit road
-- 11:04:52 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i4/sheet_m.jpg
-- 11:05:09 Warp the strata bands so mountains do not look terraced
-- 11:05:15 Look at the strata line exactly
-- 11:05:22 Warp the strata bands (correct indentation)
-- 11:05:30 Look at the existing landscape look-dev viewer
-- 11:05:39 Render the tree lineup, impostors and close-up in the viewer
-- 11:06:21 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/lv/trees0.jpg
-- 11:06:22 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/lv/close.jpg
-- 11:06:45 Render two views at full 2400x1080 resolution
-- 11:08:54 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i4/full_000.jpg
-- 11:09:15 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i4/full_001.jpg
-- 11:09:33 Inspect the beach skip and grass species lines
-- 11:09:42 Allow dune grass and a few rocks on the upper beach
-- 11:10:11 Give driftwood its own lighter bleached material
-- 11:10:22 Render iteration 5: greener ground, dune grass, beach rocks, driftwood, strata
+- 12:06:37 Census the landscape and vegetation geometry drawn at the perf spawn in a real render run
+- 12:07:32 Show the unfiltered output of the census run
+- 12:08:22 Rerun the census with the correct rendering info call
+- 12:09:24 Rerun the census with a longer shot interval so the bot reaches its measuring frame
+- 12:10:54 Find every user of the two environment flags
+- 12:11:27 List landscape geometry that has no visibility range at the perf spawn
+- 12:13:53 Print the landscape geometry whose AABB centre is within its visibility range
+- 12:15:48 Bisect which landscape part changes the draw count at the perf spawn
+- 12:26:22 Find users of the landscape classes outside their own folder
+- 12:26:37 Compare the perf census lines of the frozen tree with and without my systems
+- 12:30:25 Check how the perf bot prints its census
+- 12:30:37 Look for global random number use in my code
+- 12:30:48 Repeat the on and off A/B with two other world seeds
+- 12:36:06 A/B the MED perf run with and without landscape and vegetation on the frozen tree
+- 12:42:37 Re-read the vegetation world start-up code before making it lazy
+- 12:42:56 Add the wake mechanism to the climate node and the vegetation world
+- 12:43:23 Make the landscape lazy and add the static anchors_at query
+- 12:43:37 Update the test for the lazy landscape and run it
+- 12:44:55 Run the outskirts sites test against the lazy vegetation
+- 12:46:07 Check the outskirts test timeout and exit code
+- 12:47:20 Check the cloud deck failure on the frozen pre-lazy tree and see the other builder's weather edit
+- 12:48:34 Rerun the outskirts sites test on the live tree to see whether the weather failures repeat
+- 12:49:42 Run the perf gate on all tiers with the lazy landscape
+- 12:59:58 Wait for the background perf gate and read its output
+- 13:00:02 Look at the end of ARCHITECTURE.md where the new section goes
+- 13:00:05 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/tasks/bemtyny6t.output
+- 13:00:40 Append the landscape section to ARCHITECTURE.md
+- 13:00:42 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/tasks/bemtyny6t.output
+- 13:01:08 Time the wake-up steps of vegetation and landscape
+- 13:02:23 Profile the parts of the anchor world build
+- 13:03:05 Time the parts of the anchor site search and list the found sites
+- 13:03:30 Read VegKit loading to see what can be skipped when LandKit is available
+- 13:03:42 Time the parts of the vegetation wake up
+- 13:04:03 Time VegScatter.warm once the terrain is warm
+- 13:05:02 Give the rock arch regions hints so the search is instant
+- 13:05:21 Make the avenue trees lazy per cell and time the effect
+- 13:05:50 Build each waterfall on demand when the hero comes near
+- 13:06:09 Stage the landscape wake over frames and rerun the test
+- 13:07:31 Measure the frame times while the landscape wakes after crossing the edge
+- 13:08:32 Update the architecture notes for the lazy wake, falls on demand and hints
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

@@ -38,7 +38,7 @@ void vertex() {
 
 void fragment() {
 	vec4 t = texture(imp, v_uv);
-	float dither = lc_hash12(floor(FRAGCOORD.xy));
+	float dither = lc_ign(FRAGCOORD.xy);
 	bool gone = v_fade > 0.0 ? dither < v_fade : (v_fade < 0.0 ? dither >= -v_fade : false);
 	if (t.a < cutoff || gone) {
 		discard;

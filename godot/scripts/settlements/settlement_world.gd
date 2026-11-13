@@ -3,7 +3,7 @@ extends Node3D
 ## The towns in the live world (wave 112). Child `settlements` of the City. Data: SettlementData / SettlementPlan (kind &"town" entries of OutskirtsSites), meshes: SettlementKit.
 ##
 ## A town is a root Node3D at its pad (OutskirtsSites.to_world frame) with a few kinds of children:
-##   near chunks   80 m squares of the town frame, built when the hero is within BUILD_R (one chunk per tick, nearest first, the mesh of the chunk is relative to its own centre so the visibility range
+##   near chunks   120 m squares of the town frame, built when the hero is within BUILD_R (one chunk per tick, nearest first, the mesh of the chunk is relative to its own centre so the visibility range
 ##                 is measured from the chunk), freed beyond BUILD_R + FREE_EXTRA: one MeshInstance3D (ONE draw call: assets/shaders/settlement.gdshader), one StaticBody3D of boxes and cylinders, the
 ##                 rotating parts (windmill sails, tower crane)
 ##   far mesh      ONE cut-down mesh of the whole town (boxes and roofs), built when the hero is within FAR_BUILD_R, drawn beyond the near range with a dither cross-fade
@@ -12,8 +12,8 @@ extends Node3D
 
 const MB := preload("res://scripts/world/mesh_builder.gd")
 
-const CH := 80.0
-const BUILD_R: Array[float] = [230.0, 290.0, 350.0]
+const CH := 120.0
+const BUILD_R: Array[float] = [200.0, 260.0, 320.0]
 const FREE_EXTRA := 90.0
 const NEAR_END: Array[float] = [250.0, 310.0, 370.0]
 const FAR_END: Array[float] = [1500.0, 2100.0, 2800.0]
@@ -22,6 +22,11 @@ const FADE := 40.0
 const TICK := 0.1
 const MARKERS := 64
 const MARKER_R := 70.0
+const SHADOW_R: Array[float] = [0.0, 150.0, 210.0]   ## chunks farther than this from the hero cast no shadow (LOW: none): every shadow caster is a second draw call
+const USE_R := 2.8                                ## the glowing ring of the notice board: standing in it is the town's activity
+const COOLDOWN := 45.0
+const FLAVOUR := {&"farm": "FARM STAND  FRESH SUPPLIES", &"industrial": "WORKS OFFICE  SALVAGE CREDITS", &"suburb": "NEIGHBOURHOOD WATCH  ALL QUIET", &"harbour": "CATCH OF THE DAY  SOLD AT THE QUAY",
+	&"resort": "RESORT DESK  DRINKS ON THE HOUSE", &"lodge": "TRAIL BOARD  HIKERS SHARE SUPPLIES", &"outpost": "WATER STOP  TRADERS RESTOCK YOU"}
 
 static var instance: SettlementWorld = null
 
@@ -35,6 +40,12 @@ var _markers: MultiMeshInstance3D
 var _marker_doors: Array[Dictionary] = []
 var _marker_t := 0.0
 var _hero := Vector3.INF
+var used := {}                                   ## town id -> true once the first visit of its notice board paid
+var activities := 0
+var _rest_ready := {}
+var _clock := 0.0
+var _use_tick := 0.0
+var _shadow_t := 0.0
 var folk := SettlementFolk.new()                 ## the people standing at their posts (pinned slots of the city crowd)
 var _folk_crowd: RefCounted = null
 
@@ -144,6 +155,10 @@ func _process(delta: float) -> void:
 		return
 	_stream(_hero, 1)
 	_step_folk(TICK)
+	_shadow_t -= TICK
+	if _shadow_t <= 0.0:
+		_shadow_t = 0.5
+		_refresh_shadows()
 	_marker_t -= TICK
 	if _marker_t <= 0.0:
 		_marker_t = 0.4
@@ -294,11 +309,31 @@ func _build_chunk(t: Dictionary, ci: int, cj: int) -> void:
 		rotors.append(rr)
 
 
+## Shadows only from the chunks within SHADOW_R of the hero (a chunk is a draw call in the shadow pass too).
+func _refresh_shadows() -> void:
+	if not _hero.is_finite():
+		return
+	for id in towns.keys():
+		for rec: Dictionary in (towns[id]["chunks"] as Dictionary).values():
+			_shadow_of(rec)
+
+
+func _shadow_of(rec: Dictionary) -> void:
+	var mi := rec.get("mi") as MeshInstance3D
+	if mi == null or not is_instance_valid(mi):
+		return
+	var on := false
+	if quality >= 1 and _hero.is_finite():
+		var c := mi.global_position
+		on = Vector2(c.x - _hero.x, c.z - _hero.z).length() < SHADOW_R[quality]
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
 func _style_chunk(rec: Dictionary) -> void:
 	var mi := rec.get("mi") as MeshInstance3D
 	if mi == null or not is_instance_valid(mi):
 		return
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if quality >= 1 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_shadow_of(rec)
 	mi.visibility_range_end = NEAR_END[quality]
 	mi.visibility_range_end_margin = FADE
 	mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
@@ -334,6 +369,57 @@ func _spin_rotors(delta: float) -> void:
 		var n := rr["node"] as Node3D
 		if is_instance_valid(n) and n.global_position.distance_squared_to(_hero) < 360000.0:
 			n.rotate_object_local(rr["axis"], float(rr["speed"]) * delta)
+
+
+# --- the notice board: the town's own activity -----------------------------------------------------------------------------------------------------
+
+func use_point(id: StringName) -> Vector3:
+	return SettlementData.use_world(towns[id]["site"]) if towns.has(id) else Vector3.INF
+
+
+func _physics_process(delta: float) -> void:
+	_clock += delta
+	_use_tick -= delta
+	if _use_tick > 0.0 or not Game.is_playing():
+		return
+	_use_tick = 0.15
+	var p := Game.player as Player
+	if p == null or p.is_dead() or p.vehicle != null:
+		return
+	var pp := p.global_position
+	for id in towns.keys():
+		var site: Dictionary = towns[id]["site"]
+		var sp: Vector3 = site["pos"]
+		if Vector2(sp.x - pp.x, sp.z - pp.z).length() > 300.0:
+			continue
+		var up := SettlementData.use_world(site)
+		if Vector2(up.x - pp.x, up.z - pp.z).length() <= USE_R and absf(pp.y - up.y) < 4.0:
+			_use_town(site, p, up)
+
+
+## Standing on the board's ring: health and ammo back (every 45 s), and the first visit pays the town's reward.
+func _use_town(site: Dictionary, p: Player, up: Vector3) -> void:
+	var id: StringName = site["id"]
+	var first := not used.has(id)
+	if not first and _clock < float(_rest_ready.get(id, 0.0)):
+		return
+	_rest_ready[id] = _clock + COOLDOWN
+	if p.weapon != null:
+		p.weapon.restock(WeaponLadder.AMMO_RESTOCK)
+	p.hp = p.max_hp
+	var line := String(FLAVOUR.get(StringName(site["style"]), "TOWN SERVICES"))
+	if first:
+		used[id] = true
+		activities += 1
+		var rest := int(float(site["reward"]) * 0.75)
+		var pg := Game.progress as Progress
+		if pg != null and rest > 0:
+			pg.add_credits(rest)
+		Game.say("%s   +%d" % [line, rest], 3.0)
+		FX.burst(up + Vector3(0.0, 1.0, 0.0), Color(0.3, 0.95, 1.0), 22, 5.0, 0.7, 4.0, 1.0)
+		Sfx.play(&"pickup")
+	else:
+		Game.say("%s  HEALTH AND AMMO RESTORED" % String(site["name"]), 2.2)
 
 
 # --- the folk ---------------------------------------------------------------------------------------------------------------------------------------

@@ -33,6 +33,7 @@ const REED := 15
 const DRIFT := 16                                    ## a washed-up log on the beach (variants a / b by the random number)
 const PEBBLE := 17                                   ## small stones of the shore (beaches, river banks): drawn with the 48 triangle pebble pieces
 const OAK := 1
+const LOG := 18                                          ## a fallen trunk on the forest floor (the driftwood meshes with a dark bark)
 const GIANT := 7                                       ## the `variant` slot of an ancient tree (pines and firs in the old groves: 2.2 to 2.7 times the size)
 const T_LINES := 4                                   ## roadside avenues (poplars, palms) on the approaches of the city, laid out along the road samples
 const T_REEDS := 5                                   ## reeds on the banks of rivers and lakes
@@ -47,7 +48,9 @@ static var _clump: FastNoiseLite
 static var _patch: FastNoiseLite
 static var _grove: FastNoiseLite
 static var _alien: FastNoiseLite
-static var _lines := {}                               ## cell key -> PackedFloat32Array of avenue trees (built once in warm())
+static var _lines := {}                               ## cell key -> PackedFloat32Array of avenue trees (validated on first use, see _line_cell)
+static var _line_src := {}                            ## cell key -> [[x, z, hash], ...]: the indexed avenue spots (built once in warm())
+static var _line_mutex := Mutex.new()
 static var _ready_flag := false
 
 
@@ -194,9 +197,12 @@ static func tree_species(x: float, z: float, h: float, mw: float, fw: float, dw:
 	return Vector2(ACACIA, 0.85 + rr * 0.5)
 
 
-## Avenues (poplars; palms on the warm coast and in the dry south and east) along the highways on the approaches of the city, one tree per road sample and side, built once.
+## Avenues (poplars; palms on the warm coast and in the dry south and east) along the highways on the approaches of the city, one tree per road sample and side. Wave 112: the spots are
+## INDEXED at once (cheap: hashes and a distance, no ground samples) and each cell's trees are validated and built the first time that cell is asked for (the validation takes about eight
+## ground samples per tree: all of them at once was 650 ms, the first thing that happened when the hero left the middle of the city).
 static func _build_lines() -> void:
 	_lines.clear()
+	_line_src.clear()
 	for r: Dictionary in TerrainRoads.roads():
 		if String(r["kind"]) != "highway" or String(r["name"]) == "HARBOUR ROAD":
 			continue
@@ -215,24 +221,44 @@ static func _build_lines() -> void:
 				var along := (_rs(hh, 22) - 0.5) * 3.2
 				var off := LINE_OFFSET + (_rs(hh, 23) - 0.5) * 1.6
 				var q: Vector2 = a + tan * along + nrm * off * side
-				var h := TerrainHeight.height_at(q.x, q.y)
-				if h < TerrainHeight.SEA_LEVEL + 2.5 or TerrainHeight.water_level_for(q.x, q.y, h) != TerrainHeight.NO_WATER:
-					continue
-				if TerrainRoads.in_span(q.x, q.y) or OutskirtsSites.inside(q.x, q.y, 6.0) >= 0 or Airport.inside(q.x, q.y, 10.0):
-					continue
-				var fwq := TerrainBase.forest_weight(q.x, q.y)
-				if TerrainHeight.slope_at(q.x, q.y) > 0.45 or fwq > 0.7:
-					continue
-				var sd := TerrainHeight.coast_distance(q.x, q.y) - TerrainHeight.city_distance(q.x, q.y)
-				var dry := TerrainBase.desert_weight(q.x, q.y) * (1.0 - fwq)
-				var sp := POPLAR
-				if sd < 900.0 or dry > 0.55:
-					sp = PALM
-				var scale := 0.92 + _rs(hh, 24) * 0.28
 				var key := _cell_key(int(floor(q.x / CELL)), int(floor(q.y / CELL)))
-				var arr: PackedFloat32Array = _lines.get(key, PackedFloat32Array())
-				arr.append_array(PackedFloat32Array([q.x, h - 0.05, q.y, _rs(hh, 25) * TAU, scale, float(sp), _rs(hh, 26), 0.0]))
-				_lines[key] = arr
+				var arr: Array = _line_src.get(key, [])
+				arr.append([q.x, q.y, hh])
+				_line_src[key] = arr
+
+
+## The avenue trees of one cell (validated on first use, then cached; callable from the vegetation worker and from the main thread).
+static func _line_cell(key: int) -> PackedFloat32Array:
+	_line_mutex.lock()
+	if _lines.has(key):
+		var cached: PackedFloat32Array = _lines[key]
+		_line_mutex.unlock()
+		return cached
+	var src: Array = _line_src.get(key, [])
+	_line_mutex.unlock()
+	var out := PackedFloat32Array()
+	for e: Array in src:
+		var q := Vector2(float(e[0]), float(e[1]))
+		var hh := int(e[2])
+		var h := TerrainHeight.height_at(q.x, q.y)
+		if h < TerrainHeight.SEA_LEVEL + 2.5 or TerrainHeight.water_level_for(q.x, q.y, h) != TerrainHeight.NO_WATER:
+			continue
+		if TerrainRoads.in_span(q.x, q.y) or OutskirtsSites.inside(q.x, q.y, 6.0) >= 0 or Airport.inside(q.x, q.y, 10.0):
+			continue
+		var fwq := TerrainBase.forest_weight(q.x, q.y)
+		if TerrainHeight.slope_at(q.x, q.y) > 0.45 or fwq > 0.7:
+			continue
+		var sd := TerrainHeight.coast_distance(q.x, q.y) - TerrainHeight.city_distance(q.x, q.y)
+		var dry := TerrainBase.desert_weight(q.x, q.y) * (1.0 - fwq)
+		var sp := POPLAR
+		if sd < 900.0 or dry > 0.55:
+			sp = PALM
+		var scale := 0.92 + _rs(hh, 24) * 0.28
+		out.append_array(PackedFloat32Array([q.x, h - 0.05, q.y, _rs(hh, 25) * TAU, scale, float(sp), _rs(hh, 26), 0.0]))
+	_line_mutex.lock()
+	_lines[key] = out
+	_line_mutex.unlock()
+	return out
 
 
 static func _cell_key(ci: int, cj: int) -> int:
@@ -250,7 +276,7 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 	if absf(x0) > TerrainHeight.WORLD_HALF or absf(z0) > TerrainHeight.WORLD_HALF:
 		return out
 	if layer == T_LINES:
-		return _lines.get(_cell_key(ci, cj), out)
+		return _line_cell(_cell_key(ci, cj))
 	var sp: float = SPACING[layer]
 	var n := int(ceil(CELL / sp))
 	var base := _hash(ci, cj, layer + 17)
@@ -315,6 +341,8 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 					if sl > 1.0:
 						continue
 					species = FERN if (fw > 0.45 and _rs(hh, 8) < 0.5) else BUSH
+					if fw > 0.55 and sl < 0.4 and _rs(hh, 18) < 0.05:
+						species = LOG
 					scale = (0.55 + rnd * 0.5) * (1.25 if species == BUSH else 0.85)
 				T_GRASS:
 					if sl > 0.9:

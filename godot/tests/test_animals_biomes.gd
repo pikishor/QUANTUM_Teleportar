@@ -12,7 +12,7 @@ const FOREST := Vector3(-1600.0, 0.0, -1400.0)
 const MOUNTAIN := Vector3(-600.0, 0.0, -2400.0)
 const DESERT := Vector3(0.0, 0.0, 1300.0)
 const PLAINS := Vector3(1400.0, 0.0, -1000.0)
-const BEACH := Vector3(-1590.0, 0.0, -200.0)
+const BEACH := Vector3(-3215.0, 0.0, -200.0)                            # (wave 112: the west coast moved 1.6 km out: the beach now lies at x -3215)
 
 var city: City
 var p: Player
@@ -479,7 +479,7 @@ func _flocks_and_water(host: Node) -> void:
 		near = near
 	# --- dolphins porpoise in the sea
 	w.clear()
-	var sea_pt := Vector3(-1700.0, 0.0, -200.0)
+	var sea_pt := Vector3(-3350.0, 0.0, -200.0)
 	var ground := TerrainHeight.height_at(sea_pt.x, sea_pt.z)
 	TestLib.check(TerrainHeight.is_water(sea_pt.x, sea_pt.z) and TerrainHeight.depth_at(sea_pt.x, sea_pt.z) > 2.0, "the test sea point is deep water (%.1f m)" % TerrainHeight.depth_at(sea_pt.x, sea_pt.z))
 	_teleport(BEACH, 1.57)

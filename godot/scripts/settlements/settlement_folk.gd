@@ -22,9 +22,10 @@ var _t := 0.0
 var cap := 12
 
 
-static func seed_of(role: StringName) -> float:
+static func seed_of(role: StringName, key := 0) -> float:
 	var l: Array = LOOKS.get(role, LOOKS[&"villager"])
-	return (float(int(l[0])) + float(l[1])) / 6.0
+	var jitter := (fposmod(sin(float(key) * 12.9898 + 1.3) * 43758.5453, 1.0) - 0.3) * 0.02          # a little off the look's seed: another palette, the same archetype (r moves by -0.04 .. +0.08)
+	return (float(int(l[0])) + float(l[1])) / 6.0 + jitter
 
 
 static func reset_entries() -> void:
@@ -43,7 +44,7 @@ static func entries() -> Array[Dictionary]:
 			var w := OutskirtsSites.to_world(s, Vector3(float(f["x"]), 0.0, float(f["z"])))
 			var fd := Basis(Vector3.UP, yaw + float(f["yaw"])) * Vector3(0.0, 0.0, -1.0)
 			_entries.append({"key": ti * 1000 + k, "role": f["role"], "pos": Vector3(w.x, TerrainHeight.height_at(w.x, w.z), w.z), "face": Vector2(fd.x, fd.z).normalized(), "town": s["id"],
-				"seed": seed_of(f["role"])})
+				"seed": seed_of(f["role"], ti * 1000 + k)})
 			k += 1
 		ti += 1
 	return _entries

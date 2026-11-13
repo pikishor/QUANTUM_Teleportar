@@ -43,6 +43,11 @@ func step(_t: float, _d: float) -> bool:
 				_hud.visible = false
 	if _f >= 3 and _i < _views.size():
 		_apply(p, _views[_i], (_f - 3) % maxi(wait, 1))
+		if (_f - 3) % maxi(wait, 1) == maxi(wait, 1) - 1:                         # the last frame of a view: what the renderer drew
+			var sw := (Game.world as City).towns as SettlementWorld
+			var st: Dictionary = sw.stats() if sw != null else {"chunks": 0, "tris": 0}
+			print("TOWNSTAT %s draws=%d prims=%d chunks=%d folk=%d tris_near=%d" % [_views[_i].get_slice(",", 0), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+					RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME), int(st["chunks"]), sw.folk.active_count() if sw != null else 0, int(st["tris"])])
 	_f += 1
 	if _f >= 3 and (_f - 3) % maxi(wait, 1) == 0 and _f > 3:
 		_i += 1
@@ -77,6 +82,29 @@ func _apply(p: Player, v: String, k: int) -> void:
 			p.velocity = Vector3.ZERO
 			_settle(cpos)
 		p.camera_rig.cine_set(Transform3D(Basis.IDENTITY, cpos).looking_at(tpos, Vector3.UP), float(a[7]) if a.size() > 7 else 68.0)
+		return
+	if v.begins_with("f:"):                                       # "f:id,k[,dist]": the hero stands dist metres in front of the k-th person of the town, looking at them
+		var a3 := v.substr(2).split(",")
+		var mine: Array[Dictionary] = []
+		for e in SettlementFolk.entries():
+			if String(e["town"]) == a3[0]:
+				mine.append(e)
+		if mine.is_empty() or k != 0:
+			return
+		var e0: Dictionary = mine[clampi(int(a3[1]), 0, mine.size() - 1)]
+		var fc: Vector2 = e0["face"]
+		var dd := float(a3[2]) if a3.size() > 2 else 4.5
+		var hp := e0["pos"] as Vector3
+		var pos2 := Vector3(hp.x + fc.x * dd, hp.y + 0.8, hp.z + fc.y * dd)
+		p.camera_rig.cine_clear()
+		p.global_position = pos2
+		p.velocity = Vector3.ZERO
+		p.camera_rig.yaw = atan2(fc.x, fc.y)
+		_settle(pos2)
+		p.teleport_to(pos2)
+		p.camera_rig.yaw = atan2(fc.x, fc.y)
+		if "distance" in p.camera_rig:
+			p.camera_rig.set("distance", 3.2)
 		return
 	if v.begins_with("w:"):
 		var a2 := v.substr(2).split(",")

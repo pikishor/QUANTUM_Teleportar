@@ -81,6 +81,7 @@ static func prop_part(kind: StringName, seed_v: int) -> SettlementMesh:
 		&"tree_pine": P.tree_pine(m, seed_v & 3)
 		&"tree_palm": P.tree_palm(m, seed_v & 3)
 		&"bush": P.bush(m, seed_v & 3)
+		&"board": P.board(m)
 		&"pet_dog": P.pet_dog(m, seed_v)
 		&"pet_cat": P.pet_cat(m, seed_v)
 		_: P.bush(m, seed_v & 3)
@@ -189,6 +190,8 @@ static func _ground_patch(m: SettlementMesh, pg: Dictionary) -> void:
 			code = SettlementMesh.CONCRETE
 		&"water":
 			code = SettlementMesh.WATER
+		&"glow":
+			code = SettlementMesh.GLOW
 		&"plaza":
 			code = SettlementMesh.CONCRETE
 	var q: Array[Vector3] = []

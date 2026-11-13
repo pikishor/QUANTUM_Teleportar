@@ -259,6 +259,8 @@ static func map_markers() -> Array[Dictionary]:
 	for p in pads():
 		if p["kind"] in [&"roof", &"mountain"]:
 			out.append({"kind": &"garage", "pos": p["pos"], "fog": true, "label": String(p["name"]) + ": HELICOPTER", "glyph": &"helipad"})
+	for hp in SettlementData.helipads():                                     # the hotel roof and the lodge's clearing (wave 112, scripts/settlements)
+		out.append({"kind": &"garage", "pos": hp["pos"], "fog": true, "label": String(hp["name"]) + ": HELICOPTER", "glyph": &"helipad"})
 	return out
 
 

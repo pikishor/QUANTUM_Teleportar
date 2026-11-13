@@ -114,6 +114,7 @@ static func side_row(p: SettlementPlan, si: int, side2: float, t0: float, t1: fl
 			t += adv
 		else:
 			t += 5.0
+	s["houses"] = int(s.get("houses", 0)) + made                                 # (a lane that got no house at all is not drawn: street_furniture prunes it)
 	return made
 
 
@@ -245,6 +246,9 @@ static func street_furniture(p: SettlementPlan, every := 30.0, lamps := true) ->
 		i = j
 	# side streets: asphalt, with sidewalks along both sides
 	for sdv in p.sides:
+		if int(sdv.get("houses", 0)) < 1:
+			sdv["dead"] = true
+			continue
 		var sa: Vector2 = sdv["a"]
 		var sb: Vector2 = sdv["b"]
 		var u := (sb - sa).normalized()
@@ -394,7 +398,7 @@ const BRICKS: Array[Color] = [Color(0.55, 0.26, 0.2), Color(0.5, 0.3, 0.24), Col
 
 
 static func _terrace(p: SettlementPlan, side: float) -> Dictionary:
-	var units := 3 + (p.rng.randi() % 3)
+	var units := 3 + (p.rng.randi() % 2)
 	var uw := 5.2
 	var cols: Array = []
 	var base: Color = BRICKS[p.rng.randi() % BRICKS.size()]
@@ -498,7 +502,13 @@ static func suburb(p: SettlementPlan, target: int) -> void:
 	var nr0: Vector2 = _nrm(sf[1]) * -1.0
 	var pc := c0 + nr0 * (SettlementPlan.STREET_HALF + 8.0 + 15.0)
 	p.place(&"special", &"petrol", pc.x, pc.y, SettlementPlan.yaw_for_front(-nr0), 14.0, 20.0, &"petrol_shop", 2.0)
-	p.houses -= 0
+	var sfc: Array = p.street_at(128.0)                                               # the church at the south end (its bell tower and the water tower and the mast are the tall anchors)
+	var cc0: Vector2 = sfc[0]
+	var nrc: Vector2 = _nrm(sfc[1]) * -1.0
+	var chc := cc0 + nrc * (SettlementPlan.STREET_HALF + 6.0 + 10.0)
+	p.place(&"special", &"church", chc.x, chc.y, SettlementPlan.yaw_for_front(-nrc), 9.0, 20.0, &"chapel", 3.0)
+	p.place(&"special", &"water_tower", 62.0, 100.0, 0.0, 6.0, 6.0, &"", 2.0)
+	p.place(&"special", &"mast", -70.0, -118.0, 0.0, 5.0, 5.0, &"", 2.0)
 	var pk := Vector2(-62.0, 55.0)
 	if p.fits(pk.x, pk.y, 22.0, 22.0, 0.0, 1.0, 2.0):
 		p.occupy(pk.x, pk.y, 22.0, 22.0, 0.0)
@@ -531,7 +541,7 @@ const QUAY_COLS: Array[Color] = [Color(0.22, 0.45, 0.66), Color(0.92, 0.74, 0.22
 
 
 static func _quay_house(p: SettlementPlan, side: float) -> Dictionary:
-	var units := 2 + (p.rng.randi() % 3)
+	var units := 1 + (p.rng.randi() % 3)
 	var uw := 4.9
 	var cols: Array = []
 	for u in units:
@@ -560,7 +570,7 @@ static func harbour(p: SettlementPlan, target: int) -> void:
 	p.place(&"special", &"crane", cr.x, cr.y, 0.0, 4.0, 4.0, &"", 1.0)
 	for k in 6:
 		var bp := p.edge_point(sea, 0.72) + perp * (float(k) - 2.5) * 11.0 + sea * p.rf(-3.0, 3.0)
-		var item := p.place(&"special", &"boat", bp.x, bp.y, SettlementPlan.yaw_for_front(sea + perp * p.rf(-0.25, 0.25)), 3.2, 9.0, &"", 1.0)
+		var item := p.place(&"special", &"boat", bp.x, bp.y, SettlementPlan.yaw_for_front(sea + perp * p.rf(-0.25, 0.25)), 3.2, 9.0, &"", 1.0, 0.0, false)
 		if not item.is_empty():
 			item["spec"] = {"hull": [Color(0.2, 0.35, 0.55), Color(0.75, 0.25, 0.2), Color(0.85, 0.8, 0.7), Color(0.2, 0.5, 0.4)][k % 4]}
 	for k in 8:
@@ -575,8 +585,8 @@ static func harbour(p: SettlementPlan, target: int) -> void:
 		else:
 			z0 = maxf(z0, qc.y + 26.0)
 	var made := 0
-	made += budget(p, int(target * 0.34), func() -> int: return street_row(p, 1.0, z0, z1, Callable(SettlementStyles, "_quay_house"), 0.5, 1.0))
-	made += budget(p, int(target * 0.30), func() -> int: return street_row(p, -1.0, z0, z1, Callable(SettlementStyles, "_quay_house"), 0.5, 0.95))
+	made += budget(p, int(target * 0.42), func() -> int: return street_row(p, 1.0, z0, z1, Callable(SettlementStyles, "_quay_house"), 0.5, 1.0))
+	made += budget(p, int(target * 0.36), func() -> int: return street_row(p, -1.0, z0, z1, Callable(SettlementStyles, "_quay_house"), 0.5, 1.0))
 	var lanes: Array = []
 	for zz in [-100.0, -30.0, 40.0, 105.0]:
 		if zz > z0 + 10.0 and zz < z1 - 10.0:
@@ -607,7 +617,7 @@ static func _villa(p: SettlementPlan, side: float) -> Dictionary:
 	var lot := {"fence": &"hedge", "fence_h": 1.0, "trees": 0, "path": true, "mailbox": false, "bush": true, "pitch": 0.0, "back": 12.0, "lawn": true, "lawn_margin": 14.0, "lawn_back": 12.0, "lawn_col": Color(0.3, 0.52, 0.28),
 		"folk": 0.3, "role": &"tourist", "pet": 0.1, "car_front": true, "car_chance": 0.4, "side_fence": false}
 	var it := house_item(spec, &"villa", lot, p.rf(8.0, 11.0))
-	(it["lot"] as Dictionary)["pitch"] = float(it["w"]) + p.rf(12.0, 16.0)
+	(it["lot"] as Dictionary)["pitch"] = float(it["w"]) + p.rf(7.0, 10.0)
 	return it
 
 
@@ -621,6 +631,7 @@ static func resort(p: SettlementPlan, target: int) -> void:
 	if not hit.is_empty():
 		p.add_rect(&"plaza", hc.x + nr.x * -0.0 - nr.x * 14.0, hc.y - nr.y * 14.0, 30.0, 14.0, SettlementPlan.yaw_for_front(-nr), 0.07, 0.0, Color(0.85, 0.82, 0.74))
 		p.add_rect(&"water", hc.x - nr.x * 8.0 + (-nr.y) * 0.0, hc.y - nr.y * 8.0, 16.0, 6.0, SettlementPlan.yaw_for_front(-nr), 0.12, 0.0, Color(0.15, 0.55, 0.7))
+	p.place(&"special", &"mast", -52.0, -96.0, 0.0, 5.0, 5.0, &"", 2.0)                    # (the resort's radio mast: the hotel roof is its other tall anchor)
 	var made := 0
 	made += street_row(p, 1.0, -140.0, 150.0, Callable(SettlementStyles, "_villa"), 4.0, 1.0)
 	made += street_row(p, -1.0, -140.0, 70.0, Callable(SettlementStyles, "_villa"), 4.0, 1.0)
@@ -656,7 +667,7 @@ static func _chalet(p: SettlementPlan, side: float) -> Dictionary:
 	var lot := {"fence": &"rail", "fence_h": 1.0, "trees": 2, "tree": &"pine", "path": true, "mailbox": true, "pitch": 0.0, "back": 10.0, "lawn": true, "lawn_margin": 8.0, "lawn_back": 6.0, "lawn_col": Color(0.26, 0.4, 0.2),
 		"folk": 0.3, "role": &"hiker", "pet": 0.4, "car_front": true, "car_chance": 0.35, "side_fence": false}
 	var it := house_item(spec, &"cabin_home", lot, p.rf(5.0, 9.0))
-	(it["lot"] as Dictionary)["pitch"] = float(it["w"]) + p.rf(9.0, 14.0)
+	(it["lot"] as Dictionary)["pitch"] = float(it["w"]) + p.rf(6.0, 9.0)
 	return it
 
 
@@ -674,6 +685,7 @@ static func lodge(p: SettlementPlan, target: int) -> void:
 	var cs := c - nr * (SettlementPlan.STREET_HALF + 6.0 + 4.5)
 	p.place(&"special", &"chapel", cs.x, cs.y, SettlementPlan.yaw_for_front(nr), 6.0, 8.0, &"chapel", 3.0)
 	p.place(&"special", &"mast", -34.0, 74.0, 0.0, 5.0, 5.0, &"", 2.0)
+	p.place(&"special", &"water_tower", 38.0, -62.0, 0.0, 6.0, 6.0, &"", 2.0)
 	var made := 0
 	made += street_row(p, 1.0, -110.0, 56.0, Callable(SettlementStyles, "_chalet"), 3.0, 1.0)
 	made += street_row(p, -1.0, -110.0, 60.0, Callable(SettlementStyles, "_chalet"), 3.0, 1.0)

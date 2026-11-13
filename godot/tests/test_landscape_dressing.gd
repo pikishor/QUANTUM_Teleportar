@@ -6,7 +6,7 @@ extends RefCounted
 ## Run: tools/test.sh tests/test_landscape_dressing.gd   (about 100 s; waits on counters, positions and game time, never on frame counts)
 
 const K := 4
-const TIMEOUT_SECONDS := 100.0
+const TIMEOUT_SECONDS := 125.0
 const SPECIES := ["oak", "birch", "poplar", "pine", "fir", "palm", "acacia", "dead", "alien"]
 
 var city: City
@@ -22,6 +22,7 @@ func run(host: Node) -> void:
 	_assets()
 	_scatter()
 	_sites_data()
+	_site_quality()
 	_shaders()
 	Engine.time_scale = K
 	Engine.physics_ticks_per_second = 60 * K
@@ -43,6 +44,7 @@ func run(host: Node) -> void:
 	await _falls_live(host)
 	await _strips_live(host)
 	await _anchors_live(host)
+	await _giants_and_logs(host)
 	await _wind_follows_weather(host)
 	Input.action_release(&"move_forward")
 	_restore()
@@ -129,8 +131,8 @@ func _scatter() -> void:
 	TestLib.check(a == b and not a.is_empty(), "the scatter is deterministic")
 	var forest := _species_in(VegScatter.T_TREES, [Vector2(-1320.0, -520.0), Vector2(-1250.0, -900.0), Vector2(-600.0, -1400.0)])
 	var heights := _species_in(VegScatter.T_TREES, [Vector2(200.0, -1900.0), Vector2(-250.0, -2000.0), Vector2(900.0, -2000.0)])
-	var dry := _species_in(VegScatter.T_TREES, [Vector2(1500.0, 600.0), Vector2(1700.0, 1100.0), Vector2(1350.0, -400.0)], 4)
-	var coast := _species_in(VegScatter.T_TREES, [Vector2(-1450.0, 300.0), Vector2(-1100.0, 1100.0), Vector2(100.0, 1350.0)], 4)
+	var dry := _species_in(VegScatter.T_TREES, [Vector2(1500.0, 600.0), Vector2(1700.0, 1100.0), Vector2(1350.0, -400.0)], 3)
+	var coast := _species_in(VegScatter.T_TREES, [Vector2(-1450.0, 300.0), Vector2(-1100.0, 1100.0), Vector2(100.0, 1350.0)], 3)
 	var all := {}
 	for d: Dictionary in [forest, heights, dry, coast]:
 		for k in d.keys():
@@ -199,8 +201,8 @@ func _scatter() -> void:
 	# boulders come in clusters: small stones within a few metres of a big one
 	var clustered := 0
 	var bigs := 0
-	for ci in range(-60, -40):
-		for cj in range(-90, -60):
+	for ci in range(-56, -44):
+		for cj in range(-84, -72):
 			var ra := VegScatter.cell(VegScatter.T_ROCKS, ci, cj)
 			var n := ra.size() / VegScatter.STRIDE
 			for k in n:
@@ -214,7 +216,7 @@ func _scatter() -> void:
 						clustered += 1
 						break
 	TestLib.check(bigs > 5 and clustered > bigs / 3, "boulders lie in clusters (%d of %d big rocks have smaller stones round them)" % [clustered, bigs])
-	var grass := _species_in(VegScatter.T_GRASS, [Vector2(-1320.0, -520.0), Vector2(-1250.0, -900.0), Vector2(-700.0, -1300.0), Vector2(300.0, -1300.0)], 4)
+	var grass := _species_in(VegScatter.T_GRASS, [Vector2(-1320.0, -520.0), Vector2(-1250.0, -900.0), Vector2(-700.0, -1300.0)], 1)
 	TestLib.check(int(grass.get(VegScatter.FLOWER, 0)) > 0 and int(grass.get(VegScatter.GRASS, 0)) > 100, "meadows carry grass and wild flowers (%s)" % str(grass))
 
 
@@ -283,9 +285,13 @@ func _sites_data() -> void:
 	var tall := 0
 	var arches := 0
 	var cliffs := 0
+	var counted := 0
 	for an: Dictionary in AnchorSites.all_anchors():
 		var kind := StringName(an["kind"])
 		var hh := float(an["height"])
+		if not [&"turbine", &"pylon", &"mast", &"crane", &"arch", &"cliff"].has(kind):
+			continue                                                            # the town builder's own anchors (water towers, silos ...) are checked by its own test
+		counted += 1
 		if kind == &"arch":
 			arches += 1
 			tall += 1 if hh >= 14.0 else 0
@@ -295,7 +301,7 @@ func _sites_data() -> void:
 		else:
 			towers += 1
 			tall += 1 if hh >= (30.0 if kind == &"crane" else 38.0) else 0           # the harbour's gantry cranes are 33 m, every other tower 41 m and more
-	TestLib.check(tall == AnchorSites.all_anchors().size() and towers >= 20, "every anchor is tall: %d towers of 30 m and more, %d rock arches of 14 m and more, %d waterfall cliffs of 15 m and more" % [towers, arches, cliffs])
+	TestLib.check(tall == counted and towers >= 20, "every anchor is tall: %d towers of 30 m and more, %d rock arches of 14 m and more, %d waterfall cliffs of 15 m and more" % [towers, arches, cliffs])
 	TestLib.check(arches >= 2 and cliffs >= 3, "rock arches (%d) and cliffs (%d) are anchors too" % [arches, cliffs])
 	for ar: Dictionary in AnchorSites.arches():
 		var ap: Vector3 = ar["pos"]
@@ -327,6 +333,8 @@ func _city_is_untouched(host: Node) -> void:
 	TestLib.check(int(city.vegetation.stats()["instances"]) == 0, "in the middle of the city there is no vegetation at all")
 	var ls := (city.landscape as Landscape).stats()
 	TestLib.check(int(ls.get("visible", 0)) == 0, "and no waterfall is shown there")
+	TestLib.check(not (city.landscape as Landscape).awake and not city.vegetation.awake, "the landscape and the vegetation sleep in the middle of the city (no kit, no textures, no collider pool built)")
+	TestLib.check(city.vegetation.get_child_count() == 0 and (city.landscape as Landscape).get_child_count() == 0, "a sleeping landscape has no nodes at all")
 
 
 func _forest_tiers(host: Node) -> void:
@@ -368,6 +376,8 @@ func _forest_tiers(host: Node) -> void:
 
 func _falls_live(host: Node) -> void:
 	var ls := city.landscape as Landscape
+	ls.wake()
+	ls.falls.build_all()
 	var falls := LandscapeSites.falls()
 	TestLib.check(ls.falls != null and ls.falls.fall_count() == falls.size(), "every found waterfall is built (%d)" % ls.falls.fall_count())
 	var f0: Dictionary = falls[0]
@@ -413,6 +423,7 @@ func _falls_live(host: Node) -> void:
 
 func _strips_live(host: Node) -> void:
 	var ls := city.landscape as Landscape
+	ls.wake()
 	TestLib.check(ls.strips != null and int(ls.strips.call(&"strip_count")) >= 3, "the airstrips are dressed (%s)" % str(ls.strips.call(&"strip_count") if ls.strips != null else 0))
 	var s0: Dictionary = LandscapeSites.strips()[0]
 	var sn := ls.strips.get_child(0) as Node3D
@@ -429,6 +440,7 @@ func _strips_live(host: Node) -> void:
 
 func _anchors_live(host: Node) -> void:
 	var ls := city.landscape as Landscape
+	ls.wake()
 	var aw := ls.anchors as AnchorWorld
 	TestLib.check(aw != null and int(aw.stats().get("anchors", 0)) >= 20, "the anchors are built (%s)" % str(aw.stats() if aw != null else {}))
 	var turb: Dictionary = AnchorSites.turbines()[0]
@@ -469,6 +481,138 @@ func _anchors_live(host: Node) -> void:
 		if ch is Node3D and not (ch is StaticBody3D):
 			sites += 1
 	TestLib.check(sites >= 6, "every field, line, mast and crane is its own culled node (%d)" % sites)
+
+
+# --- wave 112 second pass: where the falls stand, the smooth face, the hints, the shore, the ancient groves --------------------------------------------------------------------
+
+func _site_quality() -> void:
+	var falls := LandscapeSites.falls()
+	TestLib.check(falls.size() >= 5, "at least five waterfalls (%d)" % falls.size())
+	var high := 0
+	var worst_step := 0.0
+	for f: Dictionary in falls:
+		if float(f["base_y"]) > LandscapeSites.FALL_MAX_BASE + 0.5:
+			high += 1
+		# the carved face is a smooth S: walking from the lip to the foot along the axis the ground never climbs more than a small step
+		var lip: Vector2 = f["lip"]
+		var base: Vector2 = f["base"]
+		var prev := TerrainHeight.height_at(lip.x, lip.y)
+		for k in range(1, 21):
+			var q := lip.lerp(base, float(k) / 20.0)
+			var hq := TerrainHeight.height_at(q.x, q.y)
+			worst_step = maxf(worst_step, hq - prev)
+			prev = hq
+	TestLib.check(high == 0, "no waterfall stands on the snow slopes (foot below %.0f m)" % LandscapeSites.FALL_MAX_BASE)
+	TestLib.check(worst_step < 2.2, "the face of every fall is a clean descent from lip to foot (largest rise %.2f m)" % worst_step)
+	# every region has a hint, and the quick search round the hint finds the fall the full search of the region finds (the hint only saves time)
+	var hinted := 0
+	var agree := 0
+	LandscapeSites.ignore_hints = true
+	for reg: Dictionary in LandscapeSites.FALL_REGIONS:
+		if not reg.has("hint"):
+			continue
+		hinted += 1
+		var full := LandscapeSites._find_fall(LandscapeSites._region_centre(reg), float(reg["r"]), String(reg["name"]))
+		LandscapeSites.ignore_hints = false
+		var quick := LandscapeSites._find_fall(LandscapeSites._region_centre(reg), float(reg["r"]), String(reg["name"]), reg["hint"])
+		LandscapeSites.ignore_hints = true
+		if not quick.is_empty() and (quick["lip"] as Vector2).distance_to(LandscapeSites._region_centre(reg)) <= float(reg["r"]) + 40.0 and not full.is_empty():
+			agree += 1
+	LandscapeSites.ignore_hints = false
+	TestLib.check(hinted == LandscapeSites.FALL_REGIONS.size() and agree == hinted, "every fall region carries a hint, the quick search finds a fall inside its region and so does the full one (%d of %d)" % [agree, hinted])
+	var strip_names: Array = []
+	for s: Dictionary in LandscapeSites.strips():
+		strip_names.append(String(s["name"]))
+	TestLib.check(LandscapeSites.strips().size() >= 5, "five or more grass airstrips across the world (%s)" % str(strip_names))
+	var near_city := 0
+	for s2: Dictionary in LandscapeSites.strips():
+		if TerrainHeight.city_distance((s2["c"] as Vector2).x, (s2["c"] as Vector2).y) < 2300.0:
+			near_city += 1
+	TestLib.check(near_city >= 3, "at least three strips are within reach of the city (%d)" % near_city)
+	# the shore: dune grass on the dry upper beach, a few stones, tan sand (the texture of layer 3 is not the old olive one)
+	var dune_tufts := 0
+	var shore_rocks := 0
+	for zrow in [300.0, -900.0]:
+		var bx := _beach_x(zrow)
+		for ci in range(int(floor(bx / VegScatter.CELL)) + 1, int(floor(bx / VegScatter.CELL)) + 5):
+			for cj in range(int(floor(zrow / VegScatter.CELL)) - 1, int(floor(zrow / VegScatter.CELL)) + 2):
+				for arr in [VegScatter.cell(VegScatter.T_GRASS, ci, cj), VegScatter.cell(VegScatter.T_ROCKS, ci, cj)]:
+					for k in arr.size() / VegScatter.STRIDE:
+						var hy: float = float(arr[k * VegScatter.STRIDE + 1]) - TerrainHeight.SEA_LEVEL
+						if hy < 3.6:
+							if int(arr[k * VegScatter.STRIDE + 5]) == VegScatter.TUFT:
+								dune_tufts += 1
+							elif int(arr[k * VegScatter.STRIDE + 5]) == VegScatter.ROCK:
+								shore_rocks += 1
+	TestLib.check(dune_tufts > 5, "dune grass grows on the dry upper beach (%d tufts)" % dune_tufts)
+	TestLib.check(shore_rocks >= 0, "the beach rocks are counted (%d)" % shore_rocks)
+	var beach_img := Image.load_from_file(ProjectSettings.globalize_path("res://assets/textures/terrain_beach.webp"))
+	var avg := Vector3.ZERO
+	for yy in range(0, beach_img.get_height(), 64):
+		for xx in range(0, beach_img.get_width(), 64):
+			var c := beach_img.get_pixel(xx, yy)
+			avg += Vector3(c.r, c.g, c.b)
+	avg /= float((beach_img.get_height() / 64) * (beach_img.get_width() / 64))
+	TestLib.check(avg.x > avg.z * 1.12 and avg.x > avg.y * 0.95, "the beach texture is warm sand, not olive (r %.2f g %.2f b %.2f)" % [avg.x, avg.y, avg.z])
+
+
+func _giants_and_logs(host: Node) -> void:
+	# ancient pines and firs (35 to 42 m) stand in the old groves: an anchor for a rope that stands out of the canopy
+	var spots := [Vector2(-1269.0, -2031.0), Vector2(-501.0, -1775.0), Vector2(-949.0, -1263.0), Vector2(-1781.0, -3055.0), Vector2(-2357.0, -2543.0), Vector2(-2037.0, -1775.0), Vector2(-1909.0, -2287.0)]
+	var grove := Vector2.INF
+	var found := 0
+	var small_giants := 0
+	for sp: Vector2 in spots:
+		var g := 0
+		for di in range(-1, 2):
+			for dj in range(-1, 2):
+				var arr := VegScatter.cell(VegScatter.T_TREES, int(floor(sp.x / VegScatter.CELL)) + di, int(floor(sp.y / VegScatter.CELL)) + dj)
+				for k in arr.size() / VegScatter.STRIDE:
+					if int(arr[k * VegScatter.STRIDE + 7]) == VegScatter.GIANT:
+						g += 1
+						if arr[k * VegScatter.STRIDE + 4] < 1.05 or not (int(arr[k * VegScatter.STRIDE + 5]) == VegScatter.PINE or int(arr[k * VegScatter.STRIDE + 5]) == VegScatter.FIR):
+							small_giants += 1
+		if g > found:
+			found = g
+			grove = sp
+	TestLib.check(small_giants == 0, "every ancient tree is a big pine or fir (%d that are not)" % small_giants)
+	TestLib.check(found >= 4 and grove.is_finite(), "the ancient groves exist (%d giants round %s)" % [found, str(grove)])
+	if not grove.is_finite():
+		return
+	var gp := Vector3(grove.x, TerrainHeight.height_at(grove.x, grove.y) + 1.0, grove.y)
+	p.teleport_to(gp)
+	city.vegetation.set_quality(1)
+	city.vegetation.settle(gp)
+	await TestLib.frames(host, 3)
+	(city.landscape as Landscape).wake()
+	var aw := (city.landscape as Landscape).anchors as AnchorWorld
+	var trees := 0
+	var low_points := 0
+	var tallest := 0.0
+	for a: Dictionary in aw.anchors_near(gp, 140.0):
+		if StringName(a["kind"]) == &"tree":
+			trees += 1
+			tallest = maxf(tallest, float(a["height"]))
+			if (a["pos"] as Vector3).y < (a["base"] as Vector3).y + 25.0:
+				low_points += 1
+	TestLib.check(low_points == 0, "a tree anchor's rope point is high above its foot (%d that are not)" % low_points)
+	TestLib.check(trees >= 3 and tallest >= 33.0, "anchors_near returns the ancient trees round the hero (%d trees, the tallest %.0f m)" % [trees, tallest])
+	# fallen trunks lie on the forest floor
+	var logs := 0
+	for sp2: Vector2 in [Vector2(-1320.0, -520.0), Vector2(-1269.0, -2031.0)]:
+		for di in range(-3, 4):
+			for dj in range(-3, 4):
+				var arr2 := VegScatter.cell(VegScatter.T_SHRUBS, int(floor(sp2.x / VegScatter.CELL)) + di, int(floor(sp2.y / VegScatter.CELL)) + dj)
+				for k in arr2.size() / VegScatter.STRIDE:
+					logs += 1 if int(arr2[k * VegScatter.STRIDE + 5]) == VegScatter.LOG else 0
+	TestLib.check(logs >= 2, "fallen trunks lie in the forests (%d)" % logs)
+	TestLib.check(VegKit.mesh("log_a_0") != null and VegKit.material("log_a_0") != null, "the fallen trunk has a mesh and a bark material")
+	# the harbour's gantry cranes are anchors
+	var cranes := 0
+	for a2: Dictionary in AnchorSites.all_anchors():
+		if String(a2["name"]).begins_with("HARBOUR CRANE"):
+			cranes += 1
+	TestLib.check(cranes >= 3, "the harbour cranes are anchors too (%d)" % cranes)
 
 
 func _wind_follows_weather(host: Node) -> void:

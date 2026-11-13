@@ -223,7 +223,7 @@ func _part_pads() -> void:
 		var tall := true
 		for id: StringName in _rw.travel.button_ids():
 			tall = tall and _rw.travel.button_size(id).y >= 64.0
-		TestLib.check(opened and _rw.travel.button_ids().size() == 8 and tall, "%dx%d: the panel lists the eight other pads on buttons of at least 64 px" % [size.x, size.y])
+		TestLib.check(opened and _rw.travel.button_ids().size() == RoamData.PAD_DEFS.size() - 1 and tall, "%dx%d: the panel lists every other pad (%d) on buttons of at least 64 px" % [size.x, size.y, RoamData.PAD_DEFS.size() - 1])
 		TestLib.check(vp.encloses(rect) and rect.size.x > 100.0, "%dx%d: the panel stays inside the screen (%s in %s)" % [size.x, size.y, str(rect), str(vp)])
 		_rw.travel.stay()
 	win.size = old_size

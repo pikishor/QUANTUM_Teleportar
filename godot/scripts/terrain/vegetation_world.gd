@@ -21,6 +21,7 @@ const TIERS := [
 	{"r0": 40.0, "r1": 124.0, "r2": 350.0, "shrub": 64.0, "grass": 32.0, "rock": 170.0, "variants": 2, "blockers": 52, "lite": false, "imp_keep": 0.8, "imp_grow": 1.1},
 ]
 const TREE_NAMES := {0: "pine", 1: "oak", 2: "dead", 8: "fir", 9: "birch", 10: "palm", 11: "alien", 12: "poplar", 13: "acacia"}
+const WAKE_EDGE := 470.0                           ## the vegetation sleeps until the hero is this far from the middle of the city (max of |x| and |z|): the start and the centre of the city pay for none of it (no kit, no textures, no collider pool)
 const MOVE_TRIGGER := 5.0
 const MIN_INTERVAL := 0.12
 const BLOCK_RADIUS := 30.0
@@ -34,6 +35,7 @@ static var giants_list: Array = []                 ## the ancient trees round th
 var quality := 1
 var focus := Vector3.INF                          ## the point the plants are arranged around (the hero, the camera without one)
 var enabled := true
+var awake := false
 var jobs_done := 0
 var _slots := {}                                  ## slot name -> {mi: MultiMeshInstance3D, mm: MultiMesh, cap: int, n: int, tris: int}
 var _cells := {}                                  ## worker-side cache: (layer, ci, cj) key -> PackedFloat32Array (only the running job touches it)
@@ -60,16 +62,22 @@ static func attach(parent: Node) -> VegetationWorld:
 
 func _ready() -> void:
 	instance = self
+	_tier = TIERS[quality]
+	set_process(true)
+
+
+## Loads the kit (meshes, the foliage and bark textures), builds the collider pool and starts the wind: called when the hero leaves the middle of the city, by `settle` and by tests.
+func wake() -> void:
+	if awake:
+		return
+	awake = true
 	if not VegKit.available():
 		enabled = false
 		return
 	VegScatter.warm()
 	_land = LandKit.available()
-	var clim := LandClimate.new()
-	clim.name = "Climate"
-	add_child(clim)
+	LandClimate.attach(self)
 	set_quality(quality)
-	set_process(true)
 
 
 func _exit_tree() -> void:
@@ -82,8 +90,10 @@ func _exit_tree() -> void:
 
 func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
-	LandKit.set_quality(quality)
 	_tier = TIERS[quality]
+	if not awake:
+		return                                                                 # asleep: only the tier is remembered
+	LandKit.set_quality(quality)
 	_ensure_pool(int(_tier["blockers"]))
 	_pending_force = true
 
@@ -98,6 +108,11 @@ func _focus_point() -> Vector3:
 
 func _process(delta: float) -> void:
 	if not enabled:
+		return
+	if not awake:
+		var f0 := _focus_point()
+		if f0.is_finite() and maxf(absf(f0.x), absf(f0.z)) > WAKE_EDGE:
+			wake()
 		return
 	_t += delta
 	_poll()
@@ -142,6 +157,7 @@ func _poll() -> void:
 
 ## Build everything around `p` right now (tests, teleports): same code as the worker, on this thread, waiting for a running job first.
 func settle(p: Vector3) -> void:
+	wake()
 	if not enabled:
 		return
 	if _task >= 0:
@@ -265,6 +281,12 @@ func _job(cx: float, cz: float, tier: Dictionary) -> void:
 					else:
 						var pl := 9 if rnd < 0.5 else (10 if rnd < 0.8 else 4)                      # scree grey, dark sea-worn stones, a few pale ones (never the beach layer: they melted into the sand)
 						_put(out, "pebble_%s_0" % ["a" if variant == 0 else "c"], x, arr[o + 1], z, arr[o + 3], sc, rnd, gsh, -1.0, -1.0, float(pl), 1.0)
+					continue
+				if land and sp == VegScatter.LOG:                                                 # a fallen trunk of the forest floor
+					var lim_l: float = float(tier["shrub"])
+					if d > lim_l:
+						continue
+					_put(out, "log_%s_%s" % ["a" if variant == 0 else "b", "1" if d > 36.0 else "0"], x, arr[o + 1], z, arr[o + 3], sc, rnd, maxf(0.0, (d - lim_l * 0.8) / (lim_l * 0.2)))
 					continue
 				var is_tree := land and TREE_NAMES.has(sp)
 				if is_tree or sp == VegScatter.PINE or sp == VegScatter.BROAD:

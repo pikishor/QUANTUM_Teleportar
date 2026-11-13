@@ -8,6 +8,7 @@ extends Node3D
 
 const SHADER := "res://assets/shaders/fall_water.gdshader"
 const SHOW_RANGE := 900.0
+const BUILD_RANGE := 1150.0                  ## a fall is built (about 0.1 s on a desktop) when the hero comes within this range, one per 0.4 s tick; until then it costs nothing
 const NEAR_RANGE := 440.0
 const MIST_AMOUNT := [8, 18, 30]
 const SPRAY_AMOUNT := [0, 12, 26]
@@ -18,7 +19,7 @@ static var _mist_tex: ImageTexture
 static var _roar: AudioStreamWAV
 
 var quality := 1
-var _items: Array = []                       ## per fall: {data, root, mist, spray, roar, near, tris}
+var _items: Array = []                       ## per fall (index of LandscapeSites.falls()): {data, root, mist, spray, roar, near, tris} once built, else null
 var _t := 0.0
 var _mats := {}
 
@@ -26,9 +27,24 @@ var _mats := {}
 func _ready() -> void:
 	instance = self
 	LandscapeSites.ensure()
-	for f: Dictionary in LandscapeSites.falls():
-		_items.append(_build(f))
+	for _f in LandscapeSites.falls():
+		_items.append(null)
 	set_process(true)
+
+
+## Builds every fall now (tests, look-dev bots, `Landscape.settle`).
+func build_all() -> void:
+	var falls := LandscapeSites.falls()
+	for i in falls.size():
+		if _items[i] == null:
+			_items[i] = _build(falls[i])
+
+
+func built_count() -> int:
+	var n := 0
+	for it in _items:
+		n += 1 if it != null else 0
+	return n
 
 
 func _exit_tree() -> void:
@@ -41,30 +57,36 @@ func fall_count() -> int:
 
 
 func node(i: int) -> Node3D:
-	return _items[i]["root"]
+	return _items[i]["root"] if _items[i] != null else null
 
 
 func set_quality(level: int) -> void:
 	quality = clampi(level, 0, 2)
-	for it: Dictionary in _items:
-		(it["root"] as Node3D).queue_free()
-	_items.clear()
+	var falls := LandscapeSites.falls()
+	var rebuild: Array = []
+	for i in _items.size():
+		if _items[i] != null:
+			(_items[i]["root"] as Node3D).queue_free()
+			_items[i] = null
+			rebuild.append(i)
 	_mats.clear()
-	for f: Dictionary in LandscapeSites.falls():
-		_items.append(_build(f))
+	for i in rebuild:
+		_items[i] = _build(falls[i])
 
 
 func stats() -> Dictionary:
 	var v := 0
 	var nr := 0
 	var tris := 0
-	for it: Dictionary in _items:
-		if (it["root"] as Node3D).visible:
+	for it in _items:
+		if it == null:
+			continue
+		if ((it as Dictionary)["root"] as Node3D).visible:
 			v += 1
-			tris += int(it["tris"])
-		if bool(it["near"]):
+			tris += int((it as Dictionary)["tris"])
+		if bool((it as Dictionary)["near"]):
 			nr += 1
-	return {"falls": _items.size(), "visible": v, "near": nr, "tris": tris}
+	return {"falls": _items.size(), "falls_built": built_count(), "visible": v, "near": nr, "tris": tris}
 
 
 # --- building ---------------------------------------------------------------------------------------------------------------------------------
@@ -478,7 +500,18 @@ func _process(delta: float) -> void:
 ## One update for a viewer at `at` (public so tests and look-dev bots can drive it).
 func tick(at: Vector3) -> void:
 	var wv := LandClimate.vec()
-	for it: Dictionary in _items:
+	var falls := LandscapeSites.falls()
+	var built_one := false
+	for i in _items.size():
+		if _items[i] == null:                                   # not built yet: build it when the hero is within BUILD_RANGE (one per tick)
+			if built_one:
+				continue
+			var pcb: Vector2 = falls[i]["pool"]
+			if Vector2(at.x, at.z).distance_to(pcb) < BUILD_RANGE:
+				_items[i] = _build(falls[i])
+				built_one = true
+			continue
+		var it: Dictionary = _items[i]
 		var f: Dictionary = it["data"]
 		var pc: Vector2 = f["pool"]
 		var d := Vector2(at.x, at.z).distance_to(pc)

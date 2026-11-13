@@ -32,6 +32,13 @@ const PAD_DEFS: Array[Dictionary] = [
 	{"id": &"hunters", "name": "HUNTERS CAMP", "kind": &"site", "site": &"hunters", "off": Vector3(16.0, 0.0, 14.0)},
 	{"id": &"dust_wells", "name": "DUST WELLS CAMP", "kind": &"site", "site": &"dust_wells", "off": Vector3(26.0, 0.0, 20.0)},
 	{"id": &"pine_hollow", "name": "PINE HOLLOW CAMP", "kind": &"site", "site": &"pine_hollow", "off": Vector3(-24.0, 0.0, 22.0)},
+	{"id": &"harrow_field", "name": "HARROW FIELD", "kind": &"town", "site": &"harrow_field"},               # the seven towns of the outskirts (wave 112): the pad stands on the lawn by the entrance
+	{"id": &"iron_hollow", "name": "IRON HOLLOW", "kind": &"town", "site": &"iron_hollow"},
+	{"id": &"bayview", "name": "BAYVIEW ESTATES", "kind": &"town", "site": &"bayview"},
+	{"id": &"salt_quay", "name": "SALT QUAY", "kind": &"town", "site": &"salt_quay"},
+	{"id": &"sunset_cove", "name": "SUNSET COVE", "kind": &"town", "site": &"sunset_cove"},
+	{"id": &"high_lark", "name": "HIGH LARK", "kind": &"town", "site": &"high_lark"},
+	{"id": &"mirage_point", "name": "MIRAGE POINT", "kind": &"town", "site": &"mirage_point"},
 ]
 
 ## Photo spots: id, name, site (or special), local offset, when (any / day / dusk / night), radius
@@ -213,6 +220,10 @@ static func _build_pads() -> Array[Dictionary]:
 				var s := OutskirtsSites.by_id(StringName(d["site"]))
 				if not s.is_empty():
 					p = OutskirtsSites.to_world(s, d["off"] as Vector3)
+			&"town":
+				var st := OutskirtsSites.by_id(StringName(d["site"]))
+				if not st.is_empty():
+					p = SettlementData.pad_world(st)
 		if not p.is_finite():
 			continue
 		var e: Dictionary = d.duplicate()

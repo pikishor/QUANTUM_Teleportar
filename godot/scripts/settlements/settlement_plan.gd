@@ -32,6 +32,9 @@ var livestock: Array[Dictionary] = []          ## {kind, x, z, r, n}
 var houses := 0                                ## enterable homes placed (a front door each: a terrace counts its units)
 var cap := 999                                 ## the rows stop when this many homes stand
 var failed: Array[String] = []                 ## specials and landmarks that did not fit (look-dev and the test read it)
+var pad := Vector2.ZERO                        ## the QUANTUM PAD (fast travel) of the town: a clear spot on the lawn beside the street near the entrance
+var board := Vector2.ZERO                      ## the notice board (the town's USE spot); its glowing ring lies 2.4 m in front of it, towards the street
+var board_front := Vector2(1.0, 0.0)           ## unit vector from the board towards the street
 var sea := Vector2.ZERO                        ## unit vector (town frame) towards the nearest large water, ZERO when there is none within 330 m
 var sea_d := 1.0e9                             ## distance to that water from the pad centre
 var _occ: Array[Array] = []                    ## occupied footprints [cx, cz, hx, hz, yaw]
@@ -48,6 +51,7 @@ static func build(site: Dictionary, street_pts: PackedVector2Array) -> Settlemen
 	if p.street.size() < 2:
 		p.street = PackedVector2Array([Vector2(0.0, -p.ln), Vector2(0.0, p.ln)])
 	p._find_sea(site)
+	p._reserve_spots()
 	var target := int(site.get("houses", 30))
 	p.cap = int(float(target) * 1.12) + 2
 	match p.style:
@@ -81,6 +85,29 @@ func _find_sea(site: Dictionary) -> void:
 				sea_d = minf(sea_d, float(rr))
 	if acc.length() > 0.5:
 		sea = acc.normalized()
+
+
+## The pad of the fast travel and the notice board: spots beside the street that no lot may take (the style fills the rest).
+func _reserve_spots() -> void:
+	var sa := street_at(-ln * 0.5)
+	var ta: Vector2 = sa[1]
+	var na := Vector2(ta.y, -ta.x)
+	pad = (sa[0] as Vector2) + na * (STREET_HALF + 10.0)
+	occupy(pad.x, pad.y, 6.5, 6.5, 0.0)
+	var sb := street_at(4.0)
+	var tb: Vector2 = sb[1]
+	var nb := Vector2(tb.y, -tb.x)
+	board = (sb[0] as Vector2) - nb * (STREET_HALF + 3.0)
+	board_front = nb
+	occupy(board.x, board.y, 3.2, 3.2, 0.0)
+	occupy(board.x + nb.x * 2.4, board.y + nb.y * 2.4, 2.0, 2.0, 0.0)
+	add_prop(&"board", board.x, board.y, yaw_for_front(nb), 1.0)
+	var ring: Array[Vector2] = []
+	var rc := board + nb * 2.4
+	for k in 12:
+		var a := TAU * float(k) / 12.0
+		ring.append(rc + Vector2(cos(a), sin(a)) * 1.3)
+	add_ground(&"glow", ring, 0.14, 0.0, Color(0.3, 0.95, 1.0))
 
 
 ## The point on the pad's ellipse in direction `dir` (unit, town frame), scaled by `f` (1 = the edge).
@@ -131,6 +158,8 @@ static func _seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
 func dist_to_sides(p: Vector2) -> float:
 	var best := 1.0e9
 	for s in sides:
+		if s.get("dead", false):
+			continue
 		best = minf(best, _seg_dist(p, s["a"], s["b"]))
 	return best
 
@@ -253,6 +282,8 @@ static func yaw_for_front(front: Vector2) -> float:
 
 
 func add_prop(kind: StringName, x: float, z: float, yaw := 0.0, s := 1.0) -> void:
+	if kind == &"bale" and (dist_to_street(Vector2(x, z)) < STREET_HALF + 1.5 or not inside(Vector2(x, z), 4.0)):
+		return                                                                 # (hay bales and crates are scattered on the land, never on the road)
 	props.append({"kind": kind, "x": x, "z": z, "yaw": yaw, "s": s, "seed": rng.randi() & 0xffff})
 
 

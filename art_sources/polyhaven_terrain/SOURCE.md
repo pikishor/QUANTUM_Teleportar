@@ -9,7 +9,11 @@ Raw downloads are not committed (`godot/assets_incoming/terrain_raw/`, git-ignor
 | grass | forrest_ground_01 | Forest Ground 01 | https://polyhaven.com/a/forrest_ground_01 |
 | forest | rocky_terrain_02 | Rocky Terrain 02 | https://polyhaven.com/a/rocky_terrain_02 |
 | desert | dry_ground_rocks | Dry Ground Rocks | https://polyhaven.com/a/dry_ground_rocks |
-| beach | aerial_sand | Aerial Sand | https://polyhaven.com/a/aerial_sand |
+| beach (dry sand; wave 112: was aerial_sand, then coast_sand_01) | coast_sand_02 | Coast Sand 02 | https://polyhaven.com/a/coast_sand_02 |
 | rock | rock_boulder_dry | Rock Boulder Dry | https://polyhaven.com/a/rock_boulder_dry |
 | snow | snow_02 | Snow 02 | https://polyhaven.com/a/snow_02 |
-| dirt | gravel_road | Gravel Road | https://polyhaven.com/a/gravel_road |
+| dirt (road verge, track surface; wave 112: was gravel_road) | forest_ground_04 | Forest Ground 04 | https://polyhaven.com/a/forest_ground_04 |
+| wetsand (wave 112, the swash zone) | damp_beach_sand | Damp Beach Sand | https://polyhaven.com/a/damp_beach_sand |
+| strata (wave 112, orange layered cliffs) | cliff_side | Cliff Side | https://polyhaven.com/a/cliff_side |
+| scree (wave 112, loose stones on slopes, shore stones, high tracks) | rocks_ground_01 | Rocks Ground 01 | https://polyhaven.com/a/rocks_ground_01 |
+| darkrock (wave 112, dark ridges) | rock_face_04 | Rock Face 04 | https://polyhaven.com/a/rock_face_04 |

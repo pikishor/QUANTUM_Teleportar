@@ -156,6 +156,17 @@ func _apply(p: Player, v: String, k: int) -> void:
 		var spos := Vector3(sx + 4.0, sg + sph, sz)
 		_free_cam(p, spos, spos + Vector3(cos(saz) * 40.0, -sph * 0.9, sin(saz) * 40.0), k, 75.0)
 		return
+	if v.begins_with("lake:"):                            # "lake:i[,az_deg,ph,out]": a free camera on the shore of lake i (WaterLayout.LAKES) `out` m outside its edge at az degrees, ph above the ground, looking over the water to the middle
+		var alk := v.substr(5).split(",")
+		var lk: Dictionary = WaterLayout.LAKES[clampi(int(alk[0]), 0, WaterLayout.LAKES.size() - 1)]
+		var lc: Vector2 = lk["c"]
+		var lr := float(lk["r"])
+		var laz := deg_to_rad(float(alk[1])) if alk.size() > 1 else 0.0
+		var lph := float(alk[2]) if alk.size() > 2 else 2.0
+		var lout := float(alk[3]) if alk.size() > 3 else 14.0
+		var lcp := lc + Vector2(cos(laz), sin(laz)) * (lr + lout)
+		_free_cam(p, Vector3(lcp.x, TerrainHeight.height_at(lcp.x, lcp.y) + lph, lcp.y), Vector3(lc.x, TerrainHeight.water_level_at(lc.x, lc.y) + 1.0, lc.y), k, 75.0)
+		return
 	if v.begins_with("foot:"):                            # "foot:i[,ph,th]": a free camera ph m above the ground, at the first clear spot (no tree within 7 m, dry, in sight of the fall's foot) 24-60 m downstream of the pool of fall i, aimed th m above the foot
 		var aft := v.substr(5).split(",")
 		var flf := LandscapeSites.falls()

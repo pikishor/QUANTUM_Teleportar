@@ -293,6 +293,8 @@ static func vehicle_points() -> Array[Dictionary]:
 			var w := to_world(s, Vector3(l2.x, 0.0, l2.y))
 			w.y = TerrainHeight.height_at(w.x, w.z)
 			out.append({"id": StringName("site_%s_%d" % [s["id"], i]), "kind": StringName(r[0]), "pos": w, "h": float(s["yaw"]) + float(r[2]), "label": ""})
+	for hp in SettlementData.helipads():                                    # wave 112: a helicopter waits on the hotel roof of SUNSET COVE and in the clearing of HIGH LARK
+		out.append({"id": StringName("sp_%s" % hp["id"]), "kind": &"heli", "pos": hp["pos"], "h": 0.0, "label": String(hp["name"])})
 	return out
 
 

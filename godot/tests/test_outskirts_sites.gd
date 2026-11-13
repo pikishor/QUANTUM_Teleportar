@@ -327,6 +327,11 @@ func _sites_built(host: Node) -> void:
 		var id: StringName = s["id"]
 		var sp: Vector3 = s["pos"]
 		_teleport_near(sp, s)
+		if s["kind"] == &"town":                                                 # (wave 112: the towns are built by SettlementWorld; their own checks are in test_outskirts_settlements.gd)
+			var tw := city.towns as SettlementWorld
+			tw.settle(p.global_position)
+			TestLib.check(tw.is_built(id) and tw.has_far(id), "%s is built on approach by the towns' world" % String(s["name"]))
+			continue
 		city.sites.call(&"settle", p.global_position)
 		await TestLib.frames(host, 2)
 		var ok: bool = city.sites.is_built(id)
