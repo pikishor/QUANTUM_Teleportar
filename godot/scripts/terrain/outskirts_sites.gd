@@ -303,7 +303,10 @@ static func map_markers() -> Array[Dictionary]:
 	for s in list:
 		if bool(s.get("hidden", false)) and not is_found(s["id"]):
 			continue
-		out.append({"kind": &"site", "pos": s["pos"], "fog": false, "label": String(s["name"])})
+		var mk := {"kind": &"site", "pos": s["pos"], "fog": false, "label": String(s["name"])}
+		if s["kind"] == &"town":
+			mk["glyph"] = &"town"                                         # three houses (MapIcons)
+		out.append(mk)
 	return out
 
 

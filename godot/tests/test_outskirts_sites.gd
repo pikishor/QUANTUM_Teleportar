@@ -72,11 +72,12 @@ func _data() -> void:
 	TerrainHeight.warm()
 	OutskirtsSites.ensure()
 	var list := OutskirtsSites.list
-	TestLib.check(list.size() == 11, "eleven sites (%d)" % list.size())
+	var towns := SettlementDefs.DEFS.size()                                  # (wave 112: the seven towns of scripts/settlements are sites of kind &"town" on top of the eleven classic ones)
+	TestLib.check(list.size() == 11 + towns, "eleven classic sites and the %d towns (%d)" % [towns, list.size()])
 	var kinds := {}
 	for s in list:
 		kinds[s["kind"]] = true
-	for k in [&"observatory", &"tower", &"mine", &"crash", &"cave", &"cabins", &"village", &"farm"]:
+	for k in [&"observatory", &"tower", &"mine", &"crash", &"cave", &"cabins", &"village", &"farm", &"town"]:
 		TestLib.check(kinds.has(k), "a site of kind %s exists" % k)
 	var flat_bad := 0
 	var wet_bad := 0
@@ -100,7 +101,7 @@ func _data() -> void:
 			if TerrainHeight.is_water(q.x, q.y) or WaterLayout.surface_at(q.x, q.y) != TerrainHeight.NO_WATER:
 				wet_bad += 1
 				wet_ids += " %s" % String(s["id"])
-		if not s.has("road"):
+		if not s.has("road") and s["kind"] != &"town":                  # (a town stands ON a road: that road is its main street and the pad levels it)
 			var reach: float = s["reach"]                             # no road runs through the pad or its blend (a road bench and a pad would fight)
 			for road in TerrainRoads.roads():
 				var rp: PackedVector2Array = road["pos"]
@@ -125,9 +126,9 @@ func _data() -> void:
 	TestLib.check(OutskirtsSites.inside(c_of(&"mine").x, c_of(&"mine").z, 0.0) >= 0 and OutskirtsSites.inside(0.0, 0.0, 0.0) == -1, "inside() knows the pads")
 	TestLib.check(OutskirtsSites.carve(0.0, 0.0, 0.0) == 0.0, "the city plateau is untouched by the pads")
 	var hooks := OutskirtsSites.hooks()
-	TestLib.check(hooks.size() == 11 and int(hooks[0]["reward"]) > 0 and String(hooks[0]["tag"]) != "", "every site is a mission hook with a reward and a line of text (%d)" % hooks.size())
+	TestLib.check(hooks.size() == 11 + towns and int(hooks[0]["reward"]) > 0 and String(hooks[0]["tag"]) != "", "every site is a mission hook with a reward and a line of text (%d)" % hooks.size())
 	var markers := OutskirtsSites.map_markers()
-	TestLib.check(markers.size() == 10, "ten pins on the map at the start: the hidden cave is not one of them (%d)" % markers.size())
+	TestLib.check(markers.size() == 10 + towns, "ten classic pins and the towns on the map at the start: the hidden cave is not one of them (%d)" % markers.size())
 	var vp := OutskirtsSites.vehicle_points()
 	TestLib.check(vp.size() >= 12, "rides wait at the sites (%d)" % vp.size())
 	var ids := {}
@@ -370,14 +371,14 @@ func _discovery_and_activities(host: Node) -> void:
 	await TestLib.frames(host, 90)
 	TestLib.check(pg.credits == c2 and int(city.sites.stats()["activities"]) >= 1, "an activity pays only once")
 	# the observatory marks every site, the cave pin appears
-	TestLib.check(OutskirtsSites.map_markers().size() == 10, "the cave pin is still hidden before the sky scan")
+	TestLib.check(OutskirtsSites.map_markers().size() == 10 + SettlementDefs.DEFS.size(), "the cave pin is still hidden before the sky scan")
 	var o := OutskirtsSites.by_id(&"observatory")
 	_teleport_near(o["pos"], o)
 	await _wait_counter(host, func() -> bool: return OutskirtsSites.is_found(&"observatory"), TIMEOUT_SECONDS)
 	var ou: Vector3 = city.sites.use_point(&"observatory")
 	p.teleport_to(Vector3(ou.x, TerrainHeight.height_at(ou.x, ou.z) + 1.0, ou.z))
 	var scanned := await _wait_counter(host, func() -> bool: return city.sites.used.has(&"observatory"), TIMEOUT_SECONDS)
-	TestLib.check(scanned and OutskirtsSites.is_found(&"cave") and OutskirtsSites.map_markers().size() == 11, "the sky scan puts every site, the hidden cave included, on the map")
+	TestLib.check(scanned and OutskirtsSites.is_found(&"cave") and OutskirtsSites.map_markers().size() == 11 + SettlementDefs.DEFS.size(), "the sky scan puts every site, the hidden cave included, on the map")
 	# a cabin rests the hero: hurt, then restored
 	var lodge := OutskirtsSites.by_id(&"lodge")
 	_teleport_near(lodge["pos"], lodge)
@@ -504,5 +505,5 @@ func _map() -> void:
 	for mk in ms.collect_markers():
 		if mk["kind"] == &"site" and not mk.has("alien"):                     # (the alien camps, nests and wrecks of wave 107b add their own pins)
 			sites += 1
-	TestLib.check(sites == 11, "the map shows the sites as pins (%d)" % sites)
+	TestLib.check(sites == 11 + SettlementDefs.DEFS.size(), "the map shows the sites and the towns as pins (%d)" % sites)
 	TestLib.check(MapScreen.KINDS.has(&"site") and MapScreen.KIND_COLOR.has(&"site") and MapScreen.KIND_LABEL.has(&"site"), "the SITES legend row exists")

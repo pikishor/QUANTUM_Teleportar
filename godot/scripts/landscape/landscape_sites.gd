@@ -17,11 +17,17 @@ const NO_WATER := -1.0e9
 const POOL_DEPTH := 3.2
 const FALL_REGIONS := [
 	{"name": "HIGHLINE FALLS", "src": &"river", "idx": 0, "at": 96, "r": 190.0},
-	{"name": "NORTH CREEK FALLS", "src": &"point", "c": Vector2(1000.0, -2200.0), "r": 230.0},
 	{"name": "EASTWATER FALLS", "src": &"river", "idx": 1, "at": 58, "r": 200.0},
-	{"name": "RIDGE VEIL", "src": &"point", "c": Vector2(1800.0, -2200.0), "r": 230.0},
-	{"name": "MIRROR CASCADE", "src": &"point", "c": Vector2(-1000.0, -2200.0), "r": 230.0},
+	{"name": "CAVE FALLS", "src": &"point", "c": Vector2(-200.0, -2270.0), "r": 250.0},
+	{"name": "MIRROR CASCADE", "src": &"point", "c": Vector2(-1280.0, -2150.0), "r": 230.0},
+	{"name": "TRACK FALLS", "src": &"point", "c": Vector2(1720.0, -1500.0), "r": 340.0},
+	{"name": "DUSTWATER FALLS", "src": &"point", "c": Vector2(1860.0, 860.0), "r": 240.0},
+	{"name": "NORTH FALLS", "src": &"point", "c": Vector2(900.0, -3560.0), "r": 270.0},
+	{"name": "FAR EAST FALLS", "src": &"point", "c": Vector2(3700.0, 80.0), "r": 230.0},
+	{"name": "GREY WEST FALLS", "src": &"point", "c": Vector2(-1650.0, -3270.0), "r": 270.0},
 ]
+const FALL_MAX_BASE := 178.0                         ## a fall's foot lies below this altitude (above it the slopes are snow and the white water vanishes into them)
+const FALL_MAX_LIP := 292.0
 const STRIP_REGIONS := [
 	{"name": "DUNE STRIP", "c": Vector2(1600.0, -600.0), "r": 330.0},
 	{"name": "HIGHLAND STRIP", "c": Vector2(1400.0, -1150.0), "r": 330.0},
@@ -175,7 +181,7 @@ static func _find_fall(c: Vector2, rad: float, label: String) -> Dictionary:
 			var top: int = run[0]
 			var bot: int = run[1]
 			var drop := prof[top] - prof[bot]
-			if drop < 15.0 or drop > 120.0 or (bot - top) * 2.0 > 70.0:
+			if drop < 15.0 or drop > 120.0 or (bot - top) * 2.0 > 70.0 or prof[bot] > FALL_MAX_BASE or prof[top] > FALL_MAX_LIP:
 				continue
 			# the face must be wide: the same drop 6 and 12 m to both sides
 			var side := Vector2(-dir.y, dir.x)
@@ -256,7 +262,7 @@ static func _make_fall(b: Dictionary, label: String) -> Dictionary:
 	var bed := 1.0e9
 	for q in up:
 		var g := _h(q.x, q.y)
-		bed = minf(bed - 0.04, g - 0.65)
+		bed = minf(bed - 0.04, g - 0.95)
 		up_pts.append(q)
 		up_y.append(bed)
 	up_y[up_y.size() - 1] = minf(up_y[up_y.size() - 1], float(b["lip_y"]) - 0.55)
@@ -285,7 +291,10 @@ static func _make_fall(b: Dictionary, label: String) -> Dictionary:
 		var g2 := _h(oc.x, oc.y)
 		if g2 < TerrainHeight.SEA_LEVEL + 4.0 or WaterLayout.surface_at(oc.x, oc.y) != NO_WATER:
 			break
-		obed = minf(obed - 0.03, g2 - 0.45)
+		var gs2 := Vector2(_h(oc.x + 4.0, oc.y) - _h(oc.x - 4.0, oc.y), _h(oc.x, oc.y + 4.0) - _h(oc.x, oc.y - 4.0)).length() / 8.0
+		if gs2 > 0.30 and k > 2:
+			break                                           # the stream would pour down a steep face: it ends here (a river ribbon on a slope looked like a plank)
+		obed = minf(obed - 0.03, g2 - 0.85)
 		out_pts.append(oc)
 		out_y.append(obed)
 	f["out"] = out_pts
@@ -401,9 +410,34 @@ static func _carve_fall(f: Dictionary, x: float, z: float, h: float) -> float:
 			var k := d / pr
 			h = minf(h, py - POOL_DEPTH * (1.0 - k * k))
 	var p2 := Vector2(x, z)
-	h = _trench(f["up"], f["up_y"], p2, 5.2, 1.9, h)
-	h = _trench(f["out"], f["out_y"], p2, 5.0, 1.8, h)
+	h = _face(f, p2, h)
+	h = _trench(f["up"], f["up_y"], p2, 8.5, 2.8, h)
+	h = _trench(f["out"], f["out_y"], p2, 8.5, 2.8, h)
 	return h
+
+
+## The falling face: inside a corridor round the line lip -> foot the ground is eased to a smooth S profile (round lip, steep middle, concave foot) with a shallow gully in the middle, so the
+## coarse terrain mesh (7.8 m cells near, 15.6 m far) holds it and the sheet of water lies on it instead of being cut by the mesh.
+static func _face(f: Dictionary, p: Vector2, h: float) -> float:
+	var lip: Vector2 = f["lip"]
+	var axis: Vector2 = (f["base"] as Vector2) - lip
+	var run := maxf(axis.length(), 1.0)
+	var a := axis / run
+	var rel := p - lip
+	var t := rel.dot(a) / run
+	if t < -0.14 or t > 1.12:
+		return h
+	var hw: float = float(f["width"]) * 0.5
+	var s := absf(rel.x * -a.y + rel.y * a.x)
+	var reach := hw + 10.0
+	if s >= reach:
+		return h
+	var wl := 1.0 - smoothstep(hw + 1.5, reach, s)
+	var wt := smoothstep(-0.14, 0.05, t) * (1.0 - smoothstep(0.95, 1.12, t))
+	var tt := clampf(t, 0.0, 1.0)
+	var prof := lerpf(float(f["lip_y"]), float(f["base_y"]), tt * tt * (3.0 - 2.0 * tt))
+	prof += 1.7 * smoothstep(0.0, hw + 1.0, s) * (1.0 - tt * 0.6)
+	return lerpf(h, prof, wl * wt * 0.9)
 
 
 ## Cuts a trench along a polyline: the bed height per point, fully carved within `core` metres of the line, fading out at `reach`.

@@ -33,9 +33,15 @@ DECISIONS (APIs other agents depend on)
 - VegScatter species ids: FIR 8, BIRCH 9, PALM 10, ALIEN 11, POPLAR 12, ACACIA 13, FLOWER 14, REED 15; layers LAYERS = 6 (T_LINES 4, T_REEDS 5).
 
 TESTS AND PERF
-- (none run yet)
+- 09:35Z test_landscape_dressing.gd PASS (58 s) on the restored tree. 09:50Z perf gate (all 3 tiers) OK: LOW 76/98 draws, death 105, tex 157 MB; MED 101/133, death 143, tex 180; HIGH 112/147, death 164, tex 266.
+- NOTE: the parallel builder w112-outskirts-map made the world 9 km (TerrainHeight.WORLD_HALF 4500, scripts/world/world_extent.gd pushes the coast out W/N/E) and adds towns as OutskirtsSites entries: all my sites are FOUND by search so they follow; re-run the probe + test after their changes.
+
+ITERATION LOG (frames in scratchpad ls/, 1600x720 MED, bot tests/bot_landscape.gd views road:/beach:/pool:/airstrip:/fall:/fallv:/anchor:)
+- it1 (09:30-10:40Z): defects seen: orange-clay verge + lime blobs on dirt tracks, big sparse neon tufts, olive 'beach' with white popcorn pebbles, waterfalls at snow altitude (washed out, saw-tooth sheet foot, outflow ribbon floating like a plank), river water with dark dimples, white tray rim on pools.
+  fixed so far: terrain layer 6 = forest_ground_04 (dark earth) + layer 3 = coast_sand_02 (tan), wider dry-sand band (TerrainBase.shade_weights), road shader dirt track (earth below, scree above 95-185 m, dark grass strip), tufts smaller/denser/darker (veg_scatter SPACING + COVER_LOOK), pebbles 48 tris, rounder, scree/dark colours.
+  NEXT: waterfalls redesign (pool altitude < 190 m, smooth sheet corridor in the carve, sheet/pool/stream shaders, mist), river water shader, tree dither, rocks, strips, night/rain, LOW, tests.
 
 OPEN PROBLEMS
-- ambientCG downloads are BLOCKED (acg-download.struffelproductions.com 403 from the proxy); Poly Haven (api + dl.polyhaven.org) works: all bark / ground textures come from there.
-- disk ~3.9 GB free (ci_clone scratch of the main session holds 4.8 GB); my scratch frames are converted to jpg and deleted at once.
+- ambientCG downloads are BLOCKED; Poly Haven api + dl.polyhaven.org work (cdn.polyhaven.com thumbnails are blocked): all bark / ground textures come from there.
 - tests/zz_probe_landscape.gd is a TEMPORARY probe: delete before finishing.
+- the hero's shadow looks like a hard dark parallelogram on dirt (coarse skinned shadow proxy; not my scope).

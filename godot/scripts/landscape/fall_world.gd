@@ -69,12 +69,13 @@ func stats() -> Dictionary:
 
 # --- building ---------------------------------------------------------------------------------------------------------------------------------
 
-func _mat(mode: int, spd := 7.0, impact := Vector2.ZERO) -> ShaderMaterial:
+func _mat(mode: int, spd := 7.0, impact := Vector2.ZERO, bias0 := 0.9) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = load(SHADER) as Shader
 	m.set_shader_parameter(&"mode", mode)
 	m.set_shader_parameter(&"speed", spd)
 	m.set_shader_parameter(&"impact", impact)
+	m.set_shader_parameter(&"bias0", bias0)
 	return m
 
 
@@ -97,6 +98,14 @@ func _build(f: Dictionary) -> Dictionary:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(mi)
 	tris += _tri(sheet)
+	var wet := _sheet_mesh(f, true)
+	var wi := MeshInstance3D.new()
+	wi.name = "Wet"
+	wi.mesh = wet
+	wi.material_override = _mat(3, 7.0, Vector2.ZERO, 0.45)
+	wi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(wi)
+	tris += _tri(wet)
 	var pool := _pool_mesh(f)
 	var pi := MeshInstance3D.new()
 	pi.name = "Pool"
@@ -148,15 +157,15 @@ static func _tri(m: Mesh) -> int:
 	return n
 
 
-func _sheet_mesh(f: Dictionary) -> ArrayMesh:
+func _sheet_mesh(f: Dictionary, wide := false) -> ArrayMesh:
 	var dir: Vector2 = f["dir"]
 	var lip: Vector2 = f["lip"]
 	var base: Vector2 = f["base"]
 	var side := Vector2(-dir.y, dir.x)
 	var run := lip.distance_to(base)
 	var rows := maxi(10, int(run / 1.6) + 1)
-	var cols: int = SHEET_COLS[quality]
-	var width: float = f["width"]
+	var cols: int = SHEET_COLS[quality] if not wide else 6
+	var width: float = float(f["width"]) * (2.1 if wide else 1.0)
 	var pos := PackedVector3Array()
 	var nrm := PackedVector3Array()
 	var uv := PackedVector2Array()
@@ -180,7 +189,7 @@ func _sheet_mesh(f: Dictionary) -> ArrayMesh:
 			var nz := _ground(qx, qz - e) - _ground(qx, qz + e)
 			var n := Vector3(nx, 2.0 * e, nz).normalized()
 			var bul := 1.5 * pow(maxf(0.0, 1.0 - t / 0.22), 2.0)
-			var p := Vector3(qx, gy, qz) + n * (0.9 + 0.4 * (1.0 - t)) + Vector3(dir.x, 0.0, dir.y) * bul
+			var p := Vector3(qx, gy, qz) + n * ((0.55 + 0.35 * (1.0 - t)) if not wide else 0.18) + Vector3(dir.x, 0.0, dir.y) * (bul if not wide else 0.0)
 			pos.append(p)
 			nrm.append(n)
 			if i == 0:
@@ -207,7 +216,7 @@ func _sheet_mesh(f: Dictionary) -> ArrayMesh:
 func _pool_mesh(f: Dictionary) -> ArrayMesh:
 	var pc: Vector2 = f["pool"]
 	var r: float = float(f["pool_r"]) + 0.9
-	var segs: int = [20, 28, 36][quality]
+	var segs: int = [28, 40, 56][quality]
 	var rings: int = [4, 6, 8][quality]
 	var y: float = float(f["pool_y"]) + 0.03
 	var pos := PackedVector3Array()
@@ -251,7 +260,7 @@ func _ribbon(f: Dictionary, key: String) -> ArrayMesh:
 		var pc: Vector2 = f["pool"]
 		while start < pts.size() - 2 and pts[start].distance_to(pc) < float(f["pool_r"]) - 1.0:
 			start += 1
-	var width := 3.0 if key == "up" else 3.6
+	var width := 3.6 if key == "up" else 4.6
 	var pos := PackedVector3Array()
 	var nrm := PackedVector3Array()
 	var uv := PackedVector2Array()
@@ -265,14 +274,14 @@ func _ribbon(f: Dictionary, key: String) -> ArrayMesh:
 		var tg := (pts[mini(i + 1, n - 1)] - pts[maxi(i - 1, start)]).normalized()
 		var nr := Vector2(-tg.y, tg.x)
 		var w := width * (0.8 + 0.4 * smoothstep(0.0, 1.0, float(i - start) / float(maxi(n - start, 1))))
-		var fast := 0.35 + 0.65 * (1.0 if key == "up" and i >= n - 3 else 0.0)
-		var gpre := TerrainHeight.height_pre(pts[i].x, pts[i].y)
-		var steep := clampf((TerrainHeight.slope_at(pts[i].x, pts[i].y) - 0.15) * 3.0, 0.0, 1.0)         # the terrain mesh is too coarse to show a trench on a slope: there the water rides on the ground
-		var y := lerpf(beds[i] + 0.32, gpre + 0.2, steep)
+		var fast := clampf(0.35 + 2.6 * TerrainHeight.slope_at(pts[i].x, pts[i].y), 0.35, 1.0)
+		if key == "up" and i >= n - 3:
+			fast = 1.0
 		for k in 3:
 			var off := (float(k) - 1.0) * w * 0.5
 			var q := pts[i] + nr * off
-			pos.append(Vector3(q.x, y + (0.0 if k == 1 else 0.05), q.y))
+			var yq := maxf(TerrainHeight.height_at(q.x, q.y), beds[i] + 0.1) + 0.12                    # on the real (carved) surface at each vertex, never a plank hung from the centre line
+			pos.append(Vector3(q.x, yq, q.y))
 			nrm.append(Vector3.UP)
 			uv.append(Vector2(float(k) * 0.5, run))
 			var fade := 1.0

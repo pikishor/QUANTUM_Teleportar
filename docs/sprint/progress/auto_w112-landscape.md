@@ -1,6 +1,6 @@
 # w112-landscape (running)
 
-agent id af6ad2b71b0e9dc0c, 378 events, first activity 2026-11-13T09:11:12.410Z, last activity 2026-11-13T09:59:23.557Z
+agent id af6ad2b71b0e9dc0c, 441 events, first activity 2026-11-13T09:11:12.410Z, last activity 2026-11-13T10:22:44.461Z
 
 ## Last notes of the agent
 
@@ -8,27 +8,6 @@ agent id af6ad2b71b0e9dc0c, 378 events, first activity 2026-11-13T09:11:12.410Z,
 
 ## Recent steps (last 40)
 
-- 09:45:10 Tile the downloaded candidate textures into a sheet
-- 09:45:15 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/ph_cand.jpg
-- 09:45:33 Find users of the terrain texture array
-- 09:45:41 Read texture array loader and terrain world material setup
-- 09:45:56 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/veg_scatter.gd
-- 09:46:13 Switch the beach and dirt layers to the new Poly Haven sets
-- 09:46:22 Re-pack the terrain texture layers with the new beach and dirt sets
-- 09:46:39 Read terrain_base heights and shade weights
-- 09:46:52 Find pebble handling in the vegetation world
-- 09:47:42 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/vegetation_world.gd
-- 09:47:50 Crop pebble and driftwood areas for a close look
-- 09:47:54 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/r2/crop_peb.jpg
-- 09:48:08 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/vegetation_world.gd
-- 09:48:09 /home/user/QUANTUM_Teleportar/godot/assets/shaders/land_tree.gdshader
-- 09:48:09 /home/user/QUANTUM_Teleportar/godot/assets/shaders/land_common.gdshaderinc
-- 09:48:21 Composite the foliage and impostor atlases on a grey background for viewing
-- 09:48:26 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/foliage_view.jpg
-- 09:48:26 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/impostor_view.jpg
-- 09:48:42 Read the rock and pebble generator
-- 09:48:47 Read the land trees GLB builder script
-- 09:49:01 Widen the dry sand band, rag its edge and pale the tiling snow
 - 09:49:13 Rework the dirt track branch of the road shader
 - 09:49:23 Rework the dirt track branch of the road shader (correct indentation)
 - 09:49:28 Check the structure of the road fragment function
@@ -48,8 +27,30 @@ agent id af6ad2b71b0e9dc0c, 378 events, first activity 2026-11-13T09:11:12.410Z,
 - 09:58:57 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i1/w_000.jpg
 - 09:59:04 Read the inland water shader
 - 09:59:23 Render close views of the five waterfalls
+- 10:04:48 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i1/sheet_f.jpg
+- 10:05:05 /home/user/QUANTUM_Teleportar/godot/assets/shaders/fall_water.gdshader
+- 10:05:54 Update the progress log with state, test and perf results
+- 10:06:19 
+- 10:06:24 Run the waterfall candidate screening probe
+- 10:08:21 New fall regions, altitude cap, steep-outflow stop, smooth face carve
+- 10:08:29 Inspect exact whitespace of the drop check
+- 10:08:47 Apply the waterfall site patches with explicit tab handling
+- 10:08:55 Inspect indentation for the remaining patch spots
+- 10:09:05 Fix the indentation in the patch script and apply it
+- 10:09:51 /home/user/QUANTUM_Teleportar/godot/assets/shaders/fall_water.gdshader
+- 10:10:03 Simplify the sheet normal handling in the fall shader
+- 10:10:37 Patch the waterfall mesh builders
+- 10:10:44 List the waterfalls found with the new regions
+- 10:11:20 Render the reworked waterfalls close up
+- 10:20:58 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i2/sheet_f.jpg
+- 10:21:15 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i2/f_004.jpg
+- 10:21:16 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ls/i2/f_000.jpg
+- 10:21:45 Add the wet rock band, cooler sheet colours and slope based stream foam
+- 10:22:35 Roughen the stream ribbons
+- 10:22:44 Render the waterfall feet and streams after the shader changes
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
 - godot/tests/zz_probe_landscape.gd
 - godot/tests/bot_landscape.gd
+- godot/assets/shaders/fall_water.gdshader
