@@ -67,6 +67,6 @@ Written by godot/tools/sprint_digest.py at 2026-11-13 09:11Z. Status 'running' m
 
 ## workflow run wf_7e2eb443-14b
 
-- w112-landscape [Wave 112] running: 20 events, 09:11:12 -> 09:11:19
-- w112-outskirts-map [Wave 112] running: 19 events, 09:11:14 -> 09:11:18
+- w112-landscape [Wave 112] running: 58 events, 09:11:12 -> 09:11:44
+- w112-outskirts-map [Wave 112] running: 53 events, 09:11:14 -> 09:11:47
 
