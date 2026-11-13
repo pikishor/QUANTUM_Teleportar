@@ -15,7 +15,7 @@ Updated 2026-11-13 15:55Z.
 - Landscape (w112-landscape) DONE 14:59Z: 9 tree species x 3 LODs, 11 terrain layers, 6 waterfalls, 7 airstrips, anchors, lazy staged wake. Perf gate OK on LOW, MED, HIGH.
 - Outskirts-map (w112-outskirts-map) DONE 15:46Z: 9 km world, 7 towns, 19 country interiors, new roads, test_outskirts_settlements (390 checks). Perf gate OK on LOW, MED, HIGH.
 - Known test issues for the integrator (full builder reports are in the workflow journal wf_7e2eb443-14b): test_terrain_world "all 80 far tiles are built by the worker threads" (slow under load), test_outskirts_settlements SALT QUAY (1 of 388 checks), test_free_roam_world raid (flaky), test_ambient, test_vehicle_roster process_mode message. The hero builder's files intermittently break compile (re-run tools/import.sh).
-- Hero look (w112-hero-look): running since 14:59Z. Not started: wave 112 critic-fixers, integrator and CI watcher, and waves 113 to 121 (the full plan is docs/ROUND6.md).
+- Hero look (w112-hero-look): running since 14:59Z (17:30Z: armour kit, glow API, 6 suit presets and the rebuilt SUIT screen are in; portraits, test_hero_look_v3, perf gate, contact sheet and docs still to do; notes in docs/sprint/progress/w112-hero-look.md). Not started: wave 112 critic-fixers, integrator and CI watcher, and waves 113 to 121 (the full plan is docs/ROUND6.md).
 
 ## Next
 - If the limit hits again: wait for the reset, then follow docs/sprint/RESUME.md (startWave 112, skipTags ["cars-pass2"], plus whatever the progress files say is already done).
