@@ -1,6 +1,6 @@
 # w112-critic-look (running)
 
-agent id ae3f0245e791802f0, 1031 events, first activity 2026-11-13T19:24:15.388Z, last activity 2026-11-13T20:58:05.043Z
+agent id ae3f0245e791802f0, 1036 events, first activity 2026-11-13T19:24:15.388Z, last activity 2026-11-13T21:00:36.924Z
 
 ## Last notes of the agent
 
@@ -8,8 +8,6 @@ agent id ae3f0245e791802f0, 1031 events, first activity 2026-11-13T19:24:15.388Z
 
 ## Recent steps (last 40)
 
-- 20:49:25 List relevant existing tests to run after the fixes
-- 20:49:32 Run the tests of the touched systems in the background
 - 20:49:35 Check the test timeout behaviour
 - 20:49:38 Check test and render progress
 - 20:50:41 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/crit/f/K_low_000.png
@@ -48,6 +46,8 @@ agent id ae3f0245e791802f0, 1031 events, first activity 2026-11-13T19:24:15.388Z
 - 20:57:56 Build the hero cape before/after contact sheet
 - 20:57:58 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/crit/sheet_cape.jpg
 - 20:58:05 Wait for the MED perf verdict
+- 21:00:14 Start the HIGH perf gate
+- 21:00:36 /home/user/QUANTUM_Teleportar/docs/sprint/progress/w112-critic-look.md
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
