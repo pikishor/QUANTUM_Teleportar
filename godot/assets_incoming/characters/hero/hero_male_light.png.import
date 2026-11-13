@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://hu37jxemm58g"
-path.bptc="res://.godot/imported/hero_male_light.png-b439a1ca93703cd5425ca155b2417ece.bptc.ctex"
-path.astc="res://.godot/imported/hero_male_light.png-b439a1ca93703cd5425ca155b2417ece.astc.ctex"
+path.s3tc="res://.godot/imported/hero_male_light.png-b439a1ca93703cd5425ca155b2417ece.s3tc.ctex"
+path.etc2="res://.godot/imported/hero_male_light.png-b439a1ca93703cd5425ca155b2417ece.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets_incoming/characters/hero/hero_male_light.png"
-dest_files=["res://.godot/imported/hero_male_light.png-b439a1ca93703cd5425ca155b2417ece.bptc.ctex", "res://.godot/imported/hero_male_light.png-b439a1ca93703cd5425ca155b2417ece.astc.ctex"]
+dest_files=["res://.godot/imported/hero_male_light.png-b439a1ca93703cd5425ca155b2417ece.s3tc.ctex", "res://.godot/imported/hero_male_light.png-b439a1ca93703cd5425ca155b2417ece.etc2.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

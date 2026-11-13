@@ -1,7 +1,7 @@
 extends Node3D
 ## Look-dev stage of the hero (wave 112, hero look v3): ONE PlayerBody on a floor under game-like lighting, shot from many camera presets at phone aspect. Not part of the test suite.
 ##   tools/hero/stage.sh OUT_PREFIX views=game,back,front,side,three,head suit=assault scheme=0 pose=run glow=flow:1.5:00e5ff light=dusk q=1 body=male hair=parted
-## views: game back front side three threeb head bust legs shoulder far15 far40 far80 turn (front, three, side, threeb, back in one image row is made by tools/contact_sheet.py)
+## views: game back front side three threeb head bust legs shoulder shadow far15 far40 far80 turn (front, three, side, threeb, back in one image row is made by tools/contact_sheet.py)
 ## pose: idle aim sprint walk dead hit glide fly (rig fields are written directly, like tests/hero_viewer.gd)
 ## light: dusk (default) day night studio.  glow=mode:intensity:hexcolor (the HeroLook.set_glow API).  lod=<n> forces a mesh LOD bias.  lens=<fov degrees> overrides the view's fov.
 
@@ -197,6 +197,7 @@ func _process(dt: float) -> void:
 		"legsb": pos = Vector3(-2.2, 0.7, 2.4); c = Vector3(0.0, 0.5, 0.0); fov = 30.0
 		"hands": pos = Vector3(1.2, 1.5, -1.8); c = Vector3(0.2, 1.3, -0.3); fov = 28.0
 		"torso": pos = Vector3(0.6, 1.4, -2.2); c = Vector3(0.0, 1.2, 0.0); fov = 30.0
+		"shadow": pos = Vector3(2.5, 6.5, 5.5); c = Vector3(0.8, 0.0, -0.5); fov = 42.0          # the floor from above: the shape of the hero's cast shadow (the proxy's coarse LOD)
 		"far15": pos = Vector3(0.0, 1.7, 15.0); c = Vector3(0.0, 1.2, 0.0); fov = 92.0; keep_w = true
 		"far40": pos = Vector3(0.0, 1.9, 40.0); c = Vector3(0.0, 1.2, 0.0); fov = 92.0; keep_w = true
 		"far80": pos = Vector3(0.0, 2.2, 80.0); c = Vector3(0.0, 1.2, 0.0); fov = 92.0; keep_w = true

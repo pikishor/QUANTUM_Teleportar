@@ -274,12 +274,15 @@ void fragment() {
 					o = textureGrad(gear_orm, UV, kx, ky).rgb;
 					nm = textureGrad(gear_normal, UV, kx, ky).rgb;
 					if (kind > 7.5 && kind < 8.5) {
-						tint = vec3(0.30);                        // dark metal: the colours it was baked with, a little darker (the hero's own key light is strong)
+						tint = vec3(0.11);                        // dark metal and carbon: the colours they were baked with, darker (the hero's own key light is strong and the pack is the biggest flat face)
 					} else if (kind > 10.5 && kind < 11.5) {
 						tint = vec3(0.45);                        // canvas keeps its baked colour
 					}
 				}
 				float mt = kind < 8.5 ? plate_metal : 1.0;
+				if (kind < 6.5) {
+					t = mix(vec3(0.5), t, 0.62);                     // plates: the baked wear stays but its blotches are calmer (they read as dirt on a phone screen)
+				}
 				alb = t * tint * 2.2;
 				rough = clamp(o.g + (kind < 8.5 ? plate_rough : 0.0), 0.08, 1.0);
 				metal = clamp(o.b * mt, 0.0, kind < 8.5 ? 0.65 : 1.0);                 // bare-metal chips shine, but a plate never goes full chrome (it reflected the whole sky as a white rectangle)

@@ -110,8 +110,8 @@ func _build_stage() -> void:
 	add_child(fill)
 	var disc := MeshInstance3D.new()                               # the pedestal: a dark glossy disc with an accent ring
 	var cm := CylinderMesh.new()
-	cm.top_radius = 0.72
-	cm.bottom_radius = 0.76
+	cm.top_radius = 0.56
+	cm.bottom_radius = 0.6
 	cm.height = 0.05
 	cm.radial_segments = 40
 	cm.rings = 1
@@ -125,8 +125,8 @@ func _build_stage() -> void:
 	add_child(disc)
 	_ring = MeshInstance3D.new()
 	var tm := TorusMesh.new()
-	tm.inner_radius = 0.66
-	tm.outer_radius = 0.71
+	tm.inner_radius = 0.51
+	tm.outer_radius = 0.555
 	tm.rings = 40
 	tm.ring_segments = 6
 	_ring.mesh = tm
@@ -139,7 +139,7 @@ func _build_stage() -> void:
 	add_child(_ring)
 	var blob := MeshInstance3D.new()                               # a soft contact shadow under the feet
 	var qm := QuadMesh.new()
-	qm.size = Vector2(1.3, 1.3)
+	qm.size = Vector2(1.1, 1.1)
 	qm.orientation = PlaneMesh.FACE_Y
 	blob.mesh = qm
 	blob.position = Vector3(0.0, 0.012, 0.0)

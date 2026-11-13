@@ -47,6 +47,37 @@ const HAND_ROLL_R := 1.5708                         ## extra twist of each hand 
 const HAND_ROLL_L := 3.1416
 const RIFLE_MODEL := "res://assets/models/hero_rifle.glb"   ## tools/blender/model_hero_rifle.py: 2.3k triangles, glow seams in vertex colour G
 
+## The engine shows an LOD once the projected length of ITS triangle edges is below a pixel threshold. The merged hero (flat armour plates among a smooth body) has long edges at the same triangle
+## count, so the sizes ImporterMesh measures switch the levels in far later than the old hero's did: at MED that cost ~20k triangles of the staged view (hero, shadow caster and mirror).
+## The levels are kept and get the switch sizes the hero has always had, chosen by the share of triangles left (share, size), interpolated on a log scale.
+const LOD_SCHEDULE := [[0.5, 0.0074], [0.25, 0.016], [0.125, 0.0346], [0.0624, 0.0803], [0.0311, 0.1749], [0.0107, 0.4549], [0.0041, 1.0231], [0.0016, 1.5346]]
+
+
+static func _lod_size(share: float) -> float:
+	var k := clampf(share, 0.0016, 0.5)
+	for i in range(1, LOD_SCHEDULE.size()):
+		var hi: Array = LOD_SCHEDULE[i - 1]
+		var lo: Array = LOD_SCHEDULE[i]
+		if k >= float(lo[0]):
+			var t := (log(k) - log(float(lo[0]))) / (log(float(hi[0])) - log(float(lo[0])))
+			return lerpf(float(lo[1]), float(hi[1]), t)
+	return float((LOD_SCHEDULE[LOD_SCHEDULE.size() - 1] as Array)[1])
+
+
+## The generated levels of `im` (surface 0) as an LOD dictionary {size: indices} with the scheduled sizes (strictly increasing: a level never shares its size with the one before).
+static func _scheduled_lods(im: ImporterMesh, total: int) -> Dictionary:
+	var out := {}
+	var last := 0.0
+	for l in im.get_surface_lod_count(0):
+		var idx := im.get_surface_lod_indices(0, l)
+		if idx.size() == 0:
+			continue
+		var size := maxf(_lod_size(float(idx.size() / 3) / float(maxi(total, 1))), last + 0.001)
+		out[size] = idx
+		last = size
+	return out
+
+
 static func path_for(body: StringName) -> String:
 	return "%s/Superhero_%s_FullBody.gltf" % [DIR, String(body).capitalize()]
 
@@ -271,16 +302,21 @@ static func build(opts: Dictionary) -> Dictionary:
 	mat.set_shader_parameter(&"scalp_y", hp.y + 0.11)
 	mat.set_shader_parameter(&"scalp_z", hp.z)
 	mat.set_shader_parameter(&"scalp", 0.0 if hair_id == &"none" else 1.0)
-	var im := ImporterMesh.new()
-	im.add_surface(Mesh.PRIMITIVE_TRIANGLES, merged, [], {}, mat, "Hero")
-	im.generate_lods(25.0, 60.0, [])
+	var im0 := ImporterMesh.new()
+	im0.add_surface(Mesh.PRIMITIVE_TRIANGLES, merged, [], {}, mat, "Hero")
+	im0.generate_lods(25.0, 60.0, [])
+	var im := ImporterMesh.new()                                   # the same levels with the hero's own switch distances (see LOD_SCHEDULE)
+	im.add_surface(Mesh.PRIMITIVE_TRIANGLES, merged, [], _scheduled_lods(im0, total), mat, "Hero")
 	var mesh := im.get_mesh()
 	info["tris"] = total
 	info["lods"] = im.get_surface_lod_count(0)
 	var lod_tris: Array[int] = [total]                          # triangles per level: the full mesh, then every engine LOD (the camera picks by screen size)
+	var lod_sizes: Array[float] = []
 	for l in im.get_surface_lod_count(0):
 		lod_tris.append(im.get_surface_lod_indices(0, l).size() / 3)
+		lod_sizes.append(snappedf(im.get_surface_lod_size(0, l), 0.0001))
 	info["lod_tris"] = lod_tris
+	info["lod_sizes"] = lod_sizes
 	info["pieces"] = comps.size()
 	var skin := Skin.new()
 	for i in n_bones:

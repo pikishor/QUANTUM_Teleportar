@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Pins the Godot import settings of the hero's textures (run after the first `tools/import.sh` that sees new files, then import again): VRAM compression (ASTC on phones, BPTC
 on desktop) with mipmaps, in HIGH QUALITY for colour and normal maps, normal-map flag for normals. Covers the suit kit atlas (assets/textures/hero_suit_*) and the Quaternius skin / hair /
-eye maps (assets_incoming/characters/hero/*.png), which were imported lossless without mipmaps: 48 MB of GPU memory and shimmering at a distance, now about 17 MB with mipmaps.
+eye maps (assets_incoming/characters/hero/*.png), which were imported lossless without mipmaps: 48 MB of GPU memory and shimmering at a distance, now about 11 MB with mipmaps (skin colour in
+DXT1 / ETC2, the body normal maps at 1K, everything else in high quality ASTC / BPTC); the APK grows by about 6 MB for all of it (ASTC 4x4 everywhere would have been +26 MB).
   python3 -I tools/hero/patch_hero_imports.py        (from godot/)
 The cached import of every patched file is deleted so that the next `tools/import.sh` redoes it. Idempotent."""
 import glob
@@ -39,7 +40,10 @@ def main():
         if not (name.endswith(".png.import") or name.endswith(".jpg.import")):
             continue
         is_orm = "_orm" in name
-        ch = {"compress/mode": "2", "compress/high_quality": "false" if is_orm else "true", "mipmaps/generate": "true"}
+        is_skin = re.match(r"hero_(male|female)_(dark|light)\.png\.import$", name) is not None
+        ch = {"compress/mode": "2", "compress/high_quality": "false" if (is_orm or is_skin) else "true", "mipmaps/generate": "true"}   # skin colour: DXT1 / ETC2 (half the bytes of BPTC / ASTC, smooth gradients survive it)
+        if re.match(r"hero_(male|female)_normal\.png\.import$", name):
+            ch["process/size_limit"] = "1024"                   # the 2K body normal map: 1K is plenty for a hero seen at 3 m and saves 4 MB of the APK and of the GPU memory per body
         if "_rough" in name:                                   # RGBA data (R roughness, G / B / A the suit mask): the alpha is not transparency, keep every texel exactly
             ch["process/fix_alpha_border"] = "false"
             ch["process/premult_alpha"] = "false"

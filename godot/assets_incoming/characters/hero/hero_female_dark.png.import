@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://u6gltutyj6nc"
-path.bptc="res://.godot/imported/hero_female_dark.png-01e758741f0c257903cb17bba1e98907.bptc.ctex"
-path.astc="res://.godot/imported/hero_female_dark.png-01e758741f0c257903cb17bba1e98907.astc.ctex"
+path.s3tc="res://.godot/imported/hero_female_dark.png-01e758741f0c257903cb17bba1e98907.s3tc.ctex"
+path.etc2="res://.godot/imported/hero_female_dark.png-01e758741f0c257903cb17bba1e98907.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets_incoming/characters/hero/hero_female_dark.png"
-dest_files=["res://.godot/imported/hero_female_dark.png-01e758741f0c257903cb17bba1e98907.bptc.ctex", "res://.godot/imported/hero_female_dark.png-01e758741f0c257903cb17bba1e98907.astc.ctex"]
+dest_files=["res://.godot/imported/hero_female_dark.png-01e758741f0c257903cb17bba1e98907.s3tc.ctex", "res://.godot/imported/hero_female_dark.png-01e758741f0c257903cb17bba1e98907.etc2.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

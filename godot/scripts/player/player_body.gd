@@ -33,7 +33,6 @@ const RIM_BOOST := 0.85                    ## extra rim at full excitement
 const GLOW_BOOST := 0.7                    ## extra emission-texture energy (veins, core, slit) at full excitement
 const LOW_ALBEDO := Color(0.72, 0.74, 0.78, 1.0)    ## LOW tier: the armour albedo is multiplied by this ...
 const COMPAT_GLOW := 0.55                           ## the Compatibility renderer (exposure and bloom lift) shows the emission texture much brighter: whitish plates on a bright phone
-const HERO_GLOW_GAIN := 1.0                          ## brightness of the suit's glow circuits (hero_body.gdshader glow_gain), LOW x0.7, Compatibility x0.6
 const LOW_GLOW := 0.6                                ## ... and the emission texture (veins, core, slit) is this strong
 const FABRIC_RIM := 0.3                    ## cloak and legs get a cool edge too: a thicker, readable silhouette from the chase camera
 const TRIM_HUES := [Color(0.2, 0.95, 1.0), Color(0.75, 0.35, 1.0), Color(1.0, 0.35, 0.85)]   ## thin-film sheen of the armour trim: cyan to violet to magenta
@@ -136,6 +135,7 @@ var _look_emis0: Array[Color] = []
 var _look_metal0: Array[float] = []
 var _look_rough0: Array[float] = []
 var _look_accent := Color.WHITE
+var _last_look: HeroLook                       ## the look the hero material wears (the graphics tier re-applies it: the glow gain depends on the tier)
 var _look_mix := 0.0                           ## how far the trim sheen is pulled toward the look's accent
 var _clock_look := 0.0
 var _charge := 0.0                    ## 0..1 QUANTUM TELEPORT charge (aiming a destination), smoothed
@@ -847,6 +847,7 @@ func apply_look(look: HeroLook) -> void:
 func _apply_hero_look(look: HeroLook) -> void:
 	if hero_mat == null or look == null:
 		return
+	_last_look = look
 	var neutral := look.suit == &"standard" and look.scheme == 0 and look.accent_hue < 0
 	_look_accent = look.apply_material(hero_mat, glow, _quality, _is_compat())
 	_look_mix = 0.0 if neutral else HeroLook.ACCENT_MIX
@@ -1129,6 +1130,8 @@ func set_quality(level: int) -> void:
 	_apply_lights()
 	if hero_mat != null:
 		hero_mat.set_shader_parameter(&"brightness", 0.9 if level == 0 else 1.0)
+		if _last_look != null:
+			_apply_hero_look(_last_look)                      # the glow gain follows the tier (LOW tames it)
 	# LOW (phones with bright panels, no rim light, no post grade): darker armour and a calmer emission, so the hero reads as dark plates with cyan accents, never a pale glow
 	for i in _gear_mats.size():
 		_gear_mats[i].albedo_color = _gear_base[i] * (LOW_ALBEDO if level == 0 else Color.WHITE)

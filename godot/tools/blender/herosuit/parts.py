@@ -390,12 +390,12 @@ def flight_extras(kit, body, M):
     p.cyl(0.026, 0.050, pos=(0.165, cy - 0.020, 1.395), axis="y", mat=M["plate"], segs=14, bevel=0.0025, mirror=True)
     kit.done(p, "spine_02", K_DARK, Z_WINGS, "flight")
     p = kit.new("wing_blade")
-    p.bar((0.175, cy - 0.04, 1.43), (0.30, cy - 0.15, 0.82), 0.075, 0.014, mat=M["plate"], up=(0, 1, 0), taper=(0.25, 1.0), bevel=0.002, mirror=True)
-    p.bar((0.175, cy - 0.04, 1.43), (0.30, cy - 0.15, 0.82), 0.022, 0.020, mat=M["steel"], up=(0, 1, 0), taper=(0.4, 1.0), bevel=0.0015, mirror=True)
+    p.bar((0.175, cy - 0.04, 1.43), (0.295, cy - 0.12, 1.02), 0.118, 0.022, mat=M["plate"], up=(0, 1, 0), taper=(0.30, 1.0), bevel=0.002, mirror=True)          # folded wing panels: short and broad, not rods
+    p.bar((0.175, cy - 0.04, 1.43), (0.295, cy - 0.12, 1.02), 0.026, 0.030, mat=M["steel"], up=(0, 1, 0), taper=(0.4, 1.0), bevel=0.0015, mirror=True)
     kit.done(p, "spine_02", K_ACCENT, Z_WINGS, "flight")
     g = kit.new("wing_glow")
     g.cyl(0.018, 0.052, pos=(0.165, cy - 0.021, 1.395), axis="y", mat=M["glow"], segs=14, mirror=True)
-    g.bar((0.185, cy - 0.048, 1.38), (0.287, cy - 0.140, 0.90), 0.010, 0.006, mat=M["glow"], up=(0, 1, 0), mirror=True)
+    g.bar((0.185, cy - 0.052, 1.385), (0.282, cy - 0.134, 1.06), 0.012, 0.006, mat=M["glow"], up=(0, 1, 0), mirror=True)
     kit.done(g, "spine_02", K_GLOW, Z_WINGS, "flight")
 
 
@@ -403,12 +403,13 @@ def cape(kit, body, M):
     """A half cape over the LEFT shoulder (asymmetry reads from behind and in motion): a cloth sheet that hangs behind the left arm, skinned along the Sec1-3 chain (the rig's cloak springs
     swing it back with speed and sway it when turning). The chain pivots are exported in the part's extras in MODEL space (x right, y up, z back)."""
     chain = [(-0.185, -0.115, 1.475), (-0.215, -0.185, 1.175), (-0.240, -0.235, 0.870)]        # Blender coords
-    top, bot = 1.505, 0.800
+    top = 1.505
+    bot_in, bot_out = 0.940, 0.690                      # a slanted hem (the outer edge hangs lower): the cloak is no rectangle, and neither is its shadow on the street
 
     def pt(s, t):
-        z = lerp(top, bot, t)
+        z = lerp(top, lerp(bot_in, bot_out, s), t)
         x0 = lerp(-0.125, -0.085, t) - 0.0
-        x1 = lerp(-0.330, -0.420, t * t * 0.6 + t * 0.4)
+        x1 = lerp(-0.330, -0.395, t * t * 0.6 + t * 0.4)
         x = lerp(x0, x1, s)
         r = body.ray(Vector((x, -1.0, z)), Vector((0, 1, 0)), 1.5)
         yb = r[0].y if r else -0.13

@@ -25,7 +25,7 @@ const SUITS := {
 			"plate": Color(0.3, 0.33, 0.39), "cloth": Color(0.04, 0.05, 0.075), "cloth2": Color(0.07, 0.08, 0.11), "trim_k": 0.5, "pmetal": 0.7, "prough": -0.05,
 			"story": "Sleek and light, with wing mounts on the back. Reach chapter 5.", "tag": "WING MOUNTS"},
 	&"gilded": {"name": "GILDED", "set": &"vanguard", "price": 0, "need": "visor_gold", "albedo": Color(1.2, 1.05, 0.8), "metal": 0.3, "rough": -0.2, "glow": 1.1,
-			"plate": Color(0.62, 0.43, 0.14), "cloth": Color(0.03, 0.028, 0.032), "cloth2": Color(0.06, 0.05, 0.04), "trim_k": 0.3, "pmetal": 1.4, "prough": -0.12,
+			"plate": Color(0.58, 0.46, 0.25), "cloth": Color(0.03, 0.028, 0.032), "cloth2": Color(0.06, 0.05, 0.04), "trim_k": 0.3, "pmetal": 1.4, "prough": -0.2,
 			"story": "The gold hero suit. Collect all ten rooftop shards.", "tag": "GOLD PLATING"},
 	&"phase": {"name": "PHASE", "set": &"vanguard", "price": 0, "need": "aura_phase", "albedo": Color(0.95, 1.0, 1.05), "metal": 0.15, "rough": -0.15, "glow": 1.5,
 			"plate": Color(0.14, 0.23, 0.29), "cloth": Color(0.03, 0.05, 0.075), "cloth2": Color(0.05, 0.08, 0.11), "trim_k": 0.6, "pmetal": 1.1, "prough": -0.2,

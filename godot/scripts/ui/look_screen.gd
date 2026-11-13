@@ -254,7 +254,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var shown := sc.show_look(h)
 	if shown:
 		hud.preview_rect = sc.draw(c, sr.grow(-3.0 * s))
-		hud._text(c, font, Vector2(sr.position.x, sr.end.y - 10.0 * s), "DRAG TO TURN", HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, int(Hud.BODY_MIN * s), Color(1, 1, 1, 0.55))
+		hud._text(c, font, Vector2(sr.position.x, sr.position.y + 28.0 * s), "DRAG TO TURN", HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, int(Hud.BODY_MIN * s), Color(1, 1, 1, 0.55))
 	else:
 		hud._text(c, font, Vector2(sr.position.x, sr.get_center().y), "NO PREVIEW", HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, int(UiKit.T_LABEL * s), Color(1, 1, 1, 0.5))
 	# the cards, chips and swatches

@@ -17,6 +17,7 @@ const THUMB := Vector2i(192, 240)
 static var _cache := {}                       ## file path -> Texture2D (or false when absent)
 static var _live := {}                        ## look signature -> ImageTexture
 static var _pending := {}                     ## look signature -> true while a capture is under way
+static var _failed := {}                      ## look signature -> true when a capture gave no picture (headless, kit missing): not asked again
 static var requests := 0                      ## captures started (tests)
 
 
@@ -77,7 +78,7 @@ static func request(host: Node, look: HeroLook) -> void:
 	if look == null or host == null or not host.is_inside_tree():
 		return
 	var k := signature(look)
-	if _live.has(k) or _pending.has(k) or not HeroCharacter.available(look.body):
+	if _live.has(k) or _pending.has(k) or _failed.has(k) or not HeroCharacter.available(look.body):
 		return
 	_pending[k] = true
 	requests += 1
@@ -102,6 +103,7 @@ static func _capture(host: Node, look: HeroLook, k: String) -> void:
 	var img := await sc.capture(look, &"bust", 0.5)
 	_pending.erase(k)
 	if img == null:
+		_failed[k] = true
 		return
 	var tex := ImageTexture.create_from_image(compose(img, look.accent(), SIZE))
 	_live[k] = tex
