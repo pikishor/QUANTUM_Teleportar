@@ -1,6 +1,6 @@
 # w112-critic-play (running)
 
-agent id aff758c60e86066ec, 363 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T20:30:49.023Z
+agent id aff758c60e86066ec, 368 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T20:31:38.116Z
 
 ## Last notes of the agent
 
@@ -8,7 +8,6 @@ agent id aff758c60e86066ec, 363 events, first activity 2026-11-13T19:24:15.390Z,
 
 ## Recent steps (last 40)
 
-- 19:59:17 Step the harbour teleport in physics frames to see when the hero drops below the quay
 - 19:59:57 List harbour collision boxes near the harbour pad
 - 20:00:42 Flood-fill reachability audit of the harbour quay between its collision boxes
 - 20:01:22 Probe the observatory pad teleport frame by frame
@@ -48,6 +47,7 @@ agent id aff758c60e86066ec, 363 events, first activity 2026-11-13T19:24:15.390Z,
 - 20:30:13 Read the viaduct pier placement in rail_kit.gd
 - 20:30:44 Look at how pads get their positions and tests that mention the harbour pad
 - 20:30:49 Move the harbour pad to the open apron and re-run the landing probe
+- 20:31:37 Find tests that depend on ensure_ground or settle behaviour
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

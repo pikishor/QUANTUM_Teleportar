@@ -8,5 +8,5 @@ Written by godot/tools/sprint_digest.py at 2026-11-13 20:31Z. Status 'running' m
 - w112-outskirts-map [Wave 112] done: 1698 events, 09:11:14 -> 15:46:35
 - w112-hero-look [Wave 112] done: 1530 events, 14:59:05 -> 19:24:15
 - w112-critic-look [Wave 112] running: 833 events, 19:24:15 -> 20:29:52
-- w112-critic-play [Wave 112] running: 363 events, 19:24:15 -> 20:30:49
+- w112-critic-play [Wave 112] running: 368 events, 19:24:15 -> 20:31:38
 
