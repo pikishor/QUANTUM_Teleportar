@@ -164,12 +164,33 @@ func _city_is_untouched(host: Node) -> void:
 	TestLib.check(PlayerUtil.outside_city(Vector3(CityLayout.PLAY_HALF + 20.0, 0.0, 0.0)) and not PlayerUtil.outside_city(Vector3(1500.0, TerrainHeight.height_at(1500.0, 20.0) + 1.0, 20.0)), "the playable world reaches past the old city walls")
 
 
+## Waits until `counter` reaches `goal`. Gives up when it has not moved for `stall_secs` (a stuck worker) or after `cap_secs` (real time: worker threads do not care about the frame rate).
+func _wait_progress(host: Node, counter: Callable, goal: int, stall_secs: float, cap_secs: float) -> bool:
+	var t0 := Time.get_ticks_msec()
+	var last := int(counter.call())
+	var t_last := t0
+	while int(counter.call()) < goal:
+		var now := Time.get_ticks_msec()
+		var v := int(counter.call())
+		if v != last:
+			last = v
+			t_last = now
+		if float(now - t_last) / 1000.0 > stall_secs or float(now - t0) / 1000.0 > cap_secs:
+			return false
+		await host.get_tree().process_frame
+	return true
+
+
 ## The far tiles (the third LOD) are built once for the whole world: a handful of meshes, none inside the plateau.
+## A phone builds two tiles at a time (about 1.3 s each: the 96 tiles of the 9 km world take about a minute), so a fixed 45 s wait could not hold any more (wave 112); the test lets four run
+## and waits on the counter: it ends when every tile is built and fails only when no tile was finished for 20 s.
 func _far_tiles(host: Node) -> void:
 	var total := city.terrain._far_total()
-	var done := await _wait_counter(host, func() -> bool: return int(city.terrain.stats()["far_tiles"]) >= total, 45.0)
+	city.terrain.far_jobs_max = 4
+	var t0 := Time.get_ticks_msec()
+	var done := await _wait_progress(host, func() -> int: return int(city.terrain.stats()["far_tiles"]), total, 20.0, 110.0)
 	var st := city.terrain.stats()
-	TestLib.check(done, "all %d far tiles are built by the worker threads (%d)" % [total, int(st["far_tiles"])])
+	TestLib.check(done, "all %d far tiles are built by the worker threads (%d in %.0f s)" % [total, int(st["far_tiles"]), float(Time.get_ticks_msec() - t0) / 1000.0])
 	TestLib.check(total >= 20 and total < 100, "the world is covered by under a hundred far tiles, not hundreds of chunks (%d of the 10 x 10 grid whose edges are multiples of 1 km)" % total)
 	TestLib.check(int(st["tris"]) > 20000, "the far tiles carry the horizon (%d triangles)" % int(st["tris"]))
 

@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 BUDGET_MB="${1:-5120}"
 echo "Largest asset files:"
-find assets -type f ! -name '*.import' -printf '%s %p\n' 2>/dev/null | sort -rn | head -15 | awk '{printf "%9.2f MB  %s\n", $1/1048576, $2}'
+find assets -type f ! -name '*.import' -printf '%s %p\n' 2>/dev/null | sort -rn | head -15 | awk '{printf "%9.2f MB  %s\n", $1/1048576, $2}' || true   # head closes the pipe early: under pipefail that is exit 141, not an error
 echo
 echo "By folder:"
 for d in assets/*/; do

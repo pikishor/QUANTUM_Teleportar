@@ -50,6 +50,7 @@ var threaded := true
 var _vis_t := 0.0
 var _next_scan := 0
 var _far_n := -1
+var far_jobs_max := 2                                       ## far tiles built at the same time (a phone keeps its other cores for the game; a test that wants the whole 9 km world built quickly raises it)
 var vis_dist := 6000.0                                      ## metres beyond which the fog has swallowed everything: far tiles, chunks and roads farther than this are not drawn
 var hidden_count := 0
 
@@ -362,7 +363,7 @@ func _start_job(key: int, lod: int) -> void:
 func _queue_far(p: Vector3) -> void:
 	if _far.size() + _far_jobs.size() >= _far_total():
 		return
-	if _far_jobs.size() >= 2:
+	if _far_jobs.size() >= far_jobs_max:
 		return
 	var tiles := _far_per_axis()
 	var best := -1
