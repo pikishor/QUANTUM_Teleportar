@@ -36,7 +36,7 @@ static func road_material(kind: StringName) -> ShaderMaterial:
 		m.shader = ROAD_SHADER
 		m.set_shader_parameter(&"kind", k)
 		m.set_shader_parameter(&"junction_fade", 0.0)                       # a bridge deck keeps its lane marks to the very end
-		m.render_priority = 2
+		m.render_priority = 1 if k == 1 else 2                         # dirt under asphalt
 		_road_mats[k] = m
 	return _road_mats[k]
 
@@ -119,11 +119,12 @@ static func road_ribbon(b: Dictionary) -> ArrayMesh:
 	var cols := PackedColorArray()
 	var idx := PackedInt32Array()
 	var run := 0.0
+	var lift := 0.06 if b.get("kind", &"road") == &"track" else 0.10                  # wave 112 critic (LOOK): where two decks cross the same river side by side (PASS ROAD and its SUMMIT ROAD branch) the dirt of one showed through the asphalt of the other (coplanar ribbons): the highway ribbon lies 4 cm higher
 	for i in fr.size():
 		if i > 0:
 			run += Vector2(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z).length()
-		verts.append(_at(fr, i, hw, 0.06))
-		verts.append(_at(fr, i, -hw, 0.06))
+		verts.append(_at(fr, i, hw, lift))
+		verts.append(_at(fr, i, -hw, lift))
 		norms.append(Vector3.UP)
 		norms.append(Vector3.UP)
 		cols.append(Color(2.0 * hw / 32.0, 0.0, 0.0, 1.0))

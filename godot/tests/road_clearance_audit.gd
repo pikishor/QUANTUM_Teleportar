@@ -21,6 +21,35 @@ func _family(n: Node) -> String:
 	return "%s/%s" % [str(par.name).rstrip("0123456789_") if par != null else "", s]
 
 
+## The families (parent/name, digits stripped) of the static bodies a car-sized box (2.0 x 1.4 x 4.4 m, 0.45 m above the road surface `py`, pitched with `grade`, turned along `dir`) overlaps at the road
+## point `pt` (x, z) when it stands `lane` metres to the right of the centre line. Empty = a car passes. (Used by tests/test_play_critic_w112.gd.)
+static func blockers(space: PhysicsDirectSpaceState3D, pt: Vector2, dir: Vector2, py: float, grade: float, lane: float) -> Array[String]:
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(2.0, 1.4, 4.4)
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = shape
+	q.collision_mask = 1
+	q.collide_with_bodies = true
+	q.collide_with_areas = false
+	var side := Vector2(-dir.y, dir.x)
+	var lp := pt + side * lane
+	var basis := Basis(Vector3.UP, atan2(-dir.x, -dir.y)) * Basis(Vector3.RIGHT, atan(grade))
+	q.transform = Transform3D(basis, Vector3(lp.x, py + 0.45 + 0.7, lp.y))
+	var out: Array[String] = []
+	for hit in space.intersect_shape(q, 8):
+		var col := hit["collider"] as Node
+		if col == null:
+			continue
+		var s := str(col.name)
+		while s.length() > 0 and (s[s.length() - 1] >= "0" and s[s.length() - 1] <= "9" or s[s.length() - 1] == "_"):
+			s = s.substr(0, s.length() - 1)
+		var par := col.get_parent()
+		var fam := "%s/%s" % [str(par.name).rstrip("0123456789_") if par != null else "", s]
+		if not out.has(fam):
+			out.append(fam)
+	return out
+
+
 func run(h: Node) -> void:
 	host = h
 	for f in ["user://progress.cfg", "user://save.cfg", "user://save.cfg.bak", "user://map.cfg", "user://interiors.cfg", "user://roam_world.cfg"]:

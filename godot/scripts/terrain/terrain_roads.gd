@@ -569,9 +569,10 @@ static func build_ribbon(ri: int) -> ArrayMesh:
 		var l := pts[i] + nrm * (hw + verge)
 		var r := pts[i] - nrm * (hw + verge)
 		var c := pts[i]
-		var yc := TerrainHeight.height_at(c.x, c.y) + LIFT
-		verts.append(Vector3(l.x, minf(TerrainHeight.height_at(l.x, l.y) + LIFT, yc + 0.4), l.y))
-		verts.append(Vector3(r.x, minf(TerrainHeight.height_at(r.x, r.y) + LIFT, yc + 0.4), r.y))
+		var lf := LIFT + (0.03 if String(road["kind"]) == "highway" else 0.0)          # wave 112 critic (LOOK): a highway lies 3 cm over a track where they overlap at a junction (coplanar ribbons z-fought)
+		var yc := TerrainHeight.height_at(c.x, c.y) + lf
+		verts.append(Vector3(l.x, minf(TerrainHeight.height_at(l.x, l.y) + lf, yc + 0.4), l.y))
+		verts.append(Vector3(r.x, minf(TerrainHeight.height_at(r.x, r.y) + lf, yc + 0.4), r.y))
 		norms.append(Vector3.UP)
 		norms.append(Vector3.UP)
 		cols.append(Color(2.0 * (hw + verge) / 32.0, hw / 16.0, jb, 1.0))

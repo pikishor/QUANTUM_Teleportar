@@ -1,6 +1,6 @@
 # w112-critic-play (running)
 
-agent id aff758c60e86066ec, 416 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T20:45:36.543Z
+agent id aff758c60e86066ec, 479 events, first activity 2026-11-13T19:24:15.390Z, last activity 2026-11-13T20:59:49.086Z
 
 ## Last notes of the agent
 
@@ -8,26 +8,6 @@ agent id aff758c60e86066ec, 416 events, first activity 2026-11-13T19:24:15.390Z,
 
 ## Recent steps (last 40)
 
-- 20:19:57 Road clearance audit on the original highways and tracks
-- 20:22:34 Road clearance audit on the seven wave 112 roads
-- 20:25:12 Find the rail collision and crossing code
-- 20:25:13 Read the rail collision construction and the crossing detection
-- 20:25:23 Find where the rail collision boxes are created
-- 20:25:45 Probe DESERT ROAD from 1150 to 1310 m against the ground
-- 20:26:08 Find how VegScatter handles roads and its cell API
-- 20:26:10 Read the avenue lines and the tree road clearance in VegScatter
-- 20:26:20 Find the trunk colliders standing near the DESERT ROAD obstruction point
-- 20:26:55 Check the avenue constants and the state of veg_scatter.gd
-- 20:27:04 List the roads near the trunk that stands in DESERT ROAD
-- 20:27:27 Find which scatter layer produced the trunk in the road
-- 20:27:57 Outline of bridges.gd (span detection and deck height)
-- 20:27:59 Read how road bridges are detected and deck height is computed
-- 20:28:10 Read how a road and its branch profile are built
-- 20:28:45 Compare SUMMIT ROAD against PASS ROAD sample by sample at their junction
-- 20:29:29 Probe the mountain railway near the PASS ROAD obstruction
-- 20:29:39 Re-run the rail probe near the PASS ROAD obstruction
-- 20:29:51 Read the rail route dictionary keys
-- 20:29:54 Run the rail probe with the correct key
 - 20:30:13 Read the viaduct pier placement in rail_kit.gd
 - 20:30:44 Look at how pads get their positions and tests that mention the harbour pad
 - 20:30:49 Move the harbour pad to the open apron and re-run the landing probe
@@ -48,6 +28,26 @@ agent id aff758c60e86066ec, 416 events, first activity 2026-11-13T19:24:15.390Z,
 - 20:44:25 Reject avenue trees closer than 11 m to any road and re-probe the old spot
 - 20:44:55 Apply the view filter to the outskirt pins in the map overview and re-run the failing map test
 - 20:45:36 Fix the two test hygiene problems and re-run both tests
+- 20:47:35 Drop the process_mode line only and re-run the vehicle roster test; read the race length check
+- 20:48:58 Test whether building the full 3x3 LOD0 ring restores the vehicle roster test
+- 20:50:06 Look at where the vehicle roster test spawns its tank and plane
+- 20:50:14 Bisect: temporarily restore the old ensure_ground behaviour and re-run the vehicle roster test
+- 20:51:28 Check machine load and restore my ensure_ground change with a 150 m margin
+- 20:51:43 Adjust the race length threshold that the shortened SUMMIT ROAD falls under
+- 20:51:45 Verify the threshold edit landed
+- 20:52:04 Update the progress log with the fixes landed so far
+- 20:52:12 Expose a static blockers() helper in the road clearance audit for the regression test
+- 20:52:20 Read how a pad is found and the helper patterns of test_free_roam_world
+- 20:52:23 Check the pad find radius
+- 20:53:08 /home/user/QUANTUM_Teleportar/godot/tests/test_play_critic_w112.gd
+- 20:53:10 Write the regression test, import, and run it
+- 20:54:36 Show the script errors with their stack context
+- 20:54:40 Inspect the bridge ribbon code where the script error arises
+- 20:54:47 Re-run the new test and the bridges test for script errors
+- 20:56:43 List rail collision boxes near the remaining RING ROAD blocker
+- 20:57:18 List only the pier column boxes near the RING ROAD blocker
+- 20:57:58 Raise the pier slide limit to 150 m and re-run the new test and the railways test
+- 20:59:49 Run the neighbouring tests of my edits (batch 1)
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -55,3 +55,4 @@ agent id aff758c60e86066ec, 416 events, first activity 2026-11-13T19:24:15.390Z,
 - godot/tests/bot_play_sweep.gd
 - godot/tests/drive_audit.gd
 - godot/tests/road_clearance_audit.gd
+- godot/tests/test_play_critic_w112.gd

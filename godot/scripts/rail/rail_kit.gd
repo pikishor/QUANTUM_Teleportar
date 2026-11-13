@@ -277,7 +277,7 @@ static func _viaduct_piers(mb: MB, r: Dictionary, F: Array, i0: int, i1: int, or
 			want = s[i] - last_s >= 26.0
 		if not want:
 			continue
-		if not city and s[i] - last_s < 64.0:                                  # wave 112 critic: a bent whose columns would stand in a carriageway (a viaduct crossing over a road) slides on to the next sample:
+		if not city and s[i] - last_s < 150.0:                                 # wave 112 critic: a bent whose columns would stand in a carriageway (a viaduct crossing over a road) slides on to the next sample:
 			var rt0: Vector3 = f["rt"]                                          # piers in the PASS ROAD and the RING ROAD lanes stopped cars dead (road audit: Collision_mountain at 242, -1341 and 229..305, -1313..-1347)
 			var on_road := false
 			for sx0 in [-1.0, 0.0, 1.0]:

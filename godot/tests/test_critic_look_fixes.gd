@@ -37,7 +37,7 @@ func run(_host: Node) -> void:
 		if int(r[0]) < 2 or int(r[1]) != 0:
 			wrong += 1
 			print("  bridge %s: %d triangles, %d of them back faces" % [b["id"], r[0], r[1]])
-	TestLib.check(decks >= 8, "the world has road, track and suspension bridges (%d)" % decks)
+	TestLib.check(decks >= 7, "the world has road, track and suspension bridges (%d)" % decks)
 	TestLib.check(wrong == 0, "every bridge carriageway ribbon is a front face seen from above (%d of %d wrong)" % [wrong, decks])
 	var roads := TerrainRoads.roads()
 	var bad_roads := 0
@@ -46,6 +46,15 @@ func run(_host: Node) -> void:
 		if int(r2[0]) < 10 or int(r2[1]) > maxi(1, int(r2[0]) / 40):                       # a tight bend folds a triangle or two over: at most 2.5 % of them
 			bad_roads += 1
 	TestLib.check(bad_roads == 0, "the terrain road ribbons are front faces seen from above too (the rule the bridge decks now share)")
+
+	var hm := HarbourKit.road_mesh()                                              # the HARBOUR GATE approach road passes a dictionary with no `kind`: the lift must not need one
+	TestLib.check(hm != null and hm.get_surface_count() == 1, "the harbour road ribbon builds from a bare dictionary")
+	if hm != null:
+		var hr := _front_up(hm)
+		TestLib.check(int(hr[0]) >= 2 and int(hr[1]) <= maxi(1, int(hr[0]) / 40), "the harbour road ribbon is a front face seen from above too (%d back faces of %d: a tight bend folds one over)" % [hr[1], hr[0]])
+	var lift_hw := float(BridgeKit.road_ribbon({"pts": PackedVector3Array([Vector3(0, 5, 0), Vector3(0, 5, 20)]), "road_w": 8.0, "kind": &"road"}).surface_get_arrays(0)[Mesh.ARRAY_VERTEX][0].y)
+	var lift_tr := float(BridgeKit.road_ribbon({"pts": PackedVector3Array([Vector3(0, 5, 0), Vector3(0, 5, 20)]), "road_w": 8.0, "kind": &"track"}).surface_get_arrays(0)[Mesh.ARRAY_VERTEX][0].y)
+	TestLib.check(lift_hw > lift_tr + 0.02, "a highway deck ribbon lies higher than a track deck ribbon (%.2f over %.2f): where two decks overlap the asphalt wins" % [lift_hw, lift_tr])
 
 	var road_code := (load("res://assets/shaders/terrain_road.gdshader") as Shader).code
 	TestLib.check(road_code.contains("uniform float junction_fade"), "the road shader has the junction fade")

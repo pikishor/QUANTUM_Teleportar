@@ -112,9 +112,9 @@ func _data() -> void:
 		st_ok = st_ok and bool(s["ok"]) and (s["land"] as Vector3).is_finite() and TerrainHeight.depth_at((s["land"] as Vector3).x, (s["land"] as Vector3).z) <= 0.0
 	TestLib.check(st_ok, "five stunt ramps on straight dry road with a landing ring (%s)" % str(st.map(func(s: Dictionary) -> bool: return bool(s["ok"]))))
 	var rc := RoamData.races()
-	var rc_ok := rc.size() == 5
+	var rc_ok := rc.size() == 5                                               # (wave 112 critic: > 700 m, was 800: SUMMIT CLIMB lost its first 70 m when the SUMMIT ROAD junction moved to the end of the PASS ROAD bridge, 750 m left)
 	for r in rc:
-		rc_ok = rc_ok and (r["gates"] as Array).size() >= 3 and float(r["length"]) > 800.0 and float(r["par"]) > 30.0 and (r["start"] as Vector3).is_finite()
+		rc_ok = rc_ok and (r["gates"] as Array).size() >= 3 and float(r["length"]) > 700.0 and float(r["par"]) > 30.0 and (r["start"] as Vector3).is_finite()
 	TestLib.check(rc_ok, "five landmark races along real roads (%s m)" % str(rc.map(func(r: Dictionary) -> int: return int(r["length"]))))
 	TestLib.check(RoamData.race_pay(360, 100.0, 60.0) > RoamData.race_pay(360, 100.0, 120.0), "a faster race pays more")
 	# the counter and the ladder

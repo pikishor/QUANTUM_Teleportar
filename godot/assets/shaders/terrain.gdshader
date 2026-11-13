@@ -149,7 +149,8 @@ void fragment() {
 			// LOW: one top-down projection (no tri-planar). On a slope the strata layer stretched into regular horizontal ripples over the whole mountain (corduroy): bend it with a slow noise warp
 			// (ALU only, no texture sample) and give it a smaller share
 			vec2 sw_low = (vec2(vnoise(wpos.xz * 0.05), vnoise(wpos.xz * 0.05 + 7.0)) - 0.5) * 3.2;
-			rock = mix(lay(4, wpos.xz * uv_scale * 0.7, gx * 0.7, gy * 0.7), lay(8, wpos.xz * uv_scale * 0.56 + sw_low, gx * 0.56, gy * 0.56), strata_k * 0.45);
+			float blur_k = 1.0 + 2.2 * smoothstep(35.0, 200.0, -VERTEX.z);           // far rock is read from a blurrier mip: the repeat of the scanned texture showed as a regular fish-scale weave on every mountain
+			rock = mix(lay(4, wpos.xz * uv_scale * 0.7, gx * 0.7 * blur_k, gy * 0.7 * blur_k), lay(8, wpos.xz * uv_scale * 0.56 + sw_low, gx * 0.56 * blur_k, gy * 0.56 * blur_k), strata_k * 0.45);
 		}
 		ground = mix(ground, rock, rock_w);
 		bump_k = mix(bump_k, 1.0, rock_w);

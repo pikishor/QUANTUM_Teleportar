@@ -608,7 +608,7 @@ func settle(p: Vector3, near_only := false) -> int:
 ## The hero is about to stand at `p`: make sure the ground there exists; a no-op inside the city. Wave 112 critic: this used to be `settle(p, true)`, which builds the whole LOD0 ring AND the LOD1 ring
 ## synchronously (9 + 16 / 40 / 72 chunks: 0.8 - 1.2 s of frozen picture on a desktop for every fast travel and every teleport, several seconds on a phone). The hero needs the collider of the chunk
 ## he stands in and of the chunks within GROUND_MARGIN of him (`settle_ground`); the rest of the ring streams in on the worker threads like it does when he walks there.
-const GROUND_MARGIN := 40.0
+const GROUND_MARGIN := 150.0
 
 func ensure_ground(p: Vector3) -> void:
 	if is_ground_ready(p.x, p.z):
