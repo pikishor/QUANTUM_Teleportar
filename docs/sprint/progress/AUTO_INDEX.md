@@ -15,5 +15,5 @@ Written by godot/tools/sprint_digest.py at 2026-11-13 23:35Z. Status 'running' m
 
 - w112-integrator [Wave 112] done: 486 events, 22:13:26 -> 23:33:01
 - w112-ci-apk [Wave 112] running: 29 events, 23:33:01 -> 23:33:20
-- w113-weapons-roster [Wave 113] running: 98 events, 23:33:01 -> 23:35:08
+- w113-weapons-roster [Wave 113] running: 101 events, 23:33:01 -> 23:35:34
 
