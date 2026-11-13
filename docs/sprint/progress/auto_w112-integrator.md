@@ -1,6 +1,6 @@
 # w112-integrator (running)
 
-agent id a4a927fff584397e1, 103 events, first activity 2026-11-13T22:13:26.271Z, last activity 2026-11-13T22:16:30.403Z
+agent id a4a927fff584397e1, 176 events, first activity 2026-11-13T22:13:26.271Z, last activity 2026-11-13T22:41:28.087Z
 
 ## Last notes of the agent
 
@@ -8,16 +8,6 @@ agent id a4a927fff584397e1, 103 events, first activity 2026-11-13T22:13:26.271Z,
 
 ## Recent steps (last 40)
 
-- 22:13:29 Show git status, recent log and disk space
-- 22:13:30 Read wave 112 builder reports
-- 22:13:33 Show the rest of git status
-- 22:13:33 Read the Wave process section of the roadmap
-- 22:13:37 Size of docs and progress folder
-- 22:13:37 Show builders' additions to HANDOFF.md
-- 22:13:44 Check which dev probes are tracked and tool scripts
-- 22:13:44 Read test_all.sh and import.sh
-- 22:13:55 Check whether dev probes are tracked or referenced
-- 22:13:55 Read sprint state and resume notes
 - 22:14:22 Count tests, CPUs, memory and past suite timings
 - 22:14:23 See how the wave 111 integrator ran the suite
 - 22:14:30 Check machine load, memory hogs and temp usage
@@ -38,6 +28,26 @@ agent id a4a927fff584397e1, 103 events, first activity 2026-11-13T22:13:26.271Z,
 - 22:16:01 Check whether the root scratch PNGs are referenced
 - 22:16:23 Move unreferenced dev probes out of the repo and remove stray root PNGs
 - 22:16:30 Find the Godot user data directory and stale roam profile
+- 22:17:19 List user data dir and scratchpad contents
+- 22:17:33 Read get_godot, visual_qa and full_bot scripts
+- 22:17:46 Start the full test suite with a clean user data dir
+- 22:17:50 Confirm the suite is running
+- 22:18:16 Identify the suite's log directory
+- 22:18:22 Full test suite progress and completion
+- 22:18:27 Compute added asset weight of the wave
+- 22:18:33 Read the size report tool
+- 22:18:34 Look at the smaller shared doc and config diffs
+- 22:18:41 Check docs/shots sizes and repo size
+- 22:18:51 Inspect the process_mode error line in test_vehicle_roster
+- 22:18:58 Look at NearTraffic class to prepare the roster test fix
+- 22:19:09 Scan the diff for debug leftovers
+- 22:19:13 Check the new art source licence files
+- 22:19:19 Check which docs/shots files are tracked and gitignore rules
+- 22:19:24 See what the wave 111 integrator committed under docs/shots
+- 22:20:06 Test whether a bounded wait loop is allowed in the foreground
+- 22:22:11 Wait for the suite and report progress
+- 22:31:50 Wait for the suite and report progress
+- 22:41:28 Wait for the suite and report progress
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
