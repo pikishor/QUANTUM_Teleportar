@@ -209,6 +209,18 @@ static func build(opts: Dictionary) -> Dictionary:
 	sk.add_bone("Rifle")
 	parents.append(torso)
 	model_pos.append(RIFLE_PIVOT)
+	if bool(opts.get("gear", false)):                         # the cloak chain of the suit set (Sec1-3, the names CharacterRig sways): three bones hanging from the parent bone
+		var ch := HeroSuit.chain(o["suit"])
+		if not ch.is_empty():
+			var prev := int(name_to_idx.get(String(ch["parent"]), torso))
+			var cpos: PackedVector3Array = ch["pos"]
+			for k in 3:
+				var nb := sk.get_bone_count()
+				sk.add_bone("Sec%d" % (k + 1))
+				parents.append(prev)
+				model_pos.append(cpos[k])
+				name_to_idx["Sec%d" % (k + 1)] = nb
+				prev = nb
 	var n_bones := sk.get_bone_count()
 	for i in n_bones:
 		sk.set_bone_parent(i, parents[i])
@@ -265,6 +277,10 @@ static func build(opts: Dictionary) -> Dictionary:
 	var mesh := im.get_mesh()
 	info["tris"] = total
 	info["lods"] = im.get_surface_lod_count(0)
+	var lod_tris: Array[int] = [total]                          # triangles per level: the full mesh, then every engine LOD (the camera picks by screen size)
+	for l in im.get_surface_lod_count(0):
+		lod_tris.append(im.get_surface_lod_indices(0, l).size() / 3)
+	info["lod_tris"] = lod_tris
 	info["pieces"] = comps.size()
 	var skin := Skin.new()
 	for i in n_bones:

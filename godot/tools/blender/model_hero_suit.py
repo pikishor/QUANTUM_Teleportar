@@ -17,6 +17,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "herosuit"))
 import bpy  # noqa: E402
 import helpers  # noqa: E402
+import atlas  # noqa: E402
 from helpers import export_model, new_scene  # noqa: E402
 from herosuit import fit, parts  # noqa: E402
 from herosuit.body import Body  # noqa: E402
@@ -43,6 +44,7 @@ if os.environ.get("QT_HERO_QUICK"):
                               export_cameras=False, export_lights=False, export_animations=False, export_skins=False, export_morph=False)
     print("MODEL %s QUICK (no atlas) parts=%d -> %s (%.1fs)" % (NAME, len(objs), out, time.time() - t0))
 else:
+    atlas.PAD = 8                                   # UV islands of the lofted parts are narrow strips: 4 texels of padding let neighbours bleed in at mip 2 (dark boots turned beige at 4 m)
     export_model(NAME, kit.parts, size=int(os.environ.get("QT_HERO_ATLAS", "1024")), ao_dist=0.22, ao_strength=0.72, max_ppm=520.0, seed=7, emit_strength=1.0,
                  groups={"atlas": dict(base=NAME, material="Gear")})
     print("MODEL %s baked in %.1fs" % (NAME, time.time() - t0))

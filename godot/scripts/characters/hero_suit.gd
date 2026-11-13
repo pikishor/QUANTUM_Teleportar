@@ -94,8 +94,25 @@ static func _load() -> void:
 				uv.resize(v.size())
 			var sets := PackedStringArray(String(d.get("sets", "")).split(",", false))
 			_parts.append({"name": String(mi.name), "bone": String(d.get("bone", "spine_02")), "kind": float(d.get("kind", KIND_PLATE)), "zone": int(d.get("zone", 0)), "sets": sets,
-					"v": kv, "n": kn, "t": kt, "uv": uv, "idx": idx})
+					"v": kv, "n": kn, "t": kt, "uv": uv, "idx": idx, "chain_pos": String(d.get("chain_pos", "")), "chain_parent": String(d.get("chain_parent", "spine_02"))})
 	root.free()
+
+
+## The cloak chain of a suit set: {"parent": source bone name, "pos": PackedVector3Array of the Sec1..Sec3 pivots in MODEL space}, or {} when the set has no cloth part.
+## HeroCharacter adds the three bones (named Sec1 Sec2 Sec3, the names CharacterRig drives with its cloak springs) under `parent`.
+static func chain(set_id: StringName) -> Dictionary:
+	_load()
+	var key := String(set_id if SETS.has(set_id) else DEFAULT_SET)
+	for p: Dictionary in _parts:
+		if (p["sets"] as PackedStringArray).has(key) and String(p["chain_pos"]) != "":
+			var pos := PackedVector3Array()
+			for tri: String in String(p["chain_pos"]).split(";", false):
+				var f := tri.split(",", false)
+				if f.size() == 3:
+					pos.append(Vector3(float(f[0]), float(f[1]), float(f[2])))
+			if pos.size() == 3:
+				return {"parent": String(p["chain_parent"]), "pos": pos}
+	return {}
 
 
 ## Number of parts in the kit and in one suit set (tests).
@@ -128,7 +145,18 @@ static func pieces(set_id: StringName, bones: Dictionary) -> Array[Dictionary]:
 		if not (p["sets"] as PackedStringArray).has(key):
 			continue
 		var bname: String = p["bone"]
-		var bi := int(bones.get(bname, -1))
+		var chain_names := PackedStringArray()
+		var bi := -1
+		if bname.begins_with("chain:"):
+			chain_names = PackedStringArray(bname.substr(6).split(",", false))
+			var ok := chain_names.size() == 3
+			for cn in chain_names:
+				ok = ok and bones.has(cn)
+			if not ok:
+				continue
+			bi = int(bones[chain_names[0]])
+		else:
+			bi = int(bones.get(bname, -1))
 		if bi < 0:
 			continue
 		var v: PackedVector3Array = (p["v"] as PackedVector3Array).duplicate()
@@ -141,9 +169,39 @@ static func pieces(set_id: StringName, bones: Dictionary) -> Array[Dictionary]:
 		var pc := PackedFloat32Array()
 		kind.resize(n)
 		pc.resize(n)
+		var ys := PackedFloat32Array()
+		var cpos := PackedVector3Array()
+		if chain_names.size() == 3:
+			for tri: String in String(p["chain_pos"]).split(";", false):
+				var f := tri.split(",", false)
+				ys.append(float(f[1]))
 		for i in n:
-			bn[i * 4] = bi
-			wt[i * 4] = 1.0
+			if ys.size() == 3:                                  # the cloak: weights by height along the three pivots (kit space y = model space y)
+				var y := v[i].y
+				var b0 := int(bones[chain_names[0]])
+				var b1 := int(bones[chain_names[1]])
+				var b2 := int(bones[chain_names[2]])
+				if y >= ys[0]:
+					bn[i * 4] = b0
+					wt[i * 4] = 1.0
+				elif y >= ys[1]:
+					var t := (ys[0] - y) / maxf(ys[0] - ys[1], 0.001)
+					bn[i * 4] = b0
+					bn[i * 4 + 1] = b1
+					wt[i * 4] = 1.0 - t
+					wt[i * 4 + 1] = t
+				elif y >= ys[2]:
+					var t2 := (ys[1] - y) / maxf(ys[1] - ys[2], 0.001)
+					bn[i * 4] = b1
+					bn[i * 4 + 1] = b2
+					wt[i * 4] = 1.0 - t2
+					wt[i * 4 + 1] = t2
+				else:
+					bn[i * 4] = b2
+					wt[i * 4] = 1.0
+			else:
+				bn[i * 4] = bi
+				wt[i * 4] = 1.0
 			kind[i] = float(p["kind"]) / HeroCharacter.KIND_STEPS
 			pc[i] = path_coord(v[i], int(p["zone"]))
 		out.append({"v": v, "n": (p["n"] as PackedVector3Array).duplicate(), "t": (p["t"] as PackedFloat32Array).duplicate(), "uv": p["uv"], "bones": bn, "weights": wt,

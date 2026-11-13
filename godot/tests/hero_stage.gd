@@ -49,6 +49,7 @@ func _ready() -> void:
 			psm.ground_bottom_color = Color(0.06, 0.06, 0.08)
 			psm.ground_horizon_color = Color(0.3, 0.28, 0.32)
 	sky.sky_material = psm
+	sky.process_mode = Sky.PROCESS_MODE_REALTIME                  # the radiance map is complete in one frame (the default builds it over many frames: early captures were dark)
 	_env.background_mode = Environment.BG_SKY
 	_env.sky = sky
 	_env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
@@ -105,11 +106,13 @@ func _ready() -> void:
 	_cam.far = 400.0
 	add_child(_cam)
 	_cam.make_current()
+	if _args.has("dbg") and _body.hero_mat != null:
+		_body.hero_mat.set_shader_parameter(&"dbg_view", float(_args["dbg"]))
 	if _args.has("lod"):
 		for n in _body.find_children("*", "MeshInstance3D", true, false):
 			(n as MeshInstance3D).lod_bias = float(_args["lod"])
 	print("STAGE hero opts ", _body._hero_opts, " tris ", _body.hero_info.get("tris", "?"), " info ", _body.hero_info)
-	_wait = 10
+	_wait = 36
 	Engine.max_fps = 30
 
 

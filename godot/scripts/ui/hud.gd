@@ -440,7 +440,7 @@ func tap(pos: Vector2) -> bool:
 		return true
 	if id != &"":
 		return press_button(id)
-	if preview_rect.has_area() and preview_rect.has_point(pos) and (_loadout_open or ShopScreen.weapon_page > 0):
+	if preview_rect.has_area() and preview_rect.has_point(pos) and (_loadout_open or ShopScreen.weapon_page > 0 or _look_open):
 		_pv_drag = true                                             # a finger on the 3D weapon: drag turns it, a plain tap swings it back to the side view
 		_pv_moved = false
 		_pv_x = pos.x
@@ -908,7 +908,10 @@ func slide(slider: StringName, x: float) -> void:
 func _pv_turn(x: float) -> void:
 	if absf(x - _pv_x) > 0.5:
 		_pv_moved = true
-	WeaponPreview.of(self).rotate_by(x - _pv_x)
+	if _look_open:
+		HeroShowcase.of(self).rotate_by(x - _pv_x)                        # the SUIT screen's hero turntable (scripts/ui/hero_showcase.gd)
+	else:
+		WeaponPreview.of(self).rotate_by(x - _pv_x)
 	_pv_x = x
 
 
@@ -917,7 +920,10 @@ func end_drag() -> void:
 	if _pv_drag:
 		_pv_drag = false
 		if not _pv_moved:
-			WeaponPreview.of(self).reset_view()
+			if _look_open:
+				HeroShowcase.of(self).reset_view()
+			else:
+				WeaponPreview.of(self).reset_view()
 		return
 	if _drag == &"":
 		return

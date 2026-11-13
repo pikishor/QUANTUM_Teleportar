@@ -13,23 +13,23 @@ signal changed
 ## accent goes into the painted trim), pmetal / prough (plate finish), story (one line for the customisation screen). The old ids stay (saves): "standard" is the VANGUARD.
 const SUITS := {
 	&"standard": {"name": "VANGUARD", "set": &"vanguard", "price": 0, "need": "", "albedo": Color(1.0, 1.0, 1.0), "metal": 0.0, "rough": 0.0, "glow": 1.0,
-			"plate": Color(0.24, 0.26, 0.31), "cloth": Color(0.045, 0.05, 0.065), "cloth2": Color(0.07, 0.075, 0.09), "trim_k": 0.5, "pmetal": 1.0, "prough": 0.0,
-			"story": "Layered plates over a graphite suit. The default."},
+			"plate": Color(0.17, 0.185, 0.225), "cloth": Color(0.045, 0.05, 0.065), "cloth2": Color(0.07, 0.075, 0.09), "trim_k": 0.4, "pmetal": 1.0, "prough": 0.0,
+			"story": "Layered plates over a graphite suit. The default.", "tag": "LAYERED PLATES"},
 	&"stealth": {"name": "STEALTH", "set": &"stealth", "price": 300, "need": "", "albedo": Color(0.7, 0.72, 0.76), "metal": -0.1, "rough": 0.2, "glow": 0.6,
-			"plate": Color(0.085, 0.09, 0.105), "cloth": Color(0.028, 0.03, 0.038), "cloth2": Color(0.045, 0.047, 0.055), "trim_k": 0.22, "pmetal": 0.5, "prough": 0.18,
-			"story": "Matte black, light plates, dim circuits."},
+			"plate": Color(0.075, 0.08, 0.095), "cloth": Color(0.028, 0.03, 0.038), "cloth2": Color(0.045, 0.047, 0.055), "trim_k": 0.24, "pmetal": 0.5, "prough": 0.18,
+			"story": "Matte black, light plates, dim circuits.", "tag": "MATTE  DIM CIRCUITS"},
 	&"assault": {"name": "ASSAULT", "set": &"assault", "price": 450, "need": "", "albedo": Color(1.05, 1.0, 0.92), "metal": 0.05, "rough": 0.05, "glow": 1.0,
-			"plate": Color(0.27, 0.285, 0.21), "cloth": Color(0.06, 0.062, 0.048), "cloth2": Color(0.09, 0.09, 0.07), "trim_k": 0.55, "pmetal": 0.8, "prough": 0.05,
-			"story": "Heavy armour in olive drab: bigger shoulders, thigh and chest guards."},
+			"plate": Color(0.2, 0.21, 0.15), "cloth": Color(0.06, 0.062, 0.048), "cloth2": Color(0.09, 0.09, 0.07), "trim_k": 0.42, "pmetal": 0.8, "prough": 0.05,
+			"story": "Heavy armour in olive drab: bigger shoulders, thigh and chest guards.", "tag": "HEAVY ARMOUR"},
 	&"flight": {"name": "FLIGHT", "set": &"flight", "price": 0, "need": "ach:chapter_4", "albedo": Color(1.1, 1.1, 1.15), "metal": 0.1, "rough": -0.05, "glow": 1.2,
-			"plate": Color(0.5, 0.53, 0.58), "cloth": Color(0.04, 0.05, 0.075), "cloth2": Color(0.07, 0.08, 0.11), "trim_k": 0.6, "pmetal": 0.7, "prough": -0.05,
-			"story": "Sleek and light, with wing mounts on the back. Reach chapter 5."},
+			"plate": Color(0.3, 0.33, 0.39), "cloth": Color(0.04, 0.05, 0.075), "cloth2": Color(0.07, 0.08, 0.11), "trim_k": 0.5, "pmetal": 0.7, "prough": -0.05,
+			"story": "Sleek and light, with wing mounts on the back. Reach chapter 5.", "tag": "WING MOUNTS"},
 	&"gilded": {"name": "GILDED", "set": &"vanguard", "price": 0, "need": "visor_gold", "albedo": Color(1.2, 1.05, 0.8), "metal": 0.3, "rough": -0.2, "glow": 1.1,
-			"plate": Color(0.78, 0.58, 0.24), "cloth": Color(0.03, 0.028, 0.032), "cloth2": Color(0.06, 0.05, 0.04), "trim_k": 0.3, "pmetal": 1.2, "prough": -0.15,
-			"story": "The gold hero suit. Collect all ten rooftop shards."},
+			"plate": Color(0.62, 0.43, 0.14), "cloth": Color(0.03, 0.028, 0.032), "cloth2": Color(0.06, 0.05, 0.04), "trim_k": 0.3, "pmetal": 1.4, "prough": -0.12,
+			"story": "The gold hero suit. Collect all ten rooftop shards.", "tag": "GOLD PLATING"},
 	&"phase": {"name": "PHASE", "set": &"vanguard", "price": 0, "need": "aura_phase", "albedo": Color(0.95, 1.0, 1.05), "metal": 0.15, "rough": -0.15, "glow": 1.5,
-			"plate": Color(0.18, 0.27, 0.34), "cloth": Color(0.03, 0.05, 0.075), "cloth2": Color(0.05, 0.08, 0.11), "trim_k": 0.7, "pmetal": 1.1, "prough": -0.2,
-			"story": "Glassy plates and bright circuits. Collect all thirty shards."},
+			"plate": Color(0.14, 0.23, 0.29), "cloth": Color(0.03, 0.05, 0.075), "cloth2": Color(0.05, 0.08, 0.11), "trim_k": 0.6, "pmetal": 1.1, "prough": -0.2,
+			"story": "Glassy plates and bright circuits. Collect all thirty shards.", "tag": "GLASS PLATES"},
 }
 const SUIT_ORDER: Array[StringName] = [&"standard", &"stealth", &"assault", &"flight", &"gilded", &"phase"]
 ## name, tint (albedo multiplier of the armour), accent (emission and trim), price, need
@@ -208,6 +208,28 @@ func tint() -> Color:
 
 func suit_def() -> Dictionary:
 	return SUITS[suit]
+
+
+## The look on a hero material (PlayerBody and the SUIT screen's showcase use it): the suit finish, the scheme's accent, the suit kit palette and the idle colour of the circuits. Parameters
+## only. `quality` is the graphics tier (0 LOW tames the glow), `compat` the Compatibility renderer. Returns the accent colour.
+func apply_material(mat: ShaderMaterial, glow: HeroGlow = null, quality := 1, compat := false) -> Color:
+	var sd := suit_def()
+	var mult := (sd["albedo"] as Color) * tint()
+	var neutral := suit == &"standard" and scheme == 0 and accent_hue < 0
+	var acc := accent()
+	mat.set_shader_parameter(&"look_tint", Color(mult.r, mult.g, mult.b))
+	mat.set_shader_parameter(&"suit_metal", clampf(0.3 + float(sd["metal"]), 0.0, 1.0))
+	mat.set_shader_parameter(&"suit_rough", clampf(0.5 + float(sd["rough"]), 0.05, 1.0))
+	mat.set_shader_parameter(&"glow", float(sd["glow"]) * (0.6 if quality == 0 else 1.0))
+	mat.set_shader_parameter(&"accent", acc)
+	mat.set_shader_parameter(&"accent_mix", 0.0 if neutral else ACCENT_MIX)
+	var pal := palette()
+	for k: StringName in pal:
+		mat.set_shader_parameter(k, pal[k])
+	mat.set_shader_parameter(&"glow_gain", 1.0 * (0.7 if quality == 0 else 1.0) * (0.6 if compat else 1.0))
+	if glow != null:
+		glow.set_base(acc, float(sd["glow"]))
+	return acc
 
 
 ## The armour kit set of the equipped suit (HeroSuit.SETS): vanguard, stealth, assault or flight.

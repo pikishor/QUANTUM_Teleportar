@@ -38,8 +38,11 @@ def main():
         name = os.path.basename(p)
         if not (name.endswith(".png.import") or name.endswith(".jpg.import")):
             continue
-        is_rough_or_orm = "_rough" in name or "_orm" in name
-        ch = {"compress/mode": "2", "compress/high_quality": "false" if is_rough_or_orm else "true", "mipmaps/generate": "true"}
+        is_orm = "_orm" in name
+        ch = {"compress/mode": "2", "compress/high_quality": "false" if is_orm else "true", "mipmaps/generate": "true"}
+        if "_rough" in name:                                   # RGBA data (R roughness, G / B / A the suit mask): the alpha is not transparency, keep every texel exactly
+            ch["process/fix_alpha_border"] = "false"
+            ch["process/premult_alpha"] = "false"
         if "normal" in name:
             ch["compress/normal_map"] = "1"
         if patch(p, ch):

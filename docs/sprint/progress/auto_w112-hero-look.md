@@ -1,59 +1,62 @@
 # w112-hero-look (running)
 
-agent id a69d96b40de14c54e, 518 events, first activity 2026-11-13T14:59:05.954Z, last activity 2026-11-13T15:48:33.781Z
+agent id a69d96b40de14c54e, 1106 events, first activity 2026-11-13T14:59:05.954Z, last activity 2026-11-13T17:25:22.214Z
 
 ## Last notes of the agent
 
-- 15:17:05 Now let me set up the look-dev stage viewer (phone aspect, game-like lighting, many views) before building the kit.
 - 15:19:04 Now the glow API. Let me write `HeroGlow` first (the stage depends on `HeroLook.set_glow`), then I'll move on to the Blender kit.
 - 15:20:56 Now the Blender side. First the body loader + conformal fitting helpers; I'll test them on a first part before building the whole kit.
 - 15:31:58 Now the shader. I need to keep the legacy jacket/pants path byte-identical for NPCs and enemies (they share this shader) and add the new hero style next to it.
 - 15:32:55 Now the PlayerBody integration (glow object, registration, per-frame update, event hooks, palette).
 - 15:38:32 Now the body surgery (gloves covered by the suit, feet cut under the boots, hands/eyes/brows decimated) in HeroCharacter.
+- 17:01:54 Now let me write the test.
 
 ## Recent steps (last 40)
 
-- 15:34:48 Rebuild the kit (quick) and run the Godot import
-- 15:35:06 First render of the hero with the quick-mode kit
-- 15:35:40 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s1/a_three.png
-- 15:35:40 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s1/a_back.png
-- 15:36:04 Fix stage camera framing (vertical fov for framed views)
-- 15:36:13 Print bounds of the boot parts to find the stray geometry
-- 15:36:27 Print bounds for all right-side and central parts
-- 15:37:09 Refactor shell into shell_fn with analytic surfaces and miss radius, extend Limb
-- 15:37:31 Rewrite collar, shoulders, boots and antennas with the improved fit helpers
-- 15:37:51 Read ring_se and g_loft helpers
-- 15:38:09 Replace the ray-fitted boot by an analytic loft boot
-- 15:38:27 Locate exposed-bone handling in HeroCharacter.build
-- 15:38:45 Add body surgery functions and gloved exposure to HeroCharacter
-- 15:38:58 Rebuild kit, import and render with the body surgery and fixed framing
-- 15:39:38 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s2/a_three.png
-- 15:39:38 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s2/a_back.png
-- 15:40:14 Run the full atlas bake of the hero suit kit
-- 15:40:51 Check atlas size scaling and packing logic
-- 15:41:14 Bake the kit at a 1K atlas
-- 15:41:40 Create the hero texture import patcher and apply VRAM compression with mipmaps
-- 15:43:22 Measure hero texture memory with compression and render with the baked atlas
-- 15:44:12 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s3/a_three.png
-- 15:44:13 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s3/a_shoulder.png
-- 15:44:31 Debug rays from above onto the trapezius slope
-- 15:44:54 Track ray misses and fix the yoke extent
-- 15:45:21 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s3/a_front.png
-- 15:45:22 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s3/a_legs.png
-- 15:45:32 View the baked suit atlas textures
-- 15:45:39 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/dev/suit_atlas.jpg
-- 15:45:53 Render the hero in neutral studio light to judge material colours
-- 15:46:19 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s4/a_legs.png
-- 15:46:19 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s4/a_front.png
-- 15:46:30 Check the default of character_light on PlayerBody
-- 15:46:33 Read how the character light follows the camera and layers
-- 15:46:44 Render in day light to compare plate brightness
-- 15:47:03 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s5/a_bust.png
-- 15:47:12 Re-import the fixed kit and render in day light
-- 15:47:57 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s6/a_bust.png
-- 15:47:58 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/s6/a_back.png
-- 15:48:33 Tighten shoulders and collar, calm the eyes, and run a loop iteration
+- 16:57:06 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/k3/d2_backhi.png
+- 16:57:19 Cap metal on flat dark and plate kinds, re-render
+- 16:57:44 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/k3/e_backhi.png
+- 16:57:44 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/k3/e_three.png
+- 16:57:54 Render leg views and an albedo debug of the legs
+- 16:58:27 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/k3/f_legs.png
+- 16:58:27 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/k3/g_legs.png
+- 16:58:33 Find the boot parts in the kit code
+- 16:58:36 Read the boots function
+- 16:58:47 Make the boots dark fabric and rebake
+- 16:59:31 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/k3/h_front.png
+- 16:59:39 Find LOD generation in hero_character
+- 16:59:42 Read the LOD generation and info in the build function
+- 16:59:52 Add per-LOD triangle info and render the 15/40/80 m views
+- 17:00:30 Crop and combine the far views into one image
+- 17:00:34 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/lod/far_sheet.png
+- 17:00:44 Read the style of an existing hero test and TestLib header
+- 17:01:06 Read HeroGlow.sense and the layer API
+- 17:01:24 Check import settings of hero textures and locate TestLib
+- 17:01:31 List TestLib helpers and HeroSuit API
+- 17:01:51 Check flinch/fire_flash signatures and HeroSuit counts API
+- 17:02:55 /home/user/QUANTUM_Teleportar/godot/tests/test_hero_look_v3.gd
+- 17:02:59 Run the new hero look v3 test and show failures only
+- 17:03:11 Fix the Color distance helper and rerun the test
+- 17:04:10 Introduce held layers for the glow API and an internal set path
+- 17:04:17 Switch the sensor and hurt to the internal layer path
+- 17:04:25 Release clears holds; rerun the v3 test
+- 17:04:56 Rename the internal setter and rerun the test
+- 17:05:30 Run the neighbouring hero tests
+- 17:07:27 Read perf_report.sh usage
+- 17:07:30 Run the perf budget gate for LOW, MED and HIGH
+- 17:14:37 Find LOD settings for the reflection twin and the shadow proxy
+- 17:14:50 Find ShadowProxy usage and the committed perf budgets
+- 17:15:18 Experiment: hero LOD bias 0.3 effect on MED totals
+- 17:17:26 Check how the godot binary is located and project sizes
+- 17:17:38 Create a clean HEAD worktree for the baseline hero and perf numbers
+- 17:18:21 Render the old hero in the stage and measure the baseline MED perf
+- 17:24:29 Patch the baseline stage script and render the old hero
+- 17:25:13 Copy only the hero-look files into the clean worktree for an A/B perf run
+- 17:25:22 Import and run the perf gate on HEAD plus only the hero-look changes
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
 - godot/scripts/player/hero_look.gd
+- godot/scripts/characters/hero_portrait.gd
+- docs/sprint/progress/w112-hero-look.md
+- godot/tests/test_hero_look_v3.gd

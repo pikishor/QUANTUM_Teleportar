@@ -13,9 +13,54 @@ from mathutils import Matrix, Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, HERE)
-from fit import Limb, bump, ellipse_surf, lerp, planar, shell, shell_fn, sm  # noqa: E402
+from fit import Limb, bump, dome_surf, ellipse_surf, lerp, planar, sheet, shell, shell_fn, sm  # noqa: E402
 from helpers import ring_se  # noqa: E402
 from kitlib import (K_ACCENT, K_CANVAS, K_CLOTH, K_DARK, K_FABRIC, K_GLOW, K_GOLD, K_PLATE, Z_ARMS, Z_CORE, Z_HANDS, Z_HEAD, Z_LEGS, Z_WINGS)  # noqa: E402
+
+import shade  # noqa: E402
+import numpy as np  # noqa: E402
+
+
+def shade_hplate(c, i):
+    """Painted composite armour of the hero (kit kind "hplate"): a clean satin paint, soft wear on the convex edges only (bare metal), a faint grime in the cavities, crisp panel grooves in
+    the concave creases. The stock `plating` kind scratches and stains too much for a hero (it read as cracked concrete on a phone)."""
+    sm_, P, C = shade.sm, c.P[i], c.C[i]
+    mott = c.noise.fbm3(P, 4.0, 3, 0.5, 11)
+    fine = c.noise.fbm3(P, 140.0, 2, 0.5, 12)
+    edge = sm_(0.0045, 0.0006, c.cx[i]) * sm_(0.2, 0.6, c.noise.fbm3(P, 55.0, 3, 0.5, 13))
+    dirt = shade.grime_mask(c, i, 0.35, 0.3, 0.7, 0.4, 5)
+    paint = C * (0.9 + 0.2 * mott)[:, None] * (0.97 + 0.06 * fine)[:, None]
+    bare = np.array([0.55, 0.55, 0.57]) * (0.85 + 0.3 * fine)[:, None]
+    alb = paint * (1.0 - 0.26 * dirt)[:, None]
+    alb = alb * (1.0 - edge[:, None]) + bare * edge[:, None]
+    groove = sm_(0.0022, 0.0, c.cc[i])
+    alb = alb * (1.0 - 0.38 * groove)[:, None]
+    c.alb[i] = alb
+    c.rough[i] = np.clip(0.46 + 0.10 * (mott - 0.5) + 0.12 * dirt - 0.22 * edge, 0.2, 0.8)
+    c.metal[i] = np.clip(edge * 0.9, 0.0, 0.9)
+    c.height[i] = -0.0004 * edge - 0.0007 * groove + 0.00015 * (fine - 0.5)
+
+
+def shade_hdark(c, i):
+    """Dark satin composite (kit kind "hdark": the pack, bracers, bands, shafts): a soft mottle, a fine grain, bare metal on the convex edges. No weave: the stock carbon twill aliased into
+    large light diamonds at the hero's texel density."""
+    sm_, P, C = shade.sm, c.P[i], c.C[i]
+    mott = c.noise.fbm3(P, 5.0, 3, 0.5, 31)
+    fine = c.noise.fbm3(P, 160.0, 2, 0.5, 32)
+    edge = sm_(0.0042, 0.0005, c.cx[i]) * sm_(0.25, 0.6, c.noise.fbm3(P, 60.0, 3, 0.5, 33))
+    alb = C * (0.85 + 0.3 * mott)[:, None] * (0.95 + 0.10 * fine)[:, None]
+    alb = alb * (1.0 - edge[:, None]) + np.array([0.28, 0.29, 0.31]) * edge[:, None]
+    groove = sm_(0.0022, 0.0, c.cc[i])
+    c.alb[i] = alb * (1.0 - 0.3 * groove)[:, None]
+    c.rough[i] = np.clip(0.42 + 0.10 * (fine - 0.5) - 0.2 * edge, 0.15, 0.8)
+    c.metal[i] = np.clip(0.2 + 0.6 * edge, 0.0, 0.9)
+    c.height[i] = -0.0005 * groove + 0.0001 * (fine - 0.5)
+
+
+shade.KINDS["hdark"] = shade_hdark
+shade.KIND_IDS["hdark"] = len(shade.KIND_IDS)
+shade.KINDS["hplate"] = shade_hplate
+shade.KIND_IDS["hplate"] = len(shade.KIND_IDS)            # the baker dispatches through KIND_IDS (built once at import)
 
 R = math.radians
 RES = float(os.environ.get("QT_HERO_RES", "0.55"))              # grid resolution factor of every conformal piece (triangle budget lever)
@@ -49,13 +94,14 @@ def _raw(part, vf, mat, tint=(1, 1, 1), bevel=0.0025, bsegs=1, mirror=True, shar
 
 def materials(kit):
     m = {}
-    m["plate"] = kit.mat("plate", tex="plating", color=(0.50, 0.50, 0.52))
+    m["plate"] = kit.mat("plate", tex="hplate", color=(0.50, 0.50, 0.52))
     m["steel"] = kit.mat("steel", tex="steel", color=(0.15, 0.16, 0.18))
     m["rubber"] = kit.mat("rubber", tex="rubber", color=(0.05, 0.05, 0.055))
     m["fabric"] = kit.mat("fabric", tex="fabric", color=(0.45, 0.45, 0.47))
-    m["carbon"] = kit.mat("carbon", tex="carbon", color=(0.11, 0.115, 0.125))
+    m["carbon"] = kit.mat("carbon", tex="hdark", color=(0.10, 0.105, 0.115))
     m["boot"] = kit.mat("boot", tex="fabric", color=(0.09, 0.09, 0.098))
-    m["canvas"] = kit.mat("canvas", tex="fabric", color=(0.36, 0.30, 0.22))
+    m["cloak"] = kit.mat("cloak", tex="fabric", color=(0.5, 0.5, 0.52))
+    m["canvas"] = kit.mat("canvas", tex="fabric", color=(0.16, 0.15, 0.11))
     m["glow"] = kit.mat("glow", tex=None, color=(1.0, 1.0, 1.0), emit=(1.0, 1.0, 1.0), emit_strength=1.0)
     return m
 
@@ -132,8 +178,8 @@ def abdomen(kit, body, M):
     kit.done(p, "pelvis", K_GLOW, Z_CORE, ALL)
     # hip pouches (canvas) and a hip plate each side
     p = kit.new("pouch")
-    p.box((0.072, 0.092, 0.115), (0.196, -0.015, 0.905), mat=M["canvas"], bevel=0.008, bsegs=1, mirror=True)
-    p.box((0.076, 0.098, 0.030), (0.196, -0.015, 0.960), mat=M["canvas"], bevel=0.006, bsegs=1, mirror=True)
+    p.box((0.060, 0.080, 0.095), (0.198, -0.015, 0.900), mat=M["canvas"], bevel=0.007, bsegs=1, mirror=True)
+    p.box((0.064, 0.086, 0.026), (0.198, -0.015, 0.950), mat=M["canvas"], bevel=0.005, bsegs=1, mirror=True)
     kit.done(p, "pelvis", K_CANVAS, Z_CORE, ALL, lr=True)
 
 
@@ -149,8 +195,8 @@ def back(kit, body, M):
     p.torus(0.052, 0.009, pos=(0, cy - 0.047, 1.305), rot=(90, 0, 0), mat=M["steel"], segs=20, sides=6)
     p.cyl(0.043, 0.010, pos=(0, cy - 0.046, 1.305), axis="y", mat=M["steel"], segs=20)
     # antenna blades
-    p.bar((0.095, cy + 0.012, 1.455), (0.128, cy - 0.030, 1.700), 0.026, 0.052, mat=M["carbon"], taper=(0.45, 0.40), bevel=0.002, mirror=True)
-    p.bar((0.095, cy + 0.012, 1.455), (0.128, cy - 0.030, 1.700), 0.030, 0.016, mat=M["steel"], taper=(0.5, 0.45), bevel=0.0015, mirror=True)
+    p.bar((0.092, cy + 0.015, 1.455), (0.160, cy - 0.050, 1.625), 0.072, 0.017, mat=M["carbon"], up=(0, 1, 0), taper=(0.30, 1.0), bevel=0.002, mirror=True)          # swept fins
+    p.bar((0.092, cy + 0.015, 1.455), (0.160, cy - 0.050, 1.625), 0.018, 0.022, mat=M["steel"], up=(0, 1, 0), taper=(0.5, 1.0), bevel=0.0015, mirror=True)
     # nozzles
     p.cyl(0.026, 0.060, pos=(0.075, cy - 0.01, 1.095), axis="z", mat=M["steel"], r2=0.021, segs=16, bevel=0.002, mirror=True)
     kit.done(p, "spine_02", K_DARK, Z_WINGS, ALL)
@@ -181,18 +227,24 @@ def collar(kit, body, M):
 # ------------------------------------------------------------------------------------------------------------------------------------------------
 
 def shoulders(kit, body, M):
-    """A compact shoulder cap (the deltoid dome, riding with the upper arm) and a second lame below it toward the elbow, plus a glowing rim; a yoke on the torso over the trapezius."""
-    arm = Limb(body, body.bone["upperarm_r"], body.bone["lowerarm_r"], 10, up=(0, 0, 1), fwd=(0, 1, 0), radius=0.1)
+    """Pauldrons as spherical shells about the shoulder joint (they ride with the upper arm bone and keep clear of the skin in every arm pose), a skirt lame below the cap with a glowing
+    rim, and a yoke on the torso over the trapezius."""
+    j = Vector(body.bone["upperarm_r"])
+    axis = Vector((0.45, -0.05, 1.0))
+
+    def notch(th):                                                    # a notched rim: shorter at the front and back
+        return 0.10 * (1.0 + math.cos(th * 2.0)) * 0.5
     p = kit.new("pauld_cap")
-    sh1 = sh(body, 6, 10, arm.span(-0.16, 0.40, R(-82), R(70)), lambda s, t: 0.021 + 0.009 * bump(s, 0.5, 0.5) * bump(t, 0.35, 0.6) - 0.004 * sm(0.85, 1.0, t), 0.008)
-    _raw(p, sh1, M["plate"], bevel=0.003, bsegs=1)
+    surf = dome_surf(j, axis, 0.098, R(10), R(66), notch)
+    _raw(p, shf(5, 12, surf, lambda s, t: 0.0 + 0.010 * bump(t, 0.2, 0.6), -0.010, True), M["plate"], bevel=0.003, bsegs=1)
     kit.done(p, "upperarm_r", K_ACCENT, Z_ARMS, HEAVY + ",flight,stealth", lr=True)
     p = kit.new("pauld_lame")
-    sh2 = sh(body, 4, 8, arm.span(0.31, 0.68, R(-74), R(56)), lambda s, t: 0.0165 + 0.004 * bump(s, 0.5, 0.5) + 0.004 * sm(0.75, 1.0, t), 0.008)
-    _raw(p, sh2, M["plate"], bevel=0.003, bsegs=1)
+    surf = dome_surf(j, axis, 0.112, R(60), R(92), None)
+    _raw(p, shf(3, 12, surf, lambda s, t: 0.0, -0.010, True), M["plate"], bevel=0.003, bsegs=1)
     kit.done(p, "upperarm_r", K_PLATE, Z_ARMS, HEAVY, lr=True)
     p = kit.new("pauld_glow")
-    _raw(p, sh(body, 1, 10, arm.span(0.395, 0.405, R(-80), R(68)), 0.0295, 0.0235), M["glow"], bevel=0.0, mirror=True)
+    surf = dome_surf(j, axis, 0.1175, R(93), R(95), None)
+    _raw(p, shf(1, 12, surf, 0.0, -0.004, True), M["glow"], bevel=0.0)
     kit.done(p, "upperarm_r", K_GLOW, Z_ARMS, HEAVY + ",flight,stealth", lr=True)
     # the yoke: a plate over the trapezius slope (rays from above, outside the neck / head column)
     p = kit.new("yoke")
@@ -267,15 +319,15 @@ def boots(kit, body, M):
     cx = 0.114
     # y, half width, z bottom, z top
     st = [(-0.160, 0.030, 0.034, 0.100), (-0.148, 0.047, 0.030, 0.126), (-0.105, 0.060, 0.030, 0.190), (-0.045, 0.063, 0.030, 0.158), (0.030, 0.064, 0.030, 0.118),
-          (0.110, 0.070, 0.030, 0.092), (0.185, 0.061, 0.031, 0.070), (0.235, 0.043, 0.033, 0.054), (0.265, 0.020, 0.036, 0.042)]
+          (0.110, 0.070, 0.030, 0.094), (0.175, 0.063, 0.032, 0.076), (0.215, 0.046, 0.034, 0.060), (0.238, 0.022, 0.037, 0.046)]
     rings = [ring_se(cx, y, (zb + zt) / 2, hw, (zt - zb) / 2, n=12, exp=3.0, plane="xz") for (y, hw, zb, zt) in st]
     p = kit.new("boot")
     p.loft(rings, mat=M["boot"], caps=(True, True), mirror=True, bevel=0.0015, bsegs=1)
-    kit.done(p, "foot_r", K_DARK, Z_LEGS, ALL, lr=True)
+    kit.done(p, "foot_r", K_FABRIC, Z_LEGS, ALL, lr=True)
     sole = [ring_se(cx, y, 0.018, hw + 0.007, 0.018, n=10, exp=3.0, plane="xz") for (y, hw, zb, zt) in st]
     p = kit.new("sole")
     p.loft(sole, mat=M["rubber"], caps=(True, True), mirror=True)
-    kit.done(p, "foot_r", K_DARK, Z_LEGS, ALL, lr=True)
+    kit.done(p, "foot_r", K_FABRIC, Z_LEGS, ALL, lr=True)
     tc = [ring_se(cx, y, (zb + zt) / 2 + 0.006, hw + 0.006, (zt - zb) / 2 + 0.006, n=12, exp=3.0, plane="xz") for (y, hw, zb, zt) in st[5:]]
     p = kit.new("toecap")
     p.loft(tc, mat=M["plate"], caps=(True, True), mirror=True, bevel=0.0015, bsegs=1)
@@ -285,6 +337,99 @@ def boots(kit, body, M):
     leg = Limb(body, (0.114, -0.04, 0.30), (0.114, -0.075, 0.085), 8, up=(0, 1, 0), fwd=(1, 0, 0), radius=0.1)
     _raw(p, sh(body, 5, 18, leg.span(0.0, 1.0, R(0), R(360)), lambda s, t: 0.014 + 0.008 * sm(0.6, 1.0, t), 0.006, closed_s=True), M["carbon"], bevel=0.0025, bsegs=1)
     kit.done(p, "foot_r", K_DARK, Z_LEGS, ALL, lr=True)
+
+
+def legs_rear(kit, body, M):
+    """Rear calf plates and a hamstring panel: the back of the legs is what the camera sees most."""
+    leg = Limb(body, body.bone["thigh_r"], body.bone["foot_r"], 30, up=(0, 1, 0), fwd=(1, 0, 0), radius=0.13)
+
+    def tz(z):
+        return (0.971 - z) / (0.971 - 0.086)
+
+    p = kit.new("calf_rear")
+    _raw(p, sh(body, 7, 8, leg.span(tz(0.50), tz(0.20), R(138), R(222)), lambda s, t: 0.018 + 0.007 * bump(s, 0.5, 0.5) * bump(t, 0.4, 0.6), 0.008), M["plate"], bevel=0.003, bsegs=1)
+    kit.done(p, "calf_r", K_PLATE, Z_LEGS, ALL, lr=True)
+    p = kit.new("calf_rear_glow")
+    _raw(p, sh(body, 6, 1, leg.span(tz(0.47), tz(0.24), R(178), R(182)), 0.0275, 0.0225), M["glow"], bevel=0.0)
+    kit.done(p, "calf_r", K_GLOW, Z_LEGS, ALL, lr=True)
+    p = kit.new("ham_rear")
+    _raw(p, sh(body, 6, 8, leg.span(tz(0.88), tz(0.62), R(140), R(225)), lambda s, t: 0.016 + 0.005 * bump(s, 0.5, 0.5), 0.007), M["plate"], bevel=0.0028, bsegs=1)
+    kit.done(p, "thigh_r", K_ACCENT, Z_LEGS, HEAVY, lr=True)
+
+
+def assault_extras(kit, body, M):
+    """ASSAULT: a third shoulder lame, big outer thigh guards, a row of magazine pouches on the chest."""
+    arm = Limb(body, body.bone["upperarm_r"], body.bone["lowerarm_r"], 10, up=(0, 0, 1), fwd=(0, 1, 0), radius=0.1)
+    p = kit.new("pauld_over")
+    surf = dome_surf(Vector(body.bone["upperarm_r"]), Vector((0.45, -0.05, 1.0)), 0.128, R(8), R(78), lambda th: 0.12 * (1.0 + math.cos(th * 3.0)) * 0.5)
+    _raw(p, shf(5, 12, surf, lambda s, t: 0.010 * bump(t, 0.3, 0.7), -0.012, True), M["plate"], bevel=0.0035, bsegs=1)
+    kit.done(p, "upperarm_r", K_ACCENT, Z_ARMS, "assault", lr=True)
+    leg = Limb(body, body.bone["thigh_r"], body.bone["foot_r"], 30, up=(0, 1, 0), fwd=(1, 0, 0), radius=0.13)
+
+    def tz(z):
+        return (0.971 - z) / (0.971 - 0.086)
+
+    p = kit.new("thigh_guard")
+    _raw(p, sh(body, 6, 8, leg.span(tz(0.86), tz(0.56), R(60), R(124)), lambda s, t: 0.034 + 0.008 * bump(s, 0.5, 0.5), 0.012), M["plate"], bevel=0.0035, bsegs=1)
+    kit.done(p, "thigh_r", K_ACCENT, Z_LEGS, "assault", lr=True)
+    yz = body.ray((0, 1.0, 1.16), (0, -1, 0))[0].y
+    p = kit.new("chest_pouches")
+    for x in (-0.085, 0.0, 0.085):
+        p.box((0.058, 0.032, 0.080), (x, yz + 0.026, 1.215), mat=M["canvas"], bevel=0.006, bsegs=1)
+        p.box((0.060, 0.034, 0.014), (x, yz + 0.030, 1.250), mat=M["steel"], bevel=0.003, bsegs=1)
+    kit.done(p, "spine_02", K_CANVAS, Z_CORE, "assault")
+
+
+def flight_extras(kit, body, M):
+    """FLIGHT: wing mounts on the back (two sockets with glowing strips) and two folded wing blades that lie along the back; the SNAKE FLIGHT wave unfolds or replaces them
+    (HeroSuit.hardpoint(&"wing_l" / &"wing_r") is the socket)."""
+    yb = body.ray((0, -1.0, 1.30), (0, 1, 0))[0].y
+    cy = yb - 0.052
+    p = kit.new("wing_mount")
+    p.box((0.060, 0.060, 0.120), (0.150, cy - 0.005, 1.395), mat=M["steel"], bevel=0.004, bsegs=1, mirror=True)
+    p.cyl(0.026, 0.050, pos=(0.165, cy - 0.020, 1.395), axis="y", mat=M["plate"], segs=14, bevel=0.0025, mirror=True)
+    kit.done(p, "spine_02", K_DARK, Z_WINGS, "flight")
+    p = kit.new("wing_blade")
+    p.bar((0.175, cy - 0.04, 1.43), (0.30, cy - 0.15, 0.82), 0.075, 0.014, mat=M["plate"], up=(0, 1, 0), taper=(0.25, 1.0), bevel=0.002, mirror=True)
+    p.bar((0.175, cy - 0.04, 1.43), (0.30, cy - 0.15, 0.82), 0.022, 0.020, mat=M["steel"], up=(0, 1, 0), taper=(0.4, 1.0), bevel=0.0015, mirror=True)
+    kit.done(p, "spine_02", K_ACCENT, Z_WINGS, "flight")
+    g = kit.new("wing_glow")
+    g.cyl(0.018, 0.052, pos=(0.165, cy - 0.021, 1.395), axis="y", mat=M["glow"], segs=14, mirror=True)
+    g.bar((0.185, cy - 0.048, 1.38), (0.287, cy - 0.140, 0.90), 0.010, 0.006, mat=M["glow"], up=(0, 1, 0), mirror=True)
+    kit.done(g, "spine_02", K_GLOW, Z_WINGS, "flight")
+
+
+def cape(kit, body, M):
+    """A half cape over the LEFT shoulder (asymmetry reads from behind and in motion): a cloth sheet that hangs behind the left arm, skinned along the Sec1-3 chain (the rig's cloak springs
+    swing it back with speed and sway it when turning). The chain pivots are exported in the part's extras in MODEL space (x right, y up, z back)."""
+    chain = [(-0.185, -0.115, 1.475), (-0.215, -0.185, 1.175), (-0.240, -0.235, 0.870)]        # Blender coords
+    top, bot = 1.505, 0.800
+
+    def pt(s, t):
+        z = lerp(top, bot, t)
+        x0 = lerp(-0.125, -0.085, t) - 0.0
+        x1 = lerp(-0.330, -0.420, t * t * 0.6 + t * 0.4)
+        x = lerp(x0, x1, s)
+        r = body.ray(Vector((x, -1.0, z)), Vector((0, 1, 0)), 1.5)
+        yb = r[0].y if r else -0.13
+        y = yb - (0.030 + 0.075 * t + 0.045 * math.sin(s * math.pi) * t)
+        return Vector((x, y, z))
+
+    p = kit.new("cape")
+    v, f = sheet(7, 5, pt, (0, -1, 0))
+    p.raw(v, f, M["cloak"], closed=False, bevel=0.0, mirror=False)
+    kit.done(p, "chain:Sec1,Sec2,Sec3", K_CLOTH, Z_ARMS, HEAVY)
+    kit.parts[-1].props["chain_pos"] = ";".join("%.4f,%.4f,%.4f" % (x, z, -y) for (x, y, z) in chain)      # model space
+    kit.parts[-1].props["chain_parent"] = "spine_02"
+    g = kit.new("cape_hem")
+    def hem(s, t):
+        q = pt(s, 1.0)
+        return Vector((q.x, q.y - 0.001 * (1 - t), q.z + 0.012 * (1 - t)))
+    v, f = sheet(1, 5, hem, (0, -1, 0))
+    g.raw(v, f, M["glow"], closed=False, bevel=0.0, mirror=False)
+    kit.done(g, "chain:Sec1,Sec2,Sec3", K_GLOW, Z_ARMS, HEAVY)
+    kit.parts[-1].props["chain_pos"] = kit.parts[-2].props["chain_pos"]
+    kit.parts[-1].props["chain_parent"] = "spine_02"
 
 
 def build(kit, body):
@@ -297,4 +442,8 @@ def build(kit, body):
     arms(kit, body, M)
     legs(kit, body, M)
     boots(kit, body, M)
+    legs_rear(kit, body, M)
+    assault_extras(kit, body, M)
+    flight_extras(kit, body, M)
+    cape(kit, body, M)
     return M

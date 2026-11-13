@@ -184,3 +184,35 @@ def planar(body, origin, d, u, v, extent):
 
 def spans(rows_fn, s, t):
     return rows_fn(s, t)
+
+
+def sheet(rows, cols, point_fn, face_dir):
+    """A plain sheet (cloth: no thickness, drawn double sided by the shader) of rows x cols quads. point_fn(s, t) -> Vector; the winding is made to face `face_dir` (the side that is the outside)."""
+    verts = []
+    for i in range(rows + 1):
+        for j in range(cols + 1):
+            verts.append(tuple(point_fn(j / cols, i / rows)))
+    faces = []
+    for i in range(rows):
+        for j in range(cols):
+            a = i * (cols + 1) + j
+            faces.append((a, a + 1, a + cols + 2, a + cols + 1))
+    a, b, c = (Vector(verts[k]) for k in faces[0][:3])
+    if (b - a).cross(c - b).dot(Vector(face_dir)) < 0.0:
+        faces = [tuple(reversed(f)) for f in faces]
+    return verts, faces
+
+
+def dome_surf(center, axis, radius, phi0, phi1, scallop=None):
+    """A spherical shell around a joint (a pauldron): theta runs around `axis` (s = 0..1 = a full turn), phi from the pole (t = 0 -> phi0) to phi1. Because it is a sphere about the joint
+    centre, rotating it with the arm bone never makes it cut the skin (unlike a plate that follows the arm's length). scallop(theta) shortens the rim of phi1 (a notched edge)."""
+    a, e1, e2 = axis_frame(axis)
+    c = Vector(center)
+
+    def surf(s, t):
+        th = 2.0 * math.pi * s
+        ph1 = phi1 - (scallop(th) if scallop else 0.0)
+        ph = lerp(phi0, ph1, t)
+        d = e1 * (math.sin(ph) * math.cos(th)) + e2 * (math.sin(ph) * math.sin(th)) + a * math.cos(ph)
+        return c + d * radius, d
+    return surf

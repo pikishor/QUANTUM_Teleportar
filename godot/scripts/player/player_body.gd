@@ -847,24 +847,9 @@ func apply_look(look: HeroLook) -> void:
 func _apply_hero_look(look: HeroLook) -> void:
 	if hero_mat == null or look == null:
 		return
-	var sd := look.suit_def()
-	var mult := (sd["albedo"] as Color) * look.tint()
 	var neutral := look.suit == &"standard" and look.scheme == 0 and look.accent_hue < 0
-	_look_accent = look.accent()
+	_look_accent = look.apply_material(hero_mat, glow, _quality, _is_compat())
 	_look_mix = 0.0 if neutral else HeroLook.ACCENT_MIX
-	hero_mat.set_shader_parameter(&"look_tint", Color(mult.r, mult.g, mult.b))
-	hero_mat.set_shader_parameter(&"suit_metal", clampf(0.3 + float(sd["metal"]), 0.0, 1.0))
-	hero_mat.set_shader_parameter(&"suit_rough", clampf(0.5 + float(sd["rough"]), 0.05, 1.0))
-	hero_mat.set_shader_parameter(&"glow", float(sd["glow"]) * (LOW_GLOW if _quality == 0 else 1.0))
-	hero_mat.set_shader_parameter(&"accent", _look_accent)
-	hero_mat.set_shader_parameter(&"accent_mix", _look_mix)
-	# the suit kit palette (HeroLook.palette): plates, painted trim, cloth, gold; and the idle colour of the circuits
-	var pal := look.palette()
-	for k: StringName in pal:
-		hero_mat.set_shader_parameter(k, pal[k])
-	hero_mat.set_shader_parameter(&"glow_gain", HERO_GLOW_GAIN * (0.7 if _quality == 0 else 1.0) * (0.6 if _is_compat() else 1.0))
-	if glow != null:
-		glow.set_base(_look_accent, float(sd["glow"]))
 
 
 ## One tick of the circuit glow: the layers advance and the outputs go into the hero material. update_view calls it every frame; previews (portrait, look screen, the look-dev stage) call it themselves.

@@ -6,6 +6,8 @@ extends RefCounted
 ##   HeroLook.set_glow(color, intensity, mode)     static, targets the live hero. intensity <= 0 releases the layer. Returns false when no hero is alive.
 ##   HeroLook.pulse_glow(color, intensity, secs)   one-shot flash that fades by itself
 ##
+## A layer set through the API is HELD until it is released (intensity <= 0): the ability sensor never overwrites it (the sensor drives steady = ENTANGLE, pulse = SUPERPOSITION, charge = the
+## teleport aim, wings = glide and flight, flicker and alarm itself; a caller that wants one of those takes it over for as long as it holds it).
 ## MODES are independent LAYERS (they do not fight: per zone the strongest layer wins, the colour is the intensity-weighted mix):
 ##   &"base"     the suit's own idle glow (the look's accent colour, set by PlayerBody): a calm breathing of the circuits
 ##   &"steady"   a constant glow everywhere (an ability that is switched on)
@@ -66,6 +68,7 @@ var target := PackedFloat32Array()
 var value := PackedFloat32Array()
 var decay := PackedFloat32Array()           ## burst: intensity lost per second
 var zones := PackedFloat32Array()           ## outputs
+var _hold := PackedByteArray()               ## 1 = the layer is held by an API caller (set_layer), the sensor does not touch it
 var out_rgb := Color(0.2, 0.95, 1.0)
 var flow_front := -1.0
 var flow_k := 0.0
@@ -86,7 +89,8 @@ func _init() -> void:
 		value.append(0.0)
 		decay.append(0.0)
 	zones.resize(ZONES)
-	set_layer(&"base", Color(0.2, 0.95, 1.0), 1.0)
+	_hold.resize(MODE_NAMES.size())
+	_put(M_BASE, Color(0.2, 0.95, 1.0), 1.0)
 	value[M_BASE] = 1.0
 	for z in ZONES:
 		zones[z] = float((WEIGHTS[M_BASE] as Array)[z])
@@ -112,16 +116,26 @@ static func live_pulse(col: Color, intensity: float, secs: float) -> bool:
 	return true
 
 
-## Sets (or, with intensity <= 0, releases) the layer `mode`.
+## Sets (or, with intensity <= 0, releases) the layer `mode`. A layer set through here is HELD: the ability sensor (sense) leaves it alone until it is released again.
 func set_layer(mode: StringName, col: Color, intensity: float) -> void:
 	var m := mode_index(mode)
-	if m == M_WINGS and not _sensing:
-		_wings_api = intensity > 0.0
+	_hold[m] = 1 if (intensity > 0.0 and m != M_BURST) else 0
+	_put(m, col, intensity)
+
+
+func _put(m: int, col: Color, intensity: float) -> void:
 	if m == M_BURST:                                           # a burst through the layer call is a one-shot flash of 0.4 s
 		pulse(col, intensity, 0.4)
 		return
 	color[m] = Color(col.r, col.g, col.b, 1.0)
 	target[m] = clampf(intensity, 0.0, MAX_INTENSITY)
+
+
+## The sensor's own layer call: skipped while a caller holds the layer through the API.
+func _sl(mode: StringName, col: Color, intensity: float) -> void:
+	var m := mode_index(mode)
+	if _hold[m] == 0:
+		_put(m, col, intensity)
 
 
 ## A flash: the burst layer jumps to `intensity` and fades out in `secs` seconds.
@@ -142,6 +156,7 @@ func level(mode: StringName) -> float:
 
 
 func release_all() -> void:
+	_hold.fill(0)
 	for i in MODE_NAMES.size():
 		if i != M_BASE:
 			target[i] = 0.0
@@ -151,7 +166,7 @@ func release_all() -> void:
 
 ## The base layer is the suit's idle: PlayerBody sets it from the look's accent.
 func set_base(col: Color, intensity: float) -> void:
-	set_layer(&"base", col, intensity)
+	_put(M_BASE, col, intensity)
 
 
 func update(dt: float) -> void:
@@ -258,11 +273,10 @@ const WHITE := Color(0.9, 0.97, 1.0)
 func sense(p: Object, accent: Color) -> void:
 	if p == null:
 		return
-	_sensing = true
 	var q: Variant = p.get(&"quantum") if "quantum" in p else null
 	if q != null:
 		var aiming: bool = "aiming" in q and q.aiming
-		set_layer(&"charge", VIOLET, 1.25 if aiming else 0.0)
+		_sl(&"charge", VIOLET, 1.25 if aiming else 0.0)
 		var fx := float(q.fx_flash) if "fx_flash" in q else 0.0
 		if fx > _prev_fx + 0.3:                                # a teleport just happened
 			pulse(VIOLET.lerp(WHITE, 0.5), 1.9, 0.55)
@@ -270,45 +284,42 @@ func sense(p: Object, accent: Color) -> void:
 		var cf := float(q.collapse_fx) if "collapse_fx" in q else 0.0
 		if cf > _prev_collapse + 0.3:                          # COLLAPSE
 			pulse(AMBER.lerp(WHITE, 0.4), 2.3, 0.6)
-			set_layer(&"flicker", AMBER, 1.0)
+			_sl(&"flicker", AMBER, 1.0)
 			_flicker_until = _clock + 0.5
 		_prev_collapse = cf
 		var has_clone: bool = "clone" in q and q.clone != null
-		set_layer(&"pulse", CYAN.lerp(WHITE, 0.45), 0.95 if has_clone else 0.0)
+		_sl(&"pulse", CYAN.lerp(WHITE, 0.45), 0.95 if has_clone else 0.0)
 		if has_clone and not _prev_clone:                      # SUPERPOSITION: the ghost splits off
 			pulse(CYAN, 1.5, 0.4)
 		_prev_clone = has_clone
 		var n_links: int = (q.links as Array).size() if "links" in q else 0
-		set_layer(&"steady", MAGENTA, 0.9 if n_links > 0 else 0.0)
+		_sl(&"steady", MAGENTA, 0.9 if n_links > 0 else 0.0)
 		if n_links > _prev_links:                              # ENTANGLE: a new link
 			pulse(MAGENTA, 1.5, 0.4)
 		_prev_links = n_links
-	if target[M_FLICKER] > 0.0 and _clock > _flicker_until:
+	if target[M_FLICKER] > 0.0 and _clock > _flicker_until and _hold[M_FLICKER] == 0:
 		target[M_FLICKER] = 0.0
 	var gliding: bool = "gliding" in p and p.gliding
 	var flying: bool = "flying" in p and p.flying
 	if flying:
-		set_layer(&"wings", accent.lerp(WHITE, 0.2), 1.35)
+		_sl(&"wings", accent.lerp(WHITE, 0.2), 1.35)
 	elif gliding:
-		set_layer(&"wings", accent.lerp(CYAN, 0.5), 0.8)
-	elif target[M_WINGS] > 0.0 and not _wings_api:
+		_sl(&"wings", accent.lerp(CYAN, 0.5), 0.8)
+	elif target[M_WINGS] > 0.0 and _hold[M_WINGS] == 0:
 		target[M_WINGS] = 0.0
 	if "hp" in p and "max_hp" in p and float(p.max_hp) > 0.0:
 		var frac := float(p.hp) / float(p.max_hp)
-		set_layer(&"alarm", RED, 0.9 * clampf((0.3 - frac) / 0.3, 0.0, 1.0) if frac > 0.0 else 0.0)
-	_sensing = false
+		_sl(&"alarm", RED, 0.9 * clampf((0.3 - frac) / 0.3, 0.0, 1.0) if frac > 0.0 else 0.0)
 
 
 var _flicker_until := 0.0
-var _sensing := false
-var _wings_api := false                                        ## true once a caller set the wings layer through the API (sense() then leaves it alone)
 
 
 ## A hit on the hero: a red flash and a stutter (strength 0..1).
 func hurt(strength: float) -> void:
 	var s := clampf(strength, 0.0, 1.0)
 	pulse(RED, 0.9 + 1.1 * s, 0.35)
-	set_layer(&"flicker", RED.lerp(AMBER, 0.3), 0.8 * s)
+	_put(M_FLICKER, RED.lerp(AMBER, 0.3), 0.8 * s)
 	_flicker_until = _clock + 0.3 + 0.3 * s
 
 
