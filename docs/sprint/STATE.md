@@ -1,8 +1,27 @@
 # Sprint state (kept current by the main session; the automatic digest is in docs/sprint/progress/)
 
-Updated 2026-11-12 21:00Z.
+Updated 2026-11-13 15:55Z.
 
-- Wave 111 (cars v2, vehicle collisions, traffic density): pushed as 146c20d, CI fix 8f4bb54; the CI run of the fix and the Android build are watched by the agent w111-ci-apk.
-- Wave 112 in progress (4 builders, 2 agent slots): cars second pass is at its final checks; landscape, outskirts-map and hero-look are queued behind it. Then the critic-fixers and the integrator.
-- Next: waves 113 to 121 as in docs/ROUND6.md (weapon roster and blast arsenal, weapon art, quantum snakes, aircraft roster, hero mode, animation, perf recovery, review, fixes).
-- Backup branch `claude/determined-bardeen-mvwr5u` is refreshed every 25 minutes.
+## What happened
+- 2026-11-12 22:55Z: the usage limit was reached ("resets 4am UTC"). All sprint agents stopped (59 of 60 failed with the limit message, only the cars second pass had finished). Nothing was lost.
+- 2026-11-13 09:11Z: the owner chose "max effort, as planned". Workflow wodc9atdz (script round6d_sprint.js, waves 112 to 121, every agent at max effort) was started. At 11:11Z wave 112 had two builders running (landscape, outskirts-map), hero-look queued, then the critic-fixers (look and play), the integrator and the CI watcher.
+- The first max-effort run used about 2.0 million agent tokens and 1,213 tool calls in 5.1 hours before the limit hit. Expect the limit again after roughly 5 hours of agent work (about 14:00Z on 11-13).
+
+## On main (tested, pushed): main = 2b4c37b, CI green
+- Wave 111 (cars v2, vehicle collisions, traffic density) plus CI fixes. Android build: https://github.com/pikishor/QUANTUM_Teleportar/actions/runs/43322670833
+- Cars second pass (43 defects fixed; near, kerb and road cars with the v2 look; real cars cost 3 draws instead of 10) plus the alien separation fix (freed pack members). Android build: https://github.com/pikishor/QUANTUM_Teleportar/actions/runs/43402151717 (artifact android-debug-apk, 289,853,261 bytes). The owner has not tested it yet.
+
+## Only in the working tree and on the backup branch claude/determined-bardeen-mvwr5u (about 300 files; tested by the builders, not yet by an integrator)
+- Landscape (w112-landscape) DONE 14:59Z: 9 tree species x 3 LODs, 11 terrain layers, 6 waterfalls, 7 airstrips, anchors, lazy staged wake. Perf gate OK on LOW, MED, HIGH.
+- Outskirts-map (w112-outskirts-map) DONE 15:46Z: 9 km world, 7 towns, 19 country interiors, new roads, test_outskirts_settlements (390 checks). Perf gate OK on LOW, MED, HIGH.
+- Known test issues for the integrator (full builder reports are in the workflow journal wf_7e2eb443-14b): test_terrain_world "all 80 far tiles are built by the worker threads" (slow under load), test_outskirts_settlements SALT QUAY (1 of 388 checks), test_free_roam_world raid (flaky), test_ambient, test_vehicle_roster process_mode message. The hero builder's files intermittently break compile (re-run tools/import.sh).
+- Hero look (w112-hero-look): running since 14:59Z (17:30Z: armour kit, glow API, 6 suit presets and the rebuilt SUIT screen are in; portraits, test_hero_look_v3, perf gate, contact sheet and docs still to do; notes in docs/sprint/progress/w112-hero-look.md). Not started: wave 112 critic-fixers, integrator and CI watcher, and waves 113 to 121 (the full plan is docs/ROUND6.md).
+
+## Next
+- 20:30Z: all three wave 112 builders are done (hero look v3 finished 19:24Z: 220-check test, perf gate OK on all tiers, white leg rectangles fixed). The critic-fixers (look, play) have run since 19:24Z, then the wave 112 integrator and CI watcher. Rough plan from the measured pace: wave 112 on main about 23:30Z to 01:00Z, wave 113 done about 13:00Z to 17:00Z on 11-14, wave 114 starts after that and ends about 11-15 early morning (all UTC, only if the usage limit does not interrupt).
+- OWNER DECISION 2026-11-13 ~21:00Z: STOP AFTER WAVE 116 so the owner can test (docs/ROUND6.md has the numbers). The new script scratchpad/round6e_sprint.js (tested with simtest_e.js; copied to docs/sprint/round6_sprint.js at the switch) has args.stopAfter (default 116), args.reports (reports of finished builders and critics) and builds an extra APK for wave 112. Waves 117 to 121 are NOT started until the owner says so (resume with args {"startWave":117,"stopAfter":121}).
+- SWITCH PLAN (zero loss), background watcher b559beiyq (scratchpad/watch_critics.sh) exits when both wave 112 critic-fixers are done. Then: (a) python3 scratchpad/extract_reports.py <journal of wf_7e2eb443-14b> docs/sprint/progress/reports_w112.md "Wave 112 reports"; (b) TaskStop the old workflow wodc9atdz (its integrator has just started; it restarts in the new run); (c) Workflow scriptPath scratchpad/round6e_sprint.js args {"startWave":112,"skipTags":["cars-pass2","landscape","outskirts-map","hero-look"],"skipCritic":true,"reports":{"landscape":"<pointer to reports_w112.md>","outskirts-map":"<pointer>","hero-look":"<pointer>","critics":["<pointer look>","<pointer play>"]}}. If the watcher times out first, poll with the check-ins; if the old integrator already finished and wave 113 builders started: TaskStop the old run and start the new script with {"startWave":113} (the builders then restart with the RESTART NOTICE). The old script has no stop at 116, so the old run must not be left running into wave 117.
+- (old note, replaced by the new script: extra APK for wave 112) if the switch cannot be done, when the wave 112 integrator has pushed to main start scratchpad/ci_then_apk.sh <ci run id> in the background and send the owner the link.
+- If the limit hits again: wait for the reset, then follow docs/sprint/RESUME.md (startWave 112, skipTags ["cars-pass2"], plus whatever the progress files say is already done).
+- When wave 112 finishes: the integrator commits to main after the full suite, the perf gate (LOW, MED, HIGH) and visual QA. APK points: waves 113, 115, 116, 119, 121.
+- Backup: godot/tools/wip_snapshot.sh. The 2-hour background loop ended at its time limit and is not restarted; snapshots now happen at every check-in (about every 100 minutes) and every time the Stop hook asks.
