@@ -7,14 +7,31 @@ extends RefCounted
 
 signal changed
 
-## id -> name, price (credits), need (achievement cosmetic id, "" none), albedo multiplier, metallic delta, roughness delta, glow multiplier
+## SIX SUIT PRESETS (wave 112, hero look v3). id -> name, price (credits), need (see unlock_need: an achievement cosmetic id, "ach:<id>" an achievement, "" none), albedo multiplier / metal /
+## rough / glow multiplier (the old finish numbers PlayerBody.apply_look still uses), `set` = the armour kit set it wears (HeroSuit: vanguard, stealth, assault, flight: a different set
+## rebuilds the hero, a different suit of the same set only changes the palette), plate (final colour of the armour plates), cloth / cloth2 (bodysuit, belt), trim_k (how much of the scheme
+## accent goes into the painted trim), pmetal / prough (plate finish), story (one line for the customisation screen). The old ids stay (saves): "standard" is the VANGUARD.
 const SUITS := {
-	&"standard": {"name": "STANDARD", "price": 0, "need": "", "albedo": Color(1.0, 1.0, 1.0), "metal": 0.0, "rough": 0.0, "glow": 1.0},
-	&"stealth": {"name": "STEALTH", "price": 300, "need": "", "albedo": Color(0.7, 0.72, 0.76), "metal": -0.1, "rough": 0.2, "glow": 0.6},
-	&"phase": {"name": "PHASE", "price": 0, "need": "aura_phase", "albedo": Color(0.95, 1.0, 1.05), "metal": 0.15, "rough": -0.15, "glow": 1.5},
-	&"gilded": {"name": "GILDED", "price": 0, "need": "visor_gold", "albedo": Color(1.2, 1.05, 0.8), "metal": 0.3, "rough": -0.2, "glow": 1.1},
+	&"standard": {"name": "VANGUARD", "set": &"vanguard", "price": 0, "need": "", "albedo": Color(1.0, 1.0, 1.0), "metal": 0.0, "rough": 0.0, "glow": 1.0,
+			"plate": Color(0.24, 0.26, 0.31), "cloth": Color(0.045, 0.05, 0.065), "cloth2": Color(0.07, 0.075, 0.09), "trim_k": 0.5, "pmetal": 1.0, "prough": 0.0,
+			"story": "Layered plates over a graphite suit. The default."},
+	&"stealth": {"name": "STEALTH", "set": &"stealth", "price": 300, "need": "", "albedo": Color(0.7, 0.72, 0.76), "metal": -0.1, "rough": 0.2, "glow": 0.6,
+			"plate": Color(0.085, 0.09, 0.105), "cloth": Color(0.028, 0.03, 0.038), "cloth2": Color(0.045, 0.047, 0.055), "trim_k": 0.22, "pmetal": 0.5, "prough": 0.18,
+			"story": "Matte black, light plates, dim circuits."},
+	&"assault": {"name": "ASSAULT", "set": &"assault", "price": 450, "need": "", "albedo": Color(1.05, 1.0, 0.92), "metal": 0.05, "rough": 0.05, "glow": 1.0,
+			"plate": Color(0.27, 0.285, 0.21), "cloth": Color(0.06, 0.062, 0.048), "cloth2": Color(0.09, 0.09, 0.07), "trim_k": 0.55, "pmetal": 0.8, "prough": 0.05,
+			"story": "Heavy armour in olive drab: bigger shoulders, thigh and chest guards."},
+	&"flight": {"name": "FLIGHT", "set": &"flight", "price": 0, "need": "ach:chapter_4", "albedo": Color(1.1, 1.1, 1.15), "metal": 0.1, "rough": -0.05, "glow": 1.2,
+			"plate": Color(0.5, 0.53, 0.58), "cloth": Color(0.04, 0.05, 0.075), "cloth2": Color(0.07, 0.08, 0.11), "trim_k": 0.6, "pmetal": 0.7, "prough": -0.05,
+			"story": "Sleek and light, with wing mounts on the back. Reach chapter 5."},
+	&"gilded": {"name": "GILDED", "set": &"vanguard", "price": 0, "need": "visor_gold", "albedo": Color(1.2, 1.05, 0.8), "metal": 0.3, "rough": -0.2, "glow": 1.1,
+			"plate": Color(0.78, 0.58, 0.24), "cloth": Color(0.03, 0.028, 0.032), "cloth2": Color(0.06, 0.05, 0.04), "trim_k": 0.3, "pmetal": 1.2, "prough": -0.15,
+			"story": "The gold hero suit. Collect all ten rooftop shards."},
+	&"phase": {"name": "PHASE", "set": &"vanguard", "price": 0, "need": "aura_phase", "albedo": Color(0.95, 1.0, 1.05), "metal": 0.15, "rough": -0.15, "glow": 1.5,
+			"plate": Color(0.18, 0.27, 0.34), "cloth": Color(0.03, 0.05, 0.075), "cloth2": Color(0.05, 0.08, 0.11), "trim_k": 0.7, "pmetal": 1.1, "prough": -0.2,
+			"story": "Glassy plates and bright circuits. Collect all thirty shards."},
 }
-const SUIT_ORDER: Array[StringName] = [&"standard", &"stealth", &"phase", &"gilded"]
+const SUIT_ORDER: Array[StringName] = [&"standard", &"stealth", &"assault", &"flight", &"gilded", &"phase"]
 ## name, tint (albedo multiplier of the armour), accent (emission and trim), price, need
 const SCHEMES: Array[Array] = [
 	["CYAN", Color(1.0, 1.0, 1.0), Color(0.2, 0.95, 1.0), 0, ""],
@@ -30,6 +47,9 @@ const ACCENT_PRICE := Economy.ACCENT_PRICE   ## raw; the charged price is Econom
 const HUES := 12
 const ACCENT_MIX := 0.6
 
+## HERO MODE (wave 117 sets it): every suit, scheme and accent is unlocked and free.
+static var hero_mode := false
+
 var suit: StringName = &"standard"
 var scheme := 0
 var accent_hue := -1                      ## -1 = the scheme's own accent, 0..HUES-1 = the picker's custom accent
@@ -43,6 +63,20 @@ var beard := false
 
 static func scheme_count() -> int:
 	return SCHEMES.size()
+
+
+## THE GLOW API of the suit (scripts/characters/hero_glow.gd has the layers and the zones): every system that wants to drive the quantum circuits calls these, never the material.
+##   HeroLook.set_glow(Color(0.2, 0.95, 1.0), 1.4, &"flow")     swing: energy runs from the core to the hands
+##   HeroLook.set_glow(Color.WHITE, 1.3, &"wings")              flight: the wing mounts glow
+##   HeroLook.pulse_glow(Color(1.0, 0.6, 0.2), 1.8, 0.4)        a bomb throw: a flash that fades by itself
+##   HeroLook.set_glow(Color.WHITE, 0.0, &"flow")               release the layer (intensity <= 0)
+## Modes: &"steady" &"pulse" &"charge" &"flow" &"wings" &"flicker" (layers, they do not fight), &"burst" is a one-shot flash. Returns false when no hero is alive (a menu).
+static func set_glow(color: Color, intensity: float, mode: StringName = &"steady") -> bool:
+	return HeroGlow.live_set(color, intensity, mode)
+
+
+static func pulse_glow(color: Color, intensity: float, seconds := 0.45) -> bool:
+	return HeroGlow.live_pulse(color, intensity, seconds)
 
 
 static func hue_color(i: int) -> Color:
@@ -60,7 +94,7 @@ static func item_price(key: String) -> int:
 	return -1
 
 
-## The achievement cosmetic id an item waits for ("" when it is bought with credits).
+## The achievement cosmetic id an item waits for ("" when it is bought with credits); "ach:<id>" waits for that achievement itself.
 static func item_need(key: String) -> String:
 	if key.begins_with("suit:"):
 		return String(SUITS.get(StringName(key.substr(5)), {}).get("need", ""))
@@ -74,14 +108,36 @@ static func valid_key(key: String) -> bool:
 	return item_price(key) >= 0
 
 
-## Free items, owned items and items whose achievement cosmetic is earned (`cosmetics`).
+## Free items, owned items and items whose achievement cosmetic is earned (`cosmetics`); everything in HERO MODE.
 func is_unlocked(key: String, cosmetics: Array) -> bool:
 	if not valid_key(key):
 		return false
+	if hero_mode:
+		return true
 	var need := item_need(key)
+	if need.begins_with("ach:"):
+		var pr := Game.progress as Progress
+		return pr != null and pr.achievements != null and pr.achievements.done.has(StringName(need.substr(4)))
 	if need != "":
 		return cosmetics.has(StringName(need)) or cosmetics.has(need)
 	return item_price(key) == 0 or owned.has(key)
+
+
+## What the player has to do to get a locked item (customisation screen): a short line.
+static func unlock_hint(key: String) -> String:
+	var need := item_need(key)
+	if need.begins_with("ach:"):
+		for d: Array in Achievements.DEFS:
+			if String(d[0]) == need.substr(4):
+				return "%s: %s" % [String(d[1]), String(d[2])]
+		return "an achievement"
+	if need != "":
+		for d: Array in Achievements.DEFS:
+			if String(d[6]) == need:
+				return "%s: %s" % [String(d[1]), String(d[2])]
+		return "an achievement"
+	var pr := item_price(key)
+	return "%d credits" % pr if pr > 0 else "free"
 
 
 ## Credits wallet buy: returns true and records ownership; the caller pays.
@@ -152,6 +208,32 @@ func tint() -> Color:
 
 func suit_def() -> Dictionary:
 	return SUITS[suit]
+
+
+## The armour kit set of the equipped suit (HeroSuit.SETS): vanguard, stealth, assault or flight.
+func kit_set() -> StringName:
+	return StringName(SUITS[suit].get("set", &"vanguard"))
+
+
+## The suit kit palette as shader uniforms of the hero material (PlayerBody._apply_hero_look): plate colour, painted trim, cloth, gold, plate finish. The preset sets the base, the colour
+## scheme tints the plates and the painted trim takes the accent colour (the picker's hue or the scheme's own).
+func palette() -> Dictionary:
+	var sd: Dictionary = SUITS[suit]
+	var t := tint()
+	var a := accent()
+	var plate: Color = sd["plate"]
+	var tk := float(sd["trim_k"])
+	var pc := Color(clampf(plate.r * lerpf(1.0, t.r, 0.6), 0.0, 1.0), clampf(plate.g * lerpf(1.0, t.g, 0.6), 0.0, 1.0), clampf(plate.b * lerpf(1.0, t.b, 0.6), 0.0, 1.0))
+	var cloth: Color = sd["cloth"]
+	return {
+		&"plate_col": pc,
+		&"trim_paint": Color(a.r * tk * 0.55, a.g * tk * 0.55, a.b * tk * 0.55),
+		&"cloth_col": cloth.lerp(a * 0.12, 0.12),
+		&"cloth_col2": (sd["cloth2"] as Color).lerp(a * 0.14, 0.1),
+		&"gold_col": Color(0.78, 0.6, 0.28),
+		&"plate_metal": float(sd["pmetal"]),
+		&"plate_rough": float(sd["prough"]),
+	}
 
 
 func reset() -> void:

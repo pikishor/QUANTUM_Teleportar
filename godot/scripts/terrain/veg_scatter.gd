@@ -374,6 +374,8 @@ static func cell(layer: int, ci: int, cj: int) -> PackedFloat32Array:
 					need = 28.0 if (scale > 1.5 or sl > 0.4) else 9.0
 				if float(rd[0]) < need:
 					continue
+				if layer == T_GRASS and float(rd[0]) < 12.0 and _rs(hh, 19) > 0.1 + 0.9 * smoothstep(5.0, 12.0, float(rd[0])):
+					continue                                                       # the verge thins out towards the tarmac: no hedge of tufts standing along the edge line
 			out.append_array(PackedFloat32Array([x, h - sink, z, yaw, scale, float(species), rnd, float(variant)]))
 			if layer == T_ROCKS and scale > 1.0 and _rs(hh, 14) < 0.72:
 				# boulders come in clusters: two to five smaller stones round a big one, sunk like it

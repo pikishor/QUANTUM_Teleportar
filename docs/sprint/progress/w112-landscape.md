@@ -1,50 +1,45 @@
-# w112-landscape (builder notes; started 2026-11-12 ~21:00Z; first session stopped 22:55Z by the usage limit; RESTARTED 2026-11-13 09:11Z)
+# w112-landscape (builder notes; started 2026-11-12 ~21:00Z; first session stopped 22:55Z by the usage limit; restarted 2026-11-13 09:11Z; FINISHED 2026-11-13 ~14:50Z)
 
-RESTART 09:11Z: read these notes, git status (landscape files untracked/modified, nothing committed), continuing from the files. Order now: import + load check, look at frames, fix, tests, perf gate, contact sheet, docs.
+STATUS: done, report handed back. Nothing committed or pushed (the integrator does that). Details: godot/ARCHITECTURE.md "Landscape dressing", docs/HANDOFF.md "Wave 112: landscape".
 
-GOAL: landscape pass for round 6: 6+ tree species by biome with 3 LODs + impostors in MultiMesh chunks (zero per-tree nodes), undergrowth, waterfalls,
-shorelines (wet sand, foam, shallow-to-deep ramp), mountain detail, tall anchors (turbines, masts, pylons, cranes), 3+ grass airstrips, wind + rain-wet.
+GOAL: round 6 landscape pass: 6+ tree species by biome, 3 LODs + impostors in MultiMesh chunks (no per-tree nodes), undergrowth, waterfalls, shorelines, mountain detail,
+tall anchors for the quantum snakes, 3+ flat drivable grass airstrips with windsocks, wind from the weather, rain-wet response; test; renders at 3 times of day.
 
-BASELINE DEFECTS (frames: scratchpad landscape/base/*; owner r5_21..23)
- D1 faceted low-poly trees, hexagon far LOD | D2 shore: 260 m flat pink plain, no wet band, flat sea | D3 shaded terrain navy-black | D4 road flat black
- D5 bare ground, sparse spiky tufts | D6 mountains smooth blobs, no strata/scree | D7 no anchors / airstrips | D8 no waterfalls | D9 wind not tied to weather
+BASELINE DEFECTS (round 5 build; owner r5_21..23): faceted low-poly trees + hexagon far LOD | shore a flat lilac plain, flat sea, no wet band | terrain navy-black in shade | road flat black |
+bare ground, sparse spiky tufts | mountains smooth blobs | no anchors, strips or falls | wind not tied to the weather. All addressed (sheet docs/shots/round6/landscape_before_after.jpg).
 
-DONE (all files load; import clean)
-- TREES: tools/landscape/{foliage,species,mb,impostor,rocks,build_land_trees,pack_bark,patch_imports}.py -> assets/models/land_trees.glb (9 species x LOD full / lite / mid + 4 rocks x 2 LODs,
-  atlas rects in meta), land_foliage.webp (2048x1024 sprites), land_impostor.webp (cross impostors), land_bark_*.webp (Poly Haven CC0 + procedural birch/alien).
-  scripts/landscape/{land_kit,land_climate}.gd; shaders land_tree / land_impostor / land_rock / land_common.gdshaderinc. VegKit delegates names to LandKit; VegScatter has 9 species by biome
-  (oak pine fir birch palm acacia poplar dead alien), roadside avenues (poplar / palm), flowers, reeds; VegetationWorld: LOD0 full|lite, LOD1, shared impostor slot, per-tier radii, wind node.
-- GROUND COVER: g_grass1/2, g_dry, g_tall, g_daisy/poppy/lav/clover, g_fern1/2, g_reed, g_bush1/2 (LandKit card pieces from the atlas).
-- TERRAIN: terrain.gdshader (11 layers: wetsand, strata, scree, darkrock; sky fill; derivative bump; wet sand band + pebble line); TerrainBase beach profile (swash + dunes);
-  terrain_road.gdshader (grain, cracks, patches, puddles, gravel verge); road ribbon has a verge strip; pack_terrain_textures.py has 11 layers (beach = coast_sand_01).
-- LandscapeSites (waterfalls found on cliffs + 3 airstrips found on flat corridors), hooks: TerrainHeight.height_at -> LandscapeSites.carve(height_pre), water_level_for -> pool_level.
-- FallWorld (sheet, pool, streams, mist, spray, roar), AnchorSites/AnchorWorld (turbines, pylons+wires, masts, cranes; tools/landscape/props.py -> land_props.glb), StripWorld (strip, hangar, windsock, markers).
-- Landscape node attached by City (hook line, QT_NO_LANDSCAPE=1 leaves it out). tests/bot_landscape.gd + tests/landscape_viewer.gd look-dev.
+DONE
+- 9 species (oak birch poplar pine fir palm acacia dead alien) x LOD full / lite / mid + shared cross impostor, VegScatter by biome, avenues, ancient groves (35-42 m), fallen trunks, flowers, ferns,
+  reeds, bushes, boulder fields, dune grass, pebbles + driftwood; ONE MultiMesh per species and LOD (36 slots at most); LandClimate wind from Weather.current; rain-wet in every new shader.
+- Ground: 11 terrain layers (Poly Haven CC0 sand + forest ground), tan dry sand with ragged edge, wet band, foam line, strata (warped), scree, snow paled; dirt tracks (earth / scree), asphalt detail.
+- LandscapeSites: 6 waterfalls + 7 grass airstrips FOUND by search (hints + full fallback), carved at the end of height_at (smooth S-profile face, plunge pool, trenches, graded strips).
+  FallWorld (animated sheet, wet band, pool, streams, mist, spray, roar), StripWorld (hangar, windsock, markers), AnchorSites/AnchorWorld (14 turbines, 3 pylon lines, 3 masts, 2 quarry cranes,
+  3 rock arches, falls' lips, harbour cranes, ancient trees): static `AnchorWorld.anchors_at(pos, r)` for the snakes.
+- LAZY + STAGED: Landscape and VegetationWorld sleep until the hero is beyond 470 m of the city centre (the city start pays 0 draws, 0 triangles, no textures, 0 nodes); the wake is 22 steps
+  of at most 27 ms (strip per step, anchors in 11 stages, a fall is built on approach in 26 ms); avenue trees are validated per cell on demand (warm 650 -> 11 ms); arch + mast hints.
+- This session also: height_at carve early-out by a 128 m grid (carve was +20-50 % of a height_at call, now noise, identical heights), fall sheet normals from the grid (65 -> 13 ms),
+  verge thinning (no hedge of tufts at the road edge), hint checks and a staged-wake check in the test.
 
-NEXT
-1. look at waterfall + anchors + strip frames, fix; terrain/road/sea frames (road still near black: raise asphalt albedo); rocks in frames; mountains (strata) frames; night / rain frames.
-2. ocean shader tune; tests/test_landscape_dressing.gd; update test_outskirts_sites limits (slots <= 17) with reason; run affected tests (terrain, water, outskirts, wildlife).
-3. PERF_CHECK=1 tools/perf_report.sh 0 1 2; contact sheet docs/shots/round6/landscape_before_after.jpg; ARCHITECTURE.md section; HANDOFF.md; THIRD_PARTY.md (Poly Haven textures).
+TESTS (all in the real scene, user:// reset)
+- tests/test_landscape_dressing.gd PASS (about 60 s, 203 checks: species, LODs, nodes, falls, strips, anchors, hints, wake steps, shores, groves, shaders, tiers, sleep at the city start).
+- test_ambient PASS (it failed before because the landscape made nodes while the city lived), test_animals_biomes PASS, test_water_world PASS, test_outskirts_sites PASS (then its own 60 s watchdog line prints when the machine is loaded).
+- NOT mine, seen failing: test_terrain_world "all 80 far tiles are built" (51 of 80 in 45 s under load), test_outskirts_settlements "SALT QUAY has parked cars",
+  test_free_roam_world "the raid runs while they live" (flaky: passes 2 of 3 runs, also with my systems on).
 
-DECISIONS (APIs other agents depend on)
-- AnchorWorld.instance.anchors_near(pos, radius) -> [{id, kind (turbine|pylon|mast|crane), name, pos (top), base, height, radius}] for quantum snake anchors.
-- LandscapeSites.falls() / strips() / hooks() / pool_level() / inside_strip() / near_feature(); StripWorld.hooks() lists the airstrips (centre, u, len, wid, y) for the aircraft wave.
-- LandClimate.vec() = (dir x, strength, dir z); global shader parameter `wind` (vec4); LandClimate.override(strength, deg) pins it for tests.
-- VegScatter species ids: FIR 8, BIRCH 9, PALM 10, ALIEN 11, POPLAR 12, ACACIA 13, FLOWER 14, REED 15; layers LAYERS = 6 (T_LINES 4, T_REEDS 5).
+PERF GATE (PERF_CHECK=1 tools/perf_report.sh 0 1 2, run by me, one tier per call):
+ final tree, stale user://roam_world.cfg removed first:
+ LOW  OK   draws 73 / total 95, 137.9 k triangles, tex 146 MB, death 108
+ MED  OK   draws 97 / total 129, 277.2 k triangles, tex 177 MB, death 144
+ HIGH OK   draws 113 / total 149, 386.3 k triangles, tex 242 MB, death 167
+ earlier runs of the same landscape code (profile file present, before the others' last changes): MED OVER 288 454 triangles, HIGH OVER death 171 - both IDENTICAL with
+ QT_NO_LANDSCAPE=1 QT_NO_VEGETATION=1 (288 454 / 136 draws / 177 MB and 171 / 155 / 242 MB), so not mine.
+ Texture limits 200 / 260 / 360 MB untouched. Added assets 4.1 MB in the repo, about 6.5 MB in an APK (ASTC / ETC2 textures), no raw archive committed.
 
-TESTS AND PERF
-- 09:35Z test_landscape_dressing.gd PASS (58 s) on the restored tree. 09:50Z perf gate (all 3 tiers) OK: LOW 76/98 draws, death 105, tex 157 MB; MED 101/133, death 143, tex 180; HIGH 112/147, death 164, tex 266.
-- NOTE: the parallel builder w112-outskirts-map made the world 9 km (TerrainHeight.WORLD_HALF 4500, scripts/world/world_extent.gd pushes the coast out W/N/E) and adds towns as OutskirtsSites entries: all my sites are FOUND by search so they follow; re-run the probe + test after their changes.
+RENDERS (scratch frames deleted, 1600x720 phone aspect, bot tests/bot_landscape.gd): coast, forest road, mountain pass (SUMMIT ROAD switchbacks), waterfall at 06:00 / 12:00 / 19:00;
+sheets docs/shots/round6/landscape_before_after.jpg and landscape_times_of_day.jpg. 8+ render-look-fix iterations (it1-it8, then i1-i5, r1-r3, f0-f4), each with frames opened and defects listed.
 
-ITERATION LOG (frames in scratchpad ls/, 1600x720, bot tests/bot_landscape.gd views road:/beach:/pool:/airstrip:/fall:/fallv:/foot:/anchor:/river:/hero:)
-- it1 (09:30-10:40Z): defects: orange-clay verge + lime blobs on dirt tracks, big sparse neon tufts, olive 'beach' with white popcorn pebbles, falls at snow altitude, sheet saw-tooth foot, outflow ribbon like a plank, river dimples, white tray rim on pools, uniform dots of rocks.
-  fixed: terrain layer 6 = forest_ground_04, layer 3 = coast_sand_02 (Poly Haven CC0, pack_terrain_textures.py), wider dry-sand band (TerrainBase.shade_weights), dirt track shader (earth/scree by altitude), tufts smaller/denser/darker, pebbles 48 tris (scree/dark layers), rocks in fields (veg_scatter), snow squiggle paled.
-- it2 (10:40-12:10Z): falls: FALL_REGIONS with HINTS (quick local search, 6 falls found, warm 5.6 -> 3.4 s), altitude cap 178 m, smooth S-profile face carve (_face), wider trenches, outflow stops on slopes; fall_water.gdshader rewritten (view-ray depth bias 0.9 m + 1.2 %/m, cooler water, 3 streak layers that accelerate, wet-rock band mode 3, soft pool rim, white-water stream); fall_world.gd (wet band mesh, ribbon on the real surface, slope fade); water_inland.gdshader finer ripples.
-  airstrips: 7 strips (FOOTHILL, WESTWOOD, SOUTH, LAGOON, EAST SHORE, FAR NORTH, FAR WEST) with hints; darker mown grass. Ancient groves: pines/firs x2.2-2.7 (VegScatter.GIANT, ancient_grove()); AnchorWorld.anchors_near also returns kind &"tree" giants + harbour cranes in all_anchors.
-  frames after: forest road, beach (tan sand, foam), dirt tracks, falls (foot pool turquoise, sheet streaky blue-white, reeds), rivers with reeds, strips, grove meadow with flowers: all clearly better than r5_21..23.
-- tests: test_landscape_dressing PASS (167 checks, 85 s) after updating it for the 9 km world (beach found by scan, harbour cranes 33 m).
+HONEST GAPS: no trails or road tunnels, no tree shadows on LOW and MED, sea foam is the old shader's, no map pins for falls and strips, sheet is streaky blue-white (not white water),
+cliff face reads as smooth clay, the cut bank at the end of PASS ROAD is a flat brown slab, phone timing of the wake not measured.
 
-OPEN PROBLEMS
-- ambientCG downloads are BLOCKED; Poly Haven api + dl.polyhaven.org work (cdn.polyhaven.com thumbnails are blocked): all bark / ground textures come from there.
-- tests/zz_probe_landscape.gd is a TEMPORARY probe: delete before finishing.
-- the hero's shadow looks like a hard dark parallelogram on dirt (coarse skinned shadow proxy; not my scope).
+DEFECTS OUTSIDE MY SCOPE: sky at dawn and dusk shows blocky cloud shapes; hero shadow is a hard dark parallelogram on dirt (ShadowProxy 16 k triangles also pushes MED over); settlement_kit /
+settlement_world script errors in render logs ("Invalid access ... settlement_kit.gd:33/100, settlement_world.gd:306"); a mint-green creature blob on PASS ROAD s=900; observatory light cone.

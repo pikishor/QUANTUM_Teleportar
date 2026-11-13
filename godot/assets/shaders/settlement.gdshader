@@ -58,10 +58,10 @@ void fragment() {
 		float shade = 0.62 + 0.38 * line;
 		col = base * shade * (0.93 + 0.14 * h21(vec2(floor(b), floor(q.x / 2.2))));
 		rough = 0.75;
-	} else if (kind == 2) {                                                // brick
-		float row = floor(q.y / 0.075);
-		float bx = q.x / 0.23 + 0.5 * mod(row, 2.0);
-		vec2 cell = vec2(fract(bx), fract(q.y / 0.075));
+	} else if (kind == 2) {                                                // brick (bigger than a real brick: the mortar lines of 7 cm rows alias to noise on a phone screen; they fade out by 22 m)
+		float row = floor(q.y / 0.1);
+		float bx = q.x / 0.3 + 0.5 * mod(row, 2.0);
+		vec2 cell = vec2(fract(bx), fract(q.y / 0.1));
 		float mortar = clamp(step(cell.x, 0.06) + step(cell.y, 0.12), 0.0, 1.0);
 		float var_b = h21(vec2(floor(bx), row));
 		col = mix(base * (0.72 + 0.5 * var_b), vec3(0.6, 0.58, 0.53), mortar * 0.8);
@@ -192,7 +192,7 @@ void fragment() {
 		emit = base * 0.12;
 		avg = base;
 	}
-	float k = windowed ? 1.0 - smoothstep(110.0, 320.0, dist) : near_k;
+	float k = windowed ? 1.0 - smoothstep(110.0, 320.0, dist) : (kind == 2 ? 1.0 - smoothstep(5.0, 22.0, dist) : near_k);
 	col = mix(avg, col, k);
 	col *= ao;
 	float wet = clamp(wetness, 0.0, 1.0);

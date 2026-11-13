@@ -29,6 +29,8 @@ func _ready() -> void:
 	LandscapeSites.ensure()
 	for _f in LandscapeSites.falls():
 		_items.append(null)
+	_mist_texture()                              # the mist picture and the roar are made once, here (about 25 ms in the wake step of the falls), not inside the first fall's build
+	_roar_stream()
 	set_process(true)
 
 
@@ -196,6 +198,9 @@ func _sheet_mesh(f: Dictionary, wide := false) -> ArrayMesh:
 	var prev := PackedVector3Array()
 	var run_len := PackedFloat32Array()
 	run_len.resize(cols + 1)
+	var w1 := cols + 1
+	var gnd := PackedVector3Array()                             # the ground under every grid point: ONE height query each (the old code asked four more per point for its normal: 5 x slower)
+	gnd.resize((rows + 1) * w1)
 	for i in rows + 1:
 		var t := float(i) / float(rows)
 		var q := lip.lerp(base, t)
@@ -205,13 +210,22 @@ func _sheet_mesh(f: Dictionary, wide := false) -> ArrayMesh:
 			var s := (u - 0.5) * width * (0.78 + 0.22 * t) + wob * (1.0 if (j > 0 and j < cols) else 0.4)
 			var qx := q.x + side.x * s
 			var qz := q.y + side.y * s
-			var gy := _ground(qx, qz)
-			var e := 1.2
-			var nx := _ground(qx - e, qz) - _ground(qx + e, qz)
-			var nz := _ground(qx, qz - e) - _ground(qx, qz + e)
-			var n := Vector3(nx, 2.0 * e, nz).normalized()
+			gnd[i * w1 + j] = Vector3(qx, _ground(qx, qz), qz)
+	var face := Vector3(dir.x, 0.35, dir.y)                     # the side of the cliff the water runs down: the normals point out of the rock, towards the viewer
+	for i in rows + 1:
+		var t := float(i) / float(rows)
+		var i0 := maxi(i - 1, 0)
+		var i1 := mini(i + 1, rows)
+		for j in cols + 1:
+			var u := float(j) / float(cols)
+			var j0 := maxi(j - 1, 0)
+			var j1 := mini(j + 1, cols)
+			var g := gnd[i * w1 + j]
+			var n := (gnd[i * w1 + j1] - gnd[i * w1 + j0]).cross(gnd[i1 * w1 + j] - gnd[i0 * w1 + j]).normalized()
+			if n.dot(face) < 0.0:
+				n = -n
 			var bul := 1.5 * pow(maxf(0.0, 1.0 - t / 0.22), 2.0)
-			var p := Vector3(qx, gy, qz) + n * ((0.55 + 0.35 * (1.0 - t)) if not wide else 0.18) + Vector3(dir.x, 0.0, dir.y) * (bul if not wide else 0.0)
+			var p := g + n * ((0.55 + 0.35 * (1.0 - t)) if not wide else 0.18) + Vector3(dir.x, 0.0, dir.y) * (bul if not wide else 0.0)
 			pos.append(p)
 			nrm.append(n)
 			if i == 0:

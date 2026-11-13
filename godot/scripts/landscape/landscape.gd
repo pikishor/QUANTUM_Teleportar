@@ -56,15 +56,23 @@ func _step_falls() -> void:
 
 
 func _step_strips() -> void:
-	strips = StripWorld.new()
-	strips.name = "Strips"
-	add_child(strips)
+	var sw := StripWorld.new()
+	sw.name = "Strips"
+	sw.staged = true
+	strips = sw
+	add_child(sw)
+	for _i in LandscapeSites.strips().size():                          # one strip per frame
+		_todo.push_front(Callable(sw, &"build_step"))
 
 
 func _step_anchors() -> void:
-	anchors = AnchorWorld.new()
-	anchors.name = "Anchors"
-	add_child(anchors)
+	var aw := AnchorWorld.new()
+	aw.name = "Anchors"
+	aw.staged = true
+	anchors = aw
+	add_child(aw)
+	for _i in AnchorWorld.STAGES:                                      # the sites and what stands on them, a few milliseconds per frame
+		_todo.push_front(Callable(aw, &"build_step"))
 
 
 func _step_quality() -> void:

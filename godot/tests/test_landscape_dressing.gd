@@ -335,6 +335,27 @@ func _city_is_untouched(host: Node) -> void:
 	TestLib.check(int(ls.get("visible", 0)) == 0, "and no waterfall is shown there")
 	TestLib.check(not (city.landscape as Landscape).awake and not city.vegetation.awake, "the landscape and the vegetation sleep in the middle of the city (no kit, no textures, no collider pool built)")
 	TestLib.check(city.vegetation.get_child_count() == 0 and (city.landscape as Landscape).get_child_count() == 0, "a sleeping landscape has no nodes at all")
+	# the wake is a queue of small steps, never one big frame: drain it by hand and watch the strips and the anchor sites appear one step at a time
+	var lsn := city.landscape as Landscape
+	lsn._begin()
+	var steps := 0
+	var strip_seen: Array = []
+	var stage_seen: Array = []
+	var max_step_ms := 0.0
+	while not lsn._todo.is_empty():
+		var t0 := Time.get_ticks_usec()
+		(lsn._todo.pop_front() as Callable).call()
+		max_step_ms = maxf(max_step_ms, (Time.get_ticks_usec() - t0) / 1000.0)
+		steps += 1
+		if lsn.strips != null:
+			strip_seen.append(int(lsn.strips.call(&"strip_count")))
+		if lsn.anchors != null:
+			stage_seen.append(int(lsn.anchors.get(&"_stage")))
+	var n_strips := LandscapeSites.strips().size()
+	TestLib.check(steps >= 20 and lsn.awake, "the landscape wakes in many small steps (%d), not in one frame" % steps)
+	TestLib.check(strip_seen.size() > 3 and int(strip_seen[0]) < n_strips and int(strip_seen[strip_seen.size() - 1]) == n_strips, "the strips are built one per step (%d of %d at the end)" % [int(strip_seen[strip_seen.size() - 1]) if not strip_seen.is_empty() else 0, n_strips])
+	TestLib.check(not stage_seen.is_empty() and int(stage_seen[0]) < AnchorWorld.STAGES and int(stage_seen[stage_seen.size() - 1]) == AnchorWorld.STAGES, "the anchor sites are built in %d stages" % AnchorWorld.STAGES)
+	TestLib.check(max_step_ms < 150.0, "no single wake step takes long (the longest is %.0f ms)" % max_step_ms)
 
 
 func _forest_tiers(host: Node) -> void:
@@ -520,6 +541,20 @@ func _site_quality() -> void:
 			agree += 1
 	LandscapeSites.ignore_hints = false
 	TestLib.check(hinted == LandscapeSites.FALL_REGIONS.size() and agree == hinted, "every fall region carries a hint, the quick search finds a fall inside its region and so does the full one (%d of %d)" % [agree, hinted])
+	# the radio masts and the rock arches stand exactly at their hints (a stale hint would silently cost a 70 ms search in the wake: this fails instead and says the hints want refreshing)
+	var at_hint := 0
+	var masts := AnchorSites.masts()
+	for mi in AnchorSites.MAST_REGIONS.size():
+		var hm: Vector2 = (AnchorSites.MAST_REGIONS[mi] as Dictionary).get("hint", Vector2.INF)
+		for m: Dictionary in masts:
+			if StringName(m["id"]) == StringName("mast%d" % mi) and Vector2((m["pos"] as Vector3).x, (m["pos"] as Vector3).z).distance_to(hm) < 1.0:
+				at_hint += 1
+	TestLib.check(at_hint == AnchorSites.MAST_REGIONS.size(), "every radio mast stands at the hint of its region (%d of %d)" % [at_hint, AnchorSites.MAST_REGIONS.size()])
+	var arch_hint := 0
+	for ar: Dictionary in AnchorSites.arches():
+		if ar.has("hint") and Vector2((ar["pos"] as Vector3).x, (ar["pos"] as Vector3).z).distance_to(ar["hint"] as Vector2) < 1.0:
+			arch_hint += 1
+	TestLib.check(arch_hint == AnchorSites.ARCH_REGIONS.size(), "and every rock arch stands at the hint of its region (%d of %d)" % [arch_hint, AnchorSites.ARCH_REGIONS.size()])
 	var strip_names: Array = []
 	for s: Dictionary in LandscapeSites.strips():
 		strip_names.append(String(s["name"]))

@@ -20,9 +20,9 @@ const LINES := [
 	{"name": "WEST FEEDER LINE", "via": [Vector2(-1120.0, 300.0), Vector2(-1250.0, 700.0), Vector2(-1180.0, 1180.0)]},
 ]
 const MAST_REGIONS := [
-	{"name": "HOLLOW RELAY", "c": Vector2(-1000.0, -700.0), "r": 420.0},
-	{"name": "NORTH RELAY", "c": Vector2(450.0, -1750.0), "r": 340.0},
-	{"name": "MESA RELAY", "c": Vector2(1950.0, -250.0), "r": 340.0},
+	{"name": "HOLLOW RELAY", "c": Vector2(-1000.0, -700.0), "r": 420.0, "hint": Vector2(-1320.0, -460.0)},
+	{"name": "NORTH RELAY", "c": Vector2(450.0, -1750.0), "r": 340.0, "hint": Vector2(410.0, -1910.0)},
+	{"name": "MESA RELAY", "c": Vector2(1950.0, -250.0), "r": 340.0, "hint": Vector2(2150.0, -130.0)},
 ]
 const ARCH_REGIONS := [
 	{"name": "SUNGATE ARCH", "c": Vector2(1750.0, 650.0), "r": 340.0, "variant": 0, "layer": 8, "hint": Vector2(1568.0, 520.0)},
@@ -39,6 +39,9 @@ const CRANE_H := 58.0
 const HARBOUR_CRANE_H := 33.0                          ## the harbour's gantry cranes (HarbourKit): top of the boom girders above the quay
 
 static var built := false
+static var _part := 0
+static var _busy := false
+const PARTS := 5
 static var _turbines: Array = []
 static var _fields: Array = []
 static var _lines: Array = []
@@ -77,16 +80,31 @@ static func arches() -> Array:
 	return _arches
 
 
+## Everything at once (the first query of any list does it); the live world's staged wake calls `ensure_step()` once per frame instead, so no frame pays for all five parts.
 static func ensure() -> void:
-	if built:
+	if _busy:
 		return
-	built = true
-	TerrainHeight.warm()
-	_build_fields()
-	_build_lines()
-	_build_masts()
-	_build_cranes()
-	_build_arches()
+	while not built:
+		ensure_step()
+
+
+## One of the five parts of `ensure()` (fields, lines, masts, cranes, arches); true while parts are left.
+static func ensure_step() -> bool:
+	if built or _busy:
+		return false
+	_busy = true                                                 # the parts only read terrain and roads, but a list accessor called from inside one must not start a second build
+	if _part == 0:
+		TerrainHeight.warm()
+	match _part:
+		0: _build_fields()
+		1: _build_lines()
+		2: _build_masts()
+		3: _build_cranes()
+		4: _build_arches()
+	_part += 1
+	built = _part >= PARTS
+	_busy = false
+	return not built
 
 
 ## Dry, gentle, clear land: no water, no road corridor, no site pad, no airstrip, not on the beach.
@@ -174,9 +192,21 @@ static func _build_masts() -> void:
 		var rad := float(md["r"])
 		var best := Vector3.ZERO
 		var best_h := -1.0e9
+		var from_hint := false
+		var hint = md.get("hint", Vector2.INF)                  # the highest valid spot of the last full search (that one costs 70 ms): the same test at that one spot is a millisecond
+		if hint is Vector2 and (hint as Vector2).is_finite() and not LandscapeSites.ignore_hints:
+			var hp := hint as Vector2
+			if _valid(hp.x, hp.y, 30.0, 0.22):
+				var hh := TerrainHeight.height_at(hp.x, hp.y)
+				if hh < 230.0:
+					best_h = hh
+					best = Vector3(hp.x, hh, hp.y)
+					from_hint = true
 		var step := 40.0
 		var n := int(rad / step)
 		for j in range(-n, n + 1):
+			if from_hint:
+				break
 			for i in range(-n, n + 1):
 				var p := c + Vector2(float(i), float(j)) * step
 				if p.distance_to(c) > rad or not _valid(p.x, p.y, 30.0, 0.22):

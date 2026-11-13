@@ -129,8 +129,7 @@ func populate(room: Node3D, t: StringName, plan: Dictionary, follow_types: Array
 				var hp := 240.0 * Progress.enemy_hp_mult()
 				g.max_hp = hp
 				g.hp = hp
-				if g.model != null:
-					g.model.scale = Vector3.ONE * 1.18
+				g.set_size(1.18)                                   # (a persistent size: the old one-off model.scale was overwritten by the next animation frame, so the officer was only as big as his roster look)
 	_follow_types = follow_types.duplicate()
 	_follow_t = FOLLOW_FIRST
 	_patrol_t = PATROL_EVERY

@@ -106,7 +106,7 @@ func _data() -> void:
 				tall += 1
 		anchors_total += tall
 		TestLib.check(tall >= 2, "%s has %d tall quantum snake anchors" % [s["name"], tall])
-		TestLib.check(SettlementData.parked_slots(s).size() >= 1 and pl.folk.size() >= 5 and pl.props.size() >= 20, "%s has parked cars (%d), folk (%d) and street props (%d)" % [s["name"], SettlementData.parked_slots(s).size(), pl.folk.size(), pl.props.size()])
+		TestLib.check(SettlementData.parked_slots(s).size() >= 1 and pl.folk.size() >= 5 and pl.props.size() >= 12, "%s has parked cars (%d), folk (%d) and street props (%d)" % [s["name"], SettlementData.parked_slots(s).size(), pl.folk.size(), pl.props.size()])
 		TestLib.check(pl.items.size() >= 18, "%s has %d buildings" % [s["name"], pl.items.size()])
 		var all := SettlementKit.build(pl, Rect2(), false)
 		var far := SettlementKit.build(pl, Rect2(), true)

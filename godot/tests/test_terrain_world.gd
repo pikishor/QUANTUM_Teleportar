@@ -170,7 +170,7 @@ func _far_tiles(host: Node) -> void:
 	var done := await _wait_counter(host, func() -> bool: return int(city.terrain.stats()["far_tiles"]) >= total, 45.0)
 	var st := city.terrain.stats()
 	TestLib.check(done, "all %d far tiles are built by the worker threads (%d)" % [total, int(st["far_tiles"])])
-	TestLib.check(total >= 20 and total <= 90, "the world is covered by under a hundred far tiles, not hundreds of chunks (%d of the 9 x 9 grid)" % total)
+	TestLib.check(total >= 20 and total < 100, "the world is covered by under a hundred far tiles, not hundreds of chunks (%d of the 10 x 10 grid whose edges are multiples of 1 km)" % total)
 	TestLib.check(int(st["tris"]) > 20000, "the far tiles carry the horizon (%d triangles)" % int(st["tris"]))
 
 

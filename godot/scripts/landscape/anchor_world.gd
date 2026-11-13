@@ -12,6 +12,7 @@ const MODEL_PATH := "res://assets/models/land_props.glb"
 const SHADER_PATH := "res://assets/shaders/land_prop.gdshader"
 const SHOW := 1000.0
 const COLLIDERS := 10
+const STAGES := 11
 const ARMS := [[30.0, 7.2], [33.6, 6.4], [37.0, 5.4]]
 const INSULATOR := 2.3
 const HUB_Y := 62.2                                   ## the hub height above the base (tower 64 m minus the nacelle's offset)
@@ -20,6 +21,8 @@ static var instance: AnchorWorld = null
 static var _meshes := {}
 
 var quality := 1
+var staged := false                                   ## the builds run one step per `build_step()` call (the landscape's staged wake) instead of all in `_ready`
+var _stage := 0
 var _mat: ShaderMaterial
 var _sites: Array = []                                ## {node, kind, centre}
 var _anchors: Array = []
@@ -38,22 +41,35 @@ func _ready() -> void:
 	LandClimate.ensure()
 	_mat = ShaderMaterial.new()
 	_mat.shader = load(SHADER_PATH) as Shader
-	AnchorSites.ensure()
-	_anchors = AnchorSites.all_anchors()
-	var _t0 := Time.get_ticks_msec()
-	_build_turbines()
-	print("ANCH turbines ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
-	_build_lines()
-	print("ANCH lines ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
-	_build_masts()
-	print("ANCH masts ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
-	_build_cranes()
-	print("ANCH cranes ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
-	_build_arches()
-	print("ANCH arches ", Time.get_ticks_msec() - _t0); _t0 = Time.get_ticks_msec()
-	_make_pool()
-	print("ANCH pool ", Time.get_ticks_msec() - _t0)
+	if not staged:
+		while build_step():
+			pass
 	set_process(true)
+
+
+## One of STAGES small steps of the build (the sites of AnchorSites in five parts, the list of anchors, turbines, pylon lines, masts and cranes, arches, the collider pool): the landscape's staged wake
+## calls it once per frame, so the hero crossing the edge of the city never waits for the whole lot (about 100 ms on a desktop). A node that is not `staged` builds everything in `_ready`.
+func build_step() -> bool:
+	if _stage >= STAGES or _mat == null:
+		return false
+	match _stage:
+		0, 1, 2, 3, 4:
+			AnchorSites.ensure_step()
+		5:
+			_anchors = AnchorSites.all_anchors()
+		6:
+			_build_turbines()
+		7:
+			_build_lines()
+		8:
+			_build_masts()
+			_build_cranes()
+		9:
+			_build_arches()
+		10:
+			_make_pool()
+	_stage += 1
+	return _stage < STAGES
 
 
 func _exit_tree() -> void:

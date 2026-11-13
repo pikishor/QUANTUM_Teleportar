@@ -364,7 +364,7 @@ func _queue_far(p: Vector3) -> void:
 		return
 	if _far_jobs.size() >= 2:
 		return
-	var tiles := int(round(2.0 * TerrainHeight.WORLD_HALF / FAR_TILE))
+	var tiles := _far_per_axis()
 	var best := -1
 	var best_d := 1.0e18
 	for tj in tiles:
@@ -395,14 +395,24 @@ func _queue_far(p: Vector3) -> void:
 	_far_jobs[best] = {"id": id, "res": res}
 
 
+## The far tiles lie on a grid whose edges are multiples of FAR_TILE from the origin (wave 112: the world is 9 km, 4.5 half tiles: a grid that started at the world edge put the first tiles at 500 m from the
+## city, inside the fog range of the city views, and the city start drew eight of them; this grid keeps them at 1 km like the 6 km world did, the outer ring is half sea beyond the world edge).
+static func _far_origin() -> float:
+	return ceilf(TerrainHeight.WORLD_HALF / FAR_TILE) * FAR_TILE
+
+
+static func _far_per_axis() -> int:
+	return int(round(2.0 * _far_origin() / FAR_TILE))
+
+
 func _tile_box(ti: int, tj: int) -> Rect2:
-	return Rect2(-TerrainHeight.WORLD_HALF + float(ti) * FAR_TILE, -TerrainHeight.WORLD_HALF + float(tj) * FAR_TILE, FAR_TILE, FAR_TILE)
+	return Rect2(-_far_origin() + float(ti) * FAR_TILE, -_far_origin() + float(tj) * FAR_TILE, FAR_TILE, FAR_TILE)
 
 
 func _far_total() -> int:
 	if _far_n >= 0:
 		return _far_n
-	var tiles := int(round(2.0 * TerrainHeight.WORLD_HALF / FAR_TILE))
+	var tiles := _far_per_axis()
 	var n := 0
 	for tj in tiles:
 		for ti in tiles:

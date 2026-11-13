@@ -13,8 +13,9 @@ const TONES := {&"foothill_strip": 0.15, &"westwood_strip": 0.05, &"south_strip"
 static var instance: StripWorld = null
 
 var quality := 1
+var staged := false                                     ## the strips are built one per `build_step()` call (the landscape's staged wake) instead of all in `_ready`
 var _nodes: Array[Node3D] = []
-
+var _next := 0
 var _tris := 0
 
 
@@ -23,9 +24,21 @@ func _ready() -> void:
 	LandscapeSites.ensure()
 	LandClimate.ensure()
 	if AnchorWorld.mesh("hangar") == null:
+		_next = 1 << 20
 		return
-	for s: Dictionary in LandscapeSites.strips():
-		_nodes.append(_build(s))
+	if not staged:
+		while build_step():
+			pass
+
+
+## Builds the next strip (about 5 ms each); true while strips are left.
+func build_step() -> bool:
+	var list := LandscapeSites.strips()
+	if _next >= list.size():
+		return false
+	_nodes.append(_build(list[_next]))
+	_next += 1
+	return _next < list.size()
 
 
 func _exit_tree() -> void:

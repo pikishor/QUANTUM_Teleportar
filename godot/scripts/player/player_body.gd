@@ -33,6 +33,7 @@ const RIM_BOOST := 0.85                    ## extra rim at full excitement
 const GLOW_BOOST := 0.7                    ## extra emission-texture energy (veins, core, slit) at full excitement
 const LOW_ALBEDO := Color(0.72, 0.74, 0.78, 1.0)    ## LOW tier: the armour albedo is multiplied by this ...
 const COMPAT_GLOW := 0.55                           ## the Compatibility renderer (exposure and bloom lift) shows the emission texture much brighter: whitish plates on a bright phone
+const HERO_GLOW_GAIN := 1.0                          ## brightness of the suit's glow circuits (hero_body.gdshader glow_gain), LOW x0.7, Compatibility x0.6
 const LOW_GLOW := 0.6                                ## ... and the emission texture (veins, core, slit) is this strong
 const FABRIC_RIM := 0.3                    ## cloak and legs get a cool edge too: a thicker, readable silhouette from the chase camera
 const TRIM_HUES := [Color(0.2, 0.95, 1.0), Color(0.75, 0.35, 1.0), Color(1.0, 0.35, 0.85)]   ## thin-film sheen of the armour trim: cyan to violet to magenta
@@ -92,6 +93,8 @@ var upper: Node3D
 var rig: CharacterRig
 var uses_model := false
 var hero_mat: ShaderMaterial                    ## the superhero's material (hero_body.gdshader); null with the old hero
+var glow: HeroGlow                              ## the circuit glow of the suit (scripts/characters/hero_glow.gd): the abilities drive it, HeroLook.set_glow is its public API
+var glow_primary := true                        ## false for previews (portrait, look screen): they keep their own glow and never take the HeroLook.set_glow calls
 var hero_info := {}                             ## HeroCharacter.build info of the current model (tris, lods, ...)
 var _hero_opts := {}                            ## body / skin / hair / beard the current superhero was built with
 var _weapon_id: StringName = &""
@@ -183,6 +186,16 @@ var character_light := true:
 func _ready() -> void:
 	top_level = true
 	_build()
+
+
+func _enter_tree() -> void:
+	if glow != null and glow_primary:
+		HeroGlow.primary = glow
+
+
+func _exit_tree() -> void:
+	if glow != null and HeroGlow.primary == glow:
+		HeroGlow.primary = null
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -337,6 +350,9 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 			gm.emission_energy_multiplier = _glow_mult()
 
 	_update_quantum_look(q, dt)
+	if glow != null and hero_mat != null:
+		glow.sense(p, _look_accent)
+	update_glow(dt)
 
 	# --- character lights follow the ACTIVE camera (the orbit yaw alone lies when a cinematic / QA / viewer camera looks from elsewhere)
 	update_character_lights(lerpf(1.0, DEAD_LIGHT, e), rig_view.yaw if rig_view != null else NAN)
@@ -482,6 +498,8 @@ func warm_burst_end() -> void:
 
 ## One shot: flash card, light pulse and the body's recoil. intensity scales the flash.
 func fire_flash(intensity := 1.0) -> void:
+	if glow != null:
+		glow.fired(_look_accent.lerp(Color.WHITE, 0.3), intensity)
 	_wp_glow = 3.4
 	WeaponModels.material().set_shader_parameter(&"glow", _wp_glow)
 	if _flash_root != null:
@@ -504,6 +522,8 @@ func fire_flash(intensity := 1.0) -> void:
 
 ## A hit reaction: the torso snaps back for a moment.
 func flinch(strength := 1.0, from_pos := Vector3.ZERO) -> void:
+	if glow != null:
+		glow.hurt(strength)
 	if from_pos != Vector3.ZERO:
 		var h := Vector3(from_pos.x - global_position.x, 0.0, from_pos.z - global_position.z)
 		if h.length() > 0.2:
@@ -608,7 +628,7 @@ func _make_model(look: HeroLook = null) -> Node3D:
 static func _look_opts(look: HeroLook) -> Dictionary:
 	if look == null:
 		return HeroCharacter.sanitize({})
-	return HeroCharacter.sanitize({"body": look.body, "skin": look.skin_tone, "hair": look.hair, "beard": look.beard})
+	return HeroCharacter.sanitize({"body": look.body, "skin": look.skin_tone, "hair": look.hair, "beard": look.beard, "suit": look.kit_set()})
 
 
 ## A changed body, skin, hair or beard replaces the model in place (the same sequence as _build, without the lights and the reflection).
@@ -698,6 +718,10 @@ func _adopt_model(model: Node3D) -> void:
 			leg_r = pivot
 	_prepare_materials(model, true)
 	if hero_mat != null:
+		if glow == null:
+			glow = HeroGlow.new()
+		if glow_primary:
+			HeroGlow.primary = glow
 		_apply_hero_look(_pending_look if _pending_look != null else (Game.progress.get(&"hero") as HeroLook if Game.progress != null else null))
 	HeroPresentation.set_height(HeroPresentation.measure_height(model))
 	if rig != null:
@@ -834,6 +858,21 @@ func _apply_hero_look(look: HeroLook) -> void:
 	hero_mat.set_shader_parameter(&"glow", float(sd["glow"]) * (LOW_GLOW if _quality == 0 else 1.0))
 	hero_mat.set_shader_parameter(&"accent", _look_accent)
 	hero_mat.set_shader_parameter(&"accent_mix", _look_mix)
+	# the suit kit palette (HeroLook.palette): plates, painted trim, cloth, gold; and the idle colour of the circuits
+	var pal := look.palette()
+	for k: StringName in pal:
+		hero_mat.set_shader_parameter(k, pal[k])
+	hero_mat.set_shader_parameter(&"glow_gain", HERO_GLOW_GAIN * (0.7 if _quality == 0 else 1.0) * (0.6 if _is_compat() else 1.0))
+	if glow != null:
+		glow.set_base(_look_accent, float(sd["glow"]))
+
+
+## One tick of the circuit glow: the layers advance and the outputs go into the hero material. update_view calls it every frame; previews (portrait, look screen, the look-dev stage) call it themselves.
+func update_glow(dt: float) -> void:
+	if glow == null or hero_mat == null:
+		return
+	glow.update(dt)
+	glow.apply_to(hero_mat)
 
 
 ## Thin-film sheen of the trim: the hue drifts with time and view-independent phase; `charge` (QUANTUM TELEPORT aim) pushes it toward violet-magenta and brighter,

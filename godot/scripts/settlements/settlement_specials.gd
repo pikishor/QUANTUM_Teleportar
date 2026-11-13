@@ -127,7 +127,7 @@ static func windmill(s: Dictionary) -> Dictionary:
 	P.door(m, Vector3(0.0, 0.0, -3.3), Vector3(0, 0, -1), 1.1, 2.0, Color(0.3, 0.18, 0.1), Color(0.8, 0.78, 0.72))
 	for k in 4:
 		var a := TAU * float(k) / 4.0 + 0.4
-		P.window(m, Vector3(sin(a) * 2.9, 6.0, -cos(a) * 2.9) if false else Vector3(sin(a) * 2.9, 6.0, cos(a) * 2.9), Vector3(sin(a), 0.0, cos(a)), 0.7, 1.0, Color(0.3, 0.2, 0.15), 0.0)
+		P.window(m, Vector3(sin(a) * 2.9, 6.0, cos(a) * 2.9), Vector3(sin(a), 0.0, cos(a)), 0.7, 1.0, Color(0.3, 0.2, 0.15), 0.0)
 	var sails := SettlementMesh.new()
 	for k in 4:
 		var a2 := PI * 0.5 * float(k)
@@ -341,8 +341,6 @@ static func petrol(s: Dictionary) -> Dictionary:
 	var sh := 3.4
 	m.box(Vector3(0.0, sh * 0.5, 4.0), Vector3(sw, sh, sd), Color(0.88, 0.86, 0.8), SM.PAINT, 32 | 4, 1.0, 0.6)
 	P.flat_roof(m, sw, sd, sh, 0.3, Color(0.88, 0.86, 0.8), SM.PAINT, Color(0.42, 0.42, 0.44))
-	var s1 := m.v.size()
-	m.transform_from(s1 - 0, Transform3D.IDENTITY)
 	m.quad(Vector3(3.5, 0.5, 1.46), Vector3(-1.0, 0.5, 1.46), Vector3(-1.0, 2.6, 1.46), Vector3(3.5, 2.6, 1.46), Color(0.3, 0.3, 0.32), SM.GLASS, 1.0, 1.0, Vector2.ZERO, 0.9, Vector3(0, 0, -1), true)
 	P.door(m, Vector3(-2.2, 0.0, 1.5), Vector3(0, 0, -1), 1.2, 2.15, Color(0.3, 0.32, 0.36), Color(0.9, 0.9, 0.88))
 	m.box(Vector3(0.0, 3.3 + 0.5, 1.4), Vector3(sw, 0.6, 0.12), red, SM.GLOW, 4, 1.0, 1.0)

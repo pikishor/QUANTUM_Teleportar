@@ -46,6 +46,9 @@ static var _falls: Array = []
 static var _strips: Array = []
 static var _fbound := PackedFloat32Array()            ## per fall: cx, cz, r^2 (everything the fall carves lies inside)
 static var _sbound := PackedFloat32Array()            ## per strip: cx, cz, r^2
+const GRID_CELL := 128.0
+static var _gn := 0                                     ## the coarse grid of the world (cells of GRID_CELL m): which cells any fall or strip can reach; every other point leaves carve() and the other queries at once
+static var _gflag := PackedByteArray()
 
 
 static func falls() -> Array:
@@ -112,6 +115,35 @@ static func ensure() -> void:
 		var c2: Vector2 = s["c"]
 		var rr := STRIP_LEN * 0.5 + STRIP_BLEND + 16.0
 		_sbound.append_array(PackedFloat32Array([c2.x, c2.y, rr * rr]))
+	_build_grid()
+
+
+## One byte per 128 m cell: 1 where a bounding circle of a fall or a strip overlaps the cell. height_at() asks for the carve at every vertex of every terrain tile and water_level_for() at
+## every candidate plant, so the common answer (nothing here) must cost a lookup, not a walk over all the sites.
+static func _build_grid() -> void:
+	var half := TerrainHeight.WORLD_HALF + GRID_CELL
+	_gn = int(ceil(2.0 * half / GRID_CELL)) + 1
+	var flags := PackedByteArray()
+	flags.resize(_gn * _gn)
+	for arr: PackedFloat32Array in [_fbound, _sbound]:
+		for i in arr.size() / 3:
+			var r := sqrt(arr[i * 3 + 2]) + 2.0
+			var i0 := clampi(floori((arr[i * 3] - r + half) / GRID_CELL), 0, _gn - 1)
+			var i1 := clampi(floori((arr[i * 3] + r + half) / GRID_CELL), 0, _gn - 1)
+			var j0 := clampi(floori((arr[i * 3 + 1] - r + half) / GRID_CELL), 0, _gn - 1)
+			var j1 := clampi(floori((arr[i * 3 + 1] + r + half) / GRID_CELL), 0, _gn - 1)
+			for j in range(j0, j1 + 1):
+				for k in range(i0, i1 + 1):
+					flags[j * _gn + k] = 1
+	_gflag = flags
+
+
+## True when no fall and no strip can reach (x, z): one lookup.
+static func _quiet(x: float, z: float) -> bool:
+	var half := TerrainHeight.WORLD_HALF + GRID_CELL
+	var gi := floori((x + half) / GRID_CELL)
+	var gj := floori((z + half) / GRID_CELL)
+	return gi >= 0 and gj >= 0 and gi < _gn and gj < _gn and _gflag[gj * _gn + gi] == 0
 
 
 static func _region_centre(reg: Dictionary) -> Vector2:
@@ -398,7 +430,7 @@ static func inside_strip(x: float, z: float, margin := 0.0) -> bool:
 # --- carving (the outermost link of TerrainHeight.height_at) --------------------------------------------------------------------------------
 
 static func carve(x: float, z: float, h: float) -> float:
-	if not built:
+	if not built or _quiet(x, z):
 		return h
 	var nf := _fbound.size() / 3
 	for i in nf:
@@ -478,6 +510,8 @@ static func _trench(pts: PackedVector2Array, bed: PackedFloat32Array, p: Vector2
 
 ## True within `margin` metres of a plunge pool, of the falling sheet or of one of the stream trenches of a waterfall (plants, rocks and props keep clear).
 static func near_feature(x: float, z: float, margin := 2.0) -> bool:
+	if _quiet(x, z):
+		return false
 	var nf := _fbound.size() / 3
 	for i in nf:
 		var dx := x - _fbound[i * 3]
@@ -505,6 +539,8 @@ static func near_feature(x: float, z: float, margin := 2.0) -> bool:
 
 
 static func pool_level(x: float, z: float) -> float:
+	if _quiet(x, z):
+		return NO_WATER
 	var nf := _fbound.size() / 3
 	for i in nf:
 		var f: Dictionary = _falls[i]

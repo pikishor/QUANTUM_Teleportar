@@ -13,9 +13,9 @@ extends Node3D
 const MB := preload("res://scripts/world/mesh_builder.gd")
 
 const CH := 120.0
-const BUILD_R: Array[float] = [200.0, 260.0, 320.0]
+const BUILD_R: Array[float] = [165.0, 260.0, 320.0]
 const FREE_EXTRA := 90.0
-const NEAR_END: Array[float] = [250.0, 310.0, 370.0]
+const NEAR_END: Array[float] = [190.0, 310.0, 370.0]
 const FAR_END: Array[float] = [1500.0, 2100.0, 2800.0]
 const FAR_BUILD_R := 3000.0
 const FADE := 40.0
@@ -34,6 +34,7 @@ var quality := 1
 var towns := {}                                  ## id -> {site, plan, root, chunks: {key: record}, far: MeshInstance3D, origin: Vector2, dims: Vector2i}
 var rotors: Array[Dictionary] = []               ## {node (the spinning Node3D), axis (part frame), speed, pos (world)}
 var built_total := 0                             ## chunks built so far (tests)
+var far_total := 0                               ## far meshes built so far (tests)
 var freed_total := 0
 var _tick := 0.0
 var _markers: MultiMeshInstance3D
@@ -147,6 +148,8 @@ func _hero_pos() -> Vector3:
 
 
 func _process(delta: float) -> void:
+	if InteriorGameplay.active:                      # the room stands in the strip east of the city and the city is hidden meanwhile: nothing to stream (a far mesh built there was a hitch inside every interior)
+		return
 	_tick -= delta
 	_spin_rotors(delta)
 	if _tick > 0.0:
@@ -172,6 +175,8 @@ func _process(delta: float) -> void:
 ## One round of streaming around `p`: builds at most `budget` chunks (and one far mesh), frees what is out of range.
 func _stream(p: Vector3, budget: int) -> void:
 	var br := BUILD_R[quality]
+	var in_city := maxf(absf(p.x), absf(p.z)) < CityLayout.HALF - 40.0         # the towns lie beyond the city: from inside it they hide behind the buildings, and the city's own draw budget must not pay for them
+	var far_made := 0
 	for id in towns.keys():
 		var t: Dictionary = towns[id]
 		var site: Dictionary = t["site"]
@@ -179,11 +184,14 @@ func _stream(p: Vector3, budget: int) -> void:
 		var d := Vector2(sp.x - p.x, sp.z - p.z).length()
 		var plan: SettlementPlan = t["plan"]
 		var reach := maxf(plan.r, plan.ln) + br
-		if d < FAR_BUILD_R and t["far"] == null and _ab & 2 == 0:
+		if d < FAR_BUILD_R and t["far"] == null and _ab & 2 == 0 and not in_city and far_made < 1:
 			_build_far(t)
+			far_made += 1
 		elif d > FAR_BUILD_R + 600.0 and t["far"] != null:
 			(t["far"] as Node).queue_free()
 			t["far"] = null
+		if t["far"] != null:
+			(t["far"] as Node3D).visible = not in_city
 		if d > reach + FREE_EXTRA + 200.0:
 			if not (t["chunks"] as Dictionary).is_empty():
 				_free_chunks(t, -1.0)
@@ -236,9 +244,9 @@ func _free_chunks(t: Dictionary, beyond: float, loc := Vector2.ZERO) -> void:
 func settle(p: Vector3) -> void:
 	_hero = p
 	for pass_i in 400:
-		var before := built_total
+		var before := built_total + far_total
 		_stream(p, 6)
-		if built_total == before:
+		if built_total + far_total == before:
 			break
 
 
@@ -355,6 +363,7 @@ func _build_far(t: Dictionary) -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	(t["root"] as Node3D).add_child(mi)
 	t["far"] = mi
+	far_total += 1
 	t["far_tris"] = m.tris()
 	_style_far(mi)
 
@@ -384,7 +393,7 @@ func use_point(id: StringName) -> Vector3:
 func _physics_process(delta: float) -> void:
 	_clock += delta
 	_use_tick -= delta
-	if _use_tick > 0.0 or not Game.is_playing():
+	if _use_tick > 0.0 or not Game.is_playing() or InteriorGameplay.active:
 		return
 	_use_tick = 0.15
 	var p := Game.player as Player

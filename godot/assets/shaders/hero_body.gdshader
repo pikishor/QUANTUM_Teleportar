@@ -15,6 +15,25 @@ uniform sampler2D hair1_normal : hint_normal, filter_linear_mipmap, repeat_enabl
 uniform sampler2D hair2_albedo : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D hair2_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 
+// HERO STYLE (wave 112, hero look v3): 1 for the player's hero (suit kit, graphite bodysuit, glow circuits), 0 for NPCs and enemies (the jacket / trousers zones below, unchanged).
+uniform float hero_style : hint_range(0.0, 1.0) = 0.0;
+uniform sampler2D gear_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;     // the armour kit atlas (tools/blender/model_hero_suit.py): neutral baked albedo with wear
+uniform sampler2D gear_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D gear_orm : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;  // R ambient occlusion, G roughness, B metallic
+uniform float gear_tex : hint_range(0.0, 1.0) = 0.0;                      // 1 when the atlas textures are loaded (0: flat colours per kind)
+uniform vec3 plate_col : source_color = vec3(0.5, 0.54, 0.62);           // multiplier of the neutral armour plates (the suit preset and scheme)
+uniform vec3 trim_paint : source_color = vec3(0.1, 0.5, 0.58);           // painted accent plates
+uniform vec3 cloth_col : source_color = vec3(0.045, 0.05, 0.065);        // the bodysuit
+uniform vec3 cloth_col2 : source_color = vec3(0.1, 0.11, 0.14);          // belt and straps
+uniform vec3 gold_col : source_color = vec3(0.78, 0.6, 0.28);
+uniform float plate_metal : hint_range(0.0, 1.5) = 1.0;                   // scales the baked metallic of the plates
+uniform float plate_rough : hint_range(-0.5, 0.5) = 0.0;                  // added to the baked roughness
+// The glow of the circuits (HeroGlow): colour, intensity per zone (core, arms, hands, legs | wings, head), the travelling wave (x front 0..1.5, y strength)
+uniform vec3 glow_rgb : source_color = vec3(0.2, 0.95, 1.0);
+uniform vec4 gz_a = vec4(1.0, 0.6, 0.55, 0.5);
+uniform vec2 gz_b = vec2(0.7, 0.35);
+uniform vec2 gflow = vec2(-1.0, 0.0);
+uniform float glow_gain : hint_range(0.0, 4.0) = 1.0;                     // overall brightness of the circuits (LOW / Compatibility tame it)
 uniform vec3 hair_color : source_color = vec3(0.16, 0.11, 0.085);
 uniform vec3 suit_color : source_color = vec3(0.2, 0.22, 0.27);
 uniform vec3 jacket_color : source_color = vec3(0.43, 0.55, 0.69);     // the outfit: jacket and trousers (the hero's own, NPCs and enemies set theirs in HumanoidVariants.tint)
@@ -43,6 +62,8 @@ instance uniform float hit_k : hint_range(0.0, 1.0) = 0.0;
 
 varying flat float v_mode;
 varying flat float v_kindf;
+varying flat float v_zone;
+varying float v_path;
 varying float v_suit;
 varying vec3 v_pos;
 varying vec3 v_nrm;
@@ -52,7 +73,9 @@ float h11(float x) { return fract(sin(x * 127.1) * 43758.5453); }
 void vertex() {
 	v_mode = floor(COLOR.r * 4.0 + 0.5);
 	v_suit = COLOR.g;
-	v_kindf = COLOR.b * 8.0;
+	v_kindf = COLOR.b * 16.0;
+	v_zone = COLOR.a;
+	v_path = UV2.x;
 	v_pos = VERTEX;
 	v_nrm = NORMAL;
 }
@@ -81,7 +104,7 @@ void fragment() {
 		alb *= 1.0 + sk * pow(1.0 - ndv0, 2.2) * vec3(0.3, 0.16, 0.1);          // (was 0.55, 0.2, 0.08: in a lamp-lit room the neck and the head glowed orange-red, director review 3 #5)
 		BACKLIGHT = sk * alb * vec3(0.32, 0.2, 0.15);
 		emis += sk * alb * 0.26 * (0.6 + 0.4 * v_nrm.y);                       // a skin fill: the face reads in a dark street instead of going black
-		if (suit > 0.001) {
+		if (hero_style < 0.5 && suit > 0.001) {
 			float lum = dot(alb, vec3(0.299, 0.587, 0.114));
 			float ndv = ndv0;
 			float rim = pow(1.0 - ndv, 2.6);
@@ -162,12 +185,39 @@ void fragment() {
 			rough = mix(rough, clamp(0.74 - 0.25 * panel + 0.2 * (cloud - 0.5), 0.12, 0.95), suit);
 			metal = suit * (0.04 + 0.2 * panel + 0.1 * rim);
 			nd = mix(1.0, 0.45, suit);
+		} else if (suit > 0.001) {
+			// HERO STYLE: a graphite bodysuit. The baked muscle shading of the skin map gives the form, a knit micro-normal the cloth, a cool sheen the rim; the gloves (the end of the
+			// arm circuit) are darker and glossier. The armour sits on top of it (the suit kit), the circuits glow in the kit parts, not on the cloth.
+			float lum = dot(alb, vec3(0.299, 0.587, 0.114));
+			float rim = pow(1.0 - ndv0, 2.4);
+			vec3 weave = texture(skin_normal, UV * 7.0).rgb;
+			nm = mix(nm, vec3((nm.xy - 0.5) * 0.7 + (weave.xy - 0.5) * 0.3 + 0.5, nm.z), suit);
+			float cloud = texture(skin_rough, UV * 2.3).r;
+			float glove = smoothstep(0.62, 0.70, v_path);
+			float shade = clamp(0.55 + 1.0 * lum, 0.6, 1.35) * (0.9 + 0.2 * cloud);
+			vec3 cloth = mix(cloth_col, cloth_col * 0.6 + vec3(0.012), glove) * shade;
+			float ph = (0.7 + 1.3 * film_seed) * (1.0 - 0.55 * ndv0) * 12.566;
+			vec3 film = 0.5 + 0.5 * cos(vec3(0.0, 2.094, 4.188) + ph * vec3(1.0, 1.13, 1.27));
+			film = mix(film, trim_color, 0.6);
+			film = mix(film, accent, accent_mix);
+			float k2 = (0.35 + 0.65 * ready_k) * (1.0 + 0.9 * charge + 0.6 * excite) * glow;
+			alb = mix(alb, cloth, suit);
+			emis += suit * (film * rim * 0.20 * k2 + cloth * (0.20 + 0.15 * v_nrm.y));
+			rough = mix(rough, clamp(0.58 - 0.16 * glove + 0.2 * (cloud - 0.5), 0.2, 0.9), suit);
+			metal = suit * 0.04;
+			spec = mix(spec, 0.55, suit);
+			nd = mix(1.0, 0.5, suit);
 		}
 	} else if (v_mode < 1.5) {
 		alb = texture(eye_albedo, UV).rgb;
 		nm = texture(eye_normal, UV).rgb;
 		rough = 0.12;
 		spec = 0.9;
+		if (hero_style > 0.5) {                            // the iris carries the quantum glow (centre of the eye map), strongest while a power is charged
+			float de = length(UV - vec2(0.495, 0.505));
+			float iris = 1.0 - smoothstep(0.07, 0.10, de);
+			emis += glow_rgb * iris * smoothstep(0.03, 0.07, de) * gz_b.y * 1.1;
+		}
 	} else if (v_mode < 2.5) {
 		alb = texture(hair1_albedo, UV).rgb * hair_color * 2.6;
 		nm = texture(hair1_normal, UV).rgb;
@@ -191,7 +241,49 @@ void fragment() {
 		float ndv2 = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
 		float hemi2 = 0.55 + 0.45 * v_nrm.y;
 		float edge = min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y));
-		if (kind < 0.5) {
+		if (hero_style > 0.5 && kind > 5.5) {
+			// THE SUIT KIT (HeroSuit): kinds 6 plate, 7 accent paint, 8 dark metal, 9 fabric, 10 glow, 11 canvas, 12 gold, 13 cloth. The atlas carries the wear (neutral colours), the kind picks the palette.
+			float zid = floor(v_zone * 8.0);
+			float zv = zid < 0.5 ? gz_a.x : (zid < 1.5 ? gz_a.y : (zid < 2.5 ? gz_a.z : (zid < 3.5 ? gz_a.w : (zid < 4.5 ? gz_b.x : gz_b.y))));
+			float wave = gflow.y * (exp(-pow((v_path - gflow.x) / 0.11, 2.0)) + 0.4 * (1.0 - smoothstep(0.0, 0.5, gflow.x - v_path)) * step(v_path, gflow.x));
+			if (kind > 9.5 && kind < 10.5) {
+				alb = vec3(0.012);
+				rough = 0.35;
+				emis = glow_rgb * (zv + wave) * glow * glow_gain * 1.1;
+			} else {
+				vec3 t = vec3(1.0 / 2.2);                         // no atlas loaded: flat colours per kind
+				vec3 o = vec3(1.0, 0.45, 0.45);
+				vec3 tint = kind < 6.5 ? plate_col : (kind < 7.5 ? trim_paint : (kind < 8.5 ? vec3(0.07, 0.075, 0.085) : (kind < 9.5 ? cloth_col2 : (kind < 11.5 ? vec3(0.2, 0.17, 0.13) : (kind < 12.5 ? gold_col : cloth_col2 * 1.4)))));
+				if (gear_tex > 0.5) {
+					t = texture(gear_albedo, UV).rgb;
+					o = texture(gear_orm, UV).rgb;
+					nm = texture(gear_normal, UV).rgb;
+					if (kind > 7.5 && kind < 8.5 || kind > 10.5 && kind < 11.5) {
+						tint = vec3(0.45);                        // dark metal and canvas keep the colours they were baked with
+					}
+				}
+				float mt = kind < 8.5 ? plate_metal : 1.0;
+				alb = t * tint * 2.2;
+				rough = clamp(o.g + (kind < 8.5 ? plate_rough : 0.0), 0.08, 1.0);
+				metal = clamp(o.b * mt, 0.0, 1.0);
+				if (kind > 11.5 && kind < 12.5) {
+					metal = 0.95;
+					rough = clamp(rough * 0.7, 0.15, 0.6);
+				}
+				if (kind > 8.5 && kind < 9.5 || kind > 12.5) {
+					metal = 0.0;
+					rough = clamp(rough + 0.25, 0.5, 0.95);
+				}
+				if (kind > 10.5 && kind < 11.5) {
+					metal = 0.0;
+					rough = 0.85;
+				}
+				AO = o.r;
+				AO_LIGHT_AFFECT = 0.65;
+				emis = alb * 0.2 * (0.55 + 0.45 * v_nrm.y);
+				nd = 1.0;
+			}
+		} else if (kind < 0.5) {
 			alb = vec3(0.13, 0.14, 0.155);
 			rough = 0.42;
 			metal = 0.55;
