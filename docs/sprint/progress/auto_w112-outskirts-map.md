@@ -1,6 +1,6 @@
 # w112-outskirts-map (running)
 
-agent id ab9a223c65307f5bd, 290 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T09:36:03.098Z
+agent id ab9a223c65307f5bd, 315 events, first activity 2026-11-13T09:11:14.655Z, last activity 2026-11-13T09:42:08.360Z
 
 ## Last notes of the agent
 
@@ -9,15 +9,6 @@ agent id ab9a223c65307f5bd, 290 events, first activity 2026-11-13T09:11:14.655Z,
 
 ## Recent steps (last 40)
 
-- 09:24:00 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/base/b_000.png
-- 09:24:00 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/base/b_001.png
-- 09:24:01 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/base/b_002.png
-- 09:24:29 Find external users of OutskirtsSites API
-- 09:25:00 /home/user/QUANTUM_Teleportar/godot/scripts/terrain/outskirts_world.gd
-- 09:25:09 Find discovery total computation
-- 09:25:09 Read test_outskirts_sites.gd head
-- 09:25:32 Read terrain_map.gd and its users
-- 09:25:38 Find hard-coded world-size numbers
 - 09:25:54 Read dev_terrain_map.gd and list docs
 - 09:26:00 Render current world map with roads
 - 09:26:22 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/world_old.png
@@ -49,6 +40,15 @@ agent id ab9a223c65307f5bd, 290 events, first activity 2026-11-13T09:11:14.655Z,
 - 09:35:37 Add crop box to the scan tool
 - 09:35:56 /home/user/QUANTUM_Teleportar/godot/tests/dev_world_scan.gd
 - 09:36:03 Render zoomed map of the west region
+- 09:36:30 Check output of the crop render
+- 09:36:57 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/crop_w.png
+- 09:37:12 Render zoomed map of the east and north-east
+- 09:37:13 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/outskirts/crop_e.png
+- 09:38:28 Scan candidate boxes for each settlement
+- 09:40:21 /home/user/QUANTUM_Teleportar/godot/tests/dev_height_grid.gd
+- 09:40:25 Height grid of the west region
+- 09:41:28 Height grid of the east and south-east
+- 09:41:58 Airport location and east plains height grid
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -57,3 +57,4 @@ agent id ab9a223c65307f5bd, 290 events, first activity 2026-11-13T09:11:14.655Z,
 - godot/scripts/world/terrain_height.gd
 - godot/scripts/world/city_layout.gd
 - godot/tests/dev_world_scan.gd
+- godot/tests/dev_height_grid.gd
