@@ -9,7 +9,7 @@ extends RefCounted
 ##  - AMMO: the ammo types the weapon fires as cards, the loaded one lit, what each does.
 ## Layout adds the buttons of the tab (`ars_slottab_*`, `ars_part_*`, `ars_ammo_*`, `ars_bench`); drawing reads Arsenal's state. Text goes through Hud._text.
 
-const BAR_LAB := 122.0                     ## base px of the label column of a bar
+const BAR_LAB := 132.0                     ## base px of the label column of a bar (122 let BLAST RADIUS touch its bar: wave 114 critic)
 const BAR_VAL := 92.0
 const BAR_DLT := 36.0
 const PART_W := 211.0
@@ -207,7 +207,7 @@ static func _picture(hud: Hud, c: Control, s: float, font: Font, mode: StringNam
 			ItemIcons.draw_tex(c, ItemIcons.gear(sel), art.grow(-14.0 * s), Color(1, 1, 1, k))
 		else:
 			WeaponPics.draw_backdrop(c, art, cls, hud._t, 0.55 if not owned else 1.0)
-			var fit := Rect2(art.position + Vector2(art.size.x * 0.03, art.size.y * 0.2), Vector2(art.size.x * 0.94, art.size.y * 0.68))
+			var fit := Rect2(art.position + Vector2(art.size.x * 0.03, art.size.y * 0.25), Vector2(art.size.x * 0.94, art.size.y * 0.65))      # clear of the name and the status line above it
 			WeaponPics.draw_fit(c, sel, fit, true, Color(1, 1, 1, 0.35 + 0.65 * k) if owned else Color(0.62, 0.66, 0.78, 0.95), 2.2)
 	if big:
 		_picture_text(hud, c, s, font, sel, tint, pa, gear, owned, cls)
@@ -257,13 +257,14 @@ static func _picture_side(hud: Hud, c: Control, s: float, font: Font, mode: Stri
 			var fx := Attachments.effect_text(part)
 			hud._text(c, font, Vector2(r.position.x, y0 + row * 1.2), fx if fx != "" else "NO CHANGE TO THE NUMBERS", HORIZONTAL_ALIGNMENT_LEFT, r.size.x, fs, Color(1, 1, 1, 0.85))
 			return
-		var lw := r.size.x * 0.34
-		var vw := r.size.x * 0.40
+		var lw := r.size.x * 0.38
+		var vw := r.size.x * 0.36
 		for i in mini(rows.size(), 4):
 			var d: Dictionary = rows[i]
 			var y := y0 + row * 1.15 + float(i) * row
 			var col := UiKit.GOOD if bool(d["good"]) else UiKit.BAD
-			hud._text(c, font, Vector2(r.position.x, y), String(d["label"]), HORIZONTAL_ALIGNMENT_LEFT, lw, fs, Color(1, 1, 1, 0.9))
+			var lfs := mini(fs, UiUtil.fit_size(font, String(d["label"]), lw - 8.0 * s, fs))                  # wave 114 critic: "AIM SPREAD" ran into its numbers ("AIM SPREAD0.24 > 0.12"): the label shrinks to its column
+			hud._text(c, font, Vector2(r.position.x, y), String(d["label"]), HORIZONTAL_ALIGNMENT_LEFT, lw, lfs, Color(1, 1, 1, 0.9))
 			hud._text(c, font, Vector2(r.position.x + lw, y), "%s > %s" % [d["from"], d["to"]], HORIZONTAL_ALIGNMENT_LEFT, vw, fs, Color(1, 1, 1, 0.92))
 			hud._text(c, font, Vector2(r.end.x - r.size.x * 0.26, y), "%+d%%" % int(d["pct"]), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x * 0.26, fs, Color(col, 0.99))
 	elif tab == &"ammo":

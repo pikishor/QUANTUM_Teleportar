@@ -264,10 +264,7 @@ func _weapon_fire(w: PlayerWeapon, yaw_off: float, _opts: Dictionary) -> void:
 		locked = w._launch.target
 		aim_pt = w._launch.landing
 	var from: Vector3 = p.body.muzzle.global_position
-	if bool(d.get("launch", false)):
-		Sfx.play(StringName(d.get("snd", &"shot")), float(d.get("vol", -2.0)), randf_range(float(d["pitch_lo"]), float(d["pitch_hi"])))
-	else:
-		Sfx.play(&"blink", -6.0, 1.6)
+	WeaponAudio.launch(w.current, d)                         # wave 114 critic: the voice of the weapon's sound set (frag toss, mine, beacon, rocket, mortar ...), not the QUANTUM BLINK or another weapon's recording
 	p.body.fire_flash(0.8 if mode == &"launch" else 0.3)
 	w._recoil(false)
 	p.fired.emit()

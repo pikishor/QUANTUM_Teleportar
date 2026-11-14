@@ -400,6 +400,11 @@ func move_focus(dir: Vector2) -> bool:
 	if cur.is_empty():
 		ensure_focus()
 		return false
+	var step := Arsenal.pad_step(hud, focus, dir)                  # wave 114: the weapon list scrolls under the pad (the next row of tiles, in view or not)
+	if step != &"":
+		_set_focus(step)
+		Sfx.play(&"ui_tap")
+		return true
 	var from: Vector2 = (cur["rect"] as Rect2).get_center()
 	var best := INF
 	var pick := &""

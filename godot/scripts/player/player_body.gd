@@ -80,6 +80,7 @@ var _wp_mi: MeshInstance3D
 var _handling := WeaponHandling.new()           ## part motion of the weapon in the hand (slide, pump, rotor, magazine ...): scripts/player/weapon_handling.gd
 var _wp_mat: Material                          ## the material of the weapon in the hand: the hero's own copy of the kit's PBR material (moving parts, glow), or the old vertex-colour one
 const WEAPON_LOOK_SCALE := Vector3(1.4, 1.4, 1.12)
+static var carry_spread := 0.6                  ## radians the carried weapon swings further out at low ready and at the hip (the camera is on the right: a weapon pointing along the line of sight is a stub; see CharacterRig.carry_spread)
 ## Heavy weapons are drawn bigger still (director review 5, #2: the rocket launcher read as a 20 cm stub from behind the hero): a launcher, minigun, LMG, anti-materiel rifle, flamethrower
 ## and the big quantum emitters get this extra factor on thickness and length, so a heavy gun reads as a heavy gun at the 20 % of the frame the hero fills.
 const HEAVY_LOOK_SCALE := Vector3(1.3, 1.3, 1.2)
@@ -306,6 +307,7 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		rig.flinch = _flinch
 		rig.flinch_dir = _fdir * minf(1.0, _flinch * 3.0)
 		rig.ready = _ready_w
+		rig.carry_spread = carry_spread
 		rig.reload = reload_k
 		rig.reload_tilt = (float(WeaponDefs.TILT.get(p.weapon.current, 1.0)) * (HeroAnimTuning.cls("reload_tilt_mul", p.weapon.current) if polish != null else 1.0)) if p.weapon != null else 1.0
 		rig.dead = e
@@ -555,7 +557,7 @@ func fire_flash(intensity := 1.0) -> void:
 	if _flash_root != null:
 		_flash_t = FLASH_TIME
 		_flash_root.visible = true
-		var s := randf_range(0.8, 1.25) * intensity
+		var s := randf_range(0.8, 1.2) * minf(intensity, 1.15)             # (a shotgun's 1.6 made a white ball the size of the hero's head: the streaks carry the rest of the bang)
 		_flash_root.rotation = Vector3(0.0, 0.0, randf() * TAU)
 		_flash_root.scale = Vector3(s, s, s * randf_range(0.8, 1.5))
 	if not _lights.is_empty() and _quality >= 1:
@@ -1233,7 +1235,7 @@ func _build_flash() -> void:
 	muzzle.add_child(_flash_root)
 	var star := MeshInstance3D.new()
 	var star_mesh := QuadMesh.new()
-	star_mesh.size = Vector2(0.85, 0.85)
+	star_mesh.size = Vector2(0.55, 0.55)                      # (0.85 m was a cream blob twice the size of the gun: wave 114 critic)
 	star.mesh = star_mesh
 	star.material_override = _get_flash_material(true)
 	star.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1277,7 +1279,7 @@ static func _get_flash_material(star: bool) -> StandardMaterial3D:
 			m.disable_receive_shadows = true
 			if is_star:
 				m.albedo_texture = _flash_star_tex
-				m.albedo_color = Color(2.2, 1.7, 1.0)
+				m.albedo_color = Color(1.7, 1.3, 0.8)
 				m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 				_flash_mat_star = m
 			else:
@@ -1296,9 +1298,9 @@ static func _paint_flash_textures() -> void:
 			var v := (y + 0.5) / n * 2.0 - 1.0
 			var r := sqrt(u * u + v * v)
 			var ang := atan2(v, u)
-			var core := exp(-r * r * 16.0)
-			var halo := exp(-r * 3.4) * 0.5
-			var rays := pow(absf(cos(ang * 3.0 + 0.3)), 14.0) * exp(-r * 2.4) * 0.9
+			var core := exp(-r * r * 22.0)
+			var halo := exp(-r * 4.6) * 0.3
+			var rays := pow(absf(cos(ang * 3.0 + 0.3)), 12.0) * exp(-r * 1.9) * 1.0
 			var a := clampf(core + halo + rays, 0.0, 1.0) * (1.0 - smoothstep(0.85, 1.0, r))
 			img.set_pixel(x, y, Color(1.0, 0.95, 0.8, a))
 	_flash_star_tex = ImageTexture.create_from_image(img)

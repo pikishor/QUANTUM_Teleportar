@@ -2,6 +2,9 @@ extends RefCounted
 ## Look-dev bot of the ARSENAL screens (wave 114): the LOADOUT and the catalogue with 200+ weapons, every tab and filter, one frame per step.
 ##   ARS_OUT=<dir> [ARS_STEPS=parts,ammo] [MENU_NO3D=1] BOT_RES=2400x1080 BOT_USER_ARGS="--touch" tools/bot.sh res://tests/bot_arsenal.gd /tmp/x 100000 1
 ## Presses go through Hud.press_button (the path of a tap). The shots are numbered in the order of the steps. ARS_OWN=0 keeps the hero's own few weapons (locked ones in the list).
+## Steps (ARS_STEPS, comma separated): the screens loadout, stats_blast, parts, parts_fitted, ammo, catalogue_locked, filter_new, filter_fav_empty, sort_damage, scrolled, view3d, gear, slots; the play
+## layer reveal_flash / reveal_mid / reveal_late (CrateReveal frozen at one moment), hud_plate (pop card + kill feed lines dated into the future: the software renderer needs seconds per frame),
+## wheel_classes, wheel_ring, crate_pics (the hero looks at the market crate). MENU_NO3D=1 turns the 3D world off behind the menus (faster). BOT_RES=1688x780 is the 844x390 phone aspect.
 var _i := 0
 var _wait := 0
 var _out := ""
@@ -35,14 +38,10 @@ func step(_t: float, _dt: float) -> bool:
 		return false
 	if _wait > 0:
 		_wait -= 1
+		if _steps[_i] == "crate_pics" and _wait <= 3:                 # the camera of a teleported hero finds its own heading first: look at the crate once the street is there
+			var cp := WeaponLadder.crate_pos(0)
+			(Game.player as Player).camera_rig.aim_at(cp + Vector3(0.0, 2.2, 0.0))
 		return false
-	if _steps[_i].begins_with("wheel"):
-		var tc2 := _hud.touch
-		var bits: Array[String] = []
-		for it: Dictionary in tc2.wheel.items:
-			var wid := StringName(it.get("icon", it.get("id", &"")))
-			bits.append("%s:%s/%s/%s" % [wid, WeaponPics.has(wid), WeaponPics.thumb(wid) != null, ItemIcons.weapon(wid) != null])
-		print("WHEELDBG pages=", WeaponPics.pages_loaded(), " loads=", WeaponPics.page_loads, " ", bits)
 	_hud.get_viewport().get_texture().get_image().save_png("%s/%02d_%s.png" % [_out, _i, _steps[_i]])
 	print("ARSSHOT ", _steps[_i])
 	_i += 1
@@ -95,6 +94,7 @@ func _begin() -> void:
 		CrateReveal.current.free()
 		CrateReveal.current = null
 	CrateReveal._queue.clear()
+	_hud.feed.clear()                                               # the dated lines of hud_plate are not part of the other frames
 	MenuFlags.all_extras = false
 	ShopScreen.weapon_page = 0
 	Attachments.reset()

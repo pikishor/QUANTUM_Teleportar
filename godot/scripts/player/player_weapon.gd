@@ -334,8 +334,14 @@ func _auto_swap() -> void:
 	if swap_t > 0.0:
 		return
 	var best: StringName = &""
+	for slot_id: StringName in LoadoutSlots.slots:                          # the four weapons the hero chose come first (wave 114 critic)
+		if slot_id != &"" and slot_id != current and WeaponDefs.is_unlocked(slot_id) and String(WeaponDefs.def(slot_id)["kind"]) != "melee" and (ammo_of(slot_id) > 0 or reserve_of(slot_id) != 0):
+			best = slot_id
+			break
 	var cls := WeaponDefs.class_of(current)
 	for pass_i in 2:
+		if best != &"":
+			break
 		for id: StringName in WeaponDefs.owned_ordered():
 			if id == current or String(WeaponDefs.def(id)["kind"]) == "melee":
 				continue
@@ -430,7 +436,8 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 			if firing and can_fire:
 				if ammo <= 0:
 					WeaponAudio.dry_sound(current)
-					start_reload()
+					if not start_reload() and reserve == 0:
+						_auto_swap()                                 # wave 114 critic: dry and nothing in reserve: the best owned weapon that still shoots (written in wave 85, never called)
 				elif fire_t <= 0.0 and _gun_ready():
 					_burst_left = mech.burst_n() - 1
 					_burst_t = float(def.get("burst_gap", 0.07))
@@ -451,7 +458,10 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 			_burst_t = float(def.get("burst_gap", 0.07))
 			var keep := fire_t
 			_shoot(dt, aiming)
-			fire_t = maxf(keep, fire_t) if _burst_left <= 0 else keep
+			if mech.burst_n() > 1:                                         # wave 114 critic: the interval of a BURST weapon counts from the first round of the burst (the table, the card and the balance say so); the last round used to add a second interval and every burst weapon fired at half its rate
+				fire_t = maxf(keep, -dt)
+			else:                                                          # a volley (alt-fire) of a plain weapon: one interval after its last round
+				fire_t = maxf(keep, fire_t) if _burst_left <= 0 else keep
 	elif _burst_left > 0:
 		_burst_left = 0
 	if _since_shot > BLOOM_HOLD:
@@ -928,7 +938,7 @@ func _tick_charge(dt: float, firing: bool, aiming: bool) -> void:
 	var need := float(def["charge_time"])
 	if firing and ammo > 0 and fire_t <= 0.0:
 		if charge <= 0.0:
-			Sfx.play(&"link", -8.0, 0.8)
+			WeaponAudio.charge_start(current)                 # the charge-up (or the string) of the weapon's set
 		charge = minf(1.0, charge + dt / need)
 		_charge_fx -= dt
 		if _charge_fx <= 0.0:                               # the charge is visible: a growing flare at the muzzle, a spark ring at full charge
@@ -944,7 +954,8 @@ func _tick_charge(dt: float, firing: bool, aiming: bool) -> void:
 			_fire_lance(c, aiming)
 	elif firing and ammo <= 0 and fire_t <= 0.0:
 		WeaponAudio.dry_sound(current)
-		start_reload()
+		if not start_reload() and reserve == 0:
+			_auto_swap()
 
 
 func _fire_lance(c: float, aiming: bool) -> void:
@@ -954,11 +965,7 @@ func _fire_lance(c: float, aiming: bool) -> void:
 	fire_t = float(def["interval"])
 	_since_shot = 0.0
 	_burst = 1
-	if c >= 0.95:
-		Sfx.play(Sfx.shot_sound(&"shot", false, true), 0.0, 1.0)             # a full charge: the overcharged shot (sub fall, plasma zap, shimmering tail)
-	else:
-		Sfx.play(&"boom", -8.0, 1.7)
-		Sfx.play(&"shot", 0.0, 0.7)
+	WeaponAudio.fire_charged(current, def, c >= 0.95)                    # the weapon's own set; a full charge of an energy weapon is the overcharged shot (sub fall, plasma zap, shimmering tail)
 	var ar := _aim_ray(cone())
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]
@@ -1055,9 +1062,8 @@ func _throw(yaw_off := 0.0, quiet := false, opts := {}) -> void:
 	if def.has("bid"):                                       # the BLAST ARSENAL (scripts/combat/blast_ops.gd): its own flight, fuse, mines and strike markers
 		BlastOps.weapon_fire(self, yaw_off, opts)
 		return
-	Sfx.play(&"blink", -6.0, 1.6)
-	if bool(def.get("launch", false)) and not quiet:
-		Sfx.play(StringName(def.get("snd", &"shot")), float(def.get("vol", -2.0)), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
+	if not quiet:                                            # wave 114 critic: the voice of the weapon's own sound set (hand grenade, rocket tube, pod pack ...), not the QUANTUM BLINK
+		WeaponAudio.launch(current, def)
 	var ar := _aim_ray(0.0)
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]

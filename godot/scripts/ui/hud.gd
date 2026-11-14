@@ -1604,6 +1604,8 @@ func _draw_hud_body() -> void:
 			_draw_hurt_direction(c, p, vp, s, 1.0 - since_hurt / MARKER_TIME)
 		if playing and veh == null:
 			_draw_threat_edges(c, vp, s)
+	if playing and veh == null and p != null:
+		ScopeView.draw_mask(c, p, vp, s)                       # wave 114 critic: a scoped weapon's aimed view is a lens (the surround is drawn first: the bars and plates stay on top)
 	# top centre, one compact stack: the bars on a plate, then ONE priority line (the active / offered contract, else the core objective) and its extras.
 	var top := insv.x + 6.0 * s
 	var stack_end := top
@@ -1697,7 +1699,10 @@ func _draw_hud_body() -> void:
 		var fr := right
 		if touch_ui_on() and touch != null:
 			fr = minf(right, (touch._pause_center() as Vector2).x - 246.0 * s)        # left of the EXIT / MORE column too: a vehicle's EXIT button sits under the pause button
-		feed.draw(self, c, font, fr, feed_y, s, now)
+		var fy := feed_y
+		if fr - HudFeed.MAX_W * s < vp.x * 0.75:              # wave 114 critic: the objective plate and the toast lane are centred and up to half a screen wide: the feed hangs UNDER that lane, never across it
+			fy = maxf(feed_y, msg_top(s) + (MSG_H + 6.0) * s)
+		feed.draw(self, c, font, fr, fy, s, now)
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return
@@ -1962,6 +1967,7 @@ func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -
 	var spread_px := float(p.call(&"spread_in_pixels", vp.y, vp.x)) if p.has_method(&"spread_in_pixels") else 0.0
 	var gap := maxf(7.0 * s, spread_px)
 	var col := Color(1, 1, 1, 0.9)
+	var scoped := ScopeView.amount(p) > 0.5                              # through a scope the lens carries its own reticle (ScopeView): no arms, no centre dot of the open crosshair
 	var assist := p.get_node_or_null("AimAssist") as AimAssist
 	if assist != null and assist.on_target:
 		col = Color(1.0, 0.3, 0.25, 0.97) if assist.aim_zone != HitZones.HEAD else Color(1.0, 0.82, 0.3, 0.97)       # a shot would hit: red (gold on the head)
@@ -1969,14 +1975,17 @@ func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -
 	var hit_age := now - UiUtil.num(p, &"last_hit_time", -100.0)
 	if hit_age < 0.12:
 		gap *= 0.7 + 0.3 * (hit_age / 0.12)                             # the arms snap inward on a hit, then relax
-	for dir: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:       # arms are axis-aligned rectangles (they batch with the plates), dark edge under white
+	for dir: Vector2 in ([] if scoped else [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]):       # arms are axis-aligned rectangles (they batch with the plates), dark edge under white
 		var a0 := mid + dir * gap
 		var a1 := mid + dir * (gap + 11.0 * s)
 		var arm := Rect2(Vector2(minf(a0.x, a1.x), minf(a0.y, a1.y)), Vector2(absf(a1.x - a0.x), absf(a1.y - a0.y)))
 		arm = arm.grow_individual(0.0, 1.0 * s, 0.0, 1.0 * s) if dir.x != 0.0 else arm.grow_individual(1.0 * s, 0.0, 1.0 * s, 0.0)     # 2 px thick
 		_rect(c, arm.grow(1.0 * s), Color(0, 0, 0, 0.5))
 		_rect(c, arm, col)
-	_sprite(c, &"disc", Rect2(mid - Vector2(1.6, 1.6) * s, Vector2(3.2, 3.2) * s), Color(1, 1, 1, 0.9))
+	if scoped:
+		ScopeView.draw_reticle(c, p, vp, s, col)
+	else:
+		_sprite(c, &"disc", Rect2(mid - Vector2(1.6, 1.6) * s, Vector2(3.2, 3.2) * s), Color(1, 1, 1, 0.9))
 	var since := now - UiUtil.num(p, &"last_hit_time", -100.0)
 	if since < 0.28:
 		var kill: bool = p.get("last_hit_kill") == true

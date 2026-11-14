@@ -123,6 +123,8 @@ const ASSIGN := {
 	&"a_sable": &"rfl_silenced", &"c_quill": &"rfl_silenced", &"d_whisper": &"rfl_silenced", &"d_arbiter": &"snp_marksman", &"d_lancer": &"snp_marksman", &"n_umbra": &"snp_silenced",
 	# shotguns
 	&"g_rampart": &"sg_auto", &"g_twinbore": &"sg_sawn", &"g_cyclone": &"sg_auto", &"g_doorkick": &"sg_slug", &"g_slugger": &"sg_slug",
+	# the older throwers (they named another weapon's recording): the rocket launcher is a tube, the grenade a hand grenade (wave 114 critic: they sounded like a gravity gun and a mortar)
+	&"rocket": &"lau_rocket", &"grenade": &"thr_frag",
 	# launchers
 	&"la_rocket": &"lau_rocket", &"la_bunker": &"lau_heavy", &"la_recoilless": &"lau_heavy", &"la_pump": &"lau_gl", &"la_revolver": &"lau_gl", &"la_mortar": &"lau_mortar", &"la_plasma": &"lau_plasma",
 	# energy
@@ -227,8 +229,9 @@ static func set_of(id: StringName) -> StringName:
 
 # ---------------------------------------------------------------------------------------------------------------------------------- playing
 
-## The shot of the hero's weapon: the body (the set's, a suppressed or overcharged variant when asked), the mechanism under it, the tail after it. `vol` / `pitch` are the def's.
-static func fire(id: StringName, def: Dictionary, suppressed := false, overcharged := false) -> void:
+## The shot of the hero's weapon: the body (the set's, a suppressed or overcharged variant when asked), the mechanism under it, the tail after it. `vol` / `pitch` are the def's; `neutral_pitch` plays
+## the recording as it is (the blast pack's pitch numbers were tuned for the old sounds they named, not for the sets).
+static func fire(id: StringName, def: Dictionary, suppressed := false, overcharged := false, neutral_pitch := false) -> void:
 	_build()
 	var sd := data(set_of(id))
 	if sd.is_empty():
@@ -243,11 +246,36 @@ static func fire(id: StringName, def: Dictionary, suppressed := false, overcharg
 		mechs += 1
 		Sfx.play(StringName(sd["mech"]), -2.0, randf_range(0.96, 1.05))
 	var vol := float(def.get("vol", 0.0)) + float(sd["db"])
-	var pitch := randf_range(float(def.get("pitch_lo", 1.0)), float(def.get("pitch_hi", 1.0)))
+	var pitch := randf_range(0.97, 1.03) if neutral_pitch else randf_range(float(def.get("pitch_lo", 1.0)), float(def.get("pitch_hi", 1.0)))
 	Sfx.play(body, vol, pitch)
 	if StringName(sd["tail"]) != &"" and (slow or _count % 3 == 1) and not overcharged:
 		_tail(StringName(sd["tail"]), vol, suppressed)
 	haptic(&"shot_huge" if String(sd["cls"]) == "blast" or interval >= 0.9 else (&"shot_heavy" if interval >= 0.3 else (&"shot_light" if slow or _count % 3 == 0 else &"")))
+
+
+## A thrown, placed, called-in or launched weapon leaving the hand or the tube (grenade pin and toss, mine, strike beacon, rocket, missile, pod salvo): the voice of its set like any shot (wave 114
+## critic: the 56 weapons of the throw kind kept the quantum BLINK sound or another weapon's recording and never used their own sets).
+static func launch(id: StringName, def: Dictionary) -> void:
+	fire(id, def, false, false, true)
+
+
+## The wind-up of a charged weapon (the Pulse Lance, the beam and rail rifles, the bows): the mechanism of its set (a charge whine, a string creak), the old link hum when the set has none.
+static func charge_start(id: StringName) -> void:
+	_build()
+	var sd := data(set_of(id))
+	var mech := StringName(sd.get("mech", &"")) if not sd.is_empty() else &""
+	if mech == &"" or Sfx.variants_of(mech).is_empty():
+		Sfx.play(&"link", -8.0, 0.8)
+		return
+	mechs += 1
+	Sfx.play(mech, -4.0, 1.0)
+
+
+## The release of a charged weapon: the voice of its set; a FULL charge of an energy weapon (the set's mechanism is a charge-up) is the overcharged shot instead (sub fall, plasma zap, shimmering tail).
+static func fire_charged(id: StringName, def: Dictionary, full: bool) -> void:
+	_build()
+	var sd := data(set_of(id))
+	fire(id, def, false, full and not sd.is_empty() and StringName(sd["mech"]) == &"wm_charge", true)
 
 
 static func reload_sound(id: StringName) -> void:

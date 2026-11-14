@@ -70,6 +70,7 @@ var ready := 1.0
 var sprint := 0.0
 var reload := -1.0
 var reload_tilt := 1.0                                 ## per-weapon scale of the reload / inspect rifle tilt
+var carry_spread := 0.0                                ## extra outward yaw (radians) of the carried weapon at low ready (full) and shouldered at the hip (half): the HERO shows his weapon side-on to the shoulder camera, enemies keep 0
 var clock := 0.0
 var dead := 0.0
 var stance_shift := 0.0                        ## metres the idle soles sit further back than the rest ankles (model z is back); the owner sets it before the Locomotion reads its home spots
@@ -552,7 +553,7 @@ func apply() -> void:
 	var carry := sprint
 	var rp := LOW_READY_PITCH * low + SPRINT_PITCH * carry
 	var rr := 0.0
-	var ry := LOW_READY_YAW * low - 0.35 * carry
+	var ry := LOW_READY_YAW * low - 0.35 * carry - carry_spread * low
 	var rpos := Vector3(0.0, -0.05 * low - 0.1 * carry, 0.04 * low + 0.06 * carry)
 	var a := amp * (1.0 - air)
 	var bounce := sin(phase * 2.0) * 0.012 * a * (1.0 + gait_arm * 1.2 * run)      # a run bounces the carried rifle with every step
@@ -561,7 +562,7 @@ func apply() -> void:
 	rp += sin(phase) * 0.03 * a * (1.0 - ready * 0.7)
 	if ik:                                                 # the carried rifle rocks with the stride and the pelvis; shouldered, it stays steadier; aiming pulls it to the cheek
 		rr += sin(phase) * 0.07 * a * carry
-		ry += sin(phase) * 0.04 * a * (0.4 + carry) + ads * 0.13 + 0.5 * pelvis_yaw * ready + HIP_READY_YAW * ready * (1.0 - ads) * (1.0 - sprint)
+		ry += sin(phase) * 0.04 * a * (0.4 + carry) + ads * 0.13 + 0.5 * pelvis_yaw * ready + (HIP_READY_YAW - carry_spread * 0.5) * ready * (1.0 - ads) * (1.0 - sprint)
 		rpos.y += 0.015 * ads - squash * 0.3
 		rpos.z += 0.03 * ads
 		rp += squash * 0.5 + air * 0.05

@@ -180,7 +180,7 @@ func melee_shock(origin: Vector3, fwd: Vector3, reach: float) -> void:
 func salvo() -> void:
 	var d := w.def
 	var n := int(d.get("salvo", 1))
-	Sfx.play(StringName(d.get("snd", &"shot")), float(d.get("vol", -2.0)), randf_range(float(d["pitch_lo"]), float(d["pitch_hi"])))
+	WeaponAudio.launch(w.current, d)                         # wave 114 critic: the voice of the weapon's sound set, once for the whole salvo
 	var made := 0
 	for i in n:
 		if w.ammo <= 0:
@@ -193,7 +193,7 @@ func salvo() -> void:
 
 ## A fan of `count` throws (ALL PODS, ORBITAL BARRAGE): the round count is paid by the caller.
 func fan(count: int, step: float) -> void:
-	Sfx.play(StringName(w.def.get("snd", &"shot")), float(w.def.get("vol", -2.0)), 0.9)
+	WeaponAudio.launch(w.current, w.def)
 	for i in count:
 		var off := (float(i) - float(count - 1) * 0.5) * step
 		w._throw(off, true, {})

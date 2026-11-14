@@ -2,18 +2,6 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dfx7x85fh7kb3"
-path.s3tc="res://.godot/imported/c_sniper_1.webp-79a4642dafbf21905265b176513cc7f9.s3tc.ctex"
-path.etc2="res://.godot/imported/c_sniper_1.webp-79a4642dafbf21905265b176513cc7f9.etc2.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc", "etc2_astc"],
-"vram_texture": true
-}
-
-[deps]
-
-source_file="res://assets/icons/wp/c_sniper_1.webp"
-dest_files=["res://.godot/imported/c_sniper_1.webp-79a4642dafbf21905265b176513cc7f9.s3tc.ctex", "res://.godot/imported/c_sniper_1.webp-79a4642dafbf21905265b176513cc7f9.etc2.ctex"]
 
 [params]
 

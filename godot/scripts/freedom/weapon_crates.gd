@@ -212,5 +212,6 @@ func _float_pictures(pp: Vector3) -> void:
 		var tex := WeaponPics.thumb(found[k]["w"])
 		sp.texture = tex
 		sp.visible = tex != null
-		sp.global_position = Vector3(cp2.x, cp2.y + 2.4 + 0.12 * sin(_t * 2.0 + float(k)), cp2.z)
+		sp.pixel_size = clampf(float(found[k]["d"]) * 0.0009, 0.0065, 0.019)                  # a picture that grows with the distance keeps its size on the screen from 20 m or so
+		sp.global_position = Vector3(cp2.x, cp2.y + 2.9 + 0.12 * sin(_t * 2.0 + float(k)), cp2.z)
 

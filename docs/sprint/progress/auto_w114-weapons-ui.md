@@ -1,6 +1,10 @@
-# w114-weapons-ui (running)
+# w114-weapons-ui (done)
 
-agent id ac324edf59c1145b1, 1232 events, first activity 2026-11-14T15:09:03.986Z, last activity 2026-11-14T17:13:06.102Z
+agent id ac324edf59c1145b1, 1633 events, first activity 2026-11-14T15:09:03.986Z, last activity 2026-11-14T18:01:39.614Z
+
+## Final report
+
+w114-weapons-ui DONE (nothing committed). Files: scripts/ui/{weapon_pics,arsenal,arsenal_card,weapon_rings,crate_reveal}.gd, player/loadout_slots.gd, audio/weapon_audio.gd, common/strings_weapons_v4.gd; tools/icons/{weapon_pics.*,weapon_atlas.py}, tools/audio/make_weapons_v4.py; assets/icons/wp (37 WebP pages, 229 weapons), 148 OGG; small hooks in hud, hud_feed, loadout/weapons screens, controller_input, player_weapon, weapon_crates, impact_sparks; ARCHITECTURE, HANDOFF, progress log; 8 sheets docs/shots/round6/weapons_ui_*.jpg. Tests (all pass): test_weapon_pics 29, test_weapon_audio_v3 104, test_weapon_ui_v3 272, plus 60+49 regression tests (old ones updated, none weakened). Perf (run 1 of 2): LOW verdict=OK draws=70 total=92 death=107 tex=112 MB MED verdict=OK draws=97 total=129 death=149 tex=143 MB HIGH verdict=OK draws=113 total=149 death=170 tex=209 MB APK: about +7.5 MB icons (deflated), +1.3 MB audio. Gaps: nothing measured on a phone; kill feed third line can touch objective text; weapon models blocky (art builder); interior arms-dealer reveal not looked at. Out of scope: test_director_fixes_b thicker-weapon check (KIT_LOOK_SCALE); test_audio `boom` OGG cast script error.
 
 ## Last notes of the agent
 
@@ -12,46 +16,46 @@ agent id ac324edf59c1145b1, 1232 events, first activity 2026-11-14T15:09:03.986Z
 
 ## Recent steps (last 40)
 
-- 16:58:18 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/00_reveal_flash.png
-- 16:58:25 Check what node type the Hud is and how its layers are arranged
-- 16:58:32 Debug why the reveal overlay is not visible
-- 16:59:30 Fix the reveal overlay to fill the viewport
-- 16:59:33 Read how the Hud makes its full-rect canvases
-- 16:59:38 Re-render the reveal frames after the anchor fix
-- 17:00:51 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/01_reveal_mid.png
-- 17:01:03 Fix the reveal card layout so the name clears the stat chips
-- 17:01:08 Re-render reveal, HUD plate and wheel frames
-- 17:02:52 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/01_reveal_mid.png
-- 17:02:55 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/00_reveal_flash.png
-- 17:02:58 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/03_hud_plate.png
-- 17:03:06 Free frozen reveals between bot steps and re-render HUD and wheel frames
-- 17:04:24 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/00_hud_plate.png
-- 17:04:29 Read the conditions under which the feed and the weapon pop are drawn
-- 17:04:36 Capture the HUD plate and feed earlier in the frame sequence
-- 17:05:25 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/00_hud_plate.png
-- 17:05:37 Debug why the HUD feed and weapon pop are not in the frame
-- 17:06:43 Date the feed lines and the pop into the future so the slow renderer shows them
-- 17:07:54 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/00_hud_plate.png
-- 17:08:12 Crop the weapon pop plate region to look closer
-- 17:08:15 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/crop_plate.png
-- 17:08:22 Read the plate and the WeaponIcons.draw code
-- 17:08:28 Read ItemIcons.draw_tex and HUD callers
-- 17:08:34 Read Hud._tex and the second weapon plate draw site
-- 17:08:40 Queue weapon pictures on the HUD plates so the plate fill does not cover them
-- 17:08:43 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/01_wheel_classes.png
-- 17:09:00 Read the WeaponPics page cache logic
-- 17:09:02 Read the atlas cache and eviction code
-- 17:09:20 Check how the radial wheel draws its weapon pictures
-- 17:09:22 Find the wheel's picture drawing and read the top of ItemIcons
-- 17:09:39 Print the picture availability of the wheel's discs
-- 17:10:45 List atlas page sizes to plan the page budget
-- 17:11:07 Keep thumb pages resident and LRU only the card pages
-- 17:11:15 Update the page cache tests for the thrash fix and rerun test_weapon_pics
-- 17:11:30 Strengthen the wheel thrash test and re-render the wheel frames
-- 17:12:49 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c3/01_wheel_classes.png
-- 17:12:52 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c3/02_wheel_ring.png
-- 17:12:55 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c3/00_hud_plate.png
-- 17:13:06 Render the crate picture step and check batch progress
+- 17:38:32 Check the audio files for the sheet and the libraries
+- 17:38:44 Build the audio layers contact sheet
+- 17:38:46 /home/user/QUANTUM_Teleportar/docs/shots/round6/weapons_ui_audio.jpg
+- 17:39:50 Check regression batch3 log, disk and running processes
+- 17:39:52 Show batch3 regression log so far and free disk
+- 17:39:54 Wait in background until the regression batch finishes
+- 17:39:56 List the round6 contact sheets and tree status size
+- 17:39:57 Count my weapons_ui contact sheets
+- 17:40:00 /home/user/QUANTUM_Teleportar/docs/sprint/progress/w114-weapons-ui.md
+- 17:40:02 List untracked files in the tree
+- 17:40:05 List remaining untracked files outside auto progress and shots
+- 17:40:09 Check whether import sidecar files are tracked and list other untracked files
+- 17:40:14 Block until batch3 finishes or 560 seconds pass, then show the log tail
+- 17:49:37 
+- 17:49:45 Check CPU count, load and batch progress
+- 17:49:47 
+- 17:49:52 
+- 17:49:57 Show Arsenal constants and static state
+- 17:50:08 Show the dev probe script and tool scripts
+- 17:50:12 Read test header and helpers
+- 17:50:14 Read test setup and list-flow start
+- 17:50:31 Run a temporary probe of Arsenal pad navigation
+- 17:51:09 Search my transcript for earlier _scroll_to versions
+- 17:51:15 Inspect transcript entries about the pad navigation test
+- 17:51:26 Find where tile buttons are registered in the Arsenal
+- 17:51:27 Read the tile button registration in layout
+- 17:51:42 /home/user/QUANTUM_Teleportar/godot/tests/test_weapon_ui_v3.gd
+- 17:51:46 Read ControllerInput.move_focus with the Arsenal hook
+- 17:51:50 Check batch progress and load
+- 17:51:52 Remove temporary probe and run the Arsenal UI test
+- 17:52:29 Block until batch3 finishes or 540 seconds pass, then show the rest of the log
+- 18:00:55 Summarise batch3 pass and fail counts
+- 18:01:03 Find when the perf gate ran in the transcript
+- 18:01:17 Update the progress log with the final batch result
+- 18:01:20 Verify the progress log content after the edit
+- 18:01:22 Find test_weapon_ui_v3 check counts in the docs
+- 18:01:24 Check the quoted check counts in the docs
+- 18:01:29 Confirm no stray probe files remain and disk is fine
+- 18:01:35 Get the exact perf gate verdict lines from the log
+- 18:01:39 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -70,3 +74,5 @@ agent id ac324edf59c1145b1, 1232 events, first activity 2026-11-14T15:09:03.986Z
 - godot/tests/test_weapon_audio_v3.gd
 - godot/tests/test_weapon_ui_v3.gd
 - docs/sprint/progress/w114-weapons-ui.md
+- docs/shots/round6/weapons_ui_iterations.md
+- /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/mk_ui_sheets.py

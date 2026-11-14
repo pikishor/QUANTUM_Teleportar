@@ -925,25 +925,63 @@ static func _kit_mesh(id: StringName, lod: int) -> ArrayMesh:
 	return out
 
 
-## The thickness and length factor a weapon is drawn with in a hand: the kit's models are drawn a little thicker and longer than true size (from the shoulder camera a true-size gun is a thin stick).
-const KIT_LOOK_SCALE := Vector3(1.3, 1.3, 1.1)
+## The thickness and length factor a weapon is drawn with in a hand: the kit's models are drawn bigger than true size (from the shoulder camera a true-size gun is a thin stick, and wave 114's critic
+## measured a pistol at 35 px of a 1280 px frame): the SHORTER the weapon the more it is enlarged (length factor by the length of the model: a grenade 2.0, a pistol 1.75, an SMG 1.35, a rifle 1.1;
+## the arms still reach because the hands keep their hold distance, see `_reach`), and a gun of 0.6 m or more is drawn a quarter thicker and taller on top (that is what shows from behind).
+const KIT_LOOK_SCALE := Vector3(1.3, 1.3, 1.1)                       ## (the old single factor: kept for look-dev scripts)
+const LOOK_Z_BY_LENGTH: Array[Vector2] = [Vector2(0.16, 2.0), Vector2(0.25, 1.75), Vector2(0.4, 1.55), Vector2(0.6, 1.35), Vector2(0.8, 1.18), Vector2(0.95, 1.1)]
+static var _look_cache := {}
 
 
 static func look_scale(id: StringName) -> Vector3:
-	return KIT_LOOK_SCALE if has_model(id) else Vector3.ONE
+	if not has_model(id):
+		return Vector3.ONE
+	if _look_cache.has(id):
+		return _look_cache[id]
+	var length := 0.9
+	var cross := 0.2
+	var m: Dictionary = kit_meta().get(String(id), {})
+	if m.has("aabb"):
+		var bb: Array = m["aabb"]
+		length = float(bb[1][2]) - float(bb[0][2])
+		cross = maxf(float(bb[1][0]) - float(bb[0][0]), float(bb[1][1]) - float(bb[0][1]))
+	var cap := maxf(1.15, 0.5 / maxf(cross, 0.01))                       # a bow, a crossbow, a shield or a scythe is wide already (0.5 to 0.8 m across): drawn at most 1.15x, not by its short length
+	var z := minf(_curve(LOOK_Z_BY_LENGTH, length), maxf(cap, 1.1))
+	var xy := minf(z + 0.25 * clampf((length - 0.2) / 0.4, 0.0, 1.0), cap)
+	var sc := Vector3(xy, xy, z)
+	_look_cache[id] = sc
+	return sc
 
 
-## How far the muzzle node moves BACK along the rifle for this weapon (a pistol's muzzle is nearer the body than the carbine's). `sc` = the scale the mesh is drawn with (the pivot sits `reach` metres
-## behind the unscaled muzzle, so a mesh stretched along Z moves its pivot with it).
+## Piecewise linear curve through `pts` (x ascending), clamped at both ends.
+static func _curve(pts: Array[Vector2], x: float) -> float:
+	if x <= pts[0].x:
+		return pts[0].y
+	for i in range(1, pts.size()):
+		if x <= pts[i].x:
+			return lerpf(pts[i - 1].y, pts[i].y, (x - pts[i - 1].x) / (pts[i].x - pts[i - 1].x))
+	return pts[pts.size() - 1].y
+
+
+## Metres the muzzle sits in front of the rifle pivot for a weapon drawn with scale `sc`: the HAND keeps its hold distance (the reach minus the grip, an arm cannot reach further for a bigger gun) and the
+## scaled weapon grows around the grip: the muzzle is the scaled distance from the grip to the tip further out. (Scaling the whole reach, as before, moved the hands by 0.5 m for a pistol drawn 2x.)
+static func _reach(id: StringName, sc: Vector3) -> float:
+	var sp := spec(id)
+	var gz := float((sp["gr"] as Vector3).z)
+	return (float(sp["reach"]) - gz) + gz * sc.z
+
+
+## How far the muzzle node moves BACK along the rifle for this weapon (a pistol's muzzle is nearer the body than the carbine's). `sc` = the scale the mesh is drawn with (the hand keeps its hold distance,
+## the scaled weapon grows from the grip to the tip and back to the butt).
 static func muzzle_shift(id: StringName, sc := Vector3.ONE) -> float:
-	return CARBINE_REACH - float(spec(id)["reach"]) * sc.z
+	return CARBINE_REACH - _reach(id, sc)
 
 
 ## Per-hand grip offsets for the rig, in the rifle frame relative to the carbine's wrists: [left, right]. Both are added to the rest wrist targets (CharacterRig `grip_off`). With `sc` the grips are
 ## where the DRAWN (scaled) weapon has them.
 static func grip_offsets(id: StringName, sc := Vector3.ONE) -> Array[Vector3]:
 	var sp := spec(id)
-	var reach := float(sp["reach"]) * sc.z
+	var reach := _reach(id, sc)
 	var gr: Vector3 = sp["gr"] * sc
 	var gl: Vector3 = sp["gl"] * sc
 	var sr := Vector3(gr.x, gr.y, gr.z - reach) - Vector3(CARBINE_GR.x, CARBINE_GR.y, CARBINE_GR.z - CARBINE_REACH)

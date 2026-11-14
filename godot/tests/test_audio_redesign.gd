@@ -10,7 +10,7 @@ extends RefCounted
 
 const DIR := "res://assets/audio/"
 const TMP := "user://test_audio_redesign.cfg"
-const BUDGET_MB := 25.0                ## 24 MB until wave 113: the 19 weapon sound sets of the roster (tools/audio/make_weapons_v3.py, 4 takes each, 0.7 MB) are the only addition
+const BUDGET_MB := 27.0                ## 24 MB until wave 113: the 19 weapon sound sets of the roster (tools/audio/make_weapons_v3.py, 4 takes each, 0.7 MB); 25 MB in wave 113; 27 MB in wave 114: the weapon sound LAYERS (tools/audio/make_weapons_v4.py: mechanisms, tails, reloads, blast sizes, materials, markers: 148 OGG, 1.3 MB)
 const CLOSE_SHOTS: Array[String] = ["shot", "shot_1", "shot_2", "shot_3", "shot_twin", "shot_rev", "shot_scatter", "shot_mini", "shot_burst", "shot_flux", "enemy_shot", "enemy_shot_1", "enemy_shot_2"]
 const STEMS: Array[String] = ["pad", "pulse", "bass", "perc", "lead"]
 const LAYERS: Array[String] = ["music_district_0", "music_district_1", "music_district_2", "music_district_3", "music_boss", "music_chase", "music_night"]
@@ -215,7 +215,7 @@ func _test_live(host: Node) -> void:
 	w._shoot(0.016, false)
 	TestLib.check(Sfx.last_played == &"shot_supp", "with the DAMPER on the barrel the live carbine plays the suppressed shot (%s)" % Sfx.last_played)
 	Attachments.unequip(&"carbine", &"barrel")
-	# a full Pulse Lance charge plays the overcharged shot, a short one the old boom
+	# a full Pulse Lance charge plays the overcharged shot, a short one its own recording
 	if w.switch_to(&"lance", true):
 		w.ammo = maxi(w.ammo, 1)
 		w.fire_t = 0.0
@@ -229,7 +229,7 @@ func _test_live(host: Node) -> void:
 		Sfx.last_played = &""
 		Sfx._last_start.clear()
 		w._fire_lance(0.5, false)
-		TestLib.check(Sfx.last_played == &"shot", "a half charge keeps the plain shot (%s)" % Sfx.last_played)
+		TestLib.check(Sfx.last_played == &"shot_lance", "a half charge plays the lance's own recording, not the overcharged one (%s)" % Sfx.last_played)       # wave 114 critic: the charge weapons play their sound sets
 	else:
 		TestLib.check(false, "the lance can be switched to after unlocking it")
 	w.switch_to(&"carbine", true)

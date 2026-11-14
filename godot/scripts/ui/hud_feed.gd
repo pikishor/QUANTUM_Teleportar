@@ -7,6 +7,7 @@ extends RefCounted
 
 const MAX_LINES := 4
 const LIFE := 4.2
+const MAX_W := 376.0                   ## base px: the widest line plate (330 of text and a 46 px weapon picture); the Hud hangs the feed under the centred objective / toast lane when it would reach into it
 const FADE := 0.8
 const POLL_EVERY := 0.25
 const NEAR := 220.0                    ## metres: bodies further away are not tracked

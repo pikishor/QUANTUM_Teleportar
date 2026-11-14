@@ -86,7 +86,7 @@ func _hero_outfit() -> void:
 	TestLib.check(_lum(jc) >= 0.45 and _lum(jc) - _lum(pc) >= 0.2, "the hero's jacket (%.2f) is light and his trousers (%.2f) darker" % [_lum(jc), _lum(pc)])
 	var wp: MeshInstance3D = body.get("_wp_mi") if body != null else null
 	if wp != null:
-		TestLib.check(wp.scale.x >= 1.3 and wp.scale.y >= 1.3, "the weapon in hand is drawn thicker (%s)" % str(wp.scale))
+		TestLib.check(wp.scale.x >= 1.29 and wp.scale.y >= 1.29, "the weapon in hand is drawn thicker (%s)" % str(wp.scale))      # the kit look scale is 1.3 and a Vector3 holds it as a float32 (1.2999999): the test asked for 1.3 in double precision (wave 114 critic)
 	else:
 		TestLib.check(PlayerBody.WEAPON_LOOK_SCALE.x >= 1.3, "the weapon look scale is at least 1.3")
 	var vf := HumanoidVariants.outfit(HumanoidVariants.variant(&"vael", 3))

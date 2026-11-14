@@ -382,13 +382,15 @@ static func layout(hud: Hud, cx: float, s: float, mode: StringName) -> void:
 	var cr := card_rects(vp, s, tab)
 	if not gear:
 		var tabs: Array = cr["tabs"]
+		var slot := 0                                                           # wave 114 critic: a hidden PARTS tab (a launcher, a grenade) left a hole between STATS and AMMO: the tabs that exist sit side by side
 		for i in TABS.size():
 			var tid: StringName = TABS[i][0]
 			if tid != &"stats" and not owned:
 				continue
 			if tid != &"stats" and not Attachments.fits_any(sel) and tid == &"parts":
 				continue
-			hud.buttons.append({"id": StringName("ars_tab_%s" % tid), "rect": tabs[i], "label": String(TABS[i][1]), "on": tid == tab, "own": true})
+			hud.buttons.append({"id": StringName("ars_tab_%s" % tid), "rect": tabs[slot], "label": String(TABS[i][1]), "on": tid == tab, "own": true})
+			slot += 1
 		if WeaponModels.has_model(sel) and tab != &"parts":                      # the PARTS tab always shows the live 3D weapon
 			hud.buttons.append({"id": &"ars_view3d", "rect": cr["view3d"], "label": "3D VIEW", "on": view3d, "own": true})
 	ArsenalCard.layout(hud, vp, s, mode, sel, tab, cr)
@@ -624,6 +626,29 @@ static func end_drag(hud: Hud) -> void:
 			hud.press_button(id)
 		return
 	st(mode)["vel"] = clampf(float(g["vy"]) * 60.0, -3200.0, 3200.0)           # base px a second: a flick keeps going and slows down (tick)
+
+
+## The pad walks the list (ControllerInput.move_focus): from a tile, up or down goes to the tile of the same column one row away and scrolls the list when that row is not in view. &"" when `focus`
+## is no tile, the direction is sideways or there is no such row (the pad then goes on to the next button the usual way).
+static func pad_step(hud: Hud, focus: StringName, dir: Vector2) -> StringName:
+	var mode := _mode_of(hud)
+	if mode == &"" or absf(dir.y) < 0.5:
+		return &""
+	var pre := "wheel_" if mode == &"loadout" else "wsel_"
+	var fs := String(focus)
+	if not fs.begins_with(pre):
+		return &""
+	var ids := list(mode)
+	var at := ids.find(StringName(fs.substr(pre.length())))
+	if at < 0:
+		return &""
+	var to := at + (COLS if dir.y > 0.0 else -COLS)
+	if to < 0 or to >= ids.size():
+		return &""
+	_scroll_to(mode, ids[to])
+	hud._layout_key = ""
+	hud._ensure_layout()
+	return StringName(pre + String(ids[to]))
 
 
 ## Mouse wheel over the list: one row a notch.

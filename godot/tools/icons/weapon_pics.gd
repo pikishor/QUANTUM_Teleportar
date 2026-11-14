@@ -10,6 +10,7 @@ const VERSION := 3
 const DEFAULT_SIZE := Vector2i(1024, 512)
 const VIEW_YAW := 122.0                                       ## degrees about +Y: 90 = the weapon's right side, 180 = from the front; 122 is a 3/4 view from the front right
 const VIEW_PITCH := -22.0
+const VIEW_BY_ID := {&"m_shield": Vector2(20.0, -14.0)}       ## a weapon that is a flat plate shows its face: at the 3/4 view the riot shield was an edge-on sliver (wave 114 critic); an explicit view= argument wins
 const FILL := 0.90                                            ## share of the frame the weapon's projected bounds take (the rest is the margin a rim glow and the backdrop need)
 const ROLL_FROM := 3.6                                        ## a weapon longer than this (width / height of its projection) is rolled a little so that it uses more of the frame
 const ROLL_MAX := 15.0
@@ -173,7 +174,14 @@ func _make(id: StringName) -> void:
 	_root.add_child(mi)
 	var tint := UiKit.class_tint(WeaponDefs.class_of(id))
 	_rim.light_color = tint.lerp(Color.WHITE, 0.25)
+	var yaw_was := _yaw
+	var pitch_was := _pitch
+	if VIEW_BY_ID.has(id) and not _args.has("view"):
+		_yaw = (VIEW_BY_ID[id] as Vector2).x
+		_pitch = (VIEW_BY_ID[id] as Vector2).y
 	_frame(mesh)
+	_yaw = yaw_was
+	_pitch = pitch_was
 	for i in 6:
 		await get_tree().process_frame
 	var img := _vp.get_texture().get_image()

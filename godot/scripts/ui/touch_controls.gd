@@ -653,7 +653,7 @@ func _weapon_face(c: Control, font: Font, centre: Vector2, r: float, s: float, l
 ## The radial wheel: a faint disc behind, one button sprite per item (name or weapon silhouette), the picked wedge bright.
 func _draw_wheel(c: Control, font: Font, s: float) -> void:
 	var n := wheel.items.size()
-	c.draw_rect(Rect2(Vector2.ZERO, _vp_size()), Color(0.0, 0.02, 0.04, 0.62))             # a scrim: the buttons and plates under the wheel step back instead of showing through the discs
+	c.draw_rect(Rect2(Vector2.ZERO, _vp_size()), Color(0.0, 0.02, 0.04, 0.86 if wheel.kind == &"weapon" else 0.62))             # a scrim: the buttons and plates under the wheel step back instead of showing through the discs (the weapon wheel's title box covers the middle of the objective line: wave 114 critic, the line is all but gone behind it)
 	var ring := RadialWheel.RADIUS * s
 	c.draw_arc(wheel.centre, ring, 0.0, TAU, 64, Color(UiUtil.CYAN, 0.16), 3.0 * s, false)  # the track the discs sit on, and the thumb's own dot in the middle
 	c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(wheel.centre - Vector2.ONE * 30.0 * s, Vector2.ONE * 60.0 * s), false, Color(UiUtil.CYAN, 0.22))

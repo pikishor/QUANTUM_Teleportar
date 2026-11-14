@@ -301,6 +301,32 @@ func _list_flow() -> void:
 	# the mouse wheel moves one row a notch, and only over the list
 	stt["scroll"] = 0.0
 	TestLib.check(Arsenal.wheel(hud, lr.get_center(), 1) and is_equal_approx(float(stt["scroll"]), Arsenal.ROW) and not Arsenal.wheel(hud, Vector2(2.0, 2.0), 1), "the mouse wheel scrolls one row a notch over the list only")
+	# the pad: down from a tile of the last visible row scrolls the list one row and the focus goes to the tile of the same column; up comes back
+	stt["scroll"] = 0.0
+	_relayout()
+	var last_y := -1.0
+	var pick_id := &""
+	for b: Dictionary in hud.buttons:
+		var sid3 := String(b["id"])
+		if sid3.begins_with("wheel_") and (b["rect"] as Rect2).position.y > last_y + 1.0:
+			last_y = (b["rect"] as Rect2).position.y
+			pick_id = b["id"]
+	hud.pad.focus = pick_id
+	var sc_pad := float(stt["scroll"])
+	var moved_down := hud.pad.move_focus(Vector2.DOWN)
+	TestLib.check(moved_down and float(stt["scroll"]) > sc_pad and String(hud.pad.focus).begins_with("wheel_") and hud.pad.focus != pick_id and not _btn(hud.pad.focus).is_empty(), "the pad: down from the last visible row scrolls the list a row and the focus follows (%s -> %s)" % [pick_id, hud.pad.focus])
+	var scrolled_down := float(stt["scroll"])
+	var moved_up := hud.pad.move_focus(Vector2.UP)
+	# the list scrolls only as far as the focus needs: the tile that is back in view is on screen and the list stays where it is
+	TestLib.check(moved_up and hud.pad.focus == pick_id and not _btn(hud.pad.focus).is_empty() and float(stt["scroll"]) <= scrolled_down, "and up comes back to the same tile, which is still on screen (%s)" % hud.pad.focus)
+	# up again walks to the top row, the list scrolls back as the focus needs it, and one more up leaves the list for the chips above it
+	var walk := 0
+	while walk < 16 and String(hud.pad.focus).begins_with("wheel_") and Arsenal.list(&"loadout").find(StringName(String(hud.pad.focus).substr(6))) >= Arsenal.COLS:
+		hud.pad.move_focus(Vector2.UP)
+		walk += 1
+	TestLib.check(walk >= 1 and walk < 16 and is_equal_approx(float(stt["scroll"]), 0.0) and not _btn(hud.pad.focus).is_empty(), "up to the first row: the list is back at the top and the focus is on screen (%d steps, %s)" % [walk, hud.pad.focus])
+	TestLib.check(hud.pad.move_focus(Vector2.UP) and not String(hud.pad.focus).begins_with("wheel_"), "up from the first row goes on to the buttons above the list (%s)" % hud.pad.focus)
+	hud.pad.focus = &""
 	# the frame budget: a redraw of the screen with 229 weapons stays far from a dropped frame, however the list is scrolled (a first look at a class loads its atlas page)
 	WeaponPics.unload()
 	var loads0 := WeaponPics.page_loads

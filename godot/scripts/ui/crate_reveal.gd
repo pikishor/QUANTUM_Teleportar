@@ -9,6 +9,9 @@ extends Control
 const LIFE := 3.4
 const POP := 0.5
 const FADE := 0.45
+const COMPACT_LIFE := 2.0                   ## seconds of the small card shown while a fight is on
+const COMPACT_SCALE := 0.62
+const COMBAT_RANGE := 50.0                  ## metres: an alerted enemy this close means the fight is on
 
 static var enabled := true
 static var next_source := ""                ## what the next reveal says it is ("CRATE OPENED", "PURCHASED", "MISSION REWARD"); read and cleared by request()
@@ -20,6 +23,8 @@ static var _queue: Array[Dictionary] = []
 var weapon: StringName = &""
 var source := "NEW WEAPON"
 var age := 0.0
+var compact := false                         ## a fight is on: a small card at the side for a short time, no dim and no rays over the view the hero needs (wave 114 critic)
+var _life := LIFE
 var _card := {}
 
 
@@ -74,12 +79,25 @@ static func is_showing() -> bool:
 	return is_instance_valid(current)
 
 
+## True while an alerted enemy is near the hero on foot or in a car, in the running game: the reveal then must not dim or cover the view (the crates stand in the streets where the fights are).
+static func in_combat() -> bool:
+	if Game.state != &"play" or not is_instance_valid(Game.player):
+		return false
+	var hero := (Game.player as Node3D).global_position
+	for e: Node in (Engine.get_main_loop() as SceneTree).get_nodes_in_group(&"enemy"):
+		if e is Node3D and is_instance_valid(e) and e.get(&"aware") == true and not PlayerWeapon._is_dead(e) and (e as Node3D).global_position.distance_to(hero) < COMBAT_RANGE:
+			return true
+	return false
+
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	z_index = 50
 	_card = WeaponStats.card(weapon, WeaponDefs.def(weapon))
+	compact = in_combat()
+	_life = COMPACT_LIFE if compact else LIFE
 	Sfx.play(&"ui_confirm", -2.0, 0.9)
 	Sfx.play(&"pickup", -4.0, 0.8)
 	WeaponAudio.haptic(&"reveal")
@@ -87,7 +105,7 @@ func _ready() -> void:
 
 func _process(dt: float) -> void:
 	age += dt / maxf(Engine.time_scale, 0.05)
-	if age >= LIFE:
+	if age >= _life:
 		_finish()
 		return
 	queue_redraw()
@@ -124,13 +142,16 @@ func _draw() -> void:
 	var font := UiUtil.font()
 	var cls := WeaponDefs.class_of(weapon)
 	var tint := UiKit.class_tint(cls)
-	var fade := clampf(age / 0.2, 0.0, 1.0) * (1.0 - clampf((age - (LIFE - FADE)) / FADE, 0.0, 1.0))
-	draw_rect(Rect2(Vector2.ZERO, vp), Color(0.0, 0.02, 0.05, 0.5 * fade))
-	if age < 0.4:
-		draw_rect(Rect2(Vector2.ZERO, vp), Color(tint.lerp(Color.WHITE, 0.3), 0.55 * (1.0 - age / 0.4)))
+	var fade := clampf(age / 0.2, 0.0, 1.0) * (1.0 - clampf((age - (_life - FADE)) / FADE, 0.0, 1.0))
+	if not compact:
+		draw_rect(Rect2(Vector2.ZERO, vp), Color(0.0, 0.02, 0.05, 0.5 * fade))
+		if age < 0.4:
+			draw_rect(Rect2(Vector2.ZERO, vp), Color(tint.lerp(Color.WHITE, 0.3), 0.55 * (1.0 - age / 0.4)))
 	var centre := vp * 0.5 + Vector2(0.0, 6.0 * s)
+	if compact:
+		centre = Vector2(vp.x * 0.2, vp.y * 0.46)                                 # beside the middle of the view, over the free side of the street (the hero, the touch controls and the crosshair stay clear)
 	# light rays turning behind the card
-	for i in 14:
+	for i in (0 if compact else 14):
 		var a := float(i) * TAU / 14.0 + age * 0.35
 		var half := 0.055
 		var rad := maxf(vp.x, vp.y) * 0.9
@@ -141,7 +162,8 @@ func _draw() -> void:
 	var k := _ease_back(age / POP) if age < POP else 1.0
 	var k2 := 1.0 + 0.012 * sin(age * 3.0) if age >= POP else 1.0
 	var card := Vector2(560.0, 366.0) * s
-	draw_set_transform(centre, (1.0 - clampf(age / POP, 0.0, 1.0)) * 0.1, Vector2(k * k2, k * k2))
+	var csc := COMPACT_SCALE if compact else 1.0
+	draw_set_transform(centre, (1.0 - clampf(age / POP, 0.0, 1.0)) * 0.1, Vector2(k * k2 * csc, k * k2 * csc))
 	var r := Rect2(-card * 0.5, card)
 	UiKit.panel(self, r, s, tint, true, 16.0, true)
 	var art := Rect2(r.position + Vector2(10.0, 62.0) * s, Vector2(card.x - 20.0 * s, 170.0 * s))
@@ -170,7 +192,7 @@ func _draw() -> void:
 		_txt(font, Vector2(cr.position.x, cr.end.y - 8.0 * s), String(chips[i][0]), int(UiKit.T_CAP * s), Color(tint.lerp(Color.WHITE, 0.5), 0.95 * fade), HORIZONTAL_ALIGNMENT_CENTER, cr.size.x)
 	draw_set_transform(Vector2.ZERO)
 	# sparks flying out of the card
-	for i in 30:
+	for i in (0 if compact else 30):
 		var h := float(i) * 2.399963
 		var sp := 0.55 + 0.45 * fposmod(sin(float(i) * 12.9898) * 43758.5453, 1.0)
 		var t := clampf((age - 0.12) / 1.5, 0.0, 1.0)

@@ -2,18 +2,6 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://djk5mmg7y0f3t"
-path.s3tc="res://.godot/imported/c_energy_0.webp-12c1c04c970352506eef74339ee738ae.s3tc.ctex"
-path.etc2="res://.godot/imported/c_energy_0.webp-12c1c04c970352506eef74339ee738ae.etc2.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc", "etc2_astc"],
-"vram_texture": true
-}
-
-[deps]
-
-source_file="res://assets/icons/wp/c_energy_0.webp"
-dest_files=["res://.godot/imported/c_energy_0.webp-12c1c04c970352506eef74339ee738ae.s3tc.ctex", "res://.godot/imported/c_energy_0.webp-12c1c04c970352506eef74339ee738ae.etc2.ctex"]
 
 [params]
 

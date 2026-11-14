@@ -473,6 +473,10 @@ func _button(id: StringName) -> Dictionary:
 
 
 func _screen() -> void:
+	var win := host.get_window()
+	var win_old := win.size
+	win.size = Vector2i(1280, 720)                       # wave 114: the Arsenal's bottom bar (BACK, four slots, GEAR, star, action) is laid out for a real screen, not for the harness's square window
+	await frames(3)
 	Gear.reset()
 	prog.credits = 0
 	Game.state = &"play"
@@ -541,6 +545,7 @@ func _screen() -> void:
 	TestLib.check(hud._loadout_page == 0, "WEAPONS returns to the weapon page")
 	hud.press_button(&"loadout_back")
 	Game.state = &"play"
+	win.size = win_old
 	await frames(2)
 
 

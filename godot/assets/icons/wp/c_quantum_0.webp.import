@@ -2,18 +2,6 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cqusmxr4iw3fq"
-path.s3tc="res://.godot/imported/c_quantum_0.webp-5d20d93b882cacaf59e90ef41debe3a6.s3tc.ctex"
-path.etc2="res://.godot/imported/c_quantum_0.webp-5d20d93b882cacaf59e90ef41debe3a6.etc2.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc", "etc2_astc"],
-"vram_texture": true
-}
-
-[deps]
-
-source_file="res://assets/icons/wp/c_quantum_0.webp"
-dest_files=["res://.godot/imported/c_quantum_0.webp-5d20d93b882cacaf59e90ef41debe3a6.s3tc.ctex", "res://.godot/imported/c_quantum_0.webp-5d20d93b882cacaf59e90ef41debe3a6.etc2.ctex"]
 
 [params]
 
