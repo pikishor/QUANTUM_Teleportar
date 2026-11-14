@@ -19,6 +19,6 @@ Written by godot/tools/sprint_digest.py at 2026-11-14 00:33Z. Status 'running' m
 
 ## workflow run wf_4e87485e-db7
 
-- w113-weapons-roster [Wave 113] running: 53 events, 00:30:49 -> 00:32:43
-- w113-weapons-blast [Wave 113] running: 56 events, 00:30:51 -> 00:33:22
+- w113-weapons-roster [Wave 113] running: 62 events, 00:30:49 -> 00:33:41
+- w113-weapons-blast [Wave 113] running: 85 events, 00:30:51 -> 00:33:42
 
