@@ -6,7 +6,7 @@ write the 8 worst defects, fix them (most severe first), add regression tests, r
 STATUS (2026-11-14 19:30 UTC): FIXED 5, regression batch running. The LOOK critic works in the same tree (read a file again before editing it).
 
 DEFECTS (measured with probes tests/dev_w114_*.gd and bots tests/bot_w114_*.gd; regression tests in tests/test_play_critic_w114.gd, sections sound / ammo / hud / touch / reveal / burst)
-1 FIXED  64 weapons never used their wave 114 sound set: 56 of the throw kind (grenades, mines, strike beacons, launchers, pods) played the QUANTUM BLINK (blink + phase_step) or another weapon's recording, 7 charge
+1 FIXED  63 weapons never used their wave 114 sound set: 56 of the throw kind (grenades, mines, strike beacons, launchers, pods) played the QUANTUM BLINK (blink + phase_step) or another weapon's recording, 7 charge
          weapons (lance, beam / rail rifles, a BOW) the ENTANGLE hum and the plasma overcharge zap. WeaponAudio.launch / charge_start / fire_charged + hooks in player_weapon.gd (_throw, _tick_charge, _fire_lance),
          combat/blast_ops.gd, player/energy_arms.gd (salvo, fan); ASSIGN rows rocket -> lau_rocket, grenade -> thr_frag; tests/test_audio_redesign.gd (half charge = shot_lance).
 2 FIXED  PlayerWeapon._auto_swap (documented since wave 85, never called): a dry weapon with nothing in reserve clicked for ever. Wired in tick + _tick_charge, prefers the 4 loadout slots, falls back to the blade.

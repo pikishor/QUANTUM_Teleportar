@@ -1,6 +1,6 @@
 extends RefCounted
 ## Regression tests of the wave 114 PLAY critic (weapons in hand and the weapon screens), in the REAL game scene. Every check here failed on the tree the critic measured (see docs/sprint/progress/w114-critic-play.md):
-##   SOUND   the 56 weapons of the throw kind (grenades, mines, strike beacons, launchers, pods) played the QUANTUM BLINK or another weapon's recording and the 8 charge weapons (lance, beam and rail
+##   SOUND   the 56 weapons of the throw kind (grenades, mines, strike beacons, launchers, pods) played the QUANTUM BLINK or another weapon's recording and the 7 charge weapons (lance, beam and rail
 ##           rifles, bows) the ENTANGLE hum and the overcharge zap: none of them used the sound sets of wave 114 (WeaponAudio.fire ran for hitscan guns only).
 ##   HUD     the kill / pickup feed hung from the top right across the centred objective line and the toast (23 / 19 % of the line at 844x390 with no wanted stars, 44 / 30 % at 1280x720).
 ##   REVEAL  a crate opened in a fight dimmed the whole screen and put a 560 x 366 card in the middle of the view for 3.4 s while enemies shot (the reveal never pauses).

@@ -1,6 +1,6 @@
 # w114-critic-play (running)
 
-agent id a10a62065226352fe, 888 events, first activity 2026-11-14T18:01:39.643Z, last activity 2026-11-14T19:10:43.104Z
+agent id a10a62065226352fe, 910 events, first activity 2026-11-14T18:01:39.643Z, last activity 2026-11-14T19:11:15.193Z
 
 ## Last notes of the agent
 
@@ -9,12 +9,6 @@ agent id a10a62065226352fe, 888 events, first activity 2026-11-14T18:01:39.643Z,
 
 ## Recent steps (last 40)
 
-- 19:04:44 Wait for the regression batch to finish
-- 19:04:47 Review the diff of crate_reveal and hud_feed
-- 19:04:52 Review my hud.gd hunk and the reveal header
-- 19:05:05 See what new files the LOOK critic has added
-- 19:05:13 See which mech alt kinds play their own sound
-- 19:05:23 Wait for the regression batch (second arm)
 - 19:05:26 /home/user/QUANTUM_Teleportar/godot/scripts/ui/arsenal.gd
 - 19:05:37 Check batch progress after a pause
 - 19:05:39 Collect results so far from the batch
@@ -49,6 +43,12 @@ agent id a10a62065226352fe, 888 events, first activity 2026-11-14T18:01:39.643Z,
 - 19:10:37 Wait for the regression batch (twelfth arm)
 - 19:10:39 Peek at batch status
 - 19:10:42 Check that the critic tests passed in the batch
+- 19:10:51 Wait for the regression batch (thirteenth arm)
+- 19:10:56 Compare loudness of the newly used sound bodies
+- 19:11:05 Find the wrong weapon counts in my notes
+- 19:11:09 Correct the weapon counts in my notes and test header
+- 19:11:12 Wait for the regression batch (fourteenth arm)
+- 19:11:14 Peek at batch status
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
