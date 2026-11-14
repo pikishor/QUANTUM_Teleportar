@@ -1,6 +1,6 @@
 # w113-integrator (running)
 
-agent id a8dc13087c85e1d41, 468 events, first activity 2026-11-14T10:11:46.718Z, last activity 2026-11-14T11:44:59.274Z
+agent id a8dc13087c85e1d41, 479 events, first activity 2026-11-14T10:11:46.718Z, last activity 2026-11-14T11:45:27.393Z
 
 ## Last notes of the agent
 
@@ -8,10 +8,6 @@ agent id a8dc13087c85e1d41, 468 events, first activity 2026-11-14T10:11:46.718Z,
 
 ## Recent steps (last 40)
 
-- 11:23:15 Declare a longer own timeout in the two slow soak and tactics tests
-- 11:23:19 Run the two tests with the longer limit on the new tree
-- 11:25:51 Read BlastOps.shared
-- 11:26:10 Run test_soak_systems on the baseline with the longer limit
 - 11:27:28 Capture the heist leak probe output on the new tree
 - 11:28:49 Read how the soak test probes the heist and orphans
 - 11:28:52 Read the probe structure and the heist round
@@ -48,6 +44,10 @@ agent id a8dc13087c85e1d41, 468 events, first activity 2026-11-14T10:11:46.718Z,
 - 11:44:45 Read the humanoid_variants and hero_character diffs
 - 11:44:51 Read mid_mesh to see whether the temporary build root is freed
 - 11:44:58 Find how operatives get their variant models
+- 11:45:07 Read HeroCharacter.build setup and the skeleton extraction
+- 11:45:16 Skim the roster human lifecycle
+- 11:45:19 Read RosterHuman.attach and attach_creature
+- 11:45:26 Read CharacterRig.set_shadow
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
