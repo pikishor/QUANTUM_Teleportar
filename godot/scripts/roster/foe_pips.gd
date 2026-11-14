@@ -13,12 +13,12 @@ const CAP := 12                           ## enemies with a row at the same time
 const MARKS := 12                         ## and with a marker
 const PIPS := 5
 const RANGE := 85.0                       ## no pips beyond this distance (metres)
-const PITCH_MIN := 0.1                    ## metres between two pips next to the enemy ...
-const PITCH_K := 0.0085                   ## ... and per metre of distance beyond 12 m (about half a degree of view), so the row stays readable
+const PITCH_MIN := 0.14                   ## metres between two pips next to the enemy ...
+const PITCH_K := 0.011                    ## ... and per metre of distance beyond 12 m (about 0.6 degrees of view), so the row stays readable
 const PITCH_MAX := 0.55
 const MARK_NEAR := 30.0                   ## markers of aware enemies between these distances
 const MARK_FAR := 95.0
-const MARK_K := 0.0125                    ## marker width per metre of distance (about 0.7 degrees of view)
+const MARK_K := 0.016                     ## marker width per metre of distance (about 0.9 degrees of view)
 const GREEN := Color(0.3, 1.0, 0.42)
 const AMBER := Color(1.0, 0.78, 0.15)
 const RED := Color(1.0, 0.2, 0.12)
@@ -54,6 +54,7 @@ func _ready() -> void:
 	_node.material_override = mat
 	_node.custom_aabb = AABB(Vector3(-1500.0, -20.0, -1500.0), Vector3(3000.0, 300.0, 3000.0))
 	_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_node.visible = false                                              # a hidden node costs no draw call; refresh() shows it while there is something to draw
 	add_child(_node)
 
 
@@ -113,6 +114,7 @@ func refresh(creatures: Array) -> void:
 	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
 	if cam == null:
 		mm.visible_instance_count = 0
+		_node.visible = false
 		shown = 0
 		marks = 0
 		rows.clear()
@@ -157,7 +159,7 @@ func refresh(creatures: Array) -> void:
 		rows.append({"foe": rf, "lit": lit, "anchor": anchor, "pitch": pitch})
 		for i in PIPS:
 			var off := (float(i) - float(PIPS - 1) * 0.5) * pitch * 1.18
-			var xf := Transform3D(Basis.from_scale(Vector3(pitch, pitch * 0.62, 1.0)), anchor + right * off)
+			var xf := Transform3D(Basis.from_scale(Vector3(pitch, pitch * 0.8, 1.0)), anchor + right * off)
 			mm.set_instance_transform(k, xf)
 			mm.set_instance_color(k, col)
 			mm.set_instance_custom_data(k, Color(1.0 if i < lit else 0.0, 0.0, 0.0, 0.0))
@@ -175,5 +177,6 @@ func refresh(creatures: Array) -> void:
 		mm.set_instance_custom_data(k, Color(1.0, 1.0, 0.0, 0.0))
 		k += 1
 	mm.visible_instance_count = k
+	_node.visible = k > 0
 	shown = n
 	marks = m

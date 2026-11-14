@@ -213,6 +213,9 @@ void fragment() {
 			emis += vec3(0.6, 0.25, 1.0) * smoothstep(s * 0.85, s * 0.85 + 0.15, dn) * s * 2.0;
 		}
 	}
+	// readability at distance (far_k 0..0.55 from 9 m, set by RosterHuman): beyond 20 m the paint is lifted and a little more saturated, a 20 px figure only has its overall hue and value to say whose it is
+	float far_lum = dot(alb, vec3(0.3, 0.59, 0.11));
+	alb = max(mix(vec3(far_lum), alb, 1.0 + 0.8 * far_k), vec3(0.0)) * (1.0 + 0.9 * far_k);
 	ALBEDO = alb * brightness;
 	ROUGHNESS = clamp(rough + 0.0, 0.04, 1.0);
 	METALLIC = metal;

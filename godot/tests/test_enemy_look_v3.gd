@@ -383,11 +383,11 @@ func _pips_lines_crowd(host: Node) -> void:
 	var trooper := _spawn(&"auth_rifle", 24.0, false)
 	var jackal := _spawn(&"vael_jackal", 22.0, false)
 	_sim(0.3)
-	TestLib.check(pips.shown == 0 and pips.mm.visible_instance_count == 0, "an unhurt enemy shows no pips (no draw call)")
+	TestLib.check(pips.shown == 0 and pips.mm.visible_instance_count == 0 and not pips._node.visible, "an unhurt enemy shows no pips (the node is hidden: no draw call, it cost one when empty)")
 	brute.damage(brute.max_hp * 0.5)
 	_sim(0.2)
 	var want_lit := FoePips.lit_of(brute.hp / brute.max_hp)
-	TestLib.check(pips.shown == 1 and pips.mm.visible_instance_count == FoePips.PIPS and pips.lit_last == want_lit and want_lit >= 2 and want_lit <= 4, "a half-dead brute shows a row of 5 with %d lit (shown %d, lit %d)" % [want_lit, pips.shown, pips.lit_last])
+	TestLib.check(pips._node.visible and pips.shown == 1 and pips.mm.visible_instance_count == FoePips.PIPS and pips.lit_last == want_lit and want_lit >= 2 and want_lit <= 4, "a half-dead brute shows a row of 5 with %d lit (shown %d, lit %d)" % [want_lit, pips.shown, pips.lit_last])
 	var row_y: float = (pips.rows[0]["anchor"] as Vector3).y if not pips.rows.is_empty() else -1.0e9
 	TestLib.check(pips.rows.size() == 1 and pips.rows[0]["foe"] == brute and row_y > brute.global_position.y + 2.5 and row_y < brute.global_position.y + 6.0, "the row floats above the head of the brute (%.1f m over its feet)" % (row_y - brute.global_position.y))
 	trooper.damage(trooper.max_hp * 0.85)

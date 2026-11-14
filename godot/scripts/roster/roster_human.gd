@@ -8,6 +8,8 @@ extends RefCounted
 ##   on_die / hurt / muzzle / on_wake (the officer's call, the operator's drones, the engineer's turret)
 ## Death: the rig goes limp (HumanoidAnim) and the body falls over its feet (kind 2 backward when shot from the front, 1 forward from behind, 0 sideways), then AlienCreature's dissolve takes it.
 
+static var legacy := OS.get_environment("FOE_OLD_LOOK") == "1"       ## look-dev only: FOE_OLD_LOOK=1 brings the procedural bodies of before wave 113 back (before/after frames)
+
 const FALL_TIME := 0.9
 const SPECIALS_RANGE := 70.0
 const THROTTLE_MID := 26.0               ## beyond this distance a body's rig is driven every 2nd frame, beyond THROTTLE_FAR every 3rd (the accumulated time and displacement go in at once): crowds of 8 and more
@@ -15,7 +17,7 @@ const THROTTLE_FAR := 50.0               ## cost the CPU of two or three bodies,
 
 
 static func attach(c: RosterFoe, look: StringName, spec: Dictionary) -> bool:
-	if not FoeHuman.available() or not FoeLooks.has(look):
+	if legacy or not FoeHuman.available() or not FoeLooks.has(look):
 		return false
 	var variant := int(absi(int(c.get_instance_id())) % 3)
 	var h := FoeHuman.build(look, variant, StringName(spec.get("weapon", &"")))
@@ -50,6 +52,8 @@ static var _looped := {}
 
 ## A creature of tools/blender/model_foes.py (assets/models/foes/<id>.glb: one skinned mesh, clips idle walk run attack hit dead jump) on the alien shader (vertex colour paint, alpha = glow).
 static func attach_creature(c: RosterFoe, gid: StringName, spec: Dictionary) -> bool:
+	if legacy:
+		return false
 	var path := FOE_DIR + String(gid) + ".glb"
 	if not _scenes.has(gid):
 		_scenes[gid] = load(path) as PackedScene if ResourceLoader.exists(path) else null

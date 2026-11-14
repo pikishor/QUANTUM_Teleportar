@@ -2,7 +2,7 @@ extends RefCounted
 ## Look-dev bot for the enemy roster look (wave 113; a copy of bot_alien.gd that also prints the state of the FoeHuman bodies): tools/bot.sh res://tests/bot_foe_look.gd OUT EVERY COUNT   (EVERY = frames per view, COUNT = views)
 ##   QUALITY=0|1|2 picks the tier, BOT_RES=2400x1080 the resolution, ENGINE_ARGS="--fixed-fps 12" makes game seconds per frame fixed.
 ## env OUT_VIEWS  semicolon list, one per shot slot:
-##     "x,z,yaw,id:n[,id:n ...][,front=22][,dist=6][,lift=0][,aggro=1][,state=<state>][,hurt=0.6]"   the real hero at (x, z) looking along yaw (radians, 0 = -Z north), groups `front` m ahead
+##     "x,z,yaw,id:n[,id:n ...][,front=22][,dist=6][,lift=0][,aggro=1][,state=<state>][,hurt=0.6][,keep=1][,kill=2]"   the real hero at (x, z) looking along yaw (radians, 0 = -Z north), groups `front` m ahead
 ##     "@site,dist,angle_deg[,id:n ...][,aggro=1][,state=..][,run=secs][,front=..]"        the hero `dist` m from a site (angle round it), looking at it; the garrison / boss is populated
 ##   OUT_HOUR (default 12), OUT_HUD=0 hides the HUD layer, OUT_GOD=1 (default) keeps the hero alive
 var _views: Array[String] = []
@@ -118,6 +118,8 @@ func _apply(p: Player, v: String, k: int) -> void:
 	var aggro := false
 	var state := ""
 	var hurt := 0.0
+	var keep := false
+	var kill := 0
 	var groups: Array = []
 	if parts[0].begins_with("@"):
 		site = parts[0].substr(1)
@@ -147,9 +149,17 @@ func _apply(p: Player, v: String, k: int) -> void:
 			state = s2.substr(6)
 		elif s2.begins_with("hurt="):
 			hurt = float(s2.substr(5))
+		elif s2 == "keep=1":
+			keep = true                                                       # a frame of a SEQUENCE: do not teleport or respawn, the fight goes on
+		elif s2.begins_with("kill="):
+			kill = int(s2.substr(5))                                          # kill the first n foes as this view starts
 		elif ":" in s2:
 			groups.append(s2)
-	if k == 0:
+	if k == 0 and kill > 0:
+		for c in w.creatures.slice(0, kill):
+			if not c.dead:
+				c.damage(c.max_hp * 3.0)
+	if k == 0 and not keep:
 		var pos := Vector3(x, TerrainHeight.height_at(x, z) + 0.8, z)
 		p.camera_rig.cine_clear()
 		p.global_position = pos

@@ -37,7 +37,7 @@ const VAEL_PICK: Array[int] = [0, 0, 1, 2, 0, 3, 4, 5]            ## n % 8 -> cl
 const ROLE_CLASS := {&"shield": 1, &"carrier": 1, &"flanker": 2, &"stalker": 2, &"pouncer": 2, &"sniper": 4, &"warden": 5, &"hivemother": 5, &"overseer": 5}
 
 static var enabled := true                       ## tests flip this off to compare with the old models
-static var use_kit := true                       ## false: the Vael troopers keep the hero-shader look (colour classes only)
+static var use_kit := OS.get_environment("FOE_NO_KIT") != "1"   ## false (look-dev / perf comparison: FOE_NO_KIT=1): the Vael troopers keep the hero-shader look (colour classes only)
 static var _mid_cache := {}                      ## variant key -> mid ArrayMesh (shared by every instance of the variant)
 
 

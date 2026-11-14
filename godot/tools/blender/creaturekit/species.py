@@ -248,15 +248,15 @@ def biped(name, P):
         ar = P.get("arm_r", 0.055)
         cannon = P.get("cannon") and side == "r"
         if P.get("pauldrons") and angular:                                  # a sloped plate over the shoulder with a bone spike (a hard edge reads as armour, a ball as a balloon)
-            c.box(T((a0[0] + sx * ar * 0.8, a0[1], a0[2] + ar * 0.5)), (r(ar * 3.8) * S[0], r(ar * 3.2) * S[1], r(ar * 1.9) * S[2]), armor, ["arm_" + side, "chest"], rot=(0, 22 * sx, 0), taper=(0.62, 0.78))
-            c.cone(T((a0[0] + sx * ar * 1.3, a0[1], a0[2] + ar * 1.2)), T((a0[0] + sx * ar * 2.4, a0[1] - 0.02, a0[2] + ar * 4.6)), r(0.032), plate, ["arm_" + side, "chest"], segs=4, tip_glow=0.5)
+            c.box(T((a0[0] + sx * ar * 0.5, a0[1], a0[2] + ar * 0.6)), (r(ar * 3.0), r(ar * 2.6), r(ar * 1.3)), armor, ["arm_" + side, "chest"], rot=(0, 20 * sx, 0), taper=(0.66, 0.8))
+            c.cone(T((a0[0] + sx * ar * 1.0, a0[1], a0[2] + ar * 1.4)), T((a0[0] + sx * ar * 1.8, a0[1] - 0.02, a0[2] + ar * 3.6)), r(0.028), plate, ["arm_" + side, "chest"], segs=4, tip_glow=0.5)
         else:
             c.ellipsoid(T(a0), (r(ar * 1.7), r(ar * 1.5), r(ar * 1.5)), armor if P.get("pauldrons") else skin, ["arm_" + side, "chest"], tint=(1.2, 0.7))
         if fist > 0:
             if angular:                                                     # a knuckle block with bone spikes
-                c.box(T((a2[0], a2[1] + 0.05, a2[2] - 0.05)), (r(fist * 2.0) * S[0], r(fist * 1.9) * S[1], r(fist * 1.7) * S[2]), armor, ["fore_" + side], rot=(0, 0, 0), taper=(0.85, 0.9))
+                c.box(T((a2[0], a2[1] + 0.05, a2[2] - 0.05)), (r(fist * 1.7), r(fist * 1.6), r(fist * 1.5)), armor, ["fore_" + side], rot=(0, 0, 0), taper=(0.85, 0.9))
                 for k in range(3):
-                    c.cone(T((a2[0] + (k - 1) * fist * 0.62, a2[1] + 0.05 + fist * 0.9, a2[2] - 0.02)), T((a2[0] + (k - 1) * fist * 0.7, a2[1] + 0.05 + fist * 1.9, a2[2] + 0.02)), r(0.03), plate, ["fore_" + side], segs=4, tip_glow=0.5)
+                    c.cone(T((a2[0] + (k - 1) * fist * 0.55, a2[1] + 0.05 + fist * 0.8, a2[2] - 0.02)), T((a2[0] + (k - 1) * fist * 0.62, a2[1] + 0.05 + fist * 1.6, a2[2] + 0.02)), r(0.026), plate, ["fore_" + side], segs=4, tip_glow=0.5)
             else:
                 c.ellipsoid(T((a2[0], a2[1] + 0.04, a2[2] - 0.05)), (r(fist), r(fist * 0.9), r(fist)), armor, ["fore_" + side], tint=(1.15, 0.7))
             for k in range(3):
@@ -284,8 +284,8 @@ def biped(name, P):
         lr = P.get("leg_r", 0.09)
         if P.get("knees"):
             if angular:                                                     # a faceted guard with a forward spike
-                c.box(T((t1[0], t1[1] + lr * 0.55, t1[2] + 0.01)), (r(lr * 2.1) * S[0], r(lr * 1.4) * S[1], r(lr * 2.2) * S[2]), armor, ["thigh_" + side, "shin_" + side], taper=(0.8, 0.7))
-                c.cone(T((t1[0], t1[1] + lr * 1.2, t1[2])), T((t1[0], t1[1] + lr * 2.9, t1[2] + 0.04)), r(0.026), plate, ["thigh_" + side, "shin_" + side], segs=4, tip_glow=0.4)
+                c.box(T((t1[0], t1[1] + lr * 0.7, t1[2] + 0.01)), (r(lr * 1.8), r(lr * 1.2), r(lr * 1.8)), armor, ["thigh_" + side, "shin_" + side], taper=(0.8, 0.7))
+                c.cone(T((t1[0], t1[1] + lr * 1.3, t1[2])), T((t1[0], t1[1] + lr * 2.6, t1[2] + 0.03)), r(0.024), plate, ["thigh_" + side, "shin_" + side], segs=4, tip_glow=0.4)
             else:
                 c.ellipsoid(T(t1), (r(lr * 1.0), r(lr * 1.05), r(lr * 1.0)), armor, ["thigh_" + side, "shin_" + side], tint=(1.1, 0.7))
         c.ellipsoid(T((sx * w, 0.07, 0.05)), (r(lr * 0.5), r(lr * 0.85), r(lr * 0.28)), dark, ["foot_" + side, "shin_" + side], tint=(1.1, 0.7))
