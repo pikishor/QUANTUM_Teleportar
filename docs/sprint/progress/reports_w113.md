@@ -80,3 +80,30 @@ APK EFFECT: none. No textures or models added (shaders and scripts only; the old
 GAPS (honest): no liquid splatter on car bodies (the physics hull box is bigger than the visible car, a decal would float); citizens react at the place of the hit with puffs but do not stumble or limp (crowd is one MultiMesh); fires spread between cars and wooden props, not to buildings; no ragdoll physics (a flung body is one pooled tumble integrator); facade chunk loss is decals plus debris, not geometry; per-tier decal cap is 40 on all tiers (old tests pin CAPACITY 40); nothing measured on a phone (software Vulkan stills at 12 fps).
 
 OUT OF SCOPE DEFECTS SEEN: test_energy_destructive_scene expects ten weapon-wheel wedges, the roster's wheel has 11 (roster builder); the hero's aura sphere tints very close free cameras (hero look); the street around the look-dev spot has overhead beams that occlude the blast frames (bot camera only); earlier transient parse errors (FoeSpecies etc.) came from the enemy-look builder's in-progress classes and went away after tools/import.sh.
+
+
+## w113-enemy-look
+
+Enemy look v3 is done and in the working tree, uncommitted; the perf gate passes on all three tiers, but HIGH has no headroom.
+
+**Result:** 22 enemy types in four faction silhouettes: 13 armoured humans (3 paints each, one skinned draw, 3 LODs), 7 vael aliens and 2 walkers. The weapon attaches through `FoeArms.pieces(weapon_id, …)`. This restart added:
+- **Pips and markers:** floating health pips for every damaged enemy, and threat markers for aware enemies 30–95 m away (`FoePips`, one MultiMesh).
+- **Telegraph lines:** the huge translucent wedges at the camera were `AlienFx` telegraph lines. They are thin now and fade at the lens.
+- **Tiers and warm-up:** tier-scaled LOD ranges, throttled far rigs, and a loading-time warm-up.
+- **Look:** creature wind-up flash as outline, angular brute/elite/hunter plates, lighter paints with a distance lift.
+
+**Tests:**
+- `test_enemy_look_v3` passes (95 checks).
+- Also passing: alien_world, enemy_roster2, humanoid_variants, humanoid_wiring, real_fight, enemy_look, damage_everywhere, hero_polish.
+- `test_perf_budget` fails 1 of 119 on the hero mirror tick check (noted flaky in earlier handoffs, unrelated to this wave).
+
+**Perf gate (final tree):**
+- LOW OK: 96 draws, 139.0k tris, 110 MB, death 107
+- MED OK: 129 draws, 272.1k tris, 141 MB, death 149
+- HIGH OK: 149 draws, 378.0k tris, 207 MB, death 170
+
+One earlier HIGH run was OVER (171 > 170) because the empty pip MultiMesh cost a draw; the node is now hidden while empty. The HIGH death spike is still 170 of 170 and MED 149 of 150.
+
+**Gaps:** no MultiMesh impostors for far crowds (only the rig CPU is throttled); creature faces and hands are simple. At 40–80 m a figure is 20–45 px tall, so the markers carry the read.
+
+Added about 4.1 MB of assets (about 1.6 MB imported into the APK). Ten contact sheets are in `docs/shots/round6/enemy_look_*.jpg`, with the loop notes in `enemy_look_iterations.md`. The progress log is `docs/sprint/progress/w113-enemy-look.md`.
