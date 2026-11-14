@@ -163,8 +163,8 @@ func step(dt: float) -> void:
 			_remove(c)
 			continue
 		var d := Vector2(c.position.x, c.position.z).distance_to(hero2)
-		if c.site == &"" and not c.dead and c.family != AlienSpecies.BOSS and d > despawn_r * (1.5 if c.cls == AlienSpecies.AIR else 1.0):
-			_remove(c)
+		if c.site == &"" and not c.dead and c.family != AlienSpecies.BOSS and not c.has_meta(&"hold") and d > despawn_r * (1.5 if c.cls == AlienSpecies.AIR else 1.0):
+			_remove(c)                                                        # (a creature held by a world event, RoamEvents, stays however far it stands)
 			continue
 		c.visible = d < 190.0 and (c.exposed or c.rise > 0.02 or c.dead)
 		if d > NEAR_TICK and not c.aggro and not c.dead and c.family != AlienSpecies.BOSS:

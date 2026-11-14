@@ -567,7 +567,7 @@ func _part_events() -> void:
 	_clear_enemies()
 	# ---- RAID
 	await _put_hero(plains)
-	var raid := ev.spawn(&"raid", plains + Vector3(-150.0, 0.0, 60.0))
+	var raid := ev.spawn(&"raid", plains + Vector3(-172.0, 0.0, 69.0))       # 185 m out, where the scheduler builds events (170 m and more): beyond the AlienWorld's ambient despawn radius (156 m at MED)
 	var spawned_raid := not raid.is_empty()
 	TestLib.check(spawned_raid, "an alien raid is built")
 	if spawned_raid:
@@ -578,9 +578,12 @@ func _part_events() -> void:
 		TestLib.check(foes.size() >= 1 and aggro, "the raiders come at the hero (%d aggro creatures)" % foes.size())
 		await _hold(0.5)
 		TestLib.check(ev.active.has(raid), "the raid runs while they live")                 # (wave 112 critic: was `active.size() == 1`; an automatic event can join it, which failed one run in three)
+		var standing := 0
 		for c in foes:
-			if is_instance_valid(c):
-				(c as AlienCreature).die(true)
+			if is_instance_valid(c) and not (c as AlienCreature).dead:
+				standing += 1
+		TestLib.check(standing == foes.size(), "every raider stands where the event put it, 185 m out (%d of %d): the ambient despawn rule does not take them (wave 113 CI: all of them were gone after a second and the raid paid for nothing)" % [standing, foes.size()])
+		_kill_all(foes)
 		TestLib.check(await _until(func() -> bool: return ev.active.is_empty() and int(_rw.events_done.get(&"raid", 0)) == 1, 4.0), "killing every raider ends the raid")
 		TestLib.check(_rw.breakdown()[&"event"][0] == 2, "and it is the second kind discovered")
 	_clear_enemies()
@@ -591,12 +594,16 @@ func _part_events() -> void:
 	if not sm.is_empty():
 		var sp: Vector3 = sm["pos"]
 		TestLib.check((sm["creatures"] as Array).size() >= 1 and (sm["vehicles"] as Array).size() == 1, "guards and a van stand at the stash")
+		await _hold(0.5)                                                       # the hero is still 166 m away, beyond the ambient despawn radius (156 m at MED): the guards are held, not removed
+		var guards_up := 0
+		for c in sm["creatures"]:
+			if is_instance_valid(c) and not (c as AlienCreature).dead:
+				guards_up += 1
+		TestLib.check(guards_up == (sm["creatures"] as Array).size(), "the guards stay at the stash while the hero is 166 m away (%d of %d)" % [guards_up, (sm["creatures"] as Array).size()])
 		_p.teleport_to(Vector3(sp.x + 3.0, sp.y + 1.0, sp.z))
 		await _hold(0.5)
 		TestLib.check(ev.active.size() == 1 and ev.prompt.contains("CLEAR THE GUARDS"), "the stash waits while a guard lives (%s)" % ev.prompt)
-		for c in sm["creatures"]:
-			if is_instance_valid(c):
-				(c as AlienCreature).die(true)
+		_kill_all(sm["creatures"])
 		TestLib.check(await _until(func() -> bool: return ev.active.is_empty() and int(_rw.events_done.get(&"smugglers", 0)) == 1, 4.0), "with the guards down the stash is taken")
 	_clear_enemies()
 	# ---- CONVOY
@@ -635,6 +642,14 @@ func _part_events() -> void:
 	ev.reset()
 	_clear_enemies()
 	prog.credits = prog.credits
+
+
+## Every creature of `list` shot dead the way the hero does it. A foe with a medic near goes down on the first hit and dies on the second (RosterFoe.die: the revive), so two rounds.
+func _kill_all(list: Array) -> void:
+	for round_i in 2:
+		for c in list:
+			if is_instance_valid(c) and not (c as AlienCreature).dead:
+				(c as AlienCreature).die(true)
 
 
 func _clear_enemies() -> void:

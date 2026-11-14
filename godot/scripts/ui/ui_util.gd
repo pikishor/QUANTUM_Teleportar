@@ -194,6 +194,23 @@ static func fit_size(font: Font, text: String, width: float, size: int) -> int:
 	return fs
 
 
+## `text` as it fits `width` px at font size `size`: unchanged when it fits, else cut after the last whole word that fits and ended with "..." (a long line on a narrow card or in a wide
+## device font: menu text never shrinks below its floor and Hud._text lets the box grow around a too wide line, so it would run into the next card; wave 113 CI, DejaVu on the runner).
+static func fit_text(font: Font, text: String, width: float, size: int) -> String:
+	if width <= 0.0 or font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size).x <= width:
+		return text
+	var words := text.split(" ", false)
+	while words.size() > 1:
+		words.remove_at(words.size() - 1)
+		var cut := " ".join(words).rstrip(",;:.") + "..."
+		if font.get_string_size(cut, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size).x <= width:
+			return cut
+	var w := words[0] if not words.is_empty() else text
+	while w.length() > 1 and font.get_string_size(w + "...", HORIZONTAL_ALIGNMENT_LEFT, -1.0, size).x > width:
+		w = w.substr(0, w.length() - 1)
+	return w + "..."
+
+
 static func ability_state(player: Node, info: Dictionary) -> Dictionary:
 	var q: Object = player.get("quantum") if is_instance_valid(player) else null
 	if q == null:

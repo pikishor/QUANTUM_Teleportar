@@ -216,6 +216,17 @@ static func arrow_rects(cx: float, s: float, k := 1.0) -> Array[Rect2]:
 	return [Rect2(cx + GRID_X * s * k, y, 64.0 * s, 64.0 * s), Rect2(cx + GRID_X * s * k + gw - 64.0 * s, y, 64.0 * s, 64.0 * s)]
 
 
+## The caption of the class row: "SHOTGUN  12" (the tab and how many weapons it holds), else just "SHOTGUN", else its first letters, whichever fits between the two chips at the smallest
+## menu size (the room is 5.9 em on a 16:9 screen and a wide device font needs more: Hud._text would let the box grow into the chips; wave 113 CI).
+static func class_caption(font: Font, width: float, s: float) -> String:
+	var floor_px := int(Hud.BODY_MIN * s)
+	var named := Tr.t(page_name())
+	for cand: String in ["%s  %d" % [named, tab_size()], named]:
+		if font.get_string_size(cand, HORIZONTAL_ALIGNMENT_LEFT, -1.0, floor_px).x <= width:
+			return cand
+	return UiUtil.fit_text(font, named, width, floor_px)
+
+
 ## The big card of the selected weapon: the picture (the 384 x 192 render `wl_<id>`, shown at 2 x its size on a phone) under the name, the class and the key numbers.
 static func picture_rect(cx: float, s: float, k := 1.0) -> Rect2:
 	return Rect2(cx + PIC_X * s * k, PIC_Y * s, PIC_W * s * k, PIC_H * s)
@@ -297,8 +308,8 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var gw := (float(GRID_COLS) * TILE.x + float(GRID_COLS - 1) * TILE_GAP) * s * k
 	var tint_c := UiKit.class_tint(WeaponDefs.class_of(sel))
 	if tab_count() > 1:                                                  # the class row: the tab name and how many weapons it holds, between the two chips
-		var cap := "%s  %d" % [page_name(), tab_size()]
 		var cwc := gw - 144.0 * s
+		var cap := class_caption(font, cwc, s)
 		hud._text(c, font, Vector2(cx + GRID_X * s * k + 72.0 * s, 106.0 * s + 40.0 * s), cap, HORIZONTAL_ALIGNMENT_CENTER, cwc, UiUtil.fit_size(font, cap, cwc, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	else:
 		hud._text(c, font, Vector2(cx + GRID_X * s * k, 106.0 * s + 40.0 * s), "%s  %d" % [page_name(), tab_size()], HORIZONTAL_ALIGNMENT_LEFT, gw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)

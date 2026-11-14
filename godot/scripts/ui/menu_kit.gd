@@ -38,8 +38,10 @@ static func part(hud: Hud, c: Control, r: Rect2, name: String, fx: String, statu
 	if font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(BODY * s)).x > r.size.x - 16.0 * s and name.ends_with(" CORE"):
 		name = name.trim_suffix(" CORE")                       # a narrow card drops the generic word instead of overflowing into its neighbour
 	var nsz := maxi(UiUtil.fit_size(font, name, r.size.x - 16.0 * s, int(17.0 * s)), int(BODY * s))
+	name = UiUtil.fit_text(font, name, r.size.x - 16.0 * s, nsz)         # a line that still does not fit at the smallest size is cut (a wide device font), it does not run into the next card
 	hud._text(c, font, Vector2(r.position.x + 10.0 * s, r.position.y + 24.0 * s), name, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 16.0 * s, nsz, Color(1, 1, 1, 0.98))
 	var fsz := maxi(UiUtil.fit_size(font, fx, r.size.x - 16.0 * s, int(BODY * s)), int(BODY * s))
+	fx = UiUtil.fit_text(font, fx, r.size.x - 16.0 * s, fsz)
 	hud._text(c, font, Vector2(r.position.x + 10.0 * s, r.position.y + 24.0 * s + fsz * 1.2), fx, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 16.0 * s, fsz, Color(1, 1, 1, 0.65))
 	var ssz := maxi(UiUtil.fit_size(font, status, r.size.x - 12.0 * s, int(TITLE * s)), int(BODY * s))
 	hud._text(c, font, Vector2(strip.position.x, strip.position.y + strip.size.y * 0.5 + ssz * 0.34), status, HORIZONTAL_ALIGNMENT_CENTER, strip.size.x, ssz, Color(tint.lerp(Color.WHITE, 0.5), 1.0))
