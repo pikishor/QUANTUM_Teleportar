@@ -1664,7 +1664,6 @@ func alt_fire(aiming := false) -> bool:
 				return false
 	fire_t = maxf(fire_t, float(a["cd"]))
 	alt_fired += 1
-	Sfx.play(&"link", -8.0, 1.6)
 	return shots_fired > before or kind in ["vent", "pull", "lunge", "blink", "pop", "zoom", "brace", "mode", "surge"]
 
 

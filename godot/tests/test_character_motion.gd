@@ -147,6 +147,7 @@ func _hero_gait() -> void:
 func _hero_reload() -> void:
 	await e.prep(Vector3(0.0, 0.0, 0.0), -PI * 0.5, 0.0, 12)
 	var rg := p.body.rig
+	var rest_d := rg.wrist_position(0).distance_to(rg.rifle_grip(0))            # where the left hand sits on the rifle before: the kit carbine's grips are 14 cm from the rig's rest wrists (wave 114), so the hand is compared with itself, not with a fixed 12 cm
 	p.ammo = 3
 	Input.action_press(&"reload")
 	var far := 0.0
@@ -156,7 +157,8 @@ func _hero_reload() -> void:
 	Input.action_release(&"reload")
 	await e.secs(1.0)
 	TestLib.check(far > 0.1, "reload: the left hand travels %.2f m from the rifle grip (> 0.10)" % far)
-	TestLib.check(rg.wrist_position(0).distance_to(rg.rifle_grip(0)) < 0.12, "reload: the hand is back on the rifle afterwards")
+	var after_d := rg.wrist_position(0).distance_to(rg.rifle_grip(0))
+	TestLib.check(absf(after_d - rest_d) < 0.06, "reload: the hand is back on the rifle afterwards (%.3f m from the rest grip, %.3f before the reload)" % [after_d, rest_d])
 
 
 func _hero_air_and_hit() -> void:

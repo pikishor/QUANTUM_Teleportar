@@ -71,6 +71,7 @@ var sprint := 0.0
 var reload := -1.0
 var reload_tilt := 1.0                                 ## per-weapon scale of the reload / inspect rifle tilt
 var carry_spread := 0.0                                ## extra outward yaw (radians) of the carried weapon at low ready (full) and shouldered at the hip (half): the HERO shows his weapon side-on to the shoulder camera, enemies keep 0
+var aim_show := Vector2.ZERO                          ## metres the aimed weapon is moved out (x, to the right) and up (y) so that it clears the hero's own shoulder plate from the shoulder camera: the HERO sets it, enemies keep 0
 var clock := 0.0
 var dead := 0.0
 var stance_shift := 0.0                        ## metres the idle soles sit further back than the rest ankles (model z is back); the owner sets it before the Locomotion reads its home spots
@@ -562,8 +563,11 @@ func apply() -> void:
 	rp += sin(phase) * 0.03 * a * (1.0 - ready * 0.7)
 	if ik:                                                 # the carried rifle rocks with the stride and the pelvis; shouldered, it stays steadier; aiming pulls it to the cheek
 		rr += sin(phase) * 0.07 * a * carry
-		ry += sin(phase) * 0.04 * a * (0.4 + carry) + ads * 0.13 + 0.5 * pelvis_yaw * ready + (HIP_READY_YAW - carry_spread * 0.5) * ready * (1.0 - ads) * (1.0 - sprint)
-		rpos.y += 0.015 * ads - squash * 0.3
+		var raised_w := clampf((ready - 0.75) / 0.25, 0.0, 1.0)                                  # 0 relaxed, 1 raised (aiming, just fired, reloading)
+		ry += sin(phase) * 0.04 * a * (0.4 + carry) + ads * 0.13 + 0.5 * pelvis_yaw * ready + (HIP_READY_YAW - carry_spread * 0.5 * (1.0 - raised_w)) * ready * (1.0 - ads) * (1.0 - sprint)      # (the spread fades out as the weapon is raised: the aim solver's trim is limited to 0.7 rad)
+		var show_w := maxf(ads, raised_w * 0.7)                                                  # aimed: all of it, raised at the hip (just fired, reloading): most of it
+		rpos.y += 0.015 * ads - squash * 0.3 + aim_show.y * show_w
+		rpos.x += aim_show.x * show_w
 		rpos.z += 0.03 * ads
 		rp += squash * 0.5 + air * 0.05
 	rp += -0.22 * tw

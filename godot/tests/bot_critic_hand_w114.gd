@@ -1,7 +1,7 @@
 extends RefCounted
 ## Critic look-dev bot of wave 114 (weapons in hand, real game and real camera): the hero holds many weapons one after the other and the bot saves ONE picture per state
 ## (idle, aim, two firing frames, reload) of each, itself (no shot-seq timing). One game start for all the weapons.
-##   HC_IDS=pistol,carbine,... HC_OUT=/dir [HC_PLACE=runway|street] [HC_HOUR=12] [HC_STATES=idle,aim,fireA,fireB,reload] [HC_HUD=0] BOT_RES=1600x720 BOT_USER_ARGS="--touch"
+##   HC_IDS=pistol,carbine,... HC_OUT=/dir [HC_PLACE=runway|street] [HC_HOUR=12] [HC_STATES=idle,aim,fireA,fireB,reload] [HC_HUD=0] [HC_OLD=1] [HC_HIP=1] BOT_RES=1600x720 BOT_USER_ARGS="--touch"
 ##   ENGINE_ARGS="--fixed-fps 12" QUALITY=0|1 tools/bot.sh res://tests/bot_critic_hand_w114.gd /tmp/x 100000 1
 ## Frame plan per weapon (12 game frames = 1 s): 0 switch, 16 idle shot, 17 aim pressed, 23 aim shot, 24 fire pressed, 26 fireA, 29 fireB, 31 fire and aim released, 32 reload pressed, 40 reload shot, then next
 ## (only the frames of the states in HC_STATES are played: HC_STATES=idle,aim is 27 frames per weapon).
@@ -34,7 +34,7 @@ func _init() -> void:
 	for stn in _states:
 		_plan[int(FRAMES[stn])] = stn
 		_len = maxi(_len, int(FRAMES[stn]) + 4)
-	_want_aim = "aim" in _states or "fireA" in _states or "fireB" in _states
+	_want_aim = "aim" in _states or (("fireA" in _states or "fireB" in _states) and OS.get_environment("HC_HIP") != "1")                # HC_HIP=1: the shots are fired from the hip, without aiming
 	_want_fire = "fireA" in _states or "fireB" in _states
 	_want_reload = "reload" in _states
 
@@ -78,6 +78,11 @@ func _setup(p: Player) -> void:
 			w.ambient_enabled = false
 			w.clear_all()
 			w.sites.clear()
+	if OS.get_environment("HC_OLD") == "1":                          # the look before the critic's fixes (for before / after sheets): one size for every weapon, no carry spread, no aim shift
+		PlayerBody.carry_spread = 0.0
+		PlayerBody.aim_show = Vector2.ZERO
+		for wid: StringName in WeaponDefs.all_ids():
+			WeaponModels._look_cache[wid] = WeaponModels.KIT_LOOK_SCALE
 	if _hud_off:
 		var hud := p.get_tree().root.find_child("Hud", true, false)
 		if hud != null and "visible" in hud:
@@ -114,6 +119,8 @@ func step(_t: float, _d: float) -> bool:
 		var parts := id.split("@")                                    # "carbine@0.9": the weapon with PlayerBody.carry_spread 0.9 (look-dev of the carried pose)
 		if parts.size() > 1:
 			PlayerBody.carry_spread = float(parts[1])
+		if parts.size() > 3:
+			PlayerBody.aim_show = Vector2(float(parts[2]), float(parts[3]))              # "carbine@0.6@0.07@0.05": the aimed weapon 7 cm out and 5 cm up
 		p.weapon.switch_to(StringName(parts[0]), true)
 		p.weapon.restock(1.0)
 	if _plan.has(_f):

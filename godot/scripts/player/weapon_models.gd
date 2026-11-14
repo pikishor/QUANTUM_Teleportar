@@ -965,10 +965,14 @@ static func _curve(pts: Array[Vector2], x: float) -> float:
 
 ## Metres the muzzle sits in front of the rifle pivot for a weapon drawn with scale `sc`: the HAND keeps its hold distance (the reach minus the grip, an arm cannot reach further for a bigger gun) and the
 ## scaled weapon grows around the grip: the muzzle is the scaled distance from the grip to the tip further out. (Scaling the whole reach, as before, moved the hands by 0.5 m for a pistol drawn 2x.)
+const MAX_SUPPORT_HOLD := 0.6                                       ## metres from the rifle pivot to the support hand's grip: about what the arm reaches (the carbine's is 0.60)
+
+
 static func _reach(id: StringName, sc: Vector3) -> float:
 	var sp := spec(id)
 	var gz := float((sp["gr"] as Vector3).z)
-	return (float(sp["reach"]) - gz) + gz * sc.z
+	var r := (float(sp["reach"]) - gz) + gz * sc.z
+	return minf(r, float((sp["gl"] as Vector3).z) * sc.z + MAX_SUPPORT_HOLD)           # a long weapon (the rail rifle) is pulled back so that the support hand is no further out than the arm reaches
 
 
 ## How far the muzzle node moves BACK along the rifle for this weapon (a pistol's muzzle is nearer the body than the carbine's). `sc` = the scale the mesh is drawn with (the hand keeps its hold distance,

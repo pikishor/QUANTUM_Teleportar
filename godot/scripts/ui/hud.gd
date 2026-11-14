@@ -1604,7 +1604,7 @@ func _draw_hud_body() -> void:
 			_draw_hurt_direction(c, p, vp, s, 1.0 - since_hurt / MARKER_TIME)
 		if playing and veh == null:
 			_draw_threat_edges(c, vp, s)
-	if playing and veh == null and p != null:
+	if playing and veh == null and p != null and not touch_ui_on():                       # (on a phone the touch layer draws it, under the buttons)
 		ScopeView.draw_mask(c, p, vp, s)                       # wave 114 critic: a scoped weapon's aimed view is a lens (the surround is drawn first: the bars and plates stay on top)
 	# top centre, one compact stack: the bars on a plate, then ONE priority line (the active / offered contract, else the core objective) and its extras.
 	var top := insv.x + 6.0 * s
@@ -3132,6 +3132,8 @@ func _draw_alien_boss(c: Control, vp: Vector2, s: float, font: Font, y: float) -
 
 
 func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+	if touch != null and touch.wheel.is_open and touch.wheel.kind == &"weapon":
+		return y                                           # wave 114 critic: the weapon wheel's title box covers the middle of the objective line: the line waits until the wheel closes (a second or two)
 	y = _draw_alien_boss(c, vp, s, font, y)
 	var k := _contracts()
 	var camp := _camp_text != "" and _campaign() != null

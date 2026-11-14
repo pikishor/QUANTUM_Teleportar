@@ -70,6 +70,8 @@ const ERROR_ROWS := 9               ## newest error lines shown in the panel
 
 var more_open := false              ## the collapsed secondary cluster (ALT, MELEE, THROW, CROUCH, GADGET, CALL CAR, ally orders) is shown
 var wheel := RadialWheel.new()      ## the ABILITY / WEAPON radial wheel
+const SCRIM := 0.62                                 ## alpha of the dark scrim behind an open wheel ...
+const SCRIM_WEAPON := 0.86                          ## ... and behind the weapon wheel, whose title box cuts the objective line in half (wave 114 critic): the line is all but gone
 var controls_on := false            ## the touch controls are drawn and active
 var touch_capable := false          ## the device has a touchscreen (controls_on while no controller is in use)
 var perf_on := false                ## the perf readout is drawn (always with the controls, or with --perf)
@@ -653,7 +655,7 @@ func _weapon_face(c: Control, font: Font, centre: Vector2, r: float, s: float, l
 ## The radial wheel: a faint disc behind, one button sprite per item (name or weapon silhouette), the picked wedge bright.
 func _draw_wheel(c: Control, font: Font, s: float) -> void:
 	var n := wheel.items.size()
-	c.draw_rect(Rect2(Vector2.ZERO, _vp_size()), Color(0.0, 0.02, 0.04, 0.86 if wheel.kind == &"weapon" else 0.62))             # a scrim: the buttons and plates under the wheel step back instead of showing through the discs (the weapon wheel's title box covers the middle of the objective line: wave 114 critic, the line is all but gone behind it)
+	c.draw_rect(Rect2(Vector2.ZERO, _vp_size()), Color(0.0, 0.02, 0.04, SCRIM_WEAPON if wheel.kind == &"weapon" else SCRIM))             # a scrim: the buttons and plates under the wheel step back instead of showing through the discs (the weapon wheel's title box covers the middle of the objective line: wave 114 critic, the line is all but gone behind it)
 	var ring := RadialWheel.RADIUS * s
 	c.draw_arc(wheel.centre, ring, 0.0, TAU, 64, Color(UiUtil.CYAN, 0.16), 3.0 * s, false)  # the track the discs sit on, and the thumb's own dot in the middle
 	c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(wheel.centre - Vector2.ONE * 30.0 * s, Vector2.ONE * 60.0 * s), false, Color(UiUtil.CYAN, 0.22))
@@ -866,6 +868,7 @@ func _draw_ui_body() -> void:
 		_draw_report(c, font, s)
 	if not controls_on or Game.state != &"play":
 		return
+	ScopeView.draw_mask(c, Game.player, size, s)             # wave 114 critic: the scope's surround is drawn UNDER the buttons (this canvas is below the HUD's): FIRE and RELOAD stay bright through the lens
 	# move stick: a hint ring while idle, base and thumb while a finger is down
 	if _stick_id == -1:
 		c.draw_arc(Vector2(size.x - 190 * s - _insets().y if UiSettings.s_left_hand else 190 * s + _insets().x, size.y - 170 * s - UiUtil.insets_v(size).y), STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 2.0 * s, false)

@@ -81,6 +81,7 @@ var _handling := WeaponHandling.new()           ## part motion of the weapon in 
 var _wp_mat: Material                          ## the material of the weapon in the hand: the hero's own copy of the kit's PBR material (moving parts, glow), or the old vertex-colour one
 const WEAPON_LOOK_SCALE := Vector3(1.4, 1.4, 1.12)
 static var carry_spread := 0.6                  ## radians the carried weapon swings further out at low ready and at the hip (the camera is on the right: a weapon pointing along the line of sight is a stub; see CharacterRig.carry_spread)
+static var aim_show := Vector2(0.06, 0.05)             ## metres the aimed weapon is moved out and up in the hero's hands: it clears his own shoulder plate from the shoulder camera (see CharacterRig.aim_show)
 ## Heavy weapons are drawn bigger still (director review 5, #2: the rocket launcher read as a 20 cm stub from behind the hero): a launcher, minigun, LMG, anti-materiel rifle, flamethrower
 ## and the big quantum emitters get this extra factor on thickness and length, so a heavy gun reads as a heavy gun at the 20 % of the frame the hero fills.
 const HEAVY_LOOK_SCALE := Vector3(1.3, 1.3, 1.2)
@@ -308,6 +309,7 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		rig.flinch_dir = _fdir * minf(1.0, _flinch * 3.0)
 		rig.ready = _ready_w
 		rig.carry_spread = carry_spread
+		rig.aim_show = aim_show
 		rig.reload = reload_k
 		rig.reload_tilt = (float(WeaponDefs.TILT.get(p.weapon.current, 1.0)) * (HeroAnimTuning.cls("reload_tilt_mul", p.weapon.current) if polish != null else 1.0)) if p.weapon != null else 1.0
 		rig.dead = e

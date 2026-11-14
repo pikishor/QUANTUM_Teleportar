@@ -1,13 +1,14 @@
 extends RefCounted
 ## Regression tests of the wave 114 PLAY critic (weapons in hand and the weapon screens), in the REAL game scene. Every check here failed on the tree the critic measured (see docs/sprint/progress/w114-critic-play.md):
 ##   SOUND   the 56 weapons of the throw kind (grenades, mines, strike beacons, launchers, pods) played the QUANTUM BLINK or another weapon's recording and the 7 charge weapons (lance, beam and rail
-##           rifles, bows) the ENTANGLE hum and the overcharge zap: none of them used the sound sets of wave 114 (WeaponAudio.fire ran for hitscan guns only).
+##           rifles, bows) the ENTANGLE hum and the overcharge zap: none of them used the sound sets of wave 114 (WeaponAudio.fire ran for hitscan guns only). The ALT-FIRE of every weapon
+##           ended on the same ENTANGLE blip (a grenade launcher under the barrel, a scope switch, a vent) and a spin sweep or a shove at nothing had no other sound.
 ##   HUD     the kill / pickup feed hung from the top right across the centred objective line and the toast (23 / 19 % of the line at 844x390 with no wanted stars, 44 / 30 % at 1280x720).
 ##   REVEAL  a crate opened in a fight dimmed the whole screen and put a 560 x 366 card in the middle of the view for 3.4 s while enemies shot (the reveal never pauses).
 ##   BURST   the interval of a burst weapon (burst pistol, bullpup, tempo, double tap, triple tap, pulse rifle ...) was counted twice (the last round of the burst added a second interval): 10 weapons fired at
 ##           half the rate and half the damage per second their card shows (measured 240 rpm against 429 shown for the burst pistol).
 ##   AMMO    PlayerWeapon._auto_swap (dry with nothing in reserve: the best weapon that still shoots, toast OUT OF AMMO) was written in wave 85 and never called: the trigger clicked for ever.
-## Run: tools/test.sh tests/test_play_critic_w114.gd   (W114_ONLY=sound,... runs sections)
+## Run: tools/test.sh tests/test_play_critic_w114.gd (sound, ammo, burst; the screens are in test_play_critic_w114_ui.gd); W114_ONLY=sound,hud,... runs the sections you name
 
 const TIMEOUT_SECONDS := 140.0
 const DT := 1.0 / 60.0
@@ -34,10 +35,16 @@ func _equip(id: StringName) -> void:
 
 
 func run(host: Node) -> void:
-	_host = host
+	var sections := PackedStringArray(["sound", "ammo", "burst"])                     # the screens (hud, touch, reveal) run in test_play_critic_w114_ui.gd: one file would need more than a slow runner's 150 s
 	var only := OS.get_environment("W114_ONLY")
 	if only != "":
-		_only = only.split(",", false)
+		sections = only.split(",", false)
+	await run_sections(host, sections)
+
+
+func run_sections(host: Node, sections: PackedStringArray) -> void:
+	_host = host
+	_only = sections
 	for f in ["user://progress.cfg", "user://save.cfg", "user://save.cfg.bak", "user://map.cfg"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	WeaponDefs.reset_unlocked()
@@ -171,6 +178,29 @@ func _sound() -> void:
 		_w.tick(DT, false, false, true, false)
 		_w.tick(DT, false, false, true, false)
 		TestLib.check(_w.shots_fired > f0 and WeaponAudio.last_body == &"shot_v3_bow", "a fully drawn bow plays the bow, not the plasma zap (%s)" % WeaponAudio.last_body)
+	# the alt-fire of a weapon sounds like what it does (an underbarrel round, a switch click, a vent hiss, a swing of the blade): no ENTANGLE blip after it, and a swing at nothing is heard
+	var alt_blip: Array[String] = []
+	var alt_silent: Array[String] = []
+	var alt_fired := 0
+	for id: StringName in WeaponDefs.all_ids():
+		var alt_kind := String(WeaponDefs.alt_of(id)["kind"])
+		if not ["zoom", "brace", "mode", "surge", "heavy", "vent", "ub_nade", "spin", "shove", "quick", "cluster"].has(alt_kind):        # (the kinds that need an enemy or an aim point are not here)
+			continue
+		_equip(id)
+		Sfx._last_start.clear()
+		Sfx.last_played = &""
+		if not _w.alt_fire(false):
+			continue
+		alt_fired += 1
+		if [&"link", &"entangle_link"].has(Sfx.last_played):                       # (the dedicated ability sound is laid under the old cue)
+			alt_blip.append("%s (%s)" % [id, alt_kind])
+		elif Sfx.last_played == &"":
+			alt_silent.append("%s (%s)" % [id, alt_kind])
+		_w.tick(6.0, false, false, false, false)
+		_w._clear_grenades()
+	TestLib.check(alt_fired >= 100, "%d alt-fires of eleven kinds went off in the scene" % alt_fired)
+	TestLib.check(alt_blip.is_empty(), "no alt-fire ends on the ENTANGLE blip (%d do: %s)" % [alt_blip.size(), ", ".join(alt_blip.slice(0, 5))])
+	TestLib.check(alt_silent.is_empty(), "every alt-fire makes a sound, a spin sweep or a shove at nothing too (%d silent: %s)" % [alt_silent.size(), ", ".join(alt_silent.slice(0, 5))])
 	Sfx.muted = true
 
 

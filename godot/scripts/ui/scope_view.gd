@@ -18,10 +18,10 @@ const SURROUND := 0.84                ## alpha of the dark surround at full zoom
 static func amount(p: Object) -> float:
 	if p == null:
 		return 0.0
-	var rig: Object = p.get("camera_rig")
-	if rig == null or float(rig.get("ads_fov")) > SCOPED_FOV or p.get("vehicle") != null:
+	var rig := p.get("camera_rig") as CameraRig                                 # (a stub player of a test has none: no scope)
+	if rig == null or rig.ads_fov > SCOPED_FOV or p.get("vehicle") != null:
 		return 0.0
-	return smoothstep(0.45, 0.9, float(rig.call(&"get_ads_amount")))
+	return smoothstep(0.45, 0.9, rig.get_ads_amount())
 
 
 ## The lens centre and radius for a screen.
