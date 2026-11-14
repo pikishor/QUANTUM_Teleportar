@@ -1,6 +1,6 @@
 # w114-weapons-art (running)
 
-agent id a253933c3d36a6bfc, 611 events, first activity 2026-11-14T12:49:06.241Z, last activity 2026-11-14T14:49:43.846Z
+agent id a253933c3d36a6bfc, 689 events, first activity 2026-11-14T12:49:06.241Z, last activity 2026-11-14T15:04:42.689Z
 
 ## Last notes of the agent
 
@@ -9,34 +9,10 @@ agent id a253933c3d36a6bfc, 611 events, first activity 2026-11-14T12:49:06.241Z,
 - 13:16:20 Pipeline validated end to end (GLB quantized import, texture arrays, UV channels). Now the parts library. First the shared helpers and firearm parts.
 - 14:01:42 Now the dedicated test file for the kit models.
 - 14:43:20 Now the documentation sections (ARCHITECTURE.md and HANDOFF.md).
+- 14:54:57 Let me look at the first and last batches to confirm the final look before writing the sheets.
 
 ## Recent steps (last 40)
 
-- 14:13:55 Palette, camo and bow tweaks; rebuild all; render the final-style lineups
-- 14:13:56 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/lin/c2.png
-- 14:16:14 Darken the polymer tints, rebuild and re-render lineups
-- 14:16:15 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/lin/c0.png
-- 14:18:38 Run the touched and neighbouring tests
-- 14:22:56 Read the failing open-models test section
-- 14:23:02 Split the stub mesh out of mesh() for the fallback tests
-- 14:23:10 Point the open-models test at the stub meshes and rerun both tests
-- 14:24:01 Make the before/after sheet and the six lineup JPGs
-- 14:24:01 /home/user/QUANTUM_Teleportar/docs/shots/round6/weapon_kit_before_after.jpg
-- 14:24:47 Give the starter weapons classic wood-and-steel forms and rebuild them
-- 14:24:48 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/ba/x.png
-- 14:25:19 In-hand frame bot for the carbine and the minigun at LOW
-- 14:27:42 In-hand frame bot for the rail rifle and the pistol at MED
-- 14:32:00 Build the in-hand firing and reload contact sheet
-- 14:32:01 /home/user/QUANTUM_Teleportar/docs/shots/round6/weapon_kit_in_hand.jpg
-- 14:32:11 Crop the weapon area of two firing frames at full resolution
-- 14:32:12 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/ih/crop.png
-- 14:32:28 Raise the kit look scale a little and render the enemy-held weapon frames
-- 14:32:28 /home/user/QUANTUM_Teleportar/docs/shots/round6/weapon_kit_enemies.jpg
-- 14:33:08 Check the working tree changes and ignore rules
-- 14:33:18 Compute the size and memory report of the weapon kit assets
-- 14:33:29 Run the performance gate on LOW, MED and HIGH
-- 14:40:58 A/B the MED perf with the weapon kit switched off
-- 14:43:19 Find where to add the documentation sections
 - 14:43:57 Write the ARCHITECTURE.md and HANDOFF.md sections
 - 14:44:05 Render the starter weapons large for a critical look
 - 14:44:06 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/ba/st.png
@@ -52,6 +28,31 @@ agent id a253933c3d36a6bfc, 611 events, first activity 2026-11-14T12:49:06.241Z,
 - 14:49:07 Count ok lines and find the verdict of the weapon model test
 - 14:49:39 Inspect errors logged during the live part of the test
 - 14:49:43 Run the other touched weapon tests and look for preview tests
+- 14:51:16 Find tests that touch the edited scripts
+- 14:51:19 Run enemy look, UI kit and hero tests touching edited scripts
+- 14:53:34 Read the lineup script usage and list scratch work dir
+- 14:53:37 Check existing contact sheet sizes and scratch lineup files
+- 14:53:43 Render the six final lineup batches
+- 14:54:58 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/fin/n0.png
+- 14:54:58 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/fin/n3.png
+- 14:55:02 Write the six lineup contact sheets as jpg quality 80
+- 14:55:09 Recall how in-hand and enemy frames were captured
+- 14:55:12 /home/user/QUANTUM_Teleportar/docs/shots/round6/weapon_kit_in_hand.jpg
+- 14:55:12 /home/user/QUANTUM_Teleportar/docs/shots/round6/weapon_kit_enemies.jpg
+- 14:55:22 List bots that spawn enemies near the hero
+- 14:55:27 Read the enemy look bot to reuse its spawn approach
+- 14:55:30 Read the rest of the enemy look bot view syntax
+- 14:55:36 Find sample OUT_VIEWS usage from the enemy look wave
+- 14:55:49 Look for how the enemy look wave ran its bot
+- 14:55:53 Find EASTFIELD position and enemy look wave notes
+- 14:55:57 Find site ids for the enemy view syntax
+- 14:55:59 Find the EASTFIELD runway position
+- 14:56:01 Read airport coordinates for the runway location
+- 14:56:06 See which weapons the roster enemies hold
+- 14:56:23 Capture enemy-held weapon frames in the real game at phone resolution
+- 15:04:32 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/fe/q0_000.png
+- 15:04:32 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/fe/q1_002.png
+- 15:04:42 Recapture enemy-held frames with enemies closer to the camera
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
