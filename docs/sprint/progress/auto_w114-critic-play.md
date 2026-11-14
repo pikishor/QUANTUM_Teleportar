@@ -1,6 +1,6 @@
 # w114-critic-play (running)
 
-agent id a10a62065226352fe, 859 events, first activity 2026-11-14T18:01:39.643Z, last activity 2026-11-14T19:09:33.193Z
+agent id a10a62065226352fe, 888 events, first activity 2026-11-14T18:01:39.643Z, last activity 2026-11-14T19:10:43.104Z
 
 ## Last notes of the agent
 
@@ -9,14 +9,6 @@ agent id a10a62065226352fe, 859 events, first activity 2026-11-14T18:01:39.643Z,
 
 ## Recent steps (last 40)
 
-- 19:04:06 Check regression batch progress
-- 19:04:14 Check whether weapon switching saves to disk
-- 19:04:19 See where weapon picture pages are loaded and warmed
-- 19:04:27 See which tests are running in the batch
-- 19:04:29 Read partial logs of finished tests in the batch
-- 19:04:31 Collect RESULT and FAIL lines of the finished tests
-- 19:04:35 Read the failing rocket facade check
-- 19:04:39 List the most recently modified tracked files to see what the other critic touched
 - 19:04:44 Wait for the regression batch to finish
 - 19:04:47 Review the diff of crate_reveal and hud_feed
 - 19:04:52 Review my hud.gd hunk and the reveal header
@@ -49,6 +41,14 @@ agent id a10a62065226352fe, 859 events, first activity 2026-11-14T18:01:39.643Z,
 - 19:09:23 Peek at non-pass results and running tests
 - 19:09:30 Wait for the regression batch (ninth arm)
 - 19:09:33 Check batch status again
+- 19:09:44 Wait for the regression batch (tenth arm)
+- 19:09:47 /home/user/QUANTUM_Teleportar/docs/shots/round6/weapons_ui_cards.jpg
+- 19:09:52 Wait for the regression batch (eleventh arm)
+- 19:10:08 /home/user/QUANTUM_Teleportar/godot/tests/dev_w114_latency.gd
+- 19:10:10 Measure trigger latency of every weapon
+- 19:10:37 Wait for the regression batch (twelfth arm)
+- 19:10:39 Peek at batch status
+- 19:10:42 Check that the critic tests passed in the batch
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -66,3 +66,4 @@ agent id a10a62065226352fe, 859 events, first activity 2026-11-14T18:01:39.643Z,
 - godot/tests/bot_w114_reveal.gd
 - godot/tests/bot_w114_feed.gd
 - godot/tests/dev_w114_rate.gd
+- godot/tests/dev_w114_latency.gd

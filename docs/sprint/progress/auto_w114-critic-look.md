@@ -1,6 +1,6 @@
 # w114-critic-look (running)
 
-agent id a5eed8349be306d38, 522 events, first activity 2026-11-14T18:01:39.639Z, last activity 2026-11-14T19:09:32.709Z
+agent id a5eed8349be306d38, 526 events, first activity 2026-11-14T18:01:39.639Z, last activity 2026-11-14T19:09:42.330Z
 
 ## Last notes of the agent
 
@@ -8,8 +8,6 @@ agent id a5eed8349be306d38, 522 events, first activity 2026-11-14T18:01:39.639Z,
 
 ## Recent steps (last 40)
 
-- 18:48:37 Apply the UI and carry spread edits
-- 18:48:47 Make enemy weapons use the class-based scale
 - 18:48:52 Run the weapon display, combat feel and director tests
 - 18:50:39 Find the scoped aiming implementation and any reticle code
 - 18:50:41 Find how the weapon sets its ADS field of view
@@ -48,6 +46,8 @@ agent id a5eed8349be306d38, 522 events, first activity 2026-11-14T18:01:39.639Z,
 - 19:06:16 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/pics/shield_sheet.jpg
 - 19:06:34 Render in-hand frames in the night street
 - 19:09:32 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/hF/sheet1.jpg
+- 19:09:39 Find tests that touch the scale code
+- 19:09:42 Run the enemy look, weapon model and weapons tests
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
