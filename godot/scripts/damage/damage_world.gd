@@ -2,7 +2,7 @@ class_name DamageWorld
 extends Node
 ## DAMAGE EVERYWHERE, the hub (wave 113): one node in the main scene (scripts/main.gd) that owns the damage layers of people (FoeFx) and cars (CarFx), listens to the game and ticks them. It watches and
 ## reacts, it changes no enemy, car or weapon script:
-##   the hero's hits     Player.hit_confirmed + PlayerWeapon.last_shot (target, zone, hit point, direction) -> FoeFx.on_bullet for a person or a machine, CarFx.on_bullet for a car
+##   the hero's hits     Player.hit_confirmed + PlayerWeapon.last_shot (target, zone, hit point, direction) -> FoeFx.on_bullet for a person or a machine, CarFx.on_bullet for a car, FoeFx.on_civilian for a citizen
 ##   blasts              Game.exploded (the blast is about to hurt everyone: it is remembered for the deaths of this frame) and, one frame later, what the blast did (BlastTable.last) -> FoeFx.on_blast, CarFx.on_blast
 ##   deaths and statuses the `died` signal of every enemy, hooked by the 10 Hz tick; statuses of BlastOps are read from the blast entry
 ##   structure           StructureDamage.apply is called by BlastTable itself; this node only clears its memory on a new game
@@ -16,6 +16,7 @@ var cars: CarFx
 var last_blast: Dictionary = {}          ## {pos, radius, frame, id}: the latest blast, valid for its own physics frame and the next one
 var blasts_seen := 0
 var hits_seen := 0
+var civ_hits_seen := 0                   ## the hero's rounds that hit a citizen (the reaction is FoeFx.on_civilian)
 var fires_started := 0                   ## things set alight by a fire field (counter for tests)
 var civ_effects := 0                     ## element effects on the citizens a blast killed
 var _acc := 0.0
@@ -89,6 +90,12 @@ func _on_hit(kill: bool, crit: bool) -> void:
 	var w: PlayerWeapon = p.weapon
 	var ls: Dictionary = w.last_shot
 	if ls.is_empty() or Engine.get_physics_frames() - int(ls.get("frame", -100)) > 4:
+		return
+	if bool(ls.get("civ", false)):                                  # a citizen of the street: a reaction at the place of the hit
+		var hp: Variant = ls.get("hit")
+		if hp is Vector3:
+			civ_hits_seen += 1
+			foes.on_civilian(hp as Vector3, ls.get("dir", Vector3.FORWARD) as Vector3, crit, kill)
 		return
 	var t: Variant = ls.get("target")
 	if not (t is Node3D) or not is_instance_valid(t):

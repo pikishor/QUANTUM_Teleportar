@@ -245,6 +245,7 @@ func _begin_scene(name: StringName) -> void:
 			if _car != null:
 				_car.hp = _car.max_hp
 				_car.visual.repair()
+				_car.visual.set_paint(Color(0.72, 0.1, 0.13))      # the same paint in every capture: before and after frames compare
 			_plan = [
 				{"t": 0.2, "act": "cam_car", "off": Vector3(4.6, 1.5, 3.4), "look": Vector3(0.0, 0.8, 0.0)},
 				{"t": 0.3, "act": "weapon", "id": &"carbine"},
@@ -309,6 +310,8 @@ func _begin_scene(name: StringName) -> void:
 		&"blast":
 			var vm2 := Game.vehicles as VehicleManager
 			_car = vm2.spawn_parked(&"sedan", at + _right() * 6.0, _yaw + 0.3)
+			if _car != null:
+				_car.visual.set_paint(Color(0.72, 0.1, 0.13))
 			var car2 := vm2.spawn_parked(&"taxi", at + _right() * -7.0 + _dir() * 3.0, _yaw + PI - 0.4)
 			if car2 != null:
 				car2.hp = car2.max_hp
@@ -318,7 +321,7 @@ func _begin_scene(name: StringName) -> void:
 				if f != null:
 					_calm(f)
 			_plan = [
-				{"t": 0.1, "act": "cam_spot", "dist": 9.0, "rel": Vector3(7.0, 3.2, -10.0), "look": Vector3(0.0, 1.0, 1.0), "fov": 72.0},
+				{"t": 0.1, "act": "cam_spot", "dist": 9.0, "rel": Vector3(-2.0, 7.5, -12.0), "look": Vector3(0.0, 0.5, 1.0), "fov": 66.0},
 				{"t": 0.4, "act": "blast", "id": &"st_air_s", "off": Vector3(0.0, 0.3, 0.0)},
 				{"t": 0.6, "act": "shot", "label": "air_0"},
 				{"t": 1.2, "act": "shot", "label": "air_1"},

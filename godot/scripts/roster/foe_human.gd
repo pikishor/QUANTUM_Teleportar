@@ -16,7 +16,9 @@ const FAR_RANGE := 46.0
 const HYST := 3.0
 const BASE_SCALE := 1.06                  ## the roster humans are a little larger than a person (readability, a hostile silhouette)
 
-static var _protos := {}                 ## "look/weapon" -> {root, near, mid, far, info}
+static var _protos := {}                 ## "look/weapon" -> {root, near, mid, far, info}: the mid and far meshes are built one per frame AFTER the first body of a look exists (no 0.9 s hitch)
+static var _pending: Array = []          ## [[key, "mid" | "far", look, variant, weapon], ...]
+static var _pump_frame := -1
 static var builds := 0                   ## full builds (tests: a second enemy of a look must not rebuild)
 
 
@@ -48,10 +50,10 @@ static func build(look: StringName, variant := 0, weapon: StringName = &"") -> D
 		builds += 1
 		var body0 := r["body"] as MeshInstance3D
 		var near_mesh: Mesh = body0.mesh
-		var mid_mesh := _lod_mesh(look, variant, wid, MID, 1)
-		var far_mesh := _lod_mesh(look, variant, wid, FAR, 2)
 		(r["root"] as Node).name = "FoeProto"
-		_protos[key] = {"root": r["root"], "near": near_mesh, "mid": mid_mesh, "far": far_mesh, "info": r["info"]}
+		_protos[key] = {"root": r["root"], "near": near_mesh, "mid": null, "far": null, "info": r["info"]}
+		_pending.append([key, "mid", look, variant, wid])
+		_pending.append([key, "far", look, variant, wid])
 	var pr: Dictionary = _protos[key]
 	var root := (pr["root"] as Node3D).duplicate() as Node3D
 	root.name = "FoeModel"
@@ -73,10 +75,38 @@ static func build(look: StringName, variant := 0, weapon: StringName = &"") -> D
 	var hanim := HumanoidAnim.new()
 	var mount := FoeArms.setup(rig, hanim, wid)
 	rig.reflection = null
+	rig.set_shadow(false)                                  # the shadow-only proxy of the rig stays off until the body is near (RosterHuman.update: MED / HIGH, within the tier's shadow range)
 	var spec := FoeLooks.data(look)
 	root.scale = (spec["scale"] as Vector3) * BASE_SCALE
 	return {"root": root, "rig": rig, "loco": loco, "hanim": hanim, "body": body, "material": mat, "info": pr["info"], "look": look, "variant": variant, "weapon": wid,
-			"near": pr["near"], "mid": pr["mid"], "far": pr["far"], "mount": mount, "lod": 0, "_last": Vector3.INF, "hp": 1.0, "tele": 0.0}
+			"proto": pr, "key": key, "mount": mount, "lod": 0, "_last": Vector3.INF, "hp": 1.0, "tele": 0.0}
+
+
+## The mesh of a LOD level ("near", "mid", "far") of a body; the mid and far meshes of a look are built by pump() or by ensure_lods().
+static func mesh_of(h: Dictionary, which: String) -> Mesh:
+	return (h["proto"] as Dictionary)[which]
+
+
+## Builds ONE pending LOD mesh per frame (call it every frame while enemies exist).
+static func pump() -> void:
+	var f := Engine.get_process_frames()
+	if f == _pump_frame or _pending.is_empty():
+		return
+	_pump_frame = f
+	var job: Array = _pending.pop_front()
+	var pr: Dictionary = _protos.get(job[0], {})
+	if pr.is_empty() or pr[job[1]] != null:
+		return
+	var mid: bool = job[1] == "mid"
+	pr[job[1]] = _lod_mesh(job[2], job[3], job[4], MID if mid else FAR, 1 if mid else 2)
+
+
+## Builds every pending LOD mesh now (tests, look-dev, a warm-up).
+static func ensure_lods() -> void:
+	_pump_frame = -1
+	while not _pending.is_empty():
+		_pump_frame = -1
+		pump()
 
 
 static func _find_body(root: Node) -> MeshInstance3D:
@@ -114,7 +144,8 @@ static func set_lod(h: Dictionary, dist: float) -> bool:
 		want = 0
 	if want == cur:
 		return false
-	var m: Mesh = [h["near"], h["mid"], h["far"]][want]
+	var pr: Dictionary = h["proto"]
+	var m: Mesh = [pr["near"], pr["mid"], pr["far"]][want]
 	if m == null:
 		return false
 	(h["body"] as MeshInstance3D).mesh = m

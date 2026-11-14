@@ -37,6 +37,44 @@ static func attach(c: RosterFoe, look: StringName, spec: Dictionary) -> bool:
 	return true
 
 
+const FOE_DIR := "res://assets/models/foes/"
+static var _scenes := {}
+static var _looped := {}
+
+
+## A creature of tools/blender/model_foes.py (assets/models/foes/<id>.glb: one skinned mesh, clips idle walk run attack hit dead jump) on the alien shader (vertex colour paint, alpha = glow).
+static func attach_creature(c: RosterFoe, gid: StringName, spec: Dictionary) -> bool:
+	var path := FOE_DIR + String(gid) + ".glb"
+	if not _scenes.has(gid):
+		_scenes[gid] = load(path) as PackedScene if ResourceLoader.exists(path) else null
+	var ps: PackedScene = _scenes[gid]
+	if ps == null:
+		return false
+	var root := ps.instantiate() as Node3D
+	c.mat = FoeLooks.creature_material(spec["glow"], 0.5)
+	c.mat.set_shader_parameter(&"body_h", maxf(float(spec.get("hy", 1.6)), float(spec.get("cy", 1.0)) * 1.8) * c.vis)
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		mi.material_override = c.mat
+		mi.extra_cull_margin = 2.0
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var ap: AnimationPlayer = null
+	for n in root.find_children("*", "AnimationPlayer", true, false):
+		ap = n as AnimationPlayer
+	if ap != null:
+		for clip: StringName in [&"idle", &"walk", &"run"]:                      # the looping clips (the imported clips are shared by every instance: set once)
+			if ap.has_animation(clip) and not _looped.has(StringName("%s/%s" % [gid, clip])):
+				ap.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+				_looped[StringName("%s/%s" % [gid, clip])] = true
+		if ap.has_animation(&"idle"):
+			ap.play(&"idle")
+	c.model = root
+	c.add_child(root)
+	c.ap = ap
+	c.mesh = null
+	return true
+
+
 static func _hero_local(c: RosterFoe) -> Vector2:
 	var hp := c.hero_pos()
 	if not hp.is_finite():
@@ -49,6 +87,7 @@ static func update(c: RosterFoe, dt: float) -> void:
 	var h := c.hum
 	if h.is_empty() or dt <= 0.0:
 		return
+	FoeHuman.pump()
 	var root := h["root"] as Node3D
 	var sc: Vector3 = h["scale3"]
 	var s := FoeHuman.BASE_SCALE * c.vis
@@ -57,6 +96,10 @@ static func update(c: RosterFoe, dt: float) -> void:
 	var cam := c.get_viewport().get_camera_3d() if c.is_inside_tree() else null
 	var dist := cam.global_position.distance_to(c.global_position) if cam != null else 0.0
 	FoeHuman.set_lod(h, dist)
+	var sh_on := Game.quality >= 1 and dist < PerfTiers.shadow_range() + (4.0 if bool(h.get("shadow", false)) else 0.0) and not c.dead
+	if sh_on != bool(h.get("shadow", false)):
+		h["shadow"] = sh_on
+		(h["rig"] as CharacterRig).set_shadow(sh_on)
 	var hit_k := float(h["hit_k"])
 	if hit_k > 0.0:
 		hit_k = maxf(0.0, hit_k - dt * 8.0)

@@ -111,9 +111,11 @@ void fragment() {
 	vec3 refl = env * (fres * 1.6 * shine + metal * 0.40 * (1.0 - rough * 0.6)) * mix(vec3(1.0), flake_tint.rgb * base * 2.0, metal) * mix(1.0, 0.62, clamp(lum * 1.3, 0.0, 1.0));      // a bright paint reflects less in relation to itself: no white wash by day
 	EMISSION = (base * glow + refl) * ao;
 	if (!FRONT_FACING) {                       // the inside of the shell (an opened hood, a wheel arch): a dark liner, not lit paint
-		ALBEDO = vec3(0.012, 0.012, 0.014);
-		EMISSION = vec3(0.0);
-		METALLIC = 0.0;
-		ROUGHNESS = 0.9;
+		float rib = smoothstep(0.35, 0.65, 0.5 + 0.5 * sin(v_obj.x * 26.0 + v_obj.z * 3.0));      // stamped ribs: the underside of a hood is steel with a pattern
+		vec3 steel = mix(vec3(0.09, 0.095, 0.105), vec3(0.17, 0.175, 0.19), rib);
+		ALBEDO = mix(steel, base * 0.3, 0.3);                                    // dark steel, a hint of the body colour: it must read as a panel, not as a black hole
+		EMISSION = vec3(0.03, 0.034, 0.042) * (0.6 + 0.4 * rib) + base * 0.03;
+		METALLIC = 0.3;
+		ROUGHNESS = 0.6;
 	}
 }

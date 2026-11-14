@@ -402,6 +402,30 @@ func _people() -> void:
 	_advance(3.0)
 	Game.quality = 1
 	em.clear()
+	_citizen_hits(dw)
+
+
+## A round into a citizen reaches the damage world through the weapon's own record (`last_shot.civ`) and the place of the hit picks the reaction; a burst of rounds is capped by the tokens.
+func _citizen_hits(dw: DamageWorld) -> void:
+	var foes := dw.foes
+	var w := (Game.player as Player).weapon
+	var at := ORIGIN + Vector3(4.0, 1.5, -6.0)
+	var gy := Dmg.ground_y(at)
+	Dmg.reset_stats()
+	foes._tokens = 6.0
+	var seen0 := dw.civ_hits_seen
+	for zone in [[1.6, true], [1.1, false], [0.3, false]]:
+		w.last_shot = {"civ": true, "hit": Vector3(at.x, gy + float(zone[0]), at.z), "dir": Vector3(0.0, 0.0, 1.0), "target": null, "zone": &"", "frame": Engine.get_physics_frames()}
+		dw._on_hit(false, bool(zone[1]))
+	TestLib.check(dw.civ_hits_seen == seen0 + 3 and Dmg.count(&"civ_hit") == 3, "three rounds into citizens each get a reaction (%d)" % Dmg.count(&"civ_hit"))
+	TestLib.check(Dmg.count(&"civ_hit_head") == 1 and Dmg.count(&"civ_hit_body") == 1 and Dmg.count(&"civ_hit_legs") == 1, "...by the place of the hit: head, body, legs (%s)" % str(Dmg.stats))
+	Dmg.reset_stats()
+	foes._tokens = float(Dmg.cap(&"splat_tokens"))
+	for i in 30:
+		w.last_shot = {"civ": true, "hit": Vector3(at.x, gy + 1.2, at.z), "dir": Vector3(0.0, 0.0, 1.0), "target": null, "zone": &"", "frame": Engine.get_physics_frames()}
+		dw._on_hit(false, false)
+	TestLib.check(Dmg.count(&"civ_hit") <= Dmg.cap(&"splat_tokens"), "a burst of 30 rounds is a handful of puffs (%d, cap %d)" % [Dmg.count(&"civ_hit"), Dmg.cap(&"splat_tokens")])
+	w.last_shot = {}
 
 
 func LIMP_TIME() -> float:

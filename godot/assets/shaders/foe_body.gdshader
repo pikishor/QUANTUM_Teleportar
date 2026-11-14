@@ -33,7 +33,7 @@ uniform float pulse : hint_range(0.0, 1.0) = 0.0;
 uniform float beat = 1.0;
 uniform float rage : hint_range(0.0, 1.0) = 0.0;
 // per instance (set through MeshInstance3D.set_instance_shader_parameter: the mid and far meshes and their material are shared by every enemy of a look)
-instance uniform float far_k : hint_range(0.0, 1.0) = 0.0;       // readability at 20-80 m: a body-wide glow in the role colour, strongest at grazing angles
+instance uniform float far_k : hint_range(0.0, 1.0) = 0.0;       // readability at 20-80 m: a thin edge glow in the accent colour (see the end of fragment())
 instance uniform float hit_k : hint_range(0.0, 1.0) = 0.0;       // white-hot flash of a hit
 instance uniform float hp_k : hint_range(0.0, 1.0) = 1.0;        // health 0..1: the pips
 instance uniform float tele : hint_range(0.0, 1.0) = 0.0;        // telegraph of a special attack 0..1
@@ -155,7 +155,8 @@ void fragment() {
 		rough = 0.4;
 		metal = 0.85;
 	} else if (k < 11.5) {
-		alb = cloth_g * (0.55 + 0.9 * nz);
+		float nz2 = hash13(floor(v_pos * 90.0));
+		alb = cloth_g * (0.8 + 0.4 * nz2) * (0.85 + 0.3 * nz);
 		rough = 1.0;
 		spec = 0.1;
 	} else if (k < 12.5) {
@@ -179,8 +180,10 @@ void fragment() {
 	alb = mix(alb, alb * 1.7 + vec3(0.05), edge * wear * plate);
 	alb *= (0.55 + 0.45 * ao);
 	float rim = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 3.0);
-	emis += glow_col * far_k * (0.14 + 0.9 * rim);
-	emis += vec3(1.0, 0.35, 0.25) * pulse * 0.45;
+	float ndv = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
+	float edge_l = pow(1.0 - ndv, 4.0);                                      // only the very silhouette: a limb is 10 px wide at 20 m, so a softer falloff would colour the whole limb
+	emis += trim * far_k * (0.002 + 0.14 * edge_l);                         // readability at distance: a faint rim light in the accent colour (a limb is only 4-8 px wide at 30 m, the silhouette pixels are all it has), never a body-wide wash
+	emis += vec3(1.0, 0.35, 0.25) * pulse * (0.03 + 0.22 * edge_l);         // the roster's wind-up flash: a warm rim light, the kit stays readable (the weapon flares through `tele`)
 	emis += glow_col * drop * 0.9;
 	emis += vec3(1.0, 0.95, 0.85) * hit_k * 0.9;
 	if (shield > 0.001) {

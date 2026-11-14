@@ -58,8 +58,9 @@ func _budgets() -> void:
 	if a["root"] != null and b["root"] != null and hero["root"] != null:
 		var ta = (a["material"] as ShaderMaterial).get_shader_parameter(&"skin_albedo")
 		var th = (hero["material"] as ShaderMaterial).get_shader_parameter(&"skin_albedo")
-		TestLib.check(ta != null and ta == th, "the skin texture is the hero's (no new texture memory)")
-		TestLib.check((a["material"] as ShaderMaterial).get_shader_parameter(&"trim_color") != null, "the visor colour is set")
+		var kit := (a["material"] as ShaderMaterial).shader.resource_path.ends_with("foe_body.gdshader")          # wave 113: the troopers wear the armour kit and its textureless shader
+		TestLib.check((ta != null and ta == th) or kit, "the skin texture is the hero's, or the body uses the textureless enemy shader (no new texture memory)")
+		TestLib.check((a["material"] as ShaderMaterial).get_shader_parameter(&"trim_color") != null or (kit and (a["material"] as ShaderMaterial).get_shader_parameter(&"glow_col") != null), "the visor colour is set")
 	for x: Dictionary in [a, b, hero, r]:
 		if x["root"] != null:
 			(x["root"] as Node).free()

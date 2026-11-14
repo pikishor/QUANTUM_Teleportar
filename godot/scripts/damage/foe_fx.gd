@@ -31,6 +31,7 @@ var _shields: Array[Node] = []                       ## shield troopers whose sh
 var flickers := 0
 var shatters := 0
 var arcs_made := 0
+var civ_reactions := 0                  ## hits on citizens that got a reaction at the place they were hit (counter for tests)
 
 
 func _init(w: Node) -> void:
@@ -377,6 +378,34 @@ func _dust_ring(en: Node3D) -> void:
 	var bf := BlastFx.instance
 	if is_instance_valid(bf):
 		bf.puff(en.global_position + Vector3(0.0, 0.15, 0.0), Vector3(0.0, 0.5, 0.0), 0.5, 1.5, 0.7, Color(0.6, 0.57, 0.52, 0.45), BlastFx.K_SMOKE, 0.0, 1.2)
+
+
+## A citizen was hit by the hero's round at `at`, flying along `dir`: the PLACE of the hit decides the reaction (the crowd is one MultiMesh without a hit animation, so the world shows it): a flash and
+## violet motes at the head, a puff of cloth at the body, dust kicked up at the feet. No fluid for people. Shares the splatter tokens, so a burst of rounds is a handful of puffs, never a pool.
+func on_civilian(at: Vector3, dir: Vector3, head: bool, kill: bool) -> void:
+	var bf := BlastFx.instance
+	if not is_instance_valid(bf) or not _token():
+		return
+	var gy := Dmg.ground_y(at)
+	var rel := at.y - gy
+	civ_reactions += 1
+	Dmg.bump(&"civ_hit")
+	var back := -dir.normalized() if dir.length() > 0.01 else Vector3.ZERO
+	if head:
+		Dmg.bump(&"civ_hit_head")
+		bf.puff(at, Vector3(0.0, 0.4, 0.0) + back * 0.4, 0.15, 0.6, 0.26, Color(0.95, 0.9, 1.0, 0.9), BlastFx.K_FLASH, 1.0, 0.0)
+		for i in (1 if Dmg.tier() == 0 else 2):
+			bf.puff(at, back * _rng.randf_range(0.8, 2.0) + Vector3(_rng.randf_range(-0.8, 0.8), _rng.randf_range(0.6, 1.6), _rng.randf_range(-0.8, 0.8)), 0.06, 0.16, 0.5, VIOLET, BlastFx.K_SPRAY, 0.4, 1.6)
+	elif rel < 0.55:
+		Dmg.bump(&"civ_hit_legs")
+		bf.puff(Vector3(at.x, gy + 0.08, at.z), Vector3(0.0, 0.7, 0.0) + back * 0.8, 0.3, 1.0, 0.7, Color(0.58, 0.54, 0.5, 0.5), BlastFx.K_SMOKE, 0.0, 1.0)
+	else:
+		Dmg.bump(&"civ_hit_body")
+		bf.puff(at, Vector3(0.0, 0.4, 0.0) + back * 0.7, 0.2, 0.7, 0.5, Color(0.82, 0.8, 0.86, 0.55), BlastFx.K_SMOKE, 0.0, 0.9)
+		if _rng.randf() < 0.6:
+			bf.puff(at, back * _rng.randf_range(0.8, 1.8) + Vector3(0.0, _rng.randf_range(0.4, 1.0), 0.0), 0.05, 0.14, 0.45, VIOLET, BlastFx.K_SPRAY, 0.3, 1.6)
+	if kill:
+		Dmg.bump(&"civ_hit_kill")
 
 
 func _token() -> bool:

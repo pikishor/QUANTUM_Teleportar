@@ -166,14 +166,17 @@ void fragment() {
 			alpha = max(max(cr * 0.7, pock * 0.85), max(rim * 0.1, halo * 0.8)) * fade * pop;
 		}
 	} else if (kind < 7.5) {
-		// ---- broken window: COLOR.rgb = the light of the room behind, COLOR.a = how much of the pane is gone ----
+		// ---- broken window: COLOR.rgb = the light of the room behind, COLOR.a = how much of the pane is gone. A dark opening with ragged glass teeth, a lamp glow low in the room, a bright rim of shards ----
 		float pane = 1.0 - smoothstep(0.9, 0.96, max(abs(p.x), abs(p.y)));
-		float jag = vn(vec2(a * 3.0 + seed * 20.0, r * 3.0 + seed * 5.0));
-		float Rh = 0.42 + 0.5 * glow + 0.2 * (jag - 0.5) + 0.1 * sin(a * 5.0 + seed * 6.28);
-		float gone = smoothstep(Rh + 0.06, Rh - 0.06, length(p * vec2(0.82, 1.0)));
+		float jag = vn(vec2(a * 2.5 + seed * 20.0, seed * 5.0));
+		float teeth = vn(vec2(a * 11.0 + seed * 37.0, 3.1 + seed));
+		float Rh = 0.4 + 0.5 * glow + 0.22 * (jag - 0.5) + 0.1 * sin(a * 5.0 + seed * 6.28) + 0.14 * (teeth - 0.5);
+		float dist = length(p * vec2(0.82, 1.0));
+		float gone = smoothstep(Rh + 0.025, Rh - 0.025, dist);
 		float lit_room = step(0.45, C.r);                                          // a warm room (the light of the room is the colour) or a dark one
-		vec3 room = mix(vec3(0.012, 0.016, 0.03), C * (0.28 + 0.4 * lit_room), (0.35 + 0.4 * lit_room) * smoothstep(1.1, 0.0, r) * (0.5 + 0.5 * h11(seed * 3.0 + 1.0)));
-		room += vec3(0.05, 0.06, 0.09) * (1.0 - smoothstep(0.0, 0.35, abs(p.x - (h11(seed * 7.0) - 0.5) * 0.8)));   // a curtain or a shelf edge in the dark
+		float lamp = smoothstep(0.6, 0.0, abs(p.x - (h11(seed * 7.0) - 0.5) * 0.9)) * smoothstep(-0.6, 0.5, p.y);      // the glow of a lamp, low in the room
+		vec3 room = vec3(0.008, 0.011, 0.022) + C * (0.1 + 0.3 * lit_room) * lamp * (0.55 + 0.45 * h11(seed * 3.0 + 1.0));
+		room += vec3(0.03, 0.035, 0.05) * (1.0 - smoothstep(0.0, 0.2, abs(p.x - (h11(seed * 5.0) - 0.5) * 0.7))) * smoothstep(0.7, 0.0, abs(p.y));   // a curtain or a shelf edge in the dark
 		float web = 0.0;
 		for (int i = 0; i < 7; i++) {
 			float fi = float(i);
@@ -183,12 +186,12 @@ void fragment() {
 			float lat = abs(dot(p, vec2(-dir.y, dir.x)) + 0.03 * sin(q * 14.0 + fi));
 			web = max(web, (1.0 - smoothstep(0.008, 0.026, lat)) * step(0.03, q) * (1.0 - smoothstep(0.7, 1.0, q)));
 		}
-		vec3 glass_col = vec3(0.74, 0.88, 0.98);
+		vec3 glass_col = vec3(0.6, 0.74, 0.84);
 		col = mix(glass_col, room, gone);
-		float edge = smoothstep(0.0, 0.1, gone) * (1.0 - smoothstep(0.5, 1.0, gone));
-		col += vec3(0.55, 0.65, 0.75) * edge;
-		alpha = pane * mix(0.25 + 0.55 * web, 0.97, gone);
-		alpha = max(alpha, pane * edge * 0.9);
+		float rim = 1.0 - smoothstep(0.0, 0.075, abs(dist - Rh));                  // the teeth of glass still in the frame
+		col = mix(col, vec3(0.78, 0.88, 0.95), rim * 0.85);
+		alpha = pane * mix(0.22 + 0.5 * web, 0.97, gone);
+		alpha = max(alpha, pane * rim * 0.9);
 		float frame = (1.0 - smoothstep(0.0, 0.035, abs(max(abs(p.x), abs(p.y)) - 0.93))) * pane;
 		col = mix(col, vec3(0.04, 0.045, 0.05), frame * 0.7);
 		alpha = max(alpha, frame * 0.55);
@@ -240,19 +243,29 @@ void fragment() {
 		alpha = max(smoothstep(Rc + 0.03, Rc - 0.03, r) * 0.92, max(clamp(ridge, 0.0, 1.0) * 0.7, rays * 0.55));
 		alpha *= fade * pop;
 	} else {
-		// ---- spall scar: patches of pale fresh concrete with dark pits ----
+		// ---- spall scar: ragged patches of fresh concrete, the upper lip of each in its own shade, small dark pits off-centre (no round discs) ----
 		float c = 0.0;
+		float lipk = 0.0;
 		float pits = 0.0;
-		for (int i = 0; i < 5; i++) {
+		for (int i = 0; i < 4; i++) {
 			float fi = float(i);
-			vec2 ctr = (vec2(h11(seed * 7.0 + fi), h11(seed * 11.0 + fi * 2.3)) - 0.5) * 1.1;
-			float rr = 0.14 + 0.2 * h11(seed * 3.0 + fi * 1.7);
-			float d = length((p - ctr) * vec2(1.0, 1.3));
-			c = max(c, smoothstep(rr, rr * 0.55, d));
-			pits = max(pits, smoothstep(rr * 0.45, rr * 0.2, d));
+			vec2 ctr = (vec2(h11(seed * 7.0 + fi), h11(seed * 11.0 + fi * 2.3)) - 0.5) * 1.0;
+			float rr = 0.15 + 0.2 * h11(seed * 3.0 + fi * 1.7);
+			vec2 q = p - ctr;
+			float an = atan(q.y, q.x);
+			float jg = 0.7 * vn(vec2(an * 2.0 + fi * 7.0 + seed * 13.0, fi * 3.0 + seed * 5.0)) + 0.3 * vn(vec2(an * 6.0 + seed * 3.0 + fi, 1.3 + fi));
+			float d = length(q * vec2(1.0, 1.3)) / (rr * (0.5 + 0.95 * jg));
+			float inside = smoothstep(1.0, 0.86, d);
+			c = max(c, inside);
+			lipk = max(lipk, inside * smoothstep(0.1, -0.55, q.y / rr));
+			vec2 pq = q - vec2(0.2, 0.05) * rr;
+			pits = max(pits, inside * smoothstep(1.0, 0.55, length(pq * vec2(1.0, 1.5)) / (rr * 0.32 * (0.6 + 0.8 * jg))));
 		}
-		col = mix(vec3(0.62, 0.6, 0.56), vec3(0.04), pits);
-		alpha = c * 0.82 * fade * pop;
+		float grain = vn(p * 23.0 + seed * 17.0);
+		vec3 fresh = vec3(0.4, 0.38, 0.35) * (0.8 + 0.35 * grain);
+		col = mix(fresh, vec3(0.13, 0.12, 0.115), lipk * 0.75);
+		col = mix(col, vec3(0.025), pits * 0.8);
+		alpha = c * 0.85 * fade * pop;
 	}
 	ALBEDO = col;
 	ALPHA = clamp(alpha, 0.0, 1.0);

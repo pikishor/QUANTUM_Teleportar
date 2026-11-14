@@ -135,7 +135,7 @@ const LOOT := {
 
 ## The encounter templates: [{id, name, faction, members [[species, min, max], ...], biomes {biome: weight}, night (weight multiplier at night), tier (first tier), calm (only without a boss near)}, ...].
 ## `RosterDirector.pick` weighs them by biome, time of day, faction affinity of the running mission and the hero's progress tier.
-const ENCOUNTERS := {
+const ENCOUNTERS0 := {
 	&"merc_patrol": {"name": "MERC PATROL", "faction": CONTRACT, "members": [[&"merc_rifle", 2, 3], [&"merc_medic", 0, 1]],
 		"biomes": {&"plains": 4.0, &"desert": 3.0, &"forest": 2.0, &"beach": 3.0, &"mountain": 1.0, &"city": 3.0}, "night": 0.7, "tier": 0},
 	&"merc_squad": {"name": "MERC SQUAD", "faction": CONTRACT, "members": [[&"merc_rifle", 2, 2], [&"merc_shotgun", 1, 1], [&"merc_medic", 1, 1], [&"merc_sniper", 0, 1]],
@@ -161,6 +161,8 @@ const ENCOUNTERS := {
 	&"grid_nest": {"name": "TURRET NEST", "faction": GRID, "members": [[&"auto_turret", 2, 3], [&"crawler", 0, 1]],
 		"biomes": {&"plains": 2.0, &"desert": 2.0, &"mountain": 1.5, &"city": 1.5}, "night": 1.0, "tier": 0},
 }
+## The roster-2 templates plus the wave 113 additions (FoeSpecies.ENCOUNTERS): one table for the director, the tests and the free-roam events.
+static var ENCOUNTERS: Dictionary = ENCOUNTERS0.merged(FoeSpecies.ENCOUNTERS)
 ## mission type (MissionBoard.TYPES and WorldMissions ids) -> faction weight multipliers
 const MISSION_BIAS := {
 	&"heist": {CONTRACT: 3.0}, &"airport_heist": {CONTRACT: 3.0, GRID: 1.5}, &"hijack": {CONTRACT: 3.0}, &"defend": {CONTRACT: 2.0, HIVE: 2.0}, &"courier": {CONTRACT: 2.0},
@@ -180,7 +182,7 @@ static func has(id: StringName) -> bool:
 
 ## The encounter template `eid` (the roster-2 ones and the wave 113 additions) or {}.
 static func encounter(eid: StringName) -> Dictionary:
-	return ENCOUNTERS[eid] if ENCOUNTERS.has(eid) else (FoeSpecies.ENCOUNTERS[eid] if FoeSpecies.ENCOUNTERS.has(eid) else {})
+	return ENCOUNTERS[eid] if ENCOUNTERS.has(eid) else {}
 
 
 ## The loot row of a species.
@@ -237,10 +239,6 @@ static func weights(biome: StringName, night: float, mission: StringName, tier: 
 		var w := encounter_weight(eid, biome, night, mission, tier)
 		if w > 0.0:
 			out.append([eid, w])
-	for eid: StringName in FoeSpecies.ENCOUNTERS:
-		var w2 := encounter_weight(eid, biome, night, mission, tier)
-		if w2 > 0.0:
-			out.append([eid, w2])
 	return out
 
 

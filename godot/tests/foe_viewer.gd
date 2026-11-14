@@ -93,11 +93,14 @@ func _ready() -> void:
 		if seen.has(key):
 			continue
 		seen[key] = true
+		if not FoeLooks.has(StringName(key)):
+			continue
 		var h := FoeHuman.build(StringName(key), 0)
 		if h.is_empty():
 			print("FOE cannot build ", key)
 			continue
-		print("FOE %-14s tris near %5d mid %5d far %5d  kit parts %d tris %d  weapon %s" % [key, FoeHuman.tris(h["near"]), FoeHuman.tris(h["mid"]), FoeHuman.tris(h["far"]), FoeKit.part_count(StringName(key)),
+		FoeHuman.ensure_lods()
+		print("FOE %-14s tris near %5d mid %5d far %5d  kit parts %d tris %d  weapon %s" % [key, FoeHuman.tris(FoeHuman.mesh_of(h, "near")), FoeHuman.tris(FoeHuman.mesh_of(h, "mid")), FoeHuman.tris(FoeHuman.mesh_of(h, "far")), FoeKit.part_count(StringName(key)),
 				FoeKit.triangles(StringName(key)), h["weapon"]])
 		print("      kit tris by lod 0/1/2: %d / %d / %d  split near %s" % [FoeKit.triangles(StringName(key), 0), FoeKit.triangles(StringName(key), 1), FoeKit.triangles(StringName(key), 2), (h["info"] as Dictionary).get("split", {})])
 		(h["root"] as Node).free()
@@ -115,6 +118,20 @@ func _spawn() -> void:
 	var width := spacing * float(chunk.size() - 1)
 	var x := -width * 0.5
 	for it: Array in chunk:
+		if not FoeLooks.has(StringName(it[0])):
+			var cr := _creature(StringName(it[0]))
+			if cr.is_empty():
+				continue
+			var holder0 := Node3D.new()
+			add_child(holder0)
+			holder0.add_child(cr["root"])
+			holder0.position = Vector3(x, 0.0, 0.0)
+			holder0.rotation.y = deg_to_rad(float(_args.get("yaw", "0")))
+			_nodes.append(holder0)
+			cr["holder"] = holder0
+			_live.append(cr)
+			x += spacing * float(cr.get("wide", 1.0))
+			continue
 		var h := FoeHuman.build(StringName(it[0]), int(it[1]))
 		if h.is_empty():
 			continue
@@ -142,6 +159,40 @@ func _spawn() -> void:
 	_wait = 6
 
 
+## A creature of tools/blender/model_foes.py (assets/models/foes/<id>.glb) on the alien shader, paused on a frame of a clip.
+func _creature(id: StringName) -> Dictionary:
+	var path := "res://assets/models/foes/%s.glb" % String(id)
+	if not ResourceLoader.exists(path):
+		print("FOE no model ", path)
+		return {}
+	var ps := load(path) as PackedScene
+	var root := ps.instantiate() as Node3D
+	var spec := RosterSpecies.data(id)
+	var glow: Color = spec.get("glow", Color(1.0, 0.55, 0.12))
+	var mat := FoeLooks.creature_material(glow, 0.5)
+	var tris := 0
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		mi.material_override = mat
+		mi.extra_cull_margin = 2.0
+		tris = maxi(tris, HumanoidVariants.tris(mi.mesh))
+	var ap: AnimationPlayer = null
+	for n in root.find_children("*", "AnimationPlayer", true, false):
+		ap = n as AnimationPlayer
+	var clip := StringName(_args.get("clip", "idle"))
+	if ap != null:
+		if not ap.has_animation(clip):
+			print("FOE clips of ", id, ": ", ap.get_animation_list())
+		else:
+			ap.play(clip)
+			ap.seek(float(_args.get("t", "0.25")) * ap.get_animation(clip).length, true)
+			ap.pause()
+	print("FOE creature %-14s tris %d clips %s" % [id, tris, ap.get_animation_list() if ap != null else "-"])
+	var sc := float(_args.get("scale", "1"))
+	root.scale = Vector3.ONE * sc
+	return {"creature": true, "root": root, "ap": ap, "wide": float(spec.get("r", 0.6)) * 2.4 / 1.5 + 0.3}
+
+
 func _process(_dt: float) -> void:
 	if _live.is_empty():
 		if _ci >= _chunks.size():
@@ -150,6 +201,8 @@ func _process(_dt: float) -> void:
 	var dt := 1.0 / 30.0
 	_frame += 1
 	for h: Dictionary in _live:
+		if h.has("creature"):
+			continue
 		var holder := h["holder"] as Node3D
 		var disp := Vector3.ZERO
 		var moving := 0.0

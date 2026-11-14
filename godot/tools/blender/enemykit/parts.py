@@ -75,8 +75,8 @@ def belt(kit, looks=ALL, kind=K_DARK, pouches=3, width=0.2, heavy=False):
 
 def knees(kit, looks=ALL, big=False, kind=K_PLATE_B):
     p = _p(kit, "knee_pad")
-    r = 0.075 if big else 0.062
-    sphere(p, r, (0.114, 0.045, 0.545), scale=(1.0, 0.62, 1.15), segs=8, rings=5, mirror=True)
+    r = 0.078 if big else 0.064
+    sphere(p, r, (0.114, 0.05, 0.545), scale=(1.12, 0.46, 1.1), segs=8, rings=5, mirror=True)
     kit.done(p, "calf_r", kind, 0, looks, lr=True)
 
 
@@ -90,6 +90,21 @@ def thigh_plates(kit, looks=ALL, kind=K_PLATE_A, w=0.12):
     p = _p(kit, "thigh_plate")
     box(p, (w, 0.05, 0.24), (0.118, 0.07, 0.8), bevel=0.01, mirror=True, top=(0.88, 1.0))
     kit.done(p, "thigh_r", kind, 0, looks, lr=True)
+
+
+def leg_stripe(kit, looks, glow=True):
+    """A lit stripe down the outer thigh and shin: the authority's 'uniform' that reads on the move."""
+    p = _p(kit, "leg_stripe")
+    box(p, (0.012, 0.03, 0.4), (0.196, -0.03, 0.78), bevel=0.0, mirror=True)
+    box(p, (0.012, 0.03, 0.26), (0.192, -0.02, 0.36), bevel=0.0, mirror=True)
+    kit.done(p, "thigh_r", K_TRIM, Z_TRIM if glow else 0, looks, lr=True)
+
+
+def cargo(kit, looks, kind=K_FABRIC_A):
+    p = _p(kit, "cargo")
+    box(p, (0.05, 0.1, 0.12), (0.205, 0.0, 0.76), bevel=0.006)
+    box(p, (0.05, 0.1, 0.12), (-0.205, 0.0, 0.76), bevel=0.006)
+    kit.done(p, "thigh_r", kind, 0, looks)
 
 
 def holster(kit, looks, side=1.0):
@@ -262,7 +277,7 @@ def helm_trooper(kit, looks):
     box(p, (0.14, 0.01, 0.022), (0.0, 0.123, 1.722), bevel=0.003)
     kit.done(p, "Head", K_GLOW, Z_VISOR, looks)
     p = _p(kit, "helm_crest")
-    box(p, (0.02, 0.22, 0.1), (0.0, -0.02, 1.9), bevel=0.004, top=(1.0, 0.3))
+    box(p, (0.022, 0.26, 0.075), (0.0, -0.03, 1.895), bevel=0.004, top=(1.0, 0.55))
     box(p, (0.17, 0.05, 0.05), (0.0, -0.132, 1.655), bevel=0.008)
     for s in (-1.0, 1.0):
         box(p, (0.03, 0.09, 0.09), (s * 0.108, 0.01, 1.7), bevel=0.006)
@@ -622,7 +637,7 @@ def coat_tails(kit, looks):
     box(p, (0.3, 0.025, 0.55), (0.0, -0.205, 0.72), bevel=0.003, top=(1.2, 1.0))
     for s in (-1.0, 1.0):
         box(p, (0.12, 0.025, 0.5), (s * 0.19, -0.1, 0.74), bevel=0.003, rot=(0, 0, s * -8))
-    kit.done(p, "chain:Sec1,Sec2,Sec3", K_CLOTH, 0, looks, chain={"pos": [(0.0, -0.18, 1.0), (0.0, -0.21, 0.8), (0.0, -0.24, 0.6)], "parent": "pelvis"})
+    kit.done(p, "chain:Sec1,Sec2,Sec3", K_FABRIC_B, 0, looks, chain={"pos": [(0.0, -0.18, 1.0), (0.0, -0.21, 0.8), (0.0, -0.24, 0.6)], "parent": "pelvis"})
     p = _p(kit, "coat_trim")
     box(p, (0.3, 0.03, 0.025), (0.0, -0.21, 0.46), bevel=0.003, top=(1.2, 1.0))
     kit.done(p, "chain:Sec1,Sec2,Sec3", K_BRASS, 0, looks, chain={"pos": [(0.0, -0.18, 1.0), (0.0, -0.21, 0.8), (0.0, -0.24, 0.6)], "parent": "pelvis"})
@@ -683,27 +698,28 @@ def ammo_box(kit, looks):
 
 
 def shield_riot(kit, looks):
-    """The riot shield: a big slab in front of the body on the weapon bone (it follows the aim): frame, a clear window with a glowing edge and an emitter (the weak point)."""
+    """The riot shield: a big slab in front of the body on the weapon bone (it follows the aim): frame, a clear window with a glowing edge and an emitter (the weak point). It stops below the weapon line, so the pistol
+    arm reaches over the top edge."""
     p = _p(kit, "shield_frame")
-    box(p, (0.66, 0.045, 1.02), (0.02, 0.5, 1.13), bevel=0.016, top=(0.94, 1.0))
+    box(p, (0.66, 0.045, 0.86), (0.02, 0.5, 0.98), bevel=0.016, top=(0.94, 1.0))
     kit.done(p, "Rifle", K_PLATE_B, 0, looks)
     p = _p(kit, "shield_glass")
-    box(p, (0.5, 0.02, 0.4), (0.02, 0.528, 1.36), bevel=0.01)
+    box(p, (0.5, 0.02, 0.3), (0.02, 0.528, 1.2), bevel=0.01)
     kit.done(p, "Rifle", K_GLASS, 0, looks)
     p = _p(kit, "shield_edge")
-    box(p, (0.5, 0.014, 0.014), (0.02, 0.54, 1.565), bevel=0.002)
-    box(p, (0.5, 0.014, 0.014), (0.02, 0.54, 1.155), bevel=0.002)
-    for s in (-1.0, 1.0):
-        box(p, (0.014, 0.014, 0.42), (0.02 + s * 0.25, 0.54, 1.36), bevel=0.002)
+    box(p, (0.5, 0.014, 0.014), (0.02, 0.54, 1.355), bevel=0.002)
+    box(p, (0.5, 0.014, 0.014), (0.02, 0.54, 1.045), bevel=0.002)
+    for s_ in (-1.0, 1.0):
+        box(p, (0.014, 0.014, 0.32), (0.02 + s_ * 0.25, 0.54, 1.2), bevel=0.002)
     kit.done(p, "Rifle", K_GLOW, Z_VISOR, looks)
     p = _p(kit, "shield_emitter")
-    cyl(p, 0.045, 0.03, (0.02, 0.54, 0.9), axis="y", segs=8)
+    cyl(p, 0.045, 0.03, (0.02, 0.54, 0.74), axis="y", segs=8)
     kit.done(p, "Rifle", K_GLOW, Z_WEAK, looks)
     p = _p(kit, "shield_marks")
-    box(p, (0.5, 0.012, 0.1), (0.02, 0.535, 1.0), bevel=0.002)
+    box(p, (0.5, 0.012, 0.09), (0.02, 0.535, 0.88), bevel=0.002)
     kit.done(p, "Rifle", K_TRIM, 0, looks)
     p = _p(kit, "shield_handle")
-    box(p, (0.03, 0.2, 0.03), (0.02, 0.4, 1.0), bevel=0.004)
+    box(p, (0.03, 0.2, 0.03), (0.02, 0.4, 0.9), bevel=0.004)
     kit.done(p, "Rifle", K_DARK, 0, looks)
 
 
@@ -824,6 +840,7 @@ def build(kit, body=None):
     # ---------------- authority troopers (graphite plates, white-blue stripe, red visor)
     L = "auth_rifle"
     helm_trooper(kit, L)
+    leg_stripe(kit, L)
     vest_auth(kit, L)
     collar(kit, L)
     pauldron(kit, L, 1.0, 2, K_PLATE_A, fin=True)
@@ -834,6 +851,7 @@ def build(kit, body=None):
     pips(kit, L)
     L = "auth_riot"
     helm_riot(kit, L)
+    leg_stripe(kit, L, False)
     vest_auth(kit, L, False)
     collar(kit, L, 0.105, 0.08, K_PLATE_B)
     pauldron(kit, L, 1.15, 3, K_PLATE_A, trim=True)
@@ -847,6 +865,7 @@ def build(kit, body=None):
     pips(kit, L)
     L = "auth_heavy"
     helm_heavy(kit, L)
+    leg_stripe(kit, L)
     vest_auth(kit, L, True)
     collar(kit, L, 0.125, 0.09, K_PLATE_B)
     pauldron(kit, L, 1.5, 3, K_PLATE_A, spike=True)
@@ -860,6 +879,8 @@ def build(kit, body=None):
     pips(kit, L)
     L = "auth_breacher"
     helm_gas(kit, L)
+    leg_stripe(kit, L)
+    cargo(kit, L)
     vest_auth(kit, L, False, False)
     collar(kit, L)
     charges(kit, L)
@@ -879,6 +900,7 @@ def build(kit, body=None):
     pips(kit, L, False, True)
     L = "auth_drone"
     helm_vr(kit, L)
+    leg_stripe(kit, L)
     vest_auth(kit, L, False)
     collar(kit, L)
     pauldron(kit, L, 0.8, 1, K_PLATE_B, fin=True)
@@ -889,6 +911,7 @@ def build(kit, body=None):
     pips(kit, L)
     L = "auth_engineer"
     helm_hard(kit, L)
+    cargo(kit, L)
     vest_auth(kit, L, False, False)
     pauldron(kit, L, 1.0, 2, K_TRIM)
     pack_turret(kit, L)

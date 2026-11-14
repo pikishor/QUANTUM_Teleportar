@@ -27,6 +27,10 @@ const TABLE := {
 	&"auth_drone": {"name": "DRONE OPERATOR", "faction": AUTHORITY, "weapon": &"swarm", "glow": Color(1.0, 0.3, 0.9), "scale": Vector3(0.96, 1.02, 0.96), "skin": Color(0.5, 0.36, 0.3)},
 	&"auth_engineer": {"name": "ENGINEER", "faction": AUTHORITY, "weapon": &"flux", "glow": Color(1.0, 0.82, 0.1), "scale": Vector3(1.06, 1.0, 1.06), "skin": Color(0.5, 0.36, 0.3)},
 }
+## The accent (trim) colour of each look: the unit stays recognisable in every paint variant.
+const TRIM := {&"merc_rifle": Color(1.0, 0.5, 0.1), &"merc_shotgun": Color(0.95, 0.15, 0.1), &"merc_rocket": Color(1.0, 0.4, 0.1), &"merc_medic": Color(0.3, 1.0, 0.5), &"merc_officer": Color(0.95, 0.78, 0.25),
+	&"merc_sniper": Color(0.4, 0.6, 0.45), &"auth_rifle": Color(0.25, 0.85, 1.0), &"auth_riot": Color(0.3, 0.6, 1.0), &"auth_heavy": Color(1.0, 0.2, 0.15), &"auth_breacher": Color(1.0, 0.55, 0.1),
+	&"auth_ghost": Color(0.3, 0.6, 0.5), &"auth_drone": Color(1.0, 0.35, 0.9), &"auth_engineer": Color(1.0, 0.82, 0.1)}
 const IDS: Array[StringName] = [&"merc_rifle", &"merc_shotgun", &"merc_rocket", &"merc_medic", &"merc_officer", &"merc_sniper",
 	&"auth_rifle", &"auth_riot", &"auth_heavy", &"auth_breacher", &"auth_ghost", &"auth_drone", &"auth_engineer"]
 
@@ -42,11 +46,11 @@ const PALETTES := {
 	],
 	&"authority": [
 		{"plate_a": Color(0.2, 0.23, 0.3), "plate_b": Color(0.1, 0.11, 0.15), "trim": Color(0.25, 0.85, 1.0), "fabric_a": Color(0.12, 0.13, 0.16), "fabric_b": Color(0.07, 0.08, 0.1),
-			"jacket": Color(0.11, 0.12, 0.16), "pants": Color(0.07, 0.08, 0.1), "cloth": Color(0.12, 0.14, 0.16)},
+			"jacket": Color(0.17, 0.19, 0.25), "pants": Color(0.12, 0.13, 0.17), "cloth": Color(0.12, 0.14, 0.16)},
 		{"plate_a": Color(0.1, 0.19, 0.4), "plate_b": Color(0.72, 0.76, 0.82), "trim": Color(0.3, 0.6, 1.0), "fabric_a": Color(0.08, 0.12, 0.24), "fabric_b": Color(0.05, 0.07, 0.14),
-			"jacket": Color(0.07, 0.11, 0.24), "pants": Color(0.05, 0.07, 0.14), "cloth": Color(0.1, 0.14, 0.2)},
+			"jacket": Color(0.1, 0.16, 0.34), "pants": Color(0.07, 0.1, 0.22), "cloth": Color(0.1, 0.14, 0.2)},
 		{"plate_a": Color(0.07, 0.07, 0.08), "plate_b": Color(0.22, 0.22, 0.24), "trim": Color(1.0, 0.62, 0.1), "fabric_a": Color(0.1, 0.1, 0.11), "fabric_b": Color(0.05, 0.05, 0.06),
-			"jacket": Color(0.08, 0.08, 0.09), "pants": Color(0.05, 0.05, 0.06), "cloth": Color(0.1, 0.1, 0.1)},
+			"jacket": Color(0.12, 0.12, 0.14), "pants": Color(0.08, 0.08, 0.1), "cloth": Color(0.1, 0.1, 0.1)},
 	],
 }
 ## Role glow of a variant: the third variant of an authority look glows amber, the second blue-white (a squad does not look like one paint job); contract looks keep their role colour.
@@ -91,9 +95,24 @@ static func palette(id: StringName, variant: int) -> Dictionary:
 	elif fac == AUTHORITY and v > 0:
 		glow = glow.lerp(AUTH_GLOW[v], 0.35)
 	p["glow"] = glow
+	if TRIM.has(id):
+		p["trim"] = TRIM[id]
 	p["weak"] = Color(1.0, 0.62, 0.12)
 	p["skin"] = d["skin"]
 	return p
+
+
+const CREATURE_SHADER := preload("res://assets/shaders/foe_creature.gdshader")
+
+
+## The material of an animated Blender creature (assets/models/foes/*.glb): foe_creature.gdshader (the alien shader with a softer wind-up flash), vertex-colour paint, alpha = glow mask.
+static func creature_material(glow: Color, shell := 0.5) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = CREATURE_SHADER
+	m.resource_name = "FoeCreature"
+	m.set_shader_parameter(&"glow", Vector3(glow.r, glow.g, glow.b))
+	m.set_shader_parameter(&"shell", shell)
+	return m
 
 
 static func make_material(id: StringName, variant: int) -> ShaderMaterial:

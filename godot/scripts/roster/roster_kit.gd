@@ -533,7 +533,8 @@ static func setup_body(c: AlienCreature, sid: StringName, w: AlienWorld) -> bool
 	c.radius = float(spec["r"]) * c.vis
 	var look := StringName(spec.get("look", &""))
 	var human := look != &"" and RosterHuman.attach(c, look, spec)             # wave 113: the armoured, skinned humans (FoeHuman) instead of a procedural mesh
-	if not human:
+	var gltf := not human and StringName(spec.get("gltf", &"")) != &"" and RosterHuman.attach_creature(c, StringName(spec["gltf"]), spec)     # wave 113: animated Blender bodies (aliens, walkers)
+	if not human and not gltf:
 		var pm := mesh_of(StringName(spec["proc"]))
 		if pm == null:
 			return false
