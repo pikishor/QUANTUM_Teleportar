@@ -33,12 +33,13 @@ const AURA := {&"shield": Color(0.35, 0.8, 1.0), &"slip": Color(0.75, 0.5, 1.0),
 	&"entangle": Color(1.0, 0.3, 0.92), &"superposition": Color(0.4, 1.0, 0.93), &"collapse": Color(1.0, 0.4, 0.95), &"slam": Color(0.45, 0.95, 1.0)}
 
 ## weapon id -> class. Look per class: muzzle tint / size, `ring` = radius of the ring at the muzzle (0 = none), `hit_ring` = ring radius at the impact, spark colour and count.
-const WEAPON_CLASS := {&"carbine": &"rifle", &"burst": &"rifle", &"akimbo": &"rifle", &"revolver": &"rifle", &"minigun": &"spray", &"scatter": &"shotgun",
+const WEAPON_CLASS0 := {&"carbine": &"rifle", &"burst": &"rifle", &"akimbo": &"rifle", &"revolver": &"rifle", &"minigun": &"spray", &"scatter": &"shotgun",
 	&"lance": &"beam", &"rail": &"beam", &"flux": &"flux", &"gravity": &"gravity", &"arc": &"arc", &"grenade": &"gravity", &"whip": &"melee", &"blade": &"melee", &"pistol": &"rifle", &"marksman": &"beam", &"breacher": &"shotgun", &"rocket": &"gravity",
 	&"swarm": &"flux", &"vector": &"rifle", &"battle": &"rifle", &"sawn": &"shotgun", &"auto": &"shotgun", &"bolt": &"beam", &"dmr": &"beam", &"knife": &"melee",
 	&"magnum": &"rifle", &"mpistol": &"spray", &"stun": &"arc", &"ranger": &"rifle", &"bullpup": &"rifle", &"lmg": &"spray", &"amr": &"beam", &"xbow": &"rifle", &"flame": &"spray", &"katana": &"melee", &"bat": &"melee",
 	&"qsuper": &"arc", &"qlink": &"flux", &"qcollapse": &"gravity", &"qblink": &"arc", &"qphase": &"beam", &"qstasis": &"arc",
 	&"eplasma": &"flux", &"erepeat": &"spray", &"espike": &"flux", &"ebeam": &"beam", &"eblade": &"melee", &"emaul": &"melee", &"epod": &"gravity", &"railgun": &"beam", &"chaingun": &"spray", &"cmissile": &"gravity", &"napalm": &"gravity", &"sing": &"gravity", &"orbital": &"gravity", &"seeker": &"gravity", &"tknife": &"melee"}
+static var WEAPON_CLASS: Dictionary = WEAPON_CLASS0.merged(WeaponDefs.pack_dict("vfx_class"))   ## the roster packs add theirs (WeaponDefs.PACKS)
 const CLASSES := {
 	&"rifle": {"muzzle": Color(1.0, 0.82, 0.5), "size": 1.0, "ring": 0.0, "hit_ring": 0.28, "spark": Color(1.0, 0.8, 0.45), "sparks": 4},
 	&"spray": {"muzzle": Color(1.0, 0.7, 0.35), "size": 0.8, "ring": 0.0, "hit_ring": 0.2, "spark": Color(1.0, 0.7, 0.35), "sparks": 2},

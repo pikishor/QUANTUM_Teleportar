@@ -12,7 +12,7 @@ const DROP := &"drop"
 const SHOP := &"shop"
 
 ## id, route, arg: crate = index into CRATES, mission = chapter index (0 = chapter 1), boss = sector number, drop = enemy type, shop = (price from Economy)
-const LADDER: Array[Dictionary] = [
+const LADDER0: Array[Dictionary] = [
 	{"id": &"marksman", "route": CRATE, "arg": 0},
 	{"id": &"burst", "route": DROP, "arg": &"operative"},
 	{"id": &"mpistol", "route": DROP, "arg": &"flanker"},
@@ -69,7 +69,7 @@ const LADDER: Array[Dictionary] = [
 
 ## Weapon crates (the first six carry a weapon) and ammo crates: junction (gi, gj) of the road grid, corner sign (+1 / -1 each axis: the sidewalk corner of the junction), a name.
 const CRATE_CORNER := 11.5
-const CRATES: Array[Dictionary] = [
+const CRATES0: Array[Dictionary] = [
 	{"g": Vector2i(7, 9), "sx": 1.0, "sz": 1.0, "weapon": &"marksman", "name": "MARKET CRATE"},
 	{"g": Vector2i(10, 7), "sx": -1.0, "sz": 1.0, "weapon": &"breacher", "name": "TOWERS CRATE"},
 	{"g": Vector2i(13, 4), "sx": 1.0, "sz": -1.0, "weapon": &"rocket", "name": "FOUNDRY CRATE"},
@@ -96,6 +96,30 @@ const CRATES: Array[Dictionary] = [
 	{"g": Vector2i(12, 9), "sx": -1.0, "sz": -1.0, "weapon": &"railgun", "name": "VAULT CRATE"},
 	{"g": Vector2i(10, 12), "sx": 1.0, "sz": 1.0, "weapon": &"orbital", "name": "ORBITAL CRATE"},
 ]
+
+## The ladder and the crates of the roster packs are appended (WeaponDefs.PACKS, rows from scripts/player/weapon_defs_v3.gd). A pack ladder row may name its crate by `"crate": key` (the `key` of
+## one of its crates) instead of an index, so indices of other packs never matter; crates may carry `"pos": Vector3` (world x, y, z) for the outskirts instead of a city junction.
+static var CRATES: Array[Dictionary] = _crates_all()
+static var LADDER: Array[Dictionary] = _ladder_all()
+
+
+static func _crates_all() -> Array[Dictionary]:
+	var out: Array[Dictionary] = CRATES0.duplicate()
+	for c in WeaponDefs.pack_array("crates"):
+		out.append(c)
+	return out
+
+
+static func _ladder_all() -> Array[Dictionary]:
+	var out: Array[Dictionary] = LADDER0.duplicate()
+	for row in WeaponDefs.pack_array("ladder"):
+		var r: Dictionary = (row as Dictionary).duplicate()
+		if r.has("crate"):
+			for i in CRATES.size():
+				if String(CRATES[i].get("key", "")) == String(r["crate"]):
+					r["arg"] = i
+		out.append(r)
+	return out
 const AMMO_RESTOCK := 0.6                ## share of every limited weapon's base reserve an ammo crate returns
 const CRATE_RESPAWN := 300.0             ## seconds until an opened crate gives ammo again
 const DROP_CHANCE := 0.4                 ## chance that a fallen enemy of the NEXT weapon's drop type carries it
@@ -104,8 +128,34 @@ const CRATE_RADIUS := 2.6
 
 static func crate_pos(i: int) -> Vector3:
 	var c: Dictionary = CRATES[i]
+	if c.has("site"):                                                     # a secret cache beside a place of the outskirts (world position once the sites are built, cached)
+		if _site_pos.has(i):
+			return _site_pos[i]
+		var s := OutskirtsSites.by_id(StringName(c["site"]))
+		if s.is_empty():
+			return Vector3(0.0, -1000.0, 0.0)
+		var o: Vector2 = c.get("off", Vector2.ZERO)
+		var at := OutskirtsSites.to_world(s, Vector3(o.x, 0.0, o.y))
+		if is_instance_valid(Game.world) and Game.world.has_method(&"ground_height"):
+			at.y = float(Game.world.call(&"ground_height", at.x, at.z))
+		_site_pos[i] = at
+		return at
+	if c.has("pos"):
+		var pp: Vector2 = c["pos"]
+		return Vector3(pp.x, 0.0, pp.y)
 	var g: Vector2i = c["g"]
 	return Vector3(CityLayout.road_center(g.x + CityLayout.SHIFT) + float(c["sx"]) * CRATE_CORNER, 0.0, CityLayout.road_center(g.y + CityLayout.SHIFT) + float(c["sz"]) * CRATE_CORNER)
+
+
+static var _site_pos := {}
+
+
+## False for a secret cache whose place of the outskirts is not built yet (the crate stays hidden and shut).
+static func crate_known(i: int) -> bool:
+	var c: Dictionary = CRATES[i]
+	return not c.has("site") or _site_pos.has(i) or not OutskirtsSites.by_id(StringName(c["site"])).is_empty()
+
+
 
 
 static func entry(id: StringName) -> Dictionary:

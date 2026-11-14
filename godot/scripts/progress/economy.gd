@@ -14,9 +14,11 @@ const PRICE_SCALE := 2.8
 ## Shop upgrade base price (Upgrades.cost multiplies by 1 + 0.8 * level).
 const UPGRADE_BASE := {&"damage": 240, &"mag": 160, &"reload": 160, &"blink": 200, &"regen": 200, &"armour": 260, &"decoy": 180, &"health": 200, &"power": 220}
 ## The seven starters (pistol, SMG, carbine, shotgun, rail, launcher, blade) cost nothing; the rest is the unlock ladder (scripts/progress/weapon_ladder.gd), every one of them can also be bought here.
-const WEAPON_PRICE := {&"carbine": 0, &"pistol": 0, &"flux": 0, &"scatter": 0, &"rail": 0, &"gravity": 0, &"blade": 0, &"marksman": 650, &"burst": 400, &"revolver": 750, &"akimbo": 700, &"breacher": 800, &"arc": 850, &"lance": 800, &"whip": 600, &"rocket": 1500, &"minigun": 1400, &"grenade": 650, &"swarm": 450, &"vector": 750, &"battle": 900, &"sawn": 600, &"auto": 800, &"bolt": 1100, &"dmr": 950, &"knife": 400, &"magnum": 200, &"mpistol": 120, &"stun": 120, &"ranger": 200, &"bullpup": 250, &"lmg": 400, &"amr": 400, &"xbow": 200, &"flame": 350, &"katana": 200, &"bat": 100,
+const WEAPON_PRICE0 := {&"carbine": 0, &"pistol": 0, &"flux": 0, &"scatter": 0, &"rail": 0, &"gravity": 0, &"blade": 0, &"marksman": 650, &"burst": 400, &"revolver": 750, &"akimbo": 700, &"breacher": 800, &"arc": 850, &"lance": 800, &"whip": 600, &"rocket": 1500, &"minigun": 1400, &"grenade": 650, &"swarm": 450, &"vector": 750, &"battle": 900, &"sawn": 600, &"auto": 800, &"bolt": 1100, &"dmr": 950, &"knife": 400, &"magnum": 200, &"mpistol": 120, &"stun": 120, &"ranger": 200, &"bullpup": 250, &"lmg": 400, &"amr": 400, &"xbow": 200, &"flame": 350, &"katana": 200, &"bat": 100,
 	&"qsuper": 280, &"qlink": 320, &"qcollapse": 520, &"qblink": 240, &"qphase": 360, &"qstasis": 320,
 	&"eplasma": 180, &"erepeat": 230, &"espike": 270, &"ebeam": 420, &"eblade": 300, &"emaul": 360, &"epod": 480, &"railgun": 540, &"chaingun": 480, &"cmissile": 540, &"napalm": 450, &"sing": 660, &"orbital": 900, &"seeker": 420, &"tknife": 90}
+## The weapons of the roster packs (scripts/player/weapon_defs_v3.gd) add their prices here (WeaponDefs.PACKS).
+static var WEAPON_PRICE: Dictionary = WEAPON_PRICE0.merged(WeaponDefs.pack_dict("price"))
 const ATTACHMENT_PRICE := {&"reddot": 250, &"scope": 450, &"halo": 350, &"suppressor": 300, &"longbarrel": 400, &"compensator": 350, &"overcharge": 500, &"rapid": 450, &"extended": 400}
 ## Throwables and gadgets (Gear, scripts/combat/gear.gd): base price, scaled like the rest of the gear. The singularity frag is the free starter.
 const THROW_PRICE := {&"singularity": 0, &"mine": 300, &"decoy": 220, &"shroud": 260, &"emp": 380, &"flash": 180, &"plasma": 200, &"spike": 180}
@@ -180,7 +182,7 @@ static func gear_items() -> Array:
 	for id: StringName in UPGRADE_BASE:
 		for lvl in Upgrades.MAX_LEVEL:
 			out.append({"name": "%s %d" % [id, lvl + 1], "price": Upgrades.cost(id, lvl)})
-	for id: StringName in WEAPON_PRICE:
+	for id: StringName in WEAPON_PRICE0:                                       # the core weapons only: the roster packs (WeaponDefs.PACKS) are a collection found in crates, caches, drops and rewards, the shop is a convenience, so they stay outside the pacing model of FULL_TREE_HOURS
 		if weapon_price(id) > 0:
 			out.append({"name": "weapon %s" % id, "price": weapon_price(id)})
 	for id: StringName in ATTACHMENT_PRICE:

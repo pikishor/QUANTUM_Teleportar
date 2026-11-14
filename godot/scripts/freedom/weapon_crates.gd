@@ -46,10 +46,10 @@ func markers(near := 300.0) -> Array[Dictionary]:
 		return out
 	var pp := p.global_position
 	for i in count():
-		if not is_ready(i):
+		if not is_ready(i) or not WeaponLadder.crate_known(i):
 			continue
 		var cp := WeaponLadder.crate_pos(i)
-		if Vector2(cp.x - pp.x, cp.z - pp.z).length() <= near:
+		if Vector2(cp.x - pp.x, cp.z - pp.z).length() <= (minf(near, 70.0) if bool(WeaponLadder.CRATES[i].get("secret", false)) else near):
 			out.append({"pos": cp, "color": BEAM_COLOR_WEAPON if content(i) != &"" else BEAM_COLOR_AMMO, "radius": WeaponLadder.CRATE_RADIUS, "goal": false})
 	return out
 
@@ -68,7 +68,7 @@ func _physics_process(dt: float) -> void:
 	var pp := p.global_position
 	for i in count():
 		var cp := WeaponLadder.crate_pos(i)
-		if is_ready(i) and Vector2(cp.x - pp.x, cp.z - pp.z).length() <= WeaponLadder.CRATE_RADIUS and absf(pp.y - cp.y) < 6.0:
+		if is_ready(i) and WeaponLadder.crate_known(i) and Vector2(cp.x - pp.x, cp.z - pp.z).length() <= WeaponLadder.CRATE_RADIUS and absf(pp.y - cp.y) < 6.0:
 			open(i, p)
 	_refresh()
 
@@ -116,7 +116,7 @@ func _build() -> void:
 	mi.multimesh = _mm_crate
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.custom_aabb = AABB(Vector3(-1300, -2, -1300), Vector3(2600, 20, 2600))
+	mi.custom_aabb = AABB(Vector3(-5200, -300, -5200), Vector3(10400, 700, 10400))
 	mi.top_level = true
 	add_child(mi)
 	var beam := Jobs.beam_mesh()
@@ -137,7 +137,7 @@ func _build() -> void:
 	bi.name = "CrateBeams"
 	bi.multimesh = _mm_beam
 	bi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	bi.custom_aabb = AABB(Vector3(-1300, -2, -1300), Vector3(2600, 40, 2600))
+	bi.custom_aabb = AABB(Vector3(-5200, -300, -5200), Vector3(10400, 700, 10400))
 	bi.top_level = true
 	add_child(bi)
 	_refresh()
@@ -153,7 +153,7 @@ func _refresh() -> void:
 		var yaw := float(i) * 0.9
 		var weapon := content(i) != &""
 		var tint := BEAM_COLOR_WEAPON if weapon else BEAM_COLOR_AMMO
-		var up := is_ready(i)
+		var up := is_ready(i) and WeaponLadder.crate_known(i)
 		_mm_crate.set_instance_transform(i, Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3.ONE * (1.0 if up else 0.001)), base))
 		_mm_crate.set_instance_custom_data(i, Color(tint.r, tint.g, tint.b, 1.0))
 		_mm_beam.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3(0.12 if not weapon else 0.18, 0.4 if not weapon else 0.75, 0.12 if not weapon else 0.18)) if up else Basis.from_scale(Vector3.ONE * 0.001), base))

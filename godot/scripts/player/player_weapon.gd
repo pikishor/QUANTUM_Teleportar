@@ -51,7 +51,8 @@ const GRENADE_GRAVITY := 22.0
 const WELL_TICK := 0.2
 const INSPECT_TIME := 1.6
 const INSPECT_IDLE := 9.0                    ## seconds of doing nothing before the rifle is inspected
-const AMMO_PACK := {&"pistol": 30, &"marksman": 12, &"breacher": 8, &"rocket": 2, &"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12, &"swarm": 72, &"vector": 36, &"battle": 20, &"sawn": 6, &"auto": 12, &"bolt": 6, &"dmr": 20, &"magnum": 16, &"mpistol": 60, &"stun": 8, &"ranger": 30, &"bullpup": 30, &"lmg": 100, &"amr": 5, &"xbow": 6, &"flame": 100, &"qsuper": 20, &"qlink": 24, &"qcollapse": 1, &"qblink": 24, &"qphase": 24, &"qstasis": 20, &"eplasma": 16, &"erepeat": 60, &"espike": 24, &"ebeam": 4, &"epod": 12, &"railgun": 3, &"chaingun": 150, &"cmissile": 2, &"napalm": 3, &"sing": 1, &"orbital": 1, &"seeker": 1, &"tknife": 8}
+const AMMO_PACK0 := {&"pistol": 30, &"marksman": 12, &"breacher": 8, &"rocket": 2, &"scatter": 12, &"lance": 5, &"grenade": 2, &"burst": 24, &"rail": 6, &"flux": 60, &"gravity": 2, &"minigun": 100, &"akimbo": 24, &"arc": 14, &"revolver": 12, &"swarm": 72, &"vector": 36, &"battle": 20, &"sawn": 6, &"auto": 12, &"bolt": 6, &"dmr": 20, &"magnum": 16, &"mpistol": 60, &"stun": 8, &"ranger": 30, &"bullpup": 30, &"lmg": 100, &"amr": 5, &"xbow": 6, &"flame": 100, &"qsuper": 20, &"qlink": 24, &"qcollapse": 1, &"qblink": 24, &"qphase": 24, &"qstasis": 20, &"eplasma": 16, &"erepeat": 60, &"espike": 24, &"ebeam": 4, &"epod": 12, &"railgun": 3, &"chaingun": 150, &"cmissile": 2, &"napalm": 3, &"sing": 1, &"orbital": 1, &"seeker": 1, &"tknife": 8}
+static var AMMO_PACK: Dictionary = AMMO_PACK0.merged(WeaponDefs.pack_dict("ammo_pack"))      ## the roster packs add theirs (WeaponDefs.PACKS)
 
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
@@ -76,6 +77,7 @@ var burn_ticks := 0                          ## lifetime burn damage ticks (FLAM
 var blinks := 0                              ## lifetime BLINK PISTOL teleports
 var _burning: Dictionary = {}                ## enemy instance id -> {node, left, acc}: damage over time of the flamethrower
 var arms: EnergyArms                         ## the mechanics of the ENERGY and BLAST weapons (scripts/player/energy_arms.gd)
+var mech: WeaponMech                         ## the mechanics of the roster of wave 113: statuses, openers, ramps, pierce, ricochet, alt-fires (scripts/player/weapon_mech.gd)
 var singularities := 0                       ## lifetime SINGULARITY ON CRIT pulses (crafted perk, scripts/progress/crafting.gd)
 var _sing_t := 0.0
 var overheats := 0
@@ -132,6 +134,7 @@ var _number_i := 0
 func _ready() -> void:
 	_player = get_parent() as Player
 	arms = EnergyArms.new(self)
+	mech = WeaponMech.new(self)
 	if Game.progress != null and Game.progress.get(&"ammo_type") != null:
 		ammo_type = clampi(int(Game.progress.get(&"ammo_type")), 0, WeaponDefs.AMMO_TYPES.size() - 1)     # the saved choice
 	_ray.collide_with_areas = true
@@ -175,6 +178,7 @@ func reset() -> void:
 	spread = float(def["spread_hip"])
 	_burning.clear()
 	arms.reset()
+	mech.reset()
 	_clear_grenades()
 
 
@@ -197,6 +201,7 @@ func _load(id: StringName) -> void:
 	reserve = st.y
 	reload_total = float(def["reload"]) * Upgrades.reload_mult()
 	spread = float(def["spread_hip"])
+	mech.on_load()
 	if _player != null:
 		if _player.camera_rig != null:
 			_player.camera_rig.ads_fov = float(def["zoom"])
@@ -386,6 +391,7 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 		_tick_heat(dt, firing and reload_t <= 0.0 and swap_t <= 0.0)
 	fire_t -= dt
 	_since_shot += dt
+	mech.note_input(aiming, moving, dt)
 	_tick_numbers(dt)
 	_tick_burn(dt)
 	if String(def["kind"]) == "throw" or (_launch != null and _launch.active):
@@ -420,7 +426,7 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 					Sfx.dry_fire()
 					start_reload()
 				elif fire_t <= 0.0 and _gun_ready():
-					_burst_left = int(def.get("burst", 1)) - 1
+					_burst_left = mech.burst_n() - 1
 					_burst_t = float(def.get("burst_gap", 0.07))
 					match String(def["kind"]):
 						"throw":
@@ -448,6 +454,7 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 		_burst = 0
 	_move_spread = PlayerUtil.damp(_move_spread, float(def["spread_move"]) if moving else 0.0, 12.0, dt)
 	spread = (float(def["spread_ads"]) if aiming else float(def["spread_hip"])) + bloom * (float(def["ads_spread"]) if aiming else 1.0) + _move_spread
+	spread *= mech.spread_mult()
 	if spread_override >= 0.0:
 		spread = spread_override
 
@@ -481,6 +488,9 @@ func _recoil(aiming: bool) -> void:
 	var step := WeaponDefs.pattern_at(current, _burst - 1)
 	var kick := lerpf(float(def["kick"]), float(def["kick_end"]), k) * step.y * randf_range(0.92, 1.08)
 	var kick_yaw := (step.x + randf_range(-0.15, 0.15)) * float(def["kick_yaw"])
+	var bm := mech.kick_mult()
+	kick *= bm
+	kick_yaw *= bm
 	if aiming:
 		kick *= float(def["ads_kick"])
 		kick_yaw *= float(def["ads_kick"])
@@ -497,9 +507,10 @@ func _recoil(aiming: bool) -> void:
 
 func _shoot(dt: float, aiming: bool) -> void:
 	var p := _player
+	mech.on_shoot()
 	ammo -= 1
 	shots_fired += 1
-	fire_t = maxf(fire_t, -dt) + float(def["interval"]) * float(ammo_info()["rate"]) * _spin_mult()      # keep the cadence exact whatever the tick rate, without banking shots
+	fire_t = maxf(fire_t, -dt) + float(def["interval"]) * float(ammo_info()["rate"]) * _spin_mult() * mech.interval_mult()      # keep the cadence exact whatever the tick rate, without banking shots
 	_since_shot = 0.0
 	_burst += 1
 	var pellets := 1 if _alt_single else int(def["pellets"])
@@ -526,6 +537,9 @@ func _shoot(dt: float, aiming: bool) -> void:
 
 func _trace_pellet() -> void:
 	var p := _player
+	if def.has("cone"):                                                 # SONIC CANNON / KINETIC REPULSOR: a cone of force, no ray (WeaponMech)
+		mech.cone_fire()
+		return
 	var ar := _aim_ray(cone() * _alt_spread)
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]
@@ -615,6 +629,8 @@ func _trace_pellet() -> void:
 	last_shot = {"origin": origin, "dir": dir, "muzzle": mz, "hit": hit, "dist": best, "target": target, "zone": zone, "civ": not civ.is_empty(), "blocked": not blocked.is_empty(), "spread": cone() * _alt_spread, "frame": Engine.get_physics_frames()}
 	if bool(def.get("flame", false)):                               # a spray of fire along the line, not a laser
 		_flame_puffs(mz, hit)
+	elif def.has("mist"):                                           # the cold and toxic sprayers: a coloured mist along the line
+		mech.mist_puffs(mz, hit)
 	else:
 		FX.tracer(mz, hit, def["tracer"])
 		FX.qvfx.weapon_shot(current, mz, hit)
@@ -635,6 +651,7 @@ func _trace_pellet() -> void:
 		_hit_world(hit, normal)
 	if def.has("splash") and (hit_something or target != null):          # plasma pop, explosive round, beam impact: a blast where the round landed (EnergyArms)
 		arms.splash(hit, shots_fired)
+	mech.after_shot(last_shot, k)                                    # pierce_n, ricochet (WeaponMech)
 
 
 ## FLAMETHROWER: fire puffs along the line muzzle -> hit (the fire colour of BlastElements), pooled FX bursts.
@@ -714,7 +731,7 @@ func _blocked_between(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vector3) 
 
 func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: StringName = &"") -> void:
 	var p := _player
-	k *= _alt_k * float(ammo_info()["dmg"])
+	k *= _alt_k * float(ammo_info()["dmg"]) * mech.hit_mult(target)
 	var is_vehicle := target.is_in_group(&"vehicle") and not target.is_in_group(&"enemy")
 	var crit := false
 	var human := false
@@ -753,6 +770,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 			_ignite(target)
 		if def.has("stick") and not _is_dead(target):
 			arms.stick(target, hit)
+		mech.on_hit(target, hit, crit)
 	else:
 		target.call(&"damage", DAMAGE_VEHICLE * float(def["damage"]) / DAMAGE * k)
 	var kill := (not is_vehicle) and _is_dead(target)
@@ -762,6 +780,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 	p.last_hit_crit = crit
 	p.hit_confirmed.emit(kill, crit)
 	if kill:
+		mech.on_kill(target)
 		GameFeel.fire(&"heavy_kill" if GameFeel.is_heavy_kill(crit, current) else &"kill")
 	if crit and not is_vehicle and def.has("sing"):
 		_singularity(hit, target)
@@ -1112,6 +1131,7 @@ func _physics_process_body(delta: float) -> void:
 	if not Game.is_playing():
 		return
 	arms.tick(delta)
+	mech.tick(delta)
 	if _grenades.is_empty():
 		return
 	for g in _grenades:
@@ -1426,6 +1446,7 @@ func _chain(first: Node, at: Vector3, k: float) -> void:
 ## One melee swing: the next step of the 3-hit combo (the third is the finisher, a bigger hit with more stagger). Hits every enemy in reach inside the cone in front of the camera.
 func _melee_swing(aiming: bool, mult := 1.0, reach_add := 0.0) -> int:
 	var p := _player
+	mech.on_shoot()
 	var steps: Array = def["combo"]
 	var step := combo % steps.size()
 	var finisher := step == steps.size() - 1
@@ -1477,7 +1498,7 @@ func _melee_swing(aiming: bool, mult := 1.0, reach_add := 0.0) -> int:
 
 func _melee_hit(e: Node, c: Vector3, k: float, finisher: bool) -> void:
 	var p := _player
-	k *= float(ammo_info()["dmg"])
+	k *= float(ammo_info()["dmg"]) * mech.hit_mult(e)
 	var amount := TestMode.damage(float(def["damage"]) * k * Upgrades.damage_mult() * HeroPower.f("dmg"))
 	if e.has_method(&"shield_blocks") and bool(def["pierce_shield"]):
 		e.call(&"break_shield")
@@ -1488,7 +1509,10 @@ func _melee_hit(e: Node, c: Vector3, k: float, finisher: bool) -> void:
 		_ignite(e)
 	if def.has("stun") and not _is_dead(e):
 		_stun(e)
+	mech.on_hit(e, c, finisher)
 	var kill := _is_dead(e)
+	if kill:
+		mech.on_kill(e)
 	_hit_sound(kill, finisher)
 	p.last_hit_time = PlayerUtil.now()
 	p.last_hit_kill = kill
@@ -1504,14 +1528,14 @@ func _melee_hit(e: Node, c: Vector3, k: float, finisher: bool) -> void:
 # --- alt-fire, ammo types, inspect, hit sounds --------------------------------------------------------------------------
 
 func ammo_info() -> Dictionary:
-	return WeaponDefs.AMMO_TYPES[ammo_type] if String(def["kind"]) == "hit" else WeaponDefs.AMMO_TYPES[0]
+	return WeaponDefs.AMMO_TYPES[ammo_type] if String(def["kind"]) == "hit" and mech.allows(ammo_type) else WeaponDefs.AMMO_TYPES[0]
 
 
 ## Next ammo type (hitscan weapons only). Returns false when the weapon in hand has only one.
 func cycle_ammo_type() -> bool:
 	if String(def["kind"]) != "hit" or swap_t > 0.0:
 		return false
-	ammo_type = (ammo_type + 1) % WeaponDefs.AMMO_TYPES.size()
+	ammo_type = mech.next_ammo(ammo_type)
 	if Game.progress != null and Game.progress.has_method(&"set_ammo_type"):
 		Game.progress.call(&"set_ammo_type", ammo_type)
 	Sfx.play(&"ui_tap", -4.0, 1.3)
@@ -1588,11 +1612,12 @@ func alt_fire(aiming := false) -> bool:
 			if kind in ["oc_bolt", "fan", "airburst", "dive"]:
 				ammo = maxi(0, start - cost)
 		_:
-			return false
+			if not mech.alt(kind, a, aiming, start):                           # underbarrel, scope switch, bipod, fire mode, overdrive, spin, shove, throw (WeaponMech)
+				return false
 	fire_t = maxf(fire_t, float(a["cd"]))
 	alt_fired += 1
 	Sfx.play(&"link", -8.0, 1.6)
-	return shots_fired > before or kind in ["vent", "pull", "lunge", "blink", "pop"]
+	return shots_fired > before or kind in ["vent", "pull", "lunge", "blink", "pop", "zoom", "brace", "mode", "surge"]
 
 
 func _whip_pull(range_m: float) -> bool:

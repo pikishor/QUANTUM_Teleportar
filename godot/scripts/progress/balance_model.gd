@@ -13,7 +13,7 @@ const MOD_GROWTH := 0.03                 ## crafted-mod damage per chapter from 
 const MOD_FROM := 3
 const ARMOUR_LEVEL_PER_CHAPTER := 0.5    ## shop armour level held
 ## Share of rounds that land per weapon class (hitscan precise, spread / pellets, area, melee).
-const ACC := {
+const ACC0 := {
 	&"carbine": 0.45, &"scatter": 0.55, &"lance": 0.70, &"grenade": 0.80, &"burst": 0.50, &"rail": 0.70, &"flux": 0.35, &"gravity": 0.80, &"minigun": 0.35,
 	&"akimbo": 0.42, &"arc": 0.50, &"revolver": 0.55, &"whip": 0.85, &"blade": 0.85, &"pistol": 0.5, &"marksman": 0.65, &"breacher": 0.55, &"rocket": 0.8,
 	&"swarm": 0.35, &"vector": 0.4, &"battle": 0.55, &"sawn": 0.55, &"auto": 0.5, &"bolt": 0.75, &"dmr": 0.6, &"knife": 0.85,
@@ -21,6 +21,7 @@ const ACC := {
 	&"qsuper": 0.5, &"qlink": 0.5, &"qcollapse": 0.8, &"qblink": 0.5, &"qphase": 0.45, &"qstasis": 0.5,
 	&"eplasma": 0.5, &"erepeat": 0.4, &"espike": 0.5, &"ebeam": 0.7, &"eblade": 0.85, &"emaul": 0.85, &"epod": 0.7, &"railgun": 0.7, &"chaingun": 0.35, &"cmissile": 0.8, &"napalm": 0.8, &"sing": 0.8, &"orbital": 0.8, &"seeker": 0.85, &"tknife": 0.7,
 }
+static var ACC: Dictionary = ACC0.merged(WeaponDefs.pack_dict("acc"))              ## the roster packs add theirs (WeaponDefs.PACKS)
 const WEAPON_BAND := Vector2(0.62, 1.7)  ## sustained DPS of every weapon relative to the carbine must stay inside this band
 const MELEE_UPTIME := 0.4               ## share of the time a melee weapon is in reach (closing in, enemies at range)
 const AMMO_KILLS_MIN := 5.5             ## operatives one full reserve of a limited weapon kills at chapter 1
