@@ -341,6 +341,13 @@ func warm_pools() -> void:
 		em.spawn(&"operative", _p.global_position + Vector3(14.0 + 2.0 * float(k), 0.0, 0.0), true)
 	await _wait(0.4)
 	em.clear()
+	_note = "blast"                                              # wave 113: the blast pools (BlastOps, BlastFx, marks, debris) and the damage layers (DamageWorld, pips, splatter) are built by the first blast that hurts someone
+	for k in 3:
+		em.spawn(&"operative", _p.global_position + Vector3(30.0 + 2.0 * float(k), 0.0, 0.0), true)
+	await _wait(0.3)
+	Game.explode(_p.global_position + Vector3(31.0, 0.0, 0.0), 6.0, {"blast": &"gr_frag"} if BlastTable.has_entry(&"gr_frag") else {"enemy_dmg": 400.0})
+	await _wait(1.5)
+	em.clear()
 	for k in TestMode.VEHICLES:
 		_note = "car " + String(k)
 		vm.spawn_parked(k, _p.global_position + Vector3(rng.randf_range(-20, 20), 0.0, rng.randf_range(-20, 20)), 0.0)
