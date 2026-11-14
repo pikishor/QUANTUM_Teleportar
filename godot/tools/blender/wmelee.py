@@ -21,10 +21,11 @@ def blade_path(Lb, bow=0.0, rise=0.0, n=9):
     return pts
 
 
-def blade(g, st, Lb, w, th, bow=0.0, rise=0.0, edge=-1.0, spine=0.0, base_w=None, tip=0.1, chamfer=0.0, back_st=None, glow=None):
-    """A blade swept along a curved path, tapering to a point; the cutting edge on the side `edge` (-1 down). `tip` = share of the length over which it narrows."""
+def blade(g, st, Lb, w, th, bow=0.0, rise=0.0, edge=-1.0, spine=0.0, base_w=None, tip=0.1, chamfer=0.0, back_st=None, glow=None, path=None):
+    """A blade swept along a curved path, tapering to a point; the cutting edge on the side `edge` (-1 down). `tip` = share of the length over which it narrows. t = 0 at the tip."""
     base_w = w if base_w is None else base_w
-    path = blade_path(Lb, bow, rise)
+    if path is None:
+        path = blade_path(Lb, bow, rise)
 
     def outline(t):
         # t = 0 at the tip: width tapers over the first `tip` of the length
@@ -73,8 +74,7 @@ def hilt(g, pal, d0, L, r=0.0125, wrap=True, guard=None, pommel=True, guard_w=0.
 def melee(g, pal, s):
     kind = s.get("kind", "dagger")
     bd, dk, mt, fr, ac, gl, wd, lt, br, hz = pal["body"], pal["dark"], pal["metal"], pal["frame"], pal["accent"], pal["glow"], pal["furn"], pal["leather"], pal["bright"], pal["hazard"]
-    steel = pal["bright"].t(tint=tuple(min(1.0, c * 1.0) for c in (0.5, 0.52, 0.55)))
-    steel = Style(M.STEEL_BRIGHT, (0.62, 0.64, 0.66)) if pal["_faction"] not in ("chrome", "gold") else pal["chrome"]
+    steel = Style(M.ALLOY, (0.62, 0.64, 0.68)) if pal["_faction"] not in ("chrome", "gold") else pal["chrome"]       # blades: brushed alloy, the streaks run along the edge
     edge_glow = pal["glow"]
     cx = 0.0
     out = {}
@@ -110,7 +110,10 @@ def melee(g, pal, s):
         # the haft runs from d = hd0 (just behind the head) back to hd0 + H
         hd0 = {"axe": 0.06, "hatchet": 0.05, "greataxe": 0.09, "sledge": 0.09, "mallet": 0.07, "crowbar": 0.0, "maul": 0.1, "pickaxe": 0.07}[kind]
         if kind == "crowbar":                                    # a steel bar with a hooked end and a flat claw end
-            g.cyl((0.0, -hd0 - 0.04, 0.0), (0.0, -(hd0 + H), 0.0), r, steel, n=8)
+            g.cyl((0.0, -hd0 - 0.04, 0.0), (0.0, -(hd0 + H), 0.0), r, steel, n=12)
+            for dd in (0.2, 0.35, 0.5):
+                tube(g, dd, dd + 0.006, r * 1.18, dk, n=12)
+            tube(g, hd0 + H * 0.5, hd0 + H * 0.5 + 0.22, r * 1.14, pal["rub"], n=12)
             path = [(0.0, -0.06, 0.0), (0.0, -0.01, -0.012), (0.0, 0.015, -0.05), (0.0, 0.006, -0.085)]
             g.sweep(path, lambda t: wl.outline_rrect(0.019 - 0.008 * t, 0.012, 0.0025, 1), steel, up=(1, 0, 0))
             rbox(g, hd0 + H - 0.06, hd0 + H + 0.012, -0.01, 0.012, 0.03, steel, r=0.003, ch=0.003)
@@ -123,23 +126,25 @@ def melee(g, pal, s):
                 tube(g, hd0 + H * 0.6, hd0 + H, r * 1.12, pal["rub"], n=10, ch=0.001)
             g.sphere((0.0, -(hd0 + H + 0.01), 0.0), r * 1.25, mt if kind != "mallet" else wd, n=8, squash=(1.0, 0.7, 1.0))
         if kind in ("axe", "hatchet", "greataxe"):
-            hw = {"axe": 0.2, "hatchet": 0.13, "greataxe": 0.3}[kind]               # head height (bit width)
-            hl = {"axe": 0.1, "hatchet": 0.075, "greataxe": 0.12}[kind]
-            bits = (1.0, -1.0) if kind == "greataxe" else (-1.0,)
-            for sgn in bits:
-                pts = [(hd0 - 0.01, sgn * 0.02), (hd0 - 0.02, sgn * hw * 0.5), (hd0 - hl * 0.4 - 0.02, sgn * hw * 0.52), (hd0 - hl - 0.02, sgn * hw * 0.52 * 0.2 + sgn * hw * 0.3),
-                       (hd0 - hl - 0.02, sgn * hw * 0.5 * 0.2), (hd0 + 0.04, sgn * 0.02)]
-                if kind == "greataxe":
-                    pts = [(hd0 - 0.02, sgn * 0.02), (hd0 - 0.1, sgn * hw * 0.42), (hd0 - 0.04, sgn * hw * 0.5), (hd0 + 0.03, sgn * hw * 0.3), (hd0 + 0.04, sgn * 0.02)]
-                    pts = [(hd0 - hl, sgn * 0.02), (hd0 - hl * 0.9, sgn * hw * 0.48), (hd0 - hl * 0.25, sgn * hw * 0.5), (hd0 + 0.05, sgn * hw * 0.22), (hd0 + 0.05, sgn * 0.02)]
-                side_w(g, pts, 0.014 if kind != "greataxe" else 0.018, steel, ch=0.0035)
-                side_w(g, [(p[0], p[1] * 0.995) for p in pts[1:3]] + [(pts[2][0] - 0.0, pts[2][1]), (pts[1][0], pts[1][1])], 0.0, steel) if False else None
-                if kind in ("greataxe",) and g.fine:
-                    g.box((0.0095, -(hd0 - hl * 0.35), sgn * hw * 0.36), (0.0015, hl * 0.5, 0.012), edge_glow)
-                    g.box((-0.0095, -(hd0 - hl * 0.35), sgn * hw * 0.36), (0.0015, hl * 0.5, 0.012), edge_glow)
-            rbox(g, hd0 - 0.02, hd0 + 0.05, -0.024, 0.024, 0.022, mt, r=0.004, ch=0.003)                       # the eye
+            hw = {"axe": 0.17, "hatchet": 0.11, "greataxe": 0.3}[kind]               # height of the bit
+            hl = {"axe": 0.1, "hatchet": 0.075, "greataxe": 0.12}[kind]             # how far the cheek runs forward
+            up = [(hd0 + 0.05, 0.03), (hd0 + 0.0, 0.034), (hd0 - hl * 0.5, 0.036), (hd0 - hl, hw * 0.5), (hd0 - hl * 0.92, hw * 0.28), (hd0 - hl * 0.1, 0.03)]
+            if kind == "greataxe":
+                up = [(hd0 + 0.06, 0.032), (hd0 - 0.01, 0.04), (hd0 - hl * 0.8, hw * 0.34), (hd0 - hl, hw * 0.5), (hd0 - hl * 0.55, hw * 0.52), (hd0 + 0.04, hw * 0.2)]
+            if kind == "greataxe":
+                poly = up + [(d, -z) for (d, z) in reversed(up)]                       # a double bit, mirrored below the haft
+            else:
+                poly = [(d, z + 0.0) for (d, z) in up] + [(d, -z * (0.35 if kind == "axe" else 0.55)) for (d, z) in reversed(up)]   # a single bit, the poll below is short
+            side_w(g, poly, 0.013 if kind != "greataxe" else 0.017, steel, ch=0.0035)
+            if g.fine:
+                for sz in ((1.0, -1.0) if kind == "greataxe" else (1.0,)):
+                    g.box((0.0072 if kind != "greataxe" else 0.0095, -(hd0 - hl * 0.7), sz * hw * 0.36), (0.0014, hl * 0.5, 0.012), edge_glow if kind == "greataxe" else dk)
+                    g.box((-0.0072 if kind != "greataxe" else -0.0095, -(hd0 - hl * 0.7), sz * hw * 0.36), (0.0014, hl * 0.5, 0.012), edge_glow if kind == "greataxe" else dk)
+            rbox(g, hd0 - 0.03, hd0 + 0.06, -0.026, 0.026, 0.024, mt, r=0.004, ch=0.003)                       # the eye
             if kind == "axe":
-                side_w(g, [(hd0 + 0.05, 0.02), (hd0 + 0.05, -0.02), (hd0 + 0.1, -0.012), (hd0 + 0.1, 0.012)], 0.016, mt, ch=0.002)   # poll
+                rbox(g, hd0 + 0.05, hd0 + 0.1, -0.016, 0.016, 0.018, mt, r=0.003, ch=0.002)                  # poll
+            for dd in (hd0 + 0.07, hd0 + 0.1):
+                tube(g, dd, dd + 0.004, r * 1.2, dk, n=10)
         elif kind in ("sledge", "maul", "mallet"):
             hl = {"sledge": 0.16, "maul": 0.14, "mallet": 0.17}[kind]
             hr = {"sledge": 0.05, "maul": 0.07, "mallet": 0.045}[kind]
@@ -171,8 +176,13 @@ def melee(g, pal, s):
         if kind == "spear":
             lathe_d(g, [(-0.2, 0.0006), (-0.17, 0.016), (-0.07, 0.016), (-0.02, 0.0115), (0.0, 0.0115)], steel, n=4, hard=(1, 2)) if False else None
             side_w(g, [(-0.001, 0.0), (0.06, 0.023), (0.14, 0.028), (0.19, 0.0), (0.14, -0.028), (0.06, -0.023)], 0.006, steel, ch=0.0015)
-            tube(g, 0.19, 0.215, r * 1.5, mt, n=10)
-            tube(g, 0.25, 0.262, r * 1.3, ac, n=10)
+            tube(g, 0.19, 0.215, r * 1.5, mt, n=12)
+            tube(g, 0.25, 0.262, r * 1.3, ac, n=12)
+            for sz in (-1.0, 1.0):
+                side_w(g, [(0.17, sz * 0.012), (0.2, sz * 0.03), (0.215, sz * 0.012)], 0.006, steel, ch=0.001)                # barbs at the base of the blade
+            g.box((0.0035, -0.1, 0.0), (0.0014, 0.12, 0.01), pal["glow"] if False else dk)
+            for k in range(5):
+                tube(g, 0.3 + k * 0.05, 0.3 + k * 0.05 + 0.02, r * 1.1, lt, n=12)
             g.cyl((0.0, -(H - 0.0), 0.0), (0.0, -(H + 0.05), 0.0), 0.006, mt, r1=0.0015, n=6)
             if g.fine:
                 tube(g, 0.22, 0.235, r * 1.4, lt, n=10)
@@ -186,21 +196,22 @@ def melee(g, pal, s):
             for dd in (H * 0.28, H * 0.72):
                 tube(g, dd, dd + 0.12, r * 1.18, lt, n=10)
                 g.torus((0.0, -(dd + 0.06), 0.0), r * 1.2, 0.0022, edge_glow, n=12, m=5, axis="y")
-        else:                                                                         # scythe
-            path = [(0.0, 0.04, 0.0), (0.0, -0.03, 0.1), (0.0, -0.17, 0.2), (0.0, -0.36, 0.26), (0.0, -0.55, 0.26)]
-            g.sweep(path, lambda t: wl.outline_poly([(-0.03 * (1.0 - t * 0.6), 0.0), (0.0, 0.004), (0.02 * (1.0 - t * 0.6), 0.0), (0.0, -0.004)], hard=True), steel, up=(1, 0, 0), caps=(False, True)) if False else None
-            blade_path_pts = [(0.0, -(0.02 + 0.18 * t), 0.0 + 0.3 * math.sin(t * math.pi * 0.62) * (0.9 + 0.1 * t) * 0.9) for t in np.linspace(0, 1, 9)]
-            blade_path_pts = [(0.0, 0.0 - 0.2 * t, 0.3 * (1 - (1 - t) ** 2.2) * -1.0 + 0.0) for t in np.linspace(0, 1, 9)]
-            # a crescent: a curved blade rising from the haft end and arcing forward
-            cres = []
+        else:                                                                         # scythe: a crescent blade rising from the front of the haft and arcing forward
+            R = 0.34
+            arc = []
             for i in range(11):
-                a = math.radians(-8 + 100 * i / 10.0)
-                cres.append((0.0, -(0.05) + 0.36 * math.sin(a) * 0.9, 0.38 * (1 - math.cos(a)) - 0.0))
-            cres = [(0.0, c[1] * -1.0 - 0.0, c[2]) for c in cres]
-            g.sweep([(0.0, -(0.04 + 0.5 * t), 0.4 * (1 - math.cos(t * math.pi * 0.5))) for t in np.linspace(0, 1, 10)],
-                    lambda t: wl.outline_poly([(-0.038 * (1 - 0.8 * t), 0.0), (-0.01, 0.0045), (0.0, 0.0045), (0.0, -0.0045), (-0.01, -0.0045)], hard=True), steel, up=(1, 0, 0), caps=(False, True))
-            g.box((0.0, -0.08, 0.0), (0.03, 0.06, 0.03), mt, r=0.005, chamfer=0.003)
-            g.box((0.0055, -0.3, 0.3), (0.0014, 0.4, 0.008), edge_glow) if False else None
+                a_ = math.radians(8 + 100 * i / 10.0)
+                arc.append((0.0, 0.03 + R * math.sin(a_) * 0.9 - 0.0, 0.02 + R * (1 - math.cos(a_)) * 1.05))
+            tip_first = arc[::-1]                                                      # blade_path runs from the tip back to the base
+            blade(g, steel, 0.5, 0.075, 0.007, edge=1.0, tip=0.35, base_w=0.085, path=tip_first)
+            blade(g, edge_glow, 0.5, 0.02, 0.0095, edge=1.0, tip=0.35, base_w=0.026, path=tip_first) if False else None
+            rbox(g, -0.02, 0.07, -0.03, 0.05, 0.034, mt, r=0.006, ch=0.004)             # socket where the blade meets the haft
+            g.sphere((0.0, -0.0, 0.0), 0.0, mt, n=4) if False else None
+            for k in range(3):
+                zz = 0.1 + 0.1 * k
+                g.box((0.0045, 0.03 + R * math.sin(math.radians(30 + 28 * k)) * 0.9, 0.02 + R * (1 - math.cos(math.radians(30 + 28 * k))) * 1.05), (0.0014, 0.03, 0.01), edge_glow)
+            tube(g, H * 0.5, H * 0.58, r * 1.25, lt, n=10)
+            tube(g, H * 0.8, H * 0.86, r * 1.25, lt, n=10)
         out = {"length": H + 0.02}
         g.mark("gr", (0.0, -H * (0.74 if kind != "staff" else 0.66), 0.0))
         g.mark("gl", (0.0, -H * (0.5 if kind != "staff" else 0.38), 0.0))
@@ -264,21 +275,27 @@ def melee(g, pal, s):
             out = {"length": 0.26}
         elif kind == "chainwhip":
             hilt(g, pal, 0.0, 0.22, r=0.017, wrap=True, guard="disc", guard_w=0.045)
-            n = 26
+            n = 24
             pts = []
             for k in range(n):
                 t = k / (n - 1)
-                pts.append((0.02 * math.sin(t * 9) * t, -(0.22) + 0.7 * t, 0.12 * (1 - math.cos(t * 3.2)) * 0.5 * t))
-            for k, p in enumerate(pts):
-                lk = (pts[k + 1][0] - p[0], pts[k + 1][1] - p[1], pts[k + 1][2] - p[2]) if k < n - 1 else (0, 0.02, 0)
-                if k % 2 == 0:
-                    g.box(p, (0.016, 0.026, 0.006), steel, r=0.0015, chamfer=0.001, axis="y") if g.fine or k % 4 == 0 else None
-                else:
-                    g.box(p, (0.006, 0.026, 0.016), steel, r=0.0015, chamfer=0.001, axis="y") if g.fine or k % 4 == 1 else None
-            g.sphere(pts[-1], 0.02, mt, n=8)
+                pts.append(np.array([0.025 * math.sin(t * 11) * t, -0.22 + 0.72 * t, 0.07 * math.sin(t * 6) * t]))
+            for k in range(n - 1):
+                tg = pts[k + 1] - pts[k]
+                tg = tg / max(np.linalg.norm(tg), 1e-9)
+                ux = wl.unit(np.cross(tg, wl.Z_AX if abs(tg[2]) < 0.9 else wl.X_AX))
+                uz = np.cross(ux, tg)
+                if k % 2:
+                    ux, uz = uz, -ux
+                Rm = np.stack([ux, tg, uz], axis=1)
+                with g.at(tuple((pts[k] + pts[k + 1]) / 2), R=Rm):
+                    g.box((0.0, 0.0, 0.0), (0.016, 0.03, 0.0065), steel, r=0.0015, chamfer=0.001, axis="y")
+                    g.box((0.0, 0.0, 0.0), (0.009, 0.03, 0.0090), dk, axis="y") if g.fine and k % 3 == 0 else None
+            g.sphere(tuple(pts[-1]), 0.022, mt, n=8)
             if g.fine:
-                for k in range(0, 3):
-                    pass
+                for k in range(6):
+                    a_ = k * math.pi / 3
+                    g.cyl(tuple(pts[-1] + np.array([math.cos(a_) * 0.018, 0.0, math.sin(a_) * 0.018])), tuple(pts[-1] + np.array([math.cos(a_) * 0.034, 0.012, math.sin(a_) * 0.034])), 0.004, mt, r1=0.0015, n=5)
             g.mark("gr", (0.0, -0.08, 0.0))
             g.mark("gl", (0.0, -0.17, 0.0))
             out = {"length": 0.26}
@@ -300,22 +317,24 @@ def melee(g, pal, s):
             g.mark("gr", (0.0, -(Lb + 0.28), 0.0))
             g.mark("gl", (0.0, -(Lb + 0.1), -0.04))
             out = {"length": Lb + 0.4}
-    elif kind == "gauntlet":                                                                # a power fist
-        # forearm shell, a fist block, knuckle plates, emitter
-        side_w(g, [(0.0, 0.06), (0.14, 0.07), (0.34, 0.052), (0.34, -0.05), (0.14, -0.06), (0.0, -0.05)], 0.1, bd, ch=0.006)
-        rbox(g, 0.0, 0.14, -0.056, 0.064, 0.108, dk, r=0.01, ch=0.005)
-        for k in range(4):
-            rbox(g, 0.01, 0.07, 0.05 - k * 0.02, 0.066 - k * 0.02, 0.1, steel, r=0.002) if False else None
-            g.box((0.0, -0.025, 0.045 - k * 0.025), (0.1, 0.05, 0.02), pal["metal"], r=0.004, chamfer=0.003, axis="y")
-        g.cyl((0.0, 0.004, 0.0), (0.0, -0.03, 0.0), 0.034, edge_glow, n=14)
+    elif kind == "gauntlet":                                                                # a power fist: forearm shell, curled finger blocks, thumb, wrist emitter
+        we.fuselage(g, [(0.12, 0.1, 0.1, 0.0, 0.02), (0.22, 0.115, 0.11, 0.004, 0.022), (0.36, 0.1, 0.095, 0.0, 0.02), (0.5, 0.078, 0.075, -0.004, 0.016)], bd)
+        for k in range(4):                                                                  # four finger blocks curled over the front
+            x = -0.045 + k * 0.03
+            rbox(g, 0.0, 0.09, 0.012 - 0.006 * abs(k - 1.5), 0.05, 0.027, pal["metal"], r=0.006, ch=0.004, x=x)
+            rbox(g, 0.0, 0.04, -0.03, 0.016, 0.027, dk, r=0.005, ch=0.003, x=x)
+            g.box((x, -0.002, 0.03), (0.02, 0.006, 0.016), edge_glow) if g.fine else None
+        side_w(g, [(0.07, -0.02), (0.15, -0.05), (0.2, -0.07), (0.12, -0.075), (0.06, -0.04)], 0.032, pal["metal"], ch=0.004, x=0.062)      # the thumb
         for sx in (-1.0, 1.0):
-            vent_row(g, 0.16, 0.3, 0.0, 0.052 * sx, dk, n=4, h=0.04, w=0.01, both=False)
-            g.box((sx * 0.052, -0.2, 0.0), (0.002, 0.14, 0.02), edge_glow)
-        rbox(g, 0.28, 0.5, -0.04, 0.036, 0.088, pal["rub"], r=0.01, ch=0.004)
-        g.cyl((0.0, -0.18, -0.09), (0.0, -0.22, -0.03), 0.02, pal["rub"], n=8)
-        g.mark("gr", (0.0, -0.17, -0.0))
-        g.mark("gl", (0.0, -0.3, 0.0))
-        out = {"length": 0.5}
+            g.box((sx * 0.0585, -0.3, 0.0), (0.0015, 0.12, 0.036), edge_glow)
+            vent_row(g, 0.16, 0.32, -0.03, 0.058 * sx, dk, n=4, h=0.03, w=0.01, both=False)
+        g.cyl((0.0, -0.1, 0.055), (0.0, -0.22, 0.062), 0.022, edge_glow, n=12)
+        rbox(g, 0.22, 0.34, 0.05, 0.075, 0.06, dk, r=0.006, ch=0.004)
+        rbox(g, 0.34, 0.6, -0.04, 0.036, 0.088, pal["rub"], r=0.01, ch=0.004)
+        g.cyl((0.0, -0.2, -0.05), (0.0, -0.22, -0.11), 0.02, pal["rub"], n=8)
+        g.mark("gr", (0.0, -0.22, -0.09))
+        g.mark("gl", (0.0, -0.36, 0.0))
+        out = {"length": 0.6}
     elif kind == "shield":
         # a riot shield: a curved plate in front of the hero with a visor window and a grip behind
         path = []
@@ -437,19 +456,49 @@ def device(g, pal, s):
                     for dd in (cd - 0.03, cd + 0.03):
                         g.box((math.cos(a) * r, -dd, math.sin(a) * r), (0.008, 0.008, 0.008), ac)
             tube(g, cd + 0.075, cd + 0.09, 0.012, mt, n=8)
-    elif kind == "spark" or kind == "arc":                                  # a cylinder with a coil
+    elif kind == "spark":                                                    # a cylinder with a coil
         lathe_d(g, [(cd - 0.08, 0.026), (cd - 0.075, 0.034), (cd + 0.075, 0.034), (cd + 0.08, 0.026)], bd, n=14, hard=(1, 2))
         for k in range(4):
             we.ring_d(g, cd - 0.05 + k * 0.033, 0.0365, 0.004, pal["coil"], n=14)
         g.sphere((0.0, -(cd - 0.09), 0.0), 0.012, gl, n=8)
-    elif kind in ("well", "still", "collapse"):                              # a sphere held in a cage / rings
+    elif kind == "arc":                                                      # a short bottle with two electrodes arcing between prongs
+        lathe_d(g, [(cd - 0.04, 0.022), (cd - 0.035, 0.036), (cd + 0.05, 0.036), (cd + 0.07, 0.02)], bd, n=14, hard=(1,))
+        for sx in (-1.0, 1.0):
+            g.cyl((sx * 0.02, -(cd - 0.04), 0.0), (sx * 0.026, -(cd - 0.11), 0.0), 0.006, mt, r1=0.0035, n=6)
+        g.cyl((-0.026, -(cd - 0.1), 0.0), (0.026, -(cd - 0.1), 0.0), 0.0028, gl, n=6)
+        we.ring_d(g, cd + 0.0, 0.038, 0.004, pal["coil"], n=14)
+        we.ring_d(g, cd + 0.03, 0.038, 0.004, pal["coil"], n=14)
+        tube(g, cd + 0.07, cd + 0.09, 0.012, mt, n=8)
+    elif kind == "well":                                                     # a sphere held in a three ring cage
         g.sphere((0.0, -cd, 0.0), 0.034, gl, n=12)
         for k in range(3):
             with g.at((0.0, -cd, 0.0), rot=(0, 0, 60 * k)):
-                g.torus((0.0, 0.0, 0.0), 0.046, 0.0036, bd if kind != "collapse" else dk, n=18, m=6, axis="x")
+                g.torus((0.0, 0.0, 0.0), 0.046, 0.0036, bd, n=18, m=6, axis="x")
         tube(g, cd + 0.04, cd + 0.075, 0.016, mt, n=10)
         tube(g, cd - 0.075, cd - 0.04, 0.016, mt, n=10)
+    elif kind == "still":                                                    # a pod: a milky sphere in two clamps on a base ring
+        g.sphere((0.0, -cd, 0.0), 0.04, pal["lens_glow"], n=12)
+        for sx in (-1.0, 1.0):
+            rbox(g, cd - 0.015, cd + 0.015, -0.05, 0.05, 0.014, bd, r=0.003, x=sx * 0.044)
+        for k in range(2):
+            g.torus((0.0, -(cd + (k - 0.5) * 0.05), 0.0), 0.044, 0.004, mt, n=16, m=6, axis="y")
+        tube(g, cd + 0.06, cd + 0.09, 0.022, dk, n=12)
+        tube(g, cd - 0.09, cd - 0.06, 0.022, dk, n=12)
+        g.sphere((0.0, -cd, 0.0), 0.02, gl, n=8)
+    elif kind == "collapse":                                                 # a dark orb with four prongs
+        g.sphere((0.0, -cd, 0.0), 0.03, dk, n=12)
+        g.sphere((0.0, -cd, 0.0), 0.016, gl, n=8)
+        for k in range(4):
+            a_ = math.pi / 2 * k + math.pi / 4
+            g.cyl((math.cos(a_) * 0.034, -(cd - 0.03), math.sin(a_) * 0.034), (math.cos(a_) * 0.05, -(cd + 0.07), math.sin(a_) * 0.05), 0.0075, bd, r1=0.004, n=6)
+        tube(g, cd - 0.06, cd - 0.045, 0.04, mt, n=14)
     elif kind in ("prox", "gravity", "bounce", "emp"):                       # a disc mine on a ground plate
+        if kind == "emp":                                                    # an EMP mine: three antenna spikes and a ring of studs
+            for k in range(3):
+                a_ = 2 * math.pi * k / 3
+                g.cyl((math.cos(a_) * 0.05, -(cd + math.sin(a_) * 0.05), -0.02), (math.cos(a_) * 0.06, -(cd + math.sin(a_) * 0.06), 0.1), 0.004, dk, r1=0.0015, n=5)
+        if kind == "gravity":                                                # a floating ring above the dome
+            g.torus((0.0, -cd, 0.075), 0.045, 0.006, pal["coil"], n=18, m=6, axis="z")
         r = {"prox": 0.1, "gravity": 0.1, "bounce": 0.07, "emp": 0.095}[kind]
         h = {"prox": 0.055, "gravity": 0.06, "bounce": 0.09, "emp": 0.06}[kind]
         zc = -0.06 + h / 2
@@ -490,37 +539,59 @@ def device(g, pal, s):
             g.cyl((0.0, -(cd - 0.07), 0.0), (0.0, -(cd - 0.2), 0.0), 0.0016, pal["fabric"], n=4)
             g.cyl((0.03, -cd, 0.0), (0.03, -cd, -0.07), 0.006, mt, n=6)
             g.sphere((0.0, -(cd + 0.0), 0.03), 0.012, gl, n=8)
-        else:                                                                # directional (a curved face)
-            path = [(0.0, -(cd + 0.0), -0.02) for _ in range(1)]
-            g.sweep([(t * 0.19 - 0.095, -(cd - 0.03 + 0.04 * (1 - (2 * t - 1) ** 2) * -1.0 + 0.0), 0.0) for t in np.linspace(0, 1, 7)],
-                    lambda t: wl.outline_rrect(0.012, 0.075, 0.003, 1), bd, up=(0, 1, 0), chamfer=(0.002, 0.002)) if False else rbox(g, cd - 0.03, cd + 0.03, -0.045, 0.045, 0.17, bd, r=0.006, ch=0.003)
+        else:                                                                # directional: a curved claymore plate on scissor legs
+            path = [(-0.095 + 0.19 * t, -(cd + 0.0 - 0.028 * (1.0 - (2 * t - 1) ** 2)), 0.0) for t in np.linspace(0, 1, 9)]
+            g.sweep(path, lambda t: wl.outline_rrect(0.022, 0.08, 0.004, 1), bd, up=(0, 0, 1), chamfer=(0.002, 0.002))
             for sx in (-1.0, 1.0):
-                g.cyl((sx * 0.06, -(cd + 0.03), -0.045), (sx * 0.09, -(cd + 0.03), -0.09), 0.004, mt, n=6)
-            g.box((0.0, -(cd - 0.031), 0.0), (0.12, 0.002, 0.03), hz)
-    else:                                                                    # strike designators: a handheld beacon / tablet / designator
+                g.cyl((sx * 0.06, -(cd + 0.02), -0.04), (sx * 0.095, -(cd + 0.04), -0.09), 0.0045, mt, n=6)
+                g.cyl((sx * 0.06, -(cd + 0.02), -0.04), (sx * 0.04, -(cd + 0.045), -0.09), 0.0045, mt, n=6)
+            g.box((0.0, -(cd - 0.036), 0.0), (0.12, 0.003, 0.034), hz)
+    else:                                                                    # strike designators: a handheld beacon / tablet / designator, in several variants
         out = {"length": 0.62, "butt": 0.62}
         sk = s.get("style", "beacon")
+        var = s.get("variant", 0)
         L = 0.5
         if sk in ("beacon", "flare"):
-            tube(g, 0.0, L * 0.8, 0.026, bd, n=14, ch=0.003)
-            tube(g, 0.0, 0.03, 0.03, dk, n=14)
-            g.sphere((0.0, 0.004, 0.0), 0.028, gl, n=10)
+            r0 = 0.026 + 0.003 * (var % 3)
+            tube(g, 0.0, L * 0.8, r0, bd, n=14, ch=0.003)
+            tube(g, 0.0, 0.03, r0 + 0.004, dk, n=14)
+            if var == 0:                                                     # a glowing head and a whip antenna
+                g.sphere((0.0, 0.004, 0.0), 0.028, gl, n=10)
+                g.cyl((0.0, -L * 0.3, r0), (0.0, -L * 0.3 - 0.01, 0.15), 0.003, dk, n=6)
+                g.sphere((0.0, -L * 0.3 - 0.01, 0.152), 0.007, gl, n=6)
+            elif var == 1:                                                   # a ground spike and a strobe cap
+                g.cyl((0.0, 0.0, 0.0), (0.0, 0.08, 0.0), r0 * 0.5, mt, r1=0.002, n=8)
+                g.sphere((0.0, -L * 0.8 - 0.0, 0.0), 0.0, mt, n=4) if False else None
+                tube(g, L * 0.8 - 0.05, L * 0.8, r0 + 0.006, ac, n=14)
+                g.cyl((0.0, -L * 0.8, 0.0), (0.0, -(L * 0.8 + 0.04), 0.0), 0.02, gl, n=12)
+            elif var == 2:                                                   # a smoke canister cluster
+                for k in range(3):
+                    a_ = 2 * math.pi * k / 3
+                    tube(g, 0.02, L * 0.6, 0.014, ac if k % 2 else dk, x=math.cos(a_) * 0.03, z=math.sin(a_) * 0.03 + 0.0, n=10)
+                    g.sphere((math.cos(a_) * 0.03, 0.01, math.sin(a_) * 0.03), 0.012, gl, n=6)
+            else:                                                            # a crystal on a collar
+                lathe_d(g, [(-0.07, 0.003), (-0.045, 0.026), (-0.01, 0.026), (0.0, 0.0)], gl, n=6, hard=(1, 2)) if False else lathe_d(g, [(-0.08, 0.002), (-0.05, 0.022), (-0.01, 0.022), (0.0, 0.0001)], gl, n=6, hard=(1, 2))
+                tube(g, 0.0, 0.03, r0 + 0.006, mt, n=14)
             for k in range(3):
-                tube(g, 0.08 + k * 0.1, 0.092 + k * 0.1, 0.0285, ac, n=14)
+                tube(g, 0.08 + k * 0.1, 0.092 + k * 0.1, r0 + 0.0025, ac, n=14)
             g.cyl((0.0, -L * 0.8, 0.0), (0.0, -(L * 0.8 + 0.12), 0.0), 0.014, pal["rub"], n=10)
-            g.cyl((0.0, -L * 0.3, 0.026), (0.0, -L * 0.3 - 0.01, 0.15), 0.003, dk, n=6)
-            g.sphere((0.0, -L * 0.3 - 0.01, 0.152), 0.007, gl, n=6)
             gr = (0.0, -L * 0.7, -0.01)
         elif sk == "tablet":
             rbox(g, 0.1, 0.4, -0.06, 0.06, 0.03, bd, r=0.008, ch=0.004, seg=2)
-            g.box((0.0, -0.25, 0.0156), (0.24, 0.0), (0.0, 0.0, 0.0)) if False else None
-            g.box((0.0, -0.25, 0.0158), (0.022, 0.24, 0.1), pal["screen"]) if False else g.box((0.0, -0.25, 0.0), (0.0, 0.0, 0.0), dk) if False else None
-            rbox(g, 0.12, 0.38, -0.05, 0.05, 0.0, pal["screen"], r=0.0) if False else g.box((0.0, -0.25, 0.0158), (0.052, 0.24, 0.1), pal["screen"]) if False else None
             g.box((0.0158, -0.25, 0.0), (0.0016, 0.25, 0.1), pal["screen"])
             g.box((-0.0158, -0.25, 0.0), (0.0016, 0.25, 0.1), pal["screen"])
             g.cyl((0.0, -0.12, 0.06), (0.0, -0.1, 0.22), 0.004, dk, n=6)
             g.sphere((0.0, -0.1, 0.225), 0.012, gl, n=8)
             rbox(g, 0.36, 0.5, -0.03, 0.03, 0.032, pal["rub"], r=0.01)
+            if var % 3 == 1:                                                 # a folding solar panel
+                rbox(g, 0.12, 0.38, 0.06, 0.066, 0.1, pal["lens"], r=0.002, x=0.0)
+                for k in range(4):
+                    g.box((0.0, -(0.17 + 0.07 * k), 0.0665), (0.1, 0.002, 0.0012), pal["bright"])
+            elif var % 3 == 2:                                               # a second antenna and a keypad
+                g.cyl((0.03, -0.14, 0.06), (0.035, -0.12, 0.2), 0.003, dk, n=6)
+                for kx in range(3):
+                    for ky in range(3):
+                        g.box((0.0165, -(0.15 + 0.03 * ky), -0.02 + 0.02 * kx), (0.0012, 0.02, 0.014), pal["accent"])
             gr = (0.0, -0.43, 0.0)
         else:                                                                # laser designator: a tube with a lens and a handle
             tube(g, 0.0, 0.34, 0.034, bd, n=16, ch=0.004)
@@ -529,9 +600,58 @@ def device(g, pal, s):
             tube(g, 0.3, 0.36, 0.04, dk, n=16)
             g.box((0.0, -0.18, 0.04), (0.05, 0.1, 0.03), dk, r=0.005, chamfer=0.002)
             side_w(g, [(0.16, -0.03), (0.2, -0.03), (0.21, -0.12), (0.17, -0.12)], 0.03, pal["rub"], ch=0.003)
+            if var % 3 == 1:                                                 # a tripod stub and a long tube
+                for sx in (-1.0, 1.0):
+                    g.cyl((sx * 0.01, -0.2, -0.034), (sx * 0.06, -0.26, -0.12), 0.006, dk, n=6)
+                tube(g, 0.34, 0.46, 0.028, bd, n=14)
+            elif var % 3 == 2:                                               # a scope on top and a big battery
+                optic(g, "prism", 0.16, 0.04, pal, x=0.0)
+                rbox(g, 0.34, 0.48, -0.03, 0.03, 0.06, dk, r=0.006)
             gr = (0.0, -0.19, -0.075)
         g.mark("gr", gr)
         g.mark("gl", (-0.04, -0.46, -0.02))
+    if kind in ("c4", "remote", "satchel", "shaped", "trip", "directional", "fog", "blinder", "can") and g.fine:
+        # stencilled label plates, a strap and a screw row: the simple shapes get their small details
+        g.box((0.0, -cd, 0.0), (0.0, 0.0, 0.0), dk) if False else None
+        g.box((0.0275 if kind in ("fog", "blinder", "can") else 0.0, -cd, 0.0), (0.0, 0.0, 0.0), dk) if False else None
+        lab = pal["label"]
+        if kind in ("fog", "blinder", "can"):
+            r_ = 0.034 if kind != "blinder" else 0.03
+            g.box((r_ + 0.0004, -cd, 0.0), (0.0012, 0.07, 0.02), lab)
+            g.box((-r_ - 0.0004, -cd, 0.0), (0.0012, 0.07, 0.02), lab)
+            g.torus((0.0, -(cd - 0.07), 0.0), r_ * 0.5, 0.003, pal["bright"], n=12, m=5, axis="y")
+            for k in range(8):
+                a_ = 2 * math.pi * k / 8
+                screw(g, (math.cos(a_) * r_ * 0.96, -(cd + 0.055), math.sin(a_) * r_ * 0.96), pal["bright"], axis="y", r=0.003)
+        elif kind in ("c4", "remote"):
+            g.box((0.0, -cd, 0.0316), (0.09, 0.03, 0.0016), lab)
+            for sx in (-1.0, 1.0):
+                for sd in (-1.0, 1.0):
+                    screw(g, (sx * 0.05, -(cd + sd * 0.055), 0.0305), pal["bright"], axis="z", r=0.004)
+            for k in range(3):
+                g.cyl((0.0, -(cd - 0.07), 0.0), (0.0, -(cd - 0.16), 0.02 + 0.02 * k), 0.0022, [pal["dark"], pal["accent"], pal["glow"]][k], n=5)
+        elif kind == "satchel":
+            for sx in (-1.0, 1.0):
+                g.box((sx * 0.04, -cd, 0.0), (0.012, 0.0, 0.0), dk) if False else None
+                for sd in (-1.0, 1.0):
+                    rbox(g, cd + sd * 0.03 - 0.003, cd + sd * 0.03 + 0.003, -0.06, 0.06, 0.016, pal["leather"], r=0.002, x=sx * 0.04)
+            g.box((0.0, -cd, 0.0615), (0.06, 0.03, 0.0016), lab)
+        elif kind == "shaped":
+            g.box((0.0, -(cd + 0.02), 0.0555), (0.0, 0.0, 0.0), dk) if False else None
+            tube(g, cd - 0.07, cd - 0.065, 0.055, pal["bright"], n=18)
+            for k in range(6):
+                a_ = 2 * math.pi * k / 6
+                screw(g, (math.cos(a_) * 0.05, -(cd + 0.073), math.sin(a_) * 0.05), pal["bright"], axis="y", r=0.004)
+        elif kind == "trip":
+            g.box((0.0, -cd, 0.0225), (0.03, 0.05, 0.0014), lab)
+            tube(g, cd + 0.02, cd + 0.03, 0.026, dk, n=12)
+            g.torus((0.0, -(cd - 0.2), 0.0), 0.016, 0.003, pal["bright"], n=12, m=5, axis="y")
+        elif kind == "directional":
+            for k in range(4):
+                g.box((-0.054 + 0.036 * k, -(cd - 0.0305), 0.0), (0.01, 0.0014, 0.02), pal["brass"]) if False else g.box((-0.054 + 0.036 * k, -(cd - 0.031), 0.0), (0.014, 0.0014, 0.03), pal["accent"])
+            g.box((0.0, -(cd + 0.0305), 0.0), (0.06, 0.0014, 0.02), lab)
+            g.cyl((0.0, -cd, 0.045), (0.0, -cd, 0.06), 0.0035, dk, n=6)
+            g.box((0.0, -(cd - 0.0), 0.068), (0.012, 0.03, 0.012), dk)
     if "gr" not in g.markers:
         g.mark("gr", (0.0, -cd - 0.0, 0.0))
         g.mark("gl", (-0.06, -(cd + 0.06), -0.03))

@@ -14,7 +14,9 @@ uniform sampler2DArray tex_orm : filter_linear_mipmap, repeat_enable;
 uniform sampler2DArray tex_nrm : filter_linear_mipmap, repeat_enable;
 uniform float glow : hint_range(0.0, 4.0) = 1.0;               // rises on every shot (PlayerBody.fire_flash): the trim kicks light
 uniform float wear_k : hint_range(0.0, 2.0) = 1.0;
-uniform float nrm_k : hint_range(0.0, 2.0) = 1.0;
+uniform float nrm_k : hint_range(0.0, 2.0) = 0.7;
+uniform int dbg = 0;
+uniform float hide_mag : hint_range(0.0, 1.0) = 0.0;            // 1 = the magazine is out of the weapon (reload): its vertices collapse
 uniform float pulse : hint_range(0.0, 4.0) = 0.0;              // energy coils: part 7 glows brighter
 uniform vec3 anim_slide = vec3(0.0);                           // object space (Godot frame: the shooter is toward +Z)
 uniform vec3 anim_mag = vec3(0.0);
@@ -31,8 +33,8 @@ varying vec3 v_pos;
 varying vec3 v_nobj;
 varying vec4 v_col;
 varying vec2 v_aw;
-flat varying float v_layer;
-flat varying float v_part;
+varying flat float v_layer;
+varying flat float v_part;
 
 void vertex() {
 	v_pos = VERTEX;
@@ -47,7 +49,7 @@ void vertex() {
 		if (v_part < 1.5) {
 			p += anim_slide;
 		} else if (v_part < 2.5) {
-			p += anim_mag;
+			p = mix(p + anim_mag, vec3(0.0), hide_mag);
 		} else if (v_part < 3.5) {
 			p += anim_pump;
 		} else if (v_part < 4.5) {
@@ -99,19 +101,25 @@ void fragment() {
 	vec3 base = alb.rgb * 2.0 * v_col.rgb;
 	float rough = orm.g;
 	float metal = orm.b;
-	// edge wear: paint and polymer chip down to bare steel at the edges (the swatch's chip mask breaks the line up); bare metal only polishes
-	float wmask = clamp(v_aw.y * wear_k, 0.0, 1.0);
-	float chip = smoothstep(0.42, 0.68, wmask + (orm.r - 0.5) * 0.75);
+	// edge wear: where the interpolated normal departs from the geometric one the surface is a bevel (the chamfer rings of the kit); paint and polymer chip down to bare steel there,
+	// the swatch's chip mask breaks the line up, the vertex value says how worn the weapon is
+	vec3 gn = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
+	float curv = 1.0 - abs(dot(normalize(NORMAL), gn));
+	float edge = smoothstep(0.05, 0.24, curv);
+	float wmask = clamp(edge * (0.25 + v_aw.y * 1.3) * wear_k, 0.0, 1.0);
+	float chip = smoothstep(0.3, 0.6, wmask + (orm.r - 0.5) * 0.5 * wmask);
 	float is_metal = step(0.5, metal);
 	vec3 bare = vec3(0.36, 0.37, 0.4);
 	base = mix(base, bare, chip * mix(0.85, 0.25, is_metal) * (1.0 - glow_share));
 	rough = mix(rough, 0.3, chip * mix(0.8, 0.5, is_metal));
 	metal = mix(metal, 1.0, chip * (1.0 - is_metal) * 0.9);
+	base *= 1.0 + 0.35 * edge * is_metal;              // polished metal edges catch the light
 	// grime in the cavities
 	float cav = 1.0 - v_aw.x;
 	base *= 1.0 - 0.35 * cav;
-	vec3 tv = normalize((MODELVIEW_MATRIX * vec4(T, 0.0)).xyz);
-	vec3 bv = normalize((MODELVIEW_MATRIX * vec4(B, 0.0)).xyz);
+	mat3 vm = mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX);
+	vec3 tv = normalize(vm * T);
+	vec3 bv = normalize(vm * B);
 	float nz = sqrt(max(0.0, 1.0 - dot(nm.xy, nm.xy)));
 	vec3 pert = normalize(tv * nm.x * nrm_k + bv * nm.y * nrm_k + NORMAL * nz);
 	NORMAL = normalize(mix(NORMAL, pert, 0.9));
@@ -126,4 +134,9 @@ void fragment() {
 	float pw = (v_part > 6.5 && v_part < 7.5) ? pulse : 0.0;
 	// a small self-lit floor (a gun is never a black cut-out in a dark street) plus the glowing parts (pattern from the swatch)
 	EMISSION = base * 0.035 + v_col.rgb * glow_share * (alb.r * 2.0) * (0.25 + 0.55 * glow + pw);
+	if (dbg == 1) { ALBEDO = v_col.rgb; EMISSION = vec3(0.0); }
+	if (dbg == 2) { ALBEDO = vec3(v_col.a); EMISSION = vec3(0.0); }
+	if (dbg == 3) { ALBEDO = vec3(v_layer / 31.0, v_aw.x, v_aw.y); EMISSION = vec3(0.0); }
+	if (dbg == 4) { ALBEDO = alb.rgb; EMISSION = vec3(0.0); }
+	if (dbg == 5) { ALBEDO = vec3(orm.g, orm.b, orm.r); EMISSION = vec3(0.0); }
 }

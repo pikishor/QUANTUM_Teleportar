@@ -145,8 +145,8 @@ func _test_silhouettes() -> void:
 			continue
 		var bb := m.get_aabb()
 		sigs["%d_%d_%d" % [roundi(bb.size.x * 40.0), roundi(bb.size.y * 40.0), roundi(bb.size.z * 40.0)]] = true
-		all_ok = all_ok and bb.size.z > 0.15 and bb.size.z < 1.6 and bb.end.z > 0.2 and m.get_surface_count() == 1
-	TestLib.check(all_ok, "every weapon class has ONE surface (one draw), 0.15-1.6 m long, its body behind the muzzle")
+		all_ok = all_ok and bb.size.z > 0.06 and bb.size.z < 1.6 and bb.end.z > 0.05 and m.get_surface_count() == 1
+	TestLib.check(all_ok, "every weapon class has ONE surface (one draw), 0.06-1.6 m long (a hand mine is the smallest), its body behind the muzzle")
 	TestLib.check(sigs.size() >= 14, "the silhouettes are distinct: %d different sizes among %d classes" % [sigs.size(), WeaponDefs.IDS.size()])
 	var lance := WeaponModels.mesh(&"lance").get_aabb().size
 	var scatter := WeaponModels.mesh(&"scatter").get_aabb().size

@@ -105,8 +105,18 @@ static func mesh(id: StringName, lod := 0) -> ArrayMesh:
 	if kit != null:
 		_cache[key] = kit
 		return kit
-	if lod > 0:
-		return mesh(id, 0)
+	return stub_mesh(id)
+
+
+## The procedural / open-source stand-in of weapon `id` (the models before the weapon kit; what a weapon without a kit model is drawn with). Cached apart from the kit's meshes.
+static func stub_mesh(id: StringName) -> ArrayMesh:
+	if not WeaponDefs.DEFS.has(id):
+		return null
+	var key: StringName = id
+	if has_model(id):
+		key = StringName("stub:%s" % id)
+	if _cache.has(key):
+		return _cache[key]
 	var glow: Color = WeaponDefs.def(id)["look"]
 	var b := _Builder.new()
 	var opened := false
@@ -120,7 +130,7 @@ static func mesh(id: StringName, lod := 0) -> ArrayMesh:
 		b = _Builder.new()
 		_procedural(b, id, glow)
 	var m := b.build()
-	_cache[id] = m
+	_cache[key] = m
 	return m
 
 
@@ -862,6 +872,19 @@ static func pbr_material() -> Material:
 	return _pbr if _pbr != null else material()
 
 
+## The material of the weapon in the hero's hand: his own copy of the kit's PBR material (he moves the parts and pulses the glow through it), the old vertex-colour material for a stub.
+static var _hand_pbr: ShaderMaterial
+
+
+static func hand_material(id: StringName) -> Material:
+	if not has_model(id):
+		return material()
+	if _hand_pbr == null:
+		var base := pbr_material()
+		_hand_pbr = base.duplicate() as ShaderMaterial if base is ShaderMaterial and base != _material else null
+	return _hand_pbr if _hand_pbr != null else material_for(id)
+
+
 static func pbr_material_copy() -> ShaderMaterial:
 	var m := pbr_material()
 	return (m.duplicate() as ShaderMaterial) if m is ShaderMaterial and m != _material else material()
@@ -902,17 +925,27 @@ static func _kit_mesh(id: StringName, lod: int) -> ArrayMesh:
 	return out
 
 
-## How far the muzzle node moves BACK along the rifle for this weapon (a pistol's muzzle is nearer the body than the carbine's).
-static func muzzle_shift(id: StringName) -> float:
-	return CARBINE_REACH - float(spec(id)["reach"])
+## The thickness and length factor a weapon is drawn with in a hand: the kit's models are drawn a little thicker and longer than true size (from the shoulder camera a true-size gun is a thin stick).
+const KIT_LOOK_SCALE := Vector3(1.3, 1.3, 1.1)
 
 
-## Per-hand grip offsets for the rig, in the rifle frame relative to the carbine's wrists: [left, right]. Both are added to the rest wrist targets (CharacterRig `grip_off`).
-static func grip_offsets(id: StringName) -> Array[Vector3]:
+static func look_scale(id: StringName) -> Vector3:
+	return KIT_LOOK_SCALE if has_model(id) else Vector3.ONE
+
+
+## How far the muzzle node moves BACK along the rifle for this weapon (a pistol's muzzle is nearer the body than the carbine's). `sc` = the scale the mesh is drawn with (the pivot sits `reach` metres
+## behind the unscaled muzzle, so a mesh stretched along Z moves its pivot with it).
+static func muzzle_shift(id: StringName, sc := Vector3.ONE) -> float:
+	return CARBINE_REACH - float(spec(id)["reach"]) * sc.z
+
+
+## Per-hand grip offsets for the rig, in the rifle frame relative to the carbine's wrists: [left, right]. Both are added to the rest wrist targets (CharacterRig `grip_off`). With `sc` the grips are
+## where the DRAWN (scaled) weapon has them.
+static func grip_offsets(id: StringName, sc := Vector3.ONE) -> Array[Vector3]:
 	var sp := spec(id)
-	var reach := float(sp["reach"])
-	var gr: Vector3 = sp["gr"]
-	var gl: Vector3 = sp["gl"]
+	var reach := float(sp["reach"]) * sc.z
+	var gr: Vector3 = sp["gr"] * sc
+	var gl: Vector3 = sp["gl"] * sc
 	var sr := Vector3(gr.x, gr.y, gr.z - reach) - Vector3(CARBINE_GR.x, CARBINE_GR.y, CARBINE_GR.z - CARBINE_REACH)
 	var sl := Vector3(gl.x, gl.y, gl.z - reach) - Vector3(CARBINE_GL.x, CARBINE_GL.y, CARBINE_GL.z - CARBINE_REACH)
 	return [sl, sr]

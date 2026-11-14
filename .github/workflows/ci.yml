@@ -18,7 +18,7 @@ jobs:
   godot-tests:
     name: Godot tests (shard ${{ matrix.shard }} of 4)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45                       # the shards run 20 to 29 minutes (wave 113: shard 1 took 29 and was cancelled by the old 30 minute limit at the very end of its last test)
     strategy:
       fail-fast: false
       matrix:

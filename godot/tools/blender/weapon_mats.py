@@ -30,7 +30,7 @@ EMISSIVE = {CORE, COIL, SCREEN}
 ABSOLUTE = {CAMO_A, CAMO_B, CAMO_C, HAZARD, LABEL}
 # average colour (linear, as the 2 * swatch * vertex colour convention gives with tint 1) for the LOD1 colour classes of FoeArms and the previews
 LAYER_BASE = {POLY: (0.05, 0.052, 0.056), RUBBER: (0.035, 0.036, 0.04), STEEL_P: (0.17, 0.18, 0.19), STEEL_B: (0.1, 0.11, 0.13), STEEL_BRIGHT: (0.55, 0.56, 0.58), ALLOY: (0.5, 0.52, 0.55),
-              ANODISED: (0.3, 0.3, 0.34), WOOD_DARK: (0.12, 0.065, 0.035), WOOD_LIGHT: (0.35, 0.22, 0.11), CERAMIC: (0.75, 0.77, 0.8), PAINT: (0.3, 0.3, 0.3), CAMO_A: (0.12, 0.14, 0.07),
+              ANODISED: (0.3, 0.3, 0.34), WOOD_DARK: (0.07, 0.04, 0.024), WOOD_LIGHT: (0.35, 0.22, 0.11), CERAMIC: (0.5, 0.52, 0.55), PAINT: (0.3, 0.3, 0.3), CAMO_A: (0.12, 0.14, 0.07),
               CAMO_B: (0.35, 0.28, 0.16), CAMO_C: (0.25, 0.27, 0.3), CARBON: (0.03, 0.03, 0.035), BRASS: (0.62, 0.42, 0.14), LEATHER: (0.13, 0.07, 0.04), GLASS: (0.04, 0.07, 0.1),
               CORE: (0.2, 0.9, 1.0), COIL: (0.2, 0.8, 1.0), HAZARD: (0.5, 0.4, 0.05), SCREEN: (0.02, 0.05, 0.06), FABRIC: (0.12, 0.12, 0.09), CHROME: (0.7, 0.72, 0.75),
               TITANIUM: (0.3, 0.32, 0.36), RUBBER_SMOOTH: (0.03, 0.03, 0.033), GLOSS: (0.4, 0.4, 0.42), LABEL: (0.4, 0.4, 0.35)}
@@ -111,23 +111,24 @@ def swatch(layer, seed=1):
     if layer == POLY:
         vd, _ = _voronoi(n, 22, rng, 0.9)
         h = 0.6 * (1 - vd) + 0.25 * fine
-        return _sw(g(0.5 + 0.05 * fine + 0.05 * (1 - vd)), 0.6 + 0.08 * mid, 0 * one, chips, _normal(h, 2.2))
+        return _sw(g(0.5 + 0.025 * fine + 0.03 * (1 - vd)), 0.6 + 0.06 * mid, 0 * one, chips, _normal(h, 1.1))
     if layer == RUBBER:
         vd, _ = _voronoi(n, 12, rng, 0.9)
         h = 0.9 * (1 - vd) ** 0.7 + 0.1 * fine
         return _sw(g(0.5 + 0.03 * fine - 0.06 * vd), 0.82 + 0.06 * mid, 0 * one, chips, _normal(h, 4.0))
     if layer == STEEL_P:
         h = 0.5 * fine + 0.3 * _fft(n, rng, 0.0)
-        return _sw(g(0.5 + 0.07 * fine + 0.03 * mid), 0.56 + 0.07 * fine, one, chips, _normal(h, 1.4))
+        return _sw(g(0.5 + 0.035 * fine + 0.02 * mid), 0.56 + 0.05 * fine, one, chips, _normal(h, 0.8))
     if layer == STEEL_B:
         st = _fft(n, rng, 0.6, 7.0, 1.0)
-        return _sw(g(0.5 + 0.035 * st + 0.015 * mid), 0.27 + 0.05 * st, one, chips, _normal(0.25 * st, 1.0))
+        return _sw(g(0.5 + 0.03 * st + 0.015 * mid), 0.3 + 0.04 * st, one, chips, _normal(0.1 * st, 0.6))
     if layer == STEEL_BRIGHT:
-        sc = _scratches(n, rng, 70, 70, True, 0.5) + _scratches(n, rng, 30, 40, False, 0.4)
-        return _sw(g(0.5 + 0.03 * mid - 0.08 * sc), 0.15 + 0.07 * mid + 0.15 * sc, one, chips, _normal(0.3 * mid - sc, 1.2))
+        sc = _scratches(n, rng, 26, 60, True, 0.35)
+        st = _fft(n, rng, 0.5, 8.0, 1.0)
+        return _sw(g(0.5 + 0.03 * st + 0.015 * mid - 0.05 * sc), 0.16 + 0.04 * st + 0.08 * sc, one, chips, _normal(0.25 * st - 0.4 * sc, 0.9))
     if layer == ALLOY:
         st = _fft(n, rng, 0.5, 9.0, 1.0)
-        return _sw(g(0.5 + 0.055 * st), 0.36 + 0.09 * st, one, chips, _normal(0.35 * st, 1.3))
+        return _sw(g(0.5 + 0.05 * st), 0.38 + 0.07 * st, one, chips, _normal(0.18 * st, 0.8))
     if layer == ANODISED:
         return _sw(g(0.5 + 0.025 * fine + 0.02 * mid), 0.44 + 0.04 * fine, one, chips, _normal(0.3 * fine, 0.8))
     if layer in (WOOD_DARK, WOOD_LIGHT):
@@ -136,7 +137,7 @@ def swatch(layer, seed=1):
         warp = 0.07 * _fft(n, rng, 1.0, 3.0, 1.0)
         rings = np.sin(2 * math.pi * (v * fq + warp * fq)) * 0.5 + 0.5
         fib = _fft(n, rng, 0.2, 14.0, 1.0)
-        lum = 0.5 + 0.2 * (rings - 0.5) + 0.07 * fib + 0.03 * big
+        lum = 0.5 + 0.3 * (rings - 0.5) + 0.1 * fib + 0.03 * big
         return _sw(g(lum), 0.5 + 0.08 * rings, 0 * one, chips, _normal(0.5 * fib + 0.3 * rings, 1.8))
     if layer == CERAMIC:
         return _sw(g(0.5 + 0.012 * fine + 0.02 * big), 0.2 + 0.03 * mid, 0 * one, chips, _normal(0.1 * big, 0.5))
@@ -155,7 +156,7 @@ def swatch(layer, seed=1):
         for k, (field, thr) in enumerate(((a, 0.35), (b, 0.5), (c, 0.9))):
             m = (field > thr)[..., None]
             img = np.where(m, np.array(cols[k + 1]), img)
-        img = img * (1.0 + 0.1 * fine[..., None])
+        img = img * (0.72 + 0.07 * fine[..., None])
         return _sw(img, 0.62 + 0.05 * fine, 0 * one, chips, _normal(0.2 * fine, 1.0))
     if layer == CARBON:
         u = np.arange(n)[None, :] / n * 32
@@ -166,7 +167,7 @@ def swatch(layer, seed=1):
         return _sw(g(0.5 + 0.2 * wv + 0.05 * fine), 0.24 + 0.08 * wv, 0 * one, chips, _normal(h, 2.0))
     if layer == BRASS:
         st = _fft(n, rng, 0.5, 8.0, 1.0)
-        return _sw(g(0.5 + 0.05 * st + 0.03 * mid), 0.3 + 0.06 * st, one, chips, _normal(0.3 * st, 1.0))
+        return _sw(g(0.5 + 0.05 * st + 0.03 * mid), 0.32 + 0.05 * st, one, chips, _normal(0.15 * st, 0.6))
     if layer == LEATHER:
         vd, _ = _voronoi(n, 16, rng, 1.0)
         creases = np.clip(1 - vd * 2.2, 0, 1)
@@ -202,7 +203,7 @@ def swatch(layer, seed=1):
         return _sw(g(0.5 + 0.01 * mid), 0.05 + 0.02 * np.abs(fine), one, chips, _normal(0.05 * mid, 0.4))
     if layer == TITANIUM:
         st = _fft(n, rng, 0.5, 6.0, 1.0)
-        return _sw(g(0.5 + 0.05 * st + 0.03 * big), 0.3 + 0.06 * st, one, chips, _normal(0.3 * st, 1.0))
+        return _sw(g(0.5 + 0.05 * st + 0.03 * big), 0.32 + 0.05 * st, one, chips, _normal(0.15 * st, 0.6))
     if layer == RUBBER_SMOOTH:
         return _sw(g(0.5 + 0.02 * fine), 0.93 + 0.03 * fine, 0 * one, chips, _normal(0.2 * fine, 0.8))
     if layer == GLOSS:

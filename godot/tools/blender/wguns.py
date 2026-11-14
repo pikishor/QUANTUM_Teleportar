@@ -99,11 +99,24 @@ def _hg(g, kind, d0, d1, pal, w=0.046, top=0.026, bot=-0.026, rails=True):
     return -0.012
 
 
-def _barrel(g, d_front_hg, d_rec, bbl_r, pal, muz, heavy=False, z=0.0):
-    """Barrel from the muzzle (d=0) back into the handguard/receiver; gas block and front sight where the barrel leaves the handguard."""
+def _barrel(g, d_front_hg, d_rec, bbl_r, pal, muz, heavy=False, z=0.0, multi=None):
+    """Barrel from the muzzle (d=0) back into the handguard/receiver. `multi` = 'double' (side by side) or 'triple' (a triangle): several barrels with ribs between them."""
     mt = pal["metal"]
     dk = pal["dark"]
     r = bbl_r
+    if multi in ("double", "triple"):
+        offs = [(-r * 1.05, 0.0), (r * 1.05, 0.0)] if multi == "double" else [(-r * 1.1, -r * 0.6), (r * 1.1, -r * 0.6), (0.0, r * 1.15)]
+        ext = 0.0
+        for (bx, bz) in offs:
+            g.cyl((bx, 0.0, z + bz), (bx, -d_rec, z + bz), r, mt, n=12, chamfer=0.0015)
+            tube(g, 0.0, 0.01, r * 1.12, dk, z=z + bz, x=bx, n=12)
+        rbox(g, 0.0, d_rec * 0.9, z - r * 0.2, z + r * 0.2, r * 2.0 * (len(offs) - 0.5), mt, r=0.002) if multi == "double" else None
+        if multi == "double":
+            rbox(g, 0.05, d_rec * 0.92, z + r * 1.0, z + r * 1.5, r * 1.6, dk, r=0.001)           # a top rib
+        for k in range(3):
+            dd = 0.08 + k * (d_rec - 0.1) / 3.0
+            rbox(g, dd, dd + 0.012, z - r * 1.4, z + r * (1.4 if multi == "double" else 2.2), r * 2.6 * (1.0 if multi == "double" else 1.8), dk, r=0.002)
+        return ext
     g.cyl((0, 0.0, z), (0, -(d_rec), z), r, mt, n=12, chamfer=0.0015)
     ext = muzzle_device(g, muz, r, pal, z=z, d0=0.0)
     return ext
@@ -266,7 +279,8 @@ def longgun(g, pal, s):
     # ---------------------------------------------------------------- handguard, barrel, muzzle
     hg_kind = s.get("hg", "quad")
     hg_under = _hg(g, hg_kind, bbl, d_rf, pal, w=s.get("hg_w", 0.046), rails=s.get("hg_rails", True))
-    ext = _barrel(g, bbl, d_rf, bbl_r, pal, s.get("muz", "flash"), z=0.0)
+    multi = "double" if "double" in ex else ("triple" if "triple" in ex else None)
+    ext = _barrel(g, bbl, d_rf, bbl_r, pal, s.get("muz", "flash"), z=0.0, multi=multi)
     if s.get("sights", True) and hg_kind not in ("none",) and not ("scope" in s.get("optic", "") or s.get("optic") in ("thermal",)):
         _front_sight(g, bbl + 0.02, 0.026 if hg_kind in ("quad", "slotted", "short", "tube") else 0.0305 if hg_kind in ("round", "shroud") else 0.026, pal, hood=True)
     elif s.get("sights", True):
@@ -282,6 +296,16 @@ def longgun(g, pal, s):
                 serrate(g, pd - 0.05, pd + 0.05, -0.05, -0.012, 0.0265, dk, n=7)
                 serrate(g, pd - 0.05, pd + 0.05, -0.05, -0.012, -0.0265, dk, n=7)
             hg_under = -0.056
+    if s.get("trim"):                                    # quantum trim: thin glowing strips on the receiver and the handguard, a glow dot on the magwell
+        gl = pal["glow"]
+        for sx in (-1.0, 1.0):
+            g.box((sx * (rec_w / 2 + 0.0004), -(d_rf + rec_len * 0.5), top - 0.011), (0.0012, rec_len * 0.55, 0.0045), gl)
+            if hg_kind not in ("none", "tube", "round", "shroud", "ribbed", "wood"):
+                g.box((sx * (s.get("hg_w", 0.046) / 2 + 0.0004), -(bbl + hg_len * 0.5), -0.012), (0.0012, hg_len * 0.55, 0.004), gl)
+    if "arc" in ex:                                      # arcing coils around the handguard
+        for k in range(4):
+            dd = bbl + 0.03 + k * (hg_len - 0.06) / 3.0
+            g.torus((0.0, -dd, 0.0), 0.03, 0.0032, pal["coil"], n=14, m=5, axis="y")
     # ---------------------------------------------------------------- stock and grip
     st_kind = s.get("stock", "fixed")
     butt = d_rr
@@ -386,6 +410,9 @@ def _pistol_one(g, pal, s, x=0.0):
             rbox(g, 0.006, 0.014, zt, zt + 0.009, 0.0045, dk, r=0.0008, x=x)                  # front sight
             for sx in (-1.0, 1.0):
                 rbox(g, L - 0.019, L - 0.012, zt, zt + 0.008, 0.005, dk, r=0.0008, x=x + sx * 0.0045)
+    if s.get("trim"):
+        for sx in (-1.0, 1.0):
+            g.box((x + sx * (W / 2 + 0.0006), -(L * 0.62), zt - 0.007), (0.0012, L * 0.5, 0.0042), pal["glow"])
     # barrel tip + muzzle device
     brr = 0.0058 if style != "heavy" else 0.0085
     g.cyl((x, 0.004, 0.0), (x, -0.04, 0.0), brr, mt, n=12)

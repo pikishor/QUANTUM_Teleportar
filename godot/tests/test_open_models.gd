@@ -165,7 +165,7 @@ func _weapons() -> void:
 	WeaponModels._cache.clear()
 	for id: StringName in WEAPON_LEN:
 		TestLib.check(ResourceLoader.exists("res://assets/models/ow_%s.glb" % String(id)), "ow_%s.glb exists" % id)
-		var m := WeaponModels.mesh(id)
+		var m := WeaponModels.stub_mesh(id)             # the open-source stand-ins (the weapon kit's models replace them in the game, this test keeps the fallback honest)
 		TestLib.check(m != null, "%s has a mesh" % id)
 		if m == null:
 			continue
@@ -186,21 +186,21 @@ func _weapons() -> void:
 			lum /= maxf(1.0, float((cols as PackedColorArray).size()) * 3.0)
 		TestLib.check(cols != null and lum > 0.008 and lum < 0.5, "%s has gunmetal vertex colours (mean %.3f)" % [id, lum])
 	for id: StringName in [&"blade", &"whip", &"gravity", &"minigun", &"grenade", &"lance"]:
-		TestLib.check(WeaponModels.mesh(id) != null, "%s keeps its procedural mesh" % id)
+		TestLib.check(WeaponModels.stub_mesh(id) != null, "%s keeps its procedural mesh" % id)
 
 
 func _fallbacks() -> void:
 	OS.set_environment("QT_OPEN_MODELS", "0")
 	WeaponModels._cache.clear()
 	var open_tris := 0
-	var m := WeaponModels.mesh(&"carbine")
+	var m := WeaponModels.stub_mesh(&"carbine")
 	TestLib.check(m != null and m.get_aabb().size.z > 0.5, "QT_OPEN_MODELS=0 gives the procedural carbine back")
-	var pistol := WeaponModels.mesh(&"pistol")
+	var pistol := WeaponModels.stub_mesh(&"pistol")
 	open_tris = (pistol.surface_get_arrays(0)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
 	TestLib.check(open_tris < 300, "the procedural pistol is the small box model (%d triangles)" % open_tris)
 	OS.set_environment("QT_OPEN_MODELS", "1")
 	WeaponModels._cache.clear()
-	TestLib.check((WeaponModels.mesh(&"pistol").surface_get_arrays(0)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3 > 300, "the open pistol is back with the switch on")
+	TestLib.check((WeaponModels.stub_mesh(&"pistol").surface_get_arrays(0)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3 > 300, "the open pistol is back with the switch on")
 
 
 func _credits() -> void:

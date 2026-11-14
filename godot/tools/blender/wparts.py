@@ -24,9 +24,9 @@ def mixc(a, b, t):
     return tuple(a[i] * (1 - t) + b[i] * t for i in range(3))
 
 
-POLY_TINTS = {"black": (0.045, 0.047, 0.052), "grey": (0.13, 0.135, 0.145), "od": (0.10, 0.115, 0.06), "tan": (0.36, 0.28, 0.17), "white": (0.62, 0.64, 0.66),
-              "navy": (0.03, 0.05, 0.1), "red": (0.38, 0.04, 0.035), "orange": (0.55, 0.18, 0.03), "yellow": (0.6, 0.45, 0.03), "teal": (0.03, 0.2, 0.2), "violet": (0.1, 0.05, 0.2),
-              "olive_dark": (0.05, 0.065, 0.035), "sand": (0.5, 0.4, 0.24), "slate": (0.07, 0.08, 0.1), "bone": (0.55, 0.5, 0.4)}
+POLY_TINTS = {"black": (0.04, 0.042, 0.046), "grey": (0.1, 0.105, 0.115), "od": (0.065, 0.078, 0.04), "tan": (0.24, 0.19, 0.115), "white": (0.44, 0.46, 0.48),
+              "navy": (0.025, 0.04, 0.085), "red": (0.28, 0.03, 0.026), "orange": (0.4, 0.13, 0.022), "yellow": (0.42, 0.32, 0.02), "teal": (0.025, 0.15, 0.15), "violet": (0.075, 0.04, 0.15),
+              "olive_dark": (0.04, 0.05, 0.028), "sand": (0.36, 0.29, 0.17), "slate": (0.055, 0.065, 0.082), "bone": (0.4, 0.36, 0.29)}
 
 # factions: (frame polymer, metal layer + tint, accent paint, wood?, special layers)
 FACTIONS = {
@@ -64,7 +64,7 @@ def palette(faction="tactical", glow=(0.4, 0.9, 1.0), accent=None, poly=None, wo
     camo = f.get("camo")
     LB = M.LAYER_BASE
     body = Style(camo, (0.5, 0.5, 0.5)) if camo is not None else (Style(M.CARBON, LB[M.CARBON]) if f.get("carbon") else
-                                                                     (Style(M.CERAMIC, _mul(LB[M.CERAMIC], mixc((1, 1, 1), pt, 0.35))) if f.get("ceramic") else Style(M.POLY, pt)))
+                                                                     (Style(M.CERAMIC, _mul(LB[M.CERAMIC], mixc((1, 1, 1), pt, 0.7))) if f.get("ceramic") else Style(M.POLY, pt)))
     wood_l = M.WOOD_DARK if wood == "dark" else M.WOOD_LIGHT
     pal = {
         "body": body,                                                    # receiver and shell
@@ -90,7 +90,7 @@ def palette(faction="tactical", glow=(0.4, 0.9, 1.0), accent=None, poly=None, wo
         "gloss": Style(M.GLOSS, ac),
         "alloy": Style(M.ALLOY, LB[M.ALLOY]),
         "titanium": Style(M.TITANIUM, _mul(LB[M.TITANIUM], mixc((1, 1, 1), glow, 0.25))),
-        "ceramic": Style(M.CERAMIC, _mul(LB[M.CERAMIC], mixc((1, 1, 1), pt, 0.35))),
+        "ceramic": Style(M.CERAMIC, _mul(LB[M.CERAMIC], mixc((1, 1, 1), pt, 0.7))),
         "plain": Style(M.POLY, pt),
     }
     pal["furn"] = pal["wood"] if f.get("wood") else pal["frame"]          # furniture: stocks, handguards
@@ -420,9 +420,10 @@ def pistol_grip(g, kind, d, z_top, pal, w=0.034, h=0.1, rake=0.3, x=0.0):
     if kind == "finger":                                  # a finger groove on the front strap
         pts = [(d, z_top), (d + pw, z_top), (d + pw + dr, z_top - h), (d + dr + 0.004, z_top - h), (d + dr * 0.8 + 0.002, z_top - h * 0.75), (d + dr * 0.5 - 0.004, z_top - h * 0.5), (d + dr * 0.2 + 0.004, z_top - h * 0.3)]
     side_w(g, pts, w, fr, ch=0.003, x=x)
-    # side panels
+    # side panels (wood on the sport and heritage guns)
+    panel = pal["wood"] if pal["_faction"] in ("sport", "heritage", "chrome", "gold") else rub
     for sx in (-1.0, 1.0):
-        side_w(g, [(d + 0.004 + dr * 0.1, z_top - 0.012), (d + pw - 0.004 + dr * 0.1, z_top - 0.012), (d + pw - 0.004 + dr * 0.95, z_top - h * 0.93), (d + 0.008 + dr * 0.95, z_top - h * 0.93)], 0.003, rub, ch=0.0006, x=x + sx * (w / 2 + 0.0008))
+        side_w(g, [(d + 0.004 + dr * 0.1, z_top - 0.012), (d + pw - 0.004 + dr * 0.1, z_top - 0.012), (d + pw - 0.004 + dr * 0.95, z_top - h * 0.93), (d + 0.008 + dr * 0.95, z_top - h * 0.93)], 0.004, panel, ch=0.0008, x=x + sx * (w / 2 + 0.001))
     if g.fine:
         grip_texture(g, d + 0.006 + dr * 0.55, d + pw - 0.002 + dr * 0.55, z_top - h * 0.8, z_top - h * 0.2, x + w / 2 + 0.0016, dk, n=4)
     rbox(g, d + dr - 0.001, d + pw + dr + 0.003, z_top - h - 0.006, z_top - h, w * 1.04, dk, r=0.003, x=x)    # butt cap

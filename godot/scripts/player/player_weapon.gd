@@ -834,6 +834,9 @@ func _singularity(at: Vector3, victim: Node) -> void:
 		e.call(&"damage", float(s["dmg"]) * Upgrades.damage_mult(), false)
 
 
+const SHELL_SIZE := {&"pistol": 0.72, &"smg": 0.78, &"rifle": 1.0, &"sniper": 1.45, &"shotgun": 1.7, &"heavy": 1.15}      ## casing size by class (calibre)
+
+
 ## A spent casing leaves the ejection port to the right of the rifle: real tumbling brass (FX.casings, one draw call) and a tiny spark where it left.
 func _eject_shell() -> void:
 	if _player == null or _player.body == null or _player.body.muzzle == null:
@@ -842,7 +845,13 @@ func _eject_shell() -> void:
 	var cam := _player.camera_rig.camera.global_basis
 	var port := _player.body.muzzle.global_position + cam.z * 0.45 + cam.x * 0.1 - Vector3(0.0, 0.05, 0.0)       # behind the muzzle, towards the shooter's hand
 	var vel := cam.x * randf_range(2.4, 3.6) + Vector3.UP * randf_range(2.2, 3.4) + cam.z * randf_range(0.4, 1.2)
-	FX.casings.eject(port, vel, _player.global_position.y)
+	var size_k := 1.0
+	if WeaponModels.has_model(current):                                   # a kit model: the case leaves the ejection port of THE weapon, its size follows the calibre (class)
+		var mz := _player.body.muzzle
+		port = mz.global_transform * (WeaponModels.point(current, "eject") * WeaponModels.look_scale(current))
+		vel = mz.global_basis.x * randf_range(2.2, 3.4) + Vector3.UP * randf_range(2.0, 3.2) + mz.global_basis.z * randf_range(0.2, 0.9)
+		size_k = float(SHELL_SIZE.get(WeaponDefs.class_of(current), 1.0)) * (1.35 if String(WeaponDefs.family_of(current)) in ["sniper", "lmg"] else 1.0)
+	FX.casings.eject(port, vel, _player.global_position.y, size_k)
 	FX.burst(port, Color(1.0, 0.8, 0.35), 1, 2.2, 0.3, 9.0, 0.5)
 
 

@@ -98,7 +98,7 @@ def emitter(g, kind, pal, r=0.02, d0=0.0, z=0.0):
     if kind == "plate":                                  # a kinetic repulsor plate
         L = 0.04
         lathe_d(g, [(d0 - L, r * 2.2), (d0 - L + 0.006, r * 2.2), (d0 - L + 0.006, r * 1.5), (d0, r * 0.8)], bd, z=z, n=18, hard=(0, 1))
-        lathe_d(g, [(d0 - L - 0.001, r * 1.7)], gl, z=z, n=18)
+        tube(g, d0 - L - 0.003, d0 - L + 0.0005, r * 1.7, gl, z=z, n=18)
         return L
     if kind == "twin":                                   # twin emitters (superposition)
         L = 0.08
@@ -149,138 +149,153 @@ def core_module(g, kind, d, z, pal, len_=0.12, w=0.05, h=0.065):
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------------- the energy gun
+def fuselage(g, secs, st, caps=(True, True), ch=(0.004, 0.004), seg=2):
+    """A lofted shell from rounded-rectangle sections: secs = [(d, width, height, z centre, corner radius), ...] from front to rear (smooth, organic bodies for the energy weapons)."""
+    S = []
+    for (d, w, h, zc, r) in secs:
+        P, N, K = wl.outline_rrect(max(w, 0.004), max(h, 0.004), r, seg)
+        S.append(wl.Sec(P, N, K, np.array([0.0, -d, zc]), wl.X_AX, wl.Z_AX))
+    g.loft(S, st, caps=caps, chamfer=ch)
+
+
+SHELLS = {
+    # profile: sections as fractions along the body (t), width, height, z centre, radius (multiplied by the body width / height later)
+    "wedge": [(0.0, 0.8, 0.6, 0.004, 0.012), (0.35, 1.0, 0.85, 0.010, 0.014), (0.75, 1.0, 1.0, 0.012, 0.014), (1.0, 0.85, 0.95, 0.008, 0.012)],
+    "wing": [(0.0, 0.7, 0.6, 0.0, 0.012), (0.3, 1.25, 0.7, 0.004, 0.012), (0.7, 1.35, 0.8, 0.008, 0.014), (1.0, 0.9, 0.75, 0.006, 0.012)],
+    "hump": [(0.0, 0.75, 0.55, 0.0, 0.012), (0.3, 1.0, 1.0, 0.012, 0.016), (0.65, 1.0, 1.05, 0.016, 0.016), (1.0, 0.8, 0.7, 0.004, 0.012)],
+    "sleek": [(0.0, 0.6, 0.5, 0.0, 0.012), (0.4, 0.85, 0.72, 0.006, 0.014), (0.8, 0.85, 0.8, 0.008, 0.014), (1.0, 0.7, 0.7, 0.004, 0.012)],
+    "slab": [(0.0, 0.9, 0.9, 0.006, 0.008), (0.5, 1.0, 1.0, 0.008, 0.008), (1.0, 0.95, 1.0, 0.006, 0.008)],
+}
+
+
 def energy_gun(g, pal, s):
-    """s: size ('pistol','smg','carbine','rifle','cannon'), emitter, front ('rails','tube','fins','spine','coils','lens','none'), front_len, body_len, body_h, body_w, core, stock, optic, grip, extras."""
+    """s: size ('pistol','smg','carbine','rifle','cannon'), emitter, front ('rails','tube','fins','spine','coils','lens','none'), front_len, body_len, body_h, body_w, core, profile, stock, optic, grip, extras."""
     size = s.get("size", "rifle")
-    bd = pal["body"]
-    dk = pal["dark"]
-    mt = pal["metal"]
-    gl = pal["glow"]
-    cl = pal["coil"]
-    fr = pal["frame"]
-    ac = pal["accent"]
+    bd, dk, mt, gl, cl, fr, ac = pal["body"], pal["dark"], pal["metal"], pal["glow"], pal["coil"], pal["frame"], pal["accent"]
     ex = set(s.get("extras", []))
-    pistol_like = size in ("pistol",)
-    r_em = s.get("emitter_r", 0.017 if size in ("pistol", "smg") else 0.021 if size != "cannon" else 0.03)
+    pistol_like = size == "pistol"
+    r_em = s.get("emitter_r", 0.016 if size in ("pistol", "smg") else 0.021 if size != "cannon" else 0.03)
     reach_e = emitter(g, s.get("emitter", "ring"), pal, r=r_em, d0=0.0)
-    front_len = s.get("front_len", {"pistol": 0.06, "smg": 0.13, "carbine": 0.2, "rifle": 0.3, "cannon": 0.34}[size])
+    front_len = s.get("front_len", {"pistol": 0.07, "smg": 0.14, "carbine": 0.2, "rifle": 0.3, "cannon": 0.34}[size])
+    body_len = s.get("body_len", {"pistol": 0.13, "smg": 0.2, "carbine": 0.26, "rifle": 0.32, "cannon": 0.36}[size])
+    bw = s.get("body_w", {"pistol": 0.042, "smg": 0.05, "carbine": 0.054, "rifle": 0.058, "cannon": 0.07}[size])
+    bh = s.get("body_h", {"pistol": 0.07, "smg": 0.07, "carbine": 0.072, "rifle": 0.078, "cannon": 0.09}[size])
     front = s.get("front", "rails")
-    d_f0 = max(0.0, reach_e * 0.55)
-    # front assembly
-    if front == "rails":
-        for sx in (-1.0, 1.0):
-            g.cyl((sx * 0.0165, -d_f0, 0.0), (sx * 0.0165, -(front_len + 0.02), 0.0), 0.0055, mt, n=8, chamfer=0.001)
-        g.cyl((0, -d_f0, 0.0), (0, -front_len, 0.0), 0.0075, gl, n=8)
-        for k in range(max(2, int((front_len - d_f0) / 0.055))):
-            dd = d_f0 + 0.03 + k * 0.055
-            if dd > front_len - 0.01:
-                break
-            rbox(g, dd, dd + 0.012, -0.022, 0.022, 0.044, bd, r=0.004, ch=0.002)
-    elif front == "tube":
-        tube(g, d_f0, front_len + 0.01, 0.0195, bd, n=16, ch=0.003)
-        for k in range(max(2, int((front_len - d_f0) / 0.032))):
-            dd = d_f0 + 0.014 + k * 0.032
-            if dd > front_len - 0.005:
-                break
-            ring_d(g, dd, 0.0205, 0.003, cl, n=16)
-    elif front == "fins":
-        g.cyl((0, -d_f0, 0.0), (0, -(front_len + 0.01), 0.0), 0.011, mt, n=10)
-        for k in range(max(3, int((front_len - d_f0) / 0.016))):
-            dd = d_f0 + 0.01 + k * 0.016
-            if dd > front_len:
-                break
-            rbox(g, dd, dd + 0.004, -0.03, 0.03, 0.05 - 0.002 * k, dk if k % 3 else bd, r=0.002, ch=0.001)
-        g.box((0, -(d_f0 + front_len * 0.5), 0.0), (0.006, front_len * 0.8, 0.07), gl)
-    elif front == "spine":
-        rbox(g, d_f0, front_len + 0.01, -0.012, 0.024, 0.03, bd, r=0.007, ch=0.003, seg=2)
-        side_w(g, [(d_f0 + 0.02, 0.024), (front_len * 0.85, 0.052), (front_len + 0.01, 0.034), (front_len + 0.01, 0.024)], 0.01, ac, ch=0.002)
-        g.box((0.0, -(d_f0 + front_len * 0.4), 0.0145), (0.006, front_len * 0.6, 0.0016), gl)
-        g.cyl((0, -d_f0, -0.004), (0, -(front_len + 0.01), -0.004), 0.008, mt, n=8)
-    elif front == "coils":
-        g.cyl((0, -d_f0, 0.0), (0, -(front_len + 0.01), 0.0), 0.009, dk, n=8)
-        for k in range(max(2, int((front_len - d_f0) / 0.04))):
-            dd = d_f0 + 0.02 + k * 0.04
-            if dd > front_len:
-                break
-            ring_d(g, dd, 0.021 - 0.001 * (k % 2), 0.0045, cl, m=6)
-    elif front == "lens":
-        g.cyl((0, -d_f0, 0.0), (0, -(front_len + 0.01), 0.0), 0.014, mt, n=12)
-        for k in range(max(2, int((front_len - d_f0) / 0.05))):
-            dd = d_f0 + 0.02 + k * 0.05
-            if dd > front_len:
-                break
-            tube(g, dd, dd + 0.014, 0.025, bd, n=16, ch=0.002)
-            tube(g, dd - 0.0005, dd + 0.0005, 0.021, pal["lens_glow"], n=16)
-    # body
-    body_len = s.get("body_len", {"pistol": 0.12, "smg": 0.18, "carbine": 0.24, "rifle": 0.3, "cannon": 0.34}[size])
-    bh = s.get("body_h", 0.062)
-    bw = s.get("body_w", 0.05)
     d_b0 = front_len
     d_b1 = d_b0 + body_len
-    prof = s.get("profile", "wedge")
-    if prof == "wedge":
-        pts = [(d_b0, 0.028), (d_b0 + body_len * 0.35, 0.04), (d_b1, 0.036), (d_b1, -0.03), (d_b0 + body_len * 0.5, -0.036), (d_b0, -0.026)]
-    elif prof == "slab":
-        pts = [(d_b0, 0.034), (d_b1, 0.034), (d_b1, -0.03), (d_b0, -0.03)]
-    elif prof == "wing":
-        pts = [(d_b0, 0.026), (d_b0 + body_len * 0.2, 0.046), (d_b0 + body_len * 0.8, 0.05), (d_b1, 0.032), (d_b1, -0.034), (d_b0 + body_len * 0.6, -0.04), (d_b0, -0.022)]
-    elif prof == "hump":
-        pts = [(d_b0, 0.024), (d_b0 + body_len * 0.3, 0.052), (d_b0 + body_len * 0.7, 0.052), (d_b1, 0.03), (d_b1, -0.028), (d_b0 + body_len * 0.4, -0.04), (d_b0, -0.024)]
-    else:                                                                   # sleek
-        pts = [(d_b0, 0.02), (d_b0 + body_len * 0.5, 0.036), (d_b1, 0.03), (d_b1, -0.024), (d_b0 + body_len * 0.4, -0.032), (d_b0, -0.02)]
-    side_w(g, pts, bw, bd, ch=0.004)
-    seam(g, d_b0 + 0.01, d_b1 - 0.01, -0.004, -0.0025, bw / 2, dk)
-    seam(g, d_b0 + 0.01, d_b1 - 0.01, -0.004, -0.0025, -bw / 2, dk)
-    # core window
-    zc = core_module(g, s.get("core", "cell"), d_b0 + body_len * 0.5, -0.02, pal, len_=min(0.14, body_len * 0.7), w=bw * 1.04, h=0.052)
-    # vents / accent stripe
+    # ---- front assembly: a core barrel, a collar at the emitter and the module on it (every piece touches the next)
+    tube(g, 0.0, front_len + 0.02, r_em * 0.62, dk, n=14)
+    tube(g, 0.0, 0.016, r_em * 1.12, mt, n=16, ch=0.002)
+    if front == "rails":
+        for sx in (-1.0, 1.0):
+            g.cyl((sx * r_em * 0.95, -0.01, 0.0), (sx * r_em * 0.95, -(front_len + 0.02), 0.0), 0.0058, mt, n=8, chamfer=0.001)
+        g.cyl((0, -0.01, 0.0), (0, -front_len, 0.0), 0.0085, gl, n=10)
+        for k in range(max(2, int(front_len / 0.06))):
+            dd = 0.03 + k * 0.06
+            if dd > front_len - 0.015:
+                break
+            rbox(g, dd, dd + 0.012, -r_em * 1.5, r_em * 1.5, r_em * 2.6, bd, r=0.004, ch=0.002)
+    elif front == "tube":
+        tube(g, 0.012, front_len + 0.01, r_em * 0.95, bd, n=16, ch=0.003)
+        for k in range(max(2, int(front_len / 0.034))):
+            dd = 0.02 + k * 0.034
+            if dd > front_len - 0.005:
+                break
+            ring_d(g, dd, r_em * 0.98, 0.0032, cl, n=16)
+    elif front == "fins":
+        for k in range(max(3, int(front_len / 0.018))):
+            dd = 0.02 + k * 0.018
+            if dd > front_len:
+                break
+            rbox(g, dd, dd + 0.0045, -0.034, 0.034, 0.05 - 0.0015 * k, dk if k % 3 else bd, r=0.002, ch=0.001)
+        g.box((0, -(front_len * 0.55), 0.0), (0.006, front_len * 0.8, 0.07), gl)
+    elif front == "spine":
+        fuselage(g, [(0.01, r_em * 1.6, r_em * 1.3, 0.0, 0.006), (front_len * 0.5, r_em * 2.0, r_em * 1.6, 0.004, 0.008), (front_len, r_em * 2.4, r_em * 2.0, 0.006, 0.01)], bd)
+        side_w(g, [(front_len * 0.15, r_em * 0.7), (front_len * 0.5, r_em * 2.4), (front_len * 0.95, r_em * 2.0), (front_len, r_em * 0.7)], 0.01, ac, ch=0.002)
+        g.box((0.0, -(front_len * 0.5), r_em * 1.0 + 0.003), (0.006, front_len * 0.7, 0.002), gl)
+    elif front == "coils":
+        for k in range(max(2, int(front_len / 0.042))):
+            dd = 0.026 + k * 0.042
+            if dd > front_len:
+                break
+            ring_d(g, dd, r_em * (1.12 - 0.04 * (k % 2)), 0.0048, cl, n=16, m=6)
+        for sx in (-1.0, 1.0):
+            g.cyl((sx * r_em * 0.9, -0.02, 0.0), (sx * r_em * 0.9, -(front_len - 0.01), 0.0), 0.004, dk, n=6)
+    elif front == "lens":
+        for k in range(max(2, int(front_len / 0.055))):
+            dd = 0.022 + k * 0.055
+            if dd > front_len:
+                break
+            tube(g, dd, dd + 0.016, r_em * 1.25, bd, n=16, ch=0.002)
+            tube(g, dd - 0.0005, dd + 0.0005, r_em * 1.0, pal["lens_glow"], n=16)
+    # ---- the shell
+    prof = SHELLS.get(s.get("profile", "wedge"), SHELLS["wedge"])
+    secs = [(d_b0 + t * body_len, w * bw, h * bh, zc * (bh / 0.07), r) for (t, w, h, zc, r) in prof]
+    fuselage(g, secs, bd, ch=(0.003, 0.003))
+    # a collar where the barrel meets the shell
+    rbox(g, d_b0 - 0.012, d_b0 + 0.006, -bh * 0.38, bh * 0.38, bw * 0.55, dk, r=0.004, ch=0.002)
+    # accent panels (painted) on both sides, panel seams, the glow channel on the spine
+    for sx in (-1.0, 1.0):
+        side = sx * (bw * 0.5 + 0.0004)
+        g.box((side, -(d_b0 + body_len * 0.28), bh * 0.18), (0.0012, body_len * 0.34, bh * 0.28), ac)
+        g.box((side, -(d_b0 + body_len * 0.74), bh * 0.12), (0.0012, body_len * 0.22, bh * 0.4), ac)
+        wp.seam(g, d_b0 + body_len * 0.1, d_b0 + body_len * 0.92, bh * 0.0, bh * 0.0 + 0.002, sx * bw * 0.5, dk)
+        wp.screw(g, (sx * bw * 0.5, -(d_b0 + body_len * 0.45), bh * 0.3), pal["bright"], axis="x")
+    zt = bh * 0.52
+    g.box((0.0, -(d_b0 + body_len * 0.5), zt + 0.0006), (0.008, body_len * 0.55, 0.0018), gl)
+    # the core in its window
+    core_module(g, s.get("core", "cell"), d_b0 + body_len * 0.5, -bh * 0.32, pal, len_=min(0.15, body_len * 0.62), w=bw * 1.02, h=bh * 0.62)
     if s.get("vents", True):
-        vent_row(g, d_b0 + 0.02, d_b0 + body_len * 0.28, 0.02, bw / 2 + 0.0004, dk, n=3, h=0.014, w=0.005)
-    if s.get("stripe", True):
-        g.box((bw / 2 + 0.0004, -(d_b1 - 0.04), 0.01), (0.0012, 0.05, 0.016), ac)
-        g.box((-bw / 2 - 0.0004, -(d_b1 - 0.04), 0.01), (0.0012, 0.05, 0.016), ac)
-    # grip, trigger, stock
-    gd = d_b1 - (0.07 if not pistol_like else 0.05)
-    gpos = pistol_grip(g, s.get("grip", "std"), gd, -0.03, pal, w=0.034, h=0.1 if pistol_like else 0.095, rake=0.28)
-    trigger_group(g, gd, -0.03, pal, guard_len=0.06 if not pistol_like else 0.05, guard_drop=0.034)
+        vent_row(g, d_b0 + body_len * 0.08, d_b0 + body_len * 0.26, bh * 0.28, bw / 2 + 0.0004, dk, n=4, h=0.016, w=0.005)
+    # ---- grip and trigger
+    gd = d_b1 - (0.075 if not pistol_like else 0.05)
+    gz = -bh * 0.5 + 0.004
+    gpos = pistol_grip(g, s.get("grip", "std"), gd, gz, pal, w=0.034 if not pistol_like else 0.032, h=0.1 if pistol_like else 0.095, rake=0.28)
+    trigger_group(g, gd, gz, pal, guard_len=0.06 if not pistol_like else 0.05, guard_drop=0.034)
+    # ---- stock
     butt = d_b1
     st_kind = s.get("stock", "none" if size in ("pistol", "smg") else "fixed")
     if st_kind != "none":
-        butt = stock(g, st_kind, d_b1, pal, top=0.03, drop=-0.03, w=0.036, length=s.get("stock_len", 0.24 if size in ("rifle", "cannon") else 0.2))
-    # optic, foregrip, extras
+        butt = stock(g, st_kind, d_b1 - 0.006, pal, top=bh * 0.44, drop=-bh * 0.42, w=0.036, length=s.get("stock_len", 0.24 if size in ("rifle", "cannon") else 0.2))
+    else:
+        rbox(g, d_b1 - 0.004, d_b1 + 0.016, -bh * 0.4, bh * 0.4, bw * 0.8, dk, r=0.005, ch=0.003)
+        butt = d_b1 + 0.016
+    # ---- optic, foregrip, extras
     o = s.get("optic", "iron")
     lens = None
-    top = 0.04 if prof in ("wedge", "slab", "sleek") else 0.052
+    top = bh * 0.55 + 0.004
     if o not in ("iron", "none", None):
-        rail(g, d_b0 + 0.03, d_b1 - 0.02, top + 0.0005, dk, w=0.02, h=0.006, pitch=0.014)
-        lens = optic(g, o, d_b0 + body_len * 0.5, top + 0.0005, pal)
+        rail(g, d_b0 + 0.04, d_b1 - 0.03, top, dk, w=0.02, h=0.006, pitch=0.014)
+        lens = optic(g, o, d_b0 + body_len * 0.5, top, pal)
     elif o == "iron":
-        rbox(g, front_len * 0.5, front_len * 0.5 + 0.014, 0.0, 0.012, 0.012, gl, r=0.002, x=0.0) if False else None
-        g.box((0, -(d_b0 + 0.02), top + 0.01), (0.004, 0.012, 0.02), gl)
-        g.box((0, -(d_b1 - 0.03), top + 0.007), (0.012, 0.008, 0.014), dk)
-    gl_pos = (0.0, -(front_len * 0.6 + 0.04), -0.034 if size not in ("pistol",) else -0.02)
+        g.box((0, -(d_b0 + 0.03), top + 0.008), (0.004, 0.014, 0.016), gl)
+        g.box((0, -(d_b1 - 0.04), top + 0.006), (0.014, 0.008, 0.012), dk)
+    gl_pos = (0.0, -(front_len * 0.55 + 0.03), -0.03 if not pistol_like else -0.02)
     if "vgrip" in ex or "foregrip" in ex:
-        underbarrel(g, "vgrip", front_len * 0.7 + 0.02, -0.018, pal)
-        gl_pos = (0.0, -(front_len * 0.7 + 0.02), -0.06)
-    if "ghost" in ex:                                       # a ghost twin barrel (superposition): translucent look, offset up and right
-        for sx, k in ((0.03, 1.0), (-0.03, 1.0)):
-            g.cyl((sx, -0.0, 0.016), (sx, -(front_len + 0.08), 0.016), 0.006, pal["lens_glow"], n=8)
-    if "link" in ex:                                        # entangle: a glowing bar between two prongs above the barrel
+        underbarrel(g, "vgrip", front_len * 0.6 + 0.02, -r_em * 0.6, pal)
+        gl_pos = (0.0, -(front_len * 0.6 + 0.02), -0.065)
+    if "ghost" in ex:
+        for sx in (0.032, -0.032):
+            g.cyl((sx, -0.0, 0.018), (sx, -(front_len + 0.06), 0.018), 0.0065, pal["lens_glow"], n=8)
+    if "link" in ex:
         for sx in (-1.0, 1.0):
-            g.cyl((sx * 0.03, 0.0, 0.01), (sx * 0.03, -0.06, 0.016), 0.004, gl, n=8)
-        g.cyl((-0.03, -0.0, 0.01), (0.03, -0.0, 0.01), 0.002, gl, n=6)
+            g.cyl((sx * 0.034, 0.0, 0.012), (sx * 0.034, -0.07, 0.02), 0.0042, gl, n=8)
+        g.cyl((-0.034, 0.0, 0.012), (0.034, 0.0, 0.012), 0.0022, gl, n=6)
     if "cheek" in ex:
-        rbox(g, d_b1, d_b1 + 0.1, 0.03, 0.044, 0.036, pal["rub"], r=0.005)
+        rbox(g, d_b1, d_b1 + 0.1, bh * 0.4, bh * 0.4 + 0.016, 0.036, pal["rub"], r=0.005)
     if "antenna" in ex:
         g.cyl((0.02, -(d_b0 + 0.04), top), (0.026, -(d_b0 + 0.02), top + 0.1), 0.0025, dk, n=6)
         g.sphere((0.026, -(d_b0 + 0.02), top + 0.104), 0.006, gl, n=6)
     if "heatsink" in ex:
-        for k in range(6):
-            rbox(g, d_b0 + 0.02 + k * 0.014, d_b0 + 0.026 + k * 0.014, top - 0.004, top + 0.026, 0.044, dk, r=0.001, ch=0.001)
+        for k in range(7):
+            rbox(g, d_b0 + 0.02 + k * 0.013, d_b0 + 0.0255 + k * 0.013, top - 0.004, top + 0.028, 0.046, dk, r=0.001, ch=0.001)
+    if s.get("cable", True) and not pistol_like:                       # a power cable from the stock to the front, along the side
+        path = [(bw * 0.52, -(d_b1 - 0.02), -bh * 0.1), (bw * 0.6, -(d_b1 - 0.1), -bh * 0.18), (bw * 0.6, -(d_b0 + 0.02), -bh * 0.2), (r_em * 1.3, -(d_b0 - 0.02), -bh * 0.1)]
+        g.sweep(path, lambda t: wl.outline_circle(0.0042, 6), dk, up=(0, 0, 1))
     g.mark("gr", (0.0, -(gpos[0]), gpos[1]))
     g.mark("gl", gl_pos)
-    g.mark("eject", (0.0, -(d_b0 + body_len * 0.4), 0.03))
-    g.mark("mag", (0.0, -(d_b0 + body_len * 0.5), -0.03))
+    g.mark("eject", (0.0, -(d_b0 + body_len * 0.4), bh * 0.3))
+    g.mark("mag", (0.0, -(d_b0 + body_len * 0.5), -bh * 0.3))
     g.mark("aim", (0.0, -(d_b0 + body_len * 0.5), top + 0.03))
     g.mark("optic", lens["lens"] if lens else (0.0, -(d_b1 - 0.03), top + 0.01))
     g.mark("laser", (0.0, -0.02, -0.01))
@@ -358,6 +373,10 @@ def launcher(g, pal, s):
     else:
         rbox(g, d_front + 0.1, d_front + 0.116, top, top + 0.03, 0.006, dk, r=0.001)
         rbox(g, d_front + tl * 0.62, d_front + tl * 0.62 + 0.016, top, top + 0.036, 0.016, dk, r=0.002)
+    if s.get("rack"):                                         # a rack of three sub-munition tubes on the top rail
+        for k in range(3):
+            tube(g, d_front + tl * 0.2, d_front + tl * 0.62, 0.016, dk, x=(k - 1) * 0.035, z=tr + 0.03, n=10)
+            tube(g, d_front + tl * 0.18, d_front + tl * 0.2, 0.019, ac, x=(k - 1) * 0.035, z=tr + 0.03, n=10)
     if kind == "guided":                                      # laser designator box and an antenna
         rbox(g, d_front + tl * 0.3, d_front + tl * 0.5, tr * 0.2, tr * 1.0, 0.07, dk, r=0.006, x=tr + 0.02)
         tube(g, d_front + tl * 0.28, d_front + tl * 0.3, 0.014, pal["lens_glow"], z=tr * 0.6, x=tr + 0.02, n=10)
@@ -376,6 +395,13 @@ def launcher(g, pal, s):
     if kind == "plasma":
         for k in range(4):
             ring_d(g, d_front + 0.1 + k * 0.07, tr * 1.04, 0.004, pal["coil"], m=6)
+        for sx in (-1.0, 1.0):                                  # glowing channels along both sides, vents and a capacitor on top
+            g.box((sx * (tr + 0.001), -(d_front + tl * 0.55), 0.0), (0.0016, tl * 0.7, 0.012), pal["glow"])
+            vent_row(g, d_front + tl * 0.62, d_front + tl * 0.8, tr * 0.45, tr + 0.0008, dk, n=5, h=0.02, w=0.008, both=False)
+        rbox(g, d_front + tl * 0.34, d_front + tl * 0.5, tr * 0.8, tr + 0.04, 0.05, dk, r=0.008, ch=0.004)
+        g.box((0.0, -(d_front + tl * 0.42), tr + 0.0405), (0.03, tl * 0.1, 0.0016), pal["glow"])
+        for sx in (-1.0, 1.0):
+            g.box((sx * 0.026, -(d_front + tl * 0.42), tr + 0.02), (0.0016, tl * 0.1, 0.02), pal["glow"])
     g.mark("gr", (0.0, -(sd + 0.02), -tr * 0.8 - 0.06))
     g.mark("gl", (0.0, -(fd + 0.02), -tr * 0.9 - 0.06))
     g.mark("eject", (0.0, -(d_front + tl), 0.0))
@@ -615,14 +641,14 @@ def bow(g, pal, s):
             dd = d_r - (0.11 if kind != "long" else 0.07) * (t ** 2.3) + (0.03 * math.sin(t * math.pi * 0.9) if kind == "compound" else 0.0)
             path.append((0.0, -dd, zz))
         wlimb = 0.026 - 0.012 * 0.8
-        g.sweep(path, lambda t: wl.outline_rrect(0.012, 0.0145 - 0.006 * t, 0.002, 1), wd if kind != "compound" else pal["carbon"], up=(1, 0, 0), chamfer=(0.0, 0.0015))
+        g.sweep(path, lambda t: wl.outline_rrect(0.022 - 0.008 * t, 0.026 - 0.012 * t, 0.004, 1), wd if kind != "compound" else pal["carbon"], up=(1, 0, 0), chamfer=(0.0, 0.0025))
         tip = path[-1]
         g.sphere((0.0, tip[1], tip[2]), 0.0075, dk, n=8)
         if kind == "compound":                                # cams
             g.cyl((-0.01, tip[1], tip[2]), (0.01, tip[1], tip[2]), 0.02, dk, n=14)
     # riser and grip
-    rbox(g, d_r - 0.05, d_r + 0.05, -0.1, 0.1, 0.03, mt if kind in ("compound", "recurve") else wd, r=0.008, ch=0.004, seg=2)
-    rbox(g, d_r - 0.012, d_r + 0.04, -0.08, 0.02, 0.034, pal["rub"], r=0.006, ch=0.003)
+    rbox(g, d_r - 0.03, d_r + 0.03, -0.11, 0.11, 0.03, mt if kind in ("compound", "recurve") else wd, r=0.01, ch=0.005, seg=2)
+    rbox(g, d_r - 0.014, d_r + 0.032, -0.085, 0.025, 0.036, pal["rub"], r=0.007, ch=0.003)
     rbox(g, d_r + 0.03, d_r + 0.05, 0.02, 0.05, 0.016, dk, r=0.002)                    # arrow shelf
     # the string: a thin line between the tips
     zt = span / 2
@@ -665,7 +691,8 @@ def _crossbow(g, pal, s):
     # stock with a rail, a groove for the bolt
     L = s.get("len", 0.6)
     rbox(g, d_p - 0.04, d_p + 0.16, -0.026, 0.022, 0.05, bd, r=0.008, ch=0.003)
-    side_w(g, [(d_p + 0.12, 0.022), (d_p + L * 0.75, 0.026), (d_p + L, 0.012), (d_p + L, -0.075), (d_p + L * 0.55, -0.032), (d_p + 0.12, -0.026)], 0.04, wd, ch=0.004)
+    hs = 0.012 if s.get("heavy_stock") else 0.0
+    side_w(g, [(d_p + 0.12, 0.022 + hs), (d_p + L * 0.75, 0.026 + hs), (d_p + L, 0.012 + hs), (d_p + L, -0.075 - hs), (d_p + L * 0.55, -0.032 - hs), (d_p + 0.12, -0.026 - hs)], 0.04 + 2 * hs, wd, ch=0.004)
     rail(g, 0.0, d_p + 0.22, 0.03, dk, w=0.02, h=0.007, pitch=0.014)
     g.cyl((0.0, -0.0, 0.0126), (0.0, -(d_p + 0.24), 0.0126), 0.0036, pal["wood"], n=6)
     lathe_d(g, [(0.0, 0.0001), (0.045, 0.0055), (0.05, 0.0055)], mt, n=8, z=0.0126)

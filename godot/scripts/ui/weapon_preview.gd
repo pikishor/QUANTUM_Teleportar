@@ -109,6 +109,7 @@ func show_weapon(id: StringName) -> bool:
 		return true
 	weapon = id
 	_mesh.mesh = m
+	_mesh.material_override = WeaponModels.material_for(id) if WeaponModels.has_model(id) else _mat       # a weapon of the Blender kit is drawn with its PBR material
 	var bb := m.get_aabb()
 	var cen := bb.get_center()
 	_mesh.position = -cen                                          # the pivot turns about the middle of the weapon

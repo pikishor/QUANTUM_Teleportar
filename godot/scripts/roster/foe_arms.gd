@@ -40,14 +40,15 @@ static func attach(look_id: StringName, id: StringName) -> String:
 ## Grips and muzzle of a weapon id for a rig: sets `grip_off_l/r`, tells the upper-body state machine which mount it is, and returns {muzzle_shift, mount, reach}.
 static func setup(rig: CharacterRig, hanim: HumanoidAnim, id: StringName) -> Dictionary:
 	var wid := id if has_weapon(id) else &"carbine"
-	var g := WeaponModels.grip_offsets(wid)
+	var esc := SCALE * (HEAVY_SCALE if HEAVY.has(wid) else Vector3.ONE) if WeaponModels.has_model(wid) else Vector3.ONE        # the kit's grips and reach are scaled like the enemy's drawn weapon
+	var g := WeaponModels.grip_offsets(wid, esc)
 	if rig != null:
 		rig.grip_off_l = g[0]
 		rig.grip_off_r = g[1]
 	var mc := mount_class(wid)
 	if hanim != null:
 		hanim.set_weapon(mc)
-	return {"muzzle_shift": WeaponModels.muzzle_shift(wid), "mount": mc, "reach": float(WeaponModels.spec(wid).get("reach", 0.86))}
+	return {"muzzle_shift": WeaponModels.muzzle_shift(wid, esc), "mount": mc, "reach": float(WeaponModels.spec(wid).get("reach", 0.86))}
 
 
 const TARGET_TRIS := [700, 320, 130]       ## triangles of the weapon in the near / mid / far mesh (the open-source models have 1.3-2.4k)
@@ -108,7 +109,7 @@ static func _raw(id: StringName) -> Array:
 	if _cache.has(id):
 		return _cache[id]
 	var out: Array = []
-	var m := WeaponModels.mesh(id)
+	var m := WeaponModels.mesh(id, 1)                                                         # LOD1 of the weapon kit (the same mesh for a weapon without a kit model)
 	if m != null and m.get_surface_count() > 0:
 		var arr := m.surface_get_arrays(0)
 		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
@@ -119,7 +120,7 @@ static func _raw(id: StringName) -> Array:
 			for i in v.size():
 				idx.append(i)
 		var sc := SCALE * (HEAVY_SCALE if HEAVY.has(id) else Vector3.ONE)
-		var shift := WeaponModels.muzzle_shift(id)
+		var shift := WeaponModels.muzzle_shift(id, sc if WeaponModels.has_model(id) else Vector3.ONE)
 		var off := HeroCharacter.RIFLE_PIVOT + Vector3(MUZZLE_AT.x, MUZZLE_AT.y, MUZZLE_AT.z + shift)
 		var groups := {}
 		for t in idx.size() / 3:

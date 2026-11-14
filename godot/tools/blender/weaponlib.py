@@ -630,7 +630,7 @@ class G:
     def tri_count(self):
         return int(sum(len(f) for f in self._F))
 
-    def finish(self, ao_rays=24, ao_dist=0.07, bvh=True):
+    def finish(self, ao_rays=24, ao_dist=0.07, bvh=True, wear=0.5):
         """Weld identical vertices, drop degenerate triangles, bake vertex AO and the edge wear mask. Returns a dict of arrays (K frame)."""
         P = np.concatenate(self._P)
         N = np.concatenate(self._N)
@@ -654,7 +654,8 @@ class G:
         remap[used] = np.arange(int(used.sum()))
         P, N, A = P[used], N[used], A[used]
         F = remap[F]
-        ao, wear = bake_ao_wear(P, N, F, ao_rays, ao_dist, bvh)
+        ao, _ = bake_ao_wear(P, N, F, ao_rays, ao_dist, bvh)
+        wear = np.full(len(P), float(wear))                  # how worn the weapon is (the shader finds the edges from the screen derivatives and chips the paint there)
         return {"P": P, "N": N, "F": F, "layer": A[:, 0].astype(np.int64), "part": A[:, 1].astype(np.int64), "glow": A[:, 2], "tint": A[:, 3:6], "ao": ao, "wear": wear}
 
 

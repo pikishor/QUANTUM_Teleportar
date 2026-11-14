@@ -77,6 +77,8 @@ static var _flash_mat_streak: StandardMaterial3D
 
 var muzzle: Node3D
 var _wp_mi: MeshInstance3D
+var _handling := WeaponHandling.new()           ## part motion of the weapon in the hand (slide, pump, rotor, magazine ...): scripts/player/weapon_handling.gd
+var _wp_mat: Material                          ## the material of the weapon in the hand: the hero's own copy of the kit's PBR material (moving parts, glow), or the old vertex-colour one
 const WEAPON_LOOK_SCALE := Vector3(1.4, 1.4, 1.12)
 ## Heavy weapons are drawn bigger still (director review 5, #2: the rocket launcher read as a 20 cm stub from behind the hero): a launcher, minigun, LMG, anti-materiel rifle, flamethrower
 ## and the big quantum emitters get this extra factor on thickness and length, so a heavy gun reads as a heavy gun at the 20 % of the frame the hero fills.
@@ -85,6 +87,7 @@ const HEAVY_IDS: Array[StringName] = [&"rocket", &"minigun", &"lmg", &"amr", &"f
 var _muzzle_shift := 0.0                      ## metres the muzzle sits behind the carbine's (a short gun)
 var _wp_attach := false                       ## (kept for the rebuild reset)
 var _finger_mode: StringName = &""
+var _laser: MeshInstance3D                     ## the beam of an equipped laser sight (one box, additive, only while a laser part is fitted)
 var _wp_glow := 1.0                           ## the silhouette's trim brightness: kicks to 3.4 on a shot, settles to 1
 var leg_l: Node3D
 var leg_r: Node3D
@@ -357,11 +360,13 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	# --- character lights follow the ACTIVE camera (the orbit yaw alone lies when a cinematic / QA / viewer camera looks from elsewhere)
 	update_character_lights(lerpf(1.0, DEAD_LIGHT, e), rig_view.yaw if rig_view != null else NAN)
 	_solve_aim(p, adt, dying, reload_k)
+	_handling.update(adt, reload_k if (p.weapon != null and p.weapon.is_reloading()) else -1.0, p.weapon.ammo if p.weapon != null else 1)      # the magazine only leaves on a real reload (swap and inspect share the pose, not the ammo)
+	_update_laser(p)
 
 	# --- the weapon silhouette's trim kicks light on a shot and settles (the material is shared: one weapon is in hand at a time)
 	if _wp_glow > 1.0:
 		_wp_glow = maxf(1.0, _wp_glow - dt * 18.0)
-		WeaponModels.material().set_shader_parameter(&"glow", _wp_glow)
+		_set_wp_glow(_wp_glow)
 	# --- muzzle flash decay (real time)
 	if _flash_t > 0.0:
 		_flash_t -= dt
@@ -466,23 +471,67 @@ func set_weapon_look(id: StringName) -> void:
 		_wp_mi = MeshInstance3D.new()
 		_wp_mi.name = "WeaponLook"
 		_wp_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_wp_mi.material_override = WeaponModels.material()
 		muzzle.add_child(_wp_mi)
 		_set_layer(_wp_mi, 1 << (CHARACTER_LAYER - 1))              # on the hero's light layer: his key and rim lights shape the weapon too (it was a black cut-out in the dark street)
 	elif _wp_mi.get_parent() != muzzle:
 		_wp_mi.get_parent().remove_child(_wp_mi)
 		muzzle.add_child(_wp_mi)
 	var sil := WeaponModels.mesh(id)
+	_wp_mat = WeaponModels.hand_material(id)
+	_wp_mi.material_override = _wp_mat
 	_wp_mi.mesh = sil
+	_handling.setup(_wp_mat, id)
 	_wp_mi.position = Vector3.ZERO
-	_wp_mi.scale = WEAPON_LOOK_SCALE * (HEAVY_LOOK_SCALE if HEAVY_IDS.has(id) else Vector3.ONE)      # thicker and a little longer: from the shoulder camera the gun was a thin stick (director review)
+	var look_sc := WeaponModels.look_scale(id) if WeaponModels.has_model(id) else WEAPON_LOOK_SCALE * (HEAVY_LOOK_SCALE if HEAVY_IDS.has(id) else Vector3.ONE)      # thicker and a little longer: from the shoulder camera the gun was a thin stick (director review)
+	_wp_mi.scale = look_sc
 	_wp_mi.visible = hero_mat != null and sil != null
-	_muzzle_shift = WeaponModels.muzzle_shift(id) if hero_mat != null else 0.0
+	_muzzle_shift = WeaponModels.muzzle_shift(id, look_sc if WeaponModels.has_model(id) else Vector3.ONE) if hero_mat != null else 0.0
 	if rig != null and hero_mat != null:
-		var g := WeaponModels.grip_offsets(id)
+		var g := WeaponModels.grip_offsets(id, look_sc if WeaponModels.has_model(id) else Vector3.ONE)
 		rig.grip_off_l = g[0]
 		rig.grip_off_r = g[1]
-	WeaponModels.material().set_shader_parameter(&"glow", 1.0)
+	_set_wp_glow(1.0)
+
+
+## The laser sight: a thin red beam from the weapon's laser marker along the barrel to the first thing it hits, only while a laser part is fitted to a kit weapon and the hero is not sprinting.
+func _update_laser(p: Player) -> void:
+	var on := false
+	if p.weapon != null and muzzle != null and _wp_mi != null and _wp_mi.visible and WeaponModels.has_model(_weapon_id):
+		on = Attachments.part_in(_weapon_id, &"laser") != &"" and not p.sprinting and Game.state != &"paused"
+	if not on:
+		if _laser != null:
+			_laser.visible = false
+		return
+	if _laser == null:
+		_laser = MeshInstance3D.new()
+		_laser.name = "LaserBeam"
+		_laser.mesh = BoxMesh.new()
+		(_laser.mesh as BoxMesh).size = Vector3(0.006, 0.006, 1.0)
+		var lm := StandardMaterial3D.new()
+		lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		lm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		lm.albedo_color = Color(1.0, 0.12, 0.1, 1.0)
+		_laser.material_override = lm
+		_laser.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_laser.top_level = true
+		add_child(_laser)
+	var from := muzzle.global_transform * (WeaponModels.point(_weapon_id, "laser") * _wp_mi.scale)
+	var dir := -muzzle.global_basis.z.normalized()
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * 40.0)
+	q.collision_mask = 1
+	var hit := space.intersect_ray(q)
+	var len := 40.0 if hit.is_empty() else from.distance_to(hit["position"])
+	_laser.global_transform = Transform3D(Basis.looking_at(dir, Vector3.UP).scaled(Vector3(1.0, 1.0, len)), from + dir * len * 0.5)
+	_laser.visible = true
+
+
+## The glow of the weapon in the hand (the trim kicks light on a shot): its own material when it is one of the kit's, else the shared old one.
+func _set_wp_glow(v: float) -> void:
+	var m := _wp_mat as ShaderMaterial
+	if m == null:
+		m = WeaponModels.material()
+	m.set_shader_parameter(&"glow", v)
 
 
 ## Create the pooled burst node and show it for the shader warm-up (an idle hidden emitter costs nothing; the first burst then needs no allocation).
@@ -501,7 +550,8 @@ func fire_flash(intensity := 1.0) -> void:
 	if glow != null:
 		glow.fired(_look_accent.lerp(Color.WHITE, 0.3), intensity)
 	_wp_glow = 3.4
-	WeaponModels.material().set_shader_parameter(&"glow", _wp_glow)
+	_set_wp_glow(_wp_glow)
+	_handling.fired()
 	if _flash_root != null:
 		_flash_t = FLASH_TIME
 		_flash_root.visible = true

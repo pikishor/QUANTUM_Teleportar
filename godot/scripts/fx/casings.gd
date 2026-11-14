@@ -20,6 +20,7 @@ var _spin := PackedVector3Array()
 var _age := PackedFloat32Array()
 var _floor_y := PackedFloat32Array()
 var _bounces := PackedByteArray()
+var _size := PackedFloat32Array()                      ## per casing size factor (calibre: a pistol case is small, a shotgun shell and an anti-materiel case are big)
 
 
 func _ready() -> void:
@@ -52,6 +53,7 @@ func _ready() -> void:
 	_age.resize(CAP)
 	_floor_y.resize(CAP)
 	_bounces.resize(CAP)
+	_size.resize(CAP)
 
 
 func clear() -> void:
@@ -61,7 +63,7 @@ func clear() -> void:
 
 
 ## A casing leaves `pos` with velocity `vel` (m/s); `floor_y` is the ground it will land on.
-func eject(pos: Vector3, vel: Vector3, floor_y := 0.0) -> void:
+func eject(pos: Vector3, vel: Vector3, floor_y := 0.0, size_k := 1.0) -> void:
 	if Game.low_plus or live >= CAP:
 		return
 	var i := live
@@ -74,6 +76,7 @@ func eject(pos: Vector3, vel: Vector3, floor_y := 0.0) -> void:
 	_age[i] = 0.0
 	_floor_y[i] = floor_y + SIZE.y
 	_bounces[i] = 0
+	_size[i] = size_k
 	mm.visible_instance_count = live
 	_mmi.visible = true
 
@@ -94,6 +97,7 @@ func _process(delta: float) -> void:
 			_age[i] = _age[live]
 			_floor_y[i] = _floor_y[live]
 			_bounces[i] = _bounces[live]
+			_size[i] = _size[live]
 			continue
 		var v := _v[i]
 		v.y -= GRAVITY * delta
@@ -113,7 +117,7 @@ func _process(delta: float) -> void:
 		_p[i] = p
 		_rot[i] += _spin[i] * delta
 		var fade := clampf((LIFE - _age[i]) / 0.4, 0.0, 1.0)         # shrinks away at the end
-		var b := Basis.from_euler(_rot[i]).scaled(Vector3.ONE * fade)
+		var b := Basis.from_euler(_rot[i]).scaled(Vector3.ONE * fade * _size[i])
 		mm.set_instance_transform(i, Transform3D(b, p))
 		i += 1
 	mm.visible_instance_count = live
