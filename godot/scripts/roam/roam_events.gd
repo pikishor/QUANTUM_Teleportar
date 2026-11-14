@@ -340,8 +340,16 @@ func _build_raid(e: Dictionary) -> bool:
 		var off := Vector3(rng.randf_range(-12.0, 12.0), 0.0, rng.randf_range(-12.0, 12.0)) if g > 0 else Vector3.ZERO
 		var made := a.roster.spawn_encounter(eid, p + off, true)
 		for c in made:
-			(e["creatures"] as Array).append(c)
+			_adopt(e, c)
 	return not (e["creatures"] as Array).is_empty()
+
+
+## A creature of event `e`: listed with it and held, because the ambient despawn rule of the AlienWorld (about 140 to 180 m from the hero, by tier) would remove it the moment it stands in
+## the ring 170-340 m away where the events are built (the raid then counted as won after one second, the guards of a stash were gone before the hero came; wave 113 CI: test_free_roam_world).
+## `_cleanup` lets it go again.
+func _adopt(e: Dictionary, c: AlienCreature) -> void:
+	c.set_meta(&"hold", true)
+	(e["creatures"] as Array).append(c)
 
 
 func _build_smugglers(e: Dictionary) -> bool:
@@ -356,7 +364,7 @@ func _build_smugglers(e: Dictionary) -> bool:
 	if made.is_empty():
 		return false
 	for c in made:
-		(e["creatures"] as Array).append(c)
+		_adopt(e, c)
 	var v := _park(&"van", p, rng.randf() * TAU)
 	if v != null:
 		(e["vehicles"] as Array).append(v)
@@ -455,7 +463,7 @@ func _scavengers(e: Dictionary) -> void:
 		return
 	var p: Vector3 = e["pos"]
 	for c in a.roster.spawn_encounter(eid, p + Vector3(14.0, 0.0, -9.0), true):
-		(e["creatures"] as Array).append(c)
+		_adopt(e, c)
 	Game.say("SCAVENGERS AT THE WRECK", 2.5)
 
 
@@ -566,6 +574,9 @@ func _cleanup(e: Dictionary, ok: bool) -> void:
 		if vm != null and not v.driver_is_player and (v.wreck or not ok or e["kind"] == &"crash") and vm.list.has(v):
 			vm._release(v)
 	(e["vehicles"] as Array).clear()
+	for c: Variant in e["creatures"]:                                          # the survivors of a failed event are let go: the ambient rules take them again
+		if is_instance_valid(c):
+			(c as AlienCreature).remove_meta(&"hold")
 	if _marks != null:
 		_marks.hide_all()
 
