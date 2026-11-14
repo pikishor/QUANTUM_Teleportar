@@ -1,6 +1,6 @@
 # w112-ci-apk (running)
 
-agent id a5abf77c34c4246ba, 200 events, first activity 2026-11-13T23:33:01.957Z, last activity 2026-11-14T00:19:45.332Z
+agent id a5abf77c34c4246ba, 205 events, first activity 2026-11-13T23:33:01.957Z, last activity 2026-11-14T00:29:11.703Z
 
 ## Last notes of the agent
 
@@ -8,7 +8,6 @@ agent id a5abf77c34c4246ba, 200 events, first activity 2026-11-13T23:33:01.957Z,
 
 ## Recent steps (last 40)
 
-- 23:58:26 Find timing markers of test_ambient in the shard log
 - 23:58:35 Show script and test changes in the wave 112 commit
 - 23:58:35 Read the test runner and CI shard scripts
 - 23:58:41 Run test_ambient locally to reproduce the CI failure
@@ -48,6 +47,7 @@ agent id a5abf77c34c4246ba, 200 events, first activity 2026-11-13T23:33:01.957Z,
 - 00:11:03 Find the CI run for the fix commit
 - 00:11:30 Poll the CI run for the fix commit
 - 00:19:45 Poll the CI run again and list job states
+- 00:28:00 Poll the CI run again and list job states
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

@@ -743,6 +743,15 @@ func press_button(id: StringName) -> bool:
 				return false
 			_look_open = true
 			Sfx.play(&"ui_confirm")
+		&"wheelcls_prev", &"wheelcls_next":
+			if Game.state != &"paused" or not _loadout_open or not LoadoutScreen.flip_class(-1 if id == &"wheelcls_prev" else 1):
+				return false
+			Sfx.play(&"ui_tap")
+		&"fav_toggle":
+			if Game.state != &"paused" or not _loadout_open:
+				return false
+			WeaponBrowser.toggle_favourite(_loadout_w)
+			Sfx.play(&"ui_tap")
 		&"wheelpg_prev", &"wheelpg_next":
 			if Game.state != &"paused" or not _loadout_open or not LoadoutScreen.flip(-1 if id == &"wheelpg_prev" else 1):
 				return false

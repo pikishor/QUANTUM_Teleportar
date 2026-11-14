@@ -720,6 +720,7 @@ static func unlock(id: StringName) -> bool:
 
 static func reset_unlocked() -> void:
 	last_in_class.clear()
+	WeaponBrowser.reset()
 	unlocked = STARTERS.duplicate()
 	last_used = &"carbine"
 

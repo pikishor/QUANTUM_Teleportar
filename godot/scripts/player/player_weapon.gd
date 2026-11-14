@@ -238,6 +238,7 @@ func switch_to(id: StringName, instant := false) -> bool:
 	_load(id)
 	WeaponDefs.last_used = id
 	WeaponDefs.last_in_class[WeaponDefs.class_of(id)] = id
+	WeaponBrowser.note_used(id)
 	reload_t = 0.0
 	charge = 0.0
 	_burst = 0

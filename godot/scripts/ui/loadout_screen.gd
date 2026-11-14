@@ -42,7 +42,7 @@ static func owned_weapons() -> Array[StringName]:
 	return WeaponDefs.owned_ordered()
 
 
-## The class tabs of the loadout: every weapon class the hero owns something in, in WeaponDefs.CLASS_ORDER. One page = one class (PISTOL, SMG, RIFLE, ... QUANTUM), at most 8 tiles.
+## The class tabs of the loadout: every weapon class the hero owns something in, in WeaponDefs.CLASS_ORDER (FAVOURITES and RECENT are tabs of the browser, not classes).
 static func owned_classes() -> Array[StringName]:
 	var out: Array[StringName] = []
 	for cls: StringName in WeaponDefs.CLASS_ORDER:
@@ -51,37 +51,86 @@ static func owned_classes() -> Array[StringName]:
 	return out
 
 
+## Every page of every tab (scripts/ui/weapon_browser.gd): FAVOURITES, RECENT, then each class eight weapons at a time. One page = at most the 2 x 4 tiles of the grid.
+static func pages() -> Array[Dictionary]:
+	return WeaponBrowser.pages(true, WeaponBrowser.PAGE)
+
+
 static func page_count() -> int:
-	return maxi(1, owned_classes().size())
+	return maxi(1, pages().size())
 
 
-## Weapons of the visible page: the owned weapons of its class. The page follows the selected weapon until a flip.
+## Weapons of the visible page. The page follows the selected weapon (into its class tab) until a flip.
 static func page_items(sel: StringName) -> Array[StringName]:
-	var cls := owned_classes()
+	var ps := pages()
+	var out: Array[StringName] = []
+	if ps.is_empty():
+		return out
 	if sel != _page_sel:
 		_page_sel = sel
-		var at := cls.find(WeaponDefs.class_of(sel))
+		var at := WeaponBrowser.page_of(sel)
 		if at >= 0:
 			page = at
-	page = clampi(page, 0, page_count() - 1)
-	if cls.is_empty():
-		return []
-	return WeaponDefs.owned_in_class(cls[page])
+	page = clampi(page, 0, ps.size() - 1)
+	out.assign(ps[page]["ids"])
+	return out
 
 
-## The name of the visible class tab ("RIFLE").
+## Show the page of weapon `id` now (tests and the quick wheel use it).
+static func goto(id: StringName) -> void:
+	_page_sel = id
+	var at := WeaponBrowser.page_of(id)
+	if at >= 0:
+		page = at
+
+
+## The name of the visible tab ("RIFLE", "FAVOURITES").
 static func page_name() -> String:
-	var cls := owned_classes()
-	return String(WeaponDefs.CLASS_NAMES.get(cls[clampi(page, 0, cls.size() - 1)], "")) if not cls.is_empty() else ""
+	var ps := pages()
+	return String(ps[clampi(page, 0, ps.size() - 1)]["name"]) if not ps.is_empty() else ""
 
 
-## Flip the class tab by dir (wraps). Returns true when there is more than one class.
+## How many weapons the visible tab holds in all (the caption of the class row).
+static func tab_size() -> int:
+	var ps := pages()
+	if ps.is_empty():
+		return 0
+	var cur: Dictionary = ps[clampi(page, 0, ps.size() - 1)]
+	var n := 0
+	for p: Dictionary in ps:
+		if p["tab"] == cur["tab"]:
+			n += (p["ids"] as Array).size()
+	return n
+
+
+## "PAGE 2 / 4" of the visible tab ("" when the tab is a single page).
+static func sub_caption() -> String:
+	var ps := pages()
+	if ps.is_empty():
+		return ""
+	var cur: Dictionary = ps[clampi(page, 0, ps.size() - 1)]
+	return "PAGE %d / %d" % [int(cur["sub"]) + 1, int(cur["subs"])]
+
+
+## Flip the page by dir through every page of every tab (wraps). Returns true when there is more than one page.
 static func flip(dir: int) -> bool:
 	var n := page_count()
 	if n < 2:
 		return false
 	page = posmod(page + dir, n)
 	return true
+
+
+## Jump to the first page of the next (dir 1) or previous (dir -1) tab. Returns true when there is more than one tab.
+static func flip_class(dir: int) -> bool:
+	if tab_count() < 2:
+		return false
+	page = WeaponBrowser.tab_jump(page, dir)
+	return true
+
+
+static func tab_count() -> int:
+	return WeaponBrowser.tabs(true).size()
 
 
 static func reset_page() -> void:
@@ -104,6 +153,11 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 		var ar := arrow_rects(cx, s, k)
 		hud._add(&"wheelpg_prev", ar[0], "<", false)
 		hud._add(&"wheelpg_next", ar[1], ">", false)
+	if tab_count() > 1:                                            # the class row above the grid: jump to the next / previous class (FAVOURITES and RECENT first when they hold something)
+		var cr := class_rects(cx, s, k)
+		hud._add(&"wheelcls_prev", cr[0], "<", false)
+		hud._add(&"wheelcls_next", cr[1], ">", false)
+	hud.buttons.append({"id": &"fav_toggle", "rect": star_rect(cx, s, k), "label": "", "on": WeaponBrowser.is_favourite(sel), "own": true})
 	for si in Attachments.SLOTS.size():
 		var parts := Attachments.parts_for(Attachments.SLOTS[si])
 		for j in parts.size():
@@ -112,7 +166,7 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 			var label := "ON" if own else (("NEW  EQUIP" if MissionRewards.is_new(part) else "EQUIP") if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
 			hud.buttons.append({"id": StringName("part_%s" % part), "rect": Rect2(cx + (SLOT_X + j * (PART_W + 8.0)) * s * k, (SLOT_Y + si * SLOT_STEP + 24.0) * s, PART_W * s * k, PART_H * s), "label": label, "on": own,
 				"part": true, "name": String(Attachments.PARTS[part]["name"]), "fx": String(PART_FX.get(part, "")), "state": 2 if own else (1 if Attachments.is_owned(part) else 0)})
-	var aw := (3.0 * PART_W + 2.0 * 8.0 - 8.0) * 0.5
+	var aw := (3.0 * PART_W + 2.0 * 8.0 - 72.0 - 8.0) * 0.5              # GEAR and WEAPON INFO share the row with the 64 px star
 	hud._add_card(&"loadout_gear", Rect2(cx + SLOT_X * s * k, ACTION_Y * s, aw * s * k, 64.0 * s), "GEAR", &"gear", "", false, UiUtil.MAGENTA)
 	hud._add_card(&"loadout_info", Rect2(cx + (SLOT_X + aw + 8.0) * s * k, ACTION_Y * s, aw * s * k, 64.0 * s), "WEAPON INFO", &"weapon", "", false, UiUtil.CYAN)
 	hud._add(&"loadout_back", Rect2(cx - 110.0 * s, 628.0 * s, 220.0 * s, 64.0 * s), "RESUME" if hud._loadout_quick else "BACK", false)
@@ -125,6 +179,18 @@ static func _caption(words: PackedStringArray, lasts: Dictionary, tag: String) -
 		return last
 	var first := String(words[0])
 	return first if first.length() <= 9 else tag
+
+
+## The class chips above the tile column: [previous, next] (64 px each, the class name sits between them).
+static func class_rects(cx: float, s: float, k := 1.0) -> Array[Rect2]:
+	var y := 106.0 * s
+	var gw := (float(GRID_COLS) * TILE.x + float(GRID_COLS - 1) * TILE_GAP) * s * k
+	return [Rect2(cx + GRID_X * s * k, y, 64.0 * s, 64.0 * s), Rect2(cx + GRID_X * s * k + gw - 64.0 * s, y, 64.0 * s, 64.0 * s)]
+
+
+## The star button of the selected weapon (favourite on / off): in the row of GEAR and WEAPON INFO.
+static func star_rect(cx: float, s: float, k := 1.0) -> Rect2:
+	return Rect2(cx + (SLOT_X + 3.0 * PART_W + 16.0 - 64.0) * s * k, ACTION_Y * s, 64.0 * s, 64.0 * s)
 
 
 ## The page arrows under the tile column: [previous, next].
@@ -212,13 +278,32 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	if trait_line != "":
 		hud._text(c, font, Vector2(pic.position.x + 18.0 * s, pic.position.y + pic.size.y - 14.0 * s), trait_line, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x - 70.0 * s, UiUtil.fit_size(font, trait_line, pic.size.x - 70.0 * s, int(18.0 * s)), Color(UiUtil.MAGENTA, 0.97), 1.0 * s)
 	var np := page_count()
+	var gw := (float(GRID_COLS) * TILE.x + float(GRID_COLS - 1) * TILE_GAP) * s * k
+	var tint_c := UiKit.class_tint(WeaponDefs.class_of(sel))
+	if tab_count() > 1:                                                  # the class row: the tab name and how many weapons it holds, between the two chips
+		var cap := "%s  %d" % [page_name(), tab_size()]
+		var cwc := gw - 144.0 * s
+		hud._text(c, font, Vector2(cx + GRID_X * s * k + 72.0 * s, 106.0 * s + 40.0 * s), cap, HORIZONTAL_ALIGNMENT_CENTER, cwc, UiUtil.fit_size(font, cap, cwc, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.AMBER, 0.97), 1.0 * s)
+	else:
+		hud._text(c, font, Vector2(cx + GRID_X * s * k, 106.0 * s + 40.0 * s), "%s  %d" % [page_name(), tab_size()], HORIZONTAL_ALIGNMENT_LEFT, gw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
 	if np > 1:
-		var gw := (float(GRID_COLS) * TILE.x + float(GRID_COLS - 1) * TILE_GAP) * s * k
-		var cap2 := "%s  %d / %d" % [page_name(), page + 1, np]                  # between the two arrows
+		var cap2 := sub_caption()                                        # between the two page arrows
 		var cw2 := gw - 136.0 * s
-		if hud._text_width(font, Tr.t(cap2), int(Hud.BODY_MIN * s)) > cw2 - 6.0 * s:        # a narrow screen (16:9) shows the class alone: the arrows say there are more
-			cap2 = page_name()
-		hud._text(c, font, Vector2(cx + GRID_X * s * k + 68.0 * s, (GRID_Y + 4.0 * (TILE.y + TILE_GAP) + 4.0 + 40.0) * s), cap2, HORIZONTAL_ALIGNMENT_CENTER, cw2, UiUtil.fit_size(font, cap2, cw2, int(UiUtil.BAR_LABEL * s)), Color(UiKit.class_tint(WeaponDefs.class_of(sel)).lerp(Color.WHITE, 0.3), 0.97), 1.0 * s)
+		hud._text(c, font, Vector2(cx + GRID_X * s * k + 68.0 * s, (GRID_Y + 4.0 * (TILE.y + TILE_GAP) + 4.0 + 40.0) * s), cap2, HORIZONTAL_ALIGNMENT_CENTER, cw2, UiUtil.fit_size(font, cap2, cw2, int(UiUtil.BAR_LABEL * s)), Color(tint_c.lerp(Color.WHITE, 0.3), 0.97), 1.0 * s)
+	var sr := star_rect(cx, s, k)                                       # the star: a favourite is filled amber, else an outline
+	var fav := WeaponBrowser.is_favourite(sel)
+	UiKit.panel(c, sr, s, UiUtil.AMBER if fav else UiKit.class_tint(WeaponDefs.class_of(sel)), fav, 8.0, fav)
+	var pts := PackedVector2Array()
+	var sc := sr.get_center()
+	for q in 10:
+		var ang := -PI * 0.5 + TAU * float(q) / 10.0
+		var rr := (22.0 if q % 2 == 0 else 9.0) * s
+		pts.append(sc + Vector2(cos(ang), sin(ang)) * rr)
+	if fav:
+		c.draw_colored_polygon(pts, Color(UiUtil.AMBER, 0.97))
+	else:
+		pts.append(pts[0])
+		c.draw_polyline(pts, Color(1, 1, 1, 0.8), 2.0 * s)
 	for si in Attachments.SLOTS.size():
 		var y := (SLOT_Y + si * SLOT_STEP) * s
 		hud._text(c, font, Vector2(cx + SLOT_X * s * k, y + 16.0 * s), String(Attachments.SLOTS[si]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
