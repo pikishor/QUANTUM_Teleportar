@@ -1,6 +1,6 @@
 export const meta = {
   name: 'round6e-sprint-112-116',
-  description: 'Round 6 continued at MAX effort, STOPS AFTER WAVE 116 by owner decision (args.stopAfter), balanced for two agent slots: landscape, outskirts, cars second pass and hero look; weapon roster, blast arsenal, damage, enemy looks; weapon art and screens; quantum snakes; aircraft roster and interiors; vertical, casual and hero mode; animation and world life; streets, menus and performance recovery; three-way director review; fixes',
+  description: 'Round 6 continued at MAX effort, STOPS AFTER WAVE 115 by owner decision of 2026-11-14 (args.stopAfter; the first decision was 116), balanced for two agent slots: landscape, outskirts, cars second pass and hero look; weapon roster, blast arsenal, damage, enemy looks; weapon art and screens; quantum snakes; aircraft roster and interiors; vertical, casual and hero mode; animation and world life; streets, menus and performance recovery; three-way director review; fixes',
   phases: [
     { title: 'Wave 111' }, { title: 'Wave 112' }, { title: 'Wave 113' }, { title: 'Wave 114' }, { title: 'Wave 115' }, { title: 'Wave 116' },
     { title: 'Wave 117' }, { title: 'Wave 118' }, { title: 'Wave 119' }, { title: 'Wave 120' }, { title: 'Wave 121' },
@@ -67,7 +67,10 @@ function criticFix(n, c, lens) {
 
 // ----- one wave: builders in parallel, optional critic-fixers, integrator, CI watcher that overlaps the next wave -----
 async function wave(n, builders, msg, perf, fullBot, prev, apk, crit) {
-  if (n < START) { log(`wave ${n}: finished before the restart, skipped`); return {watch: Promise.resolve('skipped (before the restart wave)')} }
+  if (n < START) {
+    if (CI_WAVE === n && CI_SHA) { log(`wave ${n}: finished and pushed before the restart; only its CI watcher runs again`); return {watch: (apk ? ciwatchApk : ciwatch)(n, CI_SHA)} }
+    log(`wave ${n}: finished before the restart, skipped`); return {watch: Promise.resolve('skipped (before the restart wave)')}
+  }
   if (n > STOP) { log(`wave ${n}: not started (the owner decided to stop after wave ${STOP}; docs/ROUND6.md)`); return {watch: Promise.resolve('not started (after the stop wave)')} }
   cur = n
   phase(`Wave ${n}`)
@@ -93,7 +96,9 @@ const gaps111 = (args && args.gaps111) ? String(args.gaps111) : '(none reported)
 const START = (args && args.startWave) ? Number(args.startWave) : 111
 const SKIP = (args && Array.isArray(args.skipTags)) ? args.skipTags : []
 const SKIPCRITIC = !!(args && args.skipCritic)
-const STOP = (args && args.stopAfter) ? Number(args.stopAfter) : 116   // owner decision 2026-11-13: stop after wave 116 (docs/ROUND6.md)
+const STOP = (args && args.stopAfter) ? Number(args.stopAfter) : 115   // owner decision 2026-11-14: stop after wave 115 (on 2026-11-13 it was 116); waves 116 to 121 start only when the owner says so (docs/ROUND6.md)
+const CI_WAVE = (args && args.ciWave) ? Number(args.ciWave) : 0        // a wave that was finished and pushed before this restart whose CI watcher and APK build still have to run (with ciSha)
+const CI_SHA = (args && args.ciSha) ? String(args.ciSha).slice(0, 400) : ''   // the integrator's final text of that wave (commit and summary)
 const REPORTS = (args && args.reports) ? args.reports : {}            // reports of builders and critics that finished before this restart (tag -> text, critics -> [text, text])
 phase('Wave 111')
 const w111 = {watch: (START <= 111 && sha111) ? ciwatchApk(111, sha111) : Promise.resolve('wave 111 CI watch not started')}

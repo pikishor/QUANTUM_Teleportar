@@ -1275,7 +1275,7 @@ func _tick_smoke(z: Dictionary) -> void:
 		var inside := ep.distance_to(pos) < radius
 		var through := hero_in and Throwables._seg_dist(ep, hero.global_position, pos) < radius
 		if inside or through:
-			if bool(en.get(&"aware")):
+			if en.get(&"aware") == true:                    # aliens and roster creatures have no `aware` (null): bool(null) is a script error (full_bot: 'Nonexistent bool constructor' in the smoke tick of st_air_l)
 				en.set(&"aware", false)
 				blinded_n += 1
 			if en.get(&"suspicion") != null:
@@ -1402,7 +1402,7 @@ func status(en: Node3D, e: Dictionary, f: float, source: Variant, pos: Vector3) 
 		&"blind":
 			if en.has_method(&"disable"):
 				en.call(&"disable", secs * (0.5 + 0.5 * f))
-			if bool(en.get(&"aware")):
+			if en.get(&"aware") == true:
 				en.set(&"aware", false)
 			if en.get(&"suspicion") != null:
 				en.set(&"suspicion", 0.0)

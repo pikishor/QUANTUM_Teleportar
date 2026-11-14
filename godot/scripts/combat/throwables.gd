@@ -217,7 +217,7 @@ func _step(e: Dictionary, dt: float) -> bool:
 				e["tick"] = 0.5
 				for en in Gear.living_enemies(get_tree()):
 					if en.global_position.distance_to(pos) < float(d["lure"]) and en.has_method(&"hear"):
-						if not bool(en.get(&"aware")):
+						if en.get(&"aware") != true:                                  # aliens and roster creatures have no `aware` (null): bool(null) is a script error
 							lured += 1
 						en.call(&"hear", pos, 0.4)
 			_bob(e)
@@ -312,7 +312,7 @@ func _blind(pos: Vector3, radius: float) -> void:
 		var ep := en.global_position
 		var inside := ep.distance_to(pos) < radius
 		var through := player_in and _seg_dist(ep, pp, pos) < radius
-		if (inside or through) and bool(en.get(&"aware")):
+		if (inside or through) and en.get(&"aware") == true:
 			en.set(&"aware", false)
 			if en.get(&"suspicion") != null:
 				en.set(&"suspicion", 0.0)
@@ -355,7 +355,7 @@ func _flash(pos: Vector3, radius: float, secs: float) -> void:
 			if en.has_method(&"disable"):
 				en.call(&"disable", secs)
 				disabled_n += 1
-			if bool(en.get(&"aware")):
+			if en.get(&"aware") == true:
 				en.set(&"aware", false)
 				blinded += 1
 			if en.get(&"suspicion") != null:

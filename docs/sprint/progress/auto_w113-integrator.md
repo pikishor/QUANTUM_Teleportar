@@ -1,6 +1,6 @@
 # w113-integrator (running)
 
-agent id a8dc13087c85e1d41, 566 events, first activity 2026-11-14T10:11:46.718Z, last activity 2026-11-14T12:11:22.927Z
+agent id a8dc13087c85e1d41, 622 events, first activity 2026-11-14T10:11:46.718Z, last activity 2026-11-14T12:25:19.865Z
 
 ## Last notes of the agent
 
@@ -8,24 +8,6 @@ agent id a8dc13087c85e1d41, 566 events, first activity 2026-11-14T10:11:46.718Z,
 
 ## Recent steps (last 40)
 
-- 11:38:13 Read the remove_child sites in operative and player_body
-- 11:38:20 Repeat the soak test twice on the baseline to see the orphan variance
-- 11:40:57 Bisect the heist orphan growth with feature flags
-- 11:44:37 See which check failed with credit off
-- 11:44:45 Read the humanoid_variants and hero_character diffs
-- 11:44:51 Read mid_mesh to see whether the temporary build root is freed
-- 11:44:58 Find how operatives get their variant models
-- 11:45:07 Read HeroCharacter.build setup and the skeleton extraction
-- 11:45:16 Skim the roster human lifecycle
-- 11:45:19 Read RosterHuman.attach and attach_creature
-- 11:45:26 Read CharacterRig.set_shadow
-- 11:45:31 Find the roster spawn API used by tests
-- 11:45:34 Read the spawn helper in test_enemy_look_v3
-- 11:45:38 See how the test gets the AlienWorld and which ids it uses
-- 11:45:42 Read the standalone AlienWorld setup in the test
-- 11:45:51 Run a diagnostic that spawns and kills roster bodies and counts orphans
-- 11:46:25 Read Lib.monitors and the proto cache
-- 11:46:34 Locate where to add the cache node counter
 - 11:46:41 Add the proto cache counter and subtract it in the soak monitors
 - 11:46:47 Run the soak test twice with the fixed orphan monitor
 - 11:49:17 Run the mission audit on the new and baseline trees
@@ -48,9 +30,28 @@ agent id a8dc13087c85e1d41, 566 events, first activity 2026-11-14T10:11:46.718Z,
 - 12:11:11 Read the tail of the Enemy look v3 section
 - 12:11:19 Document the prototype cache and the soak monitor in ARCHITECTURE.md
 - 12:11:22 Wait for the final verification batch
+- 12:18:10 Inspect the failures of test_full_quick and test_soak_quick
+- 12:18:18 Get the backtrace of the bool constructor error
+- 12:18:21 Read BlastOps._tick_smoke around the failing line
+- 12:18:28 Find other bool(x.get(...)) patterns that fail on null
+- 12:18:34 Check which enemy classes have an aware property
+- 12:18:42 Read the five aware-check sites
+- 12:18:49 Fix the bool(null) errors in the smoke and blind ticks
+- 12:18:55 Find tests that exercise throwables, smoke and BlastOps
+- 12:19:01 Start the second verification batch for the bool fix
+- 12:19:07 See why test_soak_quick failed on its first attempt
+- 12:19:27 Wait for the second verification batch
+- 12:24:05 Compare the soak_quick pass rate between the new tree and the baseline in the background
+- 12:24:10 Look at the end of HANDOFF and which wave 113 sections exist
+- 12:24:24 Check the soak_quick comparison progress
+- 12:24:30 Count tests and git changes
+- 12:25:05 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/w113int/handoff_w113.md
+- 12:25:14 Compute the duration of the new tests and count refreshed QA PNGs
+- 12:25:19 Wait for the soak_quick comparison runs
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
 - godot/tests/test_energy_destructive_scene.gd
 - godot/tests/test_character_motion.gd
 - godot/tests/test_perf_budget.gd
+- /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/w113int/handoff_w113.md
