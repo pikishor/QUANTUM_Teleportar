@@ -19,6 +19,8 @@ var _shown: Image
 var _hidden_nodes: Array[MeshInstance3D] = []
 var _fails := 0
 var _hero_tries := 0
+var _flat_tries := 0
+const FLAT_LOOKS := 3         ## a flat bright rectangle that is a white car or van passing the lens is gone a moment later (wave 113 CI: the boss shot, 3.1 % at the left edge, passed on the run before and in the sandbox); a quad that is stuck in the frame is still there at the fourth look
 
 
 func _init() -> void:
@@ -81,6 +83,11 @@ func step(_t: float, _dt: float) -> bool:
 	var why := VisualQaLib.verdict(st, sep, people, float(fr["frac"]), extra)
 	if why.contains("rectangle"):
 		why += " [flat frac=%.3f rect=%s open_rays=%d]" % [fr["frac"], fr["rect"], _last_open]
+		if spot != &"hero" and _flat_tries < FLAT_LOOKS:                   # traffic moves on: look again before failing (the hero shot has its own re-look above)
+			_flat_tries += 1
+			print("VQA %s RELOOK %d%s" % [spot, _flat_tries, why.substr(why.find(" ["))])
+			_wait = 24
+			return false
 	img.save_png("%s/%s.png" % [_out, spot])
 	if why != "":
 		_fails += 1
@@ -141,6 +148,7 @@ func _hold() -> void:
 
 func _begin() -> void:
 	_phase = 0
+	_flat_tries = 0
 	_wait = SETTLE
 	_look = Vector3.INF
 	_use_cine = false
