@@ -265,8 +265,13 @@ func _on_hurt(_amount: float, _crit: bool) -> void:
 func _wake() -> void:
 	aggro = true
 	if not group.is_empty():
-		for m: AlienCreature in (group.get("members", []) as Array):
-			if is_instance_valid(m) and m != self and not m.dead and not m.aggro:
+		for member in (group.get("members", []) as Array):
+			# the loop variable is NOT typed: assigning a freed pack member (an air strike took it) to a typed variable is itself a script error, raised on every wake (see _separate;
+			# wave 114 integrator: the full bot failed on it with st_air_l)
+			if not is_instance_valid(member):
+				continue
+			var m := member as AlienCreature
+			if m != null and m != self and not m.dead and not m.aggro:
 				m.aggro = true
 	if world != null:
 		world.alert_site(site, self)

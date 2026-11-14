@@ -234,6 +234,9 @@ func _tick() -> void:
 		_err_seen = _tap.total
 		var el := _tap.snapshot()
 		_log("  ! error #%d at t=%.1fs during '%s' (%s): %s" % [_err_seen, _clock, _activity, _note, el[el.size() - 1] if not el.is_empty() else "?"])
+		if str(el[el.size() - 1]).contains("is_finite") and not _nf_done:
+			_nf_done = true
+			_diag_non_finite()
 	if _stab != null and is_instance_valid(_stab) and _stab.repairs.size() != _repairs_seen:
 		_repairs_seen = _stab.repairs.size()
 		_log("  ~ stability repair #%d at t=%.1fs during '%s' (%s): %s" % [_repairs_seen, _clock, _activity, _note, str(_stab.repairs[_repairs_seen - 1])])
@@ -1283,3 +1286,35 @@ func _finish() -> void:
 	finished = true
 	if quit_on_finish:
 		_tree.quit(0 if verdict == "PASS" else 1)
+
+
+## Wave 114 integrator: the engine's "Condition !v.is_finite()" (instance_set_transform) names no node. The first time it shows up the bot lists the Node3Ds whose own transform is
+## NaN / INF, the camera rig, the launch aim and any enemy or vehicle with a bad position, so that a rare occurrence (the full bot failed once in four identical runs, in the strike weapons)
+## can be traced from the log alone.
+var _nf_done := false
+
+
+func _diag_non_finite() -> void:
+	var bad: Array = []
+	_nf_scan(_tree.root, bad)
+	_log("  NONFINITE nodes with a bad transform: %d %s" % [bad.size(), str(bad.slice(0, 8))])
+	var p := Game.player as Player
+	if p == null:
+		return
+	var w := p.weapon
+	var rig := p.camera_rig
+	_log("  NONFINITE weapon %s state %s hero %s camera pivot %s yaw %s pitch %s aim ray %s" % [w.current, Game.state, str(p.global_position), str(rig.get_pivot_position()), str(rig.yaw), str(rig.pitch), str(w._aim_ray(0.0))])
+	if w._launch != null:
+		_log("  NONFINITE launch aim active %s target %s landing %s" % [str(w._launch.active), str(w._launch.target), str(w._launch.landing)])
+	for group: StringName in [&"enemy", &"vehicle"]:
+		for n: Node in _tree.get_nodes_in_group(group):
+			var n3 := n as Node3D
+			if n3 != null and not n3.global_position.is_finite():
+				_log("  NONFINITE %s %s at %s" % [group, str(n3.get_path()), str(n3.global_position)])
+
+
+func _nf_scan(n: Node, out: Array) -> void:
+	if n is Node3D and not (n as Node3D).transform.is_finite():
+		out.append("%s %s" % [str(n.get_path()), str((n as Node3D).transform)])
+	for c in n.get_children():
+		_nf_scan(c, out)

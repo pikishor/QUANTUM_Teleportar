@@ -364,7 +364,9 @@ static func _hull_of(points: PackedVector3Array) -> PackedVector3Array:
 	return shape.points if shape != null else PackedVector3Array()
 
 
-## World-space y of the lowest point of the body at its current pose (the hulls of the bones, moved by the bone transforms).
+## World-space y of the lowest point of the body at its current pose (the hulls of the bones, moved by the bone transforms). A rig that has no hull points at all (a mesh without
+## skinning arrays) answers the model's own height, never INF: INF made a dying Mender's corpse sink to y = -INF and the renderer printed "!v.is_finite()" for its 4 s on the floor
+## (wave 114 integrator: the full bot failed on it, on the wave 113 tree as well).
 func lowest_world_y() -> float:
 	var lo := INF
 	var to_world := model.global_transform if model.is_inside_tree() else Transform3D.IDENTITY
@@ -377,7 +379,7 @@ func lowest_world_y() -> float:
 		var xf := to_world * bone_move
 		for pt in pts:
 			lo = minf(lo, (xf * pt).y)
-	return lo
+	return lo if lo != INF else to_world.origin.y
 
 
 ## The hull points of the bones (all of them, or only the listed bone numbers: THIGH_L ...) in world space (for tests and the corpse).

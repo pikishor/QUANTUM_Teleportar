@@ -264,7 +264,7 @@ func _weapon_fire(w: PlayerWeapon, yaw_off: float, _opts: Dictionary) -> void:
 		locked = w._launch.target
 		aim_pt = w._launch.landing
 	var from: Vector3 = p.body.muzzle.global_position
-	WeaponAudio.launch(w.current, d)                         # wave 114 critic: the voice of the weapon's sound set (frag toss, mine, beacon, rocket, mortar ...), not the QUANTUM BLINK or another weapon's recording
+	WeaponAudio.launch(w.current, d)                        # wave 114 critic: the voice of the weapon's sound set (frag toss, mine, beacon, rocket, mortar ...), not the QUANTUM BLINK or another weapon's recording
 	p.body.fire_flash(0.8 if mode == &"launch" else 0.3)
 	w._recoil(false)
 	p.fired.emit()
