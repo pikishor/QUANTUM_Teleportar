@@ -76,9 +76,8 @@ static func page_items(sel: StringName) -> Array[StringName]:
 	return out
 
 
-## Show the page of weapon `id` now (tests and the quick wheel use it).
+## Show the page of weapon `id` now (the page stays until the selected weapon changes or a flip).
 static func goto(id: StringName) -> void:
-	_page_sel = id
 	var at := WeaponBrowser.page_of(id)
 	if at >= 0:
 		page = at

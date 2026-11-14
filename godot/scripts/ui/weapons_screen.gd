@@ -7,7 +7,8 @@ extends RefCounted
 ## `buy_<id>` (the shop's own id for a weapon), `shop_back`. Numbers come from WeaponStats / Gear, the pictures from ItemIcons; no state beyond the selection.
 
 const COLS := 3
-const ROWS := 4
+const ROWS := 3                          ## nine tiles a page: under them the CLASS row (< NAME >) and the PAGE row (< PAGE 2 / 3 >), 64 px high each
+const PER_PAGE := COLS * ROWS
 const CELL := Vector2(188.0, 100.0)
 const GAP := 8.0
 const GRID_X := -610.0                   ## left edge of the tile grid, base px from the screen centre
@@ -15,39 +16,93 @@ const GRID_Y := 118.0
 const PANEL_X := -14.0                   ## the card
 const PANEL_W := 624.0
 const WIDTH := 1220.0                    ## the whole layout in base px (squeezed horizontally on a narrower screen)
-const PAGE_TITLES: Array[String] = ["PISTOLS  SMGS", "RIFLES  SHOTGUNS", "SNIPERS  HEAVY", "MELEE  QUANTUM", "ENERGY WEAPONS", "BLAST WEAPONS", "EXPLOSIVES", "GADGETS"]
-const PAGES := 8
-const PAGE_CLASSES: Array = [[&"pistol", &"smg"], [&"rifle", &"shotgun"], [&"sniper", &"heavy"], [&"melee", &"quantum"], [&"energy"], [&"blast"], [], []]
-const PAGE_EXPLOSIVES := 6               ## throwables and the charge
-const PAGE_GADGETS := 7
+const GEAR_TABS: Array = [[&"explosives", "EXPLOSIVES"], [&"gadgets", "GADGETS"]]
+
+## Every page of the catalogue (wave 113, 200+ weapons): one tab per weapon class (WeaponBrowser), each cut into pages of at most PER_PAGE (balanced), then the EXPLOSIVES and GADGETS of Gear.
+## Built on first use and kept (the roster does not change while the game runs; ownership does, and the catalogue shows everything). Not a static initialiser: the order in which scripts run theirs
+## is not defined, and WeaponDefs may not be built yet. [{tab, name, title, ids, gear, sub, subs}]
+static var _page_list: Array[Dictionary] = []
+static var _titles: Array[String] = []
+## The number of pages and their titles read like constants (`WeaponsScreen.PAGES`, `PAGE_TITLES[i]`).
+static var PAGES: int:
+	get:
+		return page_list().size()
+static var PAGE_TITLES: Array[String]:
+	get:
+		page_list()
+		return _titles
+
+
+static func page_list() -> Array[Dictionary]:
+	if _page_list.is_empty():
+		_page_list = _build_pages()
+		_titles = []
+		for pg in _page_list:
+			_titles.append(String(pg["title"]))
+	return _page_list
 
 static var sel: StringName = &""             ## the selected item: a weapon id, a throwable id or a gadget id
 
 
-## The tiles of a page (0..2): {id, gear} in class order; page 2 closes with the throwables and the gadgets.
-static func page_items(page: int) -> Array[Dictionary]:
+static func _build_pages() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for cls: StringName in PAGE_CLASSES[clampi(page, 0, PAGES - 1)]:
-		for id in WeaponDefs.in_class(cls):
-			out.append({"id": id, "gear": false})
-	if page == PAGE_EXPLOSIVES:
-		for id: StringName in Gear.THROW_IDS:
-			out.append({"id": id, "gear": true})
-		for id: StringName in Gear.CHARGE_IDS:
-			out.append({"id": id, "gear": true})
-	elif page == PAGE_GADGETS:
-		for id: StringName in Gear.GADGET_IDS:
-			out.append({"id": id, "gear": true})
+	for pg in WeaponBrowser.pages(false, PER_PAGE, false):
+		out.append({"tab": pg["tab"], "name": pg["name"], "ids": pg["ids"], "gear": false, "sub": pg["sub"], "subs": pg["subs"]})
+	var gear_ids: Dictionary = {&"explosives": Gear.THROW_IDS + Gear.CHARGE_IDS, &"gadgets": Gear.GADGET_IDS}
+	for gt: Array in GEAR_TABS:
+		var ids: Array = gear_ids[gt[0]]
+		var n := WeaponBrowser.pages_for(ids.size(), PER_PAGE)
+		var per := maxi(1, ceili(float(ids.size()) / float(n)))
+		for sub in n:
+			out.append({"tab": gt[0], "name": gt[1], "ids": ids.slice(sub * per, mini(ids.size(), (sub + 1) * per)), "gear": true, "sub": sub, "subs": n})
+	for pg: Dictionary in out:
+		pg["title"] = String(pg["name"]) if int(pg["subs"]) < 2 else "%s  %d / %d" % [pg["name"], int(pg["sub"]) + 1, int(pg["subs"])]
 	return out
 
 
-## Which page an item is on.
+## The tiles of a page (0 .. PAGES - 1): {id, gear} in class order.
+static func page_items(page: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var pg: Dictionary = page_list()[clampi(page, 0, PAGES - 1)]
+	for id: StringName in pg["ids"]:
+		out.append({"id": id, "gear": bool(pg["gear"])})
+	return out
+
+
+## Which page an item is on (0 when it is nowhere).
 static func page_of(id: StringName) -> int:
 	for p in PAGES:
-		for it in page_items(p):
-			if it["id"] == id:
-				return p
+		if (page_list()[p]["ids"] as Array).has(id):
+			return p
 	return 0
+
+
+## The first page of the tab after (dir 1) or before (dir -1) the tab that `page` belongs to (wraps).
+static func tab_jump(page: int, dir: int) -> int:
+	var starts: Array[int] = []
+	for p in PAGES:
+		if int(page_list()[p]["sub"]) == 0:
+			starts.append(p)
+	var cur := 0
+	for k in starts.size():
+		if starts[k] <= page:
+			cur = k
+	return starts[posmod(cur + dir, starts.size())]
+
+
+## How many weapons (or gadgets) the tab of `page` holds in all, and how many of them the hero owns.
+static func tab_counts(page: int) -> Vector2i:
+	var tab: StringName = page_list()[clampi(page, 0, PAGES - 1)]["tab"]
+	var total := 0
+	var owned := 0
+	for pg: Dictionary in page_list():
+		if pg["tab"] != tab:
+			continue
+		for id: StringName in pg["ids"]:
+			total += 1
+			if WeaponDefs.is_unlocked(id) or Gear.is_owned(id):
+				owned += 1
+	return Vector2i(owned, total)
 
 
 static func is_gear(id: StringName) -> bool:
@@ -104,6 +159,15 @@ static func tile_status(id: StringName) -> String:
 	return "SHOP  %d" % WeaponDefs.price(id)
 
 
+## The two control rows under the tiles: [class prev, class next, page prev, page next] (64 px each): the first row jumps to the previous / next weapon class, the second flips the pages of the class.
+static func row_rects(cx: float, s: float, k: float) -> Array[Rect2]:
+	var gw := (COLS * CELL.x + (COLS - 1) * GAP) * s * k
+	var y1 := (GRID_Y + float(ROWS) * (CELL.y + GAP) + 2.0) * s
+	var y2 := y1 + 72.0 * s
+	var x0 := cx + GRID_X * s * k
+	return [Rect2(x0, y1, 64.0 * s, 64.0 * s), Rect2(x0 + gw - 64.0 * s, y1, 64.0 * s, 64.0 * s), Rect2(x0, y2, 64.0 * s, 64.0 * s), Rect2(x0 + gw - 64.0 * s, y2, 64.0 * s, 64.0 * s)]
+
+
 static func layout(hud: Hud, cx: float, s: float) -> void:
 	ensure_sel()
 	var prog := Game.progress as Progress
@@ -117,9 +181,11 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		hud.buttons.append({"id": StringName("wsel_%s" % id), "rect": r, "label": "", "on": id == sel, "flat": true,
 				"pic": {"p": "g" if bool(it["gear"]) else "w", "id": id, "r": Rect2(r.position + Vector2(6.0, 4.0) * s, Vector2(r.size.x - 12.0 * s, 50.0 * s)), "a": 1.0 if (WeaponDefs.is_unlocked(id) or Gear.is_owned(id)) else 0.72},
 				"name": _name_of(id), "status": tile_status(id)})
-	var y_pg := (GRID_Y + float(ROWS) * (CELL.y + GAP) + 2.0) * s
-	hud._add(&"wpg_prev", Rect2(cx + GRID_X * s * k, y_pg, 64.0 * s, 64.0 * s), "<", false)
-	hud._add(&"wpg_next", Rect2(cx + (GRID_X + COLS * CELL.x + (COLS - 1) * GAP) * s * k - 64.0 * s, y_pg, 64.0 * s, 64.0 * s), ">", false)
+	var rr := row_rects(cx, s, k)
+	hud._add(&"wcls_prev", rr[0], "<", false)
+	hud._add(&"wcls_next", rr[1], ">", false)
+	hud._add(&"wpg_prev", rr[2], "<", false)
+	hud._add(&"wpg_next", rr[3], ">", false)
 	hud._add(&"shop_back", Rect2(cx + GRID_X * s * k, 640.0 * s, 220.0 * s, 64.0 * s), "BACK", false)
 	# the action button of the card
 	var ar := Rect2(cx + (PANEL_X + PANEL_W - 300.0) * s * k, 572.0 * s, 300.0 * s * k, 64.0 * s)
@@ -158,7 +224,9 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	var page := clampi(ShopScreen.weapon_page - 1, 0, PAGES - 1)
 	if prog != null:
 		hud._text(c, font, Vector2(cx + (GRID_X + 4.0) * s * k, 106.0 * s), "CREDITS  %d" % prog.credits, HORIZONTAL_ALIGNMENT_LEFT, 300.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
-	hud._text(c, font, Vector2(cx + (GRID_X + COLS * CELL.x + (COLS - 1) * GAP - 330.0) * s * k, 106.0 * s), PAGE_TITLES[page], HORIZONTAL_ALIGNMENT_RIGHT, 330.0 * s * k, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+	var cnt := tab_counts(page)
+	var top := "%s  %d / %d" % ["OWNED" if not bool(page_list()[page]["gear"]) else "HAVE", cnt.x, cnt.y]
+	hud._text(c, font, Vector2(cx + (GRID_X + COLS * CELL.x + (COLS - 1) * GAP - 330.0) * s * k, 106.0 * s), top, HORIZONTAL_ALIGNMENT_RIGHT, 330.0 * s * k, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var items := page_items(page)
 	for i in items.size():
 		var r := cell_rect(hud, cx, s, i)
@@ -168,8 +236,14 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		var own := WeaponDefs.is_unlocked(id) or Gear.is_owned(id)
 		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 71.0 * s), nm, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, nm, tw, int(19.0 * s)), Color(1, 1, 1, 0.97 if id == sel else 0.85))
 		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 91.0 * s), tile_status(id), HORIZONTAL_ALIGNMENT_LEFT, tw, int(16.0 * s), Color(UiUtil.GREEN if own else UiUtil.AMBER, 0.95))
-	var np := PAGES
-	hud._text(c, font, Vector2(cx + (GRID_X + 80.0) * s * k, (GRID_Y + float(ROWS) * (CELL.y + GAP) + 42.0) * s), "PAGE %d / %d" % [page + 1, np], HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+	var rr := row_rects(cx, s, k)
+	var pgd: Dictionary = page_list()[page]
+	var tint := UiKit.class_tint(StringName(pgd["tab"])) if not bool(pgd["gear"]) else UiUtil.CYAN
+	var mid_w := rr[1].position.x - rr[0].end.x - 16.0 * s
+	var cls_cap := "%s  %d" % [pgd["name"], cnt.y]
+	hud._text(c, font, Vector2(rr[0].end.x + 8.0 * s, rr[0].position.y + 40.0 * s), cls_cap, HORIZONTAL_ALIGNMENT_CENTER, mid_w, UiUtil.fit_size(font, cls_cap, mid_w, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.AMBER, 0.97), 1.0 * s)
+	var pg_cap := "PAGE %d / %d" % [int(pgd["sub"]) + 1, int(pgd["subs"])]
+	hud._text(c, font, Vector2(rr[2].end.x + 8.0 * s, rr[2].position.y + 40.0 * s), pg_cap, HORIZONTAL_ALIGNMENT_CENTER, mid_w, int(UiUtil.BAR_LABEL * s), Color(tint.lerp(Color.WHITE, 0.3), 0.97), 1.0 * s)
 	_draw_card(hud, c, s, font, cx, k)
 
 
@@ -384,6 +458,12 @@ static func press(sid: String) -> bool:
 		var p := clampi(ShopScreen.weapon_page - 1, 0, PAGES - 1)
 		p = posmod(p + (-1 if sid == "wpg_prev" else 1), PAGES)
 		ShopScreen.weapon_page = 1 + p
+		sel = &""
+		ensure_sel()
+		Sfx.play(&"ui_tap")
+		return true
+	if sid == "wcls_prev" or sid == "wcls_next":                                   # the previous / next class (its first page)
+		ShopScreen.weapon_page = 1 + tab_jump(clampi(ShopScreen.weapon_page - 1, 0, PAGES - 1), -1 if sid == "wcls_prev" else 1)
 		sel = &""
 		ensure_sel()
 		Sfx.play(&"ui_tap")

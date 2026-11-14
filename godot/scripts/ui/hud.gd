@@ -588,7 +588,7 @@ func press_button(id: StringName) -> bool:
 		sm.start(StringName(sid.substr(5)))
 		Sfx.play(&"ui_contract_accept")
 		return true
-	if sid.begins_with("wsel_") or sid.begins_with("wpg_") or sid.begins_with("wequip_") or sid.begins_with("wgear_"):      # the WEAPONS catalogue (scripts/ui/weapons_screen.gd)
+	if sid.begins_with("wsel_") or sid.begins_with("wpg_") or sid.begins_with("wcls_") or sid.begins_with("wequip_") or sid.begins_with("wgear_"):      # the WEAPONS catalogue (scripts/ui/weapons_screen.gd)
 		if Game.state != &"paused" or not _shop_open or Game.progress == null or ShopScreen.weapon_page == 0:
 			return false
 		var wdone := WeaponsScreen.press(sid)

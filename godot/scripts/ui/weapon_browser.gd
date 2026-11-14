@@ -66,14 +66,14 @@ static func recent_list(owned_only := true) -> Array[StringName]:
 	return out
 
 
-## The tabs in display order: [{id, name, ids}]: FAVOURITES and RECENT when they hold something, then every class that holds a (owned) weapon.
-static func tabs(owned_only := true) -> Array[Dictionary]:
+## The tabs in display order: [{id, name, ids}]: FAVOURITES and RECENT when they hold something (and `special` is on: the catalogue lists classes only), then every class that holds a (owned) weapon.
+static func tabs(owned_only := true, special := true) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var f := fav_list(owned_only)
-	if not f.is_empty():
+	if special and not f.is_empty():
 		out.append({"id": FAV, "name": "FAVOURITES", "ids": f})
 	var r := recent_list(owned_only)
-	if not r.is_empty():
+	if special and not r.is_empty():
 		out.append({"id": RECENT, "name": "RECENT", "ids": r})
 	for cls: StringName in WeaponDefs.CLASS_ORDER:
 		var ids: Array[StringName] = []
@@ -90,20 +90,21 @@ static func pages_for(n: int, size := PAGE) -> int:
 	return maxi(1, (n + size - 1) / size)
 
 
-## Every page of every tab in one sequence: [{tab, name, ids (at most `size`), sub (0 based page of the tab), subs (pages of the tab)}].
-static func pages(owned_only := true, size := PAGE) -> Array[Dictionary]:
+## Every page of every tab in one sequence: [{tab, name, ids (at most `size`, balanced over the pages of the tab), sub (0 based page of the tab), subs (pages of the tab)}].
+static func pages(owned_only := true, size := PAGE, special := true) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for t in tabs(owned_only):
+	for t in tabs(owned_only, special):
 		var ids: Array[StringName] = t["ids"]
 		var n := pages_for(ids.size(), size)
+		var per := maxi(1, ceili(float(ids.size()) / float(n)))                 # balanced pages: 20 weapons on three pages are 7, 7 and 6, never 8, 8 and 4
 		for sub in n:
-			out.append({"tab": t["id"], "name": t["name"], "ids": ids.slice(sub * size, mini(ids.size(), (sub + 1) * size)), "sub": sub, "subs": n})
+			out.append({"tab": t["id"], "name": t["name"], "ids": ids.slice(sub * per, mini(ids.size(), (sub + 1) * per)), "sub": sub, "subs": n})
 	return out
 
 
 ## The index in `pages()` of the first page holding `id`: its own class tab first (the page follows a selected weapon into its class, not into FAVOURITES), else any tab; -1 when it is nowhere.
-static func page_of(id: StringName, owned_only := true, size := PAGE) -> int:
-	var ps := pages(owned_only, size)
+static func page_of(id: StringName, owned_only := true, size := PAGE, special := true) -> int:
+	var ps := pages(owned_only, size, special)
 	var cls := WeaponDefs.class_of(id)
 	for i in ps.size():
 		if ps[i]["tab"] == cls and (ps[i]["ids"] as Array).has(id):
@@ -115,8 +116,8 @@ static func page_of(id: StringName, owned_only := true, size := PAGE) -> int:
 
 
 ## The index in `pages()` of the first page of the tab after (dir 1) or before (dir -1) the tab that page `at` belongs to (wraps).
-static func tab_jump(at: int, dir: int, owned_only := true, size := PAGE) -> int:
-	var ps := pages(owned_only, size)
+static func tab_jump(at: int, dir: int, owned_only := true, size := PAGE, special := true) -> int:
+	var ps := pages(owned_only, size, special)
 	if ps.is_empty():
 		return 0
 	at = clampi(at, 0, ps.size() - 1)
