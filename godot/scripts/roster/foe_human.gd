@@ -14,6 +14,9 @@ const FAR := 1100
 const MID_RANGE := 16.0
 const FAR_RANGE := 46.0
 const HYST := 3.0
+const TIER_K := [0.72, 0.9, 1.0]          ## the LOD ranges shrink on the weaker tiers (LOW / MED / HIGH): the mid mesh from 11.5 m and the far mesh from 33 m on a phone's default tier
+const WARM_LOOKS: Array[StringName] = [&"merc_rifle", &"auth_riot"]      ## built behind the loading overlay (the two looks the first fights of the game use; the city troopers' looks are warmed with the enemy pool)
+const WARM_CREATURES: Array[StringName] = [&"vael_grunt", &"grid_walker"]
 const BASE_SCALE := 1.06                  ## the roster humans are a little larger than a person (readability, a hostile silhouette)
 
 static var _protos := {}                 ## "look/weapon" -> {root, near, mid, far, info}: the mid and far meshes are built one per frame AFTER the first body of a look exists (no 0.9 s hitch)
@@ -125,6 +128,49 @@ static func _lod_mesh(look: StringName, variant: int, weapon: StringName, budget
 	return m
 
 
+## Loading-time warm-up (ShaderWarmup hooks): builds the prototype of the most common looks and one creature of each material and puts a body of each in front of the camera for the warm-up frames,
+## so the first mercenary or alien of a fight does not stall on the merge, the shader compile and the first draw. Returns the nodes; warm_end() frees them.
+static func warm_begin(parent: Node, at: Vector3) -> Array:
+	var out: Array = []
+	if parent == null:
+		return out
+	var x := 0.0
+	if available():
+		for look in WARM_LOOKS:
+			var h := build(look, 0)
+			if h.is_empty():
+				continue
+			var root := h["root"] as Node3D
+			parent.add_child(root)
+			root.global_position = at + Vector3(x, 0.0, 0.0)
+			x += 1.3
+			out.append(root)
+		pump()
+	for gid in WARM_CREATURES:
+		var path := RosterHuman.FOE_DIR + String(gid) + ".glb"
+		if not ResourceLoader.exists(path):
+			continue
+		var ps := load(path) as PackedScene
+		if ps == null:
+			continue
+		var cr := ps.instantiate() as Node3D
+		var mat := FoeLooks.creature_material(Color(1.0, 0.6, 0.2))
+		for n in cr.find_children("*", "MeshInstance3D", true, false):
+			(n as MeshInstance3D).material_override = mat
+			(n as MeshInstance3D).extra_cull_margin = 2.0
+		parent.add_child(cr)
+		cr.global_position = at + Vector3(x, 0.0, 0.0)
+		x += 1.6
+		out.append(cr)
+	return out
+
+
+static func warm_end(nodes: Array) -> void:
+	for n in nodes:
+		if is_instance_valid(n):
+			(n as Node).queue_free()
+
+
 ## Triangles of a mesh (tests, budgets).
 static func tris(mesh: Mesh) -> int:
 	return HumanoidVariants.tris(mesh)
@@ -136,9 +182,10 @@ static func set_lod(h: Dictionary, dist: float) -> bool:
 		return false
 	var cur := int(h["lod"])
 	var want := cur
-	if dist > FAR_RANGE - (HYST if cur == 2 else 0.0):
+	var rk: float = TIER_K[clampi(Game.quality, 0, 2)]
+	if dist > FAR_RANGE * rk - (HYST if cur == 2 else 0.0):
 		want = 2
-	elif dist > MID_RANGE - (HYST if cur >= 1 else 0.0):
+	elif dist > MID_RANGE * rk - (HYST if cur >= 1 else 0.0):
 		want = 1
 	else:
 		want = 0

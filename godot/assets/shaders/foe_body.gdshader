@@ -45,6 +45,7 @@ varying flat float v_zone;
 varying float v_suit;
 varying float v_pip;
 varying vec3 v_pos;
+varying float v_up;
 
 float hash13(vec3 p) {
 	p = fract(p * 0.1031);
@@ -59,6 +60,7 @@ void vertex() {
 	v_zone = floor(COLOR.a * 8.0);
 	v_pip = UV2.x;
 	v_pos = VERTEX;
+	v_up = clamp(normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz).y * 0.5 + 0.5, 0.0, 1.0);      // 1 = the face looks up
 }
 
 void fragment() {
@@ -110,11 +112,11 @@ void fragment() {
 		rough = 0.5;
 		metal = 0.1;
 	} else if (k < 4.5) {
-		alb = vec3(0.05, 0.055, 0.065);
+		alb = vec3(0.075, 0.082, 0.095);
 		rough = 0.38;
 		metal = 0.6;
 	} else if (k < 5.5) {
-		alb = vec3(0.025, 0.025, 0.028);
+		alb = vec3(0.04, 0.04, 0.044);
 		rough = 0.92;
 		spec = 0.2;
 	} else if (k < 6.5) {
@@ -186,6 +188,7 @@ void fragment() {
 	emis += vec3(1.0, 0.35, 0.25) * pulse * (0.03 + 0.22 * edge_l);         // the roster's wind-up flash: a warm rim light, the kit stays readable (the weapon flares through `tele`)
 	emis += glow_col * drop * 0.9;
 	emis += vec3(1.0, 0.95, 0.85) * hit_k * 0.9;
+	emis += vec3(0.016, 0.018, 0.024) * (0.5 + 0.5 * v_up) * (1.0 - 0.6 * metal);                 // a readability floor: dark armour keeps its forms in overcast, rain and night light (it went black in the real game), faces that look up are lighter
 	if (shield > 0.001) {
 		float hx = hash13(floor(v_pos * 6.0));
 		emis += vec3(0.3, 0.9, 1.0) * shield * (rim * 1.6 + 0.12 + 0.18 * hx * (0.5 + 0.5 * sin(TIME * 3.0 + hx * 6.28)));

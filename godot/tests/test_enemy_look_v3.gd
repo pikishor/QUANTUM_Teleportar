@@ -37,6 +37,7 @@ func run(host: Node) -> void:
 	_world(host)
 	_bodies_in_world()
 	_damage_states(host)
+	await _pips_lines_crowd(host)
 	_teardown()
 	await _real_scene(host)
 
@@ -366,6 +367,119 @@ func _damage_states(host: Node) -> void:
 	TestLib.check(fx.camp_of(c) == &"merc" and fx._has_plates(c), "the damage system treats an enemy human as a person: plates fly, no alien fluid")
 	c.set_meta(&"x", 1)
 	w.clear_all()
+
+## Second pass of wave 113: the floating health pips of every roster enemy, the thin telegraph lines, the LOD ranges by tier, the throttled rigs of far bodies, the loading-time warm-up.
+func _pips_lines_crowd(host: Node) -> void:
+	var cam := Camera3D.new()
+	host.add_child(cam)
+	cam.global_position = hero.global_position + Vector3(0.0, 3.0, 6.0)
+	cam.make_current()
+	var pips := w.fx.pips
+	TestLib.check(pips != null and pips.mm != null and pips.mm.instance_count == FoePips.CAP * FoePips.PIPS + FoePips.MARKS and pips.mm.use_colors, "the alien fx owns the pip MultiMesh (%d instances: one draw call for every enemy)" % (FoePips.CAP * FoePips.PIPS + FoePips.MARKS))
+	TestLib.check(FoePips.color_of(1.0) == FoePips.GREEN and FoePips.color_of(0.45) == FoePips.AMBER and FoePips.color_of(0.1) == FoePips.RED, "pips are green, amber, red by health")
+	TestLib.check(FoePips.lit_of(1.0) == 5 and FoePips.lit_of(0.5) == 3 and FoePips.lit_of(0.2) == 1 and FoePips.lit_of(0.01) == 1, "lit pips: 5 at full health, 3 at half, never fewer than 1 while alive")
+	w.clear_all()
+	var brute := _spawn(&"vael_brute", 18.0, false)                                # all within 28 m of the camera: no threat markers here, only rows
+	var trooper := _spawn(&"auth_rifle", 24.0, false)
+	var jackal := _spawn(&"vael_jackal", 22.0, false)
+	_sim(0.3)
+	TestLib.check(pips.shown == 0 and pips.mm.visible_instance_count == 0, "an unhurt enemy shows no pips (no draw call)")
+	brute.damage(brute.max_hp * 0.5)
+	_sim(0.2)
+	var want_lit := FoePips.lit_of(brute.hp / brute.max_hp)
+	TestLib.check(pips.shown == 1 and pips.mm.visible_instance_count == FoePips.PIPS and pips.lit_last == want_lit and want_lit >= 2 and want_lit <= 4, "a half-dead brute shows a row of 5 with %d lit (shown %d, lit %d)" % [want_lit, pips.shown, pips.lit_last])
+	var row_y: float = (pips.rows[0]["anchor"] as Vector3).y if not pips.rows.is_empty() else -1.0e9
+	TestLib.check(pips.rows.size() == 1 and pips.rows[0]["foe"] == brute and row_y > brute.global_position.y + 2.5 and row_y < brute.global_position.y + 6.0, "the row floats above the head of the brute (%.1f m over its feet)" % (row_y - brute.global_position.y))
+	trooper.damage(trooper.max_hp * 0.85)
+	jackal.damage(jackal.max_hp * 0.9)
+	_sim(0.2)
+	TestLib.check(pips.shown == 3 and pips.mm.visible_instance_count == 3 * FoePips.PIPS, "three hurt enemies, three rows, still one MultiMesh (%d)" % pips.mm.visible_instance_count)
+	var lit_n := 0
+	for r: Dictionary in pips.rows:
+		lit_n += int(r["lit"])
+	var want_n := FoePips.lit_of(brute.hp / brute.max_hp) + FoePips.lit_of(trooper.hp / trooper.max_hp) + FoePips.lit_of(jackal.hp / jackal.max_hp)
+	TestLib.check(lit_n == want_n and lit_n < pips.rows.size() * FoePips.PIPS, "pips are lit by what is left (%d lit of %d, expected %d)" % [lit_n, pips.rows.size() * FoePips.PIPS, want_n])
+	brute.damage(brute.max_hp)
+	_sim(0.3)
+	TestLib.check(pips.shown == 2, "a dead enemy loses its row (%d rows)" % pips.shown)
+	w.clear_all()
+	_sim(0.1)
+	TestLib.check(pips.shown == 0, "no enemies, no rows")
+	# threat markers: an aware enemy 30-95 m from the camera gets a diamond over its head, a near one, an unaware one and one beyond 95 m do not, a cloaked stalker never
+	var far_a := _spawn(&"auth_rifle", 60.0, true)
+	var near_a := _spawn(&"auth_rifle", 12.0, true)
+	var calm_a := _spawn(&"merc_rifle", 90.0, false)                               # beyond its sight range: stays unaware
+	var far_b := _spawn(&"vael_brute", 120.0, true)
+	var stalker := _spawn(&"vael_stalker", 55.0, false)
+	_sim(0.2)
+	TestLib.check(pips.marks == 1 and pips.mark_rows.size() == 1 and pips.mark_rows[0]["foe"] == far_a, "one threat marker: the aware trooper at 60 m (markers %d)" % pips.marks)
+	var mk: Dictionary = pips.mark_rows[0] if not pips.mark_rows.is_empty() else {"pos": Vector3.ZERO, "size": 0.0}
+	TestLib.check((mk["pos"] as Vector3).y > far_a.global_position.y + 1.8 and absf(float(mk["size"]) - 60.3 * FoePips.MARK_K) < 0.15, "the marker floats over the head and keeps its size on screen (%.2f m at 60 m)" % float(mk["size"]))
+	TestLib.check(pips.mm.visible_instance_count == 1 and not FoePips.wants_mark(near_a, 12.0) and not FoePips.wants_mark(calm_a, 90.0) and not FoePips.wants_mark(far_b, 120.0), "none for a near, an unaware or a very far enemy (one instance, one draw)")
+	stalker.aggro = true
+	stalker.cloak_k = 1.0
+	var cloaked := FoePips.wants_mark(stalker, 55.0)
+	stalker.cloak_k = 0.0
+	TestLib.check(not cloaked and FoePips.wants_mark(stalker, 55.0), "a cloaked stalker gets no marker, a revealed one does")
+	stalker.aggro = false
+	far_a.damage(far_a.max_hp * 0.4)
+	_sim(0.2)
+	TestLib.check(pips.shown == 1 and pips.marks == 1 and pips.mm.visible_instance_count == FoePips.PIPS + 1, "a hurt aware enemy has a row and a marker above it (%d instances)" % pips.mm.visible_instance_count)
+	w.clear_all()
+	_sim(0.1)
+	# the telegraph lines are thin stripes in the view, never screen-wide sheets, and fade out at the lens
+	var cp := cam.global_position
+	w.fx.line(cp + Vector3(0.4, -0.4, 0.0), cp + Vector3(0.4, -0.4, -40.0), 1.0, Color.CYAN)
+	var li: int = (w.fx._next_line - 1 + AlienFx.LINES) % AlienFx.LINES
+	var near_w := w.fx.line_width(li)
+	var near_d := Vector2(0.4, 0.4).length()
+	var max_w := maxf(near_d * tan(deg_to_rad(AlienFx.LINE_MAX_DEG)), AlienFx.LINE_W * 0.05) * 1.06
+	TestLib.check(near_w <= max_w and near_w > 0.003, "a telegraph line that passes the lens is a thin stripe (%.3f m wide at %.2f m, limit %.3f)" % [near_w, near_d, max_w])
+	w.fx.tick(0.016)
+	TestLib.check(w.fx._line_k[li] < 0.05, "and it fades out near the lens (fade %.2f)" % w.fx._line_k[li])
+	w.fx.line(cp + Vector3(20.0, 0.0, -30.0), cp + Vector3(20.0, 0.0, -60.0), 1.0, Color.RED)
+	var far_i: int = (w.fx._next_line - 1 + AlienFx.LINES) % AlienFx.LINES
+	TestLib.check(absf(w.fx.line_width(far_i) - AlienFx.LINE_W) < 0.01, "a line far from the camera keeps its full width (%.3f m)" % w.fx.line_width(far_i))
+	# the LOD ranges follow the graphics tier
+	var q0 := Game.quality
+	var hh := FoeHuman.build(&"merc_rifle", 0)
+	FoeHuman.ensure_lods()
+	Game.quality = 0
+	FoeHuman.set_lod(hh, 14.0)
+	var low_lod := int(hh["lod"])
+	hh["lod"] = 0
+	Game.quality = 2
+	FoeHuman.set_lod(hh, 14.0)
+	var high_lod := int(hh["lod"])
+	hh["lod"] = 0
+	Game.quality = 0
+	FoeHuman.set_lod(hh, 36.0)
+	var low_far := int(hh["lod"])
+	Game.quality = q0
+	(hh["root"] as Node).free()
+	TestLib.check(low_lod == 1 and high_lod == 0 and low_far == 2, "LOW switches to the mid mesh at 14 m and the far mesh at 36 m, HIGH keeps the near mesh (%d / %d / %d)" % [low_lod, high_lod, low_far])
+	# a crowd: bodies far from the camera run their rig every 2nd or 3rd frame, near ones every frame
+	var near_c := _spawn(&"auth_rifle", 8.0)
+	var far_c := _spawn(&"auth_rifle", 70.0)
+	var far_c2 := _spawn(&"merc_rifle", 38.0)
+	_sim(2.0)
+	var nt := int(near_c.hum["tick"])
+	var nd := int(near_c.hum["drives"])
+	var ft := int(far_c.hum["tick"])
+	var fd := int(far_c.hum["drives"])
+	var mt := int(far_c2.hum["tick"])
+	var md := int(far_c2.hum["drives"])
+	TestLib.check(nt > 20 and nd == nt, "a near body drives its rig every frame (%d of %d)" % [nd, nt])
+	TestLib.check(ft > 20 and fd <= ft / 3 + 1 and fd >= ft / 4, "a far body drives its rig every 3rd frame (%d of %d)" % [fd, ft])
+	TestLib.check(mt > 20 and md <= mt / 2 + 1 and md >= mt / 3, "a mid body every 2nd frame (%d of %d)" % [md, mt])
+	w.clear_all()
+	# the loading-time warm-up builds the common looks and shows a body of each
+	var warm := FoeHuman.warm_begin(host, hero.global_position + Vector3(0.0, 2.0, -8.0))
+	TestLib.check(warm.size() == FoeHuman.WARM_LOOKS.size() + FoeHuman.WARM_CREATURES.size() and (warm[0] as Node3D).is_inside_tree(), "the warm-up shows %d bodies (the common looks and one creature of each material)" % warm.size())
+	FoeHuman.warm_end(warm)
+	cam.queue_free()
+	await TestLib.frames(host, 2)
+	TestLib.check(not is_instance_valid(warm[0]), "and removes them again")
 
 
 func _teardown() -> void:

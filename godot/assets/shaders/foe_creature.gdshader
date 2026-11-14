@@ -2,7 +2,7 @@ shader_type spatial;
 render_mode diffuse_lambert, specular_schlick_ggx, cull_back;
 // The animated Blender bodies of the enemy roster (wave 113: vael aliens and grid walkers, tools/blender/creaturekit): the alien shader with a softer wind-up flash and edge glow.
 // A copy of alien.gdshader (scripts/aliens/ keep theirs): the alien flash is a full body wash in salmon, which turned a dark creature into a pale naked-looking figure for a second.
-// The flash here is the creature's OWN glow colour and a lot weaker; the far glow of the roster is only a rim light.
+// The flash here is the creature's OWN glow colour: the glowing parts flare and an outline lights up, the paint is untouched; the far glow of the roster is only a rim light.
 //  - COLOR.rgb is the baked species colour (tools/open_models/convert_monsters.gd bakes the atlas into vertex colours, so no texture memory is spent);
 //  - COLOR.a is the GLOW MASK (eyes, teeth, seams, veins): it shines in `glow` and breathes with `beat`; procedural bodies paint it too (spines, maws, tentacle tips);
 //  - `mul` is the individual's colour variation, `night` follows the global uniform like the terrain, the animals and the trees;
@@ -97,7 +97,8 @@ void fragment() {
 	SPECULAR = mix(0.12, 0.55, shell);
 	METALLIC = 0.0;
 	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-	vec3 em = c * 0.14 + gc * g * glow_k * beat + mix(gc, vec3(1.0, 0.4, 0.3), 0.3) * pulse * 0.24;
+	// wind-up / hit flash (`pulse`): the glowing parts flare and an outline lights up in the creature's glow colour, the paint stays as it is (a full-body wash turned a steel mech salmon pink)
+	vec3 em = c * 0.14 + gc * g * glow_k * beat * (1.0 + 1.8 * pulse) + gc * pulse * (0.025 + 0.4 * rim);
 	em += gc * rim * (0.10 + 0.55 * rage) * shell;
 	em += gc * far_k * (0.03 + 0.45 * rim);
 	em += gc * drop * 0.9;

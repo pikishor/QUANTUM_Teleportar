@@ -39,18 +39,18 @@ const PALETTES := {
 	&"contract": [
 		{"plate_a": Color(0.4, 0.33, 0.21), "plate_b": Color(0.24, 0.18, 0.12), "trim": Color(1.0, 0.5, 0.1), "fabric_a": Color(0.42, 0.37, 0.25), "fabric_b": Color(0.17, 0.17, 0.11),
 			"jacket": Color(0.36, 0.33, 0.22), "pants": Color(0.22, 0.21, 0.15), "cloth": Color(0.3, 0.3, 0.18)},
-		{"plate_a": Color(0.23, 0.28, 0.15), "plate_b": Color(0.08, 0.09, 0.08), "trim": Color(0.95, 0.8, 0.15), "fabric_a": Color(0.19, 0.24, 0.13), "fabric_b": Color(0.1, 0.12, 0.08),
-			"jacket": Color(0.17, 0.21, 0.11), "pants": Color(0.12, 0.14, 0.09), "cloth": Color(0.16, 0.22, 0.1)},
-		{"plate_a": Color(0.17, 0.18, 0.2), "plate_b": Color(0.42, 0.08, 0.07), "trim": Color(0.95, 0.15, 0.1), "fabric_a": Color(0.22, 0.22, 0.24), "fabric_b": Color(0.07, 0.07, 0.08),
-			"jacket": Color(0.14, 0.14, 0.16), "pants": Color(0.09, 0.09, 0.1), "cloth": Color(0.2, 0.2, 0.22)},
+		{"plate_a": Color(0.25, 0.31, 0.16), "plate_b": Color(0.12, 0.13, 0.11), "trim": Color(0.95, 0.8, 0.15), "fabric_a": Color(0.21, 0.27, 0.14), "fabric_b": Color(0.13, 0.15, 0.1),
+			"jacket": Color(0.19, 0.24, 0.12), "pants": Color(0.15, 0.17, 0.11), "cloth": Color(0.18, 0.25, 0.11)},
+		{"plate_a": Color(0.23, 0.24, 0.27), "plate_b": Color(0.42, 0.08, 0.07), "trim": Color(0.95, 0.15, 0.1), "fabric_a": Color(0.27, 0.27, 0.3), "fabric_b": Color(0.11, 0.11, 0.12),
+			"jacket": Color(0.19, 0.19, 0.22), "pants": Color(0.13, 0.13, 0.15), "cloth": Color(0.24, 0.24, 0.26)},
 	],
 	&"authority": [
-		{"plate_a": Color(0.2, 0.23, 0.3), "plate_b": Color(0.1, 0.11, 0.15), "trim": Color(0.25, 0.85, 1.0), "fabric_a": Color(0.12, 0.13, 0.16), "fabric_b": Color(0.07, 0.08, 0.1),
-			"jacket": Color(0.17, 0.19, 0.25), "pants": Color(0.12, 0.13, 0.17), "cloth": Color(0.12, 0.14, 0.16)},
-		{"plate_a": Color(0.1, 0.19, 0.4), "plate_b": Color(0.72, 0.76, 0.82), "trim": Color(0.3, 0.6, 1.0), "fabric_a": Color(0.08, 0.12, 0.24), "fabric_b": Color(0.05, 0.07, 0.14),
-			"jacket": Color(0.1, 0.16, 0.34), "pants": Color(0.07, 0.1, 0.22), "cloth": Color(0.1, 0.14, 0.2)},
-		{"plate_a": Color(0.07, 0.07, 0.08), "plate_b": Color(0.22, 0.22, 0.24), "trim": Color(1.0, 0.62, 0.1), "fabric_a": Color(0.1, 0.1, 0.11), "fabric_b": Color(0.05, 0.05, 0.06),
-			"jacket": Color(0.12, 0.12, 0.14), "pants": Color(0.08, 0.08, 0.1), "cloth": Color(0.1, 0.1, 0.1)},
+		{"plate_a": Color(0.27, 0.31, 0.41), "plate_b": Color(0.15, 0.17, 0.23), "trim": Color(0.25, 0.85, 1.0), "fabric_a": Color(0.17, 0.18, 0.23), "fabric_b": Color(0.1, 0.11, 0.14),
+			"jacket": Color(0.23, 0.26, 0.34), "pants": Color(0.17, 0.19, 0.25), "cloth": Color(0.16, 0.18, 0.21)},
+		{"plate_a": Color(0.13, 0.24, 0.5), "plate_b": Color(0.72, 0.76, 0.82), "trim": Color(0.3, 0.6, 1.0), "fabric_a": Color(0.1, 0.16, 0.31), "fabric_b": Color(0.07, 0.1, 0.19),
+			"jacket": Color(0.13, 0.21, 0.43), "pants": Color(0.1, 0.14, 0.29), "cloth": Color(0.13, 0.18, 0.26)},
+		{"plate_a": Color(0.13, 0.13, 0.15), "plate_b": Color(0.27, 0.27, 0.3), "trim": Color(1.0, 0.62, 0.1), "fabric_a": Color(0.15, 0.15, 0.17), "fabric_b": Color(0.08, 0.08, 0.09),
+			"jacket": Color(0.17, 0.17, 0.19), "pants": Color(0.12, 0.12, 0.14), "cloth": Color(0.14, 0.14, 0.14)},
 	],
 }
 ## Role glow of a variant: the third variant of an authority look glows amber, the second blue-white (a squad does not look like one paint job); contract looks keep their role colour.

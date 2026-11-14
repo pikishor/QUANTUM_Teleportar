@@ -10,6 +10,8 @@ extends RefCounted
 
 const FALL_TIME := 0.9
 const SPECIALS_RANGE := 70.0
+const THROTTLE_MID := 26.0               ## beyond this distance a body's rig is driven every 2nd frame, beyond THROTTLE_FAR every 3rd (the accumulated time and displacement go in at once): crowds of 8 and more
+const THROTTLE_FAR := 50.0               ## cost the CPU of two or three bodies, at 20 px tall nobody sees the difference
 
 
 static func attach(c: RosterFoe, look: StringName, spec: Dictionary) -> bool:
@@ -27,6 +29,10 @@ static func attach(c: RosterFoe, look: StringName, spec: Dictionary) -> bool:
 	h["fall"] = 0.0
 	h["fall_kind"] = 0
 	h["specials"] = false
+	h["acc_dt"] = 0.0
+	h["acc_disp"] = Vector3.ZERO
+	h["tick"] = 0
+	h["drives"] = 0
 	c.hum = h
 	c.model = h["root"]
 	c.add_child(c.model)
@@ -153,7 +159,15 @@ static func update(c: RosterFoe, dt: float) -> void:
 		var fd := maxf(c.flat_dist(), 1.0)
 		want_pitch = clampf(atan2(hp3.y + 0.9 - (p.y + 1.45), fd) * 0.6, -0.55, 0.65)
 	var firing := want == &"fire" or want == &"windup"
-	FoeHuman.drive(h, dt, disp, c.rotation.y, 1.0 if speed > 0.4 else 0.0, firing, want_pitch, 0.0)
+	h["acc_dt"] = float(h["acc_dt"]) + dt
+	h["acc_disp"] = (h["acc_disp"] as Vector3) + disp
+	h["tick"] = int(h["tick"]) + 1
+	var every := 1 if dist < THROTTLE_MID else (2 if dist < THROTTLE_FAR else 3)
+	if int(h["tick"]) % every == 0:
+		FoeHuman.drive(h, float(h["acc_dt"]), h["acc_disp"] as Vector3, c.rotation.y, 1.0 if speed > 0.4 else 0.0, firing, want_pitch, 0.0)
+		h["acc_dt"] = 0.0
+		h["acc_disp"] = Vector3.ZERO
+		h["drives"] = int(h["drives"]) + 1
 	var mx := float(c.max_hp)
 	var hpk := clampf(c.hp / mx, 0.0, 1.0) if mx > 0.0 else 1.0
 	if absf(hpk - float(h["hp_seen"])) > 0.01:

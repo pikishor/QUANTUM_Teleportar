@@ -151,6 +151,8 @@ def biped(name, P):
     S = P.get("s", (1.0, 1.0, 1.0))
     rs = P.get("rs", 1.0)
     skin, dark, plate, glow = P["skin"], P["dark"], P["plate"], P["glow"]
+    armor = P.get("armor", plate)                                           # pauldrons, knee guards, fists and back plates (the bone `plate` colour is for spikes, claws, teeth, mandibles)
+    angular = P.get("angular", False)                                       # hard-edged armour plates instead of balls
 
     def T(p):
         return (p[0] * S[0], p[1] * S[1], p[2] * S[2])
@@ -245,9 +247,18 @@ def biped(name, P):
         a2 = (sx * (sh + 0.22), 0.34 + hunch, 0.82)
         ar = P.get("arm_r", 0.055)
         cannon = P.get("cannon") and side == "r"
-        c.ellipsoid(T(a0), (r(ar * 1.7), r(ar * 1.5), r(ar * 1.5)), plate if P.get("pauldrons") else skin, ["arm_" + side, "chest"], tint=(1.2, 0.7))
+        if P.get("pauldrons") and angular:                                  # a sloped plate over the shoulder with a bone spike (a hard edge reads as armour, a ball as a balloon)
+            c.box(T((a0[0] + sx * ar * 0.8, a0[1], a0[2] + ar * 0.5)), (r(ar * 3.8) * S[0], r(ar * 3.2) * S[1], r(ar * 1.9) * S[2]), armor, ["arm_" + side, "chest"], rot=(0, 22 * sx, 0), taper=(0.62, 0.78))
+            c.cone(T((a0[0] + sx * ar * 1.3, a0[1], a0[2] + ar * 1.2)), T((a0[0] + sx * ar * 2.4, a0[1] - 0.02, a0[2] + ar * 4.6)), r(0.032), plate, ["arm_" + side, "chest"], segs=4, tip_glow=0.5)
+        else:
+            c.ellipsoid(T(a0), (r(ar * 1.7), r(ar * 1.5), r(ar * 1.5)), armor if P.get("pauldrons") else skin, ["arm_" + side, "chest"], tint=(1.2, 0.7))
         if fist > 0:
-            c.ellipsoid(T((a2[0], a2[1] + 0.04, a2[2] - 0.05)), (r(fist), r(fist * 0.9), r(fist)), plate, ["fore_" + side], tint=(1.15, 0.7))
+            if angular:                                                     # a knuckle block with bone spikes
+                c.box(T((a2[0], a2[1] + 0.05, a2[2] - 0.05)), (r(fist * 2.0) * S[0], r(fist * 1.9) * S[1], r(fist * 1.7) * S[2]), armor, ["fore_" + side], rot=(0, 0, 0), taper=(0.85, 0.9))
+                for k in range(3):
+                    c.cone(T((a2[0] + (k - 1) * fist * 0.62, a2[1] + 0.05 + fist * 0.9, a2[2] - 0.02)), T((a2[0] + (k - 1) * fist * 0.7, a2[1] + 0.05 + fist * 1.9, a2[2] + 0.02)), r(0.03), plate, ["fore_" + side], segs=4, tip_glow=0.5)
+            else:
+                c.ellipsoid(T((a2[0], a2[1] + 0.04, a2[2] - 0.05)), (r(fist), r(fist * 0.9), r(fist)), armor, ["fore_" + side], tint=(1.15, 0.7))
             for k in range(3):
                 c.cone(T((a2[0] + (k - 1) * 0.04, a2[1] + 0.1, a2[2] - 0.02)), T((a2[0] + (k - 1) * 0.05, a2[1] + 0.2, a2[2] - 0.0)), r(0.025), dark, ["fore_" + side], segs=4, tip_glow=0.6)
         elif not cannon:
@@ -272,7 +283,11 @@ def biped(name, P):
         t0, t1, t2, t3 = (sx * w, 0, 0.95), (sx * w, 0.16, 0.55), (sx * w, -0.02, 0.2), (sx * w, 0.14, 0.02)
         lr = P.get("leg_r", 0.09)
         if P.get("knees"):
-            c.ellipsoid(T(t1), (r(lr * 1.0), r(lr * 1.05), r(lr * 1.0)), plate, ["thigh_" + side, "shin_" + side], tint=(1.1, 0.7))
+            if angular:                                                     # a faceted guard with a forward spike
+                c.box(T((t1[0], t1[1] + lr * 0.55, t1[2] + 0.01)), (r(lr * 2.1) * S[0], r(lr * 1.4) * S[1], r(lr * 2.2) * S[2]), armor, ["thigh_" + side, "shin_" + side], taper=(0.8, 0.7))
+                c.cone(T((t1[0], t1[1] + lr * 1.2, t1[2])), T((t1[0], t1[1] + lr * 2.9, t1[2] + 0.04)), r(0.026), plate, ["thigh_" + side, "shin_" + side], segs=4, tip_glow=0.4)
+            else:
+                c.ellipsoid(T(t1), (r(lr * 1.0), r(lr * 1.05), r(lr * 1.0)), armor, ["thigh_" + side, "shin_" + side], tint=(1.1, 0.7))
         c.ellipsoid(T((sx * w, 0.07, 0.05)), (r(lr * 0.5), r(lr * 0.85), r(lr * 0.28)), dark, ["foot_" + side, "shin_" + side], tint=(1.1, 0.7))
         for k in range(3):
             c.cone(T((sx * w + (k - 1) * 0.04, 0.12, 0.04)), T((sx * w + (k - 1) * 0.055, 0.26, 0.0)), r(0.02), plate, ["foot_" + side], segs=4)
@@ -283,7 +298,7 @@ def biped(name, P):
     # back armour and spines
     for i in range(P.get("plates", 3)):
         z = 1.5 - 0.17 * i
-        c.ellipsoid(T((0, 0.0 + hunch * (0.9 - 0.2 * i) - 0.04, z)), (r(0.24 - 0.02 * i) * P.get("chest_w", 1.0) * S[0], r(0.05) * S[1], r(0.085) * S[2]), plate, ["spine", "chest"], rot=(-10, 0, 0), tint=(1.2, 0.7), segs=10, rings=4)
+        c.ellipsoid(T((0, 0.0 + hunch * (0.9 - 0.2 * i) - 0.04, z)), (r(0.24 - 0.02 * i) * P.get("chest_w", 1.0) * S[0], r(0.05) * S[1], r(0.085) * S[2]), armor, ["spine", "chest"], rot=(-10, 0, 0), tint=(1.2, 0.7), segs=10, rings=4)
     for i in range(P.get("spines", 5)):
         z = 1.55 - 0.1 * i
         y = -0.1 + hunch * (0.9 - 0.15 * i) - 0.02 * i
@@ -733,16 +748,16 @@ def build_all():
     out["vael_grunt"] = biped("vael_grunt", {"skin": (0.3, 0.17, 0.26), "dark": (0.15, 0.09, 0.16), "plate": (0.82, 0.76, 0.62), "glow": (1.0, 0.55, 0.12), "hunch": 0.1, "head": (0.095, 0.2, 0.1),
         "eyes": 4, "plates": 3, "spines": 5, "tail_blade": False, "amp": 1.0, "s": (1.0, 1.0, 1.0)})
     # BRUTE: huge, wide, fists and heavy back plates, glowing belly cracks
-    out["vael_brute"] = biped("vael_brute", {"skin": (0.34, 0.14, 0.12), "dark": (0.17, 0.07, 0.07), "plate": (0.78, 0.7, 0.55), "glow": (1.0, 0.45, 0.1), "hunch": 0.16, "head": (0.11, 0.17, 0.1),
+    out["vael_brute"] = biped("vael_brute", {"skin": (0.34, 0.14, 0.12), "dark": (0.17, 0.07, 0.07), "plate": (0.78, 0.7, 0.55), "armor": (0.24, 0.1, 0.09), "angular": True, "glow": (1.0, 0.45, 0.1), "hunch": 0.16, "head": (0.11, 0.17, 0.1),
         "head_lift": -0.04, "eyes": 2, "plates": 4, "spines": 6, "tail": False, "fist": 0.13, "arm_r": 0.1, "leg_r": 0.14, "shoulder": 0.3, "stance": 0.2, "chest_w": 1.55, "pauldrons": True,
         "knees": True, "belly_glow": True, "s": (1.35, 1.25, 1.42), "rs": 1.45, "amp": 0.8, "strike": 1.1, "lean": 8.0})
     # HUNTER: tall and slender, a long bio-cannon on the right arm, a swept crest
     out["vael_hunter"] = biped("vael_hunter", {"skin": (0.5, 0.31, 0.09), "dark": (0.15, 0.085, 0.03), "plate": (0.09, 0.095, 0.11), "glow": (0.3, 1.0, 0.95), "hunch": 0.05, "head": (0.095, 0.24, 0.11),
         "eyes": 2, "plates": 4, "spines": 3, "tail": True, "cannon": True, "crest": 1.0, "s": (1.0, 1.0, 1.26), "rs": 1.0, "amp": 1.0, "leg_r": 0.095, "arm_r": 0.062, "armswing": 0.5,
-        "chest_w": 1.3, "pauldrons": True, "knees": True, "shoulder": 0.27, "ribs": 4, "skin_tris": 1350})
+        "chest_w": 1.3, "angular": True, "pauldrons": True, "knees": True, "shoulder": 0.27, "ribs": 4, "skin_tris": 1350})
     # ELITE: armoured, shoulder pauldrons and knee guards, a crest, a shield emitter on the left arm
     out["vael_elite"] = biped("vael_elite", {"skin": (0.22, 0.26, 0.36), "dark": (0.1, 0.12, 0.2), "plate": (0.9, 0.82, 0.5), "glow": (0.3, 0.9, 1.0), "hunch": 0.02, "head": (0.1, 0.19, 0.11),
-        "eyes": 2, "plates": 4, "spines": 2, "tail": False, "pauldrons": True, "knees": True, "emitter": True, "crest": 0.8, "shoulder": 0.27, "s": (1.08, 1.0, 1.14), "rs": 1.15, "amp": 0.9,
+        "eyes": 2, "plates": 4, "spines": 2, "tail": False, "angular": True, "pauldrons": True, "knees": True, "emitter": True, "crest": 0.8, "shoulder": 0.27, "s": (1.08, 1.0, 1.14), "rs": 1.15, "amp": 0.9,
         "chest_w": 1.2, "skull_plate": True})
     # STALKER: thin, long limbs, forearm blades, a hooded fin, a long tail
     out["vael_stalker"] = biped("vael_stalker", {"skin": (0.16, 0.14, 0.26), "dark": (0.07, 0.06, 0.13), "plate": (0.55, 0.52, 0.7), "glow": (1.0, 0.25, 0.75), "hunch": 0.06, "head": (0.075, 0.2, 0.09),
