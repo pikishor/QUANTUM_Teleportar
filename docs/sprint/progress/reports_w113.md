@@ -107,3 +107,43 @@ One earlier HIGH run was OVER (171 > 170) because the empty pip MultiMesh cost a
 **Gaps:** no MultiMesh impostors for far crowds (only the rig CPU is throttled); creature faces and hands are simple. At 40–80 m a figure is 20–45 px tall, so the markers carry the read.
 
 Added about 4.1 MB of assets (about 1.6 MB imported into the APK). Ten contact sheets are in `docs/shots/round6/enemy_look_*.jpg`, with the loop notes in `enemy_look_iterations.md`. The progress log is `docs/sprint/progress/w113-enemy-look.md`.
+
+
+## w113-critic-play
+
+PLAY critic wave 113. Table is exact: 81 entries x enemy/car at 0.5/1/1.5 R match; chains, 22 enemy types and caps fine.
+FIXED (tests/test_play_critic_w113.gd, 45 checks, 35 s, mutation-checked; log docs/sprint/progress/w113-critic-play.md):
+1 Blast/fire/burn/run-over kills gave no marker, no kill credit (HUNT job 0/8 vs bullets +3): new BlastCredit.
+2 Grenade kill = "SILENT TAKEDOWN +150", room guards not alerted: BlastTable._loud.
+3 Hero's own tank lost 520/2000 hull to one AP shell: _spared_vehicle.
+4 Casualties off: blasts sent nobody running.
+5 Wells pulled people through walls.
+6 "Cast a freed object" every frame in BlastOps _step_air/burn/toss/hold (HIGH spam).
+7 AMR/phase/piercing rifles passed through cars unharmed: PlayerWeapon damages them.
+8 test_shooting_accuracy red since roster (cone weapons): skips them.
+NOT FIXED: LOW draws +7..+18 per blast (frag 93->106, gas tank 106->124; busy street goes over 115), needs FX.burst/ExplosionPool caps (look area). Noted: flat TTK ~2 s all classes, EMP hits humans, first-spawn hitch 100-390 ms per unwarmed look.
+Perf gate (PERF_CHECK=1 tools/perf_report.sh 0 1 2), unchanged:
+LOW OK 93 draws, 131k tris, 110 MB, death 107/115
+MED OK 129, 272k, 141 MB, death 148/150
+HIGH OK 149, 380k, 207 MB, death 170/170
+Touched-file tests pass. Not committed.
+
+
+## w113-critic-look
+
+W113 critic LOOK: about 700 frames at LOW and MED (12 blasts x 3 distances, ring previews, 27 enemies at 15/40/80 m, status and death sequences, car damage, crowd, animals). All opened. Nothing committed.
+
+Defects (FIXED = frame before/after plus check in tests/test_critic_look_w113.gd):
+1 FIXED burn/freeze/shock looked like tiger, zebra, flat silhouette; aliens showed none. New assets/shaders/dmg_status.gdshaderinc shared by hero_body, foe_body, foe_creature; FoeFx sets it on creatures.
+2 FIXED blasted car windscreen was black and white noise (car_glass: mips, blur, frost).
+3 FIXED fire was flat teardrops in the air (blast_fx ground anchor, blast_cloud licks).
+4 FIXED cream starburst scorch (fx_marks).
+5 FIXED black panel planks and wheel balls (car_debris_panel.gdshader, lit tyre).
+6 PARTLY radius ring (blast_wall alpha band); strike ring at 34 m still thin, aim label touches equip card.
+7 PARTLY mines/C4 get a dirt plume; grenade, rocket, mortar still one fireball.
+8 PARTLY mercenaries were black cut-outs at 15 m (foe_body fake ambient); still dark.
+
+Tests PASS: new test (about 45 checks), damage, blasts, cars_v2, enemy_look_v3, blast_arsenal, weapon_ui_v3, weapons_v3, play_critic. test_real_fight: one flaky red, PASS on rerun.
+Perf final: LOW OK 93 draws (death 107/115), MED OK 129 (149/150), HIGH OK 149 (170/170). No draw, triangle or texture added.
+Not fixed: humans at 40 m are dots, blank white rectangle above street at (-47.6,-2.9), old alien.gdshader has no status look.
+Sheets docs/shots/round6/critic113_look_*.jpg; log docs/sprint/progress/w113-critic-look.md.
