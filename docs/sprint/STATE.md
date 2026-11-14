@@ -1,6 +1,6 @@
 # Sprint state (kept current by the main session; the automatic digest is in docs/sprint/progress/)
 
-Updated 2026-11-13 23:50Z.
+Updated 2026-11-14 00:40Z.
 
 ## What happened
 - 2026-11-12 22:55Z: the usage limit was reached ("resets 4am UTC"). All sprint agents stopped (59 of 60 failed with the limit message, only the cars second pass had finished). Nothing was lost.
@@ -14,11 +14,11 @@ Updated 2026-11-13 23:50Z.
 - Cars second pass (43 defects fixed; near, kerb and road cars with the v2 look; real cars cost 3 draws instead of 10) plus the alien separation fix. Android build: https://github.com/pikishor/QUANTUM_Teleportar/actions/runs/43402151717 (artifact android-debug-apk, 289,853,261 bytes). The owner has not tested it yet.
 - Wave 112 (fb49813): landscape (9 tree species x 3 LODs, 11 terrain layers, 6 waterfalls, 7 airstrips), outskirts (9 km world, 7 roads, 7 towns with 19 country interiors, folk, pets, map pins), hero look v3 (armour kit, 6 suits, glow, rebuilt SUIT screen with a live turntable), the critics' fixes (every bridge deck was a back face = black, the cape board, sky probes, waterfall tint, branch road junction, fast travel freeze, road crossings, harbour pad). An extra Android build of this commit is made by the CI watcher agent w112-ci-apk: link still to come.
 
-## Running now (23:50Z)
-- Run wf_0cbd62eb-bea: CI watcher w112-ci-apk (waits for the CI of fb49813, fixes CI failures, then runs android.yml) and the wave 113 builders (weapons roster first; then blast arsenal, damage, enemy looks).
-- Do NOT push to main while a CI run is in progress: the CI has a concurrency group with cancel-in-progress, so a push cancels the run the watcher waits for. Docs-only pushes wait until w112-ci-apk has its result. Snapshots to the backup branch are fine.
-- Background watcher bsekjdmte (scratchpad/watch_label.sh) ends when w112-ci-apk has its result: then tell the owner the APK link and the wave 112 summary.
-- Next check-in: send_later fires about 00:24Z (trigger trig_019LXBSehgUz1Vov5pdHzMGS).
+## Running now (00:40Z on 2026-11-14)
+- SERVER RESTART at 00:29Z: the container restarted and stopped the run wf_0cbd62eb-bea (task w7c2hb60e, with the CI watcher agent w112-ci-apk and the wave 113 roster builder in the middle of their work) and the watcher bsekjdmte. Files on disk survived. At 00:31Z the sprint was started again from wave 113: task ws0et84n0, run wf_4e87485e-db7, script scratchpad/round6e_sprint.js, args {"startWave":113} (the builders get the RESTART NOTICE and continue from docs/sprint/progress/w113-*.md and the files in the tree). It stops by itself after wave 116. Do NOT stop it and do not start a second workflow. After a further restart: startWave = the first wave not on main, skipTags = builders whose progress notes say DONE (docs/sprint/RESUME.md).
+- Wave 112 extra APK: no agent any more. The token-free script scratchpad/ci_then_apk.sh 43532431658 (background task bjcuxhnrz) waits for the CI run on 18d874e, triggers android.yml when it is green and waits for the build; it prints the APK link. If CI is red: read the failing job (gh run view --log-failed), fix in a small commit (git commit --only <files>), push to main, run the script on the new CI run.
+- Do NOT push to main while a CI run is in progress: the CI has a concurrency group with cancel-in-progress, so a push cancels the run that is waited for. Docs-only pushes wait until the script has finished. Snapshots to the backup branch are fine.
+- Next check-in: send_later trig_01B8CczcL3RvBjPCEKbR4iDN fires about 02:06Z (its prompt was updated for the new run).
 
 ## Open follow-ups from the wave 112 integrator (details in docs/HANDOFF.md, "Wave 112 integration")
 - test_vehicle_roster stops at its line 94 (NearTraffic.instance.process_mode, NearTraffic is a RefCounted since wave 111): only the data checks run while it says PASS. With the line fixed 79 checks pass and 4 fail (tank rolls, plane lands and brakes, plane hero gets out, tank readout names cannon and coax). Wave 113 (tank, vehicle damage) and wave 116 (planes) should fix the line and the four checks together.

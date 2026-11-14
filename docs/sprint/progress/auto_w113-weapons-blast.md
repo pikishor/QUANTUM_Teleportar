@@ -1,6 +1,6 @@
 # w113-weapons-blast (running)
 
-agent id a06a99adbcb17ad8d, 37 events, first activity 2026-11-14T00:30:51.771Z, last activity 2026-11-14T00:32:22.050Z
+agent id a06a99adbcb17ad8d, 56 events, first activity 2026-11-14T00:30:51.771Z, last activity 2026-11-14T00:33:22.985Z
 
 ## Last notes of the agent
 
@@ -16,6 +16,13 @@ agent id a06a99adbcb17ad8d, 37 events, first activity 2026-11-14T00:30:51.771Z, 
 - 00:31:09 Read world expansion and roadmap
 - 00:31:13 List ARCHITECTURE.md section headings
 - 00:31:14 Find blast-related scripts
+- 00:32:25 Find explode functions and autoloads
+- 00:32:25 Read the arch sections on melee/throwables, combat feel and energy weapons
+- 00:32:34 Read Game.explode and nearby
+- 00:32:38 Size of blast-related scripts
+- 00:32:39 Count Game.explode callers by file
+- 00:33:21 Create the progress log
+- 00:33:21 List every Game.explode call with context
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
