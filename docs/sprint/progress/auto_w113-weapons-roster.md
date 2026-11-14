@@ -1,6 +1,10 @@
-# w113-weapons-roster (running)
+# w113-weapons-roster (done)
 
-agent id a09785d0560b5ec12, 779 events, first activity 2026-11-14T00:30:49.776Z, last activity 2026-11-14T02:03:48.780Z
+agent id a09785d0560b5ec12, 809 events, first activity 2026-11-14T00:30:49.776Z, last activity 2026-11-14T02:19:49.314Z
+
+## Final report
+
+w113-weapons-roster: DONE. Nothing committed (integrator does that). COUNTS (old 58 + 125 NEW = 183; with blast pack 229+). Families old+new: pistol 15, smg 12, assault 14, battle 7, carbine 7, dmr 8, sniper 11, shotgun 12, lmg 7, rotary 5, bow 6, flamer 5, melee 28, energy 17, quantum 12, exotic 6 (all brief targets met). Wheel classes: pistol 15, smg 12, rifle 30, shotgun 12, sniper 24, heavy 20, melee 28, quantum 12, energy 23, blast 53 so far (blast builder). DONE: data rows (scripts/player/weapon_rows_v3.gd, weapon_defs_v3.gd, weapon_mech.gd, weapon_models_v3.gd), 5 attachment slots with 21 parts (attachment_parts_v3.gd), WeaponBrowser (favourites, recent, class tabs, balanced pages, captions), loadout and catalogue paging, two-level weapon wheel (12 discs, class ring), AMMO touch button behind MORE, ARMS DEALER restock and random weapon drops by hero tier (weapon_shops_v3.gd), secret-cache lines, 84 OGG (16 sets, 3+ layers), 250 icons, ES/HI UI strings, HERO MODE flag, docs (ARCHITECTURE "Weapon roster v3", HANDOFF), sheets docs/shots/round6/weapons_ui_before_after.jpg, weapon_wheel_rings.jpg, weapons_v3_in_hand.jpg. TESTS (all PASS): NEW test_weapons_v3 (135 checks, 12 s: all 125 weapons equip, fire, reload, alt-fire, damage a dummy), test_weapon_balance_v3 (TTK table, 3x outlier rule), test_weapon_ui_v3 (main scene, 93 checks incl. layout scans at 3 sizes). Real bugs fixed: _tick_heat crash, gravity knock 0, static-init order. Stale tests updated honestly (roster, cards, depth, energy, round2_d, round3_b, available_display, vendors). 17-test final batch passes except test_hud. PERF (final tree): LOW OK 96 draws 138.4k tris tex 110MB death 108; MED OK 129 / 271.3k / 141MB / 145; HIGH OK 149 / 377.5k / 207MB / 167. First run MED OVER: 45 crates drawn everywhere; WeaponCrates now draws only near ones. Weight about 1.6 MB repo and APK. FOR OTHERS: test_hud fails on the blast builder's ULT button (add "more_ult" to the skip list, tests/test_hud.gd:382). test_interior_gameplay node-count flake (+38..50). Models are placeholders (wave 114); roster names/role text stay English in es/hi.
 
 ## Last notes of the agent
 
@@ -10,16 +14,6 @@ agent id a09785d0560b5ec12, 779 events, first activity 2026-11-14T00:30:49.776Z,
 
 ## Recent steps (last 40)
 
-- 01:35:55 Check the batch results
-- 01:36:01 Read the two failing checks
-- 01:36:23 Apply the vendor tier rule and test-list fixes; start the second batch
-- 01:36:35 Add HUD pop and MORE ammo steps to the look-dev bot and check the batch
-- 01:38:30 Wait for the second batch to finish
-- 01:38:34 Wait on the batch completion marker
-- 01:41:01 Rerun the interior gameplay test twice to check the node count flakiness
-- 01:42:08 Import the new icons and re-render loadout and catalogue shots
-- 01:43:10 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ui5/01_loadout_melee.png
-- 01:43:11 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ui5/02_loadout_muzzle.png
 - 01:43:26 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ui5/06_cat_energy.png
 - 01:43:27 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/ui5/07_cat_explosives.png
 - 01:43:42 Read the gear card drawing code
@@ -50,6 +44,16 @@ agent id a09785d0560b5ec12, 779 events, first activity 2026-11-14T00:30:49.776Z,
 - 02:03:06 Draw only near crates (compacted MultiMesh) and run the crate test
 - 02:03:40 Run the perf gate a second time after the crate culling fix (MED first)
 - 02:03:48 Wait for the second perf gate run
+- 02:13:30 Remove the scratch file and run the final verification batch
+- 02:13:51 Append the HANDOFF entry and check the final batch
+- 02:17:19 Check the ULT button (blast builder) and the rest of the final batch
+- 02:19:23 Finish the progress log, delete scratch frames and check the repo state
+- 02:19:32 Verify the deliverable files and uid files exist
+- 02:19:37 
+- 02:19:38 
+- 02:19:38 
+- 02:19:38 
+- 02:19:48 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

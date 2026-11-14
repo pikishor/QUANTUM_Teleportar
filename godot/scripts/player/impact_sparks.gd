@@ -110,6 +110,9 @@ func impact_world(pos: Vector3, normal: Vector3, surface := &"") -> void:
 		&"metal":
 			spark(o, n, Color(1.0, 0.8, 0.45), 1.3)
 			spark(o, n, Color(1.0, 0.95, 0.85), 0.8)
+		&"wood":
+			spark(o, n, Color(0.95, 0.78, 0.5), 0.9)                               # splinters
+			puff(pos + n * 0.05, n, Color(0.62, 0.5, 0.36, 0.3), 0.8)             # sawdust
 		_:
 			spark(o, n, Color(1.0, 0.8, 0.5), 0.8)                                 # chips
 			puff(pos + n * 0.05, n, Color(0.66, 0.62, 0.56, 0.34), 1.0)            # concrete dust

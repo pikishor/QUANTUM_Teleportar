@@ -171,7 +171,7 @@ static func pick(list: Array, r: float) -> StringName:
 ## The loot of one kill: [[part id, count], ...] (random `rng` draws so tests can seed it).
 static func roll_loot(id: StringName, rng: RandomNumberGenerator) -> Array:
 	var out: Array = []
-	var tab: Dictionary = LOOT.get(id, RosterSpecies.LOOT.get(id, {}))
+	var tab: Dictionary = LOOT.get(id, RosterSpecies.loot_of(id))
 	for pid: StringName in tab:
 		var row: Array = tab[pid]
 		if rng.randf() <= float(row[0]):

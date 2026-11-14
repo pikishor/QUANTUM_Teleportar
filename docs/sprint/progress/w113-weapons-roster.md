@@ -54,3 +54,10 @@ UPDATE 04:10 UTC: DONE also
 - Icons re-rendered (long thin weapons thicker, spear and staff on a diagonal). Gear card text wraps (the C4 chain line ran off the card: blast builder text).
 - Sheets: docs/shots/round6/weapons_ui_before_after.jpg, weapon_wheel_rings.jpg, weapons_v3_in_hand.jpg.
 NEXT: perf gate (LOW / MED / HIGH, once), HANDOFF.md entry, final report. Open: models are placeholders (wave 114), role texts English in es / hi.
+
+FINAL (04:40 UTC): ALL DONE, nothing pending in my scope.
+- Perf gate (final tree, run twice: the first run was MED OVER 281.7 k because 45 crates were drawn everywhere; WeaponCrates now draws only the near ones): LOW OK 96 draws / 138.4 k tris / tex 110 MB / death 108;
+  MED OK 129 / 271.3 k / 141 MB / 145; HIGH OK 149 / 377.5 k / 207 MB / 167.
+- Final batch of 17 touched tests PASS except test_hud: the blast builder's new ULT button (need more_ult, dx 750 dy 635) is not in the outer-MORE-column skip list of tests/test_hud.gd line 382 (add "more_ult"; I added "more_ammo").
+- Open for other waves: weapon models are placeholders (wave 114), es / hi role texts, blast-pack weapons come last on the mission ladder, test_interior_gameplay node-count flake (+38..+50).
+- HANDOFF.md entry written; ARCHITECTURE.md section "Weapon roster v3" written.

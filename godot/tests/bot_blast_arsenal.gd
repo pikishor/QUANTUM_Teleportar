@@ -9,8 +9,10 @@ const DEFAULT_IDS := "gr_frag,la_rocket,la_plasma,gr_spark,gr_blinder,gr_fog,gr_
 ## id -> the seconds after the trigger that are saved (default [0.12, 0.45, 1.3])
 const MOMENTS := {
 	&"gr_well": [0.8, 2.12, 2.4], &"gr_fog": [0.3, 1.6, 4.0], &"gr_ember": [0.2, 0.9, 3.2], &"gr_still": [0.3, 1.5, 3.0], &"gr_blinder": [0.08, 0.4, 1.2], &"gr_spark": [0.1, 0.4, 1.0],
-	&"st_orbital": [0.15, 0.5, 1.5], &"wb_gas_tank": [0.15, 0.6, 2.0], &"st_air_l": [0.15, 0.55, 1.6], &"la_thermo": [0.1, 0.4, 1.4], &"ult_meteor": [1.2, 2.15, 3.2],
-	&"ult_blackhole": [1.8, 5.2, 5.9], &"ult_mega": [0.12, 0.5, 1.4], &"ult_freeze": [0.3, 1.5, 3.0],
+	&"st_orbital": [0.15, 0.5, 1.5], &"wb_gas_tank": [0.15, 0.6, 2.0], &"la_thermo": [0.1, 0.4, 1.4], &"ult_meteor": [1.2, 2.15, 3.2],
+	&"ult_blackhole": [1.6, 5.4, 6.4], &"ult_mega": [0.12, 0.5, 1.4], &"ult_freeze": [0.3, 1.5, 3.0],
+	&"st_carpet": [0.45, 1.1, 2.0], &"st_artillery": [0.45, 1.2, 2.2], &"st_fireline": [0.4, 1.0, 2.2], &"st_air_s": [0.4, 0.9, 1.8], &"st_air_m": [0.4, 0.9, 1.8], &"st_air_l": [0.4, 0.9, 1.8],
+	&"st_smokescreen": [0.5, 1.8, 4.0], &"st_emp": [0.4, 0.8, 1.6], &"st_supply": [0.6, 2.0, 3.4], &"mn_gravity": [0.8, 1.9, 2.5], &"la_cluster": [0.25, 0.7, 1.5],
 }
 
 var _setup_done := false
@@ -98,7 +100,12 @@ func _setup() -> void:
 	var city := Game.world as City
 	if city != null and city.ambient != null:
 		city.ambient.set_process(false)
-	if not _lane():
+	var forced := OS.get_environment("BX_SPOT")                           # "x,z,yaw": the same street for every run (the LOW and MED sheets show one place)
+	if forced != "":
+		var fp := forced.split(",")
+		_spot = Vector3(float(fp[0]), 0.0, float(fp[1]))
+		_yaw = float(fp[2])
+	elif not _lane():
 		print("BOTBX no open lane found")
 		return
 	DirAccess.make_dir_recursive_absolute(_out)
@@ -111,6 +118,8 @@ func _stage(dist: float) -> void:
 	BlastFx.shared().reset()
 	if FX.marks != null:
 		FX.marks.clear()                                                  # each blast shows its own scorch, not the one of the stage before
+	if FX.car_debris != null:
+		FX.car_debris.clear()                                             # nor the wheels of the last car
 	_mgr.clear()
 	_foes.clear()
 	_p.teleport_to(_spot)
@@ -151,9 +160,12 @@ func _fire(id: StringName, dist: float) -> void:
 	var ops := BlastOps.shared(_p.get_tree())
 	if StringName(e["cat"]) == &"ultimate":
 		ops.cast(id, src, true)
-	elif id == &"st_orbital" or id == &"st_air_l" or id == &"st_artillery":
-		BlastFx.shared().beacon_tick(at, float(e["radius"]), BlastElements.color(StringName(e["element"]), "ring"), 0.3)
-		BlastTable.apply(id, at, src, {})
+	elif StringName((e["deliver"] as Dictionary).get("mode", &"")) == &"mark":                 # a called-in strike through its real delivery: marker, countdown (shortened to 0.25 s), jet, pattern of shells
+		var it: Dictionary = ops._new_item(&"marker", id, e, src, at, Vector3.ZERO)
+		it["origin"] = _spot + Vector3(0.0, 1.0, 0.0)
+		ops.start_strike(it, at)
+		it["delay"] = 0.25
+		it["delay0"] = 0.25
 	elif id == &"wb_gas_tank" or id == &"wb_fuel_truck" or id == &"wb_barrel":
 		WorldBlasters.spawn(id, at - Vector3(0.0, 0.25, 0.0), _yaw)
 		WorldBlasters.current.hit_at(at, 99.0)
@@ -205,7 +217,7 @@ func step(_t_unused: float, delta: float) -> bool:
 			if f.humanoid_body != null:
 				f.humanoid_body.set_instance_shader_parameter(&"hit_k", 0.0)
 	if _shots < moments.size():
-		var due := float(moments[_shots])
+		var due := maxf(float(moments[_shots]), delta * 2.0 + 0.01)            # the frame of the first step is the one before the trigger
 		var next_frame := due - delta * 2.5
 		if _t >= next_frame and not _render_on:
 			RenderingServer.render_loop_enabled = true

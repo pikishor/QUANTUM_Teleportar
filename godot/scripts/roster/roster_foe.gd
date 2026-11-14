@@ -71,6 +71,9 @@ var open_k := 1.0
 var heal_cd := 0.0
 var stride_k := 0.0
 var squash := 1.0
+var hum: Dictionary = {}                     ## the FoeHuman body of an armoured human (RosterHuman); empty for the procedural bodies
+var humanoid_body: MeshInstance3D = null     ## the skinned mesh (the damage system sets its `dmg_fx` statuses)
+var camp: StringName = &""                   ## &"merc" for humans: the damage system leaves no alien fluid and flings plates
 
 var _los := false
 var _los_t := 0.0
@@ -122,8 +125,16 @@ func setup(sid: StringName, w: AlienWorld) -> bool:
 
 
 ## First contact with a type: one line with its name and the one thing to do (weak point, flank, shoot the medic first). Once per type and session.
+func _on_hurt(amount: float, crit: bool) -> void:
+	super._on_hurt(amount, crit)
+	if not hum.is_empty():
+		RosterHuman.hurt(self, amount)
+
+
 func _wake() -> void:
 	super._wake()
+	if not hum.is_empty():
+		RosterHuman.on_wake(self)
 	if not told.has(id) and world != null and world.hero_alive() and flat_dist() < 70.0:
 		told[id] = true
 		Game.say("%s  %s" % [String(spec["name"]), String(spec.get("tip", ""))], 3.2)
@@ -312,6 +323,8 @@ func die(hero_kill := true) -> void:
 	if mesh != null:
 		mesh.rotation = Vector3.ZERO
 	squash = 1.0
+	if not hum.is_empty():
+		RosterHuman.on_die(self)
 	super.die(hero_kill)
 
 
@@ -376,6 +389,8 @@ func tick(dt: float) -> void:
 				shield_hp = float(spec["shield"]) * 0.5
 		_los_t -= dt
 	super.tick(dt)
+	if not hum.is_empty():
+		RosterHuman.update(self, dt)
 
 
 func _tick_extra(dt: float, d: float) -> void:
@@ -449,6 +464,8 @@ func _bolt_color() -> Color:
 
 
 func _muzzle() -> Vector3:
+	if not hum.is_empty():
+		return RosterHuman.muzzle(self)
 	var m: Vector3 = MUZZLE.get(id, Vector3(0.2, 1.3, -0.9))
 	var mx := m.x * _muz_side if id == &"crawler" or id == &"wasp_drone" or id == &"auto_turret" else m.x
 	return global_position + Basis(Vector3.UP, heading) * Vector3(mx, m.y * squash, m.z) * vis + Vector3(0.0, lift, 0.0)
@@ -668,7 +685,7 @@ func _after_shot() -> void:
 
 
 func _shot_sound(at: Vector3, db: float) -> void:
-	var row: Array = SND.get(id, [&"enemy_shot", 0.8])
+	var row: Array = SND.get(id, FoeSpecies.SND.get(id, [&"enemy_shot", 0.8]))
 	Sfx.play_at(StringName(row[0]), at, db, float(row[1]) * randf_range(0.95, 1.06))
 
 

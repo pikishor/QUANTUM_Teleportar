@@ -212,6 +212,11 @@ func cloud_live() -> int:
 ## One puff: `size0` to `size1` metres over `life` seconds, rising with `vel`. kind K_SMOKE / K_FLAME / K_FLASH / K_SPRAY, `glow` 0..1 makes it additive. False when the tier's pool is full of younger puffs.
 func puff(pos: Vector3, vel: Vector3, size0: float, size1: float, life: float, color: Color, kind := K_SMOKE, glow := 0.0, drag := 0.6, aspect := 1.0) -> bool:
 	var cap := cloud_cap(Game.quality)
+	for i in range(cap, CLOUD_TOTAL):                   # a tier change left puffs beyond the cap: drop them
+		if _c_alive[i] != 0:
+			_c_alive[i] = 0
+			_c_live -= 1
+			_cmm.set_instance_transform(i, _hidden)
 	var slot := -1
 	for i in cap:
 		if _c_alive[i] == 0:
@@ -227,11 +232,6 @@ func puff(pos: Vector3, vel: Vector3, size0: float, size1: float, life: float, c
 		if worst < 0.5:
 			return false
 		_c_live -= 1
-	for i in range(cap, CLOUD_TOTAL):                   # a tier change left puffs beyond the cap: drop them
-		if _c_alive[i] != 0:
-			_c_alive[i] = 0
-			_c_live -= 1
-			_cmm.set_instance_transform(i, _hidden)
 	_c_alive[slot] = 1
 	_c_age[slot] = 0.0
 	_c_life[slot] = maxf(life, 0.1)
@@ -614,7 +614,8 @@ static func _sound(e: Dictionary, pos: Vector3, radius: float) -> void:
 # --- the recipes ----------------------------------------------------------------------------------------------------------
 
 func _flash(e: Dictionary, pos: Vector3, radius: float, cam_d: float) -> void:
-	puff(pos + Vector3(0.0, 0.9, 0.0), Vector3.ZERO, radius * 0.35, radius * 1.1, 0.28, Color(1.0, 0.98, 0.9, 1.0), K_FLASH, 1.0, 0.0)
+	puff(pos + Vector3(0.0, 0.9, 0.0), Vector3.ZERO, radius * 0.45, radius * 1.3, 0.5, Color(1.0, 0.98, 0.9, 1.0), K_FLASH, 1.0, 0.0)
+	dome(pos + Vector3(0.0, radius * 0.05, 0.0), radius * 0.85, Color(1.0, 0.97, 0.85), 0.0, 0.12, 0.4, 1.3)
 	FX.burst(pos + Vector3(0.0, 0.7, 0.0), Color(1.0, 1.0, 0.92), 16, 12.0, 0.45, 0.0, 1.7)
 	_ring_on(pos, radius * 0.8, Color(1.0, 1.0, 0.9), 0.4)
 	var cam := Game.camera
@@ -682,7 +683,7 @@ func flames(pos: Vector3, radius: float, n: int) -> void:
 		var r := radius * sqrt(_rng.randf()) * 0.9
 		var base := pos + Vector3(cos(ang) * r, 0.2, sin(ang) * r)
 		var w := 0.7 + radius * 0.09                                                                 # a tongue: about twice as tall as it is wide, tip first when it dies
-		puff(base + Vector3(0.0, w * 0.9, 0.0), Vector3(0.0, 1.6, 0.0), w, w * 0.8, 0.8 + _rng.randf() * 0.45, Color(1.0, 0.4 + 0.25 * _rng.randf(), 0.06, 0.95), K_FLAME, 0.45, 0.8, 2.3)
+		puff(base + Vector3(0.0, w * 0.9, 0.0), Vector3(0.0, 1.6, 0.0), w, w * 0.8, 0.8 + _rng.randf() * 0.45, Color(1.0, 0.36 + 0.22 * _rng.randf(), 0.05, 0.9), K_FLAME, 0.28, 0.8, 2.3)
 	if Game.quality > 0 and _rng.randf() < 0.5:
 		puff(pos + Vector3(0.0, 1.8, 0.0), Vector3(0.0, 2.0, 0.0), radius * 0.35, radius * 0.7, 2.6, Color(0.2, 0.19, 0.19, 0.75), K_SMOKE, 0.0, 0.5)
 

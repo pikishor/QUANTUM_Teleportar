@@ -75,23 +75,23 @@ const TABLE := {
 		"glow": Color(1.0, 0.85, 0.1), "vis": 1.0, "voice": &"", "shot": &"burst", "n": 5, "gap": 0.1, "speed": 34.0, "spread": 0.06,
 		"weak": [{"id": &"sensor", "pos": Vector3(0.0, 1.55, 0.0), "r": 0.34, "mult": 3.0, "comp": 0.0, "fx": &"", "tip": "SENSOR"}]},
 	# ----- CONTRACT: human mercenaries -------------------------------------------------------------------------------------------------------------
-	&"merc_rifle": {"name": "MERC RIFLE", "faction": CONTRACT, "role": "RIFLEMAN", "tip": "HE USES COVER  FLUSH HIM OUT", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_rifle", "mech": &"ros_gun",
-		"hp": 70.0, "walk": 2.4, "run": 5.6, "dmg": 5.0, "reach": 36.0, "windup": 0.55, "cool": 1.6, "sight": 54.0, "r": 0.55, "cy": 1.0, "hr": 0.24, "hy": 1.68, "group": [2, 3], "score": 60, "bounty": 26,
+	&"merc_rifle": {"name": "MERC RIFLE", "faction": CONTRACT, "role": "RIFLEMAN", "tip": "HE USES COVER  FLUSH HIM OUT", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_rifle", "look": &"merc_rifle", "mech": &"ros_gun",
+		"hp": 70.0, "walk": 2.4, "run": 5.6, "dmg": 5.0, "reach": 36.0, "windup": 0.55, "cool": 1.6, "sight": 54.0, "r": 0.58, "cy": 1.1, "hr": 0.24, "hy": 1.8, "group": [2, 3], "score": 60, "bounty": 26,
 		"glow": Color(1.0, 0.6, 0.15), "vis": 1.0, "voice": &"", "shot": &"burst", "n": 3, "gap": 0.13, "speed": 36.0, "spread": 0.05, "keep": [12.0, 26.0], "cover": true, "flank": 0.3, "nade": 13.0,
 		"retreat": 0.3, "revivable": true, "weak": []},
-	&"merc_rocket": {"name": "MERC ROCKET", "faction": CONTRACT, "role": "ROCKETEER", "tip": "WATCH THE RING  MOVE", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_rocket", "mech": &"ros_gun",
-		"hp": 78.0, "walk": 2.2, "run": 5.0, "dmg": 20.0, "reach": 42.0, "windup": 1.1, "cool": 4.6, "sight": 58.0, "r": 0.58, "cy": 1.0, "hr": 0.24, "hy": 1.7, "group": [1, 1], "score": 90, "bounty": 38,
+	&"merc_rocket": {"name": "MERC ROCKET", "faction": CONTRACT, "role": "ROCKETEER", "tip": "WATCH THE RING  MOVE", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_rocket", "look": &"merc_rocket", "mech": &"ros_gun",
+		"hp": 78.0, "walk": 2.2, "run": 5.0, "dmg": 20.0, "reach": 42.0, "windup": 1.1, "cool": 4.6, "sight": 58.0, "r": 0.6, "cy": 1.12, "hr": 0.24, "hy": 1.82, "group": [1, 1], "score": 90, "bounty": 38,
 		"glow": Color(1.0, 0.3, 0.2), "vis": 1.0, "voice": &"", "shot": &"rocket", "speed": 17.0, "boom": 3.6, "keep": [18.0, 34.0], "cover": true, "retreat": 0.3, "revivable": true, "tier": 1, "weak": []},
-	&"merc_shotgun": {"name": "MERC BREACHER", "faction": CONTRACT, "role": "SHOTGUN", "tip": "KEEP YOUR DISTANCE", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_shotgun", "mech": &"ros_gun",
-		"hp": 95.0, "walk": 2.8, "run": 7.0, "dmg": 15.0, "reach": 12.0, "windup": 0.5, "cool": 1.9, "sight": 50.0, "r": 0.62, "cy": 1.0, "hr": 0.25, "hy": 1.7, "group": [1, 2], "score": 75, "bounty": 32,
+	&"merc_shotgun": {"name": "MERC BREACHER", "faction": CONTRACT, "role": "SHOTGUN", "tip": "KEEP YOUR DISTANCE", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_shotgun", "look": &"merc_shotgun", "mech": &"ros_gun",
+		"hp": 95.0, "walk": 2.8, "run": 7.0, "dmg": 15.0, "reach": 12.0, "windup": 0.5, "cool": 1.9, "sight": 50.0, "r": 0.64, "cy": 1.1, "hr": 0.25, "hy": 1.8, "group": [1, 2], "score": 75, "bounty": 32,
 		"glow": Color(1.0, 0.25, 0.15), "vis": 1.0, "voice": &"", "shot": &"pellets", "n": 6, "cone": 0.26, "keep": [4.0, 9.0], "flank": 0.6, "retreat": 0.25, "revivable": true, "weak": []},
-	&"merc_sniper": {"name": "MERC MARKSMAN", "faction": CONTRACT, "role": "SNIPER", "tip": "THE LASER SHOWS WHERE", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_sniper", "mech": &"ros_gun",
-		"hp": 55.0, "walk": 1.8, "run": 4.6, "dmg": 18.0, "reach": 72.0, "windup": 1.5, "cool": 3.6, "sight": 84.0, "r": 0.5, "cy": 0.95, "hr": 0.23, "hy": 1.62, "group": [1, 1], "score": 100, "bounty": 42,
+	&"merc_sniper": {"name": "MERC MARKSMAN", "faction": CONTRACT, "role": "SNIPER", "tip": "THE LASER SHOWS WHERE", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_sniper", "look": &"merc_sniper", "mech": &"ros_gun",
+		"hp": 55.0, "walk": 1.8, "run": 4.6, "dmg": 18.0, "reach": 72.0, "windup": 1.5, "cool": 3.6, "sight": 84.0, "r": 0.54, "cy": 1.08, "hr": 0.23, "hy": 1.78, "group": [1, 1], "score": 100, "bounty": 42,
 		"glow": Color(0.4, 1.0, 1.0), "vis": 1.0, "voice": &"", "shot": &"beam", "spread": 0.0, "keep": [30.0, 60.0], "cover": true, "retreat": 0.35, "revivable": true, "tier": 1, "weak": []},
-	&"merc_medic": {"name": "FIELD MEDIC", "faction": CONTRACT, "role": "MEDIC", "tip": "KILL THE MEDIC FIRST", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_medic", "mech": &"ros_gun",
-		"hp": 62.0, "walk": 2.4, "run": 5.4, "dmg": 3.0, "reach": 22.0, "windup": 0.6, "cool": 2.4, "sight": 52.0, "r": 0.55, "cy": 1.0, "hr": 0.24, "hy": 1.66, "group": [1, 1], "score": 90, "bounty": 36,
+	&"merc_medic": {"name": "FIELD MEDIC", "faction": CONTRACT, "role": "MEDIC", "tip": "KILL THE MEDIC FIRST", "family": CAMP, "cls": GROUND, "model": "", "proc": &"merc_medic", "look": &"merc_medic", "mech": &"ros_gun",
+		"hp": 62.0, "walk": 2.4, "run": 5.4, "dmg": 3.0, "reach": 22.0, "windup": 0.6, "cool": 2.4, "sight": 52.0, "r": 0.58, "cy": 1.1, "hr": 0.24, "hy": 1.78, "group": [1, 1], "score": 90, "bounty": 36,
 		"glow": Color(0.3, 1.0, 0.5), "vis": 1.0, "voice": &"", "shot": &"burst", "n": 2, "gap": 0.2, "speed": 30.0, "spread": 0.07, "keep": [16.0, 28.0], "medic": true, "heal": 7.0, "retreat": 0.5, "revivable": true,
-		"weak": [{"id": &"pack", "pos": Vector3(0.0, 1.3, 0.38), "r": 0.4, "mult": 2.4, "comp": 0.0, "fx": &"", "tip": "MED PACK", "from": &"back"}]},
+		"weak": [{"id": &"pack", "pos": Vector3(0.0, 1.32, 0.3), "r": 0.4, "mult": 2.4, "comp": 0.0, "fx": &"", "tip": "MED PACK", "from": &"back"}]},
 	# ----- TITAN: the four bosses ---------------------------------------------------------------------------------------------------------------
 	&"mountain_titan": {"name": "MOUNTAIN TITAN", "faction": TITAN, "role": "BOSS", "tip": "SHOOT THE THREE CRYSTALS", "family": BOSS, "cls": GROUND, "model": "", "proc": &"mountain_titan", "mech": &"boss_titan",
 		"hp": 1900.0, "walk": 2.0, "run": 4.4, "dmg": 28.0, "reach": 7.0, "windup": 1.3, "cool": 3.4, "sight": 100.0, "r": 3.6, "cy": 5.6, "hr": 1.4, "hy": 10.2, "group": [1, 1], "score": 1000, "bounty": 700,
@@ -171,11 +171,21 @@ const MISSION_BIAS := {
 
 
 static func data(id: StringName) -> Dictionary:
-	return TABLE[id] if TABLE.has(id) else {}
+	return TABLE[id] if TABLE.has(id) else FoeSpecies.data(id)                  # wave 113: the new roster members (FoeSpecies) are found through the same calls
 
 
 static func has(id: StringName) -> bool:
-	return TABLE.has(id)
+	return TABLE.has(id) or FoeSpecies.has(id)
+
+
+## The encounter template `eid` (the roster-2 ones and the wave 113 additions) or {}.
+static func encounter(eid: StringName) -> Dictionary:
+	return ENCOUNTERS[eid] if ENCOUNTERS.has(eid) else (FoeSpecies.ENCOUNTERS[eid] if FoeSpecies.ENCOUNTERS.has(eid) else {})
+
+
+## The loot row of a species.
+static func loot_of(id: StringName) -> Dictionary:
+	return LOOT[id] if LOOT.has(id) else (FoeSpecies.LOOT[id] if FoeSpecies.LOOT.has(id) else {})
 
 
 static func is_boss(id: StringName) -> bool:
@@ -183,17 +193,20 @@ static func is_boss(id: StringName) -> bool:
 
 
 static func faction_of(id: StringName) -> StringName:
-	return StringName(TABLE[id]["faction"]) if TABLE.has(id) else &""
+	return StringName(data(id).get("faction", &""))
 
 
 static func title(id: StringName) -> String:
-	return String(TABLE[id]["name"]) if TABLE.has(id) else ""
+	return String(data(id).get("name", ""))
 
 
 static func of_faction(f: StringName) -> Array[StringName]:
 	var out: Array[StringName] = []
 	for id in IDS:
 		if TABLE[id]["faction"] == f:
+			out.append(id)
+	for id in FoeSpecies.IDS:
+		if FoeSpecies.TABLE[id]["faction"] == f:
 			out.append(id)
 	return out
 
@@ -205,7 +218,7 @@ static func tier_for_kills(kills: int) -> int:
 
 ## One encounter template's weight for a place: `biome` (TerrainBase.biome_at or &"city"), `night` 0..1, `mission` (a mission type or &""), `tier` (tier_for_kills).
 static func encounter_weight(eid: StringName, biome: StringName, night: float, mission: StringName, tier: int) -> float:
-	var e: Dictionary = ENCOUNTERS.get(eid, {})
+	var e: Dictionary = encounter(eid)
 	if e.is_empty() or tier < int(e["tier"]):
 		return 0.0
 	var w := float((e["biomes"] as Dictionary).get(biome, 0.0))
@@ -224,6 +237,10 @@ static func weights(biome: StringName, night: float, mission: StringName, tier: 
 		var w := encounter_weight(eid, biome, night, mission, tier)
 		if w > 0.0:
 			out.append([eid, w])
+	for eid: StringName in FoeSpecies.ENCOUNTERS:
+		var w2 := encounter_weight(eid, biome, night, mission, tier)
+		if w2 > 0.0:
+			out.append([eid, w2])
 	return out
 
 
@@ -234,7 +251,7 @@ static func pick(list: Array, r: float) -> StringName:
 ## The members of an encounter as a flat list of species ids (counts rolled with `rng`; EASY drops one from a big group), at most `room` of them.
 static func roll_members(eid: StringName, rng: RandomNumberGenerator, easy: bool, room := 99) -> Array[StringName]:
 	var out: Array[StringName] = []
-	var e: Dictionary = ENCOUNTERS.get(eid, {})
+	var e: Dictionary = encounter(eid)
 	for m: Array in (e.get("members", []) as Array):
 		var n := rng.randi_range(int(m[1]), int(m[2]))
 		if easy and n > 3:

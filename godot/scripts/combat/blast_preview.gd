@@ -26,6 +26,8 @@ static var _label: Label
 static var _vignette: ColorRect
 static var _vmat: ShaderMaterial
 static var _ring2: MeshInstance3D
+static var _wall: MeshInstance3D                ## a thin wall standing on the ring: the radius stays readable from a low camera 30 m away
+static var _wall_mat: ShaderMaterial
 static var _t := 0.0
 
 
@@ -47,6 +49,8 @@ static func _build(w: PlayerWeapon) -> void:
 		_build_hud(w)
 	if not is_instance_valid(_ring2):
 		_build_ring(w)
+	if not is_instance_valid(_wall):
+		_build_wall(w)
 
 
 static func _build_hud(w: PlayerWeapon) -> void:
@@ -72,8 +76,8 @@ static func _build_hud(w: PlayerWeapon) -> void:
 	_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_label.anchor_left = 0.0
 	_label.anchor_right = 1.0
-	_label.anchor_top = 0.62
-	_label.anchor_bottom = 0.62
+	_label.anchor_top = 0.545                                              # just under the crosshair: the card of the weapon just equipped sits lower (0.58 .. 0.72) and would cover it
+	_label.anchor_bottom = 0.545
 	_label.offset_left = 0.0
 	_label.offset_right = 0.0
 	_label.offset_top = 0.0
@@ -99,6 +103,27 @@ static func _build_ring(w: PlayerWeapon) -> void:
 	_ring2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_ring2.visible = false
 	w._player.add_child(_ring2)
+
+
+static func _build_wall(w: PlayerWeapon) -> void:
+	var cy := CylinderMesh.new()
+	cy.top_radius = 1.0
+	cy.bottom_radius = 1.0
+	cy.height = 1.0
+	cy.radial_segments = 48
+	cy.rings = 1
+	cy.cap_top = false
+	cy.cap_bottom = false
+	_wall = MeshInstance3D.new()
+	_wall.mesh = cy
+	_wall_mat = ShaderMaterial.new()
+	_wall_mat.shader = preload("res://assets/shaders/blast_wall.gdshader")
+	_wall.material_override = _wall_mat
+	_wall.top_level = true
+	_wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_wall.extra_cull_margin = 120.0
+	_wall.visible = false
+	w._player.add_child(_wall)
 
 
 ## One frame of the preview for the throw weapon in hand. `aim_pt` = the landing point LaunchAim computed; `launch` = the LaunchAim (its ring and dots are tinted and moved here).
@@ -134,6 +159,11 @@ static func update(w: PlayerWeapon, d: Dictionary, aim_pt: Vector3, launch: Laun
 			var pulse := 0.5 + 0.5 * sin(_t * 14.0)
 			base = Color(1.0, 0.18 + 0.2 * pulse, 0.12, 0.95)
 		(ring.material_override as StandardMaterial3D).albedo_color = base
+		var wh := clampf(radius * 0.14, 0.9, 3.2)                              # the wall: as high as it takes to read at a distance, never a screen-filling curtain
+		_wall.global_transform = Transform3D(Basis.from_scale(Vector3(radius, wh, radius)), at + Vector3(0.0, wh * 0.5 + 0.05, 0.0))
+		_wall_mat.set_shader_parameter(&"tint", Color(base.r, base.g, base.b, 1.0))
+		_wall_mat.set_shader_parameter(&"strength", 0.8 if not inside else 1.1)
+		_wall.visible = true
 	# strikes land anywhere inside their footprint: a second, thinner ring shows it
 	if mode == &"mark":
 		var foot := footprint(e)
@@ -183,3 +213,5 @@ static func hide() -> void:
 		_vignette.visible = false
 	if is_instance_valid(_ring2):
 		_ring2.visible = false
+	if is_instance_valid(_wall):
+		_wall.visible = false

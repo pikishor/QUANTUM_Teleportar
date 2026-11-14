@@ -27,7 +27,7 @@ float vnoise(vec2 p) {
 void vertex() {
 	v_data = INSTANCE_CUSTOM;
 	vec3 sc = vec3(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz), length(MODEL_MATRIX[2].xyz));
-	v_cam = vec2(length((VIEW_MATRIX * vec4(MODEL_MATRIX[3].xyz, 1.0)).xyz), max(sc.x, 0.5));
+	v_cam = vec2(length((VIEW_MATRIX * vec4(MODEL_MATRIX[3].xyz, 1.0)).xyz), max(max(sc.x, sc.y), 0.5));
 	mat4 bb = mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
 	float roll = (v_data.w > 0.5 && v_data.w < 1.5) ? 0.0 : v_data.y * 6.2831853;       // a flame always points up
 	float cr = cos(roll);

@@ -16,8 +16,9 @@ void fragment() {
 	float ndv = clamp(abs(dot(normalize(NORMAL), normalize(VIEW))), 0.0, 1.0);
 	float core = pow(ndv, 2.0);
 	float up = mix(1.0, 0.3, smoothstep(0.0, 1.0, v_h));
+	float lens = smoothstep(1.5, 12.0, length(VERTEX));        // next to the camera the beam thins out instead of a white wall across the screen
 	vec3 col = mix(tint.rgb, vec3(1.0), core * core * 0.8);
-	float a = clamp((0.12 + core * 1.1) * up * strength * fade, 0.0, 1.0);
-	ALBEDO = col * (0.5 + core * 1.6) * up * strength * fade;
+	float a = clamp((0.12 + core * 1.1) * up * strength * fade * mix(0.22, 1.0, lens), 0.0, 1.0);
+	ALBEDO = col * (0.3 + core * 0.95) * up * strength * fade * mix(0.22, 1.0, lens);
 	ALPHA = a;
 }

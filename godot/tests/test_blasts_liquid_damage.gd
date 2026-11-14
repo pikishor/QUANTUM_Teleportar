@@ -178,7 +178,7 @@ func _caps_and_lifetime() -> void:
 		for i in 160:
 			FX.marks.splat(ORIGIN + Vector3(randf_range(-30.0, 30.0), 0.0, randf_range(-30.0, 30.0)), Vector3.UP, 2.0, BlastElements.ALL[i % 5])
 			FX.marks.ripple(ORIGIN + Vector3(randf_range(-5.0, 5.0), 0.0, 0.0), 0.8)
-		TestLib.check(FX.marks.live_count() <= BlastMarks.cap_long(q) + BlastMarks.cap_ripples(q), "tier %d: at most %d long marks and %d ripples (%d)" % [q, BlastMarks.cap_long(q), BlastMarks.cap_ripples(q), FX.marks.live_count()])
+		TestLib.check(FX.marks.live_count() - FX.marks.struct_live() <= BlastMarks.cap_long(q) + BlastMarks.cap_ripples(q), "tier %d: at most %d long marks and %d ripples (%d; the structure pool of wave 113 has its own cap, tests/test_damage_everywhere.gd)" % [q, BlastMarks.cap_long(q), BlastMarks.cap_ripples(q), FX.marks.live_count() - FX.marks.struct_live()])
 		TestLib.check(_count_nodes(FX) == n0, "tier %d: 320 marks created no node" % q)
 	TestLib.check(BlastMarks.cap_long(0) < BlastMarks.cap_long(1) and BlastMarks.cap_long(1) < BlastMarks.cap_long(2), "the ring cap grows with the tier")
 	Game.quality = 1

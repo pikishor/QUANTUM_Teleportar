@@ -109,6 +109,7 @@ func _ready() -> void:
 		s.debris.particle_flag_rotate_y = true
 		s.debris.angular_velocity_min = -540.0
 		s.debris.angular_velocity_max = 540.0
+		s.debris.scale_amount_curve = _debris_shrink()                 # chunks that fly at the lens shrink as they fall: no orange paper squares in the frame
 		s.root.add_child(s.debris)
 		slots.append(s)
 	light = OmniLight3D.new()
@@ -163,6 +164,14 @@ static func _spark_ramp() -> Gradient:
 	g.add_point(0.3, Color(1.0, 0.7, 0.3, 0.9))
 	g.set_color(g.get_point_count() - 1, Color(1.0, 0.35, 0.1, 0.0))
 	return g
+
+
+static func _debris_shrink() -> Curve:
+	var c := Curve.new()
+	c.add_point(Vector2(0.0, 1.0))
+	c.add_point(Vector2(0.35, 0.75))
+	c.add_point(Vector2(1.0, 0.2))
+	return c
 
 
 static func _debris_ramp() -> Gradient:

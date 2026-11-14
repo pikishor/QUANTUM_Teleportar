@@ -60,6 +60,8 @@ uniform float brightness : hint_range(0.2, 2.0) = 1.0;
 instance uniform float far_k : hint_range(0.0, 1.0) = 0.0;
 // Hit flash of an enemy (Operative._hit_effect): the whole body flashes white-hot for ~0.12 s when a round lands, so a hit reads at 20 m (0 = off).
 instance uniform float hit_k : hint_range(0.0, 1.0) = 0.0;
+// Damage states of an enemy (scripts/damage/foe_fx.gd): x = state (1 burning: charred, flickering embers; 2 frozen: ice; 3 shocked: blue flicker; 4 dissolving: violet and coming apart), y = strength 0..1.
+instance uniform vec4 dmg_fx = vec4(0.0);
 
 varying flat float v_mode;
 varying flat float v_kindf;
@@ -354,6 +356,28 @@ void fragment() {
 			emis = alb * 0.18 * hemi2;
 		}
 	}
+	vec3 dmg_emis = vec3(0.0);
+	float dmg_k = dmg_fx.x;
+	float dmg_s = dmg_fx.y;
+	if (dmg_s > 0.001) {
+		float flick = 0.5 + 0.5 * sin(TIME * 19.0 + UV.y * 43.0 + UV.x * 27.0);
+		if (dmg_k < 1.5) {
+			alb = mix(alb, vec3(0.02, 0.017, 0.016), 0.7 * dmg_s);
+			dmg_emis = vec3(1.0, 0.3, 0.04) * dmg_s * (0.15 + 0.7 * flick * flick) * (0.35 + 0.65 * smoothstep(0.0, 1.0, 1.0 - UV.y));
+		} else if (dmg_k < 2.5) {
+			alb = mix(alb, vec3(0.62, 0.82, 0.96), 0.72 * dmg_s);
+			rough = mix(rough, 0.1, dmg_s);
+			dmg_emis = vec3(0.12, 0.28, 0.5) * dmg_s;
+		} else if (dmg_k < 3.5) {
+			dmg_emis = vec3(0.45, 0.7, 1.0) * dmg_s * step(0.5, fract(TIME * 14.0 + UV.y * 3.0)) * 1.3;
+		} else {
+			float nz = fract(sin(dot(floor(UV * 70.0), vec2(12.9898, 78.233))) * 43758.5453);
+			if (nz < dmg_s * 0.85) {
+				discard;
+			}
+			dmg_emis = vec3(0.6, 0.25, 1.0) * smoothstep(dmg_s * 0.85, dmg_s * 0.85 + 0.15, nz) * dmg_s * 2.0;
+		}
+	}
 	ALBEDO = alb * brightness;
 	if (dbg_view > 0.5) {
 		ALBEDO = vec3(0.0);
@@ -365,5 +389,5 @@ void fragment() {
 	NORMAL_MAP = nm;
 	NORMAL_MAP_DEPTH = nd;
 	float far_rim = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 1.4);
-	EMISSION = emis + far_k * (trim_color * (0.3 + 1.4 * far_rim) + alb * 0.35) + hit_k * vec3(1.6, 1.4, 1.2);
+	EMISSION = emis + far_k * (trim_color * (0.3 + 1.4 * far_rim) + alb * 0.35) + hit_k * vec3(1.6, 1.4, 1.2) + dmg_emis;
 }

@@ -10,9 +10,10 @@ extends Node3D
 
 const SHADER := preload("res://assets/shaders/fx_marks.gdshader")
 const STREAK_SHADER := preload("res://assets/shaders/fx_streak.gdshader")
-const MAX := 96
+const MAX := 120
 const RIPPLE_MAX := 8
-const LONG_MAX := MAX - RIPPLE_MAX
+const LONG_MAX := 96 - RIPPLE_MAX
+const STRUCT_BASE := 96               ## the last 24 slots are the STRUCTURE pool (wave 113: broken windows, wall breaches, craters, spall scars of scripts/combat/structure_damage.gd), capped by tier on its own
 const REBASE_AT := 40.0               ## seconds of the shader clock before every birth time is shifted back (half-float custom data loses precision on a large clock)
 const LIFE_LIQUID := Vector2(30.0, 60.0)
 const LIFE_SCORCH := 45.0
@@ -25,6 +26,11 @@ const K_CRACK := 3
 const K_GLASS := 4
 const K_WALL := 5
 const K_OIL := 6
+const K_WINDOW := 7                   ## a window whose glass is out
+const K_BREACH := 8                   ## a hole in a wall
+const K_CRATER := 9                   ## a pit in the street
+const K_CHIP := 10                    ## a scar of pale fresh concrete
+const LIFE_STRUCT := 150.0
 const WALL_RAYS := [2, 4, 6]          ## horizontal rays per blast by tier
 const SATELLITES := [1, 2, 3]         ## extra splats around the centre by tier
 const SHARDS := 28
@@ -40,6 +46,7 @@ var _kind := PackedInt32Array()
 var _seed := PackedFloat32Array()
 var _next_long := RIPPLE_MAX
 var _next_ripple := 0
+var _next_struct := 0
 var _live := 0
 var _clock := 0.0
 var _check := 0.0
@@ -58,6 +65,11 @@ static func cap_long(tier: int) -> int:
 
 static func cap_ripples(tier: int) -> int:
 	return [4, 6, 8][clampi(tier, 0, 2)]
+
+
+## The structure pool (windows, breaches, craters, spall scars): LOW 8, MED 16, HIGH 24 live marks, the oldest is recycled.
+static func cap_struct(tier: int) -> int:
+	return [8, 16, 24][clampi(tier, 0, 2)]
 
 
 func _ready() -> void:
@@ -133,6 +145,15 @@ func _slot_long() -> int:
 	return i
 
 
+func _slot_struct() -> int:
+	var cap := cap_struct(Game.quality)
+	if _next_struct >= cap:
+		_next_struct = 0
+	var i := STRUCT_BASE + _next_struct
+	_next_struct += 1
+	return i
+
+
 func _slot_ripple() -> int:
 	var cap := cap_ripples(Game.quality)
 	if _next_ripple >= cap:
@@ -197,6 +218,62 @@ func ripple(pos: Vector3, size := 0.9) -> void:
 	if _mm == null:
 		return
 	_put(_slot_ripple(), Transform3D(_surface_basis(Vector3.UP, size, false), pos + Vector3(0.0, 0.01, 0.0)), Color(0.6, 0.8, 1.0, 0.0), K_RIPPLE, LIFE_RIPPLE, _rng.randf())
+
+
+# --- structure damage marks (wave 113, scripts/combat/structure_damage.gd) ---------------------------------------------------------------
+
+## Basis of a w x h rectangle lying on a wall (+Y up, so drips and soot run the right way) or on the ground.
+func _rect_basis(n: Vector3, w: float, h: float) -> Basis:
+	var t: Vector3
+	if absf(n.y) > 0.8:
+		t = Vector3.RIGHT.rotated(Vector3.UP, _rng.randf() * TAU)
+	else:
+		t = Vector3.UP.cross(n).normalized()
+	var b := n.cross(t).normalized()
+	return Basis(t * w, b * h, n)
+
+
+## A window whose glass is out: `w` x `h` metres on the wall at `pos` (surface normal `n`), `broken` 0..1 how much of the pane is gone, `room` the light of the room behind it.
+func window_broken(pos: Vector3, n: Vector3, w := 2.0, h := 1.5, broken := 0.8, room := Color(0.95, 0.72, 0.4), life := LIFE_STRUCT) -> void:
+	if _mm == null:
+		return
+	var nn := n.normalized() if n != Vector3.ZERO else Vector3.BACK
+	_put(_slot_struct(), Transform3D(_rect_basis(nn, w, h), pos + nn * 0.02), Color(room.r, room.g, room.b, clampf(broken, 0.0, 1.0)), K_WINDOW, life, _rng.randf())
+	Dmg.bump(&"window")
+
+
+## A hole in a wall, `size` metres across: a dark opening, a pale broken rim, a spall scar, soot above.
+func breach(pos: Vector3, n: Vector3, size: float, life := LIFE_STRUCT) -> void:
+	if _mm == null:
+		return
+	var nn := n.normalized() if n != Vector3.ZERO else Vector3.BACK
+	_put(_slot_struct(), Transform3D(_rect_basis(nn, size, size), pos + nn * 0.024), Color(1.0, 1.0, 1.0, 0.0), K_BREACH, life, _rng.randf())
+	Dmg.bump(&"breach")
+
+
+## A pit in the street: dark, with a lit ridge and rays of thrown earth.
+func crater(pos: Vector3, size: float, life := LIFE_STRUCT) -> void:
+	if _mm == null:
+		return
+	_put(_slot_struct(), Transform3D(_rect_basis(Vector3.UP, size, size), pos + Vector3(0.0, 0.016, 0.0)), Color(1.0, 1.0, 1.0, 0.0), K_CRATER, life, _rng.randf())
+	Dmg.bump(&"crater")
+
+
+## Patches of pale fresh concrete where a facade lost chunks.
+func chip(pos: Vector3, n: Vector3, size: float, life := LIFE_STRUCT) -> void:
+	if _mm == null:
+		return
+	var nn := n.normalized() if n != Vector3.ZERO else Vector3.UP
+	_put(_slot_struct(), Transform3D(_rect_basis(nn, size, size), pos + nn * 0.018), Color(1.0, 1.0, 1.0, 0.0), K_CHIP, life, _rng.randf())
+	Dmg.bump(&"chip")
+
+
+func struct_live() -> int:
+	var c := 0
+	for i in range(STRUCT_BASE, MAX):
+		if _on[i] == 1:
+			c += 1
+	return c
 
 
 # --- composed effects ------------------------------------------------------------------------------------------------------------
@@ -325,10 +402,15 @@ func _build_shower() -> void:
 	chunks.lifetime = 1.7
 	chunks.gravity = Vector3(0.0, -12.0, 0.0)
 	var cg := Gradient.new()
-	cg.set_color(0, Color(0.62, 0.6, 0.56, 1.0))
-	cg.add_point(0.8, Color(0.4, 0.39, 0.37, 1.0))
+	cg.set_color(0, Color(0.46, 0.44, 0.41, 1.0))
+	cg.add_point(0.8, Color(0.3, 0.29, 0.28, 1.0))
 	cg.set_color(cg.get_point_count() - 1, Color(0.3, 0.3, 0.3, 0.0))
 	chunks.color_ramp = cg
+	var shrink := Curve.new()                                          # a chunk that flies at the lens gets small as it falls: no tan paper squares in the frame
+	shrink.add_point(Vector2(0.0, 1.0))
+	shrink.add_point(Vector2(0.4, 0.6))
+	shrink.add_point(Vector2(1.0, 0.2))
+	chunks.scale_amount_curve = shrink
 	add_child(chunks)
 
 
@@ -437,6 +519,7 @@ func clear() -> void:
 	_live = 0
 	_next_long = RIPPLE_MAX
 	_next_ripple = 0
+	_next_struct = 0
 	_node.visible = false
 	shards.emitting = false
 	shards.visible = false

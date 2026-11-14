@@ -531,20 +531,23 @@ static func setup_body(c: AlienCreature, sid: StringName, w: AlienWorld) -> bool
 	c.max_hp = float(spec["hp"]) * Difficulty.mult("hp")
 	c.hp = c.max_hp
 	c.radius = float(spec["r"]) * c.vis
-	var pm := mesh_of(StringName(spec["proc"]))
-	if pm == null:
-		return false
-	c.mat = AlienKit.material(spec["glow"], 0.45)
-	c.mat.set_shader_parameter(&"body_h", maxf(float(spec.get("hy", 1.6)), float(spec.get("cy", 1.0)) * 1.8) * c.vis)
-	c.mat.set_shader_parameter(&"hip_y", float(HIP.get(sid, 0.0)))
-	c.mesh = MeshInstance3D.new()
-	c.mesh.mesh = pm
-	c.mesh.material_override = c.mat
-	c.mesh.extra_cull_margin = 4.0
-	c.mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	c.mesh.scale = Vector3.ONE * c.vis
-	c.add_child(c.mesh)
-	c.model = c.mesh
+	var look := StringName(spec.get("look", &""))
+	var human := look != &"" and RosterHuman.attach(c, look, spec)             # wave 113: the armoured, skinned humans (FoeHuman) instead of a procedural mesh
+	if not human:
+		var pm := mesh_of(StringName(spec["proc"]))
+		if pm == null:
+			return false
+		c.mat = AlienKit.material(spec["glow"], 0.45)
+		c.mat.set_shader_parameter(&"body_h", maxf(float(spec.get("hy", 1.6)), float(spec.get("cy", 1.0)) * 1.8) * c.vis)
+		c.mat.set_shader_parameter(&"hip_y", float(HIP.get(sid, 0.0)))
+		c.mesh = MeshInstance3D.new()
+		c.mesh.mesh = pm
+		c.mesh.material_override = c.mat
+		c.mesh.extra_cull_margin = 4.0
+		c.mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		c.mesh.scale = Vector3.ONE * c.vis
+		c.add_child(c.mesh)
+		c.model = c.mesh
 	var shapes: Array = [[Vector3(0.0, float(spec["cy"]), 0.0), float(spec["r"]), false, -1]]
 	if float(spec["hr"]) > 0.0:
 		shapes.append([Vector3(0.0, float(spec["hy"]), float(spec.get("hz", 0.0))), float(spec["hr"]), true, -1])

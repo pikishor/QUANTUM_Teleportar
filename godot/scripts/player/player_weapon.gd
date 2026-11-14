@@ -877,15 +877,16 @@ func _tick_numbers(dt: float) -> void:
 
 func _hit_world(hit: Vector3, normal: Vector3) -> void:
 	var n := normal if normal != Vector3.ZERO else Vector3.UP
-	var surface := Breakables.surface_of(_last_collider) if is_instance_valid(_last_collider) else &"concrete"
+	var is_prop := is_instance_valid(_last_collider) and (_last_collider as Node).has_meta(&"surface")
+	var surface := Breakables.surface_of(_last_collider) if is_prop else ImpactSparks.surface_at(hit, n)           # a prop knows its material; the street and the facades are told apart by where the hit is (wave 113: asphalt, glass and concrete holes differ)
 	if is_instance_valid(_last_collider) and Breakables.current != null:
 		Breakables.current.hit_at(_last_collider, hit, n)
 	if is_instance_valid(_last_collider) and WorldBlasters.current != null:
 		WorldBlasters.current.hit_collider(_last_collider, hit, maxf(1.0, float(def["damage"]) / 14.0))          # a shot barrel, gas tank or fuel truck goes off (scripts/combat/world_blasters.gd)
 	if _sparks != null:
-		_sparks.impact_world(hit, n)
+		_sparks.impact_world(hit, n, surface if is_prop else &"")
 	if _decals != null:
-		_decals.add(hit, n, randf_range(0.14, 0.2), surface)
+		_decals.add(hit, n, randf_range(0.22, 0.3), surface)
 
 
 # --- Pulse Lance --------------------------------------------------------------------------------------------------------

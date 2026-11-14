@@ -16,6 +16,7 @@ const COAT := 1.0                             ## clear coat strength of the pain
 const PAINT_SPECULAR := 0.9                   ## the shader's `spec` default: a lacquer lets street lamps and neon leave a highlight
 const PAINT_RIM := 0.6                        ## the shader's `rim` default
 const MAX_DENTS := 6
+const MAX_HOLES := 8                          ## bullet holes kept on one car (wave 113): the shader draws them (car_common.gdshaderinc hole_mask), no node, no mesh
 const DENT_MERGE := 0.55
 const SHADER_DIR := "res://assets/shaders/"
 const FLAKE_TEX := "res://assets/textures/carv2_flake_normal.png"
@@ -39,6 +40,7 @@ const FINISH := [
 ]
 
 static var _shaders := {}
+static var _hinges := {}                      ## kind -> Vector2(y, z) of the hood hinge, or null (no hood part on that model)
 static var _flake: Texture2D
 static var _tread: Texture2D
 
@@ -55,6 +57,10 @@ var details_mat: ShaderMaterial
 var glass_mat: ShaderMaterial
 var lod_mat: ShaderMaterial
 var dents: Array[Dictionary] = []
+var holes: Array[Dictionary] = []                 ## bullet holes: {at, n, r, s}
+var hood_pop := 0.0                               ## 0 .. 1 how far the hood stands open
+var glass_shattered := false                      ## the panes are almost clear (a burst of rounds, a blast)
+var wheels_flat := 0                              ## bit k = wheel k is flat (a shot tyre)
 var doors := {}                                   ## "L" / "R" -> the door node (hinge pivot, hidden until a door swings): DoorL / DoorR of the model
 var parts_lost := 0                               ## torn off for good (bumpers, hood, trunk lid, doors)
 var parts_open := 0                               ## a door that is swinging (the shell's own door is hidden meanwhile)
@@ -67,6 +73,7 @@ var wet := 0.0
 var dirt := 0.0
 var glass_glow := 0.0                             ## cabin glow (set by VehicleVisual._write_beam)
 var _kind: StringName = &""
+var _glass_opacity: Variant = null                ## the opacity of this kind's glass (the shader default when null): repair() puts it back after shatter_glass()
 var _rough := 0.26
 var _metal := 0.3
 var _pearl_col := Color.WHITE
@@ -175,6 +182,7 @@ func _make_materials(spec: Dictionary) -> void:
 		glass_mat.set_shader_parameter(&"tint", gl["tint"])
 	if gl.has("opacity"):
 		glass_mat.set_shader_parameter(&"opacity", gl["opacity"])
+		_glass_opacity = gl["opacity"]
 	details_mat.set_shader_parameter(&"tread", tread_texture())
 	lod_mat = ShaderMaterial.new()
 	lod_mat.resource_name = "Lod"
@@ -449,6 +457,98 @@ func _push_dents() -> void:
 		m.set_shader_parameter(&"dent_n", dents.size())
 
 
+## A bullet hole at `at` (model space, on a surface with the outward normal `n`): a dark pit with a bright burr and a scorch halo on the paint, a clear hole with a star of cracks on glass. At most
+## MAX_HOLES per car, the oldest goes first; a hole within 1.6 radii of another is the same hole.
+func add_hole(at: Vector3, n: Vector3, radius := 0.045) -> bool:
+	for h in holes:
+		if (h["at"] as Vector3).distance_to(at) < radius * 1.6:
+			return false
+	if holes.size() >= MAX_HOLES:
+		holes.remove_at(0)
+	holes.append({"at": at, "n": n.normalized() if n.length() > 0.01 else Vector3.UP, "r": radius, "s": randf()})
+	_push_holes()
+	return true
+
+
+func _push_holes() -> void:
+	var a := PackedVector4Array()
+	var b := PackedVector4Array()
+	a.resize(MAX_HOLES)
+	b.resize(MAX_HOLES)
+	for i in holes.size():
+		var h: Dictionary = holes[i]
+		var at: Vector3 = h["at"]
+		var nn: Vector3 = h["n"]
+		a[i] = Vector4(at.x, at.y, at.z, float(h["r"]))
+		b[i] = Vector4(nn.x, nn.y, nn.z, float(h["s"]))
+	for m in _body_mats():
+		m.set_shader_parameter(&"hole_a", a)
+		m.set_shader_parameter(&"hole_b", b)
+		m.set_shader_parameter(&"hole_n", holes.size())
+
+
+## The y and z of the hinge line of the hood (the rear edge of the hood part of the shell), read once per model from the mesh; null when the model has no hood part.
+func hood_hinge() -> Variant:
+	if _hinges.has(_kind):
+		return _hinges[_kind]
+	var res: Variant = null
+	var am := body.mesh as ArrayMesh if body != null else null
+	if am != null:
+		for si in am.get_surface_count():
+			var arr := am.surface_get_arrays(si)
+			var uv2: Variant = arr[Mesh.ARRAY_TEX_UV2]
+			var vs: Variant = arr[Mesh.ARRAY_VERTEX]
+			if not (uv2 is PackedVector2Array) or not (vs is PackedVector3Array):
+				continue
+			var zmax := -1.0e9
+			for i in (vs as PackedVector3Array).size():
+				if absf((uv2 as PackedVector2Array)[i].x * 32.0 - 3.0) < 0.3:
+					zmax = maxf(zmax, (vs as PackedVector3Array)[i].z)
+			if zmax > -1.0e8:
+				var ysum := 0.0
+				var cnt := 0
+				for i in (vs as PackedVector3Array).size():
+					if absf((uv2 as PackedVector2Array)[i].x * 32.0 - 3.0) < 0.3 and (vs as PackedVector3Array)[i].z > zmax - 0.1:
+						ysum += (vs as PackedVector3Array)[i].y
+						cnt += 1
+				res = Vector2(ysum / float(maxi(cnt, 1)), zmax)
+				break
+	_hinges[_kind] = res
+	return res
+
+
+## The hood stands open by `k` (0 shut .. 1 open about 55 degrees); false when the model has no hood or it is torn off.
+func set_hood_pop(k: float) -> bool:
+	var hg: Variant = hood_hinge()
+	if hg == null or part_gone(&"hood"):
+		return false
+	hood_pop = clampf(k, 0.0, 1.0)
+	for m in _body_mats():
+		m.set_shader_parameter(&"hood_hinge", Vector4((hg as Vector2).x, (hg as Vector2).y, 0.0, 0.0))
+		m.set_shader_parameter(&"hood_pop", hood_pop)
+	return true
+
+
+## The panes shatter: the glass is almost clear, a dark cabin shows through (repair() puts it back).
+func shatter_glass() -> void:
+	glass_shattered = true
+	cracks = 1.0
+	glass_mat.set_shader_parameter(&"crack", 1.0)
+	glass_mat.set_shader_parameter(&"opacity", 0.1)
+	glass_mat.set_shader_parameter(&"reflect_k", 0.12)
+
+
+## A tyre (0 .. 3 in the order FL, FR, RL, RR) is flat: its underside sags towards the rim (the Details shader).
+func set_wheel_flat(k: int, flat: bool) -> void:
+	if k < 0 or k > 3:
+		return
+	if flat:
+		wheels_flat |= 1 << k
+	else:
+		wheels_flat &= ~(1 << k)
+	details_mat.set_shader_parameter(&"wheel_flat", float(wheels_flat))
+
+
 func crack_glass(level: float, at: Vector3, spec_dims: Vector3) -> void:
 	level = clampf(level, 0.0, 1.0)
 	if level <= cracks + 0.02:
@@ -528,8 +628,19 @@ func set_burning(on: bool) -> void:
 func repair() -> void:
 	dents.clear()
 	_push_dents()
+	holes.clear()
+	_push_holes()
+	hood_pop = 0.0
+	for m in _body_mats():
+		m.set_shader_parameter(&"hood_pop", 0.0)
+	wheels_flat = 0
+	details_mat.set_shader_parameter(&"wheel_flat", 0.0)
 	cracks = 0.0
 	glass_mat.set_shader_parameter(&"crack", 0.0)
+	if glass_shattered:
+		glass_shattered = false
+		glass_mat.set_shader_parameter(&"opacity", _glass_opacity)
+		glass_mat.set_shader_parameter(&"reflect_k", null)
 	parts_lost = 0
 	parts_open = 0
 	_push_parts()

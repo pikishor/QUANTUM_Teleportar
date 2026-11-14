@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_back;
+render_mode cull_disabled;     // double sided since wave 113: the inside of a popped hood and of the shell shows (dark liner), see the end of fragment()
 // Cars v2 paint: lacquer over metallic flake, a baked ambient occlusion in the vertex colour (R), a fresnel clear coat that reflects a procedural street (street_env), dirt that
 // climbs the lower body, scuffs and soot with damage, dents from the vertex stage (car_common.gdshaderinc) and procedural liveries (stripes, a taxi checker band, two-tone doors).
 // Model space: nose -Z, origin on the ground. Vertex uv2.x = body part id / 32 (0 = the shell, 1 front bumper ... see part_lost).
@@ -89,11 +89,15 @@ void fragment() {
 	base = mix(base, dcol, dmask * 0.8);
 	float sc = clamp(scuff + v_dent * 0.9, 0.0, 1.0);
 	base = mix(base, base * 0.35 + vec3(0.03), sc * 0.65);
+	vec3 hm = hole_mask(v_obj, v_nobj);
+	base = mix(base, base * 0.3 + vec3(0.01), hm.z * 0.6 * (1.0 - hm.x));           // a soot halo round every hole
+	base = mix(base, vec3(0.52, 0.54, 0.58), hm.y * 0.55);                           // the torn edge: bare grey metal, not white
+	base = mix(base, vec3(0.004), hm.x);                                             // the hole itself
 	float spark = pow(max(fn.z * 2.0 - 1.0, 0.0), 8.0) * (1.0 - smoothstep(2.0, 9.0, dist));                    // rare bright flakes, only close up
 	base *= mix(0.80, 1.0, smoothstep(0.22, 0.95, v_obj.y));                           // a lighter shoulder and a darker sill: the body has a form, not a flat colour
 	ALBEDO = base * ao;
 	METALLIC = clamp(metal * (1.0 - dmask) + flake * 0.1 * spark, 0.0, 1.0);
-	ROUGHNESS = clamp(mix(rough, 0.8, dmask) + sc * 0.4 - wet * 0.14 + v_dent * 0.25, 0.08, 1.0);
+	ROUGHNESS = clamp(mix(rough, 0.8, dmask) + sc * 0.4 - wet * 0.14 + v_dent * 0.25 + hm.z * 0.3, 0.08, 1.0);
 	SPECULAR = spec;
 	RIM = rim;
 	RIM_TINT = 0.6;
@@ -106,4 +110,10 @@ void fragment() {
 	float lum = dot(base, vec3(0.33));
 	vec3 refl = env * (fres * 1.6 * shine + metal * 0.40 * (1.0 - rough * 0.6)) * mix(vec3(1.0), flake_tint.rgb * base * 2.0, metal) * mix(1.0, 0.62, clamp(lum * 1.3, 0.0, 1.0));      // a bright paint reflects less in relation to itself: no white wash by day
 	EMISSION = (base * glow + refl) * ao;
+	if (!FRONT_FACING) {                       // the inside of the shell (an opened hood, a wheel arch): a dark liner, not lit paint
+		ALBEDO = vec3(0.012, 0.012, 0.014);
+		EMISSION = vec3(0.0);
+		METALLIC = 0.0;
+		ROUGHNESS = 0.9;
+	}
 }

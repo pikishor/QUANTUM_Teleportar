@@ -53,10 +53,39 @@ void fragment() {
 			cr = max(cr, web * smoothstep(0.5, 1.0, crack) * 0.85);
 		}
 	}
-	ALBEDO = mix(col, vec3(0.85, 0.9, 0.95), cr);
+	// bullet holes (CarV2.add_hole): a small clear hole with a star of cracks and a ring round it, on the pane the round went through (the axis of the round, see hole_mask)
+	for (int hi = 0; hi < 8; hi++) {
+		if (hi >= hole_n) {
+			break;
+		}
+		vec3 axis = hole_b[hi].xyz;
+		vec3 rel = v_obj - hole_a[hi].xyz;
+		float along = dot(rel, axis);
+		if (along > 0.15 || along < -0.65) {
+			continue;
+		}
+		vec3 perp3 = rel - axis * along;
+		float rad = hole_a[hi].w * 2.6;
+		if (length(perp3) < rad) {
+			vec3 an2 = abs(axis);
+			vec3 tu = normalize(cross(axis, an2.y < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+			vec3 tv = cross(axis, tu);
+			vec2 q2 = vec2(dot(perp3, tu), dot(perp3, tv));
+			float ang = atan(q2.y, q2.x);
+			float t = length(perp3) / rad;
+			float seed = hole_b[hi].w * 6.2832;
+			float star = pow(abs(sin(ang * 4.5 + seed)), 26.0) * (1.0 - smoothstep(0.25, 1.0, t)) + pow(abs(sin(ang * 9.0 + seed * 2.0)), 40.0) * (1.0 - smoothstep(0.1, 0.55, t));
+			float ring = exp(-pow((t - 0.45) / 0.03, 2.0)) * 0.6;
+			cr = max(cr, clamp(star * 0.9 + ring, 0.0, 1.0));
+			float clear = 1.0 - smoothstep(0.0, 0.2, t);
+			cr = mix(cr, 0.0, clear);
+			a = mix(a, 0.05, clear);
+		}
+	}
+	ALBEDO = mix(col, vec3(0.8, 0.87, 0.93), cr * 0.85);
 	ALPHA = clamp(a + cr * 0.7, 0.0, 1.0);
 	ROUGHNESS = 0.12 + cr * 0.4;                                     // not a perfect mirror: a key light on a big windscreen is a soft glow, not a white blob
 	METALLIC = 0.0;
 	SPECULAR = 0.8;
-	EMISSION = env * fres * reflect_k * (1.0 + 0.6 * wet) + interior_color.rgb * interior * 0.08 * (1.0 - fres) + vec3(0.9, 0.95, 1.0) * cr * 0.25;
+	EMISSION = env * fres * reflect_k * (1.0 + 0.6 * wet) + interior_color.rgb * interior * 0.08 * (1.0 - fres) + vec3(0.9, 0.95, 1.0) * cr * 0.12;
 }

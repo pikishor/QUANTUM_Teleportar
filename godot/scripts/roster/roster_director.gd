@@ -157,7 +157,7 @@ func try_spawn() -> bool:
 
 func spawn_encounter(eid: StringName, pos: Vector3, aggro := false) -> Array[AlienCreature]:
 	var out: Array[AlienCreature] = []
-	var e: Dictionary = RosterSpecies.ENCOUNTERS.get(eid, {})
+	var e: Dictionary = RosterSpecies.encounter(eid)
 	if e.is_empty():
 		return out
 	var room := maxi(1, cap() - live_count()) + (4 if aggro else 0)
