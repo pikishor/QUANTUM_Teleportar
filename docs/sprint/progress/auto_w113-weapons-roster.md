@@ -1,6 +1,6 @@
 # w113-weapons-roster (running)
 
-agent id a622230619a890544, 462 events, first activity 2026-11-13T23:33:01.984Z, last activity 2026-11-14T00:24:59.971Z
+agent id a622230619a890544, 467 events, first activity 2026-11-13T23:33:01.984Z, last activity 2026-11-14T00:25:25.772Z
 
 ## Last notes of the agent
 
@@ -8,8 +8,6 @@ agent id a622230619a890544, 462 events, first activity 2026-11-13T23:33:01.984Z,
 
 ## Recent steps (last 40)
 
-- 00:07:18 Add ammo types and per-family ammo lists; update the progress log
-- 00:07:28 Append the progress log update with an absolute path
 - 00:09:49 /home/user/QUANTUM_Teleportar/godot/scripts/player/weapon_models_v3.gd
 - 00:10:27 Hook the V3 models into WeaponModels and build every new mesh
 - 00:10:38 Import the new class and build every new mesh
@@ -48,6 +46,8 @@ agent id a622230619a890544, 462 events, first activity 2026-11-13T23:33:01.984Z,
 - 00:22:05 Support site caches in crate_pos and keep unknown caches hidden
 - 00:22:18 Exclude pack weapons from the tree model, add a suppressed sound set, update rows
 - 00:22:37 Update two assertions for the larger roster and rerun the weapon tests
+- 00:25:20 Read the bot runner and the menu screenshot bot
+- 00:25:25 Render the current loadout with every weapon unlocked at phone aspect
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
