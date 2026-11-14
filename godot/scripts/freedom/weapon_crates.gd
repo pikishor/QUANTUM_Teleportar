@@ -16,6 +16,9 @@ var _t := 0.0
 var _mm_crate: MultiMesh
 var _mm_beam: MultiMesh
 var _poll := 0.0
+var _pics: Array[Sprite3D] = []            ## the picture of the weapon a crate holds, floating over the nearest weapon crates (wave 114: WeaponPics; two at most, only within PIC_R, never on LOW's far crates)
+const PIC_R := 38.0
+const PIC_MAX := 2
 
 
 func _ready() -> void:
@@ -81,7 +84,9 @@ func open(i: int, p: Player) -> bool:
 	var w := content(i)
 	var msg := ""
 	if w != &"":
+		CrateReveal.next_source = "CRATE OPENED"
 		msg = p.weapon.grant(w)
+		CrateReveal.next_source = ""
 		p.weapon.switch_to(w)
 		weapons_given += 1
 		var pg := Game.progress as Progress
@@ -169,3 +174,43 @@ func _refresh() -> void:
 		slot += 1
 	_mm_crate.visible_instance_count = slot
 	_mm_beam.visible_instance_count = slot
+	_float_pictures(pp)
+
+
+## The weapon pictures over the nearest weapon crates: a billboard of the weapon's thumb a little above the crate (it shows what a crate holds before the hero opens it).
+func _float_pictures(pp: Vector3) -> void:
+	if _pics.is_empty():
+		for k in PIC_MAX:
+			var sp := Sprite3D.new()
+			sp.name = "CratePic%d" % k
+			sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			sp.pixel_size = 0.0062
+			sp.shaded = false
+			sp.double_sided = true
+			sp.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			sp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			sp.top_level = true
+			sp.visible = false
+			add_child(sp)
+			_pics.append(sp)
+	var found: Array[Dictionary] = []
+	for i in count():
+		var w := content(i)
+		if w == &"" or not is_ready(i) or not WeaponLadder.crate_known(i):
+			continue
+		var cp := WeaponLadder.crate_pos(i)
+		var d := Vector2(cp.x - pp.x, cp.z - pp.z).length()
+		if d <= PIC_R:
+			found.append({"d": d, "i": i, "w": w})
+	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["d"]) < float(b["d"]))
+	for k in PIC_MAX:
+		var sp := _pics[k]
+		if k >= found.size():
+			sp.visible = false
+			continue
+		var cp2 := WeaponLadder.crate_pos(int(found[k]["i"]))
+		var tex := WeaponPics.thumb(found[k]["w"])
+		sp.texture = tex
+		sp.visible = tex != null
+		sp.global_position = Vector3(cp2.x, cp2.y + 2.4 + 0.12 * sin(_t * 2.0 + float(k)), cp2.z)
+

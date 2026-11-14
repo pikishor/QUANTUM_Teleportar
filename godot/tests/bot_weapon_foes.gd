@@ -1,10 +1,12 @@
 extends RefCounted
 ## Look-dev bot of the weapon kit on ENEMIES (wave 114): the real game, the real camera, ONE armed roster enemy per picture a few metres ahead of the hero (so the weapon the enemy holds reads at phone size).
 ##   WF_IDS=merc_rifle,merc_shotgun,... WF_FRONT=6.5 WF_SIDE=0.0 BOT_RES=1600x720 ENGINE_ARGS="--fixed-fps 12" QUALITY=0|1 tools/bot.sh res://tests/bot_weapon_foes.gd /tmp/out/f 24 8
-## EVERY (frames per enemy) and COUNT (enemies) come from the bot.sh arguments; the hero is on the EASTFIELD runway (flat), invulnerable, the HUD stays on. Prints the weapon id each enemy carries.
+## WF_AGGRO=0|1 (default 1: the enemy shoots at the hero), WF_HUD=0 hides the HUD layer. EVERY (frames per enemy) and COUNT (enemies) come from the bot.sh arguments;
+## the hero is on the EASTFIELD runway (flat) and invulnerable. Prints the weapon id each enemy carries.
 var _ids: Array[String] = []
 var _i := 0
 var _f := 0
+var _hud: Node = null
 
 
 func _init() -> void:
@@ -30,6 +32,10 @@ func step(_t: float, _d: float) -> bool:
 		if city != null and city.day_night != null:
 			city.day_night.frozen = true
 			city.day_night.set_hour(12.0)
+		if OS.get_environment("WF_HUD") == "0":
+			_hud = Game.get_tree().root.find_child("Hud", true, false)
+			if _hud != null and "visible" in _hud:
+				_hud.set("visible", false)
 	if _f >= 3 and _i < _ids.size():
 		_apply(p, _ids[_i], (_f - 3) % wait)
 	_f += 1
@@ -67,7 +73,8 @@ func _apply(p: Player, id: String, k: int) -> void:
 	var side := Vector3(fwd.z, 0.0, -fwd.x)
 	var at := pos + fwd * front + side * side_m
 	at.y = TerrainHeight.height_at(at.x, at.z)
-	var made := w.spawn_group(StringName(id), at, 1, &"", 0.2, true)
+	var aggro := OS.get_environment("WF_AGGRO") != "0"
+	var made := w.spawn_group(StringName(id), at, 1, &"", 0.2, aggro)
 	for c in made:
 		var rf := c as RosterFoe
 		var wid := &""

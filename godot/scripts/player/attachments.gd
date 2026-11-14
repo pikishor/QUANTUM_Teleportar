@@ -84,6 +84,14 @@ static func slots_for_weapon(weapon: StringName) -> Array[StringName]:
 	return out
 
 
+## True when `weapon` can wear at least one part (a knife or a launcher cannot: it has no PARTS tab).
+static func fits_any(weapon: StringName) -> bool:
+	for slot in SLOTS:
+		if not parts_for_weapon(slot, weapon).is_empty():
+			return true
+	return false
+
+
 static func slot_label(slot: StringName) -> String:
 	return String(AttachmentPartsV3.SLOT_LABEL.get(slot, String(slot).to_upper()))
 
@@ -159,6 +167,24 @@ static func effective(id: StringName) -> Dictionary:
 		for k: String in adds:
 			out[k] = maxf(float(out.get(k, 0.0)), float(adds[k]))
 	Crafting.apply(out, id)                     # crafted variant and mod (scripts/progress/crafting.gd) on top of the parts
+	return out
+
+
+## The weapon definition as it WOULD be with `part` in its slot (&"" = the slot empty) and everything else as fitted now: the live preview of a part in the Arsenal (the stat bars and the
+## "+12%" lines read it before anyone pays or fits anything). The fitted parts are restored before it returns.
+static func effective_with(id: StringName, slot: StringName, part: StringName) -> Dictionary:
+	var keep: Variant = equipped.get(id, null)
+	var tmp: Dictionary = (keep as Dictionary).duplicate() if keep is Dictionary else {}
+	if part == &"":
+		tmp.erase(slot)
+	else:
+		tmp[slot] = part
+	equipped[id] = tmp
+	var out := effective(id)
+	if keep == null:
+		equipped.erase(id)
+	else:
+		equipped[id] = keep
 	return out
 
 

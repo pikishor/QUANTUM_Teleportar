@@ -44,11 +44,29 @@ func take_message(text: String, now: float) -> bool:
 	if classify(text) != PICKUP:
 		return false
 	var u := text.strip_edges().to_upper().replace("  (LOADOUT TO EQUIP)", "")
-	push(PICKUP, u, now)
+	push(PICKUP, u, now, weapon_of_line(u))
 	return u.begins_with("+") or u.begins_with("AMMO") or u.begins_with("HEALTH PACK")
 
 
-func push(kind: StringName, text: String, now: float) -> void:
+static var _by_title := {}                  ## upper-case weapon title -> id (built on the first pickup line)
+
+
+## The weapon a pickup line is about ("NEW WEAPON  PILLAR ASSAULT RIFLE", "+6 CARBINE"): its picture goes on the line (wave 114). &"" for every other pickup.
+static func weapon_of_line(u: String) -> StringName:
+	var nm := ""
+	if u.begins_with("NEW WEAPON  "):
+		nm = u.substr(12).strip_edges()
+	elif u.begins_with("+") and u.contains(" "):
+		nm = u.substr(u.find(" ") + 1).strip_edges()
+	if nm == "":
+		return &""
+	if _by_title.is_empty():
+		for id in WeaponDefs.all_ids():
+			_by_title[WeaponDefs.title(id).to_upper()] = id
+	return _by_title.get(nm, &"")
+
+
+func push(kind: StringName, text: String, now: float, icon: StringName = &"") -> void:
 	match kind:
 		KILL:
 			kills += 1
@@ -61,7 +79,7 @@ func push(kind: StringName, text: String, now: float) -> void:
 			l["n"] = int(l["n"]) + 1
 			l["t0"] = now
 			return
-	lines.append({"kind": kind, "text": text, "t0": now, "n": 1})
+	lines.append({"kind": kind, "text": text, "t0": now, "n": 1, "icon": icon})
 	while lines.size() > MAX_LINES:
 		lines.remove_at(0)
 
@@ -77,7 +95,7 @@ func visible_lines(now: float) -> Array[Dictionary]:
 		keep.append(l)
 		var a := clampf((LIFE - age) / FADE, 0.0, 1.0)
 		var label := String(l["text"]) + ("  x%d" % int(l["n"]) if int(l["n"]) > 1 else "")
-		out.append({"kind": l["kind"], "text": l["text"], "alpha": a, "n": l["n"], "label": label})
+		out.append({"kind": l["kind"], "text": l["text"], "alpha": a, "n": l["n"], "label": label, "icon": l.get("icon", &"")})
 	lines = keep
 	return out
 
@@ -129,7 +147,7 @@ func _track(nodes: Array[Node], seen: Dictionary, kind: StringName, origin: Vect
 			dead = dead or n3.get("wreck") == true
 		if dead:
 			if seen.has(id):
-				push(kind, ("DOWN  " if kind == KILL else "WRECKED  ") + String(seen[id]), now)
+				push(kind, ("DOWN  " if kind == KILL else "WRECKED  ") + String(seen[id]), now, _hero_weapon() if kind == KILL else &"")
 				seen.erase(id)
 			continue
 		if near and n3.visible:
@@ -141,6 +159,14 @@ func _track(nodes: Array[Node], seen: Dictionary, kind: StringName, origin: Vect
 			var o := instance_from_id(id)
 			if o == null or not is_instance_valid(o) or (o as Node3D).get("dead") != true:
 				seen.erase(id)
+
+
+## The weapon in the hero's hand (the picture of a kill line: the hero made most of the kills).
+static func _hero_weapon() -> StringName:
+	var p: Node = Game.player if is_instance_valid(Game.player) else null
+	if p != null and p.get("weapon") is PlayerWeapon:
+		return (p.get("weapon") as PlayerWeapon).current
+	return &""
 
 
 static func _vehicle_name(n: Node) -> String:
@@ -159,11 +185,15 @@ func draw(hud: Hud, c: Control, font: Font, right: float, y: float, s: float, no
 		var col: Color = KIND_COL.get(l["kind"], Color.WHITE)
 		var a: float = l["alpha"]
 		var label := String(l["label"])
-		var w := minf(font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 46.0 * s, 330.0 * s)
+		var icon: StringName = l.get("icon", &"")
+		var pic_w := 46.0 * s if icon != &"" and WeaponPics.has(icon) else 0.0                         # a kill line carries the picture of the weapon that did it
+		var w := minf(font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 46.0 * s + pic_w, 330.0 * s + pic_w)
 		var r := Rect2(right - w, y, w, lh - 4.0 * s)
 		hud._rect(c, r, Color(UiUtil.PLATE, 0.7 * a))
 		hud._rect(c, Rect2(r.position.x, r.position.y, 3.0 * s, r.size.y), Color(col, a))
 		hud._sprite(c, KIND_SPRITE.get(l["kind"], &"disc"), Rect2(r.position.x + 9.0 * s, r.position.y + r.size.y * 0.5 - 6.0 * s, 12.0 * s, 12.0 * s), Color(col, a))        # the kind is a small shape, not a word (a second "GOT" per frame would be a repeat)
-		hud._text(c, font, Vector2(r.position.x + 28.0 * s, r.position.y + r.size.y - 6.0 * s), label, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 32.0 * s, UiUtil.fit_size(font, label, r.size.x - 34.0 * s, size), Color(1, 1, 1, 0.97 * a), 0.0)
+		hud._text(c, font, Vector2(r.position.x + 28.0 * s, r.position.y + r.size.y - 6.0 * s), label, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 32.0 * s - pic_w, UiUtil.fit_size(font, label, r.size.x - 34.0 * s - pic_w, size), Color(1, 1, 1, 0.97 * a), 0.0)
+		if pic_w > 0.0:
+			hud._tex(c, WeaponPics.thumb(icon), Rect2(r.end.x - pic_w - 2.0 * s, r.position.y + 1.0 * s, pic_w, r.size.y - 2.0 * s), Color(1, 1, 1, a))
 		y += lh
 	return y

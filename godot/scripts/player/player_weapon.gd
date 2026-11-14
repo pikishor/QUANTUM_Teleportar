@@ -57,6 +57,7 @@ static var AMMO_PACK: Dictionary = AMMO_PACK0.merged(WeaponDefs.pack_dict("ammo_
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
 var inspect_t := 0.0                         ## seconds of the idle inspect left
+var _last_victim_kind: StringName = &"flesh"   ## what the last bullet hit (the hit marker sound: flesh, armor)
 var ammo_type := 0                           ## index into WeaponDefs.AMMO_TYPES (hitscan weapons only; not saved)
 var alt_fired := 0                           ## lifetime alt-fire counter, for tests
 var _alt_k := 1.0                            ## damage scale of the shot in flight (alt-fire heavy shot), 1 otherwise
@@ -246,13 +247,16 @@ func switch_to(id: StringName, instant := false) -> bool:
 	_burst_left = 0
 	_clear_gun_state()
 	swap_t = 0.0 if instant else SWAP_TIME
-	Sfx.play(&"reload", -9.0, 1.5)
+	WeaponAudio.equip_sound(id)
 	weapon_changed.emit(id)
 	return true
 
 
 ## The next (dir 1) or previous (dir -1) owned weapon. Returns true when the weapon changed.
 func cycle(dir: int) -> bool:
+	var slot_w := LoadoutSlots.next_after(current, dir)                    # wave 114: the quick swap walks the four loadout slots (PRIMARY, SIDEARM, SPECIAL, MELEE), not every owned weapon
+	if slot_w != &"" and slot_w != current:
+		return switch_to(slot_w)
 	var owned := WeaponDefs.owned_ordered()
 	if owned.size() < 2:
 		return false
@@ -279,6 +283,7 @@ func grant(id: StringName) -> String:
 	if WeaponDefs.unlock(id):
 		if not _store.has(id):
 			_store[id] = Vector2i(_mag_for(id), int(WeaponDefs.def(id)["reserve"]))
+		CrateReveal.request(id)                                       # a crate, a purchase or a reward named its source first; a pickup in a fight names none and gets no card
 		return "NEW WEAPON  %s" % WeaponDefs.title(id)
 	if int(WeaponDefs.def(id)["reserve"]) < 0:
 		return "%s  OWNED" % WeaponDefs.title(id)
@@ -363,7 +368,7 @@ func start_reload() -> bool:
 	reload_total = float(def["reload"]) * Upgrades.reload_mult()
 	reload_t = reload_total
 	charge = 0.0
-	Sfx.play(&"reload", 0.0, 1.0 if current != &"scatter" else 0.85)
+	WeaponAudio.reload_sound(current)
 	_reload_click = false
 	inspect_t = 0.0
 	return true
@@ -424,7 +429,7 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 		_:
 			if firing and can_fire:
 				if ammo <= 0:
-					Sfx.dry_fire()
+					WeaponAudio.dry_sound(current)
 					start_reload()
 				elif fire_t <= 0.0 and _gun_ready():
 					_burst_left = mech.burst_n() - 1
@@ -515,7 +520,7 @@ func _shoot(dt: float, aiming: bool) -> void:
 	_since_shot = 0.0
 	_burst += 1
 	var pellets := 1 if _alt_single else int(def["pellets"])
-	Sfx.play(Sfx.shot_sound(StringName(def.get("snd", &"shot")), Attachments.part_in(current, &"barrel") == &"suppressor"), float(def["vol"]), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
+	WeaponAudio.fire(current, def, Attachments.part_in(current, &"barrel") == &"suppressor")      # wave 114: the shot is layers (mechanism, body, tail) of the weapon's sound set
 	if def.has("heat_per"):
 		heat = minf(1.0, heat + float(def["heat_per"]))
 		if heat >= 1.0 and not overheated:
@@ -772,8 +777,9 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 				p.last_hit_kill = false
 				p.last_hit_crit = false
 				p.hit_confirmed.emit(false, false)
+				WeaponAudio.hit_marker(current, false, false, &"shield")                  # wave 114: a shield has its own hum
 				if _sparks != null:
-					_sparks.impact_machine(hit, n)
+					_sparks.impact_machine(hit, n, &"shield")
 				return
 		target.call(&"damage", amount, crit)
 		if target.has_method(&"stagger"):
@@ -788,6 +794,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 	else:
 		target.call(&"damage", DAMAGE_VEHICLE * float(def["damage"]) / DAMAGE * k)
 	var kill := (not is_vehicle) and _is_dead(target)
+	_last_victim_kind = &"armor" if (is_vehicle or target.get(&"drone") == true) else &"flesh"
 	_hit_sound(kill, crit)
 	p.last_hit_time = PlayerUtil.now()
 	p.last_hit_kill = kill
@@ -801,13 +808,13 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 	_damage_number(hit, float(def["damage"]) * k * Upgrades.damage_mult() if not crit else float(def["crit"]) * k * Upgrades.damage_mult(), crit, kill)
 	if _sparks != null:
 		if is_vehicle:
-			_sparks.impact_machine(hit, n)
+			_sparks.impact_machine(hit, n, &"armor")
 		elif human:
 			if Game.graphic_violence:
 				_sparks.impact_blood(hit, n)
 			_sparks.impact_person(hit, n)
 		else:
-			_sparks.impact_machine(hit, n)
+			_sparks.impact_machine(hit, n, &"armor" if _last_victim_kind == &"armor" else &"metal")
 
 
 ## SINGULARITY ON CRIT (crafted perk): a crit pulls every enemy near the hit toward it and burns them, at most once per cooldown.
@@ -901,13 +908,17 @@ func _hit_world(hit: Vector3, normal: Vector3) -> void:
 	var n := normal if normal != Vector3.ZERO else Vector3.UP
 	var is_prop := is_instance_valid(_last_collider) and (_last_collider as Node).has_meta(&"surface")
 	var surface := Breakables.surface_of(_last_collider) if is_prop else ImpactSparks.surface_at(hit, n)           # a prop knows its material; the street and the facades are told apart by where the hit is (wave 113: asphalt, glass and concrete holes differ)
+	if is_prop and surface == &"wood" and String((_last_collider as Node).name).begins_with("Trunk") and (_last_collider as Node3D).get_child_count() > 0:
+		var cs := (_last_collider as Node3D).get_child(0) as CollisionShape3D                                      # a tree: wood on the trunk, leaves in the upper crown (wave 114: impact by material)
+		if cs != null and cs.shape is CylinderShape3D and hit.y > (_last_collider as Node3D).global_position.y + 0.1 * (cs.shape as CylinderShape3D).height:
+			surface = &"foliage"
 	if is_instance_valid(_last_collider) and Breakables.current != null:
 		Breakables.current.hit_at(_last_collider, hit, n)
 	if is_instance_valid(_last_collider) and WorldBlasters.current != null:
 		WorldBlasters.current.hit_collider(_last_collider, hit, maxf(1.0, float(def["damage"]) / 14.0))          # a shot barrel, gas tank or fuel truck goes off (scripts/combat/world_blasters.gd)
 	if _sparks != null:
 		_sparks.impact_world(hit, n, surface if is_prop else &"")
-	if _decals != null:
+	if _decals != null and surface != &"dirt" and surface != &"water" and surface != &"foliage":                  # soft ground, leaves and a lake keep no hole
 		_decals.add(hit, n, randf_range(0.22, 0.3), surface)
 
 
@@ -932,7 +943,7 @@ func _tick_charge(dt: float, firing: bool, aiming: bool) -> void:
 		if c >= float(def["min_charge"]) and ammo > 0 and fire_t <= 0.0 and reload_t <= 0.0 and swap_t <= 0.0:
 			_fire_lance(c, aiming)
 	elif firing and ammo <= 0 and fire_t <= 0.0:
-		Sfx.dry_fire()
+		WeaponAudio.dry_sound(current)
 		start_reload()
 
 
@@ -1592,7 +1603,7 @@ func alt_fire(aiming := false) -> bool:
 	var a := WeaponDefs.alt_of(current)
 	var cost := int(a["cost"])
 	if ammo < cost:
-		Sfx.dry_fire()
+		WeaponAudio.dry_sound(current)
 		return false
 	inspect_t = 0.0
 	var kind := String(a["kind"])
@@ -1667,7 +1678,7 @@ func _whip_pull(range_m: float) -> bool:
 			best_d = off.length()
 			best = e
 	if best == null:
-		Sfx.dry_fire()
+		WeaponAudio.dry_sound(current)
 		return false
 	var en := best as Node3D
 	en.global_position = p.global_position + fwd * 2.4
@@ -1721,9 +1732,4 @@ func _tick_inspect(dt: float, busy: bool) -> void:
 
 ## Weapon-specific hit confirm: pitch / volume per class, a heavier layer on the slow weapons, a brighter tick on a kill.
 func _hit_sound(kill: bool, crit: bool) -> void:
-	var h := WeaponDefs.hit_snd(current)
-	Sfx.play(&"hit", float(h[1]) - 6.0, float(h[0]) * (1.25 if kill else (1.1 if crit else 1.0)))
-	if kill:
-		Sfx.play(&"hit_kill", -4.0, float(h[0]) * 0.9 + 0.15)                     # a kill has its own dull thock and glassy tick on top of the hit
-	if StringName(h[2]) != &"":
-		Sfx.play(StringName(h[2]), -9.0, float(h[0]) + 0.3)
+	WeaponAudio.hit_marker(current, kill, crit, _last_victim_kind, String(WeaponDefs.class_of(current)) == "blast")        # wave 114: tick, head, armour, shield, kill, kill head, kill blast

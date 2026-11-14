@@ -92,11 +92,21 @@ func _loadout_picture() -> void:
 		var cx := vp.x * 0.5
 		var k := LoadoutScreen.k_of(vp.x, s)
 		var pic := LoadoutScreen.picture_rect(cx, s, k)
-		var tiles := Rect2(cx + LoadoutScreen.GRID_X * s * k, LoadoutScreen.GRID_Y * s, (LoadoutScreen.GRID_COLS * LoadoutScreen.TILE.x + LoadoutScreen.TILE_GAP) * s * k, 4.0 * (LoadoutScreen.TILE.y + LoadoutScreen.TILE_GAP) * s)
-		var arrows := LoadoutScreen.arrow_rects(cx, s, k)
-		var slots := Rect2(cx + LoadoutScreen.SLOT_X * s * k, 0.0, 900.0 * s, vp.y)
+		# wave 114: the Arsenal. The picture plate of the card clears the list of tiles, the filter and class chips and the bottom bar (BACK, the four slots, the star, the action)
+		var blocks: Array[Rect2] = [Arsenal.rect(vp, s, Arsenal.LIST_X, Arsenal.LIST_Y, Arsenal.LIST_W, Arsenal.BOTTOM - Arsenal.LIST_Y)]
+		for i in Arsenal.FILTERS.size():
+			blocks.append(Arsenal.filter_rect(vp, s, i))
+		blocks.append_array(Arsenal.class_rects(vp, s))
+		blocks.append(Arsenal.back_rect(vp, s))
+		for i in LoadoutSlots.COUNT:
+			blocks.append(Arsenal.slot_rect(vp, s, i))
+		blocks.append(Arsenal.star_rect(vp, s))
+		blocks.append(Arsenal.action_rect(vp, s))
+		var clear := true
+		for b in blocks:
+			clear = clear and not pic.intersects(b)
 		TestLib.check(pic.size.x >= 480.0 * s and pic.size.y >= 240.0 * s, "%dx%d: the loadout picture (%s) is big (was 204 x 98 base px)" % [int(vp.x), int(vp.y), pic.size / s])
-		TestLib.check(not pic.intersects(tiles) and not pic.intersects(arrows[0]) and not pic.intersects(arrows[1]) and not pic.intersects(slots), "%dx%d: the loadout picture clears the tiles, the page arrows and the attachment slots" % [int(vp.x), int(vp.y)])
+		TestLib.check(clear and Rect2(Vector2.ZERO, vp).encloses(pic), "%dx%d: the loadout picture clears the tiles, the chips, the slots and the action bar" % [int(vp.x), int(vp.y)])
 
 
 # --- 11 ------------------------------------------------------------------------------------------------------------------------

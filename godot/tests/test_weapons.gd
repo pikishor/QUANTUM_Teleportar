@@ -313,21 +313,22 @@ func _switching() -> void:
 	Input.action_press(&"swap")
 	await e.frames(3)
 	Input.action_release(&"swap")
-	var ord := WeaponDefs.owned_ordered()
-	var at := ord.find(&"scatter")
-	TestLib.check(w.current == ord[(at + 1) % ord.size()], "SWAP cycles to the next owned weapon (%s)" % w.current)
+	# wave 114: SWAP, the wheel keys and cycle() walk the four LOADOUT SLOTS (scripts/player/loadout_slots.gd), not every owned weapon: the default slots are carbine, pistol, scatter, blade
+	var at := LoadoutSlots.slot_of(&"scatter")
+	var ord := LoadoutSlots.filled()
+	TestLib.check(at >= 0 and w.current == LoadoutSlots.get_slot(ord[(ord.find(at) + 1) % ord.size()]), "SWAP cycles to the next loadout slot (%s)" % w.current)
 	var after := w.current
 	Input.action_press(&"weapon_next")
 	await e.frames(3)
 	Input.action_release(&"weapon_next")
-	TestLib.check(w.current == ord[(at + 2) % ord.size()], "the wheel goes on (%s)" % w.current)
+	TestLib.check(w.current == LoadoutSlots.get_slot(ord[(ord.find(at) + 2) % ord.size()]), "the wheel goes on (%s)" % w.current)
 	Input.action_press(&"weapon_prev")
 	await e.frames(3)
 	Input.action_release(&"weapon_prev")
 	TestLib.check(w.current == after, "wheel back")
-	for _k in WeaponDefs.unlocked.size():
+	for _k in ord.size():
 		w.cycle(1)
-	TestLib.check(w.current == after, "cycling wraps round the owned weapons")
+	TestLib.check(w.current == after, "cycling wraps round the loadout slots")
 	w.switch_to(&"scatter", true)
 	# the swap animation locks the trigger
 	w.switch_to(&"carbine")

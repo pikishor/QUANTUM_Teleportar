@@ -1,33 +1,40 @@
 # w114-weapons-art (builder: weapon ART and ANIMATION; Blender weapon kit, WeaponModels entry point, class handling and FX)
 
-GOAL: a distinct, detailed model for EVERY weapon (229 ids of WeaponDefs.all_ids()), built by a parametric Blender kit (godot/tools/blender/weapon_kit.py),
-exported as glTF to godot/assets/models/weapons/, loaded through WeaponModels.path(id) / WeaponModels.build(id, lod) / WeaponModels.mesh(id[, lod]);
-enemies carry the same models (FoeArms), per-class handling (grips/IK, part motion, reload), FX by class, tests + renders + size/memory report.
-
-STATUS (2026-11-14 ~14:50 UTC): the earlier agent left nothing. Kit built, all 229 ids have a glb (LOD0 avg 1.8k tris, LOD1 avg 0.6k), imported, hero holds them, enemies carry them (LOD1).
+STATUS: DONE (2026-11-14 15:52 UTC). Everything is in the working tree, nothing is committed (the integrator commits). Details: godot/ARCHITECTURE.md "Weapon kit", docs/HANDOFF.md "Wave 114".
+GOAL: a distinct, detailed model for EVERY weapon (229 ids of WeaponDefs.all_ids()) from a parametric Blender kit, one PBR material, hero + enemies carry the same models, class handling, tests, renders, size report.
 
 DONE (files)
-- godot/tools/blender/: weaponlib.py (numpy geometry core: sections/loft/lathe/extrude/sweep, weighted-normal style, weld, vertex AO via bpy BVH, GLB writer with quantized normals),
-  weapon_mats.py (32 swatches 128px: albedo/ORM/normal packed 4x8 into 3 png, texture arrays), wparts.py (palettes/factions, muzzle devices, optics, stocks, grips, magazines, rails),
-  wguns.py (long guns, pistols, revolvers), wexotic.py (energy, launchers, rotary, flamer, bows), wmelee.py (melee + grenades/mines/strike devices), weapon_specs.py (ONE row per id),
-  weapon_index.json (id/name/class/look from the game), weapon_preview.py (numpy sheets), weapon_kit.py (CLI: --ids --class --atlas --sheet --report --jobs).
-- assets/shaders/weapon_pbr.gdshader (texture arrays + object-space projection, per-part vertex animation uniforms, edge wear from derivatives, dbg uniform for debug views);
-  assets/models/weapons/<id>.glb(+.import) x229, weapon_atlas_{alb,orm,nrm}.png(+.import 2d_array_texture), weapons_meta.json.
-- scripts/player/weapon_models.gd: path/build/point/kit_meta/has_model/material_for/hand_material/pbr_material/look_scale, mesh(id, lod), muzzle_shift(id, sc)/grip_offsets(id, sc);
-  SPEC merged with the kit's grips (reach = right hand + hold, butt at the shoulder for stocks).
-- hooks: player_body.gd (own PBR copy, glow, kit look scale 1.2/1.2/1.08, scaled grips), foe_arms.gd (LOD1 mesh + enemy scale), weapon_preview.gd + tools/icons/icon_maker.gd (material_for).
-- tests/weapon_lineup.gd(.tscn) + tools/weapon_lineup.sh (Godot lineup: batch=N per=40 cols=8 view=side|q34|top lod=0|1 ids=a,b dbg=1..5).
+- godot/tools/blender/: weaponlib.py (numpy geometry core, weighted-normal style, vertex AO, GLB writer), weapon_mats.py (32 swatches 128 px, albedo/ORM/normal in 3 png), wparts.py (factions, palettes, parts),
+  wguns.py, wexotic.py (energy, launchers, rotary, flamer, bows), wmelee.py (melee, grenades, mines, strikes), weapon_specs.py (ONE row per id), weapon_kit.py (CLI), weapon_preview.py, weapon_index.json.
+  Rebuild: .venv-tools/bin/python tools/blender/weapon_kit.py --jobs 3 (about 35 s), then tools/import.sh.
+- assets/shaders/weapon_pbr.gdshader (texture arrays, object-space projection, edge wear from derivatives, part animation uniforms, dbg views); assets/models/weapons/ (229 glb + .import, 3 atlas png, weapons_meta.json).
+- scripts/player/weapon_models.gd (path/build/mesh(id, lod)/material_for/hand_material/grip_offsets/muzzle_shift/stub_mesh), weapon_handling.gd (NEW: slide, bolt, pump, hammer, cylinder, rotor, coil pulse, magazine out/in keyed to the real reload).
+- hooks (small): player_body.gd (own material copy, kit look scale 1.3/1.3/1.1, scaled grips, laser beam), player_weapon.gd (shell from the Eject marker, size by calibre), fx/casings.gd (size_k),
+  roster/foe_arms.gd (LOD1 mesh + enemy scale), ui/weapon_preview.gd + tools/icons/icon_maker.gd (ONE line each: material_for; weapons-ui builder's area).
+- tests: tests/test_weapon_models_v3.gd (NEW, 3850 checks, 30 s, real scene), tests/weapon_lineup.gd/.tscn + tools/weapon_lineup.sh, tests/bot_weapon_art.gd (hero), tests/bot_weapon_foes.gd (enemies).
+- honest test updates: test_weapons_available_display (size bound 0.06 m, grips measured on the drawn scale), test_combat_feel (same bounds), test_open_models (uses WeaponModels.stub_mesh).
+- sheets (10 jpg, q80): docs/shots/round6/weapon_kit_{lineup_0..5,before_after,in_hand,enemies,enemies_game}.jpg.
 
-NEXT
-1. model quality passes (energy/quantum guns detached emitters and slab bodies, melee proportions (axes, scythe, chain whip, gauntlet), bow riser, pistol brick look, katana blade material)
-2. handling: part motion in the hero's hand (slide recoil, pump, rotor spin, hammer, mag drop on reload), class FX (shell eject, muzzle flash shapes, laser, scope reticle), see ARCHITECTURE
-3. tests/test_weapon_models_v3.gd, 6 lineup batches + 12 in-hand + 8 enemy frames (docs/shots/round6/), size/memory report, perf gate twice, ARCHITECTURE.md + HANDOFF.md
+NUMBERS
+- triangles: LOD0 min 256 / avg 1872 / max 4344 (budget 4500), LOD1 min 60 / avg 636 / max 2018; 0.90 vertices per triangle (28 B per vertex).
+- size: glb 18.97 MB raw (avg 84.8 KB, 5.5 MB gzip), atlas png 2.13 MB, meta 86 KB, .import 238 KB, shader 6.6 KB -> repo weight about 21.4 MB raw / 7.6 MB compressed (limit 30 MB, 20 planned).
+- APK effect: imported weapon scenes 5.73 MB + ETC2 texture arrays 1.05 MB (the S3TC copies are desktop only) = about 6.8 MB before deflate (about 6.6 MB after), no new audio, no other assets.
+- texture memory: the 3 arrays (32 layers each, 128 px, ETC2 with mips) are about 1.05 MB of VRAM in total; perf tex_mb LOW 110 / MED 141 / HIGH 206 (limits 200 / 260 / 360), the kit adds +1 MB.
+- perf gate (run twice; the second run is the final): LOW OK (draws 72, total 88, 134k tris, tex 110, death spike 101), MED OK (96 / 122, 270k, 141, 143), HIGH OK (112 / 142, 376k, 206, 164).
+  The first run (middle of the wave) had MED 151 > 150 and HIGH 172 > 170 on the 4-enemy death spike; an A/B with QT_WEAPON_KIT=0 gave the same 151, so that was other builders' changes, gone in the second run.
+  The kit itself: +0 draws (one material, one draw per weapon), about +620 triangles in the street scene.
+
+TESTS PASS after the last change: test_weapon_models_v3 (3850), test_weapons_available_display (2212), test_combat_feel (68), test_open_models (670), test_enemy_look_v3 (95), test_ui_kit_screens (190),
+test_hero_look2 (24), test_hero_polish (18).
 
 DECISIONS OTHER AGENTS DEPEND ON
-- WeaponModels.build(id, lod) -> Node3D "Weapon_<id>" with MeshInstance3D "Body" + Marker3D Muzzle GripR GripL Eject Aim Mag (Optic Laser for kit models); mesh frame: origin = FRONT tip of the weapon, barrel to -Z, +Y up.
-- WeaponModels.material_for(id): kit models use the shared PBR ShaderMaterial (texture arrays); use it instead of WeaponModels.material() for anything that shows a weapon mesh.
-- WeaponModels.mesh(id, 1) = LOD1 (vertex colour rgb = base albedo, a = glow) for enemies/pickups.
-- weapons_meta.json per id: gr gl reach eject aim mag optic laser parts tris0 tris1 aabb rotor hinge.
+- WeaponModels.build(id, lod) -> Node3D "Weapon_<id>" with MeshInstance3D "Body" + Marker3D Muzzle GripR GripL Eject Aim Mag (Optic, Laser when present); origin = FRONT tip, barrel to -Z, +Y up.
+- Anything that shows a weapon mesh uses WeaponModels.material_for(id) (shared PBR ShaderMaterial); enemies use LOD1 through FoeArms.pieces; QT_WEAPON_KIT=0 forces the old stubs (A/B and fallback).
+- To change a weapon: edit its row in weapon_specs.py, run the kit with --ids, run tools/import.sh. Wear and colour come from the faction palette (wparts.py).
 
-TESTS AND PERF: weapon_view/foe_view/weapon_lineup renders OK; test_weapons_available_display passes on stubs; perf gate not run yet.
-OPEN PROBLEMS: see NEXT 1. weapons-ui builder: I edited ONE line each in weapon_preview.gd and icon_maker.gd (material_for).
+OPEN PROBLEMS (honest)
+- LOD0 averages 1.9k triangles, not 3-4k: the 30 MB weight limit and the 128 px swatches were the trade. Detail is in the parts, not in the triangle count.
+- The over-the-shoulder camera sees the hero's weapon mostly end-on from behind (stock and receiver): the models are good from the side (lineups) but not in the real frame; needs a camera or hero scope item.
+- Weakest looks: ceramic / quantum energy shells (pale), magnum chrome, s_gale, bows are thin from the side; wood reads orange-tan in bright light; 21 same-family silhouette pairs have IoU > 0.9 (different details, near the same outline).
+- Not done: scope reticle and lens look, a falling magazine (the magazine collapses into the receiver on reload), heat shimmer, class-specific muzzle flash shapes (the existing QuantumVfx flashes are used), a one-hand pistol grip mode of the rig.
+- Enemy weapons read small at 5 to 13 m in the real camera (see weapon_kit_enemies_game.jpg); the close views are in weapon_kit_enemies.jpg (look-dev viewer).

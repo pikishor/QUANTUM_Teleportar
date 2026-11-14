@@ -303,63 +303,71 @@ func run(hst: Node) -> void:
 		TestLib.check(WeaponDefs.is_unlocked(id) and prog.credits == before - price, "%s bought for its Economy price %d" % [id, price])
 	hud.press_button(&"shop_back")
 
-	# --- the paged weapon wheel ---------------------------------------------------------------------------------------------------------------
+	# --- the weapon list of the wheel (wave 114: a scrolling grid of three columns, not pages of eight; only the rows in view exist as tiles) ----------------------------------------------
 	TestMode.give_all_weapons()
 	Game.state = &"play"
 	await TestLib.frames(host, 3)
 	hud.open_wheel()
 	TestLib.check(Game.state == &"paused" and hud.loadout_open(), "the wheel opens (pause through Game.state)")
 	hud._ensure_layout()
-	var pages := LoadoutScreen.page_count()
-	var want_pages := 0                                                    # every tab (a class, FAVOURITES, RECENT) is cut into pages of WeaponBrowser.PAGE weapons
-	for t: Dictionary in WeaponBrowser.tabs(true):
-		want_pages += WeaponBrowser.pages_for((t["ids"] as Array).size())
-	TestLib.check(pages == want_pages and LoadoutScreen.tab_count() >= WeaponDefs.CLASS_ORDER.size(), "the loadout has one tab per weapon class, cut into pages (%d pages, %d tabs)" % [pages, LoadoutScreen.tab_count()])
+	var listed := Arsenal.list(&"loadout")
+	TestLib.check(listed.size() >= WeaponDefs.IDS.size(), "the list holds every owned weapon (%d of %d)" % [listed.size(), WeaponDefs.IDS.size()])
+	var rows_view := int(floor((Arsenal.BOTTOM - Arsenal.LIST_Y + Arsenal.TILE_GAP) / Arsenal.ROW))
+	var cap := (rows_view + 1) * Arsenal.COLS                                    # the rows in view and one half row more
 	var reached := {}
-	for pg in pages:
+	Arsenal.st(&"loadout")["scroll"] = 0.0
+	var views := 0
+	var step := Arsenal.ROW * float(maxi(rows_view - 1, 1))
+	while views < 200:
+		hud._layout_key = ""
 		hud._ensure_layout()
-		var n_on_page := 0
+		var n_on_view := 0
+		var rects: Array[Rect2] = []
+		var sc := UiUtil.ui_scale(host.get_viewport().get_visible_rect().size)
 		for b: Dictionary in hud.buttons:
 			var sid := String(b["id"])
 			var r: Rect2 = b["rect"]
-			var sc := UiUtil.ui_scale(host.get_viewport().get_visible_rect().size)
-			if sid.begins_with("wheel_") or sid.begins_with("wheelpg_"):
-				TestLib.check(r.size.y >= 64.0 * sc - 0.5 and r.size.x >= 64.0 * sc - 0.5, "wheel button %s is at least 64 px (%.0f x %.0f)" % [sid, r.size.x, r.size.y])
 			if sid.begins_with("wheel_"):
+				TestLib.check(r.size.y >= 64.0 * sc - 0.5 and r.size.x >= 64.0 * sc - 0.5, "wheel button %s is at least 64 px (%.0f x %.0f)" % [sid, r.size.x, r.size.y])
 				reached[StringName(sid.substr(6))] = true
-				n_on_page += 1
-		TestLib.check(n_on_page <= WeaponDefs.PAGE_SIZE and n_on_page > 0, "page %d shows 1..%d weapons (%d)" % [pg, WeaponDefs.PAGE_SIZE, n_on_page])
-		# no two wheel buttons overlap
-		var rects: Array[Rect2] = []
-		for b: Dictionary in hud.buttons:
-			if String(b["id"]).begins_with("wheel"):
-				rects.append(b["rect"])
+				n_on_view += 1
+				rects.append(r)
+		TestLib.check(n_on_view >= 1 and n_on_view <= cap, "view %d shows 1..%d tiles (%d)" % [views, cap, n_on_view])
 		for i in rects.size():
 			for j in range(i + 1, rects.size()):
-				TestLib.check(not rects[i].grow(-1.0).intersects(rects[j].grow(-1.0)), "wheel buttons do not overlap on page %d" % pg)
-		TestLib.check(hud.press_button(&"wheelpg_next"), "the wheel flips to the next page")
+				TestLib.check(not rects[i].grow(-1.0).intersects(rects[j].grow(-1.0)), "wheel tiles do not overlap in view %d" % views)
+		views += 1
+		if float(Arsenal.st(&"loadout")["scroll"]) >= Arsenal.max_scroll(&"loadout") - 0.5:
+			break
+		Arsenal.scroll_by(&"loadout", step)
+	TestLib.check(views >= 3 and views < 200, "scrolling the list from top to bottom takes %d views" % views)
 	for id: StringName in WeaponDefs.IDS:
 		TestLib.check(reached.has(id), "%s is reachable on the wheel" % id)
-	# pick a weapon from the far page: it swaps and resumes the game
-	LoadoutScreen.page = pages - 1
-	hud._layout_key = ""
-	hud._ensure_layout()
-	var pick: StringName = LoadoutScreen.page_items(WeaponDefs.last_used)[0] if false else &"blade"
-	LoadoutScreen.goto(pick)
+	# pick a weapon from the far end: it swaps and resumes (the wheel gesture is the quick mode: one tap takes the weapon)
+	var pick: StringName = &"blade"
+	Arsenal.select(hud, &"loadout", pick)
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var ids: Array[String] = []
 	for b: Dictionary in hud.buttons:
 		ids.append(String(b["id"]))
-	TestLib.check(ids.has("wheel_blade"), "the blade button is on its page")
+	TestLib.check(ids.has("wheel_blade"), "the blade button is in view once it is selected")
 	TestLib.check(hud.press_button(&"wheel_blade") and w.current == &"blade" and Game.state == &"play", "picking from the wheel swaps and resumes")
-	# the keyboard / SWAP cycle visits all of them
+	# the keyboard / SWAP cycle (wave 114: it walks the four loadout slots; a walk through all 229 weapons is no quick swap, the wheel and the list above reach every one)
+	w.cycle(1)
+	w.swap_t = 0.0
 	var visited := {}
-	for _i in WeaponDefs.IDS.size() + 1:
+	var nf := LoadoutSlots.filled().size()
+	for _i in nf + 1:
 		visited[w.current] = true
 		w.cycle(1)
 		w.swap_t = 0.0
-	TestLib.check(visited.size() == WeaponDefs.IDS.size(), "cycling visits all %d weapons (%d)" % [WeaponDefs.IDS.size(), visited.size()])
+	TestLib.check(nf >= 3 and visited.size() == nf, "cycling visits the %d weapons of the loadout slots (%d)" % [nf, visited.size()])
+	var strays: Array[String] = []
+	for id: StringName in visited:
+		if not LoadoutSlots.slots.has(id):
+			strays.append(String(id))
+	TestLib.check(strays.is_empty(), "and nothing else (%s)" % str(strays))
 
 	# --- TEST and DEMO menu entries --------------------------------------------------------------------------------------------------------------------
 	var labels: Array[String] = []

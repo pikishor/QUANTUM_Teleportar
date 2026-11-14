@@ -284,20 +284,23 @@ func _mod_pickup(m: Missions) -> void:
 		return
 	m._collect_pickup(slot, m.pickups.find(slot), player)
 	TestLib.check(Attachments.is_owned(&"scope") and MissionRewards.is_new(&"scope"), "collecting it owns the mod and flags it NEW")
-	# the loadout shows NEW EQUIP and one tap equips; the flag clears
+	# the loadout flags the new mod NEW; a tap shows what it changes, FIT equips it and the flag clears (wave 114: the Arsenal's PARTS tab)
 	Game.state = &"play"
 	Game.state = &"paused"
 	hud._on_state(&"paused")
 	hud.screen_age = 5.0
 	TestLib.check(hud.press_button(&"loadout"), "the loadout opens from the pause screen")
+	hud.press_button(&"ars_tab_parts")
+	hud.press_button(&"ars_slottab_optic")
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var label := ""
 	for b: Dictionary in hud.buttons:
-		if b["id"] == &"part_scope":
-			label = String(b["label"])
-	TestLib.check(label == "NEW  EQUIP", "the loadout button of a new mod says NEW EQUIP (%s)" % label)
-	TestLib.check(hud.press_button(&"part_scope") and Attachments.part_in(hud._loadout_w, &"optic") == &"scope" and not MissionRewards.is_new(&"scope"), "one tap equips it and clears NEW")
+		if b["id"] == &"ars_part_scope":
+			label = String(b.get("status", ""))
+	TestLib.check(label == "NEW", "the part card of a new mod says NEW (%s)" % label)
+	TestLib.check(hud.press_button(&"ars_part_scope") and Attachments.part_in(hud._loadout_w, &"optic") != &"scope" and MissionRewards.is_new(&"scope"), "a tap on the card only previews it (it is not fitted, still NEW)")
+	TestLib.check(hud.press_button(&"ars_apply") and Attachments.part_in(hud._loadout_w, &"optic") == &"scope" and not MissionRewards.is_new(&"scope"), "FIT equips it and clears NEW")
 	Game.state = &"play"
 	hud._on_state(&"play")
 

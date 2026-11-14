@@ -168,36 +168,8 @@ static func row_rects(cx: float, s: float, k: float) -> Array[Rect2]:
 
 
 static func layout(hud: Hud, cx: float, s: float) -> void:
-	ensure_sel()
-	var prog := Game.progress as Progress
-	var k := _k(hud, s)
-	var page := clampi(ShopScreen.weapon_page - 1, 0, PAGES - 1)
-	var items := page_items(page)
-	for i in items.size():
-		var it: Dictionary = items[i]
-		var id: StringName = it["id"]
-		var r := cell_rect(hud, cx, s, i)
-		hud.buttons.append({"id": StringName("wsel_%s" % id), "rect": r, "label": "", "on": id == sel, "flat": true,
-				"pic": {"p": "g" if bool(it["gear"]) else "w", "id": id, "r": Rect2(r.position + Vector2(6.0, 4.0) * s, Vector2(r.size.x - 12.0 * s, 50.0 * s)), "a": 1.0 if (WeaponDefs.is_unlocked(id) or Gear.is_owned(id)) else 0.72},
-				"name": _name_of(id), "status": tile_status(id)})
-	var rr := row_rects(cx, s, k)
-	hud._add(&"wcls_prev", rr[0], "<", false)
-	hud._add(&"wcls_next", rr[1], ">", false)
-	hud._add(&"wpg_prev", rr[2], "<", false)
-	hud._add(&"wpg_next", rr[3], ">", false)
-	hud._add(&"shop_back", Rect2(cx + GRID_X * s * k, 640.0 * s, 220.0 * s, 64.0 * s), "BACK", false)
-	# the action button of the card
-	var ar := Rect2(cx + (PANEL_X + PANEL_W - 300.0) * s * k, 572.0 * s, 300.0 * s * k, 64.0 * s)
-	if Gear.is_charge(sel):
-		hud._add(StringName("wgear_%s" % sel), ar, "ALWAYS CARRIED", true)
-	elif is_gear(sel):
-		var gl := "IN USE" if (Gear.throwable == sel or Gear.gadget == sel) else ("EQUIP" if Gear.is_owned(sel) else "BUY  %d" % (prog.gear_price(sel) if prog != null else Economy.gear_price(sel)))
-		hud._add(StringName("wgear_%s" % sel), ar, gl, Gear.throwable == sel or Gear.gadget == sel)
-	elif WeaponDefs.is_unlocked(sel):
-		hud._add(StringName("wequip_%s" % sel), ar, "IN HAND" if sel == WeaponDefs.last_used else "EQUIP", sel == WeaponDefs.last_used)
-	else:
-		var price := prog.weapon_price(sel) if prog != null else WeaponDefs.price(sel)
-		hud._add(StringName("buy_%s" % sel), ar, "BUY  %d" % price, prog != null and prog.can_buy_weapon(sel))
+	Arsenal.layout(hud, cx, s, &"catalogue")                          # wave 114: the Arsenal draws this screen (scripts/ui/arsenal.gd); the paged catalogue below is the old layout
+	return
 
 
 ## The name that fits `w` px at the smallest menu size: the whole name, else it loses its last words until it does ("PILLAR ASSAULT RIFLE" -> "PILLAR ASSAULT" -> "PILLAR"): the first word is the one that names the weapon.
@@ -217,33 +189,8 @@ static func _name_of(id: StringName) -> String:
 
 ## Draw the tiles' names and statuses, then the card of the selection. (The pictures of the tiles are drawn by Hud with the buttons, over their plates.)
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float) -> void:
-	ensure_sel()
-	var prog := Game.progress as Progress
-	var k := _k(hud, s)
-	var page := clampi(ShopScreen.weapon_page - 1, 0, PAGES - 1)
-	if prog != null:
-		hud._text(c, font, Vector2(cx + (GRID_X + 4.0) * s * k, 106.0 * s), "CREDITS  %d" % prog.credits, HORIZONTAL_ALIGNMENT_LEFT, 300.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
-	var cnt := tab_counts(page)
-	var top := "%s  %d / %d" % ["OWNED" if not bool(page_list()[page]["gear"]) else "HAVE", cnt.x, cnt.y]
-	hud._text(c, font, Vector2(cx + (GRID_X + COLS * CELL.x + (COLS - 1) * GAP - 330.0) * s * k, 106.0 * s), top, HORIZONTAL_ALIGNMENT_RIGHT, 330.0 * s * k, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
-	var items := page_items(page)
-	for i in items.size():
-		var r := cell_rect(hud, cx, s, i)
-		var id: StringName = items[i]["id"]
-		var tw := r.size.x - 12.0 * s
-		var nm := _fit_name(font, _name_of(id), tw - 8.0 * s, int(14.0 * s))             # words are dropped only when the name does not fit even at the smallest size
-		var own := WeaponDefs.is_unlocked(id) or Gear.is_owned(id)
-		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 71.0 * s), nm, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, nm, tw, int(19.0 * s)), Color(1, 1, 1, 0.97 if id == sel else 0.85))
-		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 91.0 * s), tile_status(id), HORIZONTAL_ALIGNMENT_LEFT, tw, int(16.0 * s), Color(UiUtil.GREEN if own else UiUtil.AMBER, 0.95))
-	var rr := row_rects(cx, s, k)
-	var pgd: Dictionary = page_list()[page]
-	var tint := UiKit.class_tint(StringName(pgd["tab"])) if not bool(pgd["gear"]) else UiUtil.CYAN
-	var mid_w := rr[1].position.x - rr[0].end.x - 16.0 * s
-	var cls_cap := "%s  %d" % [pgd["name"], cnt.y]
-	hud._text(c, font, Vector2(rr[0].end.x + 8.0 * s, rr[0].position.y + 40.0 * s), cls_cap, HORIZONTAL_ALIGNMENT_CENTER, mid_w, UiUtil.fit_size(font, cls_cap, mid_w, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.AMBER, 0.97), 1.0 * s)
-	var pg_cap := "PAGE %d / %d" % [int(pgd["sub"]) + 1, int(pgd["subs"])]
-	hud._text(c, font, Vector2(rr[2].end.x + 8.0 * s, rr[2].position.y + 40.0 * s), pg_cap, HORIZONTAL_ALIGNMENT_CENTER, mid_w, int(UiUtil.BAR_LABEL * s), Color(tint.lerp(Color.WHITE, 0.3), 0.97), 1.0 * s)
-	_draw_card(hud, c, s, font, cx, k)
+	Arsenal.draw(hud, c, vp, s, font, cx, &"catalogue")
+	return
 
 
 static func _draw_card(hud: Hud, c: Control, s: float, font: Font, cx: float, k: float) -> void:
@@ -500,6 +447,7 @@ static func press(sid: String) -> bool:
 		if is_instance_valid(pl) and pl.get(&"weapon") is PlayerWeapon:
 			(pl.get(&"weapon") as PlayerWeapon).switch_to(wid)
 		WeaponDefs.last_used = wid
+		Arsenal.note_equipped(wid)                                                      # wave 114: the active loadout slot takes it
 		Sfx.play(&"ui_confirm")
 		return true
 	if sid.begins_with("wgear_"):
