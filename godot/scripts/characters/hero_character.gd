@@ -34,6 +34,7 @@ const EXPOSED_GLOVED := ["head", "neck"]                  ## the hero (gear on) 
 const FOOT_CUT_Y := 0.19                                  ## kit space: the base mesh below this height is hidden inside the boots and the shaft ring of the suit kit and is cut away (about 1.4k triangles)
 const HAND_TARGET := 0.5                                  ## the gloves keep this share of their triangles (hands are 27 % of the base body)
 const HAND_PREFIX := ["hand", "index", "middle", "ring", "pinky", "thumb"]
+const FINGER_PREFIX := ["index", "middle", "ring", "pinky", "thumb"]
 ## The carbine (model space, relative to the rifle pivot at the butt; the muzzle looks down -Z) and where the hands and the empties of the old model contract sit relative to it.
 const RIFLE_PIVOT := Vector3(0.085, 1.38, 0.02)
 const MUZZLE_AT := Vector3(0.0, 0.01, -0.86)
@@ -166,7 +167,9 @@ static func build(opts: Dictionary) -> Dictionary:
 	var comps: Array = []
 	var exposed := PackedByteArray()
 	exposed.resize(sk.get_bone_count())
-	var gloved := bool(opts.get("gear", false))
+	var foe_look := StringName(str(opts.get("foe_look", "")))               # an enemy look of FoeKit (scripts/roster/foe_kit.gd): armour kit and weapon of the roster enemies instead of the hero suit
+	var is_foe := foe_look != &""
+	var gloved := bool(opts.get("gear", false)) or is_foe
 	for i in sk.get_bone_count():
 		var ln := sk.get_bone_name(i).to_lower()
 		for pre: String in (EXPOSED_GLOVED if gloved else EXPOSED):
@@ -177,6 +180,8 @@ static func build(opts: Dictionary) -> Dictionary:
 		if mesh_i == null or mesh_i.mesh == null:
 			continue
 		var low := String(mesh_i.name).to_lower()
+		if is_foe and (low.begins_with("eyes") or low.begins_with("eyebrows")):
+			continue                                                     # the visors, goggles and masks of the kit cover the face: no eyes (and no textured eye surface in the enemy shader)
 		var c := _piece(mesh_i, name_to_idx)
 		if low.begins_with("eyes"):
 			c["mode"] = MODE_EYE
@@ -240,8 +245,8 @@ static func build(opts: Dictionary) -> Dictionary:
 	sk.add_bone("Rifle")
 	parents.append(torso)
 	model_pos.append(RIFLE_PIVOT)
-	if bool(opts.get("gear", false)):                         # the cloak chain of the suit set (Sec1-3, the names CharacterRig sways): three bones hanging from the parent bone
-		var ch := HeroSuit.chain(o["suit"])
+	if bool(opts.get("gear", false)) or is_foe:               # the cloak chain of the suit set (Sec1-3, the names CharacterRig sways): three bones hanging from the parent bone
+		var ch := FoeKit.chain(foe_look) if is_foe else HeroSuit.chain(o["suit"])
 		if not ch.is_empty():
 			var prev := int(name_to_idx.get(String(ch["parent"]), torso))
 			var cpos: PackedVector3Array = ch["pos"]
@@ -259,17 +264,27 @@ static func build(opts: Dictionary) -> Dictionary:
 
 	# ---- the shouldered carbine pose is baked into the REST pose (the rig's IK expects a rest pose that already holds the rifle): arms solved onto the grips, fingers curled,
 	# the mesh skinned once on the CPU, and the bones re-framed at their posed positions (identity frames again), so rig.apply() with neutral inputs changes nothing
-	if gloved and HeroSuit.available():                        # the suit kit hides the feet and the ankles (boots) and the gloves need fewer triangles than bare hands
+	if (gloved and HeroSuit.available() and not is_foe) or (is_foe and FoeKit.available()):    # the suit kit hides the feet and the ankles (boots) and the gloves need fewer triangles than bare hands
 		for c: Dictionary in comps:
 			if int(c["mode"]) == MODE_SKIN:
 				_cut_below(c, FOOT_CUT_Y)
+				if is_foe:
+					_drop_bones(c, sk, FINGER_PREFIX)                         # the gloves of the kit cover the hands: no fingers underneath
 				_decimate_bones(c, sk, HAND_PREFIX, HAND_TARGET)
 			elif int(c["mode"]) == MODE_EYE or (int(c["mode"]) == MODE_HAIR1 and (c["idx"] as PackedInt32Array).size() / 3 >= 900):
 				_reduce(c)
 	var armed := bool(opts.get("armed", true))               # false: no carbine mesh (citizens)
-	if armed:
+	name_to_idx["Rifle"] = rifle
+	if armed and is_foe:
+		comps.append_array(FoeArms.pieces(StringName(str(opts.get("weapon_id", "carbine"))), rifle, int(opts.get("kit_lod", 0))))      # the enemy's weapon by registry id (FoeArms), merged into the body
+	elif armed:
 		comps.append(_rifle_piece(rifle))
-	if bool(opts.get("gear", false)):                          # the hero only: the armour kit of the suit set (HeroSuit); the old procedural boxes when the kit file is absent
+	if is_foe:                                                 # the roster enemies: the armour kit of the look (FoeKit), lod = how many of the small parts survive in the mid and far meshes
+		var foe_pieces := FoeKit.pieces(foe_look, name_to_idx, int(opts.get("kit_lod", 0)))
+		comps.append_array(foe_pieces)
+		info["foe_look"] = foe_look
+		info["kit_parts"] = foe_pieces.size()
+	elif bool(opts.get("gear", false)):                        # the hero only: the armour kit of the suit set (HeroSuit); the old procedural boxes when the kit file is absent
 		var kit_pieces := HeroSuit.pieces(o["suit"], name_to_idx)
 		if kit_pieces.is_empty():
 			comps.append(_gear_piece(name_to_idx))
@@ -295,9 +310,15 @@ static func build(opts: Dictionary) -> Dictionary:
 
 	# ---- the merged mesh
 	var budget := clampi(int(opts.get("budget", BUDGET)), 1500, BUDGET)
-	var total := _fit(comps, budget)
+	var total := _fit_foe(comps, budget, int(opts.get("kit_lod", 0))) if is_foe else _fit(comps, budget)
+	if is_foe:                                                 # where the triangles of an enemy go (tests, tuning): the body, the kit and the weapon
+		var split := {"body": 0, "kit": 0, "weapon": 0}
+		for c: Dictionary in comps:
+			var key := "body" if int(c["mode"]) == MODE_SKIN else ("weapon" if String(c.get("name", "")).begins_with("weapon_") else "kit")
+			split[key] = int(split[key]) + _tris(c)
+		info["split"] = split
 	var merged := _merge(comps)
-	var mat := make_material(opts.merged(o, true))
+	var mat: ShaderMaterial = FoeLooks.make_material(foe_look, int(opts.get("variant", 0))) if is_foe else make_material(opts.merged(o, true))
 	var hp := head_rest
 	mat.set_shader_parameter(&"scalp_y", hp.y + 0.11)
 	mat.set_shader_parameter(&"scalp_z", hp.z)
@@ -464,6 +485,38 @@ static func _cut_below(c: Dictionary, y: float) -> void:
 	c["idx"] = out
 
 
+## Removes the triangles whose vertices are weighted mostly to bones whose names start with one of `prefixes` (the fingers under the kit's gloves).
+static func _drop_bones(c: Dictionary, sk: Skeleton3D, prefixes: Array) -> void:
+	var is_sel := PackedByteArray()
+	is_sel.resize(sk.get_bone_count())
+	for i in sk.get_bone_count():
+		var ln := sk.get_bone_name(i).to_lower()
+		for pre: String in prefixes:
+			if ln.begins_with(pre):
+				is_sel[i] = 1
+	var bones: PackedInt32Array = c["bones"]
+	var weights: PackedFloat32Array = c["weights"]
+	var idx: PackedInt32Array = c["idx"]
+	var n := (c["v"] as PackedVector3Array).size()
+	var sel_v := PackedByteArray()
+	sel_v.resize(n)
+	for i in n:
+		var s := 0.0
+		for k in 4:
+			var bi := bones[i * 4 + k]
+			if bi < is_sel.size() and is_sel[bi] == 1:
+				s += weights[i * 4 + k]
+		sel_v[i] = 1 if s > 0.5 else 0
+	var rest := PackedInt32Array()
+	for t in idx.size() / 3:
+		var a := idx[t * 3]
+		var b := idx[t * 3 + 1]
+		var d := idx[t * 3 + 2]
+		if not (sel_v[a] == 1 and sel_v[b] == 1 and sel_v[d] == 1):
+			rest.append_array(PackedInt32Array([a, b, d]))
+	c["idx"] = rest
+
+
 ## Simplifies only the triangles whose vertices are weighted mostly to bones whose names start with one of `prefixes` (the hands): the engine's mesh simplifier keeps `keep` of them.
 static func _decimate_bones(c: Dictionary, sk: Skeleton3D, prefixes: Array, keep: float) -> void:
 	var is_sel := PackedByteArray()
@@ -614,6 +667,41 @@ static func _fit(comps: Array, budget: int) -> int:
 			for i in comps.size():
 				if int(comps[i]["mode"]) == MODE_GEAR and int(comps[i]["lod"]) < 3:
 					pick = i
+		if pick < 0:
+			return total
+		_reduce(comps[pick])
+	var t := 0
+	for c: Dictionary in comps:
+		t += _tris(c)
+	return t
+
+
+## The triangle budget of an ENEMY: the kit parts and the weapon give up detail first (the largest piece loses a level at a time, small parts last), the base body keeps a floor so the limbs
+## stay round: 1800 triangles in the near mesh, 900 in the mid mesh, 420 in the far mesh. Returns the triangles left.
+const FOE_BODY_FLOOR := [1800, 900, 420]
+
+
+static func _fit_foe(comps: Array, budget: int, lod: int) -> int:
+	var floor_t: int = FOE_BODY_FLOOR[clampi(lod, 0, 2)]
+	for guard in 40:
+		var total := 0
+		for c: Dictionary in comps:
+			total += _tris(c)
+		if total <= budget:
+			return total
+		var pick := -1
+		var most := 0
+		for i in comps.size():
+			var c: Dictionary = comps[i]
+			var tc := _tris(c)
+			if int(c["mode"]) == MODE_SKIN:
+				if tc > floor_t and int(c["lod"]) < 4 and tc > most + 400:
+					most = tc - 400                           # the body is the last to give: it competes with 400 triangles less than it has
+					pick = i
+				continue
+			if int(c["lod"]) < 3 and tc > most and tc > 40:
+				most = tc
+				pick = i
 		if pick < 0:
 			return total
 		_reduce(comps[pick])

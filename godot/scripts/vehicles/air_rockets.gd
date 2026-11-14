@@ -162,4 +162,6 @@ func _detonate(at: Vector3, def: Dictionary, col: Object) -> void:
 	var dmg := float(def["dmg"])
 	if col != null and col.has_method(&"damage"):
 		col.call(&"damage", dmg)
+		if col is Node and (col as Node).is_in_group(&"enemy"):
+			BlastCredit.dealt(col, dmg)                                           # a rocket that hits a person directly counts (the splash below credits the rest)
 	Game.explode(at, float(def["blast"]), {"enemy_dmg": dmg * 0.8, "car_dmg": dmg * 0.8, "player_dmg": 0.0, "color": def["color"]})

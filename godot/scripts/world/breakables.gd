@@ -9,7 +9,7 @@ extends Node3D
 ## surface_of(collider) tells the bullet decals what they landed on: &"metal", &"glass" or &"concrete".
 
 const COUNT := 140
-const DEBRIS := 64
+const DEBRIS := 96                      ## instances of the debris MultiMesh; the live cap follows the tier (Dmg.cap(&"debris"): LOW 28, MED 56, HIGH 96)
 const RESPAWN := 40.0
 const RESPAWN_AWAY := 22.0
 const DEBRIS_LIFE := 4.0
@@ -28,6 +28,10 @@ const KINDS := [
 	{"name": "stall", "size": Vector3(2.4, 1.6, 1.4), "color": Color(0.5, 0.36, 0.18), "hp": 4, "surface": &"concrete", "debris": 8, "spark": Color(0.9, 0.7, 0.4), "w": 2},
 	# open world freedom: destructible COVER, a concrete road barrier at chest height. Bullets chew it (hp 14), a blast takes it down at once (Game.explode -> blast()).
 	{"name": "barrier", "size": Vector3(2.6, 1.05, 0.7), "color": Color(0.46, 0.47, 0.5), "hp": 14, "surface": &"concrete", "debris": 10, "spark": Color(0.85, 0.85, 0.8), "w": 3},
+	# wave 113 damage: a wooden bench, a concrete planter and a small kiosk (a small building: it takes stages of damage, a big break throws a lot)
+	{"name": "bench", "size": Vector3(1.8, 0.85, 0.6), "color": Color(0.45, 0.3, 0.17), "hp": 3, "surface": &"wood", "debris": 7, "spark": Color(0.85, 0.65, 0.4), "w": 2},
+	{"name": "planter", "size": Vector3(1.4, 0.9, 0.7), "color": Color(0.4, 0.42, 0.38), "hp": 6, "surface": &"concrete", "debris": 8, "spark": Color(0.8, 0.8, 0.72), "w": 2},
+	{"name": "kiosk", "size": Vector3(2.2, 2.4, 2.0), "color": Color(0.2, 0.42, 0.5), "hp": 10, "surface": &"metal", "debris": 12, "spark": Color(0.6, 0.9, 1.0), "w": 1},
 ]
 
 static var current: Breakables
@@ -36,6 +40,7 @@ var kind_of := PackedInt32Array()
 var hp := PackedInt32Array()
 var broken := PackedByteArray()             ## 1 = broken
 var respawn_at := PackedFloat32Array()
+var stage := PackedByteArray()              ## damage stage of a standing prop: 0 intact, 1 battered (darker, a little askew), 2 nearly gone (darker still, leaning)
 var positions: Array[Vector3] = []          ## centre of each prop
 var yaws := PackedFloat32Array()
 var bodies: Array[StaticBody3D] = []
@@ -52,6 +57,8 @@ var _dvel := PackedVector3Array()
 var _dspin := PackedVector3Array()
 var _dang := PackedVector3Array()
 var _dsize := PackedFloat32Array()
+var _dscale := PackedVector3Array()          ## the shape of a piece (a plate is flat, a splinter long): size x this
+var _dgy := PackedFloat32Array()             ## the ground each piece lands on (the street, a roof, the terrain)
 var _dleft := PackedFloat32Array()
 var _dnext := 0
 var _timer: Timer
@@ -97,6 +104,7 @@ func _build_props() -> void:
 	hp.resize(COUNT)
 	broken.resize(COUNT)
 	respawn_at.resize(COUNT)
+	stage.resize(COUNT)
 	yaws.resize(COUNT)
 	var half := Game.PITCH * Game.N * 0.5
 	var edge := Game.ROAD * 0.5 + 1.9
@@ -157,7 +165,45 @@ func _build_props() -> void:
 
 func _prop_xf(i: int) -> Transform3D:
 	var sz: Vector3 = KINDS[kind_of[i]]["size"]
-	return Transform3D(Basis(Vector3.UP, yaws[i]) * Basis.from_scale(sz), positions[i])
+	var tilt: float = [0.0, 0.06, 0.15][stage[i]] * (1.0 if (i & 1) == 0 else -1.0)
+	return Transform3D(Basis(Vector3.UP, yaws[i]) * Basis(Vector3(0.0, 0.0, 1.0), tilt) * Basis.from_scale(sz), positions[i])
+
+
+## A prop that took hits looks it: battered at two thirds of its health (darker, a little askew), nearly gone at one third (darker still, leaning). Props with one hit point have no stages.
+func _wear(i: int) -> void:
+	if not Dmg.enabled:
+		return
+	var k: Dictionary = KINDS[kind_of[i]]
+	var f := float(hp[i]) / float(maxi(int(k["hp"]), 1))
+	var st := 0 if f > 0.66 else (1 if f > 0.33 else 2)
+	if st == int(stage[i]):
+		return
+	stage[i] = st
+	var c: Color = k["color"]
+	var v := 0.85 + 0.3 * float((i * 37) % 11) / 10.0
+	var dark: float = [1.0, 0.72, 0.5][st]
+	_mm.set_instance_color(i, Color(c.r * v * dark, c.g * v * dark, c.b * v * dark))
+	_mm.set_instance_transform(i, _prop_xf(i))
+	Dmg.bump(&"prop_stage")
+	if st == 2 and _near(positions[i], 60.0):
+		var bf := BlastFx.instance
+		if is_instance_valid(bf):
+			bf.puff(positions[i] + Vector3(0.0, float((k["size"] as Vector3).y) * 0.6, 0.0), Vector3(0.0, 0.8, 0.0), 0.3, 0.9, 1.1, Color(0.3, 0.3, 0.32, 0.4), BlastFx.K_SMOKE, 0.0, 0.8)
+
+
+func _near(p: Vector3, d: float) -> bool:
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	return cam == null or cam.global_position.distance_to(p) < d
+
+
+## The bodies of the props that can hide a person (a crate, a barrier, a planter, a bin, a stall, a kiosk, a vending machine) and still stand: cover for the enemies (EnemyCover.find). A broken prop is
+## not here and gives no protection (its collider is off too: rounds go through).
+func cover_bodies() -> Array:
+	var out: Array = []
+	for i in COUNT:
+		if broken[i] == 0 and float((KINDS[kind_of[i]]["size"] as Vector3).y) >= 0.9:
+			out.append(bodies[i])
+	return out
 
 
 func _build_debris() -> void:
@@ -177,6 +223,10 @@ func _build_debris() -> void:
 	_dspin.resize(DEBRIS)
 	_dang.resize(DEBRIS)
 	_dsize.resize(DEBRIS)
+	_dscale.resize(DEBRIS)
+	_dscale.fill(Vector3.ONE)
+	_dgy.resize(DEBRIS)
+	_dgy.fill(GROUND)
 	_dleft.resize(DEBRIS)
 	_dleft.fill(0.0)
 	for i in DEBRIS:
@@ -215,6 +265,8 @@ func hit_at(collider: Object, pos: Vector3, n: Vector3, hits := 1) -> bool:
 	hp[i] -= hits
 	if hp[i] <= 0:
 		break_prop(i, n * 3.0)
+	else:
+		_wear(i)
 	return true
 
 
@@ -231,10 +283,31 @@ func break_prop(i: int, push := Vector3.ZERO) -> void:
 	var p := positions[i]
 	_spark(p, Vector3.UP, k["spark"], 1.2)
 	var sz: Vector3 = k["size"]
-	for j in int(k["debris"]):
+	var surf: StringName = k["surface"]
+	var count := int(k["debris"]) + (2 if Dmg.enabled and Dmg.tier() >= 1 else 0)
+	for j in count:
 		var off := Vector3(randf_range(-0.5, 0.5) * sz.x, randf_range(-0.4, 0.5) * sz.y, randf_range(-0.5, 0.5) * sz.z)
 		var out := (Basis(Vector3.UP, yaws[i]) * off).normalized()
-		_spawn_debris(p + Basis(Vector3.UP, yaws[i]) * off, out * randf_range(1.5, 4.5) + Vector3.UP * randf_range(1.5, 4.0) + push, k["color"], clampf(minf(sz.x, minf(sz.y, maxf(sz.z, 0.2))) * 0.3, 0.08, 0.3))
+		var size := clampf(minf(sz.x, minf(sz.y, maxf(sz.z, 0.2))) * 0.3, 0.08, 0.3)
+		var asp := Vector3.ONE
+		if Dmg.enabled:                                                       # the pieces take the shape of the material: planks, sheets, shards, chunks
+			match surf:
+				&"wood":
+					asp = Vector3(1.0, 0.16, 0.3)
+					size *= 2.6
+				&"metal":
+					asp = Vector3(1.0, 0.1, 0.72)
+					size *= 1.8
+				&"glass":
+					asp = Vector3(1.0, 0.05, 0.7)
+					size *= 1.4
+				_:
+					asp = Vector3(1.0, randf_range(0.6, 1.0), randf_range(0.6, 1.0))
+		_spawn_debris(p + Basis(Vector3.UP, yaws[i]) * off, out * randf_range(1.5, 4.5) + Vector3.UP * randf_range(1.5, 4.0) + push, k["color"], size, asp)
+	if Dmg.enabled and (surf == &"concrete" or surf == &"wood") and _near(p, 70.0):
+		var bf := BlastFx.instance
+		if is_instance_valid(bf):
+			bf.puff(p + Vector3(0.0, sz.y * 0.4, 0.0), Vector3(0.0, 0.8, 0.0), 0.8, 2.4, 1.4, Color(0.58, 0.55, 0.5, 0.5), BlastFx.K_SMOKE, 0.0, 0.8)
 	Sfx.play_at(&"explosion_small", p, -14.0)
 	if _timer != null and _timer.is_stopped():
 		_timer.start()
@@ -284,6 +357,10 @@ func _restore(i: int) -> void:
 	broken[i] = 0
 	broken_count -= 1
 	hp[i] = int(KINDS[kind_of[i]]["hp"])
+	stage[i] = 0
+	var c: Color = KINDS[kind_of[i]]["color"]
+	var v := 0.85 + 0.3 * float((i * 37) % 11) / 10.0
+	_mm.set_instance_color(i, Color(c.r * v, c.g * v, c.b * v))
 	_mm.set_instance_transform(i, _prop_xf(i))
 	bodies[i].collision_layer = Game.L_WORLD
 
@@ -295,9 +372,10 @@ func _spark(pos: Vector3, n: Vector3, color: Color, power: float) -> void:
 		FX.burst(pos, color, 6, 4.0, 0.3, 8.0, 1.0)
 
 
-func _spawn_debris(pos: Vector3, vel: Vector3, color: Color, size: float) -> void:
-	var i := _dnext
-	_dnext = (_dnext + 1) % DEBRIS
+func _spawn_debris(pos: Vector3, vel: Vector3, color: Color, size: float, aspect := Vector3.ONE, life := DEBRIS_LIFE) -> void:
+	var ring := mini(DEBRIS, maxi(Dmg.cap(&"debris"), 8))                  # the ring is as long as the tier allows: the oldest piece is recycled
+	var i := _dnext % ring
+	_dnext = (i + 1) % ring
 	if _dleft[i] <= 0.0:
 		debris_live += 1
 	_dpos[i] = pos
@@ -305,10 +383,21 @@ func _spawn_debris(pos: Vector3, vel: Vector3, color: Color, size: float) -> voi
 	_dspin[i] = Vector3(randf_range(-8.0, 8.0), randf_range(-8.0, 8.0), randf_range(-8.0, 8.0))
 	_dang[i] = Vector3.ZERO
 	_dsize[i] = size
-	_dleft[i] = DEBRIS_LIFE
+	_dscale[i] = aspect
+	_dgy[i] = Dmg.ground_y(pos) if pos.y > 0.4 or absf(pos.x) > 360.0 or absf(pos.z) > 360.0 else GROUND
+	_dleft[i] = life
 	_dmm.set_instance_color(i, color)
 	_dinst.visible = true
 	set_process(true)
+
+
+## One piece of pooled debris flung from anywhere (armour plates, facade chunks, car bits, splinters): `size` is the longest side in metres, `aspect` the proportions (a plate Vector3(1, 0.12, 0.7)),
+## `life` seconds (the last 0.6 s shrink it). One draw call for every piece of every system; the ring is as long as the tier allows (LOW 28, MED 56, HIGH 96), the oldest piece is recycled.
+func fling(pos: Vector3, vel: Vector3, color: Color, size := 0.15, aspect := Vector3.ONE, life := DEBRIS_LIFE) -> void:
+	if not Dmg.enabled:
+		return
+	_spawn_debris(pos, vel, color, size, aspect, life)
+	Dmg.bump(&"debris_flung")
 
 
 func _process(delta: float) -> void:
@@ -332,8 +421,9 @@ func _process_body(delta: float) -> void:
 		var v := _dvel[i]
 		var p := _dpos[i]
 		var s := _dsize[i]
-		if p.y <= GROUND + s * 0.5 and v.y <= 0.0:
-			p.y = GROUND + s * 0.5
+		var gy := _dgy[i]
+		if p.y <= gy + s * 0.5 and v.y <= 0.0:
+			p.y = gy + s * 0.5
 			v.y = -v.y * 0.3
 			v.x *= 0.6
 			v.z *= 0.6
@@ -347,7 +437,7 @@ func _process_body(delta: float) -> void:
 		_dpos[i] = p
 		_dang[i] += _dspin[i] * delta
 		var fade := clampf(left / 0.6, 0.0, 1.0)
-		var b := Basis.from_euler(_dang[i]) * Basis.from_scale(Vector3.ONE * s * fade)
+		var b := Basis.from_euler(_dang[i]) * Basis.from_scale(_dscale[i] * s * fade)
 		_dmm.set_instance_transform(i, Transform3D(b, p))
 	if debris_live <= 0:
 		_dinst.visible = false

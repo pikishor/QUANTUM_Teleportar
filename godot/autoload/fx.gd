@@ -127,6 +127,7 @@ func _ready() -> void:
 	marks = BlastMarks.new()
 	marks.name = &"Marks"
 	add_child(marks)
+	add_child(WorldBlasters.new())                                 # barrels, gas tanks and a fuel truck that go off when hit (scripts/combat/world_blasters.gd)
 	Game.new_game.connect(reset)
 	Game.respawn.connect(reset)
 	Game.next_sector.connect(reset)

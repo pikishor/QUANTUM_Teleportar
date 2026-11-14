@@ -9,15 +9,60 @@ extends RefCounted
 ## Wave 61 weapons: minigun (spin_up / heat_per / heat_lock: slow to start, fast once spun, overheats), akimbo (twin: shots alternate hands), arc (chain: a hit jumps to nearby enemies),
 ## revolver (slow heavy rounds, FAN HAMMER alt), whip (long reach, PULL alt), blade (short reach, LUNGE alt). "snd" = the sound name of a shot (default "shot"). reserve < 0 = unlimited spare ammo. look = the emissive tint of the strip on the rifle.
 
+## --- roster packs (wave 113): more weapons live in their own data files (scripts/player/weapon_defs_v3.gd: guns, melee, energy, quantum, exotic; a pack of the blast arsenal may be appended) and are
+## merged into the tables of this file when the class loads. A pack script has `static func tables() -> Dictionary` with any of these keys (all optional, ids are StringNames):
+##   "defs" (id -> row of DEFS), "ids" (display order, appended to IDS), "class_of", "family_of", "alts", "hit_snd", "tilt", "proj", and the rows of the tables of other files that name weapons:
+##   "price" (Economy.WEAPON_PRICE), "ammo_pack" (PlayerWeapon.AMMO_PACK), "acc" (BalanceModel.ACC), "stagger" (AimAssist.STAGGER), "vfx_class" (QuantumVfx.WEAPON_CLASS),
+##   "anim_class" (HeroAnimTuning.WEAPON_CLASS), "spec" (WeaponModels.SPEC), "shop" (ShopScreen.SHOP_WEAPONS, an Array), "ladder" (WeaponLadder.LADDER rows) and "crates" (WeaponLadder.CRATES rows).
+## A pack must not read WeaponDefs while it builds its tables (the tables are being built from it). Append your script to PACKS to add a pack; nothing else has to change.
+const PACKS: Array[Script] = [preload("res://scripts/player/weapon_defs_v3.gd"), preload("res://scripts/player/weapon_defs_blast.gd")]
+static var _pack_tables: Array[Dictionary] = []
+
+
+## The tables() of every pack, built once.
+static func pack_tables() -> Array[Dictionary]:
+	if _pack_tables.is_empty():
+		for pack in PACKS:
+			var t: Dictionary = pack.call(&"tables")
+			_pack_tables.append(t)
+	return _pack_tables
+
+
+## One table of the packs merged (a later pack wins on a duplicate id).
+static func pack_dict(key: String) -> Dictionary:
+	var out := {}
+	for t in pack_tables():
+		out.merge(t.get(key, {}), true)
+	return out
+
+
+## One list of the packs concatenated.
+static func pack_array(key: String) -> Array:
+	var out := []
+	for t in pack_tables():
+		out.append_array(t.get(key, []))
+	return out
+
+
+static func _ids_all() -> Array[StringName]:
+	var out: Array[StringName] = IDS0.duplicate()
+	for id in pack_array("ids"):
+		if not out.has(StringName(id)):
+			out.append(StringName(id))
+	return out
+
+
 ## Order = keys 1..8 and the order every list shows: the seven starters first (pistol, SMG, assault rifle, shotgun, sniper rail, launcher, melee), then the unlock ladder.
-const IDS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade", &"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife", &"magnum", &"mpistol", &"ranger", &"bullpup", &"lmg", &"amr", &"xbow", &"flame", &"stun", &"katana", &"bat", &"qsuper", &"qlink", &"qcollapse", &"qblink", &"qphase", &"qstasis",
+const IDS0: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade", &"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife", &"magnum", &"mpistol", &"ranger", &"bullpup", &"lmg", &"amr", &"xbow", &"flame", &"stun", &"katana", &"bat", &"qsuper", &"qlink", &"qcollapse", &"qblink", &"qphase", &"qstasis",
 	&"eplasma", &"erepeat", &"espike", &"ebeam", &"eblade", &"emaul", &"epod", &"railgun", &"chaingun", &"cmissile", &"napalm", &"sing", &"orbital", &"seeker", &"tknife"]
+## Every weapon id in display order: the 58 of the first rosters, then every pack (all_ids() is the same list).
+static var IDS: Array[StringName] = _ids_all()
 ## Owned from the first minute (and in every save): one weapon of each class so the hero is never short of a gun. Everything else is on the ladder (scripts/progress/weapon_ladder.gd).
 const STARTERS: Array[StringName] = [&"pistol", &"flux", &"carbine", &"scatter", &"rail", &"gravity", &"blade"]
 ## The weapon wheel groups the weapons by class (one wedge per class, tap again = the next weapon of that class).
 const CLASS_ORDER: Array[StringName] = [&"pistol", &"smg", &"rifle", &"shotgun", &"sniper", &"heavy", &"melee", &"quantum", &"energy", &"blast"]
 const CLASS_NAMES := {&"pistol": "PISTOL", &"smg": "SMG", &"rifle": "RIFLE", &"shotgun": "SHOTGUN", &"sniper": "SNIPER", &"heavy": "HEAVY", &"melee": "MELEE", &"quantum": "QUANTUM", &"energy": "ENERGY", &"blast": "BLAST"}
-const CLASS_OF := {
+const CLASS_OF0 := {
 	&"pistol": &"pistol", &"burst": &"pistol", &"akimbo": &"pistol", &"revolver": &"pistol", &"flux": &"smg", &"carbine": &"rifle", &"marksman": &"rifle", &"arc": &"rifle",
 	&"scatter": &"shotgun", &"breacher": &"shotgun", &"rail": &"sniper", &"lance": &"sniper", &"gravity": &"heavy", &"rocket": &"heavy", &"grenade": &"heavy", &"minigun": &"heavy",
 	&"blade": &"melee", &"whip": &"melee",
@@ -27,9 +72,12 @@ const CLASS_OF := {
 	&"eplasma": &"energy", &"erepeat": &"energy", &"espike": &"energy", &"ebeam": &"energy", &"eblade": &"energy", &"emaul": &"energy", &"epod": &"energy",
 	&"railgun": &"blast", &"chaingun": &"blast", &"cmissile": &"blast", &"napalm": &"blast", &"sing": &"blast", &"orbital": &"blast", &"seeker": &"blast", &"tknife": &"melee",
 }
+static var CLASS_OF: Dictionary = CLASS_OF0.merged(pack_dict("class_of"))
+## The finer class of a weapon (pistol, smg, assault, battle, carbine, dmr, sniper, shotgun, lmg, rotary, bow, flamer, melee, energy, quantum, exotic ...): the wheel class for the old weapons.
+static var FAMILY_OF: Dictionary = pack_dict("family_of")
 const PAGE_SIZE := 8                       ## weapons per page of the touch weapon wheel
 
-const DEFS := {
+const DEFS0 := {
 	&"pistol": {
 		"name": "VOLT PISTOL", "tag": "PST", "kind": "hit", "mag": 15, "reserve": -1, "interval": 0.2, "damage": 22.0, "crit": 46.0, "pellets": 1,
 		"pattern": [Vector2(0.0, 1.0), Vector2(0.2, 1.1), Vector2(-0.25, 1.0)], "shake": 0.03, "vol": -3.0, "pitch_lo": 0.92, "pitch_hi": 1.0, "eject": 1, "flash": 0.9, "ads_kick": 0.6, "ads_spread": 0.4,
@@ -521,10 +569,11 @@ const DEFS := {
 		"silent": true, "role": "SILENT KILLS ON GUARDS  PICKS OFF A SENTRY",
 	},
 }
+static var DEFS: Dictionary = DEFS0.merged(pack_dict("defs"))
 
 ## Alt-fire per class (key B / the ALT touch button). kind: "heavy" = one aimed shot x mult for `cost` rounds (slug / overcharge), "volley" = `count` rounds in a rapid burst,
 ## "quick" = an instant full-charge lance shot, "cluster" = a pair of grenades thrown in a fan. cd = seconds before anything fires again.
-const ALTS := {
+const ALTS0 := {
 	&"pistol": {"name": "OVERCHARGE", "kind": "heavy", "cost": 3, "mult": 3.0, "cd": 0.8},
 	&"marksman": {"name": "OVERCHARGE", "kind": "heavy", "cost": 2, "mult": 2.6, "cd": 1.0},
 	&"breacher": {"name": "SLUG", "kind": "heavy", "cost": 2, "mult": 5.0, "cd": 1.0},
@@ -585,14 +634,17 @@ const ALTS := {
 	&"seeker": {"name": "TOP ATTACK", "kind": "dive", "cost": 1, "cd": 1.8},
 	&"tknife": {"name": "FAN OF KNIVES", "kind": "volley", "cost": 5, "count": 5, "cd": 1.0},
 }
+static var ALTS: Dictionary = ALTS0.merged(pack_dict("alts"))
 ## Ammo types for the hitscan weapons (key T): damage multiplier, fire-interval multiplier, shield piercing.
-const AMMO_TYPES := [
+const AMMO_TYPES0 := [
 	{"id": &"standard", "name": "STANDARD", "dmg": 1.0, "rate": 1.0, "pierce": false},
 	{"id": &"heavy", "name": "HEAVY", "dmg": 1.3, "rate": 1.25, "pierce": false},
 	{"id": &"piercing", "name": "PIERCING", "dmg": 0.85, "rate": 1.0, "pierce": true},
 ]
+## The ammo types of the roster packs follow the three classic ones (the saved index stays valid); a weapon lists the ones it can fire in its def key `ammo_types` (WeaponMech.allowed_ammo).
+static var AMMO_TYPES: Array = AMMO_TYPES0 + pack_array("ammo_types")
 ## Weapon-specific hit sound: [pitch, volume db, extra layer or &""]. Reload tilt: how far the rifle rolls during the reload / inspect (1 = rig default).
-const HIT_SND := {
+const HIT_SND0 := {
 	&"pistol": [1.15, -1.0, &""], &"marksman": [0.8, 1.0, &"impact_metal"], &"breacher": [0.75, 1.0, &"impact_concrete"], &"rocket": [0.6, 2.0, &""],
 	&"carbine": [1.0, 0.0, &""], &"scatter": [0.7, 2.0, &"impact_concrete"], &"lance": [0.55, 3.0, &"impact_metal"], &"grenade": [0.8, 0.0, &""],
 	&"burst": [1.35, -2.0, &""], &"rail": [0.5, 4.0, &"impact_metal"], &"flux": [1.6, -5.0, &""], &"gravity": [0.65, 1.0, &""],
@@ -605,17 +657,20 @@ const HIT_SND := {
 	&"eplasma": [1.3, -1.0, &""], &"erepeat": [1.5, -4.0, &""], &"espike": [1.4, -1.0, &""], &"ebeam": [0.5, 3.0, &"impact_metal"], &"eblade": [1.0, 1.0, &"impact_metal"], &"emaul": [0.5, 4.0, &"impact_concrete"], &"epod": [0.7, 2.0, &""],
 	&"railgun": [0.4, 5.0, &"impact_metal"], &"chaingun": [1.3, -3.0, &"impact_concrete"], &"cmissile": [0.6, 2.0, &""], &"napalm": [0.8, 0.0, &""], &"sing": [0.5, 3.0, &""], &"orbital": [0.5, 3.0, &""], &"seeker": [0.7, 2.0, &""], &"tknife": [1.3, -1.0, &""],
 }
-const TILT := {&"pistol": 1.3, &"marksman": 0.9, &"breacher": 1.5, &"rocket": 1.1, &"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3, &"minigun": 2.0, &"akimbo": 1.5, &"arc": 1.0, &"revolver": 1.1, &"whip": 0.5, &"blade": 0.5,
+static var HIT_SND: Dictionary = HIT_SND0.merged(pack_dict("hit_snd"))
+const TILT0 := {&"pistol": 1.3, &"marksman": 0.9, &"breacher": 1.5, &"rocket": 1.1, &"carbine": 1.0, &"scatter": 1.6, &"lance": 0.7, &"grenade": 1.2, &"burst": 1.4, &"rail": 0.8, &"flux": 1.8, &"gravity": 1.3, &"minigun": 2.0, &"akimbo": 1.5, &"arc": 1.0, &"revolver": 1.1, &"whip": 0.5, &"blade": 0.5,
 	&"swarm": 1.7, &"vector": 1.4, &"battle": 1.0, &"sawn": 1.5, &"auto": 1.5, &"bolt": 0.7, &"dmr": 0.9, &"knife": 0.5, &"magnum": 1.4, &"mpistol": 1.8, &"stun": 1.3, &"ranger": 1.0, &"bullpup": 1.1, &"lmg": 1.9, &"amr": 0.7, &"xbow": 1.2, &"flame": 1.8, &"katana": 0.5, &"bat": 0.5,
 	&"qsuper": 1.0, &"qlink": 1.3, &"qcollapse": 1.1, &"qblink": 1.4, &"qphase": 1.0, &"qstasis": 1.1,
 	&"eplasma": 1.3, &"erepeat": 1.6, &"espike": 1.2, &"ebeam": 0.7, &"eblade": 0.5, &"emaul": 0.4, &"epod": 1.6, &"railgun": 0.8, &"chaingun": 2.0, &"cmissile": 1.5, &"napalm": 1.5, &"sing": 1.3, &"orbital": 1.2, &"seeker": 1.3, &"tknife": 0.5}
+static var TILT: Dictionary = TILT0.merged(pack_dict("tilt"))
 
 
 ## Projectiles of alt-fires that are not a weapon of their own (PlayerWeapon._gdef reads them through the `wid` of a thrown round): the OVERCHARGE ball of the plasma pistol.
-const PROJ := {
+const PROJ0 := {
 	&"eplasma_oc": {"name": "OVERCHARGE", "kind": "throw", "damage": 90.0, "speed": 34.0, "fuse": 2.4, "grav": 0.6, "well_time": 0.1, "well_radius": 6.0, "well_pull": 0.0, "well_dps": 0.0, "blast_radius": 4.5, "impact": true,
 		"blast_damage": 90.0, "car_dmg": 170.0, "blast_color": Color(0.3, 0.9, 1.0), "blast_element": &"plasma", "impact_pull": 0.0, "blast_stun": 2.6, "tracer": Color(0.3, 0.9, 1.0)},
 }
+static var PROJ: Dictionary = PROJ0.merged(pack_dict("proj"))
 
 
 static func alt_of(id: StringName) -> Dictionary:
@@ -629,6 +684,9 @@ static func hit_snd(id: StringName) -> Array:
 const COLOR_PICKUP := Color(1.0, 0.45, 0.9)
 const COLLAPSE_COLOR := Color(0.4, 1.0, 0.93)
 
+## HERO MODE (docs/WORLD_EXPANSION.md: "HERO MODE unlocks everything"): while true every weapon counts as owned. The flag is not saved and `unlocked` is not touched, so switching it off
+## returns to the weapons the hero really owns. The hero-mode builder flips it (WeaponDefs.hero_mode = true).
+static var hero_mode := false
 ## The weapons the player owns (set by Progress when a save loads, a weapon is bought or picked up).
 static var unlocked: Array[StringName] = STARTERS.duplicate()
 ## The weapon in hand (saved with the unlocked set).
@@ -650,7 +708,7 @@ static func title(id: StringName) -> String:
 
 
 static func is_unlocked(id: StringName) -> bool:
-	return unlocked.has(id)
+	return unlocked.has(id) or (hero_mode and DEFS.has(id))
 
 
 static func unlock(id: StringName) -> bool:
@@ -662,6 +720,7 @@ static func unlock(id: StringName) -> bool:
 
 static func reset_unlocked() -> void:
 	last_in_class.clear()
+	WeaponBrowser.reset()
 	unlocked = STARTERS.duplicate()
 	last_used = &"carbine"
 
@@ -691,20 +750,51 @@ static func class_of(id: StringName) -> StringName:
 	return StringName(CLASS_OF.get(id, &"rifle"))
 
 
-## The weapons of one class in IDS order, owned or not.
+static var _class_lists: Dictionary = {}
+
+
+## The weapons of one class in IDS order, owned or not (a cached list: do not change it).
 static func in_class(cls: StringName) -> Array[StringName]:
-	var out: Array[StringName] = []
-	for id: StringName in IDS:
-		if class_of(id) == cls:
-			out.append(id)
-	return out
+	if _class_lists.is_empty():
+		for id: StringName in IDS:
+			var c := class_of(id)
+			if not _class_lists.has(c):
+				var fresh: Array[StringName] = []
+				_class_lists[c] = fresh
+			(_class_lists[c] as Array[StringName]).append(id)
+	var found: Array[StringName] = _class_lists.get(cls, [] as Array[StringName])
+	return found
 
 
 ## The owned weapons of one class in IDS order.
 static func owned_in_class(cls: StringName) -> Array[StringName]:
 	var out: Array[StringName] = []
 	for id in in_class(cls):
-		if unlocked.has(id):
+		if is_unlocked(id):
+			out.append(id)
+	return out
+
+
+## Every weapon id in display order (the wheel, the loadout and the catalogues read this).
+static func all_ids() -> Array[StringName]:
+	return IDS
+
+
+## The weapon class ids of the wheel in display order; `ids_in_class` is `in_class` under the name the roster builders use.
+static func ids_in_class(cls: StringName) -> Array[StringName]:
+	return in_class(cls)
+
+
+## The finer family of a weapon ("assault", "dmr", "rotary", "bow" ...), its wheel class for the weapons that have none.
+static func family_of(id: StringName) -> StringName:
+	return StringName(FAMILY_OF.get(id, class_of(id)))
+
+
+## The weapons of one family in IDS order.
+static func in_family(fam: StringName) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for id: StringName in IDS:
+		if family_of(id) == fam:
 			out.append(id)
 	return out
 

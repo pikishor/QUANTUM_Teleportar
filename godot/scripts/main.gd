@@ -43,6 +43,7 @@ func _ready() -> void:
 	add_child(InteriorGameplay.new())   # enterable interiors: doors, fades, vendors, actors, missions (scripts/interiors_gameplay/)
 	add_child(preload("res://scripts/world/city_events.gd").new())   # city events: ambush, race, rescue, drop, rift (actors, rewards, minimap markers, rift gravity)
 	add_child(Breakables.new())         # breakable props (crates, glass, poles ...), pooled debris, bullet decal surfaces (scripts/world/breakables.gd)
+	add_child(DamageWorld.new())        # damage everywhere (wave 113): hits, plates, splatter, statuses and deaths of people, bullet holes and wrecks of cars (scripts/damage/damage_world.gd)
 	add_child(Wanted.new())             # wanted v2: patrol responses by level, roadblocks, hide-and-lose (scripts/enemies/wanted.gd; factions in factions.gd)
 	add_child(Encounters.new())         # encounter director: a squad within 26-40 m almost always, rushing, with a threat cue (scripts/enemies/encounters.gd; off under tools / tests)
 	add_child(Companion.new())          # the Vael defector ally: recruited by chapters 11-12, some side missions and the DEMO menu (scripts/npc/companion.gd)

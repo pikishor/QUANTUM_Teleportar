@@ -71,6 +71,9 @@ var open_k := 1.0
 var heal_cd := 0.0
 var stride_k := 0.0
 var squash := 1.0
+var hum: Dictionary = {}                     ## the FoeHuman body of an armoured human (RosterHuman); empty for the procedural bodies
+var humanoid_body: MeshInstance3D = null     ## the skinned mesh (the damage system sets its `dmg_fx` statuses)
+var camp: StringName = &""                   ## &"merc" for humans: the damage system leaves no alien fluid and flings plates
 
 var _los := false
 var _los_t := 0.0
@@ -122,8 +125,16 @@ func setup(sid: StringName, w: AlienWorld) -> bool:
 
 
 ## First contact with a type: one line with its name and the one thing to do (weak point, flank, shoot the medic first). Once per type and session.
+func _on_hurt(amount: float, crit: bool) -> void:
+	super._on_hurt(amount, crit)
+	if not hum.is_empty():
+		RosterHuman.hurt(self, amount)
+
+
 func _wake() -> void:
 	super._wake()
+	if not hum.is_empty():
+		RosterHuman.on_wake(self)
 	if not told.has(id) and world != null and world.hero_alive() and flat_dist() < 70.0:
 		told[id] = true
 		Game.say("%s  %s" % [String(spec["name"]), String(spec.get("tip", ""))], 3.2)
@@ -312,6 +323,8 @@ func die(hero_kill := true) -> void:
 	if mesh != null:
 		mesh.rotation = Vector3.ZERO
 	squash = 1.0
+	if not hum.is_empty():
+		RosterHuman.on_die(self)
 	super.die(hero_kill)
 
 
@@ -376,6 +389,8 @@ func tick(dt: float) -> void:
 				shield_hp = float(spec["shield"]) * 0.5
 		_los_t -= dt
 	super.tick(dt)
+	if not hum.is_empty():
+		RosterHuman.update(self, dt)
 
 
 func _tick_extra(dt: float, d: float) -> void:
@@ -404,6 +419,8 @@ func _anim(dt: float) -> void:
 		var ref := maxf(float(spec.get("run", 4.0)), 2.0)
 		stride_k = lerpf(stride_k, clampf(sp / ref, 0.0, 1.0), clampf(dt * 8.0, 0.0, 1.0))
 		_stride_t += dt * (3.0 + 9.0 * stride_k)
+		if ap != null and not downed:
+			_play(&"run" if stride_k > 0.55 else (&"walk" if stride_k > 0.1 else &"idle"), clampf(0.7 + stride_k * 0.8, 0.8, 1.5) if stride_k > 0.1 else 1.0)
 	_last_xz = xz
 	crouch = move_toward(crouch, crouch_to, dt * 5.0)
 
@@ -419,9 +436,10 @@ func _apply() -> void:
 	squash = 0.3 if downed else tgt
 	if cls == AlienSpecies.GROUND and lift > 0.0:
 		position.y += lift
-	if mesh != null:
-		mesh.scale = Vector3(vis, vis * squash, vis)
-		mesh.rotation.x = 1.45 if downed else 0.0
+	var vis_node: Node3D = mesh if mesh != null else (model if hum.is_empty() else null)       # procedural mesh, or the root of an animated creature body (humans scale in RosterHuman)
+	if vis_node != null:
+		vis_node.scale = Vector3(vis, vis * squash, vis)
+		vis_node.rotation.x = 1.45 if downed else 0.0
 	if mat != null:
 		mat.set_shader_parameter(&"stride", 0.0 if downed else (stride_k if stride_k > 0.05 else 0.0))
 		mat.set_shader_parameter(&"stride_t", _stride_t)
@@ -430,7 +448,7 @@ func _apply() -> void:
 			ck = cloak_k
 		mat.set_shader_parameter(&"cloak", ck)
 		mat.set_shader_parameter(&"shield", 0.3 if (shield_hp > 0.0 and shield_t <= 0.0) else 0.0)
-		mat.set_shader_parameter(&"far_k", (0.55 if aggro else 0.3) * smoothstep(9.0, 34.0, fd) if is_finite(fd) else 0.0)
+		mat.set_shader_parameter(&"far_k", (0.55 if aggro else 0.3) * smoothstep(9.0, 34.0, fd) * (0.3 if spec.has("gltf") else 1.0) if is_finite(fd) else 0.0)
 	for p in plates:
 		var n := p["node"] as MeshInstance3D
 		if is_instance_valid(n) and float(p["hp"]) > 0.0:
@@ -449,8 +467,10 @@ func _bolt_color() -> Color:
 
 
 func _muzzle() -> Vector3:
-	var m: Vector3 = MUZZLE.get(id, Vector3(0.2, 1.3, -0.9))
-	var mx := m.x * _muz_side if id == &"crawler" or id == &"wasp_drone" or id == &"auto_turret" else m.x
+	if not hum.is_empty():
+		return RosterHuman.muzzle(self)
+	var m: Vector3 = MUZZLE.get(id, FoeSpecies.MUZZLE.get(id, Vector3(0.2, 1.3, -0.9)))
+	var mx := m.x * _muz_side if id == &"crawler" or id == &"wasp_drone" or id == &"auto_turret" or FoeSpecies.FLIP.has(id) else m.x
 	return global_position + Basis(Vector3.UP, heading) * Vector3(mx, m.y * squash, m.z) * vis + Vector3(0.0, lift, 0.0)
 
 
@@ -668,7 +688,7 @@ func _after_shot() -> void:
 
 
 func _shot_sound(at: Vector3, db: float) -> void:
-	var row: Array = SND.get(id, [&"enemy_shot", 0.8])
+	var row: Array = SND.get(id, FoeSpecies.SND.get(id, [&"enemy_shot", 0.8]))
 	Sfx.play_at(StringName(row[0]), at, db, float(row[1]) * randf_range(0.95, 1.06))
 
 

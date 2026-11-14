@@ -292,7 +292,7 @@ func die(hero_kill := true) -> void:
 		FX.blast(pos, big * 1.6, c, 0.35, -1, 0.0, Game.quality < 2)
 	if FX.qvfx != null:
 		FX.qvfx.death_dust(pos, 1.5 * maxf(0.85, radius), 0.45 * maxf(0.85, radius), c)
-	if FX.marks != null and mech != &"burst":
+	if FX.marks != null and mech != &"burst" and StringName(get(&"camp") if get(&"camp") != null else &"") != &"merc":
 		var g: Vector3 = FX.marks.ground_under(pos, 6.0)
 		if g != Vector3.INF:
 			FX.marks.splat(g, Vector3.UP, 1.3 * maxf(0.85, radius) + randf() * 0.5, c.lerp(Color(0.5, 1.0, 0.2), 0.5))

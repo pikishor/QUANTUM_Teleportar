@@ -147,6 +147,9 @@ func _frame(node: Node3D, kind: String, view: Vector3) -> void:
 		bb = node.get_meta(&"bounds")
 	var c := bb.get_center()
 	var basis := Basis.from_euler(Vector3(view.x, view.y, 0.0), EULER_ORDER_YXZ)
+	var roll := float(node.get_meta(&"icon_roll", 0.0))
+	if roll != 0.0:
+		basis = Basis(basis.z, roll) * basis                                       # roll the camera about its view axis
 	_cam.global_transform = Transform3D(basis, c + basis.z * 20.0)
 	var aspect := float(_vp.size.x) / float(_vp.size.y)
 	# project the eight corners on the camera axes and fit
@@ -187,6 +190,13 @@ func _weapon_node(id: StringName) -> Node3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = WeaponModels.mesh(id)
 	mi.material_override = WeaponModels.material()
+	var bb := mi.mesh.get_aabb()                                                    # a long thin weapon (a spear, a staff, a katana) is a hairline in a 2:1 picture: its cross-section is drawn up to
+	var thin := maxf(bb.size.x, bb.size.y)                                         # 2.4 times thicker so that it still reads as that weapon on a 132 px tile and on a wheel disc
+	if thin > 0.001 and bb.size.z / thin > 5.0:
+		var f := clampf(bb.size.z / thin / 4.0, 1.0, 4.0)
+		mi.scale = Vector3(f, f, 1.0)
+		if bb.size.z / thin > 12.0:
+			mi.set_meta(&"icon_roll", deg_to_rad(-20.0))                          # a spear or a staff runs corner to corner of its picture instead of along the bottom
 	return mi
 
 

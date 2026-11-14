@@ -274,6 +274,8 @@ func _test_weapon_sweep(host: Node) -> void:
 		var kind := String(WeaponDefs.def(wid)["kind"])
 		if kind != "hit" and kind != "charge":
 			continue
+		if WeaponDefs.def(wid).has("cone"):
+			continue                                                  # SONIC CANNON, KINETIC REPULSOR (wave 113): a cone of force, no ray and no crosshair line (WeaponMech.cone_fire)
 		_w.switch_to(wid, true)
 		for si in 3:
 			var spot: Array = _spots[si]

@@ -30,11 +30,14 @@ const VAEL_CLASSES: Array[Dictionary] = [
 	{"name": &"marksman", "jacket": Color(0.27, 0.12, 0.37), "pants": Color(0.10, 0.07, 0.15), "helmet": Color(0.12, 0.10, 0.14), "trim": Color(1.0, 0.35, 0.8), "scale3": Vector3(0.94, 1.06, 0.94)},
 	{"name": &"commander", "jacket": Color(0.36, 0.09, 0.12), "pants": Color(0.16, 0.12, 0.13), "helmet": Color(0.85, 0.85, 0.88), "trim": Color(1.0, 0.9, 0.5), "scale3": Vector3(1.06, 1.07, 1.06)},
 ]
+## Wave 113 (enemy look v3): each trooper class wears the armour kit of an authority look (FoeKit): same rig, ONE surface, no textures; the carbine stays the weapon (the troopers' grips are solved on it).
+const CLASS_LOOK: Array[StringName] = [&"auth_rifle", &"auth_heavy", &"auth_breacher", &"auth_engineer", &"auth_ghost", &"auth_drone"]
 const VAEL_BIG := 1.12                          ## the Vael are a little taller and broader than a person (readable at phone size, a hostile silhouette)
 const VAEL_PICK: Array[int] = [0, 0, 1, 2, 0, 3, 4, 5]            ## n % 8 -> class: riflemen 3 in 8, the others about one in 8
 const ROLE_CLASS := {&"shield": 1, &"carrier": 1, &"flanker": 2, &"stalker": 2, &"pouncer": 2, &"sniper": 4, &"warden": 5, &"hivemother": 5, &"overseer": 5}
 
 static var enabled := true                       ## tests flip this off to compare with the old models
+static var use_kit := OS.get_environment("FOE_NO_KIT") != "1"   ## false (look-dev / perf comparison: FOE_NO_KIT=1): the Vael troopers keep the hero-shader look (colour classes only)
 static var _mid_cache := {}                      ## variant key -> mid ArrayMesh (shared by every instance of the variant)
 
 
@@ -57,6 +60,10 @@ static func variant(kind: StringName, seed_value: int, force_class := -1) -> Dic
 		opts["hair"] = &"none"
 		opts["armed"] = true
 		opts["budget"] = NEAR_ENEMY
+		if FoeKit.available() and use_kit:
+			opts["foe_look"] = CLASS_LOOK[(force_class if force_class >= 0 else VAEL_PICK[n % VAEL_PICK.size()]) % CLASS_LOOK.size()]
+			opts["weapon_id"] = &"carbine"
+			opts["variant"] = (n / 5) % 3
 	else:
 		opts["hair"] = HeroCharacter.HAIRS[1 + (n / 4) % (HeroCharacter.HAIRS.size() - 1)]
 		opts["armed"] = false
@@ -93,6 +100,8 @@ static func outfit(d: Dictionary) -> Dictionary:
 
 ## Applies the variant's colours to a hero material (also used by tests).
 static func tint(mat: ShaderMaterial, d: Dictionary) -> void:
+	if (d["opts"] as Dictionary).has("foe_look"):                 # the kit's textureless body shader: its palette was applied by the builder
+		return
 	mat.set_shader_parameter(&"suit_color", d["suit"])
 	var fit := outfit(d)
 	mat.set_shader_parameter(&"jacket_color", fit["jacket"])
@@ -144,6 +153,8 @@ static func mid_mesh(d: Dictionary) -> Mesh:
 		return _mid_cache[key]
 	var o: Dictionary = (d["opts"] as Dictionary).duplicate()
 	o["budget"] = MID
+	if o.has("foe_look"):
+		o["kit_lod"] = 1
 	var r := HeroCharacter.build(o)
 	var mesh: Mesh = null
 	if r["root"] != null:

@@ -289,6 +289,7 @@ func _tick_drone(dt: float) -> void:
 	FX.tracer(_drone.global_position, tgt, Color(1.0, 0.85, 0.3))
 	if best.has_method(&"damage"):
 		best.call(&"damage", TestMode.damage(float(d["damage"]) * HeroPower.f("dmg")), false)
+		BlastCredit.dealt(best, TestMode.damage(float(d["damage"]) * HeroPower.f("dmg")), Vector3.INF, false)      # the drone's kills count for the hero (side jobs, stats)
 		drone_hits += 1
 
 
@@ -426,6 +427,7 @@ func _tick_turret(dt: float) -> void:
 	FX.tracer(muzzle + (tgt - muzzle).normalized() * 1.0, tgt, Color(1.0, 0.85, 0.3))
 	if best.has_method(&"damage"):
 		best.call(&"damage", TestMode.damage(float(d["damage"]) * HeroPower.f("dmg")), false)
+		BlastCredit.dealt(best, TestMode.damage(float(d["damage"]) * HeroPower.f("dmg")), Vector3.INF, false)      # the turret's kills count for the hero (side jobs, stats)
 		turret_hits += 1
 	Sfx.play_at(&"shot_twin", muzzle, -10.0, 1.3)
 

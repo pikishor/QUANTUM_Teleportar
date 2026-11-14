@@ -829,6 +829,9 @@ func save_file() -> bool:
 		names.append(String(id))
 	cf.set_value("weapons", "unlocked", names)
 	cf.set_value("weapons", "current", String(WeaponDefs.last_used))
+	var wb := WeaponBrowser.to_save()
+	cf.set_value("weapons", "favourites", wb["favourites"])
+	cf.set_value("weapons", "recent", wb["recent"])
 	var att := Attachments.to_save()
 	cf.set_value("attachments", "owned", att["owned"])
 	cf.set_value("attachments", "equipped", att["equipped"])
@@ -956,6 +959,7 @@ func load_file() -> bool:
 	WeaponDefs.set_unlocked(_arr(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))))
 	var cur := StringName(str(cf.get_value("weapons", "current", "carbine")))
 	WeaponDefs.last_used = cur if WeaponDefs.is_unlocked(cur) else &"carbine"
+	WeaponBrowser.from_save({"favourites": _arr(cf.get_value("weapons", "favourites", PackedStringArray())), "recent": _arr(cf.get_value("weapons", "recent", PackedStringArray()))})
 	Attachments.from_save({"owned": _arr(cf.get_value("attachments", "owned", PackedStringArray())), "equipped": cf.get_value("attachments", "equipped", {}) if cf.get_value("attachments", "equipped", {}) is Dictionary else {}})
 	var gear_d := {}
 	if cf.has_section("gear"):

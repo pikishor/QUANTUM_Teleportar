@@ -311,7 +311,10 @@ func run(hst: Node) -> void:
 	TestLib.check(Game.state == &"paused" and hud.loadout_open(), "the wheel opens (pause through Game.state)")
 	hud._ensure_layout()
 	var pages := LoadoutScreen.page_count()
-	TestLib.check(pages == WeaponDefs.CLASS_ORDER.size(), "the loadout has one tab per weapon class (%d)" % pages)
+	var want_pages := 0                                                    # every tab (a class, FAVOURITES, RECENT) is cut into pages of WeaponBrowser.PAGE weapons
+	for t: Dictionary in WeaponBrowser.tabs(true):
+		want_pages += WeaponBrowser.pages_for((t["ids"] as Array).size())
+	TestLib.check(pages == want_pages and LoadoutScreen.tab_count() >= WeaponDefs.CLASS_ORDER.size(), "the loadout has one tab per weapon class, cut into pages (%d pages, %d tabs)" % [pages, LoadoutScreen.tab_count()])
 	var reached := {}
 	for pg in pages:
 		hud._ensure_layout()
@@ -342,7 +345,7 @@ func run(hst: Node) -> void:
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var pick: StringName = LoadoutScreen.page_items(WeaponDefs.last_used)[0] if false else &"blade"
-	LoadoutScreen.page = LoadoutScreen.owned_classes().find(WeaponDefs.class_of(pick))
+	LoadoutScreen.goto(pick)
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var ids: Array[String] = []

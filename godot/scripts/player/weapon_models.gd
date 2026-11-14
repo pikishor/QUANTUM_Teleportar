@@ -17,7 +17,7 @@ const CARBINE_GR := Vector3(0.0, -0.095, 0.68)       ## the carbine's grips in i
 const CARBINE_GL := Vector3(-0.012, -0.08, 0.39)
 const MUZZLE_AT := Vector3(0.0, 0.01, -0.86)          ## HeroCharacter: the muzzle in the rifle frame
 
-const SPEC := {
+const SPEC0 := {
 	&"pistol": {"reach": 0.6, "gr": Vector3(0.0, -0.085, 0.17), "gl": Vector3(-0.025, -0.1, 0.12)},
 	&"burst": {"reach": 0.6, "gr": Vector3(0.0, -0.085, 0.2), "gl": Vector3(-0.025, -0.105, 0.14)},
 	&"revolver": {"reach": 0.62, "gr": Vector3(0.0, -0.095, 0.25), "gl": Vector3(-0.025, -0.115, 0.2)},
@@ -79,6 +79,7 @@ const SPEC := {
 	&"seeker": {"reach": 0.84, "gr": Vector3(0.0, -0.11, 0.62), "gl": Vector3(0.0, -0.12, 0.32)},
 	&"tknife": {"reach": 0.9, "gr": Vector3(0.0, 0.0, 0.26), "gl": Vector3(0.0, 0.0, 0.32)},
 }
+static var SPEC: Dictionary = SPEC0.merged(WeaponDefs.pack_dict("spec"))              ## the roster packs add theirs (WeaponDefs.PACKS)
 
 static var _cache := {}
 static var _material: ShaderMaterial
@@ -143,6 +144,12 @@ static func _open(b: _Builder, id: StringName, dx := 0.0) -> bool:
 
 
 static func _procedural(b: _Builder, id: StringName, glow: Color) -> void:
+	if WeaponDefs.def(id).has("model_seed"):                                                                    # the roster pack of wave 113 (weapon_models_v3.gd)
+		WeaponModelsV3.build(b, id, glow)
+		return
+	if WeaponDefs.def(id).has("bid"):                                                                           # the blast arsenal of wave 113 (weapon_models_blast.gd)
+		WeaponModelsBlast.build(b, id, glow)
+		return
 	match id:
 		&"carbine":
 			if not _carbine(b, glow):

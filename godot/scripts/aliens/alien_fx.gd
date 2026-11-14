@@ -7,6 +7,10 @@ extends Node3D
 const RINGS := 10
 const LINES := 6
 const SPRITES := 30                          ## 22 projectile slots of AlienWorld plus 8 of RosterFire (roster-2 rockets, grenades, shells)
+const STREAK_SPEED := 18.0                   ## sprites that move faster than this (m/s) are drawn as streaks along their travel
+const LINE_W := 0.12                         ## the box of a telegraph line is this wide (metres) at its widest ...
+const LINE_MAX_DEG := 0.9                    ## ... and never wider than this many degrees of view from the camera: an aimed shot or a beam that runs on past the hero passes the lens, and a 12 cm box
+                                             ## at arm's length was a screen-wide translucent sheet (owner round 2, enemy look wave 113). It also fades out when it comes within 2.5 m of the camera.
 
 var _rings: Array[MeshInstance3D] = []
 var _ring_t := PackedFloat32Array()
@@ -18,8 +22,11 @@ var _line_life := PackedFloat32Array()
 var _line_a: Array[Vector3] = []
 var _line_b: Array[Vector3] = []
 var _line_col: Array[Color] = []
+var _line_k := PackedFloat32Array()         ## per line: the fade of the part that passes close to the camera 0..1
+var pips: FoePips                           ## the floating health pips of the damaged roster enemies (scripts/roster/foe_pips.gd, one MultiMesh draw)
 var _sprites: Array[MeshInstance3D] = []
 var _sprite_on := PackedByteArray()
+var _sprite_prev: Array[Vector3] = []       ## where each sprite was last frame: a fast sprite is stretched along its travel (a bolt, a rocket), a slow one stays a ball
 var _next_ring := 0
 var _next_line := 0
 var rings_shown := 0                        ## tests: rings started
@@ -50,6 +57,10 @@ func _ready() -> void:
 		_line_a.append(Vector3.ZERO)
 		_line_b.append(Vector3.ZERO)
 		_line_col.append(Color.WHITE)
+		_line_k.append(1.0)
+	pips = FoePips.new()
+	pips.name = "Pips"
+	add_child(pips)
 	var sm := SphereMesh.new()
 	sm.radius = 0.5
 	sm.height = 1.0
@@ -67,6 +78,7 @@ func _ready() -> void:
 		add_child(s)
 		_sprites.append(s)
 		_sprite_on.append(0)
+		_sprite_prev.append(Vector3.INF)
 
 
 static func _mat() -> StandardMaterial3D:
@@ -146,8 +158,40 @@ func line(a: Vector3, b: Vector3, secs: float, color: Color) -> void:
 	_line_b[i] = b
 	_line_col[i] = color
 	(_lines[i].material_override as StandardMaterial3D).albedo_color = Color(color.r, color.g, color.b, 0.3)
-	FX.place_beam(_lines[i], a, b)
+	_place_line(i, _cam_pos())
 	lines_shown += 1
+
+
+func _cam_pos() -> Vector3:
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	return cam.global_position if cam != null else Vector3.INF
+
+
+## Stretches line `i` between its two points; the width follows the distance of the nearest point to the camera (a thin stripe in the view, never a sheet) and `_line_k[i]` fades the line out near the lens.
+func _place_line(i: int, cam_pos: Vector3) -> void:
+	var a := _line_a[i]
+	var d := _line_b[i] - a
+	var length := d.length()
+	var l := _lines[i]
+	if length < 0.001:
+		l.visible = false
+		return
+	var wk := 1.0
+	var fade := 1.0
+	if cam_pos.is_finite():
+		var cd := cam_pos.distance_to(Geometry3D.get_closest_point_to_segment(cam_pos, a, _line_b[i]))
+		wk = clampf(cd * tan(deg_to_rad(LINE_MAX_DEG)) / LINE_W, 0.05, 1.0)
+		fade = smoothstep(0.6, 2.5, cd)
+	var dir := d / length
+	var up := Vector3.UP if absf(dir.y) < 0.99 else Vector3.RIGHT
+	l.global_transform = Transform3D(Basis.looking_at(dir, up) * Basis.from_scale(Vector3(wk, wk, length)), a + d * 0.5)
+	l.visible = true
+	_line_k[i] = fade
+
+
+## Width of line `i` in metres as placed now (tests).
+func line_width(i: int) -> float:
+	return LINE_W * (_lines[i].global_transform.basis.x.length())
 
 
 func dust(pos: Vector3, color: Color) -> void:
@@ -167,9 +211,24 @@ func sprite(i: int, pos: Vector3, size: float, color: Color) -> void:
 	if i < 0 or i >= SPRITES:
 		return
 	var s := _sprites[i]
-	s.global_position = pos
-	s.scale = Vector3.ONE * size * 0.5                          # `size` is the diameter in metres of the glow ball
-	(s.material_override as StandardMaterial3D).albedo_color = Color(color.r, color.g, color.b, 1.0)
+	var r := size * 0.5
+	var prev := _sprite_prev[i]
+	var streak := false
+	if prev.is_finite() and _sprite_on[i] == 1:
+		var d := pos - prev
+		var step := d.length()
+		var speed := step * float(Engine.get_physics_ticks_per_second())
+		if speed > STREAK_SPEED and step > 0.001:                # a bolt or a rocket: a bright dart along its path with the head a little ahead of the position
+			var len := clampf(speed * 0.04, 0.7, 3.0)
+			var dir := d / step
+			var up := Vector3.UP if absf(dir.y) < 0.98 else Vector3.RIGHT
+			s.global_transform = Transform3D(Basis.looking_at(dir, up) * Basis.from_scale(Vector3(r * 0.5, r * 0.5, len)), pos - dir * len * 0.3)
+			streak = true
+	if not streak:
+		s.global_position = pos
+		s.scale = Vector3.ONE * r                                 # `size` is the diameter in metres of the glow ball
+	_sprite_prev[i] = pos
+	(s.material_override as StandardMaterial3D).albedo_color = Color(color.r, color.g, color.b, 1.0).lerp(Color.WHITE, 0.3 if streak else 0.0)
 	if _sprite_on[i] == 0:
 		_sprite_on[i] = 1
 		s.visible = true
@@ -178,6 +237,7 @@ func sprite(i: int, pos: Vector3, size: float, color: Color) -> void:
 func sprite_off(i: int) -> void:
 	if i >= 0 and i < SPRITES and _sprite_on[i] == 1:
 		_sprite_on[i] = 0
+		_sprite_prev[i] = Vector3.INF
 		_sprites[i].visible = false
 
 
@@ -190,6 +250,8 @@ func active_rings() -> int:
 
 
 func tick(dt: float) -> void:
+	if pips != null and AlienWorld.instance != null:
+		pips.refresh(AlienWorld.instance.creatures)
 	for i in RINGS:
 		var m := _rings[i]
 		if not m.visible:
@@ -202,6 +264,7 @@ func tick(dt: float) -> void:
 		var col := _ring_col[i]
 		var a := lerpf(0.25, 1.0, clampf(k, 0.0, 1.0)) * (1.0 - clampf((k - 1.0) / 0.15, 0.0, 1.0))
 		(m.material_override as StandardMaterial3D).albedo_color = Color(col.r, col.g, col.b, a)
+	var cam_pos := _cam_pos()
 	for i in LINES:
 		var l := _lines[i]
 		if not l.visible:
@@ -211,5 +274,6 @@ func tick(dt: float) -> void:
 		if k2 >= 1.0:
 			l.visible = false
 			continue
+		_place_line(i, cam_pos)
 		var col2 := _line_col[i]
-		(l.material_override as StandardMaterial3D).albedo_color = Color(col2.r, col2.g, col2.b, lerpf(0.25, 1.0, k2))
+		(l.material_override as StandardMaterial3D).albedo_color = Color(col2.r, col2.g, col2.b, lerpf(0.25, 1.0, k2) * _line_k[i])

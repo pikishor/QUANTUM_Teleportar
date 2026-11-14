@@ -31,8 +31,10 @@ const BUTTONS := [
 	{"action": &"throw_item", "dx": 650.0, "dy": 322.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more"},
 	{"action": &"crouch", "dx": 650.0, "dy": 434.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"more"},
 	{"action": &"gadget", "dx": 650.0, "dy": 544.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"more_gadget"},
+	{"action": &"ammo_type", "dx": 750.0, "dy": 530.0, "r": 44.0, "fs": 22, "label": "AMMO", "need": &"more_ammo"},          # the next ammo type of the weapon (incendiary, shock, piercing ...): only for a weapon that carries more than one
 	{"action": &"garage_call", "dx": 750.0, "dy": 110.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"more_garage", "fn": &"summon"},
 	{"action": &"charge_place", "dx": 750.0, "dy": 425.0, "r": 44.0, "fs": 22, "label": "C4", "need": &"more_c4"},
+	{"action": &"ultimate", "dx": 750.0, "dy": 635.0, "r": 46.0, "fs": 20, "label": "ULT", "need": &"more_ult"},       # the hero's blast ultimate (BlastOps._poll_input): only once one is unlocked (skill level 5, or hero mode)
 	{"action": &"detonate", "dx": 590.0, "dy": 650.0, "r": 50.0, "fs": 20, "label": "DETONATE", "need": &"detonate"},
 	{"action": &"companion_hold", "dx": 750.0, "dy": 215.0, "r": 46.0, "fs": 22, "label": "HOLD", "need": &"more_companion", "fn": &"ally_hold"},
 	{"action": &"companion_attack", "dx": 750.0, "dy": 320.0, "r": 46.0, "fs": 20, "label": "ATTACK", "need": &"more_companion", "fn": &"ally_attack"},
@@ -308,8 +310,8 @@ func touch_down(id: int, pos: Vector2) -> void:
 		return
 	if wheel.is_open and wheel.sticky:                                 # a wheel a tap left open: a disc picks, anything else closes it (and is not a stick or look touch)
 		var wi := wheel.hit(pos)
-		if wi >= 0:
-			_wheel_pick(wi)
+		if wi >= 0 and _wheel_pick(wi):
+			return                                                      # a class ring (WeaponWheel.ring_items) took its place: the wheel stays open
 		wheel.close()
 		return
 	if pos.distance_to(_pause_center()) <= 36.0 * _scale() * 1.3:
@@ -388,8 +390,8 @@ func touch_up(id: int) -> void:
 				wheel.sticky = true                                    # a tap: the wheel stays, the next tap picks
 				wheel.sel = -1
 			else:
-				if wheel.sel >= 0:
-					_wheel_pick(wheel.sel)
+				if wheel.sel >= 0 and _wheel_pick(wheel.sel):
+					return                                              # the pick opened a class ring: it stays until a tap picks a weapon or closes it
 				wheel.close()
 		return
 	if id == _swap_finger:
@@ -463,10 +465,15 @@ func button_visible(b: Dictionary) -> bool:
 			return more_open and is_instance_valid(Game.player) and not _driving()
 		&"more_c4":
 			return more_open and is_instance_valid(Game.player) and not _driving() and Charges.current != null
+		&"more_ult":
+			return more_open and is_instance_valid(Game.player) and not _driving() and BlastOps.ultimates_open()
 		&"detonate":
 			return Charges.current != null and Charges.current.armed()
 		&"more_gadget":
 			return more_open and is_instance_valid(Game.player) and not _driving() and Gear.gadget != &""
+		&"more_ammo":
+			var aw: Variant = Game.player.get("weapon") if is_instance_valid(Game.player) else null
+			return more_open and not _driving() and aw is PlayerWeapon and String((aw as PlayerWeapon).def["kind"]) == "hit" and (aw as PlayerWeapon).mech.allowed_ammo().size() > 1
 		&"more_garage":
 			return more_open and is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"summon_any") and not _driving() and not InteriorGameplay.active
 		&"more_companion":
@@ -605,15 +612,21 @@ func wheel_items(kind: StringName) -> Array:
 	return out
 
 
-## A wheel pick: an ability holds its action for a moment (the same press the key makes), a weapon switches at once.
-func _wheel_pick(i: int) -> void:
+## A wheel pick: an ability holds its action for a moment (the same press the key makes), a weapon switches at once. Returns true when a class ring took the wheel's place (it stays open).
+func _wheel_pick(i: int) -> bool:
 	var id := wheel.item_id(i)
 	if id == &"":
-		return
+		return false
 	if wheel.kind == &"weapon":
 		var p: Node = Game.player if is_instance_valid(Game.player) else null
 		if p != null and p.get("weapon") is PlayerWeapon:
-			WeaponWheel.pick(id, p.get("weapon") as PlayerWeapon)
+			var pw := p.get("weapon") as PlayerWeapon
+			var nxt := WeaponWheel.activate(wheel.items[i], pw)
+			Sfx.play(&"ui_tap")
+			if not nxt.is_empty():
+				wheel.open_at(&"weapon", WeaponWheel.ring_items(StringName(nxt["tab"]), int(nxt["page"]), pw.current), wheel.centre, wheel.scale, true, wheel_bounds())
+				return wheel.is_open
+			return false
 	else:
 		if _pulse_action != &"":
 			Input.action_release(_pulse_action)
@@ -621,6 +634,7 @@ func _wheel_pick(i: int) -> void:
 		_pulse_action = id
 		_pulse_t = PULSE
 	Sfx.play(&"ui_tap")
+	return false
 
 
 ## The WEAPON button face: the weapon's silhouette and "30 / 30" (reload shows RELOADING) instead of a text label.
@@ -643,7 +657,7 @@ func _draw_wheel(c: Control, font: Font, s: float) -> void:
 	var ring := RadialWheel.RADIUS * s
 	c.draw_arc(wheel.centre, ring, 0.0, TAU, 64, Color(UiUtil.CYAN, 0.16), 3.0 * s, false)  # the track the discs sit on, and the thumb's own dot in the middle
 	c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(wheel.centre - Vector2.ONE * 30.0 * s, Vector2.ONE * 60.0 * s), false, Color(UiUtil.CYAN, 0.22))
-	var r := RadialWheel.ITEM_R * s
+	var r := RadialWheel.ITEM_R * s * wheel.disc_scale()                    # a dozen wedges or a narrow fan make the discs a little smaller so that they never overlap
 	var texts: Array = []
 	var cap := ""
 	for i in n:
@@ -663,14 +677,30 @@ func _draw_wheel(c: Control, font: Font, s: float) -> void:
 			c.draw_arc(ic, r + 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * float(it["cd"]), 28, Color(tint, 0.9), 3.0 * s, false)
 		if wheel.kind == &"weapon":
 			# director review 5, defect 9: the picture fills the disc, the label is the class in full words (PISTOL, SHOTGUN), a badge counts the weapons owned in the class
-			WeaponIcons.draw(c, StringName(it.get("icon", it["id"])), Rect2(ic.x - r * 0.92, ic.y - r * 0.86, r * 1.84, r * 1.1), Color(1, 1, 1, 0.97 * dim))
-			texts.append([ic + Vector2(-r, r * 0.66), str(it.get("cname", it["label"])), r * 2.0, 17.0 if str(it.get("cname", "")).length() < 7 else 14.5, dim])
+			if StringName(it.get("type", &"")) == &"page":                          # the NEXT disc of a class ring: an arrow and the page
+				var pc := ic + Vector2(0.0, -r * 0.18)
+				c.draw_colored_polygon(PackedVector2Array([pc + Vector2(-r * 0.34, -r * 0.42), pc + Vector2(r * 0.42, 0.0), pc + Vector2(-r * 0.34, r * 0.42)]), Color(tint, 0.97))
+			else:
+				WeaponIcons.draw(c, StringName(it.get("icon", it["id"])), Rect2(ic.x - r * 0.92, ic.y - r * 0.86, r * 1.84, r * 1.1), Color(1, 1, 1, 0.97 * dim))
+			texts.append([ic + Vector2(-r, r * 0.66), str(it.get("cname", it["label"])), r * 2.0, 17.0 if str(it.get("cname", "")).length() < 7 else (14.5 if str(it.get("cname", "")).length() < 10 else 12.5), dim])
+			if bool(it.get("fav", false)):                                            # a starred weapon in a ring
+				var sc := ic + Vector2(-r * 0.7, -r * 0.7)
+				var spts := PackedVector2Array()
+				for q in 10:
+					var ang := -PI * 0.5 + TAU * float(q) / 10.0
+					spts.append(sc + Vector2(cos(ang), sin(ang)) * (14.0 if q % 2 == 0 else 6.0) * s)
+				c.draw_colored_polygon(spts, Color(UiUtil.AMBER, 0.97))
 			if int(it.get("owned", 1)) > 1:
-				var bc := ic + Vector2(r * 0.72, -r * 0.72)
-				c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(bc - Vector2.ONE * 15.0 * s, Vector2.ONE * 30.0 * s), false, Color(UiUtil.MAGENTA, 0.95))
-				texts.append([bc + Vector2(-15.0 * s, 7.0 * s), str(int(it["owned"])), 30.0 * s, 17.0, 1.0])
+				var outward := (ic - wheel.centre).normalized() if ic.distance_to(wheel.centre) > 1.0 else Vector2(0.7, -0.7)
+				var side := 1.0 if outward.x >= -0.15 else -1.0                           # the count sits at an upper corner of the disc: outside the ring for the discs of the upper half, inside it for the lower half,
+				if outward.y > 0.2:                                                       # so that on a crowded ring it never covers the name of the disc next to it
+					side = -side
+				var bc := ic + Vector2(side * r * 0.8, -r * 0.8)
+				var br := (13.0 if r < RadialWheel.ITEM_R * s * 0.9 else 15.0) * s
+				c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(bc - Vector2.ONE * br, Vector2.ONE * br * 2.0), false, Color(UiUtil.MAGENTA, 0.95))
+				texts.append([bc + Vector2(-br, br * 0.47), str(int(it["owned"])), br * 2.0, 16.0, 1.0])
 			if i == wheel.sel or (wheel.sel < 0 and bool(it.get("current", false))):
-				cap = str(it.get("wname", "")) + (("    TAP AGAIN: NEXT OF %d" % int(it["owned"])) if int(it.get("owned", 1)) > 1 and bool(it.get("current", false)) else "")
+				cap = str(it.get("wname", "")) + (("    TAP: CHOOSE FROM %d" % int(it["owned"])) if int(it.get("owned", 1)) > 1 and bool(it.get("current", false)) else "")
 		else:
 			var words := str(it["label"]).split(" ")
 			var fsz := 18.0

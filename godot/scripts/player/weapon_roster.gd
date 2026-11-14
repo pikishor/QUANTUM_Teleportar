@@ -176,6 +176,14 @@ static func role(id: StringName) -> String:
 
 
 ## A few plain words on what makes the weapon different to use (the new mechanics of the roster); "" for the ordinary guns.
+## One line about what makes the weapon different, for the picture of the loadout: the first clause of its role (the roster of wave 113 says it in plain words), else the traits worked out from its numbers.
+static func headline(id: StringName) -> String:
+	var r := role(id)
+	if r != "":
+		return String(r.split("  ", false)[0])
+	return trait_text(id)
+
+
 static func trait_text(id: StringName) -> String:
 	var d := WeaponDefs.def(id) if WeaponDefs.DEFS.has(id) else {}
 	if d.is_empty():

@@ -7,6 +7,7 @@ extends Node
 const BEAM_COLOR_WEAPON := Color(1.0, 0.45, 0.9)
 const BEAM_COLOR_AMMO := Color(1.0, 0.78, 0.3)
 const RESPAWN_RETRY := 1.0
+const DRAW_R := 320.0                       ## crates farther than this from the hero are not drawn (45 crates drawn all over the map cost 7 k triangles in every view)
 
 var opened_count := 0                      ## lifetime counters (tests wait on these)
 var weapons_given := 0
@@ -46,10 +47,10 @@ func markers(near := 300.0) -> Array[Dictionary]:
 		return out
 	var pp := p.global_position
 	for i in count():
-		if not is_ready(i):
+		if not is_ready(i) or not WeaponLadder.crate_known(i):
 			continue
 		var cp := WeaponLadder.crate_pos(i)
-		if Vector2(cp.x - pp.x, cp.z - pp.z).length() <= near:
+		if Vector2(cp.x - pp.x, cp.z - pp.z).length() <= (minf(near, 70.0) if bool(WeaponLadder.CRATES[i].get("secret", false)) else near):
 			out.append({"pos": cp, "color": BEAM_COLOR_WEAPON if content(i) != &"" else BEAM_COLOR_AMMO, "radius": WeaponLadder.CRATE_RADIUS, "goal": false})
 	return out
 
@@ -68,7 +69,7 @@ func _physics_process(dt: float) -> void:
 	var pp := p.global_position
 	for i in count():
 		var cp := WeaponLadder.crate_pos(i)
-		if is_ready(i) and Vector2(cp.x - pp.x, cp.z - pp.z).length() <= WeaponLadder.CRATE_RADIUS and absf(pp.y - cp.y) < 6.0:
+		if is_ready(i) and WeaponLadder.crate_known(i) and Vector2(cp.x - pp.x, cp.z - pp.z).length() <= WeaponLadder.CRATE_RADIUS and absf(pp.y - cp.y) < 6.0:
 			open(i, p)
 	_refresh()
 
@@ -116,7 +117,7 @@ func _build() -> void:
 	mi.multimesh = _mm_crate
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.custom_aabb = AABB(Vector3(-1300, -2, -1300), Vector3(2600, 20, 2600))
+	mi.custom_aabb = AABB(Vector3(-5200, -300, -5200), Vector3(10400, 700, 10400))
 	mi.top_level = true
 	add_child(mi)
 	var beam := Jobs.beam_mesh()
@@ -137,15 +138,23 @@ func _build() -> void:
 	bi.name = "CrateBeams"
 	bi.multimesh = _mm_beam
 	bi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	bi.custom_aabb = AABB(Vector3(-1300, -2, -1300), Vector3(2600, 40, 2600))
+	bi.custom_aabb = AABB(Vector3(-5200, -300, -5200), Vector3(10400, 700, 10400))
 	bi.top_level = true
 	add_child(bi)
 	_refresh()
 
 
 func _refresh() -> void:
+	var p := Game.player
+	var pp := p.global_position if is_instance_valid(p) else Vector3(1.0e9, 0.0, 1.0e9)
+	var slot := 0                                                           # only the crates that are ready, known and near are written (and drawn): a MultiMesh draws every instance it holds, in view or not
 	for i in count():
+		var up := is_ready(i) and WeaponLadder.crate_known(i)
+		if not up:
+			continue
 		var cp := WeaponLadder.crate_pos(i)
+		if Vector2(cp.x - pp.x, cp.z - pp.z).length() > DRAW_R:
+			continue
 		var ground := cp.y
 		if is_instance_valid(Game.world) and Game.world.has_method(&"ground_height"):
 			ground = float(Game.world.call(&"ground_height", cp.x, cp.z))
@@ -153,8 +162,10 @@ func _refresh() -> void:
 		var yaw := float(i) * 0.9
 		var weapon := content(i) != &""
 		var tint := BEAM_COLOR_WEAPON if weapon else BEAM_COLOR_AMMO
-		var up := is_ready(i)
-		_mm_crate.set_instance_transform(i, Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3.ONE * (1.0 if up else 0.001)), base))
-		_mm_crate.set_instance_custom_data(i, Color(tint.r, tint.g, tint.b, 1.0))
-		_mm_beam.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3(0.12 if not weapon else 0.18, 0.4 if not weapon else 0.75, 0.12 if not weapon else 0.18)) if up else Basis.from_scale(Vector3.ONE * 0.001), base))
-		_mm_beam.set_instance_color(i, Color(tint.r, tint.g, tint.b, 0.9))
+		_mm_crate.set_instance_transform(slot, Transform3D(Basis(Vector3.UP, yaw), base))
+		_mm_crate.set_instance_custom_data(slot, Color(tint.r, tint.g, tint.b, 1.0))
+		_mm_beam.set_instance_transform(slot, Transform3D(Basis.from_scale(Vector3(0.12 if not weapon else 0.18, 0.4 if not weapon else 0.75, 0.12 if not weapon else 0.18)), base))
+		_mm_beam.set_instance_color(slot, Color(tint.r, tint.g, tint.b, 0.9))
+		slot += 1
+	_mm_crate.visible_instance_count = slot
+	_mm_beam.visible_instance_count = slot

@@ -47,6 +47,8 @@ OWNER DECISION 2026-11-13 (after asking why it is slow, and answering "yes" to s
 Measured pace (wave 111 and 112): about 14 to 16 hours for a four-builder wave and 10 to 11 hours for a two-builder wave (builders: 62 to 80% machine time, 20 to 38% thinking,
 so a lower effort level would save only 5 to 10%); 10 hours were lost when the usage limit hit. Waves 113 to 116 need about 2.3 days; all of 113 to 121 would have needed about 4 more days.
 
+OWNER DECISION 2026-11-14 (the owner thinks the tokens last until wave 115): the sprint now STOPS AFTER WAVE 115 (quantum snakes, with its Android build). Wave 116 (aircraft roster and interiors) and waves 117-121 start only when the owner says so, expected in 1 to 2 days (docs/sprint/RESUME.md has the start arguments).
+
 ## Rules for every agent of the sprint: keep a progress log so the work can be resumed in the middle of a wave
 The owner asked that nothing is lost or wasted if the session or the tokens end in the middle of a wave.
 1. Right after you start, create `docs/sprint/progress/<your label>.md` (the label is wNNN-tag, for example w113-weapons-roster) and keep it current after every major step and at least every 30 minutes: GOAL (one line), DONE (bullets with file paths), NEXT (ordered bullets), DECISIONS (names, APIs and numbers other agents depend on), TESTS AND PERF (what ran, the verdict lines), OPEN PROBLEMS. Under 80 lines, plain text, no secrets.

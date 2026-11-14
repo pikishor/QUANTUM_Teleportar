@@ -12,7 +12,7 @@ extends RefCounted
 
 const DIR := "res://assets/audio/"
 const TMP := "user://test_audio_real_samples.cfg"
-const BUDGET_MB := 24.0
+const BUDGET_MB := 25.0                     ## 24 MB before wave 113: the 19 weapon sound sets of the roster (tools/audio/make_weapons_v3.py: 4 takes each, 0.7 MB) are the only addition
 ## Sound names whose takes must be several different recordings.
 const TAKES := {&"shot": 4, &"shot_twin": 3, &"shot_rev": 3, &"shot_scatter": 3, &"shot_mini": 4, &"shot_burst": 4, &"shot_flux": 3, &"shot_arc": 2, &"shot_rail": 2, &"shot_gravity": 2,
 		&"shot_supp": 2, &"shot_oc": 2, &"shot_far": 2, &"enemy_shot": 3, &"enemy_shot_far": 2, &"step_asphalt": 6, &"step_metal": 6, &"step_stairs": 4, &"step_tile": 4, &"step_carpet": 4, &"step_roof": 4,

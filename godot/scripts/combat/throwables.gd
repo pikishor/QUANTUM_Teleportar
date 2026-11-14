@@ -183,7 +183,10 @@ func _step(e: Dictionary, dt: float) -> bool:
 				_place(e)
 			if t >= float(d["fuse"]):
 				if host != null and is_instance_valid(host) and host.has_method(&"damage"):          # what it is stuck to takes the charge on top of the blast
-					host.call(&"damage", float(d["car"]) if (host as Node).is_in_group(&"vehicle") else float(d["damage"]) * 0.5 * HeroPower.f("dmg"))
+					BlastTable._loud(host as Node)
+				host.call(&"damage", float(d["car"]) if (host as Node).is_in_group(&"vehicle") else float(d["damage"]) * 0.5 * HeroPower.f("dmg"))
+				if (host as Node).is_in_group(&"enemy"):
+					BlastCredit.dealt(host, float(d["damage"]) * 0.5 * HeroPower.f("dmg"))          # a charge stuck to a person: hit marker, kill credit
 				_blast(id, pos, float(d["radius"]), float(d["damage"]), Color(0.3, 0.9, 1.0))
 				return true
 		&"spike":
@@ -214,7 +217,7 @@ func _step(e: Dictionary, dt: float) -> bool:
 				e["tick"] = 0.5
 				for en in Gear.living_enemies(get_tree()):
 					if en.global_position.distance_to(pos) < float(d["lure"]) and en.has_method(&"hear"):
-						if not bool(en.get(&"aware")):
+						if en.get(&"aware") != true:                                  # aliens and roster creatures have no `aware` (null): bool(null) is a script error
 							lured += 1
 						en.call(&"hear", pos, 0.4)
 			_bob(e)
@@ -250,7 +253,7 @@ func _step(e: Dictionary, dt: float) -> bool:
 
 func _blast(id: StringName, pos: Vector3, radius: float, dmg: float, color: Color) -> void:
 	detonations += 1
-	Game.explode(pos, radius, {"enemy_dmg": TestMode.damage(dmg * HeroPower.f("dmg")), "car_dmg": float(Gear.THROWABLES[id].get("car", 40.0)), "player_dmg": 0.0, "color": color})
+	Game.explode(pos, radius, {"blast": StringName("gear_%s" % String(id)), "source": _p, "by_hero": true, "dmg_mult": HeroPower.f("dmg"), "enemy_dmg": dmg, "car_dmg": float(Gear.THROWABLES[id].get("car", 40.0)), "player_dmg": 0.0, "color": color})
 	for en in Gear.living_enemies(get_tree()):
 		if en.global_position.distance_to(pos) < radius + 0.8 and en.has_method(&"stagger"):
 			en.call(&"stagger", 1.6)
@@ -282,7 +285,9 @@ func _spikes(pos: Vector3, d: Dictionary) -> void:
 		var hits := clampi(roundi(float(n) * width / TAU * 1.6), 1, n)
 		spike_hits += hits
 		if en.has_method(&"damage"):
+			BlastTable._loud(en)
 			en.call(&"damage", TestMode.damage(per * float(hits) * HeroPower.f("dmg")), false)
+			BlastCredit.dealt(en, TestMode.damage(per * float(hits) * HeroPower.f("dmg")))
 		if en.has_method(&"stagger"):
 			en.call(&"stagger", 0.6 + 0.2 * float(hits))
 	detonated.emit(&"spike", pos)
@@ -307,7 +312,7 @@ func _blind(pos: Vector3, radius: float) -> void:
 		var ep := en.global_position
 		var inside := ep.distance_to(pos) < radius
 		var through := player_in and _seg_dist(ep, pp, pos) < radius
-		if (inside or through) and bool(en.get(&"aware")):
+		if (inside or through) and en.get(&"aware") == true:
 			en.set(&"aware", false)
 			if en.get(&"suspicion") != null:
 				en.set(&"suspicion", 0.0)
@@ -335,7 +340,9 @@ func _emp(pos: Vector3, radius: float, secs: float, dmg: float) -> void:
 				en.call(&"disable", secs)
 				disabled_n += 1
 			if en.has_method(&"damage"):
+				BlastTable._loud(en)
 				en.call(&"damage", dmg)
+				BlastCredit.dealt(en, dmg)
 
 
 ## FLASH GRENADE: a white burst; every enemy in range (with the hero not behind a wall: no line check, the grenade is thrown in the open) freezes and forgets the hero.
@@ -348,7 +355,7 @@ func _flash(pos: Vector3, radius: float, secs: float) -> void:
 			if en.has_method(&"disable"):
 				en.call(&"disable", secs)
 				disabled_n += 1
-			if bool(en.get(&"aware")):
+			if en.get(&"aware") == true:
 				en.set(&"aware", false)
 				blinded += 1
 			if en.get(&"suspicion") != null:

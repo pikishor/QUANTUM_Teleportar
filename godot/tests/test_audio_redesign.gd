@@ -10,7 +10,7 @@ extends RefCounted
 
 const DIR := "res://assets/audio/"
 const TMP := "user://test_audio_redesign.cfg"
-const BUDGET_MB := 24.0
+const BUDGET_MB := 25.0                ## 24 MB until wave 113: the 19 weapon sound sets of the roster (tools/audio/make_weapons_v3.py, 4 takes each, 0.7 MB) are the only addition
 const CLOSE_SHOTS: Array[String] = ["shot", "shot_1", "shot_2", "shot_3", "shot_twin", "shot_rev", "shot_scatter", "shot_mini", "shot_burst", "shot_flux", "enemy_shot", "enemy_shot_1", "enemy_shot_2"]
 const STEMS: Array[String] = ["pad", "pulse", "bass", "perc", "lead"]
 const LAYERS: Array[String] = ["music_district_0", "music_district_1", "music_district_2", "music_district_3", "music_boss", "music_chase", "music_night"]

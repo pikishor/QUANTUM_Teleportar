@@ -928,6 +928,7 @@ func _ram_one(car: Vehicle, cp: Vector3, e: Object) -> void:
 		return
 	_ram_cd[id] = _clock + VehicleSpecs.RAM_COOLDOWN
 	n.call(&"damage", absf(car.speed) * VehicleSpecs.RAM_FACTOR, true)
+	BlastCredit.dealt(n, absf(car.speed) * VehicleSpecs.RAM_FACTOR)                  # a person run over is a hit (marker, number) and, when he dies, a kill for the side jobs and the stats
 	Game.add_heat(0.05)
 
 

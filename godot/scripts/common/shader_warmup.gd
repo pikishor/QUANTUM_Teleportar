@@ -48,6 +48,8 @@ static func run(host: Node, force := false) -> Dictionary:
 		cars = vm.warm_begin(ground + Vector3(0.0, 0.0, 6.0))
 		items += cars.size()
 	items += _warm_fx(at)
+	var foes := FoeHuman.warm_begin(host, at + Vector3(-1.0, -1.0, 0.0))        # enemy look v3 (wave 113): the roster looks and creatures that the enemy pool above does not cover
+	items += foes.size()
 	for root: Node3D in [_quantum_root(), Game.missions as Node3D if Game.missions is Node3D else null, Game.player]:
 		items += _warm_hidden(root, at, state)
 	var ui := _warm_ui(host)
@@ -62,6 +64,7 @@ static func run(host: Node, force := false) -> Dictionary:
 		if is_instance_valid(n):
 			n.visible = e[1]
 			n.global_transform = e[2]
+	FoeHuman.warm_end(foes)
 	if em != null:
 		em.warm_end(enemies)
 	if vm != null:

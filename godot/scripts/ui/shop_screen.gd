@@ -8,7 +8,16 @@ const ROW_Y := 120.0                 ## base px of the first upgrade row (the HE
 const ROW_STEP := 66.0               ## a 64 px BUY button per row
 const ROW_W := 700.0
 const BUY_W := 150.0
-const SHOP_WEAPONS: Array[StringName] = [&"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife", &"magnum", &"mpistol", &"stun", &"ranger", &"bullpup", &"lmg", &"amr", &"xbow", &"flame", &"katana", &"bat", &"qsuper", &"qlink", &"qcollapse", &"qblink", &"qphase", &"qstasis", &"eplasma", &"erepeat", &"espike", &"ebeam", &"eblade", &"emaul", &"epod", &"railgun", &"chaingun", &"cmissile", &"napalm", &"sing", &"orbital", &"seeker", &"tknife"]
+const SHOP_WEAPONS0: Array[StringName] = [&"marksman", &"burst", &"revolver", &"akimbo", &"breacher", &"arc", &"lance", &"whip", &"rocket", &"minigun", &"grenade", &"swarm", &"vector", &"battle", &"sawn", &"auto", &"bolt", &"dmr", &"knife", &"magnum", &"mpistol", &"stun", &"ranger", &"bullpup", &"lmg", &"amr", &"xbow", &"flame", &"katana", &"bat", &"qsuper", &"qlink", &"qcollapse", &"qblink", &"qphase", &"qstasis", &"eplasma", &"erepeat", &"espike", &"ebeam", &"eblade", &"emaul", &"epod", &"railgun", &"chaingun", &"cmissile", &"napalm", &"sing", &"orbital", &"seeker", &"tknife"]
+static var SHOP_WEAPONS: Array[StringName] = _shop_all()             ## the roster packs append theirs (WeaponDefs.PACKS)
+
+
+static func _shop_all() -> Array[StringName]:
+	var out: Array[StringName] = SHOP_WEAPONS0.duplicate()
+	for id in WeaponDefs.pack_array("shop"):
+		if not out.has(StringName(id)):
+			out.append(StringName(id))
+	return out
 const PER_ROW := 3
 const PER_PAGE := 12                 ## four rows of three 64 px cells; page 0 is the upgrades, the weapons follow on pages 1..
 const CELL_STEP := 92.0              ## a caption line over a 64 px BUY cell

@@ -23,6 +23,7 @@ uniform vec4 glow_color : source_color = vec4(0.2, 0.9, 1.0, 1.0);
 uniform vec3 wheel_c[4];                // the wheel centres (model space)
 uniform float wheel_roll = 0.0;         // radians
 uniform float wheel_steer = 0.0;        // radians, the front pair (wheel 1 and 2)
+uniform float wheel_flat = 0.0;         // bit k = wheel k + 1 is flat (wave 113: a shot tyre: the lower half sags towards the rim)
 uniform float wheel_lost = 0.0;         // bit k = wheel k + 1 has flown off (collapsed into its hub)
 uniform float wheel_dirt = 0.0;
 uniform sampler2D tread : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -62,6 +63,10 @@ void vertex() {
 		mat3 r = ry * rx;
 		off = r * off;
 		n = r * n;
+		if (((int(wheel_flat + 0.5) >> k) & 1) == 1 && UV.x < 21.5) {
+			off.y = off.y < 0.0 ? off.y * 0.62 : off.y;        // the tyre (class 20): its underside flattens
+			off.x *= 1.0 + 0.1 * smoothstep(0.0, -0.3, off.y);
+		}
 		tg = r * tg;
 		bn = r * bn;
 		bool gone = ((int(wheel_lost + 0.5) >> k) & 1) == 1;

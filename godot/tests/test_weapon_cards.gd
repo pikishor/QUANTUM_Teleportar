@@ -18,7 +18,7 @@ func _data() -> void:
 	TestLib.check(WeaponDefs.IDS.size() >= 43, "forty-three or more weapons (%d)" % WeaponDefs.IDS.size())
 	for cls: StringName in WeaponDefs.CLASS_ORDER:
 		var n := WeaponDefs.in_class(cls).size()
-		TestLib.check(n >= 3 and n <= 7, "class %s has three to seven variants (%d)" % [cls, n])
+		TestLib.check(n >= 3, "class %s has at least three variants (%d; the loadout pages a long class eight at a time, wave 113 grew the roster to 180+)" % [cls, n])
 	TestLib.check(Gear.THROW_IDS.size() >= 3, "three or more throwables")
 	for id: StringName in WeaponDefs.IDS:
 		TestLib.check(ResourceLoader.exists("res://assets/models/ow_%s.glb" % id) or WeaponModels.mesh(id) != null, "%s has a model" % id)

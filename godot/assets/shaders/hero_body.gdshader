@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode cull_disabled;
+#include "res://assets/shaders/dmg_status.gdshaderinc"
 // The superhero (HeroCharacter, scripts/characters/hero_character.gd): ONE surface for the whole hero, one draw call.
 // The vertex colour picks the material of a triangle: COLOR.r = mode (0 skin / suit, 0.25 eye, 0.5 hair 1, 0.75 hair 2, 1 gear), COLOR.g = suit weight (smooth: the suit covers
 // everything except head, neck and hands). Skin, eyes and hair keep their own PBR maps (albedo, Godot / Y+ normal, roughness); the suit is the quantum-realism layer:
@@ -60,6 +61,8 @@ uniform float brightness : hint_range(0.2, 2.0) = 1.0;
 instance uniform float far_k : hint_range(0.0, 1.0) = 0.0;
 // Hit flash of an enemy (Operative._hit_effect): the whole body flashes white-hot for ~0.12 s when a round lands, so a hit reads at 20 m (0 = off).
 instance uniform float hit_k : hint_range(0.0, 1.0) = 0.0;
+// Damage states of an enemy (scripts/damage/foe_fx.gd): x = state (1 burning: charred, flickering embers; 2 frozen: ice; 3 shocked: blue flicker; 4 dissolving: violet and coming apart), y = strength 0..1.
+instance uniform vec4 dmg_fx = vec4(0.0);
 
 varying flat float v_mode;
 varying flat float v_kindf;
@@ -354,6 +357,12 @@ void fragment() {
 			emis = alb * 0.18 * hemi2;
 		}
 	}
+	vec3 dmg_emis = vec3(0.0);
+	if (dmg_fx.y > 0.001) {                                                   // burning, frozen, shocked, dissolving: assets/shaders/dmg_status.gdshaderinc (position on the body, never the UV)
+		if (dmg_status(dmg_fx, v_pos, clamp(v_pos.y / 1.9, 0.0, 1.0), pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 2.5), TIME, alb, rough, metal, dmg_emis)) {
+			discard;
+		}
+	}
 	ALBEDO = alb * brightness;
 	if (dbg_view > 0.5) {
 		ALBEDO = vec3(0.0);
@@ -365,5 +374,5 @@ void fragment() {
 	NORMAL_MAP = nm;
 	NORMAL_MAP_DEPTH = nd;
 	float far_rim = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 1.4);
-	EMISSION = emis + far_k * (trim_color * (0.3 + 1.4 * far_rim) + alb * 0.35) + hit_k * vec3(1.6, 1.4, 1.2);
+	EMISSION = emis + far_k * (trim_color * (0.3 + 1.4 * far_rim) + alb * 0.35) + hit_k * vec3(1.6, 1.4, 1.2) + dmg_emis;
 }

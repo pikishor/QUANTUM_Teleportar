@@ -37,6 +37,9 @@ static func find(who: Node3D, threat: Vector3, radius := 22.0, faction: StringNa
 		if cols == null:
 			return Vector3.INF
 		bodies = cols.get(&"bodies")
+		if Dmg.enabled and Breakables.current != null:                    # wave 113: the barriers, crates, planters and kiosks of the street are cover too, until they are shot to pieces
+			bodies = bodies.duplicate()
+			bodies.append_array(Breakables.current.cover_bodies())
 	var from := who.global_position
 	var best := Vector3.INF
 	var best_s := INF
@@ -84,6 +87,8 @@ static func is_low_cover(info: Dictionary) -> bool:
 
 ## {center, radius, height} of the body's active collision shape, {} when it is parked / disabled / too low to hide behind.
 static func body_info(body: StaticBody3D) -> Dictionary:
+	if body.collision_layer == 0 and body.has_meta(&"bk_index"):
+		return {}                                                          # a broken prop (Breakables): no protection, rounds go through
 	for ch in body.get_children():
 		var cs := ch as CollisionShape3D
 		if cs == null or cs.disabled or cs.shape == null:

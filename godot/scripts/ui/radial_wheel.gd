@@ -79,6 +79,19 @@ func _layout(bounds: Rect2) -> void:
 		angles.append(deg_to_rad(a0 + per * float(i)))
 
 
+## 1 normally; less when the discs would touch (a dozen wedges on the ring, or a fan over a narrow free arc): the discs shrink to what the spacing of neighbours allows, never below MIN_DISC (a disc of
+## 70 base px is still above the 64 px touch rule). The drawing and `hit()` use it, so what is drawn is what answers a tap.
+const MIN_DISC := 0.62
+
+func disc_scale() -> float:
+	var n := items.size()
+	if n < 2:
+		return 1.0
+	var step := TAU / float(n) if span_deg >= 359.0 else deg_to_rad(span_deg) / float(n - 1)
+	var dist := 2.0 * RADIUS * sin(clampf(step * 0.5, 0.05, PI * 0.5))
+	return clampf(dist * 0.94 / (2.0 * ITEM_R), MIN_DISC, 1.0)
+
+
 ## The least angle (degrees) between two neighbouring discs for them not to touch at RADIUS.
 static func min_step_deg() -> float:
 	return rad_to_deg(2.0 * asin(minf(ITEM_R * 2.0 / (2.0 * RADIUS), 0.99)))
@@ -107,7 +120,7 @@ func item_centre(i: int) -> Vector2:
 ## The disc under `pos` (a tap), or -1.
 func hit(pos: Vector2) -> int:
 	for i in items.size():
-		if pos.distance_to(item_centre(i)) <= ITEM_R * scale * 1.1:
+		if pos.distance_to(item_centre(i)) <= ITEM_R * scale * disc_scale() * 1.1:
 			return i
 	return -1
 

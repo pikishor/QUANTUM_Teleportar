@@ -228,7 +228,8 @@ func _ladder() -> void:
 	var pos := {}
 	var same := false
 	for i in WeaponLadder.CRATES.size():
-		var key := str(WeaponLadder.CRATES[i]["g"]) + str(WeaponLadder.CRATES[i]["sx"]) + str(WeaponLadder.CRATES[i]["sz"])
+		var cr: Dictionary = WeaponLadder.CRATES[i]
+		var key := (str(cr["g"]) + str(cr["sx"]) + str(cr["sz"])) if cr.has("g") else ("%s %s" % [cr.get("site", ""), cr.get("off", "")])          # a city corner, or a secret cache at a place of the outskirts
 		same = same or pos.has(key)
 		pos[key] = true
 	TestLib.check(not same and WeaponLadder.CRATES.size() >= 17, "%d crates, none on another's corner" % WeaponLadder.CRATES.size())
@@ -245,7 +246,11 @@ func _classes_and_pages() -> void:
 	for cls: StringName in WeaponDefs.CLASS_ORDER:
 		if int(counts.get(cls, 0)) < 3:
 			thin.append(String(cls))
-	TestLib.check(thin.is_empty() and WeaponDefs.CLASS_ORDER.has(&"quantum") and int(counts.get(&"quantum", 0)) == 6, "every class tab has three or more weapons, QUANTUM has six (%s)" % str(counts))
+	TestLib.check(thin.is_empty() and WeaponDefs.CLASS_ORDER.has(&"quantum") and int(counts.get(&"quantum", 0)) >= 6, "every class tab has three or more weapons, QUANTUM has at least the first six (%s)" % str(counts))
+	var first_six := true
+	for q: StringName in [&"qsuper", &"qlink", &"qcollapse", &"qblink", &"qphase", &"qstasis"]:
+		first_six = first_six and WeaponDefs.class_of(q) == &"quantum"
+	TestLib.check(first_six, "the six quantum weapons of the first roster are still in the QUANTUM class")
 	# every tab of the roster
 	var tabs := WeaponRoster.tabs()
 	var total := 0
@@ -267,6 +272,7 @@ func _classes_and_pages() -> void:
 	TestLib.check(not over and lost.is_empty() and WeaponsScreen.PAGE_TITLES.size() == WeaponsScreen.PAGES, "the catalogue shows everything once, at most 12 tiles a page (%s)" % str(lost))
 	# the weapon wheel shows one wedge per class the hero owns: all eight with everything unlocked
 	WeaponDefs.reset_unlocked()
+	WeaponBrowser.reset()                                                        # RECENT and FAVOURITES wedges only show when they hold something: count the class wedges
 	var starters := WeaponWheel.items().size()
 	for id in WeaponDefs.IDS:
 		WeaponDefs.unlock(id)
@@ -274,8 +280,8 @@ func _classes_and_pages() -> void:
 	TestLib.check(all.size() == WeaponDefs.CLASS_ORDER.size() and starters < all.size(), "the weapon wheel groups the weapons by class: %d wedges with everything, %d with the starters" % [all.size(), starters])
 	var quantum_wedge := false
 	for it in all:
-		quantum_wedge = quantum_wedge or (it["id"] == &"quantum" and int(it["owned"]) == 6)
-	TestLib.check(quantum_wedge, "the QUANTUM wedge holds the six quantum weapons")
+		quantum_wedge = quantum_wedge or (it["id"] == &"quantum" and int(it["owned"]) >= 6)
+	TestLib.check(quantum_wedge, "the QUANTUM wedge holds all the quantum weapons (at least the first six)")
 	WeaponDefs.reset_unlocked()
 
 

@@ -109,6 +109,7 @@ func _ready() -> void:
 		s.debris.particle_flag_rotate_y = true
 		s.debris.angular_velocity_min = -540.0
 		s.debris.angular_velocity_max = 540.0
+		s.debris.scale_amount_curve = _debris_shrink()                 # chunks that fly at the lens shrink as they fall: no orange paper squares in the frame
 		s.root.add_child(s.debris)
 		slots.append(s)
 	light = OmniLight3D.new()
@@ -163,6 +164,14 @@ static func _spark_ramp() -> Gradient:
 	g.add_point(0.3, Color(1.0, 0.7, 0.3, 0.9))
 	g.set_color(g.get_point_count() - 1, Color(1.0, 0.35, 0.1, 0.0))
 	return g
+
+
+static func _debris_shrink() -> Curve:
+	var c := Curve.new()
+	c.add_point(Vector2(0.0, 1.0))
+	c.add_point(Vector2(0.35, 0.75))
+	c.add_point(Vector2(1.0, 0.2))
+	return c
 
 
 static func _debris_ramp() -> Gradient:
@@ -278,7 +287,8 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	s.ground.global_position = Vector3(pos.x, GROUND_Y if pos.y < 4.0 else pos.y, pos.z)
 	s.ground_mat.set_shader_parameter(&"tint", mid)
 	s.ground_mat.set_shader_parameter(&"ring2", 1.0 if quantum else 0.0)
-	s.ground_mat.set_shader_parameter(&"flash_gain", 0.7 if rf else 1.4)
+	s.ground_mat.set_shader_parameter(&"flash_gain", (0.7 if rf else 1.4) * clampf(7.0 / maxf(r, 7.0), 0.6, 1.0))       # a big blast's ground flash is a disc 2.3 radii wide: it must not become a white plate
+	s.ground_mat.set_shader_parameter(&"flash_tight", 16.0 * clampf((r - 6.0) / 8.0, 0.0, 1.0))
 	s.ground_mat.set_shader_parameter(&"tint2", Color(1.0, 0.15, 0.85) if el != BlastElements.QUANTUM else Color(1.0, 0.6, 1.0))
 	s.ground_mat.set_shader_parameter(&"t", 0.0)
 	s.ground.visible = true
@@ -438,7 +448,7 @@ func _step(s: Slot, dt: float) -> void:
 		p.scale = Vector3(size, size, size)
 		var m := s.puff_mats[k]
 		m.set_shader_parameter(&"progress", f)
-		var al := minf(near, _cover_fade(p.global_position, size * 1.1)) * 0.95 * (1.0 if first else 0.6)
+		var al := minf(near, _cover_fade(p.global_position, size * 1.9)) * 0.95 * (1.0 if first else 0.6)       # 1.9: the quad is `size` wide, so a blast 10 m away no longer dims the whole frame with its first puff
 		if not first and s.burn > 0.0:
 			al *= clampf((s.burn - a) / 1.0, 0.0, 1.0)
 		m.set_shader_parameter(&"alpha", al)

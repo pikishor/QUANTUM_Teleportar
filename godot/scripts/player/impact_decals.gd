@@ -9,17 +9,20 @@ const CAPACITY := 40
 const LIFE := 18.0
 const FADE := 5.0
 const LIFT := 0.012                  ## metres the quad floats above the surface (avoids z-fighting)
-const TEX_SIZE := 64
+const SHADER := preload("res://assets/shaders/fx_decals.gdshader")
 ## Per-surface pools inside the one ring: a surface never holds more than its quota (the oldest hole of that surface is recycled first), so glass cracks
-## cannot push out every metal dent. tint = instance colour, k = size factor.
+## cannot push out every metal dent. tint = instance colour, k = size factor, look = the material of fx_decals.gdshader (0 concrete: a pit, chips and hairline cracks, 1 metal: a round hole with
+## a bright burr and a soot smear, 2 glass: a star of cracks and rings, 3 wood: a ragged hole and pale splinters, 4 asphalt: a small pit, grit, a wet halo). Wave 113: wood and asphalt are new,
+## every material has its own look (it was one tinted pit for all).
 const SURFACES := {
-	&"concrete": {"quota": 40, "tint": Color(1.0, 1.0, 1.0), "k": 1.0},
-	&"metal": {"quota": 16, "tint": Color(0.75, 0.85, 1.0), "k": 0.8},
-	&"glass": {"quota": 12, "tint": Color(0.8, 1.0, 1.0), "k": 1.7},
+	&"concrete": {"quota": 40, "tint": Color(1.0, 1.0, 1.0), "k": 1.0, "look": 0},
+	&"metal": {"quota": 16, "tint": Color(1.0, 1.0, 1.0), "k": 0.8, "look": 1},
+	&"glass": {"quota": 12, "tint": Color(1.0, 1.0, 1.0), "k": 1.7, "look": 2},
+	&"wood": {"quota": 14, "tint": Color(1.0, 1.0, 1.0), "k": 1.2, "look": 3},
+	&"asphalt": {"quota": 18, "tint": Color(1.0, 1.0, 1.0), "k": 0.9, "look": 4},
 }
 
-static var _texture: ImageTexture
-static var _material: StandardMaterial3D
+static var _material: ShaderMaterial
 
 var _mm: MultiMesh
 var _node: MultiMeshInstance3D
@@ -37,6 +40,7 @@ func _ready() -> void:
 	_mm = MultiMesh.new()
 	_mm.transform_format = MultiMesh.TRANSFORM_3D
 	_mm.use_colors = true
+	_mm.use_custom_data = true
 	var quad := QuadMesh.new()
 	quad.size = Vector2.ONE
 	quad.material = _get_material()
@@ -86,6 +90,7 @@ func add(pos: Vector3, normal: Vector3, size := 0.17, surface := &"concrete") ->
 	_mm.visible_instance_count = _filled
 	_mm.set_instance_transform(i, Transform3D(basis, pos + n * LIFT))
 	_mm.set_instance_color(i, sd["tint"])
+	_mm.set_instance_custom_data(i, Color(float(sd["look"]), randf(), 0.0, 0.0))
 	_born[i] = PlayerUtil.now()
 	_node.visible = true
 	set_process(true)
@@ -143,48 +148,8 @@ func _process(_delta: float) -> void:
 		set_process(false)
 
 
-static func _get_material() -> StandardMaterial3D:
+static func _get_material() -> ShaderMaterial:
 	if _material == null:
-		_material = StandardMaterial3D.new()
-		_material.albedo_texture = _get_texture()
-		# a whisper of self-illumination keeps the pale rim readable on surfaces the scene hardly lights (night streets), without glowing in bright places
-		_material.emission_enabled = true
-		_material.emission = Color.WHITE
-		_material.emission_texture = _get_texture()
-		_material.emission_energy_multiplier = 0.14
-		_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_material.vertex_color_use_as_albedo = true
-		_material.roughness = 0.95
-		_material.metallic_specular = 0.15
-		_material.cull_mode = BaseMaterial3D.CULL_BACK
+		_material = ShaderMaterial.new()
+		_material.shader = SHADER
 	return _material
-
-
-## A scorched, chipped bullet hole painted once: a dark pit, a ring of pale dust and a few hairline cracks. Alpha-blended.
-static func _get_texture() -> ImageTexture:
-	if _texture != null:
-		return _texture
-	var img := Image.create(TEX_SIZE, TEX_SIZE, false, Image.FORMAT_RGBA8)
-	var half := TEX_SIZE * 0.5
-	for y in TEX_SIZE:
-		for x in TEX_SIZE:
-			var u := (x + 0.5 - half) / half
-			var v := (y + 0.5 - half) / half
-			var r := sqrt(u * u + v * v)
-			var ang := atan2(v, u)
-			var wob := sin(ang * 5.0 + 0.7) * 0.07 + sin(ang * 11.0 + 2.1) * 0.05 + sin(ang * 23.0) * 0.025
-			var hole_r := 0.30 + wob * 0.6
-			var halo_r := 0.62 + wob
-			var pit := 1.0 - smoothstep(hole_r - 0.06, hole_r + 0.04, r)
-			var halo := (1.0 - smoothstep(halo_r - 0.3, halo_r, r)) * 0.8
-			var crack_dir := pow(absf(sin(ang * 3.5 + 0.4)), 60.0)
-			var crack := crack_dir * (1.0 - smoothstep(0.25, 0.98, r)) * 0.7
-			var dust := smoothstep(hole_r - 0.02, halo_r - 0.1, r)
-			# a black pit ringed by freshly exposed, pale material: it has to read against dark night surfaces, where a plain dark hole would vanish
-			var col := Color(0.01, 0.01, 0.012).lerp(Color(0.82, 0.81, 0.78), dust)
-			var alpha := clampf(maxf(maxf(pit, halo), crack), 0.0, 1.0)
-			alpha *= 1.0 - smoothstep(0.86, 1.0, r)
-			img.set_pixel(x, y, Color(col.r, col.g, col.b, alpha))
-	img.generate_mipmaps()
-	_texture = ImageTexture.create_from_image(img)
-	return _texture
