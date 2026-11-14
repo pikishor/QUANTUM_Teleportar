@@ -1,6 +1,6 @@
 # w114-weapons-art (running)
 
-agent id a253933c3d36a6bfc, 689 events, first activity 2026-11-14T12:49:06.241Z, last activity 2026-11-14T15:04:42.689Z
+agent id a253933c3d36a6bfc, 704 events, first activity 2026-11-14T12:49:06.241Z, last activity 2026-11-14T15:13:51.176Z
 
 ## Last notes of the agent
 
@@ -13,11 +13,6 @@ agent id a253933c3d36a6bfc, 689 events, first activity 2026-11-14T12:49:06.241Z,
 
 ## Recent steps (last 40)
 
-- 14:43:57 Write the ARCHITECTURE.md and HANDOFF.md sections
-- 14:44:05 Render the starter weapons large for a critical look
-- 14:44:06 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/ba/st.png
-- 14:44:55 Calmer swatches, richer plasma launcher details, rebuild and re-render the starters
-- 14:44:56 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/ba/st.png
 - 14:45:57 Narrow the edge wear mask and re-render pistols
 - 14:45:58 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/ba/pi.png
 - 14:46:23 Calm the metal micro-normals, regenerate the atlas and re-render
@@ -53,6 +48,11 @@ agent id a253933c3d36a6bfc, 689 events, first activity 2026-11-14T12:49:06.241Z,
 - 15:04:32 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/fe/q0_000.png
 - 15:04:32 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/fe/q1_002.png
 - 15:04:42 Recapture enemy-held frames with enemies closer to the camera
+- 15:13:04 Build a trial montage of the eight enemy-held frames
+- 15:13:05 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/fe/sheet_try.png
+- 15:13:37 Check creature states and the world spawn API
+- 15:13:47 /home/user/QUANTUM_Teleportar/godot/tests/bot_weapon_foes.gd
+- 15:13:51 Capture one armed enemy per frame at phone resolution, LOW and MED
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -66,3 +66,4 @@ agent id a253933c3d36a6bfc, 689 events, first activity 2026-11-14T12:49:06.241Z,
 - godot/tools/blender/weapon_specs.py
 - godot/tools/blender/weapon_kit.py
 - godot/tests/test_weapon_models_v3.gd
+- godot/tests/bot_weapon_foes.gd
