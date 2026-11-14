@@ -1,6 +1,6 @@
 # w114-weapons-art (running)
 
-agent id a253933c3d36a6bfc, 606 events, first activity 2026-11-14T12:49:06.241Z, last activity 2026-11-14T14:49:36.829Z
+agent id a253933c3d36a6bfc, 611 events, first activity 2026-11-14T12:49:06.241Z, last activity 2026-11-14T14:49:43.846Z
 
 ## Last notes of the agent
 
@@ -12,8 +12,6 @@ agent id a253933c3d36a6bfc, 606 events, first activity 2026-11-14T12:49:06.241Z,
 
 ## Recent steps (last 40)
 
-- 14:13:25 Check how attachments (laser) are represented
-- 14:13:43 Pass real reload progress only and add the laser sight beam
 - 14:13:55 Palette, camo and bow tweaks; rebuild all; render the final-style lineups
 - 14:13:56 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/lin/c2.png
 - 14:16:14 Darken the polymer tints, rebuild and re-render lineups
@@ -52,6 +50,8 @@ agent id a253933c3d36a6bfc, 606 events, first activity 2026-11-14T12:49:06.241Z,
 - 14:48:22 Run the weapon model v3 test after the last tweaks
 - 14:48:55 Show pass/fail lines of the weapon model test
 - 14:49:07 Count ok lines and find the verdict of the weapon model test
+- 14:49:39 Inspect errors logged during the live part of the test
+- 14:49:43 Run the other touched weapon tests and look for preview tests
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
