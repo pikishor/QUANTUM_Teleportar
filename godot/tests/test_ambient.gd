@@ -7,6 +7,8 @@ const Crowd := preload("res://scripts/ambient/ambient_crowd.gd")
 const Patrol := preload("res://scripts/ambient/ambient_sky.gd")
 const Fixture := preload("res://tests/ambient_fixture.gd")
 
+const TIMEOUT_SECONDS := 120.0                   ## the terrain streams in for a while before the nodes are counted (see _settle_terrain); the runner's default limit is 60 s
+
 
 func run(host: Node) -> void:
 	var city := (load("res://scenes/world.tscn") as PackedScene).instantiate() as City
@@ -309,8 +311,41 @@ func _test_patrol(host: Node, amb: Node3D) -> void:
 	TestLib.check(not s.siren_player.playing and s._siren_left == 0.0, "reset stops the siren")
 
 
+## The terrain is the one streamer that fills the tree late and all at once: it draws the world map picture on a worker thread first (about 10 s of one core for the 9 km world) and its far
+## tiles and chunks queue behind that job in the pool; when the map is done the 96 far tiles arrive one a frame. A quiet stretch of 60 frames proves nothing while the map is still being
+## drawn: on the CI runner the burst fell inside the counting window below ("2105 -> 2152", on both attempts), in the sandbox just after it (a 200 frame pause before the count reproduces
+## the failure here). So the test waits on the terrain's own counters (the map is installed, every far tile stands, no job is in flight; progress based and in real time, like
+## test_terrain_world) and only then lets the node count hold still and counts. The check itself is unchanged: once the world has settled, the living city creates no node.
+func _settle_terrain(host: Node, city: City) -> void:
+	var terrain := city.terrain
+	if terrain == null:
+		return
+	terrain.far_jobs_max = 4                         # a phone builds two far tiles at a time; four finish the 9 km world sooner (test_terrain_world does the same)
+	var total: int = terrain._far_total()
+	var t0 := Time.get_ticks_msec()
+	var t_last := t0
+	var last := -1
+	var done := false
+	var st: Dictionary = {}
+	while true:
+		st = terrain.stats()
+		if TerrainMap.ready and int(st["far_tiles"]) >= total and int(st["jobs"]) == 0:
+			done = true
+			break
+		var progress := int(st["far_tiles"]) + int(st["chunks"]) + (1000 if TerrainMap.ready else 0)
+		var now := Time.get_ticks_msec()
+		if progress != last:
+			last = progress
+			t_last = now
+		if float(now - t_last) / 1000.0 > 45.0 or float(now - t0) / 1000.0 > 100.0:   # (a stuck worker; the map alone takes about 10 s without any tile)
+			break
+		await TestLib.frames(host, 6)
+	TestLib.check(done, "the terrain has streamed in before the nodes are counted (map %s, %d of %d far tiles, %d jobs, %.0f s)" % [str(TerrainMap.ready), int(st["far_tiles"]), total, int(st["jobs"]), float(Time.get_ticks_msec() - t0) / 1000.0])
+
+
 func _test_no_growth(host: Node, city: City, amb: Node3D) -> void:
-	var calm := 0                                   # the streamed world (rail chunks, terrain tiles, outskirts) is still building around the spawn: wait until the node count holds still
+	await _settle_terrain(host, city)
+	var calm := 0                                   # the rest of the streamed world (rail chunks, outskirts) may still be building around the spawn: wait until the node count holds still
 	var last := host.get_tree().get_node_count()
 	for k in 600:
 		await TestLib.frames(host, 5)
