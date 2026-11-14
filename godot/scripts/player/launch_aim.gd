@@ -105,6 +105,7 @@ static func _bracket_texture() -> Texture2D:
 func hide() -> void:
 	active = false
 	target = null
+	BlastPreview.hide()
 	if _ring != null:
 		_ring.visible = false
 		_lock.visible = false
@@ -136,7 +137,7 @@ func update(dt: float, d: Dictionary) -> void:
 		aim_pt = _center_of(target)
 	landing = aim_pt
 	active = true
-	var blast := maxf(float(d.get("blast_radius", 3.0)), 1.0)
+	var blast := maxf(BlastTable.radius_of_def(d) if d.has("bid") or d.has("blast_radius") else 3.0, 1.0)
 	_ring.visible = true
 	_ring.global_position = aim_pt + Vector3(0.0, 0.07, 0.0)
 	_ring.scale = Vector3(blast * 2.0, blast * 2.0, 1.0)
@@ -147,6 +148,7 @@ func update(dt: float, d: Dictionary) -> void:
 		var pulse := 1.0 + 0.12 * sin(_t * 9.0)
 		_lock.scale = Vector3.ONE * clampf(_radius_of(target) * 2.6, 1.6, 4.5) * pulse
 	_update_dots(aim_pt, d)
+	BlastPreview.update(_w, d, aim_pt, self)                                 # the true radius in the colour of its element, the strike footprint, a mine's placement, RADIUS and DANGER (scripts/combat/blast_preview.gd)
 
 
 static func _radius_of(n: Node3D) -> float:

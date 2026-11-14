@@ -37,8 +37,16 @@ static func card(id: StringName, d: Dictionary = {}) -> Dictionary:
 	out["range_max"] = rng
 	out["range_eff"] = fall if fall < rng else rng
 	out["falloff"] = fall < rng
-	out["blast"] = float(def.get("blast_radius", 0.0))
+	out["blast"] = BlastTable.radius_of_def(def) if kind == "throw" else float(def.get("blast_radius", 0.0))
 	out["blast_damage"] = float(def.get("blast_damage", def["damage"])) if kind == "throw" else 0.0
+	out["utility"] = bool(def.get("utility", false))                           # a blast that does no damage (flash, smoke, EMP, freeze): its damage number is nominal
+	out["blast_edge"] = 0.0
+	out["blast_core"] = 0.0
+	if kind == "throw":
+		var be := BlastPreview.entry_of(def, id)
+		if not be.is_empty():
+			out["blast_edge"] = BlastTable.factor(be, float(be["radius"]))          # share of the centre damage at the edge of the radius
+			out["blast_core"] = float(be["core"])
 	out["well"] = float(def.get("well_radius", 0.0)) if kind == "throw" and float(def.get("well_pull", 0.0)) > 0.0 else 0.0
 	out["spread_hip"] = rad_to_deg(float(def["spread_hip"]))
 	out["spread_ads"] = rad_to_deg(float(def["spread_ads"]))
@@ -142,14 +150,18 @@ static func lines(c: Dictionary) -> Array[String]:
 	var dmg := "%d DAMAGE" % int(roundf(float(c["damage"])))
 	if int(c["pellets"]) > 1:
 		dmg += "  x%d PELLETS" % int(c["pellets"])
+	if bool(c.get("utility", false)):
+		dmg = "UTILITY  IT DOES NO DAMAGE"
 	out.append(dmg)
 	out.append("%d RPM" % int(roundf(float(c["rpm"]))))
 	var mag := "MAG %d" % int(c["mag"])
 	if int(c["reserve"]) >= 0:
 		mag += "  SPARE %d" % int(c["reserve"])
 	out.append("%s  RELOAD %.1f S" % [mag, float(c["reload"])])
-	if float(c["blast"]) > 0.0:
-		out.append("BLAST %.1f M  %d DAMAGE AT THE CENTRE" % [float(c["blast"]), int(roundf(float(c["blast_damage"])))])
+	if float(c["blast"]) > 0.0 and bool(c.get("utility", false)):
+		out.append("BLAST %.1f M  NO DAMAGE  A TOOL" % float(c["blast"]))
+	elif float(c["blast"]) > 0.0:
+		out.append("BLAST %.1f M  %d DAMAGE AT THE CENTRE  %d%% AT THE EDGE" % [float(c["blast"]), int(roundf(float(c["blast_damage"]))), int(roundf(float(c.get("blast_edge", 0.4)) * 100.0))])
 	elif bool(c["falloff"]):
 		out.append("FULL DAMAGE TO %d M  WEAK AT %d M" % [int(roundf(float(c["range_eff"]))), int(roundf(float(c["range_max"])))])
 	else:

@@ -880,6 +880,8 @@ func _hit_world(hit: Vector3, normal: Vector3) -> void:
 	var surface := Breakables.surface_of(_last_collider) if is_instance_valid(_last_collider) else &"concrete"
 	if is_instance_valid(_last_collider) and Breakables.current != null:
 		Breakables.current.hit_at(_last_collider, hit, n)
+	if is_instance_valid(_last_collider) and WorldBlasters.current != null:
+		WorldBlasters.current.hit_collider(_last_collider, hit, maxf(1.0, float(def["damage"]) / 14.0))          # a shot barrel, gas tank or fuel truck goes off (scripts/combat/world_blasters.gd)
 	if _sparks != null:
 		_sparks.impact_world(hit, n)
 	if _decals != null:
@@ -1016,6 +1018,9 @@ func _throw(yaw_off := 0.0, quiet := false, opts := {}) -> void:
 	fire_t = float(def["interval"])
 	_since_shot = 0.0
 	_burst = 1
+	if def.has("bid"):                                       # the BLAST ARSENAL (scripts/combat/blast_ops.gd): its own flight, fuse, mines and strike markers
+		BlastOps.weapon_fire(self, yaw_off, opts)
+		return
 	Sfx.play(&"blink", -6.0, 1.6)
 	if bool(def.get("launch", false)) and not quiet:
 		Sfx.play(StringName(def.get("snd", &"shot")), float(def.get("vol", -2.0)), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
@@ -1245,7 +1250,8 @@ func _collapse(g: Dictionary) -> void:
 	if arms.on_collapse(d, pos):                            # the orbital beacon plants itself, the strike comes later
 		grenade_collapsed.emit(pos)
 		return
-	Game.explode(pos + Vector3(0.0, 0.5, 0.0), float(d["blast_radius"]), {"enemy_dmg": float(d.get("blast_damage", d["damage"])) * Upgrades.damage_mult(), "car_dmg": float(d.get("car_dmg", 40.0)),
+	Game.explode(pos + Vector3(0.0, 0.5, 0.0), float(d["blast_radius"]), {"blast": StringName("w_%s" % String(g.get("wid", &"grenade"))), "dmg_mult": Upgrades.damage_mult(), "source": _player, "by_hero": true,
+			"enemy_dmg": float(d.get("blast_damage", d["damage"])), "car_dmg": float(d.get("car_dmg", 40.0)),
 			"player_dmg": 0.0, "color": d.get("blast_color", WeaponDefs.COLLAPSE_COLOR), "element": d.get("blast_element", &"")})
 	arms.after_blast(d, pos)                                # bomblets, a burning field, the overcharge stun
 	grenade_collapsed.emit(pos)
@@ -1397,7 +1403,7 @@ func _tick_heat(dt: float, trigger: bool) -> void:
 		if _lock_t <= 0.0:
 			overheated = false
 			heat = 0.3
-	elif _since_shot > 0.2:
+	elif _since_shot > 0.2 and def.has("heat_cool"):                       # a weapon that only spins up (the DRUMMER SMG) has no heat to shed
 		heat = maxf(0.0, heat - float(def["heat_cool"]) * dt)
 
 
@@ -1540,6 +1546,7 @@ func cycle_ammo_type() -> bool:
 	if Game.progress != null and Game.progress.has_method(&"set_ammo_type"):
 		Game.progress.call(&"set_ammo_type", ammo_type)
 	Sfx.play(&"ui_tap", -4.0, 1.3)
+	Game.say("AMMO  %s" % String(ammo_info()["name"]), 1.4)                  # the phone has an AMMO button behind MORE (touch_controls.gd): the toast says what is loaded now
 	return true
 
 

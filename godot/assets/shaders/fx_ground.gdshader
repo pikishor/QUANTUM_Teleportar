@@ -9,13 +9,14 @@ uniform float alpha : hint_range(0.0, 1.0) = 1.0;
 uniform vec3 tint : source_color = vec3(1.0, 0.5, 0.15);
 uniform float ring2 : hint_range(0.0, 1.0) = 0.0;
 uniform float flash_gain = 1.4;
+uniform float flash_tight = 0.0;                         // a big blast keeps its flash to a hot spot at the centre instead of a plate of light across the street
 uniform vec3 tint2 : source_color = vec3(1.0, 0.15, 0.85);   // the second ripple of the quantum collapse is magenta, the first cyan
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
 	float r = length(p);
 	float ang = atan(p.y, p.x);
-	float flash = exp(-r * r * 6.0) * pow(max(0.0, 1.0 - t * 2.2), 2.0) * flash_gain;
+	float flash = exp(-r * r * (6.0 + flash_tight)) * pow(max(0.0, 1.0 - t * 2.2), 2.0) * flash_gain;
 	float rr = 1.0 - pow(1.0 - t, 2.2);                    // ring radius: fast, then slowing
 	float wob = 0.78 + 0.22 * sin(ang * 9.0 + t * 7.0) * sin(ang * 4.0 - t * 3.0);
 	float ring = exp(-pow((r - rr * 0.92) / (0.035 + 0.05 * t), 2.0)) * (1.0 - t) * wob * 1.8;

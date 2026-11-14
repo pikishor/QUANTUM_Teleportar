@@ -21,13 +21,15 @@ const SLOT_STEP := 114.0
 const PART_W := 184.0
 const PART_H := 80.0
 const ACTION_Y := 542.0                   ## GEAR and INFO under the slots
-const PART_FX := {&"reddot": "Steadier aim", &"scope": "Zoom, steady aim", &"halo": "Hip aim, crits", &"suppressor": "Quiet, less kick", &"longbarrel": "Longer range", &"compensator": "Less recoil",
-	&"overcharge": "More damage", &"rapid": "Faster fire", &"extended": "Bigger magazine"}
+const TAB_H := 64.0                       ## the slot tabs (OPTIC, MUZZLE, GRIP, MAGAZINE, LASER) above the part cards; one slot is open at a time
+const PART_ROW_Y := 276.0                 ## the first row of part cards (three to a row, a second row for a slot with more than three parts)
+const FITTED_Y := 482.0                   ## the line "FITTED  RED DOT  DAMPER ..." under the cards
 const PART_CAPTION := 18.0                ## base px of the part names under the BUY / EQUIP buttons (was 14: unreadable on a phone)
 
 ## The paged wheel: WeaponDefs.PAGE_SIZE weapons per page, buttons `wheelpg_prev` / `wheelpg_next` flip it. The page follows the selected weapon until a flip.
 static var page := 0
 static var _page_sel: StringName = &""
+static var slot_tab: StringName = &"optic"                          ## the open slot of the attachment column (`slot_<id>` buttons)
 
 
 const WIDTH := 1454.0                     ## base px the three columns span (squeezed horizontally by `k` on a narrower, 16:9 screen)
@@ -140,14 +142,9 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 	var prog := Game.progress as Progress
 	var k := k_of(hud.get_viewport().get_visible_rect().size.x, s)
 	var items := page_items(sel)
-	var lasts := {}                                                # the caption under a tile is the last word of the name ("CANNON"), the first word when that is ambiguous on this tab
-	for id in items:
-		var lw := String(WeaponDefs.title(id).split(" ")[-1])
-		lasts[lw] = int(lasts.get(lw, 0)) + 1
 	for i in items.size():                                         # the owned weapons as a column pair of tiles, each with its picture (the page flips with < >)
 		var tp := Vector2(cx + (GRID_X + float(i % GRID_COLS) * (TILE.x + TILE_GAP)) * s * k, (GRID_Y + float(i / GRID_COLS) * (TILE.y + TILE_GAP)) * s)
-		var ttl := WeaponDefs.title(items[i]).split(" ")
-		hud.buttons.append({"id": StringName("wheel_%s" % items[i]), "rect": Rect2(tp, Vector2(TILE.x * k, TILE.y) * s), "label": String(WeaponDefs.def(items[i])["tag"]), "on": items[i] == sel, "cap": _caption(ttl, lasts, String(WeaponDefs.def(items[i])["tag"]))})
+		hud.buttons.append({"id": StringName("wheel_%s" % items[i]), "rect": Rect2(tp, Vector2(TILE.x * k, TILE.y) * s), "label": String(WeaponDefs.def(items[i])["tag"]), "on": items[i] == sel, "cap": WeaponBrowser.caption(items[i])})
 	if page_count() > 1:
 		var ar := arrow_rects(cx, s, k)
 		hud._add(&"wheelpg_prev", ar[0], "<", false)
@@ -157,27 +154,47 @@ static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
 		hud._add(&"wheelcls_prev", cr[0], "<", false)
 		hud._add(&"wheelcls_next", cr[1], ">", false)
 	hud.buttons.append({"id": &"fav_toggle", "rect": star_rect(cx, s, k), "label": "", "on": WeaponBrowser.is_favourite(sel), "own": true})
-	for si in Attachments.SLOTS.size():
-		var parts := Attachments.parts_for(Attachments.SLOTS[si])
-		for j in parts.size():
-			var part := parts[j]
-			var own := Attachments.part_in(sel, Attachments.SLOTS[si]) == part
-			var label := "ON" if own else (("NEW  EQUIP" if MissionRewards.is_new(part) else "EQUIP") if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
-			hud.buttons.append({"id": StringName("part_%s" % part), "rect": Rect2(cx + (SLOT_X + j * (PART_W + 8.0)) * s * k, (SLOT_Y + si * SLOT_STEP + 24.0) * s, PART_W * s * k, PART_H * s), "label": label, "on": own,
-				"part": true, "name": String(Attachments.PARTS[part]["name"]), "fx": String(PART_FX.get(part, "")), "state": 2 if own else (1 if Attachments.is_owned(part) else 0)})
+	var open_slot := active_slot(sel)
+	var slots := Attachments.slots_for_weapon(sel)
+	if slots.size() > 1:                                                     # the slot tabs: only the slots this weapon can wear something in
+		var tabs := tab_rects(cx, s, k, slots.size())
+		for ti in slots.size():
+			hud.buttons.append({"id": StringName("slot_%s" % slots[ti]), "rect": tabs[ti], "label": Attachments.slot_label(slots[ti]), "on": slots[ti] == open_slot, "tab": &""})
+	var parts := Attachments.parts_for_weapon(open_slot, sel) if open_slot != &"" else ([] as Array[StringName])
+	for j in parts.size():
+		var part := parts[j]
+		var own := Attachments.part_in(sel, open_slot) == part
+		var label := "ON" if own else (("NEW  EQUIP" if MissionRewards.is_new(part) else "EQUIP") if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
+		hud.buttons.append({"id": StringName("part_%s" % part), "rect": part_rect(cx, s, k, j), "label": label, "on": own,
+			"part": true, "name": String(Attachments.PARTS[part]["name"]), "fx": String(AttachmentPartsV3.FX.get(part, "")), "state": 2 if own else (1 if Attachments.is_owned(part) else 0)})
 	var aw := (3.0 * PART_W + 2.0 * 8.0 - 72.0 - 8.0) * 0.5              # GEAR and WEAPON INFO share the row with the 64 px star
 	hud._add_card(&"loadout_gear", Rect2(cx + SLOT_X * s * k, ACTION_Y * s, aw * s * k, 64.0 * s), "GEAR", &"gear", "", false, UiUtil.MAGENTA)
 	hud._add_card(&"loadout_info", Rect2(cx + (SLOT_X + aw + 8.0) * s * k, ACTION_Y * s, aw * s * k, 64.0 * s), "WEAPON INFO", &"weapon", "", false, UiUtil.CYAN)
 	hud._add(&"loadout_back", Rect2(cx - 110.0 * s, 628.0 * s, 220.0 * s, 64.0 * s), "RESUME" if hud._loadout_quick else "BACK", false)
 
 
-## The caption of a weapon tile: the last word of its name, unless another weapon on the tab ends the same way or it is a bare "GUN" (then the first word, or the tag when that is long).
-static func _caption(words: PackedStringArray, lasts: Dictionary, tag: String) -> String:
-	var last := String(words[words.size() - 1])
-	if words.size() == 1 or (int(lasts.get(last, 0)) < 2 and last != "GUN"):
-		return last
-	var first := String(words[0])
-	return first if first.length() <= 9 else tag
+## The open slot of the attachment column for weapon `sel`: the tab that was opened last when this weapon can wear something in it, else its first slot (&"" when it can wear nothing at all).
+static func active_slot(sel: StringName) -> StringName:
+	var slots := Attachments.slots_for_weapon(sel)
+	if slots.is_empty():
+		return &""
+	return slot_tab if slots.has(slot_tab) else slots[0]
+
+
+## The slot tabs: `n` equal tabs across the width of the three part columns.
+static func tab_rects(cx: float, s: float, k: float, n: int) -> Array[Rect2]:
+	var gap := 6.0
+	var total := 3.0 * PART_W + 2.0 * 8.0
+	var w := (total - gap * float(n - 1)) / float(maxi(n, 1))
+	var out: Array[Rect2] = []
+	for i in n:
+		out.append(Rect2(cx + (SLOT_X + float(i) * (w + gap)) * s * k, SLOT_Y * s, w * s * k, TAB_H * s))
+	return out
+
+
+## The part card `j` of the open slot: three to a row.
+static func part_rect(cx: float, s: float, k: float, j: int) -> Rect2:
+	return Rect2(cx + (SLOT_X + float(j % 3) * (PART_W + 8.0)) * s * k, (PART_ROW_Y + float(j / 3) * (PART_H + 8.0)) * s, PART_W * s * k, PART_H * s)
 
 
 ## The class chips above the tile column: [previous, next] (64 px each, the class name sits between them).
@@ -273,7 +290,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		var line: String = wl[i]
 		var lw := pic.size.x - tag.size.x - 10.0 * s
 		hud._text(c, font, Vector2(tag.end.x + 10.0 * s, wy), line, HORIZONTAL_ALIGNMENT_LEFT, lw, UiUtil.fit_size(font, line, lw, int(20.0 * s)), Color(UiUtil.CYAN, 0.97), 1.0 * s)
-	var trait_line := WeaponRoster.trait_text(sel)
+	var trait_line := WeaponRoster.headline(sel)
 	if trait_line != "":
 		hud._text(c, font, Vector2(pic.position.x + 18.0 * s, pic.position.y + pic.size.y - 14.0 * s), trait_line, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x - 70.0 * s, UiUtil.fit_size(font, trait_line, pic.size.x - 70.0 * s, int(18.0 * s)), Color(UiUtil.MAGENTA, 0.97), 1.0 * s)
 	var np := page_count()
@@ -303,6 +320,30 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	else:
 		pts.append(pts[0])
 		c.draw_polyline(pts, Color(1, 1, 1, 0.8), 2.0 * s)
-	for si in Attachments.SLOTS.size():
-		var y := (SLOT_Y + si * SLOT_STEP) * s
-		hud._text(c, font, Vector2(cx + SLOT_X * s * k, y + 16.0 * s), String(Attachments.SLOTS[si]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+	var slots := Attachments.slots_for_weapon(sel)                         # the attachment column: slot tabs and part cards (buttons), the names of what is fitted under them
+	var col_w := (3.0 * PART_W + 2.0 * 8.0) * s * k
+	var ax := cx + SLOT_X * s * k
+	if slots.is_empty():
+		hud._text(c, font, Vector2(ax, (SLOT_Y + 40.0) * s), "NO ATTACHMENTS", HORIZONTAL_ALIGNMENT_LEFT, col_w, int(UiUtil.BAR_LABEL * 1.1 * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+		hud._text(c, font, Vector2(ax, (SLOT_Y + 70.0) * s), "THIS WEAPON TAKES NO PARTS", HORIZONTAL_ALIGNMENT_LEFT, col_w, int(Hud.BODY_MIN * s), Color(1, 1, 1, 0.7), 1.0 * s)
+	else:
+		if slots.size() == 1:
+			hud._text(c, font, Vector2(ax, (SLOT_Y + 24.0) * s), Attachments.slot_label(slots[0]), HORIZONTAL_ALIGNMENT_LEFT, col_w, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
+		var fitted: PackedStringArray = []
+		for sl in slots:
+			var pf := Attachments.part_in(sel, sl)
+			if pf != &"" and Attachments.PARTS.has(pf) and Attachments.fits(pf, sel):
+				fitted.append(String(Attachments.PARTS[pf]["name"]))
+		var fsz := int(UiUtil.BAR_LABEL * s)                                         # the names of what is fitted: one line, or two when five parts do not fit a phone's column (a text never goes below the legible size)
+		var lines: Array[String] = []
+		var line := "FITTED  " + ("" if not fitted.is_empty() else "NOTHING YET")
+		for i in fitted.size():
+			var piece := String(fitted[i]) if i == 0 or line == "" else " / " + String(fitted[i])
+			if i > 0 and font.get_string_size(line + piece, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x > col_w * 0.94:
+				lines.append(line)
+				line = String(fitted[i])
+			else:
+				line += piece
+		lines.append(line)
+		for li in mini(lines.size(), 2):
+			hud._text(c, font, Vector2(ax, (FITTED_Y + float(li) * 22.0) * s), lines[li], HORIZONTAL_ALIGNMENT_LEFT, col_w, fsz, Color(UiUtil.AMBER, 0.95), 1.0 * s)

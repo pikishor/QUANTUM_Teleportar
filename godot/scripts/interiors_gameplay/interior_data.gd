@@ -58,7 +58,10 @@ static func has_vendor(type: StringName) -> bool:
 
 ## What a vendor of `type` sells: its own STOCK, or the stock of the city type an outskirts shop is an alias of (InteriorCountry.STOCK_ALIAS).
 static func stock(type: StringName) -> Array:
-	return STOCK.get(type, STOCK.get(InteriorCountry.STOCK_ALIAS.get(type, &""), []))
+	var rows: Array = STOCK.get(type, STOCK.get(InteriorCountry.STOCK_ALIAS.get(type, &""), []))
+	if type == &"weapons" or InteriorCountry.STOCK_ALIAS.get(type, &"") == &"weapons":
+		return WeaponShopsV3.dealer_stock(rows)                           # a weapon the hero owns is sold out: the back room offers one of his tier instead (wave 113)
+	return rows
 
 
 static func mission_for(type: StringName) -> StringName:

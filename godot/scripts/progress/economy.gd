@@ -89,7 +89,7 @@ static func weapon_price(id: StringName) -> int:
 
 
 static func attachment_price(id: StringName) -> int:
-	return scaled(int(ATTACHMENT_PRICE.get(id, 0)))
+	return scaled(int(ATTACHMENT_PRICE.get(id, int(AttachmentPartsV3.PARTS.get(id, {}).get("price", 0)))))          # the twelve parts of wave 113 carry their own base price (outside the gear tree of FULL_TREE_HOURS)
 
 
 static func craft_part_price(id: StringName) -> int:

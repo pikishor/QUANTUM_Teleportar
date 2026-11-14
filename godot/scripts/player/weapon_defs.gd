@@ -15,7 +15,7 @@ extends RefCounted
 ##   "price" (Economy.WEAPON_PRICE), "ammo_pack" (PlayerWeapon.AMMO_PACK), "acc" (BalanceModel.ACC), "stagger" (AimAssist.STAGGER), "vfx_class" (QuantumVfx.WEAPON_CLASS),
 ##   "anim_class" (HeroAnimTuning.WEAPON_CLASS), "spec" (WeaponModels.SPEC), "shop" (ShopScreen.SHOP_WEAPONS, an Array), "ladder" (WeaponLadder.LADDER rows) and "crates" (WeaponLadder.CRATES rows).
 ## A pack must not read WeaponDefs while it builds its tables (the tables are being built from it). Append your script to PACKS to add a pack; nothing else has to change.
-const PACKS: Array[Script] = [preload("res://scripts/player/weapon_defs_v3.gd")]
+const PACKS: Array[Script] = [preload("res://scripts/player/weapon_defs_v3.gd"), preload("res://scripts/player/weapon_defs_blast.gd")]
 static var _pack_tables: Array[Dictionary] = []
 
 

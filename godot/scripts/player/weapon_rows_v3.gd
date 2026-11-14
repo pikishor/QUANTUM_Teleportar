@@ -205,7 +205,7 @@ const ROWS: Array = [
 		"alt": [&"spin", {"radius": 3.8, "mult": 1.8}], "role": "TWO HANDED  EVERY SWING CLEARS THE LINE IN FRONT OF YOU"}],
 	[&"m_mallet", "MALLET", "MLT", &"melee", {"snd": &"shot_v3_blunt", "reach": 2.7, "interval": 0.577, "combo": [1.0, 1.0, 2.0], "power": 1.0, "tier": 1, "col": &"amber", "stagger": 2.2, "knock": 2.0,
 		"alt": [&"slam", {"radius": 5.5, "dmg": 55.0, "car": 80.0, "push": 7.0}], "role": "A BIG DUMB HAMMER  STAGGERS EVERYTHING IT HITS"}],
-	[&"m_sledge", "SLEDGEHAMMER", "SLH", &"melee", {"snd": &"shot_v3_blunt", "reach": 3.0, "interval": 0.961, "combo": [1.0, 1.0, 2.2], "power": 1.2, "tier": 3, "col": &"orange", "knock": 3.0, "stagger": 2.4,
+	[&"m_sledge", "SLEDGE HAMMER", "SLH", &"melee", {"snd": &"shot_v3_blunt", "reach": 3.0, "interval": 0.961, "combo": [1.0, 1.0, 2.2], "power": 1.2, "tier": 3, "col": &"orange", "knock": 3.0, "stagger": 2.4,
 		"alt": [&"slam", {"radius": 7.0, "dmg": 90.0, "car": 150.0, "push": 10.0}], "role": "BREAKS COVER AND CRATES  GROUND SLAM SHOVES THE WHOLE SQUAD"}],
 	[&"m_crowbar", "PRY BAR", "PRY", &"melee", {"snd": &"shot_v3_blunt", "reach": 2.6, "interval": 0.361, "combo": [1.0, 1.0, 2.0], "power": 1.0, "tier": 1, "col": &"steel", "stun": 0.8,
 		"alt": [&"shove", {}], "role": "OPENS DOORS AND SKULLS  A STRUCK ENEMY IS DAZED FOR A MOMENT"}],
@@ -234,7 +234,7 @@ const ROWS: Array = [
 	[&"m_scythe", "REAPER SCYTHE", "RPS", &"melee", {"reach": 3.8, "interval": 0.599, "combo": [1.0, 1.0, 2.2], "power": 1.1, "tier": 5, "col": &"violet", "cone": -0.3, "dissolve": 0.03, "dissolve_time": 3.0,
 		"alt": [&"spin", {"radius": 4.0, "mult": 1.8}], "role": "A HUGE WIDE ARC  EVERY ENEMY IT TOUCHES STARTS TO DISSOLVE"}],
 	# ------------------------------------------------------------------------------------------------------ ENERGY
-	[&"e_prifle", "PLASMA RIFLE", "PRF", &"energy", {"mag": 28, "reserve": 168, "interval": 0.129, "reload": 1.6, "power": 1.0, "tier": 3, "col": &"cyan", "pierce_shield": true, "splash": 1.5, "splash_dmg": 6.0,
+	[&"e_prifle", "SOLAR PLASMA GUN", "SPG", &"energy", {"mag": 28, "reserve": 168, "interval": 0.129, "reload": 1.6, "power": 1.0, "tier": 3, "col": &"cyan", "pierce_shield": true, "splash": 1.5, "splash_dmg": 6.0,
 		"splash_car": 12.0, "splash_element": &"plasma", "splash_every": 1, "alt": [&"oc_bolt", {"cost": 6, "proj": &"eplasma_oc"}], "role": "PLASMA BOLTS THAT POP ON IMPACT  OVERCHARGE LOBS A BIG BALL"}],
 	[&"e_splinter", "SPLINTER NEEDLE GUN", "SPG", &"energy", {"mag": 32, "reserve": 192, "interval": 0.087, "reload": 1.7, "power": 0.95, "tier": 3, "col": &"magenta", "pierce_n": 1, "pierce_k": 0.6, "mark": 0.2,
 		"mark_time": 4.0, "alt": [&"volley", {"cost": 12, "count": 12}], "role": "NEEDLES THAT GO THROUGH ONE ENEMY AND MARK THE NEXT"}],
@@ -269,7 +269,7 @@ const ROWS: Array = [
 	[&"q_decoh", "DECOHERENCE GUN", "QDC", &"quantum", {"mag": 12, "reserve": 72, "interval": 0.419, "reload": 1.9, "power": 0.85, "tier": 6, "col": &"violet", "dissolve": 0.1, "dissolve_time": 2.5,
 		"pierce_shield": true, "alt": [&"oc", {"cost": 3, "mult": 2.4}], "role": "EVERY HIT UNRAVELS AN ENEMY FOR TEN PERCENT A SECOND  BIG FOES MELT"}],
 	# ------------------------------------------------------------------------------------------------------ EXOTIC
-	[&"x_grav", "GRAVITY GUN", "XGR", &"exotic", {"mag": 12, "reserve": 72, "interval": 0.901, "reload": 2.0, "power": 0.8, "tier": 5, "col": &"violet", "pull": 6.0, "knock": 0.0, "pierce_shield": true, "snd": &"shot_v3_exotic",
+	[&"x_grav", "GRAVITY GUN", "XGR", &"exotic", {"mag": 12, "reserve": 72, "interval": 0.901, "reload": 2.0, "power": 0.8, "tier": 5, "col": &"violet", "pull": 6.0, "pierce_shield": true, "snd": &"shot_v3_exotic",
 		"alt": [&"repulse", {"cost": 0, "radius": 10.0, "dmg": 30.0, "car": 40.0, "push": 12.0}], "role": "YANKS AN ENEMY SIX METRES TOWARD YOU  ALT HURLS EVERYONE AROUND YOU AWAY"}],
 	[&"x_frost", "FREEZE RAY", "XFR", &"exotic", {"mag": 120, "reserve": 360, "interval": 0.071, "reload": 2.6, "power": 0.85, "tier": 5, "col": &"ice", "mist": true, "chill": 2, "chill_max": 3, "freeze_time": 2.2,
 		"range": 40.0, "falloff_from": 18.0, "snd": &"shot_v3_exotic", "alt": [&"vent", {"name": "SHATTER"}], "role": "A RAY OF COLD  THREE HITS FREEZE AN ENEMY SOLID"}],

@@ -31,8 +31,10 @@ const BUTTONS := [
 	{"action": &"throw_item", "dx": 650.0, "dy": 322.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more"},
 	{"action": &"crouch", "dx": 650.0, "dy": 434.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"more"},
 	{"action": &"gadget", "dx": 650.0, "dy": 544.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"more_gadget"},
+	{"action": &"ammo_type", "dx": 750.0, "dy": 530.0, "r": 44.0, "fs": 22, "label": "AMMO", "need": &"more_ammo"},          # the next ammo type of the weapon (incendiary, shock, piercing ...): only for a weapon that carries more than one
 	{"action": &"garage_call", "dx": 750.0, "dy": 110.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"more_garage", "fn": &"summon"},
 	{"action": &"charge_place", "dx": 750.0, "dy": 425.0, "r": 44.0, "fs": 22, "label": "C4", "need": &"more_c4"},
+	{"action": &"ultimate", "dx": 750.0, "dy": 635.0, "r": 46.0, "fs": 20, "label": "ULT", "need": &"more_ult"},       # the hero's blast ultimate (BlastOps._poll_input): only once one is unlocked (skill level 5, or hero mode)
 	{"action": &"detonate", "dx": 590.0, "dy": 650.0, "r": 50.0, "fs": 20, "label": "DETONATE", "need": &"detonate"},
 	{"action": &"companion_hold", "dx": 750.0, "dy": 215.0, "r": 46.0, "fs": 22, "label": "HOLD", "need": &"more_companion", "fn": &"ally_hold"},
 	{"action": &"companion_attack", "dx": 750.0, "dy": 320.0, "r": 46.0, "fs": 20, "label": "ATTACK", "need": &"more_companion", "fn": &"ally_attack"},
@@ -463,10 +465,15 @@ func button_visible(b: Dictionary) -> bool:
 			return more_open and is_instance_valid(Game.player) and not _driving()
 		&"more_c4":
 			return more_open and is_instance_valid(Game.player) and not _driving() and Charges.current != null
+		&"more_ult":
+			return more_open and is_instance_valid(Game.player) and not _driving() and BlastOps.ultimates_open()
 		&"detonate":
 			return Charges.current != null and Charges.current.armed()
 		&"more_gadget":
 			return more_open and is_instance_valid(Game.player) and not _driving() and Gear.gadget != &""
+		&"more_ammo":
+			var aw: Variant = Game.player.get("weapon") if is_instance_valid(Game.player) else null
+			return more_open and not _driving() and aw is PlayerWeapon and String((aw as PlayerWeapon).def["kind"]) == "hit" and (aw as PlayerWeapon).mech.allowed_ammo().size() > 1
 		&"more_garage":
 			return more_open and is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"summon_any") and not _driving() and not InteriorGameplay.active
 		&"more_companion":
@@ -684,9 +691,14 @@ func _draw_wheel(c: Control, font: Font, s: float) -> void:
 					spts.append(sc + Vector2(cos(ang), sin(ang)) * (14.0 if q % 2 == 0 else 6.0) * s)
 				c.draw_colored_polygon(spts, Color(UiUtil.AMBER, 0.97))
 			if int(it.get("owned", 1)) > 1:
-				var bc := ic + Vector2(r * 0.72, -r * 0.72)
-				c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(bc - Vector2.ONE * 15.0 * s, Vector2.ONE * 30.0 * s), false, Color(UiUtil.MAGENTA, 0.95))
-				texts.append([bc + Vector2(-15.0 * s, 7.0 * s), str(int(it["owned"])), 30.0 * s, 17.0, 1.0])
+				var outward := (ic - wheel.centre).normalized() if ic.distance_to(wheel.centre) > 1.0 else Vector2(0.7, -0.7)
+				var side := 1.0 if outward.x >= -0.15 else -1.0                           # the count sits at an upper corner of the disc: outside the ring for the discs of the upper half, inside it for the lower half,
+				if outward.y > 0.2:                                                       # so that on a crowded ring it never covers the name of the disc next to it
+					side = -side
+				var bc := ic + Vector2(side * r * 0.8, -r * 0.8)
+				var br := (13.0 if r < RadialWheel.ITEM_R * s * 0.9 else 15.0) * s
+				c.draw_texture_rect(UiUtil.sprite(&"disc"), Rect2(bc - Vector2.ONE * br, Vector2.ONE * br * 2.0), false, Color(UiUtil.MAGENTA, 0.95))
+				texts.append([bc + Vector2(-br, br * 0.47), str(int(it["owned"])), br * 2.0, 16.0, 1.0])
 			if i == wheel.sel or (wheel.sel < 0 and bool(it.get("current", false))):
 				cap = str(it.get("wname", "")) + (("    TAP: CHOOSE FROM %d" % int(it["owned"])) if int(it.get("owned", 1)) > 1 and bool(it.get("current", false)) else "")
 		else:

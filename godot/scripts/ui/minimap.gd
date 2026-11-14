@@ -314,6 +314,14 @@ func _draw_body() -> void:
 		var before := contract_markers
 		_contract_layer(camp, c, inner, s, diamonds, rings)
 		campaign_markers = contract_markers - before
+	if BlastOps.instance != null:                         # live strike markers and wells of the blast arsenal: a diamond and a ring of their true radius (BlastOps.beacons)
+		for bk: Dictionary in BlastOps.instance.beacons():
+			var bpos: Vector3 = bk["pos"]
+			var bm := to_map(bpos.x, bpos.z)
+			if bm.length() < inner:
+				var bcol: Color = bk["color"]
+				rings.append([c + bm, maxf(float(bk["radius"]) * _k, 4.0 * s), Color(bcol, 0.85)])
+				diamonds.append([c + bm, 3.0 * s, bcol])
 	var cev: Object = CityEventsScript.current
 	if is_instance_valid(cev):                            # city events: a pulsing diamond and a ring (clamped to the rim when far)
 		for mk: Dictionary in cev.markers():

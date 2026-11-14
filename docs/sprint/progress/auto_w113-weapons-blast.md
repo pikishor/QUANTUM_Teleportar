@@ -1,53 +1,58 @@
 # w113-weapons-blast (running)
 
-agent id a06a99adbcb17ad8d, 265 events, first activity 2026-11-14T00:30:51.771Z, last activity 2026-11-14T00:51:14.737Z
+agent id a06a99adbcb17ad8d, 1105 events, first activity 2026-11-14T00:30:51.771Z, last activity 2026-11-14T01:58:57.452Z
 
 ## Last notes of the agent
 
 - 00:30:53 I'll start by checking the restart state: progress logs, git status, and the docs named in the task.
+- 00:55:34 Now let me fix the issues I noted in BlastOps and BlastTable.
+- 01:46:00 Now the water column recipe and the explosion pool tweaks.
+- 01:47:05 Now run iteration 1 on a reduced set at LOW.
+- 01:51:44 Now the bot warm-up and mark clearing.
+- 01:57:42 Now the flame puffs with aspect, the beacon kill, and the water tint in blast_fx.gd.
 
 ## Recent steps (last 40)
 
-- 00:36:51 Read LaunchAim (existing aim preview)
-- 00:37:52 Breakables kinds and barrel/fuel references
-- 00:37:53 Look for tanker/fuel truck vehicle kinds
-- 00:38:34 List available sounds and Sfx API
-- 00:38:42 See the roster hook lines in the shared tables
-- 00:38:42 See ladder, shop and crates roster hooks
-- 00:38:46 Ladder format and roster builder usage
-- 00:38:47 Read roster builder's table assembly (tables())
-- 00:38:54 Check how pack tables are looked up (hard vs soft)
-- 00:38:55 grant() and AMMO_PACK declaration
-- 00:39:04 Read an existing fire bot for structure
-- 00:39:05 List existing bots, look for blast-related ones
-- 00:39:08 Read existing blast look-dev bot
-- 00:39:45 How enemies get launched/knocked back
-- 00:39:46 Drone stagger/disable and fling state
-- 00:39:49 Melee launch mechanics (how an enemy is flung)
-- 00:39:50 Find enemy launch fields
-- 00:40:01 Calibrate hp scales of enemies, player, vehicles
-- 00:40:03 UiSettings options, HeroPower table
-- 00:40:25 Hero verbs and ability wheel in HUD
-- 00:40:25 Skill tree structure for ultimates unlock
-- 00:40:38 NPC panic API, crowd damage, machine flags
-- 00:40:39 scare functions and machine flag
-- 00:41:11 How the jetpack pushes the hero (for hero knockback)
-- 00:41:12 Hero slam impact code (area damage pattern)
-- 00:43:09 Roster builder city spots, cache sites, tables() assembly and build functions
-- 00:43:14 BalanceModel.weapon_dps for throw weapons
-- 00:43:14 Check test_balance2 constraints on weapon bands
-- 00:43:18 test_balance2 band checks for each weapon
-- 00:43:23 Balance constants and ACC of existing blast weapons
-- 00:43:35 WeaponStats card fields
-- 00:45:11 /home/user/QUANTUM_Teleportar/godot/scripts/combat/blast_rows.gd
-- 00:45:34 TestMode.damage definition
-- 00:45:36 Find TestMode.damage and Upgrades.damage_mult bodies
-- 00:46:01 Crowd API details for table-driven civilian damage
-- 00:47:34 /home/user/QUANTUM_Teleportar/godot/scripts/combat/blast_table.gd
-- 00:49:26 /home/user/QUANTUM_Teleportar/godot/assets/shaders/blast_cloud.gdshader
-- 00:49:29 /home/user/QUANTUM_Teleportar/godot/assets/shaders/blast_dome.gdshader
-- 00:49:54 QuantumVfx ring/dust API details and caps
-- 00:51:14 /home/user/QUANTUM_Teleportar/godot/scripts/combat/blast_fx.gd
+- 01:49:56 Read Game.blast_feel
+- 01:50:01 Inspect the heat haze post effect near explosions
+- 01:50:08 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/it1/gr_frag_d6_m0.png
+- 01:50:33 Read FX.blast to see everything an explosion triggers
+- 01:50:45 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/i1_gr_fog.png
+- 01:50:50 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/i1_gr_well.png
+- 01:50:56 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/i1_gr_spark.png
+- 01:51:01 List BlastMarks API for clearing between bot stages
+- 01:51:05 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/i1_st_orbital.png
+- 01:51:18 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/i1_ord_depth_charge.png
+- 01:51:41 Narrow the beam, rebuild the water column, adjust well moments
+- 01:51:47 Add warm-up and per-stage clearing to the bot
+- 01:51:53 /home/user/QUANTUM_Teleportar/godot/tests/bot_blast_arsenal.gd
+- 01:51:59 Start iteration 2 render at LOW for ten ids
+- 01:52:18 /home/user/QUANTUM_Teleportar/docs/sprint/progress/w113-weapons-blast.md
+- 01:52:21 Wait for iteration 2 progress
+- 01:53:59 Wait for iteration 2 and build grids
+- 01:55:59 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/i2_st_orbital.png
+- 01:56:10 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/i2_ord_depth_charge.png
+- 01:56:25 List vehicle kinds to rotate in the bot
+- 01:56:28 Peek at the vehicle spec table
+- 01:56:34 Check how pooled cars are cleaned when acquired
+- 01:56:39 Check Vehicle.deactivate and wreck visuals
+- 01:56:50 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/i2_gr_frag.png
+- 01:56:57 Build a d14 sheet for five more iteration 2 ids
+- 01:57:01 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/i2_rest14.png
+- 01:57:32 Shape flames in the cloud shader and tighten the ground flash
+- 01:57:36 Re-read the flash_gain line of the pool
+- 01:57:40 /home/user/QUANTUM_Teleportar/godot/scripts/fx/explosion_pool.gd
+- 01:57:56 Add flame aspect, beacon kill, water tint and car reset
+- 01:58:01 Start iteration 3 render at MED for ten ids
+- 01:58:07 /home/user/QUANTUM_Teleportar/godot/scripts/combat/blast_table.gd
+- 01:58:15 Find where weapon cards are drawn and whether BlastCard is used
+- 01:58:19 Look at WeaponStats and its consumers
+- 01:58:24 Read the weapons screen card layout code
+- 01:58:29 Read the existing blast diagram of the weapons screen
+- 01:58:38 /home/user/QUANTUM_Teleportar/godot/scripts/ui/weapons_screen.gd
+- 01:58:43 Check the MED render progress
+- 01:58:52 List delivery modes and fx recipes used by the rows
+- 01:58:57 Wait for the MED render and build two d14 sheets
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -56,3 +61,19 @@ agent id a06a99adbcb17ad8d, 265 events, first activity 2026-11-14T00:30:51.771Z,
 - godot/assets/shaders/blast_cloud.gdshader
 - godot/assets/shaders/blast_dome.gdshader
 - godot/scripts/combat/blast_fx.gd
+- godot/scripts/combat/blast_ops.gd
+- godot/scripts/player/weapon_defs_blast.gd
+- godot/tests/test_blast_table.gd
+- docs/sprint/progress/w113-weapons-blast.md
+- godot/scripts/combat/blast_preview.gd
+- godot/scripts/player/weapon_models_blast.gd
+- /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/run_legacy.sh
+- godot/tests/test_blast_arsenal.gd
+- godot/scripts/combat/world_blasters.gd
+- godot/tests/bot_blast_arsenal.gd
+- godot/scripts/combat/blast_card.gd
+- godot/assets/shaders/blast_column.gdshader
+- godot/scripts/fx/explosion_pool.gd
+- godot/autoload/game.gd
+- godot/scripts/ui/touch_controls.gd
+- godot/scripts/ui/weapons_screen.gd

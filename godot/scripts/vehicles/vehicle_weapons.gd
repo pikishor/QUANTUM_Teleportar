@@ -71,6 +71,8 @@ func ready_fraction() -> float:
 func tick(dt: float, fire: bool) -> bool:
 	if not mounted():
 		return false
+	if car.driver_is_player and BlastOps.is_shell_gun(car.kind) and InputMap.has_action(&"ammo_type") and Input.is_action_just_pressed(&"ammo_type"):
+		BlastOps.shared(car.get_tree()).cycle_shell()                                                    # HE -> AP -> CLUSTER
 	_cd -= dt
 	var shot := false
 	if fire and can_fire():
@@ -115,7 +117,9 @@ func _shoot() -> void:
 			col.call(&"damage", float(def["dmg"]))
 			hits += 1
 		var blast := float(def.get("blast", 0.0))
-		if blast > 0.0:
+		if blast > 0.0 and car.driver_is_player and BlastOps.is_shell_gun(car.kind):                    # the player's tank fires the selected shell of the blast table: HE, AP or CLUSTER (ammo type key)
+			BlastOps.shared(car.get_tree()).shell_blast(car, end)
+		elif blast > 0.0:
 			Game.explode(end, blast, {"enemy_dmg": float(def["dmg"]) * 0.5, "car_dmg": float(def["dmg"]) * 0.5, "player_dmg": 0.0, "color": def["color"], "quiet": bool(def.get("flak", false))})
 		else:
 			FX.burst(end, def["color"], 4, 4.0, 0.25, 6.0, 0.4)

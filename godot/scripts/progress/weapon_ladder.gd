@@ -184,7 +184,10 @@ static func route_text(id: StringName) -> String:
 		return "OWNED" if WeaponDefs.is_unlocked(id) else "BUY  %d" % WeaponDefs.price(id)
 	match StringName(e["route"]):
 		CRATE:
-			return "CRATE  %s" % String(CRATES[int(e["arg"])]["name"])
+			var cr: Dictionary = CRATES[int(e["arg"])]
+			if cr.has("site"):                                                 # a secret cache: the line names the place of the outskirts it stands at
+				return "CACHE AT  %s" % _site_name(StringName(cr["site"]))
+			return "CRATE  %s" % String(cr["name"])
 		MISSION:
 			return "FINISH CHAPTER %d" % (int(e["arg"]) + 1)
 		BOSS:
@@ -192,6 +195,14 @@ static func route_text(id: StringName) -> String:
 		DROP:
 			return "ENEMY DROP  %s" % String(e["arg"]).to_upper()
 	return "BUY  %d" % WeaponDefs.price(id)
+
+
+## The display name of a place of the outskirts (a site or a town), its id in capitals when it is not known.
+static func _site_name(id: StringName) -> String:
+	for d: Dictionary in OutskirtsSites.DEFS + SettlementDefs.DEFS:
+		if d["id"] == id:
+			return String(d["name"])
+	return String(id).replace("_", " ").to_upper()
 
 
 ## The line the HUD shows for the next weapon: "NEXT  SPIKE REVOLVER  FINISH CHAPTER 1  OR BUY 2100" (empty when everything is owned).
@@ -214,6 +225,10 @@ static func enemy_drop(type: StringName, r1: float, r2: float, cur: StringName, 
 		var e := entry(nx)
 		if not e.is_empty() and StringName(e["route"]) == DROP and StringName(e["arg"]) == type and r1 < DROP_CHANCE:
 			return nx
+	if r1 >= DROP_CHANCE and r1 < DROP_CHANCE + WeaponShopsV3.DROP_BAND:           # a few drops are a weapon of the roster of wave 113 that this kind of enemy carries (scripts/player/weapon_shops_v3.gd)
+		var carried := WeaponShopsV3.drop_for(type, (r1 - DROP_CHANCE) / WeaponShopsV3.DROP_BAND)
+		if carried != &"":
+			return carried
 	if r1 > 1.0 - MissionRewards.MOD_DROP_CHANCE and cur_reserve != 0:          # a few drops are a weapon mod the hero does not own yet (picked up like a weapon, scripts/progress/mission_rewards.gd)
 		var mod := MissionRewards.next_unowned_mod()
 		if mod != &"":

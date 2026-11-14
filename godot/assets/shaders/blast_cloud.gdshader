@@ -5,6 +5,7 @@ shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, blend_premul_alpha;
 
 varying vec4 v_data;
+varying vec2 v_cam;                                    // x = distance camera to puff centre, y = puff size: a puff the camera is inside or next to fades out
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -26,8 +27,9 @@ float vnoise(vec2 p) {
 void vertex() {
 	v_data = INSTANCE_CUSTOM;
 	vec3 sc = vec3(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz), length(MODEL_MATRIX[2].xyz));
+	v_cam = vec2(length((VIEW_MATRIX * vec4(MODEL_MATRIX[3].xyz, 1.0)).xyz), max(sc.x, 0.5));
 	mat4 bb = mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
-	float roll = v_data.y * 6.2831853;
+	float roll = (v_data.w > 0.5 && v_data.w < 1.5) ? 0.0 : v_data.y * 6.2831853;       // a flame always points up
 	float cr = cos(roll);
 	float sr = sin(roll);
 	vec2 q = vec2(VERTEX.x * cr - VERTEX.y * sr, VERTEX.x * sr + VERTEX.y * cr);
@@ -37,6 +39,10 @@ void vertex() {
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
+	if (v_data.w > 0.5 && v_data.w < 1.5) {              // a tongue: narrow towards the tip (UV y runs down, so the tip is at p.y = -1) and swaying
+		float tip = smoothstep(0.1, -1.0, p.y);
+		p.x = (p.x + 0.16 * tip * sin(p.y * 5.0 + TIME * 17.0 + v_data.y * 20.0)) / mix(1.0, 0.38, tip);
+	}
 	float r = length(p);
 	float age = v_data.x;
 	float seed = v_data.y;
@@ -63,9 +69,10 @@ void fragment() {
 		col = mix(col, vec3(1.0), core2);
 		a = core2 * core2 * fade_in * (1.0 - age) * COLOR.a;
 	} else {                                            // spray
-		col = mix(col, vec3(1.0), 0.35 * (1.0 - age));
+		col = mix(col, vec3(1.0), 0.2 * (1.0 - age));
 		a *= 0.85;
 	}
+	a *= smoothstep(0.35, 1.05, v_cam.x / v_cam.y);       // never a grey wall in front of the lens (the screen flash overlay does the deliberate whiteouts)
 	a = clamp(a, 0.0, 1.0);
 	float add = clamp(glow, 0.0, 1.0);
 	ALBEDO = col * a * (1.0 + add * 1.4);

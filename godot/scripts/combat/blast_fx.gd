@@ -10,6 +10,7 @@ extends Node3D
 
 const CLOUD_SHADER := preload("res://assets/shaders/blast_cloud.gdshader")
 const DOME_SHADER := preload("res://assets/shaders/blast_dome.gdshader")
+const COLUMN_SHADER := preload("res://assets/shaders/blast_column.gdshader")
 const CLOUD_CAP := [12, 24, 40]
 const CLOUD_TOTAL := 40
 const DOMES := 2
@@ -44,6 +45,7 @@ var _c_kind := PackedFloat32Array()
 var _c_seed := PackedFloat32Array()
 var _c_glow := PackedFloat32Array()
 var _c_drag := PackedFloat32Array()
+var _c_asp := PackedFloat32Array()                     ## height / width of a puff: flames are tongues
 var _c_live := 0
 var _hidden := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3(0.0, -4000.0, 0.0))
 # domes, columns, the jet, the screen flash
@@ -124,6 +126,7 @@ func _build_cloud() -> void:
 	_c_seed.resize(CLOUD_TOTAL)
 	_c_glow.resize(CLOUD_TOTAL)
 	_c_drag.resize(CLOUD_TOTAL)
+	_c_asp.resize(CLOUD_TOTAL)
 	for i in CLOUD_TOTAL:
 		_cmm.set_instance_transform(i, _hidden)
 		_cmm.set_instance_custom_data(i, Color(1.0, 0.0, 0.0, 0.0))
@@ -156,12 +159,16 @@ func _build_columns() -> void:
 	cy.top_radius = 1.0
 	cy.bottom_radius = 1.0
 	cy.height = 1.0
-	cy.radial_segments = 10
+	cy.radial_segments = 16
 	cy.rings = 1
+	cy.cap_top = false
+	cy.cap_bottom = false
 	for i in COLUMNS:
 		var m := MeshInstance3D.new()
 		m.mesh = cy
-		m.material_override = Gear.fx_material(Color(1.0, 1.0, 1.0, 0.5), true)
+		var cm := ShaderMaterial.new()
+		cm.shader = COLUMN_SHADER
+		m.material_override = cm
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		m.extra_cull_margin = 40.0
 		m.visible = false
@@ -203,7 +210,7 @@ func cloud_live() -> int:
 
 
 ## One puff: `size0` to `size1` metres over `life` seconds, rising with `vel`. kind K_SMOKE / K_FLAME / K_FLASH / K_SPRAY, `glow` 0..1 makes it additive. False when the tier's pool is full of younger puffs.
-func puff(pos: Vector3, vel: Vector3, size0: float, size1: float, life: float, color: Color, kind := K_SMOKE, glow := 0.0, drag := 0.6) -> bool:
+func puff(pos: Vector3, vel: Vector3, size0: float, size1: float, life: float, color: Color, kind := K_SMOKE, glow := 0.0, drag := 0.6, aspect := 1.0) -> bool:
 	var cap := cloud_cap(Game.quality)
 	var slot := -1
 	for i in cap:
@@ -237,6 +244,7 @@ func puff(pos: Vector3, vel: Vector3, size0: float, size1: float, life: float, c
 	_c_seed[slot] = _rng.randf()
 	_c_glow[slot] = glow
 	_c_drag[slot] = drag
+	_c_asp[slot] = aspect
 	_c_live += 1
 	puffs_made += 1
 	_cnode.visible = true
@@ -261,7 +269,7 @@ func _step_cloud(dt: float) -> void:
 		_c_pos[i] += _c_vel[i] * dt
 		var e := 1.0 - (1.0 - u) * (1.0 - u)
 		var s := lerpf(_c_s0[i], _c_s1[i], e)
-		_cmm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3(s, s, s)), _c_pos[i]))
+		_cmm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3(s, s * _c_asp[i], s)), _c_pos[i]))
 		_cmm.set_instance_custom_data(i, Color(u, _c_seed[i], _c_glow[i], _c_kind[i]))
 		_cmm.set_instance_color(i, _c_col[i])
 	_c_live = live
@@ -278,6 +286,13 @@ func domes_live() -> int:
 	return n
 
 
+## The marker of a strike goes out when the strike lands.
+func kill_beacons() -> void:
+	for i in COLUMNS:
+		if _cols[i].visible and bool(_col_fx[i].get("beacon", false)):
+			_cols[i].visible = false
+
+
 func columns_live() -> int:
 	var n := 0
 	for m in _cols:
@@ -285,8 +300,8 @@ func columns_live() -> int:
 	return n
 
 
-## A glowing bubble: opens in `grow` seconds to `radius`, stays `hold` seconds, fades in `fade`.
-func dome(pos: Vector3, radius: float, color: Color, hold: float, grow := 0.25, fade := 0.4, strength := 1.0, bands := 0.0) -> void:
+## A glowing bubble: opens (from `from_r`, a collapse passes the full radius and a smaller `radius`) in `grow` seconds to `radius`, stays `hold` seconds, fades in `fade`.
+func dome(pos: Vector3, radius: float, color: Color, hold: float, grow := 0.25, fade := 0.4, strength := 1.0, bands := 0.0, from_r := 0.05) -> void:
 	var slot := 0
 	var best := -1.0
 	for i in DOMES:
@@ -305,15 +320,15 @@ func dome(pos: Vector3, radius: float, color: Color, hold: float, grow := 0.25, 
 	mat.set_shader_parameter(&"fade", 1.0)
 	mat.set_shader_parameter(&"bands", bands)
 	m.global_position = pos
-	m.scale = Vector3.ONE * 0.05
+	m.scale = Vector3.ONE * maxf(from_r, 0.05)
 	m.visible = true
-	_dome_fx[slot] = {"t": 0.0, "grow": maxf(grow, 0.05), "hold": hold, "fade": maxf(fade, 0.05), "radius": radius, "left": hold + grow + fade}
+	_dome_fx[slot] = {"t": 0.0, "grow": maxf(grow, 0.05), "hold": hold, "fade": maxf(fade, 0.05), "radius": radius, "from": maxf(from_r, 0.05), "left": hold + grow + fade}
 	domes_made += 1
 	set_process(true)
 
 
 ## A column of light from `pos` up: radius `radius`, `life` seconds, fades out at the end.
-func column(pos: Vector3, radius: float, color: Color, life: float, height := 120.0, grow := 0.12) -> void:
+func column(pos: Vector3, radius: float, color: Color, life: float, height := 120.0, grow := 0.12, beacon := false) -> void:
 	var slot := 0
 	for i in COLUMNS:
 		if not _cols[i].visible:
@@ -321,9 +336,12 @@ func column(pos: Vector3, radius: float, color: Color, life: float, height := 12
 			break
 		slot = i if float(_col_fx[i].get("left", 0.0)) < float(_col_fx[slot].get("left", 0.0)) else slot
 	var m := _cols[slot]
-	(m.material_override as StandardMaterial3D).albedo_color = Color(color.r, color.g, color.b, 0.55)
+	var cm := m.material_override as ShaderMaterial
+	cm.set_shader_parameter(&"tint", color)
+	cm.set_shader_parameter(&"strength", clampf(2.6 - radius, 0.9, 2.2) * (0.5 if UiSettings.s_reduce_flash else 1.0))     # a thin beacon needs more light than a wide beam
+	cm.set_shader_parameter(&"fade", 1.0)
 	m.visible = true
-	_col_fx[slot] = {"t": 0.0, "life": maxf(life, 0.1), "grow": maxf(grow, 0.02), "radius": radius, "height": height, "pos": pos, "left": life, "color": color}
+	_col_fx[slot] = {"t": 0.0, "life": maxf(life, 0.1), "grow": maxf(grow, 0.02), "radius": radius, "height": height, "pos": pos, "left": life, "color": color, "beacon": beacon}
 	m.global_transform = Transform3D(Basis.from_scale(Vector3(0.1, height, 0.1)), pos + Vector3(0.0, height * 0.5, 0.0))
 	columns_made += 1
 	set_process(true)
@@ -359,7 +377,7 @@ func _process(delta: float) -> void:
 		f["left"] = float(f["hold"]) + float(f["grow"]) + float(f["fade"]) - float(f["t"])
 		var t := float(f["t"])
 		var u := clampf(t / float(f["grow"]), 0.0, 1.0)
-		var s := float(f["radius"]) * (1.0 - (1.0 - u) * (1.0 - u))
+		var s := lerpf(float(f["from"]), float(f["radius"]), 1.0 - (1.0 - u) * (1.0 - u))
 		_domes[i].scale = Vector3.ONE * maxf(s, 0.05)
 		var fade := 1.0
 		var tail := t - float(f["grow"]) - float(f["hold"])
@@ -383,8 +401,7 @@ func _process(delta: float) -> void:
 		w *= 0.3 + 0.7 * tail
 		var h := float(f["height"])
 		_cols[i].global_transform = Transform3D(Basis.from_scale(Vector3(w, h, w)), (f["pos"] as Vector3) + Vector3(0.0, h * 0.5, 0.0))
-		var c: Color = f["color"]
-		(_cols[i].material_override as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, 0.6 * tail)
+		(_cols[i].material_override as ShaderMaterial).set_shader_parameter(&"fade", tail)
 		if t >= life:
 			_cols[i].visible = false
 		any = true
@@ -486,6 +503,8 @@ static func play(e: Dictionary, pos: Vector3, radius: float, opts: Dictionary) -
 		me.plays += 1
 		me.by_fx[fx_id] = int(me.by_fx.get(fx_id, 0)) + 1
 	var near := cam_d < FAR_SKIP
+	if is_instance_valid(instance) and StringName(e.get("cat", &"")) in [&"strike", &"ordnance"]:
+		instance.kill_beacons()
 	match fx_id:
 		&"flash":
 			me._flash(e, pos, radius, cam_d)
@@ -518,7 +537,7 @@ static func play(e: Dictionary, pos: Vector3, radius: float, opts: Dictionary) -
 			_ring(pos, radius * 1.2, BlastElements.color(element, "ring"), 0, 0.6, near)
 		&"beam":
 			_default_look(e, pos, radius, opts, true)
-			me.column(pos, radius * 0.55, BlastElements.color(element, "mid"), 0.55)
+			me.column(pos, radius * 0.26, BlastElements.color(element, "mid"), 0.55)
 		&"water":
 			me._water(e, pos, radius, near)
 		&"dust":
@@ -528,10 +547,34 @@ static func play(e: Dictionary, pos: Vector3, radius: float, opts: Dictionary) -
 			me.dome(pos + Vector3(0.0, radius * 0.15, 0.0), radius * 0.9, BlastElements.color(element, "mid"), 0.04, 0.14, 0.4, 1.2, 0.0)
 		_:
 			_default_look(e, pos, radius, opts, true)
+			if not bool(e.get("legacy", false)) and near:
+				shared()._extras(e, pos, radius, cam_d)
 	if not quiet:
 		FX.shake(clampf(radius * 1.6 / (cam_d + 6.0) * float(BlastElements.data(element)["shake"]) * float(e.get("shake", 1.0)), 0.0, 1.0))
 		Game.blast_feel(radius, cam_d)
 		_sound(e, pos, radius)
+
+
+## What the blasts of the arsenal add to the pooled fireball: a white-hot core flash for the first frames, a smoke column that climbs above big blasts, and a dust ring along the ground for rubble
+## (all puffs of the one cloud pool: LOW gets the flash and one column puff, MED and HIGH the ring).
+func _extras(e: Dictionary, pos: Vector3, radius: float, cam_d: float) -> void:
+	var tier := Game.quality
+	var element: StringName = e["element"]
+	var mid: Color = BlastElements.color(element, "mid")
+	var hot: Color = BlastElements.color(element, "hot")
+	var near_k := clampf((cam_d - 2.0) / maxf(radius * 0.9, 2.0), 0.25, 1.0)                      # a blast next to the camera does not white the screen out
+	puff(pos + Vector3(0.0, radius * 0.28, 0.0), Vector3.ZERO, radius * 0.5, radius * 1.7, 0.24, Color(hot.r, hot.g, hot.b, 0.95 * near_k), K_FLASH, 1.0, 0.0)
+	if radius >= 4.0 and StringName(e.get("debris", &"rubble")) != &"none":
+		var smoke := BlastElements.color(element, "smoke")
+		var cols := 1 if tier == 0 else 2
+		for i in cols:
+			puff(pos + Vector3(_rng.randf_range(-0.2, 0.2) * radius, radius * (0.5 + 0.4 * float(i)), _rng.randf_range(-0.2, 0.2) * radius), Vector3(0.0, 3.4 + 0.6 * float(i), 0.0), radius * 0.45, radius * (1.0 + 0.35 * float(i)),
+					2.4 + 0.8 * float(i) + radius * 0.06, Color(smoke.r, smoke.g, smoke.b, 0.75 * near_k), K_SMOKE, 0.0, 0.9)
+	if tier > 0 and StringName(e.get("debris", &"rubble")) == &"rubble" and radius >= 3.0:
+		var n := 4 if tier == 1 else 6
+		for i in n:
+			var ang := TAU * float(i) / float(n) + _rng.randf() * 0.5
+			puff(pos + Vector3(cos(ang), 0.15, sin(ang)) * radius * 0.25, Vector3(cos(ang), 0.05, sin(ang)) * (4.0 + radius * 0.4), radius * 0.28, radius * 0.75, 1.5, Color(0.55, 0.5, 0.44, 0.55 * near_k), K_SMOKE, 0.0, 1.4)
 
 
 ## The old Game.explode look: FX.blast and the marks on the street. `marks` false skips the scorch (bubbles, flashes).
@@ -539,7 +582,7 @@ static func _default_look(e: Dictionary, pos: Vector3, radius: float, opts: Dict
 	var element: StringName = e["element"]
 	var legacy := bool(e.get("legacy", false))
 	var explicit := bool(e.get("explicit_element", not legacy))
-	var col: Color = e.get("color", Color(1.0, 0.54, 0.19)) if legacy else Color(1.0, 0.54, 0.19)
+	var col: Color = opts.get("color", e.get("color", Color(1.0, 0.54, 0.19))) if legacy else Color(1.0, 0.54, 0.19)
 	var style := int(e.get("style", opts.get("style", -1)))
 	var burn := float(e.get("burn", opts.get("burn", 0.0)))
 	if explicit:
@@ -580,12 +623,8 @@ func _flash(e: Dictionary, pos: Vector3, radius: float, cam_d: float) -> void:
 		var facing := clampf((-cam.global_basis.z).dot(to.normalized()) * 0.5 + 0.5, 0.0, 1.0)
 		var near := clampf(1.0 - cam_d / maxf(radius * 1.6, 1.0), 0.0, 1.0)
 		var k := near * (0.35 + 0.65 * facing)
-		var hero_dmg_ok := not NullHero.immune()
-		if hero_dmg_ok and k > 0.03:
+		if k > 0.03 and not BlastTable.hero_immune():
 			screen_flash(k, 1.4 + 2.2 * k)
-	var cl: Dictionary = e["status"]
-	if not cl.is_empty():
-		pass
 
 
 func _ring_on(pos: Vector3, radius: float, color: Color, life: float) -> void:
@@ -617,6 +656,7 @@ func smoke_tick(pos: Vector3, radius: float, secs_left: float) -> void:
 func _emp(e: Dictionary, pos: Vector3, radius: float, near: bool) -> void:
 	puff(pos + Vector3(0.0, 0.8, 0.0), Vector3.ZERO, radius * 0.25, radius * 0.7, 0.3, Color(0.7, 0.9, 1.0, 1.0), K_FLASH, 1.0, 0.0)
 	if near:
+		dome(pos + Vector3(0.0, radius * 0.05, 0.0), radius, BlastElements.color(&"electric", "mid"), 0.04, 0.2, 0.5, 1.15, 1.0)
 		_ring_on(pos, radius, BlastElements.color(&"electric", "ring"), 0.55)
 		if FX.qvfx != null and Game.quality > 0:
 			FX.qvfx.ring(pos + Vector3(0.0, 0.5, 0.0), Vector3.UP, radius * 0.6, Color(0.5, 0.8, 1.0), Color(1.0, 1.0, 1.0), 2, 0.45)
@@ -641,8 +681,8 @@ func flames(pos: Vector3, radius: float, n: int) -> void:
 		var ang := _rng.randf() * TAU
 		var r := radius * sqrt(_rng.randf()) * 0.9
 		var base := pos + Vector3(cos(ang) * r, 0.2, sin(ang) * r)
-		var h := _rng.randf_range(0.9, 1.7)
-		puff(base + Vector3(0.0, h * 0.5, 0.0), Vector3(0.0, 2.2, 0.0), 0.9 + radius * 0.1, 0.5 + radius * 0.05, 0.75 + _rng.randf() * 0.4, Color(1.0, 0.45 + 0.3 * _rng.randf(), 0.08, 0.95), K_FLAME, 0.55, 0.8)
+		var w := 0.7 + radius * 0.09                                                                 # a tongue: about twice as tall as it is wide, tip first when it dies
+		puff(base + Vector3(0.0, w * 0.9, 0.0), Vector3(0.0, 1.6, 0.0), w, w * 0.8, 0.8 + _rng.randf() * 0.45, Color(1.0, 0.4 + 0.25 * _rng.randf(), 0.06, 0.95), K_FLAME, 0.45, 0.8, 2.3)
 	if Game.quality > 0 and _rng.randf() < 0.5:
 		puff(pos + Vector3(0.0, 1.8, 0.0), Vector3(0.0, 2.0, 0.0), radius * 0.35, radius * 0.7, 2.6, Color(0.2, 0.19, 0.19, 0.75), K_SMOKE, 0.0, 0.5)
 
@@ -650,12 +690,16 @@ func flames(pos: Vector3, radius: float, n: int) -> void:
 func _water(e: Dictionary, pos: Vector3, radius: float, near: bool) -> void:
 	if not near:
 		return
-	var n := 4 + 3 * Game.quality
+	# a tall narrow column with a wider head (stacked puffs that climb at different speeds), a skirt of spray at its foot and a splash ring
+	var stack := 4 + Game.quality
+	for i in stack:
+		var k := float(i) / float(maxi(1, stack - 1))
+		puff(pos + Vector3(_rng.randf_range(-0.2, 0.2), 0.5 + k * radius * 0.3, _rng.randf_range(-0.2, 0.2)), Vector3(0.0, 7.0 + 7.0 * k, 0.0), radius * (0.2 + 0.08 * k), radius * (0.32 + 0.36 * k * k), 1.3 + 0.5 * k,
+				Color(0.74, 0.89, 1.0, 0.9), K_SPRAY, 0.0, 0.55)
+	var n := 3 + 2 * Game.quality
 	for i in n:
 		var ang := TAU * float(i) / float(n) + _rng.randf()
-		var up := _rng.randf_range(7.0, 14.0)
-		puff(pos + Vector3(0.0, 0.5, 0.0), Vector3(cos(ang) * 2.5, up, sin(ang) * 2.5), radius * 0.2, radius * 0.5, 1.5, Color(0.86, 0.94, 1.0, 0.9), K_SPRAY, 0.0, 0.7)
-	puff(pos + Vector3(0.0, radius * 0.45, 0.0), Vector3(0.0, 6.0, 0.0), radius * 0.45, radius * 0.9, 1.6, Color(0.93, 0.97, 1.0, 0.85), K_SPRAY, 0.0, 0.8)
+		puff(pos + Vector3(0.0, 0.4, 0.0), Vector3(cos(ang) * 4.5, 2.5 + _rng.randf() * 2.5, sin(ang) * 4.5), radius * 0.2, radius * 0.4, 1.1, Color(0.7, 0.86, 1.0, 0.8), K_SPRAY, 0.0, 1.0)
 	_ring_on(pos, radius * 1.1, Color(0.8, 0.95, 1.0), 0.7)
 
 
@@ -670,8 +714,10 @@ func _dust(e: Dictionary, pos: Vector3, radius: float, near: bool) -> void:
 
 
 ## The pre-phase of a deferred blast (a well, a collapse, a black hole): rings that close in, motes drawn toward the centre.
-func pre_tick(e: Dictionary, pos: Vector3, radius: float, k: float) -> void:
+func pre_tick(e: Dictionary, pos: Vector3, radius: float, k: float, first := false) -> void:
 	var element: StringName = e["element"]
+	if first:                                           # one bubble for the whole pre-phase: it closes in from the full radius to a third of it
+		dome(pos + Vector3(0.0, radius * 0.08, 0.0), radius * 0.3, BlastElements.color(element, "mid"), 0.0, maxf(float(e["pre"]), 0.3), 0.3, 0.85, 1.0, radius)
 	if FX.qvfx != null:
 		FX.qvfx.ring(pos + Vector3(0.0, 0.15, 0.0), Vector3.UP, radius * (1.0 - 0.45 * k), BlastElements.color(element, "ring"), Color(1.0, 1.0, 1.0), 1, 0.5)
 		if Game.quality > 0:
@@ -683,4 +729,4 @@ func beacon_tick(pos: Vector3, radius: float, color: Color, k: float) -> void:
 	if FX.qvfx != null:
 		FX.qvfx.ring(pos + Vector3(0.0, 0.1, 0.0), Vector3.UP, radius * (1.0 - 0.35 * k), color, Color(1.0, 1.0, 1.0), 1, 0.45)
 	if k < 0.05 or int(k * 100.0) % 2 == 0:
-		column(pos, 0.35 + 0.35 * k, color, 0.5, 70.0, 0.05)
+		column(pos, 0.35 + 0.35 * k, color, 0.5, 70.0, 0.05, true)

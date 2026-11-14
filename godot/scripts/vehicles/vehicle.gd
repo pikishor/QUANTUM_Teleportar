@@ -695,7 +695,7 @@ func explode() -> void:
 		FX.car_debris.wreck(self)                                   # wheels and body panels fly off
 	if cls == &"tank" and (_dist < 120.0 or driver_is_player):
 		TankWreck.pop_turret(self)                                  # an armoured vehicle loses its turret in the blast (scripts/vehicles/tank_wreck.gd)
-	Game.explode(pos + Vector3(0.0, 1.0, 0.0), 9.0, {"enemy_dmg": 80.0, "car_dmg": 70.0, "player_dmg": 35.0, "color": Color(1.0, 0.54, 0.19)})
+	Game.explode(pos + Vector3(0.0, 1.0, 0.0), 9.0, {"blast": &"wb_car", "source": self, "enemy_dmg": 80.0, "car_dmg": 70.0, "player_dmg": 35.0, "color": Color(1.0, 0.54, 0.19)})      # the CAR BLAST of the blast table (a world blaster)
 	Game.add_heat(VehicleSpecs.CARJACK_HEAT)
 	_chain_ignite(pos)
 	exploded.emit(self)

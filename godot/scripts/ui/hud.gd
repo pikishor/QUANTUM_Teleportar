@@ -540,11 +540,17 @@ func press_button(id: StringName) -> bool:
 		_layout_key = ""
 		_screen.queue_redraw()
 		return sdone
-	if sid.begins_with("wheel_") or sid.begins_with("part_"):
+	if sid.begins_with("wheel_") or sid.begins_with("part_") or sid.begins_with("slot_"):
 		if Game.state != &"paused" or not _loadout_open or Game.progress == null:
 			return false
 		var prog := Game.progress as Progress
-		if sid.begins_with("wheel_"):
+		if sid.begins_with("slot_"):                                   # a slot tab of the attachment column (LoadoutScreen.slot_tab)
+			var slot := StringName(sid.substr(5))
+			if not Attachments.SLOTS.has(slot):
+				return false
+			LoadoutScreen.slot_tab = slot
+			Sfx.play(&"ui_tap")
+		elif sid.begins_with("wheel_"):
 			var wid := StringName(sid.substr(6))
 			if not WeaponDefs.is_unlocked(wid):
 				return false
@@ -558,7 +564,7 @@ func press_button(id: StringName) -> bool:
 				return true
 		else:
 			var part := StringName(sid.substr(5))
-			if not Attachments.PARTS.has(part):
+			if not Attachments.PARTS.has(part) or not Attachments.fits(part, _loadout_w):
 				return false
 			if not Attachments.is_owned(part) and not prog.buy_part(part):
 				Sfx.play(&"ui_deny")

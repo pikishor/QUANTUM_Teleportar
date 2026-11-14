@@ -250,7 +250,7 @@ func _step(e: Dictionary, dt: float) -> bool:
 
 func _blast(id: StringName, pos: Vector3, radius: float, dmg: float, color: Color) -> void:
 	detonations += 1
-	Game.explode(pos, radius, {"enemy_dmg": TestMode.damage(dmg * HeroPower.f("dmg")), "car_dmg": float(Gear.THROWABLES[id].get("car", 40.0)), "player_dmg": 0.0, "color": color})
+	Game.explode(pos, radius, {"blast": StringName("gear_%s" % String(id)), "source": _p, "by_hero": true, "dmg_mult": HeroPower.f("dmg"), "enemy_dmg": dmg, "car_dmg": float(Gear.THROWABLES[id].get("car", 40.0)), "player_dmg": 0.0, "color": color})
 	for en in Gear.living_enemies(get_tree()):
 		if en.global_position.distance_to(pos) < radius + 0.8 and en.has_method(&"stagger"):
 			en.call(&"stagger", 1.6)

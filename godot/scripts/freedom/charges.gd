@@ -71,9 +71,9 @@ func live_count() -> int:
 	return _live.size()
 
 
-## True while a detonation can be triggered (the DETONATE button shows).
+## True while a detonation can be triggered (the DETONATE button shows): a charge of this node or a remote charge of the blast arsenal (BlastOps).
 func armed() -> bool:
-	return not _live.is_empty()
+	return not _live.is_empty() or (BlastOps.instance != null and BlastOps.instance.remote_live() > 0)
 
 
 func positions() -> Array[Vector3]:
@@ -169,6 +169,8 @@ func detonate() -> int:
 			e["go"] = gap
 			gap += FUSE_GAP
 			n += 1
+	if BlastOps.instance != null:                                          # the remote charges of the blast arsenal (REMOTE CHARGE, SATCHEL, SHAPED CHARGE ...) go with them
+		n += BlastOps.instance.detonate_remote()
 	return n
 
 
@@ -191,8 +193,7 @@ func _step(e: Dictionary, dt: float) -> bool:
 
 func _blast(pos: Vector3) -> void:
 	detonations += 1
-	var dmg := TestMode.damage(ENEMY_DAMAGE * HeroPower.f("dmg"))
-	Game.explode(pos, RADIUS, {"enemy_dmg": dmg, "car_dmg": CAR_DAMAGE, "player_dmg": SELF_DAMAGE, "color": COLOR})
+	Game.explode(pos, RADIUS, {"blast": &"c4", "source": Game.player, "by_hero": true, "enemy_dmg": ENEMY_DAMAGE, "dmg_mult": HeroPower.f("dmg"), "car_dmg": CAR_DAMAGE, "player_dmg": SELF_DAMAGE, "color": COLOR})
 	detonated.emit(pos)
 
 

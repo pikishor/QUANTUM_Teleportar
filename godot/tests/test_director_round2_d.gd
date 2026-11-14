@@ -158,13 +158,31 @@ func _loadout(tag: String) -> void:
 	_layout()
 	var parts := 0
 	var tiles := 0
+	var tabs := 0
 	for b: Dictionary in hud.buttons:
 		if b.has("part"):
 			parts += 1
 			TestLib.check(String(b["name"]) != "" and String(b["fx"]) != "" and ["ON", "EQUIP"].has(String(b["label"])) or String(b["label"]).begins_with("BUY"), "%s: part %s has a name, an effect and a status" % [tag, b["id"]])
 		if b.has("cap"):
 			tiles += 1
-	TestLib.check(parts == 9 and tiles >= 1, "%s: the loadout shows nine part cards and the weapon tiles by name (%d, %d)" % [tag, parts, tiles])
+		if String(b["id"]).begins_with("slot_"):
+			tabs += 1
+	TestLib.check(tabs == 5 and parts >= 3 and parts <= 6 and tiles >= 1, "%s: the loadout shows five slot tabs, the part cards of the open slot and the weapon tiles by name (%d, %d, %d)" % [tag, tabs, parts, tiles])
+	# the nine parts of the first rosters are all there, one slot tab at a time
+	var reach := {}
+	for slot: StringName in Attachments.SLOTS:
+		hud.press_button(StringName("slot_%s" % slot))
+		_layout()
+		for b: Dictionary in hud.buttons:
+			if b.has("part"):
+				reach[StringName(String(b["id"]).substr(5))] = true
+	var missing: Array[String] = []
+	for part: StringName in [&"reddot", &"scope", &"halo", &"suppressor", &"longbarrel", &"compensator", &"overcharge", &"rapid", &"extended"]:
+		if not reach.has(part):
+			missing.append(String(part))
+	TestLib.check(missing.is_empty(), "%s: all nine parts of the first rosters are reachable through the slot tabs (missing %s)" % [tag, str(missing)])
+	hud.press_button(&"slot_optic")
+	_layout()
 	_scan(tag + " loadout")
 	var back := _btn(&"loadout_back")
 	TestLib.check(not back.is_empty() and String(back["id"]).ends_with("_back"), "%s: loadout has a BACK" % tag)

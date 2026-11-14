@@ -29,12 +29,28 @@ DONE (files)
   + 84 ogg (shot_v3_<class>[_1..3]), weapon_browser.gd (favourites, recent, class tabs, pages of 8, save), loadout_screen.gd paging + star + class chips, hud.gd routes (wheelcls_*, fav_toggle),
   progress.gd save/load of favourites + recent, weapon_crates.gd secret caches.
 
-NEXT (second agent)
-1. Compile + run weapon tests (done: test_weapons PASS). Run test_weapon_roster, test_weapon_cards, test_balance2, test_audio_real_samples, test_weapons_available_display, test_menu_cut.
-2. Attachment slots grip / magazine / laser with real stat changes (Attachments), tests; ammo types UI.
-3. tests/test_weapons_v3.gd (real scene) + tests/test_weapon_balance_v3.gd (TTK table).
-4. Wheel paging + loadout renders at phone resolution with 200+ entries (6+ loops), contact sheet docs/shots/round6/.
-5. Shops by tier paging, mission reward weapon grants, enemy drops check, HERO MODE test; docs (ARCHITECTURE, HANDOFF); perf gate (max twice).
+UPDATE 02:20 UTC (second agent): DONE since the restart
+- Catalogue (WeaponsScreen): dynamic pages (WeaponBrowser classes + EXPLOSIVES + GADGETS, 3 x 3 tiles, balanced pages), class row (wcls_prev/next) + page row (wpg_*), OWNED n / m counter, role text wrapped in the
+  right column, tile names keep the first words (PILLAR ASSAULT, not ASSAULT RIFLE). PAGES / PAGE_TITLES are lazy static getters (a static initialiser ran before WeaponDefs existed: keep it lazy).
+- Loadout: WeaponBrowser tabs (FAVOURITES, RECENT, classes), pages of 8 (balanced via WeaponBrowser.split), caption(id) unique per class (<= 11 chars), star, headline line (first role clause), SLOT TABS (OPTIC MUZZLE GRIP
+  MAGAZINE LASER, only slots the weapon can wear) + part cards + FITTED line. Attachments: 5 slots, 21 parts (scripts/player/attachment_parts_v3.gd: 12 new, fits rules, set/add mods, FX lines), Economy.attachment_price hook.
+- Wheel: two levels (WeaponWheel.items: classes + RECENT + FAV, ring_items(tab, page, cur): 8 weapons + NEXT disc, activate(item, weapon)), RadialWheel.disc_scale (12 discs fit), touch_controls hooks (_wheel_pick returns true when a ring opens).
+- Shops and drops (scripts/player/weapon_shops_v3.gd): hero_tier, dealer_stock (ARMS DEALER restocks with a weapon of the tier when one is owned), drop_for + WeaponLadder.enemy_drop band (DROP_CHANCE .. +0.07).
+- Fixed bugs found by the new test: PlayerWeapon._tick_heat crashed for a spin-up weapon without heat keys (heat_cool); x_grav had knock 0.
+- Renamed: PLASMA RIFLE -> SOLAR PLASMA GUN (blocklist), SLEDGEHAMMER -> SLEDGE HAMMER (caption).
+- Tests: NEW tests/test_weapons_v3.gd (135 checks, 11 s, real player scene: every one of the 125 weapons equips, fires, reloads, alt-fires and damages a dummy; 49 status keys land; wheel, attachments, shops, save),
+  NEW tests/test_weapon_balance_v3.gd (TTK table by class, family and range, outlier 3x, EASY/HARD fairness; prints TTK lines). Updated honestly: test_weapon_roster, test_weapon_cards (via new pages), test_weapons_depth,
+  test_energy_destructive_weapons, test_director_round3_b. Look-dev bot: tests/bot_weapon_ui.gd (WUI_OUT, WUI_STEPS, MENU_NO3D=1).
+- Counts (families, old + new): pistol 15 smg 12 assault 14 battle 7 carbine 7 dmr 8 sniper 11 shotgun 12 lmg 7 rotary 5 bow 6 flamer 5 melee 28 energy 17 quantum 12 exotic 6; wheel classes pistol 15 smg 12 rifle 30 shotgun 12
+  sniper 24 heavy 20 melee 28 quantum 12 energy 23 (blast: the other builder, 53 so far). New weapons 125, total with blast 229+.
+NEXT: tests/test_weapon_ui_v3.gd (main scene: loadout, catalogue, wheel through the HUD), ES / HI strings (strings_weapons_v3.gd), melee icons (thin lines), re-run touched tests (ui_kit_screens, localisation, hud, touch),
+  perf gate (twice at most), contact sheet docs/shots/round6/, ARCHITECTURE.md + HANDOFF.md, final report.
 
-TESTS AND PERF: test_weapons PASS (26 s). Nothing else run yet by the second agent. Perf gate not run.
-OPEN PROBLEMS: existing tests that assume the old size (test_weapon_cards "3 to 7 per class", test_balance2 ACC.size()==IDS.size(), economy tree hours) may need honest updates.
+UPDATE 04:10 UTC: DONE also
+- tests/test_weapon_ui_v3.gd (main scene, 93 checks, 25 s: loadout flow, catalogue flow incl. BUY of a roster weapon, wheel through real touch events, 30 layout scans at 844x390 / 1200x540 / 1280x720).
+- Batch of 38 touched tests run: all PASS except the known flaky test_interior_gameplay node count (+38..+50 against 12; passes on some runs, see HANDOFF wave 112).
+- Honest test updates: test_weapons_available_display (class wedges only), test_director_round2_d (slot tabs: nine first parts reachable), test_hud (AMMO is in the outer MORE column), test_interior_gameplay_vendors (dealer back room opens at tier 2).
+- AMMO touch button behind MORE (ammo types had a key only), toast of the loaded type; secret cache lines name their place (CACHE AT MOUNTAIN OBSERVATORY).
+- Icons re-rendered (long thin weapons thicker, spear and staff on a diagonal). Gear card text wraps (the C4 chain line ran off the card: blast builder text).
+- Sheets: docs/shots/round6/weapons_ui_before_after.jpg, weapon_wheel_rings.jpg, weapons_v3_in_hand.jpg.
+NEXT: perf gate (LOW / MED / HIGH, once), HANDOFF.md entry, final report. Open: models are placeholders (wave 114), role texts English in es / hi.

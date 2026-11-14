@@ -184,11 +184,11 @@ func _reload_label() -> void:
 # --- 12 ------------------------------------------------------------------------------------------------------------------------
 
 func _loadout_header() -> void:
-	# the NEXT line sits at baseline 162, the first slot caption at SLOT_Y + 16: a caption's cap height (BAR_LABEL) must clear the line's descenders
-	var first_caption_top := LoadoutScreen.SLOT_Y + 16.0 - UiUtil.BAR_LABEL
+	# the NEXT line sits at baseline 162, the slot tabs start at SLOT_Y: the line's descenders must clear the top of the tabs
 	var next_bottom := 162.0 + UiUtil.BAR_LABEL * 0.3
-	TestLib.check(first_caption_top - next_bottom >= 10.0, "the loadout NEXT line clears the first slot caption by %.0f base px" % (first_caption_top - next_bottom))
-	TestLib.check(LoadoutScreen.SLOT_Y + 2.0 * LoadoutScreen.SLOT_STEP + 24.0 + LoadoutScreen.PART_H < 542.0, "the three slots end above the GEAR button")
+	TestLib.check(LoadoutScreen.SLOT_Y - next_bottom >= 10.0, "the loadout NEXT line clears the slot tabs by %.0f base px" % (LoadoutScreen.SLOT_Y - next_bottom))
+	TestLib.check(LoadoutScreen.SLOT_Y + LoadoutScreen.TAB_H < LoadoutScreen.PART_ROW_Y and LoadoutScreen.PART_ROW_Y + 2.0 * LoadoutScreen.PART_H + 8.0 < LoadoutScreen.FITTED_Y and LoadoutScreen.FITTED_Y + 12.0 < LoadoutScreen.ACTION_Y,
+			"the slot tabs, two rows of part cards and the FITTED line end above the GEAR button")
 
 
 func _title_bars(main: Node) -> void:

@@ -51,10 +51,9 @@ static func _build_pages() -> Array[Dictionary]:
 	var gear_ids: Dictionary = {&"explosives": Gear.THROW_IDS + Gear.CHARGE_IDS, &"gadgets": Gear.GADGET_IDS}
 	for gt: Array in GEAR_TABS:
 		var ids: Array = gear_ids[gt[0]]
-		var n := WeaponBrowser.pages_for(ids.size(), PER_PAGE)
-		var per := maxi(1, ceili(float(ids.size()) / float(n)))
-		for sub in n:
-			out.append({"tab": gt[0], "name": gt[1], "ids": ids.slice(sub * per, mini(ids.size(), (sub + 1) * per)), "gear": true, "sub": sub, "subs": n})
+		var chunks := WeaponBrowser.split(ids, PER_PAGE)
+		for sub in chunks.size():
+			out.append({"tab": gt[0], "name": gt[1], "ids": chunks[sub], "gear": true, "sub": sub, "subs": chunks.size()})
 	for pg: Dictionary in out:
 		pg["title"] = String(pg["name"]) if int(pg["subs"]) < 2 else "%s  %d / %d" % [pg["name"], int(pg["sub"]) + 1, int(pg["subs"])]
 	return out
@@ -201,13 +200,13 @@ static func layout(hud: Hud, cx: float, s: float) -> void:
 		hud._add(StringName("buy_%s" % sel), ar, "BUY  %d" % price, prog != null and prog.can_buy_weapon(sel))
 
 
-## The name that fits `w` px at the smallest menu size: the whole name, else its last words ("SINGULARITY GRENADE" -> "GRENADE").
+## The name that fits `w` px at the smallest menu size: the whole name, else it loses its last words until it does ("PILLAR ASSAULT RIFLE" -> "PILLAR ASSAULT" -> "PILLAR"): the first word is the one that names the weapon.
 static func _fit_name(font: Font, nm: String, w: float, size: int) -> String:
 	var words := nm.split(" ", false)
-	var i := 0
-	while i < words.size() - 1 and font.get_string_size(" ".join(words.slice(i)), HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > w:
-		i += 1
-	return " ".join(words.slice(i))
+	var n := words.size()
+	while n > 1 and font.get_string_size(" ".join(words.slice(0, n)), HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > w:
+		n -= 1
+	return " ".join(words.slice(0, n))
 
 
 static func _name_of(id: StringName) -> String:
@@ -232,7 +231,7 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 		var r := cell_rect(hud, cx, s, i)
 		var id: StringName = items[i]["id"]
 		var tw := r.size.x - 12.0 * s
-		var nm := _fit_name(font, _name_of(id), tw, int(14.0 * s))             # words are dropped only when the name does not fit even at the smallest size
+		var nm := _fit_name(font, _name_of(id), tw - 8.0 * s, int(14.0 * s))             # words are dropped only when the name does not fit even at the smallest size
 		var own := WeaponDefs.is_unlocked(id) or Gear.is_owned(id)
 		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 71.0 * s), nm, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, nm, tw, int(19.0 * s)), Color(1, 1, 1, 0.97 if id == sel else 0.85))
 		hud._text(c, font, Vector2(r.position.x + 6.0 * s, r.position.y + 91.0 * s), tile_status(id), HORIZONTAL_ALIGNMENT_LEFT, tw, int(16.0 * s), Color(UiUtil.GREEN if own else UiUtil.AMBER, 0.95))
@@ -301,29 +300,52 @@ static func _draw_card(hud: Hud, c: Control, s: float, font: Font, cx: float, k:
 	# numbers
 	var ly := by + 6.0 * 26.0 * s + 18.0 * s
 	var ls := WeaponStats.lines(card)
+	var nw := dr.position.x - bx - 8.0 * s                                  # the numbers stay left of the role column under the diagram
 	for i in ls.size():
-		hud._text(c, font, Vector2(bx, ly + float(i) * 20.0 * s), ls[i], HORIZONTAL_ALIGNMENT_LEFT, pw - 8.0 * s, UiUtil.fit_size(font, ls[i], pw - 8.0 * s, int(16.0 * s)), Color(1, 1, 1, 0.9))
+		hud._text(c, font, Vector2(bx, ly + float(i) * 20.0 * s), ls[i], HORIZONTAL_ALIGNMENT_LEFT, nw, UiUtil.fit_size(font, ls[i], nw, int(16.0 * s)), Color(1, 1, 1, 0.9))
 	var trait_line := WeaponRoster.trait_text(sel)
 	if trait_line != "":
-		hud._text(c, font, Vector2(bx, ly + float(ls.size()) * 20.0 * s + (20.0 * s if bool(card["lock"]) else 0.0)), trait_line, HORIZONTAL_ALIGNMENT_LEFT, pw - 8.0 * s, UiUtil.fit_size(font, trait_line, pw - 8.0 * s, int(15.0 * s)), Color(UiUtil.MAGENTA, 0.95))
+		hud._text(c, font, Vector2(bx, ly + float(ls.size()) * 20.0 * s + (20.0 * s if bool(card["lock"]) else 0.0)), trait_line, HORIZONTAL_ALIGNMENT_LEFT, nw, UiUtil.fit_size(font, trait_line, nw, int(15.0 * s)), Color(UiUtil.MAGENTA, 0.95))
 	if bool(card["lock"]):
 		hud._text(c, font, Vector2(bx, ly + float(ls.size()) * 20.0 * s), "LOCKS ON TO THE TARGET UNDER THE CROSSHAIR", HORIZONTAL_ALIGNMENT_LEFT, pw - 8.0 * s, int(15.0 * s), Color(UiUtil.MAGENTA, 0.95))
 	# the range ruler
 	if not bool(card["melee"]):
 		_draw_ruler(hud, c, s, font, Rect2(bx, py + 424.0 * s, pw - 330.0 * s * k, 24.0 * s), card)
-	_draw_role(hud, c, s, font, Rect2(bx, py + 470.0 * s, pw - 330.0 * s * k, 60.0 * s), sel)
+	_draw_role(hud, c, s, font, Rect2(dr.position.x, dr.end.y + 10.0 * s, dr.size.x, 572.0 * s - dr.end.y - 18.0 * s), sel)
 
 
-## What the item is FOR in the missions (WeaponRoster.role: two or three short clauses), one clause a line under a "USE FOR" tag; nothing for the older guns.
+## Draw `text` wrapped to `w` px in lines of `line_h` px from the baseline `y` (at most `max_lines`), a text never goes below the legible size so it is wrapped, not shrunk. Returns the baseline below the last line.
+static func _wrap(hud: Hud, c: Control, font: Font, text: String, x: float, y: float, w: float, fs: int, col: Color, line_h: float, max_lines := 4) -> float:
+	var line := ""
+	var n := 0
+	for word in text.split(" ", false):
+		var t := String(word) if line == "" else line + " " + String(word)
+		if line != "" and font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w:
+			hud._text(c, font, Vector2(x, y), line, HORIZONTAL_ALIGNMENT_LEFT, w, fs, col)
+			y += line_h
+			n += 1
+			line = String(word)
+			if n >= max_lines:
+				return y
+		else:
+			line = t
+	if line != "":
+		hud._text(c, font, Vector2(x, y), line, HORIZONTAL_ALIGNMENT_LEFT, w, fs, col)
+		y += line_h
+	return y
+
+
+## What the item is FOR in the missions (WeaponRoster.role: two or three short clauses): a "USE FOR" tag and every clause wrapped to the column under the diagram (the card has no free line elsewhere); nothing for the older guns.
 static func _draw_role(hud: Hud, c: Control, s: float, font: Font, r: Rect2, id: StringName) -> void:
 	var role := WeaponRoster.role(id)
 	if role == "":
 		return
-	var clauses := role.split("  ", false)
-	hud._text(c, font, Vector2(r.position.x, r.position.y + 14.0 * s), "USE FOR", HORIZONTAL_ALIGNMENT_LEFT, r.size.x, int(14.0 * s), Color(UiUtil.CYAN, 0.9), 1.0 * s)
-	for i in mini(clauses.size(), 3):
-		var t := String(clauses[i])
-		hud._text(c, font, Vector2(r.position.x + 74.0 * s, r.position.y + (14.0 + 19.0 * float(i)) * s), t, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 120.0 * s, UiUtil.fit_size(font, t, r.size.x - 120.0 * s, int(15.0 * s)), Color(1, 1, 1, 0.93))
+	hud._text(c, font, Vector2(r.position.x, r.position.y + 14.0 * s), "USE FOR", HORIZONTAL_ALIGNMENT_LEFT, r.size.x, int(15.0 * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+	var y := r.position.y + 14.0 * s + 22.0 * s
+	for clause in role.split("  ", false):
+		y = _wrap(hud, c, font, String(clause), r.position.x, y, r.size.x, int(16.0 * s), Color(1, 1, 1, 0.93), 19.0 * s, 3) + 4.0 * s
+		if y > r.end.y:
+			break
 
 
 ## Left: how far a shot flies at full damage and how it fades: a ruler from 0 to the maximum range, the full-damage stretch lit, the falling-off stretch dimmer.
@@ -378,6 +400,8 @@ static func _draw_diagram(hud: Hud, c: Control, s: float, font: Font, r: Rect2, 
 	if radius_m > 0.0:
 		c.draw_circle(mid, radius_m * ppm, Color(col_ring, 0.16))
 		c.draw_arc(mid, radius_m * ppm, 0.0, TAU, 48, col_ring, 2.0 * s)
+		if blast > 0.0 and float(card.get("blast_core", 0.0)) > 0.3:       # the part of the blast that does full damage (the core of its BlastTable entry)
+			c.draw_arc(mid, float(card["blast_core"]) * ppm, 0.0, TAU, 32, Color(1.0, 0.95, 0.75, 0.9), 1.5 * s)
 	if inner_m > 0.0:
 		c.draw_arc(mid, inner_m * ppm, 0.0, TAU, 32, Color(UiUtil.CYAN, 0.95), 2.0 * s)
 	c.draw_rect(body, Color(1, 1, 1, 0.85))
@@ -404,8 +428,8 @@ static func _draw_gear_card(hud: Hud, c: Control, s: float, font: Font, px: floa
 	var own := Gear.is_owned(sel)
 	hud._text(c, font, Vector2(tx, py + 54.0 * s), "%s  %s" % [kind, "OWNED" if own else "NOT OWNED"], HORIZONTAL_ALIGNMENT_LEFT, tw, int(17.0 * s), Color(UiUtil.GREEN if own else UiUtil.AMBER, 0.97))
 	var desc := String(d.get("desc", ""))
-	hud._text(c, font, Vector2(tx, py + 80.0 * s), desc, HORIZONTAL_ALIGNMENT_LEFT, tw, UiUtil.fit_size(font, desc, tw, int(16.0 * s)), Color(1, 1, 1, 0.9))
-	hud._text(c, font, Vector2(tx, py + 104.0 * s), "WHERE  SHOP  %d" % Economy.gear_price(sel) if (not own and not Gear.is_charge(sel)) else "WHERE  YOU HAVE IT", HORIZONTAL_ALIGNMENT_LEFT, tw, int(16.0 * s), Color(UiUtil.CYAN, 0.95))
+	var dy := _wrap(hud, c, font, desc, tx, py + 80.0 * s, tw, int(16.0 * s), Color(1, 1, 1, 0.9), 19.0 * s, 3)           # a long description wraps (the chain reaction line of the C4 was wider than its card)
+	hud._text(c, font, Vector2(tx, maxf(py + 104.0 * s, dy + 4.0 * s)), "WHERE  SHOP  %d" % Economy.gear_price(sel) if (not own and not Gear.is_charge(sel)) else "WHERE  YOU HAVE IT", HORIZONTAL_ALIGNMENT_LEFT, tw, int(16.0 * s), Color(UiUtil.CYAN, 0.95))
 	var lines := gear_lines(sel)
 	for i in lines.size():
 		hud._text(c, font, Vector2(px + 8.0 * s, py + (190.0 + 26.0 * float(i)) * s), lines[i], HORIZONTAL_ALIGNMENT_LEFT, pw - 12.0 * s, int(18.0 * s), Color(1, 1, 1, 0.92))

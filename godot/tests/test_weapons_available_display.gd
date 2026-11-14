@@ -142,7 +142,7 @@ func _live(host: Node) -> void:
 	for _i in 30:
 		w.tick(DT, false, false, false, false)
 	# the weapon wheel by class: one wedge per class with an owned weapon, current weapon marked
-	var items := WeaponWheel.items()
+	var items := WeaponWheel.items().filter(func(it: Dictionary) -> bool: return it["type"] == &"class")          # RECENT and FAVOURITES wedges come on top of the classes once weapons have been in the hand
 	TestLib.check(items.size() == 7, "the weapon wheel shows seven class wedges (%d)" % items.size())
 	var cur_marked := false
 	var ids := {}

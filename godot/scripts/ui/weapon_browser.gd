@@ -10,8 +10,55 @@ const RECENT: StringName = &"recent"
 const RECENT_MAX := 8
 const FAV_MAX := 24
 
+const CAP_MAX := 11                               ## characters of a tile caption (a tile is 132 px wide; the caption never goes under the legible size)
+const GENERIC := ["GUN", "RIFLE", "PISTOL", "SMG", "SHOTGUN", "CARBINE", "SNIPER", "LMG", "DMR", "BOW", "CROSSBOW", "CANNON", "LAUNCHER", "COMPACT", "REPEATER", "SPRAYER", "EMITTER", "ROTARY", "PISTOLS"]
+
 static var favourites: Array[StringName] = []
 static var recent: Array[StringName] = []
+static var _caps := {}
+
+
+## The caption under a weapon tile: the whole name when it is short ("ARC SABRE"), else its first two words ("ION BATTLE"), else the first word ("PILLAR"): at most CAP_MAX characters, the same on every
+## page and different for every weapon of a class (a clash falls through to the next form). A def may carry its own `cap`.
+static func caption(id: StringName) -> String:
+	if _caps.is_empty():
+		_build_captions()
+	return String(_caps.get(id, WeaponDefs.title(id).substr(0, CAP_MAX)))
+
+
+static func _build_captions() -> void:
+	for cls: StringName in WeaponDefs.CLASS_ORDER:
+		var taken := {}
+		var ids := WeaponDefs.in_class(cls)
+		for id in ids:
+			var own := String(WeaponDefs.DEFS[id].get("cap", ""))
+			if own != "":
+				_caps[id] = own
+				taken[own] = true
+		for id in ids:
+			if _caps.has(id):
+				continue
+			var words := WeaponDefs.title(id).split(" ", false)
+			var forms: Array[String] = [" ".join(words)]
+			if words.size() > 2:
+				forms.append(" ".join(words.slice(0, 2)))
+			var last := String(words[words.size() - 1])
+			if words.size() == 2 and not GENERIC.has(last) and last.length() >= 5:
+				forms.append(last)                                              # "PLASMA CUTLASS" is a CUTLASS, "TRAIL MACHETE" a MACHETE: the noun names it better than the adjective
+			forms.append(String(words[0]))
+			if words.size() > 1 and not GENERIC.has(last):
+				forms.append(last)
+			var pick := ""
+			for f in forms:
+				if f.length() <= CAP_MAX and not taken.has(f):
+					pick = f
+					break
+			if pick == "":
+				pick = String(words[0]).substr(0, CAP_MAX - 1) + "."                  # "SUPERPOSIT."
+				if taken.has(pick) or words.size() < 1:
+					pick = String(WeaponDefs.DEFS[id].get("tag", pick))
+			taken[pick] = true
+			_caps[id] = pick
 
 
 static func reset() -> void:
@@ -85,6 +132,20 @@ static func tabs(owned_only := true, special := true) -> Array[Dictionary]:
 	return out
 
 
+## `ids` cut into the fewest pages of at most `size`, evenly: 20 weapons on three pages are 7, 7 and 6, 53 on seven pages are 8, 8, 8, 8, 7, 7 and 7 (pages differ by one item at most).
+static func split(ids: Array, size := PAGE) -> Array:
+	var n := pages_for(ids.size(), size)
+	var base := ids.size() / n
+	var extra := ids.size() % n
+	var out: Array = []
+	var at := 0
+	for i in n:
+		var cnt := base + (1 if i < extra else 0)
+		out.append(ids.slice(at, at + cnt))
+		at += cnt
+	return out
+
+
 ## Number of pages of `n` items.
 static func pages_for(n: int, size := PAGE) -> int:
 	return maxi(1, (n + size - 1) / size)
@@ -96,9 +157,9 @@ static func pages(owned_only := true, size := PAGE, special := true) -> Array[Di
 	for t in tabs(owned_only, special):
 		var ids: Array[StringName] = t["ids"]
 		var n := pages_for(ids.size(), size)
-		var per := maxi(1, ceili(float(ids.size()) / float(n)))                 # balanced pages: 20 weapons on three pages are 7, 7 and 6, never 8, 8 and 4
+		var chunks := split(ids, size)
 		for sub in n:
-			out.append({"tab": t["id"], "name": t["name"], "ids": ids.slice(sub * per, mini(ids.size(), (sub + 1) * per)), "sub": sub, "subs": n})
+			out.append({"tab": t["id"], "name": t["name"], "ids": chunks[sub], "sub": sub, "subs": n})
 	return out
 
 

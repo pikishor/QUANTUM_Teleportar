@@ -147,6 +147,9 @@ static func _procedural(b: _Builder, id: StringName, glow: Color) -> void:
 	if WeaponDefs.def(id).has("model_seed"):                                                                    # the roster pack of wave 113 (weapon_models_v3.gd)
 		WeaponModelsV3.build(b, id, glow)
 		return
+	if WeaponDefs.def(id).has("bid"):                                                                           # the blast arsenal of wave 113 (weapon_models_blast.gd)
+		WeaponModelsBlast.build(b, id, glow)
+		return
 	match id:
 		&"carbine":
 			if not _carbine(b, glow):

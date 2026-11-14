@@ -50,7 +50,7 @@ static func recent_others(cur: StringName) -> Array[StringName]:
 
 static func _tab_item(tab: StringName, nm: String, ids: Array, cur: StringName) -> Dictionary:
 	var show: StringName = ids[0]
-	return {"id": tab, "type": &"tab", "icon": show, "label": nm, "ready": true, "active": false, "cd": 0.0, "current": false, "cls": tab, "owned": ids.size(), "total": ids.size(), "cname": nm,
+	return {"id": tab, "type": &"tab", "icon": show, "label": nm, "ready": true, "active": false, "cd": 0.0, "current": false, "cls": tab, "owned": ids.size(), "total": ids.size(), "cname": "FAVS" if tab == FAV else nm,
 			"wname": String(WeaponDefs.DEFS[show].get("name", show)).to_upper() + ("" if cur == &"" else "")}
 
 

@@ -42,6 +42,10 @@ static func _ensure() -> void:
 	for pair: Array in BlastRows.all():
 		var e := _expand(StringName(pair[0]), pair[1] as Array)
 		_put(e)
+	# one bolt of the CHAIN LIGHTNING STORM: not a catalogue entry (category internal)
+	var bolt := _expand(&"ordnance", [&"ult_storm_bolt", "STORM BOLT", 3.0, 0.8, 120.0, 140.0, &"electric", {"tag": "BLT", "tier": 6, "debris": &"sparks", "level": 0, "friendly": false, "fx": &"shock", "knock": 6.0, "lift": 4.0}])
+	bolt["cat"] = &"internal"
+	_put(bolt)
 	_migrate_legacy()
 
 
@@ -309,7 +313,11 @@ static func _dmg_mult(e: Dictionary, source: Variant, opts: Dictionary) -> float
 
 
 static func _is_hero(source: Variant, opts: Dictionary) -> bool:
-	return bool(opts.get("by_hero", false)) or (source is Object and is_instance_valid(source) and source == Game.player and Game.player != null)
+	if bool(opts.get("by_hero", false)):
+		return true
+	if not (source is Object) or not is_instance_valid(source):
+		return false
+	return source == Game.player or (source is Node and (source as Node).get(&"driver_is_player") == true)       # the hero, or the car, tank or aircraft he drives
 
 
 static func hero_immune() -> bool:
@@ -386,7 +394,7 @@ static func _structure(pos: Vector3, radius: float, level: int) -> int:
 
 
 ## The old Game.explode numbers through the one resolver: linear down to 40 %, reach + 0.8 for people, + 2.0 for cars, cover 35 %, civilians by the crowd's own falloff.
-static func _legacy_targets(e: Dictionary, pos: Vector3, radius: float, _dm: float, source: Variant, opts: Dictionary, res: Dictionary) -> void:
+static func _legacy_targets(e: Dictionary, pos: Vector3, radius: float, dm: float, _source: Variant, _opts: Dictionary, res: Dictionary) -> void:
 	var dmg: Dictionary = e["dmg"]
 	var enemy_dmg := float(dmg["enemy"])
 	var tree := Game.get_tree()
@@ -395,16 +403,20 @@ static func _legacy_targets(e: Dictionary, pos: Vector3, radius: float, _dm: flo
 	if enemy_dmg > 0.0:
 		for n: Node in tree.get_nodes_in_group(&"enemy"):
 			var en := n as Node3D
+			if en == null:
+				continue
 			var reach := radius + float((e["pad"] as Dictionary)["enemy"])
 			var d := en.global_position.distance_to(pos)
 			if d < reach:
-				var amount := TestMode.damage(enemy_dmg * factor(e, d, float((e["pad"] as Dictionary)["enemy"])) * _cover(pos, en.global_position + Vector3(0.0, 1.0, 0.0)))
+				var amount := TestMode.damage(enemy_dmg * dm * factor(e, d, float((e["pad"] as Dictionary)["enemy"])) * _cover(pos, en.global_position + Vector3(0.0, 1.0, 0.0)))
 				en.call(&"damage", amount)
 				res["enemies"] = int(res["enemies"]) + 1
 				res["enemy_total"] = float(res["enemy_total"]) + amount
 	var car_dmg := float(dmg["vehicle"])
 	for v: Node in tree.get_nodes_in_group(&"vehicle"):
 		var vn := v as Node3D
+		if vn == null:
+			continue
 		var vpad := float((e["pad"] as Dictionary)["vehicle"])
 		var d := vn.global_position.distance_to(pos)
 		if d < radius + vpad:
@@ -476,7 +488,7 @@ static func _targets(e: Dictionary, pos: Vector3, radius: float, dm: float, sour
 			if (absf(knock) > 0.01 or lift > 0.01) and f * cov >= 0.2:
 				if ops.launch_body(en, away * knock * f * cov, lift * f * cov):
 					res["launched"] = int(res["launched"]) + 1
-			if not st.is_empty() and cov > 0.5 or (not st.is_empty() and not cover_on):
+			if not st.is_empty() and (cov > 0.5 or not cover_on):
 				if ops.status(en, e, f, source, pos):
 					res["statuses"] = int(res["statuses"]) + 1
 	# --- vehicles

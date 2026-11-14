@@ -1076,7 +1076,7 @@ func _on_exploded(pos: Vector3, radius: float) -> void:
 			continue
 		var d := c.global_position.distance_to(pos)
 		if d < radius * 1.05 + float(c.spec["hit_r"]):
-			hurt(c, 80.0 * (1.0 - 0.5 * d / maxf(radius, 1.0)) + 40.0, true, pos)
+			hurt(c, BlastTable.animal_damage(pos, radius, d, 80.0 * (1.0 - 0.5 * d / maxf(radius, 1.0)) + 40.0), true, pos)
 	scare_all(pos, radius * 5.0 + 55.0)
 
 

@@ -80,7 +80,7 @@ const ACTION_KEYS := {
 	&"jump": [KEY_SPACE], &"sprint": [KEY_SHIFT], &"reload": [KEY_R],
 	&"blink": [KEY_Q], &"entangle": [KEY_E], &"superpose": [KEY_G], &"collapse": [KEY_C],
 	&"interact": [KEY_F], &"leave_building": [KEY_BACKSPACE], &"crouch": [KEY_CTRL], &"takedown": [KEY_V], &"pause": [KEY_ESCAPE],
-	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z], &"grab": [KEY_H], &"melee": [KEY_N], &"throw_item": [KEY_J], &"gadget": [KEY_K], &"charge_place": [KEY_P], &"detonate": [KEY_L], &"shield": [KEY_Y], &"slip": [KEY_U], &"arc": [KEY_I],
+	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z], &"grab": [KEY_H], &"melee": [KEY_N], &"throw_item": [KEY_J], &"gadget": [KEY_K], &"charge_place": [KEY_P], &"detonate": [KEY_L], &"shield": [KEY_Y], &"slip": [KEY_U], &"arc": [KEY_I], &"ultimate": [KEY_O],
 }
 
 
@@ -237,46 +237,12 @@ func say(text: String, seconds := 2.0) -> void:
 	message.emit(text, seconds)
 
 
-## Area damage plus the explosion effect (FX.blast: fireball, smoke, ground ring, sparks, debris, light, heat haze).
-## opts: enemy_dmg (60), car_dmg (60), player_dmg (30), color (orange), burn (seconds a wreck keeps burning: default 6 from radius 8 up, 0 below),
-## style (optional, FX.blast: -1 auto from colour and radius).
-func explode(pos: Vector3, radius: float, opts := {}) -> void:
-	var enemy_dmg: float = opts.get("enemy_dmg", 60.0)
-	var car_dmg: float = opts.get("car_dmg", 60.0)
-	var player_dmg: float = opts.get("player_dmg", 30.0)
-	var element: StringName = opts.get("element", &"")
-	var color: Color = opts.get("color", BlastElements.color(element, "ring") if BlastElements.valid(element) else Color(1.0, 0.54, 0.19))
-	if not BlastElements.valid(element):
-		element = BlastElements.of_color(color)               # every caller keeps its colour: green = toxic, cyan = plasma, blue = electric, violet = quantum, orange = fire
-		FX.blast(pos, radius, color, 0.5, int(opts.get("style", -1)), float(opts.get("burn", 0.0)))
-	else:
-		FX.blast(pos, radius, color, 0.5, int(opts.get("style", -1)), float(opts.get("burn", 0.0)), true, element)
-	FX.blast_marks(pos, radius, element)                      # fluid, scorch, cracks and falling glass on the street and the facades (one pooled draw)
-	var cam_pos: Vector3 = camera.global_position if is_instance_valid(camera) else pos
-	var cam_d := cam_pos.distance_to(pos)
-	if not bool(opts.get("quiet", false)):                    # quiet = a small pop of a fast weapon (the plasma pistol, the chaingun): the blast and its marks, no shake, slow motion or boom per shot
-		FX.shake(clampf(radius * 1.6 / (cam_d + 6.0) * float(BlastElements.data(element)["shake"]), 0.0, 1.0))
-		blast_feel(radius, cam_d)
-		Sfx.play_at(&"boom" if radius >= 5.0 else &"explosion_small", pos, -3.0)                 # positional: an explosion across the street is quieter and comes from where it is
-	if Breakables.current != null:
-		Breakables.current.blast(pos, radius)
-	exploded.emit(pos, radius)
-	if civilian_casualties and radius >= 2.0 and is_instance_valid(world) and world.get(&"ambient") != null:
-		world.ambient.blast_civilians(pos, radius, enemy_dmg > 0.0)      # a blast that hurts enemies is the hero's (or his car's); an enemy's striker is not
-	if enemy_dmg > 0.0:
-		for e: Node3D in get_tree().get_nodes_in_group(&"enemy"):
-			var reach := radius + 0.8
-			var d := e.global_position.distance_to(pos)
-			if d < reach:
-				e.damage(TestMode.damage(enemy_dmg * (1.0 - 0.6 * d / reach) * blast_cover(pos, e.global_position + Vector3(0.0, 1.0, 0.0))))
-	for v: Node3D in get_tree().get_nodes_in_group(&"vehicle"):
-		var d := v.global_position.distance_to(pos)
-		if d < radius + 2.0:
-			v.damage(car_dmg * (1.0 - 0.6 * d / (radius + 2.0)) * blast_cover(pos, v.global_position + Vector3(0.0, 0.8, 0.0)))
-	if player_dmg > 0.0 and is_instance_valid(player):
-		var d := player.global_position.distance_to(pos)
-		if d < radius:
-			player.damage(player_dmg * (1.0 - 0.6 * d / radius) * blast_cover(pos, player.global_position + Vector3(0.0, 1.0, 0.0)), pos)
+## Area damage plus the explosion effect (FX.blast: fireball, smoke, ground ring, sparks, debris, light, heat haze). The numbers come from the blast table (scripts/combat/blast_table.gd): a table id in
+## opts.blast (BlastTable.apply: radius, falloff curve, damage per target type, knockback, status, look) or, for the callers that pass their own numbers, the same resolver with the old falloff and reach.
+## opts: enemy_dmg (60), car_dmg (60), player_dmg (30), color (orange), burn (seconds a wreck keeps burning: default 6 from radius 8 up, 0 below), style (optional, FX.blast: -1 auto from colour and radius),
+## element, quiet (no boom, shake or slow motion), blast (a BlastTable id), source (who caused it), dmg_mult, radius_mult, by_hero, dir. Returns what the blast hit (BlastTable result dictionary).
+func explode(pos: Vector3, radius: float, opts := {}) -> Dictionary:
+	return BlastTable.explode(pos, radius, opts)
 
 
 const BLAST_SLOWMO_RADIUS := 7.0            ## a blast this big (and close to the camera) plays a short slow motion

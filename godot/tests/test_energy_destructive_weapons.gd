@@ -267,7 +267,13 @@ func _data() -> void:
 		TestLib.check(String(WeaponDefs.alt_of(id)["name"]) != "" and WeaponRoster.sound(id) != &"shot", "%s: alt-fire %s, sound %s" % [id, WeaponDefs.alt_of(id)["name"], WeaponRoster.sound(id)])
 	TestLib.check(alt_names.size() >= 11, "the second modes differ (%d kinds)" % alt_names.size())
 	# classes and tabs
-	TestLib.check(WeaponDefs.CLASS_ORDER.has(&"energy") and WeaponDefs.CLASS_ORDER.has(&"blast") and WeaponDefs.in_class(&"energy").size() == 7 and WeaponDefs.in_class(&"blast").size() == 7, "ENERGY and BLAST are weapon classes of seven")
+	TestLib.check(WeaponDefs.CLASS_ORDER.has(&"energy") and WeaponDefs.CLASS_ORDER.has(&"blast") and WeaponDefs.in_class(&"energy").size() >= 7 and WeaponDefs.in_class(&"blast").size() >= 7, "ENERGY and BLAST are weapon classes (at least the seven of the first roster each)")
+	var first_fourteen := true
+	for id: StringName in [&"eplasma", &"erepeat", &"espike", &"ebeam", &"eblade", &"emaul", &"epod"]:
+		first_fourteen = first_fourteen and WeaponDefs.class_of(id) == &"energy"
+	for id: StringName in [&"railgun", &"chaingun", &"cmissile", &"napalm", &"sing", &"orbital", &"seeker"]:
+		first_fourteen = first_fourteen and WeaponDefs.class_of(id) == &"blast"
+	TestLib.check(first_fourteen, "the fourteen weapons of the energy and blast roster keep their classes")
 	TestLib.check(WeaponDefs.in_class(&"melee").has(&"tknife"), "the throwing knives sit in MELEE")
 	var tabs := WeaponRoster.tabs()
 	var tab_names: Array[String] = []
@@ -338,7 +344,7 @@ func _ladder_and_shop() -> void:
 	var seen := {}
 	for i in WeaponLadder.CRATES.size():
 		var c: Dictionary = WeaponLadder.CRATES[i]
-		var key := str(c["g"]) + str(c["sx"]) + str(c["sz"])
+		var key := (str(c["g"]) + str(c["sx"]) + str(c["sz"])) if c.has("g") else ("%s %s" % [c.get("site", ""), c.get("off", "")])          # a city corner or a secret cache at a place of the outskirts
 		crates_ok = crates_ok and not seen.has(key)
 		seen[key] = true
 	TestLib.check(crates_ok and WeaponLadder.CRATES.size() >= 25, "%d crates, none on another's corner" % WeaponLadder.CRATES.size())
@@ -360,17 +366,21 @@ func _catalogue_and_wheel() -> void:
 		if int(on_page.get(id, 0)) != 1:
 			lost.append(String(id))
 	TestLib.check(not over and lost.is_empty() and WeaponsScreen.PAGE_TITLES.size() == WeaponsScreen.PAGES, "the catalogue shows everything once, at most 12 tiles a page (%s)" % str(lost))
-	TestLib.check(WeaponsScreen.PAGE_TITLES.has("ENERGY WEAPONS") and WeaponsScreen.PAGE_TITLES.has("BLAST WEAPONS") and WeaponsScreen.page_of(&"railgun") == 5 and WeaponsScreen.page_of(&"eplasma") == 4, "ENERGY and BLAST have their own catalogue pages")
+	var tabs_of := {}
+	for pg: Dictionary in WeaponsScreen.page_list():
+		tabs_of[pg["tab"]] = true
+	TestLib.check(tabs_of.has(&"energy") and tabs_of.has(&"blast") and WeaponsScreen.page_list()[WeaponsScreen.page_of(&"railgun")]["tab"] == &"blast" and WeaponsScreen.page_list()[WeaponsScreen.page_of(&"eplasma")]["tab"] == &"energy", "ENERGY and BLAST have their own catalogue pages")
 	WeaponDefs.reset_unlocked()
+	WeaponBrowser.reset()                                                      # RECENT and FAVOURITES wedges only show when they hold something
 	for id in WeaponDefs.IDS:
 		WeaponDefs.unlock(id)
 	var items := WeaponWheel.items()
 	var energy_wedge := false
 	var blast_wedge := false
 	for it in items:
-		energy_wedge = energy_wedge or (it["id"] == &"energy" and int(it["owned"]) == 7 and String(it["cname"]) == "ENERGY")
-		blast_wedge = blast_wedge or (it["id"] == &"blast" and int(it["owned"]) == 7 and String(it["cname"]) == "BLAST")
-	TestLib.check(items.size() == 10 and energy_wedge and blast_wedge, "the weapon wheel has ten class wedges, ENERGY and BLAST with seven weapons each")
+		energy_wedge = energy_wedge or (it["id"] == &"energy" and int(it["owned"]) >= 7 and String(it["cname"]) == "ENERGY")
+		blast_wedge = blast_wedge or (it["id"] == &"blast" and int(it["owned"]) >= 7 and String(it["cname"]) == "BLAST")
+	TestLib.check(items.size() == 10 and energy_wedge and blast_wedge, "the weapon wheel has ten class wedges, ENERGY and BLAST with at least seven weapons each")
 	var wheel := RadialWheel.new()
 	wheel.open_at(&"weapon", items, Vector2(900.0, 400.0), 1.0)
 	var gap := 1.0e9
@@ -380,9 +390,9 @@ func _catalogue_and_wheel() -> void:
 	TestLib.check(gap >= RadialWheel.ITEM_R * 2.0 + 4.0, "the ten discs of the wheel do not overlap (closest %.0f px, a disc is %.0f)" % [gap, RadialWheel.ITEM_R * 2.0])
 	TestLib.check(LoadoutScreen.owned_classes().size() == 10 and LoadoutScreen.owned_classes().has(&"energy") and LoadoutScreen.owned_classes().has(&"blast"), "the loadout has a tab for each of the ten classes")
 	var too_many := false
-	for cls: StringName in WeaponDefs.CLASS_ORDER:
-		too_many = too_many or WeaponDefs.in_class(cls).size() > 8
-	TestLib.check(not too_many, "no class has more than the 8 tiles of a loadout page")
+	for pg: Dictionary in LoadoutScreen.pages():
+		too_many = too_many or (pg["ids"] as Array).size() > WeaponBrowser.PAGE
+	TestLib.check(not too_many, "no loadout page has more than the %d tiles of the grid (a big class is cut into pages)" % WeaponBrowser.PAGE)
 	WeaponDefs.reset_unlocked()
 
 
