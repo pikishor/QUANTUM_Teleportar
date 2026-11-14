@@ -1,6 +1,6 @@
 # w113-weapons-blast (running)
 
-agent id a06a99adbcb17ad8d, 262 events, first activity 2026-11-14T00:30:51.771Z, last activity 2026-11-14T00:49:54.546Z
+agent id a06a99adbcb17ad8d, 265 events, first activity 2026-11-14T00:30:51.771Z, last activity 2026-11-14T00:51:14.737Z
 
 ## Last notes of the agent
 
@@ -8,7 +8,6 @@ agent id a06a99adbcb17ad8d, 262 events, first activity 2026-11-14T00:30:51.771Z,
 
 ## Recent steps (last 40)
 
-- 00:36:47 PlayerWeapon tick and _shoot
 - 00:36:51 Read LaunchAim (existing aim preview)
 - 00:37:52 Breakables kinds and barrel/fuel references
 - 00:37:53 Look for tanker/fuel truck vehicle kinds
@@ -48,6 +47,7 @@ agent id a06a99adbcb17ad8d, 262 events, first activity 2026-11-14T00:30:51.771Z,
 - 00:49:26 /home/user/QUANTUM_Teleportar/godot/assets/shaders/blast_cloud.gdshader
 - 00:49:29 /home/user/QUANTUM_Teleportar/godot/assets/shaders/blast_dome.gdshader
 - 00:49:54 QuantumVfx ring/dust API details and caps
+- 00:51:14 /home/user/QUANTUM_Teleportar/godot/scripts/combat/blast_fx.gd
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -55,3 +55,4 @@ agent id a06a99adbcb17ad8d, 262 events, first activity 2026-11-14T00:30:51.771Z,
 - godot/scripts/combat/blast_table.gd
 - godot/assets/shaders/blast_cloud.gdshader
 - godot/assets/shaders/blast_dome.gdshader
+- godot/scripts/combat/blast_fx.gd
