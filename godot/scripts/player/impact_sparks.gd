@@ -78,6 +78,16 @@ func puff(pos: Vector3, normal: Vector3, tint := Color(0.6, 0.66, 0.75, 0.3), si
 ## horizontal hit is wet asphalt, a wall hit between 0.5 and 3.6 m is a shopfront whose window bays (about 2.6 m wide, hashed by position, 55 %) are glass,
 ## anything else is concrete. Pass `surface` to impact_world() to override (&"asphalt", &"glass", &"concrete", &"metal").
 static func surface_at(pos: Vector3, normal: Vector3) -> StringName:
+	if normal.y > 0.7 and TerrainHeight.city_distance(pos.x, pos.z) > 0.0:         # wave 114: outside the city the ground is the terrain's: a lake splashes, grass, mud, sand and snow thud, rock rings like stone
+		match TerrainWorld.surface_at(pos.x, pos.z):
+			&"water":
+				return &"water"
+			&"asphalt":
+				return &"asphalt"
+			&"rock":
+				return &"concrete"
+			_:
+				return &"dirt"
 	if normal.y > 0.7:
 		return &"asphalt" if pos.y < 0.5 else &"concrete"
 	if absf(normal.y) < 0.5 and pos.y > 0.5 and pos.y < 3.6:
@@ -113,14 +123,25 @@ func impact_world(pos: Vector3, normal: Vector3, surface := &"") -> void:
 		&"wood":
 			spark(o, n, Color(0.95, 0.78, 0.5), 0.9)                               # splinters
 			puff(pos + n * 0.05, n, Color(0.62, 0.5, 0.36, 0.3), 0.8)             # sawdust
+		&"foliage":
+			puff(pos + n * 0.05, n, Color(0.36, 0.5, 0.2, 0.4), 1.1)              # torn leaves
+			spark(o, n, Color(0.55, 0.78, 0.3), 0.5)
+		&"dirt":
+			puff(pos + n * 0.05, n, Color(0.5, 0.4, 0.28, 0.42), 1.2)             # a kick of earth, no spark
+			spark(o, n, Color(0.62, 0.5, 0.36), 0.45)
+		&"water":
+			puff(pos + n * 0.05, n, Color(0.8, 0.9, 1.0, 0.4), 1.0)               # a splash
+			spark(o, n, Color(0.85, 0.95, 1.0), 0.7)
+			if FX.marks != null:
+				FX.marks.ripple(pos, 0.7)
 		_:
 			spark(o, n, Color(1.0, 0.8, 0.5), 0.8)                                 # chips
 			puff(pos + n * 0.05, n, Color(0.66, 0.62, 0.56, 0.34), 1.0)            # concrete dust
 
 
 ## A shot landing on a machine: a brighter, longer spark shower.
-func impact_machine(pos: Vector3, normal: Vector3) -> void:
-	Sfx.impact(&"metal", pos, normal)
+func impact_machine(pos: Vector3, normal: Vector3, material := &"metal") -> void:
+	Sfx.impact(material, pos, normal)                                              # wave 114: &"armor" for a plated hull or drone, &"shield" for a frontal shield (their own impact sounds)
 	FX.qvfx.weapon_impact(pos, normal)
 	FX.muzzle_flash(pos + normal * 0.05, normal, Color(1.0, 0.8, 0.5), 1.2)
 	spark(pos + normal * 0.04, normal, Color(1.0, 0.72, 0.32), 1.35)

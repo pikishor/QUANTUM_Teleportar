@@ -66,7 +66,8 @@ func run(host: Node) -> void:
 		var sh := _bone_world(rig, "UpperArm%s" % side.to_upper())
 		var hand := _bone_world(rig, "hand_%s" % side)
 		var d := hand - sh
-		TestLib.check(absf(d.normalized().dot(right)) < 0.75 and d.length() > 0.15, "%s arm is not in a T pose (sideways share %.2f)" % [side, absf(d.normalized().dot(right))])
+		var outward := d.normalized().dot(right) * (1.0 if side == "r" else -1.0)                # a T pose has the arm out to ITS OWN side; the support arm that crosses the chest to a rifle carried out to the right (wave 114 critic: CharacterRig.carry_spread) points the other way
+		TestLib.check(outward < 0.75 and absf(d.normalized().dot(right)) < 0.95 and d.length() > 0.15, "%s arm is not in a T pose (outward share %.2f, sideways share %.2f)" % [side, outward, absf(d.normalized().dot(right))])
 	var muzzle := b.muzzle.global_position
 	var rifle := _bone_world(rig, "Rifle")
 	var axis := (muzzle - rifle).normalized()

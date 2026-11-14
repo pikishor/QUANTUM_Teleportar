@@ -151,7 +151,11 @@ func _live() -> void:
 	TestLib.check(on_ok and w.numbers_spawned == n0 + 1, "damage numbers follow the option")
 	Game.damage_numbers = true
 	TestLib.check(OptionsScreen.TOGGLES.has(&"opt_dmg") and UiSettings.new("user://wc_test.cfg").dmg_numbers, "DAMAGE NUMBERS is an option, on by default")
-	# --- the WEAPONS catalogue in the HUD
+	# --- the WEAPONS catalogue in the HUD (wave 114: the Arsenal, a scrolling grid of picture tiles; the layout is judged at a real phone screen)
+	var win := host.get_window()
+	var win_old := win.size
+	win.size = Vector2i(1280, 720)
+	await TestLib.frames(host, 3)
 	WeaponDefs.reset_unlocked()
 	prog.credits = 100000
 	Game.state = &"paused"
@@ -160,38 +164,60 @@ func _live() -> void:
 	var vp := host.get_viewport().get_visible_rect().size
 	var s := UiUtil.ui_scale(vp)
 	var all_ids := {}
-	for pg in WeaponsScreen.PAGES:
-		ShopScreen.weapon_page = 1 + pg
-		hud._layout_key = ""
-		hud._ensure_layout()
-		var items := WeaponsScreen.page_items(pg)
-		TestLib.check(items.size() >= 3 and items.size() <= 12, "page %d lists %d tiles" % [pg + 1, items.size()])
-		var rects: Array[Rect2] = []
-		var tiles := 0
-		for b: Dictionary in hud.buttons:
-			var r: Rect2 = b["rect"]
-			var id := String(b["id"])
-			TestLib.check(minf(r.size.x, r.size.y) / s >= 63.9, "page %d: %s is 64 px or more (%.0fx%.0f)" % [pg + 1, id, r.size.x / s, r.size.y / s])
-			TestLib.check(Rect2(Vector2.ZERO, vp).grow(1.0).encloses(r), "page %d: %s is on screen" % [pg + 1, id])
-			for o in rects:
-				TestLib.check(not o.grow(-1.0).intersects(r.grow(-1.0)), "page %d: %s overlaps another button" % [pg + 1, id])
-			rects.append(r)
-			if id.begins_with("wsel_"):
-				tiles += 1
-				all_ids[StringName(id.substr(5))] = true
-				TestLib.check(b.has("pic"), "tile %s carries its picture" % id)
-		TestLib.check(tiles == items.size(), "page %d: a tile per item" % [pg + 1])
+	var rows_view := int(floor((Arsenal.BOTTOM - Arsenal.LIST_Y + Arsenal.TILE_GAP) / Arsenal.ROW))
+	var ring := Arsenal.class_ring(&"catalogue")
+	for ci in ring.size():
+		var cls: StringName = ring[ci]
+		Arsenal.st(&"catalogue")["cls"] = cls
+		Arsenal.st(&"catalogue")["filter"] = &"all"
+		Arsenal.st(&"catalogue")["scroll"] = 0.0
+		Arsenal._list_cache_key = ""
+		var listed := Arsenal.list(&"catalogue")
+		TestLib.check(cls == &"" or listed.size() >= 3, "class %s lists %d items" % [cls, listed.size()])
+		var seen_here := {}
+		var guard := 0
+		while guard < 60:
+			guard += 1
+			hud._layout_key = ""
+			hud._ensure_layout()
+			var rects: Array[Rect2] = []
+			for b: Dictionary in hud.buttons:
+				var r: Rect2 = b["rect"]
+				var id := String(b["id"])
+				TestLib.check(minf(r.size.x, r.size.y) / s >= 63.9, "%s view %d: %s is 64 px or more (%.0fx%.0f)" % [cls, guard, id, r.size.x / s, r.size.y / s])
+				TestLib.check(Rect2(Vector2.ZERO, vp).grow(1.0).encloses(r), "%s view %d: %s is on screen" % [cls, guard, id])
+				for o in rects:
+					TestLib.check(not o.grow(-1.0).intersects(r.grow(-1.0)), "%s view %d: %s overlaps another button" % [cls, guard, id])
+				rects.append(r)
+				if id.begins_with("wsel_"):
+					all_ids[StringName(id.substr(5))] = true
+					seen_here[StringName(id.substr(5))] = true
+					TestLib.check(b.has("tile") and WeaponPics.has(b["tile"]) or WeaponsScreen.is_gear(b["tile"]), "tile %s carries its picture" % id)
+			if float(Arsenal.st(&"catalogue")["scroll"]) >= Arsenal.max_scroll(&"catalogue") - 0.5:
+				break
+			Arsenal.scroll_by(&"catalogue", Arsenal.ROW * float(maxi(rows_view - 1, 1)))
+		TestLib.check(seen_here.size() == listed.size(), "class %s: every one of its %d items shows on some view of the list (%d)" % [cls, listed.size(), seen_here.size()])
 	for id: StringName in WeaponDefs.IDS:
 		TestLib.check(all_ids.has(id), "the catalogue lists %s" % id)
 	for id: StringName in Gear.THROW_IDS + Gear.CHARGE_IDS + Gear.GADGET_IDS:
 		TestLib.check(all_ids.has(id), "the catalogue lists the %s" % id)
-	# select, buy, equip (the marksman is a RIFLE: its tab, not the first page)
-	ShopScreen.weapon_page = 1 + WeaponsScreen.page_of(&"marksman")
+	# select, buy, equip (the marksman is a RIFLE)
+	Arsenal.st(&"catalogue")["cls"] = &""
+	Arsenal._list_cache_key = ""
 	WeaponsScreen.sel = &""
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var target: StringName = &"marksman"
-	TestLib.check(hud.press_button(StringName("wsel_%s" % target)) and WeaponsScreen.sel == target, "tapping a tile selects the weapon")
+	Arsenal.select(hud, &"catalogue", &"a_pillar")
+	hud._layout_key = ""
+	hud._ensure_layout()
+	var in_view := false
+	Arsenal.select(hud, &"catalogue", target)
+	hud._layout_key = ""
+	hud._ensure_layout()
+	for b: Dictionary in hud.buttons:
+		in_view = in_view or b["id"] == StringName("wsel_%s" % target)
+	TestLib.check(in_view and hud.press_button(StringName("wsel_%s" % target)) and WeaponsScreen.sel == target, "tapping a tile selects the weapon")
 	hud._ensure_layout()
 	var has_buy := false
 	var buy_rect := Rect2()
@@ -209,10 +235,13 @@ func _live() -> void:
 		has_equip = has_equip or b["id"] == StringName("wequip_%s" % target)
 	TestLib.check(has_equip, "an owned weapon shows EQUIP")
 	TestLib.check(hud.press_button(StringName("wequip_%s" % target)) and p.weapon.current == target and WeaponDefs.last_used == target, "EQUIP puts it in the hero's hand")
-	ShopScreen.weapon_page = 1
-	TestLib.check(hud.press_button(&"wpg_next") and ShopScreen.weapon_page == 2 and hud.press_button(&"wpg_prev") and ShopScreen.weapon_page == 1, "the page buttons flip")
-	hud.press_button(&"wpg_prev")
-	TestLib.check(ShopScreen.weapon_page == WeaponsScreen.PAGES, "the pages wrap")
+	# the class chips flip through the classes and wrap
+	Arsenal.st(&"catalogue")["cls"] = &""
+	var c_first := Arsenal.next_class(&"catalogue", 1)
+	TestLib.check(hud.press_button(&"ars_cls_next") and Arsenal.st(&"catalogue")["cls"] == c_first and c_first != &"" and hud.press_button(&"ars_cls_prev") and Arsenal.st(&"catalogue")["cls"] == &"", "the class chips flip to the next class and back")
+	hud.press_button(&"ars_cls_prev")
+	TestLib.check(Arsenal.st(&"catalogue")["cls"] == ring[ring.size() - 1], "the class chips wrap around the ring")
+	Arsenal.st(&"catalogue")["cls"] = &""
 	# a gear item: select the mine, buy it from its card
 	WeaponsScreen.select(&"mine")
 	hud._layout_key = ""
@@ -222,7 +251,7 @@ func _live() -> void:
 		gear_btn = gear_btn or b["id"] == &"wgear_mine"
 	TestLib.check(gear_btn and hud.press_button(&"wgear_mine") and Gear.is_owned(&"mine"), "a throwable is bought from its card")
 	await TestLib.frames(host, 3)                                    # the real draw of the card
-	# the loadout INFO button opens the card of the weapon in the loadout
+	# the loadout shows the card of the selected weapon itself (the picture, the seven bars, where to get it): it needs no INFO button any more
 	hud.press_button(&"shop_back")
 	hud._shop_open = false
 	Game.state = &"paused"
@@ -230,10 +259,25 @@ func _live() -> void:
 	hud._loadout_w = &"scatter"
 	hud._layout_key = ""
 	hud._ensure_layout()
-	var info := false
-	for b: Dictionary in hud.buttons:
-		info = info or b["id"] == &"loadout_info"
-	TestLib.check(info and hud.press_button(&"loadout_info") and hud._shop_open and not hud._loadout_open and WeaponsScreen.sel == &"scatter" and ShopScreen.weapon_page == 1 + WeaponsScreen.page_of(&"scatter"), "INFO shows the card of the loadout weapon")
+	hud.scan_log.clear()
+	hud.scan_text = true
+	hud._screen.queue_redraw()
+	for i in 90:
+		await TestLib.frames(host, 1)
+		if not hud.scan_log.is_empty():
+			break
+	await TestLib.frames(host, 1)
+	hud.scan_text = false
+	var words: Array[String] = []
+	for e: Dictionary in hud.scan_log:
+		words.append(String(e["text"]))
+	var joined := "|".join(words)
+	var miss: Array[String] = []
+	for key: StringName in WeaponStats.BARS7:
+		if not joined.contains(String(WeaponStats.BAR_NAMES[key])):
+			miss.append(String(key))
+	TestLib.check(joined.contains(WeaponDefs.title(&"scatter")) and miss.is_empty(), "the loadout card names the weapon and draws its seven bars (missing: %s)" % str(miss))
+	win.size = win_old
 	await TestLib.frames(host, 3)
 	# the full map labels the crates (weapon crates with the weapon, the others AMMO)
 	var labels := {}

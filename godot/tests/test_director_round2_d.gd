@@ -156,32 +156,35 @@ func _loadout(tag: String) -> void:
 	_state(&"paused")
 	hud.press_button(&"loadout")
 	_layout()
-	var parts := 0
 	var tiles := 0
+	for b: Dictionary in hud.buttons:
+		if b.has("tile"):
+			tiles += 1
+	hud.press_button(&"ars_tab_parts")                      # wave 114: the card opens on STATS; the PARTS tab holds the slot tabs and the part cards
+	_layout()
+	var parts := 0
 	var tabs := 0
 	for b: Dictionary in hud.buttons:
-		if b.has("part"):
+		if b.has("pid"):
 			parts += 1
-			TestLib.check(String(b["name"]) != "" and String(b["fx"]) != "" and ["ON", "EQUIP"].has(String(b["label"])) or String(b["label"]).begins_with("BUY"), "%s: part %s has a name, an effect and a status" % [tag, b["id"]])
-		if b.has("cap"):
-			tiles += 1
-		if String(b["id"]).begins_with("slot_"):
+			TestLib.check(String(b["name"]) != "" and String(b["fx"]) != "" and ["FITTED", "OWNED", "BUY"].has(String(b["status"])), "%s: part %s has a name, an effect and a status" % [tag, b["id"]])
+		if String(b["id"]).begins_with("ars_slottab_"):
 			tabs += 1
 	TestLib.check(tabs == 5 and parts >= 3 and parts <= 6 and tiles >= 1, "%s: the loadout shows five slot tabs, the part cards of the open slot and the weapon tiles by name (%d, %d, %d)" % [tag, tabs, parts, tiles])
 	# the nine parts of the first rosters are all there, one slot tab at a time
 	var reach := {}
 	for slot: StringName in Attachments.SLOTS:
-		hud.press_button(StringName("slot_%s" % slot))
+		hud.press_button(StringName("ars_slottab_%s" % slot))
 		_layout()
 		for b: Dictionary in hud.buttons:
-			if b.has("part"):
-				reach[StringName(String(b["id"]).substr(5))] = true
+			if b.has("pid"):
+				reach[StringName(b["pid"])] = true
 	var missing: Array[String] = []
 	for part: StringName in [&"reddot", &"scope", &"halo", &"suppressor", &"longbarrel", &"compensator", &"overcharge", &"rapid", &"extended"]:
 		if not reach.has(part):
 			missing.append(String(part))
 	TestLib.check(missing.is_empty(), "%s: all nine parts of the first rosters are reachable through the slot tabs (missing %s)" % [tag, str(missing)])
-	hud.press_button(&"slot_optic")
+	hud.press_button(&"ars_slottab_optic")
 	_layout()
 	_scan(tag + " loadout")
 	var back := _btn(&"loadout_back")

@@ -304,6 +304,16 @@ func _creatures() -> void:
 	var pk := w.spawn_group(&"skitter", hero.global_position + Vector3(25.0, 0.0, 0.0), 3, &"", 2.0, false)
 	pk[0].damage(1.0)
 	TestLib.check(pk[1].aggro and pk[2].aggro, "hurting one pack member wakes the pack")
+	# wave 114 integrator: a pack member that was FREED (an air strike took it) is still in the member list: waking the pack must step over it (a typed loop variable raised a script error on every wake and
+	# stopped the loop, the full bot failed on it)
+	_clear()
+	_put_hero(ARENA)
+	var pk2 := w.spawn_group(&"skitter", hero.global_position + Vector3(25.0, 0.0, 0.0), 3, &"", 2.0, false)
+	var gone: AlienCreature = pk2[0]
+	w._remove(gone)                                                        # the world's own way out: erased from its list, deleted, but still named in the pack's member list
+	gone.free()
+	pk2[2]._wake()
+	TestLib.check(pk2[2].aggro and pk2[1].aggro, "waking a pack whose first member was freed still wakes the others")
 	# the slam ring: a hero in the air when the brute slams takes nothing
 	_clear()
 	_put_hero(ARENA)

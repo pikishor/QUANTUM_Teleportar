@@ -189,7 +189,7 @@ func _bounds(n: Node3D) -> AABB:
 func _weapon_node(id: StringName) -> Node3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = WeaponModels.mesh(id)
-	mi.material_override = WeaponModels.material()
+	mi.material_override = WeaponModels.material_for(id)
 	var bb := mi.mesh.get_aabb()                                                    # a long thin weapon (a spear, a staff, a katana) is a hairline in a 2:1 picture: its cross-section is drawn up to
 	var thin := maxf(bb.size.x, bb.size.y)                                         # 2.4 times thicker so that it still reads as that weapon on a 132 px tile and on a wheel disc
 	if thin > 0.001 and bb.size.z / thin > 5.0:

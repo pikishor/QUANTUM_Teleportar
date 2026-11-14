@@ -6,7 +6,9 @@ extends RefCounted
 ## damage at the centre, 40 % at the edge of the blast, and cover between the blast and the target takes most of it (Game.explode).
 
 const BARS := [&"damage", &"rate", &"range", &"accuracy", &"control", &"pierce"]
-const BAR_NAMES := {&"damage": "DAMAGE", &"rate": "FIRE RATE", &"range": "RANGE", &"accuracy": "ACCURACY", &"control": "CONTROL", &"pierce": "PENETRATION"}
+## The seven bars of the Arsenal card (wave 114), in the order the card shows them.
+const BARS7 := [&"damage", &"range", &"rate", &"accuracy", &"handling", &"magazine", &"blast"]
+const BAR_NAMES := {&"damage": "DAMAGE", &"rate": "FIRE RATE", &"range": "RANGE", &"accuracy": "ACCURACY", &"control": "CONTROL", &"pierce": "PENETRATION", &"handling": "HANDLING", &"magazine": "MAGAZINE", &"blast": "BLAST RADIUS"}
 const FAR_DAMAGE := 0.25                  ## share of the damage left at the weapon's maximum range
 
 
@@ -64,8 +66,35 @@ static func card(id: StringName, d: Dictionary = {}) -> Dictionary:
 	bars[&"accuracy"] = clampf(1.0 - float(def["spread_hip"]) / 0.1, 0.0, 1.0) if kind != "throw" and not out["melee"] else (1.0 if kind == "throw" else 0.7)
 	bars[&"control"] = clampf(1.0 - float(out["recoil"]) / 0.07, 0.05, 1.0) if not out["melee"] else 1.0
 	bars[&"pierce"] = float(out["pen"])
+	# wave 114: handling (how easy it is to keep on target and to reload: recoil control, reload time, the spread while moving), the magazine and the blast radius
+	var reload_score := clampf(1.0 - float(out["reload"]) / 4.0, 0.05, 1.0)
+	var move_score := clampf(1.0 - float(def.get("spread_move", 0.04)) / 0.08, 0.05, 1.0)
+	bars[&"handling"] = clampf(0.5 * float(bars[&"control"]) + 0.3 * reload_score + 0.2 * move_score, 0.05, 1.0) if not out["melee"] else clampf(0.55 + 0.45 * float(bars[&"rate"]), 0.05, 1.0)
+	bars[&"magazine"] = clampf(sqrt(float(out["mag"]) / 120.0), 0.0, 1.0) if int(out["mag"]) > 1 and not out["melee"] else 0.0
+	bars[&"blast"] = clampf(float(out["blast"]) / 20.0, 0.0, 1.0)
 	out["bars"] = bars
 	return out
+
+
+## The number printed at the end of a card bar: "16", "x8", "100 M", "496 RPM", "84", "30", "7.0 M" ("-" when the weapon has nothing to show for it).
+static func bar_text(card: Dictionary, key: StringName) -> String:
+	match key:
+		&"damage":
+			var n := int(roundf(float(card["damage"])))
+			return "%d x%d" % [n, int(card["pellets"])] if int(card["pellets"]) > 1 else "%d" % n
+		&"range":
+			return ("%.1f M" % float(card["reach"])) if bool(card["melee"]) else "%d M" % int(roundf(float(card["range_eff"])))
+		&"rate":
+			return ("%.1f /S" % float(card["rate"])) if bool(card["melee"]) else "%d RPM" % int(roundf(float(card["rpm"])))
+		&"accuracy":
+			return "-" if (bool(card["melee"]) or String(card["kind"]) == "throw") else "%d" % int(roundf(float(card["bars"][&"accuracy"]) * 100.0))
+		&"handling":
+			return "%d" % int(roundf(float(card["bars"][&"handling"]) * 100.0))
+		&"magazine":
+			return "%d" % int(card["mag"]) if float(card["bars"][&"magazine"]) > 0.0 else "-"
+		&"blast":
+			return "%.1f M" % float(card["blast"]) if float(card["blast"]) > 0.0 else "-"
+	return ""
 
 
 ## How far a round gets through shields and cover, 0..1: heavy single rounds and pierce_shield weapons high, pellets and light rounds low.

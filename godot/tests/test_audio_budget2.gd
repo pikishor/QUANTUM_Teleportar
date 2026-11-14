@@ -4,7 +4,7 @@ extends RefCounted
 ## Run: tools/test.sh tests/test_audio_budget2.gd
 
 const DIR := "res://assets/audio/"
-const TOTAL_BUDGET_MB := 25.0        ## was 29.6 MB before the pass; 24 MB until wave 113: the 19 weapon sound sets of the roster (tools/audio/make_weapons_v3.py, 4 takes each, 0.7 MB) are the only addition
+const TOTAL_BUDGET_MB := 27.0        ## was 29.6 MB before the pass; 24 MB until wave 113: the 19 weapon sound sets of the roster (tools/audio/make_weapons_v3.py, 4 takes each, 0.7 MB); 25 MB in wave 113; 27 MB in wave 114: the weapon sound LAYERS (tools/audio/make_weapons_v4.py: mechanisms, tails, reloads, blast sizes, materials, markers: 148 OGG, 1.3 MB)
 const MAX_WAV_BYTES := 450000        ## anything bigger than this must be OGG
 const NOW_OGG: Array[String] = ["boom", "boom_1", "distant_boom_0", "distant_gunfire_0", "car_crash_0", "explosion_small_0", "siren", "sting_boss", "sting_win", "sting_death", "core", "music_ambient"]
 const MONO_BEDS: Array[String] = ["rain_asphalt", "rain_metal", "rain_awning", "traffic_far", "wind", "city_hum"]

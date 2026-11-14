@@ -771,11 +771,19 @@ func surge_left() -> float:
 	return maxf(_surge_t, 0.0)
 
 
+## The swing of SPIN SWEEP and SHOVE, heard when it hits nothing too (the hits have their own sounds): the blade's whoosh, the thump of a bat for the gun that shoves. Wave 114 critic: every alt-fire
+## used to end on the ENTANGLE blip, which was the only sound of a swing at nothing.
+func _swing_sound() -> void:
+	var melee := String(w.def["kind"]) == "melee"
+	Sfx.play(StringName(w.def.get("snd", &"melee_bat")) if melee else &"melee_bat", float(w.def.get("vol", -4.0)) if melee else -4.0, 0.85)
+
+
 ## SPIN SWEEP: every enemy around the hero takes a heavy hit (the finisher of the weapon).
 func _spin(radius: float, mult: float, _aiming: bool) -> bool:
 	var p := w._player
 	var origin := p.global_position
 	var n := 0
+	_swing_sound()
 	for e: Node in w.get_tree().get_nodes_in_group(&"enemy"):
 		if not (e is Node3D) or not e.has_method(&"center") or PlayerWeapon._is_dead(e):
 			continue
@@ -806,6 +814,7 @@ func _shove(radius: float, push: float, mult: float) -> bool:
 	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
 	var origin := p.global_position
 	var n := 0
+	_swing_sound()
 	for e: Node in w.get_tree().get_nodes_in_group(&"enemy"):
 		if not (e is Node3D) or not e.has_method(&"center") or PlayerWeapon._is_dead(e):
 			continue

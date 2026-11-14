@@ -9,10 +9,6 @@ const GRID_Y := 176.0
 const GRID_COLS := 2
 const TILE := Vector2(132.0, 72.0)        ## a weapon tile (picture over its name), at least the 64 px touch minimum
 const TILE_GAP := 8.0
-const PIC_X := -438.0                     ## the big card of the selected weapon: picture, name, class, numbers (x from the centre, y, size in base px)
-const PIC_Y := 176.0
-const PIC_W := 580.0
-const PIC_H := 248.0
 const BAR_Y := 492.0                      ## the four stat bars under the picture, two by two (a compare caption sits between the numbers and the bars)
 const INFO_Y := 580.0                     ## baseline of the first "where to get it" line
 const SLOT_X := 160.0                     ## the three attachment slots (right column)
@@ -35,9 +31,9 @@ static var slot_tab: StringName = &"optic"                          ## the open 
 const WIDTH := 1454.0                     ## base px the three columns span (squeezed horizontally by `k` on a narrower, 16:9 screen)
 
 
-## The horizontal squeeze that makes the three columns fit the screen width (1 on a phone, about 0.85 on 16:9).
+## The horizontal squeeze that makes the screen fit the screen width (1 on a 16:9 phone and wider).
 static func k_of(vp_x: float, s: float) -> float:
-	return clampf((vp_x / s - 40.0) / WIDTH, 0.6, 1.0)
+	return Arsenal.k_of(Vector2(vp_x, 0.0), s)                                    # wave 114: the Arsenal's squeeze (its three columns span 1240 base px)
 
 
 static func owned_weapons() -> Array[StringName]:
@@ -139,38 +135,8 @@ static func reset_page() -> void:
 
 
 static func layout(hud: Hud, cx: float, s: float, sel: StringName) -> void:
-	var prog := Game.progress as Progress
-	var k := k_of(hud.get_viewport().get_visible_rect().size.x, s)
-	var items := page_items(sel)
-	for i in items.size():                                         # the owned weapons as a column pair of tiles, each with its picture (the page flips with < >)
-		var tp := Vector2(cx + (GRID_X + float(i % GRID_COLS) * (TILE.x + TILE_GAP)) * s * k, (GRID_Y + float(i / GRID_COLS) * (TILE.y + TILE_GAP)) * s)
-		hud.buttons.append({"id": StringName("wheel_%s" % items[i]), "rect": Rect2(tp, Vector2(TILE.x * k, TILE.y) * s), "label": String(WeaponDefs.def(items[i])["tag"]), "on": items[i] == sel, "cap": WeaponBrowser.caption(items[i])})
-	if page_count() > 1:
-		var ar := arrow_rects(cx, s, k)
-		hud._add(&"wheelpg_prev", ar[0], "<", false)
-		hud._add(&"wheelpg_next", ar[1], ">", false)
-	if tab_count() > 1:                                            # the class row above the grid: jump to the next / previous class (FAVOURITES and RECENT first when they hold something)
-		var cr := class_rects(cx, s, k)
-		hud._add(&"wheelcls_prev", cr[0], "<", false)
-		hud._add(&"wheelcls_next", cr[1], ">", false)
-	hud.buttons.append({"id": &"fav_toggle", "rect": star_rect(cx, s, k), "label": "", "on": WeaponBrowser.is_favourite(sel), "own": true})
-	var open_slot := active_slot(sel)
-	var slots := Attachments.slots_for_weapon(sel)
-	if slots.size() > 1:                                                     # the slot tabs: only the slots this weapon can wear something in
-		var tabs := tab_rects(cx, s, k, slots.size())
-		for ti in slots.size():
-			hud.buttons.append({"id": StringName("slot_%s" % slots[ti]), "rect": tabs[ti], "label": Attachments.slot_label(slots[ti]), "on": slots[ti] == open_slot, "tab": &""})
-	var parts := Attachments.parts_for_weapon(open_slot, sel) if open_slot != &"" else ([] as Array[StringName])
-	for j in parts.size():
-		var part := parts[j]
-		var own := Attachments.part_in(sel, open_slot) == part
-		var label := "ON" if own else (("NEW  EQUIP" if MissionRewards.is_new(part) else "EQUIP") if Attachments.is_owned(part) else "BUY  %d" % (prog.part_price(part) if prog != null else 0))
-		hud.buttons.append({"id": StringName("part_%s" % part), "rect": part_rect(cx, s, k, j), "label": label, "on": own,
-			"part": true, "name": String(Attachments.PARTS[part]["name"]), "fx": String(AttachmentPartsV3.FX.get(part, "")), "state": 2 if own else (1 if Attachments.is_owned(part) else 0)})
-	var aw := (3.0 * PART_W + 2.0 * 8.0 - 72.0 - 8.0) * 0.5              # GEAR and WEAPON INFO share the row with the 64 px star
-	hud._add_card(&"loadout_gear", Rect2(cx + SLOT_X * s * k, ACTION_Y * s, aw * s * k, 64.0 * s), "GEAR", &"gear", "", false, UiUtil.MAGENTA)
-	hud._add_card(&"loadout_info", Rect2(cx + (SLOT_X + aw + 8.0) * s * k, ACTION_Y * s, aw * s * k, 64.0 * s), "WEAPON INFO", &"weapon", "", false, UiUtil.CYAN)
-	hud._add(&"loadout_back", Rect2(cx - 110.0 * s, 628.0 * s, 220.0 * s, 64.0 * s), "RESUME" if hud._loadout_quick else "BACK", false)
+	Arsenal.layout(hud, cx, s, &"loadout")                         # wave 114: the Arsenal draws this screen (scripts/ui/arsenal.gd); the tile geometry below is the old paged loadout
+	return
 
 
 ## The open slot of the attachment column for weapon `sel`: the tab that was opened last when this weapon can wear something in it, else its first slot (&"" when it can wear nothing at all).
@@ -227,9 +193,9 @@ static func class_caption(font: Font, width: float, s: float) -> String:
 	return UiUtil.fit_text(font, named, width, floor_px)
 
 
-## The big card of the selected weapon: the picture (the 384 x 192 render `wl_<id>`, shown at 2 x its size on a phone) under the name, the class and the key numbers.
-static func picture_rect(cx: float, s: float, k := 1.0) -> Rect2:
-	return Rect2(cx + PIC_X * s * k, PIC_Y * s, PIC_W * s * k, PIC_H * s)
+## The big card of the selected weapon: the picture plate (650 x 240 base px on the STATS tab; the atlas card picture is 512 x 256) under the name, the class and the key numbers.
+static func picture_rect(cx: float, s: float, k := 1.0, tab: StringName = &"stats") -> Rect2:
+	return Rect2(cx + Arsenal.CARD_X * s * k, Arsenal.TOP * s, Arsenal.CARD_W * s * k, Arsenal.pic_h(tab) * s)              # wave 114: the card of the Arsenal (the picture plate over the tabs)
 
 
 ## The weapon the player holds now, when it is not the selected one: the stat bars compare the selection against it (white marker and a +/- number).
@@ -239,122 +205,5 @@ static func compare_id(sel: StringName) -> StringName:
 
 
 static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: float, sel: StringName) -> void:
-	var prog := Game.progress as Progress
-	hud.header(c, vp, s, font, "LOADOUT")
-	if prog != null:
-		hud._text(c, font, Vector2(0.0, 134.0 * s), "CREDITS  %d" % prog.credits, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
-		var cw := hud._text_width(font, "CREDITS  %d" % prog.credits, int(UiUtil.TEXT_MIN * s))
-		UiKit.glyph(c, &"coin", Vector2(vp.x * 0.5 - cw * 0.5 - 22.0 * s, 124.0 * s), 11.0 * s, Color(UiUtil.AMBER, 0.95), s)
-	var nx := WeaponLadder.next_line()
-	if nx != "":
-		hud._text(c, font, Vector2(0.0, 162.0 * s), nx, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
-	var d := Attachments.effective(sel)
-	var card := WeaponStats.card(sel, d)
-	var k := k_of(vp.x, s)
-	var tint := UiKit.class_tint(WeaponDefs.class_of(sel))
-	# the big card: the 3D weapon on a turntable (drag to turn, tap for the side view), name and class on top, the numbers along the bottom
-	var pic := picture_rect(cx, s, k)
-	UiKit.panel(c, pic, s, tint, false, 12.0, true)
-	var area := Rect2(pic.position.x + 8.0 * s, pic.position.y + 40.0 * s, pic.size.x - 16.0 * s, pic.size.y - 40.0 * s - 8.0 * s)
-	var pv := WeaponPreview.of(hud)
-	if pv.show_weapon(sel):
-		c.draw_rect(area, Color(tint, 0.07))
-		c.draw_line(Vector2(area.position.x + 20.0 * s, area.end.y - 22.0 * s), Vector2(area.end.x - 20.0 * s, area.end.y - 22.0 * s), Color(tint, 0.25), 2.0 * s)
-		pv.draw(c, area)
-		hud.preview_rect = area
-		UiKit.glyph(c, &"rotate", Vector2(area.end.x - 18.0 * s, area.end.y - 18.0 * s), 9.0 * s, Color(1, 1, 1, 0.6), s)
-	else:
-		ItemIcons.draw_weapon_large(c, sel, area, Color(1, 1, 1, 1.0))
-	var name := WeaponDefs.title(sel)
-	var half := pic.size.x * 0.5
-	hud._text(c, font, Vector2(pic.position.x + 18.0 * s, pic.position.y + 32.0 * s), name, HORIZONTAL_ALIGNMENT_LEFT, half + 40.0 * s, UiUtil.fit_size(font, name, half + 40.0 * s, int(30.0 * s)), Color(1, 1, 1, 0.98), 1.0 * s)
-	UiKit.badge(hud, c, Vector2(pic.end.x - 12.0 * s, pic.position.y + 24.0 * s), String(card["class"]), tint, s, font, true, true)
-	var ls := WeaponStats.lines(card)
-	var nums := "   ".join(ls.slice(0, mini(3, ls.size())))
-	var nmax := mini(3, ls.size())
-	while nmax > 1 and font.get_string_size(nums, HORIZONTAL_ALIGNMENT_LEFT, -1, int(UiUtil.BAR_LABEL * s)).x > pic.size.x:
-		nmax -= 1                                              # a narrow screen shows fewer numbers instead of running into the part cards
-		nums = "   ".join(ls.slice(0, nmax))
-	hud._text(c, font, Vector2(pic.position.x, pic.end.y + 28.0 * s), nums, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x, UiUtil.fit_size(font, nums, pic.size.x, int(UiUtil.BAR_LABEL * s)), Color(1, 1, 1, 0.92))
-	# four stat bars, two by two; against the weapon in hand when it is another one
-	var cmp := compare_id(sel)
-	var cbars := {}
-	if cmp != &"":
-		cbars = WeaponStats.card(cmp, Attachments.effective(cmp))["bars"]
-		var cap := "VS IN HAND  %s" % WeaponDefs.title(cmp)
-		hud._text(c, font, Vector2(pic.position.x, pic.end.y + 54.0 * s), cap, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x, UiUtil.fit_size(font, cap, pic.size.x, int(Hud.BODY_MIN * s)), Color(1, 1, 1, 0.72))
-	else:
-		hud._text(c, font, Vector2(pic.position.x, pic.end.y + 54.0 * s), "IN YOUR HAND", HORIZONTAL_ALIGNMENT_LEFT, pic.size.x, int(Hud.BODY_MIN * s), Color(UiUtil.GREEN, 0.85))
-	var keys: Array[StringName] = [&"damage", &"rate", &"range", &"accuracy"]
-	var colw := (pic.size.x - 12.0 * s) * 0.5
-	for i in keys.size():
-		var key: StringName = keys[i]
-		var bx := pic.position.x + float(i % 2) * (colw + 12.0 * s)
-		var by := (BAR_Y + float(i / 2) * 36.0) * s
-		var lab: String = String(WeaponStats.BAR_NAMES[key]) if not (bool(card["melee"]) and key == &"range") else "REACH"
-		UiKit.stat_bar(hud, c, Rect2(bx, by, colw, 28.0 * s), lab, float(card["bars"][key]), s, font, 102.0 * s, float(cbars[key]) if cmp != &"" else -1.0)
-	# where to get it
-	var wl := WeaponStats.where(sel)
-	for i in mini(wl.size(), 2):
-		var wy := (INFO_Y + 34.0 * float(i)) * s
-		var tag := UiKit.badge(hud, c, Vector2(pic.position.x, wy - 7.0 * s), "WHERE" if i == 0 else "OR", UiUtil.MAGENTA, s, font)
-		var line: String = wl[i]
-		var lw := pic.size.x - tag.size.x - 10.0 * s
-		hud._text(c, font, Vector2(tag.end.x + 10.0 * s, wy), line, HORIZONTAL_ALIGNMENT_LEFT, lw, UiUtil.fit_size(font, line, lw, int(20.0 * s)), Color(UiUtil.CYAN, 0.97), 1.0 * s)
-	var trait_line := WeaponRoster.headline(sel)
-	if trait_line != "":
-		hud._text(c, font, Vector2(pic.position.x + 18.0 * s, pic.position.y + pic.size.y - 14.0 * s), trait_line, HORIZONTAL_ALIGNMENT_LEFT, pic.size.x - 70.0 * s, UiUtil.fit_size(font, trait_line, pic.size.x - 70.0 * s, int(18.0 * s)), Color(UiUtil.MAGENTA, 0.97), 1.0 * s)
-	var np := page_count()
-	var gw := (float(GRID_COLS) * TILE.x + float(GRID_COLS - 1) * TILE_GAP) * s * k
-	var tint_c := UiKit.class_tint(WeaponDefs.class_of(sel))
-	if tab_count() > 1:                                                  # the class row: the tab name and how many weapons it holds, between the two chips
-		var cwc := gw - 144.0 * s
-		var cap := class_caption(font, cwc, s)
-		hud._text(c, font, Vector2(cx + GRID_X * s * k + 72.0 * s, 106.0 * s + 40.0 * s), cap, HORIZONTAL_ALIGNMENT_CENTER, cwc, UiUtil.fit_size(font, cap, cwc, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.AMBER, 0.97), 1.0 * s)
-	else:
-		hud._text(c, font, Vector2(cx + GRID_X * s * k, 106.0 * s + 40.0 * s), "%s  %d" % [page_name(), tab_size()], HORIZONTAL_ALIGNMENT_LEFT, gw, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
-	if np > 1:
-		var cap2 := sub_caption()                                        # between the two page arrows
-		var cw2 := gw - 136.0 * s
-		hud._text(c, font, Vector2(cx + GRID_X * s * k + 68.0 * s, (GRID_Y + 4.0 * (TILE.y + TILE_GAP) + 4.0 + 40.0) * s), cap2, HORIZONTAL_ALIGNMENT_CENTER, cw2, UiUtil.fit_size(font, cap2, cw2, int(UiUtil.BAR_LABEL * s)), Color(tint_c.lerp(Color.WHITE, 0.3), 0.97), 1.0 * s)
-	var sr := star_rect(cx, s, k)                                       # the star: a favourite is filled amber, else an outline
-	var fav := WeaponBrowser.is_favourite(sel)
-	UiKit.panel(c, sr, s, UiUtil.AMBER if fav else UiKit.class_tint(WeaponDefs.class_of(sel)), fav, 8.0, fav)
-	var pts := PackedVector2Array()
-	var sc := sr.get_center()
-	for q in 10:
-		var ang := -PI * 0.5 + TAU * float(q) / 10.0
-		var rr := (22.0 if q % 2 == 0 else 9.0) * s
-		pts.append(sc + Vector2(cos(ang), sin(ang)) * rr)
-	if fav:
-		c.draw_colored_polygon(pts, Color(UiUtil.AMBER, 0.97))
-	else:
-		pts.append(pts[0])
-		c.draw_polyline(pts, Color(1, 1, 1, 0.8), 2.0 * s)
-	var slots := Attachments.slots_for_weapon(sel)                         # the attachment column: slot tabs and part cards (buttons), the names of what is fitted under them
-	var col_w := (3.0 * PART_W + 2.0 * 8.0) * s * k
-	var ax := cx + SLOT_X * s * k
-	if slots.is_empty():
-		hud._text(c, font, Vector2(ax, (SLOT_Y + 40.0) * s), "NO ATTACHMENTS", HORIZONTAL_ALIGNMENT_LEFT, col_w, int(UiUtil.BAR_LABEL * 1.1 * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
-		hud._text(c, font, Vector2(ax, (SLOT_Y + 70.0) * s), "THIS WEAPON TAKES NO PARTS", HORIZONTAL_ALIGNMENT_LEFT, col_w, int(Hud.BODY_MIN * s), Color(1, 1, 1, 0.7), 1.0 * s)
-	else:
-		if slots.size() == 1:
-			hud._text(c, font, Vector2(ax, (SLOT_Y + 24.0) * s), Attachments.slot_label(slots[0]), HORIZONTAL_ALIGNMENT_LEFT, col_w, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95), 1.0 * s)
-		var fitted: PackedStringArray = []
-		for sl in slots:
-			var pf := Attachments.part_in(sel, sl)
-			if pf != &"" and Attachments.PARTS.has(pf) and Attachments.fits(pf, sel):
-				fitted.append(String(Attachments.PARTS[pf]["name"]))
-		var fsz := int(UiUtil.BAR_LABEL * s)                                         # the names of what is fitted: one line, or two when five parts do not fit a phone's column (a text never goes below the legible size)
-		var lines: Array[String] = []
-		var line := "FITTED  " + ("" if not fitted.is_empty() else "NOTHING YET")
-		for i in fitted.size():
-			var piece := String(fitted[i]) if i == 0 or line == "" else " / " + String(fitted[i])
-			if i > 0 and font.get_string_size(line + piece, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x > col_w * 0.94:
-				lines.append(line)
-				line = String(fitted[i])
-			else:
-				line += piece
-		lines.append(line)
-		for li in mini(lines.size(), 2):
-			hud._text(c, font, Vector2(ax, (FITTED_Y + float(li) * 22.0) * s), lines[li], HORIZONTAL_ALIGNMENT_LEFT, col_w, fsz, Color(UiUtil.AMBER, 0.95), 1.0 * s)
+	Arsenal.draw(hud, c, vp, s, font, cx, &"loadout")
+	return

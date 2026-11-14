@@ -49,6 +49,7 @@ const FAMILIES: Array = [
 	["verb_", 3, 2, 0.10, 0.03], ["alien_", 2, 3, 0.25, 0.08], ["animal_", 1, 3, 0.15, 0.04], ["car_", 2, 3, 0.10, 0.05], ["horn", 2, 1, 0.20, 0.02], ["engine_", 2, 2, 0.10, 0.0], ["tyre", 1, 1, 0.10, 0.0],
 	["ui_", 4, 3, 0.03, 0.0], ["pickup", 3, 3, 0.05, 0.0], ["credit", 3, 2, 0.05, 0.0], ["mission_", 4, 1, 0.50, 0.0], ["objective", 3, 1, 0.30, 0.0], ["heat_", 3, 1, 0.50, 0.0],
 	["heartbeat", 2, 2, 0.20, 0.0], ["breath", 1, 2, 0.30, 0.03], ["gasp", 2, 1, 0.50, 0.0], ["radio_", 3, 2, 0.05, 0.0], ["babble", 1, 3, 0.04, 0.0], ["core", 3, 2, 0.20, 0.0],
+	["bm_", 4, 3, 0.12, 0.03], ["wm_", 1, 6, 0.0, 0.04], ["wt_", 1, 4, 0.0, 0.03], ["wr_", 2, 1, 0.30, 0.0], ["we_", 2, 1, 0.10, 0.0],      # wave 114 (scripts/audio/weapon_audio.gd): explosions by size, weapon mechanism, tail, reload, equip
 ]
 const DEFAULT_RULE: Array = ["", 1, 6, 0.0, 0.0]
 
@@ -268,6 +269,8 @@ func _ready() -> void:
 		var p3 := AudioStreamPlayer3D.new()
 		p3.unit_size = 12.0
 		p3.max_distance = MAX_DIST * 1.5
+		p3.attenuation_filter_cutoff_hz = 4200.0                              # wave 114: the DISTANCE FILTER of the weapon sound layers: the further a 3D voice is, the more of its highs go
+		p3.attenuation_filter_db = -20.0
 		p3.bus = sfx_bus
 		add_child(p3)
 		_players3d.append(p3)
@@ -472,8 +475,10 @@ func shot_sound(base: StringName, suppressed := false, overcharged := false) -> 
 func impact(kind: StringName, pos: Vector3, normal := Vector3.UP) -> void:
 	play_at(StringName("impact_" + String(kind)), pos, -2.0)
 	var glancing := absf(normal.y) < 0.6
-	if (kind == &"metal" and randf() < 0.4) or (kind == &"concrete" and glancing and randf() < 0.12):
-		_later(&"ricochet", pos, -5.0, randf_range(0.9, 1.15), 0.05)
+	if kind == &"metal" and randf() < 0.4:
+		_later(&"ricochet_metal", pos, -5.0, randf_range(0.9, 1.15), 0.05)             # wave 114: a ricochet has the whine of its material (metal rings, stone scrapes)
+	elif (kind == &"concrete" or kind == &"dirt") and glancing and randf() < 0.12:
+		_later(&"ricochet_stone", pos, -5.0, randf_range(0.9, 1.15), 0.05)
 
 
 ## Empty magazine: the click, once per trigger pull.
@@ -549,7 +554,7 @@ func _rule(sfx_name: StringName) -> Array:
 
 func _after_play(sfx_name: StringName) -> void:
 	var s := String(sfx_name)
-	if s.begins_with("boom") or s.begins_with("explosion") or s.begins_with("car_crash"):
+	if s.begins_with("boom") or s.begins_with("explosion") or s.begins_with("car_crash") or s.begins_with("bm_"):
 		duck(&"explosion")
 	elif ABILITY_LAYERS.has(sfx_name):
 		var a: Array = ABILITY_LAYERS[sfx_name]

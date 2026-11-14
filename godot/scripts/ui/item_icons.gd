@@ -14,8 +14,13 @@ static func path(prefix: String, id: StringName) -> String:
 	return "%s%s_%s.png" % [DIR, prefix, String(id)]
 
 
-## The picture of `id` under `prefix` (w, g, v, e), null when there is none.
+## The picture of `id` under `prefix` (w, g, v, e), null when there is none. A weapon's picture is its THUMB from the atlas pages of WeaponPics (rendered from its model, a frame of 256 x 128; the pages
+## are kept by WeaponPics, a few at a time, so nothing is cached here), the old per-file picture only for a weapon without one.
 static func texture(prefix: String, id: StringName) -> Texture2D:
+	if prefix == "w":
+		var wp := WeaponPics.thumb(id)
+		if wp != null:
+			return wp
 	var key := "%s_%s" % [prefix, String(id)]
 	if _cache.has(key):
 		return _cache[key]
@@ -31,8 +36,11 @@ static func weapon(id: StringName) -> Texture2D:
 	return texture("w", id)
 
 
-## The big picture of a weapon (384 x 192, `wl_<id>.png`, rendered by tools/icons/build_icons.sh with --large) for the LOADOUT card; the small one when there is none.
+## The big picture of a weapon (the card of WeaponPics, 512 x 256; else the old 384 x 192 `wl_<id>.png` of tools/icons/build_icons.sh --large) for the weapon card; the small one when there is none.
 static func weapon_large(id: StringName) -> Texture2D:
+	var cp := WeaponPics.card(id)                                      # a frame of 512 x 256 from the card pages
+	if cp != null:
+		return cp
 	var t := texture("wl", id)
 	return t if t != null else texture("w", id)
 

@@ -158,7 +158,12 @@ func _preview() -> void:
 	# the loadout registers the rect and the Hud routes a drag into it
 	for id: StringName in WeaponDefs.IDS:
 		WeaponDefs.unlock(id)
+	Arsenal.view3d = false
 	_open(&"paused", [&"loadout"])
+	hud._screen.queue_redraw()
+	await frames(3)
+	TestLib.check(not hud.preview_rect.has_area(), "the loadout's card shows the rendered picture first (no turntable until the 3D VIEW or the parts tab asks for it)")
+	_open(&"paused", [&"loadout", &"ars_view3d"])                                # wave 114: the 3D turntable is the card's 3D VIEW and the attachments screen
 	hud._screen.queue_redraw()
 	for i in 60:
 		await frames(1)
@@ -190,17 +195,19 @@ func _preview() -> void:
 	var base: Dictionary = WeaponStats.card(&"carbine", Attachments.effective(&"carbine"))["bars"]
 	TestLib.check(bars.has(&"damage") and base.has(&"damage"), "both weapons have the bars the compare reads")
 	# the catalogue
-	_open(&"paused", [&"hero_open", &"hero_tab_weapons", &"wpg_next", &"wpg_next", &"wsel_amr"])
+	_open(&"paused", [&"hero_open", &"hero_tab_weapons", &"wsel_amr"])
 	hud._screen.queue_redraw()
 	for i in 60:
 		await frames(1)
 		if hud.preview_rect.has_area():
 			break
 	TestLib.check(hud.preview_rect.has_area(), "the weapon catalogue draws the preview too")
-	_open(&"paused", [&"hero_open", &"hero_tab_weapons", &"wpg_prev"])         # the gadgets page: a gadget has no 3D model, its picture is drawn
+	_open(&"paused", [&"hero_open", &"hero_tab_weapons", StringName("wsel_%s" % Gear.GADGET_IDS[0])])         # a gadget has no 3D model, its picture is drawn
+	TestLib.check(WeaponsScreen.is_gear(WeaponsScreen.sel), "a gadget (%s) is selected" % WeaponsScreen.sel)
 	hud._screen.queue_redraw()
 	await frames(3)
-	TestLib.check(not hud.preview_rect.has_area(), "a gadget page registers no preview rect (its picture is drawn)")
+	TestLib.check(not hud.preview_rect.has_area(), "a gadget registers no preview rect (its picture is drawn)")
+	Arsenal.view3d = false
 	WeaponDefs.reset_unlocked()
 	WeaponDefs.last_used = &"carbine"
 

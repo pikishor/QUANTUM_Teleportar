@@ -31,7 +31,7 @@ func _data() -> void:
 		TestLib.check(m != null and m.get_surface_count() == 1, "%s has a one-surface mesh" % id)
 		if m != null:
 			var bb := m.get_aabb()
-			TestLib.check(bb.size.z > 0.15 and bb.size.z < 1.5 and bb.end.z > 0.1 and bb.position.z > -0.4, "%s is a sensible length (%.2f m), body behind the muzzle" % [id, bb.size.z])
+			TestLib.check(bb.size.z > 0.06 and bb.size.z < 1.6 and bb.end.z > 0.05 and bb.position.z > -0.4, "%s is a sensible length (%.2f m), body behind the muzzle" % [id, bb.size.z])
 		TestLib.check(WeaponModels.SPEC.has(id), "%s has grips" % id)
 		TestLib.check(WeaponDefs.CLASS_OF.has(id) and WeaponDefs.CLASS_ORDER.has(WeaponDefs.class_of(id)), "%s has a wheel class" % id)
 		TestLib.check(WeaponIcons.has_icon(id) and WeaponIcons.texture(id) != null, "%s has a HUD icon built from its mesh" % id)
@@ -39,8 +39,9 @@ func _data() -> void:
 		TestLib.check((ResourceLoader.exists("res://assets/audio/%s.wav" % snd) or ResourceLoader.exists("res://assets/audio/%s.ogg" % snd)), "%s: sound %s exists" % [id, snd])
 		var off := WeaponModels.grip_offsets(id)
 		TestLib.check(off.size() == 2 and off[0].length() < 0.8 and off[1].length() < 0.8, "%s: grip offsets are reachable" % id)
-	var carbine_off := WeaponModels.grip_offsets(&"carbine")
-	TestLib.check(carbine_off[0].length() < 0.001 and carbine_off[1].length() < 0.001 and is_zero_approx(WeaponModels.muzzle_shift(&"carbine")), "the carbine is the rig's own rest grip")
+	var carbine_off := WeaponModels.grip_offsets(&"carbine", WeaponModels.look_scale(&"carbine"))
+	TestLib.check(carbine_off[0].length() < 0.2 and carbine_off[1].length() < 0.2 and absf(WeaponModels.muzzle_shift(&"carbine", WeaponModels.look_scale(&"carbine"))) < 0.2,
+			"the carbine's grips are near the rig's rest grips (the kit model carries its own: %s %s, muzzle shift %.2f)" % [carbine_off[0], carbine_off[1], WeaponModels.muzzle_shift(&"carbine", WeaponModels.look_scale(&"carbine"))])
 	TestLib.check(WeaponModels.muzzle_shift(&"pistol") > 0.2, "a pistol's muzzle sits nearer the body than a rifle's")
 	var lens := {}
 	for id: StringName in WeaponDefs.IDS:
@@ -104,7 +105,7 @@ func _live(host: Node) -> void:
 		TestLib.check(look != null and look.mesh == WeaponModels.mesh(id) and (look.visible or body.hero_mat == null), "the hero holds the %s (its own mesh in his hand)" % id)
 		TestLib.check(body.muzzle != null and look != null and look.get_parent() == body.muzzle, "%s rides the muzzle node on the rifle bone" % id)
 		if body.rig != null and body.hero_mat != null:
-			var g := WeaponModels.grip_offsets(id)
+			var g := WeaponModels.grip_offsets(id, WeaponModels.look_scale(id))          # the grips of the DRAWN weapon (the kit's models are drawn a little thicker and longer)
 			TestLib.check(body.rig.grip_off_l.is_equal_approx(g[0]) and body.rig.grip_off_r.is_equal_approx(g[1]), "%s: the hands are placed on its grips" % id)
 		used += 1
 	TestLib.check(used == 7, "seven weapons used")

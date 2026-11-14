@@ -413,7 +413,9 @@ func buy_weapon(id: StringName) -> bool:
 	if not can_buy_weapon(id):
 		return false
 	credits -= weapon_price(id)
+	CrateReveal.next_source = "PURCHASED"
 	_give_weapon(id)
+	CrateReveal.next_source = ""
 	changed.emit()
 	soft_save()
 	return true
@@ -424,15 +426,17 @@ func _give_weapon(id: StringName) -> void:
 	var p := Game.player
 	if is_instance_valid(p) and p.get(&"weapon") is PlayerWeapon:
 		(p.get(&"weapon") as PlayerWeapon).grant(id)
-	else:
-		WeaponDefs.unlock(id)
+	elif WeaponDefs.unlock(id):
+		CrateReveal.request(id)
 	purchased.emit(id, 1)
 
 
 func grant_weapon(id: StringName) -> bool:
 	if WeaponDefs.is_unlocked(id) or not WeaponDefs.DEFS.has(id):
 		return false
+	CrateReveal.next_source = "MISSION REWARD"
 	_give_weapon(id)
+	CrateReveal.next_source = ""
 	changed.emit()
 	return true
 
@@ -832,6 +836,8 @@ func save_file() -> bool:
 	var wb := WeaponBrowser.to_save()
 	cf.set_value("weapons", "favourites", wb["favourites"])
 	cf.set_value("weapons", "recent", wb["recent"])
+	cf.set_value("weapons", "seen", wb["seen"])                              # the NEW filter of the Arsenal (wave 114)
+	cf.set_value("weapons", "slots", wb["slots"])                             # the four loadout slots
 	var att := Attachments.to_save()
 	cf.set_value("attachments", "owned", att["owned"])
 	cf.set_value("attachments", "equipped", att["equipped"])
@@ -959,7 +965,12 @@ func load_file() -> bool:
 	WeaponDefs.set_unlocked(_arr(cf.get_value("weapons", "unlocked", PackedStringArray(["carbine"]))))
 	var cur := StringName(str(cf.get_value("weapons", "current", "carbine")))
 	WeaponDefs.last_used = cur if WeaponDefs.is_unlocked(cur) else &"carbine"
-	WeaponBrowser.from_save({"favourites": _arr(cf.get_value("weapons", "favourites", PackedStringArray())), "recent": _arr(cf.get_value("weapons", "recent", PackedStringArray()))})
+	var wb_d := {"favourites": _arr(cf.get_value("weapons", "favourites", PackedStringArray())), "recent": _arr(cf.get_value("weapons", "recent", PackedStringArray()))}
+	if cf.has_section_key("weapons", "seen"):
+		wb_d["seen"] = _arr(cf.get_value("weapons", "seen", PackedStringArray()))
+	if cf.has_section_key("weapons", "slots"):
+		wb_d["slots"] = _arr(cf.get_value("weapons", "slots", PackedStringArray()))
+	WeaponBrowser.from_save(wb_d)
 	Attachments.from_save({"owned": _arr(cf.get_value("attachments", "owned", PackedStringArray())), "equipped": cf.get_value("attachments", "equipped", {}) if cf.get_value("attachments", "equipped", {}) is Dictionary else {}})
 	var gear_d := {}
 	if cf.has_section("gear"):

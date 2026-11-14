@@ -79,18 +79,44 @@ const SPEC0 := {
 	&"seeker": {"reach": 0.84, "gr": Vector3(0.0, -0.11, 0.62), "gl": Vector3(0.0, -0.12, 0.32)},
 	&"tknife": {"reach": 0.9, "gr": Vector3(0.0, 0.0, 0.26), "gl": Vector3(0.0, 0.0, 0.32)},
 }
-static var SPEC: Dictionary = SPEC0.merged(WeaponDefs.pack_dict("spec"))              ## the roster packs add theirs (WeaponDefs.PACKS)
+static var SPEC: Dictionary = SPEC0.merged(WeaponDefs.pack_dict("spec")).merged(_kit_spec(), true)   ## the roster packs add theirs (WeaponDefs.PACKS); the Blender weapon kit's models carry their own grips (weapons_meta.json)
+
+## --- the Blender weapon kit (wave 114, godot/tools/blender/weapon_kit.py): one glb per weapon in assets/models/weapons/ (LOD0 for the hand and the pictures, LOD1 for the enemies), one
+## shared PBR material (texture arrays of material swatches, assets/shaders/weapon_pbr.gdshader) and weapons_meta.json (grips, eject port, aim point, moving parts, triangle counts).
+## Entry points: path(id), build(id, lod) -> Node3D with the markers, mesh(id, lod), material_for(id). A weapon without a kit model keeps the procedural mesh below (QT_WEAPON_KIT=0 forces it).
+const MODEL_DIR := "res://assets/models/weapons/"
+const META_PATH := "res://assets/models/weapons/weapons_meta.json"
+static var _meta_cache: Dictionary = {}
+static var _meta_loaded := false
+static var _pbr: ShaderMaterial
 
 static var _cache := {}
 static var _material: ShaderMaterial
 
 
-## The mesh of weapon `id` (cached), null for an unknown id.
-static func mesh(id: StringName) -> ArrayMesh:
+## The mesh of weapon `id` (cached), null for an unknown id. `lod` 0 is the hand / picture mesh, 1 the light one the enemies and pickups use (the same mesh when the weapon has no kit model).
+static func mesh(id: StringName, lod := 0) -> ArrayMesh:
 	if not WeaponDefs.DEFS.has(id):
 		return null
-	if _cache.has(id):
-		return _cache[id]
+	var key: StringName = id if lod <= 0 else StringName("%s#%d" % [id, lod])
+	if _cache.has(key):
+		return _cache[key]
+	var kit := _kit_mesh(id, lod)
+	if kit != null:
+		_cache[key] = kit
+		return kit
+	return stub_mesh(id)
+
+
+## The procedural / open-source stand-in of weapon `id` (the models before the weapon kit; what a weapon without a kit model is drawn with). Cached apart from the kit's meshes.
+static func stub_mesh(id: StringName) -> ArrayMesh:
+	if not WeaponDefs.DEFS.has(id):
+		return null
+	var key: StringName = id
+	if has_model(id):
+		key = StringName("stub:%s" % id)
+	if _cache.has(key):
+		return _cache[key]
 	var glow: Color = WeaponDefs.def(id)["look"]
 	var b := _Builder.new()
 	var opened := false
@@ -104,7 +130,7 @@ static func mesh(id: StringName) -> ArrayMesh:
 		b = _Builder.new()
 		_procedural(b, id, glow)
 	var m := b.build()
-	_cache[id] = m
+	_cache[key] = m
 	return m
 
 
@@ -745,17 +771,223 @@ static func spec(id: StringName) -> Dictionary:
 	return SPEC.get(id, SPEC[&"carbine"])
 
 
-## How far the muzzle node moves BACK along the rifle for this weapon (a pistol's muzzle is nearer the body than the carbine's).
-static func muzzle_shift(id: StringName) -> float:
-	return CARBINE_REACH - float(spec(id)["reach"])
+# --- the Blender weapon kit: meta, path, build ------------------------------------------------------------------------------
+
+## weapons_meta.json of the kit: id -> {gr, gl, reach, eject, aim, optic, laser, mag, parts, tris0, tris1, len, ...} (empty when the kit was not generated).
+static func kit_meta() -> Dictionary:
+	if not _meta_loaded:
+		_meta_loaded = true
+		if OS.get_environment("QT_WEAPON_KIT") != "0" and FileAccess.file_exists(META_PATH):
+			var txt := FileAccess.get_file_as_string(META_PATH)
+			var j: Variant = JSON.parse_string(txt)
+			if j is Dictionary:
+				_meta_cache = j
+	return _meta_cache
 
 
-## Per-hand grip offsets for the rig, in the rifle frame relative to the carbine's wrists: [left, right]. Both are added to the rest wrist targets (CharacterRig `grip_off`).
-static func grip_offsets(id: StringName) -> Array[Vector3]:
+static func _kit_spec() -> Dictionary:
+	var out := {}
+	if OS.get_environment("QT_WEAPON_KIT") == "0" or not FileAccess.file_exists("res://assets/models/weapons/weapons_meta.json"):
+		return out
+	var j: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/models/weapons/weapons_meta.json"))
+	if not (j is Dictionary):
+		return out
+	for k: String in (j as Dictionary).keys():
+		var m: Dictionary = j[k]
+		if m.has("gr") and m.has("gl") and m.has("reach"):
+			var gr: Array = m["gr"]
+			var gl: Array = m["gl"]
+			out[StringName(k)] = {"reach": float(m["reach"]), "gr": Vector3(gr[0], gr[1], gr[2]), "gl": Vector3(gl[0], gl[1], gl[2])}
+	return out
+
+
+## True when weapon `id` has a model made by the weapon kit.
+static func has_model(id: StringName) -> bool:
+	return kit_meta().has(String(id))
+
+
+## The glb of weapon `id` (res://assets/models/weapons/<id>.glb), "" when the weapon has no kit model.
+static func path(id: StringName) -> String:
+	if not has_model(id):
+		return ""
+	var p := "%s%s.glb" % [MODEL_DIR, String(id)]
+	return p if ResourceLoader.exists(p) else ""
+
+
+## A point of the weapon in its mesh frame (muzzle at the origin, barrel to -Z): "eject", "aim", "optic", "laser", "mag", "gr", "gl", "muzzle". A class default when the weapon has no kit model.
+static func point(id: StringName, key: String) -> Vector3:
+	var m: Dictionary = kit_meta().get(String(id), {})
+	if m.has(key):
+		var a: Array = m[key]
+		return Vector3(a[0], a[1], a[2])
+	match key:
+		"gr":
+			return spec(id)["gr"]
+		"gl":
+			return spec(id)["gl"]
+		"eject":
+			return Vector3(0.02, 0.015, float(spec(id)["gr"].z) - 0.14)
+		"aim":
+			return Vector3(0.0, 0.05, float(spec(id)["gl"].z))
+		"mag":
+			return Vector3(0.0, -0.06, float(spec(id)["gr"].z) - 0.1)
+	return Vector3.ZERO
+
+
+## The weapon as a Node3D: "Body" (a MeshInstance3D with the LOD `lod` mesh and its material) plus Marker3D children Muzzle, GripR, GripL, Eject, Aim, Mag (kit models also Optic and Laser).
+## Everything is in the mesh frame (origin = muzzle, barrel to -Z, +Y up). The caller owns the node (queue_free it); the mesh and the material are shared resources.
+static func build(id: StringName, lod := 0) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Weapon_%s" % String(id)
+	var mi := MeshInstance3D.new()
+	mi.name = "Body"
+	mi.mesh = mesh(id, lod)
+	mi.material_override = material_for(id)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(mi)
+	var keys := ["muzzle", "gr", "gl", "eject", "aim", "mag"]
+	if has_model(id):
+		keys.append_array(["optic", "laser"])
+	for k: String in keys:
+		var mk := Marker3D.new()
+		mk.name = {"muzzle": "Muzzle", "gr": "GripR", "gl": "GripL", "eject": "Eject", "aim": "Aim", "mag": "Mag", "optic": "Optic", "laser": "Laser"}[k]
+		mk.position = point(id, k)
+		root.add_child(mk)
+	root.set_meta(&"weapon_id", id)
+	root.set_meta(&"lod", lod)
+	return root
+
+
+## The material that draws weapon `id`: the shared PBR material for a kit model, the old vertex-colour material for a procedural stub.
+static func material_for(id: StringName) -> Material:
+	if has_model(id):
+		return pbr_material()
+	return material()
+
+
+## The shared PBR material of the kit models (texture arrays of material swatches). The hero makes his own copy (`pbr_material_copy`) to animate the moving parts.
+static func pbr_material() -> Material:
+	if _pbr == null:
+		_pbr = _make_pbr()
+	return _pbr if _pbr != null else material()
+
+
+## The material of the weapon in the hero's hand: his own copy of the kit's PBR material (he moves the parts and pulses the glow through it), the old vertex-colour material for a stub.
+static var _hand_pbr: ShaderMaterial
+
+
+static func hand_material(id: StringName) -> Material:
+	if not has_model(id):
+		return material()
+	if _hand_pbr == null:
+		var base := pbr_material()
+		_hand_pbr = base.duplicate() as ShaderMaterial if base is ShaderMaterial and base != _material else null
+	return _hand_pbr if _hand_pbr != null else material_for(id)
+
+
+static func pbr_material_copy() -> ShaderMaterial:
+	var m := pbr_material()
+	return (m.duplicate() as ShaderMaterial) if m is ShaderMaterial and m != _material else material()
+
+
+static func _make_pbr() -> ShaderMaterial:
+	var sh := "res://assets/shaders/weapon_pbr.gdshader"
+	if not ResourceLoader.exists(sh):
+		return null
+	var m := ShaderMaterial.new()
+	m.shader = load(sh)
+	for t: String in ["alb", "orm", "nrm"]:
+		var p := "%sweapon_atlas_%s.png" % [MODEL_DIR, t]
+		if ResourceLoader.exists(p):
+			m.set_shader_parameter(StringName("tex_" + t), load(p))
+	m.set_shader_parameter(&"glow", 1.0)
+	return m
+
+
+## The mesh of a kit model from its glb (null when there is none): the importer's mesh with the PBR material on its one surface.
+static func _kit_mesh(id: StringName, lod: int) -> ArrayMesh:
+	var p := path(id)
+	if p == "":
+		return null
+	var scene := load(p) as PackedScene
+	if scene == null:
+		return null
+	var root := scene.instantiate()
+	var want := "L%d" % clampi(lod, 0, 1)
+	var node := root.find_child(want, true, false) as MeshInstance3D
+	if node == null:
+		node = root.find_child("L0", true, false) as MeshInstance3D
+	var out: ArrayMesh = null
+	if node != null and node.mesh is ArrayMesh:
+		out = node.mesh as ArrayMesh
+		out.surface_set_material(0, pbr_material())
+	root.free()
+	return out
+
+
+## The thickness and length factor a weapon is drawn with in a hand: the kit's models are drawn bigger than true size (from the shoulder camera a true-size gun is a thin stick, and wave 114's critic
+## measured a pistol at 35 px of a 1280 px frame): the SHORTER the weapon the more it is enlarged (length factor by the length of the model: a grenade 2.0, a pistol 1.75, an SMG 1.35, a rifle 1.1;
+## the arms still reach because the hands keep their hold distance, see `_reach`), and a gun of 0.6 m or more is drawn a quarter thicker and taller on top (that is what shows from behind).
+const KIT_LOOK_SCALE := Vector3(1.3, 1.3, 1.1)                       ## (the old single factor: kept for look-dev scripts)
+const LOOK_Z_BY_LENGTH: Array[Vector2] = [Vector2(0.16, 2.0), Vector2(0.25, 1.75), Vector2(0.4, 1.55), Vector2(0.6, 1.35), Vector2(0.8, 1.18), Vector2(0.95, 1.1)]
+static var _look_cache := {}
+
+
+static func look_scale(id: StringName) -> Vector3:
+	if not has_model(id):
+		return Vector3.ONE
+	if _look_cache.has(id):
+		return _look_cache[id]
+	var length := 0.9
+	var cross := 0.2
+	var m: Dictionary = kit_meta().get(String(id), {})
+	if m.has("aabb"):
+		var bb: Array = m["aabb"]
+		length = float(bb[1][2]) - float(bb[0][2])
+		cross = maxf(float(bb[1][0]) - float(bb[0][0]), float(bb[1][1]) - float(bb[0][1]))
+	var cap := maxf(1.15, 0.5 / maxf(cross, 0.01))                       # a bow, a crossbow, a shield or a scythe is wide already (0.5 to 0.8 m across): drawn at most 1.15x, not by its short length
+	var z := minf(_curve(LOOK_Z_BY_LENGTH, length), maxf(cap, 1.1))
+	var xy := minf(z + 0.25 * clampf((length - 0.2) / 0.4, 0.0, 1.0), cap)
+	var sc := Vector3(xy, xy, z)
+	_look_cache[id] = sc
+	return sc
+
+
+## Piecewise linear curve through `pts` (x ascending), clamped at both ends.
+static func _curve(pts: Array[Vector2], x: float) -> float:
+	if x <= pts[0].x:
+		return pts[0].y
+	for i in range(1, pts.size()):
+		if x <= pts[i].x:
+			return lerpf(pts[i - 1].y, pts[i].y, (x - pts[i - 1].x) / (pts[i].x - pts[i - 1].x))
+	return pts[pts.size() - 1].y
+
+
+## Metres the muzzle sits in front of the rifle pivot for a weapon drawn with scale `sc`: the HAND keeps its hold distance (the reach minus the grip, an arm cannot reach further for a bigger gun) and the
+## scaled weapon grows around the grip: the muzzle is the scaled distance from the grip to the tip further out. (Scaling the whole reach, as before, moved the hands by 0.5 m for a pistol drawn 2x.)
+const MAX_SUPPORT_HOLD := 0.6                                       ## metres from the rifle pivot to the support hand's grip: about what the arm reaches (the carbine's is 0.60)
+
+
+static func _reach(id: StringName, sc: Vector3) -> float:
 	var sp := spec(id)
-	var reach := float(sp["reach"])
-	var gr: Vector3 = sp["gr"]
-	var gl: Vector3 = sp["gl"]
+	var gz := float((sp["gr"] as Vector3).z)
+	var r := (float(sp["reach"]) - gz) + gz * sc.z
+	return minf(r, float((sp["gl"] as Vector3).z) * sc.z + MAX_SUPPORT_HOLD)           # a long weapon (the rail rifle) is pulled back so that the support hand is no further out than the arm reaches
+
+
+## How far the muzzle node moves BACK along the rifle for this weapon (a pistol's muzzle is nearer the body than the carbine's). `sc` = the scale the mesh is drawn with (the hand keeps its hold distance,
+## the scaled weapon grows from the grip to the tip and back to the butt).
+static func muzzle_shift(id: StringName, sc := Vector3.ONE) -> float:
+	return CARBINE_REACH - _reach(id, sc)
+
+
+## Per-hand grip offsets for the rig, in the rifle frame relative to the carbine's wrists: [left, right]. Both are added to the rest wrist targets (CharacterRig `grip_off`). With `sc` the grips are
+## where the DRAWN (scaled) weapon has them.
+static func grip_offsets(id: StringName, sc := Vector3.ONE) -> Array[Vector3]:
+	var sp := spec(id)
+	var reach := _reach(id, sc)
+	var gr: Vector3 = sp["gr"] * sc
+	var gl: Vector3 = sp["gl"] * sc
 	var sr := Vector3(gr.x, gr.y, gr.z - reach) - Vector3(CARBINE_GR.x, CARBINE_GR.y, CARBINE_GR.z - CARBINE_REACH)
 	var sl := Vector3(gl.x, gl.y, gl.z - reach) - Vector3(CARBINE_GL.x, CARBINE_GL.y, CARBINE_GL.z - CARBINE_REACH)
 	return [sl, sr]

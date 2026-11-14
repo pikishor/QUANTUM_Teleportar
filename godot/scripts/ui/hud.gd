@@ -113,6 +113,7 @@ var scan_hud := false                  ## tests/test_mission_board.gd: scan_text
 var scan_log: Array[Dictionary] = []
 var _frames: Array = []
 var _sprites: Array = []
+var _tex_q: Array = []                 ## queued textures [canvas, texture, rect, colour]: a weapon picture in the kill feed (drawn after the fills, so a plate never covers it)
 
 
 func _ready() -> void:
@@ -392,7 +393,9 @@ func _input(event: InputEvent) -> void:
 		return
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+		if mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+			Arsenal.wheel(self, mb.position, -1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1)
+		elif mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			tap(mb.position)
 		elif not mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			end_drag()
@@ -402,11 +405,16 @@ func _input(event: InputEvent) -> void:
 			tap(st.position)
 		else:
 			end_drag()
+	elif event is InputEventScreenDrag and Arsenal.dragging():
+		Arsenal.drag_to(self, (event as InputEventScreenDrag).position)
 	elif event is InputEventScreenDrag and _drag != &"":
 		slide(_drag, (event as InputEventScreenDrag).position.x)
 	elif event is InputEventScreenDrag and _pv_drag:
 		_pv_turn((event as InputEventScreenDrag).position.x)
 	elif event is InputEventMouseMotion:
+		if Arsenal.dragging() and ((event as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+			Arsenal.drag_to(self, (event as InputEventMouseMotion).position)
+			return
 		if _drag != &"":
 			slide(_drag, (event as InputEventMouseMotion).position.x)
 			return
@@ -433,6 +441,8 @@ func tap(pos: Vector2) -> bool:
 	if Game.state == &"play" or Game.state == &"cutscene":
 		return false
 	_ensure_layout()
+	if Arsenal.begin_drag(self, pos):                                  # a finger on the Arsenal's list: a tap presses the tile at the release, a drag scrolls (scripts/ui/arsenal.gd)
+		return true
 	var id := _button_at(pos)
 	if SLIDERS.has(id) or (_options_open and OptionsScreen.is_slider(id)) or (photo_open() and PhotoScreen.is_slider(id)):
 		_drag = id
@@ -500,6 +510,11 @@ func _press_look(sid: String) -> bool:
 ## The effect of every screen button (the tests press them through here).
 func press_button(id: StringName) -> bool:
 	var sid := String(id)
+	if sid.begins_with("ars_") or sid.begins_with("wheel_") or sid.begins_with("wsel_") or (sid.begins_with("buy_") and _loadout_open):       # the Arsenal's tiles, chips and actions (scripts/ui/arsenal.gd)
+		if Arsenal.press(self, sid):
+			return true
+		if sid.begins_with("ars_"):
+			return false
 	if sid.begins_with("photo_"):
 		return _press_photo(sid)
 	if sid.begins_with("look_") and sid != "look_open":
@@ -932,6 +947,7 @@ func _pv_turn(x: float) -> void:
 
 ## Ends a slider drag: the value is saved and a tap confirms it (a quiet sound, so the new SFX level is audible).
 func end_drag() -> void:
+	Arsenal.end_drag(self)                                             # the Arsenal's list: a tap presses its tile, a drag starts the flick
 	if _pv_drag:
 		_pv_drag = false
 		if not _pv_moved:
@@ -1146,7 +1162,7 @@ func _draw_weapon_pop(c: Control, s: float, font: Font, vp: Vector2, p: Object) 
 	var nxt := WeaponLadder.next_target()
 	var r := Rect2(cx - 200.0 * s, vp.y * 0.58, 400.0 * s, (112.0 if nxt == &"" else 148.0) * s)
 	_plate(c, r, s)
-	WeaponIcons.draw(c, w.current, Rect2(r.position.x + 8.0 * s, r.position.y + 8.0 * s, 130.0 * s, 70.0 * s), Color(UiUtil.CYAN, 0.95 * a))
+	_weapon_pic(c, w.current, Rect2(r.position.x + 8.0 * s, r.position.y + 8.0 * s, 130.0 * s, 70.0 * s), Color(UiUtil.CYAN, 0.95 * a))
 	var pop_name := String(w.def["name"])                                # long roster names ("TITAN ANTI-MATERIAL RIFLE") go on two lines instead of being cut
 	var nsize := int(UiUtil.BAR_LABEL * s)
 	var lines: Array[String] = [pop_name]
@@ -1237,6 +1253,8 @@ func _process(delta: float) -> void:
 			if PlayerUtil.now() - lh < 0.25:
 				FX.shake(0.16 if Game.player.get("last_hit_kill") == true else 0.07)
 	screen_age += real
+	if Game.state == &"paused" and (_loadout_open or _shop_open):
+		Arsenal.tick(self, real)                                       # the flick of the Arsenal's list slows down and snaps to a row
 	var toast_dt := 0.0 if banner_busy() else delta           # one banner at a time: a toast waits (its clock is held) while the chapter banner or a story card is up
 	message_left = maxf(message_left - toast_dt, 0.0)
 	toast.left = message_left
@@ -1329,6 +1347,23 @@ func _sprite(c: Control, kind: StringName, r: Rect2, col: Color) -> void:
 	_sprites.append([c, kind, r, col])
 
 
+## Queue a texture (an AtlasTexture of WeaponPics, say) fitted into `r`: drawn after the plates of the same flush.
+func _tex(c: Control, tex: Texture2D, r: Rect2, col := Color.WHITE) -> void:
+	if tex != null:
+		_tex_q.append([c, tex, r, col])
+
+
+## A weapon picture on a plate: queued with the textures, so the plate's own (queued) fill never covers it; the flat silhouette when the weapon has no picture.
+func _weapon_pic(c: Control, id: StringName, r: Rect2, col: Color) -> void:
+	var pic := ItemIcons.weapon(id)
+	if pic == null:
+		WeaponIcons.draw_flat(c, id, r, col)
+		return
+	var ts := pic.get_size()
+	var k := minf(r.size.x / ts.x, r.size.y / ts.y)
+	_tex(c, pic, Rect2(r.get_center() - ts * k * 0.5, ts * k), Color(1, 1, 1, col.a))
+
+
 func _flush_text() -> void:
 	for f: Array in _fills:
 		(f[0] as Control).draw_rect(f[1], f[2])
@@ -1342,6 +1377,9 @@ func _flush_text() -> void:
 				if sp[1] == k:
 					(sp[0] as Control).draw_texture_rect(UiUtil.sprite(k), sp[2], false, sp[3])
 		_sprites.clear()
+	for tq: Array in _tex_q:
+		ItemIcons.draw_tex(tq[0] as Control, tq[1], tq[2], tq[3])
+	_tex_q.clear()
 	for f: Array in _frames:
 		(f[0] as Control).draw_rect(f[1], f[2], false, f[3])
 	_frames.clear()
@@ -1566,6 +1604,8 @@ func _draw_hud_body() -> void:
 			_draw_hurt_direction(c, p, vp, s, 1.0 - since_hurt / MARKER_TIME)
 		if playing and veh == null:
 			_draw_threat_edges(c, vp, s)
+	if playing and veh == null and p != null and not touch_ui_on():                       # (on a phone the touch layer draws it, under the buttons)
+		ScopeView.draw_mask(c, p, vp, s)                       # wave 114 critic: a scoped weapon's aimed view is a lens (the surround is drawn first: the bars and plates stay on top)
 	# top centre, one compact stack: the bars on a plate, then ONE priority line (the active / offered contract, else the core objective) and its extras.
 	var top := insv.x + 6.0 * s
 	var stack_end := top
@@ -1659,7 +1699,10 @@ func _draw_hud_body() -> void:
 		var fr := right
 		if touch_ui_on() and touch != null:
 			fr = minf(right, (touch._pause_center() as Vector2).x - 246.0 * s)        # left of the EXIT / MORE column too: a vehicle's EXIT button sits under the pause button
-		feed.draw(self, c, font, fr, feed_y, s, now)
+		var fy := feed_y
+		if fr - HudFeed.MAX_W * s < vp.x * 0.75:              # wave 114 critic: the objective plate and the toast lane are centred and up to half a screen wide: the feed hangs UNDER that lane, never across it
+			fy = maxf(feed_y, msg_top(s) + (MSG_H + 6.0) * s)
+		feed.draw(self, c, font, fr, fy, s, now)
 	if p == null:
 		_draw_message(c, vp, s, font)
 		return
@@ -1690,7 +1733,7 @@ func _draw_hud_body() -> void:
 		_plate(c, wr, s)
 		_text(c, font, Vector2(wr.position.x, wr.position.y + 27.0 * s), weapon_text(), HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, UiUtil.fit_size(font, weapon_text(), wr.size.x - 8.0 * s, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.CYAN, 0.97), 1.0 * s)
 		if p.get("weapon") is PlayerWeapon:
-			WeaponIcons.draw(c, (p.get("weapon") as PlayerWeapon).current, Rect2(wr.position.x + 6.0 * s, wr.position.y + 3.0 * s, 54.0 * s, 30.0 * s), Color(UiUtil.CYAN, 0.9))
+			_weapon_pic(c, (p.get("weapon") as PlayerWeapon).current, Rect2(wr.position.x + 6.0 * s, wr.position.y + 3.0 * s, 54.0 * s, 30.0 * s), Color(UiUtil.CYAN, 0.9))
 		_text(c, font, Vector2(ab.end.x + 10.0 * s, ab.position.y + 40.0 * s), alt_text(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s * 0.8), Color(UiUtil.AMBER, 0.9), 1.0 * s)
 		var wch := weapon_charge()
 		if wch > 0.0:
@@ -1924,6 +1967,7 @@ func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -
 	var spread_px := float(p.call(&"spread_in_pixels", vp.y, vp.x)) if p.has_method(&"spread_in_pixels") else 0.0
 	var gap := maxf(7.0 * s, spread_px)
 	var col := Color(1, 1, 1, 0.9)
+	var scoped := ScopeView.amount(p) > 0.5                              # through a scope the lens carries its own reticle (ScopeView): no arms, no centre dot of the open crosshair
 	var assist := p.get_node_or_null("AimAssist") as AimAssist
 	if assist != null and assist.on_target:
 		col = Color(1.0, 0.3, 0.25, 0.97) if assist.aim_zone != HitZones.HEAD else Color(1.0, 0.82, 0.3, 0.97)       # a shot would hit: red (gold on the head)
@@ -1931,14 +1975,17 @@ func _draw_crosshair(c: Control, p: Node3D, vp: Vector2, s: float, now: float) -
 	var hit_age := now - UiUtil.num(p, &"last_hit_time", -100.0)
 	if hit_age < 0.12:
 		gap *= 0.7 + 0.3 * (hit_age / 0.12)                             # the arms snap inward on a hit, then relax
-	for dir: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:       # arms are axis-aligned rectangles (they batch with the plates), dark edge under white
+	for dir: Vector2 in ([] if scoped else [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]):       # arms are axis-aligned rectangles (they batch with the plates), dark edge under white
 		var a0 := mid + dir * gap
 		var a1 := mid + dir * (gap + 11.0 * s)
 		var arm := Rect2(Vector2(minf(a0.x, a1.x), minf(a0.y, a1.y)), Vector2(absf(a1.x - a0.x), absf(a1.y - a0.y)))
 		arm = arm.grow_individual(0.0, 1.0 * s, 0.0, 1.0 * s) if dir.x != 0.0 else arm.grow_individual(1.0 * s, 0.0, 1.0 * s, 0.0)     # 2 px thick
 		_rect(c, arm.grow(1.0 * s), Color(0, 0, 0, 0.5))
 		_rect(c, arm, col)
-	_sprite(c, &"disc", Rect2(mid - Vector2(1.6, 1.6) * s, Vector2(3.2, 3.2) * s), Color(1, 1, 1, 0.9))
+	if scoped:
+		ScopeView.draw_reticle(c, p, vp, s, col)
+	else:
+		_sprite(c, &"disc", Rect2(mid - Vector2(1.6, 1.6) * s, Vector2(3.2, 3.2) * s), Color(1, 1, 1, 0.9))
 	var since := now - UiUtil.num(p, &"last_hit_time", -100.0)
 	if since < 0.28:
 		var kill: bool = p.get("last_hit_kill") == true
@@ -2050,6 +2097,8 @@ func _ensure_layout() -> void:
 	key += "|c%s%d%d%d%d%s%d" % [_craft_open, CraftScreen.page, CraftScreen.grid_page, Crafting.rev, CraftScreen.sel_item, CraftScreen.sel_bp, WeaponDefs.last_used.hash()]
 	key += "|%s%s%s%s%d%s%d" % [_look_open, str(Game.progress.hero.to_save()) if Game.progress != null and Game.progress.get("hero") != null else "", _loadout_open, _loadout_w, Attachments.owned.size(), str(Attachments.equipped).hash(), WeaponDefs.unlocked.size() * 10 + LoadoutScreen.page + ShopScreen.weapon_page * 100 + str(WeaponsScreen.sel).hash() % 997 * 1000]
 	key += "|g%d%s%s%d%d" % [_loadout_page, Gear.throwable, Gear.gadget, Gear.owned.size(), Gear.active_slot]
+	if _loadout_open or _shop_open:
+		key += "|A" + Arsenal.state_key(&"loadout" if _loadout_open else &"catalogue")
 	key += "|G%s%s" % [_gear_open, _hero_hub]
 	key += "|%s%d%d%d%d%d%s" % [_options_open, int(settings.hud_scale * 100.0), UiSettings.s_opt_page, UiSettings.s_opt_tab, ControlsScreen.tab, ControlsScreen.page, ControlsScreen.listening]
 	if photo != null and photo.active:
@@ -3083,6 +3132,8 @@ func _draw_alien_boss(c: Control, vp: Vector2, s: float, font: Font, y: float) -
 
 
 func _draw_priority(c: Control, vp: Vector2, s: float, font: Font, y: float) -> float:
+	if touch != null and touch.wheel.is_open and touch.wheel.kind == &"weapon":
+		return y                                           # wave 114 critic: the weapon wheel's title box covers the middle of the objective line: the line waits until the wheel closes (a second or two)
 	y = _draw_alien_boss(c, vp, s, font, y)
 	var k := _contracts()
 	var camp := _camp_text != "" and _campaign() != null

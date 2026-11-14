@@ -57,6 +57,7 @@ static var AMMO_PACK: Dictionary = AMMO_PACK0.merged(WeaponDefs.pack_dict("ammo_
 var current: StringName = &"carbine"
 var def: Dictionary = WeaponDefs.DEFS[&"carbine"]
 var inspect_t := 0.0                         ## seconds of the idle inspect left
+var _last_victim_kind: StringName = &"flesh"   ## what the last bullet hit (the hit marker sound: flesh, armor)
 var ammo_type := 0                           ## index into WeaponDefs.AMMO_TYPES (hitscan weapons only; not saved)
 var alt_fired := 0                           ## lifetime alt-fire counter, for tests
 var _alt_k := 1.0                            ## damage scale of the shot in flight (alt-fire heavy shot), 1 otherwise
@@ -246,13 +247,16 @@ func switch_to(id: StringName, instant := false) -> bool:
 	_burst_left = 0
 	_clear_gun_state()
 	swap_t = 0.0 if instant else SWAP_TIME
-	Sfx.play(&"reload", -9.0, 1.5)
+	WeaponAudio.equip_sound(id)
 	weapon_changed.emit(id)
 	return true
 
 
 ## The next (dir 1) or previous (dir -1) owned weapon. Returns true when the weapon changed.
 func cycle(dir: int) -> bool:
+	var slot_w := LoadoutSlots.next_after(current, dir)                    # wave 114: the quick swap walks the four loadout slots (PRIMARY, SIDEARM, SPECIAL, MELEE), not every owned weapon
+	if slot_w != &"" and slot_w != current:
+		return switch_to(slot_w)
 	var owned := WeaponDefs.owned_ordered()
 	if owned.size() < 2:
 		return false
@@ -279,6 +283,7 @@ func grant(id: StringName) -> String:
 	if WeaponDefs.unlock(id):
 		if not _store.has(id):
 			_store[id] = Vector2i(_mag_for(id), int(WeaponDefs.def(id)["reserve"]))
+		CrateReveal.request(id)                                       # a crate, a purchase or a reward named its source first; a pickup in a fight names none and gets no card
 		return "NEW WEAPON  %s" % WeaponDefs.title(id)
 	if int(WeaponDefs.def(id)["reserve"]) < 0:
 		return "%s  OWNED" % WeaponDefs.title(id)
@@ -329,8 +334,14 @@ func _auto_swap() -> void:
 	if swap_t > 0.0:
 		return
 	var best: StringName = &""
+	for slot_id: StringName in LoadoutSlots.slots:                          # the four weapons the hero chose come first (wave 114 critic)
+		if slot_id != &"" and slot_id != current and WeaponDefs.is_unlocked(slot_id) and String(WeaponDefs.def(slot_id)["kind"]) != "melee" and (ammo_of(slot_id) > 0 or reserve_of(slot_id) != 0):
+			best = slot_id
+			break
 	var cls := WeaponDefs.class_of(current)
 	for pass_i in 2:
+		if best != &"":
+			break
 		for id: StringName in WeaponDefs.owned_ordered():
 			if id == current or String(WeaponDefs.def(id)["kind"]) == "melee":
 				continue
@@ -363,7 +374,7 @@ func start_reload() -> bool:
 	reload_total = float(def["reload"]) * Upgrades.reload_mult()
 	reload_t = reload_total
 	charge = 0.0
-	Sfx.play(&"reload", 0.0, 1.0 if current != &"scatter" else 0.85)
+	WeaponAudio.reload_sound(current)
 	_reload_click = false
 	inspect_t = 0.0
 	return true
@@ -424,8 +435,9 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 		_:
 			if firing and can_fire:
 				if ammo <= 0:
-					Sfx.dry_fire()
-					start_reload()
+					WeaponAudio.dry_sound(current)
+					if not start_reload() and reserve == 0:
+						_auto_swap()                                 # wave 114 critic: dry and nothing in reserve: the best owned weapon that still shoots (written in wave 85, never called)
 				elif fire_t <= 0.0 and _gun_ready():
 					_burst_left = mech.burst_n() - 1
 					_burst_t = float(def.get("burst_gap", 0.07))
@@ -446,7 +458,10 @@ func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: b
 			_burst_t = float(def.get("burst_gap", 0.07))
 			var keep := fire_t
 			_shoot(dt, aiming)
-			fire_t = maxf(keep, fire_t) if _burst_left <= 0 else keep
+			if mech.burst_n() > 1:                                         # wave 114 critic: the interval of a BURST weapon counts from the first round of the burst (the table, the card and the balance say so); the last round used to add a second interval and every burst weapon fired at half its rate
+				fire_t = maxf(keep, -dt)
+			else:                                                          # a volley (alt-fire) of a plain weapon: one interval after its last round
+				fire_t = maxf(keep, fire_t) if _burst_left <= 0 else keep
 	elif _burst_left > 0:
 		_burst_left = 0
 	if _since_shot > BLOOM_HOLD:
@@ -515,7 +530,7 @@ func _shoot(dt: float, aiming: bool) -> void:
 	_since_shot = 0.0
 	_burst += 1
 	var pellets := 1 if _alt_single else int(def["pellets"])
-	Sfx.play(Sfx.shot_sound(StringName(def.get("snd", &"shot")), Attachments.part_in(current, &"barrel") == &"suppressor"), float(def["vol"]), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
+	WeaponAudio.fire(current, def, Attachments.part_in(current, &"barrel") == &"suppressor")      # wave 114: the shot is layers (mechanism, body, tail) of the weapon's sound set
 	if def.has("heat_per"):
 		heat = minf(1.0, heat + float(def["heat_per"]))
 		if heat >= 1.0 and not overheated:
@@ -772,8 +787,9 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 				p.last_hit_kill = false
 				p.last_hit_crit = false
 				p.hit_confirmed.emit(false, false)
+				WeaponAudio.hit_marker(current, false, false, &"shield")                  # wave 114: a shield has its own hum
 				if _sparks != null:
-					_sparks.impact_machine(hit, n)
+					_sparks.impact_machine(hit, n, &"shield")
 				return
 		target.call(&"damage", amount, crit)
 		if target.has_method(&"stagger"):
@@ -788,6 +804,7 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 	else:
 		target.call(&"damage", DAMAGE_VEHICLE * float(def["damage"]) / DAMAGE * k)
 	var kill := (not is_vehicle) and _is_dead(target)
+	_last_victim_kind = &"armor" if (is_vehicle or target.get(&"drone") == true) else &"flesh"
 	_hit_sound(kill, crit)
 	p.last_hit_time = PlayerUtil.now()
 	p.last_hit_kill = kill
@@ -801,13 +818,13 @@ func _hit_target(target: Node, hit: Vector3, normal: Vector3, k := 1.0, zone: St
 	_damage_number(hit, float(def["damage"]) * k * Upgrades.damage_mult() if not crit else float(def["crit"]) * k * Upgrades.damage_mult(), crit, kill)
 	if _sparks != null:
 		if is_vehicle:
-			_sparks.impact_machine(hit, n)
+			_sparks.impact_machine(hit, n, &"armor")
 		elif human:
 			if Game.graphic_violence:
 				_sparks.impact_blood(hit, n)
 			_sparks.impact_person(hit, n)
 		else:
-			_sparks.impact_machine(hit, n)
+			_sparks.impact_machine(hit, n, &"armor" if _last_victim_kind == &"armor" else &"metal")
 
 
 ## SINGULARITY ON CRIT (crafted perk): a crit pulls every enemy near the hit toward it and burns them, at most once per cooldown.
@@ -834,6 +851,9 @@ func _singularity(at: Vector3, victim: Node) -> void:
 		e.call(&"damage", float(s["dmg"]) * Upgrades.damage_mult(), false)
 
 
+const SHELL_SIZE := {&"pistol": 0.72, &"smg": 0.78, &"rifle": 1.0, &"sniper": 1.45, &"shotgun": 1.7, &"heavy": 1.15}      ## casing size by class (calibre)
+
+
 ## A spent casing leaves the ejection port to the right of the rifle: real tumbling brass (FX.casings, one draw call) and a tiny spark where it left.
 func _eject_shell() -> void:
 	if _player == null or _player.body == null or _player.body.muzzle == null:
@@ -842,7 +862,13 @@ func _eject_shell() -> void:
 	var cam := _player.camera_rig.camera.global_basis
 	var port := _player.body.muzzle.global_position + cam.z * 0.45 + cam.x * 0.1 - Vector3(0.0, 0.05, 0.0)       # behind the muzzle, towards the shooter's hand
 	var vel := cam.x * randf_range(2.4, 3.6) + Vector3.UP * randf_range(2.2, 3.4) + cam.z * randf_range(0.4, 1.2)
-	FX.casings.eject(port, vel, _player.global_position.y)
+	var size_k := 1.0
+	if WeaponModels.has_model(current):                                   # a kit model: the case leaves the ejection port of THE weapon, its size follows the calibre (class)
+		var mz := _player.body.muzzle
+		port = mz.global_transform * (WeaponModels.point(current, "eject") * WeaponModels.look_scale(current))
+		vel = mz.global_basis.x * randf_range(2.2, 3.4) + Vector3.UP * randf_range(2.0, 3.2) + mz.global_basis.z * randf_range(0.2, 0.9)
+		size_k = float(SHELL_SIZE.get(WeaponDefs.class_of(current), 1.0)) * (1.35 if String(WeaponDefs.family_of(current)) in ["sniper", "lmg"] else 1.0)
+	FX.casings.eject(port, vel, _player.global_position.y, size_k)
 	FX.burst(port, Color(1.0, 0.8, 0.35), 1, 2.2, 0.3, 9.0, 0.5)
 
 
@@ -892,13 +918,17 @@ func _hit_world(hit: Vector3, normal: Vector3) -> void:
 	var n := normal if normal != Vector3.ZERO else Vector3.UP
 	var is_prop := is_instance_valid(_last_collider) and (_last_collider as Node).has_meta(&"surface")
 	var surface := Breakables.surface_of(_last_collider) if is_prop else ImpactSparks.surface_at(hit, n)           # a prop knows its material; the street and the facades are told apart by where the hit is (wave 113: asphalt, glass and concrete holes differ)
+	if is_prop and surface == &"wood" and String((_last_collider as Node).name).begins_with("Trunk") and (_last_collider as Node3D).get_child_count() > 0:
+		var cs := (_last_collider as Node3D).get_child(0) as CollisionShape3D                                      # a tree: wood on the trunk, leaves in the upper crown (wave 114: impact by material)
+		if cs != null and cs.shape is CylinderShape3D and hit.y > (_last_collider as Node3D).global_position.y + 0.1 * (cs.shape as CylinderShape3D).height:
+			surface = &"foliage"
 	if is_instance_valid(_last_collider) and Breakables.current != null:
 		Breakables.current.hit_at(_last_collider, hit, n)
 	if is_instance_valid(_last_collider) and WorldBlasters.current != null:
 		WorldBlasters.current.hit_collider(_last_collider, hit, maxf(1.0, float(def["damage"]) / 14.0))          # a shot barrel, gas tank or fuel truck goes off (scripts/combat/world_blasters.gd)
 	if _sparks != null:
 		_sparks.impact_world(hit, n, surface if is_prop else &"")
-	if _decals != null:
+	if _decals != null and surface != &"dirt" and surface != &"water" and surface != &"foliage":                  # soft ground, leaves and a lake keep no hole
 		_decals.add(hit, n, randf_range(0.22, 0.3), surface)
 
 
@@ -908,7 +938,7 @@ func _tick_charge(dt: float, firing: bool, aiming: bool) -> void:
 	var need := float(def["charge_time"])
 	if firing and ammo > 0 and fire_t <= 0.0:
 		if charge <= 0.0:
-			Sfx.play(&"link", -8.0, 0.8)
+			WeaponAudio.charge_start(current)                 # the charge-up (or the string) of the weapon's set
 		charge = minf(1.0, charge + dt / need)
 		_charge_fx -= dt
 		if _charge_fx <= 0.0:                               # the charge is visible: a growing flare at the muzzle, a spark ring at full charge
@@ -923,8 +953,9 @@ func _tick_charge(dt: float, firing: bool, aiming: bool) -> void:
 		if c >= float(def["min_charge"]) and ammo > 0 and fire_t <= 0.0 and reload_t <= 0.0 and swap_t <= 0.0:
 			_fire_lance(c, aiming)
 	elif firing and ammo <= 0 and fire_t <= 0.0:
-		Sfx.dry_fire()
-		start_reload()
+		WeaponAudio.dry_sound(current)
+		if not start_reload() and reserve == 0:
+			_auto_swap()
 
 
 func _fire_lance(c: float, aiming: bool) -> void:
@@ -934,11 +965,7 @@ func _fire_lance(c: float, aiming: bool) -> void:
 	fire_t = float(def["interval"])
 	_since_shot = 0.0
 	_burst = 1
-	if c >= 0.95:
-		Sfx.play(Sfx.shot_sound(&"shot", false, true), 0.0, 1.0)             # a full charge: the overcharged shot (sub fall, plasma zap, shimmering tail)
-	else:
-		Sfx.play(&"boom", -8.0, 1.7)
-		Sfx.play(&"shot", 0.0, 0.7)
+	WeaponAudio.fire_charged(current, def, c >= 0.95)                    # the weapon's own set; a full charge of an energy weapon is the overcharged shot (sub fall, plasma zap, shimmering tail)
 	var ar := _aim_ray(cone())
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]
@@ -1035,9 +1062,8 @@ func _throw(yaw_off := 0.0, quiet := false, opts := {}) -> void:
 	if def.has("bid"):                                       # the BLAST ARSENAL (scripts/combat/blast_ops.gd): its own flight, fuse, mines and strike markers
 		BlastOps.weapon_fire(self, yaw_off, opts)
 		return
-	Sfx.play(&"blink", -6.0, 1.6)
-	if bool(def.get("launch", false)) and not quiet:
-		Sfx.play(StringName(def.get("snd", &"shot")), float(def.get("vol", -2.0)), randf_range(float(def["pitch_lo"]), float(def["pitch_hi"])))
+	if not quiet:                                            # wave 114 critic: the voice of the weapon's own sound set (hand grenade, rocket tube, pod pack ...), not the QUANTUM BLINK
+		WeaponAudio.launch(current, def)
 	var ar := _aim_ray(0.0)
 	var origin: Vector3 = ar[0]
 	var dir: Vector3 = ar[1]
@@ -1583,7 +1609,7 @@ func alt_fire(aiming := false) -> bool:
 	var a := WeaponDefs.alt_of(current)
 	var cost := int(a["cost"])
 	if ammo < cost:
-		Sfx.dry_fire()
+		WeaponAudio.dry_sound(current)
 		return false
 	inspect_t = 0.0
 	var kind := String(a["kind"])
@@ -1638,7 +1664,6 @@ func alt_fire(aiming := false) -> bool:
 				return false
 	fire_t = maxf(fire_t, float(a["cd"]))
 	alt_fired += 1
-	Sfx.play(&"link", -8.0, 1.6)
 	return shots_fired > before or kind in ["vent", "pull", "lunge", "blink", "pop", "zoom", "brace", "mode", "surge"]
 
 
@@ -1658,7 +1683,7 @@ func _whip_pull(range_m: float) -> bool:
 			best_d = off.length()
 			best = e
 	if best == null:
-		Sfx.dry_fire()
+		WeaponAudio.dry_sound(current)
 		return false
 	var en := best as Node3D
 	en.global_position = p.global_position + fwd * 2.4
@@ -1712,9 +1737,4 @@ func _tick_inspect(dt: float, busy: bool) -> void:
 
 ## Weapon-specific hit confirm: pitch / volume per class, a heavier layer on the slow weapons, a brighter tick on a kill.
 func _hit_sound(kill: bool, crit: bool) -> void:
-	var h := WeaponDefs.hit_snd(current)
-	Sfx.play(&"hit", float(h[1]) - 6.0, float(h[0]) * (1.25 if kill else (1.1 if crit else 1.0)))
-	if kill:
-		Sfx.play(&"hit_kill", -4.0, float(h[0]) * 0.9 + 0.15)                     # a kill has its own dull thock and glassy tick on top of the hit
-	if StringName(h[2]) != &"":
-		Sfx.play(StringName(h[2]), -9.0, float(h[0]) + 0.3)
+	WeaponAudio.hit_marker(current, kill, crit, _last_victim_kind, String(WeaponDefs.class_of(current)) == "blast")        # wave 114: tick, head, armour, shield, kill, kill head, kill blast

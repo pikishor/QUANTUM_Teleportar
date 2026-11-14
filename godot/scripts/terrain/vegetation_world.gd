@@ -511,6 +511,7 @@ func _place_blockers(near: Array) -> void:
 			cyl.radius = float(e[4])
 			cyl.height = float(e[5])
 			b.global_position = Vector3(float(e[1]), float(e[2]) + float(e[5]) * 0.5 - 0.1, float(e[3]))
+			b.set_meta(&"surface", &"wood" if float(e[5]) >= 5.0 else &"concrete")      # wave 114: a bullet knows a trunk from a boulder (impact sound, splinters, no hole)
 		else:
 			b.global_position = Vector3(0.0, -2000.0, 0.0)
 	_pool_used = used

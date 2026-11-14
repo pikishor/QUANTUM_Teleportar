@@ -16,6 +16,8 @@ const GENERIC := ["GUN", "RIFLE", "PISTOL", "SMG", "SHOTGUN", "CARBINE", "SNIPER
 static var favourites: Array[StringName] = []
 static var recent: Array[StringName] = []
 static var _caps := {}
+static var _seen := {}                            ## weapons the hero has looked at on a card (the NEW filter shows the owned ones that are not here)
+static var _seen_ready := false                   ## false until the first question: then everything owned at that moment counts as seen (an old save, a fresh game)
 
 
 ## The caption under a weapon tile: the whole name when it is short ("ARC SABRE"), else its first two words ("ION BATTLE"), else the first word ("PILLAR"): at most CAP_MAX characters, the same on every
@@ -64,6 +66,38 @@ static func _build_captions() -> void:
 static func reset() -> void:
 	favourites.clear()
 	recent.clear()
+	_seen.clear()
+	_seen_ready = false
+	LoadoutSlots.reset()
+
+
+static func _ensure_seen() -> void:
+	if _seen_ready:
+		return
+	_seen_ready = true
+	for id: StringName in WeaponDefs.all_ids():
+		if WeaponDefs.is_unlocked(id):
+			_seen[id] = true
+
+
+## An owned weapon the hero has not looked at on its card yet (a crate, a mission reward, a purchase): the NEW filter and the NEW badge of the Arsenal.
+static func is_new(id: StringName) -> bool:
+	_ensure_seen()
+	return WeaponDefs.is_unlocked(id) and not _seen.has(id)
+
+
+static func mark_seen(id: StringName) -> void:
+	_ensure_seen()
+	_seen[id] = true
+
+
+static func new_count() -> int:
+	_ensure_seen()
+	var n := 0
+	for id: StringName in WeaponDefs.all_ids():
+		if WeaponDefs.is_unlocked(id) and not _seen.has(id):
+			n += 1
+	return n
 
 
 ## The weapon in hand changed: it goes to the front of RECENT.
@@ -202,11 +236,24 @@ static func to_save() -> Dictionary:
 	var r := PackedStringArray()
 	for id in recent:
 		r.append(String(id))
-	return {"favourites": f, "recent": r}
+	_ensure_seen()
+	var sn := PackedStringArray()
+	for id: StringName in _seen:
+		sn.append(String(id))
+	return {"favourites": f, "recent": r, "seen": sn, "slots": LoadoutSlots.to_save()}
 
 
 static func from_save(d: Dictionary) -> void:
 	reset()
+	if d.has("seen"):                                                    # a save without the key (older builds) keeps _seen_ready false: everything owned is seen at the first question
+		var sv: Variant = d["seen"]
+		for n: Variant in (Array(sv) if sv is Array or sv is PackedStringArray else []):
+			var sid := StringName(str(n))
+			if WeaponDefs.DEFS.has(sid):
+				_seen[sid] = true
+		_seen_ready = true
+	if d.has("slots"):
+		LoadoutSlots.from_save(d["slots"])
 	for key in ["favourites", "recent"]:
 		var v: Variant = d.get(key, [])
 		for n: Variant in (Array(v) if v is Array or v is PackedStringArray else []):

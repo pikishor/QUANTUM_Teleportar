@@ -258,7 +258,7 @@ static func kill_all_enemies() -> String:
 		if is_instance_valid(e) and not e.dead:
 			e.damage(KILL, true)
 			n += 1
-	return _say("%d ENEMIES DOWN" % n)
+	return _say("1 ENEMY DOWN" if n == 1 else "%d ENEMIES DOWN" % n)        # wave 114 integrator: "1 ENEMIES DOWN" was in the QA frames since wave 108
 
 
 static func spawn_enemy(type: StringName) -> String:

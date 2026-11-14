@@ -610,6 +610,9 @@ static func _sound(e: Dictionary, pos: Vector3, radius: float) -> void:
 	if snd == &"boom" and radius < 5.0:
 		snd = &"explosion_small"
 	var vol := -3.0 + clampf((radius - 5.0) * 0.12, -1.5, 3.0)
+	if (snd == &"boom" or snd == &"explosion_small") and not bool(e.get("legacy", false)):      # wave 114: a blast sounds by its SIZE (bm_small, bm_medium, bm_large, bm_huge)
+		WeaponAudio.explosion(pos, radius, vol - 1.0, float(e.get("snd_pitch", 1.0)))
+		return
 	var pitch := float(e.get("snd_pitch", 1.0)) * lerpf(1.12, 0.84, clampf(radius / 18.0, 0.0, 1.0))
 	if bool(e.get("legacy", false)):
 		vol = -3.0
