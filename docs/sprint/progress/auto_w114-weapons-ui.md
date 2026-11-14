@@ -1,6 +1,6 @@
 # w114-weapons-ui (running)
 
-agent id ac324edf59c1145b1, 1216 events, first activity 2026-11-14T15:09:03.986Z, last activity 2026-11-14T17:11:30.084Z
+agent id ac324edf59c1145b1, 1230 events, first activity 2026-11-14T15:09:03.986Z, last activity 2026-11-14T17:12:55.466Z
 
 ## Last notes of the agent
 
@@ -12,9 +12,6 @@ agent id ac324edf59c1145b1, 1216 events, first activity 2026-11-14T15:09:03.986Z
 
 ## Recent steps (last 40)
 
-- 16:56:20 Read bar column constants
-- 16:56:27 Widen the bar value column so deltas do not touch
-- 16:56:31 Render the reveal, HUD plate and wheel frames
 - 16:58:12 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/01_reveal_mid.png
 - 16:58:18 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c2/00_reveal_flash.png
 - 16:58:25 Check what node type the Hud is and how its layers are arranged
@@ -52,6 +49,9 @@ agent id ac324edf59c1145b1, 1216 events, first activity 2026-11-14T15:09:03.986Z
 - 17:11:07 Keep thumb pages resident and LRU only the card pages
 - 17:11:15 Update the page cache tests for the thrash fix and rerun test_weapon_pics
 - 17:11:30 Strengthen the wheel thrash test and re-render the wheel frames
+- 17:12:49 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c3/01_wheel_classes.png
+- 17:12:52 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c3/02_wheel_ring.png
+- 17:12:55 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c3/00_hud_plate.png
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
