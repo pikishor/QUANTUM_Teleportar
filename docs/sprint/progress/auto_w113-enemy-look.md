@@ -1,6 +1,6 @@
 # w113-enemy-look (running)
 
-agent id af3e21c104cae84b2, 378 events, first activity 2026-11-14T03:11:42.779Z, last activity 2026-11-14T03:48:35.121Z
+agent id af3e21c104cae84b2, 382 events, first activity 2026-11-14T03:11:42.779Z, last activity 2026-11-14T03:49:21.919Z
 
 ## Last notes of the agent
 
@@ -8,7 +8,6 @@ agent id af3e21c104cae84b2, 378 events, first activity 2026-11-14T03:11:42.779Z,
 
 ## Recent steps (last 40)
 
-- 03:31:47 Write FoeArms weapon attach function
 - 03:31:59 Patch HeroCharacter.build with enemy look hooks
 - 03:32:43 Write foe_body shader
 - 03:33:07 Operative per-frame rig drive and Locomotion.update signature
@@ -48,6 +47,7 @@ agent id af3e21c104cae84b2, 378 events, first activity 2026-11-14T03:11:42.779Z,
 - 03:48:23 Write RosterHuman bridge and hook it into RosterFoe and RosterKit
 - 03:48:30 Read roster2 test setup
 - 03:48:35 Run the roster-2 test with the new human bodies
+- 03:49:21 Capture roster-2 test result lines
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
