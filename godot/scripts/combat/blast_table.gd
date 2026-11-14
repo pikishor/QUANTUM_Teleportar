@@ -398,8 +398,11 @@ static func _legacy_targets(e: Dictionary, pos: Vector3, radius: float, dm: floa
 	var dmg: Dictionary = e["dmg"]
 	var enemy_dmg := float(dmg["enemy"])
 	var tree := Game.get_tree()
-	if Game.civilian_casualties and radius >= 2.0 and is_instance_valid(Game.world) and Game.world.get(&"ambient") != null:
-		res["civilians_killed"] = Game.world.ambient.blast_civilians(pos, radius, enemy_dmg > 0.0)      # a blast that hurts enemies is the hero's (or his car's); an enemy's striker is not
+	if radius >= 2.0 and is_instance_valid(Game.world) and Game.world.get(&"ambient") != null:
+		if Game.civilian_casualties:
+			res["civilians_killed"] = Game.world.ambient.blast_civilians(pos, radius, enemy_dmg > 0.0)      # a blast that hurts enemies is the hero's (or his car's); an enemy's striker is not
+		else:
+			_scare_crowd(pos, radius)                                       # the option says "they only run": a blast next to a crowd still sends it running
 	if enemy_dmg > 0.0:
 		for n: Node in tree.get_nodes_in_group(&"enemy"):
 			var en := n as Node3D
@@ -409,14 +412,20 @@ static func _legacy_targets(e: Dictionary, pos: Vector3, radius: float, dm: floa
 			var d := en.global_position.distance_to(pos)
 			if d < reach:
 				var amount := TestMode.damage(enemy_dmg * dm * factor(e, d, float((e["pad"] as Dictionary)["enemy"])) * _cover(pos, en.global_position + Vector3(0.0, 1.0, 0.0)))
+				if StringName(e["id"]) != &"adhoc":
+					_loud(en)                                               # a named weapon blast is loud; the hero's own quantum abilities (an ad-hoc blast: the blink strike) stay as quiet as they were
 				en.call(&"damage", amount)
+				BlastCredit.dealt(en, amount)                               # an enemy hurts enemies with enemy_dmg 0: this is the hero's blast (marker, number, kill credit)
 				res["enemies"] = int(res["enemies"]) + 1
 				res["enemy_total"] = float(res["enemy_total"]) + amount
 	var car_dmg := float(dmg["vehicle"])
+	var hero_car: Variant = Game.player.get(&"vehicle") if is_instance_valid(Game.player) else null
 	for v: Node in tree.get_nodes_in_group(&"vehicle"):
 		var vn := v as Node3D
 		if vn == null:
 			continue
+		if enemy_dmg > 0.0 and not bool(e.get("friendly", false)) and is_instance_valid(hero_car) and vn == hero_car:
+			continue                                                        # the hero's own gun does not wreck the car or tank he fires it from
 		var vpad := float((e["pad"] as Dictionary)["vehicle"])
 		var d := vn.global_position.distance_to(pos)
 		if d < radius + vpad:
@@ -459,10 +468,11 @@ static func _targets(e: Dictionary, pos: Vector3, radius: float, dm: float, sour
 	var cover_on := bool(e.get("cover", true))
 	var st: Dictionary = e["status"]
 	var st_kind := StringName(st.get("kind", &""))
-	# --- civilians and animals: hurt by the curve, the rest flee
-	if Game.civilian_casualties and float(dmg["civilian"]) >= 0.0 and is_instance_valid(Game.world) and Game.world.get(&"ambient") != null:
-		_civilians(e, pos, radius, dm, by_hero, res, st_kind)
+	# --- civilians and animals: hurt by the curve, the rest flee (with the option "people can be hurt" off they still run, nobody is hurt)
+	if float(dmg["civilian"]) >= 0.0 and is_instance_valid(Game.world) and Game.world.get(&"ambient") != null:
+		_civilians(e, pos, radius, dm, by_hero, res, st_kind, Game.civilian_casualties)
 	# --- enemies
+	var credit := BlastCredit.credited(source, by_hero)                    # the hero's blasts and the world's (a barrel, a wreck) count for him: marker, number, kills for the side jobs
 	var base_enemy := float(dmg["enemy"]) * dm
 	for n: Node in tree.get_nodes_in_group(&"enemy"):
 		var en := n as Node3D
@@ -477,7 +487,10 @@ static func _targets(e: Dictionary, pos: Vector3, radius: float, dm: float, sour
 		var cov := _cover(pos, p + Vector3(0.0, 1.0, 0.0)) if cover_on else 1.0
 		var amount := TestMode.damage(base_enemy * f * cov) if base_enemy > 0.0 else 0.0
 		if amount > 0.0:
+			_loud(en)
 			en.call(&"damage", amount)
+			if credit:
+				BlastCredit.dealt(en, amount)
 		res["enemies"] = int(res["enemies"]) + 1
 		res["enemy_total"] = float(res["enemy_total"]) + amount
 		if (res["enemy_hits"] as Dictionary).size() < MAX_RESULT_IDS:
@@ -494,10 +507,13 @@ static func _targets(e: Dictionary, pos: Vector3, radius: float, dm: float, sour
 	# --- vehicles
 	var base_car := float(dmg["vehicle"]) * dm
 	var hero_vehicle: Variant = Game.player.get(&"vehicle") if is_instance_valid(Game.player) else null
+	var spared := _spared_vehicle(e, source, by_hero, hero_vehicle)
 	for v: Node in tree.get_nodes_in_group(&"vehicle"):
 		var vn := v as Node3D
 		if vn == null or not is_instance_valid(vn) or not vn.is_inside_tree() or bool(vn.get(&"dead")):
 			continue
+		if spared != null and vn == spared:
+			continue                                                         # the tank, car or aircraft that fired it does not wreck itself with a shell that is not "friendly" (see _spared_vehicle)
 		var vp := vn.global_position
 		var d := vp.distance_to(pos)
 		var vpad := float(pad["vehicle"])
@@ -539,6 +555,34 @@ static func _targets(e: Dictionary, pos: Vector3, radius: float, dm: float, sour
 				ops.status_hero(e, f, pos)
 
 
+## An explosion is never a silent takedown: the guard it hurts knows about it. Without this `Drone.damage` scored +150 "SILENT TAKEDOWN" (and a stealth takedown) for every unaware guard a grenade
+## killed and, inside a room, kept the other guards from hearing the blast (no alert, no heat). Called before every blast damage to an enemy.
+static func _loud(en: Node) -> void:
+	if en.get(&"aware") == false:
+		en.set(&"aware", true)
+
+
+## The vehicle that fired a blast does not take it: a tank that puts an AP shell into a wall 4 m ahead lost 520 of its 2000 hit points to its own round (measured), four such shots and the hero's tank was
+## a wreck. Entries marked `friendly` (grenades, mines, launchers: the hero's own risk) still hurt everything, his car included; ordnance and ultimates (`friendly: false`) spare the shooter's vehicle:
+## the car, tank or aircraft named as the source, or the one the hero drives when the hero fired.
+static func _spared_vehicle(e: Dictionary, source: Variant, by_hero: bool, hero_vehicle: Variant) -> Node:
+	if bool(e.get("friendly", false)):
+		return null
+	if is_instance_valid(source) and source is Node and (source as Node).is_in_group(&"vehicle"):
+		return source as Node
+	if by_hero and is_instance_valid(hero_vehicle) and hero_vehicle is Node:
+		return hero_vehicle as Node
+	return null
+
+
+## The crowd runs from a blast even with casualties off (the option only decides whether people can be killed): everybody within the flee radius of the blast.
+static func _scare_crowd(pos: Vector3, radius: float) -> void:
+	var amb: Object = Game.world.get(&"ambient") if is_instance_valid(Game.world) else null
+	var crowd: Object = amb.get(&"crowd") if amb != null else null
+	if crowd != null and crowd.has_method(&"scare_from"):
+		crowd.call(&"scare_from", pos, radius * 2.4 + 6.0)
+
+
 ## The hero is shoved by blasts that can hurt him; his own harmless ones (a flash he threw himself, EASY) only shake the camera.
 static func by_hero_safe(e: Dictionary, by_hero: bool) -> bool:
 	return by_hero and (not bool(e.get("friendly", false)) or Difficulty.current == Difficulty.EASY)
@@ -553,13 +597,13 @@ static func _soften(amount: float) -> float:
 	return clampf(amount, 0.0, maxf(p.hp - floor_hp, 0.0) / maxf(Difficulty.damage_taken(Difficulty.story_chapter()), 0.1))
 
 
-static func _civilians(e: Dictionary, pos: Vector3, radius: float, dm: float, by_hero: bool, res: Dictionary, st_kind: StringName) -> void:
+static func _civilians(e: Dictionary, pos: Vector3, radius: float, dm: float, by_hero: bool, res: Dictionary, st_kind: StringName, hurt := true) -> void:
 	var amb: Object = Game.world.get(&"ambient")
 	var crowd: Object = amb.get(&"crowd")
 	var npc: Object = amb.get(&"npc")
 	if crowd == null:
 		return
-	var base := float((e["dmg"] as Dictionary)["civilian"]) * dm
+	var base := float((e["dmg"] as Dictionary)["civilian"]) * dm if hurt else 0.0          # `hurt` false = the option "people can be hurt" is off: the crowd only runs
 	var flee_r := radius * 2.4 + 6.0
 	var killed := 0
 	var near := PackedInt32Array()

@@ -570,6 +570,12 @@ func _extras(e: Dictionary, pos: Vector3, radius: float, cam_d: float) -> void:
 		for i in cols:
 			puff(pos + Vector3(_rng.randf_range(-0.2, 0.2) * radius, radius * (0.5 + 0.4 * float(i)), _rng.randf_range(-0.2, 0.2) * radius), Vector3(0.0, 3.4 + 0.6 * float(i), 0.0), radius * 0.45, radius * (1.0 + 0.35 * float(i)),
 					2.4 + 0.8 * float(i) + radius * 0.06, Color(smoke.r, smoke.g, smoke.b, 0.75 * near_k), K_SMOKE, 0.0, 0.9)
+	if StringName(e.get("cat", &"")) == &"mine" and radius >= 3.0:                                  # a mine or a charge goes up from the ground: a fast PLUME of dirt, not the grenade's round fireball (the wave 113 critic: frag, rocket, mortar, mine and C4 looked alike)
+		var plume := 2 if tier == 0 else (4 if tier == 1 else 6)
+		for i in plume:
+			var k := float(i) / float(maxi(plume - 1, 1))
+			puff(pos + Vector3(_rng.randf_range(-0.12, 0.12) * radius, 0.3 + radius * 0.25 * k, _rng.randf_range(-0.12, 0.12) * radius), Vector3(_rng.randf_range(-0.8, 0.8), 6.5 + 4.5 * (1.0 - k), _rng.randf_range(-0.8, 0.8)),
+					radius * (0.22 + 0.12 * k), radius * (0.55 + 0.35 * k), 1.0 + 0.7 * k, Color(0.4, 0.31, 0.22, 0.85 * near_k), K_SMOKE, 0.0, 0.45)
 	if tier > 0 and StringName(e.get("debris", &"rubble")) == &"rubble" and radius >= 3.0:
 		var n := 4 if tier == 1 else 6
 		for i in n:
@@ -675,15 +681,31 @@ func _arcs(pos: Vector3, radius: float, n: int) -> void:
 		FX.qvfx.bolt(pos + Vector3(0.0, 0.6, 0.0), tip, Color(0.7, 0.88, 1.0))
 
 
+## The street under `pos` (a ray straight down from a little above it), `pos` itself when there is none.
+func ground_under(pos: Vector3) -> Vector3:
+	var space := Game.camera.get_world_3d().direct_space_state if is_instance_valid(Game.camera) else null
+	if space == null:
+		return Vector3.INF
+	var q := PhysicsRayQueryParameters3D.create(pos + Vector3(0.0, 1.5, 0.0), pos + Vector3(0.0, -4.0, 0.0), 1)
+	var hit := space.intersect_ray(q)
+	return (hit["position"] as Vector3) if not hit.is_empty() else Vector3.INF
+
+
 ## A flame field: tall flame puffs rising from `radius` around `pos` (called on the blast and by the fire zone's tick).
 func flames(pos: Vector3, radius: float, n: int) -> void:
 	var k := maxi(1, roundi(n * (0.4 if Game.quality == 0 else (0.75 if Game.quality == 1 else 1.0))))
 	for i in k:
 		var ang := _rng.randf() * TAU
 		var r := radius * sqrt(_rng.randf()) * 0.9
-		var base := pos + Vector3(cos(ang) * r, 0.2, sin(ang) * r)
+		var base := pos + Vector3(cos(ang) * r, 0.0, sin(ang) * r)
+		var gp := ground_under(base)                                                                 # the fire stands ON the street, not at the height of the blast (the wave 113 critic saw flames hanging in the air)
+		if gp != Vector3.INF:
+			base = gp
 		var w := 0.7 + radius * 0.09                                                                 # a tongue: about twice as tall as it is wide, tip first when it dies
-		puff(base + Vector3(0.0, w * 0.9, 0.0), Vector3(0.0, 1.6, 0.0), w, w * 0.8, 0.8 + _rng.randf() * 0.45, Color(1.0, 0.36 + 0.22 * _rng.randf(), 0.05, 0.9), K_FLAME, 0.28, 0.8, 2.3)
+		if i % 3 == 2:                                                                               # every third puff is the BED of the fire: wide and low, hot, it keeps the tongues from looking like lanterns
+			puff(base + Vector3(0.0, w * 0.32, 0.0), Vector3(0.0, 0.2, 0.0), w * 1.9, w * 1.5, 1.0 + _rng.randf() * 0.5, Color(1.0, 0.3, 0.04, 0.95), K_FLAME, 0.4, 0.8, 0.62)
+		else:
+			puff(base + Vector3(0.0, w * 1.1, 0.0), Vector3(0.0, 0.55, 0.0), w, w * 0.8, 0.8 + _rng.randf() * 0.45, Color(1.0, 0.36 + 0.22 * _rng.randf(), 0.05, 0.9), K_FLAME, 0.28, 1.2, 2.3)
 	if Game.quality > 0 and _rng.randf() < 0.5:
 		puff(pos + Vector3(0.0, 1.8, 0.0), Vector3(0.0, 2.0, 0.0), radius * 0.35, radius * 0.7, 2.6, Color(0.2, 0.19, 0.19, 0.75), K_SMOKE, 0.0, 0.5)
 

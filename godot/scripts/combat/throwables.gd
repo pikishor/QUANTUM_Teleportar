@@ -183,7 +183,10 @@ func _step(e: Dictionary, dt: float) -> bool:
 				_place(e)
 			if t >= float(d["fuse"]):
 				if host != null and is_instance_valid(host) and host.has_method(&"damage"):          # what it is stuck to takes the charge on top of the blast
-					host.call(&"damage", float(d["car"]) if (host as Node).is_in_group(&"vehicle") else float(d["damage"]) * 0.5 * HeroPower.f("dmg"))
+					BlastTable._loud(host as Node)
+				host.call(&"damage", float(d["car"]) if (host as Node).is_in_group(&"vehicle") else float(d["damage"]) * 0.5 * HeroPower.f("dmg"))
+				if (host as Node).is_in_group(&"enemy"):
+					BlastCredit.dealt(host, float(d["damage"]) * 0.5 * HeroPower.f("dmg"))          # a charge stuck to a person: hit marker, kill credit
 				_blast(id, pos, float(d["radius"]), float(d["damage"]), Color(0.3, 0.9, 1.0))
 				return true
 		&"spike":
@@ -282,7 +285,9 @@ func _spikes(pos: Vector3, d: Dictionary) -> void:
 		var hits := clampi(roundi(float(n) * width / TAU * 1.6), 1, n)
 		spike_hits += hits
 		if en.has_method(&"damage"):
+			BlastTable._loud(en)
 			en.call(&"damage", TestMode.damage(per * float(hits) * HeroPower.f("dmg")), false)
+			BlastCredit.dealt(en, TestMode.damage(per * float(hits) * HeroPower.f("dmg")))
 		if en.has_method(&"stagger"):
 			en.call(&"stagger", 0.6 + 0.2 * float(hits))
 	detonated.emit(&"spike", pos)
@@ -335,7 +340,9 @@ func _emp(pos: Vector3, radius: float, secs: float, dmg: float) -> void:
 				en.call(&"disable", secs)
 				disabled_n += 1
 			if en.has_method(&"damage"):
+				BlastTable._loud(en)
 				en.call(&"damage", dmg)
+				BlastCredit.dealt(en, dmg)
 
 
 ## FLASH GRENADE: a white burst; every enemy in range (with the hero not behind a wall: no line check, the grenade is thrown in the open) freezes and forgets the hero.

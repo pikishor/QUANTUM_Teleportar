@@ -920,6 +920,7 @@ static func _cracks_texture() -> ImageTexture:
 			if rng.randf() < 0.72:
 				_line(img, prev, cur, 0.8)
 			prev = cur
+	img.generate_mipmaps()                                                      # the shader blurs the lines with the distance (car_glass.gdshader crack_lod)
 	_crack_tex = ImageTexture.create_from_image(img)
 	return _crack_tex
 

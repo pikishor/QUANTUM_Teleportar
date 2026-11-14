@@ -34,13 +34,17 @@ void fragment() {
 	float a = mix(opacity, 0.9, fres);
 	// cracks: the texture is a star of lines, projected from the dominant axis of the pane
 	float cr = 0.0;
+	// a 1 px line texture sampled without a blur turns into black and white noise 8 m away (the wave 113 critic saw a dalmatian on every blasted car): the lines blur with the distance
+	// (the texture has mipmaps now) and a broken pane frosts over (laminated glass crazes white) instead of showing a field of lines
+	float crack_lod = clamp(log2(max(length(VERTEX), 1.0) * 0.5), 0.0, 5.0);
+	float frost = smoothstep(0.85, 1.0, crack);
 	if (crack > 0.01) {
 		vec3 rel = v_obj - crack_at.xyz;
 		vec3 an = abs(v_nobj);
 		vec2 q = an.y > max(an.x, an.z) ? rel.xz : (an.x > an.z ? rel.zy : rel.xy);
 		vec2 uv = q / (crack_at.w * 2.0) + 0.5;
 		float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
-		cr = texture(crack_tex, clamp(uv, 0.0, 1.0)).a * inside * crack;
+		cr = textureLod(crack_tex, clamp(uv, 0.0, 1.0), crack_lod).a * inside * crack;
 		// beyond the star, more stars at other points of the pane as the glass gets worse: a web of thin lines, never blocks
 		if (crack > 0.5) {
 			float web = 0.0;
@@ -48,7 +52,7 @@ void fragment() {
 				vec2 off = vec2(sin(float(k) * 2.4 + 1.0), cos(float(k) * 1.7 + 0.5)) * 0.62;
 				vec2 uv2 = (q - off) / (crack_at.w * 1.5) + 0.5;
 				float in2 = step(0.0, uv2.x) * step(uv2.x, 1.0) * step(0.0, uv2.y) * step(uv2.y, 1.0);
-				web = max(web, textureLod(crack_tex, clamp(uv2, 0.0, 1.0), 0.0).a * in2);
+				web = max(web, textureLod(crack_tex, clamp(uv2, 0.0, 1.0), crack_lod).a * in2);
 			}
 			cr = max(cr, web * smoothstep(0.5, 1.0, crack) * 0.85);
 		}
@@ -82,6 +86,8 @@ void fragment() {
 			a = mix(a, 0.05, clear);
 		}
 	}
+	col = mix(col, vec3(0.5, 0.56, 0.6), frost * 0.7);
+	a = mix(a, 0.8, frost * 0.55);
 	ALBEDO = mix(col, vec3(0.8, 0.87, 0.93), cr * 0.85);
 	ALPHA = clamp(a + cr * 0.7, 0.0, 1.0);
 	ROUGHNESS = 0.12 + cr * 0.4;                                     // not a perfect mirror: a key light on a big windscreen is a soft glow, not a white blob

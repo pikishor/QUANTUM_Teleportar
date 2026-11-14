@@ -61,7 +61,7 @@ void fragment() {
 		col *= shade;
 	} else if (kind < 1.5) {                            // flame: white-yellow core, the tint at the rim, dark smoke at the end of its life
 		float core = (1.0 - smoothstep(0.0, 0.55, r + (n - 0.5) * 0.3));
-		col = mix(col, vec3(1.0, 0.92, 0.62), core * (1.0 - age) * 0.85);
+		col = mix(col, vec3(1.0, 0.8, 0.34), core * (1.0 - age) * 0.55);              // a hot yellow core in a saturated orange body (the pale 0.62 / 0.85 mix made paper-yellow cut-outs)
 		col = mix(col, col * 0.18, smoothstep(0.55, 1.0, age));
 		a *= 0.9;
 	} else if (kind < 2.5) {                            // flash pop

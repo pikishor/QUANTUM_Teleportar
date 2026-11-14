@@ -274,19 +274,23 @@ func _weapon_status(en: Node3D, s: Dictionary, wdef: Dictionary) -> void:
 
 
 func _shader(en: Node, kind: StringName, strength: float) -> void:
+	var k := 0.0
+	match kind:
+		&"burn":
+			k = 1.0
+		&"freeze":
+			k = 2.0
+		&"shock":
+			k = 3.0
+		&"dissolve":
+			k = 4.0
 	var body: Variant = en.get(&"humanoid_body")
 	if body is MeshInstance3D:
-		var k := 0.0
-		match kind:
-			&"burn":
-				k = 1.0
-			&"freeze":
-				k = 2.0
-			&"shock":
-				k = 3.0
-			&"dissolve":
-				k = 4.0
 		(body as MeshInstance3D).set_instance_shader_parameter(&"dmg_fx", Vector4(k, strength, 0.0, 0.0))
+	# the animated creatures (vael aliens, grid walkers) own their material (one per body): the same four looks through a plain uniform (wave 113 critic: they showed none)
+	var m: Variant = en.get(&"mat")
+	if m is ShaderMaterial and (m as ShaderMaterial).shader != null and (m as ShaderMaterial).shader.resource_path.ends_with("foe_creature.gdshader"):
+		(m as ShaderMaterial).set_shader_parameter(&"dmg_fx", Vector4(k, strength, 0.0, 0.0) if k < 3.5 else Vector4.ZERO)       # their own death dissolve (AlienCreature) covers the fourth state
 
 
 func _restore(s: Dictionary) -> void:

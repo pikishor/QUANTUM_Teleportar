@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode cull_back, diffuse_burley, specular_schlick_ggx;
+#include "res://assets/shaders/dmg_status.gdshaderinc"
 // The roster enemies (wave 113, enemy look v3; scripts/roster/foe_looks.gd, foe_human.gd): ONE surface, ONE draw call, NO texture. The vertex colour picks the material of a triangle
 // (merged by HeroCharacter._merge): COLOR.r = mode (0 body suit / skin, 1 gear), COLOR.g = suit weight of the body (cloth 1, skin 0), COLOR.b = kind / 16 (the palette slot, FoeKit.KIND_*),
 // COLOR.a = glow zone (FoeKit.ZONE_*). Gear parts carry baked ambient occlusion in UV.x and convex edge wear in UV.y (tools/blender/enemykit/lib.py), UV2.x = the health pip index.
@@ -193,24 +194,9 @@ void fragment() {
 		float hx = hash13(floor(v_pos * 6.0));
 		emis += vec3(0.3, 0.9, 1.0) * shield * (rim * 1.6 + 0.12 + 0.18 * hx * (0.5 + 0.5 * sin(TIME * 3.0 + hx * 6.28)));
 	}
-	if (dmg_fx.y > 0.001) {
-		float flick = 0.5 + 0.5 * sin(TIME * 19.0 + v_pos.y * 43.0 + v_pos.x * 27.0);
-		float s = dmg_fx.y;
-		if (dmg_fx.x < 1.5) {
-			alb = mix(alb, vec3(0.02, 0.017, 0.016), 0.7 * s);
-			emis += vec3(1.0, 0.3, 0.04) * s * (0.15 + 0.7 * flick * flick) * (0.35 + 0.65 * (1.0 - clamp(v_pos.y / 1.9, 0.0, 1.0)));
-		} else if (dmg_fx.x < 2.5) {
-			alb = mix(alb, vec3(0.62, 0.82, 0.96), 0.72 * s);
-			rough = mix(rough, 0.1, s);
-			emis += vec3(0.12, 0.28, 0.5) * s;
-		} else if (dmg_fx.x < 3.5) {
-			emis += vec3(0.45, 0.7, 1.0) * s * step(0.5, fract(TIME * 14.0 + v_pos.y * 3.0)) * 1.3;
-		} else {
-			float dn = hash13(floor(v_pos * 70.0));
-			if (dn < s * 0.85) {
-				discard;
-			}
-			emis += vec3(0.6, 0.25, 1.0) * smoothstep(s * 0.85, s * 0.85 + 0.15, dn) * s * 2.0;
+	if (dmg_fx.y > 0.001) {                                                    // burning, frozen, shocked, dissolving: assets/shaders/dmg_status.gdshaderinc (position on the body, never the UV)
+		if (dmg_status(dmg_fx, v_pos, clamp(v_pos.y / 1.9, 0.0, 1.0), pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 2.5), TIME, alb, rough, metal, emis)) {
+			discard;
 		}
 	}
 	// readability at distance (far_k 0..0.55 from 9 m, set by RosterHuman): beyond 20 m the paint is lifted and a little more saturated, a 20 px figure only has its overall hue and value to say whose it is

@@ -115,6 +115,8 @@ func _shoot() -> void:
 		var col: Object = r["collider"]
 		if col != null and col.has_method(&"damage"):
 			col.call(&"damage", float(def["dmg"]))
+			if car.driver_is_player and col is Node and (col as Node).is_in_group(&"enemy"):
+				BlastCredit.dealt(col, float(def["dmg"]))                         # the hero's vehicle gun hits count like his own bullets (marker, kills for the side jobs)
 			hits += 1
 		var blast := float(def.get("blast", 0.0))
 		if blast > 0.0 and car.driver_is_player and BlastOps.is_shell_gun(car.kind):                    # the player's tank fires the selected shell of the blast table: HE, AP or CLUSTER (ammo type key)
@@ -230,6 +232,8 @@ func _coax() -> void:
 		var col: Object = r["collider"]
 		if col != null and col.has_method(&"damage"):
 			col.call(&"damage", float(alt_def["dmg"]))
+			if car.driver_is_player and col is Node and (col as Node).is_in_group(&"enemy"):
+				BlastCredit.dealt(col, float(alt_def["dmg"]))
 			alt_hits += 1
 		FX.burst(end, alt_def["color"], 3, 3.0, 0.2, 5.0, 0.35)
 	FX.tracer(origin, end, alt_def["color"])

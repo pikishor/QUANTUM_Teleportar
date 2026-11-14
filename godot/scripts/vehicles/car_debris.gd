@@ -53,19 +53,15 @@ func _ready() -> void:
 	global_transform = Transform3D.IDENTITY
 	_wmm = MultiMesh.new()
 	_wmm.transform_format = MultiMesh.TRANSFORM_3D
-	_wmm.mesh = CarParts.wheel_mesh(WHEEL_R, WHEEL_W)
+	_wmm.mesh = _debris_wheel_mesh()
 	_wmm.instance_count = WHEELS
 	_pmm = MultiMesh.new()
 	_pmm.transform_format = MultiMesh.TRANSFORM_3D
 	_pmm.use_colors = true
 	var box := BoxMesh.new()
 	box.size = Vector3.ONE
-	var pm := StandardMaterial3D.new()
-	pm.vertex_color_use_as_albedo = true
-	pm.metallic = 0.12
-	pm.roughness = 0.5
-	pm.emission_enabled = true
-	pm.emission = Color(0.16, 0.16, 0.18)
+	var pm := ShaderMaterial.new()                                  # scorched, scratched paint with a bare-metal rim (assets/shaders/car_debris_panel.gdshader): a plain painted slab read as a black plank
+	pm.shader = preload("res://assets/shaders/car_debris_panel.gdshader")
 	box.material = pm
 	_pmm.mesh = box
 	_pmm.instance_count = PANELS
@@ -79,6 +75,24 @@ func _ready() -> void:
 	_wnode = _make_node(_wmm, "Wheels")
 	_pnode = _make_node(_pmm, "Panels")
 	set_process(false)
+
+
+## The wheel mesh of the flying wheels: a copy of the car wheel (the tyre of the car is almost black, which makes a wheel thrown through a dark street a black ball: the wave 113 critic saw one next to
+## every wreck) with a lighter, rougher tyre and a faint cold glow so it keeps its form against the street. The cars' own wheels keep their materials (the copy owns its own).
+static func _debris_wheel_mesh() -> Mesh:
+	var src := CarParts.wheel_mesh(WHEEL_R, WHEEL_W) as ArrayMesh
+	var wm := src.duplicate(true) as ArrayMesh
+	for i in wm.get_surface_count():
+		var m := wm.surface_get_material(i) as StandardMaterial3D
+		if m == null or m.albedo_color.get_luminance() > 0.3:
+			continue                                                                  # the rim stays a bright metal
+		m = m.duplicate() as StandardMaterial3D
+		m.albedo_color = Color(0.34, 0.34, 0.37)
+		m.roughness = 0.6
+		m.emission_enabled = true
+		m.emission = Color(0.12, 0.125, 0.14)
+		wm.surface_set_material(i, m)
+	return wm
 
 
 func _make_node(mm: MultiMesh, nm: String) -> MultiMeshInstance3D:

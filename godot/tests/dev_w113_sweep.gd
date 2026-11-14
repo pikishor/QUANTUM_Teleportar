@@ -12,6 +12,7 @@ var _ops: BlastOps
 var _spot := Vector3.ZERO
 var _yaw := 0.0
 var _foes: Array[Drone] = []
+var _timing: Array = []
 
 
 func _lane() -> bool:
@@ -118,7 +119,9 @@ func _sweep_enemies() -> void:
 			var off: Vector3 = _dir().rotated(Vector3.UP, float(angs[k])) * float(dists[k])
 			feet.append(_foe(base + off))
 		var opts := {"dmg_mult": 1.0, "quiet": true, "final": true, "dir": _dir()}
+		var t0 := Time.get_ticks_usec()
 		var res := BlastTable.apply(id, base, null, opts)
+		_timing.append([id, Time.get_ticks_usec() - t0])
 		var line := "PROBE %-16s r=%5.1f cat=%-9s en=%5.0f " % [id, r, e["cat"], float(dm["enemy"])]
 		var worst := 0.0
 		for k in 3:
@@ -142,6 +145,15 @@ func _sweep_enemies() -> void:
 		_clear_foes()
 		await TestLib.frames(_host, 2)
 	print("PROBE enemy sweep: ", n, " entries, mismatches ", bad)
+	_timing.sort_custom(func(a: Array, b: Array) -> bool: return int(a[1]) > int(b[1]))
+	var tl := "PROBE slowest apply() calls (us, 3 enemies near, MED, headless): "
+	for k in mini(12, _timing.size()):
+		tl += "%s %d, " % [_timing[k][0], int(_timing[k][1])]
+	print(tl)
+	var total := 0
+	for t in _timing:
+		total += int(t[1])
+	print("PROBE mean apply() us: ", total / maxi(_timing.size(), 1))
 
 
 func _sweep_hero() -> void:

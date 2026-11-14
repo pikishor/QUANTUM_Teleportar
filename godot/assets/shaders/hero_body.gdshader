@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode cull_disabled;
+#include "res://assets/shaders/dmg_status.gdshaderinc"
 // The superhero (HeroCharacter, scripts/characters/hero_character.gd): ONE surface for the whole hero, one draw call.
 // The vertex colour picks the material of a triangle: COLOR.r = mode (0 skin / suit, 0.25 eye, 0.5 hair 1, 0.75 hair 2, 1 gear), COLOR.g = suit weight (smooth: the suit covers
 // everything except head, neck and hands). Skin, eyes and hair keep their own PBR maps (albedo, Godot / Y+ normal, roughness); the suit is the quantum-realism layer:
@@ -357,25 +358,9 @@ void fragment() {
 		}
 	}
 	vec3 dmg_emis = vec3(0.0);
-	float dmg_k = dmg_fx.x;
-	float dmg_s = dmg_fx.y;
-	if (dmg_s > 0.001) {
-		float flick = 0.5 + 0.5 * sin(TIME * 19.0 + UV.y * 43.0 + UV.x * 27.0);
-		if (dmg_k < 1.5) {
-			alb = mix(alb, vec3(0.02, 0.017, 0.016), 0.7 * dmg_s);
-			dmg_emis = vec3(1.0, 0.3, 0.04) * dmg_s * (0.15 + 0.7 * flick * flick) * (0.35 + 0.65 * smoothstep(0.0, 1.0, 1.0 - UV.y));
-		} else if (dmg_k < 2.5) {
-			alb = mix(alb, vec3(0.62, 0.82, 0.96), 0.72 * dmg_s);
-			rough = mix(rough, 0.1, dmg_s);
-			dmg_emis = vec3(0.12, 0.28, 0.5) * dmg_s;
-		} else if (dmg_k < 3.5) {
-			dmg_emis = vec3(0.45, 0.7, 1.0) * dmg_s * step(0.5, fract(TIME * 14.0 + UV.y * 3.0)) * 1.3;
-		} else {
-			float nz = fract(sin(dot(floor(UV * 70.0), vec2(12.9898, 78.233))) * 43758.5453);
-			if (nz < dmg_s * 0.85) {
-				discard;
-			}
-			dmg_emis = vec3(0.6, 0.25, 1.0) * smoothstep(dmg_s * 0.85, dmg_s * 0.85 + 0.15, nz) * dmg_s * 2.0;
+	if (dmg_fx.y > 0.001) {                                                   // burning, frozen, shocked, dissolving: assets/shaders/dmg_status.gdshaderinc (position on the body, never the UV)
+		if (dmg_status(dmg_fx, v_pos, clamp(v_pos.y / 1.9, 0.0, 1.0), pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 2.5), TIME, alb, rough, metal, dmg_emis)) {
+			discard;
 		}
 	}
 	ALBEDO = alb * brightness;

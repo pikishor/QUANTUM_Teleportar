@@ -124,9 +124,12 @@ void fragment() {
 		Rb *= 0.9 + 0.2 * streak;
 		float soot = smoothstep(Rb, Rb * 0.25, r);
 		col = vec3(0.012, 0.011, 0.013) + vec3(0.02) * streak * (1.0 - soot);
-		float ember = (1.0 - smoothstep(0.0, 3.0, age)) * dim;
-		float ringm = smoothstep(Rb * 0.35, Rb * 0.7, r) * (1.0 - smoothstep(Rb * 0.7, Rb, r));
-		col = mix(col, C * (1.6 + glow), ember * ringm * 0.9);
+		// the ember rim of a fresh scorch: a narrow ring of GLITTERING orange sparks that dies in under two seconds (the first version was a solid cream plate of light on the wall: a sticker)
+		float ember = (1.0 - smoothstep(0.0, 1.8, age)) * dim;
+		float ringm = smoothstep(Rb * 0.4, Rb * 0.62, r) * (1.0 - smoothstep(Rb * 0.62, Rb * 0.9, r));
+		float glints = smoothstep(0.38, 0.78, vn(p * 7.0 + vec2(seed * 30.0, age * 2.0)));
+		vec3 hot = mix(C, vec3(1.0, 0.34, 0.06), 0.65);
+		col = mix(col, hot * (0.9 + 0.7 * glow), ember * ringm * glints * 0.9);
 		alpha = soot * 0.82 * fade * pop;
 	} else if (kind < 4.5) {
 		// ---- cracks and pockmarks (3 = concrete, 4 = glass) ----

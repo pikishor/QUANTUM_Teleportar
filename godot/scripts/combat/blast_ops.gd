@@ -457,7 +457,10 @@ func _step_proj(it: Dictionary, dt: float) -> bool:
 			return false                                          # a satchel waits for DETONATE
 		if float(it["left"]) <= 0.0:
 			if host != null and is_instance_valid(host) and (host as Node).has_method(&"damage") and bool(dv.get("stick", false)):
+				BlastTable._loud(host as Node)
 				(host as Node).call(&"damage", float((e["dmg"] as Dictionary)["vehicle"]) * 0.4 if (host as Node).is_in_group(&"vehicle") else float((e["dmg"] as Dictionary)["enemy"]) * 0.4)
+				if (host as Node).is_in_group(&"enemy") and BlastCredit.credited(it.get("src"), BlastTable._is_hero(it.get("src"), {})):
+					BlastCredit.dealt(host, float((e["dmg"] as Dictionary)["enemy"]) * 0.4)       # the charge stuck to a person counts as a hit and, when it kills, as a kill
 			_detonate(it, pos)
 			return true
 		_pulse(it)
@@ -1228,7 +1231,10 @@ func _tick_pre(z: Dictionary, dt: float) -> void:
 				en.call(&"break_shield")
 			if en.has_method(&"disable"):
 				en.call(&"disable", 0.35)
-			en.global_position += to / d * minf(power * (0.45 + 0.55 * (1.0 - d / radius)) * dt, d - 0.9)
+			var pull := to / d * minf(power * (0.45 + 0.55 * (1.0 - d / radius)) * dt, d - 0.9)
+			var chest := en.global_position + Vector3(0.0, 0.9, 0.0)
+			if _ray(chest, chest + pull.normalized() * (pull.length() + 0.6), 1).is_empty():          # a well pulls through the air, not through a building: somebody behind a wall stays behind it
+				en.global_position += pull
 	for n: Node in get_tree().get_nodes_in_group(&"vehicle"):
 		var v := n as Node3D
 		if v == null or PlayerWeapon._is_dead(v) or v == Game.player.get(&"vehicle") or not v.has_method(&"apply_impulse"):
@@ -1244,14 +1250,15 @@ func _tick_fire(z: Dictionary) -> void:
 	var radius := float(z["radius"])
 	var dps := float(z["dps"])
 	BlastFx.shared().flames(pos, radius, 4)
+	var credit := BlastCredit.credited(z.get("src"), BlastTable._is_hero(z.get("src"), {}))
 	for en in Gear.living_enemies(get_tree()):
 		if en.global_position.distance_to(pos) < radius:
-			burn(en, dps, 2.0)
+			burn(en, dps, 2.0, credit)
 	for n: Node in get_tree().get_nodes_in_group(&"vehicle"):
 		var v := n as Node3D
 		if v != null and not PlayerWeapon._is_dead(v) and v.global_position.distance_to(pos) < radius + 1.5 and v.has_method(&"damage"):
 			v.call(&"damage", dps * 0.5 * 0.5)
-	if Game.civilian_casualties and is_instance_valid(Game.world) and Game.world.get(&"ambient") != null:
+	if is_instance_valid(Game.world) and Game.world.get(&"ambient") != null:                 # people run from a fire whether or not they can be hurt (the casualties option)
 		Game.world.ambient.crowd.scare_from(pos, radius * 2.0)
 
 
@@ -1336,8 +1343,12 @@ func _step_air(dt: float) -> void:
 	var i := _air.size() - 1
 	while i >= 0:
 		var a: Dictionary = _air[i]
+		if not is_instance_valid(a["n"]):                                 # a freed body (an alien that dissolved) is checked BEFORE the cast: `as` on a freed object is a script error that ended the step and came back every frame
+			_air.remove_at(i)
+			i -= 1
+			continue
 		var n := a["n"] as Node3D
-		if not is_instance_valid(n) or PlayerWeapon._is_dead(n):
+		if PlayerWeapon._is_dead(n):
 			_air.remove_at(i)
 			i -= 1
 			continue
@@ -1377,9 +1388,10 @@ func status(en: Node3D, e: Dictionary, f: float, source: Variant, pos: Vector3) 
 	var kind := StringName(st["kind"])
 	var secs := float(st["time"])
 	var power := float(st["power"])
+	var credit := BlastCredit.credited(source, BlastTable._is_hero(source, {}))        # the hero's burn and shock chain: marker and kill credit (BlastCredit)
 	match kind:
 		&"burn":
-			burn(en, power * (0.6 + 0.4 * f), secs)
+			burn(en, power * (0.6 + 0.4 * f), secs, credit)
 			return true
 		&"stun":
 			if en.has_method(&"disable"):
@@ -1408,13 +1420,13 @@ func status(en: Node3D, e: Dictionary, f: float, source: Variant, pos: Vector3) 
 				frozen_n += 1
 			return true
 		&"shock":
-			_chain(en, e, power, f)
+			_chain(en, e, power, f, credit)
 			return true
 	return false
 
 
 ## Lightning jumps from `from` to up to three neighbours within 7 m: `power` of the centre damage each, arcs drawn with the quantum bolts.
-func _chain(from: Node3D, e: Dictionary, power: float, f: float) -> void:
+func _chain(from: Node3D, e: Dictionary, power: float, f: float, credit := false) -> void:
 	var base := float((e["dmg"] as Dictionary)["enemy"]) * power * maxf(f, 0.4)
 	var hit := 0
 	var origin := from.global_position + Vector3(0.0, 1.0, 0.0)
@@ -1426,7 +1438,10 @@ func _chain(from: Node3D, e: Dictionary, power: float, f: float) -> void:
 			continue
 		hit += 1
 		shocked_n += 1
+		BlastTable._loud(en)
 		en.call(&"damage", TestMode.damage(base))
+		if credit:
+			BlastCredit.dealt(en, TestMode.damage(base), Vector3.INF, false)
 		if en.has_method(&"stagger"):
 			en.call(&"stagger", 0.8)
 		if FX.qvfx != null:
@@ -1435,13 +1450,14 @@ func _chain(from: Node3D, e: Dictionary, power: float, f: float) -> void:
 		FX.qvfx.bolt(origin, origin + Vector3(_rng.randf_range(-2.0, 2.0), 1.5, _rng.randf_range(-2.0, 2.0)), Color(0.7, 0.9, 1.0))
 
 
-func burn(en: Node3D, dps: float, secs: float) -> void:
+func burn(en: Node3D, dps: float, secs: float, credit := false) -> void:
 	var key := en.get_instance_id()
 	if not _burn.has(key) and _burn.size() >= MAX_BURN:
 		return
-	var b: Dictionary = _burn.get(key, {"node": en, "dps": dps, "left": secs, "acc": 0.0, "fx": 0.0})
+	var b: Dictionary = _burn.get(key, {"node": en, "dps": dps, "left": secs, "acc": 0.0, "fx": 0.0, "credit": false})
 	b["dps"] = maxf(float(b["dps"]), dps)
 	b["left"] = maxf(float(b["left"]), secs)
+	b["credit"] = bool(b.get("credit", false)) or credit                 # whoever lit it last for the hero keeps the kill for him
 	if not _burn.has(key):
 		burned_n += 1
 	_burn[key] = b
@@ -1454,17 +1470,20 @@ func burning_count() -> int:
 func _step_burn(dt: float) -> void:
 	for key: int in _burn.keys():
 		var b: Dictionary = _burn[key]
-		var n := b["node"] as Node3D
-		if not is_instance_valid(n) or PlayerWeapon._is_dead(n):
+		if not is_instance_valid(b["node"]) or PlayerWeapon._is_dead(b["node"]):
 			_burn.erase(key)
 			continue
+		var n := b["node"] as Node3D
 		b["left"] = float(b["left"]) - dt
 		b["acc"] = float(b["acc"]) + dt
 		b["fx"] = float(b["fx"]) + dt
 		if float(b["acc"]) >= 0.5:
 			var dmg := float(b["dps"]) * float(b["acc"])
 			b["acc"] = 0.0
+			BlastTable._loud(n)
 			n.call(&"damage", TestMode.damage(dmg))
+			if bool(b.get("credit", false)):
+				BlastCredit.dealt(n, dmg, Vector3.INF, false)               # a burn that kills is a kill of the hero's (side jobs, stats); the ticks before it do not flash the crosshair
 		if float(b["fx"]) >= 0.35:
 			b["fx"] = 0.0
 			FX.burst(n.global_position + Vector3(0.0, 1.0, 0.0), Color(1.0, 0.45, 0.1), 3, 1.5, 0.5, -2.0, 1.4)
@@ -1489,11 +1508,11 @@ func _step_toss(dt: float) -> void:
 	var i := _toss.size() - 1
 	while i >= 0:
 		var t: Dictionary = _toss[i]
-		var v := t["v"] as Node3D
-		if not is_instance_valid(v) or v.get(&"visual") == null:
+		if not is_instance_valid(t["v"]) or (t["v"] as Object).get(&"visual") == null:          # a car freed in the air: valid first, cast after (see _step_air)
 			_toss.remove_at(i)
 			i -= 1
 			continue
+		var v := t["v"] as Node3D
 		t["t"] = float(t["t"]) + dt
 		var u := clampf(float(t["t"]) / float(t["dur"]), 0.0, 1.0)
 		var model := (v.get(&"visual") as Object).get(&"model") as Node3D
@@ -1524,10 +1543,10 @@ func status_vehicle(v: Node3D, e: Dictionary, f: float) -> void:
 func _step_hold(dt: float) -> void:
 	for key: int in _hold.keys():
 		var h: Dictionary = _hold[key]
-		var v := h["node"] as Node3D
-		if not is_instance_valid(v) or PlayerWeapon._is_dead(v):
+		if not is_instance_valid(h["node"]) or PlayerWeapon._is_dead(h["node"]):
 			_hold.erase(key)
 			continue
+		var v := h["node"] as Node3D
 		h["left"] = float(h["left"]) - dt
 		var k := clampf(float(h["k"]), 0.0, 1.0)
 		var vel: Variant = v.get(&"vel")
