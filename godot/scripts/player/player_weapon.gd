@@ -555,6 +555,7 @@ func _trace_pellet() -> void:
 	_ray.to = origin + dir * range_m
 	var walls_left := int(def.get("wall", 0))                       # AMR / PHASE RIFLE: the round goes through that many walls (not the ground), each one costs wall_k of the damage
 	var wall_k := 1.0
+	var pierced: Array[Dictionary] = []                             # the cars the round went through: each takes it (wave 113 critic: the AMR passed through a car and never hurt it)
 	for _attempt in 6 + walls_left:
 		_ray.exclude = _exclude
 		var res := space.intersect_ray(_ray)
@@ -566,6 +567,8 @@ func _trace_pellet() -> void:
 			_exclude.append(res["rid"])          # a corpse does not stop bullets; people are tested on their real shape below (HitZones), not on the physics blob
 			continue
 		if walls_left > 0 and (hit_target == null or hit_target.is_in_group(&"vehicle")) and absf((res["normal"] as Vector3).y) < 0.7:
+			if hit_target != null:
+				pierced.append({"t": hit_target, "pos": hit_pos, "n": res["normal"], "k": wall_k})
 			walls_left -= 1
 			wall_k *= float(def.get("wall_k", 0.7))
 			wall_hits += 1
@@ -628,6 +631,16 @@ func _trace_pellet() -> void:
 	if def.has("twin"):                                             # akimbo: the shot leaves the hand whose turn it is
 		mz += p.camera_rig.camera.global_basis.x * (_side * 0.16)
 	last_shot = {"origin": origin, "dir": dir, "muzzle": mz, "hit": hit, "dist": best, "target": target, "zone": zone, "civ": not civ.is_empty(), "blocked": not blocked.is_empty(), "spread": cone() * _alt_spread, "frame": Engine.get_physics_frames()}
+	for pv: Dictionary in pierced:                                    # a round that crosses a car hurts it (hole, glass, hit marker) before the hit beyond goes on with what is left of it
+		if is_instance_valid(pv["t"]) and not _is_dead(pv["t"]):
+			var real := last_shot
+			last_shot = real.duplicate()
+			last_shot["target"] = pv["t"]
+			last_shot["hit"] = pv["pos"]
+			last_shot["zone"] = &""
+			last_shot["civ"] = false
+			_hit_target(pv["t"], pv["pos"], pv["n"], float(pv["k"]))
+			last_shot = real
 	if bool(def.get("flame", false)):                               # a spray of fire along the line, not a laser
 		_flame_puffs(mz, hit)
 	elif def.has("mist"):                                           # the cold and toxic sprayers: a coloured mist along the line

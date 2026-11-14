@@ -36,7 +36,7 @@ The music is no longer synthesised: `godot/tools/music/compose.py` composes four
 
 Blocked or unusable: kenney.nl returns 403 to scripts, so Kenney's packs came through their CC0 re-uploads on OpenGameArt (their License.txt is kept); the 'SuperTuxKart sound effects' pack (OpenGameArt) is one 82 s unlabelled mp3 with no way to tell skids from crashes, so it was not used; 'Footsteps Leather, Cloth, Armor' is dual-licensed OGA-BY / CC0 and was skipped to keep the list strictly CC0.
 
-Size: art_sources clips 3.6 MB (kept in the repo so the build is reproducible); assets/audio stays inside the 24 MB budget of test_audio_budget2.
+Size: art_sources clips 3.6 MB (kept in the repo so the build is reproducible); assets/audio stays inside the 25 MB budget of test_audio_budget2 (24 MB until wave 113: the roster's 19 weapon sound sets, 0.7 MB, are the addition).
 
 ## Every clip
 

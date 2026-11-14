@@ -10,6 +10,8 @@ extends RefCounted
 ##             blast (a grenade) still hurts every car
 ##   crowd     with the option "people can be hurt" off a blast still sends the crowd running (nobody dies); with it on someone dies
 ##   pull      a well (WELL SEED, GRAVITY MINE, COLLAPSE FIELD, BLACK-HOLE) drags people through the air, not through a wall
+##   pierce    the rounds of the wall-piercing rifles (TITAN ANTI-MATERIAL RIFLE, PHASE RIFLE, BREAKER ...) went through a car broadside without hurting it (the ray excluded the car as a "wall"): the AMR
+##             could not wreck a car in 40 s; now the car takes the round (hit points, hole, marker) and the round goes on through it as before
 ##   freed     a body that is freed while a blast carries it (a tossed car, a launched or burning or frozen enemy: an alien dissolves and is freed) must not end the blast step with "Trying to cast a freed
 ##             object" every frame (it did, in the spam of 90 blasts at HIGH: the entry stayed and every other tossed car froze mid-air)
 ##   chains    a row of barrels goes off one after the other
@@ -94,6 +96,16 @@ func _frames(n: int) -> void:
 	await TestLib.frames(host, n)
 
 
+## SCRIPT errors the game logged so far (Dev.errors keeps the last 40 lines; a repeated line carries " xN"). A script error inside an awaited section ends that section without failing the test.
+func _script_errors() -> int:
+	var n := 0
+	for line in Dev.errors.snapshot():
+		if line.begins_with("[SCRIPT]"):
+			var at := line.rfind(" x")
+			n += line.substr(at + 2).to_int() if at > 0 and line.substr(at + 2).is_valid_int() else 1
+	return n
+
+
 func run(h: Node) -> void:
 	host = h
 	_reset()
@@ -130,6 +142,7 @@ func run(h: Node) -> void:
 		if kill:
 			_kill_sig[0] += 1)
 	await _frames(4)
+	var script_errors0 := _script_errors()
 	var only := OS.get_environment("W113_ONLY").split(",", false)            # look-dev: W113_ONLY=table,vehicle runs only those sections
 	if only.is_empty() or only.has("table"):
 		await _table()
@@ -143,12 +156,15 @@ func run(h: Node) -> void:
 		await _crowd()
 	if only.is_empty() or only.has("pull"):
 		await _pull()
+	if only.is_empty() or only.has("pierce"):
+		await _pierce()
 	if only.is_empty() or only.has("freed"):
 		await _freed_bodies()
 	if only.is_empty() or only.has("chains"):
 		await _chains()
 	if only.is_empty() or only.has("interior"):
 		await _interior_loud()
+	TestLib.check(_script_errors() == script_errors0, "the whole run raised no script error (%d new)" % (_script_errors() - script_errors0))
 	TestMode.god = false
 	Game.state = &"menu"
 	main.queue_free()
@@ -563,11 +579,58 @@ func _pull() -> void:
 	await _frames(3)
 
 
+# --- piercing rounds -----------------------------------------------------------------------------------------------------------------
+
+func _pierce() -> void:
+	var vm := Game.vehicles as VehicleManager
+	vm.set_physics_process(false)
+	vm._reset_all()
+	var at := spot + _dir() * 9.0
+	at.y = spot.y
+	var car := vm.spawn_parked(&"sedan", at, yaw + PI * 0.5)               # broadside to the hero
+	await _frames(3)
+	if not is_instance_valid(car):
+		TestLib.check(false, "a car stands in the lane")
+		vm.set_physics_process(true)
+		return
+	var w := p.weapon
+	WeaponDefs.unlock(&"amr")
+	w.switch_to(&"amr", true)
+	p.teleport_to(spot)
+	p.camera_rig.reset_view(yaw, -0.03)
+	p.aiming = true
+	car.hp = car.max_hp
+	var walls0 := w.wall_hits
+	var shots := 0
+	var hp_after_first := -1.0
+	while shots < 8 and not car.dead:
+		w.ammo = w.mag
+		w.reserve = 99
+		w.fire_t = 0.0
+		w.swap_t = 0.0
+		w.reload_t = 0.0
+		p.camera_rig.aim_at(car.global_position + Vector3(0.0, 0.7, 0.0))
+		w.tick(DT, true, false, true, false)
+		w.tick(DT, false, false, true, false)
+		shots += 1
+		await _frames(2)
+		if shots == 1:
+			hp_after_first = car.hp                                       # after the FIRST round: the car is still standing and has taken it
+	p.aiming = false
+	TestLib.check(car.dead and shots <= 5, "the anti-material rifle wrecks a car broadside in %d rounds (it went through it without a scratch before)" % shots)
+	TestLib.check(hp_after_first >= 0.0 and hp_after_first < car.max_hp * 0.8 and w.wall_hits - walls0 >= shots, "...the first round alone cost the car %.0f of %.0f and every round still counts as passing a wall (%d)" % [car.max_hp - hp_after_first, car.max_hp, w.wall_hits - walls0])
+	w.switch_to(&"carbine", true)
+	vm._reset_all()
+	vm.set_physics_process(true)
+	mgr.clear()
+	ops.reset()
+
+
 # --- freed bodies --------------------------------------------------------------------------------------------------------------------
 
 func _freed_bodies() -> void:
 	ops.reset()
-	var e0: int = Dev.errors.total
+	var e0 := _script_errors()
 	var a := Node3D.new()
 	var b := Node3D.new()
 	var c := FakeCar.new()                                                # a toss needs a car with a visual and a model, or its first step drops the entry
@@ -588,7 +651,7 @@ func _freed_bodies() -> void:
 	for n: Node3D in [a, b, c, d]:
 		n.free()                                                          # the way an alien creature that dissolved leaves the world
 	await _frames(4)
-	TestLib.check(Dev.errors.total == e0 and ops._air.is_empty() and ops._burn.is_empty() and ops._toss.is_empty() and ops._hold.is_empty(), "a body freed in the air, in a burn, in a toss or in a hold is dropped quietly (%d new script errors)" % (Dev.errors.total - e0))
+	TestLib.check(_script_errors() == e0 and ops._air.is_empty() and ops._burn.is_empty() and ops._toss.is_empty() and ops._hold.is_empty(), "a body freed in the air, in a burn, in a toss or in a hold is dropped quietly (%d new script errors)" % (_script_errors() - e0))
 	ops.reset()
 
 

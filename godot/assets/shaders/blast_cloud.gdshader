@@ -61,9 +61,15 @@ void fragment() {
 		col *= shade;
 	} else if (kind < 1.5) {                            // flame: white-yellow core, the tint at the rim, dark smoke at the end of its life
 		float core = (1.0 - smoothstep(0.0, 0.55, r + (n - 0.5) * 0.3));
-		col = mix(col, vec3(1.0, 0.8, 0.34), core * (1.0 - age) * 0.55);              // a hot yellow core in a saturated orange body (the pale 0.62 / 0.85 mix made paper-yellow cut-outs)
+		float h = clamp(0.5 - p.y * 0.5, 0.0, 1.0);                                   // 0 at the foot .. 1 at the tip (UV y runs down)
+		float lick = vnoise(vec2(p.x * 3.4 + seed * 17.0, p.y * 2.4 + TIME * 4.5 + seed * 9.0));    // licks that climb: the pattern scrolls upwards with the clock
+		float lick2 = vnoise(vec2(p.x * 7.0 - seed * 5.0, p.y * 4.6 + TIME * 8.5));
+		float ragged = lick * 0.65 + lick2 * 0.35;
+		a *= mix(0.3, 1.0, smoothstep(0.1 + 0.45 * h, 0.7 + 0.3 * h, ragged + 0.3 * (1.0 - h)));   // the tip breaks up into tongues, the foot stays solid (the first version was a flat teardrop: paper)
+		col = mix(col * vec3(1.0, 0.5, 0.35), col * vec3(1.0, 1.22, 1.5), (1.0 - h) * 0.85 + ragged * 0.2);   // red-orange at the tip, yellow at the foot
+		col = mix(col, vec3(1.0, 0.92, 0.6), core * (1.0 - age) * 0.5 * (1.0 - 0.5 * h));            // a hot core
 		col = mix(col, col * 0.18, smoothstep(0.55, 1.0, age));
-		a *= 0.9;
+		a *= 0.95;
 	} else if (kind < 2.5) {                            // flash pop
 		float core2 = 1.0 - smoothstep(0.0, 0.8, r);
 		col = mix(col, vec3(1.0), core2);

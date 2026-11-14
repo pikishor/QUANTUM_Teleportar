@@ -189,7 +189,8 @@ void fragment() {
 	emis += vec3(1.0, 0.35, 0.25) * pulse * (0.03 + 0.22 * edge_l);         // the roster's wind-up flash: a warm rim light, the kit stays readable (the weapon flares through `tele`)
 	emis += glow_col * drop * 0.9;
 	emis += vec3(1.0, 0.95, 0.85) * hit_k * 0.9;
-	emis += vec3(0.016, 0.018, 0.024) * (0.5 + 0.5 * v_up) * (1.0 - 0.6 * metal);                 // a readability floor: dark armour keeps its forms in overcast, rain and night light (it went black in the real game), faces that look up are lighter
+	emis += vec3(0.016, 0.018, 0.024) * (0.5 + 0.5 * v_up) * (1.0 - 0.6 * metal);
+	emis += alb * (0.3 + 0.1 * v_up) * (1.0 - metal);                          // a fake ambient of the paint itself: an enemy that stands against the light (the avenue runs into the sun) or in the rain keeps the colours of its kit instead of a black cut-out (wave 113 critic LOOK: all six mercenaries were the same black figure at 15 m; 0.1 changed nothing, 0.7 flattened the shading)                         // a fake ambient of the paint itself: an enemy that stands against the light (the avenue runs into the sun) keeps the colours of its kit instead of a black cut-out (wave 113 critic LOOK)                 // a readability floor: dark armour keeps its forms in overcast, rain and night light (it went black in the real game), faces that look up are lighter
 	if (shield > 0.001) {
 		float hx = hash13(floor(v_pos * 6.0));
 		emis += vec3(0.3, 0.9, 1.0) * shield * (rim * 1.6 + 0.12 + 0.18 * hx * (0.5 + 0.5 * sin(TIME * 3.0 + hx * 6.28)));

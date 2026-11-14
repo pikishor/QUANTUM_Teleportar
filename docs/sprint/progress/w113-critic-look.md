@@ -1,40 +1,32 @@
-# w113-critic-look (independent critic and fixer, lens LOOK) - started 2026-11-14 06:57Z
+# w113-critic-look (independent critic and fixer, lens LOOK) - started 2026-11-14 06:57Z, DONE 10:10Z
 
-GOAL: review wave 113 (damage, blasts, enemy looks) by phone-size frames (LOW and MED, 1200x540 = 2400x1080 aspect), write the 8 worst
-defects, fix them (render-look-fix), add regression tests, perf gate if rendering changed. Report under 200 words.
+GOAL: review wave 113 (damage, blasts, enemy looks) by phone-size frames (LOW and MED, 1200x540 = 2400x1080 aspect), write the 8 worst defects, fix them (render-look-fix),
+add regression tests, perf gate. Report under 200 words.
 
-DONE (07:50Z)
-- read ROUND6/RESUME/DESIGN/WORLD_EXPANSION/ROADMAP/STATE, builders' reports, ARCHITECTURE sections (blast, enemy look, damage).
-- bot tests/bot_critic_blasts.gd (extends bot_blast_arsenal.gd, adds a registered entry crit_snake). Spot for ALL runs: BX_SPOT="-47.57867,-2.931496,1.5707963267949".
-- baseline frames rendered and opened: 12 blasts x 3 distances x 3 moments at LOW and MED (scratchpad bl_low, bl_med), damage scenes (dm_low), HUD rings (hud_low).
+STATUS: DONE. Nothing committed (the integrator commits). Report = the SubagentHandback message.
 
-CANDIDATE DEFECTS SEEN (evidence = frames in scratchpad bl_low, bl_med, dm_low, hud_low, fl_low; 08:00Z)
- 1 STATUS LOOKS: burning humanoids = orange/black TIGER STRIPES (gas tank, fire line, wb_car frames), frozen = black/white zebra, shock = flat pale silhouette
-   (hero_body.gdshader + foe_body.gdshader dmg_fx use UV / v_pos stripes). ALIENS (foe_creature.gdshader) have NO burn/freeze/shock look at all (FoeFx._shader only sets humanoid_body).
- 2 SHATTERED WINDSCREEN = black/white cow print on every blasted car (car_glass.gdshader shatter state; visible 6-14 m in c4, mortar, gas tank, wb_car frames)
- 3 FIRE LINE / flame tongues: flat yellow teardrops float in the air at random heights, no ground bed (BlastFx ember recipe)
- 4 WALL SCORCH sticker: cream/tan starburst with dark centre on shop fronts after an airstrike (fx_marks.gdshader kind 2 ember ring too bright and flat)
- 5 DEBRIS: thrown car panels are flat dark slabs (150 px at the lens), tyres smooth black balls (CarDebris; blast builder gap #3)
- 6 IDENTITY: frag, mortar, rocket, mine, C4 look the same fireball (only size differs); the table has recipes (dust, dome, shock...) unused for them
- 7 RING PREVIEW: orange ring on an orange sodium street is faint at 20-34 m (strike 13 m ring barely visible), label touches the equip card
- 8 (to verify) dying operative = pale beige translucent mannequin for ~2 s (bot_damage enemy_op_*): maybe bot artefact, check with own bot
- 9 HUMANS at 15 m read as black silhouettes, kit colours lost; at 40 m dots (markers/pips carry the read) - camera/fog, low priority
- Notes: marks/rings around flung enemies = EnemyMarks death shock ring (white), by design.
+DEFECT LIST (evidence = frames in docs/shots/round6/critic113_look_*.jpg)
+ 1 FIXED  status looks: burning = tiger stripes, frozen = zebra, shocked = flat silhouette, aliens had none -> assets/shaders/dmg_status.gdshaderinc (3 shaders), FoeFx._shader sets dmg_fx on creatures
+ 2 FIXED  windscreen of every blasted car = black and white noise -> mip levels + blur by distance + frost (car_glass.gdshader, vehicle_visual.gd)
+ 3 FIXED  fire = flat paper teardrops hanging in the air -> anchored to the street, hot bed, climbing licks, red tip (blast_fx.gd, blast_cloud.gdshader)
+ 4 FIXED  fresh scorch = solid cream starburst on shop fronts and streets -> ring of glints (fx_marks.gdshader kind 2)
+ 5 FIXED  torn car panels = black planks, flung wheels = black balls -> car_debris_panel.gdshader + lit tyre on a private mesh (car_debris.gd)
+ 6 PARTLY radius ring unreadable on bright / orange street -> blast_wall.gdshader alpha band + dark skirt + dashes; strike ring at 34 m still thin; aim label touches the equip card for 2 s
+ 7 PARTLY frag, rocket, mortar, mine, C4 = one fireball -> mines and charges throw a dirt plume (blast_fx.gd _extras); grenade / rocket / mortar still one family
+ 8 PARTLY six contract mercenaries = one black cut-out at 15 m against the sun -> fake ambient of the paint in foe_body.gdshader (kit colours survive, still dark)
+ (seen, not defects: death ring of EnemyMarks is by design; the "pale ghost" of a dying operative did not reproduce from the real camera)
 
-FIX LOG (critic edits; every file read again right before the edit)
-- D1 STATUS LOOKS (08:50Z): NEW assets/shaders/dmg_status.gdshaderinc (burn = dark char with glowing seams that crawl up, freeze = faceted ice + cold rim + glints, shock = crawling arcs + cold flicker,
-  dissolve = motes); used by hero_body.gdshader, foe_body.gdshader (their UV/v_pos stripe code removed) and foe_creature.gdshader (NEW uniform dmg_fx: aliens could not burn/freeze/shock before);
-  scripts/damage/foe_fx.gd _shader() sets dmg_fx on the creature's own material (foe_creature.gdshader only). Frames: scratchpad st/base_* (before) vs st/v3_burn, v2_shock, v1_freeze (after).
+FILES (mine): NEW assets/shaders/dmg_status.gdshaderinc, assets/shaders/car_debris_panel.gdshader, tests/test_critic_look_w113.gd, tests/bot_critic_{blasts,foes,crowd,animals}.gd, 8 sheets
+ docs/shots/round6/critic113_look_*.jpg; EDITED hero_body / foe_body / foe_creature / car_glass / blast_cloud / blast_wall / fx_marks .gdshader, scripts/damage/foe_fx.gd,
+ scripts/combat/blast_fx.gd, scripts/vehicles/car_debris.gd, scripts/vehicles/vehicle_visual.gd, godot/ARCHITECTURE.md (appended), docs/HANDOFF.md (appended).
 
-NEXT
-- render 16+ enemy types at 15/40/80 m (own bot), civilians and animals reacting, enemy hit/death sequences from the real camera
-- fix in order of severity, re-render same frames, tests, perf gate (if rendering changed)
+TESTS (all PASS): test_critic_look_w113 (new, real scene, about 45 checks), test_damage_everywhere, test_blasts_liquid_damage, test_cars_v2, test_enemy_look_v3, test_blast_arsenal,
+ test_blast_table, test_humanoid_variants, test_vfx, test_vehicle_paint, test_director_round3_b, test_hero_polish, test_enemy_roster2, test_weapon_ui_v3, test_weapons_v3, test_play_critic_w113;
+ test_real_fight had one red on a loaded machine (longest cover 15.8 s against 12 s), PASS on the re-run (not my files).
+ Compat renderer: the status shader compiles and renders (checked once; the arc width is capped because a coarse derivative made blotches there).
 
-DECISIONS
-- (none yet)
+PERF (final run 10:08Z, after every change): LOW OK total 93 draws, 130.6 k tris, tex 110 MB, death spike 107 of 115; MED OK 129, 272.0 k, 141 MB, death 149 of 150; HIGH OK 149, 380.4 k, 207 MB, death 170 of 170.
+ Earlier run (08:46Z) identical within 1 draw. No draw, triangle or texture added; APK effect: 2 shader files (about 6 KB), 8 sheets are docs only.
 
-TESTS AND PERF
-- (none yet)
-
-OPEN PROBLEMS
-- the PLAY critic works in the same tree; read each file again right before editing
+OPEN PROBLEMS: see "Not fixed" in docs/HANDOFF.md (strike ring at 34 m, aim label vs equip card, one fireball family, humans at 40 m are dots, a blank white rectangle above the street at (-47.6, -2.9),
+ old alien.gdshader has no status look). HIGH death spike has no headroom (170 of 170): do not add draws.

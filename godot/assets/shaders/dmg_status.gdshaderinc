@@ -58,11 +58,13 @@ bool dmg_status(vec4 fx, vec3 p, float h, float rim, float t, inout vec3 alb, in
 		// SHOCKED: thin arcs that crawl over the body and a pulsing cold rim, the paint a little darker so the lines read
 		float pulse = 0.55 + 0.45 * step(0.5, fract(t * 12.0));
 		vec3 q = p * vec3(5.0, 3.5, 5.0) + vec3(t * 3.0, t * 17.0, -t * 5.0);
-		float l1 = abs(dmg_noise(q) - 0.5);
-		float l2 = abs(dmg_noise(q * 1.7 + vec3(5.0, 1.0, 9.0)) - 0.5);
-		float arc = max(1.0 - smoothstep(0.0, 0.06, l1), 1.0 - smoothstep(0.0, 0.05, l2));
+		float n1 = dmg_noise(q);
+		float n2 = dmg_noise(q * 1.7 + vec3(5.0, 1.0, 9.0));
+		float w1 = clamp(fwidth(n1) * 2.2, 0.004, 0.03);                                  // lines of a fixed width ON THE SCREEN (about two pixels, capped: a coarse derivative of another renderer must not turn them into blotches): a plain threshold on value noise makes fat blotches
+		float w2 = clamp(fwidth(n2) * 2.2, 0.004, 0.03);                                  // where the noise is flat (the first version looked like camouflage)
+		float arc = max(1.0 - smoothstep(0.0, w1, abs(n1 - 0.5)), 1.0 - smoothstep(0.0, w2, abs(n2 - 0.5)));
 		alb *= 1.0 - 0.3 * s;
-		emis += vec3(0.62, 0.84, 1.0) * arc * s * 3.6 * pulse;
+		emis += vec3(0.62, 0.84, 1.0) * arc * s * 4.0 * pulse;
 		emis += vec3(0.1, 0.2, 0.5) * s * pulse * 0.5;                          // the whole body flickers cold
 		emis += vec3(0.25, 0.45, 1.0) * rim * s * (0.9 + 1.4 * pulse);
 	} else {
