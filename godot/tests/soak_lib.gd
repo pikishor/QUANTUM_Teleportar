@@ -23,7 +23,7 @@ const STATES: Array[StringName] = [&"menu", &"play", &"paused", &"dead", &"win",
 static func monitors() -> Dictionary:
 	return {
 		"nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
-		"orphans": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
+		"orphans": maxi(int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)) - FoeHuman.cached_node_count(), 0),       # the roster bodies' prototype cache is out of the tree on purpose (wave 113)
 		"objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
 		"resources": int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
 		"static_mb": Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,

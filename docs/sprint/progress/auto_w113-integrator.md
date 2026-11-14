@@ -1,6 +1,6 @@
 # w113-integrator (running)
 
-agent id a8dc13087c85e1d41, 479 events, first activity 2026-11-14T10:11:46.718Z, last activity 2026-11-14T11:45:27.393Z
+agent id a8dc13087c85e1d41, 566 events, first activity 2026-11-14T10:11:46.718Z, last activity 2026-11-14T12:11:22.927Z
 
 ## Last notes of the agent
 
@@ -8,35 +8,6 @@ agent id a8dc13087c85e1d41, 479 events, first activity 2026-11-14T10:11:46.718Z,
 
 ## Recent steps (last 40)
 
-- 11:27:28 Capture the heist leak probe output on the new tree
-- 11:28:49 Read how the soak test probes the heist and orphans
-- 11:28:52 Read the probe structure and the heist round
-- 11:28:58 Find the Soak bot and its heist round
-- 11:29:01 Locate the Soak implementation file
-- 11:29:04 Read the bot_soak heist code
-- 11:29:07 Read the soak probe code and its orphan printing
-- 11:29:17 Run a temporary diagnostic that prints the orphan nodes after the heist round
-- 11:29:52 Read the orphan list before the heist
-- 11:29:59 Find pooling code that parks meshes outside the tree
-- 11:30:02 Read the BlastOps mesh pool
-- 11:30:09 Review the car_debris diff for orphan meshes
-- 11:30:20 Find temporary MeshInstance3D creation in the enemy body code
-- 11:30:22 Read the hero_character body construction around the MeshInstance3D
-- 11:30:36 Run the orphan diagnostic with feature flags to find the source
-- 11:32:49 Diff the orphan lists before and after the heist
-- 11:32:58 List MeshInstance3D creation sites in the wave 113 files
-- 11:33:01 Read BlastFx node creation
-- 11:33:12 Find node duplicate and instantiate sites in the wave files
-- 11:33:17 Read the kit loading and human duplication code
-- 11:33:37 Find the helper that spawns an operative in tests
-- 11:33:40 Find the spawn helper in test_ai_tactics2
-- 11:33:48 Read the EnemyManager.spawn API
-- 11:33:58 Run a second orphan diagnostic that tries actions one by one
-- 11:34:42 Probe wanted and heist actions for orphan growth
-- 11:35:38 Run the same orphan diagnostic on the baseline tree
-- 11:36:37 Check whether repeated heist starts keep growing the orphan count
-- 11:38:01 Inspect the shader warmup for temporary mesh nodes
-- 11:38:08 Find code that parks nodes outside the tree
 - 11:38:13 Read the remove_child sites in operative and player_body
 - 11:38:20 Repeat the soak test twice on the baseline to see the orphan variance
 - 11:40:57 Bisect the heist orphan growth with feature flags
@@ -48,6 +19,35 @@ agent id a8dc13087c85e1d41, 479 events, first activity 2026-11-14T10:11:46.718Z,
 - 11:45:16 Skim the roster human lifecycle
 - 11:45:19 Read RosterHuman.attach and attach_creature
 - 11:45:26 Read CharacterRig.set_shadow
+- 11:45:31 Find the roster spawn API used by tests
+- 11:45:34 Read the spawn helper in test_enemy_look_v3
+- 11:45:38 See how the test gets the AlienWorld and which ids it uses
+- 11:45:42 Read the standalone AlienWorld setup in the test
+- 11:45:51 Run a diagnostic that spawns and kills roster bodies and counts orphans
+- 11:46:25 Read Lib.monitors and the proto cache
+- 11:46:34 Locate where to add the cache node counter
+- 11:46:41 Add the proto cache counter and subtract it in the soak monitors
+- 11:46:47 Run the soak test twice with the fixed orphan monitor
+- 11:49:17 Run the mission audit on the new and baseline trees
+- 11:51:50 Re-run the previously failing and flaky tests together under the suite's load
+- 11:54:31 Run the perf gate on all three tiers, alone
+- 12:02:06 Check whether visual QA outputs are tracked and how they were committed
+- 12:02:13 Start the visual QA in the background
+- 12:02:28 Run the size report to see the asset and package weight
+- 12:02:47 Wait for the visual QA run and show progress
+- 12:09:49 /home/user/QUANTUM_Teleportar/docs/shots/latest.png
+- 12:10:01 /home/user/QUANTUM_Teleportar/docs/shots/street_nw.png
+- 12:10:08 /home/user/QUANTUM_Teleportar/docs/shots/chase.png
+- 12:10:13 /home/user/QUANTUM_Teleportar/docs/shots/hero.png
+- 12:10:19 /home/user/QUANTUM_Teleportar/docs/shots/round6/enemy_look_combat_low.jpg
+- 12:10:27 List the remaining unexpected git status entries
+- 12:10:35 Remove my temporary diagnostics and move the unreferenced probe out of the repo
+- 12:10:44 Find tests that use soak_lib or FoeHuman
+- 12:10:54 Start the final verification batch in the background
+- 12:11:08 Find the Enemy look v3 section in ARCHITECTURE.md
+- 12:11:11 Read the tail of the Enemy look v3 section
+- 12:11:19 Document the prototype cache and the soak monitor in ARCHITECTURE.md
+- 12:11:22 Wait for the final verification batch
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

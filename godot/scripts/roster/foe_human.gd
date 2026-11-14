@@ -29,6 +29,17 @@ static func available() -> bool:
 	return HeroCharacter.available(&"male") and FoeKit.available()
 
 
+## Nodes held by the prototype cache: every prototype is a body tree that never enters the scene tree (the source of each duplicate), so Performance counts it as orphan nodes (9 per look, 3 variants
+## each: a bounded cache, looks x variants x weapons, not a leak). The soak monitors (tests/soak_lib.gd) subtract them so their orphan check still catches a body that is lost.
+static func cached_node_count() -> int:
+	var n := 0
+	for k: Variant in _protos:
+		var root: Variant = (_protos[k] as Dictionary).get("root")
+		if root is Node and is_instance_valid(root) and not (root as Node).is_inside_tree():
+			n += 1 + (root as Node).find_children("*", "", true, false).size()
+	return n
+
+
 static func _opts(look: StringName, variant: int, weapon: StringName, budget: int, kit_lod: int) -> Dictionary:
 	return {"body": &"male", "skin": &"dark", "hair": &"none", "beard": false, "armed": true, "map_body": &"male", "map_skin": &"dark", "budget": budget, "foe_look": look,
 			"weapon_id": weapon, "kit_lod": kit_lod, "variant": variant}
