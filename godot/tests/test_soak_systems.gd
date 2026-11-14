@@ -7,6 +7,7 @@ extends RefCounted
 ## Waits are on game state and counters; the bot isolates the save file (user://soak_progress.cfg) and deletes the photos it wrote. Not run: a device (no real joypad), texture memory (headless).
 ## Run: tools/test.sh tests/test_soak_systems.gd
 
+const TIMEOUT_SECONDS := 140.0                      ## the leak probes of all systems need about a minute on a slow machine (they timed out at the default 60 s on the wave 112 tree too, in the wave 113 integrator's sandbox)
 const Soak := preload("res://tests/bot_soak.gd")
 const Lib := preload("res://tests/soak_lib.gd")
 

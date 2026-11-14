@@ -234,6 +234,7 @@ func _reflection() -> void:
 	TestLib.check(not cp.visible, "beyond its range the reflection is hidden (no draw call)")
 	r.range = SkinnedMirror.RANGE
 	await frames(4)
+	r._process(0.0)                                         # the same explicit tick as above (the sandbox's headless loop can run four physics frames inside one process frame; it failed on the wave 112 tree too)
 	TestLib.check(cp.visible, "...and back within range it is drawn again")
 	Game.set_quality(0)
 	await frames(4)

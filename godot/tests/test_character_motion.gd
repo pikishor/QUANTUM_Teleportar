@@ -48,7 +48,7 @@ func _hero_meshes() -> void:
 	TestLib.check(b.rig.rest_mesh.layers == 0, "the rest-pose twin of the body is on no render layer (layers %d): it is never drawn" % b.rig.rest_mesh.layers)
 	TestLib.check(drawn_meshes(b._reflection).is_empty(), "a skinned hero has no reflection copy (a second, stationary body)")
 	b.fire_flash(1.0)
-	await e.frames(2)
+	# counted in the same frame: the flash lives 0.055 s of REAL time (PlayerBody._flash_t), so on a loaded machine (the full suite runs three tests at once) two physics frames can outlast it
 	TestLib.check(drawn_meshes(p).size() == 2 + 3, "while a shot flashes the muzzle adds 3 flash cards (got %d)" % drawn_meshes(p).size())
 	await e.secs(0.3)
 	TestLib.check(drawn_meshes(p).size() == 2, "and they are gone again (got %d)" % drawn_meshes(p).size())

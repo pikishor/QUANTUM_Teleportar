@@ -7,6 +7,7 @@ extends RefCounted
 ## the fights is the test crates (EnemyCover.override_bodies). Progress writes to a throw-away file. Not run: a phone, the feel of the fights.
 ## Run: tools/test.sh tests/test_ai_tactics2.gd
 
+const TIMEOUT_SECONDS := 140.0                      ## the 11-trooper fight bot needs about a minute on a slow machine (it timed out at the default 60 s on the wave 112 tree too, in the wave 113 integrator's sandbox)
 const Fixture := preload("res://tests/player_fixture.gd")
 const TMP := "user://test_ai_tactics2_save.cfg"
 const DT := 1.0 / 60.0

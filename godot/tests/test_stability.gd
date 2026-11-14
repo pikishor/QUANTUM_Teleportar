@@ -294,7 +294,11 @@ func _vehicle_crash() -> void:
 	TestLib.check(car.visible and not car.is_in_group(&"vehicle") and not mgr.list.has(car), "the wreck stays as a visible husk outside the vehicle group")
 	TestLib.check(mgr.wreck_count() >= 1 and car.visual.get_paint().get_luminance() < 0.2, "the husk is charred (%d wrecks)" % mgr.wreck_count())
 	_assert_on_foot("crash")
-	TestLib.check(p.global_position.y < 1.0 and not p.is_dead(), "the player stands on the ground, alive (hp %.0f)" % p.hp)
+	var landing := 0
+	while p.global_position.y >= 1.0 and landing < 240:       # wave 113: the wreck's blast (BlastTable) shoves the hero up and away: give him the time to land (4 s at most)
+		await e.frames(1)
+		landing += 1
+	TestLib.check(p.global_position.y < 1.0 and not p.is_dead(), "the player stands on the ground, alive (hp %.0f, y %.2f, dead %s)" % [p.hp, p.global_position.y, str(p.is_dead())])
 	p.teleport_to(Vector3(0.0, 0.0, 200.0))        # the replacement never appears within 25 m of the player
 	await e.secs(2.2)
 	TestLib.check(not car.wreck and not car.visible and mgr.wreck_count() == 0, "the husk is cleared when the replacement is due")
@@ -315,8 +319,11 @@ func _vehicle_explosion_and_death() -> void:
 	e.died_count = 0
 	var car2 := await _crash_scene(Vector3(40.0, 0.0, 40.0))
 	p.hp = 8.0
+	var mode_was := Difficulty.current
+	Difficulty.current = 2                      # wave 113: on EASY and NORMAL a blast alone never takes the hero below a quarter of his health (BlastTable._soften, no sudden deaths): this check is about the death flow, so it runs on HARD
 	car2.damage(9999.0)
 	await e.frames(3)
+	Difficulty.current = mode_was
 	TestLib.check(Game.state == &"dead" and e.died_count == 1, "the blast killed the weakened driver (state %s)" % Game.state)
 	TestLib.check(p.vehicle == null and mgr.driven == null and p.body.visible, "dead after the eject: not tied to the wreck, body visible")
 	await e.secs(1.5)
