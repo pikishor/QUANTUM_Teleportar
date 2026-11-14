@@ -15,5 +15,5 @@ Written by godot/tools/sprint_digest.py at 2026-11-14 17:13Z. Status 'running' m
 
 - w113-ci-apk [Wave 113] done: 566 events, 12:49:06 -> 15:09:03
 - w114-weapons-art [Wave 114] done: 848 events, 12:49:06 -> 15:54:04
-- w114-weapons-ui [Wave 114] running: 1230 events, 15:09:03 -> 17:12:55
+- w114-weapons-ui [Wave 114] running: 1232 events, 15:09:03 -> 17:13:06
 
