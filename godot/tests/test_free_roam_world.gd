@@ -583,16 +583,8 @@ func _part_events() -> void:
 			if is_instance_valid(c) and not (c as AlienCreature).dead:
 				standing += 1
 		TestLib.check(standing == foes.size(), "every raider stands where the event put it, 185 m out (%d of %d): the ambient despawn rule does not take them (wave 113 CI: all of them were gone after a second and the raid paid for nothing)" % [standing, foes.size()])
-		for c in foes:
-			if is_instance_valid(c):
-				(c as AlienCreature).die(true)
-		var okk := await _until(func() -> bool: return ev.active.is_empty() and int(_rw.events_done.get(&"raid", 0)) == 1, 4.0)
-		print("DBG raid ended=", okk, " active=", ev.active.size(), " done=", _rw.events_done, " completed=", ev.completed, " failed=", ev.failed, " alive=", ev._alive(raid), " t=", raid["t"], " ttl=", raid["ttl"])
-		for c in foes:
-			print("DBG   ", (c as AlienCreature).id if is_instance_valid(c) else "invalid", " dead=", (c as AlienCreature).dead if is_instance_valid(c) else "-")
-		for e2 in ev.active:
-			print("DBG   active ", e2["kind"], " t=", e2["t"], " pos=", e2["pos"])
-		TestLib.check(okk, "killing every raider ends the raid")
+		_kill_all(foes)
+		TestLib.check(await _until(func() -> bool: return ev.active.is_empty() and int(_rw.events_done.get(&"raid", 0)) == 1, 4.0), "killing every raider ends the raid")
 		TestLib.check(_rw.breakdown()[&"event"][0] == 2, "and it is the second kind discovered")
 	_clear_enemies()
 	# ---- SMUGGLERS
@@ -611,9 +603,7 @@ func _part_events() -> void:
 		_p.teleport_to(Vector3(sp.x + 3.0, sp.y + 1.0, sp.z))
 		await _hold(0.5)
 		TestLib.check(ev.active.size() == 1 and ev.prompt.contains("CLEAR THE GUARDS"), "the stash waits while a guard lives (%s)" % ev.prompt)
-		for c in sm["creatures"]:
-			if is_instance_valid(c):
-				(c as AlienCreature).die(true)
+		_kill_all(sm["creatures"])
 		TestLib.check(await _until(func() -> bool: return ev.active.is_empty() and int(_rw.events_done.get(&"smugglers", 0)) == 1, 4.0), "with the guards down the stash is taken")
 	_clear_enemies()
 	# ---- CONVOY
@@ -652,6 +642,14 @@ func _part_events() -> void:
 	ev.reset()
 	_clear_enemies()
 	prog.credits = prog.credits
+
+
+## Every creature of `list` shot dead the way the hero does it. A foe with a medic near goes down on the first hit and dies on the second (RosterFoe.die: the revive), so two rounds.
+func _kill_all(list: Array) -> void:
+	for round_i in 2:
+		for c in list:
+			if is_instance_valid(c) and not (c as AlienCreature).dead:
+				(c as AlienCreature).die(true)
 
 
 func _clear_enemies() -> void:

@@ -1,6 +1,6 @@
 # w114-weapons-art (running)
 
-agent id a253933c3d36a6bfc, 263 events, first activity 2026-11-14T12:49:06.241Z, last activity 2026-11-14T13:29:51.545Z
+agent id a253933c3d36a6bfc, 269 events, first activity 2026-11-14T12:49:06.241Z, last activity 2026-11-14T13:30:47.750Z
 
 ## Last notes of the agent
 
@@ -10,7 +10,6 @@ agent id a253933c3d36a6bfc, 263 events, first activity 2026-11-14T12:49:06.241Z,
 
 ## Recent steps (last 40)
 
-- 13:01:08 Add the WeaponModels kit entry points and run a weapon test
 - 13:01:48 Read glbtool helpers
 - 13:06:23 /home/user/QUANTUM_Teleportar/godot/tools/blender/weaponlib.py
 - 13:07:32 Fix writer winding, drop duplicate annulus block, add numpy preview
@@ -50,6 +49,7 @@ agent id a253933c3d36a6bfc, 263 events, first activity 2026-11-14T12:49:06.241Z,
 - 13:29:35 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/t6a.png
 - 13:29:50 Test hand device recipes
 - 13:29:51 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/work/t6b.png
+- 13:30:46 Create the compact weapon index for the kit
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

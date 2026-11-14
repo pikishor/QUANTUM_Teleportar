@@ -1,6 +1,6 @@
 # w113-ci-apk (running)
 
-agent id af6e1756af359fa06, 279 events, first activity 2026-11-14T12:49:06.213Z, last activity 2026-11-14T13:29:10.132Z
+agent id af6e1756af359fa06, 293 events, first activity 2026-11-14T12:49:06.213Z, last activity 2026-11-14T13:30:55.695Z
 
 ## Last notes of the agent
 
@@ -11,11 +11,6 @@ agent id af6e1756af359fa06, 279 events, first activity 2026-11-14T12:49:06.213Z,
 
 ## Recent steps (last 40)
 
-- 13:18:54 Read poll, spawn_near, _end and _cleanup of roam events
-- 13:19:03 Read the test helpers _hold, _put_hero and _until
-- 13:19:06 Read the _hold and _until helpers and test header
-- 13:19:09 Read helpers in wm_base.gd
-- 13:19:14 Check machine load, test runner script and running Godot processes
 - 13:19:20 Run the free-roam events part locally
 - 13:19:58 Run the full free-roam test locally
 - 13:20:59 Find spawn_encounter
@@ -51,6 +46,11 @@ agent id af6e1756af359fa06, 279 events, first activity 2026-11-14T12:49:06.213Z,
 - 13:28:05 Look at the log around the raid check
 - 13:28:17 Probe why the raid does not end after the raiders are killed
 - 13:29:10 Run the free-roam test with debug prints around the raid end
+- 13:30:14 Read AlienCreature.die and overrides
+- 13:30:16 Read RosterFoe.die
+- 13:30:37 Restore the test without debug prints and find the kill loops
+- 13:30:47 View the two kill loops
+- 13:30:55 Run the free-roam test with the two-round kill helper
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
