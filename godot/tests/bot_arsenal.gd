@@ -2,7 +2,7 @@ extends RefCounted
 ## Look-dev bot of the ARSENAL screens (wave 114): the LOADOUT and the catalogue with 200+ weapons, every tab and filter, one frame per step.
 ##   ARS_OUT=<dir> [ARS_STEPS=parts,ammo] [MENU_NO3D=1] BOT_RES=2400x1080 BOT_USER_ARGS="--touch" tools/bot.sh res://tests/bot_arsenal.gd /tmp/x 100000 1
 ## Presses go through Hud.press_button (the path of a tap). The shots are numbered in the order of the steps. ARS_OWN=0 keeps the hero's own few weapons (locked ones in the list).
-## Steps (ARS_STEPS, comma separated): the screens loadout, stats_blast, parts, parts_fitted, ammo, catalogue_locked, filter_new, filter_fav_empty, sort_damage, scrolled, view3d, gear, slots; the play
+## Steps (ARS_STEPS, comma separated): the screens loadout, stats_blast, stats_blade, parts, parts_fitted, ammo, catalogue_locked, filter_new, filter_fav_empty, sort_damage, scrolled, view3d, gear, slots; the play
 ## layer reveal_flash / reveal_mid / reveal_late (CrateReveal frozen at one moment), hud_plate (pop card + kill feed lines dated into the future: the software renderer needs seconds per frame),
 ## wheel_classes, wheel_ring, crate_pics (the hero looks at the market crate). MENU_NO3D=1 turns the 3D world off behind the menus (faster). BOT_RES=1688x780 is the 844x390 phone aspect.
 var _i := 0
@@ -10,7 +10,7 @@ var _wait := 0
 var _out := ""
 var _hud: Hud
 var _steps: Array[String] = []
-const ALL := ["loadout", "stats_blast", "parts", "parts_fitted", "ammo", "catalogue_locked", "filter_new", "filter_fav_empty", "sort_damage", "scrolled", "view3d", "gear", "slots",
+const ALL := ["loadout", "stats_blast", "stats_blade", "parts", "parts_fitted", "ammo", "catalogue_locked", "filter_new", "filter_fav_empty", "sort_damage", "scrolled", "view3d", "gear", "slots",
 		"reveal_flash", "reveal_mid", "reveal_late", "hud_plate", "wheel_classes", "wheel_ring", "crate_pics"]
 
 
@@ -104,6 +104,8 @@ func _begin() -> void:
 		"stats_blast":
 			_menu([&"loadout", &"ars_filter_all", &"ars_cls_next", &"ars_cls_next", &"ars_cls_next", &"ars_cls_next", &"ars_cls_next", &"ars_cls_next", &"ars_cls_next", &"ars_cls_next", &"ars_cls_next", &"ars_cls_next"])
 			_press([&"wheel_la_rocket"] if WeaponDefs.DEFS.has(&"la_rocket") else [])
+		"stats_blade":
+			_menu([&"loadout", &"wheel_m_arcsabre"])
 		"parts":
 			for part: StringName in [&"reddot", &"scope", &"suppressor", &"foregrip", &"laser"]:
 				Attachments.give(part)
