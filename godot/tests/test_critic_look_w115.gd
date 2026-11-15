@@ -301,9 +301,14 @@ func _wing_tips() -> void:
 	TestLib.check(-(left - chest2).dot(right) > 1.6, "the left wing, in open air, keeps its span (%.1f m)" % -(left - chest2).dot(right))
 	await frames(1)
 	SnakeFlight.clip_wings = false
-	var old_tip := fl._wing_tip(p, 1)
+	var old_reach := -99.0
+	for k in 12:                                                                 # the wing moves (a wing beat, the wriggle): the old look is the farthest the unclipped tip gets within a few frames
+		fl._tip_frame[1] = -1                                                    # (the tip of this frame may be cached from before the switch: a single sample read 0.69 m out, the clipped tip, in 1 of 6 runs under load, wave 115 integration)
+		var ot := fl._wing_tip(p, 1)
+		old_reach = maxf(old_reach, (ot - (p.global_position + Vector3(0.0, 1.15, 0.0))).dot(right))
+		await frames(1)
 	SnakeFlight.clip_wings = true
-	TestLib.check((old_tip - chest2).dot(right) > wall_at + 0.3, "the old look is what the switch shows: the tip %.2f m out, through the wall at %.2f m" % [(old_tip - chest2).dot(right), wall_at])
+	TestLib.check(old_reach > wall_at + 0.3, "the old look is what the switch shows: the tip %.2f m out, through the wall at %.2f m" % [old_reach, wall_at])
 	wall.queue_free()
 	await physics(2)
 	# a barrel roll turns the wings with the body (a quarter turn: the right wing points up or down, not sideways)

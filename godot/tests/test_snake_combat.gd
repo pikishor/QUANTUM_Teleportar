@@ -295,13 +295,24 @@ func _pull() -> void:
 	await until(func() -> bool: return war.holds.drags >= 1 and en.global_position.distance_to(p.global_position) < 4.2, 3.0)
 	TestLib.check(war.verbs.pulls == pulls0 + 1 and war.holds.drags >= 1 and en.global_position.distance_to(p.global_position) < d0 - 4.0, "the enemy is dragged to the hero (%.1f m before, %.1f m after)" % [d0, en.global_position.distance_to(p.global_position)])
 	TestLib.check(war.holds.is_held(en) or en.hp < en.max_hp, "and left stunned or hurt")
-	# a prop: nothing in front means a whiff that costs nothing
-	await _stage(0, 10.0)
-	war.cd.clear()
-	var e1 := p.snake.energy
-	var w0 := war.whiffs
-	var miss := war.cast(&"sv_pull")
-	TestLib.check(not miss and war.whiffs == w0 + 1 and absf(p.snake.energy - e1) < 0.5, "with nothing to pull the snake whiffs and no energy is spent")
+	# a prop: nothing in front means a whiff that costs nothing. The lane is random (a bench, a pickup or a passing car under the crosshair is something to pull) and the global gap of the last
+	# cast may still run: up to three lanes, the gap cleared, and the cause of a miss is printed (it failed now and then on a loaded machine, in the wave 115 integration: 2 of 14 runs)
+	var whiffed := false
+	for attempt in 3:
+		if attempt > 0 and not _lane():
+			break
+		await _stage(0, 10.0)
+		war.cd.clear()
+		war._gcd = 0.0
+		var e1 := p.snake.energy
+		var w0 := war.whiffs
+		var seen := SnakeAim.pick(p, 38.0, [&"enemy", &"pickup", &"prop", &"car"])
+		var miss := war.cast(&"sv_pull")
+		whiffed = not miss and war.whiffs == w0 + 1 and absf(p.snake.energy - e1) < 0.5
+		if whiffed:
+			break
+		print("WHIFF TRY %d: cast %s, denied '%s', game %s, dead %s, whiffs %d -> %d, energy %.1f -> %.1f, under the crosshair %s" % [attempt, str(miss), war.last_denied, str(Game.state), str(p.is_dead()), w0, war.whiffs, e1, p.snake.energy, str(seen.get("kind", "nothing"))])
+	TestLib.check(whiffed, "with nothing to pull the snake whiffs and no energy is spent")
 	# a heavy target: a car pulls the hero to it
 	await _stage(0, 11.0, true)
 	if _car != null:
@@ -484,17 +495,30 @@ func _decoy() -> void:
 
 
 func _trap() -> void:
-	await _stage(1, 12.0)
-	var en := _foes[0]
-	war.arm(&"sv_trap")
-	war.cast(&"sv_trap", true)
-	TestLib.check(war.verbs.trap_list.size() == 1, "SNAKE TRAP lays a coil on the ground")
-	var at: Vector3 = war.verbs.trap_list[0]["pos"]
-	await frames(40)
-	var c0 := war.verbs.trap_catches
-	en.global_position = Vector3(at.x, en.global_position.y, at.z)
-	await until(func() -> bool: return war.verbs.trap_catches > c0, 3.0)
-	TestLib.check(war.verbs.trap_catches > c0 and war.holds.is_held(en) and war.verbs.trap_list.is_empty(), "the first enemy to step in is wrapped and the trap is spent")
+	# the catch is tried on up to three lanes and the cause of a miss is printed: the first one failed now and then on a loaded machine (wave 115 integration, once in 14 runs, never in 75 probe lanes)
+	var caught := false
+	for attempt in 3:
+		if attempt > 0 and not _lane():
+			break
+		await _stage(1, 12.0)
+		var en := _foes[0]
+		war.arm(&"sv_trap")
+		war.cast(&"sv_trap", true)
+		if attempt == 0:
+			TestLib.check(war.verbs.trap_list.size() == 1, "SNAKE TRAP lays a coil on the ground")
+		if war.verbs.trap_list.is_empty():
+			print("TRAP TRY %d: no coil was laid" % attempt)
+			continue
+		var at: Vector3 = war.verbs.trap_list[0]["pos"]
+		await frames(40)
+		var c0 := war.verbs.trap_catches
+		en.global_position = Vector3(at.x, en.global_position.y, at.z)
+		await until(func() -> bool: return war.verbs.trap_catches > c0, 3.0)
+		caught = war.verbs.trap_catches > c0 and war.holds.is_held(en) and war.verbs.trap_list.is_empty()
+		if caught:
+			break
+		print("TRAP TRY %d: catches %d -> %d, held %s, coils %d, game %s, enemy %s at %s, coil at %s" % [attempt, c0, war.verbs.trap_catches, str(war.holds.is_held(en)), war.verbs.trap_list.size(), str(Game.state), str(is_instance_valid(en)), str(en.global_position if is_instance_valid(en) else Vector3.INF), str(at)])
+	TestLib.check(caught, "the first enemy to step in is wrapped and the trap is spent")
 	war.disarm()
 
 
@@ -868,11 +892,16 @@ func _reactions() -> void:
 	war.react._casts.clear()
 	for k in 7:
 		war.react._casts.append(war.react._now)
-	war.react._try_hunter()
 	var found := false
-	for e: Node3D in Gear.living_enemies(p.get_tree()):
-		if StringName(e.get(&"type")) == &"hunter":
-			found = true
+	for attempt in 4:                                                          # `_try_hunter` runs at most every half second of play (`_hunter_try_t`, a try that the earlier casts of this test had just made left it running: the check failed now and
+		war.react._hunter_try_t = 0.0                                          # then, 17 of 17 times in a probe that called it again at once); a try can also find no spot in ten random places: the game tries again
+		war.react._try_hunter()
+		for e: Node3D in Gear.living_enemies(p.get_tree()):
+			if StringName(e.get(&"type")) == &"hunter":
+				found = true
+		if found:
+			break
+		await frames(2)
 	TestLib.check(found and war.react.hunters >= 1, "after a run of snake powers a hunter is called (NORMAL)")
 	em.clear()
 	Difficulty.set_mode(0)

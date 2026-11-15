@@ -685,22 +685,37 @@ func _missions() -> void:
 			break
 		var q: Vector3 = camp.step["pos"]
 		if idx == 4:
-			# the air ring: a real flight toward it from the roof ring before
+			# the air ring: a real flight toward it from the roof ring before. A random route can have a facade in the way (the flight of a thumb steers over it, this pilot only aims): up to three
+			# flights, the later ones aimed 8 m high until the ring is near, and the ring is still placed when none arrives so that the chapter runs on (wave 115 integration: the real flight
+			# failed in 2 of 6 loaded runs and took the chapter's later checks with it)
 			var p3: Vector3 = steps[3]["pos"]
-			sn.cancel()
-			p.teleport_to(p3 + Vector3(0.0, 0.5, 0.0))
-			await frames(15)
-			sn.energy = SnakePower.max_energy()
-			await tap(&"fly", 3)
-			await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.FLY, 1.0)
+			var reached := false
+			var flights := 0
 			var guard_f := 0
-			while camp.step_index == 4 and guard_f < 900 and sn.mode == SnakeTraversal.Mode.FLY:
-				guard_f += 1
-				p.camera_rig.aim_at(q)
-				Input.action_press(&"move_forward")
-				await frames(1)
-			Input.action_release(&"move_forward")
-			TestLib.check(camp.step_index != 4 or camp.state != &"active", "the FLY ring is reached by a real flight (%d frames)" % guard_f)
+			for attempt in 3:
+				flights += 1
+				sn.cancel()
+				p.teleport_to(p3 + Vector3(0.0, 0.5, 0.0))
+				await frames(15)
+				sn.energy = SnakePower.max_energy()
+				await tap(&"fly", 3)
+				await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.FLY, 1.0)
+				guard_f = 0
+				while camp.step_index == 4 and guard_f < 900 and sn.mode == SnakeTraversal.Mode.FLY:
+					guard_f += 1
+					var far := Vector2(p.global_position.x - q.x, p.global_position.z - q.z).length() > 40.0
+					p.camera_rig.aim_at(q + Vector3(0.0, 8.0 if (far and attempt > 0) else 0.0, 0.0))
+					Input.action_press(&"move_forward")
+					await frames(1)
+				Input.action_release(&"move_forward")
+				reached = camp.step_index != 4 or camp.state != &"active"
+				if reached:
+					break
+			TestLib.check(reached, "the FLY ring is reached by a real flight (%d frames, flight %d of 3)" % [guard_f, flights])
+			if not reached:                                                                         # the ring is still a ring: the chapter goes on
+				sn.cancel()
+				p.teleport_to(q + Vector3(0.0, 0.3, 0.0))
+				await until(func() -> bool: return camp.step_index > idx or _done_chapters > 0, 3.0)
 		elif idx == 5:
 			# LAND: fly down to the ground ring for real
 			if sn.mode != SnakeTraversal.Mode.FLY:

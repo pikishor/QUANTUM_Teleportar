@@ -1,6 +1,10 @@
-# w115-integrator (running)
+# w115-integrator (done)
 
-agent id a8b0c06e80b850ce8, 463 events, first activity 2026-11-15T11:27:04.024Z, last activity 2026-11-15T13:42:12.644Z
+agent id a8b0c06e80b850ce8, 679 events, first activity 2026-11-15T11:27:04.024Z, last activity 2026-11-15T14:35:53.291Z
+
+## Final report
+
+ac0e52a729d8380787783a22a19c1df8ff54973b Pushed to main, 13 GB disk free, CI not waited for. Suite: 278 files, 273 PASS, 3 FLAKY, 2 FAIL. - FLAKY: test_combat_feel, test_interior_tasks_ui, test_superhero_hero (the last is as flaky on HEAD). - FAIL, now fixed in the tests: test_interior_gameplay (terrain far tiles inside the node count) and test_mission_board (a late result card paused the story start). The stuck-audit-bot flake in test_mission_board also exists on HEAD, so it is not wave 115; its findings now carry the hero's state. - Real bugs fixed, found through flaky new tests: the tutorial LAND ring could sit inside a block, and a snake hunter could spawn inside a stall or low building. The skills-screen headers no longer overlap. - Hardened: test_snake_combat, test_snake_traversal, test_critic_look_w115. Perf, all three tiers OK: - LOW: 74 draws, 96 total, 112 MB, death spike 107. - MED: 97 / 129 / 143 MB, death spike 148 of 150. - HIGH: 113 / 149 / 209 MB, death spike 169 of 170. Visual QA: 27 of 27 pass. Open defects: - fx_threat stealth pips draw as white plates. - SNAKE and FLY buttons are cramped at 844x390. - No QA spot shows snake content. - test_full_quick sits at its 140 s time limit in this sandbox. Added weight: assets +0.38 MB (APK about +0.7 MB); docs/shots +58 MB, not exported.
 
 ## Last notes of the agent
 
@@ -9,46 +13,46 @@ agent id a8b0c06e80b850ce8, 463 events, first activity 2026-11-15T11:27:04.024Z,
 
 ## Recent steps (last 40)
 
-- 13:24:00 Look at the skill screen diff and its header drawing
-- 13:24:01 Read the skill screen drawing code
-- 13:24:06 Look at UiUtil.fit_text and text size constants
-- 13:24:16 Find tests of the skills screen and the verb names
-- 13:24:22 Check which UI tests cover the skills screen
-- 13:24:22 Read Hud._text to see how width and size behave
-- 13:24:39 Read Tr.scaled_size and BODY_MIN
-- 13:24:41 Find Tr.scaled_size
-- 13:24:46 Check which header strings are translated
-- 13:25:03 Read the skills screen section of test_visual_fixes4
-- 13:25:06 Find the HUD text scan machinery
-- 13:25:08 Read the scan implementation and how a menu test uses it
-- 13:25:18 /home/user/QUANTUM_Teleportar/godot/tests/test_visual_fixes4.gd
-- 13:25:20 Run test_visual_fixes4 with the new header check before the fix
-- 13:26:05 Read how a menu test sets the viewport size
-- 13:26:10 Read the layout scan checks of test_menus_map_quality
-- 13:26:25 Make skill column headers shed leading words when they do not fit
-- 13:26:46 Rewrite the header check to be font-robust and phone-sized
-- 13:27:02 Add the old-look knob, rewrite the test, run test_visual_fixes4
-- 13:27:41 Dedup the scan entries and rerun test_visual_fixes4
-- 13:28:18 Re-shoot the skill visual QA spot after the header fix
-- 13:29:25 /home/user/QUANTUM_Teleportar/docs/shots/skill.png
-- 13:29:29 /home/user/QUANTUM_Teleportar/docs/shots/hero.png
-- 13:29:29 /home/user/QUANTUM_Teleportar/docs/shots/street_nw.png
-- 13:29:37 /home/user/QUANTUM_Teleportar/docs/shots/boss.png
-- 13:29:38 /home/user/QUANTUM_Teleportar/docs/shots/interior.png
-- 13:29:45 Rebuild the contact sheet with the fixed skill frame
-- 13:29:56 Rerun the tests touched by the integrator edits
-- 13:33:00 Check scratch test files lacking uid and whether they are documented
-- 13:33:05 Look for stray scratch files and large files before staging
-- 13:33:14 Run the size report for the wave
-- 13:33:19 Compute the wave's added weight by category
-- 13:33:28 Compare the round6 sheet folder size with previous waves
-- 13:33:38 Look at the fx_threat shader's mode branches
-- 13:33:42 Read the fx_threat shader head and its users
-- 13:33:58 Disk free and the biggest scratchpad entries
-- 13:34:13 Run test_full_quick solo for the record
-- 13:36:39 Read the test_full_quick log and source head
-- 13:36:51 Time test_full_quick on baseline and current tree with a longer limit
-- 13:42:12 A/B test_superhero_hero current vs baseline, 3 rounds of 3
+- 14:03:50 Rerun the probe with the try timer reset and the real pull sequence
+- 14:04:49 Read can_cast and _deny of SnakeWar
+- 14:05:05 Read the full _trap function and _gcd uses
+- 14:05:27 Harden the three flaky checks of test_snake_combat
+- 14:05:33 Run the hardened test_snake_combat 9 times under 3-way load
+- 14:09:06 Check the flake rates of the three heavy new wave 115 tests under load
+- 14:16:34 Read the hunter placement check of the PLAY critic's test
+- 14:16:41 Read EnemyManager.spawn to see if it moves the enemy
+- 14:16:48 Check how a drone's position relates to the spawn point
+- 14:16:51 Read the rest of Drone.activate for position handling
+- 14:16:59 Check how drones handle their vertical position
+- 14:17:26 Probe where spawned hunters stand relative to the surface under them
+- 14:18:26 Fix the hunter spawn height and re-probe 120 spawns
+- 14:19:15 Delete the probe and read the wing tip old-look check
+- 14:19:25 Sample the old-look wing tip over several frames
+- 14:19:34 Check the wing tip cache variables
+- 14:19:40 Rerun the two critic tests 6 times each under load after the hardening
+- 14:22:42 Read the tutorial chapter part of test_snake_traversal
+- 14:22:55 Read the rest of the tutorial section and step_active
+- 14:23:14 Give the air-ring flight three attempts and a fallback
+- 14:23:22 Read the tutorial debug lines of the failing traversal runs
+- 14:23:37 Find how the tutorial LAND ring is placed
+- 14:23:39 Read how the tutorial rings are placed
+- 14:23:46 Find road-snapping helpers for placing the LAND ring on a street
+- 14:23:50 Read the road point helpers and the roofs() city access
+- 14:24:06 Place the LAND ring on a street and rerun test_snake_traversal 6 times under load
+- 14:28:52 See how far the timed-out traversal run got
+- 14:29:04 Find tests that reference the changed snake classes
+- 14:29:22 Regression slice of all tests touching the integrator's changes
+- 14:34:51 Add the real bugs and test hardening to the HANDOFF note
+- 14:34:57 Fix the perf gate sentence to name all three small changes
+- 14:35:05 Stage everything, unstage the digests, and review what is staged
+- 14:35:13 List modified files and added directories in the staged set
+- 14:35:25 Commit the wave 115 integration
+- 14:35:28 Push the commit to origin main
+- 14:35:46 Verify the pushed sha, clean tree and delete my remaining scratch
+- 14:35:47 
+- 14:35:47 
+- 14:35:47 
+- 14:35:53 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

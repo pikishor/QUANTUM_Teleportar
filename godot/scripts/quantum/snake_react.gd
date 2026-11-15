@@ -258,6 +258,7 @@ func _try_hunter() -> void:
 		return
 	var h := em.spawn(&"hunter", at, true)
 	if h != null:
+		h.global_position.y = at.y                                            # `Drone.activate` puts every spawn at street level (y = its hover): over a stall, a kiosk or a low roof that is INSIDE the object (wave 115 integrator: 1 of 40 spots, the flaky "none stands inside a building" check); the surface the ray found is where he stands
 		hunters += 1
 		_hunter_cd = HUNTER_COOLDOWN
 		_casts.clear()

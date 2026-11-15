@@ -216,6 +216,11 @@ static func build(t: StringName, tier: int, origin: Vector3, r: RandomNumberGene
 			var dp: Vector3 = d["pos"]
 			var air := Vector3(dp.x + 70.0 * cos(r.randf() * TAU), dp.y + 26.0, dp.z + 70.0 * sin(r.randf() * TAU))
 			var land := Vector3(air.x + 90.0, 0.0, air.z)
+			var city_l := Game.world as City
+			if city_l != null and city_l.layout != null:                                    # "back on the street": a point 90 m past the air ring is inside a block about one time in five (the nearest street 21 m from the ring, the ring's radius 14 m: the LAND step could not be done, found by the flaky tutorial test of the wave 115 integration)
+				var street := city_l.road_point_near(land, 0.0, 50.0)
+				if street.is_finite():
+					land = Vector3(street.x, 0.0, street.z)
 			out = [
 				_s("reach", "ZIP UP  AIM AT THE ROOF, TAP SNAKE", {"pos": a["pos"], "radius": ROOF_R, "snake_mission": "swing_city"}),
 				_s("reach", "SWING  JUMP, THEN HOLD SNAKE", {"pos": b["pos"], "radius": ROOF_R, "snake_mission": "swing_city"}),
