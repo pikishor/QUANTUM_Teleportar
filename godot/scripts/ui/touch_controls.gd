@@ -22,7 +22,7 @@ const BUTTONS := [
 	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &"foot"},
 	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "fs": 22, "label": "ROCKET", "need": &"arms2"},       # a gunship or a jet: rockets / missiles (VehicleWeapons.tick_alt)
 	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
-	{"action": &"snake", "dx": 254.0, "dy": 274.0, "r": 50.0, "fs": 26, "label": "SNAKE", "need": &"snake"},       # QUANTUM SNAKE traversal (scripts/quantum/snake_traversal.gd): ONE contextual button, in the hole between JUMP, RELOAD, AIM and FIRE: SWING in the air, ZIP on the ground, CLIMB at a wall, BOOST in flight
+	{"action": &"snake", "dx": 256.0, "dy": 273.0, "r": 46.0, "fs": 26, "label": "SNAKE", "need": &"snake"},       # QUANTUM SNAKE traversal (scripts/quantum/snake_traversal.gd): ONE contextual button, in the hole between JUMP, RELOAD, AIM and FIRE: SWING in the air, ZIP on the ground, CLIMB at a wall, BOOST in flight
 	{"action": &"fly", "dx": 430.0, "dy": 400.0, "r": 50.0, "fs": 24, "label": "FLY", "need": &"fly"},                # FLY while airborne, LAND while flying: the second (contextual) snake button
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &"foot"},
 	{"action": &"ability", "dx": 515.0, "dy": 120.0, "r": 58.0, "fs": 22, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability"},

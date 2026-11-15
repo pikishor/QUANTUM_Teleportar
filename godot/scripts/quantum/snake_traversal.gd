@@ -8,7 +8,7 @@ extends RefCounted
 ##   on the ground      tap SNAKE = SNAKE ZIP to the aimed roof, ledge or wall (a wall ends in a climb); with nothing to zip to, the swing launches from the ground (a hop and a swing)
 ##   at a wall          tap SNAKE = SNAKE CLIMB (stick up, sideways; JUMP leaps off in the look direction; tap again lets go); ceilings too
 ##   no anchor in reach hold SNAKE (0.45 s) = SNAKE FLIGHT; FLY toggles it any time; in flight SNAKE held is BOOST
-## The movement kit around it: DOUBLE JUMP (a second JUMP press while still rising: HeroPower air_jumps), SUPER JUMP (hold JUMP while rising: the snake pushes the ground), AIR DASH (the existing QUANTUM
+## The movement kit around it: DOUBLE JUMP (a second JUMP press while still rising: HeroPower air_jumps), SUPER JUMP (stand still, hold JUMP 0.3 s: the snake pushes the ground), AIR DASH (the existing QUANTUM
 ## GLIDE burst: a second press while falling), SAFE LANDING ROLL (a hard landing rolls and keeps the speed), plus the existing wall-run, ledge grab, mantle, vault and ground slam.
 ## Numbers: SnakePower (HeroPower rows by difficulty, skill nodes of the verb `snake`, HERO MODE). Energy: `energy` 0..100 (SnakePower.max_energy), regenerates on the ground, a third of that in the air.
 ## Shared tendril visual: SnakeTendril (snake_tendril.gd). Outputs for the body pose: `pose` (snake_pose.gd); for the camera: `cam` (snake_camera.gd). Counters (tests wait on these, not on frames):
@@ -21,7 +21,9 @@ enum Mode { NONE, SWING, ZIP, CLIMB, FLY }
 const DOUBLE_JUMP_SPEED := 8.4
 const SUPER_THRUST := 58.0                 ## m/s^2 added while JUMP is held on the way up
 const SUPER_TIME := 0.34
-const SUPER_HOLD := 0.14                   ## seconds JUMP is held before the push begins (a tap is a plain jump)
+const SUPER_HOLD := 0.30                   ## seconds JUMP is held before the push begins (a tap is a plain jump)
+const SUPER_MAX_STICK := 0.35             ## ... and the move stick is idle (forward + JUMP held is the vault / mantle / hop habit of a phone thumb, never a super jump)
+const SUPER_MAX_RUN := 4.5                 ## the push only follows a jump from standing or walking: a hero who holds forward + JUMP is vaulting, mantling or hopping (Traversal), never super jumping
 const ROLL_TIME := 0.56
 const ROLL_FALL := 15.0                    ## landing faster than this (m/s down) rolls
 const FLY_HOLD := 0.45
@@ -68,12 +70,16 @@ var wall_ready := false                     ## a wall is in reach in front of th
 var zip_ready := false                      ## a zip target is under the crosshair (the button reads ZIP)
 var hint: StringName = &"none"             ## what the SNAKE button would do now: swing, zip, climb, boost, fly, none (the touch button label reads it)
 var last_label := ""
+var jam_t := 0.0                           ## > 0 while a jammer keeps the snakes dead (jam(): the warden's phase pulse); the SNAKE and FLY presses do nothing and the button reads JAMMED
+var jams := 0                              ## times a jammer reached the hero (counter)
 
 var _snake_was := false
 var _fly_was := false
 var _jump_was := false
 var _hold_t := 0.0
 var _jump_hold_t := 0.0
+var _stick := 0.0                         ## the move stick this tick (0..1): the super jump needs it idle
+var _floor_speed := 0.0                    ## horizontal speed the hero had on the ground (a jump from a run is not a super jump)
 var _super_t := 0.0
 var _super_used := false
 var _whiff_cd := 0.0
@@ -144,6 +150,7 @@ func cancel() -> void:
 	_super_used = false
 	air_jumps_used = 0
 	_hold_t = 0.0
+	jam_t = 0.0
 	cam.reset()
 	pose.reset()
 
@@ -221,6 +228,16 @@ func tick(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: bool, jum
 	var fly_down := Input.is_action_pressed(&"fly")
 	var fly_pressed := fly_down and not _fly_was
 	_fly_was = fly_down
+	if jam_t > 0.0:                                            # a jammer's pulse: the buttons are dead (a press says why), a held button starts nothing when the jam ends
+		jam_t = maxf(0.0, jam_t - dt)
+		if (pressed or fly_pressed) and _whiff_cd <= 0.0:
+			_whiff_cd = WHIFF_COOLDOWN
+			Game.say("SNAKE JAMMED", 0.9)
+			Sfx.play(&"snk_miss", -6.0)
+		pressed = false
+		fly_pressed = false
+		if down:
+			_swing_blocked_press = true
 	var jump_pressed := jump_down and not _jump_was
 	_jump_was = jump_down
 	var crouch := Input.is_action_pressed(&"crouch")
@@ -325,7 +342,10 @@ func _end_mode(old: int) -> void:
 
 
 func _none_tick(dt: float, iv: Vector2, wish: Vector3, on_floor: bool, air: bool, down: bool, pressed: bool, fly_pressed: bool, jump_down: bool, jump_pressed: bool, crouch: bool) -> void:
+	_stick = iv.length()
 	# landing roll and chain bookkeeping
+	if on_floor:
+		_floor_speed = Vector2(p.velocity.x, p.velocity.z).length()
 	if not on_floor:
 		_fall_vy = minf(_fall_vy, p.velocity.y)
 		_was_air = true
@@ -491,6 +511,72 @@ func _whiff(aim: Vector3, reach: float) -> void:
 	Game.say("NO ANCHOR IN REACH", 0.9)
 	Sfx.play(&"snk_miss", -6.0)
 	event.emit(&"whiff")
+
+
+# --- enemy counters: the sniper's lead and the jammer ---------------------------------------------------------------------------------------
+
+## A JAMMER (the warden's phase pulse, specialist.gd) reaches the hero: every snake state ends at once (a swing lets go WITHOUT its release boost, a zip stops where it is, a climb loses its
+## grip, flight drops out of the sky), the SNAKE and FLY presses are dead for `seconds` (-1: SnakePower.jam_seconds by difficulty; HERO MODE is immune) and the button reads JAMMED.
+## Returns true when the jam took.
+func jam(seconds: float = -1.0) -> bool:
+	if p == null or not is_instance_valid(p) or InteriorSpace.active or InteriorGameplay.active:
+		return false
+	var secs := SnakePower.jam_seconds() if seconds < 0.0 else seconds
+	if secs <= 0.0:
+		return false
+	match mode:
+		Mode.SWING:
+			swing.release(p, false, &"jam")
+		Mode.ZIP:
+			zip.cancel()
+			air_momentum = 0.3
+		Mode.CLIMB:
+			climb.drop(p)
+		Mode.FLY:
+			flight.end(p, false)
+	if mode != Mode.NONE:                                      # a state that did not hand the body back through its own end hook
+		swing.cancel()
+		zip.cancel()
+		climb.cancel()
+		flight.cancel()
+		mode = Mode.NONE
+		cam.on_mode(mode)
+	jam_t = maxf(jam_t, secs)
+	jams += 1
+	_chain_armed = 0.0
+	_swing_blocked_press = true
+	_hold_t = 0.0
+	FX.burst(p.global_position + Vector3(0.0, 1.0, 0.0), Color(0.82, 0.8, 1.0), 14, 5.5, 0.5, 2.0, 1.0)
+	FX.shake(0.25)
+	p.camera_rig.bump(0.3)
+	Game.say("SNAKE JAMMED", 1.3)
+	Sfx.play(&"snk_miss", -2.0, 0.7)
+	event.emit(&"jam")
+	return true
+
+
+## The warden's pulse calls this with its own position: a hero within `radius` metres (sideways) is jammed, from 6 m below the pulse up to `height` above it (the pulse is a column: a hero
+## swinging over the warden's head is in it, the warden's AI pulses at a hero 24 m away sideways whatever his height). Returns true when he was.
+static func jam_in_radius(at: Vector3, radius: float, seconds: float = -1.0, height: float = 45.0) -> bool:
+	var s := instance
+	if s == null or s.p == null or not is_instance_valid(s.p):
+		return false
+	var d := s.p.global_position - at
+	if Vector2(d.x, d.z).length() > radius or d.y > height or d.y < -6.0:
+		return false
+	return s.jam(seconds)
+
+
+## Where a sniper should aim to hit a hero who moves under the snakes (swinging, zipping, climbing, flying, or flying out of a release): his velocity times `t` seconds (the time between the
+## lock and the shot), scaled by how good the sniper is on this difficulty (SnakePower.sniper_lead). Zero for a hero on foot (the old behaviour) and for slow movement.
+static func lead_offset(t: float) -> Vector3:
+	var s := instance
+	if s == null or s.p == null or not is_instance_valid(s.p) or (s.mode == Mode.NONE and s.air_momentum <= 0.0):
+		return Vector3.ZERO
+	var v := s.p.velocity
+	if v.length() < 6.0:
+		return Vector3.ZERO
+	return v * (t * SnakePower.sniper_lead())
 
 
 # --- callbacks of the states (sounds, effects, events) ---------------------------------------------------------------------------------
@@ -664,7 +750,7 @@ func _kit(dt: float, on_floor: bool, air: bool, jump_down: bool, jump_pressed: b
 		event.emit(&"double_jump")
 		return
 	# SUPER JUMP: hold JUMP while rising, the snake pushes the ground away
-	if jump_down and _jump_hold_t >= SUPER_HOLD and p.velocity.y > 1.0 and _super_t < SUPER_TIME and not _super_used and not p.verbs.wall_running and air_jumps_used == 0 and p.air_time < 0.9:
+	if jump_down and _jump_hold_t >= SUPER_HOLD and (_super_t > 0.0 or (_floor_speed < SUPER_MAX_RUN and _stick < SUPER_MAX_STICK)) and p.velocity.y > 1.0 and _super_t < SUPER_TIME and not _super_used and not p.verbs.wall_running and air_jumps_used == 0 and p.air_time < 0.9:
 		if _super_t == 0.0:
 			if not SnakePower.unlimited() and energy < 6.0:
 				_super_used = true
@@ -738,6 +824,8 @@ func _preview(dt: float, on_floor: bool, air: bool) -> void:
 
 ## The text of the touch SNAKE button: what a press would do now (cached by the scans in _preview, never casts a ray itself).
 func button_label() -> String:
+	if jam_t > 0.0:
+		return "JAMMED"
 	match mode:
 		Mode.SWING: return "RELEASE"
 		Mode.CLIMB: return "LET GO"
@@ -757,7 +845,7 @@ func button_shown() -> bool:
 
 ## The FLY / LAND button: while flying, or in the air (swinging, falling, jumping) when flight is open to the hero and the energy lasts.
 func fly_button_shown() -> bool:
-	if not button_shown() or not SnakePower.flight_unlocked():
+	if not button_shown() or not SnakePower.flight_unlocked() or jam_t > 0.0:
 		return false
 	if mode == Mode.FLY:
 		return true

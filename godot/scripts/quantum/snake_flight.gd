@@ -145,9 +145,9 @@ func _wing_tip(p: Player, side: int) -> Vector3:
 	right = right.normalized() if right.length() > 0.05 else Vector3.RIGHT
 	var spd := clampf(speed / maxf(SnakePower.fly_boost(), 1.0), 0.0, 1.0)
 	var spread := wing_spread
-	var span := lerpf(2.6, 4.6, spread) - 1.0 * spd
-	var back := lerpf(1.2, 4.2, spd) + 0.8 * (1.0 - spread)
-	var lift := lerpf(0.3, 1.8, spread) - 0.4 * spd + 0.5 * bank * float(side)
+	var span := lerpf(3.0, 4.8, spread) - 0.7 * spd                 # render loop 12: swept far back (4 m) the tips came at the camera and the wings filled the screen; now they open sideways
+	var back := lerpf(0.6, 2.4, spd) + 0.5 * (1.0 - spread)
+	var lift := lerpf(0.5, 2.0, spread) - 0.3 * spd + 0.5 * bank * float(side)
 	var chest := p.global_position + Vector3(0.0, 1.15, 0.0)
 	return chest - fwd * back + right * (float(side) * span) + up * lift
 

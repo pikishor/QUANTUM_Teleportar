@@ -176,6 +176,7 @@ func publish(engine := true) -> void:
 	Game.damage_numbers = dmg_numbers
 	if engine:
 		AimAssist.enabled = aim_assist
+		SnakeTraversal.assist = aim_assist                           # the same switch: the snake picks the anchor for the hero (off = the crosshair ray alone)
 		AimAssist.auto_fire = auto_fire
 		Engine.max_fps = fps_cap
 		ControlMap.apply_keys(key_binds)

@@ -20,7 +20,7 @@ attempt() {
 }
 # fail_lines <log>: the lines that say what failed (the first eight, cut to 300 characters)
 fail_lines() { grep -a -E '^(FAIL|SCRIPT ERROR|Parse Error|handle_crash)' "$1" | cut -c1-300 | head -8; }
-# annotate <error|warning> <title> <log>: a workflow command with the failed lines as its message (%, CR and LF escaped the way the runner wants them)
+# annotate <error|warning> <title> <log>: a workflow command with the failed lines as its message (%, CR and LF escaped the way the runner wants them; a title must not hold a comma or a colon: the runner cuts it there)
 annotate() {
   local msg
   msg=$(fail_lines "$3" | sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN { ORS = "%0A" } { print }')
@@ -39,7 +39,7 @@ for t in $FILES; do
     attempt "$t" "$LOG2"; rc2=$?
     if [ "$rc2" -eq 0 ]; then
       flaky=$((flaky + 1)); echo "FLAKY $t (passed on retry)"
-      annotate warning "FLAKY $t (first attempt, exit $rc1)" "$LOG1"
+      annotate warning "FLAKY $t (first attempt exit $rc1)" "$LOG1"
       RECAP+=$'\n'"FLAKY $t (first attempt exit $rc1, the retry passed)"$'\n'"$(fail_lines "$LOG1" | sed 's/^/    /')"
     else
       fail=$((fail + 1)); echo "FAIL $t"

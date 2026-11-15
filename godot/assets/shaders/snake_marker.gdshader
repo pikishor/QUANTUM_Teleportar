@@ -1,6 +1,6 @@
 shader_type spatial;
-// The anchor marker of the QUANTUM SNAKE (scripts/quantum/snake_fx.gd): a thin pulsing ring with a dot where the next swing would bite. A billboard quad, additive, unshaded, never writes depth.
-render_mode unshaded, blend_add, depth_draw_never, cull_disabled;
+// The anchor marker of the QUANTUM SNAKE (scripts/quantum/snake_fx.gd): a thin pulsing ring with a dot where the next swing would bite. A billboard quad, additive, unshaded, never reads or writes depth (the whole ring shows even on a corner).
+render_mode unshaded, blend_add, depth_draw_never, depth_test_disabled, cull_disabled;      // no depth test: an anchor on a corner or a grazing facade kept only a wedge of the ring (render loop 15)
 uniform vec3 col = vec3(0.35, 1.0, 1.0);
 uniform float pulse = 0.0;
 uniform float alpha = 1.0;

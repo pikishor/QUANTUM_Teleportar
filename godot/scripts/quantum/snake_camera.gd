@@ -82,9 +82,9 @@ func update(st: SnakeTraversal, dt: float, looking: bool) -> void:
 	var right := Vector3(cos(p.camera_rig.yaw), 0.0, -sin(p.camera_rig.yaw))
 	match st.mode:
 		SnakeTraversal.Mode.SWING:
-			td = clampf(sp * 0.05, 0.0, 2.6) + 0.9
-			th = 0.9 + clampf(sp * 0.01, 0.0, 0.4)
-			tf = clampf(sp * 0.42, 0.0, 17.0) * calm
+			td = clampf(sp * 0.03, 0.0, 1.6) + 0.5                       # render loop 14: at 40 m/s the arm was 7.5 m and the lens +17 degrees: the hero was 8 % of the frame high
+			th = 0.55 + clampf(sp * 0.008, 0.0, 0.35)
+			tf = clampf(sp * 0.3, 0.0, 12.0) * calm
 			ts = 0.7
 			if sp > 6.0:
 				tr = -clampf(p.velocity.dot(right) / maxf(sp, 1.0), -1.0, 1.0) * 0.1 * calm
@@ -101,20 +101,20 @@ func update(st: SnakeTraversal, dt: float, looking: bool) -> void:
 			ts = 0.6
 			lines = clampf((sp - 18.0) / 40.0, 0.0, 1.0) * calm
 		SnakeTraversal.Mode.CLIMB:
-			td = 1.3
-			th = 1.0
+			td = 1.7                                                 # a longer arm so the whole hero is in the picture, and no lift of the lens (render loop 11: with +1 m the legs left the bottom of the frame)
+			th = 0.05
 			tf = 4.0 * calm
 			ts = 0.4
 			if not looking:
 				yaw_to = st.climb.face_yaw()
 				yaw_rate = 2.4
-				pitch_to = 0.42 if st.climb.ceiling else (0.02 if st.climb.move_dir.y > 0.2 else -0.04)
+				pitch_to = 0.42 if st.climb.ceiling else (0.1 if st.climb.move_dir.y > 0.2 else 0.0)
 				pitch_rate = 1.8
 		SnakeTraversal.Mode.FLY:
 			var cruise := maxf(SnakePower.fly_cruise(), 1.0)
-			td = 0.7 + clampf(sp * 0.035, 0.0, 2.4)
-			th = 0.6 + clampf(sp * 0.01, 0.0, 0.5)
-			tf = (5.0 + clampf(sp * 0.26, 0.0, 20.0)) * calm
+			td = 0.5 + clampf(sp * 0.02, 0.0, 1.5)                      # render loop 12: the hero was 12 % of the frame high at cruise (arm 7 m, lens +14 degrees): closer, and a smaller lens kick
+			th = -0.35 + clampf(sp * 0.004, 0.0, 0.25)                    # the lens sits at the hero's chest, not above his head: he rises from the bottom edge of the frame (render loop 13)
+			tf = (3.0 + clampf(sp * 0.16, 0.0, 12.0)) * calm
 			ts = 0.35
 			tr = st.flight.bank * 0.55 * calm
 			lines = clampf((sp - cruise * 0.7) / (cruise * 1.2), 0.0, 1.0) * calm

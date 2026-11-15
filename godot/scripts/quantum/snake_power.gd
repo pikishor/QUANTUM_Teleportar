@@ -82,6 +82,23 @@ static func cd(base: float) -> float:
 	return HeroPower.cd(base)
 
 
+## Seconds a JAMMER (the warden's phase pulse) keeps the snakes dead, by difficulty (STORY, NORMAL, HARD, QUANTUM). HERO MODE is immune to it (the pulse still hurts).
+const JAM_SECONDS := [1.0, 2.0, 3.0, 3.5]
+## How well a sniper leads a hero who is swinging, zipping, climbing or flying, by difficulty: 0.55 undershoots a 40 m/s arc by metres (a STORY hero is never hit
+## by it), 1.0 is a perfect straight-line lead (only a change of direction in the last quarter second dodges it).
+const SNIPER_LEAD := [0.55, 0.8, 0.95, 1.0]
+
+
+static func jam_seconds() -> float:
+	if unlimited():
+		return 0.0
+	return float(JAM_SECONDS[Difficulty.clamp_mode(Difficulty.current)])
+
+
+static func sniper_lead() -> float:
+	return float(SNIPER_LEAD[Difficulty.clamp_mode(Difficulty.current)])
+
+
 ## Flight is available from the start on STORY and NORMAL; HARD and QUANTUM unlock it with the first WING POWER rank (or HERO MODE), so the skill tree has a real first step there.
 static func flight_unlocked() -> bool:
 	if unlimited() or row("fly_cruise") <= 0.0:

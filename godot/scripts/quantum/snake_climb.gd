@@ -221,6 +221,12 @@ func _grip(p: Player, hand: bool) -> void:
 	t.user["grip"] = true
 
 
+## Lose the grip (a jammer's pulse): no push off the wall, the hero simply falls.
+func drop(p: Player) -> void:
+	if active:
+		_let_go(p, false)
+
+
 func _let_go(p: Player, boost: bool) -> void:
 	active = false
 	phase = &"none"

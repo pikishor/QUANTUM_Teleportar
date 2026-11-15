@@ -129,7 +129,7 @@ func _process(delta: float) -> void:
 		var cam := st.p.camera_rig.camera
 		var dist := cam.global_position.distance_to(_marker_pos) if cam != null else 20.0
 		_marker.global_position = _marker_pos
-		var sc := clampf(dist * 0.05, 0.8, 3.0)
+		var sc := clampf(dist * 0.07, 1.0, 4.0)
 		_marker.scale = Vector3(sc, sc, sc)
 		_marker_a = minf(_marker_a + dt * 5.0, 1.0)
 		_mmat.set_shader_parameter("pulse", _t)

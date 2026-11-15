@@ -74,8 +74,10 @@ func run(h: Node) -> void:
 	await _zip_and_climb()
 	await _swing()
 	await _flight()
+	await _counters()
 	await _buttons()
 	await _missions()
+	_assist_option()
 	release_all()
 	TestMode.god = false
 	WeaponDefs.hero_mode = false
@@ -186,7 +188,7 @@ func _kit() -> void:
 	TestLib.check(p.verbs.bursts == 0 or p.verbs.bursting == false, "the double jump keeps the air dash burst for the next press")
 	await until(func() -> bool: return p.is_on_floor(), 4.0)
 	await frames(15)
-	# SUPER JUMP: hold JUMP
+	# SUPER JUMP: from standing, hold JUMP
 	var s0 := sn.super_jumps
 	Input.action_press(&"jump")
 	var top := 0.0
@@ -194,15 +196,29 @@ func _kit() -> void:
 		await frames(1)
 		top = maxf(top, p.global_position.y)
 	Input.action_release(&"jump")
-	TestLib.check(sn.super_jumps == s0 + 1 and top > 4.0, "holding JUMP is a SUPER JUMP (top %.1f m, a plain jump reaches about 1.5 m)" % top)
+	TestLib.check(sn.super_jumps == s0 + 1 and top > 4.0, "holding JUMP from standing is a SUPER JUMP (top %.1f m, a plain jump reaches about 1.5 m)" % top)
 	await until(func() -> bool: return p.is_on_floor(), 5.0)
-	# a plain tap jump never becomes a super jump
+	# a plain tap jump never becomes a super jump, and neither does a long press of 0.25 s
 	await frames(20)
 	var s1 := sn.super_jumps
 	await tap(&"jump", 3)
 	await frames(50)
 	TestLib.check(sn.super_jumps == s1, "a tap on JUMP stays a plain jump")
 	await until(func() -> bool: return p.is_on_floor(), 3.0)
+	await frames(20)
+	await tap(&"jump", 15)
+	await frames(50)
+	TestLib.check(sn.super_jumps == s1, "a long press of a quarter second is still a plain jump")
+	await until(func() -> bool: return p.is_on_floor(), 3.0)
+	# running or pushing the stick with JUMP held (the vault and mantle habit of a phone thumb) is never a super jump
+	await frames(20)
+	Input.action_press(&"move_forward")
+	Input.action_press(&"jump")
+	await frames(90)
+	Input.action_release(&"jump")
+	Input.action_release(&"move_forward")
+	TestLib.check(sn.super_jumps == s1, "forward + JUMP held while running is never a super jump")
+	await until(func() -> bool: return p.is_on_floor(), 4.0)
 	# SAFE LANDING ROLL: a long fall rolls and keeps the speed
 	await _prep(Game.SPAWN + Vector3(0.0, 45.0, 0.0))
 	var r0 := sn.landing_rolls
@@ -329,6 +345,132 @@ func _swing() -> void:
 	await tap(&"snake", 3)
 	await frames(10)
 	TestLib.check(sn.mode == SnakeTraversal.Mode.NONE and sn.whiffs >= wf, "with nothing to bite the press is a miss, the hero stays free")
+
+
+# --- the enemy counters: snipers lead a hero on the snakes, the warden's pulse jams them -------------------------------------------------------------
+
+func _counters() -> void:
+	var secs := []
+	var leads := []
+	WeaponDefs.hero_mode = false
+	for m in 4:
+		Difficulty.set_mode(m)
+		secs.append(SnakePower.jam_seconds())
+		leads.append(SnakePower.sniper_lead())
+	TestLib.check(secs == [1.0, 2.0, 3.0, 3.5], "a jam lasts 1 / 2 / 3 / 3.5 s from STORY to QUANTUM (%s)" % str(secs))
+	TestLib.check(leads == [0.55, 0.8, 0.95, 1.0], "the sniper's lead improves from STORY to QUANTUM (%s)" % str(leads))
+	Difficulty.set_mode(1)
+	WeaponDefs.hero_mode = true
+	TestLib.check(SnakePower.jam_seconds() == 0.0 and not sn.jam(), "HERO MODE is immune to a jammer")
+	WeaponDefs.hero_mode = false
+	# the sniper's lead: a hero on foot is shot where he stands (the old rule), a hero on a swing is led by his own speed
+	await _prep(Game.SPAWN)
+	TestLib.check(SnakeTraversal.lead_offset(Specialist.SNIPER_LOCK) == Vector3.ZERO, "a hero on foot is not led")
+	await _prep(Vector3(-30.0, 40.0, 4.0), -PI * 0.5, 0.2)
+	Input.action_press(&"snake")
+	await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.SWING and sn.swing.phase == &"hang" and p.velocity.length() > 10.0, 3.0)
+	var v := p.velocity
+	var off := SnakeTraversal.lead_offset(Specialist.SNIPER_LOCK)
+	var want := v.length() * Specialist.SNIPER_LOCK * SnakePower.sniper_lead()
+	TestLib.check(sn.mode == SnakeTraversal.Mode.SWING and absf(off.length() - want) < 0.02 and off.normalized().dot(v.normalized()) > 0.999, "a swinging hero is led: %.1f m ahead at %.1f m/s (wanted %.1f)" % [off.length(), v.length(), want])
+	var em := Game.enemies as EnemyManager
+	var spec := em.spawn(&"sniper", p.global_position + Vector3(40.0, 0.0, 0.0), true) as Specialist
+	spec.set_physics_process(false)
+	spec._tgt = p.global_position + Vector3(0.0, 1.0, 0.0)
+	spec._tgt_ok = true
+	spec._locked = false
+	spec._aim_t = Specialist.SNIPER_LOCK * 0.9
+	spec._fire_cycle(0.001, 40.0, 60.0)
+	var gap := spec._lock_point.distance_to(spec._tgt)
+	TestLib.check(spec._locked and absf(gap - p.velocity.length() * Specialist.SNIPER_LOCK * SnakePower.sniper_lead()) < 0.05, "a real sniper's lock leads the swinging hero by %.1f m" % gap)
+	# the jammer: out of reach nothing happens; in reach the swing is dropped WITHOUT its boost, the buttons are dead, and the dead button says so
+	await frames(20)
+	var j0 := sn.jams
+	var sp0 := p.velocity.length()
+	TestLib.check(not SnakeTraversal.jam_in_radius(p.global_position + Vector3(40.0, 0.0, 0.0), 13.0) and sn.mode == SnakeTraversal.Mode.SWING and sn.jams == j0, "a jammer 40 m away leaves the swing alone")
+	var took := SnakeTraversal.jam_in_radius(p.global_position + Vector3(6.0, 0.0, 0.0), 13.0)
+	TestLib.check(took and sn.mode == SnakeTraversal.Mode.NONE and sn.jams == j0 + 1 and absf(sn.jam_t - 2.0) < 0.1, "a jammer in reach drops the swing for the difficulty's seconds (%.2f)" % sn.jam_t)
+	TestLib.check(p.velocity.length() <= sp0 * 1.02, "no release boost on a jam (%.1f m/s before, %.1f after)" % [sp0, p.velocity.length()])
+	TestLib.check(sn.button_label() == "JAMMED" and not sn.fly_button_shown(), "the SNAKE button reads JAMMED and the FLY button is gone")
+	var w1 := sn.swings
+	await frames(18)
+	TestLib.check(sn.mode == SnakeTraversal.Mode.NONE and sn.swings == w1, "holding SNAKE starts nothing while jammed")
+	Input.action_release(&"snake")
+	await frames(3)
+	await tap(&"snake", 3)
+	await frames(6)
+	TestLib.check(sn.mode == SnakeTraversal.Mode.NONE and sn.swings == w1, "a fresh press during the jam does nothing either")
+	# a short jam in the air: when it ends the button works again, and a button held through it does not start flight by itself
+	await _prep(Vector3(-30.0, 40.0, 4.0), -PI * 0.5, 0.2)
+	var f0 := sn.flights
+	var s0 := sn.swings
+	TestLib.check(sn.jam(0.4), "a direct jam takes")
+	Input.action_press(&"snake")
+	await frames(10)
+	TestLib.check(sn.mode == SnakeTraversal.Mode.NONE and sn.swings == s0, "SNAKE is dead inside the jam")
+	await until(func() -> bool: return sn.jam_t <= 0.0, 1.0)
+	await frames(40)
+	TestLib.check(sn.mode == SnakeTraversal.Mode.NONE and sn.swings == s0 and sn.flights == f0, "a button held through the jam starts nothing when it ends")
+	Input.action_release(&"snake")
+	await frames(3)
+	Input.action_press(&"snake")
+	var again := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.SWING, 2.0)
+	Input.action_release(&"snake")
+	TestLib.check(again and sn.swings == s0 + 1, "after the jam a new press swings again")
+	# the pulse of a real warden jams within twice its damage radius and not beyond
+	await _prep(Vector3(-30.0, 40.0, 4.0), -PI * 0.5, 0.2)
+	var wd := em.spawn(&"warden", p.global_position + Vector3(9.0, 0.0, 0.0), true) as Specialist
+	wd.set_physics_process(false)
+	var j1 := sn.jams
+	wd._pulse()
+	TestLib.check(sn.jams == j1 + 1 and sn.jam_t > 0.5, "the warden's phase pulse jams a hero 9 m away")
+	sn.jam_t = 0.0
+	wd.global_position = p.global_position + Vector3(40.0, 0.0, 0.0)
+	wd._pulse()
+	TestLib.check(sn.jams == j1 + 1, "a pulse from 40 m away does not")
+	em.clear()
+	# a flight, a zip and a climb are all dropped
+	await _prep(Game.SPAWN, -PI * 0.5, 0.15)
+	await tap(&"fly", 3)
+	await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.FLY, 1.0)
+	await frames(15)
+	var flying := sn.mode == SnakeTraversal.Mode.FLY
+	sn.jam(1.0)
+	TestLib.check(flying and sn.mode == SnakeTraversal.Mode.NONE and not sn.flight.active, "a jam drops a flight out of the sky")
+	await tap(&"fly", 3)
+	await frames(8)
+	TestLib.check(sn.mode == SnakeTraversal.Mode.NONE, "FLY does nothing while jammed")
+	await _prep(Vector3(-30.0, 0.0, 4.0), PI, 0.38)
+	await tap(&"snake", 4)
+	var zipping := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.ZIP, 1.0)
+	await frames(6)
+	sn.jam(1.0)
+	TestLib.check(zipping and sn.mode == SnakeTraversal.Mode.NONE and not sn.zip.active, "a jam stops a zip where it is")
+	await _prep(Vector3(-13.2, 0.0, 15.0), PI, 0.1)
+	await tap(&"snake", 4)
+	var climbing := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.CLIMB, 1.0)
+	Input.action_press(&"move_forward")
+	await until(func() -> bool: return p.global_position.y > 4.0, 3.0)
+	Input.action_release(&"move_forward")
+	sn.jam(1.0)
+	TestLib.check(climbing and sn.mode == SnakeTraversal.Mode.NONE and not sn.climb.active, "a jam loses the grip on a wall")
+	await until(func() -> bool: return p.is_on_floor(), 6.0)
+	sn.cancel()
+	TestLib.check(sn.jam_t == 0.0, "a respawn or teleport clears a jam")
+	Difficulty.set_mode(1)
+
+
+# --- the AIM ASSIST option also switches the snake's anchor assist ---------------------------------------------------------------------------------------
+
+func _assist_option() -> void:
+	var st := UiSettings.new("user://test_snake_assist_none.cfg")
+	st.aim_assist = false
+	st.publish(true)
+	TestLib.check(not SnakeTraversal.assist, "AIM ASSIST off turns the snake's anchor assist off (the crosshair ray alone)")
+	st.aim_assist = true
+	st.publish(true)
+	TestLib.check(SnakeTraversal.assist, "AIM ASSIST on turns it back on")
+	Difficulty.set_mode(1)
 
 
 # --- flight --------------------------------------------------------------------------------------------------------------------------------
@@ -546,15 +688,18 @@ func _missions() -> void:
 				await tap(&"fly", 3)
 				await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.FLY, 1.0)
 			var guard_l := 0
-			while camp.step_index == 5 and camp.state == &"active" and guard_l < 1200 and _done_chapters == 0:
+			var landing_asked := false
+			while camp.step_index == 5 and camp.state == &"active" and guard_l < 1800 and _done_chapters == 0:
 				guard_l += 1
-				p.camera_rig.aim_at(q + Vector3(0.0, 1.0, 0.0))
+				var hd := Vector2(p.global_position.x - q.x, p.global_position.z - q.z).length()
+				p.camera_rig.aim_at(Vector3(q.x, q.y + (1.0 if hd < 35.0 else 6.0), q.z))
 				Input.action_press(&"move_forward")
-				if guard_l == 200 and sn.mode == SnakeTraversal.Mode.FLY:
+				if sn.mode == SnakeTraversal.Mode.FLY and hd < 45.0 and not landing_asked:
+					landing_asked = true
 					Input.action_press(&"fly")
-				await frames(1)
-				if guard_l == 205:
+				elif landing_asked and guard_l % 5 == 0:
 					Input.action_release(&"fly")
+				await frames(1)
 			Input.action_release(&"move_forward")
 			Input.action_release(&"fly")
 		else:

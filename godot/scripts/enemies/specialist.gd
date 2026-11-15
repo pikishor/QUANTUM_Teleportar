@@ -420,6 +420,7 @@ func _pulse() -> void:
 	var at := Vector3(global_position.x, global_position.y + 0.15, global_position.z)
 	Game.explode(at, float(cfg.get("pulse_radius", 6.5)), {"enemy_dmg": 0.0, "car_dmg": 12.0, "player_dmg": float(cfg.get("pulse_dmg", 20.0)), "color": Color(0.8, 0.8, 1.0)})
 	FX.shake(0.4)
+	SnakeTraversal.jam_in_radius(at, maxf(float(cfg.get("pulse_radius", 6.5)) * 2.0, 12.0))     # the pulse also JAMS the hero's snakes within twice its damage radius (SnakePower.jam_seconds)
 	blink()
 
 
@@ -530,7 +531,7 @@ func _fire_cycle(delta: float, d: float, rng: float) -> void:
 		&"sniper":
 			if _aim_t > 0.0 and _aim_t <= SNIPER_LOCK and not _locked:
 				_locked = true
-				_lock_point = _tgt                              # the laser stops following: the shot goes where he was
+				_lock_point = _tgt + SnakeTraversal.lead_offset(SNIPER_LOCK)      # the laser stops following: the shot goes where he was (a hero on the snakes is led: his speed times the lock time)
 			elif _aim_t <= 0.0 and _burst_left == 0:
 				_locked = false
 	super._fire_cycle(delta, d, rng)

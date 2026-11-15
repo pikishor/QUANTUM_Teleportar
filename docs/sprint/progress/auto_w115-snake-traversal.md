@@ -1,53 +1,54 @@
 # w115-snake-traversal (running)
 
-agent id ae95c122bf87a5b35, 597 events, first activity 2026-11-14T23:13:49.366Z, last activity 2026-11-15T00:56:07.045Z
+agent id ae95c122bf87a5b35, 1093 events, first activity 2026-11-14T23:13:49.366Z, last activity 2026-11-15T02:51:52.575Z
 
 ## Last notes of the agent
 
 - 23:43:16 Now the core traversal orchestrator and the swing state.
+- 02:38:31 Now apply the super jump change (longer hold, standing start only) and extend the test.
 
 ## Recent steps (last 40)
 
-- 00:22:17 Find how the HUD test pins the on-foot control set
-- 00:22:22 Locate the ALLOWED control set definition
-- 00:22:27 See what the declutter test enforces on the on-foot controls
-- 00:22:35 Allow the SNAKE button in the pinned on-foot control set
-- 00:22:44 Update the control-count pins and rerun the HUD tests
-- 00:23:57 Render the phone HUD with the new SNAKE and FLY buttons
-- 00:25:26 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/snake/hud2/hud_hud_ground.png
-- 00:25:27 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/snake/hud2/hud_hud_air.png
-- 00:25:39 Read how audio assets are generated and loaded
-- 00:26:26 Generate the snake traversal sounds with a synthesis script
-- 00:27:08 Add speed lines, anchor marker, sound beds and hook them into the player
-- 00:27:56 Add wing arch and flutter, tune camera numbers, render hero pose close-ups for each state
-- 00:31:57 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/snake/p1_sheet.jpg
-- 00:32:09 Make the pose close-up camera follow the hero and re-render
-- 00:35:40 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/snake/p2_sheet.jpg
-- 00:36:02 Read the Mission Board and world mission docs and list mission scripts
-- 00:36:11 See how the campaign runner dispatches step kinds and where WorldSteps hooks in
-- 00:36:25 Read the board's offer generation and the world mission injection hook
-- 00:36:28 Read WorldMissions data structure and the board's offer logic
-- 00:36:37 Check test pins on world mission types, the world offer builder and the reach condition
-- 00:37:06 Locate the chase step implementation in the campaign runner
-- 00:37:24 Read the chase step begin and tick
-- 00:37:41 Read how the kill_target step spawns and tracks its enemy
-- 00:37:46 Read the kill target begin code and its step data
-- 00:38:00 Find how to query buildings and the runner's public step state
-- 00:38:51 Add the SnakeMissions data and the board hooks
-- 00:39:10 Find the campaign runner accessor and the enemy spawn / disable API
-- 00:39:46 Add the mission director (courier, tutorial flag, hints) and wire it in
-- 00:40:41 Check the runner start API, aim_at and board/touch accessors for the test
-- 00:41:59 /home/user/QUANTUM_Teleportar/godot/tests/test_snake_traversal.gd
-- 00:42:03 Run the snake traversal test and show the failures
-- 00:45:44 Fix leap, in-air press and test timing; probe the mission flow
-- 00:46:39 Fix the mission driver in the test and rerun
-- 00:49:06 Probe the zip with the touch layer forced on
-- 00:50:05 Make the zip ignore low obstacles; probe the wall leap frame by frame
-- 00:51:14 Make zips ignore cars, block wall-run after a leap, fix test geometry, rerun
-- 00:53:22 Read the runner's spawn helper used by kill_target
-- 00:53:31 Fix the double toggle on a wall let-go; probe the chase chapter steps
-- 00:54:11 Print the state at the end of the landing step of the tutorial
-- 00:56:07 Loosen the drone altitude check and rerun the whole traversal test
+- 02:21:07 Look at trail references in the hero code and my pool
+- 02:21:21 Search for purple emissive effects outside UI
+- 02:21:31 Search for line-primitive effects attached to the hero or in the world
+- 02:21:41 Render the HUD scene on MED to see whether the purple lines exist without any snake action
+- 02:25:16 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/snake/m2_air_half.png
+- 02:25:40 Read the perf gate script header
+- 02:25:47 See how the perf probe counts draws and how the perf bot is built
+- 02:26:09 /home/user/QUANTUM_Teleportar/godot/tests/bot_snake_perf.gd
+- 02:26:12 Check the keys PerfProbe.snapshot returns
+- 02:26:20 Measure draw calls and triangles per snake state on LOW
+- 02:29:14 See how the tendril pool node and its draw call are structured
+- 02:29:30 Extend the perf bot with same-view A/B samples (snake visuals hidden)
+- 02:29:36 Rerun the perf bot with A/B samples on LOW
+- 02:32:17 Bring the swing camera closer so the hero stays readable at speed
+- 02:32:20 Check the exact indentation of the swing camera block
+- 02:32:26 Apply the swing camera tweak with the right indentation
+- 02:32:34 Zoom into the anchor marker region of the MED air frame
+- 02:32:38 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/snake/m2_marker_crop.png
+- 02:32:51 Draw the anchor marker without a depth test so corners do not clip it
+- 02:32:56 Make the anchor marker a bit larger at distance
+- 02:33:05 Run four affected existing tests (enemy types, options, accessibility, skill tree)
+- 02:34:11 List candidate existing tests touching shared files I hooked
+- 02:34:15 List more candidate tests by name
+- 02:34:20 Run seven more existing tests that touch the hooked shared files
+- 02:37:38 Read the failing traversal test checks and their setup
+- 02:38:16 Find every use of the super jump hold state
+- 02:38:20 Read the landing bookkeeping and the super jump branch, and my super test
+- 02:38:29 Read my kit test (double jump, super jump, roll)
+- 02:38:40 Limit the super jump to a deliberate 0.3 s hold from standing and add test checks
+- 02:38:45 Rerun the existing traversal test after the super jump change
+- 02:39:23 Read the setup of the existing traversal test
+- 02:39:30 Probe the 5 m wall case with prints of the snake kit counters
+- 02:39:57 Require an idle stick for the super jump and rerun the old traversal test
+- 02:40:44 Run eight more existing tests (controller, HUD, integration, mission board, tutorial, onboarding)
+- 02:44:21 Run eight further existing tests (missions, campaign runner, menus, localisation, player, director)
+- 02:48:17 Rerun both snake tests after the latest changes
+- 02:51:33 Recall my swing chain dev probe
+- 02:51:40 Check whether anchor selection or the swing use the camera position
+- 02:51:48 See the end of the chain probe (log printing)
+- 02:51:52 Run the NORMAL swing chain probe twice from the same start to see run to run variability
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -67,3 +68,6 @@ agent id ae95c122bf87a5b35, 597 events, first activity 2026-11-14T23:13:49.366Z,
 - godot/scripts/quantum/snake_pose.gd
 - godot/tests/dev_snake_chain.gd
 - godot/tests/test_snake_traversal.gd
+- godot/tests/test_snake_swing_run.gd
+- godot/scripts/ui/touch_controls.gd
+- godot/tests/bot_snake_perf.gd
