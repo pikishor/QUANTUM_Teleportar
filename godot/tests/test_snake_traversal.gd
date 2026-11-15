@@ -557,7 +557,6 @@ func _missions() -> void:
 					Input.action_release(&"fly")
 			Input.action_release(&"move_forward")
 			Input.action_release(&"fly")
-			print("TUT step5 end: hero %s ring %s mode %s state %s idx %d frames %d" % [str(p.global_position), str(q), sn.mode_name(), str(camp.state), camp.step_index, guard_l])
 		else:
 			sn.cancel()
 			p.teleport_to(q + Vector3(0.0, 0.3, 0.0))
@@ -594,7 +593,10 @@ func _missions() -> void:
 		await until(func() -> bool: return camp.step_index > i, 3.0)
 	await step_active(camp, 3)
 	await until(func() -> bool: return camp.target != null and is_instance_valid(camp.target), 4.0)
-	TestLib.check(camp.target != null and is_instance_valid(camp.target) and camp.target.global_position.y > 20.0, "on the last roof the runner's own drone is the target")
+	var last_roof: Vector3 = csteps[3]["pos"]
+	TestLib.check(camp.target != null and is_instance_valid(camp.target), "on the last roof the runner's own drone is the target")
+	if camp.target != null and is_instance_valid(camp.target):
+		TestLib.check(Vector2(camp.target.global_position.x - last_roof.x, camp.target.global_position.z - last_roof.z).length() < 40.0, "over the last roof")
 	if camp.target != null and is_instance_valid(camp.target):
 		(camp.target as Drone).damage(1.0e6, false)
 	await until(func() -> bool: return _done_chapters > 0 or camp.state == &"done" or camp.state == &"idle", 6.0)
