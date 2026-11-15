@@ -69,6 +69,15 @@ static func holding() -> bool:
 	return is_instance_valid(instance) and instance.armed != &""
 
 
+## The hero asks for a GUN (the WEAPON button, a number key, a pick from the weapon wheel, any other equip): a snake power in hand is put away, the gun in hand comes back and fires again
+## (wave 115 critic: arming a power from the wheel left FIRE casting it for good, with every gun the hero picked afterwards holstered and silent). True when a power was put away.
+static func holster() -> bool:
+	if not is_instance_valid(instance) or instance.armed == &"":
+		return false
+	instance.disarm()
+	return true
+
+
 ## Player.damage asks first: the snakes of SNAKE SHIELD eat the hit (True).
 static func absorb(amount: float, from_pos: Vector3) -> bool:
 	return is_instance_valid(instance) and instance.verbs != null and instance.verbs.shield_absorb(amount, from_pos)
@@ -89,6 +98,8 @@ func _ready() -> void:
 	Game.respawn.connect(reset)
 	Game.quality_changed.connect(func(_l: int) -> void: swarm = SnakeSwarm.get_swarm(p))
 	bombs.connect_ops()
+	if p.weapon != null and not p.weapon.weapon_changed.is_connected(_on_weapon_changed):
+		p.weapon.weapon_changed.connect(_on_weapon_changed)                    # any equip (a pickup, the shop, a mission, the auto swap) brings the gun back
 
 
 func _exit_tree() -> void:
@@ -224,6 +235,11 @@ func arm(id: StringName) -> bool:
 		var row := SnakeRows.row(id)
 		Game.say("%s  %s" % [String(row["name"]), "FIRE TO THROW" if SnakeRows.is_bomb(id) else ("HOLD FIRE" if bool(row.get("hold", false)) else "FIRE TO USE")], 1.6)
 	return true
+
+
+func _on_weapon_changed(_id: StringName) -> void:
+	if armed != &"":
+		disarm()
 
 
 func disarm() -> void:

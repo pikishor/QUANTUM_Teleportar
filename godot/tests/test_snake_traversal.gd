@@ -713,8 +713,6 @@ func _missions() -> void:
 			var landing_asked := false
 			while camp.step_index == 5 and camp.state == &"active" and guard_l < 1800 and _done_chapters == 0:
 				guard_l += 1
-				if OS.get_environment("SNK_DEBUG") != "" and guard_l % 30 == 0:
-					print("LANDDBG f=%d pos=%s v=%.1f mode=%s phase=%s ring=%s state=%s" % [guard_l, str(p.global_position), p.velocity.length(), sn.mode_name(), str(sn.flight.phase), str(q), str(camp.state)])
 				var hd := Vector2(p.global_position.x - q.x, p.global_position.z - q.z).length()
 				p.camera_rig.aim_at(Vector3(q.x, q.y + (1.0 if hd < 35.0 else 6.0), q.z))
 				Input.action_press(&"move_forward")
@@ -726,15 +724,20 @@ func _missions() -> void:
 				await frames(1)
 			Input.action_release(&"move_forward")
 			Input.action_release(&"fly")
-			if camp.step_index == 5 and camp.state == &"active" and _done_chapters == 0:          # the flight ended short (a facade in the way of a random route): the ring is still a ring
-				sn.cancel()
-				p.teleport_to(q + Vector3(0.0, 0.3, 0.0))
-				await until(func() -> bool: return _done_chapters > 0 or camp.state != &"active", 3.0)
+			if _done_chapters == 0:                                                                 # the flight ended short (a facade in the way of a random route): the ring is still a ring
+				if await step_active(camp, 5, 3.0):
+					for attempt in 2:                                                               # a loaded machine: the first placement may land between two checks of the runner
+						sn.cancel()
+						p.teleport_to(q + Vector3(0.0, 0.3, 0.0))
+						if await until(func() -> bool: return _done_chapters > 0 or camp.state != &"active", 4.0):
+							break
 		else:
 			sn.cancel()
 			p.teleport_to(q + Vector3(0.0, 0.3, 0.0))
 			await until(func() -> bool: return camp.step_index > idx or _done_chapters > 0, 3.0)
 		await frames(6)
+	if _done_chapters == 0:
+		print("TUTDBG state=%s idx=%d step=%s hero=%s mode=%s floor=%s" % [str(camp.state), camp.step_index, str(camp.step), str(p.global_position), sn.mode_name(), str(p.is_on_floor())])
 	TestLib.check(_steps_done >= 5 and (_done_chapters == 1 or camp.state != &"active"), "the tutorial chapter ran through its steps (%d steps, %d chapters)" % [_steps_done, _done_chapters])
 	await frames(10)
 	TestLib.check(SnakeMissions.is_tutorial_done(), "finishing SWING ACROSS THE CITY sets the tutorial flag")

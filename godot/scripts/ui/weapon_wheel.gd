@@ -130,6 +130,7 @@ static func activate(it: Dictionary, w: PlayerWeapon) -> Dictionary:
 	var id: StringName = it["id"]
 	match StringName(it.get("type", &"class")):
 		&"weapon":
+			SnakeWar.holster()                                           # a pick of a gun puts a snake power away (even when it is the gun already in hand: no equip signal then)
 			w.switch_to(id)
 			return {}
 		&"page":
@@ -138,11 +139,14 @@ static func activate(it: Dictionary, w: PlayerWeapon) -> Dictionary:
 			var cur := w.current
 			var ids := tab_ids(id, cur)
 			if id == RECENT and not ids.is_empty():
+				SnakeWar.holster()
 				w.switch_to(ids[0])
 			return {"tab": id, "page": 0} if ids.size() > 1 or id == FAV else {}
 		_:
 			var owned := WeaponDefs.owned_in_class(id)
 			var had_it := WeaponDefs.class_of(w.current) == id
+			if not had_it or owned.size() <= 1:
+				SnakeWar.holster()                                       # the class wedge picks a gun directly (no ring to choose from)
 			if not had_it:
 				w.switch_to(weapon_for(id))
 			if owned.size() > 1:

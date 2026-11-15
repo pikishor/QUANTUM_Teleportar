@@ -82,6 +82,7 @@ func _tick_missions() -> void:
 		mission = str(camp.step.get("snake_mission", ""))
 	if mission != "":
 		current_mission = mission
+	SnakeMissions.tutorial_running = mission == "swing_city" or (current_mission == "swing_city" and camp != null and (camp.state == &"armed" or camp.state == &"held"))      # flight is open for the tutorial on every difficulty (SnakePower.flight_unlocked), also in the gap between two steps
 	if mission == "roof_chase":
 		_ensure_courier(camp)
 	else:
@@ -149,6 +150,7 @@ func _on_step_completed(_chapter: int, index: int, kind: StringName) -> void:
 func _on_chapter_completed(_chapter: int) -> void:
 	if current_mission == "swing_city":
 		SnakeMissions.mark_tutorial_done()
+	SnakeMissions.tutorial_running = false
 	current_mission = ""
 	_dismiss_courier()
 

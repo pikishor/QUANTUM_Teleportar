@@ -202,7 +202,7 @@ func generate(origin := Vector3.INF, types: Array = []) -> Array[Dictionary]:
 		picks = pick_types(OFFERS)
 		if world_offers:
 			picks = WorldMissions.inject(picks, origin, rng)
-			picks = SnakeMissions.inject(picks, rng)
+			picks = SnakeMissions.inject(picks, rng, [], origin)
 			picks = SnakeWarMissions.inject(picks, rng)
 	for t: StringName in picks:
 		var o := build(t, origin)

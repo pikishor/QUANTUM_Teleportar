@@ -266,13 +266,21 @@ func cycle(dir: int) -> bool:
 
 ## Keyboard 1-4, wheel and the touch SWAP button (Player calls it every physics frame on foot).
 func poll_switch() -> void:
+	var power_in_hand := SnakeWar.holding()                          # wave 115 critic: a snake power armed from the wheel put the gun away and nothing brought it back (swap, number keys and the wheel left FIRE casting the power with the new gun invisible)
 	for i in WeaponDefs.IDS.size():
 		if InputMap.has_action(StringName("weapon_%d" % (i + 1))) and Input.is_action_just_pressed(StringName("weapon_%d" % (i + 1))):
+			SnakeWar.holster()
 			switch_to(WeaponDefs.IDS[i])
 	if Input.is_action_just_pressed(&"weapon_next") or Input.is_action_just_pressed(&"swap"):
-		cycle(1)
+		if power_in_hand:
+			SnakeWar.holster()                                       # the first tap on WEAPON puts the snake power away: the gun in hand comes back
+		else:
+			cycle(1)
 	if Input.is_action_just_pressed(&"weapon_prev"):
-		cycle(-1)
+		if power_in_hand:
+			SnakeWar.holster()
+		else:
+			cycle(-1)
 
 
 ## A weapon pickup: unlocks the weapon (the first time) or adds an ammo pack. Returns the message for the HUD.

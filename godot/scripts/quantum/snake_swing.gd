@@ -21,6 +21,8 @@ const TRAVEL_SPEED := 210.0             ## the head's speed (m/s): a 40 m anchor
 const HAND_DROP := 0.15
 const MAX_ANGLE := 1.3
 const MAX_HANG := 6.0                   ## seconds: a swing that long lets go by itself
+const TAP_HANG := 0.55                  ## wave 115 critic: a TAP of SNAKE (a thumb, 0.05 to 0.2 s) used to cancel the shot in flight (it bit only for a press of 0.3 s and more): the shot is committed and every swing hangs at
+                                        ## least this long before a released button counts (JUMP and the end of the arc still let go at once), so a tap is a short swing and never a silent miss
 const RELEASE_KICK := 3.0
 const REL_ANGLE_FAST := 0.45            ## rad from straight down at which an auto release happens when fast (measured: 10 swings, 558 m in 26 s, tests/dev_snake_chain.gd) ...
 const REL_ANGLE_SLOW := 0.6             ## ... and when slow
@@ -183,12 +185,8 @@ func tick(p: Player, dt: float, wish: Vector3, hold: bool, jump_pressed: bool) -
 	return _tick_hang(p, dt, wish, hold, jump_pressed)
 
 
-func _tick_travel(p: Player, dt: float, wish: Vector3, hold: bool) -> bool:
-	# the hero flies on while the head travels; a released button cancels the shot
-	if not hold:
-		cancel()
-		active = false
-		return false
+func _tick_travel(p: Player, dt: float, wish: Vector3, _hold: bool) -> bool:
+	# the hero flies on while the head travels; a button let go now (a tap) no longer cancels the shot: the snake bites and the swing hangs TAP_HANG seconds (_tick_hang)
 	_travel_left -= dt
 	st.free_air(p, dt, wish)
 	if tendril != null and tendril.state == SnakeTendril.State.ATTACHED or _travel_left <= -0.12:
@@ -314,7 +312,7 @@ func _tick_hang(p: Player, dt: float, wish: Vector3, hold: bool, jump_pressed: b
 	if jump_pressed:
 		release(p, true, &"jump")
 		return false
-	if not hold:
+	if not hold and _hang_t >= TAP_HANG:
 		release(p, true, &"button")
 		return false
 	if _hang_t > MAX_HANG:

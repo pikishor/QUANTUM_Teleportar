@@ -20,11 +20,13 @@ const DEFS := {
 	&"roof_chase": {"title": "ROOFTOP CHASE", "brief": "Chase the courier drone over the roofs and shoot it down.", "base": 420, "weight": 3, "glyph": &"dest"},
 }
 const INJECT_CHANCE := 0.3
+const INJECT_MAX_FROM_CORE := 520.0         ## a board further than this from the city core (the lodge, the outskirts) is left alone
 const ROOF_R := 9.0
 const AIR_R := 16.0
 const SAVE := "user://snake_traversal.cfg"
 
 static var tutorial_done := false          ## SWING ACROSS THE CITY was finished once (saved)
+static var tutorial_running := false       ## wave 115 critic: SWING ACROSS THE CITY is the active mission (set by SnakeMissionDirector): SNAKE FLIGHT is open for it on every difficulty (its FLY and LAND steps could not be done on HARD and QUANTUM before the first WING POWER rank)
 static var _loaded := false
 
 
@@ -48,6 +50,7 @@ static func save_flags(extra := {}) -> void:
 
 static func reset_flags() -> void:
 	tutorial_done = false
+	tutorial_running = false
 	_loaded = true
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
 
@@ -76,12 +79,14 @@ static func _h(a: Vector3, b: Vector3) -> float:
 
 ## One pick of the board's offers with a snake mission worked in (live game: `MissionBoard.world_offers`): the tutorial replaces the last pick until it has been finished, afterwards a
 ## snake mission now and then. Picks that already hold one stay.
-static func inject(picks: Array[StringName], rng: RandomNumberGenerator, banned: Array = []) -> Array[StringName]:
+static func inject(picks: Array[StringName], rng: RandomNumberGenerator, banned: Array = [], origin := Vector3.INF) -> Array[StringName]:
 	_load()
 	for p in picks:
 		if DEFS.has(p):
 			return picks
 	if picks.is_empty() or not (Game.world is City) or (Game.world as City).layout == null:
+		return picks
+	if origin.is_finite() and Vector2(origin.x, origin.z).length() > INJECT_MAX_FROM_CORE:        # a board far from the towers (the lodge, the outskirts) keeps its own offers
 		return picks
 	var chosen: StringName = &""
 	if not tutorial_done and not banned.has(&"swing_city"):
@@ -91,7 +96,12 @@ static func inject(picks: Array[StringName], rng: RandomNumberGenerator, banned:
 	if chosen == &"":
 		return picks
 	var out: Array[StringName] = picks.duplicate()
-	out[out.size() - 1] = chosen
+	var at := out.size() - 1
+	while at >= 0 and WorldMissions.DEFS.has(out[at]):                    # never over a world mission the board worked in (the lodge board offers one every time)
+		at -= 1
+	if at < 0:
+		return picks
+	out[at] = chosen
 	return out
 
 

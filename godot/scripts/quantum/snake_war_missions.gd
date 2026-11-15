@@ -23,6 +23,7 @@ const HINTS := {
 	&"wedge": "HOLD WEAPON  PICK THE SNAKE WEDGE",
 	&"fire": "FIRE AT AN ENEMY  SNAKE PULL YANKS HIM TO YOU",
 	&"bombs": "TRY THE BOMBS WEDGE  A SNAKE BOMB CLEARS A STREET",
+	&"gun": "TAP WEAPON  YOUR GUN COMES BACK",
 	&"arena": "HOLD THE RING  ANY SNAKE POWER WORKS",
 	&"hunt": "PULL THE SNIPER OFF HIS ROOF",
 }
@@ -98,7 +99,12 @@ static func inject(picks: Array[StringName], rng: RandomNumberGenerator, banned:
 	if banned.has(chosen):
 		chosen = &"snake_hunt" if chosen == &"snake_arena" else &"snake_arena"
 	var out: Array[StringName] = picks.duplicate()
-	out[out.size() - 1] = chosen
+	var at := out.size() - 1
+	while at >= 0 and (WorldMissions.DEFS.has(out[at]) or SnakeMissions.DEFS.has(out[at])):       # never over a world mission the board worked in (the lodge board offers one every time: wave 115 critic, test_world_missions)
+		at -= 1
+	if at < 0:
+		return picks
+	out[at] = chosen
 	return out
 
 
@@ -204,6 +210,8 @@ static func _tick_hints(war: SnakeWar, dt: float, mission: String) -> void:
 		_hint(&"wedge")
 	elif war.armed != &"" and war.casts == 0 and not bool(seen.get(&"fire", false)):
 		_hint(&"fire")
+	elif war.armed != &"" and war.casts >= 1 and not bool(seen.get(&"gun", false)):
+		_hint(&"gun")                                                   # wave 115 critic: nothing said how to put a power away
 	elif war.casts >= 3 and not bool(seen.get(&"bombs", false)) and war.bombs.thrown == 0:
 		_hint(&"bombs")
 

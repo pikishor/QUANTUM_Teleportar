@@ -177,6 +177,7 @@ func run(h: Node) -> void:
 	await _caps()
 	await _wheel()
 	await _reactions()
+	await _hints()
 	await _missions()
 	TestMode.god = false
 	WeaponDefs.hero_mode = false
@@ -887,6 +888,56 @@ func _reactions() -> void:
 
 
 # --- the board missions ------------------------------------------------------------------------------------------------------------------
+
+# --- the tutorial hints ---------------------------------------------------------------------------------------------------------------
+
+## Three one-line hints in the first minutes, each shown once per profile (user://snake_war.cfg): HOLD WEAPON AND PICK THE SNAKE WEDGE after thirty quiet seconds, FIRE TO PULL once a power is armed,
+## TRY THE BOMBS after three casts without a bomb. The state is reset before and after (no user:// file is left behind).
+func _hints() -> void:
+	SnakeWarMissions.reset_flags()
+	var casts0 := war.casts
+	var armed0 := war.armed
+	war.disarm()
+	war.casts = 0
+	var said: Array[String] = []
+	var catcher := func(t: String, _secs: float) -> void:
+		said.append(t)
+	Game.message.connect(catcher)
+	Game.state = &"play"
+	SnakeWarMissions._hint_t = 0.0
+	SnakeWarMissions._play_t = 5.0
+	SnakeWarMissions._tick_hints(war, 0.25, "")
+	TestLib.check(said.is_empty(), "no hint in the first seconds of play")
+	SnakeWarMissions._play_t = 31.0
+	SnakeWarMissions._tick_hints(war, 0.25, "")
+	TestLib.check(said.size() == 1 and said[0] == String(SnakeWarMissions.HINTS[&"wedge"]), "after thirty quiet seconds the first hint says to hold the weapon button and pick the SNAKE wedge (%s)" % str(said))
+	SnakeWarMissions._hint_t = 0.0
+	SnakeWarMissions._tick_hints(war, 0.25, "")
+	TestLib.check(said.size() == 1, "the same hint never comes twice")
+	war.armed = &"sv_pull"                                                   # armed by hand: the gun is not touched
+	SnakeWarMissions._hint_t = 0.0
+	SnakeWarMissions._tick_hints(war, 0.25, "")
+	TestLib.check(said.size() == 2 and said[1] == String(SnakeWarMissions.HINTS[&"fire"]), "a power in hand that was never cast says FIRE TO PULL (%s)" % str(said))
+	var waiting := said.size()
+	SnakeWarMissions._tick_hints(war, 0.25, "")
+	TestLib.check(said.size() == waiting, "a hint leaves a pause of its own before the next one")
+	war.armed = &""
+	war.casts = 3
+	war.bombs.thrown = 0
+	SnakeWarMissions._hint_t = 0.0
+	SnakeWarMissions._tick_hints(war, 0.25, "")
+	TestLib.check(said.size() == 3 and said[2] == String(SnakeWarMissions.HINTS[&"bombs"]), "three casts and no bomb: try the BOMBS wedge (%s)" % str(said))
+	var cf := ConfigFile.new()
+	TestLib.check(cf.load(SnakeWarMissions.SAVE) == OK and bool(cf.get_value("hints", "wedge", false)) and bool(cf.get_value("hints", "fire", false)) and bool(cf.get_value("hints", "bombs", false)), "the three hints are written to the profile file: once per profile")
+	var plain := true
+	for k: Variant in SnakeWarMissions.HINTS.values():
+		plain = plain and String(k).length() <= 64 and not String(k).to_lower().contains("physics")
+	TestLib.check(plain and SnakeWarMissions.HINTS.size() >= 5, "the hint texts are short plain lines (%d hints)" % SnakeWarMissions.HINTS.size())
+	Game.message.disconnect(catcher)
+	SnakeWarMissions.reset_flags()
+	war.casts = casts0
+	war.armed = armed0
+
 
 func _missions() -> void:
 	TestLib.check(SnakeWarMissions.TYPES.size() == 2 and SnakeWarMissions.DEFS.has(&"snake_arena") and SnakeWarMissions.DEFS.has(&"snake_hunt"), "two board missions: SNAKE ARENA and ROOFTOP SNAKE HUNT")

@@ -99,8 +99,9 @@ static func sniper_lead() -> float:
 	return float(SNIPER_LEAD[Difficulty.clamp_mode(Difficulty.current)])
 
 
-## Flight is available from the start on STORY and NORMAL; HARD and QUANTUM unlock it with the first WING POWER rank (or HERO MODE), so the skill tree has a real first step there.
+## Flight is available from the start on STORY and NORMAL; HARD and QUANTUM unlock it with the first WING POWER rank (or HERO MODE), so the skill tree has a real first step there. While the tutorial
+## SWING ACROSS THE CITY runs it is open on every difficulty (its FLY and LAND steps need it).
 static func flight_unlocked() -> bool:
 	if unlimited() or row("fly_cruise") <= 0.0:
 		return unlimited()
-	return row("fly_free") > 0.5 or SkillTree.rank(&"sn_wings") > 0
+	return row("fly_free") > 0.5 or SkillTree.rank(&"sn_wings") > 0 or SnakeMissions.tutorial_running

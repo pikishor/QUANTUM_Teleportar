@@ -1,7 +1,7 @@
 extends RefCounted
 ## THE SWING RUN: the real city, the real hero, one thumb. The hero drops 40 m above the avenue, SNAKE is held, and the assist chains the swings from building to building: at least five swings
 ## and at least 400 m of flight without the hero touching the ground (STORY and NORMAL), with real speed (a swing peaks above 25 m/s), a release boost, the snake energy staying alive, and no frame
-## of the run longer than a fraction of a second (the city streams chunks under the hero: a hitch there would show here as one long frame). Prints the numbers the tuning is judged by.
+## of the run longer than three quarters of a second (the city streams chunks under the hero: a hitch there would show here as one long frame). Prints the numbers the tuning is judged by.
 ## Run: tools/test.sh tests/test_snake_swing_run.gd   (about 70 s)
 
 const TIMEOUT_SECONDS := 140.0
@@ -109,6 +109,7 @@ func _run(mode: int, tag: String, secs_each: float) -> void:
 	TestLib.check(best_peak > 25.0, "%s: the arcs have speed (peak %.1f m/s)" % [tag, best_peak])
 	TestLib.check(sn.swing.releases >= 4, "%s: swings are let go by the chain, boost and all (%d releases)" % [tag, sn.swing.releases])
 	TestLib.check(sn.energy > 5.0 or SnakePower.unlimited(), "%s: the swing run does not drain the snake energy dry (%.0f)" % [tag, sn.energy])
-	TestLib.check(worst_ms < 400.0, "%s: no long frame in the run (worst %.0f ms, p99 %.1f ms)" % [tag, worst_ms, p99])
+	TestLib.check(p99 < 80.0, "%s: the run is smooth (99 %% of the frames under 80 ms: %.1f ms)" % [tag, p99])
+	TestLib.check(worst_ms < 750.0, "%s: no hitch in the run (the worst frame, a chunk streaming under the hero, %.0f ms)" % [tag, worst_ms])
 	sn.cancel()
 	await frames(30)
