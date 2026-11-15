@@ -357,6 +357,14 @@ func heal_up() -> void:
 		tap(&"reload")
 
 
+## The sandbox audits play with the starting carbine (unlimited rounds). A weapon crate the bot walks past equips the crate's weapon (WeaponCrates.open: a pistol with 26 spare rounds, a flame
+## launcher with 12), and then the convoy cars cannot be stopped and the turf and hostage guards cannot be killed once it runs dry: "side mission turf completes by itself (TIME UP, 150 s)" on the
+## CI runner (wave 114) and in about one local run in eight. A player chooses what to carry; the bot has no use for the choice.
+func keep_carbine() -> void:
+	if is_instance_valid(p) and p.weapon != null and p.weapon.current != &"carbine":
+		p.weapon.switch_to(&"carbine", true)
+
+
 ## Use a quantum verb (feeds a rift, stops a convoy car, breaks a shield).
 func use_verb(action: StringName) -> void:
 	if _tap_cd <= 0.0:
@@ -457,6 +465,7 @@ func play_demo(id: StringName, max_seconds := 300.0) -> bool:
 		if _globals():
 			continue
 		heal_up()
+		keep_carbine()
 		_tick_campaign()
 	camp.chapter_completed.disconnect(on_done)
 	_release_all()
@@ -1074,6 +1083,7 @@ func audit_side(mid: StringName, max_seconds := 220.0) -> Dictionary:
 		if _globals():
 			continue
 		heal_up()
+		keep_carbine()
 		if sm.stage != stage_i:
 			stage_i = sm.stage
 			stage_t = 0.0
