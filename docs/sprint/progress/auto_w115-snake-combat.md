@@ -1,6 +1,6 @@
 # w115-snake-combat (running)
 
-agent id aa62a5a4075ca6ac4, 871 events, first activity 2026-11-15T03:15:10.309Z, last activity 2026-11-15T04:52:23.336Z
+agent id aa62a5a4075ca6ac4, 876 events, first activity 2026-11-15T03:15:10.309Z, last activity 2026-11-15T04:52:32.251Z
 
 ## Last notes of the agent
 
@@ -11,8 +11,6 @@ agent id aa62a5a4075ca6ac4, 871 events, first activity 2026-11-15T03:15:10.309Z,
 
 ## Recent steps (last 40)
 
-- 04:48:23 Read WeaponWheel.activate
-- 04:48:49 Read the ten class wedges check
 - 04:48:57 Find consumers of WeaponWheel.items
 - 04:49:11 Read the new verbs ability wheel check
 - 04:49:22 Read the wedge-count checks in four tests
@@ -51,6 +49,8 @@ agent id aa62a5a4075ca6ac4, 871 events, first activity 2026-11-15T03:15:10.309Z,
 - 04:52:06 Extract power names, tags, alts and notes plus skill tree rows
 - 04:52:10 Read the rest of Tr.table and a v4 module header
 - 04:52:23 List UI strings said by the snake files and the caption builder
+- 04:52:30 List the capitalised strings of the mission file
+- 04:52:31 List deny reasons and board strings
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
