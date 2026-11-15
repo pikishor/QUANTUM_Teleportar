@@ -384,7 +384,10 @@ func _notice_board(host: Node) -> void:
 	var up := tw.use_point(&"harrow_field")
 	TestLib.check(up.is_finite(), "HARROW FIELD has a notice board")
 	_stand_at(up)
-	var paid := await _wait_counter(host, func() -> bool: return tw.used.has(&"harrow_field"), TIMEOUT_SECONDS)
+	# Two ticks pay for a first visit: the board (SettlementWorld._use_town, 75 % of the reward, every 0.15 s of PHYSICS time) and the town's discovery bonus (OutskirtsWorld._arrive, the other 25 %,
+	# every 0.25 s of FRAME time). Which lands first depends on the frame rate (the steps before run at 1 to 5 frames a second in a sandbox, which finds the town on the way; on the CI runner the
+	# bonus came after the board, inside the cool-down check, and was counted as a second payment: "(75)"), so the baseline of that check is taken once BOTH have paid.
+	var paid := await _wait_counter(host, func() -> bool: return tw.used.has(&"harrow_field") and OutskirtsSites.is_found(&"harrow_field"), TIMEOUT_SECONDS)
 	TestLib.check(paid and pg.credits > c0, "standing on the board's ring pays the first visit (%d credits) and counts as an activity" % (pg.credits - c0))
 	var c1 := pg.credits
 	p.hp = 10.0
