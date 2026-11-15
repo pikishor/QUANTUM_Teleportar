@@ -35,7 +35,7 @@ func frames(n: int) -> void:
 
 
 func release_all() -> void:
-	for a in [&"snake", &"fly", &"jump", &"move_forward", &"move_back", &"move_left", &"move_right", &"crouch", &"sprint", &"fire"]:
+	for a in [&"snake", &"fly", &"jump", &"move_forward", &"move_back", &"move_left", &"move_right", &"crouch", &"sprint", &"fire", &"swap", &"altfire"]:
 		Input.action_release(a)
 
 
@@ -144,6 +144,15 @@ func run(h: Node) -> void:
 		p.camera_rig.reset_view(yaw, rng.randf_range(-0.1, 0.4))
 		p.yaw = yaw
 		await frames(8)
+		var combat := OS.get_environment("MK_COMBAT") == "1"
+		var war := SnakeWar.of(p)
+		if combat:
+			(Game.enemies as EnemyManager).clear()
+			war.reset()
+			for ei in 5:
+				var ang := rng.randf() * TAU
+				var epos := p.global_position + Vector3(cos(ang), 0.0, sin(ang)) * rng.randf_range(8.0, 22.0)
+				(Game.enemies as EnemyManager).spawn([&"operative", &"flanker", &"sentinel", &"brute", &"heavy"][ei % 5], epos, true)
 		var s0 := sn.swings
 		var z0 := sn.zips
 		var c0 := sn.climbs
@@ -152,7 +161,7 @@ func run(h: Node) -> void:
 		var e0 := Dev.errors.total
 		# the monkey's script: next-change times of each input
 		var t := 0.0
-		var next := {"snake": 0.0, "fly": rng.randf_range(1.0, 5.0), "jump": rng.randf_range(0.2, 2.0), "stick": 0.0, "look": 0.0, "crouch": 3.0}
+		var next := {"snake": 0.0, "fly": rng.randf_range(1.0, 5.0), "jump": rng.randf_range(0.2, 2.0), "stick": 0.0, "look": 0.0, "crouch": 3.0, "arm": rng.randf_range(1.0, 4.0), "fire": rng.randf_range(0.5, 2.0), "swap": rng.randf_range(4.0, 9.0), "alt": rng.randf_range(2.0, 6.0)}
 		var release_at := {}
 		var look_rate := Vector2.ZERO
 		var clock0 := sn.time
@@ -205,6 +214,35 @@ func run(h: Node) -> void:
 				look_rate = Vector2(rng.randf_range(-1.6, 1.6) if rng.randf() < 0.7 else 0.0, rng.randf_range(-0.5, 0.5))
 				next["look"] = t + rng.randf_range(0.3, 2.0)
 			p.camera_rig.add_look(look_rate.x * dt, look_rate.y * dt)
+			if combat:
+				if t >= float(next["arm"]):
+					var ids := SnakeRows.ids()
+					war.arm(ids[rng.randi() % ids.size()])
+					next["arm"] = t + rng.randf_range(1.5, 6.0)
+				if t >= float(next["fire"]):
+					Input.action_press(&"fire")
+					release_at[&"fire"] = t + (rng.randf_range(0.05, 0.3) if rng.randf() < 0.6 else rng.randf_range(0.5, 2.0))
+					next["fire"] = t + rng.randf_range(0.4, 2.5)
+				if t >= float(next["swap"]):
+					Input.action_press(&"swap")
+					release_at[&"swap"] = t + 0.08
+					next["swap"] = t + rng.randf_range(4.0, 12.0)
+				if t >= float(next["alt"]):
+					Input.action_press(&"altfire")
+					release_at[&"altfire"] = t + 0.1
+					next["alt"] = t + rng.randf_range(2.0, 7.0)
+				# aim at the nearest live enemy now and then (the snake verbs need a target)
+				if int(t * 4.0) % 5 == 0:
+					var best: Node3D = null
+					var bd := 1.0e9
+					for e in (Game.enemies as EnemyManager).get_children():
+						if e is Drone and is_instance_valid(e) and (e as Drone).active and not (e as Drone).dead:
+							var d := (e as Node3D).global_position.distance_to(p.global_position)
+							if d < bd:
+								bd = d
+								best = e as Node3D
+					if best != null and rng.randf() < 0.6:
+						p.camera_rig.aim_at(SnakeAim.center_of(best))
 		release_all()
 		await frames(10)
 		var errs := Dev.errors.total - e0

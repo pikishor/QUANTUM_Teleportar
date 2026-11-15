@@ -1,6 +1,6 @@
 # w115-critic-play (running)
 
-agent id a3b53eaea3befc874, 478 events, first activity 2026-11-15T07:50:55.534Z, last activity 2026-11-15T08:46:02.931Z
+agent id a3b53eaea3befc874, 483 events, first activity 2026-11-15T07:50:55.534Z, last activity 2026-11-15T08:48:02.754Z
 
 ## Last notes of the agent
 
@@ -11,8 +11,6 @@ agent id a3b53eaea3befc874, 478 events, first activity 2026-11-15T07:50:55.534Z,
 
 ## Recent steps (last 40)
 
-- 08:25:40 Open flight during the tutorial on every difficulty
-- 08:25:47 List campaign runner states
 - 08:25:51 Keep flight open between tutorial steps and reset it in reset_flags
 - 08:25:56 Verify the gun-return and air-tap fixes with the probes
 - 08:27:11 Outline the builders' snake combat test
@@ -51,6 +49,8 @@ agent id a3b53eaea3befc874, 478 events, first activity 2026-11-15T07:50:55.534Z,
 - 08:45:32 Read shield_absorb
 - 08:45:41 Read the shield test to see what it expects at the break
 - 08:46:02 Measure what a first tap on SNAKE does on a street
+- 08:47:59 Add a combat mode to the monkey
+- 08:48:02 Run the combat plus traffic monkey for 12 episodes
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
