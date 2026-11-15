@@ -102,6 +102,13 @@ const TYPES := {
 		"model": "operative", "drone": false, "kamikaze": false, "role": &"warden", "commander": true, "variety": true, "elite": true, "pulse_radius": 6.5, "pulse_dmg": 20.0,
 		"walk": 1.5, "burst_gap": 0.1, "aim_time": 0.4, "spread": 0.03, "spread_per_m": 0.0006, "min_chapter": 3, "limit": 1,
 	},
+	# the counter-unit of the quantum snakes (wave 115, scripts/quantum/snake_react.gd): a specialist with a static net launcher. It only comes after a run of snake powers (never on STORY).
+	&"hunter": {
+		"hp": 120.0, "speed": 4.6, "range": 26.0, "fire": Vector2(1.1, 1.7), "dmg": 5.0, "bolt": 0.0, "burst": 3,
+		"color": Color(0.45, 1.0, 0.35), "score": 180, "radius": 0.6, "heat": 0.4, "center_y": 1.08, "hover": 0.0, "scale": 1.08,
+		"model": "operative", "drone": false, "kamikaze": false, "role": &"hunter", "net_dmg": 8.0,
+		"walk": 1.5, "burst_gap": 0.12, "aim_time": 0.5, "spread": 0.04, "spread_per_m": 0.0008, "min_chapter": 2, "limit": 1,
+	},
 	&"hivemother": {
 		"hp": 600.0, "speed": 3.2, "range": 32.0, "fire": Vector2(1.4, 2.0), "dmg": 6.0, "bolt": 0.0, "burst": 3,
 		"color": Color(1.0, 0.4, 0.55), "score": 600, "radius": 1.1, "heat": 0.8, "center_y": 1.6, "hover": 0.0, "scale": 1.55,

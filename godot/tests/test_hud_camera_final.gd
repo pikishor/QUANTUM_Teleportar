@@ -15,7 +15,7 @@ const SAVE := "user://test_hud_camera_final.cfg"
 const SETTINGS := "user://test_hud_camera_final_settings.cfg"
 const SIZES: Array[Vector2i] = [Vector2i(844, 390), Vector2i(2400, 1080)]
 ## What the combat frame may hold (visible_controls ids); `interact`, `grab`, `takedown`, `toast`, `subtitle` and `wanted` appear only when they apply.
-const ALLOWED: Array[StringName] = [&"stick", &"fire", &"aim", &"jump", &"reload", &"ability", &"swap", &"more", &"pause", &"minimap", &"status", &"objective"]
+const ALLOWED: Array[StringName] = [&"stick", &"fire", &"aim", &"jump", &"reload", &"ability", &"swap", &"more", &"snake", &"pause", &"minimap", &"status", &"objective"]       # wave 115: the contextual SNAKE button (swing, zip, climb, boost) joined the on-foot frame at the owner's request (docs/ROUND6.md); FLY / LAND only shows in the air
 ## Buttons that share a spot or a state on purpose (never on screen together).
 const EXCLUSIVE: Array = [[&"swap", &"veh_view"], [&"grab", &"radio_next"], [&"takedown", &"radio_next"], [&"reload", &"crouch"], [&"aim", &"aim"], [&"ultimate", &"look_back"], [&"ammo_type", &"look_back"]]       # DOWN (the aircraft's second vertical button) takes RELOAD's place while flying   # AIM on foot and ROCKET in an armed aircraft share a spot (wave 106)   # wave 113: ULT and AMMO (on foot, behind MORE) share the corner of BACK (driving, behind MORE): `more_ult` / `more_ammo` need not _driving(), `drive_more` needs _driving()
 
@@ -251,7 +251,8 @@ func _wheels(size: Vector2i) -> void:
 			inside = inside and Rect2(Vector2.ZERO, vp).grow(-RadialWheel.ITEM_R * s * 0.95).has_point(ci)
 			for j in range(i + 1, n):
 				worst = minf(worst, ci.distance_to(tc.wheel.item_centre(j)))
-		TestLib.check(worst >= 2.0 * RadialWheel.ITEM_R * s - 1.0, "%s: the %s wheel discs never overlap (closest %.0f px, need %.0f)" % [tag, kind, worst, 2.0 * RadialWheel.ITEM_R * s])
+		var drawn := 2.0 * RadialWheel.ITEM_R * s * tc.wheel.disc_scale()                # the disc as drawn and hit: RadialWheel shrinks a crowded wheel (wave 115: 11 and 12 discs), never below a 64 px target
+		TestLib.check(worst >= drawn - 1.0 and drawn >= 64.0 * s - 1.0, "%s: the %s wheel discs never overlap (closest %.0f px, drawn %.0f, at least %.0f)" % [tag, kind, worst, drawn, 64.0 * s])
 		TestLib.check(inside, "%s: the %s wheel discs stay on the screen" % [tag, kind])
 		TestLib.check(shown >= 0 and tc.wheel.span_deg > 90.0, "%s: the %s wheel is a radial fan (%.0f degrees)" % [tag, kind, tc.wheel.span_deg])
 		tc.wheel.close()

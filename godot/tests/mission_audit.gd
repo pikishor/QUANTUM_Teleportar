@@ -119,6 +119,8 @@ func find(reason: String, detail: String) -> void:
 	if _step_findings.has(key):
 		return
 	_step_findings[key] = true
+	if reason in ["TIMEOUT", "GUIDE_RECOVERED"] and is_instance_valid(p) and p.is_inside_tree():
+		detail += _hero_state() + _surround()          # a step that does not finish names the hero's state and what touches him (wave 115 integrator: stuck-hero flake of test_mission_board)
 	var f := {"chapter": camp.chapter_index + 1, "step": camp.step_index + 1, "kind": str(camp.kind), "reason": reason, "detail": detail, "t": snappedf(game_clock, 0.1),
 		"pos": p.global_position if is_instance_valid(p) else Vector3.ZERO, "goal": camp.pos}
 	findings.append(f)
@@ -286,7 +288,7 @@ func _unstick(pp: Vector3) -> void:
 					what = ""                                   # a car (traffic, a patrol, a cop) in the way is a moving obstacle: wait and try the other side
 					_unstick_dir = -_unstick_dir
 				elif not InteriorGameplay.active:             # a straight walk across a furnished room is the bot's limit, not the game's; a street walk that is blocked is a finding
-					find("UNREACHABLE", "the walk is blocked %.0f m from the goal at %s, ahead:%s" % [_flat(pp, _path_goal), str(pp), what if what != "" else " nothing hit"])
+					find("UNREACHABLE", "the walk is blocked %.0f m from the goal at %s, ahead:%s%s" % [_flat(pp, _path_goal), str(pp), what if what != "" else " nothing hit", _hero_state()])
 		else:
 			_unstick_t = 0.0
 			hold(&"jump", false)
@@ -294,6 +296,38 @@ func _unstick(pp: Vector3) -> void:
 			hold(&"move_left", false)
 		_last_pos = pp
 		_still_t = 0.0
+
+
+## What the hero was doing when a walk was blocked: a finding of a hero who stands still with nothing in front of him (HEIST / reach / kill steps, about 1 run in 8 under load) names his state,
+## so the next report says which one it was (wave 115 integrator: velocity, floor, snake and traversal state, cover, wall run, wade, game state, the forward key and where the camera looks against the path).
+func _hero_state() -> String:
+	var dir := Vector3.ZERO
+	if not _path.is_empty():
+		dir = _path[mini(_path_i, _path.size() - 1)] - p.global_position
+		dir.y = 0.0
+		dir = dir.normalized()
+	var fwd := Vector3(-sin(p.camera_rig.yaw), 0.0, -cos(p.camera_rig.yaw))
+	return " [hero vel=%s floor=%s snake=%d trav=%d crouch=%s slide=%s wallrun=%s wade=%s game=%s fwd_key=%.1f aim_dot=%.2f]" % [str((p.velocity * 100.0).round() / 100.0), str(p.is_on_floor()), int(p.snake.mode), int(p.traversal.kind), str(p.cover.crouching), str(p.cover.sliding), str(p.wall_running), str(p.swim.wading), str(Game.state), Input.get_action_strength(&"move_forward"), fwd.dot(dir)]
+
+
+## What stands within 1.3 m of the hero (eight directions, knee and chest height) and what his last slide hit: the other half of a stuck-hero finding.
+func _surround() -> String:
+	var space := p.get_world_3d().direct_space_state
+	var pos := p.global_position
+	var s := ""
+	for h in [0.4, 1.3]:
+		for k in 8:
+			var a := TAU * float(k) / 8.0
+			var from := pos + Vector3(0.0, h, 0.0)
+			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3(sin(a), 0.0, cos(a)) * 1.3, 0xFFFF))
+			if not hit.is_empty():
+				var col := hit["collider"] as Node
+				s += " %d@%.1f:%s" % [int(rad_to_deg(a)), h, str(col.name) if col != null else "?"]
+	for i in p.get_slide_collision_count():
+		var c := p.get_slide_collision(i)
+		var cn := c.get_collider() as Node
+		s += " slide:%s n=%s" % [str(cn.name) if cn != null else "?", str(c.get_normal())]
+	return " [near%s]" % (s if s != "" else " nothing")
 
 
 func stop_walking() -> void:

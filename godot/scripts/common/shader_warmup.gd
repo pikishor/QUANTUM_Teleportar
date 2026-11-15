@@ -48,6 +48,7 @@ static func run(host: Node, force := false) -> Dictionary:
 		cars = vm.warm_begin(ground + Vector3(0.0, 0.0, 6.0))
 		items += cars.size()
 	items += _warm_fx(at)
+	items += SnakeWarm.begin(at)                                      # wave 115: the tendril pool, the swarm, the speed lines, the anchor marker and the aim previews of the QUANTUM SNAKES (scripts/quantum/snake_warm.gd)
 	var foes := FoeHuman.warm_begin(host, at + Vector3(-1.0, -1.0, 0.0))        # enemy look v3 (wave 113): the roster looks and creatures that the enemy pool above does not cover
 	items += foes.size()
 	for root: Node3D in [_quantum_root(), Game.missions as Node3D if Game.missions is Node3D else null, Game.player]:
@@ -71,6 +72,7 @@ static func run(host: Node, force := false) -> Dictionary:
 		vm.warm_end(cars)
 	if is_instance_valid(Game.player) and Game.player.body != null and Game.player.body.has_method(&"warm_burst_end"):
 		Game.player.body.warm_burst_end()
+	SnakeWarm.end()
 	FX.reset()
 	finished = true
 	return {"items": items, "ms": Time.get_ticks_msec() - t0}

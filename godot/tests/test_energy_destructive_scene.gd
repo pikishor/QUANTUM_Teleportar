@@ -150,11 +150,11 @@ func run(host: Node) -> void:
 		for it: Dictionary in wheel.items:
 			if it.get("type", &"class") == &"class":
 				classes += 1
-		var inside := classes == 10 and wheel.items.size() <= 12
+		var inside := classes == 10 and wheel.items.size() <= 14
 		for i in wheel.items.size():
 			var c := wheel.item_centre(i)
 			inside = inside and c.x > 0.0 and c.y > 0.0 and c.x < vp.x and c.y < vp.y
-		TestLib.check(inside, "the real weapon wheel opens with ten class wedges (and at most two tabs), all on the screen (%d wedges, %d discs, %.0f x %.0f)" % [classes, wheel.items.size(), vp.x, vp.y])
+		TestLib.check(inside, "the real weapon wheel opens with ten class wedges (and at most two tabs and the two snake wedges), all on the screen (%d wedges, %d discs, %.0f x %.0f)" % [classes, wheel.items.size(), vp.x, vp.y])
 		hud.touch.wheel.close()
 		hud.touch.controls_on = false
 

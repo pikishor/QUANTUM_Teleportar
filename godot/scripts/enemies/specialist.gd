@@ -50,6 +50,9 @@ var _shells := 0
 var _pulse_cd := 0.0
 var _pulse_wind := 0.0
 var _pulses := 0
+var _net_cd := 0.0                          ## hunter: the static net launcher (SnakeReact.fire_net)
+var _net_wind := 0.0
+var _nets := 0
 var _summon_cd := 0.0
 var _summon_wind := 0.0
 var _summons := 0
@@ -94,6 +97,8 @@ func _on_activate() -> void:
 	_shell_t = 0.0
 	_pulse_cd = randf_range(3.0, 5.0)
 	_pulse_wind = 0.0
+	_net_cd = randf_range(2.5, 4.0)
+	_net_wind = 0.0
 	_summon_cd = randf_range(3.0, 5.0)
 	_summon_wind = 0.0
 	_pounce_cd = randf_range(1.0, 2.5)
@@ -260,6 +265,8 @@ func _move_aware(delta: float, ux: float, uz: float, d: float, speed: float, rng
 			_move_mender(delta, ux, uz, d, speed, rng)
 		&"warden":
 			_move_warden(delta, ux, uz, d, speed, rng)
+		&"hunter":
+			_move_hunter(delta, ux, uz, d, speed, rng)
 		&"hivemother":
 			_move_hivemother(delta, ux, uz, d, speed, rng)
 		&"shield", &"carrier":
@@ -413,6 +420,27 @@ func _move_warden(delta: float, ux: float, uz: float, d: float, speed: float, rn
 	super._move_aware(delta, ux, uz, d, speed, rng)
 
 
+## The snake hunter: a trooper that stops to lob a static net at the hero (windup 0.9 s, a green glow), every 6 to 8 seconds, while he sees him.
+func _move_hunter(delta: float, ux: float, uz: float, d: float, speed: float, rng: float) -> void:
+	_net_cd = maxf(0.0, _net_cd - delta)
+	if _net_wind > 0.0:
+		_speed = 0.0
+		_net_wind -= delta
+		if _net_wind <= 0.0:
+			_nets += 1
+			_net_cd = randf_range(6.0, 8.5)
+			SnakeReact.fire_net(self)
+		return
+	if _net_cd <= 0.0 and d < 28.0 and los:
+		_net_wind = 0.9
+		return
+	super._move_aware(delta, ux, uz, d, speed, rng)
+
+
+func net_count() -> int:
+	return _nets
+
+
 ## The phase pulse: a ring around the warden (Game.explode, player damage only), then it blinks away.
 func _pulse() -> void:
 	_pulses += 1
@@ -420,6 +448,7 @@ func _pulse() -> void:
 	var at := Vector3(global_position.x, global_position.y + 0.15, global_position.z)
 	Game.explode(at, float(cfg.get("pulse_radius", 6.5)), {"enemy_dmg": 0.0, "car_dmg": 12.0, "player_dmg": float(cfg.get("pulse_dmg", 20.0)), "color": Color(0.8, 0.8, 1.0)})
 	FX.shake(0.4)
+	SnakeTraversal.jam_in_radius(at, maxf(float(cfg.get("pulse_radius", 6.5)) * 2.0, 12.0))     # the pulse also JAMS the hero's snakes within twice its damage radius (SnakePower.jam_seconds)
 	blink()
 
 
@@ -530,7 +559,7 @@ func _fire_cycle(delta: float, d: float, rng: float) -> void:
 		&"sniper":
 			if _aim_t > 0.0 and _aim_t <= SNIPER_LOCK and not _locked:
 				_locked = true
-				_lock_point = _tgt                              # the laser stops following: the shot goes where he was
+				_lock_point = _tgt + SnakeTraversal.lead_offset(SNIPER_LOCK)      # the laser stops following: the shot goes where he was (a hero on the snakes is led: his speed times the lock time)
 			elif _aim_t <= 0.0 and _burst_left == 0:
 				_locked = false
 	super._fire_cycle(delta, d, rng)
@@ -574,6 +603,8 @@ func _tracer_color() -> Color:
 			return Color(0.4, 1.0, 0.7)
 		&"warden":
 			return Color(0.9, 0.9, 1.0)
+		&"hunter":
+			return Color(0.5, 1.0, 0.4)
 		&"hivemother":
 			return Color(1.0, 0.5, 0.65)
 	return super._tracer_color()
@@ -598,6 +629,8 @@ func threat_charge() -> float:
 		return clampf(1.0 - _pulse_wind / PULSE_WIND, 0.0, 1.0)
 	if role == &"hivemother" and _summon_wind > 0.0:
 		return clampf(1.0 - _summon_wind / SUMMON_WIND, 0.0, 1.0)
+	if role == &"hunter" and _net_wind > 0.0:
+		return clampf(1.0 - _net_wind / 0.9, 0.0, 1.0)
 	return super.threat_charge()
 
 

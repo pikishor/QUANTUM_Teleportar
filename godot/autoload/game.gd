@@ -80,7 +80,8 @@ const ACTION_KEYS := {
 	&"jump": [KEY_SPACE], &"sprint": [KEY_SHIFT], &"reload": [KEY_R],
 	&"blink": [KEY_Q], &"entangle": [KEY_E], &"superpose": [KEY_G], &"collapse": [KEY_C],
 	&"interact": [KEY_F], &"leave_building": [KEY_BACKSPACE], &"crouch": [KEY_CTRL], &"takedown": [KEY_V], &"pause": [KEY_ESCAPE],
-	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z], &"grab": [KEY_H], &"melee": [KEY_N], &"throw_item": [KEY_J], &"gadget": [KEY_K], &"charge_place": [KEY_P], &"detonate": [KEY_L], &"shield": [KEY_Y], &"slip": [KEY_U], &"arc": [KEY_I], &"ultimate": [KEY_O],
+	&"weapon_1": [KEY_1], &"weapon_2": [KEY_2], &"weapon_3": [KEY_3], &"weapon_4": [KEY_4], &"weapon_5": [KEY_5], &"weapon_6": [KEY_6], &"weapon_7": [KEY_7], &"weapon_8": [KEY_8], &"swap": [KEY_X], &"altfire": [KEY_B], &"ammo_type": [KEY_T], &"inspect": [KEY_Z], &"grab": [KEY_H], &"melee": [KEY_N], &"throw_item": [KEY_J], &"gadget": [KEY_K], &"charge_place": [KEY_P], &"detonate": [KEY_L], &"shield": [KEY_Y], &"slip": [KEY_U], &"arc": [KEY_I], &"ultimate": [KEY_O], &"snake": [KEY_TAB], &"fly": [KEY_BACKSLASH],
+	&"snake_pull": [KEY_BRACKETLEFT], &"snake_net": [KEY_BRACKETRIGHT], &"snake_shield": [KEY_SEMICOLON], &"snake_bomb": [KEY_APOSTROPHE],
 }
 
 
@@ -107,6 +108,11 @@ func _ready() -> void:
 
 func is_playing() -> bool:
 	return state == &"play"
+
+
+## True while the hero drives a vehicle (the traversal effects and the touch SNAKE button step aside).
+func player_in_vehicle() -> bool:
+	return is_instance_valid(player) and player.get(&"vehicle") != null
 
 
 ## The one switch for everything that scales with the graphics tier: the world (shadows, reflections, render scale, MSAA) and the

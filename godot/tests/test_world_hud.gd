@@ -12,7 +12,7 @@ extends RefCounted
 
 const SAVE := "user://test_world_hud.cfg"
 const SETTINGS := "user://test_world_hud_settings.cfg"
-const MAX_CONTROLS := 12
+const MAX_CONTROLS := 13                 # wave 115: + the contextual SNAKE button
 
 class FakeFoe extends Node3D:
 	var dead := false

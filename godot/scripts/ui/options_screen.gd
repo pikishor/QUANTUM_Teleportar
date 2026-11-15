@@ -49,7 +49,7 @@ const COLS1 := [
 ## RESET PROGRESS needs two presses: the first arms it (the label asks), the second wipes. Any other press, the page flip and BACK disarm it; only on the title screen.
 ## One line under the name of a toggle or cycle row: what it does (the player should never have to guess).
 const HINTS := {
-	&"opt_aim": "Gentle pull to targets", &"opt_auto": "Fires on the crosshair target", &"opt_left": "Mirror the touch buttons", &"opt_vib": "Rumble on hits and blasts",
+	&"opt_aim": "Pull to targets and snake anchors", &"opt_auto": "Fires on the crosshair target", &"opt_left": "Mirror the touch buttons", &"opt_vib": "Rumble on hits and blasts",
 	&"opt_subs": "Words for every voice line", &"opt_cb": "Colour-blind marker colours", &"opt_flash": "Softer blasts and flashes", &"opt_motion": "Less camera shake and sway",
 	&"opt_post": "Glow, bloom and colour grade", &"opt_cine": "Story scenes between missions", &"opt_civ": "People and traffic in the streets", &"opt_dmg": "Numbers when you hit",
 	&"opt_extras": "Show every hidden screen", &"opt_mute": "All game sound", &"opt_fps": "Lower saves battery", &"opt_fpsbox": "A frame counter on screen",

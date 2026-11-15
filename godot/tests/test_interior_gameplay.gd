@@ -5,6 +5,7 @@ extends RefCounted
 ## Vendors: tests/test_interior_gameplay_vendors.gd. Missions and the TEST menu page: tests/test_interior_gameplay_missions.gd.
 ## Run: tools/test.sh tests/test_interior_gameplay.gd
 
+const TIMEOUT_SECONDS := 120.0                   ## the terrain's far tiles are waited for before the node count (see _settle_terrain); the runner's default limit is 60 s
 const SPEED_UP := 4
 const TICK_RATE := 60 * SPEED_UP
 const TMP := "user://test_interiors_save.cfg"
@@ -469,7 +470,38 @@ func _stub_room() -> void:
 	await frames(3)
 
 
+## The terrain draws its map picture on a worker thread and its 96 far tiles arrive one a frame after that (the same streamer test_ambient waits for): on a loaded machine they were still
+## coming during the count below (+15 and +19 nodes on both attempts of the wave 115 full suite, all `Terrain/FarTiles/Far_x_y`; a quiet run counts +3). The count waits until every far
+## tile stands (progress based and in real time, like test_ambient._settle_terrain); the check itself, that the doors leak nothing, is unchanged.
+func _settle_terrain() -> void:
+	var terrain := city.terrain
+	if terrain == null:
+		return
+	terrain.far_jobs_max = 4                         # a phone builds two far tiles at a time; four finish the 9 km world sooner (test_ambient does the same)
+	var total: int = terrain._far_total()
+	var t0 := Time.get_ticks_msec()
+	var t_last := t0
+	var last := -1
+	var done := false
+	var st: Dictionary = {}
+	while true:
+		st = terrain.stats()
+		if TerrainMap.ready and int(st["far_tiles"]) >= total and int(st["jobs"]) == 0:
+			done = true
+			break
+		var progress := int(st["far_tiles"]) + int(st["chunks"]) + (1000 if TerrainMap.ready else 0)
+		var now := Time.get_ticks_msec()
+		if progress != last:
+			last = progress
+			t_last = now
+		if float(now - t_last) / 1000.0 > 30.0 or float(now - t0) / 1000.0 > 60.0:      # a stuck worker: the check below reports it
+			break
+		await frames(6)
+	TestLib.check(done, "the terrain has streamed in before the nodes are counted (map %s, %d of %d far tiles, %d jobs, %.0f s)" % [str(TerrainMap.ready), int(st["far_tiles"]), total, int(st["jobs"]), float(Time.get_ticks_msec() - t0) / 1000.0])
+
+
 func _teardown() -> void:
+	await _settle_terrain()
 	# The count measures the doors, not the world around them: the car streamer (one car is 23 nodes) and the outskirts sites (26 colliders unloaded and rebuilt as the hero is taken away and
 	# brought back) change the node count by tens at a time on the clock, which made this check pass or fail by chance (wave 112: 0 or +42 on identical runs). Both rest while it counts.
 	var vm := Game.vehicles as VehicleManager

@@ -169,7 +169,7 @@ func tick(p: Player, dt: float, forward_in: float, wish: Vector3, on_floor: bool
 			pose_pitch = 0.45
 			if int(_burst_t * 30.0) != int((_burst_t + dt) * 30.0):
 				FX.burst(p.global_position + Vector3(0.0, 1.0, 0.0), Color(0.4, 0.95, 1.0), 2, 1.2, 0.5, 0.0, 0.9)
-	elif jump_pressed and not _burst_spent and not slamming and not wall_running and not holding and p.air_time > BURST_MIN_AIR and p.energy >= HeroPower.cost(BURST_COST):
+	elif jump_pressed and not p.snake.jump_consumed and not _burst_spent and not slamming and not wall_running and not holding and p.air_time > BURST_MIN_AIR and p.energy >= HeroPower.cost(BURST_COST):
 		var look: float = p.camera_rig.yaw
 		_burst_dir = Vector3(-sin(look), 0.0, -cos(look))
 		if wish.length() > 0.3:

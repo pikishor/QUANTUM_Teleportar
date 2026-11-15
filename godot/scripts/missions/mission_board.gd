@@ -202,6 +202,8 @@ func generate(origin := Vector3.INF, types: Array = []) -> Array[Dictionary]:
 		picks = pick_types(OFFERS)
 		if world_offers:
 			picks = WorldMissions.inject(picks, origin, rng)
+			picks = SnakeMissions.inject(picks, rng, [], origin)
+			picks = SnakeWarMissions.inject(picks, rng)
 	for t: StringName in picks:
 		var o := build(t, origin)
 		if not o.is_empty():
@@ -226,6 +228,10 @@ func _hero_pos() -> Vector3:
 func build(t: StringName, origin: Vector3, first := false) -> Dictionary:
 	if WorldMissions.DEFS.has(t):
 		return _build_world(t, origin)
+	if SnakeMissions.DEFS.has(t):
+		return _build_snake(t, origin)                            # the two QUANTUM SNAKE rooftop missions (scripts/quantum/snake_missions.gd)
+	if SnakeWarMissions.DEFS.has(t):
+		return _build_snake_war(t, origin)                        # SNAKE ARENA and ROOFTOP SNAKE HUNT (scripts/quantum/snake_war_missions.gd)
 	if not DEFS.has(t):
 		return {}
 	var tr := tier()
@@ -290,6 +296,46 @@ func _build_world(t: StringName, origin: Vector3) -> Dictionary:
 	return {
 		"id": _serial, "type": t, "title": str(rec["title"]), "brief": brief, "gift": gift, "glyph": rec["glyph"], "steps": steps, "route_m": float(rec["route_m"]), "reward": reward,
 		"pos": rec["pos"], "tier": tr, "story": false, "world": true,
+		"chapter": {"id": "board_%d" % _serial, "title": str(rec["title"]), "clears_sector": false, "steps": steps},
+	}
+
+
+## A QUANTUM SNAKE rooftop mission (SnakeMissions): the same offer record as a world mission, its goals on real roofs.
+func _build_snake(t: StringName, origin: Vector3) -> Dictionary:
+	var tr := tier()
+	_serial += 1
+	var r := RandomNumberGenerator.new()
+	r.seed = hash("%s|%d|%d" % [t, _serial, rng.randi()])
+	var rec := SnakeMissions.build(t, tr, origin, r)
+	if rec.is_empty():
+		return {}
+	var reward := WorldMissions.pay_for(float(rec["base"]), float(rec["route_m"]), tr)
+	var gift := MissionRewards.gift_text()
+	var brief := str(rec["brief"]) + ("  PAYS CREDITS + %s" % gift if gift != "" else "")
+	var steps: Array[Dictionary] = rec["steps"]
+	return {
+		"id": _serial, "type": t, "title": str(rec["title"]), "brief": brief, "gift": gift, "glyph": rec["glyph"], "steps": steps, "route_m": float(rec["route_m"]), "reward": reward,
+		"pos": rec["pos"], "tier": tr, "story": false, "snake": true,
+		"chapter": {"id": "board_%d" % _serial, "title": str(rec["title"]), "clears_sector": false, "steps": steps},
+	}
+
+
+## A SNAKE COMBAT mission (SnakeWarMissions): the same offer record as a snake rooftop mission.
+func _build_snake_war(t: StringName, origin: Vector3) -> Dictionary:
+	var tr := tier()
+	_serial += 1
+	var r := RandomNumberGenerator.new()
+	r.seed = hash("%s|%d|%d" % [t, _serial, rng.randi()])
+	var rec := SnakeWarMissions.build(t, tr, origin, r)
+	if rec.is_empty():
+		return {}
+	var reward := WorldMissions.pay_for(float(rec["base"]), float(rec["route_m"]), tr)
+	var gift := MissionRewards.gift_text()
+	var brief := str(rec["brief"]) + ("  PAYS CREDITS + %s" % gift if gift != "" else "")
+	var steps: Array[Dictionary] = rec["steps"]
+	return {
+		"id": _serial, "type": t, "title": str(rec["title"]), "brief": brief, "gift": gift, "glyph": rec["glyph"], "steps": steps, "route_m": float(rec["route_m"]), "reward": reward,
+		"pos": rec["pos"], "tier": tr, "story": false, "snake": true,
 		"chapter": {"id": "board_%d" % _serial, "title": str(rec["title"]), "clears_sector": false, "steps": steps},
 	}
 

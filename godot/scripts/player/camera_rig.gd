@@ -66,6 +66,7 @@ const INTERIOR_MIN_ARM := 0.25               ## ... and may shrink to this: the 
 const INTERIOR_FOV_BOOST := 24.0             ## degrees added (horizontal FOV) inside an interior while the arm is pulled in by a wall: a hero 1 m from the lens would be cropped at the hips and the left edge
 const INTERIOR_LIFT := 0.08                  ## metres the camera is raised in every interior ...
 const INTERIOR_LIFT_SQUEEZE := 0.1           ## ... and up to this much more while a wall pulls the arm in: the lens looks over the hero's head and shoulder instead of sitting in his back (director review 4, defect 8)
+static var snake_pull_in := 40.0            ## per second: how fast a wall draws the arm in while a snake state (swing, zip, climb, flight) runs: about 0.05 s (three frames), not a cut (a test sets 1e6 to show the old cut)
 const SQUEEZE_START := 2.0                   ## an arm shorter than this (metres) starts to slide the camera toward a free shoulder ...
 const SQUEEZE_SIDE := 0.42                   ## ... by this much sideways at full squeeze (arm at the MIN_ARM floor) ...
 const SQUEEZE_UP := 0.1                      ## ... and this much up
@@ -852,6 +853,19 @@ func _update_view(dt: float) -> void:
 	door_tight = tight_t if dt <= 0.0 else PlayerUtil.damp(door_tight, tight_t, 4.0 if tight_t > door_tight else 2.2, dt)
 	height += minf(DOOR_LIFT, DOOR_LIFT_K * sqrt(shoulder * shoulder + dist * dist) * _ratio) * door_tight
 	fov_target += DOOR_FOV * door_tight
+	var snk: SnakeTraversal = _player.snake if (_player != null and not drv) else null            # QUANTUM SNAKES: a longer arm, a wider lens, a bank and a lean after the direction of travel (scripts/quantum/snake_camera.gd)
+	if snk != null:
+		snk.cam.update(snk, dt, free_look > 0.0)
+		if snk.cam.active:
+			dist += snk.cam.dist_add
+			height += snk.cam.height_add
+			shoulder *= snk.cam.shoulder_k
+			fov_target += snk.cam.fov_add
+			if playing and dt > 0.0:
+				if not is_nan(snk.cam.yaw_to):
+					yaw = PlayerUtil.damp_angle(yaw, snk.cam.yaw_to, snk.cam.yaw_rate, dt)
+				if not is_nan(snk.cam.pitch_to):
+					pitch = PlayerUtil.damp(pitch, snk.cam.pitch_to, snk.cam.pitch_rate, dt)
 	if _orbit_w > 0.001:
 		dist = lerpf(dist, ORBIT_DIST, _orbit_w)
 		shoulder = lerpf(shoulder, 0.0, _orbit_w)
@@ -918,7 +932,9 @@ func _update_view(dt: float) -> void:
 			through_wall = true
 			arm_free = minf(THROUGH_ARM, arm_len)
 	var free_ratio := clampf(arm_free / arm_len, minf(1.0, (INTERIOR_MIN_ARM if InteriorSpace.active else MIN_ARM * clampf(float(hs["eye"]), 1.0, 1.3)) / arm_len), 1.0)     # never closer than MIN_ARM, even inside a wall
-	if free_ratio < _ratio or dt <= 0.0:
+	if free_ratio < _ratio and dt > 0.0 and snk != null and snk.cam.active:
+		_ratio = maxf(free_ratio, PlayerUtil.damp(_ratio, free_ratio, snake_pull_in, dt))      # a snake state passes facades at 20 to 45 m/s: a wall behind the hero draws the arm in over a few frames; the old cut moved the lens 2 to 5 m in ONE frame (critic 115 look)
+	elif free_ratio < _ratio or dt <= 0.0:
 		_ratio = free_ratio                  # walls pull the camera in at once
 	else:
 		_ratio = PlayerUtil.damp(_ratio, free_ratio, 5.0, dt)    # and let it out gently
@@ -954,7 +970,7 @@ func _update_view(dt: float) -> void:
 	var gait_bob := body_loco != null and body_loco.rig != null and speed_h > 0.5 and _player.is_on_floor()
 	if gait_bob:                                    # the bob follows the hero's own steps (two bumps per gait cycle, a continuous phase), so the camera never beats against the feet
 		_bob_t = body_loco.rig.phase * 2.0
-	var roll_target := -strafe * 0.014 * (1.0 - ads_s) + sin(_bob_t * 0.5) * 0.0035 * _sprint + (_air_roll() if drv else 0.0)
+	var roll_target := -strafe * 0.014 * (1.0 - ads_s) + sin(_bob_t * 0.5) * 0.0035 * _sprint + (_air_roll() if drv else 0.0) + (snk.cam.roll if snk != null else 0.0)
 	_roll = PlayerUtil.damp(_roll, roll_target, 8.0, dt)
 	var shake := clampf(FX.shake_amount, 0.0, 1.0)
 	var s_off := Vector3.ZERO

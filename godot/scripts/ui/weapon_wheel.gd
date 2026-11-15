@@ -75,6 +75,8 @@ static func ring_page_of(tab: StringName, id: StringName, cur: StringName = &"")
 
 ## Level two: the weapons of `tab` on page `page` as wheel discs, then a NEXT disc when there is more than one page. `cur` is the weapon in hand.
 static func ring_items(tab: StringName, page: int, cur: StringName) -> Array:
+	if SnakeUi.is_tab(tab):                                              # the ring of the snake verbs or bombs
+		return SnakeUi.ring_items(tab, page)
 	var ids := tab_ids(tab, cur)
 	var n := ring_pages(tab, cur)
 	page = posmod(page, n)
@@ -123,9 +125,12 @@ static func pick(cls: StringName, w: PlayerWeapon) -> bool:
 static func activate(it: Dictionary, w: PlayerWeapon) -> Dictionary:
 	if w == null:
 		return {}
+	if SnakeUi.handles_item(it):                                         # a snake wedge opens its ring, a snake power arms (scripts/quantum/snake_ui.gd)
+		return SnakeUi.activate(it)
 	var id: StringName = it["id"]
 	match StringName(it.get("type", &"class")):
 		&"weapon":
+			SnakeWar.holster()                                           # a pick of a gun puts a snake power away (even when it is the gun already in hand: no equip signal then)
 			w.switch_to(id)
 			return {}
 		&"page":
@@ -134,11 +139,14 @@ static func activate(it: Dictionary, w: PlayerWeapon) -> Dictionary:
 			var cur := w.current
 			var ids := tab_ids(id, cur)
 			if id == RECENT and not ids.is_empty():
+				SnakeWar.holster()
 				w.switch_to(ids[0])
 			return {"tab": id, "page": 0} if ids.size() > 1 or id == FAV else {}
 		_:
 			var owned := WeaponDefs.owned_in_class(id)
 			var had_it := WeaponDefs.class_of(w.current) == id
+			if not had_it or owned.size() <= 1:
+				SnakeWar.holster()                                       # the class wedge picks a gun directly (no ring to choose from)
 			if not had_it:
 				w.switch_to(weapon_for(id))
 			if owned.size() > 1:

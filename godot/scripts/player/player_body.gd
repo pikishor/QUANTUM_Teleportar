@@ -303,6 +303,9 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 					if polish.state in [&"cover", &"peek", &"takedown", &"slam", &"glide", &"wall", &"vault", &"mantle"]:
 						flat = 0.0
 				clips.update(adt, loco, disp.length(), not air_f, p.velocity.y, flat, p.cover != null and p.cover.crouching)
+		if p.snake != null:                                 # QUANTUM SNAKES: the arms reach for the rope / the wall, the legs hang, the captured clip steps aside (scripts/quantum/snake_pose.gd)
+			p.snake.pose.update(p.snake, adt)
+			p.snake.pose.rig_inputs(rig)
 		rig.aim_pitch = _aim_pitch
 		rig.recoil = _kick
 		rig.flinch = _flinch
@@ -344,6 +347,8 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 			rotation.x -= p.swim.lean * 0.55 + 0.05
 			rotation.z += sin(p.swim.stroke_phase) * 0.1 * p.swim.lean
 			global_position.y += sin(_clock * 2.3) * 0.025
+		if p.snake != null:                                  # the snake pose turns the whole body about its centre (swing, zip, climb, flight, the landing roll)
+			p.snake.pose.apply_body(self, view_pos, yaw)
 
 	# --- rim and glow: subtle at rest, brighter on a hit, while aiming and while a quantum power is active (no allocation: a few property writes on shared materials)
 	var q = p.quantum

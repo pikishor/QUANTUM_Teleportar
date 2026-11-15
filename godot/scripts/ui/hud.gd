@@ -1079,6 +1079,8 @@ func ammo_text() -> String:
 	var p: Object = Game.player if is_instance_valid(Game.player) else null
 	if p == null:
 		return ""
+	if SnakeWar.holding():                                               # a snake power in hand: the energy and the cooldown (scripts/quantum/snake_ui.gd)
+		return SnakeUi.ammo_text()
 	var veh: Object = p.get("vehicle")
 	var key: int
 	if veh != null:
@@ -1106,6 +1108,8 @@ func alt_text() -> String:
 	var p: Object = Game.player if is_instance_valid(Game.player) else null
 	if p == null or not (p.get("weapon") is PlayerWeapon):
 		return ""
+	if SnakeWar.holding():
+		return SnakeUi.alt_text()
 	return (p.get("weapon") as PlayerWeapon).alt_text()
 
 
@@ -1188,6 +1192,8 @@ func weapon_text() -> String:
 	var p: Object = Game.player if is_instance_valid(Game.player) else null
 	if p == null or not (p.get("weapon") is PlayerWeapon):
 		return ""
+	if SnakeWar.holding():
+		return SnakeUi.weapon_text()
 	var w := p.get("weapon") as PlayerWeapon
 	var d := w.def
 	return "%s  %s   %s" % [d["name"], d["tag"], "RESERVE INF" if w.reserve < 0 else "RESERVE %d" % w.reserve]
@@ -1232,8 +1238,8 @@ func hint_text() -> String:
 	var vp := Freedom.vehicle_prompt()                      # HIJACK TAXI / ENTER BUS
 	if vp != "":
 		return key + vp
-	if Game.vehicles.has_method(&"nearest") and Game.vehicles.call(&"nearest", Game.player.global_position, REACH) != null:
-		return key + "ENTER VEHICLE"
+	if not Game.vehicles.has_method(&"reach_car") and Game.vehicles.has_method(&"nearest") and Game.vehicles.call(&"nearest", Game.player.global_position, REACH) != null:
+		return key + "ENTER VEHICLE"           # (the old fallback: `nearest` measures the flat distance only, so a hero swinging or flying 20 to 70 m over a car was offered "ENTER VEHICLE"; reach_car, used above, checks the height)
 	return Freedom.roam_hint()                              # a photo spot, the running world event (scripts/roam/): the quietest line
 
 
@@ -1733,7 +1739,7 @@ func _draw_hud_body() -> void:
 		_plate(c, wr, s)
 		_text(c, font, Vector2(wr.position.x, wr.position.y + 27.0 * s), weapon_text(), HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, UiUtil.fit_size(font, weapon_text(), wr.size.x - 8.0 * s, int(UiUtil.BAR_LABEL * s)), Color(UiUtil.CYAN, 0.97), 1.0 * s)
 		if p.get("weapon") is PlayerWeapon:
-			_weapon_pic(c, (p.get("weapon") as PlayerWeapon).current, Rect2(wr.position.x + 6.0 * s, wr.position.y + 3.0 * s, 54.0 * s, 30.0 * s), Color(UiUtil.CYAN, 0.9))
+			_weapon_pic(c, SnakeUi.shown((p.get("weapon") as PlayerWeapon).current), Rect2(wr.position.x + 6.0 * s, wr.position.y + 3.0 * s, 54.0 * s, 30.0 * s), Color(UiUtil.CYAN, 0.9))
 		_text(c, font, Vector2(ab.end.x + 10.0 * s, ab.position.y + 40.0 * s), alt_text(), HORIZONTAL_ALIGNMENT_LEFT, 200.0 * s, int(UiUtil.BAR_LABEL * s * 0.8), Color(UiUtil.AMBER, 0.9), 1.0 * s)
 		var wch := weapon_charge()
 		if wch > 0.0:

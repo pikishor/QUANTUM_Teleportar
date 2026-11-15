@@ -143,6 +143,7 @@ var verbs := HeroVerbs.new()                 ## wall-run, slam, warp grab (hero_
 var combat_step := CombatStep.new()          ## the side-step while FIRE is held with no stick input (combat_step.gd)
 var swim := PlayerSwim.new()                 ## wading and swimming (player_swim.gd; water from WaterWorld / TerrainHeight)
 var traversal := Traversal.new()             ## vault / mantle / ledge grab / ladders (traversal.gd)
+var snake := SnakeTraversal.new()            ## QUANTUM SNAKES: swing, zip, climb, flight and the jump kit (scripts/quantum/snake_traversal.gd)
 var _aim_frame := -1
 var _aim_cache := {}
 
@@ -163,6 +164,8 @@ func _ready() -> void:
 	Game.quality_changed.connect(_on_quality_changed)
 	body.set_quality(Game.quality)
 	camera_rig.follow_target = self
+	snake.bind(self)
+	SnakeWar.attach(self)                         # QUANTUM SNAKE COMBAT: verbs, bombs, shield (scripts/quantum/snake_war.gd)
 	reset()
 	decals.clear()
 	_attach_quantum()
@@ -271,6 +274,7 @@ func reset() -> void:
 	swim.reset()
 	traversal.cancel()
 	verbs.cancel()
+	snake.reset()
 	_set_vehicle(null)
 	_dead = false
 	max_hp = Upgrades.max_hp()                                  # the HEALTH upgrade (scripts/progress/upgrades.gd)
@@ -307,6 +311,7 @@ func teleport_to(pos: Vector3) -> void:
 	pos = PlayerUtil.safe_spot(pos, Game.world if is_instance_valid(Game.world) else null, get_world_3d().direct_space_state if is_inside_tree() else null)   # never outside the city walls, below the floor or inside a building
 	traversal.cancel()
 	verbs.cancel()
+	snake.cancel()
 	global_position = pos
 	velocity = Vector3.ZERO
 	_ground_known = false
@@ -417,6 +422,9 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 	if gadgets != null and gadgets.shield_absorb(amount):                  # the SHIELD EMITTER's dome took it
 		last_hurt_from = from_pos
 		return
+	if SnakeWar.absorb(amount, from_pos):                                  # the snakes of SNAKE SHIELD took it
+		last_hurt_from = from_pos
+		return
 	hp -= amount * Difficulty.damage_taken(Difficulty.story_chapter()) * Upgrades.damage_taken() * HeroPower.f("taken") * (cover.damage_mult() if cover != null else 1.0)
 	since_hurt = 0.0
 	last_hurt_time = PlayerUtil.now()
@@ -449,6 +457,7 @@ func hurt_driver(amount: float, from_pos := Vector3.ZERO) -> void:
 
 func _die() -> void:
 	verbs.cancel()
+	snake.cancel()
 	if _dead:
 		return
 	_dead = true
@@ -473,6 +482,7 @@ func _vehicle_alive() -> bool:
 
 func _set_vehicle(v: Node3D) -> void:
 	verbs.cancel()
+	snake.cancel()
 	var next: Node3D = v if is_instance_valid(v) else null
 	if next == null and not _in_vehicle:
 		_vehicle = null
@@ -623,6 +633,17 @@ func _foot_tick(dt: float) -> void:
 	var wish := fwd * forward_in + right * iv.x
 	var assist_fire := get_node_or_null("AimAssist") as AimAssist
 	wish += combat_step.wish(self, dt, iv.length(), Input.is_action_pressed(&"fire") or (assist_fire != null and assist_fire.wants_auto_fire()), aiming, on_floor)     # a hero who shoots with the stick untouched side-steps (scripts/player/combat_step.gd)
+	if snake.tick(self, dt, iv, wish, on_floor, jump_down):       # QUANTUM SNAKES (swing, zip, climb, flight) own the body while they run
+		_jump_buffer = 0.0
+		sprinting = false
+		_ground_known = false
+		_was_on_floor = false
+		_fall_speed = 0.0
+		_coyote = 0.0
+		air_time = maxf(air_time + dt, 0.3) if not snake.zip.is_landing() else 0.0
+		weapon.poll_switch()
+		weapon.tick(dt, Input.is_action_pressed(&"fire"), reload_pressed, aiming, false)
+		return
 	if traversal.tick(self, dt, forward_in, wish, _jump_buffer > 0.0):
 		if traversal.consumed_jump:
 			_jump_buffer = 0.0
@@ -651,7 +672,7 @@ func _foot_tick(dt: float) -> void:
 		return
 	var boost := speed_boost if speed_boost >= 1.0 else 1.0 + speed_boost
 	var top_speed := (AIM_SPEED if aiming else WALK_SPEED) * (SPRINT_MULT * HeroPower.f("sprint") if want_sprint else 1.0) * boost * cover.speed_mult() * swim.wade_mult
-	var k := GROUND_ACCEL if on_floor else AIR_ACCEL
+	var k := GROUND_ACCEL if on_floor else AIR_ACCEL * snake.air_k_scale()      # a released snake keeps its speed for a moment
 	velocity.x = PlayerUtil.damp(velocity.x, wish.x * top_speed, k, dt)
 	velocity.z = PlayerUtil.damp(velocity.z, wish.z * top_speed, k, dt)
 	var horizontal := Vector2(velocity.x, velocity.z).length()
@@ -766,7 +787,8 @@ func _process_body(delta: float) -> void:
 	var dt := minf(delta, 0.1)
 	var playing := Game.is_playing()
 	if playing and not _in_vehicle and not _dead:
-		yaw = PlayerUtil.damp_angle(yaw, camera_rig.get_aim_yaw(), 14.0, dt)
+		var sy := snake.facing_yaw()                          # a snake state faces the direction of travel
+		yaw = PlayerUtil.damp_angle(yaw, camera_rig.get_aim_yaw() if is_nan(sy) else sy, 14.0 if is_nan(sy) else 9.0, dt)
 	rotation.y = yaw
 	_step_offset = PlayerUtil.damp(_step_offset, 0.0, 14.0, dt)
 	camera_rig.pivot_y_offset = _step_offset - (cover.drop() if cover != null else 0.0)
