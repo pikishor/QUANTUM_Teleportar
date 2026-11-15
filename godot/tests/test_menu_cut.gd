@@ -341,17 +341,19 @@ func _wheel(tag: String) -> void:
 			var c := tc.wheel.item_centre(i)
 			inside = inside and c.x - rr >= 0.0 and c.x + rr <= vp.x and c.y - rr >= 0.0 and c.y + rr <= vp.y
 			for j in range(i + 1, n):
-				apart = apart and c.distance_to(tc.wheel.item_centre(j)) >= 2.0 * rr - 1.0
+				apart = apart and c.distance_to(tc.wheel.item_centre(j)) >= 2.0 * rr * tc.wheel.disc_scale() - 1.0       # the drawn disc: RadialWheel shrinks a crowded wheel (wave 115: 11 and 12 discs)
 		TestLib.check(inside and n >= 5, "%s: every %s disc is on screen (%d discs)" % [tag, kind, n])
-		TestLib.check(apart, "%s: no two %s discs touch" % [tag, kind])
+		TestLib.check(apart and 2.0 * RadialWheel.ITEM_R * tc.wheel.disc_scale() >= 64.0, "%s: no two %s discs touch and a disc stays a 64 px touch target" % [tag, kind])
 		# the other buttons are not drawn and do not answer while the wheel is up
 		var fired := false
 		tc.touch_down(91, tc._button_center(fire))
 		fired = Input.is_action_pressed(&"fire")
 		tc.touch_up(91)
 		TestLib.check(not fired, "%s: FIRE does not answer under the open %s wheel" % [tag, kind])
-		# drag to the last disc and release: it picks and the wheel closes
+		# drag to the last disc and release: it picks and the wheel closes (the SNAKE wedges of wave 115 open a ring of their powers instead: the last plain disc)
 		var target := n - 1
+		while target > 0 and StringName(tc.wheel.items[target].get("type", &"")) == &"snake":
+			target -= 1
 		var at := tc.wheel.item_centre(target)
 		tc._wheel_held = 0.6
 		tc.touch_move(90, at, at - thumb)

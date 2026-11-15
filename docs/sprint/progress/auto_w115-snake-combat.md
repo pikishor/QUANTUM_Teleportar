@@ -1,6 +1,6 @@
 # w115-snake-combat (running)
 
-agent id aa62a5a4075ca6ac4, 821 events, first activity 2026-11-15T03:15:10.309Z, last activity 2026-11-15T04:51:10.153Z
+agent id aa62a5a4075ca6ac4, 871 events, first activity 2026-11-15T03:15:10.309Z, last activity 2026-11-15T04:52:23.336Z
 
 ## Last notes of the agent
 
@@ -11,22 +11,6 @@ agent id aa62a5a4075ca6ac4, 821 events, first activity 2026-11-15T03:15:10.309Z,
 
 ## Recent steps (last 40)
 
-- 04:39:51 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_verbs.gd
-- 04:39:51 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_swarm.gd
-- 04:40:07 Wait in the foreground for the test batch to finish
-- 04:46:53 Triage first five failing test logs
-- 04:47:23 Triage the remaining failing test logs
-- 04:47:37 Find the radial wheel and its disc sizing code
-- 04:47:39 /home/user/QUANTUM_Teleportar/godot/scripts/ui/radial_wheel.gd
-- 04:47:52 Find overlap checks in the failing UI tests
-- 04:47:54 /home/user/QUANTUM_Teleportar/godot/tests/test_hud_camera_final.gd
-- 04:47:55 Locate wheel checks in test_menu_cut
-- 04:48:07 /home/user/QUANTUM_Teleportar/godot/tests/test_menu_cut.gd
-- 04:48:12 Find the wheel pick logic in touch controls
-- 04:48:15 /home/user/QUANTUM_Teleportar/godot/scripts/ui/touch_controls.gd
-- 04:48:15 /home/user/QUANTUM_Teleportar/godot/scripts/ui/touch_controls.gd
-- 04:48:20 Locate wheel release handling in touch controls
-- 04:48:23 /home/user/QUANTUM_Teleportar/godot/scripts/ui/touch_controls.gd
 - 04:48:23 Read WeaponWheel.activate
 - 04:48:49 Read the ten class wedges check
 - 04:48:57 Find consumers of WeaponWheel.items
@@ -51,6 +35,22 @@ agent id aa62a5a4075ca6ac4, 821 events, first activity 2026-11-15T03:15:10.309Z,
 - 04:51:05 /home/user/QUANTUM_Teleportar/godot/scripts/ui/touch_controls.gd
 - 04:51:06 /home/user/QUANTUM_Teleportar/godot/scripts/ui/touch_controls.gd
 - 04:51:10 /home/user/QUANTUM_Teleportar/godot/scripts/ui/touch_controls.gd
+- 04:51:17 /home/user/QUANTUM_Teleportar/godot/tests/test_new_verbs.gd
+- 04:51:17 /home/user/QUANTUM_Teleportar/godot/tests/test_menu_cut.gd
+- 04:51:25 /home/user/QUANTUM_Teleportar/godot/tests/test_menu_cut.gd
+- 04:51:26 /home/user/QUANTUM_Teleportar/godot/tests/test_menu_cut.gd
+- 04:51:35 /home/user/QUANTUM_Teleportar/godot/tests/test_menu_cut.gd
+- 04:51:35 /home/user/QUANTUM_Teleportar/godot/tests/test_hud_camera_final.gd
+- 04:51:40 /home/user/QUANTUM_Teleportar/godot/tests/test_hud_camera_final.gd
+- 04:51:41 Check TOUCH_MIN and the weapon ui v3 line
+- 04:51:45 Read the rest of the weapon ui wheel check
+- 04:51:50 /home/user/QUANTUM_Teleportar/godot/tests/test_weapon_ui_v3.gd
+- 04:51:51 /home/user/QUANTUM_Teleportar/godot/tests/test_blast_arsenal.gd
+- 04:51:56 Check BlastTable.apply signature
+- 04:52:00 /home/user/QUANTUM_Teleportar/godot/tests/test_blast_arsenal.gd
+- 04:52:06 Extract power names, tags, alts and notes plus skill tree rows
+- 04:52:10 Read the rest of Tr.table and a v4 module header
+- 04:52:23 List UI strings said by the snake files and the caption builder
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -70,3 +70,8 @@ agent id aa62a5a4075ca6ac4, 821 events, first activity 2026-11-15T03:15:10.309Z,
 - /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/arch_snake_combat.md
 - godot/scripts/ui/weapon_wheel.gd
 - godot/scripts/ui/touch_controls.gd
+- godot/tests/test_new_verbs.gd
+- godot/tests/test_menu_cut.gd
+- godot/tests/test_hud_camera_final.gd
+- godot/tests/test_weapon_ui_v3.gd
+- godot/tests/test_blast_arsenal.gd

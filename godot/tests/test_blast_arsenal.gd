@@ -476,6 +476,9 @@ func _ordnance_ultimates_world() -> void:
 	WorldBlasters.current.hit_at(p1 + Vector3(0.0, 0.5, 0.0), 99.0)
 	await _until(func() -> bool: return int(BlastTable.by_id.get(&"wb_barrel", 0)) >= b0 + 2, 600)
 	TestLib.check(int(BlastTable.by_id.get(&"wb_barrel", 0)) == b0 + 2, "a barrel next to a barrel goes up in a chain")
+	# the snake bombs of wave 115 (cat snake) are thrown from the SNAKE wheel, their behaviours are checked by tests/test_snake_combat.gd; here each one goes off through the table like the rest
+	for id in BlastTable.ids_in(&"snake"):
+		BlastTable.apply(id, _spot + _dir() * 26.0 + _right() * 6.0, _p)
 	var every := 0
 	for id in BlastTable.ids():
 		if StringName(BlastTable.entry(id)["cat"]) != &"legacy" and StringName(BlastTable.entry(id)["cat"]) != &"internal" and int(BlastTable.by_id.get(id, 0)) > 0:

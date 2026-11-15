@@ -911,7 +911,7 @@ func _wheel_flow() -> void:
 	tc.wheel.close()
 	tc._open_wheel(&"weapon", -1, Vector2.ZERO)
 	var n := tc.wheel.items.size()
-	TestLib.check(tc.wheel.is_open and n == WeaponDefs.CLASS_ORDER.size() + 2, "the weapon wheel opens with a wedge for every class, RECENT and FAVOURITES (%d)" % n)
+	TestLib.check(tc.wheel.is_open and n == WeaponDefs.CLASS_ORDER.size() + 2 + SnakeUi.wheel_items().size(), "the weapon wheel opens with a wedge for every class, RECENT, FAVOURITES and the two snake wedges (%d)" % n)       # wave 115: SNAKE and SNAKE BOMB follow the classes
 	var s := tc._scale()
 	var r := RadialWheel.ITEM_R * tc.wheel.disc_scale() * s
 	TestLib.check(r * 2.0 >= 64.0 * s - 0.5, "the discs stay above the 64 px touch size (%.0f px at scale %.2f)" % [r * 2.0, s])

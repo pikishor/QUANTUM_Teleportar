@@ -140,7 +140,8 @@ func _touch() -> void:
 		for i in tc.wheel.items.size():
 			var c := tc.wheel.item_centre(i)
 			inside = inside and c.x - rr >= 0.0 and c.x + rr <= vp.x and c.y - rr >= 0.0 and c.y + rr <= vp.y
-		TestLib.check(inside and tc.wheel.items.size() == 7, "all seven wheel discs fit the 844x390 window (canvas %s scale %.2f)" % [tc._vp_size(), tc._scale()])
+		var want := 7 + TouchControls.SNAKE_ABILITIES.size()                     # the seven verbs and the four snake quick casts of wave 115
+		TestLib.check(inside and tc.wheel.items.size() == want and 2.0 * RadialWheel.ITEM_R * tc.wheel.disc_scale() >= 64.0, "all %d wheel discs fit the 844x390 window and stay at least 64 px (canvas %s scale %.2f)" % [want, tc._vp_size(), tc._scale()])
 		tc.release_all()
 	win.size = old
 

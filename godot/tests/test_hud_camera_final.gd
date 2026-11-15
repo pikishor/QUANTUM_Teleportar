@@ -251,7 +251,8 @@ func _wheels(size: Vector2i) -> void:
 			inside = inside and Rect2(Vector2.ZERO, vp).grow(-RadialWheel.ITEM_R * s * 0.95).has_point(ci)
 			for j in range(i + 1, n):
 				worst = minf(worst, ci.distance_to(tc.wheel.item_centre(j)))
-		TestLib.check(worst >= 2.0 * RadialWheel.ITEM_R * s - 1.0, "%s: the %s wheel discs never overlap (closest %.0f px, need %.0f)" % [tag, kind, worst, 2.0 * RadialWheel.ITEM_R * s])
+		var drawn := 2.0 * RadialWheel.ITEM_R * s * tc.wheel.disc_scale()                # the disc as drawn and hit: RadialWheel shrinks a crowded wheel (wave 115: 11 and 12 discs), never below a 64 px target
+		TestLib.check(worst >= drawn - 1.0 and drawn >= 64.0 * s - 1.0, "%s: the %s wheel discs never overlap (closest %.0f px, drawn %.0f, at least %.0f)" % [tag, kind, worst, drawn, 64.0 * s])
 		TestLib.check(inside, "%s: the %s wheel discs stay on the screen" % [tag, kind])
 		TestLib.check(shown >= 0 and tc.wheel.span_deg > 90.0, "%s: the %s wheel is a radial fan (%.0f degrees)" % [tag, kind, tc.wheel.span_deg])
 		tc.wheel.close()
