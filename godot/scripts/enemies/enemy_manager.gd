@@ -249,10 +249,14 @@ func get_clone() -> Node3D:
 			var c: Variant = q.call(&"decoy_pick") if q.has_method(&"decoy_pick") else q.get(&"clone")
 			if c is Node3D and is_instance_valid(c):
 				_clone = c as Node3D
+		if _clone == null:
+			_clone = SnakeVerbs.decoy_node()                                # the coil of SNAKE DECOY draws fire like the superposition clone (scripts/quantum/snake_verbs.gd)
 	return _clone
 
 
 func hit_clone() -> void:
+	if SnakeVerbs.decoy_hit(_clone):                                       # a bolt crossed the snake decoy, not the quantum clone
+		return
 	var q := _quantum()
 	if q != null and q.has_method(&"collapse"):
 		q.call(&"collapse")

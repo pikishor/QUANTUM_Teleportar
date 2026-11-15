@@ -390,6 +390,8 @@ func _finish_reload() -> void:
 
 ## Advance the weapon by dt. firing / reload_pressed come from the input actions, aiming and moving from the player.
 func tick(dt: float, firing: bool, reload_pressed: bool, aiming: bool, moving: bool) -> void:
+	if SnakeWar.holding():                                          # a snake power is in the hero's hand: FIRE casts it (scripts/quantum/snake_war.gd), no gun fires
+		firing = false
 	if TestMode.infinite_ammo:                                      # test mode: never dry, never reloading
 		ammo = mag
 		if reserve >= 0:

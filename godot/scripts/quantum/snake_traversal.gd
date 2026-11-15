@@ -108,11 +108,14 @@ func _init() -> void:
 func bind(player: Player) -> void:
 	p = player
 	energy = SnakePower.max_energy()
-	if player.get_node_or_null("SnakeFx") == null:
+	var off := OS.get_environment("SNK_OFF")      # TEMP perf A/B
+	if off == "1":
+		return
+	if player.get_node_or_null("SnakeFx") == null and off != "2":
 		var fx := SnakeFx.new()
 		fx.st = self
 		player.add_child(fx)
-	if player.get_node_or_null("SnakeDirector") == null:
+	if player.get_node_or_null("SnakeDirector") == null and off != "3":
 		var dr := SnakeMissionDirector.new()
 		dr.st = self
 		player.add_child(dr)
@@ -372,7 +375,7 @@ func _none_tick(dt: float, iv: Vector2, wish: Vector3, on_floor: bool, air: bool
 	if down and _chain_armed > 0.0 and not on_floor and swing_cd <= 0.0 and _since_release > 0.2 and time - _chain_scan >= SCAN_RATE:
 		if p.velocity.y < 2.5 or _since_release > 1.0:
 			_chain_scan = time
-			var hit := _scan_swing()
+			var hit := _scan_swing(true)
 			if not hit.is_empty():
 				_start_swing(hit, false)
 				return
@@ -432,8 +435,8 @@ func _press(on_floor: bool, air: bool, iv: Vector2) -> void:
 	_whiff(aim, reach)
 
 
-func _scan_swing() -> Dictionary:
-	return anchors.find_swing(p, _heading(), _aim(), SnakePower.range_m(), assist)
+func _scan_swing(wide := false) -> Dictionary:
+	return anchors.find_swing(p, _heading(), _aim(), SnakePower.range_m(), assist, Vector3.INF, false, wide)
 
 
 func _start_swing(hit: Dictionary, from_ground: bool) -> void:

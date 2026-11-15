@@ -75,6 +75,8 @@ static func ring_page_of(tab: StringName, id: StringName, cur: StringName = &"")
 
 ## Level two: the weapons of `tab` on page `page` as wheel discs, then a NEXT disc when there is more than one page. `cur` is the weapon in hand.
 static func ring_items(tab: StringName, page: int, cur: StringName) -> Array:
+	if SnakeUi.is_tab(tab):                                              # the ring of the snake verbs or bombs
+		return SnakeUi.ring_items(tab, page)
 	var ids := tab_ids(tab, cur)
 	var n := ring_pages(tab, cur)
 	page = posmod(page, n)
@@ -123,6 +125,8 @@ static func pick(cls: StringName, w: PlayerWeapon) -> bool:
 static func activate(it: Dictionary, w: PlayerWeapon) -> Dictionary:
 	if w == null:
 		return {}
+	if SnakeUi.handles_item(it):                                         # a snake wedge opens its ring, a snake power arms (scripts/quantum/snake_ui.gd)
+		return SnakeUi.activate(it)
 	var id: StringName = it["id"]
 	match StringName(it.get("type", &"class")):
 		&"weapon":

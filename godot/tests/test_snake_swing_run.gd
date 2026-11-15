@@ -29,6 +29,7 @@ func run(h: Node) -> void:
 	(Game.enemies as EnemyManager).clear()
 	if Encounters.current != null:
 		Encounters.current.enabled = false
+	TrafficField.bare_street()                                   # parked and driving cars are anchors too (and move): the run is about the buildings
 	Game.state = &"play"
 	TestMode.god = true
 	SnakeTraversal.assist = true

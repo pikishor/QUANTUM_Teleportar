@@ -179,7 +179,7 @@ func _wheels() -> void:
 	# hold ABILITY, drag towards a disc and release: it presses that action and closes the wheel
 	tc.touch_down(70, tc._button_center(ability))
 	TestLib.check(tc.wheel.is_open and tc.wheel.kind == &"ability" and not tc.wheel.sticky, "pressing ABILITY opens the wheel at once")
-	TestLib.check(tc.wheel.items.size() == 7, "the ABILITY wheel has the seven verbs")
+	TestLib.check(tc.wheel.items.size() == 11, "the ABILITY wheel has the seven quantum verbs and the four snake quick casts (wave 115)")
 	var names: Array = []
 	for it: Dictionary in tc.wheel.items:
 		names.append(str(it["label"]))

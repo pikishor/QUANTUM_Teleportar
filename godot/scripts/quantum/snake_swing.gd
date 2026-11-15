@@ -26,6 +26,7 @@ const REL_ANGLE_FAST := 0.45            ## rad from straight down at which an au
 const REL_ANGLE_SLOW := 0.6             ## ... and when slow
 const BODY_CENTRE := 1.25               ## metres above the feet where the rope pulls (the hand)
 const CLEAR := 9.0                      ## the lowest point of a swing keeps this much air under it: a rope that is longer than anchor height minus this is reeled in (measured: a 51 m rope on a 49 m high anchor put the hero into the street)
+static var reel_on := true                ## dev probes switch the clearance reel off to compare
 const REEL_SPEED := 40.0                ## m/s the snake pulls the hero in when it shortens the rope
 
 ## tunables of the feel (static so a probe can sweep them: tests/dev_snake_chain.gd reads SC_* variables)
@@ -111,13 +112,19 @@ func begin(p: Player, hit: Dictionary, from_ground := false) -> void:
 	_arc_len_acc = 0.0
 
 
-## The longest rope that keeps the lowest point of the pendulum CLEAR metres above the ground under the anchor (a ray down the facade the anchor sits on; no ground found = the street at y 0).
-static func max_rope(anchor_pos: Vector3, space: PhysicsDirectSpaceState3D = null) -> float:
-	var sp := space if space != null else (Engine.get_main_loop() as SceneTree).root.get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.create(anchor_pos + Vector3(0.0, -0.3, 0.0), anchor_pos + Vector3(0.0, -260.0, 0.0), Game.L_WORLD)
-	var hit := sp.intersect_ray(q)
-	var gy := (hit["position"] as Vector3).y if not hit.is_empty() else 0.0
-	return anchor_pos.y - gy - CLEAR
+## The longest rope that keeps the lowest point of the pendulum clear of the ground beside the anchor: CLEAR metres of air under the swing, less under a low anchor (45 % of its height, at
+## least 2.5 m), so even a lamp post gives a short swing. The ground is read 5 m and 12 m out from the wall the anchor sits on (a ray straight down at the wall itself meets ledges, cornices and
+## awnings); the higher of the two counts. No ground found = the street at y 0.
+static func max_rope(anchor_pos: Vector3, normal: Vector3, space: PhysicsDirectSpaceState3D) -> float:
+	var out := Vector3(normal.x, 0.0, normal.z)
+	out = out.normalized() if out.length() > 0.2 else Vector3.ZERO
+	var gy := -INF
+	for off in ([0.0] if out == Vector3.ZERO else [5.0, 12.0]):
+		var from := anchor_pos + out * float(off) + Vector3(0.0, -0.3, 0.0)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3(0.0, -260.0, 0.0), Game.L_WORLD))
+		gy = maxf(gy, (hit["position"] as Vector3).y if not hit.is_empty() else 0.0)
+	var h := anchor_pos.y - gy
+	return h - clampf(h * 0.45, 2.5, CLEAR)
 
 
 func _anchor_now() -> Vector3:
@@ -201,7 +208,7 @@ func _bite(p: Player) -> void:
 		return
 	phase = &"hang"
 	rope = clampf(d, MIN_ROPE, SnakePower.range_m() + 8.0)
-	rope_goal = clampf(minf(rope, max_rope(anchor)), MIN_ROPE, rope)
+	rope_goal = clampf(minf(rope, max_rope(anchor, _hit.get("normal", Vector3.ZERO) as Vector3, p.get_world_3d().direct_space_state)), MIN_ROPE, rope) if reel_on else rope
 	var towards := (anchor - c) / d
 	var outward := -p.velocity.dot(towards)
 	# the yank: a short pull along the rope so the swing starts with energy even from a standstill

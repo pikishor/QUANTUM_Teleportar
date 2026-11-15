@@ -15,6 +15,8 @@ const MIN_DIST := 9.0
 const MIN_ABOVE := 4.5
 const YAWS: Array[float] = [0.0, -0.3, 0.3, -0.62, 0.62, -0.95, 0.95, -1.28, 1.28]
 const PITCHES: Array[float] = [0.32, 0.55, 0.78, 1.0]
+const YAWS_WIDE: Array[float] = [1.6, -1.6, 1.95, -1.95, 2.4, -2.4, 3.14]       ## the second pass of a chain scan that found nothing ahead: beside and behind (any snake beats the street)
+const FWD_WIDE := -0.7
 const FAN_RAYS := 38
 const ROOF_SNAP := 11.0                  ## a wall hit this far or less under the roofline snaps up to the roof edge
 const ROOF_LAND_MAX := 22.0              ## a zip at a wall climbs onto the roof when it is this much higher or less
@@ -32,6 +34,8 @@ var _shape := SphereShape3D.new()
 var _sq := PhysicsShapeQueryParameters3D.new()
 const ARC_HORIZON := 1.6                 ## seconds of the pendulum that are simulated before an anchor is accepted
 const ARC_MIN_CLEAR := 0.9               ## an anchor whose arc meets geometry sooner than this is rejected
+static var long_rope_bonus := 0.9          ## score for a rope of 42 m or more over one of 12 m (dev probes try others)
+static var reel_penalty := 0.0              ## score lost per metre of rope that would be reeled in (0: a long arc is worth the pull; dev probes try others)
 const ARC_TOP := 5                       ## how many of the best scored anchors get an arc simulation
 
 
@@ -74,7 +78,7 @@ func _result(hit: Dictionary, from: Vector3, score: float) -> Dictionary:
 
 # --- swing ---------------------------------------------------------------------------------------------------------------------------
 
-func find_swing(p: Player, heading: Vector3, aim: Vector3, reach: float, assist: bool, from_override := Vector3.INF, quick := false) -> Dictionary:
+func find_swing(p: Player, heading: Vector3, aim: Vector3, reach: float, assist: bool, from_override := Vector3.INF, quick := false, wide := false) -> Dictionary:
 	searches += 1
 	rays = 0
 	last = {}
@@ -115,7 +119,18 @@ func find_swing(p: Player, heading: Vector3, aim: Vector3, reach: float, assist:
 					cands.append({"yaw": yv, "pitch": pv, "pos": hit["position"], "score": s2, "d": o.distance_to(hit["position"] as Vector3)})
 				if s2 > -INF:
 					picks.append({"hit": hit, "score": s2})
-	stats = {"hit": picks.size(), "arcs": 0, "rejected": 0, "tc": []}
+	if picks.is_empty() and wide and assist and not quick:                  # nothing ahead: look beside and behind (a chain that runs out of city turns back instead of falling)
+		var right2 := h.cross(Vector3.UP).normalized()
+		for yv in YAWS_WIDE:
+			var dirh2 := h * cos(yv) + right2 * sin(yv)
+			for pv in PITCHES:
+				var hit3 := _ray(space, o, o + (dirh2 * cos(pv) + Vector3.UP * sin(pv)) * reach, Game.L_WORLD | Game.L_VEHICLE, excl)
+				if hit3.is_empty():
+					continue
+				var s3 := _score(o, hit3, h, reach, false, FWD_WIDE)
+				if s3 > -INF:
+					picks.append({"hit": hit3, "score": s3})
+	stats = {"hit": picks.size(), "arcs": 0, "rejected": 0, "tc": [], "wide": wide}
 	if picks.is_empty():
 		return {}
 	picks.sort_custom(func(x: Dictionary, y: Dictionary) -> bool: return float(x["score"]) > float(y["score"]))
@@ -126,6 +141,7 @@ func find_swing(p: Player, heading: Vector3, aim: Vector3, reach: float, assist:
 	var pick_val := -INF
 	var checked := 0
 	var vel := p.velocity
+	var tc_free := free_clear_time(p, o + Vector3(0.0, -0.25, 0.0), vel)               # the hero is about to hit something whatever he does (a facade ahead, a wall he scrapes): no anchor is judged worse than that
 	for pk in picks:
 		if checked >= ARC_TOP:
 			break
@@ -141,10 +157,14 @@ func find_swing(p: Player, heading: Vector3, aim: Vector3, reach: float, assist:
 		var tc := arc_clear_time(p, o + Vector3(0.0, -0.25, 0.0), vel, ap)
 		stats["arcs"] += 1
 		(stats["tc"] as Array).append(snappedf(tc, 0.1) if tc != INF else 9.9)
-		if tc < ARC_MIN_CLEAR:
+		if tc < ARC_MIN_CLEAR and tc < tc_free - 0.05:
 			stats["rejected"] += 1
 			continue
-		var val := float(pk["score"]) + minf(tc, 2.2) * 0.9
+		var mr := SnakeSwing.max_rope(ap, hit2["normal"] as Vector3, space)                       # a rope longer than this is reeled in at the bite; an anchor too low above the street has no swing under it at all
+		if SnakeSwing.reel_on and mr < SnakeSwing.MIN_ROPE - 2.0:
+			stats["rejected"] += 1
+			continue
+		var val := float(pk["score"]) + minf(tc, 2.2) * 0.9 - minf(maxf(0.0, o.distance_to(ap) - mr), 30.0) * reel_penalty
 		if val > pick_val:
 			pick_val = val
 			pick_best = hit2
@@ -163,7 +183,7 @@ func _finish(hit: Dictionary, o: Vector3, score: float) -> Dictionary:
 
 
 ## Score of a hit as a swing anchor, -INF when it cannot be one.
-func _score(o: Vector3, hit: Dictionary, heading: Vector3, reach: float, crosshair: bool) -> float:
+func _score(o: Vector3, hit: Dictionary, heading: Vector3, reach: float, crosshair: bool, fwd_min := 0.1) -> float:
 	var pos: Vector3 = hit["position"]
 	var d := o.distance_to(pos)
 	var dy := pos.y - o.y
@@ -174,14 +194,14 @@ func _score(o: Vector3, hit: Dictionary, heading: Vector3, reach: float, crossha
 	if hl < 2.0:
 		return -INF
 	var fwd := horiz.normalized().dot(heading)
-	if fwd < 0.1:
+	if fwd < fwd_min:
 		return -INF
 	var n: Vector3 = hit["normal"]
 	var kind := _kind_of(hit)
 	if kind == &"roof" and dy < 12.0:
 		return -INF                                          # the top of a low thing: nothing to hang from
 	var elev := atan2(dy, hl)
-	var sc := fwd * 3.0 + clampf(dy / 30.0, 0.0, 1.4) * 2.0 - absf(elev - 0.88) * 1.3 - (d / reach) * 0.9
+	var sc := fwd * 3.0 + clampf(dy / 30.0, 0.0, 1.4) * 2.0 - absf(elev - 0.88) * 1.3 + clampf((d - 12.0) / 30.0, 0.0, 1.0) * long_rope_bonus - maxf(0.0, d - 0.85 * reach) / reach * 1.5       # a long rope is a long arc (the clearance reel keeps it off the street)
 	if crosshair:
 		sc += 1.6
 	if kind == &"vehicle":
@@ -213,6 +233,32 @@ func _snap_roof(res: Dictionary, o: Vector3) -> void:
 			res["pos"] = edge + Vector3(n.x, 0.0, n.z).normalized() * 0.05
 			res["dist"] = o.distance_to(edge)
 			res["snapped"] = true
+
+
+## Seconds until the hero would hit geometry with no rope at all (a ballistic path under gravity; INF: clear for ARC_HORIZON).
+func free_clear_time(p: Player, c: Vector3, v0: Vector3) -> float:
+	var space := _space(p)
+	var pos := c
+	var v := v0
+	var dt := 0.1
+	var t := 0.0
+	_shape.radius = 0.85
+	_sq.shape = _shape
+	_sq.collision_mask = Game.L_WORLD
+	_sq.exclude = [p.get_rid()]
+	_sq.margin = 0.02
+	while t < ARC_HORIZON:
+		v.y -= SnakeSwing.GRAVITY * dt
+		var motion := v * dt
+		_sq.transform = Transform3D(Basis.IDENTITY, pos)
+		_sq.motion = motion
+		rays += 1
+		var res := space.cast_motion(_sq)
+		if res.size() >= 2 and res[0] < 0.999:
+			return t + dt * res[0]
+		pos += motion
+		t += dt
+	return INF
 
 
 ## Seconds until a swing on `anchor` would hit geometry (INF: clear for ARC_HORIZON). The centre of the hero starts at `c` with velocity `v0`; the rope is taut at its length at the bite.

@@ -540,6 +540,9 @@ static func play(e: Dictionary, pos: Vector3, radius: float, opts: Dictionary) -
 			me.column(pos, radius * 0.26, BlastElements.color(element, "mid"), 0.55)
 		&"water":
 			me._water(e, pos, radius, near)
+		&"snake":                                                             # wave 115 (the snake bombs): a small bright pop and a thin ring, no smoke: the snakes are the show
+			_default_look(e, pos, minf(radius * 0.3, 3.0), opts, false)
+			_ring(pos, radius, BlastElements.color(element, "ring"), 0, 0.45, near)
 		&"dust":
 			me._dust(e, pos, radius, near)
 		&"meteor":

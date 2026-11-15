@@ -61,6 +61,13 @@ const WHEEL_ABILITIES := [
 	{"id": &"slip", "label": "TIME SLIP", "verb": &"slip"},
 	{"id": &"arc", "label": "ARC", "verb": &"arc"},
 ]
+## Wave 115: four more discs on the ABILITY wheel, quick casts of the snake powers (scripts/quantum/snake_ui.gd); they work with a gun in hand.
+const SNAKE_ABILITIES := [
+	{"id": &"snake_pull", "label": "SNAKE PULL", "snake": true},
+	{"id": &"snake_net", "label": "SNAKE NET", "snake": true},
+	{"id": &"snake_shield", "label": "SNAKE SHIELD", "snake": true},
+	{"id": &"snake_bomb", "label": "SNAKE BOMB", "snake": true},
+]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
 const LONG_PRESS := 0.6             ## seconds: holding the FPS box this long toggles the error panel (a short tap cycles the graphics tier)
@@ -610,19 +617,21 @@ func wheel_items(kind: StringName) -> Array:
 	if p == null:
 		return out
 	if kind == &"weapon":
-		return WeaponWheel.items()
+		return WeaponWheel.items() + SnakeUi.wheel_items()                 # the weapon classes, then the SNAKE and SNAKE BOMB wedges (wave 115)
 	var qv: Object = p.get("qverbs")
-	for d: Dictionary in WHEEL_ABILITIES:
+	for d: Dictionary in WHEEL_ABILITIES + SNAKE_ABILITIES:
 		var st := {"ready": true, "active": false, "cd": 0.0}
 		if d.has("ui"):
 			if p.get("quantum") == null:
 				continue
 			st = UiUtil.ability_state(p, UiUtil.ABILITIES[int(d["ui"])])
+		elif d.has("snake"):
+			st = SnakeUi.ability_state(d["id"])
 		else:
 			if qv == null:
 				continue
 			st = (qv as QuantumVerbs).ui_state(d["verb"])
-		out.append({"id": d["id"], "label": d["label"], "ready": bool(st["ready"]), "active": bool(st["active"]), "cd": float(st["cd"]), "current": false})
+		out.append({"id": d["id"], "label": SnakeUi.ability_label(d["id"]) if d.has("snake") else d["label"], "ready": bool(st["ready"]), "active": bool(st["active"]), "cd": float(st["cd"]), "current": false})
 	return out
 
 
@@ -660,7 +669,7 @@ func _weapon_face(c: Control, font: Font, centre: Vector2, r: float, s: float, l
 	var ammo := str(hud.call(&"ammo_text")) if hud != null and hud.has_method(&"ammo_text") else ""
 	if ammo == "RELOADING":
 		ammo = "RELOAD"                                  # "..." said nothing (director review 3, #10)
-	WeaponIcons.draw(c, (p.get("weapon") as PlayerWeapon).current, Rect2(centre.x - r * 0.8, centre.y - r * 0.78, r * 1.6, r * 0.8), Color(UiUtil.CYAN, 0.95))
+	WeaponIcons.draw(c, SnakeUi.shown((p.get("weapon") as PlayerWeapon).current), Rect2(centre.x - r * 0.8, centre.y - r * 0.78, r * 1.6, r * 0.8), Color(UiUtil.CYAN, 0.95))
 	labels.append([centre + Vector2(-r, r * 0.62), ammo, r * 2.0, 1.0, int(18.0)])
 
 

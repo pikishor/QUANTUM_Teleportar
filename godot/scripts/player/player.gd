@@ -165,6 +165,7 @@ func _ready() -> void:
 	body.set_quality(Game.quality)
 	camera_rig.follow_target = self
 	snake.bind(self)
+	SnakeWar.attach(self)                         # QUANTUM SNAKE COMBAT: verbs, bombs, shield (scripts/quantum/snake_war.gd)
 	reset()
 	decals.clear()
 	_attach_quantum()
@@ -419,6 +420,9 @@ func damage(amount: float, from_pos := Vector3.ZERO) -> void:
 		hurt.emit(share)
 		return
 	if gadgets != null and gadgets.shield_absorb(amount):                  # the SHIELD EMITTER's dome took it
+		last_hurt_from = from_pos
+		return
+	if SnakeWar.absorb(amount, from_pos):                                  # the snakes of SNAKE SHIELD took it
 		last_hurt_from = from_pos
 		return
 	hp -= amount * Difficulty.damage_taken(Difficulty.story_chapter()) * Upgrades.damage_taken() * HeroPower.f("taken") * (cover.damage_mult() if cover != null else 1.0)

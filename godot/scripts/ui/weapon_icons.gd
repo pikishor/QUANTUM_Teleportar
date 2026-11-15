@@ -77,6 +77,9 @@ static func texture(id: StringName) -> Texture2D:
 
 ## Draw the picture of a weapon fitted into `r` (a uniform scale, centred) on a CanvasItem: its rendered picture (ItemIcons, opacity from `col`), else the flat silhouette of its mesh in `col`.
 static func draw(c: CanvasItem, id: StringName, r: Rect2, col: Color) -> void:
+	if SnakeIcons.handles(id):                                          # a snake power: its drawn picture (scripts/quantum/snake_icons.gd)
+		SnakeIcons.draw(c, id, r, col)
+		return
 	var pic := ItemIcons.weapon(id)
 	if pic != null:
 		ItemIcons.draw_tex(c, pic, r, Color(1, 1, 1, col.a))
@@ -86,6 +89,9 @@ static func draw(c: CanvasItem, id: StringName, r: Rect2, col: Color) -> void:
 
 ## The flat white-on-clear silhouette in `col` (the fallback of `draw`, and what the first versions drew).
 static func draw_flat(c: CanvasItem, id: StringName, r: Rect2, col: Color) -> void:
+	if SnakeIcons.handles(id):
+		SnakeIcons.draw(c, id, r, col)
+		return
 	var sz := minf(r.size.x, r.size.y * 2.0)
 	var box := Rect2(r.get_center() - Vector2(sz, sz * 0.5) * 0.5, Vector2(sz, sz * 0.5))
 	var tex := texture(id)

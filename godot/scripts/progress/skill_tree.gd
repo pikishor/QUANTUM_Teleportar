@@ -6,9 +6,9 @@ extends RefCounted
 ## Scaling: XP_MULT and POWER are tables keyed like HeroPower.ROWS (STORY, NORMAL, HARD, QUANTUM): POWER multiplies every node value, XP_MULT every XP gain.
 ## Save: [skills] xp + one `r_<node id>` key per ranked node (older saves have none: level 1, no ranks).
 
-const VERBS: Array[StringName] = [&"teleport", &"superposition", &"entangle", &"collapse", &"snake"]
-const VERB_NAMES := {&"teleport": "QUANTUM TELEPORT", &"superposition": "SUPERPOSITION", &"entangle": "ENTANGLE", &"collapse": "COLLAPSE", &"snake": "QUANTUM SNAKE"}
-const LEVEL_CAP := 40
+const VERBS: Array[StringName] = [&"teleport", &"superposition", &"entangle", &"collapse", &"snake", &"snakewar"]
+const VERB_NAMES := {&"teleport": "QUANTUM TELEPORT", &"superposition": "SUPERPOSITION", &"entangle": "ENTANGLE", &"collapse": "COLLAPSE", &"snake": "QUANTUM SNAKE", &"snakewar": "SNAKE COMBAT"}
+const LEVEL_CAP := 46                       ## (wave 115: 40 -> 46, six columns of five nodes: the tree still cannot be filled at the cap)
 const XP_PER_SCORE := 0.25                  ## a kill pays this much XP per point of its score (min 8, max 250)
 const CREDITS_PER_XP := 4.0                 ## mission payouts: one XP per this many credits
 const RESPEC_PER_POINT := 60
@@ -42,6 +42,11 @@ const NODES := {
 	&"sn_energy": [&"snake", "ENERGY", 3, 0.15, "%d%% snake energy regen", [&"sn_range"]],
 	&"sn_chain": [&"snake", "CHAIN BONUS", 3, 0.04, "%d%% speed per chained swing", [&"sn_speed"]],
 	&"sn_wings": [&"snake", "WING POWER", 3, 0.10, "%d%% flight speed and endurance", [&"sn_energy", &"sn_chain"]],
+	&"sw_bite": [&"snakewar", "BITE", 3, 0.15, "%d%% snake damage", []],                                           # SNAKE COMBAT (wave 115, scripts/quantum/snake_war.gd and snake_rows.gd read these)
+	&"sw_spread": [&"snakewar", "COIL SPREAD", 3, 0.10, "%d%% snake bomb radius", []],
+	&"sw_quick": [&"snakewar", "QUICK COIL", 3, 0.10, "%d%% shorter snake cooldowns", [&"sw_bite"]],
+	&"sw_brood": [&"snakewar", "BIGGER BROOD", 2, 3.0, "+%d snakes in a swarm or guard", [&"sw_spread"]],
+	&"sw_grip": [&"snakewar", "TIGHT GRIP", 3, 0.7, "+%.1f s holds, nets and stasis", [&"sw_quick", &"sw_brood"]],
 }
 
 static var xp := 0
@@ -240,6 +245,11 @@ static func snake_cost_mult() -> float: return maxf(0.45, 1.0 - 0.5 * _v(&"sn_en
 static func snake_chain_bonus() -> float: return _v(&"sn_chain")
 static func snake_fly_mult() -> float: return 1.0 + _v(&"sn_wings")
 static func snake_fly_cost_mult() -> float: return maxf(0.4, 1.0 - _v(&"sn_wings"))
+static func snakewar_dmg_mult() -> float: return 1.0 + _v(&"sw_bite")
+static func snakewar_radius_mult() -> float: return 1.0 + _v(&"sw_spread")
+static func snakewar_cd_mult() -> float: return maxf(0.5, 1.0 - _v(&"sw_quick"))
+static func snakewar_brood() -> int: return int(round(_v(&"sw_brood")))
+static func snakewar_grip() -> float: return _v(&"sw_grip")
 
 
 static func cost_mult(verb: StringName) -> float:
