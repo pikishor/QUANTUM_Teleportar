@@ -20,6 +20,9 @@ const ROWS := 48
 const TIERS: Array = [[16, 14, 12, 6, 6], [28, 20, 20, 8, 10], [44, 26, 30, 8, 12]]
 const FAR_AABB := AABB(Vector3(-6000.0, -600.0, -6000.0), Vector3(12000.0, 3000.0, 12000.0))
 const FADE := 0.35
+const NEAR_FROM := 1.3                             ## a snake closer than this to the camera is drawn as a thread (thickness x NEAR_MIN) ...
+const NEAR_TO := 4.4                               ## ... and at full thickness from this far: a shield or a guard that passes between the shoulder camera and the hero never becomes a wall
+const NEAR_MIN := 0.1
 const GLOW := 0.6                                ## the shader's brightness for the combat snakes: the colour of the power stays a colour instead of washing out to white
 
 static var current: SnakeSwarm
@@ -492,12 +495,20 @@ func _upload() -> void:
 	drawn = n
 	if n == 0:
 		return
+	var cam := Game.camera
+	var cp: Vector3 = cam.global_position if is_instance_valid(cam) else Vector3.INF
 	for r in n:
 		var b := bodies[r]
 		var length := _write_row(b, r)
 		var c := b.color
-		_mm.set_instance_color(r, Color(c.r, c.g, c.b, b.head * b.fade_k))
-		_mm.set_instance_custom_data(r, Color(float(r), b.thick * (0.35 + 0.65 * b.fade_k), clampf(b.tension, 0.0, 1.0), maxf(length * (0.4 + 0.6 * b.fade_k), 0.05)))
+		var near_k := 1.0
+		if cp != Vector3.INF:                                                  # the point of the body nearest to the lens decides (every third of the points is enough)
+			var dmin := 1.0e12
+			for i in range(0, _npts, 3):
+				dmin = minf(dmin, cp.distance_squared_to(b.pts[i]))
+			near_k = clampf((sqrt(dmin) - NEAR_FROM) / (NEAR_TO - NEAR_FROM), NEAR_MIN, 1.0)
+		_mm.set_instance_color(r, Color(c.r, c.g, c.b, b.head * b.fade_k * lerpf(0.4, 1.0, near_k)))
+		_mm.set_instance_custom_data(r, Color(float(r), b.thick * (0.35 + 0.65 * b.fade_k) * near_k, clampf(b.tension, 0.0, 1.0), maxf(length * (0.4 + 0.6 * b.fade_k), 0.05)))
 	_img.set_data(TEX_W, ROWS, false, Image.FORMAT_RGBAF, _buf.to_byte_array())
 	_tex.update(_img)
 

@@ -19,8 +19,20 @@ DONE (all under godot/; real-scene test tests/test_snake_combat.gd: 125 checks, 
 - Sounds: tools/audio/make_snake_war.py -> assets/audio/snw_*.ogg (24 files, ~250 KB)
 - Look-dev: tests/bot_snake_war.gd (SW_IDS, SW_OUT, SW_DIST, SNAKE_GLOW; run with tools/bot.sh, QUALITY=0|1, --fixed-fps 12), dev probes tests/dev_snake_*.gd
 
+REGRESSIONS FOUND BY THE BATCH AND FIXED (no test weakened)
+- The two snake wedges are no longer in WeaponWheel.items() (the class list stays weapons only, so test_weapon_roster, test_weapons_v3, test_energy_destructive_weapons, test_director_round5_b are green again
+  untouched); TouchControls.wheel_items(weapon) appends SnakeUi.wheel_items(); the four ability quick casts are TouchControls.SNAKE_ABILITIES (WHEEL_ABILITIES keeps its seven)
+- Touch-level tests now measure the DRAWN disc (RadialWheel.disc_scale, never below a 64 px target): test_menu_cut, test_hud_camera_final, test_new_verbs; test_weapon_ui_v3 counts the two wedges
+- test_blast_arsenal: the 12 snake bombs also go off through BlastTable.apply (the 'every entry went off' check still covers them); strings_snake_war.gd (ES/HI) fixes test_localisation_complete
+- test_snake_traversal, test_new_verbs, test_weapon_ui_v3 were flaky only under load (another agent was rendering)
+
+LOOK LOOPS DONE (frames in the scratchpad, list in docs/shots/round6/snake_combat_iterations.md when finished): 9 so far (LOW + MED), bot now aims before the cast and counts bomb frames from the detonation
+- fixed in the loops: snakes thinned near the lens (shield, guard, seeker never become walls; SnakeSwarm.NEAR_FROM/NEAR_TO), shield slim/low/wide (3 / 4 / 5 snakes by tier) and without a floor disc, trap nest of coils,
+  decoy cobra, seeker / burrower slimmer and smoother (no rope at the hand), cluster bomblets bigger, colours saturated (ICE, STORM, GOLD), bot staging (yank car in front of the troopers, damage layers reset)
+- found outside my scope: stealth pips (fx_threat.gdshader mode 4 is never reached, the health-plate branch catches it) draw as WHITE plates above suspicious enemies (my decoy makes them suspicious)
+
 NEXT
-1. Render-look-fix loops (>= 8): coil/swarm/chain/seeker/guard are being reworked (bigger snakes, quieter blast fx); then flare, freeze, gravity, storm, mega, net, shield, lash, grab, yank at LOW and MED
+1. More loops: wheel + HUD frames, final 12 sequences at LOW and MED, review against docs/owner_shots/round5
 2. Wheel + HUD frames with the touch layer (BOT_USER_ARGS=--touch): the two wedges, the ring of pictures, the WEAPON face, the ability wheel
 3. Perf: PERF_CHECK=1 tools/perf_report.sh 0 1 2 twice (mid-way once the look is final, end), measure the active snakes and particles at LOW
 4. ARCHITECTURE.md section, HANDOFF note, contact sheet docs/shots/round6/snake_combat_*.jpg, final report
@@ -33,7 +45,7 @@ DECISIONS (other agents depend on)
 - Enemy type `hunter` (Specialist role) exists in EnemyTypes: only SnakeReact spawns it
 
 TESTS AND PERF
-- tests/test_snake_combat.gd: 124 of 125 checks (the mega radius check was fixed by taking the result of BlastTable.apply); about 60 s
+- tests/test_snake_combat.gd: PASS (about 125 checks, about 60 s); the batch of 24 existing tests around the wheels, HUD, skill tree, localisation and blasts was run once: 10 red, all fixed now (see below)
 - Perf gate not run yet
 
 OPEN PROBLEMS

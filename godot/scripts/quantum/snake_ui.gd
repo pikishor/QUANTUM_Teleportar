@@ -149,7 +149,7 @@ static func weapon_text() -> String:
 	if id == &"":
 		return ""
 	var row := SnakeRows.row(id)
-	return "%s  %s   COST %d" % [String(row["name"]), String(row["tag"]), roundi(SnakePower.cost(float(row["cost"])))]
+	return "%s  %s  COST %d" % [String(row["name"]), String(row["tag"]), roundi(SnakePower.cost(float(row["cost"])))]
 
 
 static func alt_text() -> String:

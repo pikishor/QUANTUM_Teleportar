@@ -879,9 +879,10 @@ func _shield(force := false) -> bool:
 	var sw := _swarm()
 	var bodies: Array = []
 	if sw != null:
-		for k in 3:
-			var b := sw.spawn(&"orbit", p.global_position, {"anchor": p, "radius": 1.15, "y0": 0.45, "y1": 1.55, "spin": 3.4, "phase": TAU * float(k) / 3.0, "span": 2.0, "color": SnakeRows.CYAN, "thick": 0.08,
-					"len": 2.5, "life": SHIELD_SECONDS, "prio": 3, "stick": true, "head": 1.0, "rate": 1.2})
+		var n := 3 + clampi(Game.quality, 0, 2)                                    # 3 snakes on LOW, 4 on MED, 5 on HIGH: slim, low and wide, so the hero stays in view from the shoulder camera
+		for k in n:
+			var b := sw.spawn(&"orbit", p.global_position, {"anchor": p, "radius": 1.15 + 0.1 * float(k % 2), "y0": 0.3, "y1": 1.25, "spin": 2.6 * (1.0 if k % 2 == 0 else -0.8), "phase": TAU * float(k) / float(n), "span": 2.4,
+					"color": SnakeRows.CYAN, "thick": 0.065, "len": 3.0, "life": SHIELD_SECONDS, "prio": 3, "stick": true, "head": 1.0, "rate": 1.2})
 			if b != null:
 				bodies.append(b)
 	shield = {"left": SHIELD_SECONDS, "hp": SHIELD_POOL * (1.0 if not SnakePower.unlimited() else 3.0), "bodies": bodies, "bite_t": 0.0, "flare": 0.0}
@@ -991,11 +992,15 @@ func _decoy(force := false) -> bool:
 	var bodies: Array = []
 	if sw != null:
 		for k in 3:
-			var b := sw.spawn(&"coil", at, {"anchor": node, "radius": 0.38 + 0.07 * float(k % 2), "y0": 0.05, "y1": 1.72 - 0.08 * float(k), "turns": 3.0, "spin": 2.6 + 0.4 * float(k), "phase": TAU * float(k) / 3.0,
-					"color": SnakeRows.MAGENTA, "thick": 0.075, "len": 7.0, "life": DECOY_SECONDS + SkillTree.snakewar_grip(), "prio": 2, "head": 1.0})
+			var b := sw.spawn(&"coil", at, {"anchor": node, "radius": 0.42 + 0.08 * float(k % 2), "y0": 0.05, "y1": 1.8 - 0.08 * float(k), "turns": 3.0, "spin": 2.6 + 0.4 * float(k), "phase": TAU * float(k) / 3.0,
+					"color": SnakeRows.MAGENTA, "thick": 0.11, "len": 7.5, "life": DECOY_SECONDS + SkillTree.snakewar_grip(), "prio": 2, "head": 1.0})
 			if b != null:
 				bodies.append(b)
-		var r := sw.spawn(&"ring", at, {"radius": 0.95, "thick": 0.05, "len": 4.0, "color": SnakeRows.MAGENTA, "life": DECOY_SECONDS + SkillTree.snakewar_grip(), "spin": 1.4, "prio": 1})
+		var cobra := sw.spawn(&"rise", at, {"color": SnakeRows.MAGENTA, "thick": 0.13, "len": 4.4, "height": 2.1, "rise_t": 0.35, "life": DECOY_SECONDS + SkillTree.snakewar_grip(), "prio": 2, "head": 1.3,
+				"heading": Vector3(-sin(p.yaw), 0.0, -cos(p.yaw)), "tension": 0.3})                  # a cobra stands up in the middle of the coils: a tall shape that is seen across a street
+		if cobra != null:
+			bodies.append(cobra)
+		var r := sw.spawn(&"ring", at, {"radius": 1.15, "thick": 0.07, "len": 5.0, "color": SnakeRows.MAGENTA, "life": DECOY_SECONDS + SkillTree.snakewar_grip(), "spin": 1.4, "prio": 1})
 		if r != null:
 			bodies.append(r)
 	decoy = {"node": node, "left": DECOY_SECONDS + SkillTree.snakewar_grip(), "hp": DECOY_POOL, "bodies": bodies}
@@ -1038,9 +1043,15 @@ func _trap(force := false) -> bool:
 		_drop_trap(trap_list.pop_front())
 	var sw := _swarm()
 	var body: SnakeSwarm.Body = null
+	var nest: Array = []
 	if sw != null:
-		body = sw.spawn(&"ring", at, {"radius": 0.85, "thick": 0.055, "len": 3.6, "color": SnakeRows.GREEN, "life": TRAP_LIFE, "spin": 0.9, "prio": 1, "tension": 0.3, "rise_t": 0.3})
-	trap_list.append({"pos": at, "radius": radius, "left": TRAP_LIFE, "body": body, "arm": 0.5})
+		body = sw.spawn(&"ring", at, {"radius": 1.3, "thick": 0.1, "len": 6.0, "color": SnakeRows.GREEN, "life": TRAP_LIFE, "spin": 0.9, "prio": 1, "tension": 0.3, "rise_t": 0.3})
+		for k in 1 + mini(Game.quality, 1):                                                   # a nest: one coiled snake on LOW, two on MED and HIGH, lying in the ring
+			var nb := sw.spawn(&"coil", at, {"anchor_pos": at, "radius": 0.7 - 0.16 * float(k), "y0": 0.05, "y1": 0.4 + 0.16 * float(k), "turns": 2.4, "spin": 1.1 + 0.5 * float(k), "phase": PI * float(k),
+					"color": SnakeRows.GREEN, "thick": 0.13, "len": 4.4, "life": TRAP_LIFE, "prio": 1, "head": 1.0, "rise_t": 0.3})
+			if nb != null:
+				nest.append(nb)
+	trap_list.append({"pos": at, "radius": radius, "left": TRAP_LIFE, "body": body, "nest": nest, "arm": 0.5})
 	_tendril(1, at, {"travel": 0.14, "life": 0.05, "tension": 0.5, "color": SnakeRows.GREEN})
 	FX.burst(at + Vector3(0.0, 0.2, 0.0), SnakeRows.GREEN, 8, 4.0, 0.4, 1.0, 1.0)
 	return true
@@ -1050,6 +1061,9 @@ func _drop_trap(t: Dictionary) -> void:
 	var b := t.get("body") as SnakeSwarm.Body
 	if b != null and not b.dead:
 		b.life = b.age + SnakeSwarm.FADE
+	for nb: Variant in (t.get("nest", []) as Array):
+		if nb != null and not (nb as SnakeSwarm.Body).dead:
+			(nb as SnakeSwarm.Body).life = (nb as SnakeSwarm.Body).age + SnakeSwarm.FADE
 
 
 func _tick_traps(dt: float) -> void:
@@ -1101,7 +1115,7 @@ func _guard(force := false) -> bool:
 	for k in n:
 		var a := TAU * float(k) / float(n)
 		var at := p.global_position + Vector3(cos(a), 0.0, sin(a)) * 1.6
-		var b := sw.spawn(&"crawl", at, {"color": SnakeRows.GREEN, "thick": 0.13, "len": 2.8, "life": GUARD_SECONDS, "prio": 3, "stick": true, "head": 1.0, "heading": Vector3(cos(a), 0.0, sin(a)),
+		var b := sw.spawn(&"crawl", at, {"color": SnakeRows.GREEN, "thick": 0.1, "len": 2.8, "life": GUARD_SECONDS, "prio": 3, "stick": true, "head": 0.9, "heading": Vector3(cos(a), 0.0, sin(a)),
 				"speed": 11.0, "amp": 0.2, "tick": _guard_tick, "user": {"k": k, "bite_t": 0.0, "foe": null}})
 		if b != null:
 			guard_list.append(b)

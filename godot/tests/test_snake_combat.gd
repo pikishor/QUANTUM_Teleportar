@@ -438,13 +438,13 @@ func _shield() -> void:
 	p.invuln = 0.0
 	p.hp = p.max_hp
 	war.arm(&"sv_shield")
-	TestLib.check(war.cast(&"sv_shield") and not war.verbs.shield.is_empty(), "SNAKE SHIELD puts three snakes round the hero")
+	TestLib.check(war.cast(&"sv_shield") and not war.verbs.shield.is_empty(), "SNAKE SHIELD puts snakes round the hero")
 	await frames(6)
 	var orbit := 0
 	for b in SnakeSwarm.current.bodies:
 		if b.shape == &"orbit":
 			orbit += 1
-	TestLib.check(orbit == 3, "three orbiting snakes are drawn (%d)" % orbit)
+	TestLib.check(orbit == 3 + clampi(Game.quality, 0, 2), "the shield draws 3 orbiting snakes on LOW, 4 on MED, 5 on HIGH (%d at tier %d)" % [orbit, Game.quality])
 	var hp0 := p.hp
 	var b0 := war.verbs.blocks
 	p.damage(30.0, p.global_position + Vector3(6.0, 1.0, 0.0))
@@ -677,12 +677,32 @@ func _caps() -> void:
 
 func _wheel() -> void:
 	await _stage(0, 10.0)
-	var items := WeaponWheel.items()
+	var plain := WeaponWheel.items()
+	var snake_plain := 0
+	for it: Dictionary in plain:
+		if StringName(it.get("type", &"")) == &"snake":
+			snake_plain += 1
+	var items := tc.wheel_items(&"weapon")                                         # the touch wheel: the weapon classes, then the two snake wedges
 	var snakes: Array[Dictionary] = []
 	for it: Dictionary in items:
 		if StringName(it.get("type", &"")) == &"snake":
 			snakes.append(it)
-	TestLib.check(snakes.size() == 2 and snakes[0]["id"] == SnakeUi.TAB_VERBS and snakes[1]["id"] == SnakeUi.TAB_BOMBS, "the weapon wheel has the SNAKE and the SNAKE BOMB wedges")
+	TestLib.check(snake_plain == 0 and snakes.size() == 2 and snakes[0]["id"] == SnakeUi.TAB_VERBS and snakes[1]["id"] == SnakeUi.TAB_BOMBS and items.size() == plain.size() + 2, "the weapon wheel of the phone ends with the SNAKE and the SNAKE BOMB wedges (the class list itself stays weapons only)")
+	tc.wheel.close()
+	tc._open_wheel(&"weapon", 90, Vector2.ZERO)
+	tc._wheel_finger = 90                                                          # a finger drags the wheel open from its button
+	var last := tc.wheel.items.size() - 1
+	var at_last := tc.wheel.item_centre(last)
+	tc._wheel_held = 0.6
+	tc.touch_move(90, at_last, at_last - tc.wheel.centre)
+	TestLib.check(tc.wheel.sel == last and StringName(tc.wheel.items[last]["type"]) == &"snake", "dragging to the last disc points at the SNAKE BOMB wedge")
+	tc.touch_up(90)
+	TestLib.check(tc.wheel.is_open and tc.wheel.sticky and tc.wheel.items.size() == 9 and StringName(tc.wheel.items[0]["type"]) == &"snake_power", "releasing on a snake wedge opens the ring of its powers and the wheel stays (%d discs)" % tc.wheel.items.size())
+	var picked_open := tc._wheel_pick(0)
+	TestLib.check(not picked_open and war.armed == &"sb_coil", "a pick on the ring arms the bomb (COIL BOMB first) and the wheel closes (armed %s)" % war.armed)
+	tc.wheel.close()
+	tc.release_all()
+	war.disarm()
 	var ring := WeaponWheel.ring_items(SnakeUi.TAB_VERBS, 0, p.weapon.current)
 	TestLib.check(ring.size() == 9 and StringName(ring[8]["type"]) == &"page" and StringName(ring[0]["type"]) == &"snake_power", "the ring of the verbs shows eight powers and a NEXT disc (%d discs)" % ring.size())
 	var ring2 := WeaponWheel.ring_items(SnakeUi.TAB_VERBS, 1, p.weapon.current)
@@ -824,11 +844,22 @@ func _reactions() -> void:
 	if is_instance_valid(Game.world) and Game.world.get(&"ambient") != null:
 		crowd = (Game.world.get(&"ambient") as Object).get(&"crowd")
 	if crowd != null and int(crowd.get(&"count")) > 0:
-		await until(func() -> bool: return int(crowd.call(&"count_near", p.global_position, 24.0)) >= 3, 6.0)
-		var f0 := war.react.films
-		for k in 10:
-			war.react._civilians(&"sv_net", p.global_position)
-		TestLib.check(war.react.films > f0, "civilians near the fight stop and film it (%d)" % (war.react.films - f0))
+		var who := [-1]
+		await until(func() -> bool:
+			for i in int(crowd.get(&"count")):
+				if bool(crowd.call(&"is_alive", i)) and not bool(crowd.call(&"is_dying", i)) and not bool(crowd.call(&"is_fleeing", i)):
+					who[0] = i
+					return true
+			return false, 8.0)
+		TestLib.check(who[0] >= 0, "the streets hold a civilian who can film the hero")
+		if who[0] >= 0:
+			var home := p.global_position                                          # the street is random: stand the hero 14 m from a civilian for the call (nothing moves in between)
+			p.global_position = (crowd.call(&"person_position", who[0]) as Vector3) + Vector3(14.0, 0.0, 0.0)
+			var f0 := war.react.films
+			for k in 40:
+				war.react._civilians(&"sv_net", p.global_position)
+			p.global_position = home
+			TestLib.check(war.react.films > f0, "civilians near the fight stop and film it (%d)" % (war.react.films - f0))
 	# the counter-units come after a run of powers, never on STORY
 	await _stage(0, 10.0)
 	em.clear()

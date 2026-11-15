@@ -89,6 +89,13 @@ func _run(mode: int, tag: String, secs_each: float) -> void:
 			break
 	Input.action_release(&"snake")
 	var n := sn.swings - s0
+	if SnakeTraversal.cpu_active_ticks > 0:
+		print("SNAKECPU %s: script time of the traversal tick %.0f us while a snake state runs (%d ticks), %.0f us idle (%d ticks)" % [tag, SnakeTraversal.cpu_active_us / float(SnakeTraversal.cpu_active_ticks), SnakeTraversal.cpu_active_ticks, SnakeTraversal.cpu_idle_us / maxf(float(SnakeTraversal.cpu_idle_ticks), 1.0), SnakeTraversal.cpu_idle_ticks])
+		TestLib.check(SnakeTraversal.cpu_active_us / float(SnakeTraversal.cpu_active_ticks) < 1500.0, "%s: the traversal tick stays under 1.5 ms of script time per physics tick" % tag)
+	SnakeTraversal.cpu_active_us = 0.0
+	SnakeTraversal.cpu_active_ticks = 0
+	SnakeTraversal.cpu_idle_us = 0.0
+	SnakeTraversal.cpu_idle_ticks = 0
 	frame_ms.sort()
 	var p99 := frame_ms[int(float(frame_ms.size()) * 0.99)] if not frame_ms.is_empty() else 0.0
 	var avg := 0.0

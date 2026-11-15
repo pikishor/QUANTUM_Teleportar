@@ -95,9 +95,9 @@ func update(st: SnakeTraversal, dt: float, looking: bool) -> void:
 				pitch_to = clampf(-0.2 + p.velocity.y / maxf(sp, 1.0) * 0.18, -0.36, 0.06)
 				pitch_rate = 1.4
 		SnakeTraversal.Mode.ZIP:
-			td = 0.9
-			th = 0.3
-			tf = clampf(sp * 0.28, 4.0, 20.0) * calm
+			td = 1.2
+			th = -0.2                                              # render loop 17: the pull left the hero at the bottom edge of the frame, boots cut: the lens at his chest
+			tf = clampf(sp * 0.22, 4.0, 14.0) * calm
 			ts = 0.6
 			lines = clampf((sp - 18.0) / 40.0, 0.0, 1.0) * calm
 		SnakeTraversal.Mode.CLIMB:

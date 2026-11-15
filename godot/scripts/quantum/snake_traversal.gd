@@ -33,6 +33,10 @@ const ASSIST_DEFAULT := true
 
 static var assist := ASSIST_DEFAULT        ## the anchor assist (OPTIONS / TEST menu toggle): off = the crosshair ray alone
 static var instance: SnakeTraversal        ## the player's (tests, tools and the HUD read it)
+static var cpu_active_us := 0.0              ## script time of tick() while a snake state runs / while none does (microseconds and calls: the swing run test prints the means)
+static var cpu_active_ticks := 0
+static var cpu_idle_us := 0.0
+static var cpu_idle_ticks := 0
 
 var p: Player
 var mode: int = Mode.NONE
@@ -108,14 +112,11 @@ func _init() -> void:
 func bind(player: Player) -> void:
 	p = player
 	energy = SnakePower.max_energy()
-	var off := OS.get_environment("SNK_OFF")      # TEMP perf A/B
-	if off == "1":
-		return
-	if player.get_node_or_null("SnakeFx") == null and off != "2":
+	if player.get_node_or_null("SnakeFx") == null:
 		var fx := SnakeFx.new()
 		fx.st = self
 		player.add_child(fx)
-	if player.get_node_or_null("SnakeDirector") == null and off != "3":
+	if player.get_node_or_null("SnakeDirector") == null:
 		var dr := SnakeMissionDirector.new()
 		dr.st = self
 		player.add_child(dr)
@@ -218,6 +219,19 @@ func back_callable(side: int) -> Callable:
 ## One physics tick from Player._foot_tick (play state only). `iv` the stick (x right, y back), `wish` its world direction, `jump_down` the JUMP button.
 ## Returns true when a snake state moved the body this tick (the caller then skips its own movement).
 func tick(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: bool, jump_down: bool) -> bool:
+	var t0 := Time.get_ticks_usec()
+	var r := _tick_body(pl, dt, iv, wish, on_floor, jump_down)
+	var us := float(Time.get_ticks_usec() - t0)
+	if mode != Mode.NONE or r:
+		cpu_active_us += us
+		cpu_active_ticks += 1
+	else:
+		cpu_idle_us += us
+		cpu_idle_ticks += 1
+	return r
+
+
+func _tick_body(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: bool, jump_down: bool) -> bool:
 	p = pl
 	time += dt
 	if InteriorSpace.active or InteriorGameplay.active:           # no swinging indoors: a state that was running is dropped, the button is hidden

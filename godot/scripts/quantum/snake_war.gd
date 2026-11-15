@@ -399,9 +399,7 @@ func _update_preview(dt: float) -> void:
 		aim = verbs.preview_target(armed)
 	var area := float(row.get("radius", 0.0))
 	var ring_at := Vector3.INF
-	if armed == &"sv_shield":
-		ring_at = p.global_position
-	elif armed == &"sv_net" or armed == &"sv_trap":
+	if armed == &"sv_net" or armed == &"sv_trap":                           # (the shield has no ring: it is centred on the hero and a disc round the feet filled the bottom of the phone frame)
 		ring_at = SnakeAim.ground_under(p, SnakeAim.point(p, reach))
 	if ring_at != Vector3.INF:
 		_la._ring.visible = true

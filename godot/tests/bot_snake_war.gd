@@ -8,11 +8,16 @@ const DEFAULT_IDS := "sv_pull,sv_grab,sv_net,sv_lash,sv_shield,sb_coil,sb_swarm,
 const MOMENTS := {
 	&"sv_pull": [0.12, 0.3, 0.7, 1.4], &"sv_grab": [0.3, 0.9, 1.5, 2.1], &"sv_disarm": [0.1, 0.3, 0.6, 1.2], &"sv_yank": [0.15, 0.4, 0.8, 1.4], &"sv_net": [0.25, 0.6, 1.4, 2.6],
 	&"sv_lash": [0.1, 0.45, 0.9, 1.4], &"sv_shield": [0.3, 1.0, 2.4, 4.0], &"sv_decoy": [0.3, 0.9, 2.0, 4.0], &"sv_trap": [0.3, 0.9, 1.6, 2.4], &"sv_guard": [0.4, 1.4, 2.6, 4.0],
-	&"sb_coil": [0.5, 1.0, 1.5, 2.6], &"sb_swarm": [0.8, 1.3, 1.9, 2.8], &"sb_flare": [0.5, 0.9, 1.5, 2.6], &"sb_freeze": [0.5, 1.0, 1.8, 3.2], &"sb_seeker": [0.3, 0.7, 1.1, 1.7],
-	&"sb_chain": [0.5, 0.8, 1.1, 1.6], &"sb_cluster": [0.5, 0.8, 1.1, 1.8], &"sb_constrict": [0.8, 1.6, 2.2, 3.2], &"sb_burrow": [0.4, 0.9, 1.4, 2.0], &"sb_gravity": [0.6, 1.2, 1.8, 2.6],
-	&"sb_storm": [0.5, 1.0, 1.7, 2.6], &"sb_mega": [0.5, 1.0, 1.4, 2.2],
+	&"sb_coil": [0.4, 0, 0, 0], &"sb_swarm": [0.4, 0, 0, 0], &"sb_flare": [0.4, 0, 0, 0], &"sb_freeze": [0.4, 0, 0, 0], &"sb_seeker": [0.15, 0.3, 0.45, 0.75],
+	&"sb_chain": [0.4, 0, 0, 0], &"sb_cluster": [0.4, 0, 0, 0], &"sb_constrict": [0.4, 0, 0, 0], &"sb_burrow": [0.4, 0.9, 1.4, 2.0], &"sb_gravity": [0.4, 0, 0, 0],
+	&"sb_storm": [0.4, 0, 0, 0], &"sb_mega": [0.4, 0, 0, 0],
 }
 
+const DET_IDS: Array[StringName] = [&"sb_coil", &"sb_swarm", &"sb_flare", &"sb_freeze", &"sb_chain", &"sb_cluster", &"sb_constrict", &"sb_gravity", &"sb_storm", &"sb_mega"]
+const DET_MOMENTS := [0.12, 0.5, 1.2]                                           ## seconds after the detonation (frames 1 to 3 of a bomb; frame 0 is the throw)
+
+var _det_t := -1.0
+var _by0 := 0
 var _setup_done := false
 var _p: Player
 var _mgr: EnemyManager
@@ -127,6 +132,8 @@ func _stage() -> void:
 	_war.reset()
 	_mgr.clear()
 	_foes.clear()
+	if DamageWorld.current != null:
+		DamageWorld.current.foes.reset()                                       # a status of the stage before (freeze, shock) stays on a pooled body
 	_p.teleport_to(_spot)
 	_p.camera_rig.reset_view(_yaw, -0.06)
 	var dist := _dist
@@ -145,12 +152,16 @@ func _stage() -> void:
 				f.max_hp = 1.0e6
 				f.hp = 1.0e6
 				f.rotation.y = _yaw + PI
+				f.set(&"suspicion", 0.0)
 				_foes.append(f)
 	if OS.get_environment("SW_CAR") != "0":
 		var vm := Game.vehicles as VehicleManager
 		if vm != null:
 			vm._reset_all()
-			_car = vm.spawn_parked(&"sedan", at + _right() * 8.0 + _dir() * 1.5, _yaw + PI * 0.5)
+			var car_at := at + _right() * 8.0 + _dir() * 1.5
+			if id == &"sv_yank":
+				car_at = at - _dir() * 3.2 + _right() * 0.4                      # the cover: a car right in front of the troopers
+			_car = vm.spawn_parked(&"sedan", car_at, _yaw + PI * 0.5)
 			if _car != null:
 				_car.hp = _car.max_hp
 				_car.visual.repair()
@@ -164,6 +175,19 @@ func _stage() -> void:
 	_fired = false
 	_lash_n = 0
 	_released = false
+	_det_t = -1.0
+	_by0 = int(_war.bombs.by_id.get(id, 0))
+
+
+func _aim(id: StringName) -> void:
+	if id == &"sv_yank" or id == &"sb_burrow":
+		if _car != null and is_instance_valid(_car):
+			_p.camera_rig.aim_at(_car.global_position + Vector3(0.0, 0.7, 0.0))
+		return
+	if String(id).begins_with("sb_") and id != &"sb_seeker":
+		_p.camera_rig.aim_at(_spot + _dir() * (_dist * 0.95) + Vector3(0.0, 0.1, 0.0))            # a bomb lands where the crosshair meets the street: right between the troopers
+	else:
+		_p.camera_rig.aim_at(_spot + _dir() * (_dist * 0.8) + Vector3(0.0, 1.3, 0.0))
 
 
 func _fire(id: StringName) -> void:
@@ -206,28 +230,37 @@ func step(_t_unused: float, delta: float) -> bool:
 	var moments: Array = MOMENTS.get(id, [0.15, 0.5, 1.0, 2.0])
 	if not _fired:
 		_fired = true
+		_aim(id)                                                              # the crosshair is on its spot BEFORE the cast: a bomb flies to where the crosshair meets the street
+		_p.camera_rig.snap()
 		_fire(id)
 	_t += delta
 	if id == &"sv_grab" and not _released and _t > 1.2:
 		_released = true
 		Input.action_release(&"fire")
-	if id == &"sv_yank" or id == &"sb_burrow":
-		if _car != null and is_instance_valid(_car) and _t < 0.1:
-			_p.camera_rig.aim_at(_car.global_position + Vector3(0.0, 0.7, 0.0))
 	if id == &"sv_lash" and _lash_n < 3 and _t > 0.34 * float(_lash_n + 1):
 		_lash_n += 1
 		_war.verbs._lash_cd = 0.0
 		_war.verbs._lash(false, true)
-	_p.camera_rig.aim_at(_spot + _dir() * (_dist * 0.8) + Vector3(0.0, 1.3, 0.0))
+	_aim(id)
 	for f in _foes:
 		if is_instance_valid(f):
+			f.set(&"suspicion", 0.0)                                           # (the stealth pips of the game are drawn as white plates at this range: fx_threat.gdshader, not what this bot looks at)
 			f.hp = f.max_hp
 			f.set(&"_hit_k", 0.0)
 			if f.humanoid_body != null:
 				f.humanoid_body.set_instance_shader_parameter(&"hit_k", 0.0)
+	var det_rel := DET_IDS.has(id)                                             # a bomb: the first frame is the throw, the others are counted from the moment it goes off
+	if det_rel and _det_t < 0.0 and int(_war.bombs.by_id.get(id, 0)) > _by0:
+		_det_t = _t
 	if _shots < moments.size():
 		var due := maxf(float(moments[_shots]), delta * 2.0 + 0.01)
+		if det_rel and _shots >= 1:
+			due = (_det_t + float(DET_MOMENTS[_shots - 1])) if _det_t >= 0.0 else 1.0e9
+			if _det_t < 0.0 and _t > 5.0:
+				due = _t                                                       # it never went off: the frame of the moment anyway
 		var next_frame := due - delta * 2.5
+		if det_rel and _shots >= 1:
+			next_frame = _t if _det_t < 0.0 else due - delta * 2.5             # while the bomb flies the renderer runs: the burst can come at any frame
 		if _t >= next_frame and not _render_on:
 			RenderingServer.render_loop_enabled = true
 			_render_on = true
@@ -235,11 +268,12 @@ func step(_t_unused: float, delta: float) -> bool:
 			var img := _p.get_viewport().get_texture().get_image()
 			img.save_png("%s/%s_m%d.png" % [_out, id, _shots])
 			var sw := SnakeSwarm.current
-			print("BOTSW ", id, " m", _shots, " t=", snappedf(_t, 0.01), " bodies ", sw.count() if sw != null else -1, " tendrils ", SnakeTendrilPool.current.count() if SnakeTendrilPool.current != null else -1,
-				" holds ", _war.holds.count(), " casts ", _war.casts, " hero ", _p.global_position, " foes ", _foes.map(func(f: Drone) -> Vector3: return f.global_position if is_instance_valid(f) else Vector3.ZERO))
+			print("BOTSW ", id, " m", _shots, " t=", snappedf(_t, 0.01), " det ", snappedf(_det_t, 0.01), " bodies ", sw.count() if sw != null else -1, " b0 ", sw.bodies[0].pos if sw != null and sw.count() > 0 else Vector3.ZERO, " tendrils ", SnakeTendrilPool.current.count() if SnakeTendrilPool.current != null else -1,
+				" holds ", _war.holds.count(), " casts ", _war.casts, " car ", _car.global_position if _car != null and is_instance_valid(_car) else Vector3.ZERO, " foes ", _foes.map(func(f: Drone) -> Vector3: return f.global_position if is_instance_valid(f) else Vector3.ZERO))
 			_shots += 1
-			RenderingServer.render_loop_enabled = false
-			_render_on = false
+			if not (det_rel and _shots >= 1 and _shots < moments.size()):
+				RenderingServer.render_loop_enabled = false
+				_render_on = false
 	if _shots >= moments.size():
 		_phase = 0
 		_i += 1

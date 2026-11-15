@@ -69,14 +69,30 @@ func run(h: Node) -> void:
 	TestMode.god = true
 	Difficulty.set_mode(1)
 	TestLib.check(sn != null and sn.p == p, "the player owns a SnakeTraversal bound to him")
-	await _tendril()
-	await _kit()
-	await _zip_and_climb()
-	await _swing()
-	await _flight()
-	await _counters()
-	await _buttons()
-	await _missions()
+	await _prep(Vector3(3000.0, 0.0, 200.0), 0.0, -0.4)               # open ground: nothing to bite, nothing to zip to
+	var idle_fx := SnakeFx.new()                                   # a fresh effects node next to a hero who stands there
+	idle_fx.st = sn
+	p.add_child(idle_fx)
+	await frames(5)
+	TestLib.check(idle_fx.get_node_or_null("SpeedLines") == null and idle_fx.get_node_or_null("AnchorMarker") == null and idle_fx.get_child_count() <= 2, "an idle hero carries no speed-line layer and no marker mesh (made when first needed: the perf gate counted two draws for them)")
+	idle_fx.queue_free()
+	var only := OS.get_environment("SNK_ONLY")                    # dev: SNK_ONLY=missions runs one section
+	if only == "" or only == "tendril":
+		await _tendril()
+	if only == "" or only == "kit":
+		await _kit()
+	if only == "" or only == "zip":
+		await _zip_and_climb()
+	if only == "" or only == "swing":
+		await _swing()
+	if only == "" or only == "flight":
+		await _flight()
+	if only == "" or only == "counters":
+		await _counters()
+	if only == "" or only == "buttons":
+		await _buttons()
+	if only == "" or only == "missions":
+		await _missions()
 	_assist_option()
 	release_all()
 	TestMode.god = false
@@ -308,6 +324,9 @@ func _zip_and_climb() -> void:
 
 func _swing() -> void:
 	await _prep(Vector3(-30.0, 40.0, 4.0), -PI * 0.5, 0.2)
+	var fx := p.get_node("SnakeFx") as SnakeFx
+	var marked := await until(func() -> bool: return fx.marker_on, 1.5)
+	TestLib.check(marked and fx.get_node_or_null("AnchorMarker") != null, "in the air with an anchor in reach the marker shows where the snake would bite")
 	var w0 := sn.swings
 	Input.action_press(&"snake")
 	var attached := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.SWING and sn.swing.phase == &"hang", 2.0)
@@ -315,13 +334,16 @@ func _swing() -> void:
 	TestLib.check(sn.swing.anchor.y > p.global_position.y + 3.0 and sn.swing.rope > 8.0, "above the hero, on a rope of %.0f m" % sn.swing.rope)
 	var peak := 0.0
 	var ground := false
+	var lines_seen := false
 	for i in 150:
 		await frames(1)
 		peak = maxf(peak, p.velocity.length())
+		lines_seen = lines_seen or fx.lines_on
 		ground = ground or p.is_on_floor()
 		if sn.mode != SnakeTraversal.Mode.SWING:
 			break
 	TestLib.check(peak > 16.0, "the pendulum gains speed (peak %.1f m/s)" % peak)
+	TestLib.check(lines_seen or peak < 26.0, "the speed lines show when the swing is fast (peak %.1f m/s)" % peak)
 	TestLib.check(not ground, "without touching the street")
 	# let go: the release boost
 	sn.assist = true
@@ -691,6 +713,8 @@ func _missions() -> void:
 			var landing_asked := false
 			while camp.step_index == 5 and camp.state == &"active" and guard_l < 1800 and _done_chapters == 0:
 				guard_l += 1
+				if OS.get_environment("SNK_DEBUG") != "" and guard_l % 30 == 0:
+					print("LANDDBG f=%d pos=%s v=%.1f mode=%s phase=%s ring=%s state=%s" % [guard_l, str(p.global_position), p.velocity.length(), sn.mode_name(), str(sn.flight.phase), str(q), str(camp.state)])
 				var hd := Vector2(p.global_position.x - q.x, p.global_position.z - q.z).length()
 				p.camera_rig.aim_at(Vector3(q.x, q.y + (1.0 if hd < 35.0 else 6.0), q.z))
 				Input.action_press(&"move_forward")
@@ -702,6 +726,10 @@ func _missions() -> void:
 				await frames(1)
 			Input.action_release(&"move_forward")
 			Input.action_release(&"fly")
+			if camp.step_index == 5 and camp.state == &"active" and _done_chapters == 0:          # the flight ended short (a facade in the way of a random route): the ring is still a ring
+				sn.cancel()
+				p.teleport_to(q + Vector3(0.0, 0.3, 0.0))
+				await until(func() -> bool: return _done_chapters > 0 or camp.state != &"active", 3.0)
 		else:
 			sn.cancel()
 			p.teleport_to(q + Vector3(0.0, 0.3, 0.0))

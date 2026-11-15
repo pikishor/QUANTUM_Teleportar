@@ -29,6 +29,12 @@ func _ready() -> void:
 	process_priority = 120
 	_hum = _player("snk_hum")
 	_wind = _player("snk_wind")
+
+
+## The speed-line layer and the anchor marker are made the first time they are needed: an idle hero carries no canvas layer, no hidden mesh (the perf gate counted two draws for them at MED).
+func _ensure_lines() -> void:
+	if _rect != null:
+		return
 	_layer = CanvasLayer.new()
 	_layer.layer = 8
 	_layer.name = "SpeedLines"
@@ -41,6 +47,11 @@ func _ready() -> void:
 	_rect.material = _lmat
 	_rect.visible = false
 	_layer.add_child(_rect)
+
+
+func _ensure_marker() -> void:
+	if _marker != null:
+		return
 	_marker = MeshInstance3D.new()
 	_marker.name = "AnchorMarker"
 	var q := QuadMesh.new()
@@ -113,7 +124,10 @@ func _process(delta: float) -> void:
 	# speed lines
 	var amount := st.cam.speed_lines if playing else 0.0
 	lines_on = amount > 0.02
-	_rect.visible = lines_on
+	if lines_on:
+		_ensure_lines()
+	if _rect != null:
+		_rect.visible = lines_on
 	if lines_on:
 		_lmat.set_shader_parameter("amount", amount)
 		_lmat.set_shader_parameter("time_s", _t)
@@ -122,6 +136,7 @@ func _process(delta: float) -> void:
 	if playing and st.mode == SnakeTraversal.Mode.NONE and not st.preview.is_empty() and not st.p.is_dead() and (st.p.air_time > 0.25 or st.hint == &"zip") and not Game.player_in_vehicle():
 		want = Game.quality > 0 or st.p.air_time > 0.25
 	if want:
+		_ensure_marker()
 		var tp: Vector3 = (st.preview["pos"] as Vector3) + (st.preview["normal"] as Vector3) * 0.35
 		if _marker_a <= 0.01:
 			_marker_pos = tp
@@ -136,9 +151,11 @@ func _process(delta: float) -> void:
 		_mmat.set_shader_parameter("alpha", 0.75 * _marker_a)
 	else:
 		_marker_a = maxf(_marker_a - dt * 8.0, 0.0)
-		_mmat.set_shader_parameter("alpha", 0.75 * _marker_a)
+		if _mmat != null:
+			_mmat.set_shader_parameter("alpha", 0.75 * _marker_a)
 	marker_on = want and _marker_a > 0.01
-	_marker.visible = marker_on or _marker_a > 0.01
+	if _marker != null:
+		_marker.visible = marker_on or _marker_a > 0.01
 
 
 func _apply(pl: AudioStreamPlayer, db: float, pitch: float) -> void:

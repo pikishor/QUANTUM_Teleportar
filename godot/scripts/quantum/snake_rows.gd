@@ -14,9 +14,9 @@ const GREEN := Color(0.45, 1.0, 0.3)
 const VIOLET := Color(0.72, 0.38, 1.0)
 const MAGENTA := Color(1.0, 0.3, 0.82)
 const AMBER := Color(1.0, 0.72, 0.2)
-const ICE := Color(0.62, 0.88, 1.0)
-const STORM := Color(0.62, 0.78, 1.0)
-const GOLD := Color(1.0, 0.86, 0.35)
+const ICE := Color(0.45, 0.82, 1.0)
+const STORM := Color(0.40, 0.60, 1.0)
+const GOLD := Color(1.0, 0.74, 0.2)
 const CAT := &"snake"                                   ## the BlastTable category of the bombs
 const SLAM := &"sv_slam"                                ## the table entry of a thrown body landing (SNAKE GRAB)
 const LASH_FINISH := &"sv_lash_finish"                  ## the burst that ends a LASH combo
@@ -214,10 +214,10 @@ static func caption(id: StringName) -> String:
 	var r := row(id)
 	if r.is_empty():
 		return ""
-	var s := "%s   %d ENERGY" % [String(r["name"]), roundi(SnakePower.cost(float(r["cost"])) / maxf(SnakePower.cost(1.0), 0.0001)) if SnakePower.cost(1.0) > 0.0 else roundi(float(r["cost"]))]
+	var s := "%s  %d ENERGY" % [String(r["name"]), roundi(SnakePower.cost(float(r["cost"])) / maxf(SnakePower.cost(1.0), 0.0001)) if SnakePower.cost(1.0) > 0.0 else roundi(float(r["cost"]))]
 	var rad := radius_of(id)
 	if rad > 0.5:
-		s += "   RADIUS %d M" % roundi(rad)
+		s += "  RADIUS %d M" % roundi(rad)
 	if not unlocked(id):
-		s += "   LEVEL %d" % lvl_of(id)
+		s += "  LEVEL %d" % lvl_of(id)
 	return s

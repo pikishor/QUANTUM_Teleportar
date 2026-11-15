@@ -335,7 +335,7 @@ func _chain(id: StringName, pos: Vector3) -> void:
 				return
 			var c := SnakeAim.center_of(target)
 			hops += 1
-			var arc := SnakeTendril.fire(a, c, {"host": p, "travel": 0.05, "life": 0.12, "wriggle": 0.55, "tension": 0.35, "thickness": 0.08, "color": SnakeRows.STORM})
+			var arc := SnakeTendril.fire(a, c, {"host": p, "travel": 0.05, "life": 0.22, "wriggle": 0.55, "tension": 0.35, "thickness": 0.11, "color": SnakeRows.STORM})
 			arc.user["keep"] = false
 			if FX.qvfx != null:
 				FX.qvfx.bolt(a, c, SnakeRows.STORM)
@@ -374,7 +374,7 @@ func _cluster(id: StringName, pos: Vector3) -> void:
 		var from := pos + Vector3(0.0, 0.4, 0.0)
 		bomblets += 1
 		if sw != null:
-			sw.spawn(&"ball", from, {"color": SnakeRows.CYAN, "thick": 0.06, "len": 1.2, "radius": 0.16, "life": delay + 0.3, "prio": 2,
+			sw.spawn(&"ball", from, {"color": SnakeRows.CYAN, "thick": 0.1, "len": 1.8, "radius": 0.3, "life": delay + 0.3, "prio": 2, "head": 1.0,
 				"tick": func(b: SnakeSwarm.Body, _dt: float) -> bool:
 					var k2 := clampf(b.age / delay, 0.0, 1.0)
 					b.pos = from.lerp(to + Vector3(0.0, 0.3, 0.0), k2) + Vector3(0.0, sin(k2 * PI) * 2.2, 0.0)
@@ -472,17 +472,23 @@ func _seeker(aim_pt: Vector3) -> bool:
 	seekers += 1
 	var speed := float(snake.get("speed", 15.0))
 	var life := float(snake.get("life", 7.0))
-	var b := sw.spawn(&"crawl", from, {"color": SnakeRows.CYAN, "thick": 0.16, "len": 3.2, "life": life, "prio": 3, "heading": flat, "head": 1.0, "amp": 0.2, "speed": speed, "steer": float(snake.get("steer", 5.0)),
+	var b := sw.spawn(&"crawl", from, {"color": SnakeRows.CYAN, "thick": 0.12, "len": 4.2, "life": life, "prio": 3, "heading": flat, "head": 1.2, "amp": 0.12, "speed": speed, "steer": float(snake.get("steer", 5.0)),
 			"stick": true, "user": u, "tick": _seeker_tick})
 	if b == null:
 		return false
-	_tendril_to(from)
+	_hand_pop(from)
 	Sfx.play(&"snw_bomb_throw", -3.0, 1.2)
 	return true
 
 
+## The snake leaves the hand on its own legs: a small pop of sparks at the hand (a rope from the hand to its first metre was a thick clump of loops next to the shoulder camera).
+func _hand_pop(at: Vector3) -> void:
+	var hand: Vector3 = p.snake.hand_pos(HERO_HAND)
+	FX.burst(hand.lerp(at, 0.5), SnakeRows.CYAN, 6, 3.0, 0.3, 0.0, 1.0)
+
+
 func _tendril_to(at: Vector3) -> void:
-	var t := SnakeTendril.fire(p.snake.hand_callable(HERO_HAND), at, {"host": p, "travel": 0.12, "life": 0.05, "tension": 0.5, "color": SnakeRows.CYAN})
+	var t := SnakeTendril.fire(p.snake.hand_callable(HERO_HAND), at, {"host": p, "travel": 0.12, "life": 0.05, "tension": 0.5, "thickness": 0.07, "color": SnakeRows.CYAN})
 	t.user["keep"] = false
 
 
@@ -527,6 +533,10 @@ func _seeker_tick(b: SnakeSwarm.Body, dt: float) -> bool:
 		b.lift = 0.5
 	else:
 		rest = _swarm().crawl_to(b, goal, dt, b.speed)
+	u["trail"] = float(u.get("trail", 0.0)) - dt
+	if float(u["trail"]) <= 0.0:
+		u["trail"] = 0.06
+		FX.burst(b.pos + Vector3(0.0, 0.25, 0.0), SnakeRows.CYAN, 2, 1.5, 0.35, 0.0, 1.3)       # a bright trail: a snake that runs across a street at 15 m/s is seen by what it leaves behind
 	if rest < 1.7 or b.age >= b.life - 0.05:
 		last_res = BlastTable.apply(&"sb_seeker", b.pos + Vector3(0.0, 0.6, 0.0), p, _opts()).duplicate()
 		by_id[&"sb_seeker"] = int(by_id.get(&"sb_seeker", 0)) + 1
@@ -559,11 +569,11 @@ func _burrow(aim_pt: Vector3) -> bool:
 	var from := _ground(p.global_position) + flat * 1.3
 	burrows += 1
 	var u := {"car": car, "goal": aim_pt, "trail": 0.0}
-	var b := sw.spawn(&"crawl", from, {"color": SnakeRows.GREEN, "thick": 0.17, "len": 3.0, "life": float(snake.get("life", 6.0)), "prio": 3, "heading": flat, "head": 1.0, "amp": 0.1, "speed": float(snake.get("speed", 11.0)),
+	var b := sw.spawn(&"crawl", from, {"color": SnakeRows.GREEN, "thick": 0.15, "len": 4.5, "life": float(snake.get("life", 6.0)), "prio": 3, "heading": flat, "head": 1.0, "amp": 0.06, "speed": float(snake.get("speed", 11.0)),
 			"steer": 6.0, "stick": true, "user": u, "tick": _burrow_tick})
 	if b == null:
 		return false
-	_tendril_to(from)
+	_hand_pop(from)
 	Sfx.play(&"snw_bomb_throw", -3.0, 0.8)
 	return true
 
@@ -576,11 +586,11 @@ func _burrow_tick(b: SnakeSwarm.Body, dt: float) -> bool:
 		u["car"] = null
 	var goal: Vector3 = car.global_position if car != null else (u["goal"] as Vector3)
 	var rest := _swarm().crawl_to(b, goal, dt, b.speed)
-	b.pos.y -= 0.12                                                             # most of the body is under the ground: only the head and a ridge show
+	b.pos.y -= 0.06                                                             # most of the body is under the ground: the head and a ridge show
 	u["trail"] = float(u["trail"]) - dt
 	if float(u["trail"]) <= 0.0:
 		u["trail"] = 0.09
-		FX.burst(b.pos + Vector3(0.0, 0.2, 0.0), Color(0.42, 0.34, 0.24), 2, 2.5, 0.35, 5.0, 0.9)
+		FX.burst(b.pos + Vector3(0.0, 0.2, 0.0), Color(0.5, 0.42, 0.3), 3, 3.0, 0.45, 5.0, 1.6)
 	if rest < 1.9 or b.age >= b.life - 0.05:
 		var at := (car.global_position if car != null else goal) - Vector3(0.0, 0.3, 0.0)
 		last_res = BlastTable.apply(&"sb_burrow", at, p, _opts()).duplicate()
