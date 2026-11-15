@@ -1,6 +1,6 @@
 # w115-snake-traversal (running)
 
-agent id ae95c122bf87a5b35, 1100 events, first activity 2026-11-14T23:13:49.366Z, last activity 2026-11-15T02:54:21.489Z
+agent id ae95c122bf87a5b35, 1103 events, first activity 2026-11-14T23:13:49.366Z, last activity 2026-11-15T02:54:50.404Z
 
 ## Last notes of the agent
 
@@ -9,7 +9,6 @@ agent id ae95c122bf87a5b35, 1100 events, first activity 2026-11-14T23:13:49.366Z
 
 ## Recent steps (last 40)
 
-- 02:21:31 Search for line-primitive effects attached to the hero or in the world
 - 02:21:41 Render the HUD scene on MED to see whether the purple lines exist without any snake action
 - 02:25:16 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/snake/m2_air_half.png
 - 02:25:40 Read the perf gate script header
@@ -49,6 +48,7 @@ agent id ae95c122bf87a5b35, 1100 events, first activity 2026-11-14T23:13:49.366Z
 - 02:51:52 Run the NORMAL swing chain probe twice from the same start to see run to run variability
 - 02:53:51 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_swing.gd
 - 02:54:21 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_anchor.gd
+- 02:54:50 Reel the rope in when the lowest point of the swing would be near the ground
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
