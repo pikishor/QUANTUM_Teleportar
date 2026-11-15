@@ -12,6 +12,7 @@ const ROW_STEP := 70.0
 const FOOT_Y := 624.0
 
 static var selected: StringName = &""
+static var shed_headers := true             ## false = the look of wave 115 as built (a header that does not fit runs into the next one): a test flips it to show the defect
 
 
 static func _total() -> float:
@@ -58,13 +59,27 @@ static func draw(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, cx: fl
 	if prog != null:
 		line += "      CREDITS  %d" % prog.credits
 	hud._text(c, font, Vector2(0.0, 118.0 * s), line, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.AMBER, 0.97), 1.0 * s)
+	var head_px := int(UiUtil.BAR_LABEL * s)
 	for v in SkillTree.VERBS.size():
 		var verb: StringName = SkillTree.VERBS[v]
-		hud._text(c, font, Vector2(_col_x(cx, s, k, v), (ROW_Y - 12.0) * s), String(SkillTree.VERB_NAMES[verb]), HORIZONTAL_ALIGNMENT_LEFT, COL_W * s * k, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.95), 1.0 * s)
+		hud._text(c, font, Vector2(_col_x(cx, s, k, v), (ROW_Y - 12.0) * s), _head(hud, font, String(SkillTree.VERB_NAMES[verb]), (COL_W * k - COL_GAP) * s, head_px), HORIZONTAL_ALIGNMENT_LEFT, COL_W * s * k, head_px, Color(UiUtil.CYAN, 0.95), 1.0 * s)
 	var info := "TAP A NODE TO SPEND A POINT"
 	if SkillTree.NODES.has(selected):
 		info = "%s   %s   RANK %d/%d" % [SkillTree.title(selected), SkillTree.effect_text(selected), SkillTree.rank(selected), SkillTree.max_rank(selected)]
 	hud._text(c, font, Vector2(0.0, (ROW_Y + 5.0 * ROW_STEP + 22.0) * s), info, HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.BAR_LABEL * s), Color(1, 1, 1, 0.9), 0.0)
+
+
+## A column header as it fits its column. Six columns share the phone's width (a column is 200 px wide at 1280 x 720), so "QUANTUM TELEPORT" gave its first word up to SUPERPOSITION's space and "QUANTUM SNAKE" touched
+## SNAKE COMBAT (wave 115 added the two columns; menu text never shrinks, so a header that does not fit sheds its leading words: TELEPORT, SNAKE). The name is translated first, so every language sheds its own words.
+static func _head(hud: Hud, font: Font, name: String, width: float, size: int) -> String:
+	var t := Tr.t(name)
+	if not shed_headers:
+		return t
+	var px := Tr.scaled_size(font, t, 100000.0, size)                       # the size the text is really drawn at (the TEXT SIZE option scales it)
+	var words := t.split(" ", false)
+	while words.size() > 1 and hud._text_width(font, " ".join(words), px) > width:
+		words.remove_at(0)
+	return " ".join(words)
 
 
 static func press(sid: String) -> bool:

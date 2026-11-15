@@ -247,6 +247,20 @@ func _qa_spots() -> void:
 		if font.get_string_size(Tr.t(str(b["label"])), HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x > r.size.x - 4.0 * s:
 			bad = "%s (%d)" % [b["label"], sz]
 	TestLib.check(n >= 20 and bad == "", "%d skill buttons: every label fits its button %s" % [n, bad])
+	# the six column headers (wave 115 added two columns: at 1280 x 720 a column is 200 px wide and "QUANTUM TELEPORT" ran into SUPERPOSITION, "QUANTUM SNAKE" into SNAKE COMBAT). A header of
+	# several words never runs wider than its column (it sheds its leading words, TELEPORT, SNAKE); a single long word cannot shrink (menu text keeps its floor) and is left alone, so a wider
+	# device font (the runner's DejaVu) does not fail this on SUPERPOSITION. Checked at the three phone sizes of test_menus_map_quality; the old look is shown first (SkillScreen.shed_headers).
+	var win := host.get_window()
+	var win_old := win.size
+	SkillScreen.shed_headers = false
+	var old_look := await _skill_headers(Vector2i(1280, 720))
+	SkillScreen.shed_headers = true
+	TestLib.check(int(old_look["heads"]) == SkillTree.VERBS.size() and str(old_look["too_wide"]) != "", "the old look: a header of several words is wider than its column at 1280x720 (%s)" % str(old_look["too_wide"]))
+	for size: Vector2i in [Vector2i(844, 390), Vector2i(1200, 540), Vector2i(1280, 720)]:
+		var res := await _skill_headers(size)
+		TestLib.check(int(res["heads"]) == SkillTree.VERBS.size() and str(res["too_wide"]) == "", "@%dx%d the %d column headers (%d found): none of several words is wider than its column:%s" % [size.x, size.y, SkillTree.VERBS.size(), int(res["heads"]), str(res["too_wide"])])
+	win.size = win_old
+	await frames(4)
 	Game.state = &"play"
 	await frames(2)
 	Game.state = &"paused"
@@ -262,3 +276,35 @@ func _qa_spots() -> void:
 	Game.state = &"play"
 	await frames(4)
 	TestLib.check(not hud._skills_open and not hud._look_open and not hud._loadout_open, "back in play every pause panel is closed")
+
+
+## The skills screen at `size`: how many column headers it drew and which of them (of several words) is wider than the column.
+func _skill_headers(size: Vector2i) -> Dictionary:
+	host.get_window().size = size
+	await frames(4)
+	hud._layout_key = ""
+	hud._ensure_layout()
+	hud.scan_log.clear()
+	hud.scan_text = true
+	hud._screen.queue_redraw()
+	for i in 90:                                       # wait on the draw having happened, not on a frame count
+		await frames(1)
+		if not hud.scan_log.is_empty():
+			break
+	await frames(1)
+	hud.scan_text = false
+	var s := UiUtil.ui_scale(hud.get_viewport().get_visible_rect().size)
+	var head_w := (SkillScreen.COL_W * SkillScreen._fit(hud, s) - SkillScreen.COL_GAP) * s
+	var head_y := (SkillScreen.ROW_Y - 12.0) * s
+	var heads := 0
+	var too_wide := ""
+	var seen := {}
+	for e: Dictionary in hud.scan_log:
+		var er: Rect2 = e["rect"]
+		if absf(er.position.y - (head_y - 0.78 * float(e["size"]))) >= 2.0 or seen.has("%s|%s" % [e["text"], er]):
+			continue                                   # (the screen draws more than once while we wait: one entry per text and place)
+		seen["%s|%s" % [e["text"], er]] = true
+		heads += 1
+		if String(e["text"]).contains(" ") and er.size.x > head_w + 2.0:
+			too_wide += " '%s' %.0f > %.0f" % [e["text"], er.size.x, head_w]
+	return {"heads": heads, "too_wide": too_wide}

@@ -386,6 +386,10 @@ func _settle_after_mission() -> void:
 func _story_card() -> void:
 	TestLib.check(not (Game.missions as Missions).contracts.enabled, "the random contract offers are off in board mode (the board is the source of jobs)")
 	ResultCard.enabled = false
+	var rc0 := host.get_tree().get_first_node_in_group(&"result_card") as ResultCard
+	if rc0 != null:
+		rc0.queue.clear()                                  # the card of the sixth mission may still be waiting for its 1.4 s delay: it would open (and pause the game) right after the STORY tap, which is what made
+		                                                   # "the story chapter runs through the campaign runner" fail now and then on HEAD and on the wave 115 tree ("game paused")
 	if Game.state != &"play":
 		Game.state = &"play"
 	for i in 30:
@@ -398,8 +402,14 @@ func _story_card() -> void:
 	await TestLib.frames(host, 2)
 	TestLib.check(hud._board_open and _has_button(&"board_story"), "the board shows the STORY card")
 	TestLib.check(_tap_id(&"board_story"), "tapping STORY starts the chapter")
-	await TestLib.frames(host, 2)
-	TestLib.check(board.state == &"story" and a.camp.is_running() and Game.state == &"play", "the story chapter runs through the campaign runner")
+	var story_up := false
+	var t_story := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t_story < 8000:        # wait on the state, not on a frame count: two frames were not always enough on a loaded machine (the same check failed in the wave 115 full suite on HEAD and on the new tree)
+		await TestLib.frames(host, 2)
+		story_up = board.state == &"story" and a.camp.is_running() and Game.state == &"play"
+		if story_up:
+			break
+	TestLib.check(story_up, "the story chapter runs through the campaign runner (board %s, runner %s, game %s)" % [str(board.state), str(a.camp.state), str(Game.state)])
 	board.abandon()
 	await TestLib.frames(host, 2)
 	TestLib.check(board.state == &"idle" and not a.camp.is_running(), "abandoning the story leaves free roam")
