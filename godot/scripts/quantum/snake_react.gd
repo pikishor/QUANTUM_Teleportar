@@ -26,6 +26,7 @@ var hunters := 0
 var jams := 0
 var _casts: Array[float] = []
 var _hunter_cd := 0.0
+var _hunter_try_t := 0.0                               ## seconds to the next try at a place for the hunter
 var _cheer_cd := 0.0
 var _cut_t := 0.0
 var _jam_was := false
@@ -224,13 +225,36 @@ func _try_hunter() -> void:
 	for e: Node3D in Gear.living_enemies(p.get_tree()):
 		if StringName(e.get(&"type")) == &"hunter":
 			return
-	var a := _rng.randf() * TAU
-	var at := p.global_position + Vector3(cos(a), 0.0, sin(a)) * 30.0
-	var g := p.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(at + Vector3.UP * 40.0, at + Vector3.DOWN * 80.0, Game.L_WORLD))
-	if g.is_empty():
-		return
-	at = g["position"]
 	if not EnemyTypes.TYPES.has(&"hunter"):
+		return
+	_hunter_try_t -= 1.0 / 60.0
+	if _hunter_try_t > 0.0:
+		return
+	_hunter_try_t = 0.5
+	# a spot the hunter can fight from (wave 115 critic: 10 % of the old random spots were inside a building and 8 % behind a wall, a hunter that blocks the next one for as long as it lives): up to ten tries
+	# at 22 to 34 m, on the ground or a roof level with the hero, not inside a collider, with a clear line to his chest
+	var space := p.get_world_3d().direct_space_state
+	var chest := p.global_position + Vector3(0.0, 1.2, 0.0)
+	var at := Vector3.INF
+	for attempt in 10:
+		var a := _rng.randf() * TAU
+		var q := p.global_position + Vector3(cos(a), 0.0, sin(a)) * _rng.randf_range(22.0, 34.0)
+		var g := space.intersect_ray(PhysicsRayQueryParameters3D.create(q + Vector3.UP * 40.0, q + Vector3.DOWN * 80.0, Game.L_WORLD))
+		if g.is_empty():
+			continue
+		var gp: Vector3 = g["position"]
+		if gp.y > 4.0 and absf(gp.y - p.global_position.y) > 10.0:
+			continue                                                      # a roof far above or below the hero (a street far below a swinging hero is fine)
+		var pq := PhysicsPointQueryParameters3D.new()
+		pq.position = gp + Vector3(0.0, 1.0, 0.0)
+		pq.collision_mask = Game.L_WORLD
+		if not space.intersect_point(pq, 1).is_empty():
+			continue                                                      # inside a building
+		if not SnakeAim.clear_line(p, gp + Vector3(0.0, 1.4, 0.0), chest):
+			continue                                                      # behind a wall: its net could never fly
+		at = gp
+		break
+	if at == Vector3.INF:
 		return
 	var h := em.spawn(&"hunter", at, true)
 	if h != null:

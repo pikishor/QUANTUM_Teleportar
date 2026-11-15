@@ -23,6 +23,7 @@ const INJECT_CHANCE := 0.3
 const INJECT_MAX_FROM_CORE := 520.0         ## a board further than this from the city core (the lodge, the outskirts) is left alone
 const ROOF_R := 9.0
 const AIR_R := 16.0
+const SWING_RISE_MAX := 8.0                 ## wave 115 critic: the next roof of a swing leg is at most this much higher than the one the hero leaves (_pick_swingable)
 const SAVE := "user://snake_traversal.cfg"
 
 static var tutorial_done := false          ## SWING ACROSS THE CITY was finished once (saved)
@@ -134,6 +135,50 @@ static func roofs(from: Vector3, rmin: float, rmax: float, hmin: float, hmax := 
 	return out
 
 
+## Can a hero who runs off the edge of roof `a` toward roof `b` find an anchor in the first moments of his fall? 1 yes, 0 no, -1 unknown (no hero, or no collider at the roof: the districts far from the
+## player stream theirs in later). The same fan the SNAKE button scans, 0.3 s after the jump, 2.5 m past the edge (wave 115 critic: from a roof edge toward a roof of the same height nothing is above the hero,
+## the swing steps of the tutorial found no anchor in 7 of 12 legs and the held button turned into a flight instead of the swing the step asks for).
+static func swing_possible(a: Vector3, b: Vector3) -> int:
+	var p := Game.player as Player
+	var sn := SnakeTraversal.instance
+	if p == null or sn == null or not is_instance_valid(p) or not p.is_inside_tree():
+		return -1
+	var dir := Vector3(b.x - a.x, 0.0, b.z - a.z)
+	if dir.length() < 1.0:
+		return -1
+	dir = dir.normalized()
+	var space := p.get_world_3d().direct_space_state
+	var roof_y := a.y - 0.6
+	var pos := Vector3(a.x, roof_y, a.z)
+	var last := Vector3.INF
+	for i in 70:                                                                  # walk toward b until the roof ends
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(pos + Vector3(0.0, 1.5, 0.0), pos + Vector3(0.0, -3.0, 0.0), Game.L_WORLD))
+		if hit.is_empty() or absf((hit["position"] as Vector3).y - roof_y) > 3.0:
+			break
+		last = Vector3(pos.x, (hit["position"] as Vector3).y, pos.z)
+		pos += dir
+	if not last.is_finite():
+		return -1
+	var from := last + dir * 2.5 + Vector3(0.0, 1.1, 0.0)
+	var res := sn.anchors.find_swing(p, dir, (dir + Vector3.UP * 0.25).normalized(), SnakePower.range_m(), true, from, true)
+	return 0 if res.is_empty() else 1
+
+
+## One of the nearest roofs of `list` (ten of them are looked at, all inside the leg's distance band) that a swing can reach from the roof `from`: an anchor above the roof edge and a roof that is not much higher
+## than the one he leaves (a chain does not climb: measured with tests/dev_w115p_legs.gd, 2 of 15 uphill swing legs reached the ring in 30 s, 5 of 8 level or downhill ones); else the old random choice
+## of the nearest six (the hold then turns into a flight, which the tutorial allows and teaches two steps later).
+static func _pick_swingable(list: Array[Dictionary], from: Vector3, r: RandomNumberGenerator) -> Dictionary:
+	var n := mini(list.size(), 10)
+	var ok: Array[Dictionary] = []
+	for i in n:
+		var pos := list[i]["pos"] as Vector3
+		if pos.y - from.y <= SWING_RISE_MAX and swing_possible(from, pos) == 1:
+			ok.append(list[i])
+	if ok.is_empty():
+		return _pick(list, r)
+	return ok[int(r.randf() * float(ok.size())) % ok.size()]
+
+
 static func _pick(list: Array[Dictionary], r: RandomNumberGenerator) -> Dictionary:
 	if list.is_empty():
 		return {}
@@ -154,11 +199,11 @@ static func build(t: StringName, tier: int, origin: Vector3, r: RandomNumberGene
 			if a.is_empty():
 				return {}
 			used.append(a["pos"])
-			var b := _pick(roofs(a["pos"], 95.0, 160.0, 26.0, 90.0, used), r)
+			var b := _pick_swingable(roofs(a["pos"], 95.0, 160.0, 26.0, 90.0, used), a["pos"], r)
 			if b.is_empty():
 				return {}
 			used.append(b["pos"])
-			var c := _pick(roofs(b["pos"], 100.0, 170.0, 28.0, 100.0, used), r)
+			var c := _pick_swingable(roofs(b["pos"], 100.0, 170.0, 28.0, 100.0, used), b["pos"], r)
 			if c.is_empty():
 				return {}
 			used.append(c["pos"])

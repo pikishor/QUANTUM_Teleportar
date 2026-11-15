@@ -174,6 +174,7 @@ func run(h: Node) -> void:
 	print("LG start: missions %d difficulty %d legs %s budget %.0f s fly %s k %.0f" % [n, diff, legs_s, secs, str(allow_fly), k])
 	var tot := {"ab": [0, 0], "bc": [0, 0], "cd": [0, 0]}
 	var swings_ok: Array[int] = []
+	var by_sp := {}
 	for mi in n:
 		var origin := city.random_core_road_point()
 		var rec := board.build(&"swing_city", origin)
@@ -192,17 +193,29 @@ func run(h: Node) -> void:
 			var lg: Array = legs[key]
 			var a: Vector3 = lg[0]
 			var b: Vector3 = lg[1]
+			var sp := SnakeMissions.swing_possible(a, b)
 			var r := await _leg(a, b, float(lg[2]), secs, allow_fly)
+			var spk := "sp%d" % sp
+			if not by_sp.has(spk):
+				by_sp[spk] = [0, 0, 0]
+			(by_sp[spk] as Array)[0] += 1
+			if int(r["swings"]) > 0:
+				(by_sp[spk] as Array)[1] += 1
+			if bool(r["reached"]):
+				(by_sp[spk] as Array)[2] += 1
 			(tot[key] as Array)[1] += 1
 			if bool(r["reached"]):
 				(tot[key] as Array)[0] += 1
 				swings_ok.append(int(r["swings"]))
-			print("LG mission %d leg %s: %s  dist %.0f m, rise %+.0f m, t %.1f s, swings %d, chain %d, ground %.1f s, min y %.0f, end %.0f m from the ring (y %.0f), energy min %.0f, fly %s flights %d\n    trace %s" % [mi, key, "REACHED" if bool(r["reached"]) else "no", Vector2(b.x - a.x, b.z - a.z).length(), b.y - a.y, float(r["t"]), int(r["swings"]), int(r["chain"]), float(r["ground"]), float(r["min_y"]), float(r["end_dist"]), float(r["end_y"]), float(r["energy_min"]), str(r["fly_used"]), int(r["flights2"]), str(r["trace"])])
+			print("LG mission %d leg %s: %s  sp %d dist %.0f m, rise %+.0f m, t %.1f s, swings %d, chain %d, ground %.1f s, min y %.0f, end %.0f m from the ring (y %.0f), energy min %.0f, fly %s flights %d\n    trace %s" % [mi, key, "REACHED" if bool(r["reached"]) else "no", sp, Vector2(b.x - a.x, b.z - a.z).length(), b.y - a.y, float(r["t"]), int(r["swings"]), int(r["chain"]), float(r["ground"]), float(r["min_y"]), float(r["end_dist"]), float(r["end_y"]), float(r["energy_min"]), str(r["fly_used"]), int(r["flights2"]), str(r["trace"])])
 	var line := ""
 	for key in tot:
 		var v: Array = tot[key]
 		line += " %s %d/%d" % [key, v[0], v[1]]
 	print("LG SUMMARY difficulty %d (fly %s):%s" % [diff, str(allow_fly), line])
+	for spk in by_sp:
+		var v2: Array = by_sp[spk]
+		print("LG BY ANCHOR %s: %d legs, %d with a swing, %d reached" % [spk, v2[0], v2[1], v2[2]])
 	Engine.time_scale = 1.0
 	Engine.physics_ticks_per_second = 60
 	main.queue_free()

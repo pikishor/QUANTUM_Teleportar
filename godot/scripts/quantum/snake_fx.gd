@@ -22,6 +22,7 @@ var _mmat: ShaderMaterial
 var _t := 0.0
 var _marker_pos := Vector3.ZERO
 var _marker_a := 0.0
+var _warming := false                       ## SnakeWarm (the shader pre-warm) has made both visuals draw once: _process leaves them alone until warm_end
 
 
 func _ready() -> void:
@@ -121,6 +122,8 @@ func _process(delta: float) -> void:
 		wind_db = lerpf(wind_db, wind_t, 1.0 - exp(-5.0 * dt))
 	_apply(_hum, hum_db, hum_pitch)
 	_apply(_wind, wind_db, wind_pitch)
+	if _warming:
+		return
 	# speed lines
 	var amount := st.cam.speed_lines if playing else 0.0
 	lines_on = amount > 0.02
@@ -156,6 +159,36 @@ func _process(delta: float) -> void:
 	marker_on = want and _marker_a > 0.01
 	if _marker != null:
 		_marker.visible = marker_on or _marker_a > 0.01
+
+
+## Pre-warm (SnakeWarm, run by ShaderWarmup behind the loading overlay): the speed-line layer and the anchor marker exist and draw once so their pipelines are compiled before the first swing.
+func warm_begin(at: Vector3) -> void:
+	_warming = true
+	_ensure_lines()
+	_rect.visible = true
+	_lmat.set_shader_parameter("amount", 0.05)
+	_lmat.set_shader_parameter("time_s", 0.0)
+	_ensure_marker()
+	_marker.global_position = at
+	_mmat.set_shader_parameter("alpha", 0.05)
+	_marker.visible = true
+
+
+## ... and gone again: an idle hero carries no canvas layer and no hidden mesh (the perf gate counted two draws for them at MED).
+func warm_end() -> void:
+	_warming = false
+	if _layer != null:
+		_layer.queue_free()
+	_layer = null
+	_rect = null
+	_lmat = null
+	if _marker != null:
+		_marker.queue_free()
+	_marker = null
+	_mmat = null
+	_marker_a = 0.0
+	lines_on = false
+	marker_on = false
 
 
 func _apply(pl: AudioStreamPlayer, db: float, pitch: float) -> void:

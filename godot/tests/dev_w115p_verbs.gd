@@ -68,6 +68,8 @@ func run(h: Node) -> void:
 	TestMode.god = true
 	WeaponDefs.hero_mode = true                                     # every verb open, no energy, no cooldown: the probe is about the verbs against live enemies
 	Difficulty.set_mode(1)
+	if OS.get_environment("VB_Q") != "":
+		Game.set_quality(int(OS.get_environment("VB_Q")))
 	if not _lane():
 		print("VB no open lane")
 		return

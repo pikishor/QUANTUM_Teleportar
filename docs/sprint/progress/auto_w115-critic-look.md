@@ -1,55 +1,62 @@
 # w115-critic-look (running)
 
-agent id a1aec5b8e6310c900, 323 events, first activity 2026-11-15T07:50:55.530Z, last activity 2026-11-15T08:43:29.788Z
+agent id a1aec5b8e6310c900, 745 events, first activity 2026-11-15T07:50:55.530Z, last activity 2026-11-15T10:39:42.712Z
 
 ## Last notes of the agent
 
 - 07:50:58 I'll start by orienting in the repo: the sprint docs, git log, and what wave 115 (quantum snakes) landed.
+- 09:21:25 Use `_start_swing` so the traversal state machine owns the swing, as in play.
+- 10:21:39 Now the test for the rolling wings, appended to the wing-tip section.
 
 ## Recent steps (last 40)
 
-- 08:20:40 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/sc2_land_ceil.jpg
-- 08:20:58 Read the headless route probe and the test runner
-- 08:21:09 Find where the vehicle prompt text is made
-- 08:21:11 Read the vehicle prompt logic and the HUD prompt chain
-- 08:21:15 Read vehicle reach and nearest logic
-- 08:21:48 /home/user/QUANTUM_Teleportar/godot/tests/dev_critic_snake_play.gd
-- 08:21:51 Run the headless camera and prompt probe for 70 game seconds
-- 08:23:13 Read the camera rig view update
-- 08:23:24 Render the ten snake verbs at LOW with the phone HUD
-- 08:26:08 Build verb contact sheets
-- 08:26:11 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/lv_a.jpg
-- 08:26:18 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/lv_b.jpg
-- 08:26:27 Read the builder's wheel and HUD bot
-- 08:26:35 Render the wheels and HUD frames at 844x390 (LOW)
-- 08:28:01 Build the 844x390 wheel and HUD sheet
-- 08:28:02 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/ui844_sheet.jpg
-- 08:28:38 Render the HUD in each snake state at 844x390 (LOW)
-- 08:30:55 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/hud844_sheet.jpg
-- 08:31:20 Find the snake and fly button code in the touch controls
-- 08:31:22 Read the touch button layout table
-- 08:31:36 /home/user/QUANTUM_Teleportar/docs/shots/round6/snake_tendril.jpg
-- 08:32:00 Read the head of snake_swing.gd
-- 08:32:15 Sheet of the end of the flight frames at full size
-- 08:32:17 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/lr1_end_flight.jpg
-- 08:32:31 Render the twelve snake bombs at MED with the phone HUD
-- 08:37:33 Build bomb contact sheets
-- 08:37:36 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/mb_a.jpg
-- 08:37:46 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/med_bombs/sb_coil_m1.png
-- 08:37:54 /home/user/QUANTUM_Teleportar/docs/shots/round6/snake_combat_bombs_a_med.jpg
-- 08:38:03 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/mb_b.jpg
-- 08:38:17 Find the lane the bomb bot used
-- 08:38:33 Isolate the teal slab: same lane at MED without car or foes, and at LOW
-- 08:41:10 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/slab_cmp.jpg
-- 08:41:24 Probe what object forms the teal slab at the bomb lane
-- 08:42:04 Find the water layout API
-- 08:42:06 Read water surface and body queries
-- 08:42:22 Probe flat meshes and water near the bomb lane
-- 08:43:05 Find the Ground mesh builder
-- 08:43:07 Read the city ground builder
-- 08:43:29 Run a 26 s swing run segment at MED (baseline for MED glitches)
+- 10:01:42 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/mb2_a.jpg
+- 10:01:43 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/mb2_b.jpg
+- 10:01:51 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/med_bombs2/sb_flare_m1.png
+- 10:02:10 Re-run the LOW swing run segment with all fixes in place
+- 10:11:43 Dump the frames around the remaining camera pops of this route
+- 10:12:36 Show the hero-hidden events and mode transitions of that run
+- 10:12:42 Overview sheet of the LOW run after the fixes
+- 10:12:45 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/lr2_overview.jpg
+- 10:13:08 Build the run contact sheets into docs/shots/round6
+- 10:13:26 Build the remaining contact sheets
+- 10:13:47 /home/user/QUANTUM_Teleportar/docs/shots/round6/critic115_look_iterations.md
+- 10:13:52 Look at the end of ARCHITECTURE.md before appending
+- 10:14:13 Append the LOOK critic section to ARCHITECTURE.md
+- 10:14:15 Read the end of HANDOFF.md
+- 10:14:24 Append the LOOK critic note to HANDOFF.md
+- 10:14:38 Render a real dive, pull-out and barrel roll from altitude
+- 10:17:53 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/dive.jpg
+- 10:18:01 Find the barrel roll trigger in flight
+- 10:18:07 Read how side input and double tap are computed and tested
+- 10:18:22 Render the barrel roll with the forward stick released
+- 10:21:11 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/dive2.jpg
+- 10:21:18 Find how the hero roll angle is applied in the pose
+- 10:21:38 Make the wings roll with the hero in a barrel roll
+- 10:21:44 Run the regression test with the rolling wing check
+- 10:22:40 Render the barrel roll again after the wing fix and compare
+- 10:25:34 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/roll_cmp.jpg
+- 10:25:45 Add the roll and dive sheets (12 jpg in total)
+- 10:25:56 Update the notes with the barrel roll fix
+- 10:26:16 Find tests that touch the hero shader or glow
+- 10:26:19 Run the hero look, snake combat and traversal tests after the last changes
+- 10:30:26 Run the neighbouring look tests, the PLAY critic test and the swing run
+- 10:34:28 Slim the tendril near the camera and render the tendril scene
+- 10:36:06 Contact sheet of the tendril scene after the near thinning
+- 10:36:09 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/tend_after.jpg
+- 10:36:22 Compare the shield, guard and grab snakes before and after the near thinning
+- 10:38:09 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/verbs_near_cmp.jpg
+- 10:38:42 Check time and state, build a ceiling, landing and mantle sheet for a second look
+- 10:38:45 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/ceil_land.jpg
+- 10:39:03 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cs/lv_a.jpg
+- 10:39:42 A/B the camera pull-in rate on two routes: pops against lens-inside frames
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
 - godot/tests/bot_critic_snake.gd
 - godot/tests/dev_critic_snake_play.gd
+- docs/sprint/progress/w115-critic-look.md
+- godot/scripts/quantum/snake_swing.gd
+- godot/scripts/ui/hud.gd
+- godot/tests/test_critic_look_w115.gd
+- docs/shots/round6/critic115_look_iterations.md

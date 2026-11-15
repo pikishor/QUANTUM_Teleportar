@@ -77,6 +77,8 @@ var last_label := ""
 var jam_t := 0.0                           ## > 0 while a jammer keeps the snakes dead (jam(): the warden's phase pulse); the SNAKE and FLY presses do nothing and the button reads JAMMED
 var jams := 0                              ## times a jammer reached the hero (counter)
 
+var _glow_mode := -1                       ## the state whose suit glow is shown (_glow_tick)
+var _glow_t := 0.0
 var _snake_was := false
 var _fly_was := false
 var _jump_was := false
@@ -234,6 +236,7 @@ func tick(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: bool, jum
 func _tick_body(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: bool, jump_down: bool) -> bool:
 	p = pl
 	time += dt
+	_glow_tick(dt)
 	if InteriorSpace.active or InteriorGameplay.active:           # no swinging indoors: a state that was running is dropped, the button is hidden
 		if mode != Mode.NONE:
 			cancel()
@@ -310,6 +313,31 @@ func _tick_body(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: boo
 		if mode != Mode.NONE:
 			return true
 	return false
+
+
+## The suit answers the snakes (critic 115 look: HeroLook has a layer for exactly this, "flow: SWING, energy runs from the core to the hands" and "wings: FLIGHT, the wing mounts burn", and nothing
+## called it): the circuits flow while he swings, zips or climbs and the wing mounts burn in flight; a state that ends releases its layer. A power armed by the combat wave owns the hands
+## (SnakeWar sets the same flow layer in the colour of the power), so the traversal leaves that layer alone then. Cheap: it acts on a change of state and re-asserts twice a second.
+func _glow_tick(dt: float) -> void:
+	_glow_t -= dt
+	var changed := mode != _glow_mode
+	if not changed and _glow_t > 0.0:
+		return
+	_glow_t = 0.5
+	var was := _glow_mode
+	_glow_mode = mode
+	var flows := mode == Mode.SWING or mode == Mode.ZIP or mode == Mode.CLIMB
+	var flies := mode == Mode.FLY
+	var armed := SnakeWar.holding()
+	if changed:
+		if (was == Mode.SWING or was == Mode.ZIP or was == Mode.CLIMB) and not flows and not armed:
+			HeroLook.set_glow(Color.WHITE, 0.0, &"flow")
+		if was == Mode.FLY and not flies:
+			HeroLook.set_glow(Color.WHITE, 0.0, &"wings")
+	if flies:
+		HeroLook.set_glow(Color(0.55, 0.95, 1.0), 1.3, &"wings")
+	elif flows and not armed:
+		HeroLook.set_glow(Color(0.2, 0.95, 1.0), 1.5 if mode == Mode.SWING else 1.2, &"flow")
 
 
 ## Yaw the body faces while a snake state runs (NAN: the normal aim facing).
@@ -844,7 +872,7 @@ func button_label() -> String:
 	if jam_t > 0.0:
 		return "JAMMED"
 	match mode:
-		Mode.SWING: return "RELEASE"
+		Mode.SWING: return "LET GO"                                    # critic 115 look: one word for both (swing and climb): "RELEASE" had to be drawn a fifth smaller to fit the disc
 		Mode.CLIMB: return "LET GO"
 		Mode.FLY: return "BOOST"
 		Mode.ZIP: return "ZIP"

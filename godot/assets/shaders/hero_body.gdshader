@@ -315,6 +315,10 @@ void fragment() {
 				AO = o.r;
 				AO_LIGHT_AFFECT = 0.65;
 				emis = alb * 0.2 * (0.55 + 0.45 * v_nrm.y);
+				// wave 115 look critic: the boots, belt, carbon pack and cloth are the darkest gear of the suit and vanished into the night street as two flat black sausages in every frame of a flight, zip
+				// or swing seen from behind. A thin rim in the circuit colour on the grazing edge outlines them (dark metal 8, fabric and boots 9, cloth 13); plates and glow already read.
+				float dark_gear = step(7.5, kind) * (1.0 - step(9.5, kind)) + step(12.5, kind);
+				emis += glow_rgb * pow(1.0 - ndv2, 2.2) * 0.55 * dark_gear * glow;
 				nd = 1.0;
 			}
 		} else if (kind < 0.5) {

@@ -55,6 +55,9 @@ var wing_spread := 0.0                    ## 0..1 how far the wings are spread (
 var roll_land_t := 0.0                    ## > 0 while the landing roll plays after touching down
 var wings: Array[SnakeTendril] = []
 static var record_speed := 0.0            ## the hero's speed record of the session (the HUD shows it)
+static var clip_wings := true             ## the wing tips stop at walls (a look-dev bot and a test switch it off to show the old look)
+var _tip_frame: Array[int] = [-1, -1]      ## the clipped wing tips of this frame (left, right): see _keep_out_of_walls
+var _tip_cache: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var _side_tap_t := 0.0
 var _side_last := 0.0
 var _prev_pos := Vector3.ZERO
@@ -143,13 +146,40 @@ func _wing_tip(p: Player, side: int) -> Vector3:
 	var up := Vector3.UP
 	var right := fwd.cross(up)
 	right = right.normalized() if right.length() > 0.05 else Vector3.RIGHT
+	if roll_t > 0.0:                                                  # critic 115 look: a barrel roll turned the hero but not his wings (SnakePose rolls the body, the wings stayed level like a gyroscope): they roll with him
+		var rb := Basis(fwd, roll_dir * (1.0 - roll_t / ROLL_TIME) * TAU)
+		right = rb * right
+		up = rb * up
 	var spd := clampf(speed / maxf(SnakePower.fly_boost(), 1.0), 0.0, 1.0)
 	var spread := wing_spread
 	var span := lerpf(3.0, 4.8, spread) - 0.7 * spd                 # render loop 12: swept far back (4 m) the tips came at the camera and the wings filled the screen; now they open sideways
 	var back := lerpf(0.6, 2.4, spd) + 0.5 * (1.0 - spread)
 	var lift := lerpf(0.5, 2.0, spread) - 0.3 * spd + 0.5 * bank * float(side)
 	var chest := p.global_position + Vector3(0.0, 1.15, 0.0)
-	return chest - fwd * back + right * (float(side) * span) + up * lift
+	var tip := chest - fwd * back + right * (float(side) * span) + up * lift
+	return _keep_out_of_walls(p, chest, tip, side)
+
+
+## Critic 115 look: a wing 5 m long went straight through the facade the hero flew along (the left wing vanished into the building in the render of the city run). One ray per wing and frame (cached,
+## the tendril asks for the tip more than once a frame): the tip stops 35 cm short of the first wall, never nearer than 0.6 m to the chest.
+func _keep_out_of_walls(p: Player, chest: Vector3, tip: Vector3, side: int) -> Vector3:
+	var frame := Engine.get_process_frames()
+	var slot := 0 if side < 0 else 1
+	if _tip_frame[slot] == frame:
+		return _tip_cache[slot]
+	var out := tip
+	var reach := chest.distance_to(tip)
+	if clip_wings and reach > 0.7 and p.is_inside_tree():
+		_rq.collision_mask = Game.L_WORLD
+		_rq.from = chest
+		_rq.to = tip
+		var hit := p.get_world_3d().direct_space_state.intersect_ray(_rq)
+		if not hit.is_empty():
+			var at := chest.distance_to(hit["position"] as Vector3)
+			out = chest + (tip - chest) / reach * clampf(at - 0.35, 0.6, reach)
+	_tip_frame[slot] = frame
+	_tip_cache[slot] = out
+	return out
 
 
 func roll_request(side: float) -> void:
@@ -286,12 +316,13 @@ func tick(p: Player, dt: float, iv: Vector2, aim: Vector3, jump_held: bool, crou
 	pitch = asin(clampf(dir.y, -1.0, 1.0))
 	wing_spread = PlayerUtil.damp(wing_spread, 1.0 if (phase == &"hover" or phase == &"glide" or phase == &"takeoff") else (0.15 if boosting else 0.0), 5.0, dt)
 	var spd_k := clampf(speed / maxf(SnakePower.fly_boost(), 1.0), 0.0, 1.0)
+	var wing_up := Vector3.UP if roll_t <= 0.0 else Basis(dir, roll_dir * (1.0 - roll_t / ROLL_TIME) * TAU) * Vector3.UP        # the arch of a wing follows the roll too
 	for wi in wings.size():
 		var w := wings[wi]
 		if w == null or not w.is_alive():
 			continue
 		w.tension = 0.85
-		w.bow = Vector3.UP * lerpf(1.7, 0.5, spd_k) * (0.55 + 0.45 * wing_spread) - dir * 0.5 * spd_k + Vector3.UP * (0.4 * bank * (1.0 if wi == 0 else -1.0))
+		w.bow = wing_up * lerpf(1.7, 0.5, spd_k) * (0.55 + 0.45 * wing_spread) - dir * 0.5 * spd_k + wing_up * (0.4 * bank * (1.0 if wi == 0 else -1.0))
 		w.flutter = 0.12 + 0.3 * wing_spread + 0.1 * spd_k
 	# ---- velocity
 	var right_h := Vector3(-dir.z, 0.0, dir.x)

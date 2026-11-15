@@ -374,7 +374,7 @@ func cast(id: StringName, force := false) -> bool:
 
 # --- the aim preview ---------------------------------------------------------------------------------------------------------------
 
-func _update_preview(dt: float) -> void:
+func _update_preview(dt: float, aim_at := Vector3.INF) -> void:                  # aim_at: the pre-warm (SnakeWarm) puts the rings and the wall in front of the camera
 	if p.weapon == null:
 		return
 	if _la == null:
@@ -390,7 +390,7 @@ func _update_preview(dt: float) -> void:
 		if e.is_empty():
 			return
 		var dv: Dictionary = e["deliver"]
-		var pt := SnakeAim.point(p, reach)
+		var pt := SnakeAim.point(p, reach) if aim_at == Vector3.INF else aim_at
 		var d := {"bid": armed, "range": reach, "speed": float(dv.get("speed", 20.0)), "grav": float(dv.get("grav", 22.0)), "blast_radius": float(e["radius"])}
 		_la.landing = pt
 		_la.target = null
@@ -416,7 +416,7 @@ func _update_preview(dt: float) -> void:
 	var area := float(row.get("radius", 0.0))
 	var ring_at := Vector3.INF
 	if armed == &"sv_net" or armed == &"sv_trap":                           # (the shield has no ring: it is centred on the hero and a disc round the feet filled the bottom of the phone frame)
-		ring_at = SnakeAim.ground_under(p, SnakeAim.point(p, reach))
+		ring_at = SnakeAim.ground_under(p, SnakeAim.point(p, reach) if aim_at == Vector3.INF else aim_at)
 	if ring_at != Vector3.INF:
 		_la._ring.visible = true
 		_la._ring.global_position = ring_at + Vector3(0.0, 0.07, 0.0)

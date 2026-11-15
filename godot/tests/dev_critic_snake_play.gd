@@ -41,6 +41,8 @@ func run(h: Node) -> void:
 	SnakeTraversal.assist = true
 	Difficulty.set_mode(int(OS.get_environment("CP_DIFF")) if OS.get_environment("CP_DIFF") != "" else 1)
 	var secs := float(OS.get_environment("CP_SECS")) if OS.get_environment("CP_SECS") != "" else 90.0
+	if OS.get_environment("CP_PULL") != "":
+		CameraRig.snake_pull_in = float(OS.get_environment("CP_PULL"))                  # A/B of the camera pull-in rate (1e6 = the old cut)
 	var start := Vector3(-30.0, 0.0, 4.0)
 	var start_yaw := -PI * 0.5
 	if OS.get_environment("CP_START") != "":
@@ -48,8 +50,14 @@ func run(h: Node) -> void:
 		start = Vector3(float(sp[0]), 0.0, float(sp[1]))
 		start_yaw = float(sp[2])
 	var city := Game.world as City
+	if OS.get_environment("CP_BARE") == "1":
+		TrafficField.bare_street()                                   # parked and driving cars are anchors too (and move): a run about the buildings
+	if OS.get_environment("CP_GOALS") != "":                        # "x,z;x,z": the same route every run (the random core road points differ from run to run)
+		for g in OS.get_environment("CP_GOALS").split(";", false):
+			var gp := g.split(",")
+			goals.append(Vector3(float(gp[0]), 0.0, float(gp[1])))
 	var pts: Array[Vector3] = []
-	for i in 40:
+	for i in (0 if not goals.is_empty() else 40):
 		var rp: Vector3 = city.random_core_road_point()
 		if rp.is_finite():
 			pts.append(rp)
@@ -87,6 +95,14 @@ func run(h: Node) -> void:
 	var counts := {"frames": 0, "pops": 0, "inside": 0, "occluded": 0, "stuck": 0, "prompt_air": 0, "obstructed": 0, "hero_hidden_long": 0}
 	var logged := {"pops": 0, "inside": 0, "occluded": 0, "prompt_air": 0}
 	var max_pop := 0.0
+	var max_acc := 0.0
+	var hist: Array = []
+	var in_run := 0
+	var max_in_run := 0
+	var hero_jumps := 0
+	var prev_pos := Vector3.ZERO
+	var big_pops := 0
+	var prev_v := Vector3.ZERO
 	var stuck_t := 0.0
 	var occ_run := 0.0
 	var max_occ_run := 0.0
@@ -162,7 +178,25 @@ func run(h: Node) -> void:
 				counts["pops"] = int(counts["pops"]) + 1
 				if int(logged["pops"]) < 14:
 					logged["pops"] = int(logged["pops"]) + 1
-					print("CP   pop %.2f m at t=%.2f mode %d hero (%.0f, %.0f, %.0f) v %.1f cam dist %.2f" % [pop, t, sn.mode, pos.x, pos.y, pos.z, p.velocity.length(), rel.length()])
+					var cr := p.camera_rig
+					print("CP   pop %.2f m at t=%.2f mode %d hero (%.0f, %.0f, %.0f) v %.1f cam dist %.2f | ratio %.2f arm_raw %.2f through_wall %s door_tight %.2f cam.dist_add %.2f swing_ph %s" % [pop, t, sn.mode, pos.x, pos.y, pos.z, p.velocity.length(), rel.length(), cr._ratio, cr._arm_raw, str(cr.through_wall), cr.door_tight, sn.cam.dist_add, str(sn.swing.phase)])
+		if prev_pos != Vector3.ZERO and last_mode == sn.mode:
+			var step_len := (pos - prev_pos).length()
+			var allowed := p.velocity.length() * dt * 1.6 + 1.2
+			if step_len > allowed:
+				hero_jumps += 1
+				if int(logged.get("hjump", 0)) < 8:
+					logged["hjump"] = int(logged.get("hjump", 0)) + 1
+					print("CP   hero jumped %.1f m in one frame (allowed %.1f) at t=%.2f mode %d ph %s from (%.1f %.1f %.1f) to (%.1f %.1f %.1f) v %.1f rope %.1f goal %.1f" % [step_len, allowed, t, sn.mode, str(sn.swing.phase), prev_pos.x, prev_pos.y, prev_pos.z, pos.x, pos.y, pos.z, p.velocity.length(), sn.swing.rope, sn.swing.rope_goal])
+		prev_pos = pos
+		var cr2 := p.camera_rig
+		hist.append("t=%.2f mode %d ph %s pos (%.1f %.1f %.1f) cam (%.1f %.1f %.1f) yaw %.3f pitch %.3f ratio %.2f raw %.2f dadd %.2f hadd %.2f fov %.1f v %.1f" % [t, sn.mode, str(sn.swing.phase), pos.x, pos.y, pos.z, cam.global_position.x, cam.global_position.y, cam.global_position.z, cr2.yaw, cr2.pitch, cr2._ratio, cr2._arm_raw, sn.cam.dist_add, sn.cam.height_add, cam.fov, p.velocity.length()])
+		if hist.size() > 6:
+			hist.pop_front()
+		if big_pops < 6 and prev_cam != Vector3.ZERO and ((cam.global_position - prev_cam) - (pos - (prev_cam - prev_rel))).length() > 1.8:
+			big_pops += 1
+			for hl in hist:
+				print("CP   hist ", hl)
 		prev_cam = cam.global_position
 		prev_rel = rel
 		var q := PhysicsRayQueryParameters3D.create(cam.global_position, pos + Vector3(0, 1.0, 0), Game.L_WORLD)
@@ -173,19 +207,33 @@ func run(h: Node) -> void:
 			max_occ_run = maxf(max_occ_run, occ_run)
 			if int(logged["occluded"]) < 8:
 				logged["occluded"] = int(logged["occluded"]) + 1
-				print("CP   hero hidden at t=%.2f mode %d hero (%.0f, %.0f, %.0f) cam dist %.2f hit %s" % [t, sn.mode, pos.x, pos.y, pos.z, rel.length(), str(hit.get("collider"))])
+				var hc := hit.get("collider") as Node
+				print("CP   hero hidden at t=%.2f mode %d hero (%.0f, %.0f, %.0f) cam dist %.2f hit %s at %s (hero side: %.2f m from the camera) ratio %.2f arm_raw %.2f" % [t, sn.mode, pos.x, pos.y, pos.z, rel.length(), hc.name if hc != null else "?", str(hit.get("position")), cam.global_position.distance_to(hit["position"]), p.camera_rig._ratio, p.camera_rig._arm_raw])
 		else:
 			occ_run = 0.0
 		var pq := PhysicsPointQueryParameters3D.new()
 		pq.position = cam.global_position
 		pq.collision_mask = Game.L_WORLD
-		if not space.intersect_point(pq, 1).is_empty():
+		if space.intersect_point(pq, 1).is_empty():
+			in_run = 0
+		else:
+			in_run += 1
+			max_in_run = maxi(max_in_run, in_run)
 			counts["inside"] = int(counts["inside"]) + 1
 			if int(logged["inside"]) < 8:
 				logged["inside"] = int(logged["inside"]) + 1
 				print("CP   lens inside a collider at t=%.2f mode %d hero (%.0f, %.0f, %.0f) cam dist %.2f" % [t, sn.mode, pos.x, pos.y, pos.z, rel.length()])
 		if p.camera_rig.is_obstructed():
 			counts["obstructed"] = int(counts["obstructed"]) + 1
+		if sn.mode == SnakeTraversal.Mode.SWING and sn.swing.phase == &"hang":
+			var acc := (p.velocity - prev_v).length() / dt
+			max_acc = maxf(max_acc, acc)
+			if acc > 90.0:
+				counts["jerk"] = int(counts.get("jerk", 0)) + 1
+				if int(logged.get("jerk", 0)) < 6:
+					logged["jerk"] = int(logged.get("jerk", 0)) + 1
+					print("CP   swing acceleration %.0f m/s2 at t=%.2f hero (%.0f, %.0f, %.0f) v %.1f rope %.1f angle %.2f" % [acc, t, pos.x, pos.y, pos.z, p.velocity.length(), sn.swing.rope, sn.swing.rope_angle])
+		prev_v = p.velocity
 		if sn.mode == SnakeTraversal.Mode.SWING and p.velocity.length() < 4.0:
 			stuck_t += dt
 			if stuck_t > 1.0:
@@ -209,6 +257,9 @@ func run(h: Node) -> void:
 	for k in mode_time:
 		parts.append("%s %.1f s" % [names.get(k, str(k)), float(mode_time[k])])
 	print("CP RESULT frames %d  pops(>0.9 m) %d (max %.2f m)  lens inside collider %d  hero hidden %d frames (longest %.2f s)  obstructed %d  stuck-swing frames %d  vehicle prompt in the air %d" % [int(counts["frames"]), int(counts["pops"]), max_pop, int(counts["inside"]), int(counts["occluded"]), max_occ_run, int(counts["obstructed"]), int(counts["stuck"]), int(counts["prompt_air"])])
+	print("CP RESULT longest run of frames with the lens inside a collider: %d" % max_in_run)
+	print("CP RESULT hero jumps (a frame that moved him more than 1.6 x his speed + 1.2 m): ", hero_jumps)
+	print("CP RESULT swing hang: max acceleration %.0f m/s2, frames over 90 m/s2: %d" % [max_acc, int(counts.get("jerk", 0))])
 	print("CP RESULT time in ", ", ".join(parts), "  swings ", sn.swings, " zips ", sn.zips, " climbs ", sn.climbs, " flights ", sn.flights, " mantles ", sn.climb.mantles, " best chain ", sn.swing.best_chain)
 	print("CP RESULT prompts shown while a state ran or in the air: ", prompts)
 	sn.cancel()

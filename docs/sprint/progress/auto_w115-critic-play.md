@@ -1,56 +1,58 @@
 # w115-critic-play (running)
 
-agent id a3b53eaea3befc874, 483 events, first activity 2026-11-15T07:50:55.534Z, last activity 2026-11-15T08:48:02.754Z
+agent id a3b53eaea3befc874, 987 events, first activity 2026-11-15T07:50:55.534Z, last activity 2026-11-15T10:35:49.456Z
 
 ## Last notes of the agent
 
-- 07:50:58 I'll start by orienting in the repo: roadmap, round-6 plan, resume procedure, and the wave 115 work.
-- 08:24:16 Now the D4 fix: a snake power is put away when the player asks for a gun, by every route.
 - 08:24:30 Now the wheel: every pick that equips a gun puts the power away.
 - 08:24:44 Now the one-time hint that tells a new player how to get the gun back, with its ES and HI strings.
+- 09:07:34 Now a first-use probe for the snake effects, built on the repo's own warm probe.
+- 09:22:17 Now the pre-warm for the snake visuals, so the first swing, the first verb and the first bomb no longer compile pipelines on the spot.
+- 10:26:19 Now add the constant near the other constants of snake_missions.gd.
+- 10:30:59 Now add the `_tutorial_roofs` function at the end of the test file.
 
 ## Recent steps (last 40)
 
-- 08:25:51 Keep flight open between tutorial steps and reset it in reset_flags
-- 08:25:56 Verify the gun-return and air-tap fixes with the probes
-- 08:27:11 Outline the builders' snake combat test
-- 08:27:23 Read the hints section of the combat test
-- 08:27:34 Read the combat test staging and enemy spawn APIs
-- 08:27:41 Read the enemy type table head and snake id lists
-- 08:27:51 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_holds.gd
-- 08:28:13 /home/user/QUANTUM_Teleportar/godot/tests/dev_w115p_verbs.gd
-- 08:28:16 Run the live-enemy verb probe on a small matrix first
-- 08:29:08 Read the lash row and its implementation
-- 08:29:17 Run the full live-enemy verb matrix
-- 08:33:32 /home/user/QUANTUM_Teleportar/godot/tests/dev_w115p_bombs.gd
-- 08:33:34 Run the twelve-bomb radius ring versus damage probe
-- 08:34:44 See how existing tests set a phone-sized viewport
-- 08:34:46 Read how test_hud_camera_final sets sizes and checks overlaps
-- 08:35:04 Check fall damage handling in the player
-- 08:35:06 Read the landing handler for fall damage
-- 08:35:39 Re-run the world missions test after the board fix
-- 08:36:43 Run the snake combat test after my edits
-- 08:37:50 Run the snake traversal test after my edits
-- 08:39:56 Look at the terrain API and its collider streaming
-- 08:39:58 Read terrain_world header and the height function
-- 08:40:18 Write a terrain flight probe and check the TerrainHeight API name
-- 08:40:20 List TerrainHeight static API
-- 08:40:24 Run low boosted flights over the outskirts east and south
-- 08:42:33 Find where the snake missions are referenced
-- 08:42:39 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_verbs.gd
-- 08:42:58 Read the skill tree changes of wave 115
-- 08:43:17 Measure the CPU cost of the anchor searches
-- 08:43:58 Check how the snake abilities drive the hero glow
-- 08:44:06 Read SnakeTendril.fire and the pool allocation
-- 08:44:09 Read the pool add and retire logic
-- 08:44:26 Find the death and respawn flow
-- 08:44:27 Read Game.die and the respawn function
-- 08:44:44 Probe death and respawn in every snake state
-- 08:45:32 Read shield_absorb
-- 08:45:41 Read the shield test to see what it expects at the break
-- 08:46:02 Measure what a first tap on SNAKE does on a street
-- 08:47:59 Add a combat mode to the monkey
-- 08:48:02 Run the combat plus traffic monkey for 12 episodes
+- 10:17:08 Wait for the legs probe to finish and show results
+- 10:19:13 
+- 10:19:17 Run the structural swingable-pick probe
+- 10:20:06 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_missions.gd
+- 10:20:10 Re-run the structural probe with ten candidates
+- 10:20:50 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_anchor.gd
+- 10:21:13 Add the anchor predicate to the legs probe output
+- 10:21:20 Start the legs probe with the anchor predicate in the background
+- 10:21:54 Wait for the legs probe with the predicate
+- 10:26:18 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_missions.gd
+- 10:26:20 
+- 10:26:22 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_missions.gd
+- 10:26:27 Run the structural and legs probes with the level-leg picker in the background
+- 10:26:32 Locate the PLAY critic sections in the docs
+- 10:26:34 /home/user/QUANTUM_Teleportar/godot/ARCHITECTURE.md
+- 10:26:34 /home/user/QUANTUM_Teleportar/docs/HANDOFF.md
+- 10:26:46 Wait for the structural probe result
+- 10:27:05 Wait for the legs probe with the level-leg picker
+- 10:30:18 Show details of the failing anchored legs
+- 10:30:39 /home/user/QUANTUM_Teleportar/godot/tests/test_play_critic_w115.gd
+- 10:30:56 /home/user/QUANTUM_Teleportar/godot/tests/test_play_critic_w115.gd
+- 10:30:57 /home/user/QUANTUM_Teleportar/godot/tests/test_play_critic_w115.gd
+- 10:30:59 Check the end of the test file
+- 10:31:08 Append the tutorial roofs section to the regression test
+- 10:31:13 Run the PLAY critic regression test
+- 10:32:07 Run the PLAY critic test and show the result lines
+- 10:32:58 Mutation check of the swing-aware picker, then restore
+- 10:33:49 Find localisation tests
+- 10:33:55 Start the batch of related tests in the background
+- 10:34:16 
+- 10:34:18 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_swarm.gd
+- 10:34:18 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_swarm.gd
+- 10:34:19 /home/user/QUANTUM_Teleportar/godot/scripts/quantum/snake_tendril_pool.gd
+- 10:34:33 /home/user/QUANTUM_Teleportar/godot/ARCHITECTURE.md
+- 10:34:39 /home/user/QUANTUM_Teleportar/godot/ARCHITECTURE.md
+- 10:34:53 Update the Open list and add the perf bullet in ARCHITECTURE.md
+- 10:35:18 Update the PLAY lens section in HANDOFF.md
+- 10:35:22 Check the test batch progress
+- 10:35:27 List the git status of the files this critic touched
+- 10:35:49 Poll the test batch for up to 9 minutes
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
@@ -67,3 +69,8 @@ agent id a3b53eaea3befc874, 483 events, first activity 2026-11-15T07:50:55.534Z,
 - godot/scripts/ui/weapon_wheel.gd
 - godot/tests/dev_w115p_verbs.gd
 - godot/tests/dev_w115p_bombs.gd
+- godot/scripts/quantum/snake_pose.gd
+- godot/tests/test_play_critic_w115.gd
+- godot/scripts/quantum/snake_warm.gd
+- godot/scripts/quantum/snake_missions.gd
+- godot/ARCHITECTURE.md

@@ -1238,8 +1238,8 @@ func hint_text() -> String:
 	var vp := Freedom.vehicle_prompt()                      # HIJACK TAXI / ENTER BUS
 	if vp != "":
 		return key + vp
-	if Game.vehicles.has_method(&"nearest") and Game.vehicles.call(&"nearest", Game.player.global_position, REACH) != null:
-		return key + "ENTER VEHICLE"
+	if not Game.vehicles.has_method(&"reach_car") and Game.vehicles.has_method(&"nearest") and Game.vehicles.call(&"nearest", Game.player.global_position, REACH) != null:
+		return key + "ENTER VEHICLE"           # (the old fallback: `nearest` measures the flat distance only, so a hero swinging or flying 20 to 70 m over a car was offered "ENTER VEHICLE"; reach_car, used above, checks the height)
 	return Freedom.roam_hint()                              # a photo spot, the running world event (scripts/roam/): the quietest line
 
 

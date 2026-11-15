@@ -86,6 +86,7 @@ func _setup() -> void:
 	_p.hp = 1.0e6
 	TestMode.god = true
 	SnakeTraversal.assist = true
+	SnakeFlight.clip_wings = OS.get_environment("CS_NOCLIP") != "1"
 	var city := Game.world as City
 	if OS.get_environment("CS_HOUR") != "" and city != null and city.day_night != null:
 		city.day_night.frozen = true
@@ -316,12 +317,18 @@ func _plan_for(name: String) -> Array:
 				{"t": 1.0, "act": "shot", "label": "b_takeoff"}, {"t": 1.4, "act": "shot", "label": "c_takeoff"}, {"t": 1.9, "act": "press", "a": &"move_forward"}, {"t": 2.4, "act": "shot", "label": "d_cruise"},
 				{"t": 3.4, "act": "shot", "label": "e_cruise"}, {"t": 4.0, "act": "press", "a": &"snake"}, {"t": 4.5, "act": "shot", "label": "f_boost"}, {"t": 5.2, "act": "shot", "label": "g_boost"},
 				{"t": 6.0, "act": "release", "a": &"snake"}, {"t": 6.1, "act": "release", "a": &"move_forward"}, {"t": 6.8, "act": "shot", "label": "h_glide"}, {"t": 7.6, "act": "shot", "label": "i_hover"}, {"t": 8.0, "act": "end"}]
+		"fly_wall":
+			return [{"t": 0.1, "act": "tp", "pos": Vector3(-45.0, 35.0, 12.2), "yaw": -PI * 0.5, "pitch": 0.05}, {"t": 0.5, "act": "tap", "a": &"fly"}, {"t": 1.2, "act": "press", "a": &"move_forward"},
+				{"t": 1.8, "act": "shot", "label": "a"}, {"t": 2.2, "act": "shot", "label": "b"}, {"t": 2.6, "act": "shot", "label": "c"}, {"t": 3.0, "act": "shot", "label": "d"}, {"t": 3.4, "act": "shot", "label": "e"},
+				{"t": 3.8, "act": "shot", "label": "f"}, {"t": 4.2, "act": "release", "a": &"move_forward"}, {"t": 4.4, "act": "end"}]
 		"dive_roll":
-			return [{"t": 0.1, "act": "tp", "pos": Vector3(-30.0, 0.0, 4.0), "yaw": -PI * 0.5, "pitch": 0.12}, {"t": 0.8, "act": "tap", "a": &"fly"}, {"t": 1.9, "act": "press", "a": &"move_forward"},
-				{"t": 3.0, "act": "look", "yaw": -PI * 0.5, "pitch": -0.55}, {"t": 3.4, "act": "shot", "label": "a_dive"}, {"t": 3.9, "act": "shot", "label": "b_dive"}, {"t": 4.4, "act": "shot", "label": "c_dive"},
-				{"t": 4.9, "act": "look", "yaw": -PI * 0.5, "pitch": 0.1}, {"t": 5.6, "act": "shot", "label": "d_pullout"},
-				{"t": 6.0, "act": "press", "a": &"move_right"}, {"t": 6.05, "act": "release", "a": &"move_right"}, {"t": 6.2, "act": "press", "a": &"move_right"}, {"t": 6.25, "act": "release", "a": &"move_right"},
-				{"t": 6.45, "act": "shot", "label": "e_roll"}, {"t": 6.7, "act": "shot", "label": "f_roll"}, {"t": 7.0, "act": "shot", "label": "g_roll"}, {"t": 7.6, "act": "shot", "label": "h_after"}, {"t": 8.2, "act": "end"}]
+			return [{"t": 0.1, "act": "tp", "pos": Vector3(-30.0, 160.0, 4.0), "yaw": -PI * 0.5, "pitch": 0.1}, {"t": 0.5, "act": "tap", "a": &"fly"}, {"t": 1.2, "act": "press", "a": &"move_forward"},
+				{"t": 2.4, "act": "shot", "label": "a_level"}, {"t": 2.5, "act": "look", "yaw": -PI * 0.5, "pitch": -0.7}, {"t": 3.0, "act": "shot", "label": "b_dive"}, {"t": 3.5, "act": "shot", "label": "c_dive"},
+				{"t": 4.0, "act": "shot", "label": "d_dive"}, {"t": 4.1, "act": "look", "yaw": -PI * 0.5, "pitch": 0.05},
+				{"t": 4.7, "act": "shot", "label": "e_pullout"}, {"t": 4.9, "act": "release", "a": &"move_forward"}, {"t": 5.0, "act": "press", "a": &"move_right"}, {"t": 5.05, "act": "release", "a": &"move_right"},
+				{"t": 5.18, "act": "press", "a": &"move_right"}, {"t": 5.23, "act": "release", "a": &"move_right"}, {"t": 5.3, "act": "shot", "label": "f_roll"}, {"t": 5.5, "act": "shot", "label": "g_roll"},
+				{"t": 5.7, "act": "shot", "label": "h_roll"}, {"t": 5.9, "act": "shot", "label": "i_roll"}, {"t": 6.1, "act": "press", "a": &"move_forward"}, {"t": 6.8, "act": "shot", "label": "j_after"},
+				{"t": 7.0, "act": "release", "a": &"move_forward"}, {"t": 7.2, "act": "end"}]
 		"landing":
 			return [{"t": 0.1, "act": "tp", "pos": Vector3(-30.0, 0.0, 4.0), "yaw": -PI * 0.5, "pitch": 0.12}, {"t": 0.8, "act": "tap", "a": &"fly"}, {"t": 1.9, "act": "press", "a": &"move_forward"},
 				{"t": 3.5, "act": "release", "a": &"move_forward"}, {"t": 3.6, "act": "tap", "a": &"fly"}, {"t": 4.0, "act": "shot", "label": "a_request"}, {"t": 4.5, "act": "look", "yaw": -PI * 0.5, "pitch": -0.3},

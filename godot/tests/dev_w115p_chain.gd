@@ -21,6 +21,9 @@ var _cam_blocked := 0
 var _cam_inside := 0
 var _cam_jumps: Array[String] = []
 var _cam_jump_n := 0
+var _rel_prev := Vector3.ZERO
+var _rel_jumps := 0
+var _rel_events: Array[String] = []
 var _cam_inside_real := 0
 var _cam_through := 0
 var _cam_frames := 0
@@ -104,6 +107,14 @@ func _cam_frame() -> void:
 			_cam_inside_real += 1
 			if _cam_events.size() < 12:
 				_cam_events.append("t %.1f %s lens INSIDE a collider (not the designed through-the-facade case) at %s, hero %.1f m/s" % [_t, sn.mode_name(), str(cp.snapped(Vector3(0.1, 0.1, 0.1))), p.velocity.length()])
+	var rel := cp - head
+	if _cam_have:
+		var rj := rel.distance_to(_rel_prev)                                # the lens against the hero (his own motion removed)
+		if rj > 1.2:
+			_rel_jumps += 1
+			if _rel_events.size() < 14:
+				_rel_events.append("t %.1f %s lens moved %.2f m against the hero in one frame (arm now %.2f, was %.2f; ratio %.2f; through_wall %s; hero %.1f m/s; snake cam dist+%.2f fov+%.1f)" % [_t, sn.mode_name(), rj, rel.length(), _rel_prev.length(), p.camera_rig._ratio, str(p.camera_rig.through_wall), p.velocity.length(), sn.cam.dist_add, sn.cam.fov_add])
+	_rel_prev = rel
 	if _cam_have:
 		var jump := cp.distance_to(_cam_prev)
 		var allow := p.velocity.length() * 0.05 + 1.2                      # up to ~50 ms of hero travel plus a margin
@@ -170,6 +181,8 @@ func run(h: Node) -> void:
 		_cam_inside_real = 0
 		_cam_through = 0
 		_cam_jump_n = 0
+		_rel_jumps = 0
+		_rel_events.clear()
 		_cam_frames = 0
 		_cam_have = false
 		_have_prev = false
@@ -237,8 +250,9 @@ func run(h: Node) -> void:
 			print("CH      REV ", l)
 		for l in _cam_events.slice(0, 6):
 			print("CH      CAM ", l)
-		for l in _cam_jumps.slice(0, 4):
-			print("CH      CAMJ ", l)
+		print("CH    lens moved against the hero by more than 1.2 m in one frame: %d of %d frames" % [_rel_jumps, _cam_frames])
+		for l in _rel_events.slice(0, 10):
+			print("CH      RELJ ", l)
 		_t = 0.0
 	host.get_tree().process_frame.disconnect(_cam_frame)
 	Engine.time_scale = 1.0

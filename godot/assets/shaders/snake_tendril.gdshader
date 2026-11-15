@@ -73,6 +73,9 @@ void vertex() {
 	} else {
 		r *= sqrt(clamp(d / (thick * 2.0), 0.0, 1.0));
 	}
+	// wave 115 look critic: a body close to the lens was a screen-filling band (the rope that passes the camera in every swing, the head that leaves the hand: 80 to 100 px wide in a 1200 px frame):
+	// it slims down within about 3 m of the camera, to 40 % of its radius at 0.7 m.
+	r *= mix(0.4, 1.0, smoothstep(0.7, 3.2, length(pos - CAMERA_POSITION_WORLD)));
 	float a2 = ang + u * len * 0.35;
 	vec3 radial = bn * cos(a2) * sx + nn * sin(a2) * sy;
 	VERTEX = pos + radial * r;

@@ -30,6 +30,8 @@ const BODY_CENTRE := 1.25               ## metres above the feet where the rope 
 const CLEAR := 9.0                      ## the lowest point of a swing keeps this much air under it: a rope that is longer than anchor height minus this is reeled in (measured: a 51 m rope on a 49 m high anchor put the hero into the street)
 static var reel_on := true                ## dev probes switch the clearance reel off to compare
 const REEL_SPEED := 40.0                ## m/s the snake pulls the hero in when it shortens the rope
+static var reel_slack := 1.0            ## the rope only reels in while the hero is at most this many metres beyond its end: a body that cannot follow (a facade, the street) stops the reel instead of building a debt (a test sets 1e9 to show the old fling)
+static var max_correction := 1.5        ## metres the rope sphere may move the body in ONE physics tick (90 m/s): the old unlimited pull flung a held hero up to 12 m in a frame
 
 ## tunables of the feel (static so a probe can sweep them: tests/dev_snake_chain.gd reads SC_* variables)
 static var assist_acc := 8.5            ## m/s^2 along the motion on the way down (assist on)
@@ -229,11 +231,11 @@ func _bite(p: Player) -> void:
 func _tick_hang(p: Player, dt: float, wish: Vector3, hold: bool, jump_pressed: bool) -> bool:
 	_anchor_now()
 	_hang_t += dt
-	if rope > rope_goal:
-		rope = maxf(rope_goal, rope - REEL_SPEED * dt)
 	var c := p.global_position + Vector3(0.0, BODY_CENTRE, 0.0)
 	var r := c - anchor
 	var d := maxf(r.length(), 0.001)
+	if rope > rope_goal and d <= rope + reel_slack:        # critic 115 look: the rope only reels in while the hero keeps up with it. A hero held by a facade or the street used to leave the rope shorter and shorter than his distance (a "debt" of up to 25 m) and was flung 6 to 12 m in ONE frame when he got free
+		rope = maxf(rope_goal, rope - REEL_SPEED * dt)
 	var rn := r / d
 	var v := p.velocity
 	v.y -= GRAVITY * dt
@@ -269,6 +271,8 @@ func _tick_hang(p: Player, dt: float, wish: Vector3, hold: bool, jump_pressed: b
 	var d2 := r2.length()
 	if d2 > rope:
 		var corr := anchor + r2 / d2 * rope - c2
+		if corr.length() > max_correction:                # never a teleport: the sphere pulls the body back at most this far per tick (a rope that bit from beyond its range, a moving anchor)
+			corr = corr.normalized() * max_correction
 		p.move_and_collide(corr)
 		var rn2 := (p.global_position + Vector3(0.0, BODY_CENTRE, 0.0) - anchor).normalized()
 		var vr2 := v.dot(rn2)

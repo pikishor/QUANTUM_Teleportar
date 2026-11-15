@@ -175,6 +175,9 @@ func update(st: SnakeTraversal, dt: float) -> void:
 			else:
 				bt = 0.0
 				want_b = yaw_b
+	if not (want_b.x.is_finite() and want_b.y.is_finite() and want_b.z.is_finite()) or want_b.x.length() < 0.5 or want_b.y.length() < 0.5 or want_b.z.length() < 0.5:
+		want_b = yaw_b                                                          # wave 115 critic: a degenerate pose basis (a zip to a moving car, a zero-length direction) printed "Basis must be normalized" every frame
+	want_b = want_b.orthonormalized()
 	if _first:
 		_q = Quaternion(want_b)
 		_first = false
