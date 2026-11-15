@@ -852,6 +852,19 @@ func _update_view(dt: float) -> void:
 	door_tight = tight_t if dt <= 0.0 else PlayerUtil.damp(door_tight, tight_t, 4.0 if tight_t > door_tight else 2.2, dt)
 	height += minf(DOOR_LIFT, DOOR_LIFT_K * sqrt(shoulder * shoulder + dist * dist) * _ratio) * door_tight
 	fov_target += DOOR_FOV * door_tight
+	var snk: SnakeTraversal = _player.snake if (_player != null and not drv) else null            # QUANTUM SNAKES: a longer arm, a wider lens, a bank and a lean after the direction of travel (scripts/quantum/snake_camera.gd)
+	if snk != null:
+		snk.cam.update(snk, dt, free_look > 0.0)
+		if snk.cam.active:
+			dist += snk.cam.dist_add
+			height += snk.cam.height_add
+			shoulder *= snk.cam.shoulder_k
+			fov_target += snk.cam.fov_add
+			if playing and dt > 0.0:
+				if not is_nan(snk.cam.yaw_to):
+					yaw = PlayerUtil.damp_angle(yaw, snk.cam.yaw_to, snk.cam.yaw_rate, dt)
+				if not is_nan(snk.cam.pitch_to):
+					pitch = PlayerUtil.damp(pitch, snk.cam.pitch_to, snk.cam.pitch_rate, dt)
 	if _orbit_w > 0.001:
 		dist = lerpf(dist, ORBIT_DIST, _orbit_w)
 		shoulder = lerpf(shoulder, 0.0, _orbit_w)
@@ -954,7 +967,7 @@ func _update_view(dt: float) -> void:
 	var gait_bob := body_loco != null and body_loco.rig != null and speed_h > 0.5 and _player.is_on_floor()
 	if gait_bob:                                    # the bob follows the hero's own steps (two bumps per gait cycle, a continuous phase), so the camera never beats against the feet
 		_bob_t = body_loco.rig.phase * 2.0
-	var roll_target := -strafe * 0.014 * (1.0 - ads_s) + sin(_bob_t * 0.5) * 0.0035 * _sprint + (_air_roll() if drv else 0.0)
+	var roll_target := -strafe * 0.014 * (1.0 - ads_s) + sin(_bob_t * 0.5) * 0.0035 * _sprint + (_air_roll() if drv else 0.0) + (snk.cam.roll if snk != null else 0.0)
 	_roll = PlayerUtil.damp(_roll, roll_target, 8.0, dt)
 	var shake := clampf(FX.shake_amount, 0.0, 1.0)
 	var s_off := Vector3.ZERO

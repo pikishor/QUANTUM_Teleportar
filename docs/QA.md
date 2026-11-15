@@ -96,6 +96,15 @@ seconds (`tests/runner.gd`; its timer counts real seconds in the working tree, w
 3. **Error flood in interiors** (`scripts/interiors_gameplay/interior_minimap.gd`, `_quad`). Pulling every corner of a wall rectangle into the minimap circle can collapse it to a line or
    fold it; `draw_colored_polygon` then logs "Invalid polygon data, triangulation failed" every frame (hundreds a minute along some walls, 76 in one 4 minute run). Fix: skip a quad that
    is no longer a proper convex quad (`_drawable`).
+4. **A dying mender sank to y = -INF** (wave 114 integrator; `CharacterRig.lowest_world_y`, `Operative._tick_dead`). `Condition "!v.is_finite()" is true` (`instance_set_transform`, no script
+   backtrace: the engine names no node) 977 to 1188 times in one 8 minute full bot run, 3 render nodes a frame for the 4 s of a corpse, in 2 of 6 runs before the fix (one of them on the wave 113 tree: the bug is
+   older than the weapon wave). The body of a mender (`enemy_demon`) has no skinned hull points, `lowest_world_y` answered INF and the corpse was placed at `-INF`. Found with the new
+   `NONFINITE` lines of `bot_soak.gd` (`_diag_non_finite`: the first time such an error shows up the bot lists the Node3Ds whose own transform is NaN / INF, the camera rig, the launch aim
+   and any enemy or vehicle with a bad position). Fix: the lowest point of a rig without hulls is the model's own height. `tests/test_character_motion.gd` kills a mender and checks every
+   quarter second that its model stays finite (it fails without the fix: `model y -inf`).
+5. **A freed pack member in `AlienCreature._wake`** (wave 114 integrator). The same typed-loop-variable error as the wave 107b `_separate` fix (`for m: AlienCreature in members`: a member that
+   an air strike freed is not a valid AlienCreature, "Trying to assign invalid previously freed instance", on every wake of the pack). Fix: untyped variable, `is_instance_valid` first.
+   `tests/test_alien_world.gd` wakes a pack whose first member was removed by the world and freed (it fails without the fix).
 
 ## Known gaps
 

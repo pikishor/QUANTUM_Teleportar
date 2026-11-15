@@ -1,7 +1,7 @@
 class_name SkillScreen
 extends RefCounted
-## The SKILLS screen (Hud draws it on the pause screen when `_skills_open`, reached from the UPGRADES shop by the SKILLS button): four columns (QUANTUM TELEPORT, SUPERPOSITION,
-## ENTANGLE, COLLAPSE) of five 64 px node buttons `sk_<node id>` (tap = spend a point on the next rank), RESPEC `sk_respec` (refunds every rank for credits) and BACK `sk_back`.
+## The SKILLS screen (Hud draws it on the pause screen when `_skills_open`, reached from the UPGRADES shop by the SKILLS button): five columns (QUANTUM TELEPORT, SUPERPOSITION,
+## ENTANGLE, COLLAPSE, QUANTUM SNAKE) of five 64 px node buttons `sk_<node id>` (tap = spend a point on the next rank), RESPEC `sk_respec` (refunds every rank for credits) and BACK `sk_back`.
 ## Numbers live in SkillTree, the wallet and purchases in Progress. A tap on a node also selects it: its effect line is shown under the columns.
 
 const BTN_H := 64.0
@@ -14,13 +14,18 @@ const FOOT_Y := 624.0
 static var selected: StringName = &""
 
 
+static func _total() -> float:
+	var n := float(SkillTree.VERBS.size())
+	return n * COL_W + (n - 1.0) * COL_GAP
+
+
 static func _col_x(cx: float, s: float, k: float, v: int) -> float:
-	var total := 4.0 * COL_W + 3.0 * COL_GAP
+	var total := _total()
 	return cx + (-total * 0.5 + float(v) * (COL_W + COL_GAP)) * s * k
 
 
 static func _fit(hud: Hud, s: float) -> float:
-	return minf(1.0, hud.get_viewport().get_visible_rect().size.x * 0.97 / ((4.0 * COL_W + 3.0 * COL_GAP) * s))
+	return minf(1.0, hud.get_viewport().get_visible_rect().size.x * 0.97 / (_total() * s))
 
 
 static func _label(id: StringName) -> String:

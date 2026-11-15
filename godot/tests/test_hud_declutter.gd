@@ -8,7 +8,7 @@ extends RefCounted
 
 const SAVE := "user://test_hud_declutter.cfg"
 const SETTINGS := "user://test_hud_declutter_settings.cfg"
-const MAX_CONTROLS := 12
+const MAX_CONTROLS := 13                 # wave 115: the SNAKE button joined the 12 controls of the default frame (docs/ROUND6.md); every other extra stays behind MORE or a context
 
 var host: Node
 var main: Node
@@ -86,7 +86,7 @@ func _default_frame() -> void:
 	tc.more_open = false
 	var ids := hud.visible_controls()
 	TestLib.check(ids.size() <= MAX_CONTROLS, "a default play frame shows at most %d controls (%d: %s)" % [MAX_CONTROLS, ids.size(), str(ids)])
-	for need: StringName in [&"stick", &"fire", &"aim", &"jump", &"reload", &"ability", &"swap", &"more", &"pause", &"minimap", &"status", &"objective"]:
+	for need: StringName in [&"stick", &"fire", &"aim", &"jump", &"reload", &"ability", &"swap", &"more", &"snake", &"pause", &"minimap", &"status", &"objective"]:
 		TestLib.check(ids.has(need), "the default frame has %s" % need)
 	for gone: StringName in [&"altfire", &"melee", &"throw_item", &"crouch", &"gadget", &"interact", &"grab", &"takedown", &"garage_call", &"fps", &"toast", &"subtitle", &"wanted", &"ammo"]:
 		TestLib.check(not ids.has(gone), "the default frame has no %s" % gone)

@@ -1,6 +1,10 @@
-# w114-integrator (running)
+# w114-integrator (done)
 
-agent id a2296aa4cfe8276b6, 472 events, first activity 2026-11-14T20:34:08.917Z, last activity 2026-11-14T23:01:52.704Z
+agent id a2296aa4cfe8276b6, 572 events, first activity 2026-11-14T20:34:08.917Z, last activity 2026-11-14T23:13:49.320Z
+
+## Final report
+
+b496e61b909e23940f1463ca57b721febbb37cde Pushed to origin/main (171d2d1..b496e61). Full suite: 273 tests, 272 pass, 1 flaky (test_play_critic_w113, load sensitive, passes solo 3/3), 0 fail. Perf gate all OK: LOW 96/100 draws, 112 MB; MED 129/140, 143 MB; HIGH 149/160, 209 MB, death spike 170 of 170 (no headroom). Visual QA 27/27. full_bot first FAILED, and also fails on the previous commit. Causes: a dying mender's corpse placed at y=-INF, and AlienCreature._wake with freed pack members. Both fixed with regression checks; final full_bot PASS. Added weight about 28 MB game assets (APK about +15 MB est.). Open: hands do not grip, no QA spots for new screens.
 
 ## Last notes of the agent
 
@@ -8,34 +12,6 @@ agent id a2296aa4cfe8276b6, 472 events, first activity 2026-11-14T20:34:08.917Z,
 
 ## Recent steps (last 40)
 
-- 22:31:44 Check the test's duration and helper signatures
-- 22:31:51 /home/user/QUANTUM_Teleportar/godot/tests/test_blast_arsenal.gd
-- 22:31:55 Run the updated blast arsenal test with the new guards
-- 22:32:55 Mutation check: run the new checks without the guards, then restore them
-- 22:33:59 Run the tests that touch the blast preview, launch aim and blast ops
-- 22:36:14 Baseline full bot run 2 (seed 2) on the previous commit
-- 22:41:48 Find the code that creates and positions ImportedCharacter
-- 22:41:56 Find Mender enemy code and the wrapper creation
-- 22:42:03 Find where enemy model transforms are animated
-- 22:42:08 Read the death fall code and where _rest_drop comes from
-- 22:42:18 Read CharacterRig.lowest_world_y
-- 22:42:24 Find all callers of lowest_world_y
-- 22:42:27 Read the player_body caller and where hulls are built
-- 22:42:36 Read the character motion test around lowest_world_y
-- 22:42:44 Read how hulls are built in the rig
-- 22:42:54 /home/user/QUANTUM_Teleportar/godot/scripts/characters/character_rig.gd
-- 22:42:55 /home/user/QUANTUM_Teleportar/godot/scripts/characters/character_rig.gd
-- 22:43:03 /home/user/QUANTUM_Teleportar/godot/tests/test_character_motion.gd
-- 22:43:10 Check the mender enemy type id
-- 22:43:18 /home/user/QUANTUM_Teleportar/godot/tests/test_character_motion.gd
-- 22:43:23 Run the character motion test with the new rig fix checks
-- 22:44:10 Mutation check for the rig fix, then restore it
-- 22:44:57 See whether the mender corpse checks failed without the fix
-- 22:45:15 Revert the speculative guards, keep the wave 114 line in blast_ops
-- 22:45:26 Remove only my guard lines from blast_ops.gd
-- 22:45:34 Run the tests around enemies, rigs and corpses after the rig fix
-- 22:48:05 Final full bot run on the fixed tree
-- 22:53:20 Look at the two errors of the final full bot run
 - 22:53:26 Read the alien creature wake and leap code
 - 22:53:32 See the earlier fix of the same freed-instance pattern and similar loops
 - 22:53:38 Look for existing freed-member coverage in the alien tests
@@ -48,6 +24,34 @@ agent id a2296aa4cfe8276b6, 472 events, first activity 2026-11-14T20:34:08.917Z,
 - 23:01:36 List tests that touch the changed rig, alien, soak and test-mode code
 - 23:01:48 Make the suite runner accept a list and build the remaining touched-test list
 - 23:01:52 Run the remaining touched-area tests on the final tree (chunk 1)
+- 23:07:46 Re-shoot the car spot after the toast text fix
+- 23:08:59 Rebuild the 27-spot contact sheet with the re-shot car frame
+- 23:09:04 /home/user/QUANTUM_Teleportar/docs/shots/car.png
+- 23:09:11 Check disk space and the biggest scratch items
+- 23:09:40 Measure stray temp directories in /tmp
+- 23:09:49 Remove the temp directories that only hold test logs
+- 23:09:54 Inspect the remaining tmp entries
+- 23:10:00 Delete the baseline copy and my scratch logs
+- 23:10:11 Estimate CI shard times and list the slowest tests
+- 23:10:33 Stage everything and unstage the generated sprint digests
+- 23:10:39 Unstage the generated digests properly and summarize staged paths
+- 23:10:44 Check the odd staged files and the remaining categories
+- 23:10:56 Compute the added weight of the wave by category
+- 23:11:13 Run the size report to get totals and the APK-related numbers
+- 23:11:34 Check the QA doc for where to mention the new diagnostic
+- 23:11:37 Read the QA doc sections where the error log is described
+- 23:11:47 Document the two soak-found bugs and the new diagnostic in QA.md
+- 23:11:55 Correct the run count in the QA note
+- 23:12:02 Check the end of HANDOFF and how it changed
+- 23:12:45 Append the wave 114 integration note to HANDOFF
+- 23:12:56 Sum the durations of the wave 114 tests
+- 23:13:02 Refine the wording of the HANDOFF note
+- 23:13:13 Final staging check before the commit
+- 23:13:18 Review my own code changes in the staged diff
+- 23:13:26 Commit the wave 114 integration
+- 23:13:29 Push the wave 114 commit to origin main
+- 23:13:43 Verify the pushed commit and the final repo state
+- 23:13:48 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

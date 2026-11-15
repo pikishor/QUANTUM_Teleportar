@@ -176,5 +176,10 @@ static func _melee(hud: Hud, c: Control, r: Rect2, s: float, font: Font, card: D
 	c.draw_arc(centre, reach * ppm, deg_to_rad(-60.0), deg_to_rad(60.0), 28, Color(tint.lerp(Color.WHITE, 0.3), 0.98), 2.5 * s)
 	person(c, Vector2(px, ground), PERSON_H * ppm, Color(1, 1, 1, 0.92))
 	hud._text(c, font, Vector2(r.position.x + 8.0 * s, r.position.y + 22.0 * s), "REACH  %.1f M" % reach, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 16.0 * s, int(UiKit.T_BODY * s), Color(1, 1, 1, 0.92))
+	var cap_w := r.size.x - 16.0 * s
+	var cap_fs := int(Hud.BODY_MIN * s)                                                      # the floor Hud._text keeps: a longer line grows its box (off the card), it does not shrink
 	var cap := "HITS EVERYONE IN THE ARC"
-	hud._text(c, font, Vector2(r.position.x + 8.0 * s, r.position.y + 42.0 * s), cap, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 16.0 * s, UiUtil.fit_size(font, cap, r.size.x - 16.0 * s, int(Hud.BODY_MIN * s)), Color(1, 1, 1, 0.8))
+	if font.get_string_size(cap, HORIZONTAL_ALIGNMENT_LEFT, -1.0, cap_fs).x > cap_w:
+		cap = "HITS ALL IN THE ARC"                                                          # a wide device font (DejaVu on the CI runner, 25 % wider than Inter): the shorter wording
+	cap = UiUtil.fit_text(font, cap, cap_w, cap_fs)
+	hud._text(c, font, Vector2(r.position.x + 8.0 * s, r.position.y + 42.0 * s), cap, HORIZONTAL_ALIGNMENT_LEFT, cap_w, cap_fs, Color(1, 1, 1, 0.8))

@@ -103,12 +103,12 @@ func run(h: Node) -> void:
 # --- pure rules --------------------------------------------------------------------------------------------------------------
 
 func _tables() -> void:
-	TestLib.check(SkillTree.VERBS.size() == 4, "four verbs")
+	TestLib.check(SkillTree.VERBS.size() == 5 and SkillTree.VERBS.has(&"snake"), "five verbs: the four quantum verbs and QUANTUM SNAKE (wave 115)")
 	var ok := true
 	for v: StringName in SkillTree.VERBS:
 		var n := SkillTree.verb_nodes(v)
 		ok = ok and n.size() == 5 and SkillTree.VERB_NAMES.has(v)
-	TestLib.check(ok and SkillTree.ids().size() == 20, "every verb has 5 nodes (20 in all)")
+	TestLib.check(ok and SkillTree.ids().size() == 25, "every verb has 5 nodes (25 in all)")
 	var named := true
 	for id: StringName in SkillTree.ids():
 		named = named and SkillTree.title(id) == SkillTree.title(id).to_upper() and SkillTree.max_rank(id) >= 1 and SkillTree.effect_text(id) != ""

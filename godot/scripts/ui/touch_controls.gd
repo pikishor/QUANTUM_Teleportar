@@ -22,6 +22,8 @@ const BUTTONS := [
 	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &"foot"},
 	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "fs": 22, "label": "ROCKET", "need": &"arms2"},       # a gunship or a jet: rockets / missiles (VehicleWeapons.tick_alt)
 	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
+	{"action": &"snake", "dx": 254.0, "dy": 274.0, "r": 50.0, "fs": 26, "label": "SNAKE", "need": &"snake"},       # QUANTUM SNAKE traversal (scripts/quantum/snake_traversal.gd): ONE contextual button, in the hole between JUMP, RELOAD, AIM and FIRE: SWING in the air, ZIP on the ground, CLIMB at a wall, BOOST in flight
+	{"action": &"fly", "dx": 430.0, "dy": 400.0, "r": 50.0, "fs": 24, "label": "FLY", "need": &"fly"},                # FLY while airborne, LAND while flying: the second (contextual) snake button
 	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &"foot"},
 	{"action": &"ability", "dx": 515.0, "dy": 120.0, "r": 58.0, "fs": 22, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability"},
 	{"action": &"swap", "dx": 520.0, "dy": 262.0, "r": 58.0, "fs": 22, "label": "WEAPON", "need": &"weapon"},
@@ -378,7 +380,7 @@ func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
 	if id == _stick_id:
 		_stick_pos = pos
 		_apply_stick()
-	elif id == _look_id or (_held.has(id) and (_held[id] as Dictionary)["action"] == &"fire"):
+	elif id == _look_id or (_held.has(id) and (_held[id] as Dictionary)["action"] in [&"fire", &"snake", &"fly"]):       # the camera also turns from a finger that holds FIRE or SNAKE: swing and steer with one thumb
 		_look(rel)
 
 
@@ -496,6 +498,10 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.vehicles) and _driving() and _craft_class() in [&"heli", &"plane"]
 		&"drive_more":       # the driving cluster behind MORE: BACK, RADIO, GARAGE (a car shows only DRIFT, EXIT, VIEW and MORE, plus FIRE when it carries a weapon)
 			return more_open and is_instance_valid(Game.vehicles) and _driving()
+		&"snake":
+			return is_instance_valid(Game.player) and not _driving() and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).button_shown()
+		&"fly":
+			return is_instance_valid(Game.player) and not _driving() and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).fly_button_shown()
 		&"fire":
 			return not _driving() or _car_armed()
 		&"more_btn":
@@ -526,6 +532,12 @@ func _label_of(b: Dictionary) -> String:
 		if not _driving() and ride != "":
 			return ride.split(" ")[0]                         # CLIMB, SIT, STAND, TAKE, MAN, LEAVE
 		return "EXIT" if _driving() else "ENTER"
+	if b["action"] == &"snake" and is_instance_valid(Game.player) and Game.player.get("snake") != null:
+		return (Game.player.get("snake") as SnakeTraversal).button_label()
+	if b["action"] == &"fly" and is_instance_valid(Game.player) and Game.player.get("snake") != null:
+		return "LAND" if (Game.player.get("snake") as SnakeTraversal).mode == SnakeTraversal.Mode.FLY else "FLY"
+	if b["action"] == &"jump" and not _driving() and is_instance_valid(Game.player) and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).mode == SnakeTraversal.Mode.FLY:
+		return "UP"                                      # in snake flight the JUMP button climbs
 	if b["action"] == &"jump" and _driving():
 		var cc := _craft_class()
 		if cc == &"heli" or cc == &"plane":
@@ -895,6 +907,14 @@ func _draw_ui_body() -> void:
 			tint = UiUtil.AMBER if more_open else UiUtil.CYAN
 		if b["action"] == &"ability":
 			tint = UiUtil.AMBER if (wheel.is_open and wheel.kind == &"ability") else UiUtil.CYAN
+		if (b["action"] == &"snake" or b["action"] == &"fly") and Game.player.get("snake") != null:
+			var sn := Game.player.get("snake") as SnakeTraversal
+			if sn.mode != SnakeTraversal.Mode.NONE:
+				tint = UiUtil.AMBER                                 # a snake state is running
+			if b["action"] == &"snake":
+				var ef := sn.energy_fraction()
+				if ef < 0.995:
+					arcs.append([centre, r + 4.0 * s, -PI * 0.5 + TAU * ef, Color(UiUtil.MAGENTA if ef < 0.2 else tint, 0.9)])         # the snake energy is the ring around the button
 		if b.has("verb"):
 			var vs := ((Game.player.get("qverbs") as QuantumVerbs).ui_state(b["verb"]) as Dictionary) if Game.player.get("qverbs") != null else {"active": false, "ready": true, "cd": 0.0}
 			if vs["active"]:
