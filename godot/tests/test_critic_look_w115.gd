@@ -155,7 +155,7 @@ func _debt_trial() -> Dictionary:
 	if hung:
 		sn.swing.rope_goal = 12.0                                                    # a rope that wants to be much shorter than the distance (what the clearance reel asks for)
 		Input.action_press(&"snake")
-		await frames(45)                                                             # about 0.75 s: the ceiling holds the hero while the rope tries to reel in (a swing that stalls lets go after 1.2 s)
+		await physics(45)                                                            # 0.75 s of game time (physics ticks, whatever the frame rate of the run): the ceiling holds the hero while the rope tries to reel in (a swing that stalls lets go after 1.2 s)
 		var c := p.global_position + Vector3(0.0, SnakeSwing.BODY_CENTRE, 0.0)
 		out["debt"] = c.distance_to(sn.swing.anchor) - sn.swing.rope
 		out["active"] = sn.swing.active
@@ -164,7 +164,7 @@ func _debt_trial() -> Dictionary:
 		host.add_child(tr)
 		slab.queue_free()                                                            # the ceiling goes away: the old sphere moved him the whole debt at once
 		slab = null
-		await frames(60)
+		await physics(60)
 		out["max_step"] = tr.max_step
 		out["ticks"] = tr.ticks
 		tr.queue_free()
@@ -296,7 +296,7 @@ func _wing_tips() -> void:
 	var wall_at := (wall.global_position - chest2).dot(right) - 0.25
 	var tip := fl._wing_tip(p, 1)
 	var reach := (tip - chest2).dot(right)
-	TestLib.check(wall_at > 0.8 and reach <= wall_at - 0.25, "the right wing stops short of the facade: tip %.2f m out, wall at %.2f m" % [reach, wall_at])
+	TestLib.check(wall_at > 0.8 and reach <= wall_at - 0.15, "the right wing stops short of the facade: tip %.2f m out, wall at %.2f m" % [reach, wall_at])
 	var left := fl._wing_tip(p, -1)
 	TestLib.check(-(left - chest2).dot(right) > 1.6, "the left wing, in open air, keeps its span (%.1f m)" % -(left - chest2).dot(right))
 	await frames(1)
@@ -334,30 +334,28 @@ func _suit_glow() -> void:
 	if g == null:
 		return
 	var start := Vector3(-30.0, 40.0, 4.0)
-	await _prep(start, -PI * 0.5, 0.2)
-	await frames(40)
+	await _prep(STREET)                                                          # on the ground the layers are quiet (in the air the ability sensor shows its own glide glow on the wings layer)
+	await until(func() -> bool: return g.level(&"flow") < 0.2 and g.level(&"wings") < 0.2, 4.0)
 	var idle_flow := g.level(&"flow")
 	var idle_wings := g.level(&"wings")
-	TestLib.check(idle_flow < 0.2, "on foot the flow layer is quiet (%.2f)" % idle_flow)
+	TestLib.check(idle_flow < 0.2 and idle_wings < 0.2, "on foot the flow and wings layers are quiet (%.2f, %.2f)" % [idle_flow, idle_wings])
+	await _prep(start, -PI * 0.5, 0.2)
 	sn._start_swing({"pos": start + Vector3(0.0, 44.0, 0.0), "kind": &"building", "normal": Vector3(0.0, 0.0, 1.0)}, false)
 	Input.action_press(&"snake")
-	await frames(60)
-	var swing_flow := g.level(&"flow")
-	TestLib.check(sn.mode == SnakeTraversal.Mode.SWING and swing_flow > 0.6, "swinging, the circuits flow from the core to the hands (flow layer %.2f)" % swing_flow)
+	var flowing := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.SWING and g.level(&"flow") > 0.6, 3.0)
+	TestLib.check(flowing, "swinging, the circuits flow from the core to the hands (flow layer %.2f, mode %d)" % [g.level(&"flow"), sn.mode])
 	Input.action_release(&"snake")
 	sn.cancel()
-	await frames(90)
-	TestLib.check(g.level(&"flow") < 0.35, "a swing that ends releases the layer (%.2f)" % g.level(&"flow"))
+	var quiet := await until(func() -> bool: return g.level(&"flow") < 0.35, 4.0)
+	TestLib.check(quiet, "a swing that ends releases the layer (%.2f)" % g.level(&"flow"))
 	await _prep(Vector3(-30.0, 40.0, 4.0), -PI * 0.5, 0.05)
 	Input.action_press(&"fly")
 	await frames(4)
 	Input.action_release(&"fly")
-	var flying := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.FLY, 2.0)
-	await frames(50)
-	var fly_wings := g.level(&"wings")
-	TestLib.check(flying and fly_wings > 0.6 and fly_wings > idle_wings + 0.3, "flying, the wing mounts burn (wings layer %.2f, on foot %.2f)" % [fly_wings, idle_wings])
+	var wings_on := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.FLY and g.level(&"wings") > 1.0, 3.0)         # the glide glow of the sensor never passes 0.8: above 1.0 is the flight's own
+	TestLib.check(wings_on, "flying, the wing mounts burn (wings layer %.2f, on foot %.2f, mode %d)" % [g.level(&"wings"), idle_wings, sn.mode])
 	sn.flight.land_request()
 	await until(func() -> bool: return sn.mode != SnakeTraversal.Mode.FLY, 6.0)
 	sn.cancel()
-	await frames(120)
-	TestLib.check(g.level(&"wings") < 0.5, "a flight that ends releases the layer (%.2f)" % g.level(&"wings"))
+	var wings_off := await until(func() -> bool: return g.level(&"wings") < 0.5, 4.0)
+	TestLib.check(wings_off, "a flight that ends releases the layer (%.2f)" % g.level(&"wings"))

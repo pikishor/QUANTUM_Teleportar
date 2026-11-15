@@ -318,7 +318,12 @@ func _tick_body(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: boo
 ## The suit answers the snakes (critic 115 look: HeroLook has a layer for exactly this, "flow: SWING, energy runs from the core to the hands" and "wings: FLIGHT, the wing mounts burn", and nothing
 ## called it): the circuits flow while he swings, zips or climbs and the wing mounts burn in flight; a state that ends releases its layer. A power armed by the combat wave owns the hands
 ## (SnakeWar sets the same flow layer in the colour of the power), so the traversal leaves that layer alone then. Cheap: it acts on a change of state and re-asserts twice a second.
+static var suit_glow := true               ## a look-dev bot switches it off to show the old suit (frames of the critic 115 sheets)
+
+
 func _glow_tick(dt: float) -> void:
+	if not suit_glow:
+		return
 	_glow_t -= dt
 	var changed := mode != _glow_mode
 	if not changed and _glow_t > 0.0:
@@ -335,9 +340,9 @@ func _glow_tick(dt: float) -> void:
 		if was == Mode.FLY and not flies:
 			HeroLook.set_glow(Color.WHITE, 0.0, &"wings")
 	if flies:
-		HeroLook.set_glow(Color(0.55, 0.95, 1.0), 1.3, &"wings")
+		HeroLook.set_glow(Color(0.55, 0.95, 1.0), 1.8, &"wings")                     # (the first version, 1.3 and 1.5, was a difference of a few grey levels on the thin circuit lines at LOW: the A/B frames of the critic sheet)
 	elif flows and not armed:
-		HeroLook.set_glow(Color(0.2, 0.95, 1.0), 1.5 if mode == Mode.SWING else 1.2, &"flow")
+		HeroLook.set_glow(Color(0.2, 0.95, 1.0), 2.1 if mode == Mode.SWING else 1.7, &"flow")
 
 
 ## Yaw the body faces while a snake state runs (NAN: the normal aim facing).

@@ -12,7 +12,7 @@ scenes, the HUD in six states at 844x390, the weapon, verb, bomb and ability whe
 3. Wing tips through a facade: scene `fly_wall`, before / after rows in `critic115_look_wings_boots_before_after.jpg`.
 4. Boots and dark gear read as black sausages from behind: a rim on the dark kinds of the suit kit shader, before / after crops in the same sheet.
 5. HUD at 844x390: the vehicle plate and the label RELEASE (drawn a fifth smaller than the disc) -> `critic115_look_hud844_before_after.jpg`.
-6. The suit did not answer the snakes (HeroLook has the layers `flow` and `wings` for exactly this): hooked, pose frames in `critic115_look_pose_glow.jpg`.
+6. The suit did not answer the snakes (HeroLook has the layers `flow` and `wings` for exactly this): hooked; the first version (1.5 / 1.3) was a few grey levels on thin circuit lines at LOW, so the layers were raised (swing 2.1, zip and climb 1.7, flight 1.8); old / new close-ups in `critic115_look_pose_glow.jpg` (a switch, `SnakeTraversal.suit_glow`, shows the old suit).
 7. Dive from 160 m, pull-out and barrel roll (scene `dive_roll`): the hero spun but his wings stayed level like a gyroscope -> the wings roll with him (`critic115_look_roll_before_after.jpg`, `critic115_look_dive_low.jpg`).
 8. Full run again after all fixes (LOW, 225 frames): no plate, wings bend at the wall, nothing else regressed (`critic115_look_run_low_after.jpg`).
 
@@ -25,7 +25,8 @@ scenes, the HUD in six states at 844x390, the weapon, verb, bomb and ability whe
 6. FIXED  The suit did not react to the traversal (HeroLook layers `flow` and `wings` were never called): `SnakeTraversal._glow_tick`.
 7. FIXED  The SNAKE button read RELEASE while swinging (7 letters, the label shrank to fit the disc): LET GO (same word as the climb).
 8. FIXED  In a barrel roll the hero spun and the wing snakes stayed level (the pose rolls the body, `_wing_tip` ignored the roll): the wing tips and arches take the same roll basis (`SnakeFlight._wing_tip`, `tick`).
-9. NOT FIXED (design, tests pin the layout)  SNAKE (r 46) and FLY sit in the gaps between RELOAD, AIM and FIRE with 6 px of air, the energy ring touches the neighbours, BOOST is clipped by the FIRE ring
+9. FIXED  With the camera squeezed against a wall (arm of 1 m) the rope or wing at the hero's hand sat 1 to 2 m from the lens and was a fat band across the screen: the tendril slims to 40 % within 0.7 m of the camera (`snake_tendril.gdshader`; subtle in stills, no new draw).
+10. NOT FIXED (design, tests pin the layout)  SNAKE (r 46) and FLY sit in the gaps between RELOAD, AIM and FIRE with 6 px of air, the energy ring touches the neighbours, BOOST is clipped by the FIRE ring
    at 844x390; the ABILITY wheel has 11 discs of 0.62 scale with 7 px labels (SUPERPOSITION, COLLAPSE).
 
 Play note (not changed, the PLAY lens owns it): the barrel roll needs a nearly pure sideways double tap (`absf(side_in) > 0.8`): with FORWARD held a stick pushed right-forward gives 0.707, so the roll never starts (the bot had to release forward to roll).
@@ -41,4 +42,4 @@ the suit layers (flow 0.2 -> over 0.6 while swinging, wings while flying, releas
 ## Perf (PERF_CHECK=1 tools/perf_report.sh 0 1 2, once, after the last rendering change)
 LOW  draws 70, total 92, death 107, tris 128k, texture 112 MB  OK
 MED  draws 97, total 129, death 149 of 150, tris 241k, texture 143 MB  OK
-HIGH draws 113, total 149, death 169 of 170, tris 328k, texture 209 MB  OK
+HIGH draws 113, total 149, death 169 to 170 of 170, tris 328k, texture 209 MB  OK  (run twice: after the rim and the glow, and at the very end: identical)

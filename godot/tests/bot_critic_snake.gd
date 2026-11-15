@@ -41,6 +41,7 @@ var _log_t := 0.0
 var _scene_t := 0.0
 var _hold_keys := {}
 var _fly_t := 0.0
+var _hero_cam: Array = []
 var _slab: Node3D
 var _landed_t := 0.0
 var _fly_tapped := false
@@ -87,6 +88,7 @@ func _setup() -> void:
 	TestMode.god = true
 	SnakeTraversal.assist = true
 	SnakeFlight.clip_wings = OS.get_environment("CS_NOCLIP") != "1"
+	SnakeTraversal.suit_glow = OS.get_environment("CS_NOGLOW") != "1"
 	var city := Game.world as City
 	if OS.get_environment("CS_HOUR") != "" and city != null and city.day_night != null:
 		city.day_night.frozen = true
@@ -343,6 +345,13 @@ func _plan_for(name: String) -> Array:
 				{"t": 1.5, "act": "press", "a": &"move_forward"}, {"t": 2.2, "act": "shot", "label": "b_crawl"}, {"t": 3.0, "act": "shot", "label": "c_crawl"}, {"t": 3.6, "act": "release", "a": &"move_forward"},
 				{"t": 3.7, "act": "press", "a": &"move_right"}, {"t": 4.3, "act": "shot", "label": "d_side"}, {"t": 4.8, "act": "release", "a": &"move_right"}, {"t": 4.9, "act": "tap", "a": &"snake"},
 				{"t": 5.3, "act": "shot", "label": "e_drop"}, {"t": 6.0, "act": "shot", "label": "f_land"}, {"t": 6.5, "act": "end"}]
+		"glow":
+			return [{"t": 0.1, "act": "tp", "pos": Vector3(-30.0, 38.0, 4.0), "yaw": -PI * 0.5, "pitch": 0.2}, {"t": 0.35, "act": "press", "a": &"snake"},
+				{"t": 1.5, "act": "cam_hero", "off": Vector3(3.0, 0.3, 1.0), "fov": 50.0}, {"t": 1.8, "act": "shot", "label": "a_swing_side"},
+				{"t": 1.9, "act": "cam_hero", "off": Vector3(-0.8, 0.5, -3.0), "fov": 50.0}, {"t": 2.2, "act": "shot", "label": "b_swing_front"},
+				{"t": 2.3, "act": "release", "a": &"snake"}, {"t": 2.4, "act": "tp", "pos": Vector3(-30.0, 0.0, 4.0), "yaw": -PI * 0.5, "pitch": 0.12}, {"t": 2.9, "act": "tap", "a": &"fly"},
+				{"t": 3.8, "act": "press", "a": &"move_forward"}, {"t": 4.9, "act": "cam_hero", "off": Vector3(0.0, 0.7, 3.2), "fov": 50.0}, {"t": 5.2, "act": "shot", "label": "c_fly_back"},
+				{"t": 5.3, "act": "cam_hero", "off": Vector3(0.0, 0.7, -3.4), "fov": 50.0}, {"t": 5.6, "act": "shot", "label": "d_fly_front"}, {"t": 5.8, "act": "release", "a": &"move_forward"}, {"t": 6.0, "act": "end"}]
 		"hud2":
 			return [{"t": 0.1, "act": "tp", "pos": Vector3(-30.0, 0.0, 4.0), "yaw": -PI * 0.5, "pitch": 0.1}, {"t": 1.2, "act": "shot", "label": "a_ground"},
 				{"t": 1.3, "act": "tp", "pos": Vector3(-30.0, 30.0, 4.0), "yaw": -PI * 0.5, "pitch": 0.15}, {"t": 1.9, "act": "shot", "label": "b_air"},
@@ -400,6 +409,7 @@ func _step_scenes(delta: float) -> bool:
 	if not _tap_release.is_empty() and _scene_t >= float(_tap_release[1]):
 		Input.action_release(_tap_release[0])
 		_tap_release = []
+	_apply_hero_cam()
 	var ns := _next_shot_t()
 	_render(ns - _scene_t <= delta * 2.5)
 	while _pi < _plan.size() and float((_plan[_pi] as Dictionary)["t"]) <= _scene_t:
@@ -413,6 +423,7 @@ func _step_scenes(delta: float) -> bool:
 func _act(a: Dictionary) -> void:
 	match a["act"]:
 		"tp":
+			_hero_cam = []
 			var sp: Vector3 = a["pos"]
 			_p.teleport_to(sp)
 			_p.camera_rig.reset_view(float(a["yaw"]), float(a["pitch"]))
@@ -422,6 +433,8 @@ func _act(a: Dictionary) -> void:
 			_p.camera_rig.pitch = float(a["pitch"])
 		"vel":
 			_p.velocity = a["v"]
+		"cam_hero":
+			_hero_cam = [a["off"], float(a["fov"])]
 		"slab":
 			_free_slab()
 			var body := StaticBody3D.new()
@@ -464,3 +477,18 @@ func _act(a: Dictionary) -> void:
 			print("BOTCS scene done ", _scenes[_si])
 			_si += 1
 			_begun = false
+
+
+## A free camera that follows the hero: offset in his own heading frame (x right, y up, z behind; negative = in front of him), looking at his centre (CameraRig.cine_set lapses after 0.25 s: every step renews it).
+func _apply_hero_cam() -> void:
+	if _hero_cam.is_empty() or _p == null:
+		return
+	var yawh := _p.snake.facing_yaw()
+	if is_nan(yawh):
+		yawh = _p.yaw
+	var fwd := Vector3(-sin(yawh), 0.0, -cos(yawh))
+	var rgt := Vector3(cos(yawh), 0.0, -sin(yawh))
+	var ctr := _p.global_position + Vector3(0.0, 1.0, 0.0)
+	var off: Vector3 = _hero_cam[0]
+	var cpos := ctr + rgt * off.x + Vector3.UP * off.y - fwd * off.z
+	_p.camera_rig.cine_set(Transform3D(Basis.looking_at((ctr - cpos).normalized(), Vector3.UP), cpos), float(_hero_cam[1]))
