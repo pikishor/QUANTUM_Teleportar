@@ -12,6 +12,7 @@ const FADE := 0.45
 const COMPACT_LIFE := 2.0                   ## seconds of the small card shown while a fight is on
 const COMPACT_SCALE := 0.62
 const COMBAT_RANGE := 50.0                  ## metres: an alerted enemy this close means the fight is on
+const MAX_QUEUE := 2                       ## cards that may wait behind the one on screen
 
 static var enabled := true
 static var next_source := ""                ## what the next reveal says it is ("CRATE OPENED", "PURCHASED", "MISSION REWARD"); read and cleared by request()
@@ -59,7 +60,8 @@ static func request(id: StringName, src := "", force := false) -> bool:
 	if hud == null:
 		return false
 	if is_instance_valid(current):
-		_queue.append({"id": id, "src": src, "hud": hud})
+		if _queue.size() < MAX_QUEUE:                   # never a long line of cards: the rest get their HUD line only
+			_queue.append({"id": id, "src": src, "hud": hud})
 		return true
 	_start(hud, id, src)
 	return true
@@ -73,6 +75,14 @@ static func _start(hud: Node, id: StringName, src: String) -> void:
 	hud.add_child(v)
 	current = v
 	started += 1
+
+
+## Drop the card on screen and every queued one (a menu opened, a bulk unlock, a tap on the card).
+static func clear() -> void:
+	_queue.clear()
+	if is_instance_valid(current):
+		current.queue_free()
+	current = null
 
 
 static func is_showing() -> bool:
@@ -103,7 +113,17 @@ func _ready() -> void:
 	WeaponAudio.haptic(&"reveal")
 
 
+## A tap anywhere closes the card at once (it never takes the touch away from the game or a menu).
+func _input(event: InputEvent) -> void:
+	var down := (event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed) or (event is InputEventMouseButton and (event as InputEventMouseButton).pressed)
+	if down and age > 0.35:
+		_finish()
+
+
 func _process(dt: float) -> void:
+	if Game.state != &"play" or get_tree().paused:     # never over the pause menu, the loadout, the map or the test menu
+		clear()
+		return
 	age += dt / maxf(Engine.time_scale, 0.05)
 	if age >= _life:
 		_finish()
