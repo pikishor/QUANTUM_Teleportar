@@ -156,8 +156,12 @@ static func _grant_all(prog: Progress) -> void:
 	prog.reputation = Progress.REP_MAX
 	prog.unlock(CampaignRunner.chapter_count() - 1)
 	prog.unlock(11)
+	var was := CrateReveal.enabled                      # 229 unlocks must not queue 229 reward cards (owner round 7: cards for 13 minutes over every screen)
+	CrateReveal.enabled = false
 	for id: StringName in WeaponDefs.IDS:
 		prog.grant_weapon(id)
+	CrateReveal.enabled = was
+	CrateReveal.clear()
 	for part: StringName in Attachments.IDS:
 		Attachments.give(part)
 	Gear.give_all()

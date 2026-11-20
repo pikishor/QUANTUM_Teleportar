@@ -119,6 +119,7 @@ var _tex_q: Array = []                 ## queued textures [canvas, texture, rect
 func _ready() -> void:
 	layer = 10
 	add_to_group(&"hud")
+	TouchButtons.ensure(get_tree())                     # plain Buttons answer a finger (map, garage, travel list, the rescue BACK)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	settings = UiSettings.new(settings_path)
 	photo = PhotoMode.new()
