@@ -1,10 +1,10 @@
 # w116-ci-apk (running)
 
-agent id ada33d2b74809f3af, 12 events, first activity 2026-11-12T22:55:52.120Z, last activity 2026-11-12T22:55:52.358Z
+agent id a83732cb86c50e4c6, 12 events, first activity 2026-11-20T14:48:49.382Z, last activity 2026-11-20T14:48:49.593Z
 
 ## Last notes of the agent
 
-- 22:55:52 You've hit your weekly limit · resets 4am (UTC)
+- 14:48:49 You've hit your 5-hour limit · resets 5:30pm (UTC)
 
 ## Recent steps (last 40)
 
