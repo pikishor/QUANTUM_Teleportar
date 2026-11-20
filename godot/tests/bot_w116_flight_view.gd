@@ -66,6 +66,7 @@ func _setup() -> void:
 	CrateReveal._quiet = 0                                              # as on a phone: reward cards are allowed
 	if OS.get_environment("FV_OLD") == "1":
 		FlightView.old_look = true
+		(Game.atmosphere as Atmosphere).rainfield.long_streaks = true
 	var city := Game.world as City
 	if city != null and city.day_night != null:
 		city.day_night.frozen = true
@@ -456,13 +457,15 @@ func _finish_capture() -> void:
 		parts.append("%s=%.2f%%" % [names[k], 100.0 * float(centre[k]) / maxf(centre_n, 1)])
 		if k < 5:
 			air_c += centre[k]
-			air_x += cross[k]
+			if k != 2:
+				air_x += cross[k]                              # the crosshair disc: wings, streaks, effects and cards (a rain drop falls where it falls)
 	var pc := 100.0 * float(air_c) / maxf(centre_n, 1)
 	var px := 100.0 * float(air_x) / maxf(cross_n, 1)
 	var sn := _p.snake
-	print("FV COVER %s %s  air_total=%.2f%%  cross=%.2f%%  (mode %s phase %s v %.1f lines %.2f spread %.2f)" % [_cap_label, " ".join(parts), pc, px, sn.mode_name(), sn.flight.phase, _p.velocity.length(), sn.cam.speed_lines, sn.flight.wing_spread])
-	var ok := pc <= LIMIT_CENTRE and px <= LIMIT_CROSS
+	print("FV COVER %s %s  air_total=%.2f%%  cross=%.2f%% rain_in_cross=%.2f%%  (mode %s phase %s v %.1f lines %.2f spread %.2f)" % [_cap_label, " ".join(parts), pc, px, 100.0 * float(cross[2]) / maxf(cross_n, 1), sn.mode_name(), sn.flight.phase, _p.velocity.length(), sn.cam.speed_lines, sn.flight.wing_spread])
+	var flying := sn.mode == SnakeTraversal.Mode.FLY                    # (a swing rope, a zip snake and the climbing snakes end at the anchor under the crosshair: the disc rule is for flight)
+	var ok := pc <= LIMIT_CENTRE and (px <= LIMIT_CROSS or not flying)
 	if not ok:
 		_fails += 1
-	print("FV VERDICT %s %s  centre %.2f%% (limit %.1f)  crosshair %.2f%% (limit %.1f)" % [_cap_label, "PASS" if ok else "FAIL", pc, LIMIT_CENTRE, px, LIMIT_CROSS])
+	print("FV VERDICT %s %s  centre %.2f%% (limit %.1f)  crosshair %.2f%% (limit %.1f%s)" % [_cap_label, "PASS" if ok else "FAIL", pc, LIMIT_CENTRE, px, LIMIT_CROSS, "" if flying else ", not applied: no flight"])
 	_cap_imgs.clear()

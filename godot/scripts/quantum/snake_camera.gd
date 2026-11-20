@@ -113,7 +113,7 @@ func update(st: SnakeTraversal, dt: float, looking: bool) -> void:
 		SnakeTraversal.Mode.FLY:
 			var cruise := maxf(SnakePower.fly_cruise(), 1.0)
 			td = 0.5 + clampf(sp * 0.02, 0.0, 1.5)                      # render loop 12: the hero was 12 % of the frame high at cruise (arm 7 m, lens +14 degrees): closer, and a smaller lens kick
-			th = -0.35 + clampf(sp * 0.004, 0.0, 0.25)                    # the lens sits at the hero's chest, not above his head: he rises from the bottom edge of the frame (render loop 13)
+			th = FlightView.fly_lens_height(sp)                         # wave 116: the lens looked over the hero's shoulder blades, so his back and the wing roots sat ON the crosshair; it now looks over his head (before: at his chest, render loop 13)
 			tf = (3.0 + clampf(sp * 0.16, 0.0, 12.0)) * calm
 			ts = 0.35
 			tr = st.flight.bank * 0.55 * calm

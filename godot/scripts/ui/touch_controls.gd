@@ -305,7 +305,7 @@ func _input(event: InputEvent) -> void:
 		if t.pressed:
 			touch_down(t.index, t.position)
 		else:
-			touch_up(t.index)
+			touch_up(t.index, hold_fast_taps)                        # a real finger: a tap inside one frame is held until the game has seen it
 	elif event is InputEventScreenDrag:
 		var d := event as InputEventScreenDrag
 		touch_move(d.index, d.position, d.relative)
@@ -403,7 +403,8 @@ func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
 		_look(rel)
 
 
-func touch_up(id: int) -> void:
+## `keep_fast` (the real input path): a press that no physics tick has seen yet is let go one tick later (see hold_fast_taps). A direct call lets go at once.
+func touch_up(id: int, keep_fast := false) -> void:
 	if id == _hot_finger:
 		_hot_finger = -1
 	if id == _wheel_finger:
@@ -440,7 +441,7 @@ func touch_up(id: int) -> void:
 		var at: Array = _press_at.get(id, [-1, -1])
 		_held.erase(id)
 		_press_at.erase(id)
-		if hold_fast_taps and Game.state == &"play" and (Engine.get_physics_frames() <= int(at[0]) or Engine.get_process_frames() <= int(at[1])):
+		if keep_fast and Game.state == &"play" and (Engine.get_physics_frames() <= int(at[0]) or Engine.get_process_frames() <= int(at[1])):
 			_late[act] = at                              # nothing has seen this press yet: _flush_late lets it go one tick later
 		elif not _action_held(act):
 			Input.action_release(act)

@@ -224,11 +224,12 @@ func _probe_zip() -> void:
 				res = "in the air"
 			var key := "%s -> %s" % [kind, res]
 			stats[key] = int(stats.get(key, 0)) + 1
+			print("    end %s blocked_by %s  from %s dest %s anchor %s" % [sn.zip.end_reason, sn.zip.blocked_by.right(60), from.snapped(Vector3(0.1, 0.1, 0.1)), dest.snapped(Vector3(0.1, 0.1, 0.1)), sn.zip.anchor.snapped(Vector3(0.1, 0.1, 0.1))])
 			print("  zip %s pitch %.2f dist %.0f dest dy %+.1f -> %s after %.1f s at dy %+.1f, miss %.1f m, biggest step %.2f m" % [kind, pitch, dist, dest.y - from.y, res, n / 60.0, p.global_position.y - from.y, p.global_position.distance_to(dest), max_step])
 	print("PROBE ZIP ", tried, " zips: ", stats)
 
 
-## SWING: JUMP, then SNAKE held 8 s; then the same with a tap.
+## SWING: JUMP, then SNAKE held 10 s (the auto chain), per-swing facts from SnakeSwing.log; a tap in the air; a press on the ground; a release and a new press.
 func _probe_swing() -> void:
 	for spot in [Vector3(-30.0, 0.0, 4.0), Vector3(40.0, 0.0, 4.0)]:
 		await _tp(spot, -PI * 0.5, 0.2)
@@ -236,20 +237,81 @@ func _probe_swing() -> void:
 		await _f(8)
 		var ok := fg.press(1, &"snake")
 		var s0 := sn.swings
+		var l0 := sn.swing.log.size()
 		var from := p.global_position
 		var floor_ticks := 0
 		var max_step := 0.0
 		var prev := p.global_position
 		var modes := {}
-		for i in 480:
+		var min_y := 99.0
+		var max_y := 0.0
+		var wait_attach := -1
+		var sp_sum := 0.0
+		for i in 200:
 			await _f(1)
+			if wait_attach < 0 and sn.swing.phase == &"hang":
+				wait_attach = i
 			max_step = maxf(max_step, p.global_position.distance_to(prev))
 			prev = p.global_position
 			modes[sn.mode_name()] = int(modes.get(sn.mode_name(), 0)) + 1
 			if p.is_on_floor():
 				floor_ticks += 1
+			if i > 20:
+				min_y = minf(min_y, p.global_position.y)
+				max_y = maxf(max_y, p.global_position.y)
+			sp_sum += p.velocity.length()
 		fg.up(1)
-		print("PROBE SWING hold 8 s from %s: pressed %s, swings %d, travelled %.0f m, ticks on the floor %d, biggest step %.2f m, time in %s, now %s" % [spot, ok, sn.swings - s0, Vector2(p.global_position.x - from.x, p.global_position.z - from.z).length(), floor_ticks, max_step, modes, _state()])
+		print("PROBE SWING hold 10 s from %s: pressed %s, bite after %d ticks, swings %d, travelled %.0f m (mean speed %.1f m/s), height %.1f..%.1f m, ticks on the floor %d, biggest step %.2f m, time in %s, now %s" % [spot, ok, wait_attach, sn.swings - s0, Vector2(p.global_position.x - from.x, p.global_position.z - from.z).length(), sp_sum / 200.0 / 3.0 * 3.0, min_y, max_y, floor_ticks, max_step, modes, _state()])
+		for k in range(l0, sn.swing.log.size()):
+			print("    swing ", sn.swing.log[k])
+		await _f(40)
+		print("    2 s after letting go: ", _state())
+	# a TAP in the air
+	await _tp(Vector3(-30.0, 0.0, 4.0), -PI * 0.5, 0.2)
+	await _tap(1, &"jump")
+	await _f(8)
+	var s1 := sn.swings
+	await _tap(1, &"snake", 3)
+	var t_sw := 0
+	for i in 100:
+		await _f(1)
+		if sn.mode == SnakeTraversal.Mode.SWING:
+			t_sw += 1
+	print("PROBE SWING a tap in the air: swings +%d, swinging for %d ticks, then %s" % [sn.swings - s1, t_sw, _state()])
+	# SNAKE on the ground where the label reads SWING
+	var city := Game.world as City
+	var seen := {}
+	for k in 12:
+		var rp: Vector3 = city.random_core_road_point()
+		if not rp.is_finite():
+			continue
+		await _tp(rp, float(k) * 0.9, -0.05)
+		var label := fg.button_label(&"snake")
+		await _tap(1, &"snake")
+		await _f(20)
+		var key := "label %s -> %s (floor %s)" % [label, sn.mode_name(), p.is_on_floor()]
+		seen[key] = int(seen.get(key, 0)) + 1
+	print("PROBE SNAKE tapped on the ground, looking level: ", seen)
+	# let go, then press again at once
+	await _tp(Vector3(-30.0, 0.0, 4.0), -PI * 0.5, 0.2)
+	await _tap(1, &"jump")
+	await _f(8)
+	fg.press(1, &"snake")
+	await _f(50)
+	var v_hang := p.velocity.length()
+	fg.up(1)
+	await _f(3)
+	var v_rel := p.velocity.length()
+	var s2 := sn.swings
+	fg.press(1, &"snake")
+	var again := -1
+	for i in 60:
+		await _f(1)
+		if sn.swings > s2:
+			again = i
+			break
+	fg.up(1)
+	print("PROBE SWING let go at %.1f m/s -> %.1f m/s after the release; a new press swings again after %d ticks (-1: not within 3 s), %s" % [v_hang, v_rel, again, _state()])
 
 
 ## SNAKE held on the ground: what does a held button do in the city.

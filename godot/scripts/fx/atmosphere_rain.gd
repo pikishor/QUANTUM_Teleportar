@@ -36,6 +36,13 @@ const SPEED_CLASS: Array[float] = [0.86, 1.0, 1.16]     ## must match post_rain.
 const GROUND_PROBE_EVERY := 8       ## physics ticks between ground raycasts (about 7 per second)
 const JUMP_LIMIT := 25.0            ## a camera displacement larger than this in one frame is a cut or a teleport, not motion
 const MAX_CAM_SPEED := 70.0
+## Wave 116 (owner round 7, "many rays obscuring the view" in flight): a streak is stretched along the drop's speed RELATIVE to the camera, so a hero flying at 50 m/s saw every drop as a
+## 2 m line bursting out of the middle of the screen. The stretch now follows the camera only up to STREAK_CAM_SPEED (a run, a car in town), and from there to FAST_DIM_AT the
+## streaks dim to FAST_DIM of their brightness: fast flight is seen through thin short rain, not through a tunnel of rays. `long_streaks` = the look before (before / after frames).
+const STREAK_CAM_SPEED := 18.0
+const FAST_DIM := 0.3
+const FAST_DIM_AT := 45.0
+static var long_streaks := false
 
 ## Wind in m/s (x, z). With a fall speed of 12 m/s the default leans the rain by about 8 degrees: a slight slant.
 var wind := Vector2(1.5, 0.5)
@@ -62,6 +69,8 @@ var splash_material: ShaderMaterial
 
 var _drift: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
 var _cam_vel := Vector3.ZERO
+var speed_dim := 1.0                ## brightness of the streaks for the camera's speed (1 at rest .. FAST_DIM at MAX_CAM_SPEED)
+var _dim_pushed := 1.0
 var _prev := Vector3.ZERO
 var _have_prev := false
 var _have_cam := false
@@ -174,11 +183,17 @@ func update(delta: float, cam: Camera3D, rain: float) -> void:
 		if d.length_squared() < JUMP_LIMIT * JUMP_LIMIT:
 			var v := d / delta
 			var sp := v.length()
-			if sp > MAX_CAM_SPEED:
-				v *= MAX_CAM_SPEED / sp
+			var cap := MAX_CAM_SPEED if long_streaks else STREAK_CAM_SPEED
+			var fast := 0.0 if long_streaks else clampf((sp - STREAK_CAM_SPEED) / (FAST_DIM_AT - STREAK_CAM_SPEED), 0.0, 1.0)
+			speed_dim = lerpf(speed_dim, lerpf(1.0, FAST_DIM, fast), 1.0 - exp(-delta * 6.0))
+			if sp > cap:
+				v *= cap / sp
 			_cam_vel = _cam_vel.lerp(v, 1.0 - exp(-delta * 9.0))
 		else:
 			_cam_vel = Vector3.ZERO
+	if absf(speed_dim - _dim_pushed) > 0.02 and streak_material != null:
+		_dim_pushed = speed_dim
+		streak_material.set_shader_parameter(&"intensity", STREAK_GAIN[tier] * speed_dim)
 	_prev = pos
 	_have_prev = true
 	if not _shown:
@@ -222,7 +237,8 @@ func _refresh_visibility() -> void:
 func _apply_tier_look() -> void:
 	if streak_material == null:
 		return
-	streak_material.set_shader_parameter(&"intensity", STREAK_GAIN[tier])
+	streak_material.set_shader_parameter(&"intensity", STREAK_GAIN[tier] * speed_dim)
+	_dim_pushed = speed_dim
 	streak_material.set_shader_parameter(&"width", STREAK_WIDTH[tier])
 
 

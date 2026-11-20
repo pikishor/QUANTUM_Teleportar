@@ -416,6 +416,17 @@ func _tick_cards(delta: float) -> void:
 			_next_card()
 
 
+static var pause_passes := true                  ## false = the old behaviour: a story card swallows a tap on the PAUSE button too (tests)
+
+
+## True when `pos` is on the touch PAUSE button (the same circle TouchControls.touch_down tests).
+func _on_pause_button(pos: Vector2) -> bool:
+	var hud := get_tree().get_first_node_in_group(&"hud") as Hud
+	if hud == null or hud.touch == null or not hud.touch.controls_on:
+		return false
+	return pos.distance_to(hud.touch._pause_center()) <= 36.0 * hud.touch._scale() * 1.3
+
+
 func _input(event: InputEvent) -> void:
 	if cards.is_empty() or MapScreen.up:
 		return
@@ -430,6 +441,8 @@ func _input(event: InputEvent) -> void:
 		hit = k.pressed and not k.echo and (k.keycode == KEY_ENTER or k.keycode == KEY_KP_ENTER or k.keycode == KEY_SPACE)
 	# Only while the cards are on screen (play, dead, win: the same states as `view.visible` and advance()). Cards left over from an aborted run stay frozen and invisible in the
 	# menu; swallowing taps there made DEPLOY / NEW GAME unreachable after "ABORT TO MENU" during the prologue (found by tests/bot_soak.gd).
+	if hit and pause_passes and event is InputEventScreenTouch and Game.state == &"play" and _on_pause_button((event as InputEventScreenTouch).position):
+		return                                              # wave 116 touch audit: a card never eats a tap on the PAUSE button (three cards after PLAY or DEMO made PAUSE dead for three taps)
 	if hit and (Game.state == &"play" or Game.state == &"dead" or Game.state == &"win") and advance_card():
 		get_viewport().set_input_as_handled()
 

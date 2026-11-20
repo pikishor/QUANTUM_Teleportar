@@ -691,10 +691,18 @@ func press_hud_frame(ctx: String, skip: Array = []) -> Array[String]:
 		var before := play_sig()
 		Sfx.last_played = &""
 		var uses_action: bool = not b.has("fn") and not bool(b.get("call", false))
+		var box := [false]
+		var watch := func() -> void:                                  # "down" = a physics tick saw the action pressed (the game may let it go by itself, as MELEE does)
+			if Input.is_action_pressed(action):
+				box[0] = true
+		if uses_action:
+			tree.physics_frame.connect(watch)
 		finger_down(centre_of(c))
 		await frames(2)
-		var down_ok: bool = Input.is_action_pressed(action) if uses_action else true
 		await pframes(18)
+		if uses_action:
+			tree.physics_frame.disconnect(watch)
+		var down_ok: bool = box[0] if uses_action else true
 		var during := play_sig()
 		finger_up()
 		await frames(3)
@@ -733,3 +741,75 @@ func tap_hud(id: String, hold_frames := 2) -> bool:
 		return false
 	await tap(centre_of(c), 0, hold_frames)
 	return true
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# the screens that are not the HUD's menu layer
+# ---------------------------------------------------------------------------------------------------------------------------------
+
+## The cells of a menu that draws itself (TestMenu, DemoPanel: tabs, CLOSE, the rows in view) as controls.
+func panel_controls(n: Node) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if n == null or not bool(n.get("is_open")):
+		return out
+	n.call(&"layout")
+	var lay := layer_of(n)
+	var view := Rect2(Vector2.ZERO, vp())
+	out.append({"src": "panel", "id": "close", "label": "CLOSE", "rect": n.call(&"_close_rect"), "layer": lay, "kind": "rect"})
+	var tabs: Array = n.call(&"_tab_rects")
+	var names: Array = n.get("TABS")
+	for i in tabs.size():
+		out.append({"src": "panel", "id": "tab_%d" % i, "label": str(names[i]) if i < names.size() else "", "rect": tabs[i], "layer": lay, "kind": "rect", "tab": i})
+	var top := float(n.call(&"_top"))
+	var scroll := float(n.get("scroll"))
+	var items: Array = n.get("items")
+	for i in items.size():
+		var it: Dictionary = items[i]
+		if it.get("head", false):
+			continue
+		var r: Rect2 = it["rect"]
+		var sr := Rect2(r.position.x, r.position.y + top - scroll, r.size.x, r.size.y)
+		if sr.position.y >= top and view.encloses(sr):
+			out.append({"src": "panel", "id": "item_%d" % i, "label": str(it.get("label", "")), "rect": sr, "layer": lay, "kind": "rect", "item": it})
+	return out
+
+
+## Presses every enabled Godot control that is on screen once, reading the list again after every press (a press may enable or remove others). `extra` adds to the
+## signature (what the screen changes that the common signature does not hold), `skip` holds node names left to a scripted check, `alive` must stay true (the screen is open).
+func press_nodes(ctx: String, extra: Callable, skip: Array, alive: Callable) -> Dictionary:
+	var out := {"pressed": 0, "dead": [], "double": []}
+	var done := {}
+	for g in geometry(ctx, node_controls()):
+		finding(g)
+	await shot(ctx)
+	while alive.call():
+		var c: Dictionary = {}
+		for k: Dictionary in node_controls():
+			if not done.has(k["id"]) and not k["disabled"] and not skip.has(k["id"]):
+				c = k
+				break
+		if c.is_empty():
+			break
+		done[c["id"]] = true
+		var before := signature() + str(extra.call())
+		Sfx.last_played = &""
+		var n0 := TouchButtons.presses
+		if c["node"] is Range:
+			var sr: Rect2 = c["rect"]
+			await drag(sr.position + sr.size * Vector2(0.3, 0.5), sr.position + sr.size * Vector2(0.7, 0.5))
+		else:
+			await tap(centre_of(c))
+		out["pressed"] += 1
+		var eff := "state" if signature() + str(extra.call()) != before else ("sound" if Sfx.last_played != &"" else "dead")
+		var fired := TouchButtons.presses - n0
+		row(ctx, c, eff, "", "presses %d %s" % [fired, Sfx.last_played])
+		if eff == "dead":
+			(out["dead"] as Array).append("%s '%s'" % [c["id"], c["label"]])
+			finding("%s: %s '%s' did nothing" % [ctx, c["id"], c["label"]])
+		if c["node"] is BaseButton and fired != 1:
+			(out["double"] as Array).append("%s x%d" % [c["id"], fired])
+			finding("%s: one tap on %s '%s' fired %d presses" % [ctx, c["id"], c["label"], fired])
+	for k: Dictionary in node_controls():
+		if k["disabled"] and not done.has(k["id"]):
+			row(ctx, k, "disabled")
+	return out

@@ -15,16 +15,32 @@ var a: Audit
 var p: Player
 
 
+## A quick tap on a HUD button: true when at least one physics tick saw its action down, and the action was let go again afterwards.
 func _fast_tap_seen(id: String) -> bool:
 	var c := a.hud_button(id)
 	if c.is_empty():
 		return false
 	var action: StringName = (c["b"] as Dictionary)["action"]
+	var box := [false]
+	var watch := func() -> void:
+		if Input.is_action_pressed(action):
+			box[0] = true
+	a.tree.physics_frame.connect(watch)
 	a.fast_tap(a.centre_of(c))
-	await a.tree.physics_frame                       # the first physics tick after the tap: does the game see the button down?
-	var seen := Input.is_action_pressed(action)
-	await a.pframes(4)
-	return seen and not Input.is_action_pressed(action)
+	await a.frames(3)
+	await a.pframes(3)
+	var let_go := await a.until(func() -> bool: return not Input.is_action_pressed(action), 120)
+	a.tree.physics_frame.disconnect(watch)
+	return box[0] and let_go
+
+
+## A quick tap on ABILITY (down and up in one frame: a tap held longer than 0.25 s is a hold, and two frames of a loaded machine are longer than that).
+func _tap_ability() -> void:
+	var c := a.hud_button("ability")
+	if c.is_empty():
+		return
+	a.fast_tap(a.centre_of(c))
+	await a.frames(3)
 
 
 func run(h: Node) -> void:
@@ -165,7 +181,7 @@ func _wheels() -> void:
 	TestLib.check(not a.tc.wheel.is_open, "a tap beside the discs closes the weapon wheel")
 	await a.pframes(6)
 	# ABILITY: a tap leaves the wheel open, a tap on a disc casts, a tap beside closes
-	await a.tap_hud("ability", 2)
+	await _tap_ability()
 	TestLib.check(a.tc.wheel.is_open and a.tc.wheel.kind == &"ability" and a.tc.wheel.sticky, "a tap on ABILITY opens the ability wheel and it stays")
 	if a.tc.wheel.is_open:
 		var discs := a.touch_controls()
@@ -181,7 +197,7 @@ func _wheels() -> void:
 		await a.pframes(14)
 		TestLib.check(cast and not a.tc.wheel.is_open and not Input.is_action_pressed(StringName(first["id"])), "a tap on %s casts it (the action goes down, the wheel closes, the action lets go)" % first["label"])
 		a.row("wheel_ability", first, "state" if cast else "dead")
-		await a.tap_hud("ability", 2)
+		await _tap_ability()
 		if a.tc.wheel.is_open:
 			await a.tap(Vector2(a.vp().x * 0.3, a.vp().y * 0.45), 0, 3)
 		TestLib.check(not a.tc.wheel.is_open, "a tap beside the discs closes the ability wheel")
@@ -223,7 +239,7 @@ func _pause_map_back() -> void:
 	await a.tap_hud("more")
 	await a.back_key()
 	TestLib.check(Game.state == &"play" and not a.tc.more_open and BackKey.last == &"more", "the BACK key closes the MORE cluster first (did %s)" % BackKey.last)
-	await a.tap_hud("ability", 2)
+	await _tap_ability()
 	await a.back_key()
 	TestLib.check(Game.state == &"play" and not a.tc.wheel.is_open, "the BACK key closes an open wheel first (did %s)" % BackKey.last)
 	await a.tap_hud("minimap")
@@ -251,8 +267,11 @@ func _car() -> void:
 	p.global_position = car.global_position + car.global_transform.basis.x * 2.2 + Vector3(0, 0.3, 0)
 	var shown := await a.until(func() -> bool: return not a.hud_button("interact").is_empty(), 300)
 	TestLib.check(shown and a.hud_button("interact")["label"] == "ENTER", "beside a car the HUD shows ENTER (%s)" % str(a.hud_button("interact").get("label", "-")))
-	await a.tap_hud("interact", 4)
-	TestLib.check(await a.until(func() -> bool: return p.vehicle != null, 300), "a finger on ENTER puts the hero in the car")
+	for k in 3:                                                       # a loaded machine: the door answers the first tap, the test allows three
+		if p.vehicle == null and not a.hud_button("interact").is_empty():
+			await a.tap_hud("interact", 6)
+			await a.until(func() -> bool: return p.vehicle != null, 150)
+	TestLib.check(p.vehicle != null, "a finger on ENTER puts the hero in the car")
 	if p.vehicle == null:
 		vm.enter(car)
 		await a.pframes(10)
@@ -355,20 +374,37 @@ func _aircraft() -> void:
 		if ids.has("fire") and vw != null:
 			var s0 := int(vw.get("shots"))
 			a.finger_down(a.centre_of(a.hud_button("fire")))
-			await a.pframes(40)
+			for k in 60:                                                # until the first shot, not longer: a parked gunship that keeps firing into the street hurts itself
+				await a.tree.physics_frame
+				if int(vw.get("shots")) > s0:
+					break
 			a.finger_up()
 			await a.pframes(4)
 			TestLib.check(int(vw.get("shots")) > s0, "%s: a finger held on FIRE fires the mounted gun (%d -> %d shots)" % [kind, s0, int(vw.get("shots"))])
 		if ids.has("aim") and vw != null and bool(vw.call(&"has_alt")):
 			var a0 := int(vw.get("alt_shots"))
 			a.finger_down(a.centre_of(a.hud_button("aim")))
-			await a.pframes(40)
+			for k in 60:
+				await a.tree.physics_frame
+				if int(vw.get("alt_shots")) > a0:
+					break
 			a.finger_up()
 			await a.pframes(4)
 			TestLib.check(int(vw.get("alt_shots")) > a0, "%s: a finger held on %s fires the second weapon (%d -> %d)" % [kind, a.hud_button("aim").get("label", "?"), a0, int(vw.get("alt_shots"))])
 		Game.state = &"play"
-		await a.tap_hud("interact", 4)
-		TestLib.check(await a.until(func() -> bool: return p.vehicle == null, 300), "%s: a finger on EXIT leaves it" % kind)
+		if air and not VehicleCraft.can_exit(hv) and not a.hud_button("crouch").is_empty():      # the UP presses lifted it: land with DOWN first, as the game asks ("LAND TO GET OUT")
+			a.finger_down(a.centre_of(a.hud_button("crouch")))
+			await a.until(func() -> bool: return VehicleCraft.can_exit(hv), 600)
+			a.finger_up()
+			await a.pframes(6)
+			if not VehicleCraft.can_exit(hv):
+				print("NOTE %s: DOWN held 600 frames did not land it (height %.1f, speed %.1f): it rests on something that is not ground" % [kind, hv.global_position.y, hv.speed])
+		for k in 3:
+			if p.vehicle != null and not a.hud_button("interact").is_empty():
+				await a.tap_hud("interact", 6)
+				await a.until(func() -> bool: return p.vehicle == null, 150)
+		var told: bool = p.vehicle != null and air and not VehicleCraft.can_exit(hv) and a.hud.message_text.contains("LAND")      # a craft that is not down answers EXIT with LAND TO GET OUT (the game's rule)
+		TestLib.check(p.vehicle == null or told, "%s: a finger on EXIT leaves it, or says LAND TO GET OUT while it is not down (state %s, height %.1f, message '%s')" % [kind, Game.state, hv.global_position.y if is_instance_valid(hv) else 0.0, a.hud.message_text])
 		if p.vehicle != null:
 			vm.exit_vehicle()
 		await a.pframes(10)

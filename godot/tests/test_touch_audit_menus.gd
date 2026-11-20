@@ -13,7 +13,7 @@ const Audit := preload("res://tests/touch_audit_lib.gd")
 ## Pressed by scripted checks (here or in part 3): they leave the menus or change the save in a way the walk cannot undo.
 const SCRIPTED := ["deploy", "continue", "demo", "menu", "resume", "opt_reset", "opt_reset_demo", "opt_bench", "photo_open", "pause_map", "board_story"]
 ## Targets still under 44 px at 844x390 after the finger margins (rows packed tighter than 82 base px; wave 137 owns the small-screen layout). Never raise these.
-const KNOWN_SMALL := {"title": 60, "pause": 150}
+const KNOWN_SMALL := {"title": 38, "pause": 82}
 var a: Audit
 
 
