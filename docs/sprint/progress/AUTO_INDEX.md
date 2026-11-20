@@ -10,3 +10,7 @@ Written by godot/tools/sprint_digest.py at 2026-11-20 22:22Z. Status 'running' m
 - w116-integrator [Integrate] running: 12 events, 14:48:49 -> 14:48:49
 - w116-ci-apk [CI and APK] running: 12 events, 14:48:49 -> 14:48:49
 
+## workflow run wf_8a787e45-87c
+
+- w116-flight-view [Build] running: 23 events, 22:22:37 -> 22:22:44
+
