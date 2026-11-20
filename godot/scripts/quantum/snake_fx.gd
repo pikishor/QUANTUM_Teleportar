@@ -48,6 +48,33 @@ func _ensure_lines() -> void:
 	_rect.material = _lmat
 	_rect.visible = false
 	_layer.add_child(_rect)
+	_lines_old = -1
+	_push_lines()
+
+
+## The mask of the streaks (FlightView.lines_params: where they start, how faint they are). Pushed when the layer is made and again when the look switch changes.
+const LINE_UNIFORMS: Array[StringName] = [&"metric", &"inner_base", &"inner_var", &"inner_amount", &"fade_width", &"alpha", &"width_base", &"width_var", &"on_base", &"on_amount"]
+var _lines_old := -1
+
+
+func _push_lines() -> void:
+	var want := 1 if FlightView.old_look else 0
+	if _lmat == null or want == _lines_old:
+		return
+	_lines_old = want
+	var prm := FlightView.lines_params()
+	for i in LINE_UNIFORMS.size():
+		_lmat.set_shader_parameter(LINE_UNIFORMS[i], prm[i])
+
+
+## The parameters the streak layer draws with now ([] while the layer does not exist): tests read them.
+func lines_params_now() -> Array[float]:
+	var out: Array[float] = []
+	if _lmat == null:
+		return out
+	for u in LINE_UNIFORMS:
+		out.append(float(_lmat.get_shader_parameter(u)))
+	return out
 
 
 func _ensure_marker() -> void:
@@ -134,6 +161,7 @@ func _process(delta: float) -> void:
 	if lines_on:
 		_lmat.set_shader_parameter("amount", amount)
 		_lmat.set_shader_parameter("time_s", _t)
+		_push_lines()
 	# the anchor marker
 	var want := false
 	if playing and st.mode == SnakeTraversal.Mode.NONE and not st.preview.is_empty() and not st.p.is_dead() and (st.p.air_time > 0.25 or st.hint == &"zip") and not Game.player_in_vehicle():
@@ -182,6 +210,7 @@ func warm_end() -> void:
 	_layer = null
 	_rect = null
 	_lmat = null
+	_lines_old = -1
 	if _marker != null:
 		_marker.queue_free()
 	_marker = null

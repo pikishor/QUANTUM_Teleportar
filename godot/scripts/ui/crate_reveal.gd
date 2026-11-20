@@ -11,6 +11,7 @@ const POP := 0.5
 const FADE := 0.45
 const COMPACT_LIFE := 2.0                   ## seconds of the small card shown while a fight is on
 const COMPACT_SCALE := 0.62
+const AIR_SCALE := 0.5                      ## the card of a hero who needs the view (in the air, fast, driving): smaller still, flush with the left edge (wave 116)
 const COMBAT_RANGE := 50.0                  ## metres: an alerted enemy this close means the fight is on
 const MAX_QUEUE := 2                       ## cards that may wait behind the one on screen
 
@@ -25,6 +26,7 @@ var weapon: StringName = &""
 var source := "NEW WEAPON"
 var age := 0.0
 var compact := false                         ## a fight is on: a small card at the side for a short time, no dim and no rays over the view the hero needs (wave 114 critic)
+var air := false                             ## the hero swings, zips, flies, falls, runs fast or drives (FlightView.view_needed): the compact card at the left edge, outside the middle 60 % of the screen (owner round 7: rays and a dim over the whole view in flight)
 var _life := LIFE
 var _card := {}
 
@@ -89,6 +91,19 @@ static func is_showing() -> bool:
 	return is_instance_valid(current)
 
 
+## Where the card is drawn (canvas px, before its pop animation): tests check that the card of a hero in the air stays out of the middle of the screen.
+func card_rect() -> Rect2:
+	var vp := size
+	var s := UiUtil.ui_scale(vp)
+	var centre := vp * 0.5 + Vector2(0.0, 6.0 * s)
+	if compact:
+		centre = Vector2(vp.x * 0.2, vp.y * 0.46)
+	if air:
+		centre.x = UiUtil.insets(vp).x + 12.0 * s + 560.0 * s * AIR_SCALE * 0.5
+	var card := Vector2(560.0, 366.0) * s * (AIR_SCALE if air else (COMPACT_SCALE if compact else 1.0))
+	return Rect2(centre - card * 0.5, card)
+
+
 ## True while an alerted enemy is near the hero on foot or in a car, in the running game: the reveal then must not dim or cover the view (the crates stand in the streets where the fights are).
 static func in_combat() -> bool:
 	if Game.state != &"play" or not is_instance_valid(Game.player):
@@ -107,6 +122,8 @@ func _ready() -> void:
 	z_index = 50
 	_card = WeaponStats.card(weapon, WeaponDefs.def(weapon))
 	compact = in_combat()
+	air = FlightView.view_needed()
+	compact = compact or air
 	_life = COMPACT_LIFE if compact else LIFE
 	Sfx.play(&"ui_confirm", -2.0, 0.9)
 	Sfx.play(&"pickup", -4.0, 0.8)
@@ -125,6 +142,10 @@ func _process(dt: float) -> void:
 		clear()
 		return
 	age += dt / maxf(Engine.time_scale, 0.05)
+	if not air and FlightView.view_needed():           # the hero took off (or started to drive) under a full card: it shrinks to the edge and ends soon
+		air = true
+		compact = true
+		_life = minf(_life, age + COMPACT_LIFE)
 	if age >= _life:
 		_finish()
 		return
@@ -170,6 +191,8 @@ func _draw() -> void:
 	var centre := vp * 0.5 + Vector2(0.0, 6.0 * s)
 	if compact:
 		centre = Vector2(vp.x * 0.2, vp.y * 0.46)                                 # beside the middle of the view, over the free side of the street (the hero, the touch controls and the crosshair stay clear)
+	if air:
+		centre.x = UiUtil.insets(vp).x + 12.0 * s + 560.0 * s * AIR_SCALE * 0.5      # flush with the left edge: its right edge stays left of the middle 60 % of a 20:9 screen
 	# light rays turning behind the card
 	for i in (0 if compact else 14):
 		var a := float(i) * TAU / 14.0 + age * 0.35
@@ -182,7 +205,7 @@ func _draw() -> void:
 	var k := _ease_back(age / POP) if age < POP else 1.0
 	var k2 := 1.0 + 0.012 * sin(age * 3.0) if age >= POP else 1.0
 	var card := Vector2(560.0, 366.0) * s
-	var csc := COMPACT_SCALE if compact else 1.0
+	var csc := AIR_SCALE if air else (COMPACT_SCALE if compact else 1.0)
 	draw_set_transform(centre, (1.0 - clampf(age / POP, 0.0, 1.0)) * 0.1, Vector2(k * k2 * csc, k * k2 * csc))
 	var r := Rect2(-card * 0.5, card)
 	UiKit.panel(self, r, s, tint, true, 16.0, true)

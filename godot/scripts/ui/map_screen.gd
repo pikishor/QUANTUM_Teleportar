@@ -310,7 +310,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_GO_BACK_REQUEST and _open:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and _open and not BackKey.enabled:       # the BACK key has one owner now (scripts/ui/back_key.gd closes the map); this is the old path
 		close_screen()
 
 

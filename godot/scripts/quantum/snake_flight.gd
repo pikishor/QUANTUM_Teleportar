@@ -28,6 +28,7 @@ const LAND_RANGE := 2.4
 const ROLL_TIME := 0.7
 const BOUNDS := 90.0
 const REGEN_GLIDE := 5.0
+const LOW_START := 3.2                    ## metres over the ground under which a flight that starts in the air takes off like one from the ground
 
 var st: SnakeTraversal
 var active := false
@@ -55,6 +56,7 @@ var wing_spread := 0.0                    ## 0..1 how far the wings are spread (
 var roll_land_t := 0.0                    ## > 0 while the landing roll plays after touching down
 var wings: Array[SnakeTendril] = []
 static var record_speed := 0.0            ## the hero's speed record of the session (the HUD shows it)
+static var low_start := true              ## a flight started low over the ground is a take-off (a test switches it off to show the old behaviour)
 static var clip_wings := true             ## the wing tips stop at walls (a look-dev bot and a test switch it off to show the old look)
 var _tip_frame: Array[int] = [-1, -1]      ## the clipped wing tips of this frame (left, right): see _keep_out_of_walls
 var _tip_cache: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
@@ -114,11 +116,14 @@ func begin(p: Player, aim: Vector3) -> bool:
 	_ground_t = 0.0
 	dir = aim.normalized()
 	var from_ground := p.is_on_floor()
-	if from_ground:
+	# wave 116 (touch probe): FLY shows 0.3 s into a jump and the jump is over 0.4 s later; a thumb that pressed FLY on the way down (0.8 m up, falling) got 15 ticks of flight and stood on the
+	# street again, as if the button had done nothing. A start this low is a take-off like the one from the ground: the lift carries him up and the ground cannot end the flight during it.
+	var low := not from_ground and low_start and _ground_gap(p) < LOW_START
+	if from_ground or low:
 		phase = &"takeoff"
-		p.velocity.y = TAKEOFF_LIFT
+		p.velocity.y = maxf(p.velocity.y, TAKEOFF_LIFT)
 		dir = Vector3(aim.x, maxf(aim.y, 0.35), aim.z).normalized()
-		speed = SnakePower.fly_cruise() * 0.5
+		speed = maxf(SnakePower.fly_cruise() * 0.5, p.velocity.length() * 0.9 if low else 0.0)
 	else:
 		phase = &"power"
 		speed = maxf(p.velocity.length() * 0.9, SnakePower.fly_cruise() * 0.6)
@@ -135,7 +140,7 @@ func _spawn_wings(p: Player) -> void:
 	_kill_wings()
 	for side in [-1, 1]:
 		var s: int = side
-		var t := SnakeTendril.fire(st.back_callable(s), Callable(self, "_wing_tip").bind(p, s), {"travel": 0.14, "wriggle": 0.3, "tension": 0.5, "thickness": 0.085, "host": p, "color": Color(0.2, 0.85, 1.0)})
+		var t := SnakeTendril.fire(st.back_callable(s), Callable(self, "_wing_tip").bind(p, s), {"travel": 0.14, "wriggle": 0.3 if FlightView.old_look else 0.12, "tension": 0.5, "thickness": FlightView.wing_thickness(), "host": p, "color": Color(0.2, 0.85, 1.0)})
 		t.user["keep"] = true
 		wings.append(t)
 
@@ -152,9 +157,10 @@ func _wing_tip(p: Player, side: int) -> Vector3:
 		up = rb * up
 	var spd := clampf(speed / maxf(SnakePower.fly_boost(), 1.0), 0.0, 1.0)
 	var spread := wing_spread
-	var span := lerpf(3.0, 4.8, spread) - 0.7 * spd                 # render loop 12: swept far back (4 m) the tips came at the camera and the wings filled the screen; now they open sideways
-	var back := lerpf(0.6, 2.4, spd) + 0.5 * (1.0 - spread)
-	var lift := lerpf(0.5, 2.0, spread) - 0.3 * spd + 0.5 * bank * float(side)
+	var shape := FlightView.wing_shape(spread, spd, bank, side)        # wave 116 (owner round 7): the wings were 3 to 4.8 m a side, arched 2 m up, and crossed the whole screen: FlightView keeps them at the hero's shoulders
+	var span := shape.x
+	var lift := shape.y
+	var back := shape.z
 	var chest := p.global_position + Vector3(0.0, 1.15, 0.0)
 	var tip := chest - fwd * back + right * (float(side) * span) + up * lift
 	return _keep_out_of_walls(p, chest, tip, side)
@@ -322,8 +328,8 @@ func tick(p: Player, dt: float, iv: Vector2, aim: Vector3, jump_held: bool, crou
 		if w == null or not w.is_alive():
 			continue
 		w.tension = 0.85
-		w.bow = wing_up * lerpf(1.7, 0.5, spd_k) * (0.55 + 0.45 * wing_spread) - dir * 0.5 * spd_k + wing_up * (0.4 * bank * (1.0 if wi == 0 else -1.0))
-		w.flutter = 0.12 + 0.3 * wing_spread + 0.1 * spd_k
+		w.bow = FlightView.wing_bow(wing_up, dir, spd_k, wing_spread, bank, wi)
+		w.flutter = FlightView.wing_flutter(wing_spread, spd_k)
 	# ---- velocity
 	var right_h := Vector3(-dir.z, 0.0, dir.x)
 	right_h = right_h.normalized() if right_h.length() > 0.05 else Vector3.RIGHT

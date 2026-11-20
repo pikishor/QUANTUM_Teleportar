@@ -27,6 +27,7 @@ const SUPER_MAX_RUN := 4.5                 ## the push only follows a jump from 
 const ROLL_TIME := 0.56
 const ROLL_FALL := 15.0                    ## landing faster than this (m/s down) rolls
 const FLY_HOLD := 0.45
+const FLY_SHOW_AIR := 0.15                 ## seconds in the air before the FLY button shows (was 0.3: after a JUMP tap the button was on screen for 0.38 s only, wave 116 touch probe)
 const WHIFF_COOLDOWN := 0.35
 const SCAN_RATE := 0.09
 const ASSIST_DEFAULT := true
@@ -899,4 +900,4 @@ func fly_button_shown() -> bool:
 		return false
 	if mode == Mode.FLY:
 		return true
-	return (mode == Mode.NONE or mode == Mode.SWING) and p.air_time > 0.3 and (energy >= 8.0 or SnakePower.unlimited())
+	return (mode == Mode.NONE or mode == Mode.SWING) and p.air_time > FLY_SHOW_AIR and (energy >= 8.0 or SnakePower.unlimited())

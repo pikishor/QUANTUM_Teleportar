@@ -120,6 +120,7 @@ func _ready() -> void:
 	layer = 10
 	add_to_group(&"hud")
 	TouchButtons.ensure(get_tree())                     # plain Buttons answer a finger (map, garage, travel list, the rescue BACK)
+	BackKey.ensure(get_tree())                          # the phone's BACK key steps one screen back instead of closing the game (scripts/ui/back_key.gd)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	settings = UiSettings.new(settings_path)
 	photo = PhotoMode.new()
@@ -463,12 +464,33 @@ func tap(pos: Vector2) -> bool:
 	return false
 
 
+## Wave 116 touch audit: false = the old hit test (a 4 px margin around each drawn rectangle, the first match wins): a 64 base px row is a 34 px target on an 844x390 phone.
+static var finger_targets := true
+
+
+## The button a press at `pos` means. Every button answers in an area at least UiUtil.TOUCH_TARGET across (44 px on an 844x390 phone) around its drawn rectangle; where two
+## such areas meet, the button whose drawn rectangle is nearer wins, so a neighbour never loses a pixel of its own plate.
 func _button_at(pos: Vector2) -> StringName:
 	_ensure_layout()
+	if not finger_targets:
+		for b: Dictionary in buttons:
+			if (b["rect"] as Rect2).grow(4.0).has_point(pos):
+				return b["id"]
+		return &""
+	var need := UiUtil.TOUCH_TARGET * UiUtil.ui_scale(get_viewport().get_visible_rect().size)
+	var best := &""
+	var best_d := 1.0e9
 	for b: Dictionary in buttons:
-		if (b["rect"] as Rect2).grow(4.0).has_point(pos):
-			return b["id"]
-	return &""
+		var r: Rect2 = b["rect"]
+		var gx := maxf(4.0, (need - r.size.x) * 0.5)
+		var gy := maxf(4.0, (need - r.size.y) * 0.5)
+		if not r.grow_individual(gx, gy, gx, gy).has_point(pos):
+			continue
+		var d := Vector2(maxf(maxf(r.position.x - pos.x, pos.x - r.end.x), 0.0), maxf(maxf(r.position.y - pos.y, pos.y - r.end.y), 0.0)).length()
+		if d < best_d:
+			best_d = d
+			best = b["id"]
+	return best
 
 
 ## The suit screen's buttons (`look_*`): equip or buy a suit / scheme / accent hue; `look_back` returns to the shop.
