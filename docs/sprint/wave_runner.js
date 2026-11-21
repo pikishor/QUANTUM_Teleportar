@@ -50,6 +50,33 @@ swing, zip, fly, land, open the map and close it, demo mode on and off. Hunt the
 the view, something that repeats or never ends. Render frames and LOOK at them. List the 10 worst defects with evidence, fix them most severe first, each with a check that fails without the fix.`,
     commit: 'Wave 116: every control answers a finger (touch audit), a clear view in flight',
   },
+  117: {
+    title: 'Snake swing like Spider-Man',
+    builders: [
+      { tag: 'swing', prompt: `TASK (label w117-swing): THE SWING ITSELF. Owner: "zip line should be just like spiderman but instead of web we have multiple snakes binding together and our hero can jump"; today
+"it behaves abnormally". Read the list "FOR WAVE 117" in docs/sprint/progress/w116-flight-view.md and the open list in docs/sprint/progress/w116-critic.md first. Rebuild the swing motion
+(scripts/quantum/snake_traversal.gd and the swing code it uses; you OWN the motion and the input logic, the other builder owns the rope's look and the cues): hold SNAKE = the rope bites an
+anchor ahead and above (building edge, crane, tree, lamp; sensible auto-pick in the look direction, never behind a wall), a real pendulum with rope length kept, speed carried through the
+arc, release at any point throws the hero along his velocity with a small upward help near the front of the arc, press SNAKE again in the air = next rope (chain of swings down a street
+without touching the ground), JUMP during a swing = release with a boost, steer left / right with the stick, never through walls or the ground, never flung to huge speeds, never stuck
+hanging (a still rope lets go or lowers the hero after a short time), a soft landing with a roll. Fix each of the 15 listed defects that is about motion or input, or say why not. Drive
+everything by real finger events in the real main scene; a permanent test godot/tests/test_swing_w117.gd: 5 swings in a row down a street stay off the ground, release speed and direction
+sane, no wall passed, no state stuck, each check failing on the old code (keep a static old-behaviour switch). Render a strip of frames of one swing and LOOK at it.` },
+      { tag: 'rope', prompt: `TASK (label w117-rope): THE ROPE OF SNAKES, THE ZIP AND THE CUES. The other builder (w117-swing) owns the swing motion and input in scripts/quantum/snake_traversal.gd: do not
+change motion there, add only small hook lines. You own the look and the feedback: (a) the swing and zip rope is SEVERAL SNAKES BRAIDED TOGETHER (3 or more bodies twisting round each other,
+scales, heads biting the anchor, the braid tightens under load and unwinds on release), cheap enough for LOW (one mesh / one draw if possible: the perf gate has ZERO spare draws on HIGH and
+one on MED, so replace the old rope, do not add to it), clear of the centre of the view (the wave 116 flight-view pixel limits in tools/flight_view.sh still hold); (b) zip defects from
+docs/sprint/progress/w116-critic.md and the "FOR WAVE 117" list in w116-flight-view.md: a ZIP that ends with the hero hanging on a wall (he must climb over the edge or drop cleanly), no cue
+when ZIP or SNAKE has no anchor in reach (show a short clear cue and a marker on the anchor that WOULD be used when one is in reach), flight energy ending without warning (warn before it
+ends); (c) MED rain in flight covers 13 to 14 % of the centre of the frame (limit 4 %): fix it. Drive everything by real finger events; a permanent test godot/tests/test_rope_w117.gd with
+checks that fail on the old code; render frames at 1200x540 on LOW and MED and LOOK at them (a contact sheet in docs/shots/round7/).` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 117 (label w117-critic), then its fixer. You did not build it; assume it is broken until you have seen it work. With a finger-only bot of your own
+in the real main scene: swing down three different streets, chain 5 swings, release early and late, JUMP out of a swing, swing into a wall, swing with no anchor near, zip to a roof and to a
+wall, take off and land. Render frame strips and LOOK: does it read as a hero swinging on a braided rope of snakes like a web-swinger, or as something abnormal? List the 8 worst defects with
+evidence, fix them most severe first, each with a check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
+    commit: 'Wave 117: snake swing like a web-swinger (braided rope of snakes, pendulum, chain swings, jump), zip and cue fixes',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }
