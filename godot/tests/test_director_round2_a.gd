@@ -116,20 +116,16 @@ func _lens_sources() -> void:
 # --- 3 -------------------------------------------------------------------------------------------------------------------------
 
 func _centre(b: Dictionary, vp: Vector2) -> Vector2:
-	var s := UiUtil.ui_scale(vp)
-	return Vector2(vp.x - UiUtil.insets(vp).y - float(b["dx"]) * s, vp.y - UiUtil.insets_v(vp).y - float(b["dy"]) * s)
+	return TouchControls.centre_at(b, vp)                    # wave 118: the left row and the top row are part of the table
 
 
 func _buttons() -> void:
 	for vp: Vector2 in VPS:
 		var s := UiUtil.ui_scale(vp)
 		var mm := Rect2(Vector2(UiUtil.insets(vp).x + 16.0 * s, 14.0 * s + UiUtil.insets_v(vp).x), Vector2(Hud.MINIMAP, Hud.MINIMAP) * s)
-		var pause := Vector2(vp.x - UiUtil.insets(vp).y - 52.0 * s, 112.0 * s + UiUtil.insets_v(vp).x)
-		for entry: Array in [["on foot", FOOT], ["driving", DRIVING]]:
-			var group: Array = []
-			for b: Dictionary in TouchControls.BUTTONS:
-				if (entry[1] as Array).has(String(b["need"])):
-					group.append(b)
+		var pause := TouchControls.pause_at(vp)
+		for entry: Array in [["on foot", TouchControls.buttons_of(&"foot")], ["snake flight", TouchControls.buttons_of(&"flight")], ["indoors", TouchControls.buttons_of(&"interior")], ["driving", TouchControls.buttons_of(&"car")], ["tank", TouchControls.buttons_of(&"tank")], ["aircraft", TouchControls.buttons_of(&"air")]]:       # wave 118: one set per mode (TouchControls.NEED_MODES)
+			var group: Array = entry[1]
 			var worst := 1.0e9
 			var pair := ""
 			for i in group.size():
@@ -143,6 +139,8 @@ func _buttons() -> void:
 				TestLib.check(ci.distance_to(pause) > ri + 30.0 * s, "%dx%d %s: %s clears the pause button" % [int(vp.x), int(vp.y), entry[0], bi["action"]])
 				for j in range(i + 1, group.size()):
 					var bj: Dictionary = group[j]
+					if TouchControls.exclusive(bi, bj):
+						continue                                   # the DOOR slot indoors: LEAVE everywhere but at the door, where USE says LEAVE
 					var gap := ci.distance_to(_centre(bj, vp)) - ri - float(bj["r"]) * s
 					if gap < worst:
 						worst = gap

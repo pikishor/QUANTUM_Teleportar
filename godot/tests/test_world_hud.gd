@@ -12,7 +12,7 @@ extends RefCounted
 
 const SAVE := "user://test_world_hud.cfg"
 const SETTINGS := "user://test_world_hud_settings.cfg"
-const MAX_CONTROLS := 13                 # wave 115: + the contextual SNAKE button
+const MAX_CONTROLS := 16                 # wave 118 (owner: "all controls come as options on screen like gta"): + ZIP, FLY and CROUCH; was 13:                # wave 115: + the contextual SNAKE button
 
 class FakeFoe extends Node3D:
 	var dead := false

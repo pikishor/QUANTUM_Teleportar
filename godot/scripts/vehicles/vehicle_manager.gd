@@ -74,6 +74,7 @@ func _ready() -> void:
 	radio = CarRadio.new()
 	radio.name = "Radio"
 	add_child(radio)
+	ArmourSites.attach(self)                               # wave 118: the fixed places of the armour and the aircraft (their paint and signs exist only near the hero)
 	_spawn_starter()
 
 
@@ -85,7 +86,30 @@ func _exit_tree() -> void:
 # --- API ----------------------------------------------------------------------------------------------------------------
 
 func cap() -> int:
-	return VehicleSpecs.cap_for(Game.quality)
+	return VehicleSpecs.cap_for(Game.quality) + _fixed_n       # wave 118: the vehicles of the fixed places (ArmourSites) and a called-in one stand outside the cap
+
+
+var _fixed_n := 0                    ## live vehicles that wear the `fixed` meta (waiting on a fixed place, or called in and not yet driven)
+
+
+## A fixed or called-in vehicle becomes an ordinary one (the hero took it, or it is released): inside the cap and streamed like any car from now on.
+func _unfix(v: Vehicle) -> void:
+	if v.has_meta(&"fixed") or v.has_meta(&"called"):
+		if v.has_meta(&"hold"):
+			v.remove_meta(&"hold")
+		if v.has_meta(&"fixed"):
+			v.remove_meta(&"fixed")
+		if v.has_meta(&"called"):
+			v.remove_meta(&"called")
+	_count_fixed()
+
+
+func _count_fixed() -> void:
+	var n := 0
+	for v in list:
+		if v.has_meta(&"hold") and (v.has_meta(&"fixed") or v.has_meta(&"called")):
+			n += 1
+	_fixed_n = n
 
 
 ## The nearest live car within `r` metres (horizontal), or null. The driven car counts.
@@ -169,6 +193,7 @@ func enter(car: Vehicle) -> void:
 		Hijack.current.on_enter(car, p.global_position, had_driver)
 	car.driver_is_player = true
 	driven = car
+	_unfix(car)
 	var side_in := 1.0 if (p.global_position - car.global_position).dot(car.right()) >= 0.0 else -1.0
 	p.set(&"vehicle", car)
 	car.on_enter()
@@ -481,6 +506,7 @@ func _release(v: Vehicle) -> void:
 	if v.has_meta(&"spawn_id"):
 		v.remove_meta(&"spawn_id")
 	list.erase(v)
+	_unfix(v)
 	v.deactivate()
 	v.is_starter = false
 	var arr: Array = _pool.get(v.kind, [])
@@ -1008,29 +1034,44 @@ func _tick_spawn_points(delta: float) -> void:
 		_points_at = _clock
 		_points_key = RoamWorld.rides_unlocked
 		point_builds += 1
+	# wave 118: a fixed or called-in vehicle nobody took is released only when the hero is KEEP metres away (never while he is near: owner round 7 "where are tanks and helicopters")
+	for fv: Vehicle in list.duplicate():
+		if fv.has_meta(&"hold") and (fv.has_meta(&"fixed") or fv.has_meta(&"called")) and _dist(fv, ppos) > ArmourSites.KEEP:
+			_release(fv)
+	_count_fixed()
 	for pt in _points:
 		var id: StringName = pt["id"]
+		var fixed := ArmourSites.is_fixed(id)
 		var live: Variant = _spawned.get(id)
 		if is_instance_valid(live) and (live as Vehicle).active and not (live as Vehicle).dead and not (live as Vehicle).wreck:
 			continue
 		if _clock < float(_spawn_ready.get(id, 0.0)):
 			continue
 		var pos: Vector3 = pt["pos"]
-		if Vector2(pos.x - ppos.x, pos.z - ppos.z).length() > VehicleSpawns.SPAWN_AT:
+		if Vector2(pos.x - ppos.x, pos.z - ppos.z).length() > (ArmourSites.SPAWN_AT if fixed else VehicleSpawns.SPAWN_AT):
 			continue
 		if not _spot_free(pos, 7.0):
 			continue
 		if not _hull_ok(pt["kind"], pos, float(pt["h"]), true):
 			continue
-		if list.size() >= cap() and not _free_slot():
+		if not fixed and list.size() >= cap() and not _free_slot():
 			continue
+		if fixed:
+			_fixed_n += 1                                            # room for it above the cap (counted again below)
 		var v := spawn_parked(pt["kind"], pos, float(pt["h"]))
 		if v != null:
 			if v.craft != null and pos.y > v.global_position.y + 0.5:      # a pad in the air (the roof of a tower): the aircraft stands on it, not on the street below
 				v.global_position.y = pos.y + 0.05
 			v.set_meta(&"spawn_id", id)
+			if fixed:
+				v.set_meta(&"fixed", true)
+				v.set_meta(&"hold", true)
 			_spawned[id] = v
 			v.update_lod(_dist(v, ppos))
+		if fixed:
+			_count_fixed()
+			if v != null:
+				break                                                    # one fixed vehicle a second: the yard's three models do not load in the same frame
 
 
 # --- Vael patrols ----------------------------------------------------------------------------------------------------------
@@ -1277,6 +1318,8 @@ func _find_spot(center: Vector3, parked: bool, rmin := VehicleSpecs.SPAWN_MIN, r
 		if Vector2(pos.x - center.x, pos.z - center.z).length() < 30.0:
 			continue
 		if FloodZone.contains(pos.x, pos.z):                    # the flooded quarter is for boats
+			continue
+		if parked and ArmourSites.no_parking(pos.x, pos.z):     # wave 118: nobody parks across the gate of the ARMY YARD
 			continue
 		if not _spot_free(pos, 7.0 if parked else 10.0):
 			continue

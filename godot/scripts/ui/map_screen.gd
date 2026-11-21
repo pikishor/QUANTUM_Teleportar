@@ -37,7 +37,7 @@ const LOD_ZOOM := 2.0                              ## below this zoom the crowde
 const LOD_KINDS: Array[StringName] = [&"interior", &"shop", &"garage", &"items", &"weapon", &"job"]
 const LOD_NEAR := 3
 const LOD_NEAR_JOB := 4
-const ALWAYS_KINDS: Array[StringName] = [&"mission", &"side", &"home", &"site"]   ## never dropped by the icon cap
+const ALWAYS_KINDS: Array[StringName] = [&"mission", &"side", &"home", &"site", &"armour"]   ## never dropped by the icon cap
 const KIND_ORDER: Array[StringName] = [&"job", &"garage", &"weapon", &"shop", &"interior", &"items"]   ## round-robin order of the capped kinds (most useful first)
 const CAP_OVERVIEW := 14                          ## icons on screen at zoom < 2 (round 3 director review: 600 icons were unreadable)
 const CAP_MID := 20                               ## zoom 2 .. 4
@@ -52,10 +52,10 @@ const DISCOVER_SPEED_K := 5.0                       ## metres of extra reveal ra
 const DISCOVER_R_MAX := 420.0
 const BADGE_R := 25.0                               ## base px: marker badge radius at the overview (was 17: tiny icons, director review 4 #9)
 const BADGE_R_NEAR := 28.0
-const KINDS: Array[StringName] = [&"mission", &"side", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items", &"site"]
-const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"interior": "INTERIORS", &"job": "JOBS", &"shop": "SHOPS", &"garage": "GARAGE", &"weapon": "WEAPONS", &"home": "HOME", &"items": "ITEMS", &"site": "SITES"}
+const KINDS: Array[StringName] = [&"mission", &"side", &"armour", &"interior", &"job", &"shop", &"garage", &"weapon", &"home", &"items", &"site"]   ## wave 118: armour = the tanks, helicopters and planes that wait at fixed places (ArmourSites.map_markers: never fogged, own glyphs)
+const KIND_LABEL := {&"mission": "MISSION", &"side": "SIDE", &"interior": "INTERIORS", &"job": "JOBS", &"shop": "SHOPS", &"garage": "GARAGE", &"weapon": "WEAPONS", &"home": "HOME", &"items": "ITEMS", &"site": "SITES", &"armour": "TANKS + AIR"}
 const KIND_COLOR := {&"mission": Color(1.0, 0.75, 0.15), &"side": Color(0.2, 0.9, 1.0), &"interior": Color(0.62, 0.76, 1.0), &"job": Color(1.0, 0.45, 0.85), &"shop": Color(0.3, 1.0, 0.55), &"garage": Color(1.0, 0.5, 0.2),
-	&"weapon": Color(1.0, 0.82, 0.3), &"home": Color(0.85, 0.9, 1.0), &"items": Color(0.75, 0.45, 1.0), &"site": Color(0.45, 0.85, 1.0)}
+	&"weapon": Color(1.0, 0.82, 0.3), &"home": Color(0.85, 0.9, 1.0), &"items": Color(0.75, 0.45, 1.0), &"site": Color(0.45, 0.85, 1.0), &"armour": Color(0.78, 1.0, 0.3)}
 const DANGER_COLOR := Color(1.0, 0.25, 0.25)
 const FOG_ALPHA := 0.30                              ## the veil over the uncharted cells (it was 0.66 black: a dirty dark field at the start)
 const SAVE_PATH := "user://map.cfg"
@@ -917,8 +917,11 @@ func collect_markers() -> Array[Dictionary]:
 		if fr.repairs != null:
 			for i in int(fr.repairs.call(&"count")):
 				out.append({"kind": &"garage", "pos": fr.repairs.call(&"pos", i), "fog": true, "label": "REPAIR BAY"})
-	for pt: Dictionary in VehicleSpawns.POINTS:                  # where the helicopter, plane, tank and boats wait (round 5 roster): the car glyph, the vehicle's name
+	for pt: Dictionary in VehicleSpawns.POINTS:                  # where the boats and the off-roaders wait (round 5 roster): the car glyph, the vehicle's name
+		if ArmourSites.icons_on and VehicleSpecs.cls_of(pt["kind"]) in [&"tank", &"heli", &"plane"]:
+			continue                                                # wave 118: the armour and the aircraft have their own icons (they were fogged GARAGE car glyphs: a fresh player saw none)
 		out.append({"kind": &"garage", "pos": pt["pos"], "fog": true, "label": VehicleSpecs.name_of(pt["kind"])})
+	out.append_array(ArmourSites.map_markers())                     # TANKS + AIR: the ARMY YARD, the city helipads, the airstrip, the airport's planes and helicopters
 	out.append({"kind": &"garage", "pos": Harbour.center(), "fog": false, "label": "HARBOUR: BOATS AND JET SKIS", "glyph": &"harbour"})       # the port on the south coast (one marker for its six berths)
 	out.append_array(WorldRoam.map_markers())                       # the free-roam courses and the treasure hunt (flight school, off-road trial, jet-ski laps)
 	out.append_array(RoamWorld.map_markers())                       # quantum pads, photo spots, fishing places, stunt ramps, landmark races, world events (scripts/roam/)
@@ -1006,6 +1009,9 @@ func marker_counts() -> Dictionary:
 func marker_at(p: Vector2) -> Dictionary:
 	var best := {}
 	var bd := MARKER_PICK_PX * _s()
+	for q: Array in armour_pins:                                  # wave 118: an edge pin of a far tank / helicopter / plane
+		if (q[0] as Vector2).distance_to(p) <= bd:
+			return q[1]
 	for mk in lod_markers(visible_markers()):
 		var pw: Vector3 = mk["pos"]
 		var d := world_to_map(pw.x, pw.z).distance_to(p)
@@ -1017,7 +1023,7 @@ func marker_at(p: Vector2) -> Dictionary:
 
 ## The always-kinds (MISSION, SIDE, HOME) are legend rows only while there is one: "MISSION 0" is noise.
 func _chip_shown(k: StringName) -> bool:
-	return not ALWAYS_KINDS.has(k) or int(_counts.get(k, 0)) > 0
+	return not ALWAYS_KINDS.has(k) or int(_counts.get(k, 0)) > 0 or not bool(filters.get(k, true))      # wave 118: a chip that was switched OFF counts 0 and vanished with its own tap: it stays, so it can be switched on again
 
 
 func _refresh_chips() -> void:
@@ -1593,6 +1599,7 @@ func _draw_map() -> void:
 			if view.grow(-20.0 * s).has_point(tp):
 				MapIcons.draw(_map, &"danger", tp + Vector2(-70.0 * s, -7.0 * s), 11.0 * s, DANGER_COLOR)
 				_label_out(font, tp + Vector2(-50.0 * s, 0.0), "HOSTILE", int(18.0 * s), DANGER_COLOR, HORIZONTAL_ALIGNMENT_LEFT, true)
+	_draw_armour_pins(s)
 	# the selected marker's name
 	if not selected.is_empty():
 		var sp: Vector3 = selected["pos"]
@@ -1698,6 +1705,49 @@ func _edge_arrow(you: Vector2, s: float) -> void:
 
 
 ## An off-screen objective: a coloured arrow on the nearest edge of the view pointing at it.
+## Wave 118: a tank, a helicopter and a plane are ALWAYS on the map. A kind with no icon in the open part of the view (between the legend and the button column) gets a pin at the
+## edge, toward the nearest one (the planes of the airport are 1.4 km from the start); a finger on the pin sets the GPS to it (marker_at reads `armour_pins`).
+var armour_pins: Array = []                          ## [[map position, marker]] of the edge pins drawn last
+
+func _draw_armour_pins(s: float) -> void:
+	armour_pins.clear()
+	if not bool(filters.get(&"armour", true)):
+		return
+	var open := Rect2(_legend_rect.end.x, 0.0, _right_rect.position.x - _legend_rect.end.x, _map.size.y)
+	var inner := open.grow(-44.0 * s)
+	var c := open.get_center()
+	var col: Color = KIND_COLOR[&"armour"]
+	for g: StringName in [&"tank", &"heli", &"plane"]:
+		var best := {}
+		var bd := INF
+		var seen := false
+		for mk in ArmourSites.map_markers():
+			if mk["glyph"] != g:
+				continue
+			var p: Vector3 = mk["pos"]
+			var mp := world_to_map(p.x, p.z)
+			if open.grow(-10.0 * s).has_point(mp):
+				seen = true
+				break
+			var d := mp.distance_squared_to(c)
+			if d < bd:
+				bd = d
+				best = mk
+		if seen or best.is_empty():
+			continue
+		var bp: Vector3 = best["pos"]
+		var t := world_to_map(bp.x, bp.z)
+		var dir := (t - c).normalized()
+		var at := Vector2(clampf(t.x, inner.position.x, inner.end.x), clampf(t.y, inner.position.y, inner.end.y))
+		for q: Array in armour_pins:                                # two pins never sit on each other
+			if (q[0] as Vector2).distance_to(at) < 60.0 * s:
+				at += Vector2(-dir.y, dir.x) * 64.0 * s
+				at = Vector2(clampf(at.x, inner.position.x, inner.end.x), clampf(at.y, inner.position.y, inner.end.y))
+		_map.draw_colored_polygon(PackedVector2Array([at + dir * 40.0 * s, at + Vector2(-dir.y, dir.x) * 14.0 * s, at - Vector2(-dir.y, dir.x) * 14.0 * s]), col)
+		MapIcons.draw(_map, g, at, 24.0 * s, col)
+		armour_pins.append([at, best])
+
+
 func _edge_marker(target: Vector2, s: float, col: Color) -> void:
 	var sz := _map.size
 	var c := sz * 0.5

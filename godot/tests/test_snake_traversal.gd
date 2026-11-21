@@ -249,10 +249,25 @@ func _kit() -> void:
 
 func _zip_and_climb() -> void:
 	await _prep(Vector3(-30.0, 0.0, 4.0), PI, 0.38)
+	# wave 118: with the touch layout ZIP is a button of its own (action snake_zip) and SNAKE never zips; with ONE snake button (keyboard, controller) SNAKE still zips
 	var z0 := sn.zips
+	TestLib.check(SnakeTraversal.split_buttons, "the touch layout runs the two-button snake (SWING and ZIP)")
+	SnakeTraversal.split_buttons = false
 	await tap(&"snake", 4)
+	var one := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.ZIP, 1.0)
+	TestLib.check(one and sn.zips == z0 + 1, "one contextual button (keyboard, controller): a tap on SNAKE at a building under the crosshair starts a SNAKE ZIP")
+	SnakeTraversal.split_buttons = true
+	await _prep(Vector3(-30.0, 0.0, 4.0), PI, 0.38)
+	z0 = sn.zips
+	await tap(&"snake", 4)
+	await frames(20)
+	TestLib.check(sn.zips == z0 and sn.mode != SnakeTraversal.Mode.ZIP, "two buttons: a tap on SNAKE (SWING) at the same spot does not zip (mode %d)" % sn.mode)
+	await _prep(Vector3(-30.0, 0.0, 4.0), PI, 0.38)
+	z0 = sn.zips
+	sn.zip_cd = 0.0                                           # the zip of the one-button check above was a moment ago (a second between two zips)
+	await tap(&"snake_zip", 4)
 	var started := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.ZIP, 1.0)
-	TestLib.check(started and sn.zips == z0 + 1, "a tap on SNAKE at a building under the crosshair starts a SNAKE ZIP")
+	TestLib.check(started and sn.zips == z0 + 1, "a tap on ZIP at a building under the crosshair starts a SNAKE ZIP")
 	var from := p.global_position
 	await until(func() -> bool: return sn.mode != SnakeTraversal.Mode.ZIP, 4.0)
 	await frames(10)
@@ -463,7 +478,7 @@ func _counters() -> void:
 	await frames(8)
 	TestLib.check(sn.mode == SnakeTraversal.Mode.NONE, "FLY does nothing while jammed")
 	await _prep(Vector3(-30.0, 0.0, 4.0), PI, 0.38)
-	await tap(&"snake", 4)
+	await tap(&"snake_zip", 4)
 	var zipping := await until(func() -> bool: return sn.mode == SnakeTraversal.Mode.ZIP, 1.0)
 	await frames(6)
 	sn.jam(1.0)
@@ -597,7 +612,7 @@ func _buttons() -> void:
 	TestLib.check(not snake_b.is_empty() and not fly_b.is_empty(), "the touch table has SNAKE and FLY")
 	TestLib.check(float(snake_b["r"]) * 2.0 >= 64.0 and float(fly_b["r"]) * 2.0 >= 64.0, "both are at least 64 px across")
 	TestLib.check(tc.button_visible(snake_b), "SNAKE is on screen on foot")
-	TestLib.check(not tc.button_visible(fly_b), "FLY is hidden on the ground")
+	TestLib.check(tc.button_visible(fly_b) and p.is_on_floor(), "FLY is on screen on the ground (wave 118: it was hidden until the hero was in the air)")
 	TestLib.check(tc._label_of(snake_b) in ["SNAKE", "ZIP", "SWING", "CLIMB"], "the SNAKE label says what a press does (%s)" % tc._label_of(snake_b))
 	await _prep(Vector3(-30.0, 30.0, 4.0))
 	await until(func() -> bool: return p.air_time > 0.35, 2.0)

@@ -66,7 +66,7 @@ func run(host: Node) -> void:
 	var s := host.get_viewport().get_visible_rect().size.y / 720.0
 	var rc: Vector2 = tc.call("_button_center", radio_b)
 	for b: Dictionary in TouchControls.BUTTONS:
-		if b != radio_b:
+		if b != radio_b and not TouchControls.exclusive(b, radio_b):       # wave 118: buttons of another mode share slots (TouchControls.NEED_MODES)
 			var d := rc.distance_to(tc.call("_button_center", b))
 			TestLib.check(d > (float(b["r"]) + float(radio_b["r"])) * s, "RADIO does not overlap %s" % b["label"])
 	tc.touch_down(1, rc)

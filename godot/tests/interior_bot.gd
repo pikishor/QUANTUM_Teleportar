@@ -22,6 +22,7 @@ var game_s := 0.0                       ## game seconds spent (physics frames, s
 var stuck_events := 0
 var blind := false                      ## the room's guards cannot notice the hero (stealth runs: the walk is under test, the sight rules are tested elsewhere)
 var debug := OS.get_environment("BOTDEBUG") != ""
+var _old_size := Vector2i.ZERO
 var trace_on := true                   ## record the cells walked (diagnosis maps)
 var trace_cells := {}
 var last_fail := ""                     ## why the last walk_to gave up (for test messages)
@@ -41,6 +42,10 @@ func setup(h: Node) -> bool:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	Engine.physics_ticks_per_second = TICK_RATE
 	Engine.time_scale = float(SPEED_UP)
+	var win := h.get_window()
+	if float(win.size.x) / maxf(float(win.size.y), 1.0) < 1.7:      # wave 118: the bot plays on a phone screen. The left row (CROUCH, RELOAD, ABILITY) is anchored to the left edge and the
+		_old_size = win.size                                        # cluster to the right one: on the square headless window they fold over each other and a stick touch landed on GRAB
+		win.size = Vector2i(1280, 720)
 	main = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	main.name = "BotMain"
 	host.add_child(main)
@@ -66,6 +71,8 @@ func setup(h: Node) -> bool:
 
 
 func teardown() -> void:
+	if _old_size != Vector2i.ZERO and is_instance_valid(host):
+		host.get_window().size = _old_size
 	release()
 	Engine.time_scale = 1.0
 	Engine.physics_ticks_per_second = 60
@@ -99,10 +106,14 @@ func _keep_alive() -> void:
 
 
 func button(action: StringName) -> Dictionary:
+	var first := {}
 	for b: Dictionary in TouchControls.BUTTONS:
 		if b["action"] == action:
-			return b
-	return {}
+			if tc != null and tc.button_visible(b):
+				return b                              # wave 118: an action can have a row per mode (USE in the DOOR slot and in the MID slot indoors): the one on screen
+			if first.is_empty():
+				first = b
+	return first
 
 
 ## True when the touch layer is drawing the button (a phone player can only touch what is on screen).

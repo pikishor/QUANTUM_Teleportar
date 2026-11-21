@@ -15,7 +15,9 @@ func _tap(pos: Vector2) -> void:
 		e.position = host.get_tree().root.get_final_transform() * pos      # window coordinates, as a real finger arrives
 		e.pressed = down
 		Input.parse_input_event(e)
-		await TestLib.frames(host, 2)
+		for i in 2:                                         # whole engine frames: the input buffer is flushed once a frame, and TestLib.frames waits physics ticks (several fit in one frame on a
+			await host.get_tree().physics_frame
+			await host.get_tree().process_frame             # loaded machine, so the lift arrived after the check: "a finger on GPS changes the route mode" failed 1 run in 3 beside other tests; w118-armour)
 
 
 func run(h: Node) -> void:

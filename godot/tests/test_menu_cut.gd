@@ -332,7 +332,10 @@ func _wheel(tag: String) -> void:
 			tc._swap_held = TouchControls.WHEEL_HOLD
 			tc._process(0.0)
 		TestLib.check(tc.wheel.is_open and tc.wheel.kind == kind, "%s: holding %s opens its wheel" % [tag, kind])
-		TestLib.check(tc.wheel.centre.distance_to(thumb) < 1.0, "%s: the %s wheel is centred on the thumb (the button), not on the screen" % [tag, kind])
+		# wave 118: the ring opens at the point nearest the thumb where the WHOLE circle fits (beside a screen edge it used to fan out with discs of 62 %: 38 px on a phone)
+		var fit := tc.wheel_bounds().grow(-RadialWheel.RADIUS * s - 1.0)
+		var nearest := Vector2(clampf(thumb.x, fit.position.x, fit.end.x), clampf(thumb.y, fit.position.y, fit.end.y))
+		TestLib.check(tc.wheel.centre.distance_to(nearest) < 1.0 and tc.wheel.span_deg >= 359.0, "%s: the %s wheel is a whole ring at the point nearest the thumb where it fits (%.0f px from the button)" % [tag, kind, tc.wheel.centre.distance_to(thumb)])
 		var rr := RadialWheel.ITEM_R * s
 		var inside := true
 		var apart := true
@@ -356,7 +359,7 @@ func _wheel(tag: String) -> void:
 			target -= 1
 		var at := tc.wheel.item_centre(target)
 		tc._wheel_held = 0.6
-		tc.touch_move(90, at, at - thumb)
+		tc.touch_move(90, thumb + (at - tc.wheel.centre), at - tc.wheel.centre)       # wave 118: the drag is read from where the thumb went down
 		TestLib.check(tc.wheel.sel == target, "%s: dragging to disc %d highlights it" % [tag, target])
 		tc.touch_up(90)
 		TestLib.check(not tc.wheel.is_open, "%s: releasing closes the %s wheel" % [tag, kind])

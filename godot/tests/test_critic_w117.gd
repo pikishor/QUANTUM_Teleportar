@@ -310,9 +310,9 @@ func _jump() -> void:
 func _zip() -> void:
 	await _tp(ROOF_SPOT, PI * 0.5, 0.5)
 	await _secs(0.6)
-	var label := fg.button_label(&"snake")
+	var label := fg.button_label(&"snake_zip")              # wave 118: ZIP is a button of its own
 	rec.begin()
-	await _tap(1, &"snake", 5)
+	await _tap(1, &"snake_zip", 5)
 	await _until(func() -> bool: return sn.mode == SnakeTraversal.Mode.ZIP, 0.5)
 	var rope_down := 0.0                                      # how far the rope's far end lies BELOW the hand at worst (metres), while his feet are more than 3 m under the roof
 	var head_low := 1.0                                       # the lowest the head's direction pointed (1 up, 0 level, -1 down) while the zip pose is on

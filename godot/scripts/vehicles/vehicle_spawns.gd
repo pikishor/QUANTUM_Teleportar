@@ -3,9 +3,9 @@ extends RefCounted
 ## Where the roster vehicles that are not random traffic wait for the player (docs/DESIGN.md: any vehicle, GTA types). A fixed point stands empty until the player comes within SPAWN_AT metres,
 ## then a fresh vehicle of its kind appears on it; a destroyed one comes back after RESPAWN_AFTER seconds, one the player drove away is simply replaced when he returns to the point. The manager
 ## polls this once a second (VehicleManager._tick_spawn_points), the map and the tests read POINTS.
-##   heli_pad   helicopter on the open lot east of the start (a plaza of the core)
+##   heli_pad   helicopter on CITY HELIPAD EAST, the cleared plaza east of the start (wave 118: scripts/vehicles/armour_sites.gd owns the fixed places of the armour and the aircraft)
 ##   airstrip   small plane on the main avenue just east of the core, nose east (a 730 m straight to the border)
-##   depot      tank on the west ring road of the core (a straight, clear of the plaza props)
+##   depot*     tank, light tank and armoured carrier in the ARMY YARD (wave 118), artillery and anti-air on the west ring road of the core
 ##   harbour_*  speedboats in the flooded quarter (FloodZone), on its streets
 ##   dock_*     the boat berths of the harbour on the south coast (Harbour.BERTHS): speedboats, jet skis and the patrol boat on the real water, beside the piers and quays
 ## Armoured trucks, quads and scooters are rare traffic (VehicleSpecs.STREAM_KINDS).
@@ -14,11 +14,13 @@ const SPAWN_AT := 100.0               ## the player comes this close and the veh
 const RESPAWN_AFTER := 40.0
 
 const POINTS: Array[Dictionary] = [
-	{"id": &"heli_pad", "kind": &"heli", "pos": Vector3(105.0, 0.0, 25.0), "h": 0.0, "label": "HELIPAD"},
+	{"id": &"heli_pad", "kind": &"heli", "pos": Vector3(105.0, 0.0, 25.0), "h": 0.0, "label": "CITY HELIPAD EAST"},      # wave 118: a painted pad on a cleared plaza (ArmourSites.PAD_EAST), nose to the road
 	{"id": &"airstrip", "kind": &"plane", "pos": Vector3(340.0, 0.0, 0.0), "h": -PI * 0.5, "label": "AIRSTRIP"},
-	{"id": &"depot", "kind": &"tank", "pos": Vector3(-320.0, 0.0, 120.0), "h": 0.0, "label": "ARMY DEPOT"},
-	{"id": &"depot_light", "kind": &"ltank", "pos": Vector3(-320.0, 0.0, 90.0), "h": 0.0, "label": "LIGHT TANK"},
-	{"id": &"depot_apc", "kind": &"apc", "pos": Vector3(-320.0, 0.0, 150.0), "h": 0.0, "label": "ARMOURED CARRIER"},
+	# wave 118: the tank, the light tank and the armoured carrier wait in the ARMY YARD (ArmourSites.YARD_BAYS, a cleared plaza 120 m from the start, nose to the road); they stood in the
+	# traffic lanes of the west ring road at x -320, 300 m out. The artillery and the anti-air tank stay there.
+	{"id": &"depot", "kind": &"tank", "pos": Vector3(-143.0, 0.0, -53.0), "h": 0.0, "label": "ARMY YARD"},
+	{"id": &"depot_light", "kind": &"ltank", "pos": Vector3(-135.0, 0.0, -53.0), "h": 0.0, "label": "LIGHT TANK"},
+	{"id": &"depot_apc", "kind": &"apc", "pos": Vector3(-127.0, 0.0, -53.0), "h": 0.0, "label": "ARMOURED CARRIER"},
 	{"id": &"depot_gun", "kind": &"artillery", "pos": Vector3(-320.0, 0.0, 180.0), "h": 0.0, "label": "MOBILE ARTILLERY"},
 	{"id": &"depot_aa", "kind": &"aatank", "pos": Vector3(-320.0, 0.0, 60.0), "h": 0.0, "label": "ANTI-AIR TANK"},
 	{"id": &"harbour_a", "kind": &"boat", "pos": Vector3(-30.0, 0.0, 480.0), "h": -PI * 0.5, "label": "BOAT"},
@@ -36,6 +38,7 @@ static func all_points() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.append_array(POINTS)
 	out.append_array(Harbour.BERTHS)
+	out.append_array(ArmourSites.vehicle_points())               # wave 118: the gunship on CITY HELIPAD SOUTH
 	out.append_array(OutskirtsSites.vehicle_points())
 	out.append_array(Airport.spawn_points())                      # EASTFIELD AIRPORT: planes, jets, helicopters on the apron, the helipads and the mountain pads (wave 106)
 	out.append_array(WorldRoam.vehicle_points())             # the rover and the quad at the foot of QUARRY TRACK (off-road trial)

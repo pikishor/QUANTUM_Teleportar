@@ -223,6 +223,8 @@ func _gen_cell(i: int, j: int) -> void:
 				var occ := ZONE_OCC[zone] * tier * (1.0 + 0.18 * night)
 				if r > occ:
 					continue
+				if ArmourSites.no_parking(x, z):
+					continue                                                # wave 118: the kerb in front of the ARMY YARD is the tanks' way out
 				var kind := NearTraffic.pick_kind(zone, night, _hash(road, seg * 7 + side, n, 19))
 				if kind in NO_KINDS:
 					kind = 0

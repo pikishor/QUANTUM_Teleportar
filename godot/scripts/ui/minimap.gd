@@ -350,6 +350,7 @@ func _draw_body() -> void:
 			rings.append([c + fmm, maxf(float(fm["radius"]) * _k, 6.0 * s), Color(fcol, 0.55)])
 	for r: Rect2 in cars:
 		draw_rect(r, Color(0.7, 0.75, 0.8, 0.6))
+	_draw_armour(c, inner, s)                                   # plain rectangles, right after the cars' rectangles: one batch with them, no draw call more
 	for kind: Array in [[&"disc", discs], [&"diamond", diamonds], [&"ring", rings]]:
 		for d: Array in kind[1]:
 			var hs := float(d[1])
@@ -363,6 +364,46 @@ func _draw_body() -> void:
 	var nl := Vector2(Vector2(0, -1).dot(_right), -Vector2(0, -1).dot(_fwd))
 	draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-5.0, 6.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(UiUtil.CYAN, 0.9))
 	draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s, false)
+
+
+## Wave 118: the tanks, helicopters and planes that wait at fixed places (ArmourSites.map_markers): a small badge where one lies inside the rim, and the nearest one beyond it
+## pinned to the rim, dimmer, so the circle always points at one. Built from PLAIN RECTANGLES only and drawn right after the cars' rectangles: untextured rectangles share one
+## batch, while a polygon, a circle or an arc is a draw call each (the first version used MapIcons.draw: +11 canvas draws, LOW went over its budget). `armour_drawn` counts them.
+var armour_drawn := 0
+const ARMOUR_COL := Color(0.78, 1.0, 0.3)
+## Glyphs as rectangles (x, y, w, h) in units of the badge: a tank from the side, a helicopter from the side, a plane from above.
+const ARMOUR_RECTS := {
+	&"tank": [[-5.0, 1.2, 10.0, 2.4], [-4.0, -0.6, 8.0, 1.9], [-2.4, -2.6, 4.2, 2.0], [1.8, -2.1, 4.0, 0.9]],
+	&"heli": [[-5.0, -3.8, 9.0, 0.8], [-0.9, -3.0, 0.8, 1.0], [-3.4, -2.0, 5.0, 3.6], [1.6, -1.0, 3.8, 1.0], [4.8, -2.6, 0.9, 2.6], [-3.8, 2.6, 6.0, 0.7], [-2.2, 1.6, 0.6, 1.0], [0.2, 1.6, 0.6, 1.0]],
+	&"plane": [[-0.7, -4.4, 1.4, 8.8], [-5.0, -1.2, 10.0, 1.9], [-2.2, 3.0, 4.4, 1.1]],
+}
+
+func _armour_badge(at: Vector2, glyph: StringName, u: float, alpha: float) -> void:
+	draw_rect(Rect2(at + Vector2(-6.4, -5.2) * u, Vector2(12.8, 10.4) * u), Color(ARMOUR_COL, alpha))
+	draw_rect(Rect2(at + Vector2(-5.8, -4.6) * u, Vector2(11.6, 9.2) * u), Color(0.01, 0.03, 0.05, 1.0))
+	for r: Array in ARMOUR_RECTS.get(glyph, []):
+		draw_rect(Rect2(at + Vector2(r[0], r[1]) * u, Vector2(r[2], r[3]) * u), Color(ARMOUR_COL, alpha))
+
+
+func _draw_armour(c: Vector2, inner: float, s: float) -> void:
+	armour_drawn = 0
+	var far_best: Dictionary = {}
+	var far_d := INF
+	for m: Dictionary in ArmourSites.map_markers():
+		var pos: Vector3 = m["pos"]
+		var mp := to_map(pos.x, pos.z)
+		if mp.length() < inner - 10.0 * s:
+			_armour_badge(c + mp, m["glyph"], 1.5 * s, 1.0)
+			armour_drawn += 1
+		else:
+			var d := Vector2(pos.x - _pos.x, pos.z - _pos.y).length()
+			if d < far_d:
+				far_d = d
+				far_best = m
+	if armour_drawn == 0 and not far_best.is_empty():
+		var fp: Vector3 = far_best["pos"]
+		_armour_badge(c + to_map(fp.x, fp.z).normalized() * (inner - 10.0 * s), far_best["glyph"], 1.25 * s, 0.75)
+		armour_drawn += 1
 
 
 ## The big places on the circle: the airport, the harbour, the city and the outskirt sites as small glyphs where they lie (inside the rim), and the nearest one beyond it (the airport and the harbour

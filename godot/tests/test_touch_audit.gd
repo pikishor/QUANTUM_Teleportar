@@ -57,8 +57,12 @@ func run(h: Node) -> void:
 	await _interior()
 	for c: Array in a.checks:
 		TestLib.check(c[0], c[1])
+	var hud_bad: Array[String] = []                                 # wave 118: every frame of the play HUD is clean (no overlap, nothing off screen, 56 / 44 px discs)
 	for f in a.findings:
 		print("FINDING: ", f)
+		if not (f.begins_with("garage") or f.begins_with("wheel") or f.begins_with("map") or f.begins_with("pause")):
+			hud_bad.append(f)
+	TestLib.check(hud_bad.is_empty(), "the play HUD frames (foot, MORE, car, aircraft, tank, snake flight, interior) have no geometry finding (%s)" % str(hud_bad))
 	print("TOUCH AUDIT HUD: ", a.summary())
 	print(a.table())
 	await a.shutdown()
@@ -84,9 +88,9 @@ func _boot(h: Node) -> bool:
 
 func _foot() -> void:
 	var ids := a.hud_ids()
-	for need in ["fire", "aim", "jump", "reload", "snake", "ability", "swap", "more", "pause", "minimap"]:
+	for need in ["fire", "aim", "jump", "reload", "snake", "snake_zip", "fly", "crouch", "ability", "swap", "more", "pause", "minimap"]:      # wave 118: ZIP, FLY and CROUCH are buttons of the on-foot set
 		TestLib.check(ids.has(need), "on foot the HUD shows %s" % need)
-	var pressed := await a.press_hud_frame("foot")
+	var pressed := await a.press_hud_frame("foot", ["fly"])            # FLY takes off (tests/test_controls_w118.gd and _snake_flight press it)
 	TestLib.check(pressed.size() >= 5, "on foot: %d action buttons held by the finger (%s)" % [pressed.size(), str(pressed)])
 	# FIRE shoots, JUMP lifts the hero
 	var mag0 := p.weapon.mag
@@ -112,9 +116,9 @@ func _foot() -> void:
 	# MORE
 	TestLib.check(await a.tap_hud("more") and a.tc.more_open, "a finger on MORE opens the second cluster")
 	var more_ids := a.hud_ids()
-	for need in ["altfire", "melee", "throw_item", "crouch"]:
+	for need in ["altfire", "melee", "throw_item"]:
 		TestLib.check(more_ids.has(need), "MORE shows %s" % need)
-	var mp := await a.press_hud_frame("foot+more")
+	var mp := await a.press_hud_frame("foot+more", ["fly"])
 	TestLib.check(mp.size() >= 9, "MORE open: %d action buttons held by the finger" % mp.size())
 	if a.hud_ids().has("garage_call"):
 		var n0 := (Game.vehicles as VehicleManager).list.size()
@@ -199,7 +203,10 @@ func _wheels() -> void:
 		a.row("wheel_ability", first, "state" if cast else "dead")
 		await _tap_ability()
 		if a.tc.wheel.is_open:
-			await a.tap(Vector2(a.vp().x * 0.3, a.vp().y * 0.45), 0, 3)
+			var beside := Vector2(a.vp().x * 0.3, a.vp().y * 0.45)
+			if a.tc.wheel.hit(beside) >= 0 or beside.distance_to(a.tc.wheel.centre) < RadialWheel.RADIUS * a.tc._scale() * 1.4:
+				beside = Vector2(a.vp().x * 0.88, a.vp().y * 0.8)      # wave 118: the ring stands on the left now (the ABILITY button is above the stick)
+			await a.tap(beside, 0, 3)
 		TestLib.check(not a.tc.wheel.is_open, "a tap beside the discs closes the ability wheel")
 	a.tc.release_all()
 	await a.pframes(10)
@@ -276,7 +283,8 @@ func _car() -> void:
 		vm.enter(car)
 		await a.pframes(10)
 	var ids := a.hud_ids()
-	TestLib.check(ids.has("jump") and ids.has("interact") and ids.has("veh_view") and ids.has("more") and not ids.has("reload"), "in a car: DRIFT, EXIT, VIEW and MORE (%s)" % str(ids))
+	TestLib.check(ids.has("jump") and ids.has("interact") and ids.has("veh_view") and ids.has("more") and not ids.has("reload"), "in a car: HAND BRAKE, EXIT, VIEW and MORE (%s)" % str(ids))
+	TestLib.check(ids.has("move_forward") and ids.has("move_back") and ids.has("horn") and not ids.has("fire") and not ids.has("snake"), "wave 118: in a car GAS, BRAKE and HORN are buttons too, and nothing of the on-foot set (%s)" % str(ids))
 	await a.press_hud_frame("car")
 	var v0 := p.camera_rig.veh_view
 	await a.tap_hud("veh_view", 4)

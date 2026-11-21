@@ -640,8 +640,12 @@ func _place_corner_props() -> void:
 func _place_plazas(layout: CityLayout) -> void:
 	var items: Array = []
 	for p in layout.plazas:
-		items.append([Transform3D(Basis(Vector3.UP, 0.0), Vector3(p.x, 0.0, p.y)), Color(rng.randf(), 0.0, 0.0, 1.0)])
-		glow_add(Vector3(p.x, 3.6, p.y - 5.5), Color(0.5, 0.9, 1.0, 1.1), 0, 6.0, 0.0, rng.randf())
+		var r1 := rng.randf()
+		var r2 := rng.randf()
+		if ArmourSites.claims(p.x, p.y):
+			continue                                                # wave 118: the ARMY YARD and the city helipads stand on this lot (the random stream is drawn all the same: nothing else moves)
+		items.append([Transform3D(Basis(Vector3.UP, 0.0), Vector3(p.x, 0.0, p.y)), Color(r1, 0.0, 0.0, 1.0)])
+		glow_add(Vector3(p.x, 3.6, p.y - 5.5), Color(0.5, 0.9, 1.0, 1.1), 0, 6.0, 0.0, r2)
 	add_family("Plazas", plaza_mesh(), items, false, false, 0, RADIUS_PLAZAS)
 
 

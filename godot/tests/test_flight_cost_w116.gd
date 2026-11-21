@@ -86,7 +86,7 @@ func _zip_once(i: int) -> int:
 	var s: Array = spots[i]
 	await _tp(s[0], s[1], 0.3)
 	var from := p.global_position
-	if fg.button_label(&"snake") != "ZIP" or not fg.press(1, &"snake"):
+	if sn.hint != &"zip" or not fg.press(1, &"snake_zip"):      # wave 118: ZIP is a button of its own (action snake_zip); the hint says a zip target is under the crosshair
 		return -1
 	await _f(4)
 	fg.up(1)
@@ -99,10 +99,10 @@ func _zip_once(i: int) -> int:
 
 
 ## A thumb holds SNAKE for 1.7 s at roof spot `i`. True when the hero ends up in SNAKE FLIGHT.
-func _zip_hold(i: int) -> bool:
+func _zip_hold(i: int, action: StringName = &"snake_zip") -> bool:
 	var s: Array = spots[i]
 	await _tp(s[0], s[1], 0.3)
-	if not fg.press(1, &"snake"):
+	if not fg.press(1, action):
 		return false
 	await _f(102)
 	var flew := sn.mode == SnakeTraversal.Mode.FLY
@@ -123,7 +123,7 @@ func _zip() -> void:
 		if spots.size() >= 7:
 			break
 		await _tp(c[0], c[1], 0.3, 14)
-		if fg.button_label(&"snake") != "ZIP":
+		if sn.hint != &"zip":
 			continue
 		var z := sn.anchors.find_zip(p, PlayerUtil.forward_of(p.camera_rig.yaw, p.camera_rig.pitch), SnakePower.range_m(), SnakeTraversal.assist)
 		if not z.is_empty() and z["kind"] == &"roof" and (z["dest"] as Vector3).y > p.global_position.y + 4.0:
@@ -156,11 +156,13 @@ func _zip() -> void:
 			flew += 1
 	TestLib.check(flew == 0, "SNAKE held 1.7 s on a ZIP never ends in SNAKE FLIGHT (%d of %d)" % [flew, spots.size()])
 	SnakeTraversal.zip_takes_press = false
+	SnakeTraversal.split_buttons = false                        # the wave 116 state: ONE snake button (it zipped, and the thumb that stayed on it took off); wave 118 gave ZIP its own button
 	var flew_old := 0
 	for i in spots.size():
-		if await _zip_hold(i):
+		if await _zip_hold(i, &"snake"):
 			flew_old += 1
 	SnakeTraversal.zip_takes_press = true
+	SnakeTraversal.split_buttons = true
 	TestLib.check(flew_old > 0, "OLD: the held press took off from the roof in %d of %d" % [flew_old, spots.size()])
 
 

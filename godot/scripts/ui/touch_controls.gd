@@ -14,43 +14,90 @@ const STICK_DEAD := 0.12
 const SPRINT_AT := 0.94             ## pushing the stick this far means sprint
 const BASE_H := 720.0
 const USE_REACH := 4.2              ## metres: a vehicle this close enables USE
-## Buttons: action, centre offset from the bottom-right corner and radius (canvas px at the base height), label, and what they need to be shown.
-## Default frame (on foot): FIRE, AIM, JUMP, RELOAD, ABILITY (opens the radial wheel), WEAPON (tap cycles, hold opens the weapon wheel) and MORE (opens the secondary
-## cluster). USE / GRAB / TAKEDOWN / SKIP / RADIO / GARAGE appear only when they apply; ALT, MELEE, THROW, CROUCH, GADGET, CALL CAR and the ally orders live in MORE.
+## WAVE 118 (owner: "all controls come as options on screen like gta. It should not be cluttered but like 5 circle for driving etc."): ONE SMALL SET OF ROUND BUTTONS PER MODE.
+## Every action of the mode the hero is in is a round button on screen; each mode shows only its own set. The slots (canvas px at the base height, from the bottom-right corner):
+##   MAIN (150,165) the big one   UPPER (150,355)   LOW (340,110)   MID (305,270)   FAR (500,105)   OUT (465,250)   DOOR (150,500)
+##   on foot      FIRE   AIM      JUMP    SWING    FLY     ZIP    ENTER (beside a vehicle)      left row: CROUCH RELOAD ABILITY      top: PAUSE MORE WEAPON
+##   snake flight FIRE   AIM      UP      BOOST    DOWN    -      LAND
+##   car / boat   GAS    FIRE*    BRAKE   HANDBRAKE -      -      EXIT                          left row: HORN VIEW                  (* an armed car only)
+##   tank         FIRE   2nd gun  BRAKE   -        -       -      EXIT                          left row: VIEW SHELL
+##   heli / plane FIRE   ROCKET   UP      -        DOWN    -      EXIT                          left row: VIEW
+##   indoors      FIRE   AIM      JUMP    USE      -       -      LEAVE
+## The DOOR slot is the way out of the mode in every mode (ENTER / EXIT / LAND / LEAVE). The stick (left thumb) walks, steers and flies; a drag on the open screen looks around
+## and turns a turret. MORE (top) holds only the rare extras (ALT, MELEE, THROW, GADGET, CALL CAR, RADIO, GARAGE, ally orders): nothing a mode needs is behind it.
+## Fields: action, dx / dy (centre from the bottom-right corner; "side": &"left" = dx from the LEFT edge; "top": true = dy from the TOP edge), r, label, need.
+const R_MAIN := 52.0                ## the least radius of a main action: 56 px across on an 844x390 phone
+const R_SMALL := 41.0               ## the least radius of a secondary button: 44 px across
+const PAUSE_R := 41.0
 const BUTTONS := [
-	{"action": &"fire", "dx": 160.0, "dy": 170.0, "r": 88.0, "fs": 32, "label": "FIRE", "need": &"fire"},
-	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "label": "AIM", "need": &"foot"},
-	{"action": &"aim", "dx": 170.0, "dy": 345.0, "r": 60.0, "fs": 22, "label": "ROCKET", "need": &"arms2"},       # a gunship or a jet: rockets / missiles (VehicleWeapons.tick_alt)
-	{"action": &"jump", "dx": 345.0, "dy": 130.0, "r": 66.0, "label": "JUMP", "need": &""},
-	{"action": &"snake", "dx": 256.0, "dy": 273.0, "r": 46.0, "fs": 26, "label": "SNAKE", "need": &"snake"},       # QUANTUM SNAKE traversal (scripts/quantum/snake_traversal.gd): ONE contextual button, in the hole between JUMP, RELOAD, AIM and FIRE: SWING in the air, ZIP on the ground, CLIMB at a wall, BOOST in flight
-	{"action": &"fly", "dx": 430.0, "dy": 400.0, "r": 50.0, "fs": 24, "label": "FLY", "need": &"fly"},                # FLY while airborne, LAND while flying: the second (contextual) snake button
-	{"action": &"reload", "dx": 360.0, "dy": 295.0, "r": 54.0, "fs": 24, "label": "RELOAD", "need": &"foot"},
-	{"action": &"ability", "dx": 515.0, "dy": 120.0, "r": 58.0, "fs": 22, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability"},
-	{"action": &"swap", "dx": 520.0, "dy": 262.0, "r": 58.0, "fs": 22, "label": "WEAPON", "need": &"weapon"},
-	{"action": &"more", "dx": 56.0, "dy": 492.0, "r": 36.0, "fs": 22, "label": "MORE", "need": &"more_btn", "fn": &"more"},
-	{"action": &"altfire", "dx": 650.0, "dy": 100.0, "r": 40.0, "fs": 22, "label": "ALT", "need": &"more"},
-	{"action": &"melee", "dx": 650.0, "dy": 212.0, "r": 46.0, "fs": 22, "label": "MELEE", "need": &"more"},
-	{"action": &"throw_item", "dx": 650.0, "dy": 322.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more"},
-	{"action": &"crouch", "dx": 650.0, "dy": 434.0, "r": 46.0, "fs": 22, "label": "CROUCH", "need": &"more"},
-	{"action": &"gadget", "dx": 650.0, "dy": 544.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"more_gadget"},
-	{"action": &"ammo_type", "dx": 750.0, "dy": 530.0, "r": 44.0, "fs": 22, "label": "AMMO", "need": &"more_ammo"},          # the next ammo type of the weapon (incendiary, shock, piercing ...): only for a weapon that carries more than one
-	{"action": &"garage_call", "dx": 750.0, "dy": 110.0, "r": 46.0, "fs": 20, "label": "CALL CAR", "need": &"more_garage", "fn": &"summon"},
-	{"action": &"charge_place", "dx": 750.0, "dy": 425.0, "r": 44.0, "fs": 22, "label": "C4", "need": &"more_c4"},
-	{"action": &"ultimate", "dx": 750.0, "dy": 635.0, "r": 46.0, "fs": 20, "label": "ULT", "need": &"more_ult"},       # the hero's blast ultimate (BlastOps._poll_input): only once one is unlocked (skill level 5, or hero mode)
-	{"action": &"detonate", "dx": 590.0, "dy": 650.0, "r": 50.0, "fs": 20, "label": "DETONATE", "need": &"detonate"},
-	{"action": &"companion_hold", "dx": 750.0, "dy": 215.0, "r": 46.0, "fs": 22, "label": "HOLD", "need": &"more_companion", "fn": &"ally_hold"},
-	{"action": &"companion_attack", "dx": 750.0, "dy": 320.0, "r": 46.0, "fs": 20, "label": "ATTACK", "need": &"more_companion", "fn": &"ally_attack"},
-	{"action": &"interact", "dx": 175.0, "dy": 480.0, "r": 54.0, "label": "USE", "need": &"vehicle"},
-	{"action": &"leave_building", "dx": 56.0, "dy": 405.0, "r": 46.0, "fs": 22, "label": "LEAVE", "need": &"interior"},       # inside a building: out from anywhere (a job in progress asks to tap twice)
-	{"action": &"grab", "dx": 320.0, "dy": 470.0, "r": 50.0, "fs": 22, "label": "GRAB", "need": &"grab"},
-	{"action": &"takedown", "dx": 175.0, "dy": 602.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
-	{"action": &"garage_open", "dx": 385.0, "dy": 580.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage"},      # driving: only while MORE is open
-	{"action": &"skip_piece", "dx": 505.0, "dy": 575.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip"},
-	{"action": &"radio_next", "dx": 270.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true},
-	{"action": &"crouch", "dx": 360.0, "dy": 295.0, "r": 56.0, "fs": 24, "label": "DOWN", "need": &"craft"},       # aircraft: descend / nose down (the JUMP button reads UP)
-	{"action": &"veh_view", "dx": 520.0, "dy": 262.0, "r": 46.0, "fs": 22, "label": "VIEW", "need": &"driving"},     # driving camera: chase / far / hood
-	{"action": &"look_back", "dx": 760.0, "dy": 560.0, "r": 46.0, "fs": 22, "label": "BACK", "need": &"drive_more"},       # held: look behind the car (MORE while driving)
+	{"action": &"fire", "dx": 150.0, "dy": 165.0, "r": 86.0, "fs": 32, "label": "FIRE", "need": &"fire"},
+	{"action": &"fire", "dx": 150.0, "dy": 355.0, "r": 56.0, "fs": 26, "label": "FIRE", "need": &"car_fire"},       # an armed car: the big slot is the GAS pedal
+	{"action": &"move_forward", "dx": 150.0, "dy": 165.0, "r": 86.0, "fs": 32, "label": "GAS", "need": &"pedals"},
+	{"action": &"move_back", "dx": 340.0, "dy": 110.0, "r": 62.0, "fs": 24, "label": "BRAKE", "need": &"pedals"},      # brakes, then reverses
+	{"action": &"aim", "dx": 150.0, "dy": 355.0, "r": 56.0, "label": "AIM", "need": &"foot"},
+	{"action": &"aim", "dx": 150.0, "dy": 355.0, "r": 56.0, "fs": 22, "label": "ROCKET", "need": &"arms2"},       # a gunship, a jet, a tank: rockets / missiles / the second gun (VehicleWeapons.tick_alt)
+	{"action": &"jump", "dx": 340.0, "dy": 110.0, "r": 62.0, "label": "JUMP", "need": &"jump"},
+	{"action": &"jump", "dx": 305.0, "dy": 270.0, "r": 56.0, "fs": 20, "label": "HAND BRAKE", "need": &"handbrake"},
+	{"action": &"snake", "dx": 305.0, "dy": 270.0, "r": 56.0, "fs": 26, "label": "SWING", "need": &"snake"},       # QUANTUM SNAKE (scripts/quantum/snake_traversal.gd): SWING on the street and in the air, CLIMB at a wall, LET GO on a rope, BOOST in flight
+	{"action": &"snake_zip", "dx": 465.0, "dy": 250.0, "r": 52.0, "fs": 26, "label": "ZIP", "need": &"zip"},       # the snake zip line to what the crosshair is on: its own button (wave 117: SNAKE on the street zipped instead of swinging)
+	{"action": &"fly", "dx": 500.0, "dy": 105.0, "r": 52.0, "fs": 24, "label": "FLY", "need": &"fly"},                # take off, from the ground too
+	{"action": &"fly", "dx": 150.0, "dy": 500.0, "r": 52.0, "fs": 24, "label": "LAND", "need": &"land"},              # in snake flight: the way out sits in the DOOR slot
+	{"action": &"crouch", "dx": 500.0, "dy": 105.0, "r": 52.0, "fs": 24, "label": "DOWN", "need": &"down"},       # snake flight, helicopter, plane: descend (the LOW slot reads UP)
+	{"action": &"interact", "dx": 150.0, "dy": 500.0, "r": 52.0, "fs": 24, "label": "USE", "need": &"vehicle"},     # the DOOR slot: ENTER beside a vehicle, EXIT in one
+	{"action": &"leave_building", "dx": 150.0, "dy": 500.0, "r": 52.0, "fs": 22, "label": "LEAVE", "need": &"interior"},       # inside a building: out from anywhere (a job in progress asks to tap twice)
+	{"action": &"interact", "dx": 305.0, "dy": 270.0, "r": 56.0, "fs": 24, "label": "USE", "need": &"use_in"},      # inside a building: TALK, CRACK, FREE ... at the spot that offers it
+	{"action": &"swap", "dx": 268.0, "dy": 118.0, "r": 50.0, "fs": 22, "label": "WEAPON", "need": &"weapon", "top": true},
+	{"action": &"more", "dx": 154.0, "dy": 118.0, "r": 41.0, "fs": 20, "label": "MORE", "need": &"more_btn", "fn": &"more", "top": true},
+	{"action": &"crouch", "dx": 62.0, "dy": 352.0, "r": 42.0, "fs": 18, "label": "CROUCH", "need": &"foot_ground", "side": &"left"},
+	{"action": &"reload", "dx": 168.0, "dy": 352.0, "r": 42.0, "fs": 18, "label": "RELOAD", "need": &"foot", "side": &"left"},
+	{"action": &"ability", "dx": 278.0, "dy": 352.0, "r": 46.0, "fs": 18, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability", "side": &"left"},
+	{"action": &"horn", "dx": 62.0, "dy": 352.0, "r": 42.0, "fs": 20, "label": "HORN", "need": &"horn", "fn": &"horn", "side": &"left"},
+	{"action": &"veh_view", "dx": 168.0, "dy": 352.0, "r": 42.0, "fs": 20, "label": "VIEW", "need": &"view_ground", "side": &"left"},     # driving camera: chase / far / hood
+	{"action": &"veh_view", "dx": 305.0, "dy": 270.0, "r": 44.0, "fs": 20, "label": "VIEW", "need": &"view_air"},       # an aircraft: the flight instruments stand where the left row is
+	{"action": &"ammo_type", "dx": 278.0, "dy": 352.0, "r": 42.0, "fs": 20, "label": "SHELL", "need": &"shell", "side": &"left"},     # a shell gun (tank, artillery): the next shell type
+	{"action": &"altfire", "dx": 476.0, "dy": 222.0, "r": 41.0, "fs": 22, "label": "ALT", "need": &"more", "top": true},
+	{"action": &"melee", "dx": 268.0, "dy": 222.0, "r": 46.0, "fs": 22, "label": "MELEE", "need": &"more", "top": true},
+	{"action": &"throw_item", "dx": 372.0, "dy": 222.0, "r": 44.0, "fs": 20, "label": "THROW", "need": &"more", "top": true},
+	{"action": &"gadget", "dx": 580.0, "dy": 250.0, "r": 44.0, "fs": 20, "label": "GADGET", "need": &"more_gadget", "top": true},
+	{"action": &"ammo_type", "dx": 372.0, "dy": 322.0, "r": 44.0, "fs": 22, "label": "AMMO", "need": &"more_ammo", "top": true},          # the next ammo type of the weapon (incendiary, shock, piercing ...): only for a weapon that carries more than one
+	{"action": &"garage_call", "dx": 268.0, "dy": 322.0, "r": 46.0, "fs": 20, "label": "CALL", "need": &"more_garage", "fn": &"summon", "top": true},
+	{"action": &"charge_place", "dx": 476.0, "dy": 322.0, "r": 44.0, "fs": 22, "label": "C4", "need": &"more_c4", "top": true},
+	{"action": &"ultimate", "dx": 588.0, "dy": 150.0, "r": 46.0, "fs": 20, "label": "ULT", "need": &"more_ult", "top": true},       # the hero's blast ultimate (BlastOps._poll_input): only once one is unlocked (skill level 5, or hero mode)
+	{"action": &"detonate", "dx": 612.0, "dy": 110.0, "r": 50.0, "fs": 20, "label": "DETONATE", "need": &"detonate"},
+	{"action": &"companion_hold", "dx": 380.0, "dy": 118.0, "r": 46.0, "fs": 22, "label": "HOLD", "need": &"more_companion", "fn": &"ally_hold", "top": true},
+	{"action": &"companion_attack", "dx": 484.0, "dy": 118.0, "r": 46.0, "fs": 20, "label": "ATTACK", "need": &"more_companion", "fn": &"ally_attack", "top": true},
+	{"action": &"grab", "dx": 620.0, "dy": 225.0, "r": 50.0, "fs": 22, "label": "GRAB", "need": &"grab"},
+	{"action": &"takedown", "dx": 620.0, "dy": 345.0, "r": 50.0, "fs": 20, "label": "TAKEDOWN", "need": &"takedown"},
+	{"action": &"garage_open", "dx": 372.0, "dy": 222.0, "r": 46.0, "fs": 22, "label": "GARAGE", "need": &"garage_open", "fn": &"garage", "top": true},      # driving: only while MORE is open
+	{"action": &"skip_piece", "dx": 290.0, "dy": 78.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip", "top": true, "side": &"left"},
+	{"action": &"radio_next", "dx": 268.0, "dy": 222.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true, "top": true},
+	{"action": &"look_back", "dx": 476.0, "dy": 222.0, "r": 46.0, "fs": 22, "label": "BACK", "need": &"drive_more", "top": true},       # held: look behind the car (MORE while driving)
 ]
+## The modes a `need` can show in (the sets of the table above). Two buttons that share no mode are never on screen together and may share a slot.
+const ALL_MODES: Array[StringName] = [&"foot", &"flight", &"interior", &"car", &"boat", &"tank", &"air"]
+const ON_FOOT: Array[StringName] = [&"foot", &"flight", &"interior"]
+const DRIVEN: Array[StringName] = [&"car", &"boat", &"tank", &"air"]
+const NEED_MODES := {
+	&"fire": [&"foot", &"flight", &"interior", &"tank", &"air"], &"car_fire": [&"car", &"boat"], &"pedals": [&"car", &"boat"], &"foot": ON_FOOT, &"arms2": [&"tank", &"air"],
+	&"jump": [&"foot", &"flight", &"interior", &"tank", &"air"], &"handbrake": [&"car"], &"snake": [&"foot", &"flight"], &"zip": [&"foot"], &"fly": [&"foot"], &"land": [&"flight"],
+	&"down": [&"flight", &"air"], &"vehicle": [&"foot", &"interior", &"car", &"boat", &"tank", &"air"], &"interior": [&"interior"], &"use_in": [&"interior"], &"weapon": ON_FOOT, &"quantum": ON_FOOT,
+	&"foot_ground": [&"foot", &"interior"], &"horn": [&"car"], &"view_ground": [&"car", &"boat", &"tank"], &"view_air": [&"air"], &"shell": [&"tank"],
+	&"more": ON_FOOT, &"more_gadget": ON_FOOT, &"more_ammo": ON_FOOT, &"more_c4": ON_FOOT, &"more_ult": ON_FOOT, &"more_companion": ON_FOOT, &"more_garage": [&"foot", &"flight"],
+	&"grab": ON_FOOT, &"garage_open": DRIVEN, &"radio": DRIVEN, &"drive_more": DRIVEN,
+}
+
+
+## True when buttons `a` and `b` (rows of BUTTONS) can never be on screen together.
+static func exclusive(a: Dictionary, b: Dictionary) -> bool:
+	if (a["need"] == &"vehicle" and b["need"] == &"interior") or (a["need"] == &"interior" and b["need"] == &"vehicle"):
+		return true                                  # the DOOR slot indoors: LEAVE (leave_building) everywhere but at the door, where USE says LEAVE
+	var ma: Array = NEED_MODES.get(a["need"], ALL_MODES)
+	for m: StringName in NEED_MODES.get(b["need"], ALL_MODES):
+		if ma.has(m):
+			return false
+	return true
+
+
 ## The ABILITY wheel: the seven quantum verbs, plain names. `ui` indexes UiUtil.ABILITIES (the four classic verbs), `verb` is a QuantumVerbs id.
 const WHEEL_ABILITIES := [
 	{"id": &"blink", "label": "QUANTUM TELEPORT", "ui": 0},
@@ -77,6 +124,7 @@ const PULSE := 0.14                ## seconds a wheel pick holds its action
 const WHEEL_HOLD := 0.4             ## seconds SWAP is held before the wheel opens (a short tap cycles the weapon)
 const ERROR_ROWS := 9               ## newest error lines shown in the panel
 
+var horns := 0                      ## times the HORN button sounded (tests)
 var more_open := false              ## the collapsed secondary cluster (ALT, MELEE, THROW, CROUCH, GADGET, CALL CAR, ally orders) is shown
 var wheel := RadialWheel.new()      ## the ABILITY / WEAPON radial wheel
 const SCRIM := 0.62                                 ## alpha of the dark scrim behind an open wheel ...
@@ -138,6 +186,10 @@ func _ready() -> void:
 	touch_capable = controls_on
 	perf_on = controls_on or OS.get_cmdline_user_args().has("--perf")
 	perf_shown = OS.get_cmdline_user_args().has("--perf")
+	for act: StringName in [&"snake_zip", &"horn"]:           # wave 118: buttons of their own (ZIP beside SWING, HORN); no key is bound here
+		if not InputMap.has_action(act):
+			InputMap.add_action(act)
+	SnakeTraversal.split_buttons = controls_on
 	_canvas = Control.new()
 	_canvas.name = "Canvas"
 	_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -154,6 +206,7 @@ func _ready() -> void:
 ## A controller took over (true) or a finger / key came back (false): the touch overlay hides and shows itself (ControllerInput calls this).
 func set_pad_mode(on: bool) -> void:
 	controls_on = touch_capable and not on
+	SnakeTraversal.split_buttons = controls_on            # a controller has ONE snake button again (contextual: zip at a target, else swing)
 	if on:
 		release_all()
 	if _canvas != null:
@@ -168,6 +221,7 @@ func _notification(what: int) -> void:
 
 func _exit_tree() -> void:
 	release_all()
+	SnakeTraversal.split_buttons = false
 
 
 var _redraw_t := 0.0
@@ -181,9 +235,15 @@ func _label_size(b: Dictionary, font: Font, r: float, s: float) -> int:
 	if e != null and e[0] == r and e[1] == s and e[2] == label:
 		return e[3]
 	var fs := int(b.get("fs", 26))
-	fs = mini(fs, int(UiUtil.fit_size(font, label, r * 2.0 - 6.0 * s, int(float(fs) * s)) / s))
+	for word: String in (label.split(" ") if two_lines(label) else PackedStringArray([label])):
+		fs = mini(fs, int(UiUtil.fit_size(font, word, r * 2.0 - 10.0 * s, int(float(fs) * s)) / s))
 	_fit_cache[b["action"]] = [r, s, label, fs]
 	return fs
+
+
+## A label of exactly two words is drawn on two lines (HAND / BRAKE, CALL / CAR, LET / GO): each word as large as the disc allows instead of one line at half the size.
+static func two_lines(label: String) -> bool:
+	return label.count(" ") == 1
 
 
 var _story_hidden := false
@@ -316,6 +376,12 @@ func touch_down(id: int, pos: Vector2) -> void:
 		_hot_finger = id                                # hidden readout: a long hold here shows it (the press is NOT taken, the finger keeps playing)
 		_hot_held = 0.0
 		_hot_from = pos
+	if controls_on and Game.is_playing() and wheel.is_open and wheel.sticky:       # a wheel a tap left open: a disc picks, anything else closes it (and is not a stick or look touch)
+		var wi := wheel.hit(pos)                                        # (before the FPS box: wave 118, the ring may stand over it and a tap on a disc cycled the graphics tier)
+		if wi >= 0 and _wheel_pick(wi):
+			return                                                      # a class ring (WeaponWheel.ring_items) took its place: the wheel stays open
+		wheel.close()
+		return
 	if perf_visible() and errors_on and _copy_rect().has_point(pos):
 		var po := get_tree().get_first_node_in_group(&"perf_overlay")      # COPY REPORT (debug panel): the device report to the clipboard and user://perf_log.txt
 		if po != null:
@@ -329,13 +395,7 @@ func touch_down(id: int, pos: Vector2) -> void:
 		return
 	if not controls_on or not Game.is_playing():
 		return
-	if wheel.is_open and wheel.sticky:                                 # a wheel a tap left open: a disc picks, anything else closes it (and is not a stick or look touch)
-		var wi := wheel.hit(pos)
-		if wi >= 0 and _wheel_pick(wi):
-			return                                                      # a class ring (WeaponWheel.ring_items) took its place: the wheel stays open
-		wheel.close()
-		return
-	if pos.distance_to(_pause_center()) <= 36.0 * _scale() * 1.3:
+	if pos.distance_to(_pause_center()) <= PAUSE_R * _scale() * 1.3:
 		pause_requested.emit()
 		return
 	var mm := _minimap_rect()
@@ -349,17 +409,20 @@ func touch_down(id: int, pos: Vector2) -> void:
 				_open_wheel(&"ability", id, pos)
 				return
 			if b.has("fn"):                                            # CALL CAR / GARAGE / MORE: one tap, no action press
-				Sfx.play(&"ui_tap")
+				if b["fn"] != &"horn":
+					Sfx.play(&"ui_tap")
 				if b["fn"] == &"skip":
 					get_parent().call(&"skip_set_piece")
 				elif b["fn"] == &"more":
 					more_open = not more_open
+				elif b["fn"] == &"horn":
+					horn()
 				elif b["fn"] == &"ally_hold":
 					Companion.current.command(&"hold")
 				elif b["fn"] == &"ally_attack":
 					Companion.current.command(&"attack")
 				elif b["fn"] == &"summon":
-					Game.vehicles.call(&"summon_any")        # the garage car, or a free quantum hover-bike while the garage is empty
+					CallIn.toggle()                          # wave 118 (w118-armour): the CALL-IN list: CAR (garage car or hover-bike, VehicleManager.summon_any), TANK, HELICOPTER, PLANE
 				else:
 					_open_garage()
 				return
@@ -392,14 +455,14 @@ func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
 	if id == _hot_finger and pos.distance_to(_hot_from) > 48.0 * _scale():
 		_hot_finger = -1                                # a stick drag or a look swipe is not a long press
 	if id == _wheel_finger:
-		wheel.sel = wheel.wedge(pos)
+		wheel.sel = wheel.wedge(wheel.centre + (pos - _wheel_from_pos))       # the drag is read from where the thumb went down (the ring may sit beside it: see _open_wheel)
 		if pos.distance_to(_wheel_from_pos) > 24.0 * _scale():
 			_wheel_moved = true
 		return
 	if id == _stick_id:
 		_stick_pos = pos
 		_apply_stick()
-	elif id == _look_id or (_held.has(id) and (_held[id] as Dictionary)["action"] in [&"fire", &"snake", &"fly"]):       # the camera also turns from a finger that holds FIRE or SNAKE: swing and steer with one thumb
+	elif id == _look_id or (_held.has(id) and (_held[id] as Dictionary)["action"] in [&"fire", &"snake", &"snake_zip", &"fly"]):       # the camera also turns from a finger that holds FIRE or SNAKE: swing and steer with one thumb
 		_look(rel)
 
 
@@ -445,6 +508,8 @@ func touch_up(id: int, keep_fast := false) -> void:
 			_late[act] = at                              # nothing has seen this press yet: _flush_late lets it go one tick later
 		elif not _action_held(act):
 			Input.action_release(act)
+			if act in MOVE_ACTIONS and _stick_id != -1:
+				_apply_stick()                           # a pedal was let go while the stick is pushed: the stick has the action again
 
 
 ## True while another finger still holds a button of the same action.
@@ -463,6 +528,8 @@ func _flush_late() -> void:
 			_late.erase(act)
 			if not _action_held(act):
 				Input.action_release(act)
+				if act in MOVE_ACTIONS and _stick_id != -1:
+					_apply_stick()
 
 
 func _apply_stick() -> void:
@@ -482,7 +549,9 @@ func _apply_stick() -> void:
 
 
 func _press(action: StringName, strength: float) -> void:
-	if strength > 0.0:
+	if _action_held(action):                          # a pedal button (GAS / BRAKE) holds this action: the stick does not let it go
+		Input.action_press(action, 1.0)
+	elif strength > 0.0:
 		Input.action_press(action, strength)
 	else:
 		Input.action_release(action)
@@ -528,30 +597,56 @@ func button_visible(b: Dictionary) -> bool:
 			return more_open and not _driving() and Companion.controllable()
 		&"grab":
 			return is_instance_valid(Game.player) and not _driving() and ((_grab_near and not _use_near) or _grab_held())       # a car in ENTER reach shows ENTER alone: one contextual button, not two
-		&"interior":
-			return InteriorGameplay.active and not InteriorGameplay.vendor_open and is_instance_valid(InteriorGameplay.instance) and not InteriorGameplay.instance.busy \
-					and not InteriorGameplay.prompt.begins_with("LEAVE")       # at the door the USE button already says LEAVE: one button, not two
-		&"vehicle":
-			return is_instance_valid(Game.vehicles) and (_use_near or _driving())
+		&"interior":         # the DOOR slot indoors: LEAVE from anywhere (at the door the USE button stands in the same slot with the same word: one button, not two)
+			return InteriorGameplay.active and not InteriorGameplay.vendor_open and is_instance_valid(InteriorGameplay.instance) and not InteriorGameplay.instance.busy and not _driving() \
+					and not InteriorGameplay.prompt.begins_with("LEAVE")
+		&"use_in":           # indoors, at a spot that offers something (TALK, CRACK, FREE): the MID slot
+			return InteriorGameplay.active and not _driving() and InteriorGameplay.prompt != "" and not InteriorGameplay.prompt.begins_with("LEAVE") and not InteriorGameplay.vendor_open
+		&"vehicle":          # the DOOR slot outdoors: ENTER beside a vehicle (or a ride), EXIT in one
+			if InteriorGameplay.active and not _driving():
+				return is_instance_valid(Game.vehicles) and _use_near and InteriorGameplay.prompt.begins_with("LEAVE")       # indoors only at the door: LEAVE
+			return is_instance_valid(Game.vehicles) and ((_use_near and not _flying()) or _driving())       # in snake flight the DOOR slot is LAND
 		&"driving":
 			return is_instance_valid(Game.vehicles) and _driving()
-		&"arms2":            # the driven aircraft carries rockets or missiles
-			var dv: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
-			return dv != null and dv.get("weapons") != null and bool(dv.get("weapons").call(&"has_alt"))
-		&"craft":            # helicopter, plane: the second vertical button
+		&"view_ground":
+			return is_instance_valid(Game.vehicles) and _driving() and not (_craft_class() in [&"heli", &"plane"])
+		&"view_air":
 			return is_instance_valid(Game.vehicles) and _driving() and _craft_class() in [&"heli", &"plane"]
-		&"drive_more":       # the driving cluster behind MORE: BACK, RADIO, GARAGE (a car shows only DRIFT, EXIT, VIEW and MORE, plus FIRE when it carries a weapon)
+		&"pedals":           # GAS and BRAKE: everything with wheels or a hull (a tank and the aircraft are driven by the stick alone)
+			return is_instance_valid(Game.vehicles) and _driving() and not (_craft_class() in [&"heli", &"plane", &"tank"])
+		&"handbrake":
+			return is_instance_valid(Game.vehicles) and _driving() and not (_craft_class() in [&"heli", &"plane", &"tank", &"boat"])
+		&"horn":
+			return is_instance_valid(Game.vehicles) and _driving() and not (_craft_class() in [&"heli", &"plane", &"tank", &"boat"])
+		&"jump":             # the LOW slot: JUMP on foot, UP in the air, BRAKE in a tank
+			return not _driving() or _craft_class() in [&"heli", &"plane", &"tank"]
+		&"shell":
+			return _driving() and _car_armed() and BlastOps.is_shell_gun(Game.player.get("vehicle").get("kind")) and InputMap.has_action(&"ammo_type")
+		&"arms2":            # the driven craft carries rockets, missiles or a second gun
+			var dv: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
+			return dv != null and dv.get("weapons") != null and bool(dv.get("weapons").call(&"has_alt")) and _craft_class() in [&"heli", &"plane", &"tank"]
+		&"down":             # helicopter, plane, snake flight: the second vertical button
+			return (is_instance_valid(Game.vehicles) and _driving() and _craft_class() in [&"heli", &"plane"]) or _flying()
+		&"drive_more":       # the driving extras behind MORE: BACK, RADIO, GARAGE
 			return more_open and is_instance_valid(Game.vehicles) and _driving()
 		&"snake":
 			return is_instance_valid(Game.player) and not _driving() and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).button_shown()
-		&"fly":
-			return is_instance_valid(Game.player) and not _driving() and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).fly_button_shown()
+		&"zip":
+			return is_instance_valid(Game.player) and not _driving() and not _flying() and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).button_shown()
+		&"fly":              # FLY: on the ground and in the air, until the hero flies (then the DOOR slot reads LAND)
+			return is_instance_valid(Game.player) and not _driving() and not _flying() and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).fly_button_shown()
+		&"land":
+			return _flying()
 		&"fire":
-			return not _driving() or _car_armed()
+			return not _driving() or (_car_armed() and _craft_class() in [&"heli", &"plane", &"tank"])
+		&"car_fire":
+			return _driving() and _car_armed() and not (_craft_class() in [&"heli", &"plane", &"tank"])
 		&"more_btn":
 			return is_instance_valid(Game.player)
 		&"foot":
 			return is_instance_valid(Game.player) and not _driving()
+		&"foot_ground":      # CROUCH: on foot and not in snake flight (there the same action is the DOWN button)
+			return is_instance_valid(Game.player) and not _driving() and not _flying()
 		&"takedown":
 			var pc: Object = Game.player.get("cover") if is_instance_valid(Game.player) else null
 			return pc != null and pc.get("target") != null and is_instance_valid(pc.get("target"))
@@ -581,13 +676,19 @@ func _label_of(b: Dictionary) -> String:
 	if b["action"] == &"fly" and is_instance_valid(Game.player) and Game.player.get("snake") != null:
 		var sfl := Game.player.get("snake") as SnakeTraversal
 		return sfl.flight.button_label() if sfl.mode == SnakeTraversal.Mode.FLY else "FLY"       # LAND; FLY again once a landing can be called off (wave 116 critic)
+	if b["action"] == &"snake_zip" and is_instance_valid(Game.player) and Game.player.get("snake") != null:
+		var sz := Game.player.get("snake") as SnakeTraversal
+		if sz.jam_t > 0.0:
+			return "JAMMED"
+		if sz.whiff_action == &"snake_zip" and SnakeFx.label_cue() != "":
+			return SnakeFx.label_cue()                   # NO ANCHOR for a second after a ZIP that found nothing
 	if b["action"] == &"jump" and not _driving() and is_instance_valid(Game.player) and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).mode == SnakeTraversal.Mode.FLY:
 		return "UP"                                      # in snake flight the JUMP button climbs
 	if b["action"] == &"jump" and _driving():
 		var cc := _craft_class()
 		if cc == &"heli" or cc == &"plane":
 			return "UP"                                  # climb / nose up
-		return "BRAKE" if cc == &"boat" or cc == &"tank" else "DRIFT"       # the handbrake
+		return "BRAKE" if cc == &"boat" or cc == &"tank" else "HAND BRAKE"
 	if b["action"] == &"aim" and b.get("need", &"") == &"arms2" and is_instance_valid(Game.vehicles):           # the secondary weapon says what it is: ROCKET, MISSILE, COAX
 		var dv: Object = Game.vehicles.get("driven")
 		var wp: Object = dv.get("weapons") if dv != null else null
@@ -628,6 +729,7 @@ func _open_wheel(kind: StringName, finger: int, pos: Vector2) -> void:
 	for b: Dictionary in BUTTONS:
 		if b["action"] == want:
 			at = _button_center(b)                                   # the thumb sits on its button: the wheel opens around it
+	at = wheel_centre(at)
 	wheel.open_at(kind, wheel_items(kind), at, _scale(), false, wheel_bounds())
 	_wheel_finger = finger if wheel.is_open else -1
 	_wheel_held = 0.0
@@ -635,6 +737,20 @@ func _open_wheel(kind: StringName, finger: int, pos: Vector2) -> void:
 	_wheel_from_pos = pos
 	Sfx.play(&"ui_tap")
 	_canvas.queue_redraw()
+
+
+## Wave 118 (wave 116 list: eleven ability discs of 38 px): a wheel opened beside a screen edge fanned out over the free arc and its discs shrank to 62 %. The ring now
+## opens where the whole circle fits (the point nearest the thumb), so the discs keep their size; the drag is read from where the thumb went down. false = the old place (tests).
+static var wheel_fits := true
+
+
+func wheel_centre(at: Vector2) -> Vector2:
+	if not wheel_fits:
+		return at
+	var wb := wheel_bounds().grow(-RadialWheel.RADIUS * _scale() - 1.0)
+	if wb.size.x <= 0.0 or wb.size.y <= 0.0:
+		return at
+	return Vector2(clampf(at.x, wb.position.x, wb.end.x), clampf(at.y, wb.position.y, wb.end.y))
 
 
 ## Where the centre of a wheel disc may sit (canvas px): the screen less the notch insets and an 8 px margin, less one disc radius.
@@ -823,6 +939,32 @@ func _driving() -> bool:
 	return is_instance_valid(Game.player) and Game.player.get("vehicle") != null
 
 
+## The hero is in snake flight.
+func _flying() -> bool:
+	return is_instance_valid(Game.player) and Game.player.get("vehicle") == null and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).mode == SnakeTraversal.Mode.FLY
+
+
+## The mode whose set of buttons is on screen: &"foot", &"flight", &"interior", or the class of the driven vehicle (&"car", &"bike", &"hover", &"boat", &"tank", &"heli", &"plane").
+func mode() -> StringName:
+	if _driving():
+		return _craft_class()
+	if _flying():
+		return &"flight"
+	return &"interior" if InteriorGameplay.active else &"foot"
+
+
+## The HORN button: the sound, and the traffic ahead hears it (VehicleManager.hear).
+func horn() -> void:
+	var v := Game.player.get("vehicle") as Node3D if is_instance_valid(Game.player) else null
+	if v == null:
+		return
+	Sfx.play_at(&"horn", v.global_position, -2.0)
+	Sfx.last_played = &"horn"
+	horns += 1
+	if is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"hear"):
+		Game.vehicles.call(&"hear", v.global_position, &"horn")
+
+
 ## The driven car carries a mounted weapon (rail gun, cannon, bolt gun): only then the FIRE button stays in a car.
 func _car_armed() -> bool:
 	var v: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
@@ -860,16 +1002,37 @@ func _insets() -> Vector2:
 
 
 func _button_center(b: Dictionary) -> Vector2:
-	var s := _scale()
-	var x := _vp_size().x - _insets().y - float(b["dx"]) * s
-	if UiSettings.s_left_hand:
-		x = _insets().x + float(b["dx"]) * s
-	return Vector2(x, _vp_size().y - UiUtil.insets_v(_vp_size()).y - float(b["dy"]) * s)
+	return centre_at(b, _vp_size())
+
+
+## Centre of button `b` on a screen of `vp` canvas px (a pure function of the table, the screen and the left-hand setting: the tests lay out other screens with it).
+static func centre_at(b: Dictionary, vp: Vector2) -> Vector2:
+	var s := UiUtil.ui_scale(vp)
+	var ins := UiUtil.insets(vp)
+	var x := vp.x - ins.y - float(b["dx"]) * s
+	if UiSettings.s_left_hand != (b.get("side", &"") == &"left"):       # the left row (above the stick) mirrors with the stick
+		x = ins.x + float(b["dx"]) * s
+	if b.get("top", false):
+		return Vector2(x, UiUtil.insets_v(vp).x + float(b["dy"]) * s)
+	return Vector2(x, vp.y - UiUtil.insets_v(vp).y - float(b["dy"]) * s)
 
 
 func _pause_center() -> Vector2:
-	var s := _scale()
-	return Vector2(_vp_size().x - _insets().y - 52.0 * s, 112.0 * s + UiUtil.insets_v(_vp_size()).x)     # the right edge under the heat stars: the faction / wanted plate used to sit on the old spot (director review)
+	return pause_at(_vp_size())
+
+
+static func pause_at(vp: Vector2) -> Vector2:
+	var s := UiUtil.ui_scale(vp)
+	return Vector2(vp.x - UiUtil.insets(vp).y - 52.0 * s, 120.0 * s + UiUtil.insets_v(vp).x)     # the right edge under the heat stars: the faction / wanted plate used to sit on the old spot (director review)
+
+
+## The rows of BUTTONS that can show in `mode` (ALL_MODES): what a layout check compares with each other.
+static func buttons_of(mode: StringName) -> Array:
+	var out: Array = []
+	for b: Dictionary in BUTTONS:
+		if (NEED_MODES.get(b["need"], ALL_MODES) as Array).has(mode):
+			out.append(b)
+	return out
 
 
 ## The perf readout sits under the minimap and is only shown while playing or paused.
@@ -991,7 +1154,12 @@ func _draw_ui_body() -> void:
 		if b["action"] == &"swap":                      # WEAPON: the weapon's silhouette over the ammo count (no separate ammo plate)
 			_weapon_face(c, font, centre, r, s, labels)
 			continue
-		labels.append([centre + Vector2(-r, float(fs) * 0.36 * s), _label_of(b), r * 2.0, dim, fs])
+		var lb := _label_of(b)
+		if two_lines(lb):
+			labels.append([centre + Vector2(-r, float(fs) * -0.2 * s), lb.get_slice(" ", 0), r * 2.0, dim, fs])
+			labels.append([centre + Vector2(-r, float(fs) * 0.86 * s), lb.get_slice(" ", 1), r * 2.0, dim, fs])
+			continue
+		labels.append([centre + Vector2(-r, float(fs) * 0.36 * s), lb, r * 2.0, dim, fs])
 	for g: Array in glows:
 		c.draw_texture_rect(UiUtil.sprite(&"disc"), g[0], false, g[1])
 	SnakeFx.hud_cues(self, s, sprites, labels)                 # w117-rope: the ZIP anchor marker, NO ANCHOR, the flight energy warning (rows of the two lists drawn below: no draw call more)
@@ -1013,7 +1181,7 @@ func _draw_ui_body() -> void:
 		_draw_wheel(c, font, s)
 	# pause
 	var pc := _pause_center()
-	var pr := 36.0 * s
+	var pr := PAUSE_R * s
 	c.draw_arc(pc, pr, 0.0, TAU, 28, Color(1, 1, 1, 0.45), 2.0 * s, false)
 	c.draw_rect(Rect2(pc + Vector2(-8, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))
 	c.draw_rect(Rect2(pc + Vector2(3, -10) * s, Vector2(5, 20) * s), Color(1, 1, 1, 0.8))

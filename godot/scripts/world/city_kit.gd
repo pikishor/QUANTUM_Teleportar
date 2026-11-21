@@ -724,12 +724,44 @@ func build(props: RefCounted, layout: CityLayout, parts: Array[Dictionary]) -> v
 				_try_place(layout, kind2, pos2.x, pos2.y, yaw2)
 	_place_flora(layout)
 	_build_city_kit(layout)
+	_clear_armour_lanes()
 	_add_glow(props)
+
+
+## Wave 118: the kerb strip in front of the ARMY YARD is the tanks' way out (ArmourSites.keeps_clear): the shelter, the lantern pole and the bollards that stood there stopped a tank
+## after 11 m. Taken out AFTER the placement loops, so no random stream moves and every other prop of the city stays where it was. Flat decals (drains, markings) stay.
+func _clear_armour_lanes() -> void:
+	for c in cells.size():
+		var arr: PackedFloat32Array = cells[c]
+		if arr.is_empty():
+			continue
+		var keep := PackedFloat32Array()
+		var dropped := 0
+		for i in range(0, arr.size(), 6):
+			var kind := int(arr[i])
+			var solid := kind < KC_FIRST or kind == KC_FIRST + KitWorld.BOLLARD or kind == KC_FIRST + KitWorld.PLANTER
+			if solid and ArmourSites.keeps_clear(arr[i + 1], arr[i + 2]):
+				dropped += 1
+				kind_count[kind] -= 1
+				district_count[Districts.look_at(arr[i + 1], arr[i + 2])] -= 1
+				continue
+			keep.append_array(arr.slice(i, i + 6))
+		if dropped > 0:
+			cells[c] = keep
+			counts[c] -= dropped
+	for k in range(placements.size() - 1, -1, -1):
+		var pl: Dictionary = placements[k]
+		var pk := int(pl["kind"])
+		var pp: Vector3 = pl["pos"]
+		if (pk < KC_FIRST or pk == KC_FIRST + KitWorld.BOLLARD or pk == KC_FIRST + KitWorld.PLANTER) and ArmourSites.keeps_clear(pp.x, pp.z):
+			placements.remove_at(k)
 
 
 ## Park / plaza dressing of the creature kit: trees, plants and rocks in a ring round every plaza (own generator per plaza, the rest of the kit is unaffected).
 func _place_flora(layout: CityLayout) -> void:
 	for pl: Vector2 in layout.plazas:
+		if ArmourSites.claims(pl.x, pl.y):
+			continue                                                # wave 118: no trees on the ARMY YARD and the city helipads
 		for it in CreatureKit.ring(pl):
 			var pos: Vector2 = it["pos"]
 			var kind := FLORA_TREE + int(it["kind"])

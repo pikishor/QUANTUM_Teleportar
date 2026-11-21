@@ -360,7 +360,7 @@ static func hud_cues(tc: TouchControls, s: float, sprites: Array, labels: Array)
 		sprites.append(_ring(mid, 27.0 * s, col2))
 		_line(sprites, labels, mid + Vector2(0.0, 66.0 * s), "NO ANCHOR IN REACH", 32, s, col2, a)
 		for b: Dictionary in TouchControls.BUTTONS:
-			if b["action"] == &"snake" and tc.button_visible(b):
+			if b["action"] == (me.st.whiff_action if SnakeTraversal.split_buttons else &"snake") and tc.button_visible(b):       # w118-controls: the button that was pressed (SWING or ZIP)
 				sprites.append(_ring(tc._button_center(b), (float(b["r"]) * UiSettings.s_button_size + 9.0) * s, col2))
 	if me.energy_warn > 0:
 		var blink := 0.55 + 0.45 * sin(me._t * (9.0 if me.energy_warn == 1 else 18.0))

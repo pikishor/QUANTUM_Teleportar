@@ -719,7 +719,7 @@ func _wheel() -> void:
 	var last := tc.wheel.items.size() - 1
 	var at_last := tc.wheel.item_centre(last)
 	tc._wheel_held = 0.6
-	tc.touch_move(90, at_last, at_last - tc.wheel.centre)
+	tc.touch_move(90, at_last - tc.wheel.centre, at_last - tc.wheel.centre)       # wave 118: the drag is read from where the thumb went down (here Vector2.ZERO)
 	TestLib.check(tc.wheel.sel == last and StringName(tc.wheel.items[last]["type"]) == &"snake", "dragging to the last disc points at the SNAKE BOMB wedge")
 	tc.touch_up(90)
 	TestLib.check(tc.wheel.is_open and tc.wheel.sticky and tc.wheel.items.size() == 9 and StringName(tc.wheel.items[0]["type"]) == &"snake_power", "releasing on a snake wedge opens the ring of its powers and the wheel stays (%d discs)" % tc.wheel.items.size())

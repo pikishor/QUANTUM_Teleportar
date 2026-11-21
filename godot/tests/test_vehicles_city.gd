@@ -47,7 +47,11 @@ func _streaming_on_the_city(host: Node) -> void:
 		_extras()
 		await e.secs(3.0)
 		var want: int = [3, 5, 8][q]
-		TestLib.check(mgr.list.size() == want, "tier %d: streaming fills the city up to %d cars (%d)" % [q, want, mgr.list.size()])
+		var fixed := 0                                      # wave 118: the helicopter of CITY HELIPAD EAST (108 m from here) waits on its pad OUTSIDE the car cap (ArmourSites): the streamed cars are counted without it
+		for fv in mgr.list:
+			if fv.has_meta(&"fixed"):
+				fixed += 1
+		TestLib.check(mgr.list.size() - fixed == want and fixed <= 1, "tier %d: streaming fills the city up to %d cars (%d, and %d on a fixed place)" % [q, want, mgr.list.size() - fixed, fixed])
 		ppos = p.global_position
 		var far := 0
 		for v in mgr.list:
@@ -58,14 +62,16 @@ func _streaming_on_the_city(host: Node) -> void:
 	await e.secs(3.0)
 	TestLib.check(mgr.traffic_count() >= 1 and mgr.parked_count() >= 1, "both traffic and parked cars are streamed (%d traffic, %d parked)" % [mgr.traffic_count(), mgr.parked_count()])
 	var bays_ok := true
+	var off_bay := ""
 	for v in mgr.list:
-		if v.ai or v == mgr.starter:
+		if v.ai or v == mgr.starter or v.has_meta(&"fixed"):          # (the helicopter on its pad is not a kerb car)
 			continue
 		var ox := absf(CityLayout.road_offset(v.global_position.x))
 		var oz := absf(CityLayout.road_offset(v.global_position.z))
 		if absf(ox - VehicleSpecs.BAY) > 0.2 and absf(oz - VehicleSpecs.BAY) > 0.2:
 			bays_ok = false
-	TestLib.check(bays_ok, "parked cars stand on the parking bays (8.3 m from the road centre)")
+			off_bay += " %s at %s (metas %s)" % [v.kind, str(v.global_position.snapped(Vector3(0.1, 0.1, 0.1))), str(v.get_meta_list())]
+	TestLib.check(bays_ok, "parked cars stand on the parking bays (8.3 m from the road centre)%s" % off_bay)
 	# the player moves across the city: far cars are released, new ones appear around him, the starter car stays alive
 	p.teleport_to(Vector3(-250.0, 0.0, 250.0))
 	await e.secs(3.0)
