@@ -579,7 +579,8 @@ func _label_of(b: Dictionary) -> String:
 	if b["action"] == &"snake" and is_instance_valid(Game.player) and Game.player.get("snake") != null:
 		return (Game.player.get("snake") as SnakeTraversal).button_label()
 	if b["action"] == &"fly" and is_instance_valid(Game.player) and Game.player.get("snake") != null:
-		return "LAND" if (Game.player.get("snake") as SnakeTraversal).mode == SnakeTraversal.Mode.FLY else "FLY"
+		var sfl := Game.player.get("snake") as SnakeTraversal
+		return sfl.flight.button_label() if sfl.mode == SnakeTraversal.Mode.FLY else "FLY"       # LAND; FLY again once a landing can be called off (wave 116 critic)
 	if b["action"] == &"jump" and not _driving() and is_instance_valid(Game.player) and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).mode == SnakeTraversal.Mode.FLY:
 		return "UP"                                      # in snake flight the JUMP button climbs
 	if b["action"] == &"jump" and _driving():

@@ -46,6 +46,7 @@ var touch: TouchControls
 ## Active screen buttons: {id: StringName, rect: Rect2, label: String, on: bool}. Rebuilt whenever the state or the viewport changes.
 var buttons: Array[Dictionary] = []
 var screen_age := 0.0               ## seconds since the current state began
+static var feed_clear := true       ## wave 116 critic: the kill / pickup feed keeps off the touch buttons (a test switches it off to show the old overlap)
 var feed := HudFeed.new()           ## kills and pickups, two small lines of the corner stack (scripts/ui/hud_feed.gd); pickup toasts go there
 var damage := DamageFeedback.new()  ## ghost segments and flashes of the health and hull bars (scripts/ui/damage_feedback.gd)
 var toast := Toast.new()            ## the one toast channel (scripts/ui/toast.gd): message_text / message_left mirror it
@@ -1731,6 +1732,17 @@ func _draw_hud_body() -> void:
 		var fy := feed_y
 		if fr - HudFeed.MAX_W * s < vp.x * 0.75:              # wave 114 critic: the objective plate and the toast lane are centred and up to half a screen wide: the feed hangs UNDER that lane, never across it
 			fy = maxf(feed_y, msg_top(s) + (MSG_H + 6.0) * s)
+		if feed_clear and touch_ui_on() and touch != null:       # wave 116 critic: the feed hung across GRAB and FLY (three pickup lines over the button's label): it stops left of every button it would reach
+			var tcn := touch as TouchControls
+			var fb := fy + HudFeed.MAX_LINES * 30.0 * s
+			for pass_i in 2:
+				for tb: Dictionary in TouchControls.BUTTONS:
+					if not tcn.button_visible(tb) and not (tb["action"] == &"grab" or tb["action"] == &"fly"):       # GRAB and FLY come and go by themselves: the feed keeps off their spots always (it must not jump when one appears)
+						continue
+					var bc := tcn._button_center(tb)
+					var br := float(tb["r"]) * s * UiSettings.s_button_size + 6.0 * s
+					if bc.y - br < fb and bc.y + br > fy and bc.x + br > fr - HudFeed.MAX_W * s and bc.x - br < fr:
+						fr = bc.x - br
 		feed.draw(self, c, font, fr, fy, s, now)
 	if p == null:
 		_draw_message(c, vp, s, font)

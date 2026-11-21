@@ -196,6 +196,14 @@ func roll_request(side: float) -> void:
 		st.on_flight_roll()
 
 
+static var land_guard := 0.8              ## s after LAND in which another press on the button is ignored (0 = the old double-tap cancel; a test shows it)
+
+
+## The label of the FLY button during a flight: LAND, and FLY once a landing can be called off by a press.
+func button_label() -> String:
+	return "FLY" if phase == &"landing" and phase_t >= land_guard else "LAND"
+
+
 func land_request() -> void:
 	if active and phase != &"landing":
 		_land_req = true
@@ -233,8 +241,9 @@ func tick(p: Player, dt: float, iv: Vector2, aim: Vector3, jump_held: bool, crou
 	roll_land_t = maxf(0.0, roll_land_t - dt)
 	if fly_pressed and time > 0.35:
 		if phase == &"landing":
-			phase = &"power"                              # a second press cancels a landing
-			_land_req = false
+			if phase_t >= land_guard:                     # wave 116 critic: a double tap on LAND (two presses within half a second) used to cancel the landing and fly on
+				phase = &"power"                          # a second, later press cancels a landing (the button reads FLY by then)
+				_land_req = false
 		else:
 			land_request()
 	var fwd_in := -iv.y
