@@ -27,3 +27,7 @@ the phone-only layers (reward cards, hints) switched ON.
 - Snake zip and snake bombs on a phone: reproduce with touch events (what exactly fails is not known yet: ask the owner or find by a touch bot).
 - Buildings with stairs and floors to walk; street detail (clutter, storefronts); frame rate (37 to 45 FPS on LOW+, drops to 13 to 28 while flying: VEHICLES script time 4 to 6.5 ms in the air far from any car).
 - A touch-only audit of every screen and every HUD button (the same class of bug may sit elsewhere).
+
+## Owner, 2026-11-21 (with the go for wave 118)
+"Yes. Also make sure all controls come as options on screen like gta. It should not be cluttered but like 5 circle for driving etc."
+Taken into wave 118 as the second builder (w118-controls): one small set of round buttons per mode (on foot, driving, tank, helicopter / plane, snake flight), every action visible, about 5 circles.

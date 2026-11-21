@@ -77,6 +77,39 @@ wall, take off and land. Render frame strips and LOOK: does it read as a hero sw
 evidence, fix them most severe first, each with a check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
     commit: 'Wave 117: snake swing like a web-swinger (braided rope of snakes, pendulum, chain swings, jump), zip and cue fixes',
   },
+  118: {
+    title: 'Tanks and helicopters you can find, and GTA-style on-screen controls',
+    builders: [
+      { tag: 'armour', prompt: `TASK (label w118-armour): TANKS AND HELICOPTERS THE PLAYER CAN FIND. Owner: "where are tanks and helicopters etc. everything is pending for such long time". Tanks, helicopters and
+planes exist in the code (airport, aircraft flight, military vehicles): find out by real finger play why a player never meets them, then make them findable: (a) FIXED PLACES that always hold
+them (a military base or yard with at least 2 tanks and an armoured car, helipads in the city and at the airport with helicopters standing on them, planes at the airport), present from
+the first minute of free roam, never despawned while the player is near; (b) MAP ICONS for each (tank, helicopter, plane) on the big map and the minimap, with GPS to them, and a legend /
+filter chip; (c) DEMO and TEST menu: a SPAWN list that puts a tank, a helicopter or a plane next to the hero; (d) a CALL-IN from the phone / MORE tray in normal play (delivered next to the
+hero on a cooldown); (e) enter, drive / fly, shoot and leave each by finger. The other builder (w118-controls) owns the on-screen control layout (scripts/ui HUD button sets): do not rearrange
+buttons, only make sure the actions exist as input actions and tell it in your log which actions a tank and a helicopter need. Permanent test godot/tests/test_armour_w118.gd by real fingers:
+from a fresh start open the map, see the icons, spawn from the demo list, walk to a tank at its fixed place, enter, drive 30 m, fire the gun, leave; the same for a helicopter (take off, fly,
+land, leave). The perf gate has ZERO spare draws on HIGH and one on MED: parked vehicles far away must cost nothing (cull / LOD), trim elsewhere if needed, never raise a limit.` },
+      { tag: 'controls', prompt: `TASK (label w118-controls): GTA-STYLE ON-SCREEN CONTROLS. Owner (2026-11-21): "make sure all controls come as options on screen like gta. It should not be cluttered but like 5 circle
+for driving etc." Meaning: every action the player can take in the current mode is a visible round button on screen (nothing essential hidden in a tray or behind a gesture), but each mode
+shows only its own small set: about 5 circles plus the stick, in the classic mobile open-world layout (left thumb: stick or steer buttons; right thumb: a cluster of round buttons in an arc,
+the main action biggest; small PAUSE / MAP / MORE at the top). Design and build one set per mode, switched automatically: ON FOOT (fire, aim, jump, snake / swing, enter vehicle when one is
+near, weapon swap; crouch / reload / abilities as small secondary circles or auto), DRIVING (accelerate, brake / reverse, handbrake, fire if armed, exit; horn / camera small), TANK (move,
+turret aim by drag, fire main gun, machine gun, exit), HELICOPTER and PLANE (up, down, fire, missile, exit / land; stick for direction), SNAKE FLIGHT (up, down, boost, fire, land), SWIMMING
+and INTERIOR if they differ. Fix from the wave 116 / 117 lists: FLY is absent on the ground, there is no DOWN in snake flight, SNAKE on the street zips instead of swinging (make the two
+actions clear and separate), 38 px ability discs and menu targets under 44 px at 844x390. Rules: every circle at least 56 px at 844x390 for main actions and 44 px for secondary, no overlap,
+nothing over the crosshair or the hero, at most about 6 circles in the right cluster per mode, labels or clear icons, the same position for the same action across modes (exit always in the
+same place). The other builder (w118-armour) owns tanks / helicopters themselves; read its log for the actions they need. Keep scripts/ui/touch_buttons.gd working. Extend the wave 116 touch
+audit (godot/tests/test_touch_audit*.gd) and add godot/tests/test_controls_w118.gd: per mode, by real fingers in the real main scene, every listed action has a visible button that works,
+the count and size limits hold, and no essential action is only in MORE. Render one frame per mode at 844x390 and 2400x1080 into docs/shots/round7/controls_w118/ and LOOK at them: it must
+read as clean as a well-known mobile open-world game's HUD, not cluttered.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 118 (label w118-critic), then its fixer. You did not build it; assume it is broken until you have seen it work. With a finger-only bot of your own
+in the real main scene, from a fresh save: find a tank and a helicopter WITHOUT the demo menu (map icon, GPS, go there), enter each, drive / fly, shoot, leave; then with the demo SPAWN list and
+the call-in. In every mode (on foot, car, tank, helicopter, plane, snake flight) render the HUD at 844x390 and LOOK: is every action a visible round button, about 5 circles, uncluttered, like
+a well-known mobile open-world game? Press every circle. List the 8 worst defects with evidence, fix them most severe first, each with a check that fails without the fix. Do not stop early: if
+you cannot fix one, write exactly why in your report.`,
+    commit: 'Wave 118: tanks and helicopters at fixed places with map icons, spawn and call-in; GTA-style round on-screen controls per mode',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }
