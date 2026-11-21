@@ -27,10 +27,12 @@ const SUPER_MAX_RUN := 4.5                 ## the push only follows a jump from 
 const ROLL_TIME := 0.56
 const ROLL_FALL := 15.0                    ## landing faster than this (m/s down) rolls
 const FLY_HOLD := 0.45
+static var fly_show_air := 0.15            ## seconds in the air before the FLY button shows (was 0.3: after a JUMP tap the button was on screen for 0.38 s only, wave 116 touch probe)
 const WHIFF_COOLDOWN := 0.35
 const SCAN_RATE := 0.09
 const ASSIST_DEFAULT := true
 
+static var zip_takes_press := true         ## the press that started a zip cannot also start a flight when it is held on (a test switches it off to show the old behaviour)
 static var assist := ASSIST_DEFAULT        ## the anchor assist (OPTIONS / TEST menu toggle): off = the crosshair ray alone
 static var instance: SnakeTraversal        ## the player's (tests, tools and the HUD read it)
 static var cpu_active_us := 0.0              ## script time of tick() while a snake state runs / while none does (microseconds and calls: the swing run test prints the means)
@@ -213,7 +215,7 @@ func foot_callable(side: int) -> Callable:
 
 
 func back_callable(side: int) -> Callable:
-	return func() -> Vector3: return _model_point(Vector3(0.13 * float(side), 1.32, 0.22))
+	return func() -> Vector3: return _model_point(FlightView.wing_root(side))
 
 
 # --- the physics tick -----------------------------------------------------------------------------------------------------------------
@@ -507,6 +509,8 @@ func _start_zip(z: Dictionary) -> void:
 	zips += 1
 	zip_cd = SnakePower.cd(1.0)
 	_hold_t = 0.0
+	if zip_takes_press:
+		_swing_blocked_press = true                # wave 116 (touch probe): a thumb that stayed on ZIP a moment longer than the pull took (0.3 to 0.9 s) took off in SNAKE FLIGHT from the roof it had just reached: the press that zipped starts nothing else
 	cam.on_mode(mode)
 	pose.on_mode(mode, self)
 
@@ -728,6 +732,9 @@ func on_climb_leap(v: Vector3, _ceiling: bool) -> void:
 
 
 func on_flight_started(from_ground: bool) -> void:
+	var hud := p.get_tree().get_first_node_in_group(&"hud") if p != null and p.is_inside_tree() else null       # wave 116 (owner frames): the MORE tray (C4, CROUCH, THROW, MELEE, CALL CAR, ALT) sits over the middle of the screen, on the flying hero: a take-off closes it (MORE opens it again)
+	if hud != null and hud.get(&"touch") != null and not FlightView.old_look:
+		(hud.get(&"touch") as TouchControls).more_open = false
 	Sfx.play(&"snk_wings", -2.0)
 	Sfx.play(&"snk_boost", -6.0)
 	p.camera_rig.punch_fov(8.0)
@@ -899,4 +906,4 @@ func fly_button_shown() -> bool:
 		return false
 	if mode == Mode.FLY:
 		return true
-	return (mode == Mode.NONE or mode == Mode.SWING) and p.air_time > 0.3 and (energy >= 8.0 or SnakePower.unlimited())
+	return (mode == Mode.NONE or mode == Mode.SWING) and p.air_time > fly_show_air and (energy >= 8.0 or SnakePower.unlimited())

@@ -378,6 +378,7 @@ func _reset_all() -> void:
 	_spike_t = 6.0
 	_respawns.clear()
 	_spawned.clear()
+	_points.clear()
 	_spawn_ready.clear()
 	_spawn_t = 0.0
 	_ram_cd.clear()
@@ -983,6 +984,14 @@ func _stream() -> void:
 		_spawn_streamed(float(parked_now) < VehicleSpecs.PARKED_SHARE * float(total + 1))
 
 
+const POINTS_KEEP := 12.0
+static var cache_points := true      ## (a test switches it off to show the old cost)
+static var point_builds := 0         ## times the spawn point table was built (tests)
+var _points: Array[Dictionary] = []
+var _points_at := -1000.0
+var _points_key := -1
+
+
 ## The fixed spawn points of the roster (VehicleSpawns): once a second, a point with nobody on it and the player within SPAWN_AT metres gets its vehicle.
 func _tick_spawn_points(delta: float) -> void:
 	_spawn_t -= delta
@@ -992,7 +1001,14 @@ func _tick_spawn_points(delta: float) -> void:
 	var ppos := _player_pos()
 	if not ppos.is_finite():
 		return
-	for pt in VehicleSpawns.all_points():
+	# wave 116: the table of fixed spawn points was rebuilt every second (seven lists glued together, each made of fresh dictionaries with terrain lookups: 1 to 1.9 ms on a desktop,
+	# about 8 ms on a phone, once a second for ever). It is kept for POINTS_KEEP seconds, and rebuilt at once when the discovery counter hands out a new ride.
+	if not cache_points or _points.is_empty() or _clock - _points_at > POINTS_KEEP or _points_key != RoamWorld.rides_unlocked:
+		_points = VehicleSpawns.all_points()
+		_points_at = _clock
+		_points_key = RoamWorld.rides_unlocked
+		point_builds += 1
+	for pt in _points:
 		var id: StringName = pt["id"]
 		var live: Variant = _spawned.get(id)
 		if is_instance_valid(live) and (live as Vehicle).active and not (live as Vehicle).dead and not (live as Vehicle).wreck:

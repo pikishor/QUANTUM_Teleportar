@@ -279,7 +279,9 @@ func _wing_tips() -> void:
 	var chest := p.global_position + Vector3(0.0, 1.15, 0.0)
 	var free_tip := fl._wing_tip(p, 1)
 	var free_reach := (free_tip - chest).dot(right)
-	TestLib.check(free_reach > 1.6, "with open air the right wing reaches %.1f m out" % free_reach)
+	# wave 116 (owner round 7, "a clear view in flight"): the wings were shortened on purpose from 3.5 m to at most FlightView.WING_SPAN_MAX a side, so the three span pins below moved from "more than 1.6 m" to
+	# "a real wing (more than 1.0 m) and never past the wave 116 cap"; the facade and the old-look trial keep their meaning (the clipped tip stays short of the wall, the unclipped tip goes through it).
+	TestLib.check(free_reach > 1.0 and free_reach <= FlightView.WING_SPAN_MAX, "with open air the right wing reaches %.1f m out (cap %.2f m)" % [free_reach, FlightView.WING_SPAN_MAX])
 	var wall := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
 	var box := BoxShape3D.new()
@@ -298,7 +300,7 @@ func _wing_tips() -> void:
 	var reach := (tip - chest2).dot(right)
 	TestLib.check(wall_at > 0.8 and reach <= wall_at - 0.15, "the right wing stops short of the facade: tip %.2f m out, wall at %.2f m" % [reach, wall_at])
 	var left := fl._wing_tip(p, -1)
-	TestLib.check(-(left - chest2).dot(right) > 1.6, "the left wing, in open air, keeps its span (%.1f m)" % -(left - chest2).dot(right))
+	TestLib.check(-(left - chest2).dot(right) > 1.0, "the left wing, in open air, keeps its span (%.1f m)" % -(left - chest2).dot(right))
 	await frames(1)
 	SnakeFlight.clip_wings = false
 	var old_reach := -99.0
@@ -308,7 +310,7 @@ func _wing_tips() -> void:
 		old_reach = maxf(old_reach, (ot - (p.global_position + Vector3(0.0, 1.15, 0.0))).dot(right))
 		await frames(1)
 	SnakeFlight.clip_wings = true
-	TestLib.check(old_reach > wall_at + 0.3, "the old look is what the switch shows: the tip %.2f m out, through the wall at %.2f m" % [old_reach, wall_at])
+	TestLib.check(old_reach > wall_at + 0.2, "the old look is what the switch shows: the tip %.2f m out, through the wall at %.2f m" % [old_reach, wall_at])
 	wall.queue_free()
 	await physics(2)
 	# a barrel roll turns the wings with the body (a quarter turn: the right wing points up or down, not sideways)

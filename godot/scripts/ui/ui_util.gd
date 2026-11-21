@@ -43,6 +43,7 @@ const ABILITIES := [
 const TEXT_MIN := 26
 const BAR_LABEL := 22
 const TOUCH_MIN := 64.0                  ## base px: no touch hit area is smaller than this across
+const TOUCH_TARGET := 82.0               ## base px: what a finger needs (44 px on an 844x390 screen, the platform guideline); the least size of the area that ANSWERS around a drawn button (wave 116 touch audit)
 const SAFE_WIDE := 24.0                 ## base px: side margin kept free on wide (20:9 and up) phones even without a reported notch
 const PLATE := Color(0.0, 0.03, 0.05, 0.62)     ## backing plate behind every line of gameplay text: legible over bright neon and over cables
 

@@ -245,6 +245,10 @@ func _place_at(i: int) -> void:
 	_pitch[i] = clampf(atan2(ahead[4] - sm[4], 4.0), -0.5, 0.5) * _dir[i] * (1.0 if _dir[i] > 0.0 else 1.0)
 
 
+static var one_try := true           ## one free slot is tried per respawn pass (a test switches it off to show the old cost)
+var spawn_calls := 0                 ## _spawn calls so far (tests)
+
+
 func _spawn(i: int, c: Vector3, rmin: float, rmax: float) -> bool:
 	for attempt in 8:
 		var pick := RoadLanes.random_near(Vector2(c.x, c.z), rmin, rmax, rng)
@@ -337,13 +341,14 @@ func step(delta: float, center: Vector3) -> void:
 			_respawn_t = 0.12
 			var alive := alive_count()
 			if alive < count:
-				var tries := 2
+				# wave 116: a spawn that finds no place (the only lanes in reach end here, are full or belong to the city) was tried again for EVERY free slot of the 64: up to 512
+				# lane searches in one frame, 21 to 23 ms on a desktop, every 0.12 s while the hero flew past such a spot (the frame drops of flight). One slot is tried per pass:
+				# the place is what fails, not the slot.
 				for i in CAP:
-					if tries <= 0:
-						break
-					if _alive[i] == 0 and _spawn(i, center, radius * SPAWN_MIN_FRAC, radius):
-						tries -= 1
-						break
+					if _alive[i] == 0:
+						spawn_calls += 1
+						if _spawn(i, center, radius * SPAWN_MIN_FRAC, radius) or one_try:
+							break
 	else:
 		for i in CAP:
 			if _alive[i] != 0:

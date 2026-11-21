@@ -25,6 +25,7 @@ var wrecks := 0
 var _alive := {}                       ## instance id -> name of a tracked living enemy
 var _cars := {}                        ## instance id -> name of a tracked intact vehicle
 var _poll_t := 0.0
+var last_rects: Array[Rect2] = []      ## the plates of the last draw (canvas px): the Hud keeps them off the touch buttons, a test reads them
 
 
 ## What a pickup message looks like: "+30 INTEGRITY", "+6 CARBINE", "NEW WEAPON  RAILGUN", "NEW MOD  SCOPE". Completion lines ("COURIER RUN COMPLETE  +200 CREDITS") are not pickups.
@@ -178,6 +179,7 @@ static func _vehicle_name(n: Node) -> String:
 ## Draws the feed right-aligned, its first line at (right, y); returns the bottom. Uses the Hud's queued primitives so it adds no draw call of its own.
 func draw(hud: Hud, c: Control, font: Font, right: float, y: float, s: float, now: float) -> float:
 	var vis := visible_lines(now)
+	last_rects.clear()
 	if vis.is_empty():
 		return y
 	var size := int(UiUtil.BAR_LABEL * s * 0.8)
@@ -190,6 +192,7 @@ func draw(hud: Hud, c: Control, font: Font, right: float, y: float, s: float, no
 		var pic_w := 46.0 * s if icon != &"" and WeaponPics.has(icon) else 0.0                         # a kill line carries the picture of the weapon that did it
 		var w := minf(font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 46.0 * s + pic_w, 330.0 * s + pic_w)
 		var r := Rect2(right - w, y, w, lh - 4.0 * s)
+		last_rects.append(r)
 		hud._rect(c, r, Color(UiUtil.PLATE, 0.7 * a))
 		hud._rect(c, Rect2(r.position.x, r.position.y, 3.0 * s, r.size.y), Color(col, a))
 		hud._sprite(c, KIND_SPRITE.get(l["kind"], &"disc"), Rect2(r.position.x + 9.0 * s, r.position.y + r.size.y * 0.5 - 6.0 * s, 12.0 * s, 12.0 * s), Color(col, a))        # the kind is a small shape, not a word (a second "GOT" per frame would be a repeat)

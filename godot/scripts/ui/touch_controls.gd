@@ -123,6 +123,12 @@ var _hot_held := 0.0
 var _hot_from := Vector2.ZERO
 var _was_driving := false
 var _perf_long := false             ## the current press already toggled the panel (so its release does not cycle the tier)
+## Wave 116 touch audit: a tap that goes down and up inside ONE rendered frame (a quick thumb at the 13 to 30 FPS the owner measured: both events arrive in the same input flush)
+## pressed and released its action before any physics tick ran, so everything that polls Input.is_action_pressed (SNAKE, FLY / LAND, FIRE, the vehicle weapons) never saw it:
+## the button did nothing. The release of such a tap now waits until one physics tick and one process frame have seen the action down. false = the old behaviour (tests).
+static var hold_fast_taps := true
+var _press_at := {}                 ## finger index -> [physics frame, process frame] of the press
+var _late := {}                     ## action -> [physics frame, process frame]: releases that wait for the game to see the press
 
 
 func _ready() -> void:
@@ -184,6 +190,8 @@ var _story_hidden := false
 
 
 func _process(delta: float) -> void:
+	if not _late.is_empty():
+		_flush_late()
 	if (layer > 9) != wheel.is_open:                                       # an open wheel (and its scrim) is drawn above every plate and prompt of the HUD layer (10): nothing shows over a disc
 		layer = 11 if wheel.is_open else 9
 	if wheel.is_open != _story_hidden:                                  # the chapter banner and the radio subtitles step aside while the wheel is up (director review 4, #4: the wheel opened under the CHAPTER 1 title)
@@ -274,6 +282,8 @@ func release_all() -> void:
 	_wheel_finger = -1
 	_swap_pulse = 0.0
 	_held.clear()
+	_press_at.clear()
+	_late.clear()
 	_stick_id = -1
 	_look_id = -1
 	_perf_finger = -1
@@ -295,7 +305,7 @@ func _input(event: InputEvent) -> void:
 		if t.pressed:
 			touch_down(t.index, t.position)
 		else:
-			touch_up(t.index)
+			touch_up(t.index, hold_fast_taps)                        # a real finger: a tap inside one frame is held until the game has seen it
 	elif event is InputEventScreenDrag:
 		var d := event as InputEventScreenDrag
 		touch_move(d.index, d.position, d.relative)
@@ -363,6 +373,8 @@ func touch_down(id: int, pos: Vector2) -> void:
 				_swap_from = pos
 				return
 			_held[id] = b
+			_press_at[id] = [Engine.get_physics_frames(), Engine.get_process_frames()]
+			_late.erase(b["action"])
 			Input.action_press(b["action"])
 			if b["action"] == &"interact":
 				Sfx.play(&"ui_tap")                                    # USE (enter / exit a car) answers with a soft tap
@@ -391,7 +403,8 @@ func touch_move(id: int, pos: Vector2, rel: Vector2) -> void:
 		_look(rel)
 
 
-func touch_up(id: int) -> void:
+## `keep_fast` (the real input path): a press that no physics tick has seen yet is let go one tick later (see hold_fast_taps). A direct call lets go at once.
+func touch_up(id: int, keep_fast := false) -> void:
 	if id == _hot_finger:
 		_hot_finger = -1
 	if id == _wheel_finger:
@@ -424,8 +437,32 @@ func touch_up(id: int) -> void:
 	if id == _look_id:
 		_look_id = -1
 	if _held.has(id):
-		Input.action_release((_held[id] as Dictionary)["action"])
+		var act: StringName = (_held[id] as Dictionary)["action"]
+		var at: Array = _press_at.get(id, [-1, -1])
 		_held.erase(id)
+		_press_at.erase(id)
+		if keep_fast and Game.state == &"play" and (Engine.get_physics_frames() <= int(at[0]) or Engine.get_process_frames() <= int(at[1])):
+			_late[act] = at                              # nothing has seen this press yet: _flush_late lets it go one tick later
+		elif not _action_held(act):
+			Input.action_release(act)
+
+
+## True while another finger still holds a button of the same action.
+func _action_held(act: StringName) -> bool:
+	for b: Dictionary in _held.values():
+		if b["action"] == act:
+			return true
+	return false
+
+
+## Lets go of the fast taps (see hold_fast_taps) once a physics tick and a process frame have run with the action down.
+func _flush_late() -> void:
+	for act: StringName in _late.keys():
+		var at: Array = _late[act]
+		if Engine.get_physics_frames() > int(at[0]) and Engine.get_process_frames() > int(at[1]):
+			_late.erase(act)
+			if not _action_held(act):
+				Input.action_release(act)
 
 
 func _apply_stick() -> void:
@@ -542,7 +579,8 @@ func _label_of(b: Dictionary) -> String:
 	if b["action"] == &"snake" and is_instance_valid(Game.player) and Game.player.get("snake") != null:
 		return (Game.player.get("snake") as SnakeTraversal).button_label()
 	if b["action"] == &"fly" and is_instance_valid(Game.player) and Game.player.get("snake") != null:
-		return "LAND" if (Game.player.get("snake") as SnakeTraversal).mode == SnakeTraversal.Mode.FLY else "FLY"
+		var sfl := Game.player.get("snake") as SnakeTraversal
+		return sfl.flight.button_label() if sfl.mode == SnakeTraversal.Mode.FLY else "FLY"       # LAND; FLY again once a landing can be called off (wave 116 critic)
 	if b["action"] == &"jump" and not _driving() and is_instance_valid(Game.player) and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).mode == SnakeTraversal.Mode.FLY:
 		return "UP"                                      # in snake flight the JUMP button climbs
 	if b["action"] == &"jump" and _driving():

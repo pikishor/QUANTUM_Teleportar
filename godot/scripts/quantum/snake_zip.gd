@@ -33,6 +33,9 @@ var _arrive_speed := 0.0
 var _prev := Vector3.ZERO
 var _stuck_t := 0.0
 var _travel := 0.0                        ## seconds the snake head needs (the hero starts to move when it has bitten)
+static var roof_arc := true               ## a zip to a roof rises early and comes in over the edge (a test switches it off to show the straight line of wave 115)
+var end_reason: StringName = &""          ## how the last zip ended: arrived, wall (a wall in the way: a climb), stuck (held up for 0.35 s), cancel (tests and the wave 117 defect list read it)
+var blocked_by := ""                      ## what held it up (the collider's path), "" when nothing did
 
 
 func _init(owner_st: SnakeTraversal = null) -> void:
@@ -69,6 +72,8 @@ func begin(p: Player, hit: Dictionary) -> void:
 	tendril = SnakeTendril.fire(hand, anchor, {"travel": -t, "wriggle": 0.35, "tension": 0.6, "thickness": 0.07, "host": p})
 	tendril.user["keep"] = true
 	zips += 1
+	end_reason = &""
+	blocked_by = ""
 	_prev = from
 	p.velocity = Vector3.ZERO
 	st.energy_spend(SnakePower.cost(8.0))
@@ -127,6 +132,11 @@ func tick(p: Player, dt: float, jump_pressed: bool) -> bool:
 	var e2 := e * (0.55 + 0.45 * e)               # a long ease-in, a late brake
 	var pos := from.lerp(dest, e2)
 	if not _line:
+		# wave 116 (touch probe: 5 of 7 and 4 of 12 roof zips ended hanging under the roof edge or back on the street): the pull ran on a straight line from the street to a point ON the
+		# roof, 1.4 m in from the edge, so it met the wall just below the edge and became a climb at the top of the facade. A zip up to a roof now gains its height early (the hero rises
+		# along the facade first and comes in over the edge from above), with the same small lift on top.
+		if roof_arc and kind == &"roof" and dest.y > from.y + 1.5:
+			pos.y = lerpf(from.y, dest.y, 1.0 - (1.0 - e2) * (1.0 - e2) * (1.0 - e2))
 		pos.y += sin(k * PI) * minf(last_dist * LIFT, 3.0)
 	var step := pos - p.global_position
 	var start := p.global_position
@@ -141,8 +151,11 @@ func tick(p: Player, dt: float, jump_pressed: bool) -> bool:
 			normal = n
 			p.velocity = (p.global_position - start) / maxf(dt, 0.0001)
 			_arrive_speed = maxf(p.velocity.length(), _arrive_speed)
+			end_reason = &"wall"
+			blocked_by = str(cobj.get_path()) if cobj != null and cobj.is_inside_tree() else ""
 			_arrive(p, true)
 			return active
+		blocked_by = str(cobj.get_path()) if cobj != null and cobj.is_inside_tree() else ""
 		p.move_and_collide(left)                                                        # a curb, the floor, a ledge: slide along it
 	p.velocity = (p.global_position - start) / maxf(dt, 0.0001)
 	_arrive_speed = p.velocity.length()
@@ -153,11 +166,13 @@ func tick(p: Player, dt: float, jump_pressed: bool) -> bool:
 	if k > 0.3 and p.velocity.length() < 1.0:                                           # held up by something that is not a wall: give up (never stuck in a zip)
 		_stuck_t += dt
 		if _stuck_t > 0.35:
+			end_reason = &"stuck"
 			_arrive(p, false)
 			return active
 	else:
 		_stuck_t = 0.0
 	if k >= 1.0:
+		end_reason = &"arrived"
 		_arrive(p, false)
 	return active
 

@@ -1222,11 +1222,32 @@ func impulse_hit(n: Vector3, at: Vector3, e: float, _other_mass: float) -> float
 
 # --- traffic AI ---------------------------------------------------------------------------------------------------------
 
+static var hero_pass := true          ## wave 116 critic: a traffic car beside the hero on foot passes him instead of sliding into him (a test switches it off to show the old shove)
+const HERO_PASS_MIN := 1.1            ## m to the side of the hero's middle: from here the car is beside him, not in front of him
+const HERO_PASS_CLEAR := 1.7          ## m it keeps while it passes (half a car 0.95 + a person 0.4 + air)
+const HERO_PASS_TAIL := 5.0           ## m behind the car's middle the hero must be before it returns to its lane
+
+
 func _ai_step(dt: float) -> void:
 	var fx := float(ai_dir) if ai_axis == 0 else 0.0
 	var fz := float(ai_dir) if ai_axis == 1 else 0.0
 	var siren := is_emergency()
 	var blocked := _blocked(fx, fz, siren)                            # the hero on foot ahead
+	# wave 116 critic: a car that is already BESIDE the hero's line (a near-traffic car swerving round him, made real because he is in reach of its door) keeps that side and
+	# drives past. It used to count as blocked AND slide back to the lane's middle, into him: a hero standing at the spawn was shoved 10 m in 14 s, a car every 2 s.
+	var hero_line := INF
+	if hero_pass and blocked and not chasing:
+		var hp := Game.player.global_position
+		var off := (global_position.z - hp.z) if ai_axis == 0 else (global_position.x - hp.x)
+		if absf(off) >= HERO_PASS_MIN:
+			blocked = false
+			hero_line = (hp.z if ai_axis == 0 else hp.x) + signf(off) * maxf(absf(off), HERO_PASS_CLEAR)
+	elif hero_pass and not chasing and is_instance_valid(Game.player) and Game.player.get(&"vehicle") == null and absf(Game.player.global_position.y - global_position.y) < 3.0:
+		var hq := Game.player.global_position                          # abreast of him or just past: do not cut back in until the tail is clear
+		var along := (hq.x - global_position.x) * fx + (hq.z - global_position.z) * fz
+		var off2 := (global_position.z - hq.z) if ai_axis == 0 else (global_position.x - hq.x)
+		if along <= 0.0 and along > -HERO_PASS_TAIL and absf(off2) < HERO_PASS_CLEAR + 1.0:
+			hero_line = (hq.z if ai_axis == 0 else hq.x) + signf(off2) * maxf(absf(off2), HERO_PASS_CLEAR)
 	ai_panic = maxf(ai_panic - dt, 0.0)
 	ai_stun = maxf(ai_stun - dt, 0.0)
 	var u0 := global_position.x if ai_axis == 0 else global_position.z
@@ -1275,6 +1296,8 @@ func _ai_step(dt: float) -> void:
 	var prev_u := ox if ai_axis == 0 else oz
 	var step := float(ai_dir) * ai_speed * dt
 	var line := ai_line + (VehicleSpecs.lane_offset(ai_axis, ai_dir, VehicleSpecs.YIELD_SHIFT) if (yielding and _yield_room) else 0.0) - VehicleSpecs.lane_offset(ai_axis, ai_dir, _pass_shift)
+	if hero_line != INF:
+		line = hero_line
 	if ai_axis == 0:
 		p.x += step
 		p.z = _damp(p.z, line, 2.5, dt)

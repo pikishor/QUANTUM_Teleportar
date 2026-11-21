@@ -245,6 +245,12 @@ func random_road_point() -> Vector3:
 func road_point_near(center: Vector3, rmin: float, rmax: float) -> Vector3:
 	if rmax < rmin or rmax <= 0.0:
 		return Vector3.INF
+	# wave 116 (owner round 7: "VEHICLES 4 to 6.5 ms far from any car", frame drops in flight): a centre farther than rmax outside the street grid can have no road point in its ring,
+	# but the search below still ran all its 34 passes over every road, and the vehicle streamer asked six times every 0.4 s: 5 to 9 ms of script per pass on a desktop, 30 to 50 ms on a
+	# phone, for as long as the hero was over the hills, the highway or inside an outskirts building. Nothing in reach: say so at once.
+	if far_exit and (absf(center.x) > HALF + rmax or absf(center.z) > HALF + rmax):
+		return Vector3.INF
+	searches += 1
 	for attempt in 5:
 		var p := _road_point_pass(center, rmin, rmax, true, 0.0)
 		if p != Vector3.INF:
@@ -258,7 +264,13 @@ func road_point_near(center: Vector3, rmin: float, rmax: float) -> Vector3:
 	return Vector3.INF
 
 
+static var far_exit := true          ## road_point_near gives up at once outside the grid (a test switches it off to show the old cost)
+static var searches := 0             ## full searches of road_point_near so far (tests)
+static var passes := 0               ## passes over the road table so far (tests: the cost of a search that finds nothing)
+
+
 func _road_point_pass(center: Vector3, rmin: float, rmax: float, randomize: bool, fixed_offset: float) -> Vector3:
+	passes += 1
 	var lim := HALF - 8.0
 	var total := 0.0
 	var n := 0

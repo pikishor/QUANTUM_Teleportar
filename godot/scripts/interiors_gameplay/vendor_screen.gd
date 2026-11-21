@@ -127,7 +127,8 @@ func press_row(i: int) -> Dictionary:
 
 func tap(pos: Vector2) -> bool:
 	layout()
-	if close_rect.has_point(pos):
+	var cg := maxf(0.0, (UiUtil.TOUCH_TARGET * _s() - close_rect.size.y) * 0.5) if Hud.finger_targets else 0.0      # wave 116 touch audit: the 50 px CLOSE plate was a 27 px target on an 844x390 phone; it answers 44 px tall now
+	if close_rect.grow_individual(0.0, cg, 0.0, cg).has_point(pos):
 		close()
 		return true
 	for i in rects.size():
