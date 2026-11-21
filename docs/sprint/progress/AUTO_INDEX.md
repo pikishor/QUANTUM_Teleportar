@@ -1,20 +1,19 @@
 # Sprint agents (automatic digest)
 
-Written by godot/tools/sprint_digest.py at 2026-11-15 15:23Z. Status 'running' means no final report had been written when the digest was made.
+Written by godot/tools/sprint_digest.py at 2026-11-21 01:44Z. Status 'running' means no final report had been written when the digest was made.
 
-## workflow run wf_9ad9fedb-5b9
+## workflow run wf_6fac5791-687
 
-- w113-ci-apk [Wave 113] done: 566 events, 12:49:06 -> 15:09:03
-- w114-weapons-art [Wave 114] done: 848 events, 12:49:06 -> 15:54:04
-- w114-weapons-ui [Wave 114] done: 1633 events, 15:09:03 -> 18:01:39
-- w114-critic-look [Wave 114] done: 773 events, 18:01:39 -> 20:34:08
-- w114-critic-play [Wave 114] done: 1320 events, 18:01:39 -> 19:57:32
-- w114-integrator [Wave 114] done: 572 events, 20:34:08 -> 23:13:49
-- w114-ci [Wave 114] done: 682 events, 23:13:49 -> 03:15:10
-- w115-snake-traversal [Wave 115] done: 1463 events, 23:13:49 -> 07:50:55
-- w115-snake-combat [Wave 115] done: 1505 events, 03:15:10 -> 07:17:56
-- w115-critic-look [Wave 115] done: 842 events, 07:50:55 -> 11:27:03
-- w115-critic-play [Wave 115] done: 1081 events, 07:50:55 -> 11:03:31
-- w115-integrator [Wave 115] done: 679 events, 11:27:04 -> 14:35:53
-- w115-ci-apk [Wave 115] done: 103 events, 14:35:53 -> 15:22:37
+- w116-touch-audit [Build] done: 394 events, 13:03:04 -> 14:21:44
+- w116-flight-view [Build] running: 384 events, 13:03:07 -> 14:48:48
+- w116-critic [Review] running: 12 events, 14:48:48 -> 14:48:49
+- w116-integrator [Integrate] running: 12 events, 14:48:49 -> 14:48:49
+- w116-ci-apk [CI and APK] running: 12 events, 14:48:49 -> 14:48:49
+
+## workflow run wf_8a787e45-87c
+
+- w116-flight-view [Build] done: 123 events, 22:22:37 -> 23:03:51
+- w116-critic [Review] done: 223 events, 23:03:51 -> 23:41:50
+- w116-integrator [Integrate] done: 142 events, 23:41:50 -> 01:03:16
+- w116-ci-apk [CI and APK] running: 83 events, 01:03:16 -> 01:44:39
 

@@ -8,6 +8,7 @@ const A = args || {}
 const N = Number(A.wave || 116)
 const SKIP = A.skipTags || []
 const REP = A.reports || {}
+const EFF = A.effort || 'low'
 
 const COMMON = `
 You work on the Godot 4.6.1 game QUANTUM TELEPORTAR in /home/user/QUANTUM_Teleportar (project in godot/). Read first: docs/ROUND7.md (the owner's words and the rule that came out of
@@ -60,14 +61,14 @@ if (!A.ciSha) {
   const built = await parallel(W.builders.map(b => () => {
     if (SKIP.includes(b.tag)) return Promise.resolve(REP[b.tag] || `finished before the restart: its report is in docs/sprint/progress/${L(b.tag)}.md`)
     const restart = A.restarted ? `\nRESTART NOTICE: this task was started before and interrupted. Read docs/sprint/progress/${L(b.tag)}.md and git status first and continue from there; do not redo finished steps.` : ''
-    return agent(COMMON + '\n' + b.prompt + restart, { label: L(b.tag), phase: 'Build', effort: 'high' })
+    return agent(COMMON + '\n' + b.prompt + restart, { label: L(b.tag), phase: 'Build', effort: EFF })
   }))
   const reports = W.builders.map((b, i) => `--- ${L(b.tag)} ---\n${built[i] || 'NO REPORT (the agent died): read docs/sprint/progress/' + L(b.tag) + '.md'}`).join('\n')
 
   phase('Review')
   const critic = A.skipCritic ? (REP.critic || `finished before the restart: docs/sprint/progress/${L('critic')}.md`)
     : await agent(COMMON + '\nTASK: ' + W.critic + (A.restarted ? `\nRESTART NOTICE: read docs/sprint/progress/${L('critic')}.md first and continue.` : '') + '\nThe builders reported:\n' + reports,
-        { label: L('critic'), phase: 'Review', effort: 'max' })
+        { label: L('critic'), phase: 'Review', effort: EFF })
 
   phase('Integrate')
   var integ = await agent(COMMON + `\nTASK (label ${L('integrator')}): YOU ARE THE INTEGRATOR of wave ${N}. The builders and the reviewer left their work uncommitted in the tree. (1) tools/import.sh, then the FULL suite
@@ -78,7 +79,7 @@ add a section "Wave ${N} integration" to docs/HANDOFF.md (what the wave holds, s
 docs/sprint/progress/auto_*.md or AUTO_INDEX.md) with the message "${W.commit}" and the trailers "Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>" and
 "Claude-Session: https://claude.ai/code/session_01WbKrgUpExX7TuSc4cdY35F", and git push origin main (fetch and rebase first if main moved: the main session pushes notes with [skip ci]).
 Never push with a perf verdict OVER. FINAL message: the commit sha on the first line, then the summary.\nReports:\n` + reports + '\n--- reviewer ---\n' + (critic || 'NO REPORT'),
-    { label: L('integrator'), phase: 'Integrate', effort: 'high' })
+    { label: L('integrator'), phase: 'Integrate', effort: EFF })
 } else {
   var integ = String(A.ciSha)
 }
@@ -92,5 +93,5 @@ is limited to 10 minutes; a shard takes up to 45). (2) If it is red: read which 
 trailers as the last commit on main, push, wait again. Keep notes in docs/sprint/progress/${L('ci-apk')}.md and a section "Wave ${N} CI fixes" in docs/HANDOFF.md. (3) When CI is green:
 gh workflow run android.yml --ref main, wait for it, and read the artifact (gh api repos/pikishor/QUANTUM_Teleportar/actions/runs/<id>/artifacts).
 FINAL message, first line: GREEN <sha> APK <run url> ARTIFACT <artifact id> <bytes>; then what was red and how it was fixed, and tests that only passed on a retry.`,
-  { label: L('ci-apk'), phase: 'CI and APK', effort: 'high' })
+  { label: L('ci-apk'), phase: 'CI and APK', effort: EFF })
 return { wave: N, integrator: integ, ci }
