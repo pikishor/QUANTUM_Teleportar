@@ -7,3 +7,4 @@ GOAL: integrate wave 117 (suite, perf, visual QA, touch tests, HANDOFF, commit, 
 - perf (clean dir, one run): LOW 72/94 death 107 OK; MED 97/129 death 149 OK; HIGH 113/149 death 170 OK. Next: visual_qa
 - visual_qa 27/27, sheet looked at: fine. Next: wave touch tests alone (/tmp/w117i/final.txt)
 - wave touch tests alone: 11 of 11 PASS; HANDOFF section written. Next: commit, push
+- committed 652ab43 and pushed; visual QA shots in a follow-up docs commit. DONE
