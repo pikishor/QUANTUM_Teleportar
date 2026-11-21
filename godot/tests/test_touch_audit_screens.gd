@@ -110,6 +110,8 @@ func _map() -> void:
 	TestLib.check(a.hud_controls().is_empty(), "no pause button is live under the open map")
 	var mr0: Rect2 = ms.get("_rect")
 	# YOU, GOAL and CLEAR need something to do: a panned view, a waypoint
+	# the map ignores pointer input for its first INPUT_QUIET seconds (the tap that opened it must not place a waypoint): on a fast machine ten frames are shorter than that and the drag was dropped (wave 116 CI)
+	await a.until(func() -> bool: return float(ms.get("_open_age")) >= MapScreen.INPUT_QUIET, 600)
 	var c0 := str(ms.get("view_center"))
 	await a.drag(mr0.position + mr0.size * Vector2(0.6, 0.6), mr0.position + mr0.size * Vector2(0.35, 0.4), 8)
 	TestLib.check(str(ms.get("view_center")) != c0, "a finger dragged over the map pans it")

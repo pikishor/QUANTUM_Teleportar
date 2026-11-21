@@ -342,6 +342,10 @@ func _test_projectiles(host: Node) -> void:
 			var got := [Vector3.INF]
 			var cb := func(at: Vector3) -> void: got[0] = at
 			_w.grenade_collapsed.connect(cb)
+			# this check is the UNLOCKED throw: a launcher that holds a lock (LaunchAim: an enemy or a car within 7.5 degrees of the crosshair, here a passing car of the live traffic,
+			# picked in an earlier frame) throws at that target, not at the crosshair (wave 116 CI: "27.8 m off" on the runner, never here)
+			if _w._launch != null:
+				_w._launch.target = null
 			_w._throw()
 			var guard := 0
 			var seen := Vector3.INF
