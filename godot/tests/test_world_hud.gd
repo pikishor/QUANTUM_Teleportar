@@ -373,7 +373,12 @@ func _feeds_live() -> void:
 		seen_kill = seen_kill or t.begins_with("DOWN")
 		seen_pick = seen_pick or t.begins_with("+30")
 	TestLib.check(seen_kill and seen_pick, "both feeds are drawn (small lines under the stars' corner)")
-	TestLib.check(hud.visible_controls().size() <= MAX_CONTROLS + 1, "the feeds add no control to the frame")
+	for k in 240:                                                                # wave 116: FLY (a contextual button, not a feed) now shows after 0.15 s in the air (was 0.3 s) and the hero is still dropping onto the outskirts ground here: count the frame once he stands
+		if p.is_on_floor() and not hud.visible_controls().has(&"fly"):
+			break
+		await host.get_tree().physics_frame
+	TestLib.check(p.is_on_floor(), "the hero stands when the feed frame is counted")
+	TestLib.check(hud.visible_controls().size() <= MAX_CONTROLS + 1, "the feeds add no control to the frame (%s)" % str(hud.visible_controls()))
 	hud.feed.clear()
 
 

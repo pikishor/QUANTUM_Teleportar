@@ -111,6 +111,7 @@ func _map() -> void:
 	var mr0: Rect2 = ms.get("_rect")
 	# YOU, GOAL and CLEAR need something to do: a panned view, a waypoint
 	var c0 := str(ms.get("view_center"))
+	ms.set("_open_age", 0.0)  # REPRO
 	await a.drag(mr0.position + mr0.size * Vector2(0.6, 0.6), mr0.position + mr0.size * Vector2(0.35, 0.4), 8)
 	TestLib.check(str(ms.get("view_center")) != c0, "a finger dragged over the map pans it")
 	var c1 := str(ms.get("view_center"))
