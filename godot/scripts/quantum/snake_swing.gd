@@ -85,6 +85,9 @@ var wraps := 0                          ## times the drawn rope moved its end to
 var _block_n := 0
 var _lower_t := 0.0
 var _anchor_prev := Vector3.ZERO
+# critic 117
+var height := 30.0                      ## metres of air under the feet (read a quarter of a second ahead; 30 = none within 30 m)
+var fresh_press := true                 ## this rope left on a new press of SNAKE (false: fired by the held chain)
 
 
 func _init(owner_st: SnakeTraversal = null) -> void:

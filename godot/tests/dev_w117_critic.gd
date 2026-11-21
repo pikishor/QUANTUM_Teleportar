@@ -227,6 +227,8 @@ func run(h: Node) -> void:
 			"zipwall": await _zip(0.2)
 			"fly": await _fly()
 			"ground": await _ground()
+			"scan": await _scan()
+			"wallg": await _wallg()
 	fg.up_all()
 	Engine.time_scale = 1.0
 	Engine.physics_ticks_per_second = 60
@@ -357,7 +359,7 @@ func _jump() -> void:
 	var dj := sn.double_jumps
 	await _first_rope()
 	rec.begin()
-	await _until(func() -> bool: return sn.swing.is_hanging() and sn.swing.rope_angle > 0.0, 4.0)
+	await _until(func() -> bool: return sn.swing.is_hanging() and sn.swing._hang_t > 0.3 and sn.swing.rope_angle > -0.05, 4.0)
 	var v0 := p.velocity
 	fg.press(2, &"jump")
 	await _secs(0.08)
@@ -481,3 +483,50 @@ func _ground() -> void:
 		fg.up_all()
 		await _secs(2.0)
 		_dump("ground", 70)
+
+
+## Which anchors does the search see from high over a street? (direct calls: a probe of the search, not of the controls)
+func _scan() -> void:
+	for st: Array in STREETS:
+		var yaw: float = st[1]
+		var fwd := Vector3(-sin(yaw), 0.0, -cos(yaw))
+		for hh: float in [16.0, 26.0]:
+			await _tp(st[0], yaw, 0.2)
+			p.global_position = (st[0] as Vector3) + fwd * 110.0 + Vector3(0.0, hh, 0.0)
+			p.velocity = fwd * 27.0
+			sn.anchors.debug = true
+			var hit := sn.anchors.find_swing(p, fwd, fwd, SnakePower.range_m(), true)
+			var o := p.global_position + Vector3(0.0, 1.5, 0.0)
+			print("CR scan street %s h %.0f scan_h %.1f -> pick %s stats %s" % [st[0], hh, SwingMotion.scan_h, "none" if hit.is_empty() else "dy %.0f fwd %.0f d %.0f" % [(hit["pos"] as Vector3).y - o.y, ((hit["pos"] as Vector3) - o).dot(fwd), o.distance_to(hit["pos"] as Vector3)], sn.anchors.stats])
+			var cs := sn.anchors.cands.duplicate()
+			cs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["score"]) > float(b["score"]))
+			for c: Dictionary in cs.slice(0, 8):
+				var pos: Vector3 = c["pos"]
+				print("     yaw %.2f pitch %.2f dy %.0f fwd %.0f side %.0f score %.2f" % [c["yaw"], c["pitch"], pos.y - o.y, (pos - o).dot(fwd), ((pos - o) - fwd * (pos - o).dot(fwd) - Vector3(0.0, pos.y - o.y, 0.0)).length(), c["score"]])
+			sn.anchors.debug = false
+
+
+## SNAKE pressed and held on the GROUND, looking at the facade across the avenue (the wall part of test_swing_w117 when its JUMP comes late).
+func _wallg() -> void:
+	for rep in 4:
+		await _tp(STREETS[0][0], 0.0, 0.35)
+		await _first_rope()
+		await _f(180)
+		fg.up_all()
+		await _until(func() -> bool: return p.is_on_floor() and sn.mode == SnakeTraversal.Mode.NONE, 8.0)
+		await _tp(STREETS[0][0], PI, 0.35)
+		var c0 := sn.climbs
+		var last := ""
+		var mon := func() -> void:
+			var now := "%s/%s/%s/%s" % [sn.mode_name(), sn.zip.phase, sn.zip.end_reason, sn.swing.phase]
+			if now != last:
+				print("CR wallg %d tick %d: %s kind %s pos %s floor %s air %.2f climbs %d snake %s jump %s" % [rep, rec.ticks, now, sn.zip.kind, p.global_position.snapped(Vector3(0.1, 0.1, 0.1)), p.is_on_floor(), p.air_time, sn.climbs - c0, Input.is_action_pressed(&"snake"), Input.is_action_pressed(&"jump")])
+				last = now
+		rec.begin()
+		host.get_tree().physics_frame.connect(mon)
+		await _first_rope()
+		await _f(180)
+		fg.up_all()
+		await _secs(1.0)
+		host.get_tree().physics_frame.disconnect(mon)
+		print("CR wallg ends: ", _state())

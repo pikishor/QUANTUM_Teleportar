@@ -102,6 +102,8 @@ var _fall_vy := 0.0
 var _was_air := false
 var _wish := Vector3.ZERO
 var _swing_blocked_press := false
+static var jump_takes := true               ## critic 117: false = the builders' state (the JUMP that lets go of a swing also fires the glide burst)
+var _jump_taken := false
 var _post_swing := false                   ## in the air after a swing was let go (wave 117: the air brake and the landing roll)
 var air_brakes := 0                        ## ticks the air brake worked (counter)
 var _whiff_tendril: SnakeTendril
@@ -267,6 +269,14 @@ func _tick_body(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: boo
 	_jump_was = jump_down
 	var crouch := Input.is_action_pressed(&"crouch")
 	jump_consumed = false
+	# critic 117: a JUMP that a snake state took (let go of a swing, a leap off a haul or a wall) stays taken until the thumb lifts. The state returns before the hero's own
+	# verbs run, so they saw the same press as NEW one tick later and fired the QUANTUM GLIDE burst on top: 14.6 -> 27.1 m/s along the camera, the swing's own velocity gone
+	if not jump_down:
+		_jump_taken = false
+	elif jump_pressed and mode != Mode.NONE and jump_takes:
+		_jump_taken = true
+	if _jump_taken:
+		jump_consumed = true
 	swing_cd = maxf(0.0, swing_cd - dt)
 	zip_cd = maxf(0.0, zip_cd - dt)
 	_whiff_cd = maxf(0.0, _whiff_cd - dt)
@@ -444,6 +454,7 @@ func _none_tick(dt: float, iv: Vector2, wish: Vector3, on_floor: bool, air: bool
 			var hit := _scan_swing(SnakeSwing.old_motion or (_since_release > 0.8 and _near_ground(TURN_HEIGHT)))       # wave 117: straight on first; the chain only turns (never back) when the street is coming up with nothing ahead
 			if not hit.is_empty():
 				_start_swing(hit, false)
+				swing.fresh_press = false                        # critic 117: fired by the held chain, not by a press (a thumb lifted right after it lets go, it is not a tap)
 				return
 	# hold SNAKE in the air with nothing to bite: SNAKE FLIGHT
 	if down and _hold_t >= FLY_HOLD and not p.control_hold and (not on_floor or _hold_t >= FLY_HOLD + 0.2) and SnakePower.flight_unlocked() and not _swing_blocked_press:
@@ -519,6 +530,7 @@ func _start_swing(hit: Dictionary, from_ground: bool) -> void:
 		Game.say("OUT OF SNAKE ENERGY", 1.0)
 		return
 	swing.begin(p, hit, from_ground)
+	swing.fresh_press = true
 	mode = Mode.SWING
 	swings += 1
 	swing_cd = SnakePower.cd(0.12)
@@ -968,6 +980,11 @@ func button_label() -> String:
 		&"zip": return "ZIP"
 		&"swing": return "SWING"
 	return "SNAKE"
+
+
+## In the air after a swing let go and before he lands or takes the next rope (the pose leans him along the throw).
+func thrown() -> bool:
+	return _post_swing and mode == Mode.NONE and p != null and not p.is_on_floor() and roll_t <= 0.0
 
 
 ## The SNAKE button is on screen while the hero is on foot outside the interiors.

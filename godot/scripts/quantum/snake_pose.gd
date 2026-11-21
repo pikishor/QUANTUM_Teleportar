@@ -7,6 +7,8 @@ extends RefCounted
 
 const ROLL_TIME := SnakeTraversal.ROLL_TIME
 
+static var zip_upright := true            ## critic 117: false = the builders' pull pose (head down over the roof at the end of a roof zip)
+static var throw_pose := true             ## critic 117: false = the builders' state (between two ropes the hero stood upright in the air, legs straight)
 static var haul_upright := true           ## wave 117: the pose of the haul up a facade (false = the pull pose, which turned him head down there: a test shows it)
 var blend := 0.0
 var basis := Basis.IDENTITY               ## the wanted world orientation of the model when blend = 1
@@ -122,7 +124,14 @@ func update(st: SnakeTraversal, dt: float) -> void:
 				tair = 0.85
 				tcrouch = 0.08
 			else:
-				var head := Vector3.UP.lerp(d3, 0.8).normalized()
+				var k_up := 0.8
+				if zip_upright and z.phase == &"pull":
+					# critic 117 (frames): the pull pose points the head at z.dest. A roof zip comes in OVER the edge, so near its end the roof is level with him, then
+					# below him: he turned flat and then HEAD DOWN above the roof. The head never points below a third of the way up, and he rights himself as he arrives
+					d3 = Vector3(d3.x, maxf(d3.y, 0.35), d3.z).normalized()
+					var kz := clampf(z.t / maxf(z.dur, 0.01), 0.0, 1.0)
+					k_up = 0.8 * (1.0 - smoothstep(0.6, 0.95, kz))
+				var head := Vector3.UP.lerp(d3, k_up).normalized()
 				want_b = basis_from(head, Vector3(d3.x, 0.0, d3.z) if Vector2(d3.x, d3.z).length() > 0.05 else Vector3(-sin(p.yaw), 0.0, -cos(p.yaw)))
 				hw = Vector2(0.6, 1.0)
 				tr = Vector3(0.12, 0.34, -0.38)
@@ -185,6 +194,18 @@ func update(st: SnakeTraversal, dt: float) -> void:
 				tl = Vector3(-0.22, -0.28, -0.4)
 				tr = Vector3(0.22, -0.28, -0.4)
 				tcrouch = 0.25 * sin(k * PI)
+			elif throw_pose and st.thrown() and vel.length() > 6.0:
+				# critic 117 (frames): thrown by a swing he stood upright in the air like a figure on a shelf. Now he flies: the body leans along the throw (more when it is
+				# fast), the legs trail in the airborne pose, the arms sweep back; it eases out as he slows or lands
+				var fh2 := Vector3(vel.x, 0.0, vel.z)
+				var fwd3 := fh2.normalized() if fh2.length() > 1.0 else Vector3(-sin(p.yaw), 0.0, -cos(p.yaw))
+				var lean := clampf(vel.length() / 30.0, 0.0, 1.0) * 0.5
+				bt = 1.0
+				want_b = basis_from(Vector3.UP.lerp(vel.normalized(), lean).normalized(), fwd3)
+				tair = 1.0
+				hw = Vector2(0.7, 0.7)
+				tl = Vector3(-0.38, -0.3, 0.3)
+				tr = Vector3(0.38, -0.3, 0.3)
 			else:
 				bt = 0.0
 				want_b = yaw_b

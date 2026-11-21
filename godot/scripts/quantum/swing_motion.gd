@@ -48,6 +48,26 @@ const MAX_CORR := 0.3                   ## metres the rope may move the body in 
 const WALL_TIME := 0.2
 const ABOVE_MIN := 2.5                   ## an anchor this little above the eye will do (the old search wanted 4.5 m: a hero thrown to the roofline found nothing); the reel keeps the arc off the street
 const AUTO_WHYS: Array[StringName] = [&"chain", &"max_angle"]
+## Critic 117 (measured by real fingers on three streets): a held chain gained about 10 m a swing (32 to 47 m up after five swings, ropes of 7 to 10 m at the roofline that
+## lasted 0.6 s, then free falls of 1.5 to 2 s; more than half of the time off the rope). A swing let go 0.62 rad past its lowest point throws the hero 6 to 7 m up, and the
+## anchor score liked ropes that point steeply up (the arc's lowest point is then barely under the hero). Now the chain LEVELS OFF: the higher over the street the hero is,
+## the flatter a held swing lets go (REL_HIGH at CRUISE_HI and above), and the anchor score likes ropes that give a DIVE back down to cruise height (flat, long ropes).
+## `level_chain = false` is the builders' state (tests/test_critic_w117.gd shows its checks failing on it).
+static var level_chain := true
+const CRUISE_LO := 9.0                  ## metres over the street: under this a swing is as before
+const CRUISE_HI := 20.0
+const REL_HIGH := 0.2                   ## rad past the lowest point at which a held swing lets go when high
+static var scan_h := 0.0                ## height of the eye over the street in the anchor search that is running (SnakeAnchors.find_swing sets it)
+## Critic 117: in a held chain the next rope is fired by the game with the thumb already down; a thumb lifted within TAP_WINDOW of THAT bite was read as a tap ("one whole
+## swing") and the rope let go a second later. Only a fresh press can be a tap. `tap_needs_press = false` is the builders' state.
+static var tap_needs_press := true
+
+
+## The angle past the lowest point at which a held / tapped swing lets go, for a hero `h` metres over the street.
+static func rel_front(h: float) -> float:
+	if not level_chain:
+		return REL_FRONT
+	return lerpf(REL_FRONT, REL_HIGH, clampf((h - CRUISE_LO) / (CRUISE_HI - CRUISE_LO), 0.0, 1.0))
 
 
 ## The speed of a swing at its lowest point that the assist holds (m/s): NORMAL 29.7, STORY 34, HARD 25.3.
@@ -138,7 +158,7 @@ static func tick_hang(s: SnakeSwing, p: Player, dt: float, wish: Vector3, hold: 
 	s.pivot += s.anchor - a_prev                          # a rope on a car or an aircraft: the pendulum's centre rides along
 	s._anchor_prev = s.anchor
 	s._hang_t += dt
-	if not hold and s._hang_t <= TAP_WINDOW:
+	if not hold and s._hang_t <= TAP_WINDOW and (s.fresh_press or not tap_needs_press):
 		s._commit = true                                  # a tap: the swing is the player's whole order, it runs to the front of its arc
 	if hold and not s._hold_prev:
 		s._commit = false                                 # the thumb is back on the button: from now on lifting it lets go
@@ -162,6 +182,7 @@ static func tick_hang(s: SnakeSwing, p: Player, dt: float, wish: Vector3, hold: 
 		var feet := c.y - SnakeSwing.BODY_CENTRE + v.y * 0.25 - (under["position"] as Vector3).y
 		if feet < CLEAR_MIN:                              # something under the arc that the bite did not see (a car, an awning): pull up
 			s.rope_goal = maxf(ROPE_MIN, minf(s.rope_goal, s.rope) - 14.0 * dt)
+	s.height = (c.y - SnakeSwing.BODY_CENTRE - (under["position"] as Vector3).y) if not under.is_empty() else 30.0
 	if s.rope > s.rope_goal:
 		if d <= s.rope + 1.0:
 			s.rope = maxf(s.rope_goal, s.rope - REEL * dt)
@@ -284,7 +305,7 @@ static func tick_hang(s: SnakeSwing, p: Player, dt: float, wish: Vector3, hold: 
 		return false
 	if s.st.assist or s._commit:
 		var vy := p.velocity.y
-		if s.rope_angle >= REL_FRONT and vy > 0.5:
+		if s.rope_angle >= (REL_FRONT if s.fresh_press else rel_front(s.height)) and vy > 0.5:      # critic 117: only a rope the held chain fired lets go flatter when high; a swing the player pressed for keeps its whole arc (he lets go when he likes)
 			s.release(p, true, &"chain")
 			return false
 		if s.rope_angle > 0.25 and vy > 0.0 and sp < 10.0 and s._hang_t > 0.4:
@@ -402,6 +423,16 @@ static func score(o: Vector3, pos: Vector3, heading: Vector3, reach: float, cros
 		return -INF                                          # too flat: a drag along the street, not a swing
 	var rope := sqrt(f * f + dy * dy)
 	var sc := 3.0 - absf(elev - 1.05) * 1.6 - maxf(0.0, rope - ROPE_GOOD) / 12.0 - maxf(0.0, 16.0 - rope) / 5.0 - side / 30.0 * 0.8 + clampf(dy / 30.0, 0.0, 1.0) * 0.6
+	if level_chain and scan_h > CRUISE_LO + 3.0:
+		# critic 117: high over the street the best rope is the one that brings him back DOWN: its lowest point (rope - dy under the eye) near cruise height, so a long
+		# rope to an anchor well ahead (a dive), not the steep short one of a swing from the street
+		var k := clampf((scan_h - (CRUISE_LO + 3.0)) / 6.0, 0.0, 1.0)
+		var drop := rope - dy
+		var want_drop := clampf(scan_h - CRUISE_LO, 1.0, 26.0)
+		var dive := 3.0 - absf(drop - want_drop) / 4.0 - maxf(0.0, 14.0 - rope) / 3.0 - maxf(0.0, rope - 32.0) / 3.0 - side / 30.0 * 0.8
+		sc = lerpf(sc, dive, k)
+		if rope < 10.0:
+			return -INF                                      # no twitch on a rope of a few metres up here: there is time to wait for a real one
 	if crosshair:
 		sc += 1.2
 	if kind == &"vehicle":

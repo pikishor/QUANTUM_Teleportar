@@ -53,6 +53,15 @@ var _haul_rise := 0.5
 var _haul_t := 0.0
 var _haul_over_from := Vector3.ZERO
 var _rq := PhysicsRayQueryParameters3D.new()
+## Critic 117 (frames and a recorder per tick, real fingers): a roof ZIP of 31 m peaked at 101 m/s, 1.7 m in ONE tick, street to roof in 8 frames at 30 fps (a teleport), and
+## its rope was fired at the point of the WALL under the crosshair (8 m up) while the hero went to the roof 28 m up: from the second frame on the rope hung DOWN from his hand.
+## Now no zip is faster than `peak_speed` at any moment (it takes longer instead: 31 m in about 1.5 s) and the rope of a roof zip bites the roof's edge.
+## `peak_speed = 0.0` and `rope_to_edge = false` are the builders' state (tests/test_critic_w117.gd shows its checks failing on them).
+static var peak_speed := 44.0
+static var rope_to_edge := true
+const PEAK_K := 1.7                       ## the fastest moment of the pull is this many times its mean speed (the ease), 2.1 with the early rise of a roof zip
+const PEAK_K_ROOF := 2.1
+const MAX_TIME_CAPPED := 2.2             ## ... but no pull takes longer than this (tests/test_flight_cost_w116.gd gives a zip 3 s to end, head travel and landing included): a roof zip longer than 46 m is faster again (56 m: about 54 m/s at its peak)
 
 
 func _init(owner_st: SnakeTraversal = null) -> void:
@@ -82,6 +91,10 @@ func begin(p: Player, hit: Dictionary) -> void:
 	var d := from.distance_to(dest)
 	last_dist = d
 	dur = clampf(0.14 + d / SPEED, MIN_TIME, MAX_TIME)
+	if peak_speed > 0.0:
+		dur = clampf(maxf(dur, d * (PEAK_K_ROOF if (roof_arc and kind == &"roof" and dest.y > from.y + 1.5) else PEAK_K) / peak_speed), MIN_TIME, MAX_TIME_CAPPED)
+	if rope_to_edge and kind == &"roof" and dest.y > anchor.y + 1.0:
+		anchor = Vector3(anchor.x, dest.y + 0.05, anchor.z) + Vector3(normal.x, 0.0, normal.z) * 0.06
 	t = -clampf(from.distance_to(anchor) / SnakeSwing.TRAVEL_SPEED, 0.05, 0.2)       # the head leaves first; the pull starts when it bites
 	var dh := Vector3(dest.x - from.x, 0.0, dest.z - from.z)
 	dir = dh.normalized() if dh.length() > 0.1 else dir

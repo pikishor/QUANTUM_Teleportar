@@ -92,6 +92,11 @@ func find_swing(p: Player, heading: Vector3, aim: Vector3, reach: float, assist:
 	var h := Vector3(heading.x, 0.0, heading.z)
 	h = h.normalized() if h.length() > 0.01 else Vector3(-sin(p.camera_rig.yaw), 0.0, -cos(p.camera_rig.yaw))
 	_heading = h
+	if not SnakeSwing.old_motion:                           # critic 117: the score reads how high over the street the hero is (SwingMotion.score)
+		var gr := _ray(space, o, o + Vector3(0.0, -60.0, 0.0), Game.L_WORLD, excl)
+		SwingMotion.scan_h = (o.y - (gr["position"] as Vector3).y) if not gr.is_empty() else 60.0
+		if p.velocity.y < -14.0:
+			SwingMotion.scan_h = 0.0                          # falling fast: no dive wanted, the rope that CATCHES him (the score of a swing from the street)
 	var best: Dictionary = {}
 	var best_score := -INF
 	# the crosshair ray: the player aimed at this

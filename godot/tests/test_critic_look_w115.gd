@@ -179,7 +179,9 @@ func _debt_trial() -> Dictionary:
 func _rope_debt() -> void:
 	SnakeSwing.reel_slack = 1.0e9                                                # the old rope: reels on whatever holds the hero, and the sphere moves him any distance
 	SnakeSwing.max_correction = 1.0e9
+	SnakeSwing.old_motion = true                                                 # wave 117 integration: these two switches belong to the wave 116 pendulum (SnakeSwing._hang); the wave 117 motion (SwingMotion) never reels on a held body, so the old fling can only be reproduced on the old motion. The FIXED trial below runs on the motion the game ships
 	var old := await _debt_trial()
+	SnakeSwing.old_motion = false
 	SnakeSwing.reel_slack = 1.0
 	SnakeSwing.max_correction = 1.5
 	var fixed := await _debt_trial()
