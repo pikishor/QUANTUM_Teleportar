@@ -10,6 +10,10 @@ const SHADER := preload("res://assets/shaders/snake_tendril.gdshader")
 const TEX_W := 32
 ## per tier: [max tendrils, control points, body rings, sides, glow, head rings]
 const TIERS: Array = [[4, 18, 18, 6, 1.0, 6], [6, 26, 34, 8, 1.0, 10], [8, 32, 48, 12, 1.05, 14]]
+## wave 117, the braided rope (SnakeTendril.braid): every strand is one more INSTANCE of the same MultiMesh (the same single draw). The mesh has more rings (a plait needs about six
+## rings a turn) and fewer sides: [body rings, sides, most turns of the plait along one rope].
+const BRAID_TIERS: Array = [[96, 5, 15.0], [128, 6, 21.0], [160, 8, 27.0]]
+const BRAID_EXTRA := 6                          ## instances kept for the extra strands (three ropes of three snakes at once: a chain lets one go while the next bites)
 const FAR_AABB := AABB(Vector3(-6000.0, -600.0, -6000.0), Vector3(12000.0, 3000.0, 12000.0))
 
 static var current: SnakeTendrilPool
@@ -29,6 +33,9 @@ var _buf := PackedFloat32Array()
 var _cap := 3
 var _npts := 18
 var _puff_t := 0.0
+var _inst := 3                                  ## MultiMesh instances (the cap plus the extra strands of braided ropes)
+var _turns_max := 9.0
+var instances := 0                              ## instances written last frame (a rope of three snakes counts three)
 
 
 static func get_pool(host: Node = null) -> SnakeTendrilPool:
@@ -133,10 +140,17 @@ func _build(level: int) -> void:
 	_mm.transform_format = MultiMesh.TRANSFORM_3D
 	_mm.use_colors = true
 	_mm.use_custom_data = true
-	_mm.instance_count = _cap
-	_mm.mesh = _tube_mesh(int(row[2]) + int(row[5]), int(row[3]))
-	_mat.set_shader_parameter("body_split", float(row[2]) / float(int(row[2]) + int(row[5])))
-	for i in _cap:
+	var body_rings := int(row[2])
+	var sides := int(row[3])
+	var brow: Array = BRAID_TIERS[tier]
+	body_rings = int(brow[0])
+	sides = int(brow[1])
+	_turns_max = float(brow[2])
+	_inst = _cap + BRAID_EXTRA
+	_mm.instance_count = _inst
+	_mm.mesh = _tube_mesh(body_rings + int(row[5]), sides)
+	_mat.set_shader_parameter("body_split", float(body_rings) / float(body_rings + int(row[5])))
+	for i in _inst:
 		_mm.set_instance_transform(i, Transform3D.IDENTITY)
 	_mm.visible_instance_count = 0
 	_mmi.multimesh = _mm
@@ -180,11 +194,18 @@ static func _tube_mesh(rings: int, sides: int) -> ArrayMesh:
 
 func _sync_visible() -> void:
 	if _mm != null:
-		_mm.visible_instance_count = tendrils.size()
+		_mm.visible_instance_count = mini(_strands_total(), _inst)
 	if _mmi != null:
 		_mmi.visible = not tendrils.is_empty()
 	if tendrils.is_empty():
 		set_process(false)
+
+
+func _strands_total() -> int:
+	var n := 0
+	for t in tendrils:
+		n += maxi(t.braid, 1)
+	return n
 
 
 func _process(delta: float) -> void:
@@ -231,13 +252,36 @@ func _upload() -> void:
 	var n := mini(tendrils.size(), _cap)
 	drawn = n
 	if n == 0:
+		instances = 0
 		return
+	var k := 0
 	for r in n:
 		var t := tendrils[r]
 		_write_row(t, r)
 		var c := t.color
-		_mm.set_instance_color(r, Color(c.r, c.g, c.b, t.head_scale))
-		_mm.set_instance_custom_data(r, Color(float(r), t.thickness, clampf(t.tension, 0.0, 1.0), maxf(t.length(), 0.05)))
+		var strands := maxi(t.braid, 1)
+		strands = mini(strands, _inst - k - (n - 1 - r))            # the tendrils after this one keep an instance each
+		var ten := clampf(t.tension, 0.0, 1.0)
+		var vis := maxf(t.length(), 0.05)
+		if t.braid > 0:
+			# the plait of this rope rides in the spare alpha of its row: radius, radians a metre, and the carried cross vector
+			var base := r * TEX_W * 4
+			var pitch := maxf(t.braid_pitch, vis / _turns_max)
+			_buf[base + 3] = t.braid_radius
+			_buf[base + 7] = TAU / maxf(pitch, 0.05)
+			_buf[base + 11] = t._ref.x
+			_buf[base + 15] = t._ref.y
+			_buf[base + 19] = t._ref.z
+			for s in strands:
+				_mm.set_instance_color(k, Color(c.r, c.g, c.b, t.head_scale))
+				_mm.set_instance_custom_data(k, Color(float(r + 16 * (s + 1)), t.thickness * SnakeTendril.BRAID_STRAND, ten, vis))
+				k += 1
+		else:
+			_mm.set_instance_color(k, Color(c.r, c.g, c.b, t.head_scale))
+			_mm.set_instance_custom_data(k, Color(float(r), t.thickness, ten, vis))
+			k += 1
+	instances = k
+	_mm.visible_instance_count = k
 	_img.set_data(TEX_W, 8, false, Image.FORMAT_RGBAF, _buf.to_byte_array())
 	_tex.update(_img)
 

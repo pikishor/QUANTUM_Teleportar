@@ -73,6 +73,7 @@ var ground_time := 0.0
 var preview: Dictionary = {}               ## the anchor the next swing would take (null while none is in sight): the marker reads it
 var preview_kind: StringName = &""
 var wall_ready := false                     ## a wall is in reach in front of the grounded hero (the button reads CLIMB)
+var zip_target: Dictionary = {}             ## w117-rope: the SnakeAnchors.find_zip result behind zip_ready (the HUD marks that anchor: SnakeFx.zip_mark)
 var zip_ready := false                      ## a zip target is under the crosshair (the button reads ZIP)
 var hint: StringName = &"none"             ## what the SNAKE button would do now: swing, zip, climb, boost, fly, none (the touch button label reads it)
 var last_label := ""
@@ -101,6 +102,10 @@ var _fall_vy := 0.0
 var _was_air := false
 var _wish := Vector3.ZERO
 var _swing_blocked_press := false
+static var jump_takes := true               ## critic 117: false = the builders' state (the JUMP that lets go of a swing also fires the glide burst)
+var _jump_taken := false
+var _post_swing := false                   ## in the air after a swing was let go (wave 117: the air brake and the landing roll)
+var air_brakes := 0                        ## ticks the air brake worked (counter)
 var _whiff_tendril: SnakeTendril
 var _rq := PhysicsRayQueryParameters3D.new()
 
@@ -264,6 +269,14 @@ func _tick_body(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: boo
 	_jump_was = jump_down
 	var crouch := Input.is_action_pressed(&"crouch")
 	jump_consumed = false
+	# critic 117: a JUMP that a snake state took (let go of a swing, a leap off a haul or a wall) stays taken until the thumb lifts. The state returns before the hero's own
+	# verbs run, so they saw the same press as NEW one tick later and fired the QUANTUM GLIDE burst on top: 14.6 -> 27.1 m/s along the camera, the swing's own velocity gone
+	if not jump_down:
+		_jump_taken = false
+	elif jump_pressed and mode != Mode.NONE and jump_takes:
+		_jump_taken = true
+	if _jump_taken:
+		jump_consumed = true
 	swing_cd = maxf(0.0, swing_cd - dt)
 	zip_cd = maxf(0.0, zip_cd - dt)
 	_whiff_cd = maxf(0.0, _whiff_cd - dt)
@@ -288,9 +301,12 @@ func _tick_body(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: boo
 	var started_mode := mode
 	match mode:
 		Mode.SWING:
+			var swing_was := swing.active
 			if swing.tick(p, dt, wish, down, jump_pressed):
 				return true
 			_end_mode(Mode.SWING)
+			if swing_was and not SnakeSwing.old_motion:
+				return true                                    # wave 117: the swing moved the body in the tick it let go; the player's own air movement used to move it AGAIN in the same tick (a jump of twice the speed, 0.95 m at 28 m/s, on every release)
 		Mode.ZIP:
 			if zip.tick(p, dt, jump_pressed):
 				return true
@@ -372,6 +388,17 @@ func _heading() -> Vector3:
 	var yaw := p.camera_rig.yaw
 	var h := Vector3(-sin(yaw), 0.0, -cos(yaw))
 	var vh := Vector3(p.velocity.x, 0.0, p.velocity.z)
+	if not SnakeSwing.old_motion:
+		# wave 117: the next rope goes where the player LOOKS, bent by the stick (left / right / forward; a stick pulled back is a brake, not a direction), and only a
+		# little by the way he already moves, and never against the look: the old 70 / 30 mix with the velocity let a chain drift round and turn back on itself
+		var w := Vector3(_wish.x, 0.0, _wish.z)
+		if w.dot(h) < 0.0:
+			w -= h * w.dot(h)
+		if w.length() > 0.3:
+			h = (h * 0.45 + w.normalized() * 0.55).normalized()
+		if vh.length() > 8.0 and vh.normalized().dot(h) > 0.0:
+			h = (h * 0.75 + vh.normalized() * 0.25).normalized()
+		return h
 	if vh.length() > 8.0:
 		h = (h * 0.7 + vh.normalized() * 0.3).normalized()
 	return h
@@ -422,11 +449,12 @@ func _none_tick(dt: float, iv: Vector2, wish: Vector3, on_floor: bool, air: bool
 			return
 	# auto chain: still holding after an auto release, scan for the next anchor
 	if down and _chain_armed > 0.0 and not on_floor and swing_cd <= 0.0 and _since_release > 0.2 and time - _chain_scan >= SCAN_RATE:
-		if p.velocity.y < 2.5 or _since_release > 1.0:
+		if (p.velocity.y < 2.5 or _since_release > 1.0) if SnakeSwing.old_motion else (p.velocity.y < 3.0 or _since_release > 0.7):       # wave 117: the next rope leaves at the top of the throw
 			_chain_scan = time
-			var hit := _scan_swing(true)
+			var hit := _scan_swing(SnakeSwing.old_motion or (_since_release > 0.8 and _near_ground(TURN_HEIGHT)))       # wave 117: straight on first; the chain only turns (never back) when the street is coming up with nothing ahead
 			if not hit.is_empty():
 				_start_swing(hit, false)
+				swing.fresh_press = false                        # critic 117: fired by the held chain, not by a press (a thumb lifted right after it lets go, it is not a tap)
 				return
 	# hold SNAKE in the air with nothing to bite: SNAKE FLIGHT
 	if down and _hold_t >= FLY_HOLD and not p.control_hold and (not on_floor or _hold_t >= FLY_HOLD + 0.2) and SnakePower.flight_unlocked() and not _swing_blocked_press:
@@ -436,6 +464,8 @@ func _none_tick(dt: float, iv: Vector2, wish: Vector3, on_floor: bool, air: bool
 				return
 	if not down:
 		_swing_blocked_press = false
+	if _post_swing and not on_floor and not SnakeSwing.old_motion:
+		_air_brake(dt, down)
 	# the movement kit
 	_kit(dt, on_floor, air, jump_down, jump_pressed)
 	_update_hint(on_floor, air)
@@ -481,6 +511,13 @@ func _press(on_floor: bool, air: bool, iv: Vector2) -> void:
 		if not w2.is_empty() and absf((w2["normal"] as Vector3).y) < 0.55 and (SnakePower.unlimited() or energy > 6.0):
 			_start_climb(w2)                                                       # nothing to swing from but a wall within reach: hold on to it
 			return
+		if _post_swing and not SnakeSwing.old_motion:
+			# wave 117: "press SNAKE again in the air = the next rope". Between two swings the hero is often above every anchor for a moment (the throw carried him to the
+			# roofline): the press used to be a miss, and the thumb that stayed on the button for the rope started SNAKE FLIGHT 0.45 s later. Now the press WAITS: the rope
+			# leaves the hand as soon as an anchor comes into reach on the way down, for as long as the button is held (CHAIN_WAIT); no flight out of it
+			_chain_armed = CHAIN_WAIT
+			_swing_blocked_press = true
+			return
 	_whiff(aim, reach)
 
 
@@ -493,6 +530,7 @@ func _start_swing(hit: Dictionary, from_ground: bool) -> void:
 		Game.say("OUT OF SNAKE ENERGY", 1.0)
 		return
 	swing.begin(p, hit, from_ground)
+	swing.fresh_press = true
 	mode = Mode.SWING
 	swings += 1
 	swing_cd = SnakePower.cd(0.12)
@@ -655,15 +693,16 @@ func on_swing_released(was_hang: bool, spd: float) -> void:
 	mode = Mode.NONE
 	_since_release = 0.0
 	_hold_t = 0.0
-	air_momentum = 1.4
+	air_momentum = 1.4 if SnakeSwing.old_motion else 1.0
 	_swing_blocked_press = true
+	_post_swing = was_hang
 	if was_hang:
 		Sfx.play(&"snk_release", -4.0)
 		p.camera_rig.punch_fov(7.0 + clampf(spd * 0.15, 0.0, 6.0))
 		var held := Input.is_action_pressed(&"snake")
-		if held and assist:
-			_chain_armed = 1.7
-			_swing_blocked_press = false
+		if held and assist and (SnakeSwing.old_motion or swing.last_why in SwingMotion.AUTO_WHYS):       # wave 117: only a swing that let go by itself at the front of its arc chains on; after JUMP, a wall, the street or a still rope the next rope is the player's own press
+			_chain_armed = 1.7 if SnakeSwing.old_motion else CHAIN_WAIT
+			_swing_blocked_press = not SnakeSwing.old_motion      # wave 117: a hold that began as a swing never turns into SNAKE FLIGHT when the chain finds no anchor (he lands with a roll); flight is a fresh hold or the FLY button
 			_chain_t = -10.0
 	cam.on_mode(mode)
 	event.emit(&"swing_release")
@@ -782,6 +821,8 @@ func free_air(pl: Player, dt: float, wish: Vector3) -> void:
 
 ## The horizontal damping of the player's air steering, scaled while the speed of a release should survive (Player._foot_tick multiplies its air accel by this).
 func air_k_scale() -> float:
+	if _post_swing and not SnakeSwing.old_motion and p != null and not p.is_on_floor():
+		return 0.05 if _stick < 0.2 else 0.3      # wave 117: a throw is a throw. With the thumbs off, the player's air damping stopped the hero dead over the street one second after a release (28 m/s to 0, then straight down); the stick still steers and brakes
 	if air_momentum <= 0.0:
 		return 1.0
 	return lerpf(1.0, 0.04, clampf(air_momentum / 1.0, 0.0, 1.0))
@@ -824,8 +865,50 @@ func _kit(dt: float, on_floor: bool, air: bool, jump_down: bool, jump_pressed: b
 		_super_used = true
 
 
+## Wave 117, after a swing is let go: the snakes spread and brake the hero as the street comes up, so he does not meet it at swing speed (measured before: 34 m/s 3 m over the
+## street two seconds after a release). Only while he is falling, lower than AIR_BRAKE_H, and faster over the ground than AIR_BRAKE_TO; the fall itself is cushioned to SOFT_FALL.
+const CHAIN_WAIT := 3.0                    ## seconds a held SNAKE keeps looking for the next anchor after a swing
+const TURN_HEIGHT := 9.0                   ## a chain with nothing ahead turns to an anchor beside it only this near the ground
+const AIR_BRAKE_H := 10.0
+const AIR_BRAKE_TO := 11.0
+const AIR_BRAKE_ACC := 18.0
+const SOFT_FALL := 15.0
+const ROLL_SPEED := 7.5                    ## a landing out of a swing faster than this over the ground (or SOFT_ROLL_FALL down) rolls
+const SOFT_ROLL_FALL := 8.0
+
+
+func _air_brake(dt: float, _down: bool) -> void:
+	if _since_release < 0.5 or p.velocity.y > -2.0:
+		return
+	_rq.collision_mask = Game.L_WORLD
+	_rq.exclude = [p.get_rid()]
+	_rq.from = p.global_position + Vector3(0.0, 0.5, 0.0)
+	_rq.to = p.global_position + Vector3(0.0, -AIR_BRAKE_H, 0.0)
+	var hit := p.get_world_3d().direct_space_state.intersect_ray(_rq)
+	if hit.is_empty():
+		return
+	var hs := Vector2(p.velocity.x, p.velocity.z).length()
+	if hs > AIR_BRAKE_TO:
+		var k := maxf(AIR_BRAKE_TO, hs - AIR_BRAKE_ACC * dt) / hs
+		p.velocity.x *= k
+		p.velocity.z *= k
+	if p.velocity.y < -SOFT_FALL:
+		p.velocity.y = minf(-SOFT_FALL, p.velocity.y + 60.0 * dt)
+	air_brakes += 1
+
+
+func _near_ground(h: float) -> bool:
+	_rq.collision_mask = Game.L_WORLD
+	_rq.exclude = [p.get_rid()]
+	_rq.from = p.global_position + Vector3(0.0, 0.5, 0.0)
+	_rq.to = p.global_position + Vector3(0.0, -h, 0.0)
+	return not p.get_world_3d().direct_space_state.intersect_ray(_rq).is_empty()
+
+
 func _landed(fall_speed: float) -> void:
-	if fall_speed >= ROLL_FALL and mode == Mode.NONE and not p.verbs.slamming:
+	var soft := _post_swing and not SnakeSwing.old_motion and (Vector2(p.velocity.x, p.velocity.z).length() > ROLL_SPEED or fall_speed >= SOFT_ROLL_FALL)
+	_post_swing = false
+	if (fall_speed >= ROLL_FALL or soft) and mode == Mode.NONE and not p.verbs.slamming:
 		roll_t = ROLL_TIME
 		landing_rolls += 1
 		var hv := Vector3(p.velocity.x, 0.0, p.velocity.z)
@@ -877,12 +960,16 @@ func _preview(dt: float, on_floor: bool, air: bool) -> void:
 		if not wall_ready and zip_cd <= 0.0:
 			var z := anchors.find_zip(p, _aim(), SnakePower.range_m(), assist)
 			zip_ready = not z.is_empty()
+	zip_target = anchors.last if zip_ready else {}                   # w117-rope hook
 
 
 ## The text of the touch SNAKE button: what a press would do now (cached by the scans in _preview, never casts a ray itself).
 func button_label() -> String:
 	if jam_t > 0.0:
 		return "JAMMED"
+	var cue := SnakeFx.label_cue()                                  # w117-rope hook: "NO ANCHOR" for a second after a press that found nothing
+	if cue != "":
+		return cue
 	match mode:
 		Mode.SWING: return "LET GO"                                    # critic 115 look: one word for both (swing and climb): "RELEASE" had to be drawn a fifth smaller to fit the disc
 		Mode.CLIMB: return "LET GO"
@@ -893,6 +980,11 @@ func button_label() -> String:
 		&"zip": return "ZIP"
 		&"swing": return "SWING"
 	return "SNAKE"
+
+
+## In the air after a swing let go and before he lands or takes the next rope (the pose leans him along the throw).
+func thrown() -> bool:
+	return _post_swing and mode == Mode.NONE and p != null and not p.is_on_floor() and roll_t <= 0.0
 
 
 ## The SNAKE button is on screen while the hero is on foot outside the interiors.

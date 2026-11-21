@@ -43,6 +43,10 @@ const STREAK_CAM_SPEED := 18.0
 const FAST_DIM := 0.3
 const FAST_DIM_AT := 45.0
 static var long_streaks := false
+## Wave 117: while the hero is in the air on his snakes (Atmosphere sets `air`) MED and HIGH draw this share of their streaks (LOW keeps its 1400: it measured 0.4 % of the middle).
+const AIR_SHARE: Array[float] = [1.0, 0.4, 0.25]
+var air := false
+var _air_k := 1.0
 
 ## Wind in m/s (x, z). With a fall speed of 12 m/s the default leans the rain by about 8 degrees: a slight slant.
 var wind := Vector2(1.5, 0.5)
@@ -245,7 +249,8 @@ func _apply_tier_look() -> void:
 func _apply_counts() -> void:
 	if streaks == null:
 		return
-	var n_s := int(float(STREAKS_BY_TIER[tier]) * _rain * (LowPlus.RAIN_SHARE if (tier == 0 and LowPlus.on()) else 1.0))
+	_air_k = move_toward(_air_k, AIR_SHARE[tier] if air else 1.0, 0.05)
+	var n_s := int(float(STREAKS_BY_TIER[tier]) * _rain * _air_k * (LowPlus.RAIN_SHARE if (tier == 0 and LowPlus.on()) else 1.0))
 	var n_p := int(float(SPLASHES_BY_TIER[tier]) * _rain)
 	if n_s != _last_streaks:
 		_last_streaks = n_s

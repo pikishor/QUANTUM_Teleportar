@@ -23,6 +23,9 @@ extends RefCounted
 ##   tension        starting tension (default 0.55); the owner changes it every frame
 ##   on_attach      Callable called once when the head arrives
 ##   host           Node used to find / create the pool when there is no Game.player
+##   braid          wave 117: 3 (2..4) = A ROPE OF SEVERAL SNAKES BRAIDED TOGETHER (the swing and the zip rope): that many bodies plaited round each other, every one with its own head that
+##                  bites the anchor. Same pool, same ONE draw (each strand is one more instance of the MultiMesh). The plait is loose while the heads fly out, pulls tight with `tension`
+##                  (braid_radius shrinks, braid_pitch shortens) and unwinds as it is let go (braid_open 0 tight .. 1 unwound). `SnakeTendril.braided_rope = false` = the single snake of wave 115.
 ## POOL CAPS BY TIER (Game.quality): LOW 4 tendrils x 18 control points, MED 6 x 26, HIGH 8 x 32. When the pool is full the oldest tendril that already attached is retired
 ## (its owner just sees `retracted`), so the hero's own tendril is never starved by decoration.
 ## Signals: attached (the head arrived), retracted (the tendril is gone from the pool: killed, fully retracted or its owner node was freed).
@@ -56,6 +59,10 @@ var head_pos := Vector3.ZERO
 var slack_sag := 1.0                           ## how much a slack body hangs (1 = natural)
 var bow := Vector3.ZERO                        ## world offset (metres) the middle of the body is pushed by: an arched wing, a curled tail (the owner sets it every frame; 0 = straight)
 var flutter := 0.0                             ## extra slither amplitude (metres) that stays on an attached tendril: wings and idle snakes breathe with it
+var braid := 0                                 ## strands of a braided rope (0 = one plain snake)
+var braid_open := 0.0                          ## 0 = plaited tight, 1 = unwound (it flies out half open, closes when it bites, opens again while it is let go)
+var braid_radius := 0.0                        ## metres from the rope's axis to the middle of a strand, now (shrinks under load)
+var braid_pitch := 0.0                         ## metres of rope per full turn of the plait, now (shortens under load, lengthens as it unwinds)
 var user := {}                                 ## free data for the owner (a test or a verb can tag its tendril)
 
 var _origin: Variant
@@ -70,6 +77,11 @@ var _seed := 0.0
 var _row := -1                                 ## pool row while drawn
 var _pool: Node                                ## SnakeTendrilPool
 var _speed_given := false
+var _ref := Vector3.ZERO                       ## braid: a vector across the rope that is carried from frame to frame, so the plait never spins when the rope passes the vertical
+
+const BRAID_STRAND := 0.55                     ## a strand is this share of the rope's `thickness`
+const BRAID_RETRACT_MIN := 0.3                 ## a braided rope takes at least this long to slide back: the unwinding must be seen
+static var braided_rope := true                ## false = the option `braid` is ignored: the single snake rope of wave 115 (tests and before / after frames)
 
 
 ## Fire a tendril. Returns it at once (the head leaves the hand this frame). See the header for the options.
@@ -97,6 +109,10 @@ func _setup(origin: Variant, target: Variant, opts: Dictionary) -> void:
 	head_scale = 1.0 if bool(opts.get("head", true)) else 0.0
 	life = float(opts.get("life", 0.0))
 	_on_attach = opts.get("on_attach", Callable())
+	braid = clampi(int(opts.get("braid", 0)), 0, 4) if braided_rope else 0
+	if braid < 2:
+		braid = 0
+	braid_open = 0.6
 	_seed = randf() * 100.0
 	_refresh_ends()
 	head_pos = origin_pos
@@ -128,7 +144,7 @@ func retract(time := RETRACT_TIME) -> void:
 	if state == State.RETRACT or state == State.DONE:
 		return
 	state = State.RETRACT
-	_retract_dur = maxf(time, 0.04)
+	_retract_dur = maxf(time, BRAID_RETRACT_MIN if braid > 0 else 0.04)
 	_retract_left = _retract_dur
 	_retract_from = maxf(progress, 0.02)
 
@@ -190,6 +206,8 @@ func step(dt: float) -> void:
 		return
 	age += dt
 	_refresh_ends()
+	if braid > 0:
+		_braid_step(dt)
 	match state:
 		State.TRAVEL:
 			progress = minf(1.0, progress + dt / travel_time)
@@ -216,3 +234,28 @@ func step(dt: float) -> void:
 				state = State.DONE
 				progress = 0.0
 				retracted.emit()
+
+
+## The plait of a braided rope: how open it is, how far the strands stand from the axis and how long one turn is. Runs without a renderer (tests read the three numbers).
+func _braid_step(dt: float) -> void:
+	var want := 0.0
+	var rate := 7.0
+	match state:
+		State.TRAVEL:
+			want = 0.6
+		State.RETRACT:
+			want = 1.0
+			rate = 3.2 / maxf(_retract_dur, 0.05)
+	braid_open = lerpf(braid_open, want, 1.0 - exp(-rate * dt))
+	var ten := clampf(tension, 0.0, 1.0)
+	var rs := thickness * BRAID_STRAND
+	braid_radius = rs * lerpf(3.0, 1.9, ten) * (1.0 + 2.0 * braid_open)
+	braid_pitch = lerpf(2.4, 1.3, ten) * (1.0 + 1.6 * braid_open)
+	var d := head_pos - origin_pos
+	var l := d.length()
+	if l > 0.01:
+		d /= l
+		_ref -= d * _ref.dot(d)
+	if _ref.length() < 0.2:
+		_ref = d.cross(Vector3.UP) if absf(d.y) < 0.9 else d.cross(Vector3.RIGHT)
+	_ref = _ref.normalized()

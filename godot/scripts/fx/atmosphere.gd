@@ -159,6 +159,7 @@ func _process_body(delta: float) -> void:
 	_feedback_step(delta)
 	_look_step(delta)
 	var cam := _camera()
+	_air_step(delta)
 	rainfield.update(delta, cam, rain_now)
 	if cam != null and rainfield.is_visible_in_tree():
 		post.set_slant(rainfield.screen_slant(cam))
@@ -221,8 +222,28 @@ func _camera() -> Camera3D:
 	return get_viewport().get_camera_3d() if is_inside_tree() else null
 
 
+## Wave 117 (flight view gate: MED rain covered 13 to 14 % of the middle of the frame in SNAKE FLIGHT, limit 4 %; LOW 0.4 %): what filled the middle was not the drops but the rain ON THE
+## LENS that MED and HIGH add (the far curtain, the beads, the heat shimmer of the lower half) plus 2400 streaks. While the hero is in the air on his snakes (swing, zip, flight, a
+## fall) the lens effects fade out (`air_lens` 1 -> AIR_LENS) and the streak field thins to RainField.AIR_SHARE; they come back on the ground. `air_clear = false` = the look before.
+static var air_clear := true
+const AIR_LENS := 0.0
+var air_lens := 1.0
+
+
+func _air_step(delta: float) -> void:
+	var in_air := false
+	if air_clear and Game.state == &"play" and is_instance_valid(Game.player) and not Game.player_in_vehicle():
+		var pl := Game.player as Player
+		in_air = pl != null and pl.snake != null and (pl.snake.active() or pl.air_time > 0.25)
+	var want := AIR_LENS if in_air else 1.0
+	rainfield.air = in_air
+	if air_lens != want:
+		air_lens = want if absf(want - air_lens) < 0.01 else lerpf(air_lens, want, 1.0 - exp(-delta * 5.0))
+	post.set_rain(rain_now * air_lens)                 # every frame (it returns at once when nothing changed): whoever else sets the lens rain is put right the next frame
+
+
 func _push_weather() -> void:
 	_globals_dirty = false
 	RenderingServer.global_shader_parameter_set(&"rain", rain_now)
 	RenderingServer.global_shader_parameter_set(&"wetness", wetness_now)
-	post.set_rain(rain_now)
+	post.set_rain(rain_now * air_lens)

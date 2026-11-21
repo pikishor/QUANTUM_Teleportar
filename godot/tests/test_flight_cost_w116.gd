@@ -68,6 +68,7 @@ func run(h: Node) -> void:
 	await _cost()
 	fg.up_all()
 	SnakeZip.roof_arc = true
+	SnakeZip.wall_end = true
 	SnakeTraversal.zip_takes_press = true
 	CityLayout.far_exit = true
 	VehicleManager.cache_points = true
@@ -137,6 +138,7 @@ func _zip() -> void:
 			stood += r
 	TestLib.check(tried >= 5 and stood == tried, "a finger on ZIP at a roof: the hero stands on that roof in %d of %d zips" % [stood, tried])
 	SnakeZip.roof_arc = false
+	SnakeZip.wall_end = false                       # wave 117: the old code also left a zip that met the wall hanging there (now the snakes haul him over the edge: the straight pull alone lands 7 of 7)
 	var stood_old := 0
 	var tried_old := 0
 	for i in spots.size():
@@ -145,6 +147,7 @@ func _zip() -> void:
 			tried_old += 1
 			stood_old += r
 	SnakeZip.roof_arc = true
+	SnakeZip.wall_end = true
 	TestLib.check(tried_old >= 5 and stood_old < tried_old, "OLD (the straight pull): %d of %d (the rest hang under the roof edge or are back on the street)" % [stood_old, tried_old])
 	# a thumb that stays on the button
 	var flew := 0

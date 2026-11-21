@@ -39,10 +39,13 @@ static var assist_rise := 3.0           ## m/s^2 along the motion on the way up 
 static var rel_fast := REL_ANGLE_FAST
 static var rel_slow := REL_ANGLE_SLOW
 
+static var old_motion := false          ## wave 117: true = the wave 116 swing (the free 3D pendulum, the release multipliers, the 0.55 s tap); tests/test_swing_w117.gd runs with SWING_OLD=1 to show its checks fail on it
+
 var st: SnakeTraversal
 var active := false
 var phase: StringName = &"none"          ## none, travel, hang
 var anchor := Vector3.ZERO
+var pivot := Vector3.ZERO                ## the point the pendulum turns about (old motion: the anchor itself)
 var anchor_node: Node3D
 var anchor_local := Vector3.ZERO
 var rope := 20.0
@@ -72,6 +75,19 @@ var _arc_len_acc := 0.0
 var _last_pos := Vector3.ZERO
 var _ground_t := 0.0
 var _rq := PhysicsRayQueryParameters3D.new()
+# wave 117 motion (swing_motion.gd)
+var lowering := false                   ## a still rope is lowering the hero
+var last_why: StringName = &""          ## why the last swing ended (button, chain, jump, ground, wall, blocked, still, time, max_angle, jam)
+var _commit := false                    ## a tap: the swing runs to the front of its arc by itself
+var _hold_prev := true
+var _wall_t := 0.0
+var wraps := 0                          ## times the drawn rope moved its end to a corner it met (counter)
+var _block_n := 0
+var _lower_t := 0.0
+var _anchor_prev := Vector3.ZERO
+# critic 117
+var height := 30.0                      ## metres of air under the feet (read a quarter of a second ahead; 30 = none within 30 m)
+var fresh_press := true                 ## this rope left on a new press of SNAKE (false: fired by the held chain)
 
 
 func _init(owner_st: SnakeTraversal = null) -> void:
@@ -86,6 +102,7 @@ func cancel() -> void:
 	phase = &"none"
 	chain = 0
 	_hit = {}
+	lowering = false
 
 
 ## Leave the hand toward an anchor result of SnakeAnchors (pos, node, local). Call from SnakeTraversal; the swing becomes active at once (phase travel).
@@ -105,7 +122,7 @@ func begin(p: Player, hit: Dictionary, from_ground := false) -> void:
 	var o: Vector3 = hand.call()
 	var dist := o.distance_to(anchor)
 	_travel_left = clampf(dist / TRAVEL_SPEED, 0.06, 0.24)
-	tendril = SnakeTendril.fire(hand, Callable(self, "_anchor_now"), {"travel": _travel_left, "wriggle": 0.55, "tension": 0.3, "thickness": 0.07, "host": p})
+	tendril = SnakeTendril.fire(hand, Callable(self, "_anchor_now"), {"travel": _travel_left, "wriggle": 0.55, "tension": 0.3, "thickness": 0.07, "braid": 3, "host": p})   # w117-rope: the rope is three snakes braided together
 	tendril.user["keep"] = true
 	var dir_h := Vector3(anchor.x - p.global_position.x, 0.0, anchor.z - p.global_position.z)
 	swing_dir = dir_h.normalized() if dir_h.length() > 0.1 else swing_dir
@@ -147,7 +164,11 @@ func release(p: Player, boost := true, why: StringName = &"hand") -> float:
 		return 0.0
 	var v := p.velocity
 	var sp := v.length()
-	if phase == &"hang" and boost and sp > 3.0:
+	last_why = why
+	if not old_motion:
+		p.velocity = SwingMotion.release_velocity(self, v, boost, why)
+		sp = p.velocity.length()
+	elif phase == &"hang" and boost and sp > 3.0:
 		var k := SnakePower.release_boost() + float(mini(chain, SnakePower.CHAIN_MAX)) * SnakePower.chain_bonus()
 		var nv := v * k
 		if v.y > -3.0:
@@ -170,6 +191,7 @@ func release(p: Player, boost := true, why: StringName = &"hand") -> float:
 	var was_hang := phase == &"hang"
 	active = false
 	phase = &"none"
+	lowering = false
 	st.on_swing_released(was_hang, sp)
 	return sp
 
@@ -183,11 +205,14 @@ func tick(p: Player, dt: float, wish: Vector3, hold: bool, jump_pressed: bool) -
 	if tendril != null and not tendril.is_alive():
 		tendril = null
 	if phase == &"travel":
-		return _tick_travel(p, dt, wish, hold)
+		return _tick_travel(p, dt, wish, hold, jump_pressed)
 	return _tick_hang(p, dt, wish, hold, jump_pressed)
 
 
-func _tick_travel(p: Player, dt: float, wish: Vector3, _hold: bool) -> bool:
+func _tick_travel(p: Player, dt: float, wish: Vector3, _hold: bool, jump_pressed := false) -> bool:
+	if jump_pressed and not old_motion:                # wave 117: JUMP in the 0.06 to 0.24 s the snake travels was ignored (the press was lost)
+		release(p, true, &"jump")
+		return false
 	# the hero flies on while the head travels; a button let go now (a tap) no longer cancels the shot: the snake bites and the swing hangs TAP_HANG seconds (_tick_hang)
 	_travel_left -= dt
 	st.free_air(p, dt, wish)
@@ -200,7 +225,11 @@ func _tick_travel(p: Player, dt: float, wish: Vector3, _hold: bool) -> bool:
 
 
 func _bite(p: Player) -> void:
+	if not old_motion:
+		SwingMotion.bite(self, p)
+		return
 	_anchor_now()
+	pivot = anchor
 	var c := p.global_position + Vector3(0.0, BODY_CENTRE, 0.0)
 	var d := c.distance_to(anchor)
 	if d < 3.0 or not is_finite(d):
@@ -229,7 +258,10 @@ func _bite(p: Player) -> void:
 
 
 func _tick_hang(p: Player, dt: float, wish: Vector3, hold: bool, jump_pressed: bool) -> bool:
+	if not old_motion:
+		return SwingMotion.tick_hang(self, p, dt, wish, hold, jump_pressed)
 	_anchor_now()
+	pivot = anchor
 	_hang_t += dt
 	var c := p.global_position + Vector3(0.0, BODY_CENTRE, 0.0)
 	var r := c - anchor
