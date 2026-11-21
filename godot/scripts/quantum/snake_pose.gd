@@ -7,6 +7,7 @@ extends RefCounted
 
 const ROLL_TIME := SnakeTraversal.ROLL_TIME
 
+static var haul_upright := true           ## wave 117: the pose of the haul up a facade (false = the pull pose, which turned him head down there: a test shows it)
 var blend := 0.0
 var basis := Basis.IDENTITY               ## the wanted world orientation of the model when blend = 1
 var pivot := 0.9                          ## metres above the feet the body turns about
@@ -108,6 +109,18 @@ func update(st: SnakeTraversal, dt: float) -> void:
 				hw = Vector2(0.4, 0.4)
 				tl = Vector3(-0.4, -0.25, -0.3)
 				tr = Vector3(0.4, -0.25, -0.3)
+			elif z.phase == &"haul" and haul_upright:
+				# wave 117: hauled up a facade by the rope of snakes: upright, facing the wall, the right hand high on the rope, the feet on the wall (the pull pose above aims at
+				# z.dest, which lies BELOW him now: he rode up head down)
+				var into := Vector3(-z.normal.x, 0.0, -z.normal.z)
+				into = into.normalized() if into.length() > 0.05 else Vector3(-sin(p.yaw), 0.0, -cos(p.yaw))
+				want_b = basis_from(Vector3.UP.lerp(z.normal, 0.18).normalized(), into)
+				var step := sin(_phase * 14.0)
+				hw = Vector2(0.5, 1.0)
+				tr = Vector3(0.14, 0.52, -0.3)
+				tl = Vector3(-0.32, 0.22 + 0.06 * step, -0.3)
+				tair = 0.85
+				tcrouch = 0.08
 			else:
 				var head := Vector3.UP.lerp(d3, 0.8).normalized()
 				want_b = basis_from(head, Vector3(d3.x, 0.0, d3.z) if Vector2(d3.x, d3.z).length() > 0.05 else Vector3(-sin(p.yaw), 0.0, -cos(p.yaw)))

@@ -22,12 +22,38 @@ var _mmat: ShaderMaterial
 var _t := 0.0
 var _marker_pos := Vector3.ZERO
 var _marker_a := 0.0
+## Wave 117 cues (critic 116 #5, #6; flight log #1, #5, #13). All of them are drawn by the touch HUD in its own pass (TouchControls calls hud_cues: rings, plates and words join the
+## lists it draws anyway, no draw call is added) and can be read without a renderer:
+##   zip_mark      the anchor a tap on ZIP WOULD take, while the hero stands and one is in reach: {pos, end (&"roof" he ends standing up there / &"drop" a wall with no ledge above), dist, top}
+##   cue_text      "NO ANCHOR" for CUE_TIME after a press that found nothing to bite (the SNAKE button reads it, a crossed ring and a line show at the crosshair)
+##   energy_warn   in SNAKE FLIGHT: 1 = low (ENERGY_LOW_S seconds left at the present burn), 2 = the last ENERGY_LAST_S seconds at the present burn; a line, a ring on LAND and a beep a second
+static var cues_on := true                  ## false = no cue at all (wave 116: tests show the checks failing on it)
+static var current: SnakeFx
+const CUE_TIME := 1.1
+const ENERGY_LOW_S := 7.0                   ## "low": this many seconds of flight left at the present burn (or under ENERGY_LOW_FRAC of the pool)
+const ENERGY_LOW_FRAC := 0.2
+const ENERGY_LAST_FRAC := 0.6               ## the countdown never starts above this share (a BOOST from a full pool is not an alarm)
+const ENERGY_LAST_S := 3.0
+var cue_text := ""
+var cue_t := 0.0
+var cues_shown := 0
+var zip_mark := {}
+var energy_warn := 0
+var energy_warns := 0                       ## times a warning level was entered (counter)
+var energy_left_s := 0.0
+var _beep_t := 0.0
+var _hooked := false
+var _mark_key := Vector3.INF
+var _mark_end: StringName = &"roof"
+var _mark_top := 0.0
+var _mark_reach := 0.0
 var _warming := false                       ## SnakeWarm (the shader pre-warm) has made both visuals draw once: _process leaves them alone until warm_end
 
 
 func _ready() -> void:
 	name = "SnakeFx"
 	process_priority = 120
+	current = self
 	_hum = _player("snk_hum")
 	_wind = _player("snk_wind")
 
@@ -116,6 +142,7 @@ func _process(delta: float) -> void:
 		return
 	var dt := minf(delta, 0.1)
 	_t += dt
+	_cue_tick(dt)
 	var paused := Game.state == &"paused"
 	var playing := Game.state == &"play"
 	var sp := st.p.velocity.length() if playing else 0.0
@@ -164,7 +191,7 @@ func _process(delta: float) -> void:
 		_push_lines()
 	# the anchor marker
 	var want := false
-	if playing and st.mode == SnakeTraversal.Mode.NONE and not st.preview.is_empty() and not st.p.is_dead() and (st.p.air_time > 0.25 or st.hint == &"zip") and not Game.player_in_vehicle():
+	if playing and st.mode == SnakeTraversal.Mode.NONE and not st.preview.is_empty() and not st.p.is_dead() and (st.p.air_time > 0.25 or (st.hint == &"zip" and zip_mark.is_empty())) and not Game.player_in_vehicle():      # wave 117: on the ground the HUD marks the ZIP anchor itself (zip_mark), not the swing anchor
 		want = Game.quality > 0 or st.p.air_time > 0.25
 	if want:
 		_ensure_marker()
@@ -231,3 +258,126 @@ func _apply(pl: AudioStreamPlayer, db: float, pitch: float) -> void:
 		pl.play()
 	pl.volume_db = db
 	pl.pitch_scale = pitch
+
+
+# --- wave 117: the cues ----------------------------------------------------------------------------------------------------------------
+
+func _exit_tree() -> void:
+	if current == self:
+		current = null
+
+
+## The SNAKE button's word while a cue runs ("" = none): SnakeTraversal.button_label asks first.
+static func label_cue() -> String:
+	if cues_on and is_instance_valid(current) and current.cue_t > 0.0:
+		return current.cue_text
+	return ""
+
+
+func _on_event(id: StringName) -> void:
+	if id == &"whiff" and cues_on:
+		cue_text = "NO ANCHOR"
+		cue_t = CUE_TIME
+		cues_shown += 1
+
+
+func _cue_tick(dt: float) -> void:
+	if not _hooked:
+		_hooked = true
+		st.event.connect(_on_event)
+	cue_t = maxf(0.0, cue_t - dt)
+	var playing := Game.state == &"play"
+	# the anchor a ZIP would take
+	var z: Dictionary = st.zip_target
+	if not cues_on or not playing or z.is_empty() or st.mode != SnakeTraversal.Mode.NONE or st.hint != &"zip" or st.p.air_time > 0.25 or st.p.is_dead() or Game.player_in_vehicle():
+		zip_mark = {}
+	else:
+		var pos: Vector3 = z["pos"]
+		var dest: Vector3 = z.get("dest", pos)
+		if pos.distance_squared_to(_mark_key) > 0.09 or _mark_reach != SnakeZip.haul_max:
+			_mark_key = pos
+			_mark_reach = SnakeZip.haul_max
+			_mark_end = &"roof"
+			_mark_top = dest.y
+			if StringName(z.get("kind", &"roof")) == &"wall" and SnakeZip.wall_end:
+				var stand := st.zip.edge_above(st.p, z["normal"], dest)
+				_mark_end = &"roof" if stand.is_finite() else &"drop"
+				_mark_top = stand.y if stand.is_finite() else dest.y
+			elif StringName(z.get("kind", &"roof")) == &"wall":
+				_mark_end = &"wall"
+		zip_mark = {"pos": pos, "end": _mark_end, "dist": pos.distance_to(st.p.global_position + Vector3(0.0, 1.5, 0.0)), "top": _mark_top}
+	# flight energy
+	var was := energy_warn
+	energy_warn = 0
+	if cues_on and playing and st.mode == SnakeTraversal.Mode.FLY and not SnakePower.unlimited() and st.flight.phase != &"landing" and st.flight.phase != &"glide":
+		var k := 3.6 if st.flight.boosting else 1.0
+		energy_left_s = st.energy / maxf(SnakePower.fly_cost_per_s() * k, 0.01)
+		var frac := st.energy_fraction()
+		if energy_left_s <= ENERGY_LAST_S and frac <= ENERGY_LAST_FRAC:
+			energy_warn = 2
+		elif (energy_left_s <= ENERGY_LOW_S and frac <= ENERGY_LAST_FRAC) or frac <= ENERGY_LOW_FRAC:
+			energy_warn = 1
+	if energy_warn > was:
+		energy_warns += 1
+		_beep_t = 0.0
+		if not Game.force_touch and not DisplayServer.is_touchscreen_available():          # the phone HUD draws its own line and ring (hud_cues); a desktop gets the toast
+			Game.say("SNAKE ENERGY LOW  LAND SOON" if energy_warn == 1 else "WINGS FAIL IN %d" % maxi(1, ceili(energy_left_s)), 1.6)
+	if energy_warn > 0:
+		_beep_t -= dt
+		if _beep_t <= 0.0:
+			_beep_t = 1.0 if energy_warn == 1 else 0.45
+			Sfx.play(&"ui_deny", -8.0 if energy_warn == 1 else -4.0)
+
+
+## Called by TouchControls while it collects what it draws. Everything here joins lists the touch HUD draws anyway, so a cue costs NO draw call: `sprites` rows are [rect, colour]
+## drawn with the &"button" sprite (a dark translucent disc with a bright rim: a ring round a point, and stretched, the plate behind a line of words, which keeps white words
+## readable against the sky); `labels` rows are [left point, text, width, alpha, font size] (only sizes the buttons use, 32 like FIRE and 22 like AIM: one glyph atlas each, already on screen).
+static func hud_cues(tc: TouchControls, s: float, sprites: Array, labels: Array) -> void:
+	if not cues_on or not is_instance_valid(current) or current.st == null or current.st.p == null or Game.state != &"play":
+		return
+	var me := current
+	var vp: Vector2 = tc.get_viewport().get_visible_rect().size
+	var mid: Vector2 = vp * 0.5
+	if not me.zip_mark.is_empty():
+		var cam := me.st.p.camera_rig.camera
+		var wp: Vector3 = me.zip_mark["pos"]
+		if cam != null and not cam.is_position_behind(wp):
+			var at := cam.unproject_position(wp)
+			if Rect2(Vector2.ZERO, vp).grow(-20.0 * s).has_point(at):
+				var good: bool = me.zip_mark["end"] != &"drop"
+				var col := Color(UiUtil.CYAN if good else UiUtil.AMBER, 0.95)
+				var r := 21.0 * s * (1.0 + 0.12 * sin(me._t * 6.0))
+				sprites.append(_ring(at, r, col))
+				sprites.append(_ring(at, 5.0 * s, col))
+				var up_m := float(me.zip_mark["top"]) - me.st.p.global_position.y
+				var txt := "WALL  NO LEDGE"
+				if good:
+					txt = ("ZIP  ROOF +%d M" % roundi(up_m)) if up_m > 6.0 else ("ZIP  %d M" % roundi(float(me.zip_mark["dist"])))
+				_line(sprites, labels, at + Vector2(0.0, 46.0 * s), txt, 22, s, col, 0.95)
+	if me.cue_t > 0.0:
+		var a := clampf(me.cue_t / 0.25, 0.0, 1.0)
+		var col2 := Color(UiUtil.MAGENTA, 0.95 * a)
+		sprites.append(_ring(mid, 27.0 * s, col2))
+		_line(sprites, labels, mid + Vector2(0.0, 66.0 * s), "NO ANCHOR IN REACH", 32, s, col2, a)
+		for b: Dictionary in TouchControls.BUTTONS:
+			if b["action"] == &"snake" and tc.button_visible(b):
+				sprites.append(_ring(tc._button_center(b), (float(b["r"]) * UiSettings.s_button_size + 9.0) * s, col2))
+	if me.energy_warn > 0:
+		var blink := 0.55 + 0.45 * sin(me._t * (9.0 if me.energy_warn == 1 else 18.0))
+		var col3 := Color(UiUtil.MAGENTA, 0.55 + 0.45 * blink)
+		_line(sprites, labels, Vector2(mid.x, vp.y * 0.29), "ENERGY LOW  LAND" if me.energy_warn == 1 else "WINGS FAIL IN %d" % maxi(1, ceili(me.energy_left_s)), 32, s, col3, 1.0)
+		for b: Dictionary in TouchControls.BUTTONS:
+			if b["action"] == &"fly" and tc.button_visible(b):
+				sprites.append(_ring(tc._button_center(b), (float(b["r"]) * UiSettings.s_button_size + 9.0) * s, col3))
+
+
+static func _ring(at: Vector2, r: float, col: Color) -> Array:
+	return [Rect2(at - Vector2(r, r), Vector2(r, r) * 2.0), col]
+
+
+## One line of words centred on `at` on its plate.
+static func _line(sprites: Array, labels: Array, at: Vector2, text: String, fs: int, s: float, rim: Color, alpha: float) -> void:
+	var w := (float(text.length()) * float(fs) * 0.66 + 44.0) * s
+	var h := float(fs) * 1.75 * s
+	sprites.append([Rect2(at - Vector2(w, h) * 0.5, Vector2(w, h)), Color(rim, rim.a * 0.9)])
+	labels.append([at + Vector2(-w * 0.5, float(fs) * 0.36 * s), text, w, alpha, fs])

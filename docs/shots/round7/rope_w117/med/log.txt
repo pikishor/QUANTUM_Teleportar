@@ -1,0 +1,53 @@
+Godot Engine v4.6.1.stable.official.14d19694e - https://godotengine.org
+Vulkan 1.4.318 - Forward Mobile - Using Device #0: Unknown - llvmpipe (LLVM 20.1.2, 256 bits)
+ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN
+   at: init_output_device (drivers/alsa/audio_driver_alsa.cpp:90)
+     at: initialize (servers/audio/audio_server.cpp:247)
+
+WARNING: FSR1 3D scaling is only available when using the Forward+ renderer.
+     at: viewport_set_scaling_3d_mode (servers/rendering/renderer_viewport.cpp:994)
+     GDScript backtrace (most recent call first):
+         [0] apply (res://scripts/common/render_res.gd:48)
+         [1] apply_quality (res://scripts/world/city_env.gd:116)
+         [2] set_quality (res://scripts/world/city.gd:308)
+         [3] _ready (res://scripts/world/city.gd:173)
+         [4] _ready (res://scripts/main.gd:33)
+W117 setup touch true controls true quality 1 old false
+W117 rope swing true
+W117 shot rope_1_fly_out mode swing pos (-30.0, 1.3, 4.0) label LET GO
+W117 shot rope_2_taut mode swing pos (-28.7, 3.9, 4.0) label LET GO
+W117 shot rope_3_hand_close mode swing pos (-28.4, 4.4, 4.0) label LET GO
+W117 shot rope_4_bite_close mode swing pos (-28.1, 4.8, 4.0) label LET GO
+W117 shot rope_5_swing mode swing pos (-25.7, 6.1, 4.0) label LET GO
+W117 rope braid 3 radius 0.07531097836464 pitch 1.33144213022655 tension 0.99857923828385 len 22.5682640075684 instances 3
+W117 shot rope_6_unwind_close mode none pos (-24.4, 5.7, 4.0) label SWING
+W117 shot rope_7_let_go mode none pos (-24.1, 5.5, 4.0) label SWING
+W117 shot zip_1_marker mode none pos (240.1, 0.0, -305.0) label ZIP
+W117 shot zip_2_pull mode zip pos (236.2, 2.2, -305.0) label ZIP
+W117 shot zip_3_1_haul mode zip pos (228.5, 4.6, -305.0) label ZIP
+W117 shot zip_3_2_haul mode zip pos (228.5, 11.2, -305.0) label ZIP
+W117 shot zip_3_3_haul mode zip pos (228.5, 20.4, -305.0) label ZIP
+W117 shot zip_3_4_haul mode zip pos (228.5, 27.3, -305.0) label ZIP
+W117 shot zip_3_5_haul mode zip pos (227.8, 28.5, -305.0) label ZIP
+W117 shot zip_3_6_land mode zip pos (226.7, 28.0, -305.0) label ZIP
+W117 shot zip_4_end mode none pos (226.1, 28.0, -305.0) label SNAKE
+W117 zip end mode none reason hauled floor true y 28.0008392333984
+W117 shot zip_5_marker_no_ledge mode none pos (240.1, 0.0, -305.0) label ZIP
+W117 shot cue_1_no_anchor mode none pos (1200.0, 0.5, -0.3) label NO ANCHOR
+W117 shot energy_1_low mode fly pos (99.1, 94.8, 4.0) label BOOST
+W117 shot energy_2_countdown mode fly pos (199.8, 163.7, 4.0) label BOOST
+W117 still taut state 1 len 11.391224861145 radius 0.08075992566637 pitch 1.43410172946288 open 0.03648603757513 instances 3
+W117 shot still_taut_1_bite mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_taut_1b_bite_from_below mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_taut_1c_bite_far mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_taut_2_middle mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_taut_3_whole mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_taut_4_unwinding mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 still slack state 1 len 11.391224861145 radius 0.11484020120333 pitch 2.30726329906206 open 0.03648603757513 instances 3
+W117 shot still_slack_1_bite mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_slack_1b_bite_from_below mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_slack_1c_bite_far mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_slack_2_middle mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_slack_3_whole mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 shot still_slack_4_unwinding mode none pos (-30.0, 0.0, 4.0) label ZIP
+W117 DONE

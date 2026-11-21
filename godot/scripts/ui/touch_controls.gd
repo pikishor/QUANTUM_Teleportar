@@ -994,6 +994,7 @@ func _draw_ui_body() -> void:
 		labels.append([centre + Vector2(-r, float(fs) * 0.36 * s), _label_of(b), r * 2.0, dim, fs])
 	for g: Array in glows:
 		c.draw_texture_rect(UiUtil.sprite(&"disc"), g[0], false, g[1])
+	SnakeFx.hud_cues(self, s, sprites, labels)                 # w117-rope: the ZIP anchor marker, NO ANCHOR, the flight energy warning (rows of the two lists drawn below: no draw call more)
 	for sp: Array in sprites:
 		c.draw_texture_rect(UiUtil.sprite(&"button"), sp[0], false, sp[1])
 	for a: Array in arcs:
