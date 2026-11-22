@@ -1,10 +1,10 @@
 # w118-ci-apk (running)
 
-agent id a059a094727534500, 13 events, first activity 2026-11-21T19:22:28.590Z, last activity 2026-11-21T19:22:28.790Z
+agent id a85383389677b48ac, 13 events, first activity 2026-11-22T06:13:25.150Z, last activity 2026-11-22T06:13:25.338Z
 
 ## Last notes of the agent
 
-- 19:22:28 You've hit your 5-hour limit · resets 10pm (UTC)
+- 06:13:25 You've hit your Fable limit · resets Nov 27, 4am (UTC). Switch to another model to continue.
 
 ## Recent steps (last 40)
 

@@ -1,10 +1,10 @@
 # w118-critic (running)
 
-agent id aff063ffaab05ed71, 120 events, first activity 2026-11-22T05:21:53.798Z, last activity 2026-11-22T06:03:33.972Z
+agent id aff063ffaab05ed71, 122 events, first activity 2026-11-22T05:21:53.798Z, last activity 2026-11-22T06:13:24.828Z
 
 ## Last notes of the agent
 
-- (none)
+- 06:13:24 You've hit your Fable limit · resets Nov 27, 4am (UTC). Switch to another model to continue.
 
 ## Recent steps (last 40)
 
