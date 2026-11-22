@@ -10,3 +10,4 @@ NEXT: triage FAILs vs HEAD copy; perf; visual_qa; touch tests; HANDOFF; commit; 
 - touch tests rerun: 11 PASS; world_hud 'no map label leaves the screen' failed 1 of 9 runs (diag text added to the check message, open). NEXT perf
 - perf: LOW 74 OK, MED 97 OK, HIGH 113 OK (2 runs, first output lost to tail). NEXT HANDOFF, commit, push
 - HANDOFF section written. NEXT commit+push
+- DONE: committed+pushed d4391ea
