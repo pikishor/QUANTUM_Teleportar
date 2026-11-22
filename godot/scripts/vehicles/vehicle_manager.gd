@@ -147,6 +147,8 @@ func reach_car(pos: Vector3) -> Vehicle:
 		var reach := VehicleSpecs.ENTER_REACH + minf(absf(c.speed) * VehicleSpecs.ENTER_MOVING, VehicleSpecs.ENTER_MOVING_MAX)
 		if edge <= reach or flat <= 4.2:
 			var score := minf(edge, flat - 2.0)
+			if ArmourSites.pick_on and (c.has_meta(&"called") or c.has_meta(&"fixed")):      # wave 118: the tank the hero called or walked to wins over a passing car in reach
+				score -= 3.0
 			if score < best_d:
 				best_d = score
 				best = c

@@ -35,6 +35,7 @@ const FIXED_AIRPORT: Array[StringName] = [&"ap_heli_a", &"ap_heli_b", &"ap_plane
 
 static var fixed_on := true           ## false: the wave 117 rules (cap, 100 m, released like traffic) for the old-behaviour trial of tests/test_armour_w118.gd
 static var icons_on := true           ## false: the wave 117 map (fogged GARAGE car glyphs)
+static var pick_on := true            ## false: ENTER takes the nearest vehicle in reach even when a called / fixed one stands beside it (wave 117)
 static var demo_on := true            ## false: the wave 117 SPAWN lists (no armour section)
 static var _call_ready := {}          ## kind -> Game clock (s, Time ticks) from which the call-in works again
 static var instance: ArmourSites

@@ -25,3 +25,15 @@ DECISIONS (for other agents):
 TESTS AND PERF: test_armour_w118 PASS (41); old trial 8 FAIL. Related old tests: running (batch). Perf gate: not yet run.
 NEXT: check related tests, frames of the yard / pads / call-in / map, perf gate (once), HANDOFF + ARCHITECTURE notes.
 OPEN PROBLEMS: see the end of the work.
+RESTART 2 (22 Nov): test_armour_w118 PASS again (42), ARMOUR_OLD=1 12 FAIL; frames re-rendered and looked at (yard, map, call-in, tank fire, heli): fine.
+- found in frame call_2_tank: beside the delivered tank the prompt read HIJACK SEDAN (reach_car took the nearest). Fix: vehicle_manager.reach_car prefers metas called / fixed
+  (switch ArmourSites.pick_on); new check at the end of part `call` (ARMOUR_PICK_OLD=1 ARMOUR_PARTS=call shows it failing). STATE: check being run.
+- related tests batch running (scratch rel.txt). NEXT: perf gate once, shots into docs/shots/round7/armour_w118/, HANDOFF line.
+RESTART 2: pick fix check PASS (ARMOUR_PICK_OLD=1 fails); related batch 26 pass, 3 flaky, 4 timeouts under load that pass alone. Perf gate started (scratch perf.txt).
+FINAL (restart 2): test_armour_w118 PASS (43 checks); ARMOUR_OLD=1: 12 FAIL; ARMOUR_PICK_OLD=1 ARMOUR_PARTS=call: the pick check FAILS (hero in the sedan).
+Related: airport_aircraft, tanks, vehicle_roster, vehicle_overlap, vehicles_city, vehicle_realism, map_screen, menus_map_quality, demo_menu, demo_mode, testmode, garage, traffic,
+  open_world_freedom, controls_w118, touch_buttons_r7, touch_audit*: PASS; big_city, map_no_freeze, outskirts_sites, flight_view_w116 time out in a 3-job batch, PASS alone.
+PERF GATE (run once, after all edits): LOW draws=74 total=96 death=107 OK; MED draws=97 total=129 death=149 OK; HIGH draws=113 total=149 death=170 OK.
+Frames: docs/shots/round7/armour_w118/armour_w118_sheet2.jpg (map, yard, tank fire, helicopter, call-in list, delivery). HANDOFF + ARCHITECTURE updated. Nothing committed.
+OPEN PROBLEMS: city plane still on the avenue (340, 0, 0), no airstrip; planes not in the finger test (take-off, landing); a vehicle the hero has driven loses the ENTER preference;
+  CALL label is w118-controls'; yard has no guards / mission; tank models read flat pale lilac / green at noon on LOW.

@@ -99,6 +99,7 @@ func run(h: Node) -> void:
 	ArmourSites.fixed_on = not old
 	ArmourSites.icons_on = not old
 	ArmourSites.demo_on = not old
+	ArmourSites.pick_on = not old and OS.get_environment("ARMOUR_PICK_OLD") != "1"      # ARMOUR_PICK_OLD=1 ARMOUR_PARTS=call: only the ENTER preference off
 	ArmourSites._markers.clear()
 	ArmourSites.reset_calls()
 	CallIn.enabled = not old
@@ -139,6 +140,7 @@ func run(h: Node) -> void:
 	ArmourSites.fixed_on = true
 	ArmourSites.icons_on = true
 	ArmourSites.demo_on = true
+	ArmourSites.pick_on = true
 	ArmourSites._markers.clear()
 	ArmourSites.reset_calls()
 	CallIn.enabled = true
@@ -468,7 +470,25 @@ func _call() -> void:
 		var reached := await _until(func() -> bool: return fg.button_label(&"interact") == "ENTER", 8.0)
 		fg.stick(Vector2.ZERO)
 		await _f(3)
+		# a car stands nearer than the called tank, both in reach: ENTER by a finger still takes the tank the hero asked for (frame call_2_tank read HIJACK SEDAN beside the delivery)
+		_fast(false)
+		fg.stick(Vector2(0.0, 1.0))                                        # a step back, so the car can stand nearer than the tank
+		await _until(func() -> bool: return tank.edge_distance(p.global_position) >= 1.15, 3.0)
+		fg.stick(Vector2.ZERO)
+		await _f(8)
+		var away := p.global_position - tank.global_position
+		away.y = 0.0
+		away = away.normalized()
+		vm._fixed_n += 1                                                   # room for one more over the tier's car cap (the scene setup, not the thing under test)
+		var sedan := vm.spawn_parked(&"sedan", p.global_position + away * 2.0, atan2(away.x, away.z) + PI * 0.5)
+		vm._count_fixed()
+		await _f(12)
+		var e_tank := tank.edge_distance(p.global_position)
+		var e_car := sedan.edge_distance(p.global_position) if sedan != null else -1.0
+		var both := sedan != null and e_tank <= VehicleSpecs.ENTER_REACH and e_car <= VehicleSpecs.ENTER_REACH and e_car < e_tank
+		var prompt := Freedom.vehicle_prompt()
 		await _tap(&"interact")
 		await _until(func() -> bool: return p.vehicle != null, 1.0)
+		TestLib.check(both and p.vehicle == tank and prompt.contains("TANK"), "[old fails] with a car nearer than the called tank, both in reach, the prompt names the tank and a finger on ENTER takes it (edge: tank %.1f m, car %.1f m, prompt %s, in %s)" % [e_tank, e_car, prompt, str(p.vehicle)])
 		TestLib.check(reached and p.vehicle != null and (p.vehicle as Vehicle).cls in [&"tank", &"heli"], "the hero walks to the delivery and gets in by ENTER (reached %s, %.1f m from the tank, button %s, in %s)" % [reached, _flat(p.global_position, tank.global_position), fg.button_label(&"interact"), str(p.vehicle)])
 		_fast(false)

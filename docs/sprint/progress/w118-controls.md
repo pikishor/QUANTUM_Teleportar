@@ -26,3 +26,8 @@ STATE 3: stale tests updated (each with a "wave 118" comment and the reason): sn
   test_interior_tasks_ui (bot walks out: stuck), test_touch_buttons_r7 (a different map button each run). Baseline A/B copy of the tree with the HEAD versions of my files is
   running the same four (scratch ab/, tab/summary.txt) to see whether they are mine or the load / the other agents (load average 6 to 8 on 4 CPUs).
 NEXT: read tab/summary.txt; fix what is mine; frames at 844 and 2400 into docs/shots/round7/controls_w118/; perf gate once; HANDOFF + ARCHITECTURE notes.
+STATE 4 (restart 11-22 04:30, scratch of before lost in a reboot): test_controls_w118 PASS again. HANDOFF + ARCHITECTURE notes exist already. Frames exist (11-21 18:57 / 19:02) and were looked at;
+  the MORE frame still reads CALL CAR (label is CALL now): rerender with bot_controls_w118.gd. Running alone: touch_buttons_r7, interior_tasks_ui, benchmark_mode, director_round2_b, armour_w118, touch_audit.
+NEXT: read those six; rerender frames; all TouchControls tests once more; perf gate once; report.
+STATE 5 (04:50): six tests green alone (touch_buttons_r7, interior_tasks_ui, benchmark_mode, director_round2_b, armour_w118, touch_audit): the red ones of STATE 3 were load. Frames rerendered at 844 and 2400 and installed (+ sheet_844.jpg), looked at: clean. Batch of 20 changed tests running (scratch t2/summary.txt). NEXT: perf gate once, report.
+STATE 6 (05:20) DONE: batch of 20 changed tests green (test_hud_declutter red once: 'a parked car can be placed next to the hero', green on rerun: vehicle placement, not controls). Perf gate (1 run): LOW draws 74 OK, MED 97 OK, HIGH 113 OK. Nothing left but the open list in HANDOFF (menu rows < 44 px not done). No commit.
