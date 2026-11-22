@@ -41,6 +41,7 @@ class Body extends RefCounted:
 	var rate := 1.0                             ## slither speed factor
 	var lift := 0.0                             ## the head rises (a striking snake)
 	var tension := 0.6
+	var pattern := 0                            ## wave 119: the skin of a snake species (SnakeBlasts.ROWS): 0 plain, 1 bands, 2 diamonds, 3 zigzag, 4 spots, 5 stripes, 6 spiral
 	var age := 0.0
 	var life := 4.0
 	var seed := 0.0
@@ -215,6 +216,7 @@ func spawn(shape: StringName, pos: Vector3, opts: Dictionary = {}) -> Body:
 	b.rate = float(opts.get("rate", b.rate))
 	b.lift = float(opts.get("lift", b.lift))
 	b.tension = float(opts.get("tension", b.tension))
+	b.pattern = int(opts.get("pattern", 0))
 	b.life = float(opts.get("life", b.life))
 	b.prio = int(opts.get("prio", b.prio))
 	b.speed = float(opts.get("speed", b.speed))
@@ -508,7 +510,7 @@ func _upload() -> void:
 				dmin = minf(dmin, cp.distance_squared_to(b.pts[i]))
 			near_k = clampf((sqrt(dmin) - NEAR_FROM) / (NEAR_TO - NEAR_FROM), NEAR_MIN, 1.0)
 		_mm.set_instance_color(r, Color(c.r, c.g, c.b, b.head * b.fade_k * lerpf(0.4, 1.0, near_k)))
-		_mm.set_instance_custom_data(r, Color(float(r), b.thick * (0.35 + 0.65 * b.fade_k) * near_k, clampf(b.tension, 0.0, 1.0), maxf(length * (0.4 + 0.6 * b.fade_k), 0.05)))
+		_mm.set_instance_custom_data(r, Color(float(r), b.thick * (0.35 + 0.65 * b.fade_k) * near_k, clampf(b.tension, 0.0, 1.0) + 2.0 * float(b.pattern), maxf(length * (0.4 + 0.6 * b.fade_k), 0.05)))
 	_img.set_data(TEX_W, ROWS, false, Image.FORMAT_RGBAF, _buf.to_byte_array())
 	_tex.update(_img)
 

@@ -11,7 +11,7 @@ extends RefCounted
 
 const PHONE := Vector2i(844, 390)
 const MAIN_PX := 56.0                     ## wave 118: the least width of a MAIN action disc of the play HUD as drawn (real px at 844x390); every other disc is at least MIN_PX as drawn
-const MAIN_IDS: Array[String] = ["fire", "aim", "jump", "snake", "snake_zip", "fly", "interact", "leave_building", "move_forward", "move_back"]
+const MAIN_IDS: Array[String] = ["fire", "aim", "jump", "snake", "snake_zip", "fly", "interact", "snake_blast", "leave_building", "move_forward", "move_back"]       # wave 119: a row with "chip" (edge chip) is a secondary target
 const MIN_PX := 44.0                      ## the least side of a touch target in real pixels at 844x390 (the platform guideline the task names)
 const HUD_FLAGS: Array[StringName] = [&"_gear_open", &"_hero_hub", &"_look_open", &"_loadout_open", &"_loadout_page", &"_loadout_quick", &"_skills_open", &"_ach_open", &"_shop_open",
 	&"_options_open", &"_arena_open", &"_craft_open", &"_safe_open", &"_heist_open", &"_side_open", &"_board_open", &"_chapters_open"]
@@ -416,7 +416,7 @@ func geometry(ctx: String, list: Array[Dictionary]) -> Array[String]:
 		if minf(w, hgt) < MIN_PX - 0.5:
 			bad.append("%s: %s '%s' is %.0f x %.0f px (under %d)" % [ctx, c["id"], c["label"], w, hgt, int(MIN_PX)])
 		if c["src"] == "touch" and c["kind"] == "disc":                       # wave 118: the DRAWN disc of the play HUD: 56 px for a main action, 44 px for the rest
-			var need := MAIN_PX if MAIN_IDS.has(String(c["id"])) else MIN_PX
+			var need := MAIN_PX if MAIN_IDS.has(String(c["id"])) and not bool((c.get("b", {}) as Dictionary).get("chip", false)) else MIN_PX
 			if px(float(c["r"]) * 2.0) < need - 0.5:
 				bad.append("%s: %s '%s' is drawn %.0f px across (under %d)" % [ctx, c["id"], c["label"], px(float(c["r"]) * 2.0), int(need)])
 		var rr: Rect2 = c["rect"]

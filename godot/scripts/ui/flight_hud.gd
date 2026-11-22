@@ -39,6 +39,33 @@ static func compass(heading: float) -> int:
 	return int(fposmod(roundf(-rad_to_deg(heading)), 360.0))
 
 
+static var shown_frame := -100        ## wave 119: the last frame the instruments were drawn (the radio plate keeps to two short lines while they show)
+static var flight_fix := true          ## w119-hud5: false = the old layout (the horizon at 0.47 of the height whatever stands above it)
+
+
+## True while the instruments are on screen (drawn within the last few frames).
+static func showing() -> bool:
+	return Engine.get_process_frames() - shown_frame < 4
+
+
+## The centre of the horizon disc: under the radio plate when a line shows (w119-hud5: the ORACLE card ran into the altimeter at 2400x1080), never lower than the speed plate allows.
+static func ball_centre(vp: Vector2, s: float, ins: Vector2) -> Vector2:
+	var r := 74.0 * s
+	var y := vp.y * 0.47
+	if flight_fix and is_instance_valid(Game.story) and Game.story.get(&"view") != null:
+		var sub: Rect2 = (Game.story.get(&"view") as Object).call(&"subtitle_rect", vp)
+		if sub.has_area():
+			y = minf(maxf(y, sub.end.y + 8.0 * s + r + 4.0 * s), vp.y * 0.69 - r - 36.0 * s)
+	return Vector2(ins.x + 26.0 * s + r + 4.0 * s, y)
+
+
+## The rect the horizon, its heading line and the altitude labels take (for layout tests).
+static func instruments_rect(vp: Vector2, s: float, ins: Vector2) -> Rect2:
+	var r := 74.0 * s
+	var c := ball_centre(vp, s, ins)
+	return Rect2(c.x - r - 4.0 * s, c.y - r - 4.0 * s, r * 2.0 + 14.0 * s + 150.0 * s, r * 2.0 + 44.0 * s)
+
+
 static func visible_for(veh: Object) -> bool:
 	return veh is Vehicle and (veh as Vehicle).craft != null and ((veh as Vehicle).cls == &"heli" or (veh as Vehicle).cls == &"plane")
 
@@ -49,7 +76,8 @@ static func draw(c: Control, font: Font, vp: Vector2, s: float, ins: Vector2, ve
 	var v := veh as Vehicle
 	var d := AircraftFlight.info(v)
 	var r := 74.0 * s
-	var centre := Vector2(ins.x + 26.0 * s + r + 4.0 * s, vp.y * 0.47)
+	shown_frame = Engine.get_process_frames()
+	var centre := ball_centre(vp, s, ins)
 	_horizon(c, centre, r, float(d["pitch"]), float(d["roll"]), s)
 	# heading under the horizon, altitude and vertical speed beside it
 	_label(c, font, Vector2(centre.x - 50.0 * s, centre.y + r + 8.0 * s), Vector2(100.0 * s, 28.0 * s), "HDG %03d" % compass(float(d["heading"])), CYAN, s)

@@ -86,7 +86,8 @@ func _default_frame() -> void:
 	tc.more_open = false
 	var ids := hud.visible_controls()
 	TestLib.check(ids.size() <= MAX_CONTROLS, "a default play frame shows at most %d controls (%d: %s)" % [MAX_CONTROLS, ids.size(), str(ids)])
-	for need: StringName in [&"stick", &"fire", &"aim", &"jump", &"reload", &"ability", &"swap", &"more", &"snake", &"snake_zip", &"fly", &"crouch", &"pause", &"minimap", &"status", &"objective"]:
+	for need: StringName in [&"stick", &"fire", &"snake_blast", &"jump", &"reload",       # wave 119: BLAST (the context slot) instead of AIM (auto-aim on the street)
+		 &"ability", &"swap", &"more", &"snake", &"snake_zip", &"fly", &"crouch", &"pause", &"minimap", &"status", &"objective"]:
 		TestLib.check(ids.has(need), "the default frame has %s" % need)
 	for gone: StringName in [&"altfire", &"melee", &"throw_item", &"gadget", &"interact", &"grab", &"takedown", &"garage_call", &"fps", &"toast", &"subtitle", &"wanted", &"ammo"]:
 		TestLib.check(not ids.has(gone), "the default frame has no %s" % gone)

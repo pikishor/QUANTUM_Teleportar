@@ -98,14 +98,15 @@ func _ready() -> void:
 	_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_face.draw.connect(_draw_face)
 	_box.add_child(_face)
-	var save := _button("Save", Vector2(24.0, 330.0), Vector2(372.0, 72.0), "SAVE THIS CAR", &"plus", UiUtil.CYAN)
+	var save := _button("Save", Vector2(24.0, 250.0 if big_swatches else 330.0), Vector2(372.0, 82.0 if big_swatches else 72.0), "SAVE THIS CAR", &"plus", UiUtil.CYAN)
 	save.pressed.connect(_on_save)
 	for i in VehicleSpecs.COLORS.size():                          # twelve swatches (round 6): four a row, three rows
 		var b := Button.new()
 		b.name = "Paint%d" % i
-		b.position = Vector2(24.0 + float(i % 4) * 94.0, 406.0 + float(i / 4) * 66.0)
-		b.size = Vector2(88.0, 64.0)
-		b.custom_minimum_size = Vector2(88.0, 64.0)
+		var sh := 82.0 if big_swatches else 64.0                 # w119-hud5: 82 (44 px at the 0.54 scale of an 844 x 390 phone; 64 was 35 px, under the 44 px finger target)
+		b.position = Vector2(24.0 + float(i % 4) * 94.0, (338.0 + float(i / 4) * 86.0) if big_swatches else (406.0 + float(i / 4) * 66.0))
+		b.size = Vector2(88.0, sh)
+		b.custom_minimum_size = Vector2(88.0, sh)
 		b.flat = true
 		b.focus_mode = Control.FOCUS_NONE
 		_box.add_child(b)
@@ -121,7 +122,7 @@ func _ready() -> void:
 		ub.pressed.connect(_on_upgrade.bind(st))
 		_up_btns[st] = ub
 		y += 94.0
-	var close := _button("Close", Vector2(424.0, 482.0), Vector2(392.0, 72.0), "CLOSE", &"back", UiUtil.AMBER)
+	var close := _button("Close", Vector2(424.0, 482.0), Vector2(392.0, 82.0 if big_swatches else 72.0), "CLOSE", &"back", UiUtil.AMBER)
 	close.pressed.connect(close_screen)
 
 
@@ -151,7 +152,7 @@ func _draw_face() -> void:
 	_face.draw_circle(Vector2(W - 170.0, 40.0), 12.0, Color(UiUtil.AMBER, 0.95))
 	_face.draw_string(f, Vector2(W - 150.0, 50.0), _credits_text, HORIZONTAL_ALIGNMENT_LEFT, 130.0, 28, Color(UiUtil.AMBER, 1.0))
 	# the kept car: its picture on a plate, its name under it
-	var pic := Rect2(24.0, 88.0, 372.0, 190.0)
+	var pic := Rect2(24.0, 84.0, 372.0, 128.0 if big_swatches else 190.0)
 	_face.draw_rect(pic, Color(0.0, 0.0, 0.0, 0.3))
 	_face.draw_rect(pic, Color(UiUtil.CYAN, 0.35), false, 1.5)
 	var g := _garage()
@@ -161,12 +162,15 @@ func _draw_face() -> void:
 			ItemIcons.draw_tex(_face, tex, pic.grow(-6.0))
 	else:
 		_face.draw_string(f, Vector2(pic.position.x, pic.position.y + pic.size.y * 0.5), "EMPTY", HORIZONTAL_ALIGNMENT_CENTER, pic.size.x, 34, Color(1, 1, 1, 0.4))
-	_face.draw_string(f, Vector2(24.0, 308.0), _info_text, HORIZONTAL_ALIGNMENT_LEFT, 372.0, 22, Color(UiUtil.CYAN, 0.97))
+	_face.draw_string(f, Vector2(24.0, 238.0 if big_swatches else 308.0), _info_text, HORIZONTAL_ALIGNMENT_LEFT, 372.0, 22, Color(UiUtil.CYAN, 0.97))
 	_face.draw_string(f, Vector2(424.0, 82.0), "UPGRADES", HORIZONTAL_ALIGNMENT_LEFT, 300.0, 22, Color(UiUtil.AMBER, 0.97))
 	_face.draw_string(f, Vector2(24.0, 568.0), "PAINT", HORIZONTAL_ALIGNMENT_LEFT, 200.0, 15, Color(1, 1, 1, 0.0))
 
 
 ## The 840 x 600 panel shrinks to fit a small screen (844 x 390 phone): scale about its centre, never above 1. Returns the scale used.
+static var big_swatches := true          ## w119-hud5: false = the wave 118 layout (paint swatches 40 px tall on a phone)
+
+
 func fit(vp: Vector2) -> float:
 	var k := clampf(minf((vp.x - 24.0) / W, (vp.y - 16.0) / H), 0.3, 1.0)
 	_box.pivot_offset = Vector2(W * 0.5, H * 0.5)

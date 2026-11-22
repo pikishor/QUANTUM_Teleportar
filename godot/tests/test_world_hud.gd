@@ -488,6 +488,7 @@ func _minimap_live() -> void:
 
 
 func _map_live() -> void:
+	MapScreen.label_fix = OS.get_environment("HUD5_OLD") != "1"          # HUD5_OLD=1: the wave 118 map labels (the overlap checks fail)
 	Game.state = &"play"
 	hud.touch.open_map()
 	await frames(4)
@@ -540,7 +541,7 @@ func _map_live() -> void:
 	var names := []
 	for e: Dictionary in ms.scan_log:
 		names.append(String(e["text"]))
-	TestLib.check(names.has("HARBOUR") and names.has(Airport.NAME), "the world map names the airport and the harbour (%d labels)" % names.size())
+	TestLib.check(names.has("HARBOUR") and names.has(Airport.NAME), "the world map names the airport and the harbour (%d labels: %s)" % [names.size(), str(names)])
 	var regions := 0
 	for e in TerrainMap.LABELS:
 		if names.has(String(e[0])) and e[0] != "CITY":
@@ -554,9 +555,29 @@ func _map_live() -> void:
 			all_in = false
 			out_txt += " %s %s" % [str(e.get("text", "")), str(r)]
 	TestLib.check(all_in, "no map label leaves the screen%s" % out_txt)
+	TestLib.check(_label_clash(ms) == "", "world view: no two map labels overlap%s" % _label_clash(ms))
+	# w119-hud5 (wave 118 open item: HELICOPTER was written over GLASS TOWERS): the city view at every zoom
+	ms.set_world_mode(false)
+	for z in [1, 2, 3, 4]:
+		ms.set_zoom(z)
+		ms._map.queue_redraw()
+		await frames(3)
+		TestLib.check(ms.scan_log.size() > 3 and _label_clash(ms) == "", "city view at %dx: no two map labels overlap (%d labels)%s" % [z, ms.scan_log.size(), _label_clash(ms)])
+	ms.set_zoom(1)
 	ms.scan_on = false
 	TestLib.check(TerrainMap.BIOME_KEY.size() >= 6, "the colour key lists the biomes")
 	ms.close_screen()
 	await frames(3)
 	TestLib.check(not ms.is_open() and Game.state == &"play", "the map closes and the game resumes")
 	ms.clear_waypoint()
+
+
+## The first pair of map labels (MapScreen.scan_log of the last frame) that overlap by more than 2 px each way, "" when none does.
+func _label_clash(ms: MapScreen) -> String:
+	var log: Array = ms.scan_log
+	for i in log.size():
+		for j in range(i + 1, log.size()):
+			var x := (log[i]["rect"] as Rect2).intersection(log[j]["rect"] as Rect2)
+			if x.size.x > 2.0 and x.size.y > 2.0:
+				return " (%s over %s)" % [log[j]["text"], log[i]["text"]]
+	return ""

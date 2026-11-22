@@ -10,7 +10,7 @@ const MOMENTS := {
 	&"sv_lash": [0.1, 0.45, 0.9, 1.4], &"sv_shield": [0.3, 1.0, 2.4, 4.0], &"sv_decoy": [0.3, 0.9, 2.0, 4.0], &"sv_trap": [0.3, 0.9, 1.6, 2.4], &"sv_guard": [0.4, 1.4, 2.6, 4.0],
 	&"sb_coil": [0.4, 0, 0, 0], &"sb_swarm": [0.4, 0, 0, 0], &"sb_flare": [0.4, 0, 0, 0], &"sb_freeze": [0.4, 0, 0, 0], &"sb_seeker": [0.15, 0.3, 0.45, 0.75],
 	&"sb_chain": [0.4, 0, 0, 0], &"sb_cluster": [0.4, 0, 0, 0], &"sb_constrict": [0.4, 0, 0, 0], &"sb_burrow": [0.4, 0.9, 1.4, 2.0], &"sb_gravity": [0.4, 0, 0, 0],
-	&"sb_storm": [0.4, 0, 0, 0], &"sb_mega": [0.4, 0, 0, 0],
+	&"sb_storm": [0.4, 0, 0, 0], &"sb_mega": [0.4, 0, 0, 0], &"sp_lineup": [1.6],
 }
 
 const DET_IDS: Array[StringName] = [&"sb_coil", &"sb_swarm", &"sb_flare", &"sb_freeze", &"sb_chain", &"sb_cluster", &"sb_constrict", &"sb_gravity", &"sb_storm", &"sb_mega"]
@@ -176,7 +176,7 @@ func _stage() -> void:
 	_lash_n = 0
 	_released = false
 	_det_t = -1.0
-	_by0 = int(_war.bombs.by_id.get(id, 0))
+	_by0 = int(SnakeBlasts.instance.by_id.get(id, 0)) if String(id).begins_with("sp_") else int(_war.bombs.by_id.get(id, 0))
 
 
 func _aim(id: StringName) -> void:
@@ -184,13 +184,35 @@ func _aim(id: StringName) -> void:
 		if _car != null and is_instance_valid(_car):
 			_p.camera_rig.aim_at(_car.global_position + Vector3(0.0, 0.7, 0.0))
 		return
-	if String(id).begins_with("sb_") and id != &"sb_seeker":
+	if id == &"sp_lineup":
+		_p.camera_rig.aim_at(_spot + _dir() * 5.5 + Vector3(0.0, 0.9, 0.0))
+		return
+	if (String(id).begins_with("sb_") or String(id).begins_with("sp_")) and id != &"sb_seeker":
 		_p.camera_rig.aim_at(_spot + _dir() * (_dist * 0.95) + Vector3(0.0, 0.1, 0.0))            # a bomb lands where the crosshair meets the street: right between the troopers
 	else:
 		_p.camera_rig.aim_at(_spot + _dir() * (_dist * 0.8) + Vector3(0.0, 1.3, 0.0))
 
 
 func _fire(id: StringName) -> void:
+	if id == &"sp_lineup":                                            # wave 119: the six species side by side 4 m ahead (their skins: bands, diamonds, zigzag, spots, stripes, spiral)
+		for k in SnakeBlasts.SPECIES.size():
+			var sid: StringName = SnakeBlasts.SPECIES[k]
+			var r := SnakeBlasts.row(sid)
+			var at := _spot + _dir() * 5.5 + _right() * (float(k) - 2.5) * 1.5 + Vector3(0.0, 0.25, 0.0)
+			_war.swarm.spawn(&"crawl", at, {"color": r["color"], "thick": float(r["thick"]), "len": r["len"], "head": r["head"], "pattern": int(r["pattern"]), "life": 30.0, "prio": 3, "amp": 0.12,
+				"heading": Vector3.UP.lerp(-_dir(), 0.35).normalized(), "lift": 0.0, "tick": func(b: SnakeSwarm.Body, _dt: float) -> bool:
+					var ang := b.age * 2.4 + float(k)
+					var np := at + Vector3(cos(ang) * 0.45, 0.9 + 0.5 * sin(b.age * 3.0 + float(k)), sin(ang) * 0.45)       # a slow loop: the body trails behind the head
+					b.heading = (np - b.pos).normalized() if np.distance_to(b.pos) > 0.001 else b.heading
+					b.pos = np
+					return true})
+		_p.camera_rig.aim_at(_spot + _dir() * 5.5 + Vector3(0.0, 0.9, 0.0))
+		return
+	if String(id).begins_with("sp_"):                              # wave 119 (w119-blasts): a snake species of the BLAST button: the thumb holds BLAST (the ring), frame 0, then lets go
+		SnakeBlasts.instance.species = id
+		SnakeBlasts.instance.charges = SnakeBlasts.CHARGES
+		Input.action_press(&"snake_blast")
+		return
 	if OS.get_environment("SW_ARM") != "0":
 		_war.arm(id)
 	if id == &"sv_grab":
@@ -249,8 +271,11 @@ func step(_t_unused: float, delta: float) -> bool:
 			f.set(&"_hit_k", 0.0)
 			if f.humanoid_body != null:
 				f.humanoid_body.set_instance_shader_parameter(&"hit_k", 0.0)
-	var det_rel := DET_IDS.has(id)                                             # a bomb: the first frame is the throw, the others are counted from the moment it goes off
-	if det_rel and _det_t < 0.0 and int(_war.bombs.by_id.get(id, 0)) > _by0:
+	var det_rel := DET_IDS.has(id) or (String(id).begins_with("sp_") and id != &"sp_lineup")
+	if String(id).begins_with("sp_") and _shots >= 1 and Input.is_action_pressed(&"snake_blast"):
+		Input.action_release(&"snake_blast")                                             # a bomb: the first frame is the throw, the others are counted from the moment it goes off
+	var det_n := int(SnakeBlasts.instance.by_id.get(id, 0)) if String(id).begins_with("sp_") else int(_war.bombs.by_id.get(id, 0))
+	if det_rel and _det_t < 0.0 and det_n > _by0:
 		_det_t = _t
 	if _shots < moments.size():
 		var due := maxf(float(moments[_shots]), delta * 2.0 + 0.01)

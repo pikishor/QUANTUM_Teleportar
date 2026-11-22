@@ -296,7 +296,7 @@ func _hud_in_car() -> void:
 	tc.controls_on = true
 	tc.more_open = false
 	var foot := _visible_buttons(tc)
-	TestLib.check(foot.has("aim") and foot.has("reload") and foot.has("fire"), "on foot the frame is unchanged (%d buttons)" % foot.size())
+	TestLib.check(foot.has("jump") and foot.has("reload") and foot.has("fire"), "on foot the frame is unchanged (%d buttons)" % foot.size())       # wave 119: no AIM button on the street (auto-aim)
 	var v := _car(&"sedan", -560.0, AVE_Z, -PI * 0.5, false)
 	p.teleport_to(v.global_position + Vector3(0.0, 0.0, -3.0))
 	await TestLib.frames(host, 4)

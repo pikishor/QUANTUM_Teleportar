@@ -54,6 +54,8 @@ static func spawn_vehicle(kind: StringName) -> String:
 				vm._release(old)
 				break
 	var v := vm.spawn_parked(kind, _front(8.0), p.yaw if p != null else 0.0)
+	if v != null:
+		v.set_meta(&"spawned", true)                    # w119-hud5: ENTER prefers it over traffic in reach (VehicleManager.reach_car)
 	return "SPAWNED  %s" % String(kind).to_upper() if v != null else ""
 
 

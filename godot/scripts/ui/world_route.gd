@@ -62,13 +62,26 @@ static func dist_text(metres: float) -> String:
 
 
 ## The cached route: rebuilt when the mode, the goal or the start (within 24 m) changed.
+static var route_fix := true            ## w119-hud5: false = the wave 118 route (a cached start point, back to the road on foot next to the goal)
+
+
 static func route(a: Vector3, b: Vector3, mode: StringName) -> PackedVector3Array:
 	var key := "%s|%d,%d|%d,%d" % [mode, roundi(a.x / 24.0), roundi(a.z / 24.0), roundi(b.x / 6.0), roundi(b.z / 6.0)]
-	if key == _cache_key and not _cache.is_empty():
+	if not (key == _cache_key and not _cache.is_empty()):
+		_cache = build(a, b, mode)
+		_cache_key = key
+	if not route_fix:
 		return _cache
-	_cache = build(a, b, mode)
-	_cache_key = key
-	return _cache
+	var out := _cache.duplicate()
+	if out.size() >= 2:
+		out[0] = Vector3(a.x, 0.0, a.z)                           # w119-hud5: a cached route (24 m cells) began where the hero WAS: the GPS line and a walker went back there
+	if mode != &"drive" and mode != &"car" and out.size() >= 3:
+		var last := out[out.size() - 2]
+		var goal := out[out.size() - 1]
+		var fa := Vector3(a.x, 0.0, a.z)
+		if fa.distance_to(goal) < last.distance_to(goal) and fa.distance_to(goal) < 60.0:
+			out = PackedVector3Array([fa, goal])                  # on foot, already nearer the goal than the last road point: straight on (the route sent him back to the road, 25 to 53 m short of the yard)
+	return out
 
 
 static func clear_cache() -> void:
