@@ -41,6 +41,15 @@ func _tp(pos: Vector3, yaw: float, pitch := 0.05) -> void:
 	await _f(30)
 
 
+## w119 CI: the outdoor context slot turns from SNAKE BLAST to ENTER only after a vehicle has stayed in reach TouchControls.SLOT_SETTLE seconds (w119 critic); a finger
+## goes on ENTER once it is drawn, as a player's would (20 frames at 140 fps were less than that, and the press found no ENTER button). At most 3 s.
+func _wait_enter() -> void:
+	for i in 180:
+		if fg.button_label(&"interact") == "ENTER":
+			return
+		await _f(1)
+
+
 func _switch(on: bool) -> void:
 	MapScreen.foot_fix = on
 	SnakeFx.tag_dodge = on
@@ -149,6 +158,7 @@ func _air() -> void:
 		return
 	p.teleport_to(heli.global_position + Vector3(0.0, 0.2, 4.5))
 	await _f(20)
+	await _wait_enter()
 	fg.press(6, &"interact")
 	await _f(4)
 	fg.up(6)
@@ -226,8 +236,10 @@ func _dial() -> void:
 	if tank == null:
 		TestLib.check(false, "a tank to drive")
 		return
+	tank.set_meta(&"spawned", true)                                   # w119 CI: as the demo SPAWN list marks it, so ENTER prefers it over a police car tailing the hero (VehicleManager.reach_car)
 	p.teleport_to(tank.global_position + Vector3(0.0, 0.2, 5.0))
 	await _f(20)
+	await _wait_enter()
 	fg.press(6, &"interact")
 	await _f(4)
 	fg.up(6)

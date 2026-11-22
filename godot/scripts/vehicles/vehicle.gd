@@ -44,6 +44,7 @@ var _pass_shift := 0.0              ## m a siren car has moved towards the middl
 var _yield_room := true             ## the kerb side is free: the car may pull over for a siren
 var resume_t := -1.0                ## s until a bumped traffic car (it lost its lane in a minor crash) tries to rejoin the traffic; < 0 = it stays where it is
 var resume_tries := 0
+var lost_lane := false              ## a traffic car that lost its lane in a crash (lane_lost) and stands where the crash left it: not a kerb car (w119 CI: test_vehicles_city counted a crashed ambulance as an off-bay parked car)
 var lane_ovl := 0.0                 ## s this lane car has overlapped another one (the manager separates them and removes the car when it never clears)
 var horns := 0                      ## times this car hooted at a crash (tests)
 var vel := Vector3.ZERO             ## world velocity (y = 0)
@@ -216,6 +217,7 @@ func activate(pos: Vector3, h: float) -> void:
 	speed = 0.0
 	vel = Vector3.ZERO
 	ai = false
+	lost_lane = false
 	scripted = false
 	path_road = -1
 	ai_speed = 0.0
@@ -387,6 +389,7 @@ func deactivate() -> void:
 ## Make this car a traffic car in the lane `line` of a road along `axis` travelling in `dir`.
 func set_traffic(axis: int, dir: int, line: float, cruise: float) -> void:
 	ai = true
+	lost_lane = false
 	ai_axis = axis
 	ai_dir = dir
 	ai_line = line
@@ -1467,6 +1470,7 @@ func lane_lost(closing: float) -> bool:
 	if not ai:
 		return false
 	ai = false
+	lost_lane = true
 	resume_t = (1.6 + randf() * 1.6) if closing < 15.0 else -1.0
 	resume_tries = 0
 	return true
