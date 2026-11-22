@@ -29,6 +29,20 @@ func _slot() -> String:
 	return "-"
 
 
+## What the crosshair ray (SnakeAim.point's ray) hits within `reach`: "nothing" or the collider and the point (w119 CI diagnostics).
+func _ray_hit(pl: Player, reach: float) -> String:
+	var r := SnakeAim.ray(pl)
+	var o: Vector3 = r[0]
+	var d: Vector3 = r[1]
+	var start := o + d * maxf(0.0, (pl.camera_rig.get_pivot_position() - o).dot(d))
+	var q := PhysicsRayQueryParameters3D.create(start, start + d * reach, Game.L_WORLD | Game.L_VEHICLE | Game.L_ENEMY, [pl.get_rid()])
+	var res := pl.get_world_3d().direct_space_state.intersect_ray(q)
+	if res.is_empty():
+		return "nothing"
+	var c: Object = res["collider"]
+	return "%s at %s" % [str(c.get_path()) if c is Node else str(c), str((res["position"] as Vector3).snapped(Vector3(0.1, 0.1, 0.1)))]
+
+
 func _street() -> void:
 	a.release_all_fingers()
 	(Game.enemies as EnemyManager).clear()
@@ -206,9 +220,12 @@ func _bomb_sky() -> void:
 		a.tc.wheel.close()
 	if not _ck(picked != "" and war.armed != &"", "a bomb is armed from the BOMBS wedge by finger (%s)" % picked):
 		return
+	(Game.enemies as EnemyManager).clear()                     # w119 CI: the premise is "nothing within reach under the crosshair": no foe (a snake hunter the casts called) or car stands in the ray
+	(Game.vehicles as VehicleManager)._reset_all()
 	p.yaw = YAW + PI
 	p.camera_rig.reset_view(YAW + PI, 0.1)                    # the crosshair a little over the street's far end: open sky over the road
 	await a.pframes(6)
+	var hit_by := _ray_hit(p, 30.0)
 	var ops := BlastOps.shared(p.get_tree())
 	var hits: Array = []
 	var cb := func(_id: StringName, at: Vector3) -> void: hits.append(at)
@@ -223,7 +240,7 @@ func _bomb_sky() -> void:
 				aims.append(it["aim"])
 	a.finger_up()
 	await a.until(func() -> bool: return not hits.is_empty(), 200)
-	_ck(not aims.is_empty() and (aims[0] as Vector3).y - p.global_position.y < 1.0, "the bomb is aimed at the street under the crosshair, not at a point in the air (%s, %d items before)" % [str(aims), n0])
+	_ck(not aims.is_empty() and (aims[0] as Vector3).y - p.global_position.y < 1.0, "the bomb is aimed at the street under the crosshair, not at a point in the air (%s, %d items before, crosshair ray before the throw: %s, hero %s)" % [str(aims), n0, hit_by, str(p.global_position.snapped(Vector3(0.1, 0.1, 0.1)))])
 	ops.detonated.disconnect(cb)
 	var ground := p.global_position                          # a flat street: the hero stands on it
 	print("CRITIC bomb hits ", hits, " pitch ", p.camera_rig.pitch)
