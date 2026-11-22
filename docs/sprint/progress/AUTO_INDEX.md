@@ -22,5 +22,5 @@ Written by godot/tools/sprint_digest.py at 2026-11-22 21:13Z. Status 'running' m
 
 ## workflow run wf_a2517ae4-991
 
-- w119-ci-apk [CI and APK] running: 23 events, 21:13:18 -> 21:13:26
+- w119-ci-apk [CI and APK] done: 27 events, 21:13:18 -> 21:13:32
 
