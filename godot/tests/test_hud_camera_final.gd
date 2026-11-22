@@ -166,8 +166,13 @@ func _combat_frame(size: Vector2i) -> void:
 	# the contextual USE / ENTER: shown next to a car, clear of every other button
 	tc._use_near = true
 	tc._use_t = 5.0
-	await frames(3)
-	var with_use := hud.visible_controls()
+	# w119-critic: ENTER takes the context slot only after a car stayed in reach TouchControls.SLOT_SETTLE (0.25 s), so wait that long (up to 1.5 s) instead of 3 frames
+	var with_use: Array = hud.visible_controls()
+	for _i in 90:
+		if with_use.has(&"interact"):
+			break
+		await frames(1)
+		with_use = hud.visible_controls()
 	TestLib.check(with_use.has(&"interact"), "%s: ENTER shows when a car is in reach" % tag)
 	tc._use_near = false
 	tc._use_t = 0.0

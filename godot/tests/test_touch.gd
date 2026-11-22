@@ -113,7 +113,11 @@ func run(host: Node) -> void:
 	var car := Node3D.new()
 	host.add_child(car)
 	vehicles.near = car
-	await TestLib.frames(host, 14)
+	# w119-critic: the context slot turns to ENTER only after a car stayed in reach TouchControls.SLOT_SETTLE (0.25 s); 14 frames were just under that, so wait up to 1.5 s
+	for _i in 90:
+		await TestLib.frames(host, 1)
+		if tc.button_visible(use):
+			break
 	TestLib.check(tc.button_visible(use), "USE appears with a vehicle in reach")
 	tc.touch_down(9, tc.call("_button_center", use))
 	TestLib.check(Input.is_action_pressed(&"interact"), "USE presses interact")

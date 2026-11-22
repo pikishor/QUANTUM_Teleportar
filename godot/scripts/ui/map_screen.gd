@@ -1747,6 +1747,8 @@ func _draw_armour_pins(s: float) -> void:
 	if not bool(filters.get(&"armour", true)):
 		return
 	var open := Rect2(_legend_rect.end.x, 0.0, _right_rect.position.x - _legend_rect.end.x, _map.size.y)
+	if open.size.x <= 64.0 * s or open.size.y <= 64.0 * s:
+		return      # w119-integrator: no open map strip between the legend and the side panel (a tiny window): growing it inwards made a negative Rect2 (112 engine errors in the monkey run)
 	var inner := open.grow(-44.0 * s)
 	var c := open.get_center()
 	var col: Color = KIND_COLOR[&"armour"]
