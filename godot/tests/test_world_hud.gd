@@ -547,11 +547,13 @@ func _map_live() -> void:
 			regions += 1
 	TestLib.check(regions >= 3, "and prints biome names (%d of %d)" % [regions, TerrainMap.LABELS.size() - 1])
 	var all_in := true
+	var out_txt := ""
 	for e: Dictionary in ms.scan_log:
 		var r: Rect2 = e["rect"]
 		if r.end.x > ms._map.size.x + 2.0 or r.end.y > ms._map.size.y + 2.0 or r.position.x < -2.0 or r.position.y < -8.0:
 			all_in = false
-	TestLib.check(all_in, "no map label leaves the screen")
+			out_txt += " %s %s" % [str(e.get("text", "")), str(r)]
+	TestLib.check(all_in, "no map label leaves the screen%s" % out_txt)
 	ms.scan_on = false
 	TestLib.check(TerrainMap.BIOME_KEY.size() >= 6, "the colour key lists the biomes")
 	ms.close_screen()

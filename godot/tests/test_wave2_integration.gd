@@ -152,7 +152,9 @@ func run(h: Node) -> void:
 			Game.set_quality(vq)
 			await frames(2)
 			var vcap: int = [3, 5, 8][vq]
-			TestLib.check(vm.cap() == vcap and vm.list.size() <= vcap, "tier %d: at most %d live cars (%d)" % [vq, vcap, vm.list.size()])
+			# wave 118: the vehicles waiting on the fixed places (ArmourSites: tanks, helicopters) stand outside the tier cap by design (VehicleManager.cap()); the tier cap still holds for every other car
+			var nfix: int = vm._fixed_n
+			TestLib.check(vm.cap() == vcap + nfix and vm.list.size() - nfix <= vcap and nfix <= 3, "tier %d: at most %d live cars besides %d fixed-place vehicles (%d)" % [vq, vcap, nfix, vm.list.size()])
 	# heat flow
 	Game.heat = 3.0
 	await frames(2)
