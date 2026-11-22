@@ -65,7 +65,7 @@ func run(host: Node) -> void:
 	TestLib.check(rig.looked != before, "dragging from FIRE turns the view as well")
 	tc.touch_up(2)
 	TestLib.check(not Input.is_action_pressed(&"fire"), "lifting the finger releases fire")
-	for a: StringName in [&"aim", &"jump", &"reload"]:
+	for a: StringName in [&"jump", &"reload"]:          # wave 119: no AIM button on the street (auto-aim: tests/test_controls_w118.gd)
 		tc.touch_down(3, tc.call("_button_center", _button(tc, a)))
 		TestLib.check(Input.is_action_pressed(a), "%s button presses its action" % a)
 		tc.touch_up(3)
@@ -113,7 +113,11 @@ func run(host: Node) -> void:
 	var car := Node3D.new()
 	host.add_child(car)
 	vehicles.near = car
-	await TestLib.frames(host, 14)
+	# w119-critic: the context slot turns to ENTER only after a car stayed in reach TouchControls.SLOT_SETTLE (0.25 s); 14 frames were just under that, so wait up to 1.5 s
+	for _i in 90:
+		await TestLib.frames(host, 1)
+		if tc.button_visible(use):
+			break
 	TestLib.check(tc.button_visible(use), "USE appears with a vehicle in reach")
 	tc.touch_down(9, tc.call("_button_center", use))
 	TestLib.check(Input.is_action_pressed(&"interact"), "USE presses interact")
@@ -159,6 +163,9 @@ func run(host: Node) -> void:
 
 
 func _button(tc: TouchControls, action: StringName) -> Dictionary:
+	for b: Dictionary in TouchControls.BUTTONS:
+		if b["action"] == action and tc.button_visible(b):       # wave 119: the row on screen (AIM / ZIP / RELOAD rows differ per mode)
+			return b
 	for b: Dictionary in TouchControls.BUTTONS:
 		if b["action"] == action:
 			return b

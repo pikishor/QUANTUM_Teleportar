@@ -720,6 +720,8 @@ func _chain_ignite(pos: Vector3) -> void:
 func ignite(delay: float) -> void:
 	if dead or not active:
 		return
+	if not TouchControls.CRITIC_OLD and (String(spec.get("cls", "")) == "tank" or bool(spec.get("armour", false))) and hp > max_hp * VehicleSpecs.SMOKE_BELOW:
+		return                                                          # w119-critic: an armoured hull above 40 % does not catch fire (a snake's burning ground or a sedan blowing up beside it set a 98 % tank on a fuse: one throw killed it)
 	if fuse < 0.0 or delay < fuse:
 		fuse = delay
 	if dmg_state < 2:

@@ -15,7 +15,7 @@ const SAVE := "user://test_hud_camera_final.cfg"
 const SETTINGS := "user://test_hud_camera_final_settings.cfg"
 const SIZES: Array[Vector2i] = [Vector2i(844, 390), Vector2i(2400, 1080)]
 ## What the combat frame may hold (visible_controls ids); `interact`, `grab`, `takedown`, `toast`, `subtitle` and `wanted` appear only when they apply.
-const ALLOWED: Array[StringName] = [&"stick", &"fire", &"aim", &"jump", &"reload", &"ability", &"swap", &"more", &"snake", &"snake_zip", &"fly", &"crouch", &"pause", &"minimap", &"status", &"objective"]       # wave 118 (owner: "all controls come as options on screen like gta"): ZIP, FLY and CROUCH are buttons of the on-foot frame         # wave 115: the contextual SNAKE button (swing, zip, climb, boost) joined the on-foot frame at the owner's request (docs/ROUND6.md); FLY / LAND only shows in the air
+const ALLOWED: Array[StringName] = [&"stick", &"fire", &"snake_blast", &"jump", &"reload", &"ability", &"swap", &"more", &"snake", &"snake_zip", &"fly", &"crouch", &"pause", &"minimap", &"status", &"objective"]       # wave 119 (owner "like 5 circle", w119-hud5): the context slot SNAKE BLAST joins, AIM on the street is auto-aim (no button); wave 118 (owner: "all controls come as options on screen like gta"): ZIP, FLY and CROUCH are buttons of the on-foot frame         # wave 115: the contextual SNAKE button (swing, zip, climb, boost) joined the on-foot frame at the owner's request (docs/ROUND6.md); FLY / LAND only shows in the air
 ## Buttons that share a spot or a state on purpose (never on screen together).
 const EXCLUSIVE: Array = [[&"swap", &"veh_view"], [&"grab", &"radio_next"], [&"takedown", &"radio_next"], [&"reload", &"crouch"], [&"aim", &"aim"], [&"ultimate", &"look_back"], [&"ammo_type", &"look_back"]]       # DOWN (the aircraft's second vertical button) takes RELOAD's place while flying   # AIM on foot and ROCKET in an armed aircraft share a spot (wave 106)   # wave 113: ULT and AMMO (on foot, behind MORE) share the corner of BACK (driving, behind MORE): `more_ult` / `more_ammo` need not _driving(), `drive_more` needs _driving()
 
@@ -166,8 +166,13 @@ func _combat_frame(size: Vector2i) -> void:
 	# the contextual USE / ENTER: shown next to a car, clear of every other button
 	tc._use_near = true
 	tc._use_t = 5.0
-	await frames(3)
-	var with_use := hud.visible_controls()
+	# w119-critic: ENTER takes the context slot only after a car stayed in reach TouchControls.SLOT_SETTLE (0.25 s), so wait that long (up to 1.5 s) instead of 3 frames
+	var with_use: Array = hud.visible_controls()
+	for _i in 90:
+		if with_use.has(&"interact"):
+			break
+		await frames(1)
+		with_use = hud.visible_controls()
 	TestLib.check(with_use.has(&"interact"), "%s: ENTER shows when a car is in reach" % tag)
 	tc._use_near = false
 	tc._use_t = 0.0

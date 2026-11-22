@@ -130,6 +130,8 @@ static func plane(v: Vehicle, dt: float, thr: float, steer: float, lift: float) 
 			c.vy = -sink_cap
 		if v.global_position.y > float(T["ceil"]) and c.vy > 0.0:
 			c.vy = 0.0
+		if settle_fix and lift <= 0.0 and c.lever < 0.2 and agl < 2.0:
+			c.vy = minf(c.vy, -1.2)                                # w119-hud5: throttle back a metre over the street, DOWN let go: it settles on its wheels (it floated at 0.8 m, LAND FIRST, no brake)
 		var rt := -steer * ROLL_MAX * (0.45 + 0.55 * L)
 		A.roll = lerpf(A.roll, rt, 1.0 - exp(-3.2 * agile * dt))
 		yaw_rate = sin(A.roll) / sin(ROLL_MAX) * TURN_MAX * sqrt(agile) * L / (1.0 + V / 260.0)
@@ -150,6 +152,9 @@ static func plane(v: Vehicle, dt: float, thr: float, steer: float, lift: float) 
 	if c.airborne:
 		V = maxf(Vector2(v.vel.x, v.vel.z).length() / maxf(ch, 0.3), 0.0)         # a wall took some of the speed
 		v.speed = V
+
+
+static var settle_fix := true          ## w119-hud5: false = the wave 118 plane (it could float 0.8 m over the ground for ever with the throttle closed)
 
 
 ## A plane that touches down: the attitude decides what it costs (the sink speed itself was handled by VehicleCraft._move_air).

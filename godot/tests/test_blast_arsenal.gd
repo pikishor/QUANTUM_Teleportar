@@ -479,6 +479,9 @@ func _ordnance_ultimates_world() -> void:
 	# the snake bombs of wave 115 (cat snake) are thrown from the SNAKE wheel, their behaviours are checked by tests/test_snake_combat.gd; here each one goes off through the table like the rest
 	for id in BlastTable.ids_in(&"snake"):
 		BlastTable.apply(id, _spot + _dir() * 26.0 + _right() * 6.0, _p)
+	# wave 119: the snake species (cat snake_species) are thrown from the SNAKE BLAST button, checked by real fingers in tests/test_snake_blasts_w119.gd; here each goes off through the table too
+	for id in BlastTable.ids_in(&"snake_species"):
+		BlastTable.apply(id, _spot + _dir() * 26.0 - _right() * 6.0, _p)
 	var every := 0
 	for id in BlastTable.ids():
 		if StringName(BlastTable.entry(id)["cat"]) != &"legacy" and StringName(BlastTable.entry(id)["cat"]) != &"internal" and int(BlastTable.by_id.get(id, 0)) > 0:

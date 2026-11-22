@@ -113,6 +113,8 @@ static func activate(it: Dictionary) -> Dictionary:
 
 ## State of a quick cast: ready (can be cast now), active (its snakes are out), cd (the cooldown share, 0..1).
 static func ability_state(action: StringName) -> Dictionary:
+	if action == SnakeBlasts.KIND_ACTION:
+		return SnakeBlasts.kind_state()                                 # wave 119: the SNAKE TYPE disc
 	var war := SnakeWar.instance if is_instance_valid(SnakeWar.instance) else null
 	if war == null:
 		return {"ready": false, "active": false, "cd": 0.0}
@@ -125,6 +127,8 @@ static func ability_state(action: StringName) -> Dictionary:
 
 
 static func ability_label(action: StringName) -> String:
+	if action == SnakeBlasts.KIND_ACTION:
+		return SnakeBlasts.kind_label()
 	if action == &"snake_bomb":
 		var war := SnakeWar.instance if is_instance_valid(SnakeWar.instance) else null
 		return "SNAKE BOMB" if war == null else "SNAKE %s" % short_name(war.bomb_sel)

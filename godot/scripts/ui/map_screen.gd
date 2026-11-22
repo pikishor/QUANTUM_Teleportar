@@ -81,6 +81,7 @@ var view_center := Vector2.ZERO                      ## world (x, z) at the midd
 var selected := {}                                   ## the marker last tapped: {kind, pos, label}
 var scan_log: Array[Dictionary] = []                 ## tests: {text, rect} of every label the map drew
 var scan_on := false
+static var label_fix := true                         ## w119-hud5: false = the wave 118 labels (glyph names written over others, labels under the title row)
 var _placed: Array[Rect2] = []                      ## label boxes already drawn this frame (a new label that would overlap one is skipped)
 var _town_boxes := {}                               ## WORLD view: town name -> the box reserved for it before the region names (the town takes it back when it draws its own name)
 var drawn := {}                                      ## tests: what the last draw produced {roads, lots, markers, labels, route, you, danger}
@@ -1278,6 +1279,20 @@ func _draw_world_labels(font: Font, s: float) -> void:
 			var tbox := Rect2(tpm.x - tww * 0.5 - 3.0, tpm.y + 42.0 * s - 20.0 * s * 0.8, tww + 6.0, 20.0 * s * 1.05)
 			_town_boxes[String(mk["label"])] = tbox
 			_placed.append(tbox)
+	if label_fix:                                                       # w119-hud5: the airport's and the harbour's names are reserved too (a town name took the harbour's place)
+		for mk: Dictionary in collect_markers():
+			if mk.get("glyph", &"") in [&"airport", &"harbour"]:
+				var gp: Vector3 = mk["pos"]
+				var gpm := world_to_map(gp.x, gp.z)
+				var gn := String(mk.get("label", "")).split(":")[0]
+				var gw := font.get_string_size(gn, HORIZONTAL_ALIGNMENT_LEFT, -1, int(20.0 * s)).x
+				var gb := Rect2(gpm.x - gw * 0.5 - 3.0, gpm.y + 39.0 * s - 20.0 * s * 0.8, gw + 6.0, 20.0 * s * 1.05)
+				for t: String in _town_boxes.keys():
+					if (_town_boxes[t] as Rect2).intersects(gb):
+						_placed.erase(_town_boxes[t])                       # the town gives way: it takes the other side of its pin
+						_town_boxes[t] = Rect2()
+				_town_boxes[gn] = gb
+				_placed.append(gb)
 	for e: Dictionary in WorldHud.region_labels():
 		var tier := int(e["tier"])
 		if tier == 2 or String(e["name"]) == "CITY":
@@ -1347,6 +1362,8 @@ func _draw_map() -> void:
 	var pm := ppm()                                        # screen px per metre
 	var origin := _view_origin()
 	_placed.clear()
+	if label_fix:
+		_placed.append(Rect2(0.0, 0.0, sz.x, 52.0 * UiUtil.ui_scale(sz)))      # w119-hud5: the title row (MAP + the charted / route line) is drawn last: no map label is written under it
 	if scan_on:
 		scan_log.clear()
 	drawn = {"badges": [], "roads": 0, "lots": 0, "markers": 0, "labels": 0, "route": false, "you": false, "danger": 0}
@@ -1587,7 +1604,15 @@ func _draw_map() -> void:
 				if not _label_out(font, c2 + Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 20.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_CENTER, true):
 					_label_out(font, c2 - Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 8.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_CENTER, true)
 			else:
-				_label_out(font, c2 + Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 20.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_CENTER, glyph == &"helipad")
+				var reserved := label_fix and _town_boxes.has(gname)
+				if reserved:
+					_placed.erase(_town_boxes[gname])                                         # the airport and the harbour: their own reserved box (every other name keeps off it)
+				if not _label_out(font, c2 + Vector2(0.0, maxf(rr * 0.9, 19.0 * s) + 20.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_CENTER, glyph == &"helipad" or (label_fix and not reserved)) and label_fix:
+					var gr := maxf(rr * 0.9, 19.0 * s)
+					if not _label_out(font, c2 - Vector2(0.0, gr + 8.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_CENTER, true):       # w119-hud5: HELICOPTER was written over GLASS TOWERS: below, else above,
+						if not _label_out(font, c2 + Vector2(gr + 6.0 * s, 7.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_LEFT, true):      # else right, else left of the icon, else the icon alone
+							var gw := font.get_string_size(gname, HORIZONTAL_ALIGNMENT_LEFT, -1, int(20.0 * s)).x
+							_label_out(font, c2 + Vector2(-gr - 6.0 * s - gw, 7.0 * s), gname, int(20.0 * s), gcol, HORIZONTAL_ALIGNMENT_LEFT, true)
 		elif ALWAYS_KINDS.has(kind) or (zoom_f >= 3.0 and labels_left > 0 and kind != &"interior"):
 			if not ALWAYS_KINDS.has(kind):
 				labels_left -= 1
@@ -1660,7 +1685,10 @@ func _draw_map() -> void:
 ## "MAP" and the charted / route line, top left above the legend.
 func _title_row(font: Font, s: float) -> void:
 	_label_out(font, Vector2(_x0, 42.0 * s), "MAP", int(32.0 * s), UiUtil.CYAN, HORIZONTAL_ALIGNMENT_LEFT)
-	_label_out(font, Vector2(_x0 + 100.0 * s, 40.0 * s), _sub_text, int(22.0 * s), Color(1, 1, 1, 0.92), HORIZONTAL_ALIGNMENT_LEFT)
+	var sub_px := int(22.0 * s)
+	while label_fix and sub_px > int(14.0 * s) and _x0 + 100.0 * s + font.get_string_size(_sub_text, HORIZONTAL_ALIGNMENT_LEFT, -1, sub_px).x > _map.size.x - 6.0:
+		sub_px -= 1                                                    # w119-hud5: a long route line was pushed back over MAP by the screen-edge clamp: it shrinks instead
+	_label_out(font, Vector2(_x0 + 100.0 * s, 40.0 * s), _sub_text, sub_px, Color(1, 1, 1, 0.92), HORIZONTAL_ALIGNMENT_LEFT)
 
 
 ## A polyline without points that are not finite (an infinite or NaN point would make the chevron walk run forever).
@@ -1719,6 +1747,8 @@ func _draw_armour_pins(s: float) -> void:
 	if not bool(filters.get(&"armour", true)):
 		return
 	var open := Rect2(_legend_rect.end.x, 0.0, _right_rect.position.x - _legend_rect.end.x, _map.size.y)
+	if open.size.x <= 64.0 * s or open.size.y <= 64.0 * s:
+		return      # w119-integrator: no open map strip between the legend and the side panel (a tiny window): growing it inwards made a negative Rect2 (112 engine errors in the monkey run)
 	var inner := open.grow(-44.0 * s)
 	var c := open.get_center()
 	var col: Color = KIND_COLOR[&"armour"]

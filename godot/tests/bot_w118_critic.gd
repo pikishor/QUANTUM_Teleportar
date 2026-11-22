@@ -95,8 +95,8 @@ func _travel(goal: Vector3, done: Callable, secs: float) -> bool:
 			return true
 		var route := WorldRoute.route(p.global_position, goal, &"walk") if p.vehicle == null else WorldRoute.route(p.global_position, goal, &"drive")
 		var next := goal
-		if Engine.get_process_frames() % 4 == 0:
-			print("POS %s route_end %s n %d" % [str(p.global_position.round()), str(route[route.size() - 1].round()) if route.size() > 0 else "-", route.size()])
+		if OS.get_environment("CR_TRACE") == "1" or Engine.get_process_frames() % 4 == 0:
+			print("POS %s route_end %s n %d %s" % [str(p.global_position.round()), str(route[route.size() - 1].round()) if route.size() > 0 else "-", route.size(), str(route) if OS.get_environment("CR_TRACE") == "1" else ""])
 		for q in route:
 			if _flat(q, p.global_position) > 6.0:
 				next = q
@@ -105,7 +105,10 @@ func _travel(goal: Vector3, done: Callable, secs: float) -> bool:
 		await _face(next)
 		var at := p.global_position
 		fg.stick(Vector2(0.0, -1.0))
-		await _f(30)
+		for i in 30:                                             # w119-hud5: stop at the route point (a fixed 30 frames ran 40 m past the corner on a loaded machine: the walk paced to and fro, 25 to 53 m short)
+			await _f(1)
+			if _flat(p.global_position, next) < 2.5 or _flat(p.global_position, at) > _flat(at, next) + 1.0:
+				break
 		if _flat(at, p.global_position) < 1.0:                 # blocked (a parked car, a prop): a step to the side and a JUMP, as a player would
 			fg.stick(Vector2(1.0 if randf() < 0.5 else -1.0, -0.3))
 			await _tap(&"jump")

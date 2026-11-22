@@ -98,6 +98,7 @@ func _ready() -> void:
 	Game.respawn.connect(reset)
 	Game.quality_changed.connect(func(_l: int) -> void: swarm = SnakeSwarm.get_swarm(p))
 	bombs.connect_ops()
+	SnakeBlasts.attach(self)                                           # wave 119: the six snake species of the SNAKE BLAST button (scripts/quantum/snake_blasts.gd)
 	if p.weapon != null and not p.weapon.weapon_changed.is_connected(_on_weapon_changed):
 		p.weapon.weapon_changed.connect(_on_weapon_changed)                    # any equip (a pickup, the shop, a mission, the auto swap) brings the gun back
 

@@ -121,6 +121,10 @@ func throw(id: StringName, force := false) -> bool:
 	var row := SnakeRows.row(id)
 	var reach := float(row["range"])
 	var aim_pt := SnakeAim.point(p, reach)
+	if not TouchControls.CRITIC_OLD and aim_pt.distance_to(SnakeAim.point(p, reach + 0.5)) > 0.25:
+		var hi := Vector3(aim_pt.x, minf(aim_pt.y, p.global_position.y + 6.0), aim_pt.z)
+		var g := SnakeAim.ground_under(p, hi)
+		aim_pt = g if g != hi else Vector3(hi.x, p.global_position.y, hi.z)             # w119-critic: the crosshair on the sky: the far point of the ray hung metres up and the bomb burst over the foes' heads; now the street under it
 	match id:
 		&"sb_seeker":
 			war.commit(id, aim_pt)

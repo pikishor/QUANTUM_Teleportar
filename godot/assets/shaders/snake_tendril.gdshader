@@ -154,6 +154,8 @@ void fragment() {
 	float u = v_info.x;
 	float d = v_info.z * v_hk;
 	float ten = v_info.w;
+	float pat = floor(ten * 0.5);                        // wave 119: z = tension + 2 * pattern (SnakeSwarm Body.pattern, the snake species of scripts/quantum/snake_blasts.gd); ropes write 0..1
+	ten -= pat * 2.0;
 	vec3 core = v_col.rgb;
 	vec3 hot = mix(core, vec3(1.0), 0.3);
 	vec3 accent = vec3(0.85, 0.25, 0.95);
@@ -178,6 +180,20 @@ void fragment() {
 		emit = (core * (0.05 + 0.10 * wave) + core * seam * (0.55 + 0.35 * wave) + hot * fres * 0.4 + accent * pow(wave, 6.0) * 0.2 * seam) * (0.8 + 0.4 * ten);
 		emit *= mix(0.12, 1.0, smoothstep(0.15, 0.85, back));
 		hide *= 0.6;
+	}
+	if (pat > 0.5) {
+		// the skin of a species: a second colour in a pattern that reads at street distance (a body is 1.5 to 3 m long)
+		float m = u * v_len;
+		float ar = v_info.y;
+		float mk = 0.0;
+		vec3 pc = vec3(1.0);
+		if (pat < 1.5) { mk = step(0.62, fract(m * 2.6)); pc = vec3(1.0, 0.86, 0.22); }                                          // FIRE: hot bands
+		else if (pat < 2.5) { mk = step(0.36, abs(fract(m * 3.0 + ar * 2.0) - 0.5) + abs(fract(ar * 4.0) - 0.5)); pc = vec3(0.95, 0.98, 1.0); }  // FROST: pale diamonds
+		else if (pat < 3.5) { mk = step(abs(fract(ar * 2.0) - 0.5 - 0.18 * sin(m * 16.0)), 0.09); pc = vec3(0.55, 0.8, 1.0) * (0.8 + 0.4 * sin(TIME * 40.0 + m * 9.0)); }  // SHOCK: a crackling blue zigzag on a yellow body
+		else if (pat < 4.5) { mk = step(length(vec2(fract(m * 4.0) - 0.5, fract(ar * 5.0 + floor(m * 4.0) * 0.5) - 0.5)), 0.24); pc = vec3(0.2, 0.3, 0.02); }  // ACID: dark blotches
+		else if (pat < 5.5) { mk = step(abs(fract(ar * 2.0) - 0.5), 0.1); pc = vec3(1.0, 0.85, 0.1); }                          // SWARM: two yellow stripes
+		else { mk = step(fract(m * 1.6 + ar), 0.22); pc = vec3(1.0, 0.85, 1.0); }                                               // GRAVITY: a spiral
+		emit = mix(emit, pc * (pat > 3.5 && pat < 4.5 ? 0.15 : 1.1), mk * 0.85);
 	}
 	// head: dark plated skull with lit cheek lines and two eyes
 	float head = v_col.a > 0.01 ? smoothstep(0.62, 0.0, d / max(0.4, 0.42 * v_col.a)) : 0.0;

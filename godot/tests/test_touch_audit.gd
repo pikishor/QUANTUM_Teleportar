@@ -44,6 +44,7 @@ func _tap_ability() -> void:
 
 
 func run(h: Node) -> void:
+	GarageScreen.big_swatches = OS.get_environment("HUD5_OLD") != "1"        # HUD5_OLD=1: the wave 118 garage (the swatch check fails)
 	a = Audit.new()
 	a.quiet = true
 	if not await _boot(h):
@@ -88,17 +89,19 @@ func _boot(h: Node) -> bool:
 
 func _foot() -> void:
 	var ids := a.hud_ids()
-	for need in ["fire", "aim", "jump", "reload", "snake", "snake_zip", "fly", "crouch", "ability", "swap", "more", "pause", "minimap"]:      # wave 118: ZIP, FLY and CROUCH are buttons of the on-foot set
+	for need in ["fire", "jump", "reload", "snake", "snake_zip", "snake_blast", "fly", "crouch", "ability", "swap", "more", "pause", "minimap"]:      # wave 118: ZIP, FLY and CROUCH are buttons of the on-foot set; wave 119: BLAST in the context slot, AIM / RELOAD / FLY / CROUCH / ABILITY edge chips
 		TestLib.check(ids.has(need), "on foot the HUD shows %s" % need)
-	var pressed := await a.press_hud_frame("foot", ["fly"])            # FLY takes off (tests/test_controls_w118.gd and _snake_flight press it)
+	var pressed := await a.press_hud_frame("foot", ["fly", "snake_blast"])       # wave 119: BLAST throws a snake (tests/test_controls_w118.gd presses it)            # FLY takes off (tests/test_controls_w118.gd and _snake_flight press it)
 	TestLib.check(pressed.size() >= 5, "on foot: %d action buttons held by the finger (%s)" % [pressed.size(), str(pressed)])
 	# FIRE shoots, JUMP lifts the hero
+	await a.until(func() -> bool: return not p.reloading, 240)      # the RELOAD chip of the frame above started a reload
 	var mag0 := p.weapon.mag
+	var sf0 := p.weapon.shots_fired
 	var c := a.hud_button("fire")
 	a.finger_down(a.centre_of(c))
 	await a.pframes(20)
 	a.finger_up()
-	TestLib.check(p.weapon.mag < mag0 or p.reloading, "a finger held on FIRE shoots (magazine %d -> %d)" % [mag0, p.weapon.mag])
+	TestLib.check(p.weapon.shots_fired > sf0, "a finger held on FIRE shoots (shots %d -> %d, magazine %d)" % [sf0, p.weapon.shots_fired, mag0])       # w119-hud5: `mag` is the magazine SIZE; the old form passed only through p.reloading, which the RELOAD press of the frame above left on
 	await a.pframes(30)
 	# --- the quick tap: old behaviour first
 	TouchControls.hold_fast_taps = false
@@ -110,7 +113,7 @@ func _foot() -> void:
 	print("OLD BEHAVIOUR (hold_fast_taps off): %d of 3 quick taps reached the game" % old_seen)
 	TestLib.check(old_seen == 0, "old behaviour: a tap that is down and up inside one frame never reaches the game (%d of 3 seen)" % old_seen)
 	TouchControls.hold_fast_taps = true
-	for id in ["fire", "aim", "jump", "reload", "snake"]:
+	for id in ["fire", "jump", "reload", "snake"]:          # wave 119: no AIM on the street (auto-aim)
 		TestLib.check(await _fast_tap_seen(id), "a quick tap (down and up in one frame) on %s reaches the game and lets go again" % id)
 		await a.pframes(20)
 	# MORE
@@ -307,8 +310,12 @@ func _car() -> void:
 		(Game.progress as Progress).credits = 50000
 		gs.refresh()
 		var list := a.node_controls()
+		var gsmall: Array[String] = []
 		for g in a.geometry("garage", list):
 			a.finding(g)
+			if g.contains("(under"):
+				gsmall.append(g)
+		TestLib.check(gsmall.is_empty(), "w119-hud5: every garage target answers on at least 44 px at 844x390 (%s)" % str(gsmall))
 		await a.shot("garage")
 		var dead := 0
 		var done := {}

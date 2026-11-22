@@ -17,7 +17,10 @@ const USE_REACH := 4.2              ## metres: a vehicle this close enables USE
 ## WAVE 118 (owner: "all controls come as options on screen like gta. It should not be cluttered but like 5 circle for driving etc."): ONE SMALL SET OF ROUND BUTTONS PER MODE.
 ## Every action of the mode the hero is in is a round button on screen; each mode shows only its own set. The slots (canvas px at the base height, from the bottom-right corner):
 ##   MAIN (150,165) the big one   UPPER (150,355)   LOW (340,110)   MID (305,270)   FAR (500,105)   OUT (465,250)   DOOR (150,500)
-##   on foot      FIRE   AIM      JUMP    SWING    FLY     ZIP    ENTER (beside a vehicle)      left row: CROUCH RELOAD ABILITY      top: PAUSE MORE WEAPON
+##   on foot      FIRE   ZIP      JUMP    SWING    -       -      ENTER / USE in reach, else BLAST    edge chips: CROUCH RELOAD ABILITY / FLY    top: PAUSE MORE WEAPON
+##                (wave 119, owner "like 5 circle": exactly 5 round action buttons; AIM on the street = auto-aim (AimAssist while FIRE is held), the task's fallback; RELOAD a chip, the magazine also reloads by itself)
+##                one SNAKE button for swing + zip + fly was tried on paper and dropped: the hold IS the rope (a held swing chains), so a hold cannot also be FLY, and tap-zip next to
+##                tap-swing near an anchor is the wave 117 bug (SWING on the street zipped); SWING and ZIP stay two buttons, FLY = the chip or a held SWING with nothing to bite
 ##   snake flight FIRE   AIM      UP      BOOST    DOWN    -      LAND
 ##   car / boat   GAS    FIRE*    BRAKE   HANDBRAKE -      -      EXIT                          left row: HORN VIEW                  (* an armed car only)
 ##   tank         FIRE   2nd gun  BRAKE   -        -       -      EXIT                          left row: VIEW SHELL
@@ -34,23 +37,24 @@ const BUTTONS := [
 	{"action": &"fire", "dx": 150.0, "dy": 355.0, "r": 56.0, "fs": 26, "label": "FIRE", "need": &"car_fire"},       # an armed car: the big slot is the GAS pedal
 	{"action": &"move_forward", "dx": 150.0, "dy": 165.0, "r": 86.0, "fs": 32, "label": "GAS", "need": &"pedals"},
 	{"action": &"move_back", "dx": 340.0, "dy": 110.0, "r": 62.0, "fs": 24, "label": "BRAKE", "need": &"pedals"},      # brakes, then reverses
-	{"action": &"aim", "dx": 150.0, "dy": 355.0, "r": 56.0, "label": "AIM", "need": &"foot"},
+	{"action": &"aim", "dx": 150.0, "dy": 355.0, "r": 56.0, "label": "AIM", "need": &"aim_btn"},       # snake flight and indoors; on the street AIM is auto-aim (AimAssist while FIRE is held, wave 119: no AIM button there)
 	{"action": &"aim", "dx": 150.0, "dy": 355.0, "r": 56.0, "fs": 22, "label": "ROCKET", "need": &"arms2"},       # a gunship, a jet, a tank: rockets / missiles / the second gun (VehicleWeapons.tick_alt)
 	{"action": &"jump", "dx": 340.0, "dy": 110.0, "r": 62.0, "label": "JUMP", "need": &"jump"},
 	{"action": &"jump", "dx": 305.0, "dy": 270.0, "r": 56.0, "fs": 20, "label": "HAND BRAKE", "need": &"handbrake"},
 	{"action": &"snake", "dx": 305.0, "dy": 270.0, "r": 56.0, "fs": 26, "label": "SWING", "need": &"snake"},       # QUANTUM SNAKE (scripts/quantum/snake_traversal.gd): SWING on the street and in the air, CLIMB at a wall, LET GO on a rope, BOOST in flight
-	{"action": &"snake_zip", "dx": 465.0, "dy": 250.0, "r": 52.0, "fs": 26, "label": "ZIP", "need": &"zip"},       # the snake zip line to what the crosshair is on: its own button (wave 117: SNAKE on the street zipped instead of swinging)
-	{"action": &"fly", "dx": 500.0, "dy": 105.0, "r": 52.0, "fs": 24, "label": "FLY", "need": &"fly"},                # take off, from the ground too
+	{"action": &"snake_zip", "dx": 150.0, "dy": 355.0, "r": 52.0, "fs": 26, "label": "ZIP", "need": &"zip"},       # wave 119: the UPPER slot (AIM is a chip on the street)       # the snake zip line to what the crosshair is on: its own button (wave 117: SNAKE on the street zipped instead of swinging)
+	{"action": &"fly", "dx": 62.0, "dy": 452.0, "r": 42.0, "fs": 18, "label": "FLY", "need": &"fly", "side": &"left", "chip": true},       # take off, from the ground too (wave 119: an edge chip; a held SWING with nothing to bite flies too)
 	{"action": &"fly", "dx": 150.0, "dy": 500.0, "r": 52.0, "fs": 24, "label": "LAND", "need": &"land"},              # in snake flight: the way out sits in the DOOR slot
 	{"action": &"crouch", "dx": 500.0, "dy": 105.0, "r": 52.0, "fs": 24, "label": "DOWN", "need": &"down"},       # snake flight, helicopter, plane: descend (the LOW slot reads UP)
 	{"action": &"interact", "dx": 150.0, "dy": 500.0, "r": 52.0, "fs": 24, "label": "USE", "need": &"vehicle"},     # the DOOR slot: ENTER beside a vehicle, EXIT in one
+	{"action": &"snake_blast", "dx": 150.0, "dy": 500.0, "r": 52.0, "fs": 22, "label": "BLAST", "need": &"blast"},     # wave 119: the context slot on the street when nothing is in reach: SNAKE BLAST (w119-blasts reads the action)
 	{"action": &"leave_building", "dx": 150.0, "dy": 500.0, "r": 52.0, "fs": 22, "label": "LEAVE", "need": &"interior"},       # inside a building: out from anywhere (a job in progress asks to tap twice)
 	{"action": &"interact", "dx": 305.0, "dy": 270.0, "r": 56.0, "fs": 24, "label": "USE", "need": &"use_in"},      # inside a building: TALK, CRACK, FREE ... at the spot that offers it
 	{"action": &"swap", "dx": 268.0, "dy": 118.0, "r": 50.0, "fs": 22, "label": "WEAPON", "need": &"weapon", "top": true},
 	{"action": &"more", "dx": 154.0, "dy": 118.0, "r": 41.0, "fs": 20, "label": "MORE", "need": &"more_btn", "fn": &"more", "top": true},
-	{"action": &"crouch", "dx": 62.0, "dy": 352.0, "r": 42.0, "fs": 18, "label": "CROUCH", "need": &"foot_ground", "side": &"left"},
-	{"action": &"reload", "dx": 168.0, "dy": 352.0, "r": 42.0, "fs": 18, "label": "RELOAD", "need": &"foot", "side": &"left"},
-	{"action": &"ability", "dx": 278.0, "dy": 352.0, "r": 46.0, "fs": 18, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability", "side": &"left"},
+	{"action": &"crouch", "dx": 62.0, "dy": 352.0, "r": 42.0, "fs": 18, "label": "CROUCH", "need": &"foot_ground", "side": &"left", "chip": true},
+	{"action": &"ability", "dx": 278.0, "dy": 352.0, "r": 42.0, "fs": 18, "label": "ABILITY", "need": &"quantum", "fn": &"wheel_ability", "side": &"left", "chip": true},
+	{"action": &"reload", "dx": 172.0, "dy": 352.0, "r": 42.0, "fs": 18, "label": "RELOAD", "need": &"reload_chip", "side": &"left", "chip": true},       # wave 119: an edge chip (the magazine also reloads by itself when empty)
 	{"action": &"horn", "dx": 62.0, "dy": 352.0, "r": 42.0, "fs": 20, "label": "HORN", "need": &"horn", "fn": &"horn", "side": &"left"},
 	{"action": &"veh_view", "dx": 168.0, "dy": 352.0, "r": 42.0, "fs": 20, "label": "VIEW", "need": &"view_ground", "side": &"left"},     # driving camera: chase / far / hood
 	{"action": &"veh_view", "dx": 305.0, "dy": 270.0, "r": 44.0, "fs": 20, "label": "VIEW", "need": &"view_air"},       # an aircraft: the flight instruments stand where the left row is
@@ -78,7 +82,7 @@ const ALL_MODES: Array[StringName] = [&"foot", &"flight", &"interior", &"car", &
 const ON_FOOT: Array[StringName] = [&"foot", &"flight", &"interior"]
 const DRIVEN: Array[StringName] = [&"car", &"boat", &"tank", &"air"]
 const NEED_MODES := {
-	&"fire": [&"foot", &"flight", &"interior", &"tank", &"air"], &"car_fire": [&"car", &"boat"], &"pedals": [&"car", &"boat"], &"foot": ON_FOOT, &"arms2": [&"tank", &"air"],
+	&"fire": [&"foot", &"flight", &"interior", &"tank", &"air"], &"car_fire": [&"car", &"boat"], &"pedals": [&"car", &"boat"], &"foot": ON_FOOT, &"aim_btn": [&"flight", &"interior"], &"reload_chip": [&"foot", &"interior"], &"blast": [&"foot"], &"arms2": [&"tank", &"air"],
 	&"jump": [&"foot", &"flight", &"interior", &"tank", &"air"], &"handbrake": [&"car"], &"snake": [&"foot", &"flight"], &"zip": [&"foot"], &"fly": [&"foot"], &"land": [&"flight"],
 	&"down": [&"flight", &"air"], &"vehicle": [&"foot", &"interior", &"car", &"boat", &"tank", &"air"], &"interior": [&"interior"], &"use_in": [&"interior"], &"weapon": ON_FOOT, &"quantum": ON_FOOT,
 	&"foot_ground": [&"foot", &"interior"], &"horn": [&"car"], &"view_ground": [&"car", &"boat", &"tank"], &"view_air": [&"air"], &"shell": [&"tank"],
@@ -89,6 +93,8 @@ const NEED_MODES := {
 
 ## True when buttons `a` and `b` (rows of BUTTONS) can never be on screen together.
 static func exclusive(a: Dictionary, b: Dictionary) -> bool:
+	if (a["need"] == &"vehicle" and b["need"] in [&"interior", &"blast"]) or (b["need"] == &"vehicle" and a["need"] in [&"interior", &"blast"]):
+		return true                                  # wave 119: the context slot is ENTER / USE with something in reach, SNAKE BLAST without
 	if (a["need"] == &"vehicle" and b["need"] == &"interior") or (a["need"] == &"interior" and b["need"] == &"vehicle"):
 		return true                                  # the DOOR slot indoors: LEAVE (leave_building) everywhere but at the door, where USE says LEAVE
 	var ma: Array = NEED_MODES.get(a["need"], ALL_MODES)
@@ -113,7 +119,7 @@ const SNAKE_ABILITIES := [
 	{"id": &"snake_pull", "label": "SNAKE PULL", "snake": true},
 	{"id": &"snake_net", "label": "SNAKE NET", "snake": true},
 	{"id": &"snake_shield", "label": "SNAKE SHIELD", "snake": true},
-	{"id": &"snake_bomb", "label": "SNAKE BOMB", "snake": true},
+	{"id": &"snake_kind", "label": "SNAKE TYPE", "snake": true},       # wave 119 (w119-blasts): picks the species of the SNAKE BLAST button (a ring of six); the old SNAKE BOMB quick cast threw blind (no ring) at a point in the air
 ]
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_forward", &"move_back", &"sprint"]
 const TIER_NAMES: Array[String] = ["LOW", "MED", "HIGH"]
@@ -151,6 +157,11 @@ var _win_worst := 0.0
 var _avg_fps := 0.0
 var _min_fps := 0.0
 var _use_near := false
+var _slot_enter := false           ## w119-critic: what the outdoor context slot shows (ENTER or SNAKE BLAST), settled: see _settle_slot
+var _slot_t := 0.0
+static var CRITIC_OLD := OS.get_environment("W119C_OLD") == "1"     ## w119-critic fixes off (the fail-first run of tests/test_w119_critic.gd)
+const SLOT_SETTLE := 0.25           ## seconds a new ENTER / BLAST choice must hold before the slot changes (traffic in reach flipped it under the thumb: an ENTER tap threw a snake)
+const SLOT_BLAST_KEEP := 2.5        ## seconds after a snake throw the slot stays SNAKE BLAST (a passing car took the button between two throws)
 var _use_t := 0.0
 var _swap_finger := -1              ## the finger on SWAP, or -1
 var _swap_held := 0.0
@@ -175,6 +186,7 @@ var _perf_long := false             ## the current press already toggled the pan
 ## pressed and released its action before any physics tick ran, so everything that polls Input.is_action_pressed (SNAKE, FLY / LAND, FIRE, the vehicle weapons) never saw it:
 ## the button did nothing. The release of such a tap now waits until one physics tick and one process frame have seen the action down. false = the old behaviour (tests).
 static var hold_fast_taps := true
+var _chip_box := StyleBoxFlat.new()
 static var door_air_fix := true               ## w118 critic: false = the old door label (EXIT while flying, where it cannot work)
 var _press_at := {}                 ## finger index -> [physics frame, process frame] of the press
 var _late := {}                     ## action -> [physics frame, process frame]: releases that wait for the game to see the press
@@ -187,7 +199,7 @@ func _ready() -> void:
 	touch_capable = controls_on
 	perf_on = controls_on or OS.get_cmdline_user_args().has("--perf")
 	perf_shown = OS.get_cmdline_user_args().has("--perf")
-	for act: StringName in [&"snake_zip", &"horn"]:           # wave 118: buttons of their own (ZIP beside SWING, HORN); no key is bound here
+	for act: StringName in [&"snake_zip", &"horn", &"snake_blast"]:           # wave 118: buttons of their own (ZIP beside SWING, HORN); no key is bound here
 		if not InputMap.has_action(act):
 			InputMap.add_action(act)
 	SnakeTraversal.split_buttons = controls_on
@@ -320,12 +332,33 @@ func _process(delta: float) -> void:
 	if _use_t <= 0.0:
 		_use_t = 0.15
 		_use_near = _vehicle_in_reach() or InteriorGameplay.prompt != "" or RideUse.prompt() != ""
+	_settle_slot(delta)
 	_redraw_t -= delta
 	if Game.state == &"play" or Game.state == &"paused" or _last_state == &"play" or _last_state == &"paused":
 		if _redraw_t <= 0.0 or Game.state != _last_state:         # LOW redraws the touch layer 20 times a second, LOW+ 12; a state change always redraws
 			_redraw_t = LowPlus.hud_interval()
 			_canvas.queue_redraw()      # one extra redraw after leaving play, so the dead screen does not keep the dimmed buttons
 	_last_state = Game.state
+
+
+## w119-critic: the outdoor context slot (ENTER or SNAKE BLAST) turns to ENTER only when a car has stayed in reach SLOT_SETTLE seconds (back to BLAST at once), never under a finger on it, and stays SNAKE BLAST while
+## aiming and SLOT_BLAST_KEEP seconds after a throw. A change redraws at once, so the word drawn is the action a finger gets (the old slot followed every car that came within reach).
+func _settle_slot(delta: float) -> void:
+	if CRITIC_OLD:
+		_slot_enter = _use_near
+		return
+	var sbi := SnakeBlasts.instance
+	var keep := is_instance_valid(sbi) and (sbi.aiming or sbi.since_throw < SLOT_BLAST_KEEP)
+	var want := _use_near and not keep
+	if want == _slot_enter:
+		_slot_t = 0.0
+		return
+	_slot_t += delta
+	if (_slot_t >= SLOT_SETTLE or not want) and not _action_held(&"snake_blast") and not _action_held(&"interact"):
+		_slot_enter = want
+		_slot_t = 0.0
+		if _canvas != null:
+			_canvas.queue_redraw()
 
 
 ## Lets go of every action this layer pressed (state changes, exit, tests).
@@ -606,7 +639,7 @@ func button_visible(b: Dictionary) -> bool:
 		&"vehicle":          # the DOOR slot outdoors: ENTER beside a vehicle (or a ride), EXIT in one
 			if InteriorGameplay.active and not _driving():
 				return is_instance_valid(Game.vehicles) and _use_near and InteriorGameplay.prompt.begins_with("LEAVE")       # indoors only at the door: LEAVE
-			return is_instance_valid(Game.vehicles) and ((_use_near and not _flying()) or _driving())       # in snake flight the DOOR slot is LAND
+			return is_instance_valid(Game.vehicles) and ((_slot_enter and not _flying()) or _driving())       # in snake flight the DOOR slot is LAND
 		&"driving":
 			return is_instance_valid(Game.vehicles) and _driving()
 		&"view_ground":
@@ -646,6 +679,13 @@ func button_visible(b: Dictionary) -> bool:
 			return is_instance_valid(Game.player)
 		&"foot":
 			return is_instance_valid(Game.player) and not _driving()
+		&"aim_btn":          # the AIM circle: snake flight and indoors
+			return is_instance_valid(Game.player) and not _driving() and (_flying() or InteriorGameplay.active)
+		&"reload_chip":      # the RELOAD chip: on foot, not in snake flight
+			return is_instance_valid(Game.player) and not _driving() and not _flying()
+		&"blast":            # the context slot with nothing in reach: SNAKE BLAST
+			return is_instance_valid(Game.player) and not _driving() and not _flying() and not _slot_enter and InputMap.has_action(&"snake_blast") \
+					and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).button_shown()
 		&"foot_ground":      # CROUCH: on foot and not in snake flight (there the same action is the DOWN button)
 			return is_instance_valid(Game.player) and not _driving() and not _flying()
 		&"takedown":
@@ -663,6 +703,8 @@ func button_visible(b: Dictionary) -> bool:
 
 ## The label a button shows: USE reads ENTER on foot and EXIT in a car.
 func _label_of(b: Dictionary) -> String:
+	if b["action"] == &"snake_blast":
+		return SnakeBlasts.button_label()                          # wave 119 (w119-blasts): "FIRE 3", the species and the charges
 	if b["action"] == &"interact":
 		if not _driving() and InteriorGameplay.active and InteriorGameplay.prompt != "":
 			return str(InteriorGameplay.prompt).split(" ")[0]         # inside a building the button says what it does: LEAVE, TALK, CRACK, FREE (not ENTER)
@@ -790,7 +832,7 @@ func wheel_items(kind: StringName) -> Array:
 			if qv == null:
 				continue
 			st = (qv as QuantumVerbs).ui_state(d["verb"])
-		out.append({"id": d["id"], "label": SnakeUi.ability_label(d["id"]) if d.has("snake") else d["label"], "ready": bool(st["ready"]), "active": bool(st["active"]), "cd": float(st["cd"]), "current": false})
+		out.append({"id": d["id"], "type": &"snake" if d["id"] == SnakeBlasts.KIND_ACTION else &"ability", "label": SnakeUi.ability_label(d["id"]) if d.has("snake") else d["label"], "ready": bool(st["ready"]), "active": bool(st["active"]), "cd": float(st["cd"]), "current": false})
 	return out
 
 
@@ -810,6 +852,9 @@ func _wheel_pick(i: int) -> bool:
 				return wheel.is_open
 			return false
 	else:
+		var sbp := SnakeBlasts.wheel_pick(self, id)                  # wave 119: SNAKE TYPE opens the ring of species, a species disc picks it
+		if sbp != 0:
+			return sbp == 2
 		if _pulse_action != &"":
 			Input.action_release(_pulse_action)
 		Input.action_press(id)
@@ -1104,6 +1149,7 @@ func _draw_ui_body() -> void:
 		c.draw_arc(_stick_origin, STICK_RADIUS * s, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0 * s, false)
 		c.draw_circle(_stick_pos.limit_length(1e5), 38.0 * s, Color(0.5, 0.95, 1, 0.5))
 	var labels: Array = []   # text is drawn after all shapes: glyph and plain draws alternating would break canvas batching
+	var chips: Array = []    # wave 119: the edge chips (CROUCH, RELOAD, FLY, ABILITY): one StyleBoxFlat each
 	var sprites: Array = []  # every button is ONE sprite (dark disc + bright rim): draw_circle + draw_arc per button cost two draw calls each, sprites of one texture batch
 	var arcs: Array = []
 	var glows: Array = []
@@ -1130,6 +1176,8 @@ func _draw_ui_body() -> void:
 				var ef := sn.energy_fraction()
 				if ef < 0.995:
 					arcs.append([centre, r + 4.0 * s, -PI * 0.5 + TAU * ef, Color(UiUtil.MAGENTA if ef < 0.2 else tint, 0.9)])         # the snake energy is the ring around the button
+		if b["action"] == &"snake_blast":
+			SnakeBlasts.button_arcs(arcs, centre, r, s)               # wave 119 (w119-blasts): the species colour and the recharge arc
 		if b.has("verb"):
 			var vs := ((Game.player.get("qverbs") as QuantumVerbs).ui_state(b["verb"]) as Dictionary) if Game.player.get("qverbs") != null else {"active": false, "ready": true, "cd": 0.0}
 			if vs["active"]:
@@ -1154,7 +1202,10 @@ func _draw_ui_body() -> void:
 			on = true
 		if on:
 			glows.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, 0.35)])
-		sprites.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, (1.0 if on else 0.85) * dim)])
+		if b.get("chip", false):                        # wave 119: a small edge chip (rounded plate), not a round action button
+			chips.append([Rect2(centre - Vector2(r * 1.12, r), Vector2(r * 2.24, r * 2.0)), Color(tint, (1.0 if on else 0.8) * dim), on])
+		else:
+			sprites.append([Rect2(centre - Vector2(r, r), Vector2(r, r) * 2.0), Color(tint, (1.0 if on else 0.85) * dim)])
 		var fs := _label_size(b, font, r, s)
 		if b["action"] == &"swap":                      # WEAPON: the weapon's silhouette over the ammo count (no separate ammo plate)
 			_weapon_face(c, font, centre, r, s, labels)
@@ -1170,6 +1221,12 @@ func _draw_ui_body() -> void:
 	SnakeFx.hud_cues(self, s, sprites, labels)                 # w117-rope: the ZIP anchor marker, NO ANCHOR, the flight energy warning (rows of the two lists drawn below: no draw call more)
 	for sp: Array in sprites:
 		c.draw_texture_rect(UiUtil.sprite(&"button"), sp[0], false, sp[1])
+	for ch: Array in chips:
+		_chip_box.bg_color = Color(0.02, 0.05, 0.09, 0.62 if not ch[2] else 0.85)
+		_chip_box.border_color = ch[1]
+		_chip_box.set_border_width_all(maxi(1, int(2.0 * s)))
+		_chip_box.set_corner_radius_all(int((ch[0] as Rect2).size.y * 0.32))
+		c.draw_style_box(_chip_box, ch[0])
 	for a: Array in arcs:
 		c.draw_arc(a[0], a[1], -PI * 0.5, a[2], 32, a[3], 3.0 * s, false)
 	var sizes := {}
