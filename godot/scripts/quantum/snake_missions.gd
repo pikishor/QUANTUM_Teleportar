@@ -222,11 +222,11 @@ static func build(t: StringName, tier: int, origin: Vector3, r: RandomNumberGene
 				if street.is_finite():
 					land = Vector3(street.x, 0.0, street.z)
 			out = [
-				_s("reach", "ZIP UP  AIM AT THE ROOF, TAP SNAKE", {"pos": a["pos"], "radius": ROOF_R, "snake_mission": "swing_city"}),
-				_s("reach", "SWING  JUMP, THEN HOLD SNAKE", {"pos": b["pos"], "radius": ROOF_R, "snake_mission": "swing_city"}),
+				_s("reach", SnakeTraversal.touch_words("ZIP UP  AIM AT THE ROOF, TAP SNAKE"), {"pos": a["pos"], "radius": ROOF_R, "snake_mission": "swing_city"}),
+				_s("reach", SnakeTraversal.touch_words("SWING  JUMP, THEN HOLD SNAKE"), {"pos": b["pos"], "radius": ROOF_R, "snake_mission": "swing_city"}),
 				_s("reach", "KEEP HOLDING  BUILDING TO BUILDING", {"pos": c["pos"], "radius": ROOF_R, "snake_mission": "swing_city"}),
-				_s("reach", "CLIMB  TAP SNAKE AT THE WALL", {"pos": dp, "radius": ROOF_R + 3.0, "snake_mission": "swing_city"}),
-				_s("reach", "FLY  HOLD SNAKE, STICK FORWARD", {"pos": air, "radius": AIR_R + 6.0, "snake_mission": "swing_city"}),
+				_s("reach", SnakeTraversal.touch_words("CLIMB  TAP SNAKE AT THE WALL"), {"pos": dp, "radius": ROOF_R + 3.0, "snake_mission": "swing_city"}),
+				_s("reach", SnakeTraversal.touch_words("FLY  HOLD SNAKE, STICK FORWARD"), {"pos": air, "radius": AIR_R + 6.0, "snake_mission": "swing_city"}),
 				_s("reach", "LAND  PRESS LAND", {"pos": land, "radius": 14.0, "snake_mission": "swing_city"}),
 			]
 		&"roof_chase":

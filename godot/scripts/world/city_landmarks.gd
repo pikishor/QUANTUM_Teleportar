@@ -28,7 +28,7 @@ func build(layout: CityLayout, _kit_placements: Array = []) -> void:
 		var best := Vector2.INF
 		var best_d := 1.0e12
 		for pl: Vector2 in layout.plazas:
-			if used.has(pl) or Districts.at(pl.x, pl.y) != d:
+			if used.has(pl) or Districts.at(pl.x, pl.y) != d or ArmourSites.claims(pl.x, pl.y):       # wave 118: never on the ARMY YARD or a city helipad
 				continue
 			var dd := pl.distance_squared_to(target)
 			if dd < best_d:

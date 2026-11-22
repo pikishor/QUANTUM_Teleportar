@@ -148,6 +148,10 @@ func _page_items() -> Array[Dictionary]:
 		return out
 	match TABS[page]:
 		"SPAWN":
+			if ArmourSites.demo_on:
+				out.append(_head("TANKS, HELICOPTERS, PLANES: NEXT TO YOU"))       # wave 118: first in the list, placed on free ground beside the hero (ArmourSites.spawn_beside)
+			for k: StringName in ArmourSites.demo_kinds():
+				out.append(_act(VehicleSpecs.name_of(k), ArmourSites.spawn_beside.bind(k)))
 			out.append(_head("SPAWN AT THE CROSSHAIR: ENEMIES"))
 			for t: StringName in TestMode.ENEMIES:
 				out.append(_act(String(t).to_upper(), TestMode.spawn_enemy.bind(t)))

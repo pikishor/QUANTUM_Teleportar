@@ -159,12 +159,18 @@ func _low_fly() -> Array:
 
 func _controls() -> void:
 	# the FLY button after a JUMP tap
-	TestLib.check(fg.button(&"fly") == Vector2.INF and fg.button(&"snake") != Vector2.INF, "on the street SNAKE is on screen and FLY is not")
+	# wave 118 (w118-controls): FLY is a button on the ground too (the two-button snake layout); the wave 116 window is measured with the one-button layout it was written for
+	TestLib.check(fg.button(&"fly") != Vector2.INF and fg.button(&"snake") != Vector2.INF, "on the street SWING and FLY are both on screen (wave 118: FLY was absent on the ground)")
+	var win118 := await _fly_window()
+	TestLib.check(win118 >= 3.0, "after a JUMP tap the FLY button never leaves the screen (%.2f s of the 3.33 s measured)" % win118)
+	SnakeTraversal.split_buttons = false
+	TestLib.check(fg.button(&"fly") == Vector2.INF, "one-button layout (wave 116): on the street FLY is not on screen")
 	var win := await _fly_window()
-	TestLib.check(win >= 0.45, "after a JUMP tap the FLY button is on screen for %.2f s (at least 0.45)" % win)
+	TestLib.check(win >= 0.45, "one-button layout: after a JUMP tap the FLY button is on screen for %.2f s (at least 0.45)" % win)
 	SnakeTraversal.fly_show_air = 0.3
 	var win_old := await _fly_window()
 	SnakeTraversal.fly_show_air = 0.15
+	SnakeTraversal.split_buttons = true
 	TestLib.check(win_old < 0.45, "OLD (shown after 0.3 s in the air): %.2f s, too short for a thumb" % win_old)
 	# FLY pressed low over the street
 	var low := await _low_fly()
@@ -178,7 +184,7 @@ func _controls() -> void:
 	await _tap(2, &"more")
 	TestLib.check(fg.tc.more_open and fg.button(&"melee") != Vector2.INF, "a finger on MORE opens the tray")
 	var mid := fg.button(&"melee")
-	TestLib.check(absf(mid.x / fg.vp().x - 0.5) < 0.3, "its buttons stand in the middle 60 %% of the width (MELEE at %.2f)" % (mid.x / fg.vp().x))
+	TestLib.check(mid.x / fg.vp().x > 0.6 and mid.y / fg.vp().y < 0.5, "wave 118: the tray is two short rows under the top-right row, clear of the hero and the crosshair (MELEE at %.2f, %.2f)" % [mid.x / fg.vp().x, mid.y / fg.vp().y])
 	await _tap(1, &"jump")
 	await _until(func() -> bool: return fg.button(&"fly") != Vector2.INF, 1.0)
 	await _tap(1, &"fly")

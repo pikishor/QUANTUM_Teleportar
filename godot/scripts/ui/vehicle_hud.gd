@@ -90,6 +90,10 @@ static func extra_rows(veh: Object) -> Array:
 	return rows
 
 
+static var dial_fix := true              ## w118 critic: false = the old place of the tank dial (inside the stick's ring on a phone)
+static var last_dial := Vector2.INF       ## the tank dial's centre as drawn last (tests)
+
+
 ## Paints the hull row above the speedometer plate `ab` (and the nitro tank / the tank's dial). Returns the top y of everything it drew.
 static func draw(hud: Hud, c: Control, font: Font, ab: Rect2, veh: Object, s: float, now: float) -> float:
 	var p := panel(veh)
@@ -120,7 +124,18 @@ static func draw(hud: Hud, c: Control, font: Font, ab: Rect2, veh: Object, s: fl
 				hud._rect(c, Rect2(nr.position.x + 2.0 * s, nr.position.y + 2.0 * s, (nr.size.x - 4.0 * s) * nitro, nr.size.y - 4.0 * s), Color(UiUtil.CYAN if not bool(p["boosting"]) else UiUtil.MAGENTA, 0.95))
 				top = nr.position.y
 		&"tank":
-			top = _tank_dial(hud, c, font, Vector2(ab.position.x + 46.0 * s, top - 52.0 * s), 40.0 * s, p, s) - 6.0 * s
+			var dial := Vector2(ab.position.x + 46.0 * s, top - 52.0 * s)
+			if dial_fix:
+				var tc: Variant = hud.get("touch")
+				if tc != null and bool(tc.get("controls_on")) and not UiSettings.s_left_hand:      # w118 critic: the dial sat inside the stick's ring, under the left thumb
+					var vs := c.size
+					var home := Vector2(190.0 * s + UiUtil.insets(vs).x, vs.y - 170.0 * s - UiUtil.insets_v(vs).y)
+					var ring := TouchControls.STICK_RADIUS * s
+					if dial.distance_to(home) < ring + 46.0 * s:
+						dial = Vector2(home.x + ring + 52.0 * s, maxf(home.y - 10.0 * s, 60.0 * s))
+			last_dial = dial
+			var dtop := _tank_dial(hud, c, font, dial, 40.0 * s, p, s) - 6.0 * s
+			top = minf(top, dtop) if dial.x > ab.end.x else dtop
 	return top
 
 

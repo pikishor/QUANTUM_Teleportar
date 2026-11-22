@@ -303,11 +303,11 @@ func _hud_in_car() -> void:
 	mgr.enter(v)
 	await TestLib.frames(host, 4)
 	var drv := _visible_buttons(tc)
-	var want := ["jump", "interact", "veh_view", "more"]
+	var want := ["move_forward", "move_back", "jump", "interact", "horn", "veh_view", "more"]       # wave 118 (owner: "like 5 circle for driving"): GAS, BRAKE, HAND BRAKE, EXIT; small HORN, VIEW, MORE
 	var same := true
 	for a in want:
 		same = same and drv.has(a)
-	TestLib.check(same and drv.size() <= 5, "in a sedan the frame is DRIFT, EXIT, VIEW and MORE (%s)" % str(drv))
+	TestLib.check(same and drv.size() <= 7, "in a sedan the frame is GAS, BRAKE, HAND BRAKE, EXIT, HORN, VIEW and MORE (%s)" % str(drv))
 	TestLib.check(not drv.has("aim") and not drv.has("reload") and not drv.has("fire") and not drv.has("look_back") and not drv.has("radio_next") and not drv.has("garage_open"), "no AIM, RELOAD, FIRE, BACK, RADIO or GARAGE circle while driving")
 	tc.more_open = true
 	var more := _visible_buttons(tc)
@@ -315,9 +315,9 @@ func _hud_in_car() -> void:
 	tc.more_open = false
 	var tc_label := ""
 	for b: Dictionary in TouchControls.BUTTONS:
-		if b["action"] == &"jump":
+		if b["action"] == &"jump" and tc.button_visible(b):
 			tc_label = tc._label_of(b)
-	TestLib.check(tc_label == "DRIFT", "the handbrake is called DRIFT in a car (%s)" % tc_label)
+	TestLib.check(tc_label == "HAND BRAKE", "the handbrake is called HAND BRAKE in a car (wave 118; it read DRIFT) (%s)" % tc_label)
 	v.speed = 20.0
 	hud._ammo_key = -1
 	TestLib.check(hud.ammo_text() == "%d KM/H" % roundi(20.0 * 3.6), "the speedometer reads km/h (%s)" % hud.ammo_text())

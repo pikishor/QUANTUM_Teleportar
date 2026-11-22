@@ -195,7 +195,7 @@ func _zip_facts() -> Dictionary:
 	var out := {"label": "", "mark": {}, "ring_on_anchor": false, "text": "", "zipped": false, "mark_miss": 99.0, "climb_ticks": 0, "end": &"", "floor": false, "rise": 0.0, "step_max": 0.0, "hang": false, "time": 0.0, "said": "", "up_min": 9.0, "haul_ticks": 0}
 	await _tp(WALL_SPOT, WALL_YAW, 0.2)
 	await _f(40)                                             # the anchor scan runs a few times a second
-	out["label"] = fg.button_label(&"snake")
+	out["label"] = fg.button_label(&"snake_zip")           # wave 118: ZIP is a button of its own (SWING beside it never zips)
 	var mark: Dictionary = fx.zip_mark.duplicate()
 	out["mark"] = mark
 	var hud := _hud()
@@ -209,7 +209,7 @@ func _zip_facts() -> Dictionary:
 			out["text"] = tx
 	said.clear()
 	var from := p.global_position
-	await _tap(2, &"snake")
+	await _tap(2, &"snake_zip")
 	out["zipped"] = await _until(func() -> bool: return sn.mode == SnakeTraversal.Mode.ZIP, 1.0)
 	if not out["zipped"]:
 		return out
@@ -282,31 +282,31 @@ func _no_anchor_facts() -> Dictionary:
 	var out := {"before": "", "after": "", "line": false, "ring": false, "whiff": false, "later": ""}
 	await _tp(OPEN_SPOT, 0.0, 0.05)
 	await _f(40)
-	out["before"] = fg.button_label(&"snake")
+	out["before"] = fg.button_label(&"snake_zip")
 	var w0 := sn.whiffs
-	await _tap(2, &"snake")
+	await _tap(2, &"snake_zip")
 	await _f(6)
 	out["whiff"] = sn.whiffs == w0 + 1
-	out["after"] = fg.button_label(&"snake")
+	out["after"] = fg.button_label(&"snake_zip")
 	var hud := _hud()
 	out["line"] = (hud[1] as Array).has("NO ANCHOR IN REACH")
 	for a: Array in hud[0]:
-		if (a[0] as Vector2).distance_to(fg.button(&"snake")) < 2.0:
+		if (a[0] as Vector2).distance_to(fg.button(&"snake_zip")) < 2.0:
 			out["ring"] = true
 	await _f(100)
-	out["later"] = fg.button_label(&"snake")
+	out["later"] = fg.button_label(&"snake_zip")
 	return out
 
 
 func _no_anchor() -> void:
 	var f := await _no_anchor_facts()
-	TestLib.check(f["before"] == "SNAKE" and bool(f["whiff"]), "far from every building the button reads SNAKE and a finger on it finds nothing to bite")
+	TestLib.check(f["before"] == "ZIP" and bool(f["whiff"]), "far from every building a finger on the ZIP button finds nothing to bite")
 	TestLib.check(f["after"] == "NO ANCHOR" and bool(f["line"]) and bool(f["ring"]), "... and says so at once: the button reads '%s', a ring flashes round it, NO ANCHOR IN REACH stands at the crosshair" % f["after"])
-	TestLib.check(f["later"] == "SNAKE", "the cue is short: 1.8 s later the button reads %s again" % f["later"])
+	TestLib.check(f["later"] == "ZIP", "the cue is short: 1.8 s later the button reads %s again" % f["later"])
 	SnakeFx.cues_on = false
 	var o := await _no_anchor_facts()
 	SnakeFx.cues_on = true
-	TestLib.check(bool(o["whiff"]) and o["after"] == "SNAKE" and not bool(o["line"]) and not bool(o["ring"]), "OLD (SnakeFx.cues_on off): the same press changes nothing on the button or at the crosshair")
+	TestLib.check(bool(o["whiff"]) and o["after"] == "ZIP" and not bool(o["line"]) and not bool(o["ring"]), "OLD (SnakeFx.cues_on off): the same press changes nothing on the button or at the crosshair")
 
 
 # --- flight energy and the rain ----------------------------------------------------------------------------------------------------------

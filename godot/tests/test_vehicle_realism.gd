@@ -617,7 +617,7 @@ func _touch_buttons() -> void:
 	var view_b := {}
 	var back_b := {}
 	for b: Dictionary in TouchControls.BUTTONS:
-		if b["action"] == &"veh_view":
+		if b["action"] == &"veh_view" and view_b.is_empty():        # wave 118: the first row is the ground vehicles' VIEW (an aircraft has its own slot)
 			view_b = b
 		if b["action"] == &"look_back":
 			back_b = b

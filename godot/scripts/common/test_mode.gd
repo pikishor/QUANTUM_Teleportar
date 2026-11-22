@@ -284,7 +284,7 @@ static func spawn_vehicle(kind: StringName) -> String:
 	var heading := p.yaw if p != null else 0.0
 	if vm.list.size() >= vm.cap():                           # the pool is full: retire a parked car for the one asked for
 		for old: Vehicle in vm.list:
-			if is_instance_valid(old) and (p == null or old != p.vehicle):
+			if is_instance_valid(old) and not old.has_meta(&"hold") and (p == null or old != p.vehicle):       # wave 118: not a vehicle of a fixed place (it stands outside the cap: releasing it frees no room)
 				vm._release(old)
 				break
 	var v := vm.spawn_parked(kind, at, heading)

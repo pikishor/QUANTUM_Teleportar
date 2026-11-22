@@ -353,14 +353,16 @@ static func hud_cues(tc: TouchControls, s: float, sprites: Array, labels: Array)
 				var txt := "WALL  NO LEDGE"
 				if good:
 					txt = ("ZIP  ROOF +%d M" % roundi(up_m)) if up_m > 6.0 else ("ZIP  %d M" % roundi(float(me.zip_mark["dist"])))
-				_line(sprites, labels, at + Vector2(0.0, 46.0 * s), txt, 22, s, col, 0.95)
+				var tat := tag_at(tc, at, txt, 22, s)
+				if tat.is_finite():
+					_line(sprites, labels, tat, txt, 22, s, col, 0.95)
 	if me.cue_t > 0.0:
 		var a := clampf(me.cue_t / 0.25, 0.0, 1.0)
 		var col2 := Color(UiUtil.MAGENTA, 0.95 * a)
 		sprites.append(_ring(mid, 27.0 * s, col2))
 		_line(sprites, labels, mid + Vector2(0.0, 66.0 * s), "NO ANCHOR IN REACH", 32, s, col2, a)
 		for b: Dictionary in TouchControls.BUTTONS:
-			if b["action"] == &"snake" and tc.button_visible(b):
+			if b["action"] == (me.st.whiff_action if SnakeTraversal.split_buttons else &"snake") and tc.button_visible(b):       # w118-controls: the button that was pressed (SWING or ZIP)
 				sprites.append(_ring(tc._button_center(b), (float(b["r"]) * UiSettings.s_button_size + 9.0) * s, col2))
 	if me.energy_warn > 0:
 		var blink := 0.55 + 0.45 * sin(me._t * (9.0 if me.energy_warn == 1 else 18.0))
@@ -369,6 +371,38 @@ static func hud_cues(tc: TouchControls, s: float, sprites: Array, labels: Array)
 		for b: Dictionary in TouchControls.BUTTONS:
 			if b["action"] == &"fly" and tc.button_visible(b):
 				sprites.append(_ring(tc._button_center(b), (float(b["r"]) * UiSettings.s_button_size + 9.0) * s, col3))
+
+
+static var tag_dodge := true             ## w118 critic: false = the old place (46 px under the ring, even over a touch button: frame foot_844 had ZIP ROOF +81 M on ABILITY)
+static var last_tag := Rect2()           ## the plate of the zip tag drawn last (tests)
+
+
+## Where the zip tag's line goes: under the ring, or above / beside it when a touch button stands there.
+static func tag_at(tc: TouchControls, at: Vector2, text: String, fs: int, s: float) -> Vector2:
+	var w := (float(text.length()) * float(fs) * 0.66 + 44.0) * s
+	var h := float(fs) * 1.75 * s
+	var vp: Vector2 = tc.get_viewport().get_visible_rect().size
+	var tries: Array[Vector2] = [Vector2(0.0, 46.0 * s)]
+	if tag_dodge:
+		tries.append_array([Vector2(0.0, -46.0 * s), Vector2(w * 0.5 + 30.0 * s, 0.0), Vector2(-w * 0.5 - 30.0 * s, 0.0), Vector2(0.0, 92.0 * s), Vector2(0.0, -92.0 * s)])
+	var pick := at + tries[0] if not tag_dodge else Vector2.INF            # no free place: the ring alone (the words would hide a button)
+	for off in tries:
+		var c := at + off
+		c.x = clampf(c.x, w * 0.5 + 4.0, vp.x - w * 0.5 - 4.0)
+		var plate := Rect2(c - Vector2(w, h) * 0.5, Vector2(w, h))
+		var hit := false
+		for b: Dictionary in TouchControls.BUTTONS:
+			if tc.button_visible(b):
+				var r := float(b["r"]) * UiSettings.s_button_size * s
+				var bc := tc._button_center(b)
+				if plate.grow(r).has_point(bc) and Vector2(clampf(bc.x, plate.position.x, plate.end.x), clampf(bc.y, plate.position.y, plate.end.y)).distance_to(bc) < r:
+					hit = true
+					break
+		if not hit:
+			pick = c
+			break
+	last_tag = Rect2(pick - Vector2(w, h) * 0.5, Vector2(w, h)) if pick.is_finite() else Rect2(Vector2(-1, -1), Vector2(1, 1))
+	return pick
 
 
 static func _ring(at: Vector2, r: float, col: Color) -> Array:

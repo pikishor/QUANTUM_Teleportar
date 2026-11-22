@@ -27,6 +27,26 @@ const SUPER_MAX_RUN := 4.5                 ## the push only follows a jump from 
 const ROLL_TIME := 0.56
 const ROLL_FALL := 15.0                    ## landing faster than this (m/s down) rolls
 const FLY_HOLD := 0.45
+## Wave 118 (w118-controls, the touch layout sets it): SWING and ZIP are two buttons. The SNAKE action never zips (on the street it hops into a swing), the action
+## `snake_zip` zips to what the crosshair is on, and FLY is offered on the ground too. false = ONE contextual snake button (keyboard, controller, the old touch layout).
+static var split_buttons := false
+## What the hints and the mission steps say when SWING and ZIP are two buttons (they named the one SNAKE button).
+const TOUCH_WORDS := {
+	"TAP SNAKE TO CLIMB THE WALL": "TAP CLIMB AT THE WALL",
+	"TAP SNAKE TO ZIP UP": "AIM AT A ROOF, TAP ZIP",
+	"HOLD SNAKE TO SWING": "HOLD SWING TO SWING",
+	"SNAKE UP TO THE ROOF  TAP SNAKE": "SNAKE UP TO THE ROOF  TAP ZIP",
+	"ZIP UP  AIM AT THE ROOF, TAP SNAKE": "ZIP UP  AIM AT THE ROOF, TAP ZIP",
+	"SWING  JUMP, THEN HOLD SNAKE": "SWING  HOLD THE SWING BUTTON",
+	"CLIMB  TAP SNAKE AT THE WALL": "CLIMB  TAP CLIMB AT THE WALL",
+	"FLY  HOLD SNAKE, STICK FORWARD": "FLY  TAP FLY, STICK FORWARD",
+}
+
+
+static func touch_words(text: String) -> String:
+	return String(TOUCH_WORDS.get(text, text)) if split_buttons else text
+
+
 static var fly_show_air := 0.15            ## seconds in the air before the FLY button shows (was 0.3: after a JUMP tap the button was on screen for 0.38 s only, wave 116 touch probe)
 const WHIFF_COOLDOWN := 0.35
 const SCAN_RATE := 0.09
@@ -102,6 +122,9 @@ var _fall_vy := 0.0
 var _was_air := false
 var _wish := Vector3.ZERO
 var _swing_blocked_press := false
+var whiff_action: StringName = &"snake"   ## the button whose press last found nothing (the NO ANCHOR cue sits on that button)
+var _zip_pressed := false
+var _zip_was := false
 static var jump_takes := true               ## critic 117: false = the builders' state (the JUMP that lets go of a swing also fires the glide burst)
 var _jump_taken := false
 var _post_swing := false                   ## in the air after a swing was let go (wave 117: the air brake and the landing roll)
@@ -252,17 +275,21 @@ func _tick_body(pl: Player, dt: float, iv: Vector2, wish: Vector3, on_floor: boo
 	var down := Input.is_action_pressed(&"snake")
 	var pressed := down and not _snake_was
 	_snake_was = down
+	var zip_down := split_buttons and InputMap.has_action(&"snake_zip") and Input.is_action_pressed(&"snake_zip")
+	_zip_pressed = zip_down and not _zip_was
+	_zip_was = zip_down
 	var fly_down := Input.is_action_pressed(&"fly")
 	var fly_pressed := fly_down and not _fly_was
 	_fly_was = fly_down
 	if jam_t > 0.0:                                            # a jammer's pulse: the buttons are dead (a press says why), a held button starts nothing when the jam ends
 		jam_t = maxf(0.0, jam_t - dt)
-		if (pressed or fly_pressed) and _whiff_cd <= 0.0:
+		if (pressed or fly_pressed or _zip_pressed) and _whiff_cd <= 0.0:
 			_whiff_cd = WHIFF_COOLDOWN
 			Game.say("SNAKE JAMMED", 0.9)
 			Sfx.play(&"snk_miss", -6.0)
 		pressed = false
 		fly_pressed = false
+		_zip_pressed = false
 		if down:
 			_swing_blocked_press = true
 	var jump_pressed := jump_down and not _jump_was
@@ -442,6 +469,11 @@ func _none_tick(dt: float, iv: Vector2, wish: Vector3, on_floor: bool, air: bool
 		_start_flight(on_floor)
 		if mode == Mode.FLY:
 			return
+	# the ZIP button (wave 118)
+	if _zip_pressed and not p.control_hold:
+		_press_zip()
+		if mode != Mode.NONE:
+			return
 	# the contextual SNAKE button
 	if pressed and swing_cd <= 0.0 and not p.control_hold:
 		_press(on_floor, air, iv)
@@ -488,8 +520,8 @@ func _press(on_floor: bool, air: bool, iv: Vector2) -> void:
 				if SnakePower.unlimited() or energy > 6.0:
 					_start_climb(w)
 					return
-		# 2. a zip target under the crosshair
-		if zip_cd <= 0.0:
+		# 2. a zip target under the crosshair (not with the two-button layout: ZIP has its own button there)
+		if zip_cd <= 0.0 and not split_buttons:
 			var z := anchors.find_zip(p, aim, reach, assist)
 			if not z.is_empty() and (SnakePower.unlimited() or energy > SnakePower.cost(8.0) * 0.5):
 				_start_zip(z)
@@ -519,6 +551,19 @@ func _press(on_floor: bool, air: bool, iv: Vector2) -> void:
 			_swing_blocked_press = true
 			return
 	_whiff(aim, reach)
+
+
+## The ZIP button: a zip to what the crosshair is on, from the ground or from the air; nothing in reach is a miss that says so.
+func _press_zip() -> void:
+	if zip_cd > 0.0:
+		return
+	var z := anchors.find_zip(p, _aim(), SnakePower.range_m(), assist)
+	if not z.is_empty() and (SnakePower.unlimited() or energy > SnakePower.cost(8.0) * 0.5):
+		_start_zip(z)
+		return
+	if _whiff_cd <= 0.0:
+		whiff_action = &"snake_zip"
+	_whiff(_aim(), SnakePower.range_m())
 
 
 func _scan_swing(wide := false) -> Dictionary:
@@ -596,6 +641,8 @@ func _whiff(aim: Vector3, reach: float) -> void:
 		return
 	_whiff_cd = WHIFF_COOLDOWN
 	whiffs += 1
+	if not _zip_pressed:
+		whiff_action = &"snake"
 	_swing_blocked_press = false
 	var o := hand_pos(1)
 	var tip := o + aim * minf(reach * 0.45, 22.0)
@@ -968,13 +1015,15 @@ func button_label() -> String:
 	if jam_t > 0.0:
 		return "JAMMED"
 	var cue := SnakeFx.label_cue()                                  # w117-rope hook: "NO ANCHOR" for a second after a press that found nothing
-	if cue != "":
+	if cue != "" and (whiff_action == &"snake" or not split_buttons):
 		return cue
 	match mode:
 		Mode.SWING: return "LET GO"                                    # critic 115 look: one word for both (swing and climb): "RELEASE" had to be drawn a fifth smaller to fit the disc
 		Mode.CLIMB: return "LET GO"
 		Mode.FLY: return "BOOST"
-		Mode.ZIP: return "ZIP"
+		Mode.ZIP: return "SWING" if split_buttons else "ZIP"
+	if split_buttons:
+		return "CLIMB" if hint == &"climb" else "SWING"
 	match hint:
 		&"climb": return "CLIMB"
 		&"zip": return "ZIP"
@@ -998,4 +1047,4 @@ func fly_button_shown() -> bool:
 		return false
 	if mode == Mode.FLY:
 		return true
-	return (mode == Mode.NONE or mode == Mode.SWING) and p.air_time > fly_show_air and (energy >= 8.0 or SnakePower.unlimited())
+	return (mode == Mode.NONE or mode == Mode.SWING) and (p.air_time > fly_show_air or (split_buttons and mode == Mode.NONE)) and (energy >= 8.0 or SnakePower.unlimited())

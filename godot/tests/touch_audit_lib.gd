@@ -10,6 +10,8 @@ extends RefCounted
 ## Not a class_name on purpose (no import step needed): const Audit := preload("res://tests/touch_audit_lib.gd").
 
 const PHONE := Vector2i(844, 390)
+const MAIN_PX := 56.0                     ## wave 118: the least width of a MAIN action disc of the play HUD as drawn (real px at 844x390); every other disc is at least MIN_PX as drawn
+const MAIN_IDS: Array[String] = ["fire", "aim", "jump", "snake", "snake_zip", "fly", "interact", "leave_building", "move_forward", "move_back"]
 const MIN_PX := 44.0                      ## the least side of a touch target in real pixels at 844x390 (the platform guideline the task names)
 const HUD_FLAGS: Array[StringName] = [&"_gear_open", &"_hero_hub", &"_look_open", &"_loadout_open", &"_loadout_page", &"_loadout_quick", &"_skills_open", &"_ach_open", &"_shop_open",
 	&"_options_open", &"_arena_open", &"_craft_open", &"_safe_open", &"_heist_open", &"_side_open", &"_board_open", &"_chapters_open"]
@@ -271,7 +273,7 @@ func touch_controls() -> Array[Dictionary]:
 		out.append({"src": "touch", "id": String(b["action"]), "label": tc._label_of(b), "rect": Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0), "hit": Rect2(c - Vector2(hr, hr), Vector2(hr, hr) * 2.0),
 			"layer": tc.layer, "kind": "disc", "centre": c, "r": r, "b": b})
 	var pc := tc._pause_center()
-	var pr := 36.0 * s
+	var pr := TouchControls.PAUSE_R * s
 	out.append({"src": "touch", "id": "pause", "label": "PAUSE", "rect": Rect2(pc - Vector2(pr, pr), Vector2(pr, pr) * 2.0), "hit": Rect2(pc - Vector2(pr, pr) * 1.3, Vector2(pr, pr) * 2.6),
 		"layer": tc.layer, "kind": "disc", "centre": pc, "r": pr})
 	out.append({"src": "touch", "id": "minimap", "label": "MAP", "rect": tc._minimap_rect(), "layer": tc.layer, "kind": "rect"})
@@ -413,6 +415,10 @@ func geometry(ctx: String, list: Array[Dictionary]) -> Array[String]:
 		var hgt := px(target.size.y)
 		if minf(w, hgt) < MIN_PX - 0.5:
 			bad.append("%s: %s '%s' is %.0f x %.0f px (under %d)" % [ctx, c["id"], c["label"], w, hgt, int(MIN_PX)])
+		if c["src"] == "touch" and c["kind"] == "disc":                       # wave 118: the DRAWN disc of the play HUD: 56 px for a main action, 44 px for the rest
+			var need := MAIN_PX if MAIN_IDS.has(String(c["id"])) else MIN_PX
+			if px(float(c["r"]) * 2.0) < need - 0.5:
+				bad.append("%s: %s '%s' is drawn %.0f px across (under %d)" % [ctx, c["id"], c["label"], px(float(c["r"]) * 2.0), int(need)])
 		var rr: Rect2 = c["rect"]
 		if not screen.grow(1.0).encloses(rr):
 			bad.append("%s: %s '%s' leaves the screen (%s)" % [ctx, c["id"], c["label"], str(rr)])

@@ -221,9 +221,9 @@ func _touch() -> void:
 			TestLib.check(Rect2(Vector2.ZERO, vp).grow(-float(b["r"])).has_point(ctr), "%s is on screen at %dx%d" % [b["label"], size.x, size.y])
 			var clear := true
 			for o: Dictionary in TouchControls.BUTTONS:
-				if o == b:
+				if o == b or TouchControls.exclusive(o, b):          # wave 118: buttons of another mode share slots; the left row and the top row have their own corners
 					continue
-				var dd := Vector2(float(b["dx"]) - float(o["dx"]), float(b["dy"]) - float(o["dy"])).length()
+				var dd := TouchControls.centre_at(b, vp).distance_to(TouchControls.centre_at(o, vp)) / UiUtil.ui_scale(vp)
 				if dd < (float(b["r"]) + float(o["r"])) * 0.95:
 					clear = false
 			TestLib.check(clear, "%s does not overlap another touch button" % b["label"])

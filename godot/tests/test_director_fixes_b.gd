@@ -101,11 +101,8 @@ func _hero_outfit() -> void:
 func _buttons() -> void:
 	var tc := hud.touch
 	var s := tc._scale()
-	for entry: Array in [["on foot", FOOT], ["driving", DRIVING]]:
-		var group: Array = []
-		for b: Dictionary in TouchControls.BUTTONS:
-			if (entry[1] as Array).has(String(b["need"])):
-				group.append(b)
+	for entry: Array in [["on foot", TouchControls.buttons_of(&"foot")], ["snake flight", TouchControls.buttons_of(&"flight")], ["indoors", TouchControls.buttons_of(&"interior")], ["driving", TouchControls.buttons_of(&"car")], ["tank", TouchControls.buttons_of(&"tank")], ["aircraft", TouchControls.buttons_of(&"air")]]:       # wave 118: one set per mode (TouchControls.NEED_MODES)
+		var group: Array = entry[1]
 		var worst := 1.0e9
 		var pair := ""
 		for i in group.size():
@@ -113,16 +110,19 @@ func _buttons() -> void:
 			TestLib.check(float(bi["r"]) * 2.0 >= 64.0, "%s button %s is at least 64 px across" % [entry[0], bi["action"]])
 			for j in range(i + 1, group.size()):
 				var bj: Dictionary = group[j]
-				var gap: float = (tc._button_center(bi) as Vector2).distance_to(tc._button_center(bj)) / s - float(bi["r"]) - float(bj["r"])
-				if gap < worst:
-					worst = gap
-					pair = "%s/%s" % [bi["action"], bj["action"]]
+				if TouchControls.exclusive(bi, bj):
+					continue                                       # the DOOR slot indoors: LEAVE everywhere but at the door, where USE says LEAVE
+				for pvp: Vector2 in [Vector2(844, 390), Vector2(1280, 720)]:       # wave 118: the left row is anchored to the LEFT edge, so the gap depends on the screen: a phone (20:9) and 16:9, not the square test window
+					var gap: float = TouchControls.centre_at(bi, pvp).distance_to(TouchControls.centre_at(bj, pvp)) / UiUtil.ui_scale(pvp) - float(bi["r"]) - float(bj["r"])
+					if gap < worst:
+						worst = gap
+						pair = "%s/%s" % [bi["action"], bj["action"]]
 		if entry[0] == "on foot":
 			for vp: Vector2 in [Vector2(844, 390), Vector2(1280, 720), Vector2(1600, 720)]:
 				var sc := UiUtil.ui_scale(vp)
 				var top := UiUtil.insets_v(vp).x + 6.0 * sc
 				var wr := hud.wanted_rect(vp, sc, top)
-				var pc := Vector2(vp.x - UiUtil.insets(vp).y - 52.0 * sc, 112.0 * sc + UiUtil.insets_v(vp).x)
+				var pc := TouchControls.pause_at(vp)
 				var near := Vector2(clampf(pc.x, wr.position.x, wr.end.x), clampf(pc.y, wr.position.y, wr.end.y))
 				TestLib.check(pc.distance_to(near) > 36.0 * sc, "the pause button clears the faction / wanted plate at %dx%d" % [int(vp.x), int(vp.y)])
 			TestLib.check((tc._pause_center() as Vector2).x > tc._vp_size().x * 0.8, "the pause button sits at the right edge")

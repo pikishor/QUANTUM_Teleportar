@@ -184,5 +184,5 @@ func _hint(id: StringName, text: String) -> void:
 	_seen[id] = true
 	hints_shown.append(id)
 	_hint_t = HINT_GAP
-	Game.say(text, 3.0)
+	Game.say(SnakeTraversal.touch_words(text), 3.0)       # w118-controls: SWING and ZIP are two buttons on a phone
 	SnakeMissions.save_flags({id: true})

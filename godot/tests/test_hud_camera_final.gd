@@ -15,7 +15,7 @@ const SAVE := "user://test_hud_camera_final.cfg"
 const SETTINGS := "user://test_hud_camera_final_settings.cfg"
 const SIZES: Array[Vector2i] = [Vector2i(844, 390), Vector2i(2400, 1080)]
 ## What the combat frame may hold (visible_controls ids); `interact`, `grab`, `takedown`, `toast`, `subtitle` and `wanted` appear only when they apply.
-const ALLOWED: Array[StringName] = [&"stick", &"fire", &"aim", &"jump", &"reload", &"ability", &"swap", &"more", &"snake", &"pause", &"minimap", &"status", &"objective"]       # wave 115: the contextual SNAKE button (swing, zip, climb, boost) joined the on-foot frame at the owner's request (docs/ROUND6.md); FLY / LAND only shows in the air
+const ALLOWED: Array[StringName] = [&"stick", &"fire", &"aim", &"jump", &"reload", &"ability", &"swap", &"more", &"snake", &"snake_zip", &"fly", &"crouch", &"pause", &"minimap", &"status", &"objective"]       # wave 118 (owner: "all controls come as options on screen like gta"): ZIP, FLY and CROUCH are buttons of the on-foot frame         # wave 115: the contextual SNAKE button (swing, zip, climb, boost) joined the on-foot frame at the owner's request (docs/ROUND6.md); FLY / LAND only shows in the air
 ## Buttons that share a spot or a state on purpose (never on screen together).
 const EXCLUSIVE: Array = [[&"swap", &"veh_view"], [&"grab", &"radio_next"], [&"takedown", &"radio_next"], [&"reload", &"crouch"], [&"aim", &"aim"], [&"ultimate", &"look_back"], [&"ammo_type", &"look_back"]]       # DOWN (the aircraft's second vertical button) takes RELOAD's place while flying   # AIM on foot and ROCKET in an armed aircraft share a spot (wave 106)   # wave 113: ULT and AMMO (on foot, behind MORE) share the corner of BACK (driving, behind MORE): `more_ult` / `more_ammo` need not _driving(), `drive_more` needs _driving()
 
@@ -195,7 +195,7 @@ func _minimap(_vp: Vector2, _s: float) -> Rect2:
 
 func _pause_disc_rect(_vp: Vector2, s: float) -> Rect2:
 	var c := tc._pause_center()
-	return Rect2(c - Vector2(36.0, 36.0) * s, Vector2(72.0, 72.0) * s)
+	return Rect2(c - Vector2.ONE * TouchControls.PAUSE_R * s, Vector2.ONE * TouchControls.PAUSE_R * 2.0 * s)
 
 
 func _button_layout(size: Vector2i) -> void:
@@ -220,7 +220,7 @@ func _button_layout(size: Vector2i) -> void:
 			for pair: Array in EXCLUSIVE:
 				if (pair[0] == a["action"] and pair[1] == b["action"]) or (pair[1] == a["action"] and pair[0] == b["action"]):
 					skip = true
-			if skip:
+			if skip or TouchControls.exclusive(a, b):               # wave 118: two buttons that share no mode share a slot (TouchControls.NEED_MODES)
 				continue
 			var rb := float(b["r"]) * s * UiSettings.s_button_size
 			if ca.distance_to(tc._button_center(b)) < ra + rb - 1.0:

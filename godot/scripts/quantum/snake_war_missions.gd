@@ -133,7 +133,7 @@ static func build(t: StringName, tier: int, origin: Vector3, r: RandomNumberGene
 			if c.is_empty():
 				return {}
 			out = [
-				_s("reach", "SNAKE UP TO THE ROOF  TAP SNAKE", {"pos": a["pos"], "radius": SnakeMissions.ROOF_R + 4.0, "snake_war_mission": "hunt"}),
+				_s("reach", SnakeTraversal.touch_words("SNAKE UP TO THE ROOF  TAP SNAKE"), {"pos": a["pos"], "radius": SnakeMissions.ROOF_R + 4.0, "snake_war_mission": "hunt"}),
 				_s("kill_target", "PULL THE SNIPER OFF HIS ROOF", {"pos": b["pos"], "enemy": "sniper", "guards": 2, "hp_mult": 1.2, "name": "SNIPER", "snake_war_mission": "hunt"}),
 				_s("kill_target", "TAKE DOWN THE GUNNER", {"pos": c["pos"], "enemy": "heavy", "guards": 1, "hp_mult": 1.0, "name": "GUNNER", "snake_war_mission": "hunt"}),
 			]
