@@ -1,16 +1,15 @@
 # w118-armour (running)
 
-agent id a5d9acef5dff7ad71, 420 events, first activity 2026-11-21T17:30:54.750Z, last activity 2026-11-21T19:11:40.765Z
+agent id a5d9acef5dff7ad71, 428 events, first activity 2026-11-21T17:30:54.750Z, last activity 2026-11-21T19:16:05.522Z
 
 ## Last notes of the agent
 
 - 17:38:37 Meanwhile, I read the city layout and the airport's markers.
 - 17:47:35 Now the permanent test.
+- 19:16:05 You've hit your 5-hour limit · resets 10pm (UTC)
 
 ## Recent steps (last 40)
 
-- 18:15:38 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/w118a/f3/place_0.png
-- 18:15:39 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/w118a/f3/enter_2_in_tank.png
 - 18:15:44 Find the parked car placement code
 - 18:15:46 Read parked car bay generation
 - 18:15:51 Read the streamed car spot finder
@@ -49,6 +48,8 @@ agent id a5d9acef5dff7ad71, 420 events, first activity 2026-11-21T17:30:54.750Z,
 - 19:06:58 Read the failing city vehicle checks
 - 19:07:12 Adapt the city streaming test to fixed vehicles; run vehicle tests
 - 19:11:40 Find the off-bay vehicle in the city test
+- 19:12:20 Repeat the city vehicle test three times
+- 19:14:03 A/B the city test with the fixed places switched off
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

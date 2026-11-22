@@ -1,10 +1,10 @@
 # w118-integrator (running)
 
-agent id a2d37534653d7e131, 12 events, first activity 2026-11-12T22:55:53.509Z, last activity 2026-11-12T22:55:53.712Z
+agent id ad8988183f75585f1, 13 events, first activity 2026-11-21T19:22:28.382Z, last activity 2026-11-21T19:22:28.583Z
 
 ## Last notes of the agent
 
-- 22:55:53 You've hit your weekly limit · resets 4am (UTC)
+- 19:22:28 You've hit your 5-hour limit · resets 10pm (UTC)
 
 ## Recent steps (last 40)
 
