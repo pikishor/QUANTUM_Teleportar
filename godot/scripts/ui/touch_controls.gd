@@ -157,6 +157,11 @@ var _win_worst := 0.0
 var _avg_fps := 0.0
 var _min_fps := 0.0
 var _use_near := false
+var _slot_enter := false           ## w119-critic: what the outdoor context slot shows (ENTER or SNAKE BLAST), settled: see _settle_slot
+var _slot_t := 0.0
+static var CRITIC_OLD := OS.get_environment("W119C_OLD") == "1"     ## w119-critic fixes off (the fail-first run of tests/test_w119_critic.gd)
+const SLOT_SETTLE := 0.25           ## seconds a new ENTER / BLAST choice must hold before the slot changes (traffic in reach flipped it under the thumb: an ENTER tap threw a snake)
+const SLOT_BLAST_KEEP := 2.5        ## seconds after a snake throw the slot stays SNAKE BLAST (a passing car took the button between two throws)
 var _use_t := 0.0
 var _swap_finger := -1              ## the finger on SWAP, or -1
 var _swap_held := 0.0
@@ -327,12 +332,33 @@ func _process(delta: float) -> void:
 	if _use_t <= 0.0:
 		_use_t = 0.15
 		_use_near = _vehicle_in_reach() or InteriorGameplay.prompt != "" or RideUse.prompt() != ""
+	_settle_slot(delta)
 	_redraw_t -= delta
 	if Game.state == &"play" or Game.state == &"paused" or _last_state == &"play" or _last_state == &"paused":
 		if _redraw_t <= 0.0 or Game.state != _last_state:         # LOW redraws the touch layer 20 times a second, LOW+ 12; a state change always redraws
 			_redraw_t = LowPlus.hud_interval()
 			_canvas.queue_redraw()      # one extra redraw after leaving play, so the dead screen does not keep the dimmed buttons
 	_last_state = Game.state
+
+
+## w119-critic: the outdoor context slot (ENTER or SNAKE BLAST) turns to ENTER only when a car has stayed in reach SLOT_SETTLE seconds (back to BLAST at once), never under a finger on it, and stays SNAKE BLAST while
+## aiming and SLOT_BLAST_KEEP seconds after a throw. A change redraws at once, so the word drawn is the action a finger gets (the old slot followed every car that came within reach).
+func _settle_slot(delta: float) -> void:
+	if CRITIC_OLD:
+		_slot_enter = _use_near
+		return
+	var sbi := SnakeBlasts.instance
+	var keep := is_instance_valid(sbi) and (sbi.aiming or sbi.since_throw < SLOT_BLAST_KEEP)
+	var want := _use_near and not keep
+	if want == _slot_enter:
+		_slot_t = 0.0
+		return
+	_slot_t += delta
+	if (_slot_t >= SLOT_SETTLE or not want) and not _action_held(&"snake_blast") and not _action_held(&"interact"):
+		_slot_enter = want
+		_slot_t = 0.0
+		if _canvas != null:
+			_canvas.queue_redraw()
 
 
 ## Lets go of every action this layer pressed (state changes, exit, tests).
@@ -613,7 +639,7 @@ func button_visible(b: Dictionary) -> bool:
 		&"vehicle":          # the DOOR slot outdoors: ENTER beside a vehicle (or a ride), EXIT in one
 			if InteriorGameplay.active and not _driving():
 				return is_instance_valid(Game.vehicles) and _use_near and InteriorGameplay.prompt.begins_with("LEAVE")       # indoors only at the door: LEAVE
-			return is_instance_valid(Game.vehicles) and ((_use_near and not _flying()) or _driving())       # in snake flight the DOOR slot is LAND
+			return is_instance_valid(Game.vehicles) and ((_slot_enter and not _flying()) or _driving())       # in snake flight the DOOR slot is LAND
 		&"driving":
 			return is_instance_valid(Game.vehicles) and _driving()
 		&"view_ground":
@@ -658,7 +684,7 @@ func button_visible(b: Dictionary) -> bool:
 		&"reload_chip":      # the RELOAD chip: on foot, not in snake flight
 			return is_instance_valid(Game.player) and not _driving() and not _flying()
 		&"blast":            # the context slot with nothing in reach: SNAKE BLAST
-			return is_instance_valid(Game.player) and not _driving() and not _flying() and not _use_near and InputMap.has_action(&"snake_blast") \
+			return is_instance_valid(Game.player) and not _driving() and not _flying() and not _slot_enter and InputMap.has_action(&"snake_blast") \
 					and Game.player.get("snake") != null and (Game.player.get("snake") as SnakeTraversal).button_shown()
 		&"foot_ground":      # CROUCH: on foot and not in snake flight (there the same action is the DOWN button)
 			return is_instance_valid(Game.player) and not _driving() and not _flying()
@@ -806,7 +832,7 @@ func wheel_items(kind: StringName) -> Array:
 			if qv == null:
 				continue
 			st = (qv as QuantumVerbs).ui_state(d["verb"])
-		out.append({"id": d["id"], "label": SnakeUi.ability_label(d["id"]) if d.has("snake") else d["label"], "ready": bool(st["ready"]), "active": bool(st["active"]), "cd": float(st["cd"]), "current": false})
+		out.append({"id": d["id"], "type": &"snake" if d["id"] == SnakeBlasts.KIND_ACTION else &"ability", "label": SnakeUi.ability_label(d["id"]) if d.has("snake") else d["label"], "ready": bool(st["ready"]), "active": bool(st["active"]), "cd": float(st["cd"]), "current": false})
 	return out
 
 

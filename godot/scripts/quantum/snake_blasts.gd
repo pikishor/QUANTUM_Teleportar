@@ -24,10 +24,11 @@ const MIN_RANGE := 4.0
 const CHARGES := 3
 const RECHARGE := 5.0
 const CORRODE_TIME := 4.0
+## w119-critic: the fire species is BLAZE (its BLAST button read "FIRE 3" one thumb above the FIRE button).
 const ROWS := {
-	&"sp_fire": {"name": "FIRE SNAKE", "short": "FIRE", "color": Color(1.0, 0.36, 0.06), "pattern": 1, "thick": 0.12, "len": 2.6, "head": 1.25,
+	&"sp_fire": {"name": "BLAZE SNAKE", "short": "BLAZE", "color": Color(1.0, 0.36, 0.06), "pattern": 1, "thick": 0.12, "len": 2.6, "head": 1.25,
 		"note": "BURSTS IN FLAME  THE GROUND BURNS FOR SIX SECONDS",
-		"entry": {"name": "FIRE SNAKE", "tag": "FIR", "radius": 5.5, "core": 1.5, "enemy": 70.0, "vehicle": 140.0, "element": &"fire", "knock": 5.0, "lift": 5.0, "curve": &"linear", "edge": 0.4,
+		"entry": {"name": "BLAZE SNAKE", "tag": "FIR", "radius": 5.5, "core": 1.5, "enemy": 70.0, "vehicle": 140.0, "element": &"fire", "knock": 5.0, "lift": 5.0, "curve": &"linear", "edge": 0.4,
 			"status": {"k": &"burn", "t": 4.0, "p": 14.0}, "fire": [4.5, 6.0, 18.0], "fx": &"ember", "wave": &"flat", "crater": 0.3, "scorch": 1.4, "shake": 0.6, "level": 1, "snd": &"snw_burst"}},
 	&"sp_frost": {"name": "FROST SNAKE", "short": "FROST", "color": Color(0.55, 0.9, 1.0), "pattern": 2, "thick": 0.085, "len": 3.2, "head": 1.0,
 		"note": "EVERYONE AND EVERY CAR IN THE RING FREEZES FOR FIVE SECONDS",
@@ -80,6 +81,7 @@ var _ring: MeshInstance3D
 var _ring_mat: StandardMaterial3D
 var _rq := PhysicsRayQueryParameters3D.new()
 var _puff_t := 0.0
+var since_throw := 99.0                               ## seconds since the last throw (TouchControls keeps the context slot SNAKE BLAST for a while after it)
 
 
 static func attach(w: SnakeWar) -> SnakeBlasts:
@@ -170,6 +172,7 @@ func _physics_process(dt: float) -> void:
 		if recharge_t <= 0.0:
 			charges += 1
 			recharge_t = RECHARGE if charges < CHARGES else 0.0
+	since_throw += dt
 	_step_flying(dt)
 	_step_corrode(dt)
 	var can := not p.is_dead() and p.vehicle == null
@@ -240,6 +243,7 @@ func throw(id: StringName = &"", at := Vector3.INF) -> bool:
 	var f := {"id": id, "from": from, "to": at, "t": 0.0, "secs": secs, "h": h}
 	flying.append(f)
 	thrown += 1
+	since_throw = 0.0
 	var sw := war.swarm if war != null else null
 	if sw != null:
 		var r: Dictionary = ROWS[id]
@@ -388,10 +392,12 @@ func _show_ring(on: bool) -> void:
 
 # --- the HUD and the wheel ----------------------------------------------------------------------------------------------------------------
 
-## The BLAST button: "FIRE 3" (the species and the charges left).
+## The BLAST button: "BLAZE 3" (the species and the charges left).
 static func button_label() -> String:
 	if not is_instance_valid(instance):
 		return "BLAST"
+	if TouchControls.CRITIC_OLD and instance.species == &"sp_fire":
+		return "FIRE %d" % instance.charges                                                  # the old label, for the fail-first run only
 	return "%s %d" % [String((ROWS[instance.species] as Dictionary)["short"]), instance.charges]
 
 
