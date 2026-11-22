@@ -175,6 +175,7 @@ var _perf_long := false             ## the current press already toggled the pan
 ## pressed and released its action before any physics tick ran, so everything that polls Input.is_action_pressed (SNAKE, FLY / LAND, FIRE, the vehicle weapons) never saw it:
 ## the button did nothing. The release of such a tap now waits until one physics tick and one process frame have seen the action down. false = the old behaviour (tests).
 static var hold_fast_taps := true
+static var door_air_fix := true               ## w118 critic: false = the old door label (EXIT while flying, where it cannot work)
 var _press_at := {}                 ## finger index -> [physics frame, process frame] of the press
 var _late := {}                     ## action -> [physics frame, process frame]: releases that wait for the game to see the press
 
@@ -670,6 +671,10 @@ func _label_of(b: Dictionary) -> String:
 		var ride := RideUse.prompt()
 		if not _driving() and ride != "":
 			return ride.split(" ")[0]                         # CLIMB, SIT, STAND, TAKE, MAN, LEAVE
+		if door_air_fix and _driving():
+			var dv := Game.player.get("vehicle") as Vehicle
+			if dv != null and not VehicleCraft.can_exit(dv):
+				return "LAND FIRST"                           # w118 critic: in the air the door said EXIT and a finger on it did nothing visible (243 m up)
 		return "EXIT" if _driving() else "ENTER"
 	if b["action"] == &"snake" and is_instance_valid(Game.player) and Game.player.get("snake") != null:
 		return (Game.player.get("snake") as SnakeTraversal).button_label()

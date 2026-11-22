@@ -120,6 +120,8 @@ var route_mode: StringName = &"auto"                 ## GPS mode: auto (the vehi
 var _route_btn: Button
 var _route_eta := 0.0                                ## seconds of the route at the mode's plain speed
 var _route_style: StringName = &"car"
+var _route_foot := false                              ## the route is walked: the line says ON FOOT and the ETA is at a run
+static var foot_fix := true                           ## w118 critic: false = the old line (CAR, car ETA on foot), for the failing-first check
 var _tint_mesh: ArrayMesh                            ## static layers as ONE mesh each (district tint per block, building footprints): one draw call, no per-lot script work in the draw
 var _lots_mesh: ArrayMesh
 var _lots_mesh_n := 0
@@ -1047,7 +1049,7 @@ func _refresh_chips() -> void:
 		if RoamWorld.instance != null:
 			t2 += "    " + RoamWorld.instance.counter_text()
 		if _route.size() >= 2:
-			t2 += "    ROUTE %s  ETA %s  %s" % [WorldRoute.dist_text(float(_route_m)), WorldRoute.clock(_route_eta), String(WorldRoute.MODE_WORD.get(_route_style, "CAR"))]
+			t2 += "    ROUTE %s  ETA %s  %s" % [WorldRoute.dist_text(float(_route_m)), WorldRoute.clock(_route_eta), "ON FOOT" if _route_foot else String(WorldRoute.MODE_WORD.get(_route_style, "CAR"))]
 		if is_finite(view_center.x) and (world_mode or absf(view_center.x) > HALF or absf(view_center.y) > HALF):
 			var rn := String(WorldHud.place(Vector3(view_center.x, 0.0, view_center.y))["name"])
 			if rn != "CITY":
@@ -1096,6 +1098,9 @@ func _rebuild_route() -> void:
 		_route = WorldRoute.route(Game.player.global_position, _route_goal, _route_style)
 		_route_m = roundi(WorldRoute.length(_route))
 		_route_eta = WorldRoute.eta(float(_route_m), _route_style)
+		_route_foot = foot_fix and route_mode == &"auto" and Game.player.get("vehicle") == null
+		if _route_foot:
+			_route_eta = WorldRoute.eta(float(_route_m), &"foot")      # w118 critic: on foot the ETA was the car's (214 m in 0:11) and the line said CAR
 
 
 ## The GPS polyline (empty when there is no goal).
@@ -1456,7 +1461,7 @@ func _draw_map() -> void:
 			var pulse := 0.5 + 0.5 * sin(_anim * 5.0)
 			_map.draw_arc(gp, (13.0 + 4.0 * pulse) * s, 0.0, TAU, 28, Color(rcol, 0.9 - 0.4 * pulse), 3.0 * s, true)
 		_route_m = roundi(WorldRoute.length(_route))
-		_route_eta = WorldRoute.eta(float(_route_m), _route_style)
+		_route_eta = WorldRoute.eta(float(_route_m), &"foot" if _route_foot else _route_style)
 	elif has_waypoint():
 		var wpm := world_to_map(waypoint.x, waypoint.z)
 		_map.draw_arc(wpm, 13.0 * s, 0.0, TAU, 24, Color(1, 1, 1, 0.95), 3.0 * s)
