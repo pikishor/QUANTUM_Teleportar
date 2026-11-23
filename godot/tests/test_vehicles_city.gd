@@ -66,6 +66,9 @@ func _streaming_on_the_city(host: Node) -> void:
 	for v in mgr.list:
 		if v.ai or v == mgr.starter or v.has_meta(&"fixed"):          # (the helicopter on its pad is not a kerb car)
 			continue
+		if v.lost_lane:                                             # w119 CI: a traffic car stopped by a crash stands where it hit (an ambulance or a police car running a red), it was never parked
+			print("vehicles_city: %s lost its lane in a crash at %s (not a kerb car)" % [v.kind, str(v.global_position.snapped(Vector3(0.1, 0.1, 0.1)))])
+			continue
 		var ox := absf(CityLayout.road_offset(v.global_position.x))
 		var oz := absf(CityLayout.road_offset(v.global_position.z))
 		if absf(ox - VehicleSpecs.BAY) > 0.2 and absf(oz - VehicleSpecs.BAY) > 0.2:

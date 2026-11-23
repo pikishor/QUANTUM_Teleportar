@@ -14,9 +14,15 @@ FILES=$(ls -S tests/test_*.gd | LC_ALL=C awk -v i="$IDX" -v c="$CNT" '(NR - 1) %
 if [ -n "${CI_SHARD_LIST:-}" ]; then echo "$FILES"; exit 0; fi
 
 # attempt <test> <log>: one run of a test; its output goes to the job log and to <log>; returns the test's exit code
+# Every attempt gets its own empty user:// (XDG_DATA_HOME), as the local full-suite wrapper of the integrators does: the tests of a shard shared one, and a save one test left behind changed the
+# next one (wave 119 CI: roam_world.cfg with rides=2 parked the two discovery rides by the spawn, the car cap was full and test_hud_declutter could not place its parked car).
 attempt() {
-  tools/test.sh "$1" 2>&1 | tee "$2"
-  return "${PIPESTATUS[0]}"
+  local xdg rc
+  xdg=$(mktemp -d)
+  XDG_DATA_HOME="$xdg" tools/test.sh "$1" 2>&1 | tee "$2"
+  rc=${PIPESTATUS[0]}
+  rm -rf "$xdg"
+  return "$rc"
 }
 # fail_lines <log>: the lines that say what failed (the first eight, cut to 300 characters)
 fail_lines() { grep -a -E '^(FAIL|SCRIPT ERROR|Parse Error|handle_crash)' "$1" | cut -c1-300 | head -8; }
