@@ -1,6 +1,6 @@
 # Sprint agents (automatic digest)
 
-Written by godot/tools/sprint_digest.py at 2026-11-23 06:09Z. Status 'running' means no final report had been written when the digest was made.
+Written by godot/tools/sprint_digest.py at 2026-11-23 06:15Z. Status 'running' means no final report had been written when the digest was made.
 
 ## workflow run wf_3f1812db-c97
 
@@ -23,5 +23,6 @@ Written by godot/tools/sprint_digest.py at 2026-11-23 06:09Z. Status 'running' m
 - w120-reach [Build] done: 286 events, 02:46:33 -> 04:08:16
 - w120-sky [Build] done: 169 events, 02:46:36 -> 03:22:23
 - w120-critic [Review] done: 131 events, 04:08:16 -> 04:34:42
-- w120-integrator [Integrate] running: 154 events, 04:34:42 -> 06:05:43
+- w120-integrator [Integrate] done: 170 events, 04:34:42 -> 06:14:22
+- w120-ci-apk [CI and APK] done: 28 events, 06:14:22 -> 06:14:35
 

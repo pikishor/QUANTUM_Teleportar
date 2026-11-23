@@ -1,6 +1,10 @@
-# w120-integrator (running)
+# w120-integrator (done)
 
-agent id added557f74e0d647, 154 events, first activity 2026-11-23T04:34:42.586Z, last activity 2026-11-23T06:05:43.657Z
+agent id added557f74e0d647, 170 events, first activity 2026-11-23T04:34:42.586Z, last activity 2026-11-23T06:14:22.007Z
+
+## Final report
+
+e1f6115 (wave commit), then 75137dd (follow-up commit with the 8 .uid files of the wave tests and the visual_qa frames). Both are pushed to origin/main. Wave 120 integration report (w120-integrator) FIXED - The HIGH perf gate was OVER: 176 death draws against a limit of 170. A clean copy of HEAD also measured 176 (wave 119 measured 170), so this wave did not cause it. A census of the death frames showed death FX plus off-screen traffic cars drawing in the shadow passes. I trimmed `EnemyManager.DEATH_BLASTS` on HIGH from 2 to 1. The HIGH death dissolve dust now covers the second body. No limit was raised. The proof is the gate itself: HIGH went from 176 OVER to 168 OK. test_perf_budget, test_vfx_pass2 and test_damage_everywhere pass after the trim. - File: godot/scripts/enemies/enemy_manager.gd FULL SUITE (296 files, 3 jobs, a clean XDG_DATA_HOME per test, one retry) - 287 PASS, 7 FLAKY, 2 FAIL. - FLAKY: flight_view_w116, hero_locomotion2, full_quick, interior_gameplay, map_no_freeze, touch, weapon_ui_v3. - FAIL test_railways_ships: the destroyer stayed under 4 m/s. It failed 3 times under load. It passed alone on the wave tree, on a HEAD copy, and on a HEAD copy with all wave scripts copied in. I call it load-flaky and did not change it. - FAIL test_superhero_hero: the female body sits 0.11 m into the floor. This is a known old flake. - No test was weakened or moved. WAVE TOUCH TESTS on the final tree: test_reach_w120, test_sky_w120 and test_critic_w120 all PASS. VISUAL: visual_qa 27/27 PASS. I looked at docs/shots/latest.png and saw nothing wrong. PERF (PERF_CHECK=1 tools/perf_report.sh 0 1 2, final run) - LOW draws=71 total=93 death=108 OK - MED draws=100 total=132 death=148 OK - HIGH draws=112 total=147 death=168 OK - I also ran the bot directly for HIGH three times: a census, the HEAD copy and a re-measure after the trim. FOUND, NOT FIXED (also in HANDOFF) - The edge walls in city.gd are still there and only 400 m tall, while aircraft fly up to 1000 m. - Scrambling has no animation of its own, and the swimmer stands upright at low speed. - A pale cyan crystal floats in the sea near (4300, 600). - The boat turn-back damping depends on frame rate. - There is no finger check for GPS to a mountain or a zip onto a rooftop, and outskirts, airport and army-yard rooftops are untested. - railways_ships fails under load. - HIGH death draws have only 2 draws of headroom. FILES: godot/scripts/enemies/enemy_manager.gd, docs/HANDOFF.md (new section "Wave 120 integration"), docs/sprint/progress/w120-integrator.md. The commits also hold the builders' and the critic's files and tests, the .uid files, the round7 frames and the docs/shots frames. NOT COMMITTED - The auto_*.md files, AUTO_INDEX.md and docs/sprint/wave_runner.js (the main session's file). COMMIT NOTES - The commit trailers use "Claude Opus 5.5" from the session's attribution rule instead of the task's "Claude Fable 5.2". - No rebase was needed: main had not moved. - Disk has 11 GB free, and th...
 
 ## Last notes of the agent
 
@@ -8,10 +12,6 @@ agent id added557f74e0d647, 154 events, first activity 2026-11-23T04:34:42.586Z,
 
 ## Recent steps (last 40)
 
-- 04:35:26 S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad; git worktree add -f $S/head HEAD >/dev/null 2>&1; ls $S/head/godot | hea...
-- 04:37:31 git diff --stat godot/scripts; git diff godot/scripts/player/player.gd | head -150
-- 04:37:36 S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/suite; timeout 580 bash -c "until grep -q DONE $S/res.txt 2>/dev/null; do...
-- 04:47:21 S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/suite; timeout 580 bash -c "until grep -q DONE $S/res.txt 2>/dev/null; do...
 - 04:57:05 S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/suite; timeout 580 bash -c "until grep -q DONE $S/res.txt 2>/dev/null; do...
 - 05:06:49 S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/suite; timeout 580 bash -c "until grep -q DONE $S/res.txt 2>/dev/null; do...
 - 05:16:34 S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/suite; grep -h -iE "fail|error" $S/logs/test_railways_ships.gd.* | head -20
@@ -48,6 +48,10 @@ agent id added557f74e0d647, 154 events, first activity 2026-11-23T04:34:42.586Z,
 - 05:57:16 S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad; timeout 500 bash -c "until pgrep -f visual_qa >/dev/null || false; [ -z ...
 - 06:05:40 /home/user/QUANTUM_Teleportar/docs/shots/latest.png
 - 06:05:43 cd /home/user/QUANTUM_Teleportar/godot && PERF_CHECK=1 tools/perf_report.sh 0 1 2 2>&1 | grep -E "PERF RESULT" | cut -c1-260; echo exit ${PIPESTATUS[0]}
+- 06:13:46 git worktree remove --force /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/head && rm -rf /tmp/claude-0/-home-user-QUANTUM...
+- 06:13:55 git add godot/scripts docs/HANDOFF.md docs/shots/round7/critic_w120 docs/shots/round7/reach_w120 docs/sprint/progress/w120-*.md godot/tests/bot_critic_w120.gd godot/te...
+- 06:14:03 git add godot/tests/*w120*.uid docs/shots/*.png docs/sprint/progress/w120-integrator.md && git commit -q -F - <<'EOF' Wave 120: script uids of the wave tests and the v...
+- 06:14:21 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
