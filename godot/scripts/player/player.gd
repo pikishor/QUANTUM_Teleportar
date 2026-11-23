@@ -134,6 +134,12 @@ var _was_on_floor := false
 var _ground_known := false
 var _fall_speed := 0.0
 var _hit_wall := false
+var scrambling := false                       ## w120-reach: on all fours up terrain too steep to walk (tests, animation)
+var _scramble_dir := Vector3.ZERO             ## w120-reach: flat direction INTO the steep terrain face touched last step (zero: none)
+var _scramble_t := 0.0
+var _prev_feet_y := 0.0                       ## w120-reach: feet height of the last step (fall-through guard)
+const SCRAMBLE_UP := 2.4                      ## w120-reach: m/s up a slope steeper than floor_max_angle (a slow scramble instead of a wall)
+const SCRAMBLE_SPEED := 1.8
 var _phys_prev := Vector3.ZERO
 var _phys_cur := Vector3.ZERO
 var _step_offset := 0.0                      ## visual drop smoothing after a step-up (metres, decays to 0)
@@ -696,14 +702,25 @@ func _foot_tick(dt: float) -> void:
 	elif velocity.y < 0.0:
 		velocity.y = 0.0
 
+	# w120-reach: a steep mountain face (terrain steeper than floor_max_angle) is climbed at a slow scramble while the stick pushes into it, not a wall
+	scrambling = false
+	_scramble_t = maxf(0.0, _scramble_t - dt)
+	if PlayerSwim.reach_on and _scramble_t > 0.0 and wish.length_squared() > 0.09 and wish.normalized().dot(_scramble_dir) > 0.35:
+		scrambling = true
+		velocity.y = maxf(velocity.y, SCRAMBLE_UP)
+		velocity.x = wish.x * SCRAMBLE_SPEED
+		velocity.z = wish.z * SCRAMBLE_SPEED
 	if verbs.tick(self, dt, forward_in, wish, on_floor, _jump_buffer > 0.0):
 		_jump_buffer = 0.0
 	_fall_speed = 0.0 if on_floor else minf(_fall_speed, velocity.y)
 	if on_floor and _hit_wall:
 		_try_step_up(dt)
+	_prev_feet_y = global_position.y
 	move_and_slide()
 	_ground_known = true
 	_hit_wall = is_on_wall()
+	if PlayerSwim.reach_on:
+		_reach_after_slide()
 	var landed := is_on_floor()
 	air_time = 0.0 if landed else air_time + dt
 	if not landed:
@@ -743,6 +760,31 @@ func _on_land(fall_speed: float) -> void:
 		camera_rig.bump(impact)
 		FX.shake(impact * 0.22)
 		sparks.dust(global_position + Vector3(0.0, 0.08, 0.0), impact)
+
+
+## w120-reach, after each on-foot move: (1) remember a steep TERRAIN face under the stick for the scramble (buildings and props stay walls: only the terrain chunk colliders
+## "Collider_i_j" count); (2) the fall-through guard: outside the city, feet that were on or above the terrain surface last step and are now more than 0.3 m under it at the
+## same spot (or sank under it after being put back) went through a seam or a chunk whose collider was not built yet (the 3 x 3 colliders stream one per update): put them back on the surface. Caves, tunnels and
+## interiors are below the surface from the start, so they never cross it in one step and are left alone.
+func _reach_after_slide() -> void:
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		var n := c.get_normal()
+		var o := c.get_collider() as Node
+		if n.y > 0.12 and n.y < cos(floor_max_angle) + 0.02 and o != null and o.name.begins_with("Collider_"):
+			_scramble_dir = -Vector3(n.x, 0.0, n.z).normalized()
+			_scramble_t = 0.2
+	var gp := global_position
+	if maxf(absf(gp.x), absf(gp.z)) <= CityLayout.WALK or InteriorSpace.contains(gp):
+		return
+	var tw: Variant = Game.world.get(&"terrain") if is_instance_valid(Game.world) else null
+	if tw is TerrainWorld and (tw as TerrainWorld).is_ground_ready(gp.x, gp.z):
+		return                                           # the collider is there: it holds him (its triangles sit a little under height_at on a ridge: no snapping to the curve)
+	var g := TerrainHeight.height_at(gp.x, gp.z)
+	if _prev_feet_y >= g - 0.35 and gp.y < g - 0.05 and velocity.y <= 0.0:
+		global_position.y = g + 0.05
+		velocity.y = 0.0
+		_snap_interpolation()
 
 
 ## Walk up a curb or a stair: if the way ahead is blocked by something lower than STEP_HEIGHT, lift the body onto it.

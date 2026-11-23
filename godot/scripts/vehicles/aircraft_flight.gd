@@ -16,6 +16,49 @@ extends RefCounted
 ## `info(v)` is what the flight HUD draws (speed, altitude, vertical speed, attitude, throttle, stall, landing guide).
 
 const G := 9.8
+## w120-sky: "fly anywhere". The highest peak is 559 m (x -200, z -2950); the old ceilings (heli 280 m, plane 420 m absolute) stopped a plane under it, and the
+## vehicle rescue put a helicopter more than ceil + 30 m above the ground back on it (a forced landing). false = the old behaviour (W120_OLD=1, for the test's fail-first run).
+static var sky_fix := OS.get_environment("W120_OLD") != "1"
+const OLD_CEIL := {&"heli": 280.0, &"plane": 420.0, &"gunship": 420.0, &"hauler": 380.0}
+const EDGE_SOFT := 260.0                    ## metres inside PLAY_HALF where an aircraft starts to turn back toward the middle (soft, no wall)
+
+
+## The flight ceiling of a craft (absolute y): its spec, or the old table under W120_OLD=1.
+static func ceil_of(v: Vehicle) -> float:
+	var c := float(v.spec.get("ceil", 60.0))
+	if not sky_fix and OLD_CEIL.has(v.kind):
+		return OLD_CEIL[v.kind]
+	return c
+
+
+## w120-sky: the soft turn-back at the visible world edge. Past PLAY_HALF - EDGE_SOFT the heading eases toward the middle and the outward drift fades;
+## nothing ever stops the craft dead (the old hard clamp in VehicleManager._sanity stays only as a last resort past PLAY_HALF).
+static func edge_turn(v: Vehicle, dt: float) -> void:
+	if not sky_fix or v.craft == null or not (v.craft.airborne or v.cls == &"boat"):     # w120-critic: boats too (a boat ran full speed into the invisible wall at sea)
+		return
+	var gp := v.global_position
+	var lim := CityLayout.PLAY_HALF - EDGE_SOFT
+	var out := maxf(absf(gp.x), absf(gp.z)) - lim
+	if out <= 0.0:
+		return
+	var k := clampf(out / (EDGE_SOFT - 40.0), 0.0, 1.0)
+	var fwd := v.forward()
+	var home := Vector3(-gp.x, 0.0, -gp.z).normalized()
+	var side := fwd.cross(home).y
+	if fwd.dot(home) < 0.95:
+		v.heading += (1.0 if side >= 0.0 else -1.0) * (0.35 + 1.1 * k) * dt
+	var flat0 := Vector2(v.vel.x, v.vel.z).length()
+	for ax in [0, 2]:
+		var pv: float = gp[ax]
+		if absf(pv) > lim and signf(v.vel[ax]) == signf(pv):
+			v.vel[ax] *= 1.0 - k
+	if v.cls == &"plane" and flat0 > 0.1:                         # w120-critic: a plane keeps its airspeed (PlaneFlight reads it back after the move: the edge stalled it to 3 m/s and it fell); the outward part turns along the edge
+		var f2 := Vector2(v.vel.x, v.vel.z)
+		if f2.length() < 0.2 * flat0:
+			f2 += Vector2(home.z, -home.x) * (1.0 if side >= 0.0 else -1.0) * flat0 * 0.2
+		f2 = f2.normalized() * flat0
+		v.vel.x = f2.x
+		v.vel.z = f2.y
 # --- plane ---
 const LEVER_UP := 0.7                       ## throttle lever per second with the stick forward
 const LEVER_DOWN := 1.2
@@ -128,7 +171,7 @@ static func plane(v: Vehicle, dt: float, thr: float, steer: float, lift: float) 
 		var sink_cap := VehicleCraft._flare(agl, 5.0) if lift <= 0.0 and agl < 40.0 else 99.0
 		if -c.vy > sink_cap and A.pitch < 0.0:                    # a steady stick near the ground never dives into it
 			c.vy = -sink_cap
-		if v.global_position.y > float(T["ceil"]) and c.vy > 0.0:
+		if v.global_position.y > ceil_of(v) and c.vy > 0.0:
 			c.vy = 0.0
 		if settle_fix and lift <= 0.0 and c.lever < 0.2 and agl < 2.0:
 			c.vy = minf(c.vy, -1.2)                                # w119-hud5: throttle back a metre over the street, DOWN let go: it settles on its wheels (it floated at 0.8 m, LAND FIRST, no brake)
@@ -203,6 +246,8 @@ static func heli(v: Vehicle, dt: float, thr: float, steer: float, lift: float) -
 	if ready:
 		if lift > 0.0:
 			want = lift * climb
+			if sky_fix and v.global_position.y > ceil_of(v):
+				want = 0.0                                             # w120-sky: the heli holds at its ceiling (900 m, well above the 559 m peak)
 		elif lift < 0.0:
 			want = -minf(VehicleCraft.HELI_DESCENT, VehicleCraft._flare(agl, 3.0)) * (-lift)     # the last metres are a soft flare: a landing never hurts
 	elif c.airborne:

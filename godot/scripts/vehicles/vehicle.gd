@@ -80,6 +80,7 @@ var ground_roll := 0.0
 var _surf_t := 0.0
 var _hull_cs: CollisionShape3D       ## the hit box: lifted 0.45 m outside the city so the terrain (it collides on the world layer) does not hold the car like a wall
 var _hull_y := 0.0
+var sunk := false                   ## w120-reach: drove into deep water: lies on the bed, never drives again
 var _dry_pos := Vector3.INF         ## the last position outside deep water (a car never drives into the sea or a deep river: it stops at the shore)
 var fuse := -1.0                    ## chain reaction (open world freedom): seconds until a burning car next to a wreck blows up (< 0 = none)
 var nitro := 1.0                    ## boost tank 0..1
@@ -1128,7 +1129,10 @@ func _terrain_step(dt: float) -> void:
 	var hlft := TerrainHeight.drive_height_at(p.x - r.x * hw, p.z - r.z * hw, p.y)
 	var target := (hf + hb + hr + hlft) * 0.25
 	if cls != &"boat" and cls != &"heli" and cls != &"plane" and craft == null and TerrainHeight.depth_at(p.x, p.z) > 1.2 and not Bridges.on_deck(p.x, p.z, p.y):
-		if _dry_pos.is_finite():                              # deep water ahead: back to the shore, nearly stopped (a hard stop at the waterline, no damage)
+		if PlayerSwim.reach_on and (driver_is_player or sunk):   # w120-reach: the player's car drives on into deep water and SINKS: engine dead, the hero is out and swims
+			_sink(p, dt)
+			return
+		if _dry_pos.is_finite():                              # deep water ahead: back to the shore, nearly stopped (a hard stop at the waterline, no damage; traffic cars only since w120)
 			global_position = Vector3(_dry_pos.x, p.y, _dry_pos.z)
 			vel *= -0.2
 			speed *= -0.2
@@ -1142,6 +1146,20 @@ func _terrain_step(dt: float) -> void:
 	if _surf_t <= 0.0:
 		_surf_t = 0.25 if driver_is_player else 1.0
 		surface = TerrainWorld.surface_at(p.x, p.z)
+
+
+## w120-reach: a car in water deeper than 1.2 m settles to the bed (a few seconds, bubbles), stops for good and puts the player out into the water (he swims: PlayerSwim).
+func _sink(p: Vector3, dt: float) -> void:
+	if not sunk:
+		sunk = true
+		WaterWorld.splash(p, 1.6)
+	speed = 0.0
+	vel = vel * exp(-3.0 * dt)
+	var bed := TerrainHeight.height_at(p.x, p.z) + base_y
+	global_position.y = maxf(bed, p.y - 1.6 * dt)
+	ground_pitch = lerpf(ground_pitch, 0.18, 1.0 - exp(-1.5 * dt))
+	if driver_is_player and is_instance_valid(Game.vehicles):
+		Game.vehicles.call_deferred(&"exit_vehicle")
 
 
 func _bounce(col: KinematicCollision3D) -> void:

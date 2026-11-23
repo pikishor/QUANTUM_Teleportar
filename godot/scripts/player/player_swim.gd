@@ -17,6 +17,10 @@ const CRAWL_SPEED := 5.6
 const WADE_MULT := 0.62
 const STROKE_RATE := 2.2                ## strokes per second at swim speed
 const HOP_SPEED := 6.2
+const OPEN_SEA := 200.0                 ## w120-reach: metres before the world edge where a swell starts carrying a swimmer back to the coast (soft turn-back, never a hard wall)
+
+static var reach_on := true             ## w120-reach switch (tests: REACH_OLD=1 = the wave 119 behaviour): scramble, fall-through guard, open-sea turn-back, cars sink
+var turned_back := 0                    ## w120-reach: times the open sea turned the swimmer back (tests)
 
 var active := false
 var wading := false
@@ -32,6 +36,7 @@ var _hop_cool := 0.0
 var _hop_t := 0.0
 var _stroke_n := 0
 var _entered_t := 99.0
+var _turn_note := 0.0
 
 
 func reset() -> void:
@@ -76,6 +81,20 @@ func tick(p: CharacterBody3D, dt: float, wish: Vector3, jump_down: bool, sprint:
 	var top := (CRAWL_SPEED if sprint else SWIM_SPEED) * (1.0 if wish.length_squared() > 0.01 else 0.0)
 	var flow := TerrainHeight.flow_at(pos.x, pos.z)
 	var target := Vector3(wish.x * top + flow.x, 0.0, wish.z * top + flow.y)
+	if reach_on:                                        # the open sea: past the last OPEN_SEA metres a swell pushes him back toward land, stronger than the crawl at the edge
+		var lim := CityLayout.PLAY_HALF - OPEN_SEA
+		var over := Vector2(maxf(absf(pos.x) - lim, 0.0) * signf(pos.x), maxf(absf(pos.z) - lim, 0.0) * signf(pos.z))
+		if over != Vector2.ZERO:
+			var push := -over.normalized() * (CRAWL_SPEED * 1.4) * clampf(over.length() / (OPEN_SEA * 0.5), 0.0, 1.0)
+			var out_x := target.x * signf(pos.x) if absf(pos.x) > lim else 0.0
+			var out_z := target.z * signf(pos.z) if absf(pos.z) > lim else 0.0
+			target.x += push.x - maxf(out_x, 0.0) * signf(pos.x) * clampf(over.length() / OPEN_SEA, 0.0, 1.0)
+			target.z += push.y - maxf(out_z, 0.0) * signf(pos.z) * clampf(over.length() / OPEN_SEA, 0.0, 1.0)
+			if over.length() > OPEN_SEA * 0.1 and _turn_note <= 0.0:
+				_turn_note = 6.0
+				turned_back += 1
+				Game.say("OPEN SEA · THE SWELL CARRIES YOU BACK", 1.6)
+	_turn_note = maxf(0.0, _turn_note - dt)
 	p.velocity.x = PlayerUtil.damp(p.velocity.x, target.x, 4.5, dt)
 	p.velocity.z = PlayerUtil.damp(p.velocity.z, target.z, 4.5, dt)
 	var want_y := surface - FLOAT_DEPTH
