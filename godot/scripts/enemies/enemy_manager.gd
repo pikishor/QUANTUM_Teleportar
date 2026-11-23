@@ -37,7 +37,7 @@ const LOD_EVERY := 0.25                      ## seconds between the distance LOD
 ## pooled explosion slots: at most DEATH_BLASTS of them run at once per tier (the rest die with one cheap burst), so four deaths at once cannot add dozens of draws.
 const FX_RATE := [5.0, 8.0, 14.0]
 const FX_CAPACITY := [3.0, 4.0, 8.0]
-const DEATH_BLASTS := [1, 1, 2]
+const DEATH_BLASTS := [1, 1, 1]                ## w120-integrator: HIGH 2 -> 1 (the 4-death spike was 176 of 170 draws; the dissolve dust carries the second body)
 const DEATH_BLAST_LIFE := 0.9
 
 var list: Array[Drone] = []          ## every active enemy, corpses included until they are released

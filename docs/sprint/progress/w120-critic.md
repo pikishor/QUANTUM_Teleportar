@@ -5,3 +5,4 @@
 - step 4: tests pass after fix; rendering boat edge frames via tests/bot_critic_w120.gd into docs/shots/round7/critic_w120.
 - step 5: plane at edge stalled (2.7 m/s) -> fixed in AircraftFlight.edge_turn (keep airspeed). test plane part passes. Next: look at boat frames, run sky/reach tests.
 - step 6: sky, critic, reach car+edge, airport, harbour boats PASS. Running perf gate once.
+- step 7: perf: MED OK draws=100 death=147; HIGH OVER death 174>170 (pre-existing per both builders; my changes are logic only, no nodes). Done; reporting.

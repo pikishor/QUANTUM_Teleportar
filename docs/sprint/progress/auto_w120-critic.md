@@ -1,6 +1,10 @@
-# w120-critic (running)
+# w120-critic (done)
 
-agent id a52c481be89321a6c, 121 events, first activity 2026-11-23T04:08:16.134Z, last activity 2026-11-23T04:23:34.990Z
+agent id a52c481be89321a6c, 131 events, first activity 2026-11-23T04:08:16.134Z, last activity 2026-11-23T04:34:42.554Z
+
+## Final report
+
+w120-critic report (no commits) I reviewed wave 120 with my own finger-only checks in the real main scene. I found and fixed 3 defects. I did not reach the full list of 8. FIXED (godot/tests/test_critic_w120.gd: real ScreenTouch/Drag, Game.force_touch on, CrateReveal._quiet = 0; part chosen with CRITIC_PARTS): 1. A sunk car could be boarded again. After the car sank, a finger on ENTER put the swimmer back into it under water, and the sink code then threw him out again. Before the fix the check FAILED ("he got in: true"). Fix: VehicleManager.reach_car skips sunk cars. Now PASS. 2. A boat at full stick ran into the invisible wall at the world edge and stopped 9 m from it. Before the fix the check FAILED. Fix: the soft turn-back (AircraftFlight.edge_turn) now also works for boats and is called from VehicleCraft._boat. Now PASS: the boat turns north 245 m before the wall. I looked at the frames in docs/shots/round7/critic_w120/boat_edge_*.png (1200x540, LOW, touch HUD); bot: tests/bot_critic_w120.gd. 3. A plane flying at the world edge stalled and fell. The sky fix's turn-back cut the outward speed, and the plane reads its airspeed back from that, so it dropped to 2.7 m/s (stall speed 24). Before the fix the check FAILED. The sky test only flew a helicopter there. Fix: a plane keeps its speed, and the outward part of its velocity is turned along the edge. Now PASS. Re-run after the fixes, all PASS: test_sky_w120, test_reach_w120 (car and edge parts), test_airport_aircraft, test_bridges_harbour_boats. FOUND, NOT FIXED (out of time; I worked at low effort): - The boat turn-back cuts speed hard (27 to 4.5 m/s), because the damping depends on frame rate. It is soft, but abrupt. - A pale cyan disc floats in the boat frames (screen position about 300,155). It is possibly the crystal w120-reach reported. Not investigated. - The edge walls in city.gd are only 400 m tall, and aircraft now fly up to 900-1000 m. The soft turn-back covers this, but the walls are no last resort above 400 m. - I did not test rooftops, scrambling, mountains, or seams and camera clipping on foot. - Sea depth at x 4040, z 600 is 0 (the coast reaches almost to the edge there). w120-reach's edge spot sits on near-land. FILES: godot/scripts/vehicles/vehicle_manager.gd, aircraft_flight.gd, vehicle_craft.gd. New: godot/tests/test_critic_w120.gd, godot/tests/bot_critic_w120.gd, docs/shots/round7/critic_w120/, docs/sprint/progress/w120-critic.md. PERF: one full run, plus a LOW-only re-run to read the LOW line. - LOW draws=71 death=107 OK - MED draws=100 death=147 OK - HIGH draws=112 death=174 OVER (limit 170) Both builders already saw HIGH over before my changes, and my changes are logic only. I did not find the cause. The integrator has to fix it.
 
 ## Last notes of the agent
 
@@ -8,7 +12,6 @@ agent id a52c481be89321a6c, 121 events, first activity 2026-11-23T04:08:16.134Z,
 
 ## Recent steps (last 40)
 
-- 04:08:20 cd /home/user/QUANTUM_Teleportar; cat docs/sprint/progress/w120-critic.md 2>/dev/null; df -h . | tail -1; tail -40 docs/ROUND7.md; ls godot/tests | grep -i w120
 - 04:08:25 cd /home/user/QUANTUM_Teleportar; mkdir -p docs/sprint/progress; printf "# w120-critic\n- step 1: started review (read docs). Next: read w120 tests and diff.\n" > docs...
 - 04:08:26 cd /home/user/QUANTUM_Teleportar; git diff godot/scripts/player/ godot/scripts/vehicles/ | head -600
 - 04:08:38 cd /home/user/QUANTUM_Teleportar/godot; grep -n "PLAY_HALF\|WORLD_HALF" scripts/world/city.gd scripts/world/city_layout.gd scripts/vehicles/*.gd scripts/player/*.gd | ...
@@ -46,6 +49,9 @@ agent id a52c481be89321a6c, 121 events, first activity 2026-11-23T04:08:16.134Z,
 - 04:18:40 cd /home/user/QUANTUM_Teleportar/godot; tools/test.sh tests/test_sky_w120.gd 2>&1 | grep -E "FAIL|SCRIPT ERROR|RESULT"; tools/test.sh tests/test_critic_w120.gd 2>&1 | ...
 - 04:20:51 cd /home/user/QUANTUM_Teleportar/godot; REACH_PARTS=car,edge tools/test.sh tests/test_reach_w120.gd 2>&1 | grep -E "FAIL|SCRIPT ERROR|RESULT"; tools/test.sh tests/test...
 - 04:23:34 cd /home/user/QUANTUM_Teleportar; echo "- step 6: sky, critic, reach car+edge, airport, harbour boats PASS. Running perf gate once." >> docs/sprint/progress/w120-criti...
+- 04:31:14 cd /home/user/QUANTUM_Teleportar; ls -t godot/*.txt docs/*perf* 2>/dev/null | head -3; grep -rh "tier=0 label=LOW" /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5...
+- 04:33:17 cd /home/user/QUANTUM_Teleportar/godot; PERF_CHECK=1 timeout 300 tools/perf_report.sh 0 2>&1 | grep "PERF RESULT"
+- 04:34:42 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
