@@ -110,6 +110,35 @@ a well-known mobile open-world game? Press every circle. List the 8 worst defect
 you cannot fix one, write exactly why in your report.`,
     commit: 'Wave 118: tanks and helicopters at fixed places with map icons, spawn and call-in; GTA-style round on-screen controls per mode',
   },
+  119: {
+    title: 'Snake blasts, and five circles on foot',
+    builders: [
+      { tag: 'blasts', prompt: `TASK (label w119-blasts): SNAKE BLASTS. Owner: "different types of snakes also blasting apart from the weapons we have"; round 7: "snake bombs ... not working properly". Plan line:
+"snake species that burst in their own ways (their own attacks, apart from the gun arsenal), readable looks and radius rings". First find by real finger play what snake bombs / snake attacks exist
+today and exactly how they misbehave (write it in your log). Then build at least 6 snake species, each with its own look (colour, pattern, head shape, size) and its own burst: e.g. a fire snake
+that explodes in flame and leaves burning ground, a frost snake that freezes enemies, a shock snake that chains lightning to 3 foes, an acid snake that eats armour and vehicles, a swarm snake
+that splits into small biters, a gravity snake that pulls foes in then bursts; use BlastTable (scripts/combat/blast*.gd) for damage and BlastFx for visuals, do not duplicate them. The player
+throws / sends a snake with ONE round on-screen button (SNAKE BLAST) that the controls set already has a slot for (coordinate through the other builder's log: it owns the button layout) and
+picks the species on the ability wheel; a radius ring shows where it will burst while aiming; cooldown and count visible on the button. Enemies, cars and tanks react (fly, burn, freeze).
+Cheap on LOW (pool the snakes, one MultiMesh per species if possible; the perf gate has ZERO spare draws on HIGH and one on MED: trim, never raise a limit). Permanent test
+godot/tests/test_snake_blasts_w119.gd by real fingers: each species thrown at a group of enemies and a car, the right effect happens, the ring matches the hit area, no leak after 50 throws,
+each check failing on the old code. Render a sheet of the 6 bursts at 1200x540 on LOW and MED and LOOK at it.` },
+      { tag: 'hud5', prompt: `TASK (label w119-hud5): FIVE CIRCLES ON FOOT, and the wave 118 leftovers. Owner asked for controls "like gta. It should not be cluttered but like 5 circle"; wave 118 left 11 circles on foot.
+The owner did not pick which to keep, so: on foot keep exactly 5 round action buttons in the right cluster (FIRE big; then JUMP, AIM, SNAKE (one button: tap = swing / zip by context near an
+anchor, hold = fly; keep the wave 117 rules that swing and zip must be clearly distinct: if one button cannot do it cleanly, write why and keep SWING and ZIP and drop AIM to auto-aim instead),
+and a context slot (ENTER beside a vehicle, USE beside a door / item, SNAKE BLAST otherwise: the other builder w119-blasts adds that action, read its log)); everything else (CROUCH, RELOAD
+(auto-reload stays), ABILITY wheel, weapon swap) moves to small edge chips or the weapon icon tap / MORE, never lost. Other modes keep their wave 118 sets unless above 6. Then fix the wave 118
+open items: the map label HELICOPTER over GLASS TOWERS (and test that no two map labels overlap), the ORACLE card cut off / over the altimeter at 2400x1080 in helicopter and plane, menu and
+garage targets under 44 px at 844x390, ENTER beside a plane and plane take-off / landing by real fingers, and find whether the GPS walk to the army yard and helipad really stops 25 to 53 m short
+(game bug: fix; bot bug: fix the bot). Extend godot/tests/test_controls_w118.gd (count per mode: on foot exactly 5 action circles) and keep the touch audit green. Render every mode at 844x390
+and 2400x1080 into docs/shots/round7/controls_w119/ and LOOK: clean, about 5 circles, nothing over the hero or crosshair.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 119 (label w119-critic), then its fixer. You did not build it; assume it is broken until you have seen it work. With a finger-only bot of your own
+in the real main scene: throw every snake species at enemies, a car and a tank; check the look, the ring, the effect, the cooldown; then play on foot with only the five circles (walk, shoot,
+jump, swing, zip, fly, enter a car, use a door, blast) and say whether anything a player needs is now hard to reach. Render frames and LOOK. List the 8 worst defects with evidence, fix them
+most severe first, each with a check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
+    commit: 'Wave 119: snake species with their own blasts (one SNAKE BLAST button, wheel pick, radius ring), five circles on foot, wave 118 follow-ups',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }

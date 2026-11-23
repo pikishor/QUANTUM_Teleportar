@@ -31,3 +31,7 @@ the phone-only layers (reward cards, hints) switched ON.
 ## Owner, 2026-11-21 (with the go for wave 118)
 "Yes. Also make sure all controls come as options on screen like gta. It should not be cluttered but like 5 circle for driving etc."
 Taken into wave 118 as the second builder (w118-controls): one small set of round buttons per mode (on foot, driving, tank, helicopter / plane, snake flight), every action visible, about 5 circles.
+
+## Owner, 2026-11-22: "Yes" to wave 119, no pick of the on-foot buttons
+Default taken (as offered): on foot keep the 5 most-used round buttons (FIRE, JUMP, AIM, SNAKE, context ENTER/USE/BLAST), the rest to edge chips / MORE. Builder w119-hud5.
+Session model since 11-22: Opus 5.5 at low effort ("Use opus low for now. Remember not to degrade the quality").
