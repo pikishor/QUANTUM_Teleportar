@@ -139,6 +139,32 @@ jump, swing, zip, fly, enter a car, use a door, blast) and say whether anything 
 most severe first, each with a check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
     commit: 'Wave 119: snake species with their own blasts (one SNAKE BLAST button, wheel pick, radius ring), five circles on foot, wave 118 follow-ups',
   },
+  120: {
+    title: 'Whole map reachable',
+    builders: [
+      { tag: 'reach', prompt: `TASK (label w120-reach): WHOLE MAP REACHABLE, on the ground. Owner round 7: the whole map must be reachable: mountains, river, buildings; no invisible walls. Plan line:
+"no invisible walls; walk, swim, climb or fly to any mountain, river, shore or rooftop; nothing to fall through". First build a finger-only probe bot (godot/tests/dev_w120_probe.gd) that, in the
+real main scene, walks / runs / jumps / snake-swings toward a grid of target points over the whole world (every district, outskirts settlement, mountain tops, river banks and bed, shores, the
+airport and army yard) and records where the hero is blocked by something invisible, falls through the ground, gets stuck, or is pushed back by a world-edge wall; write the list with positions
+in your log. Then fix them: remove or shrink invisible colliders that are not walls of something visible; give steep mountains a climb (snake-assisted climb or a slower scramble, your choice,
+explain it); make the river and sea swimmable (swim state with its own movement, dive optional, no drowning death loop; cars sink and you get out); fill holes and seams; the world edge becomes a
+visible natural boundary (sea or cliffs) with a soft turn-back, not a hard invisible wall in the middle of land. Coordinate with w120-sky (it owns flight ceilings, rooftops and the map).
+Permanent test godot/tests/test_reach_w120.gd by real fingers: walk to N sample points incl. a mountain top, the river bed and a far shore; swim across the river; no fall-through at 200 random
+drops; each check failing on the old code. Perf gate has zero spare draws on HIGH: trim, never raise a limit. Render frames of the swim, a climb and the boundary at 1200x540 LOW and MED and LOOK.` },
+      { tag: 'sky', prompt: `TASK (label w120-sky): FLY ANYWHERE, ROOFTOPS, AND THE MAP. Owner round 7: "fly anywhere", reach buildings. First probe with a finger-only bot (godot/tests/dev_w120_sky.gd)
+in the real main scene: snake flight, helicopter and plane to every corner and to the highest mountain and tallest tower; record any invisible ceiling, edge wall, forced landing, or place the
+camera clips; and try to land on 20 rooftops (city towers, outskirts houses, airport, army yard) by flight and by snake zip. Write the list in your log. Fix: a flight ceiling well above the
+highest peak, no invisible walls inside the map, a soft turn-back at the visible world edge (agree the edge with w120-reach, read its log), rooftops have solid tops you can stand on (no falling
+through, no walking on air above them), and the map / minimap / GPS can target any reachable point (mountains, river, shore), with the wave 118 GPS short-stop bug (25 to 53 m short of the army
+yard and helipad) fixed if it is still there. Permanent test godot/tests/test_sky_w120.gd by real fingers: fly to each corner and the highest peak, land on 10 rooftops, set a GPS target on a
+mountain and follow it; each check failing on the old code. Keep the flight view clear (wave 116 rules). Perf gate: trim, never raise a limit. Render frames and LOOK.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 120 (label w120-critic), then its fixer. You did not build it; assume it is broken until you have seen it work. With a finger-only bot of your own
+in the real main scene: try to reach mountains, the river (swim across), shores, the world edge, 10 rooftops by foot, swing and flight; look for invisible walls, fall-through, stuck spots, ugly
+seams and camera clipping. Render frames and LOOK. List the 8 worst defects with evidence, fix them most severe first, each with a check that fails without the fix. Do not stop early: if you
+cannot fix one, write exactly why in your report.`,
+    commit: 'Wave 120: whole map reachable (no invisible walls, swim, climb, fly anywhere, rooftops, map targets)',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }

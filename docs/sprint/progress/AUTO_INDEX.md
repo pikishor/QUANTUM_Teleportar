@@ -1,16 +1,6 @@
 # Sprint agents (automatic digest)
 
-Written by godot/tools/sprint_digest.py at 2026-11-22 22:00Z. Status 'running' means no final report had been written when the digest was made.
-
-## workflow run wf_1bfb65ea-7d0
-
-- w118-critic [Review] done: 388 events, 11:40:23 -> 12:48:15
-- w118-integrator [Integrate] done: 120 events, 12:48:15 -> 14:16:44
-- w118-ci-apk [CI and APK] done: 28 events, 14:16:44 -> 14:16:56
-
-## workflow run wf_41ed8b39-6fd
-
-- w118-ci-apk [CI and APK] done: 56 events, 14:17:06 -> 15:07:21
+Written by godot/tools/sprint_digest.py at 2026-11-23 07:02Z. Status 'running' means no final report had been written when the digest was made.
 
 ## workflow run wf_3f1812db-c97
 
@@ -26,5 +16,17 @@ Written by godot/tools/sprint_digest.py at 2026-11-22 22:00Z. Status 'running' m
 
 ## workflow run wf_01e4696f-a9e
 
-- w119-ci-apk [CI and APK] running: 19 events, 21:59:55 -> 22:00:09
+- w119-ci-apk [CI and APK] done: 292 events, 21:59:55 -> 00:08:47
+
+## workflow run wf_55ef4326-702
+
+- w120-reach [Build] done: 286 events, 02:46:33 -> 04:08:16
+- w120-sky [Build] done: 169 events, 02:46:36 -> 03:22:23
+- w120-critic [Review] done: 131 events, 04:08:16 -> 04:34:42
+- w120-integrator [Integrate] done: 170 events, 04:34:42 -> 06:14:22
+- w120-ci-apk [CI and APK] done: 28 events, 06:14:22 -> 06:14:35
+
+## workflow run wf_435a18c5-0c4
+
+- w120-ci-apk [CI and APK] running: 18 events, 07:01:50 -> 07:02:08
 
