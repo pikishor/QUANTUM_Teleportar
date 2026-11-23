@@ -1,21 +1,15 @@
-# w120-ci-apk (done)
+# w120-ci-apk (running)
 
-agent id a5fab9a55e4b7a160, 28 events, first activity 2026-11-23T06:14:22.031Z, last activity 2026-11-23T06:14:35.071Z
-
-## Final report
-
-I'm waiting for the CI run to finish.
+agent id a3b4ea5bc0ba28476, 18 events, first activity 2026-11-23T07:01:50.079Z, last activity 2026-11-23T07:02:08.699Z
 
 ## Last notes of the agent
 
-- 06:14:35 I'm waiting for the CI run to finish.
+- 07:02:07 Green already. Trigger android.
 
 ## Recent steps (last 40)
 
-- 06:14:24 git log --oneline -3 && gh run list -w ci.yml -L 5
-- 06:14:28 while [ "$(gh run view 45122747302 --json status -q .status)" != completed ]; do sleep 60; done; gh run view 45122747302 --json conclusion,headSha
-- 06:14:30 select:Monitor
-- 06:14:33 CI run 45122747302 completion
+- 07:02:01 cd /home/user/QUANTUM_Teleportar; gh run view 45122747302 --json status,conclusion,headSha,url 2>&1; gh run list -w ci.yml -L 5 2>&1
+- 07:02:08 cd /home/user/QUANTUM_Teleportar; gh workflow run android.yml --ref main && sleep 8; gh run list -w android.yml -L 1 --json databaseId,headSha,url,status
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
