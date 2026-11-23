@@ -199,6 +199,7 @@ static func _move_air(v: Vehicle, dt: float) -> void:
 		v.rotation.y = v.heading
 		v._heading_set = v.heading
 	var grounded := not c.airborne
+	AircraftFlight.edge_turn(v, dt)                                  # w120-sky: soft turn-back at the world edge
 	var motion := Vector3(v.vel.x, c.vy if not grounded else -0.06 / maxf(dt, 0.0001), v.vel.z) * dt
 	var col := v.move_and_collide(motion)
 	if col != null:
@@ -297,6 +298,7 @@ static func _boat(v: Vehicle, dt: float, thr: float, steer: float, brake: bool, 
 	v.braking = brake
 	v.steer_in = steer
 	v.yaw_rate = -steer * BOAT_YAW * auth
+	AircraftFlight.edge_turn(v, dt)                                  # w120-critic: the same soft turn-back at the world edge as aircraft (no wall at sea)
 	v._move(dt)
 	v.speed = v.vel.dot(fwd)
 	_keep_afloat(v, dt)

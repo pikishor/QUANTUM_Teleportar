@@ -138,7 +138,7 @@ func reach_car(pos: Vector3) -> Vehicle:
 	if ParkedCars.instance != null and not is_instance_valid(driven):           # and for the parked decor cars
 		ParkedCars.instance.promote_near(pos, VehicleSpecs.ENTER_REACH + 0.6)
 	for c in list:
-		if c.dead or not c.active or c.wreck:
+		if c.dead or not c.active or c.wreck or c.sunk:            # w120-critic: a car sunk in deep water is dead (ENTER put the swimmer back in it under water, and it threw him out again)
 			continue
 		if absf(c.global_position.y - pos.y) > 6.0:               # another storey or an aircraft up in the air
 			continue
@@ -173,8 +173,8 @@ func toggle_enter_exit() -> bool:
 	var car := reach_car(p.global_position)
 	if car == null:
 		return false
-	if p.global_position.y >= 2.0 and car.craft == null:
-		return false
+	if p.global_position.y - (car.global_position.y if PlayerSwim.reach_on else 0.0) >= 2.0 and car.craft == null:
+		return false                         # on a roof over the car (w120-reach: measured from the car, not from y 0: outside the city the land is higher than 2 m everywhere and ENTER showed but did nothing beside any car in the hills)
 	enter(car)
 	return true
 
@@ -491,7 +491,7 @@ func _sanity() -> void:
 			var wy := WaterWorld.surface_y(p.x, p.z)
 			if wy != TerrainHeight.NO_WATER:
 				gy = wy
-		var ylim := 5.0 if v.craft == null else float(v.spec.get("ceil", 60.0)) + 30.0
+		var ylim := 5.0 if v.craft == null else AircraftFlight.ceil_of(v) + 30.0
 		if absf(p.x) > lim or absf(p.z) > lim or absf(p.y - gy) > ylim:
 			var qx := clampf(p.x, -lim + 5.0, lim - 5.0)
 			var qz := clampf(p.z, -lim + 5.0, lim - 5.0)
