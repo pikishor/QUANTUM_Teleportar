@@ -165,6 +165,32 @@ seams and camera clipping. Render frames and LOOK. List the 8 worst defects with
 cannot fix one, write exactly why in your report.`,
     commit: 'Wave 120: whole map reachable (no invisible walls, swim, climb, fly anywhere, rooftops, map targets)',
   },
+  121: {
+    title: 'Buildings with floors',
+    builders: [
+      { tag: 'floors', prompt: `TASK (label w121-floors): BUILDINGS WITH FLOORS. Owner round 7: "building detail and interiors with stairs". Plan line: "walk in from the street, stairs, lifts, upper
+floors, rooftops". First probe with a finger-only bot (godot/tests/dev_w121_probe.gd) in the real main scene: how entering a building works today (godot/scripts/interiors/*, doors, loading),
+which buildings can be entered, whether interiors are one floor only, and whether the inside matches the outside size; write the findings in your log. Then build multi-floor interiors for the
+city's tall buildings (towers, apartments, offices; at least 3 kinds): ground floor entered by walking in from the street door (no black loading screen if it can be avoided cheaply; if a
+transition is needed keep it under 0.5 s), stairwells you walk up with real stairs (no teleport), at least 3 upper floors per tall building with rooms or offices, windows that line up with the
+facade, and a roof door to the rooftop (the rooftop from wave 120 must be the same place). Generate floors on demand and free them when you leave (memory and draw budget: the perf gate has 2 spare
+draws on HIGH; trim, never raise a limit). Enemies and NPCs can be on floors; missions still work. Coordinate with w121-lifts (it owns lifts, floor UI and the map), read its log.
+Permanent test godot/tests/test_floors_w121.gd by real fingers: walk in from the street, climb the stairs to floor 3, walk out on the roof, come back down, leave by the street door; no fall-through,
+no stuck spot, no leak after 10 entries; each check failing on the old code. Render frames (street door, stairwell, upper floor, roof door) at 1200x540 LOW and MED and LOOK.` },
+      { tag: 'lifts', prompt: `TASK (label w121-lifts): LIFTS, FLOOR UI, AND THE WAVE 120 LEFTOVERS. Build lifts in the tall buildings (the other builder w121-floors makes the floors; read its log and
+agree the data): a lift you walk into, a floor panel opened by one round context button (the wave 119 context slot: USE / LIFT), floors listed, doors that open and close, a short ride (under 3 s)
+that really moves the cabin (no teleport cut if cheap), and the floor number shown on the HUD while inside a building; the map shows which floor you are on and the building outline. Keep the
+on-foot controls at 5 circles. Then fix the wave 120 open items: the 400 m city edge walls (aircraft fly to 1000 m: make the edge consistent with the visible boundary), the floating cyan crystal
+in the sea near (4300, 600), the boat turn-back damping that depends on frame rate, add finger checks for GPS to a mountain and a snake zip onto a rooftop, and test rooftops in the outskirts,
+airport and army yard. Permanent test godot/tests/test_lifts_w121.gd by real fingers: call a lift, ride to the top floor and back, panel buttons all work at 844x390 and 2400x1080, every target
+at least 44 px; each check failing on the old code. Perf gate: trim, never raise a limit. Render frames and LOOK.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 121 (label w121-critic), then its fixer. You did not build it; assume it is broken until you have seen it work. With a finger-only bot of your own
+in the real main scene: enter 5 different tall buildings from the street, climb stairs, ride lifts, reach the roof and come back, fight an enemy on an upper floor, leave; look for falling through
+floors, stuck spots, windows that do not match the facade, camera clipping in stairwells, dead buttons. Render frames and LOOK. List the 8 worst defects with evidence, fix them most severe first,
+each with a check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
+    commit: 'Wave 121: buildings with floors (walk in from the street, stairs, lifts, upper floors, rooftops), wave 120 follow-ups',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }
