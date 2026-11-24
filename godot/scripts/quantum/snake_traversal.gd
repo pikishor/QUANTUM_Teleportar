@@ -1038,7 +1038,8 @@ func thrown() -> bool:
 
 ## The SNAKE button is on screen while the hero is on foot outside the interiors.
 func button_shown() -> bool:
-	return p != null and not p.control_hold and not InteriorSpace.active and not InteriorGameplay.active and not p.is_dead()
+	return p != null and not p.control_hold and not InteriorSpace.active and not InteriorGameplay.active and not p.is_dead() \
+			and not (TowerFloors.critic_on and TowerFloors.inside(p.global_position))      # w121-critic: under a tower's ceilings ZIP / SWING / FLY did nothing (dead buttons); the roof keeps them
 
 
 ## The FLY / LAND button: while flying, or in the air (swinging, falling, jumping) when flight is open to the hero and the energy lasts.

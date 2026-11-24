@@ -59,6 +59,7 @@ const VEH_VIEWS := 3           # 0 chase, 1 far, 2 hood
 const ARM_RADIUS := 0.22
 const FADE_START := 1.0                      ## the hero fades out smoothly when the camera is closer than this (metres from the head) ...
 const FADE_END := 0.55                       ## ... and is fully hidden at this distance
+const TOWER_FADE_MORE := 0.45                ## w121-critic: both fade distances are this much longer on the floors of a walk-in tower (tight stairwell)
 const MIN_ARM := 0.85                        ## shortest camera arm in metres, however close the wall is (the prototype's floor was 0.5 m)
 const RIG_PRIORITY := 100                    ## process priority: after the nodes it follows (lower numbers run first)
 const INTERIOR_ARM_SCALE := 0.78             ## inside a generated interior (scripts/interiors/) the on-foot arm is this fraction of its length ...
@@ -734,9 +735,17 @@ func _exclude_props() -> void:
 		_prop_rids[b.get_rid()] = true
 
 
+## A generated interior, or (w121-critic) the floors of an open walk-in tower: the tight-room camera (shorter arm, lifted lens, wider view, never in a wall).
+func _indoor() -> bool:
+	return InteriorSpace.active or (TowerFloors.critic_on and _player != null and TowerFloors.inside(_player.global_position))
+
+
 ## Smooth hero fade for a camera that is close to the head (a wall at the back, a corner): 0 at FADE_START metres, 1 at FADE_END.
 func _update_fade(cam_dist: float, driving: bool) -> void:
-	var f := 0.0 if driving else clampf((FADE_START - cam_dist) / (FADE_START - FADE_END), 0.0, 1.0)
+	var tower := TowerFloors.critic_on and _player != null and TowerFloors.inside(_player.global_position)     # w121-critic: in the 2.6 m stairwell of a walk-in tower a lens 1.0 to 1.4 m from the head filled the phone screen with the back of his head
+	var f0 := FADE_START + (TOWER_FADE_MORE if tower else 0.0)
+	var f1 := FADE_END + (TOWER_FADE_MORE if tower else 0.0)
+	var f := 0.0 if driving else clampf((f0 - cam_dist) / (f0 - f1), 0.0, 1.0)
 	f = f * f * (3.0 - 2.0 * f)
 	if absf(f - hero_fade) < 0.002 and f != 1.0 and f != 0.0:
 		return
@@ -830,7 +839,7 @@ func _update_view(dt: float) -> void:
 
 	# --- distance, shoulder, height and FOV for the current situation
 	var hs := HeroPresentation.camera_scale()
-	var foot_dist := lerpf(HIP_DIST, ADS_DIST, ads_s) * float(hs["dist"]) * (INTERIOR_ARM_SCALE if InteriorSpace.active else 1.0)      # a shorter arm in the tight rooms of a generated interior
+	var foot_dist := lerpf(HIP_DIST, ADS_DIST, ads_s) * float(hs["dist"]) * (INTERIOR_ARM_SCALE if _indoor() else 1.0)      # a shorter arm in the tight rooms of a generated interior
 	var foot_shoulder := lerpf(HIP_SHOULDER, ADS_SHOULDER, ads_s) * float(hs["shoulder"])
 	var foot_fov := lerpf(lerpf(FOV_HIP, FOV_HIP + (FOV_SPRINT - FOV_HIP) * HeroPower.f("sprint") * (0.4 if UiSettings.s_reduce_motion else 1.0), _sprint), ads_fov, ads_s)
 	var vp := _vehicle_params(veh_speed) if drv else {"dist": VEH_DIST, "height": VEH_HEIGHT, "fov": VEH_FOV, "fwd": 0.0}
@@ -841,11 +850,11 @@ func _update_view(dt: float) -> void:
 	var shoulder := lerpf(foot_shoulder, 0.0, _mode_mix)
 	var height := lerpf(EYE_HEIGHT * float(hs["eye"]) + ADS_LIFT * ads_s, float(vp["height"]), _mode_mix)
 	var fov_target := lerpf(foot_fov, veh_fov, _mode_mix)
-	if InteriorSpace.active:
+	if _indoor():
 		height += (INTERIOR_LIFT + INTERIOR_LIFT_SQUEEZE * clampf((1.0 - _ratio) / 0.6, 0.0, 1.0)) * (1.0 - _mode_mix)
 		fov_target += INTERIOR_FOV_BOOST * clampf((1.0 - _ratio) / 0.5, 0.0, 1.0) * (1.0 - _mode_mix)     # _ratio: last frame's arm fraction (the wall pull-in)
 	var tight_t := 0.0
-	if not drv and playing and not InteriorSpace.active:    # DOOR FRAMING: the arm length of last frame (the wall pull-in) drives it, eased so a doorway never snaps the view
+	if not drv and playing and not _indoor():    # DOOR FRAMING: the arm length of last frame (the wall pull-in) drives it, eased so a doorway never snaps the view
 		var arm_now := minf(sqrt(shoulder * shoulder + dist * dist) * _ratio, _arm_raw)
 		var nominal := sqrt(shoulder * shoulder + dist * dist)
 		tight_t = clampf((DOOR_ARM - arm_now) / (DOOR_ARM - MIN_ARM), 0.0, 1.0) * clampf((nominal - arm_now) / 0.6, 0.0, 1.0)     # only a wall's shortfall counts: the short aimed arm is not a door
@@ -922,7 +931,7 @@ func _update_view(dt: float) -> void:
 	var arm_free := arm.get_hit_length()
 	_arm_raw = arm_free
 	through_wall = false
-	if not drv and arm_free < THROUGH_ARM - 0.02 and not InteriorSpace.active and not _cine_active_now():
+	if not drv and arm_free < THROUGH_ARM - 0.02 and not _indoor() and not _cine_active_now():
 		var ad := aim_basis * Vector3(sin(a), 0.0, cos(a))
 		_probe.collision_mask = Game.L_WORLD
 		_probe.from = _pivot_pos
@@ -931,7 +940,7 @@ func _update_view(dt: float) -> void:
 		if not wh.is_empty() and (wh["normal"] as Vector3).dot(ad) < -0.55 and _is_facade(wh):   # a building wall that faces the hero and the lens (not a pole, a kerb, a car or a test box)
 			through_wall = true
 			arm_free = minf(THROUGH_ARM, arm_len)
-	var free_ratio := clampf(arm_free / arm_len, minf(1.0, (INTERIOR_MIN_ARM if InteriorSpace.active else MIN_ARM * clampf(float(hs["eye"]), 1.0, 1.3)) / arm_len), 1.0)     # never closer than MIN_ARM, even inside a wall
+	var free_ratio := clampf(arm_free / arm_len, minf(1.0, (INTERIOR_MIN_ARM if _indoor() else MIN_ARM * clampf(float(hs["eye"]), 1.0, 1.3)) / arm_len), 1.0)     # never closer than MIN_ARM, even inside a wall
 	if free_ratio < _ratio and dt > 0.0 and snk != null and snk.cam.active:
 		_ratio = maxf(free_ratio, PlayerUtil.damp(_ratio, free_ratio, snake_pull_in, dt))      # a snake state passes facades at 20 to 45 m/s: a wall behind the hero draws the arm in over a few frames; the old cut moved the lens 2 to 5 m in ONE frame (critic 115 look)
 	elif free_ratio < _ratio or dt <= 0.0:
@@ -952,7 +961,7 @@ func _update_view(dt: float) -> void:
 	if absf(_swing) > 0.001:
 		cam_pos += aim_basis.x * _swing + aim_basis.y * (absf(_swing) / SQUEEZE_SIDE * SQUEEZE_UP)
 
-	if not drv and not InteriorSpace.active and playing:
+	if not drv and not _indoor() and playing:
 		cam_pos += _prop_avoid(cam_pos, _pivot_pos, dt)
 		cam_pos = _vehicle_avoid(cam_pos, _pivot_pos, dt)
 	elif _prop_push != Vector3.ZERO:
@@ -988,7 +997,7 @@ func _update_view(dt: float) -> void:
 	bob_y *= _bob_gain
 	var cam_basis := Basis.from_euler(Vector3(pitch_t + s_rot.x, yaw_t + s_rot.y, _roll + s_rot.z), EULER_ORDER_YXZ)
 	cam_pos += cam_basis * Vector3(s_off.x, s_off.y + bob_y + _bump, s_off.z + _punch)
-	if InteriorSpace.active:
+	if _indoor():
 		cam_pos = _keep_out_of_walls(cam_pos)           # a squeeze slide or a shake must never put the camera in a wall or a door frame of a tight room
 	cam_pos.y = maxf(cam_pos.y, base.y + 0.25)          # never below the feet, even with a pitched-up low camera
 	if not cam_pos.is_finite():                         # a broken position must never freeze the picture: fall back to the pivot

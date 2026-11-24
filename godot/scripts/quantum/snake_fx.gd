@@ -338,7 +338,7 @@ static func hud_cues(tc: TouchControls, s: float, sprites: Array, labels: Array)
 	var me := current
 	var vp: Vector2 = tc.get_viewport().get_visible_rect().size
 	var mid: Vector2 = vp * 0.5
-	if not me.zip_mark.is_empty():
+	if not me.zip_mark.is_empty() and me.st.button_shown():             # w121-critic: no "ZIP ROOF +16 M" mark under a tower's ceiling, where ZIP is off
 		var cam := me.st.p.camera_rig.camera
 		var wp: Vector3 = me.zip_mark["pos"]
 		if cam != null and not cam.is_position_behind(wp):

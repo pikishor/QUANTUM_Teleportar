@@ -18,6 +18,7 @@ const DEFAULTS: Array[Dictionary] = [
 	{"slam": 35.0, "slam_radius": 4.5, "slam_cost": 18.0, "wall_time": 1.2, "grab_range": 8.0, "grab_cost": 14.0, "throw": 0.8, "cars": 0.0},
 ]
 const WALL_REACH := 0.8
+static var ceiling_stop := true              ## w121-critic: W121_CRITIC_OLD=1 in the check = the run goes on under a ceiling
 const WALL_SPEED := 8.0
 const SLAM_SPEED := 34.0
 const SLAM_MIN_AIR := 0.2
@@ -230,8 +231,8 @@ func _wall_tick(p: Player, dt: float, forward_in: float, wish: Vector3, on_floor
 	if _scrape_t <= 0.0:
 		_scrape_t = 0.3
 		Sfx.verb(&"wallrun")
-	if _wall_t > cfg("wall_time"):
-		_end_wall()
+	if _wall_t > cfg("wall_time") or (ceiling_stop and wall_running and _wall_t > 0.05 and p.is_on_ceiling()):
+		_end_wall()                      # w121-critic: a run up a room wall ends at the ceiling (he hung pressed under a tower ceiling for the whole wall_time)
 		return false
 	if jump_buffered:
 		p.velocity = n * 6.0 + Vector3.UP * Player.JUMP_SPEED * 0.9 * HeroPower.f("jump")

@@ -167,6 +167,12 @@ var _rest_drop := 0.0                  ## lowest point of the fallen pose relati
 ## 0 opaque .. 1 hidden: the camera rig fades the hero out when the lens is closer than 1.2 m (a wall at the back). Per-instance transparency (dithered, Mobile renderer),
 ## and the meshes are hidden outright when nearly gone and on the Compatibility renderer, which has no instance transparency.
 var fade := 0.0
+static var fade_all_on := true            ## w121-critic: W121_CRITIC_OLD=1 in the check = only the body mesh fades
+var _fade_extra: Array[MeshInstance3D] = []
+var _fade_base: Array[float] = []
+var _fade_hid := {}                          ## mesh -> its visibility before the fade hid it
+
+
 func set_fade(f: float) -> void:
 	if is_equal_approx(f, fade):
 		return
@@ -178,7 +184,25 @@ func set_fade(f: float) -> void:
 			m.transparency = 0.0 if compat else clampf(f, 0.0, 0.96)
 			m.visible = not gone
 	if is_instance_valid(_wp_mi):
-		_wp_mi.transparency = 0.0 if compat else clampf(f, 0.0, 0.96)       # its visibility belongs to the weapon switch (see set_weapon_look)
+		_wp_mi.transparency = 0.0 if compat else (1.0 if gone and fade_all_on else clampf(f, 0.0, 0.96))       # its visibility belongs to the weapon switch (see set_weapon_look); w121-critic: no gun floating alone
+	if fade_all_on:                                                   # w121-critic: the skinned hero's own mesh (head, hair, hands) is not the rest copy in _parts: it stayed
+		if _fade_extra.is_empty() and f > 0.0:                         # opaque and filled the phone screen in a tower stairwell while the body "faded"
+			for n in find_children("*", "MeshInstance3D", true, false):
+				var mi := n as MeshInstance3D
+				if mi != _wp_mi and not _parts.has(mi) and mi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
+					_fade_extra.append(mi)
+					_fade_base.append(mi.transparency)
+		for i in _fade_extra.size():
+			var mi := _fade_extra[i]
+			if not is_instance_valid(mi):
+				continue
+			mi.transparency = _fade_base[i] if compat else maxf(minf(f, 0.96), _fade_base[i])
+			if gone and not _fade_hid.has(mi):
+				_fade_hid[mi] = mi.visible
+				mi.visible = false
+			elif not gone and _fade_hid.has(mi):
+				mi.visible = bool(_fade_hid[mi])
+				_fade_hid.erase(mi)
 
 
 ## Switch the character lights off (tests, or a graphics tier that wants the extra directional lights gone).

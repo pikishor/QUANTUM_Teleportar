@@ -12,6 +12,7 @@ extends Node3D
 ## For w121-lifts: `current()` describes the open tower (levels, shaft, LIFT_BAY: a free 2.4 x 2.6 m bay beside the stairwell on every floor).
 
 const SHADER := preload("res://assets/shaders/tower_floors.gdshader")
+const PropCols := preload("res://scripts/world/city_colliders.gd")
 const MIN_H := 24.0
 const NEAR := 30.0
 const FAR := 42.0
@@ -41,6 +42,7 @@ static var enabled := true       ## FLOORS_OLD=1 in the tests: the wave 120 buil
 static var instance: TowerFloors
 static var open_lot := -1        ## lot index of the open tower (-1: none)
 static var builds := 0           ## how many times a tower was opened (tests)
+static var critic_on := true     ## w121-critic: W121_CRITIC_OLD=1 in the checks = the builders' code (enemies on the street under the floors, through the walls)
 
 var towers: Array[Dictionary] = []     ## candidates: {lot, b, kind, face, n, t}
 var _cur: Dictionary = {}
@@ -102,7 +104,9 @@ func _collect() -> void:
 		var t := Vector3(n.z, 0.0, -n.x)
 		if t.x + t.z < 0.0:
 			t = -t
-		towers.append({"lot": lot, "b": b, "kind": kind_of(b.style, lot.index), "face": face, "n": n, "t": t})
+		var tw := {"lot": lot, "b": b, "kind": kind_of(b.style, lot.index), "face": face, "n": n, "t": t}
+		tw["du"] = _free_door_u(tw)
+		towers.append(tw)
 
 
 ## The tower whose street door is nearest to `p` (tests and the probe): {} when none.
@@ -147,9 +151,46 @@ static func inner_v(tw: Dictionary) -> float:
 	return 2.0 * (_half_n(tw) - IN)
 
 
+## u of the street door's middle: the middle of the street face, moved along it when a street prop (planter, kiosk, hydrant ...) stands in front of the middle (w121-critic: a
+## planter blocked the door of lot 77).
+static func door_u(tw: Dictionary) -> float:
+	return float(tw.get("du", inner_u(tw) * 0.5))
+
+
+## w121-critic: the first door u (the middle, then 2.5 m steps to either side) with no collidable street prop within 1.7 m of the walk-in path in front of it.
+static func _free_door_u(tw: Dictionary) -> float:
+	var mid := inner_u(tw) * 0.5
+	if not critic_on:
+		return mid
+	var city = Game.world
+	var pc = city.prop_colliders() if city != null and city.has_method(&"prop_colliders") else null
+	if pc == null:
+		return mid
+	var xf: Array = pc._xf
+	var iv := inner_v(tw)
+	for k in [0.0, 2.5, -2.5, 5.0, -5.0, 7.5, -7.5]:
+		var u: float = mid + k
+		if u < 3.0 or u > inner_u(tw) - 5.5:
+			continue
+		var clear := true
+		for out in [0.6, 1.6, 2.6]:
+			var q := at(tw, u, iv + IN + out)
+			for dx in [-1.7, 1.7]:
+				for dz in [-1.7, 1.7]:
+					for id in (pc._grid.get(PropCols._key(q.x + dx, q.z + dz), PackedInt32Array()) as PackedInt32Array):
+						var o: Vector3 = (xf[id] as Transform3D).origin
+						if absf(o.y) < 1.5 and Vector2(o.x - q.x, o.z - q.z).length() < 1.7:
+							clear = false
+			if not clear:
+				break
+		if clear:
+			return u
+	return mid
+
+
 ## The street door: the sidewalk point in front of it (y 0).
 static func door_pos(tw: Dictionary, out := 1.3) -> Vector3:
-	return at(tw, inner_u(tw) * 0.5, inner_v(tw) + IN + out)
+	return at(tw, door_u(tw), inner_v(tw) + IN + out)
 
 
 ## Floor levels: [0 (street), floor 1, ..., floor nfl, roof]. Same numbers as the facade shader, so slabs sit at the facade's floor lines.
@@ -195,6 +236,45 @@ static func inside(p: Vector3) -> bool:
 	return p.y > -1.0 and p.y < lot.h - 0.2 and absf(p.x - lot.cx) < lot.w * 0.5 - 0.05 and absf(p.z - lot.cz) < lot.d * 0.5 - 0.05
 
 
+## w121-critic: (u, v) of a world point in the frame of `tw` (inverse of at()).
+static func uv_of(tw: Dictionary, p: Vector3) -> Vector2:
+	var lot: CityLayout.Lot = tw["lot"]
+	var rel := Vector3(p.x - lot.cx, 0.0, p.z - lot.cz)
+	return Vector2(rel.dot(tw["t"]) + _half_t(tw) - IN, rel.dot(tw["n"]) + _half_n(tw) - IN)
+
+
+## w121-critic: the walkable level under (x, z) of the open tower for feet below `from_y` (enemies and NPCs stand on its floors, not on the street under them);
+## NAN when (x, z) is not inside the open tower.
+static func floor_under(x: float, z: float, from_y: float) -> float:
+	if not critic_on or instance == null or instance._cur.is_empty():
+		return NAN
+	var tw: Dictionary = instance._cur
+	var uv := uv_of(tw, Vector3(x, 0.0, z))
+	if uv.x < -IN or uv.y < -IN or uv.x > inner_u(tw) + IN or uv.y > inner_v(tw) + IN:
+		return NAN
+	var best := 0.0
+	for y in instance._levels:
+		if y <= from_y + 0.9:
+			best = y
+	return best
+
+
+## w121-critic: is p inside a solid part of the open tower for walkers that do not use its colliders (enemies, NPCs): its outer walls (the street door is a gap). Above the roof: nothing.
+static func blocks(p: Vector3) -> bool:
+	if instance == null or instance._cur.is_empty():
+		return false
+	var tw: Dictionary = instance._cur
+	var lot: CityLayout.Lot = tw["lot"]
+	if p.y < 0.0 or p.y >= lot.h:
+		return false
+	var uv := uv_of(tw, p)
+	var iu := inner_u(tw)
+	var iv := inner_v(tw)
+	if uv.x < 0.0 or uv.x > iu or uv.y < 0.0 or uv.y > iv:
+		return not (uv.y > iv and absf(uv.x - door_u(tw)) < DOOR_W * 0.5 - 0.1 and p.y < DOOR_H)
+	return false                     # inside: free (the stairwell and the lift have real colliders; a teleport or respawn there must not be pushed out of the building)
+
+
 ## Walk route (world points) from the street door up the stairs: [door in, lobby, landing 0, A top, B top = landing 1, ...] up to `level`; the last point steps out
 ## through the landing's door (or the roof door). For tests and bots: every point is reached by walking.
 func route(level: int) -> Array[Vector3]:
@@ -204,7 +284,7 @@ func route(level: int) -> Array[Vector3]:
 		return out
 	var iu := inner_u(tw)
 	var iv := inner_v(tw)
-	out.append(at(tw, iu * 0.5, iv - 1.0))
+	out.append(at(tw, door_u(tw), iv - 1.0))
 	out.append(at(tw, LAND * 0.5, SHAFT_W + 1.2))
 	for k in level:
 		var y0 := _levels[k]
@@ -381,7 +461,7 @@ func _build_shell() -> void:
 	var H := lot.h
 	var top := H - PARAPET_H
 	# outer walls (WALL_T thick, outside the inner plane), the street door a gap in the n wall
-	var du := iu * 0.5
+	var du := door_u(tw)
 	_box(_body, -WALL_T, -WALL_T, 0.0, 0.0, iv + WALL_T, top)                  # u = 0 side
 	_box(_body, iu, -WALL_T, 0.0, iu + WALL_T, iv + WALL_T, top)               # far side
 	_box(_body, 0.0, -WALL_T, 0.0, iu, 0.0, top)                               # back wall
@@ -452,7 +532,7 @@ func _room_boxes(k: int) -> Array:
 	var wood := Color(0.42, 0.28, 0.17)
 	if k == 0:
 		# lobby: a reception desk beside the door, planters, a light bench
-		var du := iu * 0.5
+		var du := door_u(tw)
 		out.append([du + 2.2, iv - 4.2, y, du + 4.6, iv - 3.4, y + 1.05, true, wood, false])
 		out.append([du + 2.3, iv - 4.15, y + 1.05, du + 4.5, iv - 3.45, y + 1.12, false, Color(0.9, 0.85, 0.7), true])
 		out.append([1.0, iv - 1.5, y, 1.8, iv - 0.7, y + 0.9, true, Color(0.18, 0.4, 0.2), false])
@@ -623,7 +703,7 @@ func _build_mesh() -> void:
 	var ceil_c := Color(0.82, 0.82, 0.8)
 	var shaft_c := Color(0.55, 0.56, 0.58)
 	var step_c := Color(0.5, 0.5, 0.52)
-	var du := iu * 0.5
+	var du := door_u(tw)
 	var near := _room_floors()
 	for k in _levels.size() - 1:
 		var y0 := _levels[k]

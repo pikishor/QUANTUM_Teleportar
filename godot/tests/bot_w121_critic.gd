@@ -30,6 +30,8 @@ func shot(name: String) -> void:
 	tree.root.get_texture().get_image().save_png("%s/%s.png" % [out, name])
 	var tm = TowerFloors.instance.get_node_or_null("TowerMesh")
 	print("W121 mat ", tm.material_override.shader.resource_path if tm else "none", " surf ", tm.mesh.get_surface_count() if tm and tm.mesh else -1, " vis ", tm.is_visible_in_tree() if tm else false)
+	var cr := p.camera_rig
+	print("W121 fade ", name, " fade ", cr.hero_fade, " lens-head ", cr.camera.global_position.distance_to(p.global_position + Vector3(0, 1.6, 0)), " inside ", TowerFloors.inside(p.global_position), " body fade ", p.body.fade)
 	print("W121 shot ", name, " pos ", p.global_position.snapped(Vector3(0.1, 0.1, 0.1)), " open ", TowerFloors.open_lot, " floor ", TowerFloors.current().get("floor", -1))
 
 

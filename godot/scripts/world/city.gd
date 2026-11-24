@@ -284,7 +284,7 @@ func is_inside_building(p: Vector3) -> bool:
 	if lot == null:
 		return false
 	if lot.index == TowerFloors.open_lot:
-		return false                                  # w121-floors: the walk-in tower is open (its own walls, floors and stairs stand there)
+		return TowerFloors.blocks(p) if TowerFloors.critic_on else false     # w121-floors: the walk-in tower is open (its own walls, floors and stairs stand there); w121-critic: its walls still stop walkers
 	var b: Buildings.Building = building_data[lot.index]
 	return BM.contains(b.cls, p.x - lot.cx, p.y, p.z - lot.cz, lot.w, lot.d, lot.h)
 
@@ -296,6 +296,10 @@ func ground_height(x: float, z: float, from_y := 1.0e9) -> float:
 	var lot := layout.lot_at(x, z)
 	if lot == null:
 		return 0.0
+	if lot.index == TowerFloors.open_lot:
+		var fy := TowerFloors.floor_under(x, z, from_y)        # w121-critic: the open walk-in tower's floors (enemies on floor 3 stand on floor 3)
+		if not is_nan(fy):
+			return fy
 	var b: Buildings.Building = building_data[lot.index]
 	var best := 0.0
 	for p: Array in BM.CLASSES[b.cls]:
