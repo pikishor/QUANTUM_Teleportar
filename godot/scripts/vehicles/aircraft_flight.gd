@@ -33,6 +33,9 @@ static func ceil_of(v: Vehicle) -> float:
 
 ## w120-sky: the soft turn-back at the visible world edge. Past PLAY_HALF - EDGE_SOFT the heading eases toward the middle and the outward drift fades;
 ## nothing ever stops the craft dead (the old hard clamp in VehicleManager._sanity stays only as a last resort past PLAY_HALF).
+static var edge_dt_fix := OS.get_environment("W121_EDGE_OLD") != "1"   ## w121-lifts switch: the edge damping by the second
+
+
 static func edge_turn(v: Vehicle, dt: float) -> void:
 	if not sky_fix or v.craft == null or not (v.craft.airborne or v.cls == &"boat"):     # w120-critic: boats too (a boat ran full speed into the invisible wall at sea)
 		return
@@ -51,7 +54,7 @@ static func edge_turn(v: Vehicle, dt: float) -> void:
 	for ax in [0, 2]:
 		var pv: float = gp[ax]
 		if absf(pv) > lim and signf(v.vel[ax]) == signf(pv):
-			v.vel[ax] *= 1.0 - k
+			v.vel[ax] *= pow(maxf(1.0 - k, 0.0), dt * 60.0) if edge_dt_fix else 1.0 - k      # w121-lifts: per second, not per frame (the same as before at 60 fps; at 30 fps a boat kept 27 m/s, at 120 fps 4.5 m/s)
 	if v.cls == &"plane" and flat0 > 0.1:                         # w120-critic: a plane keeps its airspeed (PlaneFlight reads it back after the move: the edge stalled it to 3 m/s and it fell); the outward part turns along the edge
 		var f2 := Vector2(v.vel.x, v.vel.z)
 		if f2.length() < 0.2 * flat0:

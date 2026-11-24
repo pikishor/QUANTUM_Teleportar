@@ -131,6 +131,8 @@ func nearest(pos: Vector3, r := 4.2) -> Vehicle:
 func reach_car(pos: Vector3) -> Vehicle:
 	var best: Vehicle = null
 	var best_d := INF
+	if TowerLift.instance != null and not is_instance_valid(driven) and TowerLift.instance.use_prompt() != "":
+		return null                          # wave 121 (w121-lifts): at a lift call spot or in the cabin the context slot is LIFT, never the kerb car beside it
 	if NearTraffic.instance != null and not is_instance_valid(driven):          # a near (MultiMesh) car in reach becomes a real one: any car can be taken
 		NearTraffic.instance.promote_near(pos, VehicleSpecs.ENTER_REACH + 0.6)
 	if RoadTraffic.instance != null and not is_instance_valid(driven):          # the same for the cars of the highways

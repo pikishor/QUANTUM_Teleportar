@@ -7,6 +7,11 @@ extends RefCounted
 static func prompt() -> String:
 	if not Game.is_playing() or not is_instance_valid(Game.player):
 		return ""
+	var tl := TowerLift.instance                      # wave 121 (w121-lifts): LIFT at a lift call spot or inside the cabin (before the car check: the lift wins over a kerb car)
+	if tl != null:
+		var s3 := tl.use_prompt()
+		if s3 != "":
+			return s3
 	if is_instance_valid(Game.vehicles) and Game.vehicles.has_method(&"nearest") and Game.player.get("vehicle") == null:
 		if Game.vehicles.call(&"nearest", Game.player.global_position, 4.0) != null:
 			return ""

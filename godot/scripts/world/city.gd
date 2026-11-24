@@ -9,6 +9,8 @@ extends Node3D
 ## The props and the far skyline are camera-centred windows over their MultiMeshes (city_stream.gd): a MultiMesh of the whole city
 ## has one bounding box and cannot be frustum culled, so only the instances near the camera are submitted.
 
+const EDGE_WALL_LO := -300.0    ## w121-lifts: bottom of the invisible world-edge walls (under the deepest sea floor)
+const EDGE_WALL_HI := 1600.0    ## w121-lifts: top of the walls, above the 1000 m plane ceiling and any snake flight
 const MB := preload("res://scripts/world/mesh_builder.gd")
 const BM := preload("res://scripts/world/building_meshes.gd")
 const Env := preload("res://scripts/world/city_env.gd")
@@ -153,6 +155,8 @@ func _ready() -> void:
 			HarbourWorld.attach(self)
 		if OS.get_environment("QT_NO_RAIL") != "1":                   # the railway: tracks, stations, trains, level crossings (wave 106)
 			RailWorld.attach(self)
+		if OS.get_environment("QT_NO_LIFTS") != "1":                  # wave 121 (w121-lifts): the glass lift of the tall building nearest the hero
+			TowerLift.attach(self)
 		if OS.get_environment("QT_NO_AIRPORT") != "1":                # EASTFIELD AIRPORT on the east plain: runway, terminal, tower, hangars, pads, air traffic (wave 106)
 			AirportWorld.attach(self)
 		if OS.get_environment("QT_NO_SHIPS") != "1":                  # the big ships: destroyer, container ship, submarine, liners at sea (wave 106)
@@ -279,6 +283,8 @@ func is_inside_building(p: Vector3) -> bool:
 	var lot := layout.lot_at(p.x, p.z)
 	if lot == null:
 		return false
+	if lot.index == TowerFloors.open_lot:
+		return false                                  # w121-floors: the walk-in tower is open (its own walls, floors and stairs stand there)
 	var b: Buildings.Building = building_data[lot.index]
 	return BM.contains(b.cls, p.x - lot.cx, p.y, p.z - lot.cz, lot.w, lot.d, lot.h)
 
@@ -669,10 +675,14 @@ func _build_collision() -> void:
 	var e := CityLayout.PLAY_HALF
 	var t := CityLayout.WALL_T
 	var len := 2.0 * (e + t)
-	_add_box(Vector3(e + t * 0.5, 200.0, 0.0), Vector3(t, 400.0, len), "WallE")
-	_add_box(Vector3(-e - t * 0.5, 200.0, 0.0), Vector3(t, 400.0, len), "WallW")
-	_add_box(Vector3(0.0, 200.0, e + t * 0.5), Vector3(len, 400.0, t), "WallS")
-	_add_box(Vector3(0.0, 200.0, -e - t * 0.5), Vector3(len, 400.0, t), "WallN")
+	# w121-lifts: the walls reach from under the sea floor to above every flight ceiling (were 0 .. 400 m: a plane at 1000 m or a snake flight over 400 m left the world there)
+	var old_walls := OS.get_environment("W121_EDGE_OLD") == "1"      # the old 0 .. 400 m walls, for the check's fail run
+	var wy := 200.0 if old_walls else 0.5 * (EDGE_WALL_LO + EDGE_WALL_HI)
+	var wh := 400.0 if old_walls else EDGE_WALL_HI - EDGE_WALL_LO
+	_add_box(Vector3(e + t * 0.5, wy, 0.0), Vector3(t, wh, len), "WallE")
+	_add_box(Vector3(-e - t * 0.5, wy, 0.0), Vector3(t, wh, len), "WallW")
+	_add_box(Vector3(0.0, wy, e + t * 0.5), Vector3(len, wh, t), "WallS")
+	_add_box(Vector3(0.0, wy, -e - t * 0.5), Vector3(len, wh, t), "WallN")
 
 
 func _add_box(center: Vector3, size: Vector3, shape_name: String) -> void:
