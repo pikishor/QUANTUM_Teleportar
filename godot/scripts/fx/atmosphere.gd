@@ -160,7 +160,7 @@ func _process_body(delta: float) -> void:
 	_look_step(delta)
 	var cam := _camera()
 	_air_step(delta)
-	rainfield.update(delta, cam, rain_now)
+	rainfield.update(delta, cam, 0.0 if cam != null and TowerFloors.inside(cam.global_position) else rain_now)      # w121-floors: no rain inside a walk-in tower
 	if cam != null and rainfield.is_visible_in_tree():
 		post.set_slant(rainfield.screen_slant(cam))
 

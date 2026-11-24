@@ -183,7 +183,8 @@ func activate(pos: Vector3, is_aware := false, is_reinforce := false) -> void:
 	_off = 0.0
 	yaw = randf() * TAU
 	rotation = Vector3(0.0, yaw, 0.0)
-	global_position = Vector3(pos.x, _hover, pos.z)
+	var fy := TowerFloors.floor_under(pos.x, pos.z, pos.y) if TowerFloors.critic_on and TowerFloors.inside(pos) else NAN     # w121-critic: put on a tower floor, it stays on that floor
+	global_position = Vector3(pos.x, _hover + (0.0 if is_nan(fy) else fy), pos.z)
 	if model != null:
 		model.rotation = Vector3.ZERO
 		model.position = Vector3.ZERO
@@ -658,10 +659,11 @@ func _step(sx: float, sz: float) -> void:
 		var m := radius * 0.7
 		var ax := signf(sx) * m
 		var az := signf(sz) * m
-		if city.is_inside_building(Vector3(nx + ax, 1.0, nz + az)):
-			if city.is_inside_building(Vector3(nx + ax, 1.0, pos.z + az)):
+		var cy := pos.y + 1.0 if TowerFloors.critic_on and TowerFloors.inside(pos) else 1.0     # w121-critic: in an open walk-in tower the walls of the enemy's own floor
+		if city.is_inside_building(Vector3(nx + ax, cy, nz + az)):
+			if city.is_inside_building(Vector3(nx + ax, cy, pos.z + az)):
 				nx = pos.x
-			if city.is_inside_building(Vector3(pos.x + ax, 1.0, nz + az)):
+			if city.is_inside_building(Vector3(pos.x + ax, cy, nz + az)):
 				nz = pos.z
 			if nx == pos.x + sx and nz == pos.z + sz:
 				nx = pos.x

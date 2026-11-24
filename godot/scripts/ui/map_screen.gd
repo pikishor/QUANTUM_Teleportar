@@ -69,6 +69,7 @@ const COL_W := 212.0                                 ## base px: the legend colu
 const BTN_H := 64.0
 const GAP := 6.0
 
+var tower_floor := ""                  ## wave 121 (w121-lifts): the floor drawn under YOU on the map ("" outside a tall building; tests read it)
 var waypoint := Vector3.INF
 var filters := {&"mission": true, &"side": true, &"interior": true, &"job": true, &"shop": true, &"garage": true, &"weapon": true, &"home": true, &"items": true}
 
@@ -170,7 +171,7 @@ func _ready() -> void:
 	_route_btn = _button("GPS AUTO", &"RouteMode")
 	_route_btn.pressed.connect(cycle_route_mode)
 	var loc := _button("YOU", &"Locate")
-	loc.pressed.connect(locate)
+	loc.pressed.connect(_on_locate)
 	_goal_btn = _button("GOAL", &"Goal")
 	_goal_btn.pressed.connect(fit_route)
 	var clr := _button("CLEAR", &"Clear")
@@ -482,6 +483,8 @@ func open() -> void:
 	_rebuild_route()
 	if _route.size() >= 2:
 		fit_route()                                       # hero and objective both in the frame
+	elif _hero_outside():
+		set_region_mode()                                 # w121-lifts: in the outskirts the map opened on the city and the hero was off it (YOU did not help: the view is clamped to the city)
 	_refresh_chips()
 	_map.queue_redraw()
 
@@ -646,6 +649,25 @@ func locate() -> void:
 		var pp: Vector3 = Game.player.global_position
 		view_center = Vector2(pp.x, pp.z)
 	_after_zoom()
+
+
+## The YOU button: centre on the hero; in the outskirts first the REGION picture (w121-lifts: the city view cannot reach him there).
+func _on_locate() -> void:
+	if _hero_outside() and not world_mode:
+		set_region_mode()
+	else:
+		locate()
+
+
+static var outskirts_fix := OS.get_environment("W121_MAP_OLD") != "1"     ## w121-lifts switch: the map follows a hero in the outskirts
+
+
+## The hero stands outside the city square (the city view cannot show him) and the world picture exists.
+func _hero_outside() -> bool:
+	if not outskirts_fix or not TerrainMap.ready or not is_instance_valid(Game.player):
+		return false
+	var pp: Vector3 = Game.player.global_position
+	return maxf(absf(pp.x), absf(pp.z)) > HALF - 20.0
 
 
 func _after_zoom() -> void:
@@ -1636,6 +1658,17 @@ func _draw_map() -> void:
 		var sm := world_to_map(sp.x, sp.z)
 		_map.draw_arc(sm, r_badge * 1.7, 0.0, TAU, 24, Color(1, 1, 1, 0.9), 3.0 * s, true)
 		_label_out(font, sm + Vector2(0.0, -r_badge * 1.7 - 8.0 * s), String(selected.get("label", "")), int(20.0 * s), Color(1, 1, 1, 1.0))
+	# wave 121 (w121-lifts): in a tall building the map draws its outline and the floor you are on
+	var tw := TowerLift.map_info()
+	tower_floor = str(tw.get("floor", ""))
+	if not tw.is_empty() and you.is_finite():
+		var ol := PackedVector2Array()
+		for q: Vector2 in tw["outline"]:
+			ol.append(world_to_map(q.x, q.y))
+		ol.append(ol[0])
+		_map.draw_colored_polygon(ol, Color(0.2, 0.9, 1.0, 0.18))
+		_map.draw_polyline(ol, Color(0.2, 0.9, 1.0, 1.0), 3.0 * s, true)
+		_label_out(font, you + Vector2(0.0, 34.0 * s), tower_floor, int(20.0 * s), Color(0.7, 0.95, 1.0, 1.0))
 	# YOU: view cone and arrow, pointing where you look
 	if you.is_finite():
 		var right := Vector2(-heading.y, heading.x)

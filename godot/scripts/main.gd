@@ -40,6 +40,7 @@ func _ready() -> void:
 	add_child(PerfOverlay.new())        # phone profiling: frame time percentiles, device report, user://perf_log.txt, governor log (long-press the FPS box)
 	add_child(BenchmarkRun.new())       # OPTIONS > RUN BENCHMARK: 30 s fixed route on LOW / MED / HIGH with a result panel (scripts/common/benchmark_run.gd)
 	add_child(Stability.new())          # watchdog: held input, time scale, camera / player / HUD consistency, hurt and death feedback
+	add_child(TowerFloors.new())        # w121-floors: walk-in towers with stairs, floors and a roof door, built in place (scripts/interiors/tower_floors.gd)
 	add_child(InteriorGameplay.new())   # enterable interiors: doors, fades, vendors, actors, missions (scripts/interiors_gameplay/)
 	add_child(preload("res://scripts/world/city_events.gd").new())   # city events: ambush, race, rescue, drop, rift (actors, rewards, minimap markers, rift gravity)
 	add_child(Breakables.new())         # breakable props (crates, glass, poles ...), pooled debris, bullet decal surfaces (scripts/world/breakables.gd)
