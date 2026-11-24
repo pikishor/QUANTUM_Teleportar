@@ -17,6 +17,7 @@ var worst_under := 0.0
 
 func run(h: Node) -> void:
 	TowerFloors.enabled = OS.get_environment("FLOORS_OLD") != "1"
+	h.get_tree().root.size = Vector2i(844, 390)                     # integrator w121: the owner's phone (on the square test window GRAB stood on the stick: a test-window artefact)
 	L = Lib.new()
 	await L.start(h)
 	L.fast(true)

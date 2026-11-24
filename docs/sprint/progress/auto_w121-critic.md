@@ -1,6 +1,10 @@
-# w121-critic (running)
+# w121-critic (done)
 
-agent id af2ffc10ab908d385, 375 events, first activity 2026-11-24T15:10:22.856Z, last activity 2026-11-24T17:09:03.785Z
+agent id af2ffc10ab908d385, 396 events, first activity 2026-11-24T15:10:22.856Z, last activity 2026-11-24T17:29:59.837Z
+
+## Final report
+
+w121-critic report (no commits) I found the 8 worst defects with my own finger-only probe in the real main scene: 5 towers (lots 42, 77, 41, 80, 44), walking in, stairs, lifts, roof, a fight on floor 2, and leaving. I fixed 6, each with a check that fails on the old code. Check file: godot/tests/test_critic_w121.gd passes 12/12. With W121_CRITIC_OLD=1 (the switches turn my fixes off) 7 checks fail. Fixed, most severe first: 1. Enemies on upper floors dropped to street level, so you could not fight anyone upstairs. Fix: drone.gd keeps a tower floor height; city.gd ground_height uses the new TowerFloors.floor_under. Checks "enemy on floor 2 stands on floor 2" and "a finger on FIRE hits it": old y 0.00 and 0 damage. 2. Enemies walked through the walls of an open tower (is_inside_building was false for the whole lot). Fix: the new TowerFloors.blocks covers the outer walls, with the door as a gap. Check: frames an enemy spends inside a wall, old 20 to 57, now 0. 3. A street prop stood in front of 9 of the 40 doors (a planter at lot 77). Fix: door_u()/_free_door_u() moves the door along the face. Check lists blocked doors: old [5, 24, 41, 77, 114, 138, 142, 143, 180], now none. 4. Stairwell camera: the hero's head and hands filled the screen. The fade only covered the rest copy of the body, not the skinned Body mesh. Fix: the tower uses the interior camera plus a longer fade (camera_rig.gd), and player_body.gd now fades the whole hero. Check, climbing by stick: old 13 of 13 close samples opaque, now 0. Frames looked at. 5. ZIP/SWING/FLY showed indoors (with a "ZIP ROOF +16 M" mark) but did nothing. Fix: hidden under ceilings (snake_traversal.gd, snake_fx.gd), back on the roof. 6. A wall run hung the hero under a ceiling for up to 3.5 s. Fix: hero_verbs.gd stops it at the ceiling. Old 1.7 s, now 0.1 s. Not fixed: 7. The stairwell's window holes open onto the street. It is visual only (the colliders are solid), and I had no time. 8. No roof in the city has a parapet collider, so you can walk off the edge. This is old, not from wave 121. Also: at partial fade the gun can stay visible. test_floors_w121 fails at random ("down", "leak" nodes +4 to +19), with my fixes on and off, so I did not cause it. Other suites I ran pass: test_lifts_w121, test_touch_buttons_r7. Files: tower_floors.gd, city.gd, drone.gd, camera_rig.gd, player_body.gd, hero_verbs.gd, snake_traversal.gd, snake_fx.gd. New tests: test_critic_w121.gd, bot_w121_critic.gd, dev_w121_critic.gd, dev_w121_critic2.gd. Log: docs/sprint/progress/w121-critic.md Perf (one run): LOW draws=76 death=109 OK; MED draws=101 death=149 OK; HIGH draws=112 death=169 OK.
 
 ## Last notes of the agent
 
@@ -9,13 +13,6 @@ agent id af2ffc10ab908d385, 375 events, first activity 2026-11-24T15:10:22.856Z,
 
 ## Recent steps (last 40)
 
-- 15:57:35 cd /home/user/QUANTUM_Teleportar/godot; sed -n 640,670p scripts/player/camera_rig.gd; sed -n 840,850p scripts/player/camera_rig.gd; sed -n 920,1000p scripts/player/cam...
-- 15:57:40 cd /home/user/QUANTUM_Teleportar/godot; grep -c "InteriorSpace.active" scripts/player/camera_rig.gd; python3 - <<'E' p='scripts/player/camera_rig.gd' s=open(p).read() ...
-- 15:57:50 cd /home/user/QUANTUM_Teleportar/godot; tools/import.sh >/dev/null 2>&1; S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/...
-- 16:06:29 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/f2/lot44_sheet.jpg
-- 16:06:44 cd /home/user/QUANTUM_Teleportar/godot; python3 - <<'E' p='scripts/player/camera_rig.gd' s=open(p).read() old=''' var f := 0.0 if driving else clampf((FADE_START - cam...
-- 16:15:07 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/f3/s.jpg
-- 16:15:10 cd /home/user/QUANTUM_Teleportar/godot; grep -n "_parts" scripts/player/player_body.gd | head -20
 - 16:15:12 cd /home/user/QUANTUM_Teleportar/godot; sed -n 955,990p scripts/player/player_body.gd
 - 16:15:23 cd /home/user/QUANTUM_Teleportar/godot; python3 - <<'E' p='scripts/player/player_body.gd' s=open(p).read() old=''' if is_instance_valid(_wp_mi): _wp_mi.transparency = ...
 - 16:15:31 cd /home/user/QUANTUM_Teleportar/godot; python3 - <<'E' p='scripts/player/player_body.gd' s=open(p).read() s=s.replace(''' _fade_extra.append(mi) for mi in _fade_extra...
@@ -49,6 +46,13 @@ agent id af2ffc10ab908d385, 375 events, first activity 2026-11-24T15:10:22.856Z,
 - 17:04:19 cd /home/user/QUANTUM_Teleportar/godot; for t in test_floors_w121 test_lifts_w121 test_touch_buttons_r7; do echo "== $t"; timeout 400 tools/test.sh tests/$t.gd 2>&1 | ...
 - 17:07:44 cd /home/user/QUANTUM_Teleportar/godot; timeout 400 tools/test.sh tests/test_floors_w121.gd 2>&1 | grep -E "^FAIL|RESULT|point|down" | head -8
 - 17:09:03 cd /home/user/QUANTUM_Teleportar/godot; cat > tests/dev_w121_wrap_old.gd <<'E' extends RefCounted ## w121-critic: runs tests/test_floors_w121.gd with the critic's fixe...
+- 17:14:06 cd /home/user/QUANTUM_Teleportar; git status --short | head -40; ls -t docs/sprint/progress/ | head -5
+- 17:14:09 cd /home/user/QUANTUM_Teleportar/godot; timeout 400 tools/test.sh tests/test_floors_w121.gd 2>&1 | grep -E "not reached|^FAIL|RESULT" | head -6
+- 17:15:25 cd /home/user/QUANTUM_Teleportar/godot; S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/f7; mkdir -p $S; CRIT_LOTS=41,77 ...
+- 17:23:47 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/f7/s.jpg
+- 17:23:56 cd /home/user/QUANTUM_Teleportar/godot; df -h / | tail -1; PERF_CHECK=1 timeout 1500 tools/perf_report.sh 0 1 2 2>&1 | grep -iE "draws|OK|FAIL|over" | tail -12
+- 17:29:48 cd /home/user/QUANTUM_Teleportar/godot; rm -f tests/dev_w121_wrap_old.gd tests/dev_w121_wrap_old.gd.uid tests/dev_w121_fade.gd tests/dev_w121_fade.gd.uid; cat >> ../do...
+- 17:29:59 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

@@ -15,3 +15,7 @@ NEXT: ZIP/SWING/FLY dead inside tower; wall-run wedge; perf at end
 - FIX 5 wall-run under ceiling: hero_verbs.gd ceiling_stop
 - test_critic_w121: PASS 12/12; W121_CRITIC_OLD=1 fails 7
 NEXT: lot41 door entry stuck (after door move?), perf at end, report
+TESTS AND PERF: test_critic_w121 PASS 12/12, OLD fails 7; test_lifts_w121 PASS; test_touch_buttons_r7 PASS; test_floors_w121 flaky (down / leak) with AND without my fixes (fix switches off) -> not caused here.
+ perf (once): LOW draws=76 death=109 OK; MED draws=101 death=149 OK; HIGH draws=112 death=169 OK.
+OPEN: stairwell window holes onto street (visual only), no parapet colliders on any roof (pre-existing), gun mesh stays visible at partial fade, parked cars may stand at the kerb in front of a door.
+STATUS: done, report handed back.
