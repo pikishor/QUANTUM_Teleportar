@@ -90,6 +90,8 @@ func run(h: Node) -> void:
 		var seat := Vector3(b.x, 0.0, b.z)
 		if StreetLife.solid_at(b.x, b.z, 0.3, "StreetDress") != "":
 			continue
+		if StreetLife.solid_at(b.x, b.z + b.y * 2.6, 0.9) != "":      # w123-integrator: the hero's start spot must be free (a kit planter there slid him round the bench end)
+			continue
 		pushed += 1
 		var dz: float = b.y
 		var from := seat + Vector3(0.0, 0.3, dz * 2.6)
