@@ -7,3 +7,4 @@
 - perf: see /tmp/claude-0/w123i/perf.txt (all OK). visual_qa running
 - perf OK x3, vqa 27/27 looked. critic_w123 bench check: start spot inside a planter after MORE_KERB=2 -> test skips blocked start; old still fails 5/7. rerunning wave touch tests
 - HANDOFF section written; committing
+- committed ee09a74 and pushed. DONE
