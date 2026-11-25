@@ -218,6 +218,31 @@ floating or clipping furniture, white or missing textures, windows showing nothi
 severe first, each with a check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
     commit: 'Wave 122: building detail (rooms match the outside, furniture, see-through windows, shops, roof parapets), wave 121 follow-ups',
   },
+  123: {
+    title: 'Street detail',
+    builders: [
+      { tag: 'clutter', prompt: `TASK (label w123-clutter): SIDEWALK CLUTTER, STOREFRONT DEPTH AND SIGNS. Owner round 7: "street detail". Plan line: "sidewalk clutter, storefront depth, signs, street
+life". First probe with a finger-only bot (godot/tests/dev_w123_probe.gd) in the real main scene: walk 4 city streets and 2 outskirts streets, render frames at eye height (1200x540 LOW and MED) and
+list what looks bare; write it in your log. Then add, with the existing CC0 kits only (or own-made), batched with MultiMesh or shared meshes: sidewalk clutter (lamp posts, benches, bins, hydrants,
+bollards, planters, newspaper boxes, bike racks, bus stops, parking meters, street trees with grates), storefront depth (recessed doors, awnings, shop window displays, roller shutters on closed
+shops), and signs (shop signs, street name signs at corners, traffic signs, a few billboards; original names only). Clutter must never block doors, the walk-in shops of wave 122, roads, or the
+hero's path: keep a clear lane, and move props and parked vans away from doors (wave 122 open item). BUDGETS ARE FULL: HIGH death spike is at its limit 170 and test_integration is at 2990-2994 of
+3000 nodes; you must trim elsewhere to fit, never raise a limit (MultiMesh per chunk, no per-prop nodes). Coordinate with w123-life (it owns moving street life), read its log. Permanent test
+godot/tests/test_clutter_w123.gd by real fingers: walk a street with no stuck spot, every door and shop door reachable with no prop in front, props collide where they should, node and draw counts
+within budget; each check failing on the old code. Render before/after frames and LOOK.` },
+      { tag: 'life', prompt: `TASK (label w123-life): STREET LIFE AND WAVE 122 LEFTOVERS. Make streets feel alive: pedestrians doing things (waiting at bus stops, sitting on benches, using phones,
+chatting in pairs, walking dogs, entering and leaving shops), street vendors and food carts, buses stopping at stops, delivery vans unloading, birds, puddles and steam vents; reuse the existing
+NPC and traffic systems, and pool everything (node budget is 2990-2994 of 3000 and the HIGH death spike is at its limit: trim, never raise a limit). Then fix the wave 122 leftovers: JUMP at a door
+frame starting a wall run that hangs or exits through the wall (make a check that reproduces it first), the CLIMB hint showing inside shops, glass in tower-floor and lobby window holes, and a test
+for the snake swing over a roof parapet. Permanent test godot/tests/test_life_w123.gd by real fingers: on one street see at least 5 kinds of activity within 30 s, people use benches and bus stops,
+a bus stops and leaves, the door-frame jump never hangs, no CLIMB hint in a shop, snake swing passes a parapet; each check failing on the old code. Render frames LOW and MED and LOOK.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 123 (label w123-critic), then its fixer. You did not build it; assume it is broken until you have seen it work. With a finger-only bot of your own
+in the real main scene: walk and drive 5 streets day and night, enter shops, run through crowds, crash a car into clutter; look for props blocking doors or paths, floating or clipping props,
+pedestrians stuck or walking through things, signs with wrong text, frame drops, node growth. Render frames and LOOK. List the 8 worst defects with evidence, fix them most severe first, each with a
+check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
+    commit: 'Wave 123: street detail (sidewalk clutter, storefront depth, signs, street life), wave 122 follow-ups',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }
