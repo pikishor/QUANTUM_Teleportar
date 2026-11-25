@@ -160,7 +160,7 @@ func _process_body(delta: float) -> void:
 	_look_step(delta)
 	var cam := _camera()
 	_air_step(delta)
-	rainfield.update(delta, cam, 0.0 if cam != null and TowerFloors.inside(cam.global_position) else rain_now)      # w121-floors: no rain inside a walk-in tower
+	rainfield.update(delta, cam, 0.0 if cam != null and (TowerFloors.inside(cam.global_position) or ShopFronts.inside(cam.global_position)) else rain_now)      # w121-floors: no rain inside a walk-in tower
 	if cam != null and rainfield.is_visible_in_tree():
 		post.set_slant(rainfield.screen_slant(cam))
 
@@ -236,6 +236,11 @@ func _air_step(delta: float) -> void:
 		var pl := Game.player as Player
 		in_air = pl != null and pl.snake != null and (pl.snake.active() or pl.air_time > 0.25)
 	var want := AIR_LENS if in_air else 1.0
+	var cam := _camera()
+	if TowerFloors.rooms_on and ((cam != null and TowerFloors.inside(cam.global_position)) or (is_instance_valid(Game.player) and TowerFloors.inside((Game.player as Node3D).global_position))):
+		want = 0.0                                     # w122-rooms: under a tower's ceilings the lens rain, curtain and beads of MED / HIGH are off too (the streaks already were)
+	if cam != null and ShopFronts.inside(cam.global_position):
+		want = 0.0                                     # w122-shops: no lens rain under a walk-in shop's ceiling
 	rainfield.air = in_air
 	if air_lens != want:
 		air_lens = want if absf(want - air_lens) < 0.01 else lerpf(air_lens, want, 1.0 - exp(-delta * 5.0))

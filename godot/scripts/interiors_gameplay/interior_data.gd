@@ -4,7 +4,7 @@ extends RefCounted
 ## Nothing here touches the scene tree; tests/test_interior_gameplay.gd checks the limits (radio lines fit a phone screen, actor budgets stay in 3..5).
 
 const TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"club", &"lobby", &"apartment", &"checkpoint", &"bodega", &"warehouse", &"corridor_lab", &"teleporter_hall", &"server_room", &"cargo_bay", &"med_bay", &"control_room"]
-const VENDOR_TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"bodega"]
+const VENDOR_TYPES: Array[StringName] = [&"weapons", &"clinic", &"tech", &"bar", &"bodega", &"clothes", &"motors"]       ## wave 122 (w122-shops): clothes and motors are walk-in street shops only (ShopFronts), not generator interiors
 const MISSION_TYPES: Array[StringName] = [&"lobby", &"apartment", &"club", &"checkpoint"]
 const ACTOR_CAP := 5
 const ACTOR_MIN := 3
@@ -13,6 +13,7 @@ const TITLES := {
 	&"weapons": "ARMS DEALER", &"clinic": "CLINIC", &"tech": "TECH DEN", &"bar": "BAR", &"club": "CLUB",
 	&"lobby": "OFFICE LOBBY", &"apartment": "APARTMENT", &"checkpoint": "VAEL CHECKPOINT", &"bodega": "CORNER STORE", &"warehouse": "WAREHOUSE",
 	&"corridor_lab": "LAB CORRIDOR", &"teleporter_hall": "TELEPORTER HALL", &"server_room": "SERVER ROOM", &"cargo_bay": "CARGO BAY", &"med_bay": "MED BAY", &"control_room": "CONTROL ROOM",
+	&"clothes": "CLOTHES SHOP", &"motors": "MOTOR SHOWROOM",
 }
 ## Door glow colours: vendors cyan, bars amber, mission interiors magenta (club, lobby, apartment) / red (Vael checkpoint).
 const COLORS := {
@@ -138,6 +139,16 @@ const STOCK := {
 	],
 	&"bar": [
 		{"id": &"rumour", "kind": "rumour", "price": Economy.SERVICE[&"rumour"], "name": "BUY A RUMOUR"}, {"id": &"drink", "kind": "drink", "price": Economy.SERVICE[&"drink"], "name": "SYNTH DRINK  +25 HP"},
+	],
+	&"clothes": [       # wave 122 (w122-shops): HeroLook suits and colour schemes, bought with credits (Progress.buy_look) and worn at once
+		{"id": &"suit:stealth", "kind": "look", "name": "STEALTH SUIT"}, {"id": &"suit:assault", "kind": "look", "name": "ASSAULT SUIT"},
+		{"id": &"scheme:1", "kind": "look", "name": "EMBER COLOURS"}, {"id": &"scheme:3", "kind": "look", "name": "JADE COLOURS"},
+		{"id": &"scheme:6", "kind": "look", "name": "CRIMSON COLOURS"}, {"id": &"scheme:7", "kind": "look", "name": "ICE COLOURS"},
+	],
+	&"motors": [        # wave 122 (w122-shops): a vehicle delivered to the kerb in front of the showroom (ShopFronts.deliver)
+		{"id": &"scooter", "kind": "ride", "price": 250, "name": "CITY SCOOTER"}, {"id": &"bike", "kind": "ride", "price": 450, "name": "STREET BIKE"},
+		{"id": &"compact", "kind": "ride", "price": 700, "name": "COMPACT CAR"}, {"id": &"muscle", "kind": "ride", "price": 1100, "name": "MUSCLE CAR"},
+		{"id": &"sport", "kind": "ride", "price": 1500, "name": "SPORT CAR"},
 	],
 	&"bodega": [
 		{"id": &"drink", "kind": "drink", "price": Economy.SERVICE[&"drink"], "name": "SYNTH DRINK  +25 HP"}, {"id": &"heal", "kind": "heal", "price": Economy.SERVICE[&"heal_kit"], "name": "FIELD KIT  FULL REPAIR"},

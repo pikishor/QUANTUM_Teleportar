@@ -171,6 +171,25 @@ static var fade_all_on := true            ## w121-critic: W121_CRITIC_OLD=1 in t
 var _fade_extra: Array[MeshInstance3D] = []
 var _fade_base: Array[float] = []
 var _fade_hid := {}                          ## mesh -> its visibility before the fade hid it
+static var gun_fade_on := true            ## w122-rooms: W122_OLD=1 in the check = the gun (and its parts) drawn while the hero is half faded
+const GUN_HIDE := 0.35                       ## w122-rooms: the weapon and everything on the muzzle leave the frame once the hero is this far faded (a dithered gun floated alone)
+var _gun_layers := {}                        ## mesh -> its render layers before the fade took the gun out
+
+
+## w122-rooms: every mesh on the muzzle (the weapon look, scope / laser parts, the flash) is taken out of the camera's layers while the hero is faded, put back after.
+## Layers, not `visible`: the weapon switch owns the visibility. Looked up each time (a weapon switch can add parts mid-fade).
+func _gun_hide(hide: bool) -> void:
+	if hide:
+		for n in muzzle.find_children("*", "GeometryInstance3D", true, false):
+			var g := n as GeometryInstance3D
+			if not _gun_layers.has(g):
+				_gun_layers[g] = g.layers
+				g.layers = 0
+	elif not _gun_layers.is_empty():
+		for g in _gun_layers.keys():
+			if is_instance_valid(g):
+				(g as GeometryInstance3D).layers = int(_gun_layers[g])
+		_gun_layers.clear()
 
 
 func set_fade(f: float) -> void:
@@ -185,6 +204,8 @@ func set_fade(f: float) -> void:
 			m.visible = not gone
 	if is_instance_valid(_wp_mi):
 		_wp_mi.transparency = 0.0 if compat else (1.0 if gone and fade_all_on else clampf(f, 0.0, 0.96))       # its visibility belongs to the weapon switch (see set_weapon_look); w121-critic: no gun floating alone
+	if gun_fade_on and muzzle != null:
+		_gun_hide(f >= GUN_HIDE)
 	if fade_all_on:                                                   # w121-critic: the skinned hero's own mesh (head, hair, hands) is not the rest copy in _parts: it stayed
 		if _fade_extra.is_empty() and f > 0.0:                         # opaque and filled the phone screen in a tower stairwell while the body "faded"
 			for n in find_children("*", "MeshInstance3D", true, false):

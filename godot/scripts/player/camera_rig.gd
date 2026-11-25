@@ -737,7 +737,7 @@ func _exclude_props() -> void:
 
 ## A generated interior, or (w121-critic) the floors of an open walk-in tower: the tight-room camera (shorter arm, lifted lens, wider view, never in a wall).
 func _indoor() -> bool:
-	return InteriorSpace.active or (TowerFloors.critic_on and _player != null and TowerFloors.inside(_player.global_position))
+	return InteriorSpace.active or (TowerFloors.critic_on and _player != null and TowerFloors.inside(_player.global_position)) or (_player != null and ShopFronts.inside(_player.global_position))      # w122-shops: a walk-in shop too
 
 
 ## Smooth hero fade for a camera that is close to the head (a wall at the back, a corner): 0 at FADE_START metres, 1 at FADE_END.

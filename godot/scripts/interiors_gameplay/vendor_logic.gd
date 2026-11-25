@@ -70,6 +70,18 @@ static func rows(type: StringName) -> Array[Dictionary]:
 			"heal", "energy", "drink", "rumour":
 				row["price"] = discount_price(int(it["price"]))
 				row["sub"] = _sub_of(str(it["kind"]))
+			"look":        # wave 122 (w122-shops): a suit or colour scheme of HeroLook
+				var key := str(it["id"])
+				var owned: bool = p != null and (p.hero.owned.has(key) or HeroLook.item_price(key) <= 0)
+				if owned:
+					row["state"] = "done"
+					row["label"] = "WEAR"
+				else:
+					row["price"] = discount_price(maxi(HeroLook.item_price(key), 0))
+				row["sub"] = "WORN NOW" if p != null and _worn(key) else "YOURS: TAP WEAR" if owned else "A NEW LOOK FOR THE HERO"
+			"ride":        # wave 122 (w122-shops): a vehicle at the kerb outside
+				row["price"] = discount_price(int(it["price"]))
+				row["sub"] = "DELIVERED TO THE KERB OUTSIDE"
 		if row["state"] == "buy" and int(row["price"]) > credits:
 			row["state"] = "poor"
 		if row["label"] == "":
@@ -141,6 +153,8 @@ static func buy(type: StringName, id: StringName) -> Dictionary:
 		return {"ok": false, "msg": "NOT FOR SALE"}
 	match str(row["state"]):
 		"done":
+			if str(row["kind"]) == "look":
+				return _wear(str(id))
 			return {"ok": false, "msg": str(row["label"])}
 		"locked":
 			return {"ok": false, "msg": "YOU DO NOT OWN THAT WEAPON"}
@@ -187,6 +201,20 @@ static func buy(type: StringName, id: StringName) -> Dictionary:
 			if pl == null or not p.spend(price):
 				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}
 			pl.heal(float(row.get("hp", DRINK_HP)))
+		"look":
+			var key := str(id)
+			if not p.buy_look(key):
+				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}
+			_wear(key)
+		"ride":
+			if not p.spend(price):
+				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}
+			var v: Variant = ShopFronts.deliver(id)
+			if v == null:
+				p.add_credits(price)                 # nowhere to put it: the money back
+				return {"ok": false, "msg": "NO ROOM AT THE KERB"}
+			Sfx.play(&"ui_purchase")
+			return {"ok": true, "msg": "BOUGHT  %s  AT THE KERB" % str(row["name"])}
 		"rumour":
 			if not p.spend(price):
 				return {"ok": false, "msg": "NOT ENOUGH CREDITS"}
@@ -204,3 +232,31 @@ static func _index_of(type: StringName, id: StringName) -> int:
 		if arr[i]["id"] == id:
 			return i
 	return 0
+
+
+## wave 122 (w122-shops): wear a suit ("suit:<id>") or a colour scheme ("scheme:<i>") the hero owns.
+static func _wear(key: String) -> Dictionary:
+	var p := _prog()
+	if p == null:
+		return {"ok": false, "msg": "NOT FOR SALE"}
+	var cl: Array = p.achievements.cosmetics if p.get("achievements") != null else []
+	var ok := false
+	if key.begins_with("suit:"):
+		ok = p.hero.equip_suit(StringName(key.substr(5)), cl)
+	elif key.begins_with("scheme:"):
+		ok = p.hero.equip_scheme(int(key.substr(7)), cl)
+	if not ok:
+		return {"ok": false, "msg": "NOT YOURS YET"}
+	Sfx.play(&"ui_confirm")
+	return {"ok": true, "msg": "WEARING IT"}
+
+
+static func _worn(key: String) -> bool:
+	var p := _prog()
+	if p == null:
+		return false
+	if key.begins_with("suit:"):
+		return str(p.hero.suit) == key.substr(5)
+	if key.begins_with("scheme:"):
+		return int(p.hero.scheme) == int(key.substr(7))
+	return false

@@ -912,7 +912,9 @@ func collect_markers() -> Array[Dictionary]:
 		for d: Dictionary in Game.world.get("doors"):
 			var t: StringName = d["type"]
 			var kind := &""
-			if GARAGE_TYPES.has(t):
+			if d.get("walk_in", false) and ShopFronts.enabled:
+				kind = &"shop"                              # w122-shops: a walk-in street shop (FOOD MARKET, THREADS, GUN SHOP ...)
+			elif GARAGE_TYPES.has(t):
 				kind = &"garage"
 			elif InteriorData.has_vendor(t):
 				kind = &"shop"
@@ -920,7 +922,8 @@ func collect_markers() -> Array[Dictionary]:
 				kind = &"interior"
 			if kind != &"":
 				var p: Vector3 = d["pos"]
-				out.append({"kind": kind, "pos": p, "fog": true, "label": InteriorData.title(t)})
+				var walk: bool = d.get("walk_in", false) and ShopFronts.enabled
+				out.append({"kind": kind, "pos": p, "fog": not walk, "label": str(d["shop_title"]) if walk else InteriorData.title(t)})       # w122-shops: street shops are on the map from the start
 	var prog := Game.progress as Progress
 	for sh: Dictionary in Safehouses.markers(prog):
 		out.append({"kind": &"home", "pos": sh["pos"], "fog": false, "label": "SAFEHOUSE"})      # owned safehouses: fast-save points
