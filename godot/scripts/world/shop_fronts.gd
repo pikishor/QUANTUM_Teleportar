@@ -133,6 +133,8 @@ func _collect() -> void:
 		d["shop_title"] = title
 		d["name"] = title
 		var door_pt := base + t * sd
+		if not d.has("pos0"):
+			d["pos0"] = d["pos"]                                  # w122 integrator: the USE-door spot city_doors.gd placed (tests/test_interior_gameplay.gd checks it is deterministic)
 		d["pos"] = door_pt + n * 1.3
 		shops.append({"lot": lot, "door": d, "kind": kind, "title": title, "n": n, "t": t, "base": base, "fw": fw, "depth": depth, "s0": s0, "s1": s1, "sd": sd, "d": dd,
 				"wall": door_pt, "normal": n, "along": t})

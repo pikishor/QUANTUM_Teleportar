@@ -204,8 +204,8 @@ func _roofs_and_ledges() -> void:
 			printerr("roof of a %s (h=%.0f) at (%.1f, %.1f): y=%.3f on_floor=%s ground_height=%.3f" % [cls, lot.h, cx, cz, p.global_position.y, str(p.is_on_floor()), roof_y])
 		# the ledge around the crown (stepped classes): the top of the lower part, outside the crown's footprint
 		if parts.size() > 1:
-			var low: Array = parts[0]
-			var ex: float = lot.cx + (top[1] + low[1]) * 0.5 * lot.w                # between the crown's +X edge and the lower part's +X edge
+			var low: Array = parts[parts.size() - 2]                                  # w122 integrator: the part right under the crown (with 3 tiers the spot between the crown and the BASE edge was 0.6 m from the middle tier's edge, where its roof parapet (wave 122) now stands)
+			var ex: float = lot.cx + (top[1] + low[1]) * 0.5 * lot.w                # between the crown's +X edge and that lower part's +X edge
 			var ez: float = lot.cz
 			var ledge_y := city.ground_height(ex, ez)
 			if ledge_y > 0.0 and ledge_y < lot.h - 0.5 and not city.is_inside_building(Vector3(ex, ledge_y + 0.3, ez)):

@@ -23,6 +23,7 @@ var _mesh: MeshInstance3D
 var _mat: StandardMaterial3D
 var _at := Vector3.INF
 var _scan := 0.0
+var _lift_at := Vector3.INF     ## w122 integrator: the TowerLift cabin the walls were built around (a gap at its roof door)
 
 
 func _ready() -> void:
@@ -40,6 +41,12 @@ func _exit_tree() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# w122 integrator (tests/test_flight_cost_w116.gd zip check: 5 of 6 roof zips, 7 of 7 without parapets): a ZIP's arc comes in low over the roof edge and met this wall,
+	# so the walls do not block the hero while a snake move (zip, swing, haul) carries him
+	if is_instance_valid(_body):
+		var pl = Game.player
+		var moving: bool = is_instance_valid(pl) and (&"snake" in pl) and pl.snake != null and pl.snake.mode != SnakeTraversal.Mode.NONE
+		_body.collision_layer = 0 if moving else Game.L_WORLD
 	_scan -= delta
 	if _scan > 0.0:
 		return
@@ -53,7 +60,7 @@ func _physics_process(delta: float) -> void:
 		if pp.y < MIN_Y - 2.0:
 			_clear()
 		return
-	if _at.is_finite() and Vector2(pp.x - _at.x, pp.z - _at.z).length() < REBUILD:
+	if _at.is_finite() and Vector2(pp.x - _at.x, pp.z - _at.z).length() < REBUILD and _lift_pos() == _lift_at:
 		return
 	_build(pp)
 
@@ -69,9 +76,18 @@ func _clear() -> void:
 	built = 0
 
 
+## w122 integrator (tests/test_lifts_w121.gd: the stick could not walk the hero out of the lift onto the roof): the lift's cabin, or INF with no lift.
+func _lift_pos() -> Vector3:
+	var tl := TowerLift.instance
+	if tl == null or not is_instance_valid(tl) or tl.lot_idx < 0:
+		return Vector3.INF
+	return tl.base.origin
+
+
 func _build(pp: Vector3) -> void:
 	_clear()
 	_at = pp
+	_lift_at = _lift_pos()
 	_body = StaticBody3D.new()
 	_body.name = "ParapetBody"
 	_body.collision_layer = Game.L_WORLD
@@ -116,6 +132,8 @@ func _edge(st: SurfaceTool, b, a: Vector3, c: Vector3, out: Vector3) -> void:
 		if i < n:
 			var m := a.lerp(c, (float(i) + 0.5) / float(n)) + out * 0.4
 			open_here = BM.contains(b.cls, m.x - lot.cx, a.y - 0.05, m.z - lot.cz, lot.w, lot.d, lot.h)
+			if _lift_at.is_finite() and Vector2(m.x - _lift_at.x, m.z - _lift_at.z).length() < 3.2:
+				open_here = true                                # the gap at the lift's roof door
 		if not open_here and run0 < 0:
 			run0 = i
 		elif open_here and run0 >= 0:
