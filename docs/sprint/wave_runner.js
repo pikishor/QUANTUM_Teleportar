@@ -191,6 +191,33 @@ floors, stuck spots, windows that do not match the facade, camera clipping in st
 each with a check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
     commit: 'Wave 121: buildings with floors (walk in from the street, stairs, lifts, upper floors, rooftops), wave 120 follow-ups',
   },
+  122: {
+    title: 'Building detail',
+    builders: [
+      { tag: 'rooms', prompt: `TASK (label w122-rooms): ROOMS THAT MATCH THE OUTSIDE, AND FURNITURE. Owner round 7: "buildings with interiors, stairs and detail". Plan line: "rooms that match the outside,
+furniture, windows you can see through, shops". First probe with a finger-only bot (godot/tests/dev_w122_probe.gd) in the real main scene: enter 6 kinds of building (tower office, apartment, house,
+outskirts house, airport hall, army building) and record whether the inside footprint, floor count, window positions and door position match the outside, and whether rooms are bare or white
+(wave 121 left "white interiors on MED" unchecked); write the findings in your log. Then make every enterable kind match: inside size from the outside footprint, window holes where the facade
+windows are, the street door where the facade door is. Furnish rooms by type (office desks, chairs, screens; apartment beds, sofas, kitchens; storage shelves; lobby desk and plants) using the
+existing CC0 kit (Kenney furniture or the interior kit already in the repo; only CC0 or own-made assets), with MultiMesh or shared meshes so the draw budget holds (HIGH death is AT its limit 170:
+trim elsewhere, never raise a limit). Fix the wave 121 leftovers: stairwell window holes that open onto the street, rain showing inside tower lobbies on MED, the gun staying visible while the hero
+fades, and add enemies and NPCs on tower floors. Coordinate with w122-shops (it owns windows, glass and shops), read its log. Permanent test godot/tests/test_rooms_w122.gd by real fingers: walk
+into each kind, check footprint match, windows aligned, furniture present and collidable, no white untextured room on LOW and MED; each check failing on the old code. Render frames of each kind at
+1200x540 LOW and MED (and one at 2400x1080 MED if memory allows) and LOOK.` },
+      { tag: 'shops', prompt: `TASK (label w122-shops): WINDOWS YOU CAN SEE THROUGH, AND SHOPS. Build see-through windows: from the street you see lit rooms behind glass (cheap: an interior-mapping
+shader or a baked room card per window, not real geometry for every building), and from inside you see the real street through the window holes, with glass that reflects lightly. Then shops: at
+least 6 shop kinds on the streets (food, clothes, guns, cars or bikes, electronics, pharmacy) with a glass front, shelves and goods inside, a shopkeeper, walk-in from the street, a buy prompt on the
+round context button (the wave 119 context slot, on-foot controls stay at 5 circles) wired to the existing shop and economy code, and shop icons on the map. Also add parapet colliders on city roofs
+so you cannot walk off by accident (snake swing and jumping off on purpose must still work). Coordinate with w122-rooms (it owns room layout and furniture), read its log. Permanent test
+godot/tests/test_shops_w122.gd by real fingers at 844x390 and 2400x1080: see a lit room through a window from the street, walk into each shop kind, buy an item, see the shop on the map, roof parapet
+stops a walk but not a jump; each check failing on the old code. Perf gate: trim, never raise a limit. Render frames (street windows day and night, shop fronts, shop inside) LOW and MED and LOOK.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 122 (label w122-critic), then its fixer. You did not build it; assume it is broken until you have seen it work. With a finger-only bot of your own
+in the real main scene: walk into 6 different buildings and 4 shops, compare inside to outside, look through windows both ways, buy something, walk on a roof edge; look for rooms that do not match,
+floating or clipping furniture, white or missing textures, windows showing nothing, dead buy buttons, frame drops. Render frames and LOOK. List the 8 worst defects with evidence, fix them most
+severe first, each with a check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
+    commit: 'Wave 122: building detail (rooms match the outside, furniture, see-through windows, shops, roof parapets), wave 121 follow-ups',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }
@@ -217,7 +244,7 @@ if (!A.ciSha) {
 every FAIL against a copy of HEAD to tell this wave from old flakes; fix real bugs, move stale tests with a reason, weaken nothing. (2) PERF_CHECK=1 tools/perf_report.sh 0 1 2: all three OK,
 no limit raised (trim instead). (3) tools/visual_qa.sh and LOOK at docs/shots/latest.png. (4) Run every touch test of this wave again on the final tree. (5) Tidy (no scratch files, disk),
 add a section "Wave ${N} integration" to docs/HANDOFF.md (what the wave holds, suite result, perf lines, open follow-ups), then commit everything that belongs to the wave (never
-docs/sprint/progress/auto_*.md or AUTO_INDEX.md) with the message "${W.commit}" and the trailers "Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>" and
+docs/sprint/progress/auto_*.md or AUTO_INDEX.md) with the message "${W.commit}" and the trailers "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" and
 "Claude-Session: https://claude.ai/code/session_01WbKrgUpExX7TuSc4cdY35F", and git push origin main (fetch and rebase first if main moved: the main session pushes notes with [skip ci]).
 Never push with a perf verdict OVER. FINAL message: the commit sha on the first line, then the summary.\nReports:\n` + reports + '\n--- reviewer ---\n' + (critic || 'NO REPORT'),
     { label: L('integrator'), phase: 'Integrate', effort: EFF })
