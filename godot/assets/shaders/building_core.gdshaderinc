@@ -45,6 +45,13 @@ uniform float far_fade_end = 800.0;
 #ifdef FAR
 uniform vec2 lod_range = vec2(100000.0, 110000.0);      // distance LOD: a far tower sinks into the ground between these distances (ground plane)
 #endif
+// wave 122 (w122-shops): the building of the open walk-in shop is drawn by ShopFronts (one instance, the SHOP_CUT variant with the shop front cut out); here it is collapsed
+uniform vec2 shop_hide = vec2(1e9, 1e9);                // lot centre (x, z) of that building
+uniform float near_rooms = 0.0;                         // wave 122 (w122-shops): metres within which LOW / LOW+ (detail 0) still draw the room parallax of a window (interior mapping)
+#ifdef SHOP_CUT
+uniform vec3 cut_min = vec3(0.0);                        // world box of the shop front opening (the glass and the door)
+uniform vec3 cut_max = vec3(0.0);
+#endif
 
 const float FLOOR_H = 3.5;
 const float GROUND_H = 5.0;
@@ -82,6 +89,11 @@ void vertex() {
 	}
 #ifdef FAR
 	VERTEX *= 1.0 - smoothstep(lod_range.x, lod_range.y, distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz));
+#endif
+#ifndef SHOP_CUT
+	if (distance(MODEL_MATRIX[3].xz, shop_hide) < 0.05) {
+		VERTEX = vec3(0.0);
+	}
 #endif
 }
 
@@ -133,6 +145,12 @@ float room_shade(vec2 p, vec3 rd, float cw, float fh, float depth, float rs) {
 #include "res://assets/shaders/quantum_surface.gdshaderinc"
 
 void fragment() {
+#ifdef SHOP_CUT
+	vec3 cut_p = vec3(v_wxz.x, v_loc.y, v_wxz.y);
+	if (all(greaterThan(cut_p, cut_min)) && all(lessThan(cut_p, cut_max))) {
+		discard;
+	}
+#endif
 	vec3 nrm = v_nrm;
 	float bseed = v_data.x * 91.7;
 	float style = v_data.z;
@@ -298,7 +316,7 @@ void fragment() {
 		float win = win_open;
 		vec3 rd = vec3(0.0, 0.0, 1.0);
 		vec2 gc = vec2(cf, ff);                          // coordinates of the glass plane, recessed behind the wall
-		if (detail > 0.5) {
+		if (detail > 0.5 || dist < near_rooms) {      // wave 122: LOW / LOW+ get the room behind the glass too, near the street
 			vec3 vd = normalize(v_loc - v_cam);
 			vec3 axv = xf ? vec3(0.0, 0.0, nrm.x > 0.0 ? -1.0 : 1.0) : vec3(nrm.z > 0.0 ? 1.0 : -1.0, 0.0, 0.0);
 			rd = vec3(dot(vd, axv), vd.y, dot(vd, -nrm));
@@ -345,7 +363,7 @@ void fragment() {
 		float mull = 1.0;
 		float ra = 0.0;
 		float lintel = 1.0;
-		if (detail > 0.5) {
+		if (detail > 0.5 || dist < near_rooms) {      // wave 122: LOW / LOW+ get the room behind the glass too, near the street
 			float rs = hash12(cid + fseed * 0.7);
 			inter = room_shade(clamp(gc + mv2_pane_wobble(gc, hash12(cid + fseed + 77.0), dist), vec2(0.0), vec2(1.0)) * vec2(cw, fh), rd, cw, fh, 3.2 + 2.2 * hash12(cid + fseed + 17.0), rs) * 1.15;
 			// mullions: a centre post in wide windows, a transom near the top of tall ones

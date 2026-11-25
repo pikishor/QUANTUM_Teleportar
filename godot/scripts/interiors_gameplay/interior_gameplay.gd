@@ -256,6 +256,8 @@ func nearest_door(pos: Vector3, max_dist := REACH_DOOR) -> Dictionary:
 	var best := {}
 	var bd := max_dist
 	for d in doors():
+		if d.get("walk_in", false) and ShopFronts.enabled:
+			continue                                     # wave 122 (w122-shops): a walk-in street shop (ShopFronts): no USE door, the hero walks in
 		var p: Vector3 = d["pos"]
 		var dd := Vector2(p.x - pos.x, p.z - pos.z).length()
 		if dd < bd:

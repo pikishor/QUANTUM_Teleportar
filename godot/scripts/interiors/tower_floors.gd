@@ -36,13 +36,18 @@ const GLOW_A := 2.0               ## colour alpha that marks a light panel / scr
 const RAMP_T := 0.9               ## ramp collider thickness (solid under the treads)
 const RAMP_EXT := 0.6
 const HOUSE_H := 2.7
-const KINDS := {&"office": "OFFICE TOWER", &"apartment": "APARTMENTS", &"hotel": "HOTEL TOWER"}
+const KINDS := {&"office": "OFFICE TOWER", &"apartment": "APARTMENTS", &"hotel": "HOTEL TOWER", &"house": "HOUSE"}
+const HOUSE_MIN_H := 12.0         ## w122-rooms: every city "block" lot from this height (any district) is walked into in place; under MIN_H it is a HOUSE (2 to 4 floors)
+const ACTOR_MAX := 3              ## w122-rooms: people at work / at home on the hero's floor (pooled InteriorCivilian, one draw each, only while he is inside)
+const FOE_CHANCE := 0.4           ## w122-rooms: share of towers (not houses) whose top floor is held by armed men
 
 static var enabled := true       ## FLOORS_OLD=1 in the tests: the wave 120 buildings (solid boxes, USE door only)
 static var instance: TowerFloors
 static var open_lot := -1        ## lot index of the open tower (-1: none)
 static var builds := 0           ## how many times a tower was opened (tests)
-static var critic_on := true     ## w121-critic: W121_CRITIC_OLD=1 in the checks = the builders' code (enemies on the street under the floors, through the walls)
+static var critic_on := true
+static var crit_on := OS.get_environment("W122C_OLD") != "1"        ## w122-critic: the house hall's separator walls kept off the street door path, etc. (W122C_OLD=1 in tests/test_doors_w122c.gd: off)
+static var rooms_on := true      ## w122-rooms: W122_OLD=1 in the checks = the wave 121 towers (core towers only, bare rooms, stairwell windows, no people)     ## w121-critic: W121_CRITIC_OLD=1 in the checks = the builders' code (enemies on the street under the floors, through the walls)
 
 var towers: Array[Dictionary] = []     ## candidates: {lot, b, kind, face, n, t}
 var _cur: Dictionary = {}
@@ -57,13 +62,27 @@ var _levels := PackedFloat32Array()
 var _v := PackedVector3Array()
 var _nm := PackedVector3Array()
 var _c := PackedColorArray()
-
+var _uv := PackedVector2Array()
+var _cls := 0.0                   ## surface class of the quads being written (w122: 0 furniture, 1 floor, 2 wall, 3 ceiling; the shader draws tiles / plaster / panels by class)
+var _actors: Array[InteriorCivilian] = []
+var _actor_mat: ShaderMaterial
+var _foes: Array = []
+var _peopled := -99
 
 func _ready() -> void:
 	instance = self
 	name = "TowerFloors"
 	_mat = ShaderMaterial.new()
 	_mat.shader = SHADER
+	_actor_mat = ShaderMaterial.new()
+	_actor_mat.shader = SHADER
+	_actor_mat.set_shader_parameter(&"actors", 1.0)
+	for i in ACTOR_MAX:                                  # w122-rooms: the pool of people is made once (no nodes come and go with each entry)
+		var c := InteriorCivilian.new()
+		c.name = "TowerPerson%d" % i
+		add_child(c)
+		c.setup(i)
+		_actors.append(c)
 
 
 func _exit_tree() -> void:
@@ -94,7 +113,12 @@ func _collect() -> void:
 		door_face[int(d["id"])] = 0 if nn.x > 0.5 else (1 if nn.x < -0.5 else (2 if nn.z > 0.5 else 3))
 	for b in city.building_data:
 		var lot: CityLayout.Lot = b.lot
-		if b.cls != &"block" or lot.h < MIN_H or minf(lot.w, lot.d) < SHAFT_L + LIFT_BAY.size.x + 1.5 or not CityLayout.is_core_block(lot.block_i, lot.block_j):
+		if b.cls != &"block" or minf(lot.w, lot.d) < SHAFT_L + LIFT_BAY.size.x + 1.5:
+			continue
+		if rooms_on:
+			if lot.h < HOUSE_MIN_H:
+				continue
+		elif lot.h < MIN_H or not CityLayout.is_core_block(lot.block_i, lot.block_j):
 			continue
 		var bx := -CityLayout.HALF + (lot.block_i + 0.5) * CityLayout.PITCH
 		var bz := -CityLayout.HALF + (lot.block_j + 0.5) * CityLayout.PITCH
@@ -104,18 +128,22 @@ func _collect() -> void:
 		var t := Vector3(n.z, 0.0, -n.x)
 		if t.x + t.z < 0.0:
 			t = -t
-		var tw := {"lot": lot, "b": b, "kind": kind_of(b.style, lot.index), "face": face, "n": n, "t": t}
+		var tw := {"lot": lot, "b": b, "kind": (&"house" if lot.h < MIN_H else kind_of(b.style, lot.index)), "face": face, "n": n, "t": t}
 		tw["du"] = _free_door_u(tw)
+		if rooms_on and (lot.h < MIN_H or not CityLayout.is_core_block(lot.block_i, lot.block_j)) and not _door_clear(tw, float(tw["du"])):
+			continue                     # w122-rooms: a new walk-in lot whose street face has no clear door spot (props everywhere) keeps its USE door only
 		towers.append(tw)
 
 
-## The tower whose street door is nearest to `p` (tests and the probe): {} when none.
-func nearest(p: Vector3) -> Dictionary:
+## The tower whose street door is nearest to `p` (tests and the probe): {} when none. Only lots of at least `min_h` m (the tall towers; w122 houses with min_h 0).
+func nearest(p: Vector3, min_h := MIN_H, kind: StringName = &"") -> Dictionary:
 	if towers.is_empty():
 		_collect()
 	var best: Dictionary = {}
 	var bd := INF
 	for tw in towers:
+		if (tw["lot"] as CityLayout.Lot).h < min_h or (kind != &"" and tw["kind"] != kind):
+			continue
 		var d := door_pos(tw).distance_to(Vector3(p.x, 0.0, p.z))
 		if d < bd:
 			bd = d
@@ -186,6 +214,25 @@ static func _free_door_u(tw: Dictionary) -> float:
 		if clear:
 			return u
 	return mid
+
+
+## w122-rooms: is the walk-in path in front of door u free of street props (the test of _free_door_u)?
+static func _door_clear(tw: Dictionary, u: float) -> bool:
+	var city = Game.world
+	var pc = city.prop_colliders() if city != null and city.has_method(&"prop_colliders") else null
+	if pc == null:
+		return true
+	var xf: Array = pc._xf
+	var iv := inner_v(tw)
+	for out in [0.6, 1.6, 2.6]:
+		var q := at(tw, u, iv + IN + out)
+		for dx in [-1.7, 1.7]:
+			for dz in [-1.7, 1.7]:
+				for id in (pc._grid.get(PropCols._key(q.x + dx, q.z + dz), PackedInt32Array()) as PackedInt32Array):
+					var o: Vector3 = (xf[id] as Transform3D).origin
+					if absf(o.y) < 1.5 and Vector2(o.x - q.x, o.z - q.z).length() < 1.7:
+						return false
+	return true
 
 
 ## The street door: the sidewalk point in front of it (y 0).
@@ -332,6 +379,8 @@ func _physics_process(delta: float) -> void:
 				_floor = k
 				_build_mesh()
 				_build_rooms()
+			if rooms_on:
+				_people(inside(pp))
 			return
 		close()
 	if not best.is_empty() and bd < NEAR and pp.y < (best["lot"] as CityLayout.Lot).h + 25.0:
@@ -376,6 +425,7 @@ func open(tw: Dictionary) -> void:
 func close() -> void:
 	if _cur.is_empty():
 		return
+	_people_off()
 	_set_city_boxes((_cur["lot"] as CityLayout.Lot).index, false)
 	for n in [_mesh, _body, _room_body]:
 		if n != null and is_instance_valid(n):
@@ -517,8 +567,12 @@ func _room_floors() -> Array[int]:
 	return out
 
 
-## Boxes of a floor's rooms and furniture: [u0, v0, y0, u1, v1, y1, solid, colour, glow].
+## Boxes of a floor's rooms and furniture: [u0, v0, y0, u1, v1, y1, solid, colour, glow, tag]. w122-rooms: furnished by kind (_room_boxes_w122); W122_OLD=1 the wave 121 boxes.
 func _room_boxes(k: int) -> Array:
+	return _room_boxes_w122(k) if rooms_on else _room_boxes_old(k)
+
+
+func _room_boxes_old(k: int) -> Array:
 	var tw := _cur
 	var kind: StringName = tw["kind"]
 	var iu := inner_u(tw)
@@ -585,6 +639,276 @@ func _room_boxes(k: int) -> Array:
 	return out
 
 
+# --- w122-rooms: people on the floors -------------------------------------------------------------------------------------
+## While the hero is inside: up to ACTOR_MAX people at the desks / at home on his floor (pooled InteriorCivilian, standing, lit by the tower's own material), and in FOE_CHANCE of
+## the towers two armed men on the top floor (EnemyManager operatives, unaware until they see him; they stand on that floor: TowerFloors.floor_under). All go when the tower closes.
+func _people(in_now: bool) -> void:
+	if not in_now:
+		return
+	if _peopled != _floor:
+		_peopled = _floor
+		_place_actors()
+	var tw := _cur
+	var lot: CityLayout.Lot = tw["lot"]
+	if _foes.is_empty() and tw["kind"] != &"house" and _levels.size() >= 4 and fposmod(sin(float(lot.index) * 12.9898 + 122.0 * 78.233) * 43758.5453, 1.0) < FOE_CHANCE and Game.enemies is EnemyManager:
+		var top := _levels.size() - 2
+		var iu := inner_u(tw)
+		var iv := inner_v(tw)
+		_foes.append(null)                 # tried once per opening (a full enemy cap does not retry every scan)
+		for f in [0.55, 0.85]:
+			var d := (Game.enemies as EnemyManager).spawn(&"operative", at(tw, iu * f, SHAFT_W + 1.6 + (iv - SHAFT_W - 9.0) * 0.5, _levels[top]), false)
+			if d != null:
+				_foes.append(d)
+	for c in _actors:
+		if c.active:
+			c.tick(0.2)
+
+
+func _place_actors() -> void:
+	var tw := _cur
+	var iu := inner_u(tw)
+	var iv := inner_v(tw)
+	var y := _levels[clampi(_floor, 0, _levels.size() - 2)]
+	if _floor >= _levels.size() - 1:
+		for c in _actors:
+			c.deactivate()
+		return
+	if _actor_mat == null:
+		_actor_mat = ShaderMaterial.new()
+		_actor_mat.shader = SHADER
+		_actor_mat.set_shader_parameter(&"actors", 1.0)
+	var spots: Array[Vector3] = []
+	var u0 := SHAFT_L + LIFT_BAY.size.x + 2.0
+	for i in ACTOR_MAX:
+		var u := lerpf(u0, iu - 1.5, (i + 0.5) / ACTOR_MAX)
+		spots.append(at(tw, u, SHAFT_W + 1.4 + float(i % 2) * 1.0, y))
+	while _actors.size() < ACTOR_MAX:
+		var c := InteriorCivilian.new()
+		c.name = "TowerPerson%d" % _actors.size()
+		add_child(c)
+		_actors.append(c)
+	var lot: CityLayout.Lot = tw["lot"]
+	for i in _actors.size():
+		var c := _actors[i]
+		c.setup(lot.index * 7 + i)
+		c.activate(&"civilian", spots[i], float(i) * 2.1 + atan2((tw["n"] as Vector3).x, (tw["n"] as Vector3).z))
+		c.light_with(null)
+		for m in c.find_children("Body", "MeshInstance3D", false, false):
+			(m as MeshInstance3D).material_override = _actor_mat
+
+
+func _people_off() -> void:
+	for c in _actors:
+		if is_instance_valid(c):
+			c.deactivate()
+	var mgr := Game.enemies as EnemyManager
+	for d in _foes:
+		if d != null and is_instance_valid(d) and mgr != null and d.active and not d.dead:
+			mgr.release(d)
+	_foes.clear()
+	_peopled = -99
+
+
+## The people this tower holds now (tests): {actors: Array of InteriorCivilian, foes: Array of Drone}.
+func people() -> Dictionary:
+	var a: Array = _actors.filter(func(c: InteriorCivilian) -> bool: return c.active)
+	var f: Array = _foes.filter(func(d) -> bool: return d != null and is_instance_valid(d) and d.active and not d.dead)
+	return {"actors": a, "foes": f}
+
+
+# --- w122-rooms: furniture -------------------------------------------------------------------------------------------------
+## Owner round 7: "buildings with interiors, stairs and detail". Every room is furnished by what the building is: OFFICE floors (desks with chairs and screens, meeting
+## tables, filing shelves, plants), APARTMENTS / HOUSE (bedrooms with a bed, wardrobe and night stand; living rooms with a sofa, low table and TV; kitchens with a counter,
+## stove, fridge, table and chairs), HOTEL rooms (bed, desk and chair, TV, armchair), STORAGE (shelf rows) and the LOBBY (reception desk with a chair and a screen, plants,
+## benches, mail boxes). Own-made boxes in the tower's ONE merged mesh (no extra draw call: the HIGH death budget is at its limit), solid ones get a collider.
+const WOOD := Color(0.42, 0.28, 0.17)
+const DARK_WOOD := Color(0.28, 0.18, 0.11)
+const METAL := Color(0.38, 0.4, 0.43)
+const PLANT := Color(0.16, 0.42, 0.2)
+const POT := Color(0.5, 0.3, 0.2)
+const SCREEN := Color(0.45, 0.75, 1.0)
+
+
+static func _bx(out: Array, u0: float, v0: float, y0: float, u1: float, v1: float, y1: float, solid: bool, col: Color, tag: StringName, glow := false) -> void:
+	out.append([minf(u0, u1), minf(v0, v1), y0, maxf(u0, u1), maxf(v0, v1), y1, solid, col, glow, tag])
+
+
+## A chair at (u, v) on floor y (seat solid, back facing +v when `back_plus`).
+static func _chair(out: Array, u: float, v: float, y: float, back_plus: bool, col := Color(0.18, 0.2, 0.24)) -> void:
+	_bx(out, u - 0.24, v - 0.24, y, u + 0.24, v + 0.24, y + 0.46, true, col, &"chair")
+	var bv := v + 0.2 if back_plus else v - 0.2
+	_bx(out, u - 0.24, bv - 0.04, y + 0.46, u + 0.24, bv + 0.04, y + 0.95, false, col * 0.85, &"chair")
+
+
+static func _plant(out: Array, u: float, v: float, y: float) -> void:
+	_bx(out, u - 0.25, v - 0.25, y, u + 0.25, v + 0.25, y + 0.45, true, POT, &"plant")
+	_bx(out, u - 0.35, v - 0.35, y + 0.45, u + 0.35, v + 0.35, y + 1.3, false, PLANT, &"plant")
+
+
+## A desk along u at (u0..u1, v0..v1) with a screen and a chair on the +v side when `chair_plus`.
+static func _desk(out: Array, u0: float, v0: float, u1: float, v1: float, y: float, chair_plus: bool) -> void:
+	_bx(out, u0, v0, y, u1, v1, y + 0.75, true, Color(0.74, 0.72, 0.68), &"desk")
+	var um := (u0 + u1) * 0.5
+	var sv := v0 + 0.12 if chair_plus else v1 - 0.12
+	_bx(out, um - 0.3, sv - 0.03, y + 0.78, um + 0.3, sv + 0.03, y + 1.15, false, SCREEN, &"screen", true)
+	_bx(out, um - 0.04, sv - 0.03, y + 0.75, um + 0.04, sv + 0.03, y + 0.8, false, METAL, &"screen")
+	_chair(out, um, (v1 + 0.45) if chair_plus else (v0 - 0.45), y, chair_plus)
+
+
+## Shelves along u (storage): uprights and three boards, boxes on them.
+static func _shelf(out: Array, u0: float, u1: float, v0: float, v1: float, y: float, h := 2.0) -> void:
+	_bx(out, u0, v0, y, u1, v1, y + 0.08, true, METAL, &"shelf")
+	_bx(out, u0, v0, y, u0 + 0.06, v1, y + h, true, METAL, &"shelf")
+	_bx(out, u1 - 0.06, v0, y, u1, v1, y + h, true, METAL, &"shelf")
+	for i in 3:
+		var yy := y + 0.6 + i * 0.6
+		_bx(out, u0, v0, yy, u1, v1, yy + 0.04, true, METAL, &"shelf")
+		var bu := u0 + 0.15
+		while bu + 0.5 < u1 - 0.1:
+			_bx(out, bu, v0 + 0.06, yy + 0.04, bu + 0.42, v1 - 0.06, yy + 0.34, false, Color(0.62, 0.48, 0.3) if int(bu * 3.0 + i) % 2 == 0 else Color(0.5, 0.42, 0.34), &"shelf")
+			bu += 0.55
+
+
+func _room_boxes_w122(k: int) -> Array:
+	var tw := _cur
+	var kind: StringName = tw["kind"]
+	var iu := inner_u(tw)
+	var iv := inner_v(tw)
+	var y := _levels[k]
+	var ceil_y := _levels[k + 1] - SLAB
+	var out: Array = []
+	var wall_c := Color(0.62, 0.6, 0.56) if kind == &"office" else (Color(0.66, 0.55, 0.45) if kind == &"apartment" or kind == &"house" else Color(0.42, 0.4, 0.5))
+	var du := door_u(tw)
+	var u_free := SHAFT_L + LIFT_BAY.size.x + SW_T + 0.6          # beyond the stairwell and the lift bay
+	if k == 0 and kind != &"house":
+		# LOBBY: reception desk with a chair and a screen beside the door, plants by the door and the walls, benches, mail boxes on the stair wall
+		_bx(out, du + 2.2, iv - 4.2, y, du + 4.6, iv - 3.4, y + 1.05, true, WOOD, &"desk")
+		_bx(out, du + 2.3, iv - 4.15, y + 1.05, du + 4.5, iv - 3.45, y + 1.12, false, Color(0.9, 0.85, 0.7), &"desk", true)
+		_bx(out, du + 3.1, iv - 4.05, y + 1.12, du + 3.7, iv - 4.0, y + 1.45, false, SCREEN, &"screen", true)
+		_chair(out, du + 3.4, iv - 4.9, y, false)
+		_plant(out, 1.4, iv - 1.1, y)
+		_plant(out, iu - 1.4, iv - 1.1, y)
+		_plant(out, maxf(u_free, du - 3.2), iv - 1.1, y)
+		_bx(out, du - 5.0, SHAFT_W + 3.5, y, du + 1.0, SHAFT_W + 4.1, y + 0.45, true, Color(0.25, 0.25, 0.3), &"bench")
+		_bx(out, u_free, 0.05, y, u_free + 2.4, 0.45, y + 1.6, true, METAL, &"mail")
+		_bx(out, u_free + 0.1, 0.44, y + 0.2, u_free + 2.3, 0.47, y + 1.5, false, Color(0.55, 0.5, 0.35), &"mail")
+		_plant(out, iu - 1.2, 1.2, y)
+		return out
+	# rooms along the street side: a corridor wall with a door gap per room, separators
+	var band := minf(7.0, iv - SHAFT_W - 5.0)
+	var cv := iv - band
+	var nroom := clampi(int(iu / 6.5), 2, 5)
+	var rw := iu / nroom
+	var j := 0
+	var bnd: Array[float] = []
+	for i in nroom + 1:
+		var bu := i * rw
+		# w122-critic: a separator wall that fell on the street door (du = iu / 2 with an even room count) stood across the door path of every 2-room house
+		if crit_on and k == 0 and i > 0 and i < nroom and absf(bu - du) < 1.5:
+			bu = du + 1.5 if bu >= du else du - 1.5
+		bnd.append(bu)
+	for i in nroom:
+		var u0 := bnd[i]
+		var u1 := bnd[i + 1]
+		var hall := k == 0 and du > u0 and du <= u1                 # the house's street door opens into a hall: kept clear, its inner doorway in line with the street door
+		var gap := clampf(du, u0 + 0.8, u1 - 0.8) if hall else (u0 + u1) * 0.5
+		_bx(out, u0, cv - 0.08, y, gap - 0.6, cv + 0.08, ceil_y, true, wall_c, &"wall")
+		_bx(out, gap + 0.6, cv - 0.08, y, u1, cv + 0.08, ceil_y, true, wall_c, &"wall")
+		_bx(out, gap - 0.6, cv - 0.08, y + DOOR_H - 0.6, gap + 0.6, cv + 0.08, ceil_y, true, wall_c, &"wall")
+		if i > 0:
+			_bx(out, u0 - 0.08, cv, y, u0 + 0.08, iv, ceil_y, true, wall_c, &"wall")
+		var a := u0 + 0.12 + (0.08 if i > 0 else 0.0)         # inner corners of the room
+		var b := u1 - 0.12 - (0.08 if i < nroom - 1 else 0.0)
+		var what := &"hall" if hall else _room_kind(kind, k, j)
+		if not hall:
+			j += 1
+		match what:
+			&"hall":
+				var far := a if du - a > b - du else b - 0.5                  # a shoe / coat shelf on the far side of the door path
+				if absf(far + 0.25 - du) > 1.6:
+					_shelf(out, far, far + 0.5, cv + 0.4, iv - 1.0, y, 1.6)
+					_plant(out, far + 0.25, iv - 0.5, y)
+			&"office":
+				_desk(out, a + 0.3, iv - 1.3, b - 0.3, iv - 0.5, y, false)          # a long desk under the windows, chair toward the room
+				_shelf(out, a, a + 1.6, cv + 0.12, cv + 0.55, y)
+				_plant(out, b - 0.5, cv + 0.6, y)
+			&"meeting":
+				_bx(out, a + 0.9, cv + 1.6, y, b - 0.9, iv - 1.6, y + 0.74, true, DARK_WOOD, &"table")
+				var cu := a + 1.2
+				while cu < b - 1.1:
+					_chair(out, cu, cv + 1.15, y, false)
+					_chair(out, cu, iv - 1.15, y, true)
+					cu += 0.9
+				_bx(out, a + 0.02, cv + 1.4, y + 1.0, a + 0.06, iv - 1.4, y + 2.0, false, SCREEN * 0.6, &"screen", true)
+			&"bedroom":
+				_bx(out, a + 0.2, iv - 2.4, y, a + 1.8, iv - 0.25, y + 0.5, true, Color(0.75, 0.72, 0.8), &"bed")
+				_bx(out, a + 0.2, iv - 0.45, y + 0.5, a + 1.8, iv - 0.25, y + 1.0, false, DARK_WOOD, &"bed")
+				_bx(out, a + 0.35, iv - 0.95, y + 0.5, a + 1.65, iv - 0.5, y + 0.62, false, Color(0.92, 0.9, 0.86), &"bed")
+				_bx(out, a + 1.95, iv - 0.75, y, a + 2.45, iv - 0.25, y + 0.55, true, WOOD, &"nightstand")
+				_bx(out, b - 1.1, cv + 0.25, y, b - 0.1, cv + 1.6, y + 2.0, true, WOOD, &"wardrobe")
+			&"living":
+				_bx(out, a + 0.3, iv - 1.2, y, a + 2.5, iv - 0.3, y + 0.45, true, Color(0.3, 0.35, 0.5), &"sofa")
+				_bx(out, a + 0.3, iv - 0.5, y + 0.45, a + 2.5, iv - 0.3, y + 0.9, true, Color(0.27, 0.31, 0.45), &"sofa")
+				_bx(out, a + 0.8, iv - 2.3, y, a + 2.0, iv - 1.6, y + 0.4, true, DARK_WOOD, &"table")
+				_bx(out, a + 0.6, cv + 0.2, y, a + 2.2, cv + 0.6, y + 0.55, true, DARK_WOOD, &"tv")
+				_bx(out, a + 0.75, cv + 0.32, y + 0.6, a + 2.05, cv + 0.38, y + 1.35, false, SCREEN * 0.5, &"tv", true)
+				_plant(out, b - 0.5, iv - 0.6, y)
+			&"kitchen":
+				_bx(out, a, cv + 1.4, y, a + 0.62, iv - 0.3, y + 0.9, true, Color(0.85, 0.84, 0.8), &"kitchen")
+				_bx(out, a - 0.02, cv + 1.4, y + 0.9, a + 0.66, iv - 0.3, y + 0.94, false, Color(0.25, 0.25, 0.27), &"kitchen")
+				_bx(out, a + 0.12, cv + 2.0, y + 0.94, a + 0.52, cv + 2.6, y + 0.97, false, Color(0.08, 0.08, 0.09), &"stove")
+				_bx(out, a, cv + 0.25, y, a + 0.7, cv + 1.0, y + 1.9, true, Color(0.9, 0.9, 0.92), &"fridge")
+				_bx(out, a + 1.6, iv - 2.6, y, b - 0.6, iv - 1.4, y + 0.74, true, WOOD, &"table")
+				_chair(out, a + 2.0, iv - 2.95, y, false, WOOD)
+				_chair(out, a + 2.0, iv - 1.05, y, true, WOOD)
+			&"hotel":
+				_bx(out, a + 0.3, iv - 2.4, y, a + 2.3, iv - 0.25, y + 0.55, true, Color(0.55, 0.15, 0.2), &"bed")
+				_bx(out, a + 0.3, iv - 0.45, y + 0.55, a + 2.3, iv - 0.25, y + 1.1, false, DARK_WOOD, &"bed")
+				_desk(out, b - 1.6, cv + 0.25, b - 0.2, cv + 0.85, y, true)
+				_bx(out, b - 1.0, iv - 1.1, y, b - 0.3, iv - 0.4, y + 0.75, true, Color(0.45, 0.3, 0.2), &"armchair")
+			_:
+				_shelf(out, a + 0.2, b - 0.2, iv - 0.75, iv - 0.25, y)                  # storage
+				_shelf(out, a + 0.2, b - 0.2, cv + 0.25, cv + 0.75, y)
+	# the open floor between the stairwell and the rooms
+	var v0 := SHAFT_W + 2.4
+	var v1 := cv - 1.6
+	var gu := u_free + 0.8
+	var row := 0
+	while gu + 1.6 < iu - 1.0 and v1 - v0 > 1.6:
+		var gv := v0 + 0.6
+		while gv + 0.8 < v1 - 0.6:
+			match kind:
+				&"office":
+					_desk(out, gu, gv, gu + 1.6, gv + 0.8, y, row % 2 == 0)
+				&"hotel":
+					_bx(out, gu + 0.2, gv, y, gu + 1.0, gv + 0.8, y + 0.72, true, Color(0.45, 0.3, 0.2), &"armchair")
+					_bx(out, gu + 1.2, gv + 0.1, y, gu + 1.8, gv + 0.7, y + 0.45, true, DARK_WOOD, &"table")
+				_:
+					if (row + int(gv)) % 3 == 0:
+						_plant(out, gu + 0.5, gv + 0.4, y)
+					else:
+						_bx(out, gu, gv, y, gu + 2.0, gv + 0.8, y + 0.45, true, Color(0.3, 0.35, 0.5), &"sofa")
+			gv += 3.2
+		gu += 3.6
+		row += 1
+	if kind == &"office" and iu - u_free > 4.0:
+		_shelf(out, u_free, minf(iu - 0.5, u_free + 3.2), 0.05, 0.5, y)              # filing shelves on the back wall
+	return out
+
+
+## What a room on floor k is (office floors mix offices and a meeting room; homes mix bedrooms, a living room and a kitchen; the house's street floor keeps a storage room).
+static func _room_kind(kind: StringName, k: int, i: int) -> StringName:
+	match kind:
+		&"office":
+			return &"meeting" if i % 3 == 1 else &"office"
+		&"hotel":
+			return &"hotel"
+		&"house":
+			return ([&"living", &"storage", &"kitchen", &"living", &"storage"] if k == 0 else [&"bedroom", &"kitchen", &"bedroom", &"storage", &"living"])[i % 5]
+		_:
+			return [&"bedroom", &"kitchen", &"living", &"bedroom", &"storage"][i % 5]
+
+
 # --- mesh ----------------------------------------------------------------------------------------------------------------
 
 func _quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3, col: Color) -> void:
@@ -594,6 +918,7 @@ func _quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3, col: Color) -> void:
 	for i in 6:
 		_nm.append(nn)
 		_c.append(col)
+		_uv.append(Vector2(_cls, 0.0))
 
 
 ## A face of the frame-aligned box, seen from outside (the six faces when `faces` is 63; bits: 1 -u, 2 +u, 4 -v, 8 +v, 16 bottom, 32 top).
@@ -689,6 +1014,8 @@ func _build_mesh() -> void:
 	_v.clear()
 	_nm.clear()
 	_c.clear()
+	_uv.clear()
+	_cls = 0.0
 	var tw := _cur
 	var lot: CityLayout.Lot = tw["lot"]
 	var kind: StringName = tw["kind"]
@@ -699,7 +1026,9 @@ func _build_mesh() -> void:
 	var fu := iu + 2.0 * IN               # facade widths along u and along v
 	var fv := iv + 2.0 * IN
 	var wall_c := Color(0.72, 0.7, 0.66) if kind == &"office" else (Color(0.74, 0.62, 0.5) if kind == &"apartment" else Color(0.48, 0.46, 0.58))
-	var floor_c := Color(0.36, 0.36, 0.38) if kind == &"office" else (Color(0.34, 0.27, 0.2) if kind == &"apartment" else Color(0.3, 0.12, 0.14))
+	if rooms_on:                          # w122-rooms: the office floors read near white on MED (post grade lifts them): warmer, darker walls; houses take the apartment palette
+		wall_c = Color(0.56, 0.55, 0.52) if kind == &"office" else (Color(0.66, 0.55, 0.44) if kind == &"apartment" or kind == &"house" else wall_c)
+	var floor_c := Color(0.36, 0.36, 0.38) if kind == &"office" else (Color(0.34, 0.27, 0.2) if kind == &"apartment" or (rooms_on and kind == &"house") else Color(0.3, 0.12, 0.14))
 	var ceil_c := Color(0.82, 0.82, 0.8)
 	var shaft_c := Color(0.55, 0.56, 0.58)
 	var step_c := Color(0.5, 0.5, 0.52)
@@ -712,17 +1041,25 @@ func _build_mesh() -> void:
 		# outer walls with the facade's windows (every floor: they enclose the stairwell too)
 		var hz: Array = _windows(fu, IN, k, style)
 		var hn: Array = _windows(fu, IN, k, style)
+		var hs: Array = _windows(fv, IN, k, style)
 		if k == 0:
 			hn = hn.filter(func(r: Rect2) -> bool: return r.end.x < du - DOOR_W * 0.5 - 0.2 or r.position.x > du + DOOR_W * 0.5 + 0.2)
 			hn.append(Rect2(du - DOOR_W * 0.5, 0.0, DOOR_W, DOOR_H))
+		if rooms_on:
+			# w122-rooms: the stairwell is closed: no facade window opens from the stairs onto the street (the back wall over the shaft, the side wall beside it)
+			hz = hz.filter(func(r: Rect2) -> bool: return r.position.x > SHAFT_L + SW_T)
+			hs = hs.filter(func(r: Rect2) -> bool: return r.position.x > SHAFT_W + SW_T)
+		_cls = 2.0
 		_wall(false, 0.0, 0.0, iu, y0, y1, hz, true, wall_c)                   # back wall (seen from +v)
 		_wall(false, iv, 0.0, iu, y0, y1, hn, false, wall_c)                   # street wall
-		_wall(true, 0.0, 0.0, iv, y0, y1, _windows(fv, IN, k, style), true, wall_c)
+		_wall(true, 0.0, 0.0, iv, y0, y1, hs, true, wall_c)
 		_wall(true, iu, 0.0, iv, y0, y1, _windows(fv, IN, k, style), false, wall_c)
 		# floor and ceiling (minus the stair hole); the street floor is a lobby floor
 		var y_top := _levels[k + 1] - SLAB if k + 1 < _levels.size() - 1 else top
+		_cls = 1.0
 		for r in (_minus_hole(0.0, 0.0, iu, iv) if k > 0 else [Rect2(0.0, 0.0, iu, iv)]):
-			_mbox(r.position.x, r.position.y, y0 - 0.02, r.end.x, r.end.y, y0 + (0.015 if k == 0 else 0.0), floor_c if k > 0 else Color(0.5, 0.48, 0.45), 32)
+			_mbox(r.position.x, r.position.y, y0 - 0.02, r.end.x, r.end.y, y0 + (0.015 if k == 0 else 0.0), floor_c if k > 0 else (Color(0.4, 0.38, 0.35) if rooms_on else Color(0.5, 0.48, 0.45)), 32)
+		_cls = 3.0
 		for r in _minus_hole(0.0, 0.0, iu, iv):
 			_mbox(r.position.x, r.position.y, y_top, r.end.x, r.end.y, y_top + 0.02, ceil_c, 16)
 		# light panels on the ceiling
@@ -737,7 +1074,9 @@ func _build_mesh() -> void:
 			for b: Array in _room_boxes(k):
 				var col: Color = b[7]
 				col.a = GLOW_A if b[8] else 0.0
+				_cls = 2.0 if b.size() > 9 and b[9] == &"wall" else 0.0
 				_mbox(b[0], b[1], b[2], b[3], b[4], b[5], col)
+		_cls = 0.0
 		# the stairwell of this level: walls, lane divider, mid landing, steps
 		var yn := _levels[k + 1]
 		var ym := (y0 + yn) * 0.5
@@ -772,6 +1111,8 @@ func _build_mesh() -> void:
 	arr[Mesh.ARRAY_VERTEX] = _v
 	arr[Mesh.ARRAY_NORMAL] = _nm
 	arr[Mesh.ARRAY_COLOR] = _c
+	if rooms_on:
+		arr[Mesh.ARRAY_TEX_UV] = _uv
 	var am := ArrayMesh.new()
 	if _v.size() > 0:
 		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)

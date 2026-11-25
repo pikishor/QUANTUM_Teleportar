@@ -127,7 +127,7 @@ func _doors() -> void:
 	var again := CityDoorsProbe.compute(city)
 	var same := again.size() == doors.size()
 	for i in mini(again.size(), doors.size()):
-		same = same and again[i]["id"] == doors[i]["id"] and again[i]["type"] == doors[i]["type"] and (again[i]["pos"] as Vector3).is_equal_approx(doors[i]["pos"])
+		same = same and again[i]["id"] == doors[i]["id"] and again[i]["type"] == doors[i]["type"] and (again[i]["pos"] as Vector3).is_equal_approx(doors[i].get("pos0", doors[i]["pos"]))     # pos0: a walk-in shop (wave 122 ShopFronts) moves its door to its glass front
 	TestLib.check(same, "door placement is deterministic")
 	TestLib.check(ig.markers.mmi != null and ig.markers.count == doors.size() and ig.markers.mmi.multimesh.instance_count == doors.size(), "ONE MultiMesh holds every door marker")
 	var n_mmi := 0

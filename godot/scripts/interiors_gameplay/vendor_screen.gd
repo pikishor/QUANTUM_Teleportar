@@ -53,11 +53,36 @@ func _s() -> float:
 	return _vp().y / BASE_H
 
 
+var title_override := ""          ## w122-critic: a walk-in shop shows its own sign's name (SILT FOOD MARKET), not the generic vendor title (CORNER STORE)
+static var crit_on := OS.get_environment("W122C_OLD") != "1"        ## w122-critic switch (W122C_OLD=1: the builders' screen)
+
+
+func shown_title() -> String:
+	return title_override if crit_on and title_override != "" else Tr.t(InteriorData.title(type))
+
+
+## Text lines under the rows: {"greet": y or -1, "rumour": y or -1, "status": y or -1} (canvas px of the baselines). w122-critic: the BOUGHT line was drawn over the greeting.
+func line_ys() -> Dictionary:
+	var s := _s()
+	var under := (TOP + float(rows.size()) * ROW_H + 6.0) * s + 20.0 * s
+	var out := {"greet": -1.0, "rumour": -1.0, "status": -1.0}
+	if rumour_text != "":
+		out["rumour"] = under
+	elif greeting != "" and not (crit_on and status != ""):
+		out["greet"] = under
+	if status != "":
+		out["status"] = under if crit_on and rumour_text == "" else close_rect.position.y - 8.0 * s
+		if crit_on and rumour_text != "":
+			out["status"] = minf(close_rect.position.y - 8.0 * s, under + 26.0 * s) if under + 26.0 * s < close_rect.position.y - 2.0 * s else close_rect.position.y - 8.0 * s
+	return out
+
+
 func open(t: StringName) -> bool:
 	if is_open or not InteriorData.has_vendor(t) or Game.state != &"play":
 		return false
 	type = t
 	status = ""
+	title_override = ""
 	rumour_text = ""
 	_rng.randomize()
 	greeting = Dlg.vendor_line(t, Dlg.context(_player_pos()), _rng)
@@ -186,7 +211,7 @@ func _draw_all() -> void:
 	c.draw_rect(Rect2(Vector2.ZERO, vp), BG)
 	var col := InteriorData.color(type)
 	var x0 := vp.x * 0.5 - ROW_W * 0.5 * s
-	c.draw_string(font, Vector2(0.0, 74.0 * s), Tr.t(InteriorData.title(type)), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(50.0 * s), Color(1, 1, 1, 0.97))
+	c.draw_string(font, Vector2(0.0, 74.0 * s), shown_title(), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(50.0 * s), Color(1, 1, 1, 0.97))
 	var prog := Game.progress as Progress
 	if prog != null:
 		var line := "%s  %d      %s  %s" % [Tr.t("CREDITS"), prog.credits, Tr.t("REPUTATION"), Tr.t(Progress.rep_name(prog.reputation))]
@@ -205,14 +230,13 @@ func _draw_all() -> void:
 		c.draw_rect(br, fill)
 		c.draw_rect(br, Color(col, 0.9) if st == "buy" else Color(1, 1, 1, 0.25), false, 2.0 * s)
 		c.draw_string(font, Vector2(br.position.x, br.position.y + br.size.y * 0.5 + 8.0 * s), Tr.t(str(r["label"])), HORIZONTAL_ALIGNMENT_CENTER, br.size.x, int(22.0 * s), Color(1, 1, 1, 0.97 if st == "buy" else 0.55))
-	if rumour_text == "" and greeting != "":
-		var gy := (TOP + float(rows.size()) * ROW_H + 6.0) * s
-		c.draw_string(font, Vector2(x0, gy + 20.0 * s), Tr.t(greeting), HORIZONTAL_ALIGNMENT_LEFT, ROW_W * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.9))
-	if rumour_text != "":
-		var ry := (TOP + float(rows.size()) * ROW_H + 6.0) * s
-		c.draw_string(font, Vector2(x0, ry + 20.0 * s), Tr.t(rumour_text), HORIZONTAL_ALIGNMENT_LEFT, ROW_W * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95))
-	if status != "":
-		c.draw_string(font, Vector2(0.0, close_rect.position.y - 8.0 * s), Tr.t(status), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.GREEN, 0.95))
+	var ly := line_ys()
+	if float(ly["greet"]) >= 0.0:
+		c.draw_string(font, Vector2(x0, float(ly["greet"])), Tr.t(greeting), HORIZONTAL_ALIGNMENT_LEFT, ROW_W * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.CYAN, 0.9))
+	if float(ly["rumour"]) >= 0.0:
+		c.draw_string(font, Vector2(x0, float(ly["rumour"])), Tr.t(rumour_text), HORIZONTAL_ALIGNMENT_LEFT, ROW_W * s, int(UiUtil.BAR_LABEL * s), Color(UiUtil.AMBER, 0.95))
+	if float(ly["status"]) >= 0.0:
+		c.draw_string(font, Vector2(0.0, float(ly["status"])), Tr.t(status), HORIZONTAL_ALIGNMENT_CENTER, vp.x, int(UiUtil.TEXT_MIN * s), Color(UiUtil.GREEN, 0.95))
 	c.draw_rect(close_rect, Color(0.3, 0.1, 0.1, 0.9))
 	c.draw_rect(close_rect, Color(UiUtil.RED, 0.8), false, 2.0 * s)
 	c.draw_string(font, Vector2(close_rect.position.x, close_rect.position.y + close_rect.size.y * 0.5 + 8.0 * s), Tr.t("CLOSE"), HORIZONTAL_ALIGNMENT_CENTER, close_rect.size.x, int(24.0 * s), Color.WHITE)

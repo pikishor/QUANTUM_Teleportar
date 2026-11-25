@@ -283,6 +283,8 @@ func is_inside_building(p: Vector3) -> bool:
 	var lot := layout.lot_at(p.x, p.z)
 	if lot == null:
 		return false
+	if lot.index == ShopFronts.open_lot:
+		return ShopFronts.blocks(p)                        # wave 122 (w122-shops): the open walk-in shop (its room is free to walk)
 	if lot.index == TowerFloors.open_lot:
 		return TowerFloors.blocks(p) if TowerFloors.critic_on else false     # w121-floors: the walk-in tower is open (its own walls, floors and stairs stand there); w121-critic: its walls still stop walkers
 	var b: Buildings.Building = building_data[lot.index]
@@ -355,6 +357,7 @@ func set_quality(level: int) -> void:
 	for m: ShaderMaterial in [_ground.material, _ground.material_lite]:
 		m.set_shader_parameter(&"detail", 1.0 if quality >= 1 else 0.0)
 	_building_mat.set_shader_parameter(&"detail", 1.0 if quality >= 1 else 0.0)
+	_building_mat.set_shader_parameter(&"near_rooms", ShopFronts.near_rooms(quality))      # wave 122 (w122-shops): LOW / LOW+ windows near the street show the room behind the glass
 	_apply_surfaces()
 	_building_mat.set_shader_parameter(&"far_fade_start", 240.0 if quality >= 1 else 110.0)
 	_building_mat.set_shader_parameter(&"far_fade_end", 800.0 if quality >= 1 else 420.0)

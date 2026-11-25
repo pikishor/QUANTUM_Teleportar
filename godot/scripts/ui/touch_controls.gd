@@ -331,7 +331,7 @@ func _process(delta: float) -> void:
 	_use_t -= delta
 	if _use_t <= 0.0:
 		_use_t = 0.15
-		_use_near = _vehicle_in_reach() or InteriorGameplay.prompt != "" or RideUse.prompt() != ""
+		_use_near = _vehicle_in_reach() or InteriorGameplay.prompt != "" or RideUse.prompt() != "" or ShopFronts.prompt() != ""       # w122-shops: BUY beside a shopkeeper
 	_settle_slot(delta)
 	_redraw_t -= delta
 	if Game.state == &"play" or Game.state == &"paused" or _last_state == &"play" or _last_state == &"paused":
@@ -710,6 +710,8 @@ func _label_of(b: Dictionary) -> String:
 			return str(InteriorGameplay.prompt).split(" ")[0]         # inside a building the button says what it does: LEAVE, TALK, CRACK, FREE (not ENTER)
 		if not _driving() and InteriorGameplay.active:
 			return "USE"                                      # nothing to do at this spot: never ENTER (a street word) inside a room
+		if not _driving() and ShopFronts.prompt() != "":
+			return "BUY"                                      # w122-shops: beside the shopkeeper of a walk-in shop
 		var ride := RideUse.prompt()
 		if not _driving() and ride != "":
 			return ride.split(" ")[0]                         # CLIMB, SIT, STAND, TAKE, MAN, LEAVE
