@@ -45,6 +45,8 @@ var parts: Array[Dictionary] = []
 var vents: Array[Vector3] = []            ## steam vent positions (x, 0, z), filled by build()
 var kit: Kit = Kit.new()                  ## the street kit (16 district props, merged window; city_kit.gd), filled by build()
 var rng := RandomNumberGenerator.new()
+var doors: Array = []                     ## w123-clutter: the city's doors (city_doors.gd), set before build()
+var door_lanes := {}                      ## w123-clutter: StreetClutter lane grid of those doors (no solid prop stands in front of a door)
 
 var _glow: Array = []                     ## [pos: Vector3, color: Color(rgb, brightness), kind, size, phase, seed]
 
@@ -429,6 +431,7 @@ func build(layout: CityLayout, building_data: Array = []) -> void:
 	parts.clear()
 	_glow.clear()
 	kit = Kit.new()
+	door_lanes = StreetClutter.grid_for(doors) if StreetClutter.on else {}
 	_place_lamps()
 	_place_signals()
 	_place_bus_stops()
@@ -502,6 +505,7 @@ func _place_signals() -> void:
 
 func _place_bus_stops() -> void:
 	var items: Array = []
+	StreetLife.bus_stops.clear()
 	var n := CityLayout.N
 	for k in 34:
 		var axis := rng.randi() % 2
@@ -518,8 +522,13 @@ func _place_bus_stops() -> void:
 		else:
 			pos = Vector3(c + side * 11.8, 0.0, m)
 			theta = -side * PI * 0.5
-		items.append([Transform3D(Basis(Vector3.UP, theta), pos), Color(rng.randf(), 0.0, 0.0, 1.0)])
-		glow_add(pos + Basis(Vector3.UP, theta) * Vector3(1.9, 1.0, -0.4), Color(0.7, 0.85, 1.0, 0.7), 0, 3.4, 0.0, rng.randf())
+		var bs_c := Color(rng.randf(), 0.0, 0.0, 1.0)
+		var bs_g := rng.randf()
+		if StreetClutter.blocks_lane(door_lanes, pos.x, pos.z, 1.7):
+			continue                                                # w123-clutter: no shelter in front of a door (random stream drawn all the same)
+		items.append([Transform3D(Basis(Vector3.UP, theta), pos), bs_c])
+		StreetLife.bus_stops.append(pos)                 # w123-life: the near-traffic buses stop here
+		glow_add(pos + Basis(Vector3.UP, theta) * Vector3(1.9, 1.0, -0.4), Color(0.7, 0.85, 1.0, 0.7), 0, 3.4, 0.0, bs_g)
 	add_family("BusStops", bus_stop_mesh(), items, false, false, 0, RADIUS_BUS_STOPS)
 
 
@@ -577,6 +586,7 @@ func _place_lot_props(layout: CityLayout) -> void:
 	add_family("ShopSets", shop_set_mesh(), sets, false, false, 0, RADIUS_SHOP_SETS)
 	# sidewalk dressing: its own random stream per lot, nothing else moves
 	var dress: Array = []
+	StreetLife.benches.clear()
 	var r3 := RandomNumberGenerator.new()
 	for li in layout.lots.size():
 		var ld: CityLayout.Lot = layout.lots[li]
@@ -586,7 +596,24 @@ func _place_lot_props(layout: CityLayout) -> void:
 		var dbz := -CityLayout.HALF + (ld.block_j + 0.5) * CityLayout.PITCH
 		var dsz := 1.0 if ld.cz > dbz else -1.0
 		var dpos := Vector3(ld.cx + r3.randf_range(-ld.w * 0.25, ld.w * 0.25), 0.0, ld.cz + dsz * (ld.d * 0.5 + 1.25))
-		dress.append([Transform3D(Basis(Vector3.UP, 0.0 if dsz > 0.0 else PI), dpos), Color(r3.randf(), 0.0, 0.0, 1.0)])
+		var dcol := Color(r3.randf(), 0.0, 0.0, 1.0)
+		if StreetLife.critic:                                                 # w123-critic: the bench set is solid now: slide it along the front out of every door lane (no rng drawn)
+			var dbas := Basis(Vector3.UP, 0.0 if dsz > 0.0 else PI)
+			var moved := false
+			for step in 13:
+				var sh := float((step + 1) / 2) * (1.0 if step % 2 == 1 else -1.0) * 1.0
+				if absf(dpos.x + sh - ld.cx) > ld.w * 0.5 - 2.0:
+					continue
+				var dctr := dpos + Vector3(sh, 0.0, 0.0) + dbas * Vector3(0.4, 0.0, 0.4)
+				if not StreetClutter.blocks_lane(door_lanes, dctr.x, dctr.z, 1.0) and not StreetClutter.blocks_lane(door_lanes, dpos.x + sh, dpos.z, 1.0):
+					dpos.x += sh
+					moved = true
+					break
+			if not moved:
+				continue
+		dress.append([Transform3D(Basis(Vector3.UP, 0.0 if dsz > 0.0 else PI), dpos), dcol])
+		var seat := dpos + Basis(Vector3.UP, 0.0 if dsz > 0.0 else PI) * Vector3(0.4, 0.0, 0.5)
+		StreetLife.benches.append(Vector3(seat.x, dsz, seat.z))           # w123-life: somebody sits here (StreetLife)
 	add_family("StreetDress", street_dress_mesh(), dress, false, false, 0, RADIUS_STREET_DRESS)
 	var stalls: Array = []
 	for site: Dictionary in StreetVendors.sites():                      # no rng here: the other placements keep their stream
@@ -598,6 +625,7 @@ func _place_lot_props(layout: CityLayout) -> void:
 	add_family("Dumpsters", dumpster_mesh(), dump, false, false, 0, RADIUS_DUMPSTERS)
 	add_family("Trash", trash_mesh(), trash, false, false, 1, RADIUS_TRASH)
 	kit.fold_family(Kit.KIOSK_LIT, kiosk_mesh(), kiosks)
+	planters = StreetClutter.filter_items(planters, door_lanes, 1.1)
 	add_family("Planters", planter_mesh(), planters, false, false, 0, RADIUS_PLANTERS)
 	for k in kiosks.size():
 		var xf: Transform3D = kiosks[k][0]

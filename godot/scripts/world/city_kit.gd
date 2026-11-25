@@ -722,9 +722,12 @@ func build(props: RefCounted, layout: CityLayout, parts: Array[Dictionary]) -> v
 				var kind2 := _pick_kind(d2, MODE_ALLEY)
 				var yaw2 := (0.0 if along_x else PI * 0.5) + float(rng.randi() % 2) * PI + rng.randf_range(-0.12, 0.12)
 				_try_place(layout, kind2, pos2.x, pos2.y, yaw2)
+	_more_kerb(layout)
 	_place_flora(layout)
 	_build_city_kit(layout)
 	_clear_armour_lanes()
+	_clear_door_lanes(props.get(&"door_lanes") if props.get(&"door_lanes") != null else {})
+	_clear_benches()
 	_add_glow(props)
 
 
@@ -755,6 +758,114 @@ func _clear_armour_lanes() -> void:
 		var pp: Vector3 = pl["pos"]
 		if (pk < KC_FIRST or pk == KC_FIRST + KitWorld.BOLLARD or pk == KC_FIRST + KitWorld.PLANTER) and ArmourSites.keeps_clear(pp.x, pp.z):
 			placements.remove_at(k)
+
+
+## w123-clutter (owner round 7: "not many details on the street"): a second, sparser row of kerb furniture (benches, bins, planters, shelters, ...) on every block face,
+## from its own random stream (the main stream is swapped back after, so no other placement moves). Same kerb strip and obstacle rules as the first row; the door lanes are
+## cleared after it like every other solid kind.
+const MORE_KERB := 4
+func _more_kerb(layout: CityLayout) -> void:
+	if not StreetClutter.on:
+		return
+	var keep_rng := rng
+	rng = RandomNumberGenerator.new()
+	rng.seed = 230123
+	for i in CityLayout.N:
+		for j in CityLayout.N:
+			var bx := -CityLayout.HALF + (float(i) + 0.5) * CityLayout.PITCH
+			var bz := -CityLayout.HALF + (float(j) + 0.5) * CityLayout.PITCH
+			for face in 4:
+				var nrm := Vector2(1, 0) if face == 0 else (Vector2(-1, 0) if face == 1 else (Vector2(0, 1) if face == 2 else Vector2(0, -1)))
+				var tan_v := Vector2(-nrm.y, nrm.x)
+				for attempt in MORE_KERB:
+					var d := Districts.look_at(bx + nrm.x * 29.0, bz + nrm.y * 29.0)
+					var kind := _pick_kind(d, MODE_KERB)
+					var u := 30.0 - float(KINDS[kind]["hd"]) - 0.45
+					var pos := Vector2(bx, bz) + nrm * u + tan_v * rng.randf_range(-24.0, 24.0)
+					_try_place(layout, kind, pos.x, pos.y, atan2(nrm.x, nrm.y))
+	rng = keep_rng
+
+
+## w123-clutter: the solid kinds (those with a pooled collider) that reach into a door lane (StreetClutter) are taken out after placement (no random stream moves).
+func _clear_door_lanes(lanes: Dictionary) -> void:
+	if lanes.is_empty() or not StreetClutter.on:
+		return
+	for c in cells.size():
+		var arr: PackedFloat32Array = cells[c]
+		if arr.is_empty():
+			continue
+		var keep := PackedFloat32Array()
+		var dropped := 0
+		for i in range(0, arr.size(), 6):
+			var kind := int(arr[i])
+			var ky := float(int(arr[i + 5]) >> 2) * 0.25 if kind >= KC_FIRST else 0.0
+			if ky < 1.0 and _lane_blocked(lanes, kind, arr[i + 1], arr[i + 2]):
+				dropped += 1
+				kind_count[kind] -= 1
+				district_count[Districts.look_at(arr[i + 1], arr[i + 2])] -= 1
+				continue
+			keep.append_array(arr.slice(i, i + 6))
+		if dropped > 0:
+			cells[c] = keep
+			counts[c] -= dropped
+	for k in range(placements.size() - 1, -1, -1):
+		var pl: Dictionary = placements[k]
+		var pp: Vector3 = pl["pos"]
+		if pp.y < 1.0 and _lane_blocked(lanes, int(pl["kind"]), pp.x, pp.z):
+			placements.remove_at(k)
+
+
+## w123-critic: a solid kit prop standing on a sidewalk bench seat (people sit there; 35 of 638 seats were inside a kiosk or cluster) is taken out after placement (no stream moves).
+func _clear_benches() -> void:
+	if not StreetLife.critic or StreetLife.benches.is_empty():
+		return
+	var g := {}
+	for b in StreetLife.benches:
+		var k := Vector2i(floori(b.x / 8.0), floori(b.z / 8.0))
+		if not g.has(k):
+			g[k] = []
+		(g[k] as Array).append(Vector2(b.x, b.z))
+	var hit := func(kind: int, x: float, z: float) -> bool:
+		var info: Dictionary = KINDS[kind]
+		if (info["col"] as Array).is_empty():
+			return false
+		var r := maxf(float(info["hw"]), float(info["hd"])) + 1.0
+		for dx in [-1, 0, 1]:
+			for dz in [-1, 0, 1]:
+				for s: Vector2 in g.get(Vector2i(floori(x / 8.0) + dx, floori(z / 8.0) + dz), []):
+					if s.distance_to(Vector2(x, z)) < r:
+						return true
+		return false
+	for c in cells.size():
+		var arr: PackedFloat32Array = cells[c]
+		if arr.is_empty():
+			continue
+		var keep := PackedFloat32Array()
+		var dropped := 0
+		for i in range(0, arr.size(), 6):
+			var kind := int(arr[i])
+			var ky := float(int(arr[i + 5]) >> 2) * 0.25 if kind >= KC_FIRST else 0.0
+			if ky < 1.0 and hit.call(kind, arr[i + 1], arr[i + 2]):
+				dropped += 1
+				kind_count[kind] -= 1
+				district_count[Districts.look_at(arr[i + 1], arr[i + 2])] -= 1
+				continue
+			keep.append_array(arr.slice(i, i + 6))
+		if dropped > 0:
+			cells[c] = keep
+			counts[c] -= dropped
+	for k in range(placements.size() - 1, -1, -1):
+		var pl: Dictionary = placements[k]
+		var pp: Vector3 = pl["pos"]
+		if pp.y < 1.0 and hit.call(int(pl["kind"]), pp.x, pp.z):
+			placements.remove_at(k)
+
+
+func _lane_blocked(lanes: Dictionary, kind: int, x: float, z: float) -> bool:
+	var info: Dictionary = KINDS[kind]
+	if (info["col"] as Array).is_empty():
+		return false
+	return StreetClutter.blocks_lane(lanes, x, z, maxf(float(info["hw"]), float(info["hd"])))
 
 
 ## Park / plaza dressing of the creature kit: trees, plants and rocks in a ring round every plaza (own generator per plaza, the rest of the kit is unaffected).

@@ -1,3 +1,13 @@
 # w123-clutter progress
 
 - step 0: started, reading docs
+- step 1: probe tests/dev_w123_probe.gd + tests/w123_clutter_lib.gd: 45 of 71 doors within 200 m of spawn have a prop or kerb car in the lane (kit antenna/bollard/bin/standpipe/charge post, planters, kiosks, parked cars). Walk x=12.6 z40->110 stuck on Building133 (sidewalk). NEXT: door-lane keep-out in city_kit.gd (like ArmourSites.keeps_clear) + ParkedCars bays
+- step 2: FIX StreetClutter (scripts/world/street_clutter.gd, class_name, imported) + hooks city.gd (_props.doors), city_props.gd (door_lanes, planters, bus stops), city_kit.gd (_clear_door_lanes), parked_cars.gd (no_parking). Probe after: 71 doors, 0 blocked. Switch CLUTTER_OLD=1. Frames bot tests/bot_w123_street.gd -> /tmp/claude-0/w123. NEXT: test_clutter_w123.gd
+- step 3: tests/test_clutter_w123.gd: CLUTTER_OLD=1 -> FAIL 2 (33/71 lanes blocked; 4 doors not reached by stick: lots 129,69,98,130); new -> PASS. Total node count at start 2989-3000 (others; not my change). NEXT: frames after LOW/MED, look.
+- step 4: tried sliding market stalls off doors; reverted (no real door hidden within 200 m; the bot's door_1 frame was a tower lot's unused city.doors spot). Test keeps a stall guard check. Test PASS new, FAIL 2 old. NEXT: look at frames, run neighbour tests (slice_life, doors_w122c, shops_w122, vehicles_city, interior_gameplay), perf at end.
+- step 5: city_kit.gd _more_kerb(): second sparser kerb row (own rng 230123, MORE_KERB=4 tries per face) behind StreetClutter.on; test PASS. NEXT: frames d_old vs d_new, perf at end.
+- step 6: frames d_old/d_new in /tmp/claude-0/w123 looked at: door lot 69 had a kit market stall right in front (gone after); street x=11 z30-75 reads bare (props are thin poles/kiosks at the kerb). NEXT: perf gate (1 run), integration test.
+- step 7 DONE. Perf (PERF_CHECK=1, 2nd run; 1st was killed by memory pressure with no verdict): LOW draws=71 total=93 death=109 OK; MED draws=98 total=130 death=145 OK; HIGH draws=116 total=152 death=163 OK.
+  Neighbour tests PASS: slice_life, vehicles_city, doors_w122c, shops_w122, interior_gameplay. test_clutter_w123 PASS (CLUTTER_OLD=1: 2 FAIL).
+DECISIONS: StreetClutter.on (CLUTTER_OLD=1 off); LANE_HALF 1.25 m; StreetClutter.no_parking(x,z) for kerb cars; CityKit._more_kerb (seed 230123, 4 tries/face).
+OPEN: node count at start 2989-3000 (margin of test_integration, not from this change); no new prop kinds (street name signs, newspaper boxes, bike racks, parking meters, tree grates, awnings/roller shutters not added); outskirts town streets bare; market stalls (StreetVendors) not checked against tower doors beyond the guard check.

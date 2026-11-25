@@ -593,6 +593,7 @@ func _shader_mat(shader: Shader, priority := 0) -> ShaderMaterial:
 
 
 func _build_props() -> void:
+	_props.doors = doors                                 # w123-clutter: props keep the door lanes clear (StreetClutter)
 	_props.build(layout, building_data)
 	_colliders.build(self, _props.parts, _props.kit.collider_sources())
 	var prop_mat := _shader_mat(PROP_SHADER)

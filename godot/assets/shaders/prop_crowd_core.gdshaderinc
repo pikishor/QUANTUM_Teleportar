@@ -134,7 +134,7 @@ void vertex() {
 	vec3 n = NORMAL;
 	bool show = true;
 	if (is_umb) {
-		show = arch <= 5 && fract(flags * 0.5) > 0.25;
+		show = arch <= 5 && fract(flags * 0.5) > 0.25 && flags < 3.5;
 	} else if (piece > 0) {
 		show = (mask & (1 << piece)) != 0;
 	}
@@ -174,7 +174,7 @@ void vertex() {
 		if (arch == 11) {
 			kind = h4 < 0.5 ? 0.5 : 0.9;
 		}
-		if (flags > 1.5) {
+		if (flags > 1.5 && flags < 3.5) {
 			kind = 0.0;
 		}
 		breath = sin(clk * 1.9);
@@ -223,6 +223,16 @@ void vertex() {
 			yaw = 0.12 * sin(ph * 0.5 + h5 * 6.0);
 		}
 	}
+	bool sit = flags > 3.5 && idle;                       // w123-life: seated on a bench (thighs forward, shins down, hands on the lap or a phone)
+	if (sit) {
+		lean = -0.05;
+		yaw *= 0.5;
+		if (h4 >= 0.65 && h4 < 0.85) {
+			aL = 0.95; aR = 0.7; fold = 0.5; nod = 0.3;          // reads the phone with both hands
+		} else {
+			aL = 0.45; aR = 0.45; fold = 0.35;
+		}
+	}
 	if (arch == 9 && !cower) {                             // the vendor holds the tray out in front of the body
 		aL = 1.05 + 0.02 * sin(clk * 1.3);
 		aR = 1.05 + 0.02 * sin(clk * 1.3 + 0.8);
@@ -260,6 +270,14 @@ void vertex() {
 			piv.y *= 0.62;
 		}
 	}
+	if (sit && is_leg) {
+		ang = 0.0;
+		if (v.y > 0.48) {                                  // thigh: from the hip forward along -Z at seat height
+			v = vec3(v.x, 0.46 + v.z * 0.8, -(0.9 - v.y) - 0.04);
+		} else {                                           // shin: hangs from the knee to the ground
+			v = vec3(v.x, v.y - 0.02, v.z - 0.42);
+		}
+	}
 	if (ang != 0.0) {
 		float cs = cos(ang);
 		float sn = sin(ang);
@@ -272,7 +290,7 @@ void vertex() {
 	}
 	// ---- body: crouch, lean, sway, shoulder twist, head, breath, bounce
 	if (!is_leg) {
-		v.y -= 0.34 * crouch;
+		v.y -= 0.34 * crouch + (sit ? 0.44 : 0.0);
 		float h = max(VERTEX.y - 0.9, 0.0);
 		v.z -= lean * h;
 		v.x += roll * h;

@@ -279,7 +279,17 @@ func _wall_normal(p: Player, dir: Vector3) -> Vector3:
 	var n: Vector3 = r["normal"]
 	if absf(n.y) > 0.3:
 		return Vector3.ZERO
-	return Vector3(n.x, 0.0, n.z).normalized()
+	n = Vector3(n.x, 0.0, n.z).normalized()
+	if StreetLife.fix:                                   # w123-life: a door frame is no wall (the run went up the jamb beside the opening and hung at the lintel, or slid into the opening)
+		var tg := n.cross(Vector3.UP)
+		var hp: Vector3 = r["position"]
+		for off: Vector3 in [tg * StreetLife.WALL_SIDE, -tg * StreetLife.WALL_SIDE, Vector3.UP * StreetLife.WALL_HEAD]:
+			_rq.from = hp + n * 0.4 + off                # the wall face beside the contact point (both shoulders) and over it (the head)
+			_rq.to = hp - n * 0.3 + off
+			var r2 := space.intersect_ray(_rq)
+			if r2.is_empty() or (r2["normal"] as Vector3).dot(n) < 0.8:
+				return Vector3.ZERO
+	return n
 
 
 # --- slam -------------------------------------------------------------------------------------------------------------

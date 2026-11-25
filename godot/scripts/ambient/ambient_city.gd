@@ -17,6 +17,7 @@ const CitizenActors := preload("res://scripts/npc/citizen_actors.gd")
 var traffic := Traffic.new()
 var beats := StreetBeats.new()          ## street vignettes around the hero: an argument, a street show, a runner, a horn (street_beats.gd)
 var vendors := StreetVendors.new()      ## the people behind the market stalls near the hero (street_vendors.gd)
+var life := StreetLife.new()            ## w123-life: people sitting on the street benches (street_life.gd)
 var near_traffic := NearTraffic.new()    ## cars of the street around the hero: ONE MultiMesh, CPU lanes, stop for lights and people (near_traffic.gd)
 var parked := ParkedCars.new()           ## parked cars along every kerb and on the driveways of the outskirts (parked_cars.gd)
 var road_traffic := RoadTraffic.new()    ## cars of the highways and tracks outside the city: CPU lanes on the real road polylines, drawn as meshes near the hero and light pairs far away (road_traffic.gd)
@@ -48,6 +49,7 @@ func setup(city: Node3D, light_map: Texture2D) -> void:
 	npc.setup(crowd)
 	citizens.setup(crowd, npc)
 	vendors.setup(crowd)
+	life.setup(crowd)                                          # w123-life: people on the benches
 	beats.setup(crowd, near_traffic)
 	add_child(citizens)
 	fauna.build()
@@ -90,6 +92,7 @@ func set_quality(level: int) -> void:
 	fauna.set_tier(quality)
 	citizens.set_tier(quality)
 	vendors.set_tier(quality)
+	life.set_tier(quality)
 
 
 func _traffic_n(f: float) -> int:
@@ -115,6 +118,7 @@ func reset() -> void:
 	parked.reset()
 	crowd.reset()
 	vendors.reset()
+	life.reset()
 	beats.reset()
 	citizens.reset()
 	npc.reset()
@@ -140,6 +144,7 @@ func _process(delta: float) -> void:
 		t0 = PerfTimers.start()
 		crowd.step(delta, p)
 		vendors.step(delta, p)
+		life.step(delta, p)
 		beats.step(delta, p)
 		PerfTimers.stop(PerfTimers.CROWD, t0)
 		t0 = PerfTimers.start()

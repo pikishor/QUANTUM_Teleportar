@@ -87,6 +87,7 @@ const DRAW_R: Array[float] = [42.0, 42.0, 58.0]    ## cars beyond this are not d
 const VIEW_NEAR := 16.0                  ## cars this close are always drawn (the camera swings, shadows fall into the view)
 const VIEW_COS := 0.2                    ## a car more than about 78 degrees off the camera's heading is not drawn
 const SWERVE_RATE := 2.0                 ## m/s of sideways drift
+const BUS_KIND := 8                      ## KINDS index of the bus (w123-life: it stops at the bus stops)
 const JAM_AFTER := 40.0                  ## seconds stuck behind cars with no light or person to explain it: an unseen car is removed
 const JAM_FORCE := 70.0                  ## ... and a seen one too
 const CAR_PAD := 0.3                     ## m of margin on each side of the corridor a car looks along
@@ -170,6 +171,8 @@ var _cam := Vector2(INF, INF)           ## the game camera behind the hero on fo
 var _light_seen := PackedByteArray()
 var _look_t := PackedFloat32Array()
 var _twait := PackedFloat32Array()
+var _bus_t := PackedFloat32Array()       ## w123-life: seconds a bus has stood at its stop (-1: not at one)
+var _bus_done := PackedFloat32Array()    ## ... u of the last stop it served (it drives on past it)
 var _why := PackedFloat32Array()          ## the last look: 4 numbers per car (light, box, car, person allowances), for the audit
 var _ovl := PackedFloat32Array()
 var _ovl_t := PackedFloat32Array()
@@ -186,7 +189,7 @@ func build(light_map: Texture2D) -> void:
 	_buf = MB.new_buffer(SHARED, false, true)
 	mm_hi = MB.new_multimesh(car_mesh_hi(), HI_MAX, false, true)
 	_buf_hi = MB.new_buffer(HI_MAX, false, true)
-	for a: PackedFloat32Array in [_dir, _line, _u, _spd, _cruise, _allow, _brake, _panic, _stun, _hurt_cd, _shift, _shift_t, _jam, _ghost, _wait, _age, _yaw, _tdir, _tcross, _tp, _look_t, _twait, _ovl, _ovl_t]:
+	for a: PackedFloat32Array in [_dir, _line, _u, _spd, _cruise, _allow, _brake, _panic, _stun, _hurt_cd, _shift, _shift_t, _jam, _ghost, _wait, _age, _yaw, _tdir, _tcross, _tp, _look_t, _twait, _ovl, _ovl_t, _bus_t, _bus_done]:
 		a.resize(BUILT)
 	for a: PackedByteArray in [_alive, _axis, _kind, _paint, _tmode, _light_seen]:
 		a.resize(BUILT)
@@ -485,6 +488,8 @@ func place(i: int, ax: int, dir: int, line: float, u: float, kind: int, cruise: 
 	_u[i] = u
 	_kind[i] = kind
 	_paint[i] = paint
+	_bus_t[i] = -1.0
+	_bus_done[i] = INF
 	_cruise[i] = cruise
 	_spd[i] = cruise * speed_share
 	_allow[i] = 99.0
@@ -916,6 +921,8 @@ func _look(i: int, sig_clock: float, lights: bool) -> void:
 		else:
 			_twait[i] = 0.0
 	_allow[i] = minf(minf(allow_light, allow_box), minf(allow_ped, allow_car))
+	if StreetLife.fix and _kind[i] == BUS_KIND and _tmode[i] == 0 and _panic[i] <= 0.0:
+		_allow[i] = minf(_allow[i], _bus_allow(i))
 	_why[i * 4] = allow_light
 	_why[i * 4 + 1] = allow_box
 	_why[i * 4 + 2] = allow_car
@@ -940,6 +947,47 @@ func _look(i: int, sig_clock: float, lights: bool) -> void:
 	elif not blocked_by_person:
 		_wait[i] = minf(_wait[i], 0.0)
 		_wait[i] = minf(_wait[i] + 0.05, 0.0)
+
+
+## w123-life: a bus brakes for the next bus stop on its side of the road ahead, stands StreetLife.BUS_DWELL s, then drives on. Returns the speed it allows.
+func _bus_allow(i: int) -> float:
+	var u := _u[i]
+	var dir := _dir[i]
+	var line := _line[i]
+	var best := INF
+	var bu := 0.0
+	for sp: Vector3 in StreetLife.bus_stops:
+		var lat := sp.z if _axis[i] == 0 else sp.x
+		if absf(lat - line) > StreetLife.BUS_SIDE:
+			continue
+		var su := sp.x if _axis[i] == 0 else sp.z
+		var d := (su - u) * dir
+		if d > -2.0 and d < StreetLife.BUS_LOOK and d < best and absf(su - _bus_done[i]) > 1.0:
+			best = d
+			bu = su
+	if best == INF:
+		_bus_t[i] = -1.0
+		return 99.0
+	if best < 1.0 and _spd[i] < 0.6:
+		if _bus_t[i] < 0.0:
+			_bus_t[i] = 0.0
+			StreetLife.bus_dwells += 1
+		_bus_t[i] += _ldt
+		if _bus_t[i] >= StreetLife.BUS_DWELL:
+			_bus_done[i] = bu
+			_bus_t[i] = -1.0
+			StreetLife.bus_leaves += 1
+			return 99.0
+		return 0.0
+	return 0.0 if best <= 0.6 else sqrt(2.0 * BRAKE * 0.6 * (best - 0.6))
+
+
+## True when a bus stands at a stop now (tests): the index of the first one, -1 when none.
+func bus_at_stop() -> int:
+	for i in count:
+		if _alive[i] != 0 and _kind[i] == BUS_KIND and _bus_t[i] >= 0.0:
+			return i
+	return -1
 
 
 ## True when the camera can see car `i` (the same window as the draw: in front of it within DRAW_R, or very close).
