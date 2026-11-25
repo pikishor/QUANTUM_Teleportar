@@ -77,12 +77,8 @@ func _ready() -> void:
 	_actor_mat = ShaderMaterial.new()
 	_actor_mat.shader = SHADER
 	_actor_mat.set_shader_parameter(&"actors", 1.0)
-	for i in ACTOR_MAX:                                  # w122-rooms: the pool of people is made once (no nodes come and go with each entry)
-		var c := InteriorCivilian.new()
-		c.name = "TowerPerson%d" % i
-		add_child(c)
-		c.setup(i)
-		_actors.append(c)
+	# w122-rooms: the pool of people is made once, at the first entry (`_place_actors`), and kept (no nodes come and go with each entry).
+	# w122-ci: not here: nine idle nodes from the start pushed the composed game past its 3000-node budget (tests/test_integration.gd) though nobody is in a tower yet
 
 
 func _exit_tree() -> void:
