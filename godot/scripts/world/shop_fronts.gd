@@ -238,7 +238,7 @@ func _physics_process(delta: float) -> void:
 		var pp := p.global_position
 		if not _cur.is_empty() and ((_cur["wall"] as Vector3).distance_to(Vector3(pp.x, 0.0, pp.z)) > FAR or pp.y > 30.0):
 			close()
-		if _cur.is_empty() and pp.y < 8.0 and not InteriorGameplay.active:
+		if _cur.is_empty() and pp.y < 8.0 and not InteriorGameplay.active and p.get(&"vehicle") == null:     # w122-ci: never from a car (no one shops at the wheel; each open rebuilds the lot's colliders and meshes, a 4-90 ms hitch, under a car at chase speed)
 			var best: Dictionary = {}
 			var bd := NEAR
 			for s: Dictionary in shops:

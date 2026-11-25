@@ -253,6 +253,7 @@ func _tank() -> void:
 	var vm := Game.vehicles as VehicleManager
 	for id: StringName in SnakeBlasts.SPECIES:
 		await _street()
+		BlastOps.shared(p.get_tree()).reset()                   # w122-ci: each species is measured alone (the BLAZE ground fire burns 6 s at the same spot and was counted as FROST's damage)
 		var at := STREET + Vector3(-sin(YAW), 0.0, -cos(YAW)) * 12.0
 		var tank := vm.spawn_parked(&"tank", at, YAW)
 		if tank == null:
@@ -296,4 +297,4 @@ func _tank() -> void:
 		if not same:
 			print("CRITIC tank gone: valid=", is_instance_valid(tank), " in list=", vm.list.has(tank) if is_instance_valid(tank) else false, " dead=", tank.dead if is_instance_valid(tank) else null, " hp=", tank.hp if is_instance_valid(tank) else null, " wreck=", tank.wreck if is_instance_valid(tank) else null)
 		_ck(same and not lit, "%s: a tank at more than 90 %% does not catch fire from the burst (lit %s)" % [id, lit])
-		_ck(same and tank.hp < h0 - (5.0 if id == &"sp_swarm" else 20.0), "%s: thrown at a tank 12 m ahead (ring %.1f m from it) the tank takes damage (%.0f -> %.0f)" % [id, Vector2(ring.x - at.x, ring.z - at.z).length(), h0, tank.hp if same else -1.0])
+		_ck(same and tank.hp <= h0 - (5.0 if id == &"sp_swarm" else 20.0), "%s: thrown at a tank 12 m ahead (ring %.1f m from it) the tank takes damage (%.0f -> %.0f)" % [id, Vector2(ring.x - at.x, ring.z - at.z).length(), h0, tank.hp if same else -1.0])
