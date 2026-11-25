@@ -1,0 +1,6 @@
+# w122-ci-apk (CI watcher + APK, wave 122)
+
+- CI run 45587916456 on 7c4fe7e: red, shard 0 only. Annotations: FAILED `tests/test_mission_audit.gd` (both attempts) "no step gets stuck ... (1 findings)" = GUIDE_RECOVERED in chapter 2 (attempt 1: during the courier chase, "no progress on chase for 150 s"; attempt 2: kill_target step 7); FLAKY `tests/test_soak_quick.gd` (leak check "nodes grew from 4370 to 4773 at checkpoint 1", passed on the retry, not touched).
+- Reproduced locally with the DejaVu fonts.conf: full `test_mission_audit` failed 3 of 3 runs on HEAD (GUIDE_RECOVERED in ch2, many ESCORT LOST retries); with `W122_SHOPS_OLD=1` it passed 4 of 4. Parapets alone off (temporary switch) still failed from ch2:1; shops alone off passed.
+- Probe: `ShopFronts.open` timed and logged: while the bot drives the chase the walk-in shops open and close one after another under the car (4 to 92 ms each: room mesh, facade copy, collider swap of the lot).
+- Fix (game): `ShopFronts._physics_process` opens no shop while the hero is in a vehicle (a shop is walked into; the open front cannot be driven into). After: full audit passed 4 of 5 runs (the fifth: chase TARGET ESCAPED x3 then GUIDE_RECOVERED, the old chase flake). `test_shops_w122`, `test_shop_look_w122c`, `test_doors_w122c` pass.
