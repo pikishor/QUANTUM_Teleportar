@@ -138,9 +138,17 @@ func _test_crowd(host: Node, amb: Node3D, player: Node3D) -> void:
 		if d > c.radius * 1.1:
 			ok_pos = false
 		# on a sidewalk line: 11.3 m (+-0.25) from a road centre line, and not inside a road
-		var lat := p.z if c._axis[i] == 0 else p.x
+		# (w123-integrator: bench sitters and bus-stop waiters (StreetLife, wave 123) are pinned at the seat / stop, not on the line; a walker's side-step around a
+		# kerb prop (crowd_dodge.gd) is measured apart: the line itself stays exact and the step never leaves the sidewalk)
+		if c._sit[i] != 0:
+			continue
+		var lat: float = (p.z if c._axis[i] == 0 else p.x) - c._dodge[i]
 		var off := absf(fposmod(lat + CityLayout.HALF + CityLayout.PITCH * 0.5, CityLayout.PITCH) - CityLayout.PITCH * 0.5)
 		if absf(off - Crowd.LINE_OFF) > 0.35 + maxf(-Crowd.OFF_MIN, Crowd.OFF_MAX):       # the line (+-0.2) plus the person's own lateral offset
+			ok_walk = false
+		var lat_d := p.z if c._axis[i] == 0 else p.x
+		var off_d := absf(fposmod(lat_d + CityLayout.HALF + CityLayout.PITCH * 0.5, CityLayout.PITCH) - CityLayout.PITCH * 0.5)
+		if off_d < 9.75 - 0.05:                                       # crowd_dodge FLOOR: never into the road
 			ok_walk = false
 	TestLib.check(ok_pos, "everybody stays inside the ring (farthest %.0f m of %.0f m)" % [worst, c.radius])
 	TestLib.check(ok_walk, "everybody walks a sidewalk line (11.3 m from a road centre)")
@@ -180,7 +188,7 @@ func _test_crowd(host: Node, amb: Node3D, player: Node3D) -> void:
 	for k in 1500:
 		c.step(0.2, player.global_position)
 		for i in c.count:
-			if c._alive[i] == 1:
+			if c._alive[i] == 1 and c._sit[i] == 0:                  # w123: seated / waiting people are pinned off the line on purpose
 				if was[i] == 1 and c._axis[i] != axes[i]:
 					flips += 1
 				var lat: float = c._lat[i]

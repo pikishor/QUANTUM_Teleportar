@@ -92,6 +92,9 @@ var _cower := PackedFloat32Array()       ## seconds left crouching still (a scar
 var _goal := PackedFloat32Array()        ## the next stop (position along the line) when _gkind != 0
 var _gkind := PackedByteArray()          ## 0 none, STOP_SHOP, STOP_BUS
 var _stopk := PackedByteArray()          ## the kind of the last stop person i made (shop / bus), for the right bark
+var _dodge := PackedFloat32Array()      ## w123-critic: sideways step around a kerb prop (crowd_dodge.gd), added to the lateral position
+const Dodge := preload("res://scripts/ambient/crowd_dodge.gd")
+var _sit := PackedByteArray()            ## w123-life: 1 = a pinned person sits on a bench (StreetLife): the shader seats them (INSTANCE_CUSTOM.w bit 2)
 var _pin := PackedByteArray()            ## 1: a stall vendor, stands where it is (StreetVendors) until scared, shot or the hero leaves
 var _gy := PackedFloat32Array()          ## ground height under a pinned person (0 in the city; the folk of the outskirts towns stand on their pads: SettlementFolk, wave 112)
 var _seed0 := PackedFloat32Array()       ## the slot's own seed (a vendor borrows the vendor look)
@@ -125,6 +128,8 @@ func build(light_map: Texture2D) -> void:
 	_stopk.resize(BUILT)
 	_hide.resize(BUILT)
 	_pin.resize(BUILT)
+	_sit.resize(BUILT)
+	_dodge.resize(BUILT)
 	_gy.resize(BUILT)
 	_seed0.resize(BUILT)
 	for a: PackedFloat32Array in [_cower, _goal, _hp, _dying, _fall]:
@@ -407,7 +412,49 @@ func is_alive(i: int) -> bool:
 
 ## A stall vendor (pinned behind his counter). A shot at him passes over the counter: the stall is a waist-high table, not a wall (director review 5, defect 5).
 func is_vendor(i: int) -> bool:
-	return i >= 0 and i < count and _pin[i] != 0
+	return i >= 0 and i < count and _pin[i] != 0 and _sit[i] == 0
+
+
+## w123-life: person `i` sits on a bench (a pinned slot, StreetLife).
+func is_sitting(i: int) -> bool:
+	return i >= 0 and i < count and _sit[i] == 1 and _alive[i] != 0 and _flee[i] <= 0.0
+
+
+## w123-life: pin slot `i` at (x, z) facing +lat (face 1) or -lat (face -1) of a line along `axis`, keeping its own look: `kind` 1 seated on a bench, 2 standing at a bus stop.
+func pin_sitter(i: int, x: float, z: float, face: int, axis := 0, kind := 1) -> void:
+	if axis == 0:
+		pin_vendor(i, 0, z, x, 0.0, face, _seed0[i])
+	else:
+		pin_vendor(i, 1, x, z, 0.0, face, _seed0[i])
+	_sit[i] = kind
+
+
+## w123-critic: a bench sitter stands up and walks on: back on the nearest sidewalk line, eased over from the seat by the side-step (no walk along the building fronts).
+func stand_up(i: int) -> void:
+	_unpin(i)
+
+
+func _reline(i: int) -> void:
+	var seat := _position(i)
+	var lat := seat.z if _axis[i] == 0 else seat.x
+	var road := roundi((lat + CityLayout.HALF) / CityLayout.PITCH)
+	var cen := -CityLayout.HALF + road * CityLayout.PITCH
+	var line := cen + (LINE_OFF if lat > cen else -LINE_OFF)
+	_lat[i] = line
+	_off[i] = rng.randf_range(OFF_MIN, OFF_MAX)
+	_dodge[i] = lat - line - _off[i]
+	_assign_goal(i)
+
+
+## w123-life: person `i` waits at a bus stop (StreetLife).
+func is_waiting(i: int) -> bool:
+	return i >= 0 and i < count and _sit[i] == 2 and _alive[i] != 0 and _flee[i] <= 0.0
+
+
+## w123-life: person `i` gets on the bus: gone from the street (the slot respawns at the ring's edge).
+func board(i: int) -> void:
+	_unpin(i)
+	_alive[i] = 0
 
 
 func is_dying(i: int) -> bool:
@@ -419,7 +466,7 @@ func is_fleeing(i: int) -> bool:
 
 
 func _position(i: int) -> Vector3:
-	var l := _lat[i] + _off[i]
+	var l := _lat[i] + _off[i] + _dodge[i]
 	return Vector3(_u[i], _gy[i], l) if _axis[i] == 0 else Vector3(l, _gy[i], _u[i])
 
 
@@ -465,6 +512,7 @@ func claim_slot(center: Vector3) -> int:
 
 ## Person `i` becomes the vendor of a stall: stands on sidewalk line `lat` of axis `axis` at `u`, offset `off` from the line, facing sideways towards the road (`face` +1 / -1).
 func pin_vendor(i: int, axis: int, lat: float, u: float, off: float, face: int, seed_v := VENDOR_SEED, gy := 0.0) -> void:
+	_dodge[i] = 0.0
 	_gy[i] = gy
 	_axis[i] = axis
 	_lat[i] = lat
@@ -489,12 +537,16 @@ func pin_vendor(i: int, axis: int, lat: float, u: float, off: float, face: int, 
 
 
 func _unpin(i: int) -> void:
+	var was_sit := _sit[i] == 1
+	_sit[i] = 0
 	if _pin[i] != 0:
 		_pin[i] = 0
 		_seed[i] = _seed0[i]
 		if _idle[i] > 1.0e8:
 			_idle[i] = 0.0
 			_look[i] = LOOK_ALONG
+		if _sit[i] == 0 and was_sit and StreetLife.critic:
+			_reline(i)                                       # w123-critic: a sitter who stands up or runs off goes back to the sidewalk line
 
 
 func is_pinned(i: int) -> bool:
@@ -504,7 +556,7 @@ func is_pinned(i: int) -> bool:
 func vendors_near(pos: Vector3, r: float) -> int:
 	var n := 0
 	for i in count:
-		if _pin[i] != 0 and _alive[i] == 1:
+		if _pin[i] != 0 and _sit[i] == 0 and _alive[i] == 1:
 			var d := _position(i) - pos
 			if d.x * d.x + d.z * d.z <= r * r:
 				n += 1
@@ -682,6 +734,7 @@ func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
 		_dir[i] = 1.0 if rng.randf() < 0.5 else -1.0
 		_spd[i] = rng.randf_range(1.05, 1.65) if rng.randf() > 0.18 else rng.randf_range(0.55, 0.95)      # a few dawdlers; the rest a brisk, uneven mix
 		_off[i] = rng.randf_range(OFF_MIN, OFF_MAX)
+		_dodge[i] = 0.0
 		_idle[i] = 0.0
 		_phase[i] = rng.randf() * TAU
 		_flee[i] = 0.0
@@ -715,6 +768,7 @@ func _spawn_group(i: int) -> void:
 		_axis[j] = _axis[i]
 		_lat[j] = _lat[i]
 		_off[j] = clampf(_off[i] + rng.randf_range(-0.6, 0.6), OFF_MIN, OFF_MAX)
+		_dodge[j] = 0.0
 		_u[j] = _u[i] + float(made) * rng.randf_range(0.75, 1.25) * (1.0 if (made & 1) == 1 else -1.0)
 		_dir[j] = -_dir[i] if made == 1 else (1.0 if rng.randf() < 0.5 else -1.0)
 		_spd[j] = rng.randf_range(1.0, 1.5)
@@ -810,7 +864,8 @@ func step(delta: float, center: Vector3) -> void:
 					th += 80.0
 				elif rem > LINE_OFF:
 					th += ROAD_SPAN
-				var old_lat := _lat[i] + _off[i]
+				var old_lat := _lat[i] + _off[i] + _dodge[i]
+				_dodge[i] = 0.0
 				_lat[i] = th
 				_off[i] = rng.randf_range(OFF_MIN, OFF_MAX)
 				u = old_lat
@@ -823,6 +878,11 @@ func step(delta: float, center: Vector3) -> void:
 			u = _goal[i]
 			_start_linger(i, _gkind[i])
 		_u[i] = u
+		if StreetLife.critic and _gy[i] == 0.0:                   # w123-critic: step around the kerb props instead of through them
+			if Dodge.built_for != Game.world and Game.world is City:
+				Dodge.build(Game.world)
+			var dw := Dodge.want(_axis[i], _lat[i], _lat[i] + _off[i], u, _dir[i])
+			_dodge[i] += clampf((dw - _dodge[i]) * minf(1.0, delta * Dodge.EASE * (1.0 + sp)), -delta * 1.8, delta * 1.8)
 		var p := _position(i)
 		var dx := p.x - center.x
 		var dz := p.z - center.z
@@ -853,7 +913,7 @@ func _fill(buf: PackedFloat32Array, o: int, i: int, fade: float) -> void:
 	var f := _forward(i)
 	var c := -f.y                                             # forward is -Z in the model: Basis(UP, yaw) maps it to (-s, -c)
 	var s := -f.x
-	var l := _lat[i] + _off[i]
+	var l := _lat[i] + _off[i] + _dodge[i]
 	var x := _u[i] if _axis[i] == 0 else l
 	var z := l if _axis[i] == 0 else _u[i]
 	if _alive[i] == 0:
@@ -892,3 +952,6 @@ func _fill(buf: PackedFloat32Array, o: int, i: int, fade: float) -> void:
 		buf[o + 18] = -1.0                                           # the shader crouches them, hands over the head
 	# w: bit 0 umbrella, bit 1 (+2) a chatting group (standing, not at a shop / stop, not looking anywhere): the shader gestures and nods
 	buf[o + 19] = _umb[i] + (2.0 if (_idle[i] > 0.0 and _cower[i] <= 0.0 and _flee[i] <= 0.0 and _gkind[i] == 0 and _look[i] == LOOK_ALONG) else 0.0)
+	if _sit[i] == 1 and _flee[i] <= 0.0 and _cower[i] <= 0.0 and not dying:
+		buf[o + 18] = 0.0
+		buf[o + 19] = 4.0                                           # w123-life: seated on a bench (no umbrella, no talk)

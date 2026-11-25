@@ -60,7 +60,7 @@ func step(delta: float, center: Vector3) -> void:
 		if want.size() >= cap:
 			break
 		var p: Vector3 = crowd.person_position(i)
-		if crowd.is_alive(i) and (p.x - center.x) * (p.x - center.x) + (p.z - center.z) * (p.z - center.z) < SHOW_RADIUS * SHOW_RADIUS:
+		if crowd.is_alive(i) and not (crowd.has_method(&"is_sitting") and crowd.is_sitting(i)) and (p.x - center.x) * (p.x - center.x) + (p.z - center.z) * (p.z - center.z) < SHOW_RADIUS * SHOW_RADIUS:
 			want.append(i)
 	for k in range(slots.size() - 1, -1, -1):                 # release the ones that left the nearest set
 		if not (int(slots[k]["person"]) in want) or not crowd.is_alive(int(slots[k]["person"])):

@@ -29,6 +29,7 @@ const SPECS := {
 	"Hydrants": [Shape.CYLINDER, Vector3(0.22, 0.85, 0.0), Vector3(0.0, 0.42, 0.0)],
 	"Barriers": [Shape.BOX, Vector3(0.6, 0.85, 2.4), Vector3(0.0, 0.42, 0.0)],
 	"Planters": [Shape.BOX, Vector3(2.2, 0.95, 0.9), Vector3(0.0, 0.47, 0.0)],
+	"StreetDress": [Shape.BOX, Vector3(1.7, 0.9, 0.5), Vector3(0.4, 0.45, 0.37)],      # w123-critic: the sidewalk bench of the dress set (people sit on it): the hero no longer walks through it
 	"RoofHouses": [Shape.BOX, Vector3(3.6, 3.0, 3.2), Vector3(0.0, 1.5, 0.0)],
 	"RoofAC": [Shape.BOX, Vector3(2.06, 1.05, 1.16), Vector3(0.0, 0.52, 0.0)],
 	"RoofTanks": [Shape.CYLINDER, Vector3(1.6, 5.2, 0.0), Vector3(0.0, 2.6, 0.0)],
@@ -70,7 +71,7 @@ func build(parent: Node3D, parts: Array[Dictionary], extra: Dictionary = {}) -> 
 	var spec_tmp: Array[int] = []
 	for part: Dictionary in parts:
 		var fname: String = part.get("name", "")
-		if not SPECS.has(fname):
+		if not SPECS.has(fname) or (fname == "StreetDress" and not StreetLife.critic):
 			continue
 		var mm: MultiMesh = part["mm"]
 		var stride := 12 + (4 if mm.use_colors else 0) + (4 if mm.use_custom_data else 0)
