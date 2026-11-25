@@ -46,6 +46,7 @@ static var instance: TowerFloors
 static var open_lot := -1        ## lot index of the open tower (-1: none)
 static var builds := 0           ## how many times a tower was opened (tests)
 static var critic_on := true
+static var crit_on := OS.get_environment("W122C_OLD") != "1"        ## w122-critic: the house hall's separator walls kept off the street door path, etc. (W122C_OLD=1 in tests/test_doors_w122c.gd: off)
 static var rooms_on := true      ## w122-rooms: W122_OLD=1 in the checks = the wave 121 towers (core towers only, bare rooms, stairwell windows, no people)     ## w121-critic: W121_CRITIC_OLD=1 in the checks = the builders' code (enemies on the street under the floors, through the walls)
 
 var towers: Array[Dictionary] = []     ## candidates: {lot, b, kind, face, n, t}
@@ -799,11 +800,18 @@ func _room_boxes_w122(k: int) -> Array:
 	var nroom := clampi(int(iu / 6.5), 2, 5)
 	var rw := iu / nroom
 	var j := 0
+	var bnd: Array[float] = []
+	for i in nroom + 1:
+		var bu := i * rw
+		# w122-critic: a separator wall that fell on the street door (du = iu / 2 with an even room count) stood across the door path of every 2-room house
+		if crit_on and k == 0 and i > 0 and i < nroom and absf(bu - du) < 1.5:
+			bu = du + 1.5 if bu >= du else du - 1.5
+		bnd.append(bu)
 	for i in nroom:
-		var u0 := i * rw
-		var u1 := u0 + rw
+		var u0 := bnd[i]
+		var u1 := bnd[i + 1]
 		var hall := k == 0 and du > u0 and du <= u1                 # the house's street door opens into a hall: kept clear, its inner doorway in line with the street door
-		var gap := clampf(du, u0 + 0.8, u1 - 0.8) if hall else u0 + rw * 0.5
+		var gap := clampf(du, u0 + 0.8, u1 - 0.8) if hall else (u0 + u1) * 0.5
 		_bx(out, u0, cv - 0.08, y, gap - 0.6, cv + 0.08, ceil_y, true, wall_c, &"wall")
 		_bx(out, gap + 0.6, cv - 0.08, y, u1, cv + 0.08, ceil_y, true, wall_c, &"wall")
 		_bx(out, gap - 0.6, cv - 0.08, y + DOOR_H - 0.6, gap + 0.6, cv + 0.08, ceil_y, true, wall_c, &"wall")

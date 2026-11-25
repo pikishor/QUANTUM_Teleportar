@@ -26,6 +26,7 @@ const H := 3.8                   ## room height (under the facade's first floor 
 const DOOR_W := 1.8
 const TOWER_MIN_H := 12.0        ## TowerFloors.HOUSE_MIN_H (w122-rooms): block lots from this height are walk-in towers
 const REACH_BUY := 2.6
+const FLOOR_Y := 0.02              ## w122-critic: the shop floor a hair over the street ground it lies on
 const NEAR_ROOMS := 45.0         ## LOW / LOW+: metres within which a window shows the room behind it (building_core.gdshaderinc near_rooms)
 
 static var enabled := OS.get_environment("W122_SHOPS_OLD") != "1"       ## W122_SHOPS_OLD=1 in the checks: no walk-in shops and no LOW room parallax (the wave 121 street)
@@ -263,7 +264,8 @@ func _physics_process(delta: float) -> void:
 	if prompt_text != "" and Input.is_action_just_pressed(&"interact") and Game.state == &"play":
 		var ig := InteriorGameplay.instance
 		if ig != null and is_instance_valid(ig.vendor_screen):
-			ig.vendor_screen.open(VENDOR[_cur["kind"]])
+			if ig.vendor_screen.open(VENDOR[_cur["kind"]]):
+				ig.vendor_screen.title_override = str(_cur["title"])
 
 
 # --- open / close ------------------------------------------------------------------------------------------------------------
@@ -431,6 +433,7 @@ func _build_facade() -> void:
 # --- the room ------------------------------------------------------------------------------------------------------------------
 
 func _build_room() -> void:
+	_mat_room.vertex_color_is_srgb = TowerFloors.crit_on      # w122-critic: the palette is written as sRGB; read as linear by the unshaded material the walls, ceiling and counter burned to white
 	var s := _cur
 	var kind: StringName = s["kind"]
 	var s0 := float(s["s0"])
@@ -451,7 +454,7 @@ func _build_room() -> void:
 		while vi < d - 0.01:
 			var k := (int(floor(si)) + int(floor(vi))) % 2
 			var fc: Color = pal["floor"] * (1.0 if k == 0 else 0.86)
-			_quad_up(si, vi, minf(si + tile, s1), minf(vi + tile, d), 0.0, fc)
+			_quad_up(si, vi, minf(si + tile, s1), minf(vi + tile, d), FLOOR_Y if TowerFloors.crit_on else 0.0, fc)     # w122-critic: at y 0 the tiles z-fought the street's ground (black and white stripes on the shop floor)
 			vi += tile
 		si += tile
 	_wall_v(d, s0, s1, 0.0, H, pal["wall"], true)               # back wall
@@ -652,13 +655,21 @@ func _box(sa: float, va: float, ya: float, sb: float, vb: float, yb: float, col:
 
 
 func _palette(kind: StringName) -> Dictionary:
+	var pal := _palette_raw(kind)
+	if TowerFloors.crit_on:              # w122-critic: shells a step darker (no near-white room on LOW / MED; the lights and goods keep their colour)
+		for k in pal:
+			pal[k] = (pal[k] as Color) * 0.85
+	return pal
+
+
+func _palette_raw(kind: StringName) -> Dictionary:
 	match kind:
 		&"food": return {"floor": Color(0.62, 0.6, 0.55), "wall": Color(0.78, 0.76, 0.68), "ceil": Color(0.75, 0.75, 0.72), "counter": Color(0.2, 0.45, 0.25), "top": Color(0.8, 0.8, 0.75), "shelf": Color(0.7, 0.7, 0.68)}
 		&"clothes": return {"floor": Color(0.45, 0.32, 0.24), "wall": Color(0.8, 0.72, 0.72), "ceil": Color(0.78, 0.76, 0.76), "counter": Color(0.18, 0.16, 0.18), "top": Color(0.85, 0.85, 0.85), "shelf": Color(0.32, 0.25, 0.2)}
 		&"guns": return {"floor": Color(0.26, 0.26, 0.28), "wall": Color(0.45, 0.42, 0.38), "ceil": Color(0.5, 0.5, 0.5), "counter": Color(0.16, 0.16, 0.18), "top": Color(0.5, 0.58, 0.6), "shelf": Color(0.2, 0.18, 0.16)}
 		&"motors": return {"floor": Color(0.55, 0.57, 0.6), "wall": Color(0.7, 0.72, 0.78), "ceil": Color(0.78, 0.78, 0.8), "counter": Color(0.12, 0.12, 0.14), "top": Color(0.9, 0.55, 0.1), "shelf": Color(0.28, 0.28, 0.3)}
 		&"electronics": return {"floor": Color(0.3, 0.32, 0.38), "wall": Color(0.55, 0.58, 0.66), "ceil": Color(0.66, 0.68, 0.74), "counter": Color(0.08, 0.1, 0.16), "top": Color(0.75, 0.78, 0.86), "shelf": Color(0.7, 0.72, 0.78)}
-	return {"floor": Color(0.74, 0.77, 0.77), "wall": Color(0.86, 0.88, 0.88), "ceil": Color(0.84, 0.85, 0.85), "counter": Color(0.82, 0.85, 0.85), "top": Color(0.3, 0.75, 0.48), "shelf": Color(0.86, 0.88, 0.88)}
+	return {"floor": Color(0.74, 0.77, 0.77), "wall": Color(0.8, 0.83, 0.83), "ceil": Color(0.84, 0.85, 0.85), "counter": Color(0.82, 0.85, 0.85), "top": Color(0.3, 0.75, 0.48), "shelf": Color(0.86, 0.88, 0.88)}
 
 
 ## Shelving along the back wall right of the counter and along the right wall, with rows of goods (colours from `goods`).
