@@ -1,6 +1,6 @@
 # Sprint agents (automatic digest)
 
-Written by godot/tools/sprint_digest.py at 2026-11-25 18:10Z. Status 'running' means no final report had been written when the digest was made.
+Written by godot/tools/sprint_digest.py at 2026-11-25 19:39Z. Status 'running' means no final report had been written when the digest was made.
 
 ## workflow run wf_063541e4-5c8
 
