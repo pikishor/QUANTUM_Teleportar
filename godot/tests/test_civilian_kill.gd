@@ -108,6 +108,10 @@ func _test_shots(host: Node, p: Player, amb: Node3D, crowd: RefCounted, npc: Ref
 		tried[i] = true
 		var pos: Vector3 = crowd.person_position(i)
 		var along := Vector3(-1.0, 0.0, 0.0) if crowd._axis[i] == 0 else Vector3(0.0, 0.0, -1.0)
+		# w123-integrator: walkers now side-step kerb props (crowd_dodge.gd) and bunch in the gap beside one; a person standing between the hero and the target
+		# takes the shot (correct ballistics), so the target must be in the clear for "exactly one person died" to mean what it says
+		if _someone_between(crowd, i, pos + along * 6.0, pos):
+			continue
 		p.global_position = pos + along * 6.0 + Vector3(0.0, 0.1, 0.0)
 		p.camera_rig.reset_view(0.0, 0.0)
 		for k in 3:
@@ -154,6 +158,19 @@ func _test_shots(host: Node, p: Player, amb: Node3D, crowd: RefCounted, npc: Ref
 		var rr: Vector3 = crowd.ray(o2, Vector3.RIGHT, 20.0)
 		var killed: bool = amb.hurt_civilian(v2, 14.0, o2, rr.z > 0.5)
 		TestLib.check(killed, "one carbine round to the head kills (2x damage)")
+
+
+func _someone_between(crowd: RefCounted, target: int, a: Vector3, b: Vector3) -> bool:
+	var ab := Vector2(b.x - a.x, b.z - a.z)
+	for j in crowd.count:
+		if j == target or not crowd.is_alive(j):
+			continue
+		var q: Vector3 = crowd.person_position(j)
+		var aq := Vector2(q.x - a.x, q.z - a.z)
+		var t := clampf(aq.dot(ab) / ab.length_squared(), 0.0, 1.2)
+		if (aq - ab * t).length() < 1.2:
+			return true
+	return false
 
 
 func _pick_untried(crowd: RefCounted, from: Vector3, r: float, tried: Dictionary) -> int:

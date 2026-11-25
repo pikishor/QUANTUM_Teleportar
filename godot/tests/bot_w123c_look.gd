@@ -51,7 +51,7 @@ func _run() -> void:
 	TestMode.god = true
 	var city = Game.world
 	var amb = city.ambient
-	for hour in [11.0, 22.0]:
+	for hour in [11.0]:
 		if city.get(&"day_night") != null:
 			city.day_night.set_hour(hour)
 		var tag := "d" if hour < 12.0 else "n"

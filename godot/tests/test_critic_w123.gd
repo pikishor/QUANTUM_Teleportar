@@ -58,7 +58,7 @@ func run(h: Node) -> void:
 			var w := StreetLife.wait_spot(sp, j)
 			if StreetLife.solid_at(w[0], w[1], 0.3) != "":
 				bad.append(Vector3(w[0], 0.0, w[1]))
-	TestLib.check(bad.size() >= 10, "there are seats / spots inside props to try (%d)" % bad.size())
+	TestLib.check(bad.size() >= 5, "there are seats / spots inside props to try (%d)" % bad.size())
 	var found: Array = []
 	var tried := 0
 	for spot: Vector3 in bad:
@@ -125,8 +125,9 @@ func run(h: Node) -> void:
 		L.fg.up(6)
 		await L.secs(2.5)
 		var q2: Vector3 = cr.person_position(who)
-		var road := roundi((q2.z + CityLayout.HALF) / CityLayout.PITCH)
-		var dist := absf(q2.z - (-CityLayout.HALF + road * CityLayout.PITCH))
+		var latc: float = q2.z if int(cr._axis[who]) == 0 else q2.x          # across its own sidewalk (it may have turned a corner)
+		var road := roundi((latc + CityLayout.HALF) / CityLayout.PITCH)
+		var dist := absf(latc - (-CityLayout.HALF + road * CityLayout.PITCH))
 		if cr.is_sitting(who) or dist > 12.7:
 			off_line.append("seat %s: %s %.1f m from the road centre" % [seat2.snapped(Vector3.ONE * 0.1), "still seated" if cr.is_sitting(who) else "running", dist])
 	TestLib.check(runs.size() >= 2 and off_line.is_empty(), "people scared off a bench run along the sidewalk (within 12.7 m of the road centre) (%d tried: %s)" % [runs.size(), off_line])

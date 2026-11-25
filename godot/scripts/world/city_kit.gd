@@ -763,7 +763,7 @@ func _clear_armour_lanes() -> void:
 ## w123-clutter (owner round 7: "not many details on the street"): a second, sparser row of kerb furniture (benches, bins, planters, shelters, ...) on every block face,
 ## from its own random stream (the main stream is swapped back after, so no other placement moves). Same kerb strip and obstacle rules as the first row; the door lanes are
 ## cleared after it like every other solid kind.
-const MORE_KERB := 4
+const MORE_KERB := 2               ## w123-integrator: 4 put the spawn window 2000 triangles over test_art_library budgets (MED 14479 / 13500); 2 keeps the row inside
 func _more_kerb(layout: CityLayout) -> void:
 	if not StreetClutter.on:
 		return
