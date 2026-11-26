@@ -116,6 +116,7 @@ func provide(kind: StringName, at: Vector3, heading: float) -> Vehicle:
 	for v: Vehicle in (vm.get("list") as Array):
 		if v.kind == kind and v.active and not v.dead and not v.wreck and not v.driver_is_player and not v.ai and _h(v.global_position, at) < 40.0:
 			v.set_meta(&"hold", true)
+			v.set_meta(&"mission_ride", true)
 			if not provided.has(v):
 				provided.append(v)
 			return v
@@ -125,6 +126,7 @@ func provide(kind: StringName, at: Vector3, heading: float) -> Vehicle:
 		c = vm.call(&"spawn_parked", kind, at, heading)
 	if c != null:
 		c.set_meta(&"hold", true)
+		c.set_meta(&"mission_ride", true)                                  # w126-air: ENTER beside it boards it, not a parked plane next to it
 		provided.append(c)
 	return c
 
@@ -351,6 +353,8 @@ func clean() -> void:
 	for v: Vehicle in provided:
 		if is_instance_valid(v):
 			v.remove_meta(&"hold")
+			if v.has_meta(&"mission_ride"):
+				v.remove_meta(&"mission_ride")
 	provided.clear()
 	if target != null and is_instance_valid(target):
 		target.scripted = false

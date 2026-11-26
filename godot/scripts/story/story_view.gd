@@ -223,6 +223,22 @@ func subtitle_rect(vp: Vector2) -> Rect2:
 	return _sub_layout(vp, s, UiUtil.insets(vp))["box"]
 
 
+static var badge_fix := OS.get_environment("W126C_OLD") != "1"
+
+
+## The portrait beside the radio plate (Rect2() when none is drawn). w126-critic: not while the flight instruments show: it stood on the landing guide's RWY label
+## (and its round frame read as a stray button over the instruments); the speaker's full name stays on the plate.
+func badge_rect(vp: Vector2) -> Rect2:
+	if story == null or story.current.is_empty() or not StoryCast.has(str(story.current.get("s", ""))):
+		return Rect2()
+	if badge_fix and FlightHud.showing():
+		return Rect2()
+	var s := UiUtil.ui_scale(vp)
+	var box: Rect2 = _sub_layout(vp, s, UiUtil.insets(vp))["box"]
+	var ps := clampf(box.size.y, 64.0 * s, 92.0 * s)
+	return Rect2(box.end.x + 8.0 * s, box.position.y, ps, ps)
+
+
 ## The radio subtitle: a narrow plate in the top-left column under the minimap, speaker name over the wrapped lines, whole words revealed as the line types.
 func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 	var lay := _sub_layout(vp, s, ins)
@@ -238,8 +254,9 @@ func _draw_subtitle(vp: Vector2, s: float, font: Font, ins: Vector2) -> void:
 	draw_rect(box, Color(UiUtil.PLATE, SUB_PLATE[clampi(UiSettings.s_sub_bg, 0, 2)] * a))
 	draw_rect(Rect2(box.position, Vector2(3.0 * s, box.size.y)), Color(col, 0.9 * a))
 	if StoryCast.has(speaker):                                                   # the named cast: a portrait beside the plate (docs/STORY.md), the full name over the line
-		var ps := clampf(box.size.y, 64.0 * s, 92.0 * s)
-		StoryCast.draw_badge(self, Rect2(box.end.x + 8.0 * s, box.position.y, ps, ps), speaker, a)
+		var br := badge_rect(vp)
+		if br.has_area():
+			StoryCast.draw_badge(self, br, speaker, a)
 		speaker = StoryCast.name_of(speaker)
 	_shadow_text(font, box.position + Vector2(14.0 * s, 20.0 * s), Tr.t(speaker), HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s * zoom), Color(col, 0.98 * a), s)
 	var left_chars := int(story.typed)

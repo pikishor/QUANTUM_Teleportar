@@ -169,7 +169,7 @@ static func plane(v: Vehicle, dt: float, thr: float, steer: float, lift: float) 
 		var agl := VehicleCraft.altitude(v)
 		if pt < 0.0 and agl < 40.0:                                # the flare: the descent rate allowed shrinks with the height
 			pt = maxf(pt, -asin(clampf(VehicleCraft._flare(agl, 5.0) / maxf(V, 1.0), 0.0, 0.9)))
-		A.pitch = move_toward(A.pitch, pt, (1.0 + 1.5 * agile) * dt)
+		A.pitch = move_toward(A.pitch, pt, float(T.get("pitch", 1.0 + 1.5 * agile)) * dt)          # w126-planes: a kind may carry its own pitch rate (rad/s) and bank response ("roll", 1/s)
 		c.vy = V * sin(A.pitch) - (1.0 - L) * SINK_STALL * 0.6
 		var sink_cap := VehicleCraft._flare(agl, 5.0) if lift <= 0.0 and agl < 40.0 else 99.0
 		if -c.vy > sink_cap and A.pitch < 0.0:                    # a steady stick near the ground never dives into it
@@ -179,7 +179,7 @@ static func plane(v: Vehicle, dt: float, thr: float, steer: float, lift: float) 
 		if settle_fix and lift <= 0.0 and c.lever < 0.2 and agl < 2.0:
 			c.vy = minf(c.vy, -1.2)                                # w119-hud5: throttle back a metre over the street, DOWN let go: it settles on its wheels (it floated at 0.8 m, LAND FIRST, no brake)
 		var rt := -steer * ROLL_MAX * (0.45 + 0.55 * L)
-		A.roll = lerpf(A.roll, rt, 1.0 - exp(-3.2 * agile * dt))
+		A.roll = lerpf(A.roll, rt, 1.0 - exp(-float(T.get("roll", 3.2 * agile)) * dt))
 		yaw_rate = sin(A.roll) / sin(ROLL_MAX) * TURN_MAX * sqrt(agile) * L / (1.0 + V / 260.0)
 	v.heading += yaw_rate * dt
 	var fwd := v.forward()

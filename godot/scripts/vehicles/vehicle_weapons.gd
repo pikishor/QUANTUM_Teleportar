@@ -22,6 +22,7 @@ var alt_shots := 0
 var _alt_cd := 0.0
 var _alt_rl := 0.0
 var _alt_side := 1.0
+var arms: AirArms = null              ## w126-air: an aircraft's rockets / missiles / bombs / cargo / flares by class (scripts/vehicles/air_arms.gd); the AIM button fires its selected arm
 
 
 static func has_weapon(kind: StringName) -> bool:
@@ -32,6 +33,9 @@ func setup(c: Vehicle) -> void:
 	car = c
 	def = VehicleSpecs.WEAPONS.get(c.kind, {})
 	alt_def = VehicleSpecs.ALT_WEAPONS.get(c.kind, {})
+	arms = AirArms.make(c)
+	if arms != null:
+		alt_def = arms.def()
 	reload_full()
 
 
@@ -50,6 +54,8 @@ func reload_full() -> void:
 	alt_shots = 0
 	_alt_cd = 0.0
 	_alt_rl = 0.0
+	if arms != null:
+		arms.reload_full()
 
 
 func can_fire() -> bool:
@@ -166,12 +172,19 @@ func has_alt() -> bool:
 	return not alt_def.is_empty()
 
 
+## w126-air: tick_alt must run (a secondary on AIM, or flares only).
+func ticks_alt() -> bool:
+	return arms != null or not alt_def.is_empty()
+
+
 func can_fire_alt() -> bool:
 	return has_alt() and alt_ammo > 0 and _alt_cd <= 0.0
 
 
 ## One physics tick of the secondary weapon: the cooldown, one round back every `reload` seconds, and a salvo when `fire` is held and the weapon is ready. True when a salvo left the rails.
 func tick_alt(dt: float, fire: bool) -> bool:
+	if arms != null:
+		return _arms_sync(arms.tick(dt, fire))
 	if not has_alt():
 		return false
 	_alt_cd -= dt
@@ -189,6 +202,8 @@ func tick_alt(dt: float, fire: bool) -> bool:
 
 ## Fire a salvo now (a test can call it directly): `salvo` rockets from the pylons, left and right in turn. A "gun" alt (the coaxial machine gun of the tanks) is one hitscan round instead.
 func fire_alt() -> bool:
+	if arms != null:
+		return _arms_sync(arms.fire_now())
 	if not can_fire_alt():
 		return false
 	_alt_cd = 1.0 / float(alt_def["rate"])
@@ -212,6 +227,19 @@ func fire_alt() -> bool:
 			alt_ammo -= 1
 			alt_shots += 1
 			fired = true
+	return fired
+
+
+## w126-air: the old fields follow the selected arm (the AIM button's label, the tests of the gunship's rockets and the jet's missiles read them).
+func _arms_sync(fired: bool) -> bool:
+	alt_def = arms.def()
+	var k := arms.current()
+	alt_ammo = int(arms.ammo.get(k, 0))
+	var n := 0
+	for a: StringName in arms.shots:
+		if a != &"flare":
+			n += int(arms.shots[a])
+	alt_shots = n
 	return fired
 
 

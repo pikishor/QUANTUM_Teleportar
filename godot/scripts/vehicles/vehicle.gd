@@ -173,7 +173,7 @@ func setup(k: StringName, mgr: Node) -> void:
 	add_child(cs)
 	_hull_cs = cs
 	_hull_y = cs.position.y
-	if VehicleWeapons.has_weapon(k):
+	if VehicleWeapons.has_weapon(k) or AirArms.has_arms(k):       # w126-air: an unarmed transport still carries cargo drops or flares
 		weapons = VehicleWeapons.new()
 		weapons.setup(self)
 	_mirror = MirrorProxy.new()
@@ -359,7 +359,7 @@ func _reset_garage() -> void:
 	max_hp = float(spec["hp"])
 	hp = max_hp
 	if weapons != null:
-		if VehicleWeapons.has_weapon(kind):
+		if VehicleWeapons.has_weapon(kind) or AirArms.has_arms(kind):
 			weapons.setup(self)
 		else:
 			weapons = null
@@ -756,11 +756,13 @@ func sim(dt: float) -> void:
 		step_drive(dt, Input.get_axis(&"move_back", &"move_forward"), Input.get_axis(&"move_left", &"move_right"), Input.is_action_pressed(&"jump"), Input.is_action_pressed(&"sprint"))
 		if weapons != null:
 			weapons.tick(dt, Input.is_action_pressed(&"fire"))
-			if weapons.has_alt():                                       # rockets / missiles of the gunship and the jet: the AIM button
+			if weapons.ticks_alt():                                     # rockets / missiles / bombs / cargo of the aircraft on the AIM button, flares (w126-air AirArms)
 				weapons.tick_alt(dt, Input.is_action_pressed(&"aim"))
 	elif path_road >= 0 and craft == null:                # a highway car of the outskirts that became a real vehicle: it keeps driving its road
 		PathDriver.drive(self, dt)
 		step_drive(dt, script_thr, script_steer, false)
+	elif craft != null and has_meta(&"air_puppet"):      # w126-air: a bandit or the airliner of an air mission, flown by AirSteps (it sets the position, the heading and the attitude)
+		pass
 	elif scripted:                                       # a mission's target vehicle (WorldSteps pursuit): the mission writes the stick, the vehicle drives itself with its own physics
 		step_drive(dt, script_thr, script_steer, false)
 	elif chasing:
@@ -1764,6 +1766,9 @@ func _apply_lights() -> void:
 
 
 ## Level of detail from the distance to the player (the manager calls it a few times a second).
+const AIR_SHOW := 900.0             ## w126-air: metres an airborne aircraft stays drawn
+
+
 func update_lod(dist: float) -> void:
 	_dist = dist
 	visual.set_wheels_visible(dist < VehicleSpecs.WHEELS_NEAR)
@@ -1773,7 +1778,7 @@ func update_lod(dist: float) -> void:
 	if want != _mirror_on:
 		_mirror_on = want
 		_mirror.track(visual.mirror_meshes if want else _none)
-	var show := dist < 140.0 or driver_is_player
+	var show := dist < 140.0 or driver_is_player or (AirArms.on and craft != null and craft.airborne and dist < AIR_SHOW)       # w126-air: an aircraft in the air (a bandit, the airliner of an escort) is seen from far, not only within 140 m
 	if show != visible:
 		visible = show
 

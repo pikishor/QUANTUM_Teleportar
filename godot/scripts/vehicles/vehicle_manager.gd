@@ -35,6 +35,7 @@ var _patrol_t := 0.0
 var _spawned := {}                   ## VehicleSpawns point id -> the Vehicle standing there (or the one that was driven away)
 var _spawn_ready := {}               ## point id -> clock from which it may spawn again (after its vehicle was destroyed)
 var _spawn_t := 0.0
+static var W126C_OLD := OS.get_environment("W126C_OLD") == "1"     ## w126-critic fixes off (the wave 126 state as built)
 var _key_yaw := 0.0                  ## the cars' key light follows the camera yaw, smoothed
 var _pool := {}                      ## kind -> Array[Vehicle] (inactive)
 var _stream_t := 0.0
@@ -108,7 +109,7 @@ func _unfix(v: Vehicle) -> void:
 func _count_fixed() -> void:
 	var n := 0
 	for v in list:
-		if v.has_meta(&"hold") and (v.has_meta(&"fixed") or v.has_meta(&"called")):
+		if (v.has_meta(&"hold") and (v.has_meta(&"fixed") or v.has_meta(&"called"))) or v.has_meta(&"air_puppet") or v.has_meta(&"air_target"):       # w126-air: the bandits, the airliner and the bomb targets of an air mission stand outside the cap too
 			n += 1
 	_fixed_n = n
 
@@ -150,7 +151,7 @@ func reach_car(pos: Vector3) -> Vehicle:
 		var reach := VehicleSpecs.ENTER_REACH + minf(absf(c.speed) * VehicleSpecs.ENTER_MOVING, VehicleSpecs.ENTER_MOVING_MAX)
 		if edge <= reach or flat <= 4.2:
 			var score := minf(edge, flat - 2.0)
-			if ArmourSites.pick_on and (c.has_meta(&"called") or c.has_meta(&"fixed") or c.has_meta(&"spawned")):      # wave 118 (w119-hud5: and one from the demo SPAWN list: ENTER beside a spawned plane boarded a passing compact): the tank the hero called or walked to wins over a passing car in reach
+			if ArmourSites.pick_on and (c.has_meta(&"called") or c.has_meta(&"fixed") or c.has_meta(&"spawned") or c.has_meta(&"mission_ride")):       # w126-air: and the aircraft a mission left waiting (a parked plane beside it took the ENTER)      # wave 118 (w119-hud5: and one from the demo SPAWN list: ENTER beside a spawned plane boarded a passing compact): the tank the hero called or walked to wins over a passing car in reach
 				score -= 3.0
 			if score < best_d:
 				best_d = score
@@ -1044,6 +1045,10 @@ func _tick_spawn_points(delta: float) -> void:
 		if fv.has_meta(&"hold") and (fv.has_meta(&"fixed") or fv.has_meta(&"called")) and _dist(fv, ppos) > ArmourSites.KEEP:
 			_release(fv)
 	_count_fixed()
+	# w126-critic: the FIXED point nearest the hero goes first (the PLANE LINE comes before the HELI LINE in the table: the helicopter in front of the hero stood only after
+	# the ten planes behind him, 8 to 9 s). W126C_OLD=1: the table order of wave 125.
+	var best_pt := {}
+	var best_d := INF
 	for pt in _points:
 		var id: StringName = pt["id"]
 		var fixed := ArmourSites.is_fixed(id)
@@ -1061,22 +1066,39 @@ func _tick_spawn_points(delta: float) -> void:
 			continue
 		if not fixed and list.size() >= cap() and not _free_slot():
 			continue
+		if fixed and not W126C_OLD:
+			var dpt := Vector2(pos.x - ppos.x, pos.z - ppos.z).length()
+			if dpt < best_d:
+				best_d = dpt
+				best_pt = pt
+			continue
+		if _spawn_point(pt, ppos, fixed):
+			break
+	if not best_pt.is_empty():
+		_spawn_point(best_pt, ppos, true)
+
+
+## Stand the vehicle of spawn point `pt`; true when it was a fixed one that stood (one fixed vehicle a second).
+func _spawn_point(pt: Dictionary, ppos: Vector3, fixed: bool) -> bool:
+	var id: StringName = pt["id"]
+	var pos: Vector3 = pt["pos"]
+	if fixed:
+		_fixed_n += 1                                            # room for it above the cap (counted again below)
+	var v := spawn_parked(pt["kind"], pos, float(pt["h"]))
+	if v != null:
+		if v.craft != null and pos.y > v.global_position.y + 0.5:      # a pad in the air (the roof of a tower): the aircraft stands on it, not on the street below
+			v.global_position.y = pos.y + 0.05
+		v.set_meta(&"spawn_id", id)
 		if fixed:
-			_fixed_n += 1                                            # room for it above the cap (counted again below)
-		var v := spawn_parked(pt["kind"], pos, float(pt["h"]))
+			v.set_meta(&"fixed", true)
+			v.set_meta(&"hold", true)
+		_spawned[id] = v
+		v.update_lod(_dist(v, ppos))
+	if fixed:
+		_count_fixed()
 		if v != null:
-			if v.craft != null and pos.y > v.global_position.y + 0.5:      # a pad in the air (the roof of a tower): the aircraft stands on it, not on the street below
-				v.global_position.y = pos.y + 0.05
-			v.set_meta(&"spawn_id", id)
-			if fixed:
-				v.set_meta(&"fixed", true)
-				v.set_meta(&"hold", true)
-			_spawned[id] = v
-			v.update_lod(_dist(v, ppos))
-		if fixed:
-			_count_fixed()
-			if v != null:
-				break                                                    # one fixed vehicle a second: the yard's three models do not load in the same frame
+			return true                                              # one fixed vehicle a second: the yard's three models do not load in the same frame
+	return false
 
 
 # --- Vael patrols ----------------------------------------------------------------------------------------------------------
