@@ -173,14 +173,15 @@ func _run(tree: SceneTree) -> void:
 				continue
 			n += 1
 			var c: Vector3 = pd["pos"]
-			var v := await _board(&"h_scout", c + Vector3(0.0, 1.0, 20.0))
+			var v := await _board_pad(pd)
 			if v == null:
-				print("CR PAD %s board failed" % pd["id"])
+				print("CR PAD %s board failed (no helicopter in reach)" % pd["id"])
+				await _shot("padfail_" + String(pd["id"]))
 				continue
 			fg.press(1, &"jump")
 			await _until(func() -> bool: return VehicleCraft.altitude(v) > 8.0, 600)
 			fg.up(1)
-			v.global_position = c + Vector3(0.0, 30.0, 0.0)          # setup: over the pad
+			v.global_position = c + Vector3(0.0, 30.0, 0.0)          # setup: over the pad (the pad's own helicopter, lifted off it)
 			v.heading = 0.0
 			await _pf(5)
 			var parks := Helipads.parks
@@ -195,7 +196,6 @@ func _run(tree: SceneTree) -> void:
 			p.camera_rig.reset_view(PI, -0.4)
 			await _pf(10)
 			await _shot("padfoot_" + String(pd["id"]))
-			vm._release(v)
 	if _on("crash"):
 		var v := await _board(&"h_utility", Vector3(-30.0, 0.0, 4.0))
 		if v != null:
@@ -231,3 +231,42 @@ func _open() -> Vector3:
 	if o == "city":
 		return Vector3(-30.0, 0.0, 4.0)
 	return Airport.to_world(Vector3(1310.0, 0.0, -700.0))
+
+
+## The hero on the pad, 7 m from its centre; the stick walks him to the pad's own waiting helicopter, a finger on ENTER boards it.
+func _board_pad(pd: Dictionary) -> Vehicle:
+	if vm.driven != null:
+		await _tap(&"interact")
+		await _pf(10)
+	var c: Vector3 = pd["pos"]
+	p.teleport_to(c + Vector3(0.0, 0.6, 0.0))
+	p.velocity = Vector3.ZERO
+	await _pf(90)
+	var v: Vehicle = null
+	for x: Vehicle in vm.list:
+		if is_instance_valid(x) and x.cls == &"heli" and x.global_position.distance_to(c) < 14.0:
+			v = x
+	if v == null:
+		print("CR PAD %s: no helicopter waits on it (vehicles near: %d)" % [pd["id"], vm.list.filter(func(x: Vehicle) -> bool: return x.global_position.distance_to(c) < 40.0).size()])
+		await _shot("padempty_" + String(pd["id"]))
+		return null
+	var off := v.global_position - c
+	off.y = 0.0
+	var dir := off.normalized() if off.length() > 0.5 else Vector3(0, 0, 1)
+	var stand := v.global_position - dir * (float(v.spec.get("len", 10.0)) * 0.5 + 5.0)
+	stand.y = c.y + 0.6
+	p.teleport_to(stand)
+	var yaw := atan2(dir.x, dir.z) + PI
+	p.yaw = yaw
+	p.camera_rig.reset_view(yaw, -0.15)
+	p.velocity = Vector3.ZERO
+	await _pf(30)
+	await _shot("padheli_" + String(pd["id"]))
+	fg.stick(Vector2(0.0, -1.0))
+	var ok := await _until(func() -> bool: return fg.button_label(&"interact") == "ENTER", 400)
+	fg.stick(Vector2.ZERO)
+	await _pf(3)
+	await _tap(&"interact")
+	await _until(func() -> bool: return p.vehicle != null, 60)
+	print("CR PADBOARD %s kind=%s reach=%s in=%s hero_dy=%.1f" % [pd["id"], v.kind, ok, p.vehicle == v, p.global_position.y - c.y])
+	return v if p.vehicle == v else null
