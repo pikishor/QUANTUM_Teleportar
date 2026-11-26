@@ -17,7 +17,7 @@ after every step so another agent can resume; small working steps; NO commits an
 docs/HANDOFF.md. The owner plays on a PHONE with touch only and rated the last build 4/10: "small silly errors. Are you even checking."
 HARD RULES: (1) every UI or control check you write drives the real main scene with REAL finger events (InputEventScreenTouch / InputEventScreenDrag through Input.parse_input_event,
 window coordinates: root.get_final_transform() * pos; see godot/tests/test_touch_buttons_r7.gd), never the mouse and never a direct function call, with Game.force_touch = true and the
-phone-only layers on (CrateReveal._quiet = 0); (2) each fix gets a check that FAILS on the old code (show it failing first); (3) never weaken a test, never raise a perf limit
+phone-only layers on (CrateReveal._quiet = 0); (2) each fix gets a check that FAILS on the old code (show it failing first); (3) never weaken a test, never raise a perf limit (one owner exception from wave 124 on: the test_integration node limit is 7000, raised by the owner)
 (PERF_CHECK=1 tools/perf_report.sh 0 1 2 must stay OK on LOW, MED and HIGH: run it at most twice, at the end); (4) another agent edits the same tree at the same time: touch only
 what your task needs, keep other agents' hook lines, run tools/import.sh after adding a class_name; (5) look at your own frames (tools/bot.sh renders at phone aspect 2400x1080 or
 1200x540) before you call something fixed; (6) original names, only own-made or CC0 assets, no secrets in files. If you were restarted, your log says where to continue.
@@ -242,6 +242,111 @@ in the real main scene: walk and drive 5 streets day and night, enter shops, run
 pedestrians stuck or walking through things, signs with wrong text, frame drops, node growth. Render frames and LOOK. List the 8 worst defects with evidence, fix them most severe first, each with a
 check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
     commit: 'Wave 123: street detail (sidewalk clutter, storefront depth, signs, street life), wave 122 follow-ups',
+  },
+  124: {
+    title: 'Frame rate, finish street detail, demo god mode',
+    builders: [
+      { tag: 'fps', prompt: `TASK (label w124-fps): FRAME RATE. Plan line 124: "measured recovery on the phone tiers (owner: 37 to 45 FPS on LOW+, drops to 13 to 28 in flight); win back draw,
+triangle and script headroom." First measure, with tools/perf_report.sh and a profiling probe of your own (godot/tests/dev_w124_probe.gd), where frame time goes on foot in the city, driving, and in
+FLIGHT over the city and outskirts (draw calls, triangles, visible lights/shadows, script time per system with Performance monitors and per-system timers). Write the top costs in your log with
+numbers. Then win back headroom without lowering visual quality the owner can see: fix the flight drop first (view distance / LOD / impostor use at altitude, culling of street-level detail and
+interiors from the air, traffic and pedestrian sim throttled by distance, shadow distance at altitude), then on-foot: merge draws, distance-throttle script _process/_physics_process (AI, traffic,
+pedestrians, props, audio), cut idle nodes and per-frame allocations. Never raise a perf limit; the goal is clear headroom under LOW 108 / MED 148 / HIGH 170 death spikes, and report the new
+numbers for flight too. NODE LIMIT: the OWNER explicitly asked to raise the test_integration node limit from 3000 to 7000 (godot/tests/test_integration.gd line ~127). Do that change (update the
+message text too) and nothing else about limits; draw/triangle/perf gates stay as they are, they are the real phone cost. Permanent test godot/tests/test_fps_w124.gd: flight over the city keeps
+draws and triangles under a stated budget per tier, script time of throttled systems falls with distance, each check failing on the old code. Report before/after numbers for every tier, on foot
+and in flight.` },
+      { tag: 'street-demo', prompt: `TASK (label w124-street-demo): FINISH WAVE 123 STREET DETAIL, THEN DEMO GOD MODE. Read docs/sprint/progress/w123-*.md and docs/HANDOFF.md "Wave 123
+integration" first. Part 1, the wave 123 items that were NOT done: new prop kinds (shop signs, street name signs at corners, traffic signs, a few billboards with original names, newspaper boxes,
+bike racks, parking meters, street trees with grates), storefront depth (recessed doors, awnings, shop window displays, roller shutters on closed shops), outskirts street clutter; glass in tower
+and lobby window holes; the parked car on the sidewalk in a bench area; the floating BLACK MARKET SHOP label overlapping the NEON and QUANTA BAR signs; buses really stopping at bus stops. CC0 kits
+or own-made only, MultiMesh / shared meshes, never block doors, shops, roads or the hero's path. The node test limit is being raised to 7000 by w124-fps (owner's decision), but draw/triangle and
+perf death-spike limits stay: trim elsewhere if needed, never raise them. Part 2, DEMO MODE AS GOD MODE (owner: "in demo mode we should be able to select all weapons, all missions etc like a god
+mode"). Read scripts/demo/demo_mode.gd and scripts/ui/demo_panel.gd. Audit with a finger-only bot that in demo mode EVERY weapon of the full roster (200+, all classes, attachments, ammo types),
+every mission (chapters, sequel, side, heists, contracts, bosses, arena, chases, stealth...), every vehicle and aircraft, every verb/ability/skill, every hero look and upgrade is selectable and
+usable, with god mode, infinite ammo and max money available as toggles; add what is missing (e.g. a WEAPONS tab with every weapon, VEHICLES tab, UNLOCK ALL / ALL SKILLS toggles), keeping the
+demo save separate from the real save. Permanent tests godot/tests/test_street_w124.gd and godot/tests/test_demo_god_w124.gd by real touch events: each new prop kind is present and never in front
+of a door, the label overlap is gone, a bus stops at a stop; in demo mode every weapon id and every mission id can be picked from the menu and starts; each check failing on the old code. Render
+frames LOW and MED and LOOK. Coordinate with w124-fps (it owns perf trims), read its log.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 124 (label w124-critic), then its fixer. You did not build it; assume it is broken until you have seen it work. With a finger-only bot of
+your own in the real main scene: fly over the city and outskirts at each tier and measure draws/triangles/frame time against the builder's claims; walk and drive 5 streets day and night looking for
+props blocking doors, floating or clipping props, wrong sign text, label overlaps; open DEMO mode and try at least 30 random weapons, 15 random missions, 5 vehicles and 3 aircraft from its menu, and
+check god mode and infinite ammo work and the real save is untouched. List the 8 worst defects with evidence, fix them most severe first, each with a check that fails without the fix. Do not stop
+early: if you cannot fix one, write exactly why in your report.`,
+    commit: 'Wave 124: frame rate headroom (flight and on foot), node limit 7000 by owner, wave 123 street detail finished, demo mode god mode',
+  },
+  1242: {
+    title: 'Wave 124 part 2: frame rate and wave 123 street detail (both skipped in the first pass)',
+    builders: [
+      { tag: 'fps2', prompt: `TASK (label w1242-fps): FRAME RATE. The first wave 124 builder stopped after one edit and did NOTHING of this; you must do the whole job and not stop early. Read
+docs/sprint/progress/w124-fps.md. Plan line 124: "measured recovery on the phone tiers (owner: 37 to 45 FPS on LOW+, drops to 13 to 28 in flight); win back draw, triangle and script headroom." Work in
+this order and update your progress log after each step: (1) write godot/tests/dev_w124_probe.gd that measures draw calls, triangles, visible lights/shadows and script time per system
+(Performance monitors plus your own per-system timers) on foot in the city, driving, and FLYING over the city and over the outskirts, at LOW, MED and HIGH; write the top 10 costs with numbers in your
+log. (2) Fix the flight drop: at altitude cull street-level detail and interiors, use LOD/impostors, cut shadow distance, throttle traffic/pedestrian/AI sim by distance. (3) On foot: distance-throttle
+_process/_physics_process of AI, traffic, pedestrians, props and audio; merge draws; cut idle nodes and per-frame allocations. No visual quality the owner can see may drop. Never raise a perf
+limit (LOW 108 / MED 148 / HIGH 170 death spikes stay; node test limit is 7000 by the owner). (4) Permanent test godot/tests/test_fps_w124.gd: flight over the city keeps draws and triangles under a
+stated budget per tier, throttled systems spend less script time far away; each check failing on the old code (show it). (5) Report a before/after table for every tier, on foot, driving and flying.` },
+      { tag: 'street2', prompt: `TASK (label w1242-street): FINISH WAVE 123 STREET DETAIL. The wave 124 builder skipped this part entirely; you must do it all and not stop early. Read
+docs/sprint/progress/w123-*.md, w124-street-demo.md and docs/HANDOFF.md "Wave 123 integration" / "Wave 124 integration". Do, updating your progress log after each item: (1) new prop kinds: shop signs,
+street name signs at corners, traffic signs, a few billboards (original names only), newspaper boxes, bike racks, parking meters, street trees with grates; (2) storefront depth: recessed doors,
+awnings, shop window displays, roller shutters on closed shops; (3) outskirts street clutter; (4) glass in tower and lobby window holes; (5) move the parked car off the sidewalk in the bench area;
+(6) fix the floating BLACK MARKET SHOP label overlapping the NEON and QUANTA BAR signs; (7) buses really stopping at bus stops and leaving. CC0 kits or own-made only, MultiMesh / shared meshes per
+chunk, never block doors, shops, roads or the hero's path. Draw/triangle/perf death-spike limits stay (trim elsewhere if needed); the node test limit is 7000 by the owner. Coordinate with w1242-fps
+(it owns perf trims), read its log. Permanent test godot/tests/test_street_w124.gd by real touch events: each new prop kind present and never in front of a door, no label overlap, a bus stops at a
+stop, window holes have glass; each check failing on the old code. Render before/after frames LOW and MED at eye height and LOOK at them.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 124 part 2 (label w1242-critic), then its fixer. Assume it is broken until you have seen it work. The previous reviewer skipped the play review;
+you must not. With a finger-only bot of your own in the real main scene: fly over the city and outskirts at LOW, MED and HIGH and measure draws/triangles/frame time against the builder's table; walk
+and drive 5 streets day and night looking for props blocking doors, floating or clipping props, wrong sign text, label overlaps, missing glass, buses. Also open DEMO mode and try 30 random weapons and
+15 random missions. List the 8 worst defects with evidence, fix them most severe first, each with a check that fails without the fix. If you cannot fix one, write exactly why.`,
+    commit: 'Wave 124 part 2: frame rate headroom (flight and on foot), wave 123 street detail finished',
+  },
+  125: {
+    title: 'Helicopter roster',
+    builders: [
+      { tag: 'helis', prompt: `TASK (label w125-helis): HELICOPTER ROSTER. Plan line 125: "HELICOPTER ROSTER (22+ kinds), cockpits, helipads." First read what exists (aircraft models, AircraftFlight, FlightHud,
+helipads, air traffic, hijack; grep scripts and docs/HANDOFF.md) and count the current helicopter kinds in your log. Then reach at least 22 distinct helicopter kinds (light scout, news, police, air
+ambulance, utility, tandem-rotor cargo, heavy lift, gunship, attack, stealth, coaxial, tilt-rotor, crane, firefighting, VIP, trainer, sci-fi quantum variants...), each with its own model (CC0 or
+own-made in Blender, original names only, no real brands), its own flight numbers (speed, climb, turn, mass, rotor sound pitch), and an icon. Shared meshes / LODs so a parked or far heli costs
+almost nothing. Each heli must be flyable by touch with the existing flight controls and be stealable/boardable. Coordinate with w125-pads (it owns cockpits and helipads), read its log. Permanent
+test godot/tests/test_helis_w125.gd by real touch events: every kind spawns, boards, lifts off, flies a short route, lands; each check failing on the old code. Render a lineup of all kinds LOW and
+MED and LOOK. BUDGETS: perf death-spike limits LOW 108 / MED 148 / HIGH 170 and the MED triangle budget 280k (now at 275k) must hold; trim, never raise a limit (node test limit is 7000).` },
+      { tag: 'pads', prompt: `TASK (label w125-pads): HELICOPTER COCKPITS AND HELIPADS. Plan line 125. Read what exists first. (1) Cockpit view for helicopters: a first-person cockpit (seat, frame, glass, instrument panel with working gauges: altitude, speed, heading, rotor rpm, fuel/damage) that the
+hero can switch to with a touch button, readable on a phone, with the flight HUD kept clear (wave 116 view rules). A few cockpit families shared across the 22+ kinds of w125-helis. (2) Helipads:
+rooftop pads on tall city buildings, hospital, police, news station, airport, army base and outskirts pads, each with markings, lights at night and a spawned heli of a fitting kind; show them on the
+map and minimap; landing on a pad parks the heli. Coordinate with w125-helis, read its log. Permanent test godot/tests/test_helipads_w125.gd by real touch events: cockpit toggles and gauges move,
+every pad is reachable and a landing on it parks the heli, map icons exist; each check failing on the old code. Render cockpit and pad frames day and night LOW and MED and LOOK. Budgets as in the
+plan: never raise a perf limit (MED triangle budget 280k is tight), trim elsewhere.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 125 (label w125-critic), then its fixer. Assume it is broken until you have seen it work. With a finger-only bot of your own in the real main
+scene: board and fly at least 10 different helicopter kinds, use the cockpit view, land on 5 different helipads day and night, crash one into a building, check frame time and draws in flight at LOW
+and MED. Look for clipping rotors, wrong scale, unflyable kinds, unreadable cockpits, pads with no heli or blocked, HUD overlap. List the 8 worst defects with evidence, fix them most severe first,
+each with a check that fails without the fix. If you cannot fix one, write exactly why.`,
+    commit: 'Wave 125: helicopter roster (22+ kinds), cockpits, helipads',
+  },
+  126: {
+    title: 'Aeroplane roster',
+    builders: [
+      { tag: 'planes', prompt: `TASK (label w126-planes): AEROPLANE ROSTER AND HANGARS. Plan line 126: "AEROPLANE ROSTER (30+ kinds), hangars, air traffic, air missions, aircraft weapons." Read what exists
+(aircraft models, AircraftFlight, airport world, wave 125 helis) and count current plane kinds in your log. Reach at least 30 distinct aeroplane kinds (light prop, trainer, aerobatic, crop duster,
+seaplane, bush plane, business jet, regional prop, narrow-body and wide-body airliners, cargo, fighter, interceptor, ground attack, bomber, stealth, tanker, AWACS, drone, glider, sci-fi quantum
+craft...), each with a model (CC0 or own-made, original names, no real brands), flight numbers (stall speed, top speed, roll/pitch rates, takeoff run) and an icon; shared meshes / LODs. Every kind
+flyable by touch, takes off and lands on the runway. Hangars at the airport and army base, enterable on foot, holding parked planes you can board. Permanent test godot/tests/test_planes_w126.gd by
+real touch events: every kind spawns, takes off, flies, lands; hangar doors work; each check failing on the old code. Render a lineup LOW and MED and LOOK. Budgets: never raise a perf limit (MED
+triangle budget 280k is tight), trim elsewhere. Coordinate with w126-air (it owns traffic, missions and weapons), read its log.` },
+      { tag: 'air', prompt: `TASK (label w126-air): AIR TRAFFIC, AIR MISSIONS AND AIRCRAFT WEAPONS. Plan line 126. Read what exists first (AI air traffic, hijack, aircraft weapons, mission board, blast table).
+(1) Air traffic uses the new roster of w126-planes and wave 125 helis: airliners take off and land on a schedule, light planes and helis cross the sky, all pooled and LOD'd. (2) At least 6 air missions
+on the mission board (dogfight, escort an airliner, bomb run, cargo drop, rescue by heli, race through rings), each finishable by touch, with the existing mission guide and checkpoints. (3) Aircraft
+weapons by class from the blast table: guns, rockets, missiles with lock-on, bombs, flares; touch buttons on the flight HUD kept clear (wave 116 view rules). Permanent test
+godot/tests/test_air_w126.gd by real touch events: traffic takes off and lands, every air mission starts and can be finished by a bot, each weapon kind fires and hits; each check failing on the old
+code. Render frames and LOOK. Budgets: never raise a perf limit, trim elsewhere. Coordinate with w126-planes, read its log.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 126 (label w126-critic), then its fixer. Assume it is broken until you have seen it work. With a finger-only bot of your own in the real main
+scene: fly at least 10 different plane kinds (take off, fly, land), enter a hangar, play 3 air missions to the end, fire every aircraft weapon kind, watch air traffic at the airport for 2 minutes, and
+measure frame time and draws in flight at LOW and MED. Look for planes that cannot take off or land, clipping, wrong scale, traffic collisions, unfinishable missions, HUD overlap. List the 8 worst
+defects with evidence, fix them most severe first, each with a check that fails without the fix. If you cannot fix one, write exactly why.`,
+    commit: 'Wave 126: aeroplane roster (30+ kinds), hangars, air traffic, air missions, aircraft weapons',
   },
 }
 const W = WAVES[N]
