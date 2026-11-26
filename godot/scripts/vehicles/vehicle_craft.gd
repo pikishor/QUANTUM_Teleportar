@@ -251,6 +251,64 @@ static func _move_air(v: Vehicle, dt: float) -> void:
 		if c.vy < 0.0:
 			c.vy = 0.0
 		c.airborne = false
+	if rotor_fix and v.cls == &"heli" and c.airborne and v.driver_is_player:
+		_rotor_clear(v)
+
+
+## w125-critic (defect 1: "the rotor disc goes into the building"): the body collider is only the fuselage, so a helicopter flown at a wall stopped with its
+## rotor disc half inside the facade. Horizontal rays from each rotor hub (Rotor / Rotor2 of the model) out to the rotor radius: a wall within the disc pushes
+## the machine out to the rim and turns its speed into the wall into a bounce (a rotor strike hurts like a wall hit). Only the player's helicopter, 8 rays per hub.
+## W125C_OLD=1 (or rotor_fix = false): the old behaviour for the fail-first run.
+static var rotor_fix := OS.get_environment("W125C_OLD") != "1"
+const ROTOR_RAYS := 8
+
+
+static func rotor_hubs(v: Vehicle) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var m: Node3D = v.visual.model if v.visual != null and is_instance_valid(v.visual.model) else null
+	if m != null:
+		for n in ["Rotor", "Rotor2"]:
+			var r := m.get_node_or_null(n) as Node3D
+			if r != null:
+				out.append(v.global_transform * (m.transform * r.position))
+	if out.is_empty():
+		out.append(v.global_position + Vector3(0.0, float(v.spec.get("hgt", 4.0)) * 0.85, 0.0))
+	return out
+
+
+static func _rotor_clear(v: Vehicle) -> void:
+	var rr := float(v.spec.get("rotor_r", 0.0))
+	if rr <= 0.5:
+		return
+	var space := v.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.new()
+	q.collision_mask = v.collision_mask
+	q.exclude = [v.get_rid()]
+	for hub in rotor_hubs(v):
+		for i in ROTOR_RAYS:
+			var a := TAU * float(i) / float(ROTOR_RAYS)
+			var d := Vector3(cos(a), 0.0, sin(a))
+			q.from = hub
+			q.to = hub + d * rr
+			var hit := space.intersect_ray(q)
+			if hit.is_empty():
+				continue
+			var n: Vector3 = hit["normal"]
+			if absf(n.y) > 0.6 or hit.get("collider") is Vehicle:
+				continue
+			var nf := Vector3(n.x, 0.0, n.z).normalized()
+			var depth := rr - hub.distance_to(hit["position"])
+			v.global_position += nf * maxf(depth * nf.dot(-d), 0.0)
+			var vn := v.vel.dot(nf)
+			if vn < 0.0:
+				v.vel -= 1.3 * vn * nf
+				v.speed = v.vel.dot(v.forward())
+				if -vn > WALL_HIT:
+					v.hits += 1
+					v.damage(-vn * WALL_DAMAGE)
+					FX.burst(hit["position"], Color(1.0, 0.75, 0.38), 8, 5.0, 0.3, 8.0, 0.3)
+					Sfx.play_at(&"hit", v.global_position, -4.0)
+					FX.shake(minf(1.0, -vn / 25.0))
 
 
 # --- boat -----------------------------------------------------------------------------------------------------------------------------

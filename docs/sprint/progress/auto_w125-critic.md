@@ -1,6 +1,6 @@
 # w125-critic (running)
 
-agent id ae5128073bc00ca51, 181 events, first activity 2026-11-26T12:12:55.587Z, last activity 2026-11-26T12:58:01.481Z
+agent id ae5128073bc00ca51, 201 events, first activity 2026-11-26T12:12:55.587Z, last activity 2026-11-26T13:00:11.031Z
 
 ## Last notes of the agent
 
@@ -9,16 +9,10 @@ agent id ae5128073bc00ca51, 181 events, first activity 2026-11-26T12:12:55.587Z,
 - 12:19:11 Meanwhile, look at heli flight forward code to understand the slow speed.
 - 12:29:29 Look at some frames while it runs.
 - 12:43:53 Meanwhile, look at the crash frame and the cockpit draw count issue.
+- 12:59:49 Now implement the rotor clearance fix.
 
 ## Recent steps (last 40)
 
-- 12:19:10 timeout 1500 bash -c 'while pgrep -f "bot_w125_critic" >/dev/null; do sleep 10; done'; S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e31...
-- 12:19:12 cd /home/user/QUANTUM_Teleportar/godot; grep -n "func _heli\|max\b\|\"max\"\|accel\|throttle" scripts/vehicles/vehicle_craft.gd | head -40
-- 12:19:13 cd /home/user/QUANTUM_Teleportar/godot; sed -n 183,250p scripts/vehicles/vehicle_craft.gd
-- 12:19:14 cd /home/user/QUANTUM_Teleportar/godot; grep -n "static func heli" -A60 scripts/vehicles/aircraft_flight.gd | head -80
-- 12:19:17 cd /home/user/QUANTUM_Teleportar/godot; grep -n '"acc"' scripts/vehicles/heli_roster.gd scripts/vehicles/vehicle_specs.gd | head; grep -n "&\"heli\": {\|&\"gunship\": ...
-- 12:19:18 cd /home/user/QUANTUM_Teleportar/godot; grep -n "h_scout\|h_tandem" scripts/vehicles/heli_roster.gd | head -5; grep -n "HeliRoster" scripts/vehicles/vehicle_specs.gd |...
-- 12:19:19 cd /home/user/QUANTUM_Teleportar/godot; sed -n 69,92p scripts/vehicles/vehicle_specs.gd | cut -c1-400
 - 12:19:26 timeout 1400 bash -c 'while pgrep -f "bot_w125_critic" >/dev/null; do sleep 10; done'; S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e31...
 - 12:29:28 ls /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/ | head -50
 - 12:29:30 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/chase_h_scout_q0.png
@@ -52,6 +46,13 @@ agent id ae5128073bc00ca51, 181 events, first activity 2026-11-26T12:12:55.587Z,
 - 12:47:43 cd /home/user/QUANTUM_Teleportar/godot; sed -n 30,75p scripts/ui/flight_hud.gd
 - 12:48:07 timeout 590 bash -c 'until [ -s /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/night.log ]; do sleep 10; done'; S=/tmp/...
 - 12:58:01 timeout 590 bash -c 'until [ -s /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/night.log ]; do sleep 10; done'; S=/tmp/...
+- 12:59:24 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/pad_w125_police_night.png
+- 12:59:26 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/cockpit_h_attack_night.png
+- 12:59:27 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/padfoot_w125_roof_west_night.png
+- 12:59:43 cd /home/user/QUANTUM_Teleportar/godot; sed -n 60,80p scripts/vehicles/heli_models.gd; grep -n "WALL_HIT\|WALL_DAMAGE" scripts/vehicles/vehicle_craft.gd | head -3; gre...
+- 12:59:47 cd /home/user/QUANTUM_Teleportar/godot; sed -n 250,275p scripts/vehicles/vehicle_craft.gd; grep -n "var visual\|var model" scripts/vehicles/vehicle.gd scripts/vehicles...
+- 13:00:00 cd /home/user/QUANTUM_Teleportar/godot; python3 - <<'E' p='scripts/vehicles/vehicle_craft.gd' s=open(p).read() old=''' v.global_position.y = gy if c.vy < 0.0: c.vy = 0...
+- 13:00:10 cd /home/user/QUANTUM_Teleportar/godot; cat tools/test.sh | head -20; grep -n "static func check" -A6 tests/test_lib.gd 2>/dev/null | head; ls tests | grep -i "test_li...
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
