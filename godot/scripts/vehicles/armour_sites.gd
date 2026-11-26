@@ -45,7 +45,7 @@ var _t := 0.0
 
 
 static func is_fixed(id: StringName) -> bool:
-	return fixed_on and (FIXED_CITY.has(id) or FIXED_AIRPORT.has(id))
+	return fixed_on and (FIXED_CITY.has(id) or FIXED_AIRPORT.has(id) or Helipads.owns(id))     # w125-pads: and the helicopters of the new pads
 
 
 ## The points this file adds to VehicleSpawns.all_points().
@@ -93,7 +93,9 @@ static func map_markers() -> Array[Dictionary]:
 	var heli := VehicleSpawns.point(&"ap_heli_a")
 	if not heli.is_empty():
 		out.append({"kind": &"armour", "pos": heli["pos"], "fog": false, "label": "HELICOPTERS", "glyph": &"heli"})
-	_markers = out
+	out.append_array(Helipads.map_markers())                     # w125-pads: an H badge on every helipad of the world (never fogged)
+	if OutskirtsSites.built or not Helipads.enabled:             # w125-pads: the towns' pads exist once the roads are built (cache the whole list only)
+		_markers = out
 	return out
 
 

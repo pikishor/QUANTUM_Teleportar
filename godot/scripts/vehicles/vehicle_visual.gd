@@ -311,7 +311,7 @@ func _add_beams(wid: float, hgt: float, ln: float) -> void:
 ## The roster craft (helicopter, plane, boat, tank): the animated nodes are found by name, their paint surface shares the hull's paint material, the glass gets the car glass, and the rotors
 ## get a blur disc each (VehicleCraft shows it above a spin speed).
 func _bind_craft(spec: Dictionary) -> void:
-	for nm: String in ["Rotor", "TailRotor", "Prop", "Turret"]:
+	for nm: String in ["Rotor", "Rotor2", "TailRotor", "Prop", "Turret"]:              # Rotor2: the second rotor of a tandem / coaxial / tilt-rotor helicopter (wave 125)
 		var n := model.get_node_or_null(NodePath(nm)) as Node3D
 		if n != null:
 			parts[nm] = n
@@ -333,7 +333,7 @@ func _bind_craft(spec: Dictionary) -> void:
 			var m := mi.mesh.surface_get_material(s)
 			if m != null and m.resource_name == "Body" and _body_mat != null:
 				mi.set_surface_override_material(s, _body_mat)             # the turret wears the hull paint
-	var disc_for := {"Rotor": "rotor_r", "Prop": "prop_r"}
+	var disc_for := {"Rotor": "rotor_r", "Rotor2": "rotor_r", "Prop": "prop_r"}
 	for nm: String in disc_for:
 		if parts.has(nm):
 			var r := float(spec.get(disc_for[nm], 1.3 if nm == "Prop" else 3.6))

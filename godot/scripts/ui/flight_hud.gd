@@ -66,6 +66,28 @@ static func instruments_rect(vp: Vector2, s: float, ins: Vector2) -> Rect2:
 	return Rect2(c.x - r - 4.0 * s, c.y - r - 4.0 * s, r * 2.0 + 14.0 * s + 150.0 * s, r * 2.0 + 44.0 * s)
 
 
+static var badge_fix := OS.get_environment("W125C_OLD") != "1"
+
+
+## w125-critic: the rect of the helicopter's name badge over the horizon (HeliRoster.draw_badge), Rect2() when it is not drawn. The badge sits in the gap between the
+## radio plate and the horizon: while a radio line shows there is no room for it (the plate covered it), so it steps aside until the line is gone.
+static func badge_rect(vp: Vector2, s: float, ins: Vector2, v: Object) -> Rect2:
+	if not (v is Vehicle) or not HeliRoster.is_heli((v as Vehicle).kind):
+		return Rect2()
+	var r := 74.0 * s
+	var centre := ball_centre(vp, s, ins)
+	var font := UiUtil.font()
+	var fs := int(18.0 * s)
+	var w := 64.0 * s + font.get_string_size(VehicleSpecs.name_of((v as Vehicle).kind), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 18.0 * s
+	var h := 38.0 * s
+	var rect := Rect2(centre.x - w * 0.5, centre.y - r - 10.0 * s - h, w, h)
+	if badge_fix and is_instance_valid(Game.story) and Game.story.get(&"view") != null:
+		var sub: Rect2 = (Game.story.get(&"view") as Object).call(&"subtitle_rect", vp)
+		if sub.has_area() and sub.grow(5.0 * s).intersects(rect):
+			return Rect2()
+	return rect
+
+
 static func visible_for(veh: Object) -> bool:
 	return veh is Vehicle and (veh as Vehicle).craft != null and ((veh as Vehicle).cls == &"heli" or (veh as Vehicle).cls == &"plane")
 
@@ -87,6 +109,8 @@ static func draw(c: Control, font: Font, vp: Vector2, s: float, ins: Vector2, ve
 	var vs := float(d["vspeed"])
 	_vs_arrow(c, Vector2(ax + 22.0 * s, centre.y - r + 74.0 * s), vs, s)
 	_label(c, font, Vector2(ax + 46.0 * s, centre.y - r + 56.0 * s), Vector2(110.0 * s, 28.0 * s), "%+d" % roundi(vs), (AMBER if vs < -6.0 else CYAN), s)
+	if HeliRoster.is_heli(v.kind) and badge_rect(vp, s, ins, v).has_area():          # wave 125: which of the 23 helicopters this is (its icon and name over the horizon)
+		HeliRoster.draw_badge(c, font, Vector2(centre.x, centre.y - r - 10.0 * s), s, v.kind)
 	if bool(d["plane"]):
 		_throttle(c, Vector2(centre.x - r - 12.0 * s, centre.y + r), r * 2.0, float(d["throttle"]), s)
 	# the stall warning: centre top, flashing

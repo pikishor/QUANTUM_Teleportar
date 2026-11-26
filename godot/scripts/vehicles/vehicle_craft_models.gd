@@ -21,6 +21,8 @@ var _n: Array = [PackedVector3Array(), PackedVector3Array(), PackedVector3Array(
 
 ## The model root of a procedural kind ("quad", "scooter"): Body mesh, wheels and lamp strips. `spec` is the VehicleSpecs entry.
 static func build(kind: String, spec: Dictionary) -> Node3D:
+	if HeliRoster.DEFS.has(StringName(kind)):                                 # wave 125: the twenty helicopters of the roster (HeliModels, shared meshes per kind)
+		return HeliModels.build(kind, spec)
 	var m := VehicleCraftModels.new()
 	var root := Node3D.new()
 	root.name = String(spec["model"])
