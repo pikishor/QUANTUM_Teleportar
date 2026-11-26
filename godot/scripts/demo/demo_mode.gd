@@ -265,7 +265,68 @@ static func catalog() -> Array[Dictionary]:
 	out.append({"kind": &"safehouse", "title": "SAFEHOUSES", "items": shs})
 	out.append({"kind": &"crafting", "title": "WORKBENCH", "items": [{"id": &"bench", "label": "OPEN THE WORKBENCH"}, {"id": &"parts", "label": "ADD PARTS AND BLUEPRINTS"},
 		{"id": &"kit", "label": "CRAFT AND EQUIP A LEGENDARY KIT"}, {"id": &"drop", "label": "ROLL A MISSION DROP"}]})
+	var wps: Array[Dictionary] = []                     # wave 124 (owner: "select all weapons ... like a god mode"): every weapon of the roster, class by class
+	for cls: StringName in WeaponDefs.CLASS_NAMES:
+		for id: StringName in WeaponDefs.ids_in_class(cls):
+			wps.append({"id": id, "label": WeaponDefs.title(id), "cls": WeaponDefs.CLASS_NAMES[cls]})
+	var seen := {}
+	for w: Dictionary in wps:
+		seen[w["id"]] = true
+	for id: StringName in WeaponDefs.IDS:
+		if not seen.has(id):
+			wps.append({"id": id, "label": WeaponDefs.title(id), "cls": "OTHER"})
+	out.append({"kind": &"weapon", "title": "WEAPONS  EVERY GUN, TAP TO EQUIP (FULL AMMO)", "items": wps})
 	return out
+
+
+## Equips any weapon of the roster at once (unlocked first, ammo filled).
+static func equip_weapon(id: StringName) -> String:
+	var p := Game.player as Player
+	if p == null or p.weapon == null or not WeaponDefs.DEFS.has(id):
+		return ""
+	var prog := Game.progress as Progress
+	if not WeaponDefs.is_unlocked(id):
+		var was := CrateReveal.enabled
+		CrateReveal.enabled = false
+		if prog != null:
+			prog.grant_weapon(id)
+		else:
+			WeaponDefs.unlock(id)
+		CrateReveal.enabled = was
+		CrateReveal.clear()
+	if p.weapon.current != id:
+		p.weapon.switch_to(id, true)
+	TestMode.fill_ammo()
+	return "EQUIPPED  %s" % WeaponDefs.title(id) if p.weapon.current == id else ""
+
+
+static func max_money() -> String:
+	var prog := Game.progress as Progress
+	if prog == null:
+		return ""
+	prog.credits = CREDITS
+	prog.changed.emit()
+	return "CREDITS  %d" % CREDITS
+
+
+static func money_full() -> bool:
+	var prog := Game.progress as Progress
+	return prog != null and prog.credits >= CREDITS
+
+
+static func unlock_all() -> String:
+	var prog := Game.progress as Progress
+	if prog == null:
+		return ""
+	_grant_all(prog)
+	return "EVERYTHING UNLOCKED"
+
+
+static func all_unlocked() -> bool:
+	for id: StringName in WeaponDefs.IDS:
+		if not WeaponDefs.is_unlocked(id):
+			return false
+	return true
 
 
 ## Runs one catalogue entry; returns a status line ("" when it could not run). The game must be in play (the menu closes first).
@@ -285,6 +346,7 @@ static func launch(kind: StringName, id: Variant) -> String:
 		&"arena": return start_arena(str(id))
 		&"safehouse": return start_safehouse(StringName(id))
 		&"crafting": return start_crafting(StringName(id))
+		&"weapon": return equip_weapon(StringName(id))
 		&"boss":
 			_prepare()
 			return TestMode.start_contract(&"boss") if StringName(id) == &"contract" else TestMode.spawn_enemy(StringName(id))
@@ -299,10 +361,15 @@ static func launch(kind: StringName, id: Variant) -> String:
 
 
 ## Stops what runs so a new launch starts clean: the interior (optional), the activity, the side mission, the contract and the campaign step.
-static func _prepare(leave_interior := true) -> void:
+static func _prepare(leave_interior := true, leave_car := false) -> void:
 	var ig := InteriorGameplay.instance
 	if leave_interior and ig != null and ig.active:
 		ig.leave(true)
+	var p := Game.player as Player
+	if leave_car and p != null and is_instance_valid(p.vehicle):          # wave 124: a chase leaves the hero at the wheel and the next stealth entry refused to start (only stealth asks: leaving the car in every prepare broke the escort/duel chase starts, test_chase_set_pieces)
+		var vm := p.vehicle.get(&"manager") as VehicleManager
+		if vm != null:
+			vm.exit_vehicle()
 	var acts := _activities()
 	if acts != null and acts.active != &"":
 		acts.stop()
@@ -375,7 +442,7 @@ static func start_stealth(id: StringName) -> String:
 	var m := Game.missions as Missions
 	if m == null or m.stealth == null or not StealthScripts.DEFS.has(id):
 		return ""
-	_prepare()
+	_prepare(true, true)                                     # wave 124: out of the car first (a chase leaves him at the wheel)
 	if is_instance_valid(Game.enemies):
 		(Game.enemies as EnemyManager).clear()          # hunters from an earlier alarm would follow through the door and spoil the run
 	Game.heat = 0.0
