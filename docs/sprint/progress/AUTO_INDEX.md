@@ -31,3 +31,7 @@ Written by godot/tools/sprint_digest.py at 2026-11-26 14:27Z. Status 'running' m
 - w125-integrator [Integrate] done: 106 events, 13:20:58 -> 13:50:14
 - w125-ci-apk [CI and APK] done: 27 events, 13:50:14 -> 13:50:26
 
+## workflow run wf_57efbb23-772
+
+- w125-ci-apk [CI and APK] running: 27 events, 14:27:38 -> 14:27:50
+
