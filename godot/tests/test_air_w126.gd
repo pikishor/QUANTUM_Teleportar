@@ -173,14 +173,35 @@ func _enter(v: Vehicle) -> bool:
 	var v0 := v.global_position
 	await _stand_at(v.global_position + side, v.global_position)
 	fg.stick(Vector2(0.0, -0.6))
-	var shown := await _until(func() -> bool: return fg.button_label(&"interact") == "ENTER" and v.edge_distance(p.global_position) < VehicleSpecs.ENTER_REACH - 0.6, 8.0)
+	var trace: Array[String] = []
+	var n := [0]
+	var shown := await _until(func() -> bool:
+		n[0] += 1
+		if n[0] % 20 == 1:
+			trace.append(_enter_state(v))
+		return fg.button_label(&"interact") == "ENTER" and v.edge_distance(p.global_position) < VehicleSpecs.ENTER_REACH - 0.6, 8.0)
 	fg.stick(Vector2.ZERO)
 	await _f(3)
 	await _tap(&"interact")
 	await _until(func() -> bool: return p.vehicle == v, 1.5)
 	if p.vehicle != v:
 		print("DBG enter %s: label '%s' shown %s dist %.1f edge %.1f dy %.1f near %s" % [v.kind, fg.button_label(&"interact"), shown, _flat(p.global_position, v.global_position), v.edge_distance(p.global_position), p.global_position.y - v.global_position.y, vm.nearest(p.global_position, 6.0)])
+		print("DBG enter %s: from %s (plane at %s h %.2f when the walk began)" % [v.kind, v0 + side, v0, v.heading])
+		for line in trace:
+			print("DBG walk " + line)
+		print("DBG end " + _enter_state(v))
 	return p.vehicle == v
+
+
+## One line of the boarding walk for the failure log (w126-ci-apk): the hero, the aircraft and what the DOOR slot of the touch layer sees.
+func _enter_state(v: Vehicle) -> String:
+	var rc: Vehicle = vm.reach_car(p.global_position)
+	var held: Array = []
+	for b: Dictionary in fg.tc._held.values():
+		held.append(b["action"])
+	return "t %d hero %s v %s act %s ai %s hold %s h %.2f spd %.1f edge %.1f label '%s' near %s slot %s reach %s held %s interior %s fps %.0f" % [Time.get_ticks_msec(), p.global_position.snapped(Vector3.ONE * 0.1),
+			v.global_position.snapped(Vector3.ONE * 0.1), v.active, v.ai, v.has_meta(&"hold"), v.heading, v.speed, v.edge_distance(p.global_position), fg.button_label(&"interact"),
+			fg.tc._use_near, fg.tc._slot_enter, rc.name if rc != null else "-", held, InteriorGameplay.active, Engine.get_frames_per_second()]
 
 
 ## The bot pilot puts the aircraft at `at`, nose to `face`, flying at `spd` (airborne).
