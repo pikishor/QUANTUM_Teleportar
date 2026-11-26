@@ -8,7 +8,7 @@ extends CanvasLayer
 signal opened
 signal closed
 
-const TABS: Array[String] = ["CHAPTERS", "SIDE", "ACTIVITY", "SET PIECE", "BOSS", "EVENT", "CONTRACT", "INTERIOR", "SEQUEL", "CHASE", "ALLY", "STEALTH", "HEIST", "ARENA", "SAFEHOUSE", "WORKBENCH", "SPAWN", "TOOLS"]
+const TABS: Array[String] = ["CHAPTERS", "SIDE", "ACTIVITY", "SET PIECE", "BOSS", "EVENT", "CONTRACT", "INTERIOR", "SEQUEL", "CHASE", "ALLY", "STEALTH", "HEIST", "ARENA", "SAFEHOUSE", "WORKBENCH", "WEAPONS", "SPAWN", "TOOLS"]
 const BG := Color(0.01, 0.03, 0.05, 1.0)
 const PANEL := Color(0.05, 0.13, 0.17, 1.0)
 const ON := Color(0.1, 0.55, 0.45, 1.0)
@@ -120,7 +120,7 @@ func _head(text: String) -> Dictionary:
 
 ## A launch entry: the menu closes (the game runs again), then the action starts.
 func _go(label: String, kind: StringName, id: Variant) -> Dictionary:
-	return {"label": label, "launch": true, "fn": func() -> void: _launch(kind, id), "on": null}
+	return {"label": label, "launch": true, "fn": func() -> void: _launch(kind, id), "on": null, "id": id, "kind": kind}
 
 
 func _btn(label: String, fn: Callable, on: Variant = null) -> Dictionary:
@@ -144,7 +144,19 @@ func _page_items() -> Array[Dictionary]:
 		var g: Dictionary = _catalog[page]
 		out.append(_head(String(g["title"])))
 		for it: Dictionary in g["items"]:
-			out.append(_go(String(it["label"]), g["kind"], it["id"]))
+			if g["kind"] == &"weapon":            # wave 124: the armoury stays open (tap several, the one in hand is lit), CLOSE goes back to play
+				var wid: StringName = it["id"]
+				if out.is_empty() or String(it.get("cls", "")) != String(out[out.size() - 1].get("cls", "")):
+					var h := _head(String(it.get("cls", "")))     # a class heading row (the labels stay short enough for a phone button)
+					h["cls"] = it.get("cls", "")
+					out.append(h)
+				var b := _btn(String(it["label"]), func() -> void: status = DemoMode.equip_weapon(wid), func() -> bool: return Game.player is Player and (Game.player as Player).weapon != null and (Game.player as Player).weapon.current == wid)
+				b["id"] = wid
+				b["kind"] = &"weapon"
+				b["cls"] = it.get("cls", "")
+				out.append(b)
+			else:
+				out.append(_go(String(it["label"]), g["kind"], it["id"]))
 		return out
 	match TABS[page]:
 		"SPAWN":
@@ -168,6 +180,8 @@ func _page_items() -> Array[Dictionary]:
 			out.append(_head("TOGGLES"))
 			out.append(_btn("GOD MODE", func() -> void: TestMode.toggle(&"god"), func() -> bool: return TestMode.god))
 			out.append(_btn("INFINITE AMMO", func() -> void: TestMode.toggle(&"ammo"), func() -> bool: return TestMode.infinite_ammo))
+			out.append(_btn("MAX MONEY", func() -> void: status = DemoMode.max_money(), func() -> bool: return DemoMode.money_full()))       # wave 124: god mode toggles (owner)
+			out.append(_btn("UNLOCK ALL", func() -> void: status = DemoMode.unlock_all(), func() -> bool: return DemoMode.all_unlocked()))
 			out.append(_head("NOW"))
 			out.append(_act("HEAL AND FILL AMMO", _heal))
 			out.append(_act("REVEAL THE MAP", DemoMode.reveal_map))
