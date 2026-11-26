@@ -511,7 +511,8 @@ func _teardown() -> void:
 	if city.sites != null:
 		city.sites.set_process(false)
 	await frames(6)
-	var nodes_before := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var nodes_before := _counted()
+	var g0 := _node_groups()
 	var d := ig.doors_of(&"bar", p.global_position)[0]
 	for i in 6:
 		ig.enter(d, true)
@@ -519,7 +520,15 @@ func _teardown() -> void:
 		ig.leave(true)
 		await frames(4)
 	await frames(10)
-	var after := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var after := _counted()
+	if after - nodes_before > 12:                                    # w125-ci: name where the nodes are (the runner's log is the only place this shows)
+		var g1 := _node_groups()
+		for k in g1:
+			if int(g1[k]) != int(g0.get(k, 0)):
+				print("leak: %s %+d" % [k, int(g1[k]) - int(g0.get(k, 0))])
+		for k in g0:
+			if not g1.has(k):
+				print("leak: %s %+d" % [k, -int(g0[k])])
 	vm.stream_every = stream_every
 	vm._stream_t = 0.0
 	if city.sites != null:
@@ -534,3 +543,42 @@ func _teardown() -> void:
 class CityDoorsProbe extends RefCounted:
 	static func compute(c: City) -> Array[Dictionary]:
 		return (load("res://scripts/world/city_doors.gd") as GDScript).compute(c.layout, c.building_data)
+
+
+## The node count without the world's streamed population (w125-ci). The hero is taken to the interior room at about (1049, 0, 2) and back six times, and every streamer that
+## works by the hero's position reacts to that far place: per-node diffs of the failing runs here (DejaVu font, 3 copies in parallel) named +13 under World/Aliens (an alien site
+## within AlienWorld.MESH_R of the room built its mesh and body, freed only beyond 1700 m), and +33 = two wildlife animals (World/Wildlife, 8 nodes each) and a street patrol's
+## two STRIKER drones (EnemyManager) spawned for the first time. Runner: CI 45847631664 FAIL on both attempts (4214 -> 4227), 45832989677 FLAKY +17, 45672210947 FLAKY +13.
+## The live vehicles (paused anyway), the enemy drones (pooled), the wildlife and the alien sites are left out; everything the doors and rooms make is counted.
+func _counted() -> int:
+	var n := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	for m: Node in [Game.vehicles as Node, city.get_node_or_null(^"Wildlife"), city.get_node_or_null(^"Aliens")]:
+		if is_instance_valid(m):
+			n -= _subtree(m)
+	var em := Game.enemies as Node
+	if is_instance_valid(em):
+		for d in em.get_children():
+			if d is Drone:
+				n -= _subtree(d)
+	return n
+
+
+func _subtree(n: Node) -> int:
+	var c := 1
+	for ch in n.get_children(true):
+		c += _subtree(ch)
+	return c
+
+
+## Nodes of the tree by their path's first six parts, plus the orphans (printed when the leak check fails).
+func _node_groups() -> Dictionary:
+	var out := {"(orphans)": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))}
+	_node_group(p.get_tree().root, out)
+	return out
+
+
+func _node_group(n: Node, out: Dictionary) -> void:
+	var k := "/".join(Array(str(n.get_path()).split("/")).slice(0, 7))
+	out[k] = int(out.get(k, 0)) + 1
+	for ch in n.get_children(true):
+		_node_group(ch, out)

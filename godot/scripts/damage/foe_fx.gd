@@ -441,7 +441,8 @@ func _splatter(en: Node3D, at: Vector3, dir: Vector3, camp: StringName, k: float
 		q.collision_mask = Game.L_WORLD
 		q.collide_with_areas = false
 		var h := vp.world_3d.direct_space_state.intersect_ray(q)
-		if not h.is_empty() and absf((h["normal"] as Vector3).y) < 0.6 and not (h["collider"] as Node).has_meta(&"bk_index"):
+		# w125-ci: the ray can return a collider that was freed in this frame (a body queue_freed after the physics step: collider null): test_full_quick FLAKY in CI 45832989677
+		if not h.is_empty() and absf((h["normal"] as Vector3).y) < 0.6 and is_instance_valid(h.get("collider")) and not (h["collider"] as Node).has_meta(&"bk_index"):
 			FX.marks.splat(h["position"], h["normal"], _rng.randf_range(0.7, 1.2) * k, col)
 			Dmg.bump(&"splat_wall")
 

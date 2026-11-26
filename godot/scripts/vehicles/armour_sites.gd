@@ -45,7 +45,7 @@ var _t := 0.0
 
 
 static func is_fixed(id: StringName) -> bool:
-	return fixed_on and (FIXED_CITY.has(id) or FIXED_AIRPORT.has(id) or Helipads.owns(id))     # w125-pads: and the helicopters of the new pads
+	return fixed_on and (FIXED_CITY.has(id) or FIXED_AIRPORT.has(id) or Helipads.owns(id) or HeliRoster.owns(id))     # w125-pads: and the helicopters of the new pads (w125-ci: and of the HELI LINE)
 
 
 ## The points this file adds to VehicleSpawns.all_points().

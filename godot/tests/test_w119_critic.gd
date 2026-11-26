@@ -172,6 +172,16 @@ func _labels() -> void:
 	_ck(bl != "" and clash == "", "the fire species' BLAST button does not read like another button (%s vs %s)" % [bl, clash])
 
 
+## w125-ci: the wheel opens after TouchControls.WHEEL_HOLD (0.4 s) of a held finger, measured in SECONDS. The test waited 60 process FRAMES: headless frames are not capped
+## (Engine.max_fps 0), 113 fps here (0.4 s = 45 frames), so on a faster runner 60 frames ended before 0.4 s and "the weapon wheel opens to reach the BOMBS wedge" failed
+## (CI 45587916456 FLAKY, 45628912199 and 45847631664 FAIL on both attempts). The wait is now in seconds: up to 1.5 s, which still fails a wheel that never opens.
+func _wheel_opens(secs := 1.5) -> bool:
+	var t0 := Time.get_ticks_msec()
+	while not a.tc.wheel.is_open and Time.get_ticks_msec() - t0 < int(secs * 1000.0):
+		await a.tree.process_frame
+	return a.tc.wheel.is_open
+
+
 ## 3: a real finger held on WEAPON opens the weapon wheel; letting go keeps the weapon.
 func _weapon_hold() -> void:
 	await _street()
@@ -179,7 +189,7 @@ func _weapon_hold() -> void:
 	if not _ck(not w.is_empty(), "WEAPON is on screen on foot"):
 		return
 	a.finger_down(a.centre_of(w))
-	var opened := await a.until(func() -> bool: return a.tc.wheel.is_open, 60)
+	var opened := await _wheel_opens()
 	_ck(opened and a.tc.wheel.kind == &"weapon", "holding WEAPON with a finger opens the weapon wheel")
 	a.finger_up()
 	await a.frames(4)
@@ -195,7 +205,7 @@ func _bomb_sky() -> void:
 	p.snake.energy = SnakePower.max_energy()
 	var w := a.hud_button("swap")
 	a.finger_down(a.centre_of(w))
-	if not await a.until(func() -> bool: return a.tc.wheel.is_open, 60):
+	if not await _wheel_opens():
 		a.finger_up()
 		_ck(false, "the weapon wheel opens to reach the BOMBS wedge")
 		return

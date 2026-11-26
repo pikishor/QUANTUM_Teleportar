@@ -236,6 +236,14 @@ func _roofs_and_ledges() -> void:
 
 # --- sweeps over the whole city -----------------------------------------------------------------------------------------------
 
+## The wave 125 raised roof helipad on lot `index` (Helipads.new_pads), {} for none.
+func _raised_pad(index: int) -> Dictionary:
+	for pd: Dictionary in Helipads.new_pads():
+		if bool(pd.get("raised", false)) and int(pd.get("lot", -1)) == index:
+			return pd
+	return {}
+
+
 ## A sample spread over the whole city: every 5th building crown and every 4th junction, the player dropped from 0.5 m to 1.5 m, must land at the height the world reports
 ## (a collider that is missing, shifted or a different height from what is drawn shows up here, whatever the building class or the position).
 func _sweeps() -> void:
@@ -244,6 +252,8 @@ func _sweeps() -> void:
 	city.update_colliders(Vector3(0.0, -2000.0, 0.0))
 	var good := 0
 	var tried := 0
+	var pads_good := 0
+	var pads_tried := 0
 	for i in range(0, lots.size(), 5):
 		var lot := lots[i]
 		if lot.index == int(Airport.roof().get("lot", -1)):
@@ -253,6 +263,14 @@ func _sweeps() -> void:
 		var top: Array = parts[parts.size() - 1]
 		var x: float = lot.cx + (top[0] + top[1]) * 0.5 * lot.w + 0.7
 		var z: float = lot.cz + (top[2] + top[3]) * 0.5 * lot.d - 0.9
+		var pad := _raised_pad(lot.index)
+		if not pad.is_empty():
+			# w125-ci (CI 45832989677, lot 1740): a wave 125 raised helipad stands on this crown (its deck Helipads.LIFT m up on legs, r + 1.2 m wide, steps on its +z side), so the
+			# middle of the crown is under the deck. The bare crown is sampled at its -x -z corner (2 m in, outside the deck and the steps); the deck itself is checked below.
+			x = lot.cx + top[0] * lot.w + 2.0
+			z = lot.cz + top[2] * lot.d + 2.0
+			if Vector2(x - (pad["pos"] as Vector3).x, z - (pad["pos"] as Vector3).z).length() < float(pad["r"]) + 1.2 + 0.5:
+				printerr("crown of lot %d: the corner sample is under the helipad deck" % lot.index)
 		var y := city.ground_height(x, z)
 		tried += 1
 		await prep(Vector3(x, y + 1.5, z), -PI * 0.5, -0.1, 24)
@@ -260,8 +278,19 @@ func _sweeps() -> void:
 			good += 1
 		else:
 			printerr("crown of lot %d (%s, h=%.0f) at (%.1f, %.1f): y=%.3f on_floor=%s ground_height=%.3f" % [lot.index, b.get(&"cls"), lot.h, x, z, p.global_position.y, str(p.is_on_floor()), y])
+		if not pad.is_empty():
+			# ...and the deck of that pad, once it is built near the hero (Helipads builds a pad within BUILD_IN m): the hero lands on its surface (pad pos.y = roof + LIFT)
+			var pp: Vector3 = pad["pos"]
+			await prep(Vector3(pp.x + 2.0, pp.y + 1.5, pp.z - 2.0), -PI * 0.5, -0.1, 24)
+			if Helipads.instance != null and Helipads.instance._built.has(pad["id"]):
+				pads_tried += 1
+				if p.is_on_floor() and absf(p.global_position.y - pp.y) < 0.03:
+					pads_good += 1
+				else:
+					printerr("helipad deck %s on lot %d: y=%.3f on_floor=%s deck=%.3f" % [pad["id"], lot.index, p.global_position.y, str(p.is_on_floor()), pp.y])
 	city.prop_colliders().enabled = true
 	TestLib.check(tried >= 40 and good == tried, "a sample of %d building crowns spread over the city: the player lands on each at the reported height (%d)" % [tried, good])
+	TestLib.check(pads_good == pads_tried, "...and on the deck of each raised helipad built on a sampled crown (%d of %d)" % [pads_good, pads_tried])
 	good = 0
 	tried = 0
 	for i in range(0, city.intersections.size(), 4):
