@@ -24,7 +24,7 @@ const USE_REACH := 4.2              ## metres: a vehicle this close enables USE
 ##   snake flight FIRE   AIM      UP      BOOST    DOWN    -      LAND
 ##   car / boat   GAS    FIRE*    BRAKE   HANDBRAKE -      -      EXIT                          left row: HORN VIEW                  (* an armed car only)
 ##   tank         FIRE   2nd gun  BRAKE   -        -       -      EXIT                          left row: VIEW SHELL
-##   heli / plane FIRE   ROCKET   UP      -        DOWN    -      EXIT                          left row: VIEW
+##   heli / plane FIRE   ARM*     UP      FLARE**  DOWN    -      EXIT                          top chips: ARMS (next arm) VIEW       (w126-air: * ROCKET / MISSILE / BOMB / DROP with its count, ** when it carries flares)
 ##   indoors      FIRE   AIM      JUMP    USE      -       -      LEAVE
 ## The DOOR slot is the way out of the mode in every mode (ENTER / EXIT / LAND / LEAVE). The stick (left thumb) walks, steers and flies; a drag on the open screen looks around
 ## and turns a turret. MORE (top) holds only the rare extras (ALT, MELEE, THROW, GADGET, CALL CAR, RADIO, GARAGE, ally orders): nothing a mode needs is behind it.
@@ -57,7 +57,7 @@ const BUTTONS := [
 	{"action": &"reload", "dx": 172.0, "dy": 352.0, "r": 42.0, "fs": 18, "label": "RELOAD", "need": &"reload_chip", "side": &"left", "chip": true},       # wave 119: an edge chip (the magazine also reloads by itself when empty)
 	{"action": &"horn", "dx": 62.0, "dy": 352.0, "r": 42.0, "fs": 20, "label": "HORN", "need": &"horn", "fn": &"horn", "side": &"left"},
 	{"action": &"veh_view", "dx": 168.0, "dy": 352.0, "r": 42.0, "fs": 20, "label": "VIEW", "need": &"view_ground", "side": &"left"},     # driving camera: chase / far / hood
-	{"action": &"veh_view", "dx": 305.0, "dy": 270.0, "r": 44.0, "fs": 20, "label": "VIEW", "need": &"view_air"},       # an aircraft: the flight instruments stand where the left row is
+	{"action": &"veh_view", "dx": 382.0, "dy": 118.0, "r": 42.0, "fs": 18, "label": "VIEW", "need": &"view_air", "top": true, "chip": true},       # an aircraft: the flight instruments stand where the left row is; w126-air: a top chip beside ARMS (the MID slot is FLARE: the owner's circle count holds)
 	{"action": &"ammo_type", "dx": 278.0, "dy": 352.0, "r": 42.0, "fs": 20, "label": "SHELL", "need": &"shell", "side": &"left"},     # a shell gun (tank, artillery): the next shell type
 	{"action": &"altfire", "dx": 476.0, "dy": 222.0, "r": 41.0, "fs": 22, "label": "ALT", "need": &"more", "top": true},
 	{"action": &"melee", "dx": 268.0, "dy": 222.0, "r": 46.0, "fs": 22, "label": "MELEE", "need": &"more", "top": true},
@@ -76,6 +76,8 @@ const BUTTONS := [
 	{"action": &"skip_piece", "dx": 290.0, "dy": 78.0, "r": 46.0, "fs": 16, "label": "SKIP SET PIECE", "need": &"skip_piece", "fn": &"skip", "top": true, "side": &"left"},
 	{"action": &"radio_next", "dx": 268.0, "dy": 222.0, "r": 46.0, "fs": 22, "label": "RADIO", "need": &"radio", "call": true, "top": true},
 	{"action": &"look_back", "dx": 476.0, "dy": 222.0, "r": 46.0, "fs": 22, "label": "BACK", "need": &"drive_more", "top": true},       # held: look behind the car (MORE while driving)
+	{"action": &"flare", "dx": 305.0, "dy": 270.0, "r": 48.0, "fs": 22, "label": "FLARE", "need": &"flare"},       # w126-air: the MID slot in the air: a burst of flares fools the missiles homing on the aircraft (AirArms)
+	{"action": &"ammo_type", "dx": 268.0, "dy": 118.0, "r": 44.0, "fs": 18, "label": "ARMS", "need": &"arms_cycle", "top": true, "chip": true},       # w126-air: where WEAPON sits on foot: the next arm of the aircraft (ROCKET -> MISSILE -> BOMB ...)
 ]
 ## The modes a `need` can show in (the sets of the table above). Two buttons that share no mode are never on screen together and may share a slot.
 const ALL_MODES: Array[StringName] = [&"foot", &"flight", &"interior", &"car", &"boat", &"tank", &"air"]
@@ -87,7 +89,7 @@ const NEED_MODES := {
 	&"down": [&"flight", &"air"], &"vehicle": [&"foot", &"interior", &"car", &"boat", &"tank", &"air"], &"interior": [&"interior"], &"use_in": [&"interior"], &"weapon": ON_FOOT, &"quantum": ON_FOOT,
 	&"foot_ground": [&"foot", &"interior"], &"horn": [&"car"], &"view_ground": [&"car", &"boat", &"tank"], &"view_air": [&"air"], &"shell": [&"tank"],
 	&"more": ON_FOOT, &"more_gadget": ON_FOOT, &"more_ammo": ON_FOOT, &"more_c4": ON_FOOT, &"more_ult": ON_FOOT, &"more_companion": ON_FOOT, &"more_garage": [&"foot", &"flight"],
-	&"grab": ON_FOOT, &"garage_open": DRIVEN, &"radio": DRIVEN, &"drive_more": DRIVEN,
+	&"grab": ON_FOOT, &"garage_open": DRIVEN, &"radio": DRIVEN, &"drive_more": DRIVEN, &"flare": [&"air"], &"arms_cycle": [&"air"],
 }
 
 
@@ -193,6 +195,7 @@ var _late := {}                     ## action -> [physics frame, process frame]:
 
 
 func _ready() -> void:
+	AirArms.ensure_actions()                       # w126-air: the FLARE button's action
 	layer = 9
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	controls_on = Game.force_touch or DisplayServer.is_touchscreen_available()
@@ -659,6 +662,11 @@ func button_visible(b: Dictionary) -> bool:
 		&"arms2":            # the driven craft carries rockets, missiles or a second gun
 			var dv: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
 			return dv != null and dv.get("weapons") != null and bool(dv.get("weapons").call(&"has_alt")) and _craft_class() in [&"heli", &"plane", &"tank"]
+		&"flare", &"arms_cycle":       # w126-air: the aircraft's flares / more than one arm to pick from
+			var fa := _air_arms()
+			if fa == null:
+				return false
+			return fa.has_flare if b["need"] == &"flare" else fa.list.size() > 1
 		&"down":             # helicopter, plane, snake flight: the second vertical button
 			return (is_instance_valid(Game.vehicles) and _driving() and _craft_class() in [&"heli", &"plane"]) or _flying()
 		&"drive_more":       # the driving extras behind MORE: BACK, RADIO, GARAGE
@@ -738,6 +746,10 @@ func _label_of(b: Dictionary) -> String:
 		if cc == &"heli" or cc == &"plane":
 			return "UP"                                  # climb / nose up
 		return "BRAKE" if cc == &"boat" or cc == &"tank" else "HAND BRAKE"
+	if b.get("need", &"") == &"flare" and _air_arms() != null:
+		return _air_arms().flare_label()                 # FLARE 12
+	if b.get("need", &"") == &"arms2" and _air_arms() != null and _air_arms().current() != &"":
+		return _air_arms().label()                       # w126-air: MISSILE 8 / LOCKED 8 / BOMB 6 / DROP 3
 	if b["action"] == &"aim" and b.get("need", &"") == &"arms2" and is_instance_valid(Game.vehicles):           # the secondary weapon says what it is: ROCKET, MISSILE, COAX
 		var dv: Object = Game.vehicles.get("driven")
 		var wp: Object = dv.get("weapons") if dv != null else null
@@ -1021,6 +1033,15 @@ func horn() -> void:
 func _car_armed() -> bool:
 	var v: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
 	return v != null and v.get("kind") is StringName and VehicleWeapons.has_weapon(v.get("kind") as StringName)
+
+
+## w126-air: the AirArms of the aircraft being flown, or null.
+func _air_arms() -> AirArms:
+	var v: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
+	if v == null or not (_craft_class() in [&"heli", &"plane"]):
+		return null
+	var w: Object = v.get("weapons")
+	return w.get("arms") as AirArms if w != null else null
 
 
 ## The handling class of the vehicle being driven (&"car" when on foot).

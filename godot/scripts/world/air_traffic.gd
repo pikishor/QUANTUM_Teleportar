@@ -16,6 +16,19 @@ const PROMOTE_R := 24.0                   ## the hero on foot this close to a gr
 const DEMOTE_R := 70.0
 const PROMOTE_MAX := 30.0                 ## seconds a promoted aircraft waits for the hero
 const GATE_X := 1163.0
+## WAVE 126 (w126-air): the ROSTER flies. The second airliner comes back each lap as the next airliner of the roster (the first stays the classic one, the small plane, the business jet and
+## the three helicopters keep their kinds), the airliners leave on a TIMETABLE (one departure every DEPART_EVERY s, in turn), and four CROSSERS (two helicopters of the 23 of wave 125, two
+## planes of the wave 126 roster) cross the sky over the outskirts, a new line and a new kind each time. Models are POOLED (a model that leaves the view waits hidden for the next flight of its kind)
+## and LOD'd: beyond LOD_R a flight is a SPECK of one shared MultiMesh (one draw for all of them), its model is only built inside LOD_R.
+## W126A_OLD=1 (or roster_on = false): the wave 125 traffic (seven flights, fixed kinds, no timetable, no crossers, no pool, no specks).
+const DEPART_EVERY := 150.0
+const LOD_R := 480.0
+const POOL_KEEP := 2                       ## hidden models kept per kind
+const CROSS_AGL := [170.0, 230.0, 200.0, 260.0]
+const LINER_KINDS: Array[StringName] = [&"airliner", &"p_narrow", &"p_regional", &"p_wide", &"p_jumbo"]
+const CROSS_PLANES: Array[StringName] = [&"p_cub", &"p_regional", &"p_twin", &"p_freighter", &"p_trainer", &"p_fighter", &"p_seaplane", &"p_bomber", &"p_biplane", &"p_glider", &"p_awacs",
+		&"p_bush", &"jet", &"cargo", &"p_tanker", &"p_racer", &"p_duster", &"p_interceptor"]
+static var roster_on := OS.get_environment("W126A_OLD") != "1"
 
 class Flight extends RefCounted:
 	var id: StringName
@@ -46,6 +59,16 @@ class Flight extends RefCounted:
 	var landings := 0
 	var laps := 0
 	var min_clear := 1.0e9                ## the lowest clearance over the terrain while it was flying (tests)
+	var kinds: Array[StringName] = []     ## w126-air: the kinds this flight takes in turn (one per lap); empty = always `kind`
+	var ki := 0
+	var cross := false                    ## a crosser: one straight line over the outskirts, then a new line
+	var slot := -1                        ## the airliners' place in the timetable (-1: no timetable)
+	var kinds_flown := {}                 ## kind -> laps flown as it (tests)
+	var lod := false                      ## drawn as a speck now
+	var wp_cache := Vector3.ZERO          ## the speck's world position
+
+	func node_kind() -> StringName:
+		return StringName(node.get_meta(&"kind", kind)) if node != null and is_instance_valid(node) else kind
 
 static var instance: AirTraffic = null
 
@@ -54,6 +77,12 @@ var hijacked := 0
 var time_scale := 1.0
 var _pt := 0.0
 var _rng := RandomNumberGenerator.new()
+var clock := 0.0                          ## game seconds the traffic has run (the timetable's clock; fast_forward counts too)
+var departures := 0                       ## timetable departures so far (tests)
+var _pool := {}                           ## kind -> Array[Node3D] hidden models
+var pool_reused := 0                      ## models taken from the pool (tests)
+var models_built := 0
+var _specks: MultiMeshInstance3D
 
 
 func _ready() -> void:
@@ -84,6 +113,129 @@ func _build() -> void:
 	_add_heli(&"heli_c", &"hauler", Airport.pad(&"apron_c"), 45)
 	flights[1].hold = 25.0                                                      # the airliner at the gate leaves soon after the start
 	flights[3].hold = 55.0
+	if roster_on:
+		_roster()
+
+
+## w126-air: the kinds each flight takes in turn, the timetable, the crossers and the specks.
+func _roster() -> void:
+	flights[0].slot = 0                                                         # the first airliner stays the classic airliner (the field always shows one), the second flies the roster's
+	flights[1].kinds = _have(LINER_KINDS)
+	flights[1].slot = 1
+	var hl := _have(HeliRoster.NEW)
+	var pl := _have(CROSS_PLANES)
+	for i in 4:
+		var f := Flight.new()
+		f.id = StringName("cross_%d" % i)
+		f.cross = true
+		f.heli = i % 2 == 0
+		var src: Array[StringName] = hl if f.heli else pl
+		if src.is_empty():
+			continue
+		var mine2: Array[StringName] = []
+		for j in range(i / 2, src.size(), 2):
+			mine2.append(src[j])
+		f.kinds = mine2
+		f.kind = mine2[0]
+		f.paint = i
+		flights.append(f)
+		_new_line(f, i)
+	_specks = MultiMeshInstance3D.new()
+	_specks.name = "Specks"
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var q := QuadMesh.new()
+	q.size = Vector2(1.0, 1.0)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.albedo_color = Color(0.82, 0.84, 0.88)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	mat.albedo_texture = _speck_tex()
+	q.material = mat
+	mm.mesh = q
+	mm.instance_count = flights.size()
+	mm.visible_instance_count = 0
+	_specks.multimesh = mm
+	_specks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_specks.custom_aabb = AABB(Vector3(-6000, -100, -6000), Vector3(12000, 2000, 12000))
+	_specks.visible = false
+	add_child(_specks)
+
+
+## A small aircraft silhouette (cross shape) for the far specks.
+static func _speck_tex() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	for x in 16:
+		for y in range(7, 9):
+			img.set_pixel(x, y, Color(1, 1, 1, 1))
+	for y in range(3, 14):
+		for x in range(7, 9):
+			img.set_pixel(x, y, Color(1, 1, 1, 1))
+	for x in range(5, 11):
+		img.set_pixel(x, 12, Color(1, 1, 1, 1))
+	return ImageTexture.create_from_image(img)
+
+
+static func _have(list: Array) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for k: Variant in list:
+		if VehicleSpecs.SPECS.has(StringName(str(k))):
+			out.append(StringName(str(k)))
+	return out
+
+
+## A crosser's next line: from one side of the outskirts to the other (local frame of the field, never over the city), at its own height and speed.
+func _new_line(f: Flight, seed_i := -1) -> void:
+	var a := _rng.randf() * TAU if seed_i < 0 else float(seed_i) * 1.7
+	var c := Vector3(1500.0, 0.0, -500.0)                                         # the middle of the east plain, east of the field (world z > 1400: far from the city)
+	var d := Vector3(cos(a), 0.0, sin(a))
+	var half := 1700.0
+	var p0 := c - d * half
+	var p1 := c + d * half
+	p0.x = maxf(p0.x, 1150.0)
+	p1.x = maxf(p1.x, 1150.0)
+	var agl: float = CROSS_AGL[absi(hash(f.id)) % CROSS_AGL.size()]
+	var v := 34.0 if f.heli else clampf(float(VehicleSpecs.SPECS.get(f.kind, {}).get("stall", 30.0)) * 1.6, 30.0, 90.0)
+	f.route = [_wp(Vector3(p1.x, agl, p1.z), v, 0.0, false, false, &"cross")]
+	f.idx = 0
+	f.pos = Vector3(p0.x, agl, p0.z)
+	f.heading = atan2(-d.x, -d.z)
+	f.speed = v
+	f.airborne = true
+	f.rotor = 1.0
+	f.phase = &"cross"
+	f.hold = 0.0
+
+
+## The next kind of a flight's list (a lap is over): its model goes back to the pool.
+func _next_kind(f: Flight) -> void:
+	if f.kinds.size() < 2:
+		return
+	_drop_node(f)
+	f.ki = (f.ki + 1) % f.kinds.size()
+	f.kind = f.kinds[f.ki]
+	if not f.heli and not f.cross:
+		f.route = plane_route(f.kind, f.stand)
+
+
+## Seconds until the timetable's next departure for slot `slot`.
+func until_departure(slot: int) -> float:
+	var n := 2
+	var period := DEPART_EVERY * float(n)
+	var at := fposmod(float(slot) * DEPART_EVERY - clock, period)
+	return at
+
+
+## The timetable: [{id, kind, in (s)}] of the airliners, next departure first.
+func timetable() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for f in flights:
+		if f.slot >= 0:
+			out.append({"id": f.id, "kind": f.kind, "in": until_departure(f.slot) if f.idx == 0 else 0.0})
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["in"]) < float(b["in"]))
+	return out
 
 
 func _speeds(kind: StringName) -> Dictionary:
@@ -211,14 +363,22 @@ func _start_at(f: Flight, start: StringName) -> void:
 
 func _physics_process(delta: float) -> void:
 	var dt := delta * time_scale
+	clock += dt
 	_pt += delta
 	var ppos := Vector3.INF
 	var pl := Game.player as Node3D
 	if is_instance_valid(pl):
 		ppos = pl.global_position
+	var ns := 0
 	for f in flights:
 		_step(f, dt)
 		_update_node(f, ppos, delta)
+		if f.lod and _specks != null:
+			_set_speck(ns, f)
+			ns += 1
+	if _specks != null:
+		_specks.multimesh.visible_instance_count = ns
+		_specks.visible = ns > 0
 	if _pt >= 0.25:
 		_pt = 0.0
 		_hijack_tick(ppos, 0.25)
@@ -231,6 +391,7 @@ func fast_forward(secs: float) -> void:
 		for f in flights:
 			_step(f, 0.1)
 		t += 0.1
+		clock += 0.1
 
 
 func _step(f: Flight, dt: float) -> void:
@@ -243,6 +404,12 @@ func _step(f: Flight, dt: float) -> void:
 	if f.vehicle != null:
 		return                                                                   # the hero's aircraft stands there: the flight waits
 	f.cooldown = maxf(f.cooldown - dt, 0.0)
+	if f.cross and f.idx >= f.route.size():                                      # a crosser at the end of its line: the next kind, a new line
+		f.laps += 1
+		f.kinds_flown[f.kind] = int(f.kinds_flown.get(f.kind, 0)) + 1
+		_next_kind(f)
+		_new_line(f)
+		return
 	if f.hold > 0.0:
 		f.hold -= dt
 		f.speed = move_toward(f.speed, 0.0, 6.0 * dt)
@@ -250,12 +417,18 @@ func _step(f: Flight, dt: float) -> void:
 			f.rotor = move_toward(f.rotor, 1.0, dt / 6.0)                        # the rotor comes up while the helicopter waits to lift
 		if f.hold <= 0.0 and f.idx == 0:
 			f.idx = 1                                                            # leave the stand
+			if f.slot >= 0:
+				departures += 1
 		_attitude(f, dt, 0.0)
 		return
 	if f.idx >= f.route.size():                                                  # back at the stand: park for a while, then the same again
 		f.idx = 0
 		f.laps += 1
+		f.kinds_flown[f.kind] = int(f.kinds_flown.get(f.kind, 0)) + 1
+		_next_kind(f)
 		f.hold = 15.0 + _rng.randf() * 40.0
+		if f.slot >= 0:
+			f.hold = maxf(until_departure(f.slot), 20.0)                         # w126-air: the timetable (at least 20 s at the gate)
 		f.hold_phase = &"parked"
 		f.phase = &"parked"
 		f.rotor = 0.0
@@ -374,7 +547,19 @@ func _update_node(f: Flight, ppos: Vector3, delta: float) -> void:
 	if ppos.is_finite():
 		d = Vector2(ppos.x - wp.x, ppos.z - wp.z).length()
 	var want := d < SHOW and f.gone <= 0.0 and f.vehicle == null
-	if f.node == null and want:
+	f.lod = false
+	if roster_on:
+		if want and d > LOD_R and f.airborne:
+			want = false
+			f.lod = true                                                         # far and in the air: a speck of the shared MultiMesh
+			f.wp_cache = Vector3(wp.x, f.pos.y + (TerrainHeight.height_at(wp.x, wp.z) if (absf(wp.x) > TerrainHeight.CITY_HALF or absf(wp.z) > TerrainHeight.CITY_HALF) else 0.0), wp.z)
+		if f.node == null and want:
+			f.node = _take_node(f.kind, f.paint)
+			if f.node != null:
+				f.node.name = String(f.id)
+		elif f.node != null and not want:
+			_drop_node(f)
+	elif f.node == null and want:
 		f.node = AircraftScenery.make(f.kind, f.paint)
 		if f.node != null:
 			f.node.name = String(f.id)
@@ -392,6 +577,54 @@ func _update_node(f: Flight, ppos: Vector3, delta: float) -> void:
 	if f.heli:
 		f.ang = fposmod(f.ang + f.rotor * 38.0 * delta, TAU)
 		AircraftScenery.spin(f.node, f.rotor, f.ang)
+
+
+## w126-air: a model of `kind` from the pool (or a new one).
+func _take_node(kind: StringName, paint: int) -> Node3D:
+	var arr: Array = _pool.get(kind, [])
+	while not arr.is_empty():
+		var n := arr.pop_back() as Node3D
+		if is_instance_valid(n):
+			n.visible = true
+			pool_reused += 1
+			return n
+	var m := AircraftScenery.make(kind, paint)
+	if m != null:
+		models_built += 1
+		m.set_meta(&"kind", kind)
+		add_child(m)
+	return m
+
+
+## The flight's model goes back to the pool (hidden), or is freed when the pool of its kind is full.
+func _drop_node(f: Flight) -> void:
+	if f.node == null:
+		return
+	if is_instance_valid(f.node):
+		var arr: Array = _pool.get(f.node_kind(), [])
+		if roster_on and arr.size() < POOL_KEEP:
+			f.node.visible = false
+			arr.append(f.node)
+			_pool[f.node_kind()] = arr
+		else:
+			f.node.queue_free()
+	f.node = null
+
+
+func _set_speck(i: int, f: Flight) -> void:
+	var sz := 3.0 + float(VehicleSpecs.SPECS.get(f.kind, {}).get("len", 10.0)) * 0.45
+	_specks.multimesh.set_instance_transform(i, Transform3D(Basis.IDENTITY.scaled(Vector3(sz, sz, sz)), f.wp_cache))
+
+
+func pooled_count() -> int:
+	var n := 0
+	for k: StringName in _pool:
+		n += (_pool[k] as Array).size()
+	return n
+
+
+func speck_count() -> int:
+	return _specks.multimesh.visible_instance_count if _specks != null else 0
 
 
 # --- hijack -----------------------------------------------------------------------------------------------------------------------------
@@ -445,8 +678,7 @@ func _promote(f: Flight, vm: VehicleManager) -> void:
 	f.vehicle = v
 	f.promote_t = 0.0
 	if f.node != null:
-		f.node.queue_free()
-		f.node = null
+		_drop_node(f)
 
 
 func _demote(f: Flight, vm: VehicleManager) -> void:

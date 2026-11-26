@@ -220,15 +220,17 @@ static func roof() -> Dictionary:
 
 
 ## The flyable aircraft that wait on the field (local frame): id, kind, position, heading, label.
+## w126-planes: the two jets stand beside the hangar doors now (z -972 and -908, the walls between the doors) and the gunship by the cargo shed: in front of the doors they blocked
+## the planes rolling out of HANGAR A / B (tests/test_planes_w126.gd, the MEADOWLARK hit the parked jet).
 const SPAWN_LOCAL: Array[Dictionary] = [
 	{"id": &"ap_plane_a", "kind": &"plane", "pos": Vector3(1172.0, 0.0, -470.0), "h": PI * 0.5, "label": "SMALL PLANE"},
 	{"id": &"ap_plane_b", "kind": &"plane", "pos": Vector3(1172.0, 0.0, -444.0), "h": PI * 0.5, "label": "SMALL PLANE"},
 	{"id": &"ap_airliner", "kind": &"airliner", "pos": Vector3(1178.0, 0.0, -795.0), "h": -PI * 0.5, "label": "AIRLINER"},
 	{"id": &"ap_biz", "kind": &"bizjet", "pos": Vector3(1170.0, 0.0, -402.0), "h": PI * 0.5, "label": "BUSINESS JET"},
 	{"id": &"ap_cargo", "kind": &"cargo", "pos": Vector3(1160.0, 0.0, -330.0), "h": 0.0, "label": "CARGO PLANE"},
-	{"id": &"ap_jet_a", "kind": &"jet", "pos": Vector3(1180.0, 0.0, -944.0), "h": -PI * 0.5, "label": "JET FIGHTER"},
-	{"id": &"ap_jet_b", "kind": &"jet", "pos": Vector3(1180.0, 0.0, -914.0), "h": -PI * 0.5, "label": "JET FIGHTER"},
-	{"id": &"ap_gunship", "kind": &"gunship", "pos": Vector3(1178.0, 0.0, -878.0), "h": -PI * 0.5, "label": "GUNSHIP"},
+	{"id": &"ap_jet_a", "kind": &"jet", "pos": Vector3(1182.0, 0.0, -972.0), "h": -PI * 0.5, "label": "JET FIGHTER"},
+	{"id": &"ap_jet_b", "kind": &"jet", "pos": Vector3(1182.0, 0.0, -908.0), "h": -PI * 0.5, "label": "JET FIGHTER"},
+	{"id": &"ap_gunship", "kind": &"gunship", "pos": Vector3(1180.0, 0.0, -760.0), "h": -PI * 0.5, "label": "GUNSHIP"},
 	{"id": &"ap_hauler", "kind": &"hauler", "pos": Vector3(1180.0, 0.0, -840.0), "h": -PI * 0.5, "label": "TRANSPORT HELICOPTER"},
 	{"id": &"ap_runway", "kind": &"plane", "pos": Vector3(RUNWAY_X, 0.0, RUNWAY_S - 24.0), "h": 0.0, "label": "RUNWAY 09"},
 	{"id": &"ap_heli_a", "kind": &"heli", "pos": Vector3(1124.0, 0.0, -262.0), "h": 0.0, "label": "HELICOPTER"},

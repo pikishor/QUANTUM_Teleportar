@@ -122,6 +122,7 @@ static func draw(c: Control, font: Font, vp: Vector2, s: float, ins: Vector2, ve
 	var g: Dictionary = d["guide"]
 	if bool(g.get("on", false)) and bool(d["plane"]):
 		_guide(c, font, vp, ins, s, g, bool(d["airborne"]))
+	AirArms.draw_hud(c, v, s)                                    # w126-air: the missile seeker box on the target, the bomb's landing ring
 
 
 ## The artificial horizon: a disc split at the horizon line, which tilts opposite to the bank and slides with the pitch; a fixed aircraft mark and a short pitch ladder on top.

@@ -568,6 +568,9 @@ static func sync(v: Vehicle, dt: float) -> void:
 		&"plane":
 			if near:
 				_blades(vis, "Prop", c.spool * 70.0, c.ang, Vector3(0.0, 0.0, 1.0))
+				if vis.parts.has("PropB"):                                                 # wave 126: the other propellers of a twin or four-engine aeroplane
+					for pn: String in ["PropB", "PropC", "PropD"]:
+						_blades(vis, pn, c.spool * 70.0, c.ang * (1.0 if pn != "PropC" else -1.0), Vector3(0.0, 0.0, 1.0))
 			c.ang = fposmod(c.ang + c.spool * 70.0 * dt, TAU)
 			var Ap := AircraftFlight.air(c)
 			c.pitch = Ap.pitch

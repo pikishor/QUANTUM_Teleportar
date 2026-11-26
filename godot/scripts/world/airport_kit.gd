@@ -168,9 +168,16 @@ static func kit() -> ArrayMesh:
 			&"tower":
 				_tower(mb, p, sz)
 			&"hangar":
-				_hangar(mb, p, sz)
+				if Hangars.on:                                                 # wave 126: hollow, with a sliding door (Hangars), the planes inside can be boarded
+					Hangars.shell(mb, Hangars.site(b["id"]))
+				else:
+					_hangar(mb, p, sz)
 			_:
 				_shed(mb, p, sz, b["id"] == &"fire_station")
+	if Hangars.on:                                                             # wave 126: the two ARMY AIRBASE shelters east of the runway
+		for hs: Dictionary in Hangars.SITES:
+			if hs["army"]:
+				Hangars.shell(mb, hs)
 	for t: Dictionary in Airport.TANKS:
 		var tp: Vector2 = t["pos"]
 		var r: float = t["r"]

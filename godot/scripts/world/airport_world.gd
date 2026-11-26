@@ -81,7 +81,17 @@ func _collision() -> void:
 	for b: Dictionary in Airport.BUILDINGS:
 		var p: Vector2 = b["pos"]
 		var sz: Vector3 = b["size"]
+		if b["kind"] == &"hangar" and Hangars.on:                                # wave 126: a hollow hangar (walls, roof, door frame; the leaves are Hangars.Doors)
+			for hb: Array in Hangars.boxes(Hangars.site(b["id"])):
+				_add_box(body, hb[0], hb[1])
+			continue
 		_add_box(body, Vector3(p.x, sz.y * 0.5, p.y), sz if b["kind"] != &"tower" else Vector3(8.0, sz.y, 8.0))
+	if Hangars.on:
+		for hs: Dictionary in Hangars.SITES:
+			if hs["army"]:
+				for hb: Array in Hangars.boxes(hs):
+					_add_box(body, hb[0], hb[1])
+		field.add_child(Hangars.Doors.new())
 	for t: Dictionary in Airport.TANKS:
 		var tp: Vector2 = t["pos"]
 		var cs := CollisionShape3D.new()

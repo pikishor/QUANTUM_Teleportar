@@ -50,6 +50,12 @@ static func make(kind: StringName, paint := 0) -> Node3D:
 		d.name = "RotorDisc"
 		d.position = (model.get_node("Rotor") as Node3D).position
 		model.add_child(d)
+		if model.get_node_or_null("Rotor2") != null:
+			var d2 := VehicleCraftModels.disc(float(spec["rotor_r"]), 0.08)
+			d2.name = "RotorDisc2"
+			d2.position = (model.get_node("Rotor2") as Node3D).position
+			d2.visible = false
+			model.add_child(d2)
 	return root
 
 
@@ -67,6 +73,13 @@ static func spin(root: Node3D, rate: float, ang: float) -> void:
 	if disc != null:
 		disc.visible = blur
 	rotor.rotation = Vector3.UP * ang
+	var r2 := model.get_node_or_null("Rotor2") as Node3D                     # w126-air: the second rotor of a tandem / coaxial / tilt-rotor turns the other way
+	if r2 != null:
+		r2.rotation = Vector3.UP * -ang
+		r2.visible = not blur
+		var d2 := model.get_node_or_null("RotorDisc2") as Node3D
+		if d2 != null:
+			d2.visible = blur
 	var tail := model.get_node_or_null("TailRotor") as Node3D
 	if tail != null:
 		tail.rotation = Vector3.RIGHT * ang * 1.6

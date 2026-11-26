@@ -64,6 +64,7 @@ const KIND_DATA := {
 	&"sneak": {"title": "SLIP PAST THE GUARDS", "color": &"cyan", "dist": [70.0, 120.0], "time": 0.0},
 	&"gates": {"title": "FLY THE GATES", "color": &"amber", "dist": [110.0, 190.0], "time": 0.0},
 	&"pursuit": {"title": "RUN DOWN THE TARGET", "color": &"red", "dist": [55.0, 100.0], "time": 0.0},
+	&"air_task": {"title": "AIR TASK", "color": &"red", "dist": [110.0, 190.0], "time": 0.0},       # w126-air: dogfight, escort, bomb, drop, board (scripts/missions/air_steps.gd)
 }
 
 const MAX_TEXT := 56

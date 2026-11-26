@@ -23,6 +23,8 @@ var _n: Array = [PackedVector3Array(), PackedVector3Array(), PackedVector3Array(
 static func build(kind: String, spec: Dictionary) -> Node3D:
 	if HeliRoster.DEFS.has(StringName(kind)):                                 # wave 125: the twenty helicopters of the roster (HeliModels, shared meshes per kind)
 		return HeliModels.build(kind, spec)
+	if PlaneRoster.DEFS.has(StringName(kind)):                                # wave 126: the 28 aeroplanes of the roster (PlaneModels, shared meshes per kind)
+		return PlaneModels.build(kind, spec)
 	var m := VehicleCraftModels.new()
 	var root := Node3D.new()
 	root.name = String(spec["model"])

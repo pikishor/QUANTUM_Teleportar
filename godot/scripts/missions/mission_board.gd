@@ -204,6 +204,7 @@ func generate(origin := Vector3.INF, types: Array = []) -> Array[Dictionary]:
 			picks = WorldMissions.inject(picks, origin, rng)
 			picks = SnakeMissions.inject(picks, rng, [], origin)
 			picks = SnakeWarMissions.inject(picks, rng)
+			picks = AirMissions.inject(picks, origin, rng)            # w126-air: the six air missions (near the airport one for sure)
 	for t: StringName in picks:
 		var o := build(t, origin)
 		if not o.is_empty():
@@ -228,6 +229,8 @@ func _hero_pos() -> Vector3:
 func build(t: StringName, origin: Vector3, first := false) -> Dictionary:
 	if WorldMissions.DEFS.has(t):
 		return _build_world(t, origin)
+	if AirMissions.DEFS.has(t):
+		return _build_air(t, origin)                              # w126-air: DOGFIGHT, AIRLINER ESCORT, BOMB RUN, CARGO DROP, HELI RESCUE, SKY RINGS (scripts/missions/air_missions.gd)
 	if SnakeMissions.DEFS.has(t):
 		return _build_snake(t, origin)                            # the two QUANTUM SNAKE rooftop missions (scripts/quantum/snake_missions.gd)
 	if SnakeWarMissions.DEFS.has(t):
@@ -296,6 +299,26 @@ func _build_world(t: StringName, origin: Vector3) -> Dictionary:
 	return {
 		"id": _serial, "type": t, "title": str(rec["title"]), "brief": brief, "gift": gift, "glyph": rec["glyph"], "steps": steps, "route_m": float(rec["route_m"]), "reward": reward,
 		"pos": rec["pos"], "tier": tr, "story": false, "world": true,
+		"chapter": {"id": "board_%d" % _serial, "title": str(rec["title"]), "clears_sector": false, "steps": steps},
+	}
+
+
+## w126-air: an AIR MISSION (AirMissions): the same offer record as a world mission, flown from the airport.
+func _build_air(t: StringName, origin: Vector3) -> Dictionary:
+	var tr := tier()
+	_serial += 1
+	var r := RandomNumberGenerator.new()
+	r.seed = hash("%s|%d|%d" % [t, _serial, rng.randi()])
+	var rec := AirMissions.build(t, tr, origin, r)
+	if rec.is_empty():
+		return {}
+	var reward := WorldMissions.pay_for(float(rec["base"]), float(rec["route_m"]), tr)
+	var gift := MissionRewards.gift_text()
+	var brief := str(rec["brief"]) + ("  PAYS CREDITS + %s" % gift if gift != "" else "")
+	var steps: Array[Dictionary] = rec["steps"]
+	return {
+		"id": _serial, "type": t, "title": str(rec["title"]), "brief": brief, "gift": gift, "glyph": rec["glyph"], "steps": steps, "route_m": float(rec["route_m"]), "reward": reward,
+		"pos": rec["pos"], "tier": tr, "story": false, "world": true, "air": true,
 		"chapter": {"id": "board_%d" % _serial, "title": str(rec["title"]), "clears_sector": false, "steps": steps},
 	}
 
