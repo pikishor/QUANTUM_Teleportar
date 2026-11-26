@@ -24,15 +24,15 @@ const SHOW := 360.0
 const PARK_DY := 2.5                  ## a grounded helicopter within the pad's radius and this height of its surface is on the pad
 ## The helicopter kind a pad of each role holds: the first of the list that exists (w125-helis adds the roster; the plain helicopter is the fallback).
 const KINDS := {
-	&"hospital": [&"medevac", &"air_ambulance", &"heli"], &"police": [&"police_heli", &"heli"], &"news": [&"news_heli", &"heli"],
-	&"army": [&"gunship", &"heli"], &"roof": [&"exec_heli", &"heli"], &"airport": [&"heli"], &"city": [&"heli"], &"mountain": [&"heli"], &"outskirts": [&"heli"],
+	&"hospital": [&"h_medic", &"heli"], &"police": [&"h_police", &"heli"], &"news": [&"h_news", &"heli"],
+	&"army": [&"h_attack", &"gunship", &"heli"], &"roof": [&"h_vip", &"heli"], &"airport": [&"heli"], &"city": [&"heli"], &"mountain": [&"heli"], &"outskirts": [&"heli"],
 }
 const ROLE_COL := {
 	&"hospital": Color(0.86, 0.1, 0.12), &"police": Color(0.12, 0.28, 0.82), &"news": Color(0.98, 0.55, 0.08), &"army": Color(0.95, 0.78, 0.12), &"roof": Color(0.95, 0.78, 0.12),
 }
 const SIGN := {&"hospital": "HOSPITAL", &"police": "POLICE HQ", &"news": "NEWS 9", &"army": "ARMY AIRBASE", &"roof": "HELIPAD"}
-## ARMY AIRBASE: ground pads on the flat strip between the runway (local x 1240..1284) and the east edge of the field (1380), beside the military line of the apron.
-const ARMY_LOCAL: Array[Vector3] = [Vector3(1334.0, 0.0, -900.0), Vector3(1334.0, 0.0, -862.0), Vector3(1334.0, 0.0, -824.0)]
+## ARMY AIRBASE: ground pads on the flat strip between the runway (local x 1240..1284) and the east edge of the field (1380), east of w125-helis' HELI LINE (x 1334, z -930 + 38 i).
+const ARMY_LOCAL: Array[Vector3] = [Vector3(1365.0, 0.0, -900.0), Vector3(1365.0, 0.0, -862.0), Vector3(1365.0, 0.0, -824.0)]
 const ARMY_R := 10.0
 const BLD := preload("res://scripts/world/city_buildings.gd")
 const BM := preload("res://scripts/world/building_meshes.gd")
@@ -201,6 +201,22 @@ static func all() -> Array[Dictionary]:
 	if OutskirtsSites.built:                                            # the towns' pads exist once the roads are built: cache only the whole list
 		_all = out
 	return out
+
+
+## The radius of roof the raised pad on lot `lot_index` keeps free of roof clutter (CityRoofs), 0 for a lot without one. The CITY ROOF PAD of the airport wave counts too.
+static var _reserve := {}
+static func roof_reserve(lot_index: int) -> float:
+	if not enabled:
+		return 0.0
+	if _reserve.is_empty():
+		_reserve[-2] = 0.0
+		for p in new_pads():
+			if p.has("lot"):
+				_reserve[int(p["lot"])] = float(p["r"]) + 3.5
+		var rf := Airport.roof()
+		if not rf.is_empty():
+			_reserve[int(rf["lot"])] = 8.0 + 3.5
+	return float(_reserve.get(lot_index, 0.0))
 
 
 static func pad(id: StringName) -> Dictionary:

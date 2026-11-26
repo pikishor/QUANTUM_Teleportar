@@ -7,7 +7,8 @@ extends CanvasLayer
 ## Drawn on layer 8, under the touch buttons (9) and the HUD (10): the flight instruments, the sticks and the buttons stay on top and readable. The panel sits in the bottom band between the stick
 ## and the right button cluster and shrinks to keep clear of every visible button (panel_rect()); nothing is drawn across the middle of the view (wave 116 view rules: no rays or streaks).
 ## FAMILIES shared by every helicopter kind: light (white-grey, bubble canopy), military (olive, armoured frame, green needles), heavy (blue-grey, two-pane windscreen, overhead console).
-## A kind picks its family with spec "cockpit"; otherwise: armed with a second weapon (arms2) -> military, 16 m or longer or 6+ seats -> heavy, else light.
+## A kind picks its family with spec "cockpit"; otherwise by its roster role (HeliRoster.DEFS: attack, stealth, naval -> military; cargo, heavy lift, crane, tilt-rotor -> heavy), then:
+## armed with a second weapon (arms2) -> military, 16 m or longer or 6+ seats -> heavy, else light.
 ##   active()  gauges()  panel_rect()  family_of(spec)
 
 const FAMILIES := {
@@ -30,11 +31,28 @@ static func family_of(spec: Dictionary) -> StringName:
 	var f: Variant = spec.get("cockpit")
 	if f != null and FAMILIES.has(StringName(str(f))):
 		return StringName(str(f))
+	var role := _role(spec)
+	if role in ["attack", "stealth", "naval"]:
+		return &"military"
+	if role in ["tandem-rotor cargo", "heavy lift", "crane", "tilt-rotor"]:
+		return &"heavy"
 	if bool(spec.get("arms2", false)):
 		return &"military"
 	if float(spec.get("len", 10.0)) >= 16.0 or int(spec.get("seats", 2)) >= 6:
 		return &"heavy"
 	return &"light"
+
+
+## The roster role of a kind (w125-helis: HeliRoster.DEFS[kind].role, matched by the spec's "procedural" id), "" when none.
+static var _roster: Variant = null
+static func _role(spec: Dictionary) -> String:
+	if _roster == null:
+		_roster = load("res://scripts/vehicles/heli_roster.gd") if ResourceLoader.exists("res://scripts/vehicles/heli_roster.gd") else false
+	if not (_roster is Script):
+		return ""
+	var defs: Dictionary = (_roster as Script).get_script_constant_map().get("DEFS", {})
+	var d: Variant = defs.get(StringName(str(spec.get("procedural", ""))))
+	return str((d as Dictionary).get("role", "")) if d is Dictionary else ""
 
 
 ## The pilot's eye for CameraRig._vehicle_params (view 2 of a helicopter): x = metres ahead of the centre, y = height over the machine's origin, z = field of view.
@@ -118,10 +136,10 @@ func _touch() -> Node:
 func button_circles() -> Array:
 	var out: Array = []
 	var tc := _touch()
-	if tc == null or not tc.has_method(&"buttons_of") or not bool(tc.get(&"controls_on")):
+	if tc == null or not tc.has_method(&"button_visible") or not bool(tc.get(&"controls_on")):
 		return out
 	var s := UiUtil.ui_scale(_vp())
-	for b: Dictionary in tc.call(&"buttons_of", tc.call(&"mode")):
+	for b: Dictionary in TouchControls.BUTTONS:
 		if bool(tc.call(&"button_visible", b)):
 			out.append([tc.call(&"_button_center", b), float(b["r"]) * s])
 	return out
@@ -266,7 +284,8 @@ func _paint() -> void:
 				_ticks(c, ctr, gr, acc, s)
 				_needle(c, ctr, float(g["hull_a"]), gr * 0.82, RED if float(g["hull"]) < 30.0 else fam["needle"], s)
 		c.draw_string(font, Vector2(ctr.x - cell * 0.5, ctr.y + gr + fs + 4.0 * s), texts[i], HORIZONTAL_ALIGNMENT_CENTER, cell, fs, Color(1, 1, 1))
-		c.draw_string(font, Vector2(ctr.x - cell * 0.5, ctr.y + gr * 0.42 + 6.0 * s), labels[i], HORIZONTAL_ALIGNMENT_CENTER, cell, int(maxf(11.0 * s, gr * 0.24)), Color(acc, 0.85))
+		if i != 2:                                                       # the name in the dial's lower third, under the needle's hub (the compass names itself with its letters)
+			c.draw_string(font, Vector2(ctr.x - cell * 0.5, ctr.y + gr * 0.62), labels[i], HORIZONTAL_ALIGNMENT_CENTER, cell, int(maxf(11.0 * s, gr * 0.22)), Color(acc, 0.85))
 
 
 static func _dir(a: float) -> Vector2:

@@ -134,6 +134,7 @@ func _cockpit() -> void:
 	var pr := ck.panel_rect()
 	_ck(pr.size.x > 300.0 and pr.size.y > 80.0, "the instrument panel is big enough to read (%s)" % str(pr))
 	var clash := ""
+	_ck(ck.button_circles().size() >= 5, "the cockpit knows where the %d touch buttons are" % ck.button_circles().size())
 	for c: Array in ck.button_circles():
 		var cp: Vector2 = c[0]
 		var r: float = c[1]
@@ -271,6 +272,10 @@ func _pads() -> void:
 		var ok := await _hold("crouch", func() -> bool: return Helipads.parks > n0 and not v.craft.airborne, 900)
 		var why := "grounded %s at %s (pad %s) parks %d last %s" % [str(not v.craft.airborne), str(v.global_position.snapped(Vector3.ONE * 0.1)), str(c.snapped(Vector3.ONE * 0.1)), Helipads.parks, Helipads.last_park]
 		if not ok or Helipads.last_park != pd["id"] or v.get_meta(&"parked_pad", &"") != pd["id"]:
+			var q := PhysicsRayQueryParameters3D.create(v.global_position + Vector3(0, 0.3, 0), v.global_position - Vector3(0, 8, 0))
+			q.exclude = [v.get_rid()]
+			var hit := v.get_world_3d().direct_space_state.intersect_ray(q)
+			why += " under: %s" % (str((hit["collider"] as Node).get_path()) if hit.has("collider") else "nothing")
 			failed.append("%s: %s" % [pd["id"], why])
 		else:
 			print("LANDED %s %s" % [pd["id"], why])

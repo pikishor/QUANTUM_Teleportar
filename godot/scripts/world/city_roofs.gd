@@ -325,6 +325,10 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 		else:
 			reserved_centre = Vector2((rx0 + rx1) * 0.5, (rz0 + rz1) * 0.5)      # every crown keeps a clear landing spot at its centre (the pooled prop colliders must not occupy it)
 			reserved_r = 3.4
+		var pad_r := Helipads.roof_reserve(lot.index)                       # w125-pads: a raised helipad on this roof: no tank, mast or stair house pierces its deck or the parked hull
+		if pad_r > 0.0:
+			reserved_centre = Vector2((rx0 + rx1) * 0.5, (rz0 + rz1) * 0.5)
+			reserved_r = pad_r
 		var n_ac := clampi(int(round((rx1 - rx0) * (rz1 - rz0) / 100.0)), 1, 5)
 		for k in n_ac:
 			var p := _free_cell(rng, cells, rx0, rx1, rz0, rz1, 3.2, reserved_centre, reserved_r)
@@ -389,9 +393,10 @@ func build(props, layout: CityLayout, buildings: Array) -> void:
 			var inward := Vector2(-sin(float(wp4[1])), -cos(float(wp4[1])))        # opposite of the outward direction
 			var bxf := Transform3D(Basis(Vector3.UP, float(wp4[1])), Vector3(lot.cx + q4.x + inward.x * 1.8, roof_y, lot.cz + q4.y + inward.y * 1.8))
 			var bs := rng.randf()
-			boards.append([bxf, Color(bs, bs, 0.0, 1.0)])
-			var bc: Color = NEON_COLORS[int(floor(bs * 4.0)) % 4]
-			props.glow_add(bxf.origin + bxf.basis * Vector3(0.0, 5.8, 1.5), Color(bc.r, bc.g, bc.b, 0.55), 0, 20.0, 0.0, bs)
+			if pad_r <= 0.0:                                                     # w125-pads: no billboard hides a roof helipad (the draws above still run: the RNG sequence of the city stays the same)
+				boards.append([bxf, Color(bs, bs, 0.0, 1.0)])
+				var bc: Color = NEON_COLORS[int(floor(bs * 4.0)) % 4]
+				props.glow_add(bxf.origin + bxf.basis * Vector3(0.0, 5.8, 1.5), Color(bc.r, bc.g, bc.b, 0.55), 0, 20.0, 0.0, bs)
 
 	props.add_family("Awnings", awning_mesh(), awn, false, false, 0, 170.0)
 	props.add_family("FireEscapes", fire_escape_mesh(), fire, false, false, 1, 170.0)

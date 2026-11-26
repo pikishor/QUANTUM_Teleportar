@@ -14,4 +14,15 @@ DECISIONS:
 - No fuel system exists: gauge 5 = HULL (hp %).
 - Switch W125_PADS_OLD=1 = old behaviour (no new pads/cockpit/parking) for fail-first.
 TESTS AND PERF:
+- test_helipads_w125: 34/34 PASS (82 s); W125_PADS_OLD=1: 12 FAIL + timeout (cockpit, markers, hospital/police/news/army pads, apron d/e helis, lamps, landings)
+- neighbours PASS: armour_w118, flight_view_w116, airport_aircraft, world, touch_buttons_r7, outskirts_settlements, art_library, controls_w118 (1 known flake first run: plane ENTER boarded an SUV; PASS alone)
+- PERF_CHECK=1 (once): LOW draws=73 total=95 prims=132k death=108 OK; MED 99/131 prims 242k total 274k death=146 OK; HIGH 118/154 death=164 OK
+DONE (final): all steps; NEXT: none (integrator: full suite).
 OPEN PROBLEMS:
+- no fuel system: 5th gauge is HULL. City roof pads all on 44 m lots (no taller non-walk-in lot 460+ m from the start).
+- 'military' family covers gunship + h_attack/h_stealth/h_naval by HeliRoster role; w125-helis may set spec "cockpit" to override.
+- 2026-11-26 step: test_helipads_w125 33/33 PASS (new); W125_PADS_OLD=1: 12 FAIL + timeout (old). Fixed: roof clutter pierced raised pads (CityRoofs keeps Helipads.roof_reserve radius clear, also the old CITY ROOF PAD lot).
+- pad kinds now w125-helis ids (h_medic, h_police, h_news, h_attack, h_vip); army pads moved to local x 1365 (HELI LINE is at x 1334). Cockpit family by HeliRoster role.
+- cockpit panel_rect fixed (button circles read from TouchControls.BUTTONS; earlier list was empty -> panel on DOWN/UP); frames f3 looked at 1200x540 + 2400x1080 day/night: clear of buttons.
+- roof billboards skipped on pad lots (rng draws kept). test_helipads_w125 34/34 PASS (82 s).
+- NOW: neighbour tests (armour_w118 controls_w118 flight_view_w116 airport_aircraft world touch_buttons_r7 outskirts_settlements art_library), then perf gate once at end.
