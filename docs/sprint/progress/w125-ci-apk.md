@@ -12,3 +12,6 @@ NEXT: commit, push, wait CI, then android.yml.
 - test_interior_gameplay: REPRODUCED 1 of 3 to 1 of 6 under 3 parallel copies; per-node diffs: +13 World/Aliens (alien site mesh built while the hero stood in the room at (1049, 0, 2)), +33 = 2 wildlife animals + 2 STRIKER drones of a street patrol. Count now leaves out vehicles, enemy drones, wildlife and alien sites; per-group print on failure. 6 of 6 pass (exactly 0).
 - Round 2 pushed 20baeb3. CI 45855522483 RED only on shard 5 test_melee_gadgets "the hero is pulled to the anchor (14.0 m -> 11.9 m)" (both attempts; FLAKY in the two runs before). w119_critic and interior_gameplay green. FLAKY: interior_gameplay_missions, helis_w125_b (h_attack "hero did not move"), director_round2_c, mission_audit, blast_arsenal.
 - test_melee_gadgets REPRODUCED 2 of 6 (3 parallel): the hook ray (world | vehicle | enemy) hit a traffic van 2-3 m ahead (VehicleManager/Car_van), the hero hooked onto the van. Test empties the street of cars and rests the streamer and spawn points while the hook flies. 6 of 6 pass.
+- Round 3 pushed 2800f26. CI 45860881400 GREEN (FLAKY: life_w123 bus stop, superhero_hero female floor, hero_animation_polish soles).
+- Android run 45865081768 on 2800f26 success: artifact 15139664279 android-debug-apk 320214738 bytes.
+DONE (final). NEXT: none.
