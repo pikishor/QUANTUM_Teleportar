@@ -1,12 +1,13 @@
 # w125-critic (running)
 
-agent id ae5128073bc00ca51, 92 events, first activity 2026-11-26T12:12:55.587Z, last activity 2026-11-26T12:19:26.382Z
+agent id ae5128073bc00ca51, 116 events, first activity 2026-11-26T12:12:55.587Z, last activity 2026-11-26T12:29:50.201Z
 
 ## Last notes of the agent
 
 - 12:16:01 Meanwhile fix the crash kind and read the cockpit code.
 - 12:16:40 Meanwhile check the chase camera params for helis.
 - 12:19:11 Meanwhile, look at heli flight forward code to understand the slow speed.
+- 12:29:29 Look at some frames while it runs.
 
 ## Recent steps (last 40)
 
@@ -38,6 +39,15 @@ agent id ae5128073bc00ca51, 92 events, first activity 2026-11-26T12:12:55.587Z, 
 - 12:19:18 cd /home/user/QUANTUM_Teleportar/godot; grep -n "h_scout\|h_tandem" scripts/vehicles/heli_roster.gd | head -5; grep -n "HeliRoster" scripts/vehicles/vehicle_specs.gd |...
 - 12:19:19 cd /home/user/QUANTUM_Teleportar/godot; sed -n 69,92p scripts/vehicles/vehicle_specs.gd | cut -c1-400
 - 12:19:26 timeout 1400 bash -c 'while pgrep -f "bot_w125_critic" >/dev/null; do sleep 10; done'; S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e31...
+- 12:29:28 ls /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/ | head -50
+- 12:29:30 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/chase_h_scout_q0.png
+- 12:29:32 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/chase_h_tilt_q0.png
+- 12:29:33 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/chase_h_heavy_q0.png
+- 12:29:37 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/cockpit_h_scout_q0.png
+- 12:29:38 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/cockpit_h_heavy_q0.png
+- 12:29:43 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/chase_h_tandem_q0.png
+- 12:29:44 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/cr/chase_h_coax_q0.png
+- 12:29:50 timeout 590 bash -c 'while pgrep -f "bot_w125_critic" >/dev/null; do sleep 10; done'; S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e316...
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
