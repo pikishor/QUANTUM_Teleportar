@@ -194,8 +194,8 @@ func _new_line(f: Flight, seed_i := -1) -> void:
 	var half := 1700.0
 	var p0 := c - d * half
 	var p1 := c + d * half
-	p0.x = maxf(p0.x, 1150.0)
-	p1.x = maxf(p1.x, 1150.0)
+	p0.x = clampf(p0.x, 1150.0, 2900.0)                                         # w126-critic: and not past local x 2900 (a crosser 3.2 km out broke test_airport_aircraft "every flight is somewhere on the map")
+	p1.x = clampf(p1.x, 1150.0, 2900.0)
 	var agl: float = CROSS_AGL[absi(hash(f.id)) % CROSS_AGL.size()]
 	var v := 34.0 if f.heli else clampf(float(VehicleSpecs.SPECS.get(f.kind, {}).get("stall", 30.0)) * 1.6, 30.0, 90.0)
 	f.route = [_wp(Vector3(p1.x, agl, p1.z), v, 0.0, false, false, &"cross")]
@@ -439,6 +439,17 @@ func _step(f: Flight, dt: float) -> void:
 	var tv := float(wp["v"])
 	var ground: bool = wp["ground"]
 	var ph: StringName = wp["phase"]
+	if separate and not f.heli and not f.cross and (ph == &"approach" or ph == &"flare") and f.pos.y > 3.0 and (runway_vehicle() != "" or _landing_conflict(f)):
+		for i in f.route.size():                                                 # something stands on the runway (the RUNWAY 09 plane, the hero's aircraft): go around
+			if f.route[i]["phase"] == &"circuit":
+				f.idx = i
+				go_arounds += 1
+				return
+	if separate and not f.heli and not f.cross and _must_wait(f, ground, ph):
+		f.phase = ph
+		f.speed = move_toward(f.speed, 0.0, 9.0 * dt)
+		_attitude(f, dt, 0.0)
+		return
 	var clear_h := tgt.y
 	if not ground and not f.heli and ph == &"circuit":                            # the circuit never flies lower than 70 m over whatever is under it
 		var tw := Airport.to_world(tgt)
@@ -490,6 +501,122 @@ func _step(f: Flight, dt: float) -> void:
 		f.pos.y = maxf(f.pos.y + vy * dt, 0.0)
 	_track(f)
 	_attitude(f, dt, vy)
+
+
+## w126-critic: GROUND SEPARATION. A plane on the ground stops while another aircraft (a flight, or a real vehicle such as a promoted flight, the RUNWAY 09 plane or the hero's
+## aircraft) stands ahead of it on its way, and a departure waits off the runway (before it lines up) while the runway is in use: something lines up, rolls, climbs out low,
+## is on final or rolls out. Before this, an airliner lined up under a bizjet touching down, took off 3 m over a bizjet rolling out, and a light plane taxied into an airliner
+## that waited for the hero (two aircraft in one spot for 15 s). `separate` = false (W126C_OLD=1) is the wave 126 traffic.
+static var separate := OS.get_environment("W126C_OLD") != "1"
+const RUNWAY_BUSY: Array[StringName] = [&"lineup", &"roll", &"flare", &"touchdown", &"rollout", &"approach"]
+
+
+static func _len_of(kind: StringName) -> float:
+	var sp: Dictionary = VehicleSpecs.SPECS.get(kind, {})
+	return float(sp.get("len", 12.0))
+
+
+func _must_wait(f: Flight, ground: bool, ph: StringName) -> bool:
+	if f.idx >= 1 and f.idx + 1 < f.route.size() and f.route[f.idx + 1]["phase"] == &"lineup":
+		var prev: Vector3 = f.route[f.idx - 1]["p"]
+		if Vector2(f.pos.x - prev.x, f.pos.z - prev.z).length() < 3.0 and runway_busy(f):
+			return true                                                          # hold short of the runway
+	var n := f.route.size()
+	if f.idx == n - 4 and not f.cross and stand_taken(f):
+		var nx: Vector3 = f.route[f.idx]["p"]
+		if Vector2(f.pos.x - nx.x, f.pos.z - nx.z).length() < 14.0:
+			return true                                                          # its stand is not free yet (the other airliner of the gate): wait 14 m short of the taxiway corner
+	if not ground or ph == &"parked" or ph == &"push" or f.pos.y > 0.5:
+		return false                                                             # only on the wheels (a flight in the flare never stops in the air)
+	return blocked_ahead(f) != ""
+
+
+## A landing `f` would come down on another plane: one lines up, rolls, touches down or rolls out, or lands just ahead of it (less than 900 m ahead on the approach).
+func _landing_conflict(f: Flight) -> bool:
+	for g in flights:
+		if g == f or g.heli or g.cross or g.gone > 0.0 or g.vehicle != null:
+			continue
+		if g.phase in [&"lineup", &"roll", &"touchdown", &"rollout"]:
+			return true
+		if g.phase in [&"approach", &"flare"] and g.pos.z < f.pos.z and f.pos.z - g.pos.z < 900.0:
+			return true
+	return false
+
+
+## Another flight of the same stand has not left it yet (parked, pushing back, or on its first taxi legs).
+func stand_taken(f: Flight) -> bool:
+	for g in flights:
+		if g != f and not g.heli and g.gone <= 0.0 and g.stand.distance_to(f.stand) < 5.0 and g.idx <= 3:
+			return true
+	return false
+
+
+var go_arounds := 0                       ## landings broken off because the runway was not free (tests)
+
+
+## The kind of a real vehicle standing on the runway (on its wheels), "" when the runway is free.
+func runway_vehicle() -> String:
+	var vm := Game.vehicles as VehicleManager
+	if vm == null:
+		return ""
+	for v in vm.list:
+		if not v.active or v.dead or (v.craft != null and v.craft.airborne):
+			continue
+		var lp := Airport.to_local(v.global_position)
+		if absf(lp.x - Airport.RUNWAY_X) < Airport.RUNWAY_W * 0.5 + 3.0 and lp.z > Airport.RUNWAY_N - 5.0 and lp.z < Airport.RUNWAY_S + 5.0:
+			return String(v.kind)
+	return ""
+
+
+## Something in use on the runway for a departure `f` (another plane lining up, rolling, climbing out under 40 m, on final, flaring, touching down, rolling out).
+func runway_busy(f: Flight) -> bool:
+	for g in flights:
+		if g == f or g.heli or g.cross or g.gone > 0.0 or g.vehicle != null:
+			continue
+		if g.phase in RUNWAY_BUSY or (g.phase == &"climb" and g.pos.y < 40.0):
+			return true
+	return runway_vehicle() != ""
+
+
+## What stands ahead of `f` on the ground (in its lane: sideways closer than both half wing spans plus 3 m, ahead closer than both half lengths plus 12 m): a flight's kind or a
+## vehicle's, "" when the way is free. Two planes nose to nose: the one earlier in the list goes first.
+func blocked_ahead(f: Flight) -> String:
+	var fwd := Vector2(-sin(f.heading), -cos(f.heading))
+	var lf := _len_of(f.kind)
+	var wf := _span_of(f.kind)
+	var me := flights.find(f)
+	for i in flights.size():
+		var g := flights[i]
+		if g == f or g.gone > 0.0 or g.vehicle != null or g.pos.y > 4.0:
+			continue
+		var rel := Vector2(g.pos.x - f.pos.x, g.pos.z - f.pos.z)
+		if not _in_lane(rel, fwd, lf, wf, _len_of(g.kind), _span_of(g.kind)):
+			continue
+		var gf := Vector2(-sin(g.heading), -cos(g.heading))
+		if (-rel).dot(gf) > 0.0 and _in_lane(-rel, gf, _len_of(g.kind), _span_of(g.kind), lf, wf) and i > me and g.speed > 0.5:
+			continue                                                             # nose to nose: the earlier one in the list goes
+		return String(g.kind)
+	var vm := Game.vehicles as VehicleManager
+	if vm != null:
+		for v in vm.list:
+			if not v.active or v.dead:
+				continue
+			var lp := Airport.to_local(v.global_position)
+			var rel2 := Vector2(lp.x - f.pos.x, lp.z - f.pos.z)
+			if _in_lane(rel2, fwd, lf, wf, float(v.spec.get("len", 4.0)), float(v.spec.get("span", v.spec.get("rotor_r", 1.0) * 2.0 if v.spec.has("rotor_r") else v.spec.get("wid", 2.0)))):
+				return String(v.kind)
+	return ""
+
+
+static func _span_of(kind: StringName) -> float:
+	var sp: Dictionary = VehicleSpecs.SPECS.get(kind, {})
+	return float(sp.get("span", float(sp.get("rotor_r", 0.0)) * 2.0 if sp.has("rotor_r") else float(sp.get("wid", 3.0))))
+
+
+static func _in_lane(rel: Vector2, fwd: Vector2, la: float, wa: float, lb: float, wb: float) -> bool:
+	var ahead := rel.dot(fwd)
+	var side := absf(rel.cross(fwd))
+	return ahead > 0.0 and ahead < 0.5 * (la + lb) + 12.0 and side < 0.5 * (wa + wb) + 3.0
 
 
 ## Take-offs, landings and the clearance over the terrain.

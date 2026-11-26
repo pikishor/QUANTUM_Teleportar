@@ -85,6 +85,17 @@ func run(h: Node) -> void:
 				var w := Airport.to_world(Vector3(lx, 0.0, lz))
 				row += " %4.0f" % TerrainHeight.height_at(w.x, w.z)
 			print(row)
+	if OS.get_environment("CRP_PARTS") == "ff":
+		var at3 := AirTraffic.instance
+		for f in at3.flights:
+			f.vehicle = null
+			f.gone = 0.0
+			f.hold = 2.0
+		for k in 60:
+			at3.fast_forward(10.0)
+			for f in at3.flights:
+				if not (f.pos.is_finite() and f.pos.y >= 0.0 and f.pos.y < 400.0 and absf(f.pos.x) < 3000.0 and absf(f.pos.z) < 3000.0):
+					print("CRP ff t %d %s %s cross %s idx %d/%d phase %s pos %s" % [k * 10, f.id, f.kind, f.cross, f.idx, f.route.size(), f.phase, f.pos])
 	if _on("line"):
 		await _line()
 	if _on("fly"):
@@ -165,6 +176,7 @@ func _line() -> void:
 # --- the bot pilot: only fingers ---------------------------------------------------------------------------------------------------------
 
 var held := &""
+var _last_cr := 0
 
 
 func _hold(btn: StringName) -> void:
@@ -287,6 +299,13 @@ func _kind(k: StringName) -> void:
 			elif v.speed > vt + 1.0:
 				sy = 1.0
 			fg.stick(Vector2(sx, sy) if absf(sx) + absf(sy) > 0.02 else Vector2(0.0, 0.01))
+			if v.crashes != _last_cr:
+				_last_cr = v.crashes
+				var near := ""
+				for o in vm.list:
+					if o != v and o.active and _flat(o.global_position, v.global_position) < 40.0:
+						near += "%s %.0fm; " % [o.kind, _flat(o.global_position, v.global_position)]
+				print("CRP %s taxi HIT at local %s heading %.2f speed %.1f near: %s" % [k, Airport.to_local(v.global_position).round(), v.heading, v.speed, near])
 			if _flat(v.global_position, wp) < 6.0:
 				break
 		if _flat(v.global_position, wp) >= 6.0:
@@ -366,7 +385,7 @@ func _kind(k: StringName) -> void:
 		var tg := near_end + ldir * (along + maxf(150.0, -along * 0.35)) + Vector3.ZERO
 		tg -= side * 0.0
 		var want := _head_to(g, Vector3(tg.x, 0.0, tg.z) - side * 0.0)
-		want = _head_to(g, near_end + ldir * (along + maxf(150.0, -along * 0.35)))
+		want = _head_to(g, near_end + ldir * (along + maxf(70.0, -along * 0.3)))
 		var want_agl := maxf(-along, 0.0) * 0.07 + 4.0
 		var lv := 0.0
 		if along < -60.0:
@@ -375,8 +394,12 @@ func _kind(k: StringName) -> void:
 		var btn := &""
 		if along < -40.0:
 			btn = &"crouch" if a > want_agl + 6.0 else (&"jump" if a < want_agl - 6.0 else &"")
+		elif a > 2.0:
+			btn = &"crouch"                                     # over the runway: DOWN until the wheels touch (the game flares the last metres)
 		_pilot(v, want, lv, -1.0)
 		_hold(btn)
+		if OS.get_environment("CRP_TRACE") == "2" and Engine.get_physics_frames() % 240 == 0:
+			print("CRP final %s along %.0f lat %.1f agl %.0f want %.0f speed %.0f lever %.2f pitch %.2f btn %s" % [k, along, lat, a, want_agl, v.speed, v.craft.lever, A.pitch, btn])
 		if not v.craft.airborne:
 			landed = true
 			break
@@ -526,7 +549,7 @@ func _traffic() -> void:
 	if vm.driven != null:
 		await _tap(&"interact")
 	vm._reset_all()
-	p.teleport_to(Airport.to_world(Vector3(1240.0, 0.0, -560.0)) + Vector3(0.0, 0.5, 0.0))
+	p.teleport_to(Airport.to_world(Vector3(1236.0, 0.0, float(OS.get_environment("CRP_TZ")) if OS.get_environment("CRP_TZ") != "" else -560.0)) + Vector3(0.0, 0.5, 0.0))
 	await _f(10)
 	var tr := AirTraffic.instance
 	if tr == null:
@@ -557,6 +580,8 @@ func _traffic() -> void:
 				if b.gone > 0.0:
 					continue
 				var dd := a.pos.distance_to(b.pos)
+				if dd < 30.0 and (a.pos.y < 40.0 or b.pos.y < 40.0):
+					print("CRP traffic close t %.0f: %s %s %s / %s %s %s : %.1f m (runway local %s)" % [_t - t0, a.kind, a.phase, a.pos.round(), b.kind, b.phase, b.pos.round(), dd, Airport.to_local(Vector3(a.pos.x, 0.0, a.pos.z)).round()])
 				if dd < minpair:
 					minpair = dd
 					minpair_txt = "%s(%s)/%s(%s) at local %s" % [a.kind, a.phase, b.kind, b.phase, Airport.to_local(a.pos).round()]
@@ -577,4 +602,5 @@ func _traffic() -> void:
 	for f in tr.flights:
 		to1 += f.takeoffs
 		la1 += f.landings
+	print("CRP traffic go-arounds %d, runway vehicle '%s'" % [tr.go_arounds if "go_arounds" in tr else -1, tr.runway_vehicle() if tr.has_method("runway_vehicle") else "?"])
 	print("CRP traffic 120 s: %d flights, kinds seen %s; take-offs %d landings %d; closest pair %.1f m %s" % [tr.flights.size(), seen.keys(), to1 - to0, la1 - la0, minpair, minpair_txt])

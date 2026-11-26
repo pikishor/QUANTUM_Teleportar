@@ -41,6 +41,20 @@ static func door_frame(s: Dictionary) -> Dictionary:
 	return {"c": Vector3(p.x, 0.0, p.y + sz.z * 0.5), "along": Vector3(1.0, 0.0, 0.0), "out": Vector3(0.0, 0.0, 1.0), "span": sz.x}
 
 
+## w126-critic: a WORLD point under the roof of a hangar or shelter (the rain stops there: Atmosphere asks). rain_fix = false (W126C_OLD=1): it rained inside.
+static var rain_fix := OS.get_environment("W126C_OLD") != "1"
+
+
+static func under_roof(world: Vector3) -> bool:
+	if not on or not rain_fix:
+		return false
+	var lp := Airport.to_local(world)
+	for s: Dictionary in SITES:
+		if inside(s, lp):
+			return true
+	return false
+
+
 static func inside(s: Dictionary, local: Vector3) -> bool:
 	var p: Vector2 = s["pos"]
 	var sz: Vector3 = s["size"]

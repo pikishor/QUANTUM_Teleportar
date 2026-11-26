@@ -7,7 +7,7 @@ Run: python3 tools/gen_plane_roster.py"""
 import os, re, sys
 
 MAX_RUN = 620.0
-RUNWAY_GAP = 8.0
+RUNWAY_GAP = 6.0                 # w126-critic: 8 -> 6 m (room for the two taxi lanes)
 
 # id, name, role,
 # flight (max m/s, stall m/s, acc, climb m/s, agile, roll 1/s, pitch rad/s), body (mass kg, hp, seats),
@@ -147,13 +147,27 @@ def spec_line(p):
             % (i, i, mx, acc, hp, mass, seats, i[2:], ln, wid, hgt, wheel, stall, span, climb, agile, roll, pitch, run, extra, cam_d, cam_h, wid * 0.5 + 1.6))
 
 
+# w126-critic: two TAXI LANES cross the line (and the HELI LINE gaps between its helicopters at z -740 / -702 and -550 / -512): the fighters of the ARMY SHELTERS roll out
+# south and turn west through them to the runway. Before, the line was a wall from z -935 to -249 and both shelter fighters were boxed in.
+LANES = [(-737.0, -705.0), (-547.0, -515.0)]
+
+
 def line_places():
     out, z = {}, LINE_Z0
-    for p in P:
-        if p[9] != "line":
+    todo = [p for p in P if p[9] == "line"]
+    while todo:
+        lane = next(((lo, hi) for lo, hi in LANES if hi > z), None)
+        pick = None
+        for p in todo:                                          # the first plane (in table order) that fits before the next lane
+            if lane is None or z + p[6][0] <= lane[0] or z >= lane[1]:
+                pick = p
+                break
+        if pick is None:
+            z = lane[1] + 2.0                                   # nothing fits: jump over the lane
             continue
-        ln = p[6][0]
-        out[p[0]] = (LINE_X, z - ln * 0.5) if False else (LINE_X, z + ln * 0.5)
+        todo.remove(pick)
+        ln = pick[6][0]
+        out[pick[0]] = (LINE_X, z + ln * 0.5)
         z += ln + RUNWAY_GAP
     if z > -196.0:
         sys.exit("the PLANE LINE runs past z -196 (%.0f): shorten it" % z)

@@ -143,6 +143,16 @@ func _run(tree: SceneTree) -> void:
 		await _pf(3)
 		fg.up(7)
 		await _pf(6)
+	if _on("rain"):
+		var atm := Game.atmosphere as Atmosphere
+		if atm != null:
+			if atm.weather != null:
+				atm.weather.process_mode = Node.PROCESS_MODE_DISABLED
+			atm.set_weather(1.0, 1.0, true)
+		await _view("hangar_rain_in", Vector3(1150.0, 0.0, -934.0), Vector3(1132.0, 1.0, -944.0))
+		await _view("hangar_rain_out", Vector3(1190.0, 0.0, -934.0), Vector3(1136.0, 4.0, -940.0))
+		if atm != null:
+			atm.set_weather(0.0, 0.0, true)
 	if _on("views"):
 		await _view("line_from_runway", Vector3(1262.0, 0.0, -840.0), Vector3(1307.0, 3.0, -700.0))
 		await _view("hangar_a_in", Vector3(1156.0, 0.0, -934.0), Vector3(1132.0, 1.0, -944.0))
@@ -155,7 +165,7 @@ func _run(tree: SceneTree) -> void:
 				await _pf(60)
 				await _shot("board_" + String(k))
 	if _on("fly"):
-		var v := await _board_fixed(&"p_fighter")
+		var v := await _board_fixed(&"p_twin")
 		if v != null:
 			# set-up: the fighter put in the air over the airport heading west over the city, 250 m up
 			v.global_position = Airport.to_world(Vector3(1262.0, 250.0, -600.0))
@@ -168,7 +178,7 @@ func _run(tree: SceneTree) -> void:
 			v.vel = v.forward() * 70.0
 			fg.stick(Vector2(0.0, -0.3))
 			await _pf(90)
-			await _shot("fly_fighter_hud")
+			await _shot("fly_hud")
 			await _perf("fly_fighter_airport")
 			await _pf(400)
 			await _perf("fly_fighter_city")

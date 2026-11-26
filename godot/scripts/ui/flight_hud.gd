@@ -226,9 +226,16 @@ static func _throttle(c: Control, bottom_left: Vector2, h: float, v: float, s: f
 
 
 ## The landing guide: a 200 px box with a cross at its centre; the diamond is the aircraft relative to the glide path and the runway axis (±40 m vertical, ±60 m lateral at the full box).
+## w126-critic: the rect of the landing guide with its RWY label above and its hint below (for layout tests and the radio portrait).
+static func guide_rect(vp: Vector2, s: float, ins: Vector2) -> Rect2:
+	var size := Vector2(190.0, 150.0) * s
+	var pos := Vector2(ins.x + 26.0 * s + 2.0 * (74.0 * s + 4.0 * s) + 200.0 * s, vp.y * 0.47 - 74.0 * s)
+	return Rect2(pos - Vector2(0.0, 32.0 * s), size + Vector2(0.0, 62.0 * s))
+
+
 static func _guide(c: Control, font: Font, vp: Vector2, ins: Vector2, s: float, g: Dictionary, airborne: bool) -> void:
 	var size := Vector2(190.0, 150.0) * s
-	var pos := Vector2(ins.x + 26.0 * s + 2.0 * (74.0 * s + 4.0 * s) + 200.0 * s, vp.y * 0.47 - 74.0 * s)       # right of the altitude boxes, level with the horizon: clear of the sticks and the readout plate
+	var pos := Vector2(ins.x + 26.0 * s + 2.0 * (74.0 * s + 4.0 * s) + 200.0 * s, vp.y * 0.47 - 74.0 * s)       # right of the altitude boxes, level with the horizon: clear of the sticks and the readout plate (guide_rect)
 	c.draw_rect(Rect2(pos, size), PLATE)
 	c.draw_rect(Rect2(pos, size), Color(CYAN, 0.5), false, 2.0 * s)
 	var cen := pos + size * 0.5
