@@ -36,16 +36,23 @@ func run(h: Node) -> void:
 				missing.append("%s %d" % [StreetDetail.KIND_NAMES[k], sd.kind_count[k]])
 	TestLib.check(missing.is_empty(), "every new street prop kind is placed (missing or too few: %s)" % [missing])
 	var a := Vector3(-20.0, 0.3, 11.0)
-	var b := Vector3(-70.0, 0.3, 11.0)
+	var b := Vector3(-100.0, 0.3, 11.0)
 	await L.tp(a, Lib.yaw_to(a, b))
-	var rw := await L.walk(b, 30.0, 2.0)
 	var seen := {}
-	if sd != null:
-		for pl: Dictionary in sd.placements:
-			if Lib.flat(pl["pos"], L.p.global_position) < sd.near_radius() - 5.0:
-				seen[StreetDetail.KIND_NAMES[int(pl["kind"])]] = true
-	TestLib.check(rw["reached"] and sd != null and sd.triangles > 300 and sd.near_props >= 10 and seen.size() >= 6,
-		"walking the spawn sidewalk by the stick, the layer draws the props around the hero in one mesh (%d triangles, %d props, kinds %s)" % [sd.triangles if sd else 0, sd.near_props if sd else 0, seen.keys()])
+	var rw := {"reached": true}
+	var tri_max := 0
+	var props_max := 0
+	for leg in 4:                                                    # four legs of 20 m: the kinds the window holds around the hero on the way
+		var r_leg := await L.walk(a.lerp(b, float(leg + 1) / 4.0), 12.0, 2.0)
+		rw["reached"] = rw["reached"] and r_leg["reached"]
+		if sd != null:
+			tri_max = maxi(tri_max, sd.triangles)
+			props_max = maxi(props_max, sd.near_props)
+			for pl: Dictionary in sd.placements:
+				if Lib.flat(pl["pos"], L.p.global_position) < sd.near_radius() - 3.0:
+					seen[StreetDetail.KIND_NAMES[int(pl["kind"])]] = true
+	TestLib.check(rw["reached"] and sd != null and tri_max > 300 and props_max >= 10 and seen.size() >= 6,
+		"walking the spawn sidewalk by the stick, the layer draws the props around the hero in one mesh (up to %d triangles, %d props, kinds %s)" % [tri_max, props_max, seen.keys()])
 	# 2. door lanes
 	var doors := C.doors_near(s, 250.0)
 	var bad: Array = []

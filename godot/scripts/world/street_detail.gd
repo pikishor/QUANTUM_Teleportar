@@ -43,8 +43,10 @@ const GROUND: Array[int] = [NEWS_BOX, BIKE_RACK, METER, TREE, TRAFFIC_SIGN, NAME
 
 const CELL := 40.0
 const STEP := 8.0
-const NEAR_BASE := 42.0                ## m, times the quality scale (LOW 0.65, MED 0.85, HIGH 1.0)
+const NEAR_BASE := 34.0                ## m, times the quality scale (LOW 0.65, MED 0.85, HIGH 1.0)
 const FAR_BILLBOARD := 230.0
+const CROWN_LIFT := 1.2               ## m the street tree crowns are raised (underside 3.45 m: over the follow camera)
+const AWNING_HW := 1.9               ## m, half the awning width (w1242-critic: the blade sign stands beyond it)
 const WALK_GAP := 1.4                  ## m of free sidewalk kept between a kerb prop and the building
 const STREET_WORDS: Array[String] = ["ALDER", "BRISK", "CINDER", "DUSK", "EMBER", "FLINT", "GALE", "HARROW", "IRIS", "JUNIPER", "KESTREL", "LUMEN", "MARLOW", "NOVA", "ONYX",
 	"PIKE", "QUILL", "RIVET", "SABLE", "TALLOW", "UMBER", "VESPER", "WREN", "XENON", "YARROW", "ZEPHYR", "ASH"]
@@ -84,6 +86,10 @@ var _city: Node3D
 var _seat_grid := {}                    ## 8 m cells -> Array[Vector3] of bench seats (r 1.8) and bus stops (r 3.2) as (x, z, r)
 var _door_grid := {}                    ## 8 m cells -> Array[int] door indices
 var _rng := RandomNumberGenerator.new()
+static var solid_on: bool = OS.get_environment("W1242C_OLD") != "1"   ## w1242-critic: trunks, news boxes and town clutter stop the hero (W1242C_OLD=1: walk-through props, raised-crown off)
+var _body := RID()                      ## one static body: the near window's solid props (no nodes)
+var _shapes := {}                       ## kind*4+variant -> [shape RID, local Transform3D]
+var solids := 0
 
 
 ## The shared window glass (tower and lobby window holes): light blue, see-through, both faces.
@@ -91,8 +97,8 @@ static func glass_material() -> StandardMaterial3D:
 	if _glass == null:
 		_glass = StandardMaterial3D.new()
 		_glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_glass.albedo_color = Color(0.55, 0.72, 0.82, 0.22)
-		_glass.metallic = 0.4
+		_glass.albedo_color = Color(0.5, 0.68, 0.8, 0.34)
+		_glass.metallic = 0.55
 		_glass.roughness = 0.06
 		_glass.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return _glass
@@ -121,6 +127,12 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	if instance == self:
 		instance = null
+	if _body.is_valid():
+		PhysicsServer3D.free_rid(_body)
+		_body = RID()
+	for e: Array in _shapes.values():
+		PhysicsServer3D.free_rid(e[0])
+	_shapes.clear()
 
 
 func _process(_delta: float) -> void:
@@ -340,6 +352,20 @@ func _billboards(layout: CityLayout) -> void:
 		var pos := Vector3(lot.cx, lot.h, lot.cz) + n * (depth * 0.5 - 1.6)
 		if not _space_free(pos.x, pos.z, 12.0):
 			continue
+		# w1242-critic: stand on the roof that is really there (stepped crowns: the front can be a lower step); all four feet on one level
+		var bs := Basis(Vector3.UP, atan2(n.x, n.z))
+		var lvl := -1.0
+		var flat := true
+		for lp: Vector3 in [Vector3(-2.2, 0, -0.2), Vector3(2.2, 0, -0.2), Vector3(-2.2, 0, -1.4), Vector3(2.2, 0, -1.4)]:
+			var fw := pos + bs * lp
+			var gh: float = _city.ground_height(fw.x, fw.z, lot.h + 1.0) if _city.has_method(&"ground_height") else lot.h
+			if lvl < 0.0:
+				lvl = gh
+			elif absf(gh - lvl) > 0.2:
+				flat = false
+		if not flat or lvl < 8.0:
+			continue
+		pos.y = lvl
 		_add(BILLBOARD, pos, atan2(n.x, n.z), made % 3, BRANDS[made % BRANDS.size()])
 		made += 1
 
@@ -365,10 +391,11 @@ func _storefronts(layout: CityLayout, doors: Array) -> void:
 		if short.length() > 9:
 			short = short.substr(0, 9)
 		_add(DOOR_FRAME, w, yaw, int(h * 3.0), "", di, n)
-		if h < 0.75:
+		var awned := h < 0.75
+		if awned:
 			_add(AWNING, w, yaw, int(_hash(lot_i, 5) * 3.0), "", di, n)
-		if short != "":
-			_add(SHOP_SIGN, w + t * (dw * 0.5 + 0.55), yaw, int(_hash(lot_i, 7) * 3.0), short, di, n)
+		if short != "":                                                 # w1242-critic: beside the awning, not through its cloth
+			_add(SHOP_SIGN, w + t * (maxf(dw * 0.5 + 0.55, AWNING_HW + 0.25) if awned else dw * 0.5 + 0.55), yaw, int(_hash(lot_i, 7) * 3.0), short, di, n)
 		# a window either side of the door: a lit display or a roller shutter (a closed shop)
 		for side: float in [-1.0, 1.0]:
 			var c := w + t * side * (dw * 0.5 + 1.75)
@@ -520,6 +547,7 @@ func _fill(sel_near: Array[int], sel_far: Array[int]) -> void:
 				sd.append_array(seeds)
 				if level == 0:
 					near_props += 1
+	_fill_solids(sel_near)
 	mesh.clear_surfaces()
 	triangles = v.size() / 3
 	if v.is_empty():
@@ -534,6 +562,55 @@ func _fill(sel_near: Array[int], sel_far: Array[int]) -> void:
 	arrays[Mesh.ARRAY_CUSTOM0] = sd
 	var flags := Mesh.ARRAY_FORMAT_CUSTOM0 | (Mesh.ARRAY_CUSTOM_R_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
+
+
+## w1242-critic: the hero walked through street tree trunks, news boxes and the towns' bins. The near window's solid props as shapes of one static body.
+func _solid_shape(kind: int, variant: int) -> Array:
+	var key := kind * 4 + variant % 4
+	if _shapes.has(key):
+		return _shapes[key]
+	var e: Array = []
+	match kind:
+		TREE:
+			var c := PhysicsServer3D.cylinder_shape_create()
+			PhysicsServer3D.shape_set_data(c, {"radius": 0.16, "height": 2.6})
+			e = [c, Transform3D(Basis(), Vector3(0, 1.3, 0))]
+		NEWS_BOX:
+			var b := PhysicsServer3D.box_shape_create()
+			PhysicsServer3D.shape_set_data(b, Vector3(0.28, 0.5, 0.23))
+			e = [b, Transform3D(Basis(), Vector3(0, 0.5, 0))]
+		CLUTTER:
+			var b2 := PhysicsServer3D.box_shape_create()
+			var he := Vector3(0.12, 0.65, 0.25) if variant % 4 == 2 else (Vector3(0.7, 0.5, 0.4) if variant % 4 == 0 else Vector3(0.6, 0.5, 0.5))
+			PhysicsServer3D.shape_set_data(b2, he)
+			e = [b2, Transform3D(Basis(), Vector3(0, he.y, 0))]
+	_shapes[key] = e
+	return e
+
+
+func _fill_solids(sel_near: Array[int]) -> void:
+	solids = 0
+	if not solid_on or not is_inside_tree():
+		return
+	if not _body.is_valid():
+		_body = PhysicsServer3D.body_create()
+		PhysicsServer3D.body_set_mode(_body, PhysicsServer3D.BODY_MODE_STATIC)
+		PhysicsServer3D.body_set_collision_layer(_body, Game.L_WORLD)
+		PhysicsServer3D.body_set_collision_mask(_body, 0)
+		PhysicsServer3D.body_set_space(_body, get_world_3d().space)
+	PhysicsServer3D.body_clear_shapes(_body)
+	for k in sel_near:
+		var arr: PackedFloat32Array = cells[k]
+		for o in range(0, arr.size(), 8):
+			var kind := int(arr[o])
+			if kind != TREE and kind != NEWS_BOX and kind != CLUTTER:
+				continue
+			var e := _solid_shape(kind, int(arr[o + 6]))
+			if e.is_empty():
+				continue
+			var xf := Transform3D(Basis(Vector3.UP, arr[o + 4]), Vector3(arr[o + 1], arr[o + 2], arr[o + 3])) * (e[1] as Transform3D)
+			PhysicsServer3D.body_add_shape(_body, e[0], xf)
+			solids += 1
 
 
 func _geo_of(kind: int, variant: int, tid: int, d: int, near: bool) -> Dictionary:
@@ -628,9 +705,10 @@ static func _tree(b: MB, p: Kit.Pal, variant: int) -> void:
 	# trunk, a low-poly crown (tall enough to walk under) and a light guard
 	var bark := Color(0.09, 0.06, 0.04, 0.0)
 	b.uv2 = Vector2(0.0, 0.9)
-	b.cylinder(Vector3(0, 0, 0), 0.11, 2.7, 5, bark, 0.08)
+	var lift := 0.0 if not solid_on else CROWN_LIFT                 # w1242-critic: the crown's underside was 2.25 m up, in the follow camera's path (a green wall on screen)
+	b.cylinder(Vector3(0, 0, 0), 0.11, 2.7 + lift, 5, bark, 0.08)
 	var leaf: Color = [Color(0.06, 0.16, 0.05), Color(0.09, 0.15, 0.04), Color(0.05, 0.12, 0.08)][variant % 3]
-	var hgt := 3.4 + 0.3 * float(variant)
+	var hgt := 3.4 + lift + 0.3 * float(variant)
 	b.sphere(Vector3(0, hgt, 0), Vector3(1.45, 1.15, 1.45), 6, 3, Color(leaf.r, leaf.g, leaf.b, 0.0))
 	b.sphere(Vector3(0.45, hgt + 0.65, 0.2), Vector3(0.9, 0.75, 0.9), 5, 3, Color(leaf.r * 1.25, leaf.g * 1.25, leaf.b * 1.25, 0.0))
 	b.uv2 = Vector2(0.85, 0.4)
@@ -666,7 +744,7 @@ static func _traffic_sign(b: MB, p: Kit.Pal, variant: int) -> void:
 
 
 static func _name_sign(b: MB, p: Kit.Pal, text: String) -> void:
-	var grey := p.t(Color(0.08, 0.085, 0.09))
+	var grey := Color(0.03, 0.032, 0.035, 0.0)                   # dark steel, not tinted (the district gain read it white)
 	b.uv2 = Vector2(0.8, 0.4)
 	b.box(Vector3(0, 1.45, 0), Vector3(0.08, 2.9, 0.08), grey, false)
 	b.box(Vector3(0, 2.95, 0), Vector3(0.12, 0.1, 0.12), grey)
@@ -675,16 +753,16 @@ static func _name_sign(b: MB, p: Kit.Pal, text: String) -> void:
 	b.uv2 = Vector2(0.2, 0.4)
 	for k in mini(parts.size(), 2):
 		var nm := parts[k]
-		var y := 2.72 + float(k) * 0.3
-		var len_m := maxf(0.9, 0.11 * float(nm.length()) + 0.25)
+		var y := 2.62 + float(k) * 0.36
+		var len_m := maxf(1.0, 0.137 * float(nm.length()) + 0.3)
 		if k == 0:                                                       # blade along x: read from the road along x (the faces look at +z / -z)
-			b.box(Vector3(-len_m * 0.5 + 0.05, y, 0), Vector3(len_m, 0.22, 0.03), green)
-			_text(b, nm, Vector3(-len_m * 0.5 + 0.05, y, 0.017), Vector3.RIGHT, 0.12, Color(0.9, 0.92, 0.9, 0.0))
-			_text(b, nm, Vector3(-len_m * 0.5 + 0.05, y, -0.017), Vector3.LEFT, 0.12, Color(0.9, 0.92, 0.9, 0.0))
+			b.box(Vector3(-len_m * 0.5 + 0.05, y, 0), Vector3(len_m, 0.28, 0.03), green)
+			_text(b, nm, Vector3(-len_m * 0.5 + 0.05, y, 0.017), Vector3.RIGHT, 0.16, Color(0.95, 0.97, 0.95, 0.0))
+			_text(b, nm, Vector3(-len_m * 0.5 + 0.05, y, -0.017), Vector3.LEFT, 0.16, Color(0.95, 0.97, 0.95, 0.0))
 		else:                                                            # blade along z
-			b.box(Vector3(0, y, -len_m * 0.5 + 0.05), Vector3(0.03, 0.22, len_m), green)
-			_text(b, nm, Vector3(0.017, y, -len_m * 0.5 + 0.05), Vector3.FORWARD, 0.12, Color(0.9, 0.92, 0.9, 0.0))
-			_text(b, nm, Vector3(-0.017, y, -len_m * 0.5 + 0.05), Vector3.BACK, 0.12, Color(0.9, 0.92, 0.9, 0.0))
+			b.box(Vector3(0, y, -len_m * 0.5 + 0.05), Vector3(0.03, 0.28, len_m), green)
+			_text(b, nm, Vector3(0.017, y, -len_m * 0.5 + 0.05), Vector3.FORWARD, 0.16, Color(0.95, 0.97, 0.95, 0.0))
+			_text(b, nm, Vector3(-0.017, y, -len_m * 0.5 + 0.05), Vector3.BACK, 0.16, Color(0.95, 0.97, 0.95, 0.0))
 
 
 static func _billboard(b: MB, p: Kit.Pal, text: String, variant: int, near: bool) -> void:
@@ -722,7 +800,7 @@ static func _awning(b: MB, p: Kit.Pal, variant: int) -> void:
 	var cloth := p.cloth()
 	var dark := Color(cloth.r * 0.6, cloth.g * 0.6, cloth.b * 0.6, 0.0)
 	b.uv2 = Vector2(0.0, 0.85)
-	var hw := 1.9
+	var hw := AWNING_HW
 	var stripes := 6
 	for k in stripes:
 		var x0 := -hw + 2.0 * hw * float(k) / float(stripes)

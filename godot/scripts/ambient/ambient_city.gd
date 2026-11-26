@@ -39,6 +39,8 @@ const ALT_HIGH := 35.0
 const ALT_EVERY := 3
 var _alt_n := 0
 var _alt_dt := 0.0
+var ticks := 0                           ## simulated frames / of them with a street step (tests read the ratio)
+var street_ticks := 0
 
 var _city: Node3D
 var _hooked: Object = null
@@ -153,7 +155,9 @@ func _process(delta: float) -> void:
 			_alt_n += 1
 			street = _alt_n >= ALT_EVERY
 			sd = minf(_alt_dt, 0.15)
+		ticks += 1
 		if street:
+			street_ticks += 1
 			_alt_n = 0
 			_alt_dt = 0.0
 			parked.step(sd, p)

@@ -231,10 +231,34 @@ func _process_body(_delta: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam != null:
 		var p := cam.global_position
+		_stream.cam_y = p.y
+		_high_shadow(p, _delta)
 		_stream.update(Vector2(p.x, p.z))
 		_kit_window.update(Vector2(p.x, p.z))
 		if lamp_cones != null and lamp_cones.visible and Vector2(p.x, p.z).distance_to(_cones_at) > CONE_STEP:
 			_refresh_cones(Vector2(p.x, p.z))
+
+
+## w1242-fps: high over the outskirts the sun's shadow range (MED 55 m, HIGH 130 m from the camera) ends in the air: no ground, tree or roof is inside it, yet its pass
+## still drew the casters along the light (37 draws on MED at 83 m). Off while the camera is more than the range plus 30 m (trees, houses) over the terrain outside the
+## city plateau; back on below. The picture is the same. W124_OLD=1: the old code.
+static var high_shadow_on := OS.get_environment("W124_OLD") != "1"
+var _hs_t := 0.0
+var high_shadow_off := false                ## true while the sun's shadow is off for height (tests)
+
+
+func _high_shadow(p: Vector3, delta: float) -> void:
+	_hs_t -= delta
+	if _hs_t > 0.0 or sun == null:
+		return
+	_hs_t = 0.25
+	var base_on: bool = PostFx2.SHADOW[clampi(quality, 0, 2)]["on"]
+	var off := false
+	if high_shadow_on and base_on and (absf(p.x) > TerrainHeight.CITY_HALF + 60.0 or absf(p.z) > TerrainHeight.CITY_HALF + 60.0):
+		off = p.y - TerrainHeight.height_at(p.x, p.z) > sun.directional_shadow_max_distance + 30.0
+	if off != high_shadow_off or sun.shadow_enabled != (base_on and not off):
+		high_shadow_off = off
+		sun.shadow_enabled = base_on and not off
 
 
 # --- API ---------------------------------------------------------------------------------------------------------------
@@ -618,7 +642,8 @@ func _build_props() -> void:
 					var mats: Array[ShaderMaterial] = [mat]
 					if mirror:
 						mats.append(mmat)
-					_stream.add(part["name"], mm, radius, Stream.mesh_triangles(mm.mesh), mats)
+					var fam := _stream.add(part["name"], mm, radius, Stream.mesh_triangles(mm.mesh), mats)
+					fam.height_fade = true                   # prop_core fades by the camera's height over a prop too (w1242-fps)
 			&"glow":
 				add_multimesh(part["name"], mm, glow_mat, glow_mirror if mirror else null, false)
 				var gmats: Array[ShaderMaterial] = [glow_mat]

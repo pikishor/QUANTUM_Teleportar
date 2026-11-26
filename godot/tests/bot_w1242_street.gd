@@ -53,6 +53,10 @@ func _run() -> void:
 	if city.get(&"day_night") != null:
 		city.day_night.set_hour(11.0)
 	var only := OS.get_environment("W1242_ONLY")
+	if only == "lobby":
+		await _lobby()
+		_done = true
+		return
 	if only == "close":
 		await _close()
 		_done = true
@@ -87,6 +91,24 @@ func _run() -> void:
 	await shot("bus_stop")
 	await _close()
 	_done = true
+
+
+func _lobby() -> void:
+	var tws: Array = TowerFloors.instance.towers.duplicate()
+	tws.sort_custom(func(a, b): return TowerFloors.door_pos(a, 1.3).distance_to(Game.SPAWN) < TowerFloors.door_pos(b, 1.3).distance_to(Game.SPAWN))
+	var tw: Dictionary = tws[0]
+	await place(TowerFloors.door_pos(tw, 2.0) + Vector3(0, 0.3, 0), TowerFloors.door_pos(tw, -4.0), 60)
+	var dp := TowerFloors.door_pos(tw, -7.0)
+	var outp := TowerFloors.door_pos(tw, 3.0)
+	var side := (outp - dp).normalized().cross(Vector3.UP) * 6.0
+	p.global_position = dp + Vector3(0, 0.1, 0)
+	p.velocity = Vector3.ZERO
+	var yaw := atan2(-(outp.x + side.x - dp.x), -(outp.z + side.z - dp.z))
+	p.camera_rig.reset_view(yaw, 0.0)
+	p.yaw = yaw
+	await frames(90)
+	print("W1242 lobby open_lot ", TowerFloors.open_lot, " panes ", TowerFloors.instance.glass_panes, " inside ", TowerFloors.inside(p.global_position))
+	await shot("lobby_inside")
 
 
 func _close() -> void:

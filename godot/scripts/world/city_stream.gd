@@ -39,6 +39,10 @@ class Family extends RefCounted:
 	var sig := -1
 	var rank_off := -1             ## >= 0: float offset (in a record) of a 0..1 rank; only records with rank < keep are drawn (steam: puffs per vent by tier)
 	var keep := 1.0
+	var height_fade := false       ## w1242-fps: the shader fades by the camera's height over the instance too (prop_core): the window shrinks with it
+	var top_y := 0.0               ## highest instance base of the family
+	var cell_top := PackedFloat32Array()   ## highest instance base per cell (the camera's height is counted above the cell's own top: a roof vent on a low roof goes before one on a tower)
+	var built_h := 0.0             ## the camera height the window was built for
 
 	func fade_end() -> float:
 		return radius * scale
@@ -50,6 +54,8 @@ class Family extends RefCounted:
 
 
 var families: Array[Family] = []
+var cam_y := 0.0                   ## camera height (m) of the next `update` (city.gd sets it); only families with `height_fade` use it
+static var height_on := OS.get_environment("W124_OLD") != "1"     ## W124_OLD=1: the windows ignore the camera height (the old code)
 var _sel := PackedInt32Array()
 
 
@@ -69,6 +75,8 @@ func add(name: String, mm: MultiMesh, radius: float, tris: int, materials: Array
 	f.step = 10.0 + 0.9 * float(families.size() % 7)           # staggered, so the families do not all rebuild in the same frame
 	f.cells.resize(cells_per_side * cells_per_side)
 	f.counts.resize(cells_per_side * cells_per_side)
+	f.cell_top.resize(cells_per_side * cells_per_side)
+	f.cell_top.fill(-1.0e9)
 	for c in f.cells.size():
 		f.cells[c] = PackedFloat32Array()
 	var buf := mm.buffer
@@ -80,6 +88,8 @@ func add(name: String, mm: MultiMesh, radius: float, tris: int, materials: Array
 		arr.append_array(buf.slice(o, o + s))
 		f.cells[c] = arr
 		f.counts[c] += 1
+		f.top_y = maxf(f.top_y, buf[o + 7])
+		f.cell_top[c] = maxf(f.cell_top[c], buf[o + 7])
 	f.apply_lod()
 	families.append(f)
 	return f
@@ -110,9 +120,15 @@ func update(cam: Vector2, force := false) -> void:
 	var rebuilt := 0
 	for f in families:
 		var moved := cam.distance_to(f.built_at)
+		if f.height_fade:
+			moved = maxf(moved, absf(_up_cam() - f.built_h))
 		if force or moved > f.step + 14.0 or (moved > f.step and rebuilt < MAX_PER_FRAME):
 			rebuild(f, cam)
 			rebuilt += 1
+
+
+func _up_cam() -> float:
+	return cam_y if height_on else 0.0
 
 
 ## Re-centre one family's window on `cam`.
@@ -121,6 +137,9 @@ func rebuild(f: Family, cam: Vector2) -> void:
 	# the window must cover everything within fade_end of the camera until the next rebuild: the camera may travel `step` (plus a few
 	# frames of delay), and an included cell only needs to touch the disc
 	var r := f.fade_end() + f.step + 16.0
+	var e := f.fade_end()
+	if f.height_fade:
+		f.built_h = _up_cam()                            # the camera may sink by `step` before the next rebuild
 	var c0x := maxi(0, int(floor((cam.x - r - f.origin) / f.cell)))
 	var c1x := mini(f.n - 1, int(floor((cam.x + r - f.origin) / f.cell)))
 	var c0z := maxi(0, int(floor((cam.y - r - f.origin) / f.cell)))
@@ -138,6 +157,14 @@ func rebuild(f: Family, cam: Vector2) -> void:
 			var dx := maxf(maxf(x0 - cam.x, cam.x - (x0 + f.cell)), 0.0)
 			if dx * dx + dz * dz > r * r:
 				continue
+			if f.height_fade and f.built_h > 0.0:
+				# the shader has shrunk everything farther than fade_end in 3D (the camera's height over the instance counted): the cell's horizontal reach shrinks with its own top
+				var h := maxf(f.built_h - f.cell_top[idx] - f.step, 0.0)
+				if h >= e:
+					continue
+				var rc := sqrt(e * e - h * h) + f.step + 16.0
+				if dx * dx + dz * dz > rc * rc:
+					continue
 			_sel.append(idx)
 			sig = sig * 1000003 + idx
 	if sig == f.sig and f.shown >= 0:

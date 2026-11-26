@@ -15,6 +15,11 @@ func run(h: Node) -> void:
 	else:
 		for k in StreetDetail.KIND_COUNT:
 			print("COUNT ", StreetDetail.KIND_NAMES[k], " ", sd.kind_count[k])
-		sd.update(Vector2(Game.SPAWN.x, Game.SPAWN.z), true)
-		print("COUNT window tris ", sd.triangles, " near props ", sd.near_props)
+		for k in StreetDetail.KIND_COUNT:
+			var g := StreetDetail.make_geo(k, 0, "KESTREL ST|ORBIT AVE" if k == StreetDetail.NAME_SIGN else "ARMS", 0, true)
+			print("COUNT tris ", StreetDetail.KIND_NAMES[k], " ", int(g["count"]) / 3)
+		for sc in [0.65, 0.85, 1.0]:
+			sd.q_scale = sc
+			sd.update(Vector2(Game.SPAWN.x, Game.SPAWN.z), true)
+			print("COUNT scale ", sc, " window tris ", sd.triangles, " near props ", sd.near_props)
 	await L.finish()

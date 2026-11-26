@@ -1007,7 +1007,7 @@ func _windows(fw: float, s_off: float, k: int, style: int) -> Array:
 
 
 ## w1242-street: one glass pane over a window hole of a wall plane (u = at_c when fixed_u, else v = at_c), clipped to the storey.
-func _pane(fixed_u: bool, at_c: float, r: Rect2, y0: float, y1: float) -> void:
+func _pane(fixed_u: bool, at_c: float, r: Rect2, y0: float, y1: float, framed := true) -> void:
 	var a := clampf(r.position.y, y0, y1)
 	var b := clampf(r.end.y, y0, y1)
 	if b - a < 0.05 or r.size.x < 0.05:
@@ -1019,6 +1019,22 @@ func _pane(fixed_u: bool, at_c: float, r: Rect2, y0: float, y1: float) -> void:
 	var q3: Vector3 = p.call(r.position.x, b)
 	_gl.append_array([q0, q2, q1, q0, q3, q2])
 	glass_panes += 1
+	if not framed:
+		return
+	# a slim dark frame and a transom bar on the inner wall face (the pane reads as a window, not a hole)
+	var fc := Color(0.12, 0.12, 0.13)
+	var cls := _cls
+	_cls = 0.0
+	var e := 0.06
+	var m := (a + b) * 0.5 + 0.35
+	for bar: Array in [[r.position.x, a, r.end.x, a + e], [r.position.x, b - e, r.end.x, b], [r.position.x, a, r.position.x + e, b], [r.end.x - e, a, r.end.x, b], [r.position.x, m - e * 0.5, r.end.x, m + e * 0.5]]:
+		var c0: Vector3 = p.call(bar[0], bar[1])
+		var c1: Vector3 = p.call(bar[2], bar[1])
+		var c2: Vector3 = p.call(bar[2], bar[3])
+		var c3: Vector3 = p.call(bar[0], bar[3])
+		_quad(c0, c1, c2, c3, fc)
+		_quad(c0, c3, c2, c1, fc)
+	_cls = cls
 
 
 func _build_mesh() -> void:
@@ -1072,14 +1088,14 @@ func _build_mesh() -> void:
 		_wall(true, iu, 0.0, iv, y0, y1, he, false, wall_c)
 		if StreetDetail.on:                                                    # w1242-street: glass in every window hole (not in the street door)
 			for r: Rect2 in hz:
-				_pane(false, 0.0, r, y0, y1)
+				_pane(false, 0.0, r, y0, y1, shown or k == 0)
 			for r: Rect2 in hn:
 				if not (k == 0 and absf(r.position.x - (du - DOOR_W * 0.5)) < 0.01 and r.position.y < 0.01):
-					_pane(false, iv, r, y0, y1)
+					_pane(false, iv, r, y0, y1, shown or k == 0)
 			for r: Rect2 in hs:
-				_pane(true, 0.0, r, y0, y1)
+				_pane(true, 0.0, r, y0, y1, shown or k == 0)
 			for r: Rect2 in he:
-				_pane(true, iu, r, y0, y1)
+				_pane(true, iu, r, y0, y1, shown or k == 0)
 		# floor and ceiling (minus the stair hole); the street floor is a lobby floor
 		var y_top := _levels[k + 1] - SLAB if k + 1 < _levels.size() - 1 else top
 		_cls = 1.0

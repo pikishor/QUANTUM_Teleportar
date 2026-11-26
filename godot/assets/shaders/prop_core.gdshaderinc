@@ -47,7 +47,10 @@ void vertex() {
 			VERTEX = vec3(0.0);
 		}
 	}
-	VERTEX *= 1.0 - smoothstep(lod_range.x, lod_range.y, distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz));
+	// w1242-fps: a camera ABOVE the prop also counts its height (snake flight, a roof, an aircraft): a cafe table 90 m below is as far as one 90 m down the street.
+	// Below or level with the prop (the street, a facade module over the hero) it is the ground-plane distance as before. city_stream.gd windows the same way.
+	float lod_up = max(CAMERA_POSITION_WORLD.y - MODEL_MATRIX[3].y, 0.0);
+	VERTEX *= 1.0 - smoothstep(lod_range.x, lod_range.y, length(vec2(distance(MODEL_MATRIX[3].xz, CAMERA_POSITION_WORLD.xz), lod_up)));
 #endif
 }
 
