@@ -13,3 +13,8 @@
   the wing tip (edge 0.6 to 1.5 m) 13 m into the walk. Not reproduced here.
 - Next: the test now logs the walk when a boarding fails (hero, aircraft, active / ai / hold, the DOOR slot state, reach_car, held fingers, fps every 20 physics ticks) so the
   runner tells what happened; pushed as a diagnostic round.
+
+## Round 2 (CI 45905071385 on f8d68e6, the diagnostic commit)
+- All green, no FLAKY annotation; `test_air_w126_b` passed on its first attempt (the cargo flew to SOUTH FARM), so the diagnostic trace did not print. The round 1 failure stays
+  unexplained (intermittent); see HANDOFF "Wave 126 CI fixes" for what was ruled out and the ideas left.
+- APK: android.yml on main (run 45908117393).
