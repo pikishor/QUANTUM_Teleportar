@@ -637,6 +637,8 @@ func _build_kit() -> void:
 	var mat := _shader_mat(KIT_SHADER)
 	_prop_mats.append(mat)
 	_kit_window.setup(_real_root, _props.kit, mat)
+	if StreetDetail.on:
+		StreetDetail.attach(self, _real_root, mat)        # w1242-street: street signs, trees, meters, storefront depth, town clutter (one more merged mesh)
 	_landmarks.build(layout)
 	_kit_window.landmarks = _landmarks.items
 

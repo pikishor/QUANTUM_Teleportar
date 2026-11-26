@@ -32,6 +32,13 @@ var density := 1.0
 var clock := 0.0
 ## Master switch (tests, photo mode): false freezes the clock and hides nothing.
 var simulate := true
+## w1242-fps: with the hero this high over the ground (snake flight, a roof, an aircraft) the street people (crowd, stall vendors, bench sitters, street beats, citizen life, the promoted
+## citizens) and the parked cars step every ALT_EVERY-th frame with the summed time: from 35 m up a walker moves 0.14 m per step, under a pixel. W124_OLD=1 switches it off (the old code).
+static var alt_throttle := OS.get_environment("W124_OLD") != "1"
+const ALT_HIGH := 35.0
+const ALT_EVERY := 3
+var _alt_n := 0
+var _alt_dt := 0.0
 
 var _city: Node3D
 var _hooked: Object = null
@@ -139,20 +146,31 @@ func _process(delta: float) -> void:
 		near_traffic.step(delta, p)
 		road_traffic.set_time(clock)
 		road_traffic.step(delta, p)
-		parked.step(delta, p)
+		var sd := delta                                    # the street step's time: the whole delta, or the sum of the skipped frames high up
+		var street := true
+		if alt_throttle and p.y - TerrainHeight.height_at(p.x, p.z) > ALT_HIGH:
+			_alt_dt += delta
+			_alt_n += 1
+			street = _alt_n >= ALT_EVERY
+			sd = minf(_alt_dt, 0.15)
+		if street:
+			_alt_n = 0
+			_alt_dt = 0.0
+			parked.step(sd, p)
 		PerfTimers.stop(PerfTimers.VEHICLES, t0)
-		t0 = PerfTimers.start()
-		crowd.step(delta, p)
-		vendors.step(delta, p)
-		life.step(delta, p)
-		beats.step(delta, p)
-		PerfTimers.stop(PerfTimers.CROWD, t0)
-		t0 = PerfTimers.start()
-		npc.step(delta, p)
-		PerfTimers.stop(PerfTimers.NPC, t0)
-		t0 = PerfTimers.start()
-		citizens.step(delta, p)
-		PerfTimers.stop(PerfTimers.CITIZENS, t0)
+		if street:
+			t0 = PerfTimers.start()
+			crowd.step(sd, p)
+			vendors.step(sd, p)
+			life.step(sd, p)
+			beats.step(sd, p)
+			PerfTimers.stop(PerfTimers.CROWD, t0)
+			t0 = PerfTimers.start()
+			npc.step(sd, p)
+			PerfTimers.stop(PerfTimers.NPC, t0)
+			t0 = PerfTimers.start()
+			citizens.step(sd, p)
+			PerfTimers.stop(PerfTimers.CITIZENS, t0)
 		t0 = PerfTimers.start()
 		fauna.step(delta, p, _night())
 		PerfTimers.stop(PerfTimers.FAUNA, t0)

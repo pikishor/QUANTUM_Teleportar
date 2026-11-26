@@ -27,6 +27,8 @@ const DOOR_W := 1.8
 const TOWER_MIN_H := 12.0        ## TowerFloors.HOUSE_MIN_H (w122-rooms): block lots from this height are walk-in towers
 const REACH_BUY := 2.6
 const FLOOR_Y := 0.02              ## w122-critic: the shop floor a hair over the street ground it lies on
+const SIGN_OUT := 0.04             ## w1242-street: m the sign stands off the facade (was 0.5)
+const SIGN_MARGIN := 0.8          ## w1242-street: m of the shop front left free beside the sign (the neighbours' signs start at the front's edge)
 const NEAR_ROOMS := 45.0         ## LOW / LOW+: metres within which a window shows the room behind it (building_core.gdshaderinc near_rooms)
 
 static var enabled := OS.get_environment("W122_SHOPS_OLD") != "1"       ## W122_SHOPS_OLD=1 in the checks: no walk-in shops and no LOW room parallax (the wave 121 street)
@@ -538,6 +540,13 @@ func _build_room() -> void:
 	_sign.width = (s1 - s0) / _sign.pixel_size
 	add_child(_sign)
 	_sign.global_position = at(s, (s0 + s1) * 0.5, -0.5, H + 0.56)
+	if StreetDetail.on:                     # w1242-street: the sign floated 0.5 m in front of the facade, so from any slant it slid over the neighbours' neon signs in the same band
+		_sign.global_position = at(s, (s0 + s1) * 0.5, -SIGN_OUT, H + 0.56)      # (NEON, QUANTA BAR): now flush on the shop's own band, never wider than its front
+		var fnt: Font = _sign.font if _sign.font != null else ThemeDB.fallback_font
+		var tw := fnt.get_string_size(_sign.text, HORIZONTAL_ALIGNMENT_LEFT, -1, _sign.font_size).x + 2.0 * float(_sign.outline_size)
+		var maxw := (s1 - s0) - SIGN_MARGIN
+		if tw * _sign.pixel_size > maxw:
+			_sign.pixel_size = maxw / tw
 	_sign.basis = Basis.looking_at(-(s["n"] as Vector3), Vector3.UP)
 	_st = null
 
