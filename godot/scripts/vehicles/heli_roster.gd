@@ -14,6 +14,10 @@ const LINE_X := 1334.0
 const LINE_Z0 := -930.0
 const LINE_STEP := 38.0
 static var line_on := true                 ## tests/test_helis_w125.gd HELIS_OLD=1 switches the line off (the wave 124 state: none of the new kinds can be found)
+## w125-ci: the helicopters of the line are FIXED vehicles (ArmourSites.is_fixed), outside the live car cap like the other aircraft of the airport (FIXED_AIRPORT). As ordinary points
+## the line filled the whole cap within 100 m (MED 5: four line helicopters and the starter car), so no other vehicle could be spawned at FLIGHT SCHOOL (test_world_roam, CI 45832989677).
+## W125CI_OLD=1 is the old rule (for the old-behaviour run of that test).
+static var line_fixed := OS.get_environment("W125CI_OLD") != "1"
 
 const DEFS := {
 	&"h_scout": {"name": "SPARROW SCOUT", "role": "light scout", "m": {"cab": [-3.0, 0.6, 0.72, 0.78, 1.42], "n": 2.0, "nose": "bubble", "boom": [5.2, 1.85, 0.15], "rotor": [2.7, -0.6, 2, 0.26], "gear": "skids", "x": []}},
@@ -47,6 +51,11 @@ static func spawn_points() -> Array[Dictionary]:
 		var k: StringName = NEW[i]
 		out.append({"id": StringName("hl_" + String(k)), "kind": k, "pos": Airport.to_world(Vector3(LINE_X, 0.0, LINE_Z0 + LINE_STEP * float(i))), "h": Airport.heading_world(PI * 0.5), "label": "HELI LINE: " + String(DEFS[k]["name"])})
 	return out
+
+
+## A point id of the HELI LINE (spawn_points) that stands outside the live car cap.
+static func owns(id: StringName) -> bool:
+	return line_fixed and line_on and String(id).begins_with("hl_")
 
 
 static func is_heli(kind: StringName) -> bool:

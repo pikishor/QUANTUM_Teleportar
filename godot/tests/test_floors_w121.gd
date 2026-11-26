@@ -158,12 +158,54 @@ func _down() -> void:
 	TestLib.check(ok and worst_under < 0.3, "never under a floor on the whole climb (worst %.2f m)" % worst_under)
 
 
+## The node count of the game WITHOUT the street population (w125-ci): the live vehicles (VehicleManager) and the enemies (EnemyManager's drones, pooled) stream in and out
+## around the hero all the time. Per-node diffs of local runs (DejaVu font, 3 copies in parallel): +57 / -61 nodes under VehicleManager with nothing else changed, and in a failing
+## run "+9 under EnemyManager": a street patrol group woke near the tower during the window (list 0 -> 3) and its SENTINEL was created for the first time (the pool had none).
+## The plain OBJECT_NODE_COUNT drifted by -15 to +12 with no tower involved and failed this check on the runner (CI 45672210947 FLAKY +12, 45769386420 +7, 45832989677 +6 and
+## +8). The tower's rooms, doors, colliders, lift and people are all still counted; the tower's own armed men are checked separately (all released when it closes).
+func _nodes() -> int:
+	var n := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var vm := Game.vehicles as Node
+	if is_instance_valid(vm):
+		n -= _count(vm)
+	var em := Game.enemies as Node
+	if is_instance_valid(em):
+		for d in em.get_children():
+			if d is Drone:
+				n -= _count(d)
+	return n
+
+
+## Nodes of the tree (not the live vehicles) by their path's first four parts, plus the orphans: printed when the check fails.
+func _groups() -> Dictionary:
+	var out := {"(orphans)": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))}
+	_group(Game.player.get_tree().root, out)
+	return out
+
+
+func _group(n: Node, out: Dictionary) -> void:
+	if n == Game.vehicles or n is Drone:
+		return
+	var k := "/".join(Array(str(n.get_path()).split("/")).slice(0, 5))
+	out[k] = int(out.get(k, 0)) + 1
+	for ch in n.get_children(true):
+		_group(ch, out)
+
+
+func _count(n: Node) -> int:
+	var c := 1
+	for ch in n.get_children(true):
+		c += _count(ch)
+	return c
+
+
 func _leak() -> void:
 	var lot: CityLayout.Lot = tw["lot"]
 	var far := TowerFloors.door_pos(tw, 60.0)
 	await L.tp(far, 0.0)
 	await L.secs(0.6)
-	var n0 := Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+	var n0 := _nodes()
+	var g0 := _groups()
 	var o0 := Performance.get_monitor(Performance.OBJECT_COUNT)
 	var b0 := TowerFloors.builds
 	var entered := 0
@@ -176,8 +218,18 @@ func _leak() -> void:
 			entered += 1
 		await L.tp(far, 0.0)
 		await L.secs(0.6)
-	var n1 := Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+	var n1 := _nodes()
 	var o1 := Performance.get_monitor(Performance.OBJECT_COUNT)
+	if n1 - n0 > 3:                                                  # w125-ci: name where the nodes are (the runner's log is the only place this shows)
+		var g1 := _groups()
+		for k in g1:
+			if int(g1[k]) != int(g0.get(k, 0)):
+				print("leak: %s %+d" % [k, int(g1[k]) - int(g0.get(k, 0))])
+		for k in g0:
+			if not g1.has(k):
+				print("leak: %s %+d" % [k, -int(g0[k])])
 	var cs := (Game.world.collision_body as Node).get_node_or_null("Building%d_0" % lot.index) as CollisionShape3D
 	TestLib.check(entered == 10 and TowerFloors.builds - b0 >= 10, "10 more entries by the stick (%d entered, %d builds) [old fails]" % [entered, TowerFloors.builds - b0])
+	var ppl := TowerFloors.instance.people()
+	TestLib.check((ppl["foes"] as Array).is_empty() and (ppl["actors"] as Array).is_empty(), "the tower's people and armed men are gone after the last exit (%d, %d)" % [(ppl["actors"] as Array).size(), (ppl["foes"] as Array).size()])
 	TestLib.check(n1 - n0 <= 3 and o1 - o0 < 400 and TowerFloors.open_lot == -1 and cs != null and not cs.disabled, "no leak after 10 entries: nodes %+d, objects %+d, the building's own collider back on" % [n1 - n0, o1 - o0])
