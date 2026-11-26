@@ -715,11 +715,19 @@ static func map_info() -> Dictionary:
 	return {"outline": instance.footprint, "floor": f.replace("LIFT  ", "")}
 
 
+static var floor_fix := OS.get_environment("W125C_OLD") != "1"
+
+
+## The floor name on screen now ("" when hidden). For tests.
+func floor_label_text() -> String:
+	return _floor_label.text if _floor_label != null and _floor_label.visible else ""
+
+
 func _update_label() -> void:
 	if _floor_label == null:
 		return
 	var t := hud_floor()
-	_floor_label.visible = t != "" and Game.is_playing() and not panel_open() and not MapScreen.up
+	_floor_label.visible = t != "" and Game.is_playing() and not panel_open() and not MapScreen.up and not (floor_fix and _hero() != null and _hero().get(&"vehicle") != null)     # w125-critic: not in a helicopter on a roof pad (it ran into the PARKED card and the compass)
 	if _floor_label.visible and _floor_label.text != t:
 		_floor_label.text = t
 

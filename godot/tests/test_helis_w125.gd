@@ -11,6 +11,9 @@ var host: Node
 var fg: Fingers
 var p: Player
 var vm: VehicleManager
+## integrator w125: the 20 flights took over the 140 s runner cap, so the flights are split over two files: this one flies the even kinds, test_helis_w125_b.gd the odd ones
+## (both run the data checks). HELIS_KINDS overrides the split.
+var half := 0
 
 
 func _f(n: int) -> void:
@@ -94,6 +97,8 @@ func run(h: Node) -> void:
 	for i in HeliRoster.NEW.size():
 		var k: StringName = HeliRoster.NEW[i]
 		if pick != "" and not k in pick.split(","):
+			continue
+		if pick == "" and i % 2 != half:
 			continue
 		await _fly(k, Airport.to_world(Vector3(HeliRoster.LINE_X, 0.0, HeliRoster.LINE_Z0 + HeliRoster.LINE_STEP * float(i))))
 	fg.up_all()

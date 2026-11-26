@@ -126,6 +126,12 @@ func _run(tree: SceneTree) -> void:
 		await _pf(3)
 		fg.up(7)
 		await _pf(6)
+	if OS.get_environment("CR_PARTS") == "draws":
+		await _draws()
+		fg.up_all()
+		_done = true
+		tree.quit()
+		return
 	if _on("kinds"):
 		var pick := OS.get_environment("CR_KINDS").split(",", false)
 		for k: StringName in HeliRoster.KINDS:
@@ -270,3 +276,43 @@ func _board_pad(pd: Dictionary) -> Vehicle:
 	await _until(func() -> bool: return p.vehicle != null, 60)
 	print("CR PADBOARD %s kind=%s reach=%s in=%s hero_dy=%.1f" % [pd["id"], v.kind, ok, p.vehicle == v, p.global_position.y - c.y])
 	return v if p.vehicle == v else null
+
+
+## CHECK (CR_PARTS=draws, real renderer): the cockpit view costs at most 10 draw calls more than the chase view of the same helicopter in the same hover (it hides the
+## machine's own model). w125-critic defect: the cockpit painted each gauge circle, arc and polygon as its own draw (+30 at LOW). W125C_OLD=1 = the old painting.
+func _draws() -> void:
+	var worst := 0.0
+	for k: StringName in [&"h_scout", &"h_heavy", &"h_attack"]:
+		var v := await _board(k, _open())
+		if v == null:
+			print("W125C DRAWS FAIL: %s not boarded" % k)
+			continue
+		fg.press(1, &"jump")
+		await _until(func() -> bool: return VehicleCraft.altitude(v) > 25.0, 900)
+		fg.up(1)
+		await _pf(60)
+		var ch := await _draw_avg()
+		for i in 2:
+			await _tap(&"veh_view")
+			await _pf(10)
+		var ck := await _draw_avg()
+		await _shot("drawcheck_cockpit_" + String(k))
+		print("W125C DRAWS %s chase=%.0f cockpit=%.0f delta=%.0f view=%d" % [k, ch, ck, ck - ch, p.camera_rig.veh_view])
+		worst = maxf(worst, ck - ch)
+		await _tap(&"veh_view")
+		fg.press(1, &"crouch")
+		await _until(func() -> bool: return not v.craft.airborne, 1500)
+		fg.up(1)
+		await _tap(&"interact")
+		await _pf(10)
+		vm._release(v)
+		await _pf(4)
+	print("W125C DRAWS %s: the cockpit adds at most 10 draws (worst %.0f)" % ["ok" if worst <= 10.0 else "FAIL", worst])
+
+
+func _draw_avg() -> float:
+	var dr := 0.0
+	for i in 30:
+		await (Engine.get_main_loop() as SceneTree).process_frame
+		dr += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	return dr / 30.0

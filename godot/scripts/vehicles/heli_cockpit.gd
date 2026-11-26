@@ -201,6 +201,91 @@ static func gauges(v: Vehicle) -> Dictionary:
 
 # --- painting -------------------------------------------------------------------------------------------------------------------------------
 
+# --- the pen: one draw for all the shapes (w125-critic) ----------------------------------------------------------------------------------------
+## w125-critic (defect: the cockpit cost 30+ extra draw calls in flight, LOW 135 -> 169): every circle, polygon and arc on a canvas is its own draw, so the
+## five gauges, the frame and the seats made one draw each. With batch_fix the shapes go into ONE triangle list (RenderingServer.canvas_item_add_triangle_array)
+## in painting order and the text follows in one batch. W125C_OLD=1: the old one-draw-per-shape painting.
+static var batch_fix := OS.get_environment("W125C_OLD") != "1"
+var _pts := PackedVector2Array()
+var _cols := PackedColorArray()
+var _idx := PackedInt32Array()
+var _texts: Array = []
+
+
+func _tri_fan(pts: PackedVector2Array, col: Color) -> void:
+	var b := _pts.size()
+	for p in pts:
+		_pts.append(p)
+		_cols.append(col)
+	for i in range(1, pts.size() - 1):
+		_idx.append(b)
+		_idx.append(b + i)
+		_idx.append(b + i + 1)
+
+
+func _rect(c: Control, r: Rect2, col: Color) -> void:
+	if not batch_fix:
+		c.draw_rect(r, col)
+		return
+	_tri_fan(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]), col)
+
+
+func _poly(c: Control, pts: PackedVector2Array, col: Color) -> void:
+	if not batch_fix:
+		c.draw_colored_polygon(pts, col)
+		return
+	_tri_fan(pts, col)                                                  # every polygon of the cockpit is convex
+
+
+func _line(c: Control, a: Vector2, b: Vector2, col: Color, w: float) -> void:
+	if not batch_fix:
+		c.draw_line(a, b, col, w)
+		return
+	var d := (b - a).normalized().orthogonal() * w * 0.5
+	_tri_fan(PackedVector2Array([a + d, b + d, b - d, a - d]), col)
+
+
+func _circle(c: Control, ctr: Vector2, r: float, col: Color) -> void:
+	if not batch_fix:
+		c.draw_circle(ctr, r, col)
+		return
+	var pts := PackedVector2Array()
+	var n := 28
+	for i in n:
+		pts.append(ctr + Vector2(cos(TAU * i / n), sin(TAU * i / n)) * r)
+	_tri_fan(pts, col)
+
+
+func _arc(c: Control, ctr: Vector2, r: float, a0: float, a1: float, n: int, col: Color, w: float, aa: bool) -> void:
+	if not batch_fix:
+		c.draw_arc(ctr, r, a0, a1, n, col, w, aa)
+		return
+	for i in n:
+		var p0 := ctr + Vector2(cos(lerpf(a0, a1, float(i) / n)), sin(lerpf(a0, a1, float(i) / n))) * r
+		var p1 := ctr + Vector2(cos(lerpf(a0, a1, float(i + 1) / n)), sin(lerpf(a0, a1, float(i + 1) / n))) * r
+		_line(c, p0, p1, col, w)
+
+
+func _text(c: Control, font: Font, pos: Vector2, t: String, al: HorizontalAlignment, w: float, fs: int, col: Color) -> void:
+	if not batch_fix:
+		c.draw_string(font, pos, t, al, w, fs, col)
+		return
+	_texts.append([font, pos, t, al, w, fs, col])
+
+
+func _flush(c: Control) -> void:
+	if not batch_fix:
+		return
+	if not _idx.is_empty():
+		RenderingServer.canvas_item_add_triangle_array(c.get_canvas_item(), _idx, _pts, _cols)
+	for t: Array in _texts:
+		c.draw_string(t[0], t[1], t[2], t[3], t[4], t[5], t[6])
+	_pts.clear()
+	_cols.clear()
+	_idx.clear()
+	_texts.clear()
+
+
 func _paint() -> void:
 	var v := flown()
 	if v == null:
@@ -216,31 +301,32 @@ func _paint() -> void:
 	# the canopy frame: two side pillars from the panel's ends up to the roof bar, the roof bar, a centre post, the glass of the eyebrow window
 	var pw := vp.x * float(fam["pillar"])
 	var top := 34.0 * s
-	c.draw_rect(Rect2(0.0, 0.0, vp.x, top), fc)
-	c.draw_rect(Rect2(0.0, top, vp.x, 16.0 * s), GLASS)
-	c.draw_line(Vector2(0.0, top + 16.0 * s), Vector2(vp.x, top + 16.0 * s), Color(fc, 1.0), 3.0 * s)
+	_rect(c, Rect2(0.0, 0.0, vp.x, top), fc)
+	_rect(c, Rect2(0.0, top, vp.x, 16.0 * s), GLASS)
+	_line(c, Vector2(0.0, top + 16.0 * s), Vector2(vp.x, top + 16.0 * s), Color(fc, 1.0), 3.0 * s)
 	var lx := pr.position.x - 40.0 * s
 	var rx := pr.end.x + 40.0 * s
-	c.draw_colored_polygon(PackedVector2Array([Vector2(0.0, top), Vector2(pw, top), Vector2(lx * 0.42 + pw, py), Vector2(lx * 0.42, py)]), fc)
-	c.draw_colored_polygon(PackedVector2Array([Vector2(vp.x - pw, top), Vector2(vp.x, top), Vector2(vp.x - (vp.x - rx) * 0.42, py), Vector2(vp.x - (vp.x - rx) * 0.42 - pw, py)]), fc)
-	c.draw_line(Vector2(pw, top), Vector2(lx * 0.42 + pw, py), Color(0.75, 0.9, 1.0, 0.35), 1.5 * s)     # the glass edge along the pillar
-	c.draw_line(Vector2(vp.x - pw, top), Vector2(vp.x - (vp.x - rx) * 0.42 - pw, py), Color(0.75, 0.9, 1.0, 0.35), 1.5 * s)
+	_poly(c, PackedVector2Array([Vector2(0.0, top), Vector2(pw, top), Vector2(lx * 0.42 + pw, py), Vector2(lx * 0.42, py)]), fc)
+	_poly(c, PackedVector2Array([Vector2(vp.x - pw, top), Vector2(vp.x, top), Vector2(vp.x - (vp.x - rx) * 0.42, py), Vector2(vp.x - (vp.x - rx) * 0.42 - pw, py)]), fc)
+	_line(c, Vector2(pw, top), Vector2(lx * 0.42 + pw, py), Color(0.75, 0.9, 1.0, 0.35), 1.5 * s)     # the glass edge along the pillar
+	_line(c, Vector2(vp.x - pw, top), Vector2(vp.x - (vp.x - rx) * 0.42 - pw, py), Color(0.75, 0.9, 1.0, 0.35), 1.5 * s)
 	if bool(fam["post"]):
 		var cx := pr.get_center().x
-		c.draw_colored_polygon(PackedVector2Array([Vector2(cx - 5.0 * s, top), Vector2(cx + 5.0 * s, top), Vector2(cx + 8.0 * s, py), Vector2(cx - 8.0 * s, py)]), fc)
+		_poly(c, PackedVector2Array([Vector2(cx - 5.0 * s, top), Vector2(cx + 5.0 * s, top), Vector2(cx + 8.0 * s, py), Vector2(cx - 8.0 * s, py)]), fc)
 	if family_of(v.spec) == &"heavy":                                   # the overhead console: a row of switches on the roof bar
 		for i in 9:
 			var sx := vp.x * 0.5 + (float(i) - 4.0) * 26.0 * s
-			c.draw_rect(Rect2(sx - 8.0 * s, 9.0 * s, 16.0 * s, 16.0 * s), Color(0.08, 0.09, 0.1))
-			c.draw_rect(Rect2(sx - 2.0 * s, 11.0 * s, 4.0 * s, 8.0 * s), Color(fam["accent"], 0.9) if i % 3 != 1 else Color(0.6, 0.6, 0.6))
+			_rect(c, Rect2(sx - 8.0 * s, 9.0 * s, 16.0 * s, 16.0 * s), Color(0.08, 0.09, 0.1))
+			_rect(c, Rect2(sx - 2.0 * s, 11.0 * s, 4.0 * s, 8.0 * s), Color(fam["accent"], 0.9) if i % 3 != 1 else Color(0.6, 0.6, 0.6))
 	# the seat bolsters in the lower corners, the dash shroud along the panel's top
-	c.draw_colored_polygon(PackedVector2Array([Vector2(0.0, vp.y), Vector2(0.0, vp.y - 120.0 * s), Vector2(40.0 * s, vp.y - 150.0 * s), Vector2(120.0 * s, vp.y)]), Color(0.06, 0.06, 0.07, 0.95))
-	c.draw_colored_polygon(PackedVector2Array([Vector2(vp.x, vp.y), Vector2(vp.x, vp.y - 120.0 * s), Vector2(vp.x - 40.0 * s, vp.y - 150.0 * s), Vector2(vp.x - 120.0 * s, vp.y)]), Color(0.06, 0.06, 0.07, 0.95))
+	_poly(c, PackedVector2Array([Vector2(0.0, vp.y), Vector2(0.0, vp.y - 120.0 * s), Vector2(40.0 * s, vp.y - 150.0 * s), Vector2(120.0 * s, vp.y)]), Color(0.06, 0.06, 0.07, 0.95))
+	_poly(c, PackedVector2Array([Vector2(vp.x, vp.y), Vector2(vp.x, vp.y - 120.0 * s), Vector2(vp.x - 40.0 * s, vp.y - 150.0 * s), Vector2(vp.x - 120.0 * s, vp.y)]), Color(0.06, 0.06, 0.07, 0.95))
 	if pr.size.x < 120.0 * s:
+		_flush(c)
 		return
-	c.draw_colored_polygon(PackedVector2Array([Vector2(pr.position.x - 60.0 * s, vp.y), Vector2(pr.position.x - 30.0 * s, py + 10.0 * s), Vector2(pr.position.x, py - 12.0 * s),
+	_poly(c, PackedVector2Array([Vector2(pr.position.x - 60.0 * s, vp.y), Vector2(pr.position.x - 30.0 * s, py + 10.0 * s), Vector2(pr.position.x, py - 12.0 * s),
 		Vector2(pr.end.x, py - 12.0 * s), Vector2(pr.end.x + 30.0 * s, py + 10.0 * s), Vector2(pr.end.x + 60.0 * s, vp.y)]), Color(fc, 0.9))
-	c.draw_rect(pr, fam["panel"])
+	_rect(c, pr, fam["panel"])
 	# five gauges in a row
 	var g := gauges(v)
 	var n := 5
@@ -252,14 +338,14 @@ func _paint() -> void:
 	var texts := ["%d M" % roundi(float(g["alt"])), "%d" % roundi(float(g["spd"])), "%03d" % int(g["hdg"]), "%d%%" % roundi(float(g["rpm"])), "%d%%" % roundi(float(g["hull"]))]
 	for i in n:
 		var ctr := Vector2(pr.position.x + cell * (float(i) + 0.5), py + 8.0 * s + gr)
-		c.draw_circle(ctr, gr + 3.0 * s, Color(0.4, 0.42, 0.45))
-		c.draw_circle(ctr, gr, fam["face"])
+		_circle(c, ctr, gr + 3.0 * s, Color(0.4, 0.42, 0.45))
+		_circle(c, ctr, gr, fam["face"])
 		var acc: Color = fam["accent"]
 		match i:
 			0:
 				for k in 10:
 					var a := TAU * float(k) / 10.0
-					c.draw_line(ctr + _dir(a) * gr * 0.78, ctr + _dir(a) * gr * 0.95, acc, 2.0 * s)
+					_line(c, ctr + _dir(a) * gr * 0.78, ctr + _dir(a) * gr * 0.95, acc, 2.0 * s)
 				_needle(c, ctr, float(g["alt_a"]), gr * 0.82, fam["needle"], s)
 			1:
 				_ticks(c, ctr, gr, acc, s)
@@ -268,13 +354,13 @@ func _paint() -> void:
 				var hd := float(g["hdg_a"])
 				for k in 12:
 					var a2 := hd + TAU * float(k) / 12.0
-					c.draw_line(ctr + _dir(a2) * gr * 0.8, ctr + _dir(a2) * gr * 0.95, acc if k % 3 == 0 else Color(acc, 0.5), 2.0 * s)
+					_line(c, ctr + _dir(a2) * gr * 0.8, ctr + _dir(a2) * gr * 0.95, acc if k % 3 == 0 else Color(acc, 0.5), 2.0 * s)
 				var card := ["N", "E", "S", "W"]
 				for k in 4:
 					var a3 := hd + TAU * float(k) / 4.0
 					var tp := ctr + _dir(a3) * gr * 0.58
-					c.draw_string(font, tp + Vector2(-6.0 * s, 6.0 * s), card[k], HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(gr * 0.34), RED if k == 0 else Color(1, 1, 1))
-				c.draw_colored_polygon(PackedVector2Array([ctr + Vector2(0.0, -gr * 0.98), ctr + Vector2(-5.0 * s, -gr * 0.78), ctr + Vector2(5.0 * s, -gr * 0.78)]), Color(1.0, 0.8, 0.2))
+					_text(c, font, tp + Vector2(-6.0 * s, 6.0 * s), card[k], HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(gr * 0.34), RED if k == 0 else Color(1, 1, 1))
+				_poly(c, PackedVector2Array([ctr + Vector2(0.0, -gr * 0.98), ctr + Vector2(-5.0 * s, -gr * 0.78), ctr + Vector2(5.0 * s, -gr * 0.78)]), Color(1.0, 0.8, 0.2))
 			3:
 				_band(c, ctr, gr, 0.9, 1.0, GREEN, s)
 				_ticks(c, ctr, gr, acc, s)
@@ -283,28 +369,30 @@ func _paint() -> void:
 				_band(c, ctr, gr, 0.0, 0.3, RED, s)
 				_ticks(c, ctr, gr, acc, s)
 				_needle(c, ctr, float(g["hull_a"]), gr * 0.82, RED if float(g["hull"]) < 30.0 else fam["needle"], s)
-		c.draw_string(font, Vector2(ctr.x - cell * 0.5, ctr.y + gr + fs + 4.0 * s), texts[i], HORIZONTAL_ALIGNMENT_CENTER, cell, fs, Color(1, 1, 1))
+		_text(c, font, Vector2(ctr.x - cell * 0.5, ctr.y + gr + fs + 4.0 * s), texts[i], HORIZONTAL_ALIGNMENT_CENTER, cell, fs, Color(1, 1, 1))
 		if i != 2:                                                       # the name in the dial's lower third, under the needle's hub (the compass names itself with its letters)
-			c.draw_string(font, Vector2(ctr.x - cell * 0.5, ctr.y + gr * 0.62), labels[i], HORIZONTAL_ALIGNMENT_CENTER, cell, int(maxf(11.0 * s, gr * 0.22)), Color(acc, 0.85))
+			_text(c, font, Vector2(ctr.x - cell * 0.5, ctr.y + gr * 0.62), labels[i], HORIZONTAL_ALIGNMENT_CENTER, cell, int(maxf(11.0 * s, gr * 0.22)), Color(acc, 0.85))
+
+	_flush(c)
 
 
 static func _dir(a: float) -> Vector2:
 	return Vector2(sin(a), -cos(a))
 
 
-static func _needle(c: Control, ctr: Vector2, a: float, ln: float, col: Color, s: float) -> void:
-	c.draw_line(ctr - _dir(a) * ln * 0.18, ctr + _dir(a) * ln, col, 3.5 * s)
-	c.draw_circle(ctr, 4.0 * s, col)
+func _needle(c: Control, ctr: Vector2, a: float, ln: float, col: Color, s: float) -> void:
+	_line(c, ctr - _dir(a) * ln * 0.18, ctr + _dir(a) * ln, col, 3.5 * s)
+	_circle(c, ctr, 4.0 * s, col)
 
 
-static func _ticks(c: Control, ctr: Vector2, gr: float, col: Color, s: float) -> void:
+func _ticks(c: Control, ctr: Vector2, gr: float, col: Color, s: float) -> void:
 	for k in 7:
 		var a := -PI * 0.75 + PI * 1.5 * float(k) / 6.0
-		c.draw_line(ctr + _dir(a) * gr * 0.78, ctr + _dir(a) * gr * 0.95, col, 2.0 * s)
+		_line(c, ctr + _dir(a) * gr * 0.78, ctr + _dir(a) * gr * 0.95, col, 2.0 * s)
 
 
-static func _band(c: Control, ctr: Vector2, gr: float, f0: float, f1: float, col: Color, s: float) -> void:
+func _band(c: Control, ctr: Vector2, gr: float, f0: float, f1: float, col: Color, s: float) -> void:
 	var a0 := -PI * 0.75 + PI * 1.5 * f0
 	var a1 := -PI * 0.75 + PI * 1.5 * f1
 	# draw_arc: angle 0 = +x, growing clockwise on screen (y down); the gauges' 0 is up, hence the quarter turn
-	c.draw_arc(ctr, gr * 0.88, a0 - PI * 0.5, a1 - PI * 0.5, 10, Color(col, 0.85), 5.0 * s, false)
+	_arc(c, ctr, gr * 0.88, a0 - PI * 0.5, a1 - PI * 0.5, 10, Color(col, 0.85), 5.0 * s, false)

@@ -256,11 +256,10 @@ static func _move_air(v: Vehicle, dt: float) -> void:
 
 
 ## w125-critic (defect 1: "the rotor disc goes into the building"): the body collider is only the fuselage, so a helicopter flown at a wall stopped with its
-## rotor disc half inside the facade. Horizontal rays from each rotor hub (Rotor / Rotor2 of the model) out to the rotor radius: a wall within the disc pushes
-## the machine out to the rim and turns its speed into the wall into a bounce (a rotor strike hurts like a wall hit). Only the player's helicopter, 8 rays per hub.
+## rotor disc half inside the facade. The disc of each rotor hub (Rotor / Rotor2 of the model) is tested as a thin cylinder: a wall inside the disc pushes
+## the machine out to the rim and turns its speed into the wall into a bounce (a rotor strike hurts like a wall hit). Only the player's helicopter.
 ## W125C_OLD=1 (or rotor_fix = false): the old behaviour for the fail-first run.
 static var rotor_fix := OS.get_environment("W125C_OLD") != "1"
-const ROTOR_RAYS := 8
 
 
 static func rotor_hubs(v: Vehicle) -> Array[Vector3]:
@@ -276,39 +275,59 @@ static func rotor_hubs(v: Vehicle) -> Array[Vector3]:
 	return out
 
 
+static var _disc_shape: CylinderShape3D
+
+
+## The rotor disc as a thin cylinder at each hub: up to 3 rounds of push-out along the walls it overlaps (contacts on floors and on vehicles are ignored).
 static func _rotor_clear(v: Vehicle) -> void:
 	var rr := float(v.spec.get("rotor_r", 0.0))
 	if rr <= 0.5:
 		return
+	if _disc_shape == null:
+		_disc_shape = CylinderShape3D.new()
+	_disc_shape.radius = rr
+	_disc_shape.height = 0.5
 	var space := v.get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.new()
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = _disc_shape
 	q.collision_mask = v.collision_mask
 	q.exclude = [v.get_rid()]
-	for hub in rotor_hubs(v):
-		for i in ROTOR_RAYS:
-			var a := TAU * float(i) / float(ROTOR_RAYS)
-			var d := Vector3(cos(a), 0.0, sin(a))
-			q.from = hub
-			q.to = hub + d * rr
-			var hit := space.intersect_ray(q)
-			if hit.is_empty():
-				continue
-			var n: Vector3 = hit["normal"]
-			if absf(n.y) > 0.6 or hit.get("collider") is Vehicle:
-				continue
-			var nf := Vector3(n.x, 0.0, n.z).normalized()
-			var depth := rr - hub.distance_to(hit["position"])
-			v.global_position += nf * maxf(depth * nf.dot(-d), 0.0)
-			var vn := v.vel.dot(nf)
-			if vn < 0.0:
-				v.vel -= 1.3 * vn * nf
-				v.speed = v.vel.dot(v.forward())
-				if -vn > WALL_HIT:
-					v.hits += 1
-					v.damage(-vn * WALL_DAMAGE)
-					FX.burst(hit["position"], Color(1.0, 0.75, 0.38), 8, 5.0, 0.3, 8.0, 0.3)
-					Sfx.play_at(&"hit", v.global_position, -4.0)
-					FX.shake(minf(1.0, -vn / 25.0))
+	for _k in 3:
+		var push := Vector3.ZERO
+		var nhit := Vector3.ZERO
+		var at := Vector3.ZERO
+		for hub in rotor_hubs(v):
+			q.transform = Transform3D(Basis.IDENTITY, hub)
+			var pts := space.collide_shape(q, 16)
+			for i in range(0, pts.size() - 1, 2):
+				var on_disc: Vector3 = pts[i]
+				var on_wall: Vector3 = pts[i + 1]
+				var pen := on_disc - on_wall
+				pen.y = 0.0
+				var dxz := Vector3(on_wall.x - hub.x, 0.0, on_wall.z - hub.z)
+				if dxz.length() < 0.05 or absf(on_wall.y - hub.y) > 0.6:
+					continue
+				var depth := rr - dxz.length()                          # how far inside the rim the wall point lies
+				if depth <= 0.01:
+					continue
+				var nf := -dxz.normalized()
+				if depth > push.dot(nf):
+					push = nf * depth
+					nhit = nf
+					at = on_wall
+		if push == Vector3.ZERO:
+			return
+		v.global_position += push
+		var vn := v.vel.dot(nhit)
+		if vn < 0.0:
+			v.vel -= 1.3 * vn * nhit
+			v.speed = v.vel.dot(v.forward())
+			if -vn > WALL_HIT:
+				v.hits += 1
+				v.damage(-vn * WALL_DAMAGE)
+				FX.burst(at, Color(1.0, 0.75, 0.38), 8, 5.0, 0.3, 8.0, 0.3)
+				Sfx.play_at(&"hit", v.global_position, -4.0)
+				FX.shake(minf(1.0, -vn / 25.0))
 
 
 # --- boat -----------------------------------------------------------------------------------------------------------------------------
