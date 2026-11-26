@@ -228,11 +228,21 @@ func _gen_cell(i: int, j: int) -> void:
 				if TowerLift.no_parking(x, z):
 					continue
 				if StreetClutter.no_parking(x, z):
-					continue                                                # w123-clutter: no kerb car across a door's lane                                                # wave 121 (w121-lifts): the kerb in front of a tower's lift stays free
+					continue
+				if StreetDetail.on and _at_bus_stop(x, z):
+					continue                                                # w1242-street: the bays at a bus stop stay free: the bus pulls in there                                                # w123-clutter: no kerb car across a door's lane                                                # wave 121 (w121-lifts): the kerb in front of a tower's lift stays free
 				var kind := NearTraffic.pick_kind(zone, night, _hash(road, seg * 7 + side, n, 19))
 				if kind in NO_KINDS:
 					kind = 0
 				_add(x, z, heading + (_hash(road, seg, n, 23) - 0.5) * 0.06, kind, int(_hash(road, seg, n, 29) * 8.0) % 8, key)
+
+
+## w1242-street: a kerb bay within 10.5 m of a bus stop (the bus pulls in there).
+static func _at_bus_stop(x: float, z: float) -> bool:
+	for sp: Vector3 in StreetLife.bus_stops:
+		if absf(sp.x - x) < 10.5 and absf(sp.z - z) < 10.5:
+			return true
+	return false
 
 
 ## An accident scene on the kerb side of a block edge: two or three cars thrown across the bay at odd angles (dark, burnt paint, smoking), a patrol car with its roof flashing and an ambulance beside
@@ -251,9 +261,13 @@ func _gen_accident(i: int, j: int, key: int) -> void:
 		var du := float(n) * 6.6 + (_hash(i, j, 50 + n, 1) - 0.5) * 1.4
 		var x := u + du
 		var across := c + float(side) * (8.5 + _hash(i, j, 60 + n, 1) * 0.6)
+		var yaw := heading + (_hash(i, j, 70 + n, 1) - 0.5) * 1.5
+		if StreetDetail.on:                                         # w1242-street: a car thrown across the bay reached over the kerb onto the sidewalk (its corner 10.4 m out): the hull stays in the road
+			var off := absf(yaw - heading)
+			var reach := 2.35 * absf(sin(off)) + 0.95 * absf(cos(off))
+			across = c + float(side) * minf(absf(across - c), CityLayout.ROAD * 0.5 - 0.15 - reach)
 		var px := x if axis == 0 else across
 		var pz := across if axis == 0 else x
-		var yaw := heading + (_hash(i, j, 70 + n, 1) - 0.5) * 1.5
 		var kind: int = [0, 2, 6][int(_hash(i, j, 80 + n, 1) * 3.0) % 3]
 		var k := _add(px, pz, yaw, kind, 7, key)
 		if k >= 0:

@@ -63,6 +63,8 @@ var _v := PackedVector3Array()
 var _nm := PackedVector3Array()
 var _c := PackedColorArray()
 var _uv := PackedVector2Array()
+var _gl := PackedVector3Array()   ## w1242-street: glass panes in the window holes (second surface, transparent)
+var glass_panes := 0              ## w1242-street: panes in the open tower's mesh (tests)
 var _cls := 0.0                   ## surface class of the quads being written (w122: 0 furniture, 1 floor, 2 wall, 3 ceiling; the shader draws tiles / plaster / panels by class)
 var _actors: Array[InteriorCivilian] = []
 var _actor_mat: ShaderMaterial
@@ -1004,9 +1006,42 @@ func _windows(fw: float, s_off: float, k: int, style: int) -> Array:
 	return out
 
 
+## w1242-street: one glass pane over a window hole of a wall plane (u = at_c when fixed_u, else v = at_c), clipped to the storey.
+func _pane(fixed_u: bool, at_c: float, r: Rect2, y0: float, y1: float, framed := true) -> void:
+	var a := clampf(r.position.y, y0, y1)
+	var b := clampf(r.end.y, y0, y1)
+	if b - a < 0.05 or r.size.x < 0.05:
+		return
+	var p := func(s: float, y: float) -> Vector3: return at(_cur, at_c, s, y) if fixed_u else at(_cur, s, at_c, y)
+	var q0: Vector3 = p.call(r.position.x, a)
+	var q1: Vector3 = p.call(r.end.x, a)
+	var q2: Vector3 = p.call(r.end.x, b)
+	var q3: Vector3 = p.call(r.position.x, b)
+	_gl.append_array([q0, q2, q1, q0, q3, q2])
+	glass_panes += 1
+	if not framed:
+		return
+	# a slim dark frame and a transom bar on the inner wall face (the pane reads as a window, not a hole)
+	var fc := Color(0.12, 0.12, 0.13)
+	var cls := _cls
+	_cls = 0.0
+	var e := 0.06
+	var m := (a + b) * 0.5 + 0.35
+	for bar: Array in [[r.position.x, a, r.end.x, a + e], [r.position.x, b - e, r.end.x, b], [r.position.x, a, r.position.x + e, b], [r.end.x - e, a, r.end.x, b], [r.position.x, m - e * 0.5, r.end.x, m + e * 0.5]]:
+		var c0: Vector3 = p.call(bar[0], bar[1])
+		var c1: Vector3 = p.call(bar[2], bar[1])
+		var c2: Vector3 = p.call(bar[2], bar[3])
+		var c3: Vector3 = p.call(bar[0], bar[3])
+		_quad(c0, c1, c2, c3, fc)
+		_quad(c0, c3, c2, c1, fc)
+	_cls = cls
+
+
 func _build_mesh() -> void:
 	if _mesh == null:
 		return
+	_gl.clear()
+	glass_panes = 0
 	_v.clear()
 	_nm.clear()
 	_c.clear()
@@ -1046,10 +1081,21 @@ func _build_mesh() -> void:
 			hz = hz.filter(func(r: Rect2) -> bool: return r.position.x > SHAFT_L + SW_T)
 			hs = hs.filter(func(r: Rect2) -> bool: return r.position.x > SHAFT_W + SW_T)
 		_cls = 2.0
+		var he: Array = _windows(fv, IN, k, style)
 		_wall(false, 0.0, 0.0, iu, y0, y1, hz, true, wall_c)                   # back wall (seen from +v)
 		_wall(false, iv, 0.0, iu, y0, y1, hn, false, wall_c)                   # street wall
 		_wall(true, 0.0, 0.0, iv, y0, y1, hs, true, wall_c)
-		_wall(true, iu, 0.0, iv, y0, y1, _windows(fv, IN, k, style), false, wall_c)
+		_wall(true, iu, 0.0, iv, y0, y1, he, false, wall_c)
+		if StreetDetail.on:                                                    # w1242-street: glass in every window hole (not in the street door)
+			for r: Rect2 in hz:
+				_pane(false, 0.0, r, y0, y1, shown or k == 0)
+			for r: Rect2 in hn:
+				if not (k == 0 and absf(r.position.x - (du - DOOR_W * 0.5)) < 0.01 and r.position.y < 0.01):
+					_pane(false, iv, r, y0, y1, shown or k == 0)
+			for r: Rect2 in hs:
+				_pane(true, 0.0, r, y0, y1, shown or k == 0)
+			for r: Rect2 in he:
+				_pane(true, iu, r, y0, y1, shown or k == 0)
 		# floor and ceiling (minus the stair hole); the street floor is a lobby floor
 		var y_top := _levels[k + 1] - SLAB if k + 1 < _levels.size() - 1 else top
 		_cls = 1.0
@@ -1113,6 +1159,21 @@ func _build_mesh() -> void:
 	if _v.size() > 0:
 		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	_mesh.mesh = am
+	var old_g := _mesh.get_node_or_null(^"TowerGlass")
+	if old_g != null:
+		old_g.free()
+	if _gl.size() > 0:                                                     # w1242-street: the panes, one transparent mesh (the tower's own material_override would hide a surface material)
+		var ga := []
+		ga.resize(Mesh.ARRAY_MAX)
+		ga[Mesh.ARRAY_VERTEX] = _gl
+		var gm := ArrayMesh.new()
+		gm.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ga)
+		var gi := MeshInstance3D.new()
+		gi.name = "TowerGlass"
+		gi.mesh = gm
+		gi.material_override = StreetDetail.glass_material()
+		gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_mesh.add_child(gi)
 
 
 ## Visible steps of a flight along u (treads and risers as boxes from the flight's foot).

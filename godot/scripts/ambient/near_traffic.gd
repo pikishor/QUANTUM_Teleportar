@@ -172,6 +172,7 @@ var _light_seen := PackedByteArray()
 var _look_t := PackedFloat32Array()
 var _twait := PackedFloat32Array()
 var _bus_t := PackedFloat32Array()       ## w123-life: seconds a bus has stood at its stop (-1: not at one)
+var _bus_near := PackedByteArray()      ## w1242-street: the bus is pulling in to (or stands at) a stop: it drifts to the kerb
 var _bus_done := PackedFloat32Array()    ## ... u of the last stop it served (it drives on past it)
 var _why := PackedFloat32Array()          ## the last look: 4 numbers per car (light, box, car, person allowances), for the audit
 var _ovl := PackedFloat32Array()
@@ -191,7 +192,7 @@ func build(light_map: Texture2D) -> void:
 	_buf_hi = MB.new_buffer(HI_MAX, false, true)
 	for a: PackedFloat32Array in [_dir, _line, _u, _spd, _cruise, _allow, _brake, _panic, _stun, _hurt_cd, _shift, _shift_t, _jam, _ghost, _wait, _age, _yaw, _tdir, _tcross, _tp, _look_t, _twait, _ovl, _ovl_t, _bus_t, _bus_done]:
 		a.resize(BUILT)
-	for a: PackedByteArray in [_alive, _axis, _kind, _paint, _tmode, _light_seen]:
+	for a: PackedByteArray in [_alive, _axis, _kind, _paint, _tmode, _light_seen, _bus_near]:
 		a.resize(BUILT)
 	_pos.resize(BUILT)
 	_why.resize(BUILT * 4)
@@ -422,6 +423,8 @@ func _spawn(i: int, c: Vector3, min_dist: float) -> bool:
 		if (p - Vector2(c.x, c.z)).length() < minf(min_dist, rr * 0.8):
 			continue
 		var kind := pick_kind(Districts.zone_at(p.x, p.y), DayNight.night_now, rng.randf())
+		if StreetDetail.on and StreetLife.fix and kind != BUS_KIND and _no_bus() and rng.randf() < BUS_SHARE_W1242 and _stop_ahead(ax, dir, line, u, c):
+			kind = BUS_KIND                                                           # w1242-street: a bus is seen at the stops (it was one car in 40: the walks met none)
 		var cruise := rng.randf_range(VehicleSpecs.AI_CRUISE_MIN, VehicleSpecs.AI_CRUISE_MAX) * KIND_SPEED[kind]
 		var share := rng.randf_range(0.7, 1.0)
 		var f := Vector2(float(dir), 0.0) if ax == 0 else Vector2(0.0, float(dir))
@@ -490,6 +493,7 @@ func place(i: int, ax: int, dir: int, line: float, u: float, kind: int, cruise: 
 	_paint[i] = paint
 	_bus_t[i] = -1.0
 	_bus_done[i] = INF
+	_bus_near[i] = 0
 	_cruise[i] = cruise
 	_spd[i] = cruise * speed_share
 	_allow[i] = 99.0
@@ -923,6 +927,8 @@ func _look(i: int, sig_clock: float, lights: bool) -> void:
 	_allow[i] = minf(minf(allow_light, allow_box), minf(allow_ped, allow_car))
 	if StreetLife.fix and _kind[i] == BUS_KIND and _tmode[i] == 0 and _panic[i] <= 0.0:
 		_allow[i] = minf(_allow[i], _bus_allow(i))
+		if StreetDetail.on and _bus_near[i] != 0 and is_zero_approx(_shift_t[i]):
+			_shift_t[i] = BUS_PULL_W1242                                              # w1242-street: the bus pulls in to the kerb at its stop (the bays there are kept free), then back out
 	_why[i * 4] = allow_light
 	_why[i * 4 + 1] = allow_box
 	_why[i * 4 + 2] = allow_car
@@ -965,8 +971,10 @@ func _bus_allow(i: int) -> float:
 		if d > -2.0 and d < StreetLife.BUS_LOOK and d < best and absf(su - _bus_done[i]) > 1.0:
 			best = d
 			bu = su
+	_bus_near[i] = 1 if (best < StreetLife.BUS_LOOK * 0.7 or _bus_t[i] >= 0.0) else 0
 	if best == INF:
 		_bus_t[i] = -1.0
+		_bus_near[i] = 0
 		return 99.0
 	if best < 1.0 and _spd[i] < 0.6:
 		if _bus_t[i] < 0.0:
@@ -976,10 +984,36 @@ func _bus_allow(i: int) -> float:
 		if _bus_t[i] >= StreetLife.BUS_DWELL:
 			_bus_done[i] = bu
 			_bus_t[i] = -1.0
+			_bus_near[i] = 0
 			StreetLife.bus_leaves += 1
 			return 99.0
 		return 0.0
 	return 0.0 if best <= 0.6 else sqrt(2.0 * BRAKE * 0.6 * (best - 0.6))
+
+
+const BUS_PULL_W1242 := 1.2             ## w1242-street: m a bus drifts to the kerb at its stop (its side stays clear of the people waiting at the kerb)
+const BUS_SHARE_W1242 := 0.5           ## w1242-street: share of the new cars that are a bus while none drives in the ring and a stop lies ahead in the lane
+
+
+func _no_bus() -> bool:
+	for i in count:
+		if _alive[i] != 0 and _kind[i] == BUS_KIND:
+			return false
+	return true
+
+
+## A bus stop on this lane's side within 150 m ahead of u, and within 110 m of the hero (the bus serves the stops he sees).
+func _stop_ahead(ax: int, dir: int, line: float, u: float, hero: Vector3) -> bool:
+	for sp: Vector3 in StreetLife.bus_stops:
+		if absf(sp.x - hero.x) > 110.0 or absf(sp.z - hero.z) > 110.0:
+			continue
+		var lat := sp.z if ax == 0 else sp.x
+		if absf(lat - line) > StreetLife.BUS_SIDE:
+			continue
+		var d := ((sp.x if ax == 0 else sp.z) - u) * float(dir)
+		if d > 20.0 and d < 150.0:
+			return true
+	return false
 
 
 ## True when a bus stands at a stop now (tests): the index of the first one, -1 when none.

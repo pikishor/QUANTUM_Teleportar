@@ -496,7 +496,8 @@ func _on_new_game() -> void:
 	chapter = 0
 	epilogue_seen = false
 	_low_cd = 0.0
-	if enabled:
+	# w1242-critic: not in the DEMO sandbox (its new run started the prologue: three cards that ate the first FIRE taps)
+	if enabled and not (DemoMode.active and OS.get_environment("W1242C_OLD") != "1"):
 		start_prologue()
 
 
