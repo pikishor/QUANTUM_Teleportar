@@ -478,6 +478,7 @@ static func sync(v: Vehicle, dt: float) -> void:
 			if near:
 				_blades(vis, "Rotor", c.spool * 38.0, c.ang, Vector3.UP)
 				_blades(vis, "TailRotor", c.spool * 60.0, c.tail_ang, Vector3.RIGHT)
+				_blades(vis, "Rotor2", c.spool * 38.0, -c.ang, Vector3.UP)                  # wave 125: the counter-rotating second rotor (tandem, coaxial, tilt-rotor)
 			var Ah := AircraftFlight.air(c)
 			c.pitch = Ah.pitch
 			c.roll = Ah.roll

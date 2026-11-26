@@ -559,6 +559,11 @@ func _vehicle_params(v: float) -> Dictionary:
 			height = hg * 0.93
 			fov = HOOD_FOV + 8.0 * smoothstep(0.0, 1.0, k) + (VEH_NITRO_FOV if boost else 0.0)
 			fwd = ln * 0.02
+			if HeliCockpit.applies(spec):                                  # w125-pads: a helicopter's third view is the cockpit, at the pilot's eye
+				var e := HeliCockpit.eye(spec)
+				fwd = e.x
+				height = e.y
+				fov = e.z
 	if spec is Dictionary and (spec as Dictionary).get("cls", &"car") == &"bike" and veh_view == 0:
 		dist = maxf(dist, 4.8)
 	if spec is Dictionary and (spec as Dictionary).has("cam_d") and veh_view == 0:         # the roster craft (helicopter, plane, boat, tank) carry their own chase numbers

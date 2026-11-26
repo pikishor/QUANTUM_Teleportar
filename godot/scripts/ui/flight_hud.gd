@@ -87,6 +87,8 @@ static func draw(c: Control, font: Font, vp: Vector2, s: float, ins: Vector2, ve
 	var vs := float(d["vspeed"])
 	_vs_arrow(c, Vector2(ax + 22.0 * s, centre.y - r + 74.0 * s), vs, s)
 	_label(c, font, Vector2(ax + 46.0 * s, centre.y - r + 56.0 * s), Vector2(110.0 * s, 28.0 * s), "%+d" % roundi(vs), (AMBER if vs < -6.0 else CYAN), s)
+	if HeliRoster.is_heli(v.kind):                                                   # wave 125: which of the 23 helicopters this is (its icon and name over the horizon)
+		HeliRoster.draw_badge(c, font, Vector2(centre.x, centre.y - r - 10.0 * s), s, v.kind)
 	if bool(d["plane"]):
 		_throttle(c, Vector2(centre.x - r - 12.0 * s, centre.y + r), r * 2.0, float(d["throttle"]), s)
 	# the stall warning: centre top, flashing

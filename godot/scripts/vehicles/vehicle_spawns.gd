@@ -40,7 +40,9 @@ static func all_points() -> Array[Dictionary]:
 	out.append_array(Harbour.BERTHS)
 	out.append_array(ArmourSites.vehicle_points())               # wave 118: the gunship on CITY HELIPAD SOUTH
 	out.append_array(OutskirtsSites.vehicle_points())
+	out.append_array(HeliRoster.spawn_points())                   # wave 125: the HELI LINE east of the runway, one of each new helicopter kind
 	out.append_array(Airport.spawn_points())                      # EASTFIELD AIRPORT: planes, jets, helicopters on the apron, the helipads and the mountain pads (wave 106)
+	out.append_array(Helipads.vehicle_points())                   # wave 125 (w125-pads): the helicopters of the new pads (city roofs, hospital, police, news, army airbase)
 	out.append_array(WorldRoam.vehicle_points())             # the rover and the quad at the foot of QUARRY TRACK (off-road trial)
 	out.append_array(RoamData.ride_points(RoamWorld.rides_unlocked))   # the rides the discovery counter handed out wait on their quantum pads (scripts/roam/)
 	return out

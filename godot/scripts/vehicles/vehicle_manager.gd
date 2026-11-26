@@ -75,6 +75,7 @@ func _ready() -> void:
 	radio.name = "Radio"
 	add_child(radio)
 	ArmourSites.attach(self)                               # wave 118: the fixed places of the armour and the aircraft (their paint and signs exist only near the hero)
+	Helipads.attach(self)                                  # wave 125 (w125-pads): the new helipads (built near the hero) and the parking on a pad
 	_spawn_starter()
 
 
