@@ -276,6 +276,32 @@ check god mode and infinite ammo work and the real save is untouched. List the 8
 early: if you cannot fix one, write exactly why in your report.`,
     commit: 'Wave 124: frame rate headroom (flight and on foot), node limit 7000 by owner, wave 123 street detail finished, demo mode god mode',
   },
+  1242: {
+    title: 'Wave 124 part 2: frame rate and wave 123 street detail (both skipped in the first pass)',
+    builders: [
+      { tag: 'fps2', prompt: `TASK (label w1242-fps): FRAME RATE. The first wave 124 builder stopped after one edit and did NOTHING of this; you must do the whole job and not stop early. Read
+docs/sprint/progress/w124-fps.md. Plan line 124: "measured recovery on the phone tiers (owner: 37 to 45 FPS on LOW+, drops to 13 to 28 in flight); win back draw, triangle and script headroom." Work in
+this order and update your progress log after each step: (1) write godot/tests/dev_w124_probe.gd that measures draw calls, triangles, visible lights/shadows and script time per system
+(Performance monitors plus your own per-system timers) on foot in the city, driving, and FLYING over the city and over the outskirts, at LOW, MED and HIGH; write the top 10 costs with numbers in your
+log. (2) Fix the flight drop: at altitude cull street-level detail and interiors, use LOD/impostors, cut shadow distance, throttle traffic/pedestrian/AI sim by distance. (3) On foot: distance-throttle
+_process/_physics_process of AI, traffic, pedestrians, props and audio; merge draws; cut idle nodes and per-frame allocations. No visual quality the owner can see may drop. Never raise a perf
+limit (LOW 108 / MED 148 / HIGH 170 death spikes stay; node test limit is 7000 by the owner). (4) Permanent test godot/tests/test_fps_w124.gd: flight over the city keeps draws and triangles under a
+stated budget per tier, throttled systems spend less script time far away; each check failing on the old code (show it). (5) Report a before/after table for every tier, on foot, driving and flying.` },
+      { tag: 'street2', prompt: `TASK (label w1242-street): FINISH WAVE 123 STREET DETAIL. The wave 124 builder skipped this part entirely; you must do it all and not stop early. Read
+docs/sprint/progress/w123-*.md, w124-street-demo.md and docs/HANDOFF.md "Wave 123 integration" / "Wave 124 integration". Do, updating your progress log after each item: (1) new prop kinds: shop signs,
+street name signs at corners, traffic signs, a few billboards (original names only), newspaper boxes, bike racks, parking meters, street trees with grates; (2) storefront depth: recessed doors,
+awnings, shop window displays, roller shutters on closed shops; (3) outskirts street clutter; (4) glass in tower and lobby window holes; (5) move the parked car off the sidewalk in the bench area;
+(6) fix the floating BLACK MARKET SHOP label overlapping the NEON and QUANTA BAR signs; (7) buses really stopping at bus stops and leaving. CC0 kits or own-made only, MultiMesh / shared meshes per
+chunk, never block doors, shops, roads or the hero's path. Draw/triangle/perf death-spike limits stay (trim elsewhere if needed); the node test limit is 7000 by the owner. Coordinate with w1242-fps
+(it owns perf trims), read its log. Permanent test godot/tests/test_street_w124.gd by real touch events: each new prop kind present and never in front of a door, no label overlap, a bus stops at a
+stop, window holes have glass; each check failing on the old code. Render before/after frames LOW and MED at eye height and LOOK at them.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 124 part 2 (label w1242-critic), then its fixer. Assume it is broken until you have seen it work. The previous reviewer skipped the play review;
+you must not. With a finger-only bot of your own in the real main scene: fly over the city and outskirts at LOW, MED and HIGH and measure draws/triangles/frame time against the builder's table; walk
+and drive 5 streets day and night looking for props blocking doors, floating or clipping props, wrong sign text, label overlaps, missing glass, buses. Also open DEMO mode and try 30 random weapons and
+15 random missions. List the 8 worst defects with evidence, fix them most severe first, each with a check that fails without the fix. If you cannot fix one, write exactly why.`,
+    commit: 'Wave 124 part 2: frame rate headroom (flight and on foot), wave 123 street detail finished',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }

@@ -1,6 +1,10 @@
-# w124-integrator (running)
+# w124-integrator (done)
 
-agent id a7b8133b2cbbb65c7, 107 events, first activity 2026-11-26T05:11:55.569Z, last activity 2026-11-26T06:24:04.404Z
+agent id a7b8133b2cbbb65c7, 127 events, first activity 2026-11-26T05:11:55.569Z, last activity 2026-11-26T06:36:54.226Z
+
+## Final report
+
+f6a66c3519ce24e2eeb765c237ac0869fff4c378 Wave 124 integrator report. Commit f6a66c3 is pushed to origin/main. main had not moved, so no rebase was needed. The commit message is not the one the task gave me. That message said "frame rate headroom" and "wave 123 street detail finished", and neither was done this wave. I used this message instead: "Wave 124: node limit 7000 by owner, demo mode god mode (every weapon and mission selectable)". The body says the other two parts were not done. FIXED - DEMO could not launch the escort or duel chases. The cause was the builder's new step that takes the hero out of his car. It ran in DemoMode._prepare for every demo entry, so test_chase_set_pieces had 4 FAILs on this wave's tree. With the step off, the test PASSES. Fix: _prepare(leave_interior, leave_car := false), and only start_stealth passes true. After the fix, test_chase_set_pieces PASSES, and so does the touch audit test_demo_god_w124_missions (taps every entry, STEALTH included). SUITE (308 files, 3 jobs, clean XDG_DATA_HOME per test, one retry): 305 PASS, 1 FLAKY (slice_life), 2 FAIL. - chase_set_pieces: fixed above. - floors_w121: the known leak-margin flake. It PASSES alone. - test_integration PASSES with the owner's limit of 7000. It measured 2984 nodes this time. RERUN ON THE FINAL TREE: demo_god_w124, demo_god_w124_missions, demo_mode, demo_menu, touch_buttons_r7, integration and chase_set_pieces all PASS. visual_qa 27/27 PASS, and I looked at docs/shots/latest.png. PERF (PERF_CHECK=1, run once, no limit raised): - LOW draws=73 total=95 death=107 OK - MED draws=98 total=130 death=145 OK - HIGH draws=117 total=153 death=163 OK NOT DONE (open): - All of the frame-rate work (w124-fps steps 1-6): no probe, no fixes, no test_fps_w124. - Plan line 123 street detail: no new prop kinds, storefront depth, outskirts clutter or window glass; the sidewalk car, the BLACK MARKET SHOP label overlap and the buses not stopping are still there. - Entering demo still switches GOD MODE and INFINITE AMMO off. Switching them on at entry would break test_demo_mode:231, so it needs a design call. - MAX MONEY and UNLOCK ALL light up like toggles but have no off. - There is no separate VEHICLES or AIRCRAFT demo tab. - The critic's finger-play review was not done. - Graphics resources leak at exit (old). FILES COMMITTED: godot/scripts/demo/demo_mode.gd, godot/scripts/ui/demo_panel.gd, godot/tests/test_integration.gd, godot/tests/*w124* (tests, bot, .uid files), docs/HANDOFF.md (new section "Wave 124 integration"), docs/shots/*.png, docs/sprint/progress/w124-*.md. LEFT UNCOMMITTED: auto_*.md, AUTO_INDEX.md and docs/sprint/wave_runner.js (the last one is not this wave's). Disk: 11 GB free. Scratch files are only in the session scratchpad.
 
 ## Last notes of the agent
 
@@ -8,6 +12,7 @@ agent id a7b8133b2cbbb65c7, 107 events, first activity 2026-11-26T05:11:55.569Z,
 - 05:22:43 Likely the wave's DemoMode._prepare change. Let me see it.
 - 05:24:34 Now both tests: chase_set_pieces and the missions touch test.
 - 06:14:04 Now perf and visual QA in background.
+- 06:29:55 Fine. Rerun the wave touch tests on the final tree.
 
 ## Recent steps (last 40)
 
@@ -43,6 +48,12 @@ agent id a7b8133b2cbbb65c7, 107 events, first activity 2026-11-26T05:11:55.569Z,
 - 06:12:34 cd /home/user/QUANTUM_Teleportar/godot && d=$(mktemp -d); XDG_DATA_HOME=$d timeout 280 tools/test.sh tests/test_floors_w121.gd 2>&1 | grep -E '^FAIL|RESULT'; grep -c P...
 - 06:14:07 cd /home/user/QUANTUM_Teleportar/godot && echo "3. suite done 305 PASS 1 FLAKY 2 FAIL(chase fixed, floors_w121 PASS alone). next perf+visual_qa" >> ../docs/sprint/prog...
 - 06:24:04 S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad; grep 'RESULT tier=0' $S/perf.txt; timeout 590 bash -c "until grep -q END...
+- 06:29:53 /home/user/QUANTUM_Teleportar/docs/shots/latest.png
+- 06:29:57 cd /home/user/QUANTUM_Teleportar/godot && for t in test_demo_god_w124 test_demo_god_w124_missions test_demo_mode test_demo_menu test_touch_buttons_r7 test_integration ...
+- 06:36:16 git status --short; df -h . | tail -1
+- 06:36:29 cat >> docs/HANDOFF.md <<'EOF' ## Wave 124 integration (agent w124-integrator; log docs/sprint/progress/w124-integrator.md) - The wave holds: node limit in test_integr...
+- 06:36:42 git log --oneline -1 origin/main; git rev-parse HEAD; git ls-remote origin main
+- 06:36:54 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
