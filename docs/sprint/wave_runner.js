@@ -302,6 +302,52 @@ and drive 5 streets day and night looking for props blocking doors, floating or 
 15 random missions. List the 8 worst defects with evidence, fix them most severe first, each with a check that fails without the fix. If you cannot fix one, write exactly why.`,
     commit: 'Wave 124 part 2: frame rate headroom (flight and on foot), wave 123 street detail finished',
   },
+  125: {
+    title: 'Helicopter roster',
+    builders: [
+      { tag: 'helis', prompt: `TASK (label w125-helis): HELICOPTER ROSTER. Plan line 125: "HELICOPTER ROSTER (22+ kinds), cockpits, helipads." First read what exists (aircraft models, AircraftFlight, FlightHud,
+helipads, air traffic, hijack; grep scripts and docs/HANDOFF.md) and count the current helicopter kinds in your log. Then reach at least 22 distinct helicopter kinds (light scout, news, police, air
+ambulance, utility, tandem-rotor cargo, heavy lift, gunship, attack, stealth, coaxial, tilt-rotor, crane, firefighting, VIP, trainer, sci-fi quantum variants...), each with its own model (CC0 or
+own-made in Blender, original names only, no real brands), its own flight numbers (speed, climb, turn, mass, rotor sound pitch), and an icon. Shared meshes / LODs so a parked or far heli costs
+almost nothing. Each heli must be flyable by touch with the existing flight controls and be stealable/boardable. Coordinate with w125-pads (it owns cockpits and helipads), read its log. Permanent
+test godot/tests/test_helis_w125.gd by real touch events: every kind spawns, boards, lifts off, flies a short route, lands; each check failing on the old code. Render a lineup of all kinds LOW and
+MED and LOOK. BUDGETS: perf death-spike limits LOW 108 / MED 148 / HIGH 170 and the MED triangle budget 280k (now at 275k) must hold; trim, never raise a limit (node test limit is 7000).` },
+      { tag: 'pads', prompt: `TASK (label w125-pads): HELICOPTER COCKPITS AND HELIPADS. Plan line 125. Read what exists first. (1) Cockpit view for helicopters: a first-person cockpit (seat, frame, glass, instrument panel with working gauges: altitude, speed, heading, rotor rpm, fuel/damage) that the
+hero can switch to with a touch button, readable on a phone, with the flight HUD kept clear (wave 116 view rules). A few cockpit families shared across the 22+ kinds of w125-helis. (2) Helipads:
+rooftop pads on tall city buildings, hospital, police, news station, airport, army base and outskirts pads, each with markings, lights at night and a spawned heli of a fitting kind; show them on the
+map and minimap; landing on a pad parks the heli. Coordinate with w125-helis, read its log. Permanent test godot/tests/test_helipads_w125.gd by real touch events: cockpit toggles and gauges move,
+every pad is reachable and a landing on it parks the heli, map icons exist; each check failing on the old code. Render cockpit and pad frames day and night LOW and MED and LOOK. Budgets as in the
+plan: never raise a perf limit (MED triangle budget 280k is tight), trim elsewhere.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 125 (label w125-critic), then its fixer. Assume it is broken until you have seen it work. With a finger-only bot of your own in the real main
+scene: board and fly at least 10 different helicopter kinds, use the cockpit view, land on 5 different helipads day and night, crash one into a building, check frame time and draws in flight at LOW
+and MED. Look for clipping rotors, wrong scale, unflyable kinds, unreadable cockpits, pads with no heli or blocked, HUD overlap. List the 8 worst defects with evidence, fix them most severe first,
+each with a check that fails without the fix. If you cannot fix one, write exactly why.`,
+    commit: 'Wave 125: helicopter roster (22+ kinds), cockpits, helipads',
+  },
+  126: {
+    title: 'Aeroplane roster',
+    builders: [
+      { tag: 'planes', prompt: `TASK (label w126-planes): AEROPLANE ROSTER AND HANGARS. Plan line 126: "AEROPLANE ROSTER (30+ kinds), hangars, air traffic, air missions, aircraft weapons." Read what exists
+(aircraft models, AircraftFlight, airport world, wave 125 helis) and count current plane kinds in your log. Reach at least 30 distinct aeroplane kinds (light prop, trainer, aerobatic, crop duster,
+seaplane, bush plane, business jet, regional prop, narrow-body and wide-body airliners, cargo, fighter, interceptor, ground attack, bomber, stealth, tanker, AWACS, drone, glider, sci-fi quantum
+craft...), each with a model (CC0 or own-made, original names, no real brands), flight numbers (stall speed, top speed, roll/pitch rates, takeoff run) and an icon; shared meshes / LODs. Every kind
+flyable by touch, takes off and lands on the runway. Hangars at the airport and army base, enterable on foot, holding parked planes you can board. Permanent test godot/tests/test_planes_w126.gd by
+real touch events: every kind spawns, takes off, flies, lands; hangar doors work; each check failing on the old code. Render a lineup LOW and MED and LOOK. Budgets: never raise a perf limit (MED
+triangle budget 280k is tight), trim elsewhere. Coordinate with w126-air (it owns traffic, missions and weapons), read its log.` },
+      { tag: 'air', prompt: `TASK (label w126-air): AIR TRAFFIC, AIR MISSIONS AND AIRCRAFT WEAPONS. Plan line 126. Read what exists first (AI air traffic, hijack, aircraft weapons, mission board, blast table).
+(1) Air traffic uses the new roster of w126-planes and wave 125 helis: airliners take off and land on a schedule, light planes and helis cross the sky, all pooled and LOD'd. (2) At least 6 air missions
+on the mission board (dogfight, escort an airliner, bomb run, cargo drop, rescue by heli, race through rings), each finishable by touch, with the existing mission guide and checkpoints. (3) Aircraft
+weapons by class from the blast table: guns, rockets, missiles with lock-on, bombs, flares; touch buttons on the flight HUD kept clear (wave 116 view rules). Permanent test
+godot/tests/test_air_w126.gd by real touch events: traffic takes off and lands, every air mission starts and can be finished by a bot, each weapon kind fires and hits; each check failing on the old
+code. Render frames and LOOK. Budgets: never raise a perf limit, trim elsewhere. Coordinate with w126-planes, read its log.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 126 (label w126-critic), then its fixer. Assume it is broken until you have seen it work. With a finger-only bot of your own in the real main
+scene: fly at least 10 different plane kinds (take off, fly, land), enter a hangar, play 3 air missions to the end, fire every aircraft weapon kind, watch air traffic at the airport for 2 minutes, and
+measure frame time and draws in flight at LOW and MED. Look for planes that cannot take off or land, clipping, wrong scale, traffic collisions, unfinishable missions, HUD overlap. List the 8 worst
+defects with evidence, fix them most severe first, each with a check that fails without the fix. If you cannot fix one, write exactly why.`,
+    commit: 'Wave 126: aeroplane roster (30+ kinds), hangars, air traffic, air missions, aircraft weapons',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }
