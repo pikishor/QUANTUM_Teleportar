@@ -124,7 +124,7 @@ func _composition() -> void:
 			"the world exposes its mirror root (scale 1,-1,1)")
 	TestLib.check(Game.atmosphere.get_parent() == main and city.get_parent() == main and p.get_parent() == main, "the three modules are siblings under Main")
 	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
-	TestLib.check(nodes < 3000, "the composed game stays small: %d nodes (the world is MultiMeshes and a 56-body prop collider pool and 140 breakable-prop bodies, not thousands of nodes)" % nodes)
+	TestLib.check(nodes < 7000, "the composed game stays under the owner-set limit of 7000: %d nodes (limit raised from 3000 by the owner in wave 124; the world is MultiMeshes and a 56-body prop collider pool and 140 breakable-prop bodies, not thousands of nodes)" % nodes)
 
 
 # --- the street and the walls -------------------------------------------------------------------------------------------------

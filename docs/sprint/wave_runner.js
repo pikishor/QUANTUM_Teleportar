@@ -17,7 +17,7 @@ after every step so another agent can resume; small working steps; NO commits an
 docs/HANDOFF.md. The owner plays on a PHONE with touch only and rated the last build 4/10: "small silly errors. Are you even checking."
 HARD RULES: (1) every UI or control check you write drives the real main scene with REAL finger events (InputEventScreenTouch / InputEventScreenDrag through Input.parse_input_event,
 window coordinates: root.get_final_transform() * pos; see godot/tests/test_touch_buttons_r7.gd), never the mouse and never a direct function call, with Game.force_touch = true and the
-phone-only layers on (CrateReveal._quiet = 0); (2) each fix gets a check that FAILS on the old code (show it failing first); (3) never weaken a test, never raise a perf limit
+phone-only layers on (CrateReveal._quiet = 0); (2) each fix gets a check that FAILS on the old code (show it failing first); (3) never weaken a test, never raise a perf limit (one owner exception from wave 124 on: the test_integration node limit is 7000, raised by the owner)
 (PERF_CHECK=1 tools/perf_report.sh 0 1 2 must stay OK on LOW, MED and HIGH: run it at most twice, at the end); (4) another agent edits the same tree at the same time: touch only
 what your task needs, keep other agents' hook lines, run tools/import.sh after adding a class_name; (5) look at your own frames (tools/bot.sh renders at phone aspect 2400x1080 or
 1200x540) before you call something fixed; (6) original names, only own-made or CC0 assets, no secrets in files. If you were restarted, your log says where to continue.
@@ -242,6 +242,39 @@ in the real main scene: walk and drive 5 streets day and night, enter shops, run
 pedestrians stuck or walking through things, signs with wrong text, frame drops, node growth. Render frames and LOOK. List the 8 worst defects with evidence, fix them most severe first, each with a
 check that fails without the fix. Do not stop early: if you cannot fix one, write exactly why in your report.`,
     commit: 'Wave 123: street detail (sidewalk clutter, storefront depth, signs, street life), wave 122 follow-ups',
+  },
+  124: {
+    title: 'Frame rate, finish street detail, demo god mode',
+    builders: [
+      { tag: 'fps', prompt: `TASK (label w124-fps): FRAME RATE. Plan line 124: "measured recovery on the phone tiers (owner: 37 to 45 FPS on LOW+, drops to 13 to 28 in flight); win back draw,
+triangle and script headroom." First measure, with tools/perf_report.sh and a profiling probe of your own (godot/tests/dev_w124_probe.gd), where frame time goes on foot in the city, driving, and in
+FLIGHT over the city and outskirts (draw calls, triangles, visible lights/shadows, script time per system with Performance monitors and per-system timers). Write the top costs in your log with
+numbers. Then win back headroom without lowering visual quality the owner can see: fix the flight drop first (view distance / LOD / impostor use at altitude, culling of street-level detail and
+interiors from the air, traffic and pedestrian sim throttled by distance, shadow distance at altitude), then on-foot: merge draws, distance-throttle script _process/_physics_process (AI, traffic,
+pedestrians, props, audio), cut idle nodes and per-frame allocations. Never raise a perf limit; the goal is clear headroom under LOW 108 / MED 148 / HIGH 170 death spikes, and report the new
+numbers for flight too. NODE LIMIT: the OWNER explicitly asked to raise the test_integration node limit from 3000 to 7000 (godot/tests/test_integration.gd line ~127). Do that change (update the
+message text too) and nothing else about limits; draw/triangle/perf gates stay as they are, they are the real phone cost. Permanent test godot/tests/test_fps_w124.gd: flight over the city keeps
+draws and triangles under a stated budget per tier, script time of throttled systems falls with distance, each check failing on the old code. Report before/after numbers for every tier, on foot
+and in flight.` },
+      { tag: 'street-demo', prompt: `TASK (label w124-street-demo): FINISH WAVE 123 STREET DETAIL, THEN DEMO GOD MODE. Read docs/sprint/progress/w123-*.md and docs/HANDOFF.md "Wave 123
+integration" first. Part 1, the wave 123 items that were NOT done: new prop kinds (shop signs, street name signs at corners, traffic signs, a few billboards with original names, newspaper boxes,
+bike racks, parking meters, street trees with grates), storefront depth (recessed doors, awnings, shop window displays, roller shutters on closed shops), outskirts street clutter; glass in tower
+and lobby window holes; the parked car on the sidewalk in a bench area; the floating BLACK MARKET SHOP label overlapping the NEON and QUANTA BAR signs; buses really stopping at bus stops. CC0 kits
+or own-made only, MultiMesh / shared meshes, never block doors, shops, roads or the hero's path. The node test limit is being raised to 7000 by w124-fps (owner's decision), but draw/triangle and
+perf death-spike limits stay: trim elsewhere if needed, never raise them. Part 2, DEMO MODE AS GOD MODE (owner: "in demo mode we should be able to select all weapons, all missions etc like a god
+mode"). Read scripts/demo/demo_mode.gd and scripts/ui/demo_panel.gd. Audit with a finger-only bot that in demo mode EVERY weapon of the full roster (200+, all classes, attachments, ammo types),
+every mission (chapters, sequel, side, heists, contracts, bosses, arena, chases, stealth...), every vehicle and aircraft, every verb/ability/skill, every hero look and upgrade is selectable and
+usable, with god mode, infinite ammo and max money available as toggles; add what is missing (e.g. a WEAPONS tab with every weapon, VEHICLES tab, UNLOCK ALL / ALL SKILLS toggles), keeping the
+demo save separate from the real save. Permanent tests godot/tests/test_street_w124.gd and godot/tests/test_demo_god_w124.gd by real touch events: each new prop kind is present and never in front
+of a door, the label overlap is gone, a bus stops at a stop; in demo mode every weapon id and every mission id can be picked from the menu and starts; each check failing on the old code. Render
+frames LOW and MED and LOOK. Coordinate with w124-fps (it owns perf trims), read its log.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 124 (label w124-critic), then its fixer. You did not build it; assume it is broken until you have seen it work. With a finger-only bot of
+your own in the real main scene: fly over the city and outskirts at each tier and measure draws/triangles/frame time against the builder's claims; walk and drive 5 streets day and night looking for
+props blocking doors, floating or clipping props, wrong sign text, label overlaps; open DEMO mode and try at least 30 random weapons, 15 random missions, 5 vehicles and 3 aircraft from its menu, and
+check god mode and infinite ammo work and the real save is untouched. List the 8 worst defects with evidence, fix them most severe first, each with a check that fails without the fix. Do not stop
+early: if you cannot fix one, write exactly why in your report.`,
+    commit: 'Wave 124: frame rate headroom (flight and on foot), node limit 7000 by owner, wave 123 street detail finished, demo mode god mode',
   },
 }
 const W = WAVES[N]
