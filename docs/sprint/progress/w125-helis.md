@@ -1,14 +1,15 @@
 GOAL: helicopter roster 22+ kinds (own model, flight numbers, icon), test_helis_w125.gd by real touch.
 DONE:
-- counted existing heli kinds: 3 (heli = xv_heli glb, gunship + hauler = procedural, VehicleSpecs cls "heli").
-NEXT: 1 tools/gen_heli_roster.py writes scripts/vehicles/heli_roster.gd (DEFS) + spec/palette/name/roster/weapon/engine lines
- 2 scripts/vehicles/heli_models.gd (HeliModels: parametric builder, mesh cache per kind) + hook in VehicleCraftModels.build
- 3 Rotor2 hook (tandem/coax/tilt) in vehicle_visual._bind_craft + vehicle_craft sync + aircraft_scenery
- 4 HELI LINE spawn points at the airport east of the runway (local x 1330, z -940..-180, 40 m apart)
- 5 icons (tools/icons/build_icons.sh only=v_...), FlightHud name+icon line
- 6 tests/test_helis_w125.gd (touch: walk, ENTER, UP, route, DOWN, EXIT per kind), HELIS_OLD=1 shows old fail
- 7 lineup renders LOW+MED, perf at end
+- counted before: 3 heli kinds (heli glb, gunship + hauler procedural). Now 23 (20 new, ids h_*).
+- godot/tools/gen_heli_roster.py (source table) -> godot/scripts/vehicles/heli_roster.gd (HeliRoster: NEW, KINDS, DEFS, spawn_points, draw_badge)
+- godot/scripts/vehicles/heli_models.gd (HeliModels: parametric builder, meshes cached per kind = shared; Detail node hidden beyond 70 m, Glow beyond 160 m)
+- lines in vehicle_specs.gd (SPECS/PALETTES/NAMES/ROSTER/AIRCRAFT_KINDS/WEAPONS), audio_director.gd ENGINES (rotor pitch per kind)
+- hooks: vehicle_craft_models.build (HeliRoster dispatch), vehicle_visual._bind_craft + vehicle_craft sync (Rotor2), vehicle_spawns.all_points (HELI LINE), flight_hud (badge)
+- icons assets/icons/v_h_*.png (tools/icons/build_icons.sh only=...)
+- tests/test_helis_w125.gd; lineup renders looked at (front3q LOW + MED)
+NEXT: full test result, HELIS_OLD=1 fail proof, perf at end
 DECISIONS:
-- new kind ids start with h_ (h_scout ...); data table in godot/tools/gen_heli_roster.py (source of truth), HeliRoster.KINDS lists all heli kinds for w125-pads.
+- HELI LINE: airport local x 1334, z -930 + 38*i, not "fixed" (live car cap applies, so a parked line costs at most cap vehicles)
+- w125-pads may use HeliRoster.KINDS / NEW to choose kinds for its pads
 TESTS AND PERF:
-OPEN PROBLEMS:
+OPEN PROBLEMS: AircraftScenery (air traffic) does not spin Rotor2 (no new kind flies in air traffic yet)

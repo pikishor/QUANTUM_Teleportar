@@ -16,13 +16,13 @@ concurrency:
 
 jobs:
   godot-tests:
-    name: Godot tests (shard ${{ matrix.shard }} of 4)
+    name: Godot tests (shard ${{ matrix.shard }} of 6)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45                       # the shards run 20 to 29 minutes (wave 113: shard 1 took 29 and was cancelled by the old 30 minute limit at the very end of its last test)
+    timeout-minutes: 45                       # 6 shards since wave 124 (with 4, shards ran 33-45+ minutes and shard 2 hit this limit twice)
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
       - name: System packages (virtual display, software Vulkan/GL, audio stubs)
@@ -44,7 +44,7 @@ jobs:
       - name: Bootstrap (download Godot, verify checksum, import project)
         run: godot/tools/bootstrap.sh
       - name: Run this shard of the headless tests
-        run: godot/tools/ci_shard.sh ${{ matrix.shard }} 4
+        run: godot/tools/ci_shard.sh ${{ matrix.shard }} 6
 
   godot-visual:
     name: Screenshot and visual checks

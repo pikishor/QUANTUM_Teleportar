@@ -1,20 +1,18 @@
 # w125-helis (running)
 
-agent id a48dfe36a2002e91f, 195 events, first activity 2026-11-26T11:10:59.777Z, last activity 2026-11-26T11:26:54.706Z
+agent id a48dfe36a2002e91f, 200 events, first activity 2026-11-26T11:10:59.777Z, last activity 2026-11-26T11:29:04.795Z
 
 ## Last notes of the agent
 
-- 11:12:07 Starting log, then reading the model and spec code.
 - 11:18:22 Now the generator with the roster table.
 - 11:19:37 Now insert the lines into VehicleSpecs and AudioDirector with a Python patch (anchored on existing lines, so other agents' edits stay).
 - 11:20:09 Add draw_badge to the generator template and regenerate.
 - 11:20:33 Fix the untyped loop variables quickly (the tree must load for the other agent).
 - 11:23:11 Build the icons, then import, then run the test old and new.
+- 11:28:55 Meanwhile, updating the progress log.
 
 ## Recent steps (last 40)
 
-- 11:14:02 cd /home/user/QUANTUM_Teleportar/godot; wc -l scripts/ui/vehicle_hud.gd scripts/ui/flight_hud.gd; grep -n "func \|name_of\|draw_" scripts/ui/flight_hud.gd | head -40
-- 11:14:28 cd /home/user/QUANTUM_Teleportar/godot; grep -n "^const\|^static func\|^func" scripts/vehicles/vehicle_craft_models.gd | head -50
 - 11:14:30 cd /home/user/QUANTUM_Teleportar/godot; sed -n 360,368p scripts/vehicles/vehicle_craft_models.gd; sed -n 395,500p scripts/vehicles/vehicle_craft_models.gd; sed -n 1,80...
 - 11:14:40 cd /home/user/QUANTUM_Teleportar/godot; sed -n 286,310p scripts/vehicles/vehicle_specs.gd | cut -c1-200; grep -n "BASE_STATS" -A3 scripts/vehicles/vehicle_specs.gd | h...
 - 11:14:45 cd /home/user/QUANTUM_Teleportar/godot; grep -rn "VehicleSpecs.ROSTER\|AIRCRAFT_KINDS" scripts tests tools 2>/dev/null | grep -v "^scripts/vehicles/vehicle_specs.gd" |...
@@ -53,6 +51,8 @@ agent id a48dfe36a2002e91f, 195 events, first activity 2026-11-26T11:10:59.777Z,
 - 11:25:16 cd /home/user/QUANTUM_Teleportar/godot; SP=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/w125h; grep -E "RESULT|tandem|rr...
 - 11:25:20 cd /home/user/QUANTUM_Teleportar/godot; SP=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/w125h; tools/test.sh tests/test_...
 - 11:26:54 cd /home/user/QUANTUM_Teleportar/godot; SP=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/w125h; python3 - <<'EOF' p='test...
+- 11:29:01 cd /home/user/QUANTUM_Teleportar; cat > docs/sprint/progress/w125-helis.md <<'EOF' GOAL: helicopter roster 22+ kinds (own model, flight numbers, icon), test_helis_w125...
+- 11:29:04 sleep 1; timeout 590 bash -c 'while ! grep -q RESULT /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/w125h/t5.log 2>/dev/nu...
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

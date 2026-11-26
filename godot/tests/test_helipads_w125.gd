@@ -252,20 +252,20 @@ func _pads() -> void:
 	var failed: Array = []
 	for pd in pads:
 		var c: Vector3 = pd["pos"]
-		v.global_position = c + Vector3(0.0, 9.0, 0.0)
+		v.global_position = c + Vector3(0.0, 5.0, 0.0)
 		v.vel = Vector3.ZERO
 		v.craft.vy = 0.0
 		v.craft.airborne = true
 		v.craft.spool = 1.0
-		await a.pframes(4)
+		await a.pframes(2)
 		for o: Vehicle in vm.list.duplicate():                 # the pad's own helicopter stands on it: it goes, the pad is free for the landing
 			if o != v and is_instance_valid(o) and Vector2(o.global_position.x - c.x, o.global_position.z - c.z).length() < 16.0:
 				vm._release(o)
-		v.global_position = c + Vector3(0.0, 9.0, 0.0)
+		v.global_position = c + Vector3(0.0, 5.0, 0.0)
 		v.vel = Vector3.ZERO
 		v.craft.vy = 0.0
-		await a.pframes(40)                                      # colliders and the pad node stream in
-		v.global_position = c + Vector3(0.0, 9.0, 0.0)
+		await a.pframes(20)                                      # colliders and the pad node stream in
+		v.global_position = c + Vector3(0.0, 5.0, 0.0)
 		v.vel = Vector3.ZERO
 		var n0 := Helipads.parks
 		var ok := await _hold("crouch", func() -> bool: return Helipads.parks > n0 and not v.craft.airborne, 900)
