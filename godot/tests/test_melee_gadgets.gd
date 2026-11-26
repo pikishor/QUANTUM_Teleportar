@@ -417,6 +417,15 @@ func _gadgets() -> void:
 	g._cd.clear()
 	p.energy = p.max_energy
 	p.teleport_to(p.global_position + _forward() * 8.0)          # the spawn lies by the city wall: step inward so the camera behind the hero is not against pooled wall colliders
+	# w125-ci (CI 45855522483 both attempts "14.0 m -> 11.9 m", FLAKY in 45832989677 and 45847631664): the hook ray also takes vehicles (L_VEHICLE, by design: a car is an anchor),
+	# and a traffic van parked or passing between the hero and the test anchor caught it (REPRODUCED here, 2 of 6 runs: hit /Main/VehicleManager/Car_van 2 to 3 m ahead, the
+	# hero hooked onto the van). The street is emptied of cars and the car streamer and the spawn points rest while the hook flies, so the anchor is the first thing on the line.
+	var vm := Game.vehicles as VehicleManager
+	var stream_every := vm.stream_every
+	vm._reset_all()
+	vm.stream_every = 1.0e9
+	vm._stream_t = 1.0e9
+	vm._spawn_t = 1.0e9
 	await frames(3)
 	var anchor := StaticBody3D.new()
 	anchor.collision_layer = Game.L_WORLD
@@ -442,6 +451,9 @@ func _gadgets() -> void:
 	var pulled := await _until(func() -> bool: return g.hooks > hk0, 2.0)
 	var after := Vector2(p.global_position.x - at.x, p.global_position.z - at.z).length()
 	TestLib.check(pulled and after < before - 4.0, "the hero is pulled to the anchor (%.1f m -> %.1f m)" % [before, after])
+	vm.stream_every = stream_every
+	vm._stream_t = 0.0
+	vm._spawn_t = 0.0
 	TestLib.check(g.cooldown(&"grapple") > 0.0, "the hook has a cooldown")
 	anchor.queue_free()
 	# energy gate
