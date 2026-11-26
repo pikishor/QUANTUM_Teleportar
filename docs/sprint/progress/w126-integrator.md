@@ -8,3 +8,4 @@ NEXT: import; full suite in background (scratchpad/suite126, runner scratchpad/s
 - visual_qa 27/27 PASS. NEXT touch reruns (scratchpad/tri/touch_*.log)
 - touch reruns all PASS (planes x4, air x2, w126_critic, helis x2, airport_aircraft, controls_w118, touch_buttons_r7). NEXT look frames, handoff, commit
 - frames looked at; tidy done (scratch removed, disk 11G free); HANDOFF section added. NEXT commit + push.
+- DONE: committed f25c3a6 and pushed
