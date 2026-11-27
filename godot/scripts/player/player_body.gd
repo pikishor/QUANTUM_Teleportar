@@ -473,6 +473,7 @@ func _seated_view(p: Player, adt: float, dt: float, seat: Dictionary) -> void:
 			SeatPose.set_canopy(v.visual.model.get_node_or_null("Body_LOD1") as MeshInstance3D, true)
 		if rig != null:
 			rig.clip_w = 0.0
+		_seat_shadows(true)
 		if hero_mat != null:
 			_finger_mode = &"grip"
 			HeroFingers.pose(rig.skeleton, &"grip")
@@ -547,6 +548,34 @@ func _process(_dt: float) -> void:
 
 
 ## Out of the seat (on foot again, or into another vehicle): the normal pose takes over, the canopy is dark glass again, the weapon is back.
+## w128-critic: the seated pilot casts no shadow (his shadow proxy and any shadow caster are switched off under the canopy or in the hatch, where nobody sees the shadow): the shadow passes
+## drew the hero again aboard every vehicle (bot_w128_critic CR_ONLY=perf). `on` false puts back what was there. SEAT_SHADOW_OLD=1: the wave 128 behaviour (shadows kept).
+static var seat_shadow_off := OS.get_environment("SEAT_SHADOW_OLD") != "1"
+var _seat_shadow_saved := {}                 ## GeometryInstance3D -> [cast_shadow, visible] while seated
+
+
+func _seat_shadows(on: bool) -> void:
+	if on:
+		if not seat_shadow_off or not _seat_shadow_saved.is_empty():
+			return
+		for n in find_children("*", "GeometryInstance3D", true, false):
+			var g := n as GeometryInstance3D
+			if g.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+				continue
+			_seat_shadow_saved[g] = [g.cast_shadow, g.visible]
+			if g.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
+				g.visible = false
+			else:
+				g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		return
+	for g: Variant in _seat_shadow_saved:
+		if is_instance_valid(g):
+			var st: Array = _seat_shadow_saved[g]
+			(g as GeometryInstance3D).cast_shadow = st[0]
+			(g as GeometryInstance3D).visible = st[1]
+	_seat_shadow_saved.clear()
+
+
 func _leave_seat() -> void:
 	if is_instance_valid(_seat_v) and (_seat_v as Vehicle).visual != null:
 		SeatPose.set_canopy((_seat_v as Vehicle).visual.body, false)
@@ -554,6 +583,7 @@ func _leave_seat() -> void:
 	_seat_v = null
 	seat_info = {}
 	_seat_in = 0.0
+	_seat_shadows(false)
 	_gun_hide(false)
 	if rig != null:
 		rig.seat = 0.0

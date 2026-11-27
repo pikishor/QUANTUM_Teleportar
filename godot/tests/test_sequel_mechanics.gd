@@ -410,7 +410,7 @@ func _demo() -> void:
 		if g["kind"] == &"sequel":
 			found = g
 	TestLib.check(not found.is_empty() and (found["items"] as Array).size() == 3, "DEMO menu: a SEQUEL MECHANICS group with three entries")
-	TestLib.check(DemoPanel.TABS.size() == cat.size() + 2, "DEMO panel: a tab per group plus SPAWN and TOOLS")
+	TestLib.check(DemoPanel.TABS.size() == cat.size() + DemoPanel.OWN_TABS.size() and DemoPanel.OWN_TABS.has("SPAWN") and DemoPanel.OWN_TABS.has("TOOLS"), "DEMO panel: a tab per group plus SPAWN and TOOLS (and the panel's own tabs %s)" % [DemoPanel.OWN_TABS])   # wave 128: VEHICLES and AIRCRAFT are own tabs too
 	TestLib.check(DemoPanel.TABS.has("SEQUEL"), "DEMO panel: the SEQUEL tab")
 	for id: StringName in CampaignSteps.DEMO_IDS:
 		_reset()

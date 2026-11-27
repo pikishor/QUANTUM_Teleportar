@@ -51,6 +51,11 @@ func _run(tree: SceneTree) -> void:
 	for h in tree.get_nodes_in_group(&"hud"):
 		h.set("visible", false)
 	await _pf(30)
+	if OS.get_environment("CR_ONLY") == "perf":
+		await _perf()
+		_done = true
+		tree.quit()
+		return
 	var kinds := OS.get_environment("CR_KINDS").split(",", false)
 	if kinds.is_empty():
 		for k in HeliRoster.KINDS:
@@ -74,9 +79,12 @@ func _run(tree: SceneTree) -> void:
 		var size := maxf(float(sp["len"]), float(sp.get("span", sp["wid"])))
 		var c := v.global_position + Vector3(0.0, float(sp.get("hgt", 3.0)) * 0.45, 0.0)
 		var b := v.global_transform.basis
-		for view in [["f3q", Vector3(0.75, 0.32, -0.85)], ["r3q", Vector3(-0.8, 0.35, 0.9)]]:
+		var views := [["f3q", Vector3(0.75, 0.32, -0.85), 1.05], ["r3q", Vector3(-0.8, 0.35, 0.9), 1.05]]
+		if OS.get_environment("CR_NEAR") == "1":
+			views.append(["near", Vector3(0.75, 0.32, -0.85), 0.55])
+		for view in views:
 			var dir: Vector3 = (b * (view[1] as Vector3)).normalized()
-			Game.camera.global_position = c + dir * size * 1.05
+			Game.camera.global_position = c + dir * size * float(view[2])
 			Game.camera.look_at(c, Vector3.UP)
 			await _pf(3)
 			await _shot("%s_%s" % [k, view[0]])
@@ -84,3 +92,37 @@ func _run(tree: SceneTree) -> void:
 		await _pf(2)
 	_done = true
 	tree.quit()
+
+
+## CR_ONLY=perf: the hero aboard a helicopter, a plane and a tank on the airfield, the game's chase camera; draw calls and frame time with the seated pilot (SeatPose.on) and without.
+func _perf() -> void:
+	var at := Airport.to_world(Vector3(1250.0, 0.0, -640.0))
+	at.y = TerrainHeight.height_at(at.x, at.z)
+	for k in ["h_scout", "p_fighter", "t_heavy"]:
+		for seat in [false, true]:
+			SeatPose.on = seat
+			p.teleport_to(at + Vector3(-12.0, 0.5, 0.0))
+			await _pf(10)
+			vm._release_farthest(at)
+			var v := vm.spawn_parked(StringName(k), at, 0.0)
+			if v == null:
+				continue
+			await _pf(10)
+			vm.enter(v)
+			await _pf(60)
+			var draws := 0
+			var worst := 0.0
+			var sum := 0.0
+			for i in 60:
+				var t0 := Time.get_ticks_usec()
+				await RenderingServer.frame_post_draw
+				var ms := float(Time.get_ticks_usec() - t0) / 1000.0
+				sum += ms
+				worst = maxf(worst, ms)
+				draws = maxi(draws, RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
+			print("CRPERF q%d %s seat %s draws %d frame avg %.1f worst %.1f ms body visible %s" % [Game.quality, k, seat, draws, sum / 60.0, worst, p.body.visible])
+			await _shot("perf_%s_%s" % [k, "seat" if seat else "hidden"])
+			vm.exit_vehicle()
+			await _pf(4)
+			vm._release(v)
+	SeatPose.on = true

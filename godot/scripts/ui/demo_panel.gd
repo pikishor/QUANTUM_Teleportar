@@ -11,6 +11,8 @@ signal closed
 const ALL_TABS: Array[String] = ["CHAPTERS", "SIDE", "ACTIVITY", "SET PIECE", "BOSS", "EVENT", "CONTRACT", "INTERIOR", "SEQUEL", "CHASE", "ALLY", "STEALTH", "HEIST", "ARENA", "SAFEHOUSE", "WORKBENCH", "WEAPONS", "VEHICLES", "AIRCRAFT", "SPAWN", "TOOLS"]
 ## w128-open: VEHICLES and AIRCRAFT tabs (every vehicle / aircraft kind). W128O_OLD=1: the tabs before (without them).
 static var TABS: Array[String] = ALL_TABS.filter(func(t: String) -> bool: return OS.get_environment("W128O_OLD") != "1" or (t != "VEHICLES" and t != "AIRCRAFT"))
+# the tabs that are not a DemoMode.catalog() group (w128 integrator: the catalogue tests count catalogue groups + these)
+static var OWN_TABS: Array[String] = TABS.filter(func(t: String) -> bool: return t in ["VEHICLES", "AIRCRAFT", "SPAWN", "TOOLS"])
 const BG := Color(0.01, 0.03, 0.05, 1.0)
 const PANEL := Color(0.05, 0.13, 0.17, 1.0)
 const ON := Color(0.1, 0.55, 0.45, 1.0)
