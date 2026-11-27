@@ -26,3 +26,21 @@
   If the tap was swallowed (a plate over HORN), the horn does not start and it still fails. Passed 3 of 3 (old check, 3-way load) and 1 of 1 (new) here; the runner failure itself did not reproduce.
 - Local, under a 3-way load only, once: "w119-hud5: ENTER by finger beside a spawned plane boards the plane (in interceptor ...)": the hero boarded a parked interceptor standing 0.1 m away.
   Passed alone and on the runner; not touched (open).
+
+## Round 2 (CI 46064628802 on c792a9e)
+- Green: Three.js, Unreal, visual QA, shards 0, 1, 3, 4, 5 (test_hud_camera_final, test_controls_w118 and the new test_w128_ci pass on the runner). Red: shard 2.
+- Shard 2 FAIL (both attempts): `test_mission_audit` "no step gets stuck" (attempt 1: 2 findings, ch3 escort TIMEOUT at progress 0.97 + the guide recovery after it; attempt 2: 6 findings, kill_target
+  TIMEOUT / GUIDE_RECOVERED in ch2 step7 (PHASEWRIGHT) and ch3 step5 (OVERSEER) with the hero standing still, aiming, foes alive).
+- FLAKY (passed on the retry, not touched): `test_vehicle_overlap` "market street ... longest 0.32 s" (shard 0, again), `test_full_quick` "SCRIPT ERROR: Invalid type in function 'enter' in base
+  'Node (VehicleManager)' ... (previously freed)" (shard 5), `test_combat_feel` "a kill plays its confirm sound (hit_armor)" (shard 4, the long-known one). Shard 0 also logged two git connection
+  errors in its post-job step (runner network; the job passed).
+- REPRODUCED locally: 1 of 3 normal runs (DejaVu, 3 in parallel) failed the same way: "ch2 step7 kill_target TIMEOUT ... progress 0.89" and two guide recoveries. A BOSS log line every 10 s showed
+  `ammo=0 reloading=false` from t=40 s to the end (200 s) while the PHASEWRIGHT stood 1 to 12 m away in sight.
+- CAUSE (the bot, the same family as the wave 114 note): the hero had a weapon with a LIMITED reserve (a weapon crate on the way equips its weapon). When both the magazine and the reserve were empty,
+  the audit bot's `shoot()` released FIRE and tapped RELOAD. With no reserve `start_reload()` does nothing, and the game's swap to a weapon that still shoots (`PlayerWeapon._auto_swap`) only runs on a dry
+  trigger pull, so the bot stood there until the step timed out. `keep_carbine()` (wave 114) is only called in the sandbox loops, not in `play_chapters`.
+  Proof on demand: `FORCE_WEAPON=d_rook AUDIT_FROM=2:7` (new dev switch): old bot (`AUDIT_DRY_OLD=1`) ammo 0 reserve 0 for the rest of the step, TIMEOUT + GUIDE_RECOVERED (the runner's pattern);
+  new bot: the trigger pull swaps to the carbine ("OUT OF AMMO  CARBINE"), the boss falls in 60 s, no finding.
+- FIX (tests/mission_audit.gd, the bot only): `shoot()` pulls the trigger of a dry gun with no reserve, like a player, instead of tapping RELOAD (`dry_swap`, `AUDIT_DRY_OLD=1` = old).
+- After it: test_mission_audit 3 of 3 PASS (3 in parallel, no TIMEOUT or recovery), test_mission_audit_kinds PASS.
+- Open (game, not changed): RELOAD on a dry weapon with no reserve does nothing; a player who taps RELOAD there gets no answer until he pulls the trigger. It could swap like the dry trigger does.
