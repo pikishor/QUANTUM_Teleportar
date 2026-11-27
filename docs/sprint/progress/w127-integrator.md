@@ -9,3 +9,8 @@ NEXT: import; full suite in background (scratchpad/suite127, runner scratchpad/s
 - planes_w126 PASS after fix 2 (fighter 133 m, hp 900).
 - FIX 3: test_world_missions FAIL (5/6, 3/6; HEAD 6/6): TankMissions.inject overwrote the last card = the lodge's world mission. Now overwrites the last ordinary card only (tank_missions.gd); tidied a comment in mission_board.gd.
 - suite DONE: FAIL integration, planes_w126 (fixed), world_missions (fixed); FLAKY blast_arsenal (fixed), flight_view_w116, floors_w121 (my mid-edit parse error), hud_camera_final, mission_audit, shooting_accuracy, touch_audit, w119_critic. NEXT rerun those.
+- reruns all PASS (17 files incl. world_missions 6/6, tank_arms a/b/c, tanks_w127 a/b, air_w126 a/b, blast_arsenal, blast_registry, flakies). integration PASS alone (new and HEAD). NEXT perf.
+- perf OK: LOW 72/94 death 109; MED 99/131 prims 275k death 146; HIGH 118/154 death 164. NEXT visual_qa
+- visual_qa 27/27 PASS, latest.png looked at; army base frame (new x 1376) looked at LOW 1200x540. NEXT touch reruns (scratchpad/re127/b)
+- touch reruns PASS (9 more); tidy done; HANDOFF section added. NEXT commit + push
+- DONE: committed bdab8a8 and pushed

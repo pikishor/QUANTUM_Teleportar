@@ -262,7 +262,7 @@ func activate(pos: Vector3, h: float) -> void:
 	_lean_r = 0.0
 	_last_vf = 0.0
 	heading = h
-	global_position = Vector3(pos.x, base_y + _terrain_y(pos.x, pos.z), pos.z)
+	global_position = Vector3(pos.x, base_y + _spawn_y(pos), pos.z)
 	rotation = Vector3(0.0, h, 0.0)
 	if craft != null and cls == &"boat":                                 # a boat is put on the water: the flood level in the city canals, the waves of the real water elsewhere
 		VehicleCraft.place_boat(self)
@@ -1101,6 +1101,19 @@ func _move(dt: float) -> void:
 	if col != null:
 		_bounce(col)
 	_terrain_step(dt)
+
+
+## w127-ci: the height a car is put at by activate(): the deck of a bridge when `pos.y` (the caller's height: a road car's lane height when RoadTraffic promotes it) is within reach of one
+## (Bridges.deck_y, the same rule _terrain_step drives by), else the terrain. It used to be the terrain only: a road car promoted on the MOUNTAIN TRACK bridge started on the gully floor 3.4 m
+## under the deck, never climbed back (more than 3 m under a deck counts as under the bridge) and, as hull contacts are flat, shoved the tank crossing the deck above into the parapet.
+static var deck_spawn_on := OS.get_environment("W127CI_OLD") != "1"
+
+static func _spawn_y(pos: Vector3) -> float:
+	if deck_spawn_on and (absf(pos.x) > TerrainHeight.CITY_HALF or absf(pos.z) > TerrainHeight.CITY_HALF):
+		var d := Bridges.deck_y(pos.x, pos.z, pos.y)
+		if d != Bridges.NONE:
+			return d
+	return _terrain_y(pos.x, pos.z)
 
 
 ## Terrain height at (x, z) outside the city plateau, 0 inside it.
