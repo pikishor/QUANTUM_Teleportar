@@ -15,6 +15,9 @@ const METAL := [0.5, 0.2, 0.3, 0.9]
 const ROUGH := [0.4, 0.1, 0.6, 0.25]
 const ARMOUR_COLOR := Color(0.11, 0.125, 0.14)
 
+## w128-airlook: W128_OLD=1 keeps the old (inside-out) winding, for the old-behaviour run of tests/test_airlook_w128.gd.
+static var wind_old := OS.get_environment("W128_OLD") == "1"
+
 var _v: Array = [PackedVector3Array(), PackedVector3Array(), PackedVector3Array(), PackedVector3Array()]
 var _n: Array = [PackedVector3Array(), PackedVector3Array(), PackedVector3Array(), PackedVector3Array()]
 
@@ -486,6 +489,12 @@ func _finish() -> ArrayMesh:
 		var verts: PackedVector3Array = _v[s]
 		if verts.is_empty():
 			continue
+		if not wind_old:                    # w128-airlook: Godot draws CLOCKWISE triangles as the front; _tri winds them counter-clockwise seen from outside, so every
+			verts = verts.duplicate()      # craft model was drawn inside out (the near skin culled, the inner far wall shown: flat, see-through glass, fins seen through the body)
+			for t in range(0, verts.size(), 3):
+				var tmp := verts[t + 1]
+				verts[t + 1] = verts[t + 2]
+				verts[t + 2] = tmp
 		var arr := []
 		arr.resize(Mesh.ARRAY_MAX)
 		arr[Mesh.ARRAY_VERTEX] = verts

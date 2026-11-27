@@ -138,6 +138,16 @@ func _begin() -> void:
 			_menu([&"hero_open", &"hero_tab_weapons", &"ars_cls_prev", &"wsel_frag"], true)
 		"slots":
 			_menu([&"loadout", &"wheel_p_spark", &"ars_slot_1"])
+		"slots36", "slots36_p1":                                                 # wave 128 (opt-in, ARS_STEPS=slots36): every weapon owned, 36 carried; the page chip turned to slots 33-36, slot 35 picked
+			for id: StringName in WeaponDefs.IDS:
+				WeaponDefs.unlock(id)
+			LoadoutSlots.page = 0
+			var path: Array = [&"loadout"]
+			if name == "slots36":
+				for k in 8:
+					path.append(&"ars_slotpage")
+				path.append(&"ars_slot_34")
+			_menu(path)
 		"reveal_flash", "reveal_mid", "reveal_late":
 			_play()
 			CrateReveal._quiet = 0

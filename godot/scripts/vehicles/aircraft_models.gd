@@ -8,6 +8,30 @@ extends VehicleCraftModels
 
 const SEGS := 12
 
+static var _air_glass: StandardMaterial3D
+
+
+## w128-airlook: the canopy glass of the roster aircraft: a dark blue-grey tint with a soft sheen (the car glass is near black and mirror-sharp: on a curved canopy it reads as paint
+## where it mirrors the sky, or as a hole where it mirrors the ground).
+static func glass_material() -> StandardMaterial3D:
+	if _air_glass == null:
+		_air_glass = StandardMaterial3D.new()
+		_air_glass.resource_name = "Glass"
+		_air_glass.albedo_color = Color(0.07, 0.1, 0.14)
+		_air_glass.metallic = 0.1
+		_air_glass.metallic_specular = 0.7
+		_air_glass.roughness = 0.22
+		_air_glass.emission_enabled = true
+		_air_glass.emission = Color(0.5, 0.62, 0.78)
+		_air_glass.emission_energy_multiplier = 0.0
+	return _air_glass
+
+
+## The kinds that wear the canopy glass (the w128 helicopter and aeroplane builds).
+static func air_glass(spec: Dictionary) -> bool:
+	var k := StringName(spec.get("procedural", ""))
+	return (HeliRoster.DEFS.has(k) and not HeliModels.old) or (PlaneRoster.DEFS.has(k) and not PlaneModels.old) or (not HeliModels.old and String(spec.get("model", "")) == "xv_heli")
+
 
 ## The model root of "gunship" or "hauler" (called from VehicleCraftModels.build).
 static func build_air(kind: String, spec: Dictionary) -> Node3D:
@@ -28,8 +52,127 @@ static func build_air(kind: String, spec: Dictionary) -> Node3D:
 	return root
 
 
+var far_lod := 0                   ## w128-airlook: 1 = the far body (Body_LOD1): lofts with half the segments, no windows / seams
+var smooth := false                ## w128-airlook: lofts and patches get smooth vertex normals (a curved metal skin, not facets); HeliModels / PlaneModels switch it on
+
+
+## w128-airlook: the point of station `s` ([z, cx, cy, rx, ry]) at ring angle `a` (0 = +x side, PI/2 = top), the half sizes scaled by `k` (a shell just outside the skin: k > 1).
+static func ring_point(s: Array, a: float, n: float, k := 1.0) -> Vector3:
+	var ca := cos(a)
+	var sa := sin(a)
+	return Vector3(float(s[1]) + signf(ca) * pow(absf(ca), 2.0 / n) * float(s[3]) * k, float(s[2]) + signf(sa) * pow(absf(sa), 2.0 / n) * float(s[4]) * k, float(s[0]))
+
+
+## w128-airlook: a grid of rings (each an Array of Vector3, same length) skinned with smooth normals; `wrap` joins the last point of a ring to the first; the normals point away from
+## the station centres `cen` (one Vector3 per ring).
+func _grid(surf: int, rings: Array, cen: Array, wrap: bool) -> void:
+	var nr := rings.size()
+	var np := (rings[0] as Array).size()
+	var acc: Array = []
+	for k in nr:
+		var row: Array = []
+		row.resize(np)
+		row.fill(Vector3.ZERO)
+		acc.append(row)
+	var nq := np if wrap else np - 1
+	for k in nr - 1:
+		var mid: Vector3 = (cen[k] + cen[k + 1]) * 0.5
+		for i in nq:
+			var j := (i + 1) % np
+			var a: Vector3 = rings[k][i]
+			var b: Vector3 = rings[k + 1][i]
+			var c: Vector3 = rings[k + 1][j]
+			var d: Vector3 = rings[k][j]
+			var fn := (c - a).cross(b - d)
+			if fn.length_squared() < 1e-12:
+				continue
+			fn = fn.normalized()
+			if fn.dot((a + b + c + d) * 0.25 - mid) < 0.0:
+				fn = -fn
+			acc[k][i] += fn
+			acc[k + 1][i] += fn
+			acc[k + 1][j] += fn
+			acc[k][j] += fn
+	for k in nr - 1:
+		for i in nq:
+			var j := (i + 1) % np
+			var na: Vector3 = (acc[k][i] as Vector3).normalized()
+			var nb: Vector3 = (acc[k + 1][i] as Vector3).normalized()
+			var nc: Vector3 = (acc[k + 1][j] as Vector3).normalized()
+			var nd: Vector3 = (acc[k][j] as Vector3).normalized()
+			_tri_n(surf, rings[k][i], rings[k + 1][i], rings[k + 1][j], na, nb, nc)
+			_tri_n(surf, rings[k][i], rings[k + 1][j], rings[k][j], na, nc, nd)
+
+
+## One triangle with its own vertex normals, wound to face the way the normals point.
+func _tri_n(surf: int, a: Vector3, b: Vector3, c: Vector3, na: Vector3, nb: Vector3, nc: Vector3) -> void:
+	var g := (b - a).cross(c - a)
+	if g.length_squared() < 1e-12:
+		return
+	if g.dot(na + nb + nc) < 0.0:
+		var t := b
+		b = c
+		c = t
+		var tn := nb
+		nb = nc
+		nc = tn
+	var vv: PackedVector3Array = _v[surf]
+	vv.append_array(PackedVector3Array([a, b, c]))
+	_v[surf] = vv
+	var nn: PackedVector3Array = _n[surf]
+	nn.append_array(PackedVector3Array([na, nb, nc]))
+	_n[surf] = nn
+
+
+## w128-airlook: a part of a loft's skin, a shell at scale `k` over the ring angles a0..a1 (radians, 0 = +x, PI/2 = top) of the stations `st`: windscreens, side windows,
+## door seams, cheat lines. Smooth normals, open edges.
+func _patch(surf: int, st: Array, n: float, a0: float, a1: float, segs: int, k := 1.02) -> void:
+	var rings: Array = []
+	var cen: Array = []
+	for s: Array in st:
+		var ring: Array = []
+		for i in segs + 1:
+			ring.append(ring_point(s, lerpf(a0, a1, float(i) / float(segs)), n, k))
+		rings.append(ring)
+		cen.append(Vector3(float(s[1]), float(s[2]), float(s[0])))
+	_grid(surf, rings, cen, false)
+
+
+## A tapered panel (wing, fin, stabiliser): root leading / trailing edge, tip leading / trailing edge, thickness at the root and the tip along `up`.
+func _panel(surf: int, rle: Vector3, rte: Vector3, tle: Vector3, tte: Vector3, th_r: float, th_t: float, up: Vector3) -> void:
+	var u := up.normalized()
+	var c := (rle + rte + tle + tte) * 0.25
+	var p := [rle + u * th_r * 0.5, rte + u * th_r * 0.15, tte + u * th_t * 0.15, tle + u * th_t * 0.5,
+		rle - u * th_r * 0.3, rte - u * th_r * 0.1, tte - u * th_t * 0.1, tle - u * th_t * 0.3]
+	_quad_panel(surf, p[0], p[1], p[2], p[3], c - u * 10.0)        # top (normal away from below)
+	_quad_panel(surf, p[4], p[5], p[6], p[7], c + u * 10.0)        # bottom
+	_quad_panel(surf, p[0], p[3], p[7], p[4], c)                    # leading edge
+	_quad_panel(surf, p[1], p[2], p[6], p[5], c)                    # trailing edge
+	_quad_panel(surf, p[3], p[2], p[6], p[7], c)                    # tip
+	_quad_panel(surf, p[0], p[1], p[5], p[4], c)                    # root
+
+
 ## A superellipse ring stack: each station is [z, cx, cy, rx, ry] (centre and half sizes in the XY plane at depth z); `n` = 2 is an ellipse, more is boxier. The two ends are closed.
 func _loft(surf: int, st: Array, n := 2.0, segs := SEGS) -> void:
+	if far_lod > 0:
+		segs = maxi(6, segs / 2)
+	if smooth:
+		var rings: Array = []
+		var cen: Array = []
+		for s: Array in st:
+			var ring: Array = []
+			for i in segs:
+				ring.append(ring_point(s, TAU * float(i) / float(segs), n))
+			rings.append(ring)
+			cen.append(Vector3(float(s[1]), float(s[2]), float(s[0])))
+		_grid(surf, rings, cen, true)
+		for e in [0, rings.size() - 1]:
+			var ring: Array = rings[e]
+			var c: Vector3 = cen[e]
+			var other: Vector3 = cen[rings.size() - 1 - e]
+			for i in segs:
+				_tri(surf, c, ring[i], ring[(i + 1) % segs], other)
+		return
 	var rings: Array = []
 	var centres: Array = []
 	for s: Array in st:

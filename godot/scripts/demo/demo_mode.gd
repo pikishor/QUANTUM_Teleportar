@@ -15,6 +15,8 @@ const CREDITS := 999999
 const CityEventsScript := preload("res://scripts/world/city_events.gd")
 
 static var active := false
+## w128-open (owner: "god mode" in demo): the demo starts with GOD MODE and INFINITE AMMO on and keeps them on (TOOLS can still switch them off). W128O_OLD=1: the old start (both off).
+static var god_on_enter := OS.get_environment("W128O_OLD") != "1"
 
 static var _hooked := false
 static var _stash := {}
@@ -33,6 +35,9 @@ static func enter() -> bool:
 	_stash_real(prog)
 	active = true
 	TestMode.reset_toggles()
+	if god_on_enter:
+		TestMode.god = true
+		TestMode.infinite_ammo = true
 	for f in FILES:
 		_remove(f)
 	_point_files(true, prog)
@@ -277,6 +282,94 @@ static func catalog() -> Array[Dictionary]:
 			wps.append({"id": id, "label": WeaponDefs.title(id), "cls": "OTHER"})
 	out.append({"kind": &"weapon", "title": "WEAPONS  EVERY GUN, TAP TO EQUIP (FULL AMMO)", "items": wps})
 	return out
+
+
+## w128-open: the demo VEHICLES and AIRCRAFT tabs: every ground vehicle kind (cars, bikes, hover craft, boats, tanks) and every aircraft kind (helicopters, planes), by class.
+const GROUND_CLASSES: Array[String] = ["car", "bike", "quad", "hover", "boat", "tank"]
+const GROUND_TITLES := {"car": "CARS", "bike": "BIKES", "quad": "QUAD", "hover": "HOVER CRAFT", "boat": "BOATS", "tank": "TANKS AND MILITARY"}
+const AIR_CLASSES: Array[String] = ["heli", "plane"]
+const AIR_TITLES := {"heli": "HELICOPTERS", "plane": "PLANES"}
+
+
+## [{cls, title, kinds}] for the ground (air = false) or the air (air = true) tab.
+static func vehicle_groups(air: bool) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for cls: String in (AIR_CLASSES if air else GROUND_CLASSES):
+		var kinds: Array[StringName] = []
+		for k: Variant in VehicleSpecs.SPECS:
+			var sp: Dictionary = VehicleSpecs.SPECS[k]
+			if String(sp.get("cls", "car")) == cls and not bool(sp.get("patrol", false)):
+				kinds.append(k as StringName)
+		if not kinds.is_empty():
+			out.append({"cls": cls, "title": (AIR_TITLES if air else GROUND_TITLES)[cls], "kinds": kinds})
+	return out
+
+
+## A demo vehicle of any kind for the hero: ground vehicles and helicopters on free ground next to him (ArmourSites.spawn_beside); a plane (or a helicopter with no room here) waits on the
+## runway of EASTFIELD AIRPORT at the south threshold, nose up the runway, and the hero is put beside it. Returns a status line ("" = could not).
+static func spawn_any(kind: StringName) -> String:
+	if not VehicleSpecs.SPECS.has(kind) or not (Game.player is Player) or not (Game.vehicles is VehicleManager):
+		return ""
+	var p := Game.player as Player
+	if p.vehicle != null:
+		(Game.vehicles as VehicleManager).exit_vehicle()      # out of the one he drives first
+	var vm0 := Game.vehicles as VehicleManager
+	for old: Vehicle in vm0.list.duplicate():                # one demo vehicle at a time: the last one goes (it would fill the live car cap)
+		if is_instance_valid(old) and old.has_meta(&"demo_v") and old != p.vehicle:
+			old.remove_meta(&"hold")
+			old.remove_meta(&"demo_v")
+			vm0._release(old)
+	vm0._count_fixed()
+	var cls := String(VehicleSpecs.SPECS[kind].get("cls", "car"))
+	var st := ""
+	if cls != "plane":
+		st = ArmourSites.spawn_beside(kind)
+		if st.begins_with("SPAWNED"):
+			_mark_last(kind)
+			return st
+		if cls != "heli":
+			return st
+	var vm := Game.vehicles as VehicleManager
+	var sp: Dictionary = VehicleSpecs.SPECS[kind]
+	var half_len := float(sp["len"]) * 0.5
+	var span := float(sp.get("span", sp["wid"]))
+	var at := Airport.to_world(Vector3(Airport.RUNWAY_X, 0.0, Airport.RUNWAY_S - half_len - 30.0))
+	at.y = TerrainHeight.height_at(at.x, at.z)
+	var yaw := Airport.heading_world(0.0)
+	for v: Vehicle in vm.list.duplicate():                # the runway threshold is cleared for it (another demo aircraft, a car)
+		if is_instance_valid(v) and v.active and Vector2(v.global_position.x - at.x, v.global_position.z - at.z).length() < half_len + 30.0 and v != p.vehicle:
+			v.remove_meta(&"hold")
+			vm._release(v)
+	vm._fixed_n += 1
+	var nv := vm.spawn_parked(kind, at, yaw)
+	if nv == null:
+		vm._count_fixed()
+		return ""
+	nv.set_meta(&"called", true)
+	nv.set_meta(&"hold", true)
+	nv.set_meta(&"spawned", true)
+	nv.set_meta(&"demo_v", true)
+	vm._count_fixed()
+	nv.update_lod(0.0)
+	var side := Vector3(cos(yaw), 0.0, -sin(yaw)) * (span * 0.5 + 5.0) - nv.forward() * (half_len * 0.3)
+	var hp := at + side
+	p.teleport_to(Vector3(hp.x, TerrainHeight.height_at(hp.x, hp.z) + 0.4, hp.z))
+	var d := at - hp
+	p.yaw = atan2(-d.x, -d.z)
+	if p.camera_rig != null:
+		p.camera_rig.reset_view(p.yaw, -0.1)
+	Game.say("%s ON THE RUNWAY" % VehicleSpecs.name_of(kind), 1.8)
+	return "SPAWNED  %s  ON THE RUNWAY" % VehicleSpecs.name_of(kind)
+
+
+static func _mark_last(kind: StringName) -> void:
+	var vm := Game.vehicles as VehicleManager
+	for i in range(vm.list.size() - 1, -1, -1):
+		var v: Vehicle = vm.list[i]
+		if is_instance_valid(v) and v.kind == kind and v.has_meta(&"called"):
+			v.set_meta(&"spawned", true)                  # ENTER prefers it over traffic in reach (VehicleManager.reach_car)
+			v.set_meta(&"demo_v", true)
+			return
 
 
 ## Equips any weapon of the roster at once (unlocked first, ammo filled).

@@ -35,6 +35,7 @@ var far_props := 0                       ## props at the simplified level
 var triangles := 0
 var rebuilds := 0
 
+var hidden := {}                         ## w128-open: Vector2i(x * 20, z * 20) of kit pieces a tank knocked down (city_colliders.gd knock): left out of the window
 var _sel_near := PackedInt32Array()
 var _sel_far := PackedInt32Array()
 
@@ -109,6 +110,23 @@ func rebuild(cam: Vector2) -> void:
 	_fill(cam, false)
 
 
+## w128-open: leave the kit piece standing at `o` out of the window (hide) or put it back, and refill the window.
+func hide_at(o: Vector3, hide: bool) -> void:
+	var key := Vector2i(roundi(o.x * 20.0), roundi(o.z * 20.0))
+	if hide:
+		hidden[key] = true
+	else:
+		hidden.erase(key)
+	sig = -1
+	if built_at.x < 1.0e8 and kit != null:
+		rebuild(built_at)
+
+
+## True when the kit piece at `o` is left out of the window (tests).
+func is_hidden(o: Vector3) -> bool:
+	return hidden.has(Vector2i(roundi(o.x * 20.0), roundi(o.z * 20.0)))
+
+
 ## Every prop of the city at full detail (tests, stills of far districts).
 func show_all() -> void:
 	if kit == null:
@@ -145,6 +163,8 @@ func _fill(cam: Vector2, everything: bool) -> void:
 					continue
 				var x := arr[o + 1]
 				var z := arr[o + 2]
+				if not hidden.is_empty() and hidden.has(Vector2i(roundi(x * 20.0), roundi(z * 20.0))):
+					continue
 				var d := _district(x, z)
 				if kind >= Kit.DRESS_FIRST and scale < DRESS_MIN_SCALE:
 					continue

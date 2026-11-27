@@ -681,7 +681,7 @@ func _slots_flow() -> void:
 	Arsenal._st.clear()
 	_open(&"paused", [&"loadout"])
 	var pw := (Game.player as Player).weapon
-	TestLib.check(LoadoutSlots.COUNT >= 3 and _count("ars_slot_") == LoadoutSlots.COUNT, "the loadout has %d slots on screen (at least 3)" % LoadoutSlots.COUNT)
+	TestLib.check(LoadoutSlots.COUNT >= 3 and _count("ars_slot_") == mini(LoadoutSlots.COUNT, LoadoutSlots.PAGE), "the loadout has %d slots, a page of %d on screen (at least 3)" % [LoadoutSlots.COUNT, _count("ars_slot_")])   # wave 128: 36 carried slots, four at a time (the page chip: tests/test_arsenal_w128.gd)
 	var filled := LoadoutSlots.filled()
 	TestLib.check(filled.size() >= 3, "%d of them are filled from the first minute" % filled.size())
 	# EQUIP puts the selected weapon into the ACTIVE slot and the hands

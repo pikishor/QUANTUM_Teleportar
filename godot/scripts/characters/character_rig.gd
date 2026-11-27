@@ -128,6 +128,14 @@ var _h_prev := NAN
 var _h_clock := 0.0
 var crouch := 0.0                        ## metres the pelvis rides lower than the straight-legged stand (a run is on bent knees: the stride then reaches its foot without a pelvis dip at every touchdown)
 var gait_arm := 0.0                      ## 0..1: how much the rifle and the hands move with the stride of a run (the hero sets 1; the old default keeps the carried rifle still)
+# --- w128-anim: the SEATED pose (SeatPose; PlayerBody writes these while the hero is in a vehicle seat). All in model space (x right, y up, z back), metres / radians.
+var seat := 0.0                          ## 0..1 weight of the seated pose (0 = the normal pose exactly as before)
+var seat_hips := Vector3(0.0, 0.95, 0.0) ## where the pelvis sits
+var seat_recline := 0.0                  ## the pelvis and the back lean back by this (a glider pilot lies back, a rider leans forward: negative)
+var seat_feet: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]      ## the soles (L, R)
+var seat_hands: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]     ## the wrists (L, R): on the stick, the lever, the yoke, the grips, the hatch rim
+var seat_hand_w := Vector2.ZERO          ## weight of each seat hand (L, R)
+var _torso_w := Vector3.ZERO             ## the torso bone's rest position, model space
 
 # --- rest data read from the model
 var _idx := PackedInt32Array()
@@ -265,6 +273,7 @@ func _read_rest() -> void:
 	_leg_l2 = _leg_s0[0].length()
 	_d_rest = (_leg_t0[0] + _leg_s0[0]).length()
 	var torso_w := (_to_model * _grest[TORSO]).origin
+	_torso_w = torso_w
 	_rifle_o = _rest[RIFLE].origin
 	var sides := [UARM_L, UARM_R]
 	var fores := [FARM_L, FARM_R]
@@ -509,6 +518,13 @@ func apply() -> void:
 	else:
 		hips_pos = _legs_legacy(d)
 		hips_basis = Basis.from_euler(Vector3(0.0, -twist * 0.7, -roll * 0.5))
+	var sw := clampf(seat, 0.0, 1.0) * (1.0 - d)
+	if sw > 0.001:                                         # w128-anim: seated (the pelvis on the seat, the legs bent to the pedals; the walk legs above are replaced)
+		hips_pos = hips_pos.lerp(seat_hips - Vector3(0.0, _hips_rest_y, 0.0), sw)
+		hips_basis = Basis(Quaternion(hips_basis).slerp(Quaternion(Vector3.RIGHT, seat_recline), sw))
+		_seat_legs(sw, hips_pos, hips_basis)
+		py = lerpf(py, 0.0, sw)
+		pr = lerpf(pr, 0.0, sw)
 
 	# ------------------------------------------------------------------ pelvis and torso
 	var tw := 0.0                                          # reload tilt weight
@@ -540,6 +556,7 @@ func apply() -> void:
 		_pose(TORSO, Basis.from_euler(Vector3(tp + 0.2 * d, twist * 1.7 + extra_torso.y, roll + extra_torso.z)))
 	# the head keeps looking level while the torso leans, twists and bobs (stabilisation), takes the part of the aim pitch the torso does not, and looks where the aim goes
 	var hp := aim_pitch * 0.55 - lean * 0.8 - breathe * 0.5 - 0.25 * d
+	hp -= seat_recline * 0.85 * sw                         # w128-anim: a reclined pilot still looks ahead
 	hp += (flinch * 0.34 * flinch_dir.y) if fdir.length_squared() > 0.01 else flinch * 0.3
 	if ik:
 		hp += head_look.y - 0.35 * tw - 0.35 * extra_torso.x - sin(phase * 2.0) * 0.015 * amp * (1.0 - air) * (1.0 - cw)
@@ -595,6 +612,10 @@ func apply() -> void:
 		var hw := hand_w.x if left else hand_w.y
 		if hw > 0.001:
 			target = target.lerp(_sh[k] + (hand_off_l if left else hand_off_r), hw)
+		var shw := (seat_hand_w.x if left else seat_hand_w.y) * sw
+		if shw > 0.001:                                    # w128-anim: the hand on the control (model space -> the torso frame of the arm solver)
+			var tq := bone_move(TORSO).affine_inverse() * (seat_hands[k] as Vector3) - _torso_w
+			target = target.lerp(tq, shw)
 		if left:
 			target += Vector3(0.0, 0.0, -0.05 * swing)
 		else:
@@ -778,6 +799,58 @@ func _legs_ik(d: float, hb: Basis) -> Vector3:
 			_pose(SHIN_R, b_shin)
 			_pose(FOOT_R, b_foot)
 	return hips_off
+
+
+## w128-anim: the seated legs. The pelvis is at `hips_off` (from its rest height) with basis `hb`; each leg reaches from its hock (the walk pose of _legs_ik, or the rest stance) to the seat's
+## sole by weight `w`, the knee bends forward and up (pole), the foot rests flat on the pedal / the floor / the peg, toes a little up.
+func _seat_legs(w: float, hips_off: Vector3, hb: Basis) -> void:
+	var l1 := _leg_l1
+	var l2 := _leg_l2
+	var reach := (l1 + l2) * 0.995
+	var hips_world := Vector3(0.0, _hips_rest_y, 0.0) + hips_off
+	for k in 2:
+		var from: Vector3 = (_hocks[k] as Vector3) if ik else sole_rest(k) + Vector3(0.0, _rest_foot, 0.0)
+		var goal: Vector3 = (seat_feet[k] as Vector3) + Vector3(0.0, _rest_foot, 0.04)
+		var hock := from.lerp(goal, w)
+		var joint := hips_world + hb * (_leg_o[k] as Vector3)
+		var p: Vector3 = hock - joint
+		var dist := clampf(p.length(), absf(l1 - l2) + 0.03, reach)
+		var u := p.normalized() if p.length() > 0.001 else Vector3.DOWN
+		var aa := (l1 * l1 - l2 * l2 + dist * dist) / (2.0 * dist)
+		var hh := sqrt(maxf(l1 * l1 - aa * aa, 0.0))
+		var pole := Vector3(0.0, 0.45, -1.0)
+		pole = pole - u * pole.dot(u)
+		pole = pole.normalized() if pole.length() > 0.001 else Vector3.FORWARD
+		var t := u * aa + pole * hh
+		var s := u * dist - t
+		var qt := Basis(Quaternion((_leg_t0[k] as Vector3).normalized(), t.normalized()))
+		var qs := Basis(Quaternion((_leg_s0[k] as Vector3).normalized(), s.normalized()))
+		var gf := Basis(Vector3.RIGHT, 0.18 * w)
+		var b_thigh := hb.transposed() * qt
+		var eu := b_thigh.get_euler()
+		if k == 0:
+			hip_l = Vector2(eu.x, eu.z)
+		else:
+			hip_r = Vector2(eu.x, eu.z)
+		_pose(THIGH_L if k == 0 else THIGH_R, b_thigh)
+		_pose(SHIN_L if k == 0 else SHIN_R, qt.transposed() * qs)
+		_pose(FOOT_L if k == 0 else FOOT_R, qs.transposed() * gf)
+
+
+## The model-space position of the sole of foot k (0 left, 1 right) in the current pose (tests: feet on the pedals, no sliding).
+func sole_now(k: int) -> Vector3:
+	var fi := FOOT_L if k == 0 else FOOT_R
+	return _to_model * (skeleton.get_bone_global_pose(_idx[fi]).origin) - Vector3(0.0, _rest_foot, 0.0)
+
+
+## The model-space position of the pelvis in the current pose.
+func hips_now() -> Vector3:
+	return _to_model * skeleton.get_bone_global_pose(_idx[HIPS]).origin
+
+
+## The model-space position of the head bone in the current pose.
+func head_now() -> Vector3:
+	return _to_model * skeleton.get_bone_global_pose(_idx[HEAD]).origin
 
 
 ## The secondary chain (cloak or tail) trails the motion. With the owner's springs (`use_springs`) the bend comes from critically damped springs driven by the

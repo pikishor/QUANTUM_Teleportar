@@ -54,6 +54,7 @@ class Slot:
 	var fire_size := 6.0
 	var glow := 1.0
 	var elem: StringName = &"fire"                          ## the BlastElements id of this blast (palette of fire, smoke, sparks, debris, light)
+	var wind := Vector3.ZERO                                ## wave 128: the smoke of a real blast drifts downwind as it climbs
 
 var slots: Array[Slot] = []
 var light: OmniLight3D
@@ -249,6 +250,15 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	if quantum and (el == BlastElements.PLASMA or el == BlastElements.ELECTRIC):
 		lo = Color(0.5, 0.05, 0.7)                            # the collapse: a cyan core burning out into magenta
 	s.elem = el
+	# wave 128 (owner: "ensure the blasts look more realistic"): a fire or toxic blast burns out into rolling soot, throws a dust skirt along the ground (dirt, concrete or white water), and its
+	# smoke is dark, lasts longer and drifts with the wind (BlastFx.real_on; W128B_OLD=1 = the old look). Quantum, plasma and electric keep their clean energy look.
+	var real := BlastFx.real_on and not quantum and (el == BlastElements.FIRE or el == BlastElements.TOXIC)
+	var gk := BlastFx.ground_kind(pos) if real else &""
+	if real:
+		s.smoke_t += 1.6 + 0.08 * r
+		s.wind = BlastFx.WIND * (0.6 + 0.4 * randf())
+	else:
+		s.wind = Vector3.ZERO
 	var hot := mid.lerp(Color(1.0, 0.95, 0.85), 0.8)
 	s.total = maxf(s.fire_t, maxf(s.ring_t, s.smoke_t + 0.4))
 	s.total = maxf(s.total, 0.65 + 0.045 * r if quantum else 1.4 + 0.02 * r)       # the particles of the slot outlive the layers
@@ -261,6 +271,8 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	s.fire_mat.set_shader_parameter(&"c_hot", hot)
 	s.fire_mat.set_shader_parameter(&"roll", randf() * TAU)
 	s.fire_mat.set_shader_parameter(&"gain", (2.4 if quantum else 2.0) * (0.55 if rf else 1.0))
+	s.fire_mat.set_shader_parameter(&"soot", (1.0 if el == BlastElements.FIRE else 0.6) if real and gk != &"water" else 0.0)
+	s.fire_mat.set_shader_parameter(&"soot_col", Color(0.07, 0.06, 0.055) if el == BlastElements.FIRE else Color(0.06, 0.09, 0.04))
 	var floor_y := 0.05 if pos.y < 4.0 else -1000.0
 	s.fire_mat.set_shader_parameter(&"floor_y", floor_y)
 	s.fire_mat.set_shader_parameter(&"fade_h", s.fire_size * 0.25)
@@ -275,7 +287,7 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 			s.puff_drift[k] = Vector3(cos(ang), 0.0, sin(ang)) * r * randf_range(0.04, 0.16)
 			s.puff_delay[k] = 0.1 * k + randf() * 0.05
 			s.puff_mats[k].set_shader_parameter(&"roll", randf() * TAU)
-			s.puff_mats[k].set_shader_parameter(&"tint", pal["smoke"])
+			s.puff_mats[k].set_shader_parameter(&"tint", BlastFx.smoke_tint(el, gk) if real else pal["smoke"])
 			s.puff_mats[k].set_shader_parameter(&"floor_y", floor_y)
 			s.puff_mats[k].set_shader_parameter(&"fade_h", r * 0.4)
 			s.puff_mats[k].set_shader_parameter(&"glow_color", mid)
@@ -291,6 +303,11 @@ func play(pos: Vector3, radius: float, color: Color, style := STYLE_FIRE, burn :
 	s.ground_mat.set_shader_parameter(&"flash_tight", 16.0 * clampf((r - 6.0) / 8.0, 0.0, 1.0))
 	s.ground_mat.set_shader_parameter(&"tint2", Color(1.0, 0.15, 0.85) if el != BlastElements.QUANTUM else Color(1.0, 0.6, 1.0))
 	s.ground_mat.set_shader_parameter(&"t", 0.0)
+	s.ground_mat.set_shader_parameter(&"dust", 1.0 if real and pos.y - BlastFx.ground_y(pos) < r * 0.8 else 0.0)        # a blast in the air throws no skirt
+	s.ground_mat.set_shader_parameter(&"dust_col", BlastFx.dust_color(gk))
+	if real:
+		s.ring_t *= 1.9                                     # the skirt rolls out and settles slower than the old ring flashed
+		s.total = maxf(s.total, s.ring_t)
 	s.ground.visible = true
 	# sparks and debris (a few discrete counts per emitter)
 	var ts := tier_scale(tier)
@@ -444,7 +461,10 @@ func _step(s: Slot, dt: float) -> void:
 		var size := r * (1.55 + 0.3 * k) * (1.0 if first else 0.42)
 		var rise := (r * 0.5 + 1.5) * (1.0 - (1.0 - f) * (1.0 - f)) * (1.0 if first else 0.7)
 		var base := s.pos + Vector3(0.0, r * 0.3 if first else 1.0, 0.0)
-		p.global_position = base + s.puff_drift[k] * (f * s.smoke_t) + Vector3(0.0, rise, 0.0)
+		var wt := f * s.smoke_t
+		p.global_position = base + s.puff_drift[k] * wt + Vector3(0.0, rise, 0.0) + s.wind * wt * wt * 0.35
+		if s.wind != Vector3.ZERO:
+			size *= 1.0 + 0.45 * f                          # a real cloud keeps billowing out as it climbs
 		p.scale = Vector3(size, size, size)
 		var m := s.puff_mats[k]
 		m.set_shader_parameter(&"progress", f)
@@ -452,7 +472,7 @@ func _step(s: Slot, dt: float) -> void:
 		if not first and s.burn > 0.0:
 			al *= clampf((s.burn - a) / 1.0, 0.0, 1.0)
 		m.set_shader_parameter(&"alpha", al)
-		m.set_shader_parameter(&"glow", maxf(0.0, 1.0 - a * 0.28) if first else 0.0)
+		m.set_shader_parameter(&"glow", maxf(0.0, 1.0 - a * (1.1 if s.wind != Vector3.ZERO else 0.28)) if first else 0.0)       # wave 128: real smoke is lit by the fire only while the fire burns
 		p.visible = al > 0.01
 	# the ring on the ground
 	var tg := a / s.ring_t

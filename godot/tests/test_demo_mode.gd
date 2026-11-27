@@ -228,8 +228,10 @@ func _tools() -> void:
 	panel.set_page(DemoPanel.TABS.find("TOOLS"))
 	for m in Difficulty.NAMES.size():
 		TestLib.check(panel.press_label(Difficulty.NAMES[m]) and Difficulty.current == m, "difficulty %s selectable" % Difficulty.NAMES[m])
-	TestLib.check(panel.press_label("GOD MODE") and TestMode.god, "the god-mode toggle reuses TestMode")
-	TestLib.check(panel.press_label("INFINITE AMMO") and TestMode.infinite_ammo, "the infinite-ammo toggle reuses TestMode")
+	# w128-open (owner): the demo runs in god mode from the start; the toggles still switch it off and on again (TestMode)
+	TestLib.check(TestMode.god == DemoMode.god_on_enter and TestMode.infinite_ammo == DemoMode.god_on_enter, "the demo starts with GOD MODE and INFINITE AMMO on")
+	TestLib.check(panel.press_label("GOD MODE") and TestMode.god != DemoMode.god_on_enter and panel.press_label("GOD MODE") and TestMode.god == DemoMode.god_on_enter, "the god-mode toggle reuses TestMode (off and on again)")
+	TestLib.check(panel.press_label("INFINITE AMMO") and TestMode.infinite_ammo != DemoMode.god_on_enter and panel.press_label("INFINITE AMMO") and TestMode.infinite_ammo == DemoMode.god_on_enter, "the infinite-ammo toggle reuses TestMode (off and on again)")
 	TestLib.check(panel.press_label("REVEAL THE MAP"), "reveal the map button works")
 	panel.set_page(DemoPanel.TABS.find("SPAWN"))
 	TestLib.check(panel.press_label("SEDAN"), "a vehicle spawns from the menu")

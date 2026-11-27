@@ -16,6 +16,10 @@ static var on := OS.get_environment("W126_PLANES_OLD") != "1"
 const WALL := 0.5
 const OPEN_R := 30.0                      ## m from the middle of the door (or anywhere inside) at which the door opens
 const DOOR_SPEED := 0.45                  ## of the full travel per second (a little over two seconds to open)
+## w128-airlook: lamps inside the hangars (no shadow), on only while the hero is within LAMP_NEAR m; W128_OLD=1 = none (the dark wave 126 hangars).
+static var lights_on := OS.get_environment("W128_OLD") != "1"
+const LAMP_NEAR := 90.0
+const LAMP_ENERGY := 2.2
 
 const SITES: Array[Dictionary] = [
 	{"id": &"hangar_a", "name": "HANGAR A", "pos": Vector2(1136.0, -940.0), "size": Vector3(50.0, 16.0, 44.0), "door": &"e", "dw": 38.0, "dh": 12.0, "army": false},
@@ -162,6 +166,7 @@ class Doors extends Node3D:
 	var _bodies: Array[AnimatableBody3D] = []
 	var _mm: MultiMesh
 	var _leaf: Array[Dictionary] = []    ## per leaf: site, side (-1 / +1)
+	var _lamps: Array = []               ## w128-airlook: [OmniLight3D, site] the lamps inside the hangars
 
 	static func open_of(id: StringName) -> float:
 		return float(instance._open.get(id, 0.0)) if is_instance_valid(instance) else 0.0
@@ -201,6 +206,24 @@ class Doors extends Node3D:
 			add_child(b)
 			_bodies.append(b)
 		_place()
+		if Hangars.lights_on:                                                       # w128-airlook: the hangar lamps light the inside (it was lit by the sky ambient only: dark planes in a dark box)
+			for st: Dictionary in SITES:
+				var sp: Vector2 = st["pos"]
+				var sz3: Vector3 = st["size"]
+				for k in (2 if not bool(st["army"]) else 1):
+					var lt := OmniLight3D.new()
+					lt.name = "Lamp_%s_%d" % [st["id"], k]
+					var off := 0.0 if bool(st["army"]) else (k - 0.5) * sz3.z * 0.45
+					lt.position = Vector3(sp.x, sz3.y - 1.6, sp.y + off)
+					lt.omni_range = maxf(sz3.x, sz3.z) * (0.62 if not bool(st["army"]) else 0.8)
+					lt.omni_attenuation = 0.6
+					lt.light_energy = Hangars.LAMP_ENERGY
+					lt.light_color = Color(1.0, 0.95, 0.86)
+					lt.shadow_enabled = false
+					lt.light_specular = 0.4
+					lt.visible = false
+					add_child(lt)
+					_lamps.append([lt, st])
 
 	func _exit_tree() -> void:
 		if instance == self:
@@ -224,6 +247,12 @@ class Doors extends Node3D:
 				moved = true
 		if moved:
 			_place()
+		for e: Array in _lamps:                                              # w128-airlook: a hangar's lamps are on while the hero is within LAMP_NEAR m of it
+			var st2: Dictionary = e[1]
+			var sp2: Vector2 = st2["pos"]
+			var near := Vector2(lp.x - sp2.x, lp.z - sp2.y).length() < Hangars.LAMP_NEAR
+			if (e[0] as OmniLight3D).visible != near:
+				(e[0] as OmniLight3D).visible = near
 
 	## Leaf transforms: shut, the two leaves meet in the middle of the opening; open, each slides out along the face past the jamb (on rails in front of the wall).
 	func _place() -> void:

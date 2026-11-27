@@ -975,11 +975,16 @@ func _chapter_select_ui() -> void:
 	hud._layout_key = ""
 	hud._ensure_layout()
 	var ids4 := _ids()
+	# w128-open: the rects are read while the MORE page is open (they used to be read after closing it: NEW GAME was gone, `_button` gave {} and line 980 hit a SCRIPT ERROR,
+	# so this check never ran)
+	var db := _button(&"deploy")
+	var cb := _button(&"chapters")
 	hud._gear_open = false
 	TestLib.check(ids3.has(&"continue") and ids4.has(&"deploy") and ids4.has(&"chapters"), "with a save: CONTINUE on the title, NEW GAME and CHAPTERS on MORE")
-	var dr: Rect2 = _button(&"deploy")["rect"]
-	var cr: Rect2 = _button(&"chapters")["rect"]
-	TestLib.check(not dr.intersects(cr) and absf(dr.position.y - cr.position.y) < 1.0, "NEW GAME and CHAPTERS sit side by side")
+	TestLib.check(db.has("rect") and cb.has("rect"), "NEW GAME and CHAPTERS have their buttons on MORE")
+	var dr: Rect2 = db.get("rect", Rect2())
+	var cr: Rect2 = cb.get("rect", Rect2(0, 0, 0, 0))
+	TestLib.check(dr.size.x > 0.0 and cr.size.x > 0.0 and not dr.intersects(cr) and absf(dr.position.y - cr.position.y) < 1.0, "NEW GAME and CHAPTERS sit side by side (%s, %s)" % [dr, cr])
 	camp.enabled = false
 	camp.abort()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP))
