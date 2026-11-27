@@ -44,3 +44,9 @@
 - FIX (tests/mission_audit.gd, the bot only): `shoot()` pulls the trigger of a dry gun with no reserve, like a player, instead of tapping RELOAD (`dry_swap`, `AUDIT_DRY_OLD=1` = old).
 - After it: test_mission_audit 3 of 3 PASS (3 in parallel, no TIMEOUT or recovery), test_mission_audit_kinds PASS.
 - Open (game, not changed): RELOAD on a dry weapon with no reserve does nothing; a player who taps RELOAD there gets no answer until he pulls the trigger. It could swap like the dry trigger does.
+
+## Round 3 (CI 46070207750 on ecda5ce, the bot fix)
+- All green. FLAKY (passed on the retry, not touched): `test_interior_tasks_ui` "copy: the stealth job is on ()", `test_mission_audit` (2 findings: ch3 escort TIMEOUT at progress 0.97,
+  hero at (-158.5, 103.8), goal (-160, 80), and the guide recovery after it; the same escort ending as round 2 attempt 1, a different cause from the dry gun: open), `test_soak_quick` "orphans grew from
+  57 to 70 (limit 69)", `test_life_w123` "a bus brakes at the bus stop and stands there (0.0 s)".
+- APK: android.yml on main (run 46073514957, ecda5ce): success, artifact 15234342793 android-debug-apk, 321124785 bytes.
