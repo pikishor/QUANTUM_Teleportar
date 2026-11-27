@@ -1,6 +1,6 @@
 # w128-critic (running)
 
-agent id a4990adbcfb806018, 323 events, first activity 2026-11-27T17:12:08.754Z, last activity 2026-11-27T17:34:56.581Z
+agent id a4990adbcfb806018, 334 events, first activity 2026-11-27T17:12:08.754Z, last activity 2026-11-27T17:35:24.379Z
 
 ## Last notes of the agent
 
@@ -12,10 +12,6 @@ agent id a4990adbcfb806018, 323 events, first activity 2026-11-27T17:12:08.754Z,
 
 ## Recent steps (last 40)
 
-- 17:28:21 Check godot process CPU
-- 17:28:31 Sheet rocket and thermobaric frames
-- 17:28:33 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/rocket.jpg
-- 17:28:40 Find thermobaric dome code
 - 17:28:42 Find dome callers and diff touch
 - 17:28:45 Read dome recipe code and shader
 - 17:28:48 Find tests that count domes
@@ -52,6 +48,10 @@ agent id a4990adbcfb806018, 323 events, first activity 2026-11-27T17:12:08.754Z,
 - 17:33:14 Check render progress
 - 17:33:18 Run anim builder test
 - 17:34:09 Rerun anim test to check flakiness
+- 17:35:00 Read cast gesture check code
+- 17:35:07 Inspect HeroCast API and test helpers
+- 17:35:17 Make anim cast checks use the gesture clock
+- 17:35:24 Run anim test new and old in parallel
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 

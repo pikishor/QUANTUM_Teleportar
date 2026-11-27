@@ -229,18 +229,32 @@ func _casts() -> void:
 	TestLib.check(p.body.cast.casts > c0, "a finger on a verb of the ring starts a cast gesture [old fails] (%d, %s)" % [p.body.cast.casts - c0, p.body.cast.kind])
 	TestLib.check(farthest > 0.3, "the release throws the left hand out, off the weapon [old fails] (%.2f m)" % farthest)
 	TestLib.check(t_close >= 0.0 and t_close < t_far, "the wind-up (hand to the chest) comes before the release (frames %d / %d)" % [t_close, t_far])
-	await _f(20)
+	for i in 90:                                             # w128-critic: wait for the gesture to end by its own clock (a loaded runner steps many physics ticks per frame), then a few frames more
+		if p.body.cast.phase == &"":
+			break
+		await _f(1)
+	await _f(6)
 	TestLib.check(_lw().distance_to(rest) < 0.08 and rig.hand_w.x < 0.05, "the hand is back on the weapon after the cast (%.3f m)" % _lw().distance_to(rest))
 	# every verb has its own gesture (the game's signals; the gestures differ)
 	var outs := {}
 	for id: StringName in HeroCast.KINDS:
 		p.body.cast.start(id)
-		var best := Vector3.ZERO
-		for i in 14:
+		var best := _lw()
+		for i in 90:                                         # w128-critic: the pose at the height of the gesture (its own clock: HIT to HOLD), not after a fixed frame count (flaky under load)
 			await _f(1)
-		best = _lw()
+			var c := p.body.cast
+			if c.t >= HeroCast.HIT and c.t <= HeroCast.HOLD:
+				best = _lw()
+				break
+			if c.phase == &"" and i > 2:
+				best = _lw()
+				break
 		outs[id] = best
-		await _f(30)
+		for i in 90:
+			if p.body.cast.phase == &"":
+				break
+			await _f(1)
+		await _f(4)
 	var distinct := {}
 	for id: StringName in outs:
 		distinct["%.1f,%.1f,%.1f" % [outs[id].x, outs[id].y, outs[id].z]] = true
