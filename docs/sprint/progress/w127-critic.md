@@ -19,10 +19,14 @@ DONE:
   * missions: with old code TANK BATTLE reached the fight only by MissionGuide auto-recover (stuck skip); city props (PropColliders) still stop tanks
   * DEFECT 4 (FIXED): FOREST ROAD checkpoint half-track parked nose to a tree trunk (4.8 m, could not drive out forwards): TankRoster.clear_spot/_blocked (generated from tools/gen_tank_roster.py; VegScatter data) moves a checkpoint spot along the road until no trunk/rock is in the box + 16 m ahead; check part checkpoint: OLD FAIL (4.8 m of 16), new PASS (6 of 6)
   * PERF (bot_w127_critic CR_ONLY=perf, 9 tanks in view on the airfield, boarded): OLD LOW 149-161 draws (budget 100), MED 182-192 (budget 140); new kinds cost 7-11 draw surfaces each
-  * DEFECT 5 (fixing): TankModels._finish_one (merge_on): body/turret/gun/flail one vertex-coloured surface named Body (paint multiplies) -> 4-6 surfaces per kind. Frames + perf re-run pending
+  * DEFECT 5 (FIXED): TankModels._finish_one (merge_on): body/turret/gun/flail one vertex-coloured surface named Body (paint multiplies) -> 4-6 surfaces per kind. Frames + perf re-run pending
   * duel by finger (probe PARTS=duel): 7 shots, 6 hits, enemy tank down in 12 s, works
+  * after DEFECT 5: MED 149/160 draws (was 182/192); LOW 150/162 (was 149/161: at LOW the parked tanks already cost ~3 draws each, the airfield view itself is ~125); lineup frames LOW looked at (paint + dark trim OK)
+  * test_w127_critic.gd FULL: new PASS (13 checks, 51 s); W127C_OLD=1 FAIL 5 (kerb 1.3 m, HIGHLINE 34 of 70 m 7.4 m under deck, half-track 4.8 m, draws 11, paint)
+  * also PASS after fixes: test_bridges_harbour_boats, test_play_critic_w112, test_critic_look_fixes, test_armour_w118, test_tanks, test_railways_ships, test_tanks_w127, _b, test_tank_arms_w127, test_vehicle_overlap
+  * missions by finger (GPS route + stick): TANK BATTLE / ARTILLERY STRIKE only "finished" by the MissionGuide auto-recover; the tank stalls on street props (Signals etc) and the yard walls; NOT FIXED
 NEXT:
-- perf2 + lineup frames (running), mission rerun, props, props, checkpoint trees; baseline TANK BATTLE by finger (old code) log scratch c/fight_battle_old.log; then mission distance; perf bot; bridge; crash
+- final perf gate once; report, props, checkpoint trees; baseline TANK BATTLE by finger (old code) log scratch c/fight_battle_old.log; then mission distance; perf bot; bridge; crash
 DECISIONS:
 - switch W127C_OLD=1 = code before the critic fixes (ParkedCars.tank_crush_on ...)
 TESTS AND PERF:

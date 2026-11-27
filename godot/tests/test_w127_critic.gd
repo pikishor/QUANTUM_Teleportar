@@ -108,23 +108,29 @@ func run(h: Node) -> void:
 	await _f(2)
 
 
-## Puts the hero `back` metres behind vehicle `v` and boards it with the stick and a finger on ENTER.
+## Puts the hero `back` metres off vehicle `v` (behind it, else beside it) and boards it with the stick and a finger on ENTER.
 func _board(v: Vehicle, back := 7.0) -> bool:
-	fg.up_all()
-	var at := v.global_position - v.forward() * (float(v.spec["len"]) * 0.5 + back)
-	p.teleport_to(at + Vector3(0.0, 0.4, 0.0))
-	var d := v.global_position - at
-	p.yaw = atan2(-d.x, -d.z)
-	p.camera_rig.reset_view(p.yaw, -0.1)
-	p.velocity = Vector3.ZERO
-	await _f(10)
-	fg.stick(Vector2(0.0, -0.7))
-	await _until(func() -> bool: return fg.button_label(&"interact") == "ENTER", 8.0)
-	fg.stick(Vector2.ZERO)
-	await _f(3)
-	await _tap(&"interact")
-	await _until(func() -> bool: return p.vehicle == v, 1.5)
-	return p.vehicle == v
+	var tries: Array[Vector3] = [-v.forward() * (float(v.spec["len"]) * 0.5 + back), v.right() * (float(v.spec["wid"]) * 0.5 + back), -v.right() * (float(v.spec["wid"]) * 0.5 + back)]
+	for off: Vector3 in tries:
+		fg.up_all()
+		await _leave()
+		var at := v.global_position + off
+		p.teleport_to(Vector3(at.x, maxf(v.global_position.y, TerrainHeight.height_at(at.x, at.z)) + 0.4, at.z))
+		var d := v.global_position - at
+		p.yaw = atan2(-d.x, -d.z)
+		p.camera_rig.reset_view(p.yaw, -0.1)
+		p.velocity = Vector3.ZERO
+		await _f(10)
+		fg.stick(Vector2(0.0, -0.7))
+		await _until(func() -> bool: return fg.button_label(&"interact") == "ENTER" and v.edge_distance(p.global_position) < VehicleSpecs.ENTER_REACH - 0.6, 8.0)     # ENTER for THIS vehicle (a kerb car on the way gets its own ENTER)
+		fg.stick(Vector2.ZERO)
+		await _f(3)
+		await _tap(&"interact")
+		await _until(func() -> bool: return p.vehicle == v, 1.5)
+		if p.vehicle == v:
+			return true
+		print("board %s from %s: label '%s', hero %.1f m off" % [v.kind, off.snapped(Vector3.ONE), fg.button_label(&"interact"), _flat(p.global_position, v.global_position)])
+	return false
 
 
 func _leave() -> void:
