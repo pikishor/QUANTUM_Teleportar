@@ -6,3 +6,6 @@ NEXT: import; full suite in background (scratchpad/suite127, runner scratchpad/s
 - TODO after suite: rerun air_w126 a/b, tank_arms_w127 a/b/c, blast_arsenal (my fix touches them).
 - FIX 2: test_planes_w126 FAIL (3/3 on wave tree, PASS on HEAD): ARMY BASE row (x 1362) stood in ARMY SHELTER 1's exit lane; the fighter rolled out into t_heavy and blew up. BASE_X 1376 in tools/gen_tank_roster.py, regenerated tank_roster.gd (only BASE_LOCAL changed). Rerun planes_w126 + tanks_w127/_b pending.
 - test_integration FAIL both tries = 120 s timeout under load (node count 3069 OK); compare alone vs HEAD later.
+- planes_w126 PASS after fix 2 (fighter 133 m, hp 900).
+- FIX 3: test_world_missions FAIL (5/6, 3/6; HEAD 6/6): TankMissions.inject overwrote the last card = the lodge's world mission. Now overwrites the last ordinary card only (tank_missions.gd); tidied a comment in mission_board.gd.
+- suite DONE: FAIL integration, planes_w126 (fixed), world_missions (fixed); FLAKY blast_arsenal (fixed), flight_view_w116, floors_w121 (my mid-edit parse error), hud_camera_final, mission_audit, shooting_accuracy, touch_audit, w119_critic. NEXT rerun those.

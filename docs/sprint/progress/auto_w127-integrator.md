@@ -1,6 +1,6 @@
 # w127-integrator (running)
 
-agent id aa68d3556b99922d7, 268 events, first activity 2026-11-27T09:16:54.839Z, last activity 2026-11-27T10:23:47.035Z
+agent id aa68d3556b99922d7, 272 events, first activity 2026-11-27T09:16:54.839Z, last activity 2026-11-27T10:24:00.962Z
 
 ## Last notes of the agent
 
@@ -9,8 +9,6 @@ agent id aa68d3556b99922d7, 268 events, first activity 2026-11-27T09:16:54.839Z,
 
 ## Recent steps (last 40)
 
-- 09:35:22 Run new check on fixed code
-- 09:35:38 Rerun arsenal probe 3x on fix
 - 09:37:02 Update log, check suite
 - 09:37:07 Wait for suite progress
 - 09:46:59 Inspect flaky logs
@@ -49,6 +47,8 @@ agent id aa68d3556b99922d7, 268 events, first activity 2026-11-27T09:16:54.839Z,
 - 10:23:31 Read lodge check and board diff
 - 10:23:36 Compare inject functions
 - 10:23:46 Fix tank mission injection
+- 10:23:56 Rerun affected and flaky tests
+- 10:24:00 Wait for reruns
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
