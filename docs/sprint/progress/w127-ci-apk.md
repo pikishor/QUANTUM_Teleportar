@@ -20,3 +20,7 @@
   test_planes_w126, test_airport_aircraft, test_terrain_world, test_traffic_ai, test_traffic_density, test_traffic_police_feel. test_air_w126 failed once at 3-way load ("a finger on FLARE
   pulls the missile off", decoyed 2) and passed 4 of 4 after (aircraft, no bridge involved).
 - Not fixed (open): hull contacts between cars stay flat (a car really driving under a bridge would still touch one on the deck above); the tank hull can catch on a parapet top edge.
+
+## Round 2 (CI 45998060143 on cc44cd5, the fix)
+- All green, no FLAKY or FAIL annotation.
+- APK: android.yml on main (run 46002123985, cc44cd5): success, artifact 15200920062 android-debug-apk, 320549699 bytes.
