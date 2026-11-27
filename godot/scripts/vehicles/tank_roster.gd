@@ -36,7 +36,7 @@ const DEFS := {
 	&"t_halftrack": {"name": "MULE HALF-TRACK", "role": "half-track", "run": &"half", "wclass": &"hmg", "place": &"checkpoint_forest", "m": {"run": "half", "axles": [-0.34], "steer_n": 1, "wr": 0.5, "tt": 0.75, "tw": 0.4, "hull": "half", "top": 1.75, "tur": ["ring"], "ty": 1.8, "tz": 0.5, "tr": [0.45, -0.1], "gun": ["mg", 1.1]}},
 }
 ## The places: id -> {name, kind of place, kinds (in order)}. ARMY BASE in the airport LOCAL frame (Airport.to_world), the depot in world metres, the checkpoints on a road at a distance.
-const BASE_LOCAL := Vector3(1362.0, 0.0, -690.0)
+const BASE_LOCAL := Vector3(1376.0, 0.0, -690.0)
 const BASE_DZ := 13.5
 const DEPOT := Vector3(230.0, 0.0, 1575.0)
 const DEPOT_DX := 14.0

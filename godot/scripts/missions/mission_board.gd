@@ -231,9 +231,9 @@ func build(t: StringName, origin: Vector3, first := false) -> Dictionary:
 	if WorldMissions.DEFS.has(t):
 		return _build_world(t, origin)
 	if AirMissions.DEFS.has(t):
-		return _build_air(t, origin)
+		return _build_air(t, origin)                              # w126-air: DOGFIGHT, AIRLINER ESCORT, BOMB RUN, CARGO DROP, HELI RESCUE, SKY RINGS (scripts/missions/air_missions.gd)
 	if TankMissions.DEFS.has(t):
-		return _build_tank(t, origin)                             # w127-arms: TANK BATTLE, CONVOY ESCORT, ARTILLERY STRIKE (scripts/missions/tank_missions.gd)                              # w126-air: DOGFIGHT, AIRLINER ESCORT, BOMB RUN, CARGO DROP, HELI RESCUE, SKY RINGS (scripts/missions/air_missions.gd)
+		return _build_tank(t, origin)                             # w127-arms: TANK BATTLE, CONVOY ESCORT, ARTILLERY STRIKE (scripts/missions/tank_missions.gd)
 	if SnakeMissions.DEFS.has(t):
 		return _build_snake(t, origin)                            # the two QUANTUM SNAKE rooftop missions (scripts/quantum/snake_missions.gd)
 	if SnakeWarMissions.DEFS.has(t):

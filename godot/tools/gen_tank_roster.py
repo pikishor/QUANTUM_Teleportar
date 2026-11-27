@@ -88,10 +88,11 @@ WEAPON = {
 }
 
 # THE PLACES (world x, z unless said otherwise; h = heading, 0 = nose north / -z, PI/2 = nose west / -x):
-#  base   ARMY BASE: the east strip of EASTFIELD's ARMY AIRBASE (airport LOCAL frame: x 1362, z -690 .. -609, between the first taxi lane and ARMY SHELTER 2), nose west to the runway
+#  base   ARMY BASE: the east strip of EASTFIELD's ARMY AIRBASE (airport LOCAL frame: x 1376, z -690 .. -609, between the first taxi lane and ARMY SHELTER 2), nose west to the runway
+#         (w127-integrator: x 1376, east of ARMY SHELTER 1's exit lane x 1350..1370: at x 1362 a fighter rolled out of the shelter into the heavy tank and blew up)
 #  depot  VEHICLE DEPOT: the free east headland of the HARBOUR apron (world z 1575, x 230 .. 314, behind the tank farm), nose north to the quay road
 #  checkpoint_*  three road CHECKPOINTS on the outskirts highways, one vehicle on each shoulder (the flat road bench), parallel to the road
-BASE_X, BASE_Z0, BASE_DZ = 1362.0, -690.0, 13.5
+BASE_X, BASE_Z0, BASE_DZ = 1376.0, -690.0, 13.5
 DEPOT_X0, DEPOT_DX, DEPOT_Z = 230.0, 14.0, 1575.0
 CHECKPOINTS = [("checkpoint_pass", "PASS ROAD", 420.0, "PASS ROAD CHECKPOINT"), ("checkpoint_desert", "DESERT ROAD", 380.0, "DESERT ROAD CHECKPOINT"),
                ("checkpoint_forest", "FOREST ROAD", 420.0, "FOREST ROAD CHECKPOINT")]

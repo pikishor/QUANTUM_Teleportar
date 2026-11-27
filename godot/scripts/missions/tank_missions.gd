@@ -57,8 +57,18 @@ static func inject(picks: Array[StringName], origin: Vector3, rng: RandomNumberG
 	if not eligible(t):
 		return picks
 	var out: Array[StringName] = picks.duplicate()
-	out[0 if near else out.size() - 1] = t                           # away from the yard the last card goes: the first may be an air or world mission placed just before
-	return out
+	if near:
+		out[0] = t
+		return out
+	# away from the yard the last ordinary card goes (w127-integrator: never a world, air or snake mission placed before: at the lodge the world mission card was the last one and was
+	# replaced, tests/test_world_missions.gd "the board offers a world mission every time" 3-5 of 6)
+	for i in range(out.size() - 1, -1, -1):
+		var p: StringName = out[i]
+		if WorldMissions.DEFS.has(p) or AirMissions.DEFS.has(p) or SnakeMissions.DEFS.has(p) or SnakeWarMissions.DEFS.has(p):
+			continue
+		out[i] = t
+		return out
+	return picks
 
 
 static func _provide(kind: String, text: String, at: Vector3, h: float) -> Dictionary:

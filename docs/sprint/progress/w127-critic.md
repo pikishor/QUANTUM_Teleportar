@@ -25,8 +25,9 @@ DONE:
   * test_w127_critic.gd FULL: new PASS (13 checks, 51 s); W127C_OLD=1 FAIL 5 (kerb 1.3 m, HIGHLINE 34 of 70 m 7.4 m under deck, half-track 4.8 m, draws 11, paint)
   * also PASS after fixes: test_bridges_harbour_boats, test_play_critic_w112, test_critic_look_fixes, test_armour_w118, test_tanks, test_railways_ships, test_tanks_w127, _b, test_tank_arms_w127, test_vehicle_overlap
   * missions by finger (GPS route + stick): TANK BATTLE / ARTILLERY STRIKE only "finished" by the MissionGuide auto-recover; the tank stalls on street props (Signals etc) and the yard walls; NOT FIXED
+  * PERF gate (once, final): LOW draws=72 total=94 death=108 OK; MED draws=99 total=131 prims=275k death=146 OK; HIGH draws=118 total=154 death=164 OK
 NEXT:
-- final perf gate once; report, props, checkpoint trees; baseline TANK BATTLE by finger (old code) log scratch c/fight_battle_old.log; then mission distance; perf bot; bridge; crash
+- done (report sent). Open: street props stop tanks; mission drive legs; LOW airfield view ~150 draws with 9 tanks, props, checkpoint trees; baseline TANK BATTLE by finger (old code) log scratch c/fight_battle_old.log; then mission distance; perf bot; bridge; crash
 DECISIONS:
 - switch W127C_OLD=1 = code before the critic fixes (ParkedCars.tank_crush_on ...)
 TESTS AND PERF:

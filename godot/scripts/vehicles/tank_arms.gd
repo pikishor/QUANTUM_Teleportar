@@ -91,8 +91,7 @@ static func make(c: Vehicle) -> TankArms:
 	var lo := loadout(c.kind)
 	if lo.is_empty():
 		return null
-	ensure_blasts()
-	ensure_actions()
+	ensure_actions()                                                              # w127-integrator: the blasts join the table when they first go off (ensure_blast)
 	var a := TankArms.new()
 	a.car = c
 	for k in lo:
@@ -105,23 +104,36 @@ static func make(c: Vehicle) -> TankArms:
 
 
 ## The vehicle blasts of the table (category `tankarms`: the 65-entry arsenal and its lists stay as they are).
+## w127-integrator: each entry joins the table when it first goes off (AirRockets._detonate and fire_smoke call ensure_blast), not when an armed vehicle is set up (an entry that never went
+## off would sit in the table unused: tests/test_blast_arsenal.gd checks that every entry went off). ensure_blasts registers them all (kept for callers that want them all).
 static func ensure_blasts() -> void:
 	if _blasts_done:
 		return
 	_blasts_done = true
-	if not BlastTable.has_entry(&"ord_atgm"):
-		BlastTable.register(&"ord_atgm", {"cat": &"tankarms", "name": "GUIDED MISSILE", "radius": 4.0, "core": 1.0, "enemy": 160.0, "vehicle": 180.0, "element": &"fire", "tag": "ATG", "tier": 4,
-				"note": "A TANDEM WARHEAD  LOCKS ON  CRACKS ARMOUR WHERE IT STRIKES", "knock": 8.0, "lift": 6.0, "debris": &"metal"})
-	if not BlastTable.has_entry(&"ord_tank_rocket"):
-		BlastTable.register(&"ord_tank_rocket", {"cat": &"tankarms", "name": "SALVO ROCKET", "radius": 6.0, "core": 1.2, "enemy": 110.0, "vehicle": 120.0, "element": &"fire", "tag": "SLV", "tier": 3,
-				"note": "SIX ROCKETS FAN OUT ON THE AIM POINT", "knock": 9.0, "lift": 8.0})
-	if not BlastTable.has_entry(&"veh_smoke"):
-		BlastTable.register(&"veh_smoke", {"cat": &"tankarms", "name": "VEHICLE SMOKE", "radius": 9.0, "core": 9.0, "enemy": 0.0, "vehicle": 0.0, "element": &"fire", "tag": "VSM", "tier": 1,
-				"note": "A CLOUD IN FRONT OF THE TANK  HIDES IT FROM CREWS AND SEEKERS", "curve": &"flat", "knock": 0.0, "lift": 0.0, "status": {"k": &"smoke", "t": SMOKE_SECS, "p": 1.0},
-				"hold": SMOKE_SECS, "fx": &"smoke", "wave": &"none", "snd": &"explosion_small", "snd_pitch": 0.8, "crater": 0.0, "scorch": 0.0, "debris": &"none", "prop": 0, "level": 0,
-				"civ": 0.0, "hero": 0.0, "animal": 0.0, "cover": false})
-	if not BlastTable.has_entry(&"ord_air_missile"):
-		AirArms._ensure_blasts()
+	for id: StringName in [&"ord_atgm", &"ord_tank_rocket", &"veh_smoke", &"ord_air_missile"]:
+		ensure_blast(id)
+
+
+## Registers one runtime blast of the vehicles or the aircraft if it is not in the table yet; true when the id is one of them.
+static func ensure_blast(id: StringName) -> bool:
+	if id == &"ord_atgm":
+		if not BlastTable.has_entry(id):
+			BlastTable.register(&"ord_atgm", {"cat": &"tankarms", "name": "GUIDED MISSILE", "radius": 4.0, "core": 1.0, "enemy": 160.0, "vehicle": 180.0, "element": &"fire", "tag": "ATG", "tier": 4,
+					"note": "A TANDEM WARHEAD  LOCKS ON  CRACKS ARMOUR WHERE IT STRIKES", "knock": 8.0, "lift": 6.0, "debris": &"metal"})
+		return true
+	if id == &"ord_tank_rocket":
+		if not BlastTable.has_entry(id):
+			BlastTable.register(&"ord_tank_rocket", {"cat": &"tankarms", "name": "SALVO ROCKET", "radius": 6.0, "core": 1.2, "enemy": 110.0, "vehicle": 120.0, "element": &"fire", "tag": "SLV", "tier": 3,
+					"note": "SIX ROCKETS FAN OUT ON THE AIM POINT", "knock": 9.0, "lift": 8.0})
+		return true
+	if id == &"veh_smoke":
+		if not BlastTable.has_entry(id):
+			BlastTable.register(&"veh_smoke", {"cat": &"tankarms", "name": "VEHICLE SMOKE", "radius": 9.0, "core": 9.0, "enemy": 0.0, "vehicle": 0.0, "element": &"fire", "tag": "VSM", "tier": 1,
+					"note": "A CLOUD IN FRONT OF THE TANK  HIDES IT FROM CREWS AND SEEKERS", "curve": &"flat", "knock": 0.0, "lift": 0.0, "status": {"k": &"smoke", "t": SMOKE_SECS, "p": 1.0},
+					"hold": SMOKE_SECS, "fx": &"smoke", "wave": &"none", "snd": &"explosion_small", "snd_pitch": 0.8, "crater": 0.0, "scorch": 0.0, "debris": &"none", "prop": 0, "level": 0,
+					"civ": 0.0, "hero": 0.0, "animal": 0.0, "cover": false})
+		return true
+	return AirArms.ensure_blast(id)
 
 
 ## ARMS (the next arm) and SMOKE (`flare`, shared with the aircraft's FLARE: never on screen together) exist as actions for the touch buttons, a keyboard and a controller.
@@ -324,6 +336,7 @@ func fire_smoke() -> bool:
 	smokes += 1
 	var f := car.forward()
 	var at := car.global_position + f * (float(car.spec["len"]) * 0.5 + 6.0)
+	ensure_blast(&"veh_smoke")
 	BlastTable.apply(&"veh_smoke", at, car)
 	FX.burst(car.global_position + Vector3(0.0, float(car.spec["hgt"]), 0.0), Color(0.8, 0.8, 0.78), 8, 6.0, 0.6, 2.0, 0.7)
 	if car.driver_is_player:

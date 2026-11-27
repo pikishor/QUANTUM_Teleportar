@@ -102,8 +102,7 @@ static func make(c: Vehicle) -> AirArms:
 	var lo := loadout(c.kind)
 	if lo.is_empty():
 		return null
-	_ensure_blasts()
-	ensure_actions()
+	ensure_actions()                                                              # w127-integrator: the blasts join the table when they first go off (ensure_blast)
 	var a := AirArms.new()
 	a.car = c
 	for k in lo:
@@ -116,16 +115,29 @@ static func make(c: Vehicle) -> AirArms:
 
 
 ## The two aircraft blasts of the table (category `aircraft`, so the 65-entry arsenal and its ordnance list stay as they are).
+## w127-integrator: each entry joins the table when it first goes off (AirRockets._detonate calls ensure_blast), not when an armed aircraft is set up: an entry that never went off would
+## sit in the table unused (tests/test_blast_arsenal.gd checks that every entry of the table went off). _ensure_blasts registers both (kept for callers that want them all).
 static func _ensure_blasts() -> void:
 	if _blasts_done:
 		return
 	_blasts_done = true
-	if not BlastTable.has_entry(&"ord_air_rocket"):
-		BlastTable.register(&"ord_air_rocket", {"cat": &"aircraft", "name": "AIR ROCKET", "radius": 7.5, "core": 1.5, "enemy": 120.0, "vehicle": 150.0, "element": &"fire", "tag": "ARK", "tier": 3,
-				"note": "A SALVO FROM THE ROCKET POD  FLATTENS A CAR", "knock": 10.0, "lift": 9.6})
-	if not BlastTable.has_entry(&"ord_air_missile"):
-		BlastTable.register(&"ord_air_missile", {"cat": &"aircraft", "name": "AIR MISSILE", "radius": 9.0, "core": 2.0, "enemy": 170.0, "vehicle": 320.0, "element": &"fire", "tag": "AMS", "tier": 4,
-				"note": "LOCKS ON  HOMES ON AIRCRAFT AND VEHICLES", "knock": 12.0, "lift": 11.0})
+	ensure_blast(&"ord_air_rocket")
+	ensure_blast(&"ord_air_missile")
+
+
+## Registers one aircraft blast (ord_air_rocket / ord_air_missile) if it is not in the table yet; true when the id is an aircraft blast.
+static func ensure_blast(id: StringName) -> bool:
+	if id == &"ord_air_rocket":
+		if not BlastTable.has_entry(id):
+			BlastTable.register(&"ord_air_rocket", {"cat": &"aircraft", "name": "AIR ROCKET", "radius": 7.5, "core": 1.5, "enemy": 120.0, "vehicle": 150.0, "element": &"fire", "tag": "ARK", "tier": 3,
+					"note": "A SALVO FROM THE ROCKET POD  FLATTENS A CAR", "knock": 10.0, "lift": 9.6})
+		return true
+	if id == &"ord_air_missile":
+		if not BlastTable.has_entry(id):
+			BlastTable.register(&"ord_air_missile", {"cat": &"aircraft", "name": "AIR MISSILE", "radius": 9.0, "core": 2.0, "enemy": 170.0, "vehicle": 320.0, "element": &"fire", "tag": "AMS", "tier": 4,
+					"note": "LOCKS ON  HOMES ON AIRCRAFT AND VEHICLES", "knock": 12.0, "lift": 11.0})
+		return true
+	return false
 
 
 ## The FLARE action exists (keyboard F) for the touch button and a controller.

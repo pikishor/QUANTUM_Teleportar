@@ -222,6 +222,8 @@ func _detonate(at: Vector3, def: Dictionary, col: Object, shooter: Vehicle = nul
 			hits_on[(col as Object).get_instance_id()] = int(hits_on.get((col as Object).get_instance_id(), 0)) + 1
 		if col is Node and (col as Node).is_in_group(&"enemy"):
 			BlastCredit.dealt(col, dmg)                                           # a rocket that hits a person directly counts (the splash below credits the rest)
+	if def.has("blast_id") and not BlastTable.has_entry(StringName(def["blast_id"])):
+		TankArms.ensure_blast(StringName(def["blast_id"]))                       # w127-integrator: an aircraft / vehicle blast joins the table the first time it goes off
 	if def.has("blast_id") and BlastTable.has_entry(StringName(def["blast_id"])):
 		BlastTable.apply(StringName(def["blast_id"]), at, shooter if is_instance_valid(shooter) else null)       # w126-air: the blast of the table (radius, falloff, damage per target)
 		return

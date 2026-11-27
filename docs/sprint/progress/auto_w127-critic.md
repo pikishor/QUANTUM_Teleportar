@@ -1,6 +1,10 @@
-# w127-critic (running)
+# w127-critic (done)
 
-agent id a070a564f6e584d6f, 592 events, first activity 2026-11-27T06:37:33.597Z, last activity 2026-11-27T09:10:25.272Z
+agent id a070a564f6e584d6f, 602 events, first activity 2026-11-27T06:37:33.597Z, last activity 2026-11-27T09:16:54.816Z
+
+## Final report
+
+w127-critic report. Nothing was committed or pushed. REVIEW: A finger-only probe (tests/probe_w127_critic.gd) and a look bot (tests/bot_w127_critic.gd) drove the real main scene. - Drove all 20 new kinds and fired every weapon kind (main gun, COAX, HMG, ATGM, SALVO, SAM, SMOKE). - Turrets follow the swipe (error 0.00-0.03 rad), and in tank mode the HUD buttons do not overlap. - Won a duel against an enemy tank: 7 shots, 6 hits. - Played TANK BATTLE and ARTILLERY STRIKE, crashed into a building wall and into traffic, and crossed 6 bridges. FIXED (check: tests/test_w127_critic.gd. It passes with the fixes; with W127C_OLD=1, 5 checks fail): 1. Bridge decks had gaps on the outer side of every bend. On the HIGHLINE bridge the heavy tank sank 7.4 m into the deck and stuck, and a sedan fell into the river. Fixed in bridges.gd deck_y. Old: 34 of 70 m. 2. A tank stopped dead at every parked kerb car. Now it shoves or crushes the car (parked_cars.gd crush_touching, plus a hook in vehicle_manager.gd). Old: 1.3 of 20 m. 3. On the 14% mountain-track bridge ramp the tank's hull hit the deck and stopped (vehicle.gd: the tank hull now rides higher on slopes). The check passes, but its old-code failure did not repeat (23 m once, then crossed). 4. The FOREST ROAD half-track was parked nose against a tree. Checkpoint spots now shift along the road (gen_tank_roster.py, then regenerated). Old: 4.8 of 16 m. 5. Each new vehicle cost 7-11 draw calls. It now costs 4-6 (tank_models.gd merges each part into one surface). With 9 tanks in view, MED went from 182-192 to 149-160 draws. I looked at the frames: paint and dark trim are fine. NOT FIXED: 6. Street props (lamp posts, signals, benches) still stop tanks. The props are static city instances that cannot be removed one by one, so crushing them needs a breakable-prop system. 7. Missions cannot be finished by playing. TANK BATTLE and ARTILLERY STRIKE only completed when the game's built-in stuck recovery skipped the step. The drive legs are 1.7-3.5 km through the city, and the builders' tests teleport the tank and aim with code, not fingers. 8. At LOW the airfield view with 9 tanks is about 150 draws (budget 100). The view is about 125 without tanks; each parked tank adds about 3. Also passing: test_tanks_w127 and _b, test_tank_arms_w127, test_tanks, test_armour_w118, test_bridges_harbour_boats, test_railways_ships, test_vehicle_overlap, test_play_critic_w112, test_critic_look_fixes. FILES: scripts/world/bridges.gd, scripts/ambient/parked_cars.gd, scripts/vehicles/vehicle_manager.gd, scripts/vehicles/vehicle.gd, scripts/vehicles/tank_models.gd, tools/gen_tank_roster.py (regenerates tank_roster.gd), tests/test_w127_critic.gd, tests/probe_w127_critic.gd, tests/bot_w127_critic.gd. Log: docs/sprint/progress/w127-critic.md PERF (final run): LOW draws 72, total 94, death 108 OK. MED draws 99, total 131, death 146 OK. HIGH draws 118, total 154, death 164 OK.
 
 ## Last notes of the agent
 
@@ -13,9 +17,6 @@ agent id a070a564f6e584d6f, 592 events, first activity 2026-11-27T06:37:33.597Z,
 
 ## Recent steps (last 40)
 
-- 08:04:58 cd /home/user/QUANTUM_Teleportar/godot; sed -n 1,99p scripts/vehicles/tank_models.gd | grep -v "^##" | head -80
-- 08:05:02 cd /home/user/QUANTUM_Teleportar/godot; grep -n "func _finish\b\|func _finish(" -A30 scripts/vehicles/vehicle_craft_models.gd | head -45; grep -n "func set_paint" -A25...
-- 08:05:12 cd /home/user/QUANTUM_Teleportar/godot; grep -n "_body_mat =" -B6 scripts/vehicles/vehicle_visual.gd | head -40; S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5...
 - 08:05:18 /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c/p/perf_view_q0.png
 - 08:05:23 S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c; until ! pgrep -f bot_w127_critic >/dev/null; do sleep 5; done; tr -s '...
 - 08:14:49 cd /home/user/QUANTUM_Teleportar/godot; grep -n "^const NAMES\|^const COLS\|^const METAL\|^const ROUGH\|^const S_" scripts/vehicles/vehicle_craft_models.gd; grep -n "_...
@@ -53,6 +54,9 @@ agent id a070a564f6e584d6f, 592 events, first activity 2026-11-27T06:37:33.597Z,
 - 09:10:16 cd /home/user/QUANTUM_Teleportar/godot; ls tests/ | grep -E "w127_critic|w127c" ; S=/tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/sc...
 - 09:10:22 until [ -s /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/tasks/bk4rh8uh7.output ]; do sleep 10; done; cat /tmp/claude-0/-home-user-Q...
 - 09:10:25 until grep -q "^exit" /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/tasks/bk4rh8uh7.output; do sleep 10; done; tail -12 /tmp/claude-...
+- 09:16:38 grep -a "PERF RESULT" /tmp/claude-0/-home-user-QUANTUM-Teleportar/2e2fe9d5-4efc-51be-91b4-8eed795e3168/scratchpad/c/perfgate.log | sed 's/renderer.*draws=\([0-9]*\) pr...
+- 09:16:42 cd /home/user/QUANTUM_Teleportar; python3 - <<'EOF' f='docs/sprint/progress/w127-critic.md' s=open(f).read() s=s.replace("""NEXT: - final perf gate once; report""","""...
+- 09:16:54 
 
 ## Files this agent edited or wrote (last 80, via Edit/Write; shell edits are not listed: use git status)
 
