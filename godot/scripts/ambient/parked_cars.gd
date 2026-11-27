@@ -714,6 +714,46 @@ func push_out_vehicle(v: Vehicle) -> int:
 	return hits
 
 
+## w127-critic: a TANK (or any armoured vehicle on the tracked physics) that touches a kerb car does not stop at it as at a wall: the kerb car becomes a real one at once, whatever the speed
+## (the manager's car-to-car response then shoves the light car aside by the masses, and a fast hit wrecks it). When the manager has no slot even after freeing the farthest car, the kerb car is
+## crushed (taken off the street). Before this a battle tank in the city stood still against every parked car it brushed (ParkedCars.promote_around needs 2.5 m/s, promote_touching was for cars
+## only, so the static body of the kerb car was a wall). Returns the kerb cars it took.
+static var tank_crush_on := OS.get_environment("W127C_OLD") != "1"
+
+func crush_touching(v: Vehicle) -> int:
+	if not tank_crush_on:
+		return 0
+	var mgr := Game.vehicles as VehicleManager
+	var vf3 := v.forward()
+	var pos := v.global_position
+	var n := 0
+	for i in _n:
+		if _alive[i] != 1:
+			continue
+		var dx := _x[i] - pos.x
+		var dz := _z[i] - pos.z
+		if dx * dx + dz * dz > 100.0:
+			continue
+		var f := Vector2(-sin(_yaw[i]), -cos(_yaw[i]))
+		var depth := TrafficField.obb_depth(pos.x, pos.z, vf3.x, vf3.z, float(v.spec["len"]) * 0.5 + 0.3, float(v.spec["wid"]) * 0.5 + 0.2, _x[i], _z[i], f.x, f.y, NearTraffic.KIND_HALF[_kind[i]], NearTraffic.KIND_HW[_kind[i]])
+		if depth <= -0.15:
+			continue
+		var real := promote(i)
+		if real == null and mgr != null and mgr._free_slot():
+			real = promote(i)
+		if real == null:
+			_alive[i] = 2
+			TrafficField.remove(TrafficField.PARKED, i)
+			for k in _body_of.size():
+				if _body_of[k] == i:
+					(_bodies[k].get_child(0) as CollisionShape3D).disabled = true
+					_body_of[k] = -1
+			FX.burst(Vector3(_x[i], 0.8, _z[i]), Color(0.75, 0.75, 0.78), 10, 5.0, 0.3, 8.0, 0.3)
+			destroyed += 1
+		n += 1
+	return n
+
+
 ## A blast (Game.exploded): the parked cars within reach are swapped for real ones that take the blast and burn. Cars the manager has no slot for are removed as burnt-out (the blast already shook the street).
 func on_blast(pos: Vector3, blast_r: float) -> void:
 	var mgr := Game.vehicles as VehicleManager

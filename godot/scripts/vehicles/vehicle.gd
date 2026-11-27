@@ -1152,6 +1152,8 @@ func _terrain_step(dt: float) -> void:
 	global_position.y = lerpf(p.y, base_y + target, k) if absf(p.y - base_y - target) < 2.0 else base_y + target
 	ground_pitch = lerpf(ground_pitch, clampf(atan2(hf - hb, 2.0 * hl), -0.6, 0.6), k)
 	ground_roll = lerpf(ground_roll, clampf(atan2(hr - hlft, 2.0 * hw), -0.5, 0.5), k)
+	if cls == &"tank" and Bridges.wedge_on:                    # w127-critic: the flat hull box of a long tank met the rising deck of a steep bridge ramp (14 % on the mountain tracks) with its front edge and stopped: it rides as high as the slope under its nose
+		_hull_cs.position.y = _hull_y + 0.45 + minf(absf(hf - hb) * 0.5 + 0.1, 1.4)
 	_surf_t -= dt
 	if _surf_t <= 0.0:
 		_surf_t = 0.25 if driver_is_player else 1.0

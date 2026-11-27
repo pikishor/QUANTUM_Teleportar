@@ -169,7 +169,13 @@ func _perf() -> void:
 	var rt := Vector3(cos(h), 0.0, -sin(h))
 	vm._reset_all()
 	await _pf(4)
+	vm._fixed_n += 1
+	var mine := vm.spawn_parked(&"t_heavy", at, h)
+	mine.set_meta(&"hold", true)
+	mine.set_meta(&"called", true)
+	vm._count_fixed()
 	var kinds := [&"t_heavy", &"t_apc8", &"t_walker", &"t_hover", &"t_mine", &"t_rocket", &"t_halftrack", &"tank"]
+	var made := 0
 	for i in kinds.size():
 		var w := at + fwd * (25.0 + 8.0 * float(i)) + rt * (float(i % 4) - 1.5) * 12.0
 		w.y = TerrainHeight.height_at(w.x, w.z)
@@ -177,11 +183,11 @@ func _perf() -> void:
 		var v := vm.spawn_parked(kinds[i], w, h + 0.6 * float(i))
 		if v != null:
 			v.set_meta(&"hold", true)
+			v.set_meta(&"called", true)
+			made += 1
 		vm._count_fixed()
-	vm._fixed_n += 1
-	var mine := vm.spawn_parked(&"t_heavy", at, h)
-	mine.set_meta(&"hold", true)
-	vm._count_fixed()
+		vm._fixed_n += 0
+	print("CR PERF %d of %d tanks stand in view" % [made, kinds.size()])
 	await _stand(at - fwd * 9.0, at)
 	fg.stick(Vector2(0.0, -1.0))
 	await _until(func() -> bool: return fg.button_label(&"interact") == "ENTER", 600)

@@ -1,27 +1,20 @@
 extends RefCounted
 func run(h: Node) -> void:
-	Game.force_touch = true
-	var main: Node = (load("res://scenes/main.tscn") as PackedScene).instantiate()
-	h.add_child(main)
-	for i in 20:
-		await h.get_tree().process_frame
-	Game.state = &"play"
-	var vm := Game.vehicles as VehicleManager
-	var p := Game.player as Player
-	var at := p.global_position + Vector3(10, 0, 0)
-	vm._fixed_n += 1
-	var v := vm.spawn_parked(&"t_apc8", at, 0.0)
-	v.set_meta(&"hold", true)
-	for i in 30:
-		await h.get_tree().physics_frame
-	var m := v.visual.model
-	print("model scale ", m.scale, " basis ", m.transform.basis)
-	for n in m.get_children():
-		print(n.name, " ", n.get_class(), " ", (n as Node3D).transform)
-		if n is MultiMeshInstance3D:
-			var mm := (n as MultiMeshInstance3D).multimesh
-			print("  count ", mm.instance_count, " aabb ", mm.get_aabb(), " mesh aabb ", mm.mesh.get_aabb())
-			for i in mini(mm.instance_count, 8):
-				print("   ", i, " ", mm.get_instance_transform(i))
-			print("  pose ", TankModels.pose_of(m, String(n.name)).slice(0, 3))
-	main.queue_free()
+	for k in [&"tank", &"ltank", &"t_heavy", &"t_apc8", &"t_walker", &"t_hover", &"t_jeep", &"t_mine"]:
+		var sp: Dictionary = VehicleSpecs.SPECS[k]
+		var m := VehicleCraftModels.build(String(sp.get("procedural", "")), sp) if sp.has("procedural") else null
+		if m == null:
+			print("%s: not procedural (%s)" % [k, sp.get("model")])
+			continue
+		var surf := 0
+		var s := ""
+		for n in m.find_children("*", "GeometryInstance3D", true, false):
+			var c := 0
+			if n is MeshInstance3D and (n as MeshInstance3D).mesh != null:
+				c = (n as MeshInstance3D).mesh.get_surface_count()
+			elif n is MultiMeshInstance3D:
+				c = (n as MultiMeshInstance3D).multimesh.mesh.get_surface_count()
+			surf += c
+			s += " %s:%d%s" % [n.name, c, "(shadow off)" if (n as GeometryInstance3D).cast_shadow == 0 else ""]
+		print("%s: %d draw surfaces:%s" % [k, surf, s])
+		m.free()

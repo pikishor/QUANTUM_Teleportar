@@ -761,6 +761,8 @@ func _physics_process_body(delta: float) -> void:
 				var hw := float(c.spec["wid"]) * 0.5 - 0.1
 				if ParkedCars.instance.promote_touching(c.global_position, Vector2(c.forward().x, c.forward().z), half, hw) == 0:
 					ParkedCars.instance.push_out_vehicle(c)                  # the swap failed (no slot, no room) or there was nothing to swap: a kerb car is a wall
+			elif is_instance_valid(c) and c.active and not c.dead and c.cls == &"tank" and (c.driver_is_player or absf(c.speed) > 0.2):
+				ParkedCars.instance.crush_touching(c)                    # w127-critic: a tank shoves or crushes the kerb car it touches (it never stops at one as at a wall)
 	_collide_all()                                          # a hard bump can wreck the driven car, and the wreck ejects the driver: `driven` is null again after this call
 	if driven != null:
 		_ram_t -= delta

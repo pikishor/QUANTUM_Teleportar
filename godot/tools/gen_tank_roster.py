@@ -277,6 +277,8 @@ static func spawn_points() -> Array[Dictionary]:
 				var nrm: Vector2 = at["nrm"]
 				var off := float(at["w"]) * 0.5 + float(VehicleSpecs.SPECS[ks[i]]["wid"]) * 0.5 + 1.6
 				var p2: Vector2 = c + nrm * side * off + (at["dir"] as Vector2) * (float(i) * 6.0 - 3.0)
+				var dd: Vector2 = at["dir"] if i == 0 else -(at["dir"] as Vector2)
+				p2 = clear_spot(p2, at["dir"], dd, float(VehicleSpecs.SPECS[ks[i]]["len"]), float(VehicleSpecs.SPECS[ks[i]]["wid"]))     # w127-critic: not nose to a tree
 				var y := TerrainHeight.height_at(p2.x, p2.y)
 				var d: Vector2 = at["dir"] if i == 0 else -(at["dir"] as Vector2)              # one faces out of the city, the other back in
 				out.append({"id": StringName("mv_" + String(ks[i])), "kind": ks[i], "pos": Vector3(p2.x, y, p2.y), "h": atan2(-d.x, -d.y), "label": String(cp["name"]) + ": " + String(DEFS[ks[i]]["name"])})
@@ -313,6 +315,43 @@ static func road_spot(road_name: String, at: float) -> Dictionary:
 
 
 ## A point id of spawn_points(): a FIXED vehicle (ArmourSites.is_fixed), outside the live car cap, kept while the hero is near.
+## w127-critic: a parking spot on the shoulder at `p`, moved along the road (`road_dir`) until no tree trunk or big rock stands in the parked box or within NOSE_CLEAR m ahead of the
+## nose (`face`): the FOREST ROAD half-track stood nose against a trunk 4.8 m ahead and could not be driven out forwards. VegScatter's tree cells are pure data (no scene needed).
+const NOSE_CLEAR := 16.0
+static var clear_on := OS.get_environment("W127C_OLD") != "1"
+
+static func clear_spot(p: Vector2, road_dir: Vector2, face: Vector2, ln: float, wd: float) -> Vector2:
+	if not clear_on:
+		return p
+	for shift: float in [0.0, 10.0, -10.0, 20.0, -20.0, 30.0, -30.0, 40.0, -40.0]:
+		var q := p + road_dir * shift
+		if not _blocked(q, face, ln, wd):
+			return q
+	return p
+
+
+static func _blocked(p: Vector2, face: Vector2, ln: float, wd: float) -> bool:
+	var nrm := Vector2(-face.y, face.x)
+	var reach := ln * 0.5 + NOSE_CLEAR + 4.0
+	for layer: int in [VegScatter.T_TREES, VegScatter.T_LINES, VegScatter.T_ROCKS]:
+		for ci in range(int(floor((p.x - reach) / VegScatter.CELL)), int(floor((p.x + reach) / VegScatter.CELL)) + 1):
+			for cj in range(int(floor((p.y - reach) / VegScatter.CELL)), int(floor((p.y + reach) / VegScatter.CELL)) + 1):
+				var arr := VegScatter.cell(layer, ci, cj)
+				for o in range(0, arr.size(), VegScatter.STRIDE):
+					var sp := int(arr[o + 5])
+					var sc := arr[o + 4]
+					var rock := sp == VegScatter.ROCK
+					if not (VegetationWorld.TREE_NAMES.has(sp) or (rock and sc > 0.9)):
+						continue
+					var q := Vector2(arr[o], arr[o + 2]) - p
+					var along := q.dot(face)
+					var lat := absf(q.dot(nrm))
+					var rad := (1.15 * sc if rock else 0.6)
+					if along > -ln * 0.5 - 2.0 and along < ln * 0.5 + NOSE_CLEAR and lat < wd * 0.5 + 1.0 + rad:
+						return true
+	return false
+
+
 static func owns(id: StringName) -> bool:
 	return on and String(id).begins_with("mv_t_")
 

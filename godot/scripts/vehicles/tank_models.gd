@@ -207,6 +207,43 @@ static func _glow_material(col: Color) -> StandardMaterial3D:
 	return _run_mats[key]
 
 
+## w127-critic: ONE surface for a hull / turret / gun / flail (was up to four: paint, glass, trim, chrome = four draw calls per part, 7 to 11 per vehicle; nine tanks in view put LOW
+## at 149-161 draws against its budget of 100 and MED at 182-192 against 140). The paint keeps its name "Body" (VehicleVisual binds the vehicle's paint material to it and the turret and
+## gun wear the same one); the other parts are vertex colours the paint colour multiplies (trim and glass stay near black, steel turns a darker shade of the paint).
+static var merge_on := OS.get_environment("W127C_OLD") != "1"
+
+func _finish_one() -> ArrayMesh:
+	if not merge_on:
+		return _finish()
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var cols := PackedColorArray()
+	for s in 4:
+		var vv: PackedVector3Array = _v[s]
+		verts.append_array(vv)
+		norms.append_array(_n[s])
+		var col: Color = Color(1.0, 1.0, 1.0) if s == S_BODY else (C_STEEL * 1.25 if s == S_CHROME else (C_DARK if s == S_TRIM else Color(0.06, 0.08, 0.1)))
+		for i in vv.size():
+			cols.append(col)
+	var m := ArrayMesh.new()
+	if verts.is_empty():
+		return m
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_NORMAL] = norms
+	arr[Mesh.ARRAY_COLOR] = cols
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var mat := StandardMaterial3D.new()
+	mat.resource_name = NAMES[S_BODY]
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_color = COLS[S_BODY]
+	mat.metallic = METAL[S_BODY]
+	mat.roughness = ROUGH[S_BODY]
+	m.surface_set_material(0, mat)
+	return m
+
+
 ## One single-surface mesh with vertex colours from the Trim (dark) and Chrome (steel) surfaces of a builder: a MultiMesh part costs one draw call.
 func _finish_vc() -> ArrayMesh:
 	var verts := PackedVector3Array()
@@ -255,17 +292,17 @@ static func _make(kind: StringName, spec: Dictionary) -> Dictionary:
 			_legs(out, M, ln, wid)
 	# --- the hull
 	hull._hull(String(M.get("hull", "tank")), M, ln, wid, glow)
-	out["body"] = hull._finish()
+	out["body"] = hull._finish_one()
 	# --- the turret and its gun
 	var T: Array = M.get("tur", ["none"])
 	if String(T[0]) != "none":
 		tur._turret(T, M, glow)
-		out["turret"] = tur._finish()
+		out["turret"] = tur._finish_one()
 		out["tpos"] = Vector3(0.0, float(M.get("ty", 1.5)), float(M.get("tz", 0.0)))
 		var G: Array = M.get("gun", ["none"])
 		if String(G[0]) != "none":
 			gun._gun(G)
-			out["gun"] = gun._finish()
+			out["gun"] = gun._finish_one()
 			var tr: Array = M.get("tr", [0.3, -0.8])
 			out["trun"] = Vector3(0.0, float(tr[0]), float(tr[1]))
 	if (M.get("x", []) as Array).has("flail"):
@@ -276,7 +313,7 @@ static func _make(kind: StringName, spec: Dictionary) -> Dictionary:
 			var a := TAU * float(k) / 12.0
 			var x := lerpf(-fw * 0.45, fw * 0.45, float(k % 6) / 5.0)
 			f._box(S_CHROME, Vector3(x, cos(a) * 0.45, sin(a) * 0.45), Vector3(0.06, 0.06 + absf(cos(a)) * 0.4, 0.06 + absf(sin(a)) * 0.4))
-		out["flail"] = f._finish()
+		out["flail"] = f._finish_one()
 		out["fpos"] = Vector3(0.0, 0.62, -ln * 0.5 - 1.55)
 	if not glow._v[S_BODY].is_empty():
 		var gm := glow._finish()

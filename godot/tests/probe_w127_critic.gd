@@ -92,6 +92,7 @@ func run(h: Node) -> void:
 			"fight": await _fight()
 			"crash": await _crash()
 			"bridge": await _bridge()
+			"duel": await _duel()
 	fg.up_all()
 	Engine.time_scale = 1.0
 	Engine.physics_ticks_per_second = 60
@@ -370,14 +371,59 @@ func _drive_to(v: Vehicle, goal: Vector3, rad: float, secs: float) -> float:
 		if _t - last_t > 3.0:
 			if _flat(v.global_position, last_pos) < 3.0:
 				stuck += 1
-				print("DRIVE stuck at %s (%d m to goal) speed %.1f" % [v.global_position, roundi(_flat(v.global_position, goal)), v.speed])
+				print("DRIVE stuck at %s (%d m to goal) speed %.1f: %s | hp %.0f dead %s wreck %s trk %s/%s spdf %.2f active %s hero_in %s thr? stick %s" % [v.global_position, roundi(_flat(v.global_position, goal)), v.speed, _blocker(v), v.hp, v.dead, v.wreck, v.get_meta(&"trk_l", "-"), v.get_meta(&"trk_r", "-"), TankArmour.speed_factor(v, 0.0), v.active, p.vehicle == v, fg.held.get(0, "up")])
 				fg.stick(Vector2(clampf(e, -1.0, 1.0), 1.0))
 				await _wait(2.0)
 			last_pos = v.global_position
 			last_t = _t
 	fg.stick(Vector2.ZERO)
-	print("DRIVE to goal: %d m left after %.0f s, %d stucks" % [roundi(_flat(v.global_position, goal)), _t - t0, stuck])
+	if stuck > 0 or _flat(v.global_position, goal) > rad + 5.0:
+		print("DRIVE to %s: %d m left after %.0f s, %d stucks" % [goal, roundi(_flat(v.global_position, goal)), _t - t0, stuck])
 	return _flat(v.global_position, goal)
+
+
+## Follows the GPS route (WorldRoute, as the map draws it) to `goal` with the stick.
+func _drive_route(v: Vehicle, goal: Vector3, rad: float, secs: float) -> float:
+	var out0 := v.global_position + v.forward() * 22.0
+	await _drive_to(v, out0, 4.0, 8.0)                         # out of the bay, nose first (the yard faces its road)
+	var poly := WorldRoute.route(v.global_position, goal, &"car")
+	print("ROUTE %d points, %d m" % [poly.size(), roundi(WorldRoute.length(poly))])
+	var t0 := _t
+	var i := 1
+	while i < poly.size() and _t - t0 < secs and p.vehicle == v:
+		var wp := poly[i]
+		if i == poly.size() - 1:
+			break
+		var left := secs - (_t - t0)
+		await _drive_to(v, wp, 10.0, minf(left, 60.0))
+		if _flat(v.global_position, wp) > 14.0:
+			print("ROUTE: waypoint %d of %d not reached (%d m off) at %s" % [i, poly.size(), roundi(_flat(v.global_position, wp)), v.global_position])
+		i += 1
+	return await _drive_to(v, goal, rad, maxf(secs - (_t - t0), 5.0))
+
+
+func _blocker(v: Vehicle) -> String:
+	var sp3 := host.get_tree().root.get_world_3d().direct_space_state
+	var out := ""
+	for side in [-0.4, 0.0, 0.4]:
+		var o: Vector3 = v.global_position + Vector3(0.0, 1.0, 0.0) + v.right() * float(v.spec["wid"]) * float(side)
+		var q := PhysicsRayQueryParameters3D.create(o, o + v.forward() * (float(v.spec["len"]) * 0.5 + 2.5), Game.L_WORLD | Game.L_VEHICLE | Game.L_ENEMY)
+		q.exclude = [v.get_rid()]
+		var r := sp3.intersect_ray(q)
+		if not r.is_empty():
+			var c := r["collider"] as Node
+			var fam := ""
+			if c != null and String(c.name).begins_with("PropCollider"):
+				for cn2 in host.get_tree().root.find_children("*", "", true, false):
+					if cn2.has_method(&"prop_colliders"):
+						fam = (cn2.call(&"prop_colliders")).family_of(int(String(c.name).substr(12)))
+						break
+			out += " %s%s(%.1f m)" % [str(c.get_path()).replace("/root/Runner/Main/", "") if c != null else "?", "[" + fam + "]" if fam != "" else "", (r["position"] - o).length()]
+	var kc := v.move_and_collide(v.forward() * 0.4, true)
+	if kc != null:
+		var cn := kc.get_collider() as Node
+		out += " | test-move hits %s (%s) at local y %.2f normal %s" % [str(cn.get_path()).replace("/root/Runner/Main/", "") if cn != null else "?", (cn.get_parent().name if cn != null and cn.get_parent() != null else ""), kc.get_position().y - v.global_position.y, kc.get_normal().snapped(Vector3.ONE * 0.01)]
+	return out if out != "" else "nothing ahead"
 
 
 func _camp() -> CampaignRunner:
@@ -388,8 +434,8 @@ func _fight() -> void:
 	hud = host.get_tree().root.find_children("*", "Hud", true, false)[0] as Hud
 	board = MissionBoardScreen.board()
 	board.take_over = false
-	Engine.physics_ticks_per_second = 180
-	Engine.time_scale = 3.0
+	Engine.physics_ticks_per_second = 240
+	Engine.time_scale = 4.0
 	var which := OS.get_environment("MISSIONS")
 	if which == "":
 		which = "tank_battle"
@@ -407,6 +453,9 @@ func _mission(t: StringName) -> void:
 	var guard := 0
 	while board.is_running() and _t - t_start < 900.0 and guard < 40:
 		guard += 1
+		await _until(func() -> bool: return k.state == &"active" or not board.is_running(), 8.0)
+		if not board.is_running():
+			break
 		var st: Dictionary = k.step
 		print("STEP %d %s: %s  (hud %s) state %s running %s kind %s pos %s hero in %s" % [k.step_index, st.get("kind"), st.get("text"), k.hud_line(), k.state, board.is_running(), k.kind, k.pos, p.vehicle.kind if p.vehicle != null else "-"])
 		var idx := k.step_index
@@ -426,7 +475,7 @@ func _mission(t: StringName) -> void:
 					break
 			await _until(func() -> bool: return k.step_index > idx, 3.0)
 		elif st.get("kind") == "reach":
-			await _drive_to(v, k.pos, float(st.get("radius", 14.0)) * 0.7, 400.0)
+			await _drive_route(v, k.pos, float(st.get("radius", 14.0)) * 0.7, 400.0)
 			await _until(func() -> bool: return k.step_index > idx or not board.is_running(), 3.0)
 		elif st.get("kind") == "tank_task":
 			await _task(v, k)
@@ -483,9 +532,181 @@ func _task(v: Vehicle, k: CampaignRunner) -> void:
 	print("TASK %s: %d shots %d hits in %.0f s, hero hp %.0f tank hp %.0f/%.0f" % [tk.task, shots, hits, _t - t0, p.hp, v.hp, v.max_hp])
 
 
-func _crash() -> void:
-	pass
+## A parked vehicle of `kind` at `at` facing `h`, the hero boards it by finger from behind.
+func _ride(kind: StringName, at: Vector3, h: float) -> Vehicle:
+	vm._fixed_n += 1
+	var v := vm.spawn_parked(kind, at, h)
+	vm._count_fixed()
+	if v == null:
+		return null
+	v.set_meta(&"hold", true)
+	v.global_position = at
+	await _f(4)
+	await _place_hero(at - v.forward() * (float(v.spec["len"]) * 0.5 + 4.0), at)
+	if not await _walk_board(v):
+		await _place_hero(at + v.right() * (float(v.spec["wid"]) * 0.5 + 4.0), at)
+	if p.vehicle != v and not await _walk_board(v):
+		print("RIDE %s: could not board" % kind)
+		return null
+	return v
+
+
+func _drop(v: Vehicle) -> void:
+	if p.vehicle != null:
+		await _tap(&"interact")
+		await _f(10)
+	if is_instance_valid(v):
+		v.remove_meta(&"hold")
+		if v.active:
+			vm._release(v)
+	vm._count_fixed()
 
 
 func _bridge() -> void:
-	pass
+	Bridges.ensure()
+	var n := 0
+	var kinds := [&"t_heavy", &"t_apc8", &"t_walker", &"t_hover", &"t_jeep"]
+	if OS.get_environment("BKINDS") != "":
+		kinds.clear()
+		for x in OS.get_environment("BKINDS").split(","):
+			kinds.append(StringName(x))
+	for b: Dictionary in Bridges.list:
+		if b["kind"] == &"rail" or b["kind"] == &"foot":
+			continue
+		if n >= int(OS.get_environment("NBRIDGE") if OS.get_environment("NBRIDGE") != "" else "5"):
+			break
+		var k: StringName = kinds[n % kinds.size()]
+		n += 1
+		var L := float(b["len"])
+		var a0: Array = Bridges.point_at(b, 0.0)
+		var dir: Vector3 = a0[1]
+		var start: Vector3 = (a0[0] as Vector3) - dir * 25.0
+		start.y = TerrainHeight.height_at(start.x, start.z)
+		var v := await _ride(k, start, atan2(-dir.x, -dir.z))
+		if v == null:
+			continue
+		var minoff := 99.0
+		var maxoff := -99.0
+		var fell := false
+		var u_best := -25.0
+		var t0 := _t
+		while _t - t0 < L / 6.0 + 20.0:
+			var proj := (v.global_position - (a0[0] as Vector3)).dot(dir)
+			var e: Array = Bridges.point_at(b, clampf(proj, 0.0, L))
+			var want: Vector3 = (e[0] as Vector3) + (e[1] as Vector3) * 12.0
+			var d := want - v.global_position
+			var err := wrapf(atan2(-d.x, -d.z) - v.heading, -PI, PI)
+			fg.stick(Vector2(clampf(-err * 2.0, -1.0, 1.0), -1.0))
+			await _step()
+			u_best = maxf(u_best, proj)
+			if proj > 2.0 and proj < L - 2.0:
+				var dy := Bridges.deck_y(v.global_position.x, v.global_position.z, v.global_position.y)
+				if dy == Bridges.NONE:
+					fell = true
+				else:
+					minoff = minf(minoff, v.global_position.y - dy)
+					maxoff = maxf(maxoff, v.global_position.y - dy)
+			if proj > L + 10.0 or v.sunk:
+				break
+			if OS.get_environment("BTRACE") != "" and Engine.get_physics_frames() % 60 == 0:
+				var lat2 := (v.global_position - (e[0] as Vector3)).cross(e[1] as Vector3).y
+				var kc := v.move_and_collide(v.forward() * 0.3, true)
+				var kcs := "free"
+				if kc != null:
+					var shp := kc.get_collider_shape() as CollisionShape3D
+					kcs = "%s shape %s at %s normal %s (local hit y %.2f)" % [(kc.get_collider() as Node).name, shp.name if shp != null else "?", kc.get_position(), kc.get_normal(), kc.get_position().y - v.global_position.y]
+				print("  trace u %.1f lat %.2f y %.2f deck %.2f speed %.1f w %.1f test-move: %s" % [proj, lat2, v.global_position.y, (e[0] as Vector3).y, v.speed, float(b["w"]), kcs])
+		fg.stick(Vector2.ZERO)
+		print("BRIDGE %s (%s, %d m) with %s: reached %d m of %d, off the deck %s, height over deck %.2f..%.2f, sunk %s, hp %.0f" % [b.get("id"), b["kind"], roundi(L), k, roundi(u_best), roundi(L), fell, minoff, maxoff, v.sunk, v.hp])
+		await _drop(v)
+
+
+## Drive a tank flat out into a building wall and into a traffic car.
+func _crash() -> void:
+	# a wall: from the start, the nearest building face found by rays
+	var sp3 := host.get_tree().root.get_world_3d().direct_space_state
+	var at := p.global_position + Vector3(0.0, -p.global_position.y, 0.0)
+	var best_dir := Vector3.ZERO
+	var best_d := 0.0
+	for k in 16:
+		var a := TAU * float(k) / 16.0
+		var dir := Vector3(-sin(a), 0.0, -cos(a))
+		var q := PhysicsRayQueryParameters3D.create(at + Vector3(0.0, 1.5, 0.0), at + Vector3(0.0, 1.5, 0.0) + dir * 120.0, Game.L_WORLD)
+		var r := sp3.intersect_ray(q)
+		if not r.is_empty():
+			var d: float = ((r["position"] as Vector3) - at).length()
+			if d > best_d and d > 50.0 and str((r["collider"] as Node).get_path()).contains("World/Collision"):
+				best_d = d
+				best_dir = dir
+	if best_dir == Vector3.ZERO:
+		print("CRASH: no wall found")
+		return
+	for k: StringName in [&"t_heavy", &"t_scout"]:
+		var v := await _ride(k, at, atan2(-best_dir.x, -best_dir.z))
+		if v == null:
+			continue
+		var hp0 := v.hp
+		fg.stick(Vector2(0.0, -1.0))
+		var vmax := 0.0
+		var t0 := _t
+		var deepest := 0.0
+		while _t - t0 < 14.0:
+			await _step()
+			vmax = maxf(vmax, v.speed)
+			var travelled := (v.global_position - at).dot(best_dir)
+			deepest = maxf(deepest, travelled + float(v.spec["len"]) * 0.5 - best_d)
+		fg.stick(Vector2.ZERO)
+		print("CRASH wall %s: top speed %.1f, nose past the wall face %.2f m, hull %d -> %d, still in %s" % [k, vmax, deepest, roundi(hp0), roundi(v.hp), p.vehicle == v])
+		await _drop(v)
+	# traffic: a sedan parked across the tank's path 30 m ahead
+	var tv := await _ride(&"t_heavy", at, atan2(-best_dir.x, -best_dir.z))
+	if tv != null:
+		vm._fixed_n += 1
+		var car := vm.spawn_parked(&"sedan", at + best_dir * 22.0, atan2(-best_dir.x, -best_dir.z) + PI * 0.5)
+		vm._count_fixed()
+		var c0 := car.global_position
+		var hp0 := car.hp
+		fg.stick(Vector2(0.0, -1.0))
+		await _wait(6.0)
+		fg.stick(Vector2.ZERO)
+		print("CRASH car: sedan moved %.1f m, hp %d -> %d dead %s; tank went %.1f m (hull %d)" % [_flat(car.global_position, c0), roundi(hp0), roundi(car.hp), car.dead, (tv.global_position - at).dot(best_dir), roundi(tv.hp)])
+		await _drop(tv)
+
+
+## A duel on the open airfield east strip: the hero in a heavy tank, an enemy crew tank 70 m ahead; the right thumb aims (look swipes), a finger on FIRE shoots.
+func _duel() -> void:
+	var at := Airport.to_world(TankRoster.BASE_LOCAL + Vector3(60.0, 0.0, -60.0))
+	at.y = TerrainHeight.height_at(at.x, at.z)
+	var h := Airport.heading_world(PI * 0.5)
+	var fwd := Vector3(-sin(h), 0.0, -cos(h))
+	var mine := await _ride(OS.get_environment("DUEL_KIND") if OS.get_environment("DUEL_KIND") != "" else &"t_heavy", at, h)
+	if mine == null:
+		return
+	var ep := at + fwd * 70.0
+	ep.y = TerrainHeight.height_at(ep.x, ep.z)
+	var tc := TankCrews.current
+	var e: Vehicle = tc.spawn(&"tank", ep, h + PI, &"mission", {"hp": 650.0}) if tc != null else null
+	if e == null:
+		print("DUEL: no enemy tank")
+		return
+	var hp_me := mine.hp
+	var t0 := _t
+	var shots := 0
+	var hits := 0
+	var misses_far := 0
+	while is_instance_valid(e) and not e.dead and e.active and _t - t0 < 90.0:
+		var aimed := await _aim_finger(e.global_position + Vector3(0.0, 1.3, 0.0), 0.012)
+		await _until(func() -> bool: return mine.weapons.can_fire(), 6.0)
+		var hp0 := e.hp
+		var s0 := mine.weapons.shots
+		if fg.press(2, &"fire"):
+			await _until(func() -> bool: return mine.weapons.shots > s0, 1.5)
+			fg.up(2)
+		await _wait(1.0)
+		shots += 1
+		var hit := not is_instance_valid(e) or e.dead or e.hp < hp0 - 1.0
+		if hit:
+			hits += 1
+		print("DUEL shot %d: aimed %s hit %s enemy hp %s  zone %s  my hull %.0f  enemy %d m" % [shots, aimed, hit, str(roundi(e.hp)) if is_instance_valid(e) else "gone", TankArmour.last_zone, mine.hp, roundi(_flat(e.global_position, mine.global_position)) if is_instance_valid(e) else -1])
+	print("DUEL done: %d shots, %d hits, enemy down %s in %.0f s, my hull %.0f -> %.0f" % [shots, hits, not is_instance_valid(e) or e.dead, _t - t0, hp_me, mine.hp])
+	await _drop(mine)
