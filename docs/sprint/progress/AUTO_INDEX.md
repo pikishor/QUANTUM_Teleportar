@@ -18,5 +18,5 @@ Written by godot/tools/sprint_digest.py at 2026-11-27 21:17Z. Status 'running' m
 - w128-open [Build] done: 423 events, 16:21:48 -> 17:12:08
 - w128-critic [Review] done: 525 events, 17:12:08 -> 18:21:23
 - w128-integrator [Integrate] done: 168 events, 18:21:23 -> 19:49:21
-- w128-ci-apk [CI and APK] running: 278 events, 19:49:21 -> 21:15:28
+- w128-ci-apk [CI and APK] running: 282 events, 19:49:21 -> 21:17:54
 
