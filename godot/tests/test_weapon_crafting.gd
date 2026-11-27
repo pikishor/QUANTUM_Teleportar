@@ -648,7 +648,7 @@ func _demo() -> void:
 		if g["kind"] == &"crafting":
 			found = (g["items"] as Array).size() >= 3
 	TestLib.check(found, "the DEMO catalogue lists the workbench entries")
-	TestLib.check(DemoPanel.TABS.size() == cat.size() + 2, "a DEMO tab per group plus SPAWN and TOOLS")
+	TestLib.check(DemoPanel.TABS.size() == cat.size() + DemoPanel.OWN_TABS.size() and DemoPanel.OWN_TABS.has("SPAWN") and DemoPanel.OWN_TABS.has("TOOLS"), "a DEMO tab per group plus SPAWN and TOOLS (and the panel's own tabs %s)" % [DemoPanel.OWN_TABS])   # wave 128: VEHICLES and AIRCRAFT are own tabs too
 	_fresh()
 	Crafting.reset()
 	DemoMode._grant_all(prog)
