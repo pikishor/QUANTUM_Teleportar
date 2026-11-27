@@ -13,3 +13,4 @@ NEXT: import; full suite in background (scratchpad/suite127, runner scratchpad/s
 - perf OK: LOW 72/94 death 109; MED 99/131 prims 275k death 146; HIGH 118/154 death 164. NEXT visual_qa
 - visual_qa 27/27 PASS, latest.png looked at; army base frame (new x 1376) looked at LOW 1200x540. NEXT touch reruns (scratchpad/re127/b)
 - touch reruns PASS (9 more); tidy done; HANDOFF section added. NEXT commit + push
+- DONE: committed bdab8a8 and pushed

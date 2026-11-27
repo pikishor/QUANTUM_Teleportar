@@ -348,6 +348,32 @@ measure frame time and draws in flight at LOW and MED. Look for planes that cann
 defects with evidence, fix them most severe first, each with a check that fails without the fix. If you cannot fix one, write exactly why.`,
     commit: 'Wave 126: aeroplane roster (30+ kinds), hangars, air traffic, air missions, aircraft weapons',
   },
+  127: {
+    title: 'Tanks and military ground vehicles',
+    builders: [
+      { tag: 'tanks', prompt: `TASK (label w127-tanks): TANKS AND MILITARY GROUND VEHICLES ROSTER. Plan line 127: "TANKS AND MILITARY GROUND VEHICLES roster, vehicle weapons from the blast table." First read what exists
+(vehicles, armour_sites.gd, army base, vehicle weapons, blast table, wave 125/126 rosters and how they stay outside the live car limit) and count current military ground vehicle kinds in your log. Reach at
+least 20 distinct kinds (light tank, main battle tank, heavy tank, tank destroyer, SPG/artillery, rocket artillery, APC wheeled and tracked, IFV, scout car, MRAP, armoured jeep, military truck, fuel truck,
+recovery vehicle, mobile AA, bridge layer, mine clearer, amphibious APC, sci-fi hover tank, quantum walker...), each with a model (CC0 or own-made in Blender, original names only, no real brands), its
+own driving numbers (speed, turn, mass, armour), tracks or wheels that animate, a turret that turns, and an icon. Shared meshes / LODs so parked or far vehicles cost almost nothing; keep them outside the
+live car limit like the aircraft lines. Parked at the army base, a vehicle depot, and a few outskirts checkpoints. Every kind drivable by touch and boardable. Coordinate with w127-arms (it owns weapons,
+damage and AI tank crews), read its log. Permanent test godot/tests/test_tanks_w127.gd by real touch events (split into _b if over 100 s): every kind spawns, boards, drives a short route, turns its
+turret; each check failing on the old code. Render a lineup LOW and MED and LOOK. BUDGETS: perf death-spike limits LOW 108 / MED 148 / HIGH 170 and the MED triangle budget 280k (now 275k) must hold;
+trim elsewhere, never raise a limit (node test limit is 7000).` },
+      { tag: 'arms', prompt: `TASK (label w127-arms): VEHICLE WEAPONS, DAMAGE AND TANK COMBAT. Plan line 127. Read what exists first (vehicle weapons, blast table, AirArms of wave 126, enemy AI, wanted levels).
+(1) Vehicle weapons from the blast table per class: main cannon (AP / HE shells), coax and roof machine guns, ATGM with lock-on, artillery indirect fire with a target marker, rocket salvo, AA flak, smoke
+launchers; touch buttons on the vehicle HUD kept clear and readable, a turret aim that follows the camera, reload timers. (2) Armour and damage: hit zones (front/side/rear/tracks/turret), track
+damage that slows or stops, burning and wreck states using the existing damage system. (3) Enemy tank crews: military AI that drives and fights in tanks at the army base and at high wanted levels,
+pooled, distance-throttled. (4) At least 3 tank missions on the mission board (tank battle, convoy escort, artillery strike), finishable by touch with the mission guide. Permanent test
+godot/tests/test_tank_arms_w127.gd by real touch events: every weapon kind fires and hits, hit zones and track damage work, an enemy tank engages and can be destroyed, every tank mission starts and a
+bot finishes it; each check failing on the old code. Render frames and LOOK. Budgets: never raise a perf limit (MED triangles 280k tight), trim elsewhere. Coordinate with w127-tanks, read its log.` },
+    ],
+    critic: `You are the INDEPENDENT REVIEWER of wave 127 (label w127-critic), then its fixer. Assume it is broken until you have seen it work. With a finger-only bot of your own in the real main
+scene: drive at least 10 different tank and military vehicle kinds, fire every vehicle weapon kind, fight an enemy tank, play 2 tank missions to the end, crash into buildings and traffic, check that
+city streets and bridges can be driven, and measure frame time and draws at LOW and MED with several tanks in view. Look for clipping, wrong scale, turrets that do not follow, unfinishable missions,
+HUD overlap, perf drops. List the 8 worst defects with evidence, fix them most severe first, each with a check that fails without the fix. If you cannot fix one, write exactly why.`,
+    commit: 'Wave 127: tanks and military ground vehicles (20+ kinds), vehicle weapons from the blast table, tank combat and missions',
+  },
 }
 const W = WAVES[N]
 if (!W) { log(`wave ${N} has no definition in this script yet: add it to WAVES`); return { wave: N, error: 'no definition' } }
