@@ -205,6 +205,7 @@ func generate(origin := Vector3.INF, types: Array = []) -> Array[Dictionary]:
 			picks = SnakeMissions.inject(picks, rng, [], origin)
 			picks = SnakeWarMissions.inject(picks, rng)
 			picks = AirMissions.inject(picks, origin, rng)            # w126-air: the six air missions (near the airport one for sure)
+			picks = TankMissions.inject(picks, origin, rng)           # w127-arms: the three tank missions (in the ARMY YARD one for sure)
 	for t: StringName in picks:
 		var o := build(t, origin)
 		if not o.is_empty():
@@ -230,7 +231,9 @@ func build(t: StringName, origin: Vector3, first := false) -> Dictionary:
 	if WorldMissions.DEFS.has(t):
 		return _build_world(t, origin)
 	if AirMissions.DEFS.has(t):
-		return _build_air(t, origin)                              # w126-air: DOGFIGHT, AIRLINER ESCORT, BOMB RUN, CARGO DROP, HELI RESCUE, SKY RINGS (scripts/missions/air_missions.gd)
+		return _build_air(t, origin)
+	if TankMissions.DEFS.has(t):
+		return _build_tank(t, origin)                             # w127-arms: TANK BATTLE, CONVOY ESCORT, ARTILLERY STRIKE (scripts/missions/tank_missions.gd)                              # w126-air: DOGFIGHT, AIRLINER ESCORT, BOMB RUN, CARGO DROP, HELI RESCUE, SKY RINGS (scripts/missions/air_missions.gd)
 	if SnakeMissions.DEFS.has(t):
 		return _build_snake(t, origin)                            # the two QUANTUM SNAKE rooftop missions (scripts/quantum/snake_missions.gd)
 	if SnakeWarMissions.DEFS.has(t):
@@ -319,6 +322,26 @@ func _build_air(t: StringName, origin: Vector3) -> Dictionary:
 	return {
 		"id": _serial, "type": t, "title": str(rec["title"]), "brief": brief, "gift": gift, "glyph": rec["glyph"], "steps": steps, "route_m": float(rec["route_m"]), "reward": reward,
 		"pos": rec["pos"], "tier": tr, "story": false, "world": true, "air": true,
+		"chapter": {"id": "board_%d" % _serial, "title": str(rec["title"]), "clears_sector": false, "steps": steps},
+	}
+
+
+## w127-arms: a TANK MISSION (TankMissions): the same offer record as a world mission, started at the ARMY YARD.
+func _build_tank(t: StringName, origin: Vector3) -> Dictionary:
+	var tr := tier()
+	_serial += 1
+	var r := RandomNumberGenerator.new()
+	r.seed = hash("%s|%d|%d" % [t, _serial, rng.randi()])
+	var rec := TankMissions.build(t, tr, origin, r)
+	if rec.is_empty():
+		return {}
+	var reward := WorldMissions.pay_for(float(rec["base"]), float(rec["route_m"]), tr)
+	var gift := MissionRewards.gift_text()
+	var brief := str(rec["brief"]) + ("  PAYS CREDITS + %s" % gift if gift != "" else "")
+	var steps: Array[Dictionary] = rec["steps"]
+	return {
+		"id": _serial, "type": t, "title": str(rec["title"]), "brief": brief, "gift": gift, "glyph": rec["glyph"], "steps": steps, "route_m": float(rec["route_m"]), "reward": reward,
+		"pos": rec["pos"], "tier": tr, "story": false, "world": true, "tank": true,
 		"chapter": {"id": "board_%d" % _serial, "title": str(rec["title"]), "clears_sector": false, "steps": steps},
 	}
 

@@ -19,8 +19,9 @@ const ICON_OF := {
 	&"courier": &"map", &"hijack": &"map", &"chase": &"map", &"convoy": &"map", &"first": &"map", &"story": &"chapters",
 	&"airport_heist": &"heists", &"heli_extract": &"hero", &"mountain_pursuit": &"map", &"river_chase": &"map", &"air_race": &"map", &"plane_delivery": &"map",     # the big world (WorldMissions)
 	&"air_dogfight": &"arena", &"air_escort": &"hero", &"air_bomb": &"arena", &"air_cargo": &"map", &"air_rescue": &"hero", &"air_rings": &"map",     # w126-air (AirMissions)
+	&"tank_battle": &"arena", &"tank_convoy": &"hero", &"tank_artillery": &"arena",     # w127-arms (TankMissions)
 }
-const RED_TYPES: Array[StringName] = [&"patrol", &"boss", &"bounty", &"vehicle", &"rescue", &"first", &"air_dogfight", &"air_bomb"]
+const RED_TYPES: Array[StringName] = [&"patrol", &"boss", &"bounty", &"vehicle", &"rescue", &"first", &"air_dogfight", &"air_bomb", &"tank_battle", &"tank_artillery"]
 const CYAN_TYPES: Array[StringName] = [&"arena", &"defend", &"hack", &"heist", &"demolition"]
 
 

@@ -78,6 +78,8 @@ const BUTTONS := [
 	{"action": &"look_back", "dx": 476.0, "dy": 222.0, "r": 46.0, "fs": 22, "label": "BACK", "need": &"drive_more", "top": true},       # held: look behind the car (MORE while driving)
 	{"action": &"flare", "dx": 305.0, "dy": 270.0, "r": 48.0, "fs": 22, "label": "FLARE", "need": &"flare"},       # w126-air: the MID slot in the air: a burst of flares fools the missiles homing on the aircraft (AirArms)
 	{"action": &"ammo_type", "dx": 268.0, "dy": 118.0, "r": 44.0, "fs": 18, "label": "ARMS", "need": &"arms_cycle", "top": true, "chip": true},       # w126-air: where WEAPON sits on foot: the next arm of the aircraft (ROCKET -> MISSILE -> BOMB ...)
+	{"action": &"arms_next", "dx": 268.0, "dy": 118.0, "r": 44.0, "fs": 18, "label": "ARMS", "need": &"tank_arms", "top": true, "chip": true},       # w127-arms: the next arm of a military vehicle (COAX -> ROOF MG -> ATGM ...)
+	{"action": &"flare", "dx": 305.0, "dy": 270.0, "r": 48.0, "fs": 22, "label": "SMOKE", "need": &"smoke"},       # w127-arms: the MID slot in a tank: the smoke launchers (TankArms)
 ]
 ## The modes a `need` can show in (the sets of the table above). Two buttons that share no mode are never on screen together and may share a slot.
 const ALL_MODES: Array[StringName] = [&"foot", &"flight", &"interior", &"car", &"boat", &"tank", &"air"]
@@ -90,6 +92,7 @@ const NEED_MODES := {
 	&"foot_ground": [&"foot", &"interior"], &"horn": [&"car"], &"view_ground": [&"car", &"boat", &"tank"], &"view_air": [&"air"], &"shell": [&"tank"],
 	&"more": ON_FOOT, &"more_gadget": ON_FOOT, &"more_ammo": ON_FOOT, &"more_c4": ON_FOOT, &"more_ult": ON_FOOT, &"more_companion": ON_FOOT, &"more_garage": [&"foot", &"flight"],
 	&"grab": ON_FOOT, &"garage_open": DRIVEN, &"radio": DRIVEN, &"drive_more": DRIVEN, &"flare": [&"air"], &"arms_cycle": [&"air"],
+	&"tank_arms": [&"tank"], &"smoke": [&"tank"],
 }
 
 
@@ -196,6 +199,7 @@ var _late := {}                     ## action -> [physics frame, process frame]:
 
 func _ready() -> void:
 	AirArms.ensure_actions()                       # w126-air: the FLARE button's action
+	TankArms.ensure_actions()                      # w127-arms: the tank's ARMS chip action
 	layer = 9
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	controls_on = Game.force_touch or DisplayServer.is_touchscreen_available()
@@ -667,6 +671,11 @@ func button_visible(b: Dictionary) -> bool:
 			if fa == null:
 				return false
 			return fa.has_flare if b["need"] == &"flare" else fa.list.size() > 1
+		&"tank_arms", &"smoke":        # w127-arms: a military vehicle's smoke launchers / more than one arm to pick from
+			var ta := _tank_arms()
+			if ta == null:
+				return false
+			return ta.has_smoke if b["need"] == &"smoke" else ta.list.size() > 1
 		&"down":             # helicopter, plane, snake flight: the second vertical button
 			return (is_instance_valid(Game.vehicles) and _driving() and _craft_class() in [&"heli", &"plane"]) or _flying()
 		&"drive_more":       # the driving extras behind MORE: BACK, RADIO, GARAGE
@@ -748,6 +757,10 @@ func _label_of(b: Dictionary) -> String:
 		return "BRAKE" if cc == &"boat" or cc == &"tank" else "HAND BRAKE"
 	if b.get("need", &"") == &"flare" and _air_arms() != null:
 		return _air_arms().flare_label()                 # FLARE 12
+	if b.get("need", &"") == &"smoke" and _tank_arms() != null:
+		return _tank_arms().smoke_label()                # SMOKE 3
+	if b.get("need", &"") == &"arms2" and _tank_arms() != null and _tank_arms().current() != &"":
+		return _tank_arms().label()                      # w127-arms: COAX 300 / ATGM 4 / LOCKED 4 / SALVO 18
 	if b.get("need", &"") == &"arms2" and _air_arms() != null and _air_arms().current() != &"":
 		return _air_arms().label()                       # w126-air: MISSILE 8 / LOCKED 8 / BOMB 6 / DROP 3
 	if b["action"] == &"aim" and b.get("need", &"") == &"arms2" and is_instance_valid(Game.vehicles):           # the secondary weapon says what it is: ROCKET, MISSILE, COAX
@@ -1045,6 +1058,15 @@ func _air_arms() -> AirArms:
 
 
 ## The handling class of the vehicle being driven (&"car" when on foot).
+## w127-arms: the driven military vehicle's arms (TankArms), null otherwise.
+func _tank_arms() -> TankArms:
+	if not _driving():
+		return null
+	var v: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
+	var w: Object = v.get("weapons") if v != null else null
+	return w.get("tarms") as TankArms if w != null else null
+
+
 func _craft_class() -> StringName:
 	var v: Object = Game.player.get("vehicle") if is_instance_valid(Game.player) else null
 	return StringName(v.get("cls")) if v != null and v.get("cls") is StringName else &"car"
@@ -1201,6 +1223,8 @@ func _draw_ui_body() -> void:
 					arcs.append([centre, r + 4.0 * s, -PI * 0.5 + TAU * ef, Color(UiUtil.MAGENTA if ef < 0.2 else tint, 0.9)])         # the snake energy is the ring around the button
 		if b["action"] == &"snake_blast":
 			SnakeBlasts.button_arcs(arcs, centre, r, s)               # wave 119 (w119-blasts): the species colour and the recharge arc
+		if _craft_class() == &"tank" and (b["action"] == &"fire" or b["action"] == &"aim" or b["action"] == &"flare"):
+			TankArms.button_arcs(b, arcs, centre, r, s, Game.player.get("vehicle") as Vehicle)       # w127-arms: the reload rings (main gun, the arm, smoke)
 		if b.has("verb"):
 			var vs := ((Game.player.get("qverbs") as QuantumVerbs).ui_state(b["verb"]) as Dictionary) if Game.player.get("qverbs") != null else {"active": false, "ready": true, "cd": 0.0}
 			if vs["active"]:

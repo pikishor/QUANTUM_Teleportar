@@ -181,7 +181,7 @@ func _physics_process(dt: float) -> void:
 		if grav <= 0.0:
 			FX.tracer(pos, nxt, Color(0.85, 0.85, 0.9, 0.5))                                   # the smoke line (a bomb and a crate fall without one)
 		if boom:
-			_detonate(at, def, col, shooter)
+			_detonate(at, def, col, shooter, vel.normalized())
 			(r["mi"] as MeshInstance3D).visible = false
 			_live.remove_at(i)
 		else:
@@ -202,7 +202,7 @@ func _sweep(a: Vector3, b: Vector3, shooter: Vehicle) -> Dictionary:
 	return get_world_3d().direct_space_state.intersect_ray(q)
 
 
-func _detonate(at: Vector3, def: Dictionary, col: Object, shooter: Vehicle = null) -> void:
+func _detonate(at: Vector3, def: Dictionary, col: Object, shooter: Vehicle = null, dir := Vector3.ZERO) -> void:
 	var look: StringName = def.get("look", &"rocket")
 	by_look[look] = int(by_look.get(look, 0)) + 1
 	if look == &"crate":                                                          # w126-air: a cargo crate lands, it does not explode
@@ -216,7 +216,8 @@ func _detonate(at: Vector3, def: Dictionary, col: Object, shooter: Vehicle = nul
 	last_blast = at
 	var dmg := float(def["dmg"])
 	if col != null and col.has_method(&"damage"):
-		col.call(&"damage", dmg)
+		if TankArmour.hit(col, at, dir, dmg, StringName(str(def.get("pen", "")))) == &"":       # w127-arms: a rocket or a guided missile strikes a tank on a zone (an ATGM's AP warhead cracks it)
+			col.call(&"damage", dmg)
 		if col is Object:
 			hits_on[(col as Object).get_instance_id()] = int(hits_on.get((col as Object).get_instance_id(), 0)) + 1
 		if col is Node and (col as Node).is_in_group(&"enemy"):

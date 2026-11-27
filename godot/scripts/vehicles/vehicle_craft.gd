@@ -449,6 +449,12 @@ static func _tank(v: Vehicle, dt: float, thr: float, steer: float, brake: bool) 
 	var c := v.craft
 	var T := v.spec
 	var vmax := float(T["max"])
+	var trk := TankArmour.speed_factor(v, dt)                    # w127-arms: a damaged track slows the tank, a broken one stops it (the turret still turns)
+	if trk < 1.0:
+		vmax = maxf(vmax * trk, 0.01)
+		if trk <= 0.0:
+			thr = 0.0
+			steer = 0.0
 	var fwd := v.forward()
 	var vf := v.vel.dot(fwd)
 	if thr > 0.05:
@@ -461,6 +467,8 @@ static func _tank(v: Vehicle, dt: float, thr: float, steer: float, brake: bool) 
 		vf *= exp(-3.0 * dt)
 	vf = clampf(vf, -vmax * 0.4, vmax)
 	var yr := steer * TANK_YAW * float(T.get("steer", 1.0)) * (1.0 - 0.45 * clampf(absf(vf) / vmax, 0.0, 1.0))
+	if TankModels.on and bool(T.get("wheeled", false)):                    # w127-tanks: a wheeled vehicle turns with its speed (a slow crawl round on the spot, no pivot turn)
+		yr *= clampf(0.3 + absf(vf) / 6.0, 0.3, 1.0) * (signf(vf) if vf < -0.5 else 1.0)
 	v.heading -= yr * dt
 	fwd = v.forward()
 	v.vel = fwd * vf
@@ -606,6 +614,8 @@ static func sync(v: Vehicle, dt: float) -> void:
 			c.pitch = lerpf(c.pitch, clampf(acc * 0.004, -0.05, 0.05), 1.0 - exp(-5.0 * dt))
 			vis.model.rotation = Vector3(c.pitch, 0.0, 0.0)
 			vis.model.position = Vector3.ZERO
+			if TankModels.on:
+				TankModels.animate(v, dt)                                                     # w127-tanks: the tracks / tyres / legs move, the hover tank floats
 
 
 ## Blades turn about `axis` until they blur: then the node is hidden and the soft disc shows.

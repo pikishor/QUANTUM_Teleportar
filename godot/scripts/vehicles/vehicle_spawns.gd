@@ -40,6 +40,7 @@ static func all_points() -> Array[Dictionary]:
 	out.append_array(Harbour.BERTHS)
 	out.append_array(ArmourSites.vehicle_points())               # wave 118: the gunship on CITY HELIPAD SOUTH
 	out.append_array(OutskirtsSites.vehicle_points())
+	out.append_array(TankRoster.spawn_points())                   # wave 127: the military ground vehicles at the ARMY BASE, the VEHICLE DEPOT and the road CHECKPOINTS
 	out.append_array(PlaneRoster.spawn_points())                  # wave 126: the PLANE LINE east of the runway, the planes in the hangars and the army shelters
 	out.append_array(HeliRoster.spawn_points())                   # wave 125: the HELI LINE east of the runway, one of each new helicopter kind
 	out.append_array(Airport.spawn_points())                      # EASTFIELD AIRPORT: planes, jets, helicopters on the apron, the helipads and the mountain pads (wave 106)
