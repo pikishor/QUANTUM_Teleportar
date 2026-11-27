@@ -1766,6 +1766,7 @@ func _draw_hud_body() -> void:
 		_draw_vehicle_readout(c, font, ab, veh, s)
 		VehicleHud.draw(self, c, font, ab, veh, s, now)                  # hull row, nitro, the tank's turret dial (wave 109b)
 		FlightHud.draw(c, font, vp, s, ins, veh)                          # horizon, altitude, vertical speed, stall and landing guide while flying (wave 106)
+		TankArms.draw_hud(c, veh as Vehicle, s)                           # w127-arms: the ATGM seeker box, the howitzer's target marker
 	elif ammo_plate:
 		_plate(c, ab, s)
 		_text(c, font, Vector2(ab.position.x, ab.position.y + 50.0 * s), ammo_text(), HORIZONTAL_ALIGNMENT_CENTER, ab.size.x, UiUtil.fit_size(font, ammo_text(), ab.size.x - 8.0 * s, int(48.0 * s)), Color(1, 1, 1, 0.97) if p.get("reloading") != true else Color(UiUtil.AMBER, 0.97), 1.5 * s)

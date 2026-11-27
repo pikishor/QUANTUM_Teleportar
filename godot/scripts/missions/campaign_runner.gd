@@ -37,7 +37,7 @@ signal chapter_completed(chapter: int)
 signal checkpoint_reached(cp: Dictionary)
 
 ## The step kinds the runner understands. Add a kind here, to CampaignSteps.KIND_DATA and to the match blocks (_begin_step, _tick_active, _markers) together.
-const StepKinds: Array[StringName] = [&"reach", &"enter_interior", &"escort", &"defend", &"hack", &"kill_target", &"chase", &"escape", &"survive", &"rift_hold", &"heist", &"convoy_intercept", &"smash", &"sneak", &"gates", &"pursuit", &"air_task"]
+const StepKinds: Array[StringName] = [&"reach", &"enter_interior", &"escort", &"defend", &"hack", &"kill_target", &"chase", &"escape", &"survive", &"rift_hold", &"heist", &"convoy_intercept", &"smash", &"sneak", &"gates", &"pursuit", &"air_task", &"tank_task"]
 
 const CAMPAIGN_DATA_PATH := "res://scripts/story/campaign_data.gd"
 const START_DELAY := 1.5               ## seconds after a chapter is armed (no card, no tutorial) before its first step begins
@@ -186,6 +186,7 @@ var _smash_t := 0.0
 var _sneak_foes: Array[Drone] = []     ## sneak: the guards
 var ws: WorldSteps                     ## the step kinds of the big world: reach with a vehicle, gates, pursuit (scripts/missions/world_steps.gd)
 var air: AirSteps                      ## w126-air: the air missions' step kind air_task (scripts/missions/air_steps.gd)
+var tank: TankSteps                    ## w127-arms: the tank missions' step kind tank_task (scripts/missions/tank_steps.gd)
 
 
 func _ready() -> void:
@@ -193,6 +194,7 @@ func _ready() -> void:
 	guide = MissionGuide.new(self)
 	ws = WorldSteps.new(self)
 	air = AirSteps.new(self)
+	tank = TankSteps.new(self)
 	enabled = not Game.autostart
 	for i in 5:
 		_markers.append({pos = Vector3.ZERO, color = Color.WHITE, kind = &"", radius = 0.0})
@@ -527,6 +529,8 @@ func hud_line() -> String:
 			return "%s%s%s" % [head, clock, ws.hud_tail()]
 		&"air_task":
 			return "%s%s%s" % [head, clock, air.hud_tail()]
+		&"tank_task":
+			return "%s%s%s" % [head, clock, tank.hud_tail()]
 	return head
 
 
@@ -639,6 +643,8 @@ func markers() -> Array[Dictionary]:
 				_add_marker(ws.target.global_position, ContractTypes.RED, &"target", 0.0)
 		&"air_task":
 			air.add_markers(_add_marker)
+		&"tank_task":
+			tank.add_markers(_add_marker)
 		&"convoy_intercept":
 			for c: Vehicle in convoy:
 				if is_instance_valid(c) and not stopped.has(c) and not c.dead:
@@ -781,6 +787,7 @@ func _begin_step() -> void:
 		&"gates": ok = ws.begin_gates()
 		&"pursuit": ok = ws.begin_pursuit()
 		&"air_task": ok = air.begin()
+		&"tank_task": ok = tank.begin()
 	if not ok:
 		_cleanup(true)
 		_begin_tries += 1
@@ -1568,6 +1575,7 @@ func _tick_active(delta: float) -> void:
 		&"gates": ws.tick_gates(delta, p)
 		&"pursuit": ws.tick_pursuit(delta, p)
 		&"air_task": air.tick(delta, p)
+		&"tank_task": tank.tick(delta, p)
 	if state != &"active":
 		return
 	if time_total > 0.0 and time_left <= 0.0 and _beat_t <= 0.0:
@@ -1905,6 +1913,8 @@ func _cleanup(release_foes: bool) -> void:
 		ws.clean()
 	if air != null:
 		air.clean()
+	if tank != null:
+		tank.clean()
 	if car != null and is_instance_valid(car):
 		car.remove_meta(&"hold")
 		if car.exploded.is_connected(_on_car_exploded):

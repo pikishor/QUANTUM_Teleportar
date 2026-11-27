@@ -212,6 +212,11 @@ func activate(pos: Vector3, h: float) -> void:
 			tur.visible = true                                      # a tank that lost its turret in a blast gets it back when it is recycled
 	_panels_torn = 0
 	_leak_t = 0.0
+	if cls == &"tank" or has_meta(&"tank_puppet"):
+		TankArmour.reset(self)                                      # w127-arms: fresh tracks; an enemy crew / mission puppet mark never outlives a recycle
+		for m: StringName in [&"enemy_tank", &"tank_puppet", &"tank_target", &"provoked"]:
+			if has_meta(m):
+				remove_meta(m)
 	hp = max_hp
 	dead = false
 	wreck = false
@@ -519,6 +524,7 @@ func repair() -> void:
 	hp = max_hp
 	fuse = -1.0
 	_warned = 0
+	TankArmour.reset(self)                                          # w127-arms: the repair bay mends the tracks too
 	visual.repair()
 	if dmg_state != 0:
 		dmg_state = 0
@@ -761,6 +767,8 @@ func sim(dt: float) -> void:
 	elif path_road >= 0 and craft == null:                # a highway car of the outskirts that became a real vehicle: it keeps driving its road
 		PathDriver.drive(self, dt)
 		step_drive(dt, script_thr, script_steer, false)
+	elif has_meta(&"tank_puppet"):                       # w127-arms: a convoy truck of a tank mission, moved along its road by TankSteps
+		pass
 	elif craft != null and has_meta(&"air_puppet"):      # w126-air: a bandit or the airliner of an air mission, flown by AirSteps (it sets the position, the heading and the attitude)
 		pass
 	elif scripted:                                       # a mission's target vehicle (WorldSteps pursuit): the mission writes the stick, the vehicle drives itself with its own physics
@@ -1144,6 +1152,8 @@ func _terrain_step(dt: float) -> void:
 	global_position.y = lerpf(p.y, base_y + target, k) if absf(p.y - base_y - target) < 2.0 else base_y + target
 	ground_pitch = lerpf(ground_pitch, clampf(atan2(hf - hb, 2.0 * hl), -0.6, 0.6), k)
 	ground_roll = lerpf(ground_roll, clampf(atan2(hr - hlft, 2.0 * hw), -0.5, 0.5), k)
+	if cls == &"tank" and Bridges.wedge_on:                    # w127-critic: the flat hull box of a long tank met the rising deck of a steep bridge ramp (14 % on the mountain tracks) with its front edge and stopped: it rides as high as the slope under its nose
+		_hull_cs.position.y = _hull_y + 0.45 + minf(absf(hf - hb) * 0.5 + 0.1, 1.4)
 	_surf_t -= dt
 	if _surf_t <= 0.0:
 		_surf_t = 0.25 if driver_is_player else 1.0
@@ -1779,6 +1789,8 @@ func update_lod(dist: float) -> void:
 		_mirror_on = want
 		_mirror.track(visual.mirror_meshes if want else _none)
 	var show := dist < 140.0 or driver_is_player or (AirArms.on and craft != null and craft.airborne and dist < AIR_SHOW)       # w126-air: an aircraft in the air (a bandit, the airliner of an escort) is seen from far, not only within 140 m
+	if not show and TankArmour.on and dist < TankArmour.SHOW_FAR and (cls == &"tank" or has_meta(&"tank_puppet")):
+		show = true                                                     # w127-arms: tanks (an enemy crew, an artillery target, the ATGM's lock) and convoy trucks are fought at 150 to 500 m (hidden beyond 140 m before)
 	if show != visible:
 		visible = show
 

@@ -23,6 +23,7 @@ var _alt_cd := 0.0
 var _alt_rl := 0.0
 var _alt_side := 1.0
 var arms: AirArms = null              ## w126-air: an aircraft's rockets / missiles / bombs / cargo / flares by class (scripts/vehicles/air_arms.gd); the AIM button fires its selected arm
+var tarms: TankArms = null            ## w127-arms: a military vehicle's coax / roof MG / ATGM / rocket salvo / SAM and smoke by class (scripts/vehicles/tank_arms.gd); the AIM button fires its selected arm
 
 
 static func has_weapon(kind: StringName) -> bool:
@@ -36,6 +37,9 @@ func setup(c: Vehicle) -> void:
 	arms = AirArms.make(c)
 	if arms != null:
 		alt_def = arms.def()
+	tarms = TankArms.make(c)
+	if tarms != null:
+		alt_def = tarms.def()
 	reload_full()
 
 
@@ -56,6 +60,8 @@ func reload_full() -> void:
 	_alt_rl = 0.0
 	if arms != null:
 		arms.reload_full()
+	if tarms != null:
+		tarms.reload_full()
 
 
 func can_fire() -> bool:
@@ -120,7 +126,8 @@ func _shoot() -> void:
 		end = r["position"]
 		var col: Object = r["collider"]
 		if col != null and col.has_method(&"damage"):
-			col.call(&"damage", float(def["dmg"]))
+			if TankArmour.hit(col, end, dir, float(def["dmg"]), TankArms.round_kind(car, def)) == &"":     # w127-arms: a tank is hit on a zone (front / side / rear / turret / tracks)
+				col.call(&"damage", float(def["dmg"]))
 			if car.driver_is_player and col is Node and (col as Node).is_in_group(&"enemy"):
 				BlastCredit.dealt(col, float(def["dmg"]))                         # the hero's vehicle gun hits count like his own bullets (marker, kills for the side jobs)
 			hits += 1
@@ -128,7 +135,7 @@ func _shoot() -> void:
 		if blast > 0.0 and car.driver_is_player and BlastOps.is_shell_gun(car.kind):                    # the player's tank fires the selected shell of the blast table: HE, AP or CLUSTER (ammo type key)
 			BlastOps.shared(car.get_tree()).shell_blast(car, end)
 		elif blast > 0.0:
-			Game.explode(end, blast, {"enemy_dmg": float(def["dmg"]) * 0.5, "car_dmg": float(def["dmg"]) * 0.5, "player_dmg": 0.0, "color": def["color"], "quiet": bool(def.get("flak", false))})
+			Game.explode(end, blast, {"enemy_dmg": float(def["dmg"]) * 0.5, "car_dmg": float(def["dmg"]) * 0.5, "player_dmg": TankCrews.hero_dmg(car, float(def["dmg"])), "color": def["color"], "quiet": bool(def.get("flak", false))})
 		else:
 			FX.burst(end, def["color"], 4, 4.0, 0.25, 6.0, 0.4)
 	elif bool(def.get("flak", false)):                           # flak bursts in the air at the end of its range, so a plane that is up there still feels it
@@ -147,6 +154,7 @@ func _shell() -> void:
 	if Vector2(off.x, off.z).length() > rng:
 		off = off.normalized() * rng
 		aim = car.global_position + off
+	aim = TankArms.artillery_aim(car, aim)                                  # w127-arms: the marker snaps to a target close to the crosshair's ground point
 	var q := PhysicsRayQueryParameters3D.create(aim + Vector3(0.0, 60.0, 0.0), aim - Vector3(0.0, 80.0, 0.0), Game.L_WORLD | Game.L_VEHICLE)
 	var hit := car.get_world_3d().direct_space_state.intersect_ray(q)
 	var land: Vector3 = hit["position"] if not hit.is_empty() else Vector3(aim.x, car.global_position.y, aim.z)
@@ -174,7 +182,7 @@ func has_alt() -> bool:
 
 ## w126-air: tick_alt must run (a secondary on AIM, or flares only).
 func ticks_alt() -> bool:
-	return arms != null or not alt_def.is_empty()
+	return arms != null or tarms != null or not alt_def.is_empty()
 
 
 func can_fire_alt() -> bool:
@@ -185,6 +193,8 @@ func can_fire_alt() -> bool:
 func tick_alt(dt: float, fire: bool) -> bool:
 	if arms != null:
 		return _arms_sync(arms.tick(dt, fire))
+	if tarms != null:
+		return _tarms_sync(tarms.tick(dt, fire))
 	if not has_alt():
 		return false
 	_alt_cd -= dt
@@ -204,6 +214,8 @@ func tick_alt(dt: float, fire: bool) -> bool:
 func fire_alt() -> bool:
 	if arms != null:
 		return _arms_sync(arms.fire_now())
+	if tarms != null:
+		return _tarms_sync(tarms.fire_now())
 	if not can_fire_alt():
 		return false
 	_alt_cd = 1.0 / float(alt_def["rate"])
@@ -239,6 +251,18 @@ func _arms_sync(fired: bool) -> bool:
 	for a: StringName in arms.shots:
 		if a != &"flare":
 			n += int(arms.shots[a])
+	alt_shots = n
+	return fired
+
+
+## w127-arms: the old fields follow the selected arm of a military vehicle (the AIM button's label, old tests of the coax read them).
+func _tarms_sync(fired: bool) -> bool:
+	alt_def = tarms.def()
+	alt_ammo = int(tarms.ammo.get(tarms.current(), 0))
+	var n := 0
+	for a: StringName in tarms.shots:
+		if a != &"smoke":
+			n += int(tarms.shots[a])
 	alt_shots = n
 	return fired
 

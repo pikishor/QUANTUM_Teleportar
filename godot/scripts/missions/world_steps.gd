@@ -13,10 +13,10 @@ const BOX_HOLD := 2.2                     ## seconds within `catch` metres that 
 const STUCK_SECONDS := 3.0
 const WAIT_FAR := 190.0
 const CLASSES := {
-	&"air": [&"heli", &"plane"], &"heli": [&"heli"], &"plane": [&"plane"], &"boat": [&"boat"],
+	&"air": [&"heli", &"plane"], &"heli": [&"heli"], &"plane": [&"plane"], &"boat": [&"boat"], &"tank": [&"tank"],       # w127-arms: the tank missions
 }
 const NEED_TEXT := {
-	&"air": "GET IN AN AIRCRAFT", &"heli": "GET IN THE HELICOPTER", &"plane": "GET IN THE PLANE", &"boat": "GET IN A BOAT", &"ground": "GET IN A CAR",
+	&"air": "GET IN AN AIRCRAFT", &"heli": "GET IN THE HELICOPTER", &"plane": "GET IN THE PLANE", &"boat": "GET IN A BOAT", &"ground": "GET IN A CAR", &"tank": "GET IN THE TANK",
 }
 const LAND_SPEED := 5.0
 const LAND_AGL := 2.5

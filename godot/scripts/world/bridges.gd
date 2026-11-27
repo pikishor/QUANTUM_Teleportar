@@ -14,6 +14,7 @@ const PARAPET := 0.9                       ## metres each side of the carriagewa
 const SUSPENSION := {"x0": -250.0, "x1": 380.0, "z": 1604.0, "y_end": 1.3, "y_span": 9.0, "tower_x0": -110.0, "tower_x1": 170.0}
 
 static var built := false
+static var wedge_on := OS.get_environment("W127C_OLD") != "1"         ## w127-critic: the outer bend wedges belong to the deck (deck_y); false = the old gaps
 static var list: Array[Dictionary] = []
 static var _grid := {}                      ## cell key -> PackedInt32Array of (bridge << 12 | segment)
 
@@ -178,7 +179,11 @@ static func deck_y(x: float, z: float, y_hint: float) -> float:
 			continue
 		var t := ((x - a.x) * ab.x + (z - a.z) * ab.y) / l2
 		if t < -0.001 or t > 1.001:
-			continue
+			# w127-critic: the WEDGE on the outer side of a bend between two segments lies past the end of the one and before the start of the next, so no segment owned it and the deck
+			# "vanished" there: a tank (its hull samples) sank into the deck and stuck, a car on the outer lane fell through it into the river. An inner joint now owns the wedge.
+			if not wedge_on or (t < 0.0 and s == 0) or (t > 1.0 and s == pts.size() - 2):
+				continue
+			t = clampf(t, 0.0, 1.0)
 		var px := a.x + ab.x * t
 		var pz := a.z + ab.y * t
 		var lat := Vector2(x - px, z - pz).length()

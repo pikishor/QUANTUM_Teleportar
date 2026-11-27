@@ -25,6 +25,8 @@ static func build(kind: String, spec: Dictionary) -> Node3D:
 		return HeliModels.build(kind, spec)
 	if PlaneRoster.DEFS.has(StringName(kind)):                                # wave 126: the 28 aeroplanes of the roster (PlaneModels, shared meshes per kind)
 		return PlaneModels.build(kind, spec)
+	if TankRoster.DEFS.has(StringName(kind)):                                 # wave 127: the twenty military ground vehicles (TankModels, shared meshes, moving tracks / tyres / legs)
+		return TankModels.build(kind, spec)
 	var m := VehicleCraftModels.new()
 	var root := Node3D.new()
 	root.name = String(spec["model"])
