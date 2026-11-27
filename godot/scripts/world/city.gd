@@ -620,6 +620,7 @@ func _build_props() -> void:
 	_props.doors = doors                                 # w123-clutter: props keep the door lanes clear (StreetClutter)
 	_props.build(layout, building_data)
 	_colliders.build(self, _props.parts, _props.kit.collider_sources())
+	_colliders.on_knock = _knock_prop                   # w128-open: a tank knocks street furniture down (city_colliders.gd knock)
 	var prop_mat := _shader_mat(PROP_SHADER)
 	_prop_mats.append(prop_mat)
 	var prop_mirror := _shader_mat(PROP_MIRROR_SHADER)
@@ -655,6 +656,39 @@ func _build_props() -> void:
 				if radius > 0.0:
 					var mats: Array[ShaderMaterial] = [shaft_mat]
 					_stream.add(part["name"], mm, radius, Stream.mesh_triangles(mm.mesh), mats)
+
+
+## w128-open: hide (or bring back) the drawn instance of a knocked prop: the windowed family through the stream, a family that is not windowed straight in its buffer.
+var _knock_saved := {}
+
+func _knock_prop(fam: String, origin: Vector3, hide: bool, kit := false) -> void:
+	if kit:
+		_kit_window.hide_at(origin, hide)
+		return
+	_stream.hide_near(fam, origin, hide)
+	if _stream.families.any(func(f) -> bool: return f.name == fam):
+		return
+	for part in _props.parts:
+		if String(part.get("name", "")) != fam:
+			continue
+		var mm: MultiMesh = part["mm"]
+		var stride := 12 + (4 if mm.use_colors else 0) + (4 if mm.use_custom_data else 0)
+		var buf := mm.buffer
+		var key := "%s@%.2f,%.2f" % [fam, origin.x, origin.z]
+		for i in mm.instance_count:
+			var o := i * stride
+			if absf(buf[o + 3] - origin.x) > 0.06 or absf(buf[o + 11] - origin.z) > 0.06:
+				continue
+			if hide:
+				_knock_saved[key] = buf.slice(o, o + 12)
+				for q: int in [0, 1, 2, 4, 5, 6, 8, 9, 10]:
+					buf[o + q] *= 0.0001
+			elif _knock_saved.has(key):
+				var sv: PackedFloat32Array = _knock_saved[key]
+				for q in 12:
+					buf[o + q] = sv[q]
+				_knock_saved.erase(key)
+		mm.buffer = buf
 
 
 ## The street kit window and the district landmarks (city_kit.gd, city_landmarks.gd): ONE mesh, ONE draw call, merged around the camera.

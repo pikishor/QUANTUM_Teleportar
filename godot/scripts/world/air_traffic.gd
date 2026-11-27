@@ -29,6 +29,11 @@ const LINER_KINDS: Array[StringName] = [&"airliner", &"p_narrow", &"p_regional",
 const CROSS_PLANES: Array[StringName] = [&"p_cub", &"p_regional", &"p_twin", &"p_freighter", &"p_trainer", &"p_fighter", &"p_seaplane", &"p_bomber", &"p_biplane", &"p_glider", &"p_awacs",
 		&"p_bush", &"jet", &"cargo", &"p_tanker", &"p_racer", &"p_duster", &"p_interceptor"]
 static var roster_on := OS.get_environment("W126A_OLD") != "1"
+## w128-airlook: six crossers (three helicopters, three planes) instead of four, and the three pad helicopters cycle through the new helicopter kinds that fit a pad (W128_OLD=1: off).
+static var more_on := OS.get_environment("W128_OLD") != "1"
+const APRON_A: Array[StringName] = [&"h_scout", &"h_news", &"h_police", &"h_trainer", &"h_ultra", &"h_vip", &"h_medic"]
+const APRON_B: Array[StringName] = [&"h_attack", &"h_stealth", &"h_coax", &"h_naval", &"h_quantum", &"h_void"]
+const APRON_C: Array[StringName] = [&"h_utility", &"h_fire", &"h_gull"]
 
 class Flight extends RefCounted:
 	var id: StringName
@@ -124,7 +129,15 @@ func _roster() -> void:
 	flights[1].slot = 1
 	var hl := _have(HeliRoster.NEW)
 	var pl := _have(CROSS_PLANES)
-	for i in 4:
+	var nc := 6 if more_on else 4
+	if more_on:                                                                 # w128-airlook: the pad helicopters fly the wave 125 kinds in turn (the classic kind first)
+		var pads := {&"heli_a": APRON_A, &"heli_b": APRON_B, &"heli_c": APRON_C}
+		for f in flights:
+			if pads.has(f.id):
+				var ks: Array[StringName] = [f.kind]
+				ks.append_array(_have(pads[f.id]))
+				f.kinds = ks
+	for i in nc:
 		var f := Flight.new()
 		f.id = StringName("cross_%d" % i)
 		f.cross = true
@@ -133,7 +146,7 @@ func _roster() -> void:
 		if src.is_empty():
 			continue
 		var mine2: Array[StringName] = []
-		for j in range(i / 2, src.size(), 2):
+		for j in range(i / 2, src.size(), nc / 2):
 			mine2.append(src[j])
 		f.kinds = mine2
 		f.kind = mine2[0]

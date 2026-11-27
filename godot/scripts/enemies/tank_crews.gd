@@ -37,6 +37,7 @@ static var spawned := 0
 static var wanted_sent := 0
 
 var crews: Array[Dictionary] = []
+static var freed_guard_on := OS.get_environment("W128O_OLD") != "1"     ## w128-open: W128O_OLD=1 = the old tick (casts a freed crew vehicle: SCRIPT ERROR)
 var _base := Vector3.INF
 var _base_t := 0.0
 var _wanted_t := WANTED_EVERY
@@ -243,8 +244,13 @@ func _physics_process(dt: float) -> void:
 	var i := crews.size() - 1
 	while i >= 0:
 		var c := crews[i]
-		var v := c["v"] as Vehicle
-		if not is_instance_valid(v) or not v.active or v.dead:
+		var raw: Variant = c["v"]
+		if freed_guard_on and not is_instance_valid(raw):                    # w128-open: a freed vehicle must not be cast (`as` on a freed object is a SCRIPT ERROR that aborted this tick every frame)
+			crews.remove_at(i)
+			i -= 1
+			continue
+		var v := raw as Vehicle
+		if v == null or not v.active or v.dead:
 			crews.remove_at(i)
 			i -= 1
 			continue

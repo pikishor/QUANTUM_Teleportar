@@ -8,7 +8,11 @@ extends CanvasLayer
 signal opened
 signal closed
 
-const TABS: Array[String] = ["CHAPTERS", "SIDE", "ACTIVITY", "SET PIECE", "BOSS", "EVENT", "CONTRACT", "INTERIOR", "SEQUEL", "CHASE", "ALLY", "STEALTH", "HEIST", "ARENA", "SAFEHOUSE", "WORKBENCH", "WEAPONS", "SPAWN", "TOOLS"]
+const ALL_TABS: Array[String] = ["CHAPTERS", "SIDE", "ACTIVITY", "SET PIECE", "BOSS", "EVENT", "CONTRACT", "INTERIOR", "SEQUEL", "CHASE", "ALLY", "STEALTH", "HEIST", "ARENA", "SAFEHOUSE", "WORKBENCH", "WEAPONS", "VEHICLES", "AIRCRAFT", "SPAWN", "TOOLS"]
+## w128-open: VEHICLES and AIRCRAFT tabs (every vehicle / aircraft kind). W128O_OLD=1: the tabs before (without them).
+static var TABS: Array[String] = ALL_TABS.filter(func(t: String) -> bool: return OS.get_environment("W128O_OLD") != "1" or (t != "VEHICLES" and t != "AIRCRAFT"))
+# the tabs that are not a DemoMode.catalog() group (w128 integrator: the catalogue tests count catalogue groups + these)
+static var OWN_TABS: Array[String] = TABS.filter(func(t: String) -> bool: return t in ["VEHICLES", "AIRCRAFT", "SPAWN", "TOOLS"])
 const BG := Color(0.01, 0.03, 0.05, 1.0)
 const PANEL := Color(0.05, 0.13, 0.17, 1.0)
 const ON := Color(0.1, 0.55, 0.45, 1.0)
@@ -159,6 +163,19 @@ func _page_items() -> Array[Dictionary]:
 				out.append(_go(String(it["label"]), g["kind"], it["id"]))
 		return out
 	match TABS[page]:
+		"VEHICLES", "AIRCRAFT":                     # w128-open: every vehicle kind / every aircraft kind by class; a tap closes the menu and puts it next to the hero (a plane on the runway)
+			var air: bool = TABS[page] == "AIRCRAFT"
+			out.append(_head("EVERY %s, TAP: IT WAITS NEXT TO YOU, ENTER IT" % ("AIRCRAFT" if air else "VEHICLE")))
+			for g: Dictionary in DemoMode.vehicle_groups(air):
+				out.append(_head(String(g["title"])))
+				for k: StringName in g["kinds"]:
+					var b := {"label": VehicleSpecs.name_of(k), "launch": true, "on": null, "id": k, "kind": &"vehicle",
+						"fn": func() -> void:
+							close()
+							status = DemoMode.spawn_any(k)
+							if status == "":
+								status = "COULD NOT SPAWN"}
+					out.append(b)
 		"SPAWN":
 			if ArmourSites.demo_on:
 				out.append(_head("TANKS, HELICOPTERS, PLANES: NEXT TO YOU"))       # wave 118: first in the list, placed on free ground beside the hero (ArmourSites.spawn_beside)
@@ -292,8 +309,13 @@ func _tab_rects() -> Array[Rect2]:
 
 
 ## The DEMO button / badge (left edge, during play and pause while the demo runs): opens the menu.
+## w128-open: it sits at the top, right of the minimap (Hud.MINIMAP); on the left edge at 300 px it lay over the on-foot CROUCH / FLY chips of the touch layout.
+static var top_badge_on := OS.get_environment("W128O_OLD") != "1"
+
 func entry_rect() -> Rect2:
 	var s := _s()
+	if top_badge_on:
+		return Rect2(UiUtil.insets(_vp()).x + (16.0 + Hud.MINIMAP + 12.0) * s, 14.0 * s + UiUtil.insets_v(_vp()).x, 120.0 * s, BTN_H * s)
 	return Rect2(maxf(UiUtil.insets(_vp()).x, 8.0 * s) + 8.0 * s, 300.0 * s, 120.0 * s, BTN_H * s)
 
 

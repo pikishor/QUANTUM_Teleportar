@@ -1098,9 +1098,25 @@ func _move(dt: float) -> void:
 	if motion.length_squared() < 1e-10:
 		return
 	var col := move_and_collide(motion)
+	if col != null and cls == &"tank" and _knock_prop(col):
+		col = move_and_collide(col.get_remainder())                # w128-open: the tank rolls on through the lamp post / hydrant / bench it knocked down
 	if col != null:
 		_bounce(col)
 	_terrain_step(dt)
+
+
+## w128-open: a tank that drives into street furniture of the city's prop pool knocks it down (CityColliders.knock) and loses a little speed, instead of stopping at it as at a wall.
+func _knock_prop(col: KinematicCollision3D) -> bool:
+	var w = Game.world
+	if w == null or not is_instance_valid(w) or not w.has_method(&"prop_colliders"):
+		return false
+	var pc = w.prop_colliders()
+	if pc == null or not pc.knock(col.get_collider(), vel):
+		return false
+	vel *= 0.9
+	if driver_is_player:
+		FX.shake(0.18)
+	return true
 
 
 ## w127-ci: the height a car is put at by activate(): the deck of a bridge when `pos.y` (the caller's height: a road car's lane height when RoadTraffic promotes it) is within reach of one

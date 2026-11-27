@@ -8,7 +8,7 @@ const PAGE := 8                                   ## weapons per page (the loado
 const FAV: StringName = &"fav"
 const RECENT: StringName = &"recent"
 const RECENT_MAX := 8
-const FAV_MAX := 24
+const FAV_MAX := 36                                ## wave 128: as many as the carried slots
 
 const CAP_MAX := 11                               ## characters of a tile caption (a tile is 132 px wide; the caption never goes under the legible size)
 const GENERIC := ["GUN", "RIFLE", "PISTOL", "SMG", "SHOTGUN", "CARBINE", "SNIPER", "LMG", "DMR", "BOW", "CROSSBOW", "CANNON", "LAUNCHER", "COMPACT", "REPEATER", "SPRAYER", "EMITTER", "ROTARY", "PISTOLS"]
@@ -121,7 +121,7 @@ static func toggle_favourite(id: StringName) -> bool:
 	if favourites.has(id):
 		favourites.erase(id)
 		return false
-	if favourites.size() >= FAV_MAX:
+	if favourites.size() >= (24 if LoadoutSlots.OLD else FAV_MAX):
 		return false
 	favourites.append(id)
 	return true

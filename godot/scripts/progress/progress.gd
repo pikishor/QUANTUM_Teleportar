@@ -837,7 +837,7 @@ func save_file() -> bool:
 	cf.set_value("weapons", "favourites", wb["favourites"])
 	cf.set_value("weapons", "recent", wb["recent"])
 	cf.set_value("weapons", "seen", wb["seen"])                              # the NEW filter of the Arsenal (wave 114)
-	cf.set_value("weapons", "slots", wb["slots"])                             # the four loadout slots
+	cf.set_value("weapons", "slots", wb["slots"])                             # the carried slots (36 since wave 128)
 	var att := Attachments.to_save()
 	cf.set_value("attachments", "owned", att["owned"])
 	cf.set_value("attachments", "equipped", att["equipped"])

@@ -26,6 +26,7 @@ const NEAR_MIN := 0.1
 const GLOW := 0.6                                ## the shader's brightness for the combat snakes: the colour of the power stays a colour instead of washing out to white
 
 static var current: SnakeSwarm
+static var strike_on := OS.get_environment("W128_OLD") != "1"     ## w128-anim: a crawling snake rears back and strikes as it reaches its target (false = the old straight slide)
 
 
 class Body extends RefCounted:
@@ -425,12 +426,19 @@ func _shape(b: Body) -> void:
 				side = Vector3.RIGHT
 			side = side.normalized()
 			var l := b.len * b.fade_k
+			var sk := clampf(b.lift / 0.4, 0.0, 1.0) if strike_on else 0.0       # w128-anim: the STRIKE as it closes in: the neck draws back into an S (coil), then the head lunges
+			var coil := sin(minf(sk / 0.6, 1.0) * PI * 0.5) * (1.0 - smoothf(0.6, 0.85, sk))
+			var lunge := smoothf(0.6, 0.85, sk)
 			for i in n:
 				var u := float(i) / last
 				var s := (1.0 - u) * l
 				var wave := sin(t * 9.0 - s * 4.4) * b.amp * minf(1.0, 0.2 + u * 0.9) * clampf(l / 1.2, 0.5, 1.2)
 				var rise := b.lift * smoothf(0.5, 1.0, u) * l * 0.5
-				b.pts[i] = b.pos - h * s + side * wave + Vector3(0.0, rise + absf(sin(t * 9.0 - s * 4.4 + 1.4)) * b.thick * 0.6, 0.0)
+				var pt := b.pos - h * s + side * wave + Vector3(0.0, rise + absf(sin(t * 9.0 - s * 4.4 + 1.4)) * b.thick * 0.6, 0.0)
+				if sk > 0.0:
+					var nw := smoothf(0.5, 1.0, u)                                       # the neck and the head (the front half)
+					pt += -h * (0.42 * coil - 0.22 * lunge) * l * 0.5 * nw + side * sin((u - 0.5) * 12.0) * 0.16 * coil * nw * l * 0.6
+				b.pts[i] = pt
 		&"coil":
 			var c := _center(b)
 			var ramp := clampf(b.age / 0.35, 0.0, 1.0)

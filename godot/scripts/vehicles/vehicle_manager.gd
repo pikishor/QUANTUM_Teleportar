@@ -826,10 +826,22 @@ func _collide_all() -> void:
 			var dz := a.global_position.z - b.global_position.z
 			if dx * dx + dz * dz > reach * reach:
 				continue
+			if hull_height_on and not hulls_meet_y(a, b):                  # w128-open: one car on a bridge deck, the other on the road under it: they never touch
+				continue
 			if a.ai and b.ai and a.ai_panic <= 1.0 and b.ai_panic <= 1.0:        # lane traffic brakes for each other (they never meet); if two ever do, they are pulled apart; cars in flight after gunfire really hit
 				_separate_lane_cars(a, b)
 				continue
 			collide_cars(a, b)
+
+
+## w128-open: hull contacts respect height. The cars' origins stand on their floor; two hulls meet only when their height spans overlap (spec "hgt" each, 0.3 m slack).
+## It used to be x / z only: a van on the road under a bridge shoved the tank crossing the deck above it into the parapet (w127 CI). W128O_OLD=1: the old flat rule.
+static var hull_height_on := OS.get_environment("W128O_OLD") != "1"
+
+static func hulls_meet_y(a: Vehicle, b: Vehicle) -> bool:
+	var ya := a.global_position.y
+	var yb := b.global_position.y
+	return ya < yb + float(b.spec["hgt"]) + 0.3 and yb < ya + float(a.spec["hgt"]) + 0.3
 
 
 ## Two lane cars whose hulls overlap (they never should: the safe-distance rule keeps them apart): the one behind stops, both are pushed out of each other, and a pair that does not clear within

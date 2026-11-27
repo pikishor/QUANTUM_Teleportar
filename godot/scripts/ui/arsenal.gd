@@ -7,7 +7,7 @@ extends RefCounted
 ## person (scripts/ui/weapon_rings.gd), tabs STATS / PARTS (attachments with a live stat preview) / AMMO (ammo types), the action (EQUIP, BUY, IN HAND). The bottom bar holds BACK, the four
 ## LOADOUT SLOTS (LoadoutSlots: the quick swap walks them), the star (favourite) and the action. The catalogue also lists the throwables and gadgets of Gear as two more classes.
 ## Ids: tiles keep the old ones (`wheel_<id>` in the loadout, `wsel_<id>` in the catalogue; a tap SELECTS, it never equips), chips `ars_filter_<f>`, `ars_cls_prev` / `ars_cls_next`, `ars_sort`,
-## `ars_tab_<t>`, `ars_view3d`, `ars_slot_<i>`, `ars_part_<id>` (parts), `ars_ammo_<i>`, `ars_slottab_<slot>`, `ars_equip`, `ars_bench`, `ars_star`; the catalogue's action keeps `buy_<id>` / `wequip_<id>` / `wgear_<id>`.
+## `ars_tab_<t>`, `ars_view3d`, `ars_slot_<i>`, `ars_slotpage`, `ars_part_<id>` (parts), `ars_ammo_<i>`, `ars_slottab_<slot>`, `ars_equip`, `ars_bench`, `ars_star`; the catalogue's action keeps `buy_<id>` / `wequip_<id>` / `wgear_<id>`.
 ## State is static per mode (the filter, class, sort, tab and scroll survive closing the screen). Tests: tests/test_weapon_ui_v3.gd.
 
 const W := 1240.0                       ## base px the layout spans (squeezed horizontally by k on a narrower screen)
@@ -67,13 +67,14 @@ static func open(mode: StringName, sel: StringName) -> void:
 	s["scroll"] = 0.0
 	_list_cache_key = ""
 	_disp.clear()
+	LoadoutSlots.page = clampi(LoadoutSlots.active / LoadoutSlots.PAGE, 0, LoadoutSlots.pages() - 1)     # the bar opens on the page of the active slot
 	if sel != &"":
 		_scroll_to(mode, sel)
 
 
 static func state_key(mode: StringName) -> String:
 	var s := st(mode)
-	return "%s%s%s%s%s%d%s%d" % [s["filter"], s["cls"], s["sort"], s["tab"], s["part"], int(float(s["scroll"])), view3d, s["ammo"]] + str(LoadoutSlots.slots.hash()) + str(LoadoutSlots.active)
+	return "%s%s%s%s%s%d%s%d" % [s["filter"], s["cls"], s["sort"], s["tab"], s["part"], int(float(s["scroll"])), view3d, s["ammo"]] + str(LoadoutSlots.slots.hash()) + str(LoadoutSlots.active) + "p" + str(LoadoutSlots.page)
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------- the list model
@@ -282,13 +283,20 @@ static func card_rects(vp: Vector2, s: float, tab: StringName) -> Dictionary:
 	return out
 
 
-## The bottom bar from the left: BACK, the four slots, GEAR (when there is room), and from the right: the action and the star. Every one is at least 64 base px across.
+## The bottom bar from the left: BACK, one page of the carried slots (LoadoutSlots.PAGE of the 36, wave 128), the page chip, GEAR (when there is room), and from the right: the action and the star.
+## Every one is at least 64 base px across. Slot `i` (0..35) sits at the place of its page (i % PAGE); only the slots of LoadoutSlots.page are buttons.
 static func slot_rect(vp: Vector2, s: float, i: int) -> Rect2:
 	var k := k_of(vp, s)
 	var left := vp.x * 0.5 + LIST_X * k * s
 	var w := maxf(96.0 * k, 64.0) * s
 	var x0 := left + maxf(200.0 * k, 110.0) * s + 10.0 * s
-	return Rect2(x0 + float(i) * (w + 4.0 * s), ACTION_Y * s, w, CHIP * s)
+	return Rect2(x0 + float(posmod(i, LoadoutSlots.PAGE)) * (w + 4.0 * s), ACTION_Y * s, w, CHIP * s)
+
+
+## The page chip after the last slot of a page: "5-8" over "OF 36", a tap shows the next four carried slots.
+static func slot_page_rect(vp: Vector2, s: float) -> Rect2:
+	var last := slot_rect(vp, s, LoadoutSlots.PAGE - 1)
+	return Rect2(last.end.x + 4.0 * s, ACTION_Y * s, maxf(last.size.x, 84.0 * s), CHIP * s)
 
 
 static func back_rect(vp: Vector2, s: float) -> Rect2:
@@ -309,7 +317,7 @@ static func star_rect(vp: Vector2, s: float) -> Rect2:
 
 ## The GEAR chip between the last slot and the star: null-sized when there is no room for a 100 base px chip.
 static func gear_rect(vp: Vector2, s: float) -> Rect2:
-	var last := slot_rect(vp, s, LoadoutSlots.COUNT - 1)
+	var last := slot_page_rect(vp, s)
 	var x0 := last.end.x + 8.0 * s
 	var x1 := star_rect(vp, s).position.x - 8.0 * s
 	if x1 - x0 < 100.0 * s:
@@ -394,11 +402,14 @@ static func layout(hud: Hud, cx: float, s: float, mode: StringName) -> void:
 		if WeaponModels.has_model(sel) and tab != &"parts":                      # the PARTS tab always shows the live 3D weapon
 			hud.buttons.append({"id": &"ars_view3d", "rect": cr["view3d"], "label": "3D VIEW", "on": view3d, "own": true})
 	ArsenalCard.layout(hud, vp, s, mode, sel, tab, cr)
-	# the bottom bar: BACK, the four slots, the star, the action
+	# the bottom bar: BACK, one page of the 36 carried slots and the page chip, the star, the action
 	hud.buttons.append({"id": &"loadout_back" if mode == &"loadout" else &"shop_back", "rect": back_rect(vp, s), "label": "RESUME" if (mode == &"loadout" and hud._loadout_quick) else "BACK", "on": false})
 	if mode == &"loadout" or true:
-		for i in LoadoutSlots.COUNT:
+		var p0 := LoadoutSlots.page * LoadoutSlots.PAGE
+		for i in range(p0, p0 + LoadoutSlots.PAGE):
 			hud.buttons.append({"id": StringName("ars_slot_%d" % i), "rect": slot_rect(vp, s, i), "label": "", "on": LoadoutSlots.active == i, "own": true})
+		if not LoadoutSlots.OLD:
+			hud.buttons.append({"id": &"ars_slotpage", "rect": slot_page_rect(vp, s), "label": "", "on": false, "own": true})
 	if not gear:
 		hud.buttons.append({"id": &"ars_star", "rect": star_rect(vp, s), "label": "", "on": WeaponBrowser.is_favourite(sel), "own": true})
 	if mode == &"loadout" and gear_rect(vp, s).has_area():
@@ -498,6 +509,10 @@ static func press(hud: Hud, sid: String) -> bool:
 	elif sid == "ars_view3d":
 		view3d = not view3d
 		Sfx.play(&"ui_toggle")
+	elif sid == "ars_slotpage":                                              # wave 128: the next four of the 36 carried slots; the first slot of the page becomes the active one
+		LoadoutSlots.flip_page(1)
+		LoadoutSlots.active = LoadoutSlots.page * LoadoutSlots.PAGE
+		Sfx.play(&"ui_tap")
 	elif sid.begins_with("ars_slot_"):
 		var i := sid.substr(9).to_int()
 		LoadoutSlots.active = clampi(i, 0, LoadoutSlots.COUNT - 1)
@@ -850,15 +865,22 @@ static func _tile(hud: Hud, c: Control, tr: Rect2, vis: Rect2, s: float, font: F
 
 
 static func _draw_bottom(hud: Hud, c: Control, vp: Vector2, s: float, font: Font, mode: StringName, sel: StringName, gear: bool) -> void:
-	# the four slots: a picture over its number; the active one is lit
-	for i in LoadoutSlots.COUNT:
+	# one page of the carried slots: a picture over its number; the active one is lit
+	var p0 := LoadoutSlots.page * LoadoutSlots.PAGE
+	for i in range(p0, p0 + LoadoutSlots.PAGE):
 		var r := slot_rect(vp, s, i)
 		var w := LoadoutSlots.get_slot(i)
 		var act := LoadoutSlots.active == i
 		UiKit.panel(c, r, s, UiUtil.CYAN if act else Color(0.5, 0.62, 0.8), act, 8.0, act)
 		if w != &"":
 			WeaponPics.draw_fit(c, w, Rect2(r.position + Vector2(14.0, 4.0) * s, Vector2(r.size.x - 18.0 * s, r.size.y - 20.0 * s)), false, Color(1, 1, 1, 1.0 if act else 0.82), 1.4)
-		hud._text(c, font, Vector2(r.position.x + 5.0 * s, r.end.y - 6.0 * s), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, 20.0 * s, int(Hud.BODY_MIN * 1.2 * s), Color(UiUtil.CYAN if act else Color(1, 1, 1, 0.7)))
+		hud._text(c, font, Vector2(r.position.x + 5.0 * s, r.end.y - 6.0 * s), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, 36.0 * s, int(Hud.BODY_MIN * 1.2 * s), Color(UiUtil.CYAN if act else Color(1, 1, 1, 0.7)))
+	# the page chip: which four of the 36 are shown, how many are carried, an arrow to the next page
+	if not LoadoutSlots.OLD:
+		var pr := slot_page_rect(vp, s)
+		UiKit.panel(c, pr, s, UiUtil.AMBER, false, 8.0, false)
+		hud._text(c, font, Vector2(pr.position.x, pr.position.y + 27.0 * s), "%d-%d" % [p0 + 1, p0 + LoadoutSlots.PAGE], HORIZONTAL_ALIGNMENT_CENTER, pr.size.x, int(Hud.BODY_MIN * 1.25 * s), Color(1, 1, 1, 0.95))
+		hud._text(c, font, Vector2(pr.position.x, pr.position.y + 54.0 * s), "%d/%d >" % [LoadoutSlots.filled().size(), LoadoutSlots.COUNT], HORIZONTAL_ALIGNMENT_CENTER, pr.size.x, int(Hud.BODY_MIN * s), Color(UiUtil.AMBER))
 	# the star: a favourite is filled amber
 	if not gear:
 		var sr := star_rect(vp, s)

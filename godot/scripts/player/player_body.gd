@@ -234,6 +234,8 @@ var character_light := true:
 
 
 func _ready() -> void:
+	process_priority = 1000                                # w128-anim: _process re-places the seated body after the vehicles' visual sync
+	set_process(false)
 	top_level = true
 	_build()
 
@@ -257,6 +259,13 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 	var state := Game.state
 	var adt := 0.0 if state == &"paused" else dt          # a pause freezes the pose; the flash and light timers at the end run on real time
 	var dying := _dead_t >= 0.0
+	if rig != null and not dying:                         # w128-anim: in a vehicle seat the hero sits at the controls (SeatPose); elsewhere the pose below
+		var seat := SeatPose.for_vehicle(p.vehicle) if p.vehicle != null else {}
+		if not seat.is_empty():
+			_seated_view(p, adt, dt, seat)
+			return
+		if _seat_v != null or rig.seat > 0.0:
+			_leave_seat()
 	_clock += adt
 	var e := 0.0                                          # weight of the death pose, 0 standing .. 1 lying
 	if dying:
@@ -351,6 +360,9 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		if p.snake != null:                                 # QUANTUM SNAKES: the arms reach for the rope / the wall, the legs hang, the captured clip steps aside (scripts/quantum/snake_pose.gd)
 			p.snake.pose.update(p.snake, adt)
 			p.snake.pose.rig_inputs(rig)
+		if polish != null and adt > 0.0:                    # w128-anim: the cast gesture of a quantum verb (wind-up, release, back to the weapon)
+			cast.bind(p)
+			cast.update(adt, rig)
 		rig.aim_pitch = _aim_pitch
 		rig.recoil = _kick
 		rig.flinch = _flinch
@@ -365,7 +377,7 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 		rig.apply()
 		sync_muzzle()
 		if hero_mat != null:
-			var fm: StringName = &"relaxed" if (e > 0.5 or p.sprinting) else (&"aim" if (p.aiming and reload_k < 0.0) else &"grip")
+			var fm: StringName = &"relaxed" if (e > 0.5 or p.sprinting or cast.weight > 0.3) else (&"aim" if (p.aiming and reload_k < 0.0) else &"grip")
 			if fm != _finger_mode:
 				_finger_mode = fm
 				HeroFingers.pose(rig.skeleton, fm)
@@ -434,6 +446,151 @@ func update_view(p: Player, dt: float, view_pos: Vector3, yaw: float) -> void:
 			else:
 				var f := _light_t[i] / LIGHT_TIME
 				_lights[i].light_energy = LIGHT_ENERGY * f * f
+
+
+# --- w128-anim: the seated hero ----------------------------------------------------------------------------------------------------------------------------
+var cast := HeroCast.new()                   ## w128-anim: the cast gestures of the quantum verbs
+var _seat_v: Node3D                          ## the vehicle whose seat the hero sits in (null on foot)
+var seat_info := {}                          ## the SeatPose of that vehicle (tests read it)
+var _seat_in := 0.0                          ## 0..1: the sit-down blend after boarding
+var _seat_node: Node3D                       ## the node the seat rides on (the model or the turret) and the body's transform relative to it
+var _seat_xf := Transform3D.IDENTITY
+var _seat_ctrl := Vector3.ZERO               ## eased control input (x stick right, y stick back / nose up, z throttle lever)
+
+
+## One rendered frame in a seat: the body is placed on the seat of the vehicle (or the turret), the rig sits, the hands hold the controls and follow the player's stick.
+func _seated_view(p: Player, adt: float, dt: float, seat: Dictionary) -> void:
+	var v := p.vehicle as Vehicle
+	if _seat_v != v:
+		if _seat_v != null:
+			_leave_seat()
+		_seat_v = v
+		seat_info = seat
+		_seat_in = 0.5                                    # (the hero is already in: the entry ghost covers the step; the last part of the sit-down eases)
+		_gun_hide(true)
+		if v.visual != null and seat["style"] == &"cockpit":
+			SeatPose.set_canopy(v.visual.body, true)
+			SeatPose.set_canopy(v.visual.model.get_node_or_null("Body_LOD1") as MeshInstance3D, true)
+		if rig != null:
+			rig.clip_w = 0.0
+		_seat_shadows(true)
+		if hero_mat != null:
+			_finger_mode = &"grip"
+			HeroFingers.pose(rig.skeleton, &"grip")
+	var cam_view: int = p.camera_rig.veh_view if p.camera_rig != null else 0
+	visible = cam_view != 2                               # the cockpit view looks out of the hero's own eyes
+	_seat_in = minf(1.0, _seat_in + adt / 0.25)
+	_clock += adt
+	var node: Node3D = v.visual.model if v.visual != null else v
+	var nn := String(seat.get("node", ""))
+	if nn != "" and v.visual != null and v.visual.model.get_node_or_null(nn) != null:
+		node = v.visual.model.get_node(nn) as Node3D
+	var hip: Vector3 = seat["hip"]
+	var origin := hip - Vector3(0.0, rig._hips_rest_y, 0.0)          # the hero model's origin in the seat node's frame (the pelvis lands on the seat)
+	_seat_node = node
+	_seat_xf = Transform3D(Basis.IDENTITY, origin) * CharacterRig.chain_to(rig.model, self).affine_inverse()
+	global_transform = node.global_transform * _seat_xf
+	set_process(true)
+	# the controls follow the player's input (eased)
+	var craft = v.craft
+	var want := Vector3(clampf(v.steer_in, -1.0, 1.0), 0.0, 0.0)
+	if craft != null:                                     # an aircraft: the player's own stick (the craft code reads the same actions)
+		want.x = clampf(Input.get_axis(&"move_left", &"move_right"), -1.0, 1.0)
+		want.y = clampf(Input.get_axis(&"move_forward", &"move_back") * 0.6 + float(craft.pitch) * 2.0, -1.0, 1.0)
+		want.z = clampf(float(craft.lever), 0.0, 1.0)
+	_seat_ctrl = _seat_ctrl.lerp(want, 1.0 - exp(-10.0 * adt)) if adt > 0.0 else _seat_ctrl
+	var hands: Array = seat["hands"]
+	var hl: Vector3 = hands[0]
+	var hr: Vector3 = hands[1]
+	match seat.get("controls", &"stick"):
+		&"cyclic", &"stick":
+			hr += Vector3(_seat_ctrl.x * 0.06, 0.0, _seat_ctrl.y * 0.07)               # stick right / pulled back
+			hl += Vector3(0.0, 0.0, -_seat_ctrl.z * 0.08) if seat["controls"] == &"stick" else Vector3(0.0, _seat_ctrl.y * 0.04, 0.0)
+		&"yoke", &"bars":
+			var c := (hl + hr) * 0.5
+			var turn := Basis(Vector3.BACK if seat["controls"] == &"yoke" else Vector3.UP, -_seat_ctrl.x * (0.6 if seat["controls"] == &"yoke" else 0.35))
+			hl = c + turn * (hl - c)
+			hr = c + turn * (hr - c)
+	var feet: Array = seat["feet"]
+	rig.seat = _seat_in
+	rig.seat_hips = hip - origin
+	rig.seat_recline = float(seat.get("recline", 0.0))
+	rig.seat_feet[0] = (feet[0] as Vector3) - origin
+	rig.seat_feet[1] = (feet[1] as Vector3) - origin
+	rig.seat_hands[0] = hl - origin
+	rig.seat_hands[1] = hr - origin
+	rig.seat_hand_w = Vector2.ONE
+	rig.hand_w = Vector2.ZERO
+	rig.clip_w = 0.0
+	rig.aim_pitch = 0.0
+	rig.recoil = 0.0
+	rig.flinch = 0.0
+	rig.reload = -1.0
+	rig.ready = 0.75
+	rig.dead = 0.0
+	rig.amp = 0.0
+	rig.air = 0.0
+	rig.pose_hips = Vector3.ZERO
+	rig.head_yaw = clampf(-_seat_ctrl.x * 0.35, -0.5, 0.5)                        # the pilot looks into the turn
+	rig.breathe = sin(_clock * 2.1) * 0.006
+	rig.apply()
+	sync_muzzle()
+	update_glow(dt)
+	update_character_lights(1.0, p.camera_rig.yaw if p.camera_rig != null else NAN)
+
+
+## The vehicle's visual is synced after the hero's frame: the seated body is placed again at the very end of the frame, so it never lags a frame behind a turning machine (feet sliding).
+func _process(_dt: float) -> void:
+	if _seat_v == null or not is_instance_valid(_seat_node):
+		set_process(false)
+		return
+	global_transform = _seat_node.global_transform * _seat_xf
+
+
+## Out of the seat (on foot again, or into another vehicle): the normal pose takes over, the canopy is dark glass again, the weapon is back.
+## w128-critic: the seated pilot casts no shadow (his shadow proxy and any shadow caster are switched off under the canopy or in the hatch, where nobody sees the shadow): the shadow passes
+## drew the hero again aboard every vehicle (bot_w128_critic CR_ONLY=perf). `on` false puts back what was there. SEAT_SHADOW_OLD=1: the wave 128 behaviour (shadows kept).
+static var seat_shadow_off := OS.get_environment("SEAT_SHADOW_OLD") != "1"
+var _seat_shadow_saved := {}                 ## GeometryInstance3D -> [cast_shadow, visible] while seated
+
+
+func _seat_shadows(on: bool) -> void:
+	if on:
+		if not seat_shadow_off or not _seat_shadow_saved.is_empty():
+			return
+		for n in find_children("*", "GeometryInstance3D", true, false):
+			var g := n as GeometryInstance3D
+			if g.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+				continue
+			_seat_shadow_saved[g] = [g.cast_shadow, g.visible]
+			if g.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
+				g.visible = false
+			else:
+				g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		return
+	for g: Variant in _seat_shadow_saved:
+		if is_instance_valid(g):
+			var st: Array = _seat_shadow_saved[g]
+			(g as GeometryInstance3D).cast_shadow = st[0]
+			(g as GeometryInstance3D).visible = st[1]
+	_seat_shadow_saved.clear()
+
+
+func _leave_seat() -> void:
+	if is_instance_valid(_seat_v) and (_seat_v as Vehicle).visual != null:
+		SeatPose.set_canopy((_seat_v as Vehicle).visual.body, false)
+		SeatPose.set_canopy((_seat_v as Vehicle).visual.model.get_node_or_null("Body_LOD1") as MeshInstance3D, false)
+	_seat_v = null
+	seat_info = {}
+	_seat_in = 0.0
+	_seat_shadows(false)
+	_gun_hide(false)
+	if rig != null:
+		rig.seat = 0.0
+		rig.seat_hand_w = Vector2.ZERO
+		rig.head_yaw = 0.0
+	_have_last = false
+	_finger_mode = &""
 
 
 ## The aim solver: the barrel of every weapon points at what the crosshair sees. The shot itself is the camera's ray, so a barrel that points elsewhere draws a tracer that does not

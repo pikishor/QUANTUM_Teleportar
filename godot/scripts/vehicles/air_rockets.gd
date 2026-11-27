@@ -116,11 +116,59 @@ func _mesh(look: StringName = &"rocket") -> MeshInstance3D:
 			cm = cy
 	cm.material = mat
 	mi.mesh = cm
+	if look == &"crate" and chute_on:
+		mi.add_child(_chute())
 	_looks[mi] = look
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 	_meshes.append(mi)
 	return mi
+
+
+## w128-airlook: the parachute over a falling cargo crate: an orange-and-white canopy (a hemisphere) on four cords, upright above the crate once it opens (top level: the crate
+## itself turns with its fall). W128_OLD=1: none (the crate fell under no canopy).
+static var chute_on := OS.get_environment("W128_OLD") != "1"
+
+
+static func _chute() -> Node3D:
+	var root := Node3D.new()
+	root.name = "Chute"
+	root.top_level = true
+	root.visible = false
+	var can := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.is_hemisphere = true
+	sm.radius = 2.6
+	sm.height = 1.5
+	sm.radial_segments = 12
+	sm.rings = 3
+	var cmat := StandardMaterial3D.new()
+	cmat.albedo_color = Color(1.0, 0.45, 0.1)
+	cmat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	cmat.roughness = 0.8
+	sm.material = cmat
+	can.mesh = sm
+	can.position = Vector3(0.0, 3.4, 0.0)
+	can.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(can)
+	var cords := MeshInstance3D.new()
+	var am := ArrayMesh.new()
+	var pts := PackedVector3Array()
+	for a in 4:
+		var ang := TAU * (float(a) + 0.5) / 4.0
+		pts.append(Vector3(cos(ang) * 0.6, 0.55, sin(ang) * 0.6))
+		pts.append(Vector3(cos(ang) * 2.5, 3.45, sin(ang) * 2.5))
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = pts
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arr)
+	var lmat := StandardMaterial3D.new()
+	lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lmat.albedo_color = Color(0.9, 0.9, 0.85)
+	am.surface_set_material(0, lmat)
+	cords.mesh = am
+	root.add_child(cords)
+	return root
 
 
 static func _orient(mi: Node3D, d: Vector3) -> void:
@@ -183,6 +231,9 @@ func _physics_process(dt: float) -> void:
 		if boom:
 			_detonate(at, def, col, shooter, vel.normalized())
 			(r["mi"] as MeshInstance3D).visible = false
+			var ch2 := (r["mi"] as MeshInstance3D).get_node_or_null(^"Chute") as Node3D
+			if ch2 != null:
+				ch2.visible = false
 			_live.remove_at(i)
 		else:
 			r["pos"] = nxt
@@ -190,6 +241,10 @@ func _physics_process(dt: float) -> void:
 			var mi := r["mi"] as MeshInstance3D
 			mi.global_position = nxt
 			_orient(mi, vel.normalized())
+			var ch := mi.get_node_or_null(^"Chute") as Node3D
+			if ch != null:                                                          # w128-airlook: the canopy opens with the chute and hangs upright over the crate
+				ch.visible = def.has("chute") and float(r["age"]) > 0.8
+				ch.global_transform = Transform3D(Basis.IDENTITY, nxt)
 		i -= 1
 
 

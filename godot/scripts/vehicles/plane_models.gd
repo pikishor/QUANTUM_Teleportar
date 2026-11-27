@@ -20,6 +20,8 @@ const GLOW_FAR := 220.0
 const PROP_NAMES: Array[String] = ["Prop", "PropB", "PropC", "PropD"]
 
 static var _cache := {}
+## w128-airlook: the believable build; W128_OLD=1 = the wave 126 build (tests/test_airlook_w128.gd fails on it).
+static var old := OS.get_environment("W128_OLD") == "1"
 static var _glow_mats := {}
 
 
@@ -38,6 +40,12 @@ static func build(kind: String, spec: Dictionary) -> Node3D:
 		if part["name"] == "Detail":
 			mi.visibility_range_end = DETAIL_FAR
 			mi.visibility_range_end_margin = 6.0
+		elif part["name"] == "Body" and c["parts"].size() > 1 and c["parts"][1]["name"] == "Body_LOD1":
+			mi.visibility_range_end = HeliModels.LOD_AT
+			mi.visibility_range_end_margin = 3.0
+		elif part["name"] == "Body_LOD1":
+			mi.visibility_range_begin = HeliModels.LOD_AT
+			mi.visibility_range_begin_margin = 3.0
 		elif part["name"] == "Glow":
 			mi.visibility_range_end = GLOW_FAR
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -45,11 +53,13 @@ static func build(kind: String, spec: Dictionary) -> Node3D:
 	return root
 
 
-static func tri_count(kind: StringName) -> int:
+static func tri_count(kind: StringName, part_name := "") -> int:
 	if not _cache.has(kind):
 		return 0
 	var n := 0
 	for part: Dictionary in _cache[kind]["parts"]:
+		if (part_name == "" and part["name"] == "Body_LOD1") or (part_name != "" and part["name"] != part_name):
+			continue                                                            # the near look: the far body is never drawn with it
 		var m: Mesh = part["mesh"]
 		for s in m.get_surface_count():
 			n += (m.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
@@ -68,13 +78,18 @@ static func _glow_material(col: Color) -> StandardMaterial3D:
 
 
 static func _make(kind: StringName, spec: Dictionary) -> Dictionary:
-	var P: Dictionary = PlaneRoster.DEFS[kind]["m"]
+	var P: Dictionary = params(kind)
 	var body := PlaneModels.new()
 	var det := PlaneModels.new()
 	var glow := PlaneModels.new()
 	var parts: Array[Dictionary] = []
 	var hubs: Array = body._geom(P, det, glow, spec)
 	parts.append({"name": "Body", "mesh": body._finish(), "pos": Vector3.ZERO})
+	if not old:                                                                     # w128-airlook: the far body (LOD1) beyond LOD_AT m
+		var b1 := PlaneModels.new()
+		b1.far_lod = 1
+		b1._geom(P, PlaneModels.new(), PlaneModels.new(), spec)
+		parts.append({"name": "Body_LOD1", "mesh": b1._finish(), "pos": Vector3.ZERO})
 	if not det._empty():
 		parts.append({"name": "Detail", "mesh": det._finish(), "pos": Vector3.ZERO})
 	if not glow._empty():
@@ -93,6 +108,67 @@ static func _make(kind: StringName, spec: Dictionary) -> Dictionary:
 		pm._cone(S_CHROME, Vector3(0.0, 0.0, 0.1), Vector3(0.0, 0.0, -0.45 - pr * 0.12), maxf(0.14, pr * 0.2), 8)
 		parts.append({"name": PROP_NAMES[i], "mesh": pm._finish(), "pos": hubs[i]})
 	return {"parts": parts}
+
+
+## w128-airlook: real proportions where the wave 126 table was off (wing area of the wide-bodies; same spans, so the PLANE LINE and the collision boxes stay).
+const W128_FIX := {
+	&"p_wide": {"w": [-6.5, 19.0, 10.5, 2.4, 9.5, 1.5, -0.65, 0.75]},
+	&"p_jumbo": {"w": [-7.5, 19.0, 11.5, 2.6, 10.0, 1.6, -0.65, 0.8]},
+	&"p_narrow": {"w": [-4.4, 17.0, 6.8, 1.7, 6.5, 1.2, -0.65, 0.52]},
+}
+
+
+## The model parameters of a kind (PlaneRoster.DEFS m with the w128 corrections).
+static func params(kind: StringName) -> Dictionary:
+	var P: Dictionary = PlaneRoster.DEFS[kind]["m"]
+	if old or not W128_FIX.has(kind):
+		return P
+	var q := P.duplicate()
+	q.merge(W128_FIX[kind], true)
+	return q
+
+
+## w128-airlook: the windows on the skin (patches that follow the fuselage): an airliner's cockpit band with its posts, the passenger window row each side, the doors;
+## a light plane's sloping windscreen and its cabin side windows with the door seam.
+func _glass2(cabk: String, st: Array, n: float, zn: float, zt: float, hw: float, hh: float, yc: float, L: float, det: PlaneModels) -> void:
+	if cabk == "airliner":
+		var z0 := zn + L * 0.032
+		var z1 := zn + L * 0.058
+		var band := [HeliModels._at(st, z0), HeliModels._at(st, (z0 + z1) * 0.5), HeliModels._at(st, z1)]
+		for i in band.size():
+			band[i] = (band[i] as Array).duplicate()
+			band[i][2] = float(band[i][2]) + hh * 0.08
+		_patch(S_GLASS, band, n, 0.42, PI - 0.42, 8 if far_lod == 0 else 4, 1.01)
+		if far_lod > 0:
+			for side in [[0.18, 0.3], [PI - 0.3, PI - 0.18]]:              # the window rows as one dark line far away
+				_patch(S_GLASS, [HeliModels._at(st, zn + L * 0.11), HeliModels._at(st, zt - L * 0.3)], n, float(side[0]), float(side[1]), 1, 1.006)
+			return
+		for a: float in [0.9, 1.35, PI - 1.35, PI - 0.9]:                 # the window posts
+			_patch(S_TRIM, band, n, a - 0.025, a + 0.025, 1, 1.016)
+		var pitch := 0.55 if L > 20.0 else 0.6
+		var wz := zn + L * 0.12
+		var wl := minf(0.26, pitch * 0.48)
+		while wz < zt - L * 0.31:
+			for side in [[0.2, 0.3], [PI - 0.3, PI - 0.2]]:
+				_patch(S_GLASS, [HeliModels._at(st, wz), HeliModels._at(st, wz + wl)], n, float(side[0]), float(side[1]), 1, 1.006)
+			wz += pitch
+		for dz: float in [zn + L * 0.085, zt - L * 0.27]:                 # the doors: front and rear, both sides
+			for side in [[-0.15, 0.62], [PI - 0.62, PI + 0.15]]:
+				for e: float in [0.0, 0.9]:
+					_patch(S_TRIM, [HeliModels._at(st, dz + e), HeliModels._at(st, dz + e + 0.04)], n, float(side[0]), float(side[1]), 4, 1.005)
+	else:
+		var a0 := zn + L * 0.13
+		var a1 := zn + L * 0.2
+		_patch(S_GLASS, [HeliModels._at(st, a0), HeliModels._at(st, (a0 + a1) * 0.5), HeliModels._at(st, a1)], n, 0.5, PI - 0.5, 8 if far_lod == 0 else 4, 1.012)
+		var s0 := zn + L * 0.205
+		var s1 := zn + L * 0.36
+		for side in [[0.12, 0.82], [PI - 0.82, PI - 0.12]]:
+			_patch(S_GLASS, [HeliModels._at(st, s0), HeliModels._at(st, (s0 + s1) * 0.5), HeliModels._at(st, s1)], n, float(side[0]), float(side[1]), 3, 1.012)
+		if far_lod == 0:
+			_patch(S_TRIM, [HeliModels._at(st, a0), HeliModels._at(st, a1)], n, PI * 0.5 - 0.03, PI * 0.5 + 0.03, 1, 1.02)
+			for zz: float in [s0 + (s1 - s0) * 0.48, s1 + 0.05]:
+				for side in [[-0.6, 0.9], [PI - 0.9, PI + 0.6]]:
+					_patch(S_TRIM, [HeliModels._at(st, zz), HeliModels._at(st, zz + 0.035)], n, float(side[0]), float(side[1]), 4, 1.006)
 
 
 func _empty() -> bool:
@@ -119,20 +195,6 @@ func _cone(surf: int, a: Vector3, b: Vector3, r: float, segs: int, r1 := 0.0) ->
 			_tri(surf, a + d1 * r, b + d1 * r1, b + d0 * r1, mid)
 			_tri(surf, b, b + d0 * r1, b + d1 * r1, mid)
 		_tri(surf, a, a + d0 * r, a + d1 * r, mid)
-
-
-## A tapered panel (wing, fin, stabiliser): root leading / trailing edge, tip leading / trailing edge, thickness at the root and the tip along `up`.
-func _panel(surf: int, rle: Vector3, rte: Vector3, tle: Vector3, tte: Vector3, th_r: float, th_t: float, up: Vector3) -> void:
-	var u := up.normalized()
-	var c := (rle + rte + tle + tte) * 0.25
-	var p := [rle + u * th_r * 0.5, rte + u * th_r * 0.15, tte + u * th_t * 0.15, tle + u * th_t * 0.5,
-		rle - u * th_r * 0.3, rte - u * th_r * 0.1, tte - u * th_t * 0.1, tle - u * th_t * 0.3]
-	_quad_panel(surf, p[0], p[1], p[2], p[3], c - u * 10.0)        # top (normal away from below)
-	_quad_panel(surf, p[4], p[5], p[6], p[7], c + u * 10.0)        # bottom
-	_quad_panel(surf, p[0], p[3], p[7], p[4], c)                    # leading edge
-	_quad_panel(surf, p[1], p[2], p[6], p[5], c)                    # trailing edge
-	_quad_panel(surf, p[3], p[2], p[6], p[7], c)                    # tip
-	_quad_panel(surf, p[0], p[1], p[5], p[4], c)                    # root
 
 
 ## Both wings of the planform [zle, hs, cr, ct, sw, dh] at height y, from x0 out.
@@ -167,6 +229,7 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 	var x: Array = P.get("x", [])
 	var tail := String(P.get("t", "conv"))
 	var hubs: Array = []
+	smooth = not old
 	# --- the fuselage
 	var st: Array = []
 	match nose:
@@ -200,12 +263,22 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 	if x.has("hopper"):
 		_box(S_BODY, Vector3(0.0, yc + hh * 0.85, zn + L * 0.3), Vector3(hw * 1.5, hh * 0.5, L * 0.16))
 	# --- the cockpit glass
-	match String(P.get("cab", "none")):
+	var cabk := String(P.get("cab", "none"))
+	if not old and (cabk == "airliner" or cabk == "cabin"):
+		_glass2(cabk, st, n, zn, zt, hw, hh, yc, L, det)
+		cabk = "done"
+	match cabk:
 		"bubble":
 			var z0 := zn + L * (0.16 if L > 9.0 else 0.26)
 			var ln := clampf(L * 0.2, 1.4, 3.6)
-			_loft(S_GLASS, [[z0, 0.0, yc + hh * 0.7, hw * 0.12, hh * 0.1], [z0 + ln * 0.35, 0.0, yc + hh * 0.86, hw * 0.55, hh * 0.42],
-				[z0 + ln * 0.75, 0.0, yc + hh * 0.86, hw * 0.52, hh * 0.4], [z0 + ln, 0.0, yc + hh * 0.75, hw * 0.25, hh * 0.15]], 2.0, 10)
+			var bub := [[z0, 0.0, yc + hh * 0.7, hw * 0.12, hh * 0.1], [z0 + ln * 0.35, 0.0, yc + hh * 0.86, hw * 0.55, hh * 0.42],
+				[z0 + ln * 0.75, 0.0, yc + hh * 0.86, hw * 0.52, hh * 0.4], [z0 + ln, 0.0, yc + hh * 0.75, hw * 0.25, hh * 0.15]]
+			if old:
+				_loft(S_GLASS, bub, 2.0, 10)
+			else:                                                           # w128-airlook: the canopy is the top half (its belly would sit inside the fuselage), with a frame bow
+				_patch(S_GLASS, bub, 2.0, -0.15, PI + 0.15, 10 if far_lod == 0 else 5, 1.0)
+				if far_lod == 0:
+					_patch(S_TRIM, [HeliModels._mix(bub[1], bub[2], 0.1), HeliModels._mix(bub[1], bub[2], 0.16)], 2.0, -0.1, PI + 0.1, 8, 1.02)
 		"cabin":
 			var z1 := zn + L * 0.2
 			for sx in [-1.0, 1.0]:
@@ -217,7 +290,10 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 				_box(S_GLASS, Vector3(sx * hw * 0.72, yc + hh * 0.42, zn + L * 0.045), Vector3(hw * 0.5, hh * 0.16, L * 0.025))
 				_box(S_GLASS, Vector3(sx * hw * 0.995, yc + hh * 0.3, zn + L * 0.42), Vector3(0.05, hh * 0.13, L * 0.5))
 		"glazed":
-			_loft(S_GLASS, [[zn - 0.02, 0.0, (st[0] as Array)[2], hw * 0.3, hh * 0.3], [zn + L * 0.07, 0.0, yc + hh * 0.05, hw * 0.82, hh * 0.84]], 2.0, 10)
+			if old:
+				_loft(S_GLASS, [[zn - 0.02, 0.0, (st[0] as Array)[2], hw * 0.3, hh * 0.3], [zn + L * 0.07, 0.0, yc + hh * 0.05, hw * 0.82, hh * 0.84]], 2.0, 10)
+			else:                                                           # w128-airlook: the glazed nose with chin windows, not a glass ring round the belly
+				_patch(S_GLASS, [HeliModels._mix(st[0], st[1], 0.15), st[1], HeliModels._mix(st[1], st[2], 0.12)], n, -0.6, PI + 0.6, 10 if far_lod == 0 else 5, 1.012)
 			for sx in [-1.0, 1.0]:
 				_box(S_GLASS, Vector3(sx * hw * 0.7, yc + hh * 0.55, zn + L * 0.1), Vector3(hw * 0.45, hh * 0.22, L * 0.03))
 		"open":
@@ -304,6 +380,8 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 			for t: float in e.get("at", [0.33]):
 				var a4 := wing_at(w, wy, t)
 				var jy := float(a4[2]) - er * 1.25
+				if not old:
+					jy = maxf(jy, er + 0.55)                                    # w128-airlook: the fan clears the ground (a short pylon under a low wing)
 				var jz := float(a4[0]) - el * 0.2
 				for sx in [-1.0, 1.0]:
 					var jx: float = sx * float(w[1]) * t

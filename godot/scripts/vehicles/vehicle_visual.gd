@@ -138,7 +138,11 @@ func build(kind: StringName, glow: Color) -> Node3D:
 	_kind = kind
 	cls = VehicleSpecs.cls_of(kind)
 	model = null
-	for mn in VehicleSpecs.model_names(kind):            # best model first; a missing one (not built yet) falls through to the next and finally to primitives
+	if HeliModels.has_classic(kind):                      # w128-airlook: the classic helicopter is built like the roster ones (its old art model was an open frame without glass)
+		model = HeliModels.build(String(kind), spec)
+		model_name = String(spec.get("model", kind))
+	var none: Array[String] = []
+	for mn in (VehicleSpecs.model_names(kind) if model == null else none):            # best model first; a missing one (not built yet) falls through to the next and finally to primitives
 		model = Game.load_model(mn)
 		if model != null:
 			model_name = mn
@@ -323,7 +327,7 @@ func _bind_craft(spec: Dictionary) -> void:
 			var m := body.mesh.surface_get_material(s)
 			var nm := m.resource_name if m != null else ""
 			if nm == "Glass":
-				body.set_surface_override_material(s, CarParts.glass_material())
+				body.set_surface_override_material(s, AircraftModels.glass_material() if AircraftModels.air_glass(spec) else CarParts.glass_material())     # w128-airlook: tinted canopy glass on aircraft
 	for nm: String in parts:
 		var mi := parts[nm] as MeshInstance3D
 		if mi == null or mi.mesh == null:

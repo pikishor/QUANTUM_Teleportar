@@ -72,6 +72,29 @@ func _lane() -> bool:
 	return false
 
 
+## A flat soil field (the blasts land 6-28 m north of it, -z) or a shore whose water starts 10 m north of the hero.
+func _ground_spot(kind: String) -> Vector3:
+	for ring in range(1, 40):
+		var r := float(ring) * 150.0
+		for k in 24:
+			var a := TAU * float(k) / 24.0
+			var x := cos(a) * r
+			var z := sin(a) * r
+			if kind == "soil":
+				var ok := TerrainHeight.city_distance(x, z) > 60.0
+				for d in [0.0, -10.0, -20.0, -30.0]:
+					ok = ok and not TerrainHeight.is_water(x, z + d) and BlastFx.ground_kind(Vector3(x, TerrainHeight.height_at(x, z + d), z + d)) == &"dirt" and absf(TerrainHeight.height_at(x, z + d) - TerrainHeight.height_at(x, z)) < 1.2
+				if ok:
+					return Vector3(x, TerrainHeight.height_at(x, z), z)
+			elif TerrainHeight.city_distance(x, z) > 0.0 and not TerrainHeight.is_water(x, z):
+				var wet := true
+				for d in [-10.0, -16.0, -30.0]:
+					wet = wet and TerrainHeight.is_water(x, z + d)
+				if wet:
+					return Vector3(x, maxf(TerrainHeight.height_at(x, z), TerrainHeight.water_level_at(x, z - 16.0)), z)
+	return Vector3.INF
+
+
 func _dir() -> Vector3:
 	return Vector3(-sin(_yaw), 0.0, -cos(_yaw))
 
@@ -101,7 +124,14 @@ func _setup() -> void:
 	if city != null and city.ambient != null:
 		city.ambient.set_process(false)
 	var forced := OS.get_environment("BX_SPOT")                           # "x,z,yaw": the same street for every run (the LOW and MED sheets show one place)
-	if forced != "":
+	var ground := OS.get_environment("BX_GROUND")                         # wave 128: "soil" or "water": a flat field or a shore outside the city (the ground variants of BlastFx)
+	if ground != "":
+		_spot = _ground_spot(ground)
+		_yaw = 0.0
+		print("BOTBX ground ", ground, " at ", _spot)
+		if not _spot.is_finite():
+			return
+	elif forced != "":
 		var fp := forced.split(",")
 		_spot = Vector3(float(fp[0]), 0.0, float(fp[1]))
 		_yaw = float(fp[2])
@@ -155,6 +185,10 @@ func _stage(dist: float) -> void:
 
 func _fire(id: StringName, dist: float) -> void:
 	var at := _spot + _dir() * dist + Vector3(0.0, 0.25, 0.0)
+	if OS.get_environment("BX_GROUND") != "":
+		var gx := at.x
+		var gz := at.z
+		at.y = (TerrainHeight.water_level_at(gx, gz) if TerrainHeight.is_water(gx, gz) else TerrainHeight.height_at(gx, gz)) + 0.25
 	var src := _p
 	var e := BlastTable.entry(id)
 	var ops := BlastOps.shared(_p.get_tree())

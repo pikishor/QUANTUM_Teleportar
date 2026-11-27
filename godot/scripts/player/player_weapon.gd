@@ -254,7 +254,7 @@ func switch_to(id: StringName, instant := false) -> bool:
 
 ## The next (dir 1) or previous (dir -1) owned weapon. Returns true when the weapon changed.
 func cycle(dir: int) -> bool:
-	var slot_w := LoadoutSlots.next_after(current, dir)                    # wave 114: the quick swap walks the four loadout slots (PRIMARY, SIDEARM, SPECIAL, MELEE), not every owned weapon
+	var slot_w := LoadoutSlots.next_after(current, dir)                    # the quick swap walks the carried slots (wave 128: 36 of them; wave 114 had four), not every owned weapon
 	if slot_w != &"" and slot_w != current:
 		return switch_to(slot_w)
 	var owned := WeaponDefs.owned_ordered()
@@ -265,12 +265,35 @@ func cycle(dir: int) -> bool:
 
 
 ## Keyboard 1-4, wheel and the touch SWAP button (Player calls it every physics frame on foot).
+## w128-open: the number-key actions (weapon_1 .. weapon_8) that exist, as [weapon index, action], built once. poll_switch used to format and look up 229 action names twice per
+## physics tick (about 0.1 ms of the on-foot PLAYER time). W128O_OLD=1: the old loop.
+static var _num_keys: Array = []
+static var _num_keys_n := -1
+static var num_cache_on := OS.get_environment("W128O_OLD") != "1"
+
+static func number_keys() -> Array:
+	if _num_keys_n != WeaponDefs.IDS.size():
+		_num_keys.clear()
+		for i in WeaponDefs.IDS.size():
+			var a := StringName("weapon_%d" % (i + 1))
+			if InputMap.has_action(a):
+				_num_keys.append([i, a])
+		_num_keys_n = WeaponDefs.IDS.size()
+	return _num_keys
+
+
 func poll_switch() -> void:
 	var power_in_hand := SnakeWar.holding()                          # wave 115 critic: a snake power armed from the wheel put the gun away and nothing brought it back (swap, number keys and the wheel left FIRE casting the power with the new gun invisible)
-	for i in WeaponDefs.IDS.size():
-		if InputMap.has_action(StringName("weapon_%d" % (i + 1))) and Input.is_action_just_pressed(StringName("weapon_%d" % (i + 1))):
-			SnakeWar.holster()
-			switch_to(WeaponDefs.IDS[i])
+	if num_cache_on:
+		for e: Array in number_keys():
+			if Input.is_action_just_pressed(e[1]):
+				SnakeWar.holster()
+				switch_to(WeaponDefs.IDS[int(e[0])])
+	else:
+		for i in WeaponDefs.IDS.size():
+			if InputMap.has_action(StringName("weapon_%d" % (i + 1))) and Input.is_action_just_pressed(StringName("weapon_%d" % (i + 1))):
+				SnakeWar.holster()
+				switch_to(WeaponDefs.IDS[i])
 	if Input.is_action_just_pressed(&"weapon_next") or Input.is_action_just_pressed(&"swap"):
 		if power_in_hand:
 			SnakeWar.holster()                                       # the first tap on WEAPON puts the snake power away: the gun in hand comes back
@@ -342,7 +365,7 @@ func _auto_swap() -> void:
 	if swap_t > 0.0:
 		return
 	var best: StringName = &""
-	for slot_id: StringName in LoadoutSlots.slots:                          # the four weapons the hero chose come first (wave 114 critic)
+	for slot_id: StringName in LoadoutSlots.slots:                          # the carried weapons the hero chose come first (wave 114 critic)
 		if slot_id != &"" and slot_id != current and WeaponDefs.is_unlocked(slot_id) and String(WeaponDefs.def(slot_id)["kind"]) != "melee" and (ammo_of(slot_id) > 0 or reserve_of(slot_id) != 0):
 			best = slot_id
 			break

@@ -13,7 +13,9 @@ static func make(kind: StringName, paint := 0) -> Node3D:
 	if spec.is_empty():
 		return null
 	var model: Node3D = null
-	if spec.has("procedural"):
+	if HeliModels.has_classic(kind):                                            # w128-airlook: the classic helicopter wears the roster build
+		model = HeliModels.build(String(kind), spec)
+	elif spec.has("procedural"):
 		model = VehicleCraftModels.build(String(spec["procedural"]), spec)
 	else:
 		model = Game.load_model(String(spec["model"]))

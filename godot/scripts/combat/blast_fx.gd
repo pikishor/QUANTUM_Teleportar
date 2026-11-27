@@ -22,6 +22,15 @@ const K_FLASH := 2
 const K_SPRAY := 3
 
 static var instance: BlastFx = null
+## Wave 128 (owner: "ensure the blasts look more realistic"): the physical blasts (fire, toxic) of every class of the table get a fireball that burns out into rolling soot, a dust skirt along the ground
+## by ground type (dirt, concrete, water: a white splash column and no scorch), a dark smoke column that climbs and drifts with the wind, sparks and dust on concrete, a dirt plume on soil,
+## and sound layers by distance (a debris patter close by, the late, dull distant boom far away). All of it rides the pools that exist (ExplosionPool layers, the one cloud MultiMesh): no new draw call.
+## W128B_OLD=1 turns it off (the fail-first run of tests/test_blastfx_w128.gd).
+static var real_on := OS.get_environment("W128B_OLD") != "1"
+const WIND := Vector3(1.3, 0.0, 0.55)                   ## m/s the smoke of a blast drifts (one prevailing wind for the whole city)
+const SOUND_SPEED := 343.0
+static var last_ground: StringName = &""               ## the ground kind of the latest blast (tests read it)
+static var last_layers: Array[StringName] = []         ## the sound layers of the latest blast (tests read them)
 
 var plays := 0                                         ## counters (tests read them)
 var puffs_made := 0
@@ -503,6 +512,7 @@ static func play(e: Dictionary, pos: Vector3, radius: float, opts: Dictionary) -
 		me.plays += 1
 		me.by_fx[fx_id] = int(me.by_fx.get(fx_id, 0)) + 1
 	var near := cam_d < FAR_SKIP
+	last_ground = ground_kind(pos) if real_on and is_physical(element) else &""
 	if is_instance_valid(instance) and StringName(e.get("cat", &"")) in [&"strike", &"ordnance"]:
 		instance.kill_beacons()
 	match fx_id:
@@ -518,8 +528,12 @@ static func play(e: Dictionary, pos: Vector3, radius: float, opts: Dictionary) -
 			_ring(pos, radius, BlastElements.color(element, "ring"), 0, 0.5, near)
 		&"dome":
 			_default_look(e, pos, radius, opts, true)
-			me.dome(pos + Vector3(0.0, radius * 0.15, 0.0), radius * 1.05, BlastElements.color(element, "mid"), 0.05, 0.16, 0.45, 1.4, 0.0)
-			_ring(pos, radius * 1.4, BlastElements.color(element, "ring"), 0, 0.5, near)
+			if not real_on:                                                       # w128-critic: the realistic look has no see-through sphere at all (even faint, its fresnel rim drew a crisp orange bubble round the fireball)
+				me.dome(pos + Vector3(0.0, radius * 0.15, 0.0), radius * 1.05, BlastElements.color(element, "mid"), 0.05, 0.16, 0.45, 1.4, 0.0)
+			if real_on:
+				me._real(e, pos, radius, cam_d, last_ground if last_ground != &"" else &"concrete")
+			else:
+				_ring(pos, radius * 1.4, BlastElements.color(element, "ring"), 0, 0.5, near)
 		&"ember":
 			_default_look(e, pos, radius, opts, true)
 			if near:
@@ -549,13 +563,18 @@ static func play(e: Dictionary, pos: Vector3, radius: float, opts: Dictionary) -
 			_default_look(e, pos, radius, opts, true)
 			me.dome(pos + Vector3(0.0, radius * 0.15, 0.0), radius * 0.9, BlastElements.color(element, "mid"), 0.04, 0.14, 0.4, 1.2, 0.0)
 		_:
-			_default_look(e, pos, radius, opts, true)
+			var gk0 := last_ground
+			_default_look(e, pos, radius, opts, gk0 != &"water")                  # no scorch on water
+			if gk0 != &"" and near and not bool(e.get("legacy", false)):              # the old callers (an enemy dying, a car) keep the pool's soot and dust only: no cloud puffs in the death spike
+				shared()._real(e, pos, radius, cam_d, gk0)                           # first: on LOW the cloud pool is small, the column and the skirt come before the extras
 			if not bool(e.get("legacy", false)) and near:
 				shared()._extras(e, pos, radius, cam_d)
 	if not quiet:
 		FX.shake(clampf(radius * 1.6 / (cam_d + 6.0) * float(BlastElements.data(element)["shake"]) * float(e.get("shake", 1.0)), 0.0, 1.0))
 		Game.blast_feel(radius, cam_d)
 		_sound(e, pos, radius)
+		if real_on:
+			_sound_layers(e, pos, radius, cam_d)
 
 
 ## What the blasts of the arsenal add to the pooled fireball: a white-hot core flash for the first frames, a smoke column that climbs above big blasts, and a dust ring along the ground for rubble
@@ -567,7 +586,8 @@ func _extras(e: Dictionary, pos: Vector3, radius: float, cam_d: float) -> void:
 	var hot: Color = BlastElements.color(element, "hot")
 	var near_k := clampf((cam_d - 2.0) / maxf(radius * 0.9, 2.0), 0.25, 1.0)                      # a blast next to the camera does not white the screen out
 	puff(pos + Vector3(0.0, radius * 0.28, 0.0), Vector3.ZERO, radius * 0.5, radius * 1.7, 0.24, Color(hot.r, hot.g, hot.b, 0.95 * near_k), K_FLASH, 1.0, 0.0)
-	if radius >= 4.0 and StringName(e.get("debris", &"rubble")) != &"none":
+	var real := real_on and is_physical(element)                                                   # wave 128: _real() drew the dark column and the dust skirt
+	if radius >= 4.0 and StringName(e.get("debris", &"rubble")) != &"none" and not real:
 		var smoke := BlastElements.color(element, "smoke")
 		var cols := 1 if tier == 0 else 2
 		for i in cols:
@@ -579,11 +599,125 @@ func _extras(e: Dictionary, pos: Vector3, radius: float, cam_d: float) -> void:
 			var k := float(i) / float(maxi(plume - 1, 1))
 			puff(pos + Vector3(_rng.randf_range(-0.12, 0.12) * radius, 0.3 + radius * 0.25 * k, _rng.randf_range(-0.12, 0.12) * radius), Vector3(_rng.randf_range(-0.8, 0.8), 6.5 + 4.5 * (1.0 - k), _rng.randf_range(-0.8, 0.8)),
 					radius * (0.22 + 0.12 * k), radius * (0.55 + 0.35 * k), 1.0 + 0.7 * k, Color(0.4, 0.31, 0.22, 0.85 * near_k), K_SMOKE, 0.0, 0.45)
-	if tier > 0 and StringName(e.get("debris", &"rubble")) == &"rubble" and radius >= 3.0:
+	if tier > 0 and StringName(e.get("debris", &"rubble")) == &"rubble" and radius >= 3.0 and not real:
 		var n := 4 if tier == 1 else 6
 		for i in n:
 			var ang := TAU * float(i) / float(n) + _rng.randf() * 0.5
 			puff(pos + Vector3(cos(ang), 0.15, sin(ang)) * radius * 0.25, Vector3(cos(ang), 0.05, sin(ang)) * (4.0 + radius * 0.4), radius * 0.28, radius * 0.75, 1.5, Color(0.55, 0.5, 0.44, 0.55 * near_k), K_SMOKE, 0.0, 1.4)
+
+
+# --- wave 128: the realistic layer ------------------------------------------------------------------------------------------
+
+static func is_physical(element: StringName) -> bool:
+	return element == BlastElements.FIRE or element == BlastElements.TOXIC
+
+
+## What the blast stands on: &"water" (a lake, the river, the sea, at or just above its surface), &"concrete" (the city, a highway, rock), &"dirt" (soil, sand, grass, a track), &"snow".
+static func ground_kind(pos: Vector3) -> StringName:
+	var wl := TerrainHeight.water_level_at(pos.x, pos.z)
+	if wl != TerrainHeight.NO_WATER and pos.y < wl + 1.5 and pos.y > wl - 6.0:
+		return &"water"
+	if TerrainHeight.city_distance(pos.x, pos.z) <= 0.0:
+		return &"concrete"
+	match TerrainWorld.surface_at(pos.x, pos.z):
+		&"water":
+			return &"water"
+		&"asphalt", &"rock", &"city":
+			return &"concrete"
+		&"snow":
+			return &"snow"
+	return &"dirt"
+
+
+## The height of the ground under `pos` (a ray down through the world), `pos.y` when nothing is hit within 40 m.
+static func ground_y(pos: Vector3) -> float:
+	var cam := Game.camera
+	if not is_instance_valid(cam) or not cam.is_inside_tree():
+		return pos.y
+	var q := PhysicsRayQueryParameters3D.create(pos + Vector3(0.0, 1.0, 0.0), pos + Vector3(0.0, -40.0, 0.0), 1)
+	var hit := cam.get_world_3d().direct_space_state.intersect_ray(q)
+	return (hit["position"] as Vector3).y if not hit.is_empty() else pos.y
+
+
+## The colour of the dust a blast throws up from this ground.
+static func dust_color(gk: StringName) -> Color:
+	match gk:
+		&"dirt":
+			return Color(0.43, 0.34, 0.24)
+		&"water":
+			return Color(0.86, 0.9, 0.93)
+		&"snow":
+			return Color(0.9, 0.92, 0.95)
+	return Color(0.37, 0.355, 0.34)
+
+
+## The rising smoke of a real blast: near-black soot for fire (a little browner over soil), dark olive for toxic, steam over water.
+static func smoke_tint(element: StringName, gk: StringName) -> Color:
+	if gk == &"water":
+		return Color(0.62, 0.64, 0.66)
+	if element == BlastElements.TOXIC:
+		return Color(0.17, 0.22, 0.13)
+	return Color(0.2, 0.18, 0.165) if gk == &"dirt" else Color(0.17, 0.165, 0.16)
+
+
+## The look of a real blast on top of the pooled fireball: the smoke column that climbs and drifts, the dust skirt and the ground's own answer. Puffs of the one cloud pool; LOW gets the
+## column and a short skirt, MED and HIGH a taller column and a full ring. `cam_d` fades the puffs that would fill the lens.
+func _real(e: Dictionary, pos: Vector3, radius: float, cam_d: float, gk: StringName) -> void:
+	var tier := Game.quality
+	var element: StringName = e["element"]
+	var r := clampf(radius, 1.0, 16.0)
+	var gy := ground_y(pos)
+	var foot := Vector3(pos.x, gy, pos.z)
+	var near_k := clampf((cam_d - 2.0) / maxf(r * 0.9, 2.0), 0.3, 1.0)
+	if gk == &"water":
+		_water(e, foot, r * 1.2, true)                                                                # a white column and a skirt of spray instead of a fireball on the street
+		puff(foot + Vector3(0.0, r * 0.6, 0.0), WIND * 0.3 + Vector3(0.0, 1.2, 0.0), r * 0.6, r * 1.6, 3.5, Color(0.85, 0.88, 0.9, 0.55 * near_k), K_SMOKE, 0.0, 0.4)
+		return
+	# the smoke column: stacked dark puffs that climb at different speeds, billow out and lean downwind; the lowest one is lit orange by the fire for a moment
+	var smoke := smoke_tint(element, gk)
+	var stack := (3 if tier == 0 else (4 if tier == 1 else 5)) + (1 if r >= 8.0 and tier > 0 else 0)
+	for i in stack:
+		var k := float(i) / float(maxi(stack - 1, 1))
+		var up := 2.2 + 2.8 * k + r * 0.12
+		puff(foot + Vector3(_rng.randf_range(-0.15, 0.15) * r, r * (0.35 + 0.45 * k), _rng.randf_range(-0.15, 0.15) * r), WIND * (0.5 + 0.5 * k) + Vector3(0.0, up, 0.0),
+				r * (0.55 + 0.15 * k), r * (1.35 + 0.65 * k), 4.2 + 1.6 * k + r * 0.12, Color(smoke.r, smoke.g, smoke.b, 0.88 * near_k), K_SMOKE, 0.12 if i == 0 else 0.0, 0.35)
+	# the dust skirt: low puffs that roll out along the ground and settle
+	var dust := dust_color(gk)
+	var n := 2 if tier == 0 else (4 if tier == 1 else 6)
+	for i in n:
+		var ang := TAU * float(i) / float(n) + _rng.randf() * 0.6
+		var dir := Vector3(cos(ang), 0.0, sin(ang))
+		puff(foot + dir * r * 0.3 + Vector3(0.0, 0.35 + r * 0.06, 0.0), dir * (3.5 + r * 0.55) + Vector3(0.0, 0.6, 0.0), r * 0.35, r * 0.95, 2.2 + 0.1 * r, Color(dust.r, dust.g, dust.b, 0.7 * near_k), K_SMOKE, 0.0, 1.5)
+	match gk:
+		&"dirt", &"snow":                                                                                # soil goes UP: a fast fountain of dirt clods (dark, falling back)
+			var plume := 1 if tier == 0 else 3
+			for i in plume:
+				puff(foot + Vector3(_rng.randf_range(-0.2, 0.2) * r, 0.4 + r * 0.2 * float(i), _rng.randf_range(-0.2, 0.2) * r), Vector3(_rng.randf_range(-1.0, 1.0), 7.0 + r * 0.4 - 1.5 * float(i), _rng.randf_range(-1.0, 1.0)),
+						r * 0.3, r * 0.8, 1.4 + 0.3 * float(i), Color(dust.r * 0.6, dust.g * 0.6, dust.b * 0.6, 0.85 * near_k), K_SMOKE, 0.0, 0.9)
+		&"concrete":                                                                                    # concrete chips and sparks skitter along the street
+			if FX != null:
+				FX.burst(foot + Vector3(0.0, 0.3, 0.0), Color(1.0, 0.82, 0.5), 8 if tier == 0 else 16, r * 1.4, 0.7, 14.0, 1.2)
+
+
+## The sound of a blast by distance: close by the debris patters down after the bang; far away the boom arrives late (the speed of sound) and dull, and a big one rolls on.
+static func _sound_layers(e: Dictionary, pos: Vector3, radius: float, cam_d: float) -> void:
+	last_layers.clear()
+	var phys := is_physical(StringName(e["element"]))
+	var gk := last_ground if phys else &""
+	var play := Sfx != null and not Sfx.muted                                    # the layers are chosen (and counted) even with the sound muted, so a test can read them
+	if gk == &"water":
+		if play:
+			Sfx._later(&"water_splash_big", pos, -4.0, randf_range(0.9, 1.05), 0.12 + cam_d / SOUND_SPEED)
+		last_layers.append(&"water_splash_big")
+	if cam_d < radius * 2.5 + 14.0 and phys and gk != &"water":
+		if play:
+			for i in (2 if radius >= 4.0 else 1):
+				Sfx._later(&"impact_metal" if gk == &"concrete" else &"impact_dirt", pos + Vector3(randf_range(-2.0, 2.0), 0.0, randf_range(-2.0, 2.0)), -10.0, randf_range(0.8, 1.2), 0.45 + 0.35 * float(i) + randf() * 0.2)
+		last_layers.append(&"debris")
+	if cam_d > 60.0:
+		if play:
+			Sfx._later(&"distant_boom", pos, -2.0 + clampf((radius - 5.0) * 0.4, -3.0, 4.0), lerpf(1.05, 0.8, clampf(radius / 18.0, 0.0, 1.0)), minf(cam_d / SOUND_SPEED, 2.5))
+		last_layers.append(&"distant_boom")
 
 
 ## The old Game.explode look: FX.blast and the marks on the street. `marks` false skips the scorch (bubbles, flashes).

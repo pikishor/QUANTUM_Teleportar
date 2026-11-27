@@ -56,6 +56,18 @@ var _shapes: Array = []                    ## per body: [CollisionShape3D, [box,
 var enabled := true                        ## false: the pool stays parked (tests that need the bare buildings)
 var _age := 0.0
 
+## w128-open: a TANK knocks street furniture down instead of stopping at it like at a wall (lamps, signals, hydrants, barriers, planters, benches, dumpsters, kiosks, bus shelters).
+## A knocked instance loses its collider (never re-assigned while down), its MultiMesh instance (and the lamp glow / light shaft over it) is shrunk away through `on_knock`
+## (city.gd -> city_stream.gd hide_near), and it comes back once the follow point is RESTORE_AWAY metres from it. W128O_OLD=1: the old rule (tanks stop at every pole).
+static var knock_on := OS.get_environment("W128O_OLD") != "1"
+const KNOCKABLE := ["Lamps", "Signals", "Hydrants", "Barriers", "Planters", "StreetDress", "Dumpsters", "Kiosks", "BusStops"]
+const RESTORE_AWAY := 160.0
+const KIT_MAX_Y := 1.5                     ## a kit piece higher than this stands on a roof or a ledge: never in a tank's way
+var down := {}                             ## source id -> true while knocked down
+var knocked_total := 0                     ## props knocked down so far (tests)
+var on_knock: Callable                     ## (family: String, origin: Vector3, hide: bool, kit: bool) -> void: hides / shows the instance in the drawn MultiMesh
+var _part_spec := {}                       ## spec index -> true for families read from a MultiMesh part (the kit window's own instances are not knockable)
+
 
 static func spec_for(family_name: String) -> Array:
 	return SPECS.get(family_name, [])
@@ -67,6 +79,8 @@ func build(parent: Node3D, parts: Array[Dictionary], extra: Dictionary = {}) -> 
 	_xf.clear()
 	_grid.clear()
 	_spec_list.clear()
+	_part_spec.clear()
+	down.clear()
 	var spec_ids := {}
 	var spec_tmp: Array[int] = []
 	for part: Dictionary in parts:
@@ -80,6 +94,7 @@ func build(parent: Node3D, parts: Array[Dictionary], extra: Dictionary = {}) -> 
 		var si := _spec_list.size()
 		_spec_list.append([sp[0], sp[1], sp[2], fname])
 		spec_ids[fname] = si
+		_part_spec[si] = true
 		for i in mm.instance_count:
 			var o := i * stride
 			var b := Basis(Vector3(buf[o], buf[o + 4], buf[o + 8]), Vector3(buf[o + 1], buf[o + 5], buf[o + 9]), Vector3(buf[o + 2], buf[o + 6], buf[o + 10])).orthonormalized()
@@ -173,6 +188,8 @@ func refill(p: Vector3) -> void:
 		return
 	refills += 1
 	last_follow = p
+	if not down.is_empty():
+		_restore_far(p)
 	var cands: Array[Vector2] = []
 	var c0x := int(floor((p.x - REACH + OFF) / CELL))
 	var c1x := int(floor((p.x + REACH + OFF) / CELL))
@@ -183,6 +200,8 @@ func refill(p: Vector3) -> void:
 		for cz in range(c0z, c1z + 1):
 			var arr: PackedInt32Array = _grid.get((cx << 10) | cz, PackedInt32Array())
 			for id in arr:
+				if down.has(id):
+					continue
 				var o := _xf[id].origin
 				if absf(o.y - p.y) > VERT:
 					continue
@@ -215,6 +234,50 @@ func refill(p: Vector3) -> void:
 		_assign(free[fi], src)
 		fi += 1
 	in_use = n
+
+
+## w128-open: the body `c` (a pool body) was hit by a tank: knock its prop down. Returns false when `c` is not a knockable pool body (the tank then meets it as a wall).
+func knock(c: Object, push := Vector3.ZERO) -> bool:
+	if not knock_on or not (c is StaticBody3D):
+		return false
+	var k := bodies.find(c as StaticBody3D)
+	if k < 0:
+		return false
+	var src := _assigned[k]
+	if src < 0:
+		return false
+	var fam := String((_spec_list[_spec[src]] as Array)[3])
+	var kit := not _part_spec.has(_spec[src])                # a piece of the street kit window (bins, benches, transformers, crates ...): knockable at street level
+	if (not kit and not KNOCKABLE.has(fam)) or (kit and _xf[src].origin.y > KIT_MAX_Y):
+		return false
+	down[src] = true
+	knocked_total += 1
+	_release(k)
+	in_use = maxi(in_use - 1, 0)
+	var o := _xf[src].origin
+	if on_knock.is_valid():
+		on_knock.call(fam, o, true, kit)
+	var br := Breakables.current
+	if br != null and is_instance_valid(br):
+		var col := Color(0.24, 0.26, 0.29) if fam in ["Lamps", "Signals", "Hydrants", "Dumpsters", "Kiosks", "BusStops"] else Color(0.46, 0.45, 0.42)
+		var h := 3.5 if fam in ["Lamps", "Signals"] else 0.6
+		for i in 7:
+			var at := o + Vector3(randf_range(-0.4, 0.4), randf_range(0.2, h), randf_range(-0.4, 0.4))
+			br.fling(at, push * 0.6 + Vector3(randf_range(-2.5, 2.5), randf_range(2.0, 5.0), randf_range(-2.5, 2.5)), col, randf_range(0.12, 0.3), Vector3(1.0, 1.0 + float(i % 3), 1.0))
+	Sfx.play_at(&"hit", o, -2.0)
+	return true
+
+
+func _restore_far(p: Vector3) -> void:
+	var back: Array = []
+	for src: int in down:
+		var o := _xf[src].origin
+		if Vector2(o.x - p.x, o.z - p.z).length() > RESTORE_AWAY:
+			back.append(src)
+	for src: int in back:
+		down.erase(src)
+		if on_knock.is_valid():
+			on_knock.call(String((_spec_list[_spec[src]] as Array)[3]), _xf[src].origin, false, not _part_spec.has(_spec[src]))
 
 
 func _release(k: int) -> void:

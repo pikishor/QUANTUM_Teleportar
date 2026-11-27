@@ -188,6 +188,91 @@ func rebuild(f: Family, cam: Vector2) -> void:
 	f.shown = shown
 
 
+## w128-open: shrink away (hide = true) or bring back the instance of family `fname` standing at `origin` (a prop a tank knocked down: city_colliders.gd knock), and for a lamp or a
+## signal pole also its lens glows / light shaft within GLOW_R metres. The record keeps its place; only its basis is zeroed (saved for the way back). Returns the records changed.
+const BASIS_F := [0, 1, 2, 4, 5, 6, 8, 9, 10]
+const GLOW_R := 5.2
+var _hidden := {}                  ## key "fname@x,z" -> Array of [Family, cell index, float offset, PackedFloat32Array basis]
+
+func hide_near(fname: String, origin: Vector3, hide: bool) -> int:
+	var key := "%s@%.2f,%.2f" % [fname, origin.x, origin.z]
+	var changed := 0
+	if not hide:
+		var rec: Array = _hidden.get(key, [])
+		_hidden.erase(key)
+		var touched := {}
+		for r: Array in rec:
+			var f: Family = r[0]
+			var cell: PackedFloat32Array = f.cells[r[1]]
+			var bv: PackedFloat32Array = r[3]
+			for q in 9:
+				cell[int(r[2]) + BASIS_F[q]] = bv[q]
+			f.cells[r[1]] = cell
+			touched[f] = true
+			changed += 1
+		for f: Family in touched:
+			_refresh(f)
+		return changed
+	var glows := fname == "Lamps" or fname == "Signals"
+	var out: Array = []
+	for f in families:
+		var exact := f.name == fname
+		if not exact and not (glows and (f.name == "Glow" or f.name == "LampShafts")):
+			continue
+		var r := 0.06 if exact else GLOW_R
+		var hit := false
+		for cz in [_cell_z(f, origin.z - r), _cell_z(f, origin.z + r)]:
+			for cx in [_cell_x(f, origin.x - r), _cell_x(f, origin.x + r)]:
+				var idx: int = cz * f.n + cx
+				if f.counts[idx] == 0 or out.any(func(e: Array) -> bool: return e[0] == f and e[1] == idx and e[4] == -1):
+					continue
+				var cell: PackedFloat32Array = f.cells[idx]
+				for o in range(0, cell.size(), f.stride):
+					var dx := cell[o + 3] - origin.x
+					var dz := cell[o + 11] - origin.z
+					if dx * dx + dz * dz > r * r:
+						continue
+					if not exact and (cell[o + 7] < 3.8 or cell[o + 7] > 8.5) and f.name == "Glow":
+						continue
+					var bv := PackedFloat32Array()
+					for q in 9:
+						bv.append(cell[o + BASIS_F[q]])
+						cell[o + BASIS_F[q]] *= 0.0001          # shrunk to a point (not 0: no NaN normals)
+					out.append([f, idx, o, bv, 0])
+					hit = true
+				f.cells[idx] = cell
+				out.append([f, idx, 0, PackedFloat32Array(), -1])          # marks the cell as searched
+		if hit:
+			_refresh(f)
+	var keep: Array = out.filter(func(e: Array) -> bool: return e[4] == 0)
+	if not keep.is_empty():
+		var prev: Array = _hidden.get(key, [])
+		prev.append_array(keep)
+		_hidden[key] = prev
+	return keep.size()
+
+
+static func _cell_x(f: Family, x: float) -> int:
+	return clampi(int(floor((x - f.origin) / f.cell)), 0, f.n - 1)
+
+
+static func _cell_z(f: Family, z: float) -> int:
+	return clampi(int(floor((z - f.origin) / f.cell)), 0, f.n - 1)
+
+
+## Upload a family's records again after a record changed: the window as it stands, or every instance when it is not windowed (headless).
+func _refresh(f: Family) -> void:
+	if f.shown >= 0:
+		f.sig = -1
+		rebuild(f, f.built_at)
+	else:
+		var out := PackedFloat32Array()
+		for idx in f.cells.size():
+			if f.counts[idx] > 0:
+				out.append_array(f.cells[idx])
+		f.mm.buffer = out
+
+
 ## Show every instance again (no windows). The instance order changes to cell order, which does not matter for a MultiMesh.
 func show_all() -> void:
 	for f in families:
