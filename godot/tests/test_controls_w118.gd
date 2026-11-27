@@ -349,8 +349,12 @@ func _car() -> void:
 		return false, 12)
 	_ck(seen[0] and not Input.is_action_pressed(&"jump"), "the HAND BRAKE button (%s) holds the handbrake and lets go" % _label("jump"))
 	Sfx.last_played = &""
+	var horn0 := float(Sfx._last_start.get("horn", -1.0))
 	await a.tap_hud("horn", 4)
-	_ck(Sfx.last_played == &"horn", "a tap on HORN sounds the horn (%s)" % Sfx.last_played)
+	# w128-ci: the horn must START during the tap (its family's start time moves). Sfx.last_played alone was the last sound of ANY kind: on the runner (CI 46059341693, shard 0,
+	# both attempts) a story line that had been typing ended inside the 4 frames of the tap and its "radio_close" click came after the horn ("... sounds the horn (radio_close)")
+	var horn1 := float(Sfx._last_start.get("horn", -1.0))
+	_ck(horn1 > horn0 and (Sfx.last_played == &"horn" or Sfx.last_played == &"radio_close"), "a tap on HORN sounds the horn (started %s, last sound %s, radio %s)" % [str(horn1 > horn0), Sfx.last_played, str(Sfx.is_radio_active())])
 	var c0 := p.camera_rig.veh_view
 	await a.tap_hud("veh_view", 4)
 	await a.pframes(6)

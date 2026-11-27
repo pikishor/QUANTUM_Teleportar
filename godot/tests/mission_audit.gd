@@ -858,6 +858,7 @@ func _boss_play(t: VerbBoss) -> bool:
 	var foe := pick_foe(t)
 	if verbose and int(_step_t) % 10 == 0 and int(_step_t * 10.0) % 10 == 0:
 		print("BOSS %s t=%.0f hp=%.0f/%.0f dist=%.0f los=%s exposed=%s hint='%s' ammo=%d reloading=%s boss_pos=%s me=%s active=%s aware=%s" % [str(t.mode), _step_t, t.hp, t.max_hp, d, str(foe == t), str(t.exposed()), t.hint(), p.weapon.ammo, str(p.weapon.is_reloading()), str(t.global_position), str(p.global_position), str(t.active), str(t.aware)])
+		print("WPN cur=%s ammo=%d mag=%d reserve=%d fire=%s swap_t=%.2f reload_t=%.2f slots=%s holding=%s" % [str(p.weapon.current), p.weapon.ammo, p.weapon.mag, p.weapon.reserve, str(Input.is_action_pressed(&"fire")), p.weapon.swap_t, p.weapon.reload_t, str(LoadoutSlots.carried()), str(SnakeWar.holding())])
 	_boss_tap -= dt
 	p.energy = maxf(p.energy, 60.0)
 	match t.mode:

@@ -46,6 +46,7 @@ static var instance: TowerFloors
 static var open_lot := -1        ## lot index of the open tower (-1: none)
 static var builds := 0           ## how many times a tower was opened (tests)
 static var critic_on := true
+static var shell_facade := OS.get_environment("W128CI_OLD") != "1"      ## w128-ci: the outer walls of an open tower shell are FACADES for the camera (CameraRig._is_facade reads shapes named Building*): before, a hero with his back to a tower lost the see-through-the-facade arm the moment the shell opened, and the lens snapped into his shoulder (test_hud_camera_final "walking off the wall", CI 46059341693). W128CI_OLD=1 = off
 static var crit_on := OS.get_environment("W122C_OLD") != "1"        ## w122-critic: the house hall's separator walls kept off the street door path, etc. (W122C_OLD=1 in tests/test_doors_w122c.gd: off)
 static var rooms_on := true      ## w122-rooms: W122_OLD=1 in the checks = the wave 121 towers (core towers only, bare rooms, stairwell windows, no people)     ## w121-critic: W121_CRITIC_OLD=1 in the checks = the builders' code (enemies on the street under the floors, through the walls)
 
@@ -454,7 +455,7 @@ func _set_city_boxes(idx: int, off: bool) -> void:
 # --- colliders -----------------------------------------------------------------------------------------------------------
 
 ## A box between (u0, v0, y0) and (u1, v1, y1) of the frame.
-func _box(body: StaticBody3D, u0: float, v0: float, y0: float, u1: float, v1: float, y1: float) -> void:
+func _box(body: StaticBody3D, u0: float, v0: float, y0: float, u1: float, v1: float, y1: float, facade := false) -> void:
 	var a := at(_cur, u0, v0, y0)
 	var b := at(_cur, u1, v1, y1)
 	var cs := CollisionShape3D.new()
@@ -462,6 +463,10 @@ func _box(body: StaticBody3D, u0: float, v0: float, y0: float, u1: float, v1: fl
 	sh.size = Vector3(absf(b.x - a.x), absf(b.y - a.y), absf(b.z - a.z)).max(Vector3(0.02, 0.02, 0.02))
 	cs.shape = sh
 	cs.position = (a + b) * 0.5
+	if facade and shell_facade:
+		cs.name = "BuildingTowerWall"          # the street side of the shell: see-through from behind for the camera (THROUGH_ARM), as the city box it replaces
+		body.add_child(cs, true)               # readable unique names (BuildingTowerWall2 ...): a plain add_child renames a duplicate to "@BuildingTowerWall@n"
+		return
 	body.add_child(cs)
 
 
@@ -510,12 +515,12 @@ func _build_shell() -> void:
 	var top := H - PARAPET_H
 	# outer walls (WALL_T thick, outside the inner plane), the street door a gap in the n wall
 	var du := door_u(tw)
-	_box(_body, -WALL_T, -WALL_T, 0.0, 0.0, iv + WALL_T, top)                  # u = 0 side
-	_box(_body, iu, -WALL_T, 0.0, iu + WALL_T, iv + WALL_T, top)               # far side
-	_box(_body, 0.0, -WALL_T, 0.0, iu, 0.0, top)                               # back wall
-	_box(_body, 0.0, iv, 0.0, du - DOOR_W * 0.5, iv + WALL_T, top)             # street wall, left of the door
-	_box(_body, du + DOOR_W * 0.5, iv, 0.0, iu, iv + WALL_T, top)              # right of the door
-	_box(_body, du - DOOR_W * 0.5, iv, DOOR_H, du + DOOR_W * 0.5, iv + WALL_T, top)
+	_box(_body, -WALL_T, -WALL_T, 0.0, 0.0, iv + WALL_T, top, true)                  # u = 0 side
+	_box(_body, iu, -WALL_T, 0.0, iu + WALL_T, iv + WALL_T, top, true)               # far side
+	_box(_body, 0.0, -WALL_T, 0.0, iu, 0.0, top, true)                               # back wall
+	_box(_body, 0.0, iv, 0.0, du - DOOR_W * 0.5, iv + WALL_T, top, true)             # street wall, left of the door
+	_box(_body, du + DOOR_W * 0.5, iv, 0.0, iu, iv + WALL_T, top, true)              # right of the door
+	_box(_body, du - DOOR_W * 0.5, iv, DOOR_H, du + DOOR_W * 0.5, iv + WALL_T, top, true)
 	# slabs of floors 1..nfl and the roof (minus the stair hole)
 	for k in range(1, _levels.size()):
 		var y := _levels[k]
