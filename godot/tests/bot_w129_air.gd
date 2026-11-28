@@ -117,8 +117,15 @@ func _run() -> void:
 	await _pf(30)
 	var only := OS.get_environment("AW_ONLY").split(",", false)
 	if only.is_empty() or only.has("cockpit"):
-		await _stand(Vector3(1318.0, 0.0, -760.0), Vector3(1334.0, 3.0, -760.0))
-		if await _board_near(Vector3(1334.0, 0.0, -760.0), &"heli"):
+		await _stand(Vector3(1240.0, 0.0, -700.0), Vector3(1250.0, 3.0, -700.0))
+		vm._fixed_n += 1
+		var hk := StringName(OS.get_environment("AW_HELI")) if OS.get_environment("AW_HELI") != "" else &"h_police"
+		var hv := vm.spawn_parked(hk, p.global_position + Vector3(0.0, 0.0, -9.0), 0.0)
+		if hv != null:
+			hv.set_meta(&"hold", true)
+		vm._count_fixed()
+		await _pf(10)
+		if await _board_near(Airport.to_local(p.global_position + Vector3(0.0, 0.0, -9.0)), &"heli"):
 			await _pf(30)
 			await _shot("heli_chase")
 			for i in 3:
@@ -142,11 +149,29 @@ func _run() -> void:
 				await _pf(20)
 				await _shot("jet_view%d" % i)
 		await _leave()
+	if only.is_empty() or only.has("picker"):
+		await _stand(Vector3(1145.0, 0.0, -940.0), Vector3(1170.0, 3.0, -940.0), -0.05)
+		await _pf(60)
+		await _shot("picker_chip")
+		var hp := HangarPicker.instance
+		if hp != null and hp.chip.visible:
+			fg.down(2, hp.chip.get_global_rect().get_center())
+			await _pf(3)
+			fg.up(2)
+			await _pf(10)
+			await _shot("picker_list")
+			if hp.grid.get_child_count() > 0:
+				var b := hp.grid.get_child(0) as Button
+				fg.down(2, b.get_global_rect().get_center())
+				await _pf(3)
+				fg.up(2)
+				await _pf(90)
+				await _shot("picker_rolled")
 	if only.is_empty() or only.has("doors"):
-		await _stand(Vector3(1185.0, 0.0, -940.0), Vector3(1136.0, 4.0, -940.0), -0.05)
+		await _stand(Vector3(1192.0, 0.0, -940.0), Vector3(1136.0, 6.0, -940.0), -0.02)
 		await _pf(200)
 		await _shot("hangar_a_open")
-		await _stand(Vector3(1360.0, 0.0, -720.0), Vector3(1360.0, 3.0, -775.0), -0.05)
+		await _stand(Vector3(1362.0, 0.0, -712.0), Vector3(1360.0, 4.0, -775.0), -0.02)
 		await _pf(200)
 		await _shot("shelter_open")
 	if only.is_empty() or only.has("lines"):

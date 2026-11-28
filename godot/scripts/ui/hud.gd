@@ -1043,7 +1043,7 @@ func _draw_speedometer(c: Control, font: Font, ab: Rect2, veh: Object, s: float)
 ## The little plate above the speedometer for the roster craft and armed vehicles (helicopter, plane, boat, tank, anything with a mounted gun): altitude and throttle of an aircraft, a plain hint
 ## for the next thing to do (take off, stall, land), and the gun with its rounds. Rows are built by `vehicle_rows`.
 func _draw_vehicle_readout(c: Control, font: Font, ab: Rect2, veh: Object, s: float) -> void:
-	var rows := vehicle_rows(veh)
+	var rows := AirDraws.readout(veh, vehicle_rows(veh))      # w129-airdraws: no number twice (the horizon's altitude, the cockpit's rotor gauge)
 	if rows.is_empty():
 		return
 	var rh := 30.0 * s
@@ -1762,7 +1762,9 @@ func _draw_hud_body() -> void:
 	if veh != null:
 		if touch_on:                                        # the car fills the middle of the frame: the speed sits in the free bottom-left corner, away from the thumbs
 			ab.position.x = ins.x + 24.0 * s
-		_draw_speedometer(c, font, ab, veh, s)
+		AirDraws.speedo_drawn = not AirDraws.cockpit_on()   # w129-airdraws: in the helicopter cockpit the SPEED gauge is the speed
+		if AirDraws.speedo_drawn:
+			_draw_speedometer(c, font, ab, veh, s)
 		_draw_vehicle_readout(c, font, ab, veh, s)
 		VehicleHud.draw(self, c, font, ab, veh, s, now)                  # hull row, nitro, the tank's turret dial (wave 109b)
 		FlightHud.draw(c, font, vp, s, ins, veh)                          # horizon, altitude, vertical speed, stall and landing guide while flying (wave 106)

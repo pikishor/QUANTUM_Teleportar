@@ -232,6 +232,7 @@ func _process(_delta: float) -> void:
 	if _vis_t <= 0.0:
 		_vis_t = 0.25
 		update_visibility()
+		AirDraws.terrain_groups(self)                     # w129-airdraws: the LOD1 chunks drawn 2 x 2
 
 
 func _focus_point() -> Vector3:

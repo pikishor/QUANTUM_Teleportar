@@ -80,7 +80,7 @@ func build() -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = ShipKit.turret_mesh()
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mi.visibility_range_end = ShipWorld.SHOW_RANGE
+		mi.visibility_range_end = ShipWorld.SHOW_RANGE if AirDraws.old else AirDraws.SHIP_PART_FAR      # w129-airdraws: a gun turret is a few pixels beyond this
 		n.add_child(mi)
 		add_child(n)
 		turret_nodes.append(n)
@@ -125,7 +125,7 @@ func _gangway() -> void:
 	mi.material_override = m
 	mi.transform = xf
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.visibility_range_end = ShipWorld.SHOW_RANGE
+	mi.visibility_range_end = ShipWorld.SHOW_RANGE if AirDraws.old else AirDraws.GANGWAY_FAR       # w129-airdraws: plank and rails were three draws seen from the airfield
 	add_child(mi)
 	for sz in [-1.0, 1.0]:                                                  # hand rails
 		var r := MeshInstance3D.new()
@@ -134,7 +134,7 @@ func _gangway() -> void:
 		r.mesh = rb
 		r.material_override = m
 		r.transform = Transform3D(xf.basis, xf.origin + xf.basis * Vector3(0.0, 1.0, float(sz) * 1.35))
-		r.visibility_range_end = ShipWorld.SHOW_RANGE
+		r.visibility_range_end = ShipWorld.SHOW_RANGE if AirDraws.old else AirDraws.GANGWAY_FAR
 		add_child(r)
 
 

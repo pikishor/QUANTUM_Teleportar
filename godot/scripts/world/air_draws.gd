@@ -7,6 +7,8 @@ extends RefCounted
 
 static var old := OS.get_environment("W129A_OLD") == "1"
 const ANIMAL_MARGIN := 30.0                  ## m around the airport pad that land animals keep out of
+const SHIP_PART_FAR := 450.0                 ## m: a ship's gun turrets are drawn to this distance (the hull to ShipWorld.SHOW_RANGE)
+const GANGWAY_FAR := 260.0                   ## m: a docked ship's gangway (plank and two rails)
 
 
 static func keep_out(x: float, z: float) -> bool:
@@ -74,11 +76,18 @@ static func _set_layer(g: VisualInstance3D, on: bool) -> void:
 ## colours), so the far look is the same picture. Parts that move or glow keep their own nodes: rotors, propellers, the turret, blur discs, flames, lamps, skinned (rigged) parts.
 ## The merge is cached per model and colour set; set_paint (a new paint, a husk) rebuilds it (refresh_far).
 const FAR_AT: Array[float] = [34.0, 46.0, 60.0]           ## LOW MED HIGH
-const KEEP := ["Rotor", "Rotor2", "TailRotor", "Prop", "PropB", "PropC", "PropD", "RotorDisc", "RotorDisc2", "PropDisc", "PropBDisc", "PropCDisc", "PropDDisc",
+const KEEP := ["Rotor", "Rotor2", "RotorDisc", "RotorDisc2", "PropDisc", "PropBDisc", "PropCDisc", "PropDDisc",
 		"Turret", "Glow", "Burner", "Flame", "Run", "Shadow", "FarMerge", "Beams", "Crack", "Nav", "Trail", "Exhaust", "Wash"]
 static var _far_cache := {}
-static var _far_mat: StandardMaterial3D
+static var _far_mat: ShaderMaterial
 static var far_built := 0                   ## merges built (tests)
+
+
+const GROUND_TRAFFIC_FAR: Array[float] = [260.0, 380.0, 520.0]    ## m: air traffic standing or rolling on the ground is drawn to this distance (LOW MED HIGH)
+
+
+static func ground_traffic_far() -> float:
+	return 1.0e9 if old else GROUND_TRAFFIC_FAR[clampi(Game.quality, 0, 2)]
 
 
 static func far_at() -> float:
@@ -87,20 +96,34 @@ static func far_at() -> float:
 
 static func _keep(n: Node) -> bool:
 	var s := String(n.name)
+	if s == "TailRotor" or (s.begins_with("Prop") and not s.ends_with("Disc")):
+		return false                                                    # merged: out there a tail rotor or a propeller is a few pixels
 	for k: String in KEEP:
 		if s == k or s.begins_with(k):
 			return true
 	return false
 
 
-static func _material() -> StandardMaterial3D:
+## The far mesh's material: the vertex colour (sRGB) is the albedo, its alpha the part's own glow (the paint of a roster vehicle carries a little emission,
+## VehicleVisual.paint_glow, so it keeps its colour in shade).
+static func _material() -> ShaderMaterial:
 	if _far_mat == null:
-		_far_mat = StandardMaterial3D.new()
+		var sh := Shader.new()
+		sh.code = """shader_type spatial;
+render_mode cull_back;
+void fragment() {
+	vec3 c = COLOR.rgb;
+	vec3 lin = mix(pow((c + vec3(0.055)) / 1.055, vec3(2.4)), c / 12.92, step(c, vec3(0.04045)));
+	ALBEDO = lin;
+	ROUGHNESS = 0.42;
+	METALLIC = 0.06;
+	SPECULAR = 0.5;
+	EMISSION = lin * COLOR.a;
+}
+"""
+		_far_mat = ShaderMaterial.new()
 		_far_mat.resource_name = "FarMerge"
-		_far_mat.vertex_color_use_as_albedo = true
-		_far_mat.vertex_color_is_srgb = true
-		_far_mat.roughness = 0.55
-		_far_mat.metallic = 0.08
+		_far_mat.shader = sh
 	return _far_mat
 
 
@@ -115,15 +138,15 @@ static func _colour_of(mi: MeshInstance3D, s: int) -> Variant:
 		if bm.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED or bm.emission_enabled and bm.emission_energy_multiplier > 2.0 and bm.resource_name != "Body":
 			return null                                                   # a lamp or a glow: not part of the far body
 		var c := bm.albedo_color
-		c.a = 1.0
+		c.a = clampf(bm.emission_energy_multiplier, 0.0, 1.0) if bm.emission_enabled else 0.0
 		return c
 	if m is ShaderMaterial:
 		for p: StringName in [&"albedo", &"base_color", &"paint", &"color"]:
 			var v: Variant = (m as ShaderMaterial).get_shader_parameter(p)
 			if v is Color:
-				return Color(v.r, v.g, v.b, 1.0)
+				return Color(v.r, v.g, v.b, 0.0)
 		return null
-	return Color(0.6, 0.6, 0.62)
+	return Color(0.6, 0.6, 0.62, 0.0)
 
 
 ## The MeshInstance3Ds of `model` that go into the far mesh, with their transform relative to the model (works before the model is in the tree).
@@ -188,6 +211,10 @@ static func far_merge(model: Node3D, key: String) -> MeshInstance3D:
 	far.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	far.visibility_range_begin = at
 	far.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+	var lay := 0
+	for e5: Array in parts:
+		lay |= (e5[0] as VisualInstance3D).layers                        # the vehicles' own key light lights only their layer (VehicleVisual.KEY_BIT)
+	far.layers = lay if lay != 0 else 1
 	model.add_child(far)
 	for e: Array in parts:
 		var g := e[0] as GeometryInstance3D
@@ -225,6 +252,7 @@ static func far_merge(model: Node3D, key: String) -> MeshInstance3D:
 			tf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			tf.visibility_range_begin = at
 			tf.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+			tf.layers = tur.layers
 			tur.add_child(tf)
 			for e4: Array in tsrc:
 				_cap(e4[0] as GeometryInstance3D, at)
@@ -251,7 +279,7 @@ static func _build(src: Array) -> ArrayMesh:
 		var paint_from := e[2] as MeshInstance3D
 		var nb := xf.basis.inverse().transposed()
 		for s in mi.mesh.get_surface_count():
-			if mi.mesh.surface_get_primitive_type(s) != Mesh.PRIMITIVE_TRIANGLES:
+			if mi.mesh is ArrayMesh and (mi.mesh as ArrayMesh).surface_get_primitive_type(s) != Mesh.PRIMITIVE_TRIANGLES:
 				continue
 			var c: Variant = _colour_of(paint_from if paint_from.mesh.get_surface_count() > s else mi, s)
 			if paint_from != mi:
@@ -324,3 +352,217 @@ static func own(visual: Object, on: bool) -> void:
 			gi.visibility_range_end = far_at()
 			gi.visibility_range_end_margin = 0.0
 			gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+
+
+# --- terrain: the far chunks drawn four at a time -----------------------------------------------------------------------------------------
+## The streamed terrain is one draw per 250 m chunk: from the airfield or the air 12 to 34 chunks are in view. The LOD1 chunks (16 cells, the ring beyond the hero's 3 x 3 LOD0
+## chunks) are joined 2 x 2: when all four chunks of an aligned 500 m block are installed at LOD1, one mesh of the four (the same vertices, skirts included) is drawn instead and
+## the chunks leave the layers (two or three LOD1 chunks of a block are joined the same way; LOD0 chunks always draw on their own). Called by TerrainWorld after update_visibility (4 Hz).
+static var _tgroups := {}                    ## block key -> {mi: MeshInstance3D, sig: String}
+static var tgroups_on := 0                   ## blocks drawn as one mesh now (tests)
+
+
+static func terrain_groups(tw: Node) -> void:
+	if old:
+		return
+	var chunks: Dictionary = tw.get(&"_chunks")
+	var root: Node3D = tw.get(&"_root_near")
+	if chunks == null or root == null:
+		return
+	var blocks := {}
+	for key in chunks:
+		var c: Vector2i = tw.call(&"_cell_of_key", int(key))
+		var bk := Vector2i(floori(c.x / 2.0), floori(c.y / 2.0))
+		if not blocks.has(bk):
+			blocks[bk] = []
+		(blocks[bk] as Array).append(key)
+	var seen := {}
+	var on := 0
+	for bk: Vector2i in blocks:
+		var all_keys: Array = blocks[bk]
+		var keys: Array = []                                            # the block's LOD1 chunks (two or more are joined; a LOD0 chunk draws on its own)
+		var sig := ""
+		var any_vis := false
+		for key in all_keys:
+			var rec: Dictionary = chunks[key]
+			var mi := rec.get("node") as MeshInstance3D
+			if int(rec.get("lod", -1)) == 1 and mi != null and mi.mesh != null:
+				keys.append(key)
+				sig += str(mi.mesh.get_rid().get_id()) + ","
+				any_vis = any_vis or mi.visible
+			elif mi != null:
+				_set_layer(mi, true)
+		var ok := keys.size() >= 2
+		var gk := "%d_%d" % [bk.x, bk.y]
+		var g: Dictionary = _tgroups.get(gk, {})
+		if not ok:
+			for key in keys:
+				var mi2 := (chunks[key] as Dictionary).get("node") as MeshInstance3D
+				if mi2 != null:
+					_set_layer(mi2, true)
+			continue
+		seen[gk] = true
+		if g.is_empty() or not is_instance_valid(g.get("mi")) or String(g["sig"]) != sig:
+			var meshes: Array = []
+			for key in keys:
+				meshes.append((chunks[key] as Dictionary)["node"])
+			var gm := _join(meshes)
+			if gm == null:
+				continue
+			var gmi: MeshInstance3D = g.get("mi") if is_instance_valid(g.get("mi")) else null
+			if gmi == null:
+				gmi = MeshInstance3D.new()
+				gmi.name = "Block_" + gk
+				gmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				gmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+				root.add_child(gmi)
+			var first := meshes[0] as MeshInstance3D
+			gmi.material_override = first.material_override
+			gmi.mesh = gm
+			var box := AABB()
+			for k2 in meshes.size():
+				var m3 := meshes[k2] as MeshInstance3D
+				box = m3.custom_aabb if k2 == 0 else box.merge(m3.custom_aabb)
+			gmi.custom_aabb = box
+			g = {"mi": gmi, "sig": sig}
+			_tgroups[gk] = g
+		(g["mi"] as MeshInstance3D).visible = any_vis
+		for key in keys:
+			_set_layer((chunks[key] as Dictionary)["node"] as MeshInstance3D, false)
+		on += 1
+	for gk2 in _tgroups.keys():
+		if not seen.has(gk2):
+			var gg: Dictionary = _tgroups[gk2]
+			if is_instance_valid(gg.get("mi")):
+				(gg["mi"] as Node).queue_free()
+			_tgroups.erase(gk2)
+	tgroups_on = on
+	_far_groups(tw)
+
+
+## The far tiles (1 km, beyond the chunks) joined 2 x 2 the same way.
+static var _fgroups := {}
+static func _far_groups(tw: Node) -> void:
+	var far: Dictionary = tw.get(&"_far")
+	var root: Node3D = tw.get(&"_root_far")
+	if far == null or root == null:
+		return
+	var blocks := {}
+	for key in far:
+		var bk := Vector2i(int(key) / 100 / 2, int(key) % 100 / 2)
+		if not blocks.has(bk):
+			blocks[bk] = []
+		(blocks[bk] as Array).append(key)
+	var seen := {}
+	for bk: Vector2i in blocks:
+		var keys: Array = blocks[bk]
+		var mis: Array = []
+		var sig := ""
+		var vis := false
+		for key in keys:
+			var mi := far[key] as MeshInstance3D
+			if is_instance_valid(mi) and mi.mesh != null:
+				mis.append(mi)
+				sig += str(mi.mesh.get_rid().get_id()) + ","
+				vis = vis or mi.visible
+		if mis.size() < 2:
+			for mi2 in mis:
+				_set_layer(mi2, true)
+			continue
+		var gk := "%d_%d" % [bk.x, bk.y]
+		seen[gk] = true
+		var g: Dictionary = _fgroups.get(gk, {})
+		if g.is_empty() or not is_instance_valid(g.get("mi")) or String(g["sig"]) != sig:
+			var gm := _join(mis)
+			if gm == null:
+				continue
+			var gmi: MeshInstance3D = g.get("mi") if is_instance_valid(g.get("mi")) else null
+			if gmi == null:
+				gmi = MeshInstance3D.new()
+				gmi.name = "FarBlock_" + gk
+				gmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				gmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+				root.add_child(gmi)
+			gmi.material_override = (mis[0] as MeshInstance3D).material_override
+			gmi.mesh = gm
+			var box := AABB()
+			for k2 in mis.size():
+				box = (mis[k2] as MeshInstance3D).custom_aabb if k2 == 0 else box.merge((mis[k2] as MeshInstance3D).custom_aabb)
+			gmi.custom_aabb = box
+			g = {"mi": gmi, "sig": sig}
+			_fgroups[gk] = g
+		(g["mi"] as MeshInstance3D).visible = vis
+		for mi3 in mis:
+			_set_layer(mi3, false)
+	for gk2 in _fgroups.keys():
+		if not seen.has(gk2):
+			if is_instance_valid(_fgroups[gk2].get("mi")):
+				(_fgroups[gk2]["mi"] as Node).queue_free()
+			_fgroups.erase(gk2)
+
+
+static func _join(meshes: Array) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var cols := PackedColorArray()
+	var idx := PackedInt32Array()
+	for m in meshes:
+		var mesh := (m as MeshInstance3D).mesh
+		var xf := (m as MeshInstance3D).transform
+		var a := mesh.surface_get_arrays(0)
+		var base := verts.size()
+		var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		if xf == Transform3D.IDENTITY:
+			verts.append_array(v)
+		else:
+			for p in v:
+				verts.append(xf * p)
+		norms.append_array(a[Mesh.ARRAY_NORMAL])
+		if a[Mesh.ARRAY_COLOR] != null:
+			cols.append_array(a[Mesh.ARRAY_COLOR])
+		for i in (a[Mesh.ARRAY_INDEX] as PackedInt32Array):
+			idx.append(base + i)
+	if verts.is_empty():
+		return null
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_NORMAL] = norms
+	if cols.size() == verts.size():
+		arr[Mesh.ARRAY_COLOR] = cols
+	arr[Mesh.ARRAY_INDEX] = idx
+	var out := ArrayMesh.new()
+	out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return out
+
+
+# --- one number in one place: the flight readouts ---------------------------------------------------------------------------------------------
+## True while the helicopter cockpit (HeliCockpit, VIEW 3) paints its gauges (ALT, SPEED, HDG, ROTOR, HULL): the HUD then leaves out its own copies.
+static func cockpit_on() -> bool:
+	return not old and HeliCockpit.active()
+
+
+## The rows the readout plate DRAWS (Hud.vehicle_rows stays the full list): while the flight instruments show the altitude beside the horizon the plate drops its ALT
+## (a plane keeps THROTTLE), and in the cockpit the ROTOR row goes (the ROTOR gauge). Wave 128: "ALT 0 M" three times, ROTOR twice, HDG twice in the cockpit.
+static var speedo_drawn := true               ## the speed plate was painted in the last HUD frame (tests)
+static var last_rows: Array = []              ## the readout rows painted in the last HUD frame (tests)
+
+
+static func readout(veh: Object, rows: Array) -> Array:
+	last_rows = rows
+	if old or not FlightHud.visible_for(veh):
+		return rows
+	var cockpit := cockpit_on()
+	var out: Array = []
+	for r: Dictionary in rows:
+		var t := String(r["text"])
+		if t.begins_with("ALT "):
+			var k := t.find("THROTTLE")
+			if k < 0:
+				continue
+			r = {"text": t.substr(k), "col": r["col"]}
+		elif cockpit and t.begins_with("ROTOR ") and t.ends_with("%") and t.substr(6, 1).is_valid_int():
+			continue                                                    # "ROTOR 64 %": the ROTOR gauge (the hint "ROTOR SPINNING UP" stays)
+		out.append(r)
+	last_rows = out
+	return out

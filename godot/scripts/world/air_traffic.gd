@@ -689,6 +689,8 @@ func _update_node(f: Flight, ppos: Vector3, delta: float) -> void:
 	var want := d < SHOW and f.gone <= 0.0 and f.vehicle == null
 	f.lod = false
 	if roster_on:
+		if want and not f.airborne and d > AirDraws.ground_traffic_far():
+			want = false                                                         # w129-airdraws: a parked or taxiing one that far is a few pixels: not drawn (tier distance)
 		if want and d > LOD_R and f.airborne:
 			want = false
 			f.lod = true                                                         # far and in the air: a speck of the shared MultiMesh

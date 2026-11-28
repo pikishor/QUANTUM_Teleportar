@@ -244,6 +244,8 @@ class Doors extends Node3D:
 			add_child(b)
 			_bodies.append(b)
 		_place()
+		if not AirDraws.old:                                                        # w129-airdraws: the PLANES chip inside a hangar (pick a plane, it rolls out)
+			add_child(HangarPicker.new())
 		if Hangars.lights_on:                                                       # w128-airlook: the hangar lamps light the inside (it was lit by the sky ambient only: dark planes in a dark box)
 			for st: Dictionary in SITES:
 				var sp: Vector2 = st["pos"]

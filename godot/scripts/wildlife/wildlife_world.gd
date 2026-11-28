@@ -262,7 +262,7 @@ func _ring_point(cls: StringName) -> Vector3:
 	var z := _hero.z + sin(a) * r
 	if maxf(absf(x), absf(z)) < AnimalSpecies.CITY_SKIRT or maxf(absf(x), absf(z)) > TerrainHeight.WORLD_HALF - 60.0:
 		return Vector3.INF
-	if cls != AnimalSpecies.AIR and cls != AnimalSpecies.WATER and AirDraws.keep_out(x, z):     # w129-airdraws: no herds on the apron, the runway or the army base
+	if cls != AnimalSpecies.WATER and AirDraws.keep_out(x, z):          # w129-airdraws: no herds on the apron, the runway or the army base, no songbird flocks circling a treeless airfield
 		return Vector3.INF
 	var h := TerrainHeight.height_at(x, z)
 	var p := Vector3(x, h, z)

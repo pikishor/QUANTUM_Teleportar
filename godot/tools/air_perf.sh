@@ -11,7 +11,7 @@ for q in ${*:-0 1 2}; do
   qa="--quality=$q"; if [ "$q" = "lp" ]; then qa="--quality=0 --low-plus"; fi
   out="$(timeout "${AIR_TIMEOUT:-600}" xvfb-run -a -s "-screen 0 1280x720x24" "$BIN" --rendering-driver vulkan --rendering-method mobile --fixed-fps 30 --resolution 1200x540 \
     --path . res://tests/runner.tscn -- --test=res://tests/test_airfield_perf_w129.gd --timeout=560 $qa 2>&1)"
-  echo "$out" | grep -E "^AIR VIEW|^ok:|FAIL|^RESULT|SCRIPT ERROR|NOTE" | sed "s/^/tier $q: /"
+  echo "$out" | grep -E "^AIR |^ok:|FAIL|^RESULT|SCRIPT ERROR|NOTE" | sed "s/^/tier $q: /"
   echo "$out" | grep -q "^RESULT: PASS" || status=1
 done
 exit $status

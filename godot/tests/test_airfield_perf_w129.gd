@@ -2,7 +2,9 @@ extends RefCounted
 ## Wave 129 AIRFIELD DRAWS (owner: inside a vehicle on the airfield the frame was over budget: MED 155-171 / 140, LOW 116-131 / 100, LOW with 9 tanks about 150).
 ## Real main scene at a 20:9 phone window, touch HUD on, reward cards ON (CrateReveal._quiet = 0). The hero walks up to each parked machine and boards it by REAL FINGERS
 ## (tests/w116_fingers.gd: the left thumb on the stick until the context button says ENTER, then a tap on it). Each view is measured at 4 headings (the right thumb swipes the view
-## round) and the WORST frame counts: total draws (with shadow passes) and total triangles must stay inside PerfProbe.BUDGETS of the tier (LOW+ its own tighter budget).
+## round) and the WORST frame counts: total draws (with shadow passes and every canvas layer) and total triangles must stay inside PerfProbe.BUDGETS of the tier (LOW+ its
+## own tighter budget). The touch layout is judged the way the gate judges it (PerfProbe.HUD_TOUCH_MAX_DRAWS: what the touch layout may add to a frame): the canvas draws of
+## the touch layer (measured by hiding it) are allowed on top of the budget up to that cap, never more.
 ## Views: on foot at the HELI LINE, the PLANE LINE, the apron gates, the hangars and the ARMY BASE; boarded in a fighter on the apron, a helicopter on the heli line, a tank at the
 ## ARMY BASE with 9 tanks parked in front, and flying a plane over the outskirts.
 ## Needs a real renderer (prints a NOTE and checks nothing on the dummy renderer of --headless):
@@ -18,7 +20,7 @@ var vm: VehicleManager
 var tier := 1
 var budget := {}
 var real := true
-var worst := {}                      ## view -> [draws, prims]
+var worst := {}                      ## view -> [draws, prims, touch canvas draws]
 
 
 func _f(n: int) -> void:
@@ -78,8 +80,9 @@ func run(h: Node) -> void:
 	if real:
 		for v: String in worst:
 			var w: Array = worst[v]
-			TestLib.check(int(w[0]) <= int(budget["draws"]) and int(w[1]) <= int(budget["prims"]),
-				"[old fails] %s: worst frame %d draws, %d triangles (budget %d / %d, tier %d%s)" % [v, w[0], w[1], budget["draws"], budget["prims"], tier, " LOW+" if Game.low_plus else ""])
+			var allow := mini(int(w[2]), PerfProbe.HUD_TOUCH_MAX_DRAWS)
+			TestLib.check(int(w[0]) <= int(budget["draws"]) + allow and int(w[1]) <= int(budget["prims"]),
+				"%s: worst frame %d draws (touch layer %d, allowed %d of it), %d triangles (budget %d + %d / %d, tier %d%s)" % [v, w[0], w[2], allow, w[1], budget["draws"], allow, budget["prims"], tier, " LOW+" if Game.low_plus else ""])
 	fg.up_all()
 	CrateReveal._quiet = -1
 	host.get_window().size = win_size
@@ -98,13 +101,43 @@ func _measure(view: String, settle := 45) -> void:
 		if i > 0:
 			fg.look(px_per_turn, 0.0, 8)
 		await _f(12)
+		var hd := 0
+		var hv := 0
+		var hc := 0
 		for k in 4:
 			await _f(1)
 			var s := PerfProbe.snapshot(host.get_viewport())
 			wd = maxi(wd, int(s["total_draws"]))
 			wp = maxi(wp, int(s["total_prims"]))
-	worst[view] = [wd, wp]
-	print("AIR VIEW %s tier %d: worst %d draws %d prims (vehicle %s)" % [view, tier, wd, wp, str(p.vehicle.kind) if p.vehicle != null else "-"])
+			if int(s["total_draws"]) >= hd:
+				hd = int(s["total_draws"])
+				hv = int(s["draws"])
+				var rid := host.get_viewport().get_viewport_rid()
+				hc = RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_CANVAS, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME)
+		if OS.get_environment("AIR_VERBOSE") != "":
+			print("AIR   %s heading %d: total %d  3d %d  canvas %d  shadow %d" % [view, i, hd, hv, hc, hd - hv - hc])
+	var touch := await _touch_cost()
+	worst[view] = [wd, wp, touch]
+	print("AIR VIEW %s tier %d: worst %d draws %d prims, touch layer %d (vehicle %s)" % [view, tier, wd, wp, touch, str(p.vehicle.kind) if p.vehicle != null else "-"])
+
+
+## Canvas draws of the touch layer now (hidden for two frames: the difference of the main viewport's canvas draws).
+func _touch_cost() -> int:
+	if not real or fg.tc == null:
+		return 0
+	var layer: CanvasLayer = fg.tc                                     # TouchControls is the touch layer itself
+	var rid := host.get_viewport().get_viewport_rid()
+	var a := 0
+	var b := 0
+	for i in 3:
+		await _f(1)
+		a = maxi(a, RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_CANVAS, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME))
+	layer.visible = false
+	await _f(2)
+	b = RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_CANVAS, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME)
+	layer.visible = true
+	await _f(2)
+	return maxi(0, a - b)
 
 
 ## Canvas pixels of a right-thumb swipe that turns the view about a quarter turn (measured once on the camera's yaw).
@@ -221,6 +254,15 @@ func _v_jet() -> void:
 func _v_heli() -> void:
 	await _stand(Vector3(1318.0, 0.0, -760.0), Vector3(1334.0, 3.0, -760.0))
 	var v := await _near(Vector3(1334.0, 0.0, -760.0), &"heli")
+	if v == null:                                                     # setup: the heli line is filled by the spawner as the hero comes; put one there when it has not yet
+		var w := Airport.to_world(Vector3(1334.0, 0.0, -760.0))
+		w.y = TerrainHeight.height_at(w.x, w.z)
+		vm._fixed_n += 1
+		v = vm.spawn_parked(&"h_utility", w, Airport.heading_world(PI * 0.5))
+		if v != null:
+			v.set_meta(&"hold", true)
+		vm._count_fixed()
+		await _f(10)
 	var ok := await _board(v)
 	TestLib.check(ok, "a finger on ENTER boards a helicopter on the heli line (%s)" % (str(v.kind) if v != null else "none"))
 	await _measure("heli")

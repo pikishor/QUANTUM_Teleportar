@@ -80,7 +80,13 @@ func _shadow_proxies() -> void:
 		return
 	TestLib.check(rig.shadow != null and rig.shadow.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY, "the hero's shadow comes from a shadows-only proxy")
 	TestLib.check(rig.body_mesh.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "...the visible body itself casts none (one caster, not two)")
-	TestLib.check(rig.shadow != null and rig.shadow.mesh == rig.body_mesh.mesh and rig.shadow.skin == rig.body_mesh.skin and rig.shadow.get_node(rig.shadow.skeleton) == rig.skeleton, "the proxy shares the mesh, the skin and the SKELETON of the body (it follows the pose)")
+	# w129-airdraws: the proxy's mesh is the body mesh or its coarse shadow copy (ShadowProxy.coarse_skinned: the SAME vertices, bones and weights, fewer indices)
+	var same_mesh := rig.shadow != null and (rig.shadow.mesh == rig.body_mesh.mesh or rig.shadow.mesh == ShadowProxy.coarse_skinned(rig.body_mesh.mesh))
+	if same_mesh and rig.shadow.mesh != rig.body_mesh.mesh:
+		for si in rig.shadow.mesh.get_surface_count():
+			var src: int = ShadowProxy.kept_surfaces(rig.body_mesh.mesh)[si]
+			same_mesh = same_mesh and rig.shadow.mesh.surface_get_array_len(si) == rig.body_mesh.mesh.surface_get_array_len(src)
+	TestLib.check(same_mesh and rig.shadow.skin == rig.body_mesh.skin and rig.shadow.get_node(rig.shadow.skeleton) == rig.skeleton, "the proxy shares the mesh (or its coarse copy with the same vertices), the skin and the SKELETON of the body (it follows the pose)")
 	TestLib.check(rig.shadow != null and rig.shadow.lod_bias < 1.0, "...and asks the renderer for a coarse LOD (bias %.2f)" % (rig.shadow.lod_bias if rig.shadow != null else -1.0))
 	rig.set_shadow(false)
 	TestLib.check(rig.shadow != null and not rig.shadow.visible, "the hero's shadow can be switched off")

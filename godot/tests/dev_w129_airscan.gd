@@ -5,9 +5,23 @@ extends "res://tests/test_airfield_perf_w129.gd"
 
 func _measure(view: String, settle := 45) -> void:
 	await _f(settle)
+	var turns := int(OS.get_environment("SCAN_TURNS"))
+	if turns > 0:
+		var px: float = await _px_quarter()
+		for i in turns:
+			fg.look(px, 0.0, 8)
+			await _f(4)
+		await _f(20)
 	var vp := host.get_viewport()
 	var s := PerfProbe.snapshot(vp)
 	print("SCAN %s measured total %d visible %d prims %d" % [view, s["total_draws"], s["draws"], s["total_prims"]])
+	var rs := RenderingServer
+	var rid := vp.get_viewport_rid()
+	print("SCAN %s main viewport: visible %d shadow %d canvas %d" % [view, rs.viewport_get_render_info(rid, rs.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, rs.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME),
+		rs.viewport_get_render_info(rid, rs.VIEWPORT_RENDER_INFO_TYPE_SHADOW, rs.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME), rs.viewport_get_render_info(rid, rs.VIEWPORT_RENDER_INFO_TYPE_CANVAS, rs.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME)])
+	for sv in host.get_tree().root.find_children("*", "SubViewport", true, false):
+		var sr := (sv as SubViewport).get_viewport_rid()
+		print("SCAN %s subviewport %s update %d visible %d" % [view, (sv as Node).get_path(), (sv as SubViewport).render_target_update_mode, rs.viewport_get_render_info(sr, rs.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, rs.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME)])
 	var cam := vp.get_camera_3d()
 	var city := Game.world as City
 	var shadow_far := city.sun.directional_shadow_max_distance if city.sun.shadow_enabled else 0.0
@@ -100,6 +114,7 @@ func _avg() -> Array:
 func _toggles(view: String) -> void:
 	var city := Game.world as City
 	var main := host.get_child(host.get_child_count() - 1)
+	print("SCAN %s terrain blocks joined %d, city families culled %d" % [view, AirDraws.tgroups_on, AirDraws.culled])
 	var fams := {
 		"SUN_SHADOW": [city.sun],
 		"AirTraffic": main.find_children("AirTraffic", "", true, false),
@@ -114,6 +129,11 @@ func _toggles(view: String) -> void:
 		"Landscape": main.find_children("Landscape", "", true, false),
 		"Sites": main.find_children("Sites", "", true, false),
 		"Airport": main.find_children("AirportWorld", "", true, false),
+		"Bridges": main.find_children("BridgeWorld", "", true, false),
+		"Rail": main.find_children("RailWorld", "", true, false),
+		"Harbour": main.find_children("HarbourWorld", "", true, false),
+		"Water": main.find_children("WaterWorld", "", true, false),
+		"Aliens": main.find_children("AlienWorld", "", true, false),
 		"Player": [Game.player],
 	}
 	var only_t := OS.get_environment("SCAN_TOGGLES")
@@ -164,13 +184,37 @@ func _toggles(view: String) -> void:
 		(c as CanvasLayer).visible = true
 	print("SCAN %s toggle %-11s n %2d  total -%.0f  visible -%.0f" % [view, "CANVAS", hud.size(), h0[0] - h1[0], h0[1] - h1[1]])
 	if OS.get_environment("SCAN_CANVAS") != "":
+		var rid := host.get_viewport().get_viewport_rid()
+		var cv := func() -> int: return RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_CANVAS, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME)
+		await _f(2)
+		var e0: int = cv.call()
+		FlightHud.batch = false
+		await _f(3)
+		var e1: int = cv.call()
+		FlightHud.batch = true
+		FlightHud.enabled = false
+		await _f(3)
+		var e2: int = cv.call()
+		FlightHud.enabled = true
+		print("SCAN %s canvas: now %d, flight instruments unbatched %d, without them %d" % [view, e0, e1, e2])
 		for c in hud:
-			var a0: Array = await _avg()
+			await _f(2)
+			var a0: int = cv.call()
 			(c as CanvasLayer).visible = false
-			await _f(1)
-			var a1: Array = await _avg()
+			await _f(2)
+			var a1: int = cv.call()
 			(c as CanvasLayer).visible = true
-			print("SCAN %s canvas %s (layer %d) -%.0f" % [view, (c as Node).get_path(), (c as CanvasLayer).layer, a0[0] - a1[0]])
+			print("SCAN %s canvas %s (layer %d) canvas draws %d -> %d" % [view, (c as Node).get_path(), (c as CanvasLayer).layer, a0, a1])
+			for ch in (c as Node).get_children():
+				if ch is CanvasItem and (ch as CanvasItem).visible:
+					await _f(2)
+					var b0: int = cv.call()
+					(ch as CanvasItem).visible = false
+					await _f(2)
+					var b1: int = cv.call()
+					(ch as CanvasItem).visible = true
+					if b0 != b1:
+						print("SCAN %s   child %s %d -> %d" % [view, ch.name, b0, b1])
 		var hudn := host.get_tree().get_first_node_in_group(&"hud")
 		if hudn != null:
 			for ch in hudn.find_children("*", "CanvasItem", false, false):

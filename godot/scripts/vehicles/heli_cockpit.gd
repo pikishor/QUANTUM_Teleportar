@@ -149,6 +149,120 @@ func _vp() -> Vector2:
 	return view.get_viewport_rect().size if view != null else Vector2(1280, 720)
 
 
+## w129-airdraws: the move pad's circle (centre, radius + margin) in canvas px: where the thumb lands (the idle hint ring, or the live base while a finger is down).
+## Nothing of the cockpit is painted over it (wave 128: the left pillar, the seat bolster and the dash crossed the pad). [] without the touch HUD or with AirDraws.old.
+var pad_polys := 0                     ## polygons of the last frame that touched the pad (tests: must be 0)
+
+
+func stick_zone() -> Array:
+	var tc := _touch()
+	if tc == null or not bool(tc.get(&"controls_on")):
+		return []
+	var vp := _vp()
+	var s := UiUtil.ui_scale(vp)
+	var left := not UiSettings.s_left_hand
+	var c := Vector2(190.0 * s + UiUtil.insets(vp).x if left else vp.x - 190.0 * s - UiUtil.insets(vp).y, vp.y - 170.0 * s - UiUtil.insets_v(vp).y)
+	var r := TouchControls.STICK_RADIUS * s + 14.0 * s
+	if int(tc.get(&"_stick_id")) != -1:
+		var o: Vector2 = tc.get(&"_stick_origin")
+		var span := (o - c).length()
+		c = (c + o) * 0.5
+		r += span * 0.5                                                 # one circle round both: the hint ring and where the thumb really is
+	return [c, r]
+
+
+## The frame's shapes for the current layout, as _paint draws them: left / right pillar, left / right seat bolster, the dash shroud (empty when the panel is too narrow).
+## w129-airdraws: a pillar ends above the move pad, the dash's foot stops beside it, a bolster over it is left out (AirDraws.old: as wave 128).
+func frame_shapes(v: Vehicle) -> Dictionary:
+	var vp := _vp()
+	var s := UiUtil.ui_scale(vp)
+	var fam: Dictionary = FAMILIES[family_of(v.spec)]
+	var pr := panel_rect()
+	var py := pr.position.y
+	var pw := vp.x * float(fam["pillar"])
+	var top := 34.0 * s
+	var lx := pr.position.x - 40.0 * s
+	var rx := pr.end.x + 40.0 * s
+	var out := {
+		"pl": _clear_pillar(PackedVector2Array([Vector2(0.0, top), Vector2(pw, top), Vector2(lx * 0.42 + pw, py), Vector2(lx * 0.42, py)]), s),
+		"pr": _clear_pillar(PackedVector2Array([Vector2(vp.x - pw, top), Vector2(vp.x, top), Vector2(vp.x - (vp.x - rx) * 0.42, py), Vector2(vp.x - (vp.x - rx) * 0.42 - pw, py)]), s),
+		"bl": PackedVector2Array([Vector2(0.0, vp.y), Vector2(0.0, vp.y - 120.0 * s), Vector2(40.0 * s, vp.y - 150.0 * s), Vector2(120.0 * s, vp.y)]),
+		"br": PackedVector2Array([Vector2(vp.x, vp.y), Vector2(vp.x, vp.y - 120.0 * s), Vector2(vp.x - 40.0 * s, vp.y - 150.0 * s), Vector2(vp.x - 120.0 * s, vp.y)]),
+	}
+	if not AirDraws.old:
+		for k: String in ["bl", "br"]:
+			if _hits_pad(out[k]):
+				out.erase(k)
+	if pr.size.x >= 120.0 * s:
+		var fl := pr.position.x - 60.0 * s
+		var fr := pr.end.x + 60.0 * s
+		var z := stick_zone()
+		if z.size() == 2 and not AirDraws.old:
+			var zc: Vector2 = z[0]
+			var zr: float = z[1]
+			if zc.x < vp.x * 0.5:
+				fl = minf(pr.position.x - 1.0, maxf(fl, zc.x + zr + 2.0 * s))
+			else:
+				fr = maxf(pr.end.x + 1.0, minf(fr, zc.x - zr - 2.0 * s))
+		out["dash"] = PackedVector2Array([Vector2(fl, vp.y), Vector2(maxf(pr.position.x - 30.0 * s, fl), py + 10.0 * s), Vector2(pr.position.x, py - 12.0 * s),
+			Vector2(pr.end.x, py - 12.0 * s), Vector2(minf(pr.end.x + 30.0 * s, fr), py + 10.0 * s), Vector2(fr, vp.y)])
+	return out
+
+
+## How many of the frame's shapes lie over the move pad (tests: 0 since w129-airdraws; the pillars and the dash are still there, shorter).
+func pad_overlaps() -> int:
+	var v := flown()
+	if v == null:
+		return 0
+	var n := 0
+	var sh := frame_shapes(v)
+	for k: String in sh:
+		if _hits_pad(sh[k]):
+			n += 1
+	return n
+
+
+func _hits_pad(pts: PackedVector2Array) -> bool:
+	var z := stick_zone()
+	if z.size() != 2:
+		return false
+	var c: Vector2 = z[0]
+	var r: float = z[1]
+	if Geometry2D.is_point_in_polygon(c, pts):
+		return true
+	for i in pts.size():
+		var a := pts[i]
+		var b := pts[(i + 1) % pts.size()]
+		if Geometry2D.get_closest_point_to_segment(c, a, b).distance_to(c) < r:
+			return true
+	return false
+
+
+## w129-airdraws: a canopy pillar that would reach down into the move pad ends above it (its foot slides up along its edges).
+func _clear_pillar(pts: PackedVector2Array, s: float) -> PackedVector2Array:
+	var z := stick_zone()
+	if AirDraws.old or z.size() != 2 or not _hits_pad(pts):
+		return pts
+	var zc: Vector2 = z[0]
+	var zr: float = z[1]
+	var lo := pts[0].y
+	var hi := pts[2].y
+	for i in 12:                                                        # the lowest foot height that keeps clear of the pad (bisection on y)
+		var mid := (lo + hi) * 0.5
+		var t := (mid - pts[0].y) / maxf(pts[3].y - pts[0].y, 1.0)
+		var q := PackedVector2Array([pts[0], pts[1], pts[1].lerp(pts[2], t), pts[0].lerp(pts[3], t)])
+		var hit := false
+		for k in 4:
+			if Geometry2D.get_closest_point_to_segment(zc, q[k], q[(k + 1) % 4]).distance_to(zc) < zr:
+				hit = true
+		if hit:
+			hi = mid
+		else:
+			lo = mid
+	var t2 := (lo - pts[0].y) / maxf(pts[3].y - pts[0].y, 1.0)
+	return PackedVector2Array([pts[0], pts[1], pts[1].lerp(pts[2], t2), pts[0].lerp(pts[3], t2)])
+
+
 ## The instrument panel: a band low in the view, right of the flight instruments (FlightHud's horizon and readouts end near 360 px), above the buttons of the bottom row (DOWN, UP)
 ## and left of the right cluster; it keeps 8 px clear of every visible button circle. The dash below it reaches the bottom of the screen under the HUD's plates and the stick.
 func panel_rect() -> Rect2:
@@ -157,6 +271,14 @@ func panel_rect() -> Rect2:
 	var ins := UiUtil.insets(vp)
 	var x0 := ins.x + 370.0 * s
 	var x1 := vp.x - ins.y - 290.0 * s
+	var pad := stick_zone()                                              # w129-airdraws: the panel starts right of the move pad (left-handed: ends left of it)
+	if pad.size() == 2 and not AirDraws.old:
+		var pc: Vector2 = pad[0]
+		var prr: float = pad[1]
+		if pc.x < vp.x * 0.5:
+			x0 = maxf(x0, pc.x + prr + 8.0 * s)
+		else:
+			x1 = minf(x1, pc.x - prr - 8.0 * s)
 	var y1 := vp.y - UiUtil.insets_v(vp).y - 8.0 * s
 	var circles := button_circles()
 	for c: Array in circles:                                             # the bottom row under the panel's span lifts its bottom edge
@@ -231,6 +353,8 @@ func _rect(c: Control, r: Rect2, col: Color) -> void:
 
 
 func _poly(c: Control, pts: PackedVector2Array, col: Color) -> void:
+	if _hits_pad(pts):
+		pad_polys += 1
 	if not batch_fix:
 		c.draw_colored_polygon(pts, col)
 		return
@@ -291,6 +415,7 @@ func _paint() -> void:
 	if v == null:
 		return
 	shown_frames += 1
+	pad_polys = 0
 	var c := view
 	var vp := _vp()
 	var s := UiUtil.ui_scale(vp)
@@ -304,12 +429,13 @@ func _paint() -> void:
 	_rect(c, Rect2(0.0, 0.0, vp.x, top), fc)
 	_rect(c, Rect2(0.0, top, vp.x, 16.0 * s), GLASS)
 	_line(c, Vector2(0.0, top + 16.0 * s), Vector2(vp.x, top + 16.0 * s), Color(fc, 1.0), 3.0 * s)
-	var lx := pr.position.x - 40.0 * s
-	var rx := pr.end.x + 40.0 * s
-	_poly(c, PackedVector2Array([Vector2(0.0, top), Vector2(pw, top), Vector2(lx * 0.42 + pw, py), Vector2(lx * 0.42, py)]), fc)
-	_poly(c, PackedVector2Array([Vector2(vp.x - pw, top), Vector2(vp.x, top), Vector2(vp.x - (vp.x - rx) * 0.42, py), Vector2(vp.x - (vp.x - rx) * 0.42 - pw, py)]), fc)
-	_line(c, Vector2(pw, top), Vector2(lx * 0.42 + pw, py), Color(0.75, 0.9, 1.0, 0.35), 1.5 * s)     # the glass edge along the pillar
-	_line(c, Vector2(vp.x - pw, top), Vector2(vp.x - (vp.x - rx) * 0.42 - pw, py), Color(0.75, 0.9, 1.0, 0.35), 1.5 * s)
+	var fs0 := frame_shapes(v)
+	var lp: PackedVector2Array = fs0["pl"]
+	var rp: PackedVector2Array = fs0["pr"]
+	_poly(c, lp, fc)
+	_poly(c, rp, fc)
+	_line(c, lp[1], lp[2], Color(0.75, 0.9, 1.0, 0.35), 1.5 * s)     # the glass edge along the pillar
+	_line(c, rp[0], rp[3], Color(0.75, 0.9, 1.0, 0.35), 1.5 * s)
 	if bool(fam["post"]):
 		var cx := pr.get_center().x
 		_poly(c, PackedVector2Array([Vector2(cx - 5.0 * s, top), Vector2(cx + 5.0 * s, top), Vector2(cx + 8.0 * s, py), Vector2(cx - 8.0 * s, py)]), fc)
@@ -319,13 +445,13 @@ func _paint() -> void:
 			_rect(c, Rect2(sx - 8.0 * s, 9.0 * s, 16.0 * s, 16.0 * s), Color(0.08, 0.09, 0.1))
 			_rect(c, Rect2(sx - 2.0 * s, 11.0 * s, 4.0 * s, 8.0 * s), Color(fam["accent"], 0.9) if i % 3 != 1 else Color(0.6, 0.6, 0.6))
 	# the seat bolsters in the lower corners, the dash shroud along the panel's top
-	_poly(c, PackedVector2Array([Vector2(0.0, vp.y), Vector2(0.0, vp.y - 120.0 * s), Vector2(40.0 * s, vp.y - 150.0 * s), Vector2(120.0 * s, vp.y)]), Color(0.06, 0.06, 0.07, 0.95))
-	_poly(c, PackedVector2Array([Vector2(vp.x, vp.y), Vector2(vp.x, vp.y - 120.0 * s), Vector2(vp.x - 40.0 * s, vp.y - 150.0 * s), Vector2(vp.x - 120.0 * s, vp.y)]), Color(0.06, 0.06, 0.07, 0.95))
-	if pr.size.x < 120.0 * s:
+	for k: String in ["bl", "br"]:
+		if fs0.has(k):
+			_poly(c, fs0[k], Color(0.06, 0.06, 0.07, 0.95))
+	if not fs0.has("dash"):
 		_flush(c)
 		return
-	_poly(c, PackedVector2Array([Vector2(pr.position.x - 60.0 * s, vp.y), Vector2(pr.position.x - 30.0 * s, py + 10.0 * s), Vector2(pr.position.x, py - 12.0 * s),
-		Vector2(pr.end.x, py - 12.0 * s), Vector2(pr.end.x + 30.0 * s, py + 10.0 * s), Vector2(pr.end.x + 60.0 * s, vp.y)]), Color(fc, 0.9))
+	_poly(c, fs0["dash"], Color(fc, 0.9))
 	_rect(c, pr, fam["panel"])
 	# five gauges in a row
 	var g := gauges(v)
