@@ -67,6 +67,9 @@ const INTERIOR_MIN_ARM := 0.25               ## ... and may shrink to this: the 
 const INTERIOR_FOV_BOOST := 24.0             ## degrees added (horizontal FOV) inside an interior while the arm is pulled in by a wall: a hero 1 m from the lens would be cropped at the hips and the left edge
 const INTERIOR_LIFT := 0.08                  ## metres the camera is raised in every interior ...
 const INTERIOR_LIFT_SQUEEZE := 0.1           ## ... and up to this much more while a wall pulls the arm in: the lens looks over the hero's head and shoulder instead of sitting in his back (director review 4, defect 8)
+static var tank_sight_on := OS.get_environment("W129TM_OLD") != "1"   ## w129-tankmis: in a TANK the view is the gun sight: it stays where the thumb aimed it (the turret follows it) and only swings back behind the hull while the tank drives faster than TANK_RECENTRE m/s; W129TM_OLD=1: it swung back to the hull nose and the chase pitch FREE_LOOK_TIME after every swipe, turning the turret off the target (the crosshair dropped onto the street 25 m ahead)
+const TANK_RECENTRE := 4.0
+var _sight_for: Node3D = null                ## the tank whose gun sight the player laid with a swipe (until then the view settles behind the hull as before)
 static var snake_pull_in := 40.0            ## per second: how fast a wall draws the arm in while a snake state (swing, zip, climb, flight) runs: about 0.05 s (three frames), not a cut (a test sets 1e6 to show the old cut)
 const SQUEEZE_START := 2.0                   ## an arm shorter than this (metres) starts to slide the camera toward a free shoulder ...
 const SQUEEZE_SIDE := 0.42                   ## ... by this much sideways at full squeeze (arm at the MIN_ARM floor) ...
@@ -252,6 +255,9 @@ func add_look(d_yaw: float, d_pitch: float) -> void:
 	d_yaw *= look_scale
 	d_pitch *= look_scale
 	var turn := -d_yaw                       # Node3D convention: positive = left
+	if tank_sight_on and (d_yaw != 0.0 or d_pitch != 0.0) and _sight_for != _follow and is_instance_valid(_follow) and _follow.get(&"cls") == &"tank" and _mode == &"vehicle":
+		yaw = _vehicle_heading() + PI * _back_w        # w129-tankmis: the first swipe in a tank lays the sight from the view behind the hull (not from wherever the boarding ease had got to)
+		pitch = _chase_pitch()
 	if recoil_yaw != 0.0 and turn * recoil_yaw < 0.0:
 		var absorbed := minf(absf(recoil_yaw), absf(turn)) * signf(turn)
 		recoil_yaw += absorbed
@@ -265,6 +271,7 @@ func add_look(d_yaw: float, d_pitch: float) -> void:
 	pitch = clampf(pitch + up, PITCH_MIN, PITCH_MAX)
 	if d_yaw != 0.0 or d_pitch != 0.0:
 		free_look = FREE_LOOK_TIME
+		_sight_for = _follow                 # w129-tankmis: a swipe from inside a tank lays its gun sight (kept, see tank_sight_on)
 
 
 ## Rifle kick: up (radians, positive tilts the view up) and left. Recovers after RECOIL_DELAY.
@@ -404,6 +411,7 @@ func get_ads_amount() -> float:
 
 func _set_follow_target(v: Node3D) -> void:
 	_follow = v
+	_sight_for = null                        # a new ride starts with the view behind it
 	if arm != null:
 		arm.clear_excluded_objects()
 		_props_excluded = false
@@ -814,7 +822,8 @@ func _update_view(dt: float) -> void:
 		veh_speed = _vehicle_speed()
 		if playing:
 			_poll_vehicle_input(dt)
-		if playing and free_look <= 0.0:
+		var sight: bool = tank_sight_on and is_instance_valid(_follow) and _follow.get(&"cls") == &"tank" and _sight_for == _follow and absf(veh_speed) < TANK_RECENTRE and _back_w < 0.01
+		if playing and free_look <= 0.0 and not sight:
 			var hood := veh_view == 2
 			var want_yaw := _vehicle_heading() + _drift_offset(veh_speed) + PI * _back_w
 			yaw = PlayerUtil.damp_angle(yaw, want_yaw, 14.0 if hood else (3.4 if absf(veh_speed) > 2.0 else 0.8) + 5.0 * _back_w, dt)

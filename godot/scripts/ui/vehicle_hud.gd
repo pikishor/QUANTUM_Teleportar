@@ -139,17 +139,23 @@ static func draw(hud: Hud, c: Control, font: Font, ab: Rect2, veh: Object, s: fl
 	return top
 
 
+static var dial_pen_old := OS.get_environment("W129I_OLD") == "1"      ## w129-integrator: true = the dial's shapes drawn one by one (old)
+
+
 ## The tank's turret dial centred at `at`, radius `r`: a ring that fills as the main gun reloads, the hull outline (fixed, nose up), the turret line and the gun's elevation. Returns the top.
 static func _tank_dial(hud: Hud, c: Control, font: Font, at: Vector2, r: float, p: Dictionary, s: float) -> float:
 	var ready := float(p["reload"])
-	c.draw_circle(at, r + 4.0 * s, Color(UiUtil.PLATE, 0.85))
-	c.draw_arc(at, r, -PI * 0.5, -PI * 0.5 + TAU * ready, 40, Color(UiUtil.GREEN if ready >= 0.999 else UiUtil.AMBER, 0.95), 4.0 * s)
-	c.draw_arc(at, r - 8.0 * s, 0.0, TAU, 28, Color(1, 1, 1, 0.16), 1.5 * s)
+	var pen: Object = c if dial_pen_old else TriPen.new()          # w129-integrator: the six shapes of the dial in one canvas draw (they were six)
+	pen.draw_circle(at, r + 4.0 * s, Color(UiUtil.PLATE, 0.85))
+	pen.draw_arc(at, r, -PI * 0.5, -PI * 0.5 + TAU * ready, 40, Color(UiUtil.GREEN if ready >= 0.999 else UiUtil.AMBER, 0.95), 4.0 * s)
+	pen.draw_arc(at, r - 8.0 * s, 0.0, TAU, 28, Color(1, 1, 1, 0.16), 1.5 * s)
 	var hull_pts := PackedVector2Array([at + Vector2(-9.0, -16.0) * s, at + Vector2(9.0, -16.0) * s, at + Vector2(9.0, 16.0) * s, at + Vector2(-9.0, 16.0) * s])
-	c.draw_colored_polygon(hull_pts, Color(0.45, 0.55, 0.6, 0.9))
+	pen.draw_colored_polygon(hull_pts, Color(0.45, 0.55, 0.6, 0.9))
 	var rel := float(p["turret"])                                # + = left: on screen that is anticlockwise from "up"
 	var dir := Vector2(-sin(rel), -cos(rel))
-	c.draw_line(at, at + dir * (r - 4.0 * s), Color(UiUtil.AMBER, 0.98), 4.0 * s)
-	c.draw_circle(at, 7.0 * s, Color(UiUtil.AMBER, 0.98))
+	pen.draw_line(at, at + dir * (r - 4.0 * s), Color(UiUtil.AMBER, 0.98), 4.0 * s)
+	pen.draw_circle(at, 7.0 * s, Color(UiUtil.AMBER, 0.98))
+	if pen is TriPen:
+		(pen as TriPen).flush(c)
 	hud._text(c, font, Vector2(at.x + r + 12.0 * s, at.y + 8.0 * s), "GUN %d\u00b0" % roundi(rad_to_deg(float(p["gun_pitch"]))), HORIZONTAL_ALIGNMENT_LEFT, 120.0 * s, int(UiUtil.BAR_LABEL * s * 0.8), Color(1, 1, 1, 0.85), 1.0 * s)
 	return at.y - r - 4.0 * s

@@ -116,6 +116,10 @@ func _build_cloud() -> void:
 	_cmm.instance_count = CLOUD_TOTAL
 	var mat := ShaderMaterial.new()
 	mat.shader = CLOUD_SHADER
+	if MachAnim.old:                                      # W129_OLD=1: the cloud as it was (fogged: a pale square round every puff)
+		var sh := Shader.new()
+		sh.code = CLOUD_SHADER.code.replace(", fog_disabled", "")
+		mat.shader = sh
 	_cnode = MultiMeshInstance3D.new()
 	_cnode.multimesh = _cmm
 	_cnode.material_override = mat
@@ -231,6 +235,12 @@ func puff(pos: Vector3, vel: Vector3, size0: float, size1: float, life: float, c
 		if _c_alive[i] == 0:
 			slot = i
 			break
+	if slot < 0 and not MachAnim.old:                     # w129-machanim: a blast takes the place of a machine puff (exhaust, dust, wash) first
+		for i in cap:
+			if _c_alive[i] == 2:
+				slot = i
+				_c_live -= 1
+				break
 	if slot < 0:                                          # full: recycle the puff that is nearly over
 		var worst := 0.0
 		for i in cap:
@@ -256,6 +266,54 @@ func puff(pos: Vector3, vel: Vector3, size0: float, size1: float, life: float, c
 	_c_asp[slot] = aspect
 	_c_live += 1
 	puffs_made += 1
+	_cnode.visible = true
+	set_process(true)
+	return true
+
+
+## w129-machanim: a LOW-PRIORITY puff of a machine (exhaust, track dust, rotor wash, muzzle smoke, a burning wreck) in the same cloud MultiMesh (no new draw call). It takes a free
+## slot only, at most MACH_SHARE of the tier's pool, and any blast puff takes its place when the pool is full (puff above). False when there is no room.
+const MACH_SHARE := 0.5
+var mach_made := 0
+
+
+func machine_puff(pos: Vector3, vel: Vector3, size0: float, size1: float, life: float, color: Color, kind := K_SMOKE, glow := 0.0, drag := 0.6, aspect := 1.0) -> bool:
+	var cap := cloud_cap(Game.quality)
+	var room := maxi(2, int(float(cap) * MACH_SHARE))
+	var mine := 0
+	var slot := -1
+	var oldest := -1
+	var worst := 0.3
+	for i in cap:
+		var a := _c_alive[i]
+		if a == 2:
+			mine += 1
+			var u := _c_age[i] / maxf(_c_life[i], 0.01)
+			if u >= worst:
+				worst = u
+				oldest = i
+		elif a == 0 and slot < 0:
+			slot = i
+	if mine >= room or slot < 0:
+		if oldest < 0:
+			return false
+		slot = oldest                                     # the machine's own oldest puff makes room
+		_c_live -= 1
+	_c_alive[slot] = 2
+	_c_age[slot] = 0.0
+	_c_life[slot] = maxf(life, 0.1)
+	_c_pos[slot] = pos
+	_c_vel[slot] = vel
+	_c_s0[slot] = size0
+	_c_s1[slot] = size1
+	_c_col[slot] = color
+	_c_kind[slot] = float(kind)
+	_c_seed[slot] = _rng.randf()
+	_c_glow[slot] = glow
+	_c_drag[slot] = drag
+	_c_asp[slot] = aspect
+	_c_live += 1
+	mach_made += 1
 	_cnode.visible = true
 	set_process(true)
 	return true

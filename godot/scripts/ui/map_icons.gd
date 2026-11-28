@@ -11,7 +11,8 @@ const GLYPHS: Array[StringName] = [&"airport", &"harbour", &"city", &"helipad", 
 ## a plane from above. Polygons, rectangles and lines only (no font): on the minimap they share the batch of the other untextured shapes.
 
 
-static func draw(ci: CanvasItem, kind: StringName, c: Vector2, r: float, col: Color, backing := true) -> void:
+## `ci` is a CanvasItem inside its _draw, or a TriPen (w129-integrator: the minimap batches its pins into one canvas draw).
+static func draw(ci: Object, kind: StringName, c: Vector2, r: float, col: Color, backing := true) -> void:
 	if backing:
 		ci.draw_circle(c, r, Color(0.01, 0.03, 0.05, 0.92))
 		ci.draw_arc(c, r, 0.0, TAU, 24, col, maxf(r * 0.16, 1.5), true)

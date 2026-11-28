@@ -152,6 +152,42 @@ static func shell(mb: RefCounted, s: Dictionary) -> void:
 	mb.call(&"box", stripe[0], stripe[1], AirportKit._c(Color(0.95, 0.6, 0.12), AirportKit.LAMP), false)
 
 
+## Door panels a side: 1 (wave 128, AirDraws.old: one leaf that slid past the wall) or as many as fit, stacked, in the wall's end beside the opening (w129-airdraws).
+static func panels_of(s: Dictionary) -> int:
+	if AirDraws.old:
+		return 1
+	var jamb := (float(door_frame(s)["span"]) - float(s["dw"])) * 0.5
+	return maxi(1, ceili(float(s["dw"]) * 0.5 / maxf(jamb - 0.05, 0.5)))
+
+
+## Width of one panel (the panels of a side overlap 0.3 m when shut, no gap).
+static func panel_w(s: Dictionary, n: int) -> float:
+	if n <= 1:
+		return float(s["dw"]) * 0.5 + 0.4
+	return float(s["dw"]) * 0.5 / float(n) + 0.3
+
+
+## The far ends of the door panels of a site along its face, measured from the middle of the opening (m): [the most negative edge, the most positive edge] (checks).
+static func leaf_extent(id: StringName) -> Array:
+	var d := Doors.instance
+	if not is_instance_valid(d):
+		return []
+	var lo := 1.0e9
+	var hi := -1.0e9
+	for i in d._leaf.size():
+		var l: Dictionary = d._leaf[i]
+		var s: Dictionary = l["site"]
+		if s["id"] != id:
+			continue
+		var df := door_frame(s)
+		var xf := d.leaf_xf(i)
+		var a := (xf.origin - (df["c"] as Vector3)).dot(df["along"])
+		var half := xf.basis.x.length() * 0.5
+		lo = minf(lo, a - half)
+		hi = maxf(hi, a + half)
+	return [lo, hi]
+
+
 ## A box given in the frame of a horizontal direction `dir` (size.x along dir's right, size.z along dir): an axis-aligned [centre, size] (dir is always an axis here).
 static func _yaw_box(c: Vector3, size: Vector3, dir: Vector3) -> Array:
 	if absf(dir.x) > 0.5:
@@ -180,8 +216,10 @@ class Doors extends Node3D:
 			mb.box(Vector3(0.0, -0.4 + 0.2 * float(i), 0.52), Vector3(0.96, 0.025, 0.04), AirportKit._c(Color(0.5, 0.52, 0.55), AirportKit.STEEL), false)
 		var mesh := mb.build(BridgeKit.kit_material())
 		for s: Dictionary in SITES:
+			var n := Hangars.panels_of(s)
 			for side in [-1.0, 1.0]:
-				_leaf.append({"site": s, "side": side})
+				for k in n:
+					_leaf.append({"site": s, "side": side, "k": k, "n": n})
 		_mm = MultiMesh.new()
 		_mm.transform_format = MultiMesh.TRANSFORM_3D
 		_mm.mesh = mesh
@@ -200,12 +238,14 @@ class Doors extends Node3D:
 			b.collision_mask = 0
 			var cs := CollisionShape3D.new()
 			var bx := BoxShape3D.new()
-			bx.size = Vector3(float(s2["dw"]) * 0.5 + 0.4, float(s2["dh"]), 0.4)
+			bx.size = Vector3(Hangars.panel_w(s2, int(l["n"])), float(s2["dh"]), 0.4 if int(l["n"]) == 1 else 0.16)
 			cs.shape = bx
 			b.add_child(cs)
 			add_child(b)
 			_bodies.append(b)
 		_place()
+		if not AirDraws.old:                                                        # w129-airdraws: the PLANES chip inside a hangar (pick a plane, it rolls out)
+			add_child(HangarPicker.new())
 		if Hangars.lights_on:                                                       # w128-airlook: the hangar lamps light the inside (it was lit by the sky ambient only: dark planes in a dark box)
 			for st: Dictionary in SITES:
 				var sp: Vector2 = st["pos"]
@@ -254,22 +294,37 @@ class Doors extends Node3D:
 			if (e[0] as OmniLight3D).visible != near:
 				(e[0] as OmniLight3D).visible = near
 
-	## Leaf transforms: shut, the two leaves meet in the middle of the opening; open, each slides out along the face past the jamb (on rails in front of the wall).
+	## Leaf transforms: shut, the leaves meet in the middle of the opening. Wave 128 (AirDraws.old): two leaves a door, each slid out along the face past the jamb, 16 m past the
+	## side walls of a hangar. w129-airdraws: telescopic panels (Hangars.panels_of a side, each on its own rail in front of the wall) that stack inside the wall's end when open.
 	func _place() -> void:
 		for i in _leaf.size():
-			var l: Dictionary = _leaf[i]
-			var s: Dictionary = l["site"]
-			var df := Hangars.door_frame(s)
-			var dw := float(s["dw"])
-			var dh := float(s["dh"])
-			var o := float(_open.get(s["id"], 0.0))
-			var side: float = l["side"]
-			var along: Vector3 = df["along"]
-			var out: Vector3 = df["out"]
-			var lw := dw * 0.5 + 0.4
-			var off := side * (dw * 0.25 + o * dw * 0.5)
-			var pos: Vector3 = (df["c"] as Vector3) + along * off + out * (0.45 + (0.35 if side > 0.0 else 0.0)) + Vector3(0.0, dh * 0.5, 0.0)
-			var basis := Basis.looking_at(-out, Vector3.UP)       # local x along the face, z out of it
-			var xf := Transform3D(basis * Basis.from_scale(Vector3(lw, dh, 0.4)), pos)
+			var xf := leaf_xf(i)
 			_mm.set_instance_transform(i, xf)
-			_bodies[i].transform = Transform3D(basis, pos)
+			_bodies[i].transform = Transform3D(xf.basis.orthonormalized(), xf.origin)
+
+	## The transform of leaf `i` now (local frame of the field; the scale is the panel's size).
+	func leaf_xf(i: int) -> Transform3D:
+		var l: Dictionary = _leaf[i]
+		var s: Dictionary = l["site"]
+		var df := Hangars.door_frame(s)
+		var dw := float(s["dw"])
+		var dh := float(s["dh"])
+		var o := float(_open.get(s["id"], 0.0))
+		var side: float = l["side"]
+		var along: Vector3 = df["along"]
+		var out: Vector3 = df["out"]
+		var n := int(l["n"])
+		var k := int(l["k"])
+		var lw := Hangars.panel_w(s, n)
+		var off := side * (dw * 0.25 + o * dw * 0.5)
+		var rail := 0.45 + (0.35 if side > 0.0 else 0.0)
+		var thick := 0.4
+		if n > 1:
+			var we := dw * 0.5 / float(n)
+			off = side * lerpf(we * (float(k) + 0.5), float(df["span"]) * 0.5 - 0.15 - lw * 0.5, o)
+			rail = 0.32 + 0.17 * float(k)
+			thick = 0.14
+		var pos: Vector3 = (df["c"] as Vector3) + along * off + out * rail + Vector3(0.0, dh * 0.5, 0.0)
+		var basis := Basis.looking_at(-out, Vector3.UP)       # local x along the face, z out of it
+		return Transform3D(basis * Basis.from_scale(Vector3(lw, dh, thick)), pos)
+

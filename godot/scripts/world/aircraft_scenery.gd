@@ -58,6 +58,7 @@ static func make(kind: StringName, paint := 0) -> Node3D:
 			d2.position = (model.get_node("Rotor2") as Node3D).position
 			d2.visible = false
 			model.add_child(d2)
+	AirDraws.far_merge(model, "scn_%s_%d" % [kind, paint % pal.size()])        # w129-airdraws: one draw beyond AirDraws.far_at() m
 	return root
 
 

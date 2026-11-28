@@ -22,6 +22,7 @@ const MOVE_HINT_MAX := 2               ## hints per life of the guide (it never 
 const MOVE_HINT_SPEED := 0.6           ## m/s: slower than this counts as standing
 const FIGHT_RANGE := 45.0              ## aware enemies this close excuse a standstill (a firefight is play, not wandering)
 
+static var auto_recover := true        ## w129-tankmis: false = no SKIP STEP offer and no self-recovery (tests/test_tankmis_w129.gd plays every tank mission to its normal end with it off)
 static var hud_on := true              ## false: line() / waypoint() / the compass / the SKIP STEP offer stay off the HUD (the "before" frames of the look-fix loops, tests/bot_mission_guide.gd)
 
 var camp: CampaignRunner
@@ -216,6 +217,8 @@ func _tick_active(delta: float) -> void:
 	else:
 		_wander_t = maxf(_wander_t - delta, 0.0)
 	# stuck: offer SKIP STEP, then recover by itself
+	if not auto_recover:
+		return
 	if idle_seconds >= STUCK_OFFER and not offering:
 		offering = true
 		offers += 1

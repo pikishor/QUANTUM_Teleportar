@@ -75,6 +75,7 @@ func _ready() -> void:
 	radio = CarRadio.new()
 	radio.name = "Radio"
 	add_child(radio)
+	TankPlaces.attach(self)                                # w129-tankmis: booths, booms and fences at the ARMY BASE and the road CHECKPOINTS
 	ArmourSites.attach(self)                               # wave 118: the fixed places of the armour and the aircraft (their paint and signs exist only near the hero)
 	Helipads.attach(self)                                  # wave 125 (w125-pads): the new helipads (built near the hero) and the parking on a pad
 	TankCrews.attach(self)                                 # w127-arms: the enemy tank crews (army base, 4-5 stars, tank missions)
@@ -127,6 +128,10 @@ func nearest(pos: Vector3, r := 4.2) -> Vehicle:
 			best_d = d
 			best = c
 	return best
+
+
+static var husk_burns_out := OS.get_environment("W129C_OLD") != "1"            ## w129-critic (W129C_OLD=1 = old): a husk's fire is out before the husk is cleared
+const HUSK_SMOULDER := 6.0                  ## s a husk smoulders after its flames died before it is cleared (with the replacement car at respawn_time)
 
 
 ## The car the hero can take from `pos`: the nearest within the old 4.2 m (middle to middle) or whose hull edge is within VehicleSpecs.ENTER_REACH (a long bus or truck is
@@ -204,6 +209,7 @@ func enter(car: Vehicle) -> void:
 	var side_in := 1.0 if (p.global_position - car.global_position).dot(car.right()) >= 0.0 else -1.0
 	p.set(&"vehicle", car)
 	car.on_enter()
+	AirDraws.own(car.visual, true)                       # w129-airdraws: the hero's own machine keeps its full model at any camera distance
 	car.visual.door_cycle(side_in)                       # the door the hero comes through swings open and shuts
 	Sfx.play(&"pickup")
 	if radio != null:
@@ -229,6 +235,7 @@ func exit_vehicle() -> void:
 	car.steer_in = 0.0
 	car.braking = false
 	car.on_exit()
+	AirDraws.own(car.visual, false)
 	if is_instance_valid(p):
 		var pos := _exit_point(car)
 		var side_out := 1.0 if (pos - car.global_position).dot(car.right()) >= 0.0 else -1.0
@@ -454,6 +461,8 @@ func on_destroyed(v: Vehicle) -> void:
 		_spawn_ready[v.get_meta(&"spawn_id")] = _clock + VehicleSpawns.RESPAWN_AFTER
 	v.become_wreck()
 	hear(where, &"crash")
+	if husk_burns_out and v.has_meta(&"burn"):               # w129-critic: the fire dies HUSK_SMOULDER s before the husk is cleared (it was cleared at 25 s in full flame: the fire burnt 28 s, 42 s on armour)
+		v.set_meta(&"burn", clampf(float(v.get_meta(&"burn")), 0.0, maxf(respawn_time - HUSK_SMOULDER, 0.0)))
 	_wrecks.append({"car": v, "t": _clock + respawn_time})
 	while _wrecks.size() > VehicleSpecs.MAX_WRECKS:
 		_release_wreck(0)
@@ -712,6 +721,7 @@ func _physics_process(delta: float) -> void:
 func _physics_process_body(delta: float) -> void:
 	if not Game.is_playing():
 		return
+	MachAnim.wrecks(_wrecks, delta)                         # w129-machanim: burning husks near the camera
 	_clock += delta
 	if not signal_frozen:
 		signal_clock += delta

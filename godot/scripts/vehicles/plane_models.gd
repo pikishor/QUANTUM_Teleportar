@@ -42,14 +42,27 @@ static func build(kind: String, spec: Dictionary) -> Node3D:
 			mi.visibility_range_end_margin = 6.0
 		elif part["name"] == "Body" and c["parts"].size() > 1 and c["parts"][1]["name"] == "Body_LOD1":
 			mi.visibility_range_end = HeliModels.LOD_AT
-			mi.visibility_range_end_margin = 3.0
+			mi.visibility_range_end_margin = MachAnim.lod_margin(3.0)
 		elif part["name"] == "Body_LOD1":
 			mi.visibility_range_begin = HeliModels.LOD_AT
-			mi.visibility_range_begin_margin = 3.0
+			mi.visibility_range_begin_margin = MachAnim.lod_margin(3.0)
 		elif part["name"] == "Glow":
 			mi.visibility_range_end = GLOW_FAR
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(mi)
+	if c.has("rig"):                                                                 # w129: the skeleton of the moving parts (PlaneRig), at rest = gear down, surfaces neutral
+		var sk := PlaneRig.make_skeleton(c["rig"])
+		root.add_child(sk)
+		var det := root.get_node_or_null("Detail") as MeshInstance3D
+		if det != null:
+			det.skin = c["skin"]
+			det.skeleton = NodePath("../Rig")
+		root.set_meta(&"rig", c["rig"])
+	if not (c.get("nozzles", []) as Array).is_empty():
+		root.set_meta(&"nozzles", c["nozzles"])
+	if not (c.get("navl", []) as Array).is_empty():
+		root.set_meta(&"navl", c["navl"])
+		root.set_meta(&"kind", k)
 	return root
 
 
@@ -83,6 +96,7 @@ static func _make(kind: StringName, spec: Dictionary) -> Dictionary:
 	var det := PlaneModels.new()
 	var glow := PlaneModels.new()
 	var parts: Array[Dictionary] = []
+	body.rigging = not old and not MachAnim.old                                       # w129: the near body loses its control surfaces and folding gear to the skinned Detail
 	var hubs: Array = body._geom(P, det, glow, spec)
 	parts.append({"name": "Body", "mesh": body._finish(), "pos": Vector3.ZERO})
 	if not old:                                                                     # w128-airlook: the far body (LOD1) beyond LOD_AT m
@@ -90,7 +104,14 @@ static func _make(kind: StringName, spec: Dictionary) -> Dictionary:
 		b1.far_lod = 1
 		b1._geom(P, PlaneModels.new(), PlaneModels.new(), spec)
 		parts.append({"name": "Body_LOD1", "mesh": b1._finish(), "pos": Vector3.ZERO})
-	if not det._empty():
+	var rig_out: Array = []
+	if not body.rig.is_empty():                                                     # w129: Detail is skinned: bone 0 the fixed detail, one bone per moving part
+		parts.append({"name": "Detail", "mesh": PlaneRig.skinned(det, body.rig), "pos": Vector3.ZERO})
+		for rp: Dictionary in body.rig:
+			var q := rp.duplicate()
+			q.erase("b")
+			rig_out.append(q)
+	elif not det._empty():
 		parts.append({"name": "Detail", "mesh": det._finish(), "pos": Vector3.ZERO})
 	if not glow._empty():
 		var gm := glow._finish()
@@ -107,7 +128,11 @@ static func _make(kind: StringName, spec: Dictionary) -> Dictionary:
 			pm._slab(S_TRIM, Vector3(cos(a), sin(a), 0.0) * 0.12, Vector3(cos(a), sin(a), 0.0) * pr, maxf(0.12, pr * 0.16), 0.05, Vector3.BACK)
 		pm._cone(S_CHROME, Vector3(0.0, 0.0, 0.1), Vector3(0.0, 0.0, -0.45 - pr * 0.12), maxf(0.14, pr * 0.2), 8)
 		parts.append({"name": PROP_NAMES[i], "mesh": pm._finish(), "pos": hubs[i]})
-	return {"parts": parts}
+	var out := {"parts": parts, "nozzles": body.nozzles, "navl": body.navl}
+	if not rig_out.is_empty():
+		out["rig"] = rig_out
+		out["skin"] = PlaneRig.skin(rig_out)
+	return out
 
 
 ## w128-airlook: real proportions where the wave 126 table was off (wing area of the wide-bodies; same spans, so the PLANE LINE and the collision boxes stay).
@@ -178,6 +203,108 @@ func _empty() -> bool:
 	return true
 
 
+# --- w129-machanim: the moving parts (PlaneRig) ------------------------------------------------------------------------------------------
+
+var rig: Array = []                      ## the moving parts cut out of this (near) body: see PlaneRig.part
+var rigging := false                     ## set on the near body builder: cut the control surfaces out and fold the gear
+var nozzles: Array = []                  ## [position, radius] of each jet nozzle (MachAnim: the exhaust glow and afterburner)
+var navl: Array = []                     ## [position, colour, kind (0 steady, 0.5 beacon, 1 strobe), size] of the navigation lights
+
+
+## A piece of the tapered panel (rle, rte, tle, tte): chord share u0..u1, span share s0..s1, with _panel's thickness profile. `caps`: [root cap, tip cap].
+func _subpanel(surf: int, rle: Vector3, rte: Vector3, tle: Vector3, tte: Vector3, th_r: float, th_t: float, up: Vector3, u0: float, u1: float, s0: float, s1: float, caps := [true, true]) -> void:
+	var U := up.normalized()
+	var le0 := rle.lerp(tle, s0)
+	var te0 := rte.lerp(tte, s0)
+	var le1 := rle.lerp(tle, s1)
+	var te1 := rte.lerp(tte, s1)
+	var t0 := lerpf(th_r, th_t, s0)
+	var t1 := lerpf(th_r, th_t, s1)
+	var a0 := le0.lerp(te0, u0)
+	var b0 := le0.lerp(te0, u1)
+	var a1 := le1.lerp(te1, u0)
+	var b1 := le1.lerp(te1, u1)
+	var tu0 := lerpf(0.5, 0.15, u0)
+	var tu1 := lerpf(0.5, 0.15, u1)
+	var bu0 := lerpf(0.3, 0.1, u0)
+	var bu1 := lerpf(0.3, 0.1, u1)
+	var c := (a0 + b0 + a1 + b1) * 0.25
+	var p := [a0 + U * t0 * tu0, b0 + U * t0 * tu1, b1 + U * t1 * tu1, a1 + U * t1 * tu0, a0 - U * t0 * bu0, b0 - U * t0 * bu1, b1 - U * t1 * bu1, a1 - U * t1 * bu0]
+	_quad_panel(surf, p[0], p[1], p[2], p[3], c - U * 10.0)
+	_quad_panel(surf, p[4], p[5], p[6], p[7], c + U * 10.0)
+	_quad_panel(surf, p[0], p[3], p[7], p[4], c)
+	_quad_panel(surf, p[1], p[2], p[6], p[5], c)
+	if caps[1]:
+		_quad_panel(surf, p[3], p[2], p[6], p[7], c)
+	if caps[0]:
+		_quad_panel(surf, p[0], p[1], p[5], p[4], c)
+
+
+## The panel with its control surfaces cut out (rig mode): `cuts` = [[s0, s1, chord share, kind, name, sign]]. The fixed part stays on this builder, each surface on its own
+## builder registered in `rig`, hinged on the cut line (mid thickness), its axis oriented so that a positive angle moves the trailing edge against `up`.
+func _panel_rig(surf: int, rle: Vector3, rte: Vector3, tle: Vector3, tte: Vector3, th_r: float, th_t: float, up: Vector3, cuts: Array) -> void:
+	var stops: Array[float] = [0.0, 1.0]
+	for ct: Array in cuts:
+		stops.append(float(ct[0]))
+		stops.append(float(ct[1]))
+	stops.sort()
+	var U := up.normalized()
+	for i in stops.size() - 1:
+		var s0 := stops[i]
+		var s1 := stops[i + 1]
+		if s1 - s0 < 0.001:
+			continue
+		var cut: Array = []
+		for ct: Array in cuts:
+			if s0 >= float(ct[0]) - 0.0001 and s1 <= float(ct[1]) + 0.0001:
+				cut = ct
+		var caps := [i == 0, i == stops.size() - 2]
+		if cut.is_empty():
+			_subpanel(surf, rle, rte, tle, tte, th_r, th_t, up, 0.0, 1.0, s0, s1, caps)
+			continue
+		var u0 := 1.0 - float(cut[2])
+		_subpanel(surf, rle, rte, tle, tte, th_r, th_t, up, 0.0, u0, s0, s1, caps)
+		var b := PlaneModels.new()
+		b._subpanel(surf, rle, rte, tle, tte, th_r, th_t, up, u0, 1.0, s0, s1, [true, true])
+		var tu := lerpf(0.5, 0.15, u0)
+		var bu := lerpf(0.3, 0.1, u0)
+		var h0 := rle.lerp(tle, s0).lerp(rte.lerp(tte, s0), u0) + U * lerpf(th_r, th_t, s0) * (tu - bu) * 0.5
+		var h1 := rle.lerp(tle, s1).lerp(rte.lerp(tte, s1), u0) + U * lerpf(th_r, th_t, s1) * (tu - bu) * 0.5
+		var H := (h1 - h0).normalized()
+		var C := (rte.lerp(tte, (s0 + s1) * 0.5) - rle.lerp(tle, (s0 + s1) * 0.5)).normalized()
+		if H.cross(C).dot(U) > 0.0:
+			H = -H
+		PlaneRig.part(rig, String(cut[4]), StringName(cut[3]), b, h0, H, float(cut[5]))
+
+
+## Both wings of the planform (as _wings) with control surfaces: `cuts` = [[s0, s1, chord share, kind, name]]; the side's sign is -side (an aileron rolls the plane).
+func _wings_rig(surf: int, w: Array, y: float, x0: float, dz: float, cuts: Array) -> void:
+	var zle := float(w[0]) + dz
+	var hs := float(w[1])
+	var cr := float(w[2])
+	var ct := float(w[3])
+	var sw := float(w[4])
+	var dh := float(w[5])
+	var th := float(w[7])
+	for sx: float in [-1.0, 1.0]:
+		var cs: Array = []
+		for c: Array in cuts:
+			cs.append([c[0], c[1], c[2], c[3], "%s%s" % [c[4], "L" if sx < 0.0 else "R"], -sx])
+		_panel_rig(surf, Vector3(sx * x0, y, zle), Vector3(sx * x0, y, zle + cr), Vector3(sx * hs, y + dh, zle + sw), Vector3(sx * hs, y + dh, zle + sw + ct), th, th * 0.4, Vector3.UP, cs)
+
+
+## A retractable gear leg (rig mode): the strut and wheel on their own bone, folding about `axis` by `fold` rad, and a door plate over the well hinged at `hinge` (opens by
+## `door_fold` about Z). The strut top sits r * 1.1 inside the body so a folded wheel lies above the belly line.
+func _gear_rig(name: String, top: Vector3, r: float, pair: bool, axis: Vector3, fold: float, door_c: Vector3, door_size: Vector3, hinge: Vector3, door_fold: float) -> void:
+	var g := PlaneModels.new()
+	g._strut_wheel(top, r, pair)
+	PlaneRig.part(rig, name, &"gear", g, top, axis, 1.0, fold)
+	if door_size.x > 0.0:
+		var d := PlaneModels.new()
+		d._box(S_BODY, door_c, door_size)
+		PlaneRig.part(rig, name + "Door", &"door", d, hinge, Vector3(0.0, 0.0, 1.0), 1.0, door_fold)
+
+
 ## A cone (or a truncated cone with r1 > 0) from `a` (radius r) to `b` (radius r1), closed at both ends.
 func _cone(surf: int, a: Vector3, b: Vector3, r: float, segs: int, r1 := 0.0) -> void:
 	var ax := (b - a).normalized()
@@ -213,6 +340,15 @@ func _wings(surf: int, w: Array, y: float, x0: float, dz := 0.0) -> void:
 ## Where the wing's leading edge and chord are at a share `t` of the half span (0 = root, 1 = tip): [z of the LE, chord, y].
 static func wing_at(w: Array, y: float, t: float) -> Array:
 	return [float(w[0]) + float(w[4]) * t, lerpf(float(w[2]), float(w[3]), t), y + float(w[5]) * t]
+
+
+## w129: whether the kind's landing gear folds away in flight (jets, turboprop transports and the light twin; trainers, bush planes, drones keep fixed gear).
+static func retracts(P: Dictionary, spec: Dictionary) -> bool:
+	var g := String(P.get("g", "trike"))
+	if not g in ["trike", "mil", "heavy"]:
+		return false
+	var e := String((P.get("e", {}) as Dictionary).get("type", ""))
+	return e in ["wj", "tj", "int", "wp"] and float(spec.get("max", 0.0)) >= 60.0
 
 
 ## Everything but the propellers. Returns the propeller hubs (Prop first).
@@ -305,7 +441,24 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 	# --- the wings
 	var w: Array = P["w"]
 	var wy := yc + float(w[6]) * hh
-	_wings(S_BODY, w, wy, hw * 0.6)
+	if rigging:                                                     # w129: the navigation lights (red left, green right, white strobes, white tail, red beacons)
+		var ls := clampf(L * 0.03, 0.5, 1.3)
+		var tz := float(w[0]) + float(w[4]) + float(w[3]) * 0.45
+		var ty := wy + float(w[5]) + 0.05
+		navl.append([Vector3(-float(w[1]) - 0.05, ty, tz), Color(1.0, 0.08, 0.05), 0.0, ls])
+		navl.append([Vector3(float(w[1]) + 0.05, ty, tz), Color(0.1, 1.0, 0.3), 0.0, ls])
+		navl.append([Vector3(-float(w[1]) - 0.05, ty, tz + float(w[3]) * 0.45), Color(1.0, 1.0, 1.0), 1.0, ls * 1.8])
+		navl.append([Vector3(float(w[1]) + 0.05, ty, tz + float(w[3]) * 0.45), Color(1.0, 1.0, 1.0), 1.0, ls * 1.8])
+		navl.append([Vector3(0.0, yc + hh * 0.52, zt + 0.08), Color(1.0, 0.97, 0.9), 0.0, ls])
+		navl.append([Vector3(0.0, yc + hh + 0.06, zn + L * 0.42), Color(1.0, 0.1, 0.05), 0.5, ls * 1.3])
+		navl.append([Vector3(0.0, yc - hh - 0.06, zn + L * 0.5), Color(1.0, 0.1, 0.05), 0.5, ls * 1.3])
+	if rigging:                                                     # w129: ailerons and flaps (a flying wing: elevons) on their hinges
+		var cuts: Array = [[0.06, 0.5, 0.26, &"flap", "Flap"], [0.56, 0.92, 0.24, &"aileron", "Aileron"]]
+		if tail == "none":
+			cuts = [[0.12, 0.5, 0.22, &"elevon", "ElevonIn"], [0.56, 0.92, 0.22, &"elevon", "ElevonOut"]]
+		_wings_rig(S_BODY, w, wy, hw * 0.6, 0.0, cuts)
+	else:
+		_wings(S_BODY, w, wy, hw * 0.6)
 	if P.has("w2"):
 		var w2: Array = P["w2"]
 		_wings(S_BODY, w, wy + float(w2[0]), 0.0, float(w2[1]))
@@ -331,26 +484,42 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 	match tail:
 		"conv", "t", "twin", "fin":
 			if tail != "twin":
-				_panel(S_BODY, Vector3(0.0, top_tail - hh * 0.1, zt - fc * 1.05), Vector3(0.0, top_tail - hh * 0.1, zt), Vector3(0.0, top_tail + fh, zt - fc * 0.35), Vector3(0.0, top_tail + fh, zt + fc * 0.05),
-					fc * 0.12, fc * 0.07, Vector3.RIGHT)
+				var fa := [Vector3(0.0, top_tail - hh * 0.1, zt - fc * 1.05), Vector3(0.0, top_tail - hh * 0.1, zt), Vector3(0.0, top_tail + fh, zt - fc * 0.35), Vector3(0.0, top_tail + fh, zt + fc * 0.05)]
+				if rigging:                                         # w129: the rudder
+					_panel_rig(S_BODY, fa[0], fa[1], fa[2], fa[3], fc * 0.12, fc * 0.07, Vector3.RIGHT, [[0.12 if tail == "t" else 0.08, 0.9, 0.32, &"rudder", "Rudder", 1.0]])
+				else:
+					_panel(S_BODY, fa[0], fa[1], fa[2], fa[3], fc * 0.12, fc * 0.07, Vector3.RIGHT)
 			if tail != "fin":
 				var sy := top_tail + (fh * 0.95 if tail == "t" else -hh * 0.05)
 				var sz := zt - sc * (0.9 if tail == "t" else 1.05)
-				_wings(S_BODY, [sz, sh, sc, sc * 0.55, sc * 0.4, 0.0, 0.0, sc * 0.12], sy, 0.0)
+				if rigging:                                         # w129: the elevators
+					_wings_rig(S_BODY, [sz, sh, sc, sc * 0.55, sc * 0.4, 0.0, 0.0, sc * 0.12], sy, 0.0, 0.0, [[0.08, 0.96, 0.32, &"elevator", "Elevator"]])
+				else:
+					_wings(S_BODY, [sz, sh, sc, sc * 0.55, sc * 0.4, 0.0, 0.0, sc * 0.12], sy, 0.0)
 				if tail == "twin":
 					for sx in [-1.0, 1.0]:
-						_panel(S_BODY, Vector3(sx * sh, sy - fh * 0.25, sz), Vector3(sx * sh, sy - fh * 0.25, sz + sc * 0.8), Vector3(sx * sh, sy + fh * 0.75, sz + sc * 0.25), Vector3(sx * sh, sy + fh * 0.75, sz + sc * 0.85),
-							sc * 0.12, sc * 0.08, Vector3.RIGHT)
+						var fb := [Vector3(sx * sh, sy - fh * 0.25, sz), Vector3(sx * sh, sy - fh * 0.25, sz + sc * 0.8), Vector3(sx * sh, sy + fh * 0.75, sz + sc * 0.25), Vector3(sx * sh, sy + fh * 0.75, sz + sc * 0.85)]
+						if rigging:
+							_panel_rig(S_BODY, fb[0], fb[1], fb[2], fb[3], sc * 0.12, sc * 0.08, Vector3.RIGHT, [[0.1, 0.9, 0.34, &"rudder", "Rudder" + ("L" if sx < 0.0 else "R"), 1.0]])
+						else:
+							_panel(S_BODY, fb[0], fb[1], fb[2], fb[3], sc * 0.12, sc * 0.08, Vector3.RIGHT)
 		"v", "vcant":
 			var cant := 0.62 if tail == "v" else 0.42
 			var bx := 0.0 if tail == "v" else hw * 0.55
 			var by := top_tail if tail == "v" else yc + hh * 0.4
 			for sx in [-1.0, 1.0]:
 				var tip := Vector3(sx * (bx + fh * sin(cant)), by + fh * cos(cant), 0.0)
-				_panel(S_BODY, Vector3(sx * bx, by, zt - fc * 1.1), Vector3(sx * bx, by, zt), Vector3(tip.x, tip.y, zt - fc * 0.4), Vector3(tip.x, tip.y, zt + fc * 0.05),
-					fc * 0.12, fc * 0.07, Vector3(cos(cant), -sx * sin(cant), 0.0) * sx)
+				var va := [Vector3(sx * bx, by, zt - fc * 1.1), Vector3(sx * bx, by, zt), Vector3(tip.x, tip.y, zt - fc * 0.4), Vector3(tip.x, tip.y, zt + fc * 0.05)]
+				var vu: Vector3 = Vector3(cos(cant), -sx * sin(cant), 0.0) * sx
+				if rigging:                                         # w129: ruddervators (pitch and yaw mixed)
+					_panel_rig(S_BODY, va[0], va[1], va[2], va[3], fc * 0.12, fc * 0.07, vu, [[0.1, 0.9, 0.32, &"ruddervator", "Ruddervator" + ("L" if sx < 0.0 else "R"), -sx]])
+				else:
+					_panel(S_BODY, va[0], va[1], va[2], va[3], fc * 0.12, fc * 0.07, vu)
 			if tail == "vcant" and sh > 0.0:
-				_wings(S_BODY, [zt - sc * 0.95, sh, sc, sc * 0.5, sc * 0.5, 0.0, 0.0, sc * 0.1], yc, hw * 0.5)
+				if rigging:
+					_wings_rig(S_BODY, [zt - sc * 0.95, sh, sc, sc * 0.5, sc * 0.5, 0.0, 0.0, sc * 0.1], yc, hw * 0.5, 0.0, [[0.08, 0.95, 0.32, &"elevator", "Elevator"]])
+				else:
+					_wings(S_BODY, [zt - sc * 0.95, sh, sc, sc * 0.5, sc * 0.5, 0.0, 0.0, sc * 0.1], yc, hw * 0.5)
 	# --- the engines
 	var e: Dictionary = P.get("e", {})
 	var er := float(e.get("r", 0.5))
@@ -388,6 +557,7 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 					_loft(S_BODY, [[jz - el * 0.5, jx, jy, er * 0.95, er * 0.95], [jz - el * 0.3, jx, jy, er, er], [jz + el * 0.3, jx, jy, er * 0.85, er * 0.85], [jz + el * 0.5, jx, jy, er * 0.55, er * 0.55]], 2.0, 12)
 					_cyl(S_TRIM, Vector3(jx, jy, jz - el * 0.5 + 0.02), er * 0.82, 0.08, 2, 10)                    # the intake face
 					_slab(S_BODY, Vector3(jx, jy + er * 0.7, jz - el * 0.05), Vector3(jx, float(a4[2]), jz + el * 0.15), el * 0.5, 0.25, Vector3.RIGHT)          # the pylon
+					nozzles.append([Vector3(jx, jy, jz + el * 0.5), er * 0.55])
 		"tj":
 			for sx in [-1.0, 1.0]:
 				var px: float = sx * (hw + er * 1.1)
@@ -396,6 +566,7 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 				_loft(S_BODY, [[pz - el * 0.5, px, py, er * 0.95, er * 0.95], [pz - el * 0.3, px, py, er, er], [pz + el * 0.5, px, py, er * 0.6, er * 0.6]], 2.0, 10)
 				_cyl(S_TRIM, Vector3(px, py, pz - el * 0.5 + 0.02), er * 0.8, 0.08, 2, 10)
 				_slab(S_BODY, Vector3(px - sx * er * 0.6, py, pz), Vector3(sx * hw * 0.5, py - hh * 0.2, pz), el * 0.45, 0.2, Vector3.BACK)
+				nozzles.append([Vector3(px, py, pz + el * 0.5), er * 0.6])
 		"int":
 			var nn := int(e.get("n", 1))
 			for i in nn:
@@ -403,6 +574,7 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 				var oy := yc if tail == "none" else yc + hh * 0.05
 				var oz := zt - (0.4 if tail == "none" else L * 0.08)
 				_cone(S_TRIM, Vector3(ox, oy, oz - 0.6), Vector3(ox, oy, oz + 0.5), er, 10, er * 0.82)
+				nozzles.append([Vector3(ox, oy, oz + 0.5), er * 0.8])
 				if x.has("glow"):
 					glow._cyl(S_BODY, Vector3(ox, oy, oz + 0.52), er * 0.7, 0.05, 2, 10)
 	# --- extras on the body
@@ -486,9 +658,35 @@ func _geom(P: Dictionary, det: PlaneModels, glow: PlaneModels, spec: Dictionary)
 			var gx := maxf(hw * 1.15, minf(float(w[1]) * 0.22, hw * 3.0))
 			if g == "heavy":
 				gx = hw * 0.95
-			det._strut_wheel(Vector3(0.0, bottom + 0.1, zn + L * 0.13), r * 0.8, g == "heavy")
-			for sx in [-1.0, 1.0]:
-				det._strut_wheel(Vector3(sx * gx, bottom + 0.1, mz2), r, g == "heavy")
+			if rigging and retracts(P, spec):                        # w129: the gear folds away (nose leg forward, main legs inward) and doors close over the wells
+				var heavy := g == "heavy"
+				var rn := r * 0.8
+				var ntop := Vector3(0.0, bottom + 0.1 + rn * 1.1, zn + L * 0.13)
+				var nlen := ntop.y
+				var dw := rn * (1.6 if heavy else 1.0)
+				for sx: float in [-1.0, 1.0]:
+					var nm := "NoseDoor" + ("L" if sx < 0.0 else "R")
+					var hz := ntop.z - nlen * 0.5
+					var dc := Vector3(sx * dw * 0.5, ntop.y - rn * 1.15, hz)
+					var d := PlaneModels.new()
+					d._box(S_BODY, dc, Vector3(dw * 0.96, 0.05, nlen + rn * (2.6 if heavy else 1.2)))
+					PlaneRig.part(rig, nm, &"door", d, Vector3(sx * dw, dc.y, hz), Vector3(0.0, 0.0, 1.0), 1.0, sx * PlaneRig.DOOR_OPEN)
+				_gear_rig("NoseGear", ntop, rn, heavy, Vector3.RIGHT, PlaneRig.GEAR_FOLD, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0)
+				var my := bottom + 0.1 + r * 1.1
+				if not heavy:
+					my = maxf(my, minf(wy, yc))
+				for sx: float in [-1.0, 1.0]:
+					var mtop := Vector3(sx * gx, my, mz2)
+					var ml := mtop.y
+					var dy := my - r * 1.15
+					var dlen := r * (4.8 if heavy else 2.4)
+					var dc2 := Vector3(sx * (gx + r * 0.9 - (ml + r) * 0.5), dy, mz2)
+					_gear_rig("MainGear" + ("L" if sx < 0.0 else "R"), mtop, r, heavy, Vector3(0.0, 0.0, 1.0), -sx * PlaneRig.GEAR_FOLD,
+						dc2, Vector3(ml + r * 0.8, 0.05, dlen), Vector3(sx * (gx + r * 0.9), dy, mz2), sx * PlaneRig.DOOR_OPEN)
+			else:
+				det._strut_wheel(Vector3(0.0, bottom + 0.1, zn + L * 0.13), r * 0.8, g == "heavy")
+				for sx in [-1.0, 1.0]:
+					det._strut_wheel(Vector3(sx * gx, bottom + 0.1, mz2), r, g == "heavy")
 		"tail":
 			for sx in [-1.0, 1.0]:
 				det._strut_wheel(Vector3(sx * hw * 1.6, bottom + 0.1, zn + L * 0.24), r, false)

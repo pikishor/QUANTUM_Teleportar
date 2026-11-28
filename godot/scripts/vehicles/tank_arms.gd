@@ -40,6 +40,12 @@ static var smokes := 0                   ## counters for the tests
 static var shots_by := {}                ## arm -> rounds fired, lifetime
 static var hits_by := {}                 ## arm -> direct hits, lifetime
 static var snapped := 0                  ## howitzer shells that snapped to a target
+static var reach_on := OS.get_environment("W129TM_OLD") != "1"         ## w129-tankmis: the howitzer's crosshair point reaches the gun's range (indirect_aim); W129TM_OLD=1: it stopped at the hero's 220 m aim ray
+## w129-critic: the howitzer's crosshair LOCKS onto a target within RAY_LOCK rad of the camera ray (_ray_lock). Seen from the gun at the yard gate (eye 6.5 m up) the street to the
+## targets 260-320 m away is a grazing line: a thumb 8 px low put the ground point 40 m short, 8 px high put it past the range, outside SNAP_R either way, and the shell fell on the
+## empty street (test_tankmis_w129_c FAILED that way: 18 shells on one tank, the 24 rounds ran out, the ARTILLERY STRIKE could not be finished). W129C_OLD=1 = old.
+static var lock_on := OS.get_environment("W129C_OLD") != "1"
+const RAY_LOCK := 0.035                  ## rad (about 2 degrees: 35 px on a 1200 px wide phone view) round the crosshair
 static var _blasts_done := false
 
 var car: Vehicle
@@ -459,11 +465,62 @@ static func artillery_aim(car: Vehicle, aim: Vector3) -> Vector3:
 	return best
 
 
+## w129-tankmis: the crosshair's point for an INDIRECT gun: the camera ray out to the gun's range (+ 60 m), stopped by the world or a vehicle (the target's hull), else where it meets the
+## ground. The hero's aim ray (Player.get_aim) ends at PlayerWeapon.RANGE (220 m) and only sees the world from a vehicle: aimed at armour 300 m down a street it gave a point in the air
+## 220 m out, the marker never snapped and the shells of the ARTILLERY STRIKE landed short every time.
+static func indirect_aim(car: Vehicle) -> Vector3:
+	var base: Vector3 = VehicleCraft.aim_point(car)
+	if not reach_on or car.has_meta(&"aim_at") or not car.driver_is_player or not is_instance_valid(Game.player) or not Game.player.has_method(&"get_aim"):
+		return base
+	var a: Dictionary = Game.player.call(&"get_aim")
+	if not a.has("start") or not a.has("dir"):
+		return base
+	var start: Vector3 = a["start"]
+	var dir: Vector3 = a["dir"]
+	var reach := float(car.weapons.def.get("range", 400.0)) + 60.0
+	var q := PhysicsRayQueryParameters3D.create(start, start + dir * reach, Game.L_WORLD | Game.L_VEHICLE)
+	q.exclude = [car.get_rid()]
+	var lock := _ray_lock(car, start, dir, reach)
+	if lock.is_finite():
+		return lock
+	var hit := car.get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty():
+		return hit["position"]
+	if dir.y < -0.002:                                                       # nothing in the way out to the range: where the ray meets the ground under it
+		var g := car.global_position.y
+		var t := (start.y - g) / -dir.y
+		if t < reach * 3.0:
+			var p := start + dir * t
+			p.y = Vehicle._terrain_y(p.x, p.z)
+			return p
+	return start + dir * reach
+
+
+## w129-critic: the target (enemy armour or a mission's tank target, alive, inside the reach) closest in angle to the camera ray, when it is within RAY_LOCK; INF when none.
+static func _ray_lock(car: Vehicle, start: Vector3, dir: Vector3, reach: float) -> Vector3:
+	if not lock_on:
+		return Vector3.INF
+	var best := Vector3.INF
+	var ba := RAY_LOCK
+	for n: Node in car.get_tree().get_nodes_in_group(&"vehicle"):
+		var t := n as Vehicle
+		if t == null or t == car or t.dead or not t.active or t.driver_is_player or not (t.has_meta(&"enemy_tank") or t.has_meta(&"tank_target")):
+			continue
+		var to := t.global_position + Vector3(0.0, float(t.spec.get("hgt", 2.0)) * 0.5, 0.0) - start
+		if to.length() > reach:
+			continue
+		var a := dir.angle_to(to)
+		if a < ba:
+			ba = a
+			best = t.global_position
+	return best
+
+
 ## Where the howitzer's shell lands now (the marker): the crosshair's ground point inside the range, snapped like the shell. INF when the vehicle has no indirect gun.
 static func marker_point(car: Vehicle) -> Vector3:
 	if car == null or car.weapons == null or not bool(car.weapons.def.get("indirect", false)):
 		return Vector3.INF
-	var aim: Vector3 = VehicleCraft.aim_point(car)
+	var aim: Vector3 = indirect_aim(car)
 	var off := aim - car.global_position
 	var rng := float(car.weapons.def["range"])
 	if Vector2(off.x, off.z).length() > rng:

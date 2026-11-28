@@ -143,12 +143,13 @@ func _shoot() -> void:
 		Game.explode(end, float(def["blast"]), {"enemy_dmg": float(def["dmg"]) * 0.5, "car_dmg": float(def["dmg"]) * 0.8, "player_dmg": 0.0, "color": def["color"], "quiet": true})
 	FX.tracer(origin, end, def["color"])
 	Sfx.play_at(&"shot", origin, -8.0)
+	MachAnim.gun_fired(car, origin, dir)                         # w129-machanim: recoil, muzzle flash, blast smoke and ground dust (tanks)
 
 
 ## HOWITZER: the shell lands where the crosshair is (inside the range), `delay` seconds later; the blast is big (blast radius, dmg at the centre) and breaks cover, cars and props like any other.
 func _shell() -> void:
 	var origin := muzzle()
-	var aim: Vector3 = VehicleCraft.aim_point(car)
+	var aim: Vector3 = TankArms.indirect_aim(car)                        # w129-tankmis: out to the gun's range, not the hero's 220 m aim ray
 	var off := aim - car.global_position
 	var rng := float(def["range"])
 	if Vector2(off.x, off.z).length() > rng:
@@ -160,6 +161,7 @@ func _shell() -> void:
 	var land: Vector3 = hit["position"] if not hit.is_empty() else Vector3(aim.x, car.global_position.y, aim.z)
 	FX.burst(origin, def["color"], 10, 5.0, 0.5, 0.0, 1.6)
 	FX.tracer(origin, origin + car.aim_dir() * 40.0, def["color"])
+	MachAnim.gun_fired(car, origin, car.aim_dir())               # w129-machanim: the howitzer recoils and smokes like the tank guns
 	Sfx.play_at(&"boom", origin, -2.0, 1.2)
 	var blast := float(def["blast"])
 	var dmg := float(def["dmg"])

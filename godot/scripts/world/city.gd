@@ -235,6 +235,7 @@ func _process_body(_delta: float) -> void:
 		_high_shadow(p, _delta)
 		_stream.update(Vector2(p.x, p.z))
 		_kit_window.update(Vector2(p.x, p.z))
+		AirDraws.city_cull(self, p, _delta)                # w129-airdraws: empty families and the far mirror leave the layers
 		if lamp_cones != null and lamp_cones.visible and Vector2(p.x, p.z).distance_to(_cones_at) > CONE_STEP:
 			_refresh_cones(Vector2(p.x, p.z))
 

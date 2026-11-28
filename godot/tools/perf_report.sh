@@ -6,6 +6,8 @@
 #   env  RENDERER=compat   OpenGL Compatibility renderer;   BOT_TOUCH=1   touch layout;   BOT_DUMP=1   biggest shadow casters;   BOT_FAR=1   enemies at 55 m
 #   env  PERF_SEED=n       world seed of the bot (default 20260101: props, traffic and drops differ per seed)
 #   env  PERF_CHECK=1      exit status 1 when a tier is over its budget (scripts/common/perf_probe.gd BUDGETS): this is the budget gate
+#   env  PERF_AIR=0       leave out the AIRFIELD views (w129: tools/air_perf.sh runs after the staged view of each tier with PERF_CHECK=1: on foot at the heli line, plane line,
+#                          gates, hangars and army base, boarded in a fighter, a helicopter, a tank with 8 more in view, flying over the outskirts; a view over budget fails the gate)
 #   env  PERF_RES=1280x720 resolution (draw counts hardly depend on it);   PERF_SHOTS=/path/prefix  also saves the pictures of frames 30 / 60 / 90 (staged view, hud off, death)
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -21,5 +23,10 @@ for q in $TIERS; do
   echo "$out" | grep -q "^PERF RESULT" || { echo "PERF RESULT tier=$q verdict=NO_RESULT (the bot did not finish)"; status=1; }
   echo "$out" | grep -q "verdict=OVER" && status=1
 done
+if [ -n "${PERF_CHECK:-}" ] && [ "${PERF_AIR:-1}" != "0" ]; then
+  for q in $TIERS; do
+    tools/air_perf.sh "$q" | sed "s/^/PERF AIR /" || { echo "PERF AIR tier=$q verdict=OVER (tools/air_perf.sh: an airfield view is over its budget, or the run did not finish)"; status=1; }
+  done
+fi
 if [ -n "${PERF_CHECK:-}" ]; then exit $status; fi
 exit 0
