@@ -11,6 +11,8 @@ extends Node
 const BUILD_IN := 230.0
 const BUILD_OUT := 270.0
 const BOOTH := Vector3(2.8, 2.7, 2.8)
+const SIGN_WORDS_FAR := 80.0          ## m: the sign's words (0.9 m letters, a few pixels beyond this on a phone) are drawn to this distance (w129-integrator: two draws each)
+static var sign_old := OS.get_environment("W129I_OLD") == "1"
 
 static var on := OS.get_environment("W129TM_OLD") != "1"
 static var instance: TankPlaces = null
@@ -167,13 +169,35 @@ static func _booth(st: SurfaceTool, body: StaticBody3D, p: Vector3, yaw: float, 
 	sg.position = p + b * Vector3(-BOOTH.x * 0.5 - 2.8, 0.0, 0.0)
 	sg.rotation.y = yaw + PI * 0.5
 	root.add_child(sg)
-	var st2 := SurfaceTool.new()
-	st2.begin(Mesh.PRIMITIVE_TRIANGLES)
-	ArmourSites._sign(sg, st2, Vector3.ZERO, text, 5.6, 3.6, Color(0.2, 0.25, 0.16))
-	var smi := MeshInstance3D.new()
-	smi.mesh = st2.commit()
-	smi.material_override = ArmourSites._mat
-	sg.add_child(smi)
+	if sign_old:
+		var st2 := SurfaceTool.new()
+		st2.begin(Mesh.PRIMITIVE_TRIANGLES)
+		ArmourSites._sign(sg, st2, Vector3.ZERO, text, 5.6, 3.6, Color(0.2, 0.25, 0.16))
+		var smi := MeshInstance3D.new()
+		smi.mesh = st2.commit()
+		smi.material_override = ArmourSites._mat
+		sg.add_child(smi)
+		return
+	# w129-integrator: the sign's posts and board join the place's one mesh (it was a second draw), its two faces of words show within SIGN_WORDS_FAR only
+	var sb := Basis(Vector3.UP, sg.rotation.y)
+	var w := 5.6
+	var top := 3.6
+	for px: float in [-w * 0.5 + 0.2, w * 0.5 - 0.2]:
+		ArmourSites._box(st, sg.position + sb * Vector3(px, top * 0.5, 0.0), Vector3(0.18, top, 0.18), Color(0.22, 0.24, 0.24), sg.rotation.y)
+	ArmourSites._box(st, sg.position + sb * Vector3(0.0, top - 0.75, 0.0), Vector3(w, 1.5, 0.14), Color(0.2, 0.25, 0.16), sg.rotation.y)
+	for side: float in [1.0, -1.0]:
+		var l := Label3D.new()
+		l.text = text
+		l.font_size = 96
+		l.pixel_size = 0.0095
+		l.outline_size = 0
+		l.modulate = Color(0.96, 0.95, 0.86)
+		l.shaded = false
+		l.double_sided = false
+		l.position = Vector3(0.0, top - 0.75, 0.09 * side)
+		l.rotation.y = 0.0 if side > 0.0 else PI
+		l.visibility_range_end = SIGN_WORDS_FAR
+		sg.add_child(l)
 
 
 ## A boom barrier: the post with its counterweight box, the striped arm raised almost upright.

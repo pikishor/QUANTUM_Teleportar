@@ -188,12 +188,14 @@ func _planes() -> void:
 		var v := await _board(k, where + Vector3(-dir.z, 0.0, dir.x) * 40.0, float(th[0]["heading"]))
 		if v == null:
 			continue
+		print("PLANE %s boarded, hero in %s, state %s" % [k, p.vehicle, Game.state])
 		v.global_position = Vector3(where.x, v.base_y, where.z)          # set-up: on runway 09
 		v.heading = float(th[0]["heading"])
 		v.vel = Vector3.ZERO
 		v.speed = 0.0
 		await _f(10)
 		var c := v.craft
+		print("PLANE %s on the runway at %s" % [k, v.global_position])
 		await _shot("%s_cockpit_rest" % k)
 		fg.stick(Vector2(1.0, 0.0))
 		fg.press(1, &"jump")
@@ -377,3 +379,36 @@ func _wreck() -> void:
 		if is_instance_valid(w):
 			await _shot("wreck_game_%d" % t)
 			await _side(w, "wreck_side_%d" % t, Vector3(1.0, 0.35, 0.6), 13.0)
+
+
+## The fighter boarded on the apron (where the SIT views board it) and taxied by the left thumb: frames every 40 ticks.
+func _taxi() -> void:
+	var v := await _board(&"p_fighter", at + Vector3(10.0, 0.0, 40.0))
+	if v == null:
+		return
+	print("TAXI start %s heading %.2f hero in %s" % [v.global_position, v.heading, p.vehicle])
+	await _shot("taxi_0")
+	fg.stick(Vector2(0.0, -0.3))
+	for i in 6:
+		await _f(40)
+		print("TAXI %d pos %s speed %.1f hero in %s hero at %s" % [i + 1, v.global_position, v.speed, p.vehicle, p.global_position])
+		await _shot("taxi_%d" % (i + 1))
+	fg.stick(Vector2.ZERO)
+	await _side(v, "taxi_side", Vector3(1.0, 0.5, 0.3), 22.0)
+
+
+## The VIEW button by finger in a fighter, a helicopter and a tank: every view it cycles through (hood / cockpit included).
+func _hood() -> void:
+	var tag := OS.get_environment("C_TAG")
+	for spot: Array in [[&"p_fighter", at + Vector3(10.0, 0.0, 40.0)], [&"h_police", at + Vector3(0.0, 0.0, -30.0)]]:
+		var v := await _board(spot[0], spot[1])
+		if v == null:
+			continue
+		await _f(20)
+		for i in 4:
+			await _shot("hood%s_%s_%d_v%d" % [tag, spot[0], i, p.camera_rig.veh_view])
+			await _tap(&"veh_view")
+			await _f(20)
+		await _leave()
+		vm._release(v)
+		await _f(5)

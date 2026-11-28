@@ -39,6 +39,21 @@ static var _nav_mat: ShaderMaterial
 static var _trail_mat: ShaderMaterial
 
 
+## w129-integrator: the shared cloud node (BlastFx) for the machines' puffs. When a machine is the first to need it (a car's exhaust on a quiet street) it is freed with the game
+## (Game.world leaving the tree), as the game's other effects are: test_integration "freeing the game leaves no nodes behind" counted its 8 nodes under the FX autoload.
+static func _fx() -> BlastFx:
+	if is_instance_valid(BlastFx.instance):
+		return BlastFx.instance
+	var fx := BlastFx.shared()
+	var w: Node = Game.world
+	if fx_free_with_game and is_instance_valid(fx) and is_instance_valid(w) and not w.tree_exiting.is_connected(fx.queue_free):
+		w.tree_exiting.connect(fx.queue_free, CONNECT_ONE_SHOT)
+	return fx
+
+
+static var fx_free_with_game := OS.get_environment("W129I_OLD") != "1"
+
+
 static func lod_margin(m: float) -> float:
 	return m if old else 0.0
 
@@ -260,7 +275,7 @@ static func wash(v: Vehicle, dt: float, agl: float, range_m: float) -> void:
 	var gk := &"water" if water else BlastFx.ground_kind(Vector3(p.x, gy, p.z))
 	var col := BlastFx.dust_color(gk)
 	col.a = (0.42 if gk == &"dirt" else (0.5 if water else 0.26)) * (0.5 + 0.5 * k)
-	var fx := BlastFx.shared()
+	var fx := _fx()
 	var rr := float(v.spec.get("rotor_r", 3.6))
 	var s0 := 0.8 + rr * 0.1
 	var s1 := 1.8 + rr * 0.22
@@ -638,7 +653,7 @@ static func gun_fired(car: Vehicle, origin: Vector3, dir: Vector3) -> void:
 		return
 	var cal := clampf(float(car.spec.get("gun_len", 3.4)) / 3.4, 0.5, 1.6)
 	FX.muzzle_flash(origin, dir, Color(1.0, 0.78, 0.4), 2.6 * cal)
-	var fx := BlastFx.shared()
+	var fx := _fx()
 	var side := dir.cross(Vector3.UP).normalized()
 	var n := 3 if Game.quality == 0 else 5
 	for i in n:
@@ -682,7 +697,7 @@ static func tank(v: Vehicle, dt: float) -> void:
 		vis.model.rotation.z += -sin(yaw) * r
 	if not (v.driver_is_player or (v._dist < 70.0 and Game.quality > 0 and (v.ai or v.scripted or absf(v.speed) > 0.5))):
 		return                                                       # a parked tank's engine is off
-	var fx := BlastFx.shared()
+	var fx := _fx()
 	var sp := absf(v.speed)
 	var ln := float(v.spec["len"])
 	var wid := float(v.spec["wid"])
@@ -729,7 +744,7 @@ static func car(v: Vehicle, dt: float) -> void:
 		var ln := float(v.spec["len"])
 		var at := v.global_position - v.forward() * ln * 0.5 + v.right() * float(v.spec["wid"]) * 0.28 + Vector3(0.0, 0.32 if v.cls == &"car" else 0.45, 0.0)
 		var col := Color(0.66, 0.67, 0.69, 0.07 + 0.2 * acc)
-		if BlastFx.shared().machine_puff(at, -v.forward() * (1.0 + 2.0 * acc) + Vector3(0.0, 0.5, 0.0) + v.vel * 0.6, 0.15, 0.55 + 0.5 * acc, 0.8, col, BlastFx.K_SMOKE, 0.0, 1.2):
+		if _fx().machine_puff(at, -v.forward() * (1.0 + 2.0 * acc) + Vector3(0.0, 0.5, 0.0) + v.vel * 0.6, 0.15, 0.55 + 0.5 * acc, 0.8, col, BlastFx.K_SMOKE, 0.0, 1.2):
 			exhaust_puffs += 1
 	v.set_meta(&"exh_t", t)
 
@@ -777,7 +792,7 @@ static func wrecks(list: Array, dt: float) -> void:
 			v.set_meta(&"burn_t", t)
 			continue
 		var lowk := 2.0 if Game.quality == 0 else 1.0
-		var fx := BlastFx.shared()
+		var fx := _fx()
 		var ln := float(v.spec["len"])
 		var wid := float(v.spec["wid"])
 		var top := v.global_position + Vector3(0.0, float(v.spec["hgt"]) * 0.7, 0.0)

@@ -29,6 +29,7 @@ const MISSION_EXTRA := 1
 const KINDS := [&"tank", &"ltank", &"apc"]
 const WANTED_EVERY := 4.0
 
+static var hold_brakes := OS.get_environment("W129C_OLD") != "1"      ## w129-critic: a held mission crew brakes to a stop (W129C_OLD=1: it only cut the throttle and coasted)
 static var on := OS.get_environment("W127A_OLD") != "1"
 static var roads_on := OS.get_environment("W129TM_OLD") != "1"         ## w129-tankmis: mission crews always come for the hero and drive the city's streets round the blocks (road_goal); they hold while the step waits (set_hold)
 static var current: TankCrews = null
@@ -361,7 +362,7 @@ func _think(c: Dictionary, v: Vehicle, hero: Node3D, dt: float) -> void:
 			c["engaged"] = false
 			c["target"] = null
 			c["los"] = false
-			v.script_thr = 0.0
+			v.script_thr = clampf(-v.speed * 0.6, -1.0, 1.0) if hold_brakes else 0.0      # w129-critic: brake to a stop (with the throttle only cut it rolled on up to 1.6 m)
 			v.script_steer = 0.0
 			if v.has_meta(&"aim_at"):
 				v.remove_meta(&"aim_at")

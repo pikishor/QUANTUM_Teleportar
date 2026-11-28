@@ -38,6 +38,7 @@ static func city_cull(city: Node, cam: Vector3, dt: float) -> void:
 	var half := CityLayout.HALF
 	var out := maxf(absf(cam.x) - half, absf(cam.z) - half)
 	var cut := out > MIRROR_OUT
+	var far_out := out > DETAIL_OUT and not detail_old
 	for arr: Array in [city.get(&"multimesh_nodes"), city.get(&"mirror_nodes")]:
 		for mi: MultiMeshInstance3D in arr:
 			if not is_instance_valid(mi) or mi.multimesh == null:
@@ -46,6 +47,12 @@ static func city_cull(city: Node, cam: Vector3, dt: float) -> void:
 			if empty:
 				n += 1
 			_set_layer(mi, not empty)
+	if far_out != _detail_cut:
+		_detail_cut = far_out
+		var root: Node = city.get(&"_real_root")
+		var kit := root.get_node_or_null(^"StreetKit") as VisualInstance3D if root != null else null
+		if kit != null:
+			_set_layer(kit, not far_out)
 	culled = n
 	if cut != _mirror_cut:
 		_mirror_cut = cut
@@ -58,6 +65,13 @@ static func city_cull(city: Node, cam: Vector3, dt: float) -> void:
 		for mi: MultiMeshInstance3D in city.get(&"mirror_nodes"):
 			if is_instance_valid(mi):
 				_set_layer(mi, false)
+
+
+## w129-integrator: the city's street kit (benches, bins, hydrants near the camera, one mesh) stays at the city edge when the camera leaves; from DETAIL_OUT m outside the city it is
+## a pixel or less: it leaves the layers there (one draw from the airfield and the outskirts). The ambient pools are not cut: the outskirts' settlement folk use them.
+const DETAIL_OUT := 300.0
+static var detail_old := OS.get_environment("W129I_OLD") == "1"
+static var _detail_cut := false
 
 
 static func _set_layer(g: VisualInstance3D, on: bool) -> void:
@@ -358,6 +372,9 @@ static func own(visual: Object, on: bool) -> void:
 ## The streamed terrain is one draw per 250 m chunk: from the airfield or the air 12 to 34 chunks are in view. The LOD1 chunks (16 cells, the ring beyond the hero's 3 x 3 LOD0
 ## chunks) are joined 2 x 2: when all four chunks of an aligned 500 m block are installed at LOD1, one mesh of the four (the same vertices, skirts included) is drawn instead and
 ## the chunks leave the layers (two or three LOD1 chunks of a block are joined the same way; LOD0 chunks always draw on their own). Called by TerrainWorld after update_visibility (4 Hz).
+## w129-integrator: the LOD0 chunks (the 3 x 3 under the camera) are joined with the LOD1 chunks of their block too (same material; the colliders are separate): LOW flight about
+## 5 draws fewer. W129I_OLD=1 keeps them apart and joins with the old script loop.
+static var lod0_join := OS.get_environment("W129I_OLD") != "1"
 static var _tgroups := {}                    ## block key -> {mi: MeshInstance3D, sig: String}
 static var tgroups_on := 0                   ## blocks drawn as one mesh now (tests)
 
@@ -386,7 +403,7 @@ static func terrain_groups(tw: Node) -> void:
 		for key in all_keys:
 			var rec: Dictionary = chunks[key]
 			var mi := rec.get("node") as MeshInstance3D
-			if int(rec.get("lod", -1)) == 1 and mi != null and mi.mesh != null:
+			if (int(rec.get("lod", -1)) == 1 or (lod0_join and int(rec.get("lod", -1)) == 0)) and mi != null and mi.mesh != null:
 				keys.append(key)
 				sig += str(mi.mesh.get_rid().get_id()) + ","
 				any_vis = any_vis or mi.visible
@@ -502,6 +519,15 @@ static func _far_groups(tw: Node) -> void:
 
 
 static func _join(meshes: Array) -> ArrayMesh:
+	if lod0_join:                                                    # w129-integrator: the engine appends the surfaces (the per-vertex script loop cost 10-20 ms per block)
+		var st := SurfaceTool.new()
+		var n := 0
+		for m in meshes:
+			var mesh := (m as MeshInstance3D).mesh
+			if mesh != null and mesh.get_surface_count() > 0:
+				st.append_from(mesh, 0, (m as MeshInstance3D).transform)
+				n += 1
+		return st.commit() if n > 0 else null
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
 	var cols := PackedColorArray()

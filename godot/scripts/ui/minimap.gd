@@ -357,13 +357,23 @@ func _draw_body() -> void:
 			draw_texture_rect(UiUtil.sprite(kind[0]), Rect2((d[0] as Vector2) - Vector2(hs, hs), Vector2(hs, hs) * 2.0), false, d[2])
 	_draw_pins(c, inner, s)
 	# the player: fixed arrow in the middle
-	draw_set_transform(c, 0.0, Vector2(5.0, 5.0) * s)
-	draw_colored_polygon(_arrow, Color(1, 1, 1, 0.95))
-	draw_set_transform(Vector2.ZERO)
-	# north tick and the rim
 	var nl := Vector2(Vector2(0, -1).dot(_right), -Vector2(0, -1).dot(_fwd))
-	draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-5.0, 6.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(UiUtil.CYAN, 0.9))
-	draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s, false)
+	if pins_old:
+		draw_set_transform(c, 0.0, Vector2(5.0, 5.0) * s)
+		draw_colored_polygon(_arrow, Color(1, 1, 1, 0.95))
+		draw_set_transform(Vector2.ZERO)
+		# north tick and the rim
+		draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-5.0, 6.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(UiUtil.CYAN, 0.9))
+		draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s, false)
+		return
+	var pen := TriPen.new()                                     # w129-integrator: the arrow and the rim in one canvas draw, the N after them
+	var arrow := PackedVector2Array()
+	for aq: Vector2 in _arrow:
+		arrow.append(c + aq * 5.0 * s)
+	pen.draw_colored_polygon(arrow, Color(1, 1, 1, 0.95))
+	pen.draw_arc(c, radius, 0.0, TAU, 56, Color(UiUtil.CYAN, 0.55), 1.6 * s)
+	pen.draw_string(UiUtil.font(), c + nl * (radius - 9.0 * s) + Vector2(-5.0, 6.0) * s, "N", HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(18.0 * s), Color(UiUtil.CYAN, 0.9))
+	pen.flush(self)
 
 
 ## Wave 118: the tanks, helicopters and planes that wait at fixed places (ArmourSites.map_markers): a small badge where one lies inside the rim, and the nearest one beyond it
@@ -410,6 +420,7 @@ func _draw_armour(c: Vector2, inner: float, s: float) -> void:
 ## The big places on the circle: the airport, the harbour, the city and the outskirt sites as small glyphs where they lie (inside the rim), and the nearest one beyond it (the airport and the harbour
 ## first) pinned to the rim as a dimmer glyph. `pins_drawn` counts them (tests).
 var pins_drawn := 0
+static var pins_old := OS.get_environment("W129I_OLD") == "1"      ## w129-integrator: true = each pin shape its own canvas draw (old)
 
 func _draw_pins(c: Vector2, inner: float, s: float) -> void:
 	pins_drawn = 0
@@ -417,6 +428,7 @@ func _draw_pins(c: Vector2, inner: float, s: float) -> void:
 		return                                                     # inside the city the circle is the street picture only (perf: every glyph is canvas draws)
 	var far_best: Dictionary = {}
 	var far_d := INF
+	var pen: Object = self if pins_old else TriPen.new()         # w129-integrator: every circle, arc, line and polygon of a glyph was a canvas draw (airfield: about 10)
 	for m: Dictionary in WorldHud.landmarks():
 		var pos: Vector3 = m["pos"]
 		var mp := to_map(pos.x, pos.z)
@@ -424,7 +436,7 @@ func _draw_pins(c: Vector2, inner: float, s: float) -> void:
 		if m["kind"] == &"city":
 			continue                                               # the city is the picture itself
 		if mp.length() < inner - 8.0 * s:
-			MapIcons.draw(self, m["glyph"], c + mp, 8.5 * s, col)
+			MapIcons.draw(pen, m["glyph"], c + mp, 8.5 * s, col)
 			pins_drawn += 1
 		else:
 			var d := Vector2(pos.x - _pos.x, pos.z - _pos.y).length()
@@ -435,8 +447,10 @@ func _draw_pins(c: Vector2, inner: float, s: float) -> void:
 	if not far_best.is_empty():
 		var fp: Vector3 = far_best["pos"]
 		var fm := to_map(fp.x, fp.z)
-		MapIcons.draw(self, far_best["glyph"], c + fm.normalized() * (inner - 7.0 * s), 7.0 * s, Color(WorldHud.KIND_COL.get(far_best["kind"], Color.WHITE), 0.7))
+		MapIcons.draw(pen, far_best["glyph"], c + fm.normalized() * (inner - 7.0 * s), 7.0 * s, Color(WorldHud.KIND_COL.get(far_best["kind"], Color.WHITE), 0.7))
 		pins_drawn += 1
+	if pen is TriPen:
+		(pen as TriPen).flush(self)
 
 
 ## The objective as a line along the ROADS (MapRoute: your map waypoint, else the scripted step, else the side contract), cut at the rim. Cached; rebuilt every REFRESH_M metres.
