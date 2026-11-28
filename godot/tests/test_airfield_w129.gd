@@ -5,7 +5,6 @@ extends RefCounted
 ##   animals   with the hero on the apron the wildlife fills its ring: no land animal (zebras, coyotes ...) stands on the airport pad, and a herd put there is refused
 ##   picker    the hero walks into HANGAR A by the thumb: a PLANES chip shows; a finger on it lists the planes that fit through the door, a finger on a name rolls that plane
 ##             out onto the apron in front of the door, and a finger on ENTER boards it
-##   shadow    (MED triangle headroom) the hero's shadow caster is a coarse copy of the body (at most 40 % of its triangles) that shares its skeleton
 ##   cockpit   boarded by a finger on ENTER, VIEW tapped to the helicopter cockpit, the left thumb on the move pad: no cockpit shape is painted over the pad, the panel starts
 ##             right of it, and every number shows once (no ALT / ROTOR row on the plate, no speed plate, no ALT / HDG label beside the horizon: the gauges carry them);
 ##             in the chase view the plate drops its ALT row (the horizon's altitude label carries it)
@@ -58,7 +57,7 @@ func run(h: Node) -> void:
 	p.hp = 1.0e6
 	TestLib.check(fg.tc != null and fg.tc.controls_on, "the touch HUD is on")
 	var parts := OS.get_environment("W129_PARTS").split(",", false)
-	for part: String in ["shadow", "doors", "animals", "picker", "cockpit"]:
+	for part: String in ["doors", "animals", "picker", "cockpit"]:
 		if parts.is_empty() or parts.has(part):
 			await call("_" + part)
 	fg.up_all()
@@ -286,26 +285,3 @@ func _picker() -> void:
 	if p.vehicle != null:
 		await _tap(&"interact")
 		await _until(func() -> bool: return p.vehicle == null, 90)
-
-
-func _shadow() -> void:
-	var proxies := p.find_children("ShadowProxy", "MeshInstance3D", true, false)
-	var body: MeshInstance3D = null
-	for n in p.find_children("*", "MeshInstance3D", true, false):
-		if (n as MeshInstance3D).skin != null and (n as MeshInstance3D).cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and n.name != "ShadowProxy" and (n as MeshInstance3D).layers != 0:
-			body = n
-			break
-	var px: MeshInstance3D = null
-	for n in proxies:
-		if (n as MeshInstance3D).skin != null:
-			px = n
-	TestLib.check(body != null and px != null, "the hero has a skinned body and a skinned shadow caster")
-	if body == null or px == null:
-		return
-	var tb := 0
-	var tp := 0
-	for s2 in body.mesh.get_surface_count():
-		tb += body.mesh.surface_get_array_index_len(s2) / 3
-	for s3 in px.mesh.get_surface_count():
-		tp += px.mesh.surface_get_array_index_len(s3) / 3
-	TestLib.check(tp <= int(tb * 0.4) and px.skin == body.skin and px.skeleton == body.skeleton, "[old fails] the hero's shadow caster has %d of the body's %d triangles (at most 40 %%), on the same skeleton" % [tp, tb])

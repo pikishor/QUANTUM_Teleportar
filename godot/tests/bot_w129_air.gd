@@ -174,6 +174,13 @@ func _run() -> void:
 		await _stand(Vector3(1362.0, 0.0, -712.0), Vector3(1360.0, 4.0, -775.0), -0.02)
 		await _pf(200)
 		await _shot("shelter_open")
+	if only.has("doors2"):
+		await _stand(Vector3(1203.0, 0.0, -915.0), Vector3(1161.0, 7.0, -940.0), 0.05)
+		await _pf(240)
+		await _shot("hangar_door_open")
+		await _stand(Vector3(1330.0, 0.0, -735.0), Vector3(1360.0, 5.0, -759.0), 0.05)
+		await _pf(240)
+		await _shot("shelter_door_open")
 	if only.is_empty() or only.has("lines"):
 		await _stand(Vector3(1262.0, 0.0, -760.0), Vector3(1320.0, 0.0, -760.0), -0.15)
 		await _shot("runway_east_lines")

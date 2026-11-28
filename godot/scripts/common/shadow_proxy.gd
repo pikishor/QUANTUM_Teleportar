@@ -41,10 +41,6 @@ static func skinned_proxy(body: MeshInstance3D, lod_bias := SKINNED_LOD_BIAS) ->
 	var p := MeshInstance3D.new()
 	p.name = PROXY_NAME
 	p.mesh = body.mesh
-	if not AirDraws.old:
-		var cm := coarse_skinned(body.mesh)                    # w129-airdraws: lod_bias asked for a coarse LOD the imported hero never had (16k triangles in each of 2 shadow splits)
-		if cm != null:
-			p.mesh = cm
 	p.skin = body.skin
 	p.skeleton = body.skeleton                      # same parent, same relative path
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
@@ -91,43 +87,3 @@ static func _shadow_mesh(src: Mesh) -> ArrayMesh:
 			out.surface_set_material(out.get_surface_count() - 1, mat)
 	_meshes[key] = out
 	return out
-
-
-## w129-airdraws: a coarse copy of a skinned mesh for the shadow pass: the casting surfaces only (NO_SHADOW surfaces dropped), each with the indices of a generated LOD of
-## about COARSE_SHARE of its triangles (same vertices, bones and weights, so it follows the pose exactly). Built once per source mesh (about 0.1 s for the hero). Null when
-## no LOD can be made. The imported hero mesh carries no LODs, so `lod_bias` alone drew all 16k triangles in every shadow split (MED: 32k of the frame's 274k).
-const COARSE_SHARE := 0.3
-static var _coarse := {}
-
-
-static func coarse_skinned(src: Mesh) -> ArrayMesh:
-	if not (src is ArrayMesh):
-		return null
-	var key: Variant = src.resource_path if src.resource_path != "" else src.get_instance_id()
-	if _coarse.has(key):
-		return _coarse[key]
-	var am := src as ArrayMesh
-	var im := ImporterMesh.new()
-	var keep := kept_surfaces(src)
-	var flags: Array[int] = []
-	for s in keep:
-		var f := am.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
-		flags.append(f)
-		im.add_surface(Mesh.PRIMITIVE_TRIANGLES, am.surface_get_arrays(s), [], {}, null, "", f)
-	im.generate_lods(25.0, 60.0, [])
-	var out := ArrayMesh.new()
-	var any := false
-	for i in im.get_surface_count():
-		var arr := im.get_surface_arrays(i)
-		var full := (arr[Mesh.ARRAY_INDEX] as PackedInt32Array).size()
-		var best: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
-		for l in im.get_surface_lod_count(i):
-			var li := im.get_surface_lod_indices(i, l)
-			if li.size() >= 3 and li.size() < best.size() and float(li.size()) >= float(full) * COARSE_SHARE * 0.6:
-				best = li
-		if best.size() < full:
-			any = true
-		arr[Mesh.ARRAY_INDEX] = best
-		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, flags[i])
-	_coarse[key] = out if any else null
-	return _coarse[key]

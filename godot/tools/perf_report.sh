@@ -25,7 +25,7 @@ for q in $TIERS; do
 done
 if [ -n "${PERF_CHECK:-}" ] && [ "${PERF_AIR:-1}" != "0" ]; then
   for q in $TIERS; do
-    tools/air_perf.sh "$q" | sed "s/^/PERF AIR /" || { echo "PERF AIR tier=$q verdict=OVER (tools/air_perf.sh: an airfield view is over its budget)"; status=1; }
+    tools/air_perf.sh "$q" | sed "s/^/PERF AIR /" || { echo "PERF AIR tier=$q verdict=OVER (tools/air_perf.sh: an airfield view is over its budget, or the run did not finish)"; status=1; }
   done
 fi
 if [ -n "${PERF_CHECK:-}" ]; then exit $status; fi

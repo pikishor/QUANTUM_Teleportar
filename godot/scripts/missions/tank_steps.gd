@@ -20,6 +20,11 @@ const CORNER_R := 11.0                     ## radius of the rounded corners of t
 const CORNER_SPEED := 4.0
 const KEEP_UP := 110.0                     ## the driven convoy waits while the escort is farther than this from the lead
 const LOOK := 9.0                          ## metres ahead on the road a driven truck steers at
+## w129-critic: an army operation on a city street is not a crime spree. The fight of a tank mission (enemy hulls blowing up, shells and husks killing the people on the pavement,
+## witnesses calling it in) lifted the heat to 3.7 stars and sent 3 police cars after the hero DURING the TANK BATTLE. While a tank step runs, the heat is held under
+## TASK_HEAT_CAP, below the level where the police stand down (VehicleSpecs.COP_STAND_DOWN; the hack / defend cap 1.5 still let an interceptor tail him). W129C_OLD=1 = old.
+static var heat_hold := OS.get_environment("W129C_OLD") != "1"
+const TASK_HEAT_CAP := VehicleSpecs.COP_STAND_DOWN * 0.8
 
 var r: CampaignRunner
 var task: StringName = &""
@@ -214,6 +219,8 @@ func _on_down(v: Vehicle) -> void:
 # --- tick ------------------------------------------------------------------------------------------------------------------------------
 
 func tick(delta: float, p: Vector3) -> void:
+	if heat_hold:
+		Game.heat = maxf(minf(Game.heat, TASK_HEAT_CAP) - CampaignRunner.HOLD_HEAT_DECAY * delta, 0.0)
 	if _wait_for_hero():
 		if task == &"convoy" and not road.is_empty():
 			_prune(trucks)

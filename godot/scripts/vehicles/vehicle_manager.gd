@@ -130,6 +130,10 @@ func nearest(pos: Vector3, r := 4.2) -> Vehicle:
 	return best
 
 
+static var mission_ride_first := OS.get_environment("W129C_OLD") != "1"         ## w129-critic fixes on (W129C_OLD=1 = old): the mission's ride wins ENTER; a husk outlives its fire
+const HUSK_SMOULDER := 8.0                  ## s a husk smoulders after its flames died before it is cleared
+
+
 ## The car the hero can take from `pos`: the nearest within the old 4.2 m (middle to middle) or whose hull edge is within VehicleSpecs.ENTER_REACH (a long bus or truck is
 ## taken at its flank), a moving car adds ENTER_MOVING per m/s so a hijack on the run works. Null when none.
 func reach_car(pos: Vector3) -> Vehicle:
@@ -155,6 +159,8 @@ func reach_car(pos: Vector3) -> Vehicle:
 			var score := minf(edge, flat - 2.0)
 			if ArmourSites.pick_on and (c.has_meta(&"called") or c.has_meta(&"fixed") or c.has_meta(&"spawned") or c.has_meta(&"mission_ride")):       # w126-air: and the aircraft a mission left waiting (a parked plane beside it took the ENTER)      # wave 118 (w119-hud5: and one from the demo SPAWN list: ENTER beside a spawned plane boarded a passing compact): the tank the hero called or walked to wins over a passing car in reach
 				score -= 3.0
+			if mission_ride_first and c.has_meta(&"mission_ride"):         # w129-critic: the vehicle the mission gave wins over a yard vehicle parked beside it (walking up to the ARTILLERY STRIKE's howitzer, ENTER boarded the APC in the next bay)
+				score -= 2.5
 			if score < best_d:
 				best_d = score
 				best = c
@@ -457,7 +463,10 @@ func on_destroyed(v: Vehicle) -> void:
 		_spawn_ready[v.get_meta(&"spawn_id")] = _clock + VehicleSpawns.RESPAWN_AFTER
 	v.become_wreck()
 	hear(where, &"crash")
-	_wrecks.append({"car": v, "t": _clock + respawn_time})
+	var husk_t := respawn_time
+	if mission_ride_first and v.has_meta(&"burn"):               # w129-critic: the husk stands until its fire is out and it has smouldered a while (it vanished in full flame at 25 s: the fire burns 28 s, 42 s on armour)
+		husk_t = maxf(respawn_time, float(v.get_meta(&"burn")) + HUSK_SMOULDER)
+	_wrecks.append({"car": v, "t": _clock + husk_t})
 	while _wrecks.size() > VehicleSpecs.MAX_WRECKS:
 		_release_wreck(0)
 	_respawns.append({"t": _clock + respawn_time, "starter": was_starter, "pos": where, "h": h})
