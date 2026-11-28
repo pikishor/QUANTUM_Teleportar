@@ -310,6 +310,9 @@ static func _wash(v: Vehicle, A: Air, dt: float, agl: float) -> void:
 		return
 	if not (v.driver_is_player or v._dist < 80.0):
 		return
+	if not MachAnim.old:                                              # w129-machanim: the wash blows outwards from under the disc (pooled puffs, ground kind)
+		MachAnim.wash(v, dt, agl, WASH_RANGE)
+		return
 	A.wash_t = 0.11
 	var k := 1.0 - agl / WASH_RANGE
 	var p := v.global_position

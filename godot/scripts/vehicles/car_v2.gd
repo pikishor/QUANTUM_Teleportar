@@ -135,15 +135,15 @@ func setup(visual: VehicleVisual, m: Node3D, kind: StringName, glow: Color) -> b
 	if lod1 != null:
 		_bind(lod1)
 		body.visibility_range_end = LOD1_DIST
-		body.visibility_range_end_margin = LOD_MARGIN
+		body.visibility_range_end_margin = MachAnim.lod_margin(LOD_MARGIN)
 		lod1.visibility_range_begin = LOD1_DIST
-		lod1.visibility_range_begin_margin = LOD_MARGIN
+		lod1.visibility_range_begin_margin = MachAnim.lod_margin(LOD_MARGIN)
 		lod1.visibility_range_end = LOD2_DIST
-		lod1.visibility_range_end_margin = LOD_MARGIN
+		lod1.visibility_range_end_margin = MachAnim.lod_margin(LOD_MARGIN)
 	if lod2 != null:
 		_bind(lod2)
 		lod2.visibility_range_begin = LOD2_DIST
-		lod2.visibility_range_begin_margin = LOD_MARGIN
+		lod2.visibility_range_begin_margin = MachAnim.lod_margin(LOD_MARGIN)
 	for mi: MeshInstance3D in [body, lod1, lod2]:
 		if mi != null:
 			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED

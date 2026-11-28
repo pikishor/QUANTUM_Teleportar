@@ -311,7 +311,7 @@ func activate(pos: Vector3, h: float) -> void:
 
 
 ## The exploded car stays where it is as a charred husk: dark paint, lights out, a little sag, out of the group (nothing targets or damages it) and out of the
-## simulation. The manager releases it when the replacement car is due. Burning-less on purpose: no particles, no lights, no cost.
+## simulation. The manager releases it when the replacement car is due. w129: it burns for a while, then smoulders (MachAnim.wrecks: pooled puffs near the camera, no lights).
 func become_wreck() -> void:
 	wreck = true
 	active = false
@@ -337,6 +337,7 @@ func become_wreck() -> void:
 		_mirror.track(_none)
 	visible = true
 	publish_hull(true)                                       # a husk is a solid thing on the street: nothing is spawned on it, nothing drives through it
+	MachAnim.on_wreck(self)                                  # w129-machanim: the husk burns (flames, a black column), then smoulders
 
 
 ## Makes this car the player's garage car: tuned spec, hit points, mounted weapon and paint from `g` (call after activate()).
@@ -767,7 +768,7 @@ func sim(dt: float) -> void:
 	elif path_road >= 0 and craft == null:                # a highway car of the outskirts that became a real vehicle: it keeps driving its road
 		PathDriver.drive(self, dt)
 		step_drive(dt, script_thr, script_steer, false)
-	elif has_meta(&"tank_puppet"):                       # w127-arms: a convoy truck of a tank mission, moved along its road by TankSteps
+	elif has_meta(&"tank_puppet") and not scripted:      # w127-arms: a convoy truck of a tank mission, moved along its road by TankSteps (w129-tankmis: a scripted one drives itself, below)
 		pass
 	elif craft != null and has_meta(&"air_puppet"):      # w126-air: a bandit or the airliner of an air mission, flown by AirSteps (it sets the position, the heading and the attitude)
 		pass
@@ -1712,6 +1713,8 @@ func _sync(dt: float) -> void:
 		_sync_hover(dt)
 	elif driver_is_player or _dist < 70.0:
 		_sync_body(dt, yaw_est)
+	if not MachAnim.old:
+		MachAnim.car(self, dt)                                   # w129-machanim: tail-pipe exhaust near the camera
 	_last_vf = speed
 	_prev_h = heading
 	_apply_lights()

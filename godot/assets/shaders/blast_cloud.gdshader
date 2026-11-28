@@ -2,7 +2,7 @@ shader_type spatial;
 // Blast clouds (scripts/combat/blast_fx.gd): ONE MultiMesh of soft billboard puffs for every smoke screen, fire field, dust column and water spray of the blast arsenal (one draw call).
 // Per instance: COLOR = tint (rgb) and opacity (a); CUSTOM = (age 0..1, seed, glow 0..1, kind). Kinds: 0 smoke / dust (dark to light puff), 1 flame (hot core, additive look), 2 flash (white pop),
 // 3 spray (pale water). Premultiplied alpha blending lets one material be alpha smoke and additive fire at once (glow raises the colour and lowers the alpha). No depth write; depth test on.
-render_mode unshaded, cull_disabled, depth_draw_never, blend_premul_alpha;
+render_mode unshaded, cull_disabled, depth_draw_never, blend_premul_alpha, fog_disabled;   // w129: the built-in fog added its colour over the WHOLE quad (premultiplied rgb 0 + fog = pale squares round every puff): no fog, a distance fade instead
 
 varying vec4 v_data;
 varying vec2 v_cam;                                    // x = distance camera to puff centre, y = puff size: a puff the camera is inside or next to fades out
@@ -78,6 +78,7 @@ void fragment() {
 		col = mix(col, vec3(1.0), 0.2 * (1.0 - age));
 		a *= 0.85;
 	}
+	a *= 1.0 - 0.75 * smoothstep(120.0, 700.0, v_cam.x);    // w129: far puffs thin out as the fog would have hidden them
 	a *= smoothstep(0.35, 1.05, v_cam.x / v_cam.y);       // never a grey wall in front of the lens (the screen flash overlay does the deliberate whiteouts)
 	a = clamp(a, 0.0, 1.0);
 	float add = clamp(glow, 0.0, 1.0);

@@ -78,6 +78,9 @@ class State extends RefCounted:
 	var planing := 0.0                ## 0..1 how far the hull has lifted onto the plane
 	var ring_t := 0.0
 	var trail: BoatWake               ## the foam ribbon behind the hull (created when the boat is near the player)
+	var mach: RefCounted              ## w129-machanim: the animation state of MachAnim (rotor cone and tilt, gear flex, control surfaces, lights, trails)
+	var thr_in := 0.0                 ## the stick's forward input of the last step (w129: the rotor head tilts with it)
+	var lift_in := 0.0                ## UP minus DOWN of the last step (w129: the elevators follow it)
 
 	func reset(heading: float) -> void:
 		vy = 0.0
@@ -126,6 +129,8 @@ static func step(v: Vehicle, dt: float, thr: float, steer: float, up: bool, boos
 	if v.driver_is_player and Input.is_action_pressed(&"crouch"):
 		down = 1.0
 	var lift := (1.0 if up else 0.0) - clampf(down, 0.0, 1.0)
+	c.thr_in = thr
+	c.lift_in = lift
 	if v.cls == &"heli" or v.cls == &"plane":
 		_measure_agl(v)
 	match v.cls:
@@ -456,28 +461,37 @@ static func _tank(v: Vehicle, dt: float, thr: float, steer: float, brake: bool) 
 			thr = 0.0
 			steer = 0.0
 	var fwd := v.forward()
-	var vf := v.vel.dot(fwd)
+	var vf := TankMoves.base_speed(v, fwd) if TankMoves.on else v.vel.dot(fwd)
+	var acc := float(T["acc"])
+	var yaw_k := 1.0
+	if TankMoves.on:                                                       # w129-tankmis: the hover tank, the walker and the swimming carrier move their own way (TankMoves)
+		var lim: Array = TankMoves.limits(v, vmax, acc)
+		vmax = float(lim[0])
+		acc = float(lim[1])
+		yaw_k = float(lim[2])
 	if thr > 0.05:
-		vf += float(T["acc"]) * thr * (1.0 - maxf(vf, 0.0) / vmax) * dt
+		vf += acc * thr * (1.0 - maxf(vf, 0.0) / vmax) * dt
 	elif thr < -0.05:
-		vf += (-float(T["brake"]) if vf > 0.5 else -float(T["acc"]) * 0.6) * -thr * dt
+		vf += (-float(T["brake"]) if vf > 0.5 else -acc * 0.6) * -thr * dt
 	else:
 		vf *= exp(-TANK_DRAG * dt)
 	if brake:
 		vf *= exp(-3.0 * dt)
 	vf = clampf(vf, -vmax * 0.4, vmax)
-	var yr := steer * TANK_YAW * float(T.get("steer", 1.0)) * (1.0 - 0.45 * clampf(absf(vf) / vmax, 0.0, 1.0))
+	var yr := steer * TANK_YAW * float(T.get("steer", 1.0)) * (1.0 - 0.45 * clampf(absf(vf) / vmax, 0.0, 1.0)) * yaw_k
 	if TankModels.on and bool(T.get("wheeled", false)):                    # w127-tanks: a wheeled vehicle turns with its speed (a slow crawl round on the spot, no pivot turn)
 		yr *= clampf(0.3 + absf(vf) / 6.0, 0.3, 1.0) * (signf(vf) if vf < -0.5 else 1.0)
 	v.heading -= yr * dt
 	fwd = v.forward()
-	v.vel = fwd * vf
+	v.vel = TankMoves.velocity(v, fwd, vf, dt) if TankMoves.on else fwd * vf
 	v.speed = vf
 	v.slip = 0.0
 	v.braking = brake
 	v.steer_in = steer
 	v.yaw_rate = -yr
 	v._move(dt)
+	if TankMoves.on:
+		TankMoves.after_move(v, dt)
 	v.speed = v.vel.dot(v.forward())
 	_slew_turret(v, dt)
 
@@ -560,7 +574,10 @@ static func sync(v: Vehicle, dt: float) -> void:
 		&"heli":
 			c.ang = fposmod(c.ang + c.spool * 38.0 * dt, TAU)
 			c.tail_ang = fposmod(c.tail_ang + c.spool * 60.0 * dt, TAU)
-			if near:
+			var flex := 0.0
+			if not MachAnim.old:
+				flex = MachAnim.heli(v, dt, near)                                          # w129: blur discs (tail rotor too), coning, flap, cyclic tilt, gear flex
+			elif near:
 				_blades(vis, "Rotor", c.spool * 38.0, c.ang, Vector3.UP)
 				_blades(vis, "TailRotor", c.spool * 60.0, c.tail_ang, Vector3.RIGHT)
 				_blades(vis, "Rotor2", c.spool * 38.0, -c.ang, Vector3.UP)                  # wave 125: the counter-rotating second rotor (tandem, coaxial, tilt-rotor)
@@ -570,7 +587,7 @@ static func sync(v: Vehicle, dt: float) -> void:
 			c.bob_t += dt
 			var bob := sin(c.bob_t * 2.1) * 0.06 * (1.0 if c.airborne else 0.0)
 			vis.model.rotation = Vector3(c.pitch, 0.0, c.roll)
-			vis.model.position = Vector3(0.0, bob, 0.0)
+			vis.model.position = Vector3(0.0, bob + flex, 0.0)
 			if v.driver_is_player:
 				AircraftFlight.tick_guide(v, dt)
 		&"plane":
@@ -585,8 +602,10 @@ static func sync(v: Vehicle, dt: float) -> void:
 			c.roll = Ap.roll
 			vis.model.rotation = Vector3(c.pitch, 0.0, c.roll)
 			vis.model.position = Vector3.ZERO
+			if not MachAnim.old:
+				MachAnim.plane(v, dt, near)                                               # w129: control surfaces, gear and doors, lights, trails
 			var burner := vis.parts.get("Burner") as Node3D
-			if burner != null:                                                         # the afterburner cone grows with the thrust and shows above 55 % of it
+			if burner != null and MachAnim.old:                                        # the afterburner cone grows with the thrust and shows above 55 % of it (w129: MachAnim's exhaust when not old)
 				var th := clampf((Ap.thrust - 0.55) / 0.45, 0.0, 1.0)
 				burner.visible = near and th > 0.02 and not v.wreck
 				burner.scale = Vector3(1.0, 1.0 + 3.0 * th, 1.0) * (0.7 + 0.5 * th)
@@ -616,6 +635,8 @@ static func sync(v: Vehicle, dt: float) -> void:
 			vis.model.position = Vector3.ZERO
 			if TankModels.on:
 				TankModels.animate(v, dt)                                                     # w127-tanks: the tracks / tyres / legs move, the hover tank floats
+			if not MachAnim.old:
+				MachAnim.tank(v, dt)                                                          # w129: gun recoil and hull rock, track dust, exhaust
 
 
 ## Blades turn about `axis` until they blur: then the node is hidden and the soft disc shows.

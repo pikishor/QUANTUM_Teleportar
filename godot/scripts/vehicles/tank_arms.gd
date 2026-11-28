@@ -40,6 +40,7 @@ static var smokes := 0                   ## counters for the tests
 static var shots_by := {}                ## arm -> rounds fired, lifetime
 static var hits_by := {}                 ## arm -> direct hits, lifetime
 static var snapped := 0                  ## howitzer shells that snapped to a target
+static var reach_on := OS.get_environment("W129TM_OLD") != "1"         ## w129-tankmis: the howitzer's crosshair point reaches the gun's range (indirect_aim); W129TM_OLD=1: it stopped at the hero's 220 m aim ray
 static var _blasts_done := false
 
 var car: Vehicle
@@ -459,11 +460,39 @@ static func artillery_aim(car: Vehicle, aim: Vector3) -> Vector3:
 	return best
 
 
+## w129-tankmis: the crosshair's point for an INDIRECT gun: the camera ray out to the gun's range (+ 60 m), stopped by the world or a vehicle (the target's hull), else where it meets the
+## ground. The hero's aim ray (Player.get_aim) ends at PlayerWeapon.RANGE (220 m) and only sees the world from a vehicle: aimed at armour 300 m down a street it gave a point in the air
+## 220 m out, the marker never snapped and the shells of the ARTILLERY STRIKE landed short every time.
+static func indirect_aim(car: Vehicle) -> Vector3:
+	var base: Vector3 = VehicleCraft.aim_point(car)
+	if not reach_on or car.has_meta(&"aim_at") or not car.driver_is_player or not is_instance_valid(Game.player) or not Game.player.has_method(&"get_aim"):
+		return base
+	var a: Dictionary = Game.player.call(&"get_aim")
+	if not a.has("start") or not a.has("dir"):
+		return base
+	var start: Vector3 = a["start"]
+	var dir: Vector3 = a["dir"]
+	var reach := float(car.weapons.def.get("range", 400.0)) + 60.0
+	var q := PhysicsRayQueryParameters3D.create(start, start + dir * reach, Game.L_WORLD | Game.L_VEHICLE)
+	q.exclude = [car.get_rid()]
+	var hit := car.get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty():
+		return hit["position"]
+	if dir.y < -0.002:                                                       # nothing in the way out to the range: where the ray meets the ground under it
+		var g := car.global_position.y
+		var t := (start.y - g) / -dir.y
+		if t < reach * 3.0:
+			var p := start + dir * t
+			p.y = Vehicle._terrain_y(p.x, p.z)
+			return p
+	return start + dir * reach
+
+
 ## Where the howitzer's shell lands now (the marker): the crosshair's ground point inside the range, snapped like the shell. INF when the vehicle has no indirect gun.
 static func marker_point(car: Vehicle) -> Vector3:
 	if car == null or car.weapons == null or not bool(car.weapons.def.get("indirect", false)):
 		return Vector3.INF
-	var aim: Vector3 = VehicleCraft.aim_point(car)
+	var aim: Vector3 = indirect_aim(car)
 	var off := aim - car.global_position
 	var rng := float(car.weapons.def["range"])
 	if Vector2(off.x, off.z).length() > rng:

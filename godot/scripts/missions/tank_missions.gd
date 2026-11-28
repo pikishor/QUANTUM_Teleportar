@@ -17,7 +17,26 @@ const DEFS := {
 	&"tank_artillery": {"title": "ARTILLERY STRIKE", "brief": "Take the mobile artillery to the firing position and shell the enemy armour.", "base": 440, "glyph": &"blast"},
 }
 
+const BRIEF_NEAR := {
+	&"tank_battle": "Take the battle tank in the ARMY YARD and stop the enemy tanks coming down the street.",
+	&"tank_convoy": "Take the battle tank in the ARMY YARD and keep the enemy tanks off the supply trucks.",
+	&"tank_artillery": "Take the mobile artillery out of the ARMY YARD and shell the enemy armour down the street.",
+}
+
 static var on := OS.get_environment("W127A_OLD") != "1"
+static var near_on := OS.get_environment("W129TM_OLD") != "1"     ## w129-tankmis: the missions play out on the street in front of the ARMY YARD (near_steps); W129TM_OLD=1 = the wave 127 far fields
+
+## w129-tankmis: THE FIELD IN FRONT OF THE YARD. The yard (120 m from the start) opens onto the long east-west street z = -80 (CityLayout: roads every 80 m, 20 m wide); every tank
+## mission is staged in the yard and fought along that street to the west, so a finger player finishes it in a few minutes (the wave 127 fields lay 1.5 - 3.5 km away over the city and
+## the steps only ended through the guide's stuck recovery). The enemy comes down the street (TankCrews.road_goal leads a crew round the blocks when it has no line of fire).
+const STREET_Z := -80.0
+const LANE_W := -85.0                ## the westbound lane (right-hand side)
+const BATTLE_FIELD := Vector3(-290.0, 0.0, -80.0)
+const BATTLE_SPAWNS: Array[Vector3] = [Vector3(-405.0, 0.0, -76.0), Vector3(-428.0, 0.0, -84.0), Vector3(-451.0, 0.0, -76.0), Vector3(-474.0, 0.0, -84.0)]
+const EAST := -PI * 0.5              ## heading of a vehicle that faces +x (forward is (-sin h, 0, -cos h))
+const CONVOY_ROAD: Array[Vector3] = [Vector3(-215.0, 0.0, -85.0), Vector3(-315.0, 0.0, -85.0), Vector3(-315.0, 0.0, -345.0)]
+const ART_FIRE := Vector3(-128.0, 0.0, -80.0)
+const ART_TARGETS: Array[Vector3] = [Vector3(-388.0, 0.0, -76.0), Vector3(-408.0, 0.0, -84.0), Vector3(-428.0, 0.0, -76.0), Vector3(-448.0, 0.0, -84.0)]
 static var _turn := 0
 
 
@@ -75,8 +94,41 @@ static func _provide(kind: String, text: String, at: Vector3, h: float) -> Dicti
 	return _s("reach", text, {"pos": at, "radius": 14.0, "veh": "tank", "provide": kind, "provide_at": at, "provide_h": h})
 
 
+## w129-tankmis: the steps of mission `t` on the street in front of the yard: board the vehicle in the yard, then the fight right outside (no long drive).
+static func near_steps(t: StringName, tier: int) -> Array[Dictionary]:
+	var g := clampi(tier, 0, 3)
+	var out: Array[Dictionary] = []
+	match t:
+		&"tank_battle":
+			var n := 2 + g / 2
+			out = [
+				_provide("tank", "GET IN THE BATTLE TANK", ArmourSites.YARD_BAYS[&"depot"], 0.0),
+				_s("tank_task", "DESTROY THE ENEMY TANKS", {"pos": BATTLE_FIELD, "task": "battle", "n": n, "spawns": BATTLE_SPAWNS.slice(0, n), "head": EAST, "kinds": ["ltank", "tank", "apc"],
+						"hp": 650.0, "veh": "tank", "time": 600.0, "say": "ENEMY TANKS COMING DOWN THE STREET FROM THE WEST"}),
+			]
+		&"tank_convoy":
+			out = [
+				_provide("tank", "GET IN THE BATTLE TANK", ArmourSites.YARD_BAYS[&"depot"], 0.0),
+				_s("tank_task", "PROTECT THE CONVOY", {"pos": CONVOY_ROAD[0], "task": "convoy", "pts": CONVOY_ROAD.duplicate(), "road": true, "truck": "t_truck" if TankRoster.on else "truck",
+						"trucks": 2 + g / 3, "waves": 2, "n": 1 + g / 2, "hp": 550.0, "veh": "tank", "time": 600.0, "join": 45.0}),
+			]
+		&"tank_artillery":
+			var n2 := 3 + g / 3
+			out = [
+				_provide("artillery", "GET IN THE MOBILE ARTILLERY", ArmourSites.YARD + Vector3(16.0, 0.0, 4.0), 0.0),
+				_s("reach", "DRIVE OUT TO THE FIRING POSITION", {"pos": ART_FIRE, "radius": 14.0, "veh": "tank", "time": 240.0}),
+				_s("tank_task", "SHELL THE ENEMY ARMOUR DOWN THE STREET", {"pos": ART_TARGETS[1], "task": "artillery", "n": n2, "spots": ART_TARGETS.slice(0, n2), "kinds": ["apc", "ltank"],
+						"hp": 240.0, "veh": "tank", "time": 420.0}),
+			]
+	for st: Dictionary in out:
+		st["quiet"] = true
+	return out
+
+
 ## The steps of mission `t` (every goal placed); [] when the world cannot hold it.
 static func steps(t: StringName, tier: int, r: RandomNumberGenerator) -> Array[Dictionary]:
+	if near_on:
+		return near_steps(t, tier)
 	var g := clampi(tier, 0, 3)
 	var yard := ArmourSites.YARD
 	var out: Array[Dictionary] = []
@@ -128,4 +180,4 @@ static func build(t: StringName, tier: int, origin: Vector3, r: RandomNumberGene
 		route += _h(cur, s["pos"])
 		cur = s["pos"]
 	var d: Dictionary = DEFS[t]
-	return {"steps": st, "route_m": route, "pos": (st[0]["pos"] as Vector3), "title": String(d["title"]), "brief": String(d["brief"]), "base": float(d["base"]), "glyph": d["glyph"], "site": ArmourSites.YARD}
+	return {"steps": st, "route_m": route, "pos": (st[0]["pos"] as Vector3), "title": String(d["title"]), "brief": String(BRIEF_NEAR[t] if near_on else d["brief"]), "base": float(d["base"]), "glyph": d["glyph"], "site": ArmourSites.YARD}

@@ -262,6 +262,8 @@ func _ring_point(cls: StringName) -> Vector3:
 	var z := _hero.z + sin(a) * r
 	if maxf(absf(x), absf(z)) < AnimalSpecies.CITY_SKIRT or maxf(absf(x), absf(z)) > TerrainHeight.WORLD_HALF - 60.0:
 		return Vector3.INF
+	if cls != AnimalSpecies.AIR and cls != AnimalSpecies.WATER and AirDraws.keep_out(x, z):     # w129-airdraws: no herds on the apron, the runway or the army base
+		return Vector3.INF
 	var h := TerrainHeight.height_at(x, z)
 	var p := Vector3(x, h, z)
 	if cam != null and _first_fill <= 0.0 and r < rmax * 0.92 and cam.is_position_in_frustum(p + Vector3(0.0, 1.0, 0.0)):
@@ -311,6 +313,8 @@ func spawn_group(id: StringName, pos: Vector3, n: int) -> int:
 	if spec.is_empty() or n <= 0:
 		return 0
 	var cls: StringName = spec["cls"]
+	if (cls == AnimalSpecies.LAND or cls == AnimalSpecies.SMALL) and AirDraws.keep_out(pos.x, pos.z):    # w129-airdraws: not on the airfield
+		return 0
 	var g := {"id": id, "cls": cls, "members": [], "center": Vector2(pos.x, pos.z), "home": Vector2(pos.x, pos.z), "timer": rng.randf_range(4.0, 14.0), "mode": &"graze"}
 	var placed := 0
 	var spread := 2.2 + 0.9 * float(n)
@@ -453,6 +457,8 @@ func settle(pos: Vector3, rounds := 40) -> void:
 # --- land ------------------------------------------------------------------------------------------------------------------------------------
 
 func _land_ok(x: float, z: float) -> bool:
+	if AirDraws.keep_out(x, z):                                          # w129-airdraws
+		return false
 	var h := TerrainHeight.height_at(x, z)
 	var w := TerrainHeight.water_level_for(x, z, h)
 	return w == TerrainHeight.NO_WATER or w - h < 0.4
@@ -670,6 +676,8 @@ func _ground_step(c: Critter, dt: float, moving: bool, dh: float) -> void:
 		c.water_y = w
 		if w != TerrainHeight.NO_WATER and w - h > 0.9:
 			c.stuck += 1.0                                              # in deep water: it was pushed or spawned there; it gets out or goes
+		elif c.cls == AnimalSpecies.LAND and AirDraws.keep_out(x, z):
+			c.stuck += 1.0                                              # w129-airdraws: on the airfield (chased in, or there from before the rule): it goes
 		elif c.stuck > 0.0:
 			c.stuck = maxf(0.0, c.stuck - 0.5)
 		if moving:
@@ -681,7 +689,7 @@ func _ground_step(c: Critter, dt: float, moving: bool, dh: float) -> void:
 			var ah := TerrainHeight.height_at(ax, az)
 			var aw := TerrainHeight.water_level_for(ax, az, ah)
 			var limit := 2.1 if c.spec.get("climb", false) else 1.1
-			if (aw != TerrainHeight.NO_WATER and aw - ah > 0.45) or absf(ah - h) / (1.5 + c.speed * 0.5) > limit:
+			if (aw != TerrainHeight.NO_WATER and aw - ah > 0.45) or absf(ah - h) / (1.5 + c.speed * 0.5) > limit or (c.cls == AnimalSpecies.LAND and AirDraws.keep_out(ax, az) and not AirDraws.keep_out(x, z)):
 				c.stuck += 0.3
 				var side := 1.0 if rng.randf() < 0.5 else -1.0
 				var back := (Vector2(x, z) - Vector2(ax, az)).normalized().rotated(side * rng.randf_range(0.5, 1.4))

@@ -30,6 +30,7 @@ const KINDS := [&"tank", &"ltank", &"apc"]
 const WANTED_EVERY := 4.0
 
 static var on := OS.get_environment("W127A_OLD") != "1"
+static var roads_on := OS.get_environment("W129TM_OLD") != "1"         ## w129-tankmis: mission crews always come for the hero and drive the city's streets round the blocks (road_goal); they hold while the step waits (set_hold)
 static var current: TankCrews = null
 static var kills := 0                   ## enemy tanks destroyed, lifetime (tests)
 static var shots := 0                   ## rounds the crews fired
@@ -131,7 +132,7 @@ func spawn(kind: StringName, at: Vector3, heading: float, mode: StringName, opts
 		v.max_hp = float(opts["hp"])
 		v.hp = v.max_hp
 	var c := {"v": v, "mode": mode, "think": 0.0, "fire_t": RELOAD * 0.5, "seen_t": 0.0, "stuck_t": 0.0, "back_t": 0.0, "home": opts.get("home", at), "pi": 0,
-			"targets": opts.get("targets", []), "target": null, "engaged": false, "los": false, "err": Vector3.ZERO, "hp0": v.hp}
+			"targets": opts.get("targets", []), "target": null, "engaged": false, "los": false, "err": Vector3.ZERO, "hp0": v.hp, "hold": false}
 	crews.append(c)
 	spawned += 1
 	if not v.exploded.is_connected(_on_dead):
@@ -174,6 +175,46 @@ func release(v: Vehicle) -> void:
 	if vm != null and v.active and not v.driver_is_player:
 		vm._release(v)
 		vm._count_fixed()
+
+
+## w129-tankmis: a mission crew holds still and holds its fire while `on` (the hero left his tank: the step waits for him to board again).
+func set_hold(v: Vehicle, hold: bool) -> void:
+	for c in crews:
+		if c["v"] == v:
+			c["hold"] = hold
+
+
+## w129-tankmis: the next point of a crew's drive from `from` to `to` inside the city: the straight line when nothing stands in it, else along the street it is on to the cross street that
+## leads to the target (blocks are 80 m squares, roads 20 m wide: CityLayout), off a lot onto the nearest street first. Outside the city: `to`.
+static func road_goal(from: Vector3, to: Vector3, space: PhysicsDirectSpaceState3D, exclude: Array[RID] = []) -> Vector3:
+	var lim := CityLayout.HALF
+	if absf(from.x) > lim or absf(from.z) > lim:
+		return to
+	if space != null:
+		var q := PhysicsRayQueryParameters3D.create(from + Vector3(0.0, 1.6, 0.0), to + Vector3(0.0, 1.6, 0.0), Game.L_WORLD)
+		q.exclude = exclude
+		if space.intersect_ray(q).is_empty():
+			return to
+	var ox := CityLayout.road_offset(from.x)
+	var oz := CityLayout.road_offset(from.z)
+	var half := CityLayout.ROAD * 0.5 - 2.0
+	var on_ns := absf(ox) <= half                      # on a road that runs along z (x is fixed)
+	var on_ew := absf(oz) <= half
+	var col_x := to.x - CityLayout.road_offset(to.x)    # the street lines nearest the target
+	var row_z := to.z - CityLayout.road_offset(to.z)
+	if not on_ns and not on_ew:                         # on a lot: out to the nearest street
+		if absf(ox) < absf(oz):
+			return Vector3(from.x - ox, from.y, from.z)
+		return Vector3(from.x, from.y, from.z - oz)
+	var rx := from.x - ox
+	var rz := from.z - oz
+	if on_ew and absf(from.x - col_x) > 6.0 and (not on_ns or absf(to.x - from.x) >= absf(to.z - from.z)):
+		return Vector3(col_x, from.y, rz)               # along this street to the target's cross street
+	if on_ns and absf(from.z - row_z) > 6.0:
+		return Vector3(rx, from.y, row_z)
+	if on_ew:
+		return Vector3(to.x, from.y, rz)
+	return Vector3(rx, from.y, to.z)
 
 
 func release_mode(mode: StringName) -> void:
@@ -314,9 +355,22 @@ func _think(c: Dictionary, v: Vehicle, hero: Node3D, dt: float) -> void:
 	var to := tgt.global_position - v.global_position
 	var d := Vector2(to.x, to.z).length()
 	var engaged := d < ENGAGE_R and _is_hostile(c, v)
+	if roads_on and c["mode"] == &"mission":
+		engaged = true                                                      # w129-tankmis: a mission crew always comes for the hero (no patrol square far from him)
+		if bool(c["hold"]):                                                 # the step waits for the hero to board again
+			c["engaged"] = false
+			c["target"] = null
+			c["los"] = false
+			v.script_thr = 0.0
+			v.script_steer = 0.0
+			if v.has_meta(&"aim_at"):
+				v.remove_meta(&"aim_at")
+			return
 	c["engaged"] = engaged
 	c["target"] = tgt if engaged else null
 	var goal: Vector3 = tgt.global_position
+	if roads_on and c["mode"] == &"mission" and not bool(c["los"]) and d > 25.0:
+		goal = road_goal(v.global_position, goal, v.get_world_3d().direct_space_state, [v.get_rid()])
 	var thr := 0.0
 	if not engaged:                                                         # patrol: a slow square round home
 		var home: Vector3 = c["home"]
@@ -325,8 +379,8 @@ func _think(c: Dictionary, v: Vehicle, hero: Node3D, dt: float) -> void:
 		if Vector2(goal.x - v.global_position.x, goal.z - v.global_position.z).length() < 8.0:
 			c["pi"] = int(c["pi"]) + 1
 		thr = 0.45
-	elif d > STAND_MAX:
-		thr = 0.85
+	elif d > STAND_MAX or (roads_on and c["mode"] == &"mission" and not bool(c["los"]) and d > STAND_MIN):
+		thr = 0.85 if d > STAND_MAX else 0.5                               # w129-tankmis: a mission crew without a line of fire keeps coming
 	elif d < STAND_MIN:
 		thr = -0.6
 	var g := goal - v.global_position

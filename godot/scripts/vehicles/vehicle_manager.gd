@@ -75,6 +75,7 @@ func _ready() -> void:
 	radio = CarRadio.new()
 	radio.name = "Radio"
 	add_child(radio)
+	TankPlaces.attach(self)                                # w129-tankmis: booths, booms and fences at the ARMY BASE and the road CHECKPOINTS
 	ArmourSites.attach(self)                               # wave 118: the fixed places of the armour and the aircraft (their paint and signs exist only near the hero)
 	Helipads.attach(self)                                  # wave 125 (w125-pads): the new helipads (built near the hero) and the parking on a pad
 	TankCrews.attach(self)                                 # w127-arms: the enemy tank crews (army base, 4-5 stars, tank missions)
@@ -204,6 +205,7 @@ func enter(car: Vehicle) -> void:
 	var side_in := 1.0 if (p.global_position - car.global_position).dot(car.right()) >= 0.0 else -1.0
 	p.set(&"vehicle", car)
 	car.on_enter()
+	AirDraws.own(car.visual, true)                       # w129-airdraws: the hero's own machine keeps its full model at any camera distance
 	car.visual.door_cycle(side_in)                       # the door the hero comes through swings open and shuts
 	Sfx.play(&"pickup")
 	if radio != null:
@@ -229,6 +231,7 @@ func exit_vehicle() -> void:
 	car.steer_in = 0.0
 	car.braking = false
 	car.on_exit()
+	AirDraws.own(car.visual, false)
 	if is_instance_valid(p):
 		var pos := _exit_point(car)
 		var side_out := 1.0 if (pos - car.global_position).dot(car.right()) >= 0.0 else -1.0
@@ -712,6 +715,7 @@ func _physics_process(delta: float) -> void:
 func _physics_process_body(delta: float) -> void:
 	if not Game.is_playing():
 		return
+	MachAnim.wrecks(_wrecks, delta)                         # w129-machanim: burning husks near the camera
 	_clock += delta
 	if not signal_frozen:
 		signal_clock += delta

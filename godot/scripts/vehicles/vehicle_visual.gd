@@ -132,6 +132,9 @@ var _wheels_shown := true
 
 
 ## Builds the model for `kind` (VehicleSpecs.SPECS key), readable at night, glow colour `glow`. Returns the root to add to the vehicle.
+var far: MeshInstance3D = null                        ## w129-airdraws: the one-draw far mesh of an aircraft or a tank (AirDraws.far_merge), null for cars
+
+
 func build(kind: StringName, glow: Color) -> Node3D:
 	var spec: Dictionary = VehicleSpecs.SPECS[kind]
 	wheel_radius = spec["wheel"]
@@ -246,6 +249,8 @@ func build(kind: StringName, glow: Color) -> Node3D:
 		_shadow = ShadowProxy.static_proxy(body)        # the lamp glow surfaces would cast a shadow draw each, in every cascade
 		mirror_meshes.append(_make_mirror_source(body))
 	set_lights(0.1, 0.35, 0.35)
+	if cls == &"heli" or cls == &"plane" or cls == &"tank":
+		far = AirDraws.far_merge(model, String(_kind))         # w129-airdraws: one draw beyond AirDraws.far_at() m
 	return model
 
 
@@ -348,6 +353,7 @@ func _bind_craft(spec: Dictionary) -> void:
 			if nm.begins_with("Prop"):
 				d.rotation = Vector3(PI * 0.5, 0.0, 0.0)               # the prop turns about the nose axis (Z)
 			parts[nm + "Disc"] = d
+	MachAnim.bind(self, spec, _kind)                                    # w129-machanim: streaked blur discs (the tail rotor's too), coning blades
 
 
 const INTERIOR_GLOW := {&"taxi": 1.0, &"bus": 1.5, &"ambulance": 1.2, &"interceptor": 0.7, &"van": 0.2, &"truck": 0.2, &"garbage": 0.2}
@@ -508,9 +514,9 @@ func _link_lod1() -> void:
 				body_lod1.set_surface_override_material(s, body.get_surface_override_material(t))
 				break
 	body.visibility_range_end = LOD1_DIST
-	body.visibility_range_end_margin = LOD1_MARGIN
+	body.visibility_range_end_margin = MachAnim.lod_margin(LOD1_MARGIN)
 	body_lod1.visibility_range_begin = LOD1_DIST
-	body_lod1.visibility_range_begin_margin = LOD1_MARGIN
+	body_lod1.visibility_range_begin_margin = MachAnim.lod_margin(LOD1_MARGIN)
 	body.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 	body_lod1.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 
@@ -620,6 +626,8 @@ func set_paint(color: Color) -> void:
 	damage_look = 0.0
 	_flick = 0.0
 	_setup_finish()
+	if far != null and is_instance_valid(far):
+		far = AirDraws.far_merge(model, String(_kind))         # w129-airdraws: the far mesh wears the new paint (a husk too)
 
 
 ## --- quantum-realism finish (material parameters only: no extra draw call, no extra material) ---

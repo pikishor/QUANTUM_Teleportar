@@ -136,6 +136,7 @@ static func animate(v: Vehicle, dt: float) -> void:
 	st["l"] = float(st["l"]) + dl
 	st["r"] = float(st["r"]) + dr
 	st["t"] = float(st["t"]) + dt
+	st["g"] = float(st.get("g", 0.0)) + (absf(dl) + absf(dr)) * 0.5             # w129-tankmis: the walker's legs step on a pivot turn too (the two sides' travel cancels there)
 	if run == "hover":
 		vis.model.position = Vector3(0.0, float(M.get("lift", 0.5)) + sin(float(st["t"]) * 2.2) * 0.06, 0.0)
 		vis.model.rotation = Vector3(vis.model.rotation.x, 0.0, clampf(-v.yaw_rate * 0.08, -0.12, 0.12))
@@ -173,7 +174,7 @@ static func animate(v: Vehicle, dt: float) -> void:
 					var yaw := steer * float(it.get("steer", 0.0))
 					xf.basis = Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, ang) * xf.basis
 				&"leg":
-					var ph := (float(st["l"]) + float(st["r"])) * 0.5 / float(it["stride"]) * TAU + float(it["phase"])
+					var ph := ((float(st["g"]) if TankMoves.on else (float(st["l"]) + float(st["r"])) * 0.5)) / float(it["stride"]) * TAU + float(it["phase"])
 					xf.basis = Basis(Vector3.RIGHT, sin(ph) * 0.42) * xf.basis
 					xf.origin.y += maxf(cos(ph), 0.0) * 0.18
 			mm.set_instance_transform(i, xf)

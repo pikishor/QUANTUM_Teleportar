@@ -35,10 +35,10 @@ static func build(kind: String, spec: Dictionary) -> Node3D:
 			mi.visibility_range_end_margin = 6.0
 		elif part["name"] == "Body" and c["parts"].size() > 1 and c["parts"][1]["name"] == "Body_LOD1":
 			mi.visibility_range_end = LOD_AT
-			mi.visibility_range_end_margin = 3.0
+			mi.visibility_range_end_margin = MachAnim.lod_margin(3.0)
 		elif part["name"] == "Body_LOD1":
 			mi.visibility_range_begin = LOD_AT
-			mi.visibility_range_begin_margin = 3.0
+			mi.visibility_range_begin_margin = MachAnim.lod_margin(3.0)
 		elif part["name"] == "Glow":
 			mi.visibility_range_end = GLOW_FAR
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
