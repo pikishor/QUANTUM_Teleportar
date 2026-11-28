@@ -38,6 +38,7 @@ var chapters_wanted := 4
 var verbose := false
 var max_real_seconds := 1.0e9
 var debug_walk := false
+var dry_swap := OS.get_environment("AUDIT_DRY_OLD") != "1"     ## w128-ci: shoot() pulls the trigger of a dry gun with no reserve left (AUDIT_DRY_OLD=1: the old bot only tapped RELOAD, which does nothing then, and stood there until the step timed out)
 
 var _held := {}
 var _tap_off := {}
@@ -370,6 +371,9 @@ func pick_foe(prefer: Node3D = null, reach := SHOOT_RANGE) -> Drone:
 ## Shoot `foe` with the real weapon: aim through the camera rig, fire, reload when empty. Returns true when it is shooting.
 func shoot(foe: Drone) -> bool:
 	if p.weapon.ammo <= 0 and not p.weapon.is_reloading():
+		if p.weapon.reserve == 0 and dry_swap:
+			hold(&"fire", true)                                # w128-ci: dry and nothing in reserve: RELOAD does nothing; a player pulls the trigger and the game swaps to a weapon that still shoots (PlayerWeapon._auto_swap)
+			return false
 		hold(&"fire", false)
 		tap(&"reload")
 		return false
@@ -469,6 +473,9 @@ func play_chapters(count: int, from_chapter := 0, from_step := 0) -> void:
 			story.set_chapter(from_chapter)
 			story.skip_cards()
 		camp.start_chapter(from_chapter, from_step, true)
+	if OS.get_environment("FORCE_WEAPON") != "":         # development (w128-ci): start with this weapon, e.g. FORCE_WEAPON=d_rook (a DMR with 96 spare rounds) to see what a crate weapon that runs dry does
+		WeaponDefs.unlock(StringName(OS.get_environment("FORCE_WEAPON")))
+		p.weapon.switch_to(StringName(OS.get_environment("FORCE_WEAPON")), true)
 	var real0 := Time.get_ticks_msec()
 	while _chapters_done < count and game_clock < max_game_seconds and float(Time.get_ticks_msec() - real0) / 1000.0 < max_real_seconds:
 		await _frame()
@@ -858,7 +865,6 @@ func _boss_play(t: VerbBoss) -> bool:
 	var foe := pick_foe(t)
 	if verbose and int(_step_t) % 10 == 0 and int(_step_t * 10.0) % 10 == 0:
 		print("BOSS %s t=%.0f hp=%.0f/%.0f dist=%.0f los=%s exposed=%s hint='%s' ammo=%d reloading=%s boss_pos=%s me=%s active=%s aware=%s" % [str(t.mode), _step_t, t.hp, t.max_hp, d, str(foe == t), str(t.exposed()), t.hint(), p.weapon.ammo, str(p.weapon.is_reloading()), str(t.global_position), str(p.global_position), str(t.active), str(t.aware)])
-		print("WPN cur=%s ammo=%d mag=%d reserve=%d fire=%s swap_t=%.2f reload_t=%.2f slots=%s holding=%s" % [str(p.weapon.current), p.weapon.ammo, p.weapon.mag, p.weapon.reserve, str(Input.is_action_pressed(&"fire")), p.weapon.swap_t, p.weapon.reload_t, str(LoadoutSlots.carried()), str(SnakeWar.holding())])
 	_boss_tap -= dt
 	p.energy = maxf(p.energy, 60.0)
 	match t.mode:
