@@ -17,3 +17,4 @@ NEXT: import; full suite in background (scratchpad/suite.sh D=suite129); triage 
 - FIX D REVERTED (-1 draw, +10k tris)
 - FIX E: AirDraws.city_cull takes the StreetKit out beyond DETAIL_OUT 300 m outside the city; AirDraws terrain_groups also joins LOD0 chunks (lod0_join) and _join uses SurfaceTool.append_from (native). terrain_world + airfield_w129 PASS. measuring pen7_low.txt (heli,flight)
 - pen7 LOW: heli 99, flight 110 (tris 150k) PASS. HEAD copy imported at scratchpad/head129/godot
+- FIX F (real bug, wave): test_integration "freeing the game leaves no nodes behind" 242 -> 253 on the wave tree (HEAD 244 PASS): MachAnim's car exhaust created BlastFx under the FX autoload (8 nodes) that outlived the game. MachAnim._fx(): frees it with Game.world when a machine made it (W129I_OLD=1 = old).
